@@ -1,9 +1,7 @@
 class_name LootGen
 extends RefCounted
 
-## Rolls modules and hulls. Rarity ladder: Common..Legendary are manufactured,
-## Exotic is grown/harvested, Artifact is precursor. Region biasing is what
-## makes set bonuses reachable by route choice rather than luck.
+## Region biasing makes set bonuses reachable by route choice, not luck.
 
 ## THE RARITY GATES, IN TIERS (`MapGen.tier`, 1-5), not in danger. Materials read
 ## the same numbers (`MaterialTable.TIER_MIN`), so the two ladders cannot drift.
@@ -17,21 +15,14 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	# Every threshold below was tuned against the five-tier ladder. Read the
 	# wider scale through tier() rather than restating all of them.
 	var danger := MapGen.tier(danger_in)
-	# A Territory region can force a manufacturer that cannot appear -- switched
-	# off by the active-manufacturer gate, or not unlocked on this profile.
-	# Honouring that would empty the pool and collapse every drop in the region
-	# to the fallback, so roll it as an open one instead: Solari space on a
-	# fresh profile drops Korvan and unbranded parts like anywhere else.
+	# A forced manufacturer that cannot appear is rolled as open, or the pool empties.
 	if force_manufacturer != &"" and not can_appear(force_manufacturer):
 		force_manufacturer = &""
 
 	var pool: Array[StringName] = []
 	for id in DB.modules.keys():
 		var m: ModuleData = DB.modules[id]
-		# Yard stock is issued, not found. A wreck full of the same Hull Plating
-		# you launched with would crowd out the branded parts that a run is
-		# spent collecting, and the whole point of the generic kit is that it is
-		# the thing you are trying to replace.
+		# Yard stock is issued, not found, so wrecks do not crowd out branded parts.
 		if m.starter_only:
 			continue
 		if m.rarity >= ModuleData.Rarity.EXOTIC and not allow_unbranded:
@@ -46,13 +37,8 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 		if m.rarity == ModuleData.Rarity.LEGENDARY and danger < LEGENDARY_TIER:
 			continue
 		pool.append(id)
-	# AND SHALLOW LOOT STAYS SHALLOW (Jon, Oct 22: a hard game, where going deep
-	# is worth it). From halfway in -- tier 3, danger 5 -- no COMMON is rolled,
-	# by any source: wreck, bag, derelict, event, relic analysis, shelf, the
-	# custodian. Taken out of the pool built above rather than skipped inside
-	# the loop, so a pool this would empty (a Territory forcing a manufacturer
-	# with nothing above Common here) keeps its commons instead of collapsing to
-	# the one hard-coded part below.
+	# From danger 5 no COMMON rolls anywhere (Jon, Oct 22); removed from the pool first.
+	# Why: docs/why/LootGen.md#shallow-loot
 	if danger >= NO_COMMON_TIER:
 		var deep: Array[StringName] = []
 		for id in pool:
@@ -76,15 +62,8 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	m.scrap_value = int(round(ModuleData.SCRAP_VALUE[m.rarity] * r.randf_range(0.8, 1.3)))
 	return m
 
-## True when a manufacturer's parts and hulls may appear in this run: it is
-## switched on (`DB.ACTIVE_MANUFACTURERS`) AND this run has it unlocked
-## (`Run.unlocked_manufacturers`, read off the flight record at run start --
-## see `Unlocks.open_now`). Unbranded (manufacturer &"") always passes, so a
-## fresh profile's pool is Korvan plus unbranded and is never empty.
-##
-## THE ONE GATE. Every drop, shelf, yard hull, derelict hull, reward and the
-## custodian's body is rolled through `roll_module` or `roll_hull`, and both ask
-## this; a new way to hand the player a part should too.
+## The one gate: every drop, shelf and hull rolls through here, and new part sources should ask it.
+## Why: docs/why/LootGen.md#manufacturer-gate
 static func can_appear(manufacturer: StringName) -> bool:
 	if manufacturer == &"":
 		return true
@@ -92,12 +71,8 @@ static func can_appear(manufacturer: StringName) -> bool:
 		return false
 	return Run.unlocked_manufacturers.has(manufacturer)
 
-## EIGHT ENTRIES FOR AN EIGHT-VALUE ENUM. This was seven long against a Rarity
-## that ends at CONTRABAND, so `_affix_count(CONTRABAND)` indexed past the end.
-## Nothing in the module tables is authored contraband today and the rarity
-## upgrade roll caps at LEGENDARY, so it was unreachable rather than broken —
-## which is the kind of thing that stays unreachable right up until somebody
-## authors the first contraband part.
+## Eight entries for the eight-value enum: `_affix_count(CONTRABAND)` indexed past the end.
+## Why: docs/why/LootGen.md#affix-counts
 static func _affix_count(r: ModuleData.Rarity) -> int:
 	return [0, 1, 2, 3, 3, 3, 2, 3][r]
 
@@ -114,11 +89,7 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 		if pick.contraband and r.randf() > 0.35 + 0.05 * danger:
 			avail.erase(pick)
 			continue
-		# AND SOME AFFIXES ARE SIMPLY SCARCER. A reactor pip is three cells of
-		# capacity and half a point of energy a turn, against one currency for
-		# every other gauge, so the two that pay it are rolled less often rather
-		# than made weaker — see AffixData.weight. Erased either way, so a
-		# refused pick costs the roll rather than looping on the same affix.
+		# Reactor affixes are scarcer, not weaker; a refused pick is erased so it cannot loop.
 		if pick.weight < 1.0 and r.randf() > pick.weight:
 			avail.erase(pick)
 			continue
@@ -126,12 +97,8 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 		out.append(pick)
 	return out
 
-## The frames a derelict or a yard can offer in this run: the three unbranded
-## salvage frames always, and every manufacturer's three that `can_appear`.
-## It drew from all of `DB.hull_frames` -- every manufacturer's, whatever was
-## switched on or unlocked -- so a fresh profile met Solari, Probate and Calyx
-## chassis on the blocks before it could fly any of them. Never empty: the
-## salvage frames carry no manufacturer.
+## Salvage frames plus unlocked makers, so a fresh profile never meets chassis it cannot fly.
+## Why: docs/why/LootGen.md#hull-pool
 static func hull_pool() -> Array[HullData]:
 	var out: Array[HullData] = []
 	for h in DB.hull_frames:
@@ -139,30 +106,9 @@ static func hull_pool() -> Array[HullData]:
 			out.append(h)
 	return out
 
-## A hull off a wreck. Draws from `hull_pool()`, so a derelict can offer either
-## an unbranded salvage frame or somebody's chassis — and a found chassis moves
-## your set count, which is what makes "should I take it" a question with more
-## than one number in it.
-##
-## The perk is REROLLED even on a manufacturer hull, unlike the one you start
-## with, which keeps the perk its manufacturer authored. A ship you were handed at the
-## yard is to spec; a ship you cut out of a wreck is whatever it ended up as.
-## WHAT GRADE A YARD AT EACH TIER CAN OFFER, authored rather than derived.
-##
-## It was `int(danger / 1.6) + randi() % 2`, which put C on tier 1 alone -- the
-## first ring or two of a fifteen-layer galaxy, and half of those rolls came out
-## B anyway. So the bottom grade barely existed, and "bad ships on the outskirts"
-## was a thing the arithmetic technically allowed rather than a thing you saw.
-##
-## Weighted by repetition, which is the same trick `TIER_DELTA` uses: a grade
-## listed twice is twice as likely. Read down the columns and the ladder is
-## legible -- C through the outer half, S only in the inner.
-##
-##   tier 1  C C B        outskirts: scrap, and the occasional decent frame
-##   tier 2  C B B
-##   tier 3  C B B A      the middle: a C is still possible and still cheap
-##   tier 4  B A A S      S becomes reachable
-##   tier 5  A S S        the core, where a bad ship would be a story
+## Grades are authored by repetition, not derived: the sum made C almost nonexistent.
+## A derelict hull's perk is rerolled; a yard-issued ship keeps its authored one.
+## Why: docs/why/LootGen.md#hull-grades
 const GRADES_AT := {
 	1: [0, 0, 1],
 	2: [0, 1, 1],
@@ -175,36 +121,16 @@ static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> Hu
 	var danger := MapGen.tier(danger_in)
 	var base: HullData = Rng.pick(r, hull_pool())
 	var t: int = Rng.pick(r, GRADES_AT[danger])
-	# The grade itself is AUTHORED now — see DB.TIER_DELTA. What used to happen
-	# here was the whole tier system: a bag of bumps with a hardpoint on a coin
-	# flip, so two A-class Bastions could differ by a mount and neither was the
-	# ship the letter named.
+	# Grade is authored (`DB.TIER_DELTA`), so two same-class hulls no longer differ by a mount.
 	var h := DB.at_tier(base, t)
-	# Jitter stays, because "a god-rolled B can rival a bad A" is a good property
-	# and the authored table alone would make every B identical. It is CENTRED ON
-	# ZERO now rather than added on top: the grade supplies the increase, this
-	# only says how well this particular hull wore it. It widens with the grade
-	# because there is more ship to vary.
+	# Jitter is centred on zero and widens with grade, so a good B can rival a bad A.
 	var spread := 1 + t
 	h.max_hull = maxi(1, h.max_hull + r.randi_range(-spread, spread))
 	h.heat_cap = maxi(1, h.heat_cap + r.randi_range(-1, 1))
-	# THE MANUFACTURER PERK IS REROLLED, THE GRADE'S ARE NOT. A derelict is somebody
-	# else's ship with an unknown yard behind it, so its manufacturer perk is a roll --
-	# but `at_tier` granted the ladder its GRADE earns, and overwriting the one
-	# must not quietly discard the other.
+	# Only the manufacturer perk is rerolled; the grade's perks must not be discarded.
 	h.perk_id = Rng.pick(r, DB.hull_perks.keys())
-	# A C-TIER CARRIES SOMETHING ODD, and this is the only reason to buy one.
-	#
-	# `DB.tier_perks_for` starts at B, so a C has exactly one perk -- the
-	# manufacturer's -- which is also all a STARTER hull has. Against the ship you
-	# launched in, a C on the blocks was smaller, weaker, had fewer mounts and
-	# offered nothing the starter did not: a purchase with no argument for it at
-	# any price. One extra perk is the argument. It is a cheap frame somebody
-	# else fitted out, and what they left in it is the point.
-	#
-	# ON THE HULL, NOT THE LADDER. Putting it in `TIER_PERKS` would grant it to
-	# every C in the game including the one the player starts in, which is a
-	# different change and not this one.
+	# A C carries one extra perk, the only argument for buying one; on the hull, not the ladder.
+	# Why: docs/why/LootGen.md#c-tier-oddity
 	if t == 0:
 		var spare: Array = DB.hull_perks.keys().filter(
 			func(k: StringName) -> bool: return k != h.perk_id)

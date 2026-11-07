@@ -1,44 +1,15 @@
 extends RefCounted
 
-## Four peers, one process, no network hardware.
-##
-##   godot --headless --path . -- nettest
-##
-## RUN THIS AFTER TOUCHING ANYTHING IN scripts/net/. A session layer fails the
-## same way a save file does: silently, and in front of other people. A roster
-## that drops a player, a refusal that arrives as a bare disconnect, or two
-## machines that launch on different seeds all look like working code and are
-## only visible when four humans have already set aside an evening.
-##
-## The trick that makes this possible in one process is SceneMultiplayer's
-## root_path. Each peer gets its own branch under the tree root and its own
-## MultiplayerAPI rooted at that branch, so every peer's NetSession answers to
-## the same relative path "Net" while living at a different absolute one. RPCs
-## resolve by the relative path, so the peers can talk to each other exactly as
-## they would across a wire. Without this the test would need four processes
-## and could not run in CI.
-##
-## What this proves: codes survive a round trip and refuse typos; a party forms
-## and the roster reaches everyone; the two version refusals fire and arrive as
-## readable text; a full party turns the next one away; a launch puts the
-## same seed on every machine; a ship crosses the wire and comes back as
-## the same ship on the other machine; a system consumed on one machine is
-## consumed on all of them; and losing the host is reported rather than
-## swallowed.
-##
-## What this does NOT prove: that any of it works through a NAT. Nothing that
-## runs on one machine can prove that, and pretending otherwise is how the
-## direct transport gets shipped as if it were finished.
+## Run after touching `scripts/net/`: session faults are silent and show in front of others.
+## A per-peer `root_path` fits four peers in one process; it cannot prove NAT traversal.
+## Why: docs/why/NetTest.md#test-scope
 
 const PORT_BASE: int = 34210
 
 var fails: int = 0
 var _tree: SceneTree
 var _branches: Array[Node] = []
-## Branch names are never reused. A MultiplayerAPI is registered against a node
-## path and there is no call to unregister one, so a second peer at a path the
-## first one used inherits a registration pointing at a freed node. Counting up
-## is cheaper than working around that.
+## Branch names are never reused: a `MultiplayerAPI` path cannot be unregistered.
 var _peer_serial: int = 0
 
 
@@ -56,9 +27,7 @@ func ok(what: String, condition: bool) -> void:
 
 func run(tree: SceneTree) -> void:
 	_tree = tree
-	# One frame before anything. run() is called from Main._ready(), and the
-	# tree root is still adding its own children at that moment — add_child()
-	# on it refuses, and every peer this test builds would come back rootless.
+	# Wait a frame: in `Main._ready()` the root refuses `add_child()` and peers are rootless.
 	await tree.process_frame
 	print("\n=== lobby codes ===")
 	_code_tests()
@@ -104,11 +73,8 @@ func run(tree: SceneTree) -> void:
 
 # --- the content check's order ----------------------------------------------
 
-## THE FINGERPRINT MUST NOT DEPEND ON HOW A PROCESS STARTED. Two exports of one
-## commit refused each other (Oct 20) because the ids were sorted as StringNames,
-## whose order is not their text. One process cannot see two orders, so this
-## holds the ids to the text: alphabetical, whatever order the table was built
-## in, and the module and enemy tables read that way.
+## Ids sort as text: two exports of one commit refused each other (Oct 20).
+## Why: docs/why/NetTest.md#fingerprint-order
 func _fingerprint_order_tests() -> void:
 	var a := {&"zebra": 1, &"apple": 2, &"mango": 3, &"banana": 4}
 	var b := {&"banana": 4, &"mango": 3, &"zebra": 1, &"apple": 2}
@@ -138,9 +104,7 @@ func _code_tests() -> void:
 		check("direct %s is 12 characters" % code, code.length(), 12)
 		check("direct %s parses clean" % code, back.error, "")
 
-	# Every room number is five characters and comes back as itself. A thousand
-	# rolls rather than a handful, because a bit-packing error usually only
-	# shows on the values that straddle a character boundary.
+	# A thousand rolls, as bit-packing errors only show on values straddling a character boundary.
 	for i in 1000:
 		var room := LobbyCode.roll_room()
 		var code := LobbyCode.encode_room(room)
@@ -197,11 +161,7 @@ func _party_test() -> void:
 	print("  code: %s" % LobbyCode.pretty(code))
 	check("the host holds slot 1", host.party_size(), 1)
 
-	# SEATS, not four. This test was written when the cap was four and asserted
-	# the number in nine places; the cap became eight and every one of them went
-	# stale, unnoticed, because `-- nettest` was not in the merge gate. Both
-	# halves of that are fixed: the gate runs it now, and the only place the
-	# number lives is NetTransport.
+	# Uses `MAX_PLAYERS`: nine hardcoded fours went stale when the cap became eight.
 	var seats := NetTransport.MAX_PLAYERS
 	var clients: Array = []
 	for i in seats - 1:
@@ -210,9 +170,7 @@ func _party_test() -> void:
 		c.join_party(code, "Pilot%d" % i, &"korvan", ct)
 		clients.append(c)
 
-	# The host reaching a full party is not the party reaching it. The roster is
-	# a broadcast, and a client that has not polled it yet still reads one short
-	# — so the wait has to be on the last machine to agree, not the first.
+	# Wait on the last machine to agree: the roster is a broadcast and clients lag the host.
 	var joined := await _wait_until(func() -> bool:
 		if host.party_size() != seats:
 			return false
@@ -226,10 +184,7 @@ func _party_test() -> void:
 		check("client %d sees %d" % [i, seats], clients[i].party_size(), seats)
 		check("client %d is in the party" % i, clients[i].state, NetSession.State.IN_PARTY)
 
-	# Names crossed the wire, not just ids. Compared as a set, and only the host
-	# is asserted to be first: three clients dialling at once arrive at the host
-	# in whatever order ENet delivers them, so the tail of the roster is not
-	# deterministic and a test that pretends it is fails one run in six.
+	# Names compared as a set, host first: ENet delivery order of the clients is not deterministic.
 	var names: Array = []
 	for row in clients[0].slots():
 		names.append(row.name)
@@ -260,10 +215,7 @@ func _party_test() -> void:
 
 	ok("a client cannot start the dive", not clients[0].launch_dive())
 	ok("the host can", host.launch_dive())
-	# Every client, not just one. The launch is a broadcast and the last peer to
-	# see it is the one that matters — waiting on a single client passes while
-	# another is still sitting in the lobby, which is the exact bug the test is
-	# supposed to catch.
+	# Wait on every client: the launch is a broadcast and the last peer to see it matters.
 	var launched := await _wait_until(func() -> bool:
 		for c in clients:
 			if c.state != NetSession.State.DIVING:
@@ -293,22 +245,18 @@ func _party_test() -> void:
 # --- refusals -------------------------------------------------------------
 
 func _refusal_tests() -> void:
-	# Against NetSession.PROTOCOL, not against the number it happens to be
-	# today. The message names the host's version, so a hardcoded 1 here turns
-	# the next protocol bump into a test failure that says nothing true.
+	# Against `NetSession.PROTOCOL`, so the next bump does not fail with a false message.
 	await _one_refusal("a different protocol", PORT_BASE + 1, 99, 0,
 		"Different game version. Host is protocol %d, you are 99." % NetSession.PROTOCOL)
-	# THE ONE BEFORE THE PAIR TURNED (PROTOCOL 13): its spots are two numbers
-	# short and say star B's close orbit as the point where B stood on its own
-	# clock, so it is turned away at the door, by name
+	# PROTOCOL 13 peers are turned away by name: their spots are two numbers short.
+	# Why: docs/why/NetTest.md#protocol-refusals
 	await _one_refusal("a version 13 peer", PORT_BASE + 32, 13, 0,
 		"Different game version. Host is protocol %d, you are 13." % NetSession.PROTOCOL)
 	ok("PROTOCOL is past 13, when the pair held still", NetSession.PROTOCOL >= 14)
 	# (and past 14, which built twice the stations from the same seed, Nov 3)
 	ok("PROTOCOL is past 14, when stations were twice as many", NetSession.PROTOCOL >= 15)
-	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16, Jon, Nov 4): a 15 peer sends a
-	# presence one number short and grows the boss on its own jumps, so it is
-	# turned away at the door, by name
+	# PROTOCOL 16 (Jon, Nov 4): a 15 peer grows the boss on its own jumps, so it is refused.
+	# Why: docs/why/NetTest.md#protocol-refusals
 	await _one_refusal("a version 15 peer", PORT_BASE + 33, 15, 0,
 		"Different game version. Host is protocol %d, you are 15." % NetSession.PROTOCOL)
 	ok("PROTOCOL is past 15, when each ship grew its own Custodian", NetSession.PROTOCOL >= 16)
@@ -324,9 +272,7 @@ func _refusal_tests() -> void:
 	await _one_join("a run from source joining an export", PORT_BASE + 31,
 		"0.1.0-alpha.1 · aaaaaaa", "dev")
 
-	# A code that parses but points at nothing. This is the common case in the
-	# real world — a host who never forwarded the port — and it must not look
-	# like a typo, because the two have opposite fixes.
+	# A code that parses but points nowhere is the common case, and must not look like a typo.
 	var lonely := _make_peer("lonely")
 	lonely.join_party(LobbyCode.encode_direct("127.0.0.1", PORT_BASE + 90), "Nobody", &"redline", DirectTransport.new())
 	var gave_up := await _wait_until(func() -> bool: return lonely.state == NetSession.State.FAILED, 6.0)
@@ -393,13 +339,8 @@ func _one_join(what: String, port: int, host_build: String, client_build: String
 
 # --- what everybody is flying ---------------------------------------------
 
-## The description on its own, before any network is involved.
-##
-## Deliberately given values a real run would take a while to reach — a part on
-## the third hardpoint, a part built by somebody who did not build the hull, a
-## ship over its heat cap — because those are the fields whose loss is invisible.
-## A build that comes back with every mount at zero draws every gun on the spine
-## and looks like a rendering decision.
+## Values a real run takes long to reach, as losing those fields would be invisible.
+## Why: docs/why/NetTest.md#wire-tests
 func _wire_tests() -> void:
 	var b := ShipBuild.new()
 	b.pilot = "Mercer"
@@ -425,18 +366,13 @@ func _wire_tests() -> void:
 	# arrive as itself rather than clamped on the way.
 	ok("and an overheat arrives as an overheat", back.heat_ratio() > 1.0)
 
-	# A showroom hull is an ordinary build with nothing on it. ShipView has no
-	# preview MODE any more, so this is what makes the chassis select show a
-	# bare ship rather than the one you are flying.
+	# A showroom hull is an ordinary build with nothing on it, as `ShipView` has no preview mode.
 	var shown := ShipBuild.showroom(DB.hull_for(&"korvan", HullData.Weight.LIGHT))
 	check("a showroom ship carries no parts", shown.parts.size(), 0)
 	check("and is undamaged", shown.damage(), 0.0)
 	check("and is cold", shown.heat_ratio(), 0.0)
 
-	# And a message that makes no sense. A weight class of 99 names no hull, and
-	# the slot that draws a partner asks that hull for its manufacturer — so the
-	# cost of not checking is the sector screen going down, on every machine,
-	# because of one bad field on one peer.
+	# A weight of 99 must not take down the sector screen on every machine over one bad peer.
 	var junk := ShipBuild.from_wire({"manufacturer": &"nobody", "weight": 99,
 		"parts": "not a list", "hp": "seven"})
 	ok("nonsense off the wire still names a hull", junk.hull != null)
@@ -445,15 +381,8 @@ func _wire_tests() -> void:
 	ok("and so does an empty message", empty.hull != null)
 
 
-## A ship described on one machine, drawn on another.
-##
-## The failure this catches is not "no ship appears" — that is loud. It is a
-## partner drawn as the WRONG ship, which looks like art rather than like a bug
-## and which cannot be seen without two machines.
-##
-## Nothing here asks for a build to be sent. That is the point: fitting a
-## chassis is what a player does, and the party seeing it is supposed to be a
-## consequence rather than a call somebody remembered to make.
+## Catches a partner drawn as the wrong ship, which looks like art, not a bug.
+## Why: docs/why/NetTest.md#build-test
 func _build_test() -> void:
 	var host := _make_peer("host")
 	var t := DirectTransport.new()
@@ -468,10 +397,7 @@ func _build_test() -> void:
 		await _teardown()
 		return
 
-	# One process holds one `Run`, so both peers describe the same ship. That is
-	# a limit of the harness and not of the feature — what is being checked is
-	# that a description travels intact in both directions, which does not need
-	# the two ships to differ.
+	# One process holds one `Run`, so both peers describe the same ship: a harness limit only.
 	Run.fit_chassis(&"solari", HullData.Weight.HEAVY)
 	var told := await _wait_until(func() -> bool: return c.build_of(1) != null, 3.0)
 	ok("the host's ship reached the client without being asked for", told)
@@ -513,11 +439,7 @@ func _build_test() -> void:
 
 # --- one map, not four ----------------------------------------------------
 
-## The local half, with nobody to tell.
-##
-## `consume_node()` is the one door and it has to work in the solo game
-## unchanged, because every call site was rewritten to use it. A chokepoint that
-## only works in a party is a chokepoint that broke the game for one player.
+## `consume_node()` must work in the solo game too, or the chokepoint broke it for one player.
 func _consume_tests() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n: MapGen.MapNode = Run.map[12]
@@ -540,24 +462,16 @@ func _consume_tests() -> void:
 	Net.claims = {40: {MapGen.OPTION_WHOLE: 2}, 41: {3: 2}, 99999: {0: 2}, -3: {0: 2}}
 	Run.adopt_party_claims()
 	ok("a claim from the party clears this machine's copy", Run.map[40].cleared)
-	# One OPTION taken is not the whole system taken. That distinction is the
-	# entire point of the option id: a ship that stripped the wreck has not also
-	# taken the fight that was waiting beside it.
+	# One option taken is not the whole system: stripping the wreck leaves the fight.
 	ok("but one option taken leaves the system open", not Run.map[41].cleared)
 	ok("and the option itself is recorded", Run.map[41].taken.has(3))
-	# Out-of-range indices cannot happen behind the content fingerprint and a
-	# shared seed. They are checked because the alternative is an index error
-	# taking the chart down on whoever receives it.
+	# Checked because a bad index would otherwise take the chart down on the receiver.
 	ok("an index off the end of the map is ignored, not fatal", true)
 	Net.claims = {}
 
 
-## A PARTNER'S CLAIM NEVER CLOSES THIS SHIP'S OWN OPTIONS (Oct 22). A placed
-## event quest and a contract pickup are each one ship's (`OptionTable.is_mine`):
-## taking one asks nobody, and a claim on the same system and slot index, which
-## on the partner's map is their own quest or pickup, leaves mine open. Before
-## my list is rolled the claim is kept, and the roll drops it if it lands past
-## the rolled list, so what I append there next is not born taken.
+## A partner's claim never closes this ship's own options (Oct 22).
+## Why: docs/why/NetTest.md#per-ship-claims
 func _per_ship_claim_tests() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	ok("an event quest and a contract pickup are per ship, a rolled event is not",
@@ -613,13 +527,8 @@ func _solo_take_test() -> void:
 	ok("and cannot take the same thing twice", not again)
 
 
-## The networked half: one machine uses a system up, and every other machine
-## agrees that it is used up.
-##
-## This is the message that stops four players each stripping the same derelict.
-## The wreck holds the same two modules on all four machines already — that is
-## what the shared seed and `Rng.derive()` buy — so without this the hold
-## economy in `docs/coop-design.md` §3 pays out four times for one wreck.
+## This message stops four players each stripping the same derelict.
+## Why: docs/why/NetTest.md#map-test
 func _map_test() -> void:
 	var host := _make_peer("host")
 	var t := DirectTransport.new()
@@ -683,9 +592,7 @@ func _map_test() -> void:
 		host.taken_at(214).size(), 2)
 	check("and the party has still used two systems", host.claims.size(), 2)
 
-	# THE RACE. Both clients ask for the same thing in the same frame, without
-	# either waiting first. Exactly one may come away with it, and the loser has
-	# to be told who did — before it rolls any loot.
+	# The race: exactly one of two same-frame askers wins, and the loser is told who did.
 	var got: Array = [0, 0]
 	_take_into(others[0], 300, got, 0)
 	_take_into(others[1], 300, got, 1)
@@ -702,9 +609,7 @@ func _map_test() -> void:
 	check("exactly one of them won", winners, 1)
 	print("  two ships asked for option 300 at once; %s got it" % host.taker_name(300))
 
-	# Where everybody is. One process holds one `Run`, so all three report the
-	# same system — what is being checked is that the number travels at all and
-	# lands in the right slot.
+	# One process holds one `Run`, so this only checks the number travels into the right slot.
 	var placed := await _wait_until(func() -> bool:
 		return host.where_is(1) == Run.at and others[0].where_is(1) == Run.at, 4.0)
 	ok("everybody's position reaches everybody", placed)
@@ -751,9 +656,7 @@ func _host_loss_test() -> void:
 
 # --- shared fights --------------------------------------------------------
 
-## The rules, with no wire under them. Everything here is what the host decides
-## when a second ship walks into a fight, and none of it needs a peer to be
-## true — which is the point of SharedFight being a plain RefCounted.
+## Rules with no wire, which is why `SharedFight` is a plain `RefCounted`.
 func _fight_rules_test() -> void:
 	var f := SharedFight.open(42, PackedStringArray(["cutter"]),
 		PackedInt32Array([100]), PackedInt32Array([3]), PackedInt32Array([100]), 11)
@@ -768,14 +671,10 @@ func _fight_rules_test() -> void:
 	check("three in the crew", f.crew.size(), 3)
 	ok("joining twice is joining once", not f.join(22))
 
-	# Block first, then brace, per hit — the same order Combat.damage_enemy
-	# spends them in. If these two ever disagree the hull bar contradicts the
-	# combat log.
+	# Block first, then brace, as `Combat.damage_enemy` does, or the hull bar and log disagree.
 	f.foes[0].block = 5
 	var landed := f.hurt(0, 10, 2, 22)
-	# Two hits of 10 into 5 block and 3 brace: the first hit spends both and
-	# lands 2, the second lands all 10. Mitigation is per-fight, not per-hit,
-	# which is what makes multi-hit cards good into brace.
+	# Mitigation is per fight, not per hit, which makes multi-hit cards good into brace.
 	check("block and brace come off the first hit only", landed, 12)
 	check("hull took exactly that", f.foes[0].hp, 208)
 	check("the shot is stamped with who fired it", f.last_hit[0], 22)
@@ -818,9 +717,7 @@ func _fight_rules_test() -> void:
 	var junk := SharedFight.from_wire({"at": 3, "foes": [42, [], "x"]})
 	check("a malformed fight arrives empty rather than wrong", junk.foes.size(), 0)
 
-	# THE COUNT ITS HULL WAS GROWN AT (PROTOCOL 16) is on the wire: it
-	# round-trips, a fight without one (a cutter's) says -1, and a wild one is
-	# held to a count a run can reach
+	# The count its hull was grown at (PROTOCOL 16) is on the wire; a cutter's says -1.
 	var g20 := SharedFight.open(5, PackedStringArray(["custodian"]), PackedInt32Array([243]),
 		PackedInt32Array([8]), PackedInt32Array([243]), 1, 20)
 	check("a fight's grown count round-trips", SharedFight.from_wire(g20.to_wire()).grown, 20)
@@ -831,11 +728,8 @@ func _fight_rules_test() -> void:
 	check("and low", SharedFight.from_wire({"at": 5, "grown": -40}).grown, -1)
 
 
-## THE BOSS GROWS MID-FIGHT (Jon, Nov 4, decision 2), with no wire under it:
-## a Custodian opened at 20 jumps, joined and hurt, grown to 33. Its hull is the
-## joined hull times hull_at(33) / hull_at(20), the damage done stays done, a
-## later joiner adds 0.6 of the new hull, and a pilot who left first changes
-## nothing (join growth never shrinks back).
+## The boss grows mid-fight (Jon, Nov 4, decision 2): damage done stays done.
+## Why: docs/why/NetTest.md#boss-growth
 func _growth_rules_test() -> void:
 	var cust: EnemyTemplate = DB.enemies[&"custodian"]
 	var h20 := cust.hull_at(20)
@@ -878,9 +772,7 @@ func _growth_rules_test() -> void:
 	var none := SharedFight.open(11, PackedStringArray(["custodian"]), PackedInt32Array([h20]),
 		PackedInt32Array([0]), PackedInt32Array([h20]), 1)
 	ok("a fight with no grown count does not grow", not none.regrow(33, NetSession.growth_ratios(none, 33)))
-	# ASLEEP AND CAPPED: a count before the wake (to 15) or past the cap (33)
-	# grows no hull, so regrow says nothing moved (the host pushes nothing and
-	# no log says it grew), but the fight's count still rises
+	# Asleep or capped counts grow no hull but the fight's count still rises.
 	var h7 := cust.hull_at(7)
 	var asleep := SharedFight.open(12, PackedStringArray(["custodian"]), PackedInt32Array([h7]),
 		PackedInt32Array([0]), PackedInt32Array([h7]), 1, 7)
@@ -933,10 +825,7 @@ func _growth_fold_test() -> void:
 	check("nor one in another galaxy (a NEW RUN while diving)", host._my_jumps(), -1)
 	host.dive_seed = Run.galaxy_seed
 	check("but one on the dive's galaxy says its own", host._my_jumps(), Run.jumps)
-	# A NEW RUN WHILE DIVING (a pilot who died and pressed NEW RUN is in
-	# another galaxy, still in the party): the session's copy of the lead
-	# ship's count moves, the run's does not, on the host's fold and on a
-	# guest's push alike
+	# A pilot on NEW RUN is in another galaxy: only the session's copy of the count moves.
 	var kept_seen := Run.custodian_seen
 	Run.party_jumps = 0
 	Run.custodian_seen = 0
@@ -1059,12 +948,8 @@ func _fight_net_test() -> void:
 	await _teardown()
 
 
-## Who the enemy swings at.
-##
-## The rule is `0.5 + heat_ratio`, and both halves matter. The ratio is what
-## makes running hot dangerous INSIDE a fight rather than only on the map, which
-## is `docs/coop-design.md` §6 one level down. The floor is what stops a party from
-## solving the fight by electing a victim: a cold ship is safer, never safe.
+## The rule is `0.5 + heat_ratio`: heat matters in a fight, and the floor stops electing a victim.
+## Why: docs/why/NetTest.md#targeting
 func _targeting_test(host: NetSession) -> void:
 	var f := SharedFight.open(9, PackedStringArray(["x"]),
 		PackedInt32Array([10]), PackedInt32Array([0]), PackedInt32Array([10]), 1)
@@ -1100,24 +985,8 @@ func _targeting_test(host: NetSession) -> void:
 
 # --- the same-second race (Nov 5) -------------------------------------------
 
-## TWO SHIPS, ONE SYSTEM, TWO DIFFERENT FIGHTS, ONE SECOND. A guest cannot know
-## whether it is opening a fight or joining one, so it plans its own enemy and
-## asks; the host keeps one fight per system and seats the second asker in the
-## first. Until Nov 5 the asker kept the enemy it planned and painted the
-## party's numbers on it: Y's attack names over X's hulls, a softlock when Y had
-## more hulls than X (its extra hull lived only on that machine, so the kill
-## never came), a second hull nobody could shoot when X had more. Jon: "Yeah
-## you can fix it." So every asker takes the host's answer: `Combat.begin`
-## builds the enemy from the fight's ids when they are not the ones it planned.
-##
-## Each asker here is a real `Combat`, planned, asked through its session and
-## begun on the answer, as `Router.start_combat` does it. The packs differ in
-## size both ways: an asker that planned one hull and got two, and one that
-## planned two and got one.
-## Then the two session holes: an ask the host is slow to answer is still
-## answered (no private fight while the link is up, and null once it drops),
-## and a ship that left a fight and asks again is joined again, grown once,
-## never handed the copy it left.
+## The asker takes the host's answer: a private plan left mismatched hulls and a softlock (Nov 5).
+## Why: docs/why/NetTest.md#fight-race
 func _race_test() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var host := _make_peer("rhost")
@@ -1141,18 +1010,14 @@ func _race_test() -> void:
 	var hulk: EnemyTemplate = DB.enemies[&"hulk"]
 	var marauder: EnemyTemplate = DB.enemies[&"marauder"]
 
-	# HOST FIRST, IN ONE FRAME: the host opens X (two hulls) and the guest's ask
-	# for Y (one hull) is already on its way. The host never shows the fault;
-	# its own open has no await between the check and the ask.
+	# Host first in one frame: its own open has no await between the check and the ask.
 	var x: Combat = _plan_race(cutter, [lancer])
 	await host.open_fight(401, x.foe_ids(), x.foe_hp(), x.foe_brace(), x.foe_hp_now(), x.grown)
 	var y: Array = await _ask_race(g[0], 401, hulk, [])
 	await _takes_answer("host first: the guest planned one hull, the host holds two", y[0], y[1], g[0], 401,
 		PackedStringArray(["cutter", "lancer"]))
 
-	# GUEST FIRST: the guest's ask for Y (one hull) lands, then the host starts
-	# X (two hulls). On the host the check before the ask would have seen Y; this
-	# is the answer path itself, and it runs on the host too.
+	# Guest first: this is the answer path itself, and it runs on the host too.
 	var gy: Array = [null, null]
 	_ask_race_into(g[0], 402, marauder, [], gy)
 	await _wait_until(func() -> bool: return host.fight_open_at(402), 4.0)
@@ -1184,10 +1049,7 @@ func _race_test() -> void:
 			await _takes_answer("two guests (Race%d first): Race%d takes it" % [order[0], k],
 				outs[k][0], outs[k][1], g[k], at, want)
 
-	# A REPEAT ASK. A ship still in the fight asks again: it gets the fight back
-	# unchanged, crew once, nothing grown. A ship that LEFT and asks again in the
-	# same frame (SAVE & EXIT then CONTINUE, quickly) is a new arrival: joined,
-	# grown once, and never handed the copy it left, which still lists it.
+	# A ship that left and asks again is a new arrival, never handed the copy it left.
 	var before: int = host.fight_at(401).foes[0].max_hp
 	var again: Array = await _ask_race(g[0], 401, cutter, [lancer])
 	var fa: SharedFight = again[1]
@@ -1195,9 +1057,7 @@ func _race_test() -> void:
 		fa != null and fa.foe_ids == PackedStringArray(["cutter", "lancer"]))
 	check("(race) and grows nothing", host.fight_at(401).foes[0].max_hp, before)
 	check("(race) and seats it once", Array(host.fight_at(401).crew).count(g[0].local_id()), 1)
-	# THE HOST ALWAYS ANSWERS (review, Nov 5): a ship already seated whose own
-	# copy does not list it (gone, or a push behind) asks again. With no time
-	# limit on the wait, an ask the host met with silence waited for ever.
+	# The host always answers (review, Nov 5), or an ask met with silence waited for ever.
 	g[0].fights.erase(401)
 	var mute: Array = [null, null, -1.0]
 	_ask_race_into(g[0], 401, cutter, [lancer], mute)
@@ -1220,9 +1080,7 @@ func _race_test() -> void:
 		return Array(host.fight_at(401).crew).count(g[0].local_id()) == 1, 3.0)
 	ok("(race) and is in the host's crew once", in_once)
 
-	# ALONE IN A FIGHT, A SHIP THAT LEAVES ENDS IT IN ITS OWN COPY at once
-	# (review, Nov 5): the copy kept `over` false with an empty crew until the
-	# host's push, and the JOIN bar could offer that same fight with no names.
+	# Alone in a fight, leaving ends it in the copy at once (review, Nov 5), or JOIN offered it.
 	var solo: Array = await _ask_race(g[1], 412, cutter, [])
 	ok("(race) a ship opens a fight alone", solo[1] != null and (solo[1] as SharedFight).crew.size() == 1)
 	g[1].leave_fight(412)
@@ -1231,11 +1089,8 @@ func _race_test() -> void:
 		str(mine.over), str(mine.crew)], mine.over and mine.crew.is_empty() and not g[1].fight_open_at(412))
 	await _wait_until(func() -> bool: return host.fight_at(412).over, 3.0)
 
-	# THE SLOW ANSWER. Past TAKE_TIMEOUT the ask used to come back null and the
-	# guest fought a private copy of the enemy, though the host had seated it:
-	# its fight never said END TURN, so the party sat on "WAIT", and at the core
-	# that was a second Custodian it could win the run against. Now it waits for
-	# as long as the link is up.
+	# A slow answer must wait while the link is up, or the guest fights a private enemy copy.
+	# Why: docs/why/NetTest.md#fight-race
 	host.hold_asks = true
 	var slow: Array = [null, null, -1.0]
 	var t0 := Time.get_ticks_msec()
@@ -1277,9 +1132,7 @@ func _ask_race(session: NetSession, at: int, lead: EnemyTemplate, extras: Array)
 	return [cb, f]
 
 
-## The same, fire and forget, into `out`: [Combat, answer] and, when `out` has
-## a third slot, the ms it took to come back null (-1 until then). For the
-## asks a test watches while they wait.
+## Fire and forget into `out`, for asks a test watches while they wait.
 func _ask_race_into(session: NetSession, at: int, lead: EnemyTemplate, extras: Array, out: Array) -> void:
 	var t0 := Time.get_ticks_msec()
 	var cb := _plan_race(lead, extras)
@@ -1291,9 +1144,7 @@ func _ask_race_into(session: NetSession, at: int, lead: EnemyTemplate, extras: A
 	out[1] = f
 
 
-## THE ASKER TAKES THE ANSWER: begun on the host's fight, its enemy is the
-## fight's, hull for hull, with the intent the host picked under each name, and
-## when the host's copy is all dead, so is this one.
+## The asker's enemy is the host fight's, hull for hull, with the intent the host picked.
 func _takes_answer(what: String, cb: Combat, f: SharedFight, session: NetSession, at: int,
 		want: PackedStringArray) -> void:
 	if cb == null or f == null:
@@ -1339,16 +1190,8 @@ func _picked_name(f: SharedFight, i: int) -> String:
 
 # --- one process, four multiplayer roots ----------------------------------
 
-## A FRIEND WHO JOINS AFTER LAUNCH IS IN THE DIVE. The seed went out once, at
-## LAUNCH, so a late joiner (or a friend whose game fell over and who typed the
-## code back in) was accepted, seated, and left in the lobby for good -- the
-## Oct 22 playtest's "kinda a mess". `-- cojoin late` flies it in two processes;
-## this holds the wire: the seed, the unlocks, what the party has used up, and
-## the fight open, all handed to the late ship at the door.
-##
-## And THE SPOT (PROTOCOL 11): where a ship is inside its system, relayed by the
-## host to everybody else, so the SECTOR map can draw partners flying round it.
-## Answered only for the system it was said about.
+## A friend joining after launch is handed seed, unlocks, used-up systems and the open fight.
+## Why: docs/why/NetTest.md#late-join
 func _late_join_test() -> void:
 	var port := PORT_BASE + 8
 	var host := _make_peer("host")
@@ -1371,11 +1214,7 @@ func _late_join_test() -> void:
 	host.open_fight(88, PackedStringArray(["cutter"]), PackedInt32Array([40]),
 		PackedInt32Array([0]), PackedInt32Array([40]))
 
-	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16). A Custodian's fight opened
-	# at 20 jumps folds them in, and the host's push says so to the guest; a
-	# guest's presence at 33 raises the host's count, its push the guest's, and
-	# grows the open fight on every copy; a ship behind it adds nothing. (The
-	# peers share one Run, so each machine's count is its session's copy.)
+	# One custodian for the galaxy (PROTOCOL 16): presence raises the count and grows the fight.
 	var kept_seed := Run.galaxy_seed
 	var kept_jumps := Run.jumps
 	var kept_party := Run.party_jumps
@@ -1402,10 +1241,7 @@ func _late_join_test() -> void:
 	early._mark_presence()
 	await _wait_frames(12)
 	check("a ship behind the lead does not lower it", host.galaxy_jumps, 33)
-	# THE HOST IS THE LEAD SHIP: its own jump reaches the count only through
-	# its jump handler (`_on_jumped`, on Sig.jumped), since a presence from
-	# id 1 is never folded. 35 is past the cap, so the open fight's count rises
-	# with no hull moving and the fight is not pushed for it
+	# The host is the lead ship: its jump reaches the count only through `_on_jumped`.
 	Run.jumps = 35
 	host._on_jumped(Run.at)
 	check("the host's own jump to 35 raises the count", host.galaxy_jumps, 35)
@@ -1417,10 +1253,7 @@ func _late_join_test() -> void:
 	ok("and not pushed for a growth that moved no hull (the guest's copy says %d)" % early.fight_at(90).grown,
 		early.fight_at(90) != null and early.fight_at(90).grown == 33)
 	Run.jumps = 12
-	# THE STALE PRESENCE (found reading the code for PROTOCOL 16): a guest
-	# seated in a dive under way sends presence from the ship its Run still
-	# holds, then from the dive's; that move of `at` is no jump, and must not
-	# tick the hellbender's clock. Its next jump does.
+	# A stale presence moving `at` is no jump and must not tick the hellbender's clock.
 	Run.hellbender_at = 3
 	Run.hellbender_hp = maxi(1, Run.hellbender_hp)
 	Run.hellbender_ticks = 0
@@ -1479,10 +1312,7 @@ func _late_join_test() -> void:
 	Run.party_jumps = kept_party
 	Run.custodian_seen = kept_seen
 
-	# The spot: said by one client, seen by the other and by the host. (Every
-	# ship in system 12 first, as the roster says it: the party's clock counts
-	# a partner only where the roster has it, `party_t`. The peers share one
-	# `Run`, so its `at` is each one's presence.)
+	# The party clock counts a partner only where the roster has it, hence every ship in 12.
 	var id := early.local_id()
 	var kept_at := Run.at
 	Run.at = 12
@@ -1506,10 +1336,7 @@ func _late_join_test() -> void:
 	var moved := await _wait_until(func() -> bool:
 		return int(late.spot_of(id, 12).get("body", 3)) == -9, 3.0)
 	ok("and a ship that flies on is seen to", moved)
-	# TWO SUNS (PROTOCOL 13): a ship in star B's close orbit says so, body
-	# `SystemLayout.STAR_B` (-4). THE PAIR TURNS (PROTOCOL 14): as the offset
-	# from star B at the sender's map clock, which it says with it (`t`), and
-	# the sun it is off (`host`) -- and the others hear exactly that
+	# Two suns and the turning pair (PROTOCOL 13 and 14): offset from star B at the sender's clock.
 	var off_b := Vector2(51.5, -18.25)
 	early.report_spot(12, SystemLayout.STAR_B, off_b, 0.75, true, 100.0, SystemLayout.STAR_B)
 	var to_b := await _wait_until(func() -> bool:
@@ -1531,11 +1358,7 @@ func _late_join_test() -> void:
 	var s9 := late.spot_of(id, 12)
 	check("at the plane point it said", Vector2(float(s9.get("x", 0.0)), float(s9.get("z", 0.0))), round_both)
 	check("off no sun", int(s9.get("host", 0)), -9)
-	# THE PARTY'S CLOCK: the newest said, run on since it came; none for a
-	# system nobody has said one about. A map opening behind it takes it; one
-	# ahead keeps its own (never moved back); one whose ship was put away
-	# coasting is not moved (the suns would move under it); one put away on its
-	# way is (it is put down at its end, relative to the place)
+	# The party clock: a map behind takes it, one ahead keeps its own, and never moves back.
 	var since := Time.get_ticks_msec()
 	var pt := late.party_t(12)
 	ok("the party's clock is the one said, run on since (%.3f from 101.5)" % pt,
@@ -1564,19 +1387,14 @@ func _late_join_test() -> void:
 	check("ahead keeps its own", NetSession.clock_to_open(110.0, 100.25, false), 110.0)
 	check("coasting keeps its own", NetSession.clock_to_open(95.0, 100.25, true), 95.0)
 	check("nobody said one: its own", NetSession.clock_to_open(95.0, -1.0, false), 95.0)
-	# HELD: a partner whose map is put away (to LOCAL, a fight, the dock) says
-	# its clock holds there, and it is not run on (review 1: run on regardless,
-	# the next map jumped the pair by the whole time nobody watched)
+	# Held while a map is put away, or the next map jumped the pair by the unwatched time.
 	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9, true)
 	var to_held := await _wait_until(func() -> bool:
 		return bool(late.spot_of(id, 12).get("held", false)), 3.0)
 	ok("a partner's map put away says its clock holds", to_held)
 	await _tree.create_timer(0.3).timeout
 	check("and the party's clock is the one it said, not run on", late.party_t(12), 101.5)
-	# A LOST WORD COSTS SECONDS, NOT A VISIT (review 2): that word goes reliably
-	# (`_spot_at_host_sure`), a spot that holds still is said again every
-	# SPOT_BEAT_MS, and a row nothing refreshes -- its map put away and the word
-	# lost -- is run on no further than RUN_ON_MAX past when it came
+	# A lost word costs seconds, not a visit: reliable send, repeat beat, capped run-on.
 	var g_old := int(late.spot_of(id, 12).get("got", 0))
 	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9, true)
 	await _wait_until(func() -> bool: return int(late.spot_of(id, 12).get("got", 0)) > g_old, 3.0)
@@ -1601,9 +1419,7 @@ func _late_join_test() -> void:
 		return int(late.spot_of(id, 12).get("body", 3)) == -10, 3.0)
 	ok("a partner just arrived is seen so", to_arr)
 	check("and says no clock", late.party_t(12), -1.0)
-	# A PARTNER WHO LEAVES takes its clock with it, on every machine (review 2:
-	# only the host erased its row, and on the other guest its last clock ran on
-	# for good as the party's)
+	# A leaving partner takes its clock with it on every machine, not only the host.
 	early.report_spot(12, -9, round_both, 2.0, true, 101.5, -9, false)
 	var back_up := await _wait_until(func() -> bool:
 		return int(late.spot_of(id, 12).get("body", 3)) == -9 and not bool(late.spot_of(id, 12).get("held", true)), 3.0)
@@ -1625,18 +1441,8 @@ func _late_join_test() -> void:
 	await _teardown()
 
 
-## A TURNING PAIR, SEEN FROM TWO CLOCKS (PROTOCOL 14, ruling 23). Two machines
-## in one binary, their map clocks 5 s apart (a flying peer never takes the
-## party's clock, so they can drift), at 8 of the pair's angles round a lap, a
-## wide pair and a close one: a spot said by one at its clock and drawn by the
-## other at its own (`NetSession.spot_anchor`, as `SystemMapScreen._report_spot`
-## and `partner_points` use it). In star B's close orbit, settled round star B,
-## settled round star A: on that sun where it is on the drawing machine, to a
-## thousandth of a pixel. Settled round both suns: the plane point it was --
-## the balance point holds still, where turning it with the pair (the design's
-## first rule) would have swung it by the angle between the clocks. A world's
-## offset off the world, the world round star B carried with it. And one sun:
-## a star's spot is the plane point it always was, to the bit.
+## Two clocks 5 s apart must agree where a spot is drawn (PROTOCOL 14, ruling 23).
+## Why: docs/why/NetTest.md#turning-pair
 func _turning_pair_test() -> void:
 	Rng.forced = 7
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1700,9 +1506,7 @@ func _turning_pair_test() -> void:
 			both_worst < 1e-3)
 		if not want_close:
 			ok("wide pair: one off the world round star B, off that world as it is here (worst %.6f px)" % world_worst, wb >= 0 and world_worst < 1e-3)
-		# PARKED SETTLED ROUND STAR B, the clock then taken on to the party's
-		# (`NetSession.adopt_clock`): carried with B (`carry_parked`), so the map
-		# puts it back (`ShipFlight.restore_free`) at the very point LOCAL reads
+		# Parked round star B then clock adopted: carried with B, restored at LOCAL's point.
 		var own := 40.0
 		var tn := own + 0.37 * TAU / L.pair_n
 		var r_b := L.star_rail_of(B) + 30.0
@@ -1733,11 +1537,7 @@ func _turning_pair_test() -> void:
 				same = same and (p1 - NetSession.spot_anchor(L1, -9, host, t1)) == p1 \
 					and (p1 - NetSession.spot_anchor(L1, -1, -1, t1)) == p1
 		ok("one sun: a star's spot is the point it always was, at every clock", same)
-## crosses the wire; a Mac and a PC whose sines differ in the last bit can build
-## different maps from it and agree on every index. The guests say what they
-## built, the host compares, and everybody is told on a mismatch -- matching
-## guests stay quiet. Forced here by reporting a different fingerprint, which
-## is what `-- cojoin join CODE skew` does across two processes.
+## Sines can differ in the last bit between Mac and PC, so guests report a map fingerprint.
 func _galaxy_test() -> void:
 	var port := PORT_BASE + 9
 	var host := _make_peer("host")
@@ -1781,18 +1581,14 @@ func _make_peer(peer_name: String) -> NetSession:
 	_tree.root.add_child(branch)
 	_branches.append(branch)
 
-	# Order matters. The API has to own the branch before NetSession enters it,
-	# because NetSession._ready() reads `multiplayer` and would otherwise bind
-	# to the tree's default API — which is the autoloaded session, not this one.
+	# The API must own the branch first, as `NetSession._ready()` reads `multiplayer`.
 	var api := SceneMultiplayer.new()
 	api.root_path = branch.get_path()
 	_tree.set_multiplayer(api, branch.get_path())
 
 	var session := NetSession.new()
 	session.name = "Net"
-	# Two seconds, not ten. The point of the timeout is that it fires, not how
-	# long it takes; a test that spends the real interval proves nothing extra
-	# and costs it on every run.
+	# Two seconds, not ten: the point is that the timeout fires, not how long it takes.
 	session.handshake_timeout = 2.0
 	branch.add_child(session)
 	return session
@@ -1803,9 +1599,7 @@ func _teardown() -> void:
 		var session := b.get_node_or_null("Net") as NetSession
 		if session != null:
 			session.leave_party()
-	# Out of the tree first, then freed. Removing detaches the branch from its
-	# MultiplayerAPI while the path is still valid; freeing it while registered
-	# leaves the tree polling an API rooted at nothing.
+	# Out of the tree first, then freed, or the tree polls an API rooted at nothing.
 	for b in _branches:
 		_tree.root.remove_child(b)
 		b.queue_free()
@@ -1816,10 +1610,7 @@ func _teardown() -> void:
 	await _tree.process_frame
 
 
-## A fixed number of frames, for checking that something did NOT happen.
-##
-## _wait_until() cannot express "nothing changed": it returns the moment the
-## condition holds, and a condition that already holds returns immediately.
+## A fixed wait for checking that something did not happen, which `_wait_until()` cannot.
 func _wait_frames(n: int) -> void:
 	for i in n:
 		await _tree.process_frame

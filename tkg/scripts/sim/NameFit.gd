@@ -1,17 +1,7 @@
 extends Harness
 
-## How tall the destination title can get:
-##   godot --headless --path . -- namefit
-##
-## The right-hand panel's height is driven by its tallest content, and the chart
-## shares a row with it -- so a name that wraps to a second line moves the whole
-## screen. Reported as "clicking Theta Abyssal Secundus completely changes how
-## the panel and star chart are rendered size-wise".
-##
-## The fix is to RESERVE the height, and that needs a number rather than a guess:
-## reserve one line too few and the jump comes back on a longer name, one too
-## many and the panel carries a permanent gap. So this measures every name a real
-## galaxy generates, at the real font and the real width.
+## Reserving the height needs a number: this measures every generated name at real font and width.
+## Why: docs/why/NameFit.md#name-fit
 
 ## `_dest_name.custom_minimum_size.x`, which is what it wraps against.
 const PANEL_W := 228.0

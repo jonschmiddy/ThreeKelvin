@@ -12,14 +12,10 @@ signal log_line(text: String, kind: StringName)
 signal jumped(node_index: int)
 signal map_changed()
 signal screen_changed()             ## a screen was swapped in; nav re-evaluates
-## The developer switch was flipped. Anything that BUILDS controls behind
-## DevMode.enabled has to rebuild here: the HUD is constructed once at boot and
-## would otherwise keep whichever tabs it was born with until the game restarts.
+## The HUD is built once at boot, so anything building controls behind DevMode must rebuild here.
 signal dev_mode_changed()
 
-## The frame counter was switched on or off in settings. Carried on the bus so
-## the meter can appear and vanish without Main rebuilding, and without the
-## settings menu holding a reference to a thing it does not own.
+## On the bus so the meter can appear without Main rebuilding or settings holding a reference.
 signal fps_meter_changed(on: bool)
 ## The rendering style was changed in Settings (`DisplaySettings.render_style`).
 ## The star chart and the sector map rebuild their pictures on it.
@@ -27,9 +23,7 @@ signal render_style_changed()
 ## The machine picked GRAPHICS for this computer (`DisplaySettings.machine_pick`).
 ## Nothing is rebuilt (the pictures up keep their pass); Settings redraws its row.
 signal graphics_picked()
-## A contract was taken, finished or paid. The station board and the ledger both
-## read it, and it fires from RunState rather than from the four places that can
-## move a contract.
+## Fires from RunState, not from the four places that can move a contract.
 signal contracts_changed()
 
 # Combat
@@ -43,51 +37,29 @@ signal enemy_changed()
 signal enemy_destroyed(who: int)
 signal player_combat_state_changed()
 signal card_played(card: CardData)
-## `who` is the enemy involved: the victim when it is your shot, the attacker
-## when it is theirs, -1 when nothing sensible applies. Fights hold several
-## enemies now, so an event that only says "someone took damage" cannot be
-## drawn — the effects layer would have to guess which hull to hit.
+## `who` is the enemy involved: fights hold several, so the effects layer cannot guess a hull.
 signal damage_dealt(amount: int, to_player: bool, who: int)
 signal charge_fired(card_name: String)
 signal overheated(burn: int)
-## EVERY ATTACK, including the ones that did nothing. `damage_dealt` fires only
-## when hull is lost, so a swing fully taken by block or brace, or dodged, left
-## no trace on screen (combat polish audit, item 6). `dealt` reached the hull,
-## `absorbed` was taken by block and brace, `missed` is how many of `hits`
-## never connected. Emitted at resolution; the screen draws it over time.
+## Every attack: `damage_dealt` fires only on hull loss, so blocked swings left no trace (audit 6).
 signal combat_hit(to_player: bool, who: int, dealt: int, absorbed: int, missed: int, hits: int)
 ## Hull you burned yourself at the end of a turn: `cause` is &"overheat" or
 ## &"junk". There was no signal for it, so the hull just dropped (item 9).
 signal hull_burned(amount: int, cause: StringName)
-## A shot SEEN landing, emitted by the screen when the tracer arrives, not when
-## the maths ran. The impact sound and the view's kick hang off this, so they
-## happen on the frame the hit does (audit F1, F2; memory sound-follows-what-
-## you-see). Headless, nothing draws, so nothing emits it.
+## Emitted when the tracer arrives, not when the maths ran, so sound lands with the hit (F1, F2).
 signal hit_landed(amount: int, to_player: bool, who: int, absorbed: int)
 
-# Party. Emitted by NetSession only. The session layer is a system like any
-# other here — it never touches a screen, it says what happened and the lobby
-# listens. See scripts/net/NetSession.gd.
+# Emitted by NetSession only. It never touches a screen: it says what happened.
 signal party_state_changed(state: int)   ## NetSession.State as an int
 signal party_changed()                   ## somebody joined, left, or readied
 signal party_launched(seed_value: int)   ## the host started the dive
 signal party_failed(reason: String)      ## refused, dropped, or never reached
 signal party_notice(text: String)        ## a line every screen shows (`PartyNotice`)
-## The party consumed a system — somebody stripped a wreck, won a fight or
-## answered a hail. RunState listens and marks its own copy of the map.
-##
-## It exists because a seed gives four machines an IDENTICAL galaxy rather than
-## a SHARED one. Everything a node holds is positional and therefore already
-## agrees; what does not agree is whether it is still there. Without this every
-## player strips every wreck and the hold economy is paid four times over.
+## A seed gives four machines an identical galaxy, not a shared one: whether a node is still there.
+## Without this every player strips every wreck and the hold economy is paid four times.
+## Why: docs/why/Sig.md#party-map
 signal party_map_changed()
-## A shared fight moved: somebody shot, somebody joined, the enemy took its
-## turn, or it ended. `at` is the system it is happening in — a party can be in
-## more than one fight at once, in different places, so an event that only says
-## "a fight changed" cannot be acted on.
+## `at` is the system, since a party can be in several fights at once.
 signal party_fight_changed(at: int)
-## Something in a shared fight is swinging at YOU. `kind`/`pick` name the intent
-## by index into the enemy's own scaled lists; see NetSession._swing(). Sent to
-## one machine only, because everything it resolves against — dodge, block,
-## brace, hull — exists only there.
+## Sent to one machine only: dodge, block, brace and hull exist only there.
 signal party_fight_swing(at: int, which: int, kind: int, pick: int)

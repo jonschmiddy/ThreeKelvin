@@ -4,27 +4,12 @@ extends RefCounted
 ## Shared UI building blocks. Everything is built in code so there is one
 ## source of truth for how a module row or a stat readout looks.
 
-## CARGO is the hold anywhere; HOLD is the hold WITH A BUYER STANDING THERE.
-## They are separate because the verbs differ by exactly one — a station can be
-## sold to and deep space cannot — and folding them together would mean the
-## SCRAP button either quoting a sale price nobody is offering or hiding one
-## that is.
+## HOLD is the hold with a buyer; merged, SCRAP would quote or hide a sale price wrongly.
 enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD, BAG }
 
-## A module entry: name, rarity, manufacturer, rolled affixes, and its cards.
-##
-## `note` is for a row whose action has already been taken by somebody else. It
-## replaces the button rather than removing it, because a row that loses its
-## button changes height and the list reflows under the cursor — and because
-## "MERCER TOOK THIS" is the single most interesting thing the bag has to say.
-## Empty for every other context, which is all of them but BAG.
-## A row for whatever is in the hold, whichever kind it is.
-##
-## THE ONE PLACE THIS IS DECIDED. Three screens iterate `Run.cargo` and build a
-## row per entry, and every one of them called `module_row` directly -- which was
-## correct right up until cargo held two kinds of thing, and then failed at the
-## parameter type on the first crate. A private branch on each screen would be
-## the same bug waiting on the fourth.
+## `note` replaces the button, not removes it: a row losing its button reflows the list.
+## One place decides the row kind, since cargo holds two kinds and `module_row` failed on crates.
+## Why: docs/why/Widgets.md#row-builders
 static func item_row(thing: Variant, ctx: ModuleContext, price: int,
 		on_action: Callable, note: String = "",
 		deck_size: int = -1) -> PanelContainer:
@@ -34,16 +19,8 @@ static func item_row(thing: Variant, ctx: ModuleContext, price: int,
 		deck_size)
 
 
-## One material, as a row.
-##
-## NOT a branch inside `module_row`. That function reads a rarity, a
-## manufacturer, a slot, an affix list and a card count -- five things a crate of
-## ore does not have and never will -- so folding materials into it would be
-## threading nulls through every one of them to save a panel.
-##
-## What it shares is the SHAPE: same stylebox, same name-and-grade top line, same
-## button strip on the right, so a bag holding a gun and a crate reads as one
-## list rather than as two.
+## Not a branch in `module_row`: share the row shape, not five fields ore lacks.
+## Why: docs/why/Widgets.md#row-builders
 static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 		on_action: Callable, note: String = "") -> PanelContainer:
 	var panel := PanelContainer.new()
@@ -90,35 +67,15 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 	return panel
 
 
-## How wide a part's tooltip is, always.
-##
-## Wide enough for the longest affix sentence to take two lines rather than
-## five, and narrow enough that it does not read as a second panel. A tooltip
-## that changes shape as you move along a row of mounts reads as four different
-## panels rather than as one reading four things -- and an affix is a sentence
-## while a gauge line is three words, so left alone they differ by a factor of
-## three.
+## Fixed tooltip width, so tooltips along a row of mounts read as one panel, not four.
+## Why: docs/why/Widgets.md#tooltips
 const TIP_W := 168
 
-## A part, as a PANEL, for a tooltip.
-##
-## Godot tooltips are one label of plain text -- no rules, no colour, and no
-## wrapping either. That was fine while this said a name; it is not fine for a
-## rolled part, where the grade, the gauges it moved and the affixes it rolled
-## are three different kinds of fact and reading them as one paragraph is most
-## of the work.
-##
-## `_make_custom_tooltip` takes a Control instead, so this builds the same
-## vocabulary the module panel uses -- grade in its own ink, a rule under the
-## name, gauges in ICE, affixes in EMBER, cards last -- at tooltip scale.
-##
-## Deliberately still shorter than `module_panel`. This is read standing over
-## something else.
+## A Control tooltip, as Godot's plain text cannot keep grade, gauges and affixes apart.
+## Why: docs/why/Widgets.md#tooltips
 static func module_tip_panel(m: ModuleData) -> Control:
 	var panel := PanelContainer.new()
-	# NO BORDER. A tooltip is already separated from what is under it by
-	# floating over it, and a second frame around a panel that is already a
-	# panel reads as a window rather than as an answer.
+	# No border: a tooltip already floats off what is under it, and a frame reads as a window.
 	panel.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, Color(0, 0, 0, 0), 0, 8, 10))
 	panel.custom_minimum_size = Vector2(TIP_W, 0)
@@ -136,9 +93,7 @@ static func module_tip_panel(m: ModuleData) -> Control:
 	top.add_child(UITheme.body(ModuleData.rarity_name(m.rarity),
 		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
 
-	# THE MANUFACTURER IN ITS OWN COLOUR, which is the one the plate's edge and
-	# the hold's border already carry -- so the word and the stripe you have been
-	# reading it off all game are visibly the same fact.
+	# Manufacturer in its own colour, matching the plate edge and hold border.
 	var meta := HBoxContainer.new()
 	meta.add_theme_constant_override("separation", 5)
 	box.add_child(meta)
@@ -179,29 +134,20 @@ static func module_tip_panel(m: ModuleData) -> Control:
 	return panel
 
 
-## A bare `Button` points with the plain arrow -- only `_btn` sets the hand,
-## and the reticle reads it (see `Main._cursor_wants_shut`). For the places
-## that need a naked Button anyway, this is that one line, named, instead of a
-## comment-and-assignment pasted per screen.
+## A bare Button shows the plain arrow; only `_btn` sets the hand the reticle reads.
 static func wear_pointer(c: Control) -> void:
 	c.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 
-## The ModuleData inside a drag payload, or null for a material, a chit, or
-## anything else in the air. The one shape for this refusal: a typed assignment
-## straight off the dictionary RAISES for a non-module payload -- `as` is the
-## cast that answers null -- and the drop targets had grown two different
-## idioms for the same question, one of them the raising kind.
+## `as` answers null for a non-module payload; a typed assignment off the dict raises.
+## Why: docs/why/Widgets.md#drag-payloads
 static func dragged_module(data: Variant) -> ModuleData:
 	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
 		return null
 	return (data as Dictionary).module as ModuleData
 
 
-## Paint a checkbox-style toggle: "[X]  LABEL" in its lit colour, "[ ]  LABEL"
-## in QUOTE. One shape, three screens -- and it sets the FOCUS ink too, which
-## the third hand-rolled copy forgot, so a keyboard-focused toggle tinted
-## differently there than everywhere else.
+## One toggle shape for three screens, including the focus ink a hand-rolled copy forgot.
 static func paint_toggle(b: Button, label: String, on: bool,
 		lit: Color = UITheme.EMBER) -> void:
 	b.text = "%s  %s" % ["[X]" if on else "[ ]", label]
@@ -233,9 +179,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	top.add_child(UITheme.body(ModuleData.rarity_name(m.rarity),
 		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
 
-	# Grants is a STAT, printed like one. The Grant Count Law only does its job
-	# if the count is visible at the point of choice — a law nobody can see is
-	# just a rule the designer knows.
+	# Grants is printed as a stat: the Grant Count Law only works if the count is visible.
 	var meta := "%s · %s · grants %d" % [DB.manufacturer_name(m.manufacturer),
 		ModuleData.slot_name(m.slot), m.grant_count()]
 	if m.contraband:
@@ -245,15 +189,8 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	for a in m.affixes:
 		box.add_child(UITheme.body("%s: %s" % [a.name, a.text], Color("#d4b98f"), 10))
 
-	# COUNTED, NOT REPEATED. `resolved_cards()` hands back one entry per copy the
-	# Grant Count Law awards, and this printed a hardcoded "×1" for each of them
-	# -- so a module granting two of one card listed that card twice, identically,
-	# directly under a header already saying "grants 2". Three statements of the
-	# same fact, and the only one that was wrong was the ×1.
-	#
-	# Grouped on what the row actually SHOWS rather than on card identity: two
-	# cards that print the same line are the same line, and a player counting
-	# copies on a shelf cannot see any difference the display does not draw.
+	# Cards are counted, not repeated: a module granting two of a card listed it twice with x1.
+	# Why: docs/why/Widgets.md#module-row
 	var counts: Dictionary = {}
 	var order: Array[String] = []
 	for c in m.resolved_cards():
@@ -270,18 +207,9 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 		box.add_child(UITheme.body("×%d  %s" % [int(counts[line]), line],
 			UITheme.CHILL, 10))
 
-	# Install-time deck delta, at the point of choice.
-	#
-	# Deck size is a managed resource and this is the only moment the player can
-	# act on it, so the number moves where they can see it move — the same
-	# philosophy as printing the odds on an event option before they commit.
-	# Without it the Grant Count Law is invisible: you would feel a thickening
-	# deck three fights later and never know which pickup did it.
-	# Passed in, not rebuilt. DeckBuilder.build() deep-duplicates every card on
-	# every installed module and allocates two Snap Shots plus one per Dross —
-	# and this ran ONCE PER ROW, so a station with twenty rows on screen did
-	# twenty full deck builds to answer the same question twenty times. The
-	# callers below already loop, so they compute it once and hand it down.
+	# Show the install-time deck delta at the point of choice, so the Grant Count Law is visible.
+	# The caller computes it once: building it per row did twenty full deck builds.
+	# Why: docs/why/Widgets.md#module-row
 	var here := deck_size if deck_size >= 0 else DeckBuilder.build().size()
 	var delta := 0
 	if ctx == ModuleContext.INSTALLED:
@@ -315,10 +243,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			var full2 := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
 			buttons.add_child(_btn("SWAP IN" if full2 else "INSTALL",
 				on_action.bind("install", m)))
-			# `price` is the local bid. Zero means this station will not touch
-			# it, which is only ever contraband in policed space — so the button
-			# says why rather than vanishing and leaving the player to wonder
-			# whether the part is broken.
+			# A zero bid means the station will not buy: say why instead of hiding the button.
 			if price > 0:
 				var sell := _btn("SELL +%d" % price, on_action.bind("sell", m))
 				sell.tooltip_text = tip("What this market pays. A manufacturer's own yard has plenty of its own parts, and a rival's yard is short of them.")
@@ -349,9 +274,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 				buttons.add_child(take)
 	return panel
 
-## "SCRAP +14". No materials on it any more, because scrapping no longer yields
-## any: it used to read "SCRAP +14 · 2 ALLOY", and the alloy was the half that
-## made a part into a second currency.
+## No materials on SCRAP any more; scrapping no longer yields any.
 static func _scrap_button(m: ModuleData, on_action: Callable) -> Button:
 	var b := _btn("SCRAP +%d" % Run.scrap_value_of(m), on_action.bind("scrap", m))
 	b.tooltip_text = tip("Breaks it down for credits, right here. It pays the least, but needs no station.")
@@ -382,9 +305,7 @@ static func hull_row(h: HullData, label: String, price: int,
 			HullData.weight_name(h.weight), h.reactor, h.hand_size, h.max_hull,
 			h.heat_cap, h.dissipation, h.weapon_slots, h.system_slots, h.utility_slots,
 		], UITheme.COLD, 10))
-	# EVERY PERK, not just the manufacturer's. This is the card you decide to BUY a
-	# hull from, and an S-tier carries four -- showing one understated the
-	# offer by three and the player had no way to find the rest.
+	# Every perk, not just the manufacturer's: an S-tier carries four and one understated it.
 	for pid in h.perks():
 		box.add_child(UITheme.body(DB.perk_text(pid), Color("#d4b98f"), 10))
 
@@ -411,22 +332,14 @@ static func hull_row(h: HullData, label: String, price: int,
 static func _btn(text: String, action: Callable, click: bool = true) -> Button:
 	var b := Button.new()
 	b.text = text
-	# THE CURSOR READS THIS. `CURSOR_POINTING_HAND` is what the closed reticle
-	# is bound to -- see `Main._wear_cursor` -- and Godot's own default for a
-	# Button is the plain arrow, so without this the pointer would sit open over
-	# every control in the game and close only on the four things that happened
-	# to set it by hand.
+	# The reticle closes on `CURSOR_POINTING_HAND`; Godot's Button default is the plain arrow.
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	# Sound before action. Every button in the game is built here, so this is
-	# the one place the interface needs wiring — and the action is usually a
-	# screen swap, so the click has to be queued before the tree changes.
+	# Sound before action: the action is usually a screen swap, so queue the click first.
 	if click:
 		b.pressed.connect(Audio.click)
 	b.mouse_entered.connect(Audio.hover)
 	b.pressed.connect(action)
-	# A disabled button never emits `pressed`, so clicking one is completely
-	# silent — indistinguishable from the game not registering the click. It
-	# did register it. The answer is no, and the interface should say so.
+	# A disabled button never emits `pressed`, so it needs its own answer or looks unregistered.
 	b.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and b.disabled:
@@ -462,36 +375,16 @@ static func section(title: String) -> VBoxContainer:
 	box.add_child(UITheme.hsep())
 	return box
 
-## Empty a container NOW, not at the end of the frame.
-##
-## queue_free() is DEFERRED. So the common `for c in box.get_children():
-## c.queue_free()` followed immediately by add_child() leaves the container
-## holding the old children AND the new ones until the frame ends, and it is
-## laid out at that doubled size in between.
-##
-## Usually invisible — a column of text rows is briefly too tall inside a panel
-## that clips it. It was very visible on the refit screen: that grid is 44px
-## module icons, it is rebuilt synchronously from the drop handler, and nothing
-## in the layout clips, so putting a part in the hold splashed a surplus row of
-## icons across the screen underneath for a frame.
-##
-## Ten other screens still free deferred this way. They are not known to misdraw;
-## this is here so the next one written has the right thing to call.
+## Free now, not deferred: queue_free left old and new children laid out together a frame.
+## Refit's icon grid splashed a surplus row for a frame when a part went into the hold.
+## Why: docs/why/Widgets.md#layout-helpers
 static func clear(node: Node) -> void:
 	for c in node.get_children():
 		node.remove_child(c)
 		c.queue_free()
 
-## Tooltip text, hard-wrapped so every tooltip in the game is the same shape.
-##
-## The theme gives TooltipPanel its padding and its plate, but Godot still
-## sizes the panel to whatever the text asks for — so a long line makes a
-## tooltip most of the viewport wide and a short one makes a sliver. A Label
-## inside a themed TooltipPanel cannot be handed an autowrap mode from the
-## theme, so the wrap has to happen in the STRING, before it is assigned.
-##
-## Breaks on spaces and preserves newlines already in the text, so a tooltip
-## written as "NAME\nbody" keeps its heading and only the body folds.
+## Wrap in the string: a Label under a themed TooltipPanel cannot take autowrap from the theme.
+## Why: docs/why/Widgets.md#tooltips
 static func tip(text: String) -> String:
 	var out: PackedStringArray = []
 	for para in text.split("\n"):
@@ -507,22 +400,8 @@ static func tip(text: String) -> String:
 		out.append(line)
 	return "\n".join(out)
 
-## A child in a margin. The fourth copy of this was written before it became
-## obvious it wanted to live here.
-##
-## Four screens had grown a private `_pad()` — LobbyScreen, PartyScreen, and
-## StationScreen twice, since it needed two margin sizes in one file and had no
-## way to say so. They differed only in the two numbers, which is the definition
-## of an argument rather than a fork.
-##
-## Horizontal first, because it is the one that varies: every caller so far wants
-## more air at the sides than at the top.
-## `child` is OPTIONAL, because half the call sites build the margin before they
-## build what goes in it — they anchor it, set a mouse filter, park it in the
-## tree, and only then assemble the column. Passing null gives them the same
-## configured container to fill in later, which is what let the remaining nine
-## hand-rolled copies come here instead of being restructured around a signature
-## that only suited the other half.
+## One `pad()` replaces four private copies; `child` is optional as many build the margin first.
+## Why: docs/why/Widgets.md#layout-helpers
 static func pad(child: Control = null, h: int = 8, v: int = 6) -> MarginContainer:
 	var m := MarginContainer.new()
 	for side in ["left", "right"]:
@@ -533,14 +412,8 @@ static func pad(child: Control = null, h: int = 8, v: int = 6) -> MarginContaine
 		m.add_child(child)
 	return m
 
-## The big rectangles the information screens are built out of.
-##
-## THE ALPHA IS LOAD-BEARING, and it is here rather than in the theme because
-## this override is what the theme's own panel stylebox never gets to answer.
-## The refit bay, the hold and both galleries all come through this
-## function, and while the fill was solid they covered every pixel of the sky
-## `SpaceLayer` draws behind them. See UITheme.PANEL_A for why the number is
-## high.
+## The alpha is load-bearing: a solid fill covered the sky `SpaceLayer` draws behind panels.
+## Why: docs/why/Widgets.md#layout-helpers
 static func panel_with(child: Control) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel",
@@ -548,18 +421,8 @@ static func panel_with(child: Control) -> PanelContainer:
 	p.add_child(child)
 	return p
 
-## A DIM OR A SCRIM OVER THE WHOLE PICTURE, wherever it is parented.
-##
-## Every screen sits in Main's content area, which is the picture less an 8 x 7
-## px margin (and the HUD's row, when there is one), so a dim anchored to its
-## screen stopped that far short of the edges. The title screen's galaxy runs on
-## past its own rect to the glass, so it showed through the margin undimmed: a
-## lighter frame round every popup on the title, which read as a dark box
-## behind it (Jon, Oct 20, on his welcome note: "a weird dark box around the
-## background ... in the corners and side of the screen"). The escape menu has
-## no margin to miss, being on Main's overlay layer. This pins `c` to the
-## viewport's rect and keeps it there as its parent or the window changes; only
-## the drawn rect grows, so anything laid out on `c` itself is not a pixel off.
+## Pin to the viewport rect, not the screen's: Main's margin left a lighter frame (Jon, Oct 20).
+## Why: docs/why/Widgets.md#layout-helpers
 static func cover_picture(c: Control) -> void:
 	c.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	var fit := func() -> void:
@@ -597,17 +460,8 @@ static func scroller(child: Control, min_height: int = 200) -> ScrollContainer:
 	s.add_child(child)
 	return s
 
-## Name, what it is, where it came from, and what its rules words mean.
-##
-## Shared by the card gallery and by combat. A keyword you can only look up on a
-## development screen is a keyword the player has to have memorised, which is
-## the exact thing a glossary exists to prevent.
-##
-## Deliberately NOT a field dump. An earlier version printed every non-default
-## property on the card, which was self-maintaining and useless: it told you
-## `feedback: 4` when what you needed was what feedback does. The numbers are
-## already on the card face — this panel exists for the things the card has no
-## room to say.
+## Not a field dump: that said `feedback: 4`, not what feedback does.
+## Why: docs/why/Widgets.md#card-readout
 static func card_readout(c: CardData) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var sb := UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 7, 8)
@@ -621,13 +475,8 @@ static func card_readout(c: CardData) -> PanelContainer:
 	box.add_theme_constant_override("separation", 2)
 	panel.add_child(box)
 
-	# The two NAMES first, then the two CLASSIFICATIONS. What the card is called
-	# and what granted it are the pair you are looking for; type, rarity, manufacturer
-	# and slot are all the same kind of fact and belong together underneath,
-	# rather than interleaved so that the eye crosses a category line twice.
-	# Two pairs. What the CARD is — its verb and its class — then where it came
-	# FROM — the manufacturer and the module. Each pair is a name over its
-	# classification, and the two questions never interleave.
+	# Two pairs: what the card is, then where it came from, so the questions never interleave.
+	# Why: docs/why/Widgets.md#card-readout
 	var mod: ModuleData = DB.modules.get(c.source_id)
 	var rare := ModuleData.rarity_ink(c.source_rarity)
 	box.add_child(UITheme.body(c.name.to_upper(), rare, UITheme.FS_SMALL))
@@ -635,17 +484,11 @@ static func card_readout(c: CardData) -> PanelContainer:
 		ModuleData.rarity_name(c.source_rarity).to_upper()],
 		UITheme.COLD, UITheme.FS_SMALL))
 	if mod != null:
-		# The manufacturer in its own colour. It is the only line in the panel that
-		# names a manufacturer, and it already owns a colour everywhere else on
-		# the card — the banner, the emblem, the border down the left of this
-		# very panel. Printing it in cold grey was the one place the manufacturer went
-		# unbranded.
+		# Manufacturer in its own colour; grey was the one place it went unbranded.
 		box.add_child(UITheme.body(
 			DB.manufacturer_name(mod.manufacturer).to_upper(),
 			DB.manufacturer_colour(mod.manufacturer), UITheme.FS_SMALL))
-		# Unless the module is the card. Junk and hull-innate cards are named
-		# after their own source, so printing both put DROSS over DROSS — a line
-		# that answers a question nobody asked twice.
+		# Skip the module line when it is the card, or DROSS prints over DROSS.
 		if mod.name.to_upper() != c.name.to_upper():
 			box.add_child(UITheme.body(mod.name.to_upper(),
 				UITheme.ICE, UITheme.FS_SMALL))
@@ -662,48 +505,20 @@ static func card_readout(c: CardData) -> PanelContainer:
 		def.custom_minimum_size = Vector2(168, 0)
 		box.add_child(def)
 
-	# The quote last, in its own section.
-	#
-	# It was sitting with the module's name and slot, where it read as another
-	# specification — and flavour next to specifications always loses, because
-	# the eye is scanning for facts and finds a sentence in the middle of them.
-	# At the bottom, after the rules are answered, it is the thing you read once
-	# you have finished needing the panel.
+	# Flavour goes last in its own section: among specifications the eye scans past a sentence.
+	# Why: docs/why/Widgets.md#card-readout
 	if mod != null and mod.flavour != "":
 		box.add_child(UITheme.hsep())
-		# Silkscreen at 8, like everything else — the grey is the whole signal.
-		#
-		# A second typeface was tried for this and it was the wrong tool. At
-		# this resolution a different face does not read as a different VOICE,
-		# it reads as a different UI, because there is not enough letterform
-		# left at 8px for character to survive. Colour still works perfectly
-		# well down here, and it costs no asset, no licence and no size guess.
+		# Colour carries the voice: a second typeface at 8 px reads as a different UI, so dropped.
+		# Why: docs/why/Widgets.md#card-readout
 		var fl := UITheme.body("\"%s\"" % mod.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
 		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		fl.custom_minimum_size = Vector2(168, 0)
 		box.add_child(fl)
 	return panel
 
-## One manufacturer ability: what it costs, what it is called, what it does.
-##
-## Shared by the chassis select and the refit screen, because they are asking
-## the same question at two different moments — "what would flying this manufacturer
-## give me" and "how close am I now" — and two copies of the row would drift the
-## first time either one was reworded.
-##
-## The condition column says it in full ("3+ KORVAN") rather than a bare "3+",
-## which leaves you to work out three of what. The hull perk shares that column
-## with "BUILT IN": the other two name what you must collect, so this one names
-## where it already is.
-##
-## Locked rows are dimmed rather than hidden. What a manufacturer is FOR is
-## mostly what it does at 3 and 5 parts, so hiding those until you get there
-## would hide the reason to chase them — greying says "later", which is the
-## actual state.
-## `count` is the progress column — "2 / 3" — and it is why the set chips are
-## gone from the hardpoints header. A chip reading "KORVAN 2" told you what you
-## have and left you to remember what you need; the number belongs on the row
-## that states the thing it unlocks.
+## Shared by chassis select and refit so two copies cannot drift; locked rows are dimmed.
+## Why: docs/why/Widgets.md#ability-rows
 static func ability_row(at: String, title: String, text: String, accent: Color,
 		unlocked: bool, count: String = "") -> Control:
 	var row := HBoxContainer.new()
@@ -725,20 +540,8 @@ static func ability_row(at: String, title: String, text: String, accent: Color,
 	row.add_child(what)
 	return row
 
-## WHO HOLDS THIS BERTH, on hovering their flag.
-##
-## A BANNER IS THE ONE MARK IN THIS GAME THAT CARRIES NO WORDS. It is a colour
-## and a hem, and a player who has not yet learned that the teal one is Cygnet
-## is looking at a decoration. Every other identifier on these screens says its
-## own name; this one could only be looked up on the chassis screen, which you
-## see once at the start of a run and never again.
-##
-## Built like `perk_readout` and for the same reasons: no plate of its own, the
-## strings wrapped by `tip()` rather than by a label, and the manufacturer's own
-## colour on the name alone. The set bonuses come last and carry a live count
-## when there is a run to count -- at a station the flag is a BERTH, so what you
-## want to know standing under it is who they are and how close their kit is to
-## paying out on your ship.
+## A banner carries no words, so hovering it must name the berth's holder and set bonuses.
+## Why: docs/why/Widgets.md#manufacturer-readout
 static func manufacturer_readout(id: StringName) -> VBoxContainer:
 	var m: ManufacturerData = DB.manufacturers.get(id)
 	if m == null:
@@ -754,16 +557,10 @@ static func manufacturer_readout(id: StringName) -> VBoxContainer:
 		box.add_child(UITheme.hsep())
 		box.add_child(UITheme.body(tip(m.identity), UITheme.COLD, UITheme.FS_SMALL))
 
-	# THE BACKSTORY IS NOT IN HERE. It is three or four sentences of prose per
-	# manufacturer -- `ChassisSelect` gives it a column to itself and still had
-	# to be trimmed to fit. Wrapped at TOOLTIP_WRAP it would be a fourteen-line
-	# panel hanging off a flag, and a tooltip that has to be READ is one nobody
-	# reads. What is here is the identity line, which is the same paragraph's
-	# job done in one sentence.
+	# Backstory is left out: wrapped at TOOLTIP_WRAP it would be a fourteen-line panel.
+	# Why: docs/why/Widgets.md#manufacturer-readout
 	box.add_child(UITheme.hsep())
-	# MINUS ONE MEANS "NO RUN TO COUNT". `ChassisSelect` flies these flags before
-	# `start_new_run`, where a tracker reading 0 / 3 would be a progress bar on a
-	# ship that does not exist yet.
+	# Minus one means no run to count: `ChassisSelect` flies these flags before `start_new_run`.
 	var have := Run.manufacturer_count(id) if Run.hull != null else -1
 	for tier in [3, 5]:
 		var nm: String = m.set3_name if tier == 3 else m.set5_name
@@ -782,23 +579,14 @@ static func manufacturer_readout(id: StringName) -> VBoxContainer:
 	return box
 
 
-## The three ability rows for a manufacturer, given a live set count and the
-## hull's own perk. Built as a list so a caller can drop them into whatever
-## container it has.
+## Built as a list so a caller can drop the rows into whatever container it has.
 static func ability_rows(manufacturer: StringName, perk_id: StringName, have: int) -> Array:
 	var out: Array = []
 	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
 	if m == null:
 		return out
-	# THE PERK ROW IS GONE FROM HERE. It is named in the masthead's top-right
-	# corner now, with its effect on hover — and a hull can carry four of them,
-	# so four full-width rows of always-on fact would have crowded out the two
-	# rows that are actually a TRACKER. What is left in this block is only
-	# progress: what you have not earned yet and how close you are.
-	#
-	# `perk_id` stays in the signature. Every caller has one, the argument costs
-	# nothing, and a block about a manufacturer that cannot see the hull's perk
-	# is the wrong shape to hand the next person.
+	# The perk row moved to the masthead; four always-on rows would crowd the two tracker rows.
+	# Why: docs/why/Widgets.md#ability-rows
 	var short := DB.short_name(m.name).to_upper()
 	out.append(ability_row("3+ %s" % short, m.set3_name, m.set3_text,
 		m.colour, have >= 3, "%d / 3" % have))
@@ -807,34 +595,16 @@ static func ability_rows(manufacturer: StringName, perk_id: StringName, have: in
 	return out
 
 
-## THE MODULE'S OWN PANEL, built like card_readout so a part and a card look
-## like two things from the same game.
-##
-## It carries what a part IS and nothing about what its cards DO, because the
-## cards are drawn beside it — see ModuleIcon._make_custom_tooltip. A panel that
-## also spelled out the effects would be describing the two objects sitting
-## right next to it, which is how the module gallery ended up with three copies
-## of the same facts before the readout panel was deleted.
-##
-## Same left border in the manufacturer colour, same width, same order of facts: what
-## it is called, then what class of thing it is, then the flavour last. Flavour
-## next to specifications always loses — the eye is scanning for facts and finds
-## a sentence in the middle of them.
-## `width` FIXES the box rather than merely floors it.
-##
-## custom_minimum_size is a minimum, so a long name pushed the panel wider
-## than a card and every row in a column of these started at a different
-## place — a KH-20 Chatterbox against a Mining Laser was 40px of difference.
-## Passing a width clamps it too and lets the text wrap inside instead.
+## States what a part is, not what its cards do; the cards sit beside it.
+## `width` fixes the box: a minimum let long names widen the panel and ragged the column.
+## Why: docs/why/Widgets.md#module-readout
 static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var sb := UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 7, 8)
 	sb.border_width_left = 3
 	sb.border_color = DB.manufacturer_colour(m.manufacturer)
 	panel.add_theme_stylebox_override("panel", sb)
-	# A CARD'S WIDTH, so the three boxes are one object rather than a wide panel
-	# with two cards stuck to it. card_readout is 178 because it stands alone at
-	# the cursor; this one stands in a row of cards and has to belong to it.
+	# A card's width, so the three boxes read as one object, not a panel with two cards.
 	var w := width if width > 0.0 else float(CardView.CARD_W)
 	panel.custom_minimum_size = Vector2(w, 0)
 	if width > 0.0:
@@ -863,30 +633,15 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		if m.manufacturer != &"" else "Unbranded"),
 		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL)
 	if width > 0.0:
-		# THE MANUFACTURER LINE IS THE WIDEST, not the name: "KORVAN HEAVY WORKS"
-		# is three characters longer than "KH-20 CHATTERBOX". Wrapping only
-		# the name left this one setting the width and the column ragged.
+		# The manufacturer line is the widest, not the name, so wrap it or the column is ragged.
 		mk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(mk)
 	box.add_child(UITheme.body("%dx%d \u00b7 %d %s" % [f.x, f.y, m.cells(),
 		"cell" if m.cells() == 1 else "cells"], UITheme.CHILL, UITheme.FS_SMALL))
 
-	# WHAT IT DOES TO THE SHIP, which is the half of a part that is not cards and
-	# which nothing showed until the tooltip was rewritten. A legendary carrying
-	# three pips of hull said nothing about them anywhere.
-	# ZERO IS NOT PRINTED, reversing the ruling that used to sit here. That
-	# ruling was that "HULL +0" on a common plate keeps the LADDER legible — it
-	# says the part is on the hull axis and simply pays nothing at this grade,
-	# where a part with no axis at all says nothing. True, and it cost more than
-	# it bought: ATTR_BUMP is [0, 0, 1, ...], so EVERY common and EVERY uncommon
-	# part in the game printed a line that reads as a fact about the part and
-	# means "not yet". Two thirds of the catalogue wearing a +0.
-	#
-	# WHAT THIS GIVES UP, stated because it will be rediscovered otherwise: a
-	# common plate and a Ripsaw now read identically in this box, and the only
-	# way to tell that one is on the hull ladder is to find a better one. The
-	# manifest still prints its +0 and draws it dashed, so the information is
-	# not gone from the project, only from the hover.
+	# Zero is not printed (reverses the earlier ruling): +0 sat on two thirds of the catalogue.
+	# A common plate and a Ripsaw now read alike here; the manifest still prints +0 dashed.
+	# Why: docs/why/Widgets.md#module-readout
 	var gauges: Array = []
 	for axis in DB.PASSIVE_AXIS.get(m.id, []):
 		var pips: int = DB.ATTR_BUMP[int(m.rarity)]
@@ -906,16 +661,8 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 			var g: Array = raw
 			box.add_child(UITheme.body(String(g[0]), g[1], UITheme.FS_SMALL))
 
-	# WRAPPED, AND CAPPED AT THE SAME WIDTH THE FLAVOUR ALREADY USES.
-	#
-	# Nothing else in this panel is long: a gauge line is "THERMAL +2" and a
-	# manufacturer is three words. An affix is a sentence -- "STRIPPED - +2
-	# MANEUVER, -1 HULL" -- and a Label with no wrap is as wide as its longest
-	# line, so ONE rolled affix decided the width of the whole panel and a part
-	# with three of them threw it across the screen.
-	#
-	# The cap was already sitting eight lines below, on the flavour. This is the
-	# same number for the same reason.
+	# Affixes wrap at the flavour's cap: one unwrapped affix sentence set the whole panel's width.
+	# Why: docs/why/Widgets.md#module-readout
 	for a in m.affixes:
 		var al := UITheme.body("%s \u2014 %s" % [a.name, a.text],
 			UITheme.EMBER, UITheme.FS_SMALL)
@@ -931,31 +678,9 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		box.add_child(q)
 	return panel
 
-## Every perk on a hull, in ONE tooltip, grouped by where it came from.
-##
-## Four perks used to mean four separate hovers, and no hover said whether what
-## you were reading was a fact about the MANUFACTURER — carried by every hull
-## they build, at every grade — or a fact about this hull's GRADE. Those are
-## different things to know: one survives swapping chassis within the manufacturer,
-## the other is precisely what upgrading bought.
-##
-## THE EMPTY CASE IS PRINTED. A C-class hull has no grade perks, and a tooltip
-## that then shows only one section reads as a hull whose perks failed to load.
-## Saying "none, and B/A/S each add one more" turns the same blank into the
-## ladder explaining itself — which is the one moment a player is looking
-## straight at the thing an upgrade would change.
-## WHAT A SET CHIP SAYS ON HOVER. Both tiers, always, each marked with whether
-## it is running.
-##
-## BOTH, because a set bonus does not replace the one below it -- `has_set(id, 3)`
-## and `has_set(id, 5)` are independent thresholds, so a ship at five is running
-## Standard Issue AND Full Broadside. Naming only the higher one hid a bonus that
-## was still applying; naming only the lower one hid the thing being worked
-## toward. There are exactly two, so there is no reason to show one.
-##
-## THE HULL'S SHARE IS NAMED. `Run.manufacturer_count` includes the hull, so a
-## player who fitted one part and sees two pips is owed the reason in the same
-## breath as the count.
+## One tooltip, perks grouped by source: manufacturer ones persist, grade ones are the upgrade.
+## The empty case is printed so a C hull does not read as perks that failed to load.
+## Why: docs/why/Widgets.md#perk-tooltip
 static func set_tip(id: StringName, have: int, fitted: int) -> String:
 	var m: ManufacturerData = DB.manufacturers.get(id)
 	if m == null:
@@ -1000,9 +725,7 @@ static func perk_tip(h: HullData) -> String:
 	return "\n".join(out)
 
 
-## "Salvage Rack — Scrapping modules pays +40%." Empty for a perk id that is
-## not in the table, so a hull carrying a retired one prints nothing rather
-## than a dash with a hole either side of it.
+## Empty for a perk id not in the table, so a retired perk prints nothing, not a hollow dash.
 static func _perk_line(id: StringName) -> String:
 	var pd: Dictionary = DB.hull_perks.get(id, {})
 	if pd.is_empty():
@@ -1010,34 +733,9 @@ static func _perk_line(id: StringName) -> String:
 	return "%s \u2014 %s" % [str(pd.name), str(pd.text)]
 
 
-## How wide the perk tooltip is. Named because two things need to agree on it:
-## the panel, and the wrapped label inside it that would otherwise have no width
-## to wrap against.
-## The same perks as a PANEL, which is what actually shows on hover.
-##
-## `perk_tip` above is the plain-text fallback and the trigger string; this is
-## the content. Built like `module_readout` and deliberately so — the border in
-## the manufacturer's colour, the flat plate, the small type — because a tooltip
-## that looks like the rest of the game reads as part of it, and one assembled
-## out of default labels reads as debug output that shipped.
-##
-## TWO GROUPS, AND THE HEADINGS CARRY THE COLOUR. Which perk came from the
-## manufacturer and which from the grade is the thing the old per-label tooltips
-## could not say at all. The manufacturer's own is on every hull they build, at
-## every grade, and survives swapping chassis inside the same manufacturer; the
-## grade's are exactly what the upgrade bought, and are lost dropping back down.
-## THE SET-BONUS PANEL a chip shows on hover.
-##
-## Built the way `perk_readout` is, and for the reasons written on it: NO PLATE
-## OF ITS OWN, because Godot already wraps this in the tooltip's own panel and a
-## PanelContainer here is two plates stacked; and every body string goes through
-## `tip()`, because an autowrapping Label measures its height off a width it has
-## not been given yet and the panel comes out three times too tall.
-##
-## STATE IS COLOUR, NOT A COLUMN. The first version padded "ON" and "2 MORE" into
-## an aligned gutter, which made a seven-line block of ragged monospace out of
-## two sentences. A live bonus is EMBER like a perk; a locked one is QUOTE, with
-## what it still costs on the right of its own row.
+## Panels match the rest of the game; colour carries state, not an aligned ON gutter.
+## Body strings go through `tip()`, as an autowrapping Label measures height from no width.
+## Why: docs/why/Widgets.md#perk-tooltip
 static func set_readout(id: StringName, have: int, fitted: int) -> VBoxContainer:
 	var m: ManufacturerData = DB.manufacturers.get(id)
 	var box := VBoxContainer.new()
@@ -1046,17 +744,12 @@ static func set_readout(id: StringName, have: int, fitted: int) -> VBoxContainer
 	if m == null:
 		return box
 
-	# "MANUFACTURER SET BONUS", in full. The panel names a company on the next
-	# line and lists two tiers under it, and "SET BONUS" alone left the reader to
-	# infer what the set was OF -- which is the one word this project is strict
-	# about.
+	# Say MANUFACTURER SET BONUS in full, so the reader knows what the set is of.
 	box.add_child(UITheme.body("MANUFACTURER SET BONUS", UITheme.COLD,
 		UITheme.FS_SMALL))
 	box.add_child(UITheme.hsep())
 	box.add_child(UITheme.body(m.name.to_upper(), m.colour, UITheme.FS_SMALL))
-	# WHERE THE COUNT COMES FROM, in the one line under the name. The pips read
-	# off the set total and the hull is part of it, so a player who fitted one
-	# part and sees two pips would otherwise have to work that out.
+	# Say where the count comes from: the hull counts toward the set, so one part shows two pips.
 	var from := "%d fitted" % fitted
 	if have > fitted:
 		from = "the hull" if fitted == 0 else "%d fitted + the hull" % fitted
@@ -1086,18 +779,8 @@ static func set_readout(id: StringName, have: int, fitted: int) -> VBoxContainer
 
 
 static func perk_readout(h: HullData) -> VBoxContainer:
-	# NO PLATE OF ITS OWN, and that is the whole of looking like the other
-	# tooltips. Godot wraps whatever `_make_custom_tooltip` returns in a
-	# PopupPanel styled as TooltipPanel -- `bevel(PANEL2)`, with content margins
-	# already set -- so a PanelContainer here meant TWO plates: a darker
-	# rectangle sitting inset inside the lighter tooltip, with both paddings
-	# stacked. Removing the inner BORDER did not help, because the inner PLATE
-	# was the thing being seen.
-	#
-	# Every plain tooltip in the game is a Label on the theme's plate. This is
-	# that, with more rows. It also means the width comes from the same place
-	# theirs does -- `tip()` wrapping at TOOLTIP_WRAP -- so it sits in the same
-	# family of rectangles rather than being its own size.
+	# No plate of its own: Godot already wraps tooltips in a panel, so a PanelContainer doubled it.
+	# Why: docs/why/Widgets.md#perk-tooltip
 	var accent := DB.manufacturer_colour(h.manufacturer)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 1)
@@ -1124,32 +807,18 @@ static func perk_readout(h: HullData) -> VBoxContainer:
 			continue
 		_perk_rows(box, pd)
 		any = true
-	# THE EMPTY CASE IS DRAWN, for the reason `perk_tip` gives: a C hull showing
-	# a heading and nothing under it reads as a failure to load, where the same
-	# blank with a sentence in it is the ladder explaining itself.
+	# The empty case is drawn, as in `perk_tip`, so a blank reads as the ladder explaining itself.
 	if not any:
 		box.add_child(UITheme.body(tip("No perks yet. Each tier from B up has one more."),
 			UITheme.QUOTE, UITheme.FS_SMALL))
 	return box
 
 
-## One perk: its name, then what it does, indented under it.
-##
-## The name in EMBER and the effect in COLD, which is the same split the module
-## readout uses for an affix — the thing you are looking for, then the thing you
-## are looking it up for.
+## Name in EMBER, effect in COLD, as the module readout does for an affix.
 static func _perk_rows(box: VBoxContainer, pd: Dictionary) -> void:
 	box.add_child(UITheme.body(str(pd.name), UITheme.EMBER, UITheme.FS_SMALL))
-	# WRAPPED IN THE STRING, NOT BY THE LABEL, and that is the whole fix for a
-	# tooltip that reached the bottom of the screen. An autowrapping Label
-	# reports its minimum HEIGHT from its current WIDTH -- and a tooltip is
-	# measured the instant it is built, before any container has handed it one.
-	# Measured: this panel asked for 309 rows off-tree and settled at 168 once
-	# laid out, and it is the first number a tooltip believes.
-	#
-	# A `custom_minimum_size.x` on the label is not enough either; that was tried
-	# and it still came out at 309. `tip()` above already carries this same
-	# finding for the plain tooltips -- "the wrap has to happen in the STRING"
-	# -- so this uses it, and the label then measures the same on-tree and off.
+	# Wrap in the string: an off-tree Label measured 309 rows and settled at 168 once laid out.
+	# A `custom_minimum_size.x` on the label was tried and still gave 309.
+	# Why: docs/why/Widgets.md#perk-tooltip
 	var body := UITheme.body(tip(str(pd.text)), UITheme.COLD, UITheme.FS_SMALL)
 	box.add_child(pad(body, 8, 0))

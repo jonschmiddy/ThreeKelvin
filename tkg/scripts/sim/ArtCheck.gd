@@ -1,48 +1,18 @@
 extends Harness
 
-## What still has no art, and what has art of the wrong size:
-##   godot --headless --path . -- artcheck
-##
-## THE COVERAGE GATE for the module and card art batch. Scope is Korvan,
-## unbranded and the malfunctions — 43 modules and 76 cards — and everything
-## else is deliberately out, so a manufacturer that has not been drawn yet does
-## not read as a hundred failures.
-##
-## IT PASSES WITH EVERYTHING MISSING, and that is the point. A module without a
-## sprite draws its silhouette and a card without an illustration draws its
-## glyph; both are the designed fallback rather than a fault, so missing art is
-## COUNTED and listed, never failed on. What fails is art that exists and is
-## wrong — the wrong size for the box it has to sit in, which is the one mistake
-## that cannot be seen from a filename and is invisible on screen until you know
-## what you are looking for.
-##
-## THE BOX IS A GUIDE, NOT A FRAME, so this does not demand an exact size. A
-## sprite is generated at the width its cells ask for and cropped to its own ink
-## -- nothing is resampled -- so its height is whatever the art needed. A gun
-## standing a row or two proud of its mount is a gun. What is checked is that it
-## does not miss by a WIDE margin: far over and it hangs off the hull, far under
-## and there is nothing to see at fifteen pixels.
-##
-## The size a module wants is arithmetic, not a constant: MountPoints sizes a
-## fitted part from the hold's cell at half scale, so it is derived here from
-## the same numbers rather than written down twice.
+## Missing art is counted, never failed on; only art of the wrong size, by a wide margin, fails.
+## Why: docs/why/ArtCheck.md#coverage-gate
 
 
-## Cards in scope come from modules of these manufacturers, plus the malfunctions.
-## `&""` is unbranded, which is a real key and not a missing one.
-## Solari joined Oct 15, when its parts and cards were written and their art
-## was started (Jon: "Let's do art for these modules and cards").
+## Cards come from these makers' modules plus malfunctions; the empty name is unbranded, a real key.
 const MANUFACTURERS: Array[StringName] = [&"korvan", &"", &"solari"]
 
 ## How far past its box a part may stand before it is a fault, in art pixels.
 ## Half a cell. Beyond that it is not a gun on a mount, it is a gun beside one.
 const PROUD := 8
 
-## CARD ART IS 92 WIDE AND THE WINDOW IS 93, and that one pixel is not a bug.
-## `create_image_pixflux` refuses an odd side at this size -- it answers 93x60
-## with "Use 92x60 instead" -- so the art is generated one column short and
-## centred, which leaves half a pixel of margin against a window that is already
-## a recessed dark box. Height is exact.
+## Card art is 92 wide in a 93 window: `create_image_pixflux` refuses an odd side at this size.
+## Why: docs/why/ArtCheck.md#card-art-width
 const CARD_ART := Vector2i(92, 60)
 
 
@@ -97,28 +67,16 @@ func run() -> void:
 				tex.get_width(), tex.get_height(),
 				int(want_card.x), int(want_card.y)])
 
-	# `-- artcheck cards` dumps every illustration owed, one per line, with what
-	# the card IS. Writing seventy-one prompts off the card gallery means reading
-	# them off a screen one at a time; this is the same list as a file.
-	#
-	# TAB SEPARATED, because the consumer is a script. `glyph_kind` is in it
-	# because it is the game's OWN answer to "what does this card look like" --
-	# the procedural art has been sorting cards into slug, burst, charge, pyre,
-	# brace and the rest all along, and a prompt that ignores that is inventing a
-	# second taxonomy for the same objects.
+	# `artcheck cards` is tab separated for scripts and carries `glyph_kind`, the game's taxonomy.
+	# Why: docs/why/ArtCheck.md#card-dump
 	if "cards" in OS.get_cmdline_user_args():
 		print("
 === CARD MANIFEST ===")
 		for row in cards:
 			var c: CardData = row["card"]
 			var src: ModuleData = DB.modules.get(StringName(str(row["from"])))
-			# `describe()` and the type line are in it because a DESIGN SHEET is
-			# written off this file, not off the card gallery, and a brief for a
-			# picture that does not know what the card does is how four cards
-			# ended up asking for the same muzzle flash. `type` and `glyph` are
-			# both here on purpose: they are the game's two existing answers to
-			# "what is this", and where they agree across many cards is exactly
-			# where the illustrations are about to collide.
+			# Description, type and glyph are included so briefs know what a card does.
+			# Why: docs/why/ArtCheck.md#card-dump
 			print("%s	%s	%s	%s	%s	%s	%s	%s	%s	%s" % [
 				c.art_key(),
 				"DONE" if DB.card_art(c.art_key()) != null else "TODO",
@@ -152,12 +110,8 @@ func run() -> void:
 	verdict("artcheck")
 
 
-## THE SHOP ROOMS AS INSTALLED. Jon's fifteen rooms are data -- `rooms.json`
-## and the pictures beside it, written by `tools/room_install.py` -- and the
-## mistakes that data invites are the silent ones: a picture the game cannot
-## load draws nothing, a light file of the wrong size lights nothing, a level
-## with no room gets a shop with no walls. Each is counted here as a fault,
-## because unlike a module with no sprite there is no designed fallback.
+## Shop room data fails silently with no designed fallback, so each fault is counted.
+## Why: docs/why/ArtCheck.md#shop-rooms
 func _shop_rooms() -> Dictionary:
 	var bad := 0
 	var d := ShopScene.doc()
@@ -238,9 +192,7 @@ func _room_faults(r: Dictionary, ls: Array) -> int:
 		notes.append("no light")
 	elif img.get_width() != int(ls[0]) or img.get_height() != int(ls[1]) * 4:
 		notes.append("light is %dx%d" % [img.get_width(), img.get_height()])
-	# THE EXCHANGE'S VIEW, pixel for pixel (`room_install.view_masks`): the
-	# room's size, with space showing for every size of hold. A missing or blank
-	# one lights the view like the room, which is the grey ring round it back.
+	# The Exchange's view, pixel for pixel: a missing or blank mask lights the view like the room.
 	if room.has("hold"):
 		var vf := ShopScene.ROOMS_DIR + String((room.light as Dictionary).get("view", ""))
 		var vi := Image.new()
@@ -266,11 +218,8 @@ func _room_faults(r: Dictionary, ls: Array) -> int:
 		if not room.has(key):
 			continue
 		var fr: Dictionary = room[key]
-		# A HOLD IS JUDGED BY WHAT IS DRAWN, at each of its sizes: the frame's
-		# painted pixels, and the grid standing in its opening. Its box is the
-		# heavy frame's picture, clear margins and all, and Jon hangs his with
-		# those margins past the wall's edge -- four of his five Exchanges,
-		# every painted pixel inside (2026-09-27).
+		# A hold is judged by what is drawn: Jon hangs frames with margins past the wall.
+		# Why: docs/why/ArtCheck.md#hold-judging
 		if key == "hold":
 			var panel := Rect2(Vector2.ZERO, ShopScene.PANEL).grow(0.5)
 			for z in (fr.get("frames", {}) as Dictionary):
@@ -295,31 +244,13 @@ func _room_faults(r: Dictionary, ls: Array) -> int:
 	return 0 if notes.is_empty() else 1
 
 
-## ---------------- the three families that are still drawn ----------------
-##
-## Same philosophy as the two above and it is worth restating, because these
-## three start at zero: MISSING IS NOT A FAILURE. Every one of them has a
-## procedural drawing behind it that is the designed fallback, so what is
-## counted is coverage and what is FAILED is a file that exists and is the wrong
-## size -- the one mistake that cannot be seen from a filename.
-##
-## THIS IS ALSO THE SEAM'S OWN GATE. The screens these appear on are not
-## reproducible frame to frame -- the station strobes, the beacon's rings and the
-## enemy bob all move on wall-clock time, and two runs of identical code differ
-## by tens of thousands of pixels -- so "the picture did not change" cannot be
-## tested by comparing shots. What CAN be tested is that with no files on disk
-## every loader answers null and every drawing site therefore takes the path it
-## always took. That is what the counts below are for.
+## Missing is not a failure: with no files every loader returns null, which gates the seam.
+## Why: docs/why/ArtCheck.md#drawn-families
 
-## The enemy canvas, from `EnemyArt`. A sprite has to fit inside it; it does not
-## have to fill it -- the kept ships are about 200x70 in a 340x160 frame, which
-## is that size for the Custodian -- and the Control crops to the ink afterwards.
+## A sprite must fit the enemy canvas but need not fill it; the Control crops to the ink.
 const ENEMY_CANVAS := Vector2i(EnemyArt.W, EnemyArt.H)
 
-## The sector arena, in game pixels, at its narrowest. The row splits its width
-## between the ship slot and the place, and `EncounterView` records the arena as
-## 378 rows; 460 is the measured slot width in `docs/briefs/ART_SIZES.md`. A
-## place wider than this cannot be seen whole, which is a fault in the art.
+## Narrowest sector arena (460 x 378, `docs/briefs/ART_SIZES.md`); wider cannot be seen whole.
 const PLACE_ARENA := Vector2i(460, 378)
 
 
@@ -352,10 +283,7 @@ func _enemies() -> Dictionary:
 	return {"drawn": drawn, "missing": missing, "wrong": wrong}
 
 
-## The pictures a sector can show. Named rather than derived from `NodeType`,
-## because the picture does not follow the type -- see
-## `EncounterView.AreaView._place_name`, which is the one line that decides.
-## START is not here on purpose: empty space is the picture.
+## Named, not derived from `NodeType`, as the picture does not follow the type; START is empty.
 const PLACES: Array[StringName] = [&"station", &"derelict", &"battlefield",
 	&"battlefield_cleared", &"beacon", &"core", &"pulsar"]
 
@@ -384,13 +312,8 @@ func _places() -> Dictionary:
 	return {"drawn": drawn, "missing": missing, "wrong": wrong}
 
 
-## THE BOX A FITTED PART OCCUPIES, in art pixels, at the refit screen's own
-## scale. Derived from the same three numbers MountPoints.part_rect uses, so
-## retuning the hold cannot leave this check vouching for the old size.
-##
-## `k` is 1 because that is what ShipScreen passes to magnify() unzoomed, and
-## the unzoomed view is the one the asset has to be authored for — the zoom then
-## draws the same file at a whole 2.
+## Derived from the numbers `MountPoints.part_rect` uses, so retuning the hold keeps this honest.
+## Why: docs/why/ArtCheck.md#module-box
 func _module_box(m: ModuleData) -> Vector2:
 	var f := Vector2(maxi(1, m.size.x), maxi(1, m.size.y))
 	var q := 1.0 / ModuleIcon.HOLD_K
@@ -410,9 +333,7 @@ func _modules() -> Array[ModuleData]:
 	return out
 
 
-## Every card in scope, with where it came from. A SHARED card reached through
-## two modules is ONE illustration and is counted once — the cards are the same
-## card, which is the whole reason SHARED exists.
+## A SHARED card reached through two modules is one illustration and is counted once.
 func _cards() -> Array[Dictionary]:
 	var seen := {}
 	var out: Array[Dictionary] = []

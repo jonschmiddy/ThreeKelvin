@@ -1,15 +1,9 @@
 class_name StationScreen
 extends Control
 
-## Stations are paid campfires. Every service costs credits, and credits are the same
-## currency you would rather spend on modules — that tension IS the difficulty.
-##
-## A station is now four things rather than two: a shelf, a service desk, a
-## BUYER for what is in your hold, and — where the place is developed enough to
-## have a laboratory — a fabricator. Every price on the screen comes from
-## `Market` or `Fabricator`, and none of them is stored: a price is a function of
-## this place and that part, so there is nothing here to drift, to save, or to
-## come back from a save as a discount.
+## Prices are never stored: a price is a function of place
+## and part, so none can drift or come back from a save.
+## Why: docs/why/StationScreen.md#station-overview
 
 var _header: RichTextLabel
 ## The door. Held as a member because whether it opens is run state -- see
@@ -36,10 +30,7 @@ var _lab: LabScene
 ## Pointing at your own ship in the Shipyard, and the slab that answers it.
 var _mine_hit: Control
 var _mine_slab: Control
-## YOUR SHIP OPENED UP, in the yard (Jon: "Couldn't clicking on your ship while
-## in the shipyard do this?"): the same cutaway LOCAL opens, over the station,
-## the yard itself zoomed onto the ship on its stands. The refit a berth used
-## to send you to the SHIP page for (that page has no tab now).
+## Clicking your ship in the yard opens the same cutaway LOCAL opens, over the station.
 var _cutaway: CutawayView = null
 ## the elevator down the left, which the cutaway's panel takes the place of
 var _rail: Control = null
@@ -57,9 +48,7 @@ var _building: Control
 var _lift: Tween
 ## The fault picker, while it is open. Null the rest of the time.
 var _purge_prompt: Control
-## The Shipyard: Jon's hall for this level, the ships on their stands, the
-## services on drones over yours and the deal on a TV (`YardScene`). Built once
-## per visit and kept: a purchase moves the drones, it does not rebuild the yard.
+## Built once per visit and kept: a purchase moves the drones, it does not rebuild the yard.
 var _scene: YardScene
 ## What the ships on the blocks are, so a refresh knows whether to stand them again.
 var _yard_ships_key := ""
@@ -70,66 +59,34 @@ var _scene_ship: ShipView
 var _mine_view: ShipView
 var _scene_hit: Control
 var _scene_slab: Control
-## What kind of place this is, in its own words. Fills the column under the
-## services with something worth reading rather than with nothing.
+## What kind of place this is, in its own words.
 ## The count line under each deck name, refreshed with everything else.
 var _deck_note: Dictionary = {}
 
 var _pages: Dictionary = {}
 var _tabs: Dictionary = {}
 var _tab: StringName = &"services"
-## Which tabs this station actually has. Every station has all five since Jon's
-## Nov 3 ruling (a lab at every level, a dock desk where no manufacturer
-## berths), so today this is all on; the switch stays for a deck that ever
-## needs to go.
+## Every station has all five decks (Jon, Nov 3), so
+## all are on; the switch stays for a deck that goes.
+## Why: docs/why/StationScreen.md#five-decks-everywhere
 var _tabs_on: Dictionary = {}
-## How tall the hull portrait is. Enough for a heavy at 2x without the panel
-## growing past the service column beside it.
-## Sized off the deepest hull plus the bob, at 1x. See ShipScreen for why the
-## magnification came down. 140 rows of heavy canvas and the bob's four: the
-## heavy grew from 100 rows when the hull art was redrawn, and this number is
-## derived from it rather than chosen, so it moves whenever that does.
-##
-## WITH SIX ROWS OF SLACK, matching ShipScreen. The bare derivation is 144 -- the
-## heavy's 140-row canvas plus the bob's four -- and at exactly 144 this sits on
-## a knife edge: `ShipView._resize_canvas` sets `clip_contents` when the canvas
-## is TALLER than the view, so any hull one row deeper, or one call asking for a
-## bob of three, starts clipping the ship's top and bottom rows as it bobs. Rows
-## winking in and out at the edges of a moving sprite is not a loud failure; it
-## reads as the ship shimmering.
+## Six rows of slack over the derived 144, or a hull one row deeper clips its edges as it bobs.
+## Why: docs/why/StationScreen.md#hull-portrait-height
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# THE ROOM YOU ARE STANDING IN is chosen by Router._swap now, which is the
-	# one place that sees every screen change -- see `_room_for` for why the
-	# station could not keep doing it itself once open space had a room too.
+	# The room is chosen by `Router._swap`, the one place that sees every screen change.
 	_build()
 	Sig.resources_changed.connect(_refresh)
 	Sig.ship_changed.connect(_refresh)
-	# Somebody else bought something off this shelf. The stock is one list the
-	# whole party is standing in front of, so it has to empty while you watch
-	# rather than the next time you happen to reopen the screen.
+	# Another player's purchase must empty this shelf live, as the stock is one shared list.
 	Sig.party_map_changed.connect(_refresh)
 	Sig.map_changed.connect(_refresh)
 	_stock_up()
 	_inspect()
 	_refresh()
 
-## FIVE PAGES, NOT FIVE PANELS STACKED.
-##
-## A station does five things — repair you, post work, sell you parts, buy what
-## you are carrying, and build things where there is a laboratory — and all five
-## were on screen at once in one scrolling column. At a developed station that is
-## a service desk, two contracts, four shelf parts, twelve hold slots and a
-## recipe list, and the player has to scroll past the thing they came in for.
-##
-## Tabs, because these are five separate ERRANDS rather than five parts of one.
-## Nobody buys a gun and sells a plate in the same gesture; they do one, then
-## decide. A column implies a reading order that does not exist.
-##
-## Every page is built once and hidden, not built on demand: the shelf has to be
-## able to empty while you are looking at the hold — `Sig.party_map_changed`
-## fires when a partner buys something — and a page that only exists while it is
-## visible cannot be refreshed when it is not.
+## Five separate errands, so five pages, each built once and hidden so the shelf can refresh unseen.
+## Why: docs/why/StationScreen.md#five-pages
 const TABS := [
 	[&"services", "SERVICES"],
 	[&"work", "WORK"],
@@ -138,23 +95,8 @@ const TABS := [
 	[&"bench", "FABRICATOR"],
 ]
 
-## THE SAME FIVE ERRANDS, DRAWN AS A BUILDING RATHER THAN A TAB STRIP.
-##
-## A row of five identical buttons says these are five views of one thing. They
-## are not: they are five different counters, and the tab strip's real cost is
-## that it hides four fifths of the station behind whichever one you are on --
-## you cannot see that there is work posted while you are looking at the shelf.
-##
-## Stacked as DECKS the strip becomes a section through the station, which does
-## three things a row cannot. It is always fully visible, so nothing is hidden.
-## It has room for a second line, so each deck can say what is on it and how
-## much. And it puts your own berth at the bottom of the stack with your ship in
-## it, which is the one fact the old screen never showed: you are inside a place
-## and the place has a shape.
-##
-## ORDERED HIGH TO LOW, berth last. The order is not arbitrary and is not the
-## TABS order: a player reads the rail downward and arrives at their own ship,
-## which is where UNDOCK belongs.
+## Decks are ordered high to low with the berth last, so the rail ends at UNDOCK.
+## Why: docs/why/StationScreen.md#decks-as-a-building
 const DECKS := [
 	[&"stock", "PROMENADE", "THE SHELF"],
 	[&"services", "SHIPYARD", "REPAIRS"],
@@ -168,19 +110,8 @@ const RAIL_W := 156
 ## How tall one deck cell is. Two lines of FS_SMALL plus the padding that keeps
 ## the highlight from touching the text.
 const DECK_H := 44
-## The air above a heading's LABEL BOX, and below it.
-##
-## TWO NUMBERS, ONE PIXEL APART, AND THAT PIXEL IS THE WHOLE POINT. Centring the
-## label's box does not centre the WORD: Silkscreen has an ascent of 17 and a
-## descent of 4, so the capitals occupy rows 7 to 17 of a 21-pixel box and sit
-## three pixels below its middle. Everything under the row -- the two pixels of
-## separation before the rule -- counts as air below as well.
-##
-## Measured off a real frame rather than reasoned about, twice. The ink was
-## landing at rows 105 to 114 in a band running 84 to 126 -- 21 above and 12
-## below. At 10 and 11 it came out 16 and 19, still a pixel and a half high; at
-## 11 and 10 it is 17 and 18, which is as square as an even band and an odd
-## number of leftover rows allows.
+## Silkscreen sits three pixels low in its box, so air above and below differs by one, measured.
+## Why: docs/why/StationScreen.md#heading-centring
 const HEAD_TOP := 11
 const HEAD_BOT := 10
 ## Every row on this screen is this tall. One number, so a service, a contract
@@ -188,23 +119,15 @@ const HEAD_BOT := 10
 const ROW_H := 22
 
 func _build() -> void:
-	# THE YARD'S LEFT EDGE WHILE THE ELEVATOR IS AWAY (Jon: "There is also a blank
-	# box right where the elevator panel comes in"; and then, of the station's
-	# hull put there, "can we get rid of the space station on the left side"):
-	# the yard's own hall runs on into the elevator's column, lit as the hall is,
-	# shown only while the elevator is away (`_YardEdge`)
+	# The yard's hall runs on into the elevator's column while the elevator is away.
 	_edge = _YardEdge.new()
 	_edge.screen = self
 	add_child(_edge)
-	# Margin on the outside, once. Without it the header panel runs to x=0 and
-	# x=960 and UNDOCK is sliced in half by the window — every panel on this
-	# screen sits inside this one box.
+	# One outer margin, or the header runs to x=0 and 960 and UNDOCK is sliced by the window.
 	var frame := MarginContainer.new()
 	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# NO SIDE MARGIN OF ITS OWN. `Main` already insets every screen by 8, and a
-	# second inset here put the station on a different left edge from the HUD
-	# above it and from every other screen in the game. Uniform means agreeing
-	# with the rest of the interface, not being individually tidy.
+	# No side margin of its own: `Main` already insets
+	# every screen by 8, and a second misaligned it.
 	for side in ["top", "bottom"]:
 		frame.add_theme_constant_override("margin_" + side, 4)
 	add_child(frame)
@@ -213,98 +136,41 @@ func _build() -> void:
 	root.add_theme_constant_override("separation", 8)
 	frame.add_child(root)
 
-	# --- the header, and the way out.
-	#
-	# UNDOCK is a button on this line rather than a panel of its own on a column
-	# of its own. It was three hundred pixels wide inside a three-hundred-pixel
-	# rail, for a control that is pressed once and is never the reason anybody
-	# opened this screen. Leaving is not an errand.
+	# UNDOCK sits on the header line: it is pressed once and is never why anyone opened the screen.
+	# Why: docs/why/StationScreen.md#header-and-undock
 	_header = RichTextLabel.new()
 	_header.bbcode_enabled = true
 	_header.fit_content = true
-	# WRAPS, AT A WIDTH THIS SCREEN CHOOSES.
-	#
-	# Both obvious settings are wrong here and they are wrong in opposite
-	# directions. Autowrap ON inside a shrinking panel collapses to the narrowest
-	# legal width and stacks the line into a column. Autowrap OFF reports the
-	# WHOLE UNWRAPPED LINE as a minimum width -- and a Control is never laid out
-	# smaller than its minimum, even when anchored -- so the header grew the
-	# entire screen to 983 inside a 960 window and every panel on it hung off the
-	# right edge. The symptom looked exactly like a missing margin.
-	#
-	# A fixed width and wrapping is the only combination that is neither.
+	# Autowrap off grew the header to 983 in a 960 window, so use a fixed width and wrap.
+	# Why: docs/why/StationScreen.md#header-wrapping
 	_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_header.custom_minimum_size = Vector2(RAIL_W, 0)
 	_header.scroll_active = false
 	_header.add_theme_stylebox_override("normal", UITheme.empty())
 
-	# --- WHOSE YARD THIS IS, at the top of the rail.
-	#
-	# It was a panel of its own across the full width, and it was mostly air: a
-	# flag is 39x66 and the two lines of text beside it are 24, so eighty of the
-	# hundred and ten pixels that band cost were empty. The rail is already the
-	# column that says where you are standing -- the flag belongs at the head of
-	# it, over the decks it holds, and the sentence about the place goes on one
-	# line above the page it describes.
-	#
-	# The FLAG rather than the badge, because this is a place and not a listing:
-	# the chassis list badges seven manufacturers you are choosing between, and
-	# this is the one you are inside of.
-	#
-	# ONE BANNER PER BERTH, not one for the station. A contested station is held
-	# by two or three manufacturers, and the header named all of them in a trade
-	# clause while the rail flew one flag -- so the screen said "GLUT
-	# SOLARI/CYGNET/KORVAN" and showed a single Solari banner. Flags say it
-	# without a sentence.
-	#
-	# --- the section: the berths, five decks and a berth, down the left
+	# One banner per berth at the head of the rail, as
+	# a contested station is held by several makers.
+	# Why: docs/why/StationScreen.md#rail-flags
 	var rail := VBoxContainer.new()
 	_rail = rail
 	rail.add_theme_constant_override("separation", 3)
 	rail.custom_minimum_size = Vector2(RAIL_W, 0)
 	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	# THE STATION'S PARTICULARS, WHERE THE BANNERS WERE.
-	#
-	# The head of the rail held the manufacturers' banners, and the particulars sat
-	# in a band across the top of the deck. The banners are in the rooms now --
-	# hung in the hangar, pinned to the board, over the till -- so the facts about
-	# the place move up here, one to a line, and the deck gets its band back.
+	# Station facts head the rail one to a line now that the banners hang in the rooms.
+	# Why: docs/why/StationScreen.md#rail-particulars
 	rail.add_child(_header)
-	# NO NAMES UNDER THEM. A flag that has to be captioned is a flag that failed,
-	# and the manufacturers are named all over this screen anyway -- on every part
-	# on the shelf, and in the trade clause at the top of the page.
+	# No names under the flags: a flag that needs a caption has failed.
 	rail.add_child(UITheme.hsep())
 
-	# --- THE DECKS ARE FLOORS OF ONE BUILDING.
-	#
-	# They were five buttons in a column, which tells you which page you are on.
-	# A cutaway tells you where you are STANDING, costs the same vertical, and is
-	# the only one of the two that makes the station a place. The cells sit OVER
-	# the drawing with their plates taken off, so the room shows through and the
-	# labels stay on top of it.
-	#
-	# The berth that used to close this column is gone. It drew your own ship at
-	# the bottom of a rail whose whole subject is the station you are standing
-	# in, and it was the second place on the screen the hull appeared. What it
-	# was using is ninety pixels, and the floors have them now: five rooms at
-	# sixty-odd rows each instead of five slivers at forty-six.
-	# A LIFT SHAFT: the window clips, and the building inside it is TALLER than
-	# the window and slides. Picking a deck moves the station, not a highlight.
-	#
-	# The overflow is deliberately small -- see `FLOOR_H`. A building that
-	# scrolled far enough to hide a floor would be a navigation bar you cannot
-	# navigate with: every deck has to stay clickable at every scroll position,
-	# so the travel is forty pixels and the worst-clipped floor still shows half
-	# of itself.
+	# The decks are floors of one cutaway; the building slides, but every deck stays clickable.
+	# Why: docs/why/StationScreen.md#decks-as-floors
 	var shaft := Control.new()
 	shaft.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	shaft.clip_contents = true
 	shaft.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# SIZED IN A CALLBACK WITH A GUARD, not by anchors. An early version ran the
-	# sizing before the shaft had a size and got five floors sharing zero height
-	# -- three rendered and two vanished. The guard is the whole fix: nothing is
-	# sized until the shaft has been.
+	# Sized in a guarded callback: sizing before the shaft had a size left floors at zero height.
+	# Why: docs/why/StationScreen.md#building-sizing
 	_building = Control.new()
 	_building.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	shaft.add_child(_building)
@@ -323,22 +189,8 @@ func _build() -> void:
 		var cell := _deck_cell(id, String(entry[1]), String(entry[2]))
 		_tabs[id] = cell
 		cells.add_child(cell)
-	# The berth is the bottom of the section, and UNDOCK lives in it.
-	#
-	# It used to sit in the tab row, grouped left, because pinned to the right of
-	# an expanding row it was at the mercy of the window width -- on a 960
-	# screenshot it came back sliced in half. In a fixed-width rail that failure
-	# cannot happen: the column is RAIL_W whatever the window does, so the button
-	# can go where it belongs instead of where it is safe.
-	# NO SPACER. There was one here, pushing UNDOCK to the floor of a column
-	# whose other children were all fixed height. The building expands now, so
-	# the button is already at the bottom -- and an expanding spacer beside an
-	# expanding building is two things splitting the slack down the middle,
-	# which is exactly what it did: the station got 178 pixels of 362 and read
-	# as a cutaway that had been cropped.
-	# THE WAY OUT, and nothing else. `_berth_cell` used to hand back a panel with
-	# your ship in it and this button under it; the panel is gone and the button
-	# is not, because leaving is still a thing you do from here.
+	# UNDOCK lives in the berth, with no spacer: an expanding one halves the building's height.
+	# Why: docs/why/StationScreen.md#undock-cell
 	rail.add_child(_undock_cell())
 
 	# --- the pages, all built, one visible
@@ -346,27 +198,8 @@ func _build() -> void:
 	body_col.add_theme_constant_override("separation", 3)
 	body_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# ONE LINE, NOT TWO ENDS OF ONE. What this market is short of used to be its
-	# own amber label pinned to the right-hand edge, half a screen from the
-	# sentence it belongs to -- and read as the station's name rather than as a
-	# price signal. It is a clause of the same sentence now, in the same amber, so
-	# it is still the one thing on the line you can act on.
-	# CENTRED IN THE BAND IT HAS, rather than sitting on the floor of it.
-	#
-	# The line has about fifty pixels of air between the HUD and the first panel
-	# and occupies sixteen of them, and a `RichTextLabel` in a VBox takes its own
-	# height and pins to the top of whatever is left -- so the sentence sat low
-	# against the panel below and the gap read as a hole under the bar rather
-	# than as margin around a line.
-	# NO HEADBAND. The station's particulars sat here in a band across the top of
-	# the deck; they head the rail now, where the banners were, and every deck is
-	# that much taller for it.
-	# NO PLACE BLURB HERE AT ALL. It lived in the Yard's right-hand column, where
-	# a sentence about megafauna and salvage read as something the repair shop was
-	# telling you, and moving it to the top of the page only made it wrong on five
-	# decks instead of one. The starchart already says what a system is like, and
-	# that is the screen you read before deciding to come here -- by the time you
-	# are docked it is a fact about a choice you have already made.
+	# The market's shortage is a clause of the same sentence; no headband or place blurb sits here.
+	# Why: docs/why/StationScreen.md#page-header-line
 
 	var body := Control.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -397,20 +230,8 @@ func _build() -> void:
 			_tab = StringName(a.split("=")[1])
 	_show_tab(_tab)
 
-## Repair, refuel, and the yard that sells whole ships.
-##
-## TWO PANELS STACKED, not two columns side by side. The services are a list of
-## one-line prices and the shipyard is two ships being compared; side by side,
-## the ships got half a page to do the harder job in and the price list got the
-## other half to print seven short rows in. Stacked, each gets the shape it
-## wants -- the list is wide and short, the comparison is wide and tall.
-## A panel heading, in a band with its capitals actually centred.
-##
-## The panel below it is built with NO vertical stylebox margin -- see
-## `_flat_panel` -- so this row owns all of the air above the rule and can make
-## it symmetric. Left to `panel_with`'s twelve, the top of the band was fixed at
-## twelve and the bottom at two, and no amount of centring inside the row could
-## make up a ten-pixel head start.
+## Two panels stacked, not side by side: a price list and a ship comparison want different shapes.
+## Why: docs/why/StationScreen.md#services-panels
 func _heading(title: String) -> MarginContainer:
 	var pad := MarginContainer.new()
 	pad.add_theme_constant_override("margin_top", HEAD_TOP)
@@ -423,43 +244,23 @@ func _heading(title: String) -> MarginContainer:
 	return pad
 
 
-## A panel with horizontal padding and none at all vertically.
-##
-## `Widgets.panel_with` gives twelve all round, which is right for a panel whose
-## first child is content. These two open with a heading over a rule, and there
-## the twelve is a head start the heading cannot spend symmetrically.
+## No vertical padding: a heading over a rule cannot spend `panel_with`'s twelve symmetrically.
 func _flat_panel(child: Control) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel",
-		# (bg, border, radius, PAD_V, PAD_H) -- vertical first, and getting that
-		# order wrong gives a panel with no side padding and twelve top and
-		# bottom, which is the opposite of what this is for.
+		# `UITheme.flat` takes vertical padding first; the wrong order gives no side padding.
 		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 0, 12))
 	p.add_child(child)
 	return p
 
 
-## THE YARD: one hall per development level, your ship and the one for sale on
-## their stands, and the four services flying over yours on the station's drones.
-##
-## THE SERVICES USED TO BE A TABLE ON TOP OF THE PICTURE, and then four machines
-## standing on its floor (`ServiceRig`), which Jon found "feel weird". They are
-## drones now, as on the Yard Drones page he judged the Yard on: each carries its
-## offer on a screen of its level's make, a click buys, and a drone with nothing
-## left to do after a sale says so and flies off. Same four actions, same four
-## prices. `YardScene` draws all of it; this deck only feeds it the offers and
-## does the buying.
+## Services fly as drones over your ship, as on the
+## Yard Drones page Jon judged; `YardScene` draws them.
+## Why: docs/why/StationScreen.md#the-yard
 func _page_services() -> Control:
-	# NO HEADING, AND NO PANEL AROUND IT EITHER.
-	#
-	# The word SHIPYARD sat over a rule above a drawn hangar with two ships in
-	# it, which is a caption on a photograph of a room you are standing in. The
-	# deck rail already says SHIPYARD and the picture already says so.
-	#
-	# THE YARD IS 766 x 482, the size the Yard Drones page was drawn at and every
-	# number in it is in: seven pixels either side of it and one under it are
-	# what this panel keeps of the twelve it used to, so the hall Jon passed lands
-	# pixel for pixel.
+	# The yard is 766 x 482 with seven pixels of margin,
+	# so the hall Jon passed lands pixel for pixel.
+	# Why: docs/why/StationScreen.md#yard-size
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 0)
 	_hull_offer = VBoxContainer.new()
@@ -500,13 +301,8 @@ func _yard_box(n: MapGen.MapNode) -> Control:
 	return box
 
 
-## THE SHIPS, stood again only when they changed: your hull and what is fitted
-## to it, and whatever is on the blocks.
-##
-## BOTH SHIPS STAND IN THE HALL NOW, on the level's own stands, with their names
-## over them the way the Yard Drones page wrote them -- yours amber, the one for
-## sale ice, and what each one is under it. Pointing at either still brings up
-## its figures against the other.
+## Ships are stood again only when they changed: your hull and its fit, or the one on the blocks.
+## Why: docs/why/StationScreen.md#yard-ships
 func _yard_ships(h: HullData) -> void:
 	var key := "%s|%s|%s" % [Run.display_name(), str(Run.hull.get_instance_id()) if Run.hull != null else "",
 		str(h.get_instance_id()) if h != null else "none"]
@@ -527,10 +323,8 @@ func _yard_ships(h: HullData) -> void:
 	_scene_hit = null
 	_scene_slab = null
 	if Run.hull != null:
-		# `ShipBuild.fitted_out` plus a `MountPoints` in display mode is the pair the
-		# refit and moving-day screens already use: the view blits the hull and the
-		# mounts put the guns on it. PASSIVE: a picture of your ship, not a place
-		# to change it.
+		# PASSIVE: a picture of your ship from
+		# `ShipBuild.fitted_out` and `MountPoints`, not an editor.
 		var mine := ShipView.new()
 		mine.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mine.self_clip = false
@@ -602,27 +396,17 @@ func _on_ship_hover(on: bool) -> void:
 		_scene_slab.visible = on
 
 
-## The gauges, the mounts and the perks, on a slab dark enough to read over art.
-##
-## ONE BLOCK WITH A SIGNED CHANGE COLUMN, not two blocks to diff by eye. The
-## first version of this comparison painted your value as the floor and the
-## offer as the fill: compact, and unreadable, because the base cells take the
-## manufacturer accent -- so wherever that accent is itself red, four gauges on
-## which the new frame was BETTER came out red under a legend saying red meant
-## loss. A signed number cannot be misread by anybody.
+## A signed change column: fill-versus-floor gauges misread when the maker accent was itself red.
+## Why: docs/why/StationScreen.md#offer-slab
 func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mark := DB.manufacturer_colour(h.manufacturer)
 
-	# --- WHAT IT IS, AND WHAT THE PLUSES AND MINUSES ARE AGAINST.
-	#
-	# ONE SLAB FOR EITHER SHIP. Pointing at the hull for sale reads its figures
-	# against yours; pointing at yours reads them against the hull for sale. The
-	# same panel both ways round, so the comparison is symmetrical and there is
-	# one thing to learn. `against` is null when the yard has nothing on the
-	# blocks, and then there is simply nothing to subtract.
+	# One slab serves either ship, read against the
+	# other; `against` is null with nothing on the blocks.
+	# Why: docs/why/StationScreen.md#offer-slab
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -689,19 +473,15 @@ func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 	for pid in h.perks():
 		var pk := UITheme.body(DB.perk_text(pid), UITheme.EMBER, UITheme.FS_SMALL)
 		pk.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# WRAPPED ONLY IF IT NEEDS WRAPPING. An autowrap width is the narrowest a
-		# Label may be, not the widest -- so setting it on every perk made the
-		# slab 448 wide to carry one short line, which is the empty half of the
-		# box. Measured before autowrap is switched on, because with it on the
-		# minimum is the number just written rather than the text.
+		# Wrap a perk only if it needs it: autowrap on every perk made the slab 448 wide.
+		# Why: docs/why/StationScreen.md#offer-slab
 		if pk.get_minimum_size().x > float(SLAB_W - 22):
 			pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			pk.custom_minimum_size = Vector2(SLAB_W - 22, 0)
 		col.add_child(pk)
 
-	# OPAQUE, and FRAMED IN THE COLOUR OF THE SHIP IT DESCRIBES. It sat at 86%
-	# once, and what showed through was a hull -- grey plating behind grey
-	# figures, the one background text cannot be read on.
+	# Opaque, framed in the ship's colour: at 86% a grey hull showed through grey figures.
+	# Why: docs/why/StationScreen.md#offer-slab
 	var slab := PanelContainer.new()
 	slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slab.add_theme_stylebox_override("panel",
@@ -713,14 +493,8 @@ func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 
 ## A label, a gauge and a figure, on the row height everything else uses.
 func _page_work() -> Control:
-	# --- THE WHOLE DECK IS THE BOARD.
-	#
-	# It was a board hung on a hall's wall, with a door and a terminal and benches
-	# round it -- a room with a noticeboard in it. A hiring hall IS its board: the
-	# paper is what you came for, and the paper is also how the rest of the
-	# station's life shows. So the cork runs edge to edge in a wooden frame, the
-	# work is pinned down the left wherever there was room, and the right is
-	# the town's own -- see `PostingBoard`.
+	# The whole deck is the board: a hiring hall is its paper, so the cork runs edge to edge.
+	# Why: docs/why/StationScreen.md#hiring-board
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -729,11 +503,7 @@ func _page_work() -> Control:
 	_board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_board)
 
-	# THE WORK, down the left of the board, in one straight column. The notices
-	# hung at staggered offsets for a pass, to look pinned by hand, and a stagger
-	# reads as crooked -- a notice is something to read, and a column is how.
-	# SQUARE NOTES, THREE TO A ROW (Jon: "Can you put the quests in a square
-	# note?"): a flow that wraps, each contract its own square of paper.
+	# Work notes sit in one straight column of square notes, as a stagger read as crooked.
 	var column := HFlowContainer.new()
 	column.add_theme_constant_override("h_separation", NOTE_GAP)
 	column.add_theme_constant_override("v_separation", NOTE_GAP + 2)
@@ -756,29 +526,9 @@ func _page_work() -> Control:
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
-## THE PROMENADE: one part shown large, the rest as a list beside it.
-##
-## It was a scrolling column of full-width rows, every one carrying its name,
-## manufacturer, slot, affixes, both card faces and a price -- four parts stated
-## at identical weight, so nothing on the shelf was bigger than anything else and
-## none of the art we drew appeared anywhere on the screen.
-##
-## Now the shelf has a FOCUS. One part is open at full size with its card
-## illustration at double scale, and the others are a compact list you click to
-## bring forward. See `mocks C · The Cutaway`, which is the layout Jon picked.
-## HOW WIDE THE OPEN PART'S COLUMN IS, and it is fixed rather than fitted so
-## that the cards beside it start at the same x whatever is open.
-##
-## TWO NUMBERS SET IT, and both are the widest case rather than the common one:
-##
-##   the plate   a SPINE part is 4x1, which at CELL is 176 -- plus the size
-##               caption beside it, about 60 more.
-##   the name    "Widowmaker Siege Driver" is 23 characters, and Silkscreen at
-##               FS_HEAD advances 10.5 a character. 242.
-##
-## 256 clears both. Fitted to the CONTENT instead, the column was 176 and the
-## cards jumped sideways every time you opened a part with a different footprint
-## -- a 1x1 sight and a 4x1 rail moved the whole right-hand half of the panel.
+## One part shown large with the rest as a list (Jon picked mock C), not a column of equal rows.
+## The open column is fixed at 256, the widest case, or the cards jump sideways between parts.
+## Why: docs/why/StationScreen.md#promenade
 const PICK_W := 256
 
 ## How tall the block between the name and the price stands, whatever is in it.
@@ -790,18 +540,8 @@ var _shelf: Control
 
 
 func _page_stock() -> Control:
-	# NO SECTION HEADING AT THE TOP. "STOCK" over a rule, above a part that
-	# already names itself in 16px, was a title for a page with one thing on it
-	# -- and it cost thirty pixels off the top of the only band that is short of
-	# them. The word moved down to the list it actually labels.
-	# --- THE WHOLE DECK IS ONE ROOM, and it is one of Jon's fifteen.
-	#
-	# The rack and the counter used to stand in a row the screen laid out, in
-	# one of four orders, on a wall `ShopScene` drew round them. The room is his
-	# layout now (see `ShopScene`): the rack and the counter stand exactly where
-	# he put them, and the room is drawn in layers around them -- the wall and
-	# what is seen through it behind, the lamps, the light and the glow in
-	# front. Nothing here places anything by itself.
+	# The deck is one of Jon's fifteen rooms: `ShopScene` places everything, nothing here does.
+	# Why: docs/why/StationScreen.md#promenade-room
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 5)
 	var stack := Control.new()
@@ -818,20 +558,8 @@ func _page_stock() -> Control:
 	_shelf.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(_shelf)
 
-	# --- AND THE TILL YOU CARRY IT TO.
-	#
-	# A SHELF IS NOT A SHOP UNTIL THERE IS SOMEWHERE TO PAY. The stock was
-	# objects standing on boards and the way to buy one was to click the little
-	# price card under it -- three hundred credits gone on a single click, with
-	# nothing carried anywhere, which is exactly the gesture this game threw out
-	# of the hold when right-click-to-jettison was cut.
-	#
-	# THE SAME COUNTER THE EXCHANGE HAS, turned around. See `TradeCounter.Side`:
-	# one is where a market pays you and the other is where it charges you, and
-	# they are the two sides of one spread that `MarketTest` proves cannot be
-	# farmed. Carrying a part off the shelf to the till is the same gesture as
-	# carrying one out of your hold to the counter, which is the point -- a
-	# station should have one way of doing business, not one per deck.
+	# A shelf needs a till: carrying a part to it is the same gesture the Exchange uses to sell.
+	# Why: docs/why/StationScreen.md#till
 	_till = TradeCounter.new()
 	_till.side = TradeCounter.Side.CHARGES
 	_till.fitted = true
@@ -840,10 +568,8 @@ func _page_stock() -> Control:
 	stack.add_child(_till)
 	_shop.till_node = _till
 
-	# THE ROOM'S OWN LAYERS go on last, over the rack and the counter: what
-	# stands in front of them and the lamps, the light over all of it, and the
-	# glow -- dust, lamp glass, lit panels, the prices -- over the light.
-	# No foreground cables: the shop wears no livery (see `ShopScene`).
+	# The room's own layers go on last, over the rack
+	# and counter. No cables: the shop wears no livery.
 	for layer in [_shop.front_layer(), _shop.light_layer(), _shop.glow_layer()]:
 		var c: Control = layer
 		c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -851,21 +577,15 @@ func _page_stock() -> Control:
 	# A room's art arrives when it is first drawn; the furniture is placed then.
 	_shop.room_loaded.connect(_place_shop_furniture)
 	outer.add_child(stack)
-	# THE NOTE IS OUTSIDE THE ROOM, under it. Inside the right-hand column it sat
-	# below the till, which pushed the counter off the floor and left the two
-	# pieces of furniture standing at two different heights.
+	# The note sits under the room: inside the right column it pushed the counter off the floor.
 	_till_note = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
 	_till_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	outer.add_child(_till_note)
 	return Widgets.panel_with(Widgets.pad(outer))
 
 
-## A part was carried off the shelf to the till.
-##
-## THE TILL HAS ALREADY SAID YES. `TradeCounter.refusal` checked the price, the
-## credits and the room before it let go, so this is the purchase and not a
-## second opinion about it -- `_on_action` re-checks anyway, because it is also
-## the thing that races the other players for the slot.
+## The till already said yes; `_on_action` re-checks anyway as it races other players for the slot.
+## Why: docs/why/StationScreen.md#till-purchase
 func _on_till(item: HoldItem) -> void:
 	var m := item as ModuleData
 	if m == null:
@@ -873,31 +593,11 @@ func _on_till(item: HoldItem) -> void:
 	_on_action("buy", m)
 
 
-## THE EXCHANGE: your hold, and a buyer standing in front of it.
-##
-## ONE COUNTER AND ONE PRICE. There was a scrap chute beside this, paying a
-## lower flat rate for the same part, and it made a module into two prices in
-## two places -- which is a second currency wearing a verb's clothes even when
-## both of them pay credits. A market is somewhere you sell things. What this
-## place will bear is the only number on the deck.
-##
-## DRAGGING IS THE CONFIRMATION. Carrying a thing across the deck is the
-## deliberation, which is the same argument that let the refit screen's hatch
-## destroy a part without asking -- and it is why the counter needs no button:
-## the hardpoints are on your ship (click it in the Shipyard), and this is where things become money.
-##
-## And the hold is the REAL grid, not a list of its contents. It is the thing
-## you pack, it already drags, and every part on it already answers a hover with
-## its own readout and cards.
+## One counter and one price; dragging is the confirmation, and the hold is the real grid.
+## Why: docs/why/StationScreen.md#exchange
 func _page_hold() -> Control:
-	# --- THE DECK IS ONE ROOM, and it is one of Jon's five.
-	#
-	# It was a loading dock `ExchangeScene` drew round the grid -- a shutter, a
-	# crane, a painted bay and a cage off the grid's own rect -- with the counter
-	# in a column of its own. It is the shop's room turned to face the other way
-	# now (see `ExchangeScene`): the hold stands in its frame where he stood it,
-	# the counter where he stood it, and the room is drawn in layers round both,
-	# exactly as the Promenade's is. Nothing here places anything by itself.
+	# The deck is one of Jon's five rooms, drawn in layers round the hold and the counter.
+	# Why: docs/why/StationScreen.md#exchange-room
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 5)
 	var stack := Control.new()
@@ -907,9 +607,7 @@ func _page_hold() -> Control:
 	_exchange.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_exchange)
 
-	# THE HOLD IS THE REAL GRID, untouched: it is still the thing you pack, it
-	# still takes every drop and answers every hover. It stands in the frame's
-	# opening, which was fitted to it cell for cell.
+	# The hold is the real grid, untouched; it stands in the frame's opening, fitted cell for cell.
 	_hold_grid = HoldGrid.new()
 	_hold_grid.dropped.connect(_on_hold_move)
 	stack.add_child(_hold_grid)
@@ -937,9 +635,7 @@ func _page_hold() -> Control:
 	return Widgets.panel_with(Widgets.pad(outer))
 
 
-## The hold and the counter, where this station's Exchange stands them. Again
-## whenever the room's art arrives, and whenever the hull -- and so the frame --
-## may have changed.
+## Placed again whenever the room's art arrives or the hull, and so the frame, may have changed.
 func _place_exchange_furniture() -> void:
 	if _exchange == null or _hold_grid == null or _sell_desk == null:
 		return
@@ -991,14 +687,9 @@ func _on_counter(item: HoldItem) -> void:
 
 
 func _page_bench() -> Control:
-	# --- ONE OF JON'S FIVE LABS, WITH THE RECIPES ON ITS SCREEN.
-	#
-	# The deck was a room drawn in code with the fabricator standing in it as a
-	# fume hood, the recipes behind its glass. It is a painted lab per development
-	# level now (`LabScene`), and the recipes stand where the prototype drew them:
-	# on the lab's own big screen, in `LabScene.win_rect`. Three layers: the lab,
-	# lit and running; the rows, in a holder the power-on's scan opens; and what
-	# the big screen does, over the rows.
+	# A painted lab per development level, with the
+	# recipes on its big screen (`LabScene.win_rect`).
+	# Why: docs/why/StationScreen.md#laboratory
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1023,27 +714,15 @@ func _page_bench() -> Control:
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
-## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
-## wherever the player meets one.
-## One deck of the section.
-##
-## A Button with Labels inside it rather than a Button with text, because a
-## Godot Button draws ONE line in ONE colour and a deck needs two of each -- the
-## name, and what is on it. Children set to MOUSE_FILTER_IGNORE let every click
-## fall through to the button underneath, so this keeps the focus, hover and
-## disabled behaviour of the control it replaces and only changes what it looks
-## like.
+## A Button with child Labels, as a Button draws one line in one colour; clicks fall through to it.
+## Why: docs/why/StationScreen.md#deck-cells
 func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(RAIL_W, DECK_H)
 	b.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func() -> void: _show_tab(id))
-	# NO PLATE OF ITS OWN, IN ANY STATE. The room behind it is the plate now --
-	# `StationSpine` lights the floor you are standing on, which is the same
-	# statement the pressed style used to make and a better one, because it is
-	# made of somewhere rather than of a rectangle. A hover still needs to say
-	# something, so it says it in the faintest wash the theme has.
+	# No plate in any state: `StationSpine` lights the floor you are on. Hover gets a faint wash.
 	for st in ["normal", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, UITheme.empty())
 	b.add_theme_stylebox_override("hover",
@@ -1053,10 +732,7 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.offset_left = 9
 	box.offset_right = -7
-	# CENTRED, NOT TOP-ALIGNED. The cells are floors of a building that moves
-	# now, so whichever end of the rail is clipped loses the top or bottom of a
-	# room -- and a label pinned six pixels from the ceiling is the first thing
-	# to go. Centred, the clip takes air off a room and leaves the name.
+	# Centred, not top-aligned: a clipped rail then takes air off a room and keeps the name.
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_theme_constant_override("separation", 1)
@@ -1075,32 +751,23 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	return b
 
 
-## The bottom of the rail: the way out, and nothing else.
-##
-## This used to draw your own ship in a berth above the button. It went for two
-## reasons -- the rail is a cutaway of the STATION now and a picture of your hull
-## is not a floor of it, and the hull was already on screen on the Yard whenever
-## there was anything to compare it against.
+## The rail is a cutaway of the station, so your own hull no longer draws above the button.
+## Why: docs/why/StationScreen.md#undock-cell
 func _undock_cell() -> Control:
 	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
 	# go and come back from; this is the door, so it wears the same ink BUY does.
 	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
 	out.custom_minimum_size = Vector2(RAIL_W, 22)
-	# SHRINK, NOT EXPAND. `_commit_button` hands back a control that takes the
-	# slack -- which is right where it is one of two things in a row and wrong
-	# here, because the other thing in this column is the STATION. The two of
-	# them split the rail down the middle and the building got 178 pixels of a
-	# 347-pixel column, which looked like the cutaway had been cropped when what
-	# had happened is that a button was as tall as five floors.
+	# SHRINK, not expand: the expanding button split
+	# the rail, leaving the building 178 of 347 pixels.
+	# Why: docs/why/StationScreen.md#undock-cell
 	out.size_flags_vertical = Control.SIZE_SHRINK_END
 	_undock = out
 	return out
 
 
-## A DECK POWERS ON ONCE A DOCKING. Jon: once a station's or a lab's power-on
-## has played, going to the star chart and back must not play it again. Coming
-## back builds this screen afresh, so `Router.powered` remembers which decks are
-## on; those come up settled, quiet and already running. Undocking clears it.
+## A deck powers on once per docking (Jon): `Router.powered` remembers, and undocking clears it.
+## Why: docs/why/StationScreen.md#deck-power-on
 func _power_deck(id: StringName) -> void:
 	var settled: bool = Router.powered.has(id)
 	if id == &"bench" and _lab != null:
@@ -1121,10 +788,7 @@ func _show_tab(id: StringName) -> void:
 	for key in _pages:
 		(_pages[key] as Control).visible = key == id
 	_light_floor()
-	# THE LAB POWERS ON the first time you step onto its deck here: the lamps
-	# strike, the room fades up and the screen scans the recipes on. THE YARD'S
-	# TV POWERS ON the first time you step onto the deck, and the drones fly in
-	# after it.
+	# The lab and the yard's TV power on the first time you step onto the deck.
 	_power_deck(id)
 	for key in _tabs:
 		var b: Button = _tabs[key]
@@ -1133,17 +797,9 @@ func _show_tab(id: StringName) -> void:
 		# The deck's own labels carry the colour, not the button's font, because
 		# a Button's font colour cannot reach Labels parented inside it.
 		var title := b.get_meta(&"title", null) as Label
-		# NO PLATE ON EITHER STATE ANY MORE.
-		#
-		# The active cell used to paint a brown bevel and the inactive ones used
-		# to REMOVE the override and fall back to the theme's Button plate. Both
-		# of those are opaque rectangles over the top of a drawing of a room, so
-		# between them they hid the entire cutaway -- the rail looked exactly as
-		# it always had and the spine appeared not to be rendering at all.
-		#
-		# `StationSpine` says which floor you are on by turning its lights on,
-		# which is the same statement made out of somewhere instead of out of a
-		# rectangle. The labels still carry the colour.
+		# No plate in either state: opaque plates hid the
+		# whole cutaway, so the spine seemed not to render.
+		# Why: docs/why/StationScreen.md#deck-cell-plates
 		b.add_theme_stylebox_override("normal", UITheme.empty())
 		b.add_theme_stylebox_override("disabled", UITheme.empty())
 		if on:
@@ -1170,38 +826,21 @@ func _enable_tab(id: StringName, on: bool) -> void:
 	if not on and _tab == id:
 		_show_tab(&"services")
 	elif was != on:
-		# THE CUTAWAY HAS TO HEAR ABOUT IT TOO. Hiding the cell is half the job:
-		# `StationSpine` divides the shaft by the floors it was last told about,
-		# so a rail showing three decks behind a building drawn in fifths puts
-		# every room -- and the car -- off its own label. Only `_show_tab` used
-		# to say so, which is why it corrected itself the moment you clicked
-		# anything and looked fine in every screenshot that clicked first.
-		#
-		# NOT A RIDE. The deck set settles on arrival; a car that travels because
-		# a station turned out to have no laboratory is answering a journey
-		# nobody made. See `_ride_to`.
+		# Tell `StationSpine` when a deck is hidden, or its rooms and car drift off their labels.
+		# Not a ride: a car that travels over a journey nobody made would be wrong. See `_ride_to`.
+		# Why: docs/why/StationScreen.md#cutaway-deck-count
 		_light_floor(false)
 
 
-## WHICH FAULT COMES OUT, chosen from the cards themselves.
-##
-## THE CARD IS THE QUESTION. A malfunction is a card that will be dealt into
-## your hand, and the thing you are weighing is which of them you least want to
-## draw -- so a list of names in grey is the one presentation that withholds the
-## deciding fact. `CardView` already draws them, keyword tooltips and all.
-##
-## Priced per removal and not per fault: `clear_dross` takes out exactly one, so
-## carrying three of a thing means paying three times, and the count on each
-## card says so before you spend the first one.
+## Pick the fault from the cards themselves, priced per removal as `clear_dross` takes exactly one.
+## Why: docs/why/StationScreen.md#purge-picker
 func _open_purge() -> void:
 	if _purge_prompt != null or Run.dross_count() <= 0:
 		return
 	var n: MapGen.MapNode = Run.node_at()
 	var cost := Market.purge_price(n)
 
-	# The shade eats input so the deck underneath cannot be clicked through, and
-	# a click on the dim margin closes -- the same dismissal every other prompt
-	# in the game uses.
+	# The shade eats input so the deck below cannot be clicked through; the dim margin closes it.
 	var shade := ColorRect.new()
 	shade.color = Color(0.02, 0.03, 0.05, 0.80)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1251,9 +890,8 @@ func _open_purge() -> void:
 		var pick := Widgets.button("CLEAR", func() -> void:
 			_purge(id)
 			_close_purge()
-			# REOPENED WHILE THERE IS STILL SOMETHING TO CLEAR, because clearing
-			# one of four is not the end of the job and closing on you would make
-			# the next three four clicks each.
+			# Reopens while there is something left to clear,
+			# so clearing four is not four extra clicks.
 			if Run.dross_count() > 0 and Run.credits >= Market.purge_price(
 					Run.node_at()):
 				_open_purge())
@@ -1280,12 +918,8 @@ func _close_purge() -> void:
 	_refresh()
 
 
-## Give the building its height, once the shaft has one.
-##
-## IT FILLS THE SHAFT. An earlier version made it taller and slid the whole
-## station when you picked a floor, which was the wrong object to move: the
-## building is not what travels in a building. Sliding it also meant a floor was
-## always partly out of frame, and this rail is the navigation for the screen.
+## The building fills the shaft: sliding it left a floor partly out of frame on a navigation rail.
+## Why: docs/why/StationScreen.md#building-height
 func _size_building() -> void:
 	if _building == null:
 		return
@@ -1296,17 +930,8 @@ func _size_building() -> void:
 	_building.size = shaft.size
 
 
-## Send the car to a floor.
-##
-## THE CAR MOVES AND THE STATION DOES NOT. It is a lit frame one floor tall, and
-## it travels THROUGH the rooms between where it was and where it is going --
-## so picking the Laboratory from the Promenade takes it down past the Yard, the
-## Exchange and the Hall, brightening each as it passes and letting it go again.
-## That is the whole of the elevator, and it is why `StationSpine.car` is a float
-## rather than an index.
-##
-## `ride` is false on arrival at the station and on a resize: a car that travels
-## because a panel got wider is a bug you can watch happen.
+## The car moves through the rooms, not the station; `ride` is false on arrival and on resize.
+## Why: docs/why/StationScreen.md#elevator-car
 func _ride_to(index: int, ride: bool = true) -> void:
 	if _spine == null or index < 0:
 		return
@@ -1315,46 +940,18 @@ func _ride_to(index: int, ride: bool = true) -> void:
 	if not ride or _spine.car < 0.0:
 		_car_step(float(index))
 		return
-	# LONG ENOUGH TO BE A JOURNEY, and scaled by how far it is going: two floors
-	# should take longer than one, because in a building they do.
-	#
-	# FOUND BY BRACKETING IT. A second longer read as a wait; half the original
-	# was "WAY too fast" -- a one-floor hop at 0.13 s is barely a movement and
-	# was nearly all landing. Then: "maybe slightly slower than where it was".
-	# So a THIRD longer than the original, which is 0.34 s for one floor where
-	# the original was 0.26 and the fast one 0.13.
-	#
-	# Both wrong answers left something behind: the long one found the tick
-	# buried at 0.46 s in the fan take, and the fast one made the fade a
-	# fraction of the ride instead of a constant.
+	# Found by bracketing with Jon: 0.34 s for one floor, a third over the original 0.26.
+	# Why: docs/why/StationScreen.md#ride-timing
 	var span := absf(float(index) - _spine.car)
 	var secs := clampf(0.21 + 0.13 * span, 0.24, 0.72)
-	# THE CAR SETS OFF WITH A SOUND, and only when it actually travels: arrival
-	# and resizes snap it (above) and stay silent. Throttled, because clicking
-	# down the floor list fast restarts the ride each time.
+	# Sound only when the car travels, throttled as clicking fast down the list restarts the ride.
 	Audio.play(&"station_lift", 0.05, 150)
 	_lift = create_tween()
 	_lift.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_lift.tween_method(_car_step, _spine.car, float(index), secs)
-	# THE SOUND LASTS EXACTLY AS LONG AS THE RIDE. Jon: "calculate how long it
-	# takes for the elevator animation ... that should be how long the sound
-	# lasts." A ride is 0.24-0.72 s by distance, so the file is longer than any
-	# ride and is faded out on the frame the car stops. A ride cut short by a
-	# new pick is killed above and never finishes; the new ride's own sound
-	# carries on instead.
-	#
-	# AND THE FADE IS A FRACTION OF THE RIDE, NOT A CONSTANT. It is 60 ms at
-	# every length that matters here, so at this pace it changes nothing -- it
-	# is kept because it is the correct shape: a sound that is mostly its own
-	# fade never lands, which is what a flat 60 ms did to a 0.13 s ride when the
-	# lift was briefly twice this speed.
-	#
-	# AND THE CAR ARRIVES WITH A SOUND OF ITS OWN: "a ca chunk where the
-	# animation ends". It cannot be the tail of the ride -- the ride is cut to
-	# however far the car travels, so a chunk baked into the file would land
-	# wherever the fade did, which is to say never on the stop. Its own sound,
-	# played on the frame the tween finishes, lands every time. Two dB under the
-	# ride, because the first pass at it was four dB over and "too loud".
+	# The sound lasts exactly the ride (Jon) and is
+	# faded on the stop frame; arrival has its own chunk.
+	# Why: docs/why/StationScreen.md#ride-sound
 	var fade := int(clampf(secs * 250.0, 25.0, 60.0))
 	_lift.finished.connect(func() -> void:
 		Audio.hush([&"station_lift"] as Array[StringName], fade)
@@ -1369,12 +966,8 @@ func _car_step(at: float) -> void:
 	_spine.queue_redraw()
 
 
-## Tell the cutaway which rooms it has and which one you are in.
-##
-## THE FLOORS ARE THE DECKS THAT EXIST, not always five. An outpost has no
-## Laboratory, and a spine that drew one would be a picture of a building with a
-## room you cannot get to -- so the list comes from the tabs that are actually
-## enabled, in rail order.
+## Floors are the enabled decks, not always five, so the spine never draws a room you cannot reach.
+## Why: docs/why/StationScreen.md#cutaway-floors
 func _light_floor(ride: bool = true) -> void:
 	if _spine == null:
 		return
@@ -1387,44 +980,17 @@ func _light_floor(ride: bool = true) -> void:
 	_spine.floors = live
 	_spine.active = live.find(_tab)
 	_size_building()
-	# RIDE ONLY WHEN THE FLOOR ACTUALLY CHANGED, and never on the first one.
-	# `_light_floor` runs on every refresh -- a car that sets off each time a
-	# price ticks is a car nobody believes in, and one that travels on arrival at
-	# the station is answering a journey the player did not make.
+	# Ride only when the floor changed and never on
+	# the first, or ticking prices would move the car.
 	_ride_to(_spine.active, ride and was >= 0 and was != _spine.active)
 	_spine.manufacturer = Run.node_at().manufacturer if not Run.map.is_empty() \
 		else &""
 	_spine.queue_redraw()
 
 
-## Roll what is on the shelf, ONCE per system per run.
-##
-## The guard used to be `shop.is_empty()`, and that was an exploit rather than a
-## style choice: buying the shelf out emptied the array, so leaving and coming
-## back re-rolled a full one. An unlimited supply of parts at a fixed price is an
-## unlimited supply of money the moment any part is worth more melted than
-## bought, which is exactly what happened. `stocked` says what was meant — this
-## station has been visited, and what somebody brought here is what there is.
-##
-## Nothing is priced here any more. Market prices a part from the place it is
-## standing in, so the shelf holds parts and not price tags.
-## THE TWO LIMITS ON A SHOP, and they are not the same limit.
-##
-## `SHOP_CELLS` is the most stock a shop can carry, counted as the parts' own
-## area. A shelf is four cells across and two high and the rack has two of them,
-## so a full rack is sixteen cells and that is the ceiling.
-##
-## `SHOP_COLS` is what the rack can physically stand. PARTS DO NOT STACK -- they
-## stand side by side on a board -- so a 1x1 fitting occupies a whole one-wide
-## column and leaves the cell above it empty. Eight columns is the rack, and it
-## binds long before the cell ceiling does: eight 1x1 fittings fill the rack
-## having spent only eight of the sixteen cells.
-##
-## A shop rolls its fill in COLUMNS, half a rack to a full one, because columns
-## are the thing you can see: a rack with two bare columns reads as a thin shop,
-## whereas the same stock rolled on cells fills the rack anyway and only changes
-## how tall the parts on it happen to be. Depth is not in here. Depth is
-## rarity, below.
+## Stocked once per system per run: guarding on `shop.is_empty()` let a buyout re-roll for free
+## money. `SHOP_CELLS` caps area at 16; `SHOP_COLS` caps what the rack can stand and binds first.
+## Why: docs/why/StationScreen.md#shop-stocking
 const SHOP_CELLS := 16
 const SHOP_COLS := ShelfDisplay.SHELF_COLS * 2
 
@@ -1434,16 +1000,9 @@ func _stock_up() -> void:
 	if n.stocked:
 		return
 	n.stocked = true
-	# Positional. What is on a station's shelf belongs to the station, and
-	# `n.stocked` already says the shelf is rolled once and kept — this is the
-	# same rule, now expressed so that four ships docking in four different
-	# orders see one shelf instead of four. See Rng.derive().
+	# Positional via `Rng.derive`, so ships docking in any order see one shelf.
 	var r := Rng.derive(&"shop", n.index)
-	# UP TO SIXTEEN CELLS OF STOCK, counted as the parts' own area, and never
-	# more columns than the rack has. A hub used to carry five parts, which is
-	# depth expressed as QUANTITY -- more of the same rather than better. What a
-	# deep station has that a rim one does not is RARITY, and that is the axis
-	# below.
+	# Up to 16 cells of stock, never more columns than the rack has. Depth is rarity, not quantity.
 	var cells_left := SHOP_CELLS
 	var cols_left := r.randi_range(SHOP_COLS - 3, SHOP_COLS)
 	var tries := 0
@@ -1455,29 +1014,20 @@ func _stock_up() -> void:
 		elif n.region == MapGen.Region.COSMOPOLITAN:
 			# Cosmopolitan hubs carry multiple manufacturers side by side.
 			force = Rng.pick(r, DB.manufacturers.keys())
-		# DEPTH IS THE RARITY. `n.danger` is set from the ring, so it already says
-		# how deep this is; the shop used to knock two off it, which flattened the
-		# ladder and left "deeper" meaning only "more items". Lawless space still
-		# runs hotter than the ring it sits in.
+		# Depth is rarity: `n.danger` already says how deep, and lawless space runs hotter.
 		var danger := n.danger + 3 if n.region == MapGen.Region.LAWLESS else n.danger
 		var m := LootGen.roll_module(danger, force, n.region == MapGen.Region.LAWLESS, r)
 		# Legitimate markets do not move Legendary and above.
 		if n.region == MapGen.Region.COSMOPOLITAN and m.rarity > ModuleData.Rarity.EPIC:
 			m.rarity = ModuleData.Rarity.EPIC
-		# A part that will not fit what is left is put back: the shelf is a shelf,
-		# not a bag, and a four-cell rail simply does not go in two cells. Its
-		# WIDTH is checked separately, because that is the space it takes up on a
-		# board whether or not it is tall enough to use the cells above it.
+		# A part that will not fit what is left is put back; width is checked apart from cells.
 		var cells := maxi(1, m.size.x) * maxi(1, m.size.y)
 		var cols := maxi(1, m.size.x)
 		if cells > cells_left or cols > cols_left:
 			continue
-		# AND IT HAS TO STAND ON TWO BOARDS. Eight columns is two boards of four
-		# only if the parts divide that way: two three-wide parts and a two-wide
-		# one are eight columns that no two boards hold. The rack used to grow a
-		# third board for that; a shop room's rack is the two-board one Jon
-		# placed, so a part that would not stand on it is put back like one that
-		# does not fit the cells.
+		# Parts must also divide onto two boards of four, as
+		# the room's rack is the two-board one Jon placed.
+		# Why: docs/why/StationScreen.md#shop-stocking
 		var trial: Array = n.shop.duplicate()
 		trial.append(m)
 		if not ShelfDisplay.stands_on(trial, 2):
@@ -1485,15 +1035,9 @@ func _stock_up() -> void:
 		cells_left -= cells
 		cols_left -= cols
 		n.shop.append(m)
-	# WHETHER THIS YARD HAS A HULL ON THE BLOCKS, by how built-up the place is.
-	#
-	# It was a flat 0.4 everywhere, which meant six stations in a row with
-	# nothing was a 5% event -- and 5% events happen. Worse, it made an outpost
-	# and a capital equally likely to have a ship for sale, which is backwards:
-	# a yard is a thing a place builds once it can afford one.
-	#
-	# Lawless space still never has one. A hull is the largest legitimate
-	# purchase in the game and a fence does not sell you a chassis.
+	# Odds scale with development, as a flat 0.4 made
+	# empty runs likely; lawless space never has one.
+	# Why: docs/why/StationScreen.md#hull-on-the-blocks
 	var hull_odds := 0.0
 	match n.development:
 		MapGen.Development.UNCLAIMED: hull_odds = 0.15
@@ -1504,13 +1048,8 @@ func _stock_up() -> void:
 	if n.region != MapGen.Region.LAWLESS and r.randf() < hull_odds:
 		n.shop_hull = LootGen.roll_hull(n.danger, r)
 
-## High-law space inspects; lawless space does not.
-##
-## Its own function, and called on every dock rather than from inside the stock
-## roll. It used to sit under that early return, which meant the customs officer
-## only ever looked at you on the visit that happened to roll the shelves — dock
-## clean, fly out, come back carrying, and nobody checked. `n.inspected` is what
-## makes it once per system; the shelf has nothing to do with it.
+## Its own function, run on every dock: under the stock roll's early return it only ran once.
+## Why: docs/why/StationScreen.md#customs-inspection
 func _inspect() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.region == MapGen.Region.COSMOPOLITAN and not n.inspected and Run.contraband_count() > 0:
@@ -1521,12 +1060,8 @@ func _inspect() -> void:
 		Run.log_line("Customs found %d illegal part%s and fined you %d credits." % [
 			c, "" if c == 1 else "s", fine], &"heat")
 
-## Everything on screen. One function per tab body, mirroring `_refresh_work`,
-## which was already broken out on its own.
-##
-## This was one 110-line run that rebuilt the header, both gauges and all five
-## tab bodies in sequence, so a reader looking for where the shelf is drawn had
-## to read the repair prices to get there.
+## One function per tab body, mirroring `_refresh_work`, instead of one 110-line run.
+## Why: docs/why/StationScreen.md#refresh-split
 func _refresh() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	_refresh_header(n)
@@ -1538,22 +1073,8 @@ func _refresh() -> void:
 	_refresh_undock()
 
 
-## Whether the door opens, and if not, what is holding it.
-##
-## THE GATE IS ON UNDOCKING AND NOWHERE ELSE, and that placement is the whole
-## design rather than the obvious spot. The first instinct is to stop the JUMP
-## -- but `has_legal_jump()` loops `can_jump_to`, and `check_stranded()` ends
-## the run the moment that returns false for every system. A pad that blocked
-## jumps would not stop you leaving; it would kill you for buying a ship.
-##
-## Gating the door instead is both safe and sufficient: the Yard is the only
-## place in the game that hands you a hull, so a loaded pad cannot reach the
-## star chart if it cannot get off the station.
-##
-## THE REASON IS ON THE BUTTON. A disabled control with no explanation is the
-## worst version of this -- you are standing on a screen with five decks and no
-## idea which one owes you something. `ready_to_fly` returns the reasons rather
-## than a boolean for exactly this line.
+## Gate the door, not the jump: a blocked jump would trip `check_stranded` and kill the run.
+## Why: docs/why/StationScreen.md#undock-gate
 func _refresh_undock() -> void:
 	if _undock == null:
 		return
@@ -1564,10 +1085,8 @@ func _refresh_undock() -> void:
 		_undock.tooltip_text = ""
 		return
 	_undock.text = "CANNOT UNDOCK"
-	# WHAT TO DO, said for the reason it is. The pad's line used to send you to
-	# the Shipyard's ship to stow things, and the cutaway that opens there never
-	# showed the pad (Jon, Oct 23): clicking your ship with the pad loaded opens
-	# the move now, which is the screen that does.
+	# The pad line points at clicking your ship, as the cutaway never showed the pad (Jon, Oct 23).
+	# Why: docs/why/StationScreen.md#undock-gate
 	var how := "Click your ship in the Shipyard and fit parts from the hold."
 	if not Run.pad.is_empty():
 		how = "Click your ship in the Shipyard to carry your things aboard."
@@ -1582,12 +1101,8 @@ func _refresh_undock() -> void:
 
 
 func _refresh_header(n: MapGen.MapNode) -> void:
-	# ONE FACT TO A LINE, at the head of the rail.
-	#
-	# It was a sentence across the top of the deck -- "city station · high security
-	# · danger 5 · glut solari/cygnet" -- which is four separate facts wearing
-	# punctuation. Stacked in the rail's head they read as what they are, and the
-	# place's name gets to be a title.
+	# One fact to a line at the head of the rail, so the place's name can be a title.
+	# Why: docs/why/StationScreen.md#rail-header
 	var note := ""
 	match n.region:
 		MapGen.Region.COSMOPOLITAN: note = "stock from many manufacturers, strict inspections"
@@ -1608,37 +1123,24 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 			% [UITheme.COLD.to_html(false), note.to_upper()])
 
 
-## Repair, refuelling, purges -- and the ship on the pad beside your own.
-##
-## WORK ONLY. Everything on the top panel is something the station DOES to the
-## ship you flew in on; what you are carrying, and what it is worth, is the
-## Exchange's question and is asked there.
+## Work only: what the station does to your ship. The hold and its worth are the Exchange's.
 
 
-## Repair, refuelling, purges -- and the ship on the pad beside your own.
-##
-## WORK ONLY. Everything on the top panel is something the station DOES to the
-## ship you flew in on; what you are carrying, and what it is worth, is the
-## Exchange's question and is asked there.
+## Work only: what the station does to your ship. The hold and its worth are the Exchange's.
 
 
 func _refresh_services(n: MapGen.MapNode) -> void:
 	var h: HullData = n.shop_hull
 	var up := h != null and not n.taken.has(MapGen.OPTION_SHOP_HULL)
-	# THE YARD IS BUILT ONCE, and a refresh only tells it what changed: a
-	# purchase is a drone dipping to the hull and flying off when its job is
-	# done, and a rebuilt yard would have taken the drones, the TV and everyone
-	# on the floor back to the start.
+	# Built once; a refresh only says what changed, or the drones and TV would restart.
 	if _scene == null or not is_instance_valid(_scene):
 		Widgets.clear(_hull_offer)
 		_hull_offer.add_child(_yard_box(n))
 	_yard_ships(h if up else null)
 	_yard_hull = h if up else null
 
-	# --- THE DEAL, ON THE TV AT THE BOTTOM RIGHT.
-	#
-	# A RECEIPT, as it was: what they ask, what your ship is worth to them, and
-	# the difference that leaves your account, over TAKE IT.
+	# The deal is a receipt on the TV: the ask, your
+	# ship's worth, and the difference, over TAKE IT.
 	if up:
 		var ask := Market.hull_price(n, h)
 		var part_ex := Market.hull_bid(n, Run.hull)
@@ -1647,14 +1149,9 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	else:
 		_scene.set_deal({})
 
-	# --- AND THE FOUR SERVICES, EACH ON A DRONE OVER YOUR SHIP.
-	#
-	# The same four the machines in the bay sold, at the same prices: a drone
-	# carries what it will do and what it costs, and when there is nothing left
-	# for it to do its screen says why and it flies off (REFUEL at a full tank:
-	# TANK FULL); FAULTS opens the picker. Broke with a tank that cannot reach
-	# another dock, REFUEL sells the fuel to reach one for what you have, and its
-	# tip says so (`Run.dock_rescue`).
+	# Four drone services at the old machines' prices;
+	# a drone with nothing left says why and flies off.
+	# Why: docs/why/StationScreen.md#yard-services
 	var missing := Run.max_hp() - Run.hp
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
@@ -1683,22 +1180,9 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 ## The shelf: a chassis if one is for sale, then whatever parts are left on it.
 
 
-## THE PART ITSELF, ON THE CELLS IT WILL TAKE UP IN THE HOLD.
-##
-## The module sprite and the card illustration were drawn for different jobs and
-## the panel needs both: the sprite is the OBJECT -- a silhouette drawn to read
-## at twenty pixels bolted to a ship -- and the card is what owning it does to
-## your deck. So the part gets its sprite and the cards get their own faces,
-## and neither is a crop of the other.
-##
-## ON A GRID, because that makes the second picture answer a question the first
-## cannot. "2×1" is a string you have to convert; two squares is the shape of the
-## hole it leaves in a hold you are already packing.
-##
-## FORTY-FOUR, and it follows from the art rather than from taste. Module sprites
-## are authored at twenty pixels to the cell, so a cell of 44 holds one drawn at
-## exactly 2x with two pixels of air around it -- and 2x is the only enlargement
-## this art has, the same rule the card window follows.
+## Sprite and card art do different jobs, so neither is a crop of the other.
+## Cell is 44: module sprites are 20 px a cell, so 2x leaves two pixels of air.
+## Why: docs/why/StationScreen.md#hold-plate
 const CELL := 44
 
 
@@ -1722,9 +1206,7 @@ func _hold_plate(m: ModuleData) -> Control:
 			UITheme.flat(Color("#0a0f17"), Color("#1b2735"), 0, 0, 0))
 		grid.add_child(sq)
 
-	# ON TOP OF THE GRID, not inside a cell. The sprite spans the whole
-	# footprint -- that is what a footprint IS -- so it is a sibling laid over
-	# the squares rather than a child of one of them.
+	# A sibling laid over the squares, as the sprite spans the whole footprint.
 	var mid := CenterContainer.new()
 	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1734,10 +1216,7 @@ func _hold_plate(m: ModuleData) -> Control:
 	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if m.sprite != null:
-		# EXACTLY DOUBLE, computed from the texture rather than fitted to the
-		# box. Fitting would scale a 20x20 sprite into a 44x44 cell at 2.2x,
-		# which lands the whole thing on half-pixels -- the one thing this art
-		# may never do.
+		# Exactly double, computed from the texture: fitting a 44 cell gives 2.2x and half-pixels.
 		art.stretch_mode = TextureRect.STRETCH_SCALE
 		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		art.custom_minimum_size = m.sprite.get_size() * 2.0
@@ -1745,16 +1224,8 @@ func _hold_plate(m: ModuleData) -> Control:
 	return box
 
 
-## THE OPEN PART'S LEFT-HAND COLUMN: what the thing IS.
-##
-## SHARED BY THE PROMENADE AND THE EXCHANGE, because they are the same panel
-## asked two different questions -- one about a part on a shelf and one about a
-## part in your hold -- and the answer to "what is this" cannot be allowed to
-## differ between them. It was written twice for a day and the two copies had
-## already drifted on the flavour line.
-##
-## Everything above the actions, and nothing below: the caller owns the buttons,
-## because buying and selling are the half that genuinely differs.
+## Shared by the Promenade and the Exchange, as two copies had already drifted on the flavour line.
+## Why: docs/why/StationScreen.md#part-column
 func _part_column(mod: ModuleData) -> VBoxContainer:
 	var left := VBoxContainer.new()
 	left.add_theme_constant_override("separation", 4)
@@ -1765,10 +1236,7 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 
 	var plate := HBoxContainer.new()
 	plate.add_theme_constant_override("separation", 10)
-	# TALL ENOUGH FOR THE TALLEST FOOTPRINT, always. Every shape in the game is
-	# one cell deep except BULK, which is two -- so opening a 2x2 after a 2x1
-	# would push everything under it down by a whole cell. The plate is centred
-	# in the reserved height, so a one-deep part sits in the middle of it.
+	# Reserve the tallest footprint (BULK, two deep), or opening a 2x2 shifts everything below it.
 	plate.custom_minimum_size = Vector2(0, CELL * 2)
 	var cells_box := _hold_plate(mod)
 	cells_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1783,21 +1251,15 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 	plate.add_child(szn)
 	left.add_child(plate)
 
-	# THE NAME CARRIES THE GRADE, in the ink the rest of the game grades things
-	# in. On a shelf the question is not what the part is called but how good it
-	# is, and that used to be a word in grey somewhere else.
+	# The name carries the grade ink: on a shelf the question is how good, not what it is called.
 	var title := UITheme.body(mod.name.to_upper(),
 		ModuleData.rarity_ink(mod.rarity), UITheme.FS_HEAD)
-	# ONE LINE. A two-line name pushed everything under it down twenty pixels on
-	# exactly the parts with the longest names, so the panel changed height as
-	# you clicked along the list. `clip_text` is the guard rather than the plan.
+	# One line: a two-line name changed the panel's height; `clip_text` is the guard.
 	title.clip_text = true
 	title.custom_minimum_size = Vector2(PICK_W, 0)
 	left.add_child(title)
 
-	# THE MANUFACTURER IN ITS OWN COLOUR, the slot beside it in grey. Two labels
-	# rather than one string, because they are two kinds of fact: who built it is
-	# an allegiance, and the slot is a spec.
+	# Maker and slot are two labels: one is an allegiance, the other a spec.
 	var mrow := HBoxContainer.new()
 	mrow.add_theme_constant_override("separation", 5)
 	mrow.add_child(UITheme.body(
@@ -1807,13 +1269,8 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 		UITheme.COLD, UITheme.FS_SMALL))
 	left.add_child(mrow)
 
-	# NO FIXED HEIGHT HERE ANY MORE. This box was padded to DESC_H so that the
-	# price and its button, which used to sit underneath it, would land at the
-	# same y on every part -- a part with one affix and a one-line flavour is two
-	# labels where a part with a two-line flavour is one, and the extra
-	# separation moved the button four pixels. The money is its own column now,
-	# so nothing below this has to be held still and the text can simply be as
-	# long as it is.
+	# No fixed height: the money is its own column now, so nothing below needs holding still.
+	# Why: docs/why/StationScreen.md#part-description
 	var desc := VBoxContainer.new()
 	desc.add_theme_constant_override("separation", 4)
 	left.add_child(desc)
@@ -1835,18 +1292,9 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 	return left
 
 
-## THE BUTTON THAT SPENDS SOMETHING, in the one ink this screen reserves for it.
-##
-## BUY, INSTALL, TAKE IT, MAKE and UNDOCK are the five controls on this station
-## that actually commit -- money, a hardpoint, a material, or the berth itself.
-## Everything else is navigation. They were the same grey box as a deck tab, so
-## the moment of paying looked like the moment of browsing, and UNDOCK had been
-## given ember by hand while BUY had not.
-##
-## DISABLED IS SPELLED OUT, and it has to be: an override on `normal` alone
-## leaves the disabled state ember too, so a BUY you cannot afford would look
-## exactly like one you can. It goes to LINE on VOID, which is the quietest
-## thing on the page.
+## One ink for the five controls that commit; disabled
+## is spelled out or an unaffordable BUY looks live.
+## Why: docs/why/StationScreen.md#commit-button
 func _commit_button(text: String, action: Callable) -> Button:
 	var b := Widgets.button(text, action)
 	b.add_theme_stylebox_override("normal",
@@ -1862,12 +1310,8 @@ func _commit_button(text: String, action: Callable) -> Button:
 	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
 	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
 	return b
-## WHAT IT PUTS IN YOUR DECK, as the cards themselves.
-##
-## THE REAL CARD FACE, not the illustration lifted out of it. Cropping `Z_ART`
-## and reprinting the rules line underneath in grey is a card taken apart and
-## laid out again worse -- the face already carries the art, the name, the cost
-## and the text, drawn by the one class that knows how a card in this game looks.
+## Show the real card face, not the art cropped out with the rules reprinted in grey.
+## Why: docs/why/StationScreen.md#card-fan
 func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
 	var deck := VBoxContainer.new()
 	deck.add_theme_constant_override("separation", 5)
@@ -1875,43 +1319,26 @@ func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
 	var fan := HBoxContainer.new()
 	fan.add_theme_constant_override("separation", 8)
 	deck.add_child(fan)
-	# ONE FACE PER COPY. `resolved_cards` hands back an entry for every copy the
-	# Grant Count Law awards, and folding them into one face with an "x2" under
-	# it is a receipt for two cards rather than a picture of them.
+	# One face per copy: `resolved_cards` has an entry per copy the Grant Count Law awards.
 	for c in mod.resolved_cards():
 		var v := CardView.new()
-		# `can_play` TRUE, where nothing can be played. The flag greys the face,
-		# and it means "you cannot afford this right now" in a hand -- said about
-		# a card in a shop window it reads as the card being broken.
+		# `can_play` TRUE: the flag greys the face, which
+		# in a shop window reads as the card broken.
 		v.setup(c, true, 1)
-		# THE POINTER REACHES IT, and that is the whole of the keyword help:
-		# `CardView._make_custom_tooltip` answers with `Widgets.card_readout`,
-		# which lists every term the card can explain. `tooltip_text` has to be
-		# non-empty or Godot never asks for the custom panel; it is never drawn.
+		# `tooltip_text` must be non-empty or Godot never asks for the custom tooltip panel.
 		v.mouse_filter = Control.MOUSE_FILTER_STOP
 		v.tooltip_text = " "
 		fan.add_child(v)
 	return deck
-## How deep the berth is. The panel gives it everything under the heading; this
-## is the floor under that, so the scene never collapses on a short page.
-## The details slab's WIDEST, not its width. Wide and short rather than narrow
-## and tall -- two columns of gauges fit in the band of empty wall above the two
-## berths, where a single column could only fit by lying across the ship it was
-## describing. It is a ceiling because it was read as a floor for a while and
-## the slab came out 470 wide whatever was in it, with the right third empty on
-## every hull whose perk fits on one line. Only a perk long enough to need
-## wrapping ever reaches it now.
+## `SLAB_W` is a ceiling, not a width: read as a floor it left the right third empty.
+## Why: docs/why/StationScreen.md#slab-width
 const SLAB_W := 470
 func _refresh_stock(n: MapGen.MapNode) -> void:
 	Widgets.clear(_shelf)
 
-	# WHAT IS LEFT, which is not the same as what is on the shelf. A sold part
-	# stays in `n.shop` so that everybody's slot numbers keep meaning the same
-	# thing -- see MapGen.OPTION_SHOP -- and is hidden here instead.
-	# NO HULL ON THIS SHELF. The Promenade is where parts are laid out and a hull
-	# is not a part -- it is the thing you bolt them to. It sold here because this
-	# was the only page with a shop on it; the Yard has one now, beside the gauges
-	# for the ship you are standing in.
+	# A sold part stays in `n.shop` so slot numbers keep
+	# their meaning (`MapGen.OPTION_SHOP`); it is hidden here.
+	# Why: docs/why/StationScreen.md#shelf-stock
 	var on_offer: Array = []
 	for i in n.shop.size():
 		if n.taken.has(MapGen.OPTION_SHOP + i):
@@ -1919,18 +1346,12 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 		var m: ModuleData = n.shop[i]
 		on_offer.append({pick = i, thing = m, price = Market.ask(n, m)})
 
-	# WHAT THE TILL IS FOR, said once under it rather than on every ticket. It
-	# also carries the one fact a price cannot: a part bought here goes into the
-	# HOLD, not onto the ship, so a full hold is a reason you cannot shop.
+	# Said once under the till: a bought part goes to the HOLD, so a full hold blocks shopping.
 	if _till_note != null:
 		_till_note.text = ("The shelves are empty." if on_offer.is_empty()
 			else "Carry a part down to the till to buy it. It goes into your hold%s"
 				% (", and your hold is full." if Run.hold_full() else "."))
-	# THE ROOM KNOWS WHERE IT IS: how built-up the station is picks which of
-	# its level's three rooms this shop is, and the station itself picks the
-	# backdrop behind the wall. A bare shelf keeps its rack and its counter --
-	# they are the room's furniture, and an empty rack is how a shop says it is
-	# out of stock.
+	# Development picks the room's level variant; a bare rack stays, as it says out of stock.
 	if _shop != null:
 		_shop.dev = int(n.development)
 		_shop.manufacturer = n.manufacturer
@@ -1964,34 +1385,15 @@ func _place_shop_furniture() -> void:
 		return
 	var on_offer := _shop_offer
 
-	# NO OPEN PART, NO CARD FAN, NO BUY COLUMN.
-	#
-	# THE SHELF ANSWERS ALL THREE NOW. The top band existed because a list of
-	# names cannot tell you what a part is -- so one of them was opened at a time,
-	# blown up on the left with its cards beside it and a price with a button. The
-	# stock is OBJECTS on a shelf now, and pointing at one gets you the identical
-	# readout and the identical cards from `ModuleIcon` without displacing
-	# anything. A panel that shows you one part at a time, above a shelf showing
-	# you all of them, is a worse version of the shelf.
-	#
-	# What went with it is the whole top half of the deck, which the shelf takes:
-	# boards down the full height instead of one board and a readout.
+	# The shelf answers what the top band did: hovering
+	# gives the readout and cards from `ModuleIcon`.
+	# Why: docs/why/StationScreen.md#shelf-display
 
-	# --- AND THE STOCK IS STANDING ON A SHELF.
-	#
-	# IT WAS A LIST OF ROWS. A rack drawn under that list was better than a
-	# picture behind it and was still a table of names -- what is actually on a
-	# shelf is THINGS, at the size and shape they are. A four-cell rail takes
-	# four cells of board and a fitting takes one, so the shelf says what you are
-	# buying before you have read a word of it.
-	#
-	# The hover comes free: `ModuleIcon` already answers with the part's readout
-	# and every card it grants, which is the same panel the refit screen uses.
+	# Stock stands on a shelf at its true size, so a
+	# four-cell rail says what it is before any text.
+	# Why: docs/why/StationScreen.md#shelf-display
 	var shelf := ShelfDisplay.new()
-	# THE ROOM'S RACK, AT ITS OWN SIZE AND SCALED BY TWO. The bench draws the
-	# rack and its stock at 1x and doubles the lot, so the parts stand at the
-	# hold's 40px cell and the tags double with them; a node scaled by two is
-	# that, pixel for pixel. Its boards are the rows the rack was cut with.
+	# The room's rack at its own size scaled by two, as the bench draws it, so the tags double too.
 	shelf.art_override = art
 	shelf.board_rows = _shop.rack_boards()
 	shelf.lit_elsewhere = ShopScene.lit_marks
@@ -1999,26 +1401,15 @@ func _place_shop_furniture() -> void:
 	shelf.position = rr.position
 	shelf.size = Vector2(art.get_size())
 	shelf.scale = Vector2(2.0, 2.0)
-	# NOTHING TO CONNECT. Pointing at a part tells you everything about it and
-	# dragging it to the till buys it; the shelf has no button on it at all, so
-	# the gesture that reads and the gesture that spends cannot be confused.
+	# Nothing to connect: the shelf has no button, so reading and spending cannot be confused.
 	_shelf.add_child(shelf)
 	_shop.shelf_node = shelf
 	shelf.stock(on_offer)
 
 
-## What you brought, priced at what this place will pay for it.
-##
-## THE SAME TWO BANDS THE PROMENADE HAS, and deliberately so: one thing open
-## across the top, everything else as a list along the bottom. The two decks ask
-## the same question about a part -- what is it and what does it put in my deck --
-## and the only honest difference is the buttons, so `_part_column` and
-## `_card_fan` are shared and this file owns nothing but the actions.
-##
-## It was a scrolling column of full-width rows, each carrying the name, the
-## manufacturer, the slot, the affixes, both card faces, a deck count and three
-## buttons. Four of those is more text than the Promenade ever showed, on the one
-## page where you already know what you are carrying.
+## Same two bands as the Promenade, so `_part_column` and
+## `_card_fan` are shared; this file owns the actions.
+## Why: docs/why/StationScreen.md#hold-listing
 func _refresh_hold(n: MapGen.MapNode) -> void:
 	_dress_room(_exchange, n)
 	if _exchange != null:
@@ -2030,11 +1421,8 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 	_place_exchange_furniture()
 	var stray := Run.pad.size()
 
-	# HOW FULL THE HOLD IS, and what the counter is paying today, said once under
-	# the room. The count was stencilled on the old cage's plate; the frames are
-	# Jon's pictures now and have no plate in common. A market's rate is a
-	# property of the PLACE -- see `Market.bid` and its saturation note -- so it
-	# belongs here and not repeated beside each thing standing near it.
+	# Hold fullness and today's rate go under the room; a
+	# market's rate belongs to the place (`Market.bid`).
 	_sell_note.text = "Hold %d/%d%s. Carry something to the counter to be paid for it. %s" % [
 		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
 		"This market has bought a lot today, so it pays less than it did."
@@ -2055,16 +1443,11 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	_bench.size = Vector2(win.size.x, win.size.y)
 	Widgets.clear(_bench)
 	var recipes := Fabricator.available(n)
-	# EVERY STATION HAS ITS LABORATORY (Jon, Nov 3: all five decks at every
-	# station, at every level). The tab used to go below a city, where no recipe
-	# was open; RELIC ANALYSIS is dev 0 now, priced by the level.
+	# Every station has its laboratory (Jon, Nov 3); RELIC ANALYSIS is dev 0, priced by the level.
+	# Why: docs/why/StationScreen.md#five-decks-everywhere
 	_enable_tab(&"bench", true)
-	# A ROW, NOT A BUTTON THE WIDTH OF THE PAGE.
-	#
-	# Each recipe was one wide button whose whole label was "NAME · COST", so the
-	# thing you get was a tooltip and the page was two grey bars. What a recipe
-	# makes is the reason to stand here; it goes on the row in the ink the rest of
-	# the station prices things in.
+	# A row, not a wide button: what a recipe makes is the reason to stand here, so it shows.
+	# Why: docs/why/StationScreen.md#recipe-rows
 	for r in recipes:
 		var can := Fabricator.can_make(n, r)
 		var row := VBoxContainer.new()
@@ -2147,9 +1530,7 @@ func _refuel() -> void:
 	if Run.buy_refuel(Run.node_at()):
 		Run.log_line(line, &"good")
 
-## One malfunction, named, and only one. `clear_dross` removes a single entry,
-## so paying once to clear three copies of the same thing is not a thing that
-## can happen by accident.
+## One malfunction at a time: `clear_dross` removes a single entry, so paying thrice is deliberate.
 func _purge(which: StringName) -> void:
 	var cost := Market.purge_price(Run.node_at())
 	if Run.credits < cost or Run.dross_count() <= 0:
@@ -2180,18 +1561,13 @@ func _on_action(action: String, thing: Variant) -> void:
 			var price := Market.ask(n, m)
 			if slot < 0 or Run.credits < price:
 				return
-			# Before the money, not after. Buying into a full hold used to take
-			# the credits, erase the part off the shelf and then log "left
-			# behind" â€” the module was gone from both places and paid for.
-			# FOR THIS PART'S SHAPE, not one free cell: a wide part into a hold
-			# with a single gap passed a `hold_full` test and was then paid for
-			# and lost when `stow` found nowhere to put it.
+			# Check room before the money, for this part's
+			# shape: a wide part used to be paid for and lost.
+			# Why: docs/why/StationScreen.md#buy-checks
 			if not Run.has_room_for(m):
 				Run.log_line("The hold is full. Nowhere to put it.", &"them")
 				return
-			# One shelf, four buyers. ASK, and pay only if you won â€” a purchase
-			# that charged first and lost the race would take credits for a part
-			# somebody else is carrying. See RunState.take_option().
+			# One shelf, four buyers: ask first and pay only if you won (`RunState.take_option`).
 			if not await Run.take_option(n, MapGen.OPTION_SHOP + slot):
 				var who := Net.taker_name(n.index, MapGen.OPTION_SHOP + slot)
 				Run.log_line("Sold.%s" % (" %s got there first." % who.to_upper()
@@ -2204,10 +1580,8 @@ func _on_action(action: String, thing: Variant) -> void:
 			Run.log_line("Bought %s for %d credits." % [m.name, price], &"good")
 			Sig.ship_changed.emit()
 		"sell":
-			# Every sale here moves this market's price down a notch. One good
-			# system must not absorb an unlimited hold at the same rate, or the
-			# question stops being "how far do I haul this" and becomes "carry
-			# everything to the best place I have seen".
+			# Every sale lowers this market's price, so one
+			# good system cannot absorb an unlimited hold.
 			var sm := thing as ModuleData
 			var paid := Market.bid(n, sm)
 			if paid <= 0:
@@ -2220,11 +1594,8 @@ func _on_action(action: String, thing: Variant) -> void:
 			Sig.ship_changed.emit()
 		"take_hull":
 			var h := thing as HullData
-			# THE NET, NOT THE ASK. The yard takes your frame in part exchange,
-			# so what leaves your account is the difference -- and it is worked
-			# out from the same two calls the panel printed, so the number you
-			# agreed to is the number you pay. Computed BEFORE `take_option`,
-			# because `Run.hull` is about to stop being the ship being valued.
+			# The net, not the ask, from the same calls the panel printed. Computed before
+			# `take_option`, because `Run.hull` is about to stop being the ship being valued.
 			var price2: int = maxi(0, Market.hull_price(n, h)
 				- Market.hull_bid(n, Run.hull))
 			if Run.credits < price2:
@@ -2239,24 +1610,16 @@ func _on_action(action: String, thing: Variant) -> void:
 				return
 			Run.add_credits(-price2)
 			Audio.act(&"hull_transfer")
-			# THE PRICE AND THE RACK GO WITH IT, so the move can be called off.
-			# `abandon_move` needs to know what to refund and which shelf to put
-			# the hull back on, and this is the only place that knows either.
+			# Price and rack go with the move so `abandon_move` can refund and put the hull back.
 			Run.transfer_to_hull(h, price2, n)
-			# STRAIGHT TO THE DOCK. Always, even when nothing was carried -- the
-			# new frame arrives BARE now, so a swap with an empty pad is still a
-			# ship with no guns on it and a decision to make about that.
+			# Straight to the dock even if nothing was carried: the new frame arrives bare.
 			Router.show_transfer()
 			return
 	_refresh()
 
 
-## What this manufacturer wants doing, and what you can close standing here.
-##
-## Three groups, in the order a player acts on them: things you can be PAID for
-## right now, then things you have already agreed to that this desk cannot close,
-## then the board. Money first — a player walking into a berth holding finished
-## work should see that before anything else on the page.
+## Three groups in the order a player acts: paid now, agreed but not closable here, then the board.
+## Why: docs/why/StationScreen.md#work-board
 
 
 func _refresh_work(n: MapGen.MapNode) -> void:
@@ -2279,20 +1642,13 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	var hot := Run.heat_deliverable_at(n)
 	var mine := _open_elsewhere(n)
 
-	# EVERY STATION HAS ITS HIRING BOARD (Jon, Nov 3: all five decks at every
-	# station). The tab used to go at a station with no manufacturer behind it;
-	# such a station posts for its dock desk now (`Contracts.dock_desk`). A board can
-	# still come up bare, with no ordinary system in reach to send you to or every
-	# offer signed and done, and then it says so on a note of its own (below).
+	# Every station has a hiring board (Jon, Nov 3); one with no maker posts for its dock desk.
+	# Why: docs/why/StationScreen.md#five-decks-everywhere
 	_enable_tab(&"work", true)
 
-	# WHAT IS ON THE BOARD, as [what it says, how to make it], in order; laid
-	# over what is up by `_sync_notes`, which leaves every note that says the
-	# same alone.
+	# The board as [what it says, how to make it], laid over what is up by `_sync_notes`.
 	var want: Array = []
-	# A job signed on this visit and payable here at once (heat already on the
-	# hull) is paid off its own note, where it hangs, rather than off a sticky
-	# that would push the board along by one.
+	# A job signed and payable here is paid off its own note, not a sticky that shifts the board.
 	var pay_here := {}
 	for job in ready:
 		var c0: ContractData = job
@@ -2320,9 +1676,8 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	if not elsewhere.is_empty():
 		want.append(["mine|%s|%s" % [" / ".join(elsewhere), _on_screen()], _elsewhere_note.bind(elsewhere)])
 
-	# On a screen the tabs count the work by kind and show only the one picked;
-	# your own deliveries stay up whichever is. A job signed here still counts:
-	# it is still on the board, stamped.
+	# Tabs count work by kind on a screen; your deliveries
+	# stay up, and a job signed here still counts.
 	var counts: Array[int] = [0, 0, 0, 0]
 	for job in offers:
 		var c3: ContractData = job
@@ -2353,9 +1708,7 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 				state = "pay|%d|%s" % [(pay_here[key][0] as ContractData).id, pay_here[key][1]]
 		want.append(["offer|%s|%s|%s" % [key, state, _on_screen()],
 			_offer_row.bind(c2, state, pay_here.get(key, []))])
-	# A BARE BOARD SAYS SO, in its own hand, rather than hang nothing: a deck
-	# with no paper on it reads as a board that did not load. Not on a screen's
-	# tab that is only empty of its own kind: the other tabs count their work.
+	# A bare board says so on a note, as an empty deck reads like a board that did not load.
 	if want.is_empty() and counts[0] == 0:
 		want.append(["empty|%s" % _on_screen(), _empty_note])
 	_sync_notes(want)
@@ -2374,12 +1727,8 @@ func _empty_note() -> Control:
 	return _note(PostingBoard.INDEX, card)
 
 
-## THE OFFERS SIGNED ON THIS VISIT, by `_offer_key`. Each stays on the board
-## where it hung, stamped SIGNED, rather than coming down and going onto the
-## SIGNED, ELSEWHERE card at the front -- which moved every note on the board
-## along by one, and with them everything the board scatters round the work
-## (Jon, Oct 22: "When you pick a quest from the hiring board... the whole
-## hiring board resets"). Next visit it is on the card, as before.
+## Offers signed this visit stay stamped where hung, so the board does not reshuffle (Jon, Oct 22).
+## Why: docs/why/StationScreen.md#signed-offers
 var _signed_here := {}
 ## The station `_signed_here` is for.
 var _signed_at := -1
@@ -2391,12 +1740,8 @@ static func _offer_key(c: ContractData) -> String:
 	return "%s|%d|%d|%d|%d" % [c.manufacturer, int(c.kind), c.at, c.amount, c.posted_at]
 
 
-## THE BOARD UPDATES IN PLACE. `want` is the notes in order, each [what it
-## says, a callable that makes it]; a note already up that says the same stays
-## up, the same node in the same place, and only one that changed is made
-## again, in its own slot. Clearing and rebuilding the column on every refresh
-## put new paper up for a frame and moved whatever had changed size, and a
-## board laid out round its notes laid itself out again.
+## Notes update in place: clearing and rebuilding flashed new paper and re-laid the whole board.
+## Why: docs/why/StationScreen.md#board-sync
 func _sync_notes(want: Array) -> void:
 	if _work == null:
 		return
@@ -2420,11 +1765,7 @@ func _sync_notes(want: Array) -> void:
 		extra.queue_free()
 
 
-## The SIGNED, ELSEWHERE card: everything open that this desk cannot pay for.
-##
-## ONE CARD, NOT A HEADING AND A LIST. On a board every child is a notice
-## somebody pinned up, and a loose heading with its rows under it would have
-## been pinned as separate scraps and tilted apart.
+## One card, not a heading and a list: loose pieces would be pinned and tilted apart.
 func _elsewhere_note(lines: Array[String]) -> Control:
 	var card := VBoxContainer.new()
 	card.add_theme_constant_override("separation", 3)
@@ -2509,9 +1850,7 @@ func _offer_row(c: ContractData, state: String = "open", pay: Array = []) -> Con
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 5)
-	# THE FLAG, beside the name rather than instead of it. A contract is written
-	# in that manufacturer's own voice -- you are being asked for something BY
-	# somebody, and the somebody is half the note.
+	# The flag beside the name: a contract is written in that maker's own voice.
 	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
 	if mk != null:
 		var fl := ChassisSelect.Banner.new()
@@ -2552,9 +1891,7 @@ func _offer_row(c: ContractData, state: String = "open", pay: Array = []) -> Con
 	return _note(NOTE_PAPER, box)
 
 
-## A contract as a marketplace listing, on a city's or a capital's screen:
-## the manufacturer's emblem for its photo, the pay for its price, the ask for
-## its description, where it is, and SIGN for "message seller".
+## A contract as a marketplace listing: emblem, pay, the ask, where it is, and SIGN.
 func _listing(c: ContractData, state: String = "open", pay: Array = []) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
@@ -2590,10 +1927,7 @@ func _listing(c: ContractData, state: String = "open", pay: Array = []) -> Contr
 	return _note(NOTE_PAPER, box)
 
 
-## SIGN, big enough to read as the one thing on a note you can press (Jon: "can
-## the sign buttons be a bit bigger? I wanna make sure that the user still
-## understands what can and cannot be clicked"). Nothing else on the board
-## looks like a button.
+## SIGN is big enough to be the one thing on a note that reads as pressable.
 func _sign_button(c: ContractData) -> Button:
 	var take := Widgets.button("SIGN", func() -> void:
 		Run.take_contract(c)
@@ -2608,10 +1942,7 @@ func _sign_button(c: ContractData) -> Button:
 	return take
 
 
-## The foot of an offer's note: SIGN; once signed on this visit the board's
-## stamp for it in the same place, SIGNED; and if it can be paid off here at
-## once, its DELIVER or OFFLOAD button (`pay`: the job in your ledger, and the
-## button's word).
+## Foot of a note: SIGN, then SIGNED once signed, plus DELIVER or OFFLOAD when payable here.
 func _offer_foot(c: ContractData, state: String, pay: Array) -> Control:
 	if state == "open":
 		return _sign_button(c)
@@ -2647,10 +1978,7 @@ func _sign_size() -> Vector2:
 	return _sign_measured
 
 
-## SIGNED, in the board's own stamp: the box and the word the old jobs on the
-## cork are stamped FILLED with (`BoardCork`), and on a screen the stamp the
-## other people's listings carry (`PostingBoard._decoy_listing`). Not a
-## button, and drawn not to look like one: an outline in ink, nothing to press.
+## SIGNED in the board's own stamp: an ink outline, drawn not to look like a button.
 class _SignedStamp extends Control:
 	var screen := false
 
@@ -2716,13 +2044,8 @@ func _on_mine_hover(on: bool) -> void:
 			_mine_hit.mouse_default_cursor_shape = Control.CURSOR_ARROW
 
 
-## THE MAIN THING ON DECK `tab`, global, once it is up and still; Rect2() before
-## (the first-visit hints, `Hints.DECK_HINTS`, point at it). The yard: its
-## drones, each home over your ship, once all that came have flown in (the box
-## takes in their bob, so the outline holds still while they move). The
-## Promenade: the shelf. The Exchange: the counter that pays. The Hiring Board:
-## the notes, once its lamp is lit. The Laboratory: the recipes on its screen,
-## once the power-on's scan has passed.
+## Rect2() until the deck is up and still; the first-visit hints (`Hints.DECK_HINTS`) point at it.
+## Why: docs/why/StationScreen.md#deck-subject
 func deck_subject(tab: StringName) -> Rect2:
 	var page: Control = _pages.get(tab)
 	if page == null or not page.is_visible_in_tree():
@@ -2802,10 +2125,8 @@ var _edge: _YardEdge = null
 ## (three fifths of the time it takes to come back in, `ZoomLadder.ELEVATOR_S`)
 static func undock_elev_s() -> float:
 	return ZoomLadder.ELEVATOR_S * 0.6
-## the yard's flight's speed at its far end, in units of its length over its
-## duration (`ZoomLadder.herm`): 2 is one smooth fall to rest (or rise from it).
-## 2.4: undocking, your ship leaves the yard at about the speed it comes out of
-## the hull on LOCAL (about 1130 px a second), the black between
+## End speed 2.4 so undocking leaves at about the hull's LOCAL exit speed, 1130 px a second.
+## Why: docs/why/StationScreen.md#yard-flight-speed
 const YARD_M := 2.4
 
 
@@ -2843,11 +2164,7 @@ class _YardEdge extends Node:
 		# (not while the cutaway has the yard zoomed: the hall is not where it was)
 		var away := not is_nan(_rest_x) and r.position.x < _rest_x - 0.5 \
 			and (screen._cutaway == null or not is_instance_valid(screen._cutaway))
-		# THE ELEVATOR, ALL THE WAY OUT, IS NOT THERE (Jon: "the elevator is
-		# weirdly glitched into the side of the space station"): drawn over the
-		# yard only while it slides, hidden once it is fully away -- so it is
-		# never seen through the pan or the flight in, wherever the pan has the
-		# screen -- and never lifted over the pan's hull (`ZoomLadder`'s pan)
+		# The elevator fully away is not drawn, so the pan and flight never show it through.
 		var gone := away and r.position.x <= _rest_x - r.size.x + 0.5
 		# (and through the whole flight in, wherever its row puts it back for a
 		# frame while the screen is laid out)
@@ -2859,9 +2176,8 @@ class _YardEdge extends Node:
 		if away == _on:
 			return
 		_on = away
-		# THE YARD RUNS ON INTO THE ELEVATOR'S COLUMN: the hall continued, under
-		# the yard's ships (which fly in over it), the yard's box not clipping it,
-		# and the elevator drawn over it as it slides back in
+		# The yard's hall runs on into the elevator's
+		# column, under the ships, with the elevator over it.
 		sc.set_edge(away)
 		# (every box between the yard and this screen that would clip it)
 		if away:
@@ -2880,9 +2196,7 @@ class _YardEdge extends Node:
 
 
 # ------------------------------------------------------------ the zoom ladder
-## THE STATION AS THE CLOSEST OF FOUR DISTANCES (`ZoomLadder`): the camera is
-## already inside, so it does not move; what the ladder asks of it is where its
-## picture is and where your ship stands in it.
+# The station is the closest of four distances: the camera stays, its picture and your ship move.
 func ladder_ready() -> bool:
 	return _tab != &"services" or (_mine_view != null and is_instance_valid(_mine_view))
 
@@ -2914,12 +2228,8 @@ func ladder_pre(_target: int, seam: int, design: String) -> float:
 var _lad_going := false
 
 
-## THE YARD'S OWN HULL FLIES IN (3B, Jon: "can we have the ship enter the
-## shipyard from the left.... without the elevator... and then the elevator slides
-## in?"). k is 1 with the hull off the left edge and the elevator gone, 0 with the
-## hull on its stands; the elevator slides back in once the hull has settled
-## (`ladder_cam_end`), as it does when the cutaway shuts. Undocking runs it
-## backwards (`ladder_pre`): the elevator out first, then the hull lifts and goes.
+## k is 1 with the hull off left and the elevator gone; the elevator slides back once it settles.
+## Why: docs/why/StationScreen.md#yard-flight-in
 var _lad := {}
 var _lad_tw: Tween = null
 
@@ -2954,9 +2264,7 @@ func ladder_cam(k: float) -> void:
 	if bool(_lad.out):
 		ladder_pre_cam(k)
 		return
-	# the hull: in from the left over the last 70% of the way, slowing onto its
-	# stands; the last stretch a settle down onto them (seated on its underside,
-	# as the yard stood it)
+	# The hull enters over the last 70% of the way, slowing, then settles onto its stands.
 	var q := clampf((1.0 - k) / 0.7 - (0.3 / 0.7), 0.0, 1.0) if k < 1.0 else 0.0
 	# (3B: the ladder gives the yard its own stretch after the pan, all of it
 	# the flight in)
@@ -2980,32 +2288,9 @@ func ladder_cam(k: float) -> void:
 		_edge._process(0.0)
 
 
-## THE LANDING, HEARD (Jon, Oct 21: "as the ship enters the station and lands on
-## the holds... there is no thruster sound. Can't we have it have the roar of
-## the thruster and then putter out to nothing before it lands?"). The yard's
-## flight in, on the ladder's clock (`ZoomLadder._step_pan` hands it `t`, s since
-## your ship started in from off the left, and `dur`, the flight's length, at
-## whose end it is on its stands):
-##   1. THE ROAR from `YARD_ROAR_FROM_S`: the engines lit at the cruise burn
-##      (`ShipView.burn`, the flame LOCAL's ENTER draws) and heard as that burn
-##      is (`Audio.ship_thrust` at `SectorScreen.DOCK_BURN_LEVEL`);
-##   2. THE PUTTER from `YARD_COUGH_AT_S`: the burn out and the arrival's own
-##      flameout (`ShipView.sputter`, a FLAMEOUTS row), its clip for that row
-##      at this hull's weight heard from its first cough, at the burn's level
-##      so the two are one engine (as undocking plays it), the coughs drawn
-##      being the coughs heard;
-##   3. NOTHING for at least `YARD_QUIET_S` before touchdown: the last cough
-##      over and the clip done (it is silent past its last cough), the flame at
-##      the idle, only the yard's own sounds;
-##   4. THE CLAMPS as it touches down (`Router.pay_dock_clamps`).
-## The row is picked at random from those whose coughs fit between 2 and 3; if
-## none does, the shortest, begun early enough to end in time. A press mid-dock
-## (`ZoomLadder.finish_now`) parks your ship on its stands with all of it
-## hushed (`ladder_cam_end`); reduced motion never flies it in, so it is never
-## heard. The path and its timing are the flight's own, untouched.
-## s after the flight starts: negative is heard over the empty yard first, as an
-## arrival's drive is heard before the ship is seen (its flame lit off the
-## picture)
+## The landing is heard on the ladder's clock: roar, putter, silence, then the clamps. Reduced
+## motion never flies it in, so it is never heard. The flight's path and timing are untouched.
+## Why: docs/why/StationScreen.md#landing-sound
 const YARD_ROAR_FROM_S := -0.2
 ## s after the flight starts that the roar gives way to the coughs
 const YARD_COUGH_AT_S := 0.75
@@ -3013,9 +2298,7 @@ const YARD_COUGH_AT_S := 0.75
 const YARD_QUIET_S := 0.35
 
 
-## The flameout row for a landing of `dur` s: one whose coughs fit between
-## `YARD_COUGH_AT_S` and `YARD_QUIET_S` before touchdown, at random; failing
-## that, the shortest. [row, s its first cough comes at].
+## A flameout row whose coughs fit before touchdown, picked at random, else the shortest.
 static func yard_flameout(dur: float) -> Array:
 	var room := dur - YARD_QUIET_S - YARD_COUGH_AT_S
 	var fit: Array[int] = []
@@ -3114,21 +2397,9 @@ func ladder_cam_end() -> void:
 		_rail_in()
 
 
-## THE ELEVATOR COMES IN LIKE EVERY OTHER PANEL (Jon, Oct 20: "The left panel
-## coming into the station doesn't come in correctly"). Filmed, it slid in as a
-## column of words and deck pictures with nothing behind them: the yard's hall
-## run on into its column (`_YardEdge`) showed through its header and round its
-## cells all the way in, and on the frame it landed the hall went and the dark
-## column and the yard's frame appeared under it at once -- a pop of the whole
-## column. It also eased in on its own cubic, off the whole pixel, in silence.
-## Now it is the side panel's slide (`PanelSlide`): the control itself moved,
-## in whole pixels, on the panels' one curve (`ZoomLadder._calm_slide_curve`)
-## over `ZoomLadder.CALM_SLIDE_S`, heard as they are (`chrome_on`), carrying its
-## own ground with it -- the dark the column stands on at rest and the yard's
-## frame beside it (`_RailBack`) -- over the hall, so when it lands the picture
-## is already what the column is at rest and the hall goes under it unseen.
-## Nothing on it takes a click while it moves (`_RailBlock`): a press there
-## lands it at once and goes no further.
+## The elevator slides in as a `PanelSlide` with its
+## own ground, so landing no longer pops the column.
+## Why: docs/why/StationScreen.md#elevator-slide
 var _rail_slide: PanelSlide = null
 var _rail_back: Control = null
 var _rail_block: Control = null
@@ -3136,9 +2407,7 @@ var _rail_back_x0 := 0.0
 var _rail_rest_x := 0.0
 
 
-## The column's ground at rest: the screen's dark from the view's left edge to
-## the yard's panel, and that panel's own left edge (its frame and margin) up to
-## the yard, cut from the panel's own style; drawn just under the elevator.
+## The column's ground at rest, cut from the panel's own style and drawn just under the elevator.
 class _RailBack extends Control:
 	var panel_rect := Rect2()
 	var style: StyleBox = null
@@ -3296,10 +2565,8 @@ func ladder_pre_cam(k: float) -> void:
 	_mine_view.position = Vector2(p0.x - float(_lad.off) * go, p0.y - 8.0 * (up * up * (3.0 - 2.0 * up)))
 
 
-## THE BERTH'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
-## moves and comes back after it lands): your ship's name and its reflection in
-## the floor, and the elevator -- except where the elevator is the move's own
-## (3B: out first undocking, in last docking), which it then leaves alone.
+## The berth's UI leaves before the camera moves; the
+## elevator is left alone when it is the move's own.
 var _rail_a := 1.0
 
 
@@ -3349,9 +2616,8 @@ func open_cutaway() -> CutawayView:
 	if _mine_slab != null and is_instance_valid(_mine_slab):
 		_mine_slab.visible = false
 	_cutaway = CutawayView.open_over(self, _mine_view)
-	# THE YARD ITSELF ZOOMS (Jon: "can we actually just zoom into the scene?"),
-	# without your ship's name sign, which would stand over the lifted parts, or
-	# its floor reflection, a ghost of the ship under the blur
+	# The yard itself zooms, without the name sign or
+	# floor reflection, which would ghost under the blur.
 	_cutaway.scenes = [_scene]
 	# (its panel takes the elevator's place: the elevator slides out first)
 	if _rail != null:
@@ -3373,17 +2639,12 @@ func open_cutaway() -> CutawayView:
 	return _cutaway
 
 
-## Which station this is, as one number: the run's galaxy and the node's place
-## in it. What a room's views, walkers and cables are picked from, so the same
-## station looks the same every visit and the next one along does not.
+## One number per station, so it looks the same each visit and the next one along does not.
 func _place_seed(n: MapGen.MapNode) -> int:
 	return absi(hash([Run.galaxy_seed, n.index]))
 
 
-## Tell a room where it is: how built-up the station is and who holds it.
-##
-## THE SAME TWO FIELDS FOR EVERY ROOM, which is what lets every deck be the same
-## station -- lamps by development, livery on the trim by manufacturer.
+## The same two fields for every room (development, holder) keep every deck one station.
 func _dress_room(room: StationRoom, n: MapGen.MapNode) -> void:
 	if room == null or not is_instance_valid(room) or n == null:
 		return
@@ -3394,14 +2655,8 @@ func _dress_room(room: StationRoom, n: MapGen.MapNode) -> void:
 	_hang_banners(room, n, room.banner_spots())
 
 
-## A ship's figures, directly above the ship.
-##
-## ABOVE THE SHIP YOU ARE POINTING AT, which is where the eye already is. It used
-## to be parked over the OTHER ship, on the reasoning that it must not cover the
-## one you are reading about -- but the band of wall over the berths is tall
-## enough to hold it without covering either. Centred on the hull's ink, kept
-## inside the hangar, and sized to its own content: all four offsets written here,
-## because a preset writes the control's current rect into them.
+## Floats above the ship you point at, in the wall band that covers neither ship.
+## Why: docs/why/StationScreen.md#figures-slab
 func _float_slab(slab: Control, v: ShipView, at: Vector2) -> void:
 	if slab == null or not is_instance_valid(slab):
 		return
@@ -3418,30 +2673,17 @@ func _float_slab(slab: Control, v: ShipView, at: Vector2) -> void:
 	slab.offset_bottom = slab.offset_top + need.y
 
 
-## How a hung banner is sized, the gap between two, and the rod they hang from.
-##
-## LONG AND NARROW. Its own width units at `BANNER_K`, but `BANNER_LEN` tall
-## rather than its own height: the rail's flag blown up to the same proportions
-## read as a sign on a wall, where a hung length of it reads as colours. The
-## emblem sits at the top and the manufacturer's hem at the foot, so the length
-## between is plain field -- which is what a real hanging banner is.
+## Long and narrow: the rail's flag blown up in proportion read as a wall sign, not hung colours.
+## Why: docs/why/StationScreen.md#hung-banners
 const BANNER_K := 2.0
 const BANNER_LEN := 148.0
 const BANNER_GAP := 6.0
 const BANNER_ROD := Color("#3d5273")
 
 
-## Hang the station's manufacturer banners in a room.
-##
-## THE BANNERS LEFT THE RAIL AND WENT INTO THE ROOMS. At the head of the rail they
-## were two flags over a list; in the rooms they are what a manufacturer actually
-## does to a station it holds -- its colours hung in the hangar, pinned on the
-## board, over the till. Still real `ChassisSelect.Banner`s rather than pictures of
-## them, so pointing at one still gets the manufacturer's readout.
-##
-## Children of the ROOM, so they draw over its walls and under everything that
-## stands in it. Each spot is a horizontal anchor fraction and a top; the whole set
-## hangs side by side from a rod, centred on it.
+## Banners moved from the rail into the rooms, still
+## real `ChassisSelect.Banner`s with their readouts.
+## Why: docs/why/StationScreen.md#hung-banners
 func _hang_banners(room: Control, n: MapGen.MapNode, spots: Array) -> void:
 	if room == null or not is_instance_valid(room):
 		return
@@ -3493,15 +2735,8 @@ func _anchor_at(c: Control, frac_x: float, dx: float, top: float, w: float, h: f
 	c.offset_bottom = top + h
 
 
-## Which manufacturers have a notice of their own up on the Hiring Board.
-##
-## WHOEVER HOLDS THE STATION, first, because a notice is how a place says who runs
-## it; where nobody does, the dock desk that posts its work (`Contracts.dock_desk`).
-## Then the place itself: lawless space gets Redline's flyer, since Redline is
-## never at the address on its invoices and a lawless board is exactly where it
-## would turn up; a cosmopolitan station gets a couple of visitors, picked off the
-## station's own index so the same station always carries the same ones. Three at
-## most -- the board has three places to put them.
+## Holder first, then the place's own flavour; at most three, as the board has three spots.
+## Why: docs/why/StationScreen.md#board-posts
 func _board_posts(n: MapGen.MapNode) -> Array[StringName]:
 	var out: Array[StringName] = []
 	if n == null:

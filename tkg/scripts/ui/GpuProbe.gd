@@ -1,67 +1,21 @@
 class_name GpuProbe
 extends RefCounted
 
-## WHAT THIS MACHINE'S GRAPHICS CAN HOLD, MEASURED: some viewports' GPU time,
-## averaged over their first frames of drawing. It was RADIANT's safety alone
-## (`ChartSky._radiant_safety`, Oct 5); it is every style's now, because the
-## same measure picks GRAPHICS for a player who never chose it (below).
-##
-## GRAPHICS LOW, PICKED FOR THE MACHINE (Jon, Oct 27, ruling C1: "yes"). Every
-## budget in this game was set on an RTX 3070, and on an Intel laptop chip (Jon's
-## Mac: Iris Plus 645, about 1/25 of its shader rate) the HIGH sky alone runs past
-## a 60 fps frame. LOW is every style's cheaper path, and nothing ever turned it
-## on: a player had to know to look. So on the title, for a player who never set
-## GRAPHICS (`DisplaySettings.graphics_by`), the title's sky is measured once
-## and the answer is kept for good (once per profile, never again). A player who
-## pressed HIGH or LOW is never touched.
-##
-## THE ADAPTER'S NAME IS ONLY A HINT. On the launch that is still undecided, an
-## Intel chip that is not an Arc starts on LOW at once, before the title is
-## built, so its first picture is already the cheap one (an Apple chip never
-## does, whatever it measures later). The measure then decides: it can keep LOW
-## or put HIGH back.
-##
-## A MAC CANNOT TIME ITS GPU. Apple's OpenGL answers every GPU timer with 0
-## (Jon's Mac, Oct 27: `-- chartbench` read "GPU 0.00 ms" on every sample, HIGH
-## and LOW). So the GPU's time is the measure where there is one, and where it
-## reads 0 the title's frame time on the wall clock is (its median, the window
-## focused): a title that cannot hold 60 frames a second is a weak machine.
-## That sees less (vsync rounds a frame up to the screen's next refresh) but is
-## still a measure; with neither (a frame cap under 50 hides it too), the hint
-## stands for that launch and nothing is kept: the title measures again.
-##
-## NEVER UNDER A PICTURE: the pick is saved without `Sig.render_style_changed`,
-## as RADIANT's own fall-back is (`DisplaySettings.fall_back_style`), so the
-## title keeps its look and the next picture built (the run's chart, the map,
-## LOCAL, the next title) draws the new one. And never under a harness, nor a
-## launch that forced `style=` or `graphics=`: those ask for what they measure.
+## Measures the title's sky to pick GRAPHICS LOW for players who never chose (Jon, Oct 27, C1).
+## Macs report 0 GPU time, so wall-clock frames stand in. The adapter name is only a hint.
+## Why: docs/why/GpuProbe.md#graphics-pick
 
 ## Frames drawn before any is counted: the first few pay for compiles and the
 ## first upload, and the timer's answer lags its frame.
 const SETTLE := 12
-## A FULL SCREEN OF SKY, in the sky's own blocks (the game's 960x540 at two
-## pixels a block, and the composite's margin): what the measure is scaled to.
-## The title's sky is a square as wide as the screen's diagonal and draws the
-## screen's share of it, which grows and shrinks as it turns; scaled per frame,
-## the number is the same at any angle and comparable with the chart's.
+## The measure is scaled to a full screen of sky, so it is the same at any angle.
 const FULL_SKY := Vector2i(483, 273)
-## The sky's GPU time for a full screen, ms a frame, over which this machine
-## draws LOW. RADIANT's budget (`ChartRadiant.FALLBACK_MS`): the most of a
-## 16.7 ms frame the sky may take and leave the shell, the HUD and the GDScript
-## theirs. The 3070 draws SIMPLIFIED's chart sky in 1.26 ms (a95f7db7).
+## Sky GPU budget in ms, RADIANT's: the most of a 16.7 ms frame the sky may take.
 const LOW_MS := 6.0
-## What LOW costs against HIGH on the same machine, for a title measured on LOW
-## (the hint put it there): its time over this is what HIGH would have cost.
-## Measured on Jon's Mac (Iris Plus 645, Oct 27, seed 4242, the window at 1x,
-## vsync off: `-- chartbench` and `-- chartbench graphics=low`): the title 6.20
-## ms a frame on LOW against 12.88 on HIGH (0.48); the chart 0.43 still, 0.31
-## at zoom 6.
+## Measured on Jon's Mac, Oct 27: title 6.20 ms on LOW against 12.88 on HIGH, so 0.48.
+## Why: docs/why/GpuProbe.md#low-share
 const LOW_SHARE := 0.48
-## THE WALL CLOCK'S BUDGET, where the GPU cannot be timed: the title's median
-## frame, ms, over which this machine draws LOW. Between 60 a second (16.7) and
-## the next step vsync can show on a 60 Hz screen (33.3): the title could not
-## hold 60. The chart costs more than the title (1.55x on Jon's Mac, HIGH), so
-## this catches only the plainly weak; the hint covers Intel.
+## Wall-clock budget (22 ms) where the GPU cannot be timed: the title cannot hold 60.
 const FRAME_MS := 22.0
 ## A frame cap under this hides the machine (its frames are the cap's): no
 ## wall-clock measure then.
@@ -85,19 +39,11 @@ var frame_ms := 0.0
 ## Whether this probe has its viewports' GPU timers on (`release`).
 var _armed := false
 
-## THE GPU TIMER GOES OFF AGAIN. `viewport_set_measure_render_time` runs timer
-## queries every frame it is on, and a probe that turned it on and never off left
-## them running on the title's viewports for the rest of the screen, every launch
-## nobody had set GRAPHICS (and RADIANT's safety the same on RADIANT). Two probes
-## can read one viewport (the title's pick and RADIANT's safety share the sky), so
-## each viewport counts the unfinished probes reading it and the last one out
-## turns its timer off.
+## The timer is turned off again, or it runs on the title's viewports; the last probe out stops it.
+## Why: docs/why/GpuProbe.md#gpu-timer
 static var _reading := {}
 
-## A HARNESS'S STAND-IN FOR THE GPU'S READING: ms a frame, the probed viewports'
-## sum before scaling, in place of what the timer says. `-- menutest` drives the
-## real title through its pick headless, where the dummy renderer reads 0. Below
-## 0: the timer's own reading. Never set by the game.
+## Harness stand-in for the GPU reading, as the dummy renderer reads 0. Never set by the game.
 static var force_ms := -1.0
 
 
@@ -108,10 +54,7 @@ func _init(v: Array[SubViewport] = [], frames_wanted: int = 90) -> void:
 	want = frames_wanted
 
 
-## One frame drawn. `scale` is what this frame's GPU reading is multiplied by
-## (`full_sky_scale`: 1 for the raw time); `delta`, the frame's length in
-## seconds when it is stepped every frame (below 0: not kept). True on the
-## frame the average is ready, once; the timers are let go then (`release`).
+## One frame drawn; true once, when the average is ready, and the timers are released.
 func step(scale: float = 1.0, delta: float = -1.0) -> bool:
 	if done or rids.is_empty():
 		return false
@@ -154,9 +97,7 @@ func _arm() -> void:
 		RenderingServer.viewport_set_measure_render_time(r, true)
 
 
-## Finished or dropped: this probe stops reading its viewports, and a viewport no
-## other probe reads has its timer turned off (one already freed is only
-## counted out). Safe to call more than once.
+## Release stops reading; a viewport no other probe reads has its timer off. Safe to repeat.
 func release() -> void:
 	if not _armed:
 		return
@@ -196,10 +137,7 @@ static func adapter() -> PackedStringArray:
 	return PackedStringArray([RenderingServer.get_video_adapter_vendor(), RenderingServer.get_video_adapter_name()])
 
 
-## THE HINT: an Intel chip that is not an Arc is weak; an Apple one never is,
-## nor anything else by its name. Read on Windows ("Intel", "Intel(R) UHD
-## Graphics 620"), on a Mac's GL ("Intel Inc.", "Intel(R) Iris(TM) Plus Graphics
-## 645") and through ANGLE ("ANGLE (Intel, Intel(R) UHD Graphics 620 ...)").
+## The hint: an Intel chip that is not an Arc is weak; Apple and others never are by name.
 static func weak_by_name(vendor: String, name: String) -> bool:
 	var s := (vendor + " " + name).to_lower()
 	if s.contains("apple"):
@@ -217,10 +155,7 @@ static func hint_weak() -> bool:
 	return weak_by_name(a[0] if a.size() > 0 else "", a[1] if a.size() > 1 else "")
 
 
-## `-- gfxprobe`: the pick under a harness too (into its scratch settings), to
-## see it work on a real machine: "on". `gfxprobe=nohint`: the same without the
-## adapter's hint, so the sky measured is HIGH's. "" when not asked. Read off
-## the command line once (the title asks every frame until the pick is made).
+## `-- gfxprobe` runs the pick under a harness; `nohint` measures HIGH's sky. Read once.
 static var _asked := "?"
 
 
@@ -246,18 +181,8 @@ static func shot_asked() -> bool:
 	return false
 
 
-## THE VERDICT: LOW or not, from the sky's full-screen GPU time and whether it
-## was measured on LOW; where the GPU read 0 (a Mac), from the title's median
-## frame on the wall clock; with neither (headless, a cap that hides it) the
-## hint's, which `conclude` never keeps. Measured on LOW, a time is judged by
-## what HIGH would have cost.
-## SO AN INTEL MAC KEEPS LOW. Its title is measured on the hint's LOW, on the
-## wall clock, under vsync: a frame is never under the refresh (16.7 ms at
-## 60 Hz), and 16.7 / LOW_SHARE is 34.8, over FRAME_MS. A LOW that holds 60 says
-## nothing about HIGH, so the measure can only put HIGH back where the GPU can be
-## timed (Windows) or the screen refreshes at 100 Hz or more. Jon's own Mac on
-## HIGH (12.88 ms, at 1x and vsync off) would pass FRAME_MS on the wall clock;
-## on his Mac the chip's name decides, not the measure.
+## An Intel Mac keeps LOW: a LOW that holds 60 says nothing about HIGH, so the name decides.
+## Why: docs/why/GpuProbe.md#verdict
 static func verdict(full_ms: float, measured_low: bool, weak_hint: bool, frame_ms: float = 0.0) -> bool:
 	var k := 1.0 / LOW_SHARE if measured_low else 1.0
 	if full_ms > 0.0:
@@ -267,10 +192,7 @@ static func verdict(full_ms: float, measured_low: bool, weak_hint: bool, frame_m
 	return weak_hint
 
 
-## Whether a sky should measure for the pick now: the player never set
-## GRAPHICS, nothing forced it, and this is the game a player runs (a harness
-## only when it asks: `-- menutest` through `in_harness`, a window with
-## `-- gfxprobe`).
+## Measure only for players who never set GRAPHICS, unless a harness asks.
 static var in_harness := false
 ## `TestRun.active()`, read once: the command line does not change.
 static var _test_run := -1
@@ -288,11 +210,7 @@ static func wanted() -> bool:
 	return DisplayServer.get_name() != "headless" or in_harness
 
 
-## The measure is in: decide, keep it, and say so in the log (once, ever).
-## False if it was not this measure's to decide, or if it read nothing (a Mac's
-## window behind others the whole time, a cap hiding the frames): the adapter's
-## name is only a hint, so nothing is kept on it alone. The hint stays in
-## memory for this launch and the title measures again.
+## Keep nothing on the hint alone: if the measure read nothing, the title measures again.
 static func conclude(full_ms: float, measured_low: bool, frame_ms: float = 0.0) -> bool:
 	if not wanted():
 		return false

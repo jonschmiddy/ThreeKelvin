@@ -1,29 +1,10 @@
 class_name Unlocks
 extends RefCounted
 
-## Which manufacturers you have earned the right to fly.
-##
-## META-PROGRESSION, AND IT REVERSES A RULING. `CLAUDE.md` said "the flight
-## record is a record, not meta-progression — nothing in RunHistory feeds back
-## into a run", on the grounds that identity is assembled mid-run and a history
-## that granted a starting bonus would be the first crack in that. This is that
-## crack, opened deliberately.
-##
-## What makes it survivable: an unlock grants no POWER. Every manufacturer is balanced
-## against every other, so finishing the chain widens the choice at run start and
-## changes nothing about how hard a run is. A locked player is not a weaker
-## player, they are a player with fewer doors. That is the only shape of
-## meta-progression this game can take without repealing the greed clock.
-##
-## DERIVED, NEVER STORED. There is no unlock file to desync, migrate or cheat —
-## the answer is a fold over the flight record. The cost is that runs recorded
-## before `chassis_manufacturer` existed cannot say who flew them, so they unlock
-## nothing; a save wiped is progress wiped, which is the same deal the record
-## already offered.
+## Unlocks reverse the flight-record ruling but grant no power, only doors; derived, never stored.
+## Why: docs/why/Unlocks.md#meta-progression
 
-## The chain, in order. Each manufacturer is unlocked by WINNING with the one before it,
-## and the first is free. Order follows DB.STARTABLE so the chassis select reads
-## top to bottom as the order you earn them in.
+## Each maker unlocks by winning with the one before; order follows `DB.STARTABLE`.
 const CHAIN: Array[StringName] = [
 	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
 ]
@@ -40,26 +21,12 @@ static func won_with() -> Dictionary:
 		var e: Dictionary = r
 		if int(e.get("outcome", -1)) != int(RunHistory.Outcome.WON):
 			continue
-		# THE OLD KEY IS STILL HONOURED, and here that is the fix rather than a
-		# courtesy. The vocabulary pass renamed this field to
-		# `chassis_manufacturer`; every record already on disk says
-		# `chassis_maker`, so reading only the new name reports an empty
-		# manufacturer for every run ever flown and silently re-locks the lot.
-		#
-		# A VERSION BUMP WOULD BE WORSE. RunHistory discards the whole file on a
-		# mismatch, so raising its number would delete the flight record and take
-		# every unlock with it -- destroying exactly what this read exists to
-		# recover. The file still parses at version 1; two field names moved
-		# inside it, and the record is append-only and never rewritten on load.
-		# A run flown in July is meant to keep counting.
+		# Keep the old `chassis_maker` key: a version bump would delete the flight record.
+		# Why: docs/why/Unlocks.md#old-key
 		var m := StringName(str(e.get("chassis_manufacturer",
 			e.get("chassis_maker", ""))))
-		# A WIN WITH NO MANUFACTURER IS STILL A WIN (Geno, Oct 23). Before
-		# `launched_as`, the record took the manufacturer of the hull flown at
-		# the end, and a run that swapped onto an unbranded derelict frame
-		# recorded "". It launched as someone the chain had opened, so it
-		# counts for the first opened manufacturer not yet won with: on a
-		# fresh profile, Korvan, which is the only possible launch.
+		# A win with no manufacturer still counts (Geno, Oct 23), for the first opened not yet won.
+		# Why: docs/why/Unlocks.md#blank-manufacturer
 		if m == &"":
 			m = _first_unwon(out)
 		if m != &"":
@@ -77,10 +44,7 @@ static func _first_unwon(won: Dictionary) -> StringName:
 			return m
 	return &""
 
-## Can this manufacturer be flown?
-##
-## Dev mode opens everything, because a build you cannot start as Calyx in is a
-## build you cannot test Calyx in.
+## Dev mode opens everything, as a build you cannot start as Calyx in cannot test Calyx.
 static func unlocked(manufacturer: StringName) -> bool:
 	if DevMode.enabled:
 		return true
@@ -89,19 +53,8 @@ static func unlocked(manufacturer: StringName) -> bool:
 		return true
 	return won_with().has(need)
 
-## Every manufacturer this profile has unlocked, in chain order. Korvan at least.
-##
-## WHAT A NEW RUN'S WORLD MAY HOLD (Jon, Oct 20: "Solari things should NOT show
-## up in the game until Solari is unlocked (win the game once)"). A locked
-## manufacturer's parts and hulls drop nowhere, sell nowhere and come off no
-## derelict: `LootGen.can_appear` reads this, as `Run.unlocked_manufacturers`,
-## with `DB.ACTIVE_MANUFACTURERS` on top. The record is read ONCE, at run
-## start (`for_new_run`), and the run keeps the answer and its save carries it,
-## so a win recorded mid-run, or a CONTINUE on a profile that has moved on
-## since, cannot change what a run already under way can find.
-##
-## One fold over the record rather than `unlocked()` seven times, which would
-## read the file seven times.
+## Locked makers' parts appear nowhere (Jon, Oct 20); the record is read once at run start.
+## Why: docs/why/Unlocks.md#new-run-world
 static func open_now() -> Array[StringName]:
 	var out: Array[StringName] = []
 	var won := {} if DevMode.enabled else won_with()
@@ -111,26 +64,16 @@ static func open_now() -> Array[StringName]:
 			out.append(m)
 	return out
 
-## What a run starting now keeps as its `Run.unlocked_manufacturers`.
-##
-## IN A PARTY, THE HOST'S. The galaxy is one galaxy: a wreck holds what a wreck
-## holds and a shelf is one shelf on every machine (`Rng.derive`), so the pool
-## those positional rolls draw from has to be one pool too, or two ships at one
-## derelict would open two different hulls. The host's profile decides it and
-## sends it with the seed (`NetSession._begin_dive`, PROTOCOL 10). What each
-## player may FLY is still their own record, read by the chassis select.
+## In a party the host's unlocks decide the world, so shared positional rolls stay one pool.
+## Why: docs/why/Unlocks.md#party-unlocks
 static func for_new_run() -> Array[StringName]:
 	if Net.state == NetSession.State.DIVING and Net.dive_seed != 0 \
 			and not Net.dive_unlocked.is_empty():
 		return Net.dive_unlocked.duplicate()
 	return open_now()
 
-## What the chassis select prints for a locked manufacturer.
-##
-## The prerequisite is NAMED only if you have already unlocked it. Otherwise it
-## is ???, so the chain reveals itself one rung at a time rather than laying the
-## whole ladder out on the first run — which would make six locked rows into a
-## checklist instead of a horizon.
+## The prerequisite is named only once unlocked, so the chain reads as a horizon, not a checklist.
+## Why: docs/why/Unlocks.md#lock-line
 static func lock_line(manufacturer: StringName) -> String:
 	var need := prereq(manufacturer)
 	if need == &"":

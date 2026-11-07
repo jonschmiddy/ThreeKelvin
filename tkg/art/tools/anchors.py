@@ -105,18 +105,9 @@ def lines(path):
 # The doc comment the generated table carries into Database.gd. Held here rather
 # than read back off the last output, so regenerating from an empty tree gives
 # the same file as regenerating from a full one.
-HEADER = """## Measured off each hull's own silhouette by `art/tools/anchors.py`.
-##
-## GENERATED. Re-run the tool after replacing a hull sprite; a line measured
-## against art that has since changed puts mounts in mid-air, and nothing about
-## that fails loudly. `-- mounts` is what makes it fail loudly.
-##
-## Lines rather than points, because a hull carries one to five mounts of a kind
-## depending on weight, class and manufacturer \u2014 a fixed list of five used two at a time
-## clusters both at one end of the ship. See HullData.mounts_along().
-##
-## Plain Vector2 arrays, not PackedVector2Array: the packed constructor is a CALL
-## and a `const` needs an expression the compiler can fold. Converted on assignment.
+HEADER = """## Generated: re-run `art/tools/anchors.py` after a sprite change, and `-- mounts` will check.
+## Plain Vector2 arrays: a `const` cannot fold the packed constructor call.
+## Why: docs/why/Database.md#hull-mounts
 const HULL_LINES := {"""
 
 
@@ -181,7 +172,7 @@ def splice(gd_path, table_path):
     """
     nl = chr(10)
     src = io.open(gd_path, encoding="utf-8").read()
-    start = src.index("## Measured off each hull's own silhouette")
+    start = src.index("## Generated: re-run `art/tools/anchors.py`")
     open_at = src.index("const HULL_LINES := {", start)
     close = nl + "}" + nl
     end = src.index(close, open_at) + len(close)

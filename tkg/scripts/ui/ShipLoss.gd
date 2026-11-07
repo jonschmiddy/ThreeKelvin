@@ -1,29 +1,9 @@
 class_name ShipLoss
 extends RefCounted
 
-## A PLAYER'S SHIP COMING APART (Jon, Oct 13): "When you die... let's have your
-## ship crack and explode... pause for a beat... then the run ended popup shows
-## up."
-##
-## The same `ShipBreakup` the enemies die in, cut from your own hull's picture
-## as `ShipView` paints it (the full sheet in the fight, the half sheet in a
-## convoy slot) with the parts bolted to it laid in, so a turret does not hang
-## in space over the wreck. Nothing else of the screen: not the stars, not the
-## plate, not the HUD.
-##
-## THE BOSS-LENGTH VERSION, always: the losing ship gets the prelude of bursts a
-## boss does, because it is the last thing this run shows.
-##
-## FACING. `ShipBreakup` reads a ship as facing LEFT, as every enemy does: the
-## stern is the right-hand end (`_engines`), and OVERLOAD blows the back off
-## from there. Your ship faces right. So the picture is mirrored before it is
-## cut and the breakup is drawn mirrored back (`scale.x` negative): the engines
-## it finds are your engines, and every pixel of the wreck lands where it was
-## drawn.
-##
-## STYLE AND CUT are positional, as an enemy's are (`EnemyArt.death_style`):
-## from the system and the ship, so a seeded run loses the same way twice and a
-## partner's ship comes apart the same way on every screen in the party.
+## The enemies' `ShipBreakup`, boss-length, cut from
+## your hull; mirrored as it expects a left-facing ship.
+## Why: docs/why/ShipLoss.md#ship-loss
 
 ## Rolled from the ships' pool, never the creatures'.
 static func style_for(node_index: int, who: int) -> int:
@@ -36,16 +16,12 @@ static func seed_for(node_index: int, who: int) -> int:
 	return int(r.randi() & 0x7fffffff)
 
 
-## Where the canvas's top-left pixel sits in `v`, at rest. The same arithmetic
-## as `ShipView.canvas_to_local`, without the bob: the bob is already inside the
-## canvas, where the hull was pasted.
+## Where the canvas's top-left sits in `v` at rest: `ShipView.canvas_to_local` minus the bob.
 static func canvas_origin(v: ShipView) -> Vector2:
 	return ((v.size - Vector2(v.canvas_width(), v.canvas_height())) * 0.5).floor()
 
 
-## The picture a breakup cuts, taken NOW (on the main thread): the canvas, the
-## parts laid in, the procedural fallback's background stars taken out.
-## {img, used, bob, k}, or {} when there is no ship to cut.
+## The picture a breakup cuts, taken now on the main thread: {img, used, bob, k}, or {}.
 static func picture(v: ShipView) -> Dictionary:
 	if v == null or v.canvas() == null:
 		return {}
@@ -68,11 +44,8 @@ static func picture(v: ShipView) -> Dictionary:
 	return {img = img, used = used, bob = v.bob_offset(), k = k}
 
 
-## Every fitted part with a sprite, into the canvas where `MountPoints` draws it
-## (`ModuleIcon.draw_sprite`'s placement: centred on its box, stood on end
-## anticlockwise when the hull turned it, mirrored about the box's middle row).
-## A part with no sprite is a coded silhouette and stays out: it goes with the
-## hull, a frame early.
+## Fitted parts with a sprite go in where `MountPoints`
+## draws them; coded silhouettes go with the hull.
 static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> void:
 	# Placed against the hull as it is drawn this frame (the bob moves both).
 	mp.refresh()
@@ -157,11 +130,8 @@ static func is_cut(pre: Dictionary) -> bool:
 	return pre.is_empty() or WorkerThreadPool.is_task_completed(pre.task)
 
 
-## The ship comes apart where it is drawn: the breakup into `host` (at child
-## index `at_index`, or on top when it is -1), over the hull's own place, and the
-## hull hidden. `rest` is where `v` sits in its parent when nothing is shaking
-## it: the hit's kick moves the view for a few frames and the wreck must not
-## keep that offset. Returns the breakup, or null.
+## The breakup plays where the ship is drawn; `rest`
+## excludes the hit's kick so the wreck keeps no offset.
 static func play(pre: Dictionary, host: Control, v: ShipView, at_index: int = -1,
 		rest: Vector2 = Vector2.ZERO) -> ShipBreakup:
 	if pre.is_empty() or v == null:

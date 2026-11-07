@@ -1,27 +1,9 @@
 class_name OutcomeCheck
 extends RefCounted
 
-## WHAT AN EVENT'S RESULT SAYS YOU ENDED UP WITH, checked against what actually
-## moved (`OutcomeRow`, all four looks). Shared by `-- localeventtest` (every
-## choice of every option, in the bare band) and `-- sheet=OutcomeTest` (real
-## outcomes on the real LOCAL, with the HUD).
-##
-## The expectation is read off the RUN, not off `OutcomeRow`: the ledger either
-## side of the choice, the system's pile, the hold and the found frame, diffed
-## here. A look that drew what `OutcomeRow.changes` said would
-## agree with itself whatever the run did.
-##
-## THE NUMBERS: today's four pairs ("HULL -5", "CREDITS —"); A and C one entry
-## for every change and nothing else ("-5 HULL", "+1 PART: ...", no dash
-## anywhere); B a row for every change with its totals ("HULL -5 35 > 30");
-## E a row for every change with its new total ("HULL -5 31"); NOTHING GAINED
-## OR LOST when nothing moved. D only the four stats that moved, each its
-## change alone ("HULL -5"), and no table when none did (Jon, Oct 19).
-##
-## THE BOXES (fit means nothing overlaps): every entry inside the band, apart
-## from every other entry, off every button (CONTINUE, REWARD, CHOOSE AGAIN,
-## THEY ARE FIRING), off the text, the head and the YOU CHOSE line; B's rows
-## inside their own column; and CONTINUE where today's look puts it.
+## Expectations come from the run, not `OutcomeRow`, or a look would agree with itself.
+## Shared by `-- localeventtest` and `-- sheet=OutcomeTest`; also checks the boxes do not overlap.
+## Why: docs/why/OutcomeCheck.md#outcome-check
 
 const WORDS := {"credits": "CREDITS", "heat": "HEAT", "hp": "HULL", "fuel": "FUEL"}
 const BUTTONS := ["Continue", "Reward", "ChooseAgain", "TheyAreFiring"]
@@ -101,11 +83,8 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				if not texts.has(t):
 					bad.append("today: no '%s' in [%s]" % [t, said])
 		&"D":
-			# THE FOUR STATS AND NOTHING ELSE (Jon, Oct 19: "let's only show
-			# CREDITS, FUEL, HULL, HEAT on the right"): a row for each that
-			# moved, its change and no total ("just put what is added or
-			# lost"), in hull, fuel, credits, heat order, no thing ever (those
-			# are REWARD's), and no table at all when none of the four moved
+			# Only the four stats that moved, change alone, no table when none (Jon, Oct 19).
+			# Why: docs/why/OutcomeCheck.md#outcome-table
 			var rows: Array = []
 			for k in OutcomeRow.ORDER:
 				var s: Array = want.stats[k]
@@ -156,11 +135,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 	return bad
 
 
-## E: D's table where D has it (when E leaves it anything to say); a plate
-## for every part and material that came aboard (up to `OutcomeRow.BIG_MAX`),
-## none for anything else, each thing said once (a plate's thing is not a row
-## of the table too); the plates clear of the text and of the buttons' column
-## in the band, over that column on the card.
+## E: D's table plus a plate per part or material that came aboard, each thing said once.
 static func prize_place(d: LocalEventDrawer, want: Dictionary, texts: Array) -> Array:
 	var bad: Array = []
 	var p := d.panel.find_child("OutcomePrizes", true, false) as Control
@@ -202,9 +177,7 @@ static func prize_place(d: LocalEventDrawer, want: Dictionary, texts: Array) -> 
 	return bad
 
 
-## E's table, where it has one, sits directly over the buttons, its right
-## edge on theirs, at least their width (in every layout: on the card too it
-## is right-aligned over them). D's was the same until it moved (`d_place`).
+## E's table sits over the buttons, right edge on theirs and at least their width.
 static func table_place(d: LocalEventDrawer, lk: StringName = &"E") -> Array:
 	var bad: Array = []
 	var t := d.panel.find_child("OutcomeTable", true, false) as Control
@@ -224,14 +197,9 @@ static func table_place(d: LocalEventDrawer, lk: StringName = &"E") -> Array:
 	return bad
 
 
-## D (Jon, Oct 19: "can the text on the right be a bit bigger? and centered
-## vertically?", "can we also have the buttons at the top right?"): the table
-## at `OutcomeRow.D_FS` (8: Jon saw 16 and kept 8), the four stats that moved
-## only and none when none did (`check`); the buttons at the top right, level with the title,
-## inside the band and clear of the title, YOU CHOSE, the text and the table;
-## the table under them, its right edge on theirs and at least their width,
-## centred in the room under them (in the band; on the card it sits at the
-## foot, the buttons on the title's line or a line of their own over it).
+## D (Jon, Oct 19): table at `OutcomeRow.D_FS` 8 (Jon saw 16 and kept 8), buttons top right.
+## The table sits under them, right edge on theirs, centred in the room below.
+## Why: docs/why/OutcomeCheck.md#outcome-table
 static func d_place(d: LocalEventDrawer) -> Array:
 	var bad: Array = []
 	var t := d.panel.find_child("OutcomeTable", true, false) as Control
@@ -266,10 +234,7 @@ static func d_place(d: LocalEventDrawer) -> Array:
 	var head := d.panel.find_child("Head", true, false) as Control
 	var hr := head.get_global_rect() if head != null else Rect2()
 	if LocalEventDrawer.layout != &"card":
-		# level with the title: the buttons' middle within the head row (the
-		# real theme puts it within 2 px of the head's middle; the bare band
-		# of `-- localeventtest` has Godot's own font in the labels), and the
-		# table under the buttons, centred in the column's room under them
+		# Buttons level with the title (within 2 px); table centred in the room under them.
 		if br.get_center().y < hr.position.y or br.get_center().y > hr.end.y:
 			bad.append("D: the buttons' middle at y %.1f, off the title's row %s" % [br.get_center().y, hr])
 		if t == null:
@@ -418,9 +383,7 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 				if not found.has("gain") and moved.call("credits") > 0 and parts > 0 and moved.call("hp") >= 0 \
 						and moved.call("fuel") >= 0 and moved.call("heat") <= 0 and lostn == 0 and not fight:
 					found["gain"] = rec
-				# (credits up, fuel down AND heat up is in no authored choice -- the
-				# survey says so -- so the mix is credits up and fuel down, with
-				# heat if one ever does)
+				# Credits up, fuel down with heat up is in no authored choice, so heat is dropped.
 				if moved.call("credits") > 0 and moved.call("fuel") < 0 and (not found.has("mix")
 						or (moved.call("heat") > 0 and not String(found["mix"].sig).contains("heat+"))):
 					found["mix"] = rec

@@ -1,21 +1,8 @@
 extends RefCounted
 
-## Correctness and cost of the star chart's shared sky cache.
-##
-##   godot --path . -- charttest        (needs a window: it renders)
-##
-## RUN THIS AFTER ADDING ANYTHING TO _build_stars OR ITS SUB-BUILDERS.
-##
-## The cache saves and restores a named list of fields, MapChart.SKY_FIELDS, and
-## there is exactly one way for it to go wrong: a builder gains a new output and
-## nobody adds it to that list. Nothing errors. The field simply keeps whatever
-## the previous galaxy left in it, and the chart draws last run's dust lanes
-## over this run's stars — on the second visit only, which is the kind of bug
-## that gets blamed on anything but the cache.
-##
-## So this compares a RESTORED sky against a freshly BUILT one, field for field.
-## Screenshots cannot answer the question: SkyAnim redraws every frame, so two
-## captures of an identical sky differ anyway.
+## Run after touching `_build_stars`: a missed `SKY_FIELDS` entry silently leaks the last
+## galaxy's sky.
+## Why: docs/why/ChartTest.md#sky-cache-test
 
 var fails: int = 0
 
@@ -50,9 +37,8 @@ func run(tree: SceneTree) -> void:
 
 	var values := 0
 	for f in fields:
-		# The build reads no global RNG — every random number in it comes from
-		# _seed_rng off galaxy_seed — so two builds of one galaxy are identical.
-		# If this ever fires, the cache is not the thing that broke.
+		# The build reads no global RNG, so two builds are identical; if this fires, the cache is
+		# not the cause.
 		if str(restored[f]) != str(built[f]):
 			print("  NON-DETERMINISTIC build: %s" % f)
 			fails += 1
@@ -70,10 +56,8 @@ func run(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## Another style chosen with the chart open: the sky is made again in that
-## style's own renderer (PAINTED keeps a fourth pass, its band memory; LEGACY a
-## node of its own, `ChartLegacy`; RADIANT its own bakes and place pass) and back. In memory only: the settings file
-## is never written.
+## Style switch remakes the sky in each renderer and back, in memory only; the settings
+## file is not written.
 func _style_switch(_tree: SceneTree, chart: Object) -> void:
 	var sky: ChartSky = chart.get("_sky")
 	if sky == null:

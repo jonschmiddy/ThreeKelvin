@@ -1,27 +1,8 @@
 class_name YardLight
 extends RefCounted
 
-## One level's light in the Yard: the lamps `tools/yard_install.py` baked, the
-## clocks they burn on, and the few questions about the light that are asked
-## off the GPU.
-##
-## THE PAGE IS THE REFERENCE. The Yard Drones page (v46, the artifact Jon passed
-## the Yard on) lights its hall in `lightWeights`, `syncStatic` and
-## `shadeRange`; every function here names the one it ports. The pools were
-## worked out ahead of time and live in the level's `.lmap` files -- what moves
-## is how hard each light burns this tick, and that is all this hands the
-## shader (`yard_light.gdshader`, four materials of it).
-##
-## THE CLOCKS ARE THE PAGE'S, LINE FOR LINE: a bulb with a bad contact buzzing,
-## a loose one blinking, unclaimed's bad bulb popping in a shower of sparks,
-## neon stuttering, gold breathing, the tired lamp over the crane striking back
-## on. A beat changes a light's own pixels; only a light that really goes out
-## takes its pool with it ("pulses dim bands, never move them").
-##
-## Asked off the GPU: the light at a point, for what is drawn after the light
-## (the drones take the light over the ships' row, the flyers the hall's light
-## as a whole, the deal TV the light at its feet) and for the dust, which shows
-## only where a cone is bright.
+## The Yard Drones page (v46) is the reference; clocks are the page's, line for line.
+## Why: docs/why/YardLight.md#yard-light
 
 const LW := 766
 const LH := 482
@@ -603,9 +584,7 @@ func _smooth(r: float, g: float, b: float, s0: float, s1: float) -> Color:
 		amb * ambc.b * u + (1.0 - 0.45 * (1.0 - b / l)) * tq)
 
 
-## Something flying high takes the hall's light as a whole, steady (the page's
-## `mAir`: flyers lit by each cone they passed went dark and light as they
-## crossed, which Jon found "kinda weird").
+## Flyers take the hall's light as a whole, steady: cone-by-cone lighting looked weird (Jon).
 func m_air() -> Color:
 	var tq := 0.85
 	var u := 1.0 - tq
@@ -614,10 +593,7 @@ func m_air() -> Color:
 		amb * ambc.b * u + (1.0 - 0.45 * (1.0 - main.b)) * tq)
 
 
-## The deal TV's box takes the light as it stands with the TV fully on (the
-## page's `boxLight`): its own lamps' light at its feet counted at full, so
-## only its glass and lamps follow the power-on. `now` and `full` are what its
-## lamps put there now and at full: [R, G, B, steady, breathing].
+## The TV box counts its own lamps' light at full, so only its glass and lamps follow power-on.
 func box_light(x: float, y: float, now: PackedFloat32Array, full: PackedFloat32Array) -> Color:
 	var cx := cell_x(x)
 	var cy := cell_y(y)

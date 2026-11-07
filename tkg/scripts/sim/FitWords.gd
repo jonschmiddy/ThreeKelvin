@@ -1,16 +1,7 @@
 extends Harness
 
-## How wide a word is on a rail button:
-##   godot --headless --path . -- fitwords
-##
-## Every button on both combat rails is cut to `PileView.W`, so that width is set
-## by the LONGEST string any of them ever shows -- and picking that string by eye
-## is how the rail went to 100 to hold "NOT NEGOTIATING". This measures the
-## candidates at the real font and the real size, against the widths the rail
-## could plausibly be, so the choice is a table rather than a guess.
-##
-## The button's own stylebox eats some of the width. `PAD` is the horizontal
-## content margin the flat boxes on FLEE and HAIL use, doubled.
+## The longest rail string sets the width, so measure it as a table, not by eye.
+## Why: docs/why/FitWords.md#word-widths
 
 ## `UITheme.flat(..., 0, 0, 6)` on both, so six each side.
 const PAD := 12

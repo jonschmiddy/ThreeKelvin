@@ -528,29 +528,17 @@ def write_gd(rows):
     """Put the table into ShipView.gd, between its own markers."""
     check_weights()
     out = [HEAD,
-           "##",
-           "## Each row is one way for the drive to starve: the lit windows of",
-           "## the flame, in arrival progress. The first window is the clean",
-           "## burn, so the rule is just 'lit if e falls inside a span'.",
-           "##",
-           "## THE SOUND IS CUT FROM THESE SAME ROWS -- sfx/thruster_arrive_a",
-           "## is row 0 gated by row 0 -- so editing a number here without",
-           "## re-running flameout.py slides the picture off the sound, which",
-           "## is the one thing this must never do.",
+           "## The sound is cut from these same rows, so a number edited here "
+           "slides the picture off it.",
+           "## Why: docs/why/ShipView.md#flameout-table",
            "const FLAMEOUTS := ["]
     for r in rows:
         out.append("\t[%s],"
                    % ", ".join("Vector2(%.4f, %.4f)" % (a, b) for a, b in r))
     out.append("]")
-    out.append("## The clips cut from those rows: one ROW of this per hull")
-    out.append("## weight, indexed by HullData.Weight, and one COLUMN per")
-    out.append("## pattern above. Same flame timing at every weight -- what")
-    out.append("## changes across a row is how big the engine making it is.")
-    out.append("##")
-    out.append("## Not named `thruster_arrive_2`: Audio.play() reads that")
-    out.append("## spelling as a round-robin take and would pick one at")
-    out.append("## random, which is exactly the desynchronisation this table")
-    out.append("## exists to prevent.")
+    out.append("## Clip names avoid `thruster_arrive_2`, which `Audio.play()` would "
+               "read as a round-robin take.")
+    out.append("## Why: docs/why/ShipView.md#flameout-table")
     out.append("const FLAMEOUT_SFX := [")
     for w, _rate, _tilt, _a, _dr in WEIGHTS:
         out.append("	[%s],  ## %s"

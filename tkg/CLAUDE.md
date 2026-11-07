@@ -15,6 +15,7 @@ split.
 
 | Read this | When |
 |---|---|
+| `docs/why/<FileStem>.md` | **Before changing code with a `Why:` pointer.** The reasoning moved out of that file's comments, verbatim, by heading |
 | `docs/handbook.md` | Screen layout, art direction and generation, audio, the economy's internals, the two procedural engines, the manufacturer table, dev mode |
 | `docs/design-doc.md` | What the game IS. Pillars, core loop, combat, loot, the setting |
 | `docs/lore.md` | Who pays for all this, the rules for in-world paperwork, contracts |
@@ -38,9 +39,15 @@ split.
   things that are broken; brevity is about format, not about hedging or leaving things out.
   Use structure only when the content really is structured — a measured comparison, a list
   of files, a table of numbers — and that should be rare.
-  This applies to replies in chat and NOT to the source comments or the design documents,
-  whose voice is deliberate: they say WHY, they record what was measured, and they keep
-  the reasoning behind a decision that was reversed.
+  The design documents are the exception: they record what was measured and the
+  reasoning behind a decision that was reversed.
+- **Comments are one or two lines saying why.** The long reasoning (what was measured,
+  what was tried and rejected, the bug it prevents, the date Jon ruled) goes in
+  `docs/why/<FileStem>.md` under a heading, and the code keeps its short why plus a
+  pointer: `# Why: docs/why/RunState.md#moving-ships`. Add to the existing heading when
+  there is one. `tools/comment_check.py` (in the gate) fails a run of more than five
+  comment lines and any pointer that does not resolve. Read the doc before changing
+  code that points to it.
 - **Development happens in VS Code.** Godot's editor is used only to run the game (F5),
   read the Output panel, and host the language server. Do not create or edit `.tscn`
   files unless there is no reasonable alternative.
@@ -62,7 +69,7 @@ split.
   board, what is waiting at a node) uses `Rng.derive(tag, node.index)` instead, so
   it depends on WHERE it is rather than on when it was asked for. Cosmetic rolls —
   audio pitch, damage jitter, the title screen's galaxy — keep the global
-  generator on purpose. `Rng.gd`'s header has the reasoning; `-- rngtest` enforces it.
+  generator on purpose. `docs/why/Rng.md` has the reasoning; `-- rngtest` enforces it.
 - **Indentation is tabs.** Godot requires it.
 - **Static typing where practical** (`var x: int = 0`, typed arrays, `-> void`).
   Typed array assignment from literals often needs `arr.assign([...])` rather than

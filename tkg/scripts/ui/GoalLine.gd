@@ -1,79 +1,15 @@
 class_name GoalLine
 extends Control
 
-## THE GOAL, ALWAYS, AND THE NEXT STEP WHILE ONE IS PENDING (tutorial direction
-## B, "learn by doing", Jon Oct 17). Two quiet lines under the HUD:
-##
-##   GOAL: REACH THE CORE
-##   Open STARCHART. Pick a star in range, then JUMP.
-##
-## The second line only while a step is pending, with the HUD tab it names
-## outlined (`cue`). The tour that used to say the goal once, for three seconds,
-## is gone; this says it for as long as a run lasts.
-##
-## THE STEPS, each done once per profile (`Hints.STEPS`, `[hints] step_*`,
-## cleared by REPLAY TUTORIAL), and only where the hints are on (`Hints.enabled`,
-## so never under a harness that did not ask):
-##   step_jump   no jump made yet: open STARCHART, pick a star, JUMP. Done at the
-##               first jump.
-##   step_event  after it, in a system with an event open: click one, then GO.
-##               Done when an event's band is up on LOCAL.
-##
-## HOSTED BY THE HUD (`HudBar`) and drawn beside it, in the HUD's own column
-## after the screens, so it is over the picture and under the escape menu. It
-## is `top_level`, so the column does not lay it out; it places itself.
-##
-## ITS PLACE (`fixed_at`). Jon, Oct 18: "Can we have the goal: xxx always be in
-## this location?". Oct 20: not in the map's and the chart's top plate left of
-## their DANGER / LAYER, but just below it, at the top left of their picture.
-## Oct 20, "snug:B": on LOCAL, where there is no plate, snug under the HUD at
-## the same left, not low with an empty gap over it. Between the two it moves
-## only with the top plate ("Can we make it smooth animation as it drops down
-## or up"): on a move between LOCAL and the map or the chart it slides down or
-## up as the plate slides on or off, on the plate's own curve (`drop`, read off
-## its `PanelSlide`), in whole pixels; between the map and the chart it stays.
-## The step's line, while one is pending, directly under it (`step_at`), and
-## A.S.H.'s box under both, the three as one group.
-##
-## SAID ONCE, NOT TWICE (Jon, Oct 20, "twice:hide"): while A.S.H. has a step to
-## say, or is saying it, the step's line is not shown; when she has finished it
-## comes back as the quiet reminder, "slowly pop in all smooth like": a fade
-## over `APPEAR_S` with a small settle up from `APPEAR_DY` px, eased, in whole
-## pixels, on the game's clock. Its room is kept all the while (`stack_rect`),
-## so nothing moves when it comes back; a step changing while she talks keeps
-## it hidden until she is done with that one too. Both have the
-## step's dim backing: they stand over the picture. The two lines' room is kept
-## whether a step is pending or not (`stack_rect`), so A.S.H., who keeps off it,
-## is never sent away by a step arriving. `-- sheet=GoalTest` holds both clear
-## of everything on every screen they show on (`avoid_rects` lists what that is).
-##
-## IT IS NOT A CONTROL, and does not look like one: no plate, no edge, no hover,
-## no hand; it ignores the mouse, so a click goes through it. It stays up
-## through a move between LOCAL, the map and the chart (a piece of the HUD);
-## hidden over any other move, a jump's departure and an arrival (it comes up
-## when the ship stops), the cutaway, a wreck's window and the escape menu, and
-## off the three flight screens.
-##
-## THE CUSTODIAN'S BADGE (`CustodianBadge`, badge 9b, Jon Nov 4) stands on the
-## goal's line, 6 blank px after its last letter, its middle row on the
-## capitals' middle (`badge_at`): the eye that wakes as the boss at the core
-## grows. It is part of the line: it shows when the line shows, fades and slides
-## with it, and its room is the line's (`size`, `stack_rect`), so what keeps off
-## the goal keeps off the badge. It is 15 px tall to the goal's 13, so the
-## step's line stands 2 px lower than it did (`_line_h`). Its arrival plays
-## here, once a rise in its count: on the first frame the line is fully up
-## after it (`RunState.custodian_seen`), and until then it holds the count last
-## shown.
+## The goal always shows, with the next tutorial step while one is pending, under the HUD.
+## It is not a Control: it ignores the mouse and hides over moves and popups.
+## Why: docs/why/GoalLine.md#goal-line
 
 const GOAL := "GOAL: REACH THE CORE"
 ## Every step's line as shown (`step`), for the room the step keeps (`stack_rect`).
 const STEP_TEXTS: Array[String] = ["Open STARCHART. Pick a star in range, then JUMP.",
 	"Pick a star in range, then JUMP.", "Open SECTOR. Click an event, then GO.", "Click an event, then GO."]
-## THE GOAL'S PLACE from the screens' area's corner (Jon, Oct 20: just below the
-## map's and the chart's top plate, at the top left): the plate is 27 px tall
-## and 4 px above the picture's frame, whose content margin is 12; then 4 px
-## into the picture, where the step used to stand. LOCAL takes the same place
-## (`GoalTest` and `CalmLadderTest` hold it to the map's and the chart's picture).
+## Placed from the screens' corner (Jon, Oct 20): below the top plate, 4 px into the picture.
 const AT := Vector2(16.0, 47.0)
 ## ITS PLACE ON LOCAL (Jon, Oct 20, "snug:B"): snug under the HUD, 4 px into the
 ## screens' area as it is 4 px into the map's picture, at the same left.
@@ -129,9 +65,7 @@ func _init() -> void:
 	visible = false
 	modulate.a = 0.0
 	_panel = PanelContainer.new()
-	# THE GOAL, on the step's dim backing: it stands over the picture now (Jon,
-	# Oct 20), on a bright sky too; the same look on all three, a fixed piece of
-	# the HUD
+	# The goal sits on the step's dim backing (Jon, Oct 20), as it stands over the picture.
 	_backed = UITheme.flat(Color(UITheme.VOID, 0.72), Color(0, 0, 0, 0), 0, int(PAD_V), int(PAD_H))
 	_panel.add_theme_stylebox_override("panel", _backed)
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -153,16 +87,12 @@ func _init() -> void:
 	add_child(_badge)
 
 
-## The step pending now, as {text, tab, id}; {} for none. Marks a step done the
-## first time it sees it done. `id` is the line A.S.H. says for it as it starts
-## (`AshTutorLines`, `Hints` decides when).
+## Marks a step done the first time it sees it; `id` is the line A.S.H. says.
 static func step() -> Dictionary:
 	if Run.hull == null or not Hints.enabled():
 		return {}
 	var cur := Router.current
-	# NOT IN A FIGHT: the tabs every step names are locked there ("Locked during
-	# combat."), so a step would be a thing to do that cannot be done; and the
-	# fight's top left is the one place A.S.H. has clear in every fight
+	# Not in a fight: the named tabs are locked there, so a step could not be done.
 	if _fighting(cur):
 		return {}
 	if not Hints.seen(&"step_jump"):
@@ -234,13 +164,9 @@ func refresh() -> void:
 			_step_panel.size = ssz
 			_step_panel.position = step_at(cur) - position + Vector2(0.0, _appear())
 	_fade(want)
-	# THE BADGE'S ARRIVAL, once a rise in the count, when the line is fully up
-	# after it (not half way through its fade, which would eat half a 0.4 s
-	# tick). Until then it holds the count last shown, the line fading out too:
-	# a departure skipped on its first frame commits the jump while the old line
-	# is still going. The count is the lead ship's in co-op
-	# (`CustodianBadge.count`), so it can rise by more than one, or while you
-	# sit still: it plays from the count last shown to the count now.
+	# The badge plays its arrival once the line is fully up, from the last count shown.
+	# A departure skipped on its first frame would commit the jump mid fade.
+	# Why: docs/why/GoalLine.md#custodian-badge
 	var seen := Run.custodian_seen
 	var g := CustodianBadge.count()
 	var pending := CustodianBadge.enabled() and seen < g
@@ -252,10 +178,7 @@ func refresh() -> void:
 	queue_redraw()
 
 
-## THE BADGE'S PLACE from the line's corner: BADGE_GAP blank columns after the
-## goal's last ink column (the label at the backing's padding, its ink running
-## to its advance less Silkscreen's blank tail), its middle row (cy, 7 rows
-## down its 15) on the capitals' middle. Whole pixels.
+## Badge sits BADGE_GAP columns after the goal's last ink column, on the capitals' middle.
 static func badge_at() -> Vector2:
 	var font := UITheme.pixel_font()
 	var adv := font.get_string_size(GOAL, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
@@ -292,9 +215,7 @@ func _appear() -> float:
 	return roundf(APPEAR_DY * (1.0 - e))
 
 
-## WHERE THE GOAL STANDS NOW (global): LOCAL's place snug under the HUD, the
-## place below the map's and the chart's top plate, or on the way between them
-## with the plate, in whole pixels.
+## Where the goal stands: LOCAL's place, the map's place, or between them with the plate.
 static func fixed_at() -> Vector2:
 	var g: GoalLine = Router.hud.goal if Router.hud != null and is_instance_valid(Router.hud) else null
 	return place_at(drop_now(Router.current, g.drop if g != null and is_instance_valid(g) else -1.0))
@@ -329,10 +250,7 @@ static func plate_slide() -> PanelSlide:
 	return null
 
 
-## WHERE IT STANDS THIS FRAME (`drop`): at rest, the screen's place; on a move
-## between LOCAL and the map or the chart, with the plate while it slides and
-## where it was while it does not (the camera's part of the move), so it never
-## jumps at the swap.
+## Per frame: with the plate while it slides, held while the camera moves, so it never jumps.
 static func drop_now(cur: Control, was: float) -> float:
 	if _plate_moving():
 		var ps := plate_slide()
@@ -365,10 +283,7 @@ static func _goal_h() -> float:
 	return LINE_H
 
 
-## THE ROOM THE GOAL AND ITS STEP KEEP (global), whether a step is pending or
-## not: the goal's line and the widest step's under it. Empty off the screens
-## it shows on. A.S.H. keeps off it (`Ash.avoid_rects`), so a step arriving
-## never lands on her.
+## Room is kept whether or not a step is pending, so a step arriving never lands on A.S.H.
 static func stack_rect(cur: Control) -> Rect2:
 	if cur == null or not is_instance_valid(cur) or not (cur is SectorScreen or cur is SystemMapScreen or cur is StarchartScreen):
 		return Rect2()
@@ -401,10 +316,7 @@ func step_appearing() -> bool:
 	return _appear_t0 >= 0.0
 
 
-## On LOCAL (a fight too), the sector map and the chart, with a run, nothing
-## over them and the camera still. Static: whether it is up this frame, though
-## its own `_process` has yet to run (`Hints.step_due`, which A.S.H.'s barks
-## wait on, asks before the line has come up).
+## Static, so `Hints.step_due` can ask before the line's own `_process` has come up.
 static func shows_on(cur: Control) -> bool:
 	if Run.hull == null or Run.dead or cur == null or not is_instance_valid(cur):
 		return false
@@ -546,9 +458,7 @@ func rect() -> Rect2:
 	return Rect2(position, size) if visible and modulate.a > 0.0 else Rect2()
 
 
-## THE TAB THE STEP NAMES, OUTLINED: a 1 px line round it in the step's own
-## colour. The tab is a real button and this only says which one; it adds no
-## hover and takes no click.
+## A 1 px outline in the step's colour; the tab is a real button, so no hover or click here.
 func _draw() -> void:
 	if cue == &"" or Router.hud == null:
 		return

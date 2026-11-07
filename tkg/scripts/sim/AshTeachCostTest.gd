@@ -1,37 +1,12 @@
 extends Node
 
-## WHAT HER TEACHING COSTS A FRAME, headless, through the real screens:
-##   godot --headless --fixed-fps 60 --path . -- sheet=AshTeachCostTest
-##
-## Jon, Oct 20: "When opening the starchart for the first time, and A.S.H. is
-## reading the tutorial tip, the game becomes SUPER laggy and unresponsive. The
-## game comes back after she's done talking." Measured on a 410-system chart:
-## 840 ms a frame (2.3 s at most) while her line on the chart's list was up,
-## against 6.9 ms with it gone. The cause was `Ash.covers`, the check that her
-## box covers nothing a click picks, asked every tenth of a second while a
-## teaching line is up (`_lesson_must_go`): it asked the chart's `_node_at` at
-## every 3 px of her box, about 1,500 points, and each of those rebuilt the
-## visible set over every system (0.8 ms): 1.2 s a check. It asks the systems
-## near her box once now (`MapChart.nodes_near`), 1 ms.
-##
-## THE CLAIM, in the order a first run meets it: a run under way (her
-## introduction heard, the launch's step said), the chart opened with nothing
-## left to teach there, and its frames timed; then the hints reset, the chart
-## opened again, and every frame timed while she says its list's line, types
-## it and holds it, and while she says the goal's step after it. No frame over
-## MAX_MS, and the mean within MEAN_SLACK of the chart with her silent.
-## THE SAME ANSWER: `covers` finds exactly the system the old point-by-point
-## scan found, on her box, on every spot she can stand in, and on boxes swept
-## over the chart, hits and misses both.
-##
-## Times frames against the wall clock, so it is one of the gate's SOLO_UNITS.
+## Guards Jon's Oct 20 lag: 840 ms a frame, from `Ash.covers` rebuilding the visible set per point.
+## `MapChart.nodes_near` now asks once, in 1 ms. Wall-clock timing, so a gate SOLO_UNIT.
+## Why: docs/why/AshTeachCostTest.md#teaching-frame-cost
 
 ## Any frame while she teaches; one was 2,305 ms.
 const MAX_MS := 100.0
-## Her mean frame against the chart without her: within this share, plus
-## MEAN_PAD_MS for a headless frame's own noise. The MEAN, not the median: her
-## check runs every tenth of a second, one frame in six at 60, so the median
-## frame never held it (0.23 ms before the fix, with 43 frames over a second).
+## Mean, not median: her check runs one frame in six, so the median never held it.
 const MEAN_SLACK := 0.25
 const MEAN_PAD_MS := 1.0
 ## The run measured: a ball galaxy of 410 systems, the one the lag was found on.

@@ -1,31 +1,14 @@
 class_name RelayTransport
 extends NetTransport
 
-## A room number, and a Cloudflare Durable Object to meet in.
-##
-## This is the transport that makes the game playable by four friends who have
-## never heard of port forwarding, and it is the reason `LobbyCode` has always
-## had two kinds of code. `DirectTransport` puts an ADDRESS in the code, which
-## works and asks the host to open a port. This puts a ROOM NUMBER in it — and
-## the room number is the Durable Object's own name, so there is no registry,
-## no allocation service and nothing to clean up. A party exists for exactly as
-## long as somebody is connected to it.
-##
-## See `docs/netcode.md` §2 for the cost, which is roughly nothing, and for the two
-## constraints that shaped it: Cloudflare cannot carry UDP, and a Durable Object
-## must hibernate or it bills for wall-clock time.
+## The room number is the Durable Object's name, so there is no registry.
+## Why: docs/why/RelayTransport.md#relay-transport
 
-## Filled in after `wrangler deploy` prints it. Empty means the relay has not
-## been deployed yet, and the lobby says so rather than offering a button that
-## cannot work.
-##
-## `wss://`, not the `https://` that deploy prints. Same host, and the scheme is
-## the difference between a socket and a page.
+## Use `wss://`, not the `https://` deploy prints: the scheme separates a socket from a page.
+## Why: docs/why/RelayTransport.md#relay-transport
 const DEFAULT_URL: String = "wss://threekelvin-relay.james-e09.workers.dev"
 
-## Overridable from the command line so that `wrangler dev` can be tested
-## against without editing and rebuilding:
-##   godot --path . -- lobby host relay ws://localhost:8787
+## Overridable on the command line so `wrangler dev` can be tested without a rebuild.
 var base_url: String = ""
 
 var peer: RelayPeer = null
@@ -35,13 +18,8 @@ func _init() -> void:
 	base_url = url_from_args()
 
 
-## The relay to talk to: the command line if it named one, otherwise the
-## deployed default.
-## The token after `relay` is only taken as a URL if it looks like one. Without
-## that check, `-- lobby host relay auto` sets the relay address to "auto" and
-## fails with a connection error about a host that was never named — the flag
-## reads as a transport switch, so it has to keep working as one when no
-## address follows it.
+## Take the token after `relay` as a URL only if it looks like one, so `relay auto` stays a switch.
+## Why: docs/why/RelayTransport.md#relay-transport
 static func url_from_args() -> String:
 	var argv := OS.get_cmdline_user_args()
 	for i in argv.size():
@@ -73,10 +51,7 @@ func is_traversal_free() -> bool:
 func create_host() -> MultiplayerPeer:
 	if base_url.is_empty():
 		return _fail("No relay is configured in this build.")
-	# Rolled locally rather than asked for. 33.5 million rooms and at most a few
-	# thousand in flight means a collision is vanishingly unlikely, and the relay
-	# refuses a second host on a code that is already hosting — so a collision
-	# is reported as a refusal rather than as two parties in one room.
+	# Rolled locally: 33.5M rooms make collisions unlikely, and the relay refuses a second host.
 	code = LobbyCode.encode_room(LobbyCode.roll_room())
 	return _open(code, "host")
 
@@ -104,9 +79,7 @@ func _open(room_code: String, role: String) -> MultiplayerPeer:
 	return peer
 
 
-## What the relay said, if it said anything, in preference to what the socket
-## looked like. "The party is full" and "connection closed" are the same event
-## at the transport and completely different facts to a player.
+## Prefer the relay's message: a full party and a closed connection differ to a player.
 func last_error() -> String:
 	if peer != null and not peer.deny_reason.is_empty():
 		return peer.deny_reason

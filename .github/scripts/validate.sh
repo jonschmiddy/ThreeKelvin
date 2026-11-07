@@ -2387,8 +2387,8 @@ fi
 
 unit_commentcheck() {
 step "Long reasoning lives in docs/why/, and every pointer to it resolves"
-# Every `docs/why/<file>.md#<anchor>` in the code names a real heading, and the
-# files in the tool's STRICT list hold no comment run over five lines.
+# No .gd file holds a comment run over five lines, and every
+# `docs/why/<file>.md#<anchor>` in the code names a real heading.
 if [ -n "$PY" ]; then
 	if "$PY" tools/comment_check.py >/tmp/commentcheck.$$ 2>&1; then
 		ok "$(tail -n 1 /tmp/commentcheck.$$)"

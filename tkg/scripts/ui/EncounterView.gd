@@ -1,43 +1,15 @@
 class_name EncounterView
 extends Control
 
-## One continuous space. Your ship on the left, whatever you are facing on the
-## right, a single starfield behind both.
-##
-## Not two panels. The moment you put a border around each half you get a stat
-## block facing another stat block; with one field behind them the ship reads as
-## a thing in a place. This is the frame the sector view and combat share, so the
-## ship never disappears between them.
-##
-## THE CONVOY sits to the left of your hull, and only when there is one. Your
-## partners are drawn from the HALF sheet and you are not, so the party reads at
-## two to one — 248 against 124 for a heavy — and the ship you fly is the subject
-## by size as well as by position: centre of frame, facing what you are facing,
-## and the one you can drop a card on.
-##
-## Two sizes and no more. Pixel art scales by whole numbers, so the ladder is
-## 1x, half and quarter, and a quarter-size medium is 50x20 — which fails the
-## test in CONVOY_MAX below, that a hull nobody can identify is not a hull. Half
-## is a second set of FILES rather than a scale, because nothing below 1x exists
-## at the renderer. See HullData.sprite_half.
-## The others are a column beside it, each in a box just tall enough for a hull,
-## with the name and the two gauges painted over it.
-##
-## `docs/coop-design.md` §15 calls the party screen the hardest design problem
-## outside the netcode, and this does not solve it — four hands and four intent
-## strips still have nowhere to live. What it solves is the half that had to
-## come first: a partner is drawn from a description of THEIR ship. See
-## ShipBuild.
+## One shared field, not two panels, so the ship reads as a thing in a place.
+## Why: docs/why/EncounterView.md#frame-and-convoy
 
 enum Subject { AREA, ENEMY }
 
 var _row: HBoxContainer
 ## The other ships in the party. Empty in the solo game.
 var _convoy: VBoxContainer
-## The box the column sits in. Hidden rather than the column itself: an
-## HBoxContainer puts its separation either side of every VISIBLE child, so a
-## hidden column inside a visible margin still cost the solo game twenty-four
-## pixels of empty left edge.
+## Hide the box, not the column: a hidden child in an HBox still costs its separation.
 var _convoy_pad: MarginContainer
 var _made_convoy: Array[ConvoySlot] = []
 ## The "+N MORE" chip, or null when everybody here is drawn. See CONVOY_MAX.
@@ -47,14 +19,9 @@ var _ship: ShipView
 var _area: AreaView
 var _slots: Control
 var _made: Array[EnemySlot] = []
-## WHAT THE SLOTS ARE CURRENTLY SHOWING: a fight, or the wrecks it left.
-##
-## They are rebuilt only when the COUNT changes -- which is right within one
-## mode, since a fight's dead keep their slots -- and catastrophically wrong
-## across the two. One wreck in a
-## system and then one new contact is a count that did not change, so the slot
-## kept its dead binding: the live ship drew on top of a corpse and could not be
-## hit, because the thing under the cursor was still a hull with no hp.
+## Slots rebuild only on count change, so a mode change must rebuild them too.
+## Else a new contact drew over a dead binding and could not be hit.
+## Why: docs/why/EncounterView.md#slot-modes
 var _slots_mode: StringName = &""
 var _tint: Color = Color("#16202c")
 ## What is actually out there: the system this is, seen side on, in the
@@ -79,9 +46,7 @@ func _ready() -> void:
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_row)
 
-	# Ahead of your hull in the row, so the party reads left to right in the
-	# order the lobby lists it and your own ship keeps the position it has
-	# always had — nearest the middle, facing what you are facing.
+	# Ahead of your hull so the party reads in lobby order and your ship keeps its place.
 	_convoy_pad = MarginContainer.new()
 	_convoy_pad.add_theme_constant_override("margin_top", CONVOY_TOP)
 	_convoy_pad.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -95,11 +60,9 @@ func _ready() -> void:
 	_convoy.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_convoy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_convoy_pad.add_child(_convoy)
-	# DEFERRED. A roster push lands from the network poll at any point in the
-	# frame -- including while a jump's new screen is being added to the tree,
-	# where add_child() on the column fails ("Parent node is busy setting up
-	# children") and the partner's slot is remembered but never drawn. Found
-	# flying two instances into one system (`-- cojoin`, Oct 22).
+	# Deferred: a roster push can land mid scene setup, where add_child() fails.
+	# The partner's slot is then remembered but never drawn.
+	# Why: docs/why/EncounterView.md#deferred-roster
 	Sig.party_changed.connect(refresh_convoy, CONNECT_DEFERRED)
 	# And when a fight does. Which of your partners is in the room with you is a
 	# fact about the fight, not about the party — see ConvoySlot._engaged.
@@ -120,9 +83,7 @@ func _ready() -> void:
 	_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_row.add_child(_area)
 
-	# NOT A CONTAINER. The enemies are placed by hand (`_layout_pack`), because
-	# a row of boxes could not keep a pack of wide ships apart: the enemy half
-	# is where they are centred, not a fence they must stay inside.
+	# Not a container: enemies are placed by hand in `_layout_pack` so wide ships stay apart.
 	_slots = Control.new()
 	_slots.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_slots.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -133,13 +94,8 @@ func _ready() -> void:
 	# a ship's picture changing size.
 	_slots.resized.connect(_queue_pack)
 
-	# Depth order, and the reason it is expressed as child order. NOT
-	# show_behind_parent: this view paints the wash in _draw, and a child behind
-	# the parent is behind THAT — so the gas was being drawn and then covered by
-	# the sky every frame. A Control draws itself first and its children after,
-	# in order, so the two background layers have to be the first two children:
-	# wash, then what is out there, then the gas blowing through it, then the
-	# ship.
+	# Background layers are the first children: a child behind the parent is covered by the wash.
+	# Why: docs/why/EncounterView.md#depth-order
 	backdrop = LocalSky.new()
 	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# the camera follows your hull in and out (its approach, its departure)
@@ -171,72 +127,26 @@ func _ready() -> void:
 	refresh_convoy()
 
 
-## How wide one partner gets: the biggest canvas any hull draws into, so nothing
-## is ever cropped nose-first — which reads as a mistake rather than as distance.
-##
-## ASKED, NOT TYPED, and it used to be typed. 208 was measured against the
-## procedural drawing and was already stale when the real hulls landed: every
-## heavy in the party lost about fifteen pixels off each end, and losing them off
-## the FRONT is the half you notice. A hull sprite is cropped tight to its ship,
-## so horizontal crop is never empty space.
-##
-## The HALF set, because that is what a convoy slot draws — 75 to 124 across
-## rather than 150 to 248. Asking for the full width here would reserve twice the
-## column the ships need and push your own hull off centre.
-##
-## Vertical is a different question and stays a constant — see CONVOY_H. A canvas
-## is taller than its ship by the bob headroom, so trimming rows costs nothing.
+## Asked from the hull data, not typed, so no hull is cropped nose-first.
+## Why: docs/why/EncounterView.md#convoy-sizing
 static func convoy_w() -> int:
 	return DB.widest_hull(true)
-## And how tall. Tall enough for the tallest canvas any hull draws into, so no
-## partner is ever cropped along the hull line — a ship with its keel cut off
-## reads as a bug, and it is the one crop a viewer cannot explain to themselves
-## as distance.
-##
-## Three of these plus the separations is 362 rows against the 378 the arena
-## leaves under the sector header. That is the whole arithmetic, and it is also
-## a CEILING rather than a coincidence — see CONVOY_MAX.
+## Tall enough for the tallest canvas, so no hull loses its keel to a crop.
+## Three rows plus separations is 362 of the 378 rows the arena leaves.
+## Why: docs/why/EncounterView.md#convoy-sizing
 const CONVOY_H := 118
 
-## How many partners the strip will draw, however many are in the room.
-##
-## Three, because three is what fits: the arithmetic above is not a description
-## of the tuned party size, it is the number of 118px rows the arena has room
-## for. That distinction did not matter while MAX_PLAYERS was four and does the
-## moment it is not — photographed at seven, the fourth ship was cut in half by
-## the quiet strip and the last three were not drawn at all. Silently.
-##
-## So the overflow is SAID rather than dropped. A chip under the column carries
-## the count and opens the party page, which scrolls and therefore has no
-## opinion about how many ships there are. The strip keeps the job it is good at
-## — who is in this room, at a glance, without leaving the sector — and hands
-## off the one it cannot do.
-##
-## Not tuned per party size on purpose. A strip that shrinks its rows to fit six
-## ships is a strip where no ship is legible, and the point of drawing a hull
-## rather than a name is that you can tell a Dreadnought from a Sloop.
+## Three is what fits, not a tuned party size; overflow is said with a chip, not dropped.
+## Why: docs/why/EncounterView.md#convoy-overflow
 const CONVOY_MAX := 3
-## Cleared for the sector's name and its two lines of description, which are
-## painted over this same corner by the screen above. Without it the first
-## partner's name is written across the name of the system.
+## Clears the sector name and description painted over this corner by the screen above.
 const CONVOY_TOP := 62
-## How long after your own ship the convoy starts, and how far apart they are.
-## Short: the approach itself runs four and a half seconds, so the stagger only
-## has to break the lockstep, not queue them up.
+## Short stagger: the approach runs 4.5 s, so it only has to break the lockstep.
 const ARRIVE_LEAD := 0.25
 const ARRIVE_GAP := 0.35
 
-## Who is actually HERE, in arrival order.
-##
-## The sector is a place, not a party list. A ship two hundred light years away
-## is in your convoy and is not in this room, and drawing it beside your hull
-## says the opposite — during a fight it says it is helping. So the strip is
-## filtered by position and the STAR CHART is where the whole party lives,
-## because that is the screen whose subject is where everybody is.
-##
-## `where_is` returns -1 for somebody who has not reported a position yet, which
-## is a real answer and correctly matches nothing: a player still on the chassis
-## select has a galaxy and no place in it.
+## Filtered by position: a partner in another system is in the convoy but not this room.
+## Why: docs/why/EncounterView.md#convoy-membership
 func _here() -> Array:
 	if Run.map.is_empty():
 		return []
@@ -245,44 +155,27 @@ func _here() -> Array:
 		return int(s.get("at", -1)) == at)
 
 
-## Who is flying with you, redrawn when that changes.
-##
-## Rebuilt only when the PARTY changes, not when a ship does. A partner's own
-## view is wired to `Sig.party_changed` itself and repaints in place, so a new
-## gun on somebody else's hull costs a repaint rather than a rebuild of the
-## column it sits in.
+## Rebuilt only when the party changes; partner views repaint themselves on `Sig.party_changed`.
+## Why: docs/why/EncounterView.md#convoy-membership
 func refresh_convoy() -> void:
-	# `tree_exited` brings us back here when a departing slot finishes, and that
-	# can be the frame the whole screen is being torn down on — a sector swap
-	# frees the column and the slots inside it together.
+	# `tree_exited` can fire as the whole screen is freed in a sector swap, so check validity.
 	if not is_instance_valid(_convoy):
 		return
 	var here := _here()
-	# THE COUNTER OCCUPIES A PLACE. The column has room for CONVOY_MAX rows and
-	# not one pixel more — 362 against 378 — so a chip added BESIDE three hulls
-	# pushes the block ten rows over, and because the column is centred it spends
-	# half of that going upward, writing the first partner's name across the name
-	# of the system. Measured, by adding it and looking.
-	#
-	# So the strip has three places rather than three ships: when more ships are
-	# here than there are places, the last place holds the count instead of a
-	# hull. Nobody is dropped, the arithmetic above stays true, and the rule is
-	# one sentence.
+	# The count chip takes a place, not extra room: 362 of 378 rows is full.
+	# So the last place holds the count instead of a hull, and nobody is dropped.
+	# Why: docs/why/EncounterView.md#convoy-overflow
 	var shown := CONVOY_MAX if here.size() <= CONVOY_MAX else CONVOY_MAX - 1
 	var them: Array = here.slice(0, shown) if here.size() > shown else here
 	var want: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
 
-	# A DIFF, NOT A REBUILD, and that is what makes a departure drawable at all.
-	# Clearing the column and building it again gave every remaining ship a
-	# fresh arrival for somebody else's jump, and gave the ship that left no
-	# frame to leave in — it was simply not in the next list.
+	# A diff, not a rebuild: rebuilding re-arrived every ship and left a leaver no frame.
+	# Why: docs/why/EncounterView.md#convoy-arrivals
 	for c in _made_convoy.duplicate():
 		if want.has(c.peer):
 			continue
 		_made_convoy.erase(c)
-		# Still a child, so the column keeps its height and the flash has
-		# somewhere to happen. It frees itself when the light goes out, and
-		# `tree_exited` brings us back here to close the column up.
+		# Stays a child until the flash ends so the column keeps its height; it frees itself.
 		c.jump_out()
 		c.tree_exited.connect(refresh_convoy, CONNECT_ONE_SHOT)
 
@@ -293,14 +186,8 @@ func refresh_convoy() -> void:
 			slot = ConvoySlot.new(id, CONVOY_H)
 			_convoy.add_child(slot)
 			_made_convoy.append(slot)
-			# Staggered, and behind you. Four hulls starting the same approach
-			# on the same frame arrive as one object with four parts; a fraction
-			# of a second apart they read as ships flying in formation. Yours
-			# goes first because it is the one the screen is about.
-			#
-			# The stagger applies to the OPENING convoy only. A ship arriving on
-			# its own, into a system you are already sitting in, has nobody to be
-			# staggered against and a delay on it is just latency.
+			# Stagger only the opening convoy; a lone later arrival would just feel it as latency.
+			# Why: docs/why/EncounterView.md#convoy-arrivals
 			var lone := _made_convoy.size() == 1 and _convoy.get_child_count() == 1
 			slot.jump_in(0.0 if not lone else ARRIVE_LEAD)
 		# Keep the column in the party's order even after somebody has left a
@@ -310,47 +197,17 @@ func refresh_convoy() -> void:
 
 	_refresh_overflow(here.size() - them.size())
 
-	# Visible while any SHIP is in the column, including one on its way out.
-	# `them.is_empty()` would take the last partner off screen on the frame they
-	# pressed JUMP, which is the one frame the effect exists to fill.
-	#
-	# Counted off the slots rather than off the children, because the overflow
-	# chip is a child too and a column holding nothing but a chip is a column
-	# that should not be on screen.
-	# YOUR HULL COMES DOWN TO 1x WHILE ANYBODY IS FLYING WITH YOU.
-	#
-	# 2x is right for the game one person is looking at: the sector is where a
-	# run is mostly spent and the ship should carry it. It is wrong the moment
-	# the convoy column appears, because then the left of the screen has to hold
-	# your hull AND up to three partners, and a hull at 2x takes the room the
-	# column needs.
-	#
-	# Hung off the same fact the column's own visibility is — one test, so the
-	# two cannot disagree about whether there is a party — and re-applied here
-	# rather than set once, because somebody joining or leaving mid-run is
-	# exactly the case a value set at build time would miss.
+	# Visible while any ship is in the column, even one leaving, so the jump flash has its frame.
+	# Your hull drops to 1x while anyone flies with you, to leave room for the column.
+	# Why: docs/why/EncounterView.md#convoy-arrivals
 	var crowded := not _made_convoy.is_empty()
 	_convoy_pad.visible = crowded
-	# YOUR ship stays on the full sheet. Your partners are on the half one, so
-	# the party reads at two to one and the ship you fly is plainly the subject.
-	#
-	# This is the one place the old code could not go. Everything used to be the
-	# same size in a party — your hull dropped from 2x to 1x to make room and
-	# landed on the convoy's own scale — so the class note above had to say the
-	# foreground came from position alone, because there was no other size to
-	# give it. There is now: 248 against 124 for a heavy, and both fit, because
-	# the column costs 124 and a gap rather than 248 and a gap.
-	#
-	# A one-line flip if it reads wrong. `use_half(crowded)` puts everybody back
-	# on the same footing.
+	# Your ship stays on the full sheet and partners on the half, so you read as the subject.
+	# Why: docs/why/EncounterView.md#own-ship-size
 	_ship.use_half(false)
 
 
-## Everybody in this room the column had no room for.
-##
-## A count and a way to see them, which is the whole of it. The alternative was
-## drawing them smaller, and a hull nobody can identify is not a hull — see
-## CONVOY_MAX.
+## A count that opens the party page; smaller hulls would be unidentifiable.
 func _refresh_overflow(extra: int) -> void:
 	if extra <= 0:
 		if _overflow != null:
@@ -359,10 +216,7 @@ func _refresh_overflow(extra: int) -> void:
 		return
 	if _overflow == null:
 		_overflow = Widgets.button("", func() -> void: Router.show_party())
-		# The one thing in this overlay that takes a click. Its parents are
-		# MOUSE_FILTER_IGNORE so that cards can be dropped through the column,
-		# and a child sets its own filter — so this stays pressable without
-		# making the rest of the strip swallow the arena's input.
+		# The only clickable thing here: its parents ignore the mouse so cards drop through.
 		_overflow.mouse_filter = Control.MOUSE_FILTER_STOP
 		_convoy.add_child(_overflow)
 	_overflow.text = "+%d MORE" % extra
@@ -379,13 +233,8 @@ func _slot_for(id: int) -> ConvoySlot:
 	return null
 
 
-## Where you are, told once. Sky and wash both, and both for every sector —
-## fighting or not.
-##
-## show_area() is not enough to carry this and never was: it runs only when the
-## sector is quiet, so arriving straight into a fight left the wash on its
-## default tint and would now leave the sky on the last system's. What is out
-## there does not care whether something is shooting at you.
+## Set for every sector, fighting or not: `show_area()` alone misses arriving into a fight.
+## Why: docs/why/EncounterView.md#place-setup
 func set_place(n: MapGen.MapNode) -> void:
 	_tint = MapGen.star_colour(n).darkened(0.72)
 	_place = n
@@ -402,21 +251,8 @@ func set_weather(n: MapGen.MapNode) -> void:
 		weather.setup(n.nebula_emission,
 			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
 
-## What is left of the ship that died here, if anything is.
-##
-## REUSES `EnemySlot` WHOLE, which is the point: it already knows how to draw a
-## dead hull -- dimmed, named, "WRECKED" where the health was -- and it already
-## answers a click when dead. Building a second thing that draws a wreck would
-## have been a second thing to keep looking like the first.
-##
-## The state it is handed is fabricated: the fight is over and `Combat` is gone,
-## so this is a template out of the node and a hull of zero. Nothing downstream
-## asks it anything a dead ship cannot answer.
-## Every hull that died here, each a door to its own container.
-##
-## `on_open` is called with the jetsam that hull is, so the screen does not have
-## to work out which wreck was clicked from a position on screen -- the slot
-## already knows, because it was built from one.
+## Reuses `EnemySlot` whole, so a wreck is drawn by the same code as a living hull.
+## Why: docs/why/EncounterView.md#wreck-slots
 func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 	if wrecks.is_empty():
 		return
@@ -441,9 +277,7 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		var t: EnemyTemplate = DB.enemies.get(h.art)
 		if t == null:
 			continue
-		# FABRICATED, because the fight is long over and `Combat` is gone. A
-		# template out of the container and a hull of zero is everything a dead
-		# ship has to be able to answer.
+		# Fabricated state: the fight is over and `Combat` is gone, a zero-hull template suffices.
 		var ghost := Combat.EnemyState.new()
 		ghost.template = t
 		ghost.max_hp = t.max_hull
@@ -474,17 +308,8 @@ func show_area(n: MapGen.MapNode) -> void:
 	_ship.modulate = Color(0.55, 0.55, 0.6) if Run.dead else Color.WHITE
 	queue_redraw()
 
-## Combat: the right side is everything shooting at you. Slots are rebuilt only
-## when the count changes, which is when a fight opens.
-## WHAT IS UNDER THIS GLOBAL POINT: an enemy index, -1 for your own hull, or
-## AIM_NONE for nothing.
-##
-## BY RECTANGLE, NOT BY INPUT PICKING, and that is deliberate. The party column
-## sits over the arena and carries `MOUSE_FILTER_IGNORE` precisely so a card can
-## be dropped THROUGH it -- a tuning that exists for Godot's drop propagation and
-## does not survive leaving it. Testing the slots' own rectangles reproduces the
-## rule on purpose rather than inheriting it: the column is not a target, and the
-## arena behind it is.
+## Hit-tested by rectangle, not input picking, so cards drop through the party column.
+## Why: docs/why/EncounterView.md#aiming
 const AIM_NONE := -2
 
 func target_at(p: Vector2) -> int:
@@ -570,12 +395,8 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		if wreck_id.is_valid():
 			_made[i].wreck_id = int(wreck_id.call(i))
 		_made[i].bind(i, e, e.intent != null and e.intent.telegraph)
-	# A NEW SLOT IS AN ARRIVAL: a fight opening. Flown in
-	# AFTER the bind, because the bind sizes the slot to its ship and the
-	# entrance flies to that resting place. The dead keep their slots, so a
-	# kill does not change the count and the survivors are never re-flown.
-	# Placed BEFORE they fly, so each flies to its own place; the ships already
-	# here ease to theirs (`_layout_pack` moves a placed slot, never jumps it).
+	# Fly new slots in after the bind, which sizes them; the dead keep slots so kills never re-fly.
+	# Why: docs/why/EncounterView.md#slot-arrivals
 	_layout_pack()
 	for k in arrived.size():
 		if _entrances_held:
@@ -586,9 +407,7 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	queue_redraw()
 
 
-## LOCAL's row kept as it is while a fight's first frame is drawn
-## (`SectorScreen._raise_band`): the contacts' slots are made but not shown, so
-## your ship stands where LOCAL had it until the screen eases it across.
+## Keeps LOCAL's row as it was while a fight's first frame draws (`SectorScreen._raise_band`).
 var hold_row := false
 
 
@@ -614,26 +433,15 @@ func leaving() -> bool:
 	return false
 
 
-## THE WRECKS GO BEFORE THE FIGHT COMES, never on one frame. A fight opening
-## where hulls already lie swapped in a fight screen built without them, so
-## every wreck was gone on the frame it opened. The wreck slots LOCAL drew are
-## handed across instead (`hand_wrecks` on the screen going, `wrecks_out` on the
-## one coming: `Router.start_combat`), held where they stood on screen by a
-## top-level holder the row's layout never sees, and played out by
-## `WRECK_EXIT`; the contacts are held until they have gone (`leaving`), the
-## same handoff the place's picture makes.
-##   A  fade:   where they lie, in the time the place's picture takes
-##   B  drift:  carried off the view's right edge, easing in, fading at the end
-##   C  recede: into the distance -- smaller and darker toward the sky, then gone
-## `wreckexit=A|B|C` on a harness's command line picks one for a film.
+## Wrecks leave before the fight comes, never on one frame: they are handed across the swap.
+## Else every wreck was gone on the frame a fight opened.
+## Why: docs/why/EncounterView.md#wreck-handoff
 const WRECK_EXITS := {&"A": &"fade", &"B": &"drift", &"C": &"recede"}
 static var WRECK_EXIT: StringName = &"fade"
 const WRECK_DRIFT_S := 0.45
 const WRECK_RECEDE_S := 0.5
 
-## The wreck slots as they stand on screen, taken out of this view: only ones
-## that have been laid out and drawn (none headless or under reduced motion,
-## where they go with the screen, as they always did).
+## Only slots already laid out and drawn are handed over; headless and reduced motion skip it.
 func hand_wrecks() -> Array:
 	var out: Array = []
 	if _slots_mode != &"wrecks" or _made.is_empty() or not Router.animating() \
@@ -712,9 +520,7 @@ func hold_entrances() -> void:
 		(sl as EnemySlot).hold_entrance()
 
 
-## And in once the wrecks have gone, if they are still going: a drift or a
-## recede outlasts the band's fade, and a contact flown in over a wreck on its
-## way out would sit on it.
+## Entrances wait for the wrecks to go, so a contact is not flown in over an exiting wreck.
 func release_entrances_when_clear() -> void:
 	var w := get_node_or_null(^"WrecksLeaving")
 	if w != null and not w.is_queued_for_deletion():
@@ -732,12 +538,8 @@ func release_entrances() -> void:
 		(_made[k] as EnemySlot).enter(float(k) * 0.09)
 
 
-## THE PLACE GOES BY FADING when a fight takes its half of the row: it was
-## gone on the frame the fight opened. The row's own place picture has to leave
-## the row at once (the enemies take its share of it), so a copy of it fades out
-## where it stood: the share of the row right of your ship, worked out the way
-## the row lays it out (`_pack_room`) and anchored, so it is right on the first
-## frame and follows the view as the hand comes up.
+## A copy of the place picture fades where it stood, since the row's own must leave at once.
+## Why: docs/why/EncounterView.md#place-fade
 func _area_fade_out() -> void:
 	if not Router.animating() or not is_visible_in_tree() or _area.node == null \
 			or _area._place_name() == &"":
@@ -770,33 +572,8 @@ func _area_fade_out() -> void:
 	tw.tween_callback(ghost.queue_free)
 
 
-## The ships already in the row slide to the places a newcomer's arrival gave
-## them, measured after the row has been laid out again.
-## NOTHING IN A PACK SITS ON ANYTHING ELSE (Jon, Oct 13: three ships "don't fit
-## on screen"; then, of the overlapped row: no ship, wreck, name, hull bar,
-## chips or intent may overlap another, or yours).
-##
-## Every slot is placed by hand, as a unit -- its ship and its whole readout --
-## and no two units share a pixel. The room they have is the band of the row
-## from just past YOUR ship (its hull and its plate) to the view's edge; a pack
-## is centred on the enemy half while it fits there and slides toward you only
-## as far as it must. Your ship never moves.
-##
-## THREE OR MORE AT HALF (Jon: "when there are 3+ enemy ships on the screen can
-## we render them at 1X? Kinda like how we do for multiplayer"). With three or
-## more blocks in the pack, wrecks counted, every ship is drawn from its HALF
-## sheet, the way the convoy draws hulls (`ShipView.use_half`): a second file,
-## nearest 2:1, never a resample (`EnemyArt.draw_scale`). One or two stay at full
-## size. The step happens at once, at the start of the move that makes room.
-##
-## THE FORMATION (Jon picked B): one rank for one or two ships, at full size;
-## with three or more, ranks: the first two in front, the rest behind and above,
-## every block the same gap from its neighbours (`_pack_ranks`), each ship with
-## its readout under it. More ranks, or more to a rank, when there are more
-## ships -- never smaller ships.
-##
-## `pack_layout` C (a column, each readout beside its ship) is kept to compare
-## against, and for the test; B is the game's.
+## Nothing in a pack overlaps anything else (Jon, Oct 13): slots are placed by hand as units.
+## Why: docs/why/EncounterView.md#pack-layout
 static var pack_layout: StringName = &"B"
 const PACK_GAP := 10.0
 const PACK_VGAP := 6.0
@@ -854,21 +631,8 @@ func _collect_boxes(n: Node, out: Array[Rect2]) -> void:
 		_collect_boxes(c, out)
 
 
-## The room a pack has, in `_slots`' own coordinates, AS THE SCENE STANDS AT
-## REST, whatever scale it is drawn at this frame.
-##
-## The cutaway and the zoom ladder scale and move `_row` (the scene: your ship,
-## the wrecks) round a point. This was measured on the screen, so a layout asked
-## for while the cutaway had the scene at 2x -- a part moved or a wreck emptied
-## in there, each of which refreshes LOCAL -- planned the wrecks into the room
-## the zoomed picture left them: half size, stacked in a column just past your
-## hull's middle. Shut, the scene went back to 1x and they stayed where that
-## plan put them, across your bow with their names on your hull (Jon, Oct 17:
-## "destroyed ships going on top of you when you edit your ship after a
-## fight"). Measured in the row's own frame, and against the row's size at rest
-## (this view's, less the bleed under it: a refresh in the cutaway can stretch
-## the zoomed row), the plan is the same zoomed or not. `-- sheet=WreckSiteTest`
-## goes round every door.
+## Pack room is measured at rest, or a cutaway zoom plans wrecks across your bow (Jon, Oct 17).
+## Why: docs/why/EncounterView.md#pack-layout
 func _pack_area() -> Rect2:
 	var to_row := _row.get_global_transform().affine_inverse()
 	var right := 0.0
@@ -889,15 +653,10 @@ func _layout_pack() -> void:
 			live.append(c)
 	if live.is_empty():
 		return
-	# in fight order, not child order: the ranks behind are moved first among
-	# the children so they draw underneath, and must not then be taken for the
-	# front
+	# Fight order, not child order: back ranks are moved first among children to draw underneath.
 	live.sort_custom(func(a: EnemySlot, b: EnemySlot) -> bool: return a.index < b.index)
 	var area := _pack_area()
-	# THE BAND STILL COMING UP (a fight opening, `SectorScreen._raise_band`):
-	# the pack is planned in the arena it will have once the band has settled,
-	# and carried up with the band as the arena shrinks to it, so its shape
-	# never changes on the way and nothing jumps when the band stops
+	# While the band rises, plan for its settled size and carry the pack up so nothing jumps.
 	var lift := 0.0
 	var to_come := float(band_left.call()) if band_left.is_valid() else 0.0
 	if to_come > 0.0:
@@ -906,10 +665,7 @@ func _layout_pack() -> void:
 	var mid := _slots.size.x * 0.5
 	# THE WORLD YOU ORBIT, where LOCAL's wrecks lie (`_body_rest`)
 	var body := _body_rest() if _slots_mode == &"wrecks" else Vector3.ZERO
-	# THE SAME PACK, THE SAME PLAN. A fight asks for the layout dozens of times
-	# a turn (every readout change queues one) and the blocks are kept one size
-	# all fight; setting a triangle into the shoulders costs milliseconds, so
-	# the plan is worked out again only when what it is made from changes.
+	# Cache the plan by its inputs: a fight asks for layout dozens of times a turn.
 	var key := "%s|%s|%s|%s|%s" % [pack_layout, _slots_mode, area, mid, body]
 	for sl in live:
 		var e: Combat.EnemyState = sl.get("_last_e")
@@ -949,9 +705,7 @@ func _layout_pack() -> void:
 				placed[sl] = at
 				continue
 			(_pack_tw[sl] as Tween).kill()
-		# eased where things move (never under reduced motion or headless);
-		# carried, not eased, with a band that is coming up: it moves a frame
-		# at a time already
+		# Eased where things move, but carried with a rising band, which already moves each frame.
 		if was != null and was != at and is_inside_tree() and Router.animating() \
 				and not (same_plan and _lift_was != lift):
 			var tw := sl.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -982,9 +736,7 @@ func _plan_in(live: Array[EnemySlot], area: Rect2, mid: float) -> Dictionary:
 			plan = _pack_column(live, s, area, mid)
 	if plan.is_empty():
 		plan = _pack_ranks(live, s, area, mid)
-		# A PAIR TOO BIG FOR THE BAND at full size, with its shields' room (two
-		# Marauders, a Marauder and a Hulk): drawn from half sheets like a pack
-		# of three, rather than packed tighter than the least gap
+		# A pair too big for the band at full size is drawn from half sheets, like a pack of three.
 		if s == 1.0 and (plan.is_empty() or float(plan.get("low", INF)) < PACK_GAP_MIN):
 			var half := _pack_ranks(live, 0.5, area, mid)
 			if not half.is_empty():
@@ -992,14 +744,8 @@ func _plan_in(live: Array[EnemySlot], area: Rect2, mid: float) -> Dictionary:
 	return plan
 
 
-## THE WORLD YOU ORBIT, as LOCAL draws it at rest: its disc's middle and radius
-## in `_slots`' own frame (x, y, r), or r 0 where there is none.
-##
-## From the sky's plan of it (`LocalSky.near_plan`), not from its picture: the
-## plan is there the moment the sky is set up, headless too, and is where the
-## picture stands at rest -- the sky's 960x540 frame is the screen's, the view
-## at rest is the row's frame (`_pack_area`), and the cutaway's or the ladder's
-## zoom moves neither.
+## Read from the sky's plan, not its picture: the plan exists headless and at rest.
+## Why: docs/why/EncounterView.md#world-clearance
 func _body_rest() -> Vector3:
 	if backdrop == null or _slots == null:
 		return Vector3.ZERO
@@ -1010,17 +756,8 @@ func _body_rest() -> Vector3:
 	return Vector3(c.x, c.y, float(p.R))
 
 
-## WRECKS OFF THE WORLD YOU ORBIT (Jon's rule: fit means nothing overlaps). A
-## wreck's name and tag across the world's lit face cannot be read, and a hulk
-## laid over a planet is a picture of neither. The plan that fits the room is
-## kept if no wreck's block (its picture and its words, `EnemySlot.block`)
-## comes within BODY_GAP of the world's disc; else the pack is planned again in
-## the room left beside the world -- just over it, above it, before it, after
-## it, below it, or at last the whole width over it, your ship's side too --
-## and the one at the larger size nearest where the pack would have stood wins.
-## With no such room (a big world and a big pile), the art may cross the world
-## but the words never do: the same rooms are tried again for the words alone
-## (`EnemySlot.words`). Only if even that fails does the plan stand as it was.
+## Jon's rule: fit means nothing overlaps, so wrecks keep off the orbited world's disc.
+## Why: docs/why/EncounterView.md#world-clearance
 const BODY_GAP := 8.0
 
 func _clear_of_body(live: Array[EnemySlot], plan: Dictionary, area: Rect2, mid: float, body: Vector3) -> Dictionary:
@@ -1028,9 +765,7 @@ func _clear_of_body(live: Array[EnemySlot], plan: Dictionary, area: Rect2, mid: 
 		return plan
 	var c := Vector2(body.x, body.y)
 	var r := body.z + BODY_GAP
-	# (first the strip just over the world, the pack's own height: the pile
-	# standing on the world's shoulder, near the middle of the view where the
-	# hulls are, not up in the sky's bright band, `LocalSky`)
+	# Try the strip just over the world first, mid view where the hulls are, not the bright sky.
 	var hp := _plan_box(live, plan).size.y
 	var over := minf(hp, (c.y - r) - area.position.y)
 	var rooms: Array[Rect2] = [
@@ -1136,16 +871,8 @@ func _pack_row(live: Array[EnemySlot], s: float, area: Rect2, mid: float, force:
 	return out
 
 
-## B, THE FORMATION, EVENLY SPACED (Jon: "this is great, but we need more space
-## and they can be evenly spaced around each other"). One gap, `g`, between
-## every pair of neighbouring blocks -- across a rank and between ranks alike --
-## measured between what is drawn (`EnemySlot.block`: the ship's ink and its
-## readout), as wide as the free band allows up to PACK_GAP_MAX and never under
-## PACK_GAP_MIN. One or two ships stand in one rank (two ranks of one if a rank
-## of two will not fit); three or more stand two in front and the rest behind
-## and above, a rank one short of the rank in front sitting over its gaps (three
-## make an even triangle), any other rank centred on the one in front. The block
-## is centred on the enemy half while it fits there, and in the band's height.
+## One even gap between all neighbouring blocks (Jon), between PACK_GAP_MIN and PACK_GAP_MAX.
+## Why: docs/why/EncounterView.md#pack-formation
 const PACK_GAP_MIN := 12.0
 const PACK_GAP_MAX := 48.0
 const PACK_GAP_WRECKS := 12.0
@@ -1166,10 +893,9 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 			if i % int(per) == 0:
 				ranks.append([])
 			(ranks[ranks.size() - 1] as Array).append(live[i])
-		# LOCAL's wrecks share the view with the system's own subject, which
-		# keeps clear of them (`LocalSubject.fit`): a wreck pile spaces evenly
-		# at the least gap, leaving it room (at 24 px between blocks the fuel
-		# cache's pieces had nowhere left beside three wrecks; subjecttest)
+		# Wreck piles space at the least gap so the system's subject keeps room.
+		# At 24 px between blocks the fuel cache's pieces had nowhere left beside three wrecks.
+		# Why: docs/why/EncounterView.md#wreck-spacing
 		var g := PACK_GAP_WRECKS if _slots_mode == &"wrecks" else PACK_GAP_MAX
 		var multi := false
 		var heights: Array[float] = []
@@ -1188,14 +914,8 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 				multi = true
 			heights.append(h)
 			total_h += h
-		# THE TRIANGLE, ITS SHIELDS' ROOM KEPT. Stacked whole, the ranks of a
-		# pack of three mostly no longer fit the band with every ship's shield
-		# room; the ship behind is set into the shoulders of the two in front
-		# instead, its plate between their words, every part of each ship's
-		# room (`EnemySlot.rooms`) the gap between ranks from the other's
-		# (Jon: "you can decrease the vertical space height between the top and
-		# bottom ships to make room for the text"). Always, so the gap between
-		# ranks is measured one way in every triangle.
+		# The triangle sets the rear ship into the front pair's shoulders so shield rooms fit.
+		# Why: docs/why/EncounterView.md#pack-formation
 		if fits and _slots_mode != &"wrecks" and ranks.size() == 2 \
 				and (ranks[1] as Array).size() == (ranks[0] as Array).size() - 1:
 			var sh := _pack_shoulders(ranks, blocks, units, g, s, area, mid)
@@ -1203,9 +923,7 @@ func _pack_ranks(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> D
 				return sh
 		if not fits or total_h > area.size.y:
 			continue
-		# ACROSS a rank one gap, as wide as the band allows; BETWEEN ranks the
-		# same or less, down to the floor (Jon: "decrease the vertical space
-		# between the top and bottom ships to make room for the text")
+		# Across a rank one gap as wide as the band allows; between ranks the same or less (Jon).
 		var gv := g
 		if ranks.size() > 1:
 			gv = minf(g, (area.size.y - total_h) / float(ranks.size() - 1))
@@ -1295,14 +1013,8 @@ func _place_ranks(ranks: Array, heights: Array[float], blocks: Dictionary, units
 	return out
 
 
-## THE RANK BEHIND, SET INTO THE SHOULDERS OF THE RANK IN FRONT. The front
-## rank stands on one baseline at the gap `g0` across (or wider, if it must,
-## up to what the band allows); each ship behind sits over its gap, nudged at
-## most SHOULDER_DX across so its gaps to the two either side of it come out
-## equal, and as low as its room (`EnemySlot.rooms`: words, shield oval, plate)
-## stays the gap between ranks from theirs -- that gap as wide as the band
-## allows up to the gap across, never under PACK_GAP_MIN. The ship behind
-## stays behind: its oval above theirs. Empty if no such formation fits.
+## The rear rank sits over the front gaps, nudged to equalise its gaps, as low as rooms allow.
+## Why: docs/why/EncounterView.md#pack-formation
 const SHOULDER_DX := 40
 const SHOULDER_EVEN := 0.75
 
@@ -1323,9 +1035,7 @@ func _pack_shoulders(ranks: Array, blocks: Dictionary, units: Dictionary, g0: fl
 		wsum += (blocks[sl] as Rect2).size.x
 	var gmax := floorf((area.size.x - wsum) / float(maxi(1, front.size() - 1)))
 	var g := floorf(minf(g0, gmax))
-	# the least gap across that fits: stepped out from the usual gap (wider,
-	# the ship behind comes further down between the two in front; too wide,
-	# it is no longer behind them), then halved back
+	# Step out from the usual gap: wider drops the rear ship lower, too wide and it is not behind.
 	var plan := _shoulders_at(ranks, rooms, blocks, units, g, PACK_GAP_MIN, s, area, mid)
 	if plan.is_empty():
 		var lo_g := g
@@ -1402,9 +1112,7 @@ func _shoulders_at(ranks: Array, rooms: Dictionary, blocks: Dictionary, units: D
 		var oval_top := minf(_oval_of(rooms[front[j]]).position.y + left.position.y - (blocks[front[j]] as Rect2).position.y,
 			_oval_of(rooms[front[j + 1]]).position.y + right.position.y - (blocks[front[j + 1]] as Rect2).position.y)
 		var back_oval_bottom := _oval_of(rooms[sl]).end.y - b.position.y
-		# the nudge across that makes its gaps to the two in front equal: each
-		# place where the two gaps cross, found on a coarse pass and then by
-		# halving, the lowest of them kept
+		# Find where the two gaps cross, by a coarse pass then halving, and keep the lowest.
 		var d_lo := maxi(-SHOULDER_DX, int(ceilf(area.position.x - centre)))
 		var d_hi := mini(SHOULDER_DX, int(floorf(area.end.x - b.size.x - centre)))
 		if d_lo > d_hi:
@@ -1477,9 +1185,7 @@ func _shoulders_at(ranks: Array, rooms: Dictionary, blocks: Dictionary, units: D
 	return out
 
 
-## Where the ship behind may come down to, its block's left at column `at0`
-## of the profiles: (to clear the left one, to clear the right one, the first
-## less the second). Far from either, its side is very large.
+## Where the rear ship may come down to; far from either neighbour its side is very large.
 static func _shoulder_lean(bp: PackedFloat32Array, t1: PackedFloat32Array, t2: PackedFloat32Array, at0: int) -> Vector3:
 	var y1 := INF
 	var y2 := INF
@@ -1496,9 +1202,7 @@ static func _shoulder_lean(bp: PackedFloat32Array, t1: PackedFloat32Array, t2: P
 	return Vector3(a, b, a - b)
 
 
-## `_room_tops` for a slot standing at `at`: worked out once per ship and
-## gap in the ship's own columns (the pulling-up is the costly part, and the
-## search tries many places for the same ship), then read off where it stands.
+## Cached per ship and gap in the ship's own columns; the pull-up is the costly part.
 var _tops_cache: Dictionary = {}
 
 func _tops_at(sl: EnemySlot, rooms: Dictionary, units: Dictionary, at: Vector2,
@@ -1524,9 +1228,7 @@ static func _oval_of(rooms: Array) -> Rect2:
 	return Rect2()
 
 
-## The top of a ship's room down each column x_lo..x_hi (its slot at `at`),
-## pulled up by `gv` round every part's edge: where the bottom of another
-## ship's room may come to and stay `gv` clear of it.
+## Room top per column, pulled up by `gv` round each part, so another room stays `gv` clear.
 static func _room_tops(rooms: Array, at: Vector2, x_lo: int, x_hi: int, gv: float) -> PackedFloat32Array:
 	var n := x_hi - x_lo + 1
 	var raw := PackedFloat32Array()
@@ -1612,11 +1314,8 @@ func _pack_column(live: Array[EnemySlot], s: float, area: Rect2, mid: float) -> 
 	return out
 
 
-## ROOM FOR THE NUMBERS (Jon, Oct 13, "C": a landing's numbers stack above
-## the ship's words). A fight's ships, centred in the band, sit lower where
-## the band allows, so the stack over the top rank -- three lines, risen --
-## stays under the HUD rather than go on the hull. `top` is where the blocks'
-## top would be centred; `h` their height. LOCAL's wrecks take no hits.
+## Ships sit lower so the three-line hit stack (Jon, Oct 13) stays under the HUD, off the hull.
+## Why: docs/why/EncounterView.md#hit-number-room
 const POP_ROOM := HitText.GAP + 2.0 * HitText.LINE + HitText.CAP + 1.0 + HitText.RISE + 2.0
 
 func _low_enough(top: float, h: float, area: Rect2) -> float:
@@ -1637,9 +1336,7 @@ func _place_span(w: float, area: Rect2, mid: float) -> float:
 	return maxf(area.position.x, x)
 
 
-## Exactly one target highlights at a time. Each slot reports when it takes the
-## cursor and the rest are cleared, because a slot never hears that the cursor
-## left it.
+## One highlight at a time: slots never hear the cursor leave, so each claim clears the rest.
 func _claim_hot(who) -> void:
 	if _ship_slot != who:
 		_ship_slot.set_hot(false)
@@ -1669,15 +1366,11 @@ var preview: Callable:
 		preview = v
 		if _ship_slot != null:
 			_ship_slot.preview = v
-		# _made, not _slots. _slots is the HBoxContainer they sit in; _made is
-		# the list of EnemySlots themselves, which is what the rest of this
-		# class iterates.
+		# `_made`, not `_slots`: `_slots` is the container, `_made` holds the EnemySlots.
 		for sl in _made:
 			(sl as EnemySlot).preview = v
 
-## Where a shot leaves your hull, and where one lands on a given enemy — both
-## in the effects layer's own coordinates, since that is what has to draw the
-## line between them.
+## Both points are in the effects layer's coordinates, since that draws the line between them.
 func ship_muzzle() -> Vector2:
 	if _ship == null or fx == null:
 		return size * 0.5
@@ -1693,13 +1386,8 @@ func enemy_anchor(i: int) -> Vector2:
 		return size * 0.5
 	return fx.get_global_transform().affine_inverse() * art.get_global_rect().get_center()
 
-## Where YOUR hull is, in this view's own coordinates.
-##
-## The mirror of `enemy_anchor`, and it exists for the same reason: anything that
-## wants to sit under the ship has to ask where the ship IS. Deriving it from
-## `ShipSlot.HULL_BIAS` and a guess at how wide the slot is gets it wrong the
-## moment the row gains or loses a child -- which it does, because the enemy
-## slots live in the same row.
+## Ask where the ship is instead of deriving it from `ShipSlot.HULL_BIAS`; the row gains children.
+## Why: docs/why/EncounterView.md#hull-anchor
 func self_anchor() -> Vector2:
 	if _ship == null:
 		return size * 0.5
@@ -1710,9 +1398,7 @@ func self_anchor() -> Vector2:
 func ship_view() -> ShipView:
 	return _ship
 
-## Your own hull's jump column. Returns the flare so the caller can hang off
-## `peaked`, which is the frame the ship is meant to change hands on.
-## Whether the chosen style takes the hull apart rather than hiding it.
+## Returns the flare so callers hang off `peaked`, the frame the ship changes hands on.
 func ship_flare_melts() -> bool:
 	return _ship_slot != null and _ship_slot.flare.melts()
 
@@ -1723,33 +1409,12 @@ func enemy_view(i: int = 0) -> EnemyArt:
 	var sl := slot(i)
 	return sl.art if sl != null else null
 
-## HOW FAR THE SKY CARRIES ON PAST THIS VIEW.
-##
-## The arena stops where the drawer band starts, and for as long as the drawer
-## was always up that was invisible. It is not invisible during an arrival: the
-## drawer is parked below the floor, and the bottom of the screen was a flat
-## dark strip with the starfield ending at a hard horizontal seam.
-##
-## So the SKY bleeds past this control and the CONTENTS do not. `_row` -- the
-## ship, the convoy, the place, the enemies -- is untouched, which is the whole
-## point: growing the view instead would drop the hull half the band's height
-## and then lift it again when the drawer arrived.
-##
-## The drawer draws over it, and always could: `UITheme.PANEL_A` is 0.88 and its
-## own comment calls it "the panel-over-sky alpha". There has simply never been
-## any sky under it before.
+## The sky bleeds past the view and the contents do not, so no seam shows during arrival.
+## Why: docs/why/EncounterView.md#sky-bleed
 var _bleed: float = 0.0
 
-## THE VIEW GROWS AND ITS CONTENTS DO NOT, which is the only order that works.
-##
-## Extending the backdrop alone does nothing: this control sets
-## `clip_contents` in `_ready` -- the fly-in starts the hull hundreds of pixels
-## off its left edge and something has to stop that drawing over the rail -- so
-## a child reaching past the bottom is cut off at exactly the seam being fixed.
-##
-## So the CLIP has to move, which means the view itself has to be taller. `_row`
-## is then held up by the same amount, because it carries the ship, the convoy,
-## the place and the enemies, and every one of them is centred in its height.
+## Grow the view and hold `_row` up: `clip_contents` would cut a child reaching past the seam.
+## Why: docs/why/EncounterView.md#sky-bleed
 func set_bleed(px: float) -> void:
 	var want := maxf(px, 0.0)
 	if is_equal_approx(_bleed, want):
@@ -1760,12 +1425,8 @@ func set_bleed(px: float) -> void:
 		_row.offset_bottom = -want
 	queue_redraw()
 
-## The row put back on the band as it stands now. A camera move keeps the row's
-## offsets from the moment it began and puts them back when it lands
-## (`SectorScreen.ladder_cam_end`), and `set_bleed` does not repeat a value it
-## already holds, so a band that changed under the move left the row reaching
-## down behind it: your ship half the band's height low and its plate hidden
-## under the hand (Jon, Oct 22, the Custodian fight: "Glitch on boss fight?").
+## Reapply after a camera move: `set_bleed` skips repeats, leaving the row low (Jon, Oct 22).
+## Why: docs/why/EncounterView.md#sky-bleed
 func reapply_bleed() -> void:
 	offset_bottom = _bleed
 	if _row != null:
@@ -1783,66 +1444,39 @@ func _draw() -> void:
 			Vector2(size.x, h))
 		draw_rect(band, Color(_tint.r, _tint.g, _tint.b, 0.10), true)
 
-	# The stars used to be drawn here, from one fixed seed, which is why every
-	# sector in the game had the same sky. They belong to SpaceBackdrop now,
-	# where they are seeded per system along with everything else in it.
+	# Stars moved to `SpaceBackdrop`, seeded per system; one fixed seed gave every sector one sky.
 
 
-## The place, drawn. Every node type has a picture before any real art exists,
-## and a cleared node visibly differs from one you have not touched.
-##
-## Lit the same way as everything else in the game: from the top of the frame,
-## cold, with warmth only where something emits it. `_body` is ART_CONTRACT's
-## two-plane rule — bright top face, bright lip, wall falling into shadow — and
-## it replaces the flat `_plate` these were built from. A station drawn as three
-## filled rectangles is three filled rectangles; the same station drawn as three
-## LIT rectangles is a place with a near side and a far side.
+## Every node type gets a lit picture before real art exists, by ART_CONTRACT's two-plane rule.
+## Why: docs/why/EncounterView.md#place-pictures
 class AreaView extends Control:
 	var node: MapGen.MapNode
-	## WHERE IN ITS SYSTEM this picture stands: a body, -1 the star, -9 open
-	## space or the edge (`Run.site_here`, set by `show_area` on LOCAL); `ANY`
-	## the whole system, as the sheets draw it.
+	## Where in its system this picture stands; `ANY` draws the whole system, as the sheets do.
 	var site := ANY
 	const ANY := -99
 
-	## Six value stops, darkest first: shadow, wall, lit wall, deck, lit deck,
-	## rim. Same shape as EnemyArt's ramps and sampled from the same table in
-	## ART_CONTRACT, so a station out here and a station on the chart are made
-	## of the same steel.
+	## Six value stops from the ART_CONTRACT table, so stations here and on the chart share steel.
 	var _grey: Array[Color] = [Color("#141721"), Color("#1e202a"), Color("#2e313e"),
 		Color("#424758"), Color("#5c6376"), Color("#80889e")]
-	## The wreck ramp. Cold and low, but NOT nearly black — a hull with the power
-	## off is still lit by the same sky as everything else, and drawn any darker
-	## than this the derelict stops being an object and becomes a hole.
+	## Wreck ramp is cold but not near black, or the derelict reads as a hole.
 	var _dead: Array[Color] = [Color("#0c1219"), Color("#16202b"), Color("#22303f"),
 		Color("#33455a"), Color("#465b73"), Color("#5f7890")]
 	var _heat: Array[Color] = [Color("#5c280c"), Color("#964214"), Color("#cc641c"),
 		Color("#ffa63c"), Color("#ffdca0"), Color("#fff6e2")]
 	var _ink: Color = Color("#0b0f16")
 
-	## Seconds since this view appeared, and the beacon's ring position derived
-	## from it. Two names for one clock because they are read at different
-	## scales: strobes want seconds, the transmission wants where it is in a
-	## cycle.
+	## Two names for one clock: strobes read seconds, the transmission reads cycle position.
 	var _clock: float = 0.0
 	var _phase: float = 0.0
-	## Seconds a ring takes to travel one step outward. Slow: this is the
-	## background of the background, and a beacon that pulsed at a readable
-	## rate would be competing with the thing you came here to look at.
+	## Slow on purpose: a readable pulse would compete with what you came to look at.
 	const RING_S := 1.9
-	## Redraws a second. NOT the frame rate. The whole of the motion here is two
-	## strobes and five walking rings, and at twelve steps a second a strobe
-	## still snaps and a ring still glides -- while the picture underneath it,
-	## which is a few hundred rects of station, is repainted a fifth as often as
-	## it would be otherwise. `SpaceBackdrop` makes the same trade.
+	## 12 Hz, not frame rate: strobes still snap and rings still glide, with far less repainting.
 	const REDRAW_HZ := 12.0
 	var _since_draw: float = 0.0
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Off until `setup` has seen a node and decided this place moves. A
-		# default-on `_process` would tick on every sector in the game waiting
-		# to be told it had nothing to do.
+		# Off until `setup` decides this place moves, so static sectors run no `_process`.
 		set_process(false)
 
 	func setup(n: MapGen.MapNode) -> void:
@@ -1850,9 +1484,7 @@ class AreaView extends Control:
 		set_process(SHOW_PLACES and _moves())
 		queue_redraw()
 
-	## Whether this place has anything on it that moves. Only two do, so every
-	## other sector pays nothing at all for this: a wreck is a wreck, and a
-	## `_process` on it would be a timer running to redraw an identical picture.
+	## Only two places move, so every other sector pays nothing for this.
 	func _moves() -> bool:
 		var what := _place_name()
 		return what == &"station" or what == &"beacon"
@@ -1865,41 +1497,13 @@ class AreaView extends Control:
 			_since_draw = 0.0
 			queue_redraw()
 
-	## The sector pictures are OFF while their real art is drawn.
-	##
-	## Everything below this line still works and is still correct; it is
-	## placeholder art, and placeholder art that is good enough to read is
-	## exactly the kind that quietly becomes the shipped answer. Empty space
-	## says "not drawn yet" in a way a passable procedural station does not.
-	##
-	## One switch rather than a deletion: the kit underneath -- the two-plane
-	## bodies, the six-stop ramps, the dither -- is the vocabulary the real
-	## sprites will be checked against, and START already proves the screen
-	## reads fine with nothing in it.
-	##
-	## ON, 2026-09-12, by Jon, asked directly and answered "turn it on now,
-	## commission art later". THE WORRY ABOVE STILL STANDS and is the reason this
-	## note has a date on it: the way this ends badly is not that it looks wrong,
-	## it is that it looks fine for a year. Art for these five is commissioned
-	## work, gated on a brief, and until that lands the sector is showing a
-	## sketch of the place rather than the place.
-	##
-	## What changed since the switch went in is the argument, not the art. The
-	## sector was empty sky beside your ship, and a system you fly to and find
-	## nothing in reads as a screen that has not finished loading rather than as
-	## a place with nothing in it. EnemyArt is the precedent in the other
-	## direction: it draws every enemy in the game procedurally and nobody has
-	## ever called it a placeholder.
+	## ON since 2026-09-12 by Jon: turn it on now, commission art later.
+	## The risk stands: placeholder art that reads well can quietly become the shipped answer.
+	## Why: docs/why/EncounterView.md#place-art-switch
 	const SHOW_PLACES := true
 
-	## WHICH PICTURE THIS SECTOR IS, as a name.
-	##
-	## Named rather than typed, because the picture does not follow `NodeType`: a
-	## SYSTEM is a battlefield, a derelict or a beacon depending on its option
-	## tags, and a battlefield is two pictures depending on whether it is cleared.
-	## Splitting this out means the sprite and the drawing are chosen by the same
-	## line, so they can never disagree about what this sector is. Empty means
-	## nothing is drawn here at all.
+	## Named, not typed, so the sprite and the drawing are chosen by one line and cannot disagree.
+	## Why: docs/why/EncounterView.md#place-picture-choice
 	func _place_name() -> StringName:
 		if node == null:
 			return &""
@@ -1908,19 +1512,8 @@ class AreaView extends Control:
 			# space of its system the hab ring is not beside you
 			MapGen.NodeType.STATION:
 				return &"station" if Router.at_station(node) else &""
-			# READ WHAT IS HERE. The three types this replaced each had their own
-			# picture, and the picture is still worth having -- it just comes off
-			# the options now instead of a label chosen before anything rolled.
-			#
-			# NONE OF THEM ON LOCAL (Jon, Oct 21: "I don't want the beacon to show up
-			# at all. I want to see the actual event of that planet/POI"). The
-			# beacon, the derelict and the battlefield were pictures picked from the
-			# options' tags, standing in for events that LOCAL now shows as
-			# themselves: the event at the place the ship is, opened as GO opens it,
-			# its own subject drawn (`LocalEventDrawer.auto_open`, `LocalSubject`),
-			# and the hulls of the fights fought there (`show_wrecks`). On LOCAL
-			# (`site` set) a system draws no place picture; the sheets (`ANY`) still
-			# draw every one of them.
+			# No place picture on LOCAL (Jon, Oct 21): the event itself shows; sheets still draw.
+			# Why: docs/why/EncounterView.md#place-picture-choice
 			MapGen.NodeType.SYSTEM:
 				if site != ANY:
 					return &""
@@ -1929,12 +1522,8 @@ class AreaView extends Control:
 				if OptionTable.system_has_tag(node, &"salvage"):
 					return &"derelict"
 				return &"beacon"
-			# THE CORE AND A PULSAR ARE THE SYSTEM'S OWN STAR, and LOCAL's sky
-			# already draws that star (`LocalSky`: the core's hole is the black
-			# hole every style shares, `CoreLegacy`; the pulsar and its beams).
-			# A place picture here drew it a second time, beside your ship --
-			# Jon, Oct 13, at the core: "why are there two black holes lololool".
-			# `_core` and `_pulsar` stay, for `-- sheet=PlaceSheet`.
+			# Core and pulsar are the system's star, which LOCAL's sky draws; no second one.
+			# Why: docs/why/EncounterView.md#place-picture-choice
 			MapGen.NodeType.CORE, MapGen.NodeType.PULSAR:
 				return &""
 			# Where you start is empty space. Drawing a marker here would put an
@@ -1952,12 +1541,8 @@ class AreaView extends Control:
 		var what := _place_name()
 		if what == &"":
 			return
-		# ONE DOOR, and the moving parts stay on this side of it. The two places
-		# that animate do so as OVERLAYS -- the station's two navigation strobes
-		# and the beacon's five walking rings -- so they are drawn after the
-		# picture whether the picture was generated or drawn. That keeps the
-		# asset set at one still frame per place: a sprite inherits the motion,
-		# and nothing has to be authored at the 12 Hz this repaints at.
+		# Animated parts are overlays drawn after the picture, so the asset stays one still frame.
+		# Why: docs/why/EncounterView.md#place-picture-choice
 		var tex: Texture2D = DB.place_sprite(what)
 		if tex != null:
 			# The beacon's rings go BEHIND the buoy; everything else that moves
@@ -1983,9 +1568,7 @@ class AreaView extends Control:
 
 	# --- the two-plane kit ---------------------------------------------------
 
-	## One lit body. `deck` is how much of the height the top face takes: high
-	## for something you are looking down onto, low for something hanging below
-	## the eyeline.
+	## `deck` is how much height the top face takes: high looking down, low hanging below.
 	func _body(pos: Vector2, dim: Vector2, r: Array, deck: float = 0.55) -> void:
 		var p := pos.round()
 		var w := maxf(1.0, roundf(dim.x))
@@ -2045,9 +1628,7 @@ class AreaView extends Control:
 
 	# --- the places ----------------------------------------------------------
 
-	## A ring station: a habitat torus turning around a docking spine, with the
-	## lights on. The only friendly thing in the sector, and the only one that
-	## gets to be warm.
+	## A ring station: habitat torus on a docking spine, the only warm and friendly thing here.
 	func _station(c: Vector2) -> void:
 		_ring(c, 62.0, 26.0, 9.0, _grey)
 		# Spokes, drawn between the arcs so the ring reads as one solid object
@@ -2059,9 +1640,7 @@ class AreaView extends Control:
 		_body(c + Vector2(-20, -13), Vector2(40, 26), _grey, 0.6)
 		_body(c + Vector2(-52, -4), Vector2(104, 8), _grey, 0.5)
 		_body(c + Vector2(-7, -34), Vector2(14, 22), _grey, 0.55)
-		# Windows: two rows on the far arc, one on the hub, one on the mast.
-		# Placed ON the arc rather than along a straight line at its apex, or the
-		# outermost ones float off the ring entirely.
+		# Windows sit on the arc, not a line at its apex, or outer ones float off the ring.
 		for i in 9:
 			var wx := -52.0 + float(i) * 13.0
 			var wy := 26.0 * sqrt(maxf(0.0, 1.0 - (wx / 62.0) * (wx / 62.0)))
@@ -2071,21 +1650,8 @@ class AreaView extends Control:
 		_window(c + Vector2(-3, -30), Vector2(6, 3))
 		_station_lights(c)
 
-	## Navigation strobes: the one cold light on it, so it does not read as a
-	## furnace.
-	##
-	## THEY STROBE, and out of phase with each other. A navigation light is the
-	## one thing on a station that genuinely blinks, so it is the one thing here
-	## that earns an animation -- the windows stay lit, because a window going
-	## dark is somebody walking about and this game has no people in it you can
-	## see. Long dark, short bright, two different periods: in step they would be
-	## a heartbeat, and a heartbeat is a rhythm the sector does not have.
-	##
-	## SEPARATE SO A SPRITE CAN KEEP IT. This is the only moving part of the
-	## station, and it is two three-pixel squares -- so the generated plate is a
-	## still station with its lights off, and these go on top of it exactly as
-	## they go on top of the drawing. Baking them into the art would cost a frame
-	## set for six pixels.
+	## Strobes are the one animation, kept separate so a sprite can keep them over a still station.
+	## Why: docs/why/EncounterView.md#station-and-beacon
 	func _station_lights(c: Vector2) -> void:
 		var dark := Color("#2b4759")
 		draw_rect(Rect2(c + Vector2(-64, -2), Vector2(3, 3)),
@@ -2093,18 +1659,13 @@ class AreaView extends Control:
 		draw_rect(Rect2(c + Vector2(61, -2), Vector2(3, 3)),
 			dark.lerp(Color("#8ec8e6"), _strobe(3.1, 1.4)), true)
 
-	## One strobe: dark most of the period, then a short bright flash.
-	##
-	## Deliberately not a sine. A sine spends half its time near full and reads
-	## as a pulsing glow; a light that is off and then briefly on reads as a
-	## machine signalling, which is what this is.
+	## Not a sine: a flash after long dark reads as a signalling machine, not a pulsing glow.
+	## Why: docs/why/EncounterView.md#station-and-beacon
 	func _strobe(period: float, offset: float) -> float:
 		var u := fposmod(_clock + offset, period) / period
 		return clampf(1.0 - u * 7.0, 0.0, 1.0)
 
-	## A wreck: the same construction with the light taken out of it and a hole
-	## through the middle. Nothing here emits, which is the whole point — the
-	## derelict is the station's picture with the power off.
+	## A derelict is the station picture with the power off and a hole through it.
 	func _derelict(c: Vector2) -> void:
 		# The keel first, so both halves sit on it. A ship broken in two reads as
 		# two boxes until you can see the spine that used to join them.
@@ -2144,9 +1705,7 @@ class AreaView extends Control:
 			draw_rect(Rect2(p, Vector2(sz, sz)), _dead[2], true)
 			draw_rect(Rect2(p, Vector2(sz, 1)), _dead[4], true)
 
-	## An unknown signal: a beacon nobody claims, still transmitting. The rings
-	## are the message leaving; they thin as they go, which is the only depth
-	## cue available for something that has no surface.
+	## Rings thin as they go, the only depth cue for something with no surface.
 	func _beacon(c: Vector2, tint: Color) -> void:
 		_beacon_rings(c, tint)
 		# The buoy itself. Small — most of the picture is the thing it is doing.
@@ -2155,24 +1714,11 @@ class AreaView extends Control:
 		_body(c + Vector2(-11, 24), Vector2(22, 7), _grey, 0.4)
 		_beacon_lamp(c)
 
-	## The rings, which are the thing the beacon is DOING.
-	##
-	## SPLIT FROM THE LAMP BECAUSE THE BUOY SITS BETWEEN THEM. Rings go down
-	## first and the lamp goes on top, so a generated buoy has to land in the
-	## middle of the sandwich -- an overlay drawn wholly after the sprite would
-	## paint the transmission over the transmitter.
+	## Rings split from the lamp: a buoy sprite goes between them, rings first, lamp on top.
+	## Why: docs/why/EncounterView.md#station-and-beacon
 	func _beacon_rings(c: Vector2, tint: Color) -> void:
-		# THE RINGS GO OUTWARD, because the rings are the thing it is doing. A
-		# beacon drawn as five fixed circles is a diagram of a transmission; the
-		# same five walking outward and dissolving is a transmission. It costs
-		# one modulo and it is the difference between a picture of a place and a
-		# place -- and this setting's cheapest horror, per lore.md, is a system
-		# that is empty and still talking.
-		#
-		# Five rings on one cycle, so a ring leaves the buoy exactly as the
-		# outermost reaches the edge and fades into the void. Nothing appears or
-		# vanishes; the colour ramp was already taking them to the background
-		# colour at the far end, so the loop hides itself.
+		# Rings walk outward on one cycle so the loop hides itself: an empty system still talking.
+		# Why: docs/why/EncounterView.md#station-and-beacon
 		for i in 5:
 			var k := fposmod(float(i) + _phase, 5.0)
 			var rr := 26.0 + k * 15.0
@@ -2188,9 +1734,7 @@ class AreaView extends Control:
 
 	## The lamp, which answers the rings. Drawn over the buoy, generated or not.
 	func _beacon_lamp(c: Vector2) -> void:
-		# The lamp answers the rings: brightest in the moment a new one leaves
-		# it, so the two read as one machine doing one thing rather than a lit
-		# box standing in front of some circles.
+		# The lamp brightens as a ring leaves, so they read as one machine.
 		var fire := 1.0 - clampf(fposmod(_phase, 1.0) * 3.2, 0.0, 1.0)
 		draw_rect(Rect2(c + Vector2(-6, -50), Vector2(12, 6)), _ink, true)
 		draw_rect(Rect2(c + Vector2(-5, -49), Vector2(10, 4)),
@@ -2203,9 +1747,7 @@ class AreaView extends Control:
 	## The Custodian's hole. A disc seen nearly edge-on, brightest where it is
 	## about to fall in, with the shadow left as a shadow.
 	func _core(c: Vector2) -> void:
-		# The halo is dithered outward rather than stacked out of translucent
-		# boxes: a box has corners and at this size you can see every one of
-		# them, which is exactly what the first version of this looked like.
+		# Halo is dithered, not stacked translucent boxes, whose corners showed at this size.
 		for i in 6:
 			var rr := 92.0 - float(i) * 13.0
 			var col: Color = [_heat[0], _heat[0], _heat[1], _heat[1],
@@ -2297,9 +1839,7 @@ class AreaView extends Control:
 				_heat[5] if t < 0.18 else (_heat[3] if t < 0.5 else _heat[1]), true)
 		draw_rect(Rect2(c + Vector2(-4, -31), Vector2(3, 3)), Color("#d64a3a"), true)
 
-	## The star itself is barely a pixel — a neutron star is a city across — so
-	## what you see is the beam. Two cones sweeping out of one bright point, and
-	## the wreck of the star that made it still expanding around them.
+	## A pulsar's star is barely a pixel, so draw the sweeping beam and the remnant round it.
 	func _pulsar(c: Vector2) -> void:
 		for i in 26:
 			var a := float(i) * 0.242
@@ -2332,86 +1872,42 @@ class ShipSlot extends Control:
 	var preview: Callable
 	var _drag_text: String = ""
 
-	## How much of the slot the hull is centred in. The rest is empty space on
-	## its right.
-	##
-	## The frame is "your ship left, what you face right", and a Control that
-	## fills its half and centres its texture puts the ship in the middle of the
-	## screen — which reads as neither. Centring it in the left two thirds of the
-	## same box moves it back onto the left without changing the layout, and it
-	## leaves the ship pointing INTO the space the subject occupies rather than
-	## across it.
-	##
-	## Done with an anchor and not with `position`, because `ShipView.arrive()`
-	## animates position and puts it back to zero when the ship parks.
+	## Hull is centred in the left two thirds by anchor, as `ShipView.arrive()` resets position.
+	## Why: docs/why/EncounterView.md#own-ship-slot
 	const HULL_BIAS := 0.68
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		art = ShipView.new()
 		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		# set_anchor(), not `anchor_right =`. The property setter defaults to
-		# keep_offset TRUE, so it holds the control's current size by moving the
-		# offset the other way — which is an elaborate no-op.
+		# `set_anchor()`, not `anchor_right =`: the property setter keeps the offset, a no-op.
 		art.set_anchor(SIDE_RIGHT, HULL_BIAS, false)
-		# Behind the slot's own _draw. A Control paints itself first and its
-		# children after, so the brace number was being drawn and then covered
-		# by the ship it was meant to sit on.
+		# Behind the slot's own `_draw`, or the brace number is covered by the ship.
 		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# 2x, matching the refit screen and the chassis select. The hulls are
-		# authored small enough that 1x here left the ship a detail in the
-		# middle of its own encounter — and this is the screen the game is
-		# mostly played on, so it is the one that should agree with the others.
-		#
-		# 1x, solo or crowded. The hulls are authored at 2x their box, so this
-		# is the full-size ship and there is no step below it.
-		#
-		# zoom(), not magnify(): the slot's width is anchored to a fraction of
-		# the encounter and a minimum size would fight that.
+		# `zoom()`, not `magnify()`: the slot width is anchored, so a minimum size would fight it.
+		# Why: docs/why/EncounterView.md#own-ship-slot
 		art.zoom(1)
-		# THE IDLE DRIFT, which this slot never had. The convoy slots below ask
-		# for `bob(1, 0.19)` and call it "slower and shallower than your own
-		# ship's" -- a comparison to a bob that was not there. The ship screen
-		# and the chassis select both use 2, so that is what your own ship's is.
-		#
-		# It moves inside the canvas rather than moving the Control: see
-		# `ShipView`'s note, which is why anything riding the hull has to take
-		# the offset out again. `_place_self_plate` does.
+		# The idle bob is 2, as on the ship screen; it moves inside the canvas, not the Control.
+		# Why: docs/why/EncounterView.md#own-ship-slot
 		art.bob(2)
 		# The hull is now bigger than its slot on the deepest frames, and the
 		# enemy panel is immediately to the right of it.
 		art.clip_contents = true
 		add_child(art)
 
-		# WHAT IS BOLTED TO IT, on the screen the game is mostly played on. The
-		# refit screen was the only place a fitted ship could be seen, which
-		# made every part you chose a thing you looked at once and then flew
-		# around without. Passive: this is a picture of your ship, not a place
-		# to change it.
+		# Fitted parts show passively here; refit stays the only place to change them.
 		var mounts := MountPoints.new()
 		mounts.attach(art)
 		mounts.passive()
 		art.add_child(mounts)
 
-		# THE COLUMN YOU LEAVE ON. The convoy slots have had one of these since
-		# they were written; your own ship never did, because your own ship
-		# never left while you were watching.
-		#
-		# IN A BOX THE SIZE OF THE HULL, not of the slot. JumpFlare.MAX_W is 20
-		# and its own comment reasons that against a 208px slot holding a 124px
-		# hull: a beam that wide is "plainly a thing the ship came out of".
-		# Across this slot — most of half the arena — twenty pixels is a rule
-		# somebody drew, not a column. So the box is sized to the art, and added
-		# last so the flash is in front of the hull rather than behind it.
+		# Column sized to the hull, not the slot, or 20 px reads as a drawn rule, not a beam.
+		# Why: docs/why/EncounterView.md#jump-flare
 		_flare_box = Control.new()
 		_flare_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(_flare_box)
-		# `JumpFx`, not `JumpFlare`: twenty looks on one clock. See that file --
-		# every style peaks on the same frame, so choosing between them cannot
-		# move the frame the ship changes hands on. The convoy slots keep the
-		# original column; a hull popping into a slot is a different event from
-		# the one you are flying.
+		# `JumpFx` not `JumpFlare`: every style peaks on one frame, so the swap frame is fixed.
 		flare = JumpFx.new()
 		flare.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_flare_box.add_child(flare)
@@ -2419,24 +1915,13 @@ class ShipSlot extends Control:
 	var flare: JumpFx
 	var _flare_box: Control
 
-	## Fire the column over the hull, wherever the hull has got to. Returns it so
-	## the caller can hang off `peaked` — the frame the ship changes hands, which
-	## is what that signal was built for.
-	##
-	## Re-measured at play time rather than at build time, because the departure
-	## leans the hull twenty pixels right before this fires and a beam that
-	## arrives where the ship was is a beam that missed.
-	## THE COLUMN TRAVELS WITH THE SHIP. Placed once at play time it stayed where
-	## the hull had been while the hull kept accelerating out of it -- by the peak
-	## the ship had outrun its own flare by most of a hull length. Two lines a
-	## frame, and only while the thing is on screen.
+	## Re-measured at play time and tracked each frame, so the beam does not miss the moving hull.
+	## Why: docs/why/EncounterView.md#jump-flare
 	func _process(_d: float) -> void:
 		if not flare.visible:
 			set_process(false)
 			return
-		# ONE CLOCK. A hyperdrive's charge, snap and run live in `JumpFx` alone,
-		# and the hull is told where it is on that clock every frame rather than
-		# keeping a second one that would have to agree with it.
+		# One clock: charge, snap and run live in `JumpFx`; the hull is told where it is on it.
 		if flare.melts():
 			art.set_melt(flare.melt_amount())
 			art.set_shake(flare.shake_amount())
@@ -2451,9 +1936,7 @@ class ShipSlot extends Control:
 		_flare_box.size = b.size
 
 	func pulse() -> JumpFx:
-		# THE HULL, NOT THE SLOT. `art` is most of half the arena and the ship is
-		# centred inside it, so sizing the column to the control drew rings wider
-		# than the ship is long and put every beam somewhere the ship was not.
+		# Hull, not slot: sizing to the slot drew rings wider than the ship is long.
 		_aim()
 		flare.centre = 0.5
 		flare.play(0.0)
@@ -2506,10 +1989,7 @@ class ShipSlot extends Control:
 			return
 		var c := UITheme.GOOD
 		var n := 10.0
-		# BOUND TO THE HULL, not to the slot. This slot is most of half the
-		# screen -- see HULL_BIAS -- so brackets at its own corners lit an area
-		# the size of the board and said nothing about what was being aimed at.
-		# The enemy's brackets sit on the enemy; yours belong on you.
+		# Brackets bind to the hull, not the slot, which spans most of half the screen.
 		var box := _hull_box()
 		for corner in [
 				[box.position, Vector2(1, 1)],
@@ -2521,13 +2001,8 @@ class ShipSlot extends Control:
 			draw_rect(Rect2(o + Vector2(0, -1 if d.y < 0 else 0), Vector2(n * d.x, 1)), c, true)
 			draw_rect(Rect2(o + Vector2(-1 if d.x < 0 else 0, 0), Vector2(1, n * d.y)), c, true)
 
-		# What this card would give you, over your own hull. Same idea as the
-		# enemy's number and the opposite colour: one is what you take off them,
-		# the other is what you put on yourself.
-		# On the hull too, for the same reason the brackets are, in the same
-		# letters a landing pops (`HitText`): centred on the hull's INK, not
-		# the bracket box (clipped to the view) nor the canvas (which carries
-		# the exhaust's clearance on one side).
+		# Card benefit shows over your hull, centred on its ink, not the clipped bracket box.
+		# Why: docs/why/EncounterView.md#drag-preview
 		if _drag_text != "":
 			HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"gain"))
 
@@ -2544,33 +2019,9 @@ class ShipSlot extends Control:
 		return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
 
 
-## One ship flying with you: their hull, their name, and how they are doing.
-##
-## The readouts are PAINTED OVER the ship rather than stacked under it, which is
-## the same choice `ShipSlot` makes below and for the same reason — a column of
-## four ships each with a label and two bars under it is sixteen rows of chrome
-## in an arena that has none to spare, and a name written across a hull is
-## plainly that hull's name.
-##
-## It is not a drop target and it never will be. Cards are played from your deck
-## onto your ship and onto what is shooting at you; a partner is a thing you can
-## see, not a thing you can aim at. See `docs/coop-design.md` §5.
-## The light a ship arrives and leaves in.
-##
-## ONE ANIMATION FOR BOTH DIRECTIONS, and that is not a shortcut. A jump is a
-## column of light with a hull either side of it: what differs between arriving
-## and leaving is only whether the ship is there before the flash or after it.
-## Two separate effects would be two things to keep in step and would read as
-## two different events, which they are not.
-##
-## Cold, not ember. Every other light in this game is heat — weapons, the hull
-## shader, the overheat warning — so a jump has to be the one thing on screen
-## that is bright and not warm, or it reads as another gun going off.
-##
-## Drawn rather than animated. Everything here is on the pixel grid at integer
-## widths and the brightness is stepped, for the reason CombatFx records: a
-## pixel is lit or it is not, and fading one through alpha is how pixel art
-## starts looking like a screensaver.
+## Readouts are painted over the ship, not stacked, to save arena rows. Not a drop target.
+## The jump light is cold, not ember, so it is not mistaken for another gun.
+## Why: docs/why/EncounterView.md#partner-slot
 class JumpFlare extends Control:
 	## Long enough to be an event, short enough that four of them staggered do
 	## not turn arriving into a cutscene.
@@ -2579,24 +2030,16 @@ class JumpFlare extends Control:
 	## the swap happens behind the brightest frame and is never seen.
 	const PEAK := 0.42
 	const CORE := Color("#e4f2ff")
-	## Wide enough to be a column rather than a rule. The slot is 208px and the
-	## hull about half of it, so a beam this wide is plainly a thing the ship
-	## came out of and not a line somebody drew beside it.
+	## Wide enough to be a column, not a rule: 20 px against a 208 px slot.
 	const MAX_W := 20.0
-	## The three beats, as fractions of LIFE. OPEN is the column arriving, PEAK
-	## is the flash, SHUT is it gone — and the width curve is built to reach its
-	## maximum exactly AT PEAK rather than somewhere near it, because PEAK is
-	## also the frame the hull changes hands on. A swap that happens beside the
-	## brightest frame instead of behind it is a ship seen to appear.
+	## Width peaks exactly at PEAK, the hull's swap frame, so the swap hides in the flash.
 	const OPEN := 0.22
 	const SHUT := 0.80
 
 	signal peaked()
 	signal finished()
 
-	## Where the column stands, as a fraction of the slot's width. Your own hull
-	## is biased left of centre — see ShipSlot.HULL_BIAS — and a beam that
-	## arrives somewhere the ship is not is a beam that missed.
+	## Column position as a slot fraction; your hull is left-biased, so a beam elsewhere misses.
 	var centre: float = 0.5
 
 	var _t: float = -1.0
@@ -2651,9 +2094,8 @@ class JumpFlare extends Control:
 			return
 		var y0 := roundf((size.y - h) * 0.5)
 
-		# Width: two segments, meeting at PEAK. Not one sine across the whole
-		# life — that put the widest frame at 0.62 while the hull swapped at
-		# 0.42, and the swap was visible next to the flash instead of inside it.
+		# Two width segments meeting at PEAK, not one sine, which peaked at 0.62 against 0.42.
+		# Why: docs/why/EncounterView.md#jump-flare
 		var flare := 0.0
 		if t <= PEAK:
 			flare = smoothstep(OPEN, PEAK, t)
@@ -2687,34 +2129,24 @@ class ConvoySlot extends Control:
 	var peer: int = 0
 	var art: ShipView
 	var flare: JumpFlare
-	## On its way out and already freed as far as the column is concerned. Kept
-	## as a child until the flash finishes, because a ship that vanishes on the
-	## frame its owner pressed JUMP has not left, it has been deleted.
+	## Leaving ships stay children until the flash ends: vanishing on JUMP is deletion, not leaving.
 	var _leaving: bool = false
 	var _label: String = ""
 	var _hull_at: float = 1.0
 	var _heat_at: float = 0.0
 	var _lost: bool = false
-	## In the same fight as you, right now.
-	##
-	## Worth its own mark because the column shows the whole party and a fight
-	## involves some of it. Three ships in the sector and two in the fight is the
-	## normal case, not the exception — people arrive at different times — so
-	## "who is shooting at the thing shooting at me" cannot be read off presence.
+	## Engaged mark: a fight involves only some of the party, so presence cannot show it.
+	## Why: docs/why/EncounterView.md#partner-slot
 	var _engaged: bool = false
 
-	## Bars are drawn to a fixed width, not to the slot's, for the reason
-	## EnemySlot.BAR_W records: a readout's LENGTH should say how much is left,
-	## and one that stretches to fill the layout says how much room there was.
+	## Fixed bar width, as `EnemySlot.BAR_W`: length should show what is left, not room.
 	const BAR_W := 92.0
 	const BAR_H := 3.0
 
 	func _init(id: int, view_height: int) -> void:
 		peer = id
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# The ship is drawn at its own size and this box shows the middle of it.
-		# Cropping rather than scaling: integer magnification is the only
-		# resizing the art direction allows, and half of 1 is not a pixel.
+		# Cropped, not scaled: only integer magnification is allowed, and half of 1 is not a pixel.
 		clip_contents = true
 		custom_minimum_size = Vector2(EncounterView.convoy_w(), view_height)
 		art = ShipView.new()
@@ -2725,11 +2157,8 @@ class ConvoySlot extends Control:
 		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art.follow_peer(id)
-		# THE NAME AND GAUGES COME BACK WITH THE HULL. `_draw` paints nothing
-		# while the hull is hidden, and `ShipView.arrive` hides it for its first
-		# tick after the flare has already asked for a redraw -- so the slot
-		# drew once, empty, and nothing asked again: the partner flew in with no
-		# name over it (seen in the Oct 22 stills, LOCAL and the fight alike).
+		# The name and gauges must redraw when the hull shows, or a partner flies in unnamed.
+		# Why: docs/why/EncounterView.md#partner-label-redraw
 		art.visibility_changed.connect(queue_redraw)
 		# Always the half sheet. A convoy slot only exists when there IS a party,
 		# which is exactly the condition the reduced set is for.
@@ -2747,20 +2176,13 @@ class ConvoySlot extends Control:
 		art.visible = false
 		flare.peaked.connect(func() -> void:
 			art.visible = true
-			# And ask for the name and the gauges back. They are painted by this
-			# slot rather than by the hull, and _draw() bailed out while there
-			# was no hull under them — without this the ship returns and its
-			# label does not, because nothing else redraws a settled convoy.
+			# Ask for the name and gauges back after a departure: `_draw()` bailed with no hull.
+			# Why: docs/why/EncounterView.md#partner-label-redraw
 			queue_redraw()
-			# Into the same approach every ship in this game makes. The flare is
-			# punctuation on the arrival, not a replacement for it — four hulls
-			# materialising in place and holding still would read as a menu.
+			# Same approach as every ship: the flare punctuates the arrival, not replaces it.
 			art.arrive(1, 0.0), CONNECT_ONE_SHOT)
 		flare.play(delay)
-		# THE PLAYER'S OWN ARRIVAL SOUND, since the sound pass cut `jump`
-		# ("Just use the jump out sound"). Throttled harder than the old bang:
-		# these run seconds rather than a fraction of one, and a convoy of four
-		# arriving together is one arrival to the ear, not four stacked.
+		# Player's own arrival sound, throttled so a convoy arriving together sounds as one.
 		Audio.play(&"hyperjump_in", 0.10, 900)
 
 	## And left. Same flash, opposite side of it.
@@ -2797,9 +2219,7 @@ class ConvoySlot extends Control:
 			_lost = b.dead
 		var f := Net.fight_at(Run.at) if not Run.map.is_empty() else null
 		_engaged = f != null and not f.over and f.crew.has(peer)
-		# A PARTNER LOST IN YOUR FIGHT COMES APART where you can see it, as
-		# your own ship does (`ShipLoss`). Only a ship this slot has shown
-		# alive: a slot built for somebody already lost shows the grey hull.
+		# A partner lost in your fight comes apart visibly, as yours does, only if shown alive.
 		if b != null and not _lost:
 			_seen_alive = true
 		elif _lost and not was_lost and _seen_alive and (was_engaged or _engaged) \
@@ -2838,19 +2258,14 @@ class ConvoySlot extends Control:
 			b.modulate = Color(0.45, 0.45, 0.52))
 
 	func _draw() -> void:
-		# Nothing without a hull under it. The label and the gauges are painted
-		# OVER the ship rather than under it, so a slot that kept drawing them
-		# while the hull was away would leave a name and two bars hanging in
-		# empty space — before an arrival as much as after a departure.
+		# Paint nothing without a hull, or a name and bars hang in empty space.
 		if not art.visible:
 			return
 		var f := UITheme.pixel_font()
 		var fs := UITheme.FS_SMALL
 		var text := "LOST · " + _label if _lost else _label
 		if _engaged and not _lost:
-			# The same arrow the combat log puts on a shot of yours. Somebody
-			# firing on your side is the one thing in this column that is about
-			# the fight rather than about the convoy.
+			# Same arrow as the combat log's shot of yours: firing on your side is about the fight.
 			text = "▸ " + text
 		# Shadowed, because the label sits on a hull rather than on a panel and
 		# the hull is the same value range as the type.
@@ -2865,13 +2280,8 @@ class ConvoySlot extends Control:
 		draw_string(f, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
 		if _lost or _hull_at <= 0.0:
 			return
-		# Directly under the name rather than at the floor of the slot. The ship
-		# is centred in the box and the box is taller than the ship, so bars on
-		# the floor float in space below it and read as belonging to whoever is
-		# next in the column.
-		#
-		# Hull above heat, which is the order they are stacked on the HUD and
-		# under every enemy.
+		# Gauges sit directly under the name: floor bars float and read as the next ship's.
+		# Why: docs/why/EncounterView.md#gauge-placement
 		_gauge(float(fs) + 3.0, _hull_at, UITheme.HULL_GREEN)
 		_gauge(float(fs) + 3.0 + BAR_H + 1.0, _heat_at,
 			UITheme.FLARE if _heat_at >= 1.0 else UITheme.EMBER)

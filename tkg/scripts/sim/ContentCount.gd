@@ -1,28 +1,10 @@
 extends Harness
 
-## How much of the catalogue actually exists:
-##   godot --headless --path . -- content
-##
-## A MEASUREMENT, not a gate. It prints what each manufacturer has and what it is
-## supposed to have, and passes either way — the same shape as `-- glyphs` and
-## for the same reason: a number nobody can see does not get acted on, and a
-## test that fails for a year because content has not been written yet is a test
-## everybody learns to ignore.
-##
-## Counts UNIQUE CARDS BY NAME, not grants. The module gallery says "98 cards"
-## and that is the honest count of what a deck can be handed, because two
-## modules can grant the same verb — a manufacturer with eight parts that all fit a
-## Brace is not a manufacturer with eight cards. This asks the other question: how many
-## DIFFERENT things can this manufacturer do.
-##
-## MALFUNCTIONS ARE NOT ON MODULES, and this used to count them as though they
-## were — it reported 1, and that 1 was a dead `dross` module nothing could hand
-## out. They live in `DB.MALFUNCTIONS` now, which is where a thing that arrives
-## unasked belongs: it costs a deck slot and nothing else.
+## A measurement, not a gate: a test failing for a year over unwritten content gets ignored.
+## Counts unique cards by name, not grants. Malfunctions live in `DB.MALFUNCTIONS`, not on modules.
+## Why: docs/why/ContentCount.md#content-count
 
-## What the catalogue is aiming at. Korvan, the unbranded stock and the
-## malfunctions first, because those are the three being written; the other six
-## manufacturers are listed so the shortfall is visible rather than forgotten.
+## Korvan, unbranded stock and malfunctions first, as those are being written.
 const TARGET := {
 	&"korvan": 40,
 	&"(unbranded)": 20,
@@ -76,13 +58,8 @@ func run() -> void:
 	verdict("content")
 
 
-## Every module as JSON, for building a review page out of.
-##   godot --headless --path . -- content json
-##
-## Exists because the alternative is retyping the catalogue by hand into
-## whatever is reviewing it, and a hand-copied catalogue is wrong the day after
-## it is copied. The picking page for one manufacturer is going to be made seven times;
-## this is the half that must not be done seven times by eye.
+## A hand-copied catalogue is wrong the day after, so the review page is built from this export.
+## Why: docs/why/ContentCount.md#catalogue-dump
 func _dump() -> void:
 	var out: Array = []
 	for id in DB.modules:
@@ -90,21 +67,13 @@ func _dump() -> void:
 		var cards: Array = []
 		for c in m.resolved_cards():
 			var cd: CardData = c
-			# RARITY PER CARD, not just per part. The card rarity law is a claim
-			# about the pair a module grants — one at its own grade and one at or
-			# below — and a dump that only carried the PART's grade could not be
-			# used to check it. `resolved_cards` has already applied the law, so
-			# this is the answer rather than the input.
+			# Rarity per card, not per part: the card rarity law is about the pair a module grants.
 			cards.append({name = cd.name, text = cd.describe(),
 				energy = cd.energy, heat = cd.heat,
 				rarity = ModuleData.rarity_name(cd.rarity) if cd.rarity >= 0 else ""})
-		# THE GAUGE IT MOVES, and by how much. Both halves, because a part can
-		# grant on one axis and be priced on another, and a page that showed only
-		# the grant would say a Voidwhale Ganglion is free.
-		# A LIST, since a part may name two gauges. It was String() on the raw
-		# value, which quietly stringified the array into "[\"hull\"]" the moment
-		# parts stopped having exactly one — the export kept working and every page
-		# reading it stopped grouping.
+		# Both the grant and the price, so a Voidwhale Ganglion does not read as free.
+		# A list: `String()` on the raw array stringified it and pages stopped grouping.
+		# Why: docs/why/ContentCount.md#catalogue-dump
 		var axes: Array = []
 		for raw in DB.PASSIVE_AXIS.get(id, []):
 			axes.append(String(raw))
@@ -131,9 +100,7 @@ func _dump() -> void:
 			reactor = m.reactor,
 			cards = cards,
 		})
-	# The malfunctions travel with them. They are not modules and never will be
-	# — that was a bug once — but anything reviewing the catalogue is reviewing
-	# what can end up in a deck, and sixteen of these can.
+	# Malfunctions travel with it: not modules, but reviewers review what can end up in a deck.
 	var junk: Array = []
 	for row in DB.MALFUNCTIONS:
 		var c := DB.malfunction(row[0])
@@ -142,15 +109,8 @@ func _dump() -> void:
 
 	_vet(out, junk)
 
-	# EVERY KEYWORD THE CATALOGUE PRINTS, with the explanation the game gives.
-	#
-	# COLLECTED FROM THE CARDS rather than typed, because CardData.keywords() is
-	# the only place a keyword is defined and a second list would go stale the
-	# first time somebody added one. It is the same walk `-- holdtest` does to
-	# check that no card is NAMED after a keyword.
-	#
-	# The one blind spot: a keyword no card uses yet does not appear, because
-	# nothing has asked for its explanation. That is also true of the gate.
+	# Collected from the cards: `CardData.keywords()` is the only definition, so none goes stale.
+	# Why: docs/why/ContentCount.md#keyword-glossary
 	var glossary := {}
 	for id in DB.modules:
 		for c in (DB.modules[id] as ModuleData).resolved_cards():
@@ -172,32 +132,13 @@ func _dump() -> void:
 	print("  wrote %s (%d modules)" % [ProjectSettings.globalize_path(path), out.size()])
 
 
-## THE EXPORT IS A CONTRACT AND NOTHING WAS CHECKING IT.
-##
-## `PASSIVE_AXIS` values became arrays and the line above was still doing
-## `String()` on one. GDScript will stringify anything, so a gauge name came
-## out as the four characters `["hull"]`, the JSON stayed valid, the file kept
-## being written, and every page reading it stopped grouping. Nothing errored
-## at either end. It was found by looking at a table that had gone blank.
-##
-## THE VOCABULARY IS BUILT FROM THE GAME, not typed here. A hand-written list
-## of legal gauge names is a second place for the truth to live and it goes
-## stale the first time somebody adds a gauge; asking PER_PIP what the gauges
-## are cannot.
-##
-## Fails the harness rather than warning, because an export nobody can trust is
-## worse than no export: it produces a page that looks right and is not, and
-## the whole argument for generating the manifest was that a hand-copied one
-## goes wrong silently.
+## `String()` turned an array gauge name into text and nothing errored: pages stopped grouping.
+## Vocabulary is built from the game, and it fails the harness: a distrusted export is worse.
+## Why: docs/why/ContentCount.md#export-vetting
 func _vet(rows: Array, junk: Array) -> void:
 	var gauges := {}
-	# `Run`, the singleton, and not `RunState` — that script carries no
-	# class_name, so the identifier does not exist and the whole harness fails to
-	# COMPILE. Which does not look like a compile error from outside: `.new()`
-	# returns nothing, `get_tree().quit()` never runs, and Godot sits there until
-	# the gate’s watchdog kills it at 120 seconds. Database reaches the same
-	# constants through a preload because it runs before the autoload exists; a
-	# harness runs after, so the singleton is right here.
+	# `Run`, not `RunState`: no class_name, so the harness fails to compile and hangs 120 s.
+	# Why: docs/why/ContentCount.md#export-vetting
 	for g in Run.PER_PIP:
 		gauges[String(g)] = true
 	var grades := {}

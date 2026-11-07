@@ -1,16 +1,7 @@
 extends Harness
 
-## What a dish actually shows you:
-##   godot --headless --path . -- sighttest
-##
-## THREE CLAIMS FROM A SCREENSHOT, priced. Reported as "a ship with 0 sensors
-## sees this far -- kinda crazy", "no matter what the thrusters/sensors are the
-## circle is the same size", and "still drawing systems outside sensor range".
-##
-## The first two are tuning and the third is a filter question, and none of them
-## can be settled by looking at one chart: how many systems a radius covers
-## depends on where you are standing in a galaxy whose density falls off with
-## depth. So it is measured across seeded galaxies at real positions.
+## Prices three screenshot claims about sensor range across seeded galaxies: `-- sighttest`.
+## Why: docs/why/SightTest.md#sensor-checks
 
 
 func run() -> void:
@@ -19,11 +10,7 @@ func run() -> void:
 	verdict("sighttest")
 
 
-## How many systems each rung of the sensor ladder is worth.
-##
-## The radius is `JUMP_RADIUS * (SENSE_FLOOR + sensors * SENSE_REACH)`, so this
-## walks the multiplier directly rather than fitting modules -- the count is a
-## property of the radius and the galaxy, and nothing else reads the attribute.
+## Walks the radius multiplier directly: the count depends only on radius and galaxy.
 func _ladder() -> void:
 	print("\n  === WHAT A RADIUS COVERS ===")
 	print("  %-8s %-7s %8s %9s %9s"
@@ -49,10 +36,7 @@ func _ladder() -> void:
 			n += 1
 		print("  %-8d %-7.2f %8.3f %9.1f %9s"
 			% [s, mult, r, total / float(n), "%.2fx" % mult])
-	# THE REACH RING, for comparison, and it barely moves. 0.04 a pip against a
-	# clamp of 1.4 means a thrust of 6 -- what a medium Korvan launches with --
-	# buys 8%, which is two or three pixels of ellipse. The ring is not constant;
-	# it is just changing by less than a chart can show.
+	# The reach ring barely moves: thrust 6 buys 8%, two or three pixels of ellipse.
 	print("\n  === WHAT A THRUSTER BUYS ===")
 	print("  %-8s %-7s %8s" % ["thrust", "mult", "radius"])
 	for t2 in [2, 4, 6, 8, 14]:
@@ -117,12 +101,8 @@ func _beyond() -> void:
 	_ok("measured", true)
 
 
-## Can a system be REACHABLE and not SENSED?
-##
-## That combination is what the chart's jump button reports as "NOT ENOUGH FUEL",
-## because `can_jump_to` is `sensed and reachable and afford` and the screen's
-## if-chain treats anything left over as an affordability problem. With 279 fuel
-## and a 6-unit cap that message cannot be literally true.
+## Reachable but not sensed shows as NOT ENOUGH FUEL, which cannot be true at 279 fuel.
+## Why: docs/why/SightTest.md#reachable-not-sensed
 func _gap() -> void:
 	print("\n  === REACHABLE BUT NOT SENSED ===")
 	print("  %-6s %8s %8s %8s   %s" % ["seed", "inrange", "sensed", "gap", "types"])

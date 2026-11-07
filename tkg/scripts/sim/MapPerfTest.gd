@@ -1,29 +1,7 @@
 extends Node
 
-## THE SECTOR MAP'S CPU AND GPU TRIMS DRAW WHAT THEY DREW (the Mac's map, Oct 27):
-##   godot --headless --path . -- sheet=MapPerfTest [seeds=4242,77,1301]
-##   godot --path . -- sheet=MapPerfTest palcache        (needs a window)
-##
-## Each trim is held to the code it replaced, through the real map:
-##   * THE DUST: a wisp sheet whose colour is black (a clear sky, outside LEGACY)
-##     is not built (`SystemView._wisps_blank`); every fluff sheet keeps the seed
-##     it had when the wisps were built before it (HIGH and LOW), and a cloud,
-##     a pulsar and the core keep all nine sheets;
-##   * THE ORBITS: `_Lines.orbit_runs` -- the camera read once, the points
-##     worked out in place, stretches off the frame skipped -- gives exactly the
-##     lines the old loop did (kept below, `_old_runs`, as it was), point for
-##     point and colour for colour, and the same with the skipping off, over
-##     cameras from the whole system to the closest zoom and panned past the
-##     frame's edges;
-##   * THE BELTS: each rock's draws from the belt's table are the generator's own;
-##   * THE LINE: `ShipFlight._run_line` with the centres worked out once a frame
-##     (`_centres`) is the line it was with each centre worked out where it was
-##     needed, from many states in every system, and it prints how long each
-##     took.
-## `palcache` (windowed): a system shown, another, the first again -- the second
-## visit to it cuts no palette and wears the first visit's; and a third visit with
-## the cache off cuts one afresh, printed against the first (how many of its
-## colours moved), with how long each visit took to its palette.
+## Each CPU and GPU trim is held to the code it replaced, point for point, through the real map.
+## Why: docs/why/MapPerfTest.md#map-trims
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
@@ -59,9 +37,7 @@ func _ready() -> void:
 	get_tree().quit()
 
 
-## The systems of one run worth looking at: clear skies, a cloud, a pulsar, the
-## core, a station, a belt, and two suns (ruling 20: a twin's orbits circle three
-## centres and stop at two discs, held to the old loop like the rest).
+## One run's systems worth checking, a twin included (ruling 20: its orbits circle three centres).
 func _pick() -> Array:
 	var out: Array = []
 	var want := {"clear": 2, "nebula": 1, "pulsar": 1, "core": 1, "station": 1, "belt": 1, "twin": 1}
@@ -114,9 +90,7 @@ func _seed(sd: int) -> void:
 	await get_tree().process_frame
 
 
-## THE DUST SHEETS against the old build: the far sheets in DEPTH_FAR order (LOW:
-## the fluff alone), then four near ones in HIGH, each far sheet seeded by its
-## place among them.
+## Dust sheets against the old build: far sheets in depth order, then near ones in HIGH.
 func _dust(view, key: String, low: bool) -> void:
 	var blank: bool = view._wisps_blank()
 	var dl: Array = view._depth_look()
@@ -219,16 +193,8 @@ static func _same(a: Array, b: Array) -> bool:
 	return true
 
 
-## The orbits' loop as it was before the trim (SystemView `_Lines._draw`, Oct 27
-## main), its draws collected instead of drawn. TWO SUNS (ruling 20, Oct 30), in
-## step with `orbit_runs`: each ring round its own centre (`orbit_point` already
-## adds `Body.host_at`), stopped at star B's disc as at star A's -- in a twin each
-## star's disc only where the ring is behind that star (Oct 31: a world round one
-## star passes in front of it) -- and its near half told by where on its own ring
-## a point is (its z less its centre's). A TURNING PAIR (ruling 23): each sun's
-## hole where the view draws it at the map's t (`star_screen`) and behind it
-## by its depth then (`star_depth`): star A leaves the origin, and its depth is
-## 0 only at t 0 (one sun: the origin and 0, as ever).
+## The pre-trim loop, kept as the oracle, in step with twins and the turning pair.
+## Why: docs/why/MapPerfTest.md#old-orbit-loop
 static func _old_runs(view) -> Array:
 	var out: Array = []
 	var self_lines = view._lines
@@ -305,9 +271,7 @@ func _belts(view, key: String) -> void:
 		if b.kind != &"belt":
 			continue
 		var bl = view._belts
-		# (from an empty table, as a belt's first frame finds it -- the map's frames
-		# have grown it already; and the 300 rocks' table COPIED, since growing it
-		# to 1,200 grows that same array)
+		# From an empty table as a belt's first frame finds it, and the 300-rock table copied.
 		(bl._rtab as Dictionary).erase(b.index)
 		var small: PackedFloat64Array = (bl._rock_draws(b, 300) as PackedFloat64Array).duplicate()
 		var big: PackedFloat64Array = bl._rock_draws(b, 1200)
@@ -321,13 +285,8 @@ func _belts(view, key: String) -> void:
 		_ok("%s: belt %d's table is its generator's 8,400 draws in order" % [key, b.index], same)
 
 
-## THE LINE from many states of the ship, with the centres shared and without;
-## and in the same system with two suns (ruling 20: each star a bumper with a
-## close ring of its own, letting go settling round the nearer star or both),
-## where it may have them.
-## The pair's cost with two suns against the same system's with one is printed
-## (Oct 31, after `ShipFlight` kept each star's numbers: 1.5 to 2.1 times, was
-## 1.9 to 2.3), not judged: the Mac's load varies.
+## The two-sun cost against one is printed, not judged: the Mac's load varies.
+## Why: docs/why/MapPerfTest.md#line-cost
 func _line(view, key: String) -> void:
 	var ms1 := _line_on(view.layout, key, view.node.index)
 	var n: MapGen.MapNode = view.node

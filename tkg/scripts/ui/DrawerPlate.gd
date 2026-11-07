@@ -1,15 +1,7 @@
 class_name DrawerPlate
 extends Button
-## The drawers' buttons: the escape menu's and Settings'. A chamfered plate,
-## drawn rather than composed from styleboxes, because a chamfer, a pixel icon
-## and text that all change colour together on hover are one drawing, not four
-## nodes to keep in step.
-##
-## Two shapes. A PLATE is a menu line -- a doubled-pixel icon, a label, and a
-## second line saying what the choice does (Jon's pick: chamfered + two lines).
-## A CHIP is one choice among several, one line, centred; the one in force is
-## edged in ember like RESUME, so "what is set" reads the same as "where Esc
-## goes".
+## Drawn, not composed from styleboxes, as chamfer, icon and text change together on hover.
+## Why: docs/why/DrawerPlate.md#drawer-plates
 
 const PLATE_H := 40.0
 ## A plate with nothing to explain is shorter: one line, centred.
@@ -20,10 +12,7 @@ const CHIP_H := 18.0
 const CUT := 6.0
 const CHIP_CUT := 3.0
 
-## 7x7, every pixel drawn 2x2. Jon kept the sliders and the floppy and picked
-## the others from six each; the arrow is the narrow one made one pixel wider
-## on every row, which keeps its edge an even staircase. BACK is that arrow
-## turned round.
+## 7x7 icons drawn 2x2; Jon kept the sliders and floppy and picked the rest from six each.
 const ICONS := {
 	&"resume": ["##.....", "###....", "####...", "#####..", "####...", "###....", "##....."],
 	&"back": [".....##", "....###", "...####", "..#####", "...####", "....###", ".....##"],
@@ -59,10 +48,7 @@ var sub := ""
 var chip := false
 ## Edged in ember: the setting in force, on a chip.
 var lead := false
-## What the button is FOR, said in colour -- and only under the cursor. Jon:
-## every plate is grey at rest, and lights when you point at it, so the drawer
-## reads as one grey column until you choose something. GOOD is going on
-## (RESUME, SAVE), BAD is ending the run, NONE is everything else.
+## Tone shows only under the cursor (Jon): grey at rest, GOOD going on, BAD ending the run.
 enum Tone {NONE, GOOD, BAD}
 var tone: Tone = Tone.NONE
 
@@ -141,9 +127,7 @@ func _draw() -> void:
 	var font := get_theme_font("font", "Label")
 	var fs := UITheme.FS_SMALL
 	if chip:
-		# CENTRED ON THE FONT'S OWN METRICS, both ways. Centring on the point
-		# size instead puts the text a pixel or two high, which is what a chip
-		# full of two-character labels shows up immediately.
+		# Centre on the font's own metrics: point size centring puts the text a pixel or two high.
 		var tw := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		var base := (h + font.get_ascent(fs) - font.get_descent(fs)) * 0.5
 		draw_string(font, Vector2(floorf((w - tw) * 0.5), floorf(base)),

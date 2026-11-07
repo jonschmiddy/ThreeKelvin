@@ -1,46 +1,14 @@
 class_name LocalLife
 extends RefCounted
 
-## LOCAL'S LIFE (Oct 11, the magnificent pass; Jon kept these four of five):
-##   * THE AIR of the world you orbit, a thin bright shell on its sunward limb
-##     (`local_air.gdshader`);
-##   * ITS CITY LIGHTS, when the system is settled and the world has dry
-##     ground: its towns on the night side, clusters of points of light
-##     (`local_night.gdshader`);
-##   * ITS MOONS GO ROUND it, in front of its face and behind it, their eclipses
-##     on its face -- but only while nothing is staged in its sky (below);
-##   * FAR TRAFFIC in a settled system, tiny ships crossing along its plane.
-## (A fifth, the star's light on your hull, was cut: Jon, Oct 11.)
-##
-## IN EVERY STYLE, each in its own hand (as the dust is, `LocalDust`):
-## SIMPLIFIED dithered steps; PAINTED flat hand-picked tones, no soft glow,
-## motion in held poses; RADIANT light through an exposure, softer and wider;
-## LEGACY its old blue-greys, plainer.
-##
-## THE MOONS KEEP OUT OF WHAT IS STAGED (Jon: a moon must never pass over an
-## event's subject, a station or your ship during the dock). Two rules:
-##   * a moon goes round only while LOCAL is QUIET -- no event's subject up, no
-##     fight and no wrecks in the slots, no zoom (the cutaway, the ladder: the
-##     dock is a ladder move), the camera at rest -- and otherwise holds where
-##     it is (it eases to a stop in a fraction of a second, a block at most);
-##   * each moon's orbit is CHOSEN CLEAR of what always stands there -- your
-##     ship, and at a station its side and the corridor your ship docks along --
-##     from a few orbits by size, tilt and roll; a moon with no clear orbit
-##     stays where it always hung. And it never steps into anything staged even
-##     so (each step is checked against every subject piece, slot and station
-##     rect, and held if it would).
-## `-- sheet=MoonTest` checks both, headless, in the merge gate.
-##
-## The traffic keeps far and sparse, above the fight in the system's band, and
-## is never up with an encounter: it fades out while LOCAL is not quiet, so it
-## can never be read as part of one.
+## Four of five ideas kept (Jon, Oct 11). Moons orbit only while LOCAL is quiet and clear
+## of staged subjects.
+## Why: docs/why/LocalLife.md#local-life
 
 const AIR := preload("res://shaders/local_air.gdshader")
 const NIGHT := preload("res://shaders/local_night.gdshader")
 
-## A harness's veto (`LocalLifeShot`): the ideas named here drawn as if they
-## were not there -- the moons hanging where they always hung -- to film the
-## same frame with one and without it.
+## A harness veto draws named ideas as if absent, to film the same frame with and without.
 static var hide := {}
 ## its own CPU time, microseconds, since a harness zeroed it
 static var cpu_us := 0
@@ -102,9 +70,7 @@ func view() -> EncounterView:
 	return sky.get_parent() as EncounterView
 
 
-## LOCAL at rest with nothing staged in its sky: the moons go round. Not while
-## anything is `staged`, under a zoom (the cutaway) or while the camera moves
-## (the ship flying in or out).
+## Quiet means nothing staged, no zoom and a still camera: only then do the moons go round.
 func quiet() -> bool:
 	return not staged() and is_equal_approx(sky.zoom, 1.0) and absf(sky.cam.x) <= 0.5
 
@@ -135,10 +101,8 @@ func to_frame(g: Rect2) -> Rect2:
 	return Rect2(g.position + off, g.size)
 
 
-## WHAT A MOON MUST KEEP OUT OF, this sky's px. `always`: only what stands there
-## whatever is staged (your ship; at a station its side and the corridor your
-## ship docks along), which the orbits are chosen clear of; else everything on
-## the view now (every subject piece, every slot's ship).
+## Orbits are chosen clear of what always stands there; `always` false adds everything on
+## view now.
 func keep_out(always: bool) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var v := view()
@@ -333,13 +297,9 @@ func _draw_moons() -> void:
 			var along := M3.dot(Lw)
 			if along < 0.0:
 				kl = lerpf(0.1, 1.0, smoothstep(R * 0.9, R * 1.08, (M3 - Lw * along).length()))
-			# ITS SHADOW MOVES WHEN IT DOES, a block at a time, all of it: its place
-			# and its depth held from the step the moon was drawn at until its next.
-			# (From its true place the shadow crept a fraction of a pixel a frame;
-			# then with its place stepped but its depth still gliding, each step
-			# threw the shadow a block on and the glide drew it back a hair the next
-			# frame -- a block of RADIANT's fine shading at the shadow's edge went
-			# A, B, A at every step of every moon.)
+			# Shadow place and depth are held per step; gliding depth drew RADIANT's shading A, B,
+			# A every step.
+			# Why: docs/why/LocalLife.md#moon-shadow-stepping
 			if pos != m.get("sh_at", Vector2.INF):
 				var pd := pos - Vector2.ONE * float(hs % 2) - wc
 				m.sh_at = pos
@@ -347,9 +307,7 @@ func _draw_moons() -> void:
 			if front and msh.size() < 4:
 				msh.append(m.sh)
 		mv.position = pos
-		# (lit from the star as the world is: one light for the moon wherever it
-		# is on its orbit -- from its own place the light turned a little with
-		# every block it moved, and RADIANT's fine shading flickered with it)
+		# One light for the moon wherever it is on its orbit, or RADIANT's fine shading flickered.
 		var d := (sky.origin() - (pos if bool(pl[2]) else wc)) / zl
 		mv.step(sky.t, Vector3(d.x, d.y, 140.0).normalized(), kl)
 		if front and mv.get_index() < pv.get_index():
@@ -431,9 +389,7 @@ func _step_night() -> void:
 		_night_for = pv
 		_night = _build_night(pv, int(NIGHT_TOWNS[n.development]), n.development == MapGen.Development.CAPITAL)
 		sky._scene.add_child(_night)
-	# (over the near picture, not in it: the play tone presses the near things'
-	# light down to a mid-tone, and a town's lights pressed so came out as tan
-	# smudges -- a light is exempt, as the lab's glowing pixels are)
+	# Over the near picture, not in it: the play tone pressed town lights into tan smudges.
 	if _night.get_index() < sky._near_rect.get_index():
 		sky._scene.move_child(_night, -1)
 	_night.visible = not hide.has(&"night") and sky._hand.is_empty()
@@ -499,9 +455,7 @@ func _build_night(pv: PlanetView, towns: int, capital: bool) -> MultiMeshInstanc
 
 # ------------------------------------------------------------------ traffic
 
-## A ship crosses in one to four minutes; spaced so a capital has five or six in
-## view, a city or a station three or four, a settlement one or two, an
-## outpost one now and then, nobody where nobody lives.
+## Spacing gives a capital five or six ships in view and nobody where nobody lives.
 const TRAFFIC_EVERY := {MapGen.Development.OUTPOST: 110.0, MapGen.Development.SETTLEMENT: 55.0,
 	MapGen.Development.CITY: 30.0, MapGen.Development.CAPITAL: 18.0}
 
@@ -526,10 +480,8 @@ func _step_traffic() -> void:
 			_traffic.hull = Color("#232d39")
 			_traffic.lit = Color("#4d5f73")
 		sky.add_child(_traffic)
-	# (gone while anything is staged: never part of an encounter; and pulled
-	# back toward the map's scale, as the dust is: the map has none. A push-in
-	# carries it at the band's depth, every ship redrawn where the zoom puts
-	# it, a game pixel each, never scaled.)
+	# Traffic is never part of an encounter, and pulls back toward the map's scale like the
+	# dust.
 	var a := quiet_k * smoothstep(0.6, 1.0, minf(sky.zoom, 1.0))
 	_traffic.visible = not hide.has(&"traffic") and a > 0.0
 	_traffic.modulate.a = a
@@ -547,11 +499,7 @@ func _step_traffic() -> void:
 	_traffic.queue_redraw()
 
 
-## The far ships, a game pixel at a time over the sky, at the band's depth:
-## worked out from the sky's clock alone, so the same moment shows the same
-## ships. A dark sliver of hull lit along its top by the star (the nearer
-## ones), its drive a point of light with a short fading wake; in the band
-## above the fight, hidden behind the world you orbit.
+## Worked from the sky's clock alone, so the same moment shows the same ships.
 class _Traffic extends Node2D:
 	var seed := 0
 	var every := 5.0
@@ -634,11 +582,8 @@ class _Traffic extends Node2D:
 
 # ------------------------------------------------------------------ the test
 
-## THE MOONS OVER `secs` OF QUIET (`-- sheet=MoonTest`): run forward from where
-## they are on a copy of their clocks, each step checked against what always
-## stands there; the steps a visible moon overlapped any of it, and how many
-## moons went round and how many were held still. Headless as on screen: the
-## places are the sky's plan's.
+## Runs the moons forward on a copy of their clocks, headless, and counts overlaps
+## (`MoonTest`).
 func audit(secs: float, dt: float = 0.1) -> Dictionary:
 	if not _moons_chosen:
 		_choose()

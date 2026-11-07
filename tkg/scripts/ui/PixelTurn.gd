@@ -1,58 +1,9 @@
 class_name PixelTurn
 extends RefCounted
 
-## HOW PIXEL ART TURNS, game-wide (Jon: "can these rotate smoothly WITHOUT
-## shimmer? like can we just fix that for the whole game?").
-##
-## A picture turned by a fraction of a pixel a frame re-picks its pixels every
-## frame, and where a thin line or a corner sits across the pixel grid a pixel
-## goes A, B, A: shimmer. Three ways to turn, one switch:
-##
-##   SMOOTH   as the game has always done it (the default): a tumbling piece
-##            turned live on screen, a world's surface turned by any fraction
-##            of a pixel a frame, the mines a picture every 15 degrees.
-##   STEPPED  held still and moved a whole pixel at a time (the farthest pixel
-##            of a piece, a world's equator). No shimmer, but it ticks. Jon has
-##            turned this down twice ("i guess i kinda just liked the smoother
-##            one"); kept only to compare against.
-##   BLENDED  turned every frame and held steady: each pixel is worked out from
-##            many points across it (a piece: 16, the commonest colour wins; a
-##            world: 4, the commonest ground wins, its brightness the average),
-##            and a pixel keeps what it showed until the new answer is clearly
-##            better (hysteresis), letting go after `RELEASE` frames so nothing
-##            low-contrast freezes. A world's value is also eased 0.35 a frame.
-##            The star-chart mockup's planets, which Jon took, for every world
-##            and for every turning sprite (`Turner`, `pixel_turn.gdshader`).
-##
-## WORLDS BLENDED, SPRITES SOFT. Every world the planet painter draws
-## (`PlanetView`: LOCAL's world and its moons and rocks, the painter's moons on
-## LOCAL, the map's worlds, the panel's portrait) turns BLENDED (`world_mode`;
-## Jon of the giant, the ice moon and a map world: "THESE LOOK GREAT!!!
-## Especially for rotating bodies"). The turning sprites (`mode`) turn SOFT:
-## BLENDED still shimmered to his eye ("This still shimmers a lot"), and of
-## the round-two trials he took the soft turn ("I kinda like C soft turn").
-## Harness switches: `turn=blended|stepped|smooth` sets both; `worldmem=off`
-## puts the worlds back on today's path, to measure against.
-## `rolllive` (harness): the mines' roll turned live in SMOOTH, for the
-## comparison page's left-hand clip.
-##
-## THE SPRITE TRIALS (harness only, `turn=still|rot8|fade|small`, sprites alone;
-## the worlds stay BLENDED), after "This still shimmers a lot":
-##   STILL    not turned at all: the picture held whole, its drift in whole
-##            pixels, and the tumble (or the roll) shown in its LIGHT instead --
-##            the star's side swinging round it and a glint rolling across the
-##            hull (`local_subject.gdshader`'s `glint`), as a world's terminator
-##            and surface move while its outline stays put.
-##   ROT8     BLENDED from a picture blown up 8x by Scale2x three times
-##            (RotSprite's way: corners and diagonals rounded before the turn),
-##            so the turn re-picks fewer stair-steps.
-##   SOFT     turned with its 16 points averaged in linear light and its edge
-##            partly clear: a soft turn, no pixel ever picked.
-##   `small`  ROT8 with the tumble and the roll cut to `TUMBLE_K` (0.35).
-##   FADE     STEPPED's pictures -- each held whole, the next a whole pixel on at
-##            its farthest point -- but each step dissolved into the next over
-##            `FADE_F` frames in linear light, so the step is a soft move, not a
-##            tick, and between steps nothing changes at all.
+## A turned picture shimmers where thin lines flip A, B, A across the pixel grid. Worlds blend and
+## sprites turn soft (Jon's picks); STEPPED was turned down twice and is kept to compare.
+## Why: docs/why/PixelTurn.md#pixel-turning
 
 enum Mode { SMOOTH, STEPPED, BLENDED, STILL, ROT8, SOFT, FADE }
 
@@ -122,9 +73,8 @@ static func soft_edge() -> bool:
 	return mode == Mode.SOFT or mode == Mode.FADE
 
 
-## A picture blown up 2x `times` times by Scale2x (EPX): each pixel split in
-## four, a quarter taking a neighbour's colour where two neighbours agree across
-## its corner, so stair-steps come out as diagonals. Clear is one colour.
+## Scale2x (EPX) splits each pixel in four so stair-steps
+## come out as diagonals; clear is one colour.
 static func scale2x(tex: Texture2D, times: int) -> ImageTexture:
 	var img := tex.get_image()
 	img.decompress()
@@ -185,15 +135,9 @@ static func step_of(reach: float) -> float:
 	return 1.0 / maxf(reach, 4.0)
 
 
-## A TURNING SPRITE, drawn by `pixel_turn.gdshader` into a picture of its own
-## (`texture`), never rotated on screen: show `texture` unrotated, unscaled and
-## centred where the sprite's middle is. The picture is even on both sides so
-## its pixels sit on the screen's.
-##
-## BLENDED keeps the picture last frame (a second viewport copies it each frame,
-## as `map_palette`'s hold does) for the hold. The picture's alpha carries how
-## long a pixel has been held, so whatever shows it snaps alpha at a half
-## (`local_subject.gdshader`'s `snap_alpha`).
+## A turning sprite is drawn into a picture of its own, never rotated on screen, so its pixels
+## sit on the screen's. BLENDED copies last frame's picture to hold; alpha carries hold time.
+## Why: docs/why/PixelTurn.md#turner
 class Turner extends RefCounted:
 	var vp: SubViewport
 	var copy: SubViewport
@@ -211,9 +155,7 @@ class Turner extends RefCounted:
 	var _was := Vector3.INF
 	var _f := 1.0
 
-	## Built under `parent` (any node in the tree that draws it: the viewport it is
-	## in renders after this one) for `tex` shown `k` screen pixels a texel, with
-	## `pad` px of room on every side for it to drift in (`turn`'s `shift`).
+	## Built under any node in the tree that draws it, as its viewport renders after this one.
 	func _init(parent: Node, tex: Texture2D, k: float, flipped: bool, pad: int = 0) -> void:
 		src = tex
 		scl = k
@@ -286,10 +228,8 @@ class Turner extends RefCounted:
 	func fits(tex: Texture2D, k: float, flipped: bool) -> bool:
 		return tex == src and is_equal_approx(k, scl) and flipped == flip
 
-	## The turn this frame, radians, clockwise as `Node2D.rotation`, and where the
-	## piece's middle is from the picture's (px, any fraction: its drift, worked
-	## out and held with the turn). STEPPED rounds the turn to a whole pixel at the
-	## picture's farthest point, and the drift to whole pixels.
+	## The turn this frame, with the drift worked out and
+	## held with it; STEPPED rounds both to whole pixels.
 	func turn(a: float, shift: Vector2 = Vector2.ZERO) -> void:
 		if PixelTurn.mode == PixelTurn.Mode.STEPPED:
 			var st := PixelTurn.step_of(0.5 * Vector2(src.get_size()).length() * scl)
@@ -327,10 +267,8 @@ class Turner extends RefCounted:
 
 
 # ---------------------------------------------------------------- what it costs
-## `turncost` on a harness's command line: every viewport the turning makes is
-## timed on the GPU, and the CPU time spent keeping them (`cpu_us`, added by the
-## callers), and every 120 frames the averages are printed:
-## "pixelturn cost: N viewports, gpu X ms/frame, cpu Y ms/frame".
+# `turncost` times every turning viewport on the GPU
+# and the CPU keeping them, printed every 120 frames.
 static var cost_on: bool = "turncost" in OS.get_cmdline_user_args()
 static var cpu_us := 0
 static var _vps: Array = []

@@ -1,30 +1,7 @@
 extends Node
 
-## THE GOAL LINE (`GoalLine`), on the real screens, headless:
-##   godot --headless --path . -- sheet=GoalTest
-##
-## Tutorial direction B (Jon, Oct 17): "GOAL: REACH THE CORE" always, and the
-## next step under it while one is pending, quiet and small, under the HUD,
-## never covering anything, and not looking pressable. Walked through a new
-## run as it is played: LOCAL at launch (open STARCHART, the tab outlined), the
-## chart (pick a star), the first jump (that step done), the sector map with
-## events (click one, then GO), LOCAL (open SECTOR), an event's band up (that
-## step done), a fight; and hidden over the cutaway and the escape menu.
-##
-## WHERE (Jon, Oct 20): just below the map's and the chart's top plate, at
-## their picture's top left; on LOCAL snug under the HUD at the same left
-## ("snug:B"); the step directly under it on all three.
-##
-## THE BOX TEST, on every screen it shows on: its rect is inside the picture
-## and clear of the HUD, the side bar, every piece of the toolbar row, LOCAL's
-## event band and the bar under it, the hand, your hull, every enemy's hull and
-## the words over and under it, and an event's subject. The list is gathered
-## here, apart from `GoalLine.avoid_rects`, so the line cannot pass by agreeing
-## with itself. Written against the node by its name, so it runs (and fails) on
-## a build without the line.
-##
-## The steps are tutorial, so they follow the hints (`Hints.enabled`): on here
-## by hand, in the harness settings file; GOAL shows either way.
+## The box test list is gathered here, apart from `GoalLine.avoid_rects`, to stay independent.
+## Why: docs/why/GoalTest.md#goal-test
 
 var _tree: SceneTree
 var _fails := 0
@@ -173,10 +150,7 @@ func _check(g: Control, where: String, step: String) -> void:
 	var r := Rect2(g.global_position, g.size)
 	var screen := g.get_viewport_rect()
 	_ok("%s: inside the picture (%s)" % [where, r], screen.encloses(r) and r.size.x > 10.0)
-	# ONE PLACE (Jon, Oct 18: "Can we have the goal: xxx always be in this
-	# location?"): the same rect on every screen it shows on
-	# (Jon, Oct 20, "snug:B": one place on the map and the chart, below their
-	# top plate; one on LOCAL, snug under the HUD; the same left on all three)
+	# One place on every screen it shows on (Jon, Oct 18 and 20): the same rect, below the plate.
 	var nav := Router.current is StarchartScreen or Router.current is SystemMapScreen
 	var key := "nav" if nav else "local"
 	if not _goal_rects.has(key):
@@ -235,9 +209,7 @@ func _check(g: Control, where: String, step: String) -> void:
 		r.position.y >= Router.hud.get_global_rect().end.y)
 
 
-## Everything the line must not cover, [name, global rect], gathered here.
-## Static, so `-- sheet=BadgeTest` holds the Custodian's badge to the same
-## independent list.
+## Static, so `-- sheet=BadgeTest` holds the badge to the same independent list.
 static func boxes(cur: Control) -> Array:
 	var out: Array = [["HUD", Router.hud.get_global_rect()]]
 	if cur.has_method("ladder_side"):

@@ -1,15 +1,9 @@
 class_name FaunaBrace
 extends BraceFx
 
-## BRACE ON A CREATURE (`FaunaGuard`), Jon's pick of three ("brace:A", Oct 13):
-## HARDENED HIDE. The hide sets hard -- every pixel of it taken onto a dark
-## glassy teal by its own brightness (the scales stay scales), a cold rim light
-## along its back and crests, a sheen crossing it every few seconds and single
-## scales glinting; its lights and eyes show through. Hardens in a wave from the
-## head; a hit flashes where it lands and flakes patches of the hard hide off,
-## in proportion to the brace left, nearest the hit first. (The other two,
-## tensed and crystal growth, were not picked and are gone.)
-## Same calls as the plates (`gain`, `absorb`, `shed_to`), same moments.
+## Hardened hide, Jon's pick of three (brace:A, Oct 13). The other two were not picked and
+## are gone.
+## Why: docs/why/FaunaBrace.md#creature-brace
 
 var body: FaunaGuard.Body
 var changes := 0

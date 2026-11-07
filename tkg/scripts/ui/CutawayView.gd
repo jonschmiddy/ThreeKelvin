@@ -1,76 +1,34 @@
 class_name CutawayView
 extends Control
 
-## THE CUTAWAY (Jon: "THE CUTAWAY IS CLEANNNN."; scratchpad `local_role/cutaway`
-## and notes section 4). On LOCAL, out of a fight, click your own ship: the
-## camera pushes in on it -- the scene itself, LOCAL's or the yard's, zoomed onto
-## your ship (Jon: "can we actually just zoom into the scene?"),
-## every fitted part lifts off its mount on a dotted leader line to a labelled
-## tag, empty mounts show as rings, and the LEFT PANEL slides in: the ship's
-## name (and a pencil to rename it), its hold, its numbers, perks, set bonuses
-## and any malfunctions, the R and F keys, and DONE. Point at a module anywhere -- the hold,
-## the hull, the popup -- and the MODULES page's own popup for it shows beside
-## it. SECTOR LOOT on LOCAL's bottom bar (left showing under the cutaway) opens
-## this system's own pile in a popup beside it. A wreck is not opened from in
-## here: a click on it is a click on the sky. Drag between the
-## hold, a popup and the rings on the hull. Close with a click on the ship or
-## the sky -- anywhere that is not the ship, its parts, tags and rings, the left
-## panel or a popup; with a popup open, that click shuts the popup first -- Esc
-## (a popup first), or DONE. A drag let go of anywhere else puts the part back
-## and shuts nothing.
-##
-## EVERY MOVE IS RUN'S RULE (`RunState.lift_part` / `fit_at_mount` / `stow_at`),
-## the same calls the refit screen makes, so the two cannot disagree; the loot is
-## claimed through `Run.take_item` / `take_from_jetsam`, the same calls the
-## map's SECTOR LOOT popup (`TransferView`) makes, so taking a thing in one shows
-## it gone in the other. Local only: nothing here is sent over the network
-## beyond what those calls already send.
-##
-## The hull is drawn here at the push-in's scale (2x wherever the lifted parts
-## and their tags fit round it right of the left panel, else 1x: a 960x540 game
-## has no clean 1.5x), and LOCAL's own hull is hidden while it is open, so the
-## backdrop the shader breaks up is the sky and everything in it but your ship.
+## Every move is Run's rule, the same calls as the refit screen, so the two cannot disagree.
+## Loot uses the same calls as `TransferView`, so taking in one shows it gone in the other.
+## Why: docs/why/CutawayView.md#cutaway
 
 signal closed
 
 const EASE_S := 0.4
-## THE ESCAPE MENU'S OWN BACKDROP (Jon: "the background should be pixelated and
-## blurred like what happens during the escape menu" -- "everything but the
-## modules and ship"): the shared shader, on a rect drawn before anything of
-## this view's, so it breaks up the zoomed scene behind and nothing in front.
+## The escape menu's shared backdrop, drawn before this view so only the scene behind breaks up.
 const BACKDROP := preload("res://shaders/pause_backdrop.gdshader")
 const PANEL_W := 250
 ## The gap kept round the room the exploded ship must fit in, right of the left panel.
 const MARGIN := 8.0
 
 var _src: ShipView
-## IN THE SHIPYARD (Jon: "Couldn't clicking on your ship while in the shipyard
-## do this?" and "it can be zoomed in on the holders"): the yard's stands under
-## your ship, each `{tex, at}` with `at` its top-left in hull pixels from the
-## hull's ink corner (the yard seats them on the hull's underside; this draws
-## them where it did, at the push-in's scale). Set before the first frame.
+## In the yard, the stands under your ship are drawn where the yard seats them (Jon).
 var stands: Array = []
 ## Whether LOCAL's own picture of the ship is hidden while this is open. The
 ## yard keeps its own (its stands and reflection are baked round it).
 var hide_src := true
-## THE SCENE ITSELF IS ZOOMED (Jon, in the yard: "can we actually just zoom into
-## the scene?", and then "LOCAL should zoom the real scene too"): the pictures
-## your ship is drawn in -- the yard; LOCAL's ships, dust and shots -- are
-## scaled with the push-in, 2x onto your ship in the same whole-pixel steps, and
-## carried so your ship in them lands where the parts are lifted from. Your ship
-## there IS the ship here: this view's own hull is not drawn, only the parts
-## lifted off it, their lines and tags. `sky` is LOCAL's sky, zoomed layer by
-## layer by its own depth (`LocalSky.set_zoom`). All put back on close.
+## The real scene is zoomed, not a copy (Jon): your ship there is the ship; restored on close.
+## Why: docs/why/CutawayView.md#cutaway
 var scenes: Array[Control] = []
 var sky: LocalSky = null
 var _scene_was: Array = []
 var _scene_q: Array[Vector2] = []
 var _sky_fixed := Vector2.ZERO
 var _src_mounts: Array[MountPoints] = []
-## WHAT THE LEFT PANEL TAKES THE PLACE OF (the station's elevator, Jon: "The side
-## bar also going over the elevator is weird"): slid out to the left and faded
-## in the first half of the push-in, the panel sliding into the space it left in
-## the second; the other way round on close. Never both on screen at once.
+## The left panel replaces the station elevator, sliding it out in the first half (Jon).
 var slide_out: Array[Control] = []
 var _slide_was: Array = []
 var _scrim: ColorRect
@@ -131,9 +89,7 @@ var _room := Rect2()
 var _layout_ok := true
 ## Whether every empty mount's words found a place (see `_layout`).
 var _words_ok := true
-## THE ROOM AS IT LANDS, in sprite px at scale `_real_k` (0 until the push-in's
-## target is set): the picture is centred on its bounds, not on the hull, so
-## the words set away from their rings are kept inside what is really on screen.
+## The room as it lands: the picture centres on its bounds, so words stay inside what shows.
 var _real_room := Rect2()
 var _real_k := 0
 ## The words set away from their rings, sprite px: outside the bounds the
@@ -143,9 +99,7 @@ var _far_bounds := Rect2()
 var _pic := Rect2()
 var _offs_cache := {}
 var _last_gp := Vector2.INF
-## For the harness's clips: the push-in's clock advances this much a frame
-## instead of the frame's real time, so a film at 30 a second shows the real
-## 0.4 s however slowly the window drew. 0 is the real clock.
+## For clips: a fixed step per frame so a 30 fps film shows the real 0.4 s.
 static var fixed_step := 0.0
 ## For the harness's study of the zoom (`sheet=CutawayShot yardstudy`): the
 ## blur held off, so a frame can be laid back over the unzoomed picture.
@@ -216,12 +170,8 @@ func _measure() -> void:
 	if not is_inside_tree():
 		return
 	await get_tree().process_frame
-	# THE SHIP KEEPS ITS IDLE BOB (Jon: "the ship and modules should still be
-	# hovering slightly"), in art pixels, so at 2x it steps two screen pixels at a
-	# time; the lifted parts, their lines, tags and rings ride the mounts, which
-	# follow it. Where the scene itself is zoomed, LOCAL's own ship IS the ship,
-	# so this one takes its step from it, frame for frame (`_process`), rather
-	# than keeping a clock of its own a frame apart. None under reduced motion.
+	# The ship keeps its idle bob (Jon); in a zoomed scene it copies LOCAL's ship frame for frame.
+	# Why: docs/why/CutawayView.md#cutaway
 	if _src != null and is_instance_valid(_src) and Router.animating() and _src._bob_amp > 0:
 		if scenes.is_empty():
 			_ship.bob(_src._bob_amp, _src._bob_hz)
@@ -258,10 +208,7 @@ func _measure() -> void:
 			_stand_layer.visible = false
 			for c: Control in slide_out:
 				_slide_was.append([c.position, c.modulate.a])
-			# THE SCENE'S OWN SHIP GOES, and this view's hull is drawn crisp in its
-			# place, over the blur, at its pixel and scale (its bob copied in
-			# `_process`, its engines' flame with it): one ship, never a blurred
-			# copy under a sharp one
+			# The scene's ship is hidden and this one drawn crisp: never a blurred copy under it.
 			_src.visible = false
 			_src_hidden = true
 			if _src._burning and not _ship._burning:
@@ -283,10 +230,7 @@ func _measure() -> void:
 	Audio.play(&"hold_lift", 0.05)
 
 
-## THE PUSH-IN'S SCALE, PER HULL: 2x if the exploded ship -- its hull, every
-## part lifted clear of it and every tag -- fits right of the left panel, at the
-## content area's full height; else 1x. (1.5x would double every other pixel on
-## a 960x540 picture.)
+## 2x if the exploded ship fits right of the left panel, else 1x: 1.5x doubles every other pixel.
 func _choose_scale() -> void:
 	var room := Rect2(_hold_w + MARGIN, MARGIN, size.x - _hold_w - MARGIN * 2.0, size.y - MARGIN * 2.0)
 	fit_note = ""
@@ -319,18 +263,8 @@ func _choose_scale() -> void:
 			return
 
 
-## THE EXPLODED LAYOUT, in sprite pixels at scale `kk`, inside `room` (screen
-## px, the hull centred in it). Each fitted part goes to the NEAREST place --
-## straight out first, sideways costing a little more -- where it and its tag
-## are inside the room, off the hull's own pixels and clear of every part, tag
-## and ring already placed; its tag beside it (toward the hull's middle first)
-## or above or below it, which is what lets parts stack in narrow columns off a
-## heavy's nose and tail. Then each empty mount's words: near its ring, or, where
-## there is no room near it, in the nearest clear space with a leader to it.
-## The boxes are the ones `MountPoints` draws (`tag_box`, `label_box`), so what
-## is kept apart here is what is on screen. Written into the mounts widget
-## (`lift`, `tag_side`); `_layout_ok` says whether everything found a place.
-## Returns the whole picture's bounds, in sprite px.
+## Each part goes to the nearest place where it and its tag fit clear; boxes match `MountPoints`.
+## Why: docs/why/CutawayView.md#exploded-layout
 func _layout(kk: int, room: Rect2) -> Rect2:
 	var img := _ship.canvas()
 	var h := Run.hull
@@ -455,16 +389,8 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 				break
 		if not near:
 			missed.append(e)
-	# AND WHERE THERE IS NO ROOM NEAR THE RING, THE NEAREST CLEAR SPACE, with a
-	# 1 px leader back to it (Jon: "There is no text for an empty utility, just
-	# empty systems and empty weapons."). The ring used to keep itself alone
-	# here, and "EMPTY UTILITY" -- the widest of the three words, on mounts set
-	# deep in the hull's middle -- never once found room within the near reach,
-	# so the utilities lost theirs on every hull and the heavies' inboard guns
-	# and systems with them. Still never on the plating, another word, a part, a
-	# tag or a ring, and the leader crosses none of them either. Kept out of the
-	# bounds the picture is centred on, so no word set out here moves the ship
-	# or anything on it; inside the room as it really lands.
+	# Empty-mount words take the nearest clear space with a leader; EMPTY UTILITY never fit.
+	# Why: docs/why/CutawayView.md#exploded-layout
 	_words_ok = true
 	_far_bounds = Rect2()
 	var real := _real_room if _real_k == kk else Rect2(bounds.get_center() - rs.size * 0.5, rs.size)
@@ -529,9 +455,7 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 	return bounds
 
 
-## Every offset from a mount inside a room this size, every 2 sprite px, nearest
-## first (sideways counts 1.3x, so straight out wins a tie). Sorted natively and
-## kept: the layout runs on every change to the ship.
+## Offsets sorted nearest first, sideways at 1.3x, and kept since layout runs on every change.
 func _offsets(room: Vector2) -> Array[Vector2]:
 	var key := "%d:%d" % [int(room.x), int(room.y)]
 	if _offs_cache.has(key):
@@ -762,9 +686,7 @@ func _build_panel() -> void:
 	_panel.add_child(_panel_box)
 
 
-## Whether the card shows: once the ship is out, while a module is pointed at
-## and nothing is carried (the rings say where a carried part goes, and the card
-## would cover some of them).
+## The card shows once the ship is out, while a module is pointed at and nothing is carried.
 func _panel_vis() -> void:
 	_panel.visible = _panel.modulate.a > 0.01 and _shown != null and not _carrying()
 
@@ -798,13 +720,8 @@ func _carrying() -> bool:
 	return typeof(d) == TYPE_DICTIONARY and (d as Dictionary).get("module") is HoldItem
 
 
-## THE CARD FOR WHAT IS POINTED AT: the MODULES page's own popup for it (Jon:
-## "Why don't we use the old module popup (the one that's on the module page)"),
-## built by the same function -- `ModuleIcon.tip_for` -- so the two cannot
-## drift; on the theme's tooltip plate, as Godot draws it there. Beside the
-## thing pointed at, right of the left panel, off any open popup, never on the
-## thing itself; placed once when what is pointed at changes, not every frame
-## (the hull bobs under it). Null hides it.
+## Built by `ModuleIcon.tip_for`, the MODULES page's popup (Jon), so the two cannot drift.
+## Why: docs/why/CutawayView.md#cutaway-card
 func _show(m: Variant, at: Rect2 = Rect2()) -> void:
 	var fresh: bool = typeof(m) != typeof(_shown) or m != _shown
 	if fresh:
@@ -813,10 +730,7 @@ func _show(m: Variant, at: Rect2 = Rect2()) -> void:
 		if m is ModuleData:
 			_panel_box.add_child(ModuleIcon.tip_for(m as ModuleData))
 		elif m is MaterialData or m is CreditChit:
-			# A MATERIAL'S OWN TOOLTIP, on the same plate (Jon, Oct 22: "sometimes
-			# the tooltips for non-module items ... don't show up"). They did
-			# everywhere else, and in here `_quiet` takes every icon's Godot
-			# tooltip away for this card, which only ever had a module's to show.
+			# A material's tooltip too (Jon, Oct 22): `_quiet` strips Godot's own.
 			_panel_box.add_child(MaterialIcon.tip_for(m as HoldItem))
 		elif typeof(m) == TYPE_STRING_NAME and m == &"dross":
 			_panel_box.add_child(_dross_tip())
@@ -830,15 +744,8 @@ func _show(m: Variant, at: Rect2 = Rect2()) -> void:
 
 # --------------------------------------------------------------- the left panel
 
-## THE LEFT PANEL, the cutaway's only one (Jon, in turn: "Maybe we can have the
-## hold in a panel to the left?", "The hold AND the stats can go in the left
-## panel maybe?", "maybe we don't need the bottom drawer?", "no right panel",
-## "the hold on top and the attributes on the bottom"): the ship's name, its
-## hold at the hold's own cell size -- every row of every hull's hold on screen
-## -- its numbers, then DONE. The cutaway's full
-## height (it ends above LOCAL's bottom bar, whose SECTOR LOOT opens this
-## system's own pile in a popup here); it slides in from the left with the
-## push-in.
+## The one left panel holds name, hold and numbers, from Jon's several iterations.
+## Why: docs/why/CutawayView.md#left-panel
 func _build_left() -> void:
 	_hold_panel = PanelContainer.new()
 	_hold_panel.add_theme_stylebox_override("panel",
@@ -850,10 +757,7 @@ func _build_left() -> void:
 	# to stand in the content area's height)
 	hc.add_theme_constant_override("separation", 1)
 	_hold_panel.add_child(hc)
-	# (Jon: "can we have the hold on top and the attributes on the bottom?")
-	# THE NAME AND ITS PENCIL, which opens the refit screen's own prompt; the
-	# name, the manufacturer and the hold's count set close together (the room
-	# goes to the gaps between the blocks below)
+	# Name and pencil open refit's prompt; name, maker and count sit close so gaps get room.
 	var head := VBoxContainer.new()
 	head.add_theme_constant_override("separation", 0)
 	hc.add_child(head)
@@ -874,10 +778,7 @@ func _build_left() -> void:
 	_hold = HoldGrid.new()
 	_hold.dropped.connect(_on_hold_drop)
 	hc.add_child(_hold)
-	# THREE BLOCKS WITH AIR BETWEEN (Jon: "increase the vertical space between
-	# the hold, the attributes, and the perks"): the hold; the attributes, the
-	# mounts and the cards; the perks and the malfunctions -- a rule across each
-	# gap, the gaps as tall as the panel has room for (`_fit_gaps`)
+	# Three blocks with air between them (Jon), gaps as tall as the panel has room for.
 	_gap_a = Rule.new()
 	hc.add_child(_gap_a)
 	_attrs = AttrBlock.new()
@@ -900,9 +801,7 @@ func _build_left() -> void:
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hc.add_child(sp)
-	# THE KEYS BESIDE DONE, on its row: a line of the panel given back to the
-	# gaps. (The toast takes the key hint's place while it shows, cut short
-	# rather than wrapped: one line, never two.)
+	# Keys beside DONE give a panel line back to the gaps; the toast cuts short, not wraps.
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 6)
 	hc.add_child(foot)
@@ -943,10 +842,7 @@ class Rule extends Control:
 		draw_rect(Rect2(0, y, size.x, 1), UITheme.LINE)
 
 
-## THE GAPS AS TALL AS THE PANEL ALLOWS: whatever height the panel has over
-## its contents, shared between the two gaps, up to `GAP_MAX` each (the light
-## and the medium); a heavy with malfunctions, the fullest panel, gets what is
-## left, which is never less than `GAP_MIN` (measured by `-- cutawaytest`).
+## Gaps share the spare height up to `GAP_MAX`; the fullest panel keeps at least `GAP_MIN`.
 const GAP_MAX := 14
 const GAP_MIN := 8
 
@@ -964,19 +860,8 @@ func _fit_gaps() -> void:
 
 # --------------------------------------------------------------- the popup
 
-## A CONTAINER, OPENED BESIDE WHAT OPENED IT: this system's own pile, from
-## SECTOR LOOT on LOCAL's bottom bar. (A wreck's bay was one too, for a round;
-## Jon: "Just keep the original popup" -- wrecks open LOCAL's two-grid screen,
-## from outside the cutaway.) Its title,
-## its grid (four across, three rows shown before it scrolls), TAKE ALL and a
-## close. Drag out of it to the hold or straight onto a ring; drag from the hold
-## into it to put a thing down. One at a time.
-##
-## A LIGHTER SHELL THAN `TransferView`, on purpose: that screen is a whole page
-## with its own copy of your hold beside the container, and here the hold is
-## already on screen. What it shares is everything that decides anything -- the
-## grid (`SalvageGrid`) and the calls (`take_item`, `take_from_jetsam`,
-## `put_in`) -- so the two cannot disagree about what is left in a wreck.
+## A lighter shell than `TransferView` on purpose, sharing its grid and calls so they agree.
+## Why: docs/why/CutawayView.md#cutaway-popup
 func open_popup(h: MapGen.Jetsam, beside: Rect2) -> void:
 	close_popup()
 	if h == null:
@@ -1055,10 +940,7 @@ func _fill_popup() -> void:
 	_popup.position = _beside(_pop_beside, _popup.size, _pic)
 
 
-## WHERE A FLOATING THING GOES beside `r` (this view's px): right of it, else
-## left, else under, else over -- the first that is inside the room right of the
-## left panel and clear of `avoid`; failing that a corner of the room clear of
-## `avoid`; failing that beside `r` whatever it covers -- and never on `r`.
+## Place beside the thing: right, left, under, over, then a corner, never on it.
 func _beside(r: Rect2, sz: Vector2, avoid: Rect2) -> Vector2:
 	var area := Rect2(_hold_w + MARGIN, MARGIN, size.x - _hold_w - MARGIN * 2.0, size.y - MARGIN * 2.0)
 	var cy := clampf(r.get_center().y - sz.y * 0.5, area.position.y, area.end.y - sz.y)
@@ -1139,9 +1021,7 @@ func _fill(g: SalvageGrid, h: MapGen.Jetsam) -> void:
 	_quiet(g)
 
 
-## NO GODOT TOOLTIP ON ANYTHING IN HERE: the card is the popup, and a hold
-## icon's own tooltip (the same popup, following the pointer) would be a second
-## one on top of it.
+## No Godot tooltips in here: the card is the popup, and a second would stack on it.
 func _quiet(g: Control) -> void:
 	for c in g.get_children():
 		if c is ItemIcon:
@@ -1353,10 +1233,7 @@ func _gui_input(e: InputEvent) -> void:
 		_sky_click(mb.global_position)
 
 
-## A click on the sky -- anywhere not the ship, its parts, the left panel or a
-## popup, the wreck behind included (Jon: "You shouldn't be able to open a wreck
-## when your ship is clicked on and in focus"; its bay is LOCAL's own two-grid
-## screen, from outside the cutaway): an open popup shuts, else the cutaway.
+## A sky click shuts a popup, else the cutaway; the wreck behind does not open (Jon).
 func _sky_click(_gp: Vector2) -> void:
 	if _popup != null:
 		close_popup()
@@ -1366,9 +1243,7 @@ func _sky_click(_gp: Vector2) -> void:
 
 # --------------------------------------------------------------- the hover outline
 
-## WHETHER A POINT (in `v`'s own coordinates) IS ON THE SHIP'S OWN PIXELS, give
-## or take two: what the pointer has to be over for the click to open the
-## cutaway, so the empty canvas round a hull is not a button.
+## Only the ship's own pixels, give or take two, take the click, not the empty canvas.
 static func on_hull(v: ShipView, p: Vector2) -> bool:
 	var img := v.canvas()
 	if img == null:
@@ -1385,18 +1260,8 @@ static func on_hull(v: ShipView, p: Vector2) -> bool:
 	return false
 
 
-## THE AMBER OUTLINE IN THE HULL'S OWN PIXELS, while the pointer is on your ship:
-## every clear pixel touching an opaque one, so the line hugs the silhouette and
-## nothing else on screen gets one. A child of the ship's view, so it rides its
-## bob.
-##
-## FOUND ON THE GPU, FROM THE SHIP'S OWN TEXTURE. It was traced here a pixel at
-## a time (`get_pixel` through a lambda, five per pixel of the canvas) every
-## time the bob stepped: 40 ms on the main thread, a stall about every quarter
-## second for as long as the pointer stayed on the ship -- the hitch Jon saw as
-## his ship came to rest under the pointer (Oct 13). The shader asks the same
-## question of the texture the hull is drawn from, so it follows every repaint
-## for nothing.
+## The outline runs on the GPU from the ship's texture; tracing in script stalled 40 ms (Oct 13).
+## Why: docs/why/CutawayView.md#hull-outline
 class Outline extends Control:
 	var view: ShipView
 	var _key := Vector4(-1, -1, -1, -1)

@@ -1,31 +1,12 @@
 class_name TransferScreen
 extends Control
 
-## Moving day. Two ships, and everything you own between them.
-##
-## THE ONE SCREEN THAT DRAWS TWO HULLS AT ONCE, and it exists because a hull
-## swap is the only moment in the game where you are choosing between objects
-## you already own rather than deciding whether to acquire one. The Yard asks
-## "do you want this ship"; this asks "which of your things come with you", and
-## those are different questions on different screens.
-##
-## THE PURCHASE IS ALREADY FINAL when you arrive. There is no way back to the
-## old frame -- it has been traded in, the credits have moved, and `Run.hull` is
-## the new one. What is drawn on the left is the loading dock: your old hold,
-## with whatever has not crossed yet still sitting in the cells it sat in.
-##
-## An earlier version of this was a STRIP under the hold on the refit screen.
-## It worked and it was wrong: a strip says "here is some overflow", and the
-## thing actually happening is that you are standing between two ships deciding
-## what your run is going to be made of. Two grids facing each other say that;
-## a caption under a widget does not.
+## The one screen drawing two hulls: a swap is when you choose between things you own.
+## The purchase is final on arrival; two facing grids say more than a strip under the hold.
+## Why: docs/why/TransferScreen.md#transfer-overview
 
-## FULL SIZE, and the room for it comes from the screen having nothing else on
-## it. The berth on the station rail draws at a half because it is a thumbnail
-## in a 150-wide column; here each ship has 450 of width and this is the last
-## time you will ever see the old one. A heavy is about 340 across at 1x, which
-## clears that with room, so the halving the rail needs would be shrinking these
-## for no reason but symmetry with a widget that is not on this page.
+## Drawn at full size: each ship has 450 px of width and a heavy is about 340 across at 1x.
+## Why: docs/why/TransferScreen.md#full-size-ships
 const SHIP_K := 1.0
 const SHIP_H := 132
 ## Rows of air round the taller ship in the two ship boxes.
@@ -51,12 +32,8 @@ var _lifted_mount: int = -1
 var _sell: Button
 
 func setup() -> void:
-	# ANCHORS **AND OFFSETS**. `set_anchors_preset` alone leaves the offsets
-	# where they were, so the screen anchored to all four sides of a parent it
-	# had no size inside of -- and every container under it collapsed to its
-	# own content, which put a whole page in the top third and gave the two
-	# hold grids no height at all to draw in. Every other screen in this game
-	# uses the `_and_offsets_` spelling; this one now does too.
+	# Anchors and offsets: the anchors-only preset collapsed every container under it.
+	# Why: docs/why/TransferScreen.md#full-rect-anchors
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var frame := MarginContainer.new()
@@ -71,11 +48,7 @@ func setup() -> void:
 	page.add_theme_constant_override("separation", 6)
 	frame.add_child(page)
 
-	# ONE LINE OF HEADING, so the holds have the room. It was two, the ship's name
-	# again in the heading's size over the panel that already says it, and a
-	# heavy's hold came up 44 px short and scrolled. Jon: "can we bring up the
-	# top panel a bit... or lift the text a bit so there is room for the whole
-	# hold? I don't like the scroll bar."
+	# One line of heading: two lines left a heavy's hold 44 px short and scrolling (Jon).
 	var heading := HBoxContainer.new()
 	heading.add_theme_constant_override("separation", 8)
 	heading.add_child(UITheme.body("MOVING ABOARD", UITheme.COLD, UITheme.FS_SMALL))
@@ -96,11 +69,7 @@ func setup() -> void:
 	pair.add_child(_column(Run.old_hull, "THE SHIP YOU ARE LEAVING" if Run.old_hull != null
 		else "LEFT ON THE PAD", _oldhead, _old, true))
 
-	# THE ARROW IS THE INSTRUCTION, and it was set in body text at the size of a
-	# caption -- eleven pixels of punctuation carrying the only statement on the
-	# page about which way things are meant to travel. A player who reads two
-	# grids as two unrelated holds will try to drag the wrong way first, and the
-	# arrow is the whole of what stops that, so it is drawn rather than typed.
+	# The arrow is the instruction, so it is drawn, not typed at caption size.
 	var mid := VBoxContainer.new()
 	mid.add_theme_constant_override("separation", 4)
 	mid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -109,19 +78,14 @@ func setup() -> void:
 ACROSS", UITheme.COLD, UITheme.FS_SMALL)
 	carry.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mid.add_child(carry)
-	# NO KEY HINT UNDER IT. R still turns and F still flips what you carry, as on
-	# the refit screen, but the arrow says only what to do. Jon: "you can remove
-	# R turns F flips from the text in the middle. Just carry across is fine."
+	# No key hint under it: the arrow says only what to do (Jon).
 	pair.add_child(mid)
 
 	_newhead = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_new = HoldGrid.new()
 	_new.dropped.connect(_on_drop)
 	pair.add_child(_column(Run.hull, "YOUR NEW SHIP", _newhead, _new, false))
-	# BOTH SHIP BOXES ONE HEIGHT, the taller ship's and a little air. They were
-	# a fixed 132, or a heavy's whole 140-row picture, most of it empty above
-	# and below the ship: room the holds need. And one height for both is what
-	# keeps the two holds starting on one line, to be read across.
+	# Both ship boxes one height, the taller ship's, so the two holds start on one line.
 	var tall := 0.0
 	for pv: Array in _portraits:
 		var drawn: Rect2i = pv[2]
@@ -145,14 +109,9 @@ ACROSS", UITheme.COLD, UITheme.FS_SMALL)
 	_money.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	acts.add_child(_money)
 
-	# TAKE IT ALL IS ONE CLICK, and it is the button most swaps will use. Moving
-	# into a bigger frame strands nothing and moving into an equal one strands
-	# little, so the common case must not cost twelve drags to say yes to.
-	# THE HATCH, because the status line was already naming it as the only way
-	# out of something and this screen did not have one. `Market.bid` answers 0
-	# for contraband where contraband does not trade, and CAST OFF is refused
-	# while anything is still on the old ship -- so without a bin, one crate of
-	# grey coolant at the wrong station was a hard stop with no move available.
+	# TAKE IT ALL is one click: most swaps strand little, so yes must not cost twelve drags.
+	# The hatch: contraband can be unsellable and CAST OFF is refused while cargo remains.
+	# Why: docs/why/TransferScreen.md#take-all-and-jettison
 	var bin := JettisonBin.new()
 	bin.dumped.connect(func(_m: HoldItem) -> void: _refresh())
 	bin.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -163,12 +122,8 @@ ACROSS", UITheme.COLD, UITheme.FS_SMALL)
 	# two holds are the whole of it there.
 	_sell.visible = Router.docked
 	acts.add_child(_sell)
-	# THE WAY OUT, and it is the reason the old frame is still drawn rather than
-	# described. A purchase you cannot reverse has to be judged from the Yard,
-	# which means judging a ship by its gauges; a purchase you can reverse can be
-	# judged from HERE, with both hulls in front of you and your own guns on one
-	# of them. The second is a better place to make the decision, so the button
-	# that makes it possible earns its width.
+	# The way out is why the old frame is drawn: a reversible buy is judged with both hulls.
+	# Why: docs/why/TransferScreen.md#back-out
 	_back = Widgets.button("BACK OUT", _back_out)
 	acts.add_child(_back)
 	_done = Widgets.button("CAST OFF", _cast_off)
@@ -178,20 +133,13 @@ ACROSS", UITheme.COLD, UITheme.FS_SMALL)
 	_refresh()
 
 
-## One ship: what it is, a portrait WITH ITS KIT ON IT, and its hold under it.
-##
-## `foreign` picks which ship the hardpoints belong to. The left-hand hull is
-## not `Run.hull` any more -- the purchase already happened -- so its mounts
-## come from `MountPoints.ship`/`fitted` and refuse every drop; the right-hand
-## one IS `Run.hull`, so it is the ordinary live widget the refit screen uses
-## and a gun dropped on it bolts straight on.
+## `foreign` picks whose hardpoints: the left hull is no longer `Run.hull`, so it refuses drops.
+## Why: docs/why/TransferScreen.md#ship-column
 func _column(h: HullData, title: String, head: Label, grid: Control,
 		foreign: bool) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 3)
-	# BOTH HALVES TAKE THE SLACK. Without this the column is as tall as its own
-	# content, the ScrollContainer under it gets nothing, and the grid -- which
-	# is the entire point of the screen -- draws in zero pixels.
+	# Both halves take the slack, or the grid draws in zero pixels.
 	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
@@ -202,10 +150,7 @@ func _column(h: HullData, title: String, head: Label, grid: Control,
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cap.add_child(gap)
-	# THE MOUNT COUNT, because this screen is now a place where hardpoints get
-	# filled and "3 of 4" is the number you are working against. Live on the
-	# right-hand side -- it goes up as you bolt things on -- and a plain total
-	# on the left, which only ever goes down.
+	# The mount count is the number being worked against: live on the right, total on the left.
 	if foreign:
 		_oldmounts = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 		cap.add_child(_oldmounts)
@@ -225,47 +170,28 @@ func _column(h: HullData, title: String, head: Label, grid: Control,
 	col.add_child(_portrait(h, foreign))
 	col.add_child(UITheme.hsep())
 	col.add_child(head)
-	# THE GRID SCROLLS RATHER THAN THE PAGE. A heavy hold is five rows of 40 --
-	# more than the room under a full-size hull in a 540-tall window. Scrolling
-	# the page instead would move the ships off screen, and the ships are the
-	# point.
+	# The grid scrolls, not the page: a heavy hold is five rows of 40, and ships must stay.
 	var box := ScrollContainer.new()
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(grid)
 	col.add_child(box)
 
-	# A PLATE UNDER EACH SHIP, so the page reads as two objects with a gap
-	# between them rather than as one field with things scattered on it. It is
-	# the same treatment the Yard gives its two hulls, and this is the same
-	# comparison one step later.
+	# A plate under each ship, so the page reads as two objects, as the Yard does.
 	var wrap := Widgets.panel_with(Widgets.pad(col, 10, 8))
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	return wrap
 
 
-## The two grids sit at the same height whatever is in them.
-##
-## THE HOLDS ARE DIFFERENT SHAPES -- a light is 4x3 and a heavy 6x5 -- so left
-## and right are rarely the same number of rows, and a container that centred
-## each in its own column would put the two lattices at two different heights.
-## They are meant to be read across, so they are both pinned to the TOP of the
-## space under the portraits and the slack falls below them.
+## Holds differ in shape, so both are pinned to the top and the slack falls below, to read across.
+## Why: docs/why/TransferScreen.md#grid-alignment
 
 
 func _portrait(h: HullData, foreign: bool) -> Control:
-	# A CENTRE CONTAINER AROUND A STACK THE SHIP'S EXACT SIZE.
-	#
-	# The first version positioned the hull by hand against `COL_W` and laid the
-	# mounts over it at the same offset. Both were wrong the moment the column
-	# was allowed to EXPAND: the real width is about 440, so the arithmetic
-	# centred the ship in a 300-wide box that was not there -- and the mounts
-	# layer, which anchors to its PARENT, ended up over a rectangle the hull was
-	# no longer inside. The rings drew, at coordinates nothing was at.
-	#
-	# Letting a container do the centring and giving the mounts a parent that is
-	# exactly the canvas removes both sums and the class of bug they were in.
+	# A centre container around a stack of the ship's exact size: hand offsets broke on expand.
+	# The mounts layer anchors to its parent, so that parent must be exactly the canvas.
+	# Why: docs/why/TransferScreen.md#portrait-centring
 	var holder := CenterContainer.new()
 	holder.custom_minimum_size = Vector2(0, SHIP_H)
 	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -277,29 +203,16 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.self_clip = false
 	if foreign:
-		# THE OLD SHIP, STILL WEARING ITS GUNS. `Run.installed` is empty by now,
-		# so the parts come from the pad -- which is where they went, and where
-		# they still remember their hardpoints.
+		# The old ship keeps its guns: `Run.installed` is empty, so parts come from the pad.
 		v.setup_build(ShipBuild.fitted_out(h, Run.pad))
 	else:
 		v.setup_preview(h, 0, 1)
 		# The ship you fly hums; the old frame on the dock is already traded in.
 		v.hums = true
 
-	# THE MOUNTS ARE A CHILD OF THE VIEW, not a sibling in a stack beside it.
-	# `attach` anchors them to their PARENT, so parenting them to the ship makes
-	# every coordinate they draw the ship's own -- which is what makes
-	# `ShipView.canvas_to_local` the single place the bob, the magnification and
-	# the centring are reasoned about. The refit screen has always done it this
-	# way; a stack was a second set of numbers to keep in step, and it was
-	# already out of step with the column's real width.
-	# THE PICTURE CLAIMS THE SHIP, NOT ITS CANVAS. A heavy's canvas is 392 wide
-	# and the ship is 296 of it, and the panel took the whole canvas as its
-	# width, so two heavies ran the dock off the screen and CAST OFF with it.
-	# Jon: "can't we just make the panels skinnier? There is a lot of dead
-	# space on the left and right of the ships." The view claims the ship's
-	# width and a little air (an even amount less than the canvas, so the
-	# canvas, drawn whole and centred over it, stays on whole pixels).
+	# Mounts are a child of the view, so every coordinate is the ship's own, as when refitting.
+	# The picture claims the ship, not its canvas: two heavies ran the dock off screen (Jon).
+	# Why: docs/why/TransferScreen.md#portrait-mounts
 	var ink := v.ink_rect()
 	var cw := float(v._w * v._k)
 	var claim := float(ink.size.x * v._k) + 8.0
@@ -308,16 +221,9 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 	v.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	v.custom_minimum_size = Vector2(minf(cw, claim), float(v._h * v._k))
 	holder.add_child(v)
-	# CENTRED ON THE SHIP, NOT ON ITS PICTURE. The holder centres the canvas, and
-	# a hull is in the middle of its canvas neither way: across, the picture is
-	# wider than the ship on one side; down, masts and spires stretch it up, so
-	# the body sat low -- 5 px on a medium, 18 on a heavy. Jon: "can the ships be
-	# centered vertically in their respective boxes?", then "The heavy is not
-	# centered in the box. It's off to the right." Across, the middle is the
-	# ship's own extent, nose to tail; down, the middle of its MASS, where a
-	# mast weighs what its few pixels weigh. Measured once here so a part bolted
-	# on later does not make the hull jump. Each time the holder places the view
-	# it moves by that much, but never so far that the ship leaves its box.
+	# Centred on the ship, not its picture: across by extent, down by mass (Jon).
+	# Measured once, so a part bolted on later does not make the hull jump.
+	# Why: docs/why/TransferScreen.md#portrait-centring
 	var mid := _mass_middle(v._img) - float(v._bob_off)
 	var across := v.ship_offset_x()
 	_portraits.append([holder, v, ink])
@@ -339,10 +245,7 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 		pts.fitted = Run.pad
 	else:
 		pts.dropped.connect(_on_mount_drop)
-		# OFF THE HULL, INTO THE HAND. Without this pair the part stayed in
-		# `Run.installed` for the whole drag -- so unbolting something on the new
-		# ship did nothing at all: the mount still read as full, and the hold
-		# refused a part it could see was already fitted.
+		# Without lift and drop, the part stayed in `Run.installed` and unbolting did nothing.
 		pts.lifted.connect(_on_lift)
 		pts.released.connect(_on_release)
 	v.add_child(pts)
@@ -355,9 +258,7 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 	return holder
 
 
-## The row a ship's weight centres on: the mean row of its opaque pixels. A
-## mast or an aerial is a few pixels and moves it a few; the hull is most of
-## them.
+## The mean row of opaque pixels: a mast moves it a few pixels, the hull most of them.
 static func _mass_middle(img: Image) -> float:
 	if img == null:
 		return 0.0
@@ -374,12 +275,8 @@ static func _mass_middle(img: Image) -> float:
 	return total / float(n) if n > 0 else float(img.get_height()) * 0.5
 
 
-## The arrow, drawn rather than typed.
-##
-## `Control` with a `_draw`, because the biggest thing the font can do is a
-## 16px glyph and this wants to read from across the screen. Two triangles and
-## a shaft in EMBER, the ink this game uses for the thing you are meant to act
-## on.
+## Drawn, not typed: the font tops out at a 16px glyph and this must read across the screen.
+## Why: docs/why/TransferScreen.md#arrow
 func _arrow() -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(58, 46)
@@ -399,10 +296,7 @@ func _arrow() -> Control:
 func _refresh() -> void:
 	_old.refresh()
 	_new.refresh()
-	# THE OLD SHIP'S PICTURE IS DERIVED, so it has to be rebuilt rather than
-	# left alone: a gun that just crossed is no longer in `Run.pad`, and the
-	# hull it came off must stop drawing it in the same frame the new hull
-	# starts to.
+	# The old ship's picture is derived, so rebuild it the frame a gun crosses.
 	if _oldpts != null:
 		_oldpts.fitted = Run.pad
 		if _oldview != null:
@@ -411,9 +305,7 @@ func _refresh() -> void:
 	if _newpts != null:
 		_newpts.refresh()
 	var left := Run.pad.size()
-	# BOLTED ON AND STOWED ARE COUNTED APART, because the grid underneath only
-	# shows the second kind. A heading reading 16 over twelve visible plates is
-	# a heading a player will spend a moment doubting.
+	# Bolted on and stowed are counted apart, as the grid shows only the stowed ones.
 	var fitted := _mounted_on_pad()
 	if left == 0:
 		_oldhead.text = "STRIPPED. NOTHING LEFT ABOARD."
@@ -432,10 +324,7 @@ func _refresh() -> void:
 			+ Run.slots_for(ModuleData.Slot.SYSTEM)
 			+ Run.slots_for(ModuleData.Slot.UTILITY)]
 
-	# WHAT THE REST IS WORTH, and whether anyone here will pay it. `Market.bid`
-	# answers 0 for contraband where contraband does not trade, so the total is
-	# not simply "everything left" -- and a SELL that silently skipped the one
-	# thing you were counting on would be worse than one that says so.
+	# `Market.bid` is 0 for contraband where it does not trade, so say what a SELL will skip.
 	var n: MapGen.MapNode = Run.node_at()
 	var worth := 0
 	var refused := 0
@@ -491,10 +380,7 @@ func _on_drop(payload: Dictionary, at: Vector2i) -> void:
 	if from_pad:
 		Run.pad.erase(m)
 	elif Run.installed.has(m):
-		# UNBOLTED ON THE WAY INTO THE HOLD. `_on_lift` has usually already done
-		# this, but a drop can arrive without one -- and a part left in
-		# `installed` while `place_in_hold` appends it to `cargo` is a part in
-		# two places, fitted and stowed at once.
+		# Unbolted on the way in: a drop can arrive without a lift, so no part is in two places.
 		Run.installed.erase(m)
 		var mod := m as ModuleData
 		if mod != null:
@@ -502,9 +388,7 @@ func _on_drop(payload: Dictionary, at: Vector2i) -> void:
 	elif Run.cargo.has(m):
 		Run.take_from_hold(m)
 	if not Run.place_in_hold(m, at):
-		# A REFUSED DROP COSTS NOTHING, and for something off the old ship that
-		# means it is still on the old ship -- in the cell it was drawn in, not
-		# merely back in the list.
+		# A refused drop costs nothing: an old-ship part stays in the cell it was drawn in.
 		if from_pad:
 			m.hold_at = was
 			Run.pad.append(m)
@@ -513,27 +397,14 @@ func _on_drop(payload: Dictionary, at: Vector2i) -> void:
 	_refresh()
 
 
-## R TURNS WHAT YOU ARE CARRYING, and what you are pointing at in the new hold.
-##
-## The same key the refit screen uses, because it is the same gesture on the
-## same widget: a `HoldGrid` you are packing. It was missing here, which made
-## this the one screen in the game where a 3x1 spine could not be stood on end
-## to fit a gap -- on the screen whose entire subject is fitting things into a
-## smaller hold than they came out of.
-##
-## THE OLD SHIP'S GRID IS NOT TURNABLE, and that is not an omission. Nothing on
-## it is being packed: it is a source you are emptying, its cells are the ones
-## the parts were already in, and rearranging a hold you are walking away from
-## is work with no outcome.
+## R turns what you carry, as on the refit screen: a 3x1 spine must stand on end to fit.
+## The old grid is not turnable: it is a source you empty, and repacking it has no outcome.
+## Why: docs/why/TransferScreen.md#turn-and-flip-keys
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
-	# TWO VERBS, TWO PLACES, and neither reaches into the other's. R turns a part
-	# in the HOLD, which is a packing move; F mirrors one on the HULL, which is
-	# about which way the gun points. The refit screen splits them exactly this
-	# way and a player who learns it there should not have to learn it twice.
-	# Both are bindings (`Keys`), F and R out of the box.
+	# R turns in the hold, F mirrors on the hull, as on the refit screen: learn it once.
 	if k.is_action_pressed(&"part_flip"):
 		if _flip_pointed():
 			get_viewport().set_input_as_handled()
@@ -544,12 +415,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Mirror whatever is bolted to the NEW ship under the pointer.
-##
-## THE NEW SHIP ONLY. The old hull is a frame you are stripping -- which way its
-## guns face is a fact about a ship that is about to stop being yours, and a key
-## that silently did nothing on one half of the screen would be worse than one
-## that does nothing at all.
+## New ship only: a key silently doing nothing on half the screen is worse than doing nothing.
+## Why: docs/why/TransferScreen.md#turn-and-flip-keys
 func _flip_pointed() -> bool:
 	if _newpts == null:
 		return false
@@ -583,11 +450,7 @@ func _turn_carried() -> bool:
 	return true
 
 
-## Turn a part already stowed on the NEW ship, in place if it still fits.
-##
-## A take-out-and-put-back, so it has to fail cleanly: a 3x1 in a hold with no
-## three-tall gap has nowhere to go turned, and the part must end up exactly
-## where it started rather than in the first hole a repack could find.
+## A take-out-and-put-back that must fail cleanly: the part ends up exactly where it started.
 func _turn_in_new_hold() -> bool:
 	if _new == null:
 		return false
@@ -613,9 +476,7 @@ func _turn_in_new_hold() -> bool:
 	return true
 
 
-## Off the new ship, into the hand. The same pair the refit screen keeps, and
-## for the same reason: a mount that still reads as full while the thing filling
-## it is being carried is a mount you cannot drag out of.
+## Off the new ship into the hand, as on refit: a mount reading full cannot be dragged out.
 func _on_lift(m: ModuleData) -> void:
 	if m == null or not Run.installed.has(m):
 		return
@@ -639,24 +500,15 @@ func _on_release() -> void:
 	_refresh()
 
 
-## A part dropped on a hardpoint of the NEW ship.
-##
-## THREE JOURNEYS END HERE and they are not the same. Off the old hull is the
-## one this screen exists for: a gun going mount to mount, which never needs to
-## be put down and so never asks whether the hold has room. Out of the new hold
-## is an ordinary fitting. And a part already bolted to the new ship is being
-## moved one hardpoint along, which is the case that looks like the others and
-## must not go through `install`, because that would take it off and put it
-## back and lose the arrangement.
+## Three journeys end here; a part moved one hardpoint along must not go through `install`.
+## Why: docs/why/TransferScreen.md#mount-drops
 func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> void:
 	var m := Widgets.dragged_module(payload)
 	if m == null or m.slot != slot:
 		return
 	if Run.pad.has(m):
 		if not Run.pad_to_mount(m, slot, index):
-			# REFUSED IS NOT LOST. `pad_to_mount` changes nothing when it says
-			# no -- a taken hardpoint, or a reactor that cannot power the part
-			# -- so the gun is still on the old ship and still drawn there.
+			# Refused is not lost: `pad_to_mount` changes nothing on a no, so the gun stays drawn.
 			_refresh()
 			return
 	elif Run.installed.has(m):
@@ -674,10 +526,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 
 ## Everything that fits, in one click: onto the mounts, then into the hold.
 func _take_all() -> void:
-	# HARDPOINTS FIRST, HOLD SECOND. A gun bolted on is a gun doing its job and
-	# costs no cells; the same gun stowed is four cells of hold spent on
-	# something that is not working. Filling the mounts before packing therefore
-	# strands strictly less, and it is also what a person would do.
+	# Hardpoints first: a bolted gun costs no cells, a stowed one costs four, so this strands less.
 	var guns := Run.pad.duplicate()
 	guns.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
 		return a.cells() > b.cells())
@@ -689,9 +538,7 @@ func _take_all() -> void:
 			if Run.pad_to_mount(mod, mod.slot, i):
 				break
 
-	# BIGGEST FIRST is not a nicety: a 4x1 spine packed after a dozen 1x1
-	# fittings have speckled the grid has nowhere to go, so a naive pass in
-	# carry order strands exactly the parts you most wanted and calls it full.
+	# Biggest first: a 4x1 spine packed after 1x1s have speckled the grid has nowhere to go.
 	var queue := Run.pad.duplicate()
 	queue.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
 		return a.cells() > b.cells())
@@ -730,8 +577,6 @@ func _back_out() -> void:
 func _cast_off() -> void:
 	if not Run.pad.is_empty():
 		return
-	# THE DOCK IS RELEASED HERE, not when the pad empties. `old_hull` is what
-	# this screen draws its left half from, so clearing it the moment the last
-	# crate crossed would blank the page you are still standing on.
+	# Released here, not when the pad empties: `old_hull` draws the left half.
 	Run.old_hull = null
 	Router.leave_transfer()

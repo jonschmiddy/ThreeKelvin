@@ -1,47 +1,8 @@
 extends Node
 
-## THE CORE'S BOSS, BEATEN, THROUGH THE REAL DOORS:
-##   godot --headless --path . -- sheet=CoreWinTest
-##
-## Jon, Oct 12: "when defeating the final boss at the core, let's have the body
-## of the boss lootable, but let it end the alpha with a winning game popup.
-## same music as the death screen."
-##
-## A run with things in its hold flies to the core, presses ENGAGE
-## (`Router.engage_here`), and plays the custodian to a kill: its hull is cut to
-## one and its block to none first, so the fight is short, and the cards are
-## played through `Combat.play` as the hand plays them. Then, from the screen
-## the router leaves:
-##   - the custodian's body lying on LOCAL, NOT opened by itself (Jon: "I would
-##     want to have to click the dead custodian"): SALVAGE THE CUSTODIAN said,
-##     every door shut; clicking it (the wreck's own click) opens the popup with
-##     the boss's own loot in it, and the win screen is NOT up yet;
-##   - the run already in the record as a win, and the one save a won run may
-##     have written: the core with the body on it (`core_won`). Quit there and
-##     CONTINUE comes back to the body, still to click, recorded once;
-##   - Tab doing nothing while the body is open, a part taken into the hold;
-##   - DONE bringing up the win screen: YOU WON, Jon's note whole and unscrolled
-##     at the game's size, the stats, TITLE, and the death screen's music
-##     (`Audio.music_asked` &"gameover", which plays `Audio.DEATH_CUE`);
-##   - a second kill closed with Escape, and a third left by a door that should
-##     not be there (`Router.show_system`), both ending on the win screen;
-##   - an ordinary fight won, which leaves you on LOCAL by its wreck with no
-##     win screen, no loot step and no win in the record;
-##   - and the death screen asking for the same music the win does.
-##
-## THE CUSTODIAN GROWS WITH THE RUN (Jon, Nov 3, rule G3 with cap B): 200
-## through jump 15, then x1.04 a jump, capped at 400 from jump 33. Checked first
-## (`_custodian_growth`): the template's `hull_at`, the hull a fight fields
-## through `Combat.plan` at each count, the template left at 200 across fights,
-## only the Custodian growing, and a co-op joiner adding 0.6 of the grown hull.
-## ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4): in co-op it grows on the lead
-## ship's jumps (`Run.custodian_jumps()`), so a ship at jump 5 behind a lead at
-## 33 fields 400, and a fight opened at 20 grows to 33 mid-fight with its damage
-## kept and the log saying so (`_custodian_party`), a count asleep or past the
-## cap rising with no hull moving and nothing said, a ship joining a fight
-## already grown past its count saying nothing; and `Router.start_combat` on a
-## host in a dive opens the party's fight at that count (`_party_router_fight`).
-## Every core run below flies in at jump 41, so ENGAGE must open at 400.
+## Jon, Oct 12: the boss body is lootable and ends the alpha with a win popup, death music.
+## The custodian grows with the run (Nov 3) and is one galaxy-wide in co-op (Nov 4).
+## Why: docs/why/CoreWinTest.md#core-win
 
 var _tree: SceneTree
 var _fails := 0
@@ -110,9 +71,7 @@ func _run() -> void:
 	_ok("the popup is the custodian's body",
 		body != null and body.art == &"custodian" and body == Router.core_body_here())
 	_check_loot(body)
-	# EVERY PART CAN BE SEEN. The popup sized the far grid by the number of
-	# things in it, so the body's big parts pushed the rest below a view with
-	# no scrollbar (seen in the first still).
+	# Every part can be seen: the popup sized the grid by count and pushed parts below the view.
 	if tv != null and tv._loose_scroll != null:
 		var rows := tv._loose.content_rows()
 		var shown := int(tv._loose_scroll.custom_minimum_size.y / HoldGrid.CELL)
@@ -281,9 +240,8 @@ func _custodian_growth() -> void:
 	Run.jumps = 0
 
 
-## THE LEAD SHIP'S JUMPS (Jon, Nov 4: "The custodian strength and icon should be
-## the same for everyone in the galaxy, even if they join late."), without a
-## wire: the count a fight is built at, and the growth the host makes mid-fight.
+## Jon, Nov 4: strength and icon are the same for everyone, even late joiners, with no wire.
+## Why: docs/why/CoreWinTest.md#custodian-growth
 func _custodian_party() -> void:
 	var cust: EnemyTemplate = DB.enemies[&"custodian"]
 	Rng.forced = 31337
@@ -316,10 +274,7 @@ func _custodian_party() -> void:
 	lancer.plan(DB.enemies[&"lancer"], 1)
 	_ok("solo: fights at 60, 60 and 0 still field 400, 400, 200 (%s), and a lancer's says no count (%d)"
 		% [str(seq), lancer.grown], seq == [400, 400, 200] and lancer.grown == -1)
-	# MID-FIGHT (decision 2): opened at 20 with a joiner and hurt, the lead
-	# ship reaches 33; the host grows it (`NetSession._regrow`) and this
-	# machine adopts it (`Combat._adopt`): the hull bar rises, the damage done
-	# stays done, and the log says "The Custodian grows stronger."
+	# Mid-fight: the host grows it, this machine adopts it, damage stays done, and the log says so.
 	Run.jumps = 20
 	var me := Combat.new()
 	me.plan(cust, 1)
@@ -346,9 +301,7 @@ func _custodian_party() -> void:
 	me._adopt(sf)
 	_ok("and not again for the same count", said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.").size() == 1)
 	me.release()
-	# ASLEEP AND CAPPED: a count that rises before the wake (7 to 8) or past
-	# the cap (33 to 40) grows no hull, and the log says nothing; the wake
-	# itself (8 to 16) does say it
+	# Asleep and capped counts grow no hull and say nothing. The wake itself says it.
 	for row: Array in [[7, 8, false], [8, 16, true], [33, 40, false]]:
 		said.clear()
 		Run.jumps = int(row[0])
@@ -366,10 +319,7 @@ func _custodian_party() -> void:
 			told == bool(row[2]) and grew == bool(row[2]) and c3.grown == int(row[1])
 			and (not told or said.has("The Custodian grows stronger.")))
 		c3.release()
-	# JOINING A FIGHT ALREADY GROWN past this machine's count (its push not
-	# landed yet, its plan at 17; the host raised the fight to 20 before it
-	# got here): adopted on attaching, so nothing is said, as nothing grew in
-	# front of it
+	# Joining an already grown fight: adopted on attaching, so nothing is said.
 	said.clear()
 	Run.jumps = 17
 	var late := Combat.new()
@@ -592,12 +542,8 @@ func _ordinary_fight() -> void:
 	_ok("(ordinary) the music is not the death cue", Audio.music_asked != &"gameover")
 
 
-## THE FIGHT CARRIES ITS COUNT TO THE HOST (PROTOCOL 16), through the real
-## door: `Router.start_combat` on a host in a dive with a partner on its
-## roster hands `Combat.grown` to `Net.open_fight`, and the party's fight is
-## grown at the lead ship's count. The partner is a roster row only (nobody on
-## the wire), as NetTest's stale guest is; the fight's push goes to nobody.
-## And the tooltip's party words follow the dive's galaxy (`CustodianBadge.party`).
+## `Router.start_combat` on a host hands `Combat.grown` to `Net.open_fight` (PROTOCOL 16).
+## Why: docs/why/CoreWinTest.md#party-fight-count
 func _party_router_fight() -> void:
 	Rng.forced = 777
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

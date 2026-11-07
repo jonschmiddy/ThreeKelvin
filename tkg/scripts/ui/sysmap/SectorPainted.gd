@@ -1,26 +1,8 @@
 extends RefCounted
 
-## THE SECTOR MAP IN THE PAINTED STYLE: direction B of the Oct 5 showcase
-## (scratchpad `showcase/B/sector/`, "a pixel artist's hand"), drawn by
-## `SystemView` when the rendering style is PAINTED. Every pixel looks placed on
-## purpose: cel bands on curated hue-shifted ramps, 1-block checker transitions
-## between bands, outlines on the shadow side of big shapes and a rim of light
-## on their lit side, sparkle sprites, a band memory so band edges never
-## flicker -- and the life the other styles have, drawn as HAND ANIMATION:
-## held poses that step, slow, never a one-frame flash.
-##
-## The far picture (the sky, the cloud round the system, the dust sheets, the
-## far weather) is SIMPLIFIED's, drawn into its own viewport, so the cloud is
-## the same cloud lit by the same sun, and every event of the weather lands
-## where SIMPLIFIED's does. Then it is painted: the band memory
-## (`sector_b_state`) gives every block one entry of the scene's curated palette
-## (bible 4.2: never cut), and the paint pass (`sector_b_paint`) finishes it as
-## an artist would. Everything nearer -- the sun, the worlds and their rings and
-## shadows, the belts, the hole, the pulsar -- paints itself in its own painted
-## mode, on the same tokens.
-##
-## Three viewports, nested so each is drawn before the one that reads it: the
-## place picture > the band memory > the far picture.
+## Direction B of the Oct 5 showcase: the far picture is SIMPLIFIED's, finished by the band memory
+## and paint pass. Three viewports are nested so each is drawn before the one that reads it.
+## Why: docs/why/SectorPainted.md#painted-style
 
 const STATE_SH := preload("res://shaders/sector_b_state.gdshader")
 const PAINT_SH := preload("res://shaders/sector_b_paint.gdshader")
@@ -92,9 +74,8 @@ static func scene_ramps(v) -> Array:
 	var out: Array = [["SKY", SKY, SOFT if key == &"calm" else SOFT | DARKF]]
 	for i in STARS.size():
 		out.append(["ST%d" % i, STARS[i], SPARK])
-	# the distant galaxies (`SkyGalaxies`): their arm blues and the bulge's creams,
-	# in a clear sky only (in a cloud they are hidden, and their steps caught the
-	# cloud: a pulsar's violet shell set in galaxy blues)
+	# Galaxy blues and creams in a clear sky only: in a cloud
+	# their steps set a pulsar's violet shell in galaxy blues.
 	if key == &"calm":
 		out.append(["GXA", [ARM[1], ARM[2], ARM[3], ARM[4]], SOFT])
 		out.append(["GXB", [BULGE[1], BULGE[2], BULGE[3], BULGE[4], BULGE[5]], SOFT])
@@ -155,9 +136,8 @@ static func scene_ramps(v) -> Array:
 	return out
 
 
-## How much the far picture's colour is pushed before it is matched: SIMPLIFIED's
-## cloud is muted where B's tokens are vivid, and matched as it is, a dim rose
-## fell to the nearest grey-violet and the cloud set in blotches of two families.
+## Far colour is boosted before matching: matched as is,
+## a dim rose fell to grey-violet and set in blotches.
 static func chroma_boost(v) -> float:
 	return {&"emission": 1.6, &"reflection": 1.5, &"planetary": 1.4, &"remnant": 1.3, &"dark": 1.3, &"core": 1.15, &"pulsar": 1.5}.get(sky_key(v), 1.3)
 
@@ -218,9 +198,7 @@ static func world_look(v) -> Array:
 	return out
 
 
-## THE THREE VIEWPORTS (the far picture, its band memory, and the paint rect
-## in the place picture), each one block a pixel. Returns the far picture's
-## viewport, for the screen to put everything far into.
+## Three viewports, each one block a pixel; returns the far picture's for the screen to fill.
 static func build(v) -> SubViewport:
 	var T := tables(v)
 	var tvp := SubViewport.new()
@@ -285,9 +263,7 @@ static func build(v) -> SubViewport:
 	return svp
 
 
-## The band memory's longest hold, in frames (`sector_b_state`), and how far a
-## held band edge may trail the light that moved it, in blocks. A frame's light
-## motion of `TRAIL_BLK / n` blocks allows a hold of n frames.
+## Longest band hold in frames and how far a held edge may trail the light, in blocks.
 const HOLD := 40.0
 const TRAIL_BLK := 1.0
 ## how far out the cloud's lit bands lie, light px (between `PUFF_LIGHT`'s hot
@@ -312,17 +288,9 @@ static func push(v) -> void:
 	var blk0: Vector2 = pt.get("blk", blk)
 	pt["blk"] = blk
 	ms.set_shader_parameter("slide", blk - blk0)
-	# AND IT HOLDS NO BAND BEHIND A MOVING LIGHT (the sector map; LOCAL's sky,
-	# which shares this, keeps the full hold): how far the sun's light moved this
-	# frame, in blocks -- the sun's own slide, and on a zoom its light opening out
-	# (`sky_nebula`'s light px go as zoom^0.42; its lit bands' edges lie some
-	# LIGHT_R light px out) -- and the hold cut so a band edge trails it by about
-	# a block (TRAIL_BLK), the full HOLD once it is still
-	# (two suns, ruling 23: the pair turns, so the light moves as each sun creeps
-	# round the balance point -- measured from both suns' exact places, the one
-	# that moved further: a rounded place moves a whole block on the frame it hops
-	# and none between, and the memory flushed and the bands flickered at every
-	# hop. One sun: star A's drawn place, as it always was.)
+	# The hold is cut so a band edge trails a moving light by about a block.
+	# With two suns, exact places are used: a rounded one hops a block and flickered bands.
+	# Why: docs/why/SectorPainted.md#band-hold
 	var twin: bool = "home_zoom" in v and v.layout != null and v.layout.twin
 	if "home_zoom" in v and not bool(pt.get("hold_fixed", false)):
 		var o: Vector2 = v.star_exact(-1) if twin else v.origin()
@@ -338,9 +306,7 @@ static func push(v) -> void:
 		var moved := maxf((o - o0).length(), (o2 - o20).length()) / 2.0 + absf(log(lz / lz0)) * LIGHT_R * lz * lscale / 2.0
 		ms.set_shader_parameter("hold", HOLD if moved < 1e-4 else clampf(TRAIL_BLK / moved, 0.0, HOLD))
 	ms.set_shader_parameter("low", low)
-	# STAR A'S HALO ROUND ITS DISC, where it is drawn (`star_screen`: the pair
-	# turns), and its light on the silhouettes from where it truly is, as star
-	# B's (`SystemView._step_twin_sky`): exact, so no rim steps at a block hop
+	# Star A's halo and light come from where it truly is, so no rim steps at a block hop.
 	ms.set_shader_parameter("star_px", v.star_screen(-1) if twin else v.origin())
 	ms.set_shader_parameter("sun_r", float(v.layout.star_r) * float(v.star_k()))
 	mp.set_shader_parameter("star_at", v.star_exact(-1) if twin else v.origin())
@@ -382,9 +348,7 @@ static func mix_ok(a: Color, b: Color, t: float, dl: float = 0.0) -> Color:
 	return Color(clampf(f.call(maxf(lin.x, 0.0)), 0.0, 1.0), clampf(f.call(maxf(lin.y, 0.0)), 0.0, 1.0), clampf(f.call(maxf(lin.z, 0.0)), 0.0, 1.0))
 
 
-## B's extended ramp for a world's stuff (`extRamp`): outline, night and dusk
-## (leaning to the sky's ambient), its own steps 1..4, its brightest warmed by
-## the star's own light. For the belts' rocks and the moons.
+## B's extended ramp for belts' rocks and moons, its brightest step warmed by the star's light.
 static func ext_ramp(v, name: StringName) -> Array[Color]:
 	var r: Array = Worlds.RAMP.get(name, Worlds.RAMP[&"rock"])
 	var lk: Array = LOOK.get(sky_key(v), LOOK[&"calm"])
@@ -396,19 +360,15 @@ static func ext_ramp(v, name: StringName) -> Array[Color]:
 	return out
 
 
-## That ramp's brightest step, warmed by a light (linear, its brightest channel
-## 1): the star's, or with two suns the light of the world it is drawn by
-## (`SystemView.tint_at`), as a painted world's own brightest step is.
+## The ramp's brightest step warmed by a light:
+## the star's, or the light of the world it is drawn by.
 static func lit_step(name: StringName, sl: Vector3) -> Color:
 	var r: Array = Worlds.RAMP.get(name, Worlds.RAMP[&"rock"])
 	var star := Color(pow(sl.x, 1.0 / 2.2), pow(sl.y, 1.0 / 2.2), pow(sl.z, 1.0 / 2.2))
 	return mix_ok(Color(String(r[5])), star, 0.3)
 
 
-## THE CLOUD PAINTED WITH FORM (round 2): the scene's cloud ramps handed to the
-## cloud itself (`sky_nebula.gdshader`, `painted`), which picks its ramp and its
-## place on it, builds its thick parts of lit puffs and pushes an event's light
-## up the ramp; the band memory then bands it and holds the bands.
+## The cloud's own shader picks its ramp and builds puffs; the band memory then bands and holds it.
 static func paint_cloud(v) -> void:
 	var m: ShaderMaterial = v._neb_mat
 	if m == null:
@@ -485,10 +445,7 @@ static func paint_cloud(v) -> void:
 	m.set_shader_parameter("p_dust_tau", 0.9 if key == &"core" else 0.6)
 
 
-## B'S FORM's numbers, by sky: each sheet's (amb, glow, light) -- how much a
-## puff's shadow side keeps, the gas's own glow, what the star adds near it (B's
-## `lookOf`) -- and the light (soft and hard radii, the hot zone's, its height;
-## B's `LIGHT`, light px)
+## B's form numbers by sky: ambient, glow and light per sheet, plus the light's radii and height.
 const PUFF_LOOK := {
 	&"emission": [Vector3(0.66, 0.56, 0.40), Vector3(0.52, 0.74, 0.50), Vector3(0.42, 0.72, 0.58)],
 	&"reflection": [Vector3(0.60, 0.40, 0.50), Vector3(0.42, 0.50, 0.80), Vector3(0.32, 0.46, 0.90)],
@@ -504,9 +461,8 @@ const PUFF_LIGHT := {
 const PUFFS_SH := preload("res://shaders/sector_b_puffs.gdshader")
 
 
-## B'S FORM, baked once a system: the cloud's three gas sheets of domed masses and
-## lobes (`sector_b_puffs`), laid where SIMPLIFIED's own cloud is (`field`, its
-## density, smoothed heavily), for the cloud to paint from (`p_sheets`).
+## B's form baked once a system: three gas sheets laid
+## where SIMPLIFIED's cloud is, for the cloud to paint from.
 static func bake_puffs(v, field: Texture2D) -> void:
 	var m: ShaderMaterial = v._neb_mat
 	# (not a dark cloud: B has none, and built of sheets it lost its lit amber rims)

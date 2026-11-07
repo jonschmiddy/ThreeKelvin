@@ -1,50 +1,11 @@
 extends Harness
 
-## EVERY ENCOUNTER'S SUBJECT IS REAL AND FITS, headless:
-##   godot --headless --path . -- subjecttest
-##
-## An option's `subject` (`OptionTable`, drawn by `LocalSubject`) names pieces of
-## art and a staging. A misspelt piece draws nothing and says nothing; a staging
-## one tank too wide runs under the event's band or off the view. So, for every
-## option that has one:
-##  - every stage is a kind `LocalSubject` stages, with what that kind needs;
-##  - every piece is in `art/subjects/index.json`, and its picture loads (or its
-##    painter recipe names a world the painter has);
-##  - the whole staging fits the subject's box on LOCAL's own view (right of
-##    centre, above the band) and keeps off your ship.
-## Then once on the real LOCAL: an event with a subject opened there draws it,
-## inside its box, off the ship and above the band. And with the wrecks a fight
-## leaves there (one, two, three of them, measured where the view puts them):
-## the subject keeps clear of every one, there and then, and every other
-## subject would too (`LocalSubject.fit`).
-##
-## NOTHING IS DRAWN ACROSS ANYTHING ELSE (`LocalSubject.clear_of`): no two pieces'
-## opaque pixels come within the drift they can travel apart, but a piece on its
-## own rock or round its own body, and a declared `dock`, which must touch along
-## an edge (its clamps drawn over the seam).
-##
-## THE SHIPS (`role:<name>`, or a pool ship by name): every role names kept pool
-## ships; an encounter resolves to the same ships every time; the ships vary
-## between the encounters that share a role. LOCAL NEVER DRAWS THE FIGHT'S CODED
-## SHIP (Jon picked kept pool ships on LOCAL only): no subject names `foe`, and
-## an armed encounter's scene shows pool ships, then goes the moment its fight
-## opens, so the fight's own ship (`EnemyArt`) flies in alone. AND IT DOES NOT
-## COME BACK (Jon, Oct 22: "When you destroy a ship in combat, sometimes another
-## ship randomly pops up?"): the fight won, LOCAL draws its wreck and no whole
-## ship of the event beside it, then and on LOCAL again; every fight's scene
-## keeps all but what it marks `fights` (`LocalSubject.without_foes`).
+## Checks each option's subject art exists and fits LOCAL's view. Run: `-- subjecttest`.
+## LOCAL never draws the fight's coded ship: only pool ships, gone once the fight opens.
+## Why: docs/why/SubjectTest.md#subject-checks
 
-##
-## A BIG STRUCTURE (`structure`, Jon's "Pulling up to it"): pinned to the view's
-## right edge instead of placed in the box -- it runs off the top, the right and
-## the bottom, from about x 540, its nearest part at your ship's height and clear
-## of your ship; what goes with it inside the view, above the band and off your
-## ship. On the real LOCAL it is drawn there, behind the hulls; a fight's wreck
-## does not move it, it dims behind the wreck, and the wreck is still clicked
-## through it (its hold opens); and in the cutaway it zooms with the scene, under
-## the blur, and comes back to its place. Its moving parts glide (Jon: "can the
-## motion be more smooth?"): a cradle's arms go open, shut, open again with no
-## jump between frames, and every part turns about a pivot inside its picture.
+## A big structure is pinned to the view's right edge, behind the hulls, and glides (Jon).
+## Why: docs/why/SubjectTest.md#big-structure
 
 const STAGES := [&"single", &"row", &"tether", &"field", &"herd", &"line", &"around", &"on_rock", &"strewn", &"ring", &"group", &"structure", &"ring_arc", &"none", &"fx"]
 ## The effects `LocalFx` draws (`fx` stages).
@@ -54,15 +15,11 @@ var _tree: SceneTree
 ## at most this many frames whatever the clock does
 const FLY_WAIT := 60.0
 const FLY_WAIT_FRAMES := 60 * 120
-## THE SEED EVERY RUN HERE STARTS FROM, forced (`Rng.forced`). Until Oct 12 each
-## run called `Rng.reseed(4242)` and then `start_new_run`, which draws its own
-## seed from the global generator and threw the reseed away, so every gate run
-## drove galaxies nobody could name again. `-- subjecttest seed N` drives N.
+## Forced seed (`Rng.forced`): `start_new_run` used to discard the reseed (until Oct 12).
+## Why: docs/why/SubjectTest.md#seeds
 var _seed := 4242
-## AND THE SEEDS THE SAVE-AND-CONTINUE CHECK ALSO RUNS ON (`_orbit_reload`):
-##   816829285  failed it in a gate run (Oct 12) -- not for the seed: every
-##              harness shared one save file, and another process's write landed
-##              between this one's save and its CONTINUE (`TestRun.scratch`)
+## Seed 816829285 failed save-and-continue once (Oct 12): harnesses shared one save file.
+## Why: docs/why/SubjectTest.md#seeds
 const RELOAD_SEEDS: Array[int] = [816829285]
 ## How long a screen may take to come up before a check gives up on it, ms.
 const WAIT_MS := 20000
@@ -170,9 +127,7 @@ func run(tree: SceneTree) -> void:
 				bad_fit.append("%s (%dx%d at %d,%d)" % [id, placed.size.x, placed.size.y, placed.position.x, placed.position.y])
 			if placed.grow(6.0).intersects(ship):
 				on_ship.append(id)
-		# NOTHING DRAWN ACROSS ANYTHING ELSE: no two pieces' opaque pixels within
-		# the drift they can travel apart, but for a piece on its own rock or
-		# round its own body, and a docked pair, which touches along an edge
+		# No two pieces' opaque pixels within drift distance, bar own rock, own body, docked pair.
 		for c: String in LocalSubject.clear_of(planned):
 			piled.append("%s: %s" % [id, c])
 		if not LocalSubject.short.is_empty():
@@ -211,9 +166,7 @@ func run(tree: SceneTree) -> void:
 	await _world_memory()
 	# LOCAL DRAWS WHAT THE SHIP ORBITS NOW, after a flight on the map
 	await _orbit_switch()
-	# AND WHERE IT WAS LEFT SURVIVES A SAVE AND A RELOAD, on this seed and on
-	# the ones it once failed on
-	# (the pinned ones first, so the run left for what follows is this seed's)
+	# The orbit survives a save and reload, on this seed and the ones that once failed.
 	for rs in RELOAD_SEEDS:
 		if rs != _seed:
 			await _orbit_reload(rs)
@@ -271,10 +224,7 @@ func run(tree: SceneTree) -> void:
 	_finish()
 
 
-## WHAT EACH BUILT EVENT SHOWS, as its plan says (Jon's "Forty-three bare
-## events", every one said yes to): [the effects drawn in code, the kept pieces
-## (pool ships by role count as theirs)]. The_uncollected_order is not here: its
-## art is being made.
+## What each built event shows per its plan (Jon's forty-three bare events).
 const BUILT := {
 	&"slipping_orbit": [[], [&"r5_scatter_spar_1", &"r4_scatter_torn_plate_1"]],
 	&"the_scoop": [[], []],
@@ -308,10 +258,7 @@ const BUILT := {
 	&"distress_beacon": [[], []],
 	&"lost_in_the_gas": [[], []],
 }
-## ROUND THREE'S KEEPS (Jon's Keep on the bare events' generated takes), what
-## each encounter draws: its kept takes (one drawn per system where he kept more
-## than one, `pick`) and the kept pieces that go with them. The four berth
-## events share round four's four dock faces ("all look great").
+## Round three's keeps (Jon): what each encounter draws, one take per system where several.
 const KEPT3 := {
 	&"the_thrower": [[&"st_the_thrower"], [&"r2_thrower_canister_on_sled_2"]],
 	&"the_automatic_dock": [[&"st_the_automatic_dock"], []],
@@ -327,20 +274,8 @@ const KEPT3 := {
 const PLATES3 := [&"the_thrower", &"the_automatic_dock", &"the_glass_ring", &"the_auction", &"seized_clamp", &"paid_in_full", &"the_parted_line"]
 
 
-## ROUND THREE'S KEEPS, wired:
-##  - every kept take of each encounter is drawn by it at some system, and each
-##    one, forced, stages as the rest do: a plate pinned to the right edge (off
-##    the top, right and bottom, clear of your ship, its near part at your
-##    height, what goes with it in view), an object inside the box and off your
-##    ship, nothing drawn across anything;
-##  - THE PER-SYSTEM PICK (`LocalSubject.pick_of`): the same system draws the same
-##    take every time it is asked, and across the run's systems every take turns up;
-##  - on the real LOCAL, at a system it could be rolled at: it draws its kept
-##    art (one of its takes; its pieces), the plate pinned and behind the hulls,
-##    nothing of it on your ship -- but the seized clamp's arm, whose jaws touch
-##    your bow and never cross it -- or under the band; and the same encounter at
-##    another system that picks another take draws that one, and back at the
-##    first system, the first take again.
+## Every kept take of each encounter is drawn somewhere and stages like the rest.
+## Why: docs/why/SubjectTest.md#kept-takes
 func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) -> void:
 	var bad: Array[String] = []
 	var n_take := 0
@@ -490,17 +425,8 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 		shown.size() == 3 and shown[0] == &"st_the_glass_ring_1" and shown[1] == &"st_the_glass_ring_2" and shown[2] == shown[0])
 
 
-## THE FOUR KEPT DOCK FACES in the four berth events (the auction, the seized
-## clamp, paid in full, the parted line):
-##  - every part an encounter names (`anchors`: cargo, collar, lug0/1/2) is on
-##    that take's own metal (within 3 px of an opaque pixel of its picture);
-##  - every take forced in every event puts its pieces there: the lot at the
-##    cargo berth, the lit berth's lamp at the collar, the lighter under the
-##    mast's lugs with its lines from them and the parted one from the head, the
-##    clamp's arm leaving from the collar -- and stages as a plate must;
-##  - on the real LOCAL, each take in each event: nothing of it on your ship or
-##    under the band; the clamp's arm leaves from that take's metal on its row
-##    and its jaws touch your bow without crossing it.
+## The four kept dock faces: every named part must sit on that take's own metal.
+## Why: docs/why/SubjectTest.md#dock-faces
 func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 	var bad: Array[String] = []
 	var n := 0
@@ -627,9 +553,7 @@ func _near_metal(img: Image, q: Vector2, r: int) -> bool:
 	return false
 
 
-## `oid` opened on the real LOCAL at system `sys` (-1: the first one free), the
-## system given the sky its gates ask for and the ship parked where it sits.
-## {sc, sub}. `fresh`: a new run first.
+## Opens `oid` on the real LOCAL at system `sys`, with its sky and the ship parked.
 func _open_at(oid: StringName, sys: int, fresh: bool = true) -> Dictionary:
 	var o := OptionTable.by_id(oid)
 	if fresh:
@@ -661,11 +585,7 @@ const ON_GIANT := [&"slipping_orbit", &"the_scoop", &"the_storm", &"the_rings", 
 const ON_STAR := [&"corona", &"flare_shelter", &"the_dust_cloud", &"the_century_log", &"the_comet", &"the_glare", &"the_wind", &"the_beacon_job", &"the_sorting"]
 
 
-## THE GIANT AND THE STAR RULE (`SystemLayout`, an option's `site`): an event
-## whose text has the giant filling the sky sits on the giant, one in a red or
-## blue star's glare on the star -- in a system with that giant or star, beside
-## other options; where it has none, it takes a place by its tags as before.
-## And the map and LOCAL agree where it is (`LocalEventDrawer.body_of`).
+## An event with a giant or glaring star in its text sits on it; map and LOCAL agree.
 func _site_rule() -> void:
 	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -711,14 +631,9 @@ func _site_rule() -> void:
 		", ".join(bad) if not bad.is_empty() else "all"], bad.is_empty())
 
 
-## EVERY BUILT EVENT ON THE REAL LOCAL, at a system it could be rolled at, the
-## ship parked where it sits: it shows what its plan says (its effects and its
-## pieces), LOCAL's stand-in goes, nothing of it is on your ship or under the
-## band -- its pieces, its effects' own light (every shader rect is told your
-## ship and the band; every streak and speck drawn is clear of them) -- and the
-## beam is eased light: its flat core outlasts a frame's turn at 30 a second (so
-## a pixel's peak never goes A, B, A: the flicker budget), it fades as it turns
-## toward you rather than flashing, and it is not drawn with reduced motion.
+## Every built event keeps its pieces and effects clear of the ship and the band.
+## The beam is eased light: no A, B, A flicker, faded toward you, off with reduced motion.
+## Why: docs/why/SubjectTest.md#built-events-on-local
 func _bare_events() -> void:
 	var bad: Array[String] = []
 	var n := 0
@@ -784,9 +699,7 @@ func _bare_events() -> void:
 		var art := sc._view.ship_view()
 		var ship := Rect2(art.ship_rect().position + art.global_position, art.ship_rect().size)
 		var band_top := vr.end.y - LocalSubject.BAND
-		# (a stage stood on the giant's face or its rings is placed from the giant
-		# as drawn: headless draws no sky, so there it stands in the box instead
-		# and only its fit is checked, by the planning above)
+		# Headless draws no sky, so a giant-face stage stands in the box; only its fit is checked.
 		var on_sky := sky != null and not sky.near_info().is_empty()
 		var stood := false
 		for st2: Dictionary in LocalSubject.stages_of(o.subject):
@@ -823,9 +736,7 @@ func _bare_events() -> void:
 	_ok("  and the closed-in gas opens again when its event goes (%.2f)" % gas_after, gas_after == 0.0)
 
 
-## What is wrong with an event's effects on LOCAL: every shader rect told your
-## ship and the band as this frame has them; every streak, speck and grit drawn
-## clear of your ship and above the band.
+## Effects must be told your ship and the band, and draw clear of the ship above the band.
 func _fx_wrong(oid: StringName, sub: LocalSubject, fx: LocalFx) -> Array[String]:
 	var out: Array[String] = []
 	var s := sub.ship_l
@@ -845,9 +756,7 @@ func _fx_wrong(oid: StringName, sub: LocalSubject, fx: LocalFx) -> Array[String]
 	return out
 
 
-## THE BEAM: its flat core outlasts the most it turns in a frame at 30 a second
-## (a pixel's peak lasts frames, never A, B, A); toward you it fades (never
-## brighter than it is crossing the sky); with reduced motion it is not drawn.
+## Beam: flat core outlasts a frame's turn, fades toward you, not drawn with reduced motion.
 func _beam_wrong(oid: StringName, sub: LocalSubject, fx: LocalFx) -> Array[String]:
 	var out: Array[String] = []
 	var st: Dictionary = {}
@@ -947,11 +856,7 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 	return out
 
 
-## A STRUCTURE'S MOVING PARTS GLIDE: every picture there, each part's pivot
-## inside the structure; a cradle's arms go open, shut, open over a cycle, easing
-## through many in-between turns with no jump between two frames at 30 a second
-## (never stepped), and its lamp is dark while they rest open and lit while they
-## move.
+## Moving parts glide with no jump between frames at 30 a second; the lamp is dark at rest.
 func _cycle_checks() -> void:
 	var bad: Array[String] = []
 	var n := 0
@@ -1023,11 +928,7 @@ func _cycle_checks() -> void:
 		", ".join(bad) if not bad.is_empty() else "all"], bad.is_empty() and n > 0)
 
 
-## A BIG STRUCTURE ON THE REAL LOCAL (`oid`'s): drawn pinned to the right edge,
-## behind the hulls and taking no clicks; still there with the band folded; a
-## fight's wreck does not move it and dims it, sits in front of it, and a click
-## on the wreck opens the wreck's hold through it; the cutaway zooms it with the
-## scene under the blur, and it comes back to its own size and place.
+## A big structure on the real LOCAL: pinned, behind the hulls, click-through, dims behind wrecks.
 func _live_structure(oid: StringName) -> void:
 	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1171,9 +1072,7 @@ func _live(oid: StringName) -> void:
 	LocalEventDrawer.quiet = true
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
-	# YOUR SHIP'S PARTS ON ITS HULL FROM THE FIRST FRAME DRAWN (the review page's
-	# shots caught them where the hull would be in a narrower view: LOCAL's ship
-	# slot is laid out at its minimum width first in some frames)
+	# Parts on the hull from the first frame: shots caught them where a narrower view put it.
 	var early: Array[String] = []
 	for i in 40:
 		await _tree.process_frame
@@ -1210,9 +1109,7 @@ func _live(oid: StringName) -> void:
 				under += 1
 		_ok("and none under the event's band (%d)" % under, under == 0)
 	_ok("in the scene's depth: behind the hulls", sub.get_index() < sc._view._row.get_index())
-	# YOUR SHIP'S PARTS ON ITS HULL while the event is up, and once its band has
-	# folded away and LOCAL laid the scene out again (the review page's shots
-	# caught them left where the hull had been)
+	# Parts stay on the hull after the band folds and LOCAL lays out again (the review shots).
 	var mp := _mounts_of(sc)
 	if mp != null:
 		var off := mp.strays()
@@ -1229,21 +1126,13 @@ func _live(oid: StringName) -> void:
 	LocalEventDrawer.quiet = false
 
 
-## THE FOES THE WRECKS ARE LEFT BY, named. They were picked off
-## `DB.enemies.keys()` sorted, and an Array of StringNames sorts by address, so
-## which foes they were moved with every StringName a change interned: on main
-## (010655ff) whale, hellbender and cutter, and with the stations change of
-## Nov 3 leviathan, the Custodian and cutter (a boss's wreck at a fuel cache).
-## These are main's, the three it measured. (In text order, hulk, cutter and
-## whale, the third wreck's top row touches a tank's drawn square by 2 px,
-## measured Nov 3 and not yet looked into: the fit put the staging in the clear
-## stretch above the wrecks, and the tank's square reaches 10 px past it.)
+## Wreck foes are named: sorting StringNames sorts by address, so they moved with interning.
+## A 2 px overlap of the third wreck and a tank (Nov 3) is measured, not yet looked into.
+## Why: docs/why/SubjectTest.md#wreck-foes
 const WRECK_FOES: Array[StringName] = [&"whale", &"hellbender", &"cutter"]
 
 
-## Wrecks left at the system one at a time, as fights there would: each time,
-## the live subject keeps clear of every wreck. Returns where the wrecks stood
-## each time, in the view's own space.
+## Wrecks are left one at a time as fights would; the subject keeps clear each time.
 func _live_wrecks(oid: StringName) -> Array:
 	var sets: Array = []
 	var sc := Router.current as SectorScreen
@@ -1294,11 +1183,7 @@ func _words_of(e: EnemySlot) -> Array[Rect2]:
 	return out
 
 
-## An armed encounter opened on LOCAL, then its fight started as the event
-## starts it (`Router.start_ambush`). The scene shows kept pool ships only: no
-## `foe:` in its cast, nothing `EnemyArt` drew. On the fight's first frame the
-## scene is already gone, so there are never two ships for one (the pool ship
-## and the fight's own), and the fight's ship is flying in from the right.
+## An armed encounter shows pool ships only, gone on the fight's first frame: never two ships.
 func _handover(oid: StringName) -> void:
 	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1352,11 +1237,8 @@ func _handover(oid: StringName) -> void:
 	_ok("  and the fight brings its own ship (%s), drawn by EnemyArt" % brought, brought != &"")
 	var sc2 := Router.current as SectorScreen
 	_ok("  and the scene's own stays gone in the fight", sc2 != null and LocalSubject.of(sc2._view) == null)
-	# AND AFTER THE KILL IT DOES NOT COME BACK (Jon, Oct 22: "When you destroy a
-	# ship in combat, sometimes another ship randomly pops up?"): the bar's event
-	# is still the fight, RESOLVED, and LOCAL drew its subject -- the pool ship --
-	# whole beside the wreck of the ship you shot. Won as play wins it (the
-	# breakup, the hand lowered, `Router.after_combat` to LOCAL), then LOCAL again.
+	# After the kill the pool ship must not return beside the wreck (Jon, Oct 22 popup report).
+	# Why: docs/why/SubjectTest.md#fight-handover
 	if Router.combat != null:
 		for e in Router.combat.enemies:
 			Router.combat.damage_enemy(9999, 1, "test", e)
@@ -1382,11 +1264,7 @@ func _handover(oid: StringName) -> void:
 				and wrecks >= 1 and wrecks == Run.wrecks_here(n).size()
 				and LocalEventDrawer.bar_option(n) == 0 and sub3 == null)
 	LocalEventDrawer.quiet = false
-	# THE REST OF A FIGHT'S SCENE STAYS (`LocalSubject.without_foes`): only what a
-	# subject marks `fights` goes. Every subject after its fight draws nothing it
-	# did not draw before; the ones that are all foe draw nothing; the seized
-	# hull, the passenger wreck, the hunting ship on the line, the barge and the
-	# depot are still there.
+	# Only what a subject marks `fights` goes; the rest of the fight's scene stays.
 	var bad: Array[String] = []
 	for o: Dictionary in OptionTable.all():
 		if not o.has("subject"):
@@ -1409,15 +1287,8 @@ func _handover(oid: StringName) -> void:
 	_ok("  and every fight's scene keeps all but what it fought (%s)" % (", ".join(bad) if not bad.is_empty() else "all"), bad.is_empty())
 
 
-## LOCAL SHOWS THE WORLD YOU ORBIT NOW (Jon: "when transitioning from one planet
-## to another I have to go to the local and then the system and then the local
-## again for the local to update"). LOCAL composes its sky from where the map
-## left the ship (`SystemMapScreen._parked`), and the map wrote that only on its
-## way out of the tree -- after the screen replacing it had already been built
-## from the old record. Through the real Router, as the HUD's tab goes: in orbit
-## of world A, LOCAL; the map; a flight to world B, flown on the map's own
-## clock; LOCAL once, and it must draw B. Then the map again, which must put the
-## ship back at B.
+## LOCAL must show the world you orbit now: the map wrote its record only on leaving the tree.
+## Why: docs/why/SubjectTest.md#orbit-switch
 func _orbit_switch() -> void:
 	Rng.forced = _seed
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1458,11 +1329,7 @@ func _orbit_switch() -> void:
 	map.frozen = false
 	map.select_body(b)
 	map.fly_to_body(b)
-	# ON THE MAP'S OWN CLOCK, not the wall's (a wall-clock wait races the game
-	# under a fixed frame rate), and long enough for a flight on map time: its
-	# ride round up to 4.4 s, its coast up to 30 s, the plan made on a worker
-	# first (ruling 20, Oct 30). The time-scaled conics took 4 to 12 s, and this
-	# waited 30 s of the wall.
+	# Wait on the map's own clock, not the wall's: a wall wait races a fixed frame rate.
 	var t0: float = map.view.t
 	var f0 := Engine.get_process_frames()
 	while map.flight.reached() != b and map.view.t - t0 < FLY_WAIT and Engine.get_process_frames() - f0 < FLY_WAIT_FRAMES:
@@ -1485,17 +1352,9 @@ func _orbit_switch() -> void:
 	SystemMapScreen._parked.erase(idx)
 
 
-## THE WORLDS TURN BLENDED (`PixelTurn.world_mode`, Jon: "THESE LOOK GREAT!!!"):
-## every world the painter draws carries its surface's memory with no flag --
-## LOCAL's orbited world and its moons, the map's worlds, and a world in pieces
-## (`ShatteredView`) on the map and in orbit on LOCAL, where it must turn -- wired
-## to read itself last frame. And it must still TURN: a memory that held everything
-## would show a dead world with no shimmer at all. So one world is filmed
-## turning a third of a pixel a frame, with the memory and (as the game was
-## before) without: its pixels change on most frames and over the run, and
-## pixels going A, B, A stay under a few a second. The filming needs a
-## renderer: headless (the merge gate) checks the wiring and says the pixels
-## went unchecked; `godot --path . -- subjecttest` in a window checks both.
+## Worlds turn blended with surface memory yet must still turn, so one is filmed (Jon).
+## Headless checks wiring only; pixels need a window run of `-- subjecttest`.
+## Why: docs/why/SubjectTest.md#world-memory
 func _world_memory() -> void:
 	_ok("worlds turn blended by default (%s)" % PixelTurn.Mode.keys()[PixelTurn.world_mode], PixelTurn.world_mode == PixelTurn.Mode.BLENDED)
 	# ON THE REAL SCREENS: LOCAL in orbit of a world, and the map
@@ -1606,9 +1465,7 @@ func _world_memory() -> void:
 		float(s_mem.flips_ps), WM_FLIPS, float(s_without.flips_ps)], float(s_mem.flips_ps) < WM_FLIPS and float(s_mem.flips_ps) <= float(s_without.flips_ps))
 
 
-## THE SHATTERED WORLD ON THE MAP AND ON LOCAL: the first system of the run with
-## one, the ship parked in orbit of it. On the map it carries the memory; on
-## LOCAL (with a renderer: headless builds no sky) it carries it and turns.
+## Shattered world on map and LOCAL: the map carries the memory, LOCAL carries it and turns.
 func _shattered_in_orbit() -> void:
 	var sidx := -1
 	var sat := -1
@@ -1663,9 +1520,7 @@ const WM_FRAMES := 90
 const WM_FLIPS := 3.0
 
 
-## Why this world is not drawn with its memory, or "". (Its shaders' settings
-## read back only with a renderer: headless keeps none.) A `PlanetView` or a
-## `ShatteredView`: both keep the memory in the same fields.
+## Why a world lacks its memory, or empty. PlanetView and ShatteredView share the fields.
 func _mem_wrong(pv: Node2D) -> String:
 	var nm := String((pv.get("spec") as Dictionary).get("world", "?"))
 	var vp: SubViewport = pv.get("_mem_vp")
@@ -1686,10 +1541,7 @@ func _mem_wrong(pv: Node2D) -> String:
 	return ""
 
 
-## A cratered moon (or, `shards`, a world in pieces) filmed turning a third of a
-## pixel a frame at its equator, in 2x2 blocks as LOCAL draws it, with its memory
-## or without: how often it moves, how much of it moved, and its A, B, A pixels a
-## second (at 30 frames a second).
+## Films a moon turning a third of a pixel a frame, with or without memory.
 func _film_world(mem: bool, shards: bool = false) -> Dictionary:
 	var keep := PixelTurn.world_mode
 	PixelTurn.world_mode = PixelTurn.Mode.BLENDED if mem else PixelTurn.Mode.SMOOTH
@@ -1751,15 +1603,8 @@ func _film_world(mem: bool, shards: bool = false) -> Dictionary:
 	return {moving = moving, moved = snappedf(float(moved) / float(maxi(lit.size(), 1)), 0.001), flips_ps = snappedf(float(flips) / secs, 0.1)}
 
 
-## A RELOAD PUTS YOU BACK IN ORBIT WHERE YOU WERE, LOCAL INCLUDED. Where the
-## ship was left lived only in memory (`SystemMapScreen._parked`), so SAVE &
-## EXIT then CONTINUE dropped it at the system's edge and LOCAL drew the warp-in
-## instead of the world (alpha gap). Twice, as a player leaves: SAVE & EXIT
-## from LOCAL in orbit of one world, and SAVE & EXIT from the map itself in
-## orbit of another (the map writes its record only as it is put away, so this
-## one is the save reaching in for it). Each time the run goes to the title,
-## the memory of where the ship was is wiped as a fresh launch would have it,
-## and CONTINUE must land on the map in orbit of that world, with LOCAL drawing it.
+## A reload must land in orbit with LOCAL drawing the world: the parked record was memory-only.
+## Why: docs/why/SubjectTest.md#reload-orbit
 func _orbit_reload(sd: int) -> void:
 	Rng.forced = sd
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1805,9 +1650,7 @@ func _orbit_reload(sd: int) -> void:
 		# must not survive the load either
 		SystemMapScreen._parked = {idx: {"at": -9, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
 		Router.continue_run()
-		# (BY THE CLOCK, NOT A COUNT OF FRAMES: headless frames run as fast as
-		# they can, so beside other work 120 of them went by before the load had
-		# put the map up -- the "-99" that came and went in the gate)
+		# By the clock, not frames: headless frames raced the load (the gate's -99).
 		var back: SystemMapScreen = null
 		var t0 := Time.get_ticks_msec()
 		var n := 0

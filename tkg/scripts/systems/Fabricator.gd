@@ -1,23 +1,10 @@
 class_name Fabricator
 extends RefCounted
 
-## The bench. Spends materials and scrap; applies one effect the game already
-## knows how to apply.
-##
-## Recipes are data (DB.RECIPES) and this file is the only thing that reads them,
-## so a new recipe is a dictionary entry. If you find yourself adding a branch
-## here for one recipe's sake, stop and add a `kind` instead — the same law
-## CardResolver is held to, for the same reason.
-##
-## Availability is a property of the PLACE: a station has a bench and the Core
-## has none. A laboratory used to need a city; since Jon's Nov 3 ruling every
-## station has all five decks at every level, so RELIC ANALYSIS is dev 0 and a
-## developed system is worth the fuel for its PRICE (`price`, by the place's
-## service index), not for the door. The `dev` gate stays for a later recipe.
+## Recipes are data: add a `kind`, not a branch. Every station has all five decks (Nov 3).
+## Why: docs/why/Fabricator.md#bench-rules
 
-## Every recipe this place can build, whether or not you can currently pay.
-## Showing what you cannot afford is the point: a recipe you can see is a reason
-## to go and find one more exotic.
+## Shows what you cannot afford too: a visible recipe is a reason to find one more exotic.
 static func available(n: MapGen.MapNode) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if n.type == MapGen.NodeType.CORE:
@@ -30,10 +17,7 @@ static func available(n: MapGen.MapNode) -> Array[Dictionary]:
 static func has_bench(n: MapGen.MapNode) -> bool:
 	return not available(n).is_empty()
 
-## Scrap half of the bill, priced by the same local labour index as every other
-## service. Materials are not indexed: a fragment is a fragment wherever you
-## stand, and a place that charges two of them for the same job would read as
-## the recipe changing rather than the price.
+## Scrap is priced by the local labour index; materials are not, or the recipe seems to change.
 static func price(n: MapGen.MapNode, r: Dictionary) -> int:
 	return maxi(1, int(round(float(r.credits) * Market.service_index(n))))
 
@@ -45,18 +29,8 @@ static func can_make(n: MapGen.MapNode, r: Dictionary) -> bool:
 			return false
 	return _useful(r)
 
-## Refuses a job that would do nothing. A RELIC ANALYSIS is always useful, but the
-## repair and fuel kinds are not — a patch on a full hull is not a purchase the
-## player meant to make, and letting it through would spend a material on a no-op
-## that nothing in the interface would explain afterwards.
-##
-## The repair and fuel kinds have no recipe behind them today: both were dev-0
-## recipes whose real cost was alloy, and a station sells REPAIR and REFUEL at
-## every development level, so retiring alloy retired them. `heat_cap` went the
-## same way for a different reason — heat capacity is a thermal module's job, so
-## COOLANT BRAID and the yard's coolant service both came out. The handlers stay
-## because a recipe is meant to be a dictionary entry against an effect the game
-## already applies — deleting the effect is what would make the next one code.
+## A no-op job is refused; the dead repair and fuel handlers stay so the next effect is data.
+## Why: docs/why/Fabricator.md#useless-jobs
 static func _useful(r: Dictionary) -> bool:
 	match StringName(r.kind):
 		&"repair":
@@ -74,9 +48,7 @@ static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:
 	bits.append("%d credits" % price(n, r))
 	return " · ".join(bits)
 
-## Build it. Returns the log line, or an empty string when it did not happen —
-## every caller checks, because a bench that silently declines is a bench the
-## player will press twice.
+## Returns an empty string when nothing happened, or a silent bench gets pressed twice.
 static func make(n: MapGen.MapNode, r: Dictionary) -> String:
 	if not can_make(n, r):
 		return ""
@@ -95,10 +67,7 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			Run.fuel += int(r.amount)
 			return "Cracked feedstock into %d fuel." % int(r.amount)
 		&"artifact":
-			# Precursor tech is unbranded by definition, so it is rolled the way
-			# a fauna or core drop is rather than being pulled from a manufacturer's
-			# catalog. Danger biases it, which makes reading a fragment deep in
-			# the galaxy worth more than reading one on the rim.
+			# Precursor tech is unbranded, rolled like a fauna drop and biased up by danger.
 			var m := LootGen.roll_module(n.danger, &"", true)
 			# Same again: `stow()` emits `ship_changed` itself.
 			Run.stow(m)

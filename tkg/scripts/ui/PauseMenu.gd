@@ -1,19 +1,8 @@
 class_name PauseMenu
 extends Control
-## Escape menu. Overlays the game rather than replacing it, so the run behind it
-## stays intact and visible — the ship never disappears, which is the same rule
-## the encounter layout follows.
-##
-## A DRAWER DOWN THE LEFT EDGE, built from Jon's picks across four rounds of
-## mockups: the drawer itself (over a centred box of full-width buttons that
-## read as a different game), the CHART INSET version of it ("clean"), and
-## chamfered plates with a second line under each label and a doubled-pixel
-## icon. It says where you are before it asks what next.
-##
-## Built in code against UITheme like every other screen. Nothing here pauses
-## the tree: the game is turn-based and advances only on input, and this
-## control swallows every click. It lives on Main's overlay layer -- see
-## `Main._overlay` for why.
+## Overlays the game so the run stays visible. Nothing pauses the tree: the game is turn-based.
+## The drawer is built from Jon's picks across four mockup rounds.
+## Why: docs/why/PauseMenu.md#pause-menu
 
 signal resume_requested
 signal quit_requested
@@ -21,11 +10,7 @@ signal save_and_quit_requested
 
 const DRAWER_W := 290.0
 const SIDE := 20
-## TIMED TO THE SOUNDS. `menu_open` is a rising whoosh that snaps at 0.21 s, so
-## the drawer accelerates in and lands on the snap; the game behind keeps
-## breaking up a little longer. `menu_close` hits hardest at 0.14 s, and the
-## drawer is gone on that hit (Jon: "the big plink ... should match when the
-## drawer is 100% gone"). Measured off the files; change them with the sounds.
+## Timed to the sounds: `menu_open` snaps at 0.21 s, `menu_close` hits at 0.14 s.
 const OPEN_S := 0.21
 const BACKDROP_S := 0.5
 const CLOSE_S := 0.14
@@ -124,17 +109,11 @@ func setup() -> void:
 	stamp.name = "BuildStamp"
 	col.add_child(stamp)
 
-	# THE BACKDROP'S AMOUNT IS ALWAYS SET, animated or not. It used to be set
-	# only on the animated way in, so a menu opened under REDUCED MOTION had
-	# none -- and `close` reads it. Turn reduced motion back off with the menu
-	# open and the close animated: it read null, the cast to float threw, and
-	# `close` stopped halfway with the menu still up and swallowing every click
-	# while Main thought it was gone (Jon: "makes the escape menu lock up").
+	# Backdrop amount is always set: under reduced motion it was null and `close` threw (Jon).
+	# Why: docs/why/PauseMenu.md#reduced-motion-close
 	mat.set_shader_parameter(&"amount", 1.0)
 
-	# In from the edge, with the game breaking up behind. Not under a shot tool
-	# or the sim: a menu that is still arriving would be photographed half off
-	# the screen.
+	# Not under a shot tool or the sim: a menu still arriving would be photographed half off.
 	if Router.animating():
 		drawer.position.x = -DRAWER_W - 16.0
 		mat.set_shader_parameter(&"amount", 0.0)
@@ -145,21 +124,9 @@ func setup() -> void:
 			0.0, 1.0, BACKDROP_S).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
-## THE TWO WAYS OUT, and the difference between them is the whole save model.
-## SAVE & EXIT writes a bookmark you resume from once; the other throws the run
-## away. The autosave means the first is what happens anyway if the process
-## dies — this button exists so the player knows that. (There were three.
-## ABANDON RUN — START OVER went: it was ABANDON with one screen skipped, and
-## the title is one click from a new run anyway.)
-##
-## Both land on the TITLE SCREEN rather than closing the game. Leaving a run and
-## leaving the program are different intentions, and the title screen is where
-## the answer to "what now" lives — including CONTINUE, which is the thing
-## SAVE & EXIT just created.
-##
-## Mid-fight, the fight starts over when you come back: combat is outside the
-## save, so the run on disk is the one from before it, and SaveGame.mark_fight
-## notes which fight to restart.
+## SAVE & EXIT bookmarks the run, the other throws it away. Both land on the title.
+## Mid-fight, combat is outside the save, so the fight restarts (`SaveGame.mark_fight`).
+## Why: docs/why/PauseMenu.md#exits
 func _show_exits() -> void:
 	Widgets.clear(_exits)
 	var fighting := Router.in_combat()
@@ -173,10 +140,7 @@ func _show_exits() -> void:
 	abandon.tone = DrawerPlate.Tone.BAD
 	_exits.add_child(abandon)
 
-## NEITHER WAY OUT HAPPENS ON ONE CLICK. Both end the run you are in -- one
-## keeps it on disk and one does not -- so both ask first, in place of the two
-## buttons rather than in a box over them (Jon: "just to give user consent
-## before ending a run").
+## Both exits end the run, so both ask first, in place of the buttons (Jon: consent before ending).
 func confirm(destroys: bool) -> void:
 	Widgets.clear(_exits)
 	var fighting := Router.in_combat()
@@ -203,10 +167,7 @@ func confirm(destroys: bool) -> void:
 	_exits.add_child(DrawerPlate.plate(&"resume", "NO, KEEP PLAYING", "", _show_exits))
 
 
-## SETTINGS IN THE SAME DRAWER. The menu's contents fade out and Settings fades
-## in where they were -- same drawer, same backdrop, nothing re-rendered on top.
-## A MarginContainer lays every child over the same rect, so both are simply
-## children of the pad and only one is visible.
+## Settings share the drawer: children of one MarginContainer, only one visible.
 func show_settings() -> void:
 	if _settings != null or _closing:
 		return
@@ -245,9 +206,7 @@ func _swap(from: Control, to: Control, free_from: bool = false) -> void:
 			from.queue_free())
 	tw.tween_property(to, "modulate:a", 1.0, SWAP_S)
 
-## Out the way it came, and gone on the close sound's hit. The game sharpens as
-## it goes. Instant under shot tools and the sim, and when leaving the run --
-## `Main` frees the menu outright for those.
+## Gone on the close sound's hit. Instant under shot tools, the sim and leaving the run.
 func close() -> void:
 	if _closing:
 		return
@@ -267,9 +226,7 @@ func close() -> void:
 	tw.chain().tween_callback(queue_free)
 
 
-## The star chart around you: the chart's own MapChart, not a picture of it, so
-## it is the real galaxy at this moment, with the reticle on your ship and the
-## galaxy and sector printed in its corner.
+## The chart's own `MapChart`, not a picture, so it is the real galaxy at this moment.
 func _inset() -> Control:
 	var frame := PanelContainer.new()
 	frame.add_theme_stylebox_override("panel", UITheme.flat(Color.BLACK, UITheme.LINE, 0, 1, 1))
@@ -322,10 +279,7 @@ func _ship() -> Control:
 	v.add_theme_constant_override("separation", 5)
 	box.add_child(v)
 	var m: ManufacturerData = DB.manufacturers.get(Run.hull.manufacturer)
-	# WHAT THE PLAYER CALLS IT. `Run.display_name` is the one function that
-	# answers that -- the name you gave the ship, the frame's own until you do
-	# (Jon: "user's name of the ship should be here"). The tier goes beside it
-	# rather than in front, since a named ship is not "C-TIER ODYSSEY".
+	# `Run.display_name` answers what the player calls it (Jon). The tier sits beside it.
 	var top := HBoxContainer.new()
 	var name := UITheme.body(Run.display_name().to_upper(), UITheme.ICE, UITheme.FS_SMALL)
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -389,11 +343,7 @@ func _gap(h: int) -> Control:
 	return c
 
 
-## The reticle on the inset: the chart's dashed crosshair, on your ship.
-##
-## ON THE SHIP, NOT THE MIDDLE. The chart will not pan past the galaxy's rim,
-## so near the edge `center_on_ship` cannot put you in the centre -- and a
-## reticle on the centre then marks empty space beside you.
+## On the ship, not the middle: the chart will not pan past the rim, so a centre misses it.
 class InsetMarks extends Control:
 	var chart: StarchartScreen.MapChart
 	var _at := Vector2.INF

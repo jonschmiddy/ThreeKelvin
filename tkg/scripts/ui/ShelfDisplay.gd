@@ -1,58 +1,24 @@
 class_name ShelfDisplay
 extends Control
 
-## The Promenade's stock, as objects standing on a shelf.
-##
-## IT WAS A LIST OF ROWS AND NOW IT IS A SHOP. The rack under the old list was
-## furniture behind a table of names -- better than a picture behind one, and
-## still a table. What is actually on a shelf is THINGS, at the size they are,
-## in the shape they are: a four-cell rail takes four cells of board and a
-## fitting takes one, so the shelf tells you what you are buying before you have
-## read a word of it.
-##
-## THE HOVER IS FREE. `ModuleIcon` already answers `_make_custom_tooltip` with
-## the part's readout and every card it grants -- the same panel the refit screen
-## and the module gallery use -- so putting the real icon on a board is what
-## gives the shelf its inspection, rather than something built for this screen.
-##
-## Drawn rather than loaded, like `YardScene` and `StationSpine`. Art replaces
-## the body of `_draw`; the layout below is what the art has to fit.
+## The stock is objects at their own size, not a table; hover reuses the real `ModuleIcon`.
+## Why: docs/why/ShelfDisplay.md#shelf-design
 
-## NO SIGNAL, BECAUSE NOTHING ON A SHELF IS A BUTTON.
-##
-## The ticket used to be one: clicking a price bought the part where it stood.
-## That was three hundred credits leaving your account on a single click with
-## nothing carried anywhere, which is the gesture the game threw out of the hold
-## when right-click-to-jettison was cut. The stock is objects and the objects
-## drag -- `ModuleIcon` is an `ItemIcon`, so every part on these boards can
-## already be picked up -- and the till on the deck below is what a shop has
-## instead of a buy button.
+## Nothing on a shelf is a button: a one-click 300 credit buy is gone, and the till buys.
+## Why: docs/why/ShelfDisplay.md#no-buy-signal
 
-## One cell of a module's footprint, in pixels.
-##
-## THE SAME 40 THE HOLD USES, so a part is the same size on the shelf as it is
-## in the bay you will put it in. 26 was the first try -- four spines to a board
-## and technically legible, but a shop where the goods are smaller than they are
-## anywhere else in the game reads as a list of thumbnails rather than as
-## objects. A 1x1 fitting is 40 across and a 2x2 is 80, which is a thing you
-## point at rather than a thing you squint at.
+## Cell was the hold's 40 so a part matches its bay; 26 read as a list of thumbnails.
+## Why: docs/why/ShelfDisplay.md#cell-size
 const CELL := HoldGrid.CELL
-## ONE CELL ON THE SHELF: THE SPRITE'S OWN 1x, 20 A CELL -- half the hold's 40.
-##
-## The paragraph above is why it was 40, and it was overruled by looking: seen on
-## the rack at both sizes, Jon kept 1x. A part at its own pixel size is the
-## finest-detailed thing on the wall, so it reads as the goods rather than as
-## furniture, and the rack it needs is half the height. The cost is the one the
-## paragraph names -- a part is bigger in your hold than it was on the shelf.
+## Reversed: Jon kept the sprite's own 1x at 20 a cell, seen at both sizes on the rack.
+## Why: docs/why/ShelfDisplay.md#cell-size
 const SHELF_CELL := 20
 ## Air above a board's items, so nothing touches the shelf above it.
 const HEAD := 7
 ## How thick a board is, and the frame around the whole unit.
 const PLANK := 5
-## THE UPRIGHT, AND IT IS FURNITURE, NOT SHELF. At 13 with 7 of air inside it,
-## the frame spent 40 of the rack's 132 pixels on itself and the goods read as
-## lost in it. Eight and four is the same pillar with its two flat middle
-## columns dropped: the shelf space is 92 either way, so the rack is 116.
+## The upright is furniture, not shelf: 13 plus 7 of air spent 40 of 132 px; 8 and 4 gives 116.
+## Why: docs/why/ShelfDisplay.md#rack-frame
 const POST_W := 8
 const CAP_H := 9
 const PLINTH_H := 11
@@ -62,40 +28,21 @@ const TICKET_H := 5
 const TAG_H := 9
 ## Air between two things standing side by side on the same board.
 const GAP := 10.0
-## How far apart the boards are, floor to floor.
-##
-## Tall enough for the tallest thing in the catalogue to stand on one -- a 2x2 is
-## two cells -- plus its ticket and a little headroom. Fixed rather than measured
-## off the stock, because a shelf's boards are where the shelf's boards are: they
-## do not move up when a shop happens to be selling small things.
+## Board pitch is fixed from the tallest part, so boards do not move for small stock.
+## Why: docs/why/ShelfDisplay.md#rack-frame
 const PITCH := SHELF_CELL * 2 + PLANK + TICKET_H + HEAD + 6
 
-## HOW BIG THE UNIT IS, rather than how big the deck is.
-##
-## A PIECE OF FURNITURE, NOT A WALL. The rack was handed the whole deck and drew
-## boards all the way down it, which made the Promenade a warehouse aisle with
-## four things in it. A shop's shelf is an OBJECT standing in a room -- it is the
-## size it is, the air around it is the room, and an outpost with two parts on it
-## still looks like a shop with two parts in it because the empty boards are
-## still there. Three of them, which is a shelf; nine was a wall.
+## A piece of furniture, not a wall: three boards, as nine made a warehouse aisle.
+## Why: docs/why/ShelfDisplay.md#rack-size
 const BOARDS := 3
-## EACH BOARD IS A 4 x 2 STRIP OF CELLS -- Jon's spec. Four cells across, and
-## two high so a 2x2 part stands on it; parts snap to the columns the way they
-## snap to the hold's grid, side by side and never stacked. The longest part in
-## the catalogue, a four-cell rail, fills a board on its own.
+## Each board is a 4 x 2 strip of cells (Jon's spec); parts snap to columns, never stacked.
 const SHELF_COLS := 4
-## AIR BETWEEN PARTS, and a fixed amount of it. Flush read as one lump; spread
-## evenly across the board left three parts marooned. Four pixels, packed from
-## the left post.
+## A fixed 4 px of air packed from the left post: flush was one lump, even spread marooned parts.
 const PART_GAP := 4
 ## Air inside each post. See POST_W: it came down with the upright.
 const SHELF_PAD := 4
-## The break between one cell's light and the next, so the strip can be counted.
-##
-## Two pixels, which is one at game scale -- the gap has to survive the shrink
-## without eating the light either side of it. The art's own bays under the
-## board run at a pitch of its own and are NOT what this lines up with: those
-## are how the rack was built, this is how big the part on it is.
+## The pip gap is 2, which is one at game scale; not the art's own bay pitch.
+## Why: docs/why/ShelfDisplay.md#rack-frame
 const PIP_GAP := 2
 ## The board's usable width: six cells and the five gaps a full board needs.
 const SHELF_INNER := SHELF_COLS * SHELF_CELL + (SHELF_COLS - 1) * PART_GAP
@@ -107,12 +54,8 @@ static func rack_height(boards: int = BOARDS) -> float:
 	return float(CAP_H + 6 + PITCH * boards + PLINTH_H)
 
 
-## Two boards, or three when two will not hold this stock.
-##
-## TWO OR THREE SHELVES TALL. Twelve cells hold an ordinary station's three
-## parts nearly always; a hub's five can need eighteen, so a hub gets the tall
-## rack. Asked of `_pack`, the same packing `stock` lays out with, so the rack
-## and what stands on it cannot disagree.
+## Two or three boards tall; a hub gets the tall rack, asked of `_pack` so they cannot disagree.
+## Why: docs/why/ShelfDisplay.md#rack-size
 static func boards_for(rows: Array) -> int:
 	return 2 if _pack(rows, 2)[1] == 0 else BOARDS
 
@@ -126,13 +69,8 @@ static func stands_on(mods: Array, count: int) -> bool:
 	return _pack(rows, count)[1] == 0
 
 
-## The stock on `count` boards, as `[boards, spilled]`: each board an Array of
-## entries in stock order, and how many parts found no room.
-##
-## WIDEST FIRST, ONTO THE BOARD WITH THE MOST ROOM LEFT. Widest-first is what
-## stops a long rail being stranded by small parts ahead of it; most-room-first
-## spreads the stock across the boards instead of filling the top one, which is
-## what a shopkeeper does and what a delivery nobody unpacked does not.
+## Widest first onto the board with most room, so rails are not stranded and stock spreads.
+## Why: docs/why/ShelfDisplay.md#packing
 static func _pack(rows: Array, count: int) -> Array:
 	var items: Array = []
 	for i in rows.size():
@@ -175,12 +113,8 @@ const SHADE := Color("#070a10")
 ## `_draw`, so the boards are always under the things standing on them.
 var _boards: Array[float] = []
 
-## A SHOP ROOM'S OWN RACK, when the room has one: the level's rack art and the
-## rows its boards are on, which a style may move (`rack_boards.json` -- three
-## level racks were recut so their tags clear a drawer). Set before `stock`.
-## The node stands at the art's own size and the screen scales it by two, so
-## the rack and everything on it are pixel-doubled together, as the bench
-## draws them.
+## A shop room can bring its own rack art and board rows; pixel-doubled together.
+## Why: docs/why/ShelfDisplay.md#room-rack
 var art_override: Texture2D = null
 var board_rows: Array = []
 ## THE MARKS ARE DRAWN OVER THE ROOM'S LIGHT instead of here: the rarity lights
@@ -189,21 +123,15 @@ var lit_elsewhere := false
 ## Each price tag's top-left, number and whether it is affordable, for
 ## `draw_lit_marks`.
 var _tags: Array = []
-## One light per part on the board under it, in the part's rarity colour:
-## `[Rect2, Color]`. What the boxed plate's border and ground used to say, said
-## by the shelf instead -- a shop lights its better stock.
+## One light per part in its rarity colour: a shop lights its better stock.
 var _pips: Array = []
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
-## The rack as art, or null for the drawn one.
-##
-## RESOLVED OUTSIDE `_draw`, deferred: a texture first touched inside a draw
-## call renders white for good -- `StationRoom._plate_key` has the long version.
-## The art is authored to `RACK_W` x `rack_height()` with its boards on the
-## heights `stock` stands parts on, so the parts land on them without asking.
+## Resolved outside `_draw`, deferred: a texture first touched in a draw renders white for good.
+## Why: docs/why/ShelfDisplay.md#rack-art
 var _art2: Texture2D = null
 var _art3: Texture2D = null
 
@@ -218,11 +146,7 @@ func _load_art() -> void:
 	queue_redraw()
 
 
-## Stand a shelf's worth of parts up.
-##
-## `rows` is what `_refresh_stock` already builds: `thing`, `price` and `pick`
-## per entry. Laid out left to right and wrapped onto the next board when the
-## next part will not fit, which is how a shelf gets filled by a person.
+## Laid out left to right and wrapped to the next board when a part will not fit.
 func stock(rows: Array) -> void:
 	Widgets.clear(self)
 	_boards.clear()
@@ -235,17 +159,10 @@ func stock(rows: Array) -> void:
 		# arithmetic against a width of zero would put everything on one board.
 		return
 
-	# --- THE BOARDS ARE WHERE THE BOARDS ARE.
-	#
-	# Fixed pitch down the whole unit, filled from the top. The empty ones at the
-	# bottom are not a gap to be closed -- an outpost with two parts on it SHOULD
-	# look like a shop with two parts in it, and a rack that shrank to fit its
-	# stock could never say that.
+	# Fixed pitch filled from the top: empty boards say an outpost is a shop with two parts.
+	# Why: docs/why/ShelfDisplay.md#rack-size
 	var usable := h - float(CAP_H + 6 + PLINTH_H)
-	# CAPPED AT `BOARDS`, so a taller deck makes a taller ROOM and not a taller
-	# rack. Still measured against the height it was actually given, because a
-	# unit squeezed below its own size should lose boards rather than draw them
-	# through its own plinth.
+	# Capped at `BOARDS` so a taller deck makes a taller room; a squeezed unit loses boards.
 	var count := clampi(int(usable / float(PITCH)), 1, BOARDS)
 	if not board_rows.is_empty():
 		# A ROOM'S RACK HAS THE BOARDS IT WAS DRAWN WITH, and exactly that many.
@@ -257,18 +174,8 @@ func stock(rows: Array) -> void:
 			_boards.append(float(CAP_H + 6) + float(PITCH) * float(i + 1)
 				- float(PLANK + TICKET_H + HEAD) - 2.0)
 
-	# --- AND THE STOCK STANDS ON THEM, wrapped left to right.
-	#
-	# Wrapped FIRST and placed SECOND, because things on a shelf stand on it: a
-	# 2x2 and a 1x1 sharing a board line up at the BOTTOM, and a part cannot be
-	# positioned until the tallest thing beside it is known.
-	# SPREAD ACROSS THE BOARDS, not packed onto the first one.
-	#
-	# Wrapping purely on width put all five parts on the top shelf with three
-	# empty boards underneath -- which is what a delivery looks like before
-	# anybody has put it away, not what a shop looks like. A shopkeeper spreads
-	# the stock out, so the wrap takes whichever comes first: the board is full
-	# ACROSS, or it has its share of the goods.
+	# Wrapped first, placed second so bottoms align; spread so the top shelf is not full.
+	# Why: docs/why/ShelfDisplay.md#packing
 	var shelves: Array = _pack(rows, count)[0]
 	for i in shelves.size():
 		var base: float = _boards[i]
@@ -290,21 +197,8 @@ func stock(rows: Array) -> void:
 					var tg: PriceTag = kid
 					_tags.append([slot.position + tg.position, tg.text, tg.afford])
 					tg.visible = not lit_elsewhere
-			# ON THE BOARD'S LIGHT STRIP, ONE SEGMENT PER CELL: the edge under a
-			# rare part glows its colour, broken where its cells are. Three rows
-			# so it covers the strip on the middle board too, which the art puts
-			# a pixel higher than `base`.
-			#
-			# IT COUNTS, it does not just measure. As one unbroken rect it was
-			# only a LENGTH, and a length is read against the part standing on
-			# it rather than against the grid -- so a 3x1 and a 2x1 looked like
-			# the same thing at two sizes. Segmented, the strip says three and
-			# says two, and you can count it without knowing the cell pitch.
-			# ONE BLOCK IS ONE CELL, at the cell pitch -- not the part's width
-			# divided by its cells. Dividing gave a block of 18.67px for a 3x1
-			# against 19px for a 2x1, which lands on half pixels at 2x and
-			# makes the segments ragged and unequal. A block of SHELF_CELL less
-			# the break is a whole number for every size there is.
+			# One lit segment per cell so the strip counts, in whole pixels, not width over cells.
+			# Why: docs/why/ShelfDisplay.md#light-strip
 			var lit := float(SHELF_CELL - PIP_GAP)
 			for c in cw:
 				_pips.append([Rect2(slot.position.x + float(c * SHELF_CELL),
@@ -319,13 +213,9 @@ func _slot(m: ModuleData, entry: Dictionary, iw: float, ih: float) -> Control:
 	var box := Control.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# THE REAL `ModuleIcon`, not a picture of one. It brings the plate, the
-	# manufacturer stripe, the rarity ground, the silhouette AND the tooltip with
-	# every card the part grants -- none of which this screen has to know about.
+	# The real `ModuleIcon` brings plate, stripe, rarity ground, silhouette and tooltip for free.
 	var icon := ModuleIcon.new()
-	# STAMPED WITH WHERE IT CAME FROM, and the till downstairs is the only thing
-	# that accepts it. See `TradeCounter.FROM_SHELF` for why the string is a
-	# constant instead of a literal in each of the two files that care.
+	# Stamped with its origin; only the till accepts it. See `TradeCounter.FROM_SHELF`.
 	icon.setup(m, TradeCounter.FROM_SHELF)
 	icon.custom_minimum_size = Vector2.ZERO
 	icon.position = Vector2.ZERO
@@ -336,28 +226,13 @@ func _slot(m: ModuleData, entry: Dictionary, iw: float, ih: float) -> Control:
 	icon.bare = DB.station_sprite(&"shop", &"shelf2") != null
 	box.add_child(icon)
 
-	# THE PRICE ON THE BOARD, under the thing it is the price of. A shop puts the
-	# ticket on the shelf edge and not on the box, which is also the only place
-	# it can go here without covering the part.
-	#
-	# A TAG AND NOT A BUTTON. It is a piece of card on a string; what buys the
-	# part is carrying the part to the till.
-	#
-	# CENTRED UNDER ITS OWN ITEM. A tag is as wide as its number and the things
-	# above them are not -- a four-cell rail is a hundred and sixty pixels and a
-	# fitting is forty -- so a wide price under a narrow part hangs past it on
-	# both sides. That is what `stock` reserves room for: it advances by whichever
-	# of the two is wider, so the overhang lands in air and never on a neighbour.
+	# The price sits under its item as a tag, not a button; `stock` reserves room for the overhang.
+	# Why: docs/why/ShelfDisplay.md#price-tags
 	var price := int(entry.price)
 	var tag := PriceTag.new()
-	# A BARE NUMBER. A paper tag on a shop shelf is a price without saying so,
-	# and " CR" made every tag wider than the 1x part above it. The till still
-	# says "236 CR", which is where the money actually moves.
+	# A bare number: ' CR' made every tag wider than the 1x part above it.
 	tag.text = "%d" % price
-	# A PRICE YOU CANNOT PAY IS STILL THE PRICE. The card greys rather than
-	# vanishing: what a thing costs is the reason you are not buying it, and a
-	# shelf that went blank on the parts you cannot afford would be hiding its
-	# own answer.
+	# An unaffordable price greys but stays: a blank shelf would hide the reason.
 	tag.afford = Run.credits >= price
 	var tw := tag.wants()
 	tag.position = Vector2(floorf((iw - tw) * 0.5), ih + float(PLANK) + 1.0)
@@ -372,9 +247,7 @@ func _draw() -> void:
 	if w <= 20.0 or h <= 20.0:
 		return
 	if art_override != null:
-		# A ROOM'S RACK, as the bench draws it (`stockShelf`): the art, and one
-		# lit block per cell under each part -- no glow up the back panel,
-		# which the bench never drew.
+		# A room's rack as the bench draws it: the art plus one lit block per cell, no back glow.
 		draw_texture(art_override, Vector2(0.0, h - float(art_override.get_height())))
 		if not lit_elsewhere:
 			for pip in _pips:
@@ -406,9 +279,7 @@ func _draw() -> void:
 			sy += 14.0
 		sx += 19.0
 
-	# --- THE UPRIGHTS, drilled the whole way down whether a board uses the holes
-	# or not. A rack is drilled once and loaded later, and the empty holes are
-	# what say it could hold more than it does.
+	# Uprights drilled the whole way down: empty holes say the rack could hold more.
 	for px in [0.0, w - float(POST_W)]:
 		draw_rect(Rect2(px, 0.0, float(POST_W), h), POST)
 		draw_rect(Rect2(px, 0.0, 1.0, h), EDGE)
@@ -435,9 +306,7 @@ func _draw() -> void:
 		# The shadow the goods cast down onto their own board, so they are ON it.
 		draw_rect(Rect2(float(POST_W), by - 3.0, w - float(POST_W * 2), 3.0),
 			Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
-		# Stepped brackets where the board meets each post -- three rectangles
-		# rather than a diagonal, because nothing here can trust a slope to land
-		# on the pixel grid.
+		# Stepped brackets of three rects: a diagonal cannot be trusted to hit the pixel grid.
 		for step in 3:
 			var bw := 13.0 - 4.0 * float(step)
 			if bw <= 0.0:
@@ -466,23 +335,11 @@ func draw_lit_marks(c: CanvasItem) -> void:
 	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## One price, as a card on a string.
-##
-## IT WAS A LABEL, and a label is a number floating on a shelf. What a shop puts
-## under its goods is an OBJECT -- card, a punched hole, a bit of string -- and
-## the difference between those two things is about thirty lines of rectangles.
-## It is also the only warm surface on this deck, which is the point: paper among
-## painted metal reads as somebody's handwriting rather than as a readout.
-##
-## Drawn rather than loaded, like everything else standing in this station.
+## The tag is a card on a string, not a label, and the deck's only warm surface.
+## Why: docs/why/ShelfDisplay.md#price-tags
 class PriceTag extends Control:
-	## A PRICE STAMPED ON A CARD, in digits three pixels wide.
-	##
-	## A tag has to fit under its part, and a part on a 1x shelf can be one cell,
-	## twenty pixels. The game's pixel font sets "236" wider than that, so the
-	## digits are drawn here, 3x5 each with a pixel between: three digits in
-	## fifteen, four in nineteen. It reads as a price gun's stamp, which is what a
-	## shop tag is.
+	## Digits are drawn 3x5 here, as the pixel font sets '236' wider than a one-cell part.
+	## Why: docs/why/ShelfDisplay.md#price-tags
 	const CARD := Color("#c2ae86")
 	const CARD_DIM := Color("#6e6858")
 	const INK := Color("#241d14")

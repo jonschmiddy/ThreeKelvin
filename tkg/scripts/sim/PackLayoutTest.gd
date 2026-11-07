@@ -1,22 +1,7 @@
 extends Node
 
-## NOTHING IN A FIGHT SITS ON ANYTHING ELSE, headless:
-##   godot --headless --path . -- sheet=PackLayoutTest [packlayout=A|B|C|all] [quick]
-## Jon, Oct 13, on three enemies piled on each other: no ship, wreck, name, hull
-## bar, chips or intent may overlap another enemy's or yours. For each pack
-## layout (`EncounterView.pack_layout`; `all` runs A, B and C), the real fight is
-## opened and its ships re-dressed as every pair and every triple of the
-## pictures a fight can bring (the five ordinary kinds' three each, the
-## Hellbender, the Custodian), and every triple again with its first ship a
-## wreck. Once laid out, every box -- each ship's own ink at rest, each line of
-## its readout (intent, what it does, name, number: the text's own width), its
-## bars, its chips; and yours: your hull, your name, bar, number and chips --
-## must not cross any other box, and must lie inside the view. Your ship must
-## not have moved from where it stands with one enemy out there.
-##
-## Written against the slots' own nodes rather than any helper the layout
-## added, so the same file runs on a build without them (it did, on main at
-## d4d2bf0, and failed).
+## Jon, Oct 13: no ship, wreck, name, bar, chip or intent may overlap another enemy or yours.
+## Why: docs/why/PackLayoutTest.md#pack-layout
 
 var _fails := 0
 var _shown := 0
@@ -89,15 +74,9 @@ func _run() -> void:
 						[pics[i], pics[j], pics[k]], home, false)
 					await _check(tree, "%s triple with a wreck %s+%s+%s" % [mode, _n(pics[i]), _n(pics[j]), _n(pics[k])],
 						[pics[i], pics[j], pics[k]], home, true)
-		# piles: four to twelve ships, the widest pictures, half of them wrecks --
-		# a fight's row, and LOCAL's row of wrecks left at one system
-		# (no Custodian: it is fought alone and its death ends the run, so it is
-		# never in a pack and never left on LOCAL)
+		# Piles of four to twelve of the widest pictures, half wrecks; no Custodian.
 		var wide: Array = [[&"marauder", 0], [&"hulk", 0], [&"marauder", 1], [&"hulk", 1], [&"hellbender", 0], [&"hulk", 2]]
-		# (a fight brings at most two, and a reinforcement only to one; four is
-		# the dev flag's most. A system can hold the wrecks of its own fight, its
-		# one ambush, the Hellbender's and its events' fights: eight is a lot,
-		# and twelve is checked)
+		# A fight brings at most two, but a system can hold many wrecks, so twelve is checked.
 		for n in [4, 5, 6, 8, 10, 12]:
 			await _open(tree, n)
 			var pile: Array = []
@@ -160,9 +139,7 @@ func _check(tree: SceneTree, tag: String, pack: Array, home: Vector2, wreck: boo
 		e.hp = 0 if ((wreck and i == 0) or (every_other and i % 2 == 0)) else e.max_hp
 		e.pick_intent()
 	Sig.enemy_changed.emit()
-	# (headless, nothing eases: a move lands on the frame it is laid out; the
-	# formation re-measures what it drew and may lay out again, up to 3 times):
-	# measured once every box has held still three frames running, ten at most
+	# Headless nothing eases; measured once every box has held still three frames.
 	var last := ""
 	var still := 0
 	for f in 10:
@@ -235,12 +212,8 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 		for b in _slot_boxes(view.slot(i)):
 			boxes.append([i, b[0], b[1]])
 		i += 1
-	# THE SAME ROOM UNDER EVERY HULL (Jon: "The hellbender is a bit close to
-	# its text box"), and THE SHIELD'S ROOM ("shield:A"). A ship in a fight:
-	# the oval its block raises (`ShieldFx.fit`, the shield's own) clear of its
-	# words, its name, its bars and chips, and of every other ship's boxes, with
-	# RIM_GAP from its rim to the words above and to the name below. A wreck on
-	# LOCAL (no shield): its name UNDER_GAP under its ink.
+	# Same room under every hull (Jon) and the shield's room: oval clear of words, name, bars.
+	# Why: docs/why/PackLayoutTest.md#shield-room
 	var ovals: Array = []   # [owner, Rect2]
 	for k in n:
 		var sl: EnemySlot = view.slot(k)
@@ -300,11 +273,7 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 	var you := _you(view)
 	if home != Vector2.INF:
 		_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)
-	# EVENLY SPACED, with room (Jon: "we need more space and they can be evenly
-	# spaced around each other"; then "decrease the vertical space between the
-	# top and bottom ships to make room for the text"): in the formation, the
-	# gaps across a rank all one (within GAP_SPREAD, 4 px at 1080p), the gaps
-	# between ranks all one, and every gap at least GAP_MIN (24 px at 1080p).
+	# Evenly spaced with room (Jon): equal gaps across a rank and between ranks, at least GAP_MIN.
 	var scr: Script = load("res://scripts/ui/EncounterView.gd")
 	if scr.get("pack_layout") == &"B" and n >= 2:
 		var blocks: Array[Rect2] = []
@@ -316,9 +285,7 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			for o in ovals:
 				if int(o[0]) == k:
 					u = u.merge(o[1])
-			# the block the slot keeps for the whole fight (its readout's and
-			# its shield's room reserved), where the build has one; every box
-			# drawn, and the shield, lie inside it
+			# The slot's block reserves readout and shield room; every box drawn lies inside it.
 			if sl.has_method("block"):
 				var r: Rect2 = sl.call("block", sl.art.draw_scale)
 				var kept := Rect2(sl.get_global_rect().position + r.position, r.size)
@@ -343,9 +310,7 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 			for j in range(1, ks.size()):
 				across.append(blocks[ks[j]].position.x - blocks[ks[j - 1]].end.x)
 			if ranks.has(int(rk) + 1) and _has_rooms(view, n):
-				# THE TRIANGLE IN THE SHOULDERS: each ship behind measured by
-				# its room's parts (`EnemySlot.rooms`: words, oval, plate)
-				# to the two in front it sits between
+				# Each rear ship is measured by its room's parts to the two it sits between.
 				for a in ranks[int(rk) + 1]:
 					var ds: Array[float] = []
 					for f in ks:

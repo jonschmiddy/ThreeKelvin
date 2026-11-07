@@ -1,12 +1,7 @@
 extends RefCounted
 
-## Contact sheet for SpaceBackdrop: one sector sky per synthetic node, written
-## to PNG. Procedural art is tuned by looking at a dozen rolls side by side,
-## never at one.
-##
-## The second sheet puts the same skies behind a real EncounterView, with the
-## ship and the place art on top, because the only question that matters about a
-## backdrop is whether the subject still reads over it.
+## Procedural art is tuned by looking at a dozen rolls side by side, never at one.
+## Why: docs/why/SkyTest.md#sky-test
 
 const W := 620
 const H := 320
@@ -51,10 +46,7 @@ func _sheet(tree: SceneTree, full: bool, path: String) -> void:
 			bg.size = Vector2(W, H)
 			vp.add_child(bg)
 			bg.setup(n)
-			# Drawn size and bake cost, because both are tuning numbers: a body
-			# that reads as a corner accent on this sheet and costs 90 ms is a
-			# body that wants a smaller radius, and neither fact is visible in
-			# the picture.
+			# Drawn size and bake cost both guide tuning, and neither shows in the picture.
 			var wide := 0.0
 			if bg._body != null:
 				wide = float(bg._body.get_width() * bg._body_px)
@@ -69,9 +61,7 @@ func _sheet(tree: SceneTree, full: bool, path: String) -> void:
 	sheet.save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
 
-## What a real galaxy actually gets, by node type. The sheet says a sky looks
-## right; this says the spread is there at all — a table that is 80% empty sky
-## reads as "the feature did not ship" however good the other 20% is.
+## A real galaxy's spread by node type: a table 80% empty sky reads as not shipped.
 func _census() -> void:
 	var map := MapGen.generate(Rect2(Vector2.ZERO, Vector2(1600, 900)))
 	var tally := {}

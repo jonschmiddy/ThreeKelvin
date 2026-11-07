@@ -1,129 +1,26 @@
 class_name ShipScreen
 extends Control
 
-## Refit, as a workbench.
-##
-## The ship and what it IS on the left; the parts and where they go on the
-## right. You drag a module from storage onto a hardpoint to fit it, drag it
-## back to store it, and drop one onto an occupied mount to swap the two.
-##
-## There is no melter on this screen. Scrapping a part still exists and still
-## pays scrap — it lives on the station and the salvage prompt, where a bid to
-## compare it against is also on screen. A drag-to-destroy target sitting next to
-## the storage grid made the destructive move the easiest one to reach by
-## accident, which is the wrong ergonomics for the only irreversible verb here.
-##
-## Modules are icons rather than rows. A list of names is a document; a grid of
-## icons is an inventory, and this screen's whole job is the second thing —
-## comparing what is bolted on against what is in the hold, at a glance, and
-## moving one to the other. The rows it replaced could not show you a full
-## weapon rack and a full hold at the same time.
-##
-## Two drop handlers, because there are two destinations asking different
-## questions. `_on_mount_drop` asks whether a slot type matches and which PLACE
-## on the hull was aimed at; `_on_hold_drop` asks whether a shape fits and at
-## which cell. Nothing else in here touches `installed` or `cargo`.
+## Refit workbench. No melter here: drag-to-destroy made the one irreversible verb too
+## easy.
+## Why: docs/why/ShipScreen.md#refit-workbench
 
-## SUPERSEDED by HoldGrid, which takes its shape from HullData.hold_grid. Kept
-## as the record of why four: the measurement below is what set it and it is
-## still what the hold is drawn at.
-##
-## Four across, so the hold reads as rows of four whatever hull you are flying.
-##
-## Capacities are 8 / 12 / 16, so four columns is exactly 2, 3 and 4 full rows —
-## no ragged last row on any ship in the game, and the shape itself tells you
-## which weight class you are in.
-##
-## Width is also why this is safe. Measured at eight columns the two panels
-## demanded 985px of a 944px viewport and the melter and the last storage column
-## hung off the right edge. The left panel cannot give any of it back — its 527px
-## is the banner plus the ship at 2x, and the ship is the subject. Four columns
-## is 201px against six columns' 303px, so the grid now costs a third of what it
-## did when it did not fit.
-## The ship panel's height, off the SPEC rather than off whatever hull happens to
-## exist: the largest class is 125x50 at 2x the box, so 100 rows plus the bob.
-##
-## 150, and it is a BUDGET rather than a size. The masthead is SHRINK_BEGIN and
-## the workbench is EXPAND_FILL, so every row given to the ship is a row taken
-## off the panel below. Measured with `-- shipshot`, on the heavy, which is the
-## tight case — its hold is 6x5 against the light's 4x3:
-##
-##     view    masthead   workbench   the heavy
-##     104        175         311     what it actually was, see below
-##     150        221         265     here. 19 rows clear under the abilities
-##     160        231         262     also fits
-##     165        236         257     still fits, nothing left over
-##     200        271         222     abilities clipped off the panel
-##
-## 104 is in that table because it is where this screen SAT, not where it was
-## set. ShipView._resize_canvas ignored the height it was handed unless the view
-## was magnified, so at 1x the panel silently took the canvas's own depth and
-## this constant did nothing at all. Honouring it is the whole of the extra room:
-## the number here is unchanged and the panel is 46 rows deeper than it was.
-##
-## The panel bottom does not move as this grows. Two equal expanding spacers in
-## `textcol` carry all the slack, so what shrinks is the air between ATTRIBUTES,
-## HARDPOINTS below it, and it shrinks EQUALLY, which is the property worth
-## keeping. At 150 those two gaps are 20 rows each; at 200 they are nothing
-## and the bottom of the column runs off the panel, which is the failure to
-## watch for: it does not throw, and it only happens on one of the three
-## weights. A MANUFACTURER ABILITIES block used to be the thing that fell
-## off first, and its removal bought this margin rather than fixed it.
+## Superseded by HoldGrid. Four columns suit capacities 8/12/16 and fit the 944px viewport.
+## `HULL_VIEW_H` is a height budget measured with `-- shipshot`, not a size.
+## Why: docs/why/ShipScreen.md#hold-and-panel-sizing
 const HULL_VIEW_H := 150
 
-## Clearance between the name block and the ship. The mount markers draw ABOVE
-## the hull's own top edge — they are what a part bolts to, so they have to sit
-## proud of it — and without this the dorsal row lands in the class line.
-##
-## 26 rather than the 10 that was merely enough to stop the collision: this is
-## also the gap that sets how far down the panel the ship sits, and the flag
-## beside it grows to match.
+## Mount markers draw above the hull's top edge, so this clears them from the class line.
+## Why: docs/why/ShipScreen.md#hull-view-spacing
 const HEAD_GAP := 0
 
-## How wide the numbers get before the hold starts. Fixes the hold's top-left
-## corner, which is the whole point: a hold grows by gaining CELLS, and it
-## should gain them down and to the right, the way a hold fills. Right-aligned
-## instead — which is where it sat first — a wider hold grew LEFTWARDS into the
-## attributes, so the same five parts moved every time the ship changed.
-##
-## The panel gives 479px between its paddings and the attribute rows measure
-## 183 of it, so this is mostly gutter. 220 puts the hold's left edge at x=254 —
-## a 50px gutter off the numbers, which is enough to read as a separate block
-## without being a hole.
-##
-## Sitting this far left is also what makes "grows down and to the right" true
-## rather than aspirational: 245px of clear panel to the right of a five-wide
-## hold is nine more columns. It was at 340 for one pass, and there the same
-## sentence bought exactly one.
+## Pins the hold's top-left so it grows down and right, not left into the attributes.
+## Why: docs/why/ShipScreen.md#hold-placement
 const STATS_W := 220
 
-## Air between the hold's heading and its first row of cells, matched to the gap
-## ATTRIBUTES has over HULL. That one is free — a label carries its own leading
-## and the gauge row is mostly whitespace — and the hold's first row is a
-## hard-edged plate, so the same distance has to be put there on purpose.
-##
-## MEASURED, not guessed: ATTRIBUTES clears HULL by 8px of background, and at
-## LABEL_AIR 6 the hold cleared its grid by 11. Hence 3.
-## Between the flag and the text beside it. Named because the ship's own
-## placement has to subtract it — see `_centre_ship`.
-## The left panel's width, fixed. See `_centre_ship` for why it cannot float.
-##
-## 524 was the smallest that fitted everything WHEN THE WIDEST THING IN THIS
-## column was the manufacturer abilities block at 470 across. A centred heavy
-## needs the flag's 49 plus half a 336px view plus the 33 the hull sits off
-## its own centre, which is 500 inside the padding -- and that half still
-## holds, because it is about the ship rather than the readouts.
-##
-## 504, not 524. The right panel takes whatever the left column leaves, and a
-## readout NUDGES right on hover, so its row needs twenty pixels of slack or
-## the far card slides under the screen edge while you are reading about it.
-## Taken from here rather than added there, because this column had room.
-##
-## THE 470 CONSTRAINT IS GONE with the abilities block, so this is no longer
-## the smallest width that fits -- it is merely a width that does. Left as it
-## is on purpose: narrowing the panel moves the ship, the hold and the whole
-## right-hand column, which is a layout decision and not the tail end of
-## deleting a list. The 500 the ship needs is the real floor now.
+## Measured gaps and widths: the left panel is fixed so the ship centring does not drift.
+## Hover nudge needs 20px of slack on the right panel, so 504 not 524.
+## Why: docs/why/ShipScreen.md#panel-widths
 const PANEL_W := 504
 
 ## What Widgets.panel_with insets its child by, on each side.
@@ -133,39 +30,24 @@ const HEADER_SEP := 10
 
 const LABEL_AIR := 3
 
-## NO EXPLICIT GAP under the ship, and that is measured rather than an omission.
-## The flag ends 8px above the ATTRIBUTES glyphs on its own: two of the column's
-## separations, plus the leading a label carries above its own capitals. Adding a
-## spacer of the 8 that was wanted produced 16.
-##
-## 8 is also what ATTRIBUTES clears HULL by and what the hold's heading clears
-## its grid by, so all three headings on this panel now sit the same distance
-## under whatever is above them.
+## No explicit gap under the ship: the flag already ends 8px above ATTRIBUTES. A spacer
+## made 16.
+## Why: docs/why/ShipScreen.md#panel-widths
 
 const STORAGE_COLS := 4
 
-## How wide a module readout is in the installed list.
-##
-## WIDER THAN A CARD, deliberately. At a card's 112 the longest manufacturer line
-## wrapped to two rows on Korvan parts and one on unbranded ones, so the boxes
-## were the same width and different HEIGHTS — which is the same raggedness
-## moved to the other axis. 150 fits "KORVAN HEAVY WORKS" on one line.
+## Wider than a card so manufacturer lines do not wrap and make boxes uneven in height.
+## Why: docs/why/ShipScreen.md#module-readouts
 const READOUT_W := 150.0
 
-## How far a readout slides right while it is being pointed at.
-##
-## Animated through a MarginContainer rather than by setting `position`: the
-## readout lives in an HBox, and a container overwrites a child's position on
-## the next layout pass. A margin is a thing the container itself honours.
+## Animated through a MarginContainer: a container overwrites a child's `position` on
+## layout.
+## Why: docs/why/ShipScreen.md#module-readouts
 const NUDGE := 7.0
 
-## THE PART CURRENTLY IN THE AIR, and where it came off.
-##
-## A part dragged off the hull leaves the ship at the moment it is picked up,
-## which means that between the grab and the drop it belongs to NOTHING — not
-## `installed`, not `cargo`. That is the state this remembers, and `_on_release`
-## is what guarantees it cannot outlive the drag: a drag abandoned over the star
-## chart would otherwise delete the module.
+## Between grab and drop the part is in neither `installed` nor `cargo`; `_on_release` must
+## restore it.
+## Why: docs/why/ShipScreen.md#lifted-part
 var _lifted: ModuleData = null
 var _lifted_mount: int = -1
 
@@ -180,10 +62,7 @@ var _dock: PadStrip
 var _dockhead: Label
 var _dockbox: ScrollContainer
 
-## HOW MANY ROWS OF DOCK ARE ON SCREEN AT ONCE, the rest scrolled to.
-##
-## Two, because two is what is left. The hold panel runs to the bottom of a
-## 540-tall window on a heavy, and this sits under it.
+## Two dock rows: that is all the room left under the hold on a heavy in a 540px window.
 const DOCK_ROWS := 2
 var _attrs: AttrBlock
 var _mounts: VBoxContainer
@@ -193,9 +72,7 @@ var _view: ShipView
 var _banner: ChassisSelect.Banner
 var _name: Label
 var _namebtn: Button
-## The rename prompt's shade, or null when it is closed. One field, because the
-## shade owns the card and the card owns everything in it -- freeing the shade
-## takes the whole prompt with it.
+## One field: freeing the shade frees the whole prompt card.
 var _rename: ColorRect
 ## How long a ship's name may be. Longer than this and the masthead wraps.
 const NAME_MAX := 24
@@ -203,11 +80,8 @@ var _manufacturer: Label
 var _class: Label
 var _hand: Label
 var _hold: Label
-## The perk list in the masthead's top-right corner. An OVERLAY on the
-## panel rather than a column in its layout, and that is deliberate: the
-## ship is centred by arithmetic that reads the row it sits in, so a new
-## sibling would narrow the ship's window and move the ship to make room
-## for text about the ship. Anchored over the corner it costs nothing.
+## An overlay, not a column: a new sibling would narrow the ship's window and shift the
+## ship.
 var _perkbox: PerkBox
 var _fithead: Label
 var _fitted: VBoxContainer
@@ -238,36 +112,23 @@ func _build() -> void:
 	root.add_child(body)
 
 	# --- left: what you are flying
-	# TWO PANELS, ONE ABOVE THE OTHER. What the ship IS — its flag, its name and
-	# the hull itself — is a masthead, and the numbers under it are a workbench.
-	# One box around both made the ship look like the first row of a table.
+	# Two panels: the masthead says what the ship is, the workbench holds the numbers. One box
+	# around both made the ship look like the first row of a table.
 	var top := VBoxContainer.new()
 	top.add_theme_constant_override("separation", 2)
 
 	var left := VBoxContainer.new()
-	# 2, not 4. This column carries ten blocks and every pixel of separation is
-	# ten pixels of height — which was the difference between the manufacturer
-	# abilities being on the panel and being under it.
+	# Separation 2 not 4: this column has ten blocks and each pixel costs ten of height.
 	left.add_theme_constant_override("separation", 2)
 
-	# THE FLAG HANGS THE WHOLE DEPTH OF THE SHIP, name and hull both.
-	#
-	# This went the other way for a while — a short banner sized to the three
-	# lines of text — because "fixed across, free down" meant it grew to the
-	# ship's height and took vertical the blocks below needed. That was the
-	# right diagnosis of the wrong problem: the vertical was won back by moving
-	# the hold out of the column, and the flag can have its depth now.
-	#
-	# It is the one thing on this panel that says whose yard built what you are
-	# looking at, and a 66px badge beside a 106px ship reads as a bullet point
-	# next to the subject rather than as a masthead over it.
+	# The flag hangs the full depth of the ship: it names whose yard built it, and a short
+	# badge reads as a bullet.
+	# Why: docs/why/ShipScreen.md#masthead-flag
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", HEADER_SEP)
 	_banner = ChassisSelect.Banner.new()
-	# The minimum is the flag's AUTHORED depth (Banner.UNITS_H); FILL is what
-	# takes it the rest of the way down. The two together mean the hem is never
-	# cut off no matter how short the row gets, and the flag still reaches the
-	# bottom of the ship when there is room.
+	# Minimum is the authored flag depth so the hem is never cut off; FILL takes it to the
+	# ship's bottom.
 	_banner.custom_minimum_size = ChassisSelect.Banner.S * Vector2(
 		ChassisSelect.Banner.UNITS_W, ChassisSelect.Banner.UNITS_H)
 	_banner.size_flags_vertical = Control.SIZE_FILL
@@ -275,18 +136,12 @@ func _build() -> void:
 
 	var names := VBoxContainer.new()
 	names.add_theme_constant_override("separation", 1)
-	# EXPANDING, or the ship's centring pads have nothing to divide. Without
-	# this the column is only as wide as its widest child, so the row holding
-	# the ship shrink-wrapped it and both pads came out zero — the ship sat
-	# hard against the flag and every correction below did nothing.
+	# Must expand, or the ship's centring pads have nothing to divide and both come out zero.
 	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	# THE NAME, and the pencil that changes it.
-	#
-	# On a row of its own so the button sits against the text rather than out at
-	# the column's right edge -- the column expands to fill the masthead, and a
-	# button parented straight to it would end up a hundred pixels from the word
-	# it edits.
+	# Name and pencil on their own row so the button sits against the text, not at the column
+	# edge.
+	# Why: docs/why/ShipScreen.md#masthead-flag
 	var namerow := HBoxContainer.new()
 	# FOUR, not six. See NameEdit.PAD_X -- the button carries its own air, and
 	# the two were adding up to a gap wide enough to read as a separator.
@@ -317,53 +172,30 @@ func _build() -> void:
 	names.add_child(clsrow)
 	header.add_child(names)
 
-	# AIR UNDER THE NAME. The ship's mount markers draw above the hull's own
-	# top edge, so a ship butted straight against the header put hardpoints
-	# through the "HEAVY CHASSIS - S TIER" line. Fixed rather than a spacer that
-	# shares in the column's slack: this gap is clearance, and clearance that
-	# gives way under pressure is not clearance.
+	# Fixed clearance, not a spacer that shares slack: mount markers draw above the hull's top
+	# edge.
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, HEAD_GAP)
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	names.add_child(gap)
 
-	# The banner hangs the full depth of the ship rather than a badge sitting
-	# beside a name. It is the same flag the chassis cards fly and it is the one
-	# piece of this panel that says whose yard built the thing you are looking
-	# at, so it gets the height the subject has — a 26px badge next to two lines
-	# of text read as a bullet point.
+	# Flag spans the ship's depth: it is the one piece saying whose yard built it.
 	var shiprow := HBoxContainer.new()
 	shiprow.add_theme_constant_override("separation", 8)
 
-	# Doubled and cropped to the hull, the same treatment the chassis select
-	# gives it. At 1x in a panel this size the ship was a small object adrift in
-	# a lot of nothing, which is the wrong impression for the screen whose
-	# subject it is. SHRINK_CENTER inside an expanding wrapper puts it in the
-	# middle of the space the banner leaves rather than hard against the flag.
+	# Doubled and cropped like the chassis select; at 1x the ship was adrift in empty panel.
 	var view := ShipView.new()
-	# 1x, and the height sized off the TALLEST hull rather than off the one that
-	# used to be the only one.
-	#
-	# 2x was set when every hull was procedural at 240x120 and the one real
-	# sprite was 188x88. The shipped hulls are 150x60, 200x80 and 248x100, so 2x
-	# drew a 496px ship on a 960px viewport — over half the screen width — and
-	# clipped the deepest ones top and bottom. Integer magnification is the art
-	# rule and 1x is the only step below 2x, so this is half rather than a nudge;
-	# the viewport is itself scaled 2x into a 1920x1080 window, so an art pixel
-	# still lands on four real ones and stays crisp.
-	# THE WINDOW CLIPS, NOT THE VIEW. `_clip` bounds everything on this screen,
-	# so the view clipping itself as well can only take a bite out of its own
-	# children — which is the hardpoint layer, and the guns on it.
+	# 1x, sized off the tallest hull: 2x drew a 496px ship on a 960px viewport. The window
+	# clips.
+	# Why: docs/why/ShipScreen.md#hull-view-scale
 	view.self_clip = false
 	view.magnify(1, HULL_VIEW_H)
 	view.bob(2)
 	# Heard as well as seen: the idle flame is on screen, so its bed is too.
 	view.hums = true
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	# The mounts are a CHILD of the view, so they inherit its rect and every
-	# position they draw is in the view's own coordinates — which is what makes
-	# ShipView.canvas_to_local the only place the sprite's bob, magnification
-	# and centring are reasoned about.
+	# Mounts are a child of the view so `ShipView.canvas_to_local` is the only place sprite
+	# offsets are reasoned about.
 	_mountpts = MountPoints.new()
 	_mountpts.attach(view)
 	_mountpts.dropped.connect(_on_mount_drop)
@@ -371,80 +203,48 @@ func _build() -> void:
 	_mountpts.released.connect(_on_release)
 	view.add_child(_mountpts)
 	_view = view
-	# CENTRED ON THE PANEL, not on the column and not on the canvas.
-	#
-	# Two separate reasons the ship was not in the middle, and neither was the
-	# one it looked like. It lives in the column the flag leaves, so it starts
-	# half a flag right of the panel's centre; and a hull sits right of the
-	# middle of its OWN canvas, because the canvas carries the exhaust plume's
-	# clearance on one side only.
-	#
-	# A pad either side, and `_centre_ship` puts the number on the left one.
+	# Centred on the panel: the flag and the plume clearance both push the hull right of the
+	# column's middle.
+	# Why: docs/why/ShipScreen.md#ship-centring
 	var vwrap := HBoxContainer.new()
 	vwrap.add_theme_constant_override("separation", 0)
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	# The LEFT pad is the one that carries the number, and the right one only
-	# soaks up whatever is over. A minimum on the left is a position; a minimum
-	# on the right is a position too, but only while it is the larger of the
-	# two, and which of them that is changes with the hull.
+	# The left pad carries the number; the right only soaks up the rest, as which is larger
+	# varies by hull.
 	_padl = Control.new()
 	_padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vwrap.add_child(_padl)
-	# THE CLIP BOX. It is what the layout sizes and centres; the view inside
-	# it is free to be bigger and to be dragged about. At 1x the two are the
-	# same size and this is invisible, which is what keeps every measurement
-	# in `_centre_ship` true -- the box does not change size when zoom does.
+	# The clip box is what layout sizes; the view may grow, so `_centre_ship` measurements
+	# hold at any zoom.
 	_clip = Control.new()
 	_clip.clip_contents = true
 	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
 	_clip.gui_input.connect(_on_clip_input)
 	_clip.add_child(view)
-	# THE WINDOW TAKES THE REST OF THE ROW. It used to be sized to a computed
-	# width with a spacer after it soaking up the remainder, which put an
-	# invisible edge a hundred pixels inside the panel — and at 2x on a heavy
-	# that edge lands exactly where the longest gun is, so the muzzle was cut
-	# off by a piece of empty panel. Expanding instead means the viewable area
-	# IS the panel, which is what was asked for.
+	# The window takes the rest of the row: a computed width left an invisible edge that cut
+	# the longest muzzle.
+	# Why: docs/why/ShipScreen.md#hull-view-window
 	_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# AND VERTICALLY, for the same reason and with a worse symptom. The window
-	# was pinned to HULL_VIEW_H at every zoom, but a heavy's canvas is 208 rows
-	# once doubled — so 58 rows of ship were cut off top and bottom while the
-	# panel underneath had the space to show them.
+	# Vertical expand too: a pinned height cut 58 rows off a doubled heavy while the panel had
+	# room.
 	_clip.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vwrap.add_child(_clip)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
 	top.add_child(header)
 
-	# THE HOLD SITS BESIDE THE WHOLE TEXT COLUMN, not beside one block of it.
-	#
-	# It was paired with the ATTRIBUTES row alone for two passes, which put the
-	# two headings on one line — correct, and kept — but also put the hold IN
-	# the column's vertical flow. So HARDPOINTS started below the deepest thing
-	# above it, and the deepest thing was the grid rather than the attributes:
-	# the gap over HARDPOINTS was being measured off the hold's bottom edge,
-	# 30px lower than the numbers it looked like it was spaced from.
-	#
-	# Out of the flow, the three text blocks space themselves against each
-	# other and the hold hangs alongside. The headings still align, because
-	# both columns still start at the same row.
+	# The hold sits beside the whole text column, out of its flow, so HARDPOINTS spacing is
+	# not measured off the grid.
+	# Why: docs/why/ShipScreen.md#hold-beside-text-column
 	var midrow := HBoxContainer.new()
 	midrow.add_theme_constant_override("separation", 14)
 	midrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	# ATTRIBUTES AND HARDPOINTS, with equal space above and below the second.
-	# That is what centres HARDPOINTS under the numbers: the
-	# gap over it and the gap under it are the same object with the same weight,
-	# so it stays centred when a hull with more mounts makes its block taller.
-	#
-	# STILL FIXED-WIDTH even though the block that forced it is gone. The
-	# MANUFACTURER ABILITIES rows ran the full width of the panel, so inside
-	# this column they -- not STATS_W -- set the column's width, and the hold
-	# got shoved 240px right of where it was pinned. The rows have gone; the
-	# pin has not, because STATS_W is what the hold is placed against and a
-	# column that sizes to its widest child would move it again.
+	# Equal space above and below HARDPOINTS keeps it centred. The column stays fixed-width:
+	# `STATS_W` places the hold.
+	# Why: docs/why/ShipScreen.md#text-column
 	var textcol := VBoxContainer.new()
 	textcol.add_theme_constant_override("separation", 2)
 	# FIXED, not expanding. See STATS_W — this is what pins the hold's top-left
@@ -456,21 +256,16 @@ func _build() -> void:
 	_attrs = AttrBlock.new()
 	textcol.add_child(_attrs)
 
-	# The same block the chassis select shows, on the screen where it is
-	# ACTIONABLE. There it answers "what would flying this cost me" before you
-	# commit; here it answers "what have I got left", which is the question you
-	# are asking on every drop — and it was the one screen in the game where
-	# slot pressure was invisible while you were spending it.
+	# Same block the chassis select shows, here where slot pressure is actionable on every
+	# drop.
 	textcol.add_child(_spread())
 	textcol.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	_mounts = VBoxContainer.new()
 	_mounts.add_theme_constant_override("separation", 2)
 	textcol.add_child(_mounts)
 
-	# THE SECOND BUDGET, under the first one. Hardpoints answer "is there
-	# anywhere to bolt this"; the reactor answers "can I run it" — and a player
-	# refused a part needs to be told WHICH of the two said no. Directly beneath
-	# the mount rows because it is the same question asked about the same drop.
+	# Reactor is the second budget: a refused part needs to say which of the two budgets said
+	# no.
 	_reactor = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	textcol.add_child(_reactor)
 
@@ -483,12 +278,8 @@ func _build() -> void:
 	var holdcol := VBoxContainer.new()
 	holdcol.add_theme_constant_override("separation", 2)
 	holdcol.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	# THE HEADING AND THE HATCH SHARE A ROW.
-	#
-	# It was under the grid, which put it off the bottom of the screen on a
-	# heavy hull -- the hold is five rows there, and the panel had no more to
-	# give. Up here it is above the fold whatever you are flying, and it is
-	# beside the thing it acts on rather than after it.
+	# Heading and hatch share a row: under the grid it fell off the bottom on a heavy hull.
+	# Why: docs/why/ShipScreen.md#hold-heading-row
 	var holdhead := HBoxContainer.new()
 	holdhead.add_theme_constant_override("separation", 8)
 	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
@@ -502,10 +293,7 @@ func _build() -> void:
 	bin.dumped.connect(func(_m: HoldItem) -> void: _refresh())
 	holdhead.add_child(bin)
 	holdcol.add_child(holdhead)
-	# A heading wants air under it. Every other block on this panel gets it from
-	# the gap between a label and the first ROW of what it labels; the hold's
-	# first row is a hard-edged plate that butts straight up under the text
-	# without one.
+	# The hold's first row is a hard-edged plate, so the heading needs explicit air under it.
 	var hgap := Control.new()
 	hgap.custom_minimum_size = Vector2(0, LABEL_AIR)
 	hgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -515,25 +303,15 @@ func _build() -> void:
 	holdcol.add_child(_storage)
 
 	# --- THE DOCK, UNDER THE HOLD.
-	#
-	# Under and not beside, because the two are the same rectangle seen twice:
-	# the strip takes the hold's own column count, so a part that will not fit
-	# up there is directly above the empty cells it needs. Beside them, at half
-	# the width, the comparison stops being a comparison.
+	# Under the hold, not beside it: same column count, so a part that will not fit sits above
+	# the cells it needs.
+	# Why: docs/why/ShipScreen.md#dock-strip
 	_dockhead = UITheme.body("", UITheme.LEAVE, UITheme.FS_SMALL)
 	holdcol.add_child(_dockhead)
 	# --- BOUNDED, AND THEREFORE SCROLLED.
-	#
-	# The first version put the strip straight into the column and it ran off the
-	# bottom of the window: a heavy moving into a light strands about seven
-	# things, which wraps to four rows at the hold's width, and there are two
-	# rows of screen left under the grid. The panel had no more to give and the
-	# strip does not get to take it.
-	#
-	# The CELL stays the hold's, because the whole point of the plate is that it
-	# is the same object you are about to drag two inches upward -- shrinking it
-	# would have bought the rows back by making the two grids stop matching.
-	# Height is what gets capped instead, and the overflow scrolls.
+	# Bounded and scrolled: seven stranded parts overran the window. Cell size stays the
+	# hold's.
+	# Why: docs/why/ShipScreen.md#dock-strip
 	var dockbox := ScrollContainer.new()
 	dockbox.custom_minimum_size = Vector2(0, DOCK_ROWS * (PadStrip.CELL
 		+ PadStrip.GAP) - PadStrip.GAP)
@@ -547,15 +325,9 @@ func _build() -> void:
 
 	left.add_child(midrow)
 
-	# NO MANUFACTURER ABILITIES BLOCK, and this is where one used to be. It
-	# listed the set-bonus ladder for the hull's own manufacturer and, under a
-	# rule, the counts for any other allegiance the fitted parts had earned.
-	#
-	# Removed on request. What went with it: the only place on this screen that
-	# said how close a mixed loadout was to a SECOND manufacturer's bonus. The
-	# hull's own perks are still in the masthead's top-right corner, and the
-	# chassis select still answers the ladder question for a manufacturer you
-	# are choosing rather than one you are already flying.
+	# No manufacturer abilities block, removed on request. Hull perks stay in the masthead
+	# corner.
+	# Why: docs/why/ShipScreen.md#removed-abilities-block
 	var foot := Control.new()
 	foot.custom_minimum_size = Vector2(0, LABEL_AIR)
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -563,10 +335,8 @@ func _build() -> void:
 
 	var lcol := VBoxContainer.new()
 	lcol.add_theme_constant_override("separation", 5)
-	# FIXED, and not expanding. Everything about where the ship sits is measured
-	# off its panel's middle, so a panel whose width depends on what is in it
-	# means the target moves whenever the contents do — which is how centring
-	# the ship turned into a settling loop you could watch happen.
+	# Fixed width: a panel sized by its contents moves the centring target, which made a
+	# visible settling loop.
 	lcol.size_flags_horizontal = Control.SIZE_FILL
 	lcol.custom_minimum_size = Vector2(PANEL_W, 0)
 
@@ -578,24 +348,13 @@ func _build() -> void:
 	_panel = twrap
 	lcol.add_child(twrap)
 
-	# THE PERKS, top right, over the masthead. Named here, described on hover —
-	# four short names cost a corner nobody was using, where the same four with
-	# their effects spelled out cost a block the width of the panel.
+	# Perks sit top right over the masthead: named here, described on hover to save a panel-
+	# wide block.
 	_perkbox = PerkBox.new()
 	_perkbox.add_theme_constant_override("separation", 1)
-	# TOP LEVEL, and that is the whole trick. `panel_with` returns a
-	# PanelContainer, and a Container lays out EVERY child it has and ignores
-	# their anchors -- so adding this beside the ship column did not put a
-	# small box in the corner, it stretched the box across the entire panel and
-	# put it in front of the ship. Nothing looked wrong: the labels still drew
-	# in the corner because they are the only thing in the box with a size.
-	# What broke was INPUT -- a part could no longer be picked up off the hull,
-	# because the drag was landing on an invisible column instead. `-- fittest`
-	# went from two failures to eight and nothing else noticed, because
-	# fittest is not in validate.sh.
-	#
-	# Godot Containers skip children set top-level, so this one is positioned
-	# by hand and laid out by nobody. See `_place_perks`.
+	# Top level, laid out by hand: a Container stretched the box over the ship and broke part
+	# pickup.
+	# Why: docs/why/ShipScreen.md#perk-box-top-level
 	_perkbox.set_as_top_level(true)
 	# PASS, not STOP: the labels inside want hover for their tooltips, but the
 	# column between and around them must not eat a drag meant for the ship.
@@ -610,16 +369,9 @@ func _build() -> void:
 	body.add_child(lcol)
 
 	# --- right: what is bolted on, and what it puts in the deck
-	#
-	# THIS PANEL WAS EMPTY. The hold moved to the left column and nothing took
-	# its place, so a third of the screen was a lit box with a spacer in it.
-	#
-	# It answers the question the left panel cannot. The left says what the ship
-	# IS — its numbers, its budgets, its silhouette. This says what you have
-	# ASSEMBLED: the parts on the hull, and the cards those parts will deal you.
-	# A module's cards were previously visible only in a tooltip, one module at a
-	# time, which is the wrong shape for the question "what does my deck look
-	# like now" — that is a question about all of them at once.
+	# The right panel shows the assembled loadout and its cards, which a tooltip showed one at
+	# a time.
+	# Why: docs/why/ShipScreen.md#right-panel
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -627,10 +379,7 @@ func _build() -> void:
 	_fithead = UITheme.body("INSTALLED", UITheme.COLD, UITheme.FS_SMALL)
 	right.add_child(_fithead)
 
-	# SCROLLED, because this is the one block with no ceiling: a heavy S carries
-	# nine mounts and each module brings its own cards. Horizontal scrolling is
-	# off — a row is three card-widths and the panel is wider than that, so a
-	# sideways bar could only ever mean the window is too small for one row.
+	# Scrolled vertically only: nine mounts plus each module's cards have no ceiling.
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -640,17 +389,13 @@ func _build() -> void:
 	scroll.add_child(_fitted)
 	right.add_child(scroll)
 
-	# EXPAND_FILL on the PANEL, not on the column inside it. Setting it on the
-	# inner VBox does nothing useful — the wrapper is the child the HBox is
-	# sizing, so the panel stayed at its content width and left seven hundred
-	# pixels of the screen empty to its right.
+	# EXPAND_FILL goes on the panel wrapper, not the inner VBox, or it keeps its content
+	# width.
 	var rwrap := Widgets.panel_with(right)
 	rwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(rwrap)
 
-## SUPERSEDED by `_sync_clip`, which places the view inside the window rather
-## than padding a row to push it. Kept as a name the rest of the screen calls
-## when the hull changes; the arithmetic it used to hold is in `_ship_x`.
+## Superseded by `_sync_clip`. Kept as a name callers use on hull change.
 func _centre_ship() -> void:
 	_sync_clip()
 
@@ -658,15 +403,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
-	# THE RENAME PROMPT SWALLOWS THE LOT. Its shade stops the mouse but not the
-	# keyboard, so without this Z zoomed the ship and F flipped a part behind a
-	# panel the player thought they were typing into -- and the focused field
-	# only protects the letters it consumes itself, which is not Z once the
-	# focus has moved to SET or CANCEL.
-	#
-	# Escape closes it, and here rather than on the button: `_unhandled_key_input`
-	# only sees the key once the focused LineEdit has declined it, which is
-	# exactly the condition wanted.
+	# The rename shade stops the mouse but not keys, so Z and F would act behind it. Escape is
+	# handled here because `_unhandled_key_input` runs after the LineEdit declines.
+	# Why: docs/why/ShipScreen.md#rename-prompt-input
 	if _rename != null:
 		if k.keycode == KEY_ESCAPE:
 			_close_rename()
@@ -681,9 +420,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_set_zoom(false)
 		get_viewport().set_input_as_handled()
 		return
-	# F FLIPS WHAT YOU ARE POINTING AT, on the hull only. R turns a part in
-	# the hold and F mirrors one on the ship: two verbs, two places, and
-	# neither reaches into the other's.
+	# F mirrors a part on the ship and R turns one in the hold: two verbs, two places.
 	if k.is_action_pressed(&"part_flip"):
 		if _flip_pointed():
 			get_viewport().set_input_as_handled()
@@ -693,19 +430,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
 		get_viewport().set_input_as_handled()
 
-## ZOOM, IN PLACE. The ship doubles and the panel does not.
-##
-## The panel cannot grow: the left column is a fixed 524px because everything
-## about where the ship sits is measured off its middle, and `_centre_ship`
-## closes in one frame only while that width cannot move. So the box stays the
-## size it was at 1x, a doubled ship is simply bigger than its window, and that
-## is why this comes with a drag.
-##
-## MountPoints goes to PASS while zoomed. It is STOP normally and covers the
-## whole hull, so with it stopping events the box underneath never saw a press
-## and nothing could be dragged. PASS still delivers its hover and still leaves
-## it a drop target -- IGNORE is the filter that would break those -- and the
-## event carries on to the box behind it.
+## Zoom keeps the panel size so `_centre_ship` holds. MountPoints is PASS while zoomed.
+## Why: docs/why/ShipScreen.md#zoom-in-place
 func _set_zoom(on: bool) -> void:
 	if _view == null or _clip == null:
 		return
@@ -726,87 +452,38 @@ func _row_width() -> float:
 	return ((PANEL_W - PANEL_PAD * 2.0)
 		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP))
 
-## How far a MODULE may stick out past the hull canvas.
-##
-## A gun is drawn on a mount and its barrel runs off the end of the sprite it is
-## bolted to, so a window sized to the canvas cuts the front off the longest one.
-## The canvas is the hull's extent, never the ship's.
-##
-## MEASURED FROM THE LONGEST PART, and no longer a flat 72. The widest
-## footprint is four cells, which is 4 x 20 = 80 art pixels — already more than
-## 72 at 1x, and 160 with the zoom on, so the front of a siege driver on a
-## zoomed heavy was outside the window and could not be panned into it. A
-## constant cannot be right at two magnifications; this is the same number the
-## part is drawn at.
-##
-## Plus a cell of air, so the muzzle has somewhere to be rather than sitting
-## exactly on the edge of the window.
+## Measured from the longest part, since a flat 72 clipped siege drivers on a zoomed heavy.
+## Why: docs/why/ShipScreen.md#module-overhang
 const MOUNT_CELLS := 4
 func _bleed() -> float:
 	var mag := _view.art_scale() if _view != null else 1.0
 	return float((MOUNT_CELLS + 1) * HoldGrid.CELL) * 0.5 * maxf(mag, 1.0)
 
-## Where the ship's left edge goes so its middle is the PANEL's middle.
-##
-## Same arithmetic that used to set the left pad, applied to the view's position
-## inside the box instead. Three terms, all of them things pushing the ship right
-## of the middle: the flag it sits beside, half the width of the view, and how
-## far the hull sits from the middle of its own canvas -- which is not zero,
-## because the canvas carries the exhaust plume's clearance on one side only.
+## Puts the ship's middle on the panel's middle, allowing for the flag, half the view and
+## the plume offset.
+## Why: docs/why/ShipScreen.md#ship-centring
 func _ship_x() -> float:
 	if _view == null or _clip == null:
 		return 0.0
-	# MEASURED OFF THE WINDOW, not rebuilt from the panel and the banner. The
-	# window is now whatever the row gives it, so re-deriving its width here
-	# from constants is a second opinion that can disagree with the layout —
-	# and did. `ship_offset_x` stays: the canvas carries the exhaust plume's
-	# clearance on one side only, so the hull is not in the middle of it.
+	# Measured off the window: rebuilding its width from constants gave a second opinion that
+	# disagreed.
 	var win := maxf(_clip.size.x, _row_width())
 	var wide := _view.canvas_width()
-	# THE OFFSET ONLY APPLIES WHILE THE SHIP FITS.
-	#
-	# It exists because the canvas carries the exhaust plume's clearance on one
-	# side only, so the hull is not in the middle of its own image and centring
-	# the IMAGE leaves the SHIP looking off. That is true and worth doing — while
-	# there is room to do it in.
-	#
-	# Zoomed, there is not. The offset scales with the magnification, so at 2x it
-	# pushed a heavy some 123 pixels to the right of a window it was already 217
-	# too wide for, and a fifth of the ship — the front, and every gun on it —
-	# was outside the window before a drag had even happened. When the ship is
-	# wider than what it is being shown in, the only honest starting place is the
-	# middle.
+	# The plume offset applies only while the ship fits; zoomed, it pushed a heavy 123px off
+	# the window.
+	# Why: docs/why/ShipScreen.md#ship-centring
 	if wide > win:
 		return (win - wide) * 0.5
 	return (win - wide) * 0.5 - _view.ship_offset_x()
 
 ## Rename the ship, in a panel over the screen.
 
-## How wide the prompt is. The same number the title screen's prompts use, and
-## for the same reason its note gives: what reads as ragged between two panels
-## is the WIDTH, because that is the edge the eye lines up against.
+## Same width as the title screen prompts: the width is the edge the eye lines up against.
 const RENAME_W := 356
 
-## NOT AN AcceptDialog ANY MORE, and that is the whole of it looking like the
-## game.
-##
-## An AcceptDialog is a Window, and an embedded Window paints `embedded_border`
-## from Godot's own theme UNDERNEATH whatever panel you give it -- so the pale
-## grey gradient behind this prompt was not the dialog's background at all,
-## which is why overriding `panel` never removed it. Godot also builds the OK
-## and CANCEL buttons itself, in its own row, at its own spacing.
-##
-## The title screen already had the answer: a full-screen shade, a card centred
-## on it, and the game's own buttons inside. Everything it wears is the game's,
-## because none of it is Godot's furniture.
-##
-## STILL NOT A SCREEN. Renaming is a detour of about four seconds and a Router
-## push would tear down the refit screen and rebuild it underneath -- losing the
-## ship's arrival animation, the hold's scroll position and whatever part was
-## mid-drag.
-##
-## BUILT AND FREED EACH TIME. A prompt held as a field is one more thing to keep
-## in step with a hull swap, and this one reads `Run` at the moment it opens.
+## Not an AcceptDialog: its embedded Window paints Godot's border. Built and freed each
+## time.
+## Why: docs/why/ShipScreen.md#rename-prompt-build
 func _open_rename() -> void:
 	if Run.hull == null or _rename != null:
 		return
@@ -818,9 +495,7 @@ func _open_rename() -> void:
 ## THE PROMPT, over `host`, shared with LOCAL's cutaway (its pencil by the name).
 ## `closed` is called once it has gone, set or cancelled. Returns the shade.
 static func rename_prompt(host: Control, closed: Callable) -> Control:
-	# The shade eats input, so the screen underneath cannot be clicked through,
-	# and a click on the dim margin closes -- the same dismissal every other
-	# prompt in the game uses.
+	# The shade eats input and a click on the dim margin closes, like every other prompt.
 	var shade := ColorRect.new()
 	shade.color = Color(0.02, 0.03, 0.05, 0.80)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -845,9 +520,7 @@ static func rename_prompt(host: Control, closed: Callable) -> Control:
 	col.add_child(UITheme.body("NAME YOUR SHIP", UITheme.ICE, UITheme.FS_HEAD))
 
 	var field := UITheme.field(24)
-	# The frame's own name as the PLACEHOLDER, not as the text. Prefilling it
-	# would make clearing the box the only way to go back to being unnamed, and
-	# a player who opens this by accident should be able to press SET and change
+	# The frame name is the placeholder, not prefilled, so SET on an accidental open changes
 	# nothing.
 	field.placeholder_text = Run.hull.name
 	field.text = Run.ship_name
@@ -862,9 +535,7 @@ static func rename_prompt(host: Control, closed: Callable) -> Control:
 		UITheme.COLD, UITheme.FS_SMALL))
 
 	var commit := func() -> void:
-		# STRIPPED, and a name that is only spaces is no name. Otherwise the
-		# masthead shows a blank line where a word should be and nothing on the
-		# screen says why.
+		# Stripped: a spaces-only name would show a blank masthead line with no explanation.
 		Run.ship_name = field.text.strip_edges()
 		Sig.ship_changed.emit()
 		close.call()
@@ -900,43 +571,22 @@ func _close_rename() -> void:
 	_rename = null
 
 
-## Park the perk list in the masthead's top-right corner.
-##
-## By hand, because it is top-level and therefore laid out by nobody -- which
-## is exactly why it is top-level. Driven off both the panel resizing and the
-## box itself resizing: the box changes width whenever the perks change, and a
-## right-aligned thing whose width moved has to be repositioned or it drifts
-## off the edge.
-## THE HULL'S PERKS AND THE SET BONUSES THAT ARE LIVE, into `box` (cleared
-## first): a row of set chips, each its own hover, then the perks by name, one
-## tooltip for the lot (`PerkBox`). Shared with LOCAL's cutaway, whose left panel
-## shows the same; `right` aligns them to the right, as this screen's corner does;
-## `inline` runs the perks' names on as one wrapped line (the cutaway's narrow
-## panel) rather than one to a line.
+## Placed by hand because it is top level; resized on both panel and box width changes.
+## Why: docs/why/ShipScreen.md#perk-corner
 static func fill_perks(box: Control, right: bool, inline: bool = false) -> void:
 	Widgets.clear(box)
 	# --- WHAT YOU HAVE BECOME, above what the hull came with.
-	#
-	# The two belong in one corner because they are the same kind of fact:
-	# always-on effects you did not spend a card on. They are not the same
-	# ORIGIN, though -- a perk came with the frame and a set bonus was
-	# assembled -- so the chips read as marks and the perks as words.
-	#
-	# A set-bonus LADDER used to live on this screen and was removed on
-	# request; this is deliberately not that. The ladder showed how close a
-	# mixed loadout was to a bonus it did not have yet. These say only what
-	# is applying right now, which is the half nothing on this screen said.
+	# Perks (from the frame) and set chips (assembled) share a corner as always-on effects.
+	# Shows only what applies now, unlike the removed set-bonus ladder.
+	# Why: docs/why/ShipScreen.md#perk-corner
 	var live := HBoxContainer.new()
 	live.add_theme_constant_override("separation", 3)
 	live.size_flags_horizontal = Control.SIZE_SHRINK_END if right else Control.SIZE_SHRINK_BEGIN
 	for mid in DB.manufacturers:
 		var have := Run.manufacturer_count(mid)
-		# ONE TOWARD THE SET IS ENOUGH TO APPEAR, and the hull counts as
-		# one. `manufacturer_count` includes it deliberately -- choosing a
-		# chassis is a build decision, and a Korvan frame really does put you
-		# one part from Standard Issue. (Briefly gated on FITTED parts instead,
-		# which made the chip disagree with the number the game uses; the count
-		# below names the hull's share instead of hiding it.)
+		# One toward a set is enough to show a chip, counting the hull, to match
+		# `manufacturer_count`.
+		# Why: docs/why/ShipScreen.md#perk-corner
 		var parts := 0
 		for inst in Run.installed:
 			if inst.manufacturer == mid:
@@ -976,10 +626,8 @@ static func fill_perks(box: Control, right: bool, inline: bool = false) -> void:
 		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		box.add_child(lab)
 	box.mouse_filter = Control.MOUSE_FILTER_STOP
-	# THE TRIGGER, not the content. Godot only asks for a tooltip when this is
-	# non-empty, and PerkBox._make_custom_tooltip replaces it with a panel --
-	# but the full text is set so a failure to build the panel degrades to
-	# something readable instead of one word.
+	# The tooltip text is the trigger; the full text stays so a failed panel build still
+	# reads.
 	box.tooltip_text = Widgets.tip(Widgets.perk_tip(Run.hull))
 
 
@@ -989,11 +637,7 @@ func _place_perks() -> void:
 	_perkbox.position = (_panel.global_position
 		+ Vector2(_panel.size.x - _perkbox.size.x - PANEL_PAD, PANEL_PAD)).round()
 
-## Size the window onto the ship, and place the ship in it.
-##
-## THE WINDOW IS THE WHOLE ROW, at 1x as well as zoomed. It was the canvas width
-## at 1x, which put an invisible edge exactly on the hull's bounding box and cut
-## the muzzle off the longest gun -- the hull ends there, the SHIP does not.
+## The window is the whole row at 1x too: the canvas width put an edge on the longest gun.
 func _sync_clip() -> void:
 	if _clip == null or _view == null:
 		return
@@ -1009,50 +653,27 @@ func _sync_clip() -> void:
 	_clamp_pan()
 	_view.position = (Vector2(_ship_x(), (box.y - _view.size.y) * 0.5)
 		+ _pan).floor()
-	# THE MOUNTS HAVE TO BE TOLD. Every marker and fitted part is placed through
-	# ShipView.canvas_to_local, which reads the magnification and the view's rect
-	# -- both of which just changed. Without this they keep last frame's positions
-	# and appear to float off the hull until something else repaints them.
+	# Mounts must be told: they place through `ShipView.canvas_to_local`, which just changed.
 	if _mountpts != null:
 		_mountpts.refresh()
 		# And again once layout has settled: the call above runs before the
 		# container has resized its children, so it places against the OLD rect.
 		_mountpts.refresh.call_deferred()
 
-## Keep the pan legal, WHEREVER IT CAME FROM.
-##
-## It lived inside the drag handler, which meant it was only true while a
-## mouse was moving: anything else that set `_pan` — a tool, a future keyboard
-## nudge, a restored view — produced a position no drag could ever reach, and
-## the ship went somewhere it is not allowed to be. `_sync_clip` calls this, so
-## it holds by construction rather than by everyone remembering.
+## Clamped in `_sync_clip` so any source of `_pan` is legal by construction, not only
+## drags.
+## Why: docs/why/ShipScreen.md#pan-clamp
 func _clamp_pan() -> void:
 	if _clip == null or _view == null:
 		return
-	# CLAMPED AGAINST THE SHIP'S EDGES, not by a symmetric slack around the
-	# middle. A slack says how far the ship may travel; it does not say where
-	# the ship ENDS, so at full pan on a zoomed heavy the hull was dragged
-	# clean out of its own window and what you were looking at was the empty
-	# panel behind it, with the hull sliced off at the edge.
-	#
-	# The rule is instead: neither edge of the ship may travel further inside
-	# the window than the bleed. So the front can always be brought to the
-	# front of the window with room for the longest gun ahead of it, and no
-	# drag can put the ship somewhere it is not.
+	# Clamped against the ship's edges, not symmetric slack, so the hull is never dragged out
+	# of its window.
+	# Why: docs/why/ShipScreen.md#pan-clamp
 	var bleed := _bleed()
 	var base := _ship_x()
-	# A SHIP THAT FITS HAS NOWHERE TO GO. The rule below is about a hull too
-	# WIDE for its window; applied to one that fits, it forces the ship off
-	# centre and holds it there. Measured on a medium at 1x: window 431, ship
-	# 276, so the two bounds came out 15 and 60 and the legal range for `_pan.x`
-	# was [15, 60] -- zero was illegal, and `_ship_x()` had already centred the
-	# hull. The ship sat 15px right of centre with nothing having been dragged.
-	#
-	# That is the drift reported twice. `_on_clip_input` zeroes `_pan` at 1x,
-	# which fixed it for anything that arrived as an INPUT and could not fix it
-	# for a relayout: the first `_sync_clip` runs before the clip has its final
-	# width, where zero is still legal, and the next one -- unmounting a module,
-	# say -- recomputes against the settled width and shoves the hull right.
+	# A ship that fits has nowhere to go: the wide-hull rule shifted a medium 15px off centre
+	# on relayout.
+	# Why: docs/why/ShipScreen.md#pan-clamp
 	if _view.size.x <= _clip.size.x:
 		_pan.x = 0.0
 	else:
@@ -1064,22 +685,12 @@ func _clamp_pan() -> void:
 	var slack_y := maxf((_view.size.y - _clip.size.y) * 0.5, 0.0) + bleed * 0.25
 	_pan.y = clampf(_pan.y, -slack_y, slack_y)
 
-## Drag to pan, but only while zoomed and only when nothing is being carried.
-##
-## `gui_is_dragging` is the guard that matters: a module lifted off a mount is a
-## live Godot drag and its motion still arrives here. Without it, taking a gun
-## off the hull also slid the ship out from under the cursor.
+## Pan only while zoomed and not carrying: a lifted part is a live drag and slid the ship
+## away.
 func _on_clip_input(event: InputEvent) -> void:
-	# NOT AT 1x. The line above has always said "only while zoomed" and the code
-	# never checked, which is the whole of the bug: at 1x `_ship_x` centres the
-	# ship and there is nothing off screen to pan TO, but `_clamp_pan` still
-	# allows it as far as +85 -- so a press on the hull and a few pixels of
-	# motion slid the ship off centre and LEFT it there, surviving every later
-	# refresh, because nothing zeroes `_pan` except turning the zoom off.
-	#
-	# Measured before this branch existed: a 30px motion at 1x moved the ship
-	# 30px right, permanently. Reported as "the ship moved slightly to the
-	# right" after moving a part in the hold -- the hold was innocent.
+	# Not at 1x: a 30px motion there moved the ship permanently, as nothing zeroes `_pan` but
+	# zoom off.
+	# Why: docs/why/ShipScreen.md#pan-at-1x
 	if not _zoomed:
 		_panning = false
 		if _pan != Vector2.ZERO:
@@ -1093,11 +704,8 @@ func _on_clip_input(event: InputEvent) -> void:
 	var mm := event as InputEventMouseMotion
 	if mm == null or not _panning:
 		return
-	# AND ONLY WHILE THE BUTTON IS ACTUALLY DOWN. `_panning` is cleared by a
-	# button event ON THIS CONTROL, so a press that started on the hull and
-	# released anywhere else never sent its release here and left the flag
-	# stuck true with nothing held. The next time the cursor crossed the ship
-	# -- while dragging a part in the hold, say -- the ship came with it.
+	# Only while the button is down: a release elsewhere left `_panning` stuck and the ship
+	# followed.
 	if not (mm.button_mask & MOUSE_BUTTON_MASK_LEFT):
 		_panning = false
 		return
@@ -1111,11 +719,7 @@ func _on_clip_input(event: InputEvent) -> void:
 	if _mountpts != null:
 		_mountpts.refresh()
 
-## Mirror the fitted part under the cursor, top to bottom.
-##
-## Drawing only, so nothing is revalidated: a flipped gun holds the same
-## mount, costs the same energy and deals the same damage. It is which way
-## up the object READS, and a ventral rack needs the other way up.
+## Drawing only, no revalidation: a flipped gun keeps its mount, energy and damage.
 func _flip_pointed() -> bool:
 	if _mountpts == null:
 		return false
@@ -1144,10 +748,8 @@ static func turn_carried(vp: Viewport) -> bool:
 	var d: Variant = vp.gui_get_drag_data()
 	if typeof(d) != TYPE_DICTIONARY or not (d as Dictionary).has("module"):
 		return false
-	# A HoldItem, not a ModuleData. Turning is a packing move and a crate needs
-	# it as much as a rail does -- `-- materialtest` already accepts a shape
-	# "flat or turned", so refusing to turn one made that check a promise the
-	# game did not keep.
+	# A HoldItem, not a ModuleData: crates turn too, and `-- materialtest` accepts turned
+	# shapes.
 	var m: HoldItem = (d as Dictionary).module
 	if m == null:
 		return false
@@ -1161,30 +763,18 @@ static func turn_carried(vp: Viewport) -> bool:
 	return true
 
 
-## Turn a part already sitting in the hold, in place if it will still fit.
-##
-## The whole move is a take-out-and-put-back, so it has to be able to FAIL
-## cleanly: a 1x3 lance in a hold with no three-wide gap has nowhere to go
-## turned, and the part must end up exactly where it started rather than in the
-## first hole the repacker could find for it.
-## `at` is in screen coordinates and defaults to the cursor at the call site.
-## Taking it as an argument rather than reading the mouse in here is what makes
-## it reachable from `-- fittest`: pushed input events start a drag but never
-## move the OS cursor, so a hover this function looked up itself could only ever
-## be whatever the physical mouse happened to be sitting on.
+## Take out and put back must fail cleanly, leaving the part where it was. `at` is an
+## argument so `-- fittest` can reach it; pushed events never move the OS cursor.
+## Why: docs/why/ShipScreen.md#turning-in-the-hold
 func _turn_in_hold(at: Vector2) -> bool:
 	if _storage == null:
 		return false
 	return turn_in_hold(_storage, at)
 
 
-## R on a part sitting in a hold grid, shared with LOCAL's cutaway: see above.
-##
-## ANY HOLD ITEM, NOT ONLY A MODULE. This asked `icon_at`, which finds module
-## plates and nothing else, so R over a 2x1 crate of deck plate did nothing
-## while the same crate in the hand turned. `item_at` is the one that sees a
-## material; the rules are the module's own -- a square shape is a no-op, and a
-## turn that does not fit puts the item back where it was.
+## Uses `item_at` not `icon_at`, so a crate turns like a module; a turn that does not fit
+## puts it back.
+## Why: docs/why/ShipScreen.md#turning-in-the-hold
 static func turn_in_hold(grid: HoldGrid, at: Vector2) -> bool:
 	var icon := grid.item_at(at)
 	if icon == null or icon.held_item() == null:
@@ -1213,9 +803,7 @@ static func turn_in_hold(grid: HoldGrid, at: Vector2) -> bool:
 func _refresh() -> void:
 	if Run.hull == null:
 		return
-	# The hull changed, so its canvas width and its offset inside that canvas
-	# may have too -- and the clip box is sized off the canvas, so it has to
-	# be re-fitted before anything is centred against it.
+	# A hull change can change canvas width and offset, so refit the clip box before centring.
 	_sync_clip()
 	var manufacturer := Run.hull.manufacturer
 	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
@@ -1224,15 +812,9 @@ func _refresh() -> void:
 	_banner.mark = accent
 	_banner.field = m.field if m != null else UITheme.PANEL
 	_banner.queue_redraw()
-	# A NAMED SHIP REPLACES THE FRAME'S NAME OUTRIGHT. It used to push it down
-	# to the head of the class line -- "IRONSIDE CUTTER · MEDIUM CHASSIS · C
-	# TIER" -- on the reasoning that a player deciding whether to swap frames
-	# needs to know what they are flying. REVERSED ON REQUEST: once you have
-	# named a ship the frame's name is not what you call it, and printing both
-	# read as the rename not having taken. What the frame IS still says itself
-	# on that line, in the two facts that actually decide a swap -- its weight
-	# and its tier -- and the dialog still offers the old name as its
-	# placeholder.
+	# A named ship replaces the frame name outright, reversed on request: both read as the
+	# rename not taking.
+	# Why: docs/why/ShipScreen.md#ship-naming
 	_name.text = Run.display_name().to_upper()
 	_manufacturer.text = m.name.to_upper() if m != null else "UNBRANDED SALVAGE"
 	_manufacturer.add_theme_color_override("font_color", accent)
@@ -1243,46 +825,31 @@ func _refresh() -> void:
 	var draw := Run.power_draw()
 	var cap := Run.power_cap()
 	_reactor.text = "REACTOR — %d of %d cells · %d energy" % [draw, cap, Run.reactor()]
-	# EMBER AT THE CEILING, and only there. A bar that changes colour on the way
-	# up teaches a player to read the colour instead of the number; this one
-	# only ever means "the next part costs you a part".
+	# Ember only at the ceiling: colour on the way up teaches reading the colour, not the
+	# number.
 	_reactor.add_theme_color_override("font_color",
 		UITheme.EMBER if draw >= cap else UITheme.CHILL)
 	_hand.text = "%d cards a turn · %d in the deck" % [Run.hand_size(), Run.deck_size()]
 
-	# Rebuilt every refresh, because the unlock state is the point: fitting a
-	# third Korvan part has to light the 3+ row the moment it lands.
-	# THE HULL'S OWN PERKS, manufacturer first then the grade's, in the corner.
+	# Rebuilt every refresh so fitting a third Korvan part lights the 3+ row at once.
 	if _perkbox != null:
 		fill_perks(_perkbox, true)
 		_place_perks.call_deferred()
 
 	# --- the hardpoints are ON THE SHIP now, drawn over the view on the left.
-	# What used to be a rack of squares here is the HARDPOINTS tally under the
-	# attributes; what a rack could never say is where a mount actually is.
+	# Hardpoints are on the ship now; a rack of squares could not say where a mount is.
 	if _mountpts != null:
 		_mountpts.refresh()
 
 	_storage.refresh()
-	# Cells, not parts. "6 of 12" counted parts against a capacity in parts, and
-	# neither half of that survives a grid: the hold holds as many things as
-	# their shapes allow, so the honest number is how much ROOM is gone.
-	# CELLS AND CARDS. Cells, not parts, because the hold holds as many things as
-	# their shapes allow -- "6 of 12" counted parts against a capacity in parts
-	# and neither half of that survives a grid.
-	#
-	# And the DECK, because that is the number this screen is really about.
-	# `deck_size()` sums `grant_count()` over what is bolted on and the hull
-	# contributes nothing, so every card you will be dealt comes from the
-	# arrangement in front of you -- and after a hull swap unbolts the lot, the
-	# honest reading of an untouched ship is zero.
+	# Cells not parts, since shapes decide room. The deck count comes from what is bolted on.
+	# An untouched ship after a hull swap honestly reads zero cards.
+	# Why: docs/why/ShipScreen.md#hold-and-deck-counts
 	_hold.text = "STORAGE — %d of %d cells · DECK %d" % [Run.cargo_used(),
 		Run.cargo_slots(), Run.deck_size()]
 
-	# HIDDEN WHEN EMPTY, both of them. `hidden` rather than a zero-height strip:
-	# the reset in every artifact and screen in this game gives `[hidden]` a
-	# display rule, and a container with an invisible child still spends the
-	# separation above it.
+	# Hidden when empty, not zero-height: a container still spends the separation above an
+	# invisible child.
 	var docked_items := Run.pad.size()
 	_dockhead.visible = docked_items > 0
 	_dockbox.visible = docked_items > 0
@@ -1294,32 +861,18 @@ func _refresh() -> void:
 
 	_refresh_loadout()
 
-## What is bolted on, and every card it will deal you.
-##
-## Grouped by slot rather than listed flat, because that is how the ship is
-## budgeted: the tally on the left says two of three weapons are filled, and
-## this is the row that says WHICH two. A flat list makes you count.
-##
-## Cards at hand scale, which is the scale they are played at. Inspect scale
-## exists and is exactly 2x, but a card you are reading in a panel is the same
-## card you will read in a hand, and showing it larger here would teach a size
-## that never appears in combat.
-## Point the hull at a part in the list, so reading about it shows you where
-## it is. The reverse direction already existed — hovering the ship outlines
-## everything on it — and this closes the loop from the other side.
+## Grouped by slot to show which mounts are filled; cards at hand scale, the scale they are
+## played at.
+## Why: docs/why/ShipScreen.md#loadout-panel
 func _focus_part(m: ModuleData, slot: MarginContainer = null,
 		on: bool = false) -> void:
 	if _mountpts != null:
 		_mountpts.focus(m)
 	if slot == null:
 		return
-	# One tween per row, killed before a new one starts: moving the mouse
-	# along the column fires enter and exit faster than a tween finishes,
-	# and two live tweens on one margin fight over it.
-	# `get_meta(key, null)` is not a quiet miss: the engine cannot tell a null
-	# DEFAULT from no default at all, so a row that has never been nudged
-	# prints "does not have any 'meta' values" instead of handing back null.
-	# has_meta is the only way to ask without the error.
+	# One tween per row, killed first; `has_meta` avoids the engine error from `get_meta(key,
+	# null)`.
+	# Why: docs/why/ShipScreen.md#row-nudge-tweens
 	var old: Tween = slot.get_meta(&"nudge") as Tween if slot.has_meta(&"nudge") else null
 	if old != null and old.is_valid():
 		old.kill()
@@ -1331,25 +884,9 @@ func _focus_part(m: ModuleData, slot: MarginContainer = null,
 		NUDGE if on else 0.0, 0.12)
 	slot.set_meta(&"nudge", tw)
 
-## What is WRONG with the ship, at the top of the column where it cannot be
-## scrolled past.
-##
-## THE DECK HAD A SECRET IN IT. A malfunction is a card dealt into your hand in
-## combat and it comes off no module -- so this panel, the one place in the game
-## that answers "what is in my deck and where did it come from", was silent
-## about it. The only mention anywhere was a repair line on the Yard's service
-## list, which means you learned your ship had a blown coupling by being offered
-## the bill for one, at a station, after whatever fight put it there.
-##
-## FIRST, NOT LAST. It was written at the foot of the panel, under three slot
-## groups and a dozen card faces, which on a full loadout is below the fold --
-## and a warning you have to scroll to is a warning for somebody who already
-## knows to look. It is the exception on a page of things you chose; it goes
-## where the eye lands.
-##
-## Drawn as the CARDS THEMSELVES for the same reason the modules below are: it
-## is a card you will be holding, and a grey line of text describing one is a
-## worse picture of it than the card.
+## Malfunction cards come off no module, so the deck panel showed nothing. Put first, drawn
+## as cards.
+## Why: docs/why/ShipScreen.md#dross-block
 func _dross_block() -> void:
 	if Run.dross_count() <= 0:
 		return
@@ -1366,9 +903,8 @@ func _dross_block() -> void:
 			continue
 		var cv := CardView.new()
 		cv.setup(card, true, 1)
-		# THE POINTER REACHES IT, so `CardView._make_custom_tooltip` can answer
-		# with the keyword readout -- a malfunction is exactly the card whose
-		# text a player has never read before.
+		# The pointer reaches it so `CardView._make_custom_tooltip` can explain a card never read
+		# before.
 		cv.mouse_filter = Control.MOUSE_FILTER_STOP
 		cv.tooltip_text = " "
 		mrow.add_child(cv)
@@ -1378,9 +914,7 @@ func _dross_block() -> void:
 			x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			mrow.add_child(x)
 	_fitted.add_child(mrow)
-	# NO CAPTION UNDER IT. It said where to get one cleared, which is a thing the
-	# station says on the deck that does it -- printed here it was two lines of
-	# grey explaining a card that is already showing you its own rules text.
+	# No caption: where to clear it is the station's job, and the card shows its own rules.
 	_fitted.add_child(UITheme.hsep())
 
 
@@ -1408,27 +942,22 @@ func _refresh_loadout() -> void:
 			UITheme.COLD, UITheme.FS_SMALL))
 		for m in mine:
 			fitted += 1
-			# MODULE FIRST, THEN ITS CARDS. The part is the thing you fitted
-			# and the cards are what it gives you, so the row reads in the
-			# order the decision was made — and every row starts with the
-			# manufacturer's colour bar down its left edge, which turns the column
-			# into something you can scan by manufacturer.
+			# Module first, then its cards, so rows read in decision order and the colour bar scans
+			# by maker.
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 4)
 			# A CARD'S WIDTH exactly, so the rows line up into a column. Left to
 			# itself the box grows to its longest line and no two modules agree.
 			var ro := Widgets.module_readout(m, READOUT_W)
-			# STOP, because module_readout hands back an IGNORE panel — it is
-			# built for a tooltip, where eating the mouse would count as
-			# leaving the thing being pointed at. Here it IS the thing.
+			# STOP because `module_readout` returns an IGNORE panel, built for tooltips; here it is
+			# the target.
 			ro.mouse_filter = Control.MOUSE_FILTER_STOP
 			var slot := MarginContainer.new()
 			slot.add_theme_constant_override("margin_left", 0)
 			slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			slot.add_child(ro)
-			# A TICK WHEN IT MOVES. The row slides left under the pointer, and
-			# Jon asked for the sound the rest of the interface makes when
-			# something answers a hover.
+			# Tick on move: Jon asked for the sound the interface makes when something answers a
+			# hover.
 			ro.mouse_entered.connect(func() -> void:
 				Audio.hover()
 				_focus_part(m, slot, true))
@@ -1437,10 +966,8 @@ func _refresh_loadout() -> void:
 			for c in m.resolved_cards():
 				cards += 1
 				var cv := CardView.new()
-				# TRUE, and it is not a claim about affordability. `playable`
-				# drives `modulate.a` — false renders at 34% and the whole panel
-				# came out looking disabled. There is no energy pool on a refit
-				# screen for a card to be unaffordable against.
+				# True is not about affordability: `playable` false renders 34% alpha and the panel
+				# looked disabled.
 				cv.setup(c, true, 1)
 				# IGNORE. These are a readout, not a hand: a card that eats the
 				# mouse here would swallow the scroll wheel over half the panel.
@@ -1458,17 +985,9 @@ func _refresh_loadout() -> void:
 		else " · %d MALFUNCTION%s" % [Run.dross_count(),
 			"" if Run.dross_count() == 1 else "S"]]
 
-## The hardpoint tally, mirroring the chassis select's.
-##
-## Pads reserve to the same ceiling that screen uses, so the two read as one
-## block seen twice rather than as two designs — and the figures line up in a
-## column instead of tracking the pad count.
-## One share of whatever vertical is left over.
-##
-## Every one of these has the same expand weight, so N of them divide the slack
-## into N equal parts. That is the whole mechanism behind "evenly distributed":
-## the column does the arithmetic, and adding a block later does not mean
-## re-tuning a set of hand-picked gaps.
+## Pads reserve to the chassis select's ceiling so figures align. Spacers share slack by
+## equal weight.
+## Why: docs/why/ShipScreen.md#spacers-and-tally
 func _spread(share: float = 1.0) -> Control:
 	var c := Control.new()
 	c.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1492,12 +1011,9 @@ func _refresh_mounts() -> void:
 			UITheme.CHILL, UITheme.FS_SMALL))
 		_mounts.add_child(row)
 
-## A part dropped onto a mount ON THE HULL.
-##
-## The mount is a PLACE, so `index` is carried through to the module rather than
-## derived from the order of `installed` — that was the bug the stored `mount`
-## fixed and it would come straight back if this appended instead.
-## Off the ship, into the hand.
+## `index` is carried from the stored `mount`, not derived from `installed` order, or the
+## old bug returns.
+## Why: docs/why/ShipScreen.md#drop-handlers
 func _on_lift(m: ModuleData) -> void:
 	if m == null or not Run.installed.has(m):
 		return
@@ -1507,9 +1023,7 @@ func _on_lift(m: ModuleData) -> void:
 	_refresh()
 
 
-## The drag ended. If what was lifted never landed, put it back exactly where it
-## was — the same rule a refused move in the hold follows, for the same reason:
-## picking a thing up is not a decision to get rid of it.
+## A drag that never landed puts the part back where it was, like a refused hold move.
 func _on_release() -> void:
 	var m := _lifted
 	_lifted = null
@@ -1534,28 +1048,11 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 	Audio.act(&"module_install")
 	_refresh()
 
-## The only place `installed` and `cargo` move.
-##
-## Written as "take it out of wherever it was, then put it where it landed",
-## because every case is that: a swap is the same two steps with the resident
-## displaced first. Special-casing storage-to-hardpoint and hardpoint-to-storage
-## separately is how you end up with a fourth path nobody thought about that
-## duplicates a module.
-## Would every one of these fit at once?
-##
-## Asked by placing them for real and rolling back, because "do N parts fit"
-## is not a sum: two 1x3 guns need two separate runs of three, and free-cell
-## arithmetic says yes to a hold that cannot hold either of them.
-## A part dropped onto a CELL of the hold.
-##
-## Separate from _on_mount_drop because the two answer different questions. A
-## hardpoint asks "does this slot type match"; the hold asks "does this shape
-## fit here", and the cell it fits at is information a mount has no use for.
+## Take out then put back, for every case, so no path can duplicate a module.
+## Why: docs/why/ShipScreen.md#drop-handlers
 func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
-	# A HoldItem. Typed as `ModuleData` this assignment simply failed for a
-	# crate and the handler returned -- so the ghost flew, the drop was accepted
-	# by the grid, and the item never moved. The hold is the one place that must
-	# not care which kind it is holding.
+	# A HoldItem: typed as `ModuleData` the assignment failed for a crate and the drop
+	# silently did nothing.
 	var m: HoldItem = payload.get("module")
 	if m == null:
 		return
@@ -1570,64 +1067,33 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	_refresh()
 
 
-## THE PENCIL BESIDE THE SHIP'S NAME, drawn rather than typed.
-##
-## The UI font has no pencil glyph, and an "EDIT" label next to a name reads as
-## part of the name -- which on this screen means it reads as part of the SHIP'S
-## name. Everything else in this interface is rectangles on the pixel grid, so
-## this is too.
+## Drawn, not typed: the UI font has no pencil and an EDIT label reads as part of the
+## ship's name.
+## Why: docs/why/ShipScreen.md#name-plate
 class NameEdit extends Button:
-	## THE NAMEPLATE, in art pixels. Square, and eleven rather than the nine the
-	## pencil before it had.
-	##
-	## ELEVEN IS THE CEILING, not a preference. The name beside it is FS_HEAD,
-	## whose capitals are ten pixels tall; a square any larger stands proud of
-	## the text it belongs to and starts reading as a panel rather than as a mark
-	## on the end of a line.
-	##
-	## Replaced a pencil. The pencil's widest feature was the ferrule at its
-	## blunt end, so the eye landed on the wrong end of it, and at nine pixels a
-	## stepped diagonal is mostly staircase.
+	## Eleven art pixels is the ceiling: FS_HEAD capitals are ten tall and a larger square
+	## reads as a panel.
+	## Why: docs/why/ShipScreen.md#name-plate
 	const ART := 11.0
-	## Air between the plate and the edge of the clickable box. The box is what
-	## you have to hit; the plate is only what you can see.
-	##
-	## THE HORIZONTAL PAD IS PART OF THE GAP TO THE NAME, and was most of it: it
-	## sat on top of the row's own separation, so the mark floated twelve pixels
-	## clear of the word it belongs to and read as the next thing along rather
-	## than as part of the line. Three here against the row's four.
+	## The horizontal pad counts toward the gap to the name, so three here keeps the mark
+	## attached.
+	## Why: docs/why/ShipScreen.md#name-plate
 	const PAD_X := 3.0
 	const PAD_Y := 4.0
 
-	## How far the resting plate is dropped below COLD.
-	##
-	## COLD is the ink the masthead's own quiet text is set in, so a mark drawn
-	## in it competes with the writing instead of waiting behind it. A third of
-	## the way to black leaves it plainly there and plainly inactive -- and makes
-	## the lift to ICE and EMBER on hover read as the thing switching on.
+	## Dropped below COLD so the resting mark waits behind the text and hover lifts read as
+	## switching on.
+	## Why: docs/why/ShipScreen.md#name-plate
 	const REST_DIM := 0.34
 
-	## Silkscreen's capitals are FIVE of its eight pixels. Measured off the face
-	## and true at every size the game asks for, because UITheme only ever asks
-	## for multiples of eight -- see its note on the font.
-	##
-	## The font itself will not answer this: `get_ascent` is 17 at FS_HEAD
-	## against a cap that is 10, so seven of those pixels are leading with
-	## nothing drawn in them. Centring on ascent centres on the leading.
+	## Silkscreen capitals are 5 of 8 pixels; `get_ascent` counts leading, so centring on it is
+	## wrong.
+	## Why: docs/why/ShipScreen.md#name-plate
 	const CAP_RATIO := 5.0 / 8.0
 
-	## How far the art sits BELOW the middle of its own box.
-	##
-	## The row centres this button on the name label's BOX, and that box is
-	## ascent plus descent -- 21 pixels at FS_HEAD. The caps inside it occupy 10,
-	## sitting on a baseline 17 down, so the ink runs 7..16 and its middle is a
-	## pixel and a half UNDER the middle of the box. Centred on the box, the
-	## plate rode high beside every ship name in the game.
-	##
-	## Rounded down onto the baseline rather than up: nine rows of plate cannot
-	## be centred exactly in ten of caps, and of the two off-by-half answers the
-	## one that puts the plate's bottom edge ON the baseline is a relationship
-	## rather than a coin toss.
+	## Offset below the box middle: the caps' ink sits 1.5px under it, and the plate rode high
+	## otherwise.
+	## Why: docs/why/ShipScreen.md#name-plate
 	var _drop: float = 0.0
 
 	func _init() -> void:
@@ -1640,38 +1106,27 @@ class NameEdit extends Button:
 		var desc := f.get_descent(UITheme.FS_HEAD)
 		var cap := float(UITheme.FS_HEAD) * CAP_RATIO
 		_drop = roundf((asc - cap * 0.5) - (asc + desc) * 0.5)
-		# THROUGH `tip()`, like every other tooltip in the game. It wraps at
-		# TOOLTIP_WRAP, which is what puts a tooltip in the same family of
-		# rectangles as its neighbours rather than sizing it to its own text --
-		# the two tooltips on this masthead were the only ones setting the string
-		# raw, and they read as somebody else's interface.
+		# Through `tip()` like every tooltip, so it wraps at TOOLTIP_WRAP and matches its
+		# neighbours.
 		tooltip_text = Widgets.tip("Rename your ship.")
 		mouse_entered.connect(queue_redraw)
 		mouse_exited.connect(queue_redraw)
 
 	func _draw() -> void:
-		# GREY UNTIL POINTED AT. This is a thing you can do rather than a fact
-		# about the ship, so at rest it stays out of the masthead and carries no
-		# warm pixel at all. Under the cursor the rim brightens and the engraving
-		# lights ember -- which is the one moment the heat is telling you
-		# something rather than just being the only colour in the corner.
+		# Grey until pointed at: it is an action, so rest stays out of the masthead and lights
+		# ember on hover.
 		var hot := is_hovered()
 		var edge := UITheme.ICE if hot else UITheme.COLD.darkened(REST_DIM)
 		var mark := UITheme.EMBER if hot else UITheme.COLD.darkened(REST_DIM)
 		var o := Vector2((size.x - ART) * 0.5,
 			(size.y - ART) * 0.5 + _drop).floor()
-		# The rim, as four rects rather than an unfilled draw_rect: `width` on an
-		# unfilled rect is a float pen that can land on half a pixel, and this
-		# has to be exactly one everywhere.
+		# Four rects, not an unfilled `draw_rect`: its float width can land on half a pixel.
 		draw_rect(Rect2(o, Vector2(ART, 1)), edge, true)
 		draw_rect(Rect2(o + Vector2(0, ART - 1), Vector2(ART, 1)), edge, true)
 		draw_rect(Rect2(o, Vector2(1, ART)), edge, true)
 		draw_rect(Rect2(o + Vector2(ART - 1, 0), Vector2(1, ART)), edge, true)
-		# Two engraved lines, UNEQUAL. Two bars the same length read as a gauge;
-		# a long one over a short one reads as a name over what the thing is --
-		# which is what the masthead beside it actually says.
-		# Three rows of air above, three below, one between: the pair sits as a
-		# BLOCK of text on the plate rather than as two marks that happen to be
-		# in the same box.
+		# Two unequal bars read as a name over its subtitle, not a gauge; the pair sits centred as
+		# a block.
+		# Why: docs/why/ShipScreen.md#name-plate
 		draw_rect(Rect2(o + Vector2(2, 4), Vector2(7, 1)), mark, true)
 		draw_rect(Rect2(o + Vector2(2, 6), Vector2(5, 1)), mark, true)
