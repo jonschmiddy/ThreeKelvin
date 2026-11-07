@@ -137,6 +137,12 @@ func _run() -> void:
 				cl.kind = int(kk[1]) as NebulaField.Kind
 				break
 	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
+	# `torn=N`: TORN AWAY with N rings lost (`ChartTorn`, the dwarfs' stream);
+	# `tornforce=0|1` off or on whatever the kind
+	if _arg("torn") != "":
+		ChartTorn.lost = float(_arg("torn"))
+	if _arg("tornforce") != "":
+		ChartTorn.force = int(_arg("tornforce"))
 	# `boltclock`: the clock held on the first emission cloud's next lightning
 	# bolt after the given clock (PAINTED's held bolt), for a still of it
 	if "boltclock" in OS.get_cmdline_user_args():
@@ -197,6 +203,10 @@ func _run() -> void:
 		kinds.append(NebulaField.Kind.keys()[(raw as NebulaField.Cloud).kind])
 	print("  chartlook: clouds %s" % [kinds])
 
+	if _arg("tornclip") != "":
+		await _torn_clip(_arg("tornclip"))
+		get_tree().quit()
+		return
 	if _arg("tourclip") != "":
 		await _tour(_arg("tourclip"))
 		get_tree().quit()
@@ -219,14 +229,22 @@ func _run() -> void:
 	for s in spec.split(","):
 		var f := (s as String).split(":")
 		views.append([f[0], float(f[1]), _pan_of(f[2], f[3] if f.size() > 3 else "0", float(f[1]))])
-	for v in views:
-		_view(v[1], v[2])
-		_chart.show_icons = true
-		_chart.queue_redraw()
-		await _shot("%s_full" % v[0], false)
-		_chart.show_icons = false
-		_chart.queue_redraw()
-		await _shot("%s_sky" % v[0], true)
+	# `tornset=A,B,...`: every view at each of those rings lost, named `tA_<view>`
+	var tset: Array = [""]
+	if _arg("tornset") != "":
+		tset = Array(_arg("tornset").split(","))
+	for tl: String in tset:
+		if tl != "":
+			ChartTorn.lost = float(tl)
+		var pre := "" if tl == "" else "t%s_" % tl
+		for v in views:
+			_view(v[1], v[2])
+			_chart.show_icons = true
+			_chart.queue_redraw()
+			await _shot("%s%s_full" % [pre, v[0]], false)
+			_chart.show_icons = false
+			_chart.queue_redraw()
+			await _shot("%s%s_sky" % [pre, v[0]], true)
 	_chart.show_icons = true
 	get_tree().quit()
 
@@ -430,6 +448,39 @@ func _clip() -> void:
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
 
 
+## TORN AWAY's film (`tornclip=<dir> [tornto=N] [clipframes=300]`): 30 frames a
+## second of the game's clock, two drawn a frame; 1 s on the dwarf at zoom 1.6, 5 s
+## easing out to the opening (the giant and the ribbon come into view), then the
+## rings falling away at the opening, one every `tornto` / the rest's seconds, each
+## fall eased over 0.4 s and held. The marks are drawn (`icons`).
+func _torn_clip(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	_chart.show_icons = true
+	var n := int(_arg("clipframes", "300"))
+	var to := float(_arg("tornto", "11"))
+	var l0 := ChartTorn.lost
+	var t := StarchartScreen.MapChart.clock_override
+	for i in n:
+		var s := float(i) / 30.0
+		var z := 1.6
+		if s > 1.0:
+			var e := clampf((s - 1.0) / 5.0, 0.0, 1.0)
+			e = e * e * (3.0 - 2.0 * e)
+			z = exp(lerpf(log(1.6), log(0.42), e))
+		# the rings fall from 2 s on, evenly to the end
+		var fall := clampf((s - 2.0) / maxf(float(n) / 30.0 - 2.5, 0.1), 0.0, 1.0) * (to - l0)
+		var whole := floorf(fall)
+		var rate := (to - l0) / maxf(float(n) / 30.0 - 2.5, 0.1)
+		var part := clampf((fall - whole) / (rate * 0.4), 0.0, 1.0)
+		ChartTorn.lost = l0 + whole + smoothstep(0.0, 1.0, part)
+		t += 1.0 / 30.0
+		StarchartScreen.MapChart.clock_override = t
+		_view(z, Vector2.ZERO)
+		_chart.queue_redraw()
+		await _frame_shot(dir, i)
+	print("  chartlook: torn clip, %d frames in %s" % [n, ProjectSettings.globalize_path(dir)])
+
+
 ## THE TOUR: a player's first look, the same every run, for a before and an
 ## after at the same state (`tourclip=<dir> tour=dive|core|pan|open [icons]
 ## [tourat=fx:fy|ship]`). 30 frames a second of the game's clock, one frame
@@ -580,6 +631,8 @@ func _cost_bench(names: String) -> void:
 				ChartSky._edge_on = on == 1 if nm == "edge" else true
 				ChartSky._terr_on = on == 1 if nm == "terrain" else true
 				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
+				if nm == "torn":
+					ChartTorn.force = on
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -610,6 +663,8 @@ func _cost_bench(names: String) -> void:
 	ChartSky._edge_on = true
 	ChartSky._terr_on = true
 	ChartSky._neb_on = true
+	if names.contains("torn"):
+		ChartTorn.force = -1
 
 
 ## THE SOLID GALAXY'S MARKS ARE WHERE ITS SKY IS (`solidtest`, with

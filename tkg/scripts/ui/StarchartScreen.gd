@@ -3669,6 +3669,7 @@ class MapChart extends Control:
 						draw_line(a3, _screen_pos(t3),
 							Color(0.36, 0.56, 0.72, 0.38), 1.0)
 
+			_draw_torn_ring()
 			_draw_reach_ring(hp)
 
 			# Two kinds of line, and they should not look alike. Where you HAVE
@@ -4179,6 +4180,38 @@ class MapChart extends Control:
 			_ring(c, Run.sense_radius(), Color(0.31, 0.69, 0.74, 0.50), 5, 9)
 		if show_reach:
 			_ring(c, Run.jump_range(), Color(0.83, 0.46, 0.24, 0.46))
+
+	## TORN AWAY (`ChartTorn`, the dwarfs): the next ring to go, a red dashed ring
+	## round the core at the tidal radius, where the sky frays red; its dashes
+	## march toward the two tips, where its stars are pulled off (dim and march
+	## only: nothing that can be clicked moves).
+	func _draw_torn_ring() -> void:
+		if not ChartTorn.on():
+			return
+		var rt := ChartTorn.tidal_r()
+		# (a dash a step, about three pixels, each a line between two projected
+		# points: a third of the projections a dot a pixel took, for the marks
+		# are drawn again every frame the sky moves)
+		var steps := clampi(int(rt * _radius() * DISC * zoom * 0.55), 40, 160)
+		var col := Color(0.94, 0.31, 0.41, 0.62)
+		var ax := Vector2(-ChartTorn.GIANT.x, -ChartTorn.GIANT.y * float(Run.galaxy.get("squash", 0.85))).normalized()
+		var a0 := atan2(ax.y, ax.x)
+		var march := int(floor(clock() * 4.0))
+		var pts := PackedVector2Array()
+		var prev := Vector2.ZERO
+		for i in steps + 1:
+			var a := TAU * float(i) / float(steps)
+			var q := centre_px() + _proj(Vector2(cos(a), sin(a)) * rt, _drawn_turn)
+			if i > 0:
+				# (the dash's phase runs from broadside toward each tip)
+				var from_tip := absf(wrapf(a - a0, -PI * 0.5, PI * 0.5))
+				var k := int(floor(from_tip / TAU * float(steps))) + march
+				if posmod(k, 3) < 2 and not _in_hole(q) and not _in_hole(prev):
+					pts.append(prev)
+					pts.append(q)
+			prev = q
+		if not pts.is_empty():
+			draw_multiline(pts, col, 1.0)
 
 	## One dashed ellipse at `r` galaxy units, centred on the ship.
 	##

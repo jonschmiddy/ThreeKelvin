@@ -1218,6 +1218,8 @@ float ballLit(vec2 gS) {
 // bulge is drawn there, round, at the camera's one scale at the core, never
 // stretched by the perspective round it; v itself with the camera off); tk: how much
 // of the middle's relief is drawn here (0 through the hole's lens)
+#include "res://shaders/chart_torn.gdshaderinc"
+
 Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float k = u_k;
 	// (THE PATTERNS STAY ON THE SCREEN'S BLOCKS, anchored to the galaxy's centre as the
@@ -1255,6 +1257,14 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// (a ball's own frames, `ballS`: drawn about the core in the core's own frame, round
 	// on the screen, as its light always was)
 	vec2 gS = vec2(vb.x, vb.y / u_g2.z) / k;
+	// (TORN AWAY: the dwarf's body drawn out toward the giant and away from it)
+	if (tornOn()) {
+		vec2 axr = kitRot(u_phi) * u_tornA.xy;
+		vec2 axS = normalize(vec2(axr.x, axr.y * KIT_TILT));
+		float stT = 0.2 + 0.55 * u_torn.z;
+		float paT = dot(gS, axS);
+		gS = axS * paT / (1.0 + stT) + (gS - paT * axS) * (1.0 + 0.12 * stT);
+	}
 	vec2 gq = kitRot(-u_phi) * gS;
 	float blkS = blockView() / k / solidCoreK();
 	float sB = ellip ? ballS(gS, gq, blkS) : 0.0;
@@ -1492,6 +1502,13 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		storyLight(vB / k, u_phi, u_time, blkB, stW, stC);
 		Ib += stW;
 	}
+	// (TORN AWAY: what lies past the tidal radius has gone into the stream)
+	if (tornOn()) {
+		float cutT = tornCut(g);
+		Ib *= cutT;
+		Ed *= cutT;
+		EdS *= cutT;
+	}
 	float hR = u_g3.z;
 	float rp = length(vec2(vb.x, vb.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
@@ -1588,6 +1605,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		// disc's ends with the disc: no violet ring a fixed 0.26 gu wide round every ball)
 		float hT = smoothstep(1.7, 2.9, sB);
 		Ehalo = 0.0068 * (1.0 - hT) * (1.0 - hT) * (1.0 + 0.4 * fbmL(gq * 3.0, blkS * 3.0, low ? 2 : 5));
+		if (tornOn()) {
+			Ehalo += tornGlow(P, g);
+		}
 	}
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
 	// stepped out round the galaxy as rings of navy -- a plate's rim, then a halo oval
@@ -1977,6 +1997,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				billowFront = true;
 			}
 		}
+	}
+	// TORN AWAY: the giant, the doomed ring, the shear and the ribbon (`chart_torn`)
+	if (ellip && tornOn()) {
+		sc = tornOver(P, v, g, sc);
 	}
 	// stars: the sparkle sprites, unless something solid stands in front
 	if (u_stars_on && sblk.x >= 0 && sblk.y >= 0 && sblk.x < int(u_vp_size.x) && sblk.y < int(u_vp_size.y)) {

@@ -587,6 +587,8 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	gu4.z = 1.0 if calm else 0.0
 	mp.set_shader_parameter("u_g4", gu4)
 	feed_events(mp, g, t, phi, calm)
+	# TORN AWAY (the dwarfs only; `ChartTorn`): the giant, the stream, the doomed ring
+	ChartTorn.push(mp, phi)
 	# THE SOLID LOOK (`ChartSky.solid`; `ChartSky._push` has already moved the camera
 	# for this frame, `solid_frame`): its uniforms on the place pass, the camera on the
 	# sparkles, so they stand where the camera shows the disc they belong to
