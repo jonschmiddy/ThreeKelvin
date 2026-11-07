@@ -4,7 +4,8 @@ extends Node2D
 ## THE STAR CHART'S SKY IN THE SIMPLIFIED STYLE: direction C, "Alive", from the
 ## Oct 5 showcase (scratchpad `showcase/C/chart/`), THE DEFAULT of the rendering
 ## styles (`DisplaySettings.render_style`). PAINTED draws with `ChartPainted`'s
-## passes on this node, RADIANT with `ChartRadiant`'s. The chart's own layered look refined and set in slow motion: an arm-model disc
+## passes on this node, RADIANT with `ChartRadiant`'s. The chart's own layered
+## look refined and set in slow motion: an arm-model disc
 ## and a cored bulge as gathered light, crisp dust lanes, sparse stars, four
 ## depth sheets you wade through as you zoom, gas streaming along the arms,
 ## knots that breathe and bloom, a rare supernova and its light echo, nebulae

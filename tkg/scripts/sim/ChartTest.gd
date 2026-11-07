@@ -89,7 +89,8 @@ func _style_switch(_tree: SceneTree, chart: Object) -> void:
 		while Time.get_ticks_msec() - t0 < 15000:
 			await RenderingServer.frame_post_draw
 			# the key is renewed at the next draw: wait for the new style to be drawing
-			var mine := sky._key.ends_with("|painted") == (st == &"painted") 				and sky._key.ends_with("|radiant") == (st == &"radiant")
+			var mine := (sky._key.ends_with("|painted") == (st == &"painted")
+				and sky._key.ends_with("|radiant") == (st == &"radiant"))
 			if mine and sky.ready_to_draw():
 				drawn = true
 				break
