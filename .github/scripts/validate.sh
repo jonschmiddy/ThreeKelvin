@@ -56,7 +56,8 @@ SIM_RUNS="${SIM_RUNS:-40}"
 # How many units FlightTest and SolveTest run split into: as many as there are
 # `unit_flighttest_<K>` and `unit_solvetest_<K>` functions (checked below).
 # SolveTest 8 since the x12 flights (Jon, Nov 8, "split: yes"): its 4 shards
-# took 312 to 363 s side by side and 302 s alone, past their 300.
+# took 312 to 363 s side by side and 302 s alone on the PC, past the 300 they
+# had then and close to the 420 of #54.
 GATE_FLIGHT_SHARDS=4
 GATE_SOLVE_SHARDS=8
 # Overridable so CI can put the logs somewhere it can upload from.
@@ -983,7 +984,8 @@ fi
 # count. FlightTest's hand phase (flying by hand in a twin and the turning
 # pair's checks, `_hand_phase`) is a unit of its own, `flighthand`
 # (`phase=hand`), and the shards run without it (`phase=rest`): at x12 it took
-# about 205 s and held the 4th shard to 328 s, past its 300 (Jon, Nov 8).
+# about 205 s and held the 4th shard to 328 s, past the 300 it had then (Jon,
+# Nov 8).
 gate_flight_shard() {
 step "FlightTest, shard $1 of $GATE_FLIGHT_SHARDS"
 # Ruling 20 (Oct 30): FlightSolve's flights on map time, one sun, a heavy
@@ -1031,8 +1033,10 @@ step "FlightTest's flying by hand in a twin and the turning pair"
 # as the shard that held it picked them), nothing else flown. Let go far out
 # and between the stars it settles inside the map, taken by no ring; W at a
 # sun never takes it inside its keep-out; then the turning pair (ruling 23).
-# About 205 s at x12 (it was the 4th shard's, which took 328 s side by side).
-if run_godot flighthand 420 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 phase=hand; then
+# About 205 s at x12 (it was the 4th shard's, which took 328 s side by side);
+# 221 s in a gate-like run on the PC and 327 s beside other jobs. Its limit is
+# twice the 221 s, rounded up, and above its shards' 420.
+if run_godot flighthand 450 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 phase=hand; then
 	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighthand.log"; then
 		ok "let go anywhere in a twin it settles inside the map, W never takes it into a sun, and the turning pair holds"
 	else
