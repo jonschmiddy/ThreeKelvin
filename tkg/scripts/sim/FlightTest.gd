@@ -1667,19 +1667,30 @@ func _pace(w0: int, fr: int, dt: float) -> void:
 
 
 ## How far p is from a laid-out line (plane px), looking on from point j0:
-## [distance, the segment it is nearest].
+## [distance, the segment it is nearest]. It looks 64 points on, and on again
+## while the nearest is at the end of what it looked at: CURVED at x12 in a
+## 30 fps frame moves about 65 of the line's 1600 points, so a fixed 64 lost
+## the ship and read it 9.05 px off a line it was on to 0.00 (seed 4242 system
+## 50's twin, close -1 to 0; Nov 7).
 static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:
 	var best := INF
 	var bj := j0
-	for j in range(maxi(1, j0 - 8), mini(line.size(), j0 + 64)):
-		var a := Vector2(line[j - 1].x, line[j - 1].z)
-		var b := Vector2(line[j].x, line[j].z)
-		var ab := b - a
-		var u := clampf((p - a).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
-		var d := (a + ab * u - p).length()
-		if d < best:
-			best = d
-			bj = j
+	var lo := maxi(1, j0 - 8)
+	var hi := mini(line.size(), j0 + 64)
+	while true:
+		for j in range(lo, hi):
+			var a := Vector2(line[j - 1].x, line[j - 1].z)
+			var b := Vector2(line[j].x, line[j].z)
+			var ab := b - a
+			var u := clampf((p - a).dot(ab) / maxf(ab.length_squared(), 1e-12), 0.0, 1.0)
+			var d := (a + ab * u - p).length()
+			if d < best:
+				best = d
+				bj = j
+		if bj < hi - 2 or hi >= line.size():
+			break
+		lo = hi
+		hi = mini(line.size(), hi + 64)
 	return [best, bj]
 
 

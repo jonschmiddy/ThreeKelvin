@@ -124,11 +124,14 @@ const TILT := 0.38
 ## (CaseScan, six seeds, 504 one-sun flights: bend median 0.400 at x4, 0.394
 ## at x8; turned past 240 deg 7.3 / 7.9%; seconds median 12.1 / 6.0). The
 ## x8 that flew flat on Nov 5 (bend 0.06) was before the arc had its reward.
+## Then x12 (Jon, Nov 7, "3B": faster still): CaseScan at SPIN_UP 0.3, bend
+## median 0.394 at x8, 0.365 at x12, under 0.1 on 40 / 49 of 504, seconds
+## median 6.0 / 3.9; FlightTest click to settled median 4.97 / 3.32 s.
 ## The ship's own parked
 ## ring and its ride round it stay at the map's RAIL_V and STAR_RAIL_V. A
 ## harness's `-- flight_pace=K` sets the pace for either path; `-- autopilot=
 ## direct|curved` the path.
-const FLIGHT_PACE := {&"direct": 4.0, &"curved": 8.0}
+const FLIGHT_PACE := {&"direct": 4.0, &"curved": 12.0}
 static var pace_k := -1.0
 static var path_k: StringName = &""
 ## THE LOOK AIDS while a fast flight plays (CURVED's burns at pace 8 last a

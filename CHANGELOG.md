@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   before it leaves and slows onto the new one as it arrives. A click on a world while it slows
   onto its orbit is kept and flown once it is on it.
 - **Added** — AUTOPILOT in Settings, under MOTION. CURVED, the new default, swings wide round the
-  star and bends with its pull. Its wider path takes about 5 to 10 seconds from the click until
+  star and bends with its pull. Its wider path takes about 3 to 7 seconds from the click until
   it settles. DIRECT flies the straighter line the autopilot used to fly. Pick DIRECT to get the
   straight flights back.
 - **Changed** — worlds go round their suns four times as fast, and so do the suns of a binary. Comets
