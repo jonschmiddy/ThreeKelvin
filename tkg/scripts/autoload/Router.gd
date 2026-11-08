@@ -17,6 +17,7 @@ var docked: bool = false:
 	set(v):
 		if not v:
 			powered.clear()
+			undock_nudge = false
 		docked = v
 
 ## Powered-on decks are remembered per docking, so a chart round trip does not replay them.
@@ -504,6 +505,9 @@ func cast_off() -> bool:
 	if docked:
 		Audio.denied()
 		Run.log_line(DOCKED_LINE, &"them")
+		# (UNDOCK blinks, now or when the station is next up)
+		undock_nudge = true
+		Sig.undock_wanted.emit()
 		return false
 	if Run.pad.is_empty():
 		return true
@@ -522,6 +526,9 @@ func may_cast_off() -> bool:
 ## What every way off the berth but UNDOCK says (Jon, Oct 27): the HUD's LOCAL
 ## greyed at the station, the map's FLY HERE and GO, the chart's JUMP.
 const DOCKED_LINE := "Docked. Press UNDOCK to leave."
+## A way out was refused while the station was not up: it blinks UNDOCK when
+## it is. Cleared by leaving the berth (`docked`).
+var undock_nudge := false
 
 
 ## A page looked at from the berth: docked, with a screen up that is not the station.

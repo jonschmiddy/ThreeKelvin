@@ -2315,7 +2315,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# way in -- `hold` is the fraction of the path the ENTER sets off from)
 		var hold := 0.0
 		var dip_s := ZoomLadder.DOCK_DIP_S
-		# Measured both ways: undocking is the ENTER backwards, so this is also `ladder_up_s`.
+		# Measured both ways: undocking leaves down the same path, so this is also `ladder_up_s`.
 		if art2 != null:
 			var ink3 := Rect2(art2.ink_rect())
 			var to_plate := xf0.affine_inverse()
@@ -2417,12 +2417,13 @@ func ladder_cam(k: float) -> void:
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
 	elif not hall.is_empty():
-		# Undocking is the dock played backwards, camera still, station lit.
+		# Undocking holds the background as docking does: eased out down the ENTER's path, station lit.
 		# Why: docs/why/SectorScreen.md#undocking
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
 		hall["t"] = (1.0 - hk) * ZoomLadder.DOCK_ENTER_S
+		hall_fly = ZoomLadder._ease(hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -2620,17 +2621,15 @@ func _dock_burn(art: ShipView, hall: Dictionary, on: bool) -> void:
 		Audio.ship_thrust_off()
 
 
-## Engines run the ENTER backwards, then the flameout takes over; silent if cut short.
+## Engines idle as your ship backs out, then the arrival's coughs; silent if cut short.
 ## Why: docs/why/SectorScreen.md#undocking
 func _undock_engines(art: ShipView, hall: Dictionary) -> void:
 	var t := float(hall.get("t", 0.0))
 	var row := int(hall.get("row", 0))
 	var cough_at := ZoomLadder.DOCK_ENTER_S - UNDOCK_COAST_S - ShipView.sputter_s(row)
 	if t < cough_at:
-		_dock_burn(art, hall, t >= float(hall.get("dip_s", 0.0)))
 		return
 	if not hall.has("cough_clip"):
-		_dock_burn(art, hall, false)
 		hall["cough_clip"] = art.sputter(row)
 		hall["cough_at"] = cough_at
 		if not (ZoomLadder.active != null and ZoomLadder.active._cut):

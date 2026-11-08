@@ -32,7 +32,7 @@ const UI_IN_S := 0.4
 const SEAM1_S := 1.7
 const SEAM2_S := 1.8
 const DIVE_S := 1.9
-## Docking is five steps, never two at once, camera still; undocking plays it backwards.
+## Docking is five steps, never two at once, camera still; undocking eases out down the same path.
 ## Why: docs/why/ZoomLadder.md#dock-in-five-steps
 const DOCK_BEAT_S := 0.3
 const DOCK_POWER_S := 1.3

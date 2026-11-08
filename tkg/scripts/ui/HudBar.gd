@@ -88,6 +88,12 @@ func _build() -> void:
 	# One tab, two names (STATION or LOCAL), set at click; SHIP and ARCHIVE tabs cut (Jon).
 	# Why: docs/why/HudBar.md#nav-tabs
 	_tab_sector = _tab("STATION", _go_here)
+	# (greyed at the berth it takes no press, but a click is a try to leave)
+	_tab_sector.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT \
+				and _tab_sector.disabled and _at_berth():
+			Router.cast_off())
 	# Hold the tab at the longer word's width, measured after `add_child` for the theme font.
 	# Why: docs/why/HudBar.md#nav-tabs
 	_row.add_child(_tab_sector)
@@ -300,12 +306,17 @@ const FUEL_INK: Array[Color] = [UITheme.ICE, UITheme.WARN, Color("#d4614f")]
 
 ## Read at click time so the label and destination cannot disagree (UNDOCK only, Jon, Oct 27).
 func _go_here() -> void:
-	if Router.docked and ZoomLadder.lit_rank() == ZoomLadder.STATION:
-		Audio.denied()
+	if _at_berth():
+		Router.cast_off()
 	elif Router.docked:
 		Router.show_station()
 	else:
 		Router.show_local()
+
+
+## On the station itself, docked: where the first tab reads LOCAL, greyed.
+func _at_berth() -> bool:
+	return Router.docked and ZoomLadder.lit_rank() == ZoomLadder.STATION
 
 ## Label ignores the mouse by default, so `tooltip_text` alone is silently a no-op.
 func _hintable(c: Control) -> Control:

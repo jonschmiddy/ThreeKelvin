@@ -18,7 +18,8 @@ viewer's shoulder: one at an unclaimed station, two at an outpost or a
 settlement, three in a city or a capital, in the level's colour.
 
 THE TUBES BEHAVE LIKE THE LAB'S. On the power-on they strike one after
-another, the fluorescent ping; after that each stutters now and then on its
+another, the fluorescent ping, gentler than the lab's (`catch`); after that
+each stutters now and then on its
 own clock (`YardLight.stutter`, the lab's tubes), and an unclaimed station's
 one tube is the tiredest.
 
