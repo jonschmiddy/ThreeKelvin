@@ -1265,8 +1265,14 @@ func _no_fights_at_stations(st: int) -> void:
 	# the Hellbender: placed and moved many times over, never at a station
 	var at0 := Run.hellbender_at
 	var hp0 := Run.hellbender_hp
+	var max0 := Run.hellbender_max
 	var ever := false
+	# (at ascension 7: below it there is none to place, Jon, Nov 8)
+	var asc_was := Run.ascension
+	Run.ascension = Run.HELLBENDER_ASCENSION
 	Run._spawn_hellbender()
+	Run.ascension = asc_was
+	_ok("station: a Hellbender was placed to move", Run.hellbender_alive())
 	for m in 400:
 		if Run.hellbender_at >= 0 and Run.map[Run.hellbender_at].type == MapGen.NodeType.STATION:
 			ever = true
@@ -1274,6 +1280,7 @@ func _no_fights_at_stations(st: int) -> void:
 			Run._hellbender_step(m % 2 == 0)
 	Run.hellbender_at = at0
 	Run.hellbender_hp = hp0
+	Run.hellbender_max = max0
 	_ok("station: the Hellbender never stops at one (placed, then 400 moves)", not ever)
 	Run.at = was
 

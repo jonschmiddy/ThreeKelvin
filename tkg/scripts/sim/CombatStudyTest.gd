@@ -95,9 +95,12 @@ func _scaling() -> void:
 	h._ok("the Custodian keeps hull 200 and Volley 6 / Annihilate 40 (hull %d, %s)"
 		% [cust.max_hull, str(cdmg)], cust.max_hull == 200 and cdmg == [6, 0, 40])
 
-	# What a fight actually fields, through Combat's own spawn.
+	# What a fight actually fields, through Combat's own spawn. At ascension 7,
+	# where a run has a Hellbender to open at its hull (Jon, Nov 8).
 	h.seed_run(777)
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.forced_ascension = -1
 	var cb := Combat.new()
 	cb.plan(DB.enemies[&"lancer"], 1)
 	var e: Combat.EnemyState = cb.enemies[0]
@@ -110,8 +113,7 @@ func _scaling() -> void:
 	var hb: EnemyTemplate = DB.enemies[&"hellbender"]
 	h._ok("the Hellbender's template is hull 180 (%d), and a run's Hellbender opens at it (%d of %d)"
 		% [hb.max_hull, Run.hellbender_hp, Run.hellbender_max],
-		hb.max_hull == 180 and (Run.hellbender_max == 0
-			or (Run.hellbender_max == 180 and Run.hellbender_hp == 180)))
+		hb.max_hull == 180 and Run.hellbender_max == 180 and Run.hellbender_hp == 180)
 
 
 func _closing_line() -> void:

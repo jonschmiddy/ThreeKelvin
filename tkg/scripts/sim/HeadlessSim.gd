@@ -332,7 +332,11 @@ func run_sim() -> void:
 	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
+	# Since Nov 8 the Hellbender flies only at ascension 7 and up, so the default
+	# (ascension 0) IS that control cell; `asc=7` is the game as it was before.
 	Run.hellbender_off = "nohellbender" in OS.get_cmdline_user_args()
+	print("ascension %d (the Hellbender flies from %d)" % [Run.ascension_for_new_run(),
+		Run.HELLBENDER_ASCENSION])
 	policy.hot = hot
 	if hot:
 		print("HOT policy: the model spends heat for tempo and vents late.")

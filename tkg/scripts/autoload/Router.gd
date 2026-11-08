@@ -1732,7 +1732,10 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# The hellbender opens at the hull it actually has. Damage from a previous
 	# engagement is the whole point of the chase — see RunState.hellbender_scarred
 	# — and both the local fight and the party's copy have to start from it.
-	if template.miniboss:
+	# Only a LIVE one: with none in this run (below HELLBENDER_ASCENSION, or a
+	# dev's `-- fight foe=hellbender`) the hull is 0, and clamping that opened
+	# the fight at 1. With none, it opens at its template hull like any foe.
+	if template.miniboss and Run.hellbender_alive():
 		combat.enemies[0].hp = clampi(Run.hellbender_hp, 1, combat.enemies[0].max_hp)
 		# And its intent re-read at that hull. _spawn picked one at full health,
 		# so a hellbender caught already on the ropes would otherwise open with an

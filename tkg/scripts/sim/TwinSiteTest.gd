@@ -681,8 +681,15 @@ func _real_frame(m: SystemMapScreen) -> void:
 		judged > 0 and low >= 1.0 - 1e-6)
 	h._ok("with its whole edge still in the frame%s" % ("" if off.is_empty() else ": not " + ", ".join(off.slice(0, 4))), off.is_empty())
 	# A TWIN WITH THE HELLBENDER ANCHORED THERE opens out to show it (the
-	# Hellbender moved there for the check, then back)
-	if Run.hellbender_alive():
+	# Hellbender moved there for the check, then back). A run below ascension 7
+	# has none (Jon, Nov 8), so one is put on the map for the check and taken
+	# off after: this no longer skips quietly.
+	var hb_had := [Run.hellbender_at, Run.hellbender_hp, Run.hellbender_max]
+	if not Run.hellbender_alive():
+		Run.hellbender_max = (DB.enemies[&"hellbender"] as EnemyTemplate).max_hull
+		Run.hellbender_hp = Run.hellbender_max
+		Run.hellbender_at = 0
+	if h._ok("a Hellbender on the map to post past a twin's edge", Run.hellbender_alive()):
 		var hb_was := Run.hellbender_at
 		for raw in Run.map:
 			var c: MapGen.MapNode = raw
@@ -700,6 +707,9 @@ func _real_frame(m: SystemMapScreen) -> void:
 			_saw("twins with the Hellbender posted")
 			break
 		Run.hellbender_at = hb_was
+	Run.hellbender_at = int(hb_had[0])
+	Run.hellbender_hp = int(hb_had[1])
+	Run.hellbender_max = int(hb_had[2])
 	# THIS MAP, as it opened (a map shown fresh fits before its frame is laid
 	# out, on the layout's own frame; shown again, on the real one: either way)
 	var L0: SystemLayout = m.view.layout

@@ -220,7 +220,10 @@ func _sector_loot() -> void:
 
 func _one_place() -> void:
 	Rng.forced = 4242
+	# (ascension 7: the Hellbender flies only there, Jon, Nov 8)
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.forced_ascension = -1
 	var parked := SystemMapScreen._parked
 	# the Hellbender
 	if not Run.hellbender_alive():
@@ -286,7 +289,9 @@ func _one_place() -> void:
 func _hellbender_doors() -> void:
 	for ending in [&"won", &"escaped", &"fled"]:
 		Rng.forced = 4242
+		Run.forced_ascension = Run.HELLBENDER_ASCENSION
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Run.forced_ascension = -1
 		if not Run.hellbender_alive():
 			h._fail("no Hellbender in this run")
 			return
@@ -393,7 +398,9 @@ func _hellbender_doors() -> void:
 	# THE ESCAPE BURN LEAVES THE SYSTEM from every system it can anchor in: its
 	# two hops were free to go out and straight back
 	Rng.forced = 4242
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.forced_ascension = -1
 	var back := 0
 	var tried := 0
 	for raw in Run.map:

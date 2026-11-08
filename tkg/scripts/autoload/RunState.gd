@@ -488,6 +488,9 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	Rng.reseed(galaxy_seed, Net.seat())
 	# What this run's world may hold. Before anything is rolled, and once.
 	unlocked_manufacturers = Unlocks.for_new_run()
+	# And how hard it is: the ascension level, before the map and the
+	# Hellbender, which reads it. See `ascension_for_new_run`.
+	ascension = ascension_for_new_run()
 
 	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
 	# HeadlessSim calls this directly, and a fixed default would report a win
@@ -3870,8 +3873,52 @@ var hellbender_ticks: int = 0
 ## code — the same discipline as Net.forced_protocol.
 var hellbender_off: bool = false
 
+## THE ASCENSION LEVEL THE HELLBENDER FIRST FLIES AT (Jon, Nov 8: "ONLY have
+## the hellbender show up on Ascention 7+"). Below it the rival never spawns,
+## so nothing that reads `hellbender_alive()` (the chart, the blockade, the
+## log, the drawer, its fight, its music, the co-op pushes) has anything to
+## show. The hiring boards still name it at every level, as a hint of what is
+## coming (Jon's follow-up); they promise no bounty (`BoardSignTest`).
+const HELLBENDER_ASCENSION := 7
+## The highest ascension level: the ladder's ten (Nov 7 ruling).
+const ASCENSION_MAX := 10
+
+## THIS RUN'S ASCENSION LEVEL. 0 is the game as it was before the ladder: the
+## spiral, no Hellbender. Set once by `start_new_run`, saved with the run (a
+## save from before it loads at 0), and in a party the host's (`Net.dive_ascension`).
+## There is no picker yet; the ladder build adds one. Until then `-- asc=N`.
+var ascension: int = 0
+## Test seam: the level the next `start_new_run` uses, or -1 to read the
+## command line. Never set from game code, the same discipline as `Rng.forced`.
+var forced_ascension: int = -1
+
+## The level a new run starts at. In a dive, the host's (sent with the seed,
+## PROTOCOL 17), so four ships fly one galaxy with one rival or none. Solo, the
+## test seam, then `-- asc=N` on the command line (sims, tests, a dev's run),
+## then 0.
+func ascension_for_new_run() -> int:
+	if Net.state == NetSession.State.DIVING and Net.dive_seed != 0:
+		return clampi(Net.dive_ascension, 0, ASCENSION_MAX)
+	if forced_ascension >= 0:
+		return clampi(forced_ascension, 0, ASCENSION_MAX)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("asc="):
+			return clampi(int(arg.substr(4)), 0, ASCENSION_MAX)
+	return 0
+
+## Whether this run's ascension level brings the Hellbender at all.
+func hellbender_in_play() -> bool:
+	return ascension >= HELLBENDER_ASCENSION
+
 func hellbender_alive() -> bool:
 	return hellbender_at >= 0 and hellbender_hp > 0
+
+## Whether this run HAD a Hellbender and it is gone. Not just "not alive": below
+## HELLBENDER_ASCENSION there never was one (`hellbender_max` 0), and a board
+## that stamped its WANTED poster DESTROYED would tell the player a story that
+## never happened.
+func hellbender_destroyed() -> bool:
+	return hellbender_max > 0 and not hellbender_alive()
 
 ## Whether this machine is the one that moves it: the host, or nobody's client.
 func _hellbender_authority() -> bool:
@@ -3885,9 +3932,12 @@ func _hellbender_authority() -> bool:
 func _spawn_hellbender() -> void:
 	hellbender_at = -1
 	hellbender_hp = 0
+	hellbender_max = 0
 	hellbender_moves = 0
 	hellbender_ticks = 0
-	if hellbender_off:
+	# Ascension 7 and up only (HELLBENDER_ASCENSION). `hellbender_max` stays 0
+	# below it, which is how a board tells "never here" from "killed".
+	if hellbender_off or not hellbender_in_play():
 		return
 	var t: EnemyTemplate = DB.enemies.get(&"hellbender")
 	if t == null or map.is_empty():

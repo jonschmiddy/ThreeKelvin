@@ -312,7 +312,15 @@ static var restoring := false
 ## CONTINUE would otherwise meet a weaker boss than the badge showed. Read the
 ## way 39 reads 38: a 39 save has no `party_jumps`, and missing means 0, so its
 ## count is its own jumps, as a 39 build grew it. OLDEST_READ stays at 29.
-const VERSION := 40
+## 41: THE RUN'S ASCENSION LEVEL (`ascension`: `Run.ascension`, Jon, Nov 8).
+## The Hellbender flies only at `RunState.HELLBENDER_ASCENSION` and up, and a
+## run is spawned at its level once, so CONTINUE has to bring the level back or
+## the ladder could not say what a loaded run is. Read the way 40 reads 39: a
+## 40 save has no `ascension`, and missing means 0, the game a 40 build played.
+## A 40 save that already has a live Hellbender KEEPS it (its five fields load
+## as before): pulling a rival out mid-chase, or mid-fight, is worse than
+## letting one old run finish with it. OLDEST_READ stays at 29.
+const VERSION := 41
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -447,6 +455,8 @@ static func _snapshot() -> Dictionary:
 		galaxy_kind = Run.galaxy_kind,
 		galaxy = Run.galaxy,
 		galaxy_seed = Run.galaxy_seed,
+		# How hard (VERSION 41).
+		ascension = Run.ascension,
 		# What the world may hold (VERSION 34).
 		unlocked = Array(Run.unlocked_manufacturers).map(
 			func(m: StringName) -> String: return String(m)),
@@ -565,6 +575,8 @@ static func load_into_run() -> bool:
 	Run.galaxy_kind = int(d.get("galaxy_kind", 0))
 	Run.galaxy = _galaxy_from(Run.galaxy_kind, d.get("galaxy", {}))
 	Run.galaxy_seed = int(d.get("galaxy_seed", 0))
+	# A 40 save has none: level 0, the game it was played as (VERSION 41).
+	Run.ascension = clampi(int(d.get("ascension", 0)), 0, Run.ASCENSION_MAX)
 	Rng.restore(d.get("rng", {"master": Run.galaxy_seed}))
 	Run.unlocked_manufacturers = _unlocked_from(d.get("unlocked", null))
 	Run.galaxy_spin = float(d.get("galaxy_spin", 0.0))

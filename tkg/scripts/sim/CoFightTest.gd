@@ -100,6 +100,11 @@ func run(tree: SceneTree) -> void:
 	_hellbender = "hellbender" in argv
 	_race = "race" in argv
 	_me = "HOST" if hosting else "GUEST"
+	# The roamer flies only at ascension 7 and up (Jon, Nov 8). The host's
+	# level goes out with the seed (PROTOCOL 17), so only the host sets it: the
+	# guest's rival proves the wire carried it.
+	if hosting and _hellbender:
+		Run.forced_ascension = Run.HELLBENDER_ASCENSION
 
 	if hosting:
 		await _host()
@@ -472,6 +477,8 @@ func _item_id(m: Variant) -> String:
 
 ## The roamer, end to end: clock, wire, blockade, fight, ending.
 func _hellbender_leg() -> void:
+	_ok("the dive is at the host's ascension %d (dive %d)" % [Run.ascension, Net.dive_ascension],
+		Run.ascension == Run.HELLBENDER_ASCENSION and Net.dive_ascension == Run.HELLBENDER_ASCENSION)
 	if not _ok("a rival spawned with the galaxy", Run.hellbender_alive()):
 		return
 

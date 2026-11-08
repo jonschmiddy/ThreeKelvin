@@ -181,6 +181,8 @@ func fingerprint() -> Dictionary:
 		# walk from the same position.
 		hellbender = [Run.hellbender_at, Run.hellbender_hp, Run.hellbender_max,
 			Run.hellbender_moves, Run.hellbender_ticks],
+		# THE ASCENSION LEVEL (VERSION 41), which decides whether there is one.
+		ascension = Run.ascension,
 		galaxy = [Run.galaxy_kind, Run.galaxy_seed, "%.9f" % Run.galaxy_spin,
 			Run.galaxy_name, Run.galaxy_title],
 		gparams = _round_floats(Run.galaxy),
@@ -284,7 +286,12 @@ func _round_floats(d: Dictionary) -> String:
 func run() -> void:
 	print("\n=== SAVE ROUND-TRIP ===")
 	SaveGame.clear()
+	# At ascension 7, so the run has a Hellbender to save mid-chase (Jon, Nov 8:
+	# it flies only there), and the level is a field that has to come back.
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	Run.start_new_run()
+	Run.forced_ascension = -1
+	check("the round trip's run has a Hellbender to save (ascension %d)" % Run.ascension, true, Run.hellbender_alive())
 
 	# Push the run somewhere non-trivial: move, spend, take damage, pick up
 	# loot, clear nodes, and roll a station's stock.
@@ -531,6 +538,7 @@ func run() -> void:
 	Run.hellbender_max = 0
 	Run.hellbender_moves = 0
 	Run.hellbender_ticks = 0
+	Run.ascension = 0
 	Run.map = []
 	Run.installed = []
 	Run.cargo = []
@@ -680,7 +688,7 @@ func run_version_test() -> void:
 	# so they are saved; a 39 save has none and grows on its own jumps, as a 39
 	# build did. The load counts the count as seen, so CONTINUE replays no
 	# arrival; a new run clears it.
-	check("this build writes VERSION 40", 40, SaveGame.VERSION)
+	# (this build writes 41; the lead ship's jumps came in at 40)
 	Run.start_new_run(&"korvan", 1)
 	Run.jumps = 7
 	Run.party_jumps = 21
@@ -719,6 +727,49 @@ func run_version_test() -> void:
 	check("a new run clears the lead ship's jumps and the badge's seen count", "0 0",
 		"%d %d" % [Run.party_jumps, Run.custodian_seen])
 
+	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8): this build writes 41. The
+	# Hellbender flies only at 7 and up, so the level is saved and comes back;
+	# a 40 save has none and loads at 0, the game a 40 build played, and keeps
+	# a live Hellbender it already had (pulling one mid-chase is worse).
+	check("this build writes VERSION 41", 41, SaveGame.VERSION)
+	Run.forced_ascension = 7
+	Run.start_new_run(&"korvan", 1)
+	Run.forced_ascension = -1
+	check("a run started at ascension 7 is at 7, with its Hellbender", "7 true",
+		"%d %s" % [Run.ascension, Run.hellbender_alive()])
+	SaveGame.save()
+	var f40 := FileAccess.open(SaveGame.path, FileAccess.READ)
+	var save40: Dictionary = JSON.parse_string(f40.get_as_text()) if f40 != null else {}
+	if f40 != null:
+		f40.close()
+	check("a 41 save carries its ascension", 7, int(save40.get("ascension", -1)))
+	var hb40 := [Run.hellbender_at, Run.hellbender_hp, Run.hellbender_max]
+	Run.ascension = 0
+	SaveGame.load_into_run()
+	check("and loads it back", 7, Run.ascension)
+	save40["version"] = 40
+	save40.erase("ascension")
+	var w40 := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w40 != null:
+		w40.store_string(JSON.stringify(save40, "", true, true))
+		w40.close()
+	Run.ascension = 9
+	check("a save of version 40 (no ascension) still loads", true, SaveGame.load_into_run())
+	check("and at ascension 0", 0, Run.ascension)
+	check("and keeps the live Hellbender it had (at, hp, max)", str(hb40),
+		str([Run.hellbender_at, Run.hellbender_hp, Run.hellbender_max]))
+	save40["version"] = 41
+	save40["ascension"] = 99
+	w40 = FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w40 != null:
+		w40.store_string(JSON.stringify(save40, "", true, true))
+		w40.close()
+	SaveGame.load_into_run()
+	check("an ascension past the ladder reads its top (%d)" % Run.ASCENSION_MAX, Run.ASCENSION_MAX, Run.ascension)
+	Run.start_new_run(&"korvan", 1)
+	check("a new run with nothing asked starts at 0, with no Hellbender", "0 false 0",
+		"%d %s %d" % [Run.ascension, Run.hellbender_alive(), Run.hellbender_max])
+
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
 	Run.start_new_run(&"korvan", 1)
@@ -733,6 +784,7 @@ func run_version_test() -> void:
 	old_save.erase("clocks")
 	old_save.erase("unlocked")
 	old_save.erase("party_jumps")
+	old_save.erase("ascension")
 	# (and from before two suns, VERSION 38: no node says `twin`)
 	var twins_written := 0
 	for nd in old_save.get("map", []):
