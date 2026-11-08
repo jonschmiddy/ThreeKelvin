@@ -2438,6 +2438,24 @@ else
 fi
 }
 
+unit_codecheck() {
+step "No new long functions, huge files or bare Dictionary/Array/Variant returns"
+# A ratchet: game code (not sim) may have no function over 100 lines, no file over
+# 3000, no new function returning a bare Dictionary, Array or Variant. What predates
+# it is in `tools/code_check_baseline.txt` and may not grow (docs/why/code_check.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/code_check.py >/tmp/codecheck.$$ 2>&1; then
+		ok "$(tail -n 1 /tmp/codecheck.$$)"
+	else
+		head -n 20 /tmp/codecheck.$$ | sed 's/^/        /'
+		bad "code check: new long functions, huge files or bare returns (python tools/code_check.py)"
+	fi
+	rm -f /tmp/codecheck.$$
+else
+	bad "no python for the code check"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent

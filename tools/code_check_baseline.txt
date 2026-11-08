@@ -1,0 +1,605 @@
+# Debt that predates tools/code_check.py. The gate ignores these and fails on anything
+# new, or a length that grew. Shrink it by fixing code, then: python tools/code_check.py --update
+# length <file>::<func> <lines> | file <file> <lines> | bare <file>::<func>
+bare scripts/autoload/Audio.gd::fx_take
+bare scripts/autoload/Database.gd::enemy_sprite_files
+bare scripts/autoload/Database.gd::starter_kit
+bare scripts/autoload/Keys.gd::defaults
+bare scripts/autoload/Keys.gd::slots
+bare scripts/autoload/Rng.gd::pick
+bare scripts/autoload/Rng.gd::state
+bare scripts/autoload/Router.gd::_room_for
+bare scripts/autoload/Router.gd::ambush_pack
+bare scripts/autoload/Router.gd::fight_door
+bare scripts/autoload/Router.gd::party_fight_here
+bare scripts/autoload/Router.gd::take_arrival
+bare scripts/autoload/RunState.gd::_can_offer
+bare scripts/autoload/RunState.gd::deliverable_at
+bare scripts/autoload/RunState.gd::delivery_manufacturers
+bare scripts/autoload/RunState.gd::dock_rescue
+bare scripts/autoload/RunState.gd::event_quest_at
+bare scripts/autoload/RunState.gd::heat_deliverable_at
+bare scripts/autoload/RunState.gd::hold_taken
+bare scripts/autoload/RunState.gd::in_range
+bare scripts/autoload/RunState.gd::in_range_of
+bare scripts/autoload/RunState.gd::ledger
+bare scripts/autoload/RunState.gd::nearest_dock
+bare scripts/autoload/RunState.gd::nearest_other_dock
+bare scripts/autoload/RunState.gd::refuel_offer
+bare scripts/autoload/RunState.gd::wrecks_here
+bare scripts/data/AshLines.gd::of
+bare scripts/data/AshTutorLines.gd::all_ids
+bare scripts/data/CardData.gd::keywords
+bare scripts/data/ContractData.gd::to_wire
+bare scripts/data/ShipBuild.gd::part_entry
+bare scripts/data/ShipBuild.gd::to_wire
+bare scripts/net/BotBoard.gd::_fight_moves
+bare scripts/net/BotBoard.gd::_intent
+bare scripts/net/BotBoard.gd::_me
+bare scripts/net/BotBoard.gd::_modules
+bare scripts/net/BotBoard.gd::_party
+bare scripts/net/BotBoard.gd::fight
+bare scripts/net/BotBoard.gd::map
+bare scripts/net/BotBoard.gd::of
+bare scripts/net/BotBoard.gd::station
+bare scripts/net/LobbyCode.gd::parse
+bare scripts/net/NetSession.gd::_slot
+bare scripts/net/NetSession.gd::_spot_row
+bare scripts/net/NetSession.gd::partners
+bare scripts/net/NetSession.gd::slots
+bare scripts/net/NetSession.gd::spot_of
+bare scripts/net/NetSession.gd::taken_at
+bare scripts/net/SharedFight.gd::to_wire
+bare scripts/systems/BuildInfo.gd::info
+bare scripts/systems/Combat.gd::flee_check
+bare scripts/systems/Combat.gd::hail_check
+bare scripts/systems/Combat.gd::templates_of
+bare scripts/systems/Contracts.gd::_manufacturers
+bare scripts/systems/Contracts.gd::board
+bare scripts/systems/DeckBuilder.gd::summarise
+bare scripts/systems/FlightSolve.gd::_wp_target
+bare scripts/systems/GalaxyGen.gd::params
+bare scripts/systems/GalaxyGen.gd::roll
+bare scripts/systems/HullGrade.gd::_spots
+bare scripts/systems/HullGrade.gd::band_ramp
+bare scripts/systems/HullGrade.gd::light_layer_sparse
+bare scripts/systems/HullGrade.gd::light_pixels
+bare scripts/systems/HullGrade.gd::places
+bare scripts/systems/HullWear.gd::_by_luma
+bare scripts/systems/HullWear.gd::_profile
+bare scripts/systems/HullWear.gd::ops_for
+bare scripts/systems/HullWear.gd::palette
+bare scripts/systems/MapGen.gd::_by_distance
+bare scripts/systems/MapGen.gd::_flown
+bare scripts/systems/MapGen.gd::generate
+bare scripts/systems/MaterialTable.gd::by_id
+bare scripts/systems/MaterialTable.gd::roll
+bare scripts/systems/NebulaField.gd::_build
+bare scripts/systems/NebulaField.gd::clouds
+bare scripts/systems/OptionResolve.gd::_thing
+bare scripts/systems/OptionResolve.gd::_things_after
+bare scripts/systems/OptionResolve.gd::_things_before
+bare scripts/systems/OptionResolve.gd::gained_names
+bare scripts/systems/OptionResolve.gd::pile_now
+bare scripts/systems/OptionResolve.gd::take
+bare scripts/systems/OptionTable.gd::by_id
+bare scripts/systems/OptionTable.gd::placed_ids
+bare scripts/systems/OptionTable.gd::strip_pay
+bare scripts/systems/PlaytestLogs.gd::_entries
+bare scripts/systems/PlaytestLogs.gd::save_bundle
+bare scripts/systems/RunHistory.gd::_manufacturer_tally
+bare scripts/systems/RunHistory.gd::load_all
+bare scripts/systems/RunHistory.gd::recent
+bare scripts/systems/RunHistory.gd::stats
+bare scripts/systems/SaveGame.gd::_clocks_from
+bare scripts/systems/SaveGame.gd::_clocks_to
+bare scripts/systems/SaveGame.gd::_contracts_from
+bare scripts/systems/SaveGame.gd::_contracts_to
+bare scripts/systems/SaveGame.gd::_event_quests_from
+bare scripts/systems/SaveGame.gd::_event_quests_to
+bare scripts/systems/SaveGame.gd::_galaxy_from
+bare scripts/systems/SaveGame.gd::_hull_to
+bare scripts/systems/SaveGame.gd::_item_to
+bare scripts/systems/SaveGame.gd::_module_to
+bare scripts/systems/SaveGame.gd::_names
+bare scripts/systems/SaveGame.gd::_node_to
+bare scripts/systems/SaveGame.gd::_parked_from
+bare scripts/systems/SaveGame.gd::_parked_to
+bare scripts/systems/SaveGame.gd::_read
+bare scripts/systems/SaveGame.gd::_snapshot
+bare scripts/systems/SaveGame.gd::_standing_to
+bare scripts/systems/SaveGame.gd::summary
+bare scripts/systems/Unlocks.gd::won_with
+bare scripts/ui/Ash.gd::_item_ids
+bare scripts/ui/Ash.gd::_opened_here
+bare scripts/ui/Ash.gd::_spot
+bare scripts/ui/Ash.gd::avoid_rects
+bare scripts/ui/Ash.gd::comms_to
+bare scripts/ui/Ash.gd::menu_spot
+bare scripts/ui/Ash.gd::spot_boxes
+bare scripts/ui/Ash.gd::survey_boxes
+bare scripts/ui/Ash.gd::tut_avoid_rects
+bare scripts/ui/Ash.gd::tut_spot
+bare scripts/ui/Ash.gd::tut_spot_boxes
+bare scripts/ui/BoardLamp.gd::_bars
+bare scripts/ui/ChartLegacy.gd::_gas_palette
+bare scripts/ui/ChartLegacy.gd::_point_textures
+bare scripts/ui/ChartLegacy.gd::_star_hist
+bare scripts/ui/ChartLegacy.gd::params
+bare scripts/ui/ChartPainted.gd::cloud_uniforms
+bare scripts/ui/ChartPainted.gd::galaxy_uniforms
+bare scripts/ui/ChartPainted.gd::tables
+bare scripts/ui/ChartRadiant.gd::cloud_uniforms
+bare scripts/ui/ChartRadiant.gd::look
+bare scripts/ui/ChartSky.gd::_cloud_stars
+bare scripts/ui/ChartSky.gd::_g_for
+bare scripts/ui/ChartSky.gd::_make_clouds
+bare scripts/ui/ChartSky.gd::_make_knots
+bare scripts/ui/ChartSky.gd::_snapshot_stars
+bare scripts/ui/ChartSky.gd::_supernova
+bare scripts/ui/ChartSky.gd::ball_story
+bare scripts/ui/ChartSky.gd::next_supernova
+bare scripts/ui/ChartSky.gd::params
+bare scripts/ui/ChartSky.gd::remnants
+bare scripts/ui/CustodianBadge.gd::clock
+bare scripts/ui/CustodianBadge.gd::idle_of
+bare scripts/ui/CustodianBadge.gd::ladder
+bare scripts/ui/CustodianBadge.gd::look
+bare scripts/ui/CustodianBadge.gd::tip_avoid
+bare scripts/ui/EncounterDrawer.gd::bill_rows
+bare scripts/ui/EncounterDrawer.gd::option_state
+bare scripts/ui/EncounterDrawer.gd::plate
+bare scripts/ui/EncounterDrawer.gd::quiet_lines
+bare scripts/ui/EncounterDrawer.gd::result_stamp
+bare scripts/ui/EncounterDrawer.gd::untaken
+bare scripts/ui/EncounterView.gd::_clear_of_body
+bare scripts/ui/EncounterView.gd::_here
+bare scripts/ui/EncounterView.gd::_pack_column
+bare scripts/ui/EncounterView.gd::_pack_ranks
+bare scripts/ui/EncounterView.gd::_pack_row
+bare scripts/ui/EncounterView.gd::_pack_shoulders
+bare scripts/ui/EncounterView.gd::_place_ranks
+bare scripts/ui/EncounterView.gd::_plan_in
+bare scripts/ui/EncounterView.gd::_shoulders_at
+bare scripts/ui/EncounterView.gd::_under
+bare scripts/ui/EncounterView.gd::hand_wrecks
+bare scripts/ui/EnemyArt.gd::_profile
+bare scripts/ui/EnemyArt.gd::_under
+bare scripts/ui/EnemyArt.gd::dead_canvas
+bare scripts/ui/EnemySlot.gd::_reserved
+bare scripts/ui/EnemySlot.gd::boxes
+bare scripts/ui/EnemySlot.gd::rooms
+bare scripts/ui/ExchangeScene.gd::_fleet_list
+bare scripts/ui/ExchangeScene.gd::_frames
+bare scripts/ui/ExchangeScene.gd::exchange_room_for
+bare scripts/ui/FaunaGuard.gd::keep_of
+bare scripts/ui/FaunaMotion.gd::_idle
+bare scripts/ui/FaunaMotion.gd::_windup_at
+bare scripts/ui/FaunaMotion.gd::shader_inputs
+bare scripts/ui/FaunaMotion.gd::state
+bare scripts/ui/FightLog.gd::rects
+bare scripts/ui/GalleryFilter.gd::grade_options
+bare scripts/ui/GalleryFilter.gd::manufacturer_options
+bare scripts/ui/GalleryFilter.gd::slot_options
+bare scripts/ui/GalleryFilter.gd::state
+bare scripts/ui/GoalLine.gd::avoid_rects
+bare scripts/ui/GoalLine.gd::step
+bare scripts/ui/HandView.gd::_order_for_layout
+bare scripts/ui/Hints.gd::_band_probe
+bare scripts/ui/Hints.gd::_chart_probe
+bare scripts/ui/Hints.gd::_cut_probe
+bare scripts/ui/Hints.gd::_deck_probe
+bare scripts/ui/Hints.gd::_deck_sig
+bare scripts/ui/Hints.gd::_dock_cached
+bare scripts/ui/Hints.gd::_fight_avoid
+bare scripts/ui/Hints.gd::_fight_probe
+bare scripts/ui/Hints.gd::_fit_sig
+bare scripts/ui/Hints.gd::_map_fly_probe
+bare scripts/ui/Hints.gd::_snapshot
+bare scripts/ui/Hints.gd::_station_probe
+bare scripts/ui/Hints.gd::_with_goal
+bare scripts/ui/Hints.gd::lines
+bare scripts/ui/Hints.gd::probe
+bare scripts/ui/Hints.gd::values
+bare scripts/ui/HudBar.gd::fuel_parts
+bare scripts/ui/HudBar.gd::stat_nodes
+bare scripts/ui/HudBar.gd::tab_nodes
+bare scripts/ui/HullHitFx.gd::_seam_run
+bare scripts/ui/HullScramble.gd::_button_cell
+bare scripts/ui/HullScramble.gd::_button_layout
+bare scripts/ui/HullScramble.gd::_cell
+bare scripts/ui/HullScramble.gd::_drawn_cell
+bare scripts/ui/HullScramble.gd::_label_cell
+bare scripts/ui/HullScramble.gd::_noise
+bare scripts/ui/HullScramble.gd::_pick
+bare scripts/ui/HullScramble.gd::_rich_cell
+bare scripts/ui/HullScramble.gd::_signal_cell
+bare scripts/ui/HullScramble.gd::live
+bare scripts/ui/ItemIcon.gd::_get_drag_data
+bare scripts/ui/LabScene.gd::_anim
+bare scripts/ui/LabScene.gd::_weights
+bare scripts/ui/LabScene.gd::banner_spots
+bare scripts/ui/LabScene.gd::doc
+bare scripts/ui/LocalEventDrawer.gd::_avoid_rects
+bare scripts/ui/LocalEventDrawer.gd::_choice_cards
+bare scripts/ui/LocalEventDrawer.gd::_hulls
+bare scripts/ui/LocalEventDrawer.gd::_rivals
+bare scripts/ui/LocalEventDrawer.gd::choose
+bare scripts/ui/LocalFx.gd::_rec_of
+bare scripts/ui/LocalFx.gd::lit_points
+bare scripts/ui/LocalLife.gd::_world
+bare scripts/ui/LocalLife.gd::audit
+bare scripts/ui/LocalLife.gd::moon_places
+bare scripts/ui/LocalLife.gd::orbit_at
+bare scripts/ui/LocalSky.gd::_core_place
+bare scripts/ui/LocalSky.gd::_near_wants
+bare scripts/ui/LocalSky.gd::_wx_event
+bare scripts/ui/LocalSky.gd::band_order
+bare scripts/ui/LocalSky.gd::far_defaults
+bare scripts/ui/LocalSky.gd::near_info
+bare scripts/ui/LocalSky.gd::near_place
+bare scripts/ui/LocalSky.gd::near_plan
+bare scripts/ui/LocalSky.gd::palette_for
+bare scripts/ui/LocalSubject.gd::_dilated
+bare scripts/ui/LocalSubject.gd::_light_points
+bare scripts/ui/LocalSubject.gd::_loose_on
+bare scripts/ui/LocalSubject.gd::_loose_round
+bare scripts/ui/LocalSubject.gd::_m
+bare scripts/ui/LocalSubject.gd::_nearest_clear
+bare scripts/ui/LocalSubject.gd::_nose_to_tail
+bare scripts/ui/LocalSubject.gd::_stage_around
+bare scripts/ui/LocalSubject.gd::_stage_field
+bare scripts/ui/LocalSubject.gd::_stage_group
+bare scripts/ui/LocalSubject.gd::_stage_herd
+bare scripts/ui/LocalSubject.gd::_stage_line
+bare scripts/ui/LocalSubject.gd::_stage_on_rock
+bare scripts/ui/LocalSubject.gd::_stage_ring
+bare scripts/ui/LocalSubject.gd::_stage_ring_arc
+bare scripts/ui/LocalSubject.gd::_stage_row
+bare scripts/ui/LocalSubject.gd::_stage_single
+bare scripts/ui/LocalSubject.gd::_stage_strewn
+bare scripts/ui/LocalSubject.gd::_stage_structure
+bare scripts/ui/LocalSubject.gd::_stage_tether
+bare scripts/ui/LocalSubject.gd::fit
+bare scripts/ui/LocalSubject.gd::index
+bare scripts/ui/LocalSubject.gd::mask_of
+bare scripts/ui/LocalSubject.gd::piece_info
+bare scripts/ui/LocalSubject.gd::plan
+bare scripts/ui/LocalSubject.gd::rec_for
+bare scripts/ui/LocalSubject.gd::resolve
+bare scripts/ui/LocalSubject.gd::rock_form
+bare scripts/ui/LocalSubject.gd::role_ships
+bare scripts/ui/LocalSubject.gd::spin_at
+bare scripts/ui/LocalSubject.gd::stages_of
+bare scripts/ui/LocalSubject.gd::structure_in
+bare scripts/ui/LocalSubject.gd::without_foes
+bare scripts/ui/LowHull.gd::look
+bare scripts/ui/LowHull.gd::plan_for
+bare scripts/ui/LowHull.gd::voice_look
+bare scripts/ui/LowHull.gd::voice_plan
+bare scripts/ui/MountPoints.gd::_get_drag_data
+bare scripts/ui/NavField.gd::screen_pan
+bare scripts/ui/OutcomeRow.gd::_targets
+bare scripts/ui/OutcomeRow.gd::big_ones
+bare scripts/ui/OutcomeRow.gd::changes
+bare scripts/ui/OutcomeRow.gd::entry_boxes
+bare scripts/ui/OutcomeRow.gd::entry_boxes#2
+bare scripts/ui/OutcomeRow.gd::entry_boxes#3
+bare scripts/ui/OutcomeRow.gd::entry_boxes#4
+bare scripts/ui/OutcomeRow.gd::in_air
+bare scripts/ui/OutcomeRow.gd::wrap
+bare scripts/ui/PixelTurn.gd::_num
+bare scripts/ui/PostingBoard.gd::_lay_out
+bare scripts/ui/PostingBoard.gd::_spot
+bare scripts/ui/QuestLog.gd::_entry
+bare scripts/ui/QuestLog.gd::_event_entry
+bare scripts/ui/QuestLog.gd::_events
+bare scripts/ui/QuestLog.gd::done_entries
+bare scripts/ui/QuestLog.gd::entries
+bare scripts/ui/QuestLog.gd::find
+bare scripts/ui/QuestPanel.gd::keep_off
+bare scripts/ui/SalvageGrid.gd::_occupied
+bare scripts/ui/SectorScreen.gd::_turn_steps
+bare scripts/ui/SectorScreen.gd::hand_wrecks
+bare scripts/ui/SectorScreen.gd::ladder_hull_side
+bare scripts/ui/SectorScreen.gd::ladder_plane
+bare scripts/ui/SectorScreen.gd::ladder_world
+bare scripts/ui/SectorScreen.gd::things_here
+bare scripts/ui/ShaderWarm.gd::wanted
+bare scripts/ui/ShelfDisplay.gd::_pack
+bare scripts/ui/ShieldFx.gd::_cell
+bare scripts/ui/ShieldFx.gd::fit
+bare scripts/ui/ShipBreakup.gd::_boss_lights
+bare scripts/ui/ShipBreakup.gd::_crumple_pic
+bare scripts/ui/ShipBreakup.gd::_curl_pic
+bare scripts/ui/ShipBreakup.gd::_cut_boss
+bare scripts/ui/ShipBreakup.gd::_cut_classic
+bare scripts/ui/ShipBreakup.gd::_cut_creature
+bare scripts/ui/ShipBreakup.gd::_cut_new
+bare scripts/ui/ShipBreakup.gd::_field
+bare scripts/ui/ShipBreakup.gd::_fire_maps
+bare scripts/ui/ShipBreakup.gd::_glow_band
+bare scripts/ui/ShipBreakup.gd::_held
+bare scripts/ui/ShipBreakup.gd::_hull_pic
+bare scripts/ui/ShipBreakup.gd::_majors_of
+bare scripts/ui/ShipBreakup.gd::_melt_field
+bare scripts/ui/ShipBreakup.gd::_melt_pic
+bare scripts/ui/ShipBreakup.gd::_nova_maps
+bare scripts/ui/ShipBreakup.gd::_plume_tex
+bare scripts/ui/ShipBreakup.gd::_rib_curves
+bare scripts/ui/ShipBreakup.gd::_shard_new
+bare scripts/ui/ShipBreakup.gd::_shard_state
+bare scripts/ui/ShipBreakup.gd::_shards_of
+bare scripts/ui/ShipBreakup.gd::cut
+bare scripts/ui/ShipLoss.gd::picture
+bare scripts/ui/ShipLoss.gd::prebuild
+bare scripts/ui/ShipView.gd::_flame_frames
+bare scripts/ui/ShopScene.gd::banner_spots
+bare scripts/ui/ShopScene.gd::deck_room_for
+bare scripts/ui/ShopScene.gd::doc
+bare scripts/ui/ShopScene.gd::openings
+bare scripts/ui/ShopScene.gd::rack_boards
+bare scripts/ui/ShopScene.gd::room_for
+bare scripts/ui/SideSwap.gd::rows_of
+bare scripts/ui/SideSwap.gd::scrambling
+bare scripts/ui/SideSwap.gd::sections_of
+bare scripts/ui/SignalText.gd::_measure
+bare scripts/ui/SpaceBackdrop.gd::_palette
+bare scripts/ui/StarchartScreen.gd::_clouds
+bare scripts/ui/StarchartScreen.gd::_g
+bare scripts/ui/StarchartScreen.gd::_gmap
+bare scripts/ui/StarchartScreen.gd::_in_range
+bare scripts/ui/StarchartScreen.gd::_nearest_berths
+bare scripts/ui/StarchartScreen.gd::_quest_avoid
+bare scripts/ui/StarchartScreen.gd::_snapshot_sky
+bare scripts/ui/StarchartScreen.gd::_too_deep_of
+bare scripts/ui/StarchartScreen.gd::_visible_set
+bare scripts/ui/StarchartScreen.gd::art_for
+bare scripts/ui/StarchartScreen.gd::nodes_near
+bare scripts/ui/StarchartScreen.gd::party_marks
+bare scripts/ui/StarchartScreen.gd::place_quest_tags
+bare scripts/ui/StarchartScreen.gd::ramp_for
+bare scripts/ui/StarchartScreen.gd::too_deep_set
+bare scripts/ui/StationFace.gd::make_pair
+bare scripts/ui/StationRoom.gd::_drops
+bare scripts/ui/StationRoom.gd::_hole_runs
+bare scripts/ui/StationRoom.gd::_hole_runs_keys
+bare scripts/ui/StationRoom.gd::banner_spots
+bare scripts/ui/StationRoom.gd::openings
+bare scripts/ui/StationScreen.gd::_open_elsewhere
+bare scripts/ui/StationScreen.gd::yard_flameout
+bare scripts/ui/StationSides.gd::interior
+bare scripts/ui/StationSides.gd::pick
+bare scripts/ui/ThrusterFx.gd::_bell
+bare scripts/ui/ThrusterFx.gd::_build
+bare scripts/ui/ThrusterFx.gd::_frame
+bare scripts/ui/ThrusterFx.gd::_hull_pic
+bare scripts/ui/ThrusterFx.gd::_quantize
+bare scripts/ui/ThrusterFx.gd::_tail
+bare scripts/ui/ThrusterFx.gd::particles_at
+bare scripts/ui/ThrusterFx.gd::plume
+bare scripts/ui/ThrusterFx.gd::spill
+bare scripts/ui/UITheme.gd::outline_boxes
+bare scripts/ui/VoiceGlitch.gd::bake_placed
+bare scripts/ui/VoiceGlitch.gd::decode
+bare scripts/ui/VoiceGlitch.gd::place
+bare scripts/ui/Widgets.gd::ability_rows
+bare scripts/ui/YardDeal.gd::_lamp_pictures
+bare scripts/ui/YardDeal.gd::bad_signal
+bare scripts/ui/YardDeal.gd::lights
+bare scripts/ui/YardDeal.gd::sag_with_bulb
+bare scripts/ui/YardDrones.gd::bump_at
+bare scripts/ui/YardDrones.gd::carry
+bare scripts/ui/YardDrones.gd::doze_at
+bare scripts/ui/YardDrones.gd::homes
+bare scripts/ui/YardDrones.gd::offer
+bare scripts/ui/YardDrones.gd::sneeze_at
+bare scripts/ui/YardLife.gd::_car_pixels
+bare scripts/ui/YardLife.gd::_crate
+bare scripts/ui/YardLife.gd::_fork
+bare scripts/ui/YardLife.gd::_lift_sprite
+bare scripts/ui/YardLife.gd::crew_frame
+bare scripts/ui/YardLife.gd::crew_strip
+bare scripts/ui/YardLife.gd::plane_at
+bare scripts/ui/YardLife.gd::sprite
+bare scripts/ui/YardLife.gd::walk_at
+bare scripts/ui/YardLife.gd::weld_pose
+bare scripts/ui/YardScene.gd::_split
+bare scripts/ui/YardScene.gd::_stand
+bare scripts/ui/YardScene.gd::doc
+bare scripts/ui/YardScene.gd::seat_pair
+bare scripts/ui/YardScene.gd::stand_cap
+bare scripts/ui/ZoomLadder.gd::_chrome_cuts
+bare scripts/ui/ZoomLadder.gd::_style_for
+bare scripts/ui/ZoomLadder.gd::rest_world
+bare scripts/ui/planets/Rings.gd::_dark
+bare scripts/ui/planets/Rings.gd::_dusty
+bare scripts/ui/planets/Rings.gd::_icy
+bare scripts/ui/planets/Rings.gd::build
+bare scripts/ui/planets/Worlds.gd::lightning
+bare scripts/ui/planets/Worlds.gd::spec
+bare scripts/ui/sysmap/MapHull.gd::picture
+bare scripts/ui/sysmap/MapHull.gd::turned
+bare scripts/ui/sysmap/PulsarView.gd::frame
+bare scripts/ui/sysmap/PulsarView.gd::roll
+bare scripts/ui/sysmap/SectorPainted.gd::scene_ramps
+bare scripts/ui/sysmap/SectorPainted.gd::tables
+bare scripts/ui/sysmap/SectorPainted.gd::world_look
+bare scripts/ui/sysmap/ShipFlight.gd::_coast_pv
+bare scripts/ui/sysmap/ShipFlight.gd::_dep_of
+bare scripts/ui/sysmap/ShipFlight.gd::_depart_state
+bare scripts/ui/sysmap/ShipFlight.gd::_escape
+bare scripts/ui/sysmap/ShipFlight.gd::_hohmann
+bare scripts/ui/sysmap/ShipFlight.gd::_lam
+bare scripts/ui/sysmap/ShipFlight.gd::_lead
+bare scripts/ui/sysmap/ShipFlight.gd::_polar_ins
+bare scripts/ui/sysmap/ShipFlight.gd::_run_line
+bare scripts/ui/sysmap/ShipFlight.gd::_spiral
+bare scripts/ui/sysmap/ShipFlight.gd::_takeable
+bare scripts/ui/sysmap/ShipFlight.gd::_tgt_of
+bare scripts/ui/sysmap/ShipFlight.gd::_turnaround
+bare scripts/ui/sysmap/ShipFlight.gd::free_step
+bare scripts/ui/sysmap/ShipFlight.gd::hand_over
+bare scripts/ui/sysmap/ShipFlight.gd::insert_plan
+bare scripts/ui/sysmap/ShipFlight.gd::lambert
+bare scripts/ui/sysmap/ShipFlight.gd::lay_out
+bare scripts/ui/sysmap/ShipFlight.gd::take_bg
+bare scripts/ui/sysmap/SkyBake.gd::em_pillars
+bare scripts/ui/sysmap/SkyBake.gd::look_for
+bare scripts/ui/sysmap/SkyWeather.gd::_belt_spots
+bare scripts/ui/sysmap/SkyWeather.gd::_labels
+bare scripts/ui/sysmap/SkyWeather.gd::_spec
+bare scripts/ui/sysmap/SkyWeather.gd::_ui_rects
+bare scripts/ui/sysmap/SkyWeather.gd::em_tips
+bare scripts/ui/sysmap/SkyWeather.gd::live
+bare scripts/ui/sysmap/SkyWeather.gd::probe_points
+bare scripts/ui/sysmap/SunView.gd::roll
+bare scripts/ui/sysmap/SystemMapScreen.gd::_world_now
+bare scripts/ui/sysmap/SystemMapScreen.gd::ladder_give_world
+bare scripts/ui/sysmap/SystemMapScreen.gd::ladder_plane
+bare scripts/ui/sysmap/SystemMapScreen.gd::ladder_sun
+bare scripts/ui/sysmap/SystemMapScreen.gd::ladder_world
+bare scripts/ui/sysmap/SystemMapScreen.gd::mark_keep
+bare scripts/ui/sysmap/SystemMapScreen.gd::open_view
+bare scripts/ui/sysmap/SystemMapScreen.gd::partner_marks
+bare scripts/ui/sysmap/SystemMapScreen.gd::partner_points
+bare scripts/ui/sysmap/SystemOverlay.gd::_click_line
+bare scripts/ui/sysmap/SystemOverlay.gd::_ends_table
+bare scripts/ui/sysmap/SystemOverlay.gd::_hull_pic
+bare scripts/ui/sysmap/SystemOverlay.gd::_occluders
+bare scripts/ui/sysmap/SystemOverlay.gd::_plan_line
+bare scripts/ui/sysmap/SystemOverlay.gd::_ship_words_first
+bare scripts/ui/sysmap/SystemOverlay.gd::_spline
+bare scripts/ui/sysmap/SystemOverlay.gd::_spot_kept
+bare scripts/ui/sysmap/SystemOverlay.gd::_star_occ
+bare scripts/ui/sysmap/SystemOverlay.gd::_tri_boxes
+bare scripts/ui/sysmap/SystemOverlay.gd::_words_off_suns
+bare scripts/ui/sysmap/SystemOverlay.gd::_wrap
+bare scripts/ui/sysmap/SystemOverlay.gd::beacon_look
+bare scripts/ui/sysmap/SystemOverlay.gd::capture_ins
+bare scripts/ui/sysmap/SystemOverlay.gd::hit
+bare scripts/ui/sysmap/SystemOverlay.gd::option_of
+bare scripts/ui/sysmap/SystemOverlay.gd::reticle_boxes
+bare scripts/ui/sysmap/SystemOverlay.gd::ship_status
+bare scripts/ui/sysmap/SystemOverlay.gd::spent_word
+bare scripts/ui/sysmap/SystemOverlay.gd::tip_lines
+bare scripts/ui/sysmap/SystemOverlay.gd::tri_line
+bare scripts/ui/sysmap/SystemOverlay.gd::tri_px
+bare scripts/ui/sysmap/SystemPanel.gd::_encounters
+bare scripts/ui/sysmap/SystemPanel.gd::_events
+bare scripts/ui/sysmap/SystemPanel.gd::_key
+bare scripts/ui/sysmap/SystemPanel.gd::_rivals
+bare scripts/ui/sysmap/SystemPanel.gd::_state
+bare scripts/ui/sysmap/SystemPanel.gd::_sun_look
+bare scripts/ui/sysmap/SystemView.gd::_depth_look
+bare scripts/ui/sysmap/SystemView.gd::_facts
+bare scripts/ui/sysmap/SystemView.gd::_glints_now
+bare scripts/ui/sysmap/SystemView.gd::_pal_key
+bare scripts/ui/sysmap/SystemView.gd::facts
+bare scripts/ui/sysmap/SystemView.gd::orbit_runs
+bare scripts/ui/sysmap/SystemView.gd::positions
+bare scripts/ui/sysmap/SystemView.gd::ring_slots
+bare scripts/ui/sysmap/SystemView.gd::star_facts_of
+file scripts/systems/FlightSolve.gd 3313
+file scripts/systems/OptionTable.gd 4753
+file scripts/ui/LocalSubject.gd 3165
+file scripts/ui/SectorScreen.gd 4865
+file scripts/ui/ShipBreakup.gd 5498
+file scripts/ui/StarchartScreen.gd 4353
+file scripts/ui/sysmap/ShipFlight.gd 4092
+file scripts/ui/sysmap/SystemView.gd 3248
+length scripts/Main.gd::_ready 876
+length scripts/autoload/Database.gd::_seed_modules 453
+length scripts/systems/CardResolver.gd::resolve 139
+length scripts/systems/FlightSolve.gd::_build_in 116
+length scripts/systems/FlightSolve.gd::_integrate 381
+length scripts/systems/FlightSolve.gd::_price 175
+length scripts/systems/FlightSolve.gd::_seeds 164
+length scripts/systems/MapGen.gd::spread_positions 102
+length scripts/systems/MaterialTable.gd::all 212
+length scripts/systems/NebulaField.gd::_build 120
+length scripts/systems/OptionTable.gd::_authored 4317
+length scripts/systems/SaveGame.gd::_node_from 110
+length scripts/systems/SaveGame.gd::load_into_run 181
+length scripts/systems/SystemLayout.gd::of 187
+length scripts/ui/BoardWhite.gd::_size 180
+length scripts/ui/BoardWhite.gd::draw 118
+length scripts/ui/BraceFx.gd::_build 132
+length scripts/ui/CardGalleryScreen.gd::_fill 120
+length scripts/ui/CardView.gd::_type_glyph 122
+length scripts/ui/ChartLegacy.gd::_push 240
+length scripts/ui/ChartSky.gd::_push 160
+length scripts/ui/ChassisSelect.gd::_build_detail 171
+length scripts/ui/CutawayView.gd::_layout 221
+length scripts/ui/EncounterView.gd::_shoulders_at 103
+length scripts/ui/EnemySlot.gd::_init#2 104
+length scripts/ui/FaunaMotion.gd::_cut_creature 111
+length scripts/ui/FaunaMotion.gd::_cut_custodian 269
+length scripts/ui/Hints.gd::_done 122
+length scripts/ui/Hints.gd::probe 300
+length scripts/ui/HudBar.gd::refresh 109
+length scripts/ui/HullHitFx.gd::_peel 103
+length scripts/ui/JumpFx.gd::_beam 139
+length scripts/ui/JumpFx.gd::_draw 118
+length scripts/ui/JumpFx.gd::_ending 147
+length scripts/ui/LocalDust.gd::_process 136
+length scripts/ui/LocalEventDrawer.gd::_result 200
+length scripts/ui/LocalSky.gd::_build 248
+length scripts/ui/LocalSubject.gd::_build 135
+length scripts/ui/LocalSubject.gd::_place 145
+length scripts/ui/LocalSubject.gd::plan 101
+length scripts/ui/ModuleGalleryScreen.gd::_fill 101
+length scripts/ui/ModuleIcon.gd::_glyph 104
+length scripts/ui/QuestPanel.gd::_row 115
+length scripts/ui/SectorScreen.gd::_build_hand 162
+length scripts/ui/SectorScreen.gd::ladder_cam 162
+length scripts/ui/SectorScreen.gd::ladder_cam_begin 108
+length scripts/ui/SettingsPanel.gd::_page_look 117
+length scripts/ui/ShipBreakup.gd::_cut_boss 222
+length scripts/ui/ShipBreakup.gd::_cut_classic 234
+length scripts/ui/ShipBreakup.gd::_cut_creature 126
+length scripts/ui/ShipBreakup.gd::_cut_new 227
+length scripts/ui/ShipBreakup.gd::_paint_boss_light 161
+length scripts/ui/ShipBreakup.gd::_paint_light_new 144
+length scripts/ui/ShipBreakup.gd::_plan_boss 176
+length scripts/ui/ShipBreakup.gd::_plan_c1 112
+length scripts/ui/ShipBreakup.gd::_setup_new 130
+length scripts/ui/ShipBreakup.gd::_style_tick 139
+length scripts/ui/ShipScreen.gd::_build 294
+length scripts/ui/ShipView.gd::draw_ship 135
+length scripts/ui/SideSwap.gd::_content 123
+length scripts/ui/SpaceBackdrop.gd::_bake_world 123
+length scripts/ui/StarchartScreen.gd::_build 178
+length scripts/ui/StarchartScreen.gd::_build_field 225
+length scripts/ui/StarchartScreen.gd::_build_nebulae 218
+length scripts/ui/StarchartScreen.gd::_draw_chart 151
+length scripts/ui/StarchartScreen.gd::_refresh 171
+length scripts/ui/StationScreen.gd::_build 111
+length scripts/ui/ThrusterFx.gd::_stream 111
+length scripts/ui/ThrusterFx.gd::for_hull 268
+length scripts/ui/TradeCounter.gd::_draw 124
+length scripts/ui/Widgets.gd::module_row 117
+length scripts/ui/YardDeal.gd::draw 101
+length scripts/ui/ZoomLadder.gd::_calm_hold 147
+length scripts/ui/ZoomLadder.gd::_process_move 152
+length scripts/ui/ZoomLadder.gd::_style_for 129
+length scripts/ui/ZoomLadder.gd::preroll 174
+length scripts/ui/sysmap/MapHull.gd::picture 150
+length scripts/ui/sysmap/ShipFlight.gd::_manoeuvre 356
+length scripts/ui/sysmap/ShipFlight.gd::_near_hop 148
+length scripts/ui/sysmap/ShipFlight.gd::_old_plan 198
+length scripts/ui/sysmap/ShipFlight.gd::_star_transfer 122
+length scripts/ui/sysmap/ShipFlight.gd::_step_mode 120
+length scripts/ui/sysmap/ShipFlight.gd::free_step 220
+length scripts/ui/sysmap/SkyWeather.gd::_draw 128
+length scripts/ui/sysmap/SunView.gd::_flare 103
+length scripts/ui/sysmap/SystemMapScreen.gd::_init 141
+length scripts/ui/sysmap/SystemOverlay.gd::_draw 224
+length scripts/ui/sysmap/SystemOverlay.gd::_draw_edge_marks 122
+length scripts/ui/sysmap/SystemOverlay.gd::_draw_paths 113
+length scripts/ui/sysmap/SystemOverlay.gd::_draw_ship 224
+length scripts/ui/sysmap/SystemView.gd::_draw#7 105
+length scripts/ui/sysmap/SystemView.gd::_rocks 129
+length scripts/ui/sysmap/SystemView.gd::orbit_runs 118
+length scripts/ui/sysmap/SystemView.gd::show_system 437
+length scripts/ui/sysmap/SystemView.gd::step 359
