@@ -1257,6 +1257,10 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				var wcap := _tcap
 				var wtw := _tw
 				var wback := _back
+				# (and its easing: a fresh search that found nothing else eases,
+				# `_fresh`'s last look, and the kept flight is flown as it was)
+				var wease := _ease
+				var wezf := _ease_forced
 				_b_J = INF
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
@@ -1271,13 +1275,6 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 					keep = float(wb.te) <= float(_b.te) + 1e-6
 				elif not keep:
 					rf = _build_fresh()
-					if rk == null:
-						_b_J = wj
-						_b = wb
-						_tcap = wcap
-						_tw = wtw
-						_back = wback
-						rk = _build(&"warm")
 					# (both at one weight: TIME_W where their searches priced them
 					# at two, since at TIME_W_BACK a second costs 32 times less;
 					# a leg's two are both the as-built search's)
@@ -1289,15 +1286,17 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 						kj += (TIME_W - wtw) * rk.T
 					keep = rk.found and (not rf.found or fj + _slack(fj) >= kj)
 				if keep:
-					if rk != null:
-						res = rk
-					else:
-						_b_J = wj
-						_b = wb
-						_tcap = wcap
-						_tw = wtw
-						_back = wback
-						res = _build(&"warm")
+					# (built again, not rk: the fresh search flew over the coast
+					# rk was built on, and a leg's second leaves from it,
+					# `_leg_two` reading `_coast_at` of the first's solver)
+					_b_J = wj
+					_b = wb
+					_tcap = wcap
+					_tw = wtw
+					_back = wback
+					_ease = wease
+					_ease_forced = wezf
+					res = _build(&"warm")
 				elif rf != null:
 					res = rf
 				else:
