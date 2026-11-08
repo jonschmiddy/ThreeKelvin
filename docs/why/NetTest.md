@@ -130,9 +130,9 @@ Above `func _growth_rules_test() -> void:`:
 ```text
 THE BOSS GROWS MID-FIGHT (Jon, Nov 4, decision 2), with no wire under it:
 a Custodian opened at 20 jumps, joined and hurt, grown to 33. Its hull is the
-joined hull times hull_at(33) / hull_at(20), the damage done stays done, a
-later joiner adds 0.6 of the new hull, and a pilot who left first changes
-nothing (join growth never shrinks back).
+opened hull times hull_at(33) / hull_at(20), the damage done stays done, a
+later joiner adds nothing (Nov 5: the hull is built for the game's
+players), and a pilot who left first changes nothing.
 ```
 
 ## Targeting

@@ -2,12 +2,13 @@ The reasoning behind `tkg/scripts/net/SharedFight.gd`, moved out of the code ver
 
 ## Shared fight overview
 
-Above `const CREW_SHARE: float = 0.6`:
+At the top of the file, under `extends RefCounted`:
 
 ```text
 
 `to_wire` and `from_wire` below are a wire format: a key renamed or added
-there is a protocol change (`grown` was PROTOCOL 16). Read by
+there is a protocol change (`grown` was PROTOCOL 16; `stun` and `party`
+PROTOCOL 18). Read by
 .github/scripts/version_guard.py.
 
 One fight that more than one ship is in.
@@ -29,20 +30,17 @@ Nothing here touches `Run`, `Combat`, `Rng` or a screen. It is rules and a
 wire format, which is what makes it testable without four machines.
 ```
 
-## Crew share
+## Party size
 
-Above `const CREW_SHARE: float = 0.6`:
+Above `const MAX_GROWN: int = 9999`, where `const CREW_SHARE: float = 0.6` stood until PROTOCOL 18:
 
 ```text
-What each extra ship adds to the enemy, as a fraction of what it was worth
-alone.
-
-Not 1.0. Three ships on one frigate is three hands of cards against one
-intent, so a frigate scaled linearly would be easier than the solo fight, not
-harder — the party's action economy grows faster than its exposure. 0.6 is
-the same number `Combat.start()` already uses to split a pack's health, which
-is the same problem seen from the other side: more hulls in a fight are worth
-less than the sum of them.
+NOTHING GROWS WHEN A SHIP WALKS IN ANY MORE (Jon, Nov 5). Each joiner used
+to add 0.6 of one ship's worth (CREW_SHARE), so the enemy depended on who
+happened to be in the room and grew again on every drop and rejoin. The
+enemy is now built for the players in the GAME (`PartyScale`, `party`
+below), wherever they are, and a fight keeps that hull whoever comes and
+goes.
 ```
 
 ## Intent pick
@@ -119,6 +117,7 @@ the hellbender carrying a previous engagement's damage. `base` stays what one
 ship's worth of the FULL enemy is, so a joiner's share does not shrink just
 because somebody softened it up first.
 `grown` is the count the opener's hull was grown at (`Combat.grown`).
+`players` is the game's count the hull was built for (`PartyScale`).
 ```
 
 ## Joining
@@ -128,17 +127,10 @@ Above `func join(peer: int) -> bool:`:
 ```text
 Another ship arrives at a system somebody is already fighting in.
 
-The enemy grows to meet them, hp AND max_hp together, so the bar stays
-honest and a fight that is half over does not suddenly read as full. Growing
-a wounded enemy is deliberate: joining a fight late is help, and help that
-arrives at 10% health should not be worth the same share of the loot as help
-that was there from the first turn. It is, and this is the price.
-
-The share is of one ship's worth of the hull (`base`), which for the
-Custodian is the grown hull: it grows with the lead ship's jumps
-(`EnemyTemplate.hull_at`, `grown`), so a joiner at jump 33 adds 0.6 of 400,
-not of 200, and after a `regrow` 0.6 of the new hull. The joiner's own count
-does not count; the host's galaxy count already holds it.
+The enemy does not grow: it was built for every player in the game
+(`party`). Past the first turn the joiner is STUNNED (`stunned`) and counted
+as ended, so the turn it walked into goes on without it and the enemy's
+turn after it may shoot it. True when it is seated.
 ```
 
 ## Leaving
@@ -182,12 +174,28 @@ Above `func regrow(to: int, ratio: PackedFloat32Array) -> bool:`:
 THE LEAD SHIP JUMPED PAST THIS FIGHT'S COUNT (decision 2, Jon, Nov 4): every
 live foe that grows (`ratio` holds its `hull_at(to) / hull_at(grown)`, 0 for
 one that does not) is scaled by it, the damage already done staying done:
-max_hp by the ratio, hp by what max_hp gained, and `base` by the ratio, so a
-later joiner adds 0.6 of the new hull. Scaling max_hp keeps every join share
-already added in proportion, even after a pilot has left (join growth never
-shrinks back, so counting the crew would undercount). A lone Custodian lands
-exactly on `hull_at(to)`. True only when a hull moved: a count still asleep
+max_hp by the ratio, hp by what max_hp gained, and `base` by the ratio.
+Scaling max_hp keeps the party's share (`party`) in proportion, so a fight
+built for two lands on two of `hull_at(to)`, and a lone Custodian exactly
+on `hull_at(to)`. True only when a hull moved: a count still asleep
 (to jump 15) or past the cap (33) grows nothing, and the fight is not pushed
 for it, so nobody's log says it grew. `grown` rises either way, and the next
 push carries it.
+```
+
+## Stunned
+
+Above `var stunned: PackedInt32Array = PackedInt32Array()`:
+
+```text
+WHO IS STUNNED (Jon, Nov 5; PROTOCOL 18): joined after the fight's first
+turn, and sitting out the rest of the turn it joined on and that turn's
+enemy turn. Cleared by `advance`, so every stun ends together, as the
+enemy's turn ends. Turn 1 never stuns: ships that arrive while the first
+turn's players are still playing started the fight together (Jon: "If other
+players in co op join on the FIRST player's turn of a fight they are not
+stunned."), which also covers two ships starting one fight in the same
+second. On the host the enemy's turn takes no time (the last END TURN swings
+and moves the turn in one go), so any join is in some turn's players' phase,
+and one after turn 1's is stunned, however little of it was left.
 ```

@@ -94,6 +94,8 @@ this function produces — the host is told what a frigate is worth rather than
 working it out again, so danger scaling, the boss exemption and the pack
 split stay in `_spawn` where they have always been. Router calls plan(), asks
 the party, then calls begin().
+`players` is the game's count to build it for (`PartyScale`); -1 asks the
+session, which is 1 alone.
 ```
 
 ## Party answer wins
@@ -116,6 +118,12 @@ AND A FIGHT ALREADY OVER (review, Nov 5): the host can seat this ship and
 take the last hull in one frame, so the answer arrives finished, and no push
 follows it. A ship in the crew at the kill was counted in `paid`, so it goes
 to the win, as `_on_fight_changed` would have sent it.
+
+JOINED LATE (Jon, Nov 5; PROTOCOL 18): the hits that landed while the ask was
+on the wire are taken first (`NetSession.take_held_swings`: a stunned joiner
+counts as ended, so a partner's END TURN can swing at it before this ship is
+listening), then a ship the fight says is stunned is dealt nothing and waits
+for the turn to move (`_on_fight_changed`).
 ```
 
 ## Enemy picture
@@ -570,12 +578,11 @@ more with the calyx set). It used to go on the system's floor through
 `Run.add_material`, under a comment that said "into the hull you just
 killed"; now it is.
 
-HANDS: `hands` is how many ships the party paid for this kill
-(`SharedFight.paid`), 1 alone. Each hand rolls the wreck's parts again, so a
-kill shared four ways holds about four times the parts and the party takes
-them first come, first served. The money does not multiply: one hull carries
-one purse however many ships shot at it, which is what keeps
-`docs/coop-design.md` 3's dive economy a closed loop.
+THE PARTY'S SHARE (Jon, Nov 5, PROTOCOL 18): `loot` is `PartyScale.loot` of
+the players the fight was built for, 1 alone. The wreck is rolled once, its
+purse, its parts and its exotic each multiplied by it, so a fight built for
+four holds about four times what one ship's would, and the party takes it
+first come, first served.
 
 POSITIONAL, as every wreck has been: `Rng.derive(&"wreck", node.index * 64 +
 index)`, where `index` is this wreck's place among the system's wrecks. So
@@ -676,6 +683,10 @@ different part on each machine (`tools/cofight.sh` caught it). Which is
 why each wreck is rolled positionally, by its place among the system's
 wrecks: a second fight at the same system is a second roll, and every
 machine in the party rolls each wreck identically.
+PAID FOR THE PLAYERS IN THE GAME (Jon, Nov 5: "loot pools are increased
+as the playercount increases"), the count the fight was built for, not
+the ships that were in it: a lone ship in a party's game meets a hull
+built for the party, and its wrecks hold the party's pay.
 ```
 
 ## Leaving mid-fight

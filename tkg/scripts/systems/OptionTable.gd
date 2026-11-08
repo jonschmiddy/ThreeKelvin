@@ -49,10 +49,11 @@ static func _here_danger() -> int:
 
 ## Not named `pay`: that name is taken by the outcome-to-REWARD function, and the clash
 ## would be a parse error.
+## In an n-player game it pays `PartyScale.loot(n)` of it (Jon, Nov 5).
 ## Why: docs/why/OptionTable.md#purse-naming
 static func purse(base: int) -> int:
-	return maxi(1, int(round(float(base)
-		* PAY_SCALE[MapGen.tier(_here_danger())])))
+	return PartyScale.pay(maxi(1, int(round(float(base)
+		* PAY_SCALE[MapGen.tier(_here_danger())]))))
 
 
 ## What a rim-priced injury costs here.
@@ -191,7 +192,9 @@ static func pay(res: Dictionary, n: MapGen.MapNode, src: StringName = &"") -> St
 		# Rewards go into the system pile: `place_in_hold` lost earnings on a full hold. Not
 		# `n.bagged`.
 		# Why: docs/why/OptionTable.md#pay-into-the-system
-		Run.sector_jetsam(n).items.append(LootGen.roll_module(n.danger))
+		# One more for each player past the first (`PartyScale`), as the event's money is.
+		for i in PartyScale.pay(1):
+			Run.sector_jetsam(n).items.append(LootGen.roll_module(n.danger))
 	# Positional roll from the node index: a party gets the same item and a reload cannot
 	# shop.
 	var r := Rng.derive(&"material", n.index)

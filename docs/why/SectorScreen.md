@@ -2013,3 +2013,16 @@ a ship style), the wreck holds for WRECK_HOLD_S, and RUN ENDED follows by the
 same door as before (`_leave_combat`). Nothing about the run changes: it was
 over in the maths on the frame the fight resolved.
 ```
+
+## Shot landed
+
+Above `func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:`:
+
+```text
+The shot arrived. Now the target moves.
+
+ABOUT ITS PLACE AT REST, a second hit too. Two shots landing a frame apart
+took the place mid-shake, a part of a pixel off, and left the hull there
+for good: 0.8 px off the grid and the pack laid out round it (found sliding
+the convoy column out, `-- sheet=ConvoySlideTest`).
+```

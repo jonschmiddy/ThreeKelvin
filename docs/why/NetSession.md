@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/net/NetSession.gd`, moved out of the code verb
 
 ## Session design
 
-Above `const PROTOCOL: int = 16`:
+Above `const PROTOCOL: int = 18`:
 
 ```text
 The party: who is in it, whether their builds agree, and what galaxy they
@@ -43,7 +43,7 @@ as a prerequisite rather than a nicety.
 
 ## Protocol versions
 
-Above `const PROTOCOL: int = 16`:
+Above `const PROTOCOL: int = 18`:
 
 ```text
 Bumped on any change to the messages below, or to the meaning of the fields
@@ -143,6 +143,20 @@ This is cheap to raise and very expensive to have forgotten.
    which the host raises to the galaxy's, mid-fight too (`_regrow`). A
    version 15 partner sends a presence one number short and grows the
    Custodian on its own jumps.
+17: feat/fast-flight's (fast transfers; not on this branch). Whichever of
+   the two lands second takes the higher number and turns the other away.
+18: JOINING A FIGHT LATE, AND THE PARTY'S SIZE (Jon, Nov 5). A ship that
+   joins a fight after its first turn is STUNNED until that turn's enemy
+   turn is over (`SharedFight.stunned`, `"stun"` on a fight's push): no
+   hand, counted as ended, and it can be shot. Nothing grows when a ship
+   walks in; every fight is built for the players in the game
+   (`party_count`, `PartyScale`), and says the count it was built for
+   (`SharedFight.party`, `"party"`). An ask says the asker's count, which
+   the host scales to its own, and whether it only joins (`join_only`): a
+   join that lands after the kill opens nothing and is told so
+   (`_no_fight_to`). A version 16 partner would read no stun, deal itself a
+   hand and wait on a turn that has moved on, and grow every fight it walked
+   into.
 ```
 
 ## Take timeout
@@ -355,6 +369,11 @@ fight that opens against something already hurt — the hellbender carrying a
 previous engagement's damage.
 `grown` is the count the caller's hull was grown at (`Combat.grown`, -1 for
 a fight with nothing in it that grows).
+`join_only` (PROTOCOL 18): the ask came from a JOIN door. It opens nothing:
+when the fight has ended before the host hears it, the answer is that
+ended fight, with this ship not in it, and the caller goes back.
+The hull is built for `party_count()` players; the host scales it to its own
+count if that differs (`_open_or_join`).
 ```
 
 Above `func leave_fight(index: int) -> void:`:
@@ -378,11 +397,12 @@ Inside `_open_or_join()`, above `f.join(by)`:
 
 ```text
 Already somebody's fight. The second ship in is help, not a second
-frigate — see SharedFight.join(). Its `grown` is ignored, as its hp
-is: the fight's count is the galaxy's already. Its ids are ignored
-too: it planned its own enemy, and this is the answer it takes.
-A ship already seated asking again is answered all the same, with
-nothing grown: an ask with no push behind it waits for one.
+frigate — see SharedFight.join(), which stuns it past turn one. Its
+`grown` is ignored, as its hp is: the fight's count is the galaxy's
+already, and its hull was built for the game's players as it opened.
+Its ids are ignored too: it planned its own enemy, and this is the
+answer it takes. A ship already seated asking again is answered all
+the same: an ask with no push behind it waits for one.
 ```
 
 ## Spots
@@ -739,4 +759,22 @@ The floor is the point. 0.5 base against a ceiling of 0.5 + 1.7 means a
 redlining ship draws roughly four times the fire of a cold one and a cold one
 is still never safe — a target rule with a zero in it is a party that solves
 the fight by electing a victim.
+A STUNNED SHIP IS IN THE POOL (Jon, Nov 5: "Can a stunned ship be shot?
+Yes."): it is in the crew, so it is weighted by heat like anyone, and it has
+no block or brace yet.
+```
+
+## Party count
+
+Above `func party_count() -> int:`:
+
+```text
+THE PLAYERS IN THIS GAME, for the enemy's hull and the pay (`PartyScale`,
+Jon, Nov 5; PROTOCOL 18): the host's roster as it stands, pushed whole to
+everyone, so every machine counts the same ships. 1 alone, outside a dive,
+on a NEW RUN's galaxy, and once the party is gone. A pilot who died is not
+counted (its build says `dead`), nor one whose last presence in the dive
+said no jumps here (`away`: a NEW RUN's galaxy, or a late joiner not yet
+in this one): the ship left flying alone meets one ship's hulls, not the
+party's (review, Nov 5).
 ```
