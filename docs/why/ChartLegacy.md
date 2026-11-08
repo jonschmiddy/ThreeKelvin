@@ -299,3 +299,38 @@ stars and the hole. The field takes the include's contract in LEGACY's units
 LEGACY's own two solid fields. The hole is drawn about the core's place on the
 screen (`pc`) at the camera's scale there (`kc`).
 ```
+
+## Ball in this style
+
+Above `static func ball_kind(ball: Vector4) -> Vector4:`:
+
+```text
+A BALL IN THIS STYLE'S HAND (Nov 5, direction A, Jon: "This could also be applied
+for the other art styles"). A ball galaxy (`ChartSky.form_of` 1) was drawn as a
+lenticular of the disc's blue gas: its light from the chart's own points, blue as a
+disc's, a hard-edged warm plate where its core's points ended, the disc's puffs over
+all of it. Now its body is the bulge's own light (`chart_l_bake_base`'s `ball_light`):
+the bulge's amber-to-gold climb, at the ball's own size and profile, grained by its
+points as the bulge is, fading out into the dark; cool gas past the warm light only
+where the kind has gas (the blue compact dwarf, the merger's remnant and its stream),
+and the disc's puffs over it only as much as the kind has gas (`ball_gas`).
+(look, how far out the warm light holds in ball radii, how lumpy 0..1, how irregular
+its outline 0..1): an old elliptical warm to its edge; a blue compact dwarf blue and
+lumpy round a small warm heart; a dwarf spheroidal faint, grey and smooth; a merger's
+remnant warm, lopsided, its stream off one side.
+```
+
+## Ball body
+
+Above `static func ball_form(kind: int) -> Vector4:`:
+
+```text
+A BALL'S BODY (`ball_light`'s `ball_f`): (its size against its ball radius, how steeply
+its light falls (the power of its profile), where its light ends (ball radii), its
+halo of globular clusters 0..1) -- PAINTED's (`ChartPainted.ball_form`): a round
+elliptical the plain profile; a flattened one squashed further and steep, a lens; a
+giant bigger, falling slowly into a wide envelope, ringed by globular clusters.
+LEGACY's own, a blue compact dwarf's fall gentler (1.0): this style's palette drops its
+faintest light to the void, and at PAINTED's 1.3 its gas ended at 0.14 gu below its core
+while its story's satellites stood to 0.19 above (BallHaloTest x0.74).
+```

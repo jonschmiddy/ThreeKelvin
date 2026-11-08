@@ -420,6 +420,7 @@ static func params(use_map: bool = true) -> Dictionary:
 	var pals := _gas_palette(gas)
 	p["pal0"] = pals[0]
 	p["pal1"] = pals[1]
+	_ball_params(p)
 	# The climb toward the hole stays inside the innermost ring of systems.
 	var rin_p := hole_r(p, 1.0) * 1.16
 	var ring := INF
@@ -439,6 +440,129 @@ static func params(use_map: bool = true) -> Dictionary:
 	# the innermost ring's reach, which still bounds the lens and the swirl
 	p["rb_ring"] = maxf(rin_p * 1.05, 0.85 * ring - 2.0)
 	return p
+
+
+## A ball in this style's hand (Nov 5, direction A): the bulge's own light, cool gas only where
+## the kind has gas. (look, how far out the warm light holds in ball radii, how lumpy 0..1,
+## how irregular its outline 0..1)
+## Why: docs/why/ChartLegacy.md#ball-in-this-style
+static func ball_kind(ball: Vector4) -> Vector4:
+	match int(ball.w):
+		1:
+			return Vector4(1.0, 0.25, 1.0, 0.35)
+		2:
+			return Vector4(2.0, 9.0, 0.25, 0.1)
+		3:
+			return Vector4(3.0, 1.1, 0.5, 0.3)
+	return Vector4(0.0, 9.0, 0.3, 0.0)
+
+
+## A ball's body (`ball_light`'s `ball_f`): (size against its ball radius, how steeply its light
+## falls, where it ends in ball radii, its globular-cluster halo 0..1); PAINTED's, a blue
+## compact dwarf's fall gentler.
+## Why: docs/why/ChartLegacy.md#ball-body
+static func ball_form(kind: int) -> Vector4:
+	if GalaxyGen.type_name(kind) == "Blue Compact Dwarf":
+		return Vector4(1.0, 1.0, 2.4, 0.0)
+	return ChartPainted.ball_form(kind)
+
+
+## How much of the disc's gas a ball keeps (`chart_l_field`'s volume of puffs, `ball_gas`):
+## its puffs stand where its light is, so an old ball's are few and low.
+static func ball_gas(ball: Vector4) -> float:
+	match int(ball.w):
+		1:
+			# (not all of a disc's: its puffs stand up off the plane, and at a disc's
+			# volume a blue compact dwarf's light rose well above its core, BallHaloTest)
+			return 0.6
+		2:
+			return 0.15
+		3:
+			# (low as an old ball's: its puffs' dim sides fell on the palette's crimson, red
+			# stains over its warm body)
+			return 0.2
+	return 0.3
+
+
+## How many globular clusters ring a giant (`_ball_params`).
+const BALL_GC := 24
+
+
+## The ball's constants, on the galaxy's (`params`): none of them read for a disc.
+static func _ball_params(p: Dictionary) -> void:
+	var kind := Run.galaxy_kind
+	var on := ChartSky.form_of(kind) == 1
+	var ball := ChartSky.ball_of(kind, Run.galaxy)
+	var bf := ball_form(kind)
+	p["ball_on"] = on
+	p["ball"] = ball
+	p["ball_k"] = ball_kind(ball)
+	p["ball_f"] = bf
+	p["ball_sq"] = ChartPainted.ball_squash(kind, ball)
+	# (the ball's radius in bake px: a galaxy radius is `big_r` of them, as the hole's is)
+	p["ball_r"] = ball.x * bf.x * float(p.big_r)
+	p["ball_gas"] = ball_gas(ball) if on else 1.0
+	# A DWARF'S HOLE AT ITS OWN SIZE (`ChartSky.hole_of`): drawn at most
+	# `ChartSky.DWARF_HOLE` of its ball, so a blue compact dwarf is not a hole with a
+	# ring round it. Only the drawing: the chart keeps its marks clear of the hole's own
+	# radius (`hole_px`, `rin_p`), as before.
+	p["c_hole_draw"] = minf(float(p.c_hole), ChartSky.DWARF_HOLE * ball.x) \
+		if on and (int(ball.w) == 1 or int(ball.w) == 2) else float(p.c_hole)
+	# the giant's globular clusters, far past its body (`chart_l_field`'s `ball_gc`):
+	# fixed in the galaxy, in screen-tilted bake px as `glob_c` are
+	var gcs := PackedVector2Array()
+	if on and bf.w > 0.0:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash([Run.galaxy_seed, kind, 6113])
+		var br: float = p.ball_r
+		for i in BALL_GC:
+			var a := rng.randf() * TAU
+			var r := br * (0.9 + 1.8 * pow(rng.randf(), 0.8))
+			gcs.append(Vector2(cos(a) * r, sin(a) * r * float(p.ball_sq)))
+	p["ball_gc"] = gcs
+	# the merger's stream: which side it curls off
+	p["ball_side"] = 1.0 if absi(hash([Run.galaxy_seed, kind, 3307])) % 2 == 0 else -1.0
+
+
+## The knots a young ball's gas is full of (a blue compact dwarf's; a few in a merger's
+## remnant, lit by the merger), in `ChartSky._make_knots`'s own form, inside its body:
+## the knots the field already draws for a spiral (pink cores, breathing, blooming).
+static func _ball_knots(p: Dictionary) -> Array:
+	var out: Array = []
+	var ball: Vector4 = p.ball
+	var want := 0
+	match int(ball.w):
+		1:
+			want = 22
+		3:
+			want = 6
+	if not bool(p.ball_on) or want == 0:
+		return out
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([Run.galaxy_seed, Run.galaxy_kind, 978])
+	var rg := ball.x * (p.ball_f as Vector4).x
+	# (in the plane, as the field reads a knot: a screen offset's y over the tilt)
+	var sqk: float = float(p.ball_sq) / float(p.eff)
+	for i in want:
+		var a := rng.randf() * TAU
+		# (inside the gas: past it a knot was a red streak on the dark)
+		var r := rg * (0.1 + (0.6 if int(ball.w) == 1 else 0.8) * sqrt(rng.randf()))
+		var size := 0.003 + 0.006 * rng.randf()
+		var st: Array[Vector3] = []
+		var ns := 3 + int(rng.randf() * 3.0)
+		for j in ns:
+			var aa := rng.randf() * TAU
+			var rr := size * (0.4 + 1.3 * rng.randf())
+			st.append(Vector3(cos(aa) * rr, sin(aa) * rr, 0.35 + 0.6 * rng.randf()))
+		out.append({"xy": Vector2(r * cos(a), r * sin(a) * sqk), "size": size, "T": 20.0 + 40.0 * rng.randf(),
+			"ph": rng.randf() * TAU, "st": st})
+	return out
+
+
+## The drawn hole's radius in screen px (`hole_r`, a dwarf's held to its ball:
+## `_ball_params`' `c_hole_draw`).
+static func hole_draw(p: Dictionary, z: float) -> float:
+	return float(p.c_hole_draw) * float(p.big_r) * z
 
 
 ## Each lobe sits where the bake put its gas, in the cloud's colour, with its cloud id so
@@ -703,6 +827,11 @@ func _base_mat(chains: Array[SubViewport], p: Dictionary, mode: int) -> ShaderMa
 	m.set_shader_parameter("arm_k", p.arm_k)
 	m.set_shader_parameter("big_r", p.big_r)
 	m.set_shader_parameter("arms", p.arms)
+	# a ball's body (`_ball_params`, `ball_light`)
+	m.set_shader_parameter("ball_on", p.ball_on)
+	if p.ball_on:
+		for k in ["ball_k", "ball_f", "ball_sq", "ball_r", "ball_side"]:
+			m.set_shader_parameter(k, p[k])
 	return m
 
 
@@ -843,7 +972,7 @@ func _stage_textures() -> void:
 	var outs: Array = _job.outs
 	var g := {"p": _job.p, "pals": {}, "held": _held_level(), "one": _use_map}
 	# SIMPLIFIED's knots, supernovae and pulsars, placed as it places them
-	g["knots"] = ChartSky._make_knots(ChartSky.params(_use_map))
+	g["knots"] = _ball_knots(_job.p) if _job.p.ball_on else ChartSky._make_knots(ChartSky.params(_use_map))
 	g["sn_cand"] = _pts.get("sn_cand", PackedVector2Array())
 	g["pulsars"] = _pts.get("pulsars", PackedVector2Array())
 	g["sl"] = ImageTexture.create_from_image((outs[0] as SubViewport).get_texture().get_image())
@@ -1304,6 +1433,19 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 		m.set_shader_parameter(k, p[k])
 	m.set_shader_parameter("dk_g", p.dk)
 	m.set_shader_parameter("ball_core", ChartSky.form_of(Run.galaxy_kind) == 1 and _use_map)
+	# a ball's own (`_ball_params`): how much of the disc's gas it keeps, its globular clusters
+	m.set_shader_parameter("ball_on", p.ball_on)
+	if p.ball_on:
+		m.set_shader_parameter("ball_gas", p.ball_gas)
+		# (the glow no wider than its warm light: a blue compact dwarf's warm heart is a
+		# quarter of its ball, and a glow at its whole ball was a brown plate round its gas)
+		m.set_shader_parameter("ball_rpx", float(p.ball_r) * clampf((p.ball_k as Vector4).y * 1.6, 0.4, 1.3))
+		# (its outer haze, in the ball's own frame: its radius, and the plane's y to it)
+		m.set_shader_parameter("ball_hz", Vector2(float(p.ball_r), float(p.eff) / maxf(float(p.ball_sq), 0.05)))
+		var bgc: PackedVector2Array = (p.ball_gc as PackedVector2Array).duplicate()
+		m.set_shader_parameter("n_ball_gc", bgc.size())
+		bgc.resize(BALL_GC)
+		m.set_shader_parameter("ball_gc", bgc)
 	ChartSky.push_story(m, STORY_GAIN_L if _use_map else 0.0)
 	m.set_shader_parameter("arm_k", p.arm_k)
 	m.set_shader_parameter("big_r", p.big_r)
@@ -1316,7 +1458,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	if gas >= 0.35 and float(p.dk) > 0.5:
 		nuc = minf(1.0, gas) * 1.1 * 0.45
 	m.set_shader_parameter("nuc_amt", nuc)
-	var rh := hole_r(p, z)
+	var rh := hole_draw(p, z)
 	m.set_shader_parameter("rh", rh)
 	# stars drawn all the way in over the hole's disc and glow
 	m.set_shader_parameter("near_r", rh * DISC_K * 1.3)
@@ -1455,7 +1597,7 @@ func _push() -> void:
 	m.set_shader_parameter("phi", phi)
 	m.set_shader_parameter("t", t)
 	m.set_shader_parameter("probe", false)
-	m.set_shader_parameter("lens_shadow", hole_r(p, z))
+	m.set_shader_parameter("lens_shadow", hole_draw(p, z))
 	m.set_shader_parameter("sky_pan", chart.sky_pan.round())
 	m.set_shader_parameter("u_skyPan", chart.sky_pan.round())
 	m.set_shader_parameter("u_skySeed", float(posmod(Run.galaxy_seed, 997)))
@@ -1527,7 +1669,7 @@ func _push() -> void:
 	ms.set_shader_parameter("rin_p", p.rin_p)
 	ms.set_shader_parameter("rb", p.rb)
 	ms.set_shader_parameter("star_level", star_level)
-	ms.set_shader_parameter("near_r", hole_r(p, z) * DISC_K * 1.3)
+	ms.set_shader_parameter("near_r", hole_draw(p, z) * DISC_K * 1.3)
 
 	# SIMPLIFIED's hole at its size and zooms, in this chart's units of 622.25 screen px a
 	# radius.
@@ -1536,7 +1678,7 @@ func _push() -> void:
 	mh.set_shader_parameter("vp_size", vs)
 	mh.set_shader_parameter("vp_origin", _vp_origin)
 	mh.set_shader_parameter("cpix", ccon + pc)
-	mh.set_shader_parameter("shadow", hole_r(p, z) * kc)
+	mh.set_shader_parameter("shadow", hole_draw(p, z) * kc)
 	mh.set_shader_parameter("t", t)
 	mh.set_shader_parameter("clumps", 0.0 if diag & 128 else _sm(2.6, 4.0, zc))
 	mh.set_shader_parameter("cool_amt", 0.0 if diag & 128 else _sm(3.0, 6.0, zc))
@@ -1667,6 +1809,10 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, z: flo
 	var rl: PackedVector4Array = rm[1]
 	for i in int(rm[0]):
 		rl[i] = Vector4(rl[i].x * big_r, rl[i].y * big_r, rl[i].z, rl[i].w)
+	# (none on a ball, as PAINTED's: a ring round a supernova read as a mark on a ball's
+	# smooth body, and an old ball makes few)
+	if p.ball_on:
+		rm[0] = 0
 	m.set_shader_parameter("n_rem", int(rm[0]))
 	m.set_shader_parameter("rem", rl)
 	# a supernova now and then, among the disc's own stars, and its light echo
@@ -1678,7 +1824,7 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, z: flo
 		var sp := ChartSky._to_view(sv.xy, phi) / ChartSky.K0 * big_r * z
 		m.set_shader_parameter("sn", Vector4(sp.x, sp.y, float(sv.g), float(sv.age)))
 		var e: Vector2 = sv.xy * big_r
-		m.set_shader_parameter("echo", Vector4(e.x, e.y, 0.004 * float(sv.age) * big_r, float(sv.echo)))
+		m.set_shader_parameter("echo", Vector4.ZERO if p.ball_on else Vector4(e.x, e.y, 0.004 * float(sv.age) * big_r, float(sv.echo)))
 	# lightning in the emission and dark clouds, at a point of each lobe's own frame
 	var lt := PackedVector4Array()
 	lt.resize(32)

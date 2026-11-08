@@ -309,3 +309,51 @@ waits while the pick is to come, and no picture judges a pass it is only
 holding (`DisplaySettings.low_held`): RADIANT is judged on the pass it will
 be drawn with, at the next chart built.
 ```
+
+## Ball kinds
+
+Above `static func ball_kind(ball: Vector4) -> Vector4:`:
+
+```text
+A BALL IN THE SPIRAL'S HAND, in this style (Jon, Nov 5: "Galaxy kinds in Painted: A.
+This could also be applied for the other art styles. It looks good."): PAINTED's
+direction A in SIMPLIFIED's own hand (`chart_c_place`'s `ellBall`). A ball was one
+smooth light on a gradient of its own, cut by the palette into flat concentric plates
+with a violet-blue rim, a supernova's rings on it: none of what makes this style's
+spirals -- a compact gold heart, light gathered in clumps whose edges the palette's
+steps fall on, gas in the arms' blue and pink, an edge that dissolves in a dither.
+Now its body is that light. Each kind as itself: (look, how far out its old warm
+light holds in ball radii, its young gas and star birth 0..1, how irregular its
+outline 0..1) -- an old elliptical warm to its edge; a blue compact dwarf young, blue,
+lumpy and knotted round a small warm heart; a dwarf spheroidal faint, grey and warm
+only round its middle; a merger's remnant warm, lopsided, a few knots, its stream.
+Only the two with gas (the blue compact dwarf, the merger) have cool gas past their
+warm light.
+```
+
+## Ball body
+
+Above `static func ball_form(kind: int) -> Vector4:`:
+
+```text
+A ball's body in this style (`ellBall`'s `u_ballF`): (its size against `ball_of`'s
+radius, the power its light falls by, where its light ends in those radii, its halo
+of globular clusters 0..1). The three ellipticals told apart by more than their
+roundness: a round one the plain fall; a flattened one squashed further
+(`ball_drawn`) and falling steeply, a lens of light; a giant bigger, falling slowly
+into a wide envelope, a swarm of globular clusters far past its body. The dwarfs
+smaller (a blue compact dwarf's light is its gas, a dwarf spheroidal's spread thin).
+```
+
+## Dwarf hole
+
+Above `const DWARF_HOLE := 0.08`:
+
+```text
+A DWARF'S HOLE at its own size (Nov 5): a dwarf's hole is rolled off its bulge as any
+galaxy's is, and a dwarf's ball is small, so its hole and lit ring filled its middle (a
+blue compact dwarf read as a hole with a ring round it). At most this much of its ball's
+radius (a round elliptical's is about 0.11, a giant's 0.11), in every style: SIMPLIFIED,
+PAINTED and RADIANT draw `hole_of`, LEGACY its `c_hole_draw` by DWARF_HOLE. Only the
+drawing: the chart still keeps its marks clear of the hole rolled (`hole_px`).
+```
