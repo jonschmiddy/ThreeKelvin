@@ -31,6 +31,9 @@ static func tier_colour(tier: StringName) -> Color:
 	return ModuleData.rarity_ink(tier_rarity(tier))
 const GOOD := Color("#7fb89a")
 
+## Brace, wherever it is drawn. Steel, so it never reads as a second kind of hull.
+const BRACE := Color("#9fb0c4")
+
 ## Neither void-cold nor burning-warm, so it reads as machinery. Off Cygnet's accent to
 ## avoid saying Cygnet.
 ## Why: docs/why/UITheme.md#tractor-colour
