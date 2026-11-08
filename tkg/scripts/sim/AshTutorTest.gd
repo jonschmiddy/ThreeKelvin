@@ -2100,7 +2100,7 @@ func _full_station() -> MapGen.MapNode:
 	return null
 
 
-## Open a deck by its rail button and wait up to 20 s
+## Open a deck by its rail button and wait at least 1200 frames and 20 s
 ## for its main thing; the lamp uses the wall clock.
 func _visit(st: StationScreen, id: StringName) -> bool:
 	var tab: StringName = Hints.DECK_HINTS[id]

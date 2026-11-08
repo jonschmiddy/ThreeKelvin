@@ -34,7 +34,7 @@ func _ready() -> void:
 			await _seed(sd)
 	print("  mapperftest: %d checks" % _checks)
 	print("mapperftest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	get_tree().quit()
+	get_tree().quit(1 if _fails > 0 else 0)
 
 
 ## One run's systems worth checking, a twin included (ruling 20: its orbits circle three centres).

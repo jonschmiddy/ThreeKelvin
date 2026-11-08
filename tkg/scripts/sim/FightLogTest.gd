@@ -274,11 +274,13 @@ func _run() -> void:
 
 	# 4. REMEMBERED: the next fight, the file read again
 	FightLog.reread()
+	var last_first: Dictionary = FightLog.lines[0] if not FightLog.lines.is_empty() else {}
 	sc = await _fight(int(HullData.Weight.MEDIUM), [&"cutter"])
 	f = sc._fight_log
 	_ok("next fight: the log opens as it was left (file read again)", f.button.button_pressed and f.panel.is_visible_in_tree())
 	_ok("next fight: the last fight's lines are gone, this one's TURN 1 is up",
-		not FightLog.lines.is_empty() and String(FightLog.lines[0].text) == "TURN 1" or FightLog.lines.is_empty())
+		not last_first.is_empty() and (FightLog.lines.is_empty()
+			or String(FightLog.lines[0].text) == "TURN 1" and not is_same(FightLog.lines[0], last_first)))
 	await _click(f.button)
 	_ok("clicked again: hidden, saved false (%s)" % str(_settings_open()),
 		not f.button.button_pressed and not f.panel.is_visible_in_tree() and _settings_open() == false)

@@ -429,6 +429,9 @@ func _yard() -> void:
 ## Laid over the first frame, anything not mapping to itself sits where the zoom does not reach.
 ## Why: docs/why/CutawayShot.md#zoom-study
 func _yard_study(st: StationScreen) -> void:
+	if _dir == "":
+		print("cutawayshot: yardstudy needs clip=<dir>")
+		return
 	st._scene.step_to(6.0)
 	CutawayView.harness_no_blur = true
 	# the game's own picture (before Main's screen effect bends it), and the

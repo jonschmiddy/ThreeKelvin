@@ -342,7 +342,7 @@ func _route(name: String, go: Callable) -> void:
 	print("    after UNDOCK: %s" % b)
 	await _shot("%s_proper" % name)
 	_clean(name, b)
-	_ok("%s: the ship where the map left it (site %d)" % [name, b.site], b.site == int(_want.get(name, b.site)))
+	_ok("%s: the ship where the map left it (site %d)" % [name, b.site], not _want.has(name) or b.site == int(_want[name]))
 
 
 ## From the berth the flight is refused and `back` returns in; from LOCAL it completes.
@@ -838,7 +838,8 @@ func _run() -> void:
 	Run.fuel = 99
 	var pl := _places()
 	print("station %d: its body %d, a world %d, a belt %d" % [_st, _station_body(), pl.world, pl.belt])
-	_want = {"world_hud": pl.world, "world_tab": pl.world, "star_hud": -1, "belt_hud": pl.belt, "open_tab": -9}
+	# (`jump_go` has none: its GO flies on to the event's world, wherever that is)
+	_want = {"world_hud": pl.world, "world_tab": pl.world, "star_hud": -1, "belt_hud": pl.belt, "open_tab": -9, "jump": -9}
 	await _berth_shut(int(pl.world))
 	await _only_at_station()
 	await _route("world_hud", _map_trip(int(pl.world), "hud"))

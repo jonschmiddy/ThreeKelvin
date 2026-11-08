@@ -238,7 +238,7 @@ static func fake_party(count: int) -> void:
 		b.pilot = who[0]
 		# Each one visibly worse off than the last, so the gauges are testable
 		# from the picture rather than only from the code.
-		b.hp = int(b.max_hp * (1.0 - 0.3 * float(i)))
+		b.hp = int(b.max_hp * (1.0 - 0.14 * float(i)))
 		b.heat = int(b.heat_cap * (0.2 + 0.45 * float(i)))
 		Net.roster[2 + i] = {"id": 2 + i, "name": who[0], "hull": who[1],
 			"ready": true, "order": 1 + i, "build": b.to_wire(), "at": here}

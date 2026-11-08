@@ -574,10 +574,12 @@ func _exits() -> void:
 	# THE OTHER EXITS: none
 	var none: Array[String] = []
 	var some: Array[String] = []
+	var mute: Array[String] = []
 	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
 	Run.heat = Run.heat_cap() + 2
 	await _said_after()
-	await _voice_up()
+	if not await _voice_up():
+		mute.append("END TURN")
 	sc._on_end_turn()
 	Ash.poll(0.0)
 	await _frames(40)
@@ -613,7 +615,8 @@ func _exits() -> void:
 	sc = await _local()
 	Ash.arm(&"launch")
 	await _said_after()
-	await _voice_up()
+	if not await _voice_up():
+		mute.append("the ship lost")
 	Run.hp = 0
 	await _frames(40)
 	(none if Ash.portrait.rev_log.is_empty() else some).append("the ship lost")
@@ -621,13 +624,15 @@ func _exits() -> void:
 	sc = await _local()
 	Ash.arm(&"launch")
 	await _said_after()
-	await _voice_up()
+	if not await _voice_up():
+		mute.append("Settings off")
 	Ash.set_on(false)
 	await _frames(40)
 	(none if Ash.portrait.rev_log.is_empty() else some).append("Settings off")
 	Ash.set_on(true)
-	_ok("no power-down when she is sent off (%s%s)" % [", ".join(none), "" if some.is_empty() else "; BUT " + ", ".join(some)],
-		some.is_empty() and none.size() == 3)
+	_ok("no power-down when she is sent off (%s%s%s)" % [", ".join(none), "" if some.is_empty() else "; BUT " + ", ".join(some),
+		"" if mute.is_empty() else "; NEVER SPOKE: " + ", ".join(mute)],
+		some.is_empty() and mute.is_empty() and none.size() == 3)
 	# the ship lost DURING the power-down: hushed, she goes with the ship
 	sc = await _local()
 	Router.animate_in_harness = true

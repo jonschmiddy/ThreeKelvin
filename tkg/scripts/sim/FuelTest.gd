@@ -475,7 +475,7 @@ func _hint() -> void:
 			and (game.node as MapGen.MapNode).type == MapGen.NodeType.STATION
 			and line == "Nearest dock: %s, %d jump%s." % [MapGen.star_name(game.node),
 				int(game.jumps), "" if int(game.jumps) == 1 else "s"]
-			and (line == want or int(game.jumps) == int(mine.jumps)))
+			and line == want)
 	# A DOCK ONE JUMP OFF AND ONE FURTHER, wherever the map has them: the line
 	# names it, with the jumps, and agrees with this test's own search
 	var cases := {1: false, 2: false}
@@ -492,8 +492,8 @@ func _hint() -> void:
 		var m := _my_nearest_dock()
 		if m.is_empty():
 			continue
-		var k := 1 if int(m.jumps) == 1 else 2
-		if cases[k]:
+		var k := int(m.jumps)
+		if k != 1 and k != 2 or cases[k]:
 			continue
 		cases[k] = true
 		var g := Run.nearest_dock()

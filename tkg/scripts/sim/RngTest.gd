@@ -64,9 +64,9 @@ func world_print() -> String:
 	return "|".join(parts)
 
 
-func map_print() -> String:
+func map_print(nodes: Array = Run.map) -> String:
 	var parts: PackedStringArray = []
-	for n in Run.map:
+	for n in nodes:
 		var nn: MapGen.MapNode = n
 		parts.append("%d:%d/%d d%d t%d dev%d sec%d f%d neb%d %s [%s] %s" % [
 			nn.index, nn.layer, nn.row, nn.danger, int(nn.type),
@@ -134,22 +134,18 @@ func _different_seeds() -> void:
 # --- 3. streams do not move each other ------------------------------------
 
 func _independence() -> void:
-	build_world(SEED_A)
-	var clean := world_print() + map_print()
-
-	# Burn the other streams hard, then rebuild: any global RNG use or shared cursor shows here.
-	Rng.forced = SEED_A
-	Run.start_new_run()
-	Rng.forced = 0
+	# `start_new_run` reseeds every stream, so the burn goes between two bare map generations.
+	Rng.reseed(SEED_A)
+	var clean := map_print(MapGen.generate(Rect2(Vector2.ZERO, Vector2(1600, 900))))
+	# Burn the other streams hard, then generate again: any global RNG use or shared cursor shows here.
+	Rng.reseed(SEED_A)
 	for i in 10000:
 		Rng.fight.randf()
 		Rng.loot.randi()
 		Rng.event.randf()
 		Rng.foe.randi()
-	# The world stream is untouched, so regenerating from it must not be needed
-	# at all — what was already built is the comparison.
-	check("10,000 combat, loot, event and foe rolls did not move the world",
-		world_print() + map_print(), clean)
+	check("10,000 combat, loot, event and foe rolls did not move the map",
+		map_print(MapGen.generate(Rect2(Vector2.ZERO, Vector2(1600, 900)))), clean)
 
 	# And the same in the other direction: the world is generated between two
 	# loot draws, and the loot draws must not notice.

@@ -121,6 +121,8 @@ func run(tree: SceneTree) -> void:
 			var md: ModuleData = DB.modules[mid]
 			if md.manufacturer != berth:
 				continue
+			if Run.slots_used(md.slot) >= Run.slots_for(md.slot) or not Run.can_power(md):
+				continue
 			Run.install_module(md.duplicate(true) as ModuleData)
 			fitted += 1
 		print("  %d %s parts fitted · set count %d" % [fitted,
@@ -202,10 +204,10 @@ func run(tree: SceneTree) -> void:
 					weights.get(wt[0], HullData.Weight.MEDIUM)), int(wt[1]) if wt.size() > 1 else 2)
 		print("  full: hold %d · shelf %d · hull on the blocks"
 			% [Run.cargo.size(), here.shop.size()])
-	# `full` stocks five, a Cosmopolitan shelf; the ordinary shop needs `stock=N`.
+	# `full` fills the shelf to its ceiling; `stock=N` trims it.
 	for a4 in OS.get_cmdline_user_args():
 		if (a4 as String).begins_with("stock="):
-			var keep := int((a4 as String).substr(6))
+			var keep := maxi(0, int((a4 as String).substr(6)))
 			while here.shop.size() > keep:
 				here.shop.pop_back()
 

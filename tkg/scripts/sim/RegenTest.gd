@@ -112,4 +112,4 @@ func _verdict() -> void:
 		print("regentest: PASS")
 	else:
 		print("regentest: %d FAILURES" % _fails.size())
-	get_tree().quit()
+	get_tree().quit(0 if _fails.is_empty() else 1)

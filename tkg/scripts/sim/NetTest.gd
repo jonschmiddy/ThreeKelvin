@@ -105,6 +105,7 @@ func _code_tests() -> void:
 		check("direct %s parses clean" % code, back.error, "")
 
 	# A thousand rolls, as bit-packing errors only show on values straddling a character boundary.
+	var rooms_ok := true
 	for i in 1000:
 		var room := LobbyCode.roll_room()
 		var code := LobbyCode.encode_room(room)
@@ -112,8 +113,10 @@ func _code_tests() -> void:
 		if back.room != room or code.length() != 7:
 			fails += 1
 			print("  FAIL room %d -> %s -> %s" % [room, code, back])
+			rooms_ok = false
 			break
-	print("  1000 room codes round-tripped")
+	if rooms_ok:
+		print("  1000 room codes round-tripped")
 
 	# Confusables. A player reading a code aloud says "oh" and the listener
 	# types the letter; both must reach the same party.
@@ -460,13 +463,17 @@ func _consume_tests() -> void:
 		Run.map[i].cleared = false
 		Run.map[i].taken = PackedInt32Array()
 	Net.claims = {40: {MapGen.OPTION_WHOLE: 2}, 41: {3: 2}, 99999: {0: 2}, -3: {0: 2}}
+	var map_size := Run.map.size()
+	var tail: MapGen.MapNode = Run.map[map_size - 3]
+	var tail_was: Array = [tail.cleared, tail.taken.size()]
 	Run.adopt_party_claims()
 	ok("a claim from the party clears this machine's copy", Run.map[40].cleared)
 	# One option taken is not the whole system: stripping the wreck leaves the fight.
 	ok("but one option taken leaves the system open", not Run.map[41].cleared)
 	ok("and the option itself is recorded", Run.map[41].taken.has(3))
 	# Checked because a bad index would otherwise take the chart down on the receiver.
-	ok("an index off the end of the map is ignored, not fatal", true)
+	ok("an index off the end of the map is ignored, not fatal",
+		Run.map.size() == map_size and [tail.cleared, tail.taken.size()] == tail_was)
 	Net.claims = {}
 
 

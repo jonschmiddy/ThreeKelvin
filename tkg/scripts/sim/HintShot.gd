@@ -1,6 +1,6 @@
 extends Node
 
-## One still per hint on the real screens, taken `HINT_S` after it shows, then dismissed by a click.
+## One still per hint on the real screens, taken `HINT_S` after it shows, then dismissed.
 ## A hint that never shows prints MISSING.
 ## Why: docs/why/HintShot.md#hint-shot
 
@@ -57,9 +57,6 @@ func _hint(id: StringName, wait: float = 8.0) -> void:
 
 
 func _click() -> void:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
 	Hints.spend()
 	# Spent without being done, so each still counts as its own
 	# visit or the one-lesson-a-visit pacing holds the next.

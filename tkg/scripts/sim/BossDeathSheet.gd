@@ -83,7 +83,7 @@ func _run() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 120
 	GameShell.input_target(tree).add_child(layer)
-	var cust := _boss_image(_arg("custodian", "res://art/sprites/enemies/custodian_tetra.png"))
+	var cust := _boss_image(_arg("custodian", "res://art/sprites/enemies/custodian_t1_grown.png"))
 	var hell := _boss_image(_arg("hellbender", "res://art/sprites/enemies/hellbender_helix.png"))
 	var player: Array = await _player_image()
 	var list: Array[int] = []

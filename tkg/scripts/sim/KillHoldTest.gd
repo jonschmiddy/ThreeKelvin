@@ -26,7 +26,7 @@ func _run() -> void:
 	await _window(tree)
 	Router.animate_in_harness = false
 	print("killholdtest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+	tree.quit(1 if _fails > 0 else 0)
 
 
 func _rest(sl: EnemySlot) -> Vector2:

@@ -469,7 +469,8 @@ func _nearest(grid: Dictionary, cell: float, p: Vector2) -> float:
 					best = minf(best, p.distance_to(q))
 		if best <= float(ring) * cell:
 			return best
-	return best
+	# (an empty search is as far as it looked, not infinity)
+	return best if best < INF else 8.0 * cell
 
 
 ## The half-width of an arm's core at `rn`, as `MapGen._arm_cdf` reads it.

@@ -242,7 +242,8 @@ func _wheel_and_home(m: SystemMapScreen) -> void:
 		if absf(v.zoom - m._zoom_to) < 1e-4:
 			break
 	await _frames(2)
-	h._ok("zoomed in past the opening (%.3f), no arrows at the edge (%d)" % [v.zoom, (ov.edge_marks as Array).size()], (ov.edge_marks as Array).is_empty())
+	h._ok("zoomed in past the opening (%.3f), no arrows at the edge (%d)" % [v.zoom, (ov.edge_marks as Array).size()],
+		v.zoom > m.open_zoom * 1.5 and (ov.edge_marks as Array).is_empty())
 	for i in 40:
 		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(v.CX, v.CY))
 	for i in 600:
@@ -1627,7 +1628,7 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	await _frames(1)
 	m.harness_keys = false
 	if m.flight.heading_to() != -9:
-		print("  --   %s: the flight left before W could let go of it (mode %s): that case not seen" % [what, m.flight.mode])
+		h._fail("%s: the flight left before W could let go of it (mode %s): that case not seen" % [what, m.flight.mode])
 	else:
 		m = await _restyle(m)
 		# (coasting off the ring it may be caught by one close by, as any coast
@@ -2569,7 +2570,7 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 	for b in L.bodies:
 		if wb < 0 and b.host_id == SystemLayout.STAR_B and b.world != &"":
 			wb = b.index
-	if wb < 0 or m.flight.reached() != wa:
+	if not h._ok("a world round star B to fly to, the ship in orbit of the one round star A", wb >= 0 and m.flight.reached() == wa):
 		return
 	ov.selected = wb
 	var got := false
@@ -2607,7 +2608,7 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 				could += 1
 		h._ok("the ring round where %s will be is cut behind its disc as drawn now: %d far-side pixels on it (%d of the ring's points lie there, %.1f px off its centre)" % [L.bodies[wb].name, on, could, gap], on == 0)
 	else:
-		print("  --   no flight drawn to the world round star B in 10 s, its end not measured")
+		h._fail("no flight drawn to the world round star B in 10 s, its end not measured")
 	ov.selected = -2
 	await _frames(2)
 
@@ -2710,7 +2711,9 @@ func _close_b_words_ride() -> void:
 	var seen := 0
 	var spots: Array[Vector2] = []
 	var last := Rect2()
-	while m.view.t < 107.0:
+	var frames := 0
+	while m.view.t < 107.0 and frames < 2000:
+		frames += 1
 		await get_tree().process_frame
 		var box := _said_box(ov, full)
 		if box.size.x <= 0.0:
@@ -2728,7 +2731,7 @@ func _close_b_words_ride() -> void:
 			spots.append(last.position)
 		last = box
 	h._ok("in star B's close orbit of %s, map time 97 to 107, the words by the ship step at most once and never back (%d moves over 3 px, %d back; seen %d frames)" % [
-		MapGen.star_name(n), hops, back, seen], seen > 0 and hops <= 1 and back == 0)
+		MapGen.star_name(n), hops, back, seen], m.view.t >= 107.0 and seen > 0 and hops <= 1 and back == 0)
 
 
 ## Jon, Nov 5: icon as tall as the arrow, arrow hollow, 2 px line, and a name box inward.

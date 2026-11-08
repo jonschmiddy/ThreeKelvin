@@ -7,7 +7,7 @@ extends Node
 const PulsarView := preload("res://scripts/ui/sysmap/PulsarView.gd")
 const CENTRE := Vector2(622, 262)
 
-var _out := ""
+var _out := OS.get_user_data_dir().path_join("pulsarsheet")
 var _seeds: Array[int] = [11, 3, 0]
 var _times: Array[float] = [0.2, 0.45, 0.55, 0.8]
 var _layer := "both"
@@ -87,7 +87,9 @@ func _ready() -> void:
 			var img := get_viewport().get_texture().get_image()
 			img = img.get_region(Rect2i(0, 0, 960, 540))
 			var path := "%s/g_%s_%d_%s.png" % [_out, _layer, seed, str(t)]
-			img.save_png(path)
+			if img.save_png(path) != OK:
+				print("  pulsarsheet: could not write %s" % path)
+				continue
 			print("  pulsarsheet: seed %d t %s beam %s sky %.3f -> %s" % [seed, str(t), str(pv.get("beam_angle")), float(pv.get("sky_flash")), path])
 	get_tree().quit()
 
@@ -139,7 +141,9 @@ func _zoom_pictures() -> void:
 				await RenderingServer.frame_post_draw
 				var img := vp.get_texture().get_image()
 				var path := "%s/z_%s_%d_%s_k%s.png" % [_out, _layer, seed, str(t), str(k)]
-				img.save_png(path)
+				if img.save_png(path) != OK:
+					print("  pulsarsheet: could not write %s" % path)
+					continue
 				print("  pulsarsheet: seed %d t %s zoom %s -> %s" % [seed, str(t), str(k), path])
 
 

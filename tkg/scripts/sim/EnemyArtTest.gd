@@ -26,7 +26,7 @@ func _run() -> void:
 	await _wrecks(tree)
 	await _packs(tree)
 	print("enemyarttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+	tree.quit(1 if _fails > 0 else 0)
 
 
 func _pictures() -> void:

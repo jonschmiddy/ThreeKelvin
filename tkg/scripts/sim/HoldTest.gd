@@ -139,8 +139,8 @@ func _no_overlap(name: String, _g: Vector2i) -> void:
 	var seen := {}
 	var clashes := 0
 	for m in Run.cargo:
-		for dy in maxi(1, m.size.y):
-			for dx in maxi(1, m.size.x):
+		for dy in m.footprint().y:
+			for dx in m.footprint().x:
 				var c := m.hold_at + Vector2i(dx, dy)
 				if seen.has(c):
 					clashes += 1
@@ -155,22 +155,22 @@ func _in_bounds(name: String, g: Vector2i) -> void:
 		if m.hold_at.x < 0 or m.hold_at.y < 0:
 			out += 1
 			continue
-		if m.hold_at.x + maxi(1, m.size.x) > g.x:
+		if m.hold_at.x + m.footprint().x > g.x:
 			out += 1
-		elif m.hold_at.y + maxi(1, m.size.y) > g.y:
+		elif m.hold_at.y + m.footprint().y > g.y:
 			out += 1
 	_ok("%s: every part is inside the grid" % name, out == 0)
 
 
-## A 5-wide part in a 4-wide grid can never be picked up by a light and is silently left behind.
+## A part that fits the light's hold in neither turn can never be picked up and is silently left behind.
 func _shapes() -> void:
-	var worst := Vector2i(4, 5)
+	var worst := DB.hull_for(&"korvan", HullData.Weight.LIGHT).hold_grid
 	var bad: Array[String] = []
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
 		if m.size.x < 1 or m.size.y < 1:
 			bad.append("%s has no size" % id)
-		elif m.size.x > worst.x or m.size.y > worst.y:
+		elif not (m.size.x <= worst.x and m.size.y <= worst.y or m.size.x <= worst.y and m.size.y <= worst.x):
 			bad.append("%s is %dx%d" % [id, m.size.x, m.size.y])
 	_ok("all %d parts fit the smallest hold" % DB.modules.size(), bad.is_empty())
 	for b in bad:

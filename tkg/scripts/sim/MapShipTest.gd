@@ -157,10 +157,11 @@ func _check_hull(map: SystemMapScreen, when: String) -> void:
 	var gain: float = pic.get("gain", 1.0)
 	var m := _mean(img, pic.pm)
 	var dc := maxf(absf(a.r - m.r / gain), maxf(absf(a.g - m.g / gain), absf(a.b - m.b / gain)))
+	var lift_to: float = load("res://scripts/ui/sysmap/MapHull.gd").LIFT_TO
 	print("  %s: the art's mean %s, the map picture's %s, lifted %.2fx" % [when, a, m, gain])
 	_ok("its colours are that art's, shrunk (mean off by %.3f)" % dc, dc < 0.03)
 	_ok("lifted only if dark, and to the floor (%.2fx to brightness %.3f)" % [gain, m.get_luminance()],
-		gain >= 1.0 and gain <= 2.0 and (gain == 1.0 or m.get_luminance() > 0.18 or gain == 2.0))
+		gain >= 1.0 and gain <= 2.0 and (gain == 1.0 or (a.get_luminance() < lift_to + 0.02 and (m.get_luminance() > 0.18 or gain == 2.0))))
 	# POINTING STRAIGHT ALONG THE MAP: the picture lands pixel for pixel
 	map.set_process(false)
 	map.flight.ang = 0.0

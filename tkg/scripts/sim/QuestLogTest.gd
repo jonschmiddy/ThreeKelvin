@@ -141,6 +141,8 @@ func _galaxy(sd: int) -> void:
 
 	# A ROW PICKED
 	var hunt: ContractData = held[1]
+	if _row_of(p2, hunt.id) == null:
+		return
 	_row_of(p2, hunt.id).pressed.emit()
 	await _frames(2)
 	var hrow := _row_of(p2, hunt.id)
@@ -322,6 +324,8 @@ func _event_quests(sd: int) -> void:
 	_ok("the head counts it apart (%s)" % p._sub.text, p._sub.text == "1 SIGNED · 1 MARKED")
 	_ok("no COMPLETED heading with nothing finished", p.find_child("Completed", true, false) == null)
 	_fit("LOCAL, a job and an event quest")
+	if row == null:
+		return
 	row.pressed.emit()
 	await _frames(2)
 	row = _row_of(p, eid)
@@ -493,6 +497,8 @@ func _completed_table(eid: int, job: ContractData, when: String) -> void:
 		head != null and head.text == "COMPLETED" and below and _row_of(p, eid) != null and _row_of(p, job.id) != null)
 	_ok("%sthe finished rows greyed, the open ones not" % when, grey and QuestPanel.DONE_TINT != Color.WHITE)
 	_fit("%sLOCAL, finished quests" % when)
+	if _row_of(p, eid) == null:
+		return
 	_row_of(p, eid).pressed.emit()
 	await _frames(2)
 	var er := _row_of(p, eid)

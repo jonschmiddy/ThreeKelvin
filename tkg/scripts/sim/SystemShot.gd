@@ -195,6 +195,10 @@ func _ready() -> void:
 			if m.type == MapGen.NodeType.SYSTEM and m.options.size() >= 3:
 				n = m
 				break
+	if n == null:
+		print("  systemshot: no system matches those flags in this run")
+		get_tree().quit()
+		return
 	# Set `Run.at` as the game does, or an option resolved here would stamp the wrong system.
 	Run.at = n.index
 	# `nebkind=K` forces the cloud kind, as seed 4242 rolls no emission cloud.

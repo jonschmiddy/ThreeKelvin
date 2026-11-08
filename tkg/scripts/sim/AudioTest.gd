@@ -172,6 +172,7 @@ func run(tree: SceneTree) -> void:
 			if m != null and m.rarity == want:
 				wreck.items.append(m)
 				break
+	var placed_common := wreck.items.any(func(m: ModuleData) -> bool: return m.rarity == ModuleData.Rarity.COMMON)
 	var view := TransferView.new()
 	tree.root.add_child(view)
 	Audio.taping = true
@@ -182,7 +183,7 @@ func run(tree: SceneTree) -> void:
 	for row in Audio.tape:
 		heard.append(str((row as Array)[0]))
 	_ok("a wreck opening rings a legendary (%s)" % [heard], heard.has("take_legendary"))
-	_ok("and says nothing for the common beside it", not heard.has("take_common"))
+	_ok("and says nothing for the common beside it", placed_common and not heard.has("take_common"))
 	Audio.taping = false
 	Audio.tape.clear()
 	view.queue_free()

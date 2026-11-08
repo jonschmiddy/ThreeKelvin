@@ -38,7 +38,8 @@ func run(tree: SceneTree) -> void:
 		var path := "user://zoom_%03d.png" % int(z * 100.0)
 		var img := tree.root.get_texture().get_image()
 		img.save_png(path)
-		_profile(img, chart, z)
+		# The chart sits at game-viewport coordinates, so the profile reads the game's own texture.
+		_profile(GameShell.input_target(tree).get_texture().get_image(), chart, z)
 
 	# At full pan the galaxy must just touch the edge. An empty shot means the clamp loses it.
 	for z in [0.42, 1.5, 4.0]:
@@ -50,7 +51,7 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var img2 := tree.root.get_texture().get_image()
 		img2.save_png("user://panned_%03d.png" % int(z * 100.0))
-		_profile(img2, chart, z)
+		_profile(GameShell.input_target(tree).get_texture().get_image(), chart, z)
 
 	print("  shots in " + ProjectSettings.globalize_path("user://"))
 	tree.quit()

@@ -213,14 +213,16 @@ func _fight(id: String) -> void:
 		e.hp = e.max_hp
 		e.block = 0
 		var v0: int = slot.art.marks.version
+		var hp0: int = e.hp
 		for i in cb.hand.size():
 			if cb.can_play(cb.hand[i]) and cb.hand[i].damage > 0:
 				cb.play(i, 0)
 				break
 		await _wait_s(2.0)
 		var v1: int = slot.art.marks.version
-		_ok("%s: its hit marks are in the motion's picture (marks %d -> %d)" % [id, v0, v1],
-			v1 == v0 or slot._fauna_key.ends_with("|marks %d" % v1))
+		# (a hit that takes no hull, as on the custodian and leviathan, leaves no mark)
+		_ok("%s: its hit marks are in the motion's picture (marks %d -> %d, hull %d -> %d)" % [id, v0, v1, hp0, e.hp],
+			(e.hp < hp0 and v1 > v0 and slot._fauna_key.ends_with("|marks %d" % v1)) or (e.hp >= hp0 and v1 == v0))
 	# the kill
 	await _settle_turn(sc)
 	var rested_at_cut := false

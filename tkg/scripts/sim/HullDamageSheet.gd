@@ -4,6 +4,7 @@ extends Node
 ## Why: docs/why/HullDamageSheet.md#hull-damage-stills
 
 const Film := preload("res://scripts/sim/HullDamageFilm.gd")
+const OUT := "user://hull_damage_sheet.png"
 
 var _args: PackedStringArray
 
@@ -22,7 +23,7 @@ func _arg(k: String, d: String = "") -> String:
 
 func _run() -> void:
 	await get_tree().process_frame
-	var out := _arg("out", "user://hull_damage_sheet.png")
+	var out := _arg("out", OUT)
 	var ships := _arg("ships", "cutter:0,hulk:0,marauder:2").split(",")
 	var looks := _arg("looks", "0,1,2,3,4").split(",")
 	var half := float(_arg("scale", "1")) < 1.0
@@ -118,7 +119,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		sheet.fill(Color(0.04, 0.05, 0.08))
 		for j in tiles.size():
 			sheet.blend_rect(tiles[j], Rect2i(0, 0, 192, 112), Vector2i((j % pts.size()) * 192, (j / pts.size()) * 112))
-		sheet.save_png(_arg("out").get_basename() + "_stamp%d.png" % look)
+		sheet.save_png(_arg("out", OUT).get_basename() + "_stamp%d.png" % look)
 	var shots := Film.SHOTS
 	var hp := 100
 	var snaps: Array[Image] = []
@@ -162,7 +163,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 	if _arg("debug") == "1":
 		var mm := m.duplicate() as Image
 		mm.resize(mm.get_width() * 4, mm.get_height() * 4, Image.INTERPOLATE_NEAREST)
-		mm.save_png(_arg("out").get_basename() + "_marks%d.png" % look)
+		mm.save_png(_arg("out", OUT).get_basename() + "_marks%d.png" % look)
 	print("hulldamagesheet: look %d marks %d darker, %d lighter, %d about the same" % [look, dark, light, same])
 	h.queue_free()
 	var w := pic.get_width()

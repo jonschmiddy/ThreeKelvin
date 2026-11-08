@@ -92,7 +92,7 @@ func _run() -> void:
 			await _wrecks(tree, "%s LOCAL's row of %d wrecks" % [mode, n], pile, home)
 		print("packlayouttest: layout %s, %d packs, %d failures" % [mode, cases, _fails - before])
 	print("packlayouttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+	tree.quit(1 if _fails > 0 else 0)
 
 
 func _n(p: Array) -> String:
@@ -325,12 +325,13 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 				for a in ranks[int(rk) + 1]:
 					up_bottom = maxf(up_bottom, blocks[a].end.y)
 				between.append(low_top - up_bottom)
-		for gaps: Array[float] in [across, between]:
+		for pair: Array in [["across a rank", across], ["between ranks", between]]:
+			var gaps: Array[float] = pair[1]
 			if gaps.is_empty():
 				continue
 			var lo: float = gaps.min()
 			var hi: float = gaps.max()
-			var which := "across a rank" if gaps == across else "between ranks"
+			var which: String = pair[0]
 			_ok("%s: the gaps %s at least %d px (closest %.0f)" % [tag, which, int(GAP_MIN), lo], lo >= GAP_MIN)
 			_ok("%s: the gaps %s even (%.0f to %.0f)" % [tag, which, lo, hi], hi - lo <= GAP_SPREAD)
 		if not across.is_empty() and not between.is_empty():
