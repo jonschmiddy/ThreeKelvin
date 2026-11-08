@@ -564,6 +564,18 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 		n += 1
 	lt.resize(8)
 	m.set_shader_parameter("u_lt", lt)
+	# TORN AWAY: the clouds over the dwarf torn with it, in this style's order (after
+	# SIMPLIFIED's, which holds them sorted on the screen; `ChartTorn.cloud_tear`)
+	var txy: Array = []
+	var trc: Array = []
+	for c: Dictionary in g.clouds:
+		if txy.size() >= 8:
+			break
+		txy.append(c.xy)
+		trc.append(float(c.reach))
+	var tear := ChartTorn.cloud_arrays(txy, trc, ChartTorn.last_phi, ChartSky.MAX_CL)
+	m.set_shader_parameter("u_tornCl", tear.u_tornCl)
+	m.set_shader_parameter("u_tornClD", tear.u_tornClD)
 	# THE CLOUDS' OWN LOBES AGAIN. `ChartSky._feed_events` runs first, every frame
 	# and for every palette probe, and sets the same `u_lobe` to SIMPLIFIED's: its
 	# clouds sorted by where they sit on screen and their lobes turned into each

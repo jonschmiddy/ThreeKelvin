@@ -43,13 +43,23 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 	if (lR > 0.008) {
 		// (the dwarf's own stars, on its own ramp: a blue compact dwarf's young blue-white,
 		// a dwarf spheroidal's old gold, `ballGas`)
-		float lv = clamp(1.05 + log2(lR) / 6.0, 0.0, 0.999);
-		Cand rc = cand(ballGas() ? M_ARM : M_BULGE, lv, 0, 0.0);
-		// the faint fringe goes to the halo's violet
-		if (lv < 1.0 / 6.0) {
+		// (a step under its light, and thinning out in the style's patterns well before it
+		// is gone: a stream of stars, never a solid flame of the ramp's brightest steps)
+		float lv = clamp(0.9 + log2(lR) / 6.0, 0.0, 0.999);
+		Cand rc = cand(M_ARM, lv, 0, 0.0);
+		if (!ballGas()) {
+			// (an old dwarf's: the halo's violet haze, its middle a few of the warm ramp's
+			// orange steps, its stars gold, below -- the warm ramp's bright steps were a
+			// flame the marks' orange words were lost on)
+			rc = cand(M_HALO, clamp(0.35 + 0.6 * lv, 0.3, 0.95), 0, 0.0);
+			if (lv > 0.62 && pat(P, smoothstep(0.62, 0.9, lv) * 0.75)) {
+				rc = cand(M_BULGE, 3.5 / 7.0, 0, 0.0);
+			}
+		} else if (lv < 1.0 / 6.0) {
+			// the faint fringe goes to the halo's violet
 			rc = cand(M_HALO, 0.45 + 2.0 * lv, 0, 0.0);
 		}
-		float a = smoothstep(0.008, 0.03, lR);
+		float a = smoothstep(0.012, 0.16, lR);
 		if (pat(P, a) && (res.m == M_SKY || res.sid == SID_FAR || rc.y > res.y)) {
 			res = rc;
 		}

@@ -231,6 +231,15 @@ void addEvA(inout Evs EV, float h, vec3 c, float a) {
 		EV.n++;
 	}
 }
+// (TORN AWAY: the events a cloud over the dwarf added from n0 on, faded as it goes)
+void tornEvFade(inout Evs EV, int n0, float k) {
+	for (int e = 0; e < MAXEV; e++) {
+		if (e >= n0 && e < EV.n) {
+			EV.c[e] *= k;
+			EV.a[e] *= k;
+		}
+	}
+}
 
 // ------------------------------------------------------------------ bulge (analytic, exact split)
 // emissivity (1 + s^2/a^2)^-2.5 on an oblate spheroid; the line integral has a
@@ -286,6 +295,10 @@ vec3 lampLight(vec3 pg) {
 		vec3 dd = pg - c;
 		float R = u_clC[k].w;
 		vec3 col = kind == 0 ? vec3(0.9, 0.55, 0.75) * 0.8 : REFL * 0.5;
+		// (TORN AWAY: a torn cloud's lamp going with it)
+		if (tornOn() && tornClOn(k)) {
+			col *= 1.0 - u_tornCl[k].x;
+		}
 		L += col / (1.0 + dot(dd, dd) / (R * R * 0.5));
 	}
 	// the hole's disc, a lamp at the centre
@@ -1017,6 +1030,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	EV.n = 0;
 	EV.done = 0;
 	R.REMM = 0;
+	// (the ray as it is: each torn cloud takes it into its own frame below)
+	vec3 P0w = P0, Dvw = Dv;
 	for (int k = 0; k < 8; k++) {
 		cin[k] = -1e9;
 		cout_[k] = 1e9;
@@ -1026,8 +1041,20 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		}
 		vec4 A = u_clA[k];
 		int kind = int(A.w + 0.5);
+		// TORN AWAY: a cloud over the dwarf torn with it (`chart_torn_cloud`): this ray
+		// taken into where it lay as drawn whole (the tear's straight part, so its shells
+		// and its bounds are met where they show), and all it adds faded as it goes
+		vec3 P0c = P0w, Dc = Dvw;
+		float tkE = 1.0;
+		if (tornOn() && tornClOn(k)) {
+			vec2 dk = u_tornClD[k].zw;
+			P0c.xy = A.xy + tornClAffR(k, P0w.xy - A.xy, dk);
+			Dc.xy = tornClAffD(k, Dvw.xy, dk);
+			tkE = tornClKeep(k, P0c.xy - A.xy, u_clC[k].w);
+		}
+		int n0 = EV.n;
 		if (kind == 3) {
-			vec3 ro = P0 - vec3(A.xy, 0.0), rd = Dv;
+			vec3 ro = P0c - vec3(A.xy, 0.0), rd = Dc;
 			ro.z /= 0.42;
 			rd.z /= 0.42;
 			float rb2 = dot(ro, ro) - dot(ro, rd) * dot(ro, rd) / dot(rd, rd);
@@ -1036,14 +1063,20 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 			}
 		}
 		if (kind == 2 || kind == 3) {
-			shellHits(R, EV, k, P0, Dv);
+			shellHits(R, EV, k, P0c, Dc);
+			tornEvFade(EV, n0, tkE);
 			continue;
 		}
 		if (kind == 0) {
-			pillarSheet(R, EV, k, P0, Dv);
+			pillarSheet(R, EV, k, P0c, Dc);
+			tornEvFade(EV, n0, tkE);
 		}
 		vec3 sc = vec3(A.z, A.z, u_clB[k].x);
-		vec3 o = (P0 - vec3(A.xy, 0.0)) / sc, d = Dv / sc;
+		// (a torn cloud's bounds take in its streaks, `tornClWarp`'s slide)
+		if (tornOn() && tornClOn(k)) {
+			sc.xy += 0.3 * u_clC[k].w * min(u_tornCl[k].y, 2.5);
+		}
+		vec3 o = (P0c - vec3(A.xy, 0.0)) / sc, d = Dc / sc;
 		float a = dot(d, d), bb = dot(o, d), c = dot(o, o) - 1.0;
 		float disc = bb * bb - a * c;
 		if (disc <= 0.0) {
@@ -1056,7 +1089,7 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		if (kind == 4) {
 			// a dark cloud's silhouette where the ray meets its mid-plane, and a step toward the core
 			float Rr = u_clC[k].w;
-			vec2 qx = (P0.xy - A.xy) / Rr;
+			vec2 qx = (P0c.xy - A.xy) / Rr;
 			float wf = 0.12 * clamp(Rr / R.FP / 40.0, 0.0, 1.0);
 			vec2 tg = normalize(vec2(-A.y, A.x) + 1e-6);
 			vec2 toC = -normalize(A.xy + qx * Rr + 1e-6) * max(0.01, 2.5 * R.FP) / Rr;
@@ -1324,7 +1357,17 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 					continue;
 				}
 				vec3 eK = vec3(0.0), sK = vec3(0.0);
-				cloudSample(R, k, pg, eK, sK, Lin, dks[k]);
+				// (TORN AWAY: read where it lay as drawn whole, crumbling as it goes)
+				vec3 pgk = pg;
+				float tkS = 1.0;
+				if (tornOn() && tornClOn(k)) {
+					vec2 qk = tornClWarp(k, pg.xy - u_clA[k].xy, u_tornClD[k].zw, u_clC[k].w);
+					pgk.xy = u_clA[k].xy + qk;
+					tkS = tornClKeep(k, qk, u_clC[k].w);
+				}
+				cloudSample(R, k, pgk, eK, sK, Lin, dks[k]);
+				eK *= tkS;
+				sK *= tkS;
 				Em += eK;
 				sig += sK;
 				Ccl += T * eK * ds;

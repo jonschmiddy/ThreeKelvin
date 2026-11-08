@@ -1049,10 +1049,21 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 		vec2 u = (v - cl.xy) / u_k;
 		u.y /= 0.46341;                                // clouds are drawn flattened to cloud_flat
 		int kind = int(ck.x + 0.5);
+		// TORN AWAY: a cloud over the dwarf torn with it (`chart_torn_cloud`): read where
+		// it lay as drawn whole, crumbling as it goes; never cut at the torn edge
+		float tkeep = 1.0;
+		if (tornOn() && tornClOn(i)) {
+			u = tornClWarp(i, u, u_tornClD[i].xy, (kind == 2 || kind == 3) ? cl.w : cl.z);
+			tkeep = tornClKeep(i, u, (kind == 2 || kind == 3) ? cl.w : cl.z);
+			if (tkeep <= 0.0) {
+				continue;
+			}
+		}
 		float ext = (kind == 2 || kind == 3) ? cl.w * 1.6 : cl.z * 1.9;
 		if (dot(u, u) > ext * ext) {
 			continue;
 		}
+		vec3 Cpre = C, Tpre = cloudT;
 		// the cloud lights the disc gas round it
 		if (kind == 0 || kind == 1) {
 			float d = length(u) / cl.z;
@@ -1109,6 +1120,10 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 				float rimL = smoothstep(0.02, 0.25, d0 - dT) * smoothstep(0.03, 0.2, d0) * (1.0 - smoothstep(0.35, 0.7, d0));
 				C += LITDUST * (irr * 1.2 + 0.010) * rimL * 0.5 * u_neb;
 			}
+		}
+		if (tkeep < 1.0) {
+			C = mix(Cpre, C, tkeep);
+			cloudT = mix(Tpre, cloudT, tkeep);
 		}
 	}
 }

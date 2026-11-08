@@ -497,17 +497,19 @@ func _clip() -> void:
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
 
 
-## TORN AWAY's film (`tornclip=<dir> [tornto=N] [clipframes=300]`): 30 frames a
-## second of the game's clock, two drawn a frame; 1 s on the dwarf at zoom 1.6, 5 s
-## easing out to the opening (the giant and the stream come into view), then the
-## rings falling away at the opening, one every `tornto` / the rest's seconds, each
-## fall eased over 0.4 s and held (to `ChartTorn.max_lost`). The marks are drawn.
+## TORN AWAY's film (`tornclip=<dir> [tornto=N] [tornfrom=S] [clipframes=300]`): 30
+## frames a second of the game's clock, two drawn a frame; 1 s on the dwarf at zoom
+## 1.6, 5 s easing out to the opening (the giant and the stream come into view), then
+## the rings falling away at the opening from `tornfrom` s, evenly to half a second
+## before the end, each fall eased over 0.4 s and held (to `ChartTorn.max_lost`). The
+## marks are drawn.
 func _torn_clip(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	_chart.show_icons = true
 	var n := int(_arg("clipframes", "300"))
 	var to := float(_arg("tornto", str(ChartTorn.max_lost())))
 	var l0 := ChartTorn.lost
+	var from := float(_arg("tornfrom", "2.0"))
 	var t := StarchartScreen.MapChart.clock_override
 	for i in n:
 		var s := float(i) / 30.0
@@ -516,10 +518,11 @@ func _torn_clip(dir: String) -> void:
 			var e := clampf((s - 1.0) / 5.0, 0.0, 1.0)
 			e = e * e * (3.0 - 2.0 * e)
 			z = exp(lerpf(log(1.6), log(0.42), e))
-		# the rings fall from 2 s on, evenly to the end
-		var fall := clampf((s - 2.0) / maxf(float(n) / 30.0 - 2.5, 0.1), 0.0, 1.0) * (to - l0)
+		# the rings fall from `tornfrom` s on (2 if not given; 6.5 waits for the camera to
+		# finish pulling out), evenly to half a second before the end
+		var fall := clampf((s - from) / maxf(float(n) / 30.0 - from - 0.5, 0.1), 0.0, 1.0) * (to - l0)
 		var whole := floorf(fall)
-		var rate := (to - l0) / maxf(float(n) / 30.0 - 2.5, 0.1)
+		var rate := (to - l0) / maxf(float(n) / 30.0 - from - 0.5, 0.1)
 		var part := clampf((fall - whole) / (rate * 0.4), 0.0, 1.0)
 		ChartTorn.lost = l0 + whole + smoothstep(0.0, 1.0, part)
 		t += 1.0 / 30.0

@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   big on the star chart, in every style: a faint body of their own light, clumps and stars reaches
   past the outermost ring, so every system sits on the galaxy instead of out in empty sky round a
   small bright ball. The bright core keeps its size. The dwarf's small companion galaxy is gone
-  (its body now stands where the companion stood).
+  (its body now stands where the companion stood). In PAINTED the dwarf spheroidal stays gold: its
+  faint body is a grain of gold and orange over the sky, not a maroon disc.
 - **Changed** — in the PAINTED style, the star chart's round galaxies (the three ellipticals, the
   merger remnant and the two dwarfs) are now painted in the same hand as the spirals: lit gas and
   clumps on the spiral's own colours, instead of one flat salmon plate in a violet ring. Each fades

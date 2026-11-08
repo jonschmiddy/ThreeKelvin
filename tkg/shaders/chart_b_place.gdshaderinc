@@ -16,6 +16,10 @@
 // shafts that step round a reflection cloud's star. Nothing changes for a single
 // frame. The poses are worked out on the CPU (`ChartSky._feed_b_events`).
 
+// TORN AWAY: the dwarf's clouds torn with it (`chart_torn_cloud`), read where each
+// cloud's own frame is (`cloudFrame`)
+#define TORN_CLOUDS
+#include "res://shaders/chart_torn_cloud.gdshaderinc"
 #include "res://shaders/chart_b_common.gdshaderinc"
 #include "res://shaders/legacy_hole.gdshaderinc"
 #include "res://shaders/chart_bg.gdshaderinc"
@@ -433,6 +437,15 @@ float seedOf(int i) { return float(i) * 13.17 + u_g3.w; }
 vec2 warpOf(vec2 q, float bq, float seed) { return vec2(fbmL(q + seed, bq, 2), fbmL(q + seed + 5.3, bq, 2)); }
 float wxGate() { return u_wxOn * smoothstep(2.4, 3.2, u_zoom); }
 
+// TORN AWAY: how much of cloud i is left at v (`tornClKeep`, 1 for a whole one)
+float tornClKeepV(vec2 v, int i) {
+	return tornClOn(i) ? tornClKeep(i, cloudFrame(v, i), u_cl[i].z) : 1.0;
+}
+// and whether this block shows it, in the style's patterns: it crumbles in steps
+bool tornClShow(Px P, vec2 v, int i) {
+	return !tornClOn(i) || pat(P, tornClKeepV(v, i));
+}
+
 // the way to the galaxy's core from cloud i, in its own round frame
 vec2 cloudToCore(int i) {
 	vec2 vc = (toView(vec2(0.0), 0.0) - toView(u_cl[i].xy, 0.0)) / u_k;
@@ -454,7 +467,7 @@ float bubbleAt(vec2 v, out float flo) {
 		}
 		vec2 d = cloudFrame(v, i);
 		float rr = length(d) / u_cl[i].w;
-		bb = max(bb, smoothstep(0.93, 0.86, rr));
+		bb = max(bb, smoothstep(0.93, 0.86, rr) * tornClKeepV(v, i));
 		if (u_neb > 0.0 && rr < 1.0) {
 			flo = min(flo, nebShell(d / max(length(d), 1e-6), rr - 0.95, cloudToCore(i)).y);
 		}
@@ -465,7 +478,7 @@ float cloudLight(vec2 v, int i) {
 	vec2 d = cloudFrame(v, i);
 	float R = u_cl[i].z;
 	float rr = length(d - clusterOf(i) * 0.5) / R;
-	return smoothstep(2.0, 0.9, rr + 0.25 * kitSnoise2(d / R * 2.0 + seedOf(i))) / (1.0 + sq(rr / 0.8));
+	return smoothstep(2.0, 0.9, rr + 0.25 * kitSnoise2(d / R * 2.0 + seedOf(i))) / (1.0 + sq(rr / 0.8)) * tornClKeepV(v, i);
 }
 
 // THE BOLT AS A PIXEL ARTIST DRAWS IT (Jon: a crisp zigzag, not a smooth
@@ -1705,6 +1718,31 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				// (an old ball has no cool gas behind its fade: it thins out into the sky)
 				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas()) ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
 			}
+			// THE BIG OLD DWARF IS GOLD (a dwarf spheroidal's, `u_ballV`; Jon, Nov 8: no red
+			// ring, its palette is gold): its faint light on the warm ramp's bottom steps lay
+			// as a big maroon-red disc. It is drawn as a grain of the ramp's orange and gold
+			// over the sky instead, as thick as its light (a step down, half the grain), held
+			// on the galaxy as it turns
+			if (ellip && u_ballV.w > 0.5 && !ballGas() && sc.m == M_BULGE && sc.lv < 3.0 / 7.0) {
+				float eB = ballBody(sB);
+				float eAll = ballBodyE(sB, sE);
+				float envS = (eAll - eB) / max(eAll, 1e-6);
+				// (and round its core, the ramp's maroon and rust steps under the same grain, the
+				// rust broken half and half with the orange: no red disc at its middle either)
+				if (envS <= 0.35 && sc.lv >= 2.0 / 7.0) {
+					if (pat(P, 0.5)) {
+						sc = cand(M_BULGE, 3.5 / 7.0, 0, 0.0);
+					}
+				} else {
+					float cov = clamp(exp2((sc.lv - 3.0 / 7.0) * 7.0), 0.0, 1.0) * 0.6;
+					float gn = kitHash3(ivec2(floor(gq / max(blkS, 1e-5))) + ivec2(4111, 77)).x;
+					if (gn < cov) {
+						sc = cand(M_BULGE, gn < 0.3 * cov ? 4.5 / 7.0 : 3.5 / 7.0, 0, 0.0);
+					} else if (envS <= 0.35 || pat(P, smoothstep(0.35, 0.6, envS))) {
+						sc = skyAt(P, Ehalo + Et * 0.5, g);
+					}
+				}
+			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
@@ -1983,6 +2021,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 			int kd = int(u_ck[i].x + 0.5);
 			Cand cc;
+			// (TORN AWAY: a cloud over the dwarf crumbling as it goes, `tornClShow`)
+			if (!tornClShow(P, v, i)) {
+				continue;
+			}
 			if (kd == 0 && emissionAt(P, v, i, blk, bub, cc)) {
 				sc = cc;
 				solid = solid || cc.m == M_PILLAR;
@@ -1997,6 +2039,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 			int kd = int(u_ck[i].x + 0.5);
 			Cand cc;
+			if (!tornClShow(P, v, i)) {
+				continue;
+			}
 			if (kd == 3 && remnantAt(P, v, i, blk, sc, cc)) {
 				sc = cc;
 			}

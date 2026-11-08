@@ -602,6 +602,24 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	feed_events(mp, g, t, phi, calm)
 	# TORN AWAY (the dwarfs, when the run sets it; `ChartTorn`): the giant, the one stream, the dwarf drawn smaller
 	ChartTorn.push(mp, sky._m_stars, phi)
+	# (and the clouds over the dwarf torn with it, in this style's order: NebulaField's)
+	if not g.has("_torn_cl"):
+		var xs: Array = []
+		var rs: Array = []
+		var sq: float = (g.p as Dictionary).squash
+		for raw in NebulaField.clouds():
+			if xs.size() >= ChartSky.MAX_CL:
+				break
+			var c: NebulaField.Cloud = raw
+			var reach := 0.0
+			for l in c.lobes.size():
+				reach = maxf(reach, (c.lobes[l] as Vector2).length() + c.lobe_r[l] * NebulaField.EXTENT)
+			xs.append(Vector2(c.pos.x, c.pos.y / sq))
+			rs.append(reach)
+		g["_torn_cl"] = [xs, rs]
+	var tear := ChartTorn.cloud_arrays(g._torn_cl[0], g._torn_cl[1], phi, ChartSky.MAX_CL)
+	mp.set_shader_parameter("u_tornCl", tear.u_tornCl)
+	mp.set_shader_parameter("u_tornClD", tear.u_tornClD)
 	# THE SOLID LOOK (`ChartSky.solid`; `ChartSky._push` has already moved the camera
 	# for this frame, `solid_frame`): its uniforms on the place pass, the camera on the
 	# sparkles, so they stand where the camera shows the disc they belong to

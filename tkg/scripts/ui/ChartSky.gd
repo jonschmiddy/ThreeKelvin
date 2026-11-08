@@ -2174,6 +2174,17 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: fl
 	m.set_shader_parameter("u_cdir", cdir)
 	m.set_shader_parameter("u_lt", lt)
 	m.set_shader_parameter("u_lobe", lobe)
+	# TORN AWAY: the clouds over the dwarf torn with it, in this order (`ChartTorn.cloud_tear`;
+	# all zero, whole, otherwise)
+	var txy: Array = []
+	var trc: Array = []
+	for i in ncl:
+		txy.append((order[i][0] as Dictionary).xy)
+		trc.append(float((order[i][0] as Dictionary).reach))
+	var tear := ChartTorn.cloud_arrays(txy, trc, phi, MAX_CL)
+	m.set_shader_parameter("u_tornCl", tear.u_tornCl)
+	m.set_shader_parameter("u_tornClD", tear.u_tornClD)
+	g["_tear"] = tear
 	var knots: Array = g.knots
 	var kn := PackedVector4Array()
 	var amps := PackedFloat32Array()
@@ -2244,12 +2255,19 @@ func _cloud_stars(g: Dictionary, t: float, phi: float, cpix: Vector2, z: float, 
 					if pos.size() < MAX_EXTRA:
 						pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))
 						col.append(Vector4(0.55 * beat, 0.8 * beat, 1.3 * beat, 0.0))
+		# (TORN AWAY: a torn cloud's own stars go with its gas and fade with it)
+		var tr := Vector4.ZERO
+		var tw := Vector4.ZERO
+		if g.has("_tear") and ci < (g._tear.u_tornCl as PackedVector4Array).size():
+			tr = g._tear.u_tornCl[ci]
+			tw = g._tear.u_tornClD[ci]
 		for q in range(0, puts.size(), 2):
 			if pos.size() >= MAX_EXTRA:
 				break
-			var s := cpix + _solid_view(v + Vector2(puts[q].x * K0, puts[q].y * 0.46341 * K0)) * z
+			var off := ChartTorn.cloud_fwd(tr, Vector2(tw.x, tw.y), Vector2(puts[q].x, puts[q].y))
+			var s := cpix + _solid_view(v + Vector2(off.x * K0, off.y * 0.46341 * K0)) * z
 			pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))
-			col.append(Vector4(puts[q + 1].x, puts[q + 1].y, puts[q + 1].z, 0.0))
+			col.append(Vector4(puts[q + 1].x, puts[q + 1].y, puts[q + 1].z, 0.0) * (1.0 - tr.x))
 	return [pos, col]
 
 

@@ -4,10 +4,21 @@ extends RefCounted
 ## TORN AWAY, direction B (proto/dwarf-b): the stream. The hardest galaxies, the
 ## two dwarfs (GalaxyGen kinds 14 and 15), are being eaten by a giant neighbour.
 ## ONE stream of the dwarf's stars (Jon, Nov 7: "a single stream of the galaxy
-## being pulled, rather than two") trails out of it along its orbit round the giant
-## and, as the dwarf is stripped, grows into a loop of stars wrapped round the giant
-## (Jon's Nov 8 reference, a minor merger in three panels: a trail along the orbit,
-## then a loop round the big galaxy, then only the faint loop left).
+## being pulled, rather than two") bends from the dwarf toward the giant in a short
+## arc and runs into its disc: the giant feeding (Jon, Nov 8, "FRAME:C": the giant
+## kept in the corner, no loop, nothing coming in from elsewhere, all of it in the
+## opening view at zoom 0.42). The stream is a tidal tail: its root as wide as the
+## dwarf is drawn now ("the stream coming from the dwarf galaxy can start the same
+## width as the dwarf galaxy and get smaller towards the galaxy that is eating it"),
+## so it narrows as the dwarf is stripped, tapering to a thread where it meets the
+## giant (`root_w`, the shader's `tornWA`).
+##
+## THE DWARF'S CLOUDS (Jon, Nov 8: "nebula in the dwarf galaxy should dissapear or
+## become distorted as the galaxy is eated"): the chart's named clouds over the
+## dwarf shear a little as it is stripped, and those the torn edge has passed are
+## drawn out toward the giant and fade (`cloud_tear`); by the end none is left whole.
+## The chart's drawing only: where a cloud stands for the game (`NebulaField`, a
+## system in the gas) is unchanged.
 ##
 ## THE DWARF IS DRAWN BIG (Jon, Nov 8, "SIZE: bigger", and "I basically want the
 ## dwarf to be drawn large, and then get smaller and smaller as it's stripped away
@@ -27,11 +38,11 @@ extends RefCounted
 ## `StarchartScreen._drop_torn`). No ring is marked (Jon: "I don't want the red ring
 ## to be in the game").
 ##
-## THE END (an open game question, one switch: `ending`): today the last four rings
-## never fall. F (the default, the rules unchanged): rings 0-9 can fall, and the
-## picture is stripped to nothing as ring 9 goes; the four inner rings' systems are
-## left where they stand, loose stars in the stream. N: all 14 rings can fall, and
-## the dwarf is eaten whole.
+## THE END (one switch, `ending`; Jon ruled F, Nov 8): the last four rings never
+## fall. F (the default, the rules unchanged): rings 0-9 can fall, and the picture is
+## stripped to nothing as ring 9 goes; the four inner rings' systems are left where
+## they stand, loose stars where the dwarf was. N (kept as a switch, off the default
+## path): all 14 rings can fall, and the dwarf is eaten whole.
 ##
 ## Drawn by every style's place pass (`chart_torn_core.gdshaderinc`, and PAINTED's
 ## `chart_torn.gdshaderinc`) from these uniforms. Off unless the run sets it
@@ -77,16 +88,22 @@ const GIANT_S := Vector2(-1.02, -0.56)
 ## body: it is the bigger galaxy) and its tilt.
 const GIANT_LEN := 0.95
 const GIANT_ANG := -0.32
-## The dwarf's orbit round it, on the screen: an ellipse about the giant along its
-## tilt, this much as tall across as along (a loop seen a little from above), through
-## the dwarf's core.
-const LOOP_Q := 0.72
-## The stream trails along that orbit this far round (radians) at the start, and
-## the whole way round by the end (`span`), so it closes into a loop.
-const SPAN0 := PI * 0.2
-const SPAN1 := TAU * 0.985
+## THE STREAM'S ARC (`ribbon`, gu on the screen about the dwarf's core): from the
+## dwarf to just beside the giant's bulge (`ARC_END`, off the giant's middle, inside its
+## disc), bowed out below the straight line by `ARC_BOW` of its length, so it leaves
+## the dwarf heading left and a little up and comes up into the giant: a short arc,
+## the giant pulling it in.
+const ARC_END := Vector2(0.07, 0.04)
+const ARC_BOW := 0.13
 ## Its points (the shader's TORN_N).
 const N := 48
+## The stream's root as wide as the dwarf's body (`root_w`), and at its far end, in
+## the giant, a thread this wide (gu, half widths).
+const TIP_W := 0.008
+## THE BIG DWARF FAINTER UNDER THE GIANT: with TORN AWAY on, its envelope's light is
+## this share of a normal run's (`ball_v`), so the giant reads as the bigger, brighter
+## galaxy doing the eating; its size is unchanged.
+const ENV_TORN := 0.7
 ## How far the torn edge is drawn out toward the stream by the end, a share of the
 ## edge (the tidal side: the shader's `tornShape`, the stars' cut), and at most (gu).
 const LOBE := 0.35
@@ -263,11 +280,10 @@ static func _bsq() -> float:
 
 
 ## Where the dwarf's lit body ends along the stream, as its length along (gu on
-## the screen): the stream is drawn out of the body from inside this (the shader's
-## `tornStream`), so it reads as the dwarf's own light pulled off, never starting
-## out in the empty sky past it (Jon, Nov 8, "Why is there a gap between the stream
-## in the galaxy"). The big body's lit reach (`LIT_K` of `cover`), or the torn edge
-## where that has come inside it, as it does from the first ring.
+## the screen): kept for the bench's log. The shader rises the stream out of the
+## body by the lit reach itself (`lit_r`, in the ball's own frame, all round the
+## stream's root: the tail hugs the body's sides, never starting out in the empty
+## sky past it; Jon, Nov 8, "Why is there a gap between the stream in the galaxy").
 static func lit_along(_phi: float, pts: PackedVector4Array) -> float:
 	var lit := lit_r()
 	var bsq := _bsq()
@@ -316,68 +332,126 @@ static func stream_dir(pts: PackedVector4Array, phi: float) -> Vector4:
 	return Vector4(db.x, db.y, dp.x, dp.y)
 
 
-# ------------------------------------------------------------------ the orbit
+# ------------------------------------------------------------------ the arc
 
-## The giant's frame on the screen: its axis along.
-static func _gax() -> Vector2:
-	return Vector2(cos(GIANT_ANG), sin(GIANT_ANG))
-
-
-## The orbit's size along the giant (gu): the ellipse about the giant, LOOP_Q as tall
-## across, through the dwarf's core; and the angle on it the dwarf stands at.
-static func _orbit() -> Vector2:
-	var ax := _gax()
-	var d := -GIANT_S
-	var along := d.x * ax.x + d.y * ax.y
-	var across := -d.x * ax.y + d.y * ax.x
-	var a := sqrt(along * along + (across / LOOP_Q) * (across / LOOP_Q))
-	return Vector2(a, atan2(across / LOOP_Q / a, along / a))
+## The arc's far end (gu on the screen about the dwarf's core): beside the giant's
+## bulge, inside its disc.
+static func arc_end() -> Vector2:
+	return GIANT_S + ARC_END
 
 
-## A point of the orbit at angle th (gu on the screen about the dwarf's core).
-static func _orbit_at(th: float) -> Vector2:
-	var o := _orbit()
-	var ax := _gax()
-	var al := o.x * cos(th)
-	var ac := o.x * LOOP_Q * sin(th)
-	return GIANT_S + ax * al + Vector2(-ax.y, ax.x) * ac
+## The arc's bend: its control point, the chord's middle pushed out below the line.
+static func _arc_ctl() -> Vector2:
+	var e := arc_end()
+	var nrm := Vector2(-e.y, e.x).normalized()
+	# (the side below the chord: down the screen)
+	if nrm.y < 0.0:
+		nrm = -nrm
+	return e * 0.5 + nrm * ARC_BOW * e.length()
 
 
-## Which way round the stream trails (+1 or -1): leftward from the dwarf, under the
-## giant and up its far side.
-static func _trail_sign() -> float:
-	var th0 := _orbit().y
-	return 1.0 if _orbit_at(th0 + 0.05).x < _orbit_at(th0 - 0.05).x else -1.0
-
-
-## How far round the orbit the stream reaches now (radians): a short trail at the
-## start, the whole way round by the end.
-static func span() -> float:
-	return lerpf(SPAN0, SPAN1, smoothstep(0.0, 1.0, progress()))
+## A point of the arc at t (0 the dwarf's core, 1 its far end).
+static func _arc_at(t: float) -> Vector2:
+	var c := _arc_ctl()
+	var e := arc_end()
+	return 2.0 * (1.0 - t) * t * c + t * t * e
 
 
 ## The stream as a polyline in view px (zoom 1, the core's own frame): x, y, its
 ## length along from the dwarf (gu on the screen), and its age (0 at the dwarf's
-## core, 1 at the stream's far end, round the orbit). Fixed on the screen: `phi` is
-## kept for the bench's log.
+## core, 1 at its far end in the giant). Fixed on the screen: `phi` is kept for the
+## bench's log.
 static func ribbon(_phi: float = 0.0) -> PackedVector4Array:
 	var out := PackedVector4Array()
 	var acc := 0.0
 	var prev := Vector2.ZERO
-	var th0 := _orbit().y
-	var sg := _trail_sign()
-	var sp := span()
 	for i in N:
 		var f := float(i) / float(N - 1)
-		var q := _orbit_at(th0 + sg * f * sp)
-		if i == 0:
-			q = Vector2.ZERO
-		var vv := q * ChartSky.K0
+		var vv := _arc_at(f) * ChartSky.K0
 		if i > 0:
 			acc += (vv - prev).length() / ChartSky.K0
 		prev = vv
 		out.append(Vector4(vv.x, vv.y, acc, f))
 	return out
+
+
+## The stream's root half width (gu on the screen): the dwarf's lit body as it is
+## drawn now (`lit_r`, its ball's roundness `bsq` on the screen), across the way the
+## stream leaves it. Narrower with every ring lost; a thread once the body is gone.
+static func root_w() -> float:
+	var lit := lit_r() if lost <= 1e-4 or edge() > 0.0 else 0.0
+	var d := _arc_ctl().normalized()
+	var bsq := _bsq()
+	# (the ellipse's half width across d: its axes lit and lit * bsq)
+	return maxf(lit * Vector2(d.y, d.x * bsq).length(), TIP_W)
+
+
+# ------------------------------------------------------------------ the dwarf's clouds
+
+## How far a named cloud at plane point xy (gu, the chart's `clouds`' `xy`; reach its
+## size) is torn, and which way it is drawn out, at this turn: [tear, way].
+## tear: x how far gone (0 whole, 1 gone: it fades), y how far drawn out (its length
+## along the way is 1 + y of its own), z how far it has slid toward the giant (gu),
+## w the shear of one still standing in the body. way: xy the way to the giant on
+## the screen in the cloud's round frame (y over the clouds' flatness), zw the same
+## in the galaxy's plane (RADIANT's, which marches the clouds there). All zero (whole,
+## as drawn today) off TORN AWAY, and for a cloud outside the dwarf.
+const CLOUD_FLAT := 0.46341
+static func cloud_tear(xy: Vector2, reach: float, phi: float) -> Array:
+	if not on() or not big_on():
+		return [Vector4.ZERO, Vector4.ZERO]
+	var rc := xy.length()
+	if rc - 0.5 * reach > cover():
+		return [Vector4.ZERO, Vector4.ZERO]
+	var e := edge()
+	# (eaten as the torn edge comes in past it: none while the edge is out past its far
+	# side, all of it once the edge is in past its middle by its size)
+	var span := 2.0 * reach + 0.08
+	var eat := clampf((rc + reach - e) / span, 0.0, 1.0)
+	eat = eat * eat * (3.0 - 2.0 * eat)
+	# (and by the end every one of the dwarf's: nothing of them left whole)
+	eat = maxf(eat, smoothstep(0.8, 1.0, progress()))
+	if e <= 0.0 and lost > 1e-4:
+		eat = 1.0
+	var p := progress()
+	var tear := Vector4(smoothstep(0.45, 1.0, eat), 4.0 * eat, 1.5 * eat * (reach + 0.04), 0.35 * minf(p * 4.0, 1.0) * (1.0 - eat))
+	# the way to the giant from the cloud, on the screen
+	var v := ChartSky._to_view(xy, phi) / ChartSky.K0
+	var ds := arc_end() - v
+	var wr := Vector2(ds.x, ds.y / CLOUD_FLAT).normalized()
+	# (back into the plane: the chart's projection turned back)
+	var w := Vector2(ds.x, ds.y / ChartSky.TILT)
+	var c := cos(phi)
+	var sn := sin(phi)
+	var wp := Vector2(w.x * c - w.y * sn, w.x * sn + w.y * c).normalized()
+	return [tear, Vector4(wr.x, wr.y, wp.x, wp.y)]
+
+
+## A point q of a cloud as drawn whole (its round frame on the screen, gu about its
+## middle) to where it shows torn (the shader's `tornClFwd`): its own stars go with it.
+static func cloud_fwd(tear: Vector4, way: Vector2, q: Vector2) -> Vector2:
+	if tear.y <= 1e-4 and tear.w <= 1e-4 and tear.z <= 1e-4:
+		return q
+	var n := Vector2(-way.y, way.x)
+	var a := q.dot(way)
+	var b := q.dot(n) / (1.0 + 0.35 * tear.y)
+	a *= (1.0 + tear.y) if a > 0.0 else (1.0 + 0.3 * tear.y)
+	a += tear.z + tear.w * b
+	return way * a + n * b
+
+
+## Every cloud's tear for a place pass, in the order it holds them (`xys`, `reaches`):
+## {u_tornCl, u_tornClD}, padded to n.
+static func cloud_arrays(xys: Array, reaches: Array, phi: float, n: int) -> Dictionary:
+	var a := PackedVector4Array()
+	var b := PackedVector4Array()
+	for i in mini(xys.size(), n):
+		var t := cloud_tear(xys[i], float(reaches[i]), phi)
+		a.append(t[0])
+		b.append(t[1])
+	a.resize(n)
+	b.resize(n)
+	return {"u_tornCl": a, "u_tornClD": b}
 
 
 # ------------------------------------------------------------------ to the shaders
@@ -420,11 +494,13 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 		var e0 := edge_at(0)
 		mp.set_shader_parameter("u_torn", Vector4(1.0, edge(), progress(), sq))
 		mp.set_shader_parameter("u_tornG", Vector4(GIANT_S.x * ChartSky.K0, GIANT_S.y * ChartSky.K0, GIANT_ANG, GIANT_LEN))
-		mp.set_shader_parameter("u_tornA", Vector4(0.0, 0.0, 1.0, clampf(lost, 0.0, float(max_lost()))))
+		# (the stream's root half width, as wide as the dwarf is drawn: narrower as it is
+		# stripped; and its whole length, gu on the screen)
+		mp.set_shader_parameter("u_tornA", Vector4(root_w(), pts[pts.size() - 1].z, 1.0, clampf(lost, 0.0, float(max_lost()))))
 		# (the rings' own flatness in the ball's frame, for the edge's floor; the cut's
-		# strength; where the lit body ends along the stream; the stream's head as wide
-		# as the dwarf is drawn: narrower as it is stripped)
-		mp.set_shader_parameter("u_tornB", Vector4(ChartSky.TILT / bsq, clampf(lost, 0.0, 1.0), lit_along(phi, pts), edge() / maxf(e0, 1e-4)))
+		# strength; where the lit body ends, in the ball's own frame, the stream rising out
+		# of it; the dwarf's edge against its whole)
+		mp.set_shader_parameter("u_tornB", Vector4(ChartSky.TILT / bsq, clampf(lost, 0.0, 1.0), lit_r(), edge() / maxf(e0, 1e-4)))
 		mp.set_shader_parameter("u_tornC", Vector4(_dir.x, _dir.y, lobe(), live_r()))
 		mp.set_shader_parameter("u_tornP", pts)
 		# (the stars cut in the place pass, SIMPLIFIED's and RADIANT's: in the plane, as
@@ -444,7 +520,7 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 static func ball_v(level: float, power: float) -> Vector4:
 	if not big_on():
 		return Vector4(1.0, 0.0, 1.0, 0.0)
-	return Vector4(cover(), level, power, 1.0)
+	return Vector4(cover(), level * (ENV_TORN if on() else 1.0), power, 1.0)
 
 
 ## The chart's own star field for a big dwarf (`MapChart._build_field`, on a worker
