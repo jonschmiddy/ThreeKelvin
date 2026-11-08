@@ -237,6 +237,8 @@ func _state_round_trip() -> void:
 	for i in 100:
 		LootGen.roll_module(4)
 	var saved := Rng.state()
+	# Through JSON as a save goes: it reads numbers back as doubles, 53 bits of 64.
+	var through_file: Dictionary = JSON.parse_string(JSON.stringify(saved, "", true, true))
 	var expected: PackedStringArray = []
 	for i in 10:
 		expected.append(module_print(LootGen.roll_module(4)))
@@ -246,12 +248,17 @@ func _state_round_trip() -> void:
 	for i in 500:
 		LootGen.roll_module(6)
 
-	Rng.restore(saved)
+	Rng.restore(through_file)
+	check("every stream's cursor survives the file", str(saved), str(Rng.state()))
 	var after: PackedStringArray = []
 	for i in 10:
 		after.append(module_print(LootGen.roll_module(4)))
 	check("a restored run finds what it was going to find", str(after), str(expected))
 	check("and remembers its seed", Rng.master, SEED_A)
+	# An older save holds the cursors as numbers: still read.
+	Rng.reseed(SEED_B)
+	Rng.restore({"master": SEED_A, "loot": 12345, "world": 678.0})
+	check("an older save's numbers still load", "12345 678", "%d %d" % [Rng.loot.state, Rng.world.state])
 
 
 # --- 7. a whole run -------------------------------------------------------
