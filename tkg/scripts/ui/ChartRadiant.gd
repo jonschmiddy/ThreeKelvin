@@ -61,7 +61,12 @@ const DRAMA_R := Vector4(1.5, 1.25, 2.8, 0.3)
 ## A BALL's (toe, gain): a ball is all starlight, one smooth hill of it with no gas
 ## for a lamp to light, so its drama is the hill made steep -- the nucleus burning
 ## white round the hole, the body falling off fast into black
-const DRAMA_BALL := Vector2(0.15, 2.4)
+## (A+B+C: toe 0.15 -> 0.004 and gain 2.4 -> 2.1. At 0.15 the faint outskirts went as
+## the square of their light and four ball kinds ended in a hard rim (BallHaloTest's
+## fade under 0.42; the blue compact dwarf at 0.28). Near no toe the ball's drama is
+## its nucleus burning white and its body still falling into black; 2.1 keeps a
+## merger's story within the test's cream budget.)
+const DRAMA_BALL := Vector2(0.004, 2.1)
 const GOD_RAYS := 1.0
 ## A lobe's dy is in the chart's flattened frame; this takes it to the plane.
 const FLAT := 0.46341 / 0.38
@@ -502,7 +507,9 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_steps", 8.0 if DisplaySettings.graphics_low else STEPS)
 	m.set_shader_parameter("u_holeR", ChartSky.hole_of(p))
 	m.set_shader_parameter("u_holeLight", Vector3(0.9, 0.42, 0.14))
-	m.set_shader_parameter("u_drama", Vector4(DRAMA_BALL.x, DRAMA.y, DRAMA.z, DRAMA.w) if L.ell else DRAMA)
+	# (a ball keeps its young gas's own light whole: a blue compact dwarf's outskirts
+	# are that gas, and at A's quarter they ended in a rim)
+	m.set_shader_parameter("u_drama", Vector4(DRAMA_BALL.x, DRAMA.y, 1.0, DRAMA.w) if L.ell else DRAMA)
 	m.set_shader_parameter("u_dramaR", Vector4(DRAMA_R.x, DRAMA_R.y, DRAMA_BALL.y, DRAMA_R.w) if L.ell else DRAMA_R)
 	m.set_shader_parameter("u_gr", GOD_RAYS)
 	m.set_shader_parameter("u_amb", Vector3.ZERO)

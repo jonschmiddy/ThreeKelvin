@@ -431,6 +431,12 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	if not drawn:
 		return
 	var sc: SubViewport = v.get("_scene")
+	# (RADIANT's glow, `RadiantGlow`, wraps the scene: the picture shown is the glow's,
+	# so the cloud drawn on past it is too -- the bare scene against the glowed
+	# picture was a step at the picture's soft edge, 27 levels at its left in a cloud)
+	var gv: Variant = v.get("_glow")
+	if gv is SubViewport and is_instance_valid(gv):
+		sc = gv
 	if ext.texture != sc.get_texture():
 		ext.texture = sc.get_texture()
 	var at: Vector2 = map._frame.global_position + map._box.position
