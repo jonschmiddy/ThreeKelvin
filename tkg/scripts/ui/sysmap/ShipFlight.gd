@@ -1858,7 +1858,8 @@ func said_path(t0: float, dt: float) -> Array:
 	var pts := PackedVector2Array()
 	var lit := PackedByteArray()
 	for j in n:
-		var tj := t0 + float(j) * dt
+		# (the last sample can fall past the end: held there, so a plan with no tail never reads one)
+		var tj := minf(t0 + float(j) * dt, t_end + tail_s)
 		var q := Vector3.ZERO
 		var on := false
 		if tj < tf:

@@ -1,5 +1,5 @@
-- **Changed** — the autopilot is about four times faster. From the click to settled in orbit, a
-  flight takes about 3 seconds where it took about 14, and the first flight after a jump about 4.
+- **Changed** — the autopilot is faster. From the click to settled in orbit, a flight takes 3 to 7
+  seconds, down from about 14.
   Your ship still circles a world at the speed it always did. It speeds up round its orbit just
   before it leaves and slows onto the new one as it arrives. A click on a world while it slows
   onto its orbit is kept and flown once it is on it.

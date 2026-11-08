@@ -12,7 +12,9 @@ var _quick := false
 ## and its rest, saved at 960x540
 var _shots := ""
 var _label := ""
-## LOCAL opened during a ride: needs at least this much map clock left, tried up to this many times.
+## LOCAL opened during a ride: needs at least this much of the flight's own clock left
+## (its pace x the map's), tried up to this many times.
+## Why: docs/why/OrbitWorldTest.md#ride-clock
 const RIDE_LEFT := 1.5
 const RIDE_TRIES := 4
 ## and the ride sought before the click this much longer (s): the click plans
@@ -934,7 +936,7 @@ func _early(sd: int, label: String, when: String) -> void:
 	if when == "phase":
 		for _k in 70:
 			var pl0 = m.flight.make_plan(to, float(m.view.t), {}, ShipFlightS.PLAN_AHEAD)
-			if pl0 != null and float(pl0.t0) - float(m.view.t) >= RIDE_LEFT + RIDE_SLACK:
+			if pl0 != null and float(pl0.t0) - float(m.view.t) >= RIDE_LEFT / maxf(float(pl0.pace), 1.0) + RIDE_SLACK:
 				break
 			for _j in 6:
 				await _tree.process_frame
@@ -951,8 +953,9 @@ func _early(sd: int, label: String, when: String) -> void:
 		var riding: bool = f.rail.has("phase") and not f.rail.phase.get("wait", false)
 		if when == "phase" and (riding or f.mode == &"fly"):
 			var left := float(f.rail.phase.T) - (float(m.view.t) - float(f.rail.phase.t0)) if riding else 0.0
-			if left >= RIDE_LEFT:
-				print("    the ride round to leave: %.2f s of the map's clock left" % left)
+			var pace := maxf(float(f.plan.pace), 1.0) if f.plan != null else 1.0
+			if left * pace >= RIDE_LEFT:
+				print("    the ride round to leave: %.2f s of the flight's clock left (%.2f of the map's, pace %.0f)" % [left * pace, left, pace])
 				seen = true
 				break
 			tries += 1
@@ -966,7 +969,7 @@ func _early(sd: int, label: String, when: String) -> void:
 			var back := from
 			from = to
 			to = back
-			print("    the ride round to leave was %.2f s: flown on, and tried back to %d" % [left, to])
+			print("    the ride round to leave was %.2f s of the flight's clock (%.2f of the map's): flown on, and tried back to %d" % [left * pace, left, to])
 			m.fly_to_body(to)
 			continue
 		if when == "insert" and f.mode == &"rail" and f.orbit_body() == to and f.inserting():
