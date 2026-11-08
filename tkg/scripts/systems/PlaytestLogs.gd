@@ -1,36 +1,9 @@
 class_name PlaytestLogs
 extends RefCounted
 
-## SAVE MY LOGS: one zip a friend can drag into the chat.
-##
-## Without it, sending what went wrong means finding a hidden AppData folder.
-## So one button (Settings' PLAYTEST row, and the game-over panel) writes ONE
-## zip to the Desktop -- or into the game's own folder if the Desktop cannot be
-## written -- and opens the folder with it selected.
-##
-## WHAT IS IN IT, BY NAME, AND NOTHING ELSE: this session's `godot.log` and the
-## one before it, `settings.cfg`, `run.save` if a run is suspended, the flight
-## record (`history.json`), and `build.txt` -- which build this is, the OS and
-## the graphics card. Every one of them is read from the game's own user folder;
-## nothing outside it is ever opened, and a developer's folder full of harness
-## pictures stays out because nothing is gathered by listing a folder except
-## the logs, and only `.log` files from there.
-##
-## BUILD.TXT CARRIES WHAT A SLOW MACHINE'S REPORT NEEDS (Oct 27). "The game
-## chugs on my Mac" could not be read from it: it named the graphics card and
-## the screen, and none of what decides how much the game draws there -- the
-## LOOK (the tube is a pass over every window pixel), the window's mode and
-## size and how many screen pixels each game pixel became, how far the screen
-## scales (a Retina Mac opened the game at 3x until the 2X cap of Oct 27), the
-## frame cap and vsync (a frame a hair over 16.7 ms is SHOWN for 33.3 with vsync
-## on), the renderer, and whether the machine was on battery. Each is one line, asked of the engine
-## the moment the zip is written.
-##
-## IN THE LOG COPIES the home folder's path becomes `~` and the account name
-## goes too: logs can carry absolute paths (an engine warning about a file names
-## it), and a friend's user name is nobody else's business.
-##
-## NOTHING IS SENT ANYWHERE. It is a file on their own disk.
+## One zip of named files from the game's own folder only, with the home path and name scrubbed.
+## Nothing is sent anywhere. `build.txt` carries what a slow machine's report needs (Oct 27).
+## Why: docs/why/PlaytestLogs.md#save-my-logs
 
 ## Where a test writes instead of the Desktop (`-- menutest`); empty is real.
 static var dest_override := ""
@@ -131,12 +104,8 @@ static func _build_txt() -> String:
 	return "\n".join(lines) + "\n"
 
 
-## The window as the game is drawn into it: the mode and WINDOW SIZE the
-## settings ask for, the window's real size, how many screen pixels each game
-## pixel became (the shell's whole-number fit, `GameShell._fit`: BORDERLESS and
-## FULLSCREEN choose it too), and the screen's own scale (2 on a Retina Mac,
-## where the window's pixels are the backing store's, not the points a player
-## sees) beside the largest of any screen.
+## Records mode, size, pixel fit and screen scale, which decide how much a machine draws.
+## Why: docs/why/PlaytestLogs.md#window-line
 static func window_line() -> String:
 	var win := DisplayServer.window_get_size()
 	var k := maxi(1, mini(win.x / DisplaySettings.BASE.x, win.y / DisplaySettings.BASE.y))
@@ -155,11 +124,7 @@ static func vsync_name(m: int) -> String:
 	return str(m)
 
 
-## ON BATTERY OR NOT, and how full, where it can be asked. Godot 4 has no power
-## API (3.x's `OS.get_power_state` is gone), so a Mac is asked through
-## `pmset -g batt`, which only reads and answers at once; anywhere else the line
-## says it was not read. A worn battery throttles a laptop near empty, and a
-## report taken then is a report about the battery.
+## Godot 4 has no power API, so a Mac is asked via `pmset -g batt`; a worn battery throttles.
 static func power_state() -> String:
 	if OS.get_name() == "macOS":
 		var out: Array = []

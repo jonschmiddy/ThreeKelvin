@@ -1,36 +1,9 @@
 class_name ChartLegacy
 extends Node2D
 
-## THE STAR CHART'S SKY IN THE LEGACY STYLE (`DisplaySettings.render_style`
-## `&"legacy"`, or a harness's `style=legacy`): the chart as it was before the
-## Oct 5 port -- Jon's picks of the mockup ("sector style, a LOT", round three,
-## 2x2 blocks, at the sector map's angle): depth look 3 at 0.9, the disc as a
-## volume (3) of dense puffy gas (3) that billows, the named clouds remade (look
-## 4), sparse stars (level 4) -- with SIMPLIFIED's black hole (`legacy_hole`,
-## Jon: "I want this no matter what style we pick") and its animations fitted
-## to the old look: the arms' gas streaming through them, knots that breathe and
-## now and then bloom, a rare supernova and its light echo, lightning in the
-## emission and dark clouds, glimmers round a remnant's shell, shafts round a
-## reflection cloud's lamp, a pulsar's beat. `ChartSky` hands the chart to this
-## node when the style is LEGACY and draws nothing itself.
-##
-## TWO HALVES, as before.
-##   * ONCE A GALAXY, on the GPU, a BAKE (`_begin_bake` and the stages after
-##     it): the chart's own star field (`MapChart._build_stars`) re-tilted to
-##     the sector map's angle, added up and blurred into the galaxy's standing
-##     fields -- its stars' light, its arms, its dark clouds, its gas -- in the
-##     mockup's own pixels (the chart's opening view), and a short palette for
-##     each zoom (`_make_palette`), from the galaxy's own colours. Three frames,
-##     then read back into textures and kept for the run (`_baked`).
-##   * EVERY FRAME, a half-size viewport (`_vp`) the chart shows at twice its
-##     size, so each of its pixels is one 2x2 block: the field
-##     (`chart_l_field`, every block worked out afresh, so the zoom redraws and
-##     the galaxy turns with nothing stretched or rebuilt), the bright stars
-##     (`chart_l_stars`), the hole and its lens (`chart_l_hole`, SIMPLIFIED's),
-##     then the palette (`chart_l_palette`).
-##
-## THE TURN. The galaxy turns as one, once every `ChartSky.TURN_MINUTES`
-## (`MapChart.turn`), a view-only angle from the chart's clock.
+## Legacy chart style: one GPU bake per galaxy, then a half-size 2x2-block viewport redrawn
+## every frame.
+## Why: docs/why/ChartLegacy.md#legacy-chart-sky
 
 const BAKE := Vector2i(896, 616)
 const BAKE_O := Vector2(448.0, 308.0)
@@ -44,18 +17,14 @@ const LEVELS: Array[float] = [0.42, 0.59, 0.84, 1.18, 1.66, 2.35, 3.3, 4.65, 6.0
 const STORY_GAIN_L := 3.0
 const TILT := 0.38
 const DISC := 2.05
-## One turn of the whole galaxy, in minutes: twelve hours, so at a glance it
-## does not seem to move at all. The mockup's dial said half an hour, which
-## read as "like 5x too fast"; two and a half hours was "still rotating too
-## fast" -- and what was moving then was mostly not the disc but the climb
-## round the hole (see `params`, `rb`) and the gas's brightness waves.
+## Twelve hours a turn: half an hour read 5x too fast, 2.5 hours still did, mostly from the
+## hole climb.
+## Why: docs/why/ChartLegacy.md#galaxy-turn-speed
 const TURN_MINUTES := 720.0
 const OMEGA := TAU / (TURN_MINUTES * 60.0)
 ## The hole's size against the galaxy's own (`hole_r`), the same at every zoom.
 const HOLE_K := 2.0
-## How far out the hole's disc reaches, in hole radii: 3, down from 4 when the
-## hole stopped shrinking as you zoom in, so at the closest zoom the disc
-## does not fill the whole chart.
+## Disc reaches 3 hole radii, down from 4 once the hole stopped shrinking on zoom.
 const DISC_K := 3.0
 ## How far the dust is spread in the bake, in its pixels (see `_stage_fields`).
 const DUST_SPREAD := 2.0
@@ -89,56 +58,40 @@ const BHPAL := [Color8(30, 8, 4), Color8(74, 20, 6), Color8(132, 40, 12), Color8
 ## Each galaxy's bake, by `galaxy_key`: textures, constants, palettes. A run is
 ## one galaxy, so a new one drops the rest (`MapChart._build_stars`).
 static var _baked: Dictionary = {}
-## HOW THE NAMED CLOUDS ARE DRAWN: 4, each kind remade for the gas volume
-## (`chart_field`'s `neb_v2`; Jon, 2026-10-04: "These are nice"). The others,
-## for comparison with `-- sheet=ChartLook neblook=N`: 1 "of the galaxy" (his
-## pick of 2026-10-03), 0 each kind's shape with an edge and a moat ("look
-## bad"), 2 "pixel-art objects", 3 "quiet until wanted".
+## Nebula look 4 (Jon, 2026-10-04: "These are nice"). Others kept for comparison via
+## `ChartLook neblook=N`.
+## Why: docs/why/ChartLegacy.md#look-settings
 static var nebula_look := 4
-## (4: the clouds remade for the new chart, while Jon picks -- vivid, each
-## kind as the thing itself, rising and churning with the gas.
-## `-- sheet=ChartLook neblook=4`.)
+## Look 4 remade the clouds for the new chart, pending Jon's pick: vivid, rising and
+## churning with the gas.
+## Why: docs/why/ChartLegacy.md#look-settings
 
-## HOW MANY STARS ("I honestly feel like there might be too many stars?"):
-## 4, about an eighth of what shipped -- level 3 was still "about 2x too
-## high", Jon -- with true white kept for the few brightest; 3 about a
-## quarter, his first pick ("stars as accents, so the gas and dust carry the
-## galaxy"); 2 about half; 1 as it first shipped, kept so the others can
-## still be photographed. Thinned by brightness, never at random: the
-## galaxy's own stars keep their brightest (and every globular cluster), the
-## extra stars deep in lose their dim half first, the sky behind its dimmest
-## colours first. `-- sheet=ChartLook starlevel=N`.
+## Star level 4 is about an eighth of what shipped, as level 3 was still 2x too high (Jon).
+## Thinned by brightness.
+## Why: docs/why/ChartLegacy.md#look-settings
 static var star_level := 4
 
-## DEPTH ("I almost want the sectors and galaxies to look fluffy and deep",
-## `chart_field`'s `depth_look`): 3, Jon's pick, both -- the layers you pass
-## through and the fluffy lit cloud -- as strong as `depth_amt`; 0 as it was;
-## 1 the layers alone; 2 the cloud alone. `-- sheet=ChartLook depthlook=N`.
+## Depth look 3 is Jon's pick, layers and fluffy cloud both, as strong as `depth_amt`.
+## Why: docs/why/ChartLegacy.md#look-settings
 static var depth_look := 3
-## How strong look 3 is, both of its parts alike: 0 none, 1 both in full.
-## 0.9, Jon's pick from four levels (2026-10-04: "let's do 0.9. That looks
-## great"). `-- sheet=ChartLook depthamt=A`.
+## Depth amount 0.9, Jon's pick from four levels (2026-10-04: "That looks great").
+## Why: docs/why/ChartLegacy.md#look-settings
 static var depth_amt := 0.9
 
-## THE DISC AS A VOLUME, while Jon picks ("I want the actual arms of the
-## galaxy and the galaxy itself to have a height", `chart_field`'s `vol_h`):
-## 0 flat, as it is; 1 a thin slab; 2 medium; 3 tall billows.
-## 3, Jon's pick (2026-10-04: "I like 3"). `-- sheet=ChartLook volume=N`.
+## Disc volume 3, tall billows, Jon's pick (2026-10-04: "I like 3").
+## Why: docs/why/ChartLegacy.md#look-settings
 static var volume_look := 3
 const VOLUME_H := [0.0, 4.0, 7.0, 11.0]
-## AND AS GAS, while Jon picks ("too solid?", `chart_field`'s `gas_k`): 0 the
-## solid surface, as it is; 1 thin gas; 2 puffy gas; 3 dense puffy gas.
-## 3 for now, the billowing column of the pick page, for Jon to try in game.
-## `-- sheet=ChartLook gas=N`.
+## Gas look 3 for now, dense puffy gas, for Jon to try in game.
+## Why: docs/why/ChartLegacy.md#look-settings
 static var gas_look := 3
-## Whether the gas churns ("billow slightly and move", Jon): its puffs swell
-## and lean, its wisps drift, slowly, each region on its own phase; still when
-## reduced motion is on. On, for Jon to try in game. `-- sheet=ChartLook billow`.
+## Gas churns (Jon: billow slightly and move); still under reduced motion. On, for Jon to
+## try.
+## Why: docs/why/ChartLegacy.md#look-settings
 static var gas_billow := true
-## THE GLOBULAR CLUSTERS ("these pixelated clusters of stars ... look like
-## popcorn", Jon): 1, each a soft warm glow, brightest in the middle, a couple
-## of its stars seen at its edge only when you are close; 0 as they were, every
-## star a block. `-- sheet=ChartLook clusters=N`.
+## Globular clusters as a soft warm glow, as Jon said the block-star version looked like
+## popcorn.
+## Why: docs/why/ChartLegacy.md#look-settings
 static var cluster_look := 1
 const GAS_K := [0.0, 0.06, 0.16, 0.35]
 ## The star field as textures, by `MapChart._star_key`: a chart opened again
@@ -187,9 +140,8 @@ var _hold_d := Vector2.ZERO
 var _hold_c := Vector2.ZERO
 ## the view's pan last frame: the zoom's hold lets go when it moves (`_push`)
 var _last_pan := Vector2(INF, INF)
-## THE COLOUR HELD, as SIMPLIFIED's composite holds it (`chart_c_comp`): the
-## picture last frame, copied (`_hvp`), which the palette pass reads; where the
-## blocks were anchored then; the zoom then (a jump of the view holds nothing).
+## Colour hold, as SIMPLIFIED's: last frame's copy feeds the palette pass, with its anchor
+## and zoom.
 var _hvp: SubViewport = null
 var _hold_b0 := Vector2(INF, INF)
 var _hold_z := -1.0
@@ -232,26 +184,18 @@ static func galaxy_key() -> String:
 	return ChartSky.galaxy_key() + "|legacy"
 
 
-## Whether a chart draws in the legacy style: the player's style, or a
-## harness's `style=legacy` while LEGACY is not built (DisplaySettings will not
-## take a style it cannot draw everywhere; the chart can, so a shot can ask).
+## A harness's `style=legacy` can draw it while DisplaySettings refuses a style not built
+## everywhere.
 static func wanted() -> bool:
 	return DisplaySettings.render_style == &"legacy" or "style=legacy" in OS.get_cmdline_user_args()
 
 
-## How flat the galaxy's light is drawn: EVERY GALAXY lies in the sector map's
-## own plane, TILT ("increase the angle of the starchart to match the sector",
-## Jon) -- its light, its clouds, its systems, routes and rings
-## (`StarchartScreen.MapChart._eff`). A ragged spiral was drawn rounder, part
-## way to its own `squash`; then a ball still was, up to 0.88.
+## Every galaxy lies in the sector map's plane (TILT, per Jon); a ragged spiral used to be
+## drawn rounder.
 static func eff_of(_g: Dictionary) -> float:
-	# EVERY GALAXY, the ball-shaped ones too ("why does this galaxy not look
-	# edge on? ... In the main menu it looks at the proper angle", Jon): an
-	# elliptical, a dwarf or a merger kept most of its own roundness, up to
-	# 0.88, and read as seen face-on -- and its clouds were drawn at that
-	# roundness while its systems lay at TILT, so a pulsar sat up to 62 px off
-	# the middle of its own remnant. One plane for all of it now; a ball keeps
-	# a little of its roundness only in its middle (`params`, `bsq`).
+	# Ball-shaped galaxies read face-on and a pulsar sat 62px off its remnant. One plane now
+	# (Jon).
+	# Why: docs/why/ChartLegacy.md#one-plane-for-all
 	return TILT
 
 
@@ -369,9 +313,8 @@ func _point_textures(c: StarchartScreen.MapChart) -> Dictionary:
 		gc.append(c._glob_c[k])
 	out["glob_i"] = gi
 	out["glob_c"] = gc
-	# where a supernova may go off (SIMPLIFIED's rule: a disc star bright enough
-	# to be seen alone, between the bulge and the rim), and the pulsars, in the
-	# galaxy's plane in galaxy radii
+	# Supernova sites follow SIMPLIFIED's rule: bright disc star between bulge and rim.
+	# Pulsars in the plane.
 	var sq := float(Run.galaxy.get("squash", 0.62))
 	var cand := PackedVector2Array()
 	var in_glob := PackedByteArray()
@@ -477,9 +420,7 @@ static func params(use_map: bool = true) -> Dictionary:
 	var pals := _gas_palette(gas)
 	p["pal0"] = pals[0]
 	p["pal1"] = pals[1]
-	# THE LAW: the climb toward the hole stays inside the innermost ring of
-	# systems (0.85 of its radius, less a marker's reach); the CORE sits at the
-	# centre and is not a ring.
+	# The climb toward the hole stays inside the innermost ring of systems.
 	var rin_p := hole_r(p, 1.0) * 1.16
 	var ring := INF
 	if use_map:
@@ -491,21 +432,17 @@ static func params(use_map: bool = true) -> Dictionary:
 	if ring == INF:
 		ring = 1.2 * bul
 	p["rin_p"] = rin_p
-	# The climb: nothing past the hole's own edge. It once ran out to the
-	# innermost ring, and the bulge's stars and gas whirled round the hole at
-	# hundreds of times the disc's turn, which is most of what read as "still
-	# rotating too fast". Only the accretion disc spins now, at its own speed
-	# (`chart_hole`), and the gas just outside it (the swirl).
+	# The climb stops at the hole's edge: running to the ring whirled the bulge 100s of times
+	# too fast.
+	# Why: docs/why/ChartLegacy.md#hole-climb-limit
 	p["rb"] = rin_p * 1.05
 	# the innermost ring's reach, which still bounds the lens and the swirl
 	p["rb_ring"] = maxf(rin_p * 1.05, 0.85 * ring - 2.0)
 	return p
 
 
-## The named clouds as the field draws them (`chart_field`'s `nebulae`): a
-## lobe each, where the bake put its gas, at the radius the chart outlines
-## it at; in its own colour, richer and brighter; and which cloud it belongs
-## to, so one in sensor range breathes as a whole.
+## Each lobe sits where the bake put its gas, in the cloud's colour, with its cloud id so
+## one breathes whole.
 static func _nebula_lobes(p: Dictionary, sq: float) -> void:
 	var big_r: float = p.big_r
 	var eff: float = p.eff
@@ -523,10 +460,8 @@ static func _nebula_lobes(p: Dictionary, sq: float) -> void:
 			continue
 		var c := cl.base_colour()
 		c = Color.from_hsv(c.h, clampf(c.s * 1.55, 0.0, 1.0), 1.0)
-		# A SHELL IS ONE SHELL ("supernova remnants should have no stuff in the
-		# middle ... it should be hollow", Jon): in the new look a remnant or a
-		# planetary is drawn once, round the cloud's own centre, as wide as its
-		# outline reaches -- a shell for each lobe crossed its own middle
+		# A shell is one shell (Jon: remnants should be hollow), drawn once round the cloud's
+		# centre.
 		if nebula_look == 4 and (cl.kind == NebulaField.Kind.REMNANT or cl.kind == NebulaField.Kind.PLANETARY):
 			var reach := 0.0
 			for l2 in cl.lobes.size():
@@ -600,12 +535,9 @@ static func _gas_palette(gas: float) -> Array:
 	return [a, b]
 
 
-## THE HOLE, BIGGER than the old chart's: 2x the galaxy's own at every zoom,
-## held under a fifth of the bulge. One scale, so it grows exactly as the map
-## does: it used to ease from 2.6x at the opening view to 1.3x at the closest,
-## so zooming in it grew more slowly than the disc and bulge round it and
-## read as shrinking ("the black hole seems to shrink when you zoom in",
-## Jon). `z` is screen pixels a bake pixel; the answer is in screen pixels.
+## Hole is 2x the galaxy's one scale at every zoom; easing 2.6x to 1.3x made it read as
+## shrinking (Jon).
+## Why: docs/why/ChartLegacy.md#hole-size
 static func hole_r(p: Dictionary, z: float) -> float:
 	return float(p.c_hole) * float(p.big_r) * z
 
@@ -696,10 +628,8 @@ func _blur_pair(holder: Node, src: Texture2D, src2: Texture2D, pre: int,
 	return v
 
 
-## Stage one: the points added up, then blurred at the mockup's four scales,
-## and a probe of what the normalisers are measured from. A frame for each
-## step (`groups`): viewports drawn in the same frame are drawn in an order
-## that is not theirs to choose, and a blur drawn before its points is black.
+## One frame per step: same-frame viewports draw in an unchosen order, and a blur before
+## its points is black.
 func _begin_bake() -> void:
 	var p := params(_use_map)
 	var holder := Node.new()
@@ -888,9 +818,8 @@ func _stage_fields() -> void:
 		var size := Vector2i(BAKE.x / 2, BAKE.y / 2) if mode == 3 else BAKE
 		m.set_shader_parameter("out_size", Vector2(size))
 		outs.append(_pass_vp(_job.holder, size, _rect(m)))
-	# THE DUST, SPREAD. Worked out at a bake pixel and left there, a lane is a
-	# crease one pixel wide, and every zoom magnifies the crease into a crack:
-	# blurred here it is a band with soft edges that only widens as you go in.
+	# Dust is blurred here: at a bake pixel a lane is a one-pixel crease that every zoom
+	# magnifies to a crack.
 	var across: Array[SubViewport] = []
 	var down: Array[SubViewport] = []
 	outs.append(_blur_pair(_job.holder, (outs[3] as SubViewport).get_texture(), null, 0,
@@ -954,12 +883,9 @@ func _stage_textures() -> void:
 	_job.frame = Engine.get_frames_drawn()
 
 
-## Stage four: the palette. The one the chart holds at every zoom is worked out
-## here, so the chart never opens on the wrong colours, and with it the same
-## palette with its near twins merged (`HELD_MERGED`, for the zooms in, where a
-## colour a few steps from its neighbour flickers as the zoom moves). The title
-## screen's galaxy, which never zooms, and tuning (`diag` 8) keep the old palette
-## a zoom level, the others' worked out on other threads.
+## Palette worked out here so the chart never opens on wrong colours. Near twins merged for
+## zooms in.
+## Why: docs/why/ChartLegacy.md#palette-stage
 const HELD_MERGED := 100
 
 
@@ -1003,13 +929,9 @@ func _level_now() -> int:
 	return _held_level()
 
 
-## THE ONE PALETTE (Oct 11, Jon: the zoom "still changes a little"): the chart
-## holds the opening view's palette at every zoom. A palette a zoom level used to
-## be cut from that level's window round the centre, so deep in the arms took the
-## nearest of the core's colours and leaned purple and teal. The opening's is cut
-## from the whole galaxy, and the field keeps its light at every zoom, so its
-## colours are the ones every patch already has. (The title screen's galaxy, seen
-## at a zoom of its own, holds the palette of that zoom.)
+## One palette at every zoom (Oct 11, Jon): per-zoom cuts leaned purple and teal deep in
+## the arms.
+## Why: docs/why/ChartLegacy.md#one-palette
 func _held_level() -> int:
 	return 0 if _use_map else _level0
 
@@ -1083,13 +1005,9 @@ func _bake_lut(li: int, pal: PackedColorArray) -> void:
 	_luts[li] = [vp, Engine.get_frames_drawn(), tex, _key]
 
 
-## THE PALETTE OF ONE ZOOM, from its probe (the mockup's `buildPalette`): a
-## median cut of the zoom's picture with the galaxy's bright stars in it, more
-## from its vivid colours and more again from its rare hues, so a small patch
-## of pink gas is not averaged away; then the void, the hole's colours and the
-## extra stars' sets. The cuts are the sector map's (`SystemPalette`).
-## The bulge in a zoom level's probe: the probe is that zoom's window round
-## the centre, four pixels to one.
+## Median cut weighted to vivid and rare hues so a small patch of pink gas is not averaged
+## away.
+## Why: docs/why/ChartLegacy.md#palette-of-one-zoom
 func _bulge_box(li: int) -> Rect2i:
 	var p: Dictionary = _job.p
 	var r := clampf(float(p.bul) * LEVELS[li] / LEVELS[0] / 4.0 * 1.2, 4.0, float(PROBE.y) * 0.5)
@@ -1133,9 +1051,8 @@ static func _make_palette(probe: Image, stars: Dictionary, bulge: Rect2i, cloud_
 	var all_img := _strip(src, w, h, extra)
 	var cuts: PackedVector3Array = SystemPaletteS.median_cut(all_img, 20,
 		Rect2i(0, 0, all_img.get_width(), all_img.get_height()))
-	# and the bulge's own: a large part of the picture in a narrow band of warm
-	# colours, which a cut of the whole gives one or two creams (the sector
-	# map does the same for the light round its star)
+	# The bulge's own cut: a large share of the picture in a narrow warm band would give only
+	# a cream or two.
 	cuts.append_array(SystemPaletteS.median_cut(img, 10, bulge))
 	var vivid := PackedByteArray()
 	var hues := PackedInt32Array()
@@ -1168,10 +1085,8 @@ static func _make_palette(probe: Image, stars: Dictionary, bulge: Rect2i, cloud_
 	var out := PackedColorArray()
 	for v in cuts:
 		out.append(Color(v.x, v.y, v.z))
-	# THE FAINT EDGE OF THE GAS IN STEPS: between the sky and each dark colour
-	# of the gas the cut found, two steps more, so where the gas thins out it
-	# falls off a step at a time instead of cutting from sky to brown in one
-	# (with the dark never dithered, the cut drew "blocky brown islands", Jon)
+	# Two steps between sky and each dark gas colour, so gas thins in steps, not sky-to-brown
+	# (Jon: blocky islands).
 	var sky := Vector3(7, 10, 18) / 255.0
 	var faint := 0
 	for v in cuts:
@@ -1190,10 +1105,8 @@ static func _make_palette(probe: Image, stars: Dictionary, bulge: Rect2i, cloud_
 	for c: Color in STAR_WARM + STAR_COOL:
 		out.append(c)
 		out.append(Color(c.r * 0.72, c.g * 0.72, c.b * 0.72))
-	# THE BULGE'S OWN STEPS. It covers a large part of the picture in a narrow
-	# band of warm colours, and the cut gave it one or two creams; these are
-	# its amber-to-gold climb toward the nucleus, toned as the field tones
-	# them, so the gradient survives the palette.
+	# The bulge's own amber-to-gold steps, toned like the field, so its gradient survives the
+	# palette.
 	var co := Vector3(0.95, 0.45, 0.17) / _lum3(Vector3(0.95, 0.45, 0.17))
 	var ci := Vector3(1.0, 0.82, 0.55) / _lum3(Vector3(1.0, 0.82, 0.55))
 	for wi: float in [0.15, 0.55, 0.9]:
@@ -1208,24 +1121,14 @@ static func _make_palette(probe: Image, stars: Dictionary, bulge: Rect2i, cloud_
 	return _merge_near(out, merge)
 
 
-## THE PALETTE'S NEAR TWINS GO (the zoom's flicker): two colours a few steps
-## apart are a flip each time a block's light wavers across the line between
-## them as the zoom moves -- measured on the grand design's slow zoom at the
-## hole, most of the blocks flipping back went between two near-identical
-## browns. A colour within `pal_merge` (the palette lookup's own weighted
-## distance, 0-255) of one already kept is dropped; the cut's order puts its
-## commonest colours first, so they are the ones kept. Only from the zooms in:
-## at the opening view a zoom moves the picture little, and the old look's
-## full palette is kept (`_merge_of`).
+## Near twins merged (`pal_merge`): measured on a slow zoom, flip-backs were mostly between
+## near-identical browns.
+## Why: docs/why/ChartLegacy.md#palette-near-twins
 static var pal_merge := 26.0
 
-## THE GRAIN, OR THE FLICKER (Jon's call): false keeps the guards against the
-## zoom's flicker (`chart_l_field`'s band-limited noise and soft 2-block star
-## grain, the palette's near twins merged and its dither kept to smooth slopes;
-## every slow zoom measured under 0.0035 of the blocks flipping back); true draws
-## the old grain exactly as before -- 1-block hard star specks, every octave, the
-## full palette dithered everywhere -- which flickered (0.0146 on a slow zoom at
-## the core, 0.0172 at the hole). One line.
+## Jon's call: false keeps the flicker guards (under 0.0035 flip-backs); true keeps the old
+## grain, 0.0146 to 0.0172.
+## Why: docs/why/ChartLegacy.md#grain-or-flicker
 const KEEP_OLD_GRAIN := false
 ## What a zoom changes, one cause at a time switched off (tuning; `ChartSky.diag`).
 static var diag := 0
@@ -1352,9 +1255,7 @@ func _runtime() -> void:
 		_m_pal.shader = PAL_SH
 		_pal = _rect(_m_pal)
 		_vp.add_child(_pal)
-		# the last frame's picture, for the palette pass's colour hold: a copy of
-		# the picture, made once a frame, so what the palette reads is always the
-		# frame before
+		# A copy made once a frame, so the palette pass always reads the frame before.
 		_hvp = SubViewport.new()
 		_hvp.transparent_bg = false
 		_hvp.disable_3d = true
@@ -1435,14 +1336,9 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 		m.set_shader_parameter("you_r", 90.0)
 	else:
 		m.set_shader_parameter("you_r", 0.0)
-	# ZOOMING ONLY MAGNIFIES (Oct 11): what changed the field's light with the zoom
-	# -- its stars' light "resolving" away (to a third by zoom 6), the gas thinning
-	# (`res2`), the light dimmed and its contrast pushed deep in (`dz`), the ring of
-	# dimming round the hole (`zoom_dim`), the nucleus's own glow coming up from
-	# zoom 1.3 and the bulge's profile sharpening (`zf`), its exposure easing back
-	# deep in, the nuclear dust thickening -- is held at the opening zoom's values.
-	# Only detail is added as you zoom: the finer octaves (`oct`) and the grain
-	# (`det_k`).
+	# Zooming only magnifies (Oct 11): light and exposure are held at the opening zoom; only
+	# detail is added.
+	# Why: docs/why/ChartLegacy.md#zoom-only-magnifies
 	var zfd := minf(zf, 1.0 / LEVELS[0]) if diag & 4 else zf
 	var extra := maxf(0.0, log(zfd) / log(2.0))
 	m.set_shader_parameter("oct", minf(extra, 4.0))
@@ -1497,25 +1393,16 @@ func _push() -> void:
 	var t := StarchartScreen.MapChart.clock()
 	var phi: float = chart.turn()
 	var cpix: Vector2 = chart.centre_px()
-	# THE ZOOM'S HOLD, as SIMPLIFIED's (`ChartSky._push`): the blocks are
-	# anchored to the galaxy's centre on a whole pixel, and during a zoom off the
-	# centre that whole pixel re-rounds every frame, jittering the picture by up
-	# to half a block. So while the zoom changes, and for about a second after,
-	# the picture is worked out about the exact centre on a grid held still on
-	# the screen, its dither held with it; then it settles onto the snapped grid
-	# over two frames.
+	# During a zoom the blocks work about the exact centre on a screen-held grid, since whole-
+	# pixel rounding jittered.
+	# Why: docs/why/ChartLegacy.md#zoom-hold
 	var exact: Vector2 = chart.size * 0.5 + chart.pan
 	var zooming := _last_zoom > 0.0 and absf(log(chart.zoom / _last_zoom)) > 1e-7
 	_last_zoom = chart.zoom
 	var was_held := _since_zoom < 61
-	# THE HOLD LETS GO ON A PAN, NOT ON A CLOCK (SIMPLIFIED's rule, `ChartSky._push`;
-	# Oct 10 polish): let go a second after a zoom stopped, the block grid went
-	# over from the screen's anchor to the galaxy centre's, and where the two
-	# differed by a pixel the whole picture jumped a pixel with nothing moving --
-	# a pop a second after every zoom. Held until the view is dragged, the jump
-	# lands inside a move -- on its first frame (held while dragged, the grid stays
-	# on the screen and the galaxy slides under it, every block worked out afresh:
-	# the first second of every pan after a zoom shimmered).
+	# The hold lets go on a pan, not a clock: timed release popped a pixel a second after
+	# every zoom (Oct 10).
+	# Why: docs/why/ChartLegacy.md#zoom-hold
 	var panned := chart.pan != _last_pan
 	_last_pan = chart.pan
 	if zooming:
@@ -1529,11 +1416,7 @@ func _push() -> void:
 	if zw > 0.0 and not was_held:
 		_hold_c = cpix
 	var anchor := _hold_c if zw > 0.0 else cpix
-	# THE GALAXY ON AN EVEN PIXEL, as PAINTED's (`ChartSky._push`; Oct 13, Jon: the
-	# background stars "almost bouncing around as you pan"): the far stars are drawn
-	# on the 2x2 grid, and a grid that followed the galaxy's centre pixel by pixel
-	# hopped each of them a pixel back every other pixel of a slow pan (0.32 back-steps
-	# a star a second on `tour=skypan`). The galaxy moves a block at a time instead.
+	# Galaxy on an even pixel (Oct 13, Jon): the 2x2 grid hopped far stars back on a slow pan.
 	if zw <= 0.0:
 		var even := (cpix / 2.0).floor() * 2.0
 		ccon += even - cpix
@@ -1590,22 +1473,17 @@ func _push() -> void:
 	m.set_shader_parameter("filler_k", (0.0 if diag & 2 else 1.0) * float(p.eff) * 0.25 * [1.0, 1.0, 0.5, 0.25, 0.125][clampi(star_level, 1, 4)])
 	m.set_shader_parameter("star_level", star_level)
 	_feed_events(m, g, t, phi, z)
-	# THE SOLID LOOK (`ChartSky.solid`, LEGACY's line in `SOLID_STYLES`): the camera
-	# stepped once a frame by the sky (`solid_frame`), its uniforms on the field, the
-	# stars and the hole. The field takes the include's contract in LEGACY's units
-	# (`chart_l_field`'s solid section): screen px a gu now, the turn, the lanes, and
-	# LEGACY's own two solid fields. The hole is drawn about the core's place on the
-	# screen (`pc`) at the camera's scale there (`kc`).
+	# Solid look: the sky steps the camera once a frame and feeds the uniforms in LEGACY's own
+	# units.
+	# Why: docs/why/ChartLegacy.md#solid-look
 	var sol := false
 	if sky != null and _use_map and g.has("s_struct"):
 		sol = sky.solid_frame(t)
 	var kgu := z * float(p.big_r)
 	if sky != null:
 		sky.push_solid(m, sol)
-	# LEGACY'S GALAXY KEEPS ITS OWN SIZE (Jon, "2B"): its disc carries its light further
-	# out than SIMPLIFIED's, so its edge fades over radii 1.2 times the shared ones
-	# (`EDGE_K`); the far nebulae's gap and the puffs' taper, which read the same
-	# uniform, move out with it
+	# Legacy keeps its own size (Jon, "2B"): its disc is lit further out, so the edge fades at
+	# 1.2x radii.
 	if sol and ChartSky.edge_on():
 		var ed := ChartSky.edge()
 		m.set_shader_parameter("u_edge", Vector4(ed.x * EDGE_K, ed.y * EDGE_K, ed.z, 1.0))
@@ -1651,9 +1529,8 @@ func _push() -> void:
 	ms.set_shader_parameter("star_level", star_level)
 	ms.set_shader_parameter("near_r", hole_r(p, z) * DISC_K * 1.3)
 
-	# SIMPLIFIED's hole, at SIMPLIFIED's size; its clumps, the cooling of the
-	# squeezed ring and the hot spot at SIMPLIFIED's zooms (its zoom is this
-	# chart's in units of 622.25 screen px a galaxy radius)
+	# SIMPLIFIED's hole at its size and zooms, in this chart's units of 622.25 screen px a
+	# radius.
 	var zc := z * float(p.big_r) / ChartSky.K0
 	var mh := _m_hole
 	mh.set_shader_parameter("vp_size", vs)
@@ -1669,11 +1546,8 @@ func _push() -> void:
 	var mp := _m_pal
 	mp.set_shader_parameter("vp_size", vs)
 	mp.set_shader_parameter("block0", b0)
-	# where each block was last frame (the blocks are anchored to the galaxy, so a
-	# pan carries them through the viewport); nothing held across a resize, a jump
-	# of the view or before the first frame
-	# (against the last frame DRAWN: a moving view pushes twice a frame, and the
-	# second push would measure no shift at all -- see `ChartSky._push`)
+	# Compared with the last frame drawn: a moving view pushes twice a frame and the second
+	# measures no shift.
 	var fd := Engine.get_process_frames()
 	if fd != _hold_frame:
 		_hold_frame = fd
@@ -1694,10 +1568,8 @@ func _push() -> void:
 	_hold_bad = _hold_bad or sol != _sol_ref
 	_frame_pan = _frame_pan or panned
 	_frame_zoom = _frame_zoom or zooming
-	# NOTHING HELD WHILE THE VIEW IS ONLY DRAGGED: a drag moves the galaxy rigidly,
-	# so there is no flicker to hold, and the far sky behind slides at its own
-	# depth -- held to the galaxy's shift its dim colours were dragged along with the
-	# galaxy and drew streaks across the halo the length of the drag
+	# Nothing held on a pure drag: held to the galaxy's shift the far sky's dim colours
+	# streaked the halo.
 	var dragging := _frame_pan and not _frame_zoom
 	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
@@ -1724,11 +1596,8 @@ func _push() -> void:
 	mp.set_shader_parameter("kgu_prev", _kgu_ref)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
-	# one palette at every zoom (`_held_level`): the opening's, going over to the
-	# same palette with its near twins merged as the flicker's guards come in (by
-	# zoom 0.7, `aa_k`), a block at a time. (The title screen's galaxy, and tuning
-	# only, `diag` 8: the old palette a level, the two levels either side of this
-	# zoom dissolved between.)
+	# One palette at every zoom, near twins merged in as the flicker guards come in by zoom
+	# 0.7.
 	var lo := int(g.get("held", 0))
 	var hi := HELD_MERGED
 	var fr := _aa_of(z * float(p.big_r) / ChartSky.K0)
@@ -1775,9 +1644,7 @@ func _visible_rect() -> Rect2:
 
 # ------------------------------------------------------------------ the events
 
-## SIMPLIFIED's animations in the old look, to the field: the currents' clock,
-## the weather's gate, the knots and their breathing, a supernova and its echo,
-## the clouds' lightning, the pulsars' beat. All pure functions of the clock.
+## SIMPLIFIED's animations in the old look, all pure functions of the clock.
 func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, z: float) -> void:
 	var p: Dictionary = g.p
 	var big_r: float = p.big_r
@@ -1840,9 +1707,7 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, z: flo
 	m.set_shader_parameter("puls", pv)
 
 
-## A cloud's lightning (SIMPLIFIED's schedule): a flash in most ten-second
-## slots, two or three pulses (80 ms rise, 250 ms decay, 120 ms apart), at a
-## point of one of the cloud's lobes. (envelope, lobe-frame x, y, radius) or none.
+## SIMPLIFIED's lightning schedule: a flash in most ten-second slots, two or three pulses.
 static func _flash(cloud: int, lobe: int, t: float) -> Vector4:
 	var s := cloud * 13
 	var n0 := floori(t / 10.0)
@@ -1895,10 +1760,8 @@ func _draw() -> void:
 	if chart == null:
 		return
 	var t0 := Time.get_ticks_usec()
-	# The galaxy is built and handed over at the first draw, once the layout
-	# has given the chart its real size, and again whenever it changes (a new
-	# run, a resize): building in _process built it at the size the panel had
-	# before its first layout, then again at the real one.
+	# Built at first draw, once layout has the real size: `_process` built it at the pre-
+	# layout size twice.
 	chart._ensure_gpu()
 	if not ready_to_draw() or _palette_for(level_of(_z())) < 0:
 		draw_rect(Rect2(Vector2.ZERO, chart.size), Color8(7, 10, 18), true)

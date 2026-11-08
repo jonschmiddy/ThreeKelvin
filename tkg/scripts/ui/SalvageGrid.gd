@@ -1,133 +1,57 @@
 class_name SalvageGrid
 extends Control
 
-## What is loose out here, laid out as a grid you reach into.
-##
-## The other half of `HoldGrid`, and deliberately a different thing. Your hold
-## is a PACKING PUZZLE -- every item has a cell you chose, it is remembered
-## across jumps, and the whole game of it is deciding what fits. A wreck is not
-## a puzzle. Nobody arranged it. It is a pile, and the only question it asks is
-## which of these you want.
-##
-## It places things itself, first-fit, and then REMEMBERS. The first version
-## re-laid-out on every change, on the reasoning that nobody arranges a wreck and
-## letting you would imply it mattered. That was wrong in practice for a reason
-## that has nothing to do with wrecks: taking one thing out made everything else
-## jump to a new cell and the container change height, so the pile you were
-## halfway through reading rearranged itself under your hand every time you
-## touched it.
-##
-## Positions last as long as the view is open. Close it and come back and the
-## pile is tidied again, which is the one place the original reasoning still
-## holds -- you did not arrange it, so it owes you nothing across a visit.
-##
-## Same 40-pixel cell and same lattice as the hold beside it, because the whole
-## point of showing them together is that a shape means the same thing on both
-## sides -- a 2x2 that will not go in your hold is a 2x2 you can see will not go.
-##
-## `MATERIALS_NOTE` 3.6: every physical grant is a container, not an item. This
-## is that container. A kill fills one, an event hands you one, and what you
-## jettison lands in one.
+## A loose pile, not a packing puzzle: it places first-fit, then remembers so nothing jumps
+## under the hand. Same 40 px cell as the hold, so a shape means the same thing on both sides.
+## Why: docs/why/SalvageGrid.md#salvage-grid
 
 signal picked(item: HoldItem)
-## ONE THING RESOLVING OUT OF THE SWEEP, on the frame it does.
-##
-## The rarity ladder used to sound only when you dragged something into the
-## hold, which is the moment you DECIDE about a thing rather than the moment you
-## find it. Finding is what the sweep is for -- the whole point of an eighteen
-## to one length ratio between a common and an artifact is to tell you what is
-## in a wreck before you have read a word of it.
-##
-## A signal rather than a call into Audio from here: this grid draws a
-## container and has no business knowing which sound a rarity maps to. The view
-## that opened it already does -- see `TransferView._take_sound`.
+## A signal, not a call into Audio: this grid draws a container and knows no rarity sounds.
+## Why: docs/why/SalvageGrid.md#reveal-signal
 signal revealed(item: HoldItem, index: int)
 
-## Called with something of yours dropped in here. The GRID does not know which
-## container it is drawing -- `TransferView` does -- so putting the thing away is
-## the view's business and this is how it asks.
+## Called with something of yours dropped here; the view, not the grid, knows which container it is.
 var on_put: Callable
 
 const CELL := HoldGrid.CELL
 const EDGE := 2.0
 
-## How wide a container reads. A constant rather than an argument, because the
-## frame around it has to reserve the width BEFORE there is anything in it --
-## see `TransferView.BAR`.
+## A constant: the frame must reserve the width before anything is in it (`TransferView.BAR`).
 const COLS := 5
 var _cols: int = COLS
 var _rows: int = 1
 var _items: Array = []
-## Where this grid decided to draw each item, keyed by the item itself so it
-## survives a rebuild. Identity, not index: the list is filtered and reordered
-## between refreshes and an index means nothing across one.
+## Keyed by the item itself, not index: the list is filtered and reordered between refreshes.
 var _at: Dictionary = {}
 ## The tallest the grid has been this visit. It does not shrink, because a
 ## container that gets shorter as you empty it moves everything still in it.
 var _high: int = 0
-## The cells a carried thing would cover if you let go now, or empty.
-##
-## The hold has had this since it became a grid and the container had none, so
-## dragging something out here lit nothing up and read as a dead surface -- which
-## is half of why it looked like the drop was being refused when it was being
-## accepted and not drawn.
+## Without it, dragging out here lit nothing and a drop looked refused when it was only undrawn.
+## Why: docs/why/SalvageGrid.md#drop-beam
 var _beam: Rect2i = Rect2i()
 
-## HOW FAST THE SWEEP CROSSES THE CONTAINER, in cells per second.
-##
-## 1.05 cells a second: a six-row container takes about five and a half seconds,
-## a two-row one just under two.
-##
-## This has been 14, then 4.5, then 2.6, then 1.6, and every one was too quick
-## for the same reason -- the sweep finished before it had cost you anything, so
-## it was decoration laid over a container that was simply there. At this rate
-## opening a wreck TAKES a moment: you read the top row while the bottom is
-## still dark, and you start deciding before you have seen everything.
-## SLOWER AGAIN, at Jon's ask ("much slower"): 0.7 cells a second, so a
-## six-row container takes about eight and a half seconds and a two-row one
-## just under three. The rarity ladder plays under it, one thing at a time, and
-## at this rate each one is heard on its own.
+## Slowed again at Jon's ask: 0.7 cells a second, so each rarity sound is heard on its own.
+## Earlier rates (14 down to 1.6) finished before the sweep cost anything.
+## Why: docs/why/SalvageGrid.md#sweep-speed
 const SCAN_CELLS_PER_SEC := 0.7
 
-## HOW LONG A THING TAKES TO SETTLE, measured in ROWS OF SWEEP rather than in
-## seconds.
-##
-## A row and a half: a crate is at its worst the instant the line finds it and
-## is done by the time the line is halfway through the row below. Tying it to
-## the sweep rather than to a clock is what keeps the two in step -- retune the
-## scan speed and the glitch follows it, instead of becoming a flicker on a slow
-## sweep or an unresolved mess on a fast one.
-##
-## It also means several crates are always mid-resolve at once, at different
-## stages, which is most of why the container looks like an instrument reading
-## rather than a list appearing.
+## Settle time is in rows of sweep, not seconds, so
+## retuning the scan speed keeps the glitch in step.
+## Why: docs/why/SalvageGrid.md#glitch-timing
 const GLITCH_ROWS := 1.5
 
-## How many hard cuts it takes to get there. Fourteen at a row and a half is
-## about a cut every tenth of a second -- fast enough to read as interference,
-## slow enough that you see each one.
+## Fourteen cuts over a row and a half is about one a tenth of a second: interference, each seen.
 const GLITCH_STEPS := 14
 
-## The worst sideways tear, at the very start. Six pixels on a forty-pixel cell
-## reads as the picture failing to hold; twenty would read as the crate being in
-## the wrong place, which is a bug rather than an effect.
+## Six px reads as the picture failing to hold; twenty would read as the crate misplaced, a bug.
 const GLITCH_TEAR := 6.0
 
-## The shape of the interference, cycled through and scaled by how far the thing
-## still has to settle. Not random: a repeating pattern that DECAYS reads as a
-## signal locking on, where noise reads as a fault.
+## A repeating pattern that decays reads as a signal locking on; noise reads as a fault.
 const GLITCH_SHAPE: Array[float] = [1.0, -0.8, 0.55, -1.0, 0.3, -0.45]
 
-## WHICH STEPS DROP OUT, and it is only two of fourteen.
-##
-## The first version swung the alpha the full way either side of where it was
-## heading on EVERY cut, which is a strobe rather than a glitch -- the thing
-## vanished and returned fourteen times and read as a fault in the screen.
-##
-## The brightness holds now and the TEAR carries the effect: the crate is
-## plainly there from the first cut, sliding sideways and settling, and it
-## blinks exactly twice on the way in. Interference is something happening to a
-## picture you can see, not the picture being taken away and given back.
+## Only two of fourteen steps drop out: swinging alpha
+## on every cut was a strobe, so the tear carries it.
+## Why: docs/why/SalvageGrid.md#glitch-dropouts
 const GLITCH_DROPS: Array[int] = [1, 4]
 
 ## How far a dropout knocks the brightness down. Not to nothing: a crate at a
@@ -140,11 +64,7 @@ var _scan: float = -1.0
 var _lit: Dictionary = {}
 
 
-## Sweep the container and let the contents in behind the line.
-##
-## Called once when the view opens, not on every refresh: this is what OPENING
-## something looks like, and replaying it each time a crate moved would make
-## every take feel like a new discovery.
+## Called once on open, not each refresh, or every take would feel like a new discovery.
 func scan() -> void:
 	_scan = 0.0
 	_lit.clear()
@@ -194,47 +114,30 @@ func _apply_scan() -> void:
 			continue
 		_lit[m] = true
 		revealed.emit(m, _lit.size())
-		# SEEDED BY HOW MANY HAVE ALREADY ARRIVED, so no two in one sweep
-		# resolve the same way and the same pile resolves the same way twice.
-		# Random would do neither: a container that glitched differently every
-		# time you opened it would read as unstable rather than as several
-		# objects.
+		# Seeded by how many have arrived: no two resolve
+		# alike and the same pile resolves the same twice.
 		_materialise(ic, _lit.size())
 
 
-## One thing resolving out of the sweep.
-##
-## Stepped, not interpolated. `tween_callback` sets a state and `tween_interval`
-## holds it, so every change is a hard cut -- which is the whole difference
-## between a thing switching on and a thing being picked up by an instrument
-## that is not quite sure yet.
-##
-## It runs in the SWEEP'S colour and only lands on white at the end, so for the
-## first tenth of a second the crate is the same light as the line that found
-## it. Revealed by the sweep, rather than switched on underneath it.
+## Stepped hard cuts in the sweep's colour, landing on white at the end, so the sweep reveals it.
+## Why: docs/why/SalvageGrid.md#materialise
 func _materialise(ic: ItemIcon, seed_at: int) -> void:
 	var glow := UITheme.TRACTOR
 	var home := ic.position
-	# Each thing settles at its own pace, within a fifth either side. The sweep
-	# stays the clock -- everything is still done by the time the line is a row
-	# and a half past it -- but they stop arriving in lockstep.
+	# Each settles at its own pace, within a fifth either side, so they do not arrive in lockstep.
 	var spread := 1.0 + (float(seed_at % 5) - 2.0) * 0.09
 	var hold := (GLITCH_ROWS / SCAN_CELLS_PER_SEC) * spread / float(GLITCH_STEPS)
 	ic.modulate = Color(glow.r, glow.g, glow.b, 0.0)
 	var t := ic.create_tween()
 	for i in GLITCH_STEPS:
-		# `wild` runs 1 to 0 across the sequence and everything scales by it, so
-		# the first cut is the loudest and each one after is quieter. Intensity
-		# is a decay, not a constant -- that is the difference between finding
-		# something and something being broken.
+		# `wild` decays 1 to 0, so the first cut is loudest: intensity is a decay, not a constant.
 		var wild := 1.0 - float(i) / float(GLITCH_STEPS)
 		var settled := 1.0 - wild
 		# The pattern is walked from a different place per item, so one crate
 		# tears left first and the next tears right.
 		var swing: float = GLITCH_SHAPE[(i + seed_at) % GLITCH_SHAPE.size()]
-		# VISIBLE FROM THE FIRST CUT and rising, rather than swinging. See
-		# `GLITCH_DROPS`: the two dropouts are the only time it dims, and even
-		# then not to nothing.
+		# Visible from the first cut and rising; only the
+		# two `GLITCH_DROPS` dim it, and not to nothing.
 		var a := 0.6 + settled * 0.4
 		# And it blinks on different cuts. Still twice -- see `GLITCH_DROPS` --
 		# but not the same twice as its neighbour.
@@ -253,23 +156,16 @@ func _materialise(ic: ItemIcon, seed_at: int) -> void:
 	t.tween_callback(func() -> void:
 		ic.modulate = Color.WHITE
 		ic.position = home)
-## Which entries are spoken for. A bag row someone already claimed still takes
-## up space in the picture, because a hole where a part was is information and
-## a silently reflowed grid is not.
+## A claimed bag row still takes space: a hole is information, a silently reflowed grid is not.
 var _spent: Dictionary = {}
 
 
 func _init() -> void:
-	# STOP, not PASS. This control is a drop target across its whole area, and
-	# PASS hands the event on to whatever is behind it -- which in a scroll
-	# container is the scroll. The icons inside stay PASS so they can still be
-	# picked up while the grid underneath keeps catching drops.
+	# STOP, not PASS: PASS would hand drops on to the scroll container behind. Icons stay PASS.
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
-## `spent` holds the indices already claimed -- they draw greyed and cannot be
-## picked up. `cols` is how wide the container reads; the rows follow from what
-## has to fit.
+## `spent` holds claimed indices (greyed, not pickable); `cols` is the width and rows follow.
 func setup(items: Array, spent: Dictionary, cols: int = COLS) -> void:
 	_items = items
 	_spent = spent
@@ -278,14 +174,9 @@ func setup(items: Array, spent: Dictionary, cols: int = COLS) -> void:
 	_rebuild()
 
 
-## First fit, largest first, which is the same rule `RunState.reseat` uses and
-## for the same reason: first-fit on a fresh grid strands big things behind
-## small ones, and a 4x1 that cannot find a row is a 4x1 you cannot see.
+## First fit, largest first, as `RunState.reseat` does: plain first-fit strands big things.
 func _layout() -> void:
-	# WHAT IS ALREADY PLACED KEEPS ITS CELL. Only things this grid has not seen
-	# before get a slot found for them, and they get it around what is already
-	# there -- so arriving loot lands in the gaps rather than reshuffling the
-	# pile you were reading.
+	# Placed items keep their cell; new loot lands in the gaps instead of reshuffling the pile.
 	var taken := _occupied()
 	var fresh: Array[HoldItem] = []
 	for m0 in _items:
@@ -312,30 +203,18 @@ func _layout() -> void:
 	for m3 in _items:
 		var mm: HoldItem = m3
 		_rows = maxi(_rows, (_at[mm] as Vector2i).y + mm.footprint().y)
-	# ONE SPARE ROW, ALWAYS.
-	#
-	# The grid was exactly as big as its contents, which is tidy and made the
-	# other half of the design unreachable: dropping one of YOUR things in here
-	# is jettison, and with every cell occupied there was nowhere to aim it. The
-	# drop logic worked the whole time and could not be asked.
-	#
-	# An empty row also says the thing that needs saying without a label -- that
-	# this is somewhere you can put something, not just somewhere you take from.
+	# One spare row always: with every cell full there was nowhere to aim a jettison drop.
+	# Why: docs/why/SalvageGrid.md#spare-row
 	_rows += 1
-	# NEVER SHORTER THAN IT HAS BEEN. Emptying a container used to shrink it,
-	# which moved every remaining item up the screen -- the grid was correct and
-	# the experience was of the pile squirming away from the cursor.
+	# Never shorter than it has been, or emptying a container moved every item up under the cursor.
 	_high = maxi(_high, _rows)
 	_rows = _high
-	# The MINIMUM is the picture. The control is allowed to be larger -- see
-	# `_draw` -- and in `TransferView` it is, because the whole column is the
-	# place you put things down.
+	# The minimum is the picture; the control may be
+	# larger (`_draw`), as the column is the drop place.
 	custom_minimum_size = Vector2(_cols * CELL, _rows * CELL)
 
 
-## How many rows the things in it take, without the spare row. What a popup
-## sizes its view of this grid by (`TransferView.refresh`): a count of items
-## cannot say it, since two 2x2 parts fill two rows of five columns.
+## Rows the things take, without the spare row: an item count cannot say it (two 2x2 fill two rows).
 func content_rows() -> int:
 	var r := 0
 	for m in _items:
@@ -343,9 +222,7 @@ func content_rows() -> int:
 	return r
 
 
-## Scans down as far as it needs to. The container has no floor -- unlike a hold,
-## which is a fixed box, a pile is however big the pile is, and refusing to show
-## the last item because a number ran out would be inventing a rule.
+## Scans as far down as needed: a pile has no floor, and refusing the last item would invent a rule.
 func _first_fit(taken: Dictionary, f: Vector2i) -> Vector2i:
 	var y := 0
 	while y < 256:
@@ -370,9 +247,7 @@ func _rebuild() -> void:
 	for i in _items.size():
 		var m: HoldItem = _items[i]
 		var icon := ItemIcon.make(m, &"bag")
-		# `bag`, not `cargo`, and this is the whole wiring. The drop site reads
-		# it to know that taking this costs a CLAIM -- one bag, first hand in --
-		# rather than being a free rearrangement of something you already own.
+		# `bag`, not `cargo`: the drop site reads it to know taking this costs a CLAIM.
 		icon.mouse_filter = Control.MOUSE_FILTER_PASS
 		add_child(icon)
 		icon.custom_minimum_size = Vector2.ZERO
@@ -393,17 +268,9 @@ func _rebuild() -> void:
 	queue_redraw()
 
 
-## The lattice is drawn at its OWN extent, not at the control's.
-##
-## The control is now bigger than the grid on purpose -- it fills the whole
-## right-hand column so that dropping one of your things anywhere on that side
-## is jettison. Before, its rect was exactly the packed cells, and Godot only
-## offers a drop to the control under the pointer: with every cell occupied
-## there was no part of it left to aim at, so `_can_drop_data` was never asked.
-## The logic had been right the whole time and unreachable.
-##
-## So the picture and the target part company here. Everything below draws at
-## `_cols` by `_rows`; the control extends past it and is all target.
+## The lattice draws at its own extent; the control
+## is bigger so a full grid still has a drop target.
+## Why: docs/why/SalvageGrid.md#lattice-extent
 func _draw() -> void:
 	var w := float(_cols * CELL)
 	var h := float(_rows * CELL)
@@ -419,9 +286,8 @@ func _draw() -> void:
 			UITheme.LINE, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, Vector2(w, h)), UITheme.LINE, false, EDGE)
 	if _scan >= 0.0:
-		# THE UNSWEPT PART IS DARK, and the line itself is the brightest thing
-		# on the panel for the moment it is there. Two rectangles and a rule --
-		# the same flat vocabulary as everything else, and no shader.
+		# The unswept part is dark and the line is the
+		# brightest thing: two rectangles and a rule, no shader.
 		var dark := Rect2(0.0, _scan, w, h - _scan)
 		if dark.size.y > 0.0:
 			draw_rect(dark, Color(0.04, 0.055, 0.08, 0.92), true)
@@ -432,9 +298,8 @@ func _draw() -> void:
 			Color(glow.r, glow.g, glow.b, 0.85), true)
 	if _beam.size.x <= 0:
 		return
-	# The same ink the hold uses for the same question, because the hold and the
-	# container are answering one thing -- where does this go -- and two idioms
-	# for it would read as two different answers.
+	# The hold's own ink for the same question, where
+	# does this go; two idioms would read as two answers.
 	var c := UITheme.TRACTOR
 	var r := Rect2(Vector2(_beam.position) * float(CELL),
 		Vector2(_beam.size) * float(CELL))
@@ -448,23 +313,9 @@ func index_of(m: HoldItem) -> int:
 	return _items.find(m)
 
 
-## Dropping one of YOUR things in here is jettison.
-##
-## The same motion as taking, mirrored, because it is the same idea seen from the
-## other end: this is the floor of the system you are standing in, and putting
-## something down on it is exactly what `Run.jettison` does. `MATERIALS_NOTE`
-## 3.5 makes it apply to everything, so a gun and a crate leave the same way.
-##
-## Only things you OWN. An item already loose out here has nowhere further to
-## fall, and letting it be dragged around inside the pile would suggest the
-## arrangement meant something -- see the note at the top.
-## Two kinds of drop land here, and they are different things.
-##
-## One of YOURS is jettison -- putting it down in the system you are standing in.
-## One already out here is a REARRANGEMENT, which the first version refused on
-## the grounds that nobody arranges a wreck. That reads as broken rather than as
-## principled: the cells are right there, the thing moves under your hand
-## everywhere else in the game, and refusing costs a rule nobody asked for.
+## Your things dropped here are jettison; ones already
+## here are rearranged, as refusing read as broken.
+## Why: docs/why/SalvageGrid.md#drops
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	_show_beam(Rect2i())
 	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
@@ -480,11 +331,7 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 		return true
 	if not Run.cargo.has(m):
 		return false
-	# One of yours, landing on the cells you are pointing at. The first version
-	# framed the WHOLE container, on the grounds that the drop put it wherever
-	# there was room -- which was true and was the wrong way round. A drop is a
-	# decision about WHERE, and a highlight that cannot say where is a highlight
-	# that says nothing.
+	# Frame the cells you point at, not the whole container: a drop decides WHERE.
 	_show_beam(Rect2i(_target_for(at, m), m.footprint()))
 	return true
 
@@ -506,12 +353,9 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	if m == null:
 		return
 	if String((data as Dictionary).get("origin", &"")) == "bag":
-		# RE-CHECKED AT THE LANDING, not only on the hover. A partner mutating
-		# the same pile fires a refresh mid-drag, so the hover's yes can be
-		# stale by the time you let go -- and `_layout` keeps any cell it is
-		# handed, so a stale yes drew two items on one cell until the
-		# container was reopened. A cell that stopped fitting goes through the
-		# same nudge-and-anywhere search a throw-in uses.
+		# Re-checked at landing: a partner's refresh mid-drag
+		# staled the hover and drew two items on one cell.
+		# Why: docs/why/SalvageGrid.md#drop-recheck
 		var cell := _cell_of(at, m)
 		if not _fits(m, cell):
 			cell = _target_for(at, m)
@@ -519,20 +363,16 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 		_layout()
 		_rebuild()
 		return
-	# THE CELL IS CHOSEN BEFORE THE THROW, and recorded after it. `_layout`
-	# keeps any cell this grid already knows and only finds slots for items it
-	# has not seen -- so writing it here is what makes the thing land where the
-	# beam said it would, instead of first-fitting into the top-left corner a
-	# frame later.
+	# The cell is chosen before the throw and recorded
+	# after, so the thing lands where the beam said.
 	var cell := _target_for(at, m)
 	if on_put.is_valid() and on_put.call(m):
 		_at[m] = cell
 		picked.emit(m)
 
 
-## Where a carried thing would land, measured from the ITEM rather than the
-## pointer -- the same correction `HoldGrid.target_for` makes, and for the same
-## reason: the plate is centred on the cursor.
+## Measured from the item, not the pointer, as
+## `HoldGrid.target_for` does: the plate is centred on the cursor.
 func _cell_of(at: Vector2, m: HoldItem) -> Vector2i:
 	var f := m.footprint()
 	var top_left := at - Vector2(f.x, f.y) * float(CELL) * 0.5
@@ -541,12 +381,9 @@ func _cell_of(at: Vector2, m: HoldItem) -> Vector2i:
 		maxi(0, int(round(top_left.y / float(CELL)))))
 
 
-## The cell a carried thing would actually land on.
-##
-## Where you aimed if that is clear; otherwise the nearest cell that is, scanned
-## outward. The hold does the same thing through `target_for` and its `NUDGE` --
-## a drop a cell off is a drop that meant the cell next to it, and refusing it
-## outright makes packing a test of aim rather than of arithmetic.
+## Nearest clear cell if the aimed one is taken, like
+## the hold's `NUDGE`: packing tests arithmetic, not aim.
+## Why: docs/why/SalvageGrid.md#nudged-landing
 func _target_for(at: Vector2, m: HoldItem) -> Vector2i:
 	var want := _cell_of(at, m)
 	var f := m.footprint()
@@ -568,15 +405,12 @@ func _target_for(at: Vector2, m: HoldItem) -> Vector2i:
 				best = t
 	if best != -Vector2i.ONE:
 		return best
-	# Nowhere near it will do, so anywhere will: a container has no floor and
-	# refusing to accept something you are putting down would be inventing a
-	# rule the fiction does not have.
+	# Nowhere near will do, so anywhere will: a container
+	# has no floor and refusing would invent a rule.
 	return _first_fit(taken, f)
 
 
-## Every cell covered by anything placed here, except `exclude`. The one
-## occupancy computation -- layout, fit checks and the drop search all read the
-## pile through this.
+## Every cell covered by anything placed here, except `exclude`: the one occupancy computation.
 func _occupied(exclude: HoldItem = null) -> Dictionary:
 	var taken: Dictionary = {}
 	for other in _items:

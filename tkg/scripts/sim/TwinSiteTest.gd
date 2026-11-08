@@ -1,112 +1,8 @@
 extends Node
 
-## STAR B IS A PLACE, AS THE ONE STAR IS (ruling 20, Oct 30: "Prototype: twin:A
-## giant:A"), on the real map, headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=TwinSiteTest
-##
-## A system with two suns (the run's ordinary system with the longest name, made
-## a twin the way a harness may, `n.twin = true`), from a world round star A:
-##   - star B is hit where its sun is drawn, at the size it is drawn (the
-##     SunView the map puts there, `SystemView.star2`), and star A where it is;
-##     a click on a sun is on it even with its world just behind it; the tip
-##     names each "<system> A" / "<system> B" with its kind;
-##   - each star's close orbit, drawn bigger than life to read, stays short of
-##     its own world's disc, and a ship's orbit round that world off its sun;
-##   - one click on star B selects it: the panel's sector page shows both suns,
-##     each with its own facts and FLY HERE, and the system reads BINARY; every
-##     word and button on it inside the panel and none on another (fit means
-##     nothing overlaps), here and on the giant's page with its MASS line;
-##   - a right-click zooms onto star B and holds it in the middle;
-##   - star B's FLY HERE flies there: the status line says where it is going,
-##     then CLOSE ORBIT · <system> B, and the ship rides round star B at the
-##     layout's close orbit for it; its FLY HERE reads IN A CLOSE ORBIT;
-##   - the map leaves the ship at star B (`Run.site_here` -4), LOCAL finds no
-##     event there (star B holds none), and the map puts it back round star B;
-##   - a partner in star B's close orbit is drawn where it said it was (a spot
-##     at -4 is absolute, as at -1), and hidden behind star B's disc there;
-##   - a ship let go round star B, or round both suns, is drawn on a wide orbit
-##     round that and the words say ORBITING <system> B / BOTH STARS;
-##   - a ship settled round star B, round both suns or round star A, the map
-##     left for LOCAL and shown again (and the same through the save's rows),
-##     comes back on that orbit: the same centre, on its radius within 1 px a
-##     second on, a flight from there leaving from the ship; one sun the same;
-##   - the map left on a flight's coast puts the ship where it was going, in
-##     orbit there, as LOCAL is told and the flight counted (twin and one sun);
-##     the map_fly hint keeps quiet on the way;
-##   - the map drawn again round a flight (another rendering style or GRAPHICS
-##     LOW, `_on_style`): a GO on its coast is in orbit there with its errand
-##     run once and the map open; a GO still being planned flies on and its
-##     errand runs on arrival; a FLY HERE on its coast opens the place; a
-##     flight let go of with W is not flown again (twin and one sun);
-##   - the curl the map draws for a capture into star B's close orbit is the
-##     one `start_rail` flies;
-##   - in either star's close orbit the words by the ship, and a selected sun's
-##     name, are never written across the other sun;
-##   - a partner off a world is drawn on that orbit's drawn ring, as your own
-##     ship is;
-##   - holding alongside to leave, the status line and the words by the ship
-##     say LEAVING, not ALONGSIDE and YOU;
-##   - a ship left at star B in a system with one sun comes back at the star,
-##     LOCAL's sky with it;
-##   - it quits with a flight plan still being made on a worker, and the quit
-##     waits for it (`ShipFlight.drain`: it crashed, signal 11);
-##   - the zoom the map opens at is the layout's own formula
-##     (`SystemLayout.open_zoom`) on its frame, and on the real frame every
-##     twin opens at or nearer than the zoom its rings were fitted to;
-##   - every giant's MASS line is 1/n of its star (n the whole number nearest
-##     1 / gm_frac), "OF ITS STARS" round two suns, in the FAUNA row's place so
-##     the page keeps its rows;
-##   - the HUD's SECTOR tab says "binary system".
-## Jon's picks from the twin looks sheet (Nov 1), and "Let's call it Binary
-## instead of two suns":
-##   - no string a player reads says two suns or both suns (a world round the
-##     pair is AROUND BOTH STARS, a ship settled round it ORBITING BOTH STARS);
-##   - every system lists its SATELLITES in name order, the sector page too, one
-##     sun's in the order they always were ("list:C"); and every binary's event
-##     cards, above that list, in the same order;
-##   - star B reads a K5's own MASS and RADIUS, 0.7 SOL, in every binary, its
-##     pull as built ("starb:B");
-##   - on the ring of a world round one sun the ship is drawn over that world all
-##     the way round in a 1 px light outline, never on a ring round both suns or
-##     one sun's ("ring:A");
-##   - over the binaries of three seeds at the opening zoom, with the ship in
-##     every star's close orbit and on every world's ring, with each other place
-##     selected, and let go coasting into each world's ring, no word on the map
-##     is written across a sun (IN ORBIT · OMEGA CALLOUS I ran across both on
-##     seed 7; WILL ORBIT <world> across one in about half the coasts, a
-##     selected world's name across its sun), and nearly none held back for it;
-##     the ship's own words never over an event's beacon where a spot clears
-##     both (stepped off the suns, IN ORBIT · OMEGA CALLOUS I covered one), and
-##     where stepped, off the reticle's ticks round their place and over no
-##     selected name or forecast they would hide where a spot clears it;
-##   - riding OMEGA CALLOUS I's ring for two orbits, its world selected, the
-##     ship's words hold still (stepped, they hopped between under the ring and
-##     under the ship about twice an orbit).
-## Jon's "Binary kinds: close:B share:A" (Nov 1), `_close_pairs`, over the
-## binaries of seeds 7, 4242 and 1999 as rolled: about one in three a close pair,
-## its suns 150 to 170 px apart, every body round both past the steady limit,
-## nothing meeting (bodies, rings, the suns' keep-outs, close orbits and capture
-## rings), most with a planet in the middle band, the giant round both suns in
-## either kind, a ship jumping in arrived out past every world's ring (53 of 56
-## not, 43 inside the first world, on d9f1afca); and the ring sweep above
-## sweeps close pairs too.
-## Jon's "gap:A" (Nov 1): one sun and every close pair open as they always did
-## (`_opens_as_before`); a wide pair opens framed on its two suns and their own
-## worlds, the wheel goes out to the whole system and a right-click comes home
-## to that framing (`_wheel_and_home`); in each wide pair the ring sweep opens,
-## each world round one sun drawn clear of its sun and every beacon off the
-## picture marked at the frame's edge on nothing drawn (`_pair_marks`); a ship
-## put back on a world round both suns is taken into the framing
-## (`_put_back_framed`); a partner off the picture has its arrow too
-## (`_partner_marked`). Each arrow's look (Jon, Nov 5, `_arrow_shapes`): its
-## key glyph as tall as the arrow, and the arrow hollow.
-## Prints how many twin systems and cases each part saw.
-##
-## IT JUDGES THE WHOLE BUILD. Where a part is another build's (the flight's ride
-## round star B and its settle, the drawing's star B), it is checked all the
-## same and fails on a tree without that build, saying whose it is: on
-## feat/twin-sites alone, the ride round star B, the settle and star B's drawn
-## sun fail, and nothing else.
+## Judges the whole build: parts from another build fail on a tree without it, saying whose.
+## Checks star B is a place as the one star is, on the real map, headless.
+## Why: docs/why/TwinSiteTest.md#twin-site-test
 
 const PanelS := preload("res://scripts/ui/sysmap/SystemPanel.gd")
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
@@ -117,9 +13,8 @@ const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
 ## each seed rolls them; `ringseeds=a,b` for others, `ringcap=N` binaries a seed
 const RING_SEEDS := [7, 4242, 1999]
 const RING_CAP := 10
-## and always these (seed: nodes): the binary the words ran across both suns in,
-## and those a selected world's name sat across its sun in (SIGMA CINDER-2 II,
-## LAMBDA FALLOW II, ETA CALLOUS II; the picks review, Nov 1)
+## Always-checked nodes where words once ran across a sun (picks review, Nov 1).
+## Why: docs/why/TwinSiteTest.md#required-ring-sweep-nodes
 const RING_MUST := {7: [284, 46, 83], 4242: [116]}
 
 var h := Harness.new()
@@ -195,11 +90,8 @@ func _run() -> void:
 	if not h._ok("the map comes up in %s" % MapGen.star_name(n), m != null and m.view.node == n):
 		_end()
 		return
-	# (at a clock where no world's beacon is drawn over star A's middle: a beacon
-	# is drawn on top and takes the click, and the clicks below are on the suns.
-	# EPSILON GALLOWS SECUNDUS on seed 4242, this pick since stations were halved
-	# on Nov 3, opened with its world just in front of star A and that world's
-	# beacon over the sun, so the map opens again half the world's turn on)
+	# Beacons draw on top and take the click, so the map opens at a clock with none over star A.
+	# Why: docs/why/TwinSiteTest.md#click-clock
 	var over: Dictionary = m.overlay.hit(m.overlay.star_scr(-1))
 	if over.get("kind", &"") == &"beacon":
 		h._ok("star A's middle is under a world's beacon at %.2f s (#%d), so the map opens again half that world's turn on" % [
@@ -254,9 +146,7 @@ func _end() -> void:
 	get_tree().quit(h.code())
 
 
-## The ordinary system that may have two suns whose "<name> B" is widest, of
-## those whose binary is a wide pair: the parts after it start from its world
-## round star A (a close pair has none, `_close_pairs`).
+## The twin with the widest B name among wide pairs: later parts start from its star A world.
 func _longest_twin() -> MapGen.MapNode:
 	var font := UITheme.pixel_font()
 	var best: MapGen.MapNode = null
@@ -275,10 +165,7 @@ func _longest_twin() -> MapGen.MapNode:
 
 
 # ---------------------------------------------------------------- the pair framed
-## ONE SUN AND A CLOSE PAIR OPEN AS THEY ALWAYS DID (Jon, Nov 1, "gap:A" is a
-## wide pair's alone), over every system of CLOSE_SEEDS as rolled, laid out, on
-## the layout's frame: `SystemMapScreen.open_view` is star A and exactly
-## `zoom_for`, the whole system; a wide pair's is nearer, on its own part.
+# One sun and close pairs open as they always did (Jon, Nov 1, gap:A): only wide pairs change.
 func _opens_as_before() -> void:
 	var same := 0
 	var wide := 0
@@ -309,15 +196,8 @@ func _opens_as_before() -> void:
 		LAP_CLOCKS, same, wide, bad.size(), "" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty() and same > 0 and wide > 0 and lapped == wide)
 
 
-## A WIDE PAIR OPENED AT ANY KEPT CLOCK (ruling 23: the map keeps each
-## system's clock, `Run.map_clock`, and the pair turns on it): at LAP_CLOCKS
-## clocks round its lap, `open_view` frames it the same as at t 0 (on the
-## balance point, no nearer than the circle it sweeps allows,
-## `SystemMapScreen.pair_reach`), and the
-## pair as it stands at each (both suns' discs and every world round one sun,
-## its whole circle and reach) is inside the picture that frames, on the
-## layout's frame. 1 where it holds, else 0 and why in `bad`. Held still
-## (`-- pair=0`) every clock is the laid-out pair, as before.
+## The map keeps each system's clock and the pair turns on it, so framing is checked at 8 angles.
+## Why: docs/why/TwinSiteTest.md#pair-framing-at-any-clock
 const LAP_CLOCKS := 8
 
 
@@ -349,11 +229,7 @@ func _framed_round_lap(L: SystemLayout, c: MapGen.MapNode, ov0: Dictionary, sd: 
 	return 1
 
 
-## THE WHEEL OUT TO THE WHOLE SYSTEM AND HOME AGAIN, on this wide pair's map: it
-## opened at `open_zoom`, nearer than the whole system and on its own part;
-## zoomed in past that, no arrow at the edge; the wheel goes out to the whole
-## system and stops there, every beacon then on the picture and none marked;
-## a right-click on empty space glides back to the opening framing.
+## The wheel goes out to the whole system and stops; a right-click glides back home.
 func _wheel_and_home(m: SystemMapScreen) -> void:
 	var v = m.view
 	var ov = m.overlay
@@ -392,11 +268,8 @@ func _wheel_and_home(m: SystemMapScreen) -> void:
 	_saw("wide pairs wheeled out and home")
 
 
-## A SHIP PUT BACK ON SOMETHING THAT CIRCLES BOTH SUNS, the map shown again: the
-## opening framing takes it in (`SystemMapScreen.show_system`), so it is on the
-## picture, its place too, and the framing is still no further out than the
-## whole system. Framed on the pair alone the ship was off it, and the move
-## down from LOCAL ended on nothing.
+## Framed on the pair alone, a ship put back round both suns was off the picture.
+## Why: docs/why/TwinSiteTest.md#put-back-framed
 func _put_back_framed() -> void:
 	Router.show_local()
 	await _idle()
@@ -441,20 +314,8 @@ func _put_back_framed() -> void:
 
 
 # ---------------------------------------------------------------- the close pair
-## THE CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B share:A"), over the
-## binaries of CLOSE_SEEDS as each rolls them, laid out, no map:
-##   - about one binary in three is a close pair, the rest wide, on every seed;
-##   - its suns 150 to 170 px apart, every body round both, at the balance point
-##     and past 1.03 of the nearest steady orbit round the pair;
-##   - nothing meets: no two bodies, no world's ring and a sun's close ring
-##     (RING_GAP, one sun's rule), no sun's keep-out, close orbit or capture ring
-##     and the other's;
-##   - most have a planet in the middle band, where a city, a green world or an
-##     ocean can be (a wide pair's are near or far);
-##   - in both kinds the giant circles both suns.
-## How often a body sits inside another world's ring is printed against one
-## sun's, not judged (the sheet's cost: about twice as often). The words on the
-## map are `_ring_sweep`'s, which counts the close pairs it saw.
+# Jon's close:B share:A: about a third of binaries are close pairs, nothing meeting.
+# Why: docs/why/TwinSiteTest.md#close-pair
 const CLOSE_SEEDS := [7, 4242, 1999]
 
 
@@ -536,11 +397,8 @@ func _close_pairs() -> void:
 			mid += int(has_mid)
 			hot_first += int((g[0] as SystemLayout.Body).zone == 0)
 			_held_in_rings(L, held)
-			# THE SHIP ARRIVES OUT PAST EVERY WORLD, at the frame's edge as round
-			# one sun (`SystemMapScreen.show_system`'s point, on the layout's
-			# frame): packed close, the rings left no clear circle there, and it
-			# was put inside the first world beside the suns (43 of 56 on
-			# d9f1afca, the built stills)
+			# A jump-in arrives past every world: packed, 43 of 56 landed inside the first.
+			# Why: docs/why/TwinSiteTest.md#close-pair
 			var z := SystemMapScreen.zoom_for(L, c, SystemLayout.FIT_FRAME)
 			var fl := FlightS.new()
 			fl.setup(L, Vector2(minf(L.edge, (SystemLayout.FIT_FRAME.x * 0.5 - 26.0) / z), -210.0), 40.0)
@@ -602,11 +460,8 @@ static func _held_in_rings(L: SystemLayout, t: Array) -> void:
 
 
 # ---------------------------------------------------------------- the zoom
-## THE OPENING ZOOM IS THE LAYOUT'S FORMULA. `SystemMapScreen.fit_zoom_in` on
-## the layout's frame is `SystemLayout.open_zoom`, for every system of the run
-## (twins forced on where they may be); and on the frame the map really has,
-## measured off a real map, no twin opens further out than its rings were
-## fitted to (`fit_zoom`), with no job or Hellbender out to widen it.
+# The opening zoom is the layout's formula, and no twin opens further out than its rings fit.
+# Why: docs/why/TwinSiteTest.md#opening-zoom
 func _fit_zooms() -> void:
 	var same := 0
 	var all := 0
@@ -627,11 +482,7 @@ func _fit_zooms() -> void:
 		same == all and twins > 0)
 
 
-## ON THE FRAME THE MAP HAS: every system that may have two suns, laid out with
-## them, against the zoom its rings were fitted to, wherever nothing is posted
-## past its edge (a job, the Hellbender: `fit_zoom`'s own rule). Also measured:
-## how many open below it on the layout's own frame with nothing posted (the
-## edge past what the fit allowed for, the layout's to look at).
+## Real frame: each twin against the zoom its rings were fitted to, nothing past the edge.
 func _real_frame(m: SystemMapScreen) -> void:
 	var fs: Vector2 = m._frame.size
 	var low := INF
@@ -716,11 +567,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var nm_a := MapGen.star_name(n) + " A"
 	var nm_b := MapGen.star_name(n) + " B"
 	_real_frame(m)
-	# THE SUNS AS DRAWN: where the map puts each sun's picture (`SystemView.star`,
-	# and star B's `SystemView.star2`, the drawing's) and the disc it tells it to
-	# draw (its radius R times its disc's zoom). The overlay's hit, tip and
-	# occlusion read `star_scr` / `star_disc`, so these hold them to the drawing,
-	# not to the overlay's own working of where star B should be.
+	# Holds the overlay to what the map draws, not to its own idea of where star B should be.
 	var sb: Vector2 = ov.star_scr(B)
 	_drawn_suns(m)
 	var want_b: Vector2 = m.view.block_round(m.view.screen(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y))
@@ -785,9 +632,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var look: Vector2 = m._look_at()
 	var mid := Vector2(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y * m.view.TILT)
 	h._ok("a right-click on star B zooms onto it and holds it in the middle (%s, want %s)" % [look, mid], held and look.distance_to(mid) < 1.0)
-	# AND HOLDS IT THERE AS IT MOVES (ruling 23: the pair turns): every frame for
-	# two seconds of the clock, the middle of the view where star B is then,
-	# however far it has gone
+	# Ruling 23: the pair turns, so the view is held on star B wherever it has gone.
 	var b0 := L.star_pos(SystemLayout.STAR_B, m.view.t)
 	var worst := 0.0
 	for i in 120:
@@ -807,9 +652,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 		m.view.zoom, m.open_zoom, m.zoom_min, m._look_at(), m.home_at],
 		absf(m.view.zoom - m.open_zoom) < 0.002 and m._look_at().distance_to(m.home_at) < 1.0)
 	_orbit_fit(m)
-	# THE PARTNERS' AND YOUR SHIP'S DISC TEST: behind star B (further from the
-	# viewer, on its disc) is hidden by it; in front is not
-	# (star B where it is now: it has turned on since the clicks above)
+	# Behind star B on its disc is hidden by it, in front is not. Star B has turned on since.
 	sb = ov.star_scr(B)
 	var behind: Array = ov._star_occ(L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(0.0, -2.0))
 	var front: Array = ov._star_occ(L.star_pos(SystemLayout.STAR_B, m.view.t) + Vector2(0.0, 2.0))
@@ -818,11 +661,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	_saw("star B places", 1)
 
 
-## EACH SUN IS HIT WHERE IT IS DRAWN, AT THE SIZE IT IS DRAWN: the overlay's
-## point and disc for star p against the SunView the map paints it with, its
-## place under its parent and its disc (R times the disc's zoom, `SunView._kd`).
-## Star B's sun is the drawing's (`SystemView.star2`); a tree without it draws no
-## star B at all, and that is a fail here, not a pass on the overlay's word.
+## Checked against the SunView that paints it: a tree without star B's sun must fail here.
 func _drawn_suns(m: SystemMapScreen) -> void:
 	var ov = m.overlay
 	for s: int in m.view.layout.stars():
@@ -838,14 +677,8 @@ func _drawn_suns(m: SystemMapScreen) -> void:
 		_saw("suns measured as drawn")
 
 
-## A CLICK ON A SUN IS ON THE SUN WITH ITS WORLD JUST BEHIND IT. In a pair a world
-## round one star passes 6 to 8 px from its sun's middle at the far side of its
-## circle, behind the disc; its click circle took the sun's middle there. Each
-## star's own world is put just behind its middle (3 px up the screen, further
-## from the viewer) and just in front (3 px down), where the view puts bodies
-## (`view.pos` / `view.at`) and put back at once: behind, the click is the sun's;
-## in front, the world's, which is drawn over it. Then round one turn of its
-## circle, every place it is behind the sun's middle.
+## A world passes 6 to 8 px from its sun's middle behind the disc and took the click.
+## Why: docs/why/TwinSiteTest.md#sun-click-with-world-behind
 func _hits_behind(m: SystemMapScreen) -> void:
 	var ov = m.overlay
 	var v = m.view
@@ -892,16 +725,8 @@ func _hits_behind(m: SystemMapScreen) -> void:
 		_saw("suns clicked with a world behind", 1 + behind)
 
 
-## WHAT FITS ROUND A STAR OF TWO, AS DRAWN, at the opening zoom. An orbit is
-## drawn bigger than life to read (`SystemOverlay._orbit_k`: the place's disc +
-## 9 px at least), and in a pair that floor would reach past what is next to
-## it. On this map: each star's close orbit (the layout's,
-## `FlightSolve.star_orbit_r`) is drawn short of the disc of its own world by 2
-## px where that world stands widest from it, and a ship's orbit round that
-## world (the flight's `orbit_r`) 2 px off its sun's disc, unless it truly is
-## that big. Then for every twin of the run at its fit_zoom, by the layout's own
-## drawn sizes (`sun_drawn`, `world_drawn`): how many cut through before the cap
-## and after, and the least room left between a close orbit and its sun.
+## Orbits are drawn bigger than life, so in a pair the floor could reach past what is next to it.
+## Why: docs/why/TwinSiteTest.md#orbit-fit
 func _orbit_fit(m: SystemMapScreen) -> void:
 	var ov = m.overlay
 	var v = m.view
@@ -1008,19 +833,14 @@ func _words(root: Node) -> PackedStringArray:
 
 
 # ---------------------------------------------------------------- fit
-## FIT MEANS NOTHING OVERLAPS: the page as it stands at the panel's real size.
-## It asks for no more width than the panel's text column (else, with the
-## scroll bar up, the panel widens and the map frame narrows); every one-line
-## label's words fit its own box; every word and button is inside the page; and
-## no two of them meet.
+# Fit means nothing overlaps at the panel's real size, or the panel widens and the map narrows.
+# Why: docs/why/TwinSiteTest.md#fit
 func _fit(m: SystemMapScreen, tag: String) -> void:
 	await _frames(3)
 	var box: VBoxContainer = m.panel._box
 	var col := box.get_global_rect()
-	# THE PAGE'S OWN ROWS (the head, its facts and ways in: what this build
-	# adds), each no wider than the text column; and the event cards under them
-	# (a card naming the world you orbit asked for 231 px of the 226, its tags
-	# and YOU · <place> on one row; that row now wraps, Nov 1)
+	# A card naming your orbited world asked for 231 px of 226; that row now wraps (Nov 1).
+	# Why: docs/why/TwinSiteTest.md#fit
 	var mw := 0.0
 	var wide: Array[String] = []
 	var card_w := 0.0
@@ -1118,9 +938,7 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	fb.pressed.emit()
 	var said := {}
 	var landed := false
-	# (a flight to a world takes up to about 30 s of map time and its ride up to
-	# 4.4 s more, ruling 20's solved flight: 3600 frames at --fixed-fps 60 is a
-	# minute of it)
+	# A flight takes up to 30 s of map time plus a 4.4 s ride: 3600 frames is a minute.
 	for i in 3600:
 		await get_tree().process_frame
 		said[String(ov.ship_status()[0])] = true
@@ -1165,12 +983,8 @@ func _back_at_b(n: MapGen.MapNode) -> void:
 	_saw("returns to star B")
 
 
-## WHERE THE SHIP IS, IN STAR B'S CLOSE ORBIT: measured on the plane from star
-## B's own place, against the layout's close orbit for it
-## (`FlightSolve.star_orbit_r`, its rail in a twin), not the flight's own idea
-## of either. `reached() == STAR_B` alone passed with the ship riding star A.
-## The ride is the flight build's (`ShipFlight.center` / `orbit_r` for star B):
-## on a tree without it this fails, as it should.
+## Measured against the layout, not the flight's idea: `reached() == STAR_B` passed riding star A.
+## Why: docs/why/TwinSiteTest.md#star-b-close-orbit
 func _round_b(m: SystemMapScreen, what: String) -> void:
 	var L: SystemLayout = m.view.layout
 	var B := SystemLayout.STAR_B
@@ -1182,9 +996,7 @@ func _round_b(m: SystemMapScreen, what: String) -> void:
 		what, p.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t)), want, p.length(), Vector2(c3.x, c3.z)], absf(p.distance_to(L.star_pos(SystemLayout.STAR_B, m.view.t)) - want) < 3.0)
 
 
-## A PARTNER IN STAR B'S CLOSE ORBIT, as the wire brings it (PROTOCOL 14): the
-## offset from star B, said by a machine whose map clock is 5 s behind this
-## one's, drawn on star B where it is here; a partner off a world, off that world.
+## A partner's offset arrives from a machine 5 s behind, drawn on star B where it is here.
 func _partner_at_b(n: MapGen.MapNode) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
@@ -1235,22 +1047,15 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 	_saw("partners at star B")
 
 
-## A PARTNER OFF THE PICTURE HAS ITS ARROW AT THE EDGE, as your ship and the
-## events' beacons do (`SystemOverlay._draw_edge_marks`): this wide pair at its
-## opening framing, a partner out in open space round both suns, below the
-## balance point most of the way to the edge.
-## The whole-system view kept every partner on the picture; framed on the pair,
-## 15 of seed 7's 16 such were nowhere (the gap:A review). The arrow in the
-## party's colour, inside the frame, and off the partner's own hull.
+## Framed on the pair, 15 of seed 7's 16 partners were nowhere, so each gets an edge arrow.
+## Why: docs/why/TwinSiteTest.md#partner-arrows
 func _partner_marked() -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
 		h._fail("no map for the partner's arrow")
 		return
 	var L: SystemLayout = m.view.layout
-	# (out to the side of the balance point the framing centres on: straight down
-	# the screen 0.85 of the edge out stood just inside the picture once a
-	# turning pair is framed on its balance point, `SystemMapScreen.open_view`)
+	# Off to the side of the balance point: straight down stood just inside the picture.
 	var at := L.bary + Vector2(0.85 * (L.edge - L.bary.length()), 0.0)
 	var id := 70003
 	Net.roster[id] = {"id": id, "at": m.view.node.index, "order": 92, "name": "Geno"}
@@ -1285,15 +1090,8 @@ func _partner_marked() -> void:
 	_saw("partners marked off the picture")
 
 
-## LET GO ROUND STAR B, AND ROUND BOTH STARS: the wide orbit is drawn round what
-## the flight settles round (`SystemOverlay._star_c`, from the flight's own
-## settle centre, `ShipFlight.f.cen`), and the status line names it (from
-## `f.cen_id`). It read `ShipFlight.star_orbit_c`, which the flight never built,
-## and so drew and named every wide orbit round star A. First the names alone,
-## from each centre; then the flight's settle (`ShipFlight.settle_at`, the
-## flight build's: on a tree without it this fails, as it should), at a point
-## inside star B's steady zone on the far side from its world, and at one out
-## between the suns' zones and the worlds round both.
+## The wide orbit read `star_orbit_c`, which the flight never built, so every orbit was star A's.
+## Why: docs/why/TwinSiteTest.md#settle-round-star-b
 func _settle_round(n: MapGen.MapNode) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
@@ -1317,10 +1115,7 @@ func _settle_round(n: MapGen.MapNode) -> void:
 			away = (L.star_pos(SystemLayout.STAR_B, m.view.t) - b.pos(m.view.t)).normalized()
 	var zone_b := SystemLayout.s_limit(L.star_share) * L.sep
 	var r_b := (L.star_ring_of(B) + zone_b) * 0.5
-	# (the pair as it stands at the map's t: it turns, ruling 23, so "across the
-	# pair" is off the line between the suns where they are, and each case's
-	# centre is named by its id and read again where it is once the frames have
-	# run, a turning sun having moved meanwhile)
+	# The pair turns (ruling 23), so each centre is named by id and read again after frames.
 	var t0: float = m.view.t
 	var side := (L.star_pos(B, t0) - L.star_pos(-1, t0)).normalized().orthogonal()
 	var cases := [
@@ -1343,14 +1138,8 @@ func _settle_round(n: MapGen.MapNode) -> void:
 	await _settled_as_b_moves(m, cases[0][0], nm_b)
 
 
-## SETTLED ROUND STAR B AS IT MOVES (ruling 23): let go round star B, the clock
-## running for two seconds as the pair turns, every frame the status line and
-## the words by the ship say ORBITING <system> B (`SystemOverlay._settle_id`,
-## by the flight's `f.cen_id`), and the wide orbit is drawn round star B where
-## it is that frame (`_star_c`), on its disc (`_ring_c`, star B's place on the
-## grid). Named by where its centre was kept, a ship round star B drifted to
-## ORBITING BOTH STARS within seconds of the pair turning. Then broken away, the
-## orbit left fades round star B (`_left`, by id).
+## Named by where its centre was kept, a ship round star B drifted to BOTH STARS as the pair turned.
+## Why: docs/why/TwinSiteTest.md#settled-star-b-moves
 func _settled_as_b_moves(m: SystemMapScreen, p: Vector2, nm_b: String) -> void:
 	var ov = m.overlay
 	var L: SystemLayout = m.view.layout
@@ -1376,9 +1165,7 @@ func _settled_as_b_moves(m: SystemMapScreen, p: Vector2, nm_b: String) -> void:
 	var went := b0.distance_to(L.star_pos(B, m.view.t))
 	h._ok("settled round star B as it moves %.2f px in 2 s: named ORBITING %s in %d of %d frames, the orbit drawn round it (at most %.3f px off it, %.1f px off its disc)" % [
 		went, nm_b, named, frames, off, ring_off], frames >= 100 and named == frames and off < 0.01 and ring_off < 0.01 and (went > 0.05 or L.pair_n == 0.0))
-	# BROKEN AWAY by W held: the orbit left fades round star B, by its id (the
-	# first frame it is off it: a ship let go by star B may be taken into its
-	# close orbit a moment on, and that fade is the close orbit's)
+	# The first frame it is off the orbit fades round star B, not the close orbit's fade.
 	ov._left = {}
 	var keys_were: bool = m.harness_keys
 	m.harness_keys = true
@@ -1395,16 +1182,8 @@ func _settled_as_b_moves(m: SystemMapScreen, p: Vector2, nm_b: String) -> void:
 	_saw("settled round a moving star B, frames", frames)
 
 
-## PUT BACK ON THE WIDE ORBIT IT WAS SETTLED ON: round star B, round both suns
-## and round star A (the way round the worlds do not go, to see it kept), the
-## map left for LOCAL and shown again, and again with the record through the
-## save's own rows (`SaveGame._parked_to` / `_parked_from`, JSON and back). The
-## same centre and way round, on its radius within 1 px then and a second on,
-## the status line naming it, and a flight from there leaving from the ship
-## (`ShipFlight._dep_of`). Put back with only its point it kept the arrival
-## orbit `setup` makes, round the balance point, and was pulled onto that
-## radius round its own star: round B at 68 px, back on a 314 px ring that ran
-## inside star A's keep-out (the seams and saves reviews, Oct 31).
+## Put back with only its point, a ship kept the arrival orbit and was pulled onto the wrong radius.
+## Why: docs/why/TwinSiteTest.md#restore-round
 func _restore_round(n: MapGen.MapNode) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
@@ -1470,10 +1249,7 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 		return
 	var f1 = m.flight.f
 	var off0: float = absf(((f1.p as Vector2) - (f1.cen as Vector2)).length() - float(f1.orbit_r))
-	# (back at the kept clock: the pair turned on only by the few frames the map
-	# has run since it opened again, the ship where it was round its centre
-	# less what it rode round meanwhile, and the centre where it is at the map's
-	# t, a turning sun's)
+	# Back at the kept clock: the pair turned only by the frames since the map reopened.
 	var L1: SystemLayout = m.view.layout
 	var c_now: Vector2 = L1.bary if cen0 == -9 else L1.star_pos(cen0, m.view.t)
 	# (read now: `f1` is the flight's own state, which the frames below move on)
@@ -1500,12 +1276,8 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 		and off0 < 1.0 and off1 < 1.0 and float(f1.sense) == -1.0 and st == "ORBITING " + nm and dp != Vector2.INF and dp.distance_to(f2.p) < 1.0)
 
 
-## NEVER WRITTEN ACROSS THE OTHER SUN: in each star's close orbit, at the
-## opening zoom, the words by the ship ("CLOSE ORBIT · <system> A/B") and the
-## other star's name when it is selected, their boxes as placed
-## (`SystemOverlay.label_rects`) against the other sun's disc. In this system
-## the words in star B's close orbit sat 10 px over star A's disc, its whole
-## radius (the words review, Oct 31).
+## Words in star B's close orbit once sat 10 px over star A's disc (words review, Oct 31).
+## Why: docs/why/TwinSiteTest.md#labels-off-suns
 func _labels_off_suns(n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	for at: int in [B, -1]:
@@ -1582,17 +1354,13 @@ static func _words_on_suns(ov, L: SystemLayout, where: String, out: Array[String
 	return k
 
 
-## The words the overlay held back last frame to keep them off a sun
-## (`SystemOverlay.label_held`; none on a tree without it, so the sheet still
-## judges one).
+## Words held back last frame to keep off a sun; none on a tree without it.
 static func _held(ov) -> Array:
 	var got = ov.get(&"label_held")
 	return got if got is Array else []
 
 
-## THE BEACON THE BOX `box` IS OVER, of every event's beacon drawn last frame
-## (`SystemOverlay.beacons_at`, each glyph 5 cells of 2 px round its point: a
-## 10 px square from 4 px up and left of it), or Vector2.INF for none.
+## The beacon the box is over, each glyph 5 cells of 2 px, or Vector2.INF for none.
 static func _on_beacon(ov, box: Rect2) -> Vector2:
 	for e: Array in ov.beacons_at:
 		var at: Vector2 = e[0]
@@ -1601,9 +1369,7 @@ static func _on_beacon(ov, box: Rect2) -> Vector2:
 	return Vector2.INF
 
 
-## THE CORNER TICKS OF THE RETICLE round `at` (`SystemOverlay._reticle`: two
-## 3 px ticks meeting `reach` out at each corner), each the 3 px square they
-## stand in.
+## The reticle's corner ticks round `at`, each the 3 px square it stands in.
 static func _tick_boxes(at: Vector2, reach: float) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
@@ -1612,21 +1378,8 @@ static func _tick_boxes(at: Vector2, reach: float) -> Array[Rect2]:
 	return out
 
 
-## THE SHIP'S OWN WORDS OFF THE BEACONS: `full` (IN ORBIT · <world>, CLOSE ORBIT
-## · <star>) or the words before its " · ", as placed last frame, against every
-## event's beacon drawn that frame (`_on_beacon`). Counted in `st`: placed
-## (`bc_words`); left by a beacon where no spot cleared the suns and the
-## beacons both (`bc_fallback`, `SystemOverlay.label_on_beacon`; none on a tree
-## without it); over a beacon all the same (`bc_crossed`), each added to `out`.
-## AND WHERE THE OVERLAY STEPPED THEM clear of the beacons (`bc_stepped`,
-## `SystemOverlay.ship_words` clear &"all" or &"marks"): off the corner ticks of
-## the reticle round `place`, the place they name (`bc_ticks` where not), and
-## over none of the words they hid (`SystemOverlay.label_under`; `bc_hid` where
-## they are) but where the overlay says no spot cleared those as well (&"marks",
-## `bc_marks`). Words where they first stood may cross the ticks under the ring,
-## as with one sun; stepped, the ticks once moved them 20 px and they hid a
-## selected place's name a step less far would have shown (the review of
-## 19fd37e5, Nov 1).
+## Ticks alone once moved the words 20 px and hid a selected name a smaller step would show.
+## Why: docs/why/TwinSiteTest.md#ship-words-off-beacons
 static func _ship_words_off_beacons(ov, full: String, place: int, where: String, st: Dictionary, out: Array[String]) -> void:
 	var short := full.get_slice(" · ", 0)
 	var fell = ov.get(&"label_on_beacon")
@@ -1668,10 +1421,7 @@ static func _ship_words_off_beacons(ov, full: String, place: int, where: String,
 					break
 
 
-## WHETHER WORDS `s` WERE HELD UNDER THE SHIP'S OWN WORDS last frame (`full`, or
-## the words before its " · "): where they would have stood
-## (`SystemOverlay.label_under`) across where those stand. False on a tree
-## without the record.
+## True if words were held under the ship's words last frame; false without the record.
 static func _under_ship_words(ov, s: String, full: String) -> bool:
 	var hid = ov.get(&"label_under")
 	if not (hid is Array):
@@ -1696,11 +1446,8 @@ func _said_on_beacon(ov, s: String, st: Dictionary, key: String) -> void:
 		st[key] = int(st[key]) + 1
 
 
-## THE CURL DRAWN FOR A CAPTURE INTO STAR B'S CLOSE ORBIT IS THE ONE FLOWN: the
-## overlay's (`SystemOverlay.capture_ins`) against `ShipFlight.start_rail`'s own
-## insertion, for captures just inside B's ring from all round it, coming in
-## and going round both ways. Drawn against star A's keep-out it was up to 58
-## px off the curl flown (the seams review, Oct 31).
+## Drawn against star A's keep-out the curl was up to 58 px off the one flown (seams review).
+## Why: docs/why/TwinSiteTest.md#capture-curl
 func _capture_curl_b(n: MapGen.MapNode) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
@@ -1738,13 +1485,8 @@ func _capture_curl_b(n: MapGen.MapNode) -> void:
 	_saw("captures at star B", cases)
 
 
-## THE MAP LEFT ON A FLIGHT'S COAST (Tab, the HUD's tabs, SAVE & EXIT): the
-## ship is where it was going, in orbit there -- LOCAL told so (`Run.site_here`)
-## and the flight counted (`flown_to`), the map putting it back on that orbit.
-## It put the ship back at the system's edge with the flight gone, and ruling
-## 20's flights, about 24 s, made that several times as likely (the reviews,
-## Oct 31). On the way, the map_fly hint ("Click a world twice to fly there")
-## keeps quiet: a click does nothing then.
+## Leaving the map mid-flight once put the ship back at the system's edge with the flight gone.
+## Why: docs/why/TwinSiteTest.md#map-left-mid-flight
 func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
 	var m := await _map()
 	if m == null:
@@ -1793,13 +1535,8 @@ func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
 	_saw("flights left on the way")
 
 
-## THE MAP DRAWN AGAIN ROUND A FLIGHT, as Settings' style and GRAPHICS rows do
-## it (`Sig.render_style_changed`, `SystemMapScreen._on_style`): the flight's
-## errand goes on with the new ship (`ShipFlight.hand_over`, `_carry_on`). It was
-## lost: a GO cut short this way left the ship at its target with the event
-## never opened, and `_taking` true, so the map took no click, hover, zoom, drag,
-## WASD or FLY HERE until it was left (the recheck's probe, Oct 31, both a twin
-## and one sun; main has the same code, ruling 20's ~24 s flights made it likely).
+## A restyle lost the errand: the GO never opened its event and the map took no input.
+## Why: docs/why/TwinSiteTest.md#style-change-mid-flight
 func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	var m := await _map()
 	if m == null:
@@ -1908,13 +1645,8 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	_saw("flights the map was drawn again round")
 
 
-## A GO LEAVES THE VIEW OPEN (kept finding [11], Nov 1: the whole map was shut
-## for the flight, about 27 s on map time), through the window's own input
-## (`push_input`, so the map's frame takes it as a hand's): while it flies the
-## pointer hovers and its tip shows, offering no click; the wheel zooms; a drag
-## pans; a right-click is the view's. A click, a double click, FLY HERE and WASD
-## are refused, so the GO's errand is the one that runs, once, on arrival, and
-## after it a click selects again.
+## Kept finding 11: the whole map was shut for a 27 s flight. Now only clicks are refused.
+## Why: docs/why/TwinSiteTest.md#go-leaves-view-open
 func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	var m := await _map()
 	if m == null:
@@ -2052,9 +1784,7 @@ func _place_q(m: SystemMapScreen, p: int) -> Vector2:
 	return m.overlay.star_scr(p) if SystemLayout.is_star(p) else m.view.at[p]
 
 
-## A place (not one of `skip`: a world, a station, hulk or contact, or either
-## star) drawn on the map's frame, clear of its edge and the LOCATION button,
-## whose point hits it; or -9.
+## A place drawn on the frame, clear of its edge and the LOCATION button, whose point hits it.
 func _pointable(m: SystemMapScreen, skip: Array) -> int:
 	var fr := Rect2(Vector2(24.0, 24.0), m._frame.size - Vector2(48.0, 48.0))
 	var ids: Array[int] = []
@@ -2078,11 +1808,7 @@ func _win_at(m: SystemMapScreen, q: Vector2) -> Vector2:
 	return m._frame.global_position + m._box.position + q
 
 
-## THE POINTER, AS A HAND MOVES IT: each event pushed into the game's viewport
-## (`GameShell.input_target`; the game is in the shell's SubViewport), which is
-## told the pointer is in it (headless the window never has it, and a motion
-## then reaches no control), and counted where the map's frame takes it: every
-## one must reach it, or the test measured something lying on the map.
+## Events go through the game's viewport and are counted, or the test measures something false.
 var _took := 0
 var _sent := 0
 
@@ -2165,12 +1891,8 @@ func _restyle(m: SystemMapScreen) -> SystemMapScreen:
 	return m
 
 
-## HOLDING ALONGSIDE TO LEAVE (`FlightSolve`'s KEEP_HOLD, and while the flight
-## is planned): the status line says LEAVING · TO <place> and the words by the
-## ship LEAVING · <here>, as a ring's ride round to leave says LEAVING ORBIT. It
-## said ALONGSIDE, and YOU by the ship, with the flight already drawn (the
-## seams and seen reviews). In the first system of the run with a station,
-## belt, hulk or contact.
+## It said ALONGSIDE with the flight already drawn; the hold now reads LEAVING like a ring ride.
+## Why: docs/why/TwinSiteTest.md#alongside-hold-words
 func _alongside_hold() -> void:
 	var was_at := Run.at
 	var keep_n: MapGen.MapNode = null
@@ -2226,26 +1948,9 @@ func _alongside_hold() -> void:
 	_saw("holds alongside")
 
 
-## IT QUITS WITH A FLIGHT PLAN STILL BEING MADE on a worker (a preview asked
-## for this frame): the quit waits for it (`ShipFlight.drain`, Router). Not
-## waited for, its task crashed the quit, signal 11, exit 134 (the scroll
-## check, 3 of 3; the saves review's QuitLens, Oct 31).
-## THE ZOOM LADDER HANDS THE PAIR OVER WHERE IT STANDS (ruling 23; the review of
-## the plan, "the zoom-ladder handovers"), the moves animated as in play
-## (`Router.animate_in_harness`, the ladder's clock 1/30 s a frame), on a wide
-## pair's map opened a quarter of the way round its lap:
-##   - down to LOCAL, the map's clock kept at the click holds through the move
-##     (`SystemMapScreen.clock_held`), so the clock LOCAL is handed
-##     (`Run.map_t`) is the one the map last drew;
-##   - back up, the map built ahead (`ZoomLadder.prebuilt`) waits at that clock
-##     and holds it through the move, then runs on once it lands;
-##   - out to the chart by 1A (behind the calm switch, as LadderTest's every
-##     design), the move anchors on star A where it is now (`ladder_anchor`,
-##     the sun its hole shows, `ladder_sun`), not on the plane's origin where
-##     star A stood at t 0, and the map's clock holds through it too.
-## Running on through a move, the suns stood a frame's worth of turn or a whole
-## pre-roll's from where the other picture had them, and a map built ahead and
-## dropped wrote its moved clock back.
+## Quit must wait for a worker's plan: unwaited, its task crashed the quit with signal 11.
+## The zoom ladder hands the pair over where it stands (ruling 23), clocks held through moves.
+## Why: docs/why/TwinSiteTest.md#quit-and-zoom-ladder
 func _ladder_holds_the_pair() -> void:
 	var m0 := Router.current as SystemMapScreen
 	if m0 == null or m0.view.layout == null or not m0.view.layout.twin or m0.view.layout.close:
@@ -2397,10 +2102,7 @@ func _giant_page(n: MapGen.MapNode) -> void:
 		var words := _words(m.panel._box)
 		h._ok("%s: its page says MASS %s (gm_frac %.3f)" % ["two suns" if two else "one sun", want, gb.gm_frac],
 			words.has("MASS") and words.has(want) and want.ends_with("OF ITS STARS" if two else "OF ITS STAR"))
-		# NOTHING PRESSABLE MOVES: the page has the rows it had before ruling 20
-		# (its facts less TYPE), MASS under GRAVITY in place of FAUNA, which a
-		# giant never has, so its FLY HERE and the cards under it are where they
-		# were (an extra row put them 13 px lower)
+		# Nothing pressable moves: MASS takes FAUNA's row, as an extra row cost 13 px.
 		var keys := _fact_keys(m.panel._box)
 		var was_keys: Array[String] = []
 		for f in m.view.facts(gb):
@@ -2462,15 +2164,8 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 
 
 # ---------------------------------------------------------------- the stars' facts
-## EACH STAR'S FACTS AS IT IS DRAWN (kept findings [23] and [27], Nov 1): star B
-## read YELLOW DWARF, G2, 5,700 K, star A's, under the orange sun the map draws,
-## and MASS read each star's share of the pair's pull (star A 0.55 SOL beside G2,
-## which no G2 weighs). Now star A reads as the one sun does, and star B as the
-## K5 orange dwarf its colour is nearest, with a K5's own MASS and RADIUS, 0.7
-## SOL each (Jon, Nov 1, "starb:B"; they read its mass against A's as their
-## pulls are, 0.72 to 0.92, and its drawn radius). The pulls are as they were.
-## The sector page as it stands, star by star: its kind under its name, then
-## CLASS, SURFACE, MASS and RADIUS.
+# Star B read as star A's G2 under an orange sun; it is now a K5 with its own MASS and RADIUS.
+# Why: docs/why/TwinSiteTest.md#star-facts
 func _page_facts(m: SystemMapScreen, nm: String) -> Dictionary:
 	var words := _words(m.panel._box)
 	var k := words.find(nm)
@@ -2519,10 +2214,7 @@ func _star_facts_page(m: SystemMapScreen) -> void:
 	_saw("star facts read off the page")
 
 
-## EVERY TWIN OF THE RUN, made so where it may be: star A's facts the one sun's,
-## word for word, and star B's a K5 orange dwarf's own, MASS and RADIUS 0.7 SOL
-## in every one (Jon, Nov 1, "starb:B"), while the pulls' ratio B / A runs 0.72
-## to 0.92 as built; and every one-sun system's facts its kind's table, as ever.
+## Every twin: star A's facts as the one sun's, star B a K5 (Jon, starb:B), pulls unchanged.
 func _star_facts_all() -> void:
 	var twins := 0
 	var ones := 0
@@ -2568,9 +2260,7 @@ func _one_sun_facts(m: SystemMapScreen) -> void:
 		got.get("kind") == sf.kind and got.get("CLASS") == sf.cls and got.get("SURFACE") == sf.temp and got.get("MASS") == sf.mass and got.get("RADIUS") == sf.radius)
 
 
-## EVERY BODY OF A TWIN SAYS WHAT IT GOES AROUND (`SystemView.facts`): AROUND
-## under ORBIT, never ROUND (Nov 1: the game says "around", never "round" in
-## that sense), and its widest row, label and value, inside the text column.
+## The game says around, never round, in that sense (Nov 1), and rows must fit the column.
 func _around_rows() -> void:
 	var font := UITheme.pixel_font()
 	var rows := 0
@@ -2613,8 +2303,7 @@ func _around_rows() -> void:
 
 
 # ---------------------------------------------------------------- the giants
-## EVERY GIANT'S MASS LINE: 1/n, n the whole number nearest 1 / gm_frac, in
-## the range it is rolled in, OF ITS STARS round two suns.
+# A giant's MASS line is 1/n of its star, OF ITS STARS round two suns.
 func _mass_lines() -> void:
 	var giants := 0
 	var twin_giants := 0
@@ -2648,9 +2337,7 @@ func _mass_lines() -> void:
 
 
 # ---------------------------------------------------------------- the looks sheet's picks
-## Jon's picks from the twin looks sheet (Nov 1: "Twin looks: ring:A mass:A
-## transit:A key:A list:C city:A letgo:A starb:B", and "Let's call it Binary
-## instead of two suns"). starb:B is `_star_facts_page` and `_star_facts_all`.
+# Jon's picks from the twin looks sheet (Nov 1); starb:B is covered by the star facts tests.
 
 ## The numeral a body's name ends in, as an index into `SystemLayout.ROMAN` (I
 ## is 0), or ROMAN's size for a name with none.
@@ -2659,12 +2346,8 @@ static func _numeral(nm: String) -> int:
 	return k if k >= 0 else SystemLayout.ROMAN.size()
 
 
-## THE SATELLITES LIST IN NAME ORDER ("list:C"): every system of the run, laid
-## out each way it may be, lists its bodies (`SystemLayout.name_order`) with the
-## numerals of their names going up, I, II, III (past X, which ROMAN stops at,
-## X again); round one sun that is the order they were made in, so nothing there
-## moves. The binaries whose made order was not their names' are counted: the
-## list read III, IV, I, V, II, VI in some.
+## The list read III, IV, I, V, II, VI in some binaries; one sun keeps its made order.
+## Why: docs/why/TwinSiteTest.md#satellite-name-order
 func _name_order_all() -> void:
 	var twins := 0
 	var ones := 0
@@ -2766,13 +2449,8 @@ static func _files_under(dir: String, out: Array[String]) -> void:
 		_files_under(dir.path_join(sub), out)
 
 
-## NO STRING A PLAYER READS SAYS TWO SUNS ("Let's call it Binary instead of two
-## suns"): every string in the game's scripts, scenes and data, the harnesses and
-## comments left out, read for "two suns", "two-sun", "second sun" and "both
-## suns". The sector page, the HUD's tip (`_stars_as_places`) and the chart's
-## STAR row (`MapGen.BINARY`) say binary; a world round the pair, and a ship
-## settled round it, say BOTH STARS (the AROUND row read BOTH SUNS beside the
-## page's BINARY, the picks review, Nov 1).
+## Jon: call it Binary. The AROUND row read BOTH SUNS beside BINARY, so strings are scanned.
+## Why: docs/why/TwinSiteTest.md#no-two-suns-wording
 func _no_two_suns_said() -> void:
 	var re := RegEx.create_from_string("(?i)\"[^\"]*\\b(two[ -]suns?|second sun|both suns)\\b[^\"]*\"")
 	var files: Array[String] = []
@@ -2802,13 +2480,8 @@ func _no_two_suns_said() -> void:
 		"" if said.is_empty() else ": " + "; ".join(said.slice(0, 4))], said.is_empty() and read > 100 and MapGen.BINARY == "BINARY")
 
 
-## THE SHIP ON A RING, frame by frame (`SystemOverlay.ship_px`): over `frames`
-## frames, every `every`th, with world `w` the ring it rides. Counts the frames
-## looked at, those with any of the hull drawn and those with the light outline
-## (&"rim"); the outline's pixels in another colour, on the hull's shape or not
-## beside it; the hull's pixels hidden by nothing but its own world (any other
-## world's disc or a sun's explains one); and the frames with the ship's middle
-## on its own world's drawn disc, where it sat hidden in part before ring:A.
+## Counts hull and outline pixels per frame, hidden only by its own world, before ring:A.
+## Why: docs/why/TwinSiteTest.md#ship-on-ring-frames
 func _ring_frames(m: SystemMapScreen, w: int, frames: int, every: int) -> Dictionary:
 	var ov = m.overlay
 	var L: SystemLayout = m.view.layout
@@ -2849,11 +2522,8 @@ func _ring_frames(m: SystemMapScreen, w: int, frames: int, every: int) -> Dictio
 				r.on_hull += 1
 			elif not (shape.has(q + Vector2i(1, 0)) or shape.has(q - Vector2i(1, 0)) or shape.has(q + Vector2i(0, 1)) or shape.has(q - Vector2i(0, 1))):
 				r.apart += 1
-		# (a frame with the hull over its world's disc, so "never hidden" was asked
-		# of it: by its pixels, not its middle -- the ring's near point is about
-		# the disc's own radius from the world's middle at the opening zoom, so the
-		# middle came onto the disc in a few frames or none by the rounding alone,
-		# 4 of 60 with the pair held still and 0 once it turns, ruling 23)
+		# Hidden is judged by pixels, not middle, which crossed the disc by rounding alone.
+		# Why: docs/why/TwinSiteTest.md#ship-on-ring-frames
 		var over := false
 		for q: Vector2i in shape:
 			if w >= 0 and Vector2(q).distance_to(m.view.at[w]) < m.view.draw_r(L.bodies[w]) - 0.5:
@@ -2878,11 +2548,7 @@ func _ring_frames(m: SystemMapScreen, w: int, frames: int, every: int) -> Dictio
 	return r
 
 
-## THE SHIP ON ITS SMALL WORLD'S RING, OUTLINED ("ring:A"): on the ring of the
-## world round star A, at the opening zoom, for a lap and more, the ship wears a
-## 1 px light outline (`SystemOverlay.RING_OUTLINE`) round its hull and never on
-## it, in every frame any of the hull shows, and no pixel of the hull is hidden
-## by its own world (on the far side of the ring it hid part of it).
+## ring:A: the ship wears a 1 px light outline on its small world's ring, never hidden by it.
 func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 	var r := await _ring_frames(m, wa, 180, 3)
 	h._ok("on the ring of %s round star A the ship is outlined in light: %d of %d frames with the hull drawn have it (%d px, %d off colour, %d on the hull, %d not beside it)" % [
@@ -2893,13 +2559,8 @@ func _ring_outline_open(m: SystemMapScreen, wa: int) -> void:
 	_saw("rings outlined, frames", r.seen)
 
 
-## WHERE THE FLIGHT DRAWN BEFORE IT IS FLOWN ENDS, flown to a world round star B
-## from the ring of the world round star A (the review of the plan, PLAUSIBLE:
-## at Kepler x 4 those two worlds go round their suns four times as fast, and
-## their suns turn, so the line's end, round where the world will be when the
-## ship gets there, `SystemOverlay._ends_table` at the plan's own moments,
-## stands off where it is drawn now): printed, not judged, for Jon to see; and
-## a ring drawn there goes behind the world's disc as drawn now, judged.
+## At Kepler x 4 and with turning suns, the drawn end stands off where the world will be.
+## Why: docs/why/TwinSiteTest.md#preview-end-gap
 func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 	var ov = m.overlay
 	var v = m.view
@@ -2925,11 +2586,8 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 		var gap: float = (v.screen(now3.x, now3.z) as Vector2).distance_to(v.screen(then3.x, then3.z))
 		print("  --   the flight drawn to %s (round star B) ends round where it will be in %.1f s, %.1f px on screen from where it is drawn now (zoom %.3f, %.1f plane px)" % [
 			L.bodies[wb].name, t_arr - float(v.t), gap, v.zoom, Vector2(now3.x, now3.z).distance_to(Vector2(then3.x, then3.z))])
-		# THE RING ROUND WHERE IT WILL BE (as the let-go forecast draws its orbit
-		# there, `SystemOverlay._line`), dashed and solid: its far half never
-		# crosses the world's disc as it is drawn now. Cut only round its own
-		# centre, 7.8 px off the drawn world at the opening zoom, it was drawn
-		# across the world's face (review 1, Nov 2)
+		# Cut round its own centre, 7.8 px off the world, the ring crossed its face (review 1).
+		# Why: docs/why/TwinSiteTest.md#preview-end-gap
 		var cw: Vector2 = v.screen(then3.x, then3.z)
 		var wd: Vector2 = v.at[wb]
 		var disc: float = v.draw_r(L.bodies[wb])
@@ -2954,19 +2612,8 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 	await _frames(2)
 
 
-## THE WORDS BY THE SHIP HOLD STILL AS IT RIDES ITS RING: in OMEGA CALLOUS REACH
-## (seed 7, node 284), on the ring of its first world round star A (OMEGA
-## CALLOUS I), the world selected as in the picks stills, at the opening zoom,
-## the clock running for `RIDE_FRAMES` frames (about two orbits). The words are
-## there every frame and, measured from where their world is drawn (it goes
-## round its sun, carried as its sun turns: ruling 23), never move more than 3
-## px from one frame to the next, and spread no more than 3 px each way over the
-## ride.
-## Stepped off a sun and the beacon there, nearest first under the ring, above
-## it and under the ship together, they hopped 6 to 10 px between under the
-## ring and under the ship about twice an orbit and slid with the ship between
-## (the review of 19fd37e5, Nov 1); still, as they stood on b764c344, on the
-## beacon.
+## Stepped off a sun and beacon, the words hopped 6 to 10 px about twice an orbit.
+## Why: docs/why/TwinSiteTest.md#words-hold-on-ring
 const RIDE_FRAMES := 400
 
 
@@ -3035,13 +2682,8 @@ func _ring_words_ride() -> void:
 	await _close_b_words_ride()
 
 
-## THE WORDS BY THE SHIP DO NOT FLICKER AT A BEACON'S EDGE (review 2): in star
-## B's close orbit of seed 7's close pair (system 41, ZETA VESPER-4) from map
-## time 97 to 107, the beacon on a world round both suns creeps along the
-## words' left end as star B carries the words the same way. They stepped 16 px
-## down off it, back up as it cleared by a hair and down again, three hops in
-## 4 s; stepped off, they now go back only once their first spot clears by
-## `SystemOverlay.WORDS_BACK_PX`. At most the one step off, never back and forth.
+## A creeping beacon made the words hop three times in 4 s, so they return only once clear.
+## Why: docs/why/TwinSiteTest.md#words-at-beacon-edge
 func _close_b_words_ride() -> void:
 	var B := SystemLayout.STAR_B
 	var n: MapGen.MapNode = Run.map[41] if Run.map.size() > 41 else null
@@ -3089,17 +2731,8 @@ func _close_b_words_ride() -> void:
 		MapGen.star_name(n), hops, back, seen], seen > 0 and hops <= 1 and back == 0)
 
 
-## THE EDGE ARROW'S LOOK (Jon, Nov 5: "make the icon the same height as the
-## arrow and make the arrow hollow"; then "Two px"), for each of the eight ways,
-## drawn by `SystemOverlay._tri_queue` alone: the key glyph in 2 px cells, as
-## tall across the arrow's axis as a side arrow is (10 px), centred on that
-## axis, and on a diagonal arrow centred on its middle line; the arrow's line 2
-## px (`_arrow_line`: every one of those cells in its colour), the hole inside
-## it never in its colour, only the dark ring just inside the line, and nothing
-## at all further in. And a ship's arrow with a name (Jon, Nov 5, "hollow arrow
-## with their name"): the name's box beside the arrow on its inward side, off
-## the arrow, in the mark's box, a side arrow's caps on its axis and an up or
-## down arrow's name centred on it.
+## Jon, Nov 5: icon as tall as the arrow, arrow hollow, 2 px line, and a name box inward.
+## Why: docs/why/TwinSiteTest.md#edge-arrow-look
 func _arrow_shapes() -> void:
 	var ov = OverlayS.new()
 	var col := Color("#9b8ec8")
@@ -3194,15 +2827,8 @@ static func _arrow_line(solid: Dictionary, w: int) -> Dictionary:
 	return out
 
 
-## A WIDE PAIR OPENS FRAMED ON ITS OWN PART (Jon, Nov 1, "gap:A"), as the ring
-## sweep shows each wide pair (`_pair_marks`): at `SystemMapScreen.open_view`,
-## nearer than the whole system and centred on the two suns and their own
-## worlds; each world round one sun drawn PAIR_GAP_LEAST px or more clear of its
-## sun's disc beside it (fitted to the whole system it was 5 px, seed 7); every
-## event's beacon off the picture with an arrow at the frame's edge
-## (`SystemOverlay.edge_marks`), each inside the frame and over nothing drawn
-## there: the words, the beacons, the suns, the worlds, your ship, the status
-## line, the goal, the instrument or another arrow.
+## Fitted to the whole system, a world sat 5 px from its sun, so wide pairs frame on their part.
+## Why: docs/why/TwinSiteTest.md#wide-pair-framing
 const PAIR_GAP_LEAST := 24.0
 
 
@@ -3228,9 +2854,7 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		if w != null:
 			st.gap_n += 1
 			st.gap_least = minf(st.gap_least, w.orbit * v.zoom - v.star_disc(p) - v.draw_r(w))
-	# THE PAIR ON THE PICTURE at the clock it opened at (ruling 23: each binary
-	# here opens at another of LAP_CLOCKS angles): both suns' discs and every
-	# world round one sun as drawn, inside the frame
+	# Each binary opens at another of LAP_CLOCKS angles (ruling 23), both suns and worlds in frame.
 	var whole := true
 	for p: int in L.stars():
 		var r: float = ov.star_disc(p)
@@ -3298,16 +2922,8 @@ func _pair_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 			bad.append("%s: the arrow at %s for %d is on something drawn" % [nm, mk.at, int(mk.body)])
 
 
-## YOUR SHIP'S AND THE PARTNERS' ARROWS, NAMED (Jon, Nov 5: "Maybe hollow arrow
-## with their name?"), on this wide pair at its opening framing: your ship put
-## in orbit of a place round both suns off the picture, and five partners off
-## it (`Net.roster`, `Net.spots`) -- four round the frame from an angle that
-## turns with each pair, and one straight out past a corner -- one of them with
-## a long name (SHIP_NAME_LONG). Each ship's arrow carries its name (YOU, the
-## pilot's, cut with ".." to `MARK_NAME_MOST` or less), its box (`name_box`)
-## inside the frame, in the mark's box, off its arrow and on its inward side,
-## queued for the screen (`mark_words`); every arrow's box, names in, inside the
-## frame and on nothing drawn (`_drawn_under_marks`) or another arrow.
+## Jon, Nov 5: hollow arrow with the ship's name, boxed inside the frame and off other marks.
+## Why: docs/why/TwinSiteTest.md#named-arrows
 const SHIP_NAME_LONG := "Alexandria Kesselring-Vanterpool"
 
 
@@ -3348,9 +2964,7 @@ func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		var pl := Vector2((sp.x - o.x) / v.zoom, (sp.y - o.y) / (v.zoom * v.TILT))
 		Net.roster[id] = {"id": id, "at": n.index, "order": 100 + k, "name": names[k]}
 		Net.spots[id] = {"at": n.index, "body": -9, "x": pl.x, "z": pl.y, "ang": 0.0}
-	# twice: your ship in orbit off the picture, then coasting free just past
-	# the frame's bottom (no orbit, so the words by it are YOU: the review of
-	# round two, where every case above said words)
+	# Twice: in orbit off the picture, then coasting free, where the words by it are YOU.
 	for phase in 2:
 		if phase == 1:
 			var sx := Vector2(mid.x + win.size.x * 0.2, win.end.y + 6.0)
@@ -3443,10 +3057,7 @@ func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 			bad.append("%s: your ship off the picture at %s has no arrow" % [nm, ov._ship_at])
 		if phase == 1:
 			st.ship_coast += int(you_off and (ov._ship_words_first(ov._ship_at) as Array).is_empty())
-		# (nor the words by it run in past the frame, cut: "ᴀLONGSIDE · ALPHA
-		# KESTREL III" under the YOU arrow in round two's stills, or hugging the
-		# frame's edge in the key shader's edge fade, ALONGSIDE · SIGMA KESTREL
-		# III's A faded out)
+		# The words may not run past the frame cut, nor hug the edge where the shader fades them.
 		if you_off:
 			var sw: Array = []
 			var first: Array = ov._ship_words_first(ov._ship_at)
@@ -3468,10 +3079,7 @@ func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 	await _frames(2)
 
 
-## WHAT IS DRAWN ON THE MAP that no edge arrow (or a ship's name beside one) may
-## be on, as boxes: the words, the status line, the goal and the instrument
-## (`mark_keep`), the events' beacons on the picture, both suns, the worlds,
-## your ship and each partner's hull.
+## Everything no edge arrow may sit on: words, status line, goal, beacons, suns, worlds, hulls.
 func _drawn_under_marks(m: SystemMapScreen) -> Array:
 	var v = m.view
 	var ov = m.overlay
@@ -3501,14 +3109,8 @@ func _drawn_under_marks(m: SystemMapScreen) -> Array:
 	return drawn
 
 
-## THE NEARER SUN TAKES THE CLICK (ruling 23, "stacked:A": a close pair turns
-## through standing one sun in front of the other, the near one drawn over the
-## far), on this close pair's map at its opening zoom: over a lap of the pair,
-## the moment the suns' discs overlap most with each sun in front; there, a
-## click between their middles, on both discs, is on the nearer sun
-## (`SystemOverlay.hit`, the suns nearest first). Tried in fixed order, star A
-## first, the click went to star A behind star B's face. A pair whose discs
-## never meet at this zoom is counted, not judged.
+## Ruling 23 stacked:A: the nearer sun takes the click, as in fixed order star A took it behind B.
+## Why: docs/why/TwinSiteTest.md#nearer-sun-click
 func _nearer_hit(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary, bad: Array[String]) -> void:
 	var v = m.view
 	var ov = m.overlay
@@ -3553,19 +3155,8 @@ func _nearer_hit(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 	await _frames(2)
 
 
-## THE WORDS HOLD AS THE SUNS TURN (ruling 23: each frame's nearest clear spot,
-## `SystemOverlay._spot_off_suns`, made the words hop a whole step as a sun
-## crept past a spot tried before theirs; DESIGN step 5): in the first
-## TURN_RUNS close pairs, the ship in star A's close orbit at the opening zoom,
-## the clock stepped TURN_STEP_S a frame through a whole lap of the pair, the
-## words by the ship (CLOSE ORBIT · <system> A, or CLOSE ORBIT alone) measured
-## from star A where it is (`_body_scr`, what they are centred on). Twice: as
-## the overlay places them, each spot held while it stays clear
-## (`SystemOverlay._spot_kept`), and placed afresh each frame, its memory
-## cleared, as they were before the pair turned. Held, they hop (move more than
-## 3 px in a frame, or change what they say) no more often than afresh and at
-## most TURN_HOPS_MOST times a lap; never across a sun; held back off one in
-## at most 1 frame in 20.
+## Each frame's nearest clear spot made the words hop a step; a held spot hops no more often.
+## Why: docs/why/TwinSiteTest.md#words-hold-as-suns-turn
 const TURN_RUNS := 3
 const TURN_STEP_S := 1.5
 const TURN_HOPS_MOST := 6
@@ -3625,41 +3216,9 @@ func _words_as_suns_turn(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dic
 	await _frames(2)
 
 
-## THE WORDS BY THE SHIP NEVER ACROSS A SUN, AND THE SHIP ON A SMALL WORLD'S RING
-## OUTLINED, over the binaries of `RING_SEEDS` as each seed rolls them (at most
-## `RING_CAP` a seed), on the real map at its opening zoom: the ship put in each
-## star's close orbit and in orbit of each world, a world round one star at
-## three moments of its year. Every word placed that frame
-## (`SystemOverlay.label_rects`) clear of both suns' discs; the ship's own words
-## (IN ORBIT · <world>, CLOSE ORBIT · <star>) counted where they stand whole,
-## shortened to IN ORBIT or CLOSE ORBIT, or held back. The outline on the ring of
-## each world round one star, as `_ring_outline_open`; none round both suns, nor
-## (once a seed) round one sun's world. OMEGA CALLOUS REACH on seed 7, its first
-## world round star A: IN ORBIT · OMEGA CALLOUS I ran across both suns, under
-## the ring, above it and under the ship all crossing one (Nov 1).
-## THEN IN EACH BINARY (the picks review, Nov 1): its event cards
-## (`SystemPanel._events`) in name order; the ship on its first world's ring
-## and each other place but a belt selected in turn, its name clear of both
-## suns; and the ship let go from four sides of each world, coasting into its
-## ring (held at its point, the clock still), the forecast's WILL ORBIT <world>
-## or WILL BE ALONGSIDE <world> clear of both. Each name and forecast counted
-## shown, held back off a sun (`SystemOverlay.label_held`) or under a higher
-## label (the map's rule since before binaries). On 35ce5c73, 235 words across
-## a sun: 226 forecasts (WILL ORBIT IOTA CINDER-2 I across IOTA CINDER-2 B on
-## seed 7) and 9 selected names (IOTA CINDER-2 II across IOTA CINDER-2 B).
-## THE SHIP'S OWN WORDS OFF THE BEACONS, at each place and each selection
-## (`_ship_words_off_beacons`): clear of every event's beacon drawn that frame,
-## but where the overlay says no spot cleared the suns and the beacons both
-## (`SystemOverlay.label_on_beacon`, the suns-only fallback, counted and at most
-## 1 in 50). On b764c344, stepped off a sun, 209 of 760 sat over a beacon (IN
-## ORBIT · OMEGA CALLOUS I over the one above its world, the picks stills);
-## with every system a binary (`twin=all`), CLOSE ORBIT · TAU BRINE-2 B sat on
-## one where it first stood, clear of the suns. And where the overlay stepped
-## them (`SystemOverlay.ship_words`), off the corner ticks of the reticle round
-## the place they name and over none of the words queued under them that a spot
-## clears (`_ship_words_off_beacons`). On 19fd37e5 the ticks alone moved them in
-## 209 of 760 frames, and stepped they hid 8 selected names b764c344 showed
-## (IOTA CINDER-2 II selected from IOTA CINDER-2 I's ring, seed 7).
+## Over seeded binaries, no word across a sun and the ship outlined on small ring worlds.
+## Counts what the picks review found: forecasts and names across a sun, words on beacons.
+## Why: docs/why/TwinSiteTest.md#ring-sweep
 func _ring_sweep() -> void:
 	var seeds: Array = RING_SEEDS.duplicate()
 	var cap := RING_CAP
@@ -3725,11 +3284,8 @@ func _ring_sweep() -> void:
 			for b in Ln.bodies:
 				if b.world != &"" and w0 < 0:
 					w0 = b.index
-			# (in a binary, a world round one sun when it has one: the ship put
-			# back round a giant out past the pair widens the opening to show it,
-			# and a wide pair's opening is checked framed on its own part. Seed
-			# 4242's ETA GRIST SECUNDUS, a twin since stations were halved on
-			# Nov 3, opened at 0.32 round its giant, 1.33 of its whole system)
+			# A ship round a far giant widens the opening, so wide pairs are checked framed.
+			# Why: docs/why/TwinSiteTest.md#ring-sweep
 			if two:
 				for b in Ln.bodies:
 					if b.world != &"" and SystemLayout.is_star(b.host_id):
@@ -3740,17 +3296,13 @@ func _ring_sweep() -> void:
 			Run.at = n.index
 			n.visited = true
 			SystemMapScreen._parked[n.index] = {"at": w0, "mode": &"rail"}
-			# OPENED AT A KEPT CLOCK (ruling 23): each binary at the next of
-			# LAP_CLOCKS points round its pair's lap, so the opening framing and
-			# everything below meet the pair at every angle (all at t 0 held still)
+			# Opened at a kept clock (ruling 23): each binary at the next of LAP_CLOCKS lap points.
 			var lap: float = TAU / Ln.pair_n if two and Ln.pair_n > 0.0 else 0.0
 			Run.map_clock[n.index] = lap * float(ti % LAP_CLOCKS) / float(LAP_CLOCKS)
 			if m == null or not is_instance_valid(m) or Router.current != m:
 				m = await _map()
 			else:
-				# (one map shown again for another system, where the game makes a new
-				# one each time: the overlay's ring easing, fade and trail, which name
-				# the last system's bodies by index, start afresh as on a new map)
+				# One map reused for another system: index-keyed easing and trail restart afresh.
 				await m.show_system(n, Run.map_t(n.index), false)
 				m.overlay._ok_body = -9
 				m.overlay._was = -9
@@ -3807,9 +3359,7 @@ func _ring_sweep() -> void:
 					elif says.has(full.get_slice(" · ", 0)):
 						st.short += 1
 					elif not m.view.window.grow(-2.0).has_point(ov._ship_at):
-						# (the ship off the picture, a world out past the wide pair's
-						# framing: its arrow at the edge says YOU, and its words, cut
-						# by the frame there, are not drawn: `_ship_marks` checks)
+						# Ship off the picture: its arrow says YOU, cut words undrawn.
 						st.off_pic += 1
 					else:
 						st.held += 1
@@ -3829,9 +3379,7 @@ func _ring_sweep() -> void:
 					else:
 						st.both += 1
 						st.both_rim += int(r.rim_px) + int(r.ringed)
-				# AND WHEELED OUT TO THE WHOLE SYSTEM, a wide pair's world round one
-				# sun: where the ship sits on its world's disc (framed on the pair
-				# as it opens since "gap:A", it rides clear of it)
+				# Wheeled out, the ship sits on its world's disc; framed, it rides clear.
 				if round_one and not L.close:
 					m.view.t = 37.0
 					m.flight.place_at(p, 37.0)
@@ -3848,9 +3396,7 @@ func _ring_sweep() -> void:
 					m._zoom_to = m.open_zoom
 					m.view.zoom = m.open_zoom
 					m.view.pan = -m.home_at * m.open_zoom
-			# THE EVENT CARDS IN NAME ORDER, as the SATELLITES list under them
-			# (`SystemPanel._events`, what < and > step): a body's after the one
-			# named before it, the star's last
+			# Event cards follow the SATELLITES name order, the star's last.
 			var rank := {}
 			var ord := L.name_order()
 			for k in ord.size():
@@ -3877,10 +3423,7 @@ func _ring_sweep() -> void:
 			st.ev_moved += int(not as_made)
 			if not in_order:
 				ev_bad.append("seed %d %s: %s" % [sd, MapGen.star_name(n), ", ".join(ev_names)])
-			# EACH OTHER PLACE SELECTED, the ship on the first world's ring: its
-			# name beside its reticle, never across a sun; at three moments of the
-			# year of the first world round one sun (a world close to its sun
-			# meets it with its name only part of the way round)
+			# Three moments of the year: a world near its sun meets it only part of the way round.
 			var sel_at: Array[int] = L.stars()
 			var wr := -1
 			for b in L.bodies:
@@ -3911,10 +3454,7 @@ func _ring_sweep() -> void:
 					_ship_words_off_beacons(ov, "IN ORBIT · " + String(ov._place_nm(w0)), w0, "seed %d %s, %s selected" % [sd, MapGen.star_name(n), nm_q], st, on_beacon)
 					_said_on_beacon(ov, nm_q, st, "sel_bc")
 				ov.selected = -2
-			# LET GO AND COASTING INTO EACH WORLD'S RING (`restore_free`, held at
-			# its point, the clock still): the forecast's WILL ORBIT <world> or
-			# WILL BE ALONGSIDE <world> by the ring it will take, never across a
-			# sun, from four sides
+			# Let go and coasting from four sides: the forecast words must stay off the suns.
 			m.frozen = true
 			for b in L.bodies:
 				if b.world == &"":

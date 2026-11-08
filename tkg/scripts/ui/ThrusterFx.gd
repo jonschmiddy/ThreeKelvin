@@ -1,41 +1,9 @@
 class_name ThrusterFx
 extends RefCounted
 
-## A STEADY ENGINE FLAME DRAWN IN CODE, from the overload death's plume (Oct 13).
-##
-## Jon saw the plume in the F OVERLOAD enemy death and wanted it as the normal
-## engine flame, side by side with the PixelLab strips. This is the MOCKUP for
-## that pick: nothing live draws it yet. `-- sheet=ThrusterSheet` films it.
-##
-## COPIED, NOT SHARED. `_hull_pic` (its mask half), `_engines` and the plume
-## builder are copies of ShipBreakup's (branch fx/deaths), because that file is
-## not on main and its owner is still working in it. When both land, ShipBreakup's
-## `_plume_tex` should become `ThrusterFx.plume_image` with Look.OVERLOAD and its
-## `_engines` should call `ThrusterFx.engines` -- one helper, two callers. The
-## differences from the death's copy, each on purpose:
-##   - one picture per NOZZLE per length, not one for all engine points, so each
-##     engine can flicker on its own;
-##   - the 2x2 Bayer is read in CANVAS coordinates, not the plume's own. A plume
-##     streaming left grows its box to the left, so a plume-local pattern would
-##     flip parity every time the length changed by one pixel: the whole dithered
-##     tail would crawl on every flicker step. Fixed to the ship, it holds;
-##   - the plume is cut out wherever the hull is opaque, so the flame can be
-##     drawn as ONE additive layer over the finished ship and still never paints
-##     over plating. Today's strips need a `back` flag and a draw order for that
-##     (HullData.thrusters, "kept off the hull plate"); this needs neither;
-##   - on a rigged hull each stream starts at the strip's own attach pixels and
-##     the hull blocks it except where the strip itself burns through (see
-##     `for_hull`);
-##   - `_engines` keeps only points on the hull's back EDGE for a steady flame:
-##     the death's lit-pixel test also catches warm windows and stripes, and a
-##     flame streaming out of a window is fine in an explosion and absurd at rest.
-##
-## THE LIFE. The bands are held; only the LENGTH moves, by one or two pixels, in
-## held steps a few times a second on one clock per ship (a quarter to two fifths
-## of a second each, irregular so it is not a metronome). Never every frame: at
-## five or more changes a second the steps fuse into jitter (memory: judge
-## animation per second). Not every engine changes on every step, so a ship
-## with three never pulses as one.
+## Mockup of Jon's pick: the overload plume as a steady flame. Helpers are copies of ShipBreakup's.
+## Only the length moves, in held steps; every frame would fuse into jitter.
+## Why: docs/why/ThrusterFx.md#coded-engine-flame
 
 enum Look { OVERLOAD, DRIVE, SPILL }
 enum Thrust { IDLE, CRUISE, FULL }
@@ -92,20 +60,12 @@ var _hold := PackedFloat32Array() ## step start times, STEPS of them, then the l
 var _offs: Array = []             ## [step] -> PackedInt32Array, one -1..1 per nozzle
 var _loop := 1.0
 var _seed := 0
-## THE DIALS of the living flame: loop frames a second (0 is the calm flame of
-## the first round, length steps only) and raggedness (tongue size, ember
-## rate, breathing). "lively" is 8 fps / 1.0, "wild" 12 fps / 1.8.
+## Dials of the living flame: loop fps (0 is calm) and raggedness. Lively 8/1.0, wild 12/1.8.
 var fps := 8.0
 var rag := 1.0
 const LOOP := 8
-## THE DYNAMIC FLAME (Jon picked A at the lively speed, Oct 13, then: "I want
-## it to be more visually dynamic" and "more sparks and fire coming off the
-## back"). `dynamic` swaps in the bigger frame loop (`_frame`, `_stream`):
-## 2-4 licks a frame and longer, sometimes a forked tip, band edges moving 1-2
-## px, the length breathing 2-3 px with the odd surge, the outline wobbling a
-## pixel side to side along its length, over `loop_n` (12) frames so the loop
-## does not read as repeating. `particles` adds sparks and torn-off fire
-## (`particles_at`). Both off is the lively flame as filmed before.
+## Jon wanted it more dynamic with sparks, so `dynamic` swaps in a longer frame loop.
+## Why: docs/why/ThrusterFx.md#dynamic-flame
 var dynamic := false
 var particles := false
 var loop_n := LOOP
@@ -133,27 +93,8 @@ var _pic: Image = null
 
 # ------------------------------------------------------------------ making one
 
-## A player hull: the nozzles are its RIGGED thrusters (HullData.thrusters).
-## `img` is the hull picture drawn at canvas (0, 0).
-##
-## THE FLAME LEAVES WHERE THE PIXELLAB FLAME LEAVES (Jon, Oct 13: "the coded
-## thrusters should emanate from the same place the pixellab thrusters
-## emanate from"). Each nozzle is the strip's own attach end: the column its
-## frames end on (the most common last column, frame by frame) and the rows lit
-## there in at least half the frames, at exactly those canvas pixels; for a
-## `back` strip, the column and rows where it first shows past the plating
-## (behind the hull it is hidden, so that is where it is seen to leave). If that
-## is a point, the flame starts as a point and gets its body by widening: a
-## nozzle under ten rows widens up to 3x faster (`widen`), so heavy S's 4-row
-## apex is not a needle at full burn.
-## A first try walked heavy S's start out to its cavity's mouth at the dome's
-## base, and every look then engulfed the dome and read as pasted on.
-##
-## Nor does it draw over any hull pixel the strip leaves visible: the hull
-## blocks the flame everywhere except where a FRONT strip covers it in every
-## frame (the channel the PixelLab flame itself burns through). A `back` strip
-## covers nothing, so its flame shows only where the hull ends, as today.
-## `ThrusterSheet` checks both against the strips (`starts`).
+## The flame leaves where the PixelLab flame does (Jon). A point start widens, not a needle.
+## Why: docs/why/ThrusterFx.md#hull-nozzles
 static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> ThrusterFx:
 	var fx := ThrusterFx.new()
 	fx._take_canvas(img)
@@ -200,9 +141,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		var fw := strip.get_width() / n
 		var sh := strip.get_height()
 		var at: Vector2i = e.at
-		# The channel: hull pixels a front strip paints over in EVERY frame. Kept
-		# per engine too: a channel deep enough is a BELL (heavy S's stern cavity)
-		# that the flame has to fill, not just pass down the middle of.
+		# The channel is kept per engine: a deep one is a bell the flame must fill.
 		var cells := PackedVector2Array()
 		if not bool(e.get("back", false)):
 			for y in sh:
@@ -220,11 +159,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 						if fx._solid[cy * fx._w + cx] == 1:
 							fx._unblocked.append(Vector2(cx, cy))
 						fx._solid[cy * fx._w + cx] = 0
-		# The start: each frame's last column holding a strip pixel that SHOWS
-		# (a `back` strip's pixels under the plating do not), the most common one
-		# over the frames, and the rows showing there in at least half of them.
-		# For a front strip that is its attach end; for a back strip it is where
-		# the flame comes out from behind the hull, already as wide as it is there.
+		# Start is the common last visible column, so a back strip starts where it leaves the hull.
 		var back := bool(e.get("back", false))
 		var votes := {}
 		for i2 in n:
@@ -253,14 +188,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 				rows.append(y3)
 		if rows.is_empty():
 			continue
-		# THE ENGINE'S SIZE (Jon, Oct 13, on the gallery: "the exhaust of these
-		# looks too small on the main body"). The rows the strip starts on are its
-		# narrowest; the flame he is used to is as tall as the engine. So measure
-		# the strip: how tall its visible flame is 2-6 px out from the start, the
-		# middle frame's worth (and its tallest anywhere, for the record). The
-		# coded flame starts that tall, centred on the same axis, at the same
-		# column; a row the start column has under plating walks out to open
-		# space (at most 6 px), as an override's rows do.
+		# Jon found the flame too small, so it starts as tall as the strip's visible flame.
+		# Why: docs/why/ThrusterFx.md#engine-size
 		var spans: Array = []
 		var max_h := 0
 		var n_lo := 1 << 20
@@ -276,9 +205,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 				for y5 in sh:
 					if strip.get_pixel(i5 * fw + x5, y5).a <= 0.5:
 						continue
-					# only flame in open space counts: a front strip painted over
-					# plating it does not always cover is drawing on the hull, which
-					# the coded flame never does
+					# Only flame in open space counts: the coded flame never draws on the hull.
 					if fx._is_solid(at.x + x5, at.y + y5):
 						continue
 					a0 = mini(a0, y5)
@@ -298,29 +225,14 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 		spans.sort()
 		var near_h: int = spans[spans.size() / 2] if not spans.is_empty() else rows.size()
 		var target := maxi(near_h, rows.size())
-		# THE AXIS is where the strip's flame centres -- every visible pixel, every
-		# frame -- not the middle of its start rows. A back strip shows first at
-		# the TOP of a slanted or rounded stern, so its start rows sat 4-5 px
-		# above the flame (light A 47 against 51.8, medium B 65.5 against 70.6,
-		# heavy C 95 against 99.6); heavy A's front strips start 2 px high. Jon:
-		# "flame slightly too high".
+		# The axis is the flame's centre, not the start rows: back strips sat 4 to 5 px too high.
+		# Why: docs/why/ThrusterFx.md#flame-axis
 		var centre := float(rows[0] + rows[-1]) * 0.5
 		if ycnt > 0:
 			centre = ysum / float(ycnt)
-		# THE MOUTHS, read off the hull's own pixels (Oct 13). The stern edge is
-		# found row by row from well behind the strip's start (the first try began
-		# 3 px in front of it, and every nozzle sticking further out than that read
-		# as one flat face: light A's three stacked nozzles became one big flame).
-		# A MOUTH is a local minimum of that edge -- rows standing furthest out,
-		# with the edge receding above and below -- grown to the rows within 1 px
-		# of it. Every mouth in the strip's own flame band that this strip is the
-		# nearest to, and that stands within 6 px of the furthest one, is an
-		# engine: three stacked nozzles are three flames, which merge after they
-		# leave. One mouth at least as tall as the strip's flame (read across small
-		# bumps) is a FLAT STERN, and the strip's height sets the start (heavy C,
-		# heavy B). A shallow bell (a front strip lapping its nozzle by a few px)
-		# is a nozzle like any other; only a deep one (heavy S's cavity) keeps the
-		# bell's own shape.
+		# Mouths are read off the hull's own pixels, found from well behind the strip's start.
+		# Stacked nozzles are separate flames. A flat stern is sized by the strip's height.
+		# Why: docs/why/ThrusterFx.md#mouths
 		var start_col: int = at.x + xr
 		var axis_y := int(round(float(at.y) + centre))
 		var band_lo := at.y + (n_lo if n_lo <= n_hi else rows[0]) - 2
@@ -350,12 +262,8 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 					a6 -= 1
 				while edge.has(b6 + 1) and int(edge[b6 + 1]) <= v + 1:
 					b6 += 1
-				# INSIDE THE OUTLINE: a row at either end whose 4 px from the edge
-				# into the hull are all dark is the nozzle's rim drawn as a line,
-				# not its opening (light B's top pipe: 9 rows with its two rim
-				# rows, 7 inside them)
-				# (a rim is a dark line against a lighter inside: on a hull dark all
-				# through, no row is a rim)
+				# A rim drawn as a dark line is trimmed: it is not the opening.
+				# Why: docs/why/ThrusterFx.md#mouths
 				while b6 - a6 >= 2 and _rim_row(img, int(edge[a6]), a6, 1) and not _rim_row(img, int(edge[a6 + 1]), a6 + 1, 1):
 					a6 += 1
 				while b6 - a6 >= 2 and _rim_row(img, int(edge[b6]), b6, 1) and not _rim_row(img, int(edge[b6 - 1]), b6 - 1, 1):
@@ -434,11 +342,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 				continue
 			var start_h := pts.size()
 			var mouth_h := int(g.mouth)
-			# A point of a nozzle widens faster, so it is not a needle; its start
-			# stays where it is. The MAIN drive (the hull's biggest strip) grows to
-			# the strip's body, shared between its nozzles, by a quarter of its
-			# length off a flat stern and by half out of nozzles; a secondary
-			# engine just spreads (Jon on light B's top pipe: "too big").
+			# A small nozzle widens so it is not a needle. Secondary engines just spread (Jon).
 			var widen := clampf(10.0 / float(start_h), 1.0, 3.0)
 			var size: int = near_h if (flat or is_main) else mini(near_h, mouth_h)
 			var l_full := float(fx.ink_w) * THRUST_K[Thrust.FULL] * clampf(sqrt(float(size) / 8.0), 0.85, 1.8)
@@ -452,9 +356,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 			if deep_bell:
 				nz.bell = bell
 				fx._grow_mouth(bell, target)
-			# LENGTH: the main drive's goes with its strip's size; a secondary
-			# engine's with its own mouth (Jon: the top pipe's flame was "taller and
-			# longer than that thin pipe nozzle can carry"). Sparks with the mouth.
+			# Main drive length follows its strip, a secondary its own mouth (Jon).
 			_size_nozzle(nz, size)
 			if not flat:
 				nz.pscale = clampf(float(start_h) / 8.0, 0.75, 2.5)
@@ -463,9 +365,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 	return fx
 
 
-## A ship picture with no rig (an enemy, a PixelLab pool ship): the nozzles are
-## found the overload's way, `_engines`, then kept to the hull's back edge and
-## split into engines. Enemies face left, so they burn to the right.
+## A ship picture with no rig: nozzles from `_engines`, kept to the back edge. Enemies burn right.
 static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: String = "",
 		scale: float = 1.0, pic_at: Vector2i = Vector2i.ZERO) -> ThrusterFx:
 	var fx := ThrusterFx.new()
@@ -473,10 +373,7 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 	fx._pic = img
 	fx.look = the_look
 	fx.warm = true
-	# HAND-PLACED ENGINES first (art/engines.json): the six pictures whose
-	# rearmost pixels are not an engine -- a towed rock, a dish rim, a scoop's
-	# prong, fin and sail tips. `pic_at` is where the picture's (0, 0) sits on
-	# `img`; `scale` is its size against the file the table was read off.
+	# Hand-placed engines from art/engines.json for pictures whose rearmost pixels are not engines.
 	var ov = engine_override(id)
 	if ov != null:
 		fx._override(ov as Array, pic_at, scale, img)
@@ -522,12 +419,8 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 	return fx
 
 
-## A STEADY FLAME COMES OUT OF THE STERN. The gallery of every ship (Oct 13)
-## showed the death's detection lighting towers, hull bumps and spires half way
-## along the body (the Honeycomb's pods, the Spires' masts, the Barnacle's
-## turret): fine for a breakup, wrong for an engine. Keep only engines within
-## 8% of the hull's length (at least 6 px) of its rearmost pixel, and drop a
-## one-row sliver when there is anything else.
+## The death's detection lit towers and bumps midbody. A steady flame keeps only the stern.
+## Why: docs/why/ThrusterFx.md#sternmost-engines
 func _keep_sternmost(used: Rect2i) -> void:
 	if nozzles.is_empty():
 		return
@@ -570,10 +463,7 @@ static func engine_override(id: String):
 	return _overrides.get(key, null)
 
 
-## Engines from the table: each row of each entry finds the hull's back edge
-## from its column -- forward through plating to the first open pixel, or back
-## through open space to the plating, at most 12 px -- and the flame starts
-## there; a row that never finds one (a tow cable running on) is left out.
+## Table engines find the hull's back edge from their column, at most 12 px. No edge drops the row.
 func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> void:
 	for e in list:
 		var d: Dictionary = e
@@ -597,14 +487,9 @@ func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> vo
 					k += 1
 			if k > 12:
 				continue
-			# FLUSH WITH THE NOZZLE (Jon on the domes ship: "Doesn't quite fit
-			# nozzle"): most of these pictures end in a 1 px dark outline, and a
-			# flame starting past it reads as starting a pixel off the engine.
-			# Where the last hull pixel is that outline, the flame starts on it.
+			# Flush with the nozzle: where the last hull pixel is the outline, start on it.
 			pts.append(Vector2(x, cy))
-		# INSIDE THE OUTLINE first, then onto it: the rim rows at either end
-		# go (they are not the opening), and each remaining row may start ON
-		# the outline's dark column, flush with the nozzle (the domes ship)
+		# Trim the rim rows first, then each row may start on the outline's dark column.
 		pts = _trim_rim(img, pts)
 		for k5 in pts.size():
 			var p5 := pts[k5]
@@ -616,20 +501,13 @@ func _override(list: Array, at: Vector2i, scale: float, img: Image = null) -> vo
 		if not pts.is_empty():
 			var nzo := {pts = pts, dir = 1, behind = bool(d.get("behind", false)),
 				widen = float(d.get("widen", 1.0)), length = float(d.get("length", 1.0))}
-			# A `behind` flame passes behind what is in its way instead of
-			# stopping (the orbit-arm ship's drive, behind its end weight -- Jon:
-			# "go BEHIND the middle pod"), and its length is measured from the far
-			# side of it, so it reads as the main drive past the weight.
+			# A `behind` flame passes behind what blocks it, measured from the far side (Jon).
 			if nzo.behind:
 				nzo.over_span = _blocked_span(pts[pts.size() / 2], 1)
 			nozzles.append(nzo)
 
 
-## A bell's mouth at least as tall as its engine (`target` rows, centred): a
-## strip that laps the stern by a few pixels makes a shallow bell whose mouth
-## is only the rows it always covers, and the flame left it thinner than the
-## strip it replaces. Each added row walks out to open space from the mouth's
-## column, at most 10 px.
+## Grows a shallow bell's mouth to engine height, or the flame left thinner than its strip.
 func _grow_mouth(bell: Dictionary, target: int) -> void:
 	var mouth: PackedVector2Array = bell.mouth
 	if mouth.size() >= target or mouth.is_empty():
@@ -681,11 +559,7 @@ func _trim_rim(img: Image, pts: PackedVector2Array) -> PackedVector2Array:
 func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 	if run.is_empty():
 		return
-	# SEPARATE MOUTHS ARE SEPARATE ENGINES (Oct 13, light A's three stacked
-	# nozzles): the rows standing furthest back, each a local maximum of the
-	# stern edge with the edge receding on both sides, within 6 px of the
-	# furthest, each grown to the rows within 1 px of it. Two or more is that
-	# many engines; one falls through to the rule below.
+	# Separate mouths are separate engines (light A's three stacked nozzles).
 	var mouths: Array = []
 	var i := 0
 	while i < run.size():
@@ -748,9 +622,7 @@ func _add_run(run: Array, by_row: Dictionary, cap: int) -> void:
 	nozzles.append({pts = _trim_rim(_pic, pts), dir = 1})
 
 
-## A nozzle's rim drawn as a dark line: the 4 px from the hull's edge `x` into
-## the hull (`into` +1: rightwards, a player hull; -1: leftwards, a ship facing
-## left) all darker than 0.15.
+## A rim is the 4 px from the edge into the hull all darker than 0.15.
 static func _rim_row(img: Image, x: int, y: int, into: int) -> bool:
 	if img == null:
 		return false
@@ -768,12 +640,8 @@ static func _px_solid(img: Image, x: int, y: int) -> bool:
 	return x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() and img.get_pixel(x, y).a > 0.5
 
 
-## A BELL: the hull pixels a front strip always covers, when they run at least
-## four columns back from the apex (heavy S's stern cavity; a strip that only
-## laps the hull's edge by a pixel has none). Today's PixelLab flame FILLS it,
-## wall to wall, and leaves past the rim at the full mouth width. Returns
-## {cells, depth (columns from the apex to the furthest-out cell), mouth (one
-## start per row: the first open pixel past that row's last cell)}, or {}.
+## A bell is the hull cells a front strip always covers. PixelLab's flame fills it wall to wall.
+## Why: docs/why/ThrusterFx.md#bell
 static func _bell(cells: PackedVector2Array, apex_x: int) -> Dictionary:
 	if cells.size() < 12:
 		return {}
@@ -790,9 +658,7 @@ static func _bell(cells: PackedVector2Array, apex_x: int) -> Dictionary:
 	var mouth := PackedVector2Array()
 	var ys: Array = first.keys()
 	ys.sort()
-	# Every row's own last cell: the rim is curved (heavy S's is the dome's
-	# edge), so a "within a pixel of the furthest-out cell" rule kept three
-	# rows and the flame left the full bell as a thread.
+	# Every row's own last cell: the rim is curved, and a nearness rule left the flame a thread.
 	for y2 in ys:
 		mouth.append(Vector2(int(first[y2]) - 1, int(y2)))
 	return {cells = cells, depth = depth, mouth = mouth, apex = apex_x}
@@ -817,9 +683,7 @@ func _is_solid(x: int, y: int) -> bool:
 	return x >= 0 and y >= 0 and x < _w and y < _h and _solid[y * _w + x] == 1
 
 
-## The flicker plan: STEPS held steps of irregular length, each engine's offset
-## in -1..1 per step (times FLICK[thrust] when drawn). About half the engines
-## move on a step; one that moves never lands where it was.
+## Flicker plan: irregular held steps, about half the engines move, never back to where they were.
 func _plan(seed: int) -> void:
 	_seed = seed
 	var rng := RandomNumberGenerator.new()
@@ -848,10 +712,7 @@ func _plan(seed: int) -> void:
 
 # ------------------------------------------------------------------ reading it
 
-## A BIG ENGINE THROWS A BIGGER FLAME: an engine's length goes with the square
-## root of its height against an 8-row one (0.85x to 1.8x), and its sparks and
-## fire with its height (0.75x to 2.5x). A bell (heavy S) keeps 1: its size is
-## the bell's.
+## A big engine throws a bigger flame; a bell keeps 1, as its size is the bell's.
 static func _size_nozzle(nz: Dictionary, h: int) -> void:
 	nz.height = h
 	if nz.has("bell"):
@@ -904,9 +765,7 @@ func step_at(t: float) -> int:
 	return lo
 
 
-## The length drawn. A LIVING flame (`fps` > 0) keeps its base length: its
-## frames already breathe and lick. The CALM one (`fps` 0, the first round)
-## wanders 1-2 px in held steps a few times a second.
+## A living flame keeps its base length as its frames breathe. The calm one wanders 1 to 2 px.
 func length_at(n: int, thrust: int, t: float) -> int:
 	if fps > 0.0:
 		return nozzle_length(n, thrust)
@@ -917,9 +776,7 @@ func length_at(n: int, thrust: int, t: float) -> int:
 	return maxi(2, nozzle_length(n, thrust) + o[n] * amp)
 
 
-## Which of the LOOP shapes engine `n` shows at `t`: held frames at `fps`, each
-## engine's loop offset by three frames from the last so a multi-engine ship
-## never pulses in unison.
+## Each engine's loop is offset by three frames so a multi-engine ship never pulses in unison.
 func frame_at(n: int, t: float) -> int:
 	if fps <= 0.0:
 		return 0
@@ -945,9 +802,7 @@ func warm_up(thrust: int) -> void:
 		spill(thrust)
 
 
-## Draw every engine at time `t`, the canvas's (0, 0) at `origin`, onto a canvas
-## item that blends ADD (`add_material`). This is the whole per-frame cost: a
-## frame lookup and one cached texture per engine.
+## Draws every engine at time t onto an ADD canvas. The per-frame cost is a lookup and a texture.
 func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = true,
 		mod: Color = Color.WHITE) -> void:
 	if not wait and not is_ready():
@@ -974,11 +829,7 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = t
 
 # ------------------------------------------------------------------ live
 
-## IN THE GAME (Jon picked A, dynamic with sparks, Oct 13). One flame per hull
-## picture and sheet, shared by every view that draws it -- the chassis select's
-## twelve cards, a convoy's four ships -- and built OFF the main thread the first
-## time a view asks (`build_async`); until it lands that view draws no flame,
-## rather than stalling a frame for the 100-300 ms all its pictures take.
+## One flame per picture, shared and built off the main thread, to avoid a 100 to 300 ms stall.
 static var _shared := {}
 
 static func for_view(h: HullData, half: bool) -> ThrusterFx:
@@ -1008,17 +859,8 @@ static func for_view(h: HullData, half: bool) -> ThrusterFx:
 	return fx
 
 
-## A SHIP PICTURE'S FLAME (enemies, LOCAL's pool ships): one per picture file,
-## shared, built off the main thread like a hull's. Its engines are the
-## finder's, or the hand-placed ones in art/engines.json; `k` is how big the
-## picture is against the file the table was read off (a pool ship's _half
-## picture is 0.5). Enemies face left, so it burns to the right.
-##
-## `half`: the picture's half sheet, when that is what is drawn (an enemy in a
-## pack of three or more, `EnemyArt.draw_scale`). The rig is still read off the
-## full picture and then brought down to the half one (`_halve`), as a hull's
-## half view is; read off the full picture and drawn over the half, every
-## nozzle sat twice as far from the picture's corner as its own engine.
+## Half-sheet rigs are read off the full picture then halved: nozzles sat twice as far otherwise.
+## Why: docs/why/ThrusterFx.md#picture-flame
 static func for_picture(tex: Texture2D, k: float = 1.0, half: Texture2D = null) -> ThrusterFx:
 	if tex == null:
 		return null
@@ -1051,10 +893,7 @@ static func for_picture(tex: Texture2D, k: float = 1.0, half: Texture2D = null) 
 	return fx
 
 
-## THE HALF SHEET (the convoy column): the rig is measured on the full sprite,
-## so every nozzle, bell cell and unblocked pixel comes down to half -- the
-## same nearest halving `sprite_half` was made with -- over the half picture's
-## own mask. Lengths follow its ink width, so they halve too.
+## The rig is measured on the full sprite, then halved the same way `sprite_half` was made.
 func _halve(small: Image) -> void:
 	var cleared := _unblocked
 	_take_canvas(small)
@@ -1150,17 +989,8 @@ static func _lv(c: Color, lvl: float) -> Color:
 
 # ------------------------------------------------------------------ the plume
 
-## THE LIVING FLAME (Jon, Oct 13: "They still read as too still... they should
-## be an active flame"; today's strips change ten times a second and that is
-## the bar). Each engine cycles LOOP distinct shapes at `fps`, as held frames:
-##   - the tail is ragged and different every frame: each row's tongue is its
-##     own length, and one or two rows lick further out (`rag` scales both);
-##   - the band edges shift a pixel along the flame (`shift`);
-##   - the length breathes by up to 3 px, so the core with it (`dL`);
-##   - now and then an ember breaks off the tail and fades over three frames.
-## What never moves: the nozzle's start (d = 0 is always lit, whatever the
-## frame), and inside heavy S's bell only the bands shift, gently.
-## Pure in (engine, frame): the same frame is the same picture every loop.
+## Jon: they read too still. Each engine cycles ragged shapes; the nozzle start never moves.
+## Why: docs/why/ThrusterFx.md#living-flame
 func _frame(n: int, fr: int) -> Dictionary:
 	if fps <= 0.0 or rag <= 0.0:
 		return {dL = 0, shift = 0, bshift = 0, rows = 0, ember = {}}
@@ -1188,11 +1018,7 @@ func _frame(n: int, fr: int) -> Dictionary:
 	return out
 
 
-## One engine's light at length `L` and loop frame `fr`, cached. The overload's
-## `_plume_tex` with the changes listed at the top: light streams back from
-## every point of the nozzle, falls off as pow(1 - d/(L+1), expo), widens by
-## 1 px every 1/spread, overlaps take the max; then four held bands, the outer
-## ones Bayer-thinned.
+## One engine's light at length L and frame fr, cached, as the overload's `_plume_tex`.
 func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 	var key := Vector3i(n, L, fr)
 	if _cache.has(key):
@@ -1203,9 +1029,7 @@ func plume(n: int, L: int, fr: int = 0) -> Dictionary:
 	return out
 
 
-## The picture itself, as an Image: PURE (reads the nozzles, the hull mask and
-## the dials, writes nothing shared), so `build_async` can run it off the main
-## thread. Textures are made on the main thread, in `plume` or `_adopt`.
+## Pure, so `build_async` can run it off the main thread. Textures are made on the main thread.
 func _build(n: int, L: int, fr: int) -> Dictionary:
 	var s: Dictionary = SHAPE[look]
 	var nz: Dictionary = nozzles[n]
@@ -1265,21 +1089,8 @@ func _build(n: int, L: int, fr: int) -> Dictionary:
 	return _quantize(buf, W, Hh, at, s)
 
 
-## SPARKS AND FIRE OFF THE BACK (Jon: "more sparks and fire coming off the
-## back"). Particles, not frames, so they never repeat with the loop, and
-## STATELESS: particle i of engine n is born at a time, place and speed drawn
-## from (ship seed, engine, kind, i), so any `t` can be drawn on its own and a
-## film is the same every run.
-##   sparks  bright single pixels shed along the TAIL (55-100% of its length,
-##           never at the nozzle), flying back 1-2 px a frame (at 30 a second)
-##           with a little drift, cooling white, yellow, orange, red over 4-8
-##           frames;
-##   fire    ragged 2-4 px clumps torn off the tail tip, drifting back slower,
-##           cooling and shrinking over 6-10 frames.
-## The heat ramp and the look's own levels and dither (the canvas's Bayer, so
-## the pattern is the ship's). A pixel on the hull is never drawn: they fly
-## into the open space behind the ship. On heavy S they leave past the rim.
-## Returns [{x, y, band, k}] in canvas pixels.
+## Stateless particles drawn from a seed, so any t draws alone and a film repeats exactly.
+## Why: docs/why/ThrusterFx.md#sparks-and-fire
 func particles_at(n: int, thrust: int, t: float) -> Array:
 	var out: Array = []
 	var tail := _tail(n, thrust)
@@ -1326,9 +1137,7 @@ func particles_at(n: int, thrust: int, t: float) -> Array:
 				var py := y + (c as Vector2i).y
 				if _is_solid(px, py):
 					continue
-				# A spark is one moving pixel: thinned by the pattern it would
-				# blink on and off as it crosses it, so only its last, reddest
-				# step is dithered. Fire clumps take the look's own dither.
+				# A spark is one moving pixel: dither would blink it, so only its last step does.
 				var bz: float = BAYER[posmod(py, 2) * 2 + posmod(px, 2)]
 				var cut: float = dith[band] if kind == 1 or band == 3 else 1.0
 				if bz >= cut:
@@ -1372,17 +1181,8 @@ func _clear_run(pts: PackedVector2Array, dir: int) -> int:
 	return 400
 
 
-## THE BELL'S LIGHT (heavy S). The cavity is always FILLED, every cell the
-## strip always covers, brighter toward the rim as today's flame is, and past
-## the rim the flame leaves at the mouth's full width with the look's own
-## spread and falloff. Jon, on idle: "The flame should extend slightly out of
-## the ship ... that little depression is the entire exhaust" -- so idle is the
-## same shape, dimmer: the bell held in the second band (0.52 to 0.70, no white
-## core) and the full idle length past the rim, at 0.75 of the light.
-## Cruise and full: the bell 0.55 to 0.95 and 0.7 of the length past it.
-## Living: the bell only shifts its bands (0 to +0.08); the part past the rim
-## gets the whole loop. Nothing here touches a hull pixel the strip leaves
-## visible: cells are the strip's own, and the streams are cut out by the hull.
+## Jon: on idle the depression is the whole exhaust, so idle is the same shape, dimmer.
+## Why: docs/why/ThrusterFx.md#bell-light
 func _bell_light(bell: Dictionary, L: int, Lf: int, spread: float, streams: Array,
 		fills: Array, fp: Dictionary) -> void:
 	var depth: int = bell.depth
@@ -1401,10 +1201,7 @@ func _bell_light(bell: Dictionary, L: int, Lf: int, spread: float, streams: Arra
 		streams.append({pts = bell.mouth, L = lout, spk = spread, gain = 0.75 if idle else 1.0})
 
 
-## One nozzle's light streaming back over `L` px into `buf` (canvas box `at`,
-## W x Hh): every point of the nozzle streams, falling off as
-## pow(1 - d/(L+1), expo), widening 1 px every 1/spk, overlaps taking the max.
-## `fp` is the loop frame's shape (`_frame`): each row's tongue, the band shift.
+## One nozzle's light streams back L px into the buffer, with each row's tongue and band shift.
 func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedVector2Array, L: int,
 		spk: float, expo: float, dir: int, gain: float = 1.0, fp: Dictionary = {}, behind: bool = false,
 		skip: int = 0) -> void:
@@ -1415,15 +1212,10 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 	for e in em:
 		lo_y = mini(lo_y, int(e.y))
 		hi_y = maxi(hi_y, int(e.y))
-	# THE TAPER. The death's stern rows each streamed the full length, which on
-	# a ragged stern staggers into a point; on a rigged nozzle eight rows tall
-	# it is a flat-ended slab. Rows off the nozzle's middle run shorter and a
-	# little dimmer, so the flame comes to a rounded tip like the overload's did.
+	# The taper: off-middle rows run shorter and dimmer so the flame ends in a rounded tip.
 	var mid_y := float(lo_y + hi_y) * 0.5
 	var half := float(hi_y - lo_y) * 0.5 + 0.5
-	# THE TONGUES: each row's own length this frame, smoothed over its
-	# neighbours so the edge is ragged and not noise, and one or two rows
-	# licking further out.
+	# Tongues: each row's own smoothed length, so the edge is ragged and not noise.
 	var cnt := em.size()
 	var tongue := PackedFloat32Array()
 	tongue.resize(cnt)
@@ -1479,10 +1271,7 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 			u = 0.0
 		var Lr := maxi(1, int(round(float(L) * (1.0 - 0.5 * u * u) * tongue[idx])))
 		var dim := 1.0 - 0.25 * u * u
-		# A FLAME STOPS AT WHAT IT HITS: once its row has been in open space, the
-		# next hull pixel on it ends the row. Masking alone let a stream pass
-		# behind an obstacle and come out the far side -- the orbit-arm ship's
-		# drive "burned" out of the sphere behind it.
+		# A flame stops at what it hits: masking alone let it pass behind an obstacle.
 		var seen_air := false
 		for d in Lr + 1:
 			var ax := ex + d * dir
@@ -1502,14 +1291,9 @@ func _stream(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, em: PackedV
 			if skip > 0 and Lr > skip:
 				var de2 := maxi(0, de - skip)
 				fall = gain * dim * pow(1.0 - float(de2) / float(Lr - skip + 1), expo)
-			# NOT WIDER THAN THE NOZZLE AT ITS MOUTH: the first two columns are the
-			# nozzle's own rows; the flame spreads from the third. (A spread of 1 at
-			# the start made every flame 2 rows taller than its opening -- Jon:
-			# "still slightly bigger than nozzle".)
+			# Not wider than the nozzle at its mouth, as a spread of 1 was 2 rows too tall (Jon).
 			var spread := int(float(d) * spk) + (1 if d >= 2 else 0)
-			# B's knots: every fifth pixel along the AXIS (the nozzle's middle
-			# rows only), held where they are, lifted a band while the jet is
-			# still hot enough to carry them.
+			# B's knots: every fifth axis pixel, held, lifted a band while the jet is hot.
 			var knot := 0.0
 			if look == Look.DRIVE and absf(u) < 0.4 and d >= 3 and d % 5 == 3 and float(d) < float(L) * 0.75:
 				knot = 0.24
@@ -1559,10 +1343,7 @@ func _quantize(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, s: Dictio
 	return {img = im if any else null, at = at}
 
 
-## C's light on the hull: every hull pixel near a nozzle, on the ship's side of
-## it, lit by distance in three held steps, the outer two dithered. Keyed to the
-## thrust and NOT to the flicker -- the stern is lit by the burn, and a stern
-## that stepped with every flicker would double the pixels that change.
+## C's hull light is keyed to thrust, not flicker, or it would double the pixels that change.
 func spill(thrust: int) -> Dictionary:
 	if _spill.has(thrust):
 		return _spill[thrust]
@@ -1627,9 +1408,7 @@ func spill(thrust: int) -> Dictionary:
 
 # ------------------------------------------------------------------ copied from ShipBreakup
 
-## COPY of ShipBreakup._hull_pic, the mask half only (no dead-engine recolour):
-## the ship's box grown by `margin`, which pixels are hull (lone pixels are the
-## canvas's starfield, dropped), the hull's middle and its box.
+## Copy of ShipBreakup's `_hull_pic`, mask half only: the box, hull pixels, middle and box.
 static func _hull_pic(img: Image, used: Rect2i, margin: int) -> Dictionary:
 	var canvas := Rect2i(Vector2i.ZERO, img.get_size())
 	var u := used.intersection(canvas)
@@ -1680,9 +1459,7 @@ static func _hull_pic(img: Image, used: Rect2i, margin: int) -> Dictionary:
 	return {r = r, w = w, h = h, raw = raw, mask = mask, n = cnt, cx = sx / cnt, x1 = x1}
 
 
-## COPY of ShipBreakup._engines, unchanged: the end of every row that reaches the
-## stern (enemies face left, so the stern is the right), and every lit engine
-## pixel in the back half. `for_sprite` filters it for a steady flame.
+## Unchanged copy of ShipBreakup's `_engines`. `for_sprite` filters it for a steady flame.
 static func engines(H: Dictionary) -> PackedVector2Array:
 	var w: int = H.w
 	var h: int = H.h

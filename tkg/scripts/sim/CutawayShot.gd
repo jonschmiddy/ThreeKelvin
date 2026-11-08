@@ -1,32 +1,8 @@
 extends Node
 
-## THE CUTAWAY, photographed through the real screen (`CutawayView` on
-## `SectorScreen`):
-##   godot --path . --windowed --position 3840,0 -- sheet=CutawayShot keepwindow
-##       clip=<dir> [weight=light|medium|heavy] [loot=no] [style=...] [seed=N]
-##       [every=1] [nopause] [nofight] [yard] [bobcheck] [skyclip=<dir>] [orbit]
-##       [manufacturer=solari] [grade=0..3] [fit=full] [carry=utility] [swaps]
-## A run at a system with a wreck you killed, parts in the hold and (unless
-## `loot=no`) something loose in the system. Saves the game's picture every
-## `every` frames through: the hover outline on your ship, the push-in (backdrop
-## breaking up, the left panel sliding in), a fitted part and a module in the
-## hold pointed at (the MODULES page's popup beside each), a part carried (its
-## rings pulsing), the drop onto a mount, a click on the wreck behind (it shuts
-## the cutaway and opens nothing), SECTOR LOOT on the bottom bar (this system's
-## pile in the popup) and a module in it pointed at, the close; then the real
-## escape menu over the same scene (for the backdrop beside it), then a fight
-## with a card pointed at (its part lit on the hull). `yard` instead docks at a
-## station and does it in the Shipyard: your ship on its stands, the outline,
-## the push-in onto ship and stands, a part and a hold module pointed at, the
-## close back to the yard. Prints the push-in scale and what 2x needs against
-## the room. Needs a window. `carry=weapon|system|utility` carries a part of
-## that slot for the carrying still (its empty mounts' rings and words) and
-## stops there. `swaps` sets the ship up for the swap marks (`_swap_ship`) and
-## photographs a part of each slot carried from the hold in both looks, then
-## one that can go nowhere (`_swaps`), and stops.
-## THE CUTAWAY'S CLOCK IS STEPPED 1/30 s A FRAME (`CutawayView.fixed_step`), so
-## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
-## however slowly the window drew them; nothing is saved before the hover.
+## The cutaway photographed through the real screen; needs a window.
+## Its clock steps 1/30 s a frame, so the push-in shows its true 0.4 s however slowly it drew.
+## Why: docs/why/CutawayShot.md#shot-purpose
 
 ## The thirteen Solari parts `proc` fits. They had no picture when it was
 ## written; every one has a picture now, so `proc` shows them as drawn.
@@ -87,10 +63,7 @@ func _run() -> void:
 		ShipView.shot_clock = -1.0
 	Rng.forced = int(_arg("seed", "4242"))
 	var wt: int = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)
-	# `manufacturer=solari grade=0..3`: that manufacturer's chassis at that grade
-	# with its starter kit; `fit=full` then fills every mount with its own parts
-	# (MouthSize's rule: couplings first, then the smallest draw, what the
-	# reactor runs).
+	# `manufacturer` and `grade` pick a chassis with its starter kit; `fit=full` fills every mount.
 	var mk := StringName(_arg("manufacturer", "korvan"))
 	Run.start_new_run(mk, int(wt))
 	if _arg("grade", "") != "":
@@ -104,14 +77,9 @@ func _run() -> void:
 		var css := cs as ModuleData.Slot
 		if Run.slots_for(css) > 0 and Run.slots_used(css) >= Run.slots_for(css):
 			Run.uninstall_module(Run.module_at(css, 0))
-	# `proc`: Solari's thirteen parts in PROC (pictureless when it was written,
-	# all drawn now), fitted where a mount is free and the rest in the hold and
-	# the wreck; `transfer` then opens the wreck.
+	# `proc`: Solari's thirteen parts, fitted where free and the rest in the hold and wreck.
 	var proc_left: Array[ModuleData] = []
-	# `takemap=<json> takeslot=K`: each part's K-th candidate picture
-	# ({id: [png, ...]}, absolute paths) worn in place of its procedural
-	# drawing, to judge generated takes where they are seen, before any is
-	# installed. `procset=a,b`: only those parts, fitted.
+	# `takemap` wears candidate pictures over procedural drawing, to judge takes before install.
 	if _arg("takemap") != "":
 		var tm: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_arg("takemap")))
 		var k := int(_arg("takeslot", "0"))
@@ -275,9 +243,7 @@ func _run() -> void:
 	await _frames(12)
 	_still("04_hover_hold")
 	cut._show(null)
-	# 5. a part carried: the empty mounts of its kind ring and pulse (and only
-	# then: at rest an empty mount is not drawn), no card. A part of a slot with
-	# an empty mount, so there is a ring to see
+	# A carried part rings and pulses its empty mounts; at rest an empty mount is not drawn.
 	var carried: ModuleData = in_hold
 	var shown: ModuleData = carried
 	var want := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(_arg("carry"), -1) as int
@@ -317,9 +283,8 @@ func _run() -> void:
 		await cut._on_mount_drop({module = carried, origin = &"cargo"}, carried.slot, at)
 		await _frames(20)
 		_still("06_fitted")
-	# 7. THE WRECK is not opened from in here: a click on it is a click on the sky
-	# (Jon: "You shouldn't be able to open a wreck when your ship is clicked on
-	# and in focus"), so it shuts the cutaway; reopened for the rest
+	# A click on the wreck is a click on the sky and shuts the cutaway (Jon); reopened after.
+	# Why: docs/why/CutawayShot.md#wreck-click
 	var made: Array = sc._view._made
 	if not made.is_empty() and (made[0] as EnemySlot).art != null:
 		cut._sky_click((made[0] as EnemySlot).art.get_global_rect().get_center())
@@ -379,10 +344,7 @@ func _run() -> void:
 	tree.quit()
 
 
-## THE BOB'S PERIOD, LIVE (`bobcheck`, real clock): LOCAL's own hull for some
-## seconds, then the cutaway's, each sampled every frame -- the seconds between
-## upward crossings of rest, how many steps a second, and the pixels a step
-## moves on screen.
+## The bob's period, live: LOCAL's hull then the cutaway's, each sampled every frame.
 func _bobcheck(sc: SectorScreen) -> void:
 	var src := sc._view.ship_view()
 	var a := await _bob_period(src, 8.0)
@@ -412,9 +374,7 @@ func _bob_period(v: ShipView, secs: float) -> Array:
 	return [per, float(steps) / secs]
 
 
-## THE SHIPYARD (`yard`): docked at a station, your ship on its stands in the
-## yard, pointed at (the outline), clicked open (the push-in onto it and its
-## stands), a fitted part and a hold module pointed at, then shut.
+## The shipyard: docked, ship on its stands, outline, push-in, then shut.
 func _yard() -> void:
 	var here: MapGen.MapNode = Run.node_at()
 	here.type = MapGen.NodeType.STATION
@@ -465,12 +425,9 @@ func _yard() -> void:
 	print("cutawayshot: back in the yard: %s" % (Router.current is StationScreen and st._cutaway == null))
 
 
-## THE ZOOM, STUDIED (`yard yardstudy clip=<dir>`): the yard's clock held, the
-## blur off, the cutaway's own hull, parts and panel hidden, and every frame of
-## the push-in saved with the yard's transform on screen (`zoom.json`: scale and
-## the screen point of the yard's origin, per frame). Laid back over the first,
-## unzoomed frame, everything in the yard should map to itself; whatever does
-## not is drawn somewhere the zoom does not reach.
+## Holds the yard clock and hides panel, parts and blur, saving each push-in frame's transform.
+## Laid over the first frame, anything not mapping to itself sits where the zoom does not reach.
+## Why: docs/why/CutawayShot.md#zoom-study
 func _yard_study(st: StationScreen) -> void:
 	st._scene.step_to(6.0)
 	CutawayView.harness_no_blur = true
@@ -540,11 +497,7 @@ func _fit_full() -> void:
 	print("cutawayshot: fit=full, %d parts on %s" % [Run.installed.size(), Run.hull.display_name()])
 
 
-## `swaps`: the ship as `-- cutawaytest`'s swap marks set it, to see them. Each
-## slot's mounts fitted with parts of every size the slot comes in, smallest
-## first, and its last mount left empty; the smallest part of each slot in the
-## hold, and the rest of the hold packed with one-cell crates -- so a part
-## carried from it trades only with a part no bigger than the cells it leaves.
+## `swaps` fits the ship for swap marks: a carried part trades only with a smaller-or-equal one.
 func _swap_ship() -> void:
 	Run.cargo.clear()
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
@@ -592,12 +545,8 @@ func _swap_part(s: ModuleData.Slot, size: Vector2i) -> ModuleData:
 	return null
 
 
-## The marks, through a real drag from the hold (the viewport's own: every
-## control told it began, the hold's icon hidden as a lift hides it), in both
-## looks (`MountPoints.swap_look`): a part of each slot, then a weapon that can
-## go nowhere -- every weapon mount holding a part bigger than the cells it
-## leaves in the packed hold. `swap_<slot>_<look>.png`; prints what was marked
-## and where the exploded ship is in the window's px, for crops.
+## Marks come from a real drag out of the hold, in both looks, then a weapon that can go nowhere.
+## Why: docs/why/CutawayShot.md#swap-marks
 func _swaps(cut: CutawayView) -> void:
 	var shell := GameShell.instance
 	var kk := float(shell._frame.stretch_shrink) if shell != null and shell._frame != null else 1.0

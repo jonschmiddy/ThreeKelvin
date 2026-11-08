@@ -1,52 +1,9 @@
 class_name ShipBreakup
 extends Control
 
-## A SHIP COMING APART, cut out of whatever picture the ship is.
-##
-## Jon (Oct 13): "Also can we do death animations?" -- for enemy ships. The
-## enemy art is being replaced by kept PixelLab sprites while this is written,
-## so nothing here may know what a ship looks like: it is handed the ship's own
-## pixels (`EnemyArt`'s canvas, or any sprite) and cuts them up itself.
-##
-## THE CUT. A few large chunks (the "majors") split along jagged cracks -- a
-## Voronoi of seeds spread along the hull, its boundaries roughened by value
-## noise so a crack never runs straight -- and a band of shards along each crack,
-## carved out of the majors and cut small. The shards are what flies; the majors
-## drift a few pixels apart and STAY: their resting places are the wreck you
-## loot, so the last frame of this and `wreck_image` are the same picture.
-##
-## LIGHT AS LIGHT (memory draw-light-as-light). The glow along the cracks is not
-## a coloured outline: each major carries a light map built from its own crack
-## pixels -- a white-hot core, falloff over five pixels, the outer steps
-## dithered 2x2 -- drawn ADDITIVELY and cooled from white through orange to red
-## by multiplying its colour. Its strength is stepped and eased, never sampled
-## from noise, so it cannot flicker.
-##
-## WHOLE PIXELS. Positions round; a shard tumbles in quarter turns, which are the
-## only rotations pixel art survives without shimmering (turn-pixel-art-in-
-## whole-pixel-steps); a major never turns at all.
-##
-## SOUND FOLLOWS WHAT YOU SEE. `broke` fires on the frame a break becomes
-## visible, with how big it is; the screen plays the explosion there. Nothing
-## here plays a sound itself, so a harness can film it silent.
-##
-## TEN MORE (Oct 13). Jon on A, B and C: "these death animations are sick as
-## FUCK ... Can you create like 10 more". D to M are each a different IDEA, not
-## a re-timing: a reactor breach, a chain of blasts, an engine overload, a
-## decompression, a beam slice, a disintegration, a collapse into a singularity,
-## a shield popping first, a melt, a crumple. They share A-C's rules and add:
-##   - SPACE, NOT EARTH. Nothing rises like smoke or falls "down": debris and
-##     gas drift and tumble, embers leave a crack outward. (A-C's shards settle
-##     a pixel or two downward; the new ones never do.)
-##   - Each one's cut is its own (`_cut_new`): wedges round a hole for a breach,
-##     one straight line for a slice, folds for a crumple, a front for a
-##     disintegration. MELT and CRUMPLE deform the hull first, in a few held
-##     steps, and are cut from the deformed picture, so the wreck is deformed.
-##   - `moment` names every visible event a sound can follow (a pop, a hiss
-##     that lasts, a crunch), with its length; `broke` still fires on the
-##     explosive ones. `SOUND` lists them per style.
-##   - The last frame is `wreck_image` exactly (`rest_image` proves it), with
-##     nothing of light left over: every glow and mote is out before the end.
+## Enemy death animations (Jon, Oct 13). Cut from any picture, in whole pixels, with light
+## drawn as light.
+## Why: docs/why/ShipBreakup.md#ship-breakup-design
 
 signal broke(strength: float)
 ## Every visible moment a sound can follow. `length` > 0 for one that lasts (a
@@ -104,9 +61,8 @@ const BLURB := {
 	Style.HELL_CHAIN: "The Hellbender. Reactor alarms strobe, blasts march through the hull from the stern, the holds burst and spill glowing stolen cargo, then the main reactor goes and the hull splits in two.",
 	Style.HELL_BURNOUT: "The Hellbender. Fire spreads from the salamander device, which glows red-hot; blasts walk through it; it lists nose-down and breaks apart, the pieces trailing fire.",
 	Style.HELL_UNCOIL: "The Hellbender. Gold light climbs its ribs' own seams from the hold outward; the salamander device heats red, then white, flames licking off it, and bursts; alarms and shakes build; the holds burst, spilling glowing stolen crates and canisters; then the light breaks out in a huge blast and the hull flies apart rib section by rib section, tumbling, trailing gold, settling as scattered wreckage."}
-## What a sound designer follows, per style: each `moment` kind, when (seconds
-## from the death), and whether it lasts. Read off the code that draws it, and
-## checked against what the harness records (DeathStyles writes them out).
+## Per-style sound moments, read off the drawing code and checked against the harness
+## records.
 const SOUND := {
 	Style.SNAP: "0.00 break (the flash); 0.0-0.8 shards and sparks",
 	Style.BURN: "0.00 burst (cracks catch, weak); 0.0-1.2 crackle of fire; 0.42 break",
@@ -170,14 +126,9 @@ class Layer extends Control:
 		paint.call(self)
 
 
-## `img` is the ship's whole canvas; `used` the ship's box in it (EnemyArt's
-## `used_rect`, or the sprite's ink); `origin` where the canvas's top-left sits
-## in this control's space. Same `seed`, same cut -- see `wreck_image`.
-## ON A WORKER THREAD (`SectorScreen._prebuild_death`, `ShipLoss.prebuild`)
-## this is pure CPU work: the node is made on the main thread, its textures are
-## owed (`OffThread`), and its settings and layers wait for `finish`, which the
-## main thread calls once the worker is done. On the main thread it finishes
-## itself.
+## On a worker thread this is pure CPU; textures are owed and `finish` runs on the main
+## thread.
+## Why: docs/why/ShipBreakup.md#setup-off-thread
 func setup(img: Image, used: Rect2i, origin: Vector2, the_style: int, seed: int,
 		is_boss: bool = false) -> void:
 	_img = img
@@ -250,12 +201,9 @@ func _add_layers() -> void:
 
 # ------------------------------------------------------------------ the cut
 
-## THE PARTITION, as data, deterministic in `seed`. Static so the wreck on
-## LOCAL can be drawn from the same cut long after the animation is gone.
-##   majors: [{image, at (Vector2i), off (Vector2i final drift), crack (PackedVector2Array local)}]
-##   shards: [{image, at}]
-##   centre: Vector2i
-## D-M cut their own way (`_cut_new`); A-C's cut is untouched.
+## The cut is static and deterministic in `seed`, so LOCAL can draw the wreck long after
+## the animation.
+## Why: docs/why/ShipBreakup.md#partition
 static func cut(img: Image, used: Rect2i, seed: int, is_boss: bool = false,
 		the_style: int = Style.SNAP) -> Dictionary:
 	if the_style >= Style.CUST_CASCADE:
@@ -533,19 +481,16 @@ static func _noise(f: PackedFloat32Array, gw: int, x: float, y: float) -> float:
 	return lerpf(lerpf(a, b, fx), lerpf(c, d, fx), fy)
 
 
-## THE WRECK THIS LEAVES, on a canvas the size of `img`: every major at its
-## resting drift, nothing else. Not darkened -- the slot greys a dead hull with
-## `modulate` already, and the animation's last frame uses the same tint.
+## Not darkened: the slot greys a dead hull with `modulate` and the last frame uses the
+## same tint.
 static func wreck_image(img: Image, used: Rect2i, seed: int, is_boss: bool = false,
 		the_style: int = Style.SNAP) -> Image:
 	var c := cut(img, used, seed, is_boss, the_style)
 	var out := Image.create(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8)
 	for m in c.majors:
 		var im: Image = m.image
-		# D-P carry their whole resting offset in `off` (drift 1). BURN's chunks
-		# sag a pixel after the break (`_major_pos`) and stay there, so its wreck
-		# does too -- without this the hand-off jumped a pixel (found by
-		# DeathStyles' `each` check, Oct 13).
+		# D-P carry the whole offset in `off`; BURN sags a pixel and stays, or the hand-off jumped
+		# a pixel.
 		var at: Vector2i = m.at + drift(m.off, the_style)
 		if the_style == Style.BURN:
 			at.y += 1
@@ -922,10 +867,8 @@ func _paint_light(ci: CanvasItem) -> void:
 
 
 # ================================================================== D-M: THE CUTS
-#
-# Everything below is the ten newer styles. Static where the wreck needs it:
-# `wreck_image` has to draw the same resting layout long after the animation is
-# gone, so every deformation and offset is decided here from the seed alone.
+# Everything below is the ten newer styles; static, as `wreck_image` redraws the resting
+# layout from the seed.
 
 ## Room round the ship's box for a hull that deforms (MELT sags, CRUMPLE folds).
 const HULL_PAD := 6
@@ -942,17 +885,13 @@ const TEAL: Array[Color] = [Color("#eafffa"), Color("#97f2df"), Color("#45bcaa")
 const SHIELD_COL := Color("#7cd8ff")
 const VOID_COL := Color("#dcd4ff")
 const SOOT := Color(0.17, 0.12, 0.10)
-## The moments that are explosions: `broke` fires on these too.
-## (M's crunches left this list for a sound of their own, a hull buckling --
-## `Audio.FX` crumple; its rip at 0.72 keeps the boom. K's shatter is glass
-## now, not a boom, and its break at 0.82 still is: see `_fire`.)
+## Explosive moments also fire `broke`. M's crunches and K's glass shatter left the list
+## for other sounds.
 const BOOMS := [&"breach", &"pop", &"break", &"blow", &"split", &"shatter", &"rip", &"tear",
 	&"collapse", &"sever"]
 
 
-## The hull as a picture to work on: the canvas round the ship's box with room
-## to deform into, its colours (engines already dark), which pixels are hull,
-## its middle and its box. Lone pixels are the canvas's starfield, as in `cut`.
+## Lone pixels are the canvas starfield, as in `cut`.
 static func _hull_pic(img: Image, used: Rect2i, margin: int) -> Dictionary:
 	var canvas := Rect2i(Vector2i.ZERO, img.get_size())
 	var u := used.intersection(canvas)
@@ -1046,12 +985,9 @@ static func _pic_image(H: Dictionary, col: PackedColorArray, mask: PackedByteArr
 
 # ---------------------------------------------------------------- deformations
 
-## MELT at `k` (0 whole, 1 slumped): the hull goes soft. Every pixel is fetched
-## from a little further out and a little aside, so the hull draws in toward its
-## own middle line and its outline wanders; the far edges (fins, guns) wander
-## most. Thin parts with fewer than two neighbours run off, pass by pass -- those
-## are the drips. Then the colours run together. Deterministic in `seed`, so the
-## film's steps and the wreck agree.
+## Melt: pixels fetched from further out so the hull slumps; thin parts run off as drips.
+## Seeded.
+## Why: docs/why/ShipBreakup.md#melt-and-crumple
 static func _melt_pic(H: Dictionary, seed: int, k: float, given: Dictionary = {}) -> Dictionary:
 	var w: int = H.w
 	var h: int = H.h
@@ -1162,11 +1098,8 @@ static func _fold_x(fx: float, tilt: float, jag: Dictionary, i: int, y: float, c
 	return fx + tilt * (y - cy) + 1.5 * _nz(jag, float(i) * 13.0, y)
 
 
-## CRUMPLE at `k`: two or three fold lines across the hull; the segments
-## between them are shoved toward the middle, kicked up and down in turn and
-## sheared, so the plates stair-step like bent metal. Each fold gets a dark
-## crease on one side and a lit ridge on the other, and each segment a buckle
-## down its middle. Returns which segment every pixel landed in, for the cut.
+## Crumple: fold lines shove segments toward the middle, stair-stepped like bent metal.
+## Why: docs/why/ShipBreakup.md#melt-and-crumple
 static func _crumple_pic(H: Dictionary, seed: int, k: float) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 173 + 11
@@ -1448,9 +1381,8 @@ static func _normal_at(H: Dictionary, mask: PackedByteArray, p: Vector2i) -> Vec
 	return v.normalized() if v.length() > 0.2 else Vector2.UP
 
 
-## The engines, as points the plume streams from: the end of every row that
-## reaches the stern (enemies face left, so the stern is the right), and every
-## lit engine pixel (`_dead_pixel`'s test) in the back half.
+## Enemies face left, so the stern is the right: engines are row ends there plus lit pixels
+## in the back half.
 static func _engines(H: Dictionary) -> PackedVector2Array:
 	var w: int = H.w
 	var h: int = H.h
@@ -1522,9 +1454,8 @@ static func _majors_of(H: Dictionary, col: PackedColorArray, lab: PackedInt32Arr
 	return out
 
 
-## Shard material cut small, each kind of mark on its own (a blast's hole
-## leaves as its own shards, at its own moment). Square, so a quarter turn keeps
-## every pixel.
+## Square shards so a quarter turn keeps every pixel; each mark kind leaves as its own
+## shards.
 static func _shards_of(H: Dictionary, col: PackedColorArray, lab: PackedInt32Array, sm: PackedByteArray,
 		rng: RandomNumberGenerator, per: int = 26, density: float = 0.035) -> Array:
 	var w: int = H.w
@@ -1663,9 +1594,8 @@ static func _charred(im: Image, at: Vector2i, H: Dictionary, thr: PackedFloat32A
 	return out
 
 
-## A hot body's own light: brightest at its edges (thin metal heats first),
-## falling off inward over three steps, a faint dithered fill inside and a
-## dithered pixel of spill outside. Grey levels; coloured when drawn.
+## Brightest at the edges as thin metal heats first, falling inward over three dithered
+## steps.
 static func _heat_light(mask: PackedByteArray, w: int, h: int, pad: int) -> Image:
 	var W := w + pad * 2
 	var Hh := h + pad * 2
@@ -2123,9 +2053,8 @@ func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
 					ks.append(float(s2) / float(MELT_STEPS))
 			else:
 				ks = CRUMPLE_K.duplicate()
-			# Built on worker threads from here, picked up when first shown
-			# (`_stage_get`): nine steps at once held the kill frame for most of
-			# a second, and one at a time on the main thread cost 80 ms a step.
+			# Built on worker threads: nine steps at once held the kill frame, one at a time cost
+			# 80 ms a step.
 			_stage_H = H
 			_stage_seed = seed
 			_stage_ks = ks
@@ -2843,10 +2772,7 @@ func _heat_new(tt: float) -> Vector2:
 
 # ---------------------------------------------------------------- the shield
 
-## A hex shield round the hull: an ellipse of hexagon outlines, brighter toward
-## its rim as a bubble is (seen edge-on), the faint middle dithered. Each cell
-## is its own little picture, so the shield can lose cells and then shatter
-## into them.
+## Each hex cell is its own picture so the shield can lose cells, then shatter into them.
 func _build_shield() -> void:
 	var box: Rect2i = _plan.box
 	var cc := Vector2(box.position) + Vector2(box.size) * 0.5
@@ -2958,9 +2884,8 @@ func _shield_strength(tt: float) -> float:
 
 # ---------------------------------------------------------------- the plume
 
-## The overload's exhaust: light streaming back from every engine point, its
-## core blown white, falling off over `L` px in four held steps, the outer two
-## dithered, the stream widening a little as it goes.
+## Overload exhaust: light streaming from each engine point in four held, partly dithered
+## steps.
 func _plume_tex(L: int) -> Dictionary:
 	if _plume.has(L):
 		return _plume[L]
@@ -3076,12 +3001,9 @@ func _draw_disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 		ci.draw_rect(Rect2(cp + Vector2(-half, dy), Vector2(half * 2 + 1, 1)), col)
 
 
-## A ring of light in whole pixels: a one-pixel core, a dithered pixel either
-## side. `squash` < 1 lays it flat, a shock front seen near edge-on.
-## `trail`: how far it moved since the last frame. That stretch behind the
-## front is lit too, falling off, so a fast ring is a travelling band and not a
-## thin line lit for one frame at each place (which reads as strobing: the
-## flip-back count halved with it).
+## Ring with a `trail` lit behind the front: a fast ring is a band, not a strobing line
+## (flip-backs halved).
+## Why: docs/why/ShipBreakup.md#light-rings
 func _draw_ring(ci: CanvasItem, c: Vector2, r: int, squash: float, lvl: float, col: Color,
 		doppler: bool = false, trail: int = 0) -> void:
 	if r < 1 or lvl <= 0.0:
@@ -3424,16 +3346,9 @@ func _light_melt(ci: CanvasItem, tt: float) -> void:
 
 
 # ================================================================== N-P: CREATURES
-#
-# Jon (Oct 13): the Voidwhale Calf and the Void Leviathan get "a more natural
-# death animation that's different from the ships". No metal: nothing cracks
-# white, nothing flies off in shards, no fire. Something living dying in space:
-# its own lights go out, it curls, it blooms spores, it parts at its segments.
-# Its glow is its OWN pixels (the warm, saturated, bright ones -- 7% of the
-# calf, 3% of the Leviathan): the body is drawn with them dark, and the light
-# layer gives them back as gathered light (the pixel, a halo brighter where
-# they crowd, dithered at its edge), so "going out" is the light stepping down,
-# never a colour swap.
+# Creature deaths (Jon, Oct 13) are natural: no metal or fire, and the light stepping down
+# is the dying.
+# Why: docs/why/ShipBreakup.md#creature-deaths
 
 ## Bioluminescent spores: a pale green-white thinning to deep teal.
 const SPORE: Array[Color] = [Color("#e2fff2"), Color("#97f0c9"), Color("#45b88f"), Color("#1d6650")]
@@ -3445,9 +3360,7 @@ static func _is_glow(c: Color) -> bool:
 	return c.a > 0.6 and c.s > 0.45 and c.v > 0.55 and (c.h < 0.17 or c.h > 0.93)
 
 
-## GLOW OUT's curl: each column lifted by a whole number of pixels, more toward
-## the ends, so head and tail bend the same way into a slow C. No column turns,
-## so nothing shimmers; it only shears.
+## Columns lifted by whole pixels so head and tail bend into a slow C without shimmer.
 static func _curl_dy(x: float, cu: Dictionary, k: float) -> int:
 	var u := clampf((x - float(cu.xm)) / float(cu.half), -1.2, 1.2)
 	return roundi(-float(cu.a) * k * u * u)
@@ -3611,9 +3524,8 @@ var _body_px := PackedVector2Array()
 var _torn := PackedByteArray()
 
 
-## Glowing pixels as gathered light: each pixel its own colour (added over the
-## dark it is drawn with, so full light gives the art back exactly), a halo
-## that adds up where they crowd, its faint edge dithered.
+## Glow pixels as gathered light over the dark body, so full light gives the art back
+## exactly.
 func _glow_band(pts: PackedVector2Array, cols: PackedColorArray, mean: Color) -> Dictionary:
 	if pts.is_empty():
 		return {tex = null, at = Vector2.ZERO}
@@ -3914,43 +3826,9 @@ func _paint_creature_light(ci: CanvasItem, tt: float) -> void:
 
 
 # ================================================================== BOSS SET PIECES
-#
-# Jon (Oct 13): "The custodian (and hellbender) these need ACTUAL epic death
-# sequences." A boss's death is its own set piece, 7-8 s in phases, not the
-# ship styles' burst run. Three for each:
-#   THE CUSTODIAN (glass octahedra on a spine, orange pinpoint lights, a core)
-#     C1 CASCADE    the facets crack one by one along the spine, each spilling a
-#                   beam of white light; the core swells; everything is pulled
-#                   in; a white blast and a shock ring; glass shards rain out
-#                   and cool.
-#     C2 UNMAKING   it loses cohesion: the facets drift apart on the spine, the
-#                   lights go out one by one, then each facet shatters in turn,
-#                   in slow motion, glass glinting as it turns.
-#     C3 SUPERNOVA  a rising whine, the core white-hot through the glass until
-#                   the whole body glows, a flash that fills the enemy's half,
-#                   a dark ring, and the body left charred and smoking.
-#   THE HELLBENDER (a rival harvester, its holds glowing with what it took)
-#     H1 CHAIN      reactor alarms strobing, blasts marching through the hull,
-#                   the holds rupturing and spilling glowing stolen cargo, then
-#                   the main reactor: the hull splits in two.
-#     H2 BURN-OUT   fire spreads from the salamander device, which glows
-#                   red-hot; blasts walk through it; it lists (nose down, in
-#                   whole-pixel slices) and breaks apart trailing fire.
-#     H3 UNCOIL     (ours) the stolen light breaks out ring by ring: its ribs
-#                   light gold from the hold outward, the hull stretches apart
-#                   rib from rib, and the light bursts out, leaving a husk.
-#
-# The same rules as every death: pieces move in whole pixels (cut, never
-# turned), light is drawn as light, nothing rises or falls, and the last frame
-# is `wreck_image` exactly. Each piece's way to its rest is keyframed
-# (`keys`), its picture changes at set times (`stage_t`), and the lights,
-# beams, spheres, rings and emitters are data the clock plays.
-#
-# SCREEN HOOKS, AS MOMENTS (nothing here moves the screen): `shake` (s = px,
-# length), `slowmo` (s = clock scale, length in screen time), `flash` (s =
-# white's peak over the whole screen, length), `duck` (s = how far the music
-# drops, length), `stinger` (a music hit). The harness applies them so the film
-# shows the whole effect; SectorScreen can do the same later.
+# Boss deaths (Jon, Oct 13) are 7-8 s phased set pieces, three each, keyframed, on the
+# same pixel rules.
+# Why: docs/why/ShipBreakup.md#boss-set-pieces
 
 const BOSS_HOOKS := [&"shake", &"slowmo", &"flash", &"duck", &"stinger"]
 const GOLD: Array[Color] = [Color("#fff6d8"), Color("#ffd97a"), Color("#e8a23a"), Color("#8a5418")]
@@ -4136,9 +4014,8 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 	if not lights.is_empty():
 		core = lights[0].p
 	if st == Style.CUST_CASCADE or st == Style.CUST_COLLAPSE or st == Style.CUST_SPLIT:
-		# Jon: "The explosion needs to be centered on the custodian, not the
-		# front." The centre of its bounding box (139.5, 70 on take 1), not of its
-		# ink mass, which the big front octahedron pulls 9 px forward.
+		# Centred on the bounding box, not ink mass: the front octahedron pulls it 9px forward
+		# (Jon).
 		core = rp + Vector2(float(int(H.x0) + int(H.x1) + 1), float(int(H.y0) + int(H.y1) + 1)) * 0.5
 	var plan := {r = r, glob = Vector2i.ZERO, lights = lights, core = core, cx = cx, cy = cy, bw = bw, bh = bh,
 		box = Rect2i(r.position + Vector2i(int(H.x0), int(H.y0)), Vector2i(int(bw), int(bh)))}
@@ -4232,9 +4109,7 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 			lab = _lab_slices(H, mask, k, rng)
 			_mark_band(H, lab, sm, 1, rng)
 		Style.HELL_UNCOIL:
-			# Jon: "let's have the cracks follow the actual contours of the
-			# ship's ribs." The seams are traced off the picture (`_rib_curves`);
-			# the hull is cut at every second one and all of them are cracks.
+			# Cracks follow the ship's ribs traced off the picture (Jon); cut at every second seam.
 			var curves := _rib_curves(H)
 			lab.resize(n)
 			var cuts: Array = []
@@ -4321,11 +4196,8 @@ static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionar
 				stages.append(_charred_all(dead, 0.55))
 				m.rot_final = 2 if rng.randf() < 0.4 else 0
 				m.rot_total = 4 * rng.randi_range(1, 2) + int(m.rot_final)
-		# THE REST STAYS ON THE CANVAS. A fight draws a ship on a fixed canvas
-		# (EnemyArt's 240x120), and a wreck is that canvas: a piece settling
-		# past its edge would be cut off the wreck at the hand-off. So where a
-		# piece comes to rest is kept inside it (H3's sections fly out up to 28 px
-		# and land back within the margin there is).
+		# Rests stay on the 240x120 canvas, or a piece settling past its edge is cut off the
+		# wreck.
 		var isz: Vector2i = (m.image as Image).get_size()
 		own.x = clampi(own.x, -int(m.at.x), img.get_width() - isz.x - int(m.at.x))
 		own.y = clampi(own.y, -int(m.at.y), img.get_height() - isz.y - int(m.at.y))
@@ -4472,9 +4344,7 @@ func _beam(p: Vector2, dir: Vector2, keys: Array, unstable: bool = false) -> voi
 		id = _bbeams.size()})
 
 
-## How unstable the beams are now: a little from the first crack, building with
-## the swell, wild right up to the implosion (Jon: "can we have the light beams
-## act more like unstable...?").
+## Beams build from the first crack to wild at the implosion (Jon: act more unstable).
 func _unstable_u() -> float:
 	if not _bp.has("unst_t1"):
 		return 0.3
@@ -5086,9 +4956,7 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 		var hsh := 0
 		var u := 0.0
 		if b.get("unstable", false):
-			# UNSTABLE: every 1/12 s the beam takes a new state from a hash of
-			# itself and the step -- held for the step, so it flickers rather
-			# than crawls -- and wilder as the swell builds
+			# Every 1/12 s the beam takes a hashed state, so it flickers rather than crawls.
 			u = _unstable_u()
 			var step := int(t * 12.0)
 			hsh = posmod(int(b.id) * 7919 + step * 104729 + 13, 1000003)
@@ -5208,16 +5076,9 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 
 # ---------------------------------------------------------------- C1: the cascade, three ways to end
 
-## Jon picked C1, centred, with "some variants of the explosion and how the
-## ship falls apart". All three open the same way -- the facets crack one by
-## one along the spine, each shooting a beam, while a ball of light swells at
-## the true centre -- and end differently:
-##   C1a SHATTER OUTWARD  a white blast; the facets fly out and slow into the
-##                        wreck; big glass shards tumble out, glinting.
-##   C1b COLLAPSE INWARD  the cluster crushed in on its centre, then a ring of
-##                        light blows the pieces out in layers, outer first.
-##   C1c SPLIT            a blast that runs along the spine from the centre to
-##                        both ends; the guardian breaks in half, glass shedding.
+## Jon picked C1, centred, with variants: shatter outward, collapse inward, split along the
+## spine.
+## Why: docs/why/ShipBreakup.md#custodian-variants
 func _plan_c1(order: Array, core: Vector2, cs: Vector2) -> void:
 	var n := order.size()
 	var crush_at := 4.2 if style == Style.CUST_COLLAPSE else 4.4
@@ -5332,13 +5193,9 @@ func _plan_c1(order: Array, core: Vector2, cs: Vector2) -> void:
 	_ev(blast_at + 0.7, &"cool", 0.2, 1.6)
 
 
-## H3's rib seams, traced off the picture: the luminance smoothed down each
-## column (the ribs run near vertical, so this keeps the seams and loses the
-## plating's grain), its dips along each row, and the dips linked row to row
-## from the middle outward into curves. A curve that does not reach half the
-## hull's height there is grain, not a seam. Each curve: `traced` (its x per
-## row, -1 where it was not found) and `full` (carried on to every row, so a
-## cut runs the whole height).
+## Rib seams traced from smoothed luminance dips linked row to row; short curves are grain,
+## not seams.
+## Why: docs/why/ShipBreakup.md#rib-seams
 static func _rib_curves(H: Dictionary) -> Array:
 	var w: int = H.w
 	var h: int = H.h

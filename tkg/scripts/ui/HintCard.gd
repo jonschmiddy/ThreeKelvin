@@ -1,17 +1,9 @@
 class_name HintCard
 extends Control
 
-## ONE FIRST-RUN HINT ON SCREEN (`Hints`): two short lines in the first-run
-## intro's caption style, beside the thing it is about, with a small notch
-## pointing at it.
-##
-## IT IS NOT A BUTTON, and it does not look like one. It has no hover, no hand
-## cursor and no edge that lights, and it ignores the mouse, so a click lands on
-## whatever is under it. No click dismisses it: it goes when the player has done
-## what it teaches (`Hints.DONE`; Jon, Oct 22). It never covers what it points
-## at: it is placed on
-## whichever side of its subject is clear of the subject, the things listed to
-## avoid, and the screen's edge.
+## Not a button: no hover, cursor or click; it goes once the player has done it (Jon, Oct 22).
+## Placed on the side of its subject clear of the subject, the avoid list and the screen edge.
+## Why: docs/why/HintCard.md#hint-card
 
 ## Between the card and its subject; the notch lives in this gap, px.
 const GAP := 7.0
@@ -57,9 +49,7 @@ func _ready() -> void:
 		create_tween().tween_property(self, "modulate:a", 1.0, FADE_S)
 
 
-## Put it beside `at` (global, the game's picture), clear of `avoid` (Rect2s).
-## Moved again only when the subject has moved more than a few px, so a bobbing
-## hull does not shake it.
+## Moved only when the subject moves more than a few px, so a bobbing hull does not shake it.
 func aim(at: Rect2, avoid: Array) -> void:
 	if side != &"" and at.position.distance_to(subject.position) < 6.0 \
 			and at.size.distance_to(subject.size) < 6.0:
@@ -143,9 +133,7 @@ static func _overlap(a: Rect2, b: Rect2) -> float:
 	return i.size.x * i.size.y if a.intersects(b) else 0.0
 
 
-## The notch: a small triangle from the card's edge toward the subject, in the
-## card's own fill and edge; when the card was stepped out past GAP, a 1 px
-## leader in the edge's colour carries on to the subject.
+## The notch is a small triangle toward the subject; past GAP, a 1 px leader carries on.
 func _draw() -> void:
 	var c := subject.get_center() - position
 	var sub := Rect2(subject.position - position, subject.size)

@@ -1,37 +1,9 @@
 class_name FaunaGuard
 extends RefCounted
 
-## BLOCK, BRACE AND DAMAGE ON A LIVING CREATURE (Oct 13). Jon, of the Void
-## Leviathan in a fight with the plated brace on it: "The void leviathan having
-## plating or shield is kinda weird", and "the damage to the void leviathan and
-## voidwhale calf should be more organic... not ship damage". The bubble
-## (`ShieldFx`), the plates (`BraceFx`) and the hull marks (`ShipHitFx`) are
-## machine looks; on the Voidwhale Calf and the Void Leviathan (`wants`)
-## `HitLayers` lays these instead, Jon's picks of three ideas each ("block:A
-## brace:A damage:A+B+C"). The Custodian is a construct and keeps the ship
-## looks ("custodian C"); so does every ship.
-##   BLOCK  (`FaunaShield`)  GLOW SKIN: its own outline lit cold, breathing with
-##                           it, packets of light running head to tail; a hit
-##                           runs a ring of light over the skin; at 0 it gutters
-##                           out pixel by pixel.
-##   BRACE  (`FaunaBrace`)   HARDENED HIDE: the hide darkens and goes glassy
-##                           teal, a rim light along its back and a sheen
-##                           crossing it; hits flake patches off.
-##   DAMAGE (`FaunaHitFx`)   WOUNDS, BRUISES and SHED scales, rolled per hit;
-##                           its lights die and, badly hurt, it trails vapour.
-##
-## WITH THE BODY, NOT OVER IT. Everything is drawn in the picture's own rest
-## space and shown where `FaunaMotion` shows that pixel now: a shader layer
-## (`GuardSkin`, `PRELUDE`) maps each pixel through the motion's own column table
-## (the swell, the spines' lift, the flippers' sweep), and motes and flakes
-## take `FaunaMotion.off_at` at their foot. Damage is baked into the picture the
-## motion is cut from, so it moves as the body does for nothing. Steps are the
-## motion's (8 a second the Leviathan, 12 the calf), on its own phase, so a
-## guard's step and the body's never land a frame apart (flip-backs).
-##
-## NOTHING ON THE WORDS. `HitLayers.keep` holds the intent words and the
-## readout (name, bars, hull, chips) in this layer's space; no mote is drawn and
-## no shader pixel lights inside them.
+## Creatures get organic block, brace and damage looks (Jon, Oct 13): the bubble, plates and hull
+## marks read as machines. Drawn with the body in its rest space, and nothing is drawn on the words.
+## Why: docs/why/FaunaGuard.md#fauna-guard
 
 static var enabled := true
 ## Block's light (the bubble's colour, so block still reads as block).
@@ -44,9 +16,8 @@ static func wants(kind: int) -> bool:
 
 # ======================================================================= THE BODY
 
-## The picture's parts, in canvas pixels, cut once a fight by a throwaway
-## `FaunaMotion` (so the spines and lights are the motion's own), and its
-## distance fields (chamfer 3-4: 3 a pixel straight, 4 diagonally).
+## The picture's parts are cut once a fight by a throwaway
+## `FaunaMotion`, with 3-4 chamfer distance fields.
 class Body extends RefCounted:
 	var kind := 0
 	var W := 0
@@ -316,11 +287,8 @@ static func shader(code: String) -> Shader:
 	return _shaders[code]
 
 
-## The shared head of every skin shader: `rest_of(p)` is the rest-space pixel
-## the motion shows at p (body, spine or flipper, as `FaunaMotion`'s shader
-## picks; an empty pixel goes with the body's swell), `kept(p)` whether p is on
-## the words, `q8` a level put into eighths on a 4x4 dither, `breath(u)` the
-## motion's own swell at u (0 the head, 1 the tail) at the step's time.
+## Shared head of every skin shader: rest-space lookup,
+## the words mask, a dither level and the motion's swell.
 const PRELUDE := """
 shader_type canvas_item;
 render_mode %s;
@@ -418,9 +386,8 @@ ivec2 rest_of(ivec2 p, out int part) {
 """
 
 
-## A look's shader: the prelude, then its `fragment`, whose early `return;`s
-## (a fragment may not return) become breaks out of a loop run once. TEXTURE
-## stays in the fragment: handed to a function, the headless compiler refuses it.
+## Early `return;`s become breaks; TEXTURE stays in the fragment,
+## as the headless compiler refuses it passed on.
 static func skin_code(add: bool, body_code: String) -> String:
 	var at := body_code.find("void fragment() {")
 	var head := body_code.substr(0, at)
@@ -436,9 +403,7 @@ static func skin_code(add: bool, body_code: String) -> String:
 
 # ======================================================================= MOTES
 
-## Free motes: a position, a velocity, drag, an age and a life, colours by age.
-## Moved on the guard's own steps (positions worked out at the step's time), so
-## each is held a whole step.
+## Free motes move on the guard's own steps, so each is held a whole step.
 class Motes extends RefCounted:
 	var list: Array = []
 

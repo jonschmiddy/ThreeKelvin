@@ -1,23 +1,8 @@
 extends Node
 
-## THE SECTOR MAP'S KEPT POLISH, filmed before and after at the same moment:
-##   godot --path . -- sheet=WowClip out=<dir> [kind=ordinary|red|blue|nebula|station|node:<i>]
-##     [seed=N] [zoom=Z|open] [aim=star|world|belt|<i>] [t0=S] [secs=8]
-##     [wow=glints,orbitdepth,sunfix] [ab] [cost=N] [zoomto=Z2|open] [style=...]
-## Opens the system on the real map screen (as `SystemSheet`'s sweep does: Main's
-## frame and theme, the weather and the far novae held off), aims the camera,
-## and films `secs` seconds at 30 frames a second with the map's clock stepped a
-## thirtieth a frame: `<out>/f_NNNN.png`, the map window in game pixels. With
-## `ab` it films them before and after, interleaved frame by frame at the same
-## clock (`<out>/before/`, `<out>/after/`): the things named in `wow=` taken out
-## for the before -- the belts' glints (`SystemView.belt_glints`), the orbits'
-## near half (`SystemView.orbit_depth`), the sun's zoom cap past 4
-## (`SunView.k_max` 4 before, 9 after) -- so the two differ only by them.
-## `zoomto=Z2` eases the zoom from Z to Z2 over the clip (zooming must only
-## magnify). `cost=N` then times N frames before and N after, four times over,
-## alternating, the clock running: the place picture's GPU time, the window's,
-## and the map's own CPU time (its profiler). `list` prints every system's
-## bodies, headless. Needs a window (but for `list`).
+## Films the sector map's kept polish before and after
+## at the same clock, differing only by the switches.
+## Why: docs/why/WowClip.md#wow-clip
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
@@ -224,11 +209,8 @@ func _film(dir: String, t0: float, z0: float, z1: float, frames: int) -> void:
 	print("  wowclip: %d frames to %s" % [frames, dir])
 
 
-## BEFORE AND AFTER INTERLEAVED, frame by frame at the same clock: the switches
-## off for one frame and on for the next. (Filmed one after the other, the
-## ship's own flight -- on the frame's clock, not the map's -- was somewhere else
-## in each.) Run with `--fixed-fps 60`: the two frames of each step are one
-## thirtieth of a second of the ship's flight between them, as a 30 fps film.
+## Interleaved frame by frame: filmed apart, the ship's flight
+## (on the frame clock) was elsewhere. Use `--fixed-fps 60`.
 func _film_ab(dir: String, t0: float, z0: float, z1: float, frames: int) -> void:
 	var db := dir.path_join("before")
 	var da := dir.path_join("after")
@@ -253,9 +235,7 @@ func _film_ab(dir: String, t0: float, z0: float, z1: float, frames: int) -> void
 
 func _costs(t0: float, z0: float, n: int) -> void:
 	var rid: RID = _scr.view._scene.get_viewport_rid()
-	# THE GAME VIEW, NOT THE WINDOW: this runs inside the game's SubViewport, so
-	# `get_viewport()` is the 960x540 frame. It printed as `window_gpu` until
-	# Oct 27; the window (`get_tree().root`, the shell's glass) is its own column.
+	# The game view, not the window: it printed as `window_gpu` until Oct 27.
 	var game := get_viewport().get_viewport_rid()
 	var root := get_tree().root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)

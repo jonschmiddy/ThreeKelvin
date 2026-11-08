@@ -3,35 +3,16 @@ extends Node
 ## Combat state lives in Combat.gd and is discarded when the fight ends.
 
 var hull: HullData
-## WHAT THE PILOT CALLS IT, or empty for the frame's own name.
-##
-## Empty by default rather than seeded with the hull's name, and that is the
-## whole design: a ship is unnamed until somebody names it, and a hull swap
-## then keeps the name across the frame rather than reverting to whatever the
-## new chassis is called. Storing the hull's name here at run start would make
-## every ship "named" and quietly rename it under the player the first time
-## they changed frames.
+## Empty until the pilot names it, so a hull swap keeps the name instead of renaming the ship.
+## Why: docs/why/RunState.md#ship-name
 var ship_name: String = ""
 
-## WHICH MANUFACTURER THIS RUN LAUNCHED AS, by id. The unlock chain asks "who
-## did you win with" (`Unlocks`), and the hull flown at the end does not answer
-## it: a run that swaps onto a derelict's unbranded frame ends with manufacturer
-## "" and its win unlocked nothing (Geno, Oct 23: beat the Custodian, no
-## Solari). Set at launch, saved with the run, never changed by a swap.
+## Which manufacturer this run launched as, for unlocks: a swap onto an unbranded
+## frame must not erase who you won with, so it is set once at launch.
 var launched_as: StringName = &""
 
-## WHAT TO PUT ON SCREEN when the player's ship is named. The pilot's name if
-## there is one, the frame's own otherwise.
-##
-## ONE FUNCTION, because there is more than one place that names your ship and
-## they were not agreeing. The refit masthead read `ship_name`; the plate under
-## the hull in a fight read `hull.name` -- so a ship you had named flew into
-## combat as its chassis, which is the one moment you are actually looking at it
-## being shot. Anything that shows the player's ship to the player calls this.
-##
-## NOT `.to_upper()`d here. Silkscreen draws caps for both cases, but the
-## masthead and the combat plate upper it themselves and a name that arrived
-## pre-shouted would defeat any future place that wants it in mixed case.
+## Every place that shows the player's ship calls this, so the masthead and combat plate agree.
+## Why: docs/why/RunState.md#ship-name
 func display_name() -> String:
 	var named := ship_name.strip_edges()
 	if named != "":
@@ -39,24 +20,16 @@ func display_name() -> String:
 	return hull.name if hull != null else ""
 var installed: Array[ModuleData] = []
 var cargo: Array[HoldItem] = []
-## Which galaxy this run is flown in. Chosen once at the start so the chart
-## is the same shape all the way through — a map that changes shape is not a
-## map. 0 two-arm spiral, 1 barred, 2 four-arm.
-## Every system you have been to, in order. The route you actually took is the
-## story of the run, and it should be on the chart.
+## Galaxy kind (0 two-arm, 1 barred, 2 four-arm) is fixed: a map that changes shape is not a map.
+## The trail is every system visited, in order: the route taken is the run's story.
 var trail: PackedInt32Array = PackedInt32Array()
 var galaxy_kind: int = 0
-## The rolled parameters for THIS galaxy, and the seed its star field is built
-## from. Both fixed for the life of the run: the chart rebuilds its stars from
-## the seed, and the map derives system positions from the parameters, so either
-## changing mid-run would redraw the sky and move the systems under the player.
+## Both fixed for the run: the chart rebuilds from them, so a change mid-run would
+## move the sky and the systems under the player.
 var galaxy: Dictionary = {}
 var galaxy_seed: int = 0
-## How far the whole galaxy is turned. The run starts on the rim at the first
-## row of the outermost shell, and that row sat at angle zero — so every run
-## began on the right-hand edge of the disc. Turning the entire thing by a
-## rolled angle, arms and systems together, moves the start anywhere around the
-## rim without disturbing a single relative position.
+## The galaxy is turned by a rolled angle so the rim start can be anywhere, not always
+## the right-hand edge, without moving any relative position.
 var galaxy_spin: float = 0.0
 
 var galaxy_name: String = ""
@@ -66,94 +39,30 @@ var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
 
-## WHAT CAME OFF THE OLD SHIP AND WILL NOT FIT THE NEW ONE.
-##
-## `cargo` has an invariant that HoldTest enforces on every run: every item in
-## it sits at a real cell, inside the grid, overlapping nothing. That is why the
-## old `transfer_to_hull` DESTROYED the overflow when you bought a smaller ship
-## -- deleting it was the only way to keep thirteen things out of a twelve-cell
-## hold. The cargo was never the problem; having nowhere to put it was.
-##
-## So this is the nowhere. The pad is the dock you are standing on: things off
-## the old frame that have not found a cell yet. It is not `cargo`, so the
-## invariant is untouched, and it is not lost, so nothing is deleted behind your
-## back. You cannot undock while it has anything on it.
+## Overflow from the old ship waits here instead of being deleted to keep cargo's grid invariant.
+## Why: docs/why/RunState.md#moving-ships
 var pad: Array[HoldItem] = []
 
-## THE FRAME YOU ARE MOVING OUT OF, kept only until the move is finished.
-##
-## The transfer screen draws BOTH ships, and the left-hand one has to be a real
-## hull or it cannot be drawn: it needs a sprite to show and a `hold_grid` to
-## lay the leftovers out in. The purchase is final the moment it is made -- this
-## is not a way back, it is the loading dock, and it is cleared the moment the
-## pad empties.
+## The old frame stays a real hull until the move ends, so the transfer screen can draw it.
+## Why: docs/why/RunState.md#moving-ships
 var old_hull: HullData = null
 
-## EVERYTHING NEEDED TO PUT THE OLD SHIP BACK, while a move is still in progress.
-##
-## The purchase was going to be final and is not. What changed my mind about the
-## cost of reversing it is that `transfer_to_hull` no longer MOVES anything --
-## the old frame keeps its guns and its crates exactly where they were -- so
-## "undo" is not a reconstruction, it is putting a snapshot back over a state
-## nothing has happened to yet.
-##
-## Cleared when the move commits, so it only ever describes a decision still
-## being made. Not saved: quitting mid-move and reloading leaves you on the new
-## ship with your things on the pad, which is a finished purchase. And CLEARED BY
-## THE LOAD (`SaveGame.load_into_run`): SAVE AND EXIT then CONTINUE is one
-## process, and an undo left in memory names the objects the load replaced -- a
-## BACK OUT there refunded the old price and put back a frame from before the
-## save (Oct 23).
+## Undo is a snapshot of an untouched state; not saved, and cleared by a load.
+## Why: docs/why/RunState.md#moving-ships
 var _undo_move: Dictionary = {}
 var credits: int = 40
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
 var fuel: int = FUEL_TANK:
 	set(v):
-		# A TANK WITH A TOP. Every write goes through here -- a refuel, a
-		# pulsar, an event's grant, a save from before the tank had one -- so the
-		# cap cannot be missed by a site that forgot it. See FUEL_TANK.
+		# A tank with a top: every write passes here, so no site can miss the cap. See FUEL_TANK.
 		fuel = mini(v, fuel_cap())
 		Sig.resources_changed.emit()
 
-## Raw materials, by id. See MaterialTable.
-##
-## CREDITS are still the only CURRENCY — the ruling has not moved, only the name
-## has. These are not a second wallet; nothing on a price tag is denominated in
-## them. They are prerequisites: a recipe that costs forty credits is a purchase,
-## and a recipe that costs one precursor fragment is a reason to have flown
-## somewhere.
-##
-## ALLOY was the counter-example and it is gone. It came off every part you broke
-## down, so it accumulated from the hold you were emptying anyway rather than from
-## anywhere you went — a resource with a faucet that large is a second currency
-## whatever the ruling calls it.
+## Materials are prerequisites, never a second currency; credits stay the only currency.
+## Why: docs/why/RunState.md#materials
 
-## Exotic was a bare int here from the day megafauna existed, and about fifteen
-## call sites still read and write it that way. It is now the `exotic` row of
-## the ledger above, reached through a property so that every one of those sites
-## keeps working against the single store rather than against a copy that would
-## drift out of step with it the first time something forgot to update both.
-## EMITS, like `fuel` and `dross` and for the same reason. It is a view onto
-## `materials`, and `add_material()` — the other door onto the same dictionary —
-## has always announced itself. This one did not, so of the five places that
-## write `Run.exotic` directly, four left the reading on screen stale until some
-## unrelated redraw happened to correct it. That is the third instance of the
-## class of bug the header above describes, found by looking for it rather than
-## by anyone noticing a wrong number.
-## READ ONLY NOW. It was a settable view onto the ledger row; there is no ledger
-## row, and the five places that wrote `Run.exotic += n` were all handing you a
-## physical thing -- a fauna kill, a pacified herd, a pulsar sweep -- which is
-## `add_material` and a container. Reading it stays, because the history and the
-## save screen ask what you came home with.
-## BY TIER, NOT BY ID, and that is a change worth stating. This counted the
-## single id `&"exotic"` -- so the moment the pulsar drop was given a name of
-## its own it would have stopped counting beam hauls entirely, and it was
-## already blind to SINGER'S OIL, FLANK IVORY and every other named exotic in
-## the table. A number that means "what you came home with" and silently
-## excludes most of what you came home with is worse than no number.
-##
-## Read by `RunHistory` alone, so widening it moves the run record and nothing
-## in play.
+## Read-only total of exotic-tier things, counted by tier, for the run record only.
+## Why: docs/why/RunState.md#materials
 var exotic: int:
 	get:
 		var n := 0
@@ -162,12 +71,8 @@ var exotic: int:
 			if m != null and m.tier == &"exotic":
 				n += 1
 		return n
-## WHICH malfunctions are lodged in you, not how many.
-##
-## It was a count, and a count could only ever produce one card sixteen times.
-## The ids are stored so the deck can be rebuilt identically on every load and
-## every deck-build — rolling which malfunction at build time would have given
-## you a different set of junk every time the screen refreshed.
+## Stores which malfunctions, not a count, so the deck rebuilds identically on every load.
+## Why: docs/why/RunState.md#dross
 var dross: Array[StringName] = []:
 	set(v):
 		dross = v
@@ -177,11 +82,8 @@ var dross: Array[StringName] = []:
 func dross_count() -> int:
 	return dross.size()
 
-## Lodge one in the ship.
-##
-## `which` names it; empty rolls one against `danger`. Named beats rolled so an
-## enemy or an event can say what it does to you — a spore fusing something into
-## the rack is characterisation, and "some junk" is not.
+## Lodge one in the ship. `which` names it; empty rolls one against `danger`. Named
+## beats rolled so an enemy or event can say what it does to you.
 func add_dross(danger: int, which: StringName = &"") -> void:
 	var next := dross.duplicate()
 	next.append(which if which != &"" else DB.roll_malfunction(danger))
@@ -197,221 +99,88 @@ func clear_dross(which: StringName) -> bool:
 	dross = left
 	return true
 
-## WHY THESE TWO HAVE SETTERS AND `heat` DOES NOT.
-##
-## Three bugs in one day had one shape: a field on this object written directly
-## from somewhere else, with the signal that redraws it left to the call site to
-## remember. `heat_cap_bonus` forgot it entirely and the gauge sat at the old
-## number. `found_hull` never moved `hauls`, so a claimed hull could not be seen.
-## Both were fixed with a bespoke mutator, one at a time — which cures two call
-## sites and leaves the CLASS of bug intact: `fuel` and `dross` are written from
-## about twenty places across six files, each one pairing a write with a
-## hand-rolled emit.
-##
-## A setter is the general fix and it costs the call sites nothing: every
-## existing `Run.fuel -= n` now redraws by construction, and the manual emits
-## beside them become redundant rather than load-bearing. `Sig` is registered
-## before `Run` in project.godot, so the initialiser above is safe.
-##
-## `heat` is deliberately left alone. It is written inside the combat loop —
-## every card that costs or vents heat, plus the end-of-turn burn — so a signal
-## per write is a screen rebuild per write, several times a turn. That is the
-## efficiency problem this pass is also trying to remove. Rare, chunky writes get
-## the guardrail; the one field on the hot path keeps manual control, and this
-## paragraph is the reason rather than an oversight.
-##
-## `kills` has no setter for a different reason: nothing on screen reads it, so
-## announcing it would be work with no listener.
+## Fields written from many places emit in their setter; heat does not, as it is on the combat hot path.
+## Why: docs/why/RunState.md#setters-that-emit
 
 var map: Array = []
 var at: int = 0
-## EACH SYSTEM'S MAP CLOCK, by system index: the map time (`SystemView.t`) its
-## map was last put away at, so it opens there again (ruling 23, Jon, Nov 1:
-## a binary's two suns turn, and a clock that started again at 0 on every
-## visit snapped them back on a Tab to LOCAL and back). It runs only while that
-## map is up. Written where the map keeps the ship
-## (`SystemMapScreen._keep_ship`), read by every map open (`Router.show_system`,
-## `ZoomLadder`), saved (`SaveGame`, VERSION 39), and cleared with a new run
-## (`start_new_run`) and replaced whole by a load. Kept apart from `SystemMapScreen._parked`,
-## which every jump in erases: the suns go on from where they were. A system
-## never opened has none, which is t 0, the layout as laid out.
+## Each system's map time is kept so a binary's suns resume where they were when the map reopens.
+## Why: docs/why/RunState.md#map-clock
 var map_clock: Dictionary = {}
 
 var jumps: int = 0
-## THE LEAD SHIP'S JUMPS, as this pilot last heard them: the most jumps any ship
-## in the co-op dive has made (Jon, Nov 4: "The custodian strength and icon
-## should be the same for everyone in the galaxy, even if they join late."). The
-## host keeps the party's figure (`NetSession.galaxy_jumps`) and pushes it whole;
-## this is the copy that outlives the party, so a guest whose host left flies on
-## at the count it had, and a quit and CONTINUE meets the same boss. Saved
-## (`SaveGame`, VERSION 40); cleared with a new run. 0 in the solo game, where
-## nothing raises it. Read through `custodian_jumps`, never alone.
+## The lead ship's jumps, so the Custodian is the same for the whole party, late joiners too.
+## Why: docs/why/RunState.md#custodian-jump-count
 var party_jumps: int = 0
-## THE LAST COUNT WHOSE ARRIVAL THE CUSTODIAN'S BADGE HAS SHOWN (`GoalLine`,
-## `CustodianBadge`), so moving between LOCAL, the map and the chart never plays
-## it twice. The count is `custodian_jumps`, which in co-op can rise while you
-## sit still, or by more than one. NOT SAVED, on purpose: the save is written as
-## the ship arrives (`Router.resolve_current_node`), before the goal line comes
-## up, so a saved figure would always be one behind and every CONTINUE would
-## replay it. A loaded run counts as seen (`SaveGame`), and so does the count a
-## late joiner is handed at the door (`NetSession._push_growth_to`); a new run
-## starts at 0.
+## Not saved: the save lands before the badge shows, so a saved figure would replay it on CONTINUE.
+## Why: docs/why/RunState.md#custodian-jump-count
 var custodian_seen: int = 0
 var kills: int = 0
-## Wall clock, seconds since the epoch, set when the run begins and carried
-## through the save. A run spans sessions now, so a frame counter or a tree
-## timer would only ever measure the last sitting.
+## Wall clock at run start, saved with the run: a run spans sessions, so a frame
+## counter would only time the last sitting.
 var started_at: float = 0.0
 var won: bool = false
 var dead: bool = false
 var death_reason: String = ""
 
-## How many times something has ARRIVED in the hold from outside the ship.
-##
-## Bumped by stow() and by nothing else, which is the whole point: salvage, a
-## purchase and a fabrication are hauls, and a part moved off a hardpoint is
-## not. The sector screen re-opens its salvage prompt on this rather than on
-## `cargo.size()` — the size went up when you unbolted something on the refit
-## screen too, so putting your own coolant line in the hold made the sector
-## offer it back to you as fresh salvage.
-##
-## Deliberately outside the save. It is a UI edge, not run state, and a resumed
-## run showing its hold once is the behaviour it already had.
+## Counts arrivals from outside only, so unbolting a part never re-offers it as salvage. Not saved.
+## Why: docs/why/RunState.md#salvage-rail-dismissal
 var hauls: int = 0
 
-## The salvage rail was dismissed, and the state it was dismissed in.
-##
-## ON THE RUN, NOT ON THE SCREEN, and that is the whole of a bug rather than a
-## preference. `SectorScreen` is rebuilt from scratch on every jump — `Router`
-## makes a new one — so a `_stowed` flag living on it was forgotten the instant
-## you left the system. Stow a part, jump, and the rail opened again and asked
-## the same question about the same cargo, at every system, for the rest of the
-## run.
-##
-## Two numbers rather than a bool, because "dismissed" has to expire on the right
-## events and only those: a fresh HAUL is new cargo and should re-open it, and a
-## BAG at a system you have not seen is new loot and should too. Arriving
-## somewhere new carrying the same parts you already decided about is neither.
-##
-## DELIBERATELY OUTSIDE THE SAVE, and that is not symmetry for its own sake — it
-## is the only way this can be correct. `hauls` above is not saved either, so it
-## comes back as 0; save the dismissal beside it and a run resumed after stowing
-## at haul 12 has `hauls` 0 against a hush of 12, and `hauls > hushed` is false
-## for the next twelve hauls. The rail would stay shut over loot the player had
-## just recovered.
-##
-## Worth naming because the previous version of the rule got away with it: an
-## equality test fail-OPENED on that mismatch (0 != 12, so the rail showed), and
-## changing it to "is anything new" inverted the failure into a silent one. A
-## fix that is correct in isolation can break the thing next to it.
+## On the run because the screen is rebuilt every jump; unsaved because `hauls` is unsaved.
+## Why: docs/why/RunState.md#salvage-rail-dismissal
 var salvage_hushed_hauls: int = -1
 var salvage_hushed_bag: int = -1
 
 
-## Whether the salvage rail should stay shut. `bag_here` is the index of the
-## system you are standing in if it has loose salvage, or -1.
-##
-## THE TEST IS "IS ANYTHING NEW", NOT "IS THE STATE THE SAME", and the first
-## version got that backwards. It asked whether the haul count and the bag
-## matched what they were at dismissal — so stowing while standing over a bag
-## recorded that bag, and the next system, having no bag, compared -1 against it,
-## failed the equality and opened the rail again. A bag you walked away from is
-## not new salvage. Nothing happened; something merely stopped.
-##
-## Two things are new and nothing else is: the hold GREW since you dismissed it,
-## or there is a bag at a system that is not the one you dismissed at.
+## Asks whether anything is new, not whether the state matches: walking away from a bag is not new.
+## Why: docs/why/RunState.md#salvage-rail-dismissal
 func salvage_hushed(bag_here: int) -> bool:
 	if salvage_hushed_hauls < 0:
 		return false
-	# DIFFERENT, not greater. Within a run `hauls` only climbs, so the two read
-	# the same — but `>` quietly assumes that, and the assumption is exactly what
-	# broke when the dismissal was persisted and `hauls` (which is not) came back
-	# as zero: `0 > 12` is false, so the rail stayed shut over loot already in the
-	# hold. The dismissal is no longer saved and this no longer relies on that
-	# being true. Any haul count that is not the one dismissed at means the hold
-	# is not the hold that was dismissed.
+	# Different, not greater: never assume `hauls` only climbs.
+	# Why: docs/why/RunState.md#salvage-rail-dismissal
 	if hauls != salvage_hushed_hauls:
 		return false
 	if bag_here >= 0 and bag_here != salvage_hushed_bag:
 		return false
 	return true
 
-## Work you have taken, in the order you took it. See ContractData.
-##
-## Nothing in here expires and nothing in here is contested — two ships can hold
-## the same job and both be paid for flying it. See Contracts.
+## Work you have taken, in order (see ContractData). Nothing expires or is contested:
+## two ships can hold the same job and both be paid. See Contracts.
 var contracts: Array = []
 ## Handed out on acceptance so a contract can be referred to after it is closed.
 var next_contract_id: int = 1
 
-## THE QUESTS AN EVENT GAVE YOU (Jon, Oct 22: an event that plants a follow-up
-## "is essentially a quest", so the QUESTS table lists it beside the signed
-## jobs). One record per option `OptionTable.place` put on a system, in the
-## order placed, written at `place` time:
-##   at       the system it went on
-##   id       the placed option (`paid_in_full`)
-##   from     the option that placed it (`the_runner`), whose title the table
-##            names as who gave it; &"" when the placer did not say
-##   credits  what taking it paid, and `got` the names of the things it put on
-##            the pile (`finish_event_quest`); both absent until it is taken
-##
-## THE MAP STAYS THE TRUTH of whether a quest is open: the option on its system
-## and not taken. This only says where it came from and what it paid, so a save
-## from before it (VERSION 34) still lists every open one (`QuestLog`). Saved
-## (VERSION 35).
+## Records where an event quest came from and what it paid; the map stays the truth of what is open.
+## Why: docs/why/RunState.md#event-quests
 var event_quests: Array = []
-## FINISHED QUESTS IN THE ORDER FINISHED, for the table's COMPLETED rows (newest
-## first): "c<id>" for a contract delivered, "e<at>" for an event quest taken.
-## Saved (VERSION 35); a contract closed under an older save is not in it and
-## is listed after the ones that are.
+## Finished quests in order ("c<id>" contract, "e<at>" event quest) for the COMPLETED rows.
+## Saved (VERSION 35); a contract closed under an older save lists after these.
 var quests_done: Array[String] = []
 
-## What each manufacturer thinks of you, by id. Higher is better and it only goes up.
-##
-## GOODS, NEVER SECRETS. `docs/lore.md` §2 rules that there is no promotion — no
-## rank, no inner circle, no point at which a manufacturer starts telling you things —
-## and that ruling stands unchanged. This is not a relationship, it is an
-## account: deliver their work and their berths pay you better for your parts and
-## carry more of their stock. They still never explain anything.
-##
-## Deliberately not a reputation you can lose. A manufacturer that can be offended is a
-## manufacturer you can lock yourself out of by playing badly, which is a punishment for
-## the player who most needs the money.
+## Standing buys better bids and stock, never secrets, and can never be lost.
+## Why: docs/why/RunState.md#standing
 var standing: Dictionary = {}
 
-## Offered for transfer. HAS A SETTER, for the reason the header above gives —
-## this is the second of the two bugs that paragraph names, and it was left as a
-## bare field when `fuel` and `dross` were fixed. Three places outside this file
-## cleared it; two remembered the emit and `Policy.gd` did not.
+## Offered for transfer. Has a setter (see the setters note above) because a site
+## outside this file once cleared it without the emit.
 var found_hull: HullData = null:
 	set(v):
 		found_hull = v
-		# The pay belongs to the hull it came with, so any other hull (or none)
-		# clears it. `find_hull` and a backed-out move set it after. The doors
-		# that put another hull over a frame with pay (`find_hull`,
-		# `transfer_to_hull`) pay it out first; this setter never pays.
+		# The pay belongs to the hull it came with, so another hull clears it; the doors that
+		# replace a paying frame pay it out first, never this setter.
 		found_scrap = {}
 		Sig.ship_changed.emit()
-## WHAT CUTTING UP THE HULL ON OFFER PAYS, `{credits, material}`, or empty for a
-## hull that cannot be cut up for anything (a wreck's, which cost you nothing).
-## The derelict hauler's frame carries what its strip pays
-## (`OptionTable.strip_pay`), so claiming it and not flying it never costs you
-## the strip (Jeremy, friends' alpha). Spent by `scrap_found_hull`, once.
+## What cutting up the offered hull pays, `{credits, material}`, or empty. Carried with
+## the frame, so claiming it and not flying it never costs the strip.
 var found_scrap: Dictionary = {}
-## Hulls BOUGHT at a station's yard this run (`transfer_to_hull` with the
-## station it came off). A.S.H.'s "New body" moment keys on this and not on
-## `hull` changing: the chassis select swaps `hull` once per click before a run
-## has started, and a hull found in the field is not a purchase. Jon, Oct 18:
-## only "when a player buys a new ship mid run". Not saved -- A.S.H. compares
-## it against her own count from the run's start or load.
+## Counts yard purchases only, which is what A.S.H.'s New body moment keys on. Not saved.
+## Why: docs/why/RunState.md#hulls-bought
 var hulls_bought: int = 0
 var whale_boon: bool = false
-## THE MANUFACTURERS THIS RUN'S WORLD MAY HOLD, read off the flight record once
-## at run start (`Unlocks.for_new_run`) and kept: what drops, sells and comes
-## off a derelict is these, within `DB.ACTIVE_MANUFACTURERS`, plus unbranded
-## (`LootGen.can_appear`). Saved (SaveGame VERSION 34), so CONTINUE finds the
-## world it left even if the record has moved on since. Korvan before any run
-## has started, which is what a fresh profile has.
+## Read once at run start and saved, so CONTINUE finds the world it left.
+## Why: docs/why/RunState.md#unlocked-manufacturers
 var unlocked_manufacturers: Array[StringName] = [&"korvan"]
 
 const MAP_CANVAS := Rect2(60, 50, 900, 430)
@@ -427,25 +196,12 @@ func _ready() -> void:
 	Sig.party_map_changed.connect(adopt_party_claims)
 	if galaxy.is_empty():
 		galaxy = GalaxyGen.params(0).duplicate()
-	# Max hull is no longer a constant of the chassis, so taking plating off has
-	# to take the hull it was holding with it. Hung on the signal rather than
-	# called from the four places that move `installed`, because one of those is
-	# ShipScreen's drag handler editing the array directly — a rule enforced at
-	# every call site is a rule that is one new call site away from being false.
+	# On the signal, not at each call site, so removing plating always clamps hull,
+	# including ShipScreen's direct edit of `installed`.
 	Sig.ship_changed.connect(_clamp_hp)
 
-## MISSING HULL STAYS MISSING (Jon, Oct 22, "a full ship stays full"). Fitting
-## or removing a part with hull on it moves the maximum, and the damage the ship
-## carries goes across unchanged: 40/40 fits a +7 plate and reads 47/47, 33/40
-## reads 40/47, and taking the plate off again lands exactly where it started.
-## Before, fitting raised only the maximum, so a full ship read 40/47 and the
-## HULL gauge (which reads CURRENT hull) did not move for the "+1 HUL" the part
-## printed. Damage carried, not "full or nothing": a 45/47 ship that took a
-## plate off was clamped to 40/40, read as full, and got its 2 back for free.
-##
-## ONLY ON THE SAME HULL. A hull swap, a new run, a load and an undo set `hp`
-## themselves; the first change seen on a new hull is recorded, not acted on.
-## Never down to 0: taking plating off a nearly dead ship leaves it at 1.
+## Refits move max hull and carry the damage across, so a full ship stays full.
+## Why: docs/why/RunState.md#missing-hull-stays-missing
 var _hull_seen: HullData = null
 var _max_seen := 0
 
@@ -465,37 +221,23 @@ func _clamp_hp() -> void:
 	_hull_seen = hull
 	_max_seen = cap
 
-## Begin a run in a given manufacturer's chassis.
-##
-## The argument is optional and empty means "roll one", which is not a
-## convenience: HeadlessSim calls this directly, and a default of Korvan would
-## have every one of two hundred simulated runs fly the same ship and report a
-## win rate for one seventh of the game. Random here means the sim exercises all
-## seven starts for free.
+## Empty rolls a manufacturer, so the simulator covers every start and not only Korvan.
+## Why: docs/why/RunState.md#starting-a-run
 func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
-	# The seed FIRST, before anything is rolled, because everything below is
-	# drawn from it. This is the one number a run IS: `-- seed 12345` replays it
-	# exactly, and a co-op host sends this and nothing else to put four ships in
-	# one galaxy. See Rng.
+	# The seed first: everything below is drawn from it, and it alone replays a run or
+	# puts a co-op party in one galaxy. See Rng.
 	galaxy_seed = Rng.roll_master()
 	# Into the log with the build, so a report names the run AND what ran it.
 	# Not for the balance sim, which starts hundreds.
 	if not "sim" in OS.get_cmdline_user_args():
 		print("[run] new run, seed %d, %s" % [galaxy_seed, BuildInfo.stamp()])
-	# ...and which ship in the party is drawing from it. One seed gives four
-	# machines one galaxy, which is the point; it must not also give them one
-	# hold. See Rng.seat.
+	# Reseeded per seat: one seed gives a party one galaxy, but not one hold. See Rng.seat.
 	Rng.reseed(galaxy_seed, Net.seat())
 	# What this run's world may hold. Before anything is rolled, and once.
 	unlocked_manufacturers = Unlocks.for_new_run()
 
-	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
-	# HeadlessSim calls this directly, and a fixed default would report a win
-	# rate for one twenty-first of the possible starts.
-	#
-	# Off a DERIVED generator rather than the world stream. The starting ship is
-	# not part of the world — in a party, four players fly four different hulls
-	# through one galaxy — so choosing one must not move the map.
+	# Random weight for the sim, off a derived generator so picking a ship never moves the map.
+	# Why: docs/why/RunState.md#starting-a-run
 	var start_rng := Rng.derive(&"start", 0)
 	var weight: HullData.Weight = w as HullData.Weight
 	if w < 0:
@@ -525,10 +267,8 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	quests_done.clear()
 	salvage_hushed_hauls = -1
 	salvage_hushed_bag = -1
-	# Standing is a RUN thing, not a career. It buys prices and stock inside one
-	# dive, and starting a fresh dive means walking into the same berths as a
-	# stranger again — which is the only shape that does not turn into the
-	# meta-progression `Unlocks` was careful to keep power out of.
+	# Standing is per run, not a career, so it never becomes the meta-progression
+	# `Unlocks` keeps power out of.
 	standing.clear()
 	# (each system's map clock is this run's: kept by system index, a new run's
 	# binary would open its suns where the last run's were left)
@@ -554,22 +294,14 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	trail = PackedInt32Array([0])
 	_range_cache.clear()
 	Sig.run_started.emit()
-	# THE DISH IS ALREADY ON. Without this the first system's neighbours are
-	# invisible until the first jump, which reads as sensors not working at
-	# all on the one screen a new run opens to.
+	# The dish is already on, or a new run's first screen shows no neighbours.
 	chart_from(node_at())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	log_line("Reactor cold-started. The core is at least twenty jumps away.", &"big")
 
-## DEVELOPER MODE ONLY: a new galaxy under the same ship, right now ("can I get
-## a button up here to regenerate the galaxy right there?", Jon) -- for looking
-## at what the generator rolls without starting a run each time. A new seed
-## (never the one in use, and not a forced test seed), a new kind, its map as a
-## new run's would be, the ship at the new start system. The ship, its hull,
-## cargo, credits, fuel and standing are kept; contracts are dropped, because
-## they name systems of the old map. Not in a co-op session, where the galaxy
-## belongs to the whole party (the button says so). Returns whether it did.
+## Developer-only reroll of the galaxy under the same ship; contracts drop and co-op refuses.
+## Why: docs/why/RunState.md#regenerate-galaxy
 func dev_regenerate_galaxy() -> bool:
 	if Net.is_networked():
 		return false
@@ -599,18 +331,8 @@ func dev_regenerate_galaxy() -> bool:
 	return true
 
 
-## Put a manufacturer's chassis and starting kit under the player, at full hull.
-##
-## Separate from start_new_run because the chassis select calls it once per
-## click while you browse the seven. Folded together, changing your mind about a
-## ship would roll a new galaxy, a new name and a new map each time — so the
-## world you were about to fly into would quietly change while you compared
-## Thermal numbers. Rolling the world is a run-start concern; fitting a ship is
-## not.
-## `tier` is a DEV affordance and defaults to C, which is what every real run
-## starts on. Nothing in the game grants a graded frame at the yard — you find
-## those in wrecks. The chassis select exposes it behind Developer Mode so a
-## build can be flown at the grade it was designed around without playing to it.
+## Separate from start_new_run so browsing ships never rerolls the world; `tier` is a dev affordance.
+## Why: docs/why/RunState.md#fitting-a-chassis
 func fit_chassis(manufacturer: StringName = &"",
 		w: HullData.Weight = HullData.Weight.MEDIUM, tier: int = 0) -> void:
 	var chosen := manufacturer
@@ -618,11 +340,8 @@ func fit_chassis(manufacturer: StringName = &"",
 		chosen = Rng.pick(Rng.derive(&"start", 1), DB.STARTABLE)
 	hull = DB.at_tier(DB.hull_for(chosen, w) as HullData, tier)
 	installed.clear()
-	# Only what fits. The kit is written per manufacturer but the hardpoints
-	# belong to the weight class, so a light frame launches with fewer modules
-	# than a heavy one carrying the same kit — you traded guns for speed and the
-	# loadout says so. Installing past the slot count would let the select screen
-	# hand you a ship the refit screen considers illegal.
+	# Only what fits: hardpoints belong to the weight class, and installing past them would
+	# hand you a ship the refit screen calls illegal.
 	for id in DB.starter_kit(chosen):
 		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
 		if slots_used(m.slot) >= slots_for(m.slot):
@@ -657,11 +376,7 @@ func module_at(s: ModuleData.Slot, index: int) -> ModuleData:
 func hold_grid() -> Vector2i:
 	return hull.hold_grid if hull != null else Vector2i(4, 5)
 
-## How many CELLS the hold has. Was a module count; a module now has a size.
-##
-## Kept under its old name because everything that reads it — the dock, the
-## chassis select, the sector audio cue — is asking "how big is this ship's
-## hold", and that question did not change.
+## How many cells the hold has. Kept under its old name: callers still ask how big the hold is.
 func cargo_slots() -> int:
 	return hold_grid().x * hold_grid().y
 
@@ -672,25 +387,10 @@ func cargo_used() -> int:
 		n += m.cells()
 	return n
 
-## Whether a SPECIFIC part fits, which is the only form of the question a grid
-## can answer.
-##
-## `hold_full()` used to be a property of the hold alone. It cannot be any more:
-## a hold with four free cells has room for four fittings, one bulky array, or a
-## long gun only if three of those cells happen to lie in a row. Callers that
-## want a yes/no now have to say what they are trying to put down.
-## Is there anywhere this could go?
-##
-## `leaving` is a thing that is ABOUT to vacate its cells and should not be
-## counted as in the way. A swap is the case: dragging a stowed gun onto an
-## occupied hardpoint takes the resident off the hull and puts the new one on,
-## so the resident is landing in the space the new one is that instant giving up.
-## Asked without it, a full hold refuses every swap -- including swapping a part
-## for one exactly the same size, which cannot fail by construction.
+## Fit is per part on a grid; `leaving` frees a part's cells as it vacates them, so swaps work.
+## Why: docs/why/RunState.md#room-in-the-hold
 func has_room_for(m: HoldItem, leaving: HoldItem = null) -> bool:
-	# A FULL HOLD CANNOT REFUSE MONEY. It takes no cell, so the question does
-	# not apply -- and answering it honestly would have `take_from_bag` turn
-	# down credits because you were carrying a wide gun.
+	# A full hold cannot refuse money: credits take no cell.
 	if m is CreditChit:
 		return true
 	return find_hold_slot(m, leaving) != -Vector2i.ONE
@@ -698,9 +398,7 @@ func has_room_for(m: HoldItem, leaving: HoldItem = null) -> bool:
 ## True when nothing at all will fit — the honest replacement for `hold_full`,
 ## used where there is no particular module in hand.
 func hold_full() -> bool:
-	# A bare HoldItem, not a ModuleData. The question is whether ONE CELL is
-	# free, and asking it with a module was only ever true because a module was
-	# the only thing the hold could hold.
+	# A bare HoldItem, because the question is whether one cell is free.
 	var one := HoldItem.new()
 	one.size = Vector2i.ONE
 	return not has_room_for(one)
@@ -714,12 +412,8 @@ func _cells_of(m: HoldItem, at: Vector2i) -> Array[Vector2i]:
 			out.append(at + Vector2i(dx, dy))
 	return out
 
-## Every occupied cell of the hold, once. `m` and `leaving` are not counted --
-## the thing being placed, and a thing about to vacate its cells.
-##
-## Public because the drag paths need it too: probing candidate cells through
-## `can_place` rebuilt this map per cell, which put an O(cells x cargo) scan on
-## every drag-over frame for an answer one map gives in one pass.
+## Public so drag paths build the occupancy map once instead of once per probed cell.
+## Why: docs/why/RunState.md#room-in-the-hold
 func hold_taken(m: HoldItem = null, leaving: HoldItem = null) -> Dictionary:
 	var taken := {}
 	for other in cargo:
@@ -748,63 +442,35 @@ func fits_at(taken: Dictionary, m: HoldItem, at: Vector2i) -> bool:
 func can_place(m: HoldItem, at: Vector2i, leaving: HoldItem = null) -> bool:
 	return fits_at(hold_taken(m, leaving), m, at)
 
-## Put a part in the hold, finding it a cell. False when nothing fits.
-##
-## THE ONLY DOOR INTO `cargo`, with take_from_hold as the only way out. A bare
-## append leaves a module at (-1,-1) — in the array, drawn nowhere, overlapping
-## everything because it claims no cells — and that is a bug you find later, in
-## the UI, looking like a part that vanished.
+## The only way into `cargo`: a bare append leaves a part claimed by no cell and drawn nowhere.
+## Why: docs/why/RunState.md#doors-into-the-hold
 func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 	var cell := at if at != -Vector2i.ONE else find_hold_slot(m)
 	if cell == -Vector2i.ONE or not can_place(m, cell):
 		return false
 	m.hold_at = cell
-	# OFF THE PAD ON THE WAY IN. Stowing something is exactly how a thing stops
-	# being stranded, and without this line a pad item that found a cell would be
-	# in BOTH lists -- counted twice by the Exchange, and holding the door shut
-	# for ever because `ready_to_fly` would still see it on the dock.
+	# Off the pad on the way in, or the item sits in both lists and holds the dock shut.
 	pad.erase(m)
 	if not cargo.has(m):
 		cargo.append(m)
 	Sig.ship_changed.emit()
 	return true
 
-## EVERYTHING AN EVENT CAN MOVE, in one dictionary, so it can be moved again.
-##
-## An outcome does not report what it did -- it DOES it, inside a callable, and
-## hands back prose. There are a hundred and sixty-seven direct mutations in
-## `OptionTable` (`add_credits(-70)`, `heat += 20`, `take_hull_damage(8)`) and
-## the returned dictionary carries none of them: it has `text`, `module`,
-## `material`, `material_id`, `fight` and
-## `consume_material_tier`, and nothing else.
-##
-## SNAPSHOT AND DIFF, rather than a reward field on each outcome. Two hundred and
-## sixteen of those callables would have to be edited to declare what they do,
-## every one of them could declare it wrong, and the declaration would drift the
-## first time somebody tuned a number and forgot the label. This reads the
-## ledger, so it cannot disagree with the ledger.
+## Events are measured by snapshot and diff, so the record cannot disagree with the ledger.
+## Why: docs/why/RunState.md#event-ledger
 func ledger() -> Dictionary:
 	return {credits = credits, fuel = fuel, heat = heat, hp = hp}
 
 
-## Take a part out, releasing its cells.
-## Take a thing out of your possession, wherever it was being kept.
-##
-## BOTH LISTS, and that is what makes the pad cheap. This is the one door every
-## disposal goes through -- selling at the Exchange, scrapping on the refit
-## screen, jettisoning out the hatch -- so teaching it about `pad` is the whole
-## of teaching those three. The alternative was a `sell_from_pad` beside every
-## one of them, which is three chances to forget the second list.
+## The one disposal door, for cargo and the pad, so sell, scrap and jettison all cover both.
+## Why: docs/why/RunState.md#doors-into-the-hold
 func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
 	pad.erase(m)
 	m.hold_at = -Vector2i.ONE
 
-## The container for a hull you just killed, or a fresh one.
-##
-## One per ship, in the order you killed them, and they are never reused: the
-## slot is what the claims are numbered from, so handing a new wreck an old slot
-## would have it inherit the claims on the last one.
+## One container per kill, never reused: claims are numbered from the slot, so a reused
+## slot would inherit the last wreck's claims.
 func new_wreck(n: MapGen.MapNode, t: EnemyTemplate, look: int = 0) -> MapGen.Jetsam:
 	var h := MapGen.Jetsam.new()
 	h.slot = n.jetsam.size()
@@ -817,10 +483,8 @@ func new_wreck(n: MapGen.MapNode, t: EnemyTemplate, look: int = 0) -> MapGen.Jet
 	return h
 
 
-## WHERE YOUR SHIP IS IN A SYSTEM: the body it orbits, -1 star A (the star),
-## `SystemLayout.STAR_B` (-4) star B of two suns, or -9 for open space, as the
-## system map left it. A system the map has not flown you round yet is open
-## space: you arrived at its edge.
+## Where your ship is in a system: the body it orbits, -1 star A, STAR_B (-4), or -9 open
+## space. A system the map has not flown you round is open space, at its edge.
 func site_here(n: MapGen.MapNode = null) -> int:
 	if n == null:
 		n = node_at()
@@ -829,19 +493,16 @@ func site_here(n: MapGen.MapNode = null) -> int:
 	return star_site(n, int(SystemMapScreen._parked.get(n.index, {}).get("at", -9)))
 
 
-## A PLACE THAT IS STAR B, in a system that has no star B, is star A: a ship
-## parked or a wreck left in star B's close orbit, read back where the system
-## has one sun (a save from a build that laid it out with two), is at the star
-## rather than nowhere. Every other place is itself.
+## A STAR_B place in a one-sun system is star A, so an older save's ship or wreck
+## there is at the star rather than nowhere.
 static func star_site(n: MapGen.MapNode, site: int) -> int:
 	if site == SystemLayout.STAR_B and not (n.twin and MapGen.twin_ok(n)):
 		return -1
 	return site
 
 
-## The wrecks lying where your ship is, in the order they died. Each wreck
-## belongs to the place its fight was at (`Jetsam.site`), so a world you fought
-## over keeps its hulls and the next world along has none of them.
+## The wrecks at your ship's place, in death order. Each belongs to its fight's site,
+## so the next world along has none of them.
 func wrecks_here(n: MapGen.MapNode = null) -> Array:
 	if n == null:
 		n = node_at()
@@ -856,9 +517,8 @@ func wrecks_here(n: MapGen.MapNode = null) -> Array:
 	return out
 
 
-## A wreck's number among every wreck in its system, in the order they died:
-## what its death roll and its fight's marks were keyed on when it was made
-## (`EnemyArt.death_style`, `wreck_id`), whichever place it lies at.
+## A wreck's number among its system's wrecks, in death order: what its death roll and
+## marks were keyed on.
 func wreck_ordinal(n: MapGen.MapNode, h: MapGen.Jetsam) -> int:
 	var k := 0
 	for raw in n.jetsam:
@@ -869,11 +529,7 @@ func wreck_ordinal(n: MapGen.MapNode, h: MapGen.Jetsam) -> int:
 	return k
 
 
-## The system's own pile: what you have put down here, and what an event paid
-## into the open rather than into a hull.
-##
-## Made on demand and then kept, because a floor with nothing on it is not a
-## container -- the door to it only exists once there is something behind it.
+## The system's own pile. Made on demand and kept: a floor with nothing on it is not a container.
 func sector_jetsam(n: MapGen.MapNode, make: bool = true) -> MapGen.Jetsam:
 	for raw in n.jetsam:
 		var h: MapGen.Jetsam = raw
@@ -887,9 +543,8 @@ func sector_jetsam(n: MapGen.MapNode, make: bool = true) -> MapGen.Jetsam:
 	return fresh
 
 
-## SECTOR LOOT: the system's pile and what is left in every wreck you have
-## opened, as one container to show and take from (`MapGen.PileView`). Null
-## while there is neither, as `sector_jetsam(n, false)` is.
+## SECTOR LOOT: the system's pile plus opened wrecks, as one container (`MapGen.PileView`).
+## Null while there is neither.
 func sector_loot(n: MapGen.MapNode) -> MapGen.Jetsam:
 	if n == null:
 		return null
@@ -934,11 +589,8 @@ func loose_here(n: MapGen.MapNode) -> int:
 	return left
 
 
-## Take the i-th thing out of a container.
-##
-## The same shape `take_from_bag` has and for the same reasons: the hold is
-## checked BEFORE the claim is spent, so a full hold costs you nothing, and the
-## claim is awaited because in a party it is a round trip.
+## Take the i-th thing out of a container: the hold is checked before the claim is spent,
+## and the claim is awaited because in a party it is a round trip.
 func take_from_jetsam(n: MapGen.MapNode, h: MapGen.Jetsam, i: int) -> bool:
 	if n == null or h == null or i < 0 or i >= h.items.size():
 		return false
@@ -958,26 +610,16 @@ func take_from_jetsam(n: MapGen.MapNode, h: MapGen.Jetsam, i: int) -> bool:
 	return true
 
 
-## Reach for one loose thing, without knowing which entry it is.
-##
-## The mirror of `jettison`, and it exists because the ICON knows what you
-## clicked and nothing else: it has an item, not a node and an index. Finding
-## those is the bag's business.
-##
-## Awaits, because `take_from_bag` does -- the claim is a round trip in a party,
-## and "one bag, first hand in" is only true if everybody asks the same question
-## in the same order.
+## The icon knows only the item, so finding its container is the bag's job; awaits the claim.
+## Why: docs/why/RunState.md#loose-items-and-containers
 func take_item(m: HoldItem) -> bool:
 	if m == null:
 		return false
 	var n: MapGen.MapNode = node_at()
 	if n == null:
 		return false
-	# The first UNCLAIMED entry for this item. `find` alone would answer with a
-	# spent one -- the same trap `jettison` fell into -- because taking marks an
-	# index rather than removing the entry.
-	# Every container in the system, because the icon knows what you clicked and
-	# not which pile it came out of.
+	# The first unclaimed entry: `find` alone returns a spent one, since taking marks an
+	# index. Every container, because the icon does not know which pile.
 	for raw in n.jetsam:
 		var h: MapGen.Jetsam = raw
 		for i in h.items.size():
@@ -989,45 +631,21 @@ func take_item(m: HoldItem) -> bool:
 	return false
 
 
-## Put something down in a NAMED container.
-##
-## `jettison` is this with the container chosen for you. They are separate
-## because the choice matters: with a wreck open on screen, dragging something
-## into it must put it in THAT hull -- what you are looking at is where it goes,
-## and quietly routing it to the floor instead would be the screen lying about
-## its own contents.
+## A drop goes into the container on screen; `jettison` is this with the floor chosen for you.
+## Why: docs/why/RunState.md#loose-items-and-containers
 func put_in(n: MapGen.MapNode, h: MapGen.Jetsam, m: HoldItem) -> bool:
-	# EITHER LIST. `take_from_hold` below already erases from both, but this
-	# guard did not -- so the hatch REFUSED a thing on the pad and refused it
-	# silently, which mattered in the two cases where the hatch is the only exit
-	# there is: contraband at a station that will not bid on it, and a pad that
-	# came back from a save while you were nowhere near a station at all.
+	# Either list: the hatch must take a pad item, since it is sometimes that item's only exit.
 	if m == null or n == null or h == null:
 		return false
 	if not cargo.has(m) and not pad.has(m):
 		return false
 	take_from_hold(m)
 	m.hold_at = -Vector2i.ONE
-	# THE SAME THING TWICE IS STILL ONE THING.
-	#
-	# Taking from a bag does not remove the entry -- it marks the index taken,
-	# so a party can see who got what. Jettisoning then APPENDED, so throwing
-	# the same crate out twice put two references to one object in `n.bag`, and
-	# `find()` answers with the FIRST -- which is the spent one. `take_from_bag`
-	# saw an index already claimed and refused, so an item you had thrown out
-	# more than once could not be picked back up.
-	#
-	# Put back where it was instead: the entry is still there, so clearing its
-	# claim is the whole of what "it is loose again" means.
-	# THE FLOOR, not a wreck. What you put down is the system's, and a hull you
-	# killed is not a bin -- keeping them separate is what makes "everything in
-	# this sector" and "what that ship was carrying" two different questions
-	# with two different doors.
+	# Putting back an item already listed clears its claim rather than appending a duplicate.
+	# Why: docs/why/RunState.md#loose-items-and-containers
 	var already := h.items.find(m)
 	if already >= 0:
-		# A PackedInt32Array, so `remove_at` by position rather than `erase` by
-		# value. `_mark_taken` appends to it; this is the other direction and
-		# there was no other direction until now.
+		# A PackedInt32Array, so remove by position: the reverse of `_mark_taken`.
 		var slot := n.taken.find(h.option(already))
 		if slot >= 0:
 			n.taken.remove_at(slot)
@@ -1046,11 +664,8 @@ func put_in(n: MapGen.MapNode, h: MapGen.Jetsam, m: HoldItem) -> bool:
 	return true
 
 
-## Overboard, with no container in mind: it lands on the system's own floor.
-##
-## This is the right-click path, which has no screen open to tell it where you
-## meant. A wreck is somewhere you chose to look inside; the floor is where a
-## thing goes when you simply do not want it.
+## Overboard to the system's floor: the right-click path has no open container to say
+## where you meant.
 func jettison(m: HoldItem) -> bool:
 	var n: MapGen.MapNode = node_at()
 	if n == null:
@@ -1058,23 +673,8 @@ func jettison(m: HoldItem) -> bool:
 	return put_in(n, sector_jetsam(n), m)
 
 
-## Make sure one item's cell is still a cell it can occupy.
-##
-## TURNING A CARRIED PART MUTATES THE PART, and that is the whole problem this
-## exists for. Press R mid-drag and `turned` flips on the object itself -- which
-## it has to, because the drop target asks `footprint()` where it would land.
-## But the item is still in `cargo` at the cell it was picked up from, so if the
-## drag is then cancelled or refused, it stays there with a NEW shape: a 4x1
-## sitting in the last row becomes a 1x4 hanging four rows off the bottom of the
-## hold, overlapping whatever it crosses.
-##
-## That is the corruption behind "items overflow the grid" and behind "it only
-## works if I shuffle things afterwards" -- shuffling calls `place_in_hold`,
-## which quietly puts the mess right.
-##
-## Three answers, in order of how little they cost you: the cell still works;
-## some other cell does; or turning it is what broke it, so turn it back. Only
-## if none of those hold does it fail, and then it has changed nothing.
+## Turning mid-drag mutates the part, so a cancelled drag must reseat it or the hold corrupts.
+## Why: docs/why/RunState.md#settling-a-turned-part
 func settle(m: HoldItem) -> bool:
 	if m == null or not cargo.has(m):
 		return false
@@ -1095,19 +695,12 @@ func settle(m: HoldItem) -> bool:
 	return false
 
 
-## Re-seat everything, largest first, after the grid changes shape.
-##
-## Called when the hull is swapped: a heavy's 4x10 hold becomes a light's 4x5 and
-## every part below the fifth row is now outside the grid. Largest first because
-## first-fit on a fresh grid strands big parts behind small ones — the one place
-## a rule other than "leave it where it was" is worth having, since the player
-## did not arrange this and cannot be surprised by it.
+## Largest first after the grid shrinks, since first fit strands big parts behind small ones.
+## Why: docs/why/RunState.md#repacking-the-hold
 func repack_hold() -> void:
 	var all := cargo.duplicate()
-	# `HoldItem`, NOT `ModuleData`. The hold carries materials too now, and a
-	# lambda typed to the narrower class refuses the whole comparison at
-	# runtime -- so a repack with one crate in it failed silently, item by item.
-	# `cells()` is `HoldItem`'s in the first place.
+	# Typed `HoldItem`, not `ModuleData`: the hold carries materials, and a narrower
+	# lambda type fails the whole sort at runtime.
 	all.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
 		return a.cells() > b.cells())
 	cargo.clear()
@@ -1121,21 +714,15 @@ func repack_hold() -> void:
 			continue
 		m.hold_at = cell
 		cargo.append(m)
-	# ONTO THE PAD, NOT OVERBOARD. This used to be the second place in the file
-	# that destroyed cargo to keep the grid invariant, and the loader reaches it
-	# -- so a save whose hull no longer matched its hold quietly lost crates on
-	# load. Now they come back on the dock, where you can see them.
+	# Onto the pad, not overboard: the loader reaches this, and a mismatched save must not lose crates.
 	for m in lost:
 		pad.append(m)
 	if not lost.is_empty():
 		log_line("%d thing%s left on the pad. The hold is full." % [lost.size(),
 			"" if lost.size() == 1 else "s"], &"them")
 
-## First cell the part fits in, scanning rows then columns, or (-1,-1).
-##
-## Row-major FIRST FIT rather than best fit. Best fit packs tighter and moves
-## things around behind your back to do it; the hold is a place you arranged, so
-## a predictable rule you can learn beats a clever one you cannot.
+## First cell the part fits, row-major, or (-1,-1). First fit, not best fit: a
+## predictable rule beats one that rearranges your hold.
 func find_hold_slot(m: HoldItem, leaving: HoldItem = null) -> Vector2i:
 	var g := hold_grid()
 	var taken := hold_taken(m, leaving)
@@ -1146,30 +733,14 @@ func find_hold_slot(m: HoldItem, leaving: HoldItem = null) -> Vector2i:
 				return at
 	return -Vector2i.ONE
 
-## This system is finished: the wreck is stripped, the fight is won, the hail is
-## answered. THE ONE DOOR, and the reason it exists is co-op.
-##
-## A shared seed gives four machines an identical galaxy rather than a shared
-## one — every wreck holds the same modules on every machine, because what a
-## node holds is drawn from `Rng.derive(tag, node.index)` and depends on where
-## it is rather than on who asked. The one thing a seed cannot say is whether
-## somebody has already been there. So consuming a node has to be told, and
-## telling it from one place means a new way to finish a system is shared by
-## construction instead of by somebody remembering to add a line.
-##
-## `Net.claim()` does nothing in the solo game, which is why every call site
-## could be changed without a branch.
+## One door for finishing a system, so co-op sharing comes by construction.
+## Why: docs/why/RunState.md#claims-in-co-op
 func consume_node(n: MapGen.MapNode) -> void:
 	take_whole(n)
 
 
-## The system itself, used up. Marked locally and told to the party without
-## waiting for an answer.
-##
-## Fire and forget is correct HERE and wrong in take_option(). These are the
-## outcomes nobody can take out from under you — the fight you just won, the
-## hail you were already inside — so a round trip would buy nothing and would
-## show the wreck you just stripped as still full while it ran.
+## Fire and forget: nobody can take these outcomes from you, so a round trip buys nothing.
+## Why: docs/why/RunState.md#claims-in-co-op
 func take_whole(n: MapGen.MapNode) -> void:
 	if n == null or n.cleared:
 		return
@@ -1178,18 +749,8 @@ func take_whole(n: MapGen.MapNode) -> void:
 	Net.claim(n.index, MapGen.OPTION_WHOLE)
 
 
-## One option at this system, when only one ship can have it. Returns whether
-## you got it, and awaits the party's answer if there is a party.
-##
-## THE ONE THAT HAS TO ASK. Two ships reach the same wreck in the same second;
-## if both assume they won, both roll the loot, and the flag agreeing a moment
-## later does not take the module back out of the loser's hold. So the caller
-## does not get to act until it is told, and every caller has to actually read
-## the answer — which is why this returns a bool instead of quietly doing
-## nothing.
-##
-## Solo returns true immediately: `Net.take()` answers with your own id when
-## there is nobody to ask.
+## Must wait for the party's answer, or two ships both roll the same loot.
+## Why: docs/why/RunState.md#claims-in-co-op
 func take_option(n: MapGen.MapNode, option: int) -> bool:
 	if n == null or n.taken.has(option):
 		return false
@@ -1203,47 +764,23 @@ func take_option(n: MapGen.MapNode, option: int) -> bool:
 	return owner == Net.local_id()
 
 
-## What a shared kill left floating, rolled once and agreed by everybody.
-##
-## `drops` is what the fight would have paid one ship. `hands` is how many ships
-## were still in it when the last hull came apart — `SharedFight.paid`, frozen by
-## the host so that four machines cannot each read a crew list at a different
-## point in its unwinding.
-##
-## POSITIONAL, LIKE EVERYTHING ELSE THAT BELONGS TO A PLACE. `Rng.derive()` seeds
-## from the node index, so every machine rolls the identical bag without a byte
-## of it crossing the wire — the same trick that lets one seed put one wreck and
-## one shelf on four machines. What travels is only which parts are GONE, which
-## is the one fact a seed cannot carry.
-##
-## Deliberately NOT off `Rng.loot`. That stream is salted by seat precisely so
-## that what is paid to a PLAYER differs per player; a bag is paid to the party,
-## so it must not.
+## Rolled positionally so every machine rolls the same bag; only what is gone travels.
+## Why: docs/why/RunState.md#the-shared-bag
 func open_bag(n: MapGen.MapNode, drops: int, hands: int) -> void:
 	if n == null or n.bagged or drops <= 0:
 		return
 	n.bagged = true
 	var r := Rng.derive(&"bag", n.index)
 	var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
-	# Scaled by the crew, so bringing a friend does not halve what the fight is
-	# worth to you. The enemy already grew by CREW_SHARE to meet them; this is
-	# the other side of that bargain.
+	# Scaled by the crew, so bringing a friend does not halve the fight's worth to you.
 	for i in drops * maxi(1, hands):
 		n.bag.append(LootGen.roll_module(n.danger, force,
 			n.region == MapGen.Region.DEEP, r))
 	Sig.map_changed.emit()
 
 
-## Reach into the bag. Returns whether the part is now in your hold.
-##
-## ASKS AND WAITS, for exactly the reason the wreck does: two ships reach for the
-## same part in the same second, and a flag that agrees a moment later does not
-## take it back out of the loser's hold.
-##
-## The hold is checked BEFORE the claim, not after. Claiming a part you have
-## nowhere to put would burn it for the whole party — gone from the bag, in
-## nobody's hold — which is the shop's "ask, then pay" ordering seen from the
-## other end. It is also the solo bug that ordering already fixed once.
+## Asks and waits, and checks the hold before claiming so a full hold never burns a part.
+## Why: docs/why/RunState.md#the-shared-bag
 func take_from_bag(n: MapGen.MapNode, i: int) -> bool:
 	if n == null or i < 0 or i >= n.bag.size():
 		return false
@@ -1264,11 +801,7 @@ func take_from_bag(n: MapGen.MapNode, i: int) -> bool:
 	return true
 
 
-## Whether this system still has something floating in it for you.
-##
-## Counts what is LEFT, not what was rolled — a bag everybody has emptied is not
-## a bag, and the sector rail has to be able to tell the difference without
-## walking the taken list itself.
+## What is LEFT for you here, not what was rolled, so the rail can tell an emptied bag.
 func bag_left(n: MapGen.MapNode) -> int:
 	if n == null:
 		return 0
@@ -1284,20 +817,15 @@ func _mark_taken(n: MapGen.MapNode, option: int) -> void:
 		n.taken.append(option)
 
 
-## What the party has already used up, applied to this machine's map.
-##
-## The whole list every time rather than the new entries. It is tens of systems
-## in a dive, it is idempotent, and a list rebuilt from scratch cannot drift the
-## way a stream of deltas can the first time one arrives twice.
+## The party's claims applied to this map, the whole list each time: idempotent, and
+## a rebuilt list cannot drift the way deltas can.
 func adopt_party_claims() -> void:
 	if map.is_empty():
 		return
 	var moved := false
 	for key in Net.claims:
 		var i := int(key)
-		# Out of range cannot happen behind the content fingerprint and a shared
-		# seed. It is checked because the alternative is an index error taking
-		# the chart down on whoever receives it.
+		# Cannot happen with a shared seed; checked so a bad index never takes the chart down.
 		if i < 0 or i >= map.size():
 			continue
 		var n: MapGen.MapNode = map[i]
@@ -1305,14 +833,8 @@ func adopt_party_claims() -> void:
 			var o := int(option)
 			if n.taken.has(o):
 				continue
-			# A PARTNER'S OWN OPTION IS NOT THIS SHIP'S. A claim names a slot
-			# index, and past the rolled list a slot holds whatever each ship's
-			# own `place` or `post_goal` appended there: their quest is not
-			# mine, and a claim on it must not close my pickup or my quest at
-			# the same index (`OptionTable.is_mine`). With the list rolled, a
-			# slot off its end or holding a per-ship option is skipped; before
-			# it is rolled the claim is kept, and `OptionTable.ensure` drops it
-			# if it lands past the list.
+			# A partner's own option is not mine, so its claim must not close my option at that index.
+			# Why: docs/why/RunState.md#adopting-party-claims
 			if o >= MapGen.OPTION_SITE and o < MapGen.OPTION_JETSAM and not n.options.is_empty():
 				var k := o - MapGen.OPTION_SITE
 				if k >= n.options.size() or OptionTable.is_mine(n.options[k]):
@@ -1322,37 +844,18 @@ func adopt_party_claims() -> void:
 			if o == MapGen.OPTION_WHOLE:
 				n.cleared = true
 			elif o >= MapGen.OPTION_SITE and o - MapGen.OPTION_SITE < n.options.size():
-				# A site option a partner took closes its exclusive group HERE
-				# as well. Foreclosure is DERIVED, never replicated: every
-				# machine applies the same rule to the same claim and arrives
-				# at the same shut doors without a byte crossing the wire.
-				# A node whose options are not rolled yet is caught by
-				# `OptionTable.ensure` re-deriving on the roll.
+				# Foreclosure is derived on every machine from the same claim, never sent.
+				# Why: docs/why/RunState.md#adopting-party-claims
 				OptionTable.foreclose(n, o - MapGen.OPTION_SITE)
 	if moved:
 		Sig.map_changed.emit()
 
 
-## Put a part in the hold, or refuse.
-##
-## The one door into `cargo`, so the hold has a size that means something. It
-## returns whether it took the part, and callers are expected to care — a wreck
-## that hands you a module you cannot carry has to say so rather than silently
-## dropping it or silently exceeding the limit.
-##
-## Forced moves do NOT come through here. install_module evicts the worst part
-## to make room for something you asked to fit, and uninstalling to a full hold
-## is refused at the point of asking; neither can be allowed to destroy a module
-## because the arithmetic did not work out.
-## A HoldItem. This was the last `ModuleData` between a bag and a hold, and it
-## is why TAKE did nothing on a crate: `take_from_bag` claimed the item, marked
-## the option taken, and then failed silently at the parameter type -- so the
-## claim was spent and the thing stayed on the floor.
+## Returns whether it took the part, and callers must care; forced moves never come through here.
+## Why: docs/why/RunState.md#doors-into-the-hold
 func stow(m: HoldItem) -> bool:
-	# MONEY IS CASHED, NOT PLACED, and this is the only branch the whole feature
-	# needs. Every route into the hold runs through here -- a drag, a
-	# shift-click, `take_from_bag`, the simulator's own policy -- so putting the
-	# exception at the bottom means none of them has to know about it.
+	# Money is cashed, not placed. Every route into the hold runs through here, so this
+	# one branch covers all of them.
 	if m is CreditChit:
 		var chit := m as CreditChit
 		add_credits(chit.amount)
@@ -1374,26 +877,8 @@ func deck_size() -> int:
 		n += m.grant_count()
 	return n
 
-## Fill spare mounts with more yard stock until the deck can actually be drawn
-## from.
-##
-## The starting kit is one shape — a weapon, two systems, a utility — and the
-## frames are not. Four manufacturers drop a weapon mount, so on a LIGHT frame their
-## generic weapon had nowhere to go and two cards vanished, while the same ship
-## sat on spare system and utility mounts the kit could not reach. Probate,
-## Cygnet, Verity and Calyx lights opened two cards down on Korvan's for no
-## reason anyone chose.
-##
-## The floor is a function of HAND SIZE, because that is what makes it matter:
-## a deck no bigger than the hand is not a deck, you simply hold all of it, and
-## light frames draw the most. So the ships that need the biggest decks are
-## exactly the ones this used to shortchange.
-##
-## Distinct parts first, in two passes. Yard stock has three of each slot, so a
-## frame with spare mounts gets a Slug Thrower and a Ranging Scope rather than a
-## second and third Hull Plating — and a starting deck of nine identical cards
-## is not a deck either. The second pass allows duplicates only because a frame
-## can have more mounts than the yard has distinct parts for that slot.
+## Fills spare mounts until the deck outgrows the hand, distinct parts first.
+## Why: docs/why/RunState.md#topping-up-the-deck
 func _top_up_deck() -> void:
 	var target := hand_size() + 4
 	for allow_dupes in [false, true]:
@@ -1427,22 +912,8 @@ func log_line(text: String, kind: StringName = &"sys") -> void:
 
 # ------------------------------------------------------------------ derived stats
 
-## THE GAUGES. Chassis, then everything bolted to it.
-##
-## Each of these used to return the hull's field and stop. That made four of the
-## six attributes pure chassis properties by accident rather than by ruling —
-## Sensors and Stealth summed `installed` because they had no gauge to derive
-## from, and the other four silently did not. Armour plating added no armour.
-##
-## Summing here rather than in attr_hull() and attr_thermal() is the point: an
-## attribute is a READING of a gauge, so a plate that only moved the attribute
-## would be a plate that shows up on the ship tab and not in the fight. Combat
-## calls max_hp() and heat_cap(); it never calls attr_*().
-##
-## `bare` reports the CHASSIS ALONE — no fitted modules. Only the attribute
-## block asks for it, and it asks so the display can separate what the ship is
-## from what you bolted to it. It is a parameter rather than six more functions
-## because the two readings must never be able to disagree about the formula.
+## Gauges sum chassis and modules, so an attribute reads what combat uses; `bare` is chassis alone.
+## Why: docs/why/RunState.md#gauges
 func max_hp(bare: bool = false) -> int:
 	var n := hull.max_hull
 	if not bare:
@@ -1451,11 +922,7 @@ func max_hp(bare: bool = false) -> int:
 	return maxi(1, n)
 
 func heat_cap(bare: bool = false) -> int:
-	# `heat_cap_bonus` SURVIVES A DEAD SETTER. Nothing raises it any more -- the
-	# yard's coolant service and the fabricator's braid recipe were the only two
-	# and both are gone -- but it is a SAVED field, so deleting it is a save-shape
-	# change and a version bump to retire a value that reads 0. It stays until
-	# something else wants it.
+	# `heat_cap_bonus` has no setter left but is saved; retiring it needs a save version bump.
 	var n := hull.heat_cap + heat_cap_bonus
 	if not bare:
 		for m in installed:
@@ -1471,9 +938,7 @@ func dissipation(bare: bool = false) -> int:
 			d += m.dissipation + m.affix_int(&"dissipation")
 	return maxi(0, d)
 
-## Capped at 0.6. Dodge is the enemy's miss chance, so an uncapped sum is a ship
-## nothing can hit — and the ruling that only enemies miss means the player never
-## sees the roll that would tell them the fight had stopped being a fight.
+## Capped at 0.6: dodge is the enemy's miss chance, and an uncapped sum is a ship nothing can hit.
 func dodge(bare: bool = false) -> float:
 	var v := hull.dodge
 	if not bare:
@@ -1495,88 +960,31 @@ func fuel_factor(bare: bool = false) -> float:
 	if not bare:
 		for m in installed:
 			v += m.fuel_factor
-	# AFTER the modules, because it is a discount on what the ship actually
-	# burns rather than on the hull it started as. Multiplicative and small:
-	# this number prices every jump in the game, and the floor below it is
-	# there because a ship that drove it to zero would cross the galaxy free.
+	# After the modules: a discount on what the ship burns. Small and floored, because
+	# this prices every jump.
 	if hull.has_perk(&"deep_tanks"):
 		v *= 0.9
 	return maxf(0.3, v)
 
-## HEAT SHEDS BETWEEN SYSTEMS, NOT ONLY BETWEEN TURNS.
-##
-## `dissipation()` was read in exactly one gameplay site — Combat.end_turn() —
-## so heat carried out of a fight stayed on the hull forever. Ten jumps later
-## the gauge still read what it read when the shooting stopped, and the only
-## ways down were a purge card, one event, or the next fight. That made the
-## number a fossil between fights, and it made "cool off before you go in" a
-## thing a player could want and had no way to do.
-##
-## HALF A TURN'S WORTH PER JUMP, FLOOR OF ONE. Measured, not chosen: at a full
-## turn's worth the average signature on arrival fell from 0.32 to 0.05 over a
-## thousand runs, which did not make heat manageable between systems, it deleted
-## it. A jump you were making anyway must not be a free vent.
-##
-## At half rate a medium frame carries a hard fight about six systems, a light
-## frame three, and a Solari heavy most of the way to the next station — the
-## same trade those hulls already make in combat, now visible on the map. The
-## floor of one exists so that the worst dissipation in the game still cools
-## eventually rather than fossilising at capacity for the rest of the run.
+## Heat sheds half a turn's worth per jump (floor one): it matters between fights, but no free vent.
+## Why: docs/why/RunState.md#cooling-in-transit
 func cool_in_transit() -> void:
-	# HALF RATE, and full rate was tried on 2026-08-25 and put back. The
-	# argument for trying it was good and the measurement refused it.
-	#
-	# THE ARGUMENT: an older comment here recorded full rate deleting the map
-	# mechanic -- average arrival signature 0.32 down to 0.05 -- but that test
-	# ran with in-combat dissipation still active, so fights ended cool and
-	# full-rate transit was compounding an already-cool start. With the
-	# end-of-turn shed now deleted, fights end near capacity, so full rate
-	# should have been a counterweight rather than a second pull the same way.
-	#
-	# THE MEASUREMENT, 500 runs each, combat change held constant:
-	#
-	#     transit      arrival sig   arrived hot   ambush/run   win
-	#     full rate       0.04           5.5%         0.21       30%
-	#     half rate       0.07           9.4%         0.24       29%
-	#
-	# Half rate is better on every axis the change was FOR, and the win rate
-	# difference is inside the noise of 500 runs. So the ruling is reverted.
-	#
-	# THE REAL FINDING IS THAT THIS RATE IS NOT THE LEVER. Fights now end at
-	# 0.31 signature -- more than double what they did -- and arrival is still
-	# 0.07 against a SIGNATURE_FLOOR of 0.25. Cooling is charged PER JUMP and
-	# there are roughly four jumps per fight, so whatever a fight builds is
-	# spent long before the next one. Halving the rate cannot fix that and
-	# neither can doubling it; the dials that would are the per-jump floor
-	# below, the number of jumps between fights, or the floor itself.
-	#
-	# The floor of 1 stays regardless: it is what stops the worst dissipation
-	# in the game fossilising at capacity.
+	# Half rate measured better than full rate (Aug 25), and this rate is not the lever.
+	# Why: docs/why/RunState.md#cooling-in-transit
 	heat = maxi(0, heat - maxi(1, int(dissipation() / 2.0)))
 
-## How loud you are: 0.0 stone cold, 1.0 at capacity, higher while overheating.
-##
-## Everything on the map layer that cares about heat asks this rather than the
-## raw number, because raw heat is not comparable across hulls — 11 heat is
-## nearly cooked on a light frame and idling on a heavy one.
+## How loud you are: 0 cold, 1 at capacity. Map rules ask this, not raw heat, which
+## is not comparable across hulls.
 func signature() -> float:
 	return float(heat) / float(maxi(1, heat_cap()))
 
-## Below this fraction of capacity nothing finds you. The main doc's ruling is
-## that cold light ships slip past, and a ceiling of "almost never" is not the
-## same promise as "not at all" — a player who has decided to run cold has
-## bought silence and should get it, not a low roll that occasionally ignores
-## the decision.
+## Below this fraction of capacity nothing finds you: running cold buys silence, not a low roll.
 const SIGNATURE_FLOOR := 0.25
 ## Odds at capacity, on unclaimed ground, in a ship with no stealth at all.
 const AMBUSH_AT_CAP := 0.30
 
-## Whether something followed the heat in, and how likely that was.
-##
-## Three terms, and the order matters. Signature is the gate: run cold and the
-## rest never applies. Danger scales it, because deep systems have more in them
-## to notice you. Stealth divides it last, so the hull and the modules you fitted
-## are the answer to a problem your own throttle created.
+## Signature gates it, danger scales it, and stealth divides it last.
+## Why: docs/why/RunState.md#ambush-chance
 func ambush_chance(n: MapGen.MapNode) -> float:
 	var sig := signature()
 	# STUDY ONLY (`study_ambush_deep`, balance/run-length): off unless set.
@@ -1588,46 +996,18 @@ func ambush_chance(n: MapGen.MapNode) -> float:
 		return 0.0
 	var p := AMBUSH_AT_CAP * (sig - SIGNATURE_FLOOR) / (1.0 - SIGNATURE_FLOOR)
 	p *= 1.0 + float(n.danger - 1) * 0.08
-	# CLAMPED HERE, not at the gauge. Attributes go over ten now, and a stealth
-	# of 17 would drive this ratio past 1 and the probability below zero — a ship
-	# that is ambushed a negative amount of the time. Sixty per cent off is the
-	# most stealth can buy, however much of it you have.
+	# Clamped here: stealth over ten would push the ambush probability below zero.
 	p *= 1.0 - minf(1.0, float(attr_stealth()) / float(ATTR_MAX)) * AMBUSH_RELIEF
 	if study_ambush_deep > 0.0 and n.danger > 6:
 		p = maxf(p, study_ambush_deep * float(n.danger - 6))
 	return clampf(p, 0.0, 0.6)
 
-## WHAT A REACTOR LEVEL IS. Three cells of hardware, and a step of energy
-## every second level.
-##
-##     REACTOR   4    5    6    7    8    9   10   11   12   13   14
-##     cells    12   15   18   21   24   27   30   33   36   39   42
-##     energy    3    3    4    4    5    5    6    6    7    7    8
-##
-## THE LEVEL IS THE STAT AND THE OTHER TWO ARE READ OFF IT, which is the
-## opposite of how this started. It was a SCORE: you had energy and cells and
-## the bar weighed them into a number. That could not be read backwards —
-## REACTOR 10 meant "at least this good", not any particular ship — and on the
-## one gauge whose raw unit is printed directly under it, being unreadable
-## backwards is the whole complaint.
-##
-## IT WAS AN ELEVEN-ROW TABLE AND THE TABLE WAS THE CEILING. Attributes go over
-## ten now (Pillar 5), and every other one of them does — but a lookup clamps at
-## its own length, so REACTOR alone stopped at 10 while the rule said otherwise.
-## Two lines of arithmetic have no length. The table is kept above as the
-## LADDER, which is what anybody actually wanted to read off it.
-##
-## The arithmetic and the old table disagree at levels 1 and 3, by one point of
-## energy. Nothing in the game is ever there: the worst frame is 4 and nothing
-## lowers a reactor.
+## The level is the stat; cells and energy are read off it by arithmetic with no ceiling.
+## Why: docs/why/RunState.md#reactor-level
 const CELLS_PER_LEVEL := 3
 
 
-## THE REACTOR LEVEL ITSELF: the hull grade, plus every part that raises it.
-##
-## Floored at zero and NOT capped. attr_reactor is this number and nothing
-## else — no weighting, no formula, no offset — so a ship carrying four
-## couplings reads 16 and means it.
+## The reactor level: hull grade plus every part that raises it. Floored at 0, not capped.
 func reactor_level(bare: bool = false) -> int:
 	var n := hull.reactor
 	if not bare:
@@ -1636,10 +1016,8 @@ func reactor_level(bare: bool = false) -> int:
 	return maxi(0, n)
 
 
-## Energy a turn. A step every second level from 3 at REACTOR 4, then the two
-## things that grant energy DIRECTLY rather than by growing the reactor — a
-## perk and a set bonus, which stay as they were because a bonus that sometimes
-## did nothing (a level landing between steps) is a bonus nobody can price.
+## Energy a turn: a step every second level from 3 at REACTOR 4, plus direct grants kept
+## flat, so a bonus never lands between steps and does nothing.
 func reactor() -> int:
 	var e := maxi(1, 3 + floori(float(reactor_level() - 4) / 2.0))
 	if hull.has_perk(&"overspec_reactor"):
@@ -1652,31 +1030,20 @@ func reactor() -> int:
 func power_cap() -> int:
 	return reactor_level() * CELLS_PER_LEVEL
 
-## What is bolted on right now, in cells. The SAME number the hold counts a
-## part in, deliberately: a player already knows a 2x2 bay is four, and a
-## second unit for the same quantity is how two halves of a game drift apart.
+## Draw in cells, the same unit the hold counts a part in, so the game's two halves agree.
 func power_draw() -> int:
 	var d := 0
 	for m in installed:
 		d += m.cells()
 	return d
 
-## Can this part be RUN, ignoring whether there is a mount for it.
-##
-## Two questions, never one. `slots_used < slots_for` asks whether the frame
-## has somewhere to bolt it; this asks whether the reactor can carry it. A
-## heavy has four weapon mounts and cannot power four four-cell cannons, and
-## the whole interest of the system is in the gap between those two answers.
-##
-## `replacing` is the part coming off to make room, whose draw is freed first
-## — without it a straight swap of like for like would be refused at cap.
+## A mount and reactor capacity are separate questions; `replacing` frees its draw for swaps.
+## Why: docs/why/RunState.md#mounts-and-the-reactor
 func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 	if m == null:
 		return false
 	var draw := power_draw() + m.cells()
-	# The cap WITH this part on, which matters because a coupling raises the
-	# level it is being measured against. Read off the table rather than added,
-	# since a level is not a number of cells until the table says so.
+	# The cap with this part on, since a coupling raises the level it is measured against.
 	var level := reactor_level() + m.reactor + m.affix_int(&"reactor")
 	if replacing != null:
 		draw -= replacing.cells()
@@ -1685,10 +1052,8 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 	var cap := maxi(0, level) * CELLS_PER_LEVEL
 	return draw <= cap
 
-## Development override, set by `-- fight N`. Zero means "use the real value".
-## Lives here rather than in Main so Combat's redraw each turn honours it too —
-## a hand that is ten on turn one and five on turn two would test the layout
-## exactly once.
+## Dev override from `-- fight N`; 0 uses the real value. Lives here so Combat's
+## redraw each turn honours it too.
 var hand_size_override: int = 0
 
 func hand_size() -> int:
@@ -1702,9 +1067,7 @@ func hand_size() -> int:
 	return h
 
 func slots_for(s: ModuleData.Slot) -> int:
-	# NO PERK ADDS A MOUNT ANY MORE. `spare_bay` did, and a mount is a place on
-	# a hull that somebody rigged by hand -- the extra one had no anchor and
-	# landed wherever the fallback line put it.
+	# No perk adds a mount: a mount is a place on the hull that somebody rigged by hand.
 	return hull.slots_for(s)
 
 func slots_used(s: ModuleData.Slot) -> int:
@@ -1714,13 +1077,8 @@ func slots_used(s: ModuleData.Slot) -> int:
 			n += 1
 	return n
 
-## Modules from this manufacturer, PLUS the hull if it built one.
-##
-## The hull counting is what makes choosing a chassis a build decision instead
-## of a stat decision: a Korvan hull puts you one module from Standard Issue,
-## and swapping to a found Redline frame costs you that piece. It is also the
-## price of the reversal — hull swaps are no longer identity-neutral, which the
-## old "hulls have no manufacturer" ruling existed to guarantee.
+## The hull counts toward its manufacturer's set, which makes the chassis a build decision.
+## Why: docs/why/RunState.md#manufacturer-count
 func manufacturer_count(id: StringName) -> int:
 	var n := 0
 	if hull != null and hull.manufacturer == id and id != &"":
@@ -1734,67 +1092,22 @@ func manufacturer_count(id: StringName) -> int:
 func has_set(id: StringName, threshold: int) -> bool:
 	return manufacturer_count(id) >= threshold
 
-# ------------------------------------------------------------------- attributes
-#
-# The six numbers events check against, per attributes-and-checks.md.
-#
-# THE RULE, from §0: every attribute is a number the game ALREADY TRACKS. These
-# are functions, never fields. Nothing writes an attribute; there is no second
-# copy of your ship's condition to drift out of sync with the first, and no
-# "recalculate attributes" call anyone can forget after a refit.
-#
-# The consequence worth stating out loud is that checks read the CURRENT value.
-# A holed ship really does fail Hull checks it would have passed at full — the
-# attribute is the damage, not a rating the damage is compared against.
-#
-# All six are 0-6. The constants below are FIRST VALUES, tuned against the three
-# unbranded frames and not yet against the seven manufacturer hulls or against
-# any real event table. Expect to move them.
+# Attributes are functions of tracked state, never fields, so checks read current values.
+# Why: docs/why/RunState.md#attributes
 
-## Ten, not six. Six cells could not separate twenty-one chassis: half the
-## Thermal column landed on the same number and the difference between a Korvan
-## medium and a Solari medium — which is most of what those two manufacturers ARE —
-## rounded away. Every constant below was rescaled with it, not multiplied
-## through: the point of the wider scale is that the ships spread out in it.
-## HOW MANY CELLS THE BAR DRAWS. NOT a ceiling on the value.
-##
-## Attributes go over ten and are meant to. Pillar 5: the ceiling is meant to
-## break, and a gauge that clamps is a gauge that hides the one moment the
-## whole loot loop exists to produce. A stealth build that reads 14 should say
-## 14 — the bar runs out of cells, and the bar running out IS the readout.
-##
-## THE FLOOR STAYS. Zero is still zero; nothing reads negative. See attr_sensors
-## for why that one is enforced and where.
-##
-## WHAT DOES CAP IS EVERY CONSUMER, at its own call site rather than here. The
-## ambush roll divides by this and would take a probability negative at 17
-## stealth; it clamps its own ratio now. That is the correct place for it: the
-## gauge reports what you built, and each rule decides how much of it it can
-## use.
+## Ten is how many cells the bar draws, not a ceiling: each consumer caps its own use.
+## Why: docs/why/RunState.md#attributes
 const ATTR_MAX := 10
 
-## The most stealth can take off an ambush, at ATTR_MAX. Named because the
-## attribute tooltip quotes it: a percentage typed into a hint and a constant
-## used by the maths drift apart the first time either is touched.
+## The most stealth can take off an ambush. Named because the tooltip quotes it.
 const AMBUSH_RELIEF := 0.6
 
-## Hull is measured against a fixed reference, not against your own maximum.
-##
-## Dividing by max_hp was the obvious version and it is wrong: it reads 6 for a
-## full Skiff and 6 for a full Ore Barge, so the attribute would say the two
-## ships are equally sturdy while one has less than half the other's plating.
-## A fixed reference makes frame size and damage both count, which is the whole
-## point of a Hull check.
-##
-## 70 rather than 60 because 60 put the Ore Barge at 6 on the first turn of the
-## run, and an attribute already at its ceiling cannot be improved by the tier
-## upgrades and found hulls that are supposed to improve it.
+## A fixed reference so frame size and damage both count; 70 leaves the biggest hull room to grow.
+## Why: docs/why/RunState.md#hull-reference
 const HULL_REF := 70.0
 
-## `bare` everywhere below means "read the chassis with nothing fitted". Hull is
-## the awkward one: it reads CURRENT hp, so the bare reading caps at what the
-## bare frame could have held — hull you are carrying above that is the plating's
-## doing, and it should show as the plating's.
+## Hull reads current hp; the bare reading caps at the bare frame's max, so hull
+## above that shows as the plating's.
 func attr_hull(bare: bool = false) -> int:
 	var v := mini(hp, max_hp(true)) if bare else hp
 	return maxi(0, int(round(ATTR_MAX * float(v) / HULL_REF)))
@@ -1808,139 +1121,38 @@ func attr_thrust(bare: bool = false) -> int:
 			n += m.thrust + m.affix_int(&"thrust")
 	return maxi(0, n)
 
-## Dodge is the bulk of it; initiative tilts it. The +1 floor is there because
-## without it every chassis with dodge under 0.05 and negative initiative read
-## exactly 0 — the Ironside Cutter, a medium warship, scored the same
-## Maneuver as an ore barge, which is not a distinction worth erasing. A barge
-## can still reach 0 by being an actual barge.
+## Dodge is the bulk, initiative tilts it. The +1 floor keeps a warship from reading
+## the same as an ore barge.
 func attr_maneuver(bare: bool = false) -> int:
-	# 0.5 AND NOT 0.9 on initiative, so that HALF a pip is exactly one whole
-	# point of it. A part that raises MANEUVER raises both terms, and both terms
-	# have to be able to carry half a pip in their own unit — initiative is an
-	# int, so at 0.9 it could not. Only one reading moves: a heavy goes from 0 to
-	# 1, which the floor below was arguably always meant to give it.
+	# 0.5 on initiative, so half a pip is one whole point of an int field.
 	return maxi(0, int(round(dodge(bare) * 23.0 + initiative(bare) * 0.5 + 1.5)))
 
-## VENT, not "shedding". The card face says "Vent 3" and the field is called
-## dissipation; a third word for the same quantity in the comments is how two
-## halves of a game stop being about the same thing.
-##
-## Thermal is capacity AND venting, per §1.4, because an event that asks "can
-## you sit in this heat" is asking about both and would otherwise need two
-## attributes to answer.
-##
-## Capacity carries most of the weight, and this took a measurement to get
-## right. The first version was `cap/6 + diss/2.5`, which read 3 or 4 for every
-## chassis in the game — the Emberwright caps at 20 and vents 2, the Brood
-## Tender caps at 12 and vents 4, and the two terms cancelled so cleanly that
-## the heat manufacturer and the drone manufacturer scored identically. Weighting
-## capacity harder and subtracting a floor spreads it 2-6, with Solari at the
-## top where the whole manufacturer says it should be.
-##
-## They are not interchangeable in fiction and must not be in the formula:
-## capacity is how much you can take, dissipation is how fast you get rid of it,
-## and only the first decides whether you survive sitting in a corona.
-##
-## Divisors widened once already. At 2.4/2.0 the attribute saturated: five of
-## the seven heavy frames pinned at 6, so a Probate ore barge and a Solari
-## Furnace Baron read identically on the axis Solari exists to own. A ceiling
-## that everything large reaches is not a measurement. Now exactly one chassis
-## in the game reads 6, and it is the one built by the heat manufacturer.
+## Capacity weighs most and a floor is subtracted, so hulls spread out and only Solari reads 6.
+## Why: docs/why/RunState.md#thermal
 const THERMAL_FLOOR := 8.0
 
-## THE GRADE, AS A GAUGE. Output and capacity are one attribute because they
-## are one piece of hardware — the same argument THERMAL makes for heat
-## capacity and dissipation, and it is wrong here for the same reason it would
-## be wrong there to split them: a player asking "is this a good reactor" is
-## asking one question.
-##
-## They are not interchangeable and the weights say so. Output is scarce and
-## enormous — three points of it across the whole ladder, and each one is a
-## card a turn — so it is worth 1.6 a point. Capacity runs 13 to 22 and buys
-## room rather than tempo, so it is worth a quarter of a point a cell.
-##
-## DIVISORS PICKED SO THE TOP DOES NOT PIN, which is the mistake THERMAL made
-## once and documents above: an attribute everything good saturates is not a
-## measurement. A bare S frame reads 7 of 10. Reaching 10 takes the S grade,
-## the overspec perk and two couplings — a build that has actually spent
-## itself on power, which is what a full gauge should mean.
-##
-##     C 2    B 3    A 5    S 7    S, perked and coupled 10
-## HOW MANY CELLS ONE PIP OF REACTOR IS WORTH.
-##
-## Named rather than buried in the formula, because it is the number a coupling
-## is priced in: a part that raises REACTOR by 2 grants exactly two of these,
-## and Database derives its grant from here rather than authoring a 6 that
-## means nothing on its own.
-##
-## Three, so the gauge and the cells stay legible together. REACTOR is the one
-## attribute whose raw unit a player COUNTS — thirteen cells of hardware is a
-## number on the ship screen, where nobody counts hull points — so a pip has to
-## be a quantity of them small enough to divide the ladder tidily and large
-## enough to be worth crossing.
+## Three cells a pip, named because a coupling is priced in it.
+## Why: docs/why/RunState.md#reactor-level
 const CELLS_PER_PIP := 3.0
 
-## THE ATTRIBUTE IS THE STAT. No weighting, no offset, no formula — the bar
-## reads the reactor level, and the level is what decides the cells and the
-## energy. REACTOR 10 is thirty cells and six energy, on every hull in the
-## game, and a player who reads the bar and multiplies is right.
-##
-## It is the only attribute that works this way, and it earned it: it is the
-## only one whose raw unit is printed on the same screen. HULL scores your
-## plating and THERMAL weighs capacity against vent because nobody counts
-## either of those; the ship screen counts cells under the mounts.
+## The attribute is the reactor level itself: the only gauge whose raw unit is on screen.
+## Why: docs/why/RunState.md#reactor-level
 func attr_reactor(bare: bool = false) -> int:
 	return maxi(0, reactor_level(bare))
 
 
 func attr_thermal(bare: bool = false) -> int:
-	# 2.0 AND 1.0, NOT 2.1 AND 1.5, since the attribute ladder. Both fields are
-	# ints, so a divisor that is not a whole number cannot carry a whole pip: a
-	# rare vent asked for one pip, got 1.5 rounded to 2, and read back as two.
-	# `-- attrtest` caught it on the first run.
-	#
-	# The readings barely move — a medium reads 3 either way — because the change
-	# is a rounding convenience and not a retune. What it buys is that one point
-	# of venting is exactly one pip and two of capacity is exactly one pip, so
-	# the ladder can be exact instead of nearly right.
-	# BOTH TERMS AT 2.0, so one point of capacity and one point of vent are each
-	# half a pip and a part that raises THERMAL raises both by one. The only
-	# reading that moves is a light, 2 to 1, which is the correct direction for
-	# the frame with the smallest tank and the least to shed.
+	# Whole divisors, so one point of capacity or vent is exactly half a pip.
+	# Why: docs/why/RunState.md#thermal
 	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.0 + dissipation(bare) / 2.0
 	return maxi(0, int(round(v)))
 
-## Sensors and Stealth are the two with no other gauge in the game, so unlike
-## the four above they are summed rather than derived. Hull baseline plus fitted
-## modules — the same shape as the others, where the chassis sets the platform
-## and what you bolt on adjusts it.
-## Sensors and Stealth are authored in small whole numbers — a hull carries 0 to
-## 2, a module 1 or 2 — because that is a legible thing to write in a data table.
-## The scale they are DISPLAYED on is a different question, so the conversion
-## lives here rather than in the catalog. At 1.7 the best sensor ship in the game
-## reads 7 and the stealthiest reads 9, which leaves both room to improve.
-## ONE, not 1.7, since the attribute ladder. A module now says how many PIPS
-## it is worth and the grade decides the number — so a scale that is not 1 makes
-## the two sensor axes the only ones where a rare part cannot deliver exactly
-## one pip: 1/1.7 is 0.59, the field is an int, and rare and epic both round to
-## a raw 1. Two grades reading identically is the failure THERMAL documents.
-##
-## What it costs is headroom on the hull alone: a chassis carries 0 to 2 of
-## these and used to read up to 3.4 on its own. It buys something better —
-## Sensors and Stealth become axes you BUILD rather than ones the frame hands
-## you, because a legendary dish is now worth more than any hull ever was.
+## Scale 1 so a part's pips land exactly; sensors and stealth become axes you build.
+## Why: docs/why/RunState.md#sensors-and-stealth
 const SENSE_SCALE := 1.0
 
-## AN ATTRIBUTE STOPS AT ZERO. The clamp on the return is what enforces it, and
-## these two are the only gauges that could ever have needed it — they are
-## summed straight off the hull and its modules, where every other attribute is
-## derived from a quantity that was floored on the way here: heat capacity at 1,
-## dissipation and dodge at 0.
-##
-## A part that PRICES a gauge (see Database.PASSIVE_COST) can therefore take a
-## real pip off a build that has one, and takes nothing off a build that does
-## not. Both halves are checked by `-- attrtest`, which measures the price
-## against a supplier and then against an empty gauge.
+## Clamped at zero: these two are summed raw, so a priced part could push them negative.
+## Why: docs/why/RunState.md#sensors-and-stealth
 func attr_sensors(bare: bool = false) -> int:
 	var n := hull.sensors
 	if not bare:
@@ -1948,15 +1160,8 @@ func attr_sensors(bare: bool = false) -> int:
 			n += m.sensors + m.affix_int(&"sensors")
 	return maxi(0, int(round(n * SENSE_SCALE)))
 
-## Heat comes off the top of Stealth rather than out of the modules that grant
-## it, because it is the one thing on the ship you cannot bolt a cover over. A
-## cold Redline is the quietest thing in the galaxy; the same hull at capacity is
-## a lit match, and no amount of baffling changes that. Four of ten at capacity —
-## enough to lose a check you would pass cold, not enough to erase a build.
-##
-## This is also what makes ambush_chance() a decision rather than a tax: the
-## stealth term there reads this, so running hot is punished twice through one
-## number, and fitting for stealth answers both.
+## Heat takes up to 4 stealth at capacity, since heat is the one thing you cannot cover.
+## Why: docs/why/RunState.md#sensors-and-stealth
 const HEAT_STEALTH_COST := 4.0
 
 func attr_stealth(bare: bool = false) -> int:
@@ -1964,94 +1169,28 @@ func attr_stealth(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.stealth + m.affix_int(&"stealth")
-	# The heat penalty applies to BOTH readings. `bare` means "the chassis with
-	# nothing fitted", and heat is not something you fitted — so subtracting it
-	# only from the full reading would paint the loss as a module's fault in the
-	# attribute block, which draws chassis and modules in different colours.
+	# Heat applies to both readings: heat is not fitted, so the loss must not look like a module's.
 	var v := float(n) * SENSE_SCALE - signature() * HEAT_STEALTH_COST
 	return maxi(0, int(round(v)))
 
-## Every attribute, in display order, as {key, label, short, value, base, text}.
-##
-## `base` is the same attribute read off the bare chassis, so the display can
-## paint what the ship IS separately from what you bolted to it. Both are
-## computed here rather than differenced by the caller, because the difference
-## has to be taken AFTER the rounding and the clamp — a module worth 0.4 of a
-## cell moves neither number, and a caller subtracting raw values would paint a
-## bonus cell that the attribute does not actually have.
-## One list so the ship tab, the chassis select and any future check UI cannot
-## disagree about the order or the names.
-## WHAT ONE PIP COSTS, in the raw units the attribute formulas read.
-##
-## ONE ENTRY PER GAUGE, and a gauge with two terms moves BOTH. A part that
-## raises MANEUVER raises dodge and initiative; a part that raises THERMAL
-## raises how much heat you hold and how fast you lose it. That is the whole
-## simplification: a part says +1 MANEUVER, not "+1 of the initiative half of
-## maneuver", and there is nothing to explain in brackets afterwards.
-##
-## Each term carries HALF a pip, and the divisors above were set to whole
-## numbers so that half a pip is one whole point in an int field. That is the
-## constraint that decides those divisors, and it is why they are here rather
-## than tuned to taste: dodge is a float and can carry a fraction, initiative
-## and dissipation cannot.
-##
-## INVERTED OUT OF THE FUNCTIONS ABOVE, not measured against them. Change one
-## of those formulas and this has to change with it, which is exactly what
-## `-- attrtest` is for: it bolts every part onto a reference frame and checks
-## the gauge actually moved by the number the grade promised.
+## One pip's cost in raw units, inverted from the formulas above; `-- attrtest` checks they agree.
+## Why: docs/why/RunState.md#pip-costs
 const PER_PIP := {
 	&"hull": {&"max_hull": 7.0},                       ## HULL_REF / ATTR_MAX
 	&"thermal": {&"heat_cap": 1.0, &"dissipation": 1.0},
-	# DODGE ALONE, and initiative is deliberately not here any more. The comment
-	# above still holds for gauges with two live terms -- but initiative is not
-	# one: it is summed, it feeds attr_maneuver, and NOTHING else in the game
-	# reads it. Combat rolls randf() < Run.dodge() for the enemy to miss and never
-	# asks who goes first.
-	#
-	# So half of every maneuver pip was buying nothing at all, and a part or an
-	# affix advertising +1 MANEUVER delivered about 2% of enemy attacks missing
-	# where the gauge implied twice that. 1/23 rather than 1/46 makes the whole
-	# pip land on the half that works.
-	#
-	# Hull initiative is untouched: attr_maneuver still reads it, so a light frame
-	# still gauges higher than a heavy one. That is the gauge DESCRIBING a chassis,
-	# which it does honestly. What it may no longer do is sell a bonus.
+	# Dodge alone: nothing in combat reads initiative, so a maneuver pip must buy dodge.
+	# Why: docs/why/RunState.md#pip-costs
 	&"maneuver": {&"dodge": 1.0 / 23.0},
 	&"sensors": {&"sensors": 1.0},
 	&"stealth": {&"stealth": 1.0},
-	# THE TWO THAT WERE MISSING. Every other gauge could be graded and these two
-	# could not, so a part meant to be worth a pip of REACTOR or THRUST had no
-	# unit to be worth it in. Both are one-for-one: a reactor level IS a pip
-	# (attr_reactor returns the level), and thrust is now its own field for the
-	# same reason -- see attr_thrust.
-	#
-	# A reactor pip is the dearest thing on this table: three cells of capacity
-	# AND half a point of energy, since energy steps every second level.
+	# Reactor and thrust pips are one for one.
+	# Why: docs/why/RunState.md#pip-costs
 	&"reactor": {&"reactor": 1.0},
 	&"thrust": {&"thrust": 1.0},
 }
 
-## THREE LETTERS PER GAUGE, and the one place they are spelled.
-##
-## Two things print them -- the attributes panel's own rows, and every rolled
-## affix on a module readout -- and the second used to write the gauge out in
-## full. "TUNED INJECTORS -- +1 THRUST" wrapped onto a second line inside a
-## panel that is 93 pixels of card wide, so a part with three affixes spent six
-## lines saying three things.
-##
-## A dictionary rather than a field on each row, because the affixes need the
-## mapping without building a row: `attribute_rows()` computes seven live values
-## and seven sentences, and Database calls this at seed time when there is no
-## ship to compute them from.
-## THE GAUGE NAMES IN FULL, and the one place they are spelled.
-##
-## Beside ATTR_SHORT rather than derived from it, because MANEUVERABILITY is not
-## MNV with letters put back -- the short forms were chosen to be three
-## characters, not to be abbreviations of these.
-##
-## The station's part panel prints these. The abbreviations exist because a card
-## readout is 93 pixels wide and "+1 THRUST" wrapped; the shelf's column is 256
-## and has no such problem, so it says the whole word.
+## Short and full gauge names are spelled once; the short forms fit a 93 px card readout.
+## Why: docs/why/RunState.md#gauge-names
 const ATTR_LABEL := {
 	&"hull": "HULL",
 	&"reactor": "REACTOR",
@@ -2072,18 +1211,8 @@ const ATTR_SHORT := {
 	&"stealth": "STL",
 }
 
-## THE SEVEN GAUGES A HULL WOULD GIVE YOU BARE, with nothing bolted on.
-##
-## Computed by standing the hull in place for the length of one call rather than
-## by copying the seven formulas out. Every `attr_*` reads `hull` and `installed`
-## off this singleton and none of them takes a hull argument -- so the only other
-## way to price a chassis you do not own is a second set of the same arithmetic,
-## which is exactly the drift `-- attrtest` exists to catch.
-##
-## NOTHING IS EMITTED AND NOTHING IS SAVED. The swap is undone before the
-## function returns and no signal fires in between, so no listener can observe
-## the ship as anything but its real self. It is not re-entrant and does not need
-## to be: it is called from a panel refresh, on the main thread, once per draw.
+## Stands the hull in for one call so the formulas are not copied; emits and saves nothing.
+## Why: docs/why/RunState.md#bare-hull-attributes
 func hull_attributes(h: HullData) -> Array[Dictionary]:
 	if h == null:
 		return []
@@ -2092,9 +1221,7 @@ func hull_attributes(h: HullData) -> Array[Dictionary]:
 	var was_hp := hp
 	hull = h
 	installed = []
-	# AT FULL, because a hull on the blocks has not been shot at. `attr_hull`
-	# reads CURRENT hull deliberately -- see its own note -- and left at your hp
-	# the yard would price a fresh chassis by the damage on yours.
+	# At full: a hull on the blocks has not been shot at, and your damage must not price it.
 	hp = h.max_hull
 	var out := attributes()
 	hull = was_hull
@@ -2112,16 +1239,8 @@ func attributes() -> Array[Dictionary]:
 			# beside them (`AttrBlock.setup`'s `amounts`; ruling 12 C).
 			amount = "%d hull" % hp,
 			text = "Used for ramming, boarding and holding together under stress.",
-			# READS CURRENT HULL, not maximum, which is worth saying out loud:
-			# it is the one gauge that falls as you take damage, so a holed ship
-			# really does fail a check it would have passed intact.
-			#
-			# ABOUT 7, ROUNDED, AND THE SUM DONE ON YOUR OWN SHIP. It said "A
-			# pip is 7 hull", and Geno (friends' alpha) held that against
-			# Korvan's 29, 40 and 57 hull at 4, 6 and 8 pips: 6 x 7 is 42, not
-			# 40. The pips are hull over 7 rounded to the nearest, so the honest
-			# line says about 7 and then does the sum on the hull you have. The 7
-			# is HULL_REF over ATTR_MAX, not typed.
+			# Says about 7 and does the sum on your hull, because the pips are rounded.
+			# Why: docs/why/RunState.md#hull-pip-wording
 			effect = "A pip is about %d hull. Your %d hull rounds to %d %s. This gauge reads CURRENT hull, so damage lowers it until you repair." % [
 				int(round(HULL_REF / ATTR_MAX)), hp, attr_hull(),
 				"pip" if attr_hull() == 1 else "pips"]},
@@ -2141,10 +1260,7 @@ func attributes() -> Array[Dictionary]:
 		{key = &"maneuver", label = ATTR_LABEL[&"maneuver"], short = ATTR_SHORT[&"maneuver"],
 			value = attr_maneuver(), base = attr_maneuver(true),
 			text = "Used for threading debris, evading a lock and breaking contact.",
-			# HALF A PIP IS DODGE and half is initiative, and only the dodge half
-			# does anything: Combat rolls `randf() < Run.dodge()` for the enemy
-			# to miss, and NOTHING reads initiative. So the honest number is the
-			# dodge half alone -- 1/46 of a pip, near enough 2%.
+			# Only the dodge half of a maneuver pip does anything, so the text quotes dodge alone.
 			effect = "A pip is about 4% of enemy attacks missing outright."},
 		{key = &"thermal", label = ATTR_LABEL[&"thermal"], short = ATTR_SHORT[&"thermal"],
 			value = attr_thermal(), base = attr_thermal(true),
@@ -2153,11 +1269,7 @@ func attributes() -> Array[Dictionary]:
 		{key = &"sensors", label = ATTR_LABEL[&"sensors"], short = ATTR_SHORT[&"sensors"],
 			value = attr_sensors(), base = attr_sensors(true),
 			text = "Used for reading wrecks, finding lanes and spotting threats first.",
-			# SAYS WHAT IT DOES NOW. It used to read "further out than you can
-			# fly to", which described sight as a margin over the drive. Sight
-			# is live and it is the gate -- you may only jump to what you can
-			# see -- so the pip has to be priced against the starchart itself,
-			# not against thrust.
+			# Sight is the gate for jumping, so a sensors pip is priced against the starchart.
 			effect = "A pip is %d%% further sight on the starchart. You can only jump to systems you can see."
 				% int(round(SENSE_REACH * 100.0))},
 		{key = &"stealth", label = ATTR_LABEL[&"stealth"], short = ATTR_SHORT[&"stealth"],
@@ -2181,34 +1293,19 @@ func contraband_count() -> int:
 			n += 1
 	return n
 
-## What one hull point costs to fix HERE. A float, and local: work is dear on the
-## frontier and cheap in a capital, which is most of what makes a developed
-## system worth the detour. Market owns the number; this is the reading of it
-## that the HUD and the sim want.
+## What one hull point costs to fix here: local, since work is dear on the frontier.
+## Market owns the number.
 func repair_cost_per_hull() -> float:
 	return Market.repair_rate(here())
 
-## What a part melts down to. The floor price under every module in the game —
-## available anywhere, with no station and no route — and, by construction, below
-## what any station in the galaxy would charge for the same part. See the
-## invariant at the top of Market.gd.
+## What a part melts down to: the floor under every price, below any station's. See Market.gd.
 func scrap_value_of(m: ModuleData) -> int:
 	return Market.melt(m)
 
 # --------------------------------------------------------------------- materials
 
-## HOW MANY OF ONE THING YOU ARE CARRYING, counted off the hold.
-##
-## THE LEDGER IS GONE AND THIS IS WHY. `materials` was a dictionary of id to
-## count living beside `cargo`, which held the same idea as objects with shapes
-## and positions -- two stores for one fact, and `MATERIALS_NOTE` 3.1 is explicit
-## that materials do not stack precisely so that "one is here and the other is
-## over there" can be true. A tally cannot say that, and a tally sitting next to
-## the thing that can is the older half waiting to disagree.
-##
-## It also ends the shim. `MaterialTable.grant` paid a row's `value` in credits
-## because there was nowhere to put the object; there is now, so it hands over
-## the object and the station is where it becomes money.
+## Counted off the hold's objects; a separate tally was a second store for one fact.
+## Why: docs/why/RunState.md#materials
 func material(id: StringName) -> int:
 	var n := 0
 	for raw in cargo:
@@ -2218,12 +1315,8 @@ func material(id: StringName) -> int:
 	return n
 
 
-## Put some in the system, NOT in the hold. `MATERIALS_NOTE` 3.6: if something
-## hands you a physical thing it hands you a CONTAINER, and you reach in for it
-## with your own hold open beside you -- which is the only way a full hold can
-## refuse a reward without the reward quietly ceasing to exist.
-##
-## Returns what it made, so a caller with its own container can take them.
+## Grants go into the system as a container, so a full hold can refuse a reward without losing it.
+## Why: docs/why/RunState.md#materials
 func add_material(id: StringName, n: int) -> Array[MaterialData]:
 	var made: Array[MaterialData] = []
 	var row := MaterialTable.by_id(id)
@@ -2258,9 +1351,7 @@ func spend_material(id: StringName, n: int) -> bool:
 	return true
 
 
-## One of any material of this tier, off the hold. `consume_material_tier` asks
-## for a TIER rather than a thing -- "an exotic-tier item" -- so the choice of
-## which one to give up is the hold's rather than the option's.
+## Spend one material of this tier; which one is the hold's choice, not the option's.
 func spend_material_tier(tier: StringName) -> bool:
 	for raw in cargo:
 		var m := raw as MaterialData
@@ -2270,13 +1361,10 @@ func spend_material_tier(tier: StringName) -> bool:
 			return true
 	return false
 
-## Everything you are carrying, in table order, as {id, name, count}. One list so
-## the HUD, the station and the fabricator cannot disagree about what a material
-## is called or what order they come in.
+## Everything carried, in table order, as {id, name, count}: one list, so the HUD,
+## the station and the fabricator agree.
 func material_stock() -> Array[Dictionary]:
-	# One pass over the hold, then one over the table. Counting per row through
-	# `material()` re-scanned all of cargo once per material, and the HUD asks
-	# for this list on every refresh.
+	# One pass over the hold, then the table: per-row counting rescanned cargo every HUD refresh.
 	var counts: Dictionary = {}
 	for raw in cargo:
 		var m := raw as MaterialData
@@ -2291,14 +1379,8 @@ func material_stock() -> Array[Dictionary]:
 
 # --------------------------------------------------------------------- mutations
 
-## Fly a pulsar's beam: the densest fuel in the galaxy, paid for in hull.
-##
-## The arithmetic lives here rather than in Router because the simulator has to
-## be able to run it. Anything that only exists on a screen is invisible to the
-## balance model, and a node type that hands out fuel and takes hull is exactly
-## the kind of thing the model needs to see.
-## What a neutron star leaves alongside. Named once so the grant, the log line
-## and the table cannot drift apart.
+## Lives here so the simulator can run it; the drop is named once so nothing drifts.
+## Why: docs/why/RunState.md#pulsar-harvest
 const PULSAR_DROP := &"magnetar_silt"
 
 func harvest_pulsar() -> void:
@@ -2306,30 +1388,16 @@ func harvest_pulsar() -> void:
 	if n.cleared:
 		return
 	take_whole(n)
-	# Scales with danger, so a deep pulsar is both a better haul and a worse
-	# idea — which is the shape of this whole map.
-	# ABOUT HALF A TANK (Jon, Oct 17: "pulsar:C"): 15 at danger 1, 24 at 10,
-	# of 45. It was 14 + 2 a danger point against 279; the setter holds it
-	# under the top. Still the densest fuel there is, and still paid in hull.
+	# Scales with danger: a deep pulsar is a better haul and a worse idea. About half a
+	# tank (Jon, Oct 17: "pulsar:C"); the setter keeps it under the top.
 	var gain_fuel := 14 + n.danger
 	var gain_exotic := 1 + int(n.danger / 4)
 	var burn := 6 + int(n.danger * 1.6)
 	var gain_heat := 3 + int(n.danger / 3)
 
 	fuel += gain_fuel
-	# INTO THE SYSTEM, not into your pocket. What the beam throws off is matter,
-	# and matter needs somewhere to be -- see `add_material`. It is beside you
-	# in the sector and you load what fits.
-	#
-	# AND IT HAS A NAME NOW. This granted `&"exotic"` -- an item literally called
-	# "Exotic", the one placeholder left in a table where every other
-	# exotic-tier row is a named thing with prose attached, and whose own text
-	# had to straddle two unrelated sources ("Megafauna organs and whatever a
-	# pulsar leaves behind"). Flying the beam is the game's most deliberate
-	# trade and it paid out in a category name.
-	#
-	# `&"exotic"` is still dropped by fauna, so any recipe asking for it by ID
-	# rather than by tier is unaffected.
+	# The drop lands in the system and has a real name, not the placeholder Exotic.
+	# Why: docs/why/RunState.md#pulsar-harvest
 	add_material(PULSAR_DROP, gain_exotic)
 	heat += gain_heat
 	log_line("Beam sweep. Fuel pours into the tank for eleven seconds.", &"good")
@@ -2361,23 +1429,8 @@ func add_credits(n: int) -> void:
 	credits = maxi(0, credits + n)
 	Sig.resources_changed.emit()
 
-## A flyable hull, cut out of a wreck or claimed off an event.
-##
-## THE THIRD THING THE RAIL SHOWS, and the only one that never went through
-## `stow()` — so it never bumped `hauls`, so a dismissed rail stayed dismissed
-## over it. Claim a hull after stowing and the transfer was never offered until
-## some unrelated haul happened to arrive.
-##
-## Clears the dismissal outright rather than incrementing `hauls`: a hull is not
-## a haul, and the honest statement is "there is something new here", which is
-## what an undismissed rail means.
-##
-## `scrap` is what cutting it up pays instead (`found_scrap`): the derelict
-## hauler passes its strip's pay; a wreck's hull passes nothing.
-##
-## A FRAME STILL ON OFFER WITH ITS PAY IS CUT UP FIRST (`scrap_found_hull`).
-## Claiming a second derelict used to put the new frame over it, and the setter
-## wiped the old frame's pay with it: the strip you gave up, lost after all.
+## Clears the rail's dismissal, and cuts up a frame still on offer so its pay is not lost.
+## Why: docs/why/RunState.md#found-hulls
 func find_hull(h: HullData, scrap: Dictionary = {}) -> void:
 	if h != found_hull:
 		scrap_found_hull()
@@ -2395,13 +1448,8 @@ func found_scrap_credits() -> int:
 	return int(found_scrap.get("credits", 0))
 
 
-## Cut up the hull on offer for what it carries (`found_scrap`): the credits,
-## and its crate on this system's pile, under SECTOR LOOT. Once: the hull is
-## gone after. False, and nothing moves, for a hull with nothing to pay.
-##
-## THE LOG SAYS WHERE THE CRATE WENT, by name. It lands in SECTOR LOOT and not
-## in the hold, and with nothing on screen saying so Jon called it "super NOT
-## intuitive".
+## Pays once, the crate to SECTOR LOOT, and the log says where it went.
+## Why: docs/why/RunState.md#found-hulls
 func scrap_found_hull() -> bool:
 	if found_scrap_credits() <= 0:
 		return false
@@ -2419,22 +1467,8 @@ func scrap_found_hull() -> bool:
 	return true
 
 
-## Permanent coolant, bought at a station. Emits, and that is the point.
-##
-## THE MUTATION OWNS THE SIGNAL. The station used to raise `heat_cap_bonus` by
-## hand and rely on the `add_credits()` call above it to redraw — which fires
-## BEFORE the cap changes, so every listener repainted the old number and the
-## gauge sat at 0/14 while the run was carrying 16. The upgrade worked; nothing
-## ever said so, which is indistinguishable from it not working.
-##
-## `ship_changed` rather than `resources_changed`: a heat cap is a property of
-## the ship, and `RunState._clamp_hp` and the gauges are already listening to it
-## for exactly this class of change.
-##
-## ONE SIGNAL, NOT TWO. Every listener that cares about a heat cap is already on
-## `ship_changed` — the HUD and the station screen are both on both — so emitting
-## the pair meant two full rebuilds per change. Buying coolant fired three: one
-## from `add_credits` and two from here.
+## The mutation emits `ship_changed` itself, once, so the gauge never shows the old cap.
+## Why: docs/why/RunState.md#heat-cap-upgrades
 func add_heat_cap(n: int) -> void:
 	heat_cap_bonus += n
 	Sig.ship_changed.emit()
@@ -2448,16 +1482,8 @@ func win() -> void:
 	won = true
 	Sig.run_ended.emit(true, "You reach the core.")
 
-## THE REFIT RULE: the one place a hand moves a part between the hold, the dock
-## and the hardpoints. Every screen a part can be dragged on calls these --
-## `ShipScreen` today, LOCAL's cutaway next -- so a swap means the same thing
-## wherever it is made. (`install_module` above is the simulator's and the
-## salvage dialog's "fit this somewhere": it picks the mount and clears room
-## itself; these take the mount the player chose.)
-##
-## A part held in the hand is OFF the ship while it is carried: `lift_part`
-## takes it out of `installed`, and the caller remembers the mount it came from
-## (`lifted_from`) to hand back to `fit_at_mount`, `stow_at` or `unlift_part`.
+## One place a hand moves parts between hold, dock and mounts, so every screen agrees.
+## Why: docs/why/RunState.md#the-refit-rule
 enum Refit { REFUSED, MOVED, FITTED }
 
 
@@ -2482,11 +1508,8 @@ func unlift_part(m: ModuleData, mount: int) -> void:
 	Sig.ship_changed.emit()
 
 
-## `m` dropped on hardpoint `index` of type `slot`. `lifted_from` is the mount it
-## was lifted off (it is in the hand, so not in `installed`), or -1.
-##
-## The mount is a PLACE, so `index` is carried through to the part rather than
-## derived from the order of `installed`.
+## `m` dropped on hardpoint `index` of `slot`; `lifted_from` is its mount, or -1.
+## The mount is a place, so `index` is carried to the part.
 func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> Refit:
 	# THE GATE IS `refit_allowed`, the one the hull asks while a part is carried
 	# (`MountPoints.takes`): what it lights is what this does, by construction.
@@ -2500,13 +1523,8 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 			log_line("No room in the hold for %s." % was.name, &"them")
 		return Refit.REFUSED
 	var resident := module_at(slot, index)
-	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
-	# the hold -- the mounts are visibly different positions on the ship.
-	#
-	# A lifted part counts as fitted: it is off the ship while you carry it, so
-	# `installed.has(m)` is false for exactly the move this branch exists for.
-	# Without it, sliding a gun from one hardpoint to an occupied one sent the
-	# resident to the hold instead of trading.
+	# Two fitted parts trade mounts, and a part in the hand counts as fitted.
+	# Why: docs/why/RunState.md#the-refit-rule
 	var lifted := lifted_from >= 0 and not installed.has(m)
 	var was_fitted := installed.has(m) or lifted
 	if resident != null and was_fitted:
@@ -2518,12 +1536,8 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 		Sig.ship_changed.emit()
 		log_line("Moved %s." % m.name, &"sys")
 		return Refit.MOVED
-	# The resident has nowhere to go but the hold, and if it will not fit there
-	# the move is refused BEFORE anything has been taken off the ship.
-	# `m` IS LEAVING: it is in the hold this instant and on the hull the next, so
-	# the cells it occupies are exactly where the resident is going. Without
-	# saying so, a full hold refused every swap -- including a part for one the
-	# same size, which is a move that cannot fail. (`refit_allowed` asked it.)
+	# Refused before anything moves if the resident cannot fit the hold, with `m`'s cells counted free.
+	# Why: docs/why/RunState.md#the-refit-rule
 	var was_at := m.hold_at
 	if cargo.has(m):
 		take_from_hold(m)
@@ -2547,22 +1561,8 @@ func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from:
 	return Refit.FITTED
 
 
-## WHETHER `fit_at_mount` WITH THESE ARGUMENTS WOULD FIT OR TRADE, moving
-## nothing: the refit rule's yes or no, and `fit_at_mount`'s own gate. Three
-## parts to it:
-##  - the mount's kind is the part's (a weapon on a weapon mount);
-##  - a part fitted or in the hand (`lifted_from` >= 0) TRADES with the one on
-##    the mount, always -- the resident goes where it came from, not the hold;
-##  - any other part (the hold, the dock) puts the resident in the hold, so the
-##    resident must fit there with the part's own cells counted free;
-##  - and that part, coming aboard, must be one the reactor can carry with the
-##    resident's draw freed (`can_power`), the rule the transfer screen's
-##    `pad_to_mount` and its hold-to-mount drop already kept. It was missing
-##    here, so the refit screen and the cutaway bolted on a part past the
-##    reactor's cells that every other way onto a mount refused.
-## An empty mount of the right kind says yes to a part the reactor can carry.
-## Nothing about the size or shape of the part decides a mount: only the
-## reactor, and the hold's room for the resident.
+## The refit yes or no: matching kind, a trade or hold room, and reactor capacity.
+## Why: docs/why/RunState.md#the-refit-rule
 func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> bool:
 	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
 	# hull; a crate of ore has no slot to match and no power to draw.
@@ -2581,32 +1581,23 @@ func refit_allowed(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from
 	return has_room_for(resident, m)
 
 
-## The reactor's half of `refit_allowed`. A part already on the ship, or lifted
-## off it into the hand, draws nothing new wherever it goes (a move, or a trade
-## with another fitted part). Anything else comes aboard, and `resident`, if
-## there is one, goes to the hold and frees its draw.
+## The reactor half of `refit_allowed`: a part already aboard draws nothing new, and
+## a displaced resident frees its draw.
 func _refit_powered(m: ModuleData, resident: ModuleData, lifted_from: int) -> bool:
 	if installed.has(m) or lifted_from >= 0:
 		return true
 	return can_power(m, resident)
 
 
-## A part (or any hold item) dropped onto CELL `at` of the hold: from the hold
-## itself, off the dock (`pad`), or off the ship (fitted, or `lifted` in the hand).
-## False, and nothing moved, when it does not fit there.
-##
-## Separate from `fit_at_mount` because the two answer different questions: a
-## hardpoint asks "does this slot type match"; the hold asks "does this shape fit
-## here", and the cell it fits at is information a mount has no use for.
+## Separate from fit_at_mount: the hold asks whether this shape fits here.
+## Why: docs/why/RunState.md#the-refit-rule
 func stow_at(m: HoldItem, at: Vector2i, lifted: bool = false) -> bool:
 	if m == null:
 		return false
 	var was_at := m.hold_at
 	# (only a module can be on the ship; asked of a crate, the typed list complains)
 	var from_ship := (m is ModuleData and installed.has(m as ModuleData)) or lifted
-	# OFF THE DOCK IS A THIRD ORIGIN: the item is in `pad`, which is not `cargo`,
-	# so `take_from_hold` would not find it and `place_in_hold` would leave it in
-	# two places at once.
+	# Off the dock is a third origin: the pad is not cargo, so it needs its own removal.
 	var from_pad := pad.has(m)
 	if from_pad:
 		pad.erase(m)
@@ -2628,17 +1619,8 @@ func stow_at(m: HoldItem, at: Vector2i, lifted: bool = false) -> bool:
 	return true
 
 
-## TWO BUDGETS, AND A PART HAS TO SATISFY BOTH.
-##
-## A mount of the right kind, and reactor capacity to run it. They fail
-## differently and so they clear differently: no mount means the worst part in
-## THAT SLOT comes off, because a weapon cannot free a system mount; no
-## capacity means the worst part ANYWHERE comes off, because every cell on the
-## ship draws from the one reactor.
-##
-## Worst by scrap value in both cases, which is the only ordering the game has
-## that means roughly "how good is this" — and it is the ordering the mount
-## rule already used, so a player who has learned one has learned the other.
+## No mount clears the worst part in that slot; no capacity clears the worst part anywhere.
+## Why: docs/why/RunState.md#mounts-and-the-reactor
 func install_module(m: ModuleData) -> void:
 	if slots_used(m.slot) >= slots_for(m.slot):
 		var worst: ModuleData = null
@@ -2648,16 +1630,12 @@ func install_module(m: ModuleData) -> void:
 		if worst != null:
 			installed.erase(worst)
 			worst.mount = -1
-			# It came OFF the ship, so the hold has just gained the cells `m`
-			# is about to vacate. place_in_hold cannot fail here in practice,
-			# but a part that finds no cell is dropped rather than duplicated.
+			# `m`'s cells just freed up, so this should not fail; if it does, drop rather than duplicate.
 			if not place_in_hold(worst):
 				log_line("No room for %s. It was left behind." % worst.name, &"them")
 			log_line("Removed %s to make room." % worst.name, &"sys")
-	# AND THEN THE REACTOR. Cheapest first and only as many as it takes — a
-	# 4-cell lance should cost you one 4-cell part, not clear the ship.
-	# Guarded rather than `while`: a part bigger than the whole reactor would
-	# otherwise strip every mount and still not fit.
+	# Then the reactor: cheapest first, only as many as it takes. Guarded, so a part
+	# bigger than the reactor cannot strip every mount.
 	var guard := 0
 	while not can_power(m) and guard < 16:
 		guard += 1
@@ -2678,9 +1656,7 @@ func install_module(m: ModuleData) -> void:
 	log_line("Installed %s." % m.name, &"good")
 	Sig.ship_changed.emit()
 
-## Take a part off. Refused when the hold is full, because the alternative is
-## destroying it — and a refit screen that silently melts what you unbolt is
-## worse than one that says no.
+## Take a part off. Refused when the hold is full, rather than destroying the part.
 func uninstall_module(m: ModuleData) -> bool:
 	# Against THIS part, not against the hold in general: a bulky array can be
 	# refused by a hold that would still take the sight beside it.
@@ -2693,17 +1669,8 @@ func uninstall_module(m: ModuleData) -> bool:
 	Sig.ship_changed.emit()
 	return true
 
-## Break a part down for scrap. Scrap ONLY.
-##
-## It used to also yield alloy, and that is the half that is gone: a part turning
-## into a second resource made alloy behave like a second currency, which is the
-## thing the one-currency ruling exists to prevent. Scrap is what a part is
-## worth; the fabricator's prerequisites come from places you flew to, not from
-## the hold you were going to empty anyway.
-##
-## SCRAP and MELT were one operation under two names — this function priced by
-## Market.melt() and wore a SCRAP label in every screen. The refit screen's melt
-## cell is gone; this is the survivor, and it is called scrapping.
+## Scrap only: parts no longer yield alloy, which acted as a second currency.
+## Why: docs/why/RunState.md#scrapping
 func scrap_module(m: ModuleData) -> void:
 	var v := scrap_value_of(m)
 	take_from_hold(m)
@@ -2711,62 +1678,22 @@ func scrap_module(m: ModuleData) -> void:
 	log_line("Scrapped %s for %d credits." % [m.name, v], &"good")
 	Sig.ship_changed.emit()
 
-## Move into a new frame. EVERYTHING COMES OFF, and you re-rig it yourself.
-##
-## THE OLD VERSION GUESSED, AND GUESSED WITH THE WRONG NUMBER. It shed the
-## lowest `scrap_value` part of any slot the new hull had fewer mounts for --
-## a decent proxy for "least valuable object" and a bad one for "least wanted
-## part", because this is a deckbuilder. A common Coolant Flush granting the
-## card your whole engine turns on outranks a rare you never draw, and
-## `scrap_value` cannot know that. Nothing can, except you.
-##
-## It also squeezed you twice. The shed loop packed parts against the OLD grid,
-## then the swap happened, then `repack_hold` ran against the NEW one -- so a
-## part could be stowed successfully and destroyed eight lines later, printing
-## two different "left behind" lines for one object.
-##
-## Both go away by doing less: unbolt the lot, set the frame, pack ONCE against
-## the grid you are actually going to fly. What will not fit goes on the `pad`,
-## which is a place, not a wastebasket.
-##
-## YOUR DECK IS NOW EMPTY, and that is not a side effect -- it is the decision.
-## `deck_size()` sums `grant_count()` over `installed` and the hull contributes
-## nothing, so a swap is a deck wipe and re-rigging is how you rebuild it. The
-## station will not let you undock until you have a deck again; see `ready_to_fly`.
+## Everything comes off and you re-rig it, because only you know which parts you want.
+## Why: docs/why/RunState.md#moving-ships
 func transfer_to_hull(h: HullData, paid: int = 0,
 		node: MapGen.MapNode = null) -> void:
-	# THE OLD SHIP KEEPS EVERYTHING UNTIL YOU MOVE IT.
-	#
-	# An earlier version emptied the frame here and packed as much as would fit
-	# into the new hold automatically, leaving the remainder stranded. That is
-	# the same arithmetic and the wrong STORY: it decided for you, and then the
-	# screen could only show you what it had decided. Nothing moves now unless a
-	# hand moves it, so the transfer screen can draw the old ship still wearing
-	# its guns and the new one genuinely empty.
-	#
-	# `mount` and `hold_at` are both PRESERVED, which is what makes that picture
-	# possible -- a gun remembers its hardpoint and a crate remembers its cell,
-	# so the left-hand side of that screen is the ship you have been flying and
-	# not an inventory of it.
-	#
-	# A FOUND FRAME YOU ARE NOT MOVING INTO is cut up for its pay first
-	# (`scrap_found_hull`): buying a yard hull threw it away below, pay and all.
-	# Before the way back is taken, so backing out of the purchase does not
-	# bring back a frame that has already paid.
+	# The old ship keeps everything until a hand moves it, so the screen shows it as it was.
+	# Why: docs/why/RunState.md#moving-ships
 	if h != found_hull:
 		scrap_found_hull()
 	old_hull = hull
-	# THE WAY BACK, TAKEN BEFORE ANYTHING MOVES. Every part's hardpoint and every
-	# crate's cell, plus the frame and the hull points they belonged to -- which
-	# is the whole of what a swap disturbs, because a swap disturbs nothing else.
+	# The way back, taken before anything moves: every part's mount and crate's cell,
+	# plus the frame and its hull points.
 	var places: Dictionary = {}
 	for m in installed:
 		places[m] = [m.mount, m.hold_at]
 	for m in cargo:
-		# A CRATE HAS NO MOUNT. `HoldItem` is the common base and `mount` is a
-		# module's -- reading it off a MaterialData is a hard error, and it
-		# aborted the swap halfway through, leaving a ship that had been paid
-		# for and a hold that had not moved.
+		# A crate has no mount: reading `mount` off a MaterialData is a hard error mid-swap.
 		var mod := m as ModuleData
 		places[m] = [mod.mount if mod != null else -1, m.hold_at]
 	_undo_move = {
@@ -2775,9 +1702,7 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 		paid = paid,
 		node = node,
 		places = places,
-		# A FOUND HULL GOES BACK ON THE RAIL if the move is called off. It was
-		# taken off it below and never put back, so BACKING OUT of a derelict's
-		# frame threw the frame away.
+		# A found hull goes back on the rail if the move is called off.
 		found = found_hull,
 		# And with what it cuts up for, so backing out keeps its SCRAP.
 		scrap = found_scrap.duplicate(),
@@ -2813,22 +1738,8 @@ func can_abandon_move() -> bool:
 	return not _undo_move.is_empty() and old_hull != null
 
 
-## Put the old ship back and forget the whole thing.
-##
-## RESTORES WHAT STILL EXISTS, and deliberately not more. You can sell a gun or
-## throw one out of the hatch while the move is in progress, and those are real
-## decisions that happened -- a back-out that resurrected them would be an undo
-## of things you did rather than of the purchase you are cancelling. So the
-## credits from a sale stay yours and the part stays gone; what comes back is
-## every object still in your possession, in the place it was in.
-##
-## THE HULL GOES BACK ON THE BLOCKS. `take_option` claimed it over the network
-## as well as locally, and there is no release on the other side of that -- so
-## in a party this frees the rack for you and the peer who was refused while you
-## were deciding is not told. That is the honest limit of this: single player it
-## is exact, in co-op it can leave one stale refusal. The alternative was
-## keeping the money and the claim for a ship you did not take, which is worse
-## in every seat.
+## Restores what still exists, not what you sold or dumped; in co-op a stale refusal can remain.
+## Why: docs/why/RunState.md#moving-ships
 func abandon_move() -> void:
 	if not can_abandon_move():
 		return
@@ -2843,9 +1754,7 @@ func abandon_move() -> void:
 	pad.clear()
 	for it in mine:
 		if not places.has(it):
-			# Something acquired DURING the move, which cannot happen today --
-			# nothing on that screen adds -- and would otherwise vanish here.
-			# Put it in the hold of the ship being restored, or on the pad.
+			# Acquired during the move (nothing does this today); kept on the pad, not lost.
 			pad.append(it)
 			continue
 		var was: Array = places[it]
@@ -2870,9 +1779,7 @@ func abandon_move() -> void:
 	if found != null:
 		found_hull = found
 		found_scrap = (_undo_move.get("scrap", {}) as Dictionary).duplicate()
-	# `display_name`, because this is the player's own ship being named back to
-	# them -- a named ship that backs out of a purchase should not be told it is
-	# still flying its chassis.
+	# `display_name`, so a named ship is called by its name, not its chassis.
 	log_line("Changed your mind. Still flying the %s." % display_name(), &"them")
 	old_hull = null
 	_undo_move.clear()
@@ -2881,12 +1788,8 @@ func abandon_move() -> void:
 	Sig.map_changed.emit()
 
 
-## Bolt something from the old ship straight onto a hardpoint of the new one.
-##
-## THE SHORTEST PATH IS A DIRECT ONE. Routing this through the hold -- stow,
-## then fit -- would refuse the move whenever the hold happened to be full,
-## which has nothing to do with whether the hardpoint is free. A gun going from
-## one ship's mount to another ship's mount never needs to be put down.
+## Old mount to new mount directly, so a full hold never blocks a free hardpoint.
+## Why: docs/why/RunState.md#moving-ships
 func pad_to_mount(m: ModuleData, slot: ModuleData.Slot, index: int) -> bool:
 	if m == null or not pad.has(m) or m.slot != slot:
 		return false
@@ -2914,10 +1817,7 @@ func pad_to_hold(m: HoldItem) -> bool:
 		return false
 	pad.erase(m)
 	m.hold_at = cell
-	# AND IT IS NOT ON A HARDPOINT ANY MORE. A part on the pad still remembers
-	# the mount it was bolted to on the old ship -- that is what draws it there
-	# -- so stowing one without clearing that would leave a gun in the hold
-	# claiming to be fitted, and the old ship still wearing it.
+	# Clear the old mount: a stowed part still claiming one would be in the hold and fitted at once.
 	var mod := m as ModuleData
 	if mod != null:
 		mod.mount = -1
@@ -2926,19 +1826,8 @@ func pad_to_hold(m: HoldItem) -> bool:
 	return true
 
 
-## Whether this ship can leave the dock.
-##
-## TWO CONDITIONS, AND THE SECOND ONE IS NEW. An empty pad is obvious -- you
-## cannot fly away from crates on the ground. The deck is the one a hull swap
-## introduced: `_top_up_deck` fills spare mounts until a deck is playable and it
-## runs in `start_new_run` ONLY, so nothing rescues a ship that undocks bare.
-## Before this, `transfer_to_hull` re-mounted everything automatically and the
-## case could not arise; now it can, and the next fight would open with a hand
-## of nothing.
-##
-## The floor is the HAND, not some authored minimum: a deck no bigger than the
-## hand is not a deck, you simply hold all of it. That is the same reasoning
-## `_top_up_deck` uses to pick its own target, one line apart.
+## Undocking needs an empty pad and a deck bigger than the hand, since a swap empties the deck.
+## Why: docs/why/RunState.md#ready-to-fly
 func ready_to_fly() -> Array[String]:
 	var why: Array[String] = []
 	if not pad.is_empty():
@@ -2950,25 +1839,8 @@ func ready_to_fly() -> Array[String]:
 	return why
 
 
-## A LOADED SHIP PUT RIGHT, for a save written by a build that could strand it
-## (0.4.1-alpha.1: Jon, Oct 23, "all the parts no longer appear for me to
-## transfer and now i can no longer undock from a station"). Run on every load,
-## and it changes nothing on a ship that is already right. NOTHING IS DROPPED:
-## every object goes somewhere you can see it and move it.
-##
-##  - A FITTED PART ON A HARDPOINT THE HULL DOES NOT HAVE, or on one another part
-##    already holds, goes to the first free hardpoint of its kind; failing that,
-##    into the hold; failing that, onto the pad.
-##  - THE PAD WITH NO OLD SHIP UNDER IT (a save from before `old_hull` was
-##    written, or a frame that is gone): a part on it still remembers the
-##    hardpoint of a hull that cannot be drawn, so it would be drawn nowhere
-##    (`OldHold` leaves fitted parts to the old ship's picture). It forgets the
-##    hardpoint and is laid out in the old hold with the rest.
-##  - AN EMPTY PAD has no old ship either, so a stale frame cannot outlive it.
-##
-## The pad itself stays a pad: what is on it is shown, by the move the station
-## opens whenever it is loaded (`Router.show_station`) and by the one a load in
-## space opens (`Router.resume_here`). Returns how many things it moved.
+## Puts right a loaded ship that an older build stranded, and drops nothing.
+## Why: docs/why/RunState.md#mending-a-loadout
 func mend_loadout() -> int:
 	var moved := 0
 	var seen := {}
@@ -3004,13 +1876,8 @@ func mend_loadout() -> int:
 
 # -------------------------------------------------------------------------- map
 
-## THE COUNT THE CUSTODIAN GROWS ON: the lead ship's jumps (`party_jumps`), or
-## your own when you are the lead or alone. Your own jumps are the floor, so
-## the jumping ship's badge, the save on arrival and a fight it opens are right
-## with no round trip; a partner's jump arrives with the host's push. Solo it is
-## `jumps`, exactly. What reads it: `Combat._spawn`, the badge and its tooltip
-## (`CustodianBadge.count`), `GoalLine` and the load. Everything else that
-## counts jumps (history, the game-over line, A.S.H., hints) keeps `jumps`.
+## Floored at your own jumps, so your own jump needs no round trip; solo it is `jumps`.
+## Why: docs/why/RunState.md#custodian-jump-count
 func custodian_jumps() -> int:
 	return maxi(party_jumps, jumps)
 
@@ -3024,76 +1891,23 @@ func node_at() -> MapGen.MapNode:
 func map_t(index: int) -> float:
 	return float(map_clock.get(index, 0.0))
 
-## Where you are, or null when there is nowhere yet.
-##
-## `node_at()` indexes the map and is right to: every caller inside a run is
-## standing somewhere, and a null return would only push the crash one frame
-## later. But the chassis select runs with a hull and no galaxy — you pick a ship
-## before there is anywhere to fly it — and it draws the HUD, which asks the
-## market what repairs cost here. This is the accessor for the handful of callers
-## that can legitimately run outside a run.
+## Null-safe, for callers like the chassis select that run before a galaxy exists.
+## Why: docs/why/RunState.md#where-you-are
 func here() -> MapGen.MapNode:
 	return null if map.is_empty() else map[at]
 
-## Fuel is distance. Not a flat lateral rate and a flat coreward rate — those
-## made every jump on the chart cost the same 1 fuel no matter how far it
-## plainly was, which is why the numbers beside the systems looked like
-## decoration.
-##
-## An ordinary hop is about 0.11 of a disc radius now that the field is even,
-## so this prices one at 1 fuel and a long reach across the cluster at 2.
-##
-## The attrition of the frontier no longer comes from each hop being dear — it
-## comes from there being 42 systems on the rim ring and 14 at the core. Farming
-## the edge is a long haul rather than an expensive one, which is a cleaner way
-## to say the same thing.
-## Raised from 10. At 10 an ordinary hop cost 1 fuel out of a 150-unit tank, so
-## wandering was nearly free and a run averaged ninety-odd jumps — the greed
-## clock had no hands. At 17 a hop costs 2 and a long reach 3, which prices
-## farming without making the map hostile: measured, 62.9 jumps and a 20.3% win
-## rate against 93.6 and 21.5% at the old value.
-##
-## Tuned AFTER fixing the simulator, not before. See HeadlessSim's jump policy —
-## the model used to wander on a coin flip regardless of fuel, and tuning this
-## against that would have made the real game punitive to correct a bug in the
-## thing measuring it.
-## 13, down from 17, and this is a UNIT CONVERSION rather than a balance change.
-##
-## `MapGen.hop_distance` used to measure in the drawn, foreshortened space and
-## now measures un-squashed (D1) -- it divides y by the galaxy's squash, which
-## averages 0.62, so every distance in the game grew by about a third overnight.
-## This constant prices raw distance, so the fuel bill grew with it: measured,
-## 1.87 fuel a jump became 2.55, individual hops pinned at the FUEL_MAX_HOP
-## ceiling of 6, and 98% of runs ended adrift.
-##
-## 17 / 1.3 restores the rate the tuning below was measured at. Nothing about
-## how dear a jump SHOULD be has been re-decided; the ruler changed length and
-## the price per unit had to change with it.
+## Fuel is distance; 13 is the tuned 17 converted after distances were un-squashed.
+## Why: docs/why/RunState.md#fuel-per-distance
 const FUEL_PER_DISC_RADIUS := 13.0
 
 const FUEL_MAX_HOP := 6
 
-## THE TANK HOLDS 45, and that is where a run starts. Jon, Oct 17: "Starting
-## with almost 280 fuel allows a player to basically jump all over the galaxy
-## without paying for gas once. Fuel should feel painful." Picked "fuel:A".
-##
-## It was 279 -- 150/7 a ring-step of the galaxy, from when a flat 150 was tuned
-## against nine rings -- with no top. Measured on the corrected sim (seed 777,
-## 200 runs, balance/fuel): a run that reaches the core burns 46-67 fuel, at
-## most 130, so the tank held four to six winning runs, no run ever bought a
-## can, and runs ended 90-92% full. Two other answers were flown and not
-## picked: pricing jumps by distance and danger on the same 279 (it charged
-## credits and the tank never felt low), and scarce, depth-priced docks with
-## fuel in wrecks (gentler, more to explain). The numbers are in the commit.
-##
-## 45 is about one winning run. 40 made a winning run stop 3.5 times at docks;
-## 45 is the two or three Jon asked for. Every write to `fuel` is held under it
-## by the setter, so a refuel, a pulsar or an event cannot overfill.
+## 45 is about one winning run, so fuel feels painful (Jon, Oct 17).
+## Why: docs/why/RunState.md#fuel-tank
 const FUEL_TANK := 45
 
-## The fuel hint and the HUD's amber: a third of the tank (Jon: "warn:A").
-## The old hint waited for "under two of the dearest jump in range", about 12
-## fuel, which in every stranded run was one to three jumps from the end.
+## The fuel hint and the HUD's amber: a third of the tank (Jon: "warn:A"). The old
+## threshold fired one to three jumps from stranding.
 const FUEL_LOW_FRACTION := 1.0 / 3.0
 
 ## What a new run starts with: a full tank.
@@ -3111,9 +1925,7 @@ func fuel_low_at() -> int:
 func fuel_low() -> bool:
 	return fuel <= fuel_low_at()
 
-## CRITICAL, and the HUD turns red: fewer than two of the dearest jump on offer
-## are left in the tank. This was the whole of the old hint's rule, and it is
-## still the right word for "one more of the long ones and you are out".
+## Critical, and the HUD turns red: fewer than two of the dearest jump on offer are left.
 func fuel_critical() -> bool:
 	if map.is_empty() or node_at() == null:
 		return false
@@ -3126,18 +1938,8 @@ func fuel_critical() -> bool:
 		dear = FUEL_MAX_HOP
 	return fuel < dear * 2
 
-## THE NEAREST DOCK YOU CAN REACH ON WHAT IS IN THE TANK, for the fuel hint
-## ("Nearest dock: GAMMA BRINE PRIME, 2 jumps"). Fewest jumps first, then the
-## least fuel, over hops the ship can take when it gets there (`hop_seen`, the
-## rule `nearest_other_dock` routes on) and the drive allows
-## (`reachable_from`), each hop priced from where it starts, through no core.
-## {node, jumps, fuel}, or {} when no dock is in reach. Here counts when you are
-## docked: zero jumps.
-##
-## NOT OVER THE CHART (Jon, Oct 18: "hint:fix"). `charted` also draws a
-## contract's system you have never seen and a visited one out of sight now,
-## and `can_jump_to` refuses both: the hint named a dock the ship could not fly
-## to.
+## Routes only over hops the ship can take when it gets there, never over the chart.
+## Why: docs/why/RunState.md#nearest-dock
 func nearest_dock() -> Dictionary:
 	if map.is_empty() or node_at() == null:
 		return {}
@@ -3177,13 +1979,8 @@ func nearest_dock() -> Dictionary:
 		frontier = next
 	return found
 
-## WHETHER A ROUTE FROM `here` CAN TAKE THE HOP `from` -> `t` WHEN IT GETS
-## THERE: `can_jump_to` wants `sensed`, and sight is live (`chart_from` clears
-## it every arrival). The first hop is to a system seen from here now; a later
-## one to a system inside the dish of the star it leaves, which is what
-## arriving there will show. `dish` is `sense_radius_of(from)`, passed in so a
-## search works it out once a star. The routes the fuel hint and the dock's way
-## out are priced on, and nothing the chart merely draws.
+## A hop counts only if arriving at its start will show its end.
+## Why: docs/why/RunState.md#nearest-dock
 func hop_seen(here: MapGen.MapNode, from: MapGen.MapNode, t: MapGen.MapNode, dish: float) -> bool:
 	if from.index == here.index:
 		return t.sensed
@@ -3194,14 +1991,8 @@ func _hop_cost(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 	var d := MapGen.hop_distance(from, to)
 	return clampi(int(round(fuel_factor() * d * FUEL_PER_DISC_RADIUS)), 1, FUEL_MAX_HOP)
 
-## AN EVENT TAKES FUEL THROUGH HERE, and leaves you the way out: the fuel to
-## reach a dock you can see, or with none in sight three of the cheapest jumps
-## from here -- room to go and find one. It never adds fuel.
-##
-## Measured with the 45 tank before the events were rescaled to it: most
-## strands were one event emptying the tank (109 outcomes took 4 to 40 of a
-## 279 tank), not a route the player chose. Leaving only the single cheapest
-## jump was tried first and moved the strand one system on.
+## Events never drain the fuel needed to reach a dock, or three cheapest jumps when none is seen.
+## Why: docs/why/RunState.md#no-fuel-dead-ends
 func drain_fuel(n: int) -> void:
 	if map.is_empty() or node_at() == null:
 		fuel = maxi(0, fuel - n)
@@ -3224,11 +2015,8 @@ func drain_fuel(n: int) -> void:
 func refuel_blocked(_n: MapGen.MapNode) -> String:
 	return "TANK FULL" if fuel >= fuel_cap() else ""
 
-## What one REFUEL puts in and costs here: a can, or the room left in the tank
-## when that is less, charged by the unit, so a top-up is not a can's price
-## for a splash. Or, docked and broke with a tank that cannot reach another
-## dock, exactly the fuel to reach one for what you have (`dock_rescue`):
-## then the offer carries `rescue` and the `dock` it reaches.
+## One REFUEL here: a can, or the room left, charged by the unit. Docked, broke and
+## stranded, it is `dock_rescue`'s offer instead.
 func refuel_offer(n: MapGen.MapNode) -> Dictionary:
 	var r := dock_rescue(n)
 	return r if not r.is_empty() else _can_offer(n)
@@ -3240,17 +2028,8 @@ func _can_offer(n: MapGen.MapNode) -> Dictionary:
 		cost = maxi(1, int(ceil(float(cost) * units / Market.REFUEL_UNITS)))
 	return {units = units, cost = cost}
 
-## NO DEAD END AT A DOCK (Jon, Oct 18: "fuel:B"). The one strand the balance
-## check found that a person would hit: docked, the tank short of every other
-## dock, and the credits short of a can. Then the dock sells exactly the fuel
-## to reach the cheapest other dock (`nearest_other_dock`), never more, for
-## what that fuel costs here or for every credit you have when that is less,
-## down to none. {units, cost, rescue, dock}, or {} when it does not apply:
-## not docked here, a dock already in reach, the ordinary REFUEL affordable,
-## or no other dock on the chart within a full tank.
-##
-## It cannot be farmed past the fuel to the dock: once bought, that dock is in
-## reach and the offer is gone. Flying off and back burns more than it returns.
+## Docked and broke, the dock sells exactly the fuel to reach another dock (Jon, Oct 18).
+## Why: docs/why/RunState.md#no-fuel-dead-ends
 func dock_rescue(n: MapGen.MapNode) -> Dictionary:
 	if n == null or n.type != MapGen.NodeType.STATION or node_at() != n:
 		return {}
@@ -3265,17 +2044,8 @@ func dock_rescue(n: MapGen.MapNode) -> Dictionary:
 	var price := int(ceil(float(Market.refuel_price(n)) * need / Market.REFUEL_UNITS))
 	return {units = need, cost = clampi(price, 0, maxi(0, credits)), rescue = true, dock = d.node}
 
-## THE CHEAPEST OTHER DOCK TO REACH FROM HERE, and the fuel it takes, whatever
-## is in the tank: least fuel first, each hop priced from where it starts,
-## through no core and within one full tank. Here does not count. {node,
-## jumps, fuel}, or {} with none.
-##
-## OVER HOPS THE SHIP WILL BE ABLE TO TAKE WHEN IT GETS THERE, which is not
-## the chart. `can_jump_to` wants `sensed`, and sight is LIVE (`chart_from`
-## clears it every arrival): the first hop is to a system seen from here; each
-## hop after it is to one inside the dish of the star it leaves, which is what
-## arriving there will show. Routing on `charted` sold fuel for a path whose
-## last star was out of sight from the one before it.
+## Routes over the hops sight will allow on arrival, not over the chart.
+## Why: docs/why/RunState.md#nearest-dock
 func nearest_other_dock() -> Dictionary:
 	if map.is_empty() or node_at() == null:
 		return {}
@@ -3336,105 +2106,29 @@ func buy_refuel(n: MapGen.MapNode) -> bool:
 func fuel_cost_to(n: MapGen.MapNode) -> int:
 	return _hop_cost(node_at(), n)
 
-## How many systems the drive can pick from. Range is whatever radius happens
-## to enclose this many of your nearest neighbours, so it scales itself: half a
-## disc out on the rim where systems are strung far apart, almost nothing near
-## the core where they are packed.
-##
-## Deriving it from the FURTHEST charted link, as this first did, meant one long
-## link inflated the radius and dragged a dozen distant systems into range with
-## it — the lines that reached across the galaxy while ignoring the neighbour
-## sitting right there.
+## Range from the nearest few neighbours, not the furthest link, so one long link cannot inflate it.
+## Why: docs/why/RunState.md#jump-neighbours
 const JUMP_NEIGHBOURS := 6
 ## Cleared whenever the map changes. Range is a pure function of a system and
 ## the galaxy, and working it out costs a pass over every system.
 var _range_cache: Dictionary = {}
 
-## Reference thrust, and how far a point above it stretches a jump.
-##
-## REFERENCED TO THE LIGHTEST HULL rather than the middle, because this may only
-## ever ADD. See `thrust_reach`.
-##
-## 0.04 a point was deliberately small and turned out to be invisible: hull
-## thrust runs 4 / 6 / 8 by class, so a medium reached 8% further than a light
-## and a heavy 16%, and on a chart that is two or three pixels of ellipse.
-## Reported as "no matter what the thrusters are, the circle is the same size" --
-## which was not true and could not be told apart from true.
-##
-## 0.15 makes the class ladder legible: light 1.00, medium 1.30, heavy 1.60. The
-## cap moves with it, because at 1.4 a heavy hull would have been clamped before
-## it left the yard and the top of the ladder would have flattened again.
+## Referenced to the lightest hull so thrust only adds; 0.15 a point makes the class ladder visible.
+## Why: docs/why/RunState.md#thrust-reach
 const THRUST_REF := 4
 const THRUST_REACH := 0.15
 const THRUST_REACH_MAX := 1.6
 
 
-## How far this ship's engine stretches a jump, as a multiplier on the map's own
-## geometry.
-##
-## THRUST WAS READ BY EVENT CHECKS AND NOTHING ELSE. `range_from` below derives a
-## radius entirely from how densely the galaxy is packed around you -- a fact
-## about the MAP, with no term in it for the ship standing on it. The gauge
-## described an engine that never moved anything, and a part that raised it
-## bought a slightly better roll on a Thrust check and no more.
-##
-## IT ONLY EVER EXTENDS, and that is a safety property rather than generosity.
-## The radius carries a floor -- the third-nearest neighbour, so a sparse ring
-## still offers a choice rather than a corridor -- and a multiplier below 1.0
-## would cut straight through that floor and could leave a ship with no legal
-## jump at all. A low-thrust hull gets no bonus here; it does not get a penalty.
-##
-## Heavier frames reach further and pay for it in fuel, which they already do:
-## `fuel_factor` prices every jump and runs 0.8 / 1.2 / 1.8. Long legs and a big
-## tank is a coherent thing for a hauler to be.
+## Thrust extends a jump and never shortens one, so the radius floor always holds.
+## Why: docs/why/RunState.md#thrust-reach
 func thrust_reach() -> float:
 	return clampf(1.0 + float(attr_thrust() - THRUST_REF) * THRUST_REACH,
 		1.0, THRUST_REACH_MAX)
 
 
-## How much further than you can FLY you can SEE, per pip of SENSORS.
-##
-## 0.25 a pip against a base of the map's own jump radius: a dish worth two pips
-## shows you half again as far as you can go. Most hulls launch with no sensors
-## at all -- Korvan, Solari and Probate all read zero -- so this is a thing you
-## build toward rather than a thing you are given, which is what makes fitting a
-## dish a decision instead of a formality.
-## The sight a ship has with NO dish at all, as a multiple of the map's own
-## jump radius.
-##
-## Sight is live now -- see `chart_from` -- so a ship at zero sensors would go
-## blind and selling a dish would take the chart with it. This is the floor that
-## makes that impossible: there is always a baseline neighbourhood.
-##
-## ON THE RADIUS, NOT ON THE ATTRIBUTE. Flooring `attr_sensors()` was tried and
-## it breaks the gauge contract that `-- attrtest` enforces: with the pips
-## clamped to 2, a Rare part promising +1 sensors moved the gauge +0 and an
-## Artifact promising +4 moved it +2. A dish you fit has to do something. So the
-## attribute stays honest from 0 and the BASELINE lives here, which also means
-## every pip still buys the same 0.25 on top rather than the first two being
-## dead.
-##
-## It is also the dial for whether a galaxy is playable at all. The base radius
-## is RELATIVE to your nearest neighbour rather than absolute -- `_map_range_from`
-## takes about 2.5x the nearest, floored at the third and capped at the sixth --
-## so a sparse frontier already widens it and a spawn in a system desert is not
-## the trap it looks like. If a kind still comes out unplayable, raise this
-## before touching the geometry.
-## How far a drive reaches, in galaxy units. A FIXED distance.
-##
-## It used to be derived from local density -- 2.5x your nearest neighbour,
-## clamped between the third and sixth, which held the option count near six
-## wherever you stood. That worked and it hid the range: measured across one
-## galaxy the radius swung 5x, so the reach ellipse resized as the ship moved,
-## a rim jump crossed five times what a core jump did and was billed for it,
-## and thrust multiplied a local accident rather than a knowable number.
-##
-## 0.18 measured against the flattened rings in `MapGen.ring_count`: five
-## systems in reach at the rim, fourteen at the deepest, never none.
-##
-## NOT scaled by the galaxy. `reach` already multiplies every position -- see
-## MapGen `gal = galaxy_pos(n) * reach` -- so a galaxy authored large is one a
-## fixed radius crosses in more hops, which is exactly what that dial is for.
+## A fixed radius keeps reach knowable; the sight floor means a ship with no dish is never blind.
+## Why: docs/why/RunState.md#jump-radius
 const JUMP_RADIUS := 0.18
 
 const SENSE_FLOOR := 1.0
@@ -3442,50 +2136,8 @@ const SENSE_FLOOR := 1.0
 const SENSE_REACH := 0.25
 
 
-## How far the ship can see, in the same units as the jump radius.
-##
-## OFF THE MAP TERM, not off `range_from`, and deliberately: sight should not
-## quietly inherit the engine. A hauler with long legs is not more observant.
-## Does the chart draw this system?
-##
-## ONE DEFINITION, because there were three and they disagreed. The screen had
-## it, `-- chartfilter` had a copy to measure against, and `-- sighttest` had
-## another -- so tightening the rule in the screen left both harnesses reporting
-## the old answer, confidently, in a table. A test that carries its own copy of
-## the thing it is testing measures itself.
-##
-## Four reasons, and only the first is a sighting:
-##
-## - `sensed` -- your dish has it right now. `chart_from` clears this every
-##   arrival, so it is live sight and not a memory.
-## - a station you have HEARD of -- WHICH IS NOW A SUBSET OF `visited` and admits
-##   nothing on its own. It was "a station next door to somewhere you have been",
-##   and that clause was cut on 2026-08-26 under a ruling that you can only see
-##   what you can see. What survived is `is a station AND (visited or here)`, so
-##   every system it admits was already admitted. Kept in the call below only
-##   because deleting a live-looking condition and its function in the same pass
-##   as a range change would make two things hard to tell apart; it goes on its
-##   own, next time this file is opened.
-## - a system somebody has PAID you to find. A contract naming a system the chart
-##   will not draw is a memory test.
-## - where you are standing.
-##
-## - a system you have VISITED. Ruled 2026-08-27: *"The chart SHOULD draw the
-##   sectors that you have been, even if they're out of range. It's a historical
-##   marker."* It is not a claim about what is there NOW, which is why the chart
-##   draws it dimmed rather than lit -- see `StarchartScreen`'s remembered tint.
-##
-## THIS WAS BRIEFLY REMOVED AND THAT WAS AN OVER-CORRECTION, worth recording
-## because the reasoning looked sound. Three reports of "systems outside my
-## sensor range" pointed at this clause, so it went. The reports were real and
-## this was not the cause: the ship in them had made a handful of jumps and the
-## systems it could see were SENSED, by a dish whose floor was 1.5x its own jump
-## range. Fixing the radius fixed the complaint; deleting history as well threw
-## away a thing the player wanted and had never objected to.
-##
-## The lesson is not about charts. Two candidate causes were on the table, one
-## measured and one plausible, and both were changed at once -- so the fix could
-## not be told apart from the damage until somebody noticed the damage.
+## One definition of what the chart draws, so the screen and the harnesses agree.
+## Why: docs/why/RunState.md#what-the-chart-draws
 func charted(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
@@ -3501,78 +2153,30 @@ func sense_radius() -> float:
 	return sense_radius_of(node_at())
 
 
-## The same radius around any system, not just the one under the ship.
-##
-## Needed because SIGHT HAS TO HAVE THE SAME SHAPE AS REACH. `reachable_from` is
-## symmetric -- a hop is legal if EITHER end's radius encloses the other -- and
-## `chart_from` was not, so anything reachable only through the far end's radius
-## could never be seen, and criterion 1 then made it permanently unjumpable.
-##
-## On a ring galaxy that is the core itself: it sits alone inside the hole, its
-## own neighbourhood radius is huge because its nearest neighbour is half a disc
-## away, and the inner ring can therefore reach it -- but never sensed it, so the
-## ship circled the rim until the run ended. Collisional Ring: 0% wins, 233 jumps.
-##
-## It reads sensibly too. A system that dominates a large empty region is one you
-## can pick out from further off than a system crowded in among others.
+## Sight from any system, not only the ship's, so sight can match the shape of reach.
+## Why: docs/why/RunState.md#sight
 func sense_radius_of(here: MapGen.MapNode) -> float:
 	if map.is_empty() or here == null:
 		return 0.0
-	# THE DISH ALONE, and nothing about the engine. Ruled 2026-08-28: a thruster
-	# buys reach and a dish buys sight, and neither pays for the other.
-	#
-	# SO REACH CAN OUTRUN SIGHT, on purpose. A heavy hull with no sensors flies
-	# 1.6x the base radius and sees 1.0x, and the systems in the gap are drawn,
-	# priced, and refused -- `can_jump_to` wants `sensed`, and the chart says NOT
-	# SCANNED rather than inventing a reason. That is the trade being legible: an
-	# engine with no dish behind it is range you cannot spend.
-	#
-	# This USED to be `maxf(range_from(here), ...)`, which kept the two in step
-	# and was defended on the grounds that a reachable-but-unseen system is a
-	# trap. It is not a trap once the screen says so; it is a reason to fit
-	# sensors. The floor stays 1.0 because it now means one thing only -- what a
-	# ship with no dish at all can make out, which is about five systems.
+	# The dish alone: reach can outrun sight on purpose (ruled 2026-08-28).
+	# Why: docs/why/RunState.md#sight
 	return _map_range_from(here) * (SENSE_FLOOR + float(attr_sensors()) * SENSE_REACH)
 
 
-## Mark everything within sight of `here` as charted.
-##
-## STICKY, WHICH IS THE WHOLE DESIGN. `station_heard` refuses to scale with
-## sensors because a chart that forgets a system when you sell a dish is worse
-## than one that never showed it. A mark that is only ever SET has no such
-## failure: refitting costs you what you have not seen yet and never takes back
-## what you have. See MapGen.MapNode.sensed.
-##
-## Called on arrival and at the start of a run, so the first thing a dish does
-## is show you where you are standing.
+## Marks everything in sight of here, on arrival and at run start.
+## Why: docs/why/RunState.md#sight
 func chart_from(here: MapGen.MapNode) -> void:
 	if here == null:
 		return
 	var r := sense_radius()
 	if r <= 0.0:
 		return
-	# LIVE, NOT REMEMBERED. This mark used to be set and never cleared, so the
-	# chart accumulated every system the dish had ever swept and the galaxy was
-	# solved after enough hops. Clearing first is what makes the frontier dark
-	# and what gives a better dish something to buy.
-	#
-	# `visited` is NOT cleared and is a separate reason to draw a system -- see
-	# StarchartScreen._visible_set. Where you have BEEN is a track record rather
-	# than a sighting, `Run.trail` draws it, and it is what you plan routes
-	# through. Nor are `station_heard` or a contract's marker: those are things
-	# you were TOLD, and being told does not stop being true when you move.
+	# Live, not remembered: cleared first so the frontier stays dark; visited and told marks stay.
+	# Why: docs/why/RunState.md#sight
 	for n in map:
 		(n as MapGen.MapNode).sensed = false
-	# THE CORE IS NOT SOMETHING YOU FIND. It is the galactic centre, it is where
-	# the run ends, and the chart names it from the first frame -- so criterion 1
-	# should never be what stands between a ship and the objective.
-	#
-	# It has to be said explicitly because the core is the one node that sits
-	# outside the rings. On a galaxy with a hole it is alone in the middle, half
-	# a disc from its nearest neighbour: `reachable_from` allows the hop through
-	# the core's own radius, and `chart_from` -- which only ever measures YOUR
-	# dish -- could never mark it seen. Collisional Ring: 0% wins, 233 jumps
-	# spent circling a rim, because the destination was unsensed and unjumpable.
+	# The core is always sensed: it is the objective and sits outside the rings.
+	# Why: docs/why/RunState.md#sight
 	for g in map:
 		if (g as MapGen.MapNode).type == MapGen.NodeType.CORE:
 			(g as MapGen.MapNode).sensed = true
@@ -3580,10 +2184,8 @@ func chart_from(here: MapGen.MapNode) -> void:
 		var t: MapGen.MapNode = n
 		if t.sensed or t.index == here.index:
 			continue
-		# YOUR DISH, one-directional. Mirroring `reachable_from`'s symmetry here
-		# was tried and is far too generous: a system alone in a sparse region
-		# has a huge neighbourhood radius, so every such system became visible
-		# from across the galaxy and a Collisional Ring fell to 7.4 jumps.
+		# Your dish only, one-directional: mirroring reach's symmetry made sparse systems
+		# visible from across the galaxy.
 		if MapGen.hop_distance(here, t) <= r:
 			t.sensed = true
 
@@ -3593,28 +2195,14 @@ func range_from(here: MapGen.MapNode) -> float:
 	return _map_range_from(here) * thrust_reach()
 
 
-## The same radius WITHOUT the ship, which is the half worth caching.
-##
-## The galaxy's own geometry costs a pass over every system to work out and
-## never changes within a run; the engine's multiplier is a property of the ship
-## and moves the moment a part is fitted. Keeping them apart means bolting on a
-## thruster does not have to invalidate anything.
+## The map term is cached apart from the ship's multiplier, so fitting a thruster invalidates nothing.
+## Why: docs/why/RunState.md#jump-radius
 func _map_range_from(here: MapGen.MapNode) -> float:
 	return JUMP_RADIUS * study_radius_scale(here)
 
 
-## BALANCE STUDY FLAGS (balance/run-length, Oct 22: Kevin reached the core in
-## seven jumps). Every one is OFF by default and only `-- sim` /
-## `-- sheet=RunLengthStudy` set them, from the command line; with them off the
-## game is what it was. They exist so the options Jon is choosing between can
-## be flown, not so any of them ships. (The first of them, a depth cap, did
-## ship: see DEPTH_STEP.)
-##   study_radius_rim / study_radius_deep: the jump (and dish) radius as a
-##                    multiple of JUMP_RADIUS at the rim ring and at the last
-##                    ring, lerped by the ring the hop is measured from.
-## study_ambush_deep  p > 0: arriving in a system of danger 7+ is an ambush
-##                    roll of at least p per point over 6 (danger 10: 4p),
-##                    whatever the ship's heat -- deep space bites on arrival.
+## All off by default; only sim and sheet runs set them, so Jon's options can be flown.
+## Why: docs/why/RunState.md#balance-study-flags
 var study_ambush_deep := 0.0
 var study_radius_rim := 1.0
 var study_radius_deep := 1.0
@@ -3630,33 +2218,8 @@ func study_radius_scale(here: MapGen.MapNode) -> float:
 func study_radius_min() -> float:
 	return minf(study_radius_rim, study_radius_deep)
 
-## TWO RINGS DEEPER A JUMP, AT MOST (Jon, Oct 27: "Two rings now"). Outward
-## and along a ring are as far as the drive reaches.
-##
-## It was here once and was dropped in August, when range became relative to
-## your nearest neighbour and was local by construction. Range went back to a
-## fixed 0.18 (`JUMP_RADIUS`) and the cap never came back with it, and 0.18 is
-## about three ring gaps (`MapGen.RING_GAP`, 0.062): Kevin, the first outside
-## playtester, reached the core in seven jumps, and the run-length study
-## measured six as the shortest way in and a straight dive winning 24% of runs.
-## The cap came back at ONE ring (Jon, Oct 22: "A1D ... I want this to be a
-## hard game"), and the shortest way in was one jump a ring, fourteen. At two
-## rings it is half that, seven (`-- maptest` measures it): the drive's reach
-## is three ring gaps and the cap now spends two of them, so a dive is still
-## held back, by a jump in three.
-##
-## Its cost is a system you can plainly see is nearer than one it offers,
-## refused because it lies three rings in. That is answered by SAYING so
-## rather than by dropping the rule: the chart's JUMP button reads TOO DEEP,
-## the fuel row `StarchartScreen.DEPTH_ROW`, and the hover tag TOO DEEP
-## (`StarchartScreen`), so a refusal always has a reason on screen.
-##
-## `MapGen._ensure_flyable` walks the galaxy by the same rule, so every ring
-## has a way in for the slowest ship (`-- maptest` sweeps it).
-##
-## A var, not a const, only so `-- sim depthcap=N` / `-- sheet=RunLengthStudy
-## depthcap=N` can fly another rule for comparison (0: no cap, August's; 1:
-## Oct 22's one ring).
+## At most two rings deeper a jump, so a dive to the core is held back (Jon, Oct 27).
+## Why: docs/why/RunState.md#depth-cap
 const DEPTH_STEP := 2
 var depth_step := DEPTH_STEP
 
@@ -3668,10 +2231,8 @@ func too_deep(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	return n.layer - here.layer > depth_step
 
 
-## Refused ONLY for depth: near enough that the drive would take it (or the
-## core, which is never a matter of distance) if it were not three rings in or
-## more. The chart's word for it is TOO DEEP, and it is the case that needs one,
-## because the star sits inside the reach ring it is refused from.
+## Refused only for depth: within reach but three or more rings in. The chart's word
+## for it is TOO DEEP.
 func too_deep_only(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if not too_deep(here, n):
 		return false
@@ -3681,49 +2242,16 @@ func too_deep_only(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	return d <= range_from(here) or d <= range_from(n)
 
 
-## Close enough to fly to: within two rings deeper (`too_deep`), and then pure
-## distance.
-##
-## Charted links do not grant passage either: a link is how generation
-## guarantees the galaxy hangs together, not a promise that the place is near.
-##
-## SYMMETRIC, and it has to be. Range is relative to the neighbourhood you are
-## standing in, and two ends of one hop can disagree about it: out on a thin
-## frontier your nearest neighbour is far, so the radius is wide and a crowded
-## cluster three parsecs off is a legal jump — and once you are down in that
-## cluster your nearest neighbour is a hand's width away, the radius shrinks to
-## match, and the way you CAME IN is suddenly out of range. A one-way door, and
-## the chart still draws the link you flew. So a hop is legal if either end
-## thinks the other is close: n is in my neighbourhood, or I am in n's. The
-## fuel cost is distance-priced already, so a long way back is expensive rather
-## than impossible.
+## Within the depth cap, then distance, and symmetric so no hop is a one-way door.
+## Why: docs/why/RunState.md#reachable
 func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if n.index == here.index:
 		return false
-	# THE FINAL APPROACH IS ALWAYS AVAILABLE FROM THE LAST RING.
-	#
-	# The core sits at the centre, at radius zero, while the innermost ring sits
-	# at `CORE` -- about 0.11 -- so in an ordinary galaxy a fixed reach of 0.19
-	# covers that last hop with room to spare and this rule changes nothing.
-	#
-	# A galaxy with a HOLE is the exception it exists for. `galaxy_pos` maps every
-	# ring into the annulus above `ring`, so on a Collisional Ring the innermost
-	# ring is at 0.52 and the core is still at zero. Nothing can cross that: the
-	# old density-derived radius grew in the sparse middle and bridged it, and a
-	# fixed radius cannot. Measured without this: 0% wins and 317 jumps spent
-	# circling a rim that has no way in.
-	#
-	# Shrinking `ring` instead would need it under about 0.09 to close the gap
-	# geometrically, which is not a ring galaxy any more.
-	#
-	# It is the same argument as the core being permanently charted: the middle
-	# of the galaxy is where the run ENDS, and it should be the danger that stops
-	# you there, never the geometry.
+	# The last ring can always reach the core, so a ring galaxy's hole never blocks the end.
+	# Why: docs/why/RunState.md#reachable
 	if n.type == MapGen.NodeType.CORE and here.layer >= MapGen.LAYERS - 2:
 		return true
-	# TWO RINGS DEEPER AT MOST (DEPTH_STEP). The core is the ring after the
-	# last one, so this leaves the last two rings as the only ways into it: the
-	# last always (above), the one before it when the core is in reach.
+	# Two rings deeper at most (DEPTH_STEP), so only the last two rings lead into the core.
 	if too_deep(here, n):
 		return false
 	var d := MapGen.hop_distance(here, n)
@@ -3746,21 +2274,8 @@ func in_range() -> Array:
 func jump_range() -> float:
 	return range_from(node_at())
 
-## The three criteria, and they are the whole rule: SEE it, AFFORD it, REACH it.
-##
-## `n.sensed` is the first of them and used to be missing. It was set by
-## `chart_from` and read only by the chart's visible set, so sensors decided what
-## was DRAWN and never what could be flown to -- and because sight and reach come
-## off the same base with different multipliers, any ship whose thrust outran its
-## dish could jump to somewhere it had never seen.
-##
-## Sticky, so this is "have you ever charted it", not "is it lit up right now".
-## That is `chart_from`'s design and the right reading here too: a place you
-## surveyed last ring does not stop existing when you move on.
-##
-## Cannot stand a ship still. Sight is base * (1 + sensors * 0.25) and reach is
-## base * thrust_reach(), thrust_reach is floored at 1.0, so everything within
-## the base radius is always both -- and that set is never empty.
+## See it, afford it, reach it; the base radius guarantees some jump is always legal.
+## Why: docs/why/RunState.md#can-jump-to
 func can_jump_to(n: MapGen.MapNode) -> bool:
 	return n.sensed and reachable(n) and fuel >= fuel_cost_to(n)
 
@@ -3771,10 +2286,8 @@ func has_legal_jump() -> bool:
 			return true
 	return false
 
-## Ends the run when no jump is affordable. Without this the ship sits on the
-## chart alive and immobile forever — a soft-lock the simulator hit in 9% of runs.
-## Call only after a node is fully resolved: a station refuel or an event can
-## still rescue an empty tank, so checking on arrival would kill unfairly.
+## Ends the run when no jump is affordable, or the ship soft-locks. Call only once the
+## node is resolved, since a refuel or an event can still rescue it.
 func check_stranded() -> void:
 	if dead or won:
 		return
@@ -3794,67 +2307,28 @@ func jump_to(index: int) -> void:
 	chart_from(n)
 	jumps += 1
 	cool_in_transit()
-	# The galaxy's other harvester moves on the party's clock, and a jump is
-	# the tick. After `at` is set, so "it is HERE" can be said about the right
-	# system. No-op on a client — the host counts every ship's jumps, including
-	# this one's, when the presence lands. See the hellbender block below.
+	# The hellbender moves on the party's clock, and a jump is the tick. After `at` is
+	# set; a no-op on a client, where the host counts.
 	hellbender_jumped()
 	Sig.resources_changed.emit()
 	Sig.jumped.emit(index)
 
 
 # ----------------------------------------------------------------- the hellbender
-## THE GALAXY'S OTHER HARVESTER. One rival crew per dive, flying a furnace of a
-## ship, doing exactly what you are doing — and it is the one enemy with a
-## POSITION instead of an address. It rides the same link lattice the player
-## does, one hop at a time, eating the derelicts it lands on.
-##
-## WHO DECIDES WHERE IT IS. The map's other shared facts are positional — a
-## seed puts the same wreck on four machines — but a thing that MOVES needs a
-## clock, and this game deliberately has no shared one: four ships jump at
-## their own pace. So the hellbender is host-authoritative, like a claim. The host
-## counts every ship's jumps (its own directly, a client's when the presence
-## message lands), moves the hellbender every `hellbender_stride()` of them —
-## a threshold that scales with the crew, so a bigger party does not shake it
-## off the chart — and pushes the whole state — position, hull, move counter —
-## through `Net.push_hellbender()`.
-## Solo, this machine IS the host of nothing and runs the same code without a
-## wire. WHERE it goes is `Rng.derive(&"hellbender", move counter)` — positional in
-## time rather than in space, so a replayed seed replays the pursuit and a
-## client handed the counter could re-derive the walk.
-##
-## WHY IT EATS. §0 of `docs/coop-design.md` measured that attaching more
-## fights to a mechanic adds texture, not pressure, because fights pay. The
-## hellbender is pressure because AVOIDING it costs: every derelict it reaches
-## first is salvage the party does not get. Kill it or route around it, and
-## both of those are decisions with prices.
-##
-## WHY IT HEALS IN TRANSIT. It breaks off at 35% hull (see
-## Combat.escape_intent()) carrying its damage, and mends HELLBENDER_MEND per move
-## after. That is the chase: the hull you took off it is a debt it pays back
-## slowly, so catching it two jumps later finishes a fight you already started,
-## and letting it go quiet for twenty is starting over.
+## Host-authoritative because it moves and the game has no shared clock.
+## Why: docs/why/RunState.md#the-hellbender
 
 ## Jumps between moves, SOLO. At ~65 jumps a run this is ~20 moves — enough to
 ## matter on the chart, slow enough to be caught.
 const HELLBENDER_STRIDE := 3
-## Jumps between moves in a crew, PER SHIP. The clock counts the whole party's
-## jumps, so a flat threshold means the more of you there are the faster it
-## runs: at three, two ships moved it every jump and a half each, and it was
-## always gone by the time anybody landed on it. Nobody ever met it. Scaled by
-## the crew, the cadence is a thing each pilot can feel — two of YOUR jumps per
-## port, however many of you are flying — and the second jump is the window
-## somebody catches it in. A shade quicker per ship than the solo three,
-## because four ships strip a galaxy four times as fast and a rival that cannot
-## keep up is not a rival.
+## Scaled per ship, so a bigger crew does not outrun it.
+## Why: docs/why/RunState.md#the-hellbender
 const HELLBENDER_STRIDE_CREW := 2
 ## Hops taken all at once when it breaks off a fight. Two, so it is out of the
 ## system and out of jump range, but never out of the story.
 const HELLBENDER_FLEE_HOPS := 2
-## Hull mended per ordinary move while damaged — never per flee hop, so it
-## escapes hurt and STAYS hurt until it has had quiet moves. Against a 90
-## hull, a fight that left it at 32 is paid back in ten moves — thirty party
-## jumps — and that window is the chase.
+## Hull mended per ordinary move, never per flee hop, so it escapes hurt and stays
+## hurt: the mending window is the chase.
 const HELLBENDER_MEND := 6
 
 ## Node index, or -1 once it is dead. There is no `alive` flag; a position is
@@ -3877,11 +2351,8 @@ func hellbender_alive() -> bool:
 func _hellbender_authority() -> bool:
 	return not Net.is_networked() or Net.is_host()
 
-## Placed at generation, off a positional roll rather than the world stream —
-## `Rng.world`'s draw order is finished business, and one extra draw here would
-## quietly move everything rolled after it. Middle shells: deep enough that a
-## fresh chassis is not ambushed by a set piece, shallow enough that every run
-## crosses its ground.
+## Placed off a positional roll so the world stream does not shift. Middle shells: not
+## on a fresh chassis, but on every run's ground.
 func _spawn_hellbender() -> void:
 	hellbender_at = -1
 	hellbender_hp = 0
@@ -3904,25 +2375,17 @@ func _spawn_hellbender() -> void:
 	hellbender_hp = hellbender_max
 	hellbender_at = Rng.pick(Rng.derive(&"hellbender", 0), candidates)
 
-## Party jumps per move, for the crew currently flying. See the constants: the
-## count is the whole party's, so the threshold has to be the whole party's too
-## or the rival outruns a bigger crew. The call site tests the counter against
-## this with `<` rather than an equality, so a crew that SHRINKS mid-run — the
-## threshold dropping under a counter already past it — moves the rival on the
-## next jump instead of stranding it forever.
+## Compared with `<`, so a crew that shrinks still moves it on the next jump.
+## Why: docs/why/RunState.md#the-hellbender
 func hellbender_stride() -> int:
 	var crew := maxi(1, Net.party_size())
 	return HELLBENDER_STRIDE if crew <= 1 else HELLBENDER_STRIDE_CREW * crew
 
-## A jump happened somewhere in the party. Called by jump_to() for this ship
-## and by NetSession._apply_presence() for everybody else's; the authority
-## guard makes both safe to call unconditionally.
+## A jump happened somewhere in the party; the authority guard makes every caller safe.
 func hellbender_jumped() -> void:
 	if not hellbender_alive() or not _hellbender_authority():
 		return
-	# Pinned while anybody is in its fight. The party's other ships keep
-	# jumping, but a thing being shot at does not leave except through the
-	# escape burn — the clock stopping IS "keeping him on the ropes".
+	# Pinned while anyone is in its fight: it leaves only by the escape burn.
 	if Net.fight_open_at(hellbender_at):
 		return
 	hellbender_ticks += 1
@@ -3932,12 +2395,8 @@ func hellbender_jumped() -> void:
 	_hellbender_step(true)
 	Net.push_hellbender(true)
 
-## One hop. `feeding` is false on a flee hop — a ship running for its life is
-## not stopping to cut salvage, and the client applying the pushed position
-## must agree about which kind of landing it was. See hellbender_land().
-## `away_from` is a system a flee hop never lands in: the one it ran from. Two
-## hops out could be A to B and straight back to A, so its escape burn put it
-## at anchor where you had just watched it go (`hellbender_breaks_off`).
+## A flee hop does not feed and never lands back where it fled from.
+## Why: docs/why/RunState.md#the-hellbender
 func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
 	if not hellbender_alive():
 		return
@@ -3958,9 +2417,7 @@ func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
 		if n.type == MapGen.NodeType.STATION:
 			continue
 		options.append(i)
-		# WHAT IS ACTUALLY HERE, not what the node was labelled. A wreck is a
-		# system offering something to strip, which is the same question
-		# `NodeType.DERELICT` used to answer and a better-informed one.
+		# What is actually here, not the node's label: a wreck is a system with salvage to strip.
 		if OptionTable.system_has_tag(n, &"salvage") and not n.cleared:
 			food.append(i)
 	if options.is_empty():
@@ -3974,18 +2431,15 @@ func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
 	var to: int = Rng.pick(r, food if feeding and not food.is_empty() else options)
 	hellbender_land(to, feeding)
 
-## Apply a landing — the shared half, run by the authority when it moves the
-## hellbender and by a client when the pushed position arrives. Everything here is
-## a pure function of the landing, so the party cannot disagree about it.
+## Apply a landing, on the authority and on clients alike: a pure function of the
+## landing, so the party cannot disagree.
 func hellbender_land(to: int, feeding: bool) -> void:
 	if to < 0 or to >= map.size():
 		return
 	hellbender_at = to
 	var n: MapGen.MapNode = map[to]
 	if feeding and OptionTable.system_has_tag(n, &"salvage") and not n.cleared:
-		# Consumed locally, not through Net.claim(): the movement push is
-		# already the shared fact, and every machine applies this rule to the
-		# same landing. `eaten` is what lets the sector say WHO stripped it.
+		# Consumed locally, not via Net.claim(): the movement push is already the shared fact.
 		n.cleared = true
 		n.eaten = true
 		_mark_taken(n, MapGen.OPTION_WHOLE)
@@ -3994,18 +2448,14 @@ func hellbender_land(to: int, feeding: bool) -> void:
 		log_line("A very hot signature fills the scope. THE HELLBENDER IS HERE.", &"big")
 	Sig.map_changed.emit()
 
-## A fight ended without a kill — somebody fled, died, or the whole crew walked
-## out. The hull it lost stays lost; that is the half of "keep him on the
-## ropes" that survives between engagements.
+## A fight ended without a kill; the hull it lost stays lost between engagements.
 func hellbender_scarred(hp: int) -> void:
 	if not hellbender_alive() or not _hellbender_authority():
 		return
 	hellbender_hp = clampi(hp, 1, hellbender_max)
 	Net.push_hellbender(false)
 
-## It spooled the escape burn and nobody stopped it. Damage written back, then
-## HELLBENDER_FLEE_HOPS at once — gone from the system and from jump range, hurt,
-## and mending only as fast as HELLBENDER_MEND allows.
+## The escape burn went unchecked: damage written back, then HELLBENDER_FLEE_HOPS at once.
 func hellbender_breaks_off(hp: int) -> void:
 	if not hellbender_alive() or not _hellbender_authority():
 		return
@@ -4015,9 +2465,7 @@ func hellbender_breaks_off(hp: int) -> void:
 		_hellbender_step(false, fled_from)
 	Net.push_hellbender(false)
 
-## The kill. Called wherever the last hull point comes off — Combat._victory()
-## solo and on every crew machine, NetSession._apply_hurt() on a host that was
-## not in the fight. Idempotent, because in a party several of those fire.
+## The kill. Idempotent, because in a party several callers fire it.
 func hellbender_defeated() -> void:
 	if hellbender_at < 0:
 		return
@@ -4027,17 +2475,14 @@ func hellbender_defeated() -> void:
 	Sig.map_changed.emit()
 	Net.push_hellbender(false)
 
-## The host said where it is. Position, hull and counter arrive together and
-## whole, like every other host-owned fact, so a dropped push costs one update
-## rather than a drift.
+## Position, hull and counter arrive whole from the host, so a dropped push costs one
+## update rather than a drift.
 func hellbender_adopt(to: int, hp: int, moves: int, feeding: bool) -> void:
 	hellbender_moves = moves
 	hellbender_hp = hp
 	if to < 0:
-		# Only a machine that was NOT in the fight gets here still believing it
-		# alive — the crew already ran hellbender_defeated() in _victory(), and
-		# their own copy skips this branch. So the line is the convoy channel
-		# telling you what you missed.
+		# Only a machine not in the fight gets here still thinking it alive, so this line
+		# tells it what it missed.
 		if hellbender_at >= 0:
 			hellbender_at = -1
 			hellbender_hp = 0
@@ -4052,9 +2497,8 @@ func hellbender_adopt(to: int, hp: int, moves: int, feeding: bool) -> void:
 
 # ------------------------------------------------------------------ contracts
 
-## Take a job. Returns the accepted copy, which is the one that goes in the
-## ledger — the board's object stays on the board, so a co-op partner docking a
-## moment later is offered the same work rather than an empty page.
+## Take a job, returning the ledger's copy; the board keeps its own, so a partner is
+## offered the same work.
 func take_contract(c: ContractData) -> ContractData:
 	var mine := ContractData.from_wire(c.to_wire())
 	mine.id = next_contract_id
@@ -4069,11 +2513,8 @@ func take_contract(c: ContractData) -> ContractData:
 	Sig.contracts_changed.emit()
 	return mine
 
-## Whether this exact piece of work is already in your ledger.
-##
-## Compared on WHAT IT IS rather than on an id, because the board regenerates its
-## objects every time it is drawn — `Contracts.board()` is derived, not stored —
-## so the offer you are looking at is never the same object you accepted.
+## Whether this work is already yours, compared by content, since the board
+## regenerates its objects every draw.
 func holds_contract(c: ContractData) -> bool:
 	for other in contracts:
 		var o: ContractData = other
@@ -4095,12 +2536,8 @@ func deliverable_at(n: MapGen.MapNode) -> Array:
 			out.append(job)
 	return out
 
-## Heat contracts you could close RIGHT NOW, standing where you are.
-##
-## Separate from deliverable_at() because a heat contract is never READY out in
-## the dark — it becomes closable at the moment you dock still carrying the heat,
-## and it stops being closable the moment you vent. It is the one job whose
-## completion is a fact about this second.
+## A heat contract can be closed only while docked and still carrying the heat.
+## Why: docs/why/RunState.md#heat-contracts
 func heat_deliverable_at(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	for c in contracts:
@@ -4131,9 +2568,8 @@ func deliver_contract(job: ContractData) -> void:
 	Sig.contracts_changed.emit()
 	Sig.resources_changed.emit()
 
-## An event placed option `id` on system `at` (`OptionTable.place`), and
-## `from` is the option that did it. One record a system: a second placement
-## there replaces the first, as the chart can mark a system only once.
+## An event placed option `id` on `at`, from option `from`. One record a system,
+## since the chart marks a system only once.
 func note_placed(at: int, id: StringName, from: StringName) -> void:
 	for i in range(event_quests.size() - 1, -1, -1):
 		if int((event_quests[i] as Dictionary).get("at", -1)) == at:
@@ -4151,10 +2587,8 @@ func event_quest_at(at: int) -> Dictionary:
 	return {}
 
 
-## Option `slot` at `n` was just taken. If it is an event quest, write down what
-## it paid (`credits`, and `got`, the names of the things it put on the pile)
-## and that it is finished, for the QUESTS table's COMPLETED rows. A signed
-## job's event is not one: its contract is the quest.
+## Option `slot` at `n` was taken: if it is an event quest, record its pay and finish
+## it. A signed job's quest is its contract.
 func finish_event_quest(n: MapGen.MapNode, slot: int, paid: int, got: Array) -> void:
 	if n == null or slot < 0 or slot >= n.options.size():
 		return
@@ -4174,16 +2608,8 @@ func finish_event_quest(n: MapGen.MapNode, slot: int, paid: int, got: Array) -> 
 	Sig.contracts_changed.emit()
 
 
-## Taking the pickup finishes any FETCH pointed at this system.
-##
-## Called by the pickup's own event (`OptionTable` `job_pickup`), which
-## `Contracts.post_goal` puts on the named system's map; and on arrival
-## (`Router.settle_arrival`) only for a fetch naming a place that cannot hold
-## an event, which nothing signed now does. A recovered item is
-## NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
-## accident and cannot be lost to a full hold. A contract that soft-locks on
-## inventory is a bug wearing a decision's clothes, and there is no version of
-## "you sold the thing you were paid to fetch" that is worth what it costs.
+## A recovered item is named, not carried, so a contract cannot soft-lock on inventory.
+## Why: docs/why/RunState.md#fetch-contracts
 func reach_contract_target(index: int) -> void:
 	var moved := false
 	for c in contracts:
@@ -4219,16 +2645,8 @@ func clear_contract_target(index: int) -> void:
 func standing_with(manufacturer: StringName) -> int:
 	return int(standing.get(manufacturer, 0))
 
-## What their berths pay OVER the going rate for your parts, as a fraction.
-##
-## The benefit is on the BID and never on the ask, and that is a hard constraint
-## rather than a preference: `Market`'s invariant leaves only about seven percent
-## between what a part melts for and the floor under what a station charges, so
-## a discount on the ask is a buy-and-melt exploit at four points of standing.
-## Paying you more for what you carry in has no such edge and reads the same at
-## the counter.
-##
-## Capped, because bid is a fraction of ask and must stay one.
+## The bonus is on the bid only: a discount on the ask would open a buy-and-melt exploit.
+## Why: docs/why/RunState.md#standing
 const STANDING_BID := 0.05
 const STANDING_BID_MAX := 0.20
 func standing_bid_bonus(manufacturer: StringName) -> float:
@@ -4247,9 +2665,8 @@ func _contract_short(c: ContractData) -> String:
 				and c.at < map.size() else c.item
 
 
-## The open contract pointing at this system, or null. First match wins; two
-## manufacturers wanting something from one place is legal and the chart only has room
-## to say so once.
+## The open contract pointing at this system, or null. First match wins: the chart
+## can say so only once.
 func contract_at(index: int) -> ContractData:
 	for c in contracts:
 		var job: ContractData = c
@@ -4258,14 +2675,8 @@ func contract_at(index: int) -> ContractData:
 	return null
 
 
-## Manufacturers with something waiting to be handed over: a heat contract you are
-## carrying the heat for, or any job you have already finished out there.
-##
-## THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place
-## before you go; this points at a place afterwards, and a heat contract points
-## at one and never had a target at all. Without it the chart answers "where is
-## the work" and goes silent on "where do I take it", which is the half of the
-## trip that actually costs fuel.
+## Marks where to hand finished work in, the half of the trip that costs fuel.
+## Why: docs/why/RunState.md#delivery-markers
 func delivery_manufacturers() -> Array:
 	var out: Array = []
 	for c in contracts:
@@ -4278,43 +2689,8 @@ func delivery_manufacturers() -> Array:
 	return out
 
 
-## True when the ONLY reason this system is on the chart is that you signed for
-## it — not visited, not a station, not reachable from where you stand.
-##
-## Signing reveals WHERE, and nothing else. You are told a place exists and given
-## its name, because a job that names a system you cannot find is a memory test;
-## you are not told what is in it, how policed it is or who operates there,
-## because none of that was in the offer. The manufacturer said go here. It did not say
-## what here is.
-##
-## That asymmetry is the whole point and it is worth not smoothing away later: a
-## contract is a REASON to fly somewhere unexplored, and it stops being one the
-## moment accepting it also explores the place.
-## A STATION YOU HAVE HEARD. Stations are on the chart before you visit them,
-## and this is how far "before" reaches.
-##
-## The exception itself is right and stays: the filter is correct about a place
-## you might GO and wrong about a place you navigate BY. A station means "you can
-## stop here" — repairs, fuel, a market, no danger — and it is most valuable to a
-## ship that has not found one yet, so hiding it until you have already been
-## there is backwards.
-##
-## WHAT WAS WRONG WAS THE RANGE, WHICH WAS INFINITE. Every station in the galaxy
-## sat on the chart from the first frame of a run, so KNOWN ONLY drew the four or
-## five systems you had actually been to and then every station out to the rim —
-## a view of what you have earned, dominated by the one thing you had not earned
-## any of. It read as a bug because it was one: a filter whose exception is
-## larger than its rule.
-##
-## ONE HOP, and the fiction is the mechanism: a station broadcasts, and you pick
-## it up from next door. Having stood in a system means having listened there, so
-## a station adjacent to anywhere you have been is a station you know about, and
-## one four layers away through systems you have never seen is not.
-##
-## Deliberately NOT scaled by SENSORS, though it is the obvious next move and the
-## attribute would carry it well. A beacon range that changes when you swap a
-## dish means the chart forgets systems when you refit, and a map that loses
-## places you were told about is worse than one that never said.
+## A contract reveals where and nothing more; a station counts only once sensed or visited.
+## Why: docs/why/RunState.md#stations-heard
 func station_heard(index: int) -> bool:
 	if index < 0 or index >= map.size():
 		return false
@@ -4323,18 +2699,8 @@ func station_heard(index: int) -> bool:
 		return false
 	if n.visited or index == at:
 		return true
-	# AND NOTHING ELSE. A station used to be revealed when any VISITED system
-	# had a `link` to it, which is a relationship that governs nothing -- links
-	# are the graph the chart draws, not the one the ship flies -- and a link
-	# can be long. Swapping it for `reachable_from` was more defensible and
-	# revealed MORE, because a radius is wider than a link.
-	#
-	# Ruled 2026-08-26: you can only see what you can see. Sight is live, and a
-	# station is a place you sensed, or a place you have been. The old comment
-	# above objects that a chart which loses places you were told about is worse
-	# than one that never said -- and that is answered rather than overruled,
-	# because nothing is lost now: the mark is never gained in the first place,
-	# so no refit and no departure can take it away.
+	# Ruled 2026-08-26: you can only see what you can see, so nothing else reveals a station.
+	# Why: docs/why/RunState.md#stations-heard
 	return false
 
 
@@ -4344,9 +2710,8 @@ func known_only_by_contract(index: int) -> bool:
 	if contract_at(index) == null:
 		return false
 	var n: MapGen.MapNode = map[index]
-	# `station_heard` and not "is a station". A station out of beacon range is
-	# NOT already on the chart, so a contract naming one is doing the same work
-	# it does for any other unexplored system, and the panel has to say so.
+	# `station_heard`, not "is a station": an unheard station is unexplored, and the
+	# panel has to say so.
 	if n.visited or station_heard(index) or index == at:
 		return false
 	for r in in_range():

@@ -1,64 +1,9 @@
 class_name CustodianBadge
 extends Control
 
-## THE CUSTODIAN'S BADGE beside the goal line: badge 9b, "The eye opens, loud"
-## (eye-1b), approved by Jon on Nov 4 ("Yeah, 9B like this"; the page is
-## https://claude.ai/artifact/6sMbQ25hJP3pimr93ro9rj). It says, without a
-## number for its hull, that the boss at the core grows stronger the more jumps
-## the lead ship has made (`EnemyTemplate.hull_at`: 200 through jump 15, +4% a
-## jump, capped at twice from jump 33). Alone that is your jumps; in co-op the
-## most any ship in the dive has made (`count`, Jon, Nov 4: "The custodian
-## strength and icon should be the same for everyone in the galaxy, even if
-## they join late.").
-##
-##   S0    jumps 0 to 15   a closed eye, breathing, with the jumps left beside it
-##   WAKE  jump 16         it opens (once, on arriving)
-##   S1    16 to 19        orange, drowsy: glances, glints, a slow blink
-##   S2    20 to 24        red and bloodshot, darting about
-##   S3    25 to 32        glaring, the veins crawling
-##   FULL  33 on           wide and blood red, a steady heartbeat. It stops
-##                         getting worse, not moving.
-##
-## THE SOURCE is the approved page's own code, ported pixel for pixel:
-## tools/dev/badge/fin_eye.js (eye-1b) and core.js, copied from
-## tk-scratch/custodian-badge/web. `-- sheet=BadgeTest` holds `paint` to that
-## code's frames (`tools/dev/badge/dump_golden.py`, `badge_golden.json`).
-## Drawn into a 40 x 15 Image on the CPU and shown as one texture at whole
-## pixels, 1:1 at the game's 960 x 540: the texture is updated only when the
-## frame changes, about 2 to 12 times a second.
-##
-## THE NUMBER is drawn from a table of Silkscreen's digits at 8 px (`DIGITS`),
-## baked from the game's own font file the way the game draws it (FreeType,
-## antialiasing off: every Silkscreen glyph sits on a 125-unit grid, 1 px at
-## 8 px). The page drew the same glyphs with Chrome's antialiasing; past half
-## opacity its pixels are these. In the Image, so the whole badge is one draw
-## and the tests can read every pixel headless.
-##
-## THE STAGE EDGES THAT ARE GROWTH come from the core boss's data
-## (`DB.core_boss()`): it wakes the jump after its free ones (`grow_after`,
-## 15), and it is at full strength from the first jump `hull_at` reaches the cap
-## (33). S2 and S3 are Jon's picks on the page, 4 and 9 jumps after the wake
-## (20 and 25). A core boss that never grows has no badge.
-##
-## MOTION on the game's clock (`GameClock`, never the wall's: films run the
-## wall's ticks about 13 times too fast). Idle loops at the stage's own rate
-## (`IDLE`); a transition once, on the first screen that shows the goal line
-## after the count rises (`GoalLine` starts it, `RunState.custodian_seen`
-## remembers it), at 10 steps a second, ending on the stage's idle frame 0.
-## Reduced motion: the transition plays and then holds idle frame 0, as the
-## page did. THE ARRIVAL RUNS FROM THE COUNT LAST SHOWN (`from`) to the count
-## now: alone that is the jump before, so every frame is the page's, except
-## after an arrival that never showed (a second jump begun inside the line's
-## fade in), when it runs from the count last shown; in co-op a partner's jump
-## can raise it while you sit still, or by several. Either way the biggest
-## stage edge crossed plays (`change_kind`).
-##
-## NOT A CONTROL: it ignores the mouse like the rest of the goal line, so the
-## chart's and the map's pictures under it still take every press, drag and
-## wheel. It reads the pointer itself for its tooltip (`_hover`), the game's
-## tooltip plate (`TooltipPanel`) with the page's lines, the heading the boss's
-## name from data, and no hull figure. Their hover keeps off it (`covers`), so
-## a system or a world under it does not open its own tooltip under the badge's.
+## Approved by Jon, Nov 4 (badge 9b): shows the boss growing with the lead ship's jumps, no figure.
+## Ported pixel for pixel from the page's code. `-- sheet=BadgeTest` holds `paint` to its frames.
+## Why: docs/why/CustodianBadge.md#custodian-badge
 
 ## The Image the badge draws into, px: wide enough for S0's box (37) and the
 ## jump before the wake shown at the wake's first step.
@@ -94,10 +39,7 @@ const IDLE := {
 ## as a tooltip floats over everything).
 const TIP_GAP := 6.0
 const TIP_Z := 60
-## THE PAGE'S SPOT for it, px from the screens' area's left (the page's 170 and
-## 218 on its 8 px corner): no further left than this on the map and the chart,
-## and on LOCAL and in a fight, where it keeps clear of the ship in the sky to
-## the goal's right as the page did.
+## The page's spot, px from the area's left, kept clear of the ship in the sky.
 const TIP_AT_NAV := 162.0
 const TIP_AT_SECTOR := 210.0
 
@@ -117,9 +59,7 @@ const C_LL := 0x304255
 const C_LR := 0x2b3b4f
 const C_GIRDLE := 0x33465c
 
-## SILKSCREEN'S DIGITS AT 8 PX: [advance, five rows from the cap top], baked
-## from assets/fonts/Silkscreen-Regular.ttf (FreeType mono, as the game draws
-## it with antialiasing off). Columns from the pen.
+## Baked from Silkscreen-Regular.ttf with FreeType mono, as the game draws it with antialiasing off.
 const DIGITS := {
 	"0": [6, "..##..|.#..#.|.#..#.|.#..#.|..##.."],
 	"1": [5, ".##..|..#..|..#..|..#..|.###."],
@@ -147,10 +87,7 @@ var _arrive_t0 := -1.0
 var _drawn := Rect2i()
 ## when the pointer came over it (GameClock s; -1 not over it)
 var _hover_t0 := -1.0
-## THE POINTER as its viewport last saw it (canvas px), and whether it is in the
-## window: read off the input itself (`_input`), since the badge takes none.
-## Headless and under a harness that pushes its events, the engine's own mouse
-## position never moves; the events do.
+## Read off `_input` since the badge takes none: headless, the engine's mouse position never moves.
 var _pointer := Vector2(-1.0e6, -1.0e6)
 var _pointer_in := false
 ## THE TOOLTIP, made once; its lines set only when they change
@@ -195,11 +132,7 @@ func _notification(what: int) -> void:
 		_pointer_in = false
 
 
-## THE TOOLTIP: the theme's own plate (`TooltipPanel`, the one Godot puts round
-## every HUD readout's popup; `CutawayView._build_panel` places one the same
-## way), and inside it the HUD readouts' column (`Widgets.set_readout`): the
-## heading, a rule, the lines. Placed by the badge, not at the pointer, so it
-## stands clear of the goal and of what is on the screen (`_tip_spot`).
+## The theme's own `TooltipPanel`, placed by the badge (`_tip_spot`) so it stands clear of the goal.
 func _build_tip() -> void:
 	if tip != null:
 		return
@@ -229,9 +162,7 @@ static var _lad_key := ""
 static var _lad: Dictionary = {}
 
 
-## THE STAGE EDGES: {grows, free, wake, s2, s3, full}. `free` is the boss's free
-## jumps (15), `wake` the jump after (16), `full` the first jump its hull is at
-## the cap (33), all from its data; S2 and S3 are 4 and 9 after the wake.
+## Stage edges come from the boss's data. S2 and S3 are 4 and 9 jumps after the wake.
 static func ladder() -> Dictionary:
 	var e := boss()
 	if e == null:
@@ -267,10 +198,7 @@ static func count() -> int:
 	return Run.custodian_jumps()
 
 
-## THE PARTY'S WORDS in the tooltip: in a party on its dive's galaxy, or flying
-## on from one (its host gone, or a co-op save CONTINUEd) while the lead ship's
-## count is above yours. A pilot who died and pressed NEW RUN is still in the
-## party, in a galaxy no partner is in, and keeps the solo words.
+## Party words show while the lead ship's count is above yours.
 static func party() -> bool:
 	return (Net.is_networked() and Net.dive_seed != 0 and Run.galaxy_seed == Net.dive_seed) \
 		or Run.party_jumps > Run.jumps
@@ -324,12 +252,9 @@ static func countdown(j: int) -> int:
 	return int(l.free) + 1 - j if j <= int(l.free) else 0
 
 
-## What arriving at count `j` from `from` (the jump before when -1) plays: the
-## biggest stage edge crossed, &"full" (33), then &"worse" (20, 25), then
-## &"wake" (16), then &"tick" (the number drops, jumps 1 to 15), else &"none".
-## One jump crosses one edge, so alone it is the page's table; the page ran
-## from jump 1 and ticked from 2, and the game starts at jump 0, so its first
-## jump ticks too. In co-op 14 to 17 wakes it and 30 to 40 is the full one.
+## Arrival plays the biggest stage edge crossed. The game starts at jump 0, so jump 1 ticks.
+## In co-op, 14 to 17 wakes it and 30 to 40 is the full one.
+## Why: docs/why/CustodianBadge.md#badge-transitions
 static func change_kind(j: int, from: int = -1) -> StringName:
 	var l := ladder()
 	var f := _from(j, from)
@@ -377,11 +302,7 @@ static func box_w(j: int) -> int:
 
 # ------------------------------------------------------------------ the draw
 
-## THE BADGE AT COUNT `j`, `t` game seconds, `since` seconds after arriving
-## from `from` (-1 not arriving; `from` -1 the jump before), into `b` (IMG_W x
-## IMG_H RGBA8, cleared by the caller) with its left edge at `x` and its middle
-## row at `cy`. Returns the box it inks in. core.js + fin_eye.js eye-1b's
-## draw(), line for line.
+## Draws into `b` (cleared by the caller), returns the inked box. core.js, line for line.
 static func paint(b: PackedByteArray, x: int, cy: int, j: int, t: float, since: float, from: int = -1) -> Rect2i:
 	var st := arrival(since, j, from)
 	if st >= 0:
@@ -444,10 +365,8 @@ static func _ins(dx: int, dy: int, hw: int, hh: int) -> bool:
 	return h >= 0 and absi(dx) <= h
 
 
-## THE EYE (fin_eye.js eye()): a diamond `hw` by `hh` round (`cx`, `cy`), its
-## edge the rim, inside the iris and the pupil round (`ox`, 0), the white of the
-## eye shaded as the sprite's glass is, bloodshot and veined by `o`.
-## o = {rim, ir, iris, pr, pupil, ring?, blood?, ox?, vein? {seed, col, n}, glint? {at, col}}
+## Ported from fin_eye.js `eye()`: a diamond with iris and pupil, shaded by the options `o`.
+## Why: docs/why/CustodianBadge.md#badge-drawing
 static func _eye(b: PackedByteArray, cx: int, cy: int, hw: int, hh: int, o: Dictionary) -> void:
 	var ox: int = o.get("ox", 0)
 	var rim: int = o.rim
@@ -489,9 +408,8 @@ static func _eye(b: PackedByteArray, cx: int, cy: int, hw: int, hh: int, o: Dict
 			_px(b, cx + dx, cy + dy, 1, 1, c)
 
 
-## THE SHUT EYE AND ITS NUMBER (fin_eye.js closed()): a shallow U as wide as the
-## eye that opens, the seam along the bottom, lashes under it, the jumps left
-## 5 px after it. o = {seam?, twitch?, leak?, corners?, digit?, digit_col?}
+## Ported from fin_eye.js `closed()`: the shut eye and its jump count, shaped by the options `o`.
+## Why: docs/why/CustodianBadge.md#badge-drawing
 static func _closed(b: PackedByteArray, x: int, cy: int, o: Dictionary) -> void:
 	var cor: int = o.get("corners", C_CHILL)
 	var hw := S0_HW
@@ -561,9 +479,7 @@ static func _idle(b: PackedByteArray, x: int, cy: int, j: int, k: int, q: int) -
 	var cx := x + EYE_X
 	var free := int(ladder().free)
 	if tr == 0:
-		# S0, 9 a second, a 3 s loop: it sleeps. The seam dims on the out-breath,
-		# the lashes twitch once a loop; on the last free jump light leaks
-		# through the seam, flickering on the breath
+		# S0 sleeps on a 3 s loop. On the last free jump light leaks through the seam.
 		var qq := q % 9
 		var kk := k % 27
 		var seam: int = [C_SILVER, C_SILVER, C_SILVER, C_CHILL, C_COLD, C_CHILL, C_SILVER, C_SILVER, C_SILVER][qq]
@@ -625,9 +541,7 @@ static func _e(b: PackedByteArray, x: int, cy: int, hw: int, hh: int, o: Diction
 	return _box(x, cy)
 
 
-## THE TRANSITIONS, 10 steps a second (fin_eye.js arrive()). Step 0 is the
-## count it runs from at rest (`from`, the jump before alone); the last is the
-## new stage at rest (its idle frame 0).
+## Transitions at 10 steps a second (fin_eye.js arrive()), ending on idle frame 0.
 static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int, from: int = -1) -> Rect2i:
 	var kind := change_kind(j, from)
 	var n: int = TRANS_STEPS[kind]
@@ -652,9 +566,7 @@ static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int, from: 
 			_closed(b, x, cy, o2)
 		return _box(x, cy, S0_W)
 	if kind == &"wake":
-		# the number goes out and white light pours from the seam; the lids
-		# crack, a hot slit; it snaps wide open, white; it narrows in two steps,
-		# hot; the lid cools to its colour; rest
+		# Wake: the number goes out, light pours from the seam, the lid cracks and snaps.
 		var f := look(1)
 		if st == 1:
 			_closed(b, x, cy, {seam = C_WHITE, corners = C_HOT, leak = C_WHITE})
@@ -698,9 +610,7 @@ static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int, from: 
 				pupil = C_WHITE, blood = flood, vein = {seed = st, col = C_BAD, n = 4}})
 		return _e(b, x, cy, b0.hw, b0.hh, {rim = C_FLARE, ir = b0.ir, iris = b0.iris2, ring = b0.ring, pr = b0.pr,
 			pupil = b0.pupil, blood = flood, vein = {seed = 0, col = b0.vein, n = 5}})
-	# FULL, the hardest: it shuts hard to a red line, goes dark, snaps open full
-	# and all white, the pupil blown wide, red floods in, the pupil draws in with
-	# a beat; rest
+	# FULL, the hardest: shuts to a red line, goes dark, snaps open white, then red floods in.
 	var f4 := look(4)
 	if st == 1:
 		return _e(b, x, cy, 11, 0, {rim = C_BAD, ir = 0, iris = C_BAD, pr = 0, pupil = C_BAD})
@@ -720,10 +630,7 @@ static func _arrive(b: PackedByteArray, x: int, cy: int, j: int, st: int, from: 
 
 # ------------------------------------------------------------------ the tooltip's words
 
-## THE TOOLTIP'S LINES at count `j` (core.js tooltip()), line for line: the
-## boss's name from data, then what it does and when it grows. No hull figure.
-## `in_party`: the co-op words (Jon, Nov 4), where it grows on the lead ship's
-## jumps rather than yours (`party()`); the solo lines are the page's, unchanged.
+## Lines from core.js tooltip(): the boss's name from data, no hull figure.
 static func tooltip(j: int, in_party: bool = false) -> PackedStringArray:
 	var l := ladder()
 	var e := boss()
@@ -762,9 +669,7 @@ static func _times(cap: float) -> String:
 
 # ------------------------------------------------------------------ on screen
 
-## The arrival at count `j` from `from` (the count last shown; -1 the jump
-## before) starts now (`GoalLine`, on the first frame the line is up after the
-## count rose).
+## Starts the arrival at count `j` from the count last shown, on the first frame the line is up.
 func arrive(j: int, from: int = -1) -> void:
 	_arrive_j = j
 	_arrive_from = _from(j, from)
@@ -784,11 +689,7 @@ func clock(j: int) -> Dictionary:
 	return {t = now, since = since}
 
 
-## ONE FRAME ON SCREEN (`GoalLine.refresh`, every frame): `on` while the goal
-## line is up; `pending` while the arrival at this count has yet to start (the
-## line still fading in), when it holds the transition's first step, the count
-## last shown (`seen`; -1 the jump before), so the new look never shows before
-## it arrives. Repaints only when the frame changes.
+## While an arrival is pending the badge holds the look on show, so the new one is not early.
 func refresh(on: bool, pending: bool = false, seen: int = -1) -> void:
 	var up := on and enabled() and Run.hull != null
 	visible = up
@@ -837,10 +738,7 @@ func image() -> Image:
 	return _img
 
 
-## Its box on screen (global): S0's while it sleeps, 24 x 15 after; AS DRAWN,
-## so while it holds the count before (an arrival pending, or its first step)
-## the box is the look on show, not the one coming (S0's 37 px at the wake's
-## first step, where it once was the wake's 24).
+## Box as drawn: while it holds the count before, the box is the look on show, not the coming one.
 func box_rect() -> Rect2:
 	return Rect2(global_position, Vector2(drawn_w(), BOX_H))
 
@@ -850,10 +748,7 @@ func drawn_w() -> int:
 	return _drawn.size.x if _drawn.size.x > 0 else box_w(count())
 
 
-## THE BADGE IS UP OVER `p` (viewport px): the chart's and the map's pictures
-## under it take its presses but not its hover there, so the one tooltip that
-## opens is the badge's, not theirs under it too (`StarchartScreen`'s and
-## `SystemMapScreen`'s hover ask).
+## True over `p`: chart and map take its presses but not hover, so only its tooltip opens.
 static func covers(p: Vector2) -> bool:
 	var g: GoalLine = Router.hud.goal if Router.hud != null and is_instance_valid(Router.hud) else null
 	if g == null or not is_instance_valid(g) or g.modulate.a <= 0.0:
@@ -870,9 +765,7 @@ func _draw() -> void:
 		draw_texture(_tex, Vector2.ZERO)
 
 
-## THE POINTER OVER IT, read here (it ignores the mouse, `_input`): the tooltip after the
-## project's tooltip delay (0.25 s, the HUD's), gone the moment it leaves, and
-## never while a drag is under way or the line is fading.
+## Tooltip after the HUD's 0.25 s delay, gone when it leaves, never during a drag or a fade.
 func _hover(j: int) -> void:
 	var gl := get_parent() as Control
 	var vp := get_viewport()
@@ -922,11 +815,7 @@ func _show_tip(j: int) -> void:
 	tip.visible = true
 
 
-## WHERE THE TOOLTIP GOES (global), as the page put it: 6 px after the badge
-## and no further left than the page's spot (`TIP_AT_*`), its top on the
-## badge's top; stepped right past anything on the screen it would cover
-## (`GoalLine.avoid_rects`, the goal, the badge and the step, A.S.H., a hint
-## card), then under the goal's room if the row runs out.
+## Placed 6 px past the badge, stepped right past anything it would cover.
 func tip_spot(sz: Vector2) -> Rect2:
 	var cur := Router.current
 	var avoid := tip_avoid(cur)
@@ -959,9 +848,7 @@ func tip_spot(sz: Vector2) -> Rect2:
 	return Rect2((rows[0] as Vector2).round(), sz)
 
 
-## What the open tooltip must not cover on `cur`, global: what the goal line
-## keeps off (but the picture's frame it stands inside), the goal and its step,
-## A.S.H.'s box while she talks and a hint card.
+## What the open tooltip must not cover: the goal line's keep-offs, A.S.H. and a hint card.
 func tip_avoid(cur: Control) -> Array:
 	var out: Array = []
 	var fr := GoalLine.frame_rect(cur)

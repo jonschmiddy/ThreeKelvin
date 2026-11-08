@@ -1,10 +1,6 @@
 extends Node
 
-## The system map in the real shell, through the real router:
-##   godot --path . -- sheet=FlowShot out=<dir> [seed=N]
-## Starts a run and photographs where it lands, then jumps to the nearest
-## system it can reach (through `Router.commit_jump`, the arrival path), then a
-## beacon taken, then back from the ship screen. Needs a window.
+## Photographs the system map through the real router: start, jump, beacon, back. Needs a window.
 
 var out := "user://flow"
 
@@ -57,13 +53,9 @@ func _ready() -> void:
 	get_tree().quit()
 
 
-## `orbitclip=<dir>`: ONE PLANET TO ANOTHER, filmed through the real Router (run
-## with `--fixed-fps 30` so the frames play at true speed): in orbit of world A on
-## the map, LOCAL by the HUD's tab, the map again, a flight to world B, LOCAL
-## once. Every frame of the game's 960x540 view as `f_####.png`; then LOCAL's
-## sky at B bare (ships and labels hidden) as `sky/f_####.png` for the flicker
-## measure. Prints what LOCAL drew each time, the frame LOCAL first showed B on
-## and that frame's brightness against a settled one (a dark first frame shows).
+## Filmed through the real Router with `--fixed-fps 30` so frames play at true speed.
+## Reports whether LOCAL's first frame at B was dark.
+## Why: docs/why/FlowShot.md#orbit-clip
 func _orbit_clip(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

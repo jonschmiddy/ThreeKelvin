@@ -1,22 +1,8 @@
 extends RefCounted
 
-## Contact sheet for the moving parts of a sector:
-##
-##   godot --path . -- placesheet
-##
-## `SkyTest` shoots one frame per place, which is the right tool for judging a
-## composition and the wrong one for judging an animation. Two things in a
-## sector move -- the beacon's rings and a station's navigation strobes -- and a
-## single frame cannot tell a ring travelling outward from five circles that
-## happen to be drawn at those radii.
-##
-## So this is the same place across one full cycle, left to right. A row that
-## reads as five different pictures is working. A row where the eye cannot find
-## what changed is an animation nobody will ever notice, and should be cut
-## rather than kept for the changelog.
-##
-## NOT HEADLESS: it renders through SubViewports and needs a real display, the
-## same as every other sheet in this folder.
+## One place across a full cycle, as one frame cannot tell a travelling ring from circles.
+## Not headless: needs a real display.
+## Why: docs/why/PlaceSheet.md#place-contact-sheet
 
 const W := 420
 const H := 260
@@ -52,12 +38,8 @@ func run(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## One frame of one place, with the clock wound to `at`.
-##
-## The clock is SET rather than waited for. `_process` would get there on its
-## own in a few seconds a frame, and a sheet that takes ten seconds to render is
-## a sheet nobody runs twice -- and worse, the frames would land wherever the
-## frame rate put them rather than on even divisions of the cycle.
+## The clock is set, not waited for, so frames land on even divisions of the cycle.
+## Why: docs/why/PlaceSheet.md#place-frame
 func _frame(tree: SceneTree, n: MapGen.MapNode, at: float) -> Image:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(W, H)

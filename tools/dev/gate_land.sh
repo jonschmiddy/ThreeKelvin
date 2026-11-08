@@ -9,8 +9,6 @@
 # ONE AT A TIME. The gate's timing steps fail when the machine is busy, so never
 # run two, and pause other Godot work while one runs.
 #
-# A conflict in CHANGELOG.md alone is two branches adding lines under
-# [Unreleased]; resolve_changelog.py keeps both sides and the merge carries on.
 # Any other conflict stops it: resolve by hand in the worktree, commit, rerun.
 set -uo pipefail
 D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,10 +18,6 @@ LOG="$TK_SCRATCH/logs/gate_${L}.log"
 tk_guard || { echo "FAILED $L (profile guard)"; exit 1; }
 cd "$W" || { echo "FAILED $L (no worktree)"; exit 1; }
 git merge --no-edit -q main 2>&1 | tail -2
-if [ "$(git diff --name-only --diff-filter=U)" = "CHANGELOG.md" ]; then
-	"$PY" "$D/resolve_changelog.py" CHANGELOG.md && ! grep -q "^<<<<<<<" CHANGELOG.md \
-		&& git add CHANGELOG.md && git commit -q --no-edit && echo "(CHANGELOG conflict resolved, both sides kept)"
-fi
 if git status --short | grep -qE "^(UU|AA|DU|UD)"; then
 	git status --short | grep -E "^(UU|AA|DU|UD)"; echo "FAILED $L (merge conflict)"; exit 1
 fi

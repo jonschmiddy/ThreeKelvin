@@ -1,44 +1,13 @@
 extends Node
 
-## THE WINDOW SHELL FROM OUTSIDE: what the player's window shows around and
-## through the glass, in every shape of window, and what it costs.
-##   tools/dev/render.sh --path tkg -- sheet=ShellTest [out=<dir>] [checks] [stills] [bench]
-##
-## NEEDS A WINDOW, because the shell IS the window. It resizes that window
-## through 1X, 2X, 3X, a letterboxed size and BORDERLESS (which covers the whole
-## screen for a few seconds). 3X only where the screen allows it: a Retina Mac's
-## window stops at 2X (Oct 27, `DisplaySettings.RETINA_MAX_SCALE`), so there w3
-## is left out and the run says so; BORDERLESS is still the big window. With none of the three parts named it runs all of
-## them; `out=` is where the stills and `shell.json` go.
-##
-##   checks  A pointer moved through the WINDOW onto your ship on LOCAL lights
-##           the cutaway's outline and moving off puts it out (the input path
-##           through the hidden container, `GameShell._frame`); the container
-##           is culled and still takes input; the game frame keeps drawing
-##           under the glass; the black is drawn only over the letterbox bands
-##           and every pixel of them is black.
-##   stills  The window photographed in each shape and look, with a fixed
-##           picture in the game frame (a pattern of edges, gradients, single
-##           pixels and bright whites, and a station backdrop), so a before and
-##           an after set can be diffed pixel for pixel. Named
-##           `<window>_<look>.png`.
-##   bench   Each shape at the default look with vsync off: frame ms (median,
-##           p95), the ROOT viewport's GPU ms (the shell's own passes, which
-##           headless cannot see) and the draw calls a frame.
-##
-## THE GAME IS STOPPED for the stills and the bench: its viewports frozen, its
-## screens hidden and a still picture put over it, so the only thing that
-## changes from one run to the next is the shell. The checks run first, on the
-## real game.
+## Needs a window: the shell is the window. Stills use a fixed picture so sets diff by pixel.
+## The game is stopped for stills and bench so only the shell changes between runs.
+## Why: docs/why/ShellTest.md#window-shell-test
 
 const LOOKS := [["flat", DisplaySettings.Look.FLAT],
 	["gentle", DisplaySettings.Look.CRT_GENTLE],
 	["arcade", DisplaySettings.Look.CRT_ARCADE]]
-## w1/w2/w3: WINDOWED at that scale, the picture filling the window exactly.
-## box: a window with room on all four sides (bands left, right, top, bottom).
-## bl: BORDERLESS, the screen and one row (bands top and bottom, one odd).
-## w3z: 3X asked for after BORDERLESS, which a Mac leaves zoomed (see `_run`);
-## on a Retina Mac the ask is held to 2X.
+## Window shapes: w1/w2/w3 windowed, box with room all round, bl borderless, w3z zoomed 3X.
 const BOX := Vector2i(2100, 1240)
 const BENCH_FRAMES := 900
 
@@ -113,10 +82,8 @@ func _run() -> void:
 		await _stills(["w1", "w2", "w3", "box"] if three else ["w1", "w2", "box"])
 	if "bench" in parts:
 		await _bench(["w3", "w2"] if three else ["w2"])
-	# BORDERLESS LAST. Leaving it, a Mac keeps the window zoomed to the screen's
-	# visible frame (2880x1694 on a 1440x900 Retina) whatever size is asked
-	# for, so nothing windowed after it is the window it says. That zoomed
-	# window is photographed too (`w3z`): bands top and bottom at a whole 3X.
+	# Leaving borderless, a Mac keeps the window zoomed (2880x1694 on 1440x900), so it runs last.
+	# Why: docs/why/ShellTest.md#borderless-last
 	await _window("bl")
 	if "checks" in parts:
 		await _bands_ok("bl")
@@ -252,10 +219,7 @@ func _picture() -> Image:
 
 # ------------------------------------------------------------------- checks
 
-## THE CUTAWAY'S HOVER, THROUGH THE WINDOW. Your ship on LOCAL at rest; a
-## pointer pushed at the WINDOW pixel where the hull's middle is drawn has to
-## reach the ship's slot through the shell's container -- which is not drawn --
-## and light the outline, and one moved off the hull has to put it out.
+## A pointer pushed at the window pixel must reach the ship slot through the undrawn container.
 func _hover_check() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -317,9 +281,7 @@ func _hover_check() -> void:
 		print("  (no point on the slot off the hull; the off half is skipped)")
 
 
-## A motion at the window pixel that SHOWS game point `g`, pushed at the root
-## the way the operating system's would be: through the shell, its container,
-## the bend and the nudge.
+## A motion at the window pixel that shows game point g, pushed at the root as the OS would.
 func _point_at(g: Vector2) -> void:
 	var win := _window_for(g)
 	_shell._pointer = win

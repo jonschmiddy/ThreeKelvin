@@ -16,10 +16,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		Run.add_credits(-c.credit_cost)
 		cb._log("Spent %d credits." % c.credit_cost, &"sys")
 
-	# THROWING THINGS AWAY, before anything else this card does. A card that
-	# discards and then draws must not be able to pull the junk back and throw
-	# it away in the same breath, and doing this first makes the order obvious
-	# rather than something to remember.
+	# Discard comes first, so a card that discards then draws cannot pull the junk back.
 	if c.discard_hand:
 		var n := cb.hand.size()
 		cb.discard.append_array(cb.hand)
@@ -27,10 +24,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb._log("Discarded %d card%s." % [n, "" if n == 1 else "s"], &"sys")
 		Sig.hand_changed.emit()
 
-	# A pick is a PAUSE, not an effect. The rest of this card resolves now and
-	# the choosing happens after, which is why a card can discard and draw:
-	# what you throw away is chosen from the hand you had, not the one the draw
-	# gives you.
+	# A pick is a pause: what you discard is chosen from the hand you had, not the draw.
 	if c.discard > 0 or c.decommission > 0:
 		cb.choose_kind = &"decommission" if c.decommission > 0 else &"discard"
 		cb.choosing = mini(maxi(c.discard, c.decommission), cb.hand.size())
@@ -104,9 +98,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.negate_next = true
 		cb._log("Next attack on you will be negated.", &"good")
 
-	# AFTER EVERYTHING THAT READS HEAT. It ran before damage_equals_heat, so
-	# Thermal Purge zeroed the gauge and then hit for 2 while its face, from
-	# Combat.card_output, said heat + 2. A card reads the heat it was played at.
+	# After everything that reads heat: Thermal Purge once zeroed the gauge, then hit for 2.
 	if c.vent_all:
 		var purged := Run.heat
 		Run.heat = 0
@@ -114,14 +106,8 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			cb._log("Purged %d heat." % purged, &"heat")
 
 	if c.vent > 0:
-		# PLUS THE SHIP'S DISSIPATION, which no longer sheds on its own. The
-		# stat's prominence is finally earned: it was half of attr_thermal and
-		# worth one point a turn, and it is now a multiplier on a decision the
-		# player makes rather than a drip that happens to them. Fifteen vent
-		# cards get better and stop competing against free automatic cooling.
-		#
-		# `vent_all` is untouched -- it already zeroes heat and there is nothing
-		# for a multiplier to add to.
+		# Vent adds the ship's dissipation, which no longer sheds on its own, making it a decision.
+		# Why: docs/why/CardResolver.md#vent-dissipation
 		var v := mini(Run.heat, c.vent + Run.dissipation())
 		Run.heat -= v
 		if v > 0:
@@ -130,9 +116,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 	if c.heal > 0 or c.heal_scale > 0:
 		var amount := c.heal
 		if c.heal_scale > 0:
-			# What is MISSING, read at the moment of play. See CardData.heal_scale
-			# — the whole point is that this number is small when you are fine and
-			# large when you are not.
+			# Missing hull is read at the moment of play; see `CardData.heal_scale`.
 			var missing := maxi(0, Run.max_hp() - Run.hp)
 			amount += int(missing / c.heal_scale)
 		var healed := Run.heal(amount)

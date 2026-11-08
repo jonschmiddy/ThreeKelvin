@@ -1,19 +1,8 @@
 class_name BoardCork
 extends RefCounted
-## WHAT IS PINNED TO A CHEAP CORKBOARD, an unclaimed station's and an outpost's,
-## besides the work. A pool to pick from (Jon: "Not 20X on the board, just a big
-## pool to pick from for diversity"): `PostingBoard` takes a handful of these per
-## station, by the station's number, and pins them where it likes around the
-## work, overlapping a little, as a real board's paper does.
-##
-## Every piece is drawn in its own box, `size_of(i)` from (0, 0): its paper, the
-## shadow it throws down and to the right (inside the box), and its pins through
-## `b._pin`, which makes a push pin on cork and a magnet on enamel.
-##
-## The first five are drawn by hand below. The rest are rows of `POOL`, each a
-## kind of paper (`k`) and what is on it, painted by the `_kind` funcs further
-## down. Square paper only: pixel text turned on its side goes to stair-steps.
-## The top 24 pixels of a piece are its title, which nothing else lands over.
+## A big pool for diversity (Jon): `PostingBoard` takes a few by station number.
+## Square paper only, as pixel text turned on its side goes to stair-steps.
+## Why: docs/why/BoardCork.md#cork-board-pool
 
 const SHADE := PostingBoard.SHADE
 const INK := PostingBoard.INK
@@ -1840,9 +1829,7 @@ static func _xword(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	var r := _r(sz)
 	_paper(b, r, NEWS, 0.4, false)
 	_tx(b, "CROSSWORD", r.position.x + 5.0, 13.0, F, INK, r.size.x - 20.0)
-	# A REAL GRID, its words crossing (Jon: "The crossword doesn't make sense"):
-	# HEAT and LOGO across, HULL, TOOL and SKY down. `#` is a black square, a
-	# capital a letter somebody has filled in, a small one a square still empty.
+	# A real grid with crossing words (Jon: the crossword made no sense). Capitals are filled in.
 	var grid := [
 		"HEAT#S",
 		"U##O#K",

@@ -1,19 +1,8 @@
 extends RefCounted
 
-## The arrival screen, photographed:
-##   godot --path . -- sectorshot [seed=N] [group]
-##
-## NEEDS A WINDOW. Under `--headless` the dummy display server never emits
-## `frame_post_draw`, so nothing is captured and it looks exactly like a hang.
-##
-## IT EXISTS BECAUSE 8b IS A LAYOUT. `ENCOUNTER_FLOW.md` beat 2 is a drawing of a
-## screen -- a group box, a check badge, a row per option -- and none of that is
-## something an assert can look at. The list either reads or it does not.
-##
-## `group` hunts for a system carrying an EXCLUSIVE set, because that is the half
-## of the design with no fallback: an independent option is one row and a group is
-## the whole of rulings 1 and 1b. Without one on screen the shot proves the easy
-## case.
+## Needs a window: headless never emits `frame_post_draw`, so it looks like a hang.
+## A layout can only be looked at; `group` hunts an exclusive set, which has no fallback.
+## Why: docs/why/SectorShot.md#sector-shot
 
 
 ## Photograph the tree and say where it went. Every shot in this file is this
@@ -68,18 +57,10 @@ func run(tree: SceneTree) -> void:
 	OptionTable.ensure(n)
 	print("  %s -- danger %d, %d options: %s"
 		% [MapGen.star_name(n), n.danger, n.options.size(), n.options])
-	# A SYSTEM WITH NOTHING LEFT IN IT, which is a fourth drawer state and the
-	# only one no mode could reach. `open=` and `take=` walk LIST -> OPTION ->
-	# RESULT, and all three of those need a system that still has options; the
-	# band that a FINISHED system gets is the one thing they cannot photograph.
-	# Marking the claims directly rather than resolving each option: what is
-	# being looked at is the height of a drawer with an empty list, and running
-	# four payouts to get there would put their loot in the picture.
+	# Claims are marked directly: no mode could photograph a finished system's empty drawer.
+	# Why: docs/why/SectorShot.md#spent-system
 	if "spent" in OS.get_cmdline_user_args():
-		# ONE OF EACH, because the four words are four colours and the only
-		# thing worth looking at is whether they read as a set. A run that
-		# reached this state honestly would take a dozen systems and would still
-		# only show whichever bands it happened to roll.
+		# One of each band: the point is whether the four colours read as a set.
 		var bands: Array[StringName] = [MapGen.R_SUCCESS, MapGen.R_PARTIAL,
 			MapGen.R_BOTCHED, MapGen.R_GONE, MapGen.R_DONE]
 		for si in n.options.size():
@@ -89,12 +70,8 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
-	# WHAT AN EXCLUSIVE SET LOOKS LIKE WHEN YOU POINT AT ONE OF IT. RULING 1 is
-	# a hover now rather than a box, so there is no frame in which it is visible
-	# by itself -- and `Input.parse_input_event` plus `warp_mouse` does not drive
-	# GUI in a window that does not have focus, which has produced false failures
-	# here before. Notifying the card is what a pointer over it would do, and it
-	# is the same "drive the screen directly" the open= and take= modes use.
+	# Ruling 1 is a hover, and `warp_mouse` does not drive GUI unfocused, so the card is notified.
+	# Why: docs/why/SectorShot.md#hover-shot
 	if "hover" in OS.get_cmdline_user_args():
 		var cards: Array = []
 		_cards(Router.current, cards)
@@ -118,23 +95,9 @@ func run(tree: SceneTree) -> void:
 		if sc != null:
 			print("  drawer band: %.0f  (DRAWER_H %d)"
 				% [sc._quiet_wrap.size.y, SectorScreen.DRAWER_H])
-	# THE DRAWER HAS THREE STATES AND A SCREENSHOT ONLY EVER CATCHES THE FIRST.
-	# `open=N` clicks into an option, `take=N` resolves one of its choices, so
-	# LIST -> OPTION -> RESULT can each be photographed. Driving the screen
-	# directly rather than faking a pointer, for the same reason the hover shot
-	# does: there is no pointer.
-	# `combat` swaps the drawer for the hand, which is the only way to see
-	# whether the two bands actually match -- they are mutually exclusive, so no
-	# single frame shows both and the comparison is between two screenshots.
-	# `menu` proves the view memory does not leak into the launcher's galaxy.
-	# It pans the starchart's remembered view a long way off centre, opens the
-	# menu, and reports where the menu's own chart actually ended up -- which is
-	# the bug: both screens build the same MapChart, and the memory is on the
-	# class rather than on the instance.
-	# `region` proves what LOCAL REGION does to an arrival. ON, the chart must
-	# re-frame on where you are standing; OFF, it must come back exactly where
-	# you left it. Both are one flag and one code path, so one of them silently
-	# doing the other's job is the failure to watch for.
+	# A screenshot only catches the first state, so the modes drive the screen directly.
+	# `menu` checks view memory on the class does not leak; `region` checks re-framing on and off.
+	# Why: docs/why/SectorShot.md#drawer-states
 	if "region" in OS.get_cmdline_user_args():
 		StarchartScreen._view_zoom = 3.0
 		StarchartScreen._view_pan = Vector2(-420.0, 260.0)
@@ -142,10 +105,8 @@ func run(tree: SceneTree) -> void:
 		for on in [false, true]:
 			StarchartScreen._region_on = on
 			Router.show_starchart()
-			# THREE FRAMES, NOT THIRTY. A glide runs 0.55s -- about thirty-three
-			# frames -- so sampling at thirty reads almost the end state and
-			# cannot tell a snap from an animation nearly finished. If the view
-			# is already final here, nothing tweened.
+			# Three frames, not thirty: a 0.55 s glide is 33 frames, so thirty cannot tell a snap.
+			# Why: docs/why/SectorShot.md#glide-sampling
 			for iA in 3:
 				await RenderingServer.frame_post_draw
 			var st := Router.current as StarchartScreen
@@ -166,9 +127,7 @@ func run(tree: SceneTree) -> void:
 			print("  remembered pan %s zoom %.2f" % [StarchartScreen._view_pan,
 				StarchartScreen._view_zoom])
 			print("  menu galaxy  pan %s zoom %.2f" % [ls._sky.pan, ls._sky.zoom])
-		# AND THE HALF THAT IS SUPPOSED TO WORK. Gating the memory behind a flag
-		# could as easily have turned it off everywhere; the starchart has to
-		# still come back where it was left.
+		# The memory must still work: gating it behind a flag could turn it off everywhere.
 		Router.show_starchart()
 		for i9 in 30:
 			await RenderingServer.frame_post_draw
@@ -179,10 +138,7 @@ func run(tree: SceneTree) -> void:
 		tree.quit()
 		return
 	if "buttons" in OS.get_cmdline_user_args():
-		# DOES THE WORD FIT THE BOX? `custom_minimum_size` is a floor, so a
-		# label too long for it does not overflow -- the BUTTON grows, silently,
-		# and the row stops being the width it was designed to be. Measuring the
-		# text is the only way to know whether 104 is a size or a wish.
+		# `custom_minimum_size` is a floor: a long label grows the button, so measure the text.
 		Router.show_sector()
 		for ib in 20:
 			await RenderingServer.frame_post_draw
@@ -196,15 +152,11 @@ func run(tree: SceneTree) -> void:
 			print("  %-18s %.0f px" % [word, w])
 		print("  widest %.0f, button %.0f, padding either side %.0f"
 			% [worst, EncounterDrawer.BTN.x, (EncounterDrawer.BTN.x - worst) * 0.5])
-		# AND THE REAL ONES ON SCREEN. A button whose label does not fit its
-		# minimum does not clip -- it grows, and the row quietly stops being the
-		# width it was designed to be.
+		# The real buttons on screen: a label that does not fit grows the row instead of clipping.
 		var st2 := Router.current as SectorScreen
 		var grew := 0
 		for b in _buttons(st2):
-			# Only the ones sized to the box. Choice buttons in the OPTION
-			# state are 150 wide by design and would report as overflows
-			# forever. Option cards are not buttons at all any more.
+			# Only box-sized buttons: option-state choice buttons are 150 wide by design.
 			if b.custom_minimum_size.x != EncounterDrawer.BTN.x:
 				continue
 			if b.size.x > EncounterDrawer.BTN.x + 0.5:
@@ -216,11 +168,8 @@ func run(tree: SceneTree) -> void:
 		return
 	if "transfer" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
-		# A PHOTOGRAPH, and nothing else. This mode had grown eight probes
-		# chasing a bug that turned out to be a signal with no listener, and
-		# every one of them asserted on the model -- the half that was never
-		# broken. `-- transfertest` now does that properly and headlessly, on
-		# what is DRAWN, so what is left here is the job a shot is actually for.
+		# Eight model probes chased a signal with no listener; `-- transfertest` now does that.
+		# Why: docs/why/SectorShot.md#photograph-only
 		var n0: MapGen.MapNode = Run.node_at()
 		var tiers0: Array[StringName] = [&"legendary", &"contraband", &"rare",
 			&"exotic", &"common", &"artifact", &"epic"]
@@ -245,10 +194,7 @@ func run(tree: SceneTree) -> void:
 		var st := Router.current as SectorScreen
 		if st != null:
 			st._open_sector_loot()
-			# MID-SWEEP. Three frames in, the line is partway down and the
-			# things behind it are the only ones showing -- the frame worth
-			# photographing, and the one a settled shot cannot tell apart from
-			# a broken container.
+			# Mid-sweep, three frames in: a settled shot cannot tell it from a broken container.
 			for iu in 3:
 				await RenderingServer.frame_post_draw
 			_snap(tree, "user://sector_scan.png")
@@ -257,10 +203,7 @@ func run(tree: SceneTree) -> void:
 		_snap(tree, "user://sector_transfer.png")
 		tree.quit()
 		return
-	# LIVE_CARD_NUMBERS section 3, photographed before and after. Poses a lock-on
-	# and then emits the SIGNAL rather than calling the refresh, because the wire
-	# under test is exactly that: whether a modifier written in `CardResolver`
-	# reaches faces already sitting in the hand.
+	# Emits the signal, not the refresh: the wire under test is a modifier reaching faces in hand.
 	if "live" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 6
 		Router.start_combat(DB.enemies[&"cutter"], [], false)
@@ -286,22 +229,9 @@ func run(tree: SceneTree) -> void:
 					cl.card_output(cc as CardData),
 					(cc as CardData).describe_rich(cl.card_output(cc as CardData))])
 			_snap(tree, "user://live_after.png")
-			# THE GHOST'S NUMBER, checked where it can honestly be checked.
-			#
-			# NOT END TO END, and the reason is worth writing down. The ghost is
-			# built inside `CardView._get_drag_data` and handed to
-			# `set_drag_preview`, which only parents it during a drag the ENGINE
-			# started. Calling `_get_drag_data` directly returns the payload but
-			# throws the preview away, so a search of the tree reports NOT FOUND
-			# on a fix that works. Driving a real drag with pushed events was
-			# tried next and `gui_is_dragging()` stayed false even with the
-			# coordinates through `get_final_transform` and the card confirmed
-			# playable -- `FitTest` warns about this exact ground, and drives
-			# only the pick-up for the same reason.
-			#
-			# So this checks the property the fix is: that a `CardView` handed a
-			# live figure BEFORE `setup` prints it, which is the order
-			# `_get_drag_data` now uses. The drag itself is checked by hand.
+			# Not end to end: `set_drag_preview` only parents a drag the engine started.
+			# It checks a figure handed in before `setup` prints. The drag is checked by hand.
+			# Why: docs/why/SectorShot.md#ghost-number
 			for hv in sl._hand.get_children():
 				var cvx := hv as CardView
 				if cvx == null or cvx.card == null or cvx.card.damage <= 0:
@@ -317,11 +247,7 @@ func run(tree: SceneTree) -> void:
 				break
 		tree.quit()
 		return
-	# THE TARGETING LINE AND THE REORDER, both driven end to end. This is
-	# testable in a way the old gesture was not: the drag belonged to Godot and
-	# pushed events would not start it, so `FitTest` gave up and drove only the
-	# pick-up. The gesture is ours now -- press, motion and release all arrive
-	# through `SectorScreen._input` -- so the whole thing can be flown from here.
+	# The gesture is ours now, so the targeting line and reorder can be flown end to end here.
 	if "aim" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"cutter"], [], false)
@@ -331,10 +257,7 @@ func run(tree: SceneTree) -> void:
 		if sa == null or sa.combat == null:
 			tree.quit()
 			return
-		# IDENTITY, AND KEPT FOR THE NAME. The events below are pushed into the
-		# game's own SubViewport now (GameShell.input_target), which is the space
-		# a Control's global_position is already in -- there is nothing to
-		# convert. It was the window transform back when they went to the root.
+		# Identity, kept for the name: events go into the game's SubViewport, so nothing converts.
 		var xf := Transform2D.IDENTITY
 
 		# --- SIDEWAYS IS A REORDER ---------------------------------------
@@ -424,10 +347,7 @@ func run(tree: SceneTree) -> void:
 		return
 	if "status" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
-		# WHICH CONTACT, because hull SIZE is what the readouts' placement
-		# depends on: each hangs under its own ship, so two hulls of different
-		# heights put their readouts on different lines. `foe=leviathan` is the
-		# case that shows it; the cutter is the case that hides it.
+		# Hull size sets readout placement: leviathan shows it, the cutter hides it.
 		var foe := &"cutter"
 		for af in OS.get_cmdline_user_args():
 			if (af as String).begins_with("foe="):
@@ -438,9 +358,7 @@ func run(tree: SceneTree) -> void:
 		var ss := Router.current as SectorScreen
 		if ss != null and ss.combat != null:
 			var cs := ss.combat
-			# THE BAR MUST NOT MOVE. Statuses arrive and leave every turn, and a
-			# hull bar that shifts when one does is a readout you have to find
-			# again mid-fight.
+			# The bar must not move: statuses come and go each turn and it must not shift.
 			var bar_before: float = ss._self_bar.global_position.y
 			print("  BEFORE plate y %.0f h %.0f ; bar local y %.0f"
 				% [ss._self_plate.position.y, ss._self_plate.size.y,
@@ -455,9 +373,7 @@ func run(tree: SceneTree) -> void:
 			ss._refresh_player()
 			for ie in 4:
 				await RenderingServer.frame_post_draw
-			# THE ROW HAS TO FIT UNDER THE SHIP. Icons were the answer to a row
-			# of words that grew wider than the hull it belonged to, so the
-			# width is the number that says whether it worked.
+			# The row must fit under the ship: icons replaced words wider than the hull.
 			print("  AFTER  plate y %.0f h %.0f ; bar local y %.0f"
 				% [ss._self_plate.position.y, ss._self_plate.size.y,
 					ss._self_bar.position.y])
@@ -466,18 +382,9 @@ func run(tree: SceneTree) -> void:
 			print("  status row %.0f wide, %d chips"
 				% [ss._player_chips.size.x, ss._player_chips.get_child_count()])
 			var sv := ss._view.ship_view()
-			# WHERE THE TWO READOUTS ACTUALLY LAND, which is a question two
-			# different rules answer. Yours hangs `PLATE_AIR` below the
-			# sprite's last opaque row, so it tracks YOUR hull. Theirs is
-			# simply the next child after a fixed 240x120 art box, so the
-			# contact's size does not move it at all -- measured across
-			# cutter, hulk, whale and leviathan it spans four pixels, while
-			# yours does not move.
-			#
-			# RULED: leave them on their own rules. The gap is a steady four
-			# to six pixels and yours hugging your ship is what makes it read
-			# as belonging to the ship. Swapping YOUR hull is the case that
-			# would separate them, and that is the case to judge it on.
+			# Ruled: leave readouts on their own rules; yours hugging your ship reads as its own.
+			# Swapping your hull is the case that would separate them.
+			# Why: docs/why/SectorShot.md#readout-placement
 			print("  your name y %.0f ; their name y %.0f"
 				% [ss._self_name.global_position.y,
 					ss.view_slot(0)._name.global_position.y])
@@ -487,20 +394,15 @@ func run(tree: SceneTree) -> void:
 			print("  hull bottom y %.0f ; plate top y %.0f"
 				% [sv.position.y + sv.size.y * 0.5 + sv.ship_bottom_y(),
 					ss._self_plate.position.y])
-		# THE DRIFT, SAMPLED OVER TIME. Both ships have to move and the readouts
-		# bolted to them have to not: your bob is inside the canvas and the
-		# plate takes the offset back out, so a plate that drifts means
-		# `ship_bottom_y` stopped subtracting it.
+		# Drift sampled over time: a drifting plate means `ship_bottom_y` stopped subtracting.
 		if ss != null:
 			var svb := ss._view.ship_view()
 			var slb: EnemySlot = ss.view_slot(0)
 			var you: Array[int] = []
 			var them: Array[float] = []
 			var plate: Array[float] = []
-			# 240 FRAMES, BECAUSE THE CYCLE IS FOUR SECONDS. Sampled over 40
-			# the ship sat at the top of its arc the whole time and the range
-			# came out 2..2 -- a still ship and a slow one are the same
-			# reading through too short a window.
+			# 240 frames for a four second cycle: 40 frames read 2..2, a still ship.
+			# Why: docs/why/SectorShot.md#drift-sampling
 			for ih in 240:
 				await RenderingServer.frame_post_draw
 				you.append(svb.bob_offset())
@@ -514,10 +416,7 @@ func run(tree: SceneTree) -> void:
 				% [plate.min(), plate.max()])
 		_snap(tree, "user://sector_status.png")
 
-		# EVERY GLYPH AT ONCE, because a status row only ever shows the handful
-		# the fight happens to have produced. Half of these cannot be reached
-		# without a specific card in a specific hand, and an icon nobody has
-		# looked at is an icon nobody has checked.
+		# Every glyph at once: a fight shows few, and an unlooked-at icon is an unchecked one.
 		var sheet := PanelContainer.new()
 		sheet.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		sheet.add_theme_stylebox_override("panel",
@@ -553,11 +452,8 @@ func run(tree: SceneTree) -> void:
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"cutter"], [], false)
 		var se := Router.current as SectorScreen
-		# SAMPLED EARLY AND LATE, and the early sample is the one that matters.
-		# The last time an animation was checked here it was sampled at 30 frames
-		# against a run of 33, which cannot tell a glide from a snap. Six frames
-		# is a tenth of the way through half a second, so a ship that is NOT
-		# animating reads as zero here and fails loudly.
+		# Early sample matters: 30 frames of a 33 frame run cannot tell a glide from a snap.
+		# Why: docs/why/SectorShot.md#glide-sampling
 		for i8 in 6:
 			await RenderingServer.frame_post_draw
 		var sl0: EnemySlot = se.view_slot(0) if se != null else null
@@ -568,9 +464,7 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		print("  contact x at 96 frames: %.0f  (must be 0)"
 			% (sl0.art.position.x if sl0 != null else -1.0))
-		# THE RETICLE, which reads a rect that just changed meaning. The two
-		# boxes have to coincide once the ship has landed, or the brackets
-		# frame empty space.
+		# The reticle reads a rect that changed meaning: the boxes must match once the ship lands.
 		if sl0 != null:
 			sl0.set_hot(true)
 			for ic in 3:
@@ -588,13 +482,8 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var sp := Router.current as SectorScreen
 		if sp != null:
-			# THE DISCARD, because it is the pile that is empty when a fight
-			# opens and so the one whose listing is easy to get wrong. Fed from
-			# the draw pile so the cards are real ones.
-			# NINETEEN, so the flow WRAPS and the scroll has something to
-			# scroll. A one-card discard is the case that cannot fail: it
-			# fits on any row, at any column count, with or without the
-			# ScrollContainer working at all.
+			# Nineteen cards so the flow wraps and scrolls: a one-card discard cannot fail.
+			# Why: docs/why/SectorShot.md#discard-pile
 			var seed_from: Array = sp.combat.deck.duplicate()
 			while sp.combat.discard.size() < 19 and not seed_from.is_empty():
 				for c9 in seed_from:
@@ -616,9 +505,7 @@ func run(tree: SceneTree) -> void:
 		for i6 in 100:
 			await RenderingServer.frame_post_draw
 		var sc := Router.current as SectorScreen
-		# THE HAIL GATE, BOTH WAYS. Bracing must leave it open and shooting must
-		# close it, and one flag serving both is exactly the shape that ends up
-		# doing only one of them.
+		# The hail gate both ways: bracing leaves it open, shooting closes it.
 		if sc != null and sc.combat != null:
 			var c0 := sc.combat
 			print("  hail before anything: %s (%s)"
@@ -641,18 +528,11 @@ func run(tree: SceneTree) -> void:
 				% [c0.can_hail(), c0.hail_reason()])
 			print("  flee after a shot:    %s (%s)   <- shooting must NOT block it"
 				% [c0.can_flee(), c0.flee_reason()])
-		# THE PANEL EITHER EXIT PUTS UP. It is a Control that only exists
-		# between a press and an answer, so no ordinary frame contains it, and
-		# `_ask_exit` awaits a frame before it can even place itself. Calling
-		# the handler is what the button does; there is no pointer here.
+		# The exit panel exists only between press and answer, so the handler is called directly.
 		if sc != null and ("askhail" in OS.get_cmdline_user_args()
 				or "askflee" in OS.get_cmdline_user_args()):
 			if "askhail" in OS.get_cmdline_user_args():
-				# THE PROBE ABOVE FIRED A SHOT, and `struck` is exactly what
-				# shuts hailing -- so this mode was asking for a panel it had
-				# just made illegal, and reported the refusal as a missing
-				# panel. The gate is what the lines above are for; this is not
-				# testing it.
+				# The probe above fired a shot, shutting hailing: refusal read as a missing panel.
 				sc.combat.struck = false
 				sc._on_hail()
 			else:
@@ -681,9 +561,7 @@ func run(tree: SceneTree) -> void:
 			tree.quit()
 			return
 		if sc != null:
-			# A FULL DISCARD, because that is the state that was broken and an
-			# opening hand never shows it: the stack drew its back cards above
-			# its own box and painted them across FLEE.
+			# A full discard was the broken state: its back cards painted across FLEE.
 			sc._discard_pile.set_count(9, "DISCARD")
 			sc._draw_pile.set_count(14, "DRAW")
 			for i7 in 4:
@@ -691,9 +569,7 @@ func run(tree: SceneTree) -> void:
 		if sc != null:
 			print("  hand band: %.0f  drawer band: %.0f  (DRAWER_H %d)"
 				% [sc._hand_wrap.size.y, sc._quiet_wrap.size.y, SectorScreen.DRAWER_H])
-			# WHAT EACH RAIL ACTUALLY MEASURES, because a minimum is not a size:
-			# a button's stylebox padding can push it well past what it was asked
-			# for, and the band then reports a number no single constant explains.
+			# Each rail measured: stylebox padding can push a button past its minimum.
 			var rails: Array[Control] = [sc._end_button, sc._hail_button]
 			for r2 in rails:
 				if r2 != null:
@@ -706,26 +582,15 @@ func run(tree: SceneTree) -> void:
 				% [tot, col.size.y])
 			for ch2 in col.get_children():
 				print("      R %-14s %.0f" % [(ch2 as Control).name, (ch2 as Control).size.y])
-			# WHERE THE CARDS ACTUALLY SIT. The hand stretches to the row and the
-			# cards are placed against a baseline inside it, so the gap above and
-			# below them is not any constant in the file -- it has to be read.
-			# WHERE A HOVER WOULD SPRING BACK TO. It is captured in `_ready`,
-			# which fires before the hand positions the card, so it was always
-			# zero -- and a hovered card animated to the top of the band rather
-			# than back to its own row.
+			# Read the card's baseline: `_ready` ran before positioning so hover returned to y=0.
+			# Why: docs/why/SectorShot.md#card-positions
 			print("    card base_y %.0f (rest y %.0f)"
 				% [(sc._hand.get_child(0) as CardView)._base_y,
 					(sc._hand.get_child(0) as Control).position.y])
-			# IN ROW COORDS, which is the only frame the pile labels share. The
-			# card's own y is relative to the hand, so it reads 8 whether the
-			# hand is at the top of the row or the bottom of it.
+			# In row coordinates, the only frame the pile labels share.
 			var pv: Control = sc._draw_pile
-			# WHERE A HOVERED CARD'S TOP EDGE IS, against where the rails start.
-			# The lift is -8 from the resting baseline, so this is the line the
-			# ENERGY and END TURN boxes are meant to square up to.
-			# WHERE THE SHIP ACTUALLY IS, against where the plate went. The art
-			# Control is not the slot -- it sizes and animates itself -- so the
-			# offset from its rect centre is a number to read, not to reason to.
+			# A hovered card's top edge is the line ENERGY and END TURN square up to.
+			# Why: docs/why/SectorShot.md#card-positions
 			var sv: Control = sc._view.ship_view()
 			print("    ship rect %s ; anchor %s ; plate at %s"
 				% [sv.get_rect(), sc._view.self_anchor(),
@@ -752,15 +617,11 @@ func run(tree: SceneTree) -> void:
 		_snap(tree, "user://sector_combat.png")
 		tree.quit()
 		return
-	# (`open=` and `take=` are gone with LOCAL's option drawer: a system's
-	# options are taken on the sector map now -- `sheet=SystemShot` photographs
-	# and takes them there)
+	# `open=` and `take=` are gone: options are taken on the sector map, see `sheet=SystemShot`.
 	for a2 in OS.get_cmdline_user_args():
 		if (a2 as String).begins_with("open=") or (a2 as String).begins_with("take="):
 			print("  %s: LOCAL no longer opens options; see sheet=SystemShot" % a2)
-	# EVERY CARD'S STATE. Two cards reading as lit in one frame would mean a
-	# hover entered and never left, and a still frame cannot tell that from the
-	# real cursor happening to rest on the window -- the shot runs windowed.
+	# Two lit cards would mean a hover never left, which a still frame cannot tell from a cursor.
 	var seen: Array = []
 	_cards(Router.current, seen)
 	for sc0 in seen:
@@ -771,9 +632,7 @@ func run(tree: SceneTree) -> void:
 				oc.kin.size(),
 				("<none>" if oc.over == null else "%s a=%.2f"
 					% [oc.stamp.text, oc.over.modulate.a])])
-	# DID THE REWARD DOOR ACTUALLY GET SOMETHING? `pays_item` puts the button on
-	# the row and `jetsam_left` decides whether it is greyed, and the two
-	# disagreeing would look exactly like a payout that never happened.
+	# `pays_item` and `jetsam_left` disagreeing would look like a payout that never happened.
 	var nR: MapGen.MapNode = Run.node_at()
 	if nR != null:
 		print("  sector loot left: %d" % Run.jetsam_left(nR, Run.sector_jetsam(nR, false)))
@@ -800,9 +659,7 @@ func _find(want_group: bool) -> int:
 			continue
 		if not want_group:
 			return t.index
-		# A group only exists when TWO members of it actually rolled here --
-		# `roll_for` can draw one member of a pair and leave the other, and a box
-		# around a single row is not what ruling 1 is about.
+		# A group needs two members rolled: a box round a single row is not ruling 1.
 		var seen: Dictionary = {}
 		for id in t.options:
 			var g := StringName(OptionTable.by_id(id).get("group", &""))
@@ -814,10 +671,7 @@ func _find(want_group: bool) -> int:
 	return -1
 
 
-## One mouse event, in the game's own 960x540 space. Motion when `move`,
-## otherwise a left button at `down`. It goes into the SubViewport the game
-## draws in, so a Control's `global_position` needs no conversion -- see
-## `GameShell.input_target`.
+## One mouse event in the game's 960x540 space, pushed into its SubViewport, no conversion.
 func _shove(tree: SceneTree, at: Vector2, down: bool, move: bool) -> void:
 	if move:
 		var mm := InputEventMouseMotion.new()

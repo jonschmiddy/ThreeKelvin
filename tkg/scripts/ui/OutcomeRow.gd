@@ -1,72 +1,9 @@
 class_name OutcomeRow
 extends RefCounted
 
-## WHAT YOU END UP WITH, at the foot of an event's result on LOCAL
-## (`LocalEventDrawer._result`).
-##
-## Jon, Oct 17, of the Drifting Lifepod's result: "it's kinda hard to read what
-## you end up getting at the bottom. It should be more clear." It was four fixed
-## pairs -- CREDITS — HEAT — HULL -5 FUEL — -- in the body's 8 px, dim grey,
-## a dash for every stat that did not move, the one real change a small red -5
-## among them, and the words and numbers on two baselines. Nothing a part, a
-## crate, a document or a marked place could say: those had no line at all.
-##
-## THREE LOOKS, ONE SWITCH (`look`), today's until Jon picks one:
-##   A  ONLY WHAT CHANGED, BIG. The dashes go. Each change is the number at
-##      FS_HEAD with its word beside it on the same baseline, signed and in its
-##      colour ("-5 HULL" red, "+40 CREDITS" green), in the order it matters:
-##      hull, fuel, credits, heat, then the things. A part is named in full
-##      with the cards it would add to your deck.
-##   B  A LEDGER. A small receipt beside the text, GAINED | LOST, each row the
-##      stat's mark, its word, the amount and where it leaves you ("HULL -5
-##      35 > 30"), so you read where you stand now and not only what moved.
-##   D  A LITTLE TABLE ON THE RIGHT (Jon, of the first three: "can we have the
-##      results be on the right side right above the reward and continue? Like
-##      in a little table?"). Directly above REWARD and CONTINUE, its right edge
-##      on theirs and at least their width: a row a change, its mark, its name,
-##      the signed change and the new total ("HULL -5 31"), hull, fuel,
-##      credits, heat, then the things, a part with its cards under it. The
-##      text on the left wraps to stay clear of it.
-##      THEN THE BUTTONS ON TOP, AND ONLY THE FOUR STATS (Jon, Oct 19, of the
-##      band: "can the text on the right be a bit bigger? and centered
-##      vertically?", "can we also have the buttons at the top right?", then
-##      "let's only show CREDITS, FUEL, HULL, HEAT on the right"). REWARD and
-##      CONTINUE stand at the band's top right, level with the title, and the
-##      table is centred in the right column under them. It lists only the
-##      four stats, each only when it moved: a part, a material, a frame or
-##      a place is collected through REWARD and is not listed,
-##      and a result that moved none of the four has no table at all (the
-##      buttons alone). Its size is `D_FS`: he tried the next crisp size up,
-##      16, and kept 8 ("size 8"). The title, YOU CHOSE and the text are a
-##      column on the left that wraps clear of it. On the card the buttons go
-##      on the title's line too (or on a line of their own over it when the
-##      title leaves them no room) and the table sits at the foot,
-##      right-aligned. And no totals ("you can remove the total credits and
-##      fuel part. just put what is added or lost"): "FUEL -3", not
-##      "FUEL -3 42".
-##   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
-##      previous version of this where the things you get are big on the
-##      right side"). D's table over REWARD and CONTINUE stays where it is; a
-##      part or a material the event put on the pile is drawn beside it, to
-##      its left, as the hold draws it -- its plate (as big as the band holds,
-##      `BIG_KS`), the grade's ground and edge, its art -- with its name in its
-##      grade's ink, the grade and kind under it, and a part's cards. What is
-##      drawn big is not said again in the table; the rest of the table is
-##      D's. Nothing that takes a click moves: the text wraps narrower and the
-##      band grows upward if the plates stand taller than the table.
-##   C  SHOW IT. Today's size, only what changed, each with its mark; once the
-##      text is in, each change flies from the band to the HUD readout it moves
-##      (the hull gauge, credits, fuel, heat; a place to STARCHART) and that readout flickers as it lands -- and only then does
-##      the HUD number change (`held`). A part or a crate makes REWARD flicker
-##      on its turn instead: it is on the band already, and a copy sliding
-##      along the row would cross the other entries. Nothing that takes a click
-##      moves: the readouts and buttons only flicker.
-##
-## WHAT AN EVENT CAN HAND YOU, all of it read off `OptionResolve.take`: the four
-## ledger stats (`bill`), and the things (`got`) -- a part or a material put on
-## the system's pile, a hull frame found, a place marked on the chart, an item taken out of your hold. No event gives or takes a card
-## or a malfunction directly (malfunctions come from fights); a part's cards are
-## the only cards an event ever offers, so a part names them.
+## Jon, Oct 17: what you end up with was hard to read. `look` picks among A, B, C, D and E.
+## D is live: only the stats that moved, no totals, table beside REWARD (Jon, Oct 19).
+## Why: docs/why/OutcomeRow.md#outcome-looks
 
 ## The look up now: D, Jon's pick (Oct 18, "outcome:D"). `-- sheet=OutcomeShot` photographs them all.
 static var look: StringName = &"D"
@@ -94,16 +31,8 @@ const FLICKER := [0.07, 0.06, 0.07]
 
 # ------------------------------------------------------------------ the changes
 
-## Every change one result made, in the order it matters, as entries:
-##   key    "hp" "fuel" "credits" "heat", or the thing's kind
-##   kind   &"stat" or the thing's kind (part, material, frame, place, item)
-##   n      the move (a stat), or the count (a thing; negative when taken)
-##   was    now   a stat's totals either side
-##   good   whether it went your way; tone  its colour
-##   big    the signed number; word  what it is; name  a thing's name
-##   cards  a part's cards, by name
-##   item   the part or the material itself (a thing on the pile), else null
-## Empty when nothing changed.
+## Every change one result made, in the order it matters. Empty when nothing changed.
+## Why: docs/why/OutcomeRow.md#change-entries
 static func changes(out: Dictionary) -> Array:
 	var rows: Array = []
 	var bill := {}
@@ -187,10 +116,7 @@ static func line(out: Dictionary, which: StringName) -> Control:
 	return flow
 
 
-## One change, drawn: the signed number, then its word and name on the same
-## baseline (Jon's screenshot had the words and numbers on two), a part's cards
-## after it. Drawn rather than built from Labels so the baseline is one number
-## and the box is exactly the ink's.
+## Drawn, not built from Labels, so number and word share a baseline (Jon's screenshot).
 class Chip extends Control:
 	var e: Dictionary
 	var big_fs := 16
@@ -263,9 +189,7 @@ class Chip extends Control:
 
 # ------------------------------------------------------------------ the marks
 
-## A stat's mark, 7 px: the same cell the HUD's hull and heat gauges are made of
-## (`BoxGauge._cell`), the stacked notes credits are drawn as everywhere
-## (`ChitIcon`), a tank for fuel; for a thing, a plate in its grade's colour.
+## 7 px marks reuse the HUD's cells (`BoxGauge._cell`, `ChitIcon`) to look like the readout.
 const MARK := 7.0
 
 ## `px`: how many game px one of the mark's pixels is (2 beside text at
@@ -337,11 +261,7 @@ static func ledger(out: Dictionary, w: float) -> Control:
 	return l
 
 
-## A small receipt, drawn: two columns, a heading each, a row a change. A stat
-## row is its mark, its word, the amount and the totals either side ("35 > 30",
-## the arrow drawn: the face has none); a thing row is its mark and its name, a
-## part's cards on a quieter row under it. Long names are cut to the column
-## with "..": the column's edge is the box, and nothing crosses it.
+## A drawn receipt. Long names are cut with '..', as the column edge is the box.
 class Ledger extends Control:
 	const ROW := 11.0
 	const HEAD := 12.0
@@ -514,17 +434,10 @@ static func fit(text: String, fs: int, w: float) -> String:
 ## The table at its widest at FS_SMALL, game px: past this a name wraps (as
 ## many characters wide at a bigger size, `Table.max_w`).
 const TABLE_MAX_W := 230.0
-## D's table's size. Silkscreen is an 8 px face and only whole multiples of 8
-## stay crisp on the 960x540 grid (`UITheme.FS_SMALL`), so the one step up is
-## FS_HEAD's 16, which Jon saw and turned down (Oct 19, "size 8"). The table
-## draws at any multiple of 8 (`Table.px`).
+## Only multiples of 8 stay crisp on the 960x540 grid. Jon turned down 16 (Oct 19, 'size 8').
 const D_FS := UITheme.FS_SMALL
 
-## `without_big`: E's table, the things E draws big left out of it (`big_ones`);
-## null when that leaves it nothing to say. `fs`: its text's size.
-## `stats_only`: D's, the four stats that moved and nothing else, each its
-## change alone with no new total (Jon: "just put what is added or lost");
-## null when none of them did.
+## `without_big` leaves out what E draws big. `stats_only` is D's four moved stats, no totals (Jon).
 static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, stats_only := false) -> Control:
 	var rows := changes(out)
 	if stats_only:
@@ -544,12 +457,8 @@ static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SM
 	return t
 
 
-## A small table, drawn: mark | name | change | total, a row a stat, the
-## change and the total right-aligned in their columns so the digits line up.
-## The things after, a line each with their count leading ("+1 PART: ..."),
-## wrapped to TABLE_MAX_W, a part's cards under it in the quiet grey. As wide
-## as it needs and drawn against its right edge, so stretched to the buttons'
-## width it still ends where they end.
+## Change and total right-aligned so digits line up, ending where the buttons end.
+## Why: docs/why/OutcomeRow.md#outcome-table
 class Table extends Control:
 	## A row's height and the columns' gap at FS_SMALL; at a bigger size each
 	## scales with it (`px`), so a table at 16 is the one at 8 drawn twice as big.
@@ -685,12 +594,9 @@ class Table extends Control:
 
 ## How many things E draws big; past that they are rows in the table.
 const BIG_MAX := 3
-## The magnifications a plate may be drawn at, biggest first: the largest that
-## fits BIG_FULL_W x BIG_FULL_H (a two-cell part three cells wide, or two
-## tall). A one-cell part gets 3x, half again the hold's own 2x
-## (`ModuleIcon.HOLD_K`) -- the point of E is that it is big -- a 2x2 the
-## hold's size, a long rail 1x. Whole numbers only: a sprite is drawn at a
-## whole multiple or not at all (`ModuleIcon.draw_sprite`).
+## Largest whole magnification that fits: a sprite is drawn at a whole multiple or not at all.
+## A one-cell part gets 3x, as the point of E is that it is big.
+## Why: docs/why/OutcomeRow.md#plate-sizes
 const BIG_KS: Array[float] = [3.0, 2.0, 1.0]
 const BIG_FULL_W := 124.0
 const BIG_FULL_H := 82.0
@@ -724,11 +630,7 @@ static func prizes(out: Dictionary, max_w: float) -> Control:
 	return p
 
 
-## E's plates: each thing as the hold draws it, its words under it. A row of
-## them right-aligned, wrapping under when the next would pass `max_w`, each
-## top-aligned in its row. A part is `ModuleIcon.draw_plate`; a material is a
-## `MaterialIcon` that takes no clicks -- the one door that decides between
-## its picture and its crate.
+## E's plates, drawn as the hold draws them. A material is a `MaterialIcon` that takes no clicks.
 class Prizes extends Control:
 	const GAP := 14.0
 	const ROW_GAP := 8.0
@@ -850,9 +752,7 @@ class Prizes extends Control:
 
 # ------------------------------------------------------------------ C's flight
 
-## C, as the result comes up: the HUD's numbers held at what they were, so the
-## flights can change them. Only once a result (`out.flown`), only when things
-## animate and motion is not reduced.
+## C holds the HUD's numbers at their old values so the flights can change them.
 static func hold(d: LocalEventDrawer) -> void:
 	if look != &"C" or d.out.get("flown", false) or not _animating(d):
 		return
@@ -929,9 +829,7 @@ static func _targets(d: LocalEventDrawer, e: Dictionary) -> Array:
 	return []
 
 
-## C's flights and flickers, on the game's clock (`GameClock`): each change a
-## copy of its mark and number travelling from the band to its readout, eased
-## at both ends, in whole pixels; the readout flickering as it lands.
+## C's flights run on `GameClock`: a mark copy travels to its readout, which flickers.
 class Flight extends Control:
 	## {e, from, to (Array of Control), t0, landed}
 	var flights: Array = []

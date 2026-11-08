@@ -1,34 +1,15 @@
 class_name AshTutorLines
 extends RefCounted
 
-## A.S.H. TEACHING (Jon picked how A for the tutorial, Oct 17: "A.S.H. replaces
-## the hint cards"). Her corner says each first-run hint (`Hints`) and each goal
-## step (`GoalLine`) in these words, and the thing she means gets an outline.
-## With her switched off, the cards come back with their own words
-## (`Hints.lines`), exactly as before. These are Jon's picks, character for
-## character; `{}` fields are filled from the live game when she says them
-## (`fill`), never a number written here.
-##
-## A LINE'S ID is the hint's id, except where one hint has several lines (the
-## fuel hint: a dock in reach, none, or here) and the goal steps (`step_*`).
-##
-## HER VOICE: one take per line id, `VOICE_DIR` + `tut_<id>.ogg`, the folder her
-## other takes are in. A missing take is silence and the words still show. SHE
-## NEVER SAYS A NUMBER OR A NAME (Jon, Oct 18, "numbers:A"): the text shows the
-## live values, and a line with a field is recorded from its `SPOKEN` script
-## instead, so one take serves every value. The typing follows the take as her
-## barks do, over the SHOWN text (`AshPortrait`): the words end when she stops,
-## whatever the numbers make their length.
+## Words are Jon's picks character for character; fields are filled live, never written as numbers.
+## She never says a number or a name (Jon, Oct 18): takes are recorded from `SPOKEN`.
+## Why: docs/why/AshTutorLines.md#ash-teaching
 
 const LINES: Dictionary = {
 	&"chart": "These stars are in reach. Left bar is danger. Right bar is fuel.",
 	&"events": "Click an event to read it. GO flies us there.",
-	# THE DEEP TUTORIAL (Jon, Oct 22: "Tutorial: scope:all voice:record
-	# bugs:fix", after Kevin's playtest: he did not know the energy meter or
-	# when to loot a dead ship). The audit's 35 rows, each checked against the
-	# code; where the code disagreed with a draft, the words were changed to
-	# match it. A line whose words changed after its take was recorded plays its
-	# new take's name (`RETAKE`), so the old take is never heard under new words.
+	# The deep tutorial (Jon, Oct 22) was checked against the code; changed words get a new take.
+	# Why: docs/why/AshTutorLines.md#ash-teaching
 	&"drawer": "Pick a choice. Some show the odds. The rest are a surprise. NOT NOW saves it for later.",
 	&"odds": "This one tests the ship. It shows the stat, what we have, and the odds. Meet it and it can't fail.",
 	&"result": "Here's what it cost and what we got. REWARD opens anything we found. Then press CONTINUE.",
@@ -59,10 +40,7 @@ const LINES: Dictionary = {
 	&"quest": "Something is marked on the chart now. Fly there to follow it up.",
 	&"jump_blocked": "We can't jump there yet. The button says why.",
 	&"dock": "Stations repair, refuel and trade. Pick a deck on the left.",
-	# THE DECKS, the first time each is open (`Hints.DECK_HINTS`): Jon's picks of
-	# two drafts each (Oct 20, "promenade:B shipyard:B exchange:B hiring_board:A
-	# laboratory:A"), recorded Oct 21. Each says what the deck is for and the one
-	# thing to do there in the deck's own words; no number and no name.
+	# The decks' lines are Jon's picks of two drafts each (Oct 20), recorded Oct 21.
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
 	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
@@ -82,24 +60,13 @@ const LINES: Dictionary = {
 	&"step_event_map": "Click an event, then press GO.",
 }
 
-## THE CUTAWAY'S LINE, Jon's words (Oct 20: "install modules by dragging them
-## onto an empty module slot on the ship. Uninstall modules by dragging them off
-## the ship into the hold"). It was his A of Oct 18, "Drag a part onto a ring to
-## fit it. You can turn it ({turn}) and flip it ({flip})."
+## The cutaway line is Jon's words (Oct 20), replacing his Oct 18 draft.
 const CUTAWAY_LINE := "Drag a module onto an empty slot to install it. Drag it off the ship into the hold to remove it."
-## AND ITS KEY, shown on a line of its own under her words and never said
-## (Jon, Oct 21, for 0.3.0): the key as bound (`Hints.values`' `turn`,
-## `Keys.describe`), so a rebound key shows as it is. The flip key's half went
-## Oct 22 (the deep tutorial): a flip is drawing only (`ModuleData.flipped`), so
-## it is not a thing to teach. Her take stays
-## the one recorded from `CUTAWAY_LINE` (`SPOKEN`), and the typing runs over
-## both lines as her take plays, as on every line with a field.
+## The key line shows as bound and is never said; the flip half went Oct 22 as drawing only.
+## Why: docs/why/AshTutorLines.md#ash-teaching
 const CUTAWAY_KEYS := "{turn} turns a part."
 
-## WHAT SHE SAYS where it differs from what shows (Jon's numbers:A, Oct 18): no
-## number, no name, no key. Every other line is said as it shows. These are the
-## scripts her takes were recorded from; `-- sheet=AshTutorTest` holds them to
-## having no digit and no field.
+## What she says where it differs from what shows: no number, name or key.
 const SPOKEN: Dictionary = {
 	&"cutaway": CUTAWAY_LINE,
 	&"endturn": "Out of energy. Press END TURN. They act, then you draw new cards.",
@@ -110,17 +77,11 @@ const SPOKEN: Dictionary = {
 	&"fuel_dock": "Fuel is low. Run dry and the run ends. Here's the nearest dock.",
 }
 
-## TAKES RECORDED FOR WORDS THAT HAVE SINCE CHANGED: said as text alone until a
-## new take is approved, never the old take under the new words. (Empty: the
-## cutaway's was here until Jon picked take 1 of his Oct 20 words.)
+## Takes recorded for words since changed are text only until a new take is approved.
 const SILENT: Array[StringName] = []
 
-## RE-RECORDED (Oct 22, the deep tutorial): lines whose words changed after
-## their take was recorded. Each plays the take named here once it is installed
-## (`VOICE_DIR` + name + ".ogg"), and is text alone until then; the old
-## `tut_<id>.ogg` is never played under the new words. The scratchpad's
-## `tutorial-deep-voice.json` is their script. Every other new line is
-## `tut_<id>.ogg` as before, and silent until its take is installed.
+## Changed lines play the named retake, never the old take under the new words.
+## Why: docs/why/AshTutorLines.md#ash-teaching
 const RETAKE: Dictionary = {
 	&"hand": "tut_hand_2",
 	&"heat": "tut_heat_2",
@@ -146,9 +107,7 @@ static func line_id(id: StringName, dock: Dictionary = {}) -> StringName:
 	return &"fuel_dock"
 
 
-## The words for line `lid`, its fields filled from `values` (hand, cap, jumps,
-## name, turn, flip). One jump is "1 jump": the line's own "jumps" agrees with
-## the number, so a dock next door never reads "1 jumps".
+## One jump reads as 1 jump, so a dock next door never says 1 jumps.
 static func fill(lid: StringName, values: Dictionary) -> String:
 	var s := String(LINES.get(lid, ""))
 	if lid == &"fuel_dock" and int(values.get("jumps", 0)) == 1:
@@ -172,9 +131,7 @@ static func voice_path(lid: StringName) -> String:
 	return _take(name)
 
 
-## FOR THE HARNESS ONLY (`-- sheet=AshTutorTest`): a take's name -> a file to
-## play for it, so the typing's pace can be held to a take before one is
-## installed. Empty in the game.
+## Harness only: maps a take name to a file so typing pace can be held to a take.
 static var stand_in: Dictionary = {}
 
 

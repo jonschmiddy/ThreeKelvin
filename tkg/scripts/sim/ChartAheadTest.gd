@@ -1,29 +1,7 @@
 extends Node
 
-## THE RUN'S STAR CHART BUILT AHEAD, headless:
-##   godot --headless --path . -- sheet=ChartAheadTest
-##
-## A new run builds its chart's star field on a worker while the hull is picked
-## (`MapChart.build_ahead`, from `Router.new_run`), so the first STARCHART or Tab
-## does not stand still for the build. On three galaxies, through the real doors:
-##
-## - the chart the player opens is laid out at `MapChart.CHART_AT`, the size the
-##   field is built for: a layout that moves the chart fails here, instead of
-##   quietly building the field on the click again;
-## - opening it builds nothing on the main thread: the field built ahead is the
-##   one drawn, and it is the field the chart would have built itself, list for
-##   list (`SKY_FIELDS`), read off Run as before;
-## - THE WORKER READS ONLY ITS COPY: built while the main thread writes another
-##   galaxy over Run (as the title does with its own) and asks the clouds of that
-##   one, it still comes out the run's galaxy exactly; and it is not handed to a
-##   chart of the other galaxy;
-## - no engine error, worker or main thread.
-##
-## And the shaders the title compiles ahead (`ShaderWarm`) are the very ones the
-## map and LOCAL draw with (the same resources, so the same programs), and none
-## of it starts headless; and no compile starts within its QUIET_MS of the
-## player's last input, the title's own included (seen before the warm began),
-## nor in the first QUIET_MS after it arrives.
+## The chart's star field is built on a worker during hull pick; the worker reads only its own copy.
+## Why: docs/why/ChartAheadTest.md#chart-built-ahead
 
 const SEEDS := [4242, 11, 777]
 
@@ -196,10 +174,7 @@ func _warm_list() -> void:
 	_ok("nothing is compiled headless", _tree.root.get_node_or_null("ShaderWarm") == null)
 
 
-## THE WARM KEEPS CLEAR OF THE PLAYER'S HAND: a compile is a held title frame,
-## so none starts within QUIET_MS of any input -- the title's own `_input`
-## counts from its first frame, before the warm's node exists -- nor in the
-## first QUIET_MS after the node arrives.
+## A compile is a held title frame, so none starts within `QUIET_MS` of any input.
 func _warm_quiet() -> void:
 	print("  [shader warm, quiet]")
 	var held_by := func(ev: InputEvent, through_title: bool) -> bool:

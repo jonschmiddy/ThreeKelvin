@@ -1,34 +1,15 @@
 class_name SignalText
 extends Control
 
-## TEXT THAT ARRIVES LIKE A SIGNAL (Jon: "let's have the text read in letter by
-## letter ... like a signal transmission? IDK something stylized"). Each
-## character comes in as one or two scrambled glyphs from the pixel font before
-## it settles on the true letter, with a block cursor at the leading edge and,
-## now and then, a short dropout. At `cps` a second, punctuation holding a beat.
-##
-## THE LAYOUT NEVER MOVES: the whole text is broken into lines and measured
-## before a character shows, so the control is its full height from the start
-## and nothing reflows while it reveals. Drawn by hand in the game's pixel face
-## (`UITheme.pixel_font`), one character at a time.
-##
-## `skip()` finishes it at once; reduced motion (`Router.animating`) shows it
-## whole.
-##
-## THE SOUND is Jon's pick from the audition page: "cps 40 · A blip_5 every 3,
-## ±100c, 0 dB · B off · C off". Every third settled letter plays `text_blip`
-## (spaces do not count), pitch spread ±100 cents, at its levelled gain, with at
-## most two in the air (`Audio.play_capped`). Only a settling letter makes a
-## blip. So `skip()` finishes silently and also fades any tail still ringing,
-## and reduced motion, which has no reveal, has no blips.
+## Text arrives like a signal (Jon): scrambled glyphs settle to letters, layout fixed up front.
+## Sound is Jon's audition pick: a blip every third letter. Skip is silent.
+## Why: docs/why/SignalText.md#signal-text
 
 signal char_settled(index: int, ch: String)
 signal line_settled(line: int)
 signal finished
 
-## Characters a second -- THE ONE DIAL for the reveal's speed (Jon: "have the
-## letters arrive more slowly"; he set 40 by ear on the audition page) -- and
-## the beat a punctuation mark holds, s.
+## Characters a second, the one dial for reveal speed (Jon set 40 by ear).
 static var cps := 40.0
 ## This text's own speed, characters a second, over `cps` when set: A.S.H.'s
 ## line types as long as her voice takes to say it (`rate_for`).
@@ -46,9 +27,7 @@ const NOISE_A := 0.55
 const DROP_P := 0.012
 const DROP_S := 0.06
 const LINE_GAP := 3
-## The blip: which sound, every how many letters, its pitch spread as a
-## pitch_scale (2^(1/12) - 1, so +100 cents up and -106 down), and how many may
-## ring at once. `sound` off keeps a reveal silent.
+## Blip settings: pitch spread as a scale (+100 cents up, -106 down), capped overlap.
 const BLIP := &"text_blip"
 const BLIP_EVERY := 3
 const BLIP_PITCH := 0.0595
@@ -102,9 +81,7 @@ func play() -> void:
 	queue_redraw()
 
 
-## The speed at which `what` takes `secs` to arrive, characters a second: its
-## letters share what the punctuation's beats leave (the last mark's beat is
-## never waited out: the text is done when its last letter settles).
+## Rate so `what` takes `secs`, with the last mark's beat not waited out.
 static func rate_for(what: String, secs: float) -> float:
 	var beats := 0.0
 	for i in what.length() - 1:
@@ -134,9 +111,7 @@ func _line_h() -> int:
 	return int(_font().get_height(size_px)) + LINE_GAP
 
 
-## Words into lines at this width, each character's x measured once. A "\n"
-## starts a new line (the cutaway's keys under A.S.H.'s words): it is one
-## character of `text`, settled like a space and drawn as nothing.
+## Words into lines once; a newline is one settled character drawn as nothing.
 func _relayout() -> void:
 	var w := size.x
 	if w <= 1.0:

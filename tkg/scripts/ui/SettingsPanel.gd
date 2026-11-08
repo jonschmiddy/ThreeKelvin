@@ -1,28 +1,12 @@
 class_name SettingsPanel
 extends VBoxContainer
-## Settings, as the contents of a drawer.
-##
-## IN THE ESCAPE DRAWER, NOT ON TOP OF IT. Settings used to open as a second
-## overlay that re-rendered the whole screen over the menu it came from; Jon:
-## "can't we have the settings menu just be in the same size side drawer?" So
-## this is only the drawer's CONTENTS: PauseMenu swaps it in place of its own,
-## and SettingsMenu wraps it in a drawer of its own for the title screen, which
-## has no escape menu to borrow.
-##
-## Built for the drawer's 250 px: every setting is a row that names itself and
-## states its current value on the right, with short chips under it, and volume
-## is a gauge you click along -- the layer strip's cells -- rather than six
-## numbered buttons.
-##
-## Options show what they will do before you pick them, and the current one is
-## marked — a settings screen that makes you toggle blind to find out is worse
-## than no settings screen.
+## Contents of a drawer, not a second overlay (Jon):
+## PauseMenu swaps it in, SettingsMenu wraps it on the title.
+## Why: docs/why/SettingsPanel.md#settings-drawer
 
 signal back_requested
 
-## Discrete steps rather than a slider: the theme has no slider styling, and a
-## pixel UI reads a marked step better than a grabber it cannot draw crisply.
-## The gauge is these five cells; nothing lit is off.
+## Discrete steps, not a slider: the theme has no slider styling and a pixel UI reads steps better.
 const VOLUME_STEPS: Array[float] = [0.2, 0.4, 0.6, 0.8, 1.0]
 
 var _body: VBoxContainer
@@ -43,19 +27,16 @@ func build() -> void:
 	tab.add_child(UITheme.body("SETTINGS", UITheme.VOID, UITheme.FS_SMALL))
 	add_child(tab)
 	add_child(UITheme.body("THREE KELVIN", UITheme.ICE, UITheme.FS_HEAD))
-	# ONE SCROLLING PAGE. It was tabs for an afternoon -- Jon's call both ways --
-	# and scrolling wins because every setting is then one gesture away rather
-	# than behind a tab you have to remember the name of. BACK stays pinned
-	# below the scroll rather than riding it out of reach.
+	# One scrolling page won over tabs (Jon's call both ways); BACK stays pinned below the scroll.
+	# Why: docs/why/SettingsPanel.md#scrolling-page
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
 	_scroll = scroll
-	# ROOM FOR THE BAR. A ScrollContainer draws its scrollbar over the right
-	# edge of its content, so every value on the right -- 1920 x 1080, OFF, the
-	# last chip in a row -- sat under it (Jon). The bar keeps a gutter of its own
-	# now (`UITheme.BAR_GAP`, Oct 20), so this is the rest of the 10 px it had.
+	# The scrollbar drew over the right edge and hid
+	# values (Jon); it has its own gutter now (Oct 20).
+	# Why: docs/why/SettingsPanel.md#scrollbar-gutter
 	var inset := MarginContainer.new()
 	inset.add_theme_constant_override("margin_right", 10 - UITheme.BAR_GAP)
 	inset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -64,16 +45,12 @@ func build() -> void:
 	_body.add_theme_constant_override("separation", 6)
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inset.add_child(_body)
-	# NO SOUND OF ITS OWN: what leaving Settings sounds like depends on where it
-	# is. Inside the escape drawer it is a step back; on the title screen the
-	# whole drawer leaves, so it is the drawer closing. The owner plays it.
+	# No sound of its own: leaving means a step back or the drawer closing, so the owner plays it.
 	var back := DrawerPlate.plate(&"back", "BACK", "SETTINGS ARE KEPT AS YOU GO",
 		func() -> void: back_requested.emit())
 	back.tone = DrawerPlate.Tone.GOOD
 	add_child(back)
-	# THE MACHINE'S PICK CAN LAND WITH THIS OPEN (the title measures in its first
-	# seconds): the GRAPHICS row redrawn, or HIGH stayed marked over a LOW pick
-	# and could not be pressed until Settings was opened again
+	# The machine's pick can land with this open, or HIGH stays marked over a LOW pick.
 	if not Sig.graphics_picked.is_connected(_refresh):
 		Sig.graphics_picked.connect(_refresh)
 	_refresh()
@@ -95,9 +72,7 @@ func _refresh() -> void:
 	_body.add_child(_gap(8))
 	_page_keys()
 
-## PLAYTEST: SAVE MY LOGS (`PlaytestLogs`). One zip of this game's logs,
-## settings, suspended run and flight record, to the Desktop; then where it went
-## and a way to open that folder. Nothing is sent anywhere.
+## PLAYTEST: one zip of logs, settings and flight record to the Desktop. Nothing is sent anywhere.
 func _page_playtest() -> void:
 	_body.add_child(Section.new(&"save", "PLAYTEST"))
 	_body.add_child(DrawerPlate.plate(&"save", "SAVE MY LOGS", "ONE ZIP, TO YOUR DESKTOP",
@@ -117,15 +92,11 @@ func _page_playtest() -> void:
 				func() -> void: PlaytestLogs.show_in_folder(String(_last_logs.path))))
 			_body.add_child(srow)
 
-## HINTS: REPLAY TUTORIAL (`Hints.reset`). Every first-run hint, and the goal
-## line's steps, show again at their moment; then a line saying so. (Its second
-## line said AND THE OPENING TOUR until the tour went, Oct 17.)
+## REPLAY TUTORIAL brings back every hint and goal step. Its text said OPENING TOUR until Oct 17.
 var _hints_reset := false
 func _page_hints() -> void:
 	_body.add_child(Section.new(&"hint", "HINTS"))
-	# TUTORIAL ON / OFF (Jon, Oct 20): the hints, the goal's steps and A.S.H.'s
-	# teaching, or none of them (`Hints.set_tutorial`). First in the section, so
-	# the line REPLAY TUTORIAL adds never moves it.
+	# TUTORIAL ON / OFF (Jon, Oct 20) comes first, so the line REPLAY TUTORIAL adds never moves it.
 	_body.add_child(_row_chips("TUTORIAL", ["ON", "OFF"],
 		0 if Hints.tutorial_on() else 1,
 		func(i: int) -> void:
@@ -241,9 +212,7 @@ func _page_screen() -> void:
 				"The largest window on a Retina screen. A bigger one costs too much to draw. BORDERLESS fills the screen.")
 		wrow.add_child(wb)
 	_body.add_child(wrow)
-	# On a 1080p screen 2x is exactly the screen height, so the only windowed
-	# size that keeps its title bar is 1x. Say so rather than hiding the option.
-	# The same on a Retina Mac, where the sizes past 2X are gone.
+	# At 1080p 2x equals the screen height, so only 1x keeps its title bar; say so, do not hide it.
 	if top == 1 or capped:
 		_body.add_child(UITheme.body("LARGER SIZES NEED BORDERLESS", UITheme.QUOTE, UITheme.FS_SMALL))
 
@@ -271,9 +240,8 @@ func _page_screen() -> void:
 func _page_look() -> void:
 	_body.add_child(Section.new(&"look", "THE LOOK"))
 
-	# THE RENDERING STYLE, only once there is more than one to pick: a row with a
-	# single chip is a control that does nothing (only pressable things look
-	# pressable). Built styles only, in DisplaySettings.STYLES' order.
+	# Only once there is more than one style: a row
+	# with a single chip is a control that does nothing.
 	var styles := DisplaySettings.built_styles()
 	if styles.size() > 1:
 		_body.add_child(_line("STYLE", DisplaySettings.style_name(DisplaySettings.render_style)))
@@ -304,13 +272,9 @@ func _page_look() -> void:
 	var gchips := _chips()
 	gchips.custom_minimum_size = Vector2(96, 0)
 	gchips.size_flags_horizontal = Control.SIZE_SHRINK_END
-	# PICKED FOR THIS COMPUTER (Jon, Oct 27, C1: `GpuProbe` measured this machine
-	# on the title and set LOW): said here, where the row is, in plain words, for
-	# as long as the pick is the machine's. Pressing HIGH makes it the player's
-	# (and LOW after it: the marked chip cannot be pressed). Before the measure,
-	# the LOW is only the chip's name (`DisplaySettings.low_by_hint`), and the
-	# words say that, not that this computer was found slow: on Windows the
-	# measure may still put HIGH back.
+	# Say in plain words that LOW is this computer's pick
+	# (Jon, Oct 27) while it is; HIGH makes it the player's.
+	# Why: docs/why/SettingsPanel.md#machine-pick
 	var by_machine := DisplaySettings.low_by_machine()
 	var by_hint := DisplaySettings.low_by_hint()
 	for low in [false, true]:
@@ -430,10 +394,9 @@ func _page_motion() -> void:
 			_refresh(),
 		["Each frame waits for the screen, so the picture never tears.",
 			"Frames go out as soon as they are drawn, and the picture can tear. OFF needs a frame cap: with FRAME CAP at NONE, OFF sets it to %d. Setting FRAME CAP back to NONE turns VSYNC on again." % DisplaySettings.VSYNC_OFF_CAP]))
-	# (THE ZOOM LADDER'S DEV ROWS -- ONE CAMERA, each seam's design, 3B into
-	# the yard, the move timings and the station lights -- were here in dev mode.
-	# Jon, Oct 19: remove them, even in dev mode. What he had set ships as
-	# `ZoomLadder`'s constants; a harness still picks with `flow=` and the forces.)
+	# The zoom ladder's dev rows were removed even in dev
+	# mode (Jon, Oct 19); harnesses pick with `flow=`.
+	# Why: docs/why/SettingsPanel.md#removed-dev-rows
 
 func _page_sound() -> void:
 	_body.add_child(Section.new(&"audio", "AUDIO"))
@@ -448,12 +411,9 @@ func _page_sound() -> void:
 		_body.add_child(gauge)
 		_body.add_child(_gap(3))
 
-## A name on the left and its choices on the right, for the settings whose
-## options are short enough to sit beside their label. `tips`, if given, is
-## each chip's tooltip, in the same order as `names`. `slot` is each chip's
-## share of the row: 46 px, but four at 46 next to FRAME CAP made the row 243
-## px wide and pushed the escape drawer 9 px past its 290 (`-- menutest` boxes
-## it), so that row's four take 40 each.
+## Slots are 46 px, but four at 46 beside FRAME CAP
+## pushed the drawer 9 px past 290, so that row uses 40.
+## Why: docs/why/SettingsPanel.md#chip-rows
 func _row_chips(key: String, names: Array, picked: int, on_pick: Callable, tips: Array = [], slot: float = 46.0) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
@@ -550,9 +510,7 @@ class VolumeGauge extends Control:
 			var v := 0.0 if slot < 0 else SettingsPanel.VOLUME_STEPS[slot]
 			Audio.click()
 			Audio.set_volume(bus, v)
-			# You should hear what you just picked. Music and the room answer for
-			# themselves -- both are already playing while you drag the fader --
-			# so only Master and Effects need something to answer with.
+			# You should hear what you picked: only Master and Effects need a sound to answer with.
 			if bus != &"Music" and bus != &"Ambient" and v > 0.0:
 				Audio.confirm()
 			accept_event()

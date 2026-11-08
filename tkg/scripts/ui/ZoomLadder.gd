@@ -1,45 +1,8 @@
 class_name ZoomLadder
 extends Control
 
-## ONE PICTURE, FOUR DISTANCES (Jon picked C on "Where LOCAL fits", Oct 8: "Let's
-## go with that, but the transitions need to be MUCH better than a simple
-## fade"). The star chart, the sector map, LOCAL and the station are one camera
-## at four distances, and moving between them is a camera move centred on your
-## ship (or your star), never a cut.
-##
-## THE SCREENS STAY FOUR SCREENS. Each is drawn by its own renderer with its own
-## palette and tone, and they are coordinated rather than merged: a move is
-##   1. PRE-ROLL: the screen being left moves its own camera, live, toward the
-##      next distance (the map zooms onto your ship, the chart onto your star,
-##      LOCAL pulls back, or pushes in on the station's ring);
-##   2. THE HANDOFF: its last frame is held (the Router frees it as it always
-##      did), and the screen arriving is built underneath, its own camera placed
-##      at the matching distance;
-##   3. THE MOVE: the arriving screen's camera eases to rest, live, while the
-##      held picture is carried with it -- scaled by exactly the arriving camera's
-##      own change of scale, its anchor riding the arriving anchor -- and taken
-##      away in the dither of the design picked for that seam (`zoom_ladder`).
-## So the two renderers never have to agree on a pixel: the held picture moves
-## the way the live one does, and the handoff is a dither, not an alpha.
-##
-## THE SEAMS AND THEIR DESIGNS, the first of each the default:
-##   1 chart <-> map:    A the system opens out of your star (an iris);
-##                       B the chart's stars stream past, dark first;
-##                       C mosaic blocks.
-##   2 map <-> LOCAL:    A dive past your ship; B the map lies down into LOCAL's
-##                       plane; C the world you orbit carried into LOCAL's.
-##   3 LOCAL <-> station: A through the ring; B your hull carried to its berth;
-##                       C mosaic blocks.
-## Two distances apart (LOCAL <-> chart, map <-> station) is one dive.
-##
-## THE SWITCHES. `-- flow=legacy` is today's flow (the alpha's fallback);
-## `-- flow1=B` (flow2, flow3) picks a design, for a harness or a film. They
-## were Settings > MOTION rows in dev mode, kept in `[flow]` of settings.cfg,
-## until Jon said remove them, even in dev mode (Oct 19): what he had picked
-## ships, and a `[flow]` left in a settings file is not read. Off under
-## reduced motion and wherever `Router.animating()` is false, so every harness
-## and the sim take the plain swap they always took. Any key or click during a
-## move finishes it at once, and is not eaten.
+## One camera at four distances; the screens stay four, joined by a held picture and a dither.
+## Why: docs/why/ZoomLadder.md#four-distances
 
 enum { CHART = 0, MAP = 1, LOCAL = 2, STATION = 3 }
 
@@ -60,12 +23,8 @@ const MOVE_S := 0.72
 ## how long an arriving screen may take to be ready before the move goes anyway
 const WAIT_MAX_S := 1.2
 
-## THE TIMINGS, ONE DIAL EACH (Jon, Oct 10: the moves "feel really fast and
-## rushed and chaotic"). They were dials in Settings > MOTION in dev mode, set by
-## feel; these are what Jon had them at when the dials went (Oct 19), baked.
-## A move is three beats that never overlap: THE UI LEAVES (`UI_OUT_S`, the
-## camera still), ONE CAMERA MOVE (the seam's own length, eased in and out),
-## THE UI ARRIVES (`UI_IN_S`, the camera at rest).
+## Jon's dial settings baked (Oct 19). A move is UI out, one camera move, UI in, never overlapping.
+## Why: docs/why/ZoomLadder.md#move-timings
 const UI_OUT_S := 0.22
 const UI_IN_S := 0.4
 ## chart <-> map (1A), map <-> LOCAL (2C), and two distances in one go (a
@@ -73,41 +32,8 @@ const UI_IN_S := 0.4
 const SEAM1_S := 1.7
 const SEAM2_S := 1.8
 const DIVE_S := 1.9
-## 3B AT A STATION: THE DOCK IN FIVE STEPS, in seconds (Jon, Oct 20: "Why
-## doesn't the ship enter like the first local?" -- so it does, exactly; before
-## that, "...the station turns on, then the ship flies in", and "Let's have the
-## station turn on BEFORE the ship moves in"). In order, never two at once
-## (`SectorScreen.ladder_cam`):
-##   1. CUT: LOCAL down to black (`FADE_OUT_S`, the game's fade), your ship
-##      taken off its mooring in the black;
-##   2. ARRIVE: up from black (`FADE_IN_S`) on the dark station with your ship
-##      off screen, and in it comes -- A NEW SYSTEM'S ARRIVAL, the very call
-##      (`SectorScreen._ship_arrives`): its drive heard `ShipView.ARRIVE_LEAD_S`
-##      first, the approach from off the left edge over `ShipView.ARRIVE_MS`,
-##      the flameout sputtering down to the idle and the drift to its mooring,
-##      its clip under it, its bob;
-##   3. BEAT: it idles at its mooring by the dark station;
-##   4. POWER: the station's lights come on (`StationFace.power`), the warning
-##      lights at the mouth flashing and then green;
-##   5. ENTER: its engines lit, your ship from its mooring on into the hull in
-##      one move along the approved dock's path and its shrink with depth (so
-##      the mouth fits every hull) -- the dock approved at this length.
-## THE CAMERA DOES NOT MOVE in any of the five (Jon, Oct 20: "Why is there so
-## much parallax? ... The station is stationary."): only your ship does. The
-## map's DOCK comes to LOCAL through black (`preroll`'s `dock_fade`), your ship
-## kept off it, so the arrival is the first of it seen there.
-## LOCAL's whole pre-roll is the five (`dock_approach_s`); the yard after it is
-## its own (`YARD_FADE_S`, `YARD_BEAT_S`, `DOCK_YARD_S`). Reduced motion never
-## animates a dock (`Router.animating`), and a press mid-dock ends it at once.
-## UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background stays
-## put as your ship flies out, matching docking"): the yard as it was -- the
-## elevator out, your ship off its stands and away, the empty yard down to
-## black -- then LOCAL up from the black over the dock's dip backwards with
-## your ship still in the hull, and the ENTER run back (`DOCK_ENTER_S`): out of
-## the mouth growing back to its size, its engines at the cruise burn, slowing
-## to rest at its mooring as they sputter down to the idle. The camera does not
-## move on LOCAL and the station stays lit (`SectorScreen.ladder_cam`). A press
-## mid-undock parks your ship at its mooring at once, its sounds hushed.
+## Docking is five steps, never two at once, camera still; undocking plays it backwards.
+## Why: docs/why/ZoomLadder.md#dock-in-five-steps
 const DOCK_BEAT_S := 0.3
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0
@@ -115,12 +41,8 @@ const DOCK_ENTER_S := 4.0
 const DOCK_WARN_HZ := 1.6
 ## the dip to black at the end of the dock, your ship already out of sight (s)
 const DOCK_DIP_S := 0.4
-## THE STATION'S LIGHTS (Jon: "i think the lighting can be MUCH more dramatic
-## between turned off and turned on"): OFF, how much of the bay's own dark
-## picture shows while the station sleeps (and the hull's plating in starlight
-## only); ON, how bright the bay and every lamp are once it wakes (over 1 is
-## brighter than painted); GLOW, how strongly each lamp's light spills onto the
-## plating round it (`StationFace`)
+## Jon wanted far more drama between off and on: OFF, ON and GLOW set the bay and lamp levels.
+## Why: docs/why/ZoomLadder.md#station-lights
 const LIGHT_OFF := 0.22
 const LIGHT_ON := 1.35
 const LIGHT_GLOW := 1.8
@@ -134,56 +56,33 @@ const DOCK_YARD_S := 2.2
 const UNDOCK_YARD_S := 2.0
 ## the elevator sliding back in once your ship is down (and out, undocking)
 const ELEVATOR_S := 0.8
-## THE CHART TO LOCAL OR THE BERTH, AND BACK (Jon, Oct 10: "Chart straight to
-## local is ehhhh kinda hard to do... just do a fade. No transition"): down to
-## black, the new screen built in the black, and up from it. No camera.
+## Chart straight to LOCAL or the berth is a fade through black, no camera (Jon, Oct 10).
+## Why: docs/why/ZoomLadder.md#chart-to-local
 const FADE_OUT_S := 0.3
 const FADE_IN_S := 0.45
-## THE HANDOFF DISC (1A, 2C, GO): the radius, screen px at the swap, of the soft
-## disc round the focus -- your star, the world you orbit -- that carries the
-## screen being left into the one arriving. Jon: "the circle is better.... but
-## it's still WAYYY too big". 0 is the focus object and a thin halo round it,
-## which is Jon's pick of three sizes filmed (Oct 11, "Circle: C").
+## 0 is the focus object and a thin halo, Jon's pick of three sizes filmed (Oct 11).
+## Why: docs/why/ZoomLadder.md#handoff-disc
 const DISC_PX := 0.0
-## THE CALM MOVE (Jon's pick A, Oct 17, after "the movement between local >
-## sector > starchart ... EXTREMELY disorienting"): every hop between LOCAL, the
-## map and the chart, both ways and by every route, is one motion of the same
-## length -- THE UI LEAVES (`CALM_OUT_S`, the camera still); out of LOCAL, the
-## side column and band slide on (`CALM_SLIDE_S`, the camera still); ONE CAMERA
-## MOVE (`CALM_CAM_S`) scaled about your ship, your ship on one straight line
-## from where it rests to where it rests on the next view; then, the camera
-## landed, into LOCAL the column and band slide off (`CALM_SLIDE_S`), and the
-## arriving screen's UI comes (`CALM_IN_S`) while its side bar and toolbar
-## decode (`CALM_DECODE_S`). Never two of these at once with the camera.
+## Every hop between LOCAL, map and chart is one motion of one length (Jon's pick A, Oct 17).
+## Why: docs/why/ZoomLadder.md#calm-move
 const CALM_OUT_S := 0.2
 ## (the column crosses 265 px: at 0.6 s on its curve, at most 9 px a frame, the
 ## walk SideBarTest holds it to)
 const CALM_SLIDE_S := 0.6
 const CALM_CAM_S := 0.8
 const CALM_IN_S := 0.25
-## (Jon asked for E's decode "slowly" on Oct 13, 1.1 s, when it ran under the
-## camera; after the landing that second is all added to the hop. Of 0.4, 0.7
-## and 1.1 s filmed he picked 0.7, Oct 17: "decode:B")
+## Decode is 0.7 s, Jon's pick of 0.4, 0.7 and 1.1 filmed (Oct 17), now that it runs after landing.
+## Why: docs/why/ZoomLadder.md#calm-move
 const CALM_DECODE_S := 0.7
 
 ## how much of the station's hull the pan passes through (game px)
 const PAN_HULL_W := 520.0
-## THE HAND-OFF INTO THE YARD (3B). "F", Jon's pick and the default: a dip to
-## black once your ship is out of sight in the hull; the EMPTY yard comes up
-## from black slowly (Jon: "let's have the yard show up without our ship
-## first" -- "and the black should slowly fade out"), holds a beat, and your
-## ship -- travelling all along, off the picture -- comes in from the left and
-## lands; then the elevator. Undocking: the elevator out, your ship off its
-## stands and away to the left, a beat of the empty yard, the yard slowly down
-## to black, and up on LOCAL, the camera still, with your ship coming out of the
-## hull the way the dock took it in. "P", kept as the alternative: the pan
-## through the hull, a harness's `seam3_fade=P`.
+## F is Jon's pick: the empty yard rises from black,
+## then the ship flies in. P is kept as the alternative.
+## Why: docs/why/ZoomLadder.md#yard-handoff
 const FADES := ["F", "P"]
 static var force_fade := ""
-## F: the dip to black over the approach's last tenth (your ship already in
-## behind the lips); the empty yard up from black, and its beat before your
-## ship comes in; LOCAL up from black undocking, where LOCAL has no measure of
-## its own (`SectorScreen.ladder_up_s`, the dock's dip backwards)
+## F: a dip over the approach's last tenth, the empty yard up from black, then the ship comes in.
 const FADE_DOWN := 0.1
 const YARD_FADE_S := 1.2
 const YARD_BEAT_S := 0.5
@@ -229,9 +128,7 @@ static func dock_approach_s() -> float:
 	return dock_step_from(5)
 
 
-## A Hermite curve from 0 to 1 over u 0..1, leaving at slope `m0` and arriving at
-## slope `m1` (in units of its whole length over its whole time): ONE SMOOTH
-## MOTION's pieces, each starting at the speed the last one ended on.
+## A Hermite curve: the pieces of one smooth motion each start at the speed the last ended on.
 static func herm(u: float, m0: float, m1: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	var u2 := u * u
@@ -248,9 +145,7 @@ static var fixed_dt := -1.0
 ## the harness reads and clears it each frame). Off unless a harness turns it on.
 static var probe_on := false
 static var probe := {}
-## A screen swap in the middle of a move leaves the autosave to the move's end
-## (`Router._swap`): writing the run is ~15 ms of one frame, and mid-move that
-## frame shows.
+## A swap mid-move leaves the autosave to the move's end: the write is ~15 ms of one frame.
 static var save_after := false
 
 
@@ -264,9 +159,8 @@ static var force_design := {}
 ## The Router's own call, being made by a pre-roll's end: `preroll` declines it.
 static var _going := false
 
-## UI_OUT: the screen being left takes its UI away, its camera still; UI_IN:
-## the camera has landed and the arriving screen's UI comes up. (Appended, so
-## the old phases keep their numbers for the harnesses that log them.)
+## UI_OUT takes the left screen's UI away; UI_IN brings the arriving screen's up after the landing.
+## Appended, so the old phases keep their numbers for the harnesses that log them.
 enum Phase { PRE, PRE_DONE, WAIT, MOVE, UI_OUT, UI_IN, FADE_OUT, FADE_HOLD, FADE_IN,
 	C_OUT, C_SLIDE, C_WAIT, C_CAM, C_POST, C_IN }
 ## the move is a plain fade through black (`is_fade`)
@@ -291,10 +185,7 @@ var _a_old := Vector2.ZERO
 var _pic := Rect2()
 var _s0 := 1.0
 var _style := {}
-## THE ONE CURVE (`_style.curve`): both halves of a move -- the old screen's
-## own camera, then the held picture and the new screen's camera -- ride a single
-## smoothstep over `_T` seconds, split at `_F` of the motion, so there is no stop
-## and no change of speed at the handoff. `_tau` is the time into it.
+## One smoothstep over `_T` seconds, split at `_F`, so the handoff has no stop or change of speed.
 var _T := 1.0
 var _F := 0.5
 var _tau := 0.0
@@ -322,9 +213,7 @@ var _rest_est := Vector2.INF
 ## 2C: the map's own world node, given at the swap ({} once taken or for none)
 var _given := {}
 var _taken := false
-## A harness's measurement: the first frame after the swap shows the arriving
-## screen exactly where the held picture was (no motion, the world's clock the
-## map's), so the two can be diffed pixel for pixel.
+## For a harness: the first frame after the swap matches the held picture, so they can be diffed.
 static var measure_hold := false
 var _held_frames := 0
 ## the screen left moved first (the move then starts at speed)
@@ -339,27 +228,14 @@ var bar_swap: SideSwap = null
 var _bar_old := Rect2()
 ## ended by a press or a key: anything still decoding ends with it
 var _cut := false
-## THE SIDE BAR'S LOOK, one of `SIDE_LOOKS` (Jon picks; `SideSwap` draws each):
-## A crossfade, B slide, C cascade, D scan redraw, E decode, F reboot.
-## `-- side=<letter>` or `force_side_look` for a harness.
+## The side bar's look, one of `SIDE_LOOKS` (A crossfade to F reboot), each drawn by `SideSwap`.
 const SIDE_LOOKS := ["A", "B", "C", "D", "E", "F"]
-## Jon picked E (Oct 13), "and let's have the sector and starchart buttons at
-## the top also decode during the transition" -- the chart's toolbar (LAYER,
-## its pips, CORE, the view toggles) and the map's (DANGER), not the HUD's tabs
-## ("I meant these buttons, not the top left buttons"): `ladder_bar`.
+## Jon picked E, decode (Oct 13), and the chart and map toolbars decode too (`ladder_bar`).
+## Why: docs/why/ZoomLadder.md#side-bar-look
 const SIDE_LOOK := "E"
 static var _side_force := ""
-## BETWEEN LOCAL AND A SCREEN WITH CHROME -- the map's and the chart's band
-## along the top and side bar down the right; LOCAL has neither -- THE CHROME
-## MOVES (Jon picked the band easing, then: "the tooltip bar moves up and the
-## side bar slides to the right as the local image expands. the opposite
-## happens when you move from local to sector or local to starchart"). Out of
-## LOCAL the band slides down and the side bar's column in from the right,
-## empty, as LOCAL's camera leaves, landing as the screens change hands (or in
-## a dive's dip to black), and their contents decode in after; into LOCAL the
-## chrome being left slides off, up and right, as LOCAL's camera lands. LOCAL
-## is drawn whole beneath and uncovered, never scaled (`ChromeSlide`).
-## the band of this move, if any (out of LOCAL: it opens as the camera leaves)
+## Between LOCAL and a screen with chrome, the band and side bar slide; LOCAL is never scaled.
+## Why: docs/why/ZoomLadder.md#chrome-slide
 var band: SideBand = null
 ## the chrome sliding, and which way: &"on" out of LOCAL, &"off" into it
 var slides: Array = []
@@ -389,9 +265,7 @@ static func _side_rest() -> Rect2:
 	return Rect2(c.end.x - 260, top, 260, c.end.y - top - 16)
 
 
-## OUT OF LOCAL: the band (opening) and the side bar's column, empty -- the
-## gap beside the picture's frame, the panel's plate -- coming on from the
-## right, both driven by the move (`_drive_chrome`).
+## Out of LOCAL the band and an empty side column come on, both driven by `_drive_chrome`.
 func _chrome_on() -> void:
 	_slide_way = &"on"
 	band = _make_band()
@@ -469,9 +343,7 @@ static func _ease_in(u: float) -> float:
 	return u * u * u
 
 
-## THE CHROME WITH THE MOVE: on, eased out over the camera's leaving LOCAL (or
-## the dip to black), so it lands as the screens change hands; off, eased in
-## over the camera's landing on LOCAL (or the rise from black).
+## On eases out as the camera leaves LOCAL, off eases in as it lands, so it lands as screens change.
 func _drive_chrome() -> void:
 	if _slide_way != &"on" and _slide_way != &"off":
 		return
@@ -499,9 +371,8 @@ func _drive_chrome() -> void:
 				q = 1.0
 			_:
 				q = 0.0
-	# ON eases out, OFF eases in (the band's cubic; the side bar's column, 265
-	# px to the band's 21, on a sine, so at its fastest it moves 8 px a frame,
-	# not 15)
+	# The side column (265 px) rides a sine so its fastest is 8 px a frame, not 15.
+	# Why: docs/why/ZoomLadder.md#chrome-slide
 	var on := _slide_way == &"on"
 	var k := _ease_out(q) if on else 1.0 - _ease_in(q)
 	var ks := sin(q * PI * 0.5) if on else cos(q * PI * 0.5)
@@ -525,9 +396,7 @@ static func side_look() -> String:
 ## LOCAL, say -- the UI arriving after the move, never during it
 var _landed: Array[Callable] = []
 var _landed_done := false
-## A screen whose UI a move left hidden because another move follows at once
-## (the map's DOCK: LOCAL, then the hangar): its next move does not take it away
-## again first.
+## Set when a move left the UI hidden because another follows at once (the map's DOCK).
 static var chrome_hidden: Control = null
 
 
@@ -594,9 +463,7 @@ static func seam_between(a: int, b: int) -> int:
 	return mini(a, b) + 1
 
 
-## WHERE LOCAL DRAWS THE WORLD YOU ORBIT, at rest, by system and world: what the
-## map aims the world at on its way in (2C), so it is already heading where LOCAL
-## will have it. Kept as LOCAL is seen; before that, LocalSky's own rule.
+## Where LOCAL draws the world you orbit, so the map aims at it on its way in (2C).
 static var world_rest := {}
 
 
@@ -630,16 +497,12 @@ static func _hud_refresh() -> void:
 		Router.hud.call(&"refresh")
 
 
-## NO WHEEL BETWEEN DISTANCES (Jon, Oct 10: "having the scroll function to go
-## between them isn't intuitive for users and is kinda disruptive. Tab and
-## clicking the actual buttons works just fine"). The wheel zooms within the
-## chart and the map and stops at the end of each; Tab (`next_screen`) and the
-## HUD's tabs are the way from one distance to the next.
+## The wheel stays within a screen; Tab and the HUD tabs change distance (Jon, Oct 10).
+## Why: docs/why/ZoomLadder.md#no-wheel-between-distances
 
 
-## A PIECE OF A SCREEN'S UI, k of the way gone (`ladder_chrome`): faded on an
-## eased curve from the alpha it had, and moved `dx` px as it goes (a side
-## panel drifting off toward its edge); at 0 it is put back exactly as it was.
+## A piece of a screen's UI k gone: faded from its
+## alpha and moved `dx`; at 0 it is put back exactly.
 static func fade_chrome(c: CanvasItem, k: float, dx: float = 0.0) -> void:
 	if c == null or not is_instance_valid(c):
 		return
@@ -677,9 +540,7 @@ static func slide(c: Control, x: float, k: float) -> void:
 
 # ------------------------------------------------------------------ the doors
 
-## A move toward distance `target` is about to be asked of the Router: the
-## screen being left moves its camera first, and `then` (the Router's own call)
-## runs when it has. False: go now (no ladder, or nothing to move).
+## The screen being left moves its camera first; `then` runs when done. False means go now.
 static func preroll(target: int, then: Callable) -> bool:
 	if _going or not enabled():
 		return false
@@ -703,11 +564,9 @@ static func preroll(target: int, then: Callable) -> bool:
 		return false
 	if busy():
 		active.finish_now()
-	# THE MAP'S DOCK GOES BY BLACK, NOT THE CALM MOVE (Jon, Oct 20: "there is a
-	# frame where the ship is there? then it goes away? and then it comes back
-	# in?"): LOCAL is built in the black with your ship kept off it
-	# (`SectorScreen.dock_hidden`), comes up empty beside the station, and the
-	# dock's arrival is the first your ship is seen of it
+	# The map's DOCK goes by black, ship kept off LOCAL,
+	# so its arrival is the first sight (Jon, Oct 20).
+	# Why: docs/why/ZoomLadder.md#map-dock-by-black
 	var dock_fade := chain == &"station" and r == MAP and target == LOCAL
 	if calm_hop(r, target) and not dock_fade:
 		_calm_preroll(cur, r, target, then)
@@ -763,18 +622,14 @@ static func preroll(target: int, then: Callable) -> bool:
 	lad._F = lad._pre_s / lad._T
 	if lad._had_pre:
 		cur.call(&"ladder_cam_begin", target, lad.seam, lad.design)
-	# THE MAP BUILT WHILE THE OLD SCREEN MOVES (Jon on 1A: "it hitches"): its
-	# system drawn and its sky baked out of sight during the pre-roll, so it is
-	# up the frame it is asked for and the move never waits on it
-	# (drawn, but not seen: its pictures have to be drawn to finish -- the map's
-	# palette is cut from its own first frames -- so it stands in the tree at no
-	# opacity, under nothing it could take a click from for long)
+	# The map is built during the pre-roll, drawn but unseen, so the move never waits on it.
+	# Why: docs/why/ZoomLadder.md#prebuilt-map
 	var _pt_pre := Time.get_ticks_usec()
 	if (target == MAP or target == CHART) and not Run.map.is_empty() and Router.content != null:
 		var pm: Control = SystemMapScreen.new() if target == MAP else StarchartScreen.new()
-		# (the chart at a trace of opacity so it is drawn, `PREBUILT_A`; the map at
-		# none: its panel's sun is a shader that does not take its node's opacity,
-		# and showed whole over the chart)
+		# The chart stands at a trace of opacity; the
+		# map at none, as its sun shader ignores opacity.
+		# Why: docs/why/ZoomLadder.md#prebuilt-map
 		pm.modulate.a = PREBUILT_A if target == CHART else 0.0
 		pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		# (laid out where the screens are, with nothing beside it: under this
@@ -784,11 +639,8 @@ static func preroll(target: int, then: Callable) -> bool:
 		lad.move_child(pm, 0)
 		pm.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		if pm is SystemMapScreen:
-			# (at the system's kept clock, held while it waits here and through
-			# the move: `SystemMapScreen.clock_held`. Out of LOCAL, LOCAL's own,
-			# so the pair stands where LOCAL had it, unless the party is too far
-			# on from it, `NetSession.handed_clock`; out of the chart, which shows
-			# no angle of it, the party's in co-op: `Router.pair_handed`)
+			# Out of LOCAL the map takes LOCAL's clock, so the pair stands where LOCAL had it.
+			# Why: docs/why/ZoomLadder.md#prebuilt-map
 			(pm as SystemMapScreen).show_system(Run.node_at(), Net.handed_clock(Run.at) if r == LOCAL else Net.adopt_clock(Run.at), false)
 		else:
 			(pm as StarchartScreen).setup()
@@ -798,14 +650,8 @@ static func preroll(target: int, then: Callable) -> bool:
 		if side_of(cur) == null and bar_of(cur) == null and (side_of(pm) != null or bar_of(pm) != null):
 			lad._chrome_on()
 		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
-	# LOCAL TOO, ON 2C (Jon: "2C still has a small delay/hitch"): built here, at
-	# the click, before anything has moved, instead of at the swap in the middle
-	# of the dive, where building it took 60-90 ms of one frame. Not when LOCAL
-	# would play something as it is built -- an event opening, a fight, a jump's
-	# arrival or departure, undocking -- which would play out unseen
-	# (and on a dive -- Tab from the chart -- and on GO, the event's band waiting
-	# for the move to land: built at the swap, LOCAL stood still 40-110 ms in the
-	# middle of the move)
+	# On 2C, LOCAL is built at the click, not mid-dive where it cost 60 to 90 ms of one frame.
+	# Why: docs/why/ZoomLadder.md#prebuild-local
 	elif target == LOCAL and ((lad.seam == 2 and lad.design == "C") or lad.seam == 0) \
 			and _local_quiet(false, true) and Router.content != null:
 		var ps := SectorScreen.new()
@@ -817,21 +663,17 @@ static func preroll(target: int, then: Callable) -> bool:
 		ps.setup(null)
 		prebuilt = ps
 		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
-	# 3B TOO, BOTH WAYS (one smooth motion: the screen arriving was built at the
-	# swap, a quarter of a second stood still in the middle of the move): the
-	# yard built at DOCK, before anything moves, and held still (not ticking, so
-	# none of its sound starts) until it is shown; LOCAL built at UNDOCK
-	# (the berth from the chart while docked, Tab: built at the swap it stood
-	# 160 ms still in the middle of the dive)
+	# On 3B both screens are built before anything
+	# moves; built at the swap they stood still mid-move.
+	# Why: docs/why/ZoomLadder.md#prebuild-yard
 	elif target == STATION and ((lad.seam == 3 and lad.design == "B") or (lad.seam == 0 and Router.docked)) \
 			and Router.content != null and not Router.in_combat():
 		var ss := StationScreen.new()
 		ss.modulate.a = 0.0
 		ss.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# BUILT WHERE IT WILL STAND, as LOCAL is at UNDOCK (below): in the
-		# screens' area behind LOCAL, laid out by the game's own theme. Under the
-		# ladder it took the engine's, and the figures over your ship in the yard
-		# kept it after the swap: 153 px tall for 144, hung 9 px high (Oct 21)
+		# Build under the game's theme, not the ladder's:
+		# the engine's made the figures 153 tall, not 144.
+		# Why: docs/why/ZoomLadder.md#prebuild-yard
 		Router.content.add_child(ss)
 		Router.content.move_child(ss, 0)
 		ss.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -849,12 +691,9 @@ static func preroll(target: int, then: Callable) -> bool:
 		var pl := SectorScreen.new()
 		pl.modulate.a = 0.0
 		pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# BUILT WHERE IT WILL STAND, as the calm move builds its screens
-		# (`_calm_prebuild`): in the screens' area behind the berth, laid out by
-		# the game's own theme. Under the ladder it took the engine's, and kept
-		# it after the swap: its bar 43 px tall for 32, its arena 11 px short,
-		# your ship 5 px high on it and the station placed for neither (Oct 21,
-		# found laying the undock over the dock's ENTER backwards)
+		# Build under the game's theme: the engine's left
+		# the bar 43 px tall for 32 and the ship 5 px high.
+		# Why: docs/why/ZoomLadder.md#prebuild-yard
 		Router.content.add_child(pl)
 		Router.content.move_child(pl, 0)
 		pl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -941,10 +780,7 @@ static func capture(o: Control, n: Control) -> void:
 	var th := Time.get_ticks_usec()
 	lad._hold()
 	probe_add("hold", Time.get_ticks_usec() - th)
-	# A SCREEN BUILT AHEAD is up already: the move goes on this very frame, so
-	# the frame of the swap is not a frame the picture stands still
-	# (deferred to the end of this frame: the Router has not put it in its place
-	# yet, and where it is decides where its anchor is)
+	# A screen built ahead moves on this very frame, so the swap frame is not a still one.
 	if lad.phase == Phase.WAIT and n.has_method(&"ladder_ready") and bool(n.call(&"ladder_ready")):
 		lad._start_move.call_deferred()
 
@@ -1000,9 +836,7 @@ func _fit() -> void:
 func _dt(delta: float) -> float:
 	if fixed_dt > 0.0:
 		return fixed_dt
-	# (2C: a frame far longer than its neighbours -- something built, a cache
-	# filled -- counts as one ordinary frame, so the move waits it out and goes
-	# on from where it was instead of jumping a stretch of it)
+	# 2C: a frame far longer than its neighbours counts as one ordinary frame, so the move waits.
 	if bool(_style.get("wait_long", false)) and delta > 1.0 / 24.0:
 		return 1.0 / 60.0
 	return minf(delta, 1.0 / 30.0)
@@ -1013,8 +847,7 @@ static func _ease(u: float) -> float:
 	return u * u * (3.0 - 2.0 * u)
 
 
-## THE CAMERA'S CURVE (Jon: "fast and rushed"): smootherstep, so a move leaves
-## rest and comes back to it with no jolt of acceleration at either end -- the
+## Smootherstep: no jolt at either end, where the
 ## smoothstep before it set off and stopped with a kick.
 static func _ease_cam(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
@@ -1039,9 +872,7 @@ func _process(delta: float) -> void:
 func _process_move(delta: float) -> void:
 	var dt := _dt(delta)
 	var curve := bool(_style.get("curve", false))
-	# (the arriving screen's UI stays away until the camera has landed, whatever
-	# the screen itself would put up meanwhile; and the one left stays away
-	# while its camera moves)
+	# The arriving UI waits for the landing and the left one stays away while its camera moves.
 	if phase == Phase.WAIT or phase == Phase.MOVE:
 		_chrome(new, 1.0)
 	elif phase == Phase.PRE and _ui_u > 0.0:
@@ -1113,9 +944,8 @@ func _process_move(delta: float) -> void:
 			if curve:
 				_tau += dt
 				var g := _ease_cam(_tau / _T)
-				# (handed over BEFORE this frame moves the old camera: the picture
-				# held is the frame it last drew, and what it says of itself --
-				# anchors, its world -- must be of that same frame)
+				# Handed over before this frame moves the old
+				# camera, so the held picture and its anchors match.
 				if g >= _F:
 					# (the second half runs on from where the last drawn frame was)
 					_F = _g_last
@@ -1133,10 +963,8 @@ func _process_move(delta: float) -> void:
 			var ui := clampf(_u, 0.0, 1.0)
 			old.call(&"ladder_cam", _pre_k * (ui if bool(_style.get("pan", false)) else ui * ui))
 			if String(_style.get("fade", "")) == "F":
-				# (F: down to black over the pre-roll's last stretch -- docking, your
-				# ship already out of sight in the hull; undocking, the empty yard,
-				# slowly)
-				# (docking: the last tenth of the approach, your ship in behind the lips)
+				# F: down to black over the pre-roll's last stretch
+				# (docking: the last tenth, ship behind the lips).
 				var fd := minf(DOCK_DIP_S, _pre_s * FADE_DOWN) if old is SectorScreen else YARD_FADE_S
 				# (and only once your ship is all in: LOCAL knows when that is)
 				if old is SectorScreen and float(old.call(&"ladder_dip_s")) > 0.0:
@@ -1227,17 +1055,13 @@ func _input(e: InputEvent) -> void:
 			and (e as InputEventMouseButton).button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE])
 	if not press:
 		return
-	# THE CALM MOVE: a press hurries it to its end, never cuts it; the press
-	# goes on to whatever it was for (a click on the side bar or the toolbar
-	# while they are changing lands on nothing, as below)
+	# A press hurries the calm move to its end, never cuts it, and goes on to what it was for.
 	if _calm:
 		var eat_c := _calm_eats(e)
 		hurry()
-		# THE ARRIVING SCREEN'S OWN KEY, carried to it: until the camera lands
-		# the screen left is still the current one, so L pressed as the chart
-		# came on went to LOCAL and was lost (Jon, Oct 20: "L doesn't work to
-		# bring you to the local region"). Taken here, so the screen left does
-		# not act on it too, and given to the screen arrived at once it is up.
+		# The arriving screen's key is carried to it: L
+		# pressed as the chart came on was lost (Jon, Oct 20).
+		# Why: docs/why/ZoomLadder.md#carried-keys
 		if e is InputEventKey and _carry(e as InputEventKey):
 			eat_c = true
 		if eat_c and get_viewport() != null:
@@ -1252,10 +1076,7 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## The keys a screen has that are a press, not a hold, by the rank it is at:
-## what a calm move carries to the screen it is going to (`_carry`). The held
-## ones (a pan, a thrust) are not: their release comes during the move, and a
-## press given after it would never be let go.
+## Only presses are carried: a held key's release would come during the move and never be let go.
 const CARRIED := {CHART: [&"chart_region"], MAP: [&"map_location"]}
 
 ## `k` is a key of the screen this move is going to (`CARRIED`): kept, and
@@ -1288,9 +1109,7 @@ static func when_landed(cb: Callable) -> bool:
 	return false
 
 
-## THE CAMERA HAS LANDED: the arriving screen's camera handed back, the held
-## picture gone, and its UI to come up (`UI_IN`). `then_ui`: go on into UI_IN
-## (false: the move is being ended at once).
+## The camera has landed: the held picture goes and the UI comes up, unless `then_ui` is false.
 func _land(then_ui: bool = true) -> void:
 	if phase != Phase.MOVE:
 		return
@@ -1417,9 +1236,7 @@ func _hold() -> void:
 	phase = Phase.WAIT
 	_style = _style_for()
 	_side_begin()
-	# ON THE ONE CURVE THE SWAP'S OWN FRAME MOVES TOO: the clock has already run
-	# on this frame (the pre-roll's last step was this frame's), so the held
-	# picture is drawn where the curve has it, not stopped for a frame
+	# On the one curve the swap's own frame moves too, as the clock already ran: no stopped frame.
 	if bool(_style.get("curve", false)) and not measure_hold and _had_pre:
 		var ew := _curve_e()
 		_mat.set_shader_parameter(&"scl", Vector2.ONE * exp(_l_move * ew))
@@ -1427,13 +1244,8 @@ func _hold() -> void:
 			_mat.set_shader_parameter(&"to_pt", _a_old.lerp(_rest_est, ew))
 
 
-## THE SIDE BAR SWAPS IN PLACE (Jon, Oct 13: "the side bar goes blank and then
-## draws the new side bar. Can we not have it go blank and just have it
-## transition to the new side bar?"). From the swap, the side bar's rect is the
-## `SideSwap`'s: the held frame's copy of the panel left, to the arriving
-## screen's panel, live underneath, in the look picked, over the rest of the
-## move (A, B) or its own short length (C to F). The held picture leaves that
-## rect alone once it is drawing (`side` in the shader).
+## The side bar swaps in place instead of going blank first (Jon, Oct 13), in the look picked.
+## Why: docs/why/ZoomLadder.md#side-bar-swap
 func _side_begin() -> void:
 	# (the rest of the move from here: the one curve's remaining time, or the
 	# move's own length)
@@ -1500,10 +1312,7 @@ func _decode_after_dive() -> void:
 	_slide_way = &"done"
 
 
-## Out of LOCAL, landed: the empty column gives way to the panel decoding in
-## (the held frame, which has it, stands over the rect until the decode is up);
-## the band stays till nothing of LOCAL is left under it, then goes -- the
-## arriving screen's own band is the same pixels.
+## Out of LOCAL, landed: the held frame covers the panel till its decode is up; the band goes last.
 func _land_chrome_on() -> void:
 	for p: Variant in slides:
 		if is_instance_valid(p):
@@ -1527,9 +1336,7 @@ func _region_swap(so: Control, sn: Control, uniform: StringName, rem: float, acr
 	var sw := SideSwap.new()
 	sw.visible = false
 	sw.across = across
-	# (a fresh copy of the screen for it to read the arriving one from: a
-	# frame's copy is otherwise taken at the first thing that reads the screen,
-	# and a sky behind the screens can read it before any panel is drawn)
+	# A fresh screen copy, as a sky behind the screens can read it before any panel is drawn.
 	var bb := BackBufferCopy.new()
 	bb.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 	add_child(bb)
@@ -1541,10 +1348,8 @@ func _region_swap(so: Control, sn: Control, uniform: StringName, rem: float, acr
 	sw.laid.connect(func(r: Rect2) -> void:
 		_mat.set_shader_parameter(uniform, Vector4(r.position.x, r.position.y, r.size.x, r.size.y)))
 	if so == null:
-		# (where there was none -- LOCAL -- the picture that was there goes as
-		# the rest of the held picture's standing copy goes, on its curve: never
-		# a still of LOCAL's sky, and its world, held in its place while the
-		# rest moves)
+		# Where LOCAL had no panel its picture goes on the
+		# held picture's curve, never a still of its sky.
 		sw.held = held_alpha
 	sw.setup(so, sn, _tex, side_look(), 1.0 if r_new > r_old else -1.0, rem)
 	return sw
@@ -1584,10 +1389,7 @@ static func bar_of(s: Control) -> Control:
 	return s.call(&"ladder_bar") as Control
 
 
-## Whether a press at `p` lands on the side bar while its content is changing:
-## the old panel's, about to go (before the swap), or where the swap has not
-## resolved the new one (`SideSwap.blocks`). The move still ends; the press
-## lands on nothing.
+## Whether a press lands on a side bar still changing; the move ends and the press lands on nothing.
 func _side_eats(e: InputEvent) -> bool:
 	if not (e is InputEventMouseButton):
 		return false
@@ -1615,9 +1417,9 @@ func _style_for() -> Dictionary:
 		"axis": Vector2.ONE, "chrome": 0.45, "block": 0.0, "plane": false, "world": false, "hull": false}
 	if seam == 0:
 		s.extra = 3.0 if inward else 0.3
-		# TWO DISTANCES IN ONE (Tab from the chart, the berth to the map): the held
-		# picture leaves by how much of it is kept, not by a dither -- the 4x4
-		# checker it went through read as noise at the middle of the move
+		# Tab from the chart leaves by how much is kept,
+		# not a dither: the 4x4 checker read as noise.
+		# Why: docs/why/ZoomLadder.md#two-distances-in-one
 		s.soft = true
 		s.sharp = true
 		s.feather = 48.0
@@ -1628,12 +1430,9 @@ func _style_for() -> Dictionary:
 	s.reach = 420.0
 	match "%d%s" % [seam, design]:
 		"1A":
-			# YOUR STAR HANDED OVER (Jon: "zoom in on the star icon on the star chart
-			# and THAT transitions into the star in the sector map"): the chart
-			# closes on your system's star; the map arrives so far out that its sun
-			# is the size of the chart's star and on it; the held chart has a hole
-			# exactly the size of the live sun, so the icon becomes the sun, and
-			# the system opens round it as the chart thins away, one curve
+			# The held chart has a hole the size of the live
+			# sun, so the star icon becomes the sun (Jon).
+			# Why: docs/why/ZoomLadder.md#star-handoff
 			s.curve = true
 			s.soft = true
 			s.sharp = true
@@ -1664,11 +1463,9 @@ func _style_for() -> Dictionary:
 			s.axis = Vector2(40.0, 1.0)
 			s.reach = 260.0
 		"2C":
-			# SMOOTHED (Jon: "the transition can be smoother"): one curve with the
-			# same speed both sides of the handoff, the world's size and place
-			# carried exactly, the held picture sampled between its pixels so it
-			# slides rather than steps, and taken away by a soft edge from the
-			# outside in, the world itself last
+			# One curve with the same speed both sides of
+			# the handoff, sampled between pixels (Jon).
+			# Why: docs/why/ZoomLadder.md#smoothed-handoff
 			s.world = true
 			s.curve = true
 			s.soft = true
@@ -1692,16 +1489,9 @@ func _style_for() -> Dictionary:
 				s.spread = -0.85
 				s.extra = 0.6
 		"3B", "3D":
-			# INTO THE HANGAR (Jon: "the station becomes something on the far right
-			# of the screen that the ship flies into .... and THAT becomes the
-			# shipyard"): LOCAL draws the station's side with its hallway at your
-			# height (`StationFace`); your ship flies into it and the camera after
-			# it. 3B: once your ship is all inside, the camera pans sideways through
-			# the station's own hull into the yard (`_step_pan`). 3D: on
-			# into the mouth until the hangar fills the picture, and across into the
-			# yard by a soft edge. In the yard your ship flies in from the left onto
-			# its stands, and then the elevator slides in (`StationScreen`).
-			# Undocking runs it all the other way.
+			# LOCAL draws the station's side; the ship flies in
+			# and the camera follows. Undocking runs it back.
+			# Why: docs/why/ZoomLadder.md#into-the-hangar
 			s.soft = true
 			s.spread = 0.8 if inward else -0.8
 			s.reach = 520.0
@@ -1709,11 +1499,8 @@ func _style_for() -> Dictionary:
 			s.edge = 0.0
 			s.pin = true
 			if design == "B":
-				# THE ARRIVAL (Jon: "let it breathe"): the approach on LOCAL is the
-				# pre-roll docking, linear (LOCAL eases its own phases); then the
-				# camera pans sideways through the station's hull (`_step_pan`) into
-				# the yard, where your ship flies in onto its stands. Undocking runs
-				# it the other way. A long frame waits.
+				# The arrival: a linear approach on LOCAL, then a
+				# sideways pan into the yard (Jon: let it breathe).
 				s.pan = true
 				s.wait_long = true
 				s.fade = seam3_fade()
@@ -1740,9 +1527,9 @@ func _style_for() -> Dictionary:
 		0: total = DIVE_S
 		1: total = SEAM1_S
 		2: total = SEAM2_S
-	# (the soft moves -- 1A, the dives -- feather the held picture's edge as it
-	# goes; the eaten edge on top of that put a 40 px dark band round it on the
-	# very first frame)
+	# Soft moves already feather the held edge; the
+	# eaten edge on top put a 40 px dark band round it.
+	# Why: docs/why/ZoomLadder.md#soft-edge
 	if bool(s.get("soft", false)) and (seam == 0 or seam == 1):
 		s.edge = 0.0
 	if total > 0.0:
@@ -1755,9 +1542,7 @@ func _style_for() -> Dictionary:
 	return s
 
 
-## THE BULKHEAD (3B): the station's own dark structure passing close to the
-## camera, a slab of its steel lit along its edges, swept across the picture on
-## the move's one curve so it covers the whole of it at the handoff.
+## The station's dark steel passing close to the camera, covering the picture at the handoff.
 class Bulkhead extends Control:
 	var x := 0.0
 	var w := 1600.0
@@ -1805,13 +1590,8 @@ var _bar: Bulkhead = null
 
 # ------------------------------------------------------------------ the pan (3B)
 
-## THE PAN THROUGH THE STATION (3B, Jon: "When the LAST part of the ship (its
-## tail) has gone in behind the lip, the screen PANS"): the camera slides
-## sideways -- the held picture out to the left, the station's own hull close
-## past the camera (`StationFace.draw_hull`), and the screen arriving in from the
-## right behind it -- and stops on the yard, the hull gone past (Jon: no
-## station in the yard), the yard's own hall running on where the elevator will
-## slide in (`StationScreen`'s yard edge). Undocking pans the other way.
+## The camera slides past the station's hull to the yard, which has no station in it (Jon).
+## Why: docs/why/ZoomLadder.md#pan-through-station
 var _pan_view: _PanView = null
 var _pan_x0 := 0.0
 var _pan_vr := 0.0
@@ -1927,11 +1707,8 @@ func _step_pan(t: float) -> void:
 		return
 	var inward := r_new > r_old
 	if String(_style.get("fade", "")) == "F":
-		# F: no pan. Docking: the empty yard up from black slowly, a beat of it
-		# empty, then your ship in from the left -- off the picture till then --
-		# slowing once onto its stands. Undocking: up on LOCAL over the dock's dip
-		# backwards (LOCAL's own measure, your ship still in the hull through it),
-		# and the ENTER run back, the camera still.
+		# F: no pan. The empty yard rises from black,
+		# then the ship flies in; undocking runs it back.
 		_pan_view.visible = false
 		new.position.x = _pan_x0
 		if inward:
@@ -1998,9 +1775,7 @@ func _start_move() -> void:
 	if bool(_style.get("pan", false)):
 		_start_pan()
 		return
-	# THE ARRIVING CAMERA STARTS WHERE THE HELD PICTURE IS: its anchor (your ship,
-	# your star, the world you orbit) placed on the held one's, so the two move
-	# as one picture from the first frame
+	# The arriving camera starts anchored on the held picture, so both move as one from frame one.
 	_met = new.has_method(&"ladder_meet")
 	if _met:
 		new.call(&"ladder_meet", _a_old, _old_world)
@@ -2059,9 +1834,8 @@ func _start_move() -> void:
 			new.call(&"ladder_hide_hull", true)
 	phase = Phase.MOVE
 	_u = 0.0
-	# (out of a pre-roll the move is already under way: its first frame is a
-	# frame on, not the held picture shown again where it was -- a dive's swap
-	# stood still a frame)
+	# Out of a pre-roll the first frame is a frame on,
+	# as a dive's swap used to stand still a frame.
 	if _had_pre and not measure_hold and not bool(_style.get("curve", false)):
 		_u = _dt(get_process_delta_time()) / maxf(_move_s, 0.001)
 	_step(0.0 if measure_hold else (_curve_e() if bool(_style.get("curve", false)) else _u))
@@ -2087,9 +1861,8 @@ func _step(u: float) -> void:
 	var to := a_new if _met else _a_old.lerp(a_new, e)
 	if bool(_style.get("pin", false)):
 		to = _a_old
-	# 1A: THE HOLE IS THE SUN. Going in, the live map's sun shows through the
-	# held chart exactly where (and as big as) the chart's star is drawn; coming
-	# out, the chart's star shows through the held map where its sun was
+	# 1A: the hole is the sun, so the live sun shows
+	# through the held chart where the star is drawn.
 	if bool(_style.get("sun", false)):
 		var sun_r := 0.0
 		if r_new > r_old and new.has_method(&"ladder_sun"):
@@ -2127,9 +1900,7 @@ func _step(u: float) -> void:
 	_mat.set_shader_parameter(&"from_pt", from)
 	_mat.set_shader_parameter(&"to_pt", to)
 	_mat.set_shader_parameter(&"scl", scl)
-	# 2C OUT: THE MAP'S OWN WORLD KEPT UNDER THE HELD PICTURE until the move
-	# lands. With a small handoff disc it showed beside LOCAL's carried world
-	# -- two worlds -- for most of the move.
+	# 2C out: keep the map's own world under the held picture, or a small disc showed two worlds.
 	if bool(_style.get("world", false)) and r_new < r_old and new.has_method(&"ladder_world"):
 		var wn: Dictionary = new.call(&"ladder_world")
 		if not wn.is_empty():
@@ -2179,11 +1950,8 @@ func _place_bar(g: float) -> void:
 	_bar.queue_redraw()
 
 
-## THE CHART BUILT AHEAD STANDS AT THIS OPACITY, not none: Godot leaves a
-## canvas item under about 0.007 undrawn, so a chart at 0 drew for the first
-## time on the frame of the swap -- 64 ms in the middle of the move. At 0.008 it
-## is drawn (its sky's shaders and caches warmed) and adds at most two levels in
-## 255 over the picture it is under, for the UI's fade before the move.
+## Godot leaves items under about 0.007 undrawn, so 0.008: drawn and warmed for two levels at most.
+## Why: docs/why/ZoomLadder.md#prebuilt-chart-opacity
 const PREBUILT_A := 0.008
 
 
@@ -2225,9 +1993,8 @@ static func take_prebuilt(kind: int) -> Control:
 	return pm
 
 
-## The map's DOCK goes on into the hangar from LOCAL (`chain`); if that door
-## does not open a move from LOCAL, LOCAL's UI comes back.
-## (the map's DOCK, coming up on LOCAL: its UI stays away, the hangar is next)
+## The map's DOCK goes on into the hangar from LOCAL;
+## if that door does not open, LOCAL's UI returns.
 func _chain_chrome() -> void:
 	if chain == &"station" and new is SectorScreen and is_instance_valid(new):
 		_chrome(new, 1.0)
@@ -2248,11 +2015,7 @@ static func _chain_go(s: Control) -> void:
 		chrome_hidden = null
 
 
-## Whether LOCAL built now would play nothing as it is built (`preroll`).
-## (`undocking`: leaving a berth, where `Router.docked` is still set and the
-## arrival latch is about to be)
-## (`event_ok`: an event asked for here -- the map's GO -- may wait in it for
-## the move to land, `LocalEventDrawer.attach`)
+## Whether LOCAL built now would play nothing as it is built, which `preroll` needs.
 static func _local_quiet(undocking: bool = false, event_ok: bool = false) -> bool:
 	var ev_ok := LocalEventDrawer.pending.is_empty() or (event_ok and LocalEventDrawer.pending.size() >= 2
 		and int(LocalEventDrawer.pending[0]) == Run.at)
@@ -2320,10 +2083,7 @@ func _end() -> void:
 		_hud_refresh()
 	phase = Phase.PRE_DONE
 	_rect.visible = false
-	# THE DECODE RUNS ON PAST THE MOVE where the move was the shorter (Jon: let
-	# it run "rather than speeding it up"): what is still decoding is handed to
-	# the viewport, where it finishes on its own and takes the clicks on what
-	# has not resolved (`SideSwap._has_point`). A press or a key ends it here.
+	# The decode runs on past a shorter move (Jon: not sped up); a press or a key ends it.
 	var going: Array = []
 	# (the band first, so it stays under what decodes on it; and the chrome
 	# that waits for a decode to be drawing)
@@ -2370,39 +2130,14 @@ func _end() -> void:
 
 
 # ------------------------------------------------------------------ the calm move
-## THE CALM MOVE (Jon picked A, Oct 17, of three directions filmed after the nav
-## audit: "the movement between local > sector > starchart and all the various
-## iterations [is] EXTREMELY disorienting"). The audit measured why: the move
-## between LOCAL and the map zoomed about the world you orbit, so your ship slid
-## 330 px one way, reappeared 270 px off and slid 350 px back -- two of it on
-## screen at the handoff; the side bar and the toolbar decoded while the camera
-## moved; the chart and LOCAL were a dip to black where the others zoomed; and a
-## press mid-move was a hard cut.
-##
-## Every hop between LOCAL, the map and the chart -- both ways, by a tab, Tab,
-## any door -- is now this one motion: the UI leaves, (into LOCAL) the side
-## column and band slide off, ONE CAMERA MOVE (`CALM_CAM_S`, smootherstep) with
-## both screens scaled about your ship (your star, on the chart) and your ship
-## walked along ONE STRAIGHT LINE from where it rests to where it will rest, the
-## screens changing hands by a crossfade where both draw it in the same place;
-## then (out of LOCAL) the column and band slide on, the side bar and toolbar
-## decode, the UI arrives. The side panel is never on the move with the camera
-## (Jon, Oct 17: "The side panel should come in AFTER the animation stops when
-## going local > sector or local > starchart ... go away BEFORE the animation
-## starts when going from sector > local or starchart > local"). "Out" is always the picture shrinking about you, "in"
-## always it growing. THE CHART AND LOCAL are the same move with one handoff
-## (not two through the map, which would be twice as long, nor the dip to black
-## Jon asked for on Oct 10 when the zoom between them swung round).
-## The station and the jump's departure keep their own moves.
+# Jon picked A (Oct 17) after the nav audit: every
+# hop is one motion, the ship on one straight line.
+# Why: docs/why/ZoomLadder.md#calm-move-audit
 
 const CALM_SHADER := preload("res://shaders/calm_ladder.gdshader")
-## How much bigger the nearer screen draws the same thing, by the two distances
-## a hop joins (what the camera's zoom crosses: the held picture shrinks by this
-## much going out, the arriving one grows from it going in)
+## How much bigger the nearer screen draws the same thing, by the two distances a hop joins.
 const CALM_RATIO := {"LM": 4.0, "MC": 6.0, "LC": 12.0}
-## where on the camera's curve the screens change hands, and how long the held
-## picture takes to crossfade away from there (seconds of the move: by the
-## curve's own measure it went in a few frames at the curve's fastest)
+## Where on the camera's curve the screens change hands, and how long the held picture fades.
 const CALM_HANDOFF := 0.45
 const CALM_DISSOLVE_S := 0.3
 ## a press mid-move: whatever is left of the move in about this long
@@ -2441,10 +2176,8 @@ var _calm_field: Texture2D = null
 var calm_log: Array = []
 
 
-## THE SWITCH: `-- calm=off` puts back the moves Jon picked on Oct 8-13 (1A,
-## 2C, the dip to black) -- the designs and their timings kept whole behind it.
-## A harness sets `calm_force`. (`[flow] calm=false` in settings.cfg did it too,
-## and is not read since the dev rows went from Settings, Oct 19.)
+## `-- calm=off` restores the moves Jon picked on Oct 8 to 13; `[flow] calm` is no longer read.
+## Why: docs/why/ZoomLadder.md#calm-switch
 static var calm_force := -1
 
 
@@ -2475,13 +2208,9 @@ static func _calm_key(a: int, b: int) -> String:
 	return "LM"
 
 
-## How long a calm hop from `a` to `b` takes, click to settled (the harness's
-## target): the UI out, the slide on (out of LOCAL), the camera, then the slide
-## off and the UI in (into LOCAL), or the decode and the UI in together.
+## Click to settled: UI out, slide, camera, then slide off and UI in, or decode and UI in together.
 static func calm_length(a: int, b: int) -> float:
-	# into LOCAL: the side panel off (the UI leaving with it), the camera, LOCAL's
-	# UI; out of LOCAL: LOCAL's UI off, the camera, the side panel on, then its
-	# decode with the UI; the map and the chart: the UI off, the camera, the decode
+	# Into LOCAL: panel off, camera, LOCAL's UI. Out of LOCAL the reverse, then the decode.
 	var t := 0.0
 	if b == LOCAL:
 		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_IN_S
@@ -2490,15 +2219,11 @@ static func calm_length(a: int, b: int) -> float:
 		t = CALM_OUT_S + CALM_CAM_S + CALM_SLIDE_S + CALM_IN_S
 	else:
 		t = CALM_OUT_S + CALM_CAM_S + maxf(CALM_IN_S, CALM_DECODE_S)
-	# (and the frames between: the camera sets off the frame after the chrome
-	# has stood still, the screen arriving takes its camera the frame after it
-	# is shown, a decode lays itself out over two)
+	# The frames between: the camera sets off a frame after chrome stills, and a decode takes two.
 	return t + 4.0 / 60.0
 
 
-## The slide's curve (the column and the band): eased up to speed over its first
-## fifth, steady, eased down over its last -- the most even crossing for its
-## length, so it can be short and still walk.
+## Eased up over the first fifth and down over the last: the most even crossing for its length.
 static func _calm_slide_curve(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	var a := 0.2
@@ -2556,14 +2281,9 @@ func _calm_prebuild(target: int) -> void:
 		return
 	pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if Router.content != null:
-		# BUILT WHERE IT WILL STAND, in the screens' area, behind all of it: laid
-		# out by the game's own theme (the ladder is not under it, and a chart
-		# built here took the engine's -- its buttons 31 px tall, its row 1020
-		# wide, your ship's place on it 7 to 50 px off where it then rested: the
-		# move aimed at the one and landed on the other); and the chart, drawn
-		# faintly to warm it, behind the field, not over the screen being left
-		# (at PREBUILT_A over it, it lifted the top plate two levels for the UI's
-		# fade -- Jon's "the border on the top panel flickers?")
+		# Build under the game's theme (the engine's made its
+		# buttons 31 px tall), behind the screen being left.
+		# Why: docs/why/ZoomLadder.md#prebuilt-chart
 		Router.content.add_child(pm)
 		Router.content.move_child(pm, 0)
 	else:
@@ -2597,9 +2317,7 @@ func _calm_prebuilt_ready() -> bool:
 	return pm == null or not is_instance_valid(pm) or rank_of(pm) != r_new or bool(pm.call(&"ladder_ready"))
 
 
-## Your ship's place on the move at `e` (0 to 1 of the camera's curve): one
-## straight line from where it rested to where it will; after the handoff, on to
-## where the screen arrived says it rests (the same line when built ahead).
+## Your ship on one straight line from rest to rest; after the handoff on to where it arrived.
 func _calm_p(e: float) -> Vector2:
 	if _calm_e_h < 0.0 or e <= _calm_e_h:
 		return _calm_p0.lerp(_calm_p1, e)
@@ -2727,9 +2445,8 @@ func _calm_cam() -> void:
 			# (not laid out yet: the held picture stands, the clock waits)
 			_calm_t -= _calm_dt
 			return
-		# (its camera taken once it has stood a frame where it is shown -- laid
-		# out there, not where it was built -- the held picture whole over it
-		# meanwhile, still moving)
+		# Its camera is taken once it has stood a frame
+		# where it is shown, the held picture over it.
 		if Engine.get_process_frames() > _calm_swap_frame:
 			new.call(&"calm_begin")
 			_calm_new_begun = true
@@ -2759,14 +2476,10 @@ func _calm_fade() -> void:
 		_calm_a = 1.0 - _ease(clampf(_calm_diss / d, 0.0, 1.0))
 	_mat.set_shader_parameter(&"alpha", _calm_a)
 	_rect.visible = _calm_a > 0.0
-	# THE SCREEN ARRIVING COMES UP AS THE ONE LEFT GOES, over the field: each is
-	# the things in front of the same stars (LOCAL's sky over them is its own
-	# far sky, the field's own; its cloud and its worlds come with it)
+	# The arriving screen comes up as the left one goes, each as things in front of the same stars.
 	if is_instance_valid(new) and _calm_e_h >= 0.0:
 		new.modulate.a = 1.0 - _calm_a
-		# (between LOCAL and the map in a cloud the screen arriving is there whole
-		# under the picture held from the handoff: the held one thins out as a
-		# cloud over the other's cloud, never over bare sky)
+		# In a cloud the held picture thins as a cloud over the other's cloud, never over bare sky.
 		if _calm_round_from >= 0.0:
 			new.modulate.a = 1.0
 
@@ -2801,11 +2514,8 @@ func _calm_hold(n: Control) -> void:
 		img = vp.get_texture().get_image()
 	if img == null or img.is_empty():
 		img = Image.create(960, 540, false, Image.FORMAT_RGBA8)
-	# OPAQUE, as it was seen (Jon, of the map <-> chart hop: "the border on the
-	# top panel flickers?"): the viewport's own alpha is not what was seen --
-	# where a see-through plate was drawn over the field it reads 0.84, and the
-	# plate held over its place (`_calm_cover`) let the screen arriving under it
-	# show through, the plate's line and fill shifting for the length of the move
+	# Held opaque as seen: a see-through plate reads 0.84 and let the arriving screen show through.
+	# Why: docs/why/ZoomLadder.md#held-picture-opacity
 	img.convert(Image.FORMAT_RGB8)
 	_tex = ImageTexture.create_from_image(img)
 	# THE PICTURE HELD IS THE LAST FRAME DRAWN: its ship where that frame put it,
@@ -2814,18 +2524,15 @@ func _calm_hold(n: Control) -> void:
 	_calm_t_h = _calm_t
 	_calm_swap_frame = Engine.get_process_frames()
 	_calm_ph = _calm_p0.lerp(_calm_p1, _calm_e_drawn)
-	# (where the screen left actually drew your ship in that frame, not where its
-	# camera was asked to put it: the chart's turning galaxy lands it a pixel or
-	# so off its aim at a far zoom, and the held picture, carried at four times
-	# its size into LOCAL, put a second ship 5 px from the first)
+	# Use where the left screen drew the ship, not its
+	# aim: a far chart zoom put a second ship 5 px off.
+	# Why: docs/why/ZoomLadder.md#held-ship-position
 	if is_instance_valid(old) and bool(old.call(&"ladder_ready")):
 		var seen: Variant = old.call(&"calm_ship")
 		if seen is Vector2 and (seen as Vector2).is_finite() and (seen as Vector2).distance_to(_calm_ph) < 8.0:
 			_calm_ph = seen
 	var pic: Rect2 = old.call(&"ladder_picture")
-	# (a map in a cloud draws its cloud past its picture, across the screens'
-	# area (cloud:A): the picture held is the whole of that, its side bar and
-	# toolbar left where they stand -- held, the cloud never drops away at once)
+	# A map in a cloud draws its cloud past its picture, so the held picture is the whole of that.
 	var cuts := [Vector4.ZERO, Vector4.ZERO]
 	var ext: Variant = old.get("_gas_ext") if old is SystemMapScreen else null
 	_mat.set_shader_parameter(&"under_on", false)
@@ -2860,15 +2567,12 @@ func _calm_hold(n: Control) -> void:
 				_mat.set_shader_parameter(&"under_past", ImageTexture.create_from_image(pi))
 		cuts = _chrome_cuts(old)
 	elif old is StarchartScreen and (old as StarchartScreen)._chart != null and (old as StarchartScreen)._chart.sky_out.has_area():
-		# (the chart's sky runs on past its picture under the glass, Jon: "why
-		# does a galaxy disappear near the side panel?": the picture held is the
-		# whole of it, its side bar and toolbar left where they stand)
+		# The chart's sky runs past its picture under
+		# the glass, so the held picture takes all of it.
 		pic = _content_rect()
 		if r_new != LOCAL:
 			cuts = _chrome_cuts(old)
-	# BETWEEN LOCAL AND THE MAP IN A CLOUD (Jon: "a hard-edged rectangle"): the
-	# picture held -- LOCAL's going small into the map, the map's going large into
-	# LOCAL -- thins out as a cloud too, from the handoff on (`_calm_round_from`)
+	# LOCAL and the map in a cloud: the held picture thins as a cloud too, from the handoff on.
 	_calm_round_from = -1.0
 	var nd := Run.node_at() if Run.map.size() > 0 else null
 	if nd != null and nd.in_nebula and ((r_old == LOCAL and r_new == MAP) or (r_old == MAP and r_new == LOCAL)):
@@ -2884,9 +2588,8 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"cut3", cuts[0])
 	_mat.set_shader_parameter(&"cut4", cuts[1])
 	if r_new == LOCAL:
-		# (into LOCAL the side panel and toolbar went before the move: the whole
-		# of the screen left is the picture carried, the ground where they stood
-		# with it -- cut at its frame, LOCAL showed beside it at once)
+		# Into LOCAL the panels went before the move, so
+		# the whole screen left is the carried picture.
 		pic = _content_rect()
 	_mat.set_shader_parameter(&"old_lin", _tex)
 	_mat.set_shader_parameter(&"vp", Vector2(img.get_width(), img.get_height()))
@@ -2983,10 +2686,8 @@ func _calm_land() -> void:
 	_run_landed()
 	_calm_uncover()
 	if r_old == LOCAL and r_new != LOCAL:
-		# OUT OF LOCAL, the camera still: the column and band come on, then the
-		# side bar and toolbar decode onto them
-		# (the panels slide on once the screen left has gone whole: a hurried
-		# crossfade runs on past the landing, and a panel half seen is half blank)
+		# Out of LOCAL the column and band come on, then
+		# decode. Panels slide once the left screen is whole.
 		_calm_next(Phase.C_POST)
 		_calm_post()
 		return
@@ -3005,11 +2706,7 @@ func _calm_land() -> void:
 var _calm_round_from := -1.0
 var _calm_round_h := Vector2.ONE
 
-## ... and between LOCAL and the map the rounding comes in as a shape, never as
-## a fade (Jon: "a hard-edged rectangle"): at the handoff the round reaches past
-## the picture's corners (whole, as it was the frame before), then draws in on
-## one steady curve to the shrink's own size, so its edge is round from the
-## first frame and no straight side ever thins out on its own
+## Between LOCAL and the map the round comes in as a shape, never a fade, so no side thins alone.
 const CLOUD_G0 := 12.0
 const CLOUD_G_SPAN := 0.15
 
@@ -3019,10 +2716,7 @@ func _cloud_g(e: float) -> float:
 	return exp(lerpf(log(CLOUD_G0), 0.0, t))
 
 
-## THE MAP IN A CLOUD GOING SMALL INTO THE CHART (Jon: "Zooming out still has a
-## huge square"): its cloud rounds off as a cloud from the camera's first
-## steps, on the live map (its picture and its cloud past it) and on in the
-## picture held, one curve (`cloud_round.gdshaderinc`): how far in at `e`.
+## The map in a cloud rounds off from the camera's first steps, on one curve, live and held.
 static func _cloud_k(e: float) -> float:
 	return smoothstep(0.04, 0.5, e)
 
@@ -3062,11 +2756,7 @@ func _cloud_round(m: Control, e: float) -> void:
 			(mat as ShaderMaterial).set_shader_parameter(&"round_h", ce.size)
 
 
-## THE PANELS, DRAWN, SLIDING (Jon, Oct 18: "the panels should be drawn in as
-## they are coming into the frame, they come in blank now"): the screen's own
-## side bar off to the right and its toolbar row up, everything on them drawn the
-## whole way (`PanelSlide`), on (out of LOCAL, `s` the screen arrived, after the
-## camera) or off (into LOCAL, `s` the screen being left, before it).
+## Panels drawn the whole way as they slide (`PanelSlide`), on after the camera or off before it.
 func _panels_slide(s: Control, on: bool) -> void:
 	_slide_way = &"on" if on else &"off"
 	var c := _content_rect()

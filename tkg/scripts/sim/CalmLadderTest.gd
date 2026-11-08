@@ -1,50 +1,8 @@
 extends Node
 
-## ONE MOTION EVERYWHERE (Jon picked A of the nav audit's three directions, Oct
-## 17: "the movement between local > sector > starchart ... EXTREMELY
-## disorienting"), headless with the animation on, the ladder's clock stepped
-## 1/60 s a frame:
-##   godot --headless --fixed-fps 60 --path . -- sheet=CalmLadderTest
-## (fixed fps: the goal line's fade is a tween on the engine's clock, which must
-## step with the ladder's)
-## Every hop between LOCAL, the map and the chart -- by its HUD tab (a real
-## click), by Tab, by NEXT SCREEN rebound to N, both ways where the route goes
-## both ways, from a world's orbit and from the system's edge -- watched frame by
-## frame for what the audit measured going wrong:
-##   - ONE SHIP: wherever the picture held from the screen left and the screen
-##     arriving both show, they show your ship in the same place (4 px);
-##   - ONE STRAIGHT LINE: your ship's place on screen keeps within 6 px of the
-##     line from where it rested to where it rests, never turning back on it,
-##     never more than 40 px in a frame, never under the side bar;
-##   - NO ONE-FRAME SWAP: the held picture never leaves (or comes) by more than a
-##     fifth in one frame, and the screens change hands under it whole;
-##   - THE CHROME STILL WHILE THE CAMERA MOVES: no side bar or toolbar decode, no
-##     sliding column or band, no side bar or toolbar moving or fading, on any
-##     frame your ship is moving (one frame's grace at the landing);
-##   - THE HOP'S LENGTH within 10% of its target (`ZoomLadder.calm_length`, or
-##     A's 1.55 s where there is none);
-##   - A PRESS MID-MOVE: a key, a click on the picture, Tab -- the move hurries
-##     to its end (under 0.45 s from the press), no frame of it a cut, and the
-##     press is not lost (Tab goes on to the next distance);
-##   - ONE FIELD UNDER IT ALL (Jon, Oct 18: stars edge to edge, the panels built
-##     on top): the Router's `NavField` is the same layer on every frame of every
-##     hop, on, under the screens, never faded, never redrawn (its `version`);
-##   - THE PANELS DRAWN AS THEY MOVE (Jon, Oct 18: "they come in blank now"):
-##     on every frame a side panel or toolbar row slides, it is the screen's own,
-##     opaque, with its words on it -- never an empty plate;
-##   - THE SHIP HOLDS WITH THE MAP'S CLOCK (Jon, Nov 2, "Pair calls: 4A"): on
-##     every frame a map's clock holds for the move (`clock_held`, the map up,
-##     put away or built ahead), its ship on the plane and its clock stand where
-##     they were on the hold's first frame, and when the clock runs again the
-##     ship goes on from there by no more than a frame's ride (`RESUME_PX`);
-##     a partner drawn on it holds too, its reports coming in all the while,
-##     and eases on to the latest once the clock runs (`_partner_holds`); and
-##     a place's preview, drawn before the move, kept through it, not planned
-##     again frame after frame (`_preview_holds`); and a key held into the
-##     move and let go in it goes quiet on the next frame, its flame out, as
-##     it always did, on the ring and flying free (`_keys_let_go`).
-## Written to run on main too (the ship's place read by the hooks every build
-## has), so it can be watched failing there.
+## One motion everywhere (Jon picked A, Oct 17): every hop is watched frame by frame.
+## Run headless with `--fixed-fps 60`, so the goal line's tween steps with the ladder.
+## Why: docs/why/CalmLadderTest.md#calm-ladder-checks
 
 var _fails := 0
 var _tree: SceneTree
@@ -126,10 +84,7 @@ func _field_wrong(f0: Variant, v0: int) -> String:
 	return ""
 
 
-## THE TOP PLATE THIS FRAME: drawn by the screen up at full strength with
-## nothing held over it, or held whole (`ZoomLadder._calm_covers`) by an opaque
-## picture of it -- never the two at once part-way, never a see-through hold
-## ("" when steady, else what is wrong).
+## Top plate this frame: drawn by the screen up, or held whole by an opaque picture.
 func _plate_unsteady() -> String:
 	var cur := Router.current
 	var bar := ZoomLadder.bar_of(cur)
@@ -178,9 +133,7 @@ func _panel_slides() -> Array:
 	return (_ps.get("live") as Array) if _ps != null else []
 
 
-## A PANEL MOVING, DRAWN: the screen's own control, opaque (it and its screen),
-## with words on it -- some label or button with text, shown. Returns what is
-## wrong ("" when it is drawn).
+## A moving panel must be the screen's own control, opaque, with words on it.
 func _panel_blank(ps: Object) -> String:
 	var t: Control = ps.get("target")
 	if t == null or not is_instance_valid(t):
@@ -230,9 +183,7 @@ func _side_chrome_up() -> bool:
 	return false
 
 
-## The camera between distances moving this frame: the screen being left's
-## pre-roll, the wait for the next, the move (on main: PRE, WAIT, MOVE), the
-## calm move's camera (C_CAM). Not the UI's beats either side of it.
+## The camera between distances is moving; not the UI beats either side of it.
 func _camera_moving() -> bool:
 	if not ZoomLadder.busy():
 		return false
@@ -257,9 +208,7 @@ func _target_s(a: int, b: int) -> float:
 	return 1.55
 
 
-## The chrome as it stands: each piece by its id, with what would show it
-## moving (a decode's clock and whether it is drawn, a slide's place, a band's
-## height, a side bar's or toolbar's place and opacity).
+## The chrome by piece id, with what would show it moving.
 func _chrome_state() -> Dictionary:
 	var out := {}
 	for sw: Variant in SideSwap.live:
@@ -345,12 +294,8 @@ func _rest_pt(seen: Variant = null, was: Variant = null) -> Vector2:
 	return sum / float(n) if n > 0 else Vector2.INF
 
 
-## THE SHIP HELD WITH THE MAP'S CLOCK, this frame, on every map there is (the
-## one up, the one the hop left, put away, and one built ahead), by map: while
-## its clock holds (`SystemMapScreen.clock_held`), the most its ship has moved
-## on the plane and its clock run since the hold's first frame; on the frames
-## after (to the end of the rest), the most it moved in one, and how far it
-## went from where it was held.
+## Measures how far the ship and clock move during the hold, on every map there is.
+## Why: docs/why/CalmLadderTest.md#clock-hold
 func _watch_hold(seen: Dictionary, was: Variant) -> void:
 	var maps: Array = []
 	for sv: Variant in [Router.current, ZoomLadder.prebuilt_screen(), was]:
@@ -401,9 +346,7 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var cam_pts: Array = []
 	var cam_on := false
 	var cam_done := false
-	# THE ORDER (Jon, Oct 17: the side panel comes in AFTER the camera out of
-	# LOCAL, and goes BEFORE it into LOCAL): the frames the camera moved, and the
-	# frames any side panel or toolbar piece (a column, a band, a decode) was up
+	# Order (Jon, Oct 17): side panel in after the camera leaves LOCAL, out before it enters.
 	var cam_first := -1
 	var cam_last := -1
 	# ONE FIELD: as it stood before the hop, and the frames it was not that
@@ -470,9 +413,7 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			# THE SCREENS CHANGE HANDS UNDER THE HELD PICTURE, WHOLE
 			if held_a < 0.95:
 				bad.append("the screens changed hands with the held picture at %.2f (a one-frame swap)" % held_a)
-		# ONE SHIP
-		# (both drawn: the held picture part-way gone over the live screen; whole,
-		# it covers the screen under it)
+		# ONE SHIP: both drawn, the held picture part-way gone; whole, it covers the screen.
 		if held_a > 0.05 and held_a < 0.999 and live_a > 0.05 and held_pt != Vector2.INF and live != Vector2.INF:
 			var apart := held_pt.distance_to(live)
 			max_apart = maxf(max_apart, apart)
@@ -527,9 +468,7 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			field_bad += 1
 			if field_why == "":
 				field_why = "%s at frame %d" % [fw, frames]
-		# ONE GOAL: while the picture held is drawn, the goal (up over both
-		# screens, so in the frame held too) is cut out of it where it stood
-		# -- never a second one carried off with the picture
+		# One goal: while the held picture is drawn, the goal is cut out of it, not carried twice.
 		if gnode != null and gnode.visible and ZoomLadder.busy() and (ZoomLadder.active._rect as CanvasItem).visible:
 			var gr := Rect2(gnode.position, gnode.size).grow(1.0)
 			var cv: Variant = (ZoomLadder.active._mat as ShaderMaterial).get_shader_parameter(&"cut")
@@ -780,12 +719,8 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## A PARTNER HOLDS WITH THE MAP'S CLOCK (Jon, Nov 2, "Pair calls: 4A"), as your
-## own ship does: LOCAL -> map by its tab, a partner off a world of this system,
-## its report moved on 6 px every 10 frames as a partner riding its ring at
-## RAIL_V on its own machine would send. On every frame the map's clock holds it is drawn in one
-## place on the plane (`SystemOverlay._draw_partners`); once the clock runs it
-## eases on to the latest report, never more than `JUMP_PX` in a frame.
+## A partner holds with the map clock as your ship does, easing on once the clock runs.
+## Why: docs/why/CalmLadderTest.md#partner-hold
 func _partner_holds() -> void:
 	await _at(ZoomLadder.LOCAL)
 	var L: SystemLayout = SystemLayout.of(Run.node_at())
@@ -854,13 +789,8 @@ func _partner_holds() -> void:
 	await _rest()
 
 
-## A PREVIEW HOLDS WITH THE MAP'S CLOCK (Jon, Nov 2, "Pair calls: 4A"): on the
-## map, your ship on its ring, another world selected and its flight drawn,
-## then map -> chart by its tab. Through the hold the drawn flight is kept and
-## at most one more plan is taken in; with the ship riding on by frame time
-## each plan came back stale (made from where the ship was, at a clock that
-## stood still), was dropped and was asked for again, the whole move long
-## (the review 2 render note).
+## A preview is kept through the hold; riding on frame time made each plan stale and re-asked.
+## Why: docs/why/CalmLadderTest.md#preview-hold
 func _preview_holds() -> void:
 	await _at(ZoomLadder.MAP)
 	var m := Router.current as SystemMapScreen
@@ -909,11 +839,7 @@ func _preview_holds() -> void:
 	await _rest()
 
 
-## A KEY LET GO WHILE THE SHIP HOLDS (the review of "Pair calls: 4A"): on the
-## map, `key` held (D widening the orbit on its ring, W thrusting off it), map
-## -> chart by its tab, the key let go on the hold's fifth frame. From the next
-## frame on, the thrust the map asks for is none and the flame is out, to the
-## end of the hold; held, it roared on at its level to the move's end.
+## A key let go during the hold must go quiet on the next frame, flame out.
 func _keys_let_go(key: StringName) -> void:
 	await _at(ZoomLadder.MAP)
 	var m := Router.current as SystemMapScreen
@@ -987,12 +913,8 @@ func _drag(from: Vector2, to: Vector2, n: int = 40) -> void:
 		await _tree.process_frame
 
 
-## THE FIELD DRIFTS ON A PAN (Jon: "Why is the parallax gone from the sector and
-## starchart views?"): a drag on the chart and one on the map slide the field
-## (`NavField.pan`, its far layers' `u_skyPan`) the way the drag went, the
-## chart's by its own sky's pan; a hop never moves it (`_field_wrong`, every
-## frame of every hop above) and never puts it back: across each hop it stands
-## where it was, and LOCAL arrived lies where it does (`LocalSky` `u_skyPan`).
+## Pans drift the field (Jon asked where parallax went); a hop never moves or restores it.
+## Why: docs/why/CalmLadderTest.md#field-drift
 func _field_drift() -> void:
 	var f: NavField = Router.field
 	if not _ok("drift: the field is there", f != null and is_instance_valid(f)):
@@ -1028,13 +950,8 @@ func _field_drift() -> void:
 				lp is Vector2 and (lp as Vector2).is_equal_approx(f.pan))
 
 
-## THE GOAL LINE (`GoalLine`, tutorial B) under the HUD: gone before the camera
-## moves, on no frame of it, and back once the hop has landed.
-## NO BOX ROUND THE PICTURE (Jon, Oct 18: "why is there a box around the galaxy
-## panel?"): on the map and the chart at rest, the picture's frame draws no
-## line and fills nothing, and its key fades what the picture holds out toward
-## its edge (`nav_key.gdshader` `fade`) rather than cutting it. (The pixels are
-## read windowed: `-- sheet=FieldEdgeTest`.)
+## The goal line is gone while the camera moves. No box round the picture (Jon, Oct 18).
+## Why: docs/why/CalmLadderTest.md#goal-line-and-box
 func _no_box() -> void:
 	for r: int in [ZoomLadder.MAP, ZoomLadder.CHART]:
 		await _at(r)
@@ -1060,20 +977,14 @@ func _no_box() -> void:
 			var fv: Variant = (key as ShaderMaterial).get_shader_parameter(&"frame")
 			if fv is Vector4:
 				fr = fv
-		# (the chart's sky runs on past its picture to the field's edges, and
-		# fades out there: `MapChart.sky_out`, Jon: "why does a galaxy disappear
-		# near the side panel?")
+		# The chart's sky runs past its picture and fades out (Jon: galaxy vanished near panel).
 		var want := pic.get_global_rect()
 		if cur is StarchartScreen and (cur as StarchartScreen)._chart.sky_out.has_area():
 			var so: Rect2 = (cur as StarchartScreen)._chart.sky_out
 			want = Rect2((cur as StarchartScreen)._chart.global_position + so.position, so.size)
 		_ok("%s: what the picture holds fades out toward its edge (%.0f px), on its frame as it stands (%s, want %s)" % [_nm(r), fade, fr, want],
 			fade >= 16.0 and fr.z > 0.0 and absf(fr.x - want.position.x) < 1.0 and absf(fr.z - want.size.x) < 1.0)
-		# THE TWO PLATES (Jon, Oct 18: "Let's have the top part also be a panel.
-		# Let's make both panels slightly see through like the other panels"):
-		# the side panel and the toolbar row each on a plate, see-through by the
-		# same alpha (0.72 to 0.85: the field shows, the words stand -- more open
-		# than `UITheme.PANEL_A`, 0.88, which read as solid), one look
+		# Both plates see-through by one alpha, 0.72 to 0.85, more open than `UITheme.PANEL_A`.
 		var side := ZoomLadder.side_of(cur)
 		var bar := ZoomLadder.bar_of(cur)
 		var ssb: StyleBox = side.get_theme_stylebox(&"panel") if side is PanelContainer else null
@@ -1081,9 +992,7 @@ func _no_box() -> void:
 		var sa := (ssb as StyleBoxFlat).bg_color.a if ssb is StyleBoxFlat else -1.0
 		var ba := (bsb as StyleBoxFlat).bg_color.a if bsb is StyleBoxFlat else -1.0
 		_ok("%s: the side panel a see-through plate (alpha %.2f)" % [_nm(r), sa], sa >= 0.72 and sa <= 0.85)
-		# THE TOP PLATE'S MARGIN (Jon: "the border comes right up to the button's
-		# edges"): every piece of the row as far inside its line as the side
-		# panel keeps its own contents
+		# The top row keeps the side panel's margin inside its line (Jon: border at button edges).
 		var margin := ssb.get_content_margin(SIDE_LEFT) if ssb != null else 12.0
 		var least := INF
 		var tight := ""
@@ -1104,11 +1013,7 @@ func _no_box() -> void:
 				least_v >= 4.0 - 0.01 and least_v <= 8.0)
 		_ok("%s: every piece of the toolbar row %.0f px or more in from its plate's ends, the side panel's margin (least %.1f, %s)" % [_nm(r), margin, least, tight],
 			least != INF and least >= margin - 0.01)
-		# THE GOAL IN ITS ONE PLACE (Jon: "Can we have the goal: xxx always be in
-		# this location?"; Oct 20: just below the top plate, top left): where
-		# LOCAL has it, below the plate, 4 px into the picture's top left, clear
-		# of every piece of the row; and the row's own words start at its plate's
-		# margin (no room left in it for the goal any more)
+		# The goal sits just below the top plate at the picture's top left (Jon, Oct 20).
 		var g: GoalLine = Router.hud.goal if Router.hud != null else null
 		if g != null:
 			g.refresh()
@@ -1136,14 +1041,8 @@ func _no_box() -> void:
 			and (ssb as StyleBoxFlat).border_width_top == (bsb as StyleBoxFlat).border_width_top)
 
 
-## THE GOAL LINE (`GoalLine`) A PIECE OF THE HUD (Jon, Oct 18: "Can we have the
-## goal: xxx always be in this location?"; Oct 20, "snug:B": below the top plate
-## on the map and the chart, snug under the HUD on LOCAL, "smooth animation as
-## it drops down or up"): up on every frame of a move between them, at the same
-## left; moving only while the top plate slides and at the plate's own point on
-## its curve, in whole pixels, a few a frame at most and one way only; never on
-## the plate or the HUD; still between the map and the chart; and at rest where
-## the screen arrived at has it.
+## The goal line is part of the HUD (Jon, Oct 18 and 20): it moves only with the top plate.
+## Why: docs/why/CalmLadderTest.md#goal-line-hud
 func _goal_line() -> void:
 	var g: Variant = Router.hud.get("goal") if Router.hud != null else null
 	if g == null:

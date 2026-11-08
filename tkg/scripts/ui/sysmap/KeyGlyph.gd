@@ -5,11 +5,8 @@ extends Control
 
 const SystemOverlayS := preload("res://scripts/ui/sysmap/SystemOverlay.gd")
 
-## Marks for things that are not beacons, for the panel's lists: a world, a
-## belt, a hulk, a contact. A beacon glyph beside a world read as a beacon.
-## And the marks on the panel's state badges (Jon picked the stamp): a tick for
-## an event that is done, a cross for one that was closed, a figure for one a
-## partner took, an arrow back for one you walked away from.
+## Marks for non-beacon things in the lists: a beacon glyph beside a world read as a beacon.
+## The state badges are a tick, a cross, a figure and an arrow back (Jon picked the stamp).
 const BODY := {
 	&"world": [".###.", "#####", "#####", "#####", ".###."],
 	&"belt": ["#...#", "..#..", "#...#", "..#..", "#...#"],

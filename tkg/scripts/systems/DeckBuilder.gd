@@ -21,9 +21,7 @@ static func build() -> Array[CardData]:
 				c.energy = maxi(0, c.energy - 1)
 			out.append(c)
 
-	# One card per malfunction actually lodged, built from the table. This used
-	# to synthesise a Dross inline, which is why there was exactly one kind of
-	# junk in the game no matter what put it there.
+	# One card per lodged malfunction, built from the table, not a single synthesised Dross.
 	for id in Run.dross:
 		out.append(DB.malfunction(id))
 

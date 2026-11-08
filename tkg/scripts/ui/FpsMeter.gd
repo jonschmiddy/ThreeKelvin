@@ -1,93 +1,32 @@
 class_name FpsMeter
 extends Label
 
-## Frames per second, bottom right.
-##
-## RESTORED AS AN OVERLAY, and the overlay part is the whole point. There was a
-## frame counter on `HudBar` until `872f546` removed it, and that commit is worth
-## reading before putting one back — it was not removed for being useless, it was
-## removed for being A CHILD OF THE ROW:
-##
-##   "It was the last thing on the row, so it was what the row lost when the row
-##    ran out — clipped at a standard window size... Reserving its width put the
-##    row at 948 against 944 available and it was STILL clipped."
-##
-## And the reason nobody caught it earlier, which is the good part: its label was
-## built empty and filled by `_process`, so its minimum width at build time was
-## NOTHING. The row fitted, and then the first frame put "120 FPS" into space
-## nobody had allocated.
-##
-## So this is not on the row. It is top-level, positioned against the viewport,
-## and takes part in no layout at all — the bar cannot lose fifty pixels to
-## something that never asks it for any.
-##
-## A SETTING, NOT A DEV FLAG. It rode on `DevMode` for one commit, which meant a
-## player could not read their frame rate without also unlocking the card gallery
-## and the whole star chart — DevMode's own tooltip says exactly that. A frame
-## counter is a diagnostic, not a cheat: a tester reporting "the chart felt
-## choppy" is worth far more with a number attached, and that should not cost
-## them the game's secrets. `DisplaySettings.fps_meter` owns it.
-##
-## BUILT ALWAYS, SHOWN CONDITIONALLY, so the toggle takes effect immediately
-## rather than at the next launch.
-##
-## THREE READINGS, AND THE LAST IS THE ONE THAT FINDS A HITCH: the rate, what
-## an average frame took, and the slowest single frame of the last second
-## (`60 FPS  16.7 MS  WORST 41.2 MS`). A rate is an average, and an average
-## hides the one long frame a player feels as a jolt: a second of fifty-eight
-## 16 ms frames and one of 70 ms reads 59 FPS. The Mac investigation (Oct 27)
-## asked a tester to read this meter and found it could not show a spike at
-## all, so it does now. Both are in milliseconds because the thing a player is
-## reporting is a cost: 60 to 40 FPS sounds like a third gone and is 8 ms added
-## to a 16 ms frame.
-##
-## ONE LINE, IN THE WINDOW'S BOTTOM MARGIN. Every screen sits inside Main's
-## margin, which stops 7 px short of the window's bottom edge, so the frames
-## end there: the bottom bar's line is row 532 of 540 on LOCAL and in a fight,
-## the yard's panel line row 528. The figures go under all of it, on rows 534
-## to 538, a row clear of the frames and a row clear of the window's edge.
-## Twice it sat inside the frame: a second line rose onto SCAN SECTOR and
-## DISCARD, and the first one-line reading (Oct 27, figures on rows 529-533)
-## ran through the bar's 1 px line for all 158 px of it, past a box test that
-## only looked at text. `-- sheet=MeterFitTest` checks the ink against every
-## text, frame and edge on each screen.
+## A top-level overlay, not on the HUD row, which lost its width; a setting, not a dev flag.
+## Why: docs/why/FpsMeter.md#frame-meter
 
-## How often the reading refreshes. Frames per second read every frame is a
-## number that never settles long enough to be read; a quarter second was the
-## original cadence and it was right.
+## A rate read every frame never settles long enough to read; a quarter second was right.
 const TICK := 0.25
 
 ## Where the reading stops being fine. The colours are the originals.
 const WARN := 50
 const BAD := 30
 
-## Clearance from the corner, in viewport pixels: 6 from the right edge, and
-## -1 at the bottom because the box is taller than the ink. Silkscreen at
-## FS_SMALL draws its capitals and figures on 5 of the box's 11 rows, 4 empty
-## above them and 2 below, so the box hangs a pixel past the window's bottom
-## and the ink stops a row above it (rows 534-538 of 540; see ONE LINE).
+## Inset is -1 at the bottom: the box is taller than the ink, which sits on rows 534 to 538.
 const INSET := Vector2(6.0, -1.0)
 
-## THE LAST SECOND, IN FOUR QUARTERS: each slot holds one tick's frames (their
-## slowest, their total and how many), so the worst and the mean of the last
-## second are four numbers away rather than a list of every frame.
+## Four quarter-second slots keep the last second's worst and mean as four numbers.
 const SLOTS := 4
 var _worst := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
 var _sum := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
 var _count := PackedInt32Array([0, 0, 0, 0])
 var _slot := 0
-## When the last frame and the last tick ended, on the real clock (usec). A
-## frame is measured end to end on the wall clock rather than from `delta`,
-## which `Engine.time_scale` shrinks during a hit's slow motion. 0 is "not
-## counting": the meter was hidden, and a gap while it was is not a frame.
+## Wall clock, not `delta`, which `Engine.time_scale` shrinks in a hit's slow motion.
 var _last_us := 0
 var _tick_us := 0
 
 
 func _ready() -> void:
-	# TOP LEVEL, so no container can lay it out, size it, or push anything aside
-	# to make room for it. The same trick the ship screen's perk box uses, for
-	# the same reason.
+	# Top level, so no container can lay it out or push anything aside, like the perk box.
 	set_as_top_level(true)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_theme_font_override("font", UITheme.pixel_font())
@@ -136,15 +75,8 @@ func _process(_delta: float) -> void:
 		col = UITheme.WARN
 	text = "%d FPS  %.1f MS  WORST %.1f MS" % [f, total / float(maxi(frames, 1)), worst]
 	add_theme_color_override("font_color", col)
-	# PLACED EVERY TICK RATHER THAN ANCHORED. A top-level Control is excluded
-	# from its parent's layout, and that also means no anchor preset is applied
-	# to it — so the corner is arithmetic. It has to be redone each tick because
-	# the width changes when the reading goes from two digits to three.
-	#
-	# BOTTOM RIGHT, under every screen's frame. The top right is the HUD row:
-	# CARDS, MODULES and HISTORY run to within a few pixels of the edge, and
-	# that crowding is precisely what got the last frame counter deleted. The
-	# margin under the frames holds nothing else (`-- sheet=MeterFitTest`).
+	# Placed every tick as top-level controls get no anchors; bottom right, as the top is crowded.
+	# Why: docs/why/FpsMeter.md#placement
 	var vp := get_viewport_rect().size
 	size = get_combined_minimum_size()
 	position = vp - size - INSET

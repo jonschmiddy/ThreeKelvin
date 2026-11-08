@@ -1,42 +1,20 @@
 class_name HeadlessSim
 extends RefCounted
-## Headless balance simulator.
-##
-##   godot --headless --path . -- sim runs=200
-##
-## This tool is worth as much as the game code. In the web prototype it found
-## three real bugs (including an infinite draw loop) and a structural map flaw
-## in minutes. Run it after any balance change.
-##
-## Driven by Main.gd's sim branch, NOT by --script. The sim reads the Run and DB
-## autoloads, and Godot only creates autoloads when the project boots normally;
-## --script replaces the main loop and skips them entirely, so every reference
-## here would fail to compile.
+## Driven by Main.gd's sim branch, not --script, which skips the autoloads the sim reads.
+## Why: docs/why/HeadlessSim.md#headless-sim
 
 var runs := 200
-## `-- sim seed=N` gives run i the seed N+i, so a whole sweep is reproducible
-## and any single run in it can be flown again by hand. Zero means roll fresh
-## seeds, which is what a balance measurement wants.
+## `seed=N` gives run i the seed N+i, so a sweep is reproducible; zero rolls fresh seeds.
 var seed_base := 0
-## `-- sim manufacturer=korvan` flies every run in that manufacturer's chassis
-## (the weight still rolls). Empty rolls one of the seven per run, as before.
-## What a fresh profile can fly is Korvan alone, so this is how a sweep asks
-## about the game a new player gets rather than an average over seven starts.
+## Pins the chassis so a sweep asks about a new player's game, which has only Korvan.
 var pin_manufacturer: StringName = &""
-## `-- sim unlocked=korvan` (or `korvan,solari`) sets what every run's world may
-## hold (`Run.unlocked_manufacturers`), whatever this profile's flight record
-## and developer mode say. Empty keeps what `start_new_run` read -- and from the
-## editor binary developer mode is on, so that is every manufacturer, within
-## `DB.ACTIVE_MANUFACTURERS`. `unlocked=korvan` is a fresh profile's world.
+## Sets what every run's world may hold; empty keeps what `start_new_run` read.
 var pin_unlocked: Array[StringName] = []
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Every decision this file used to make itself. Extracted so the party bot can
 ## fly the same model the gate measures — see scripts/sim/Policy.gd.
 var policy: Policy = Policy.new()
-## `-- sim hot` flips the fight policy from "never overheat" to "spend heat for
-## tempo". The default model vents on sight and leaves every fight cold, which
-## is a competent player and is also the one player the map heat layer can
-## never touch. Measuring that layer needs somebody who actually runs hot.
+## `hot` spends heat for tempo: the default model leaves fights cold, so the heat layer never bites.
 var hot := false
 var wins := 0
 var deaths := 0
@@ -48,39 +26,18 @@ var death_causes := {}
 var stranded := 0
 var stranded_no_fuel := 0
 
-## The policy ran out of options. NOT the same as the run ending.
-##
-## `choose_jump` builds its candidates from `node.links`; the game lets you jump
-## to anything inside a radius (`reachable_from`), and never consults `links` at
-## all. So the policy giving up means "no CHARTED link was usable", which is a
-## much weaker condition than "stranded" -- and it was being counted as one.
-##
-## Kept alongside `stranded` rather than replacing it, because THE GAP BETWEEN
-## THEM IS THE SIZE OF THE BLIND SPOT, and that gap is the number that says
-## whether any of this mattered.
+## `policy_gave_up` is no usable charted link, weaker than stranded; the gap is the blind spot.
+## Why: docs/why/HeadlessSim.md#strand-counters
 var policy_gave_up := 0
 
-## Fuel left in the tank when the run ended, summed.
-##
-## S3A_FUEL_SWEEP 6 asks for this by name, and it is the number that decides
-## whether there is a fuel problem at all: a run that ends with most of a full
-## tank did not end for want of fuel, whatever the strand counter says.
+## Decides whether fuel is a problem: a run ending on most of a full tank did not die of fuel.
 var end_fuel_total := 0
 
-## Genuinely nowhere to go, at any price -- a MAP failure, not an economy one.
-##
-## Distinct from a dry tank: `stranded_no_fuel` means there were places to go and
-## none affordable, this means the reachable set was empty. If this is ever
-## non-zero the fuel ruling is aimed at the wrong thing entirely.
+## Nowhere to go at any price is a map failure; non-zero means the fuel ruling aims wrong.
 var stranded_nowhere := 0
 
-## What the pilot did with what each system offered.
-##
-## `ENCOUNTER_REBUILD.md` 8 names `forgone` as the number the model must be able
-## to report: an option lost because something else in its GROUP was taken
-## first. It is the depth curve made visible -- counts stay flat and only the
-## grouping moves, so if this stays near zero the exclusivity dial is not
-## actually doing anything.
+## `forgone` is an option lost to a group exclusion; near zero means the exclusivity dial is idle.
+## Why: docs/why/HeadlessSim.md#option-accounting
 var opts_taken := 0
 var opts_declined := 0
 var opts_forgone := 0
@@ -93,23 +50,14 @@ var runs_ambushed := 0
 var heat_samples := 0
 var heat_total := 0.0
 var hot_arrivals := 0
-## Signature at the moment a fight ENDS, which is the only heat a run ever has
-## a chance to carry onto the map. If this is near zero the map heat layer
-## cannot matter no matter what is attached to it.
-## How many things were taken out of containers across the run. The first
-## number the sim has ever had for "did the pilot collect", which used to be
-## true by construction.
+## Signature at a fight's end is the only heat a run can carry onto the map.
+## Why: docs/why/HeadlessSim.md#run-tallies
 var looted: int = 0
 var postfight_samples := 0
 var postfight_total := 0.0
 var postfight_hot := 0
-## The hellbender. `met` is landings on its system, because the first question
-## about a roamer is whether a run even crosses its path; the rest is what the
-## model did about it and what avoiding it cost in salvage.
-## How long an ordinary fight lasts and what it costs: turns and hull lost per
-## fight, and how many the model lost outright. Added for the enemy-block fix
-## (combat polish, Oct 13): a block intent that finally works should make
-## fights longer, and this is the number that says by how much.
+## Hellbender `met` counts landings on its system; fight length came from the Oct 13 block fix.
+## Why: docs/why/HeadlessSim.md#run-tallies
 var fights_n := 0
 var fights_turns := 0
 var fights_hull := 0
@@ -119,23 +67,14 @@ var hellbender_fights := 0
 var hellbender_kills := 0
 var hellbender_escapes := 0
 var derelicts_eaten := 0
-## THE FOOD SUPPLY, which is the thing §9a asks about and nothing measured.
-## `derelicts eaten` is a product of two numbers -- how often it moves, and how
-## much of the chart is edible -- and tuning the wrong one of those is exactly
-## the trap §9a names. So both are counted.
+## Derelicts eaten is two numbers (how often it moves, how much is edible), so both are counted.
 var hellbender_moves_total := 0
 var arrived_stripped := 0
 var food_systems := 0
 var all_systems := 0
 
-## WHAT A WON FIGHT PAYS, read out of the wrecks it left (Jon, Oct 13: "each ship
-## you kill has a chance to get credits and modules and other parts"). Split by
-## how many hulls the fight had: an ambush fields its whole pack, as the game
-## does, and an option's fight one ship (reinforcements are gone). The set
-## pieces are counted in the totals and left out of
-## the split, since they pay by their own rules. `fight_credits` is what fights
-## put into wrecks (and, for the custodian, the ledger); `credits_taken` is what
-## the pilot banked from them after looting.
+## Fight pay is read out of the wrecks (Jon, Oct 13) and split by hull count; set pieces pay apart.
+## Why: docs/why/HeadlessSim.md#fight-payout
 var won_by_pack: Dictionary = {}
 var credits_by_pack: Dictionary = {}
 var modules_by_pack: Dictionary = {}
@@ -144,17 +83,8 @@ var fight_modules := 0
 var credits_taken := 0
 var modules_taken := 0
 
-## WHAT GOING DEEP PAYS (Jon, Oct 22: a hard game where going deep is worth it).
-## `loot_mix` is every part and material lying in the run's systems when it
-## ends -- wrecks, floor piles, bags, taken or not -- by the tier of the system
-## it lay in (`MapGen.tier`), so the rarity ladder can be read against depth.
-## The core is left out: the custodian's body is authored, not rolled by tier.
-## `looted_scrap` is what the parts the pilot took would melt for and
-## `looted_mat_value` what its materials list at; `credits_in` is every credit
-## the run gained, from any source, read off `Sig.resources_changed` (every
-## change to `Run.credits` goes through `add_credits`, which emits it).
-## `core_fights` / `core_wins`: the ship the run built, against the custodian.
-## Read-only, like `_tally`: nothing here draws from any stream.
+## Loot is tallied by system tier so the rarity ladder reads against depth (Jon, Oct 22).
+## Why: docs/why/HeadlessSim.md#depth-payout
 var loot_mix: Dictionary = {}
 var looted_scrap := 0
 var looted_mat_value := 0
@@ -163,32 +93,19 @@ var _credits_seen := 0
 var core_fights := 0
 var core_wins := 0
 
-## Per galaxy kind: name -> {runs, wins, jumps, kills, systems}.
-##
-## NOT cleared by `_reset()`. That is called once per batch in the by-chassis
-## sweep, and a per-kind table wants to span the whole sweep -- fifteen kinds
-## across twenty-one chassis is already thin, and resetting it per chassis would
-## leave every cell too small to read.
+## Not cleared by `_reset()`: the table spans the whole sweep, or each cell is too thin to read.
+## Why: docs/why/HeadlessSim.md#per-kind-table
 var by_kind: Dictionary = {}
-## THE SAME SPLIT BY THE MANUFACTURER YOU LAUNCHED AS, with each death bucketed
-## by what ended it. A new manufacturer switched on moves two things at once --
-## its own runs, which can now find their sets, and everybody else's, whose
-## branded drops are now shared -- and one win rate cannot say which moved.
+## Split by launch manufacturer, as a new one moves its own runs and everyone else's at once.
 var by_manufacturer: Dictionary = {}
-## FLASHPOINT IN REAL FIGHTS: cards with the keyword played, and how many of
-## those resolved over capacity (the bonus fired, read off the fight's own log
-## line, so it counts what CardResolver did rather than what the sim expected).
+## Read off the fight's own log line, so it counts what `CardResolver` did.
 var flash_played := 0
 var flash_fired := 0
 ## Branded parts the pilot picked up, by manufacturer.
 var aboard_by_manufacturer: Dictionary = {}
 
-## THE ECONOMY, which decided more runs than danger did and was invisible.
-##
-## Fuel and credits both flow through exactly two places -- a station, and the
-## act of jumping -- so they are sampled by delta around those rather than by
-## hooking RunState. A harness that edits the game to measure it is a harness
-## that measures a different game.
+## Fuel and credits are sampled by delta around stations and jumps, not by hooking `RunState`.
+## Why: docs/why/HeadlessSim.md#economy-sampling
 var stations_visited := 0
 var fuel_spent_jumping := 0
 var fuel_from_stations := 0
@@ -199,27 +116,16 @@ var credits_at_stations := 0
 var option_fights := 0
 var option_creatures: Dictionary = {}
 
-## THE FUEL AUDIT (balance/fuel, Oct 17). `fueltrace=<path>` writes one JSON
-## line a run: the tank at every departure and arrival, what each jump cost,
-## what was bought and where the money went, and the two "did fuel bite"
-## counts -- jumps where a seen, reachable star was too dear, and (human
-## pilot) jumps where the star it wanted most was. Read by the scratchpad's
-## fuel_report.py; nothing here changes how a run plays.
+## The fuel audit (Oct 17) writes one JSON line a run and changes nothing about how a run plays.
+## Why: docs/why/HeadlessSim.md#fuel-audit
 var sturdy := false
-## The run-length study (balance/run-length, Oct 22). The Custodian's numbers
-## as multiples of its own (`custhp=`, `custdmg=`, `custblock=`), or a loop
-## swapped out (`custloop=`), applied to the template before any run; and what
-## a run carried when it reached the core.
+## Run-length study (Oct 22): Custodian multiples applied to the template before any run.
 var _cust_hp := 1.0
 var _cust_dmg := 1.0
 var _cust_block := 1.0
 var _cust_loop := ""
-## THE COMBAT STUDY (Phase 11 step 1, Oct 27; Jeremy: "combat doesn't feel
-## important"). Every enemy but the boss as multiples of its own: its hull
-## (`enemyhp=`) and the damage its intents deal (`enemydmg=`), applied to the
-## templates before any run, so ambush packs, event fights, creatures and the
-## Hellbender all meet the same numbers. The Custodian keeps its tuned values;
-## `custhp=` and the rest move it. Off unless given, and never a ruling.
+## The combat study (Oct 27) scales every enemy but the boss; off unless given, never a ruling.
+## Why: docs/why/HeadlessSim.md#combat-study
 var _enemy_hp := 1.0
 var _enemy_dmg := 1.0
 ## How each run ended, for the study's closing line: the credits a won run
@@ -256,11 +162,7 @@ func run_sim() -> void:
 			policy.vent_hot = float(arg.split("=")[1])
 		elif arg.begins_with("fueltrace="):
 			_trace_path = arg.split("=")[1]
-		# THE RUN-LENGTH STUDY'S FLAGS (balance/run-length, Oct 22). Off unless
-		# given; see RunState.study_radius_scale and `_study_custodian`.
-		# `depthcap=N` flies another depth rule than the game's two rings a jump
-		# (RunState.DEPTH_STEP; 0 is August's, no cap; 1 Oct 22's), for
-		# comparison only.
+		# Run-length study flags (Oct 22), off unless given; `depthcap` is for comparison only.
 		elif arg.begins_with("depthcap="):
 			Run.depth_step = int(arg.split("=")[1])
 		elif arg.begins_with("ambushdeep="):
@@ -297,10 +199,8 @@ func run_sim() -> void:
 		_boss_only()
 		return
 	policy.human = "human" in OS.get_cmdline_user_args()
-	# A LENS, NOT A PLAYER: hull and heat restored at every arrival, so runs
-	# live long enough for the fuel economy to be what is measured. Today's
-	# pilot dies at ~11 jumps of fights and heat with 92% of the tank unspent,
-	# which says nothing about fuel either way. Never a balance number.
+	# `sturdy` restores hull and heat each arrival so fuel is measured; never a balance number.
+	# Why: docs/why/HeadlessSim.md#sturdy-lens
 	sturdy = "sturdy" in OS.get_cmdline_user_args()
 	if sturdy:
 		print("STURDY lens: hull and heat restored on every arrival.")
@@ -310,16 +210,10 @@ func run_sim() -> void:
 	if _trace_path != "":
 		_trace_file = FileAccess.open(_trace_path, FileAccess.WRITE)
 
-	# THE SECOND POLICY `ENCOUNTER_REBUILD.md` 8 ASKS FOR. A greedy model takes
-	# every check it is offered, which overstates income and makes the shortfall
-	# ladder look free. `-- sim riskaverse` declines below Policy.RISK_FLOOR and
-	# pays for the caution in what it never collects; running both on one seed is
-	# how the exclusivity dial gets argued with rather than assumed.
+	# `riskaverse` declines below `Policy.RISK_FLOOR`: a greedy model makes shortfalls look free.
 	policy.risk_averse = "riskaverse" in OS.get_cmdline_user_args()
-	# WITHOUT THIS THE SIM MEASURES A GAME WITH NO COMBAT. Fights live only in
-	# option outcomes now, and Policy has no Combat of its own, so an unwired
-	# `fight_cb` means every hostile line resolves to its prose and nothing shoots
-	# back. It reported 0.2 kills a run before this was connected.
+	# Without `fight_cb` the sim measures a game with no combat: it reported 0.2 kills a run.
+	# Why: docs/why/HeadlessSim.md#fight-wiring
 	policy.fight_cb = _option_fight
 	Sig.log_line.connect(func(text: String, _kind: StringName) -> void:
 		if text.begins_with("  flashpoint +"):
@@ -354,17 +248,8 @@ func run_sim() -> void:
 		_play_one(pin_manufacturer, -1, i)
 	_report()
 
-## Every chassis in the game, `runs` each, reported as a table.
-##
-##   godot --headless --path . -- sim bychassis runs=500
-##
-## The ordinary sim rolls a random manufacturer and weight per run, which is
-## right for "is the GAME winnable" and useless for "is this SHIP winnable" —
-## twenty-one starts averaged into one number can hide a chassis that never wins
-## behind six that do. This pins one and repeats it.
-##
-## Slow on purpose: at 500 each that is 10,500 complete runs. It is a thing you
-## leave running, not a thing you put in the merge gate.
+## Pins each chassis and repeats it; slow on purpose (10,500 runs), so not for the merge gate.
+## Why: docs/why/HeadlessSim.md#by-chassis-sweep
 func _run_by_chassis() -> void:
 	var weights := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
 	print("Three Kelvin — %d runs per chassis, %d chassis, %d runs total" % [
@@ -447,10 +332,7 @@ func _reset() -> void:
 	core_fights = 0
 	core_wins = 0
 
-## `index` exists so that `-- sim seed=N` gives every run its own reproducible
-## seed rather than playing one run a thousand times. A sim that reports "40% of
-## runs strand" is only actionable if one of those runs can be handed back:
-## `-- seed <the number printed with the death>` flies it again exactly.
+## `index` gives every run its own reproducible seed, so one run can be flown again.
 func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> void:
 	Rng.forced = (seed_base + index) if seed_base != 0 else 0
 	Run.start_new_run(manufacturer, w)
@@ -460,17 +342,8 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		Run.unlocked_manufacturers = pin_unlocked.duplicate()
 	_credits_seen = Run.credits
 	var started_as := Run.hull.manufacturer
-	# The simulated pilot's own generator: one per run, seeded from the run's
-	# master seed. The model is a player, not a place — so its choices replay
-	# with the run, and drawing them does not move what the world rolls next.
-	#
-	# NOT derived per jump, which is what this was first. Rng.derive() keys on
-	# a position, and `Run.jumps` is not one: jump_to() returns without
-	# incrementing when a jump turns out to be unaffordable, so two loop passes
-	# could share an index, hand back the same generator and make the same
-	# choice twice. The model wandered laterally in circles and reported 94
-	# jumps a run against a real figure of 66 — a policy bug produced entirely
-	# by seeding a decision on something that was not a place.
+	# The pilot generator is per run, not per jump: `Run.jumps` is not a place and repeated picks.
+	# Why: docs/why/HeadlessSim.md#pilot-generator
 	pilot = Rng.derive(&"pilot", 0)
 	policy.pilot = pilot
 	policy.begin_run()
@@ -484,10 +357,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		_tr.core_hops = _hops_to_core()
 	var guard := 0
 	var jumped_hot := false
-	# Whether the ship just ARRIVED here by a jump. The game rolls an ambush on
-	# arrival (`Router.resolve_current_node`, off `Sig.jumped`) and nowhere
-	# else, so the start system is not rolled until a jump comes back to it, and
-	# a jump `Run.jump_to` refused is no arrival at all.
+	# The game rolls an ambush only on arrival by jump, so the start system is not rolled.
 	var arrived := false
 	while not Run.won and not Run.dead and guard < 600:
 		guard += 1
@@ -496,30 +366,14 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			Run.hp = Run.max_hp()
 			Run.heat = 0
 
-		# How hot the model actually arrives, sampled before anything here is
-		# resolved. This is the number every other heat rule keys off, so a
-		# report that omits it cannot explain its own win rate.
+		# Arrival heat is sampled first, as every other heat rule keys off it.
 		heat_samples += 1
 		heat_total += Run.signature()
 		if Run.signature() > Run.SIGNATURE_FLOOR:
 			hot_arrivals += 1
 
-		# Something followed the heat in, through the SAME function the game
-		# uses. This comment used to claim it was "rolled exactly as Router does
-		# it on arrival" and it was not: Router rolls the pack positionally via
-		# `_roll_foes`, and this picked ONE enemy off `Rng.foe` from a pool that
-		# always passed `false` for fauna. Two implementations, one of them
-		# measuring the other.
-		#
-		# AND NOW FIELDED AS THE GAME FIELDS IT, which it was not until Oct 17:
-		# the sim fought the pack's lead alone, with `clears_node` true, so a
-		# won ambush consumed the system and the options it held were never
-		# taken; it rolled ambushes at stations, which never have fights
-		# (`Router.no_fights_at`), and on cleared systems, which `_roll_here`
-		# leaves alone; and it rolled one at the start system before any jump.
-		# Now: the gates of `Router._roll_ambush`, on arrival only, and the
-		# whole `Router.ambush_pack` with `clears_node` false, as
-		# `Router.resolve_current_node` opens it.
+		# The sim uses the game's own ambush gates and pack (Oct 17), not a second implementation.
+		# Why: docs/why/HeadlessSim.md#ambush-parity
 		if arrived and not node.cleared and not node.ambush_rolled \
 				and node.type != MapGen.NodeType.CORE and not Router.no_fights_at(node):
 			node.ambush_rolled = true
@@ -530,11 +384,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 				if not pack.is_empty() and not _fight(pack[0], false, pack.slice(1)):
 					break
 
-		# The hellbender holds this system. Same blockade the game enforces in
-		# Router.resolve_current_node(): nothing here is reachable past it, so
-		# the model fights it or flies on with the node unresolved. A break-off
-		# lifts the blockade in place — it jumps two hops out — which is why
-		# the flag is re-read after the fight.
+		# Same blockade as the game's; a break-off lifts it in place, so the flag is re-read.
 		var blockaded := Run.hellbender_alive() and Run.hellbender_at == Run.at
 		if blockaded:
 			hellbender_met += 1
@@ -570,21 +420,14 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			_tr.stations += 1
 			credits_at_stations += Run.credits - sc
 		elif node.type == MapGen.NodeType.PULSAR and not node.cleared:
-			# Always taken. A competent player does not walk past the best fuel
-			# in the galaxy — the question the model cannot answer is whether
-			# the hull cost is worth it, which is exactly what the win rate is
-			# for.
+			# Always taken: a competent player passes up no fuel; the win rate judges hull cost.
 			var pf := Run.fuel
 			Run.harvest_pulsar()
 			_tr.pulsar_fuel += Run.fuel - pf
 			if Run.dead:
 				break
-		# WHAT THE SYSTEM OFFERS, taken by the policy rather than by the type.
-		#
-		# THE ONLY WAY AN ORDINARY SYSTEM RESOLVES, since the collapse. It used to
-		# run beside FIGHT and DERELICT branches that did the same work off a
-		# label; those are gone and this is what replaced them, fights included --
-		# `policy.fight_cb` is wired to `_fight` below.
+		# Policy-taken options are the only way a system resolves since the collapse, fights too.
+		# Why: docs/why/HeadlessSim.md#option-resolution
 		if not node.cleared:
 			var of := Run.fuel
 			var got := policy.take_options(node)
@@ -599,17 +442,12 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 				break
 		policy.manage_cargo()
 
-		# Farm laterally while healthy enough, then descend. The choice itself
-		# lives in Policy; what stays here is the ACCOUNTING for the case where
-		# there is no choice, which is a measurement rather than a decision.
+		# The choice lives in `Policy`; here is only the accounting for the case of no choice.
 		var pick := policy.choose_jump(node)
 		_audit_jump(node, pick)
 		if pick < 0:
-			# F1 -- A STRAND IS WHAT THE GAME SAYS IT IS. This used to call
-			# `check_stranded()` and then increment regardless of what it did:
-			# the counter tracked the POLICY giving up, not the run ending.
-			# `check_stranded` returns void and dies internally, so ask the same
-			# question it asks.
+			# A strand is what the game says it is: the old counter tracked the policy giving up.
+			# Why: docs/why/HeadlessSim.md#strand-accounting
 			policy_gave_up += 1
 			Run.check_stranded()
 			if Run.has_legal_jump():
@@ -617,10 +455,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 				# fly. Not a strand, and the old counter called it one.
 				break
 			stranded += 1
-			# F2 -- OVER THE SET THE GAME USES, AND ALL OF IT. This used to walk
-			# `node.links` and break on the FIRST unaffordable one, so it meant
-			# "at least one link was too dear" rather than "nothing was
-			# affordable" -- over the wrong set, in the wrong direction.
+			# Walks the set the game uses, all of it, not the first unaffordable link.
 			var any_reachable := false
 			var any_affordable := false
 			for n in Run.in_range_of(node):
@@ -633,10 +468,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			elif not any_affordable:
 				stranded_no_fuel += 1
 			break
-		# EVERYTHING THAT IS NOT A JUMP AND NOT A STATION, caught as the
-		# remainder: fights, derelicts, pulsars and events all move these and
-		# instrumenting each one separately would be five more places to keep
-		# in step with the loop above.
+		# Everything that is not a jump or a station is caught as the remainder.
 		var jf := Run.fuel
 		var jc := Run.credits
 		var jumps_before := Run.jumps
@@ -649,10 +481,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			_tr.cost.append(jf - Run.fuel)
 			_tr.layer.append(Run.node_at().layer)
 			_tr.dist.append(snappedf(jd, 0.001))
-		# ARRIVING SOMEWHERE ALREADY STRIPPED is the only way the hellbender's
-		# appetite actually costs the player anything. A wreck it ate in a system
-		# nobody was ever going to fly to is a number, not a loss, and §9a's
-		# worry is "salvage the party does not get".
+		# Arriving at an already stripped system is the one way the hellbender's appetite costs.
 		if Run.node_at() != null and (Run.node_at() as MapGen.MapNode).eaten:
 			arrived_stripped += 1
 		fuel_spent_jumping += maxi(0, jf - Run.fuel)
@@ -664,9 +493,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		var mn := n as MapGen.MapNode
 		if mn.eaten:
 			derelicts_eaten += 1
-		# What SHARE of the chart the hellbender could have eaten, asked the
-		# same way it asks. `system_has_tag` rolls an unvisited system's options
-		# to answer, which is why this runs at the end of a run and not during.
+		# Asked at run end, since `system_has_tag` rolls an unvisited system's options.
 		all_systems += 1
 		if OptionTable.system_has_tag(mn, &"salvage"):
 			food_systems += 1
@@ -742,25 +569,12 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	row.systems += Run.map.size()
 	by_kind[kind] = row
 
-## Competent-player model: lock on before attacking, brace against telegraphed
-## damage, vent before overheating, and never overheat unless it secures a kill.
-## A fight an option opened, against whatever this system would field.
-##
-## The ship is `Router.option_foe`, the one `Router.start_ambush` fields when an
-## option's outcome says "fight": one ship off `Rng.foe` from the danger's
-## ordinary pool. It was this file's own pick, with fauna where the region is
-## fauna -- and the game's never is, so in fauna space the sim fought whales
-## (no money, no parts) where the game fights ships.
-##
-## `foe` is the event's creature tag (`OptionTable.fight_foe`), as the screen
-## hands it to `Router.start_ambush`: a creature event's fight brings that
-## creature, everything else a ship.
+## Option fights use `Router.option_foe`; the sim's own pick fought whales, not ships.
+## Why: docs/why/HeadlessSim.md#option-fights
 func _option_fight(n: MapGen.MapNode, foe: StringName = &"") -> bool:
 	if foe == &"" and DB.fight_pool(n.danger, false).is_empty():
 		return not Run.dead
-	# Not consuming, for the reason `Router.start_ambush` spells out: the option
-	# spends itself and the system is finished when nothing is left in it. A sim
-	# that cleared the node here would take fewer options than the game does.
+	# Not consuming, as in `Router.start_ambush`: clearing the node would take fewer options.
 	var t := Router.option_foe(n, foe)
 	option_fights += 1
 	if t.fauna:
@@ -781,9 +595,7 @@ func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = [
 	fights_hull += maxi(0, hp_in - Run.hp)
 	if Run.dead:
 		fights_lost += 1
-	# AND THEN YOU GO AND LOOK IN IT. A kill fills a container at the node now
-	# rather than putting parts in your hold, so a sim that does not reach into
-	# one is a sim whose pilot never picks anything up. See `Policy.loot`.
+	# A kill fills a container, so the pilot must loot it; see `Policy.loot`.
 	_tally(cb, wrecks0, cr0)
 	if not Run.dead:
 		_loot()
@@ -794,10 +606,7 @@ func _fight(template: EnemyTemplate, clears_node: bool = true, extras: Array = [
 	return not Run.dead
 
 
-## The model's turns until the fight ends (or 60 turns), and how many it took.
-## Every fight the sim plays goes through here, the Hellbender's too: its own
-## copy of this loop never answered a pending pick, so a card that asked one
-## locked the rest of that turn, which no player is made to do.
+## Every fight goes through here: the Hellbender's own copy never answered a pending pick.
 func _play_out(cb: Combat) -> int:
 	var turns := 0
 	while not cb.finished and turns < 60:
@@ -805,9 +614,7 @@ func _play_out(cb: Combat) -> int:
 		var acted := true
 		while acted and not cb.finished:
 			acted = false
-			# Answer any pending pick first. Nothing is playable while one is
-			# open, so a loop that only ever asked for a card would decide the
-			# turn was over and end it with the choice unmade.
+			# Answer a pending pick first: nothing is playable while one is open.
 			while cb.choosing > 0:
 				cb.choose(cb.best_choice())
 				acted = true
@@ -894,9 +701,7 @@ static func _modules_left(n: MapGen.MapNode) -> int:
 	return k
 
 
-## What one won fight put into the wrecks it made (and, for the custodian, the
-## ledger). Read-only: it draws nothing from any stream, so the runs it watches
-## are the runs the sim always played.
+## Read-only: draws nothing from any stream, so watched runs are the runs always played.
 func _tally(cb: Combat, wrecks0: int, cr0: int) -> void:
 	if cb.result != &"victory" and cb.result != &"won":
 		return
@@ -927,10 +732,7 @@ func _tally(cb: Combat, wrecks0: int, cr0: int) -> void:
 	modules_by_pack[size] = int(modules_by_pack.get(size, 0)) + mods
 
 
-## The set piece, carried damage and all. Differs from _fight() in exactly the
-## ways the game does: the enemy opens at the hull the map says it has, winning
-## does not consume the system, and there are three endings — it dies, it
-## leaves, or you do.
+## Differs from `_fight()` as the game does: enemy hull from the map, no consume, three endings.
 func _fight_hellbender() -> bool:
 	var cb := Combat.new()
 	cb.clears_node = false
@@ -957,9 +759,7 @@ func _fight_hellbender() -> bool:
 
 func _report() -> void:
 	print("---")
-	# WHAT THE PILOT COLLECTED. Zero here means every wreck in the galaxy was
-	# walked past, which is the failure this number exists to make impossible to
-	# miss -- it was zero by construction until containers landed.
+	# Zero means every wreck was walked past; it was zero by construction until containers landed.
 	print("looted %d items across %d runs (%.1f per run)"
 		% [looted, maxi(1, runs), float(looted) / float(maxi(1, runs))])
 	print("runs %d · wins %d (%.0f%%) · deaths %d · errors %d" % [
@@ -967,16 +767,11 @@ func _report() -> void:
 	print("avg jumps %.1f · avg kills %.1f · avg danger reached %.2f" % [
 		float(total_jumps) / runs, float(total_kills) / runs, float(total_danger) / runs])
 	print("death causes: %s" % str(death_causes))
-	# These ARE counted in deaths: check_stranded() ends the run rather than
-	# leaving the ship alive and immobile. Reported separately because a fuel
-	# death is an economy failure, not a combat one.
+	# Strands count in deaths but are reported apart, as a fuel death is an economy failure.
 	print("stranded, ended by check_stranded() %d (%.1f%%) · dry tank %d · nowhere in range %d" % [
 		stranded, 100.0 * stranded / maxi(1, runs), stranded_no_fuel,
 		stranded_nowhere])
-	# THE BLIND SPOT, printed on its own line because it is the point of S1.
-	# `policy_gave_up` counts the policy running out of CHARTED links;
-	# `stranded` counts the ship being unable to fly. Every run in the gap is one
-	# the old counter called stranded and the game did not.
+	# The blind spot: runs in the gap are ones the old counter called stranded and the game not.
 	print("fuel left at run end: %.0f of a %d tank (%.0f%%)" % [
 		float(end_fuel_total) / maxi(1, runs),
 		Run.start_fuel(),
@@ -997,9 +792,7 @@ func _report() -> void:
 	print("policy gave up %d (%.1f%%) · of those, the ship could still fly %d" % [
 		policy_gave_up, 100.0 * policy_gave_up / maxi(1, runs),
 		policy_gave_up - stranded])
-	# The heat layer, reported separately because it is the newest thing in the
-	# economy and the first question about any tuning pass on it is whether it
-	# fired at all.
+	# The heat layer is reported apart, as the first question on any tuning is whether it fired.
 	print("heat: avg signature on arrival %.2f · arrived hot %d of %d (%.1f%%)" % [
 		heat_total / maxf(1.0, float(heat_samples)), hot_arrivals, heat_samples,
 		100.0 * hot_arrivals / maxi(1, heat_samples)])
@@ -1039,10 +832,7 @@ func _report() -> void:
 	print("this design's difficulty lives in the economy, not in single fights.")
 
 
-## THE RUN-LENGTH STUDY (balance/run-length, Oct 22). The Custodian's template
-## scaled before any run, so every fight with it -- the core's and `bossonly`'s
-## -- meets the same numbers. Nothing here is a ruling; with no flags it is a
-## no-op.
+## The Custodian template is scaled before any run; with no flags it is a no-op.
 func _study_custodian() -> void:
 	if _cust_hp == 1.0 and _cust_dmg == 1.0 and _cust_block == 1.0 and _cust_loop == "":
 		return
@@ -1098,11 +888,7 @@ func _study_arrival() -> Dictionary:
 	}
 
 
-## THE COMBAT STUDY'S SCALING (`enemyhp=`, `enemydmg=`): every template in
-## `DB.enemies` but the boss, in place, hull times `hp` and every intent's damage
-## times `dmg` (a private copy of each intent, as `_study_custodian` makes).
-## Danger scaling still applies on top, in `Combat._spawn`. Returns each
-## scaled template's id and new hull, for the STUDY line.
+## Scales every template but the boss in place; danger scaling still applies in `Combat._spawn`.
 static func scale_enemies(hp: float, dmg: float) -> PackedStringArray:
 	var said: PackedStringArray = []
 	for id in DB.enemies:
@@ -1126,9 +912,7 @@ static func scale_enemies(hp: float, dmg: float) -> PackedStringArray:
 	return said
 
 
-## The study's closing line: credits at the end of won runs, and runs that
-## ended with an empty tank (of them, `dry` were strands with places in reach
-## and none affordable).
+## Closing line: won-run credits and empty-tank runs, of which `dry` had places in reach.
 static func end_line(won_credits: Array, empty: int, dry: int) -> String:
 	var top := 0
 	for c in won_credits:
@@ -1187,9 +971,7 @@ func _report_study() -> void:
 	print("STUDY at arrival: fuel in the tank median %.1f min %d" % [_median(fuel), fmin])
 
 
-## THE CUSTODIAN AGAINST A FRESH SHIP (`-- sim bossonly`): each Korvan weight
-## at grade C with its starter kit, flown straight to the core and into the
-## fight with nothing else done, `runs` times each.
+## Flies each Korvan weight at grade C with its starter kit straight into the Custodian fight.
 func _boss_only() -> void:
 	var weights := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
 	var manu: StringName = pin_manufacturer if pin_manufacturer != &"" else &"korvan"
@@ -1246,22 +1028,8 @@ func _report_manufacturers() -> void:
 	print("branded parts on board at run end: %s" % str(aboard_by_manufacturer))
 
 
-## What each galaxy kind actually played like.
-##
-## FIFTEEN KINDS THAT ARE NOT THE SAME GAME. `GalaxyGen`'s header claims the
-## shape of a galaxy cannot move a jump or a fuel cost; it can and does, because
-## `MapGen.ring_count()` reads `squash` and `hop_distance()` measures in squashed
-## space. A Lenticular is a smaller galaxy whose hops are cheaper. So a single
-## win rate is an average over fifteen different games, and the moment that
-## variation becomes DELIBERATE -- authored `density` and `reach` per kind -- it
-## has to be readable or there is no way to tell a tuning change from a roll.
-##
-## SYSTEMS IS THE COLUMN TO WATCH during the galaxy resize: it is the number
-## `LAYERS` and `RING_SPACING` move, and the one that says whether a change did
-## what it claimed.
-##
-## Sorted by win rate, so the spread is the first thing visible. A kind with a
-## handful of runs is noise -- the count is printed so it can be discounted.
+## Kinds play as different games, as `squash` changes ring count and hop cost, so report per kind.
+## Why: docs/why/HeadlessSim.md#galaxy-kinds
 func _report_kinds() -> void:
 	if by_kind.is_empty():
 		return
@@ -1297,16 +1065,8 @@ func _report_kinds() -> void:
 				float(hi.rate) - float(lo.rate), rows.size()])
 
 
-## Where fuel and credits came from and went, per run.
-##
-## THE LARGEST DEATH CAUSES ARE ECONOMIC. Runs end adrift with a dry tank or
-## holed because repairs were unaffordable, and neither is visible in a report
-## that only counts corpses. This is the sheet that says whether a galaxy is
-## payable at all.
-##
-## FUEL EARNED PER JUMP is the number to watch when the galaxy is resized: a
-## bigger map costs more fuel to cross, and if income per system does not keep
-## pace the run simply runs out of road however large the tank starts.
+## Most deaths are economic and hidden from a corpse count; watch fuel per jump when resizing.
+## Why: docs/why/HeadlessSim.md#economy-report
 func _report_economy() -> void:
 	var r := float(maxi(1, runs))
 	var j := float(maxi(1, total_jumps))
@@ -1363,9 +1123,7 @@ func _mix_table(keys: Array, cut: int) -> void:
 		print(line)
 
 
-## Before every jump: did fuel narrow the choice, and would the fuel hint be up?
-## The first jump the hint's rule is true on is kept, with whether it would have
-## named a dock (`Run.nearest_dock`) -- the warning a stranded run had.
+## Keeps the first jump where the fuel hint's rule is true, and whether it would name a dock.
 func _audit_jump(node: MapGen.MapNode, pick: int) -> void:
 	if _tr.is_empty():
 		return

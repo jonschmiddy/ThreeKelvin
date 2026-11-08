@@ -1,42 +1,8 @@
 extends Node
 
-## THE HULL FAILING (`LowHull`, `low_hull.gdshader`, `HullScramble`,
-## `low_hull_mask.gdshader`, `VoiceGlitch`), headless:
-##   godot --headless --path . --fixed-fps 60 -- sheet=LowHullTest
-## From a run under way, animated (`Router.animate_in_harness`):
-##   * the state: off at half the hull; on at TIER1_AT exactly and stepping up
-##     at TIER2_AT; easing in over EASE_S (part way at half of it, whole after
-##     it) and out the same way when the hull is repaired; off at 0 hull, on the
-##     title and with no run;
-##   * every place a run is played: LOCAL, the sector map, the star chart, a
-##     fight, the station -- scrambling at each;
-##   * the red breathes, and never past its preset's edge;
-##   * THE WORDS: none above the line; at 30, 20, 10, 5 and 1% of the hull the
-##     scramble rises (runs started, letters scrambled at once), under its
-##     ceiling, a small share of the letters on screen even at 5%; the hull
-##     readout among the texts that scramble;
-##   * NOTHING MOVES: every text control's rect and minimum size, and every
-##     control that takes the mouse, unchanged on every frame of all of it (the
-##     screen's own movement measured first, with the hull sound, and not
-##     counted), and the glass ignores the mouse;
-##   * NOTHING IS REWRITTEN: every text read while it scrambles is its real
-##     text, and after a repair nothing is left (no cell, no canvas item, no
-##     mask), every SignalText's noise cleared;
-##   * hand-drawn text (`LowHull.scr`): the string drawn is as wide as the real
-##     one to the pixel, its letters' places unchanged, and the real one kept;
-##   * a tooltip scrambles; the escape menu never, and nothing at all while it
-##     is open;
-##   * reduced motion: the red still and faint (REDUCED_RED), no scramble;
-##   * the cost: its frame time at 5% against with the hull sound;
-##   * her voice: every preset's plan inside her words, each window short
-##     enough not to cover a word, apart, under MOST_SHARE; glitches a second
-##     rising 30 -> 20 -> 10 -> 5%; a stutter or a chop first; rendered through
-##     Godot's decoder the take keeps its length to the sample, is untouched
-##     outside its windows, and starts and ends each window without a step; her
-##     portrait slips once for each glitch (none under reduced motion, where her
-##     voice keeps the subtle preset's glitches); baked on a worker.
-## No pixels are looked at (headless draws nothing): the films are
-## `-- sheet=LowHullFilm`'s.
+## Headless check of the failing-hull effects: state, scramble, no layout movement, no
+## rewrite, her voice.
+## Why: docs/why/LowHullTest.md#low-hull-test-scope
 
 var _tree: SceneTree
 const TIP := preload("res://scripts/sim/LowHullFilm.gd")
@@ -756,9 +722,7 @@ func _portrait() -> void:
 		await _frames(2)
 	DisplaySettings.reduced_motion = false
 
-	# MADE OFF THE MAIN THREAD (`Audio.ash_voice_prepare`): the glitched take
-	# baked on a worker during her power-on, and her line's start on the main
-	# thread costing only the stream made from the bytes
+	# Baked on a worker during her power-on; the main thread only makes the stream from bytes.
 	var path := AshLines.voice_path(line)
 	var st := load(path) as AudioStream
 	var t_old := Time.get_ticks_usec()
@@ -768,11 +732,8 @@ func _portrait() -> void:
 	var p2 := AshPortrait.new()
 	LowHull.instance.get_parent().add_child(p2)
 	p2.say(line, &"hurt")
-	# HEADLESS GAME TIME RUNS FASTER THAN THE WALL: the 0.35 s of her power-on
-	# can pass in a few milliseconds here, where in play it is 0.35 s of real
-	# time and the worker's 40 ms fits in it many times. So the wall time her
-	# power-on would take is given back to the worker before the game moves on
-	# (the worker's own time is checked above, against VOICE_AT).
+	# Headless game time outruns the wall, so the power-on's wall time is given back to the
+	# worker.
 	var wall := Time.get_ticks_msec()
 	while int(Audio._prep.get("task", -1)) >= 0 and not WorkerThreadPool.is_task_completed(int(Audio._prep.task)) \
 			and Time.get_ticks_msec() - wall < int(AshPortrait.VOICE_AT * 1000.0):

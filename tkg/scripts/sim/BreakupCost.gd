@@ -1,9 +1,6 @@
 extends Node
 
-## What a death costs the frame it starts on (combat polish, Oct 13).
-##   godot --headless --path . -- sheet=BreakupCost
-## Times, for each enemy kind's drawn canvas: ShipBreakup.cut, wreck_image, a
-## whole breakup setup, and EnemyArt drawing the dead ship (which cuts too).
+## Times each enemy kind's cut, wreck image, breakup setup and dead draw (combat polish, Oct 13).
 
 func _ready() -> void:
 	_run.call_deferred()

@@ -1,21 +1,9 @@
 
 extends RefCounted
 
-## WHERE EVERYTHING ON THE FIGHT'S SCREEN IS, ONE FRAME AT A TIME, for the
-## opening of a fight (`FightOpenFilm`, `FightOpenTest`). Every element that
-## changes place or appears as a fight starts, by role, so the LOCAL screen a
-## fight is started from and the fight's own screen are compared as one
-## picture: a role is looked up on whichever screen is current.
-##
-## Each sample is `{role: [x, y, w, h, alpha]}` in game px (the 960 x 540
-## canvas), alpha the product of every modulate up the tree (0 when hidden).
-## Bob-free: your ship is its canvas's box (`ShipView.hull_rect`) and each enemy
-## its holder, the box its layout gives it; the enemy's own fly-in is
-## `enemy<i>_fly`, its art's offset from that box, kept apart because it is a
-## flight and not a jump.
-##
-## Also says, per frame, whether a card or END TURN / FLEE / HAIL / a pile would
-## take a click (`clickable`).
+## Samples where every element is, per role, so LOCAL and the fight screen compare as one picture.
+## Bob-free: boxes come from layout, and the enemy's fly-in is kept apart as a flight, not a jump.
+## Why: docs/why/FightOpenProbe.md#fight-open-probe
 
 ## Every role a sample can hold, in the order a report lists them.
 const ROLES := ["screen", "ship", "plate", "band_quiet", "quiet_panel", "band_hand",
@@ -39,9 +27,7 @@ static func _box(r: Rect2, a: float) -> Array:
 		snappedf(r.size.x, 0.01), snappedf(r.size.y, 0.01), snappedf(a, 0.001)]
 
 
-## WHERE A SUBJECT'S PIECES ARE DRAWN, in game px: every placed piece's picture
-## (its sprite's rect, or a few px round its holder for one the planet painter
-## draws), merged. Empty if it has none to draw.
+## Where a subject's pieces are drawn, in game px, merged; empty if it has none.
 static func subject_ink(s: LocalSubject) -> Rect2:
 	var r := Rect2()
 	var first := true

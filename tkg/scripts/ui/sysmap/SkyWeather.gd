@@ -1,40 +1,8 @@
 extends Node
 
-## THE SECTOR MAP'S WEATHER (Jon, on the nebula skies' first lightning: "Yeah I
-## love this. Great job on all of this. More weather!"). Every system has some
-## now: inside a nebula its cloud's own (`sky_nebula.gdshader`), round a pulsar
-## or the core their own, and in a calm sky the quiet kind -- a far star
-## swelling for a moment, a comet, a red giant dimming.
-##
-## ONE SCHEDULER, TWO SLOTS (the build spec is the scratchpad's
-## `weather/catalogue.md`):
-##   * slot A holds one medium event (M, the weather), showpiece (SP, rare, the
-##     screenshot) or reactive one (R, set off by the ship) at a time, with at
-##     least 6 s from the end of one to the start of the next;
-##   * slot B holds one small one (S): it may run under an M, never under an SP,
-##     never within 150 px of slot A's spot, never in the 2 s before slot A is due.
-## Each system rolls its temperament (calm, steady, stormy: how OFTEN, never how
-## long -- the lesson of "speed changes how often, not how slowly"), and its
-## favourite medium, three times as likely as the rest, so two emission systems
-## differ: one leans to storms, another to jets. The timing draws come from the
-## clock, so each visit plays differently.
-##
-## NOTHING STARTS until the palette has been found from the system's first
-## picture and a second has passed, so no weather is ever baked into it. With
-## reduced motion nothing starts at all and a live event is cleared on the next
-## frame. A held clock (an event page being read, a glide, an insertion, a zoom)
-## stops slot A from starting anything new; a live event always plays out.
-##
-## WHERE EACH IS DRAWN. Far sky never zooms: `sky_nebula` slides by `neb_off`,
-## `sky` by `sky_off`, and an event's place is kept in that sky's pixels. In the
-## system, things scale with the map: the comet and the dust puff are nodes in
-## the place's own picture (under the palette, under the worlds), the pulsar's
-## and the hole's events are in their own painters. Every event's place is kept
-## clear of the ship, the worlds, the star, the labels and the selection
-## (`spot`), and its added light fades out under the ship (`g_ship`).
-##
-## Silent: nothing here plays a sound. The pulsar's giant pulse and the
-## magnetar land on a beat its ambience already sounds.
+## One scheduler, two slots: a medium, showpiece or reactive event in A, a small one in B.
+## Temperament sets how often, never how long. Silent: the ambience already sounds the beats.
+## Why: docs/why/SkyWeather.md#weather-scheduler
 
 const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const PulsarViewS := preload("res://scripts/ui/sysmap/PulsarView.gd")
@@ -65,24 +33,16 @@ const TABLE := {
 }
 ## every sky's: a collision in a belt in view, and (very rarely) a gravitational wave
 const SHARED := {&"collision": [M, 1, 35.0, &"node"], &"gwave": [M, 1, 10.0, &"fabric"]}
-## slot A's medium events, seconds from one start to the next (times the
-## temperament). Halved on Oct 5 (Jon: "A player would never see some events
-## that take 10-45 minutes per event"): the rarest took 30-45 min to come round.
+## Cadence halved on Oct 5 (Jon): the rarest events took 30 to 45 minutes to come round.
+## Why: docs/why/SkyWeather.md#event-cadence
 const CADENCE := {&"emission": Vector2(12, 30), &"dark": Vector2(12, 30), &"remnant": Vector2(15, 40),
 	&"reflection": Vector2(18, 45), &"planetary": Vector2(20, 45), &"pulsar": Vector2(20, 50),
 	&"calm": Vector2(15, 40), &"core": Vector2(15, 40)}
-## AN EVENT NOT SEEN FOR A WHILE IS MORE LIKELY: its weight grows by one for
-## every this many seconds since it last came (or since the visit began), so a
-## light-weighted one comes round in minutes, not by chance in half an hour.
+## An event unseen for a while gains weight, so a light one comes round in minutes, not by chance.
 const STARVE_S := 90.0
-## THE WEATHER'S OWN COLOURS, appended to the system's palette (`SystemPalette.build`'s
-## `extra`), by sky. NONE, MEASURED: the gate is that the sky with no event is
-## the same block for block with and without them (SystemShot `wramp=0`), and
-## every one tried -- emission #ffe8f0 #ff9ab4 #b8f0e8, reflection #dcecff
-## #b8d4ff, remnant #7af0e0 #e8fff8 #c0d8ff, dark #e0d8ff #b49cff -- took 0.03
-## to 0.28% of the plain sky's blocks (its star points, the cluster's core, the
-## brightest strands) and moved a few dither pairs. The events use the colours
-## the sky's palette already holds (its own median cut and the sun's steps).
+## Appended colours were measured: the plain sky moved
+## only 0.03 to 0.28% of blocks, so the gate holds.
+## Why: docs/why/SkyWeather.md#weather-colours
 const RAMP := {}
 const NEB_SKIES: Array[StringName] = [&"emission", &"reflection", &"planetary", &"remnant", &"dark"]
 ## which of its kind's events the nebula shader draws (`w_ev`, `s_ev`)
@@ -280,10 +240,9 @@ func _exit_tree() -> void:
 		screen.overlay.catch_light = {}
 
 
-## A FRESH WARP-IN (`SystemMapScreen.show_system(..., arrived = true)`): the
-## bowshock when the streak ends, and the first weather sooner. Only ever on
-## arrival (Jon, Oct 5: off as "weird" in every sky, then back once he heard it
-## was the arrival's alone).
+## Only on arrival: Jon found it weird in every sky
+## (Oct 5) until he heard it was the arrival's alone.
+## Why: docs/why/SkyWeather.md#warp-in-weather
 func arrive(warp_t: float) -> void:
 	_bow_at = warp_t + 0.6
 	_next_a = _rng.randf_range(8.0, 14.0) * tmul
@@ -399,9 +358,8 @@ func _clear_all() -> void:
 	_cleared = true
 
 
-## Is a live slot-A event in the far sky, or a showpiece anywhere (the
-## supernova waits for it)? A showpiece is the screenshot: a supernova going off
-## in the middle of a comet's minute made two of the rarest things at once.
+## A showpiece is the screenshot: a supernova during
+## a comet's minute made two of the rarest at once.
 func far_busy() -> bool:
 	return not _a.is_empty() and (FAR.has(StringName(_a.layer)) or int(_a.tier) == SP)
 
@@ -493,14 +451,9 @@ func _labels() -> Array:
 	return []
 
 
-## THE FRAME'S OWN WORDS, which the overlay does not place: the goal line and
-## its step at the picture's top left (`GoalLine`), the ship's status under
-## them, and the scale bar and LOCATION at the bottom right. The status line's
-## box is its own words' (`SystemOverlay.status_rect`): a fixed 300 x 24 at the
-## top left was where the status stood before Oct 20, and it kept nothing off
-## the line now drawn under the goal (at y 37 to 49), nor off a twin's longest,
-## 327 px "LEAVING ORBIT · TO A CLOSE ORBIT OF <system> B" (the words review).
-## (worked out once a frame: a spot is tried at many points)
+## The status box is its own words' (`SystemOverlay.status_rect`):
+## a fixed 300 x 24 missed a 327 px line.
+## Why: docs/why/SkyWeather.md#frame-words
 var _ui_at := -1
 var _ui: Array = []
 func _ui_rects() -> Array:
@@ -688,11 +641,7 @@ func _star_disc() -> float:
 	return view.layout.star_r * view.star_k()
 
 
-## WHERE STAR A IS DRAWN NOW (`SystemView.star_screen`): with one sun the
-## plane's origin, as the weather always had it; in a pair where the pair has
-## it at the map's t (ruling 23: the pair turns, and star A leaves the origin).
-## Everything the weather anchors on star A, keeps clear of it or flies round it
-## reads this, every frame it is asked.
+## Where star A is drawn now: the origin with one sun, the pair's own spot in a pair (ruling 23).
 func _sa() -> Vector2:
 	return view.star_screen(-1)
 
@@ -715,9 +664,9 @@ func clear_at(p: Vector2, ship_r: float, grow: float = 0.0) -> bool:
 		var rr: float = view.draw_r(b) if view._views.has(i) else 8.0
 		if p.distance_to(view.at[i]) < rr + 30.0 + grow:
 			return false
-	# (a negative grow -- the belt's looser keep-out -- shrinks a label's 14 px
-	# box to nothing; a box turned inside out made Rect2 complain every check,
-	# hundreds of times a visit)
+	# A negative grow turned a 14 px label box inside
+	# out; Rect2 complained hundreds of times a visit.
+	# Why: docs/why/SkyWeather.md#label-clearance
 	for r: Rect2 in _labels():
 		var rg := r.grow(grow)
 		if r.size.x > 0.0 and rg.size.x > 0.0 and rg.size.y > 0.0 and rg.has_point(p):
@@ -768,10 +717,8 @@ static func _seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
 
 
 # ---------------------------------------------------------------- the cloud's noise, ported
-# `sky_nebula.gdshader`'s own: its hash floors its arguments, and its fbm offsets
-# each octave (SkyBake's `fbm2` does not, so it is not this). Evaluated without
-# the churn: the shader weights each event by its own local terms, so a small
-# miss shows a little less, never a glow in empty sky.
+# Ported from `sky_nebula.gdshader`: its hash floors arguments and its fbm offsets each octave.
+# Evaluated without the churn: a small miss shows a little less, never a glow in empty sky.
 
 static func nhash(x: float, y: float) -> float:
 	return SkyBakeS.hash2(floori(x), floori(y))
@@ -827,13 +774,9 @@ func _bil(sp: Vector2) -> float:
 	return nfbm(_u(sp) * 1.4, 5)
 
 
-## THE YOUNG CLUSTER AN EMISSION CLOUD IS LIT BY: in SIMPLIFIED it is the system's
-## own sun, at its sky pixel with no pan (`sky_field.gdshader`'s `cc`), so the
-## tide washes out from the sun, the glints wink round it and the jets leave the
-## tips of the pillars that reach toward it -- with two suns their balance point,
-## where the sky is baked round (`SystemView.sky_c`, ruling 23). In LEGACY it is
-## where it always was, a spot of the cloud's own about the view
-## (`sky_nebula_legacy`'s `cc`).
+## In SIMPLIFIED the cluster is the system's sun (two
+## suns: their balance point); LEGACY keeps its old spot.
+## Why: docs/why/SkyWeather.md#emission-cluster
 func em_cc() -> Vector2:
 	if _legacy():
 		return nspot(1.0, Vector2(-160, -120), Vector2(1120, 660))
@@ -842,9 +785,8 @@ func em_cc() -> Vector2:
 	return Vector2(480, 270)
 
 
-## a lit pillar tip's strength at sp (emission): near the head of one of the
-## pillars the bake raised toward the sun (`SkyBake.em_pillars`); in LEGACY, the
-## old cloud's own fingers, lit where they reach in to 0.27 of its radius
+## A lit pillar tip's strength at sp; in LEGACY the
+## old cloud's fingers, lit in to 0.27 of its radius.
 func em_tip(sp: Vector2) -> float:
 	if _legacy():
 		var cc := em_cc()
@@ -859,9 +801,7 @@ func em_tip(sp: Vector2) -> float:
 	return best
 
 
-## The pillars of this cloud: [base, tip, w0, w1, seed] in sky pixels. In
-## LEGACY, its lit finger tips: the ones of 24 round the cluster at 194 px that
-## catch the light, [cluster, tip, strength].
+## The cloud's pillars as [base, tip, w0, w1, seed] in sky pixels; in LEGACY its lit finger tips.
 func em_tips() -> Array:
 	if _legacy():
 		var out: Array = []
@@ -1241,9 +1181,7 @@ func _p_strike(ev: Dictionary, near: bool) -> bool:
 	return true
 
 
-## WHERE A STRIKE GOES: 160 px from the ship (its patch is 115 px across); in a
-## dark cloud, where the dust is broken, so the light behind it shows through
-## the gaps and round the edges (in thick dust a backlit strike shows nothing).
+## A strike goes 160 px from the ship; in a dark cloud the broken dust lets the light show through.
 func _strike_spot() -> Vector2:
 	var best := Vector2.INF
 	var bd := 9.0
@@ -1574,12 +1512,9 @@ func _p_microlens(ev: Dictionary) -> bool:
 func _p_comet(ev: Dictionary) -> bool:
 	var L: SystemLayout = view.layout
 	var inner := INF
-	# (the comet swings round star A, the origin of `comet_pos`: its perihelion by
-	# the inner orbit ROUND A -- in a twin the world circling A, not one round B
-	# or the pair, whose orbits are about other centres. A close pair has none
-	# round A, and at a lone sun's 96 px its path could cross star B, 150 to 170
-	# px off: there the inner orbit round both, at least 2.4 separations out, so
-	# the comet passes outside the pair)
+	# Perihelion uses the inner orbit round A; a close pair
+	# uses one round both, so it passes outside the pair.
+	# Why: docs/why/SkyWeather.md#comet-orbit
 	for b in L.bodies:
 		if b.kind != &"belt" and (b.host_id == -1 or L.close):
 			inner = minf(inner, b.orbit)
@@ -1677,9 +1612,8 @@ func _p_globule(ev: Dictionary) -> bool:
 	return false
 
 
-## (it was placed at a random angle with no keep-out at all: filmed, the knot
-## sat under the ship, its orbit and its IN ORBIT line, inside the pulsar's own
-## bright cloud where it could not be seen; now out in the darker shell, clear)
+## It was placed at a random angle with no keep-out: filmed under the ship, now in the darker shell.
+## Why: docs/why/SkyWeather.md#pulsar-knot
 func _p_fog(ev: Dictionary) -> bool:
 	ev.seed = _rng.randf() * 30.0
 	if not _in_view(_sa(), -100.0):
@@ -1879,9 +1813,7 @@ func _clear(ev: Dictionary) -> void:
 				(e[0] as ShaderMaterial).set_shader_parameter("ev", Vector4(-9999, -9999, 0, 0))
 
 
-## The ship's guard, on the skies a live event draws in: sent when the ship
-## has moved and something is live (a uniform sent every frame for nothing was
-## most of the weather's own cost).
+## Sent only when the ship moved and something is live: a uniform every frame was most of the cost.
 var _g_sent := Vector2.INF
 
 
@@ -1940,9 +1872,7 @@ func _apply_neb(ev: Dictionary) -> void:
 			m.set_shader_parameter("s_seed", float(ev.seed))
 
 
-## THE HOT POINTS of the new star, the pearls and the fan, over the depth
-## sheets (`Points`), each worked out as the cloud's shader works out its own,
-## at the cloud's parallax.
+## The new star's hot points, worked out as the cloud's shader does, at the cloud's parallax.
 func _push_points(ev: Dictionary) -> void:
 	if view._points == null:
 		return
@@ -2114,9 +2044,8 @@ func _apply_core(ev: Dictionary) -> void:
 	var kt: float = float(st.get("drawn_zoom"))
 	const RIN := 15.0 * 1.16
 	if StringName(ev.name) == &"hotspot":
-		# a clump riding the disc outside the shadow, spiralling in a little (just
-		# outside it the disc is already its whitest colour: a clump there shows
-		# nothing, so it rides where the disc is still orange)
+		# A clump rides where the disc is still orange: just
+		# outside the shadow the whitest colour shows nothing.
 		var u := clampf(a / float(ev.end), 0.0, 1.0)
 		var rr := lerpf(3.0, 2.2, u)
 		if not ev.has("ang"):
@@ -2186,21 +2115,14 @@ func _apply_bow(ev: Dictionary) -> void:
 
 # ---------------------------------------------------------------- the in-system pictures
 
-## A COMET (`comet`, and the sungrazer diving at the star): drawn in the place's
-## own picture after the belts, under the palette, the star, the worlds and the
-## lines, in 2x2 blocks. A single block far out; nearer the star a soft head
-## and two tails -- a straight blue one pointing away from the star, a broader
-## warm one curving behind along its path. Its tails turn in 2 degree steps and
-## grow in whole blocks, so nothing between moves by part of a block.
+## Drawn in 2x2 blocks with 2 degree tail steps, so nothing between moves by part of a block.
+## Why: docs/why/SkyWeather.md#comet-drawing
 class Comet extends Node2D:
 	var view
 	var ev: Dictionary = {}
 
-	## THE COMET'S PATH, a parabola about the star (Barker's equation):
-	## perihelion q, its line at angle w, K = sqrt(2 q^3 / mu) set by how long
-	## it takes, and perihelion at age tp. In star A's own frame: on the plane it
-	## is this plus where star A is (`a_at`), so with two suns it rides round the
-	## balance point with its sun (ruling 23: the pair turns).
+	## A parabola about star A (Barker's equation); with
+	## two suns it rides the balance point (ruling 23).
 	static func comet_pos(e: Dictionary, age: float) -> Vector2:
 		var B := 3.0 * (age - float(e.tp)) / float(e.K)
 		var y := pow(B + sqrt(B * B + 1.0), 1.0 / 3.0)
@@ -2209,9 +2131,7 @@ class Comet extends Node2D:
 		var a := 2.0 * atan(D) + float(e.w)
 		return Vector2(cos(a), sin(a)) * r
 
-	## Star A on the plane at map time `tt`: the origin with one sun (so a lone
-	## sun's comet is drawn exactly as it always was), and in a pair where the
-	## pair has it.
+	## Star A at map time: the origin with one sun, so a lone sun's comet is drawn as it always was.
 	func a_at(tt: float) -> Vector2:
 		return view.layout.star_pos(-1, tt)
 
@@ -2285,13 +2205,12 @@ class Comet extends Node2D:
 						var dd := Vector2(bx, by).length() / 2.6
 						_blk(qb, Color(Color("#e6f6ff"), 0.4 * k2 * (1.0 - dd)))
 				return
-		# THE TAILS, away from the star -- from where the head truly is, not its
-		# block: the block steps across then down, its angle wobbles, and the
-		# tail flicked between two of its 2 degree steps
+		# Tails point away from where the head truly is, not
+		# its block, or they flicked between 2 degree steps.
+		# Why: docs/why/SkyWeather.md#comet-tails
 		var away: Vector2 = view.screen(pw.x, pw.y) - view.screen(sa.x, sa.y)
-		# (two suns: away from the light where the head is, both suns' made one,
-		# `SystemView.toward_light` -- a comet passing star B trailed its tail
-		# across B; one sun, as it always was)
+		# Two suns: away from the merged light (`SystemView.toward_light`),
+		# as a comet passing B trailed across B.
 		var twin: bool = view.layout.twin
 		if twin:
 			var lu: Vector2 = view.toward_light(pw)
@@ -2355,10 +2274,7 @@ class Comet extends Node2D:
 		_blk(hs, Color(Color("#fff6e2") if A > 0.3 else Color("#c9d8ea"), 0.9 * fade))
 
 
-## A COLLISION IN A BELT: a warm flash, then a cloud of dust that grows, lit on
-## its star side, and over half a minute smears along the belt into an arc (the
-## inner rocks outrun the outer), its finest dust drifting out away from the
-## star. In the place's own picture after the belts, under the worlds, in blocks.
+## A belt collision: a warm flash, then dust that grows and smears into an arc over half a minute.
 class Puff extends Node2D:
 	var view
 	var ev: Dictionary = {}
@@ -2417,11 +2333,7 @@ class Puff extends Node2D:
 			draw_rect(Rect2(s, Vector2(2, 2)), col)
 
 
-## A FAR STAR DRIFTING BEHIND THE BLACK HOLE (`lensstar`): one 2x2 star and a
-## dim plus in the far sky, under everything, read by the hole's lens -- which
-## stretches it into two arcs as it passes behind, and for a moment into a
-## nearly full ring. Dimmed so the lens's brightening brings the ring only to
-## the photon ring's own brightness.
+## A far star behind the black hole, dimmed so the lens brings its ring only to photon ring level.
 class Drift extends Node2D:
 	var view
 	var ev: Dictionary = {}
@@ -2451,13 +2363,8 @@ class Drift extends Node2D:
 			draw_rect(Rect2(q + d2, Vector2(2, 2)), Color(col, 0.3 * k))
 
 
-## POINTS OF LIGHT OVER THE DUST: the hot point at the heart of a few far-sky
-## events -- a new star, the pearls' beads, the fan's hidden star. The cloud's
-## shader draws them too, but under the depth sheets, where the dust dims a
-## white star to a grey speck; here they are drawn after the sheets, where the
-## twinkling stars are, a 2x2 block each (and a dim plus for the new star), in
-## the place's own picture before the palette. Each is [screen point, colour
-## (its alpha the strength), the plus's share].
+## Drawn after the depth sheets: under them the dust dims a white star to a grey speck.
+## Why: docs/why/SkyWeather.md#points-of-light
 class Points extends Node2D:
 	var pts: Array = []
 

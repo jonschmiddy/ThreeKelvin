@@ -1,37 +1,8 @@
 extends Node
 
-## WORKER THREADS DO PURE CPU WORK ONLY, under load, headless:
-##   godot --headless --path . -- sheet=ThreadStress [secs=20]
-## The fight's off-thread jobs, run back to back in parallel the way the game
-## starts them -- a creature's or the Custodian's motion cut (`EnemySlot`), a
-## breakup cut ahead of a kill (`SectorScreen._prebuild_death`) and a wreck
-## warmed (`EnemyArt.warm_wreck`) -- while the main thread makes textures as
-## fast as it can: card art loaded fresh from disk (`Database.card_art`'s
-## `load`, uncached), pictures uploaded, controls made and freed. Every engine
-## error is counted (a `Logger`); there must be none.
-## Before Oct 14 the motion cut and the breakup made their textures, nodes and
-## materials on the worker, and this raced the main thread's textures:
-## "Attempting to initialize the wrong RID" on the worker, `Parameter "t" is
-## null` in `texture_2d_initialize` on the main thread -- 26 errors in 20 s
-## here alone, 64-94 in 90 s with three running at once; every run. Now the node is made on the main thread, the worker only
-## cuts (its textures owed, `OffThread`), and the take-in (`FaunaMotion.attach`,
-## `ShipBreakup.finish`) makes them; its slowest is printed (it is on the
-## frame a creature's motion or a breakup starts).
-## And A.S.H.'s glitched take while the hull fails (`Audio.ash_voice_prepare`):
-## its playback made on the main thread, the decode and the edits on a worker
-## (`VoiceGlitch.bake_placed`), the stream made from the bytes on the main thread
-## (`VoiceGlitch.from_pcm`); its slowest take-in printed too.
-## And the sector map's flight plans (ruling 20, Oct 30): `ShipFlight.plan_bg`
-## solves a flight (`FlightSolve` through `MapGravity`, arrays only) on a worker
-## while the ship rides on, makes its FlightPlan and its drawn insertion there
-## from a snapshot of the ship, and lays its line out (`lay_out`); `take_bg`
-## only takes it in. Two ships at once in a two-star system (the slowest
-## plans), from a world's ring to every other place in turn; a third in a
-## system of one star whose plans all go to today's planner, on the worker too
-## (`old_only`: as a flight the solver finds nothing for); a fourth clicking
-## through `fly_bg` (the preview's job taken over, its plan taken in after the
-## step), letting go with W while one is coming, and set up afresh mid-plan;
-## and a ship freed mid-plan every half second (its task reaped, not waited).
+## Worker threads do pure CPU work only. Before Oct 14 they made textures and raced the main thread.
+## That gave 26 errors in 20 s; now the main thread makes nodes and textures and workers only cut.
+## Why: docs/why/ThreadStress.md#thread-stress
 
 const IDS := ["custodian", "whale", "leviathan"]
 const FAUNA_JOBS := 6
@@ -233,10 +204,8 @@ func _run() -> void:
 					to = pls[int(sh.next) % pls.size()]
 					sh.next = int(sh.next) + 1
 				fl.plan_bg(to, plan_t, {}, &"preview", 1600)
-		# THE CLICKER, as the map clicks: the preview asked for, the click taking
-		# its job over, the plan taken in after the step; every third click let go
-		# of with W while it is coming, every fifth set up afresh mid-plan; once a
-		# flight is under way, put back on a ring for the next
+		# The clicker as the map clicks: every third click
+		# let go with W, every fifth set up afresh mid-plan.
 		var none4 := {"w": false, "a": false, "s": false, "d": false}
 		var cw := false
 		if not (clicker._pend as Dictionary).is_empty() and ck_next % 3 == 1:
@@ -289,9 +258,8 @@ func _run() -> void:
 			bb.free()
 	for v in voices:
 		_take_voice(v)
-	# the last plans taken in as the game takes them, a frame at a time (take_bg
-	# waits on its own task once it is done; waiting on it here first hands
-	# take_bg a task the pool has already let go of)
+	# Take the last plans in a frame at a time; waiting
+	# first hands `take_bg` a task the pool let go.
 	for sh2: Dictionary in ships:
 		var fl2 = sh2.fl
 		var fr := 0

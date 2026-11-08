@@ -1,12 +1,7 @@
 extends RefCounted
 
-## Every CLASS of every hull with real art, as PNGs.
-##
-##     godot --headless --path . -- fit
-##
-## Companion to `-- wear`. That one takes a hull apart; this one kits it out,
-## and the two compose — a C-class flying wrecked and an S-class flying intact
-## are the two ends of what a Korvan medium can look like.
+## Companion to `-- wear`: that takes a hull apart, this one kits it out.
+## Why: docs/why/FitSheet.md#fit-sheet
 
 const OUT := "user://fit"
 var _seed: int = 1
@@ -20,9 +15,7 @@ func run(tree: SceneTree) -> void:
 			_band = clampi(int(a.substr(7)), 0, 3)
 	DirAccess.make_dir_recursive_absolute(OUT)
 	print("seed %d, damage band %d" % [_seed, _band])
-	# The LIGHT frames now, not the first frame with art. Light is the only
-	# weight with a real class ladder, and rendering a medium four times to show
-	# the same sprite four times proves nothing.
+	# Light frames, the only weight with a real class ladder; a medium four times proves nothing.
 	for h in DB.hull_frames:
 		if h.sprite == null or h.weight != HullData.Weight.LIGHT:
 			continue

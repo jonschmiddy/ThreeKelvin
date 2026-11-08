@@ -1,95 +1,15 @@
 extends Node
 
-## THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
-##   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
-##     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|phase|proto] [short]
-##     [shard=K/N]
-## `shard=K/N`: every Nth case from the Kth (`Harness.mine`), the pair-phase
-## sweep's among them, the rest of the run (the bench, the prototype's flight,
-## the conic's aim) in shard 1; the shares of a sweep and of the replans are
-## summed across the shards by `ShardSum`.
-## `short`: the gate's run, every sweep at fewer systems and line-ups
-## (systems=1 lineups=4 twins=1 twinlineups=3 worker=100; the phase sweep at
-## PHASES_SHORT angles of two pairs).
-## `FlightSolve` from every start to every place, at line-ups (map times), in
-## four sweeps:
-##   one    real one-star systems from systemtest's four seeds (SYSTEM, PULSAR
-##          and STATION nodes, N of each seed, those with a giant first), the
-##          giant pulling nothing;
-##   giant  the same systems' giants set by hand to 1/10 and 1/4 of the star;
-##   rtwin  the layout's own two-star systems: per seed the `twins` with the
-##          most bodies (each SYSTEM node asked for two suns, as `-- twin=all`
-##          does), their giants as rolled, each laid out a WIDE pair. None until
-##          the layout makes twins: the sweep says so and is not judged;
-##   rclose the same systems laid out as CLOSE PAIRS (Jon, Nov 1, "Binary
-##          kinds: close:B"; `SystemLayout.close_force`), every body round both
-##          suns 150 to 170 px apart, per seed the `twins` with the most bodies;
-##   twin   two-star systems built by hand to the prototype's geometry (stars
-##          280 px apart, A 0.55 of the pull, world a 80 px round A and b 70 px
-##          round B with 38.4 px rings, c round both at 680 px with a 70.4 px
-##          ring) and the same at 300 and 380 px apart, each star's keep-out,
-##          close orbit and ring as the layout's ladder sets them. Its worlds
-##          round one star sit at 0.98 of the steady limit, past the layout's
-##          0.90, with rings twice the layout's: the prototype's case, not the
-##          game's (rtwin is that);
-##   phase  THE PAIR-PHASE SWEEP (ruling 23, the orbiting pair; the review of
-##          the plan, Nov 1): the busiest wide pair of seeds 7 and 4242 and the
-##          busiest close pair of seed 7, each planned at PHASES map times a full
-##          lap of the pair apart (whatever its speed, `-- pair=K`), so every
-##          angle the suns stand at is flown, and from a settled orbit round
-##          each sun (a -9 circle riding with it, `host`) beside the starts
-##          above. The twin sweeps' line-ups (40 s on, 37 s apart) see the pair
-##          turn a sixth of a lap at the most in a wide pair.
-## Every two-star sweep's pair turns as the game's does (`SystemLayout.pair_speed`;
-## `-- pair=0` holds it still as before ruling 23).
-## Starts: each world's ring, each star's close orbit, a settled star orbit
-## (round the star, or round both stars' balance point: a ring round a fixed
-## point, where every visit's ship arrives, `ShipFlight.setup`), alongside a
-## station, belt, hulk or contact, and flying free. Targets: each world's ring (either
-## way round), each star's close orbit, each station, belt, hulk and contact.
-## For each plan: found; clean (every keep-out held along the samples);
-## starts where the ship is (on its ring at the departure, at the ring's own
-## motion); lands (the last sample on the ring at ring speed, or alongside at
-## the place's motion, within LAND_PX and LAND_V, the place where the layout's
-## own Body has it, not MapGravity's copy); its pull at most THRUST in a burn
-## and none on the coast (from the samples, every SPAN); the ride's phasing
-## push at most THRUST; engine work, time, integrations and milliseconds.
-## A sample of plans flown again at SAMPLE by plain RK4 through
-## `MapGravity.acc` (the physics); rebuilt from their own choice (the same
-## samples bit for bit, now, half a second on round a ring, and half a second
-## on alongside, unless a flight the fallback found gave way to a fresh one
-## arriving sooner); planned again 3 s on with the old choice (the overlay's
-## preview in orbit), every one found and none kept that a fresh search beats
-## by more than the warm slack, nor a flight the fallback found, rebuilt or
-## warm, where a fresh plan arrives sooner; flights in two legs planned again
-## as the overlay does, none kept in two legs where a fresh plan (of one leg,
-## else of two) arrives sooner, nor any flight later than its old legs flown
-## again; and every
-## plan of the first `worker` cases solved again on WorkerThreadPool (the same
-## results). Also the prototype's a-to-b flight at its best line-up, and the
-## conic's "own star" aim by the sun's index where the pair turns (`_aim_check`).
-## PASS: found and clean in at least 99% of each sweep (DESIGN), but 97% of
-## the hand twins, whose geometry the layout never builds: their worlds round
-## one star sit at 0.98 of the steady limit (the layout's at most 0.90), their
-## rings twice the layout's reach the star's close orbit, and two of the three
-## pairs are closer than the layout's 300 px; flights between their stars'
-## close orbits, 2 px outside the keep-out as the layout puts them, are the
-## misses (65 of 72 found). The pair-phase sweep is held to 99%, as the
-## layout's own twins are. Every found plan starting and landing, no burn in
-## it swinging the ship round a point (`FlightSolve.V_CUSP`, read off its
-## samples), every replay and worker result the same. Planning time is measured and judged in
-## the log (median 25 ms, worst 150 ms: DESIGN), not failed on: this Mac's load
-## varies.
+## Autopilot flights are planned and measured in sweeps. The flags and checks are in the doc.
+## PASS needs 99% found and clean per sweep, 97% for hand twins the layout never builds.
+## Why: docs/why/SolveTest.md#solve-sweeps
 
 const SEEDS := [4242, 7, 1999, 31337]
 const LAND_PX := 0.5
 const LAND_V := 0.5
 const START_PX := 0.05
 const START_V := 0.5
-## how far inside a keep-out a clean plan's samples may pass, as MapGravity has
-## the keep-outs at each sample's own time (review 2: the reviewer's probe saw
-## none past 1 px on the branch, and 16 up to 9 px with the solver's suns read
-## at the plan's start)
+## How far inside a keep-out samples may pass, read at each sample's own time (review 2).
 const IN_PX := 1.0
 ## the samples the pull is read over (finite differences): 4 apart
 const SPAN := 4
@@ -100,10 +20,8 @@ const ORBIT_K := 0.88
 ## `ShipFlight.STAR_PACE`: a settled star orbit's pace, times Kepler's
 const STAR_PACE := 50.0
 const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
-## the pair-phase sweep's angles round a lap (the review of the plan: 8), and
-## in `short` (the gate's run) PHASES_SHORT of them, for the close pair of seed
-## 7 and the wide one of seed 4242 only: at full size the sweep took the gate's
-## run from about 170 s to 370 s alone, past its 300 s limit (review 1)
+## In `short`, only two pairs and fewer angles: the full sweep took the gate from 170 s to 370 s.
+## Why: docs/why/SolveTest.md#phase-sweep
 const PHASES := 8
 const PHASES_SHORT := 4
 ## found and clean in at least this share of each sweep (above)
@@ -111,12 +29,9 @@ const FOUND_MIN := 0.99
 const FOUND_MIN_HAND := 0.97
 ## how many times each flight in two legs is planned again (`_replans`)
 const TWO_STEPS := 5
-## [system label's head, start, target, line-up]: real-twin flights past the
-## line-ups SolveTest plans by default, planned again with the flights in two
-## legs (`_replans`) wherever their system is in the run. On 9875260b each,
-## gone to one leg, went next to two legs found afresh, later than its old
-## legs flew: 16.0 s and 6.6 s (twinlineups=12 over every two-leg flight from
-## a ring or alongside planned again 15 times: 5 such steps, none here)
+## Real-twin flights planned again in two legs: 9875260b went to one leg, later than a fresh two.
+## The misses were 16.0 s and 6.6 s.
+## Why: docs/why/SolveTest.md#two-leg-replans
 const TWO_PINS := [
 	["seed 31337 node 3 ", "ring 1", "keep 3", 6],
 	["seed 31337 node 28 ", "ring 1", "keep 5", 10],
@@ -216,10 +131,7 @@ func _run() -> void:
 
 
 # ---------------------------------------------------------------- the systems
-## Real systems, per seed: the first `_per_seed` SYSTEM, PULSAR or STATION
-## nodes with one star, those with a giant first, each with the giant
-## weightless (one) and at 1/10 and 1/4 (giant); and the `_twins` two-star
-## layouts with the most bodies (rtwin), every SYSTEM node asked for two suns.
+# Real systems per seed, giants first: the one-star sweeps and the two-star `rtwin` layouts.
 func _real_cases() -> void:
 	for sd: int in SEEDS:
 		Rng.forced = sd
@@ -300,13 +212,8 @@ func _real_cases() -> void:
 				_add_system(String(kind[0]), Lt, MapGravity.from_layout(Lt), lab, false)
 
 
-## A TWO-STAR SYSTEM BY HAND, the prototype's geometry scaled to `sep`: star
-## A (0.55) at the origin, B at (sep, 0), world a round A and b round B on the
-## prototype's small-rock rings, c round both. Each star's keep-out, close
-## orbit and ring as the layout's ladder sets them (`SystemLayout._twin_ladder`
-## on the LAYOUT branch): the keep-out the larger of r + 10 and the drawn sun
-## at the opening zoom + 6, the rail (the close orbit ridden and arrived on) 2
-## px outside it, the ring 2 px further.
+## The prototype's geometry scaled to `sep`, with each star's ladder as `_twin_ladder` sets it.
+## Why: docs/why/SolveTest.md#hand-twins
 static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float = 3.7905025599699775, phc: float = 0.0) -> SystemLayout:
 	var L := SystemLayout.new()
 	var share := 0.55
@@ -354,11 +261,7 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 	# (the layout's ring, where this tree's SystemLayout has one)
 	if &"_ring" in L:
 		L.set(&"_ring", ring)
-	# THE PAIR TURNS as a laid-out one does (ruling 23), its worlds round one
-	# sun carried and sped with it (Kepler x `pair_speed`): the hand twins'
-	# figures are the turning pair's from here on, `-- pair=0` the old ones.
-	# Their line-ups see a sixth of a lap at the most; the pair-phase sweep
-	# (`_phase_cases`) flies every angle.
+	# The pair turns as a laid-out one does (ruling 23). `-- pair=0` gives the old figures.
 	SystemLayout.spin_pair(L)
 	return L
 
@@ -369,10 +272,7 @@ func _twin_cases() -> void:
 		_add_system("twin", L, MapGravity.from_layout(L), "twin %.0f" % sep, true)
 
 
-## THE PAIR-PHASE SWEEP (see the head): [seed, kind] -- the busiest pair of
-## that kind the seed's SYSTEM nodes lay out -- each at PHASES map times a lap
-## apart from 40 s on. Held still (`-- pair=0`) there is no lap: its line-ups
-## are the twin sweeps' own.
+## Busiest pair of that kind per seed, at PHASES map times a lap apart. Held still, there is no lap.
 func _phase_cases() -> void:
 	var phases := PHASES_SHORT if _short else PHASES
 	for pick: Array in ([[7, 1], [4242, -1]] if _short else [[7, 1], [7, -1], [4242, -1]]):
@@ -411,13 +311,8 @@ func _phase_cases() -> void:
 		_add_system("phase", best, MapGravity.from_layout(best), lab, false, times, true)
 
 
-## A SETTLED ORBIT ROUND ONE SUN (start "orbitS", star st[1]), as
-## `ShipFlight._dep_of` hands it over: a -9 circle whose host is the sun, so it
-## rides with a turning one (c, where the sun is now, is not read). Inside 0.9
-## of the sun's steady zone (`ShipFlight._zone`), from 12 px outside its close
-## orbit, at the sun's own settled pace (STAR_PACE times Kepler for its share), w for the
-## worlds' way round (the case turns it); clear of everything where it starts.
-## Empty for any other start, or where the zone has no room (a close pair).
+## As `ShipFlight._dep_of` hands it over: a -9 circle hosted by the sun, riding with a turning one.
+## Why: docs/why/SolveTest.md#settled-orbit
 func _settled_round(L: SystemLayout, G: MapGravity, st: Array, t: float, lu: int, si: int, ti: int) -> Dictionary:
 	if st[0] != "orbitS" or not L.twin:
 		return {}
@@ -443,11 +338,7 @@ func _settled_round(L: SystemLayout, G: MapGravity, st: Array, t: float, lu: int
 	return {"kind": &"ring", "place": -9, "c": cs, "host": hp, "rt": r, "ang": a, "w": pace / r}
 
 
-## THE CONIC'S "OWN STAR" AIM BY INDEX (`FlightSolve._aims`, ruling 23): in the
-## hand twin 300 turning, a conic about star B laid now, to star B's close
-## orbit 12 s on, aims at a point on that orbit round where B is then -- not
-## at B's centre, which is where it aimed while that was asked by place (B
-## has moved past the 1 px that test allowed) -- and from world a's ring.
+## The conic aims at where star B is on its orbit then, not B's centre, which B has moved past.
 func _aim_check() -> void:
 	var L := twin_layout(300.0)
 	var G := MapGravity.from_layout(L)
@@ -555,9 +446,7 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 					"keep":
 						dep = {"kind": &"keep", "place": int(st[1]), "off": KEEP_OFF}
 					"orbit9":
-						# (out where a visit arrives, 0.55 to 0.85 of the edge round the
-						# centre, its pace STAR_PACE times Kepler's there, clear of
-						# everything where it starts)
+						# A settled orbit out where a visit arrives, paced STAR_PACE times Kepler.
 						var c9 := L.bary if L.twin else Vector2.ZERO
 						var r9 := (L.edge - c9.length()) * (0.55 + 0.3 * fposmod(float(lu) * 0.618034, 1.0))
 						var a9 := ang
@@ -600,9 +489,7 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 
 
 # ---------------------------------------------------------------- the checks
-## A place's centre and motion at t, from the layout's own Body (not
-## MapGravity's copy of it): [x, z, vx, vz]. A belt's place is the point its
-## beacon rides, round its host as the Body's is.
+# From the layout's own Body, not MapGravity's copy. A belt's place is the point its beacon rides.
 static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 	if p >= 0:
 		var b := L.bodies[p]
@@ -617,9 +504,7 @@ static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 	return PackedFloat64Array([sp.x, sp.y, sv.x, sv.y])
 
 
-## The centre and motion of the ring a case leaves from: its place's, or a
-## settled star orbit's fixed point, or the sun it rides with (`host`, a
-## settled orbit round one sun of a turning pair). [x, z, vx, vz]
+## Centre and motion of the ring a case leaves from: place, settled star orbit, or host sun.
 static func dep_centre(c: Dictionary, t: float) -> PackedFloat64Array:
 	var dep: Dictionary = c.dep
 	if int(dep.get("place", -9)) == -9 and dep.has("host"):
@@ -630,9 +515,7 @@ static func dep_centre(c: Dictionary, t: float) -> PackedFloat64Array:
 	return centre(c.L, int(dep.place), t)
 
 
-## [start px off, start px/s off, end px off, end px/s off]: where the samples
-## begin against the ship's ring (or state), and where they end against the
-## target's ring at its speed (or its spot at its motion).
+## Start offset against the ship's ring, end offset against the target's ring at its speed.
 static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	var L: SystemLayout = c.L
 	var dep: Dictionary = c.dep
@@ -709,10 +592,7 @@ static func thrust(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	return PackedFloat64Array([burn, coast])
 
 
-## WHETHER A BURN DRAWS A CUSP, from the samples (`FlightSolve.V_CUSP`): in
-## any run of lit samples, the speed dipping under V_CUSP and 2 px/s under
-## where the run starts and ends -- the motion swinging round a point, a sharp
-## angle as drawn. [1 or 0, the least such speed].
+## A cusp is a speed dip under V_CUSP inside a lit run: motion swinging round a point.
 static func cusp(r: FlightSolve.Result) -> PackedFloat64Array:
 	var s := r.samp
 	var dt := r.sdt
@@ -735,9 +615,7 @@ static func cusp(r: FlightSolve.Result) -> PackedFloat64Array:
 	return PackedFloat64Array([1.0 if worst < INF else 0.0, worst])
 
 
-## THE RIDE'S PHASING as `ShipFlight._step_phase` flies it: [its top push
-## along the ring px/s^2, its top speed px/s] (0 and the ring's own when it
-## simply rides).
+## The ride's phasing as `ShipFlight._step_phase` flies it: top push and top speed.
 static func ride(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 	var dep: Dictionary = c.dep
 	if StringName(dep.kind) != &"ring":
@@ -808,12 +686,8 @@ func _report(sweep: String) -> void:
 		if r.clean:
 			clean += 1
 			by[c.kind][1] += 1
-			# CLEAN AS MAPGRAVITY HAS IT, not on the solver's word (`r.clean`): the
-			# flight's own samples against every keep-out where it stands at each
-			# sample's time. The solver's keep-out reads (`_sun_cs`) taken at the
-			# plan's start passed this sweep with 16 plans 9 px inside (review 2)
-			# (the departure's and the target's own keep-outs are the solver's to
-			# keep to their rings, `FlightSolve._setup`: left out, every sun's in)
+			# Clean as MapGravity has it: start-read keep-outs passed 16 plans 9 px in.
+			# Why: docs/why/SolveTest.md#clean-check
 			var own := [int(c.dep.get("place", -9)), int(c.tgt.get("place", -9))]
 			var mq := INF
 			for kq in r.samp.size():
@@ -835,9 +709,7 @@ func _report(sweep: String) -> void:
 			landed += 1
 		else:
 			print("  (lands %.3f px, %.2f px/s off: %s)" % [e[2], e[3], c.label])
-		# (a free start, coasting at 10 to 40 px/s, is a harness's: the map flies
-		# only out of a ring, a settled star orbit or alongside, `can_fly`, and
-		# the solver turns down a cusp only from those; counted apart)
+		# Free starts are a harness's: the map flies only from a ring, star orbit or alongside.
 		var cu := cusp(r)
 		var free_dep := StringName(c.dep.kind) == &"free"
 		if free_dep:
@@ -937,12 +809,9 @@ static func _dist(xs: Array) -> String:
 	return "median %.2f  p90 %.2f  p99 %.2f  max %.2f  (n %d)" % [q.call(0.5), q.call(0.9), q.call(0.99), float(s[-1]), s.size()]
 
 
-## REBUILT FROM ITS OWN CHOICE: every 5th found plan, at once; round a ring
-## (its departure still 0.6 s or more ahead, not phasing) half a second on with
-## the ship ridden on round; alongside, half a second on (the ship holding
-## there): the very same samples, or, for a flight the fallback found, a fresh
-## plan of one leg, clean, that arrives sooner (`_fell_sooner`: the rule such
-## a flight is kept by, rebuilt or warm).
+## Every 5th found plan, rebuilt from its own choice, must give the same samples.
+## Or, for a fallback flight, a sooner clean fresh plan of one leg.
+## Why: docs/why/SolveTest.md#replays
 func _replays() -> void:
 	var n := 0
 	var same := 0
@@ -991,15 +860,9 @@ func _replays() -> void:
 	h._ok("and half a second on alongside, the ship holding there (%d of %d)" % [kept_same, kept], kept_same == kept)
 
 
-## A FLIGHT THE FALLBACK FOUND (r, its cap past T_CAP) that, rebuilt from its
-## choice, gave way to a fresh plan of one leg, clean and arriving sooner (r2):
-## the rule it is kept by (`FlightSolve._solve`), so the drawn flight changes.
-## AND A FLIGHT IN TWO LEGS (`FlightSolve._chain`) that gave way to a fresh
-## plan, of one leg or two, clean and arriving sooner: held round a ring or
-## alongside, it is kept only while none does (`FlightSolve._sooner_of`). Not
-## met here until stations were halved on Nov 3 and seed 7 node 199 came into
-## the phase sweep: orbitS -4 to keep 4, line-up 3, two legs to 544.32, half a
-## second on a fresh plan to 540.71.
+## A fallback or two-leg flight that gave way to a sooner clean plan breaks the keep rule.
+## Not met until stations were halved on Nov 3 (seed 7 node 199: 544.32 against 540.71).
+## Why: docs/why/SolveTest.md#replays
 static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
 	if not (r2.found and r2.clean and r2.kind == &"solved" and float(r2.end.t) < float(r.end.t) - 1e-6):
 		return false
@@ -1008,42 +871,9 @@ static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
 	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.legs == 1
 
 
-## THE PREVIEW IN ORBIT, PLANNED AGAIN 3 s ON WITH ITS OLD CHOICE (the overlay
-## does this every 3 s): every 7th found ring plan, the ship ridden on round.
-## Its departure has often gone by, and on a ring of over about 50 px the ride
-## no longer reaches it, so the old choice is warm-started (the first build's
-## SCRIPT ERROR was here). Every one must be found where a fresh search finds
-## one, and a flight of C's own kept warm may cost no more than a fresh
-## search's plus the warm slack, or than its own old cost plus the slack, all
-## at TIME_W (an as-built flight's seconds at TIME_W_BACK cost 32 times less:
-## read at the two weights, the review's previews planned again 15 times had
-## 14 kept flights past it, 13 arriving sooner than the fresh plan and the
-## other costing less at TIME_W). (One still ahead is rebuilt as drawn, its
-## ride phasing harder over the lead left, within THRUST: the drawn flight is
-## the flown one, at up to about 22 px/s more.) And no flight the fallback
-## found (its cap past T_CAP) is kept warm where a fresh plan arrives sooner:
-## kept on its own cost, 55 of the 95 kept were, by up to 7.5 s; with C's own
-## search alone looking beside it, 35 of 75, 5 of them the as-built search's
-## (the reviews of Nov 1); nor rebuilt as drawn, where a fresh plan beside it
-## is clean (9875260b kept 6 of 54 so, one at seed 1999 node 304, ring 3 to
-## keep 5, line-up 2: 21.0 s against 15.6). And every flight in two legs
-## (`FlightSolve._chain`) from a ring or alongside, planned again as the
-## overlay does TWO_STEPS times (every 3 s round a world's ring or a star's
-## close orbit, every second round a settled star orbit or alongside), each
-## from the last one's choice: none
-## kept in two legs where a fresh plan of one leg arrives sooner. Held on their
-## own cost (6e6e563c), the full run's 20 such flights, planned again 15 times,
-## kept two legs 105 times where one leg flew sooner, by up to 41.4 s (seed
-## 1999 node 150, star -1 to keep 2, line-up 1: 51.4 s in two legs against
-## 10.0 in one); planned again TWO_STEPS times, 24 of 100. Nor kept in two
-## legs where a fresh plan in two legs arrives sooner: held against one leg
-## alone, legs searched again from their old ones as their departure went by
-## stood later than two found afresh (a033b05a kept 8 of 78 so, one at seed
-## 4242 node 281, orbit9 -9 to keep 5, line-up 1: 46.83 s against 41.80; 13 of
-## 168 over 15 replans, by up to 18.8 s; the fifth review, Nov 1). And none
-## kept, in one leg or two, that arrives later than the last legs kept flown
-## again from here (`FlightSolve._chain_again`), as a flight of one leg that
-## took over from two holds them (`alt`).
+## The overlay replans the preview every 3 s from the old choice: found, and no costlier than fresh.
+## No fallback or two-leg flight is kept where a fresh plan arrives sooner (reviews of Nov 1).
+## Why: docs/why/SolveTest.md#replans
 func _replans() -> void:
 	var n := 0
 	var ok := 0
@@ -1090,10 +920,7 @@ func _replans() -> void:
 	h.total("replans: found again", "planned again 3 s on, found wherever a fresh search finds one (%d of %d)" % [ok, fresh_found], "ok >= fresh_found - maxi(1, fresh_found / 100)", {"ok": ok, "fresh_found": fresh_found})
 	h._ok("and no flight of C's own kept past the warm slack of both a fresh search and its own old cost, at TIME_W (%d)" % bad, bad == 0)
 	h._ok("and no flight the fallback found kept where a fresh plan arrives sooner (%d of the %d kept)" % [held, fell], held == 0)
-	# FLIGHTS IN TWO LEGS, planned again as the overlay plans them: every found
-	# one leaving a ring or alongside, TWO_STEPS times, each from the last one's
-	# choice; wherever the flight kept is in two legs, a fresh plan (as a first
-	# plan's: one leg, else two) beside it
+	# Two-leg flights planned again as the overlay plans them, each from the last choice.
 	var twos := 0
 	var two_kept := 0
 	var two_held := 0
@@ -1167,9 +994,7 @@ static func _at_time_w(r: FlightSolve.Result) -> float:
 	return r.cost + (FlightSolve.TIME_W - float(r.choice.get("tw", FlightSolve.TIME_W))) * r.T
 
 
-## THE PHYSICS: a sample of found plans flown again by plain RK4 at SAMPLE
-## through `MapGravity.acc` (the departure burn along the plan's own, then
-## coasting) up to its arrival burn; the most the samples stray from it.
+## A sample of plans flown again by plain RK4 through `MapGravity.acc`, measuring the stray.
 func _physics() -> void:
 	var worst := 0.0
 	var worst_at := ""
@@ -1193,9 +1018,7 @@ func _physics() -> void:
 		var dv := sqrt(dvx * dvx + dvz * dvz)
 		var bux := dvx / dv if dv > 1e-9 else 0.0
 		var buz := dvz / dv if dv > 1e-9 else 0.0
-		# THE DEPARTURE BURN by its own law, from this flight's own state: a pull
-		# held for each step of at most H_BURN, eased out of a settled star orbit
-		# while the ship is slow (`FlightSolve.R_BURN`), until dv is spent
+		# The departure burn by its own law, eased out of a settled orbit while slow (`R_BURN`).
 		var ease := StringName(c.dep.kind) == &"ring" and int(c.dep.place) == -9
 		var rem := dv if dv > 1e-9 else 0.0
 		var pull := 0.0
@@ -1205,9 +1028,7 @@ func _physics() -> void:
 		var dev := 0.0
 		var k := 0
 		while t + dt <= tb and k + 1 < s.size():
-			# A FLIGHT IN TWO LEGS (`FlightSolve._chain`): the second leaves free off
-			# the first's coast at sample k_cut by its own burn, eased while slow as
-			# a second leg's is
+			# A two-leg flight's second leg leaves the first's coast at k_cut, eased while slow.
 			if r.legs == 2 and k == r.k_cut:
 				var c2: Dictionary = r.choice.chain.c2
 				dvx = float(c2.dvx)
@@ -1345,14 +1166,9 @@ func _solve_on_worker(j: int) -> void:
 
 
 # ---------------------------------------------------------------- the prototype's flight
-## WORLD a TO WORLD b at the prototype's best line-up (a at 4.5845 rad round A,
-## b at 3.7905 round B at t 0, the ship leaving a's ring at 3.6115 clockwise):
-## the prototype found it free in 9.2 s; and over 12 line-ups (the worlds'
-## places and the ship's turned by golden-angle steps) against its typical
-## 3.6 px/s (a 60 s cap's figure, an upper bound). Judged with the pair held
-## still, as the prototype flew it: turning (ruling 23), worlds a and b go
-## round their suns four times as fast, the line-up is no longer a free one
-## (62.7 px/s in 8.2 s at x4), and the turning pair's figures are only shown.
+# Judged with the pair held still, as the prototype flew it.
+# At x4 it needs 62.7 px/s in 8.2 s, so the turning figures are only shown.
+# Why: docs/why/SolveTest.md#prototype-flight
 func _prototype() -> void:
 	var k0 := SystemLayout.pair_speed()
 	for k: float in ([0.0, k0] if k0 > 0.0 else [0.0]):
@@ -1385,9 +1201,7 @@ func _prototype() -> void:
 
 
 # ---------------------------------------------------------------- the cost of a step
-## THE PLANNER'S OWN COST on this machine: 40 flights of a one-star system's
-## 30 s coast (T_CAP_BACK, the as-built search's cap; only the wider search
-## flies longer), timed; what one RK4 step costs.
+# Planner cost on this machine: 40 timed 30 s coasts give the cost of one RK4 step.
 func _bench() -> void:
 	var G := MapGravity.new()
 	G.add_star(-1, 0.0, 0.0, SystemLayout.GM_SHIP, 48.0)

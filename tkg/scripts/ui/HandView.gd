@@ -1,19 +1,11 @@
 class_name HandView
 extends Control
 
-## Your hand, laid out by hand rather than by a container.
-##
-## A container repositions instantly, so playing a card made the rest jump. Here
-## the views persist between refreshes and tween to their new slots, which is the
-## difference between the hand reacting to you and the hand being rebuilt at you.
-##
-## Views are matched to cards by object identity, so a card keeps its view — and
-## therefore its position — for as long as it stays in hand.
+## Laid out by hand, not a container, so views tween to slots and the hand does not jump.
+## Why: docs/why/HandView.md#hand-layout
 
 signal card_hovered(view: CardView, entered: bool)
-## Carries the finished order, not an index. An index has to be re-based after
-## the dragged card is removed, and getting that wrong is what made a drop
-## land one slot off and look like it snapped back.
+## Carries the finished order, not an index, which needed re-basing and landed a slot off.
 signal reordered(cards: Array)
 
 ## A card in the hand was picked to satisfy a discard or a decommission. Separate
@@ -36,62 +28,34 @@ var _drag_card: CardData = null
 ## fight, which reads as flicker.
 var _tweens: Dictionary = {}
 
-## E-folds per second the held card closes on the cursor. Lower than
-## `ItemIcon.FOLLOW`'s 16 on purpose: a card is a big object and the weight is
-## the point -- it should feel carried rather than stuck to the pointer.
+## Slower than `ItemIcon.FOLLOW`'s 16 on purpose: a card should feel carried.
 const CARD_FOLLOW := 9.0
-## The card being carried, and where it is heading. While this is set the card
-## is driven per frame by `_process` and NOT tweened into its slot by `_layout`:
-## a tween to a slot and a lerp to the cursor fight, and the tween wins on the
-## frame it is created, which is what made the drag snap.
+## A carried card is driven per frame, not tweened: the tween wins on its first frame and snaps.
 var _carry: CardView = null
 var _carry_to: Vector2 = Vector2.ZERO
-## And the card that has just been let go, still travelling. A tween would do it
-## in SLIDE seconds from ANY distance, so a card released a hundred pixels out of
-## the fan appears to teleport back into it. Driven by the same follow as the
-## carry, it decelerates into place and reads as the same object being set down.
+## Follow-driven, not tweened: a tween takes SLIDE seconds from any distance and teleports.
 var _settle: CardView = null
 var _settle_to: Vector2 = Vector2.ZERO
 
 func _init() -> void:
-	# The hand accepts drops so a card dragged back here is reordered rather
-	# than played. Enemies and your hull are the other drop zones; which one
-	# you release over is the whole choice.
+	# The hand accepts drops so a card dragged back is reordered, not played.
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	# A CARD PLUS ITS PADDING, AND NO MORE. Shrink-centred rather than filling,
-	# so the hand is always exactly this tall however tall the row around it
-	# gets -- which is what stops the cards' eight pixels of air and the draw
-	# pile's height from being the same argument. They were: every time the band
-	# grew for the piles the cards got looser, and every time it shrank for the
-	# cards the piles lost height.
+	# Shrink-centred so the hand is a card plus padding, not tied to the draw pile's height.
+	# Why: docs/why/HandView.md#hand-height
 	custom_minimum_size = Vector2(0, CardView.CARD_H + 16)
-	# BOTTOM, not centre. Centred left the cards seven pixels above the line the
-	# DRAW and DISCARD labels sit on, which reads as the hand floating rather
-	# than resting on the same shelf as the rails. Bottom-aligned puts the card
-	# edge exactly on that baseline -- the row is 190, the hand 176, and the pile
-	# label lands at 182, which is 14 + 8 + 160.
+	# Bottom, not centre: centred left cards 7 px above the DRAW and DISCARD baseline.
+	# Why: docs/why/HandView.md#hand-height
 	size_flags_vertical = Control.SIZE_SHRINK_END
 	clip_contents = false
 
-## The y a card sits at: centred in whatever height the hand has.
-##
-## Cards used to be placed at ZERO, and the hand stretches to fill the row -- so
-## every pixel the row had spare piled up UNDERNEATH them. Measured at 160 of
-## card inside 184 of hand: nothing above, twenty-four below.
-##
-## Both placement sites read this rather than assuming a constant, because the
-## deal-in animation used a hard 12 and the layout used a hard 0, and either left
-## behind would deal cards to a different height than the hand settles them at.
+## Both placement sites read it: cards at zero piled 24 px of spare row underneath them.
+## Why: docs/why/HandView.md#card-baseline
 func _baseline() -> float:
 	return maxf(0.0, (size.y - CardView.CARD_H) * 0.5)
 
 
-## Reconcile against the current hand: keep what is still held, drop what is not,
-## deal what is new, then slide everything to where it now belongs.
-## `choosing` puts the hand into picking mode: nothing is playable, every card
-## is clickable, and a click reports which one rather than playing it.
-## `live` answers "what does this card throw per hit right now" and `hot` names
-## which of its clauses are paying -- see `Combat.card_output` and `card_hot`.
+## `choosing` makes every card clickable and nothing playable. `live` and `hot` feed card numbers.
+## Why: docs/why/HandView.md#hand-sync
 func sync(cards: Array, playable: Callable, choosing: bool = false,
 		live: Callable = Callable(), hot: Callable = Callable()) -> void:
 	var keep: Array[CardView] = []
@@ -113,15 +77,10 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 			found.position = Vector2(-CardView.CARD_W, _baseline() + 12.0)
 			found.set_meta(&"fresh", true)
 			found.hovered.connect(func(v: CardView, e: bool) -> void:
-				# Out of the stack while you are pointing at it. In an
-				# overlapping fan the card under the cursor is half-buried by
-				# its right-hand neighbour, and the lift alone does not fix
-				# that — it moves the card up, not forward.
+				# Out of the stack when pointed at: the lift goes up, not forward of the neighbour.
 				if e:
 					v.move_to_front()
-					# A sound on pointing at a card (the cards page plays it
-					# too). Not while carried -- the hand re-hovers a card
-					# as it follows the pointer.
+					# Hover sound, not while carried: the hand re-hovers a card as it follows.
 					if not v.held:
 						Audio.play(&"card_hover", 0.08, 45)
 				else:
@@ -130,11 +89,7 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 		else:
 			found.set_playable(playable.call(c))
 		found.set_picking(choosing)
-		# AFTER the branch, so it reaches kept cards as well as new ones. `sync`
-		# only calls `setup` for a card it has not seen, and every modifier this
-		# figure depends on -- lock-on, salvo, adapt, heat -- moves while the
-		# card sits in your hand untouched. Refreshing only new views would mean
-		# the number went live for exactly the cards that had just been drawn.
+		# After the branch so kept cards update too: modifiers move while a card sits in hand.
 		found.set_live(live.call(c) if live.is_valid() else -1,
 			hot.call(c) if hot.is_valid() else PackedStringArray())
 		keep.append(found)
@@ -145,17 +100,8 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 	_views = keep
 	_layout()
 
-## How far apart cards sit, and the only place that decides it.
-##
-## A full card plus a gap while the hand fits. Once it does not, the step
-## shrinks until the fan ends exactly at the right edge, so the cards overlap
-## rather than running off screen — which is the moment a hand stops being a row
-## and becomes a hand.
-##
-## Cards are 96 wide on a 640 screen, so five is the last size that fits laid
-## flat. Six was already 20 pixels over before the card grew taller, and a
-## deck-thickening affix or a Korvan draw bonus puts you at eight without
-## trying.
+## The step shrinks to end at the right edge, so cards overlap. Five is the last that fits flat.
+## Why: docs/why/HandView.md#card-step
 func _step(n: int) -> float:
 	var full := float(CardView.CARD_W + GAP)
 	if n <= 1:
@@ -180,9 +126,7 @@ func _layout() -> void:
 		# came is shown now; nothing else would ever show it.
 		if not v.has_meta(&"fresh"):
 			v.visible = true
-		# The card's hover lift springs back to this, and it is the only thing
-		# that knows it. Set on every layout, not just on deal, because the
-		# baseline moves whenever the band does.
+		# The lift springs back to this. Set on every layout, as the baseline moves with the band.
 		v.set_base_y(target.y)
 		v.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 		# The carried card answers to the cursor, not to its slot. Its neighbours
@@ -200,9 +144,7 @@ func _layout() -> void:
 			_tweens[v].kill()
 		var tw := create_tween()
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		# A NEW HAND IS DEALT, not placed: each fresh card leaves the deck a
-		# beat after the one before it (combat polish F6), so five cards read
-		# as five rather than as one row appearing.
+		# A new hand is dealt with a beat between cards (combat polish F6), so five read as five.
 		var wait := 0.0
 		if v.has_meta(&"fresh"):
 			v.remove_meta(&"fresh")
@@ -223,17 +165,10 @@ func _layout() -> void:
 		_tweens[v] = tw
 	_restack(order)
 
-## Left card under, right card over — so an overlapping fan reads as a fan and
-## not as a pile. Only matters once the step is smaller than a card, but it
-## costs nothing when it is not.
+## Left card under, right over, so an overlapping fan reads as a fan.
 func _restack(order: Array) -> void:
-	# Pushed to the BACK in sequence rather than assigned indices 0..n.
-	#
-	# A discarding card is still a child for as long as its fade runs, and this
-	# function only knows about the cards still in hand. Assigning them indices
-	# 0..n left every leaver at whatever index it already held — which, after a
-	# few plays, is on top of the live hand. Moving each keeper to the end in
-	# order puts them all above anything not in the list, whatever that is.
+	# Pushed to the back in order: fading discards are children too and would stay on top.
+	# Why: docs/why/HandView.md#restack
 	for v in order:
 		move_child(v as CardView, get_child_count() - 1)
 
@@ -261,9 +196,7 @@ func preview(card: CardData, slot: int) -> void:
 	_preview_slot = slot
 	_layout()
 
-## Preview by position rather than by whichever card happens to be under the
-## cursor: that card moves as the gap opens, so keying off it makes the target
-## slot chase the animation and the row flickers.
+## Previewed by position: the card under the cursor moves as the gap opens and flickers.
 func preview_at(x: float, card: CardData) -> void:
 	preview(card, _slot_at(x))
 
@@ -299,10 +232,7 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_DRAG_END:
 		clear_preview()
 
-## NO DROP HANDLERS. The hand used to accept a Godot drop so a card dragged
-## back over it was reordered rather than played; there is no Godot drag to
-## accept any more. `SectorScreen` drives `slide_to` and `commit` directly, and
-## releasing over the hand is simply releasing over nothing aimable.
+## No drop handlers: `SectorScreen` drives `slide_to` and `commit` now that there is no Godot drag.
 
 
 ## Which gap the cursor is nearest. Rounding rather than flooring means dropping
@@ -323,36 +253,24 @@ func _slot_at(x: float) -> int:
 ## `slide_to` above is what drives a reorder now.
 
 
-## Drive the reorder from a gesture this view does not own. `preview_at` and
-## `_commit` were reachable only through Godot's drop before, which is why hand
-## reorder died with the drag -- the machinery survived, its only caller did not.
+## Drives reorder from a gesture this view does not own: the machinery outlived its caller.
 func slide_to(at_global: Vector2, card: CardData) -> void:
 	var v := _view_of(card)
 	if v == null:
 		return
-	# CLAIMED BEFORE THE LAYOUT, not after. `preview_at` runs `_layout`, and a
-	# layout that does not yet know the card is carried starts a 0.14s tween to
-	# its slot -- which then fights the follow. That tween is what threw the card
-	# sideways on the first frame of every drag before settling on the cursor.
+	# Claimed before the layout: otherwise it starts a 0.14 s tween that fights the follow.
 	if _carry != v:
-		# Caught on its way home and picked straight back up: it is the carry's
-		# again, and leaving it in `_settle` would have both driving the same
-		# position every frame.
+		# Caught on its way home and picked up again: it is the carry's, not `_settle`'s.
 		if _settle == v:
 			_settle = null
 		_carry = v
 		v.set_held(true)
-		# Above its neighbours for as long as it is held. z_index rather than
-		# child order, because `_restack` rewrites child order on every layout
-		# and would drop it back into the fan.
+		# z_index, not child order, because `_restack` rewrites child order every layout.
 		v.z_index = 1
 		if _tweens.has(v) and is_instance_valid(_tweens[v]) and _tweens[v].is_valid():
 			_tweens[v].kill()
 		set_process(true)
-	# Centred on the pointer: `position` is the top-left corner. The vertical is
-	# CLAMPED INTO THE DRAWER -- a reorder is a horizontal gesture, and letting
-	# the card climb out of the fan with the cursor is how it ended up wrestling
-	# the layout for a place to be.
+	# Centred on the pointer, and the vertical clamped into the drawer: reorder is horizontal.
 	var want := at_global - global_position 		- Vector2(CardView.CARD_W, CardView.CARD_H) * 0.5
 	want.y = clampf(want.y, _baseline() - 26.0, _baseline() + 6.0)
 	_carry_to = want
@@ -390,10 +308,7 @@ func _process(delta: float) -> void:
 func _drop_carry() -> void:
 	if _carry != null and is_instance_valid(_carry):
 		_carry.z_index = 0
-		# STILL HELD, on purpose. It stays the hand's to move until it has
-		# arrived; releasing it here would hand it to `_layout`'s tween and to
-		# the armed lift at the same moment, from a hundred pixels away, and the
-		# two would fight over it in front of you.
+		# Still held: releasing it would give it to the layout tween and armed lift at once.
 		_settle = _carry
 		_settle_to = _carry.position
 		set_process(true)

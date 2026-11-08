@@ -1,26 +1,8 @@
 extends Harness
 
-## A click through the curved glass lands where the picture says it does:
-##   godot --path . -- warptest
-##
-## NEEDS A WINDOW, because it is about the window. The shader bends the picture
-## per screen pixel and the container that feeds input to the game knows nothing
-## about that, so `GameShell` bends the pointer the same way before anything
-## sees it. Jon found the fault by hand -- "the buttons in the far corners are
-## hard to hit" on CRT+ and the arcade cabinet -- and then found the fix was not
-## finished: "the button localization is better.... but it's not pixel perfect."
-##
-## So this measures the WHOLE chain rather than my arithmetic: it takes a point
-## in the game, works out which window pixel that point is drawn at, pushes a
-## real mouse motion there, and asks the game where it thinks the mouse is. The
-## error is the answer, in game pixels, and the picture is only honest if it is
-## under one.
-##
-## WHY THE INVERSE IS ITERATED. The bend has a closed form one way only: given a
-## screen point, which game pixel is drawn there. Going back the other way is a
-## cubic, so this walks Newton's method over it -- five passes is plenty at
-## these curvatures, and the harness asserts the walk converged rather than
-## trusting it.
+## Measures the whole chain from drawn pixel to the game's pointer (Jon). Inverse is a
+## cubic, solved by Newton.
+## Why: docs/why/WarpTest.md#curved-glass-input
 
 const LOOKS: Array[int] = [DisplaySettings.Look.CRT_GENTLE,
 	DisplaySettings.Look.CRT, DisplaySettings.Look.CRT_ARCADE]
@@ -28,13 +10,9 @@ const LOOKS: Array[int] = [DisplaySettings.Look.CRT_GENTLE,
 const AT: Array[Vector2] = [Vector2(0.5, 0.5), Vector2(0.08, 0.08),
 	Vector2(0.92, 0.08), Vector2(0.08, 0.92), Vector2(0.92, 0.92),
 	Vector2(0.5, 0.06), Vector2(0.06, 0.5), Vector2(0.94, 0.5), Vector2(0.5, 0.94)]
-## HOW CLOSE IS CLOSE ENOUGH, and the number follows the mechanism rather than
-## the other way round. The rect is nudged by WHOLE GAME PIXELS -- a fractional
-## nudge changes which texel each screen pixel samples and makes the picture
-## crawl as the mouse moves -- so the pointer can sit up to half a pixel from
-## where the bend wants it in each axis. That is 0.71 on the diagonal, plus a
-## little for the bend's own curvature inside one pixel. One pixel is the
-## honest bound; asking for less would be asking the quantisation not to exist.
+## One pixel bound: the rect nudges by whole game pixels, so up to 0.71 on the diagonal
+## plus curvature.
+## Why: docs/why/WarpTest.md#error-bound
 const WANT := 1.0
 
 var _tree: SceneTree
@@ -75,23 +53,16 @@ func run(tree: SceneTree) -> void:
 				% [DisplaySettings.look_name(look as DisplaySettings.Look), worst,
 					worst_at.x * 100.0, worst_at.y * 100.0],
 				lost == 0 and worst <= WANT)
-		# THE GLASS STAYS PUT. The input rect slides under a corner pointer; the
-		# picture, and so the tube's edge, must not (Jon: "the crt edge pulls
-		# inward on the sides and top").
+		# The glass stays put: the input rect slides, the picture and tube edge must not (Jon).
 		shell._pointer = shell._home + Vector2(4, 4)
 		shell._nudge()
 		_ok("%s: the glass holds still with the pointer in a corner (input moved %s)"
 				% [DisplaySettings.look_name(look as DisplaySettings.Look),
 					shell.frame_rect().position - shell._home],
 				shell._glass.position == shell._home and shell._glass.size == shell.frame_rect().size)
-	# WHAT THIS CANNOT SEE, and two attempts are the evidence rather than an
-	# excuse. Which control is HOVERED does not follow input events: pushed ones
-	# leave `gui_get_hovered_control()` null even after the engine's own
-	# `notify_mouse_entered`, and while the SubViewportContainer is delivering,
-	# hover comes from the real pointer, which a harness cannot move -- warping
-	# it is ignored without window focus and moving it for real would be moving
-	# Jon's mouse. So the corner feel is judged by hand, with `-- mt=0` to
-	# compare against how it was.
+	# Hover cannot be seen: pushed events leave it null and the real pointer cannot be moved.
+	# Judged by hand.
+	# Why: docs/why/WarpTest.md#hover-limits
 
 	DisplaySettings.screen_look = DisplaySettings.Look.CRT_GENTLE
 	GameShell.refresh()
@@ -118,19 +89,12 @@ func _window_for(shell: GameShell, want: Vector2) -> Vector2:
 	return p if (shell._bend_at(p, shell._home) - want).length() < 0.5 else Vector2(-1, -1)
 
 
-## Push a real motion at that window pixel and ask THE GAME where it landed.
-##
-## Not `Viewport.get_mouse_position()`: that reports the operating system's
-## pointer mapped into the viewport and is not moved by a pushed event at all --
-## it answered with the same number for every probe, which is how this test
-## first "measured" an error of eleven hundred pixels. A control inside the game
-## receiving the event is the only witness that proves the whole chain.
+## Asks a control in the game, not `get_mouse_position()`: that ignores pushed events and
+## read 1100px off.
+## Why: docs/why/WarpTest.md#landing-probe
 func _land(shell: GameShell, win: Vector2) -> Vector2:
-	# THE POINTER IS PRETENDED, because a harness has no real one and the whole
-	# mechanism is keyed to where the real one is. Everything after this is the
-	# engine's own path: the container's transform, its own GUI picking, its own
-	# hover -- which is the point. One transform now drives all of it, so
-	# measuring the click measures the highlight too.
+	# Pretends the pointer, as a harness has none, so the engine's own path runs and the
+	# highlight is measured too.
 	shell._pointer = win
 	shell._nudge()
 	var e := InputEventMouseMotion.new()

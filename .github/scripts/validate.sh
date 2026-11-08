@@ -28,6 +28,10 @@
 #      competing for the CPU could fail for reasons that are not the code's.
 #
 #   GATE_JOBS=1 .github/scripts/validate.sh   # one at a time, in file order
+#   GATE_PART=2/4 .github/scripts/validate.sh # the second of four equal parts
+#
+# CI runs the four parts on four runners at once, which is how 108 CPU minutes
+# of gate come back in about eight. The dealing is at THE PARTS, below.
 #
 # Every unit runs in its own subshell with its OWN USER FOLDER: user:// is
 # pointed at a scratch folder per unit (APPDATA on Windows, as tkg/tools/
@@ -102,6 +106,10 @@ ALLOW='^$'
 # left Godot wedged, and without this a pull request would have sat open for the
 # runner's full six-hour limit instead of failing in three minutes.
 #
+# A limit catches a hang, not a slow day: set it to about twice the unit's time
+# on the CI runner, which runs four Godots on four cores and is 2.2x slower than
+# a Mac. Every red main of early Nov was a passing test killed at its limit.
+#
 # Under the scheduler the command gets the unit's own user folder (see the top
 # of the file), set on the command itself so the PID polled and killed here is
 # the program's, not a wrapper's. Its PID is written down too, so an
@@ -164,6 +172,34 @@ if [ -n "$SPACE_INDENTED" ]; then
 	printf '%s\n' "$SPACE_INDENTED" | sed 's/^/        /'
 else
 	ok "no space-indented .gd files"
+fi
+}
+
+unit_changes() {
+step "Each change is a file in changes/, and CHANGELOG.md's [Unreleased] holds none"
+# A CHANGELOG line under [Unreleased] is a merge conflict with every other
+# branch; changes/ (one dated file a change) is how they stay out of it.
+CHANGES_BAD=""
+for f in changes/*.md; do
+	[ "$f" = "changes/README.md" ] && continue
+	case "$(basename "$f")" in
+		[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.md) ;;
+		*) CHANGES_BAD="$CHANGES_BAD  $f: name it YYYY-MM-DD-what-changed.md"$'\n' ;;
+	esac
+	while IFS= read -r line; do
+		case "$line" in
+			''|'  '*|'- **Fixed** — '*|'- **Changed** — '*|'- **Added** — '*) ;;
+			*) CHANGES_BAD="$CHANGES_BAD  $f: a line is not a CHANGELOG bullet or its continuation: ${line:0:60}"$'\n' ;;
+		esac
+	done <"$f"
+done
+UNRELEASED_BULLETS="$(sed -n '/^## \[Unreleased\]/,/^## [0-9]/p' CHANGELOG.md | grep -c '^- ' || true)"
+[ "$UNRELEASED_BULLETS" -eq 0 ] || CHANGES_BAD="$CHANGES_BAD  CHANGELOG.md: $UNRELEASED_BULLETS bullets under [Unreleased]; each belongs in its own changes/ file"$'\n'
+if [ -n "$CHANGES_BAD" ]; then
+	bad "changes/ and CHANGELOG.md:"
+	printf '%s' "$CHANGES_BAD" | sed 's/^/      /'
+else
+	ok "changes/*.md are dated CHANGELOG bullets, and [Unreleased] is a pointer to them"
 fi
 }
 
@@ -414,7 +450,7 @@ step "The cutaway moves parts by the refit rule"
 # handlers and counts what it draws, like the container check above. It ends
 # on the real LOCAL (a wreck clicked through the cutaway, a fight), so it ends
 # with the same exit-time teardown reports as stowtest, allowed the same way.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot cutawaytest 180 --headless --path "$PROJECT" -- cutawaytest; then
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot cutawaytest 240 --headless --path "$PROJECT" -- cutawaytest; then
 	if grep -qE '^cutawaytest: PASS' "$LOG_DIR/cutawaytest.log"; then
 		ok "the cutaway"
 	else
@@ -432,7 +468,7 @@ step "Every encounter's subject is real art and fits LOCAL"
 # resolves every piece against art/subjects/index.json and fits every staging to
 # LOCAL's own view. It ends on the real LOCAL, so it ends with the same exit-time
 # teardown reports as stowtest, allowed the same way.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot subjecttest 180 --headless --path "$PROJECT" -- subjecttest; then
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot subjecttest 240 --headless --path "$PROJECT" -- subjecttest; then
 	if grep -qE '^subjecttest: PASS' "$LOG_DIR/subjecttest.log"; then
 		ok "the subjects"
 	else
@@ -544,7 +580,7 @@ step "LOCAL draws the world you orbit, close, from its first frame"
 # flight, where they took 4 to 12): 310 s alone on the Mac (Oct 31), past the
 # 300 it had (137 s on Oct 30).
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot orbitworldtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
+	run_godot orbitworldtest 840 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
 	if grep -qE '^orbitworldtest: PASS' "$LOG_DIR/orbitworldtest.log"; then
 		ok "LOCAL draws the world you orbit, close"
 	else
@@ -651,7 +687,7 @@ step "A part moves the gauge its grade promised"
 # trip breaks and neither throws: an int field rounding a fractional pip into
 # two, and a retuned attr_ formula that PER_PIP was not told about. Either one
 # silently puts a whole axis off the ladder on every hull in the game.
-if run_godot attrtest 120 --headless --path "$PROJECT" -- attrtest; then
+if run_godot attrtest 180 --headless --path "$PROJECT" -- attrtest; then
 	if grep -qE '^attrtest: PASS' "$LOG_DIR/attrtest.log"; then
 		ok "attribute ladder"
 	else
@@ -671,7 +707,7 @@ step "Every galaxy can be crossed, and every enum still has its labels"
 # plus that no label array has drifted from its enum. Since Oct 22 also the
 # depth rule (`RunState.DEPTH_STEP`, two rings since Oct 27) and a sweep of 255
 # galaxies, 15 of every kind, flown by the slowest ship: ~130s alone, so 300.
-if run_godot maptest 300 --headless --path "$PROJECT" -- maptest; then
+if run_godot maptest 480 --headless --path "$PROJECT" -- maptest; then
 	if grep -qE '^maptest: PASS' "$LOG_DIR/maptest.log"; then
 		ok "every galaxy is crossable"
 	else
@@ -878,10 +914,10 @@ step "Star B is a place, as the one star is"
 # star's facts as it is drawn (star B the K5 orange dwarf, masses as the
 # pulls), AROUND (never ROUND), no event card wider than the column, and a GO
 # that leaves the view open (hover, wheel, drag) and still runs its event once.
-# Nov 2 (ruling 23, the pair turning): about 140 s alone with its lap sweeps,
-# so its limit is TwinDrawTest's 300 (it was 180, and ran past it under load).
+# Nov 2 (ruling 23, the pair turning): about 140 s alone with its lap sweeps;
+# 289 s on the CI runner, which killed it at 180 and nearly at 300.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot twinsitetest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
+	run_godot twinsitetest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
 	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
 		ok "star B is a place everywhere the star is"
 	else
@@ -900,7 +936,7 @@ step "Two suns and heavy giants are drawn as they are"
 # behind it on the far, every orbit round its own centre, each world lit from
 # its own sun, the floor read off the map's own SunViews, and LOCAL's two suns
 # as far as headless reaches. Shaders are not compiled headless.
-if run_godot twindrawtest 300 --headless --path "$PROJECT" -- sheet=TwinDrawTest; then
+if run_godot twindrawtest 420 --headless --path "$PROJECT" -- sheet=TwinDrawTest; then
 	if grep -qE '^twindrawtest: PASS' "$LOG_DIR/twindrawtest.log"; then
 		ok "two suns and heavy giants are drawn as they are"
 	else
@@ -955,7 +991,7 @@ step "FlightTest, shard $1 of $GATE_FLIGHT_SHARDS"
 # `flightclicks`, which times frames. Split, a shard took 40 s with all eight
 # shards of both tests at once on the PC (Nov 3), but the 4th, which flies by
 # hand and the turning pair's checks (`_orbit_phase`), 108 s: 300 holds either.
-if run_godot "flighttest_$1" 300 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 "shard=$1/$GATE_FLIGHT_SHARDS"; then
+if run_godot "flighttest_$1" 420 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 "shard=$1/$GATE_FLIGHT_SHARDS"; then
 	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest_$1.log"; then
 		ok "its flights solved (or today's planner, with one sun), flown as drawn, landed"
 	else
@@ -1038,7 +1074,7 @@ step "SolveTest, shard $1 of $GATE_SOLVE_SHARDS"
 # pair turns (the twins' plans cost about a fifth more, and the phase sweep at 4
 # angles of two pairs); split, a shard took 92 to 114 s with all eight shards of
 # both tests at once on the PC (Nov 3), so 300 holds it as it did main's.
-if run_godot "solvetest_$1" 300 --headless --path "$PROJECT" -- sheet=SolveTest short "shard=$1/$GATE_SOLVE_SHARDS"; then
+if run_godot "solvetest_$1" 420 --headless --path "$PROJECT" -- sheet=SolveTest short "shard=$1/$GATE_SOLVE_SHARDS"; then
 	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest_$1.log"; then
 		ok "its flights are found, clean, replayed and the same on a worker"
 	else
@@ -1098,7 +1134,7 @@ step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
 # fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot laddertest 420 --headless --path "$PROJECT" -- sheet=LadderTest; then
+	run_godot laddertest 540 --headless --path "$PROJECT" -- sheet=LadderTest; then
 	if grep -qE '^laddertest: PASS' "$LOG_DIR/laddertest.log"; then
 		ok "every move lands where it should"
 	else
@@ -1424,7 +1460,7 @@ step "Each place in a system keeps its own wrecks"
 # Fit means nothing overlaps: no wreck's words on the world you orbit, and no
 # wreck's picture on it while the pile is a fight's worth.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
-	run_godot wrecksitetest 180 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
+	run_godot wrecksitetest 420 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
 		ok "a world keeps its wrecks, the next one and the next system have none, and they stay off your hull"
 	else
@@ -1657,7 +1693,7 @@ step "Nothing joins a fight"
 # seeded fights at a lawless danger-5 system played to turn 7: the enemy
 # count never rises, and the Custodian and the Hellbender stand alone.
 # 480 s: 168 fights take ~310 s on a slow container (Oct 15), on main as on this branch.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 480 --headless --path "$PROJECT" -- sheet=FightCountTest; then
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 660 --headless --path "$PROJECT" -- sheet=FightCountTest; then
 	if grep -qE '^fightcounttest: PASS' "$LOG_DIR/fightcounttest.log"; then
 		ok "$(grep -E '^fightcounttest: [0-9]+ fights' "$LOG_DIR/fightcounttest.log" | head -n 1 | sed 's/^fightcounttest: //')"
 	else
@@ -1700,7 +1736,7 @@ step "Nothing in a fight sits on anything else"
 # "shield:A"); in B the gaps across a rank even (within 4 px at 1080p), the
 # gaps between ranks even, every gap at least 24 px.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
+	run_godot packlayouttest 660 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
 	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then
 		ok "$(grep -cE '^packlayouttest: layout' "$LOG_DIR/packlayouttest.log") layouts, every pack apart"
 	else
@@ -2385,6 +2421,23 @@ else
 fi
 }
 
+unit_commentcheck() {
+step "Long reasoning lives in docs/why/, and every pointer to it resolves"
+# No .gd file holds a comment run over five lines, and every
+# `docs/why/<file>.md#<anchor>` in the code names a real heading.
+if [ -n "$PY" ]; then
+	if "$PY" tools/comment_check.py >/tmp/commentcheck.$$ 2>&1; then
+		ok "$(tail -n 1 /tmp/commentcheck.$$)"
+	else
+		head -n 20 /tmp/commentcheck.$$ | sed 's/^/        /'
+		bad "comment check: broken why-pointers or long comment runs (python tools/comment_check.py)"
+	fi
+	rm -f /tmp/commentcheck.$$
+else
+	bad "no python for the comment check"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
@@ -2478,6 +2531,9 @@ VOCAB_DOCS=$(
 	  | grep -v "maker's mark" \
 	  | grep -v 'house style' \
 	  | grep -v 'never .house. or .maker.' \
+	  | grep -v 'wrong for anyone outside the house' \
+	  | grep -v '`maker`' \
+	  | grep -v '`makers`' \
 	  | grep -viE 'never house, maker, brand, or marque' \
 	  | grep -v '`chassis_maker`'
 )
@@ -2519,7 +2575,9 @@ fi
 #                    frame all the same)
 #   sim              forty whole runs, the regression test of last resort; run
 #                    alone so its limit is never spent waiting for a CPU
-SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim"
+#   calmladdertest   fixed fps, but a partner's ship eases on by the wall clock
+#                    (`_draw_partners`), so one slow frame is one jump past 40 px
+SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim calmladdertest"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
@@ -2527,25 +2585,36 @@ FIRST_UNITS="import"
 # their shards' logs (`gate_shard_sum`); each takes a few seconds.
 AFTER_UNITS="flighttest solvetest"
 
-# Seconds each unit took serially (Oct 20). The pool starts the heaviest first,
-# so the longest runs are never the last to begin. Only the ORDER depends on
-# these; a wrong one costs minutes, never a result. Unlisted units count as 15.
+# Seconds each unit took on the 4-core CI runner (Nov 8; about half that on a
+# Mac). The pool starts the heaviest first, so the longest runs are never the
+# last to begin, and GATE_PART deals by these. Only the ORDER and the balance
+# depend on them; a wrong one costs minutes, never a result. Unlisted units
+# count as 15.
 gate_weight() {
 	case "$1" in
-		packlayouttest) echo 225 ;; laddertest) echo 170 ;; fightcounttest) echo 166 ;;
-		ashtest) echo 133 ;; localeventtest) echo 109 ;; ashtutortest) echo 104 ;;
-		enemyarttest) echo 95 ;; wrecksitetest) echo 80 ;; orbitworldtest) echo 320 ;; dockflytest) echo 150 ;;
-		subjecttest) echo 61 ;; outcometest) echo 58 ;; soundmomenttest) echo 57 ;;
-		maptest) echo 53 ;; sidebartest) echo 50 ;; popplacetest) echo 45 ;;
-		cutawaytest) echo 44 ;; gradesheet) echo 44 ;; moontest) echo 40 ;;
-		fightlogtest) echo 38 ;; killholdtest) echo 31 ;; wreckloottest) echo 29 ;;
-		hinttest) echo 28 ;; calmladdertest) echo 28 ;; foetagtest) echo 28 ;;
-		menutest) echo 25 ;; market) echo 24 ;; parseall) echo 24 ;;
-		devtest) echo 22 ;; hulldamagetest) echo 22 ;; fightopentest) echo 22 ;;
-		lockedpooltest) echo 41 ;; rewardshowntest) echo 33 ;; mapperftest) echo 40 ;;
-		solvetest_*) echo 105 ;; twindrawtest) echo 106 ;; twinsitetest) echo 140 ;;
-		flighttest_4) echo 108 ;; flighttest_*) echo 40 ;; pairlocaltest) echo 20 ;;
-		stationdecktest) echo 77 ;; badgetest) echo 30 ;;
+		orbitworldtest) echo 407 ;; packlayouttest) echo 328 ;; fightcounttest) echo 314 ;;
+		twinsitetest) echo 289 ;; laddertest) echo 254 ;; ashtest) echo 250 ;;
+		maptest) echo 222 ;; twindrawtest) echo 187 ;; flighttest_4) echo 187 ;;
+		wrecksitetest) echo 187 ;; solvetest_2) echo 183 ;; solvetest_1) echo 173 ;;
+		solvetest_4) echo 166 ;; ashtutortest) echo 159 ;; enemyarttest) echo 149 ;;
+		solvetest_3) echo 146 ;; dockflytest) echo 141 ;; localeventtest) echo 116 ;;
+		soundmomenttest) echo 114 ;; cutawaytest) echo 112 ;; subjecttest) echo 91 ;;
+		stationdecktest) echo 86 ;; popplacetest) echo 75 ;; attrtest) echo 72 ;;
+		fightlogtest) echo 66 ;; midjointest) echo 61 ;; flighttest_1) echo 59 ;;
+		sidebartest) echo 56 ;; hinttest) echo 52 ;; gradesheet) echo 52 ;;
+		flighttest_2) echo 50 ;; badgetest) echo 49 ;; mapperftest) echo 48 ;;
+		lockedpooltest) echo 48 ;; outcometest) echo 48 ;; flighttest_3) echo 47 ;;
+		calmladdertest) echo 47 ;; moontest) echo 46 ;; fightopentest) echo 46 ;;
+		wreckloottest) echo 45 ;; menutest) echo 42 ;; pairlocaltest) echo 40 ;;
+		rewardshowntest) echo 40 ;; scrollcheck) echo 40 ;; faunatest) echo 37 ;;
+		flightclicks) echo 36 ;; hulldamagetest) echo 35 ;; corewintest) echo 35 ;;
+		threadstress) echo 32 ;; foetagtest) echo 32 ;; killholdtest) echo 31 ;;
+		lowhulltest) echo 30 ;; contracttest) echo 27 ;; questlogtest) echo 26 ;;
+		devtest) echo 25 ;; parseall) echo 25 ;; market) echo 24 ;;
+		boardsigntest) echo 24 ;; systemtest) echo 24 ;; derelicttest) echo 23 ;;
+		fueltest) echo 22 ;; deeploottest) echo 22 ;; goaltest) echo 21 ;;
+		bindtest) echo 20 ;; swaptest) echo 20 ;; arriveidletest) echo 20 ;;
+		nettest) echo 20 ;;
 		*) echo 15 ;;
 	esac
 }
@@ -2595,6 +2664,62 @@ for gate_split in "flighttest $GATE_FLIGHT_SHARDS" "solvetest $GATE_SOLVE_SHARDS
 	done
 done
 set --
+
+# THE PARTS. GATE_PART=K/N runs the Kth of N parts of the gate, so CI can run
+# the N parts on N machines at once (the whole gate is 108 CPU minutes on a
+# 4-core runner). The units are dealt heaviest first by `gate_weight`, each
+# to the part with the least so far; a split test's shards go with their total,
+# which reads their logs. `import` runs in every part.
+GATE_PART="${GATE_PART:-1/1}"
+GATE_PART_K="${GATE_PART%/*}"
+GATE_PART_N="${GATE_PART#*/}"
+case "$GATE_PART" in
+	*/*) case "$GATE_PART_K$GATE_PART_N" in ''|*[!0-9]*) GATE_PART_K=0 ;; esac ;;
+	*) GATE_PART_K=0 ;;
+esac
+if [ "$GATE_PART_K" -lt 1 ] || [ "$GATE_PART_K" -gt "$GATE_PART_N" ]; then
+	printf 'validate.sh: GATE_PART must be K/N with 1 <= K <= N, such as 2/4 (got %s)\n' "$GATE_PART" >&2
+	exit 2
+fi
+gate_dealt_as() {  # the name a unit is dealt under: a split test's shard as its total
+	local a
+	for a in $AFTER_UNITS; do
+		case "$1" in "$a"_[0-9]*) printf '%s\n' "$a"; return ;; esac
+	done
+	printf '%s\n' "$1"
+}
+gate_dealt_weights() {  # "weight name", heaviest first, a split test's shards added into its total
+	local u g w last="" sum=0
+	for u in "${UNITS[@]}"; do
+		gate_in "$u" "$FIRST_UNITS" || printf '%s %s\n' "$(gate_dealt_as "$u")" "$(gate_weight "$u")"
+	done | sort | {
+		while read -r g w; do
+			if [ "$g" = "$last" ]; then sum=$((sum + w)); else
+				[ -n "$last" ] && printf '%s %s\n' "$sum" "$last"
+				last="$g"; sum="$w"
+			fi
+		done
+		[ -n "$last" ] && printf '%s %s\n' "$sum" "$last"
+	} | sort -k1,1nr -k2,2
+}
+if [ "$GATE_PART_N" -gt 1 ]; then
+	GATE_LOAD=()
+	for ((gate_i = 0; gate_i < GATE_PART_N; gate_i++)); do GATE_LOAD[$gate_i]=0; done
+	GATE_MINE=""
+	while read -r gate_w gate_g; do
+		gate_best=0
+		for ((gate_i = 1; gate_i < GATE_PART_N; gate_i++)); do
+			[ "${GATE_LOAD[$gate_i]}" -lt "${GATE_LOAD[$gate_best]}" ] && gate_best=$gate_i
+		done
+		GATE_LOAD[$gate_best]=$((GATE_LOAD[gate_best] + gate_w))
+		[ "$((gate_best + 1))" -eq "$GATE_PART_K" ] && GATE_MINE="$GATE_MINE $gate_g"
+	done < <(gate_dealt_weights)
+	GATE_KEPT=()
+	for u in "${UNITS[@]}"; do
+		if gate_in "$u" "$FIRST_UNITS" || gate_in "$(gate_dealt_as "$u")" "$GATE_MINE"; then GATE_KEPT+=("$u"); fi
+	done
+	UNITS=("${GATE_KEPT[@]}")
+fi
 
 GATE_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 6)"
 case "$GATE_CORES" in ''|*[!0-9]*|0) GATE_CORES=6 ;; esac
@@ -2744,8 +2869,9 @@ else
 	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
 	run_phase 1 "${GATE_FIRST[@]}"
 	run_phase "$GATE_JOBS" "${GATE_POOL_ORDER[@]}"
-	run_phase "$GATE_JOBS" "${GATE_AFTER[@]}"
-	run_phase 1 "${GATE_SOLO[@]}"
+	# (a part may hold none of these; bash 3.2 reads an empty array as unbound)
+	run_phase "$GATE_JOBS" ${GATE_AFTER[@]+"${GATE_AFTER[@]}"}
+	run_phase 1 ${GATE_SOLO[@]+"${GATE_SOLO[@]}"}
 fi
 flush_output
 
@@ -2781,8 +2907,10 @@ for u in "${UNITS[@]}"; do
 		GATE_FAILS="$GATE_FAILS  $u: ended without a verdict (the unit itself broke; see its output above)"$'\n'
 	fi
 done
-printf '  wall %s with %d at once; the units add up to %s\n' \
-	"$(gate_mmss "$GATE_WALL")" "$GATE_JOBS" "$(gate_mmss "$GATE_SUM")"
+GATE_PART_NOTE=""
+[ "$GATE_PART_N" -gt 1 ] && GATE_PART_NOTE=" (part $GATE_PART_K of $GATE_PART_N)"
+printf '  wall %s with %d at once; the units add up to %s%s\n' \
+	"$(gate_mmss "$GATE_WALL")" "$GATE_JOBS" "$(gate_mmss "$GATE_SUM")" "$GATE_PART_NOTE"
 
 if [ -n "$GATE_FAILS" ]; then
 	printf '\n\033[1m=== Failed\033[0m\n'

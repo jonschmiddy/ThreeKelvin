@@ -1,40 +1,21 @@
 class_name DisplaySettings
 extends RefCounted
 
-## Display mode and monitor, persisted to user://settings.cfg.
-##
-## Every mode positions itself against a chosen screen rather than the desktop
-## origin. Borderless used to sit at (0,0), which is the top-left of the whole
-## virtual desktop, so on a multi-monitor setup it always landed on whichever
-## monitor happens to be leftmost.
-##
-## The viewport is 960x540 and scales by whole numbers only, so a windowed size
-## is always an exact multiple. max_window_scale() is what stops the window from
-## growing to the height of the screen and pushing its own title bar out of
-## reach — a trap this project hit once already.
+## Modes position against a chosen screen: borderless at (0,0) landed on the leftmost monitor.
+## `max_window_scale()` stops the window growing until its title bar leaves the screen.
+## Why: docs/why/DisplaySettings.md#display-modes
 
 enum Mode { WINDOWED, BORDERLESS, FULLSCREEN }
 
 const BASE := Vector2i(960, 540)
 const PATH := "user://settings.cfg"
-## Where these settings are read and written: under any harness
-## (`TestRun.active()`), a scratch file, so a test never touches the player's
-## own. It used to be the player's file for every harness but the few that
-## pointed it elsewhere, and the boot writes it: `load_and_apply` ends in
-## `apply`, which ends in `save` -- so every `sheet=` shot run without
-## `keepwindow` rewrote the player's settings.cfg, and RADIANT's safety
-## (`set_render_style`) could save SIMPLIFIED over the player's style. Audio and
-## Keys keep their sections in the same file, so they follow this path too.
-## (one per harness PROCESS, `TestRun.scratch`, as the save and the history are:
-## a shared one carried one harness's settings into the next, and two running
-## at once wrote over each other)
+## Under a harness settings go to a scratch file, as every shot rewrote the player's settings.cfg,
+## and RADIANT's safety could save SIMPLIFIED over their style.
+## Why: docs/why/DisplaySettings.md#settings-path
 static var HARNESS_PATH: String = TestRun.scratch("settings", "cfg") if TestRun.active() else "user://harness_settings.cfg"
 static var path: String = HARNESS_PATH if TestRun.active() else PATH
-## WHERE THE FIRST-RUN FLAGS LIVE (`[hints]`: the welcome note, each hint, the
-## goal line's steps): the player's settings, or this process's scratch file
-## under a harness, whatever `path` has been pointed at, so a harness that walks
-## the hints never marks the player's as seen. It was the opening tour's
-## (`FirstRunIntro.store_path`), and outlived it.
+## First-run flags use this process's scratch file under a
+## harness, so a hint walk never marks the player's seen.
 static func hints_path() -> String:
 	return HARNESS_PATH if TestRun.active() else path
 ## Room left for the title bar and taskbar when sizing a windowed window.
@@ -44,18 +25,12 @@ static var mode: Mode = Mode.WINDOWED
 static var window_scale: int = 1
 static var screen: int = -1          ## -1 means "not chosen yet"; resolves to primary
 
-## Show the frame counter. Off by default.
-##
-## A SETTING RATHER THAN A DEV FLAG. It rode on `DevMode` for one commit, which
-## meant a player could not see their frame rate without also unlocking the card
-## gallery and the whole star chart -- and the counter is a diagnostic, not a
-## cheat. The number a tester quotes when a screen feels choppy should not cost
-## them the game's secrets.
+## A setting, not a dev flag: on `DevMode` a player could not see their frame rate
+## without unlocking the card gallery and the whole star chart.
+## Why: docs/why/DisplaySettings.md#frame-counter
 static var fps_meter: bool = false
 
-## THE VIEW KICKS WHEN YOU ARE HIT. Off is a real setting, not a nicety: shake
-## is the single display effect people most often cannot play with, and a
-## turn-based game has no excuse for making anyone put it down.
+## Off is a real setting: shake is the display effect people most often cannot play with.
 static var screen_shake: bool = true
 
 ## WHAT THE SCREEN DOES TO THE PICTURE. All of it is one shader over the
@@ -73,88 +48,54 @@ static var screen_look: Look = Look.CRT_GENTLE
 ## Off turns every animation in the game off at the source: `Router.animating`
 ## is what every screen asks before it moves anything.
 static var reduced_motion: bool = false
-## WHETHER A CLICK CUTS THE JUMP SHORT.
-##
-## OFF, and that is the interesting default. The jump is seven seconds of
-## departure, transit and arrival that the run has been building to, and a
-## player who is holding the mouse while it plays -- which is everybody, they
-## just clicked JUMP -- skips it by accident and never sees it again. So the
-## skip is there for the player who has seen it enough, and they have to say so.
+## Off by default: the jump is seven seconds the run builds to, and a player holding the mouse
+## after JUMP skips it by accident and never sees it.
+## Why: docs/why/DisplaySettings.md#skip-jump
 static var skip_jump: bool = false
 ## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
 static var frame_cap: int = 0
-## FRAME CAP's chips, in Settings' order. 30 joined NONE, 60 and 120 on Jon's
-## call (Oct 27, perf C3): on a slow machine whose frames take 20 to 33 ms,
-## V-Sync shows them at a jumpy mix of 60 and 30, and a 30 cap paces them
-## evenly and saves power. Opt-in; NONE stays the default.
+## 30, 60 and 120 joined NONE on Jon's call (Oct 27, perf C3): on a slow machine V-Sync gives
+## a jumpy mix of 60 and 30, and a 30 cap paces it evenly. Opt-in; NONE stays default.
+## Why: docs/why/DisplaySettings.md#frame-cap
 const FRAME_CAPS: Array[int] = [0, 30, 60, 120]
 ## The cap VSYNC OFF brings with it when FRAME CAP is NONE.
 const VSYNC_OFF_CAP := 60
-## V-SYNC, ON by default (Godot's own, and project.godot never changes it).
-## OFF ONLY WITH A CAP (Jon, Oct 27, C3): with V-Sync off and no cap the game
-## draws as fast as it can, which on a turn-based screen is just heat. So OFF
-## with FRAME CAP at NONE sets the cap to `VSYNC_OFF_CAP`, and FRAME CAP set to
-## NONE turns V-Sync back on (`set_vsync`, `set_frame_cap`; a file that says
-## otherwise loads with V-Sync on). The window modes are left as they were:
-## FULLSCREEN is still exclusive, on Windows too.
+## V-Sync goes off only with a cap (Jon, Oct 27, C3): uncapped, a turn-based screen
+## draws as fast as it can, which is just heat.
+## Why: docs/why/DisplaySettings.md#v-sync
 static var vsync: bool = true
-## The V-Sync mode this game last gave the window (`DisplayServer.VSYNC_*`),
-## or -1 if it never set one: then the window keeps what Godot opened it
-## with, so `--disable-vsync` and a bench's own VSYNC_DISABLED still hold
-## under a harness, whose scratch settings always say ON. Also what a
-## headless test reads, since a headless window has no V-Sync to ask.
+## -1 if never set, so `--disable-vsync` and a bench's
+## own VSYNC_DISABLED still hold under a harness.
 static var applied_vsync: int = -1
 
-## HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Four styles, in the
-## order Settings lists them (Jon, 2026-10-05, after the "Rendered Again"
-## showcase and the port): LEGACY, the look from before the port ("I kind of
-## don't want to lose the BEFORE look"); SIMPLIFIED, the game's layered look
-## refined and set in motion (direction C, "Alive", THE DEFAULT for now);
-## PAINTED, every pixel placed by a pixel artist's hand (direction B, "for
-## aesthetics"); RADIANT, light through gas (direction A, "for photos
-## probably"). All of them share SIMPLIFIED's animations and its black hole
-## (`LegacyHole`, named before the rename).
+## Four styles in Settings' order (Jon, 2026-10-05); SIMPLIFIED is the default for now.
+## All share SIMPLIFIED's animations and its black hole (`LegacyHole`).
+## Why: docs/why/DisplaySettings.md#render-styles
 const STYLES: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
 ## The default, and what anything unknown or not built falls back to.
 const DEFAULT_STYLE := &"simplified"
-## Which styles have a renderer. A style not in here cannot be chosen, and
-## Settings builds no STYLE row at all until there are two to choose between
-## (only pressable things look pressable). Add a style here when its renderer
-## lands, and nowhere else.
+## Only styles with a renderer; the STYLE row appears once there are two. Add a style here only.
 const BUILT: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
 static var render_style: StringName = DEFAULT_STYLE
-## GRAPHICS LOW: the cheaper path every style's renderer keeps (the chart's
-## fewer depth sheets and no billow march, the sector map's one field read,
-## LOCAL at half rate). Settings' GRAPHICS row (`set_graphics_low`).
+## GRAPHICS LOW: the cheaper path every style's renderer keeps.
 static var graphics_low: bool = false
-## WHO SET GRAPHICS (Jon, Oct 27, ruling C1: LOW picked for a weak machine).
-## settings.cfg could not tell a player who chose HIGH from one who never
-## looked: both saved `graphics_low = false`. Now it says. NOBODY: never set, so
-## the title's sky may measure this machine and pick (`GpuProbe`), once. MACHINE:
-## it did, and that is final; Settings says so beside the row until the player
-## picks. PLAYER: HIGH or LOW pressed in Settings, never touched again.
-## A FILE FROM BEFORE THIS KEY: LOW was the player's (HIGH was the default, so
-## LOW was pressed); HIGH cannot be told from never chosen and counts as NOBODY,
-## which is every alpha player on the default (`graphics_by_in`).
+## Records who set GRAPHICS (Jon, Oct 27, C1): the file could not tell a HIGH choice from never
+## looking. An old file counts HIGH as NOBODY, which is every alpha player on the default.
+## Why: docs/why/DisplaySettings.md#graphics-ownership
 const GFX_NOBODY := ""
 const GFX_MACHINE := "machine"
 const GFX_PLAYER := "player"
 static var graphics_by: String = GFX_NOBODY
-## THE MACHINE'S PICK CHANGED GRAPHICS UNDER A PICTURE THAT IS UP (the title's
-## sky, which measured it): that picture keeps the pass it was built with
-## (`ChartSky._push` does not swap it live) until it is built again. The player's
-## own press lets go of it.
+## The machine's pick under a picture already up leaves it on its old pass until it is rebuilt.
 static var _low_held := false
-## A HARNESS'S `style=` / `graphics=` live in memory only: what the file held is
-## kept here and is what save() writes back, so a shot taken at a setting never
-## changes the player's own settings.cfg (it did: apply() ends in save()).
+## Harness `style=` and `graphics=` live in memory only,
+## as `apply()` ends in `save()` and rewrote the file.
 static var _harness_style := false
 static var _harness_low := false
 static var _file_style: StringName = DEFAULT_STYLE
 static var _file_low := false
-## A harness's stand-in for the command line's `style=` / `graphics=`, read by
-## `load_and_apply` in its place when set (`-- menutest`: a real `graphics=high`
-## on an Intel chip, through the real parse). Empty: the command line.
+## A harness stand-in for the command line, read by
+## `load_and_apply` in its place; empty means the real one.
 static var harness_args := PackedStringArray()
 
 static func style_built(s: StringName) -> bool:
@@ -175,10 +116,8 @@ static func built_styles() -> Array[StringName]:
 			out.append(s)
 	return out
 
-## A saved or asked-for value, as a style that can be drawn: anything unknown or
-## not built yet is the default. (A file saved before the rename that says
-## "legacy" meant what is now SIMPLIFIED; LEGACY is not built, so it loads as
-## SIMPLIFIED, which is what that player had.)
+## Unknown or unbuilt values fall to the default;
+## an old file saying legacy meant what is now SIMPLIFIED.
 static func valid_style(v: Variant) -> StringName:
 	var s := StringName(str(v))
 	return s if style_built(s) else DEFAULT_STYLE
@@ -196,11 +135,9 @@ static func set_render_style(s: StringName) -> bool:
 		return true
 	render_style = s
 	_harness_style = false  # the player chose it: it is theirs to keep
-	# CHOSEN AGAIN, IT IS TRIED AGAIN: RADIANT's safety (`ChartRadiant.fell_back`)
-	# held it off for the rest of the session, which was meant to last only
-	# "until the player chooses it again" -- and nothing ever let it go, so a
-	# player who picked RADIANT back (say, on LOW) got SIMPLIFIED under a
-	# setting that said RADIANT. The safety measures it afresh.
+	# Choosing RADIANT again tries it again: the safety held it off for the session
+	# and nothing let it go, so the setting said RADIANT over SIMPLIFIED.
+	# Why: docs/why/DisplaySettings.md#radiant-safety
 	if s == &"radiant":
 		ChartRadiant.fell_back = false
 	save()
@@ -208,13 +145,9 @@ static func set_render_style(s: StringName) -> bool:
 	return true
 
 
-## RADIANT'S SAFETY GIVES UP ON IT (`ChartRadiant.fell_back`): the setting
-## becomes `s` and is kept, but NOTHING IS REBUILT NOW -- no
-## `render_style_changed` -- so the picture on screen keeps its look until the
-## next one is built (the next system, the chart's next build, LOCAL's next
-## setup), which draws `s`. Jon: the picture holds its brightness; a style
-## switched under a still view read as the whole frame dimming by itself
-## (RADIANT's light through gas gone at once, 16.9 to 13.2 in a frame).
+## Fall back keeps the setting but rebuilds nothing now: a style switched under a still view
+## read as the frame dimming by itself (16.9 to 13.2).
+## Why: docs/why/DisplaySettings.md#radiant-safety
 static func fall_back_style(s: StringName) -> void:
 	if not style_built(s) or s == render_style:
 		return
@@ -234,13 +167,9 @@ static func harness_forced() -> bool:
 	return _harness_style or _harness_low
 
 
-## GRAPHICS LOW from Settings: kept, and applied at once -- the star chart, the
-## sector map and LOCAL rebuild on `Sig.render_style_changed` and read this as
-## they build (the chart also swaps its place pass live). Turning LOW ON lets
-## RADIANT try again if its safety had dropped it to SIMPLIFIED: what was too
-## heavy on HIGH may hold on LOW, and the safety measures the LOW path.
-## The player's own, from now on (`graphics_by`): the machine never picks
-## again. Pressing the chip already marked still counts as choosing it.
+## LOW on lets RADIANT try again, as what was too heavy on HIGH may hold on LOW.
+## Any press makes it the player's own, and the machine never picks again.
+## Why: docs/why/DisplaySettings.md#graphics-ownership
 static func set_graphics_low(on: bool) -> void:
 	if on == graphics_low and not _harness_low and graphics_by == GFX_PLAYER and not _low_held:
 		return
@@ -254,13 +183,9 @@ static func set_graphics_low(on: bool) -> void:
 	Sig.render_style_changed.emit()
 
 
-## THE MACHINE'S PICK (`GpuProbe.conclude`), once per profile and only while
-## nobody has set GRAPHICS: kept, but NOTHING IS REBUILT NOW, as RADIANT's
-## fall-back (`fall_back_style`) -- the picture up keeps its pass and the next
-## one built draws `low`. LOW picked lets RADIANT's safety try again, as the
-## player's LOW does (`set_graphics_low`). Settings, if it is open, redraws its
-## row (`Sig.graphics_picked`): a drawer left with HIGH marked over a LOW pick
-## could not be pressed back to HIGH until it was opened again.
+## The machine's pick rebuilds nothing, like RADIANT's fall-back; Settings redraws its row,
+## or a drawer with HIGH marked over a LOW pick could not be pressed back to HIGH.
+## Why: docs/why/DisplaySettings.md#graphics-ownership
 static func machine_pick(low: bool) -> void:
 	if graphics_by != GFX_NOBODY or harness_forced():
 		return
@@ -274,9 +199,8 @@ static func machine_pick(low: bool) -> void:
 	Sig.graphics_picked.emit()
 
 
-## Whether the LOW in memory is still only the adapter's hint (nobody has set
-## GRAPHICS, the measure is to come): Settings says so in other words than for a
-## measured pick, since the chip's name alone is not a measure.
+## Whether LOW is only the adapter's hint: Settings
+## words it differently, as a chip name is no measure.
 static func low_by_hint() -> bool:
 	return graphics_low and graphics_by == GFX_NOBODY and not _harness_low
 
@@ -286,9 +210,7 @@ static func low_held() -> bool:
 	return _low_held
 
 
-## The machine picked LOW (its measure, or the adapter's hint while that is
-## still to come), and the player has not picked since: what Settings says
-## beside the GRAPHICS row.
+## The machine picked LOW and the player has not since; Settings says so beside the row.
 static func low_by_machine() -> bool:
 	return graphics_low and graphics_by != GFX_PLAYER and not _harness_low
 
@@ -405,30 +327,17 @@ static func screen_label(i: int) -> String:
 	var tag := " *" if i == DisplayServer.get_primary_screen() else ""
 	return "%d  %dx%d%s" % [i + 1, s.x, s.y, tag]
 
-## RETINA STOPS AT 2X (Jon, Oct 27, ruling C2). Godot counts a Mac's screen in
-## pixels, which on Retina are twice its points: the default "looks like
-## 1440x900" is 2880x1800, the largest window that fits is 3X (2880x1620), and
-## the shell drew about four full-window passes over those 4.7 million pixels
-## every frame (Oct 27). On an Intel MacBook's graphics that was estimated at
-## 3 to 5 ms a frame (never measured), against 1.5 to 2.5 at 2X: 1920x1080, 56%
-## fewer pixels, and a picture two thirds of the screen wide. So on a Retina Mac the
-## window stops at 2X: the first launch opens a 2X window, WINDOW SIZE offers
-## nothing bigger, and a saved 3X window opens at 2X (`apply` clamps it, and
-## saves it, because 3X is no longer a size the row offers). BORDERLESS and
-## FULLSCREEN still fill the screen (`GameShell._fit`). Windows and Linux are
-## untouched: only macOS is asked.
+## Retina stops at 2X (Jon, Oct 27, C2): 3X is 4.7 million pixels and about four full-window
+## passes a frame. A saved 3X window opens at 2X; borderless and fullscreen still fill the screen.
+## Why: docs/why/DisplaySettings.md#retina-cap
 const RETINA_MAX_SCALE := 2
 
-## THE SCREEN AS A TEST SEES IT (`-- menutest` only): a size in pixels and
-## whether it is a Retina Mac, so the cap is tested on machines that are
-## neither (headless has no screen at all). ZERO and -1 ask the real one.
+## The screen as `-- menutest` sees it, so the cap is tested
+## on non-Retina machines; ZERO and -1 ask the real one.
 static var test_screen := Vector2i.ZERO
 static var test_retina := -1
 
-## A Mac drawing on a Retina screen. Godot's macOS pixels are points times the
-## LARGEST backing scale of any screen (`screen_get_max_scale`; 1.0 when no
-## screen is Retina or hidpi is off), whichever screen the window is on, so
-## that is the test rather than this screen's own scale. Never true off macOS.
+## Retina is judged by the largest backing scale of any screen, as Godot's macOS pixels use it.
 static func retina() -> bool:
 	if test_retina >= 0:
 		return test_retina == 1
@@ -475,15 +384,9 @@ static func apply() -> void:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
 			DisplayServer.window_set_position(origin)
-			# ONE PIXEL TALLER THAN THE SCREEN, and that pixel is the whole point.
-			# A borderless window sized EXACTLY to the screen is what Windows
-			# calls a fullscreen optimization: it hands the display over on every
-			# focus change, which is the black flash when you click out to
-			# another monitor and back. A window a pixel past the bottom edge is
-			# an ordinary window to the compositor and still covers everything.
-			#
-			# TALLER, NOT SHORTER: the viewport scales by whole numbers, so a
-			# window one pixel SHORT of 1080 would drop the game from 2x to 1x.
+			# One pixel taller than the screen: an exact-fit borderless window gets Windows'
+			# fullscreen optimization (black flash). Taller, as shorter than 1080 drops to 1x.
+			# Why: docs/why/DisplaySettings.md#borderless-window
 			DisplayServer.window_set_size(extent + Vector2i(0, 1))
 		Mode.FULLSCREEN:
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
@@ -523,9 +426,7 @@ static func toggle_fullscreen() -> void:
 
 static func save() -> void:
 	var cfg := ConfigFile.new()
-	# Load before writing. This used to save a fresh ConfigFile, which was
-	# harmless while display was the only section — and would have silently
-	# dropped the audio volumes every time the window was resized.
+	# Load before writing, or a fresh ConfigFile would drop the audio volumes on every resize.
 	cfg.load(path)
 	cfg.set_value("display", "mode", int(mode))
 	cfg.set_value("display", "window_scale", window_scale)
@@ -548,18 +449,9 @@ static func save() -> void:
 	cfg.set_value("display", "graphics_by", graphics_by)
 	cfg.save(path)
 
-## THE FIRST LAUNCH'S WINDOW, when there is no settings file at all (an
-## existing file is never overridden). A window is a whole multiple of 960x540
-## and has to leave room for the title bar and taskbar, so on a 1080p screen
-## the biggest one is 1x: a quarter of the screen with every pixel at half the
-## size the game is drawn for. That was a fresh profile's first sight of the
-## game (release check, Oct 18; Jon: "A"). So: BORDERLESS (the whole screen,
-## 2x on 1080p) when a window could only be 1x there, otherwise a window at the
-## largest size offered (`max_window_scale`: 2X on a Retina Mac, Oct 27, where
-## 3X used to fit). Not under a harness (`TestRun`): its scratch
-## settings file is always new, and its windows keep the size they had --
-## unless it sets `first_launch_in_harness` to test this (`-- menutest`).
-## `top` stands in for the screen's largest window scale in that test.
+## With no settings file, a 1080p screen opens BORDERLESS, as the biggest window there is 1x
+## (release check, Oct 18; Jon: A). Not under a harness unless `first_launch_in_harness` is set.
+## Why: docs/why/DisplaySettings.md#first-launch
 static var first_launch_in_harness := false
 
 static func first_launch_window(top: int = -1) -> void:
@@ -604,9 +496,8 @@ static func load_and_apply() -> void:
 	# changes something: OFF, or ON again after this game turned it off.
 	if not vsync or applied_vsync == DisplayServer.VSYNC_DISABLED:
 		_apply_vsync()
-	# `-- style=painted` / `-- graphics=low`: a harness's shot in that style or at
-	# that setting, in memory only (nothing is saved). A style that is not built
-	# draws as LEGACY, and says so.
+	# Harness `style=` and `graphics=` apply in memory only;
+	# an unbuilt style draws as LEGACY and says so.
 	for a in (harness_args if not harness_args.is_empty() else OS.get_cmdline_user_args()):
 		var arg := a as String
 		if arg.begins_with("style="):
@@ -617,35 +508,26 @@ static func load_and_apply() -> void:
 		elif arg.begins_with("graphics="):
 			_harness_low = true
 			graphics_low = arg.substr(9) == "low"
-	# THE ADAPTER'S HINT (`GpuProbe`), while nobody has set GRAPHICS: an Intel
-	# chip that is not an Arc draws LOW from this launch's first picture, in
-	# memory only, until the title's sky has measured it and the pick is kept.
+	# A weak Intel adapter draws LOW from the first picture,
+	# in memory, until the title's sky measures it.
 	if GpuProbe.wanted() and GpuProbe.hint_weak():
 		graphics_low = true
-	# `-- keepwindow` leaves the window where the command line put it
-	# (`--windowed --position x,y`), for a shot taken while somebody is playing
-	# on the monitor the saved mode would cover. Godot strips its own flags from
-	# what a script can read, so the run has to say so itself.
+	# `keepwindow` leaves the window where the command line
+	# put it; Godot strips its flags, so the run says so.
 	if "keepwindow" in OS.get_cmdline_user_args():
 		leave_launch_window()
 		return
 	var from_launch := in_launch_window()
 	apply()
-	# The window just grew from the launch window to the game's, and the first
-	# frame of the title is most of a second away (the launcher builds and warms
-	# its sky first). Until something is presented the new area holds whatever
-	# the compositor had, so put one dark frame in it now.
+	# One dark frame fills the new area, as the compositor
+	# leaves junk until the title's first frame.
 	if from_launch:
 		RenderingServer.force_draw()
 
 
-## THE LAUNCH WINDOW (Jon, Oct 20: "not full screen, just like a small window
-## in the center of the screen"). project.godot opens the game in a small
-## borderless window on the primary screen, holding the boot splash while the
-## scripts load, and `apply` then gives it the player's own mode and size.
-## Whether the window is still that one: borderless, as the project opened it.
-## (A `--resolution` the size of the screen makes Windows report a borderless
-## window as fullscreen, so the mode is not part of the test.)
+## The launch window is a small borderless one in the centre (Jon, Oct 20) while scripts load.
+## Mode is not tested: a screen-sized `--resolution` makes Windows report borderless as fullscreen.
+## Why: docs/why/DisplaySettings.md#launch-window
 static func in_launch_window() -> bool:
 	if DisplayServer.get_name() == "headless":
 		return false
@@ -653,10 +535,7 @@ static func in_launch_window() -> bool:
 		return false
 	return DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS)
 
-## The window every harness and `-- keepwindow` run had before the launch
-## window: framed, 1920x1080, centred where it opened. A run that gave its own
-## `--resolution` keeps that size and only gets its frame back; one that gave
-## `--position` stays where it was put.
+## Harnesses keep their old framed 1920x1080 window; their own `--resolution` or `--position` wins.
 const HARNESS_WINDOW := Vector2i(1920, 1080)
 
 static func leave_launch_window() -> void:
@@ -669,9 +548,8 @@ static func leave_launch_window() -> void:
 	var launch := Vector2i(
 		int(ProjectSettings.get_setting("display/window/size/window_width_override")),
 		int(ProjectSettings.get_setting("display/window/size/window_height_override")))
-	# The frame first, then the mode: a borderless window the size of the
-	# screen is fullscreen to Windows, and asking it for WINDOWED while it is
-	# still borderless does nothing (measured on the hidden desktop, Oct 20).
+	# Frame first, then mode: a screen-sized borderless
+	# window is fullscreen to Windows and ignores WINDOWED.
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
