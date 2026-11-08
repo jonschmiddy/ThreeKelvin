@@ -41,6 +41,108 @@ const STAR_RAIL_V := 45.0
 ## layout keeps it, for the room an arrival needs: `SystemLayout.arrive_reach`).
 const KEEP_R := SystemLayout.ALONGSIDE
 const TILT := 0.38
+## THE FAST TRANSFERS (Jon, Nov 4-7): each solved flight is planned on its own clock this many times
+## faster than the map's, per AUTOPILOT path: DIRECT x4, CURVED x12 ("3B"). The parked ring stays at RAIL_V.
+## `-- flight_pace=K` and `-- autopilot=direct|curved` for a harness.
+## Why: docs/why/ShipFlight.md#flight-pace
+const FLIGHT_PACE := {&"direct": 4.0, &"curved": 12.0}
+static var pace_k := -1.0
+static var path_k: StringName = &""
+## The look aids while a fast flight plays: the flame fades over FLAME_MIN s after a burn, and the
+## nose turns no faster than NOSE_RATE round a fast flight. `-- lookaids=0` turns them off.
+## Why: docs/why/ShipFlight.md#look-aids
+const FLAME_MIN := 0.25
+const NOSE_RATE := deg_to_rad(300.0)
+const NOSE_SLOW_S := 1.2
+static var look_aids := -1
+## Spin-up and spin-down round a ring: a fast flight leaves at `ke` times the ring's speed, reached
+## as it rides round, and arrives that much faster, eased down over SPIN_S.
+## Why: docs/why/ShipFlight.md#spin-up-and-down
+const SPIN_S := 0.3
+## THE SPIN-UP'S PUSH is the clock's hand-off, not the engine's: (ke - 1) x
+## the ring's speed x 1.5 / its length at its peak; with the phasing beside it
+## a ride may push up to SPIN_PUSH_K times THRUST x pace^2, and the spin is no
+## shorter than SPIN_MIN. The flame shows it.
+const SPIN_PUSH_K := 3.0
+const SPIN_MIN := 0.08
+
+
+## THE RATE A RIDE ROUND A RING ENDS AT, in times the ring's own, for plan pl:
+## pace x its speed on the flight's clock / its speed (1 for today's planner, a
+## pace of 1, or a ring already left at speed / pace).
+func _ride_ke(pl: FlightPlan) -> float:
+	if pl == null or pl.res == null or pl.pace == 1.0 or StringName(pl.dep.get("kind", &"")) != &"ring":
+		return 1.0
+	var v := absf(float(pl.dep.w)) * float(pl.dep.rt)
+	if v <= 1e-9:
+		return 1.0
+	return pl.pace * absf(FlightSolve.tau_speed(v, pl.pace)) / v
+
+
+## Whether a ride round a ring can be flown at pace pk: its push within THRUST (and VMAX) on the map,
+## the spin-up's beside the phasing's, and its phasing k no less than `FlightSolve.RIDE_K_MIN`.
+## Why: docs/why/ShipFlight.md#ride-flyable
+static func _ride_flyable(rd: Dictionary, pk: float, vr: float) -> bool:
+	var k := float(rd.get("k", 1.0))
+	var ke := float(rd.get("ke", 1.0))
+	var most := FlightSolve.THRUST * pk * pk * (SPIN_PUSH_K if ke > 1.0 + 1e-6 else 1.0)
+	return not (vr * _ride_peak(rd) > most + 1e-6 or (maxf(k, 1.0) + ke - 1.0) * vr > FlightSolve.VMAX * pk + 1e-6 or k < FlightSolve.RIDE_K_MIN)
+
+
+## The ride's shape round to a fast flight's departure: ride at w, spin up over `sp` s, ride on at
+## ke w, the spin starting `ls` s before it leaves. Returns {k, ke, ls, sp}.
+## Why: docs/why/ShipFlight.md#ride-shape
+static func _ride_shape(dang: float, w: float, T: float, ke: float) -> Dictionary:
+	if ke <= 1.0 + 1e-9 or T <= 1e-9:
+		var k0 := 2.0 * dang / (w * T) - 1.0 if T > 1e-9 else 1.0
+		return {"k": k0, "ke": 1.0, "ls": 0.0, "sp": 0.0}
+	var need := dang / w - T
+	var sp := minf(FlightSolve.spin_up(), T)
+	var ls := need / (ke - 1.0) + 0.5 * sp
+	if ls < sp:
+		sp = clampf(2.0 * need / (ke - 1.0), minf(SPIN_MIN, T), sp)
+		ls = sp
+	ls = minf(ls, T)
+	var res := dang / w - T - (ke - 1.0) * (ls - 0.5 * sp)
+	return {"k": 1.0 + 2.0 * res / T, "ke": ke, "ls": ls, "sp": sp}
+
+
+## The ride rd at tau s in: [the angle it has gone round past a0, its rate in
+## times w, its push along the ring in w / s] (rd: T, k, ke, ls, sp).
+static func _ride_at(rd: Dictionary, tau: float) -> PackedFloat64Array:
+	var T := float(rd.T)
+	var k := float(rd.get("k", 1.0))
+	var ang := tau
+	var rate := 1.0
+	var acc := 0.0
+	if T < INF and T > 1e-9 and k != 1.0:
+		ang += (k - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T))
+		rate += (k - 1.0) * pow(sin(PI * tau / T), 2.0)
+		acc += (k - 1.0) * PI / T * sin(TAU * tau / T)
+	var ke := float(rd.get("ke", 1.0))
+	if ke != 1.0 and T < INF:
+		var ls := float(rd.ls)
+		var sp := maxf(float(rd.sp), 1e-6)
+		var s0 := T - ls
+		if tau > s0:
+			var x := clampf((tau - s0) / sp, 0.0, 1.0)
+			var g := sp * (x * x * x - 0.5 * x * x * x * x)
+			if tau > s0 + sp:
+				g = 0.5 * sp + (tau - s0 - sp)
+			ang += (ke - 1.0) * g
+			rate += (ke - 1.0) * x * x * (3.0 - 2.0 * x)
+			acc += (ke - 1.0) * 6.0 * x * (1.0 - x) / sp
+	return PackedFloat64Array([ang, rate, acc])
+
+
+## Its push along the ring at the most, in w / s.
+static func _ride_peak(rd: Dictionary) -> float:
+	var T := float(rd.T)
+	var p := absf(float(rd.get("k", 1.0)) - 1.0) * PI / T if T > 1e-9 and T < INF else 0.0
+	var ke := float(rd.get("ke", 1.0))
+	if ke != 1.0:
+		p += 1.5 * absf(ke - 1.0) / maxf(float(rd.sp), 1e-6)
+	return p
 
 ## The modes: at the edge as arrived, flying free, on a rail, held alongside,
 ## or on a planned flight.
@@ -129,6 +231,9 @@ class FreeState:
 ## `tail` is the insertion after the plan, kept so the whole flight can be drawn first.
 class FlightPlan:
 	var dur := 1.4
+	## the flight's own clock against the map's (`FlightSolve.Result.pace`): its
+	## pulls are pace^2 of what the solver flew; 1 for today's planner
+	var pace := 1.0
 	var conic := true
 	## &"direct", &"waypoint", or &"unclean" (the least bad, none being clean)
 	var kind: StringName = &"direct"
@@ -554,12 +659,22 @@ func _bary_in() -> float:
 	return L.edge - L.bary.length() - 12.0
 
 
-## THE NOSE, turned toward `want` (a screen angle) on its spring.
+## THE NOSE, turned toward `want` (a screen angle) on its spring; around a
+## fast flight no faster than NOSE_RATE (`_nose_slow`).
 func _nose(want: float, dt: float) -> void:
 	var err := wrapf(want - ang, -PI, PI)
 	_ang_v += (NOSE_W * NOSE_W * err - 2.0 * NOSE_W * _ang_v) * dt
+	# (from the ride round to a fast flight's departure to NOSE_SLOW_S after it
+	# is on its ring)
+	if plan != null and plan.res != null and plan.pace > 1.0:
+		_nose_slow = NOSE_SLOW_S
+	if _nose_slow > 0.0 and aids_on():
+		_ang_v = clampf(_ang_v, -NOSE_RATE, NOSE_RATE)
+	_nose_slow = maxf(_nose_slow - dt, 0.0)
 	ang = wrapf(ang + _ang_v * dt, -PI, PI)
 	f.head = ang
+## (s left of the nose's slow turn after a fast flight: `NOSE_RATE`)
+var _nose_slow := 0.0
 
 
 ## A plane direction as the screen angle the ship is drawn at.
@@ -773,23 +888,45 @@ func _fly_frame(dt: float, t: float) -> float:
 		f.v = vv / ((ub - ua) * plan.dur)
 	var lvl := 0.0
 	var push := aa / (FLY_DT * FLY_DT)
+	# (a flight on its own clock, played pace times faster: its pulls pace^2)
+	var k2 := plan.pace * plan.pace
 	if plan.res != null:
 		# Flame shows the burn less the pull: near a keep-out a star's pull is twice THRUST.
 		var g := _grav().acc(_fly_pos.x, _fly_pos.z, t)
-		push -= Vector2(g[0], g[1])
-	if burn and push.length() > 0.5:
+		push -= Vector2(g[0], g[1]) * k2
+	var aids := plan.res != null and plan.pace > 1.0 and aids_on()
+	if burn and push.length() > 0.5 * k2:
 		_nose(_scr_ang(push), dt)
 		if plan.res != null:
-			_flame(clampf(push.length() / THRUST, 0.3, 1.0), dt)
+			_flame(clampf(push.length() / (THRUST * k2), 0.3, 1.0), dt)
 		else:
 			_flame(clampf(push.length() / maxf(plan.amax, 1.0), 0.3, 1.0), dt)
 		lvl = 0.7 * burn_k
+		if aids:
+			_flame_left = FLAME_MIN
+			_flame_peak = burn_k
+			_flame_dir = push
 	else:
-		if vv.length() > 0.0001:
+		# (the flame fading out, the nose still on the burn's way)
+		if aids and _flame_left > 0.0 and _flame_dir != Vector2.ZERO:
+			_nose(_scr_ang(_flame_dir), dt)
+		elif vv.length() > 0.0001:
 			_nose(_scr_ang(vv), dt)
-		_burn_age = 0.0
-		burn_k = 0.0
+		if aids and _flame_left > 0.0:
+			# THE FLAME FADING OUT after a burn (`FLAME_MIN`)
+			_flame_left = maxf(_flame_left - dt, 0.0)
+			burn = true
+			burn_k = _flame_peak * _flame_left / FLAME_MIN
+			lvl = 0.7 * burn_k
+		else:
+			_flame_left = 0.0
+			_flame_dir = Vector2.ZERO
+			_burn_age = 0.0
+			burn_k = 0.0
 	return lvl
+var _flame_left := 0.0
+var _flame_peak := 0.0
+var _flame_dir := Vector2.ZERO
 
 
 ## The arrival burn is bounded by ARRIVE_MIN and INSERT_T. The whole burn had a twin's
@@ -797,7 +934,8 @@ func _fly_frame(dt: float, t: float) -> float:
 ## Why: docs/why/ShipFlight.md#arrival-burn
 const ARRIVE_MIN := 0.5
 func _arrive_t(pl: FlightPlan) -> float:
-	return float(pl.end.t) - clampf(pl.res.d2, ARRIVE_MIN, INSERT_T.y)
+	var k := maxf(pl.pace, 1.0)
+	return float(pl.end.t) - clampf(pl.res.d2 * k, ARRIVE_MIN, INSERT_T.y) / k
 
 
 ## Onto the place: burning on, or alongside, then exactly on the ring (`_land`).
@@ -811,7 +949,7 @@ func _arrive(t: float) -> void:
 		rail = {}
 	else:
 		var pl := plan
-		start_rail(i, arel, e.rv, float(e.t), e.get("a", Vector2.ZERO))
+		start_rail(i, arel, e.rv, float(e.t), e.get("a", Vector2.ZERO), pl.pace)
 		plan = pl
 		rail.s = 0.0
 		rail.arrive = true
@@ -846,11 +984,20 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 		return _step_insert(dt, t, k)
 	if rail.has("phase"):
 		if k.w:
-			# W: the flight is off; leave the orbit as W always does
+			# W: the flight is off. A fast flight's ride is spun down to the ring's own rate over SPIN_S first,
+			# then W takes it off (let go at once, a whirl dropped to 35 px/s in a frame).
+			# Why: docs/why/ShipFlight.md#w-during-a-spin-up
+			var ph: Dictionary = rail.phase
+			var w_now := float(ph.w) * _ride_at(ph, t - float(ph.t0))[1]
+			var w_own := float(rail.dir) * float(rail.speed) / float(rail.rt)
 			_cancel_flight()
+			if float(ph.get("ke", 1.0)) > 1.0 and absf(w_now - w_own) > 0.02 * absf(w_own):
+				rail.r0 = float(rail.rt)
+				rail.u = 0.0
+				rail.spin = {"t0": t, "a0": float(rail.ang), "w1": w_now}
 		else:
 			return _step_phase(dt, t)
-	rail.u = minf(1.0, float(rail.u) + dt / EASE)
+	rail.u = minf(1.0, float(rail.u) + dt / float(rail.get("ease", EASE)))
 	# A AND D: the orbit a little closer or wider, inside the ring
 	if k.a:
 		rail.rt = maxf(float(rail.rmin), float(rail.rt) - 30.0 * dt)
@@ -862,6 +1009,8 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 	var wt: float = float(rail.dir) * float(rail.speed) / rt
 	var wv: float = float(rail.w0) + (wt - float(rail.w0)) * e
 	rail.ang = float(rail.ang) + wv * dt
+	if rail.has("spin"):
+		wv = _spin_down(t, wt)
 	var c := center(body, t)
 	var cv := center_vel(body, t)
 	var sg := 1.0 if wv >= 0.0 else -1.0
@@ -875,9 +1024,10 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 	burn_k = 0.0
 	_burn_age = 0.0
 	rcs = false
-	if k.w:
+	if k.w and not rail.has("spin"):
 		# W: OFF THE RAIL, a prograde burn from the orbit's own motion (no kick:
 		# the thrust does it), and this ring lets you go until you are out of it
+		# (not while it spins down onto its own rate: then)
 		mode = &"free"
 		f.v = _flat(cv) + tg * absf(wv) * r
 		f.no_cap_body = body
@@ -906,20 +1056,19 @@ func _step_phase(dt: float, t: float) -> float:
 	var c := center(body, t)
 	var cv := center_vel(body, t)
 	var w: float = ph.w
-	var kk: float = ph.k
-	# (waiting for its plan, `fly_bg`: no end, the ring's own pace)
-	var a := float(ph.a0) + w * tau
-	if kk != 1.0:
-		a = float(ph.a0) + w * (tau + (kk - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T)))
+	# (waiting for its plan, `fly_bg`: no end, the ring's own pace; a fast
+	# flight's spin-up, `_ride_shape`)
+	var ra := _ride_at(ph, tau)
+	var a := float(ph.a0) + w * ra[0]
 	var rt: float = rail.rt
 	var tg := Vector2(-sin(a), cos(a))
 	f.p = _flat(c) + Vector2(cos(a), sin(a)) * rt
-	f.v = _flat(cv) + tg * w * (1.0 + (kk - 1.0) * pow(sin(PI * tau / T), 2.0)) * rt
+	f.v = _flat(cv) + tg * w * ra[1] * rt
 	rail.ang = a
 	rcs = false
-	var at: float = w * (kk - 1.0) * PI / T * sin(TAU * tau / T) * rt
+	var at: float = w * ra[2] * rt
 	# (a ride sped up or, replaying a drawn flight, slowed: k under 1)
-	var peak: float = absf(w) * absf(kk - 1.0) * PI / T * rt
+	var peak: float = absf(w) * _ride_peak(ph) * rt
 	if absf(at) > 4.0:
 		burn = true
 		_nose(_scr_ang(tg * signf(at)), dt)
@@ -934,7 +1083,7 @@ func _step_phase(dt: float, t: float) -> float:
 
 ## ONTO A RAIL round `body` (-1 the star), from `rel` off its centre moving at
 ## `rv` relative to it; with no rv, already on it (a flight's arrival, a restore).
-func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.ZERO) -> void:
+func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.ZERO, on_k := 1.0) -> void:
 	var b: SystemLayout.Body = null if body < 0 else L.bodies[body]
 	var sb := body if SystemLayout.is_star(body) else -1
 	var r0 := maxf(1.0, rel.length())
@@ -966,9 +1115,37 @@ func start_rail(body: int, rel: Vector2, rv: Variant, t: float, acc0 := Vector2.
 		# ALREADY ON IT, at its speed (a solved flight lands on the ring exactly,
 		# `FlightSolve`): no insertion, the ship rides on from where it is
 		var rvv2 := rv as Vector2
-		if absf(rel.length() - rt) < ON_RING_PX and absf(rvv2.length() - spd) < ON_RING_V and absf(rvv2.dot(rel / r0)) < ON_RING_V:
+		# (a flight on its own clock lands within ON_RING_V there: on the map,
+		# pace times that, `on_k`)
+		if absf(rel.length() - rt) < ON_RING_PX and absf(rvv2.length() - spd) < ON_RING_V * on_k and absf(rvv2.dot(rel / r0)) < ON_RING_V * on_k:
+			return
+		# ON IT, FASTER (a fast flight arrives at pace times its ring speed on
+		# its own clock, `FlightSolve.RING_TAU`): no insertion, its rate eased
+		# down to the ring's own over SPIN_S (`_step_rail`)
+		if on_k > 1.0 and absf(rel.length() - rt) < ON_RING_PX and absf(rvv2.dot(rel / r0)) < ON_RING_V * on_k and rvv2.length() > spd:
+			rail.w0 = hh / (r0 * r0)
+			rail.u = 0.0
+			rail.spin = {"t0": t, "a0": atan2(rel.y, rel.x), "w1": hh / (r0 * r0)}
 			return
 		_plan_insert(rel, rv as Vector2, rt, dir * spd / rt, b, acc0, sb)
+
+
+## THE SPIN-DOWN after a fast flight's arrival (`start_rail`), at t: the ring's
+## angle from the arrival, as the arrival tail draws it (`_tail`), the
+## rate eased from the arrival's to the ring's own wt by smoothstep over SPIN_S;
+## then it is the ring's. Sets rail.ang and rail.u; returns the rate.
+func _spin_down(t: float, wt: float) -> float:
+	var sd: Dictionary = rail.spin
+	var tau := maxf(t - float(sd.t0), 0.0)
+	var x := clampf(tau / SPIN_S, 0.0, 1.0)
+	var w1 := float(sd.w1)
+	rail.ang = float(sd.a0) + wt * tau + (w1 - wt) * SPIN_S * (x - x * x * x + 0.5 * x * x * x * x)
+	var wv := wt + (w1 - wt) * (1.0 - x * x * (3.0 - 2.0 * x))
+	rail.u = 1.0 if x >= 1.0 else minf(x, 0.999)
+	rail.w0 = wv
+	if x >= 1.0:
+		rail.erase("spin")
+	return wv
 
 
 ## A ship this close to a ring (px) and its speed (px/s) is on it: no insertion.
@@ -1652,13 +1829,78 @@ func heading_to() -> int:
 	return -9
 
 
+## The flight under way as it will be flown from t0, a point every dt s (told to a partner, PROTOCOL 17):
+## [pts, lit, dep_s, arr_s], or [] when nothing is under way.
+## Why: docs/why/ShipFlight.md#said-path
+func said_path(t0: float, dt: float) -> Array:
+	var pl := plan
+	if pl == null or pl.samp.size() < 2 or dt <= 0.0:
+		return []
+	var tf := 0.0
+	var ph: Dictionary = {}
+	match mode:
+		&"fly":
+			tf = fly_t0
+		&"rail":
+			if not rail.has("phase") or rail.phase.get("wait", false):
+				return []
+			ph = rail.phase
+			tf = float(ph.t0) + float(ph.T)
+		&"keep":
+			if not keep.has("hold") or keep.get("wait", false):
+				return []
+			tf = float(keep.hold)
+		_:
+			return []
+	var t_end := tf + float(pl.dur)
+	var tail_s := TAIL_S if pl.res != null and not pl.tail_lit and pl.tail.size() > 1 else 0.0
+	var n := maxi(2, ceili((t_end + tail_s - t0) / dt) + 1)
+	var pts := PackedVector2Array()
+	var lit := PackedByteArray()
+	for j in n:
+		var tj := t0 + float(j) * dt
+		var q := Vector3.ZERO
+		var on := false
+		if tj < tf:
+			if not ph.is_empty():
+				# (the ride round the ring, as `_step_phase` flies it)
+				var ra := _ride_at(ph, tj - float(ph.t0))
+				var a := float(ph.a0) + float(ph.w) * ra[0]
+				var c := center(int(rail.body), tj)
+				q = c + Vector3(cos(a), 0.0, sin(a)) * float(rail.rt)
+				on = absf(float(ph.w) * ra[2] * float(rail.rt)) > 4.0
+			else:
+				# (holding alongside, where it rests)
+				var ck := center(int(keep.body), tj)
+				var off: Vector2 = keep.get("inf", keep.off)
+				q = ck + Vector3(off.x, 0.0, off.y)
+		elif tj <= t_end:
+			var u := clampf((tj - tf) / maxf(float(pl.dur), 1e-6), 0.0, 1.0)
+			q = pl.pos(u)
+			on = pl.burning(u)
+		else:
+			var x := clampf((tj - t_end) / TAIL_S, 0.0, 1.0) * float(pl.tail.size() - 1)
+			var k := mini(int(x), pl.tail.size() - 2)
+			q = pl.tail[k].lerp(pl.tail[k + 1], x - float(k))
+		pts.append(Vector2(q.x, q.z))
+		lit.append(1 if on else 0)
+	return [pts, lit, maxf(tf - t0, 0.0), maxf(t_end - t0, 0.0)]
+
+
+## SPINNING DOWN onto its ring after a fast flight (`start_rail`'s spin), with
+## nothing else under way: `can_fly` is false for that moment only.
+func spinning() -> bool:
+	return mode == &"rail" and rail.has("spin") and not rail.has("phase") and not inserting() and _pend.is_empty()
+
+
 func can_fly() -> bool:
 	# (a flight asked for, still being planned: it is under way)
 	if not _pend.is_empty():
 		return false
 	match mode:
 		&"rail":
-			return not rail.is_empty() and not inserting() and not rail.has("phase")
+			# (and not while it spins down onto its ring after a fast flight)
+			return not rail.is_empty() and not inserting() and not rail.has("phase") and float(rail.get("u", 1.0)) >= 1.0
 		&"keep":
 			return not keep.is_empty() and not inserting() and not keep.has("hold")
 		&"free":
@@ -1674,7 +1916,52 @@ func _grav() -> MapGravity:
 	if _grav_v == null or _grav_n != L.bodies.size():
 		_grav_v = MapGravity.from_layout(L)
 		_grav_n = L.bodies.size()
+		_grav_p = null
 	return _grav_v
+
+
+## THE SAME ON A FLIGHT'S CLOCK (`MapGravity.paced`), made here on the map's
+## thread and kept while the pace holds, so a worker only reads it.
+var _grav_p: MapGravity = null
+func _grav_at(k: float) -> MapGravity:
+	var g := _grav()
+	if k == 1.0:
+		return g
+	if _grav_p == null or _grav_p.pace != k:
+		_grav_p = g.paced(k)
+	return _grav_p
+
+
+## WHAT A FLIGHT IS PLANNED WITH NOW: {path, pace} (`FlightSolve.solve`'s
+## opts): the AUTOPILOT setting's path, and its pace (`FLIGHT_PACE`), each as
+## a harness's command line may set it.
+static func flight_opts() -> Dictionary:
+	if pace_k < 0.0:
+		pace_k = 0.0
+		for a in OS.get_cmdline_user_args():
+			var s := a as String
+			if s.begins_with("flight_pace="):
+				# (at least 1: under it the ride spins the other way from the
+				# solver's, the code review, Nov 5)
+				pace_k = maxf(float(s.substr(12)), 1.0)
+			elif s.begins_with("autopilot="):
+				path_k = StringName(s.substr(10))
+	var path: StringName = path_k if path_k == &"direct" or path_k == &"curved" else DisplaySettings.autopilot
+	if path != &"direct":
+		path = &"curved"
+	var k: float = pace_k if pace_k > 0.0 else float(FLIGHT_PACE[path])
+	# (CURVED's arc dials read here, on the main thread, before any worker plans)
+	FlightSolve.curved_arc()
+	return {"path": path, "pace": k}
+
+
+static func aids_on() -> bool:
+	if look_aids < 0:
+		look_aids = 1
+		for a in OS.get_cmdline_user_args():
+			if a == "lookaids=0":
+				look_aids = 0
+	return look_aids == 1
 
 
 ## Counters for a harness: solved flights, old-planner fallbacks, none, and stale drops.
@@ -1729,6 +2016,23 @@ const PLAN_AHEAD := 0.25
 ## and the overlay planned it about four times a second.
 ## Why: docs/why/ShipFlight.md#plan-lead-time
 const PREVIEW_AHEAD := 1.0
+## A click on a fast flight's preview that leaves more than CLICK_LATE s on plans a fresh flight
+## from the click, and flies it when it arrives CLICK_GAIN s sooner; else the drawn one.
+## Why: docs/why/ShipFlight.md#click-on-a-late-preview
+const CLICK_LATE := 0.45
+const CLICK_GAIN := 0.15
+## whether the last click flew a flight planned at it, not the one drawn (a
+## harness reads it)
+var click_replanned := false
+
+
+## Whether a flight planned at the click (pn) goes before the drawn one (pv).
+static func _sooner(pn: FlightPlan, pv: FlightPlan) -> bool:
+	if pn == null or pn.res == null or pv == null or pv.res == null:
+		return false
+	return float(pn.end.t) < float(pv.end.t) - CLICK_GAIN
+
+
 ## The line is laid out on the worker too, as doing it on the main thread cost 3 to 8 ms.
 ## Why: docs/why/ShipFlight.md#planning-on-workers
 const LINE_N := 1600
@@ -1763,6 +2067,7 @@ func _plan_of(r: FlightSolve.Result, i: int, dep: Dictionary, t: float) -> Fligh
 	pl.lead = r.lead
 	pl.lead_k = r.lead_k
 	pl.choice = r.choice
+	pl.pace = r.pace
 	return _tail(pl)
 
 
@@ -1775,7 +2080,8 @@ func make_plan(i: int, t: float, prefer: Dictionary = {}, ahead := 0.0) -> Fligh
 	if StringName(dep.kind) == &"free":
 		ahead = 0.0
 	var pf := prefer if int(prefer.get("v", -1)) == FlightSolve.CHOICE_V else {}
-	var r := FlightSolve.solve(_grav(), dep, _tgt_of(i), t + ahead, pf)
+	var o := flight_opts()
+	var r := FlightSolve.solve(_grav_at(float(o.pace)), dep, _tgt_of(i), t + ahead, pf, o)
 	last_ms = float(r.usec) / 1000.0
 	last_bg = false
 	if r.found:
@@ -1852,20 +2158,20 @@ func _takeable(pl: FlightPlan, t: float) -> Dictionary:
 			dang += TAU * roundf((want - dang) / TAU)
 			if absf(dang - want) > 0.05:
 				return {}
-			var k := 1.0
+			# (a fast flight's ride spins up to `ke` times the ring's rate,
+			# `_ride_shape`)
+			var ke := _ride_ke(pl)
+			var rd := {"T": lead, "k": 1.0, "a0": a, "w": w, "ke": 1.0, "ls": 0.0, "sp": 0.0}
 			if lead < 1e-6:
-				if absf(dang) > 1e-4:
+				if absf(dang) > 1e-4 or ke > 1.0 + 1e-6:
 					return {}
 			else:
 				if dang < 0.0:
 					return {}
-				k = 2.0 * dang / (absf(w) * lead) - 1.0
-				var vr := absf(w) * rt
-				# (VMAX with the same slack: a plan whose ride the solver held to
-				# exactly VMAX read as over it by a rounding)
-				if absf(k - 1.0) > FlightSolve.THRUST * lead / (PI * vr) + 1e-6 or k * vr > FlightSolve.VMAX + 1e-6 or k < 0.2:
+				rd.merge(_ride_shape(dang, absf(w), lead, ke), true)
+				if not _ride_flyable(rd, pl.pace, absf(w) * rt):
 					return {}
-			return {"T": lead, "k": k, "a0": a, "w": w}
+			return rd
 		&"keep":
 			if mode != &"keep" or keep.is_empty() or inserting() or (keep.has("hold") and not keep.get("wait", false)) or int(keep.body) != int(d.place):
 				return {}
@@ -1909,7 +2215,8 @@ func _fly_plan(pl: FlightPlan, rd: Dictionary, t: float, done: Callable) -> void
 				return
 			plan = pl
 			if T > 1e-6:
-				rail.phase = {"t0": t, "T": T, "k": float(rd.k), "a0": float(rd.a0), "w": float(rd.w)}
+				rail.phase = {"t0": t, "T": T, "k": float(rd.k), "a0": float(rd.a0), "w": float(rd.w), "ke": float(rd.get("ke", 1.0)),
+					"ls": float(rd.get("ls", 0.0)), "sp": float(rd.get("sp", 0.0))}
 				return
 			_begin_fly(t)
 		&"keep":
@@ -1933,7 +2240,9 @@ func _fly_plan(pl: FlightPlan, rd: Dictionary, t: float, done: Callable) -> void
 ## Why: docs/why/ShipFlight.md#star-orbit-ride
 func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
 	var T := float(rd.T)
-	var n := ceili(T / SAMPLE - 1e-9)
+	# (the flight's own sample spacing on the map: SAMPLE / pace)
+	var sd := pl.sdt
+	var n := ceili(T / sd - 1e-9)
 	if n <= 0:
 		return pl
 	var out := FlightPlan.new()
@@ -1953,7 +2262,8 @@ func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
 	out.a_dep = pl.a_dep
 	out.lead = 0.0
 	out.lead_k = 1.0
-	out.t0 = pl.t0 - float(n) * SAMPLE
+	out.pace = pl.pace
+	out.t0 = pl.t0 - float(n) * sd
 	var c: Vector2 = pl.dep.c
 	# Round a turning pair's sun, ride round where that sun is at each sample's moment.
 	var hs := int(pl.dep.get("host", -9))
@@ -1962,31 +2272,32 @@ func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
 		c = f.cen
 	var rt := float(pl.dep.rt)
 	var w := float(rd.w)
-	var k := float(rd.k)
 	var a0 := float(rd.a0)
 	var r0 := (f.p - c).length()
+	var rdt := rd.duplicate()
+	rdt.T = T
 	var samp := PackedVector3Array()
 	var lit := PackedByteArray()
 	for j in n:
 		# (the first may be up to a sample before now: the ride runs back that far at its pace)
-		var tau := out.t0 + float(j) * SAMPLE - t
+		var tau := out.t0 + float(j) * sd - t
 		var a := a0 + w * tau
-		if tau > 0.0:
-			a = a0 + w * (tau + (k - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T)))
+		var ra := _ride_at(rdt, tau) if tau > 0.0 else PackedFloat64Array([tau, 1.0, 0.0])
+		a = a0 + w * ra[0]
 		var e := smoothstep(0.0, 1.0, clampf(tau / maxf(T, 0.001), 0.0, 1.0))
 		var r := r0 + (rt - r0) * e
 		if carried:
-			c = L.star_pos(hs, out.t0 + float(j) * SAMPLE)
+			c = L.star_pos(hs, out.t0 + float(j) * sd)
 		samp.append(Vector3(c.x + cos(a) * r, 0.0, c.y + sin(a) * r))
-		var at := w * (k - 1.0) * PI / T * sin(TAU * tau / T) * rt if tau > 0.0 else 0.0
+		var at := w * ra[2] * rt
 		lit.append(1 if absf(at) > 4.0 else 0)
 	samp.append_array(pl.samp)
 	lit.append_array(pl.burns)
 	out.samp = samp
 	out.burns = lit
-	out.dur = float(samp.size() - 1) * SAMPLE
+	out.dur = float(samp.size() - 1) * sd
 	out.amax = pl.amax
-	out.esc_t = pl.esc_t + float(n) * SAMPLE
+	out.esc_t = pl.esc_t + float(n) * sd
 	out.u_dep = float(n) / float(maxi(samp.size() - 1, 1))
 	return out
 
@@ -2132,7 +2443,8 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 		return false
 	var free := StringName(dep.kind) == &"free"
 	var ts := t if free else t + ahead
-	var G: MapGravity = _grav()
+	var o := flight_opts()
+	var G: MapGravity = _grav_at(float(o.pace))
 	var held := {}
 	var d2 := dep.duplicate(true)
 	var t2 := _tgt_of(i).duplicate(true)
@@ -2142,7 +2454,7 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 	var near_only := L.twin
 	var only_old := old_only
 	var task := WorkerThreadPool.add_task(func() -> void:
-		var r := FlightSolve.Result.new() if only_old else FlightSolve.solve(G, d2, t2, ts, p2)
+		var r := FlightSolve.Result.new() if only_old else FlightSolve.solve(G, d2, t2, ts, p2, o)
 		held.r = r
 		var pl = null
 		if r.found:
@@ -2315,16 +2627,26 @@ func take_bg(use: StringName, t: float) -> Dictionary:
 func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> bool:
 	if not can_fly() or not SystemLayout.is_place(i):
 		return false
+	click_replanned = false
+	var late: FlightPlan = null
 	if pv != null and pv.to == i:
 		var rd := _takeable(pv, t)
 		if not rd.is_empty():
-			_fly_plan(pv, rd, t, done)
-			return true
+			# (leaving late: a fresh flight asked for, the drawn one kept to fly if
+			# that is no sooner, `CLICK_LATE`)
+			if pv.res == null or pv.pace <= 1.0 or float(pv.t0) - t <= CLICK_LATE:
+				_fly_plan(pv, rd, t, done)
+				return true
+			late = pv
 	fly_to = i
 	_fly_done = done
 	line = {}
 	hold_line = {}
-	if _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
+	if late != null:
+		if not plan_bg(i, t, {}, &"fly", LINE_N):
+			_fly_plan(late, _takeable(late, t), t, done)
+			return true
+	elif _jobs.has(&"preview") and int(_jobs[&"preview"].i) == i:
 		_jobs[&"fly"] = _jobs[&"preview"]
 		_jobs.erase(&"preview")
 	elif not plan_bg(i, t, prefer, &"fly", LINE_N):
@@ -2332,6 +2654,8 @@ func fly_bg(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: Fligh
 		_put_there(i, t)
 		return true
 	_pend = {"i": i, "t": t, "prefer": prefer}
+	if late != null:
+		_pend["pv"] = late
 	# The ship rides on while planned, so the map draws
 	# the orbit it leaves and does not reopen the place.
 	if mode == &"rail":
@@ -2364,6 +2688,20 @@ func _poll_jobs(t: float) -> void:
 	var i := int(_pend.i)
 	var pl: FlightPlan = got.plan
 	var d := _fly_done
+	# THE DRAWN FLIGHT KEPT BESIDE A CLICK'S OWN (`CLICK_LATE`): flown unless the
+	# one planned at the click is takeable and arrives sooner
+	var pv: FlightPlan = _pend.get("pv")
+	if pv != null:
+		var rdv := _takeable(pv, t)
+		if not rdv.is_empty():
+			var rdn := _takeable(pl, t) if pl != null else {}
+			if not rdn.is_empty() and _sooner(pl, pv):
+				click_replanned = true
+				_fly_plan(pl, rdn, t, d)
+			else:
+				_fly_plan(pv, rdv, t, d)
+			return
+		_pend.erase("pv")
 	if pl == null:
 		_put_there(i, t)
 		return
@@ -3654,15 +3992,24 @@ func _tail(pl: FlightPlan) -> FlightPlan:
 	var rti: float = orbit_r(i)
 	var spd: float = STAR_RAIL_V if i < 0 else RAIL_V
 	var dr := 1.0 if arel.x * rv.y - arel.y * rv.x >= 0.0 else -1.0
-	if pl.res != null and absf(arel.length() - rti) < ON_RING_PX and absf(rv.length() - spd) < ON_RING_V:
+	if pl.res != null and absf(arel.length() - rti) < ON_RING_PX and (absf(rv.length() - spd) < ON_RING_V * pl.pace or (pl.pace > 1.0 and rv.length() > spd and absf(rv.dot(arel / maxf(arel.length(), 0.001))) < ON_RING_V * pl.pace)):
 		# Already on the ring, so the tail is the ring itself with the engine off.
 		pl.tail_lit = false
 		var w := dr * spd / rti
 		var a0 := atan2(arel.y, arel.x)
+		# (a fast flight arrives faster than the ring goes and spins down onto
+		# it over SPIN_S, `start_rail`: that much further round, w_arr - w times
+		# the integral of 1 - smoothstep)
+		var w_arr := dr * rv.length() / rti
+		var spun := pl.pace > 1.0 and absf(w_arr) > absf(w) + 1e-9
 		for k3 in 121:
 			var tk3 := TAIL_S * float(k3) / 120.0
 			var ck3 := center(i, t2 + tk3)
-			pl.tail.append(ck3 + Vector3(cos(a0 + w * tk3) * rti, 0.0, sin(a0 + w * tk3) * rti))
+			var ak := a0 + w * tk3
+			if spun:
+				var x := clampf(tk3 / SPIN_S, 0.0, 1.0)
+				ak += (w_arr - w) * SPIN_S * (x - x * x * x + 0.5 * x * x * x * x)
+			pl.tail.append(ck3 + Vector3(cos(ak) * rti, 0.0, sin(ak) * rti))
 		return pl
 	var ins := insert_plan(arel, rv, rti, dr * spd / rti, null if i < 0 else L.bodies[i], aend, i)
 	pl.tail_k = float(ins.get("kmax", 0.0))
@@ -3928,9 +4275,20 @@ func _v0() -> Vector3:
 
 ## Plans on this thread for a harness; the map plans on a worker.
 func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> FlightPlan:
+	click_replanned = false
 	if pv != null and pv.to == i:
 		var rd := _takeable(pv, t)
 		if not rd.is_empty():
+			# THE DRAWN FLIGHT LEAVING LATE (`CLICK_LATE`): a fresh one planned at
+			# the click, as the map's worker plans it (PLAN_AHEAD on), flown when
+			# it arrives sooner
+			if pv.res != null and pv.pace > 1.0 and float(pv.t0) - t > CLICK_LATE:
+				var pn := make_plan(i, t, {}, PLAN_AHEAD)
+				var rn := _takeable(pn, t) if pn != null else {}
+				if not rn.is_empty() and _sooner(pn, pv):
+					click_replanned = true
+					_fly_plan(pn, rn, t, done)
+					return plan
 			_fly_plan(pv, rd, t, done)
 			return plan
 	var pl := make_plan(i, t, prefer)
@@ -3951,7 +4309,24 @@ func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPl
 		var a0 := float(rail.get("ang", 0.0))
 		if mode == &"free" and star_orbiting():
 			a0 = atan2(f.p.y - f.cen.y, f.p.x - f.cen.x)
-		rd2 = {"T": maxf(pl.t0 - t, 0.0), "k": pl.lead_k, "a0": a0, "w": float(pl.dep.get("w", 0.0))}
+		var ke2 := _ride_ke(pl)
+		var T2 := maxf(pl.t0 - t, 0.0)
+		var w2 := float(pl.dep.get("w", 0.0))
+		rd2 = {"T": T2, "k": pl.lead_k, "a0": a0, "w": w2, "ke": 1.0, "ls": 0.0, "sp": 0.0}
+		if ke2 != 1.0 and T2 > 1e-6 and absf(w2) > 1e-9:
+			var dr2 := 1.0 if w2 >= 0.0 else -1.0
+			var dang2 := fposmod(dr2 * (pl.res.a_dep - a0), TAU) if pl.res != null else 0.0
+			rd2.merge(_ride_shape(dang2, absf(w2), T2, ke2), true)
+			# (held to the bounds `_takeable` holds a ride to: unchecked, a
+			# phasing under nought ran the ship backwards round its ring, the code
+			# review, Nov 5. Planned once more from here with no kept choice; else
+			# no slower than RIDE_K_MIN, the flight leaving a little off its point)
+			if not _ride_flyable(rd2, pl.pace, absf(w2) * float(pl.dep.get("rt", 0.0))):
+				if not prefer.is_empty():
+					return fly(i, t, done)
+				if why:
+					print("  a ride out of bounds (k %.2f): held to %.1f" % [float(rd2.k), FlightSolve.RIDE_K_MIN])
+				rd2.k = maxf(float(rd2.k), FlightSolve.RIDE_K_MIN)
 	_fly_plan(pl, rd2, t, done)
 	return plan
 
@@ -3972,11 +4347,15 @@ func _land(t: float) -> void:
 			f.v = _flat(center_vel(i, t))
 			plan = null
 			return
-		start_rail(i, arel, rv0, te, e.get("a", Vector2.ZERO))
+		start_rail(i, arel, rv0, te, e.get("a", Vector2.ZERO), plan.pace)
 		plan = null
 		if not inserting():
 			var w: float = float(rail.dir) * float(rail.speed) / float(rail.rt)
-			rail.ang = float(rail.ang) + w * (t - te)
+			# (spinning down onto it, from the arrival: `_spin_down`)
+			if rail.has("spin"):
+				w = _spin_down(t, w)
+			else:
+				rail.ang = float(rail.ang) + w * (t - te)
 			var a: float = rail.ang
 			var rt: float = rail.rt
 			f.p = _flat(c0) + Vector2(cos(a), sin(a)) * rt

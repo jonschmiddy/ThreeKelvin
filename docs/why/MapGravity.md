@@ -75,3 +75,17 @@ of the core's flights from the game's starts inside 150 px, 8 under 70,
 where today's planner never came inside 161 (the one-sun review, Oct 31) --
 and the Custodian's ENGAGE flies there in every won run.
 ```
+
+## Paced copy
+
+Above `func paced(k: float) -> MapGravity:`:
+
+```text
+THE SAME SYSTEM ON A FLIGHT'S OWN CLOCK (the fast transfers, Nov 5): a
+copy with every rate divided by k (the pair's turn, the giants', the worlds'
+and the places'), phases and pulls as they are, so at flight time tau every
+body is exactly where it really is at map time tau / k. A flight solved on
+it at today's THRUST and gravity, played k times faster, is the same path
+with its pulls k^2 stronger on the map (`FlightSolve.solve`'s `pace`). A new
+object each call: nothing shared is written, so a worker may make one.
+```

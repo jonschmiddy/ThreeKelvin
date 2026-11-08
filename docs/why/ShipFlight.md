@@ -303,7 +303,11 @@ counted, burning onto the orbit; and never more than the longest insertion
 (INSERT_T), so the ship counts as at the place (`orbit_body`, and from it
 LOCAL, the station and a ship parked on a Tab) only where an insertion had
 it. The whole arrival burn had a twin's ship there up to 338 px off its ring
-and 9.7 s before it ended (the flight review, Oct 31).
+and 9.7 s before it ended (the flight review, Oct 31). A flight on its own
+clock is held to them there and played pace times faster: on the map an
+eighth of them at pace 8. Held on the map's clock, the ship counted as at the
+place for 0.5 s of a 1.5 s flight, up to 140 px off, and at pace 10 its
+arrival began 0.13 s after it left (the code review, Nov 5).
 ```
 
 ## Insertion curve
@@ -796,4 +800,131 @@ keeps of the star's disc and every world's (the least, in px, counted up to
 less a penalty for speed over 1,200 px/s and pull over 5,000 px/s² -- so the
 one flown neither cuts a disc nor jumps. (One sun only, at the origin, as
 `_clean` reads it.)
+```
+
+## Click on a late preview
+
+Above `const CLICK_LATE := 0.45`:
+
+```text
+THE DRAWN FLIGHT LEAVING LATE (a fast flight's: on its own clock, pace > 1;
+today's, at pace 1, as it was): a click on a preview that leaves more than
+CLICK_LATE s on plans a fresh flight from the click, PLAN_AHEAD on, as a
+click with none drawn does, and flies it when it arrives CLICK_GAIN s
+sooner (the line drawn again at the click); else the drawn one. Planned 1 s
+ahead and kept until its departure is PLAN_AHEAD off, a preview left 0.25 to
+1 s after the click plus its ride: in a 2.95 s flight 1.18 s of it was the
+wait (the code review, Nov 5).
+```
+
+## Said path
+
+Above `func said_path(t0: float, dt: float) -> Array:`:
+
+```text
+THE FLIGHT UNDER WAY AS IT WILL BE FLOWN from map time t0, a point every dt
+s (a partner is told it, PROTOCOL 17, `SystemMapScreen._report_flight`):
+the ride round its ring to its departure (or the hold alongside), the flight
+itself, and onto its ring after (`_tail`, the spin-down, TAIL_S of it) when
+a solved flight lands on it. [pts (plane), lit, dep_s, arr_s (s from t0 to
+its departure and its arrival)], or [] when nothing is under way.
+```
+
+## W during a spin-up
+
+Inside `_step_rail()`, above `var ph: Dictionary = rail.phase`:
+
+```text
+W: the flight is off; leave the orbit as W always does -- from the
+ring's own rate: a fast flight's ride, spinning up (`ke`), is spun
+down to it first, over SPIN_S, from the rate it has
+(`_spin_down`), and W takes it off after. Let go at once, a
+whirl at up to 280 px/s dropped to the ring's 35 in a frame (the
+code review, Nov 5)
+```
+
+## Ride shape
+
+Above `static func _ride_shape(dang: float, w: float, T: float, ke: float) -> Dictionary:`:
+
+```text
+THE RIDE'S SHAPE round to a fast flight's departure, dang radians in T s
+at the ring's rate w (> 0) and leaving at ke times it: the solver had the
+ship ride at the ring's own rate until the moment it was planned for
+(`ahead`, `_dep_of`) and at the departure's after (`FlightSolve.dep_tau`),
+and the ship rides its ring at its own until the click. So it rides at w,
+spins up over `sp` s (smoothstep, SPIN_UP at the most) and rides on at
+ke w, the spin starting `ls` s before it leaves: the angle w T + (ke - 1) w
+(ls - sp / 2). ls is chosen so that is dang with no phasing; past the ride's
+own length, or short of a spin, a phasing k makes up the rest. Returns the
+ride's dictionary entries {k, ke, ls, sp}. ke 1: the phasing k alone.
+```
+
+## Ride flyable
+
+Above `static func _ride_flyable(rd: Dictionary, pk: float, vr: float) -> bool:`:
+
+```text
+WHETHER A RIDE rd ROUND A RING (its speed vr px/s) CAN BE FLOWN for a flight
+at pace pk: its push within THRUST (VMAX with the same slack: a plan whose
+ride the solver held to exactly VMAX read as over it by a rounding. A flight
+on its own clock held its ride to THRUST and VMAX there: on the map, pace^2
+and pace of them; the spin-up's push beside the phasing's, SPIN_PUSH_K), and
+its phasing k no less than `FlightSolve.RIDE_K_MIN` (under nought the ship
+would run backwards round its ring).
+```
+
+## Spin up and down
+
+Above `const SPIN_S := 0.3`:
+
+```text
+SPIN-UP AND SPIN-DOWN ROUND A RING (`FlightSolve.RING_TAU`): a fast flight
+leaves its ring at `ke` times the ring's own speed (pace times its speed on
+the flight's clock), reached as the ship rides round to leave
+(`_ride_shape`), and arrives on its target ring that much faster, eased
+down to the ring's own speed over SPIN_S (`start_rail`'s spin,
+`_step_rail`).
+```
+
+## Look aids
+
+Above `const FLAME_MIN := 0.25`:
+
+```text
+THE LOOK AIDS while a fast flight plays (CURVED's burns at pace 8 last a
+tenth of a second, three frames): the flame fades out over FLAME_MIN s
+after a burn, the nose held on the burn's way while it does; and the nose
+turns no faster than NOSE_RATE (rad/s) from the ride before a fast flight
+until NOSE_SLOW_S after it lands. Today's flights turn it at about 260
+deg/s at the most; a fast flight's spring turned it at up to 1,200, and an
+arrival and its spin-down flipped it 455 deg in 1.2 s, a tumble (the look
+review, Nov 5). A nose lead (it started onto a burn 0.3 s before it lit,
+as first built) read as a skid, the ship turned broadside unpowered: gone.
+`-- lookaids=0` turns them off (a film's comparison).
+```
+
+## Flight pace
+
+Above `const FLIGHT_PACE := {&"direct": 4.0, &"curved": 12.0}`:
+
+```text
+THE FAST TRANSFERS (Jon, Nov 4-5): each solved flight is planned on its own
+clock, this many times faster than the map's (`FlightSolve.solve`'s pace),
+for the AUTOPILOT setting's path (`DisplaySettings.autopilot`): DIRECT,
+ruling 21's C at 4 (about 11 s of the flight's clock in about 2.8 s), and
+CURVED, the as-built search with its arc, at 8 (Jon, Nov 5: "Lets do 4X
+for both", then Nov 7, with WIDE picked: "Let's double the speed for the
+wide, so it matches the direct better"). Its shape is the flight's clock's:
+the arc's dials are in tau, so x8 flies WIDE's bend in half x4's seconds
+(CaseScan, six seeds, 504 one-sun flights: bend median 0.400 at x4, 0.394
+at x8; turned past 240 deg 7.3 / 7.9%; seconds median 12.1 / 6.0). The
+x8 that flew flat on Nov 5 (bend 0.06) was before the arc had its reward.
+Then x12 (Jon, Nov 7, "3B": faster still): CaseScan at SPIN_UP 0.3, bend
+median 0.394 at x8, 0.365 at x12, under 0.1 on 40 / 49 of 504, seconds
+median 6.0 / 3.9; FlightTest click to settled median 4.97 / 3.32 s.
+The ship's own parked
+ring and its ride round it stay at the map's RAIL_V and STAR_RAIL_V. A
+harness's `-- flight_pace=K` sets the pace for either path; `-- autopilot=
+direct|curved` the path.
 ```

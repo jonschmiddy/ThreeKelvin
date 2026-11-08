@@ -248,6 +248,100 @@ func _party_test() -> void:
 	await _teardown()
 
 
+# --- a flight said ----------------------------------------------------------
+
+## A flight, said once as it leaves (PROTOCOL 17): kept whole by host and late joiner, not said twice,
+## gone when let go of; drawn on its path at the sender's clock and moved with its places 10 s behind.
+## Why: docs/why/NetTest.md#flight-said-test
+func _flight_said_test(host: NetSession, early: NetSession, late: NetSession, id: int) -> void:
+	var n12: MapGen.MapNode = Run.map[12] if Run.map.size() > 12 else null
+	ok("system 12 is on the map for the flight", n12 != null)
+	if n12 == null:
+		return
+	var L := SystemLayout.of(n12)
+	ok("system 12 has two places for it", L.bodies.size() >= 2)
+	if L.bodies.size() < 2:
+		return
+	var t0 := 100.0
+	var dur := 3.0
+	var pts := PackedVector2Array()
+	var lit := PackedByteArray()
+	var a := L.bodies[0].pos(t0)
+	var b := L.bodies[1].pos(t0 + dur)
+	for j in 181:
+		var u := float(j) / 180.0
+		var bow := Vector2(-(b - a).y, (b - a).x) * 0.2 * sin(PI * u)
+		pts.append(a.lerp(b, u) + bow)
+		lit.append(1 if (u < 0.05 or u > 0.95) else 0)
+	early.report_flight(12, 4242, 0, 1, t0, dur / 180.0, pts, lit, t0)
+	var heard := await _wait_until(func() -> bool:
+		return late.flights.has(id) and host.flights.has(id), 3.0)
+	ok("a flight said reaches the host and the other guest", heard)
+	if not heard:
+		return
+	var fl: Dictionary = late.flights[id]
+	ok("whole: its 181 points and burns, from world 0 to world 1, at its clock", (fl.pts as PackedVector2Array) == pts
+		and (fl.burns as PackedByteArray) == lit and int(fl.from) == 0 and int(fl.to) == 1 and float(fl.t0) == t0)
+	# (the same flight again: nothing goes)
+	var got0 := int(fl.got)
+	early.report_flight(12, 4242, 0, 1, t0, dur / 180.0, PackedVector2Array([Vector2.ZERO, Vector2.ONE]), lit, t0)
+	await _wait_frames(10)
+	ok("said again with the same key, nothing goes", int((late.flights[id] as Dictionary).got) == got0)
+	var worst := 0.0
+	for s: float in [0.0, 0.7, 1.5, 2.2, 3.0]:
+		# (this machine's clock the sender's: `now_ms` as the sender's clock at t0 + s)
+		var now_ms := int(fl.got) + roundi((t0 + s - float(fl.said)) * 1000.0)
+		var fp := NetSession.flight_point(fl, L, t0 + s, now_ms)
+		if fp.is_empty():
+			worst = INF
+			continue
+		var j := s / dur * 180.0
+		var want := pts[mini(int(j), 179)].lerp(pts[mini(int(j), 179) + 1], j - float(mini(int(j), 179)))
+		worst = maxf(worst, ((fp[0] as Vector2) - want).length())
+	ok("at the sender's own clock, drawn on its path (worst %.4f px over 5 moments)" % worst, worst < 1.0)
+	# ITS CLOCK HELD (a zoom move, LOCAL: a spot since saying so, its clock at
+	# t0 + 1): drawn where its clock stopped, not flown on by the wall clock 1.5
+	# s more; let go, by its spot's clock, not the wall clock's (the code
+	# review, Nov 5)
+	var held_ms := int(fl.got) + roundi((t0 + 2.5 - float(fl.said)) * 1000.0)
+	var sp_h := {"t": t0 + 1.0, "held": true, "got": int(fl.got) + 1}
+	var fh := NetSession.flight_point(fl, L, t0 + 1.0, held_ms, sp_h)
+	var off_h := INF if fh.is_empty() else ((fh[0] as Vector2) - pts[60]).length()
+	ok("its clock held at 1 s in, drawn there 2.5 s on by the wall clock (%.4f px)" % off_h, off_h < 1.0)
+	var sp_r := {"t": t0 + 1.2, "held": false, "got": held_ms}
+	var fr := NetSession.flight_point(fl, L, t0 + 1.5, held_ms + 300, sp_r)
+	var off_r := INF if fr.is_empty() else ((fr[0] as Vector2) - pts[90]).length()
+	ok("let go, by its spot's clock (1.2 s, 0.3 s on: at 1.5 s in, %.4f px)" % off_r, off_r < 1.0)
+	# THE RIDE BEFORE AND THE SPIN-DOWN AFTER (`shape`: it leaves 1 s in and
+	# arrives 2 s in): at a clock 10 s behind, riding it goes with world 0 and
+	# spinning down with world 1, wholly
+	var fl2 := fl.duplicate()
+	fl2.dep_s = 1.0
+	fl2.arr_s = 2.0
+	var ms_at := func(s0: float) -> int: return int(fl.got) + roundi((t0 + s0 - float(fl.said)) * 1000.0)
+	var rid := NetSession.flight_point(fl2, L, t0 + 0.5 - 10.0, ms_at.call(0.5))
+	var spn := NetSession.flight_point(fl2, L, t0 + 2.5 - 10.0, ms_at.call(2.5))
+	var off_rid := INF
+	var off_spn := INF
+	if not rid.is_empty() and not spn.is_empty():
+		off_rid = ((rid[0] as Vector2) - (pts[30] + L.bodies[0].pos(t0 + 0.5 - 10.0) - L.bodies[0].pos(t0 + 0.5))).length()
+		off_spn = ((spn[0] as Vector2) - (pts[150] + L.bodies[1].pos(t0 + 2.5 - 10.0) - L.bodies[1].pos(t0 + 2.5))).length()
+	ok("a clock 10 s behind: riding round to leave it goes with world 0 (%.4f px), spinning down with world 1 (%.4f px)" % [off_rid, off_spn],
+		off_rid < 0.01 and off_spn < 0.01)
+	var at_start := NetSession.flight_point(fl, L, t0 - 10.0, int(fl.got) + roundi((t0 - float(fl.said)) * 1000.0))
+	var at_end := NetSession.flight_point(fl, L, t0 + dur - 10.0, int(fl.got) + roundi((t0 + dur - float(fl.said)) * 1000.0))
+	var off0 := INF
+	var off1 := INF
+	if not at_start.is_empty() and not at_end.is_empty():
+		off0 = ((at_start[0] as Vector2) - L.bodies[0].pos(t0 - 10.0) - (pts[0] - a)).length()
+		off1 = ((at_end[0] as Vector2) - L.bodies[1].pos(t0 + dur - 10.0) - (pts[180] - b)).length()
+	ok("a clock 10 s behind: it leaves from world 0 where it is there (%.4f px) and lands on world 1 where it is there (%.4f px)" % [off0, off1], off0 < 0.01 and off1 < 0.01)
+	early.report_flight_off(12)
+	var gone := await _wait_until(func() -> bool:
+		return not late.flights.has(id) and not host.flights.has(id), 3.0)
+	ok("let go of, the flight is gone on the others", gone)
+
+
 # --- refusals -------------------------------------------------------------
 
 func _refusal_tests() -> void:
@@ -267,15 +361,15 @@ func _refusal_tests() -> void:
 		"Different game version. Host is protocol %d, you are 15." % NetSession.PROTOCOL)
 	ok("PROTOCOL is past 15, when each ship grew its own Custodian", NetSession.PROTOCOL >= 16)
 	# JOINING LATE, STUNNED, AND THE PARTY'S SIZE (PROTOCOL 18, Jon, Nov 5): a
-	# 16 peer reads no stun, deals itself a hand and waits on a turn that has
-	# moved on, and grows every fight it walks into, so it is turned away
+	# 16 peer reads no stun and grows every fight it walks into; its worlds also
+	# turn at the old pace and it never says a flight (17's reasons): turned away
 	await _one_refusal("a version 16 peer", PORT_BASE + 35, 16, 0,
 		"Different game version. Host is protocol %d, you are 16." % NetSession.PROTOCOL)
-	# and feat/fast-flight's 17, which has no stun either (whichever of the two
-	# lands second turns the other away)
+	# FAST TRANSFERS AND FASTER WORLDS (PROTOCOL 17, Nov 4-5) landed with 18: a
+	# 17 peer has the fast worlds and says its flights, but has no stun
 	await _one_refusal("a version 17 peer", PORT_BASE + 36, 17, 0,
 		"Different game version. Host is protocol %d, you are 17." % NetSession.PROTOCOL)
-	ok("PROTOCOL is past 17 (feat/fast-flight's), when a late ship was dealt a hand at once", NetSession.PROTOCOL >= 18)
+	ok("PROTOCOL is past 17, when a late ship was dealt a hand at once and the worlds turned at the old pace", NetSession.PROTOCOL >= 18)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
 	# Two exported builds from different commits, refused by name, and the
@@ -1611,9 +1705,36 @@ func _late_join_test() -> void:
 	Run.hellbender_ticks = int(kept_hb[2])
 	Run.custodian_seen = 0
 
+	# TWO FLIGHTS UNDER WAY AS A SHIP JOINS (PROTOCOL 17): each was said once,
+	# to the peers there then; the host tells a late joiner the guest's it keeps
+	# and its own, the sender's clock run on (the code review, Nov 5: a late
+	# joiner never heard a flight already under way)
+	var lj_pts := PackedVector2Array([Vector2(0, 0), Vector2(50, 0), Vector2(100, 0)])
+	var lj_lit := PackedByteArray([0, 1, 0])
+	var eid0 := early.local_id()
+	early.report_flight(12, 777001, 0, 1, 500.0, 10.0, lj_pts, lj_lit, 500.0, PackedFloat64Array([-9.0, 2.0, 18.0]))
+	host.report_flight(12, 777002, 1, 0, 600.0, 10.0, lj_pts, lj_lit, 600.0)
+	var kept0 := await _wait_until(func() -> bool: return host.flights.has(eid0), 3.0)
+	ok("the host keeps a guest's flight under way", kept0)
+
 	var late := _make_peer("late")
 	late.join_party(code, "Jon", &"", DirectTransport.new())
 	var dived := await _wait_until(func() -> bool: return late.state == NetSession.State.DIVING, 5.0)
+	var told_fl := await _wait_until(func() -> bool: return late.flights.has(eid0) and late.flights.has(1), 3.0)
+	ok("a ship joining while two fly is told both flights, the guest's and the host's", told_fl)
+	if told_fl:
+		var lg: Dictionary = late.flights[eid0]
+		var lh: Dictionary = late.flights[1]
+		ok("whole, as said (from 0 to 1 at 500, its ride 2 s and its arrival 18 s in; the host's from 1 to 0 at 600)",
+			(lg.pts as PackedVector2Array) == lj_pts and (lg.burns as PackedByteArray) == lj_lit and int(lg.from) == 0 and int(lg.to) == 1
+			and float(lg.t0) == 500.0 and absf(float(lg.dep_s) - 2.0) < 1e-9 and absf(float(lg.arr_s) - 18.0) < 1e-9
+			and int(lh.from) == 1 and int(lh.to) == 0 and float(lh.t0) == 600.0)
+		ok("the sender's clock run on to when it was told (%.3f, %.3f)" % [float(lg.said), float(lh.said)],
+			float(lg.said) >= 500.0 and float(lg.said) < 520.0 and float(lh.said) >= 600.0 and float(lh.said) < 620.0)
+	early.report_flight_off(12)
+	host.report_flight_off(12)
+	var lj_gone := await _wait_until(func() -> bool: return not late.flights.has(eid0) and not late.flights.has(1), 3.0)
+	ok("and let go of, both gone on the late ship", lj_gone)
 	ok("a ship joining after launch is put in the dive", dived)
 	check("on the host's seed", late.dive_seed, host.dive_seed)
 	check("and the host's unlocks", str(late.dive_unlocked), str(host.dive_unlocked))
@@ -1655,6 +1776,7 @@ func _late_join_test() -> void:
 	check("and where, off that world", Vector2(float(sp.get("x", 0.0)), float(sp.get("z", 0.0))), Vector2(10.5, -4.0))
 	ok("and it is not said about any other system", late.spot_of(id, 13).is_empty())
 	ok("nor about yourself", early.spot_of(id, 12).is_empty())
+	await _flight_said_test(host, early, late, id)
 	# Throttled: an unchanged place is not sent again, a changed one is.
 	early.report_spot(12, 3, Vector2(10.5, -4.0), 1.25)
 	early.report_spot(12, -9, Vector2(200.0, 0.0), 0.0, true)

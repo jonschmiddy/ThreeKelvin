@@ -726,3 +726,17 @@ and a wide pair's opening is checked framed on its own part. Seed
 4242's ETA GRIST SECUNDUS, a twin since stations were halved on
 Nov 3, opened at 0.32 round its giant, 1.33 of its whole system)
 ```
+
+## Mid-GO clock held
+
+Inside `_go_view_open()`, above `m.frozen = true`:
+
+```text
+THE MAP'S CLOCK HELD from here until the inputs are judged (the harness's
+`frozen`: it holds `view.t`, nothing the map takes), so they all reach a
+flight still on its coast. At x12 the twin's flight is 0.57 to 0.96 s of map
+time, entered at 40% (`_into`), and the wheel's glide, the drag and the
+clicks take about 28 frames: on 1b53aa61 the click landed on the ride in
+(mode rail) or after the errand had run (heading to -9), at random
+(Nov 7). The clock runs again for the arrival.
+```

@@ -85,6 +85,9 @@ rounding of 6.1 to 7.4: close pairs lie 150 to 170 px apart). Every rate
 check above is against `pair_speed()`, which reads PAIR_K, so a changed
 PAIR_K passed them all, and 0 skipped them (review 2). Only a harness's
 `pair=` on the command line may ask for another speed
+(THE WORLDS' PACE, Nov 5: the pair turns `SystemLayout.WORLD_PACE` times
+faster again, so its laps are those minutes over it; `worldpace=` on the
+command line asks for another)
 ```
 
 ## Comers
@@ -141,4 +144,18 @@ suns' close rings, every other body RING_CLEAR; the map opening no further
 out than it was fitted to; zones by light. Counted: how many have a planet in
 the middle band, what the first body is, and how often a body sits inside a
 world's ring (as round one sun, printed, not promised).
+```
+
+## Comet pace
+
+Above `func _comet_pace() -> void:`:
+
+```text
+COMETS KEEP TODAY'S SPEED (Jon, Nov 5: "I think the comet speed is perfect
+though"): `SystemLayout.WORLD_PACE` turns the worlds and the pair faster and
+nothing else. A comet's path is planned from the inner orbit's radius (which
+the pace does not move) and aged by each frame's own time (`SkyWeather`'s
+`ev.age += dt`), never by a body's period: at WORLD_PACE 1 and 4, in every
+SYSTEM node of the last seed, the radii are the same and a comet planned off
+them is at the very same place round its sun at every age of its 80 s.
 ```

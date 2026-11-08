@@ -379,3 +379,16 @@ the map's small words on a 1 px dark rim, as the star chart rims its YOU and
 the arrow has its outline (a drop shadow alone left a green name faint on a
 sun's glow, the Nov 5 sheet).
 ```
+
+## Flight said once
+
+Above `var _said_key := 0`:
+
+```text
+YOUR FLIGHT, SAID ONCE AS IT STARTS (PROTOCOL 17, `NetSession.report_flight`):
+its whole path on this map's clock, about 60 points a second, from the ride
+round to its departure to its spin-down onto the ring after
+(`ShipFlight.said_path`), so a partner draws the arc it flies and not a
+chord between spots; and let go of (W off it, or another place picked on the
+way) before it lands, said too.
+```

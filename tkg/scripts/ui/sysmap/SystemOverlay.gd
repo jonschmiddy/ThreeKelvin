@@ -1309,7 +1309,8 @@ func _draw_paths(t: float) -> void:
 		flight.drop_bg(&"preview")
 	if SystemLayout.is_place(preview_to) and can and flight.orbit_body() != preview_to:
 		var in_orbit: bool = flight.mode == &"rail" and not flight.inserting()
-		var key := "%d:%d:%d:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode]
+		# (the AUTOPILOT setting's path too: changed, the line is planned again)
+		var key := "%d:%d:%d:%s:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode, flight.flight_opts().path]
 		# Replan every 3 s on a ring, every 1 s alongside
 		# or round a star orbit, and as departure nears.
 		var every := 3.0 if in_orbit else 1.0
@@ -1910,7 +1911,9 @@ func _draw_partners(_t: float) -> void:
 		var q: Vector2 = _partner_plane.get(id, want)
 		# a jump across the system is a new place, not a flight to it
 		var jumped := q.distance_to(want) > 400.0 and not hold
-		q = want if jumped else q.lerp(want, k)
+		# (on a flight it said (PROTOCOL 17): on its path exactly, not eased)
+		var flying: bool = e.size() > 5 and bool(e[5]) and not hold
+		q = want if (jumped or flying) else q.lerp(want, k)
 		_partner_plane[id] = q
 		var pb: int = int(e[4]) if e.size() > 4 else -10
 		var want_k := 1.0
