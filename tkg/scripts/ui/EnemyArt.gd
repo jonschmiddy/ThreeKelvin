@@ -53,7 +53,9 @@ class EnemyFlame extends Control:
 			* art.get_global_transform() * Transform2D(0.0, origin))
 		var mod := Color.WHITE
 		var n: CanvasItem = art
-		while n != null:
+		# Hosted, the holder and everything above it already tint this through the tree.
+		var inherited: CanvasItem = null if top_level else get_parent() as CanvasItem
+		while n != null and n != inherited:
 			mod *= n.modulate * (n.self_modulate if n == art else Color.WHITE)
 			n = n.get_parent() as CanvasItem
 		var t := ShipView.shot_clock if ShipView.shot_clock >= 0.0 else GameClock.now()
