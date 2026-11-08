@@ -82,6 +82,13 @@ extends Node
 ## every system as an unsplit run does (`_pick_only`), so those are the same
 ## flights however the run is split; a sweep's found-and-clean share and its
 ## flights put there are summed across the shards by `ShardSum`.
+## `phase=hand`: ONLY the hand phase (and the turning pair's with it), its
+## systems picked from every system as a shard without the sweeps' systems
+## picks them (`_pick_only`: nothing else flown, judged or reported; any
+## `shard=` ignored); `phase=rest`: everything but it (`hand=0`). The gate
+## and the battery run the hand phase this way, as its own row beside the
+## shards run with `phase=rest`: about 205 s at x12, where it held its shard
+## past the gate's 300 s (Jon, Nov 8, "split: yes").
 
 ## THE TWO PATHS (the fast transfers, Nov 5: AUTOPILOT DIRECT . CURVED): both
 ## unless `autopilot=direct|curved` names one, each at its own pace
@@ -249,6 +256,8 @@ const HAND_WIDE := 10
 const HAND_CLOSE := 5
 ## `hand=0`: no flying by hand (`_hand_phase`)
 var _hand := true
+## `phase=hand`: only the hand phase (above); `phase=rest` is `hand=0`
+var _hand_only := false
 ## `short`: the gate's run (above); `places=N`: the far places' systems a sweep;
 ## `clicks`: only the clicks (the starts gathered as a sweep would, unplanned)
 var _short := false
@@ -294,8 +303,10 @@ func _ready() -> void:
 			_n_seeds = 1
 			_systems = 4
 			_clicks = 6
-		elif s == "hand=0":
+		elif s == "hand=0" or s == "phase=rest":
 			_hand = false
+		elif s == "phase=hand":
+			_hand_only = true
 		elif s == "short":
 			_short = true
 			_n_seeds = 1
@@ -365,6 +376,11 @@ func _run() -> void:
 	_pick_wk = h.shard().y > 1 and not _rows_only and h.mine(1)
 	_pick_ck = h.shard().y > 1 and _clicks > 0 and h.mine(2)
 	_pick_hand = h.shard().y > 1 and _hand and not _rows_only and h.mine(3) and not _pick_ck
+	if _hand_only:
+		# (no system its own: every one only picked from, for the hand phase)
+		_pick_wk = false
+		_pick_ck = false
+		_pick_hand = _hand and not _rows_only
 	ShipFlightS.flight_opts()
 	for pi in _paths.size():
 		_set_path(pi)
@@ -372,28 +388,29 @@ func _run() -> void:
 		n_sys += _n_sys
 		n_mine += _n_mine
 	print("flighttest: the sweeps took %.0f s" % ((Time.get_ticks_msec() - t_all) / 1000.0))
-	if _why == "" and not _rows_only and h.mine(0):
+	if _why == "" and not _rows_only and not _hand_only and h.mine(0):
 		for pi2 in _paths.size():
 			_set_path(pi2)
 			_places_phase(seeds)
 	var t_ph := Time.get_ticks_msec()
-	if not _rows_only and h.mine(1):
+	if not _rows_only and not _hand_only and h.mine(1):
 		await _worker_phase()
 		print("flighttest: the worker plans took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
 	OS.add_logger(_errs)
 	t_ph = Time.get_ticks_msec()
-	if _clicks > 0 and h.mine(2):
+	if _clicks > 0 and not _hand_only and h.mine(2):
 		await _click_phase()
 		print("flighttest: the clicks took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
 	t_ph = Time.get_ticks_msec()
-	if _hand and not _rows_only and h.mine(3):
+	if _hand and not _rows_only and (_hand_only or h.mine(3)):
 		_hand_phase()
 		print("flighttest: flying by hand took %.0f s" % ((Time.get_ticks_msec() - t_ph) / 1000.0))
 	OS.remove_logger(_errs)
-	if not _rows_only:
+	if not _rows_only and not _hand_only:
 		_report(cap)
 	print("flighttest: all of it took %.0f s%s" % [(Time.get_ticks_msec() - t_all) / 1000.0, " (short)" if _short else ""])
-	h.shard_end("flighttest", n_mine, n_sys)
+	if not _hand_only:
+		h.shard_end("flighttest", n_mine, n_sys)
 	h.verdict("flighttest")
 	get_tree().quit(h.code())
 
@@ -460,7 +477,7 @@ func _sweeps(seeds: Array, cap: Dictionary) -> void:
 				if _why != "" and not _why_names(n2.index):
 					continue
 				n_sys += 1
-				var mine := h.mine(n_sys - 1)
+				var mine := h.mine(n_sys - 1) and not _hand_only
 				# (the sweep reported in every shard, where it has no system of
 				# it too: its totals then come from every shard, which ShardSum
 				# holds, as the run unsplit reports every sweep it has a system of)
