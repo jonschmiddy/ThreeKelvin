@@ -2988,7 +2988,7 @@ func _manoeuvre(i: int, t: float, st: Dictionary, kf: float, side: float, way: b
 			var side2 := side_eff
 			var ra2: Vector3 = (legs[-1][0].a2 as Vector3) - center_acc(i, t2)
 			var cr2 := din2.cross(Vector2(ra2.x, ra2.z))
-			if din2.length() > 1.0 and absf(cr2) / pow(din2.length(), 3.0) * float(L.bodies[i].soi) * 0.95 > 0.005 and not st.has("abs_side"):
+			if i >= 0 and din2.length() > 1.0 and absf(cr2) / pow(din2.length(), 3.0) * float(L.bodies[i].soi) * 0.95 > 0.005 and not st.has("abs_side"):
 				side2 = side * -signf(cr2)
 			if din2.length() > 1.0 and (absf(din2.angle_to(din)) > deg_to_rad(4.0) or side2 != side_eff):
 				side_eff = side2

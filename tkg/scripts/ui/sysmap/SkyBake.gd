@@ -157,6 +157,8 @@ func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2, legacy: 
 		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
+		if not is_instance_valid(vp):
+			return
 		imgs.append(vp.get_texture().get_image())
 	vp.queue_free()
 	field_img0 = imgs[0]
@@ -359,10 +361,14 @@ func _bake_rest(parent: Node, index: int, kind: String, in_nebula: bool, edge: f
 	m.set_shader_parameter("mode", 0)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
+	if not is_instance_valid(vp):
+		return
 	base = ImageTexture.create_from_image(vp.get_texture().get_image())
 	m.set_shader_parameter("mode", 1)
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
+	if not is_instance_valid(vp):
+		return
 	gas = ImageTexture.create_from_image(vp.get_texture().get_image())
 	vp.queue_free()

@@ -221,6 +221,14 @@ func _yard_swap() -> void:
 	var old_name := Run.hull.name
 	var was := _owned_ids()
 	var fitted := Run.installed.size()
+	# A co-op client's claim still out: a second click on TAKE IT must not pay or move again.
+	var pay0 := Run.credits
+	st.set(&"_asking", true)
+	await st._on_action("take_hull", n.shop_hull)
+	await _frames(2)
+	_ok("a second click while the claim is out does nothing",
+		_transfer() == null and Run.credits == pay0 and Run.hull.name == old_name)
+	st.set(&"_asking", false)
 	await st._on_action("take_hull", n.shop_hull)
 	await _frames(4)
 	var t := _transfer()
@@ -230,12 +238,26 @@ func _yard_swap() -> void:
 	_ok("all of it drawn (%d)" % _drawn_on_left(t), _drawn_on_left(t) == Run.pad.size())
 
 	# One part across, so the mid-move state has a part on each ship.
+	# (one whose slot has a second hardpoint, for the move below)
 	var first: ModuleData = null
 	for raw in Run.pad:
-		if raw is ModuleData:
+		if raw is ModuleData and (first == null or Run.slots_for(raw.slot) >= 2):
 			first = raw
-			break
+			if Run.slots_for(raw.slot) >= 2:
+				break
 	_ok("one part bolts across", first != null and Run.pad_to_mount(first, first.slot, 0))
+	# Lifted off its hardpoint and dropped on another of the new ship: it stays there.
+	var to := -1
+	for i in Run.slots_for(first.slot):
+		if Run.module_at(first.slot, i) == null:
+			to = i
+			break
+	if _ok("the part's slot has a second hardpoint", to >= 0):
+		t._on_lift(first)
+		t._on_mount_drop({module = first}, first.slot, to)
+		t._on_release()
+		_ok("a part moved to another hardpoint stays there (mount %d, wanted %d)" % [first.mount, to],
+			first.mount == to and Run.installed.has(first) and Run.installed.size() == 1)
 
 	# Tab, the key that dropped it: refused, the move stays up.
 	await _key(KEY_TAB)

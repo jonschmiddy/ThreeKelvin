@@ -1543,8 +1543,13 @@ func _fabricate(r: Dictionary) -> void:
 	Audio.play(&"fabricate", 0.04)
 	Run.log_line(line, &"good")
 
+## True while a co-op client waits on the host for a claim, so a second click cannot pay twice.
+var _asking := false
+
 func _on_action(action: String, thing: Variant) -> void:
 	var n: MapGen.MapNode = Run.node_at()
+	if _asking and (action == "buy" or action == "take_hull"):
+		return
 	match action:
 		"buy":
 			var m := thing as ModuleData
@@ -1559,7 +1564,10 @@ func _on_action(action: String, thing: Variant) -> void:
 				Run.log_line("The hold is full. Nowhere to put it.", &"them")
 				return
 			# One shelf, four buyers: ask first and pay only if you won (`RunState.take_option`).
-			if not await Run.take_option(n, MapGen.OPTION_SHOP + slot):
+			_asking = true
+			var won: bool = await Run.take_option(n, MapGen.OPTION_SHOP + slot)
+			_asking = false
+			if not won:
 				var who := Net.taker_name(n.index, MapGen.OPTION_SHOP + slot)
 				Run.log_line("Sold.%s" % (" %s got there first." % who.to_upper()
 					if who != "" else ""), &"them")
@@ -1593,7 +1601,10 @@ func _on_action(action: String, thing: Variant) -> void:
 				return
 			# One rack, one hull. Same race as the shelf above, and the same
 			# order: ask, then pay.
-			if not await Run.take_option(n, MapGen.OPTION_SHOP_HULL):
+			_asking = true
+			var won2: bool = await Run.take_option(n, MapGen.OPTION_SHOP_HULL)
+			_asking = false
+			if not won2:
 				var who2 := Net.taker_name(n.index, MapGen.OPTION_SHOP_HULL)
 				Run.log_line("Gone.%s" % (" %s is flying it." % who2.to_upper()
 					if who2 != "" else ""), &"them")

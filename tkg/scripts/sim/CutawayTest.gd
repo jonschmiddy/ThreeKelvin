@@ -43,6 +43,17 @@ func run(tree: SceneTree) -> void:
 	_ok("the cutaway opens without LOCAL's hull (headless, reduced)", _cut != null and is_instance_valid(_cut))
 	_ok("and picks a push-in scale (%dx)" % _cut.k, _cut.k == 1 or _cut.k == 2)
 
+	# the hover card prints every gauge a part moved, not just the ones named like a field
+	for pair in [[&"plating", "HULL"], [&"shroud", "THERMAL"], [&"chaff", "MANEUVER"]]:
+		var part: ModuleData = (DB.modules[pair[0]] as ModuleData).duplicate()
+		DB.regrade(part, int(ModuleData.Rarity.RARE))
+		var tip := Widgets.module_tip_panel(part)
+		var said := ""
+		for c in tip.find_children("*", "Label", true, false):
+			said += (c as Label).text + "\n"
+		_ok("the tip of %s shows a %s gauge" % [pair[0], pair[1]], said.contains(pair[1]))
+		tip.free()
+
 	# a weapon mount with something on it, and a spare weapon in the hold
 	var w := ModuleData.Slot.WEAPON
 	var on: ModuleData = null

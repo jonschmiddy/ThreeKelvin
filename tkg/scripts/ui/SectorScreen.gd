@@ -3382,7 +3382,11 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 		on_go.call()
 		if not combat.finished:
 			_exit_cost = _cost_line(_exit_heat0, _exit_fuel0)
-		if combat.finished:
+		if combat.finished and not _queue.is_empty():
+			# A failed exit's turn ended the fight: it is shown first, then the ending.
+			_close_exit_ask()
+			_play_turn()
+		elif combat.finished:
 			# It worked: nothing swings, so nothing waits. A partial hail still
 			# costs heat, and the panel says so (audit item 11).
 			_end_hold()
@@ -3526,7 +3530,15 @@ func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:
 	if target == null:
 		return
 	var origin := target.position
+	# A second shot mid-shake rests where the first began, not where it was shaken to.
+	if target.has_meta(&"shake_tw"):
+		var prev: Tween = target.get_meta(&"shake_tw")
+		if prev != null and prev.is_running():
+			prev.kill()
+			origin = target.get_meta(&"shake_rest")
 	var tw := create_tween()
+	target.set_meta(&"shake_tw", tw)
+	target.set_meta(&"shake_rest", origin)
 	for i in 3:
 		tw.tween_property(target, "position",
 			origin + Vector2(randf_range(-3, 3), randf_range(-2, 2)).round(), 0.03)
@@ -4799,6 +4811,7 @@ func _escape(who: int) -> void:
 ## An ending nobody pressed a button for, said in the same panel the exits use,
 ## over the scene rather than instead of it.
 func _end_panel(title: String, ink: Color, edge: Color, text: String) -> void:
+	_close_exit_ask()
 	_ask_exit(title, ink, edge, text, "", "", Callable())
 	_exit_ask_result(title, ink, text, func() -> void:
 		_close_exit_ask()

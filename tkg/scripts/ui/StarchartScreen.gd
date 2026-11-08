@@ -2129,6 +2129,11 @@ class MapChart extends Control:
 	var _restored := false
 
 	func _notification(what: int) -> void:
+		if what == NOTIFICATION_MOUSE_EXIT:
+			# Motion goes to whatever is under the pointer now, so the hover is cleared here.
+			hovered = -1
+			_neb_hot = ""
+			queue_redraw()
 		if what == NOTIFICATION_MOUSE_EXIT and _cross != null:
 			_cursor = Vector2(-1.0, -1.0)
 			_cross.queue_redraw()
