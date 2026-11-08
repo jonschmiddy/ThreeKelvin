@@ -206,6 +206,9 @@ const STORY_GAIN_R := 1.0
 ## burnt out and the body ended in a hard orb)
 const BALL_BODY := 0.8
 const BALL_HALO := 0.06
+## A halo's fall (`u_haloFall`): its power, where a ball's halo starts and stops
+## ending (in its scales), and how much harder it dithers out at its edge
+const HALO_FALL := Vector4(1.7, 0.8, 2.8, 0.0)
 
 ## A BALL AS ITS OWN KIND in this style (Nov 5, Jon's direction A for PAINTED, "This
 ## could also be applied for the other art styles"): each ball drawn as this style
@@ -341,11 +344,14 @@ static func look(p: Dictionary) -> Dictionary:
 		L.bCore = Vector3(0.95, 0.9, 1.0)
 		L.bInner = Vector3(0.75, 0.82, 1.0)
 		L.bOuter = Vector3(0.45, 0.58, 1.0)
-		# (its halo brighter and a little wider, Nov 7: the dwarf is small and dim, and over
+		# (its halo a light that falls off, Nov 7: the dwarf is small and dim, and over
 		# A's ball grade its body's fall met the palette's darkest step at 0.34 gu and
-		# stopped there, a rim -- BallHaloTest's fade 0.39 at rest. Its halo carries the
-		# fall on out into space: fade 0.48, its light to 0.42 gu; the body untouched)
-		L.halo = Vector4(L.halo.x * 1.6, L.halo.y * 1.1, L.halo.z, 0.0)
+		# stopped there, a rim -- BallHaloTest's fade 0.39 at rest. A halo 1.6x bright
+		# carried the fall out but sat as a flat navy disc. Its halo's fall is longer
+		# (1.3, not 1.7), ends from half its scale out, and dithers twice as hard across
+		# the palette's last steps, so it thins into space: B: 1.3x bright, fade 0.49 at rest)
+		L.halo = Vector4(L.halo.x * 1.3, L.halo.y, L.halo.z, 0.0)
+		L.haloFall = Vector4(1.3, 0.5, 3.0, 1.0)
 		L.young = blue * 0.6 + Vector3(0.42, 0.58, 1.0) * 0.4
 	elif ell and int(ball.w) == 2:
 		# a dwarf spheroidal grey: old, faint starlight, barely warm
@@ -520,6 +526,7 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_bulge", L.bulge)
 	m.set_shader_parameter("u_bulgeI", L.bulgeI)
 	m.set_shader_parameter("u_halo", L.halo)
+	m.set_shader_parameter("u_haloFall", L.get("haloFall", HALO_FALL))
 	m.set_shader_parameter("u_discK", L.discK)
 	m.set_shader_parameter("u_gasK", L.gasK)
 	m.set_shader_parameter("u_nebK", Vector4(13.0, 15.0, 7.0, 16.0))

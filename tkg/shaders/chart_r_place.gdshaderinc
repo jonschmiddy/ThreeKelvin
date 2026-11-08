@@ -116,6 +116,7 @@ uniform vec4 u_dramaR = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 u_bulge = vec4(0.04, 0.13, 0.83, 0.02);   // inner scale, outer scale, c/R, cavity scale (gu)
 uniform vec4 u_bulgeI = vec4(1.5, 1.0, 0.3, 1.6);      // inner peak, outer peak, cavity peak, core light on the gas
 uniform vec4 u_halo = vec4(0.026, 0.5, 0.62, 0.0);     // intensity, scale (gu), screen roundness, warmth
+uniform vec4 u_haloFall = vec4(1.7, 0.8, 2.8, 0.0);    // power, a ball's end from..to (scales), edge dither +
 uniform vec4 u_discK = vec4(0.5, 1.35, 1.2, 1.0);      // old gain, young gain, H-alpha gain, dust gain
 uniform vec4 u_gasK = vec4(34.0, 0.18, 0.6, 0.2);      // billow sigma, haze density, arm light gain, billow H-alpha glow
 uniform vec4 u_nebK = vec4(13.0, 15.0, 7.0, 16.0);     // emission gain, reflection gain, remnant gain, dark sigma
@@ -190,7 +191,7 @@ uniform bool u_isBall = false;
 // bulge's outer scale (`u_bulge.y`, the ball's re), and where its halo does, in the
 // halo's own scale -- both long and soft, so a ball fades into space
 const vec2 BALL_FADE_R = vec2(0.5, 1.8);
-const vec2 BALL_HALO_END = vec2(0.8, 2.8);
+// (a ball's halo ends from 0.8 to 2.8 of its scale: `u_haloFall.yz`)
 // A BALL AS ITS OWN KIND (Nov 5, direction A, `ChartRadiant.ball_kind` / `ball_form`):
 // (kind: 0 an elliptical, 1 a blue compact dwarf, 2 a dwarf spheroidal, 3 a merger's
 // remnant; young gas 0..1; lopsided 0..1; globular clusters 0..1) and (where its light
@@ -1415,12 +1416,12 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	if (u_isBall) {
 		wisp = mix(1.0, wisp, 0.25);
 		float hg = nz(vec3(hv * 4.6 + (hw.rg - 0.5) * 0.6, 0.61)).r;
-		wisp *= (1.0 + BALL_BILLOW * 0.7 * (hg - 0.5)) * (1.0 + BALL_DITHER * mix(1.0, 2.6, smoothstep(0.1, 0.6, sqrt(hr2))) * (kitBayer4(dq) - 0.5));
+		wisp *= (1.0 + BALL_BILLOW * 0.7 * (hg - 0.5)) * (1.0 + BALL_DITHER * mix(1.0, 2.6 * (1.0 + u_haloFall.w), smoothstep(0.1, 0.6, sqrt(hr2))) * (kitBayer4(dq) - 0.5));
 	}
 	// (the solid look: the halo ends with the disc's own fade, so the galaxy fades
 	// into true black space)
-	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(BALL_HALO_END.x, BALL_HALO_END.y, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
-	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7) * hE;
+	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(u_haloFall.y, u_haloFall.z, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
+	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, u_haloFall.x) * hE;
 	// the sky behind shows only where the galaxy in front is fainter than it
 	// (`bgSeen`), and through what the dust lets by. (THROUGH THE SOLID LOOK'S CAMERA
 	// the far nebulae go behind it the same way, not by their own tighter gate,
