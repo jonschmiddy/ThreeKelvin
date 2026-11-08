@@ -652,15 +652,21 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 ## false (a cost bench's turn) or `still` (reduced motion, a palette probe): all off.
 static var drama_on := true
 ## The core: its breath's period (s), the slot a flare may fall in (s) and how often
-## one does, a flare's rise, hold and fall (s).
+## one does, a flare's rise, hold and fall (s). (Jon, Nov 7: "the core could also
+## flare less often": the slot 11 to 22 s, so about 2 flares a minute, not 3.9; each
+## flare keeps its look, size and envelope, and the breath is untouched.)
 const CORE_BREATH_S := 5.3
-const CORE_SLOT_S := 11.0
+const CORE_SLOT_S := 22.0
 const CORE_FLARE_P := 0.7
 const CORE_ENV := Vector3(0.5, 1.1, 2.8)
 ## The young stars: slots (one star each), the first slot's period and each next one's
-## more, a flare's rise, hold and fall, its reach (gu).
+## more, how often a slot's turn flares, a flare's rise, hold and fall, its reach (gu).
+## (Jon, Nov 7, RC:1B: the young stars flash half as often, 0.8 to 0.4 of turns. At
+## 0.8 the chart at rest changed 11% of its pixels a second against A's 2%; each
+## flare keeps its look.)
 const STAR_SLOTS := 6
 const STAR_PERIOD := Vector2(6.5, 1.3)
+const STAR_P := 0.4
 const STAR_ENV := Vector3(0.25, 0.55, 1.9)
 const STAR_REACH := 0.035
 
@@ -744,7 +750,7 @@ static func feed_drama(m: ShaderMaterial, g: Dictionary, t: float, still: bool) 
 	for k in STAR_SLOTS:
 		var per := STAR_PERIOD.x + STAR_PERIOD.y * k
 		var n := floori(t / per)
-		if LegacyHole.hash01(n, 880 + k) > 0.8:
+		if LegacyHole.hash01(n, 880 + k) > STAR_P:
 			continue
 		var t0 := per * n + (per - STAR_ENV.x - STAR_ENV.y - STAR_ENV.z) * LegacyHole.hash01(n, 860 + k)
 		var e := ease_hold(t - t0, STAR_ENV)

@@ -155,6 +155,17 @@ const GLOW_LOOK := {"wide_smooth": true, "thr": 0.55, "knee": 0.16, "gain": 2.2,
 	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.0, "vib": 0.0,
 	"keep_lo": 0.085}
 const GLOW_CORE_RAYS := 0.3
+## THE RED GIANT'S GLOW (Jon, Nov 7, RC:2B): only the star and its hottest gas glow,
+## about half as far out. Its corona and the warm gas round it all passed `thr` 0.55,
+## and the widest halo (level 6, 64 blocks) and the rays' reach laid a pink disc over
+## the inner orbits, the ship and its IN ORBIT label. From a brighter light, the widest
+## halo's share moved onto the next (each level half as wide), the rays half as long.
+## The round read (`wide_smooth`) and the light's hue are kept. Measured on the map
+## (Kappa Grist, frame 0 against the glow's gain at 0): lit (8+ levels) out to 44 px
+## from 118, half its light inside 32 px from 70; the ship, its label and the inner
+## orbits under 5% lit, from 57-88%. LOCAL keeps its look: there the giant is a small
+## sun high in the sky, its glow nowhere near the ship.
+const GLOW_GIANT := {"thr": 0.8, "halo_b": Vector3(0.75, 0.3, 0.0), "ray_len": 0.2}
 ## the painted pass's viewports and materials (`SectorPainted.build`)
 var _pt := {}
 ## the emission cloud's bubble round the sun, on the plane: a sphere in the
@@ -889,7 +900,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the place's picture wrapped, its
 	# light glowing in steps, its shade deep; the instruments stay over it, unlit
 	if radiant:
-		_glow = RadiantGlow.wrap(_scene, Vector2(960, 540), GLOW_LOOK)
+		_glow = RadiantGlow.wrap(_scene, Vector2(960, 540), GLOW_LOOK.merged(GLOW_GIANT, true) if layout.star == SystemLayout.StarKind.RED else GLOW_LOOK)
 		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", Vector2(CX, CY) / Vector2(960, 540))
 		if layout.star == SystemLayout.StarKind.CORE:
 			RadiantGlow.glow_mat(_glow).set_shader_parameter("rays", GLOW_CORE_RAYS)

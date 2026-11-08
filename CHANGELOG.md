@@ -8,9 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Changed** — the RADIANT style is redone to be dramatic. One strong light per scene and deep
   shadow: the galaxy's core lights the arms that face it, a world has a hard line between day and
-  night, and a sun's light falls off into black across the screen. The light moves: the core and the
-  suns flare every few seconds and light the gas round them, young stars flash on the arms, and your
-  engines light the gas behind your ship. Bright things glow in their own colour in stepped, dithered
+  night, and a sun's light falls off into black across the screen. The light moves: the suns flare
+  every few seconds and the core about twice a minute, each lighting the gas round it, young stars
+  now and then flash on the arms, and your engines light the gas behind your ship. Bright things glow in their own colour in stepped, dithered
   halos, and the shade between them goes a deep violet. SIMPLIFIED and PAINTED are unchanged.
 - **Changed** — in the PAINTED style, the star chart's round galaxies (the three ellipticals, the
   merger remnant and the two dwarfs) are now painted in the same hand as the spirals: lit gas and
