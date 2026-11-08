@@ -1233,11 +1233,25 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			# of SolveTest's fallback flights from a ring or alongside planned
 			# again 15 times as the overlay does, 1,790 of the 5,745 kept warm
 			# were kept where a fresh plan arrived sooner; none now)
+			# BOTH SIDES AS BUILT (Nov 7): a choice's J is its flight's cost as
+			# built, on the sample grid, and the kept flight and a fresh search's
+			# are weighed on that too. The search prices a flight at its exact
+			# arrival, and an arrival burn alongside can cost a few px/s more or
+			# less there than a sample on: within a few percent of the least pull
+			# it is the short burn, just past it one about three times as long
+			# (`_cubic_burn`). Priced, at seed 7 node 199's close pair (CURVED,
+			# ring 1 to keep 5, line-up 2, planned again 3 s on) the fresh flight
+			# cost -162.5 against the kept one's -155.8, inside the slack; built,
+			# -166.1, its burn 0.37 s and not 1.10 s, and the kept flight stood
+			# 0.3 past the slack (SolveTest short shard 3, every run at x12).
 			var j_old := float(prefer.get("J", INF))
 			var fell := _leg == 0 and _tcap > _cap0 + 1e-6
-			if not fell and _b_J <= j_old + _slack(j_old):
-				res = _build(&"warm")
-			else:
+			var rk: Result = null
+			if not fell:
+				rk = _build(&"warm")
+				if rk.found and rk.cost <= j_old + _slack(j_old):
+					res = rk
+			if res == null:
 				var wj := _b_J
 				var wb := _b.duplicate()
 				var wcap := _tcap
@@ -1252,25 +1266,40 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				# one found 206, SolveTest Oct 31)
 				_fresh()
 				var keep := _b_J == INF
+				var rf: Result = null
 				if not keep and fell:
 					keep = float(wb.te) <= float(_b.te) + 1e-6
 				elif not keep:
+					rf = _build_fresh()
+					if rk == null:
+						_b_J = wj
+						_b = wb
+						_tcap = wcap
+						_tw = wtw
+						_back = wback
+						rk = _build(&"warm")
 					# (both at one weight: TIME_W where their searches priced them
 					# at two, since at TIME_W_BACK a second costs 32 times less;
 					# a leg's two are both the as-built search's)
-					var fj := _b_J
-					var kj := wj
-					if absf(_tw - wtw) > 1e-9:
-						fj = _at_time_w(_b_J, _b, _tw)
-						kj = _at_time_w(wj, wb, wtw)
-					keep = fj + _slack(fj) >= kj
+					var fj := rf.cost
+					var kj := rk.cost
+					var ftw := float(rf.choice.get("tw", wtw))
+					if absf(ftw - wtw) > 1e-9:
+						fj += (TIME_W - ftw) * rf.T
+						kj += (TIME_W - wtw) * rk.T
+					keep = rk.found and (not rf.found or fj + _slack(fj) >= kj)
 				if keep:
-					_b_J = wj
-					_b = wb
-					_tcap = wcap
-					_tw = wtw
-					_back = wback
-					res = _build(&"warm")
+					if rk != null:
+						res = rk
+					else:
+						_b_J = wj
+						_b = wb
+						_tcap = wcap
+						_tw = wtw
+						_back = wback
+						res = _build(&"warm")
+				elif rf != null:
+					res = rf
 				else:
 					res = _build_fresh()
 	if res == null:

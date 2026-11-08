@@ -97,11 +97,15 @@ extends Node
 ## path's own pace the times are judged (`CLICK_MED`, `CLICK_P90`,
 ## `CLICK_EDGE`).
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
-## from the click to settled at the path's own pace, s: the median and 90th of
-## the game's starts, and the median from the edge as arrived (a jump's first)
-const CLICK_MED := 3.6
-const CLICK_P90 := 4.5
-const CLICK_EDGE := 5.0
+## from the click to settled at the path's own pace, s, each path its own: the
+## median and 90th of the game's starts, and the median from the edge as
+## arrived (a jump's first). Jon's ruling (Nov 7, "5A"): each path's limits
+## just over what it flies, where one set of 3.6 / 4.5 / 5.0 failed both. The
+## worst shards measured (FlightTest short clicks=0, 4 shards, Nov 7): CURVED
+## (WIDE x12) 5.67 / 7.62 / 7.40, DIRECT (x4) 4.10 / 5.52 / 5.20.
+const CLICK_MED := {&"direct": 4.5, &"curved": 6.5}
+const CLICK_P90 := {&"direct": 6.0, &"curved": 8.5}
+const CLICK_EDGE := {&"direct": 5.8, &"curved": 8.5}
 var _paths: Array[StringName] = [&"direct", &"curved"]
 ## this pass's sweep suffix ("" DIRECT, " curved" CURVED) and whether it is the
 ## pass that picks the worker plans, the clicks and the hand phase's systems
@@ -2299,11 +2303,14 @@ func _report(cap: Dictionary) -> void:
 			cg.sort()
 			var med: float = cg[cg.size() / 2]
 			var p90: float = cg[mini(cg.size() - 1, int(cg.size() * 0.9))]
-			h._ok("%s: click to settled at pace %.0f, median %.2f s (at most %.1f), 90th %.2f s (at most %.1f)" % [sweep, S.pace, med, CLICK_MED, p90, CLICK_P90], med <= CLICK_MED and p90 <= CLICK_P90)
+			var lm: float = CLICK_MED[kq[2]]
+			var lp: float = CLICK_P90[kq[2]]
+			var le: float = CLICK_EDGE[kq[2]]
+			h._ok("%s: click to settled at pace %.0f, median %.2f s (at most %.1f), 90th %.2f s (at most %.1f)" % [sweep, S.pace, med, lm, p90, lp], med <= lm and p90 <= lp)
 			if not (S.click_edge as Array).is_empty():
 				var ce: Array = (S.click_edge as Array).duplicate()
 				ce.sort()
-				h._ok("%s: a jump's first flight (from the edge as arrived), median %.2f s (at most %.1f)" % [sweep, float(ce[ce.size() / 2]), CLICK_EDGE], float(ce[ce.size() / 2]) <= CLICK_EDGE)
+				h._ok("%s: a jump's first flight (from the edge as arrived), median %.2f s (at most %.1f)" % [sweep, float(ce[ce.size() / 2]), le], float(ce[ce.size() / 2]) <= le)
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])
