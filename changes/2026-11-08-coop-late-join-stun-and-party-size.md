@@ -1,5 +1,5 @@
-- **Added** — in co-op you can join a friend's fight after it has started. Join after the first
-  turn and you arrive stunned. You have no cards, and END TURN, FLEE and HAIL are greyed until the
+- **Changed** — in co-op, joining a friend's fight after its first turn means you arrive
+  stunned. You have no cards, and END TURN, FLEE and HAIL are greyed until the
   enemy's turn is over. The enemy can still shoot you, and you share the loot if the fight ends
   while you wait. Your friends see STUNNED under your ship. Join on the first turn and you act at
   once.

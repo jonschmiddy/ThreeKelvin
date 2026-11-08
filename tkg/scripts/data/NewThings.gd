@@ -26,7 +26,7 @@ const LIST := [
 			"A derelict hauler says which frame you would claim. SCRAP pays for one you don't want.",
 			"A.S.H. points at a world, not your ship, when she says to click one twice.",
 			"NEW THINGS on the title menu lists what changed in each version.",
-			"In co-op you can join a fight that has already started. Join after the first turn and you are stunned until the enemy's turn ends.",
+			"In co-op, join a fight after its first turn and you are stunned until the enemy's turn ends.",
 			"In co-op, enemies have more hull and fights pay more for each player in the game.",
 			"The star chart's round galaxies are drawn the way the spirals are, and each kind has its own look.",
 			"Flights between worlds take 3 to 7 seconds, down from about 14. Pick a curved or a straight path in Settings.",
