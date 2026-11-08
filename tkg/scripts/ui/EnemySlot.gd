@@ -260,6 +260,8 @@ func _init() -> void:
 	# `enter()`.
 	art.size = Vector2(EnemyArt.W, EnemyArt.H)
 	_art_holder.add_child(art)
+	# The flame beside the art here, not top level, so the piles' panel covers it (#56).
+	art.host_flame(_art_holder)
 	col.add_child(_art_holder)
 	_under = Control.new()
 	_under.mouse_filter = Control.MOUSE_FILTER_IGNORE
