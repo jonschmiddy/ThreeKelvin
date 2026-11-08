@@ -1256,18 +1256,12 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 #endif
 	// (a ball's own frames, `ballS`: drawn about the core in the core's own frame, round
 	// on the screen, as its light always was)
-	// (TORN AWAY: the dwarf drawn smaller as its rings go, `tornBody`: its picture read
-	// at vbT, its blocks there as much finer)
-	vec2 vbT = vb;
-	float tsc = 1.0;
-	if (ellip && tornOn()) {
-		vbT = tornBody(vb);
-		tsc = u_tornA.z;
-	}
-	vec2 gS = vec2(vbT.x, vbT.y / u_g2.z) / k;
+	vec2 gS = vec2(vb.x, vb.y / u_g2.z) / k;
 	vec2 gq = kitRot(-u_phi) * gS;
-	float blkS = blockView() / k / solidCoreK() / tsc;
+	float blkS = blockView() / k / solidCoreK();
 	float sB = ellip ? ballS(gS, gq, blkS) : 0.0;
+	// (TORN AWAY: what is left of the dwarf, at its real size, `tornShape`)
+	float tK = ellip && tornOn() ? tornShape(gS, gq, blkS) : 1.0;
 	float tt = u_time * (u_g4.z > 0.5 ? 0.5 : 1.0);
 
 	float ar = 0.0, dp = 0.0, wp = 1.0, al = 0.0, prof = 0.0;
@@ -1433,9 +1427,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// stretched the near half toward itself: on PGC 6236 (a giant elliptical) the
 	// ball's bands ended 0.43 gu above the core and ran on past the chart's bottom
 	// edge, the plane below the core running out to the camera's horizon first.
-	vec2 vB = ellip ? vbT : v;
-	vec2 gB = ellip ? kitRot(-u_phi) * (vec2(vbT.x, vbT.y / KIT_TILT) / k) : g;
-	float blkB = ellip ? blockView() / k / solidCoreK() / tsc : blk;
+	vec2 vB = ellip ? vb : v;
+	vec2 gB = ellip ? kitRot(-u_phi) * (vec2(vb.x, vb.y / KIT_TILT) / k) : g;
+	float blkB = ellip ? blockView() / k / solidCoreK() : blk;
 	float Rb = solidB ? R * 1.15 : R;
 	float rho = solidB ? length(vec2(vb.x, vb.y * (KIT_TILT / u_solidW.y) / 1.08)) / k : length(vec2(vB.x, vB.y / u_g2.z)) / k;
 	rho *= 1.0 + 0.07 * fbmL(gB * 9.0 + 2.0, blkB * 9.0, 2);
@@ -1503,12 +1497,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		Ib += stW;
 	}
 	// (TORN AWAY: what lay past the drawn edge has gone into the stream)
-	if (ellip && tornOn()) {
-		float cutT = tornCut(g, blk);
-		Ib *= cutT;
-		Ed *= cutT;
-		EdS *= cutT;
-	}
+	Ib *= tK;
+	Ed *= tK;
+	EdS *= tK;
 	float hR = u_g3.z;
 	float rp = length(vec2(vb.x, vb.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
@@ -1606,7 +1597,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		float hT = smoothstep(1.7, 2.9, sB);
 		Ehalo = 0.0068 * (1.0 - hT) * (1.0 - hT) * (1.0 + 0.4 * fbmL(gq * 3.0, blkS * 3.0, low ? 2 : 5));
 		if (tornOn()) {
-			Ehalo = Ehalo * tornCut(g, blk) + tornGlow(P);
+			Ehalo = Ehalo * tK + tornGlow(P);
 		}
 	}
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
@@ -1666,7 +1657,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// (a ball's thins out by its body's smooth light, so only at its edge: a valley of
 			// its relief inside it stays its own dark steps, never a hole to the sky)
 			// (and over a wide band, `BALL_FADE_HI` to `_LO`: no rim, no ring)
-			float lvT = ellip ? clamp(1.0 + log2(max(ballBody(sB) * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
+			float lvT = ellip ? clamp(1.0 + log2(max(ballBody(sB) * tK * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
 			// (a faint ball's band as far below its own light: a dwarf spheroidal's, 0.4 of an
 			// elliptical's, would lie in the band to its middle, a stippled plate)
 			float fSh = ellip && abs(u_ballK.x - 2.0) < 0.5 ? log2(0.4) / 7.0 : 0.0;

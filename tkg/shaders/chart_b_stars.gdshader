@@ -30,13 +30,19 @@ uniform float phi = 0.0;
 uniform float t = 0.0;
 uniform float calm = 0.0;
 uniform float bulge_r = 0.128;
-// TORN AWAY (`ChartTorn`): the dwarf drawn smaller -- its scale, its stretch toward the
-// giant (that side only), the line to the giant (plane); (1, 0) leaves every star where
-// it is. And torn2: the drawn edge (gu), the plane's squash, the cut's strength, the
-// share of the stars kept (the scale squared, so the smaller dwarf is as thick with
-// stars as it always was, never packed with the ones the lost rings held)
-uniform vec4 torn = vec4(1.0, 0.0, 1.0, 0.0);
-uniform vec4 torn2 = vec4(0.0, 1.0, 0.0, 1.0);
+// TORN AWAY (`ChartTorn`, redraw A): the dwarf's stars where they always are, those
+// past its rings' torn edge gone with their rings, and those thick about its body past
+// its drawn edge thinned out to the sky's own few. torn: on, the rings' edge (gu), the
+// plane's squash, the cut's strength; torn2: the way the stream leaves the dwarf (the
+// plane, squashed as the rings are), how far the edges are drawn out that way (a share
+// of them), the drawn edge (gu, the ball's own frame); torn3: the way the stream leaves
+// it in the ball's own frame, the ball's squash on the screen. Off (torn.x 0): every
+// star as it always is
+uniform vec4 torn = vec4(0.0);
+uniform vec4 torn2 = vec4(1.0, 0.0, 0.0, 0.0);
+uniform vec4 torn3 = vec4(1.0, 0.0, 1.0, 0.0);
+// (the share of the thick stars kept past the drawn edge: the sky's own density there)
+const float TORN_FIELD = 0.18;
 // THE SOLID GALAXY (`ChartSky.solid`): the sparkles where the camera shows the disc
 // (`chart_solid`'s solidFwdN, as `chart_c_stars` puts its stars): on, and the camera's
 // distance, elevation's sine and cosine, 0; and where it looks on the disc's plane
@@ -69,19 +75,30 @@ void vertex() {
 		float lz = log(zoom);
 		float cs = cos(phi), sn = sin(phi);
 		bool tgone = false;
-		if (torn.x != 1.0 || torn.y != 0.0 || torn2.z > 0.0) {
-			float pa = dot(a.xy, torn.zw);
-			a.xy = (a.xy + torn.zw * max(pa, 0.0) * torn.y) * torn.x;
-			b.w *= torn.x;
-			// (past the edge, as the place pass cuts the body: `tornCut`)
-			vec2 gal = vec2(a.x, a.y * torn2.y);
-			float al = dot(gal, torn.zw);
-			float pe = dot(gal, vec2(-torn.w, torn.z));
-			float re = length(vec2(al > 0.0 ? al / (1.0 + torn.y) : al, pe));
-			if (torn2.z > 0.5 && re > torn2.x) {
+		if (torn.x > 0.5 && torn.w > 0.0) {
+			// (past the edge, as the place pass cuts the body, `tornShape`: torn on the
+			// star's own hash, drawn out toward the stream, its last band thinning out)
+			vec2 gal = vec2(a.x, a.y * torn.z);
+			float re = length(vec3(gal, b.w));
+			float pull = re > 1e-5 ? pow(max(dot(gal / max(length(gal), 1e-5), torn2.xy), 0.0), 3.0) : 0.0;
+			float Ee = torn.y * (1.0 + torn2.z * pull + 0.09 * (fract(b.z * 91.7 + c.x * 13.1) - 0.5));
+			float band = torn.y * (0.08 + 0.9 * torn2.z * pull);
+			float x = (re - Ee) / max(band, 1e-4);
+			float keepP = (1.0 - x) * (0.4 + 0.5 * pull);
+			if (torn.w > 0.5 && (x >= 1.0 || (x > 0.0 && fract(b.z * 37.3 + c.y * 5.9) >= keepP))) {
 				tgone = true;
 			}
-			if (kind <= 2 && fract(b.z * 53.1 + c.y * 17.3) >= torn2.w) {
+			// the drawn edge: in the ball's own frame on the screen, as the body is cut
+			vec2 vs = vec2((a.x * cs + a.y * sn), ((a.y * cs - a.x * sn) * 0.38 - b.w * 0.92499) / torn3.z);
+			float rs = length(vs);
+			float pullS = rs > 1e-5 ? pow(max(dot(vs / rs, torn3.xy), 0.0), 3.0) : 0.0;
+			float Ed = torn2.w * (1.0 + torn2.z * pullS) + (0.015 + 0.25 * torn2.w) * (fract(b.z * 17.9 + c.y * 3.3) - 0.5);
+			float bandS = torn2.w * (0.3 + 1.4 * torn2.z * pullS);
+			float xs = (rs - Ed) / max(bandS, 1e-4);
+			float keepS = xs <= 0.0 ? 1.0 : max(TORN_FIELD, (1.0 - xs) * (0.4 + 0.5 * pullS));
+			// (only where they were thick: past the body, the sky's own few stay with their rings)
+			keepS = mix(keepS, 1.0, sm(0.95 * torn3.w, 1.25 * torn3.w, rs));
+			if (torn.w > 0.5 && fract(b.z * 61.3 + c.x * 7.7) >= keepS) {
 				tgone = true;
 			}
 		}
@@ -101,7 +118,7 @@ void vertex() {
 			float L = zoom <= 0.6 ? 150.0 : (zoom >= 3.0 ? 60.0 : 150.0 + (60.0 - 150.0) * (lz - log(0.6)) / (log(3.0) - log(0.6)));
 			float keep = zoom <= 0.6 ? 0.4 : (zoom >= 2.0 ? 1.0 : 0.4 + 0.6 * (lz - log(0.6)) / (log(2.0) - log(0.6)));
 			float f = 1.0;
-			if (kind == 1 && length(a.xy) < bulge_r * torn.x) {
+			if (kind == 1 && length(a.xy) < bulge_r) {
 				f *= sm(1.55, 2.3, zoom);
 			}
 			if (kind == 2) {

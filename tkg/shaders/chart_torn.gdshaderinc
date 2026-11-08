@@ -1,16 +1,15 @@
 // TORN AWAY, direction B: the stream (`ChartTorn`). A dwarf being eaten by a giant
 // neighbour, seen far off and steeply tilted up the chart: ONE stream of the dwarf's
 // stars runs out of it toward the giant and spirals into the giant's middle, wider
-// and brighter as more of the dwarf goes into it. The dwarf itself is drawn smaller
-// with each ring lost (`tornBody`, the scene's ball frames) and cut at its edge
-// (`tornCut`). No ring is marked. Off (u_torn.x 0) unless the run sets it: nothing
+// and brighter as more of the dwarf goes into it. The dwarf itself loses its outside
+// with each ring lost, redrawn at its real size, never shrunk (`tornShape`). No ring
+// is marked. Off (u_torn.x 0) unless the run sets it: nothing
 // here runs.
-uniform vec4 u_torn = vec4(0.0);    // on, the drawn edge (gu, the rings'), progress 0..1, squash
+uniform vec4 u_torn = vec4(0.0);    // on, the drawn edge (gu, the ball's own frame, `ChartTorn.drawn_edge`), progress 0..1, squash
 uniform vec4 u_tornG = vec4(0.0);   // the giant: view px x, y (zoom 1, about the core), tilt, half length (gu)
-uniform vec4 u_tornA = vec4(0.0);   // the line to the giant (plane, unrotated), the dwarf's drawn scale (whole rings), rings lost
-// the picture's stretch toward the giant (whole rings), the cut's strength, where the
-// dwarf's lit body ends along the stream (gu on the screen, `lit_along`), the dwarf's
-// scale (eased)
+uniform vec4 u_tornA = vec4(0.0);   // the line to the giant (plane, unrotated), 1, rings lost
+// 0, the cut's strength, where the dwarf's lit body ends along the stream (gu on the
+// screen, `lit_along`), the dwarf's drawn reach against its whole (the stream's head)
 uniform vec4 u_tornB = vec4(0.0);
 uniform vec4 u_tornP[48];           // the stream: view px x, y, length along (gu), age 0..1
 const int TORN_N = 48;
@@ -21,34 +20,46 @@ const float TORN_IN1 = 1.0;
 
 bool tornOn() { return u_torn.x > 0.5; }
 
-// THE DWARF DRAWN SMALLER: a point of the ball's own frame (vb, about the core) to
-// where the dwarf's picture is read, so the whole of it -- body, glow, halo, grain --
-// shrinks about the core by u_tornA.z, drawn out a little toward the giant (that
-// side only) as the run goes on (none with no ring lost: the dwarf as it always is).
-// Its scale and stretch step a whole ring at a time, never eased: a picture
-// resampled at a scale that eases boils (every block's pattern reshuffles each
-// frame); while a ring goes, the cut eats it (`tornCut`) and the picture settles
-// once, when it has gone
-vec2 tornBody(vec2 vb) {
-	vec2 axr = kitRot(u_phi) * u_tornA.xy;
-	vec2 axS = normalize(vec2(axr.x, axr.y * KIT_TILT));
-	float pa = dot(vb, axS);
-	float st = pa > 0.0 ? u_tornB.x : 0.0;
-	vec2 q = axS * pa / (1.0 + st) + (vb - pa * axS);
-	return q / u_tornA.z;
-}
+// the way the stream leaves the dwarf where it crosses the torn edge, in the ball's own
+// frame on the screen (`ChartTorn.stream_dir`), and how far the edge is drawn out that
+// way (a share of the edge, `ChartTorn.lobe`)
+uniform vec4 u_tornC = vec4(1.0, 0.0, 0.0, 0.0);
 
-// the dwarf's light cut at its drawn edge (what has gone is gone), ragged, drawn
-// out toward the giant as its picture is; none with no ring lost
-float tornCut(vec2 g, float bw) {
-	vec2 gal = vec2(g.x, g.y * u_torn.w);
-	vec2 ax = u_tornA.xy;
-	float al = dot(gal, ax);
-	float pe = dot(gal, vec2(-ax.y, ax.x));
-	float re = length(vec2(al > 0.0 ? al / (1.0 + u_tornB.x) : al, pe));
-	re += 0.03 * fbmL(gal * 9.0 + 4.3, bw * 9.0, 2);
-	float e = u_torn.y;
-	return mix(1.0, smoothstep(e + 0.03, e - 0.04, re), u_tornB.y);
+// THE TORN EDGE (REDRAW A, STRIPPED): what is left of the dwarf, a multiplier of its
+// light at a point of the ball's own frame (gS, round on the screen as its light is
+// drawn; gq the same turned with the galaxy, blkS its block there). Nothing moves or
+// is resized: the core, the body, its glow and grain are read where they always are,
+// and only what lay past the edge is gone. The edge is torn: ragged on the galaxy's
+// own noise (held on it, so it turns with it and never crawls), drawn out toward the
+// stream (the tidal side), and the last band of it broken into clumps that feed the
+// stream's start; inside, the light fades out over a short band, never a hard cut.
+// 1 everywhere with no ring lost
+float tornShape(vec2 gS, vec2 gq, float blkS) {
+	float eT = u_torn.y;
+	float r = length(gS);
+	float c = r > 1e-5 ? dot(gS / r, u_tornC.xy) : 0.0;
+	float pull = pow(max(c, 0.0), 3.0);
+	float lobe = u_tornC.z * pull;
+	// (ragged: the galaxy's own noise, at one size whatever the edge, so it holds still
+	// as the edge eats in through it)
+	float n = fbmL(gq * 11.0 + 4.3, blkS * 11.0, 4);
+	float Ee = eT * (1.0 + lobe) + (0.015 + 0.25 * eT) * n;
+	float wF = 0.02 + 0.2 * eT;
+	float keep = smoothstep(Ee + 0.2 * wF, Ee - wF, r);
+	// the band being lost: clumps past the edge, more of them and longer toward the
+	// stream, thinning out across it
+	float band = eT * (0.3 + 1.4 * lobe);
+	float x = (r - Ee) / max(band, 1e-4);
+	if (x > -0.2 && x < 1.0) {
+		vec2 dq = kitRot(-u_phi) * u_tornC.xy;
+		vec2 cq = vec2(dot(gq, dq), dot(gq, vec2(-dq.y, dq.x)));
+		// (drawn out along the pull on the tidal side, round elsewhere)
+		float el = 1.0 + 1.6 * pull;
+		float cl = 0.5 + 0.5 * fbmL(vec2(cq.x * 34.0 / el, cq.y * 34.0) + 9.1, blkS * 34.0, 2);
+		float th = mix(0.5, 0.85, clamp(x, 0.0, 1.0));
+		keep = max(keep, smoothstep(th, th + 0.08, cl) * (1.0 - 0.6 * clamp(x, 0.0, 1.0)) * (0.6 + 0.4 * pull));
+	}
+	return mix(1.0, keep, u_tornB.y);
 }
 
 // the stream's width (screen gu) at age f: a pull off the dwarf as wide as the
