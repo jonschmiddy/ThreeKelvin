@@ -977,6 +977,9 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	vec2 q0 = vec2(v.x, v.y / KIT_TILT) / u_k;
 	vec2 pP = R.RG * q0;
 	vec3 C = vec3(0.0), T = vec3(1.0);
+	// (the named clouds' own share of that light and their own dimming: TORN AWAY cuts the
+	// dwarf's body, never the clouds over it, as SIMPLIFIED and PAINTED keep them)
+	vec3 Ccl = vec3(0.0), Tcl = vec3(1.0);
 	// THE SOLID LOOK at the plane this ray meets: read through the dust's height and
 	// the puffs' (`terrSeen`, `fluffSeen`), the relief's light, a near ridge against
 	// the bulge, the edge's fade (dithered on the palette's anchored Bayer)
@@ -1228,6 +1231,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 			if ((EV.done & (1 << e)) == 0 && hs <= EV.h[e]) {
 				EV.done |= 1 << e;
 				C += T * EV.c[e];
+				Ccl += T * EV.c[e];
+				Tcl *= 1.0 - EV.a[e];
 				T *= 1.0 - EV.a[e];
 			}
 		}
@@ -1318,7 +1323,12 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 				if (cin[k] < -1e8 || hs > cin[k] || hs < cout_[k]) {
 					continue;
 				}
-				cloudSample(R, k, pg, Em, sig, Lin, dks[k]);
+				vec3 eK = vec3(0.0), sK = vec3(0.0);
+				cloudSample(R, k, pg, eK, sK, Lin, dks[k]);
+				Em += eK;
+				sig += sK;
+				Ccl += T * eK * ds;
+				Tcl *= exp(-sK * ds);
 			}
 		}
 		C += T * Em * ds;
@@ -1332,6 +1342,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		if ((EV.done & (1 << e)) == 0 && EV.h[e] >= 0.0) {
 			EV.done |= 1 << e;
 			C += T * EV.c[e];
+			Ccl += T * EV.c[e];
+			Tcl *= 1.0 - EV.a[e];
 			T *= 1.0 - EV.a[e];
 		}
 	}
@@ -1345,6 +1357,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		if ((EV.done & (1 << e)) == 0) {
 			EV.done |= 1 << e;
 			C += T * EV.c[e];
+			Ccl += T * EV.c[e];
+			Tcl *= 1.0 - EV.a[e];
 			T *= 1.0 - EV.a[e];
 		}
 	}
@@ -1395,8 +1409,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		if (tornOn()) {
 			vec2 gS = vec2(vb.x, vb.y / u_ballSq) / u_k;
 			float tK = tornShapeN(gS, kitRot(-u_phi) * gS, 2.0 / (u_zoom * u_k));
-			C *= tK;
-			T = mix(vec3(1.0), T, tK);
+			C = Ccl + (C - Ccl) * tK;
+			T = mix(Tcl, T, tK);
 			bool young = u_ballK.x > 0.5 && u_ballK.x < 1.5;
 			vec3 dC = young ? vec3(0.45, 0.66, 1.0) : vec3(1.0, 0.8, 0.55);
 			vec3 sC = young ? vec3(0.75, 0.86, 1.0) : vec3(1.0, 0.88, 0.7);
