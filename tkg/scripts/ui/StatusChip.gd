@@ -27,15 +27,6 @@ class Glyph extends Control:
 		var lit := tint.lerp(Color.WHITE, 0.35)
 		var dim := tint.lerp(Color("#0b0f16"), 0.35)
 		match kind:
-			&"brace":
-				# Brace and block differ by shape, not colour, as colour says whose they are.
-				# Why: docs/why/StatusChip.md#glyph-design
-				_p(1, 1, 10, 1, lit)
-				_p(1, 2, 10, 4, tint)
-				_p(2, 6, 8, 1, tint)
-				_p(3, 7, 6, 1, tint)
-				_p(4, 8, 4, 1, dim)
-				_p(5, 9, 2, 2, dim)
 			&"block":
 				# Flat plating, layered. No point on it: block is a slab that
 				# soaks one hit, not a shield you hold up.
@@ -87,7 +78,7 @@ class Glyph extends Control:
 				_p(2, 7, 2, 2, dim)
 				_p(9, 5, 2, 1, lit)
 			&"wasp":
-				# The guard drone reuses `brace`'s taper over the drone glyph, as it adds the same.
+				# The guard drone: the drone glyph over a tapered plate of armour.
 				# Why: docs/why/StatusChip.md#glyph-design
 				_p(4, 0, 4, 2, tint)
 				_p(2, 0, 2, 1, dim)
@@ -110,7 +101,7 @@ class Glyph extends Control:
 				_p(3, 9, 6, 1, tint)
 				_p(2, 10, 8, 1, lit)
 			&"peaceful":
-				# Level is two thin rules: a blob looked identical to `brace` on the sheet.
+				# Level is two thin rules; `block` is a solid mass.
 				# Why: docs/why/StatusChip.md#glyph-design
 				_p(1, 3, 10, 1, tint)
 				_p(1, 7, 10, 1, tint)

@@ -43,10 +43,12 @@ var _preview: Label
 var _energy: BoxGauge
 var _energy_text: Label
 var _player_chips: HBoxContainer
-var _self_bar: ProgressBar
+var _self_bar: HullBar
 var _self_name: Label
 var _self_plate: VBoxContainer
 var _self_hp: Label
+## "+17" beside the hull's number while brace is up.
+var _self_brace: Label
 var _enemy_name: Label
 var _enemy_tag: Label
 var _enemy_hp: Label
@@ -861,17 +863,26 @@ func _build_self_plate() -> void:
 	_self_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_self_name)
 
-	_self_bar = ProgressBar.new()
+	_self_bar = HullBar.new()
 	_self_bar.custom_minimum_size = Vector2(PLATE_W, 6)
 	# Shrink-centred: the bar's length is a reading and must not stretch to the status row.
 	_self_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_self_bar.show_percentage = false
-	_self_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_self_bar)
 
+	# "37 / 40 +17", the way the two sit on the bar above.
+	var nums := HBoxContainer.new()
+	nums.add_theme_constant_override("separation", 4)
+	nums.alignment = BoxContainer.ALIGNMENT_CENTER
+	nums.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(nums)
 	_self_hp = UITheme.body("", UITheme.HULL_GREEN, UITheme.FS_SMALL)
 	_self_hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(_self_hp)
+	nums.add_child(_self_hp)
+	# STOP so its tooltip shows: the one place that says brace costs heat to hold.
+	_self_brace = UITheme.body("", UITheme.BRACE, UITheme.FS_SMALL)
+	_self_brace.mouse_filter = Control.MOUSE_FILTER_STOP
+	_self_brace.visible = false
+	nums.add_child(_self_brace)
 
 	# Chips sit on the hull that carries them, which frees 22 px for the draw pile.
 	_player_chips = HBoxContainer.new()
@@ -1675,7 +1686,22 @@ func _refresh_self_plate() -> void:
 	_self_hp.add_theme_color_override("font_color",
 		UITheme.LEAVE if frac < 0.34 else (UITheme.EMBER if frac < 0.67
 			else UITheme.HULL_GREEN))
+	# In a fight brace comes from `_refresh_player` and `_on_volley_landed`.
+	if not fighting():
+		_show_self_brace(0)
 	_place_self_plate()
+
+
+## Your brace on your hull bar, and its "+N" beside the hull's number.
+func _show_self_brace(b: int) -> void:
+	if _self_bar == null:
+		return
+	_self_bar.brace = b
+	_self_brace.visible = b > 0
+	_self_brace.text = "+%d" % b
+	_self_brace.tooltip_text = Widgets.tip(
+		"BRACE\n\nStops %d damage before your hull. Stays up, and costs 1 heat a turn." % b) \
+		if b > 0 else ""
 
 
 ## Measured from the sprite, not its box: a fixed `PLATE_X` fraction drifted off the ship.
@@ -1706,10 +1732,9 @@ func _refresh_player() -> void:
 
 	# Effects are icons, not words; colours match the old words and say whose they are.
 	# Why: docs/why/SectorScreen.md#status-chips
+	# Brace is on the hull bar instead.
+	_show_self_brace(combat.brace)
 	Widgets.clear(_player_chips)
-	if combat.brace > 0:
-		_player_chips.add_child(StatusChip.make(&"brace", str(combat.brace),
-			Color("#3a5a6e"), "BRACE\n\nStops %d damage. Stays up, and costs 1 heat a turn." % combat.brace))
 	if combat.block > 0:
 		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
 			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))
@@ -4069,6 +4094,9 @@ func _on_volley_landed(id: int) -> void:
 			_sync_hull()
 		if _ship_fx != null:
 			_ship_fx.land(int(q.dealt), int(q.absorbed), shown_hull if shown_hull >= 0 else Run.hp)
+			# the bar's brace runs down with the hit, not at the end of the turn
+			if _hold:
+				_show_self_brace(_ship_fx.brace.brace)
 		if int(q.dealt) > 0:
 			_flash_hit(_view.ship_view())
 	elif who >= 0:

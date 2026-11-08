@@ -10,7 +10,7 @@ signal moment(kind: StringName, strength: float, length: float)
 const SOUND := "gain: bolt_on ticks as the pieces land (about 0.3 s), then clamp (a heavy lock). rest: brace_glint every 4-7 s (optional faint shing). hit: clang (strength by the share of brace taken); plate_off when pieces come away (length 0.6, a clatter). spent: plate_off (the last of it)"
 
 const TINT := Color("#3a5a6e")
-const STEEL := Color(0.46, 0.63, 0.74)   ## steel with the brace chip's teal in it, so it never reads as the hull
+const STEEL := Color(0.46, 0.63, 0.74)   ## teal steel, so it never reads as the hull
 const OUTLINE := Color(0.07, 0.09, 0.12)
 const RIVET := Color(0.16, 0.19, 0.23)
 

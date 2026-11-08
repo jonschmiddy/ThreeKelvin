@@ -31,7 +31,7 @@ static func colour(kind: StringName) -> Color:
 		&"hurt":
 			return UITheme.LEAVE
 		&"block":
-			return EnemySlot.ARMOR_COL
+			return UITheme.BRACE
 		&"miss":
 			return UITheme.COLD
 		&"act":
