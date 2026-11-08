@@ -8,11 +8,16 @@
 uniform vec4 u_torn = vec4(0.0);    // on, the drawn edge (gu, the rings'), progress 0..1, squash
 uniform vec4 u_tornG = vec4(0.0);   // the giant: view px x, y (zoom 1, about the core), tilt, half length (gu)
 uniform vec4 u_tornA = vec4(0.0);   // the line to the giant (plane, unrotated), the dwarf's drawn scale (whole rings), rings lost
-// the picture's stretch toward the giant (whole rings), the cut's strength, the drawn
-// rim toward the giant on the screen (gu, eased), the dwarf's scale (eased)
+// the picture's stretch toward the giant (whole rings), the cut's strength, where the
+// dwarf's lit body ends along the stream (gu on the screen, `lit_along`), the dwarf's
+// scale (eased)
 uniform vec4 u_tornB = vec4(0.0);
 uniform vec4 u_tornP[48];           // the stream: view px x, y, length along (gu), age 0..1
 const int TORN_N = 48;
+// where the stream rises out of the dwarf, as shares of its lit body's reach along it
+// (u_tornB.z): first light, and full
+const float TORN_IN0 = 0.5;
+const float TORN_IN1 = 1.0;
 
 bool tornOn() { return u_torn.x > 0.5; }
 
@@ -124,10 +129,14 @@ float tornStream(Px P, vec2 v, out int star) {
 	float grain = 0.6 + 0.8 * kitHash3(ivec2(floor(gq)) + ivec2(0, 17)).x;
 	float lA = B * (core * (0.3 + 0.7 * strand) * (0.4 + 0.9 * clump) * grain + 0.12 * exp(-abs(x) * 1.3) * (0.6 + 0.6 * clump));
 	lA *= 0.3 + 0.95 * knots;
-	// (out of the dwarf's edge, wherever it now is: none of it over the dwarf's body
-	// or its core, brightest just past the rim, where the stars are pulled off)
+	// (out of the dwarf's own light: it rises faint inside the lit body's outer part,
+	// over its outer stars and glow where it outshines them (`tornOver`), and is
+	// brightest just past where that light ends (`ChartTorn.lit_along`, er), where the
+	// stars are pulled off; never near its core, which stays the goal: clear of the
+	// hole's ring, u_g2.w, however small the dwarf is drawn)
 	float er = u_tornB.z;
-	lA *= smoothstep(0.85 * er, 1.1 * er, al) * (1.0 + 0.6 * exp(-sq((al - 1.35 * er) / (0.3 * er))));
+	lA *= smoothstep(TORN_IN0 * er, TORN_IN1 * er, al) * (1.0 + 0.6 * exp(-sq((al - 1.15 * er) / (0.3 * er))));
+	lA *= smoothstep(2.5 * u_g2.w, 4.0 * u_g2.w, length(v) / u_k);
 	// (and fades into the giant's middle: it is eaten there)
 	lA *= smoothstep(1.0, 0.86, f);
 	// its stars: one a cell of three blocks at most, thicker where it is bright, riding
@@ -141,8 +150,8 @@ float tornStream(Px P, vec2 v, out int star) {
 	ivec2 cq = ivec2(floor(q));
 	vec3 h = kitHash3(cq + ivec2(0, 311));
 	vec2 sp = (vec2(cq) + 0.15 + 0.7 * h.xy) * cs;
-	// (never over the dwarf's own body: they come off its rim)
-	if (al > er && abs(as - sp.x) < 0.5 * bw && abs(sd - sp.y) < 0.5 * bw && h.z < smoothstep(0.015, 0.3, lA) * (0.4 + 0.6 * core)) {
+	// (none deep in the dwarf's body: they come off its outer part)
+	if (al > 0.8 * er && abs(as - sp.x) < 0.5 * bw && abs(sd - sp.y) < 0.5 * bw && h.z < smoothstep(0.015, 0.3, lA) * (0.4 + 0.6 * core)) {
 		star = fract(h.z * 17.0) < (ballGas() ? 0.3 : 0.75) ? 1 : 2;
 	}
 	return lA;

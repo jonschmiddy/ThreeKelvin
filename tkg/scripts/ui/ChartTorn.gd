@@ -59,9 +59,12 @@ const GIANT_ANG := -0.21
 ## How far the dwarf is drawn out toward the giant by the end (the shader's
 ## `tornBody`; that side only).
 const STRETCH := 0.3
-## The dwarf's light fades out inside its drawn edge: the stream starts this far
-## in (a share of the edge), so it comes out of the visible body.
-const RIM_IN := 0.65
+## How far the dwarf's light reads on the screen, in its ball's own radii
+## (`ballS`'s s), by kind: a blue compact dwarf's bright young glow reaches well
+## past its ball, a dwarf spheroidal's faint old light only part way. The stream
+## is drawn out of the body inside this (`lit_along`): measured off the painted
+## chart at every ring lost (v6/measure.py), where the light leaves the sky.
+const LIT_S := {14: 1.8, 15: 0.58}
 
 
 static func on() -> bool:
@@ -116,29 +119,36 @@ static func stretch() -> float:
 	return STRETCH * float(whole()) / float(MAX_LOST)
 
 
-## Where the stream crosses the dwarf's drawn rim, as its length along (gu on
-## the screen): the stream is drawn from there, never over the dwarf's body or
-## its core. Each of its points taken back to the plane (as the body's cut
-## reads the screen) and measured as `tornCut` does, eased with `lost`.
-static func rim_along(phi: float, pts: PackedVector4Array) -> float:
+## Where the dwarf's lit body ends along the stream, as its length along (gu on
+## the screen): the stream is drawn out of the body from inside this (the shader's
+## `tornStream`), so it reads as the dwarf's own light pulled off, never starting
+## out in the empty sky past it. (It was the drawn edge, the ring radii's, taken
+## into the disc's plane: well outside the ball, which is drawn round on the
+## screen and whose light ends far inside its rings, so a gap of sky lay between
+## the dwarf and the stream: Jon, Nov 8, "Why is there a gap between the stream
+## in the galaxy".) Each of its points taken into the ball's own frame as the
+## body reads it (`tornBody`, then `ballS`), at the picture's drawn scale.
+static func lit_along(phi: float, pts: PackedVector4Array) -> float:
+	var ball := ChartSky.ball_of(Run.galaxy_kind, Run.galaxy)
+	var rb := ball.x * ChartPainted.ball_form(Run.galaxy_kind).x
+	var bsq := ChartPainted.ball_squash(Run.galaxy_kind, ball)
+	var lit := rb * float(LIT_S.get(Run.galaxy_kind, 1.0))
+	var a := axis()
 	var c := cos(phi)
 	var s := sin(phi)
-	var sq := float(Run.galaxy.get("squash", 0.85))
-	var ax := axis()
-	var st := STRETCH * progress()
-	var e := edge() * RIM_IN
-	var prev_re := 0.0
+	var axS := Vector2(a.x * c + a.y * s, (-a.x * s + a.y * c) * ChartSky.TILT).normalized()
+	var st := stretch()
+	var sc := scale()
+	var prev_r := 0.0
 	for i in pts.size():
-		var u := pts[i].x / ChartSky.K0
-		var w := pts[i].y / (ChartSky.K0 * ChartSky.TILT)
-		var gal := Vector2(u * c - w * s, (u * s + w * c) * sq)
-		var al := gal.dot(ax)
-		var pe := gal.dot(Vector2(-ax.y, ax.x))
-		var re := Vector2(al / (1.0 + st) if al > 0.0 else al, pe).length()
-		if re >= e and i > 0:
-			var f := clampf((e - prev_re) / maxf(re - prev_re, 1e-6), 0.0, 1.0)
+		var vb := Vector2(pts[i].x, pts[i].y)
+		var pa := vb.dot(axS)
+		var q := (axS * pa / (1.0 + (st if pa > 0.0 else 0.0)) + (vb - pa * axS)) / sc
+		var r := Vector2(q.x, q.y / bsq).length() / ChartSky.K0
+		if r >= lit and i > 0:
+			var f := clampf((lit - prev_r) / maxf(r - prev_r, 1e-6), 0.0, 1.0)
 			return lerpf(pts[i - 1].z, pts[i].z, f)
-		prev_re = re
+		prev_r = r
 	return pts[pts.size() - 1].z
 
 
@@ -186,6 +196,8 @@ static func ribbon(phi: float) -> PackedVector4Array:
 ## Every frame, on the painted place pass.
 static var _pushed := Vector4(-1, -1, -1, -1)
 static var _mp_id := 0
+## The turn it was last drawn at (a bench's log reads the stream with it).
+static var last_phi := 0.0
 
 
 ## (`ms`: the chart's own stars, `chart_b_stars`'s material: scaled, thinned and
@@ -203,6 +215,7 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 			ms.set_shader_parameter("torn", Vector4(1.0, 0.0, 1.0, 0.0))
 			ms.set_shader_parameter("torn2", Vector4(0.0, 1.0, 0.0, 1.0))
 		return
+	last_phi = phi
 	var sq := float(Run.galaxy.get("squash", 0.85))
 	if ms != null:
 		var a := axis()
@@ -221,5 +234,5 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 	mp.set_shader_parameter("u_tornG", Vector4(gv.x, gv.y, GIANT_ANG, GIANT_LEN))
 	mp.set_shader_parameter("u_tornA", Vector4(e1.x, e1.y, scale(), clampf(lost, 0.0, float(MAX_LOST))))
 	var pts := ribbon(phi)
-	mp.set_shader_parameter("u_tornB", Vector4(stretch(), clampf(lost, 0.0, 1.0), rim_along(phi, pts), scale_eased()))
+	mp.set_shader_parameter("u_tornB", Vector4(stretch(), clampf(lost, 0.0, 1.0), lit_along(phi, pts), scale_eased()))
 	mp.set_shader_parameter("u_tornP", pts)

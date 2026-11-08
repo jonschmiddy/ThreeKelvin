@@ -276,6 +276,12 @@ func _run() -> void:
 			var nd: MapGen.MapNode = Run.map[i]
 			print("  tornmark %d L%d gone=%s at %s" % [i, nd.layer, ChartTorn.gone(nd), _chart._screen_pos(nd)])
 		print("  tornmark edge %.3f scale %.3f centre %s" % [ChartTorn.edge(), ChartTorn.scale(), _chart.centre_px()])
+		# (the stream's line, view px at zoom 1 about the core, and where it is drawn from)
+		if ChartTorn.on():
+			var rib := ChartTorn.ribbon(ChartTorn.last_phi)
+			print("  tornrim %.4f hole %.4f" % [ChartTorn.lit_along(ChartTorn.last_phi, rib), ChartSky.hole_of(ChartSky.params())])
+			for p4: Vector4 in rib:
+				print("  tornrib %.3f %.3f %.4f %.4f" % [p4.x, p4.y, p4.z, p4.w])
 	_chart.show_icons = true
 	get_tree().quit()
 
