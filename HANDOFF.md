@@ -210,9 +210,9 @@ tags. `git show archive/<name>` says what each was.
    turns materials, a co-op claim fix. **0.4.2-alpha.1** (built Oct 23): the hull-swap softlock fixed and stuck saves
    mended, Solari unlocking after a win in another hull, A.S.H. no longer repeating and a COMMS
    log, weapons only on the ship, higher-grade loot giving its pips, full ships staying full,
-   lock-on stacking. **Next:** the friends' playtest of 0.4.2-alpha.1 (Oct 23), on HOST PARTY. Add fixes under
-   `[Unreleased]` in `CHANGELOG.md` as they land, then cut the version by changing
-   `config/version` in `tkg/project.godot` and building with `build_alpha.sh`.
+   lock-on stacking. **Next:** the friends' playtest of 0.4.2-alpha.1 (Oct 23), on HOST PARTY. Each fix lands with
+   its line in `changes/`, then cut the version: `tools/dev/cut_changelog.py`, `config/version`
+   in `tkg/project.godot`, and build with `build_alpha.sh`.
 4. After that: the parked items above, and the five manufacturers still to write
    (`docs/catalogue.md` §17 has the count; `docs/building-a-manufacturer.md` the
    method).
