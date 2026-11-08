@@ -2,7 +2,7 @@ extends Node
 
 ## A BALL GALAXY ENDS AS FAR BELOW ITS CORE AS ABOVE IT, in every style that
 ## draws one as a ball:
-##   godot --path . -- sheet=BallHaloTest [styles=simplified,painted,...] [shots=<dir>]
+##   godot --path . -- sheet=BallHaloTest [styles=simplified,painted,...] [shots=<dir>] [clock=T]
 ##
 ## Jon, Oct 18 (STARCHART, PGC 6236 "The Drowned Coil", a giant elliptical):
 ## "Galaxies like giant elliptical seem to have an issue where they extend
@@ -102,8 +102,15 @@ func _ready() -> void:
 
 func _run() -> void:
 	print("\n=== BALL HALO: a ball galaxy's light about its core ===")
-	StarchartScreen.MapChart.clock_override = 600.0
+	# the sky's clock (`clock=T`, default 600: any clock must pass)
+	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
 	DisplaySettings.reduced_motion = false
+	# RADIANT'S LIGHT THAT MOVES HELD OFF (Nov 7): its core's breath and flares and the
+	# young stars' flares (`ChartRadiant.drama_on`, the cost bench's switch) are moments
+	# on top of the ball's light; one lit at the test's clock had hidden the blue compact
+	# dwarf's hard rim (0.43 with a core flare at 600, 0.39 at rest). The ball is judged
+	# as it stands at rest, at any clock.
+	ChartRadiant.drama_on = false
 	var styles := _arg("styles", "simplified,painted,radiant,legacy").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
@@ -116,6 +123,7 @@ func _run() -> void:
 		DisplaySettings.render_style = DisplaySettings.valid_style(st)
 		for c in cases:
 			await _case(StringName(st), int(c[0]), int(c[1]))
+	ChartRadiant.drama_on = true
 	print("ballhalo: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	get_tree().quit(1 if _fails > 0 else 0)
 

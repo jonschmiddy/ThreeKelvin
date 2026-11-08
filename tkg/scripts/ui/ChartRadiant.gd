@@ -341,7 +341,11 @@ static func look(p: Dictionary) -> Dictionary:
 		L.bCore = Vector3(0.95, 0.9, 1.0)
 		L.bInner = Vector3(0.75, 0.82, 1.0)
 		L.bOuter = Vector3(0.45, 0.58, 1.0)
-		L.halo = Vector4(L.halo.x, L.halo.y, L.halo.z, 0.0)
+		# (its halo brighter and a little wider, Nov 7: the dwarf is small and dim, and over
+		# A's ball grade its body's fall met the palette's darkest step at 0.34 gu and
+		# stopped there, a rim -- BallHaloTest's fade 0.39 at rest. Its halo carries the
+		# fall on out into space: fade 0.48, its light to 0.42 gu; the body untouched)
+		L.halo = Vector4(L.halo.x * 1.6, L.halo.y * 1.1, L.halo.z, 0.0)
 		L.young = blue * 0.6 + Vector3(0.42, 0.58, 1.0) * 0.4
 	elif ell and int(ball.w) == 2:
 		# a dwarf spheroidal grey: old, faint starlight, barely warm
