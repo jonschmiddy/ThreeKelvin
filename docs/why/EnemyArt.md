@@ -35,10 +35,19 @@ idles its engines, found on the picture or placed by hand in art/engines.json
 wash), not on a dead ship, and not on the three that get their own movement
 instead of thrusters (NO_FLAME).
 
-Drawn by `_flame_layer`, TOP LEVEL: this control is clipped to the ship's
-own box (`clip_contents`, the slot fits itself to the hull), and the flame
+Drawn by `_flame_layer` outside this control, which is clipped to the ship's
+own box (`clip_contents`, the slot fits itself to the hull) while the flame
 burns out past it. It reads this control's transform every frame and draws
 in it, so it moves, scales and fades with the ship.
+
+It starts TOP LEVEL, and that is how it drew for a month. But a top-level
+canvas item is drawn outside tree order, over everything else at its z, so
+the plume showed through the draw and discard piles' panel (#56, Nov 8: a
+SNAP SHOT with an exhaust across its art). The slot now calls `host_flame`,
+which moves the flame into its art holder (a plain Control that does not
+clip) as the sibling right after the art: drawn in tree order, so a panel
+added to the screen later covers it, and still outside the clip. Top level
+remains only for an art nobody hosts, such as the offscreen snapshots.
 ```
 
 ## Ramps
