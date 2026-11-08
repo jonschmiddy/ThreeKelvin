@@ -84,3 +84,23 @@ static func resize(vp: SubViewport, blocks: Vector2i, canvas: Vector2) -> void:
 	(vp.get_node("Bright") as ColorRect).size = canvas
 	(vp.get_node("Glow") as ColorRect).size = canvas
 	glow_mat(vp).set_shader_parameter("size", Vector2(blocks))
+
+
+## A SUN'S BREATH NOW, for the glow's `pulse`: its corona's strength against its
+## steady one -- the flicker (`SunView.step`'s `flick`, over its steady warmth) and
+## the breath (`c_breath`, which the corona's glow takes 1.33 times). 1 for anything
+## not a sun. (A+B+C, Nov 7: the steps hold still while the light breathes.)
+static func sun_pulse(sun: Node) -> float:
+	if sun == null or not is_instance_valid(sun):
+		return 1.0
+	var m: Variant = sun.get("_mat")
+	if not (m is ShaderMaterial):
+		return 1.0
+	var sm := m as ShaderMaterial
+	var p: Variant = sun.get("P")
+	var warm := float((p as Dictionary).get("warm", 1.0)) if p is Dictionary else 1.0
+	var fl: Variant = sm.get_shader_parameter("flick")
+	var br: Variant = sm.get_shader_parameter("c_breath")
+	var f := (float(fl) / maxf(warm, 1e-3)) if fl != null else 1.0
+	var b := float(br) if br != null else 1.0
+	return clampf(f * (1.0 + (b - 1.0) * 1.33), 0.5, 2.0)

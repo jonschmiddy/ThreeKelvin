@@ -48,6 +48,8 @@ const VIB := 0.5
 ## not reach falling to black. VIB was 0.35. (A soft wash before: no render had
 ## more than 2.2% of its pixels over 200; now the light's gain after the toe takes
 ## the hot gas past BURN, so it burns to white, the hole's disc kept exact.)
+## (A+B+C: C's burn 2.0 and exposure 1.1 not taken -- over this gain they burnt the
+## core to one white plate; C's glow is the bloom, B's flares the moments of white.)
 ## `u_drama`: (the toe, light under it crushed toward black; the core's light gain;
 ## the arms' own young light, a share; the god-ray haze's gain, was 0.35).
 ## `u_dramaR`: (the core light's reach, a factor on its falloff's scale; the
@@ -88,11 +90,18 @@ const PAL_FREE := 40
 ## THE GLOW AND COLOUR (direction C, Nov 7, `RadiantGlow`): the chart's look of
 ## it. Layered halos round everything bright, the core's rays through the dust,
 ## deep violet shade.
+## (A+B+C, Nov 7: over A's hard light the glow blooms only the hottest gas -- `thr`
+## 0.42 to 0.6, `gain` 1.6 to 1.2 -- and draws no rays: A's core is big and hot, so
+## the bright buffer summed along the line to it was near even over the whole inner
+## disc and its steps laid one flat tan plate, dithered at its edge, over the core
+## (and a hard-rimmed orb round every ball). A's god rays, in the volume and shadowed
+## by the billows, are the rays here. No `crush` (was 0.6): A's grade is the one tone
+## step, and the two stacked sank the arms' faint gas twice.)
 ## the hole's shadow as the glow spares it, in its radii
 const GLOW_HOLE := 1.35
-const GLOW_LOOK := {"thr": 0.42, "knee": 0.16, "gain": 1.6, "steps": 4.0, "band": 0.2, "rays": 1.0, "ray_len": 0.7,
+const GLOW_LOOK := {"thr": 0.6, "knee": 0.16, "gain": 1.2, "steps": 4.0, "band": 0.2, "rays": 0.0, "ray_len": 0.7,
 	"halo_a": Vector3(0.4, 0.6, 0.8), "halo_b": Vector3(0.9, 0.7, 0.5), "wide_k": 0.7,
-	"shade_tint": Vector3(0.30, 0.16, 0.78), "shade": 0.65, "dark_hi": 0.1, "crush": 0.6, "vib": 0.3, "white_at": 1.5,
+	"shade_tint": Vector3(0.30, 0.16, 0.78), "shade": 0.65, "dark_hi": 0.1, "crush": 0.0, "vib": 0.3, "white_at": 1.5,
 	"keep_lo": 0.085}
 ## How many drawn frames the safety averages (after a few to settle).
 const PROBE_FRAMES := 90
@@ -172,8 +181,11 @@ static func probe_forced() -> bool:
 ## lit by. The showcase's were 0.95 and 0.03.
 ## A ball's story's light in this style's own (`ChartSky.ball_story`)
 const STORY_GAIN_R := 1.0
-const BALL_BODY := 0.55
-const BALL_HALO := 0.03
+## (A+B+C: the base's 0.8 / 0.06 and nucleus 1.5 again; C's 0.55 / 0.03 / 2.6 were
+## set against C's own tone, and over A's ball grade (`DRAMA_BALL`) the nucleus
+## burnt out and the body ended in a hard orb)
+const BALL_BODY := 0.8
+const BALL_HALO := 0.06
 
 ## A BALL AS ITS OWN KIND in this style (Nov 5, Jon's direction A for PAINTED, "This
 ## could also be applied for the other art styles"): each ball drawn as this style
@@ -270,7 +282,7 @@ static func look(p: Dictionary) -> Dictionary:
 		var re: float = ball.x * bf.x
 		L.bulge = Vector4(0.23 * re, 1.0 * re, bf.w, 0.08 * re)
 		# (a dwarf spheroidal has no bright nucleus: its light is spread thin)
-		L.peaks = Vector4(0.7 if int(bk.x) == 2 else 2.6, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
+		L.peaks = Vector4(0.7 if int(bk.x) == 2 else 1.5, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
 		L.halo = Vector4(BALL_HALO, maxf(0.3, 1.4 * re), bf.w, 1.0)
 		# (no disc under a ball: the showcase's faint one drew a flat plate with a
 		# hard rim round the small ones. Only a ball with young gas has one: its gas

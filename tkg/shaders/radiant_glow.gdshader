@@ -60,6 +60,14 @@ uniform float keep_lo = 0.0;
 // a light keeps its own colour: past full brightness its hue is held, and only
 // light past `white_at` times full passes white (a true hot core, a few pixels)
 uniform float white_at = 2.4;
+// THE KEY LIGHT'S BREATH NOW (A+B+C, Nov 7): its glow's strength against its steady
+// one (a sun's corona breathing and flickering, the chart's core breathing). Taken
+// out of the glow before it is stepped and put back after, so the steps and their
+// dither stay where the steady light puts them and only their brightness breathes:
+// stepped with it, every step's edge and the wide halo's dither crept a pixel at a
+// time round the sun, rings of single-pixel shimmer. A flare is not a breath: it is
+// an event, eased in and let go, and its glow grows out through the steps.
+uniform float pulse = 1.0;
 
 vec3 lin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 vec3 srgb(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
@@ -114,8 +122,8 @@ void fragment() {
 	if (hole > 0.0 && light.x >= 0.0) {
 		pk *= smoothstep(hole * 0.8, hole * 1.15, length((uv - light) * size));
 	}
-	gn *= pk;
-	gw *= pk * wide_k;
+	gn *= pk / pulse;
+	gw *= pk * wide_k / pulse;
 	float bay = bayer4(b + ivec2(anchor));
 	// the tight halos in flat steps of the light's colour, a dithered band at each edge
 	float gi = max(gn.r, max(gn.g, gn.b));
@@ -134,7 +142,7 @@ void fragment() {
 	// not a white blob. Judged on the face as drawn, before any glow)
 	float own = smoothstep(self_lo, 1.0, cm0);
 	float spare = 1.0 - self_k * own;
-	vec3 o = c + (whue * wq * 0.55 + hue * gq * 0.55) * spare;
+	vec3 o = c + (whue * wq * 0.55 + hue * gq * 0.55) * spare * pulse;
 	// a light keeps its colour: past full its hue is held (a red sun stays red),
 	// and only light far past full passes white
 	float om = max(o.r, max(o.g, o.b));

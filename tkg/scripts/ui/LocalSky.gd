@@ -245,10 +245,11 @@ var radiant := false
 ## RADIANT's glow (`RadiantGlow`): the sky's picture wrapped
 var _glow: SubViewport = null
 ## and its look here: the star's rays, a deep violet shade, the glow behind the
-## play kept to `play_k`
+## play kept to `play_k` (A+B+C: no `crush`, was 0.15 -- A's tone behind the play,
+## `RADIANT_KEEP_LO`, and its toe in `sky_nebula` are the one tone step)
 const GLOW_LOOK := {"thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
 	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7, "play_k": 0.6,
-	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.15, "vib": 0.0}
+	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.0, "vib": 0.0}
 ## the ship the camera follows (`EncounterView`), and the camera's travel now
 var cam_ship: Control = null
 var cam := Vector2.ZERO
@@ -1298,6 +1299,7 @@ func _process(delta: float) -> void:
 	_live_frames += 1
 	if _glow != null:
 		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", (star.position / Vector2(960, 540)) if star != null else Vector2(-1, -1))
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("pulse", RadiantGlow.sun_pulse(star))
 	if _fade >= 0.0 and _box != null:
 		_fade = minf(_fade + delta / FADE_IN, 1.0)
 		_box.modulate.a = _fade * _fade * (3.0 - 2.0 * _fade)
@@ -1537,8 +1539,8 @@ func _radiant_flares() -> void:
 
 ## THE ENGINES' LIGHT ON THE GAS (RADIANT, Nov 7, direction B): the ship's flames
 ## light the cloud behind it (`local_grade`'s `r_eng`), a pool a little way down the
-## flame, breathing with the burn on the game's clock -- two quick beats too small to
-## flicker and a slow swell -- and steady under reduced motion
+## flame, breathing with the burn on the game's clock -- a slow swell -- and steady
+## under reduced motion
 const ENGINE_R := 52.0
 const ENGINE_GAIN := 0.6
 func _engine_light() -> void:
@@ -1555,7 +1557,10 @@ func _engine_light() -> void:
 	at.x += float(e.dir) * 12.0
 	var fl := 1.0
 	if not DisplaySettings.reduced_motion:
-		fl += 0.07 * sin(t * TAU * 2.1) + 0.05 * sin(t * TAU * 3.3 + 1.0) + 0.12 * sin(t * TAU * 0.23)
+		# (A+B+C, Nov 7: the slow swell alone. The two quick beats, 2.1 and 3.3 a
+		# second, slid the plume's palette steps back and forth behind the flame faster
+		# than the eye takes as events: a shimmer by the ship)
+		fl += 0.12 * sin(t * TAU * 0.23)
 	_grade_mat.set_shader_parameter("r_eng", Vector4(at.x, at.y, ENGINE_R, ENGINE_GAIN * float(e.k) * fl))
 	_grade_mat.set_shader_parameter("r_eng_c", Vector3(1.0, 0.62, 0.32) if bool(e.warm) else Vector3(0.55, 0.75, 1.0))
 
