@@ -515,6 +515,10 @@ func _yard_ships(h: HullData) -> void:
 			key += "|" + str(m)
 	if key == _yard_ships_key:
 		return
+	# not under the cutaway, which hides this ship: every part moved in there
+	# would bake a second one into the zoomed yard (#34). Its close stands them.
+	if is_instance_valid(_cutaway):
+		return
 	_yard_ships_key = key
 	var box := _scene.get_parent() as Control
 	for c: Control in [_mine_hit, _mine_slab, _scene_hit, _scene_slab]:
@@ -3369,7 +3373,8 @@ func open_cutaway() -> CutawayView:
 		_cutaway = null
 		if _scene != null and is_instance_valid(_scene):
 			_scene.hide_mine = false
-			_scene.queue_redraw())
+			_scene.queue_redraw()
+			_yard_ships(_yard_hull))
 	return _cutaway
 
 

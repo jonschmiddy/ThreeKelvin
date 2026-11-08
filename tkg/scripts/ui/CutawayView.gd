@@ -139,9 +139,13 @@ var _real_k := 0
 ## The words set away from their rings, sprite px: outside the bounds the
 ## picture is centred on (so they never move the ship), inside `_pic`.
 var _far_bounds := Rect2()
+## The last layout's `_layout_key` and bounds.
+var _laid_key := ""
+var _laid_bounds := Rect2()
 ## Where the exploded ship -- hull, parts, tags, rings -- is drawn, this view's px.
 var _pic := Rect2()
-var _offs_cache := {}
+## (static: the 1x room's third of a million offsets are sorted once a session)
+static var _offs_cache := {}
 var _last_gp := Vector2.INF
 ## For the harness's clips: the push-in's clock advances this much a frame
 ## instead of the frame's real time, so a film at 30 a second shows the real
@@ -330,8 +334,12 @@ func _choose_scale() -> void:
 ## The boxes are the ones `MountPoints` draws (`tag_box`, `label_box`), so what
 ## is kept apart here is what is on screen. Written into the mounts widget
 ## (`lift`, `tag_side`); `_layout_ok` says whether everything found a place.
-## Returns the whole picture's bounds, in sprite px.
+## Returns the whole picture's bounds, in sprite px. Skipped when nothing it
+## reads has changed: a move in the hold is a `ship_changed` too (#34).
 func _layout(kk: int, room: Rect2) -> Rect2:
+	var memo := _layout_key(kk, room)
+	if memo != "" and memo == _laid_key:
+		return _laid_bounds
 	var img := _ship.canvas()
 	var h := Run.hull
 	# (the canvas carries the bob's headroom and its current step; the mounts are
@@ -443,8 +451,14 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 		var key := MountPoints.spot_key(int(e[0]), int(e[1]))
 		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 		var near := false
+		# (nearest first: past the reach's corner, none can be in it)
+		var ny := MountPoints.R + 14.0
+		var nx := lw / (2.0 * kk) + MountPoints.R + 6.0
+		var reach := Vector2(nx * 1.3, ny).length() + 0.1
 		for o in offs:
-			if absf(o.y) > MountPoints.R + 14.0 or absf(o.x) > lw / (2.0 * kk) + MountPoints.R + 6.0:
+			if absf(o.y) > ny or absf(o.x) > nx:
+				if Vector2(o.x * 1.3, o.y).length() > reach:
+					break
 				continue
 			var r := _sprite_box(MountPoints.label_box(pt * kk, o, lw, kk), kk)
 			if free.call(r, 1.0):
@@ -473,13 +487,36 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 		# (no room yet: laid out before the view has a size, and again once it has)
 		missed.clear()
 	var leads: Array[Rect2] = []
+	var asc := f.get_ascent(UITheme.FS_SMALL)
+	var desc := f.get_descent(UITheme.FS_SMALL)
 	for e in missed:
 		var pt: Vector2 = e[2]
 		var key := MountPoints.spot_key(int(e[0]), int(e[1]))
 		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 		var ring := Rect2(pt - Vector2.ONE * (MountPoints.R + 1.0), Vector2.ONE * (MountPoints.R + 1.0) * 2.0)
 		var found := false
+		# A RING SHUT IN (a belly gun's, inside a yard stand): every pixel a leader
+		# could start from is covered, so only words close enough to need no leader
+		# can go. Search just those, not the whole room (#34: seconds a change).
+		var r0 := (MountPoints.R + 2.0) * kk
+		var start := Rect2(pt - Vector2.ONE * (r0 + 1.0) / kk, Vector2.ONE * (2.0 * r0 + 2.0) / kk)
+		var shut := false
+		for q in placed:
+			if q != ring and q.encloses(start):
+				shut = true
+				break
+		# (the offsets whose box, grown 2 as `label_leader` grows it, comes within
+		# r0 + 2 of the ring, with a pixel of slack for the rounding)
+		var sx := (lw * 0.5 + r0 + 6.0) / kk
+		var sy0 := -(desc + r0 + 8.0) / kk
+		var sy1 := (asc + r0 + 3.0) / kk
+		var lim := Vector2(sx * 1.3, maxf(-sy0, sy1)).length() + 0.1
 		for o in offs:
+			if shut:
+				if Vector2(o.x * 1.3, o.y).length() > lim:
+					break
+				if absf(o.x) > sx or o.y < sy0 or o.y > sy1:
+					continue
 			var box := MountPoints.label_box(pt * kk, o, lw, kk)
 			var r := _sprite_box(box, kk)
 			if not real.encloses(r) or on_hull.call(r.grow(1.0)):
@@ -526,7 +563,22 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 			_words_ok = false
 	_mounts.lift = lift
 	_mounts.tag_side = sides
+	_laid_key = memo
+	_laid_bounds = bounds
 	return bounds
+
+
+## Everything `_layout` reads, or "" with nothing to lay out.
+func _layout_key(kk: int, room: Rect2) -> String:
+	if _ship.canvas() == null or Run.hull == null:
+		return ""
+	var key := [kk, room, _real_room if _real_k == kk else Rect2(), Run.hull.get_instance_id(),
+		_ship.canvas().get_size(), _ship.ink_rect(), _ship._bob_amp, _stand_rects()]
+	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		key.append(Run.slots_for(slot))
+	for m in Run.installed:
+		key.append_array([m.get_instance_id(), m.slot, m.mount, m.name, m.size])
+	return str(key)
 
 
 ## Every offset from a mount inside a room this size, every 2 sprite px, nearest
