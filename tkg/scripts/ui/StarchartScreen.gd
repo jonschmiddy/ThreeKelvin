@@ -4888,6 +4888,10 @@ class MapChart extends Control:
 		_build_nebulae(r_max)
 
 		# --- the arms themselves
+		# (A BIG DWARF, `ChartTorn.field_reach`: its thick inner stars spread over its big
+		# body as its light is, out to where that light ends, a share of r_max; 0 for any
+		# other galaxy, which keeps its own falloff)
+		var big_f := ChartTorn.field_reach(g)
 		seed = (_gseed() * 2654435761 + 1337) & 0x7fffffff
 		for i in 30000:
 			seed = (seed * 1103515245 + 12345) & 0x7fffffff
@@ -4907,6 +4911,8 @@ class MapChart extends Control:
 			# be both dense at the core and present at the rim.
 			var inner: bool = float(i % 100) < float(g.core_share) * 100.0
 			var u: float = pow(t, float(g.core_pow) if inner else float(g.halo_pow))
+			if inner and big_f > 0.0:
+				u = big_f * pow(t, 1.4)
 			var hole: float = g.ring
 			if hole > 0.0:
 				u = hole + u * (1.0 - hole)

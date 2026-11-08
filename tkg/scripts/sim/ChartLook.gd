@@ -137,6 +137,13 @@ func _run() -> void:
 				cl.kind = int(kk[1]) as NebulaField.Kind
 				break
 	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
+	# `dwarfbig=0|1`: the dwarfs drawn as before (0) or big (1, the game's: `ChartTorn.big`);
+	# `tornend=N|F`: how TORN AWAY ends (`ChartTorn.ending`: F, the default, the rules as
+	# they are; N every ring falls)
+	if _arg("dwarfbig") != "":
+		ChartTorn.big = _arg("dwarfbig") != "0"
+	if _arg("tornend") != "":
+		ChartTorn.ending = &"N" if _arg("tornend").to_upper() == "N" else &"F"
 	# `torn=N`: TORN AWAY on, with N rings lost (`ChartTorn`, the dwarfs' stream;
 	# off without it, as every run is until TORN AWAY sets it);
 	# `tornforce=0|1` off or on whatever the kind
@@ -270,8 +277,13 @@ func _run() -> void:
 			await _shot("%s%s_sky" % [pre, v[0]], true)
 	# `tornmarks`: every system the chart shows, its ring and where (TORN AWAY's check
 	# that nothing is left standing off the drawn dwarf)
-	if "tornmarks" in OS.get_cmdline_user_args():
+	# (`tornall`: every system of the map, drawn or not, for the big dwarf's cover)
+	if "tornmarks" in OS.get_cmdline_user_args() or "tornall" in OS.get_cmdline_user_args():
 		var vis: Dictionary = _chart._visible_set(Run.node_at(), _chart._in_range())
+		if "tornall" in OS.get_cmdline_user_args():
+			vis = {}
+			for i in Run.map.size():
+				vis[i] = true
 		for i: int in vis.keys():
 			var nd: MapGen.MapNode = Run.map[i]
 			print("  tornmark %d L%d gone=%s at %s" % [i, nd.layer, ChartTorn.gone(nd), _chart._screen_pos(nd)])
@@ -489,12 +501,12 @@ func _clip() -> void:
 ## second of the game's clock, two drawn a frame; 1 s on the dwarf at zoom 1.6, 5 s
 ## easing out to the opening (the giant and the stream come into view), then the
 ## rings falling away at the opening, one every `tornto` / the rest's seconds, each
-## fall eased over 0.4 s and held (to 10, `ChartTorn.MAX_LOST`). The marks are drawn.
+## fall eased over 0.4 s and held (to `ChartTorn.max_lost`). The marks are drawn.
 func _torn_clip(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	_chart.show_icons = true
 	var n := int(_arg("clipframes", "300"))
-	var to := float(_arg("tornto", "10"))
+	var to := float(_arg("tornto", str(ChartTorn.max_lost())))
 	var l0 := ChartTorn.lost
 	var t := StarchartScreen.MapChart.clock_override
 	for i in n:

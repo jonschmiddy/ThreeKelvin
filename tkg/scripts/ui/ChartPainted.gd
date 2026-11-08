@@ -166,6 +166,18 @@ static func ball_form(kind: int) -> Vector4:
 	return Vector4(1.0, 1.3, 2.4, 0.0)
 
 
+## THE BIG DWARF's envelope in this style (`ChartTorn.ball_v`, `chart_b_place`'s
+## `ballEnv`): its level against the body's middle and the power its light falls by,
+## by kind: the dwarf spheroidal's higher, its light is 0.4 of a ball's. Measured off
+## the painted chart: lit to about LIT_K of its reach, on its ramps' bottom steps.
+const BIG_ENV := {14: Vector2(0.3, 1.2), 15: Vector2(0.7, 0.5)}
+
+
+static func ball_env(kind: int) -> Vector4:
+	var e: Vector2 = BIG_ENV.get(kind, Vector2(0.2, 0.7))
+	return ChartTorn.ball_v(e.x, e.y)
+
+
 ## How round a ball is drawn in this style: `ChartSky.ball_of`'s, a flattened elliptical's
 ## squashed further, so it is a lens beside a round one's ball (0.55 against 0.74 read
 ## as the same ball turned a little).
@@ -189,6 +201,7 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 		"u_ballE": bd[1],
 		"u_ballK": ball_kind(ball),
 		"u_ballF": ball_form(Run.galaxy_kind),
+		"u_ballV": ball_env(Run.galaxy_kind),
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
 		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball_squash(Run.galaxy_kind, ball) if form == 1 else 0.86, ChartSky.hole_of(p)),

@@ -141,6 +141,8 @@ uniform sampler2D u_sNoise : filter_linear_mipmap, repeat_disable;
 uniform sampler2D u_sStruct : filter_linear_mipmap, repeat_disable;
 uniform float u_sExt = 1.2;
 uniform bool u_isBall = false;
+// TORN AWAY's light in this style's exposure (`tornLightN`)
+const float TORN_GAIN_R = 1.3;
 // A BALL'S LIGHT, through the solid look's camera (Jon, Oct 18, "radiant:yes": the
 // balls bloomed into a big orb with a hard edge): where its light fades out, in its
 // bulge's outer scale (`u_bulge.y`, the ball's re), and where its halo does, in the
@@ -154,6 +156,12 @@ const vec2 BALL_HALO_END = vec2(0.8, 2.8);
 // much flatter its outline is drawn than a round one's, 1 for round)
 uniform vec4 u_ballK = vec4(0.0);
 uniform vec4 u_ballF = vec4(0.5, 1.8, 0.3, 1.0);
+// THE BIG DWARF (`ChartTorn.ball_v`, Jon, Nov 8: "I basically want the dwarf to be drawn
+// large"): its reach (gu, the ball's own frame, past its outermost ring), its envelope's
+// light, the power that light falls by, on (w). Off for every other ball.
+uniform vec4 u_ballV = vec4(1.0, 0.0, 1.0, 0.0);
+// its roundness on the screen (`ChartSky.ball_of`'s, as the rings are reckoned against)
+uniform float u_ballSq = 0.8;
 // (a ball's gas texture and the dither across its steps, Nov 5's review: shares of its light)
 const float BALL_BILLOW = 0.32;
 const float BALL_GRAIN = 0.16;
@@ -168,6 +176,9 @@ vec2 bakeUV(vec2 p) { return (p + u_sExt) / (2.0 * u_sExt); }
 #include "res://shaders/chart_story.gdshaderinc"
 #define DEPTH_PROBE u_tone_out
 #include "res://shaders/chart_depth.gdshaderinc"
+// TORN AWAY (`ChartTorn`): the shared drawing, on the kit's noise
+#define TORN_FBM(p, b, o) fbm2F(p, float(o))
+#include "res://shaders/chart_torn_core.gdshaderinc"
 #undef u_noise
 #undef u_struct
 
@@ -831,6 +842,10 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 		st += texelFetch(u_stars, sb, 0).rgb;
 	}
 	st += starDebt(pP);
+	// (TORN AWAY: a dwarf's stars past its torn edge gone with their rings)
+	if (u_isBall && tornOn()) {
+		st *= tornStarKeep(pP);
+	}
 	// (AN OLD BALL'S STARS ARE OLD, Nov 5: the chart's stars are SIMPLIFIED's, a
 	// spiral's mix, and strewed blue points over a warm elliptical; there they take its
 	// own warm white at the light they had. A blue compact dwarf's stay young and blue)
@@ -1353,6 +1368,16 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	// into true black space)
 	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(BALL_HALO_END.x, BALL_HALO_END.y, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
 	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7) * hE;
+	// THE BIG DWARF'S ENVELOPE (`u_ballV`): the body round its real-sized core, at the
+	// dwarf's new size, in the halo's own grain and dither (so its steps break up as the
+	// halo's do), falling slowly from the core and fading out over the last of its reach,
+	// its outline a little irregular, in its outer light's colour
+	if (u_isBall && u_ballV.w > 0.5) {
+		vec2 gE = vec2(vb.x, vb.y / u_ballSq) / u_k;
+		float sE = length(gE) / u_ballV.x * (1.0 + 0.12 * fbm2F(R.RG * gE * 15.0 + vec2(3.7, 1.1), 3.0));
+		float eE = u_ballV.y * pow(1.0 + (sE / 0.45) * (sE / 0.45), -u_ballV.z) * smoothstep(1.0, 0.86, sE) * smoothstep(0.08, 0.35, sE);
+		C += T * mix(u_bOuter, mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w), 0.35) * eE * wisp;
+	}
 	// the sky behind shows only where the galaxy in front is fainter than it
 	// (`bgSeen`), and through what the dust lets by. (THROUGH THE SOLID LOOK'S CAMERA
 	// the far nebulae go behind it the same way, not by their own tighter gate,
@@ -1365,6 +1390,18 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		float swl, scl;
 		C += T * storyLight(vb / u_k, u_phi, u_time, 2.0 / (u_zoom * u_k), swl, scl);
 		C += T * ballExtras(vb / u_k, 2.0 / (u_zoom * u_k));
+		// TORN AWAY (`ChartTorn`): what is left of the dwarf, at its real size (the sky
+		// behind seen where it has gone), then the giant and the stream over it
+		if (tornOn()) {
+			vec2 gS = vec2(vb.x, vb.y / u_ballSq) / u_k;
+			float tK = tornShapeN(gS, kitRot(-u_phi) * gS, 2.0 / (u_zoom * u_k));
+			C *= tK;
+			T = mix(vec3(1.0), T, tK);
+			bool young = u_ballK.x > 0.5 && u_ballK.x < 1.5;
+			vec3 dC = young ? vec3(0.45, 0.66, 1.0) : vec3(1.0, 0.8, 0.55);
+			vec3 sC = young ? vec3(0.75, 0.86, 1.0) : vec3(1.0, 0.88, 0.7);
+			C += tornLightN(vb, 2.0 / (u_zoom * u_k), u_holeR, young, dC, sC, vec3(1.0, 0.74, 0.42), vec3(0.42, 0.52, 0.9), TORN_GAIN_R).rgb;
+		}
 	} else {
 		// clouds of its gas over and under the plane (`chart_depth`, `galdepth=`)
 		vec3 dE = vec3(0.0), dT3 = vec3(1.0);

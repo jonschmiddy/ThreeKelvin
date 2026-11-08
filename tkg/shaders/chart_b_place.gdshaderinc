@@ -1193,6 +1193,33 @@ float ballS(vec2 gS, vec2 gq, float blkS) {
 	}
 	return s;
 }
+// THE BIG DWARF (`ChartTorn.ball_v`, Jon, Nov 8: "I basically want the dwarf to be drawn
+// large"): its reach (gu, the ball's own frame, past its outermost ring), its envelope's
+// level against its body's middle, the power that light falls by, on (w). Off for every
+// other ball.
+uniform vec4 u_ballV = vec4(1.0, 0.0, 1.0, 0.0);
+// where a point of the ball's round frame (gS, gu; gq the same turned, blkS a block
+// there) lies in the big dwarf's reach (0 at the core, 1 at its end), its outline
+// a little irregular at the body's own scale (the core's lumpy outline, `ballS`, at a
+// third: at full it pushed the envelope's end in past the rim's systems)
+float ballSE(vec2 gS, vec2 gq, float blkS) {
+	float s = length(gS) / u_ballV.x;
+	float RB = u_g8.x * u_ballF.x;
+	return s * (1.0 + 0.12 * fbmL(gq * (2.4 / RB) + vec2(3.7 + 13.0 * u_ballD.w, 1.1), blkS * (2.4 / RB), 3));
+}
+// the big dwarf's envelope at sE (`ballSE`): the body round its real-sized core,
+// redrawn at the dwarf's new size -- its light, read in the same clumps and grain at
+// the same scales as the body's, so a bigger dwarf has more of them, never bigger
+// ones -- falling slowly from the core and fading out over the last of its reach,
+// on the bottom steps of the dwarf's ramps (Oct 18's "painted is TOO BRIGHT")
+float ballEnv(float sE) {
+	if (u_ballV.w < 0.5) {
+		return 0.0;
+	}
+	// (none in the middle: the core and its body are drawn as they always were, the
+	// envelope coming in round them)
+	return u_ballV.y * pow(1.0 + sq(sE / 0.45), -u_ballV.z) * smoothstep(1.0, 0.86, sE) * smoothstep(0.08, 0.35, sE);
+}
 // the body's light at s (ball radii): a steady fall from a bright middle, about four
 // doublings out to where its warm light ends (so its light runs down the warm ramp's
 // steps one by one, never lying on one), at the kind's own pace (`u_ballF.y`: a giant's
@@ -1201,6 +1228,11 @@ float ballS(vec2 gS, vec2 gq, float blkS) {
 float ballBody(float s) {
 	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
 	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
+}
+// and with the big dwarf's envelope (`ballEnv`) at sE
+float ballBodyE(float s, float sE) {
+	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
+	return ballBody(s) + u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * ballEnv(sE);
 }
 // lit as a ball from the chart's key light (upper left, `ballForm`'s): its near side a
 // little up, its far side and limb down, as a multiplier of its light
@@ -1260,6 +1292,8 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	vec2 gq = kitRot(-u_phi) * gS;
 	float blkS = blockView() / k / solidCoreK();
 	float sB = ellip ? ballS(gS, gq, blkS) : 0.0;
+	// (the big dwarf's reach, `ballSE`: past it, nothing of its envelope)
+	float sE = ellip && u_ballV.w > 0.5 ? ballSE(gS, gq, blkS) : 9.0;
 	// (TORN AWAY: what is left of the dwarf, at its real size, `tornShape`)
 	float tK = ellip && tornOn() ? tornShape(gS, gq, blkS) : 1.0;
 	float tt = u_time * (u_g4.z > 0.5 ? 0.5 : 1.0);
@@ -1328,7 +1362,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		// finest octaves left out, so zooming in on old stars resolves a few soft lumps,
 		// never the blotched crust of a gas disc; a young ball's -- `u_ballK.z` -- as a
 		// disc's)
-		float env = ballBody(sB);
+		float env = ballBodyE(sB, sE);
 		float yg = u_ballK.z;
 		float clump = fbmL(gq * 11.0 + vec2(5.0), blkS * 11.0, low ? 2 : (yg > 0.5 ? 6 : 4));
 		float fine = low ? 0.0 : fbmL(gq * 46.0 + vec2(9.0), blkS * 46.0, yg > 0.5 ? 5 : 2);
@@ -1402,7 +1436,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// only a young one -- `u_ballK.z` -- as lumpy as a spiral's middle)
 			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk * (BALL_RELIEF_OLD + (1.0 - BALL_RELIEF_OLD) * u_ballK.z));
 		}
-		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * ballLit(gS);
+		// (the big dwarf's envelope, `u_ballV`, unlit by the key light: past its core's
+		// body the rim's shading carried on round it, its upper half a step over its lower)
+		float bl = u_ballV.w > 0.5 ? mix(ballLit(gS), 1.0, smoothstep(0.2, 0.5, sE)) : ballLit(gS);
+		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * bl;
 		if (u_fluff > 0.0 && (u_diag & 16384) == 0) {
 			// (an old ball's puffs at BALL_PUFF_OLD of a disc's: at full strength they were the
 			// blotched crust close in -- three of the ramp's steps across each puff at zoom 1)
@@ -1594,10 +1631,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	if (ellip) {
 		// (a ball's halo the disc's, at the ball's own size, and ending with its body as the
 		// disc's ends with the disc: no violet ring a fixed 0.26 gu wide round every ball)
-		float hT = smoothstep(1.7, 2.9, sB);
+		float hT = u_ballV.w > 0.5 ? smoothstep(0.95, 1.2, sE) : smoothstep(1.7, 2.9, sB);
 		Ehalo = 0.0068 * (1.0 - hT) * (1.0 - hT) * (1.0 + 0.4 * fbmL(gq * 3.0, blkS * 3.0, low ? 2 : 5));
 		if (tornOn()) {
-			Ehalo = Ehalo * tK + tornGlow(P);
+			Ehalo = Ehalo * tK + tornGlow(vb);
 		}
 	}
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
@@ -1657,7 +1694,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// (a ball's thins out by its body's smooth light, so only at its edge: a valley of
 			// its relief inside it stays its own dark steps, never a hole to the sky)
 			// (and over a wide band, `BALL_FADE_HI` to `_LO`: no rim, no ring)
-			float lvT = ellip ? clamp(1.0 + log2(max(ballBody(sB) * tK * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
+			float lvT = ellip ? clamp(1.0 + log2(max(ballBodyE(sB, sE) * tK * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
 			// (a faint ball's band as far below its own light: a dwarf spheroidal's, 0.4 of an
 			// elliptical's, would lie in the band to its middle, a stippled plate)
 			float fSh = ellip && abs(u_ballK.x - 2.0) < 0.5 ? log2(0.4) / 7.0 : 0.0;
@@ -1859,7 +1896,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				vec3 h = kitHash3(c + ivec2(5113 + int(u_ballD.w * 97.0), 1907));
 				vec2 ctr = (vec2(c) + 0.15 + 0.7 * h.xy) * ks;
 				float sk = length(ctr) / u_g8.x;
-				float A = u_ballK.z * smoothstep(1.4, 0.3, sk) * smoothstep(0.08, 0.25, sk);
+				// (and a few through the big dwarf's envelope, `u_ballV`: a fifth as thick, so
+				// they never read as a field of the chart's marks)
+				float skE = u_ballV.w > 0.5 ? length(ctr) / (0.62 * u_ballV.x) : 9.0;
+				float A = u_ballK.z * min(smoothstep(1.4, 0.3, sk) + 0.2 * smoothstep(1.4, 0.3, skE), 1.0) * smoothstep(0.08, 0.25, sk);
 				if (h.z > 0.3 * A) {
 					continue;
 				}
@@ -1991,7 +2031,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	}
 	// TORN AWAY: the giant and the stream (`chart_torn`)
 	if (ellip && tornOn()) {
-		sc = tornOver(P, v, sc);
+		sc = tornOver(P, vb, sc);
 	}
 	// stars: the sparkle sprites, unless something solid stands in front
 	if (u_stars_on && sblk.x >= 0 && sblk.y >= 0 && sblk.x < int(u_vp_size.x) && sblk.y < int(u_vp_size.y)) {

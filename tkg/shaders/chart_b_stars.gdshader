@@ -31,18 +31,16 @@ uniform float t = 0.0;
 uniform float calm = 0.0;
 uniform float bulge_r = 0.128;
 // TORN AWAY (`ChartTorn`, redraw A): the dwarf's stars where they always are, those
-// past its rings' torn edge gone with their rings, and those thick about its body past
-// its drawn edge thinned out to the sky's own few. torn: on, the rings' edge (gu), the
-// plane's squash, the cut's strength; torn2: the way the stream leaves the dwarf (the
-// plane, squashed as the rings are), how far the edges are drawn out that way (a share
-// of them), the drawn edge (gu, the ball's own frame); torn3: the way the stream leaves
-// it in the ball's own frame, the ball's squash on the screen. Off (torn.x 0): every
-// star as it always is
+// past its rings' torn edge gone with their rings (the place pass's `tornStarKeep`,
+// as its body is cut, `tornShapeN`). torn: on, the edge (gu, the plane: the rings' own),
+// the plane's squash, the cut's strength; torn2: the way the stream leaves the dwarf in
+// the plane, how far the edge is drawn out that way (a share of it), and at most (gu);
+// torn3: the same way in the ball's frame, its roundness, the outermost ring standing
+// (gu, the plane; 0 once the picture is inside it: the edge's floor). Off (torn.x 0):
+// every star as it always is
 uniform vec4 torn = vec4(0.0);
-uniform vec4 torn2 = vec4(1.0, 0.0, 0.0, 0.0);
+uniform vec4 torn2 = vec4(1.0, 0.0, 0.0, 0.12);
 uniform vec4 torn3 = vec4(1.0, 0.0, 1.0, 0.0);
-// (the share of the thick stars kept past the drawn edge: the sky's own density there)
-const float TORN_FIELD = 0.18;
 // THE SOLID GALAXY (`ChartSky.solid`): the sparkles where the camera shows the disc
 // (`chart_solid`'s solidFwdN, as `chart_c_stars` puts its stars): on, and the camera's
 // distance, elevation's sine and cosine, 0; and where it looks on the disc's plane
@@ -76,29 +74,20 @@ void vertex() {
 		float cs = cos(phi), sn = sin(phi);
 		bool tgone = false;
 		if (torn.x > 0.5 && torn.w > 0.0) {
-			// (past the edge, as the place pass cuts the body, `tornShape`: torn on the
-			// star's own hash, drawn out toward the stream, its last band thinning out)
-			vec2 gal = vec2(a.x, a.y * torn.z);
-			float re = length(vec3(gal, b.w));
-			float pull = re > 1e-5 ? pow(max(dot(gal / max(length(gal), 1e-5), torn2.xy), 0.0), 3.0) : 0.0;
-			float Ee = torn.y * (1.0 + torn2.z * pull + 0.09 * (fract(b.z * 91.7 + c.x * 13.1) - 0.5));
-			float band = torn.y * (0.08 + 0.9 * torn2.z * pull);
+			// (past the edge, as the place pass cuts the body, `tornShapeN`: torn on the
+			// star's own hash, drawn out toward the stream, its last band thinning out,
+			// never inside the outermost ring standing; all of it once the edge is gone)
+			float re = length(vec3(a.xy, b.w));
+			float pull = re > 1e-5 ? pow(max(dot(a.xy / max(length(a.xy), 1e-5), torn2.xy), 0.0), 3.0) : 0.0;
+			float sz = clamp(torn.y / 0.14, 0.2, 1.0);
+			float Ee = torn.y + min(torn2.z * torn.y, torn2.w) * pull + 0.03 * sz * (2.0 * fract(b.z * 91.7 + c.x * 13.1) - 1.0);
+			if (torn3.w > 0.0) {
+				Ee = max(Ee, torn3.w + 0.018);
+			}
+			float band = 0.065 * sz * (1.0 + 1.4 * pull);
 			float x = (re - Ee) / max(band, 1e-4);
 			float keepP = (1.0 - x) * (0.4 + 0.5 * pull);
-			if (torn.w > 0.5 && (x >= 1.0 || (x > 0.0 && fract(b.z * 37.3 + c.y * 5.9) >= keepP))) {
-				tgone = true;
-			}
-			// the drawn edge: in the ball's own frame on the screen, as the body is cut
-			vec2 vs = vec2((a.x * cs + a.y * sn), ((a.y * cs - a.x * sn) * 0.38 - b.w * 0.92499) / torn3.z);
-			float rs = length(vs);
-			float pullS = rs > 1e-5 ? pow(max(dot(vs / rs, torn3.xy), 0.0), 3.0) : 0.0;
-			float Ed = torn2.w * (1.0 + torn2.z * pullS) + (0.015 + 0.25 * torn2.w) * (fract(b.z * 17.9 + c.y * 3.3) - 0.5);
-			float bandS = torn2.w * (0.3 + 1.4 * torn2.z * pullS);
-			float xs = (rs - Ed) / max(bandS, 1e-4);
-			float keepS = xs <= 0.0 ? 1.0 : max(TORN_FIELD, (1.0 - xs) * (0.4 + 0.5 * pullS));
-			// (only where they were thick: past the body, the sky's own few stay with their rings)
-			keepS = mix(keepS, 1.0, sm(0.95 * torn3.w, 1.25 * torn3.w, rs));
-			if (torn.w > 0.5 && fract(b.z * 61.3 + c.x * 7.7) >= keepS) {
+			if (torn.w > 0.5 && (torn.y < 0.004 || x >= 1.0 || (x > 0.0 && fract(b.z * 37.3 + c.y * 5.9) >= keepP))) {
 				tgone = true;
 			}
 		}
