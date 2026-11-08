@@ -30,6 +30,9 @@ uniform float phi = 0.0;
 uniform float t = 0.0;
 uniform float calm = 0.0;
 uniform float bulge_r = 0.128;
+// TORN AWAY (`ChartTorn`): the dwarf drawn smaller -- its scale, its stretch toward the
+// giant, the line to the giant (plane); (1, 0) leaves every star where it is
+uniform vec4 torn = vec4(1.0, 0.0, 1.0, 0.0);
 // THE SOLID GALAXY (`ChartSky.solid`): the sparkles where the camera shows the disc
 // (`chart_solid`'s solidFwdN, as `chart_c_stars` puts its stars): on, and the camera's
 // distance, elevation's sine and cosine, 0; and where it looks on the disc's plane
@@ -61,6 +64,10 @@ void vertex() {
 		int kind = int(a.w + 0.5);
 		float lz = log(zoom);
 		float cs = cos(phi), sn = sin(phi);
+		if (torn.x != 1.0 || torn.y != 0.0) {
+			a.xy = (a.xy + torn.zw * dot(a.xy, torn.zw) * torn.y) * torn.x;
+			b.w *= torn.x;
+		}
 		vec2 v = vec2((a.x * cs + a.y * sn), (a.y * cs - a.x * sn) * 0.38 - b.w * 0.92499) * k;
 		if (solid) {
 			vec2 d = vec2(v.x, v.y / 0.38) / k - solidT;
@@ -77,7 +84,7 @@ void vertex() {
 			float L = zoom <= 0.6 ? 150.0 : (zoom >= 3.0 ? 60.0 : 150.0 + (60.0 - 150.0) * (lz - log(0.6)) / (log(3.0) - log(0.6)));
 			float keep = zoom <= 0.6 ? 0.4 : (zoom >= 2.0 ? 1.0 : 0.4 + 0.6 * (lz - log(0.6)) / (log(2.0) - log(0.6)));
 			float f = 1.0;
-			if (kind == 1 && length(a.xy) < bulge_r) {
+			if (kind == 1 && length(a.xy) < bulge_r * torn.x) {
 				f *= sm(1.55, 2.3, zoom);
 			}
 			if (kind == 2) {

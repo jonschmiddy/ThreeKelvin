@@ -1256,17 +1256,17 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 #endif
 	// (a ball's own frames, `ballS`: drawn about the core in the core's own frame, round
 	// on the screen, as its light always was)
-	vec2 gS = vec2(vb.x, vb.y / u_g2.z) / k;
-	// (TORN AWAY: the dwarf's body drawn out toward the giant and away from it)
-	if (tornOn()) {
-		vec2 axr = kitRot(u_phi) * u_tornA.xy;
-		vec2 axS = normalize(vec2(axr.x, axr.y * KIT_TILT));
-		float stT = 0.2 + 0.55 * u_torn.z;
-		float paT = dot(gS, axS);
-		gS = axS * paT / (1.0 + stT) + (gS - paT * axS) * (1.0 + 0.12 * stT);
+	// (TORN AWAY: the dwarf drawn smaller as its rings go, `tornBody`: its picture read
+	// at vbT, its blocks there as much finer)
+	vec2 vbT = vb;
+	float tsc = 1.0;
+	if (ellip && tornOn()) {
+		vbT = tornBody(vb);
+		tsc = u_tornA.z;
 	}
+	vec2 gS = vec2(vbT.x, vbT.y / u_g2.z) / k;
 	vec2 gq = kitRot(-u_phi) * gS;
-	float blkS = blockView() / k / solidCoreK();
+	float blkS = blockView() / k / solidCoreK() / tsc;
 	float sB = ellip ? ballS(gS, gq, blkS) : 0.0;
 	float tt = u_time * (u_g4.z > 0.5 ? 0.5 : 1.0);
 
@@ -1433,9 +1433,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// stretched the near half toward itself: on PGC 6236 (a giant elliptical) the
 	// ball's bands ended 0.43 gu above the core and ran on past the chart's bottom
 	// edge, the plane below the core running out to the camera's horizon first.
-	vec2 vB = ellip ? vb : v;
-	vec2 gB = ellip ? kitRot(-u_phi) * (vec2(vb.x, vb.y / KIT_TILT) / k) : g;
-	float blkB = ellip ? blockView() / k / solidCoreK() : blk;
+	vec2 vB = ellip ? vbT : v;
+	vec2 gB = ellip ? kitRot(-u_phi) * (vec2(vbT.x, vbT.y / KIT_TILT) / k) : g;
+	float blkB = ellip ? blockView() / k / solidCoreK() / tsc : blk;
 	float Rb = solidB ? R * 1.15 : R;
 	float rho = solidB ? length(vec2(vb.x, vb.y * (KIT_TILT / u_solidW.y) / 1.08)) / k : length(vec2(vB.x, vB.y / u_g2.z)) / k;
 	rho *= 1.0 + 0.07 * fbmL(gB * 9.0 + 2.0, blkB * 9.0, 2);
@@ -1502,9 +1502,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		storyLight(vB / k, u_phi, u_time, blkB, stW, stC);
 		Ib += stW;
 	}
-	// (TORN AWAY: what lies past the tidal radius has gone into the stream)
-	if (tornOn()) {
-		float cutT = tornCut(g);
+	// (TORN AWAY: what lay past the drawn edge has gone into the stream)
+	if (ellip && tornOn()) {
+		float cutT = tornCut(g, blk);
 		Ib *= cutT;
 		Ed *= cutT;
 		EdS *= cutT;
@@ -1606,7 +1606,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		float hT = smoothstep(1.7, 2.9, sB);
 		Ehalo = 0.0068 * (1.0 - hT) * (1.0 - hT) * (1.0 + 0.4 * fbmL(gq * 3.0, blkS * 3.0, low ? 2 : 5));
 		if (tornOn()) {
-			Ehalo += tornGlow(P, g);
+			Ehalo = Ehalo * tornCut(g, blk) + tornGlow(P);
 		}
 	}
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
@@ -1998,9 +1998,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 		}
 	}
-	// TORN AWAY: the giant, the doomed ring, the shear and the ribbon (`chart_torn`)
+	// TORN AWAY: the giant and the stream (`chart_torn`)
 	if (ellip && tornOn()) {
-		sc = tornOver(P, v, g, sc);
+		sc = tornOver(P, v, sc);
 	}
 	// stars: the sparkle sprites, unless something solid stands in front
 	if (u_stars_on && sblk.x >= 0 && sblk.y >= 0 && sblk.x < int(u_vp_size.x) && sblk.y < int(u_vp_size.y)) {

@@ -2,77 +2,96 @@ class_name ChartTorn
 extends RefCounted
 
 ## TORN AWAY, direction B (proto/dwarf-b): the stream. The hardest galaxies, the
-## two dwarfs (GalaxyGen kinds 14 and 15), are being eaten by a giant neighbour.
-## Like the Sagittarius Dwarf round the Milky Way, the dwarf has already been
-## unwound into a ribbon of stars that loops across the whole chart and off to the
-## giant, seen far off and edge-on: a burning line split by its dust, a hot core.
-## What is left of the dwarf is a knot on the ribbon, stretched toward the giant.
+## two dwarfs (GalaxyGen kinds 14 and 15), are being eaten by a giant neighbour,
+## seen far off and steeply tilted up the chart. ONE stream of the dwarf's stars
+## (Jon, Nov 7: "a single stream of the galaxy being pulled, rather than two")
+## runs out of the dwarf toward the giant and spirals into the giant's middle.
 ##
-## The rings fall away from the outside in (`lost`, rings gone so far): the next
-## ring to go (`MapGen.ring_radius(lost)`) frays red, its stars pulled off at the
-## two tips that point at the giant and away from it, into the two tails; past it
-## the dark is the old shear, swept out into the ribbon. The ribbon grows brighter
-## and wider as more of the dwarf goes into it.
+## The rings fall away from the outside in (`lost`, rings gone so far; the last
+## four hold, so `MAX_LOST`). The dwarf starts as it always is drawn and is
+## DRAWN SMALLER with each ring lost (Jon: "the galaxy should start normal size
+## ... and should be drawn smaller and smaller"): its whole picture scaled about
+## its core by `scale()`, so its rim lands on `edge()`, halfway between the last
+## ring lost and the outermost ring left, and cut there; the systems on the lost
+## rings are off the chart (`gone`, `StarchartScreen._drop_torn`). The stream
+## grows wider and brighter as more of the dwarf goes into it. No ring is marked
+## (Jon: "I don't want the red ring to be in the game").
 ##
 ## Drawn by the painted chart's place pass (`chart_torn.gdshaderinc`) from these
-## uniforms; every other kind has `u_torn.x` 0 and draws exactly as before.
+## uniforms. Off unless the run sets it (`active`), so no dwarf run changes
+## until TORN AWAY is built; SIMPLIFIED and RADIANT draw the dwarf as before
+## (only the lost rings' systems leave the chart there).
 ##
 ## Proto: `lost` is set by hand (`sheet=ChartLook torn=N`); the mechanic that
 ## drives it is being designed elsewhere.
 
-## Rings lost so far, 0 .. MapGen.LAYERS - 2 (a float, so a film can sweep it).
+## On for this run (TORN AWAY sets it; `sheet=ChartLook torn=N` here).
+static var active := false
+## Rings lost so far, 0 .. MAX_LOST (a float, so a film can sweep it).
 static var lost := 0.0
-## -1: on for the dwarfs only. 0 / 1 force it off / on for any kind (a bench's).
+## -1: on for the dwarfs while `active`. 0 / 1 force it off / on for any kind (a bench's).
 static var force := -1
+
+## At most this many rings fall: the last four (and the core) hold.
+const MAX_LOST := MapGen.LAYERS - 5
 
 ## The giant, in the dwarf's plane (gu) and height above it (gu): up the screen,
 ## to the left of the core, far enough that its line lies above the rim.
 const GIANT := Vector3(-0.35, -1.3, 0.4)
 ## The dwarf's orbit round it, tilted out of the chart's plane.
 const INC := 0.61
-## The leading arm spirals in to the giant over this much of a turn; the trailing
-## arm is flung out to 1.7 of the orbit's radius over 2.4 half-turns (so it loops
-## round the chart and crosses it again: last orbit's wrap).
-const LEAD_SPAN := PI * 1.15
-const TRAIL_SPAN := PI * 2.4
-const TRAIL_R := 1.7
-const N_LEAD := 24
-const N_TRAIL := 40
+## The stream spirals in to the giant over this much of a turn.
+const SPAN := PI * 1.3
+## Its points (the shader's TORN_N).
+const N := 48
 ## The giant on the screen: half its length (gu, wider than the dwarf's whole
 ## disc: it is the bigger galaxy) and its tilt.
 const GIANT_LEN := 1.2
 const GIANT_ANG := -0.21
+## How far the dwarf is drawn out toward the giant by the end (the shader's `tornBody`).
+const STRETCH := 0.3
 
 
 static func on() -> bool:
 	if force >= 0:
 		return force == 1
-	return Run.galaxy_kind == 14 or Run.galaxy_kind == 15
+	return active and (Run.galaxy_kind == 14 or Run.galaxy_kind == 15)
 
 
-## The tidal radius: where the next ring to go lies (gu, the rings' own radius),
-## eased between rings so a film can sweep `lost`.
-static func tidal_r() -> float:
-	var top := MapGen.LAYERS - 2
-	var l := clampf(lost, 0.0, float(top))
-	var a := MapGen.ring_radius(int(floor(l)))
-	var b := MapGen.ring_radius(mini(int(floor(l)) + 1, top))
-	return lerpf(a, b, l - floor(l))
+## Whether a system's ring has gone to the giant.
+static func gone(n: MapGen.MapNode) -> bool:
+	return on() and n.type != MapGen.NodeType.CORE and n.layer < int(floor(lost + 1e-4))
+
+
+## The drawn edge with `l` whole rings lost (gu, the rings' radius): halfway
+## between the last ring lost and the outermost left; with none lost, the same
+## half gap past the rim.
+static func _edge_at(l: int) -> float:
+	if l <= 0:
+		return MapGen.ring_radius(0) + 0.5 * (MapGen.ring_radius(0) - MapGen.ring_radius(1))
+	return 0.5 * (MapGen.ring_radius(l - 1) + MapGen.ring_radius(l))
+
+
+## The drawn edge now, eased between rings so a film can sweep `lost`.
+static func edge() -> float:
+	var l := clampf(lost, 0.0, float(MAX_LOST))
+	var i := int(floor(l))
+	return lerpf(_edge_at(i), _edge_at(mini(i + 1, MAX_LOST)), l - float(i))
+
+
+## How much smaller the dwarf is drawn than it always is (1 with none lost).
+static func scale() -> float:
+	return edge() / _edge_at(0)
 
 
 ## How far the run is into the decay, 0 .. 1.
-## The tidal surface's stretch along the line to the giant (the shader's tornRing).
-static func lemon() -> float:
-	return 1.06 + 0.1 * progress()
+static func progress() -> float:
+	return clampf(lost / float(MAX_LOST), 0.0, 1.0)
 
 
 ## The line to the giant, in the galaxy's plane (unit).
 static func axis() -> Vector2:
 	return Vector2(-GIANT.x, -GIANT.y).normalized()
-
-
-static func progress() -> float:
-	return clampf(lost / float(MapGen.LAYERS - 2), 0.0, 1.0)
 
 
 static func _v3(p: Vector3, phi: float) -> Vector2:
@@ -81,44 +100,28 @@ static func _v3(p: Vector3, phi: float) -> Vector2:
 	return Vector2(p.x * c + p.y * s, (p.y * c - p.x * s) * ChartSky.TILT - p.z * 0.92499) * ChartSky.K0
 
 
-## The ribbon as a polyline in view px (zoom 1, about the core): x, y, the signed
-## length along it from the dwarf (gu on the screen; + the leading arm), and its
-## age (0 at the dwarf, 1 at its far end). Leading arm first, then the trailing.
+## The stream as a polyline in view px (zoom 1, about the core): x, y, its
+## length along from the dwarf (gu on the screen), and its age (0 at the dwarf's
+## core, 1 in the giant's middle). It leaves the dwarf toward the giant and
+## spirals in, out of the chart's plane up to the giant's.
 static func ribbon(phi: float) -> PackedVector4Array:
 	var out := PackedVector4Array()
 	var e1 := (-GIANT).normalized()
 	var pp := Vector3(-e1.y, e1.x, 0.0).normalized()
 	var e2 := pp * cos(INC) + Vector3(0, 0, 1) * sin(INC)
 	var r0 := GIANT.length()
-	var rt := tidal_r()
-	var sq := float(Run.galaxy.get("squash", 0.85))
-	# (the tips the arms leave by: on the line to the giant, at the tidal radius, in
-	# the plane as the rings lie in it)
-	var ax := Vector3(e1.x, e1.y, 0.0).normalized()
-	for arm in 2:
-		var n := N_LEAD if arm == 0 else N_TRAIL
-		var acc := 0.0
-		var prev := Vector2.ZERO
-		for i in n:
-			var f := float(i) / float(n - 1)
-			var th: float
-			var r: float
-			if arm == 0:
-				th = f * LEAD_SPAN
-				r = r0 * pow(1.0 - f, 1.25)
-			else:
-				th = -f * TRAIL_SPAN
-				r = r0 * (1.0 + (TRAIL_R - 1.0) * pow(f, 0.8))
-			var q := GIANT + (e1 * cos(th) + e2 * sin(th)) * r
-			# leave by the tip: toward the giant (leading), away from it (trailing)
-			var tip := ax * rt * (1.0 if arm == 1 else -1.0)
-			tip.y /= sq
-			q += tip * exp(-f / 0.06)
-			var vv := _v3(q, phi)
-			if i > 0:
-				acc += (vv - prev).length() / ChartSky.K0
-			prev = vv
-			out.append(Vector4(vv.x, vv.y, acc if arm == 0 else -acc, f))
+	var acc := 0.0
+	var prev := Vector2.ZERO
+	for i in N:
+		var f := float(i) / float(N - 1)
+		var th := f * SPAN
+		var r := r0 * pow(1.0 - f, 1.25)
+		var q := GIANT + (e1 * cos(th) + e2 * sin(th)) * r
+		var vv := _v3(q, phi)
+		if i > 0:
+			acc += (vv - prev).length() / ChartSky.K0
+		prev = vv
+		out.append(Vector4(vv.x, vv.y, acc, f))
 	return out
 
 
@@ -127,7 +130,8 @@ static var _pushed := Vector4(-1, -1, -1, -1)
 static var _mp_id := 0
 
 
-static func push(mp: ShaderMaterial, phi: float) -> void:
+## (`ms`: the chart's own stars, `chart_c_stars`, scaled with the dwarf)
+static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 	# (a new place pass has none of it yet)
 	if mp.get_instance_id() != _mp_id:
 		_mp_id = mp.get_instance_id()
@@ -136,7 +140,13 @@ static func push(mp: ShaderMaterial, phi: float) -> void:
 		if _pushed.x != 0.0:
 			mp.set_shader_parameter("u_torn", Vector4.ZERO)
 			_pushed = Vector4.ZERO
+		if ms != null:
+			ms.set_shader_parameter("torn", Vector4(1.0, 0.0, 1.0, 0.0))
 		return
+	# (the stars' every frame: ChartSky sets them back for the other styles)
+	if ms != null:
+		var a := axis()
+		ms.set_shader_parameter("torn", Vector4(scale(), STRETCH * progress(), a.x, a.y))
 	# (only when something moved: the turn is slow, the rings fall seldom)
 	var key := Vector4(1.0, snappedf(phi, 1e-5), lost, float(Run.galaxy_kind))
 	if key == _pushed:
@@ -145,7 +155,7 @@ static func push(mp: ShaderMaterial, phi: float) -> void:
 	var gv := _v3(GIANT, phi)
 	# (the line to the giant, in the plane: the shader turns it as it needs)
 	var e1 := axis()
-	mp.set_shader_parameter("u_torn", Vector4(1.0, tidal_r(), progress(), float(Run.galaxy.get("squash", 0.85))))
+	mp.set_shader_parameter("u_torn", Vector4(1.0, edge(), progress(), float(Run.galaxy.get("squash", 0.85))))
 	mp.set_shader_parameter("u_tornG", Vector4(gv.x, gv.y, GIANT_ANG, GIANT_LEN))
-	mp.set_shader_parameter("u_tornA", Vector4(e1.x, e1.y, MapGen.ring_radius(mini(int(floor(lost)) + 1, MapGen.LAYERS - 2)), lost))
+	mp.set_shader_parameter("u_tornA", Vector4(e1.x, e1.y, scale(), clampf(lost, 0.0, float(MAX_LOST))))
 	mp.set_shader_parameter("u_tornP", ribbon(phi))

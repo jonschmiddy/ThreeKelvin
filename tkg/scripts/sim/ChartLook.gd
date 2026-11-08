@@ -137,10 +137,28 @@ func _run() -> void:
 				cl.kind = int(kk[1]) as NebulaField.Kind
 				break
 	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
-	# `torn=N`: TORN AWAY with N rings lost (`ChartTorn`, the dwarfs' stream);
+	# `torn=N`: TORN AWAY on, with N rings lost (`ChartTorn`, the dwarfs' stream;
+	# off without it, as every run is until TORN AWAY sets it);
 	# `tornforce=0|1` off or on whatever the kind
 	if _arg("torn") != "":
+		ChartTorn.active = true
 		ChartTorn.lost = float(_arg("torn"))
+		# (YOU on no lost ring: on the outermost ring left, the nearest system of it,
+		# as a run that kept ahead of the fall would be; the mechanic decides the rest.
+		# `tornstay` leaves YOU where it is)
+		var here: MapGen.MapNode = Run.node_at()
+		var keep := int(floor(ChartTorn.lost + 1e-4))
+		if ChartTorn.on() and here != null and here.layer < keep and not "tornstay" in OS.get_cmdline_user_args():
+			var best: MapGen.MapNode = null
+			for raw in Run.map:
+				var mn: MapGen.MapNode = raw
+				if mn.layer == keep and (best == null or (mn.gal - here.gal).length() < (best.gal - here.gal).length()):
+					best = mn
+			if best != null:
+				Run.at = best.index
+				Run.trail = PackedInt32Array([best.index])
+				Run._range_cache.clear()
+				Run.chart_from(Run.node_at())
 	if _arg("tornforce") != "":
 		ChartTorn.force = int(_arg("tornforce"))
 	# `boltclock`: the clock held on the first emission cloud's next lightning
@@ -245,6 +263,14 @@ func _run() -> void:
 			_chart.show_icons = false
 			_chart.queue_redraw()
 			await _shot("%s%s_sky" % [pre, v[0]], true)
+	# `tornmarks`: every system the chart shows, its ring and where (TORN AWAY's check
+	# that nothing is left standing off the drawn dwarf)
+	if "tornmarks" in OS.get_cmdline_user_args():
+		var vis: Dictionary = _chart._visible_set(Run.node_at(), _chart._in_range())
+		for i: int in vis.keys():
+			var nd: MapGen.MapNode = Run.map[i]
+			print("  tornmark %d L%d gone=%s at %s" % [i, nd.layer, ChartTorn.gone(nd), _chart._screen_pos(nd)])
+		print("  tornmark edge %.3f scale %.3f centre %s" % [ChartTorn.edge(), ChartTorn.scale(), _chart.centre_px()])
 	_chart.show_icons = true
 	get_tree().quit()
 
@@ -450,14 +476,14 @@ func _clip() -> void:
 
 ## TORN AWAY's film (`tornclip=<dir> [tornto=N] [clipframes=300]`): 30 frames a
 ## second of the game's clock, two drawn a frame; 1 s on the dwarf at zoom 1.6, 5 s
-## easing out to the opening (the giant and the ribbon come into view), then the
+## easing out to the opening (the giant and the stream come into view), then the
 ## rings falling away at the opening, one every `tornto` / the rest's seconds, each
-## fall eased over 0.4 s and held. The marks are drawn (`icons`).
+## fall eased over 0.4 s and held (to 10, `ChartTorn.MAX_LOST`). The marks are drawn.
 func _torn_clip(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	_chart.show_icons = true
 	var n := int(_arg("clipframes", "300"))
-	var to := float(_arg("tornto", "11"))
+	var to := float(_arg("tornto", "10"))
 	var l0 := ChartTorn.lost
 	var t := StarchartScreen.MapChart.clock_override
 	for i in n:
