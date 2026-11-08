@@ -67,6 +67,21 @@ const DRAMA_R := Vector4(1.5, 1.25, 2.8, 0.3)
 ## its nucleus burning white and its body still falling into black; 2.1 keeps a
 ## merger's story within the test's cream budget.)
 const DRAMA_BALL := Vector2(0.004, 2.1)
+## ...AND COMING IN (A+B+C review, Nov 7): from the opening to LOCAL REGION's zoom the
+## toe rises to A's own (`BALL_TOE_NEAR`), over `BALL_TOE_Z` (the chart's zoom against
+## its opening's 0.42). Seen whole, a ball must fade softly into space (BallHaloTest,
+## at the opening); come in close, it fills the frame, and at the opening's toe its
+## outskirts lay one amber-violet haze over every corner -- 2% of the frame under 15
+## against A's 28%, the far galaxies and the field stars gone. At A's toe they fall
+## to black and the sky behind shows through again.
+const BALL_TOE_NEAR := 0.15
+const BALL_TOE_Z := Vector2(0.5, 1.0)
+
+
+## A ball's `u_drama` at the chart's zoom `z` (1 = LOCAL REGION's).
+static func ball_drama(z: float) -> Vector4:
+	var toe := lerpf(DRAMA_BALL.x, BALL_TOE_NEAR, smoothstep(BALL_TOE_Z.x, BALL_TOE_Z.y, z))
+	return Vector4(toe, DRAMA.y, 1.0, DRAMA.w)
 const GOD_RAYS := 1.0
 ## A lobe's dy is in the chart's flattened frame; this takes it to the plane.
 const FLAT := 0.46341 / 0.38
@@ -509,7 +524,7 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_holeLight", Vector3(0.9, 0.42, 0.14))
 	# (a ball keeps its young gas's own light whole: a blue compact dwarf's outskirts
 	# are that gas, and at A's quarter they ended in a rim)
-	m.set_shader_parameter("u_drama", Vector4(DRAMA_BALL.x, DRAMA.y, 1.0, DRAMA.w) if L.ell else DRAMA)
+	m.set_shader_parameter("u_drama", ball_drama(0.0) if L.ell else DRAMA)
 	m.set_shader_parameter("u_dramaR", Vector4(DRAMA_R.x, DRAMA_R.y, DRAMA_BALL.y, DRAMA_R.w) if L.ell else DRAMA_R)
 	m.set_shader_parameter("u_gr", GOD_RAYS)
 	m.set_shader_parameter("u_amb", Vector3.ZERO)

@@ -143,13 +143,14 @@ const SECTOR_KEY_PX := 100.0
 ## RADIANT's glow (`RadiantGlow`): the place's picture wrapped
 var _glow: SubViewport = null
 ## and its look here: the sun's rays through the gas, a deep violet shade
+## (review, Nov 7: `wide_smooth`, the wide halos read round, not as a polygon)
 ## (A+B+C, Nov 7: the rays' reach 0.8 to 0.4 of the frame's height -- reaching far,
 ## they summed a bright cloud across the map into a flat tan patch with a dithered
 ## edge -- and the glow from a little brighter, `thr` 0.55. No `crush` (was 0.15):
 ## A's toe in `sky_nebula` is the one tone step. Round the core, whose light is the
 ## hole and a whole sky of hot haze, the rays are `GLOW_CORE_RAYS`: at full they laid
 ## one plate over the disc.)
-const GLOW_LOOK := {"thr": 0.55, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.4,
+const GLOW_LOOK := {"wide_smooth": true, "thr": 0.55, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.4,
 	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7,
 	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.0, "vib": 0.0,
 	"keep_lo": 0.085}
@@ -2228,6 +2229,7 @@ func step() -> void:
 		if _glow != null:
 			RadiantGlow.glow_mat(_glow).set_shader_parameter("light", o / Vector2(960, 540))
 			RadiantGlow.glow_mat(_glow).set_shader_parameter("pulse", RadiantGlow.sun_pulse(star))
+			RadiantGlow.glow_mat(_glow).set_shader_parameter("hole", RadiantGlow.hole_of(star))
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			star.set("sub", pc - o)
 		if star is SunViewS and _kcor > 0.0:

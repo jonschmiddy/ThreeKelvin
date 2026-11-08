@@ -17,6 +17,7 @@ extends RefCounted
 
 const BRIGHT_SH := preload("res://shaders/radiant_bright.gdshader")
 const GLOW_SH := preload("res://shaders/radiant_glow.gdshader")
+const CoreLegacyS := preload("res://scripts/ui/sysmap/CoreLegacy.gd")
 
 
 ## `inner` moved into a new glow viewport of its size, which takes its place
@@ -104,3 +105,15 @@ static func sun_pulse(sun: Node) -> float:
 	var f := (float(fl) / maxf(warm, 1e-3)) if fl != null else 1.0
 	var b := float(br) if br != null else 1.0
 	return clampf(f * (1.0 + (b - 1.0) * 1.33), 0.5, 2.0)
+
+
+## A BLACK HOLE'S SHADOW FOR THE GLOW'S `hole` (blocks; 0 for anything else): the
+## shared hole (`CoreLegacy`) at its drawn size, times `HOLE_K` so the glow stays out
+## of the shadow's lensed rim too. Without it the glow of the disc filled the shadow
+## orange on the sector map and LOCAL (A+B+C review, Nov 7: (67,32,8) where A has
+## (9,7,4)); only the chart set it.
+const HOLE_K := 1.35
+static func hole_of(star: Node) -> float:
+	if star == null or not is_instance_valid(star) or not (star is CoreLegacyS):
+		return 0.0
+	return CoreLegacyS.SHADOW * float(star.get("zoom")) * float(star.get("hole_k")) * 0.5 * HOLE_K

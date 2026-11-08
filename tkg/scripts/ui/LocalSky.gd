@@ -247,7 +247,7 @@ var _glow: SubViewport = null
 ## and its look here: the star's rays, a deep violet shade, the glow behind the
 ## play kept to `play_k` (A+B+C: no `crush`, was 0.15 -- A's tone behind the play,
 ## `RADIANT_KEEP_LO`, and its toe in `sky_nebula` are the one tone step)
-const GLOW_LOOK := {"thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
+const GLOW_LOOK := {"wide_smooth": true, "thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
 	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7, "play_k": 0.6,
 	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.0, "vib": 0.0}
 ## the ship the camera follows (`EncounterView`), and the camera's travel now
@@ -317,6 +317,8 @@ var _turn := 0.0
 ## each sun's prominence's envelope this frame (`_step_star`; B's 0 with one sun)
 var _flare_a := 0.0
 var _flare_b := 0.0
+## RADIANT: the lit sun's burst alone (`ChartRadiant.sun_flare`), the light it throws on the cloud
+var _burst := 0.0
 ## the near things: their own picture, the world the ship orbits and its moons,
 ## a belt's rocks, a wreck (each [node, screen position before parallax,
 ## parallax, radius])
@@ -1300,6 +1302,7 @@ func _process(delta: float) -> void:
 	if _glow != null:
 		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", (star.position / Vector2(960, 540)) if star != null else Vector2(-1, -1))
 		RadiantGlow.glow_mat(_glow).set_shader_parameter("pulse", RadiantGlow.sun_pulse(star))
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("hole", RadiantGlow.hole_of(star))
 	if _fade >= 0.0 and _box != null:
 		_fade = minf(_fade + delta / FADE_IN, 1.0)
 		_box.modulate.a = _fade * _fade * (3.0 - 2.0 * _fade)
@@ -1505,15 +1508,23 @@ func _step_star(o: Vector2) -> void:
 ## the sun's light; review, Nov 7.)
 ## the flare's light round the sun in LOCAL: its reach (game px), its gain at full
 const LOCAL_FLARE_R := 170.0
-const LOCAL_FLARE_GAIN := 2.2
+const LOCAL_FLARE_GAIN := 3.0
 func _radiant_flares() -> void:
 	if not radiant:
 		return
+	# (the flare's light on the cloud is the burst alone, B's quick ease, hold and let
+	# go: taken with the prominence's 19 s envelope by `max`, the cloud held one long
+	# crimson state across the screen; A+B+C review, Nov 7)
+	var burst := 0.0
 	if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE:
-		_flare_a = maxf(_flare_a, ChartRadiant.sun_flare(pose(t, 6.0)))
+		var ba := ChartRadiant.sun_flare(pose(t, 6.0))
+		var bb := ChartRadiant.sun_flare(pose(t + SystemViewS.STAR_B_PROM, 6.0), 7) if star2 != null else 0.0
+		_flare_a = maxf(_flare_a, ba)
 		if star2 != null:
-			_flare_b = maxf(_flare_b, ChartRadiant.sun_flare(pose(t + SystemViewS.STAR_B_PROM, 6.0), 7))
-		_flare = _flare_b if (star2 != null and _lit == SystemLayout.STAR_B) else _flare_a
+			_flare_b = maxf(_flare_b, bb)
+		var lit_b := star2 != null and _lit == SystemLayout.STAR_B
+		_flare = _flare_b if lit_b else _flare_a
+		burst = bb if lit_b else ba
 		if star != null:
 			var sm: ShaderMaterial = star.get("_mat")
 			if sm != null:
@@ -1522,13 +1533,14 @@ func _radiant_flares() -> void:
 			var sm2: ShaderMaterial = star2.get("_mat")
 			if sm2 != null:
 				sm2.set_shader_parameter("r_flare", _flare_b)
+	_burst = burst
 	if _sky_mat != null:
-		_sky_mat.set_shader_parameter("r_flare", _flare)
+		_sky_mat.set_shader_parameter("r_flare", burst)
 	if _grade_mat != null:
 		# (the flare's light on everything round the sun, falling off from it)
 		var so: Variant = _far_mat.get_shader_parameter("star_at") if _far_mat != null else null
-		if so is Vector2 and _flare > 0.0:
-			_grade_mat.set_shader_parameter("r_sun", Vector4((so as Vector2).x, (so as Vector2).y, LOCAL_FLARE_R, LOCAL_FLARE_GAIN * _flare))
+		if so is Vector2 and burst > 0.0:
+			_grade_mat.set_shader_parameter("r_sun", Vector4((so as Vector2).x, (so as Vector2).y, LOCAL_FLARE_R, LOCAL_FLARE_GAIN * burst))
 			var sl := star_light()
 			var mx := maxf(sl.x, maxf(sl.y, sl.z))
 			_grade_mat.set_shader_parameter("r_sun_c", (sl / maxf(mx, 1e-4)).lerp(Vector3.ONE, 0.35))
@@ -1690,7 +1702,7 @@ func _step_worlds(o: Vector2) -> void:
 		_neb_mat.set_shader_parameter("r_bodies", bp)
 		_neb_mat.set_shader_parameter("r_rings", rg)
 		_neb_mat.set_shader_parameter("r_nb", n_cast)
-		_neb_mat.set_shader_parameter("r_flare", _flare)
+		_neb_mat.set_shader_parameter("r_flare", _burst)
 		if star2 != null:
 			from.resize(24)
 			_neb_mat.set_shader_parameter("r_from", from)

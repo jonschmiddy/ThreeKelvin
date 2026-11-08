@@ -87,7 +87,10 @@ void fragment() {
 				tr *= 1.0 - SUN_TAKE * (1.0 - smoothstep(SUN_DUST.x, SUN_DUST.y, lq));
 			}
 		}
-		c *= 1.0 + r_sun.w * gas * tr / (1.0 + ds * ds) * r_sun_c;
+		// (falling off as the square of 1/(1+d^2): a burst round the sun, not a tint
+		// across the screen -- at twice the reach a twenty-fifth, was a fifth; review, Nov 7)
+		float fo = 1.0 / (1.0 + ds * ds);
+		c *= 1.0 + r_sun.w * gas * tr * fo * fo * r_sun_c;
 	}
 	if (r_eng.w > 0.0) {
 		vec2 gp = (floor(SCREEN_UV * vec2(480.0, 270.0)) + 0.5) * 2.0;

@@ -2423,6 +2423,9 @@ func _push() -> void:
 	m.set_shader_parameter("u_zopen", StarchartScreen.MapChart.ZOOM_MIN * k / K0 if _use_map else z)
 	_feed_sky(m)
 	m.set_shader_parameter("u_block0", b0)
+	if g.has("radiant") and int(g.p.form) == 1:
+		# (a ball's outskirts fall to black as the chart comes in: `ChartRadiant.ball_drama`)
+		m.set_shader_parameter("u_drama", ChartRadiant.ball_drama(z))
 	if _gvp != null:
 		# RADIANT's glow: its dither anchored as the composite's, its rays from the core
 		var gm := RadiantGlow.glow_mat(_gvp)

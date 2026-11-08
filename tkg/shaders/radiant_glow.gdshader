@@ -78,6 +78,32 @@ float bayer4(ivec2 b) {
 	return (B[m.y * 4 + m.x] + 0.5) / 16.0;
 }
 vec3 br(vec2 uv, float l) { vec3 t = textureLod(bright, uv, l).rgb; return t * t; }
+// THE WIDE HALOS' LEVELS READ SMOOTHLY (`wide_smooth`; A+B+C review, Nov 7): a level
+// 4-6 texel is 16-64 blocks, and read linearly a sector map's halo was a polygon --
+// straight left and top edges round the red giant, its outline jumping as the gas
+// under it drifted. A cubic B-spline read of the level (four linear taps) draws it
+// round. (The chart keeps the linear read: its glow is the hot core's alone, and its
+// balls' fade into space is measured against it, BallHaloTest.)
+uniform bool wide_smooth = false;
+vec3 brs(vec2 uv, float l) {
+	vec2 ts = max(floor(size / exp2(l)), vec2(1.0));
+	vec2 p = uv * ts - 0.5;
+	vec2 i = floor(p);
+	vec2 f = p - i;
+	vec2 f2 = f * f;
+	vec2 f3 = f2 * f;
+	vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0;
+	vec2 w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0;
+	vec2 w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) / 6.0;
+	vec2 w3 = f3 / 6.0;
+	vec2 g0 = w0 + w1;
+	vec2 g1 = w2 + w3;
+	vec2 p0 = (i - 0.5 + w1 / g0) / ts;
+	vec2 p1 = (i + 1.5 + w3 / g1) / ts;
+	vec3 t = g0.y * (g0.x * textureLod(bright, vec2(p0.x, p0.y), l).rgb + g1.x * textureLod(bright, vec2(p1.x, p0.y), l).rgb)
+		+ g1.y * (g0.x * textureLod(bright, vec2(p0.x, p1.y), l).rgb + g1.x * textureLod(bright, vec2(p1.x, p1.y), l).rgb);
+	return t * t;
+}
 
 void fragment() {
 	ivec2 b = clamp(ivec2(floor(SCREEN_UV * size)), ivec2(0), ivec2(size) - 1);
@@ -103,7 +129,8 @@ void fragment() {
 	// ---- the glow: the tight halos (levels 1-3, a few blocks) and the wide ones
 	// (4-6, tens of blocks), kept apart: the tight ones are the layered rings
 	vec3 gn = br(uv, 1.0) * halo_a.x + br(uv, 2.0) * halo_a.y + br(uv, 3.0) * halo_a.z;
-	vec3 gw = br(uv, 4.0) * halo_b.x + br(uv, 5.0) * halo_b.y + br(uv, 6.0) * halo_b.z;
+	vec3 gw = wide_smooth ? brs(uv, 4.0) * halo_b.x + brs(uv, 5.0) * halo_b.y + brs(uv, 6.0) * halo_b.z
+		: br(uv, 4.0) * halo_b.x + br(uv, 5.0) * halo_b.y + br(uv, 6.0) * halo_b.z;
 	if (rays > 0.0 && light.x >= 0.0) {
 		vec2 d = light - uv;
 		float dl = length(d * vec2(size.x / size.y, 1.0));
