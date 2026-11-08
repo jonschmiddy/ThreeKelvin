@@ -129,7 +129,6 @@ func _run() -> void:
 		ChartSky.dith_coh = float(_arg("dithcoh"))
 	if _arg("diag") != "":
 		ChartSky.diag = int(_arg("diag"))
-		ChartLegacy.diag = int(_arg("diag"))
 	if _arg("quant") == "0":
 		ChartSky.quant = false
 	if _arg("dith") != "":
@@ -487,9 +486,7 @@ func _cost_bench(names: String) -> void:
 	Engine.max_fps = 0
 	var sky := _chart._sky as ChartSky
 	var rids: Array[RID] = []
-	# (LEGACY draws in its own node, `ChartLegacy`: its picture and the copy its
-	# palette's hold reads)
-	var vps: Array = [sky._legacy._vp, sky._legacy._hvp] if sky._legacy != null else [sky._svp, sky._pvp, sky._vp]
+	var vps: Array = [sky._svp, sky._pvp, sky._vp]
 	for vp: SubViewport in vps:
 		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 		rids.append(vp.get_viewport_rid())
@@ -573,10 +570,8 @@ func _solid_test() -> void:
 		for _i in 4:
 			_chart._repaint_sky()
 			await RenderingServer.frame_post_draw
-		# (LEGACY draws in its own node, `ChartLegacy`, with the same names for its
-		# picture's origin and its hold's centre)
-		var src: Object = sky._legacy if sky._legacy != null else sky
-		var img: Image = (sky._legacy._vp if sky._legacy != null else sky._pvp).get_texture().get_image()
+		var src: Object = sky
+		var img: Image = sky._pvp.get_texture().get_image()
 		ChartSky.diag = 0
 		var sq := float(Run.galaxy.get("squash", 0.62))
 		var here := Run.node_at()

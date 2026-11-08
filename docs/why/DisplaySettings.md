@@ -91,18 +91,19 @@ FULLSCREEN is still exclusive, on Windows too.
 
 ## Render styles
 
-Above `const STYLES: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]`:
+Above `const STYLES: Array[StringName] = [&"simplified", &"painted", &"radiant"]`:
 
 ```text
-HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Four styles, in the
+HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Three styles, in the
 order Settings lists them (Jon, 2026-10-05, after the "Rendered Again"
-showcase and the port): LEGACY, the look from before the port ("I kind of
-don't want to lose the BEFORE look"); SIMPLIFIED, the game's layered look
-refined and set in motion (direction C, "Alive", THE DEFAULT for now);
-PAINTED, every pixel placed by a pixel artist's hand (direction B, "for
-aesthetics"); RADIANT, light through gas (direction A, "for photos
-probably"). All of them share SIMPLIFIED's animations and its black hole
-(`LegacyHole`, named before the rename).
+showcase and the port): SIMPLIFIED, the game's layered look refined and set
+in motion (direction C, "Alive", THE DEFAULT for now); PAINTED, every pixel
+placed by a pixel artist's hand (direction B, "for aesthetics"); RADIANT,
+light through gas (direction A, "for photos probably"). All of them share
+SIMPLIFIED's animations and its black hole (`LegacyHole`, named before the
+rename). LEGACY, the look from before the port, was a fourth until Jon let it
+go (Nov 7: "legacy feels too realistic"); a file or a harness that still asks
+for it gets SIMPLIFIED (`valid_style`).
 ```
 
 ## Graphics ownership

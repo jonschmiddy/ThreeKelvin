@@ -10,7 +10,7 @@ THE SECTOR MAP'S CPU AND GPU TRIMS DRAW WHAT THEY DREW (the Mac's map, Oct 27):
   godot --path . -- sheet=MapPerfTest palcache        (needs a window)
 
 Each trim is held to the code it replaced, through the real map:
-  * THE DUST: a wisp sheet whose colour is black (a clear sky, outside LEGACY)
+  * THE DUST: a wisp sheet whose colour is black (a clear sky)
     is not built (`SystemView._wisps_blank`); every fluff sheet keeps the seed
     it had when the wisps were built before it (HIGH and LOW), and a cloud,
     a pulsar and the core keep all nine sheets;

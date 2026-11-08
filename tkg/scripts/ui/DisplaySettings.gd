@@ -68,14 +68,16 @@ static var vsync: bool = true
 ## own VSYNC_DISABLED still hold under a harness.
 static var applied_vsync: int = -1
 
-## Four styles in Settings' order (Jon, 2026-10-05); SIMPLIFIED is the default for now.
-## All share SIMPLIFIED's animations and its black hole (`LegacyHole`).
+## Three styles in Settings' order (Jon, 2026-10-05); SIMPLIFIED is the default for now.
+## All share SIMPLIFIED's animations and its black hole (`LegacyHole`). LEGACY went Nov 7.
 ## Why: docs/why/DisplaySettings.md#render-styles
-const STYLES: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+const STYLES: Array[StringName] = [&"simplified", &"painted", &"radiant"]
+## The order while LEGACY was a style, for a value saved as its place (`valid_style`).
+const OLD_ORDER: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
 ## The default, and what anything unknown or not built falls back to.
 const DEFAULT_STYLE := &"simplified"
 ## Only styles with a renderer; the STYLE row appears once there are two. Add a style here only.
-const BUILT: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+const BUILT: Array[StringName] = [&"simplified", &"painted", &"radiant"]
 static var render_style: StringName = DEFAULT_STYLE
 ## GRAPHICS LOW: the cheaper path every style's renderer keeps.
 static var graphics_low: bool = false
@@ -103,7 +105,6 @@ static func style_built(s: StringName) -> bool:
 
 static func style_name(s: StringName) -> String:
 	match s:
-		&"legacy": return "LEGACY"
 		&"painted": return "PAINTED"
 		&"radiant": return "RADIANT"
 		_: return "SIMPLIFIED"
@@ -116,9 +117,11 @@ static func built_styles() -> Array[StringName]:
 			out.append(s)
 	return out
 
-## Unknown or unbuilt values fall to the default;
-## an old file saying legacy meant what is now SIMPLIFIED.
+## Unknown or unbuilt values fall to the default. "legacy" (dropped Nov 7, or SIMPLIFIED's
+## name before Oct 5) loads as SIMPLIFIED; a number is a place in `OLD_ORDER`.
 static func valid_style(v: Variant) -> StringName:
+	if v is int:
+		v = OLD_ORDER[v] if v >= 0 and v < OLD_ORDER.size() else DEFAULT_STYLE
 	var s := StringName(str(v))
 	return s if style_built(s) else DEFAULT_STYLE
 
@@ -497,7 +500,7 @@ static func load_and_apply() -> void:
 	if not vsync or applied_vsync == DisplayServer.VSYNC_DISABLED:
 		_apply_vsync()
 	# Harness `style=` and `graphics=` apply in memory only;
-	# an unbuilt style draws as LEGACY and says so.
+	# an unbuilt style draws as SIMPLIFIED and says so.
 	for a in (harness_args if not harness_args.is_empty() else OS.get_cmdline_user_args()):
 		var arg := a as String
 		if arg.begins_with("style="):

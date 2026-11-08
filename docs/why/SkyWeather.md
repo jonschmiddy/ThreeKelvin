@@ -112,9 +112,7 @@ THE YOUNG CLUSTER AN EMISSION CLOUD IS LIT BY: in SIMPLIFIED it is the system's
 own sun, at its sky pixel with no pan (`sky_field.gdshader`'s `cc`), so the
 tide washes out from the sun, the glints wink round it and the jets leave the
 tips of the pillars that reach toward it -- with two suns their balance point,
-where the sky is baked round (`SystemView.sky_c`, ruling 23). In LEGACY it is
-where it always was, a spot of the cloud's own about the view
-(`sky_nebula_legacy`'s `cc`).
+where the sky is baked round (`SystemView.sky_c`, ruling 23).
 ```
 
 ## Comet orbit

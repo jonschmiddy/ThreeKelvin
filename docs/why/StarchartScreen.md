@@ -1210,7 +1210,7 @@ Inside `_on_jump()`, above `_flash = null`:
 ```text
 THE FLASHES ARE THE SKY'S NOW. Every rendering style draws the pulsars'
 beat and the supernovae in the sky itself, as gathered light with an
-envelope (`ChartSky`, the legacy style's events), so the old pixel
+envelope (`ChartSky`), so the old pixel
 strobes and gamma-ray bursts over it would be a second pulsar on every
 pulsar. The class stays, unused, for the harnesses that time it.
 ```

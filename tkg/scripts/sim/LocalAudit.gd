@@ -58,7 +58,7 @@ func _run() -> void:
 	if "noblur" in _args:
 		CutawayView.harness_no_blur = true
 	var out := _arg("out", "user://local_audit")
-	var styles := _arg("styles", "simplified,legacy,painted,radiant").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	var cases: PackedStringArray = _arg("cases", ",".join(CASES.keys())).split(",")
 	var nclip := int(_arg("clipframes", "45"))
 	for st in styles:
@@ -276,7 +276,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 func _hide(view: EncounterView) -> Array[CanvasItem]:
 	var hid: Array[CanvasItem] = []
 	for c in view.get_children():
-		var keep_c: bool = c == view.get("dust") or c == view.backdrop or c == view.weather
+		var keep_c: bool = c == view.get("dust") or c == view.backdrop
 		if c is CanvasItem and not keep_c and (c as CanvasItem).visible:
 			(c as CanvasItem).visible = false
 			hid.append(c)

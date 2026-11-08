@@ -32,8 +32,7 @@ func _run() -> void:
 		if ls != null and ls._sky != null:
 			var sky := ls._sky._sky as ChartSky
 			# drawn at all (unquantised, while its palette is cut), and drawn whole
-			# (the legacy style draws with a renderer of its own, `ChartLegacy`)
-			var drawn := sky._vp != null or (sky._legacy != null and sky._legacy._vp != null)
+			var drawn := sky._vp != null
 			if first_at < 0 and drawn:
 				first_at = now
 			if ready_at < 0 and sky.ready_to_draw():

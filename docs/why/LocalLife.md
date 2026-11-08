@@ -18,8 +18,7 @@ LOCAL'S LIFE (Oct 11, the magnificent pass; Jon kept these four of five):
 
 IN EVERY STYLE, each in its own hand (as the dust is, `LocalDust`):
 SIMPLIFIED dithered steps; PAINTED flat hand-picked tones, no soft glow,
-motion in held poses; RADIANT light through an exposure, softer and wider;
-LEGACY its old blue-greys, plainer.
+motion in held poses; RADIANT light through an exposure, softer and wider.
 
 THE MOONS KEEP OUT OF WHAT IS STAGED (Jon: a moon must never pass over an
 event's subject, a station or your ship during the dock). Two rules:

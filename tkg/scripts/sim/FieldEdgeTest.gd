@@ -282,8 +282,7 @@ func _chart_edges() -> void:
 		return
 	var ch := scr._chart
 	var sky: Node2D = ch._sky
-	var lg: Variant = sky.get("_legacy")
-	var src: Node = lg if lg is Node and is_instance_valid(lg) else sky
+	var src: Node = sky
 	var pr := ch.get_global_rect()
 	var c := Router.content.get_global_rect()
 	var plates: Array = []

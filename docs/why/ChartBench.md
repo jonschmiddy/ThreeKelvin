@@ -6,7 +6,7 @@ Above `const FRAMES := 240`:
 
 ```text
 What the star chart costs, still, dragged and zoomed:
-  godot --path . -- chartbench [style=legacy] [graphics=low] [calm]
+  godot --path . -- chartbench [style=painted|radiant] [graphics=low] [calm]
 
 NEEDS A WINDOW, like every other measurement of drawing in this project:
 under `--headless` the dummy display server never emits `frame_post_draw` and
@@ -87,6 +87,5 @@ rather than the state.
 The chart's sky draws into a viewport of its own (`ChartSky`), whose GPU
 time the game's viewport does not include: measured beside it.
 (The simplified sky is three viewports -- stars, place, composite -- and
-all three are counted; the painted sky a fourth, its band memory; the legacy
-sky one, every pass inside it.)
+all three are counted; the painted sky a fourth, its band memory.)
 ```

@@ -118,8 +118,8 @@ static func em_pillars(sd: float, cc: Vector2) -> Array:
 	return out
 
 
-## Six frames on the GPU, once a system. `legacy` uses LEGACY's noises for its own shader.
-func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2, legacy: bool = false) -> void:
+## Six frames on the GPU, once a system.
+func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2) -> void:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(FIELD_W, FIELD_H)
 	vp.transparent_bg = true
@@ -135,7 +135,6 @@ func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2, legacy: 
 	m.set_shader_parameter("tex", Vector2(FIELD_W, FIELD_H))
 	m.set_shader_parameter("mb", float(FIELD_MB))
 	m.set_shader_parameter("cc", cc)
-	m.set_shader_parameter("legacy", legacy)
 	var pa := PackedVector4Array()
 	var pb := PackedVector4Array()
 	for p: Array in em_pillars(sd, cc):
@@ -344,7 +343,7 @@ func _bake_rest(parent: Node, index: int, kind: String, in_nebula: bool, edge: f
 	m.set_shader_parameter("band_lump", float(look.get("band_lump", 0.0)))
 	m.set_shader_parameter("pulsar", kind == "PULSAR")
 	# SIMPLIFIED: round a pulsar, the remnant's shell as fields for the sky to
-	# colour (LEGACY keeps the old shell: its look's `c_remnant` false)
+	# colour (unless its look's `c_remnant` says false)
 	m.set_shader_parameter("c_remnant", kind == "PULSAR" and bool(look.get("c_remnant", true)))
 	m.set_shader_parameter("edge", edge)
 	m.set_shader_parameter("tilt", tilt)
