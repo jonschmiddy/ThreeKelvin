@@ -1995,10 +1995,20 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	var coasting: bool = await _coast(m, 1.0)
 	if not h._ok("%s: the GO is on its coast to %s (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
 		return
+	# THE MAP'S CLOCK HELD from here until the inputs are judged (the harness's
+	# `frozen`: it holds `view.t`, nothing the map takes), so they all reach a
+	# flight still on its coast. At x12 the twin's flight is 0.57 to 0.96 s of map
+	# time, entered at 40% (`_into`), and the wheel's glide, the drag and the
+	# clicks take about 28 frames: on 1b53aa61 the click landed on the ride in
+	# (mode rail) or after the errand had run (heading to -9), at random
+	# (Nov 7). The clock runs again for the arrival.
+	m.frozen = true
+	var u0: float = (m.view.t - float(m.flight.fly_t0)) / float(m.flight.plan.dur)
 	var sel0: int = m.overlay.selected
 	var page0 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
 	var c := _pointable(m, [a, b])
 	if not h._ok("%s: a place on screen to point at mid-GO (%d)" % [what, c], SystemLayout.is_place(c)):
+		m.frozen = false
 		return
 	_pointer_on(m)
 	_took = 0
@@ -2064,9 +2074,13 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	m._wasd.w = false
 	m.harness_keys = false
 	var page1 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
+	var u1: float = (m.view.t - float(m.flight.fly_t0)) / float(m.flight.plan.dur) if m.flight.plan != null else -1.0
+	h._ok("%s: the inputs all reached the GO on its coast (mode %s, %.0f%% of the way at the first, %.0f%% after the last)" % [
+		what, m.flight.mode, u0 * 100.0, u1 * 100.0], m.flight.mode == &"fly" and u1 > 0.0 and u1 < 1.0)
 	h._ok("%s: mid-GO a click, a double click, a right-click (it only moves the view), FLY HERE and W select, open and fly nothing (selected %d, was %d; page %s, was %s; heading to %d, mode %s, _taking %s)" % [
 		what, m.overlay.selected, sel0, page1, page0, m.flight.heading_to(), m.flight.mode, m._taking],
 		m.overlay.selected == sel0 and page1 == page0 and m.flight.heading_to() == b and m._taking and ran[0] == 0)
+	m.frozen = false
 	# ON ARRIVAL ITS ERRAND RUNS, ONCE, AND THE MAP TAKES CLICKS AGAIN
 	var land := -1.0
 	for i in 90 * 60:
