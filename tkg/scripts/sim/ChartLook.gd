@@ -147,12 +147,17 @@ func _run() -> void:
 		# as a run that kept ahead of the fall would be; the mechanic decides the rest.
 		# `tornstay` leaves YOU where it is)
 		var here: MapGen.MapNode = Run.node_at()
+		# (`tornyou=N`: YOU on ring N instead, for a film that holds YOU still while
+		# the rings fall round it)
 		var keep := int(floor(ChartTorn.lost + 1e-4))
-		if ChartTorn.on() and here != null and here.layer < keep and not "tornstay" in OS.get_cmdline_user_args():
+		var pick := keep
+		if _arg("tornyou") != "":
+			pick = int(_arg("tornyou"))
+		if ChartTorn.on() and here != null and (here.layer < keep or _arg("tornyou") != "") and not "tornstay" in OS.get_cmdline_user_args():
 			var best: MapGen.MapNode = null
 			for raw in Run.map:
 				var mn: MapGen.MapNode = raw
-				if mn.layer == keep and (best == null or (mn.gal - here.gal).length() < (best.gal - here.gal).length()):
+				if mn.layer == pick and (best == null or (mn.gal - here.gal).length() < (best.gal - here.gal).length()):
 					best = mn
 			if best != null:
 				Run.at = best.index

@@ -7,7 +7,10 @@
 // here runs.
 uniform vec4 u_torn = vec4(0.0);    // on, the drawn edge (gu, the rings'), progress 0..1, squash
 uniform vec4 u_tornG = vec4(0.0);   // the giant: view px x, y (zoom 1, about the core), tilt, half length (gu)
-uniform vec4 u_tornA = vec4(0.0);   // the line to the giant (plane, unrotated), the dwarf's drawn scale, rings lost
+uniform vec4 u_tornA = vec4(0.0);   // the line to the giant (plane, unrotated), the dwarf's drawn scale (whole rings), rings lost
+// the picture's stretch toward the giant (whole rings), the cut's strength, the drawn
+// rim toward the giant on the screen (gu, eased), the dwarf's scale (eased)
+uniform vec4 u_tornB = vec4(0.0);
 uniform vec4 u_tornP[48];           // the stream: view px x, y, length along (gu), age 0..1
 const int TORN_N = 48;
 
@@ -15,13 +18,17 @@ bool tornOn() { return u_torn.x > 0.5; }
 
 // THE DWARF DRAWN SMALLER: a point of the ball's own frame (vb, about the core) to
 // where the dwarf's picture is read, so the whole of it -- body, glow, halo, grain --
-// shrinks about the core by u_tornA.z, drawn out a little toward the giant as the
-// run goes on (none with no ring lost: the dwarf as it always is)
+// shrinks about the core by u_tornA.z, drawn out a little toward the giant (that
+// side only) as the run goes on (none with no ring lost: the dwarf as it always is).
+// Its scale and stretch step a whole ring at a time, never eased: a picture
+// resampled at a scale that eases boils (every block's pattern reshuffles each
+// frame); while a ring goes, the cut eats it (`tornCut`) and the picture settles
+// once, when it has gone
 vec2 tornBody(vec2 vb) {
 	vec2 axr = kitRot(u_phi) * u_tornA.xy;
 	vec2 axS = normalize(vec2(axr.x, axr.y * KIT_TILT));
-	float st = 0.3 * u_torn.z;
 	float pa = dot(vb, axS);
+	float st = pa > 0.0 ? u_tornB.x : 0.0;
 	vec2 q = axS * pa / (1.0 + st) + (vb - pa * axS);
 	return q / u_tornA.z;
 }
@@ -33,17 +40,17 @@ float tornCut(vec2 g, float bw) {
 	vec2 ax = u_tornA.xy;
 	float al = dot(gal, ax);
 	float pe = dot(gal, vec2(-ax.y, ax.x));
-	float re = length(vec2(al / (1.0 + 0.3 * u_torn.z), pe));
+	float re = length(vec2(al > 0.0 ? al / (1.0 + u_tornB.x) : al, pe));
 	re += 0.03 * fbmL(gal * 9.0 + 4.3, bw * 9.0, 2);
 	float e = u_torn.y;
-	return mix(1.0, smoothstep(e + 0.03, e - 0.04, re), clamp(u_tornA.w, 0.0, 1.0));
+	return mix(1.0, smoothstep(e + 0.03, e - 0.04, re), u_tornB.y);
 }
 
 // the stream's width (screen gu) at age f: a pull off the dwarf as wide as the
 // dwarf is drawn, narrowing to a river, then a thread as it winds into the giant;
 // all of it wider as it is fed
 float tornW(float f) {
-	float w = 0.005 + 0.024 * u_tornA.z * exp(-f / 0.1) + 0.016 * sqrt(f) * (1.0 - f);
+	float w = 0.005 + 0.024 * u_tornB.w * exp(-f / 0.1) + 0.016 * sqrt(f) * (1.0 - f);
 	return w * (0.7 + 0.6 * u_torn.z);
 }
 
@@ -77,11 +84,13 @@ void tornNear(vec2 v, float ws, out float sd, out float al, out float f, out flo
 	}
 }
 
-// the flow's held clock: the stream's stars step one block along it a pose
-float tornFlowT(float speed) {
+// the flow's held clock for one lane of the stream's stars: they step one block
+// along it a pose, each lane at its own pace and on its own beat, so a frame moves
+// a lane or two, never the whole stream at once (that read as a pulse)
+float tornFlowT(float speed, float ph) {
 	float bw = blockView() / u_k;
 	float st = bw / speed;
-	return floor(u_time / st) * st;
+	return (floor(u_time / st + ph) - ph) * st;
 }
 
 // the stream's light, and whether a star of it lies in this block (warm 1, cool 2)
@@ -99,11 +108,10 @@ float tornStream(Px P, vec2 v, out int star) {
 	}
 	float prog = u_torn.z;
 	float B = mix(1.0, 0.7, f) * (0.3 + 0.9 * prog);
-	// the stars stream from the dwarf into the giant
-	const float SPEED = 0.035;
-	float ft = tornFlowT(SPEED);
-	float a1 = al - SPEED * ft;
 	float bw = blockView() / u_k;
+	// (its light held where it lies: knots, clumps and grain are the stream's shape;
+	// what flows are its stars, below)
+	float a1 = al;
 	// braided strands along it, wandering across, and clumps riding the flow
 	float wob = 1.6 * kitSnoise2(vec2(al * 1.7, 0.0));
 	float strand = 0.5 + 0.5 * cos(x * 4.2 + wob);
@@ -116,19 +124,25 @@ float tornStream(Px P, vec2 v, out int star) {
 	float grain = 0.6 + 0.8 * kitHash3(ivec2(floor(gq)) + ivec2(0, 17)).x;
 	float lA = B * (core * (0.3 + 0.7 * strand) * (0.4 + 0.9 * clump) * grain + 0.12 * exp(-abs(x) * 1.3) * (0.6 + 0.6 * clump));
 	lA *= 0.3 + 0.95 * knots;
-	// (out of the dwarf's own body, wherever its edge now is: the stream comes up
-	// through its outskirts, brightest just past them, and the body outshines it inside)
-	float s = u_tornA.z;
-	lA *= smoothstep(0.08 * s, 0.22 * s, al) * (1.0 + 0.6 * exp(-sq((al - 0.28 * s) / (0.08 * s))));
+	// (out of the dwarf's edge, wherever it now is: none of it over the dwarf's body
+	// or its core, brightest just past the rim, where the stars are pulled off)
+	float er = u_tornB.z;
+	lA *= smoothstep(0.85 * er, 1.1 * er, al) * (1.0 + 0.6 * exp(-sq((al - 1.35 * er) / (0.3 * er))));
 	// (and fades into the giant's middle: it is eaten there)
 	lA *= smoothstep(1.0, 0.86, f);
-	// its stars: one a cell of three blocks at most, riding the flow, thicker where it is bright
+	// its stars: one a cell of three blocks at most, thicker where it is bright, riding
+	// the flow in lanes three blocks wide across it, each lane at its own pace
 	float cs = 3.0 * bw;
-	vec2 q = vec2(a1, sd) / cs;
+	float lane = floor(sd / cs);
+	vec3 hl = kitHash3(ivec2(int(lane), 977));
+	float spd = 0.035 * (0.75 + 0.5 * hl.x);
+	float as = al - spd * tornFlowT(spd, hl.y);
+	vec2 q = vec2(as, sd) / cs;
 	ivec2 cq = ivec2(floor(q));
 	vec3 h = kitHash3(cq + ivec2(0, 311));
 	vec2 sp = (vec2(cq) + 0.15 + 0.7 * h.xy) * cs;
-	if (abs(a1 - sp.x) < 0.5 * bw && abs(sd - sp.y) < 0.5 * bw && h.z < smoothstep(0.015, 0.3, lA) * (0.4 + 0.6 * core)) {
+	// (never over the dwarf's own body: they come off its rim)
+	if (al > er && abs(as - sp.x) < 0.5 * bw && abs(sd - sp.y) < 0.5 * bw && h.z < smoothstep(0.015, 0.3, lA) * (0.4 + 0.6 * core)) {
 		star = fract(h.z * 17.0) < (ballGas() ? 0.3 : 0.75) ? 1 : 2;
 	}
 	return lA;
@@ -172,8 +186,9 @@ vec3 tornGiant(vec2 vS, float bw) {
 	// (its middle brighter as it feeds)
 	float warm = (0.5 * bul + 0.9 * pt) * mix(1.0, lane, 0.85) * (1.0 + 0.6 * u_torn.z);
 	float cool = 0.3 * disc * lane;
-	// (close round it: past it the sky is the dwarf's own, as it always was)
-	float spill = exp(-length(vec2(a * 0.5, ab.y)) / (0.4 * L));
+	// (close round it, and none past its disc's own end: past it the sky is the
+	// dwarf's own, as it always was)
+	float spill = exp(-r / 0.35) * smoothstep(1.25, 0.85, r);
 	return vec3(warm, cool, spill);
 }
 

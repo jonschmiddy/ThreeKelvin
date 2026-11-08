@@ -32,6 +32,14 @@ static var lost := 0.0
 ## -1: on for the dwarfs while `active`. 0 / 1 force it off / on for any kind (a bench's).
 static var force := -1
 
+## Back to off, as a new run starts (statics outlive a run: the mechanic,
+## when it is built, calls this where a run begins).
+static func reset() -> void:
+	active = false
+	lost = 0.0
+	force = -1
+
+
 ## At most this many rings fall: the last four (and the core) hold.
 const MAX_LOST := MapGen.LAYERS - 5
 
@@ -48,8 +56,12 @@ const N := 48
 ## disc: it is the bigger galaxy) and its tilt.
 const GIANT_LEN := 1.2
 const GIANT_ANG := -0.21
-## How far the dwarf is drawn out toward the giant by the end (the shader's `tornBody`).
+## How far the dwarf is drawn out toward the giant by the end (the shader's
+## `tornBody`; that side only).
 const STRETCH := 0.3
+## The dwarf's light fades out inside its drawn edge: the stream starts this far
+## in (a share of the edge), so it comes out of the visible body.
+const RIM_IN := 0.65
 
 
 static func on() -> bool:
@@ -79,9 +91,55 @@ static func edge() -> float:
 	return lerpf(_edge_at(i), _edge_at(mini(i + 1, MAX_LOST)), l - float(i))
 
 
-## How much smaller the dwarf is drawn than it always is (1 with none lost).
+## Whole rings gone: the drawn picture's step. While a ring is going (`lost`
+## between whole numbers) the picture holds at the last whole ring and the cut
+## eats the falling one; it settles to the next scale once, when the ring has
+## gone. (A picture resampled at an eased scale boils: every block's pattern
+## reshuffled each frame of a fall.)
+static func whole() -> int:
+	return clampi(int(floor(lost + 1e-4)), 0, MAX_LOST)
+
+
+## How much smaller the dwarf's picture is drawn than it always is (1 with none
+## lost), a whole ring at a time.
 static func scale() -> float:
+	return _edge_at(whole()) / _edge_at(0)
+
+
+## The same, eased with `lost` (the stream's width, the share of stars kept).
+static func scale_eased() -> float:
 	return edge() / _edge_at(0)
+
+
+## The picture's stretch toward the giant, a whole ring at a time.
+static func stretch() -> float:
+	return STRETCH * float(whole()) / float(MAX_LOST)
+
+
+## Where the stream crosses the dwarf's drawn rim, as its length along (gu on
+## the screen): the stream is drawn from there, never over the dwarf's body or
+## its core. Each of its points taken back to the plane (as the body's cut
+## reads the screen) and measured as `tornCut` does, eased with `lost`.
+static func rim_along(phi: float, pts: PackedVector4Array) -> float:
+	var c := cos(phi)
+	var s := sin(phi)
+	var sq := float(Run.galaxy.get("squash", 0.85))
+	var ax := axis()
+	var st := STRETCH * progress()
+	var e := edge() * RIM_IN
+	var prev_re := 0.0
+	for i in pts.size():
+		var u := pts[i].x / ChartSky.K0
+		var w := pts[i].y / (ChartSky.K0 * ChartSky.TILT)
+		var gal := Vector2(u * c - w * s, (u * s + w * c) * sq)
+		var al := gal.dot(ax)
+		var pe := gal.dot(Vector2(-ax.y, ax.x))
+		var re := Vector2(al / (1.0 + st) if al > 0.0 else al, pe).length()
+		if re >= e and i > 0:
+			var f := clampf((e - prev_re) / maxf(re - prev_re, 1e-6), 0.0, 1.0)
+			return lerpf(pts[i - 1].z, pts[i].z, f)
+		prev_re = re
+	return pts[pts.size() - 1].z
 
 
 ## How far the run is into the decay, 0 .. 1.
@@ -130,7 +188,8 @@ static var _pushed := Vector4(-1, -1, -1, -1)
 static var _mp_id := 0
 
 
-## (`ms`: the chart's own stars, `chart_c_stars`, scaled with the dwarf)
+## (`ms`: the chart's own stars, `chart_b_stars`'s material: scaled, thinned and
+## cut with the dwarf, set every frame, and set back to none when it is off)
 static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 	# (a new place pass has none of it yet)
 	if mp.get_instance_id() != _mp_id:
@@ -142,11 +201,14 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 			_pushed = Vector4.ZERO
 		if ms != null:
 			ms.set_shader_parameter("torn", Vector4(1.0, 0.0, 1.0, 0.0))
+			ms.set_shader_parameter("torn2", Vector4(0.0, 1.0, 0.0, 1.0))
 		return
-	# (the stars' every frame: ChartSky sets them back for the other styles)
+	var sq := float(Run.galaxy.get("squash", 0.85))
 	if ms != null:
 		var a := axis()
-		ms.set_shader_parameter("torn", Vector4(scale(), STRETCH * progress(), a.x, a.y))
+		var se := scale_eased()
+		ms.set_shader_parameter("torn", Vector4(scale(), stretch(), a.x, a.y))
+		ms.set_shader_parameter("torn2", Vector4(edge(), sq, clampf(lost, 0.0, 1.0), se * se))
 	# (only when something moved: the turn is slow, the rings fall seldom)
 	var key := Vector4(1.0, snappedf(phi, 1e-5), lost, float(Run.galaxy_kind))
 	if key == _pushed:
@@ -155,7 +217,9 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 	var gv := _v3(GIANT, phi)
 	# (the line to the giant, in the plane: the shader turns it as it needs)
 	var e1 := axis()
-	mp.set_shader_parameter("u_torn", Vector4(1.0, edge(), progress(), float(Run.galaxy.get("squash", 0.85))))
+	mp.set_shader_parameter("u_torn", Vector4(1.0, edge(), progress(), sq))
 	mp.set_shader_parameter("u_tornG", Vector4(gv.x, gv.y, GIANT_ANG, GIANT_LEN))
 	mp.set_shader_parameter("u_tornA", Vector4(e1.x, e1.y, scale(), clampf(lost, 0.0, float(MAX_LOST))))
-	mp.set_shader_parameter("u_tornP", ribbon(phi))
+	var pts := ribbon(phi)
+	mp.set_shader_parameter("u_tornB", Vector4(stretch(), clampf(lost, 0.0, 1.0), rim_along(phi, pts), scale_eased()))
+	mp.set_shader_parameter("u_tornP", pts)

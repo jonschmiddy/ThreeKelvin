@@ -31,8 +31,12 @@ uniform float t = 0.0;
 uniform float calm = 0.0;
 uniform float bulge_r = 0.128;
 // TORN AWAY (`ChartTorn`): the dwarf drawn smaller -- its scale, its stretch toward the
-// giant, the line to the giant (plane); (1, 0) leaves every star where it is
+// giant (that side only), the line to the giant (plane); (1, 0) leaves every star where
+// it is. And torn2: the drawn edge (gu), the plane's squash, the cut's strength, the
+// share of the stars kept (the scale squared, so the smaller dwarf is as thick with
+// stars as it always was, never packed with the ones the lost rings held)
 uniform vec4 torn = vec4(1.0, 0.0, 1.0, 0.0);
+uniform vec4 torn2 = vec4(0.0, 1.0, 0.0, 1.0);
 // THE SOLID GALAXY (`ChartSky.solid`): the sparkles where the camera shows the disc
 // (`chart_solid`'s solidFwdN, as `chart_c_stars` puts its stars): on, and the camera's
 // distance, elevation's sine and cosine, 0; and where it looks on the disc's plane
@@ -64,9 +68,22 @@ void vertex() {
 		int kind = int(a.w + 0.5);
 		float lz = log(zoom);
 		float cs = cos(phi), sn = sin(phi);
-		if (torn.x != 1.0 || torn.y != 0.0) {
-			a.xy = (a.xy + torn.zw * dot(a.xy, torn.zw) * torn.y) * torn.x;
+		bool tgone = false;
+		if (torn.x != 1.0 || torn.y != 0.0 || torn2.z > 0.0) {
+			float pa = dot(a.xy, torn.zw);
+			a.xy = (a.xy + torn.zw * max(pa, 0.0) * torn.y) * torn.x;
 			b.w *= torn.x;
+			// (past the edge, as the place pass cuts the body: `tornCut`)
+			vec2 gal = vec2(a.x, a.y * torn2.y);
+			float al = dot(gal, torn.zw);
+			float pe = dot(gal, vec2(-torn.w, torn.z));
+			float re = length(vec2(al > 0.0 ? al / (1.0 + torn.y) : al, pe));
+			if (torn2.z > 0.5 && re > torn2.x) {
+				tgone = true;
+			}
+			if (kind <= 2 && fract(b.z * 53.1 + c.y * 17.3) >= torn2.w) {
+				tgone = true;
+			}
 		}
 		vec2 v = vec2((a.x * cs + a.y * sn), (a.y * cs - a.x * sn) * 0.38 - b.w * 0.92499) * k;
 		if (solid) {
@@ -120,7 +137,7 @@ void vertex() {
 			tier = 3.0;
 			sprite = on ? 3.0 : 1.0;
 		}
-		if (lv > 0.05 && (diag & 18) == 0) {
+		if (lv > 0.05 && (diag & 18) == 0 && !tgone) {
 			blk = floor((scr - vp_origin) * 0.5);
 			s = vec4(lv, cls / 4.0, tier / 3.0, sprite);
 		}
