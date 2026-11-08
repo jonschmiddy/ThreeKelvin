@@ -5,6 +5,7 @@ extends RefCounted
 ## Why: docs/why/NetTest.md#test-scope
 
 const PORT_BASE: int = 34210
+const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
 var fails: int = 0
 var _tree: SceneTree
@@ -244,6 +245,29 @@ func _party_test() -> void:
 
 # --- a flight said ----------------------------------------------------------
 
+## A plan with no tail (none, or one point), said a sample past its end: that sample is the end.
+## It read `tail[-1]` (2 cojoin runs in 7, Nov 8).
+func _said_no_tail(L: SystemLayout, t0: float) -> void:
+	var a := L.bodies[0].pos(t0)
+	var b := L.bodies[1].pos(t0 + 1.0)
+	for tail: PackedVector3Array in [PackedVector3Array(), PackedVector3Array([Vector3(b.x, 0.0, b.y)])]:
+		var sf = ShipFlightS.new()
+		sf.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
+		var pl = ShipFlightS.FlightPlan.new()
+		pl.samp = PackedVector3Array([Vector3(a.x, 0.0, a.y), Vector3(b.x, 0.0, b.y)])
+		pl.burns = PackedByteArray([0, 0])
+		pl.dur = 1.0
+		pl.tail = tail
+		sf.plan = pl
+		sf.mode = &"fly"
+		sf.fly_t0 = t0
+		# (0.3 s apart from t0: the fifth sample is 0.2 s past the end)
+		var sp = sf.said_path(t0, 0.3)
+		var pts: PackedVector2Array = sp[0] if sp is Array and sp.size() == 4 else PackedVector2Array()
+		ok("a flight with %d tail points said 0.2 s past its end: 5 points, the last its end (%s)" % [tail.size(), pts],
+			pts.size() == 5 and pts[4].distance_to(b) < 1e-3)
+
+
 ## A flight, said once as it leaves (PROTOCOL 17): kept whole by host and late joiner, not said twice,
 ## gone when let go of; drawn on its path at the sender's clock and moved with its places 10 s behind.
 ## Why: docs/why/NetTest.md#flight-said-test
@@ -258,6 +282,7 @@ func _flight_said_test(host: NetSession, early: NetSession, late: NetSession, id
 		return
 	var t0 := 100.0
 	var dur := 3.0
+	_said_no_tail(L, t0)
 	var pts := PackedVector2Array()
 	var lit := PackedByteArray()
 	var a := L.bodies[0].pos(t0)
