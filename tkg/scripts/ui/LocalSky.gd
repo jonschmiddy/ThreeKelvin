@@ -242,6 +242,13 @@ var style: StringName = &"simplified"
 var legacy := false
 var painted := false
 var radiant := false
+## RADIANT's glow (`RadiantGlow`): the sky's picture wrapped
+var _glow: SubViewport = null
+## and its look here: the star's rays, a deep violet shade, the glow behind the
+## play kept to `play_k`
+const GLOW_LOOK := {"thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
+	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7, "play_k": 0.6,
+	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.15, "vib": 0.0}
 ## the ship the camera follows (`EncounterView`), and the camera's travel now
 var cam_ship: Control = null
 var cam := Vector2.ZERO
@@ -552,6 +559,7 @@ func _build() -> void:
 	life = LocalLife.new(self)
 	if headless():
 		return
+	_glow = null
 	_box = SubViewportContainer.new()
 	_box.stretch = false
 	_box.size = Vector2(480, 270)
@@ -730,6 +738,11 @@ func _build() -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
+	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the sky's picture wrapped, its
+	# light glowing in steps and its shade deep, the glow kept down behind the play
+	if radiant:
+		_glow = RadiantGlow.wrap(_scene, Vector2(960, 540), GLOW_LOOK)
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("play", PLAY / 540.0)
 	_build_near()
 	_apply_closed()
 	_wx_setup()
@@ -1283,6 +1296,8 @@ func _process(delta: float) -> void:
 	elif _scene.render_target_update_mode != SubViewport.UPDATE_ALWAYS:
 		_set_update(SubViewport.UPDATE_ALWAYS)
 	_live_frames += 1
+	if _glow != null:
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", (star.position / Vector2(960, 540)) if star != null else Vector2(-1, -1))
 	if _fade >= 0.0 and _box != null:
 		_fade = minf(_fade + delta / FADE_IN, 1.0)
 		_box.modulate.a = _fade * _fade * (3.0 - 2.0 * _fade)
@@ -1293,6 +1308,8 @@ func _process(delta: float) -> void:
 ## band memory with it).
 func _set_update(m: SubViewport.UpdateMode) -> void:
 	_scene.render_target_update_mode = m
+	if _glow != null:
+		_glow.render_target_update_mode = m
 	if _near_vp != null:
 		_near_vp.render_target_update_mode = m
 	if not _pt.is_empty():
@@ -1697,7 +1714,7 @@ func _build_palette() -> void:
 		# would be the unpaletted picture)
 		if _box.modulate.a > 0.0:
 			freeze = TextureRect.new()
-			freeze.texture = ImageTexture.create_from_image(_scene.get_texture().get_image())
+			freeze.texture = ImageTexture.create_from_image((_glow if _glow != null else _scene).get_texture().get_image())
 			freeze.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			freeze.position = _box.position
@@ -2702,4 +2719,9 @@ func gpu_ms() -> float:
 		return 0.0
 	var rid := _scene.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
-	return RenderingServer.viewport_get_measured_render_time_gpu(rid)
+	var ms := RenderingServer.viewport_get_measured_render_time_gpu(rid)
+	# (RADIANT's glow round it, measured with it)
+	if _glow != null:
+		RenderingServer.viewport_set_measure_render_time(_glow.get_viewport_rid(), true)
+		ms += RenderingServer.viewport_get_measured_render_time_gpu(_glow.get_viewport_rid())
+	return ms

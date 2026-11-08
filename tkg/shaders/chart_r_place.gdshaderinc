@@ -122,7 +122,7 @@ uniform vec4 u_nebK = vec4(13.0, 15.0, 7.0, 16.0);     // emission gain, reflect
 uniform float u_steps = 22.0;
 uniform float u_jitAmp = 0.5;
 uniform float u_bdet = 0.35;
-uniform float u_gr = 0.45;
+uniform float u_gr = 1.0;
 uniform float u_kb = 0.985;
 // the hole: its shadow's radius (gu) and its disc's light on the gas
 uniform float u_holeR = 0.0186;

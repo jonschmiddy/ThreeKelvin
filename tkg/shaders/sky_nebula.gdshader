@@ -989,6 +989,19 @@ void fragment() {
 		litC += vec3(0.45, 0.65, 1.0) * shaft * 0.22;
 		vec3 Tr = radiant ? exp(-tau * 3.4 * vec3(0.62, 0.80, 1.0)) : vec3(T);
 		H = (selfC + farC) * Tr + dustC * (1.0 - T) + litC * Tr + vec3(0.62, 0.80, 1.0) * rim * (0.05 + 1.5 * Js + 1.6 * Jc);
+		if (radiant) {
+			// RADIANT, direction C (Nov 7): the star a key light. The gas round it lit
+			// in the star's own colour (a red giant's cloud burns red-orange near it),
+			// cut by the worlds' shafts and the dust's rays (`lt.att`, in Js)
+			// (gently: added hard, the warm light came out of the palette as one flat
+			// tan plate over the cloud; half the star's colour, half the gas's blue)
+			// (A+B+C: C's own darkening away from the star, H * (0.5 + 0.5 * key), is
+			// gone: A's key light on the screen, `r_key`, falls the gas off once, below)
+			float key = 1.0 / (1.0 + pow(lt.dL / 130.0, 2.0)) * lt.att;
+			vec3 sl = star_light / max(max(star_light.r, max(star_light.g, star_light.b)), 1e-3);
+			sl = mix(sl, vec3(0.55, 0.7, 1.0), 0.45);
+			H += sl * (0.3 * g + 0.4 * ge) * key * 0.22 * Tr;
+		}
 		H = max(H, radiant ? vec3(0.0006, 0.0008, 0.0024) : vec3(0.0030, 0.0040, 0.0120));
 		trans = T * (1.0 - 0.8 * sat(g * 1.6));
 		dk = 1.0 - T;
@@ -1351,7 +1364,10 @@ void fragment() {
 		if (radiant) {
 			// RADIANT (A): the heart is a lit haze all through, rose-brown, brighter
 			// toward the disc; the lanes darken it, never to black
-			H += vec3(0.16, 0.07, 0.055) * r_core_haze * (0.45 + 0.55 * gas) * (0.35 + 0.65 * Jf) * (1.0 - lop * 0.4);
+			// (direction C: the disc lights its own system -- hot close in, falling to
+			// dark wine far out, the lanes cutting dark through it)
+			H += vec3(0.16, 0.07, 0.055) * r_core_haze * (0.45 + 0.55 * gas) * (0.08 + 1.3 * Jf) * (1.0 - lop * 0.8);
+			H += lit * 0.8;
 		}
 		// the galaxy's heart is crowded with stars: more show in the gaps between the clouds
 		trans = (1.0 - 0.55 * sat(gas * 1.6)) * exp(-lane * 2.5) * (radiant ? 0.5 : 1.0);
@@ -1444,7 +1460,7 @@ void fragment() {
 		// (in the gas's own colour as much as the sun's: star-coloured haze over teal
 		// washed the heart out to a pastel)
 		vec3 hz = mix(star_light, H / max(max(H.r, max(H.g, H.b)), 1e-4), 0.65);
-		H += hz * 0.045 * Js * (1.0 - sat(Jc * 2.0)) * (0.55 + 0.45 * far);
+		H += hz * 0.10 * Js * (1.0 - sat(Jc * 2.0)) * (0.55 + 0.45 * far);
 	}
 	// (PAINTED: what the strike adds to the cloud itself, its flash and its channel)
 	vec3 Hpre = H;
