@@ -1300,20 +1300,7 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 ## is spelled out or an unaffordable BUY looks live.
 ## Why: docs/why/StationScreen.md#commit-button
 func _commit_button(text: String, action: Callable) -> Button:
-	var b := Widgets.button(text, action)
-	b.add_theme_stylebox_override("normal",
-		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, 5, 14))
-	b.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#1d1409"), UITheme.FLARE, 0, 5, 14))
-	b.add_theme_stylebox_override("pressed",
-		UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, 5, 14))
-	b.add_theme_stylebox_override("disabled",
-		UITheme.flat(Color("#0a0e15"), UITheme.LINE, 0, 5, 14))
-	b.add_theme_color_override("font_color", UITheme.EMBER)
-	b.add_theme_color_override("font_hover_color", UITheme.HOT)
-	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
-	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
-	return b
+	return Widgets.commit(Widgets.button(text, action))
 ## Show the real card face, not the art cropped out with the rules reprinted in grey.
 ## Why: docs/why/StationScreen.md#card-fan
 func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:

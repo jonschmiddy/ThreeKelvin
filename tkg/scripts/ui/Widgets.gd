@@ -351,6 +351,38 @@ static func _btn(text: String, action: Callable, click: bool = true) -> Button:
 static func button(text: String, action: Callable, click: bool = true) -> Button:
 	return _btn(text, action, click)
 
+## THE BUTTON THAT COMMITS, in ember: the station's BUY and UNDOCK, the system
+## map's GO. Every state is set: disabled, or a GO that cannot go looks like one
+## that can; focus, or the theme's grey box draws over the ember.
+static func commit(b: Button, pad_v: int = 5, pad_h: int = 14) -> Button:
+	b.add_theme_stylebox_override("normal",
+		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("hover",
+		UITheme.flat(Color("#1d1409"), UITheme.FLARE, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("pressed",
+		UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("focus",
+		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, pad_v, pad_h))
+	b.add_theme_stylebox_override("disabled",
+		UITheme.flat(Color("#0a0e15"), UITheme.LINE, 0, pad_v, pad_h))
+	b.add_theme_color_override("font_color", UITheme.EMBER)
+	b.add_theme_color_override("font_hover_color", UITheme.HOT)
+	b.add_theme_color_override("font_focus_color", UITheme.EMBER)
+	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
+	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
+	return b
+
+## A button beside a `commit` one: the OUTLINE style whatever the theme's, its
+## words in CHILL.
+static func quiet(b: Button) -> Button:
+	var o := UITheme.outline_boxes()
+	for state: String in o:
+		b.add_theme_stylebox_override(state, o[state])
+	b.add_theme_stylebox_override("focus", o.normal)
+	b.add_theme_color_override("font_color", UITheme.CHILL)
+	b.add_theme_color_override("font_focus_color", UITheme.CHILL)
+	return b
+
 ## Label + value readout used in the HUD and unit panels.
 static func stat(key: String, value: String, value_colour: Color = UITheme.ICE) -> HBoxContainer:
 	var row := HBoxContainer.new()
