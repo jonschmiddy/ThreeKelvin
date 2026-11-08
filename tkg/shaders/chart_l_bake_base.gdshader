@@ -45,6 +45,17 @@ uniform int arms = 2;
 uniform float bar = 0.0;
 uniform float twist = 3.0;
 uniform float spin = 0.0;
+// A BALL IN THIS STYLE'S HAND (`ChartLegacy._ball_params`): on for a ball galaxy only
+// (the ellipticals, the dwarfs, the merger's remnant); (look, warm reach in ball radii,
+// lumpiness, irregularity); (size, fall's power, where its light ends in ball radii,
+// globular clusters); its radius in bake px; how round on the screen; its stream's side
+uniform bool ball_on = false;
+uniform vec4 ball_k = vec4(0.0, 9.0, 0.3, 0.0);
+uniform vec4 ball_f = vec4(1.0, 1.3, 2.4, 0.0);
+uniform float ball_r = 60.0;
+uniform float ball_sq = 0.74;
+uniform float ball_side = 1.0;
+const float BALL_PERSP = 0.07;
 
 vec4 at(sampler2D t, vec2 p) {
 	return texture(t, (p + 0.5) / size);
@@ -122,6 +133,80 @@ float nuc_shape(vec2 g) {
 	return g_sm(0.12, 0.55, rdg) * g_sm(bul * 0.08, bul * 0.3, rd) * (1.0 - g_sm(bul, bul * 1.8, rd));
 }
 
+// A BALL'S BODY, as the bulge's own light (mode 1's RGB and A): the bulge's amber-to-gold
+// climb (`ci`, `co`) at the ball's own size and profile -- a bright middle falling by its
+// kind's power to where its light ends, the last of it fading out over a wide band, never
+// an edge -- grained by its own points as the bulge is (the fine blur against the wide)
+// and clumped by the bake's own noise, as much as the kind is lumpy. All of it bulge (A 1:
+// the field's grain of star clouds, none of the disc's dust or arms) where its old warm
+// light holds; past that, for a kind with gas, cool gas of the disc's (A 0). A merger's
+// remnant lopsided, its outer light pushed to one side, and its stream curling off it.
+vec4 ball_light(vec2 g) {
+	vec2 p = g - origin;
+	vec2 q = vec2(p.x, p.y / ball_sq) / ball_r;
+	float look = ball_k.x, irr = ball_k.w;
+	float r0 = length(q);
+	if (look > 2.5) {
+		q.x -= ball_side * 0.32 * g_sm(0.4, 2.0, r0);
+	}
+	float n = g_fbm(q * 1.4 + vec2(sd, 3.7), 3.0);
+	// (the plane's near half is drawn larger on the screen than its far half, so a body
+	// round in the plane reached further below its core than above it -- the round ball
+	// x1.24 against BallHaloTest's 1.3, Nov 5's review: its light is drawn a little shorter
+	// on the near side and longer on the far, so it is round on the screen)
+	float dn = length(q) * (1.0 + irr * 0.55 * (n - 0.5)) * (1.0 + BALL_PERSP * q.y / max(length(q), 1e-3));
+	float end = ball_f.z;
+	// (a dwarf spheroidal spread thin: its light is low all the way across)
+	float amp = look > 1.5 && look < 2.5 ? 0.55 : 1.8;
+	float prof = pow(1.0 + dn * dn / 0.25, -ball_f.y) * (1.0 - g_sm(end * 0.35, end, dn));
+	// its grain: its points, fine against wide, and the bake's clumps
+	float e = 1e-4;
+	float pts = clamp((g_lum(at(c0, g).rgb) + e) / (g_lum(at(c2, g).rgb) + e), 0.4, 2.2);
+	float cl = 0.62 + 0.76 * g_fbm(vec2(p.x * 0.05 - sd, p.y / ball_sq * 0.05 + 4.1), 4.0);
+	float lump = ball_k.z;
+	float tex = mix(1.0, pts, 0.35 * lump) * mix(1.0, cl, lump);
+	float tot = amp * prof * tex;
+	// ITS FAINT EDGE BROKEN INTO HAZE AND WISPS, as the disc's outer light is (`chart_l_field`'s
+	// outer disc): the palette never dithers the dark, so a smooth faint tail was one flat
+	// maroon plate cut off at an ellipse; where the light is faint it is wisps of it
+	float wsp = g_sm(0.25, 0.75, g_fbm(p * 0.016 + vec2(sd, 41.0), 4.0)) * 1.5
+		* (0.45 + 0.55 * g_fbm(p * 0.05 + vec2(13.0, sd), 3.0));
+	// (faint against its own middle: a dwarf spheroidal, faint all across, was wisps
+	// through and through, one side of it lost)
+	// (over a wider band, Nov 5's review: at 0.3 the round ball's edge went brown to black
+	// in a ragged cut-out)
+	tot *= mix(wsp, 1.0, g_sm(0.04, 0.6, tot * 1.8 / amp));
+	// the merger's stream: off one side, curling out from the body as it thins
+	float strm = 0.0;
+	if (look > 2.5) {
+		vec2 qs = vec2(q.x * ball_side, q.y);
+		float a = atan(qs.y, qs.x);
+		float u = mod(a + 0.6, TAU_G);
+		if (u < 2.6) {
+			float rs = 1.15 + 0.75 * u;
+			float w = 0.16 + 0.08 * u;
+			float sn = g_fbm(qs * 2.2 + vec2(9.0, sd), 3.0);
+			strm = 0.55 * exp(-pow((length(qs) - rs) / w, 2.0)) * (1.0 - 0.7 * u / 2.6)
+				* (0.3 + 1.4 * g_sm(0.35, 0.75, sn));
+		}
+	}
+	// the colour: warm where its old stars hold, toward white at the middle as the bulge's;
+	// a dwarf spheroidal's greyed; past the warm reach (a kind with gas) the disc's cool gas
+	float inner = exp(-dn / 0.45);
+	vec3 ci = vec3(1.0, 0.82, 0.55) / g_lum(vec3(1.0, 0.82, 0.55));
+	vec3 co = vec3(0.95, 0.45, 0.17) / g_lum(vec3(0.95, 0.45, 0.17));
+	vec3 kw = co * (1.0 - inner) + ci * inner;
+	if (look > 1.5 && look < 2.5) {
+		kw = mix(kw, vec3(1.0, 0.97, 0.92), 0.9);
+	}
+	vec3 kc = vec3(0.42, 0.62, 1.3) / g_lum(vec3(0.42, 0.62, 1.3));
+	float ww = 1.0 - g_sm(ball_k.y * 0.55, ball_k.y * 1.5, dn);
+	float tw = tot * ww, tc = tot * (1.0 - ww) + strm;
+	vec3 col = tw * kw + tc * kc;
+	float all_ = tw + tc;
+	return vec4(col, all_ > 1e-6 ? tw / all_ : 0.0);
+}
+
 void fragment() {
 	vec2 pix = floor(UV * out_size);
 	if (mode == 0) {
@@ -166,6 +251,9 @@ void fragment() {
 		h = h * (1.0 - wc) + k * wc;
 		h = h * (1.0 - 0.25 * crest) + vec3(0.9, 0.98, 1.3) * 0.25 * crest;
 		COLOR = vec4(max(vec3(0.0), tot * h), tot > 1e-6 ? ib / tot : 0.0);
+		if (ball_on) {
+			COLOR = ball_light(g);
+		}
 	} else if (mode == 2) {
 		vec2 g = pix;
 		float aa = min(1.2, g_lum(at(c1, g).rgb) / aa_ref);

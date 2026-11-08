@@ -136,6 +136,21 @@ uniform float dk_g = 1.0;
 // the camera by the perspective (read on the plane its near half ran 0.46 gu below the
 // core against 0.27 above). `ChartLegacy._feed_field`, from `ChartSky.form_of`.
 uniform bool ball_core = false;
+// A BALL IN THIS STYLE'S HAND (`ChartLegacy._ball_params`; its body is the bake's,
+// `chart_l_bake_base`'s `ball_light`): on for a ball galaxy; how much of the disc's
+// volume of puffs it keeps; a giant's globular clusters far past its body (screen-tilted
+// bake px, as `glob_c`)
+uniform bool ball_on = false;
+uniform float ball_gas = 1.0;
+uniform float ball_rpx = 60.0;
+// (its ball's radius in bake px, and the plane's y to the ball's own frame: eff / its squash)
+uniform vec2 ball_hz = vec2(60.0, 1.0);
+uniform vec2 ball_gc[24];
+uniform int n_ball_gc = 0;
+// (how strong a ball's outer haze is against its body's light one radius out)
+const float BALL_HAZE = 0.35;
+// (the haze a little shorter on the plane's near side, as the body's is: `chart_l_bake_base`'s BALL_PERSP)
+const float BALL_PERSP_F = 0.07;
 uniform float bul = 10.0;
 uniform float arm_k = 1.0;
 uniform float sd = 0.0;
@@ -789,12 +804,23 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 		float on_arm = (1.0 - arm_k) + arm_k * g_sm(0.95, 1.55, rg);
 		float gas_amt = min(1.5, gas);
 		float i = (pow(g, 1.5) * 0.7 + g * fil * 0.9) * (0.25 + a) * a * gas_amt * (0.6 + 1.4 * near) * on_arm;
-		float knot = g_sm(0.66, 0.86, fbmB(vec2(lx * 0.085 + 13.0 + sd, ly * 0.085), (o3() + ox), 0.085 * lsq))
+		float kF = fbmB(vec2(lx * 0.085 + 13.0 + sd, ly * 0.085), (o3() + ox), 0.085 * lsq);
+		// (a ball's knots their cores only, Nov 5's review: the disc's whole spread of each
+		// was a flat violet bar round a blue compact dwarf's middle at zoom 1)
+		float knot = (ball_on ? g_sm(0.84, 0.97, kF) : g_sm(0.66, 0.86, kF))
 			* g_sm(0.25, 0.6, a) * min(1.3, gas_amt) * (1.0 - 0.5 * near)
 			* ((1.0 - arm_k) + arm_k * g_sm(1.15, 1.7, rg));
 		float m2 = max(g_sm(0.25, 0.75, mixv), knot);
 		float tex = 0.55 + 0.9 * fbmB(vec2(lx * 0.07 + 3.3, ly * 0.07), (o4() + ox), 0.07 * lsq);
 		i *= res2 * fluff;
+		// (a ball's gas where its light is, `ball_light`, and blue but for its knots: the
+		// disc's pink wash between them read as a maroon plate round a blue compact dwarf)
+		if (ball_on) {
+			m2 = knot;
+			float bl = g_sm(0.02, 0.25, g_lum(slv.rgb));
+			i *= bl;
+			knot *= bl;
+		}
 		vec3 col = pal0 * (1.0 - m2) + pal1 * m2;
 		col = col * (1.0 - near * 0.7) + CORE_C * near * 0.7;
 		arm_gas = i * col + knot * pal1 * 0.9;
@@ -892,7 +918,9 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 	// at about twice the radius. The stars' grain lies over it as over the rest.
 	float rnd = dd / big_r;
 	float tk = 1.0;
-	if (rnd > 0.5) {
+	// (not a ball's: its body fades out on its own, `ball_light`, and this haze, read
+	// at half the disc's radius, was a disc round it)
+	if (rnd > 0.5 && !ball_on) {
 		vec2 pl0 = vec2(lx, ly);
 		vec2 dirp = pl0 / max(length(pl0), 1e-3);
 		vec3 sref = vec3(0.0);
@@ -912,6 +940,31 @@ void gal_fields(vec2 p, vec2 down_p, float nearf, float youk, float smth, out ve
 			* (0.45 + 0.55 * fbmB(pl0 * 0.05 + vec2(13.0, sd), 3.0, 0.05 * lsq));
 		tk = 1.0 - g_sm(0.5, 1.0, rnd);
 		s = s * tk + sref * env * wsp * (1.0 - tk);
+	}
+	// A BALL'S OUTER HAZE, at low strength (Nov 5's review: without the disc's haze its body
+	// stopped brown-to-black in a ragged cut-out): the light its body has one ball radius
+	// out in this direction, falling by e every 0.6 radii past it, broken into the same haze
+	// and wisps, and gone into the sky by three radii
+	if (ball_on) {
+		// (in the ball's own frame, `ball_light`'s: round on the screen, so the haze
+		// reaches as far above the core as below it)
+		vec2 qh = vec2(lx, ly * ball_hz.y) / max(ball_hz.x, 1.0);
+		float rbl = length(qh) * (1.0 + BALL_PERSP_F * qh.y / max(length(qh), 1e-3));
+		if (rbl > 0.7 && rbl < 3.2) {
+			vec2 pl0 = vec2(lx, ly);
+			vec2 dirp = qh / max(rbl, 1e-3);
+			vec3 sref = vec3(0.0);
+			for (int j = -1; j <= 1; j++) {
+				float aj = float(j) * 0.22;
+				vec2 dj = vec2(dirp.x * cos(aj) - dirp.y * sin(aj), dirp.x * sin(aj) + dirp.y * cos(aj)) * ball_hz.x;
+				sref += sb4(sl_tex, vec2(dj.x, dj.y * eff / ball_hz.y)).rgb;
+			}
+			sref /= 3.0;
+			float env = exp(-max(rbl - 1.0, 0.0) / 0.6) * g_sm(0.7, 1.2, rbl) * (1.0 - g_sm(2.2, 3.2, rbl));
+			float wsp = g_sm(0.2, 0.75, fbmB(pl0 * 0.016 + vec2(sd, 41.0), 4.0, 0.016 * lsq)) * 1.5
+				* (0.45 + 0.55 * fbmB(pl0 * 0.05 + vec2(13.0, sd), 3.0, 0.05 * lsq));
+			s += sref * env * wsp * BALL_HAZE;
+		}
 	}
 	float bf = slv.a;
 	float det = resolved, gcl = 1.0;
@@ -1079,6 +1132,9 @@ float vol_top(vec2 p) {
 	float bw = sb4(sl_tex, p).a;
 	float ly = p.y / eff;
 	float dens = g_sm(0.08, 0.55, max(au.r, 0.55 * bw));
+	if (ball_on) {
+		dens = ball_gas * g_sm(0.03, 0.35, g_lum(sb4(sl_tex, p).rgb));
+	}
 	if (dens <= 0.0) {
 		return 0.0;
 	}
@@ -1100,6 +1156,11 @@ vec2 vol_gas(vec2 p, float nebk) {
 	vec2 pl = vec2(p.x, p.y / eff);
 	float dens = g_sm(0.08, 0.55, max(au.r, 0.55 * bw));
 	dens *= nebk;
+	// (a ball's puffs stand where its light is, as much as it has gas: an old one's few and
+	// low, none out past its body's light into the dark)
+	if (ball_on) {
+		dens = ball_gas * g_sm(0.03, 0.35, g_lum(sb4(sl_tex, p).rgb)) * nebk;
+	}
 	if (length(pl) > big_r * 0.45) {
 		dens *= 1.0 - g_sm(0.55, 1.2, length(pl) / big_r + (g_noise(pl * 0.015 + vec2(sd, 4.0)) - 0.5) * 0.25);
 	}
@@ -1469,6 +1530,12 @@ void fragment() {
 	if (u_solid) {
 		ci *= solidBulgeEnd(dball / big_r, (bul / big_r) / 0.128 * 1.15);
 	}
+	// (a ball's body is its own light, the bake's `ball_light`: the glow's long faint tail,
+	// which a disc's light hides, lay round it as one flat maroon plate out to where the
+	// swell ends; on a ball the glow is its middle only, and a dwarf's no wider than its ball)
+	if (ball_on) {
+		ci *= exp(-pow(dball / min(bulc * 2.2, ball_rpx * 1.3), 2.0));
+	}
 	float rout = rh * disc_k;
 	float hd = length(vec2(rcb.x, rcb.y / TILT));
 	// the light dims a little round the hole, so the hole and its ring sit in
@@ -1673,6 +1740,25 @@ void fragment() {
 			}
 		}
 	}
+	// A GIANT'S GLOBULAR CLUSTERS, a swarm far past its body: glows as the galaxy's own
+	if (!probe && ball_on && n_ball_gc > 0) {
+		float sg = max(2.2, 0.006 * big_r * z);
+		for (int k = 0; k < 24; k++) {
+			if (k >= n_ball_gc) {
+				break;
+			}
+			vec2 cc = ball_gc[k];
+			float r0 = length(vec2(cc.x, cc.y / eff));
+			float a0 = atan(cc.y / eff, cc.x) - phi;
+			vec2 gcs = vec2(cos(a0) * r0, sin(a0) * r0 * eff) * z;
+			vec2 dd = rel - gcs;
+			float e2 = dot(dd, dd) / (sg * sg);
+			if (e2 < 12.0) {
+				float gb = 0.6 + 0.4 * g_hash(k, 4021);
+				light += vec3(1.0, 0.84, 0.6) * (exp(-e2) * 0.55 + exp(-e2 * 0.25) * 0.12) * gb;
+			}
+		}
+	}
 	bool spot = false;
 	if (!probe) {
 		// THE KNOTS, breathing: the block's point of the disc's plane
@@ -1767,7 +1853,17 @@ void fragment() {
 	// about the core (`rcb`, px at the camera's one scale there)
 	if (!probe && ball_core) {
 		float swl, scl;
-		light += storyLight(rcb / (z * big_r), phi, t, 2.0 / (z * big_r), swl, scl);
+		vec3 stl = storyLight(rcb / (z * big_r), phi, t, 2.0 / (z * big_r), swl, scl);
+		// (its faint light -- the shells' fill -- broken into haze and wisps as the ball's own
+		// faint edge is, `ball_light`: the palette never dithers the dark, and over a ball
+		// with no disc round it the fill was one flat brown plate out to the outer shell)
+		if (ball_on) {
+			vec2 sp0 = rcb / z;
+			float ws = g_sm(0.25, 0.75, g_fbm(sp0 * 0.016 + vec2(sd, 41.0), 4.0)) * 1.5
+				* (0.45 + 0.55 * g_fbm(sp0 * 0.05 + vec2(13.0, sd), 3.0));
+			stl *= mix(ws, 1.0, g_sm(0.06, 0.3, g_lum(stl)));
+		}
+		light += stl;
 	}
 	vec3 disp = g_tone(light);
 	float flag = (keep ? 0.75 : 1.0);

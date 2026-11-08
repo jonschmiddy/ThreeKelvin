@@ -6,7 +6,7 @@ Above `const FRAMES := 240`:
 
 ```text
 What the star chart costs, still, dragged and zoomed:
-  godot --path . -- chartbench [style=legacy] [graphics=low] [calm]
+  godot --path . -- chartbench [style=legacy] [graphics=low] [calm] [kind=N]
 
 NEEDS A WINDOW, like every other measurement of drawing in this project:
 under `--headless` the dummy display server never emits `frame_post_draw` and

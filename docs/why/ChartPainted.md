@@ -52,3 +52,34 @@ THE EVENTS AS HELD POSES, pure functions of t (the simplified chart's clocks,
   1.5 s, in three strengths; a cloud's lightning as a bolt held for 0.35 s and
   its afterglow for 0.6 s; the glimmers and shafts stepping a notch every 2 s.
 ```
+
+## Ball kinds
+
+Above `static func ball_kind(ball: Vector4) -> Vector4:`:
+
+```text
+A BALL AS ITS OWN KIND in this style (`chart_b_place`'s `u_ballK`, from `ChartSky.ball_of`'s
+look): (look, how far out its old warm light holds in ball radii, its young gas and
+star birth 0..1, how irregular its outline 0..1). An old elliptical warm through its
+body; a blue compact dwarf young, blue, lumpy and full of knots round a small warm
+heart; a dwarf spheroidal faint and warm; a merger's remnant warm, a little lopsided,
+with a few knots of the star birth the merger lit. Only the two with gas (the blue
+compact dwarf, the merger with its stream) have cool gas past their warm light: the
+others fade straight out into the dark (Nov 5, the critique of prototype A).
+```
+
+## Ball body
+
+Above `static func ball_form(kind: int) -> Vector4:`:
+
+```text
+A BALL'S BODY in this style (`chart_b_place`'s `u_ballF`): (its size against its ball
+radius, how steeply its light falls (the power of its profile), where its light ends
+(ball radii), its halo of globular clusters 0..1). The three ellipticals told apart by
+more than their roundness (Nov 5): a round one the plain profile; a flattened one
+squashed further (`ball_squash`) and falling off steeply, a lens of light; a giant
+bigger, its light falling off slowly into a wide envelope, ringed by a swarm of
+globular clusters far past its body. A dwarf spheroidal smaller (0.75: at 1.0 it reached
+0.67 gu to a round one's 0.54, a dwarf further than a full ball, Nov 5), its light
+falling a little slower than a round one's, spread thin.
+```
