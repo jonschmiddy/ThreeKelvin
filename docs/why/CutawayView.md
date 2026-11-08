@@ -76,7 +76,8 @@ there is no room near it, in the nearest clear space with a leader to it.
 The boxes are the ones `MountPoints` draws (`tag_box`, `label_box`), so what
 is kept apart here is what is on screen. Written into the mounts widget
 (`lift`, `tag_side`); `_layout_ok` says whether everything found a place.
-Returns the whole picture's bounds, in sprite px.
+Returns the whole picture's bounds, in sprite px. Skipped when nothing it
+reads has changed: a move in the hold is a `ship_changed` too (#34).
 ```
 
 Inside `_layout()`, above `_words_ok = true`:
