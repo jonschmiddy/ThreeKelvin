@@ -28,6 +28,7 @@ extends Node
 ##   panclip=<dir> clipview=Z:X:Y [clipframes=61]
 ##     a slow pan, 12 view px over the frames, the clock frozen
 ##   liveclip=<dir> clipview=Z:X:Y cliptime=T0:T1:N [turn=title] [clipwait=1]
+##     [clipviews=name:Z:X:Y,...] (each view in turn, into <dir>/<name>)
 ##     the sky's own motion at one view, the clock stepped from T0 to T1
 ##     (`turn=title` at the title's turning speed; `clipwait=1` a frame drawn a
 ##     step, so a 20 s clip at 60 steps a second is the game's own frames)
@@ -422,11 +423,22 @@ func _clip() -> void:
 	else:
 		var ct := _arg("cliptime", "600:610:96").split(":")
 		var n2 := int(ct[2])
-		_view(z0, at)
-		for i in n2:
-			StarchartScreen.MapChart.clock_override = lerpf(float(ct[0]), float(ct[1]), float(i) / maxf(1.0, float(n2 - 1)))
-			_chart._repaint_sky()
-			await _frame_shot(dir, i)
+		# (`clipviews=name:Z:X:Y,...`: the same clock at several views, one after
+		# another, each into its own folder under the clip's, in one run)
+		var cvs: Array = [["", z0, at]]
+		if _arg("clipviews") != "":
+			cvs.clear()
+			for s5 in _arg("clipviews").split(","):
+				var f5 := (s5 as String).split(":")
+				cvs.append([f5[0], float(f5[1]), _pan_of(f5[2], f5[3] if f5.size() > 3 else "0", float(f5[1]))])
+		for vw: Array in cvs:
+			var d5: String = dir if String(vw[0]) == "" else dir.path_join(String(vw[0]))
+			DirAccess.make_dir_recursive_absolute(d5)
+			_view(float(vw[1]), vw[2])
+			for i in n2:
+				StarchartScreen.MapChart.clock_override = lerpf(float(ct[0]), float(ct[1]), float(i) / maxf(1.0, float(n2 - 1)))
+				_chart._repaint_sky()
+				await _frame_shot(d5, i)
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
 
 
@@ -539,7 +551,7 @@ func _tour(dir: String) -> void:
 	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
 
 
-## WHAT A PART OF THE SKY COSTS (`costbench=remnants,solid,fluff,edge,terrain,nebulae|none`): one process,
+## WHAT A PART OF THE SKY COSTS (`costbench=remnants,solid,fluff,edge,terrain,nebulae,drama|none`): one process,
 ## one galaxy, the part switched off and on in turns at each view (the opening, the
 ## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
 ## vsync off; every frame's own GPU time of the sky's viewports, and the whole
@@ -580,6 +592,8 @@ func _cost_bench(names: String) -> void:
 				ChartSky._edge_on = on == 1 if nm == "edge" else true
 				ChartSky._terr_on = on == 1 if nm == "terrain" else true
 				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
+				# (`drama`: RADIANT's light that moves, its core's clock and the stars' flares)
+				ChartRadiant.drama_on = on == 1 if nm == "drama" else true
 				for _w in 3:
 					t += 1.0 / 60.0
 					StarchartScreen.MapChart.clock_override = t
@@ -610,6 +624,7 @@ func _cost_bench(names: String) -> void:
 	ChartSky._edge_on = true
 	ChartSky._terr_on = true
 	ChartSky._neb_on = true
+	ChartRadiant.drama_on = true
 
 
 ## THE SOLID GALAXY'S MARKS ARE WHERE ITS SKY IS (`solidtest`, with

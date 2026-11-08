@@ -820,7 +820,7 @@ vec4 paint(vec2 uv) {
 			float ld = dot(nv, L);
 			// (a very wide soft terminator: the light wraps well past the half-way line,
 			// as a ball of gas lit by a disc does)
-			float lamR = pow(clamp((ld + r_wrap) / (1.0 + r_wrap), 0.0, 1.0), r_lpow) * smoothstep(-r_wrap, r_edge, ld) * rs * k_light * (1.0 + 0.15 * flare);
+			float lamR = pow(clamp((ld + r_wrap) / (1.0 + r_wrap), 0.0, 1.0), r_lpow) * smoothstep(-r_wrap, r_edge, ld) * rs * k_light * (1.0 + 0.7 * flare);
 			vec3 cR = alb * (star_tint * r_wk.x * lamR + night_fill * r_wk.y * (0.55 + 0.45 * nz));
 			cR += night_fill * r_wk.z * pow(1.0 - nz, 2.0) * (0.5 + dot(alb, vec3(0.333)));
 			// THE GAS IN FRONT OF IT: the world sits IN the glowing cloud, whose light

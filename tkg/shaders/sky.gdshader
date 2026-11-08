@@ -53,6 +53,8 @@ uniform bool radiant = false;
 // (CHIAROSCURO, proto/radiant-a: hotter and tighter round the sun, its long
 // tail cut to a third; was 0.085 with the tail at 0.35)
 uniform float r_haze = 0.14;
+// (LIGHT THAT MOVES, Nov 7: the sun's flare, its haze and glow swelling with it)
+uniform float r_flare = 0.0;
 uniform float tilt = 0.38;
 uniform vec2 sky_off = vec2(0.0);
 uniform float margin = 0.0;
@@ -305,6 +307,9 @@ void fragment() {
 		// (stronger as the map closes in on the sun: faint over the whole system,
 		// a broad glow round the star itself)
 		hz = r_haze * sqrt(clamp(shell_k, 1.0, 8.0)) * (exp(-dpx / 70.0) + 0.12 * exp(-dpx / 210.0)) * (0.85 + 0.3 * fbm2(b * 0.02 + 5.0, 2));
+		// (a flare: the haze brightens and reaches out, eased in and let go)
+		hz *= 1.0 + r_flare * (1.6 + 2.0 * (1.0 - exp(-dpx / 160.0)));
+		I2 *= 1.0 + 0.9 * r_flare;
 		// THE ZODIACAL LENS: dust in the plane, its density falling off from the
 		// sun, a thin sheet seen at the tilt; forward light a little stronger
 		// on the sun's far side

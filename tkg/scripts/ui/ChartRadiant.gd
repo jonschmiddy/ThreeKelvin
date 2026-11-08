@@ -106,7 +106,13 @@ static func fixed_palette() -> PackedColorArray:
 	for i in range(1, 8):
 		out.append(LegacyHole.PALETTE[i])
 	var ramps := [[Vector3(1.0, 0.2, 0.3), [0.15, 0.4, 0.9, 1.7]], [Vector3(0.2, 0.95, 0.85), [0.25, 0.7, 1.5]],
-		[Vector3(1.0, 0.16, 0.13), [0.3, 0.9]], [Vector3(0.32, 0.52, 1.0), [0.15, 0.45, 1.0]]]
+		[Vector3(1.0, 0.16, 0.13), [0.3, 0.9]], [Vector3(0.32, 0.52, 1.0), [0.15, 0.45, 1.0]],
+		# (LIGHT THAT MOVES: the core's flare and the young stars' flares, which the
+		# cut never sees -- it is cut from the scene at rest -- kept at the lights they
+		# reach, up into the burn: the hue-keeping tone tops out at the cut's brightest
+		# tan, and a flare pressed the inner gas flat onto it; past `BURN` it goes
+		# toward white as the composite's tone does, so a flare's heart has whites)
+		[Vector3(1.0, 0.66, 0.36), [0.35, 0.8, 1.6, 3.0, 5.0, 8.0, 14.0]], [Vector3(0.62, 0.78, 1.0), [0.6, 1.5, 3.2, 7.0, 14.0]]]
 	# (no bulge ramp: the cut takes the bulge's tans from what is on screen; a
 	# reserved amber drew a saturated orange ring round every elliptical)
 	for r: Array in ramps:
@@ -114,7 +120,8 @@ static func fixed_palette() -> PackedColorArray:
 		for m: float in r[1]:
 			var h := col * m
 			var mx := maxf(h.x, maxf(h.y, h.z))
-			var c := h * ((1.0 - exp(-mx)) / mx)
+			var mt := 1.0 - exp(-mx)
+			var c := (h * (mt / mx)).lerp(Vector3(mt, mt, mt), smoothstep(BURN, BURN * 3.0, mx))
 			out.append(Color(ChartSky._l2s(c.x), ChartSky._l2s(c.y), ChartSky._l2s(c.z)))
 	# (the void itself and the burnt-out whites: chiaroscuro's two ends; after the
 	# hole's bands, which `ChartSky` keeps exact by their place, 4 to 11)
@@ -585,6 +592,124 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 	if not g.has("r_lobe"):
 		g["r_lobe"] = cloud_uniforms(g.clouds).u_lobe
 	m.set_shader_parameter("u_lobe", g.r_lobe)
+	feed_drama(m, g, t, calm or not live)
+
+
+# ------------------------------------------------------------------ light that moves
+
+## LIGHT THAT MOVES (Nov 7, direction B of Jon's "redo radiant to be super dramatic
+## with the lighting effects"): the drama is in time, and each light is a thing's. The
+## core's disc breathes, now and then flares (eased in, held, let go) and its light
+## reaches far further out through the gas; it throws its light two ways, turning,
+## so two bright sectors sweep round the core over the billows and the haze; young
+## stars in the arms flare for a breath and light the gas round them. (The turning
+## beams were cut in review the same day: they were the "light beams from the core"
+## Jon cut on Oct 11, and most of the frame's crawl.) Pure functions
+## of the clock (`GameClock` through the chart's own), so films run true. `drama_on`
+## false (a cost bench's turn) or `still` (reduced motion, a palette probe): all off.
+static var drama_on := true
+## The core: its breath's period (s), the slot a flare may fall in (s) and how often
+## one does, a flare's rise, hold and fall (s).
+const CORE_BREATH_S := 5.3
+const CORE_SLOT_S := 11.0
+const CORE_FLARE_P := 0.7
+const CORE_ENV := Vector3(0.5, 1.1, 2.8)
+## The young stars: slots (one star each), the first slot's period and each next one's
+## more, a flare's rise, hold and fall, its reach (gu).
+const STAR_SLOTS := 6
+const STAR_PERIOD := Vector2(6.5, 1.3)
+const STAR_ENV := Vector3(0.25, 0.55, 1.9)
+const STAR_REACH := 0.035
+
+
+## THE SUN'S FLARES in RADIANT (the sector map and LOCAL, `SystemView`, `LocalSky`):
+## far more often than the prominences every style shares (one in 40 s), each eased in,
+## held and let go -- its glow swells, its haze and its light run out across the cloud,
+## the worlds' day sides brighten, LOCAL's band lets more of it through. The slot a
+## flare may fall in (s), how often one does, its rise, hold and fall (s).
+const SUN_SLOT_S := 9.0
+const SUN_FLARE_P := 0.7
+const SUN_ENV := Vector3(0.45, 0.9, 2.8)
+
+
+## The sun's flare at t, 0..1 (`salt` a second sun's own clock). None under reduced motion.
+static func sun_flare(t: float, salt: int = 0) -> float:
+	if DisplaySettings.reduced_motion or not drama_on:
+		return 0.0
+	var n0 := floori(t / SUN_SLOT_S)
+	var fl := 0.0
+	for n in range(n0 - 1, n0 + 1):
+		if LegacyHole.hash01(n, 1011 + salt) > SUN_FLARE_P:
+			continue
+		var t0 := SUN_SLOT_S * n + (SUN_SLOT_S - SUN_ENV.x - SUN_ENV.y - SUN_ENV.z) * LegacyHole.hash01(n, 1012 + salt)
+		fl = maxf(fl, ease_hold(t - t0, SUN_ENV) * (0.7 + 0.3 * LegacyHole.hash01(n, 1013 + salt)))
+	return fl
+
+
+## An event's envelope at `age` s: eased up over rise, held, eased down over fall.
+static func ease_hold(age: float, e: Vector3) -> float:
+	if age < 0.0 or age > e.x + e.y + e.z:
+		return 0.0
+	if age < e.x:
+		return smoothstep(0.0, e.x, age)
+	if age < e.x + e.y:
+		return 1.0
+	return 1.0 - smoothstep(0.0, e.z, age - e.x - e.y)
+
+
+## The core's clock at t: (breath -1..1, flare 0..1, 0, 0).
+static func core_clock(t: float) -> Vector4:
+	var n0 := floori(t / CORE_SLOT_S)
+	var fl := 0.0
+	for n in range(n0 - 1, n0 + 1):
+		if LegacyHole.hash01(n, 811) > CORE_FLARE_P:
+			continue
+		var t0 := CORE_SLOT_S * n + (CORE_SLOT_S - CORE_ENV.x - CORE_ENV.y - CORE_ENV.z) * LegacyHole.hash01(n, 812)
+		fl = maxf(fl, ease_hold(t - t0, CORE_ENV) * (0.75 + 0.25 * LegacyHole.hash01(n, 813)))
+	var br := sin(t * TAU / CORE_BREATH_S)
+	return Vector4(br, fl, 0.0, 0.0)
+
+
+## Where a young star flares, slot k's n-th turn (plane gu): on a knot when the galaxy
+## has them (the arms' star-forming fronts), else anywhere in a ball's body or on a disc.
+static func star_spot(g: Dictionary, k: int, n: int) -> Vector2:
+	var knots: Array = g.get("knots", [])
+	var j := LegacyHole.hash01(n, 900 + k)
+	var jx := LegacyHole.hash01(n, 920 + k) - 0.5
+	var jy := LegacyHole.hash01(n, 940 + k) - 0.5
+	if not knots.is_empty():
+		var kn: Dictionary = knots[int(j * knots.size()) % knots.size()]
+		return (kn.xy as Vector2) + Vector2(jx, jy) * 0.03
+	var p: Dictionary = g.p
+	var r := 0.0
+	if int(p.form) == 1:
+		r = float((p.ball as Vector4).x) * 0.7 * sqrt(LegacyHole.hash01(n, 960 + k))
+	else:
+		r = 0.15 + 0.7 * LegacyHole.hash01(n, 960 + k)
+	var a := TAU * j
+	return Vector2(cos(a), sin(a)) * r
+
+
+static func feed_drama(m: ShaderMaterial, g: Dictionary, t: float, still: bool) -> void:
+	var st := PackedVector4Array()
+	st.resize(STAR_SLOTS)
+	if still or not drama_on:
+		m.set_shader_parameter("u_rbCore", Vector4.ZERO)
+		m.set_shader_parameter("u_rbStar", st)
+		return
+	m.set_shader_parameter("u_rbCore", core_clock(t))
+	for k in STAR_SLOTS:
+		var per := STAR_PERIOD.x + STAR_PERIOD.y * k
+		var n := floori(t / per)
+		if LegacyHole.hash01(n, 880 + k) > 0.8:
+			continue
+		var t0 := per * n + (per - STAR_ENV.x - STAR_ENV.y - STAR_ENV.z) * LegacyHole.hash01(n, 860 + k)
+		var e := ease_hold(t - t0, STAR_ENV)
+		if e <= 0.0:
+			continue
+		var xy := star_spot(g, k, n)
+		st[k] = Vector4(xy.x, xy.y, e * (0.7 + 0.3 * LegacyHole.hash01(n, 870 + k)), STAR_REACH)
+	m.set_shader_parameter("u_rbStar", st)
 
 
 ## Distant lightning in an emission or dark cloud (SIMPLIFIED's schedule): a
