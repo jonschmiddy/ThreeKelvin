@@ -7,11 +7,12 @@
 # (gitignored), and tag and push alpha-<version>.
 #
 # Before running: the branch sets config/version="<version>" in tkg/project.godot,
-# has its CHANGELOG cut (## date, ### [version]) and renames NEW THINGS' NEXT
-# entry to <version> with the day (tkg/scripts/data/NewThings.gd). Without that
-# entry on top it REFUSES, before the gate runs and again on the landed main
-# (new_things_check.sh): the title's NEW THINGS page would show the build's
-# changes under the wrong heading. Nothing is uploaded anywhere: Jon shares the
+# has its CHANGELOG cut (tools/dev/cut_changelog.py <version>, then the build's
+# opening paragraph by hand) and renames NEW THINGS' NEXT entry to <version>
+# with the day (tkg/scripts/data/NewThings.gd). It REFUSES while changes/ still
+# holds a file, and without that NEW THINGS entry on top, before the gate runs
+# and again on the landed main (new_things_check.sh): the title's NEW THINGS
+# page would show the build's changes under the wrong heading. Nothing is uploaded anywhere: Jon shares the
 # zips himself.
 #
 # The build needs Godot's export templates for this exact Godot version
@@ -20,6 +21,7 @@ set -uo pipefail
 D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$D/env.sh"
 WT="$1"; BR="$2"; LB="$3"; VER="$4"
+if ls "$WT"/changes/[0-9]*.md >/dev/null 2>&1; then echo "STOPPED: changes/ is not folded into the CHANGELOG (tools/dev/cut_changelog.py $VER)"; exit 1; fi
 bash "$D/new_things_check.sh" "$VER" "$WT/tkg/scripts/data/NewThings.gd" || { echo "STOPPED: NEW THINGS has no entry for $VER (nothing landed)"; exit 1; }
 out=$(bash "$D/gate_land.sh" "$WT" "$BR" "$LB" 2>&1 | tail -4); echo "$out"
 echo "$out" | grep -q "^LANDED" || { echo "STOPPED: gate did not land"; exit 1; }

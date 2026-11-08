@@ -37,7 +37,7 @@ at the bottom says where the work stands.
 | `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 12 minutes), fast-forward main and push on a pass. |
 | `release.sh WORKTREE BRANCH LABEL VERSION` | First rename NEW THINGS' `NEXT` entry (`tkg/scripts/data/NewThings.gd`) to VERSION and date it, in the commit that raises config/version; it refuses otherwise (`new_things_check.sh`, before the gate and again on the landed main). Then gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
 | `new_things_check.sh VERSION [NewThings.gd]` | Exit 0 only when NEW THINGS' newest entry is VERSION, dated, with no `NEXT` left. release.sh runs it. |
-| `resolve_changelog.py CHANGELOG.md` | Keeps both sides of a CHANGELOG-only merge conflict. gate_land runs it. |
+| `cut_changelog.py VERSION [DATE]` | Folds `changes/*.md` into `CHANGELOG.md` as the new build's section; you write its opening paragraph. release.sh refuses while `changes/` still has a file. |
 | `encode_video.py IN.avi OUT.mp4 [START]` | A film the game wrote, as an MP4 a phone plays. |
 | `pages/make_pick_page.py SPEC OUT` | A pick page of pictures and films for Jon to choose from. |
 | `voice/record.py MANIFEST OUT plan/go/fx` | Record A.S.H. lines with ElevenLabs, several takes each, finished to the game's level. |
@@ -55,8 +55,9 @@ Python tools run through uv, for example:
   other Godot work while it runs (timing tests fail on a busy machine). Agents
   run only the tests for what they touch, never `validate.sh`.
 - **Branches live in worktrees** under `../tk-wt/<name>`. A fresh worktree needs
-  one `--import` before its tests. CHANGELOG lines go under `## [Unreleased]` in
-  the bold style (`- **Fixed** —`, `- **Changed** —`, `- **Added** —`).
+  one `--import` before its tests. A change's CHANGELOG line is its own file,
+  `changes/YYYY-MM-DD-what-changed.md`, in the bold style (`- **Fixed** —`,
+  `- **Changed** —`, `- **Added** —`), so branches never conflict over the one file.
 - **Never read or write Jon's real profile.** Every Godot run goes through
   `godot.sh` or `render.sh`. For his saves, ask for SAVE MY LOGS (a zip on his
   Desktop) and work from that copy.

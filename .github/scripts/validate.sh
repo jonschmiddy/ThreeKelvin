@@ -175,6 +175,34 @@ else
 fi
 }
 
+unit_changes() {
+step "Each change is a file in changes/, and CHANGELOG.md's [Unreleased] holds none"
+# A CHANGELOG line under [Unreleased] is a merge conflict with every other
+# branch; changes/ (one dated file a change) is how they stay out of it.
+CHANGES_BAD=""
+for f in changes/*.md; do
+	[ "$f" = "changes/README.md" ] && continue
+	case "$(basename "$f")" in
+		[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.md) ;;
+		*) CHANGES_BAD="$CHANGES_BAD  $f: name it YYYY-MM-DD-what-changed.md"$'\n' ;;
+	esac
+	while IFS= read -r line; do
+		case "$line" in
+			''|'  '*|'- **Fixed** — '*|'- **Changed** — '*|'- **Added** — '*) ;;
+			*) CHANGES_BAD="$CHANGES_BAD  $f: a line is not a CHANGELOG bullet or its continuation: ${line:0:60}"$'\n' ;;
+		esac
+	done <"$f"
+done
+UNRELEASED_BULLETS="$(sed -n '/^## \[Unreleased\]/,/^## [0-9]/p' CHANGELOG.md | grep -c '^- ' || true)"
+[ "$UNRELEASED_BULLETS" -eq 0 ] || CHANGES_BAD="$CHANGES_BAD  CHANGELOG.md: $UNRELEASED_BULLETS bullets under [Unreleased]; each belongs in its own changes/ file"$'\n'
+if [ -n "$CHANGES_BAD" ]; then
+	bad "changes/ and CHANGELOG.md:"
+	printf '%s' "$CHANGES_BAD" | sed 's/^/      /'
+else
+	ok "changes/*.md are dated CHANGELOG bullets, and [Unreleased] is a pointer to them"
+fi
+}
+
 unit_import() {
 step "Global class cache builds"
 # REQUIRED before anything compiles at all: class_name registration lives in
