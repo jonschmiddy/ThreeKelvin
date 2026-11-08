@@ -2543,7 +2543,9 @@ fi
 #                    frame all the same)
 #   sim              forty whole runs, the regression test of last resort; run
 #                    alone so its limit is never spent waiting for a CPU
-SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim"
+#   calmladdertest   fixed fps, but a partner's ship eases on by the wall clock
+#                    (`_draw_partners`), so one slow frame is one jump past 40 px
+SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim calmladdertest"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
@@ -2835,8 +2837,9 @@ else
 	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
 	run_phase 1 "${GATE_FIRST[@]}"
 	run_phase "$GATE_JOBS" "${GATE_POOL_ORDER[@]}"
-	run_phase "$GATE_JOBS" "${GATE_AFTER[@]}"
-	run_phase 1 "${GATE_SOLO[@]}"
+	# (a part may hold none of these; bash 3.2 reads an empty array as unbound)
+	run_phase "$GATE_JOBS" ${GATE_AFTER[@]+"${GATE_AFTER[@]}"}
+	run_phase 1 ${GATE_SOLO[@]+"${GATE_SOLO[@]}"}
 fi
 flush_output
 
