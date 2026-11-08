@@ -900,3 +900,49 @@ next in the column.
 Hull above heat, which is the order they are stacked on the HUD and
 under every enemy.
 ```
+
+## Convoy pad
+
+Above `var _convoy_pad: Control`:
+
+```text
+The box the column sits in. Hidden rather than the column itself: an
+HBoxContainer puts its separation either side of every VISIBLE child, so a
+hidden column inside a visible margin still cost the solo game twenty-four
+pixels of empty left edge.
+
+A PLAIN CONTROL, NOT A CONTAINER (J4 B, Jon, Nov 5): its width is the
+column's room as it slides in and out (`_slide`), whole pixels a frame, and
+the column is placed in it by hand against its right edge (`_place_convoy`),
+so the partners come in from the left with your hull. A container's width
+can never be less than what is in it.
+```
+
+## Column slide
+
+Above `func _set_column(on: bool) -> void:`:
+
+```text
+THE COLUMN COMES AND GOES (J4 B, Jon, Nov 5: "The column appears when a
+partner arrives. Your ship slides 220 px right, and each enemy moves and
+drops to half size ... If that player leaves ... the column disappears and
+the ship slides back to the single player view."). At once when nothing
+animates (headless, reduced motion, the screen's first build), else eased
+over SLIDE_T. Nothing is rebuilt: the row's children keep their nodes, so a
+card being aimed keeps its target (`slid`), and nothing pressable is made
+again under the pointer.
+```
+
+## Hull box follows the slot
+
+Inside `_notification()` of the hull slot, above `if what == NOTIFICATION_RESIZED and art != null:`:
+
+```text
+THE HULL'S BOX FOLLOWS THE SLOT'S. A shudder or an arrival writes the
+hull's `position`, and on an anchored Control that writes its size
+into the offsets: written while the slot was narrower than the hull's
+canvas (the convoy column in), it kept that clamped size when the slot
+widened again, and your ship sat 37 px right of the solo view's when
+the column slid out (J4 B, `-- sheet=ConvoySlideTest`). The offsets
+keep only the move the shudder made.
+```

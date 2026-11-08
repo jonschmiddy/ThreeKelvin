@@ -241,6 +241,11 @@ with your own hold open beside you -- which is the only way a full hold can
 refuse a reward without the reward quietly ceasing to exist.
 
 Returns what it made, so a caller with its own container can take them.
+
+EVERY MATERIAL IS PAID, so the party's size is counted here, once (Jon, Nov
+5: "loot pools are increased as the playercount increases"): an n-player
+game puts `PartyScale.pay(n)` of them in the system. 1 alone. A wreck's
+exotic is in the wreck (`Combat.roll_wreck`), not through here.
 ```
 
 ## Dross

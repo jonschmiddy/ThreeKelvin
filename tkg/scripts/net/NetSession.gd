@@ -7,7 +7,7 @@ extends Node
 ## Bump on any change to the messages or the meaning of their fields.
 ## Cheap to raise, very expensive to forget: a mismatch is refused at the door.
 ## Why: docs/why/NetSession.md#protocol-versions
-const PROTOCOL: int = 16
+const PROTOCOL: int = 18
 
 ## Generous: giving up early costs a wreck, assuming costs the party's economy.
 ## Why: docs/why/NetSession.md#take-timeout
@@ -56,6 +56,20 @@ var forced_build: String = ""
 ## Test seam: holds fight asks until `release_asks()`. Never set from game code.
 var hold_asks: bool = false
 var _held_asks: Array = []
+## A SWING'S TARGET, FORCED (`-- nettest`, `-- sheet=MidJoinTest`): every swing
+## goes to this peer while it is in the fight's crew. 0 is the real roll.
+## Never set from game code.
+var forced_target: int = 0
+## THE FIGHT THIS MACHINE IS ASKING TO BE SEATED IN, or -1 (PROTOCOL 18). A
+## stunned joiner counts as ended, so a partner's END TURN can swing at it
+## while its ask is still on the wire and no Combat is listening yet: those
+## swings are held here (`_held_swings`) and the Combat plays them as it begins
+## (`take_held_swings`).
+var _asking_at: int = -1
+var _held_swings: Array = []
+## The system whose JOIN the host answered with "nothing open here any more"
+## (`_no_fight_to`), or -1.
+var _no_fight_at: int = -1
 
 ## Arrival order, as peer ids are random and sorting by them shuffles the lobby list.
 var _join_serial: int = 0
@@ -286,6 +300,23 @@ func party_size() -> int:
 	return roster.size()
 
 
+## The players in this game, for the enemy's hull and the pay (`PartyScale`, PROTOCOL 18).
+## 1 alone or off the dive's galaxy; a dead pilot or one `away` is not counted.
+## Why: docs/why/NetSession.md#party-count
+func party_count() -> int:
+	if not is_networked() or not _on_dive_galaxy():
+		return 1
+	var n := 0
+	for id: int in roster.keys():
+		if bool(roster[id].get("away", false)):
+			continue
+		var b := build_of(id)
+		if b != null and b.dead:
+			continue
+		n += 1
+	return clampi(n, 1, MAX_PLAYERS)
+
+
 func everyone_ready() -> bool:
 	if roster.is_empty():
 		return false
@@ -494,16 +525,18 @@ func _push_claims_to(all: Dictionary) -> void:
 
 
 ## Open-or-join in one message: only the host can say who was first in a same-second race.
+## `players`: the count the asker built its hull for; `join_only`: a JOIN door's ask, which opens nothing (PROTOCOL 18).
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, players: int,
+		join_only: bool) -> void:
 	if not is_host():
 		return
 	var by := multiplayer.get_remote_sender_id()
 	if hold_asks:
-		_held_asks.append([index, ids, hp, brace, cur, grown, by])
+		_held_asks.append([index, ids, hp, brace, cur, grown, by, players, join_only])
 		return
-	_open_or_join(index, ids, hp, brace, cur, grown, by)
+	_open_or_join(index, ids, hp, brace, cur, grown, by, players, join_only)
 
 
 ## The test seam's other half: answer every held ask now, in the order asked.
@@ -511,7 +544,15 @@ func release_asks() -> void:
 	var held := _held_asks
 	_held_asks = []
 	for a: Array in held:
-		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6])
+		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8])
+
+
+## A JOIN THAT CAME AFTER THE KILL (PROTOCOL 18): nothing is open at `index`
+## to join, and the host opened nothing. Sent to the asker alone, after the
+## fight that ended; its wait (`open_fight`) hands that fight back.
+@rpc("authority", "call_remote", "reliable")
+func _no_fight_to(index: int) -> void:
+	_no_fight_at = index
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -566,7 +607,27 @@ func _push_growth_to(g: int, quiet: bool) -> void:
 ## Sent to one peer only; the intent is an index into lists every machine built identically.
 @rpc("authority", "call_remote", "reliable")
 func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
+	# Still asking to be seated there: nothing is listening yet, so it is held
+	# for the Combat to play as it begins (`take_held_swings`).
+	if at == _asking_at:
+		_held_swings.append([at, which, kind, pick])
+		return
 	Sig.party_fight_swing.emit(at, which, kind, pick)
+
+
+## THE HITS THAT LANDED WHILE THIS SHIP WAS ASKING TO JOIN THE FIGHT AT `at`,
+## as `[at, which, kind, pick]` rows, in order; taken once. `Combat.begin`
+## plays them before it decides between a hand and the stun.
+func take_held_swings(at: int) -> Array:
+	var out: Array = []
+	var kept: Array = []
+	for row: Array in _held_swings:
+		if int(row[0]) == at:
+			out.append(row)
+		else:
+			kept.append(row)
+	_held_swings = kept
+	return out
 
 
 ## Unreliable: the next one replaces a lost one, and a stale queued one is worse than none.
@@ -713,6 +774,9 @@ func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> voi
 	var said := int(_jumps_said.get(id, -1))
 	roster[id].build = wire
 	roster[id].at = at
+	# (in the dive, a presence with no jumps to say is a ship off this galaxy:
+	# not one of the players the fights are built for, `party_count`)
+	roster[id].away = state == State.DIVING and jumps < 0
 	_jumps_said[id] = jumps
 	# Both presences must be from this dive's galaxy, so a first or late presence is no jump.
 	if is_host() and id != 1 and state == State.DIVING \
@@ -1043,23 +1107,44 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 
 ## Null means fight it alone. The host may seat a second asker in an existing fight.
 ## No private fight while the link is up: a private copy once left the party on WAIT.
+## `join_only` (PROTOCOL 18): a JOIN door's ask opens nothing; past the kill it gets the ended fight.
+## The hull is built for `party_count()`; the host scales it to its own count.
 ## Why: docs/why/NetSession.md#shared-fights
 func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1,
+		join_only: bool = false) -> SharedFight:
 	if not _can_talk() or index < 0 or party_size() < 2:
 		return null
 	if is_host():
-		_open_or_join(index, ids, hp, brace, cur, grown, 1)
+		_open_or_join(index, ids, hp, brace, cur, grown, 1, party_count(), join_only)
 		return fights.get(index, null)
 	# Ask and wait like `take()`: an optimistic private frigate would get different numbers.
-	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown)
+	_asking_at = index
+	_held_swings.clear()
+	_no_fight_at = -1
+	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown, party_count(), join_only)
 	var me := local_id()
+	var out: SharedFight = null
 	while _can_talk():
 		await get_tree().process_frame
 		var f: SharedFight = fights.get(index, null)
 		if f != null and f.crew.has(me):
-			return f
-	return null
+			out = f
+			break
+		# The host's "nothing open there" comes after the push it sent first,
+		# so the copy here is the ended fight by now
+		if _no_fight_at == index:
+			out = f
+			if out == null:
+				out = SharedFight.new()
+				out.at = index
+				out.over = true
+			break
+	_asking_at = -1
+	_no_fight_at = -1
+	if out == null:
+		_held_swings.clear()
+	return out
 
 
 ## The fight at a system, shared or not, over or not. Callers check `over`.
@@ -1173,14 +1258,32 @@ func _push_claims() -> void:
 # --- fights, on the host --------------------------------------------------
 
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int,
+		players: int = 1, join_only: bool = false) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
-		# A second ship in is help, not a second frigate: its `grown`, hp and ids are ignored.
+		# A second ship in is help, not a second frigate (stunned past turn one): its `grown`, hp and ids are ignored.
 		# Why: docs/why/NetSession.md#shared-fights
 		f.join(by)
+	elif join_only and f != null:
+		# A JOIN THAT CAME AFTER THE KILL (PROTOCOL 18): it opens nothing, as
+		# a JOIN door never opens a fight. The asker is sent the fight that
+		# ended, then told. (The host's own JOIN reads its copy at once.)
+		if by != 1:
+			_push_fight_to.rpc_id(by, f.to_wire())
+			_no_fight_to.rpc_id(by, index)
+		return
 	else:
-		f = SharedFight.open(index, ids, hp, brace, cur, by, grown)
+		# BUILT FOR THE GAME'S PLAYERS AS THE HOST COUNTS THEM (PROTOCOL 18).
+		# The asker built its hull for the count it had heard; a roster push
+		# still on its way to it is the only way the two differ.
+		var mine := party_count()
+		players = clampi(players, 1, MAX_PLAYERS)
+		if players != mine:
+			var k := PartyScale.hull(mine) / PartyScale.hull(players)
+			hp = _scaled(hp, k)
+			cur = _scaled(cur, k)
+		f = SharedFight.open(index, ids, hp, brace, cur, by, grown, mine)
 		fights[index] = f
 		# Fold the opener's count first, then grow a fight grown at less before anyone sees it.
 		_fold_growth(grown)
@@ -1188,6 +1291,13 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		for i in f.foes.size():
 			_pick_intent(f, i)
 	_push_fight(f)
+
+
+static func _scaled(v: PackedInt32Array, k: float) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for x in v:
+		out.append(maxi(1, int(round(x * k))))
+	return out
 
 
 func _apply_hurt(index: int, which: int, amount: int, hits: int, by: int) -> void:
@@ -1222,7 +1332,8 @@ func _apply_leave(index: int, by: int) -> void:
 	# `paid == 0` says nobody killed it: `leave()` sets `over`, and a won fight empties its crew.
 	if f.over and not was_over and f.paid == 0 and not f.broke \
 			and _is_hellbender_fight(f) and not f.foes.is_empty():
-		Run.hellbender_scarred(f.foes[0].hp)
+		# in one ship's terms, whoever fought it (`PartyScale.solo_hull`)
+		Run.hellbender_scarred(PartyScale.solo_hull(f.foes[0].hp, f.party))
 	# Somebody leaving can be the thing that closes the barrier — three ships
 	# waiting on a fourth who just died is a fight that would otherwise stop.
 	if not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
@@ -1240,7 +1351,7 @@ func _swing(f: SharedFight) -> void:
 		if e0.kind == SharedFight.Pick.ESCAPE:
 			f.broke = true
 			f.over = true
-			Run.hellbender_breaks_off(e0.hp)
+			Run.hellbender_breaks_off(PartyScale.solo_hull(e0.hp, f.party))
 			_push_fight(f)
 			return
 	for i in f.alive():
@@ -1262,8 +1373,11 @@ func _swing(f: SharedFight) -> void:
 
 
 ## Weighted by heat with a floor, so a cold ship is never safe and a party cannot elect a victim.
+## A stunned ship is in the pool: it can be shot (Jon, Nov 5).
 ## Why: docs/why/NetSession.md#target-weighting
 func _who_gets_hit(f: SharedFight) -> int:
+	if forced_target != 0 and f.crew.has(forced_target):
+		return forced_target
 	var pool: PackedInt32Array = PackedInt32Array()
 	var weights: PackedFloat32Array = PackedFloat32Array()
 	var total := 0.0

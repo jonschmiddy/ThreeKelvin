@@ -305,7 +305,7 @@ The two directions are deliberately asymmetric.
 
 **Leaving is not optional.** A crew list still holding somebody who will never press END TURN again is a fight that never takes another turn. Dying, fleeing, winning and disconnecting all call `leave()`, and a disconnect that closes the barrier takes the turn immediately. Losing the host mid-fight drops the fight back to local resolution rather than hanging on a button that will never light up.
 
-**The enemy scales, and everyone gets paid.** Each extra ship adds `CREW_SHARE` (0.6) of the enemy's solo value, the same number `Combat.start()` already uses to split a pack — three hands of cards against one intent is an advantage, so a linearly scaled enemy would make the party fight *easier*. Joining at 10% health still grows it, which is the price of arriving late. Everyone still in it when the last hull came apart is paid, and fleeing already paid nothing.
+**The enemy scales, and everyone gets paid.** (As built in Protocol 5. Protocol 18 replaced `CREW_SHARE` with `PartyScale`, below.) Each extra ship adds `CREW_SHARE` (0.6) of the enemy's solo value, the same number `Combat.start()` already uses to split a pack — three hands of cards against one intent is an advantage, so a linearly scaled enemy would make the party fight *easier*. Joining at 10% health still grows it, which is the price of arriving late. Everyone still in it when the last hull came apart is paid, and fleeing already paid nothing.
 
 **What is not shared:** an ambush, because `_roll_ambush` draws from `Rng.foe` — a stream, precisely so four ships at one system do not all get jumped, which means two players' ambushes at the same node are different events sharing an address. Nor an event that drops you into a fight, for the same reason. Reinforcements and pacification are off in a shared fight rather than wrong in one; both need the host counting something it does not count yet.
 
@@ -512,6 +512,24 @@ The review of this (Nov 5) found four more, all on the same paths:
 
 `-- nettest` (`_race_test`) and `-- sheet=MidJoinTest` hold it in one process; `tools/cofight.sh race` flies both orders in two and compares ids, intents and wrecks from outside.
 
+### Protocol 18: joining a fight late, stunned, and the party's size (Nov 5)
+
+(17 is feat/fast-flight's, not on this branch. Whichever lands second takes the higher number and turns the other away in `_refusal_tests`.)
+
+Jon, Nov 5: *"They would enter the fight with a stunned condition until the enemy's turn is over (even if they join right at the end of the enemy's turn)."* and *"If other players in co op join on the FIRST player's turn of a fight they are not stunned."* On the host the enemy's turn takes no time (the last END TURN swings and moves the turn in one go), so every join lands in some turn's players' phase. **Turn 1's never stuns**, however much has happened in it, which also covers the same-second race. **Any later join is stunned until that turn's enemy turn is over**, at its very start too. `SharedFight.join` puts the ship in `stunned` and in `ended`, so the turn never waits on it and `waiting_on` never names it; its own END TURN is refused; `advance` clears every stun at once; `leave` takes it out of all three lists. The list rides the whole-fight push as `"stun"` (read only for ships in the crew).
+
+A stunned ship **can be shot** (J2 A): it is in the crew, so `_who_gets_hit` weighs it by heat like anyone, and it has no block or brace. That opened a race the review had found: counted as ended, the joiner can be swung at by a partner's END TURN in the same host frame as its seat, before its Combat is listening. `open_fight` marks the fight it is asking about (`_asking_at`), `_enemy_swings` holds swings for it (`_held_swings`), and `Combat.begin` plays them (`take_held_swings`, "Rustjaw Cutter hit you as you arrived.") before deciding between a hand and the stun. On the guest, a stunned `Combat` deals nothing and shuts END TURN, HAIL, FLEE and every card; the turn moving clears it, runs the overheat check once for the turn sat out, logs "Your turn." and deals the hand. A party lost while stunned is taken like a party lost while waiting: the enemy's turn here, then the hand.
+
+**Nothing grows when a ship walks in any more** (J3, replaced by Jon, Nov 5: *"increase the difficulty of enemy ships globally depending on how many players are in the multiplayer game ... ship strength and loot pools are increased as the playercount increases."*). Every fight is built for the players in the game (`PartyScale`: hull x `1 + HULL_PER (n - 1)`, pay x `1 + LOOT_PER (n - 1)`), wherever they are. The count is the host's roster (`party_count`, pushed whole, 1 alone or off the dive's galaxy), less a pilot who died (its build says `dead`) and one whose last presence in the dive said no jumps here (`away`: gone to a NEW RUN's galaxy, or a late joiner not yet in this one), so a ship left flying alone meets one ship's hulls. A fight says the count it was built for (`SharedFight.party`, `"party"`), which a drop or a join mid-fight never changes; the next fight takes the new count. An ask says the asker's count, and the host scales its hull to its own if a roster push was still on its way. `CREW_SHARE` is gone.
+
+**The numbers, measured** (`-- sheet=PartySize`, 150 runs a row, Korvan medium starter kits, the Custodian at 20 jumps with hull 160 ships). `HULL_PER` 1.1 keeps the party's fight length at the solo one (cutter 8.7 rounds alone, 8.5 for two, 8.3 for four; lancer 13.6, 12.4, 11.9; a lancer and cutter pack 11.7, 12.8, 12.2; the Custodian 18.9, 19.0, 18.8). Win rates do not come back down with hull alone: the enemy's fire is split across the party, so a pack that a lone starter beats 59% of the time, two ships beat 100% even at `h` 2.5 (21.8 rounds), and the Custodian goes from 69% to 100%. Matching the win rate needs more than hull, which the Nov 3 ruling rules out, so `HULL_PER` is set on length. The other side of the global rule: a ship fighting alone in a party's game meets the party's hull, and a starter kit loses a two-player pack every time (lancer alone for four: 3% won). `LOOT_PER` 1.0: one more share per player, so a party splitting every wreck and event evenly is each paid what a lone pilot is. Pay covers wreck credits, parts and exotics (`roll_wreck`), event money (`OptionTable.purse`) and parts (`OptionTable.pay`), materials (`Run.add_material`) and derelict salvage. The Custodian is still one per galaxy: `hull_at(galaxy count)` x `PartyScale.hull(n)`, the same for every pilot, late joiners too; the badge reads jumps only, so it is unchanged.
+
+**A JOIN after the kill opens nothing** (the hole slice 1 left): a start that found a partner's fight here asks `join_only`, and a host that finds that fight over sends it back with `_no_fight_to`; the guest goes back to LOCAL with "The fight ended before you got there." A plain start there after the kill still opens a new fight, as it always has.
+
+What this adds to `NetSession.gd`, for the merge with fast-flight's 17: the PROTOCOL header entry and `PROTOCOL = 18`; the fields `forced_target`, `_asking_at`, `_held_swings`, `_no_fight_at`; `party_count()`; `_open_fight_at_host` with two more arguments (`players`, `join_only`), `release_asks` passing them, and the RPC `_no_fight_to`; `_enemy_swings` holding and `take_held_swings`; `open_fight`'s `join_only` and its wait; `_open_or_join`'s `players`/`join_only` branches and `_scaled`; `PartyScale.solo_hull` in `_apply_leave` and `_swing`; and `forced_target` in `_who_gets_hit`.
+
+A version 16 partner reads no stun, deals itself a hand and waits on a turn that has moved on, and grows every fight it walks into, so it is refused at the door. `-- nettest` (`_stun_rules_test`, `_stun_net_test`, `_party_scale_rules_test`, `_party_scale_net_test`), `-- sheet=MidJoinTest` (slice 2) and `tools/cofight.sh late` (the guest walks in on turn 2) hold it.
+
 ### Eight seats, flown before the number was raised
 
 `NetTransport.MAX_PLAYERS` is eight. It was four, and the way it was raised is
@@ -543,10 +561,10 @@ partner's name across the name of the system.
 so a mismatch is a player the relay admits and the host then turns away, which
 reads to them as a random disconnect.
 
-**What is allowed and not tuned:** `SharedFight.CREW_SHARE` is linear with no
-ceiling and has been flown at two. An eight-ship custodian is 200 + 7×120 hull
-early, up to 400 + 7×240 (2,080) from jump 33, since it grows with the opener's
-jumps. That is against eight hands of cards. The cap permits that fight; nobody has played it.
+**What is allowed and not tuned:** `PartyScale` is linear with no ceiling and
+was measured at two to four. An eight-player custodian is 200 × 8.7 hull early,
+up to 400 × 8.7 (3,480) from jump 33, since it grows with the lead ship's jumps
+and the party's size. That is against eight hands of cards. The cap permits that fight; nobody has played it.
 
 And one cost worth naming before it is discovered on a bill: `_push_roster_to`
 sends the **whole** roster to **everyone** on any change, and every slot carries
