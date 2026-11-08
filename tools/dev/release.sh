@@ -54,9 +54,14 @@ inner = [n for n in f.namelist() if n.endswith('.zip')]
 g = zipfile.ZipFile(io.BytesIO(f.read(inner[0]))) if inner else f
 print('mac app:', [(oct((i.external_attr >> 16) & 0o777), i.filename) for i in g.infolist()
                    if '/MacOS/' in i.filename or 'CodeResources' in i.filename])
+# A Mac app whose binary lost its executable bit does not open.
+bins = [i for i in g.infolist() if '/MacOS/' in i.filename and not i.is_dir()]
+sys.exit(0 if any((i.external_attr >> 16) & 0o111 for i in bins) else 1)
 EOF
+[ $? -eq 0 ] || { echo "STOPPED: the Mac app has no executable binary (nothing tagged)"; exit 1; }
 DEST="$TK_REPO/builds/$(basename "$B")"
 mkdir -p "$DEST" && cp "$B"/*.zip "$DEST"/ && (cd "$DEST" && shasum -a 256 *.zip 2>/dev/null || sha256sum *.zip)
 git -C "$TK_REPO" tag -a "alpha-$VER" "$SHA" -m "$VER. Windows and Mac zips built from this commit." \
-	&& git -C "$TK_REPO" push -q origin "alpha-$VER" && git -C "$TK_REPO" ls-remote --tags origin "alpha-$VER"
+	&& git -C "$TK_REPO" push -q origin "alpha-$VER" && git -C "$TK_REPO" ls-remote --tags origin "alpha-$VER" | grep . \
+	|| { echo "STOPPED: alpha-$VER was not tagged and pushed (zips are in $DEST)"; exit 1; }
 echo "ZIPS: $DEST"

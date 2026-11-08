@@ -36,8 +36,9 @@ while [ -z "$SLOT" ]; do
 		if mkdir "$d" 2>/dev/null; then SLOT="$d"; break; fi
 		# Abandoned: its owner is gone, or it is older than 40 minutes.
 		pid="$(cut -d' ' -f1 "$d/owner" 2>/dev/null)"
-		if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then rm -rf "$d"
-		elif [ -n "$(find "$d" -maxdepth 0 -mmin +40 2>/dev/null)" ]; then rm -rf "$d"
+		# Rename first: one reclaimer wins, so none deletes a slot just re-claimed.
+		if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then mv "$d" "$d.stale.$$" 2>/dev/null && rm -rf "$d.stale.$$"
+		elif [ -n "$(find "$d" -maxdepth 0 -mmin +40 2>/dev/null)" ]; then mv "$d" "$d.stale.$$" 2>/dev/null && rm -rf "$d.stale.$$"
 		fi
 	done
 	[ -z "$SLOT" ] && sleep 5

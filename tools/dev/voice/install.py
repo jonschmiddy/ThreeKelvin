@@ -37,7 +37,8 @@ def main():
         shutil.copy(src, dst)
         done += 1
         print(i, "take", t, "->", dst)
-    missing = [i for i in by if f"{i}:" not in a.picks]
+    picked = {p.split(":", 1)[0] for p in a.picks.replace("(", " ").split() if ":" in p}
+    missing = [i for i in by if i not in picked]
     print(done, "installed;", "unpicked: " + ", ".join(missing) if missing else "every line picked")
 
 

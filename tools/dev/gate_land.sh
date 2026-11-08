@@ -17,10 +17,12 @@ W="$1"; B="$2"; L="$3"
 LOG="$TK_SCRATCH/logs/gate_${L}.log"
 tk_guard || { echo "FAILED $L (profile guard)"; exit 1; }
 cd "$W" || { echo "FAILED $L (no worktree)"; exit 1; }
-git merge --no-edit -q main 2>&1 | tail -2
+mout="$(git merge --no-edit -q main 2>&1)"; mrc=$?
+printf '%s\n' "$mout" | tail -2
 if git status --short | grep -qE "^(UU|AA|DU|UD)"; then
 	git status --short | grep -E "^(UU|AA|DU|UD)"; echo "FAILED $L (merge conflict)"; exit 1
 fi
+[ "$mrc" -eq 0 ] || { echo "FAILED $L (merge of main refused, no conflict: local changes?)"; exit 1; }
 p="$(tk_new_profile)"
 tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1 \
 	|| tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1

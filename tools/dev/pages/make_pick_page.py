@@ -37,22 +37,28 @@ def main():
     spec = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     out = Path(sys.argv[2])
     (out / "m").mkdir(parents=True, exist_ok=True)
-    files, order, body = {}, [], []
+    files, order, body, srcs = {}, [], [], {}
+
+    def keep(path):
+        """Copy one media file into OUTDIR/m/ by name; two sources may not share a name."""
+        src = Path(path)
+        if srcs.setdefault(src.name, src.resolve()) != src.resolve():
+            sys.exit(f"two media files are both called {src.name}: rename one")
+        shutil.copy(src, out / "m" / src.name)
+        files[f"m/{src.name}"] = f"{out.name}/m/{src.name}"
+        return src
+
     body.append(f"<header><h1>{P.esc(spec['title'])}</h1><p>{P.esc(spec.get('intro', ''))}</p></header>")
     for s in spec["sections"]:
         figs = []
         for m in s.get("media", []):
-            src = Path(m["src"])
+            src = keep(m["src"])
             name = src.name
-            shutil.copy(src, out / "m" / name)
-            files[f"m/{name}"] = f"{out.name}/m/{name}"
             cap = f"<figcaption>{P.esc(m.get('caption', ''))}</figcaption>" if m.get("caption") else ""
             if src.suffix.lower() in (".mp4", ".webm", ".mov"):
                 poster = ""
                 if m.get("poster"):
-                    pn = Path(m["poster"]).name
-                    shutil.copy(m["poster"], out / "m" / pn)
-                    files[f"m/{pn}"] = f"{out.name}/m/{pn}"
+                    pn = keep(m["poster"]).name
                     poster = f' poster="m/{P.esc(pn)}"'
                 el = f'<video controls playsinline muted loop preload="metadata"{poster} src="m/{P.esc(name)}"></video>'
             else:
