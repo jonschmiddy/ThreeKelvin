@@ -164,12 +164,32 @@ static func stream_at(f: float, re: float) -> Vector2:
 	return Vector2(cos(a), sin(a)) * r
 
 
+## The gas's two colours from the galaxy's gas and its kinds of cloud (moved
+## here from the LEGACY chart's renderer when that style went, Nov 7).
+static func _gas_palette(gas: float) -> Array:
+	var kinds := {}
+	for raw in NebulaField.clouds():
+		kinds[(raw as NebulaField.Cloud).kind] = true
+	var a := Vector3(0.36, 0.52, 0.95)
+	var b := Vector3(0.95, 0.36, 0.55)
+	if gas > 1.6:
+		a = Vector3(0.30, 0.70, 0.92)
+		b = Vector3(0.98, 0.34, 0.62)
+	elif kinds.has(NebulaField.Kind.REMNANT) and not kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(0.86, 0.42, 0.62)
+	if kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(1.0, 0.38, 0.5)
+	if gas < 0.4:
+		a = Vector3(0.55, 0.62, 0.85)
+		b = Vector3(0.85, 0.58, 0.5)
+	return [a, b]
+
 static func look(p: Dictionary) -> Dictionary:
 	var form: int = p.form
 	var br: float = p.bulge_r
 	var ell := form == 1
 	var ball: Vector4 = p.ball
-	var pals: Array = ChartLegacy._gas_palette(float(p.gas))
+	var pals: Array = _gas_palette(float(p.gas))
 	var blue: Vector3 = pals[0]
 	var arms := int(p.arms)
 	var chaos: float = p.chaos

@@ -45,14 +45,6 @@ static var neb_sky := true
 ## SIMPLIFIED bakes the cloud once and lights it per frame; the old gas and dust are gone.
 ## Why: docs/why/SystemView.md#rendering-styles
 const STYLE_SIMPLIFIED := &"simplified"
-## LEGACY keeps the pre-SIMPLIFIED map, plus the features every style shares.
-## Why: docs/why/SystemView.md#rendering-styles
-const STYLE_LEGACY := &"legacy"
-const NEB_SKY_LEGACY := preload("res://shaders/sky_nebula_legacy.gdshader")
-const NEB_GAS_K := 0.6
-const NEB_DUST_K := 0.55
-## this system drawn in LEGACY (set as it is shown)
-var legacy := false
 ## Over the star-chart field the sky leaves out its own far stars, as the field supplies them.
 ## Why: docs/why/SystemView.md#field-under
 var field_under := false
@@ -337,9 +329,8 @@ func show_system(n: MapGen.MapNode) -> void:
 	node = n
 	layout = SystemLayout.of(n)
 	kind = KIND_NAMES[layout.star]
-	legacy = is_legacy()
-	painted = not legacy and is_painted()
-	radiant = not legacy and not painted and is_radiant()
+	painted = is_painted()
+	radiant = not painted and is_radiant()
 	_pt = {}
 	for c in get_children():
 		c.queue_free()
@@ -417,31 +408,24 @@ func show_system(n: MapGen.MapNode) -> void:
 	_sky_look = SkyBakeS.look_for(n, kind)
 	# SIMPLIFIED's core: the galaxy's heart is a cloud too (`sky_nebula` kind 5),
 	# warm gas swirling round the hole and lit by its disc
-	if layout.star == SystemLayout.StarKind.CORE and not legacy:
+	if layout.star == SystemLayout.StarKind.CORE:
 		_sky_look.neb = 5
 		_sky_look.shape = 0
 		_sky_look.hue = Vector3(0.62, 0.32, 0.2)
 	var pal: Array = _sky_look.pal
 	var neb_on: bool = neb_sky and _sky_look.has("neb") and not ("nebsky=0" in OS.get_cmdline_user_args())
-	if neb_on and legacy:
-		# LEGACY: far dust lanes thinner, as at full strength they set into black blots.
-		_sky_look.thick = float(_sky_look.thick) * NEB_GAS_K
-		_sky_look.dust = float(_sky_look.dust) * NEB_DUST_K
-	elif neb_on:
+	if neb_on:
 		# SIMPLIFIED: the cloud is all of the gas and the dust; the bake under it is
 		# the stars and the void alone
 		_sky_look.thick = 0.0
 		_sky_look.dust = 0.0
-	elif not bool(_sky_look.get("nebula", true)) and not legacy:
+	elif not bool(_sky_look.get("nebula", true)):
 		# SIMPLIFIED's clear sky has no gas, dust or glow: this faint they set to grey smog.
 		_sky_look.thick = 0.0
 		_sky_look.dust = 0.0
 		# (PAINTED's band is set in its band memory by B's own rule, two tones
 		# with a checkered edge: `sector_b_state`)
 		_sky_look.band_glow = 0.0
-	if legacy:
-		# (LEGACY: the pulsar's old remnant shell, not SIMPLIFIED's)
-		_sky_look.c_remnant = false
 	bubble_r = _bubble_r()
 	if painted:
 		# (PAINTED: B's small teal heart round the sun, the rose lit all round it)
@@ -481,15 +465,14 @@ func show_system(n: MapGen.MapNode) -> void:
 		var neb := ColorRect.new()
 		neb.size = Vector2(960, 540)
 		_neb_mat = ShaderMaterial.new()
-		_neb_mat.shader = NEB_SKY_LEGACY if legacy else NEB_SKY
+		_neb_mat.shader = NEB_SKY
 		_neb_mat.set_shader_parameter("kind", int(_sky_look.neb))
 		_neb_mat.set_shader_parameter("shape", int(_sky_look.shape))
 		_neb_mat.set_shader_parameter("hue", _sky_look.hue)
 		_neb_mat.set_shader_parameter("sd", float(n.index % 97) * 0.731 + 3.0)
 		# (a reflection cloud only scatters light: a little dimmer, so it is deep
 		# navy far from the sun and never a pale periwinkle wash)
-		if not legacy:
-			_neb_mat.set_shader_parameter("exposure", {NebulaField.Kind.REFLECTION: 0.8, NebulaField.Kind.EMISSION: 1.05}.get(int(_sky_look.neb), 1.0))
+		_neb_mat.set_shader_parameter("exposure", {NebulaField.Kind.REFLECTION: 0.8, NebulaField.Kind.EMISSION: 1.05}.get(int(_sky_look.neb), 1.0))
 		neb.material = _neb_mat
 		neb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_scene.add_child(neb)
@@ -547,7 +530,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_belt_mat.set_shader_parameter("star_col", SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
 	_belt_mat.set_shader_parameter("strength", 0.55 if layout.star == SystemLayout.StarKind.PULSAR else 1.0)
 	_belt_dust.material = _belt_mat
-	_belt_dust.visible = not legacy and layout.bodies.any(func(bb: SystemLayout.Body) -> bool: return bb.kind == &"belt")
+	_belt_dust.visible = layout.bodies.any(func(bb: SystemLayout.Body) -> bool: return bb.kind == &"belt")
 	_scene.add_child(_belt_dust)
 	_belts = _Belts.new()
 	_belts.view = self
@@ -588,7 +571,7 @@ func show_system(n: MapGen.MapNode) -> void:
 			star.call("setup", n.index, Rect2(0, 0, 960, 540))
 			# The sky's own shell replaces the web, whose noise shimmered on every zoom.
 			# Why: docs/why/SystemView.md#pulsar-web
-			(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", legacy)
+			(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", false)
 		SystemLayout.StarKind.CORE:
 			# SIMPLIFIED: direction C's hole, Jon's pick for every style (`CoreLegacy`)
 			star = CoreLegacyS.new()
@@ -731,18 +714,10 @@ func show_system(n: MapGen.MapNode) -> void:
 	_sky_mat.set_shader_parameter("pulsar", kind == "PULSAR")
 	_sky_mat.set_shader_parameter("star_col", SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
 	_sky_mat.set_shader_parameter("margin", float(SkyBakeS.M))
-	_sky_mat.set_shader_parameter("simplified", not legacy)
 	# the remnant worked out again close in, from the bake's own recipe
 	_sky_mat.set_shader_parameter("rem_sd", _bake.bake_sd)
 	_sky_mat.set_shader_parameter("rem_on", kind == "PULSAR" and bool(_sky_look.get("c_remnant", true)))
-	if _neb_mat != null and legacy:
-		# THE OLD CLOUD'S NOISES, baked once (LEGACY), for it to stream on the current
-		await _bake.field(self, int(_sky_look.neb), int(_sky_look.shape), float(n.index % 97) * 0.731 + 3.0, skc, true)
-		_neb_mat.set_shader_parameter("t0", _bake.field0)
-		_neb_mat.set_shader_parameter("t1", _bake.field1)
-		_neb_mat.set_shader_parameter("ftex", Vector2(SkyBakeS.FIELD_W, SkyBakeS.FIELD_H))
-		_neb_mat.set_shader_parameter("fmb", float(SkyBakeS.FIELD_MB))
-	elif _neb_mat != null:
+	if _neb_mat != null:
 		# THE CLOUD, baked once (SIMPLIFIED): its density for the sun to light
 		await _bake.field(self, int(_sky_look.neb), int(_sky_look.shape), float(n.index % 97) * 0.731 + 3.0, skc)
 		_neb_mat.set_shader_parameter("t0", _bake.field0)
@@ -763,7 +738,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_sky_mat.set_shader_parameter("star2_k", star2_light_k())
 	# (its glow in its own warmer colour, as its SunView's and the palette's steps)
 	_sky_mat.set_shader_parameter("star2_col", STAR_B_COL)
-	if _neb_mat != null and not legacy:
+	if _neb_mat != null:
 		_neb_mat.set_shader_parameter("star2_k", star2_light_k())
 	_palette_mat.set_shader_parameter("x0", 0.0)
 	_shadow_mat.set_shader_parameter("x0", 0.0)
@@ -919,8 +894,7 @@ var home_zoom := 1.0
 ## Zoomed out a world would be a speck, so it keeps a few pixels of disc, redrawn and not stretched.
 const MIN_SCREEN_R := 5.0
 const MIN_SCREEN_R_GIANT := 7.0
-const MIN_SCREEN_STAR := 7.0
-## the star's eased floor of screen radius, but in LEGACY (px)
+## the star's eased floor of screen radius (px)
 const STAR_FLOOR := 10.0
 
 
@@ -994,18 +968,16 @@ func _star_k_raw_of(p: int) -> float:
 	if layout != null and layout.star == SystemLayout.StarKind.CORE:
 		return maxf(zoom, 1.0)
 	var sr := maxf(layout.star_radius(p) if layout != null else 16.0, 1.0)
-	var k := sun_raw_k(sr, zoom, legacy)
+	var k := sun_raw_k(sr, zoom)
 	if twin_floor_on():
-		k = minf(k, sun_raw_k(sr, layout.fit_zoom, legacy) * zoom / layout.fit_zoom)
+		k = minf(k, sun_raw_k(sr, layout.fit_zoom) * zoom / layout.fit_zoom)
 	return k
 
 
 ## A sun of radius `sr` at zoom `z`: how many times its size it is drawn.
-static func sun_raw_k(sr: float, z: float, leg: bool) -> float:
-	if not leg:
-		# The floor eases the star up: held at 7 px it read as one more star at opening zoom.
-		return maxf(z, sqrt(pow(sr * z, 2.0) + STAR_FLOOR * STAR_FLOOR) / sr)
-	return maxf(z, minf(1.0, MIN_SCREEN_STAR / sr))
+static func sun_raw_k(sr: float, z: float) -> float:
+	# The floor eases the star up: held at 7 px it read as one more star at opening zoom.
+	return maxf(z, sqrt(pow(sr * z, 2.0) + STAR_FLOOR * STAR_FLOOR) / sr)
 
 
 ## Below `fit_zoom` a twin sun's plane radius is capped, or rings drew inside their suns.
@@ -1019,12 +991,12 @@ func twin_floor_on() -> bool:
 func _held_cap(p: int) -> float:
 	if not twin_floor_on():
 		return INF
-	return twin_held_cap(layout.star_radius(p), zoom, layout.fit_zoom, legacy)
+	return twin_held_cap(layout.star_radius(p), zoom, layout.fit_zoom)
 
 
 ## (static, for a harness to measure the drawing without a view)
-static func twin_held_cap(sr: float, z: float, fz: float, leg: bool) -> float:
-	var at_fit := maxf(roundf(sr * sun_raw_k(sr, fz, leg) / 2.0) * 2.0, 2.0)
+static func twin_held_cap(sr: float, z: float, fz: float) -> float:
+	var at_fit := maxf(roundf(sr * sun_raw_k(sr, fz) / 2.0) * 2.0, 2.0)
 	return maxf(floorf(at_fit * z / fz / 2.0) * 2.0, 2.0)
 
 
@@ -1280,15 +1252,9 @@ func _radiant_safety() -> void:
 		DisplaySettings.fall_back_style(STYLE_SIMPLIFIED)
 
 
-## SIMPLIFIED is the default; RADIANT is behind `radiant` and not yet in BUILT.
+## SIMPLIFIED is the default; PAINTED and RADIANT are the others (`DisplaySettings.BUILT`).
 static func style() -> StringName:
 	return DisplaySettings.render_style
-
-
-## LEGACY: chosen in the settings, or `-- style=legacy` on a harness's command
-## line (read raw too, so a harness never has to save the setting).
-static func is_legacy() -> bool:
-	return style() == STYLE_LEGACY or "style=legacy" in OS.get_cmdline_user_args()
 
 
 ## The style can also come from a harness's `-- style=` argument.
@@ -1509,17 +1475,14 @@ func _step_star() -> void:
 			var sm: ShaderMaterial = star.get("_mat")
 			sm.set_shader_parameter("c_breath", breath(pose(t, 4.0)))
 			sm.set_shader_parameter("c_prom", prominence(pose(t, 6.0)))
-			sm.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
-			if legacy:
-				# (LEGACY: the sky's own glow round the sun breathes with it)
-				_sky_mat.set_shader_parameter("light_k", lerpf(1.0, breath(t), 0.6))
+			sm.set_shader_parameter("halo_cut", 72.0)
 		if star2 != null:
 			# Star B runs `STAR_B_PROM` s behind A so the suns are never at their height together.
 			star2.call("step", pose(t, 4.0))
 			var sm2: ShaderMaterial = star2.get("_mat")
 			sm2.set_shader_parameter("c_breath", breath(pose(t, 4.0) + STAR_B_PROM))
 			sm2.set_shader_parameter("c_prom", prominence(pose(t + STAR_B_PROM, 6.0)))
-			sm2.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
+			sm2.set_shader_parameter("halo_cut", 72.0)
 	else:
 		# The beam points at you on each pass of `amb_pulsar`; the clock is shifted, never jumped.
 		# A harness holding the clock holds the beat too.
@@ -1573,7 +1536,6 @@ func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int, seed_n: int = -1) -
 		m.set_shader_parameter("core_lift", (_sky_look.hue as Vector3) * 0.25)
 	# SIMPLIFIED: dark cores in the sky's own shade, sides toward the sun lit
 	var dl: Array = _depth_look()
-	m.set_shader_parameter("simplified", not legacy)
 	m.set_shader_parameter("painted", painted)
 	m.set_shader_parameter("dark_col", dl[0])
 	m.set_shader_parameter("lit_far", dl[1])
@@ -1586,9 +1548,9 @@ func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int, seed_n: int = -1) -
 	return r
 
 
-## Outside LEGACY a clear sky's wisp colour is black, so such a sheet changes no pixel.
+## A clear sky's wisp colour is black, so such a sheet changes no pixel.
 func _wisps_blank() -> bool:
-	return not legacy and (_depth_look()[3] as Vector3) == Vector3.ZERO
+	return (_depth_look()[3] as Vector3) == Vector3.ZERO
 
 
 ## Dust sheet colours in SIMPLIFIED follow the sky kind, near nothing in a clear sky.
@@ -1665,7 +1627,7 @@ func _step_twin_sky() -> void:
 		return
 	var sb := star_screen(SystemLayout.STAR_B)
 	_sky_mat.set_shader_parameter("star2_at", sb)
-	if _neb_mat != null and not legacy:
+	if _neb_mat != null:
 		_neb_mat.set_shader_parameter("star2_at", star_exact(SystemLayout.STAR_B))
 	if painted and not _pt.is_empty():
 		var ms: ShaderMaterial = _pt.get("state")
@@ -1824,7 +1786,7 @@ func step() -> void:
 			star.call("set_zoom", _kcor, star_k())
 		elif star.has_method("set_zoom"):
 			star.call("set_zoom", star_k())
-		if layout.star == SystemLayout.StarKind.CORE and not legacy:
+		if layout.star == SystemLayout.StarKind.CORE:
 			# The hole starts small and grows as zoom^0.53; at the old size it filled the frame.
 			star.set("hole_k", 0.36 * pow(maxf(zoom, 0.01) / maxf(home_zoom, 0.01), 0.53) / maxf(star_k(), 0.01))
 			(star.get("_hmat") as ShaderMaterial).set_shader_parameter("warm_glow", true)
@@ -1855,7 +1817,7 @@ func step() -> void:
 		# the gas's own slow clock, held still with reduced motion
 		_neb_mat.set_shader_parameter("time", 0.0 if DisplaySettings.reduced_motion else pose(wclock() - _neb_t0, 4.0))
 		_neb_mat.set_shader_parameter("low", gfx_low())
-	if _neb_mat != null and not legacy:
+	if _neb_mat != null:
 		# Light from the star's exact place: a rounded place made the gas flicker on each hop.
 		# Why: docs/why/SystemView.md#cloud-light
 		_neb_mat.set_shader_parameter("star_at", star_exact(-1))
@@ -1904,7 +1866,7 @@ func step() -> void:
 				from.append(light_screen(pos[i], ca))
 			# its rings' shadow too (C), as wide as their outer edge
 			var vw: Node2D = _views.get(i)
-			rg.append(2.1 if not legacy and vw != null and bool((vw.get("spec") as Dictionary).get("ring", false)) else 0.0)
+			rg.append(2.1 if vw != null and bool((vw.get("spec") as Dictionary).get("ring", false)) else 0.0)
 	# EACH MOON CASTS ITS OWN SHADOW (Jon: "shouldn't moons cast shadows?"), by the
 	# worlds' rule from its own size, away from the star
 	for mm: Dictionary in ml:
@@ -1989,7 +1951,7 @@ func step() -> void:
 		# (lit as the showcase lit them: a world far out still bright on its day side)
 		# (two suns: the light of both, `light_here`; one sun, `light_at` itself)
 		var lh := light_here(p.x, p.y)
-		var kl := (0.7 + 0.55 * lh) if legacy else (0.95 + 0.35 * lh)
+		var kl := 0.95 + 0.35 * lh
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			# THE BEAM CATCHES IT (C): dim between passes, lit as a beam sweeps by
 			var bo := beam_on(at[i] - o, i)
@@ -2002,13 +1964,12 @@ func step() -> void:
 		# filled by the sky round it, brighter at a flare's height
 		var vm: ShaderMaterial = v.get("_mat")
 		if vm != null:
-			if not legacy:
-				vm.set_shader_parameter("star_tint", tint_at(p))
-				vm.set_shader_parameter("night_fill", night_fill(p))
+			vm.set_shader_parameter("star_tint", tint_at(p))
+			vm.set_shader_parameter("night_fill", night_fill(p))
 			# (two suns: its own sun's flare, each by its share of the light here --
 			# a world round star B flickers when B erupts, not when A does)
 			vm.set_shader_parameter("flare", lerpf(_flare, _flare2, share_b(p)) if star2 != null else _flare)
-			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+			vm.set_shader_parameter("lift", 1.0)
 			# Each moon's place about its world and size feed the shadows it casts on the face.
 			var msh := PackedVector4Array()
 			for mm: Dictionary in ml:
@@ -2065,12 +2026,12 @@ func pal_from(img: Image) -> PackedVector3Array:
 	var extra := pal_extra()
 	if not layout.twin:
 		return SystemPaletteS.build(img, 0, Vector2(CX, CY) / 2.0, layout.star_r / 2.0, kind, 0,
-			SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+			SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, not cloud,
+			cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, true)
 	# Suns are placed as at the system's opening, in the half-size picture the palette is cut from.
 	return SystemPaletteS.build(img, 0, star_screen(-1) / 2.0, layout.star_r / 2.0, kind, 0,
-		SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-		not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy,
+		SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, not cloud,
+		cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, true,
 		star_screen(SystemLayout.STAR_B) / 2.0, star_disc(SystemLayout.STAR_B) / 2.0, pal_star2(), PAL_N)
 
 
@@ -2078,10 +2039,10 @@ func pal_from(img: Image) -> PackedVector3Array:
 const PAL_N := 72
 
 
-## Star B's steps only outside a cloud (lit by it instead) and never in LEGACY.
+## Star B's steps only outside a cloud (lit by it instead).
 func pal_star2() -> PackedVector3Array:
 	var out := PackedVector3Array()
-	if star2 == null or legacy or _neb_mat != null:
+	if star2 == null or _neb_mat != null:
 		return out
 	var sc := STAR_B_COL
 	var deep := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
@@ -2100,10 +2061,7 @@ func pal_extra() -> PackedVector3Array:
 	if not cloud:
 		for gt: Vector3 in SkyGalaxiesS.TONES:
 			extra.append(gt)
-	if legacy:
-		# LEGACY: the weather's colours alone, as before
-		pass
-	elif cloud:
+	if cloud:
 		# RADIANT's core uses `R_CORE`: SIMPLIFIED's cool violet steps set its haze mauve.
 		var res: Array = R_CORE if radiant and int(_sky_look.neb) == 5 else C_RESERVED.get(int(_sky_look.neb), [])
 		for h: String in res:
@@ -2155,7 +2113,7 @@ func _pal_key() -> Array:
 	var bodies := PackedStringArray()
 	for b in layout.bodies:
 		bodies.append("%s:%s:%s" % [b.kind, b.world, b.seed])
-	return [node.get_instance_id(), node.index, kind, style(), legacy, painted, radiant, gfx_low(), field_under,
+	return [node.get_instance_id(), node.index, kind, style(), painted, radiant, gfx_low(), field_under,
 		neb_sky, no_ramp, depth_k, ",".join(bodies), window, home_zoom]
 
 
@@ -2429,7 +2387,6 @@ class _Belts extends Node2D:
 		var L: SystemLayout = view.layout
 		var glints: bool = view.belt_glints
 		var painted: bool = view.painted
-		var legacy: bool = view.legacy
 		var vt: float = view.t
 		var zm: float = view.zoom
 		var base: Vector2 = Vector2(CX, CY) + (view.pan as Vector2)
@@ -2496,33 +2453,6 @@ class _Belts extends Node2D:
 						draw_rect(Rect2(s + Vector2(-psx * 2, 0), Vector2(2, 2)), rk[1])
 					if gl.has(i) and not pulsar:
 						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), Vector3.ONE, rk)
-					continue
-				if legacy:
-					# LEGACY's grey rubble, as before -- lit as the pulsar's beam sweeps
-					# across it (as the worlds are)
-					var litv: Vector3 = view.tone(x, z, Vector3(0.66, 0.68, 0.72) if shade < 0.5 else Vector3(0.52, 0.54, 0.58))
-					var bk: float = view.beam_on(s - o) if pulsar else 0.0
-					var lkv: Vector3 = litv * ((0.7 + 0.8 * bk) if pulsar else 1.0)
-					var lt := Color(minf(lkv.x, 1.0), minf(lkv.y, 1.0), minf(lkv.z, 1.0))
-					var dk := Color("#3e444c").lerp(lt, 0.35 * bk)
-					if lit_on and lit_t > 0.0:
-						lt = lt.lerp(Color.WHITE, 0.45 * lit_t)
-						dk = dk.lerp(lt, 0.6 * lit_t)
-					lt.a = fade_in
-					dk.a = fade_in
-					var sxl := -1 if x - hx > 0.0 else 1
-					if big < 0.86:
-						draw_rect(Rect2(s, Vector2(2, 2)), lt if shade < 0.35 else dk)
-					elif big < 0.97:
-						draw_rect(Rect2(s, Vector2(4, 2)), dk)
-						draw_rect(Rect2(s + Vector2(2 if sxl > 0 else 0, 0), Vector2(2, 2)), lt)
-					else:
-						var twl := int(floor(vt * 0.8 + i)) & 1
-						draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), Color("#4a5058").lerp(lt, 0.3 * bk))
-						draw_rect(Rect2(s + Vector2(sxl * 2 * (1 - twl), -2), Vector2(2, 2)), Color("#b0b6be").lerp(Color.WHITE, 0.4 * bk))
-						draw_rect(Rect2(s + Vector2(-sxl * 2, 0), Vector2(2, 2)), Color("#2a2e34"))
-					if gl.has(i) and not pulsar:
-						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), sc3)
 					continue
 				# Lit rubble, never a ring of dark specks; round a pulsar, lit as the beam sweeps.
 				var phase := 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0)
@@ -2605,7 +2535,7 @@ class _Belts extends Node2D:
 		var e := e0 * k
 		if e < 0.04:
 			return
-		var c := Vector3(1.0, 1.0, 1.0).lerp(sc3, 0.12 if view.legacy else 0.25)
+		var c := Vector3(1.0, 1.0, 1.0).lerp(sc3, 0.25)
 		var core: Color
 		var arm: Color
 		var tip: Color

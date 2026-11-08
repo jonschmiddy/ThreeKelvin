@@ -48,10 +48,7 @@ var dust: LocalDust
 ## Tracers, sparks and debris. Added last so it draws over the ship and the
 ## enemies, and ignores the mouse so it can never eat a card drop.
 var fx: CombatFx
-## Drifting gas, shown only in systems that sit inside a nebula, and only in
-## LEGACY: in the other styles the cloud's own currents are the gas.
-var weather: NebulaWeather
-## the place the sky and the gas were last set to
+## the place the sky was last set to
 var _place: MapGen.MapNode = null
 
 func _ready() -> void:
@@ -121,15 +118,6 @@ func _ready() -> void:
 	backdrop.cam_ship = _ship
 	add_child(backdrop)
 	move_child(backdrop, 0)
-	Sig.render_style_changed.connect(func() -> void:
-		if _place != null:
-			set_weather(_place))
-
-	weather = NebulaWeather.new()
-	weather.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	weather.visible = false
-	add_child(weather)
-	move_child(weather, 1)
 
 	# THE NEAREST LAYER: dust in front of the ships, kept off them and off the
 	# shots' band (`LocalDust`); under the shots themselves
@@ -342,16 +330,7 @@ func set_place(n: MapGen.MapNode) -> void:
 	_place = n
 	if backdrop != null:
 		backdrop.setup(n)
-	set_weather(n)
 	queue_redraw()
-
-func set_weather(n: MapGen.MapNode) -> void:
-	if weather == null:
-		return
-	weather.visible = n.in_nebula and LocalSky.style_now() == &"legacy"
-	if n.in_nebula:
-		weather.setup(n.nebula_emission,
-			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
 
 ## Reuses `EnemySlot` whole, so a wreck is drawn by the same code as a living hull.
 ## Why: docs/why/EncounterView.md#wreck-slots

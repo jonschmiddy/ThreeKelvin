@@ -78,7 +78,7 @@ last green run was `9b01e23` on 2026-10-06; every push from 2026-10-09 on is
   nobody had waited for, and the main thread blocked on the pool with every
   worker idle. `_Fabric._exit_tree` now waits for them. **The general rule, which
   `ThreadStress` does not check: a task nobody waits for can hang the quit.**
-  ChartSky, ChartLegacy and ThrusterFx already wait at teardown for this reason.
+  ChartSky and ThrusterFx already wait at teardown (ChartLegacy did too, until LEGACY went on Nov 7) for this reason.
 - **The gate outgrew CI's 25-minute backstop.** `fightcounttest` and
   `packlayouttest` take about four minutes each on a runner. Run 211 was
   cancelled at `localeventtest`, about two and a half minutes short of the end,

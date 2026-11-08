@@ -71,8 +71,9 @@ show_behind_parent: this view paints the wash in _draw, and a child behind
 the parent is behind THAT — so the gas was being drawn and then covered by
 the sky every frame. A Control draws itself first and its children after,
 in order, so the two background layers have to be the first two children:
-wash, then what is out there, then the gas blowing through it, then the
-ship.
+wash, then what is out there, then the ship. (The gas blowing through it,
+`NebulaWeather`, was LEGACY's alone and went with it; in every style now
+the cloud's own currents are the gas.)
 ```
 
 ## Convoy sizing

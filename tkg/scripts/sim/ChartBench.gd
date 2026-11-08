@@ -152,11 +152,7 @@ func _sky_rid(chart: Node) -> Array[RID]:
 	if sky == null:
 		return out
 	var vps: Array = []
-	if sky._legacy != null:
-		if sky._legacy._vp == null:
-			return out
-		vps = [sky._legacy._vp]
-	elif sky._vp == null:
+	if sky._vp == null:
 		return out
 	else:
 		vps = [sky._svp, sky._pvp, sky._vp] + ([sky._tvp] if sky._tvp != null else [])

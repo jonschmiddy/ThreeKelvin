@@ -394,7 +394,7 @@ const PAIR_PAD := 30.0
 
 
 ## A sun's drawn radius on screen (game px) at zoom z: the floor the map eases
-## it up to (`SystemView._star_k_raw`, every style but LEGACY).
+## it up to (`SystemView._star_k_raw`, every style).
 static func sun_drawn(r: float, z: float) -> float:
 	return sqrt(pow(r * z, 2.0) + SUN_FLOOR * SUN_FLOOR)
 

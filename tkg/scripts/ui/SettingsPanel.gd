@@ -253,7 +253,6 @@ func _page_look() -> void:
 					DisplaySettings.set_render_style(st)
 					_refresh())
 			sb.tooltip_text = Widgets.tip({
-				&"legacy": "The look from before: the star chart and sector map as they were, with the new black hole and animations.",
 				&"simplified": "A clean star chart and sector map, with gas streaming along the arms, pulsing knots and weather in the nebulae.",
 				&"painted": "A hand-painted look, with banded light, hue-shifted shadows and dithered gas.",
 				&"radiant": "The galaxy and its nebulae drawn as lit gas. It is heavy on the graphics card and made for screenshots. It falls back to SIMPLIFIED if the machine can't keep up.",

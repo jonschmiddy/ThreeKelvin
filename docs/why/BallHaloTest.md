@@ -37,9 +37,7 @@ FAILS a ball whose reach below is more than REACH_MAX times its reach above
 1.72x and PAINTED 1.88x on Jon's galaxy, both still lit at the frame's bottom.
 A spiral and a lenticular are printed for comparison and never fail: they are
 discs, and a disc's near half IS bigger through the camera.
-LEGACY too (Jon, Oct 18, "legacy:A"): its balls were read on the disc's plane
-like the others' (0.27 gu above the core, 0.46 below on PGC 6236) and are
-drawn round their core now (`chart_l_field`'s `ball_core`); judged by reach.
+(LEGACY was judged too, by reach alone, until that style went on Nov 7.)
 AND THE FRAME: LOCAL REGION's frame (`MapChart.frame_region`) of every galaxy, a
 ball's as a spiral's, is the systems near you (Jon, Oct 21, for 0.3.0; his
 "frame:A" of Oct 18 framed a ball whole, its core and lit radius, so L went from

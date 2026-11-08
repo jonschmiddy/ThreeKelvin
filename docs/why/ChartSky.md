@@ -8,9 +8,8 @@ Above `const TILT := 0.38`:
 THE STAR CHART'S SKY IN THE SIMPLIFIED STYLE: direction C, "Alive", from the
 Oct 5 showcase (scratchpad `showcase/C/chart/`), THE DEFAULT of the rendering
 styles (`DisplaySettings.render_style`). PAINTED draws with `ChartPainted`'s
-passes on this node; LEGACY with a node of its own, `ChartLegacy`, which this
-one hands the chart to and draws nothing. The
-chart's own layered look refined and set in slow motion: an arm-model disc
+passes on this node, RADIANT with `ChartRadiant`'s. The chart's own layered
+look refined and set in slow motion: an arm-model disc
 and a cored bulge as gathered light, crisp dust lanes, sparse stars, four
 depth sheets you wade through as you zoom, gas streaming along the arms,
 knots that breathe and bloom, a rare supernova and its light echo, nebulae
@@ -70,9 +69,9 @@ Above `static var diag := 0`:
 WHAT A ZOOM CHANGES, switched off one cause at a time (tuning, `diag=N` in
 ChartLook; 0 as made): 1 the core's glare control, 2 every star (the chart's
 and those the disc resolves into), 4 the detail the zoom adds (octaves, fine
-grain, the bakes' mip held at zoom 1's), 8 LEGACY's palette a zoom level as
-before Oct 11, 16 the chart's own stars only, 32 the resolved stars only, 64
-LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
+grain, the bakes' mip held at zoom 1's), (8 was the gone LEGACY style's
+palette), 16 the chart's own stars only, 32 the resolved stars only, (64 was
+LEGACY's dust sheets), 128 the hole's own
 zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
 stars adding their light on top as before, 512 no stars' light laid back
 (`_star_debt`), 1024 the hole's cooling as far out as before, 2048 no supernova
@@ -118,7 +117,7 @@ A harness's `chartflat` draws SIMPLIFIED flat, as before all this (a "before" to
 film against).
 ```
 
-Above `const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true, &"legacy": true}`:
+Above `const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true}`:
 
 ```text
 WHICH STYLES DRAW THE SOLID LOOK. Each style's port turns its own line on in its
@@ -354,6 +353,6 @@ A DWARF'S HOLE at its own size (Nov 5): a dwarf's hole is rolled off its bulge a
 galaxy's is, and a dwarf's ball is small, so its hole and lit ring filled its middle (a
 blue compact dwarf read as a hole with a ring round it). At most this much of its ball's
 radius (a round elliptical's is about 0.11, a giant's 0.11), in every style: SIMPLIFIED,
-PAINTED and RADIANT draw `hole_of`, LEGACY its `c_hole_draw` by DWARF_HOLE. Only the
+PAINTED and RADIANT draw `hole_of`. Only the
 drawing: the chart still keeps its marks clear of the hole rolled (`hole_px`).
 ```

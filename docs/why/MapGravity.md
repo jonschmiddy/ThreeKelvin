@@ -59,7 +59,7 @@ Above `static func keep_out_star(L: SystemLayout, p: int) -> float:`:
 ```text
 A STAR'S KEEP-OUT, plane px from its centre: the larger of the layout's
 keep-clear and the sun as drawn at `keep_zoom` plus STAR_MARGIN. Drawn
-(`SystemView._star_k_raw`, not LEGACY): a sun at sqrt((r z)^2 + 10^2) screen
+(`SystemView._star_k_raw`): a sun at sqrt((r z)^2 + 10^2) screen
 px, eased up to its floor; the black hole at r max(z, 1); a pulsar at 4/3 r
 (`PULSAR_OPEN_K` at the zoom it opens at). Screen px over the zoom is plane
 px across the map (the slant only shortens it top to bottom). A one-star
