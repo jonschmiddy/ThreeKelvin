@@ -3000,6 +3000,17 @@ func _comms() -> void:
 	hud._tab_comms.pressed.emit()
 	await _frames(2)
 	_ok("comms: COMMS opened, QUESTS shut", CommsPanel.is_open() and not QuestPanel.is_open())
+	# A full log (at the cap) drops its oldest line as it adds one: the size does not move, the table must
+	var kept := Ash.comms.duplicate()
+	var fresh: Dictionary = (Ash.comms[0] as Dictionary).duplicate()
+	fresh.line = "A LINE AT THE CAP"
+	Ash.comms.append(fresh)
+	Ash.comms.pop_front()
+	await _frames(3)
+	var top := CommsPanel._open._rows.find_children("Words", "Label", true, false)
+	_ok("comms: a log that drops one as it adds one still redraws the table",
+		not top.is_empty() and (top[0] as Label).text == "A LINE AT THE CAP")
+	Ash.comms = kept
 	CommsPanel.close()
 	await _frames(2)
 	# THE RUN'S SAVE

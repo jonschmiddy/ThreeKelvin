@@ -11,6 +11,7 @@ func run() -> void:
 	_shapes()
 	_swaps()
 	_turn_materials()
+	_chit_drop()
 	_moving_day()
 	_changed_your_mind()
 	_legible()
@@ -252,6 +253,27 @@ func _turn_materials() -> void:
 	ShipScreen.turn_in_hold(grid, _middle(grid, block))
 	_ok("turn: a 2x2 material is left as it is", not block.turned and block.hold_at == Vector2i.ZERO)
 
+	grid.free()
+	Run.cargo.clear()
+
+
+## Money takes no cell: a chit dropped on a full hold is still handed on, or it is lost in the wreck.
+func _chit_drop() -> void:
+	seed_run(78)
+	Run.start_new_run(&"korvan", int(HullData.Weight.LIGHT))
+	Run.cargo.clear()
+	var g := Run.hold_grid()
+	for y in g.y:
+		for x in g.x:
+			Run.place_in_hold(_material_shaped(Vector2i.ONE), Vector2i(x, y))
+	var grid := HoldGrid.new()
+	grid.refresh()
+	var got: Array[Vector2i] = []
+	grid.dropped.connect(func(_d: Dictionary, at: Vector2i) -> void: got.append(at))
+	var data := {module = CreditChit.of(20), origin = &"bag"}
+	_ok("chit: a full hold still lights for money", grid._can_drop_data(Vector2(10, 10), data))
+	grid._drop_data(Vector2(10, 10), data)
+	_ok("chit: and the drop is handed on (%d)" % got.size(), got.size() == 1)
 	grid.free()
 	Run.cargo.clear()
 

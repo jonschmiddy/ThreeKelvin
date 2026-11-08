@@ -155,6 +155,7 @@ func _measure(secs: float) -> Dictionary:
 
 func _run() -> void:
 	_tree = get_tree()
+	HullScramble.logging = true
 	await _tree.process_frame
 	var scene := _arg("scene", "local")
 	if scene == "voice":

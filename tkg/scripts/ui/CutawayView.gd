@@ -623,6 +623,8 @@ func open_rename() -> void:
 func close_now() -> void:
 	if _goal > 0.0:
 		close()
+		if not Router.animating():
+			return
 	t = 0.0
 	_goal = 0.0
 	_finish_close()
@@ -1147,8 +1149,9 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		if not got:
 			_toast("NO ROOM IN THE HOLD FOR %s" % m.name.to_upper(), true)
 			return
-		# where it was dropped, if it fits there (it is in the hold already)
-		Run.stow_at(m, at)
+		# where it was dropped, if it fits there (it is in the hold already); money was cashed, not held
+		if not m is CreditChit:
+			Run.stow_at(m, at)
 		Audio.play(TransferView._take_sound(m), 0.05)
 		_toast("TAKEN %s" % m.name.to_upper())
 		_refresh()

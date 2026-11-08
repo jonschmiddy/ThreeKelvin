@@ -256,6 +256,19 @@ func run(tree: SceneTree) -> void:
 		Run.installed.size() + Run.cargo.size() == n_before)
 	host.queue_free()
 
+	# 9a. close_now with nothing animating shuts once: close() had already finished it
+	var host2 := Control.new()
+	host2.size = Vector2(960, 459)
+	tree.root.add_child(host2)
+	var cut2 := CutawayView.open_over(host2, null)
+	for i in 3:
+		await tree.process_frame
+	var shut := [0]
+	cut2.closed.connect(func() -> void: shut[0] += 1)
+	cut2.close_now()
+	_ok("close_now sends closed once (%d)" % shut[0], shut[0] == 1)
+	host2.queue_free()
+
 	# 9b. the reactor's rule on a mount, as the transfer screen keeps it
 	await _check_power()
 	# 10. the picture itself, on every hull
@@ -438,6 +451,13 @@ func _check_layouts() -> void:
 		_ok("%s: pointing at it shows the malfunction's card on the same plate, clear of the left panel" % wname,
 			cut._panel.visible and cut._panel_box.find_children("*", "CardView", true, false).size() == 1
 			and not dcard.intersects(left))
+		# a drag ending (a part's, elsewhere) must not reset a card's filter or fade
+		var dcv := cut._panel_box.find_children("*", "CardView", true, false)[0] as CardView
+		dcv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dcv.modulate.a = 0.34
+		dcv.notification(Node.NOTIFICATION_DRAG_END)
+		_ok("%s: a drag ending leaves a card's mouse filter and fade alone" % wname,
+			dcv.mouse_filter == Control.MOUSE_FILTER_IGNORE and is_equal_approx(dcv.modulate.a, 0.34))
 		cut._show(null)
 		_ok("%s: the R and F keys are named at the foot (%s)" % [wname, cut._keys.text],
 			cut._keys.is_visible_in_tree() and left.encloses(cut._keys.get_global_rect()))

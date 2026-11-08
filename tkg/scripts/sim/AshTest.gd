@@ -868,6 +868,22 @@ func _moments() -> void:
 	_ok("greed: said at the third wreck opened and not the first, second or fourth (%s)" % str(said_at),
 		str(said_at) == str(["", "", "greed", ""]))
 
+	# GREED: wrecks already opened where you arrive are not the ones you opened
+	sc = await _local()
+	var far: MapGen.MapNode = null
+	for mn: MapGen.MapNode in Run.map:
+		if mn.type == MapGen.NodeType.SYSTEM and mn.index != Run.at:
+			far = mn
+			break
+	if _ok("greed: a second system to arrive at", far != null):
+		for i in 3:
+			(Run.new_wreck(far, DB.enemies[&"cutter"], i) as MapGen.Jetsam).opened = true
+		Run.at = far.index
+		k = await _said_after()
+		_ok("greed: three wrecks already open on arrival do not arm it (%s)" % k,
+			k != &"greed" and not Ash.waiting.has(&"greed"))
+		_settle()
+
 	# DOUBT: late in a run, a while after the last
 	sc = await _local()
 	Run.jumps = Ash.DOUBT_FROM + 4

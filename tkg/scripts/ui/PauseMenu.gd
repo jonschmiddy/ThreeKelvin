@@ -201,7 +201,9 @@ func _swap(from: Control, to: Control, free_from: bool = false) -> void:
 	var tw := create_tween()
 	tw.tween_property(from, "modulate:a", 0.0, SWAP_S)
 	tw.tween_callback(func() -> void:
-		from.visible = false
+		# A quicker swap back has made `from` the page wanted; hiding it would blank the menu.
+		if from != (_settings if _settings != null else _main):
+			from.visible = false
 		if free_from:
 			from.queue_free())
 	tw.tween_property(to, "modulate:a", 1.0, SWAP_S)

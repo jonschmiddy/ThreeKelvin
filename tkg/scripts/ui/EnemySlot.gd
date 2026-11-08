@@ -1029,8 +1029,8 @@ func hush_intent(secs: float) -> void:
 	for l: Label in [_intent, _intent_text]:
 		_hush_tw.parallel().tween_property(l, "modulate:a", 0.12, 0.08)
 	_hush_tw.tween_interval(secs)
-	for l2: Label in [_intent, _intent_text]:
-		_hush_tw.parallel().tween_property(l2, "modulate:a", 1.0, 0.2)
+	_hush_tw.tween_property(_intent, "modulate:a", 1.0, 0.2)
+	_hush_tw.parallel().tween_property(_intent_text, "modulate:a", 1.0, 0.2)
 
 
 func intent_hushed() -> bool:

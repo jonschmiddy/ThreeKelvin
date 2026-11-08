@@ -78,6 +78,7 @@ func _words() -> Dictionary:
 
 func _run() -> void:
 	_tree = get_tree()
+	HullScramble.logging = true
 	await _frames(2)
 	Router.animate_in_harness = true
 	DisplaySettings.reduced_motion = false
