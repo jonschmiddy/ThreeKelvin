@@ -106,6 +106,10 @@ ALLOW='^$'
 # left Godot wedged, and without this a pull request would have sat open for the
 # runner's full six-hour limit instead of failing in three minutes.
 #
+# A limit catches a hang, not a slow day: set it to about twice the unit's time
+# on the CI runner, which runs four Godots on four cores and is 2.2x slower than
+# a Mac. Every red main of early Nov was a passing test killed at its limit.
+#
 # Under the scheduler the command gets the unit's own user folder (see the top
 # of the file), set on the command itself so the PID polled and killed here is
 # the program's, not a wrapper's. Its PID is written down too, so an
@@ -418,7 +422,7 @@ step "The cutaway moves parts by the refit rule"
 # handlers and counts what it draws, like the container check above. It ends
 # on the real LOCAL (a wreck clicked through the cutaway, a fight), so it ends
 # with the same exit-time teardown reports as stowtest, allowed the same way.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot cutawaytest 180 --headless --path "$PROJECT" -- cutawaytest; then
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot cutawaytest 240 --headless --path "$PROJECT" -- cutawaytest; then
 	if grep -qE '^cutawaytest: PASS' "$LOG_DIR/cutawaytest.log"; then
 		ok "the cutaway"
 	else
@@ -436,7 +440,7 @@ step "Every encounter's subject is real art and fits LOCAL"
 # resolves every piece against art/subjects/index.json and fits every staging to
 # LOCAL's own view. It ends on the real LOCAL, so it ends with the same exit-time
 # teardown reports as stowtest, allowed the same way.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot subjecttest 180 --headless --path "$PROJECT" -- subjecttest; then
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot subjecttest 240 --headless --path "$PROJECT" -- subjecttest; then
 	if grep -qE '^subjecttest: PASS' "$LOG_DIR/subjecttest.log"; then
 		ok "the subjects"
 	else
@@ -548,7 +552,7 @@ step "LOCAL draws the world you orbit, close, from its first frame"
 # flight, where they took 4 to 12): 310 s alone on the Mac (Oct 31), past the
 # 300 it had (137 s on Oct 30).
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot orbitworldtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
+	run_godot orbitworldtest 840 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
 	if grep -qE '^orbitworldtest: PASS' "$LOG_DIR/orbitworldtest.log"; then
 		ok "LOCAL draws the world you orbit, close"
 	else
@@ -655,7 +659,7 @@ step "A part moves the gauge its grade promised"
 # trip breaks and neither throws: an int field rounding a fractional pip into
 # two, and a retuned attr_ formula that PER_PIP was not told about. Either one
 # silently puts a whole axis off the ladder on every hull in the game.
-if run_godot attrtest 120 --headless --path "$PROJECT" -- attrtest; then
+if run_godot attrtest 180 --headless --path "$PROJECT" -- attrtest; then
 	if grep -qE '^attrtest: PASS' "$LOG_DIR/attrtest.log"; then
 		ok "attribute ladder"
 	else
@@ -675,7 +679,7 @@ step "Every galaxy can be crossed, and every enum still has its labels"
 # plus that no label array has drifted from its enum. Since Oct 22 also the
 # depth rule (`RunState.DEPTH_STEP`, two rings since Oct 27) and a sweep of 255
 # galaxies, 15 of every kind, flown by the slowest ship: ~130s alone, so 300.
-if run_godot maptest 300 --headless --path "$PROJECT" -- maptest; then
+if run_godot maptest 480 --headless --path "$PROJECT" -- maptest; then
 	if grep -qE '^maptest: PASS' "$LOG_DIR/maptest.log"; then
 		ok "every galaxy is crossable"
 	else
@@ -882,10 +886,10 @@ step "Star B is a place, as the one star is"
 # star's facts as it is drawn (star B the K5 orange dwarf, masses as the
 # pulls), AROUND (never ROUND), no event card wider than the column, and a GO
 # that leaves the view open (hover, wheel, drag) and still runs its event once.
-# Nov 2 (ruling 23, the pair turning): about 140 s alone with its lap sweeps,
-# so its limit is TwinDrawTest's 300 (it was 180, and ran past it under load).
+# Nov 2 (ruling 23, the pair turning): about 140 s alone with its lap sweeps;
+# 289 s on the CI runner, which killed it at 180 and nearly at 300.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot twinsitetest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
+	run_godot twinsitetest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
 	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
 		ok "star B is a place everywhere the star is"
 	else
@@ -904,7 +908,7 @@ step "Two suns and heavy giants are drawn as they are"
 # behind it on the far, every orbit round its own centre, each world lit from
 # its own sun, the floor read off the map's own SunViews, and LOCAL's two suns
 # as far as headless reaches. Shaders are not compiled headless.
-if run_godot twindrawtest 300 --headless --path "$PROJECT" -- sheet=TwinDrawTest; then
+if run_godot twindrawtest 420 --headless --path "$PROJECT" -- sheet=TwinDrawTest; then
 	if grep -qE '^twindrawtest: PASS' "$LOG_DIR/twindrawtest.log"; then
 		ok "two suns and heavy giants are drawn as they are"
 	else
@@ -959,7 +963,7 @@ step "FlightTest, shard $1 of $GATE_FLIGHT_SHARDS"
 # `flightclicks`, which times frames. Split, a shard took 40 s with all eight
 # shards of both tests at once on the PC (Nov 3), but the 4th, which flies by
 # hand and the turning pair's checks (`_orbit_phase`), 108 s: 300 holds either.
-if run_godot "flighttest_$1" 300 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 "shard=$1/$GATE_FLIGHT_SHARDS"; then
+if run_godot "flighttest_$1" 420 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 "shard=$1/$GATE_FLIGHT_SHARDS"; then
 	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest_$1.log"; then
 		ok "its flights solved (or today's planner, with one sun), flown as drawn, landed"
 	else
@@ -1042,7 +1046,7 @@ step "SolveTest, shard $1 of $GATE_SOLVE_SHARDS"
 # pair turns (the twins' plans cost about a fifth more, and the phase sweep at 4
 # angles of two pairs); split, a shard took 92 to 114 s with all eight shards of
 # both tests at once on the PC (Nov 3), so 300 holds it as it did main's.
-if run_godot "solvetest_$1" 300 --headless --path "$PROJECT" -- sheet=SolveTest short "shard=$1/$GATE_SOLVE_SHARDS"; then
+if run_godot "solvetest_$1" 420 --headless --path "$PROJECT" -- sheet=SolveTest short "shard=$1/$GATE_SOLVE_SHARDS"; then
 	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest_$1.log"; then
 		ok "its flights are found, clean, replayed and the same on a worker"
 	else
@@ -1102,7 +1106,7 @@ step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
 # fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot laddertest 420 --headless --path "$PROJECT" -- sheet=LadderTest; then
+	run_godot laddertest 540 --headless --path "$PROJECT" -- sheet=LadderTest; then
 	if grep -qE '^laddertest: PASS' "$LOG_DIR/laddertest.log"; then
 		ok "every move lands where it should"
 	else
@@ -1428,7 +1432,7 @@ step "Each place in a system keeps its own wrecks"
 # Fit means nothing overlaps: no wreck's words on the world you orbit, and no
 # wreck's picture on it while the pile is a fight's worth.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
-	run_godot wrecksitetest 300 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
+	run_godot wrecksitetest 420 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
 	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
 		ok "a world keeps its wrecks, the next one and the next system have none, and they stay off your hull"
 	else
@@ -1661,7 +1665,7 @@ step "Nothing joins a fight"
 # seeded fights at a lawless danger-5 system played to turn 7: the enemy
 # count never rises, and the Custodian and the Hellbender stand alone.
 # 480 s: 168 fights take ~310 s on a slow container (Oct 15), on main as on this branch.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 480 --headless --path "$PROJECT" -- sheet=FightCountTest; then
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightcounttest 660 --headless --path "$PROJECT" -- sheet=FightCountTest; then
 	if grep -qE '^fightcounttest: PASS' "$LOG_DIR/fightcounttest.log"; then
 		ok "$(grep -E '^fightcounttest: [0-9]+ fights' "$LOG_DIR/fightcounttest.log" | head -n 1 | sed 's/^fightcounttest: //')"
 	else
@@ -1704,7 +1708,7 @@ step "Nothing in a fight sits on anything else"
 # "shield:A"); in B the gaps across a rank even (within 4 px at 1080p), the
 # gaps between ranks even, every gap at least 24 px.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot packlayouttest 420 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
+	run_godot packlayouttest 660 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
 	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then
 		ok "$(grep -cE '^packlayouttest: layout' "$LOG_DIR/packlayouttest.log") layouts, every pack apart"
 	else
