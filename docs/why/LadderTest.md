@@ -18,7 +18,7 @@ and the tabs are the way between distances, never the wheel); LOCAL's DOCK at a 
 defaults are Jon's picks (1A, 2C, 3B), and 3B's dock flies the yard's hull in
 from the left with the elevator out of the picture until it has settled, its
 undock the elevator out first and the hull away to the left, then on LOCAL
-the dock played backwards with the camera still; a fight
+its own way out of the bay with the camera still; a fight
 opened from the map arrives on LOCAL and its end goes back; every design of
 every seam; and the switch off is today's flow, a plain swap.
 ```
@@ -85,18 +85,18 @@ click while it moves; and it lands in its place, the hall gone.
 Above `func _hull_flies_out() -> void:`:
 
 ```text
-3B, UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background
-stays put as your ship flies out, matching docking"). In the yard as before:
-the elevator out first, the hull off its stands to the left, the empty yard
-down to black. Then on LOCAL, every frame from its first to a second after
-the move lands: THE CAMERA STILL -- everything LOCAL draws but your ship where
-it was, 0 px (`_bg_state`, the dock's check), the ladder's camera never zoomed
-nor panned, every dust mote as drawn moving by its own drift and bob alone;
-your ship on the dock's ENTER run back (`_enter_rec`), in the same place at
-the same size frame for frame, out of the hull through the lips and never
-back in; its engines lit at the cruise burn and then the arrival's flameout,
-its clip heard once from its first cough, down to the idle; the station lit
-the whole way and after; your ship parked at its mooring at its own size.
+3B, UNDOCKING HOLDS THE BACKGROUND AS DOCKING DOES (Jon, Oct 21: "the
+background stays put as your ship flies out, matching docking"). In the yard
+as before: the elevator out first, the hull off its stands to the left, the
+empty yard down to black. Then on LOCAL, every frame from its first to a
+second after the move lands: THE CAMERA STILL -- everything LOCAL draws but
+your ship where it was, 0 px (`_bg_state`, the dock's check), the ladder's
+camera never zoomed nor panned, every dust mote as drawn moving by its own
+drift and bob alone; your ship down the ENTER's path eased from rest to
+rest, out through the lips and never back in; its engines at the idle, then
+the arrival's coughs, their clip heard once from the first, down to the idle;
+the station lit the whole way and after; your ship parked at its mooring at
+its own size.
 ```
 
 ## Station layout parity
@@ -117,7 +117,7 @@ Above `func _undock_skipped() -> void:`:
 
 ```text
 A PRESS MID-UNDOCK (`ZoomLadder.finish_now`): docked, UNDOCK, and a key once
-your ship is out of the hull and burning -- the move ends within a frame or
+your ship is out of the hull and backing out -- the move ends within a frame or
 two, your ship parked at its mooring at its own size, its engines at the
 idle (the burn out, no flameout begun or heard), the station lit. And under
 reduced motion UNDOCK never animates: LOCAL at once, your ship at its
