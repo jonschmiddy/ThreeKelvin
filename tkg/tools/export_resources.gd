@@ -1,11 +1,7 @@
 @tool
 extends EditorScript
-## Dumps the seeded Database content to .tres files so modules, hulls and
-## enemies become inspector-editable assets instead of code.
-##
-## Run from the Godot editor: File > Run (with this script open).
-## After exporting, point Database at the folders with ResourceLoader if you
-## prefer .tres as the source of truth.
+## Dumps seeded Database content to .tres so content is inspector-editable. Run from the editor.
+## Why: docs/why/export_resources.md#resource-export
 
 func _run() -> void:
 	var db := load("res://scripts/autoload/Database.gd").new()

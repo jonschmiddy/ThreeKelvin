@@ -1,106 +1,11 @@
 extends Node
 
-## A.S.H., THE SHIP'S AI, SPEAKING (Jon and Ashlee, Oct 17; `docs/ash.md`; the
-## ruling "A.S.H. is the ship, not crew"). Her face comes up in a small hologram
-## frame on LOCAL and in fights, says one of the thirty approved lines at the
-## moment it was written for, and fades (`AshPortrait` draws it; `AshLines`
-## holds the lines), in her voice as it types (`AshLines.VOICE`, `Audio.ash_voice`).
-##
-## THE MOMENTS, each line's own (`AshLines` has the list):
-##   launch  a new run, once the ship is at rest on LOCAL; gone at the first jump
-##   hull    the first time she is up in a hull BOUGHT at a station's yard mid-run
-##           (after the dock, never in it); not if the move is called off, and
-##           never for the chassis select, a load or a hull found in the field
-##   hurt    the hull at a quarter or under, alive; again only after it has been
-##           back over half
-##   hot     over the heat cap in a fight; once a fight
-##   haul    a chit of HAUL_CREDITS or more, or an epic or better part, taken
-##           aboard on LOCAL
-##   greed   the third wreck opened since you last docked, and every third after
-##   doubt   arriving somewhere new, DOUBT_CHANCE a time, at least DOUBT_EVERY
-##           jumps after the last one and never before jump DOUBT_FROM
-## A moment waits for its chance (`WAIT_S`) and is dropped if it does not get
-## one: a line about the heat said once the heat is gone would be about nothing.
-##
-## SHE INTRODUCES HERSELF EVERY NEW RUN (Jon, Oct 18, "intro:A"; Oct 20: "On the
-## first LOCAL section you load into on a new game, A.S.H. should introduce
-## herself. Short beat. THEN the first tutorial hint." -- every run, not once a
-## profile). A new run's launch line is `AshLines.INTRO` (launch_04,
-## "Autonomous Systems Handler, reporting..."), not a pick from the bag; a run
-## picked up with CONTINUE does not hear it again (`SaveGame.restoring`), and
-## its launch, if it is still before the first jump, is the bag's. Same moment
-## and slot as any launch line; the one difference is the order: the hints and
-## the goal steps wait for it (`intro_holds`, read by `Hints`), where every
-## other bark waits for them, so her first words are her name and no lesson
-## cuts them; and after it ends, a beat (`INTRO_BEAT_S`) before the first of
-## them. The once-a-profile flag it had (`[hints] ash_intro`) is not read any
-## more; an old settings file that has it loads as before.
-##
-## SHE NEVER TALKS OVER HERSELF OR EVERY TURN:
-##   - one line at a time, and COOLDOWN_S of quiet after one before the next;
-##     the big moments (hurt, hull) wait only BIG_GAP_S;
-##   - at most ONE line a fight, unless the hull starts failing in it;
-##   - in a fight, only on your turn with the hand settled: never during a card
-##     drag, the enemy's turn, a number in the air, the flee or hail question;
-##     END TURN mid-line sends her off at once;
-##   - she does not start over a jump, an arrival, the camera moving between
-##     distances, the cutaway, a wreck's window, the event band, the escape menu.
-## ONCE STARTED, A LINE PLAYS OUT (Jon, Oct 22, after the first outside playtest:
-## "He also clicked to make her shut up when she was giving her quips"): nothing
-## the player clicks cuts it. A card picked up or dragged, a wreck's window, the
-## pile or SECTOR LOOT opened, the event band raised: she stays unless what came
-## up covers her box (`_must_go`). A hint coming due waits for her to finish
-## (`Hints`, `bark_up`). What still takes her off: the screen itself going (a
-## jump, the camera moving, another screen, the escape menu), END TURN and the
-## enemy's turn (their numbers land where she stands), something in her box,
-## the ship lost, her switch, a new run.
-## NOTHING AFTER THE SHIP IS LOST (Jon: "No lines after the ship is lost. The ship
-## has blown up."): she is the ship. Up when it goes, she cuts with it, no fade.
-## HINTS WIN (`Hints`): she does not start while a hint is up, settling or due
-## on this screen.
-##
-## SHE NEVER COVERS ANYTHING. She stands at the first of `SPOTS` that is clear of
-## everything listed in `avoid_rects` (the HUD, the goal line's band, the event
-## band and the bar under the view, the hand and its buttons, both ships and the
-## words, plates and shield ovals round them, the wrecks, an event's subject, a
-## number in the air, a hint card, a side bar) and inside the view; with none
-## clear she waits. Once up she does not move: if something comes into her box
-## she goes. `-- sheet=AshTest` holds her to that on every screen she shows on.
-##
-## OFF UNDER HARNESSES (`TestRun.active`) unless the run asks with `-- ash`;
-## `-- sheet=AshTest` turns her on by hand (`forced`). Off for good with Settings'
-## SHIP'S VOICE (`[ash] on` in the settings file, the harness's under a harness).
-##
-## IN CO-OP each machine's A.S.H. is its own ship's: she reads this process's
-## `Run` and nothing else, sends nothing, and nothing waits on her, so a shared
-## fight's barrier never does. A partner's hull failing is not yours.
-##
-## SHE TEACHES (Jon picked how A for the tutorial, Oct 17: "A.S.H. replaces the
-## hint cards"). While she is on, each first-run hint (`Hints`) comes in her
-## corner in her words (`AshTutorLines`), the thing she means outlined, instead
-## of a card; and each goal step (`GoalLine`) is said once as it starts. The
-## hints keep their triggers, their order and their subjects (`Hints` still
-## decides all of it and calls `teach`). A teaching line:
-##   - outranks a bark: none starts while a teaching line is up, settling or due
-##     (her "hints win"); one already under way plays out first (Oct 22);
-##   - is not held to her quiet, her one line a fight, or her keeping off the
-##     cutaway, a wreck's window and the event band;
-##   - stands on the STARCHART, the SECTOR map and the station as well as LOCAL
-##     and fights, at the first spot clear of everything there (`tut_avoid_rects`,
-##     `covers`: every system and world a click picks, their words and orbits,
-##     every button, the yard's ships, drones and screen);
-##   - a hint's holds once it is out until the player has done what it teaches
-##     (`Hints.DONE`; Jon, Oct 22: "Can we soft lock the screen so A.S.H. can't
-##     be dismissed?"), never a click; an information line's (`Hints.INFO`) and
-##     a step's hold for their reading time and go.
-## Off in a party, as the hints are (`Hints.enabled`, "coop:B"). Off with her
-## switch, and the cards come back exactly as they were.
+## A.S.H. speaks approved lines at their moments and never talks over herself or covers anything.
+## Once started a line plays out (Jon, Oct 22); losing the ship cuts her at once.
+## Why: docs/why/Ash.md#ash-behaviour
 
 const SECTION := "ash"
-## THE BEAT after her introduction ends before the first lesson starts, s (game
-## time; Jon: "Short beat. THEN the first tutorial hint."). A goal step takes its
-## own settle (`Hints.SETTLE_S`) after the hold lets go, so the hold is this less
-## that: the step starts this long after she stops.
+## The beat after her introduction before the first lesson (Jon: short beat, then the hint).
 const INTRO_BEAT_S := 1.5
 ## Highest first: when two are waiting, this one is said.
 const ORDER: Array[StringName] = [&"hurt", &"hull", &"hot", &"haul", &"greed", &"launch", &"doubt"]
@@ -162,9 +67,7 @@ var _loaded := false
 var _intro_due := false
 var _introducing := false
 var _intro_end := -1.0
-## HER BOX WITH THE GOAL (Jon, Oct 20: the goal, its step and her box one
-## group): a top spot's y and the goal's when she came up, so while the goal
-## slides with the top plate she goes with it (`_follow_goal`).
+## Her box follows the goal line as it slides with the top plate (Jon, Oct 20).
 var _group := false
 var _group_y := 0.0
 var _goal_y := 0.0
@@ -191,30 +94,19 @@ var _bags: Dictionary = {}
 var _run_live := false
 var _up := false
 
-## THE TEACHING LINE UP, if any (`teach`): its line id (`AshTutorLines`), the hint
-## it says ("" for a goal step), what it points at (global), and the screen it
-## started on.
+## The teaching line up, if any: its id, the hint, its subject and starting screen.
 var lesson: StringName = &""
 var lesson_hint: StringName = &""
 var lesson_subject := Rect2()
 var _lesson_on: Object = null
-## OVER THE ESCAPE MENU (Oct 22, the deep tutorial's SAVE & EXIT line, `Hints`
-## `save`): the one lesson she says with the menu up. Her box and the outline go
-## on the menu's own layer (`opts.host`), above it, at the spot `Hints` worked
-## out clear of the drawer (`opts.spot`); she stays while the menu is up.
+## The one lesson said over the escape menu: her box goes on the menu's own layer.
 var _lesson_menu := false
 var _lesson_host: Node = null
 var _lesson_check := 0.0
 var _outline: Outline = null
 
-## HER COMMS (Jeremy, a playtester, Oct 23: "Give me an option to revisit all
-## communications"): every line she has said aloud this run, her quips and her
-## teaching lines and steps, oldest first, each {kind, line, voice, jump,
-## tutorial}. In the log once her words have started (a line cut before a word
-## is not in it); a line back quietly is not said again, so not again in it.
-## The HUD's COMMS tab lists it newest first (`CommsPanel`), with her voice to
-## play again. Kept with the run (`SaveGame`, `ash_comms`); a new run's starts
-## empty.
+## Every line she has said aloud this run, for the COMMS tab (Jeremy, Oct 23); saved with the run.
+## Why: docs/why/Ash.md#comms-log
 var comms: Array = []
 const COMMS_MAX := 300
 ## The line just started, until its words do.
@@ -293,11 +185,7 @@ func _intro_tick() -> void:
 		_intro_end = minf(_intro_end, portrait.voice_started_at + portrait.voice_secs - AshPortrait.VOICE_TAIL_S)
 
 
-## Her introduction is up, or it is next and could start now: the hints and the
-## goal steps wait for it (`Hints.poll`, `Hints.step_due`), so it is her first
-## line and none of them cuts it. False the moment anything else would keep it
-## waiting (the screen, a hint card already up, no room), so a hint is never
-## held for a line that is not coming.
+## True while her introduction is up or could start; hints and goal steps wait for it.
 func intro_holds() -> bool:
 	if not _run_live or Run.hull == null or Run.dead or Run.hp <= 0 or not enabled():
 		return false
@@ -420,12 +308,8 @@ func _watch() -> void:
 			arm(&"hot")
 	else:
 		waiting.erase(&"hot")
-	# A NEW HULL: armed when the frame changes BECAUSE ONE WAS BOUGHT at a
-	# station's yard (`Run.hulls_bought`; Jon, Oct 18: only "when a player buys
-	# a new ship mid run" -- never the chassis select's picks before launch, a
-	# load, or a hull found in the field), said the next time she is up, on
-	# LOCAL or in a fight, so never mid-dock; and forgotten if the move is
-	# called off and the old frame comes back (`Run.abandon_move`)
+	# A new hull arms only when bought at a yard (Jon, Oct 18); dropped if the move is undone.
+	# Why: docs/why/Ash.md#ash-behaviour
 	if Run.hull != _known_hull:
 		if Run.hull != null and Run.hull == _left_hull and waiting.has(&"hull"):
 			waiting.erase(&"hull")
@@ -642,11 +526,7 @@ func _screen_only(starting: bool = true) -> String:
 	return ""
 
 
-## Why she must go now she is up; "" to stay. NOT A CLICK (Jon, Oct 22: a quip
-## "plays out and ends on its own"): what a click opens over LOCAL or a fight (a
-## wreck's window, the pile, the cutaway, the event band, the flee question)
-## sends her off only if it covers her box, and a card picked up or dragged not
-## at all. The screen going, the enemy's turn and something in her box do.
+## A click does not send her away (Jon, Oct 22); covering her box, a screen change does.
 func _must_go(r: Rect2) -> String:
 	var why := _stay_block()
 	if why != "" or force_spot != &"":
@@ -660,9 +540,7 @@ func _must_go(r: Rect2) -> String:
 	return ""
 
 
-## Why the screen is not one she may stay up on; "" if it is. Not the hints
-## (one coming due waits for her: `Hints`), nor a drag, nor what a click opened
-## over it (`_must_go` asks whether it covers her).
+## Hints, drags and click-opened panels are not stay blocks; `_must_go` asks if they cover her.
 func _stay_block() -> String:
 	if lesson != &"" or Hints.lesson != &"":
 		return "hint"
@@ -703,18 +581,14 @@ func _dragging(sc: SectorScreen) -> bool:
 	return sc._grab_view != null or sc._aim_view != null or sc.get_viewport().gui_is_dragging()
 
 
-## A hint is up, settling, or between two of a run (its gap), or one this
-## screen would show has not been seen yet: hints win, and she does not start
-## a line the next hint would cut short. `starting` false: only up or settling.
+## Hints win: she does not start a line the next hint would cut short.
 func _hint_up(starting: bool = true) -> bool:
 	if Hints.card != null and is_instance_valid(Hints.card):
 		return true
 	# her own teaching line, or one of a goal step's on its way (`Hints.step_due`)
 	if lesson != &"" or Hints.lesson != &"":
 		return true
-	# HER INTRODUCTION GOES FIRST (intro:A): the hints and steps wait for it
-	# (`intro_holds`), so it does not wait for them; the beat after it holds
-	# everything
+	# Her introduction goes first, so it does not wait for hints; the beat after holds everything.
 	if starting and intro_holds():
 		# (the beat after it: her other lines wait too, one thing at a time)
 		return _intro_end >= 0.0
@@ -866,14 +740,8 @@ static func spot_boxes(cur: Control) -> Array:
 	return out
 
 
-## A TOP SPOT THAT WOULD STAND ON THE GOAL OR ITS STEP (`GoalLine`: at the top
-## left of the picture on LOCAL, the map and the chart, Jon, Oct 20) stands
-## under the two of them instead, EDGE below the step's room. In a fight beside
-## the goal's line instead, at the same height (a fight has no step, and under
-## the goal is your hull: the 65 screens of `AshTest` measured that corner as
-## the one clear in every fight). A spot that already stands below the goal's
-## words (under the band under the HUD) and only comes within EDGE of the
-## Custodian's badge, 2 px taller than the words, steps down under it instead.
+## A top spot on the goal moves under it (Jon, Oct 20); in a fight it goes beside it.
+## Why: docs/why/Ash.md#spot-placement
 static func _under_goal(r: Rect2, cur: Control) -> Rect2:
 	var st := GoalLine.stack_rect(cur)
 	if st.size != Vector2.ZERO and r.intersects(st.grow(EDGE - 1.0)):
@@ -937,9 +805,7 @@ static func avoid_rects(cur: Control) -> Array:
 		out.append(hud)
 		# the band under the HUD, kept clear as it always was on LOCAL
 		out.append(Rect2(hud.position.x, hud.end.y, hud.size.x, GOAL_BAND))
-		# THE GOAL AND ITS STEP (`GoalLine`, at the picture's top left, Jon, Oct
-		# 20): the two lines as drawn, and the room they keep whether a step is
-		# pending or not, so a step arriving never lands on her
+		# The goal and its step as drawn plus reserved room, so a step arriving never lands on her.
 		if Router.hud.has_method("goal_rect"):
 			out.append(Router.hud.call("goal_rect"))
 		var gl: Variant = Router.hud.get("goal")
@@ -1038,9 +904,7 @@ func _comms_tick() -> void:
 		_comms_next = {}
 
 
-## Play her voice for comms entry `i` again. Not while she is saying a line of
-## her own (she would talk over herself), and not a line said as text alone.
-## True if it plays.
+## Replay comms voice: not over a line she is saying, and not for text-only lines.
 func replay(i: int) -> bool:
 	if i < 0 or i >= comms.size() or not can_replay():
 		return false
@@ -1104,12 +968,8 @@ func teaches() -> bool:
 	return enabled() and Run.hull != null and _run_live and not Run.dead and Run.hp > 0
 
 
-## Say teaching line `lid` (`AshTutorLines`) now, its words `text` (filled),
-## pointing at `subject` (global; Rect2() for none). `hint`: the hint it says,
-## held until let go; "" for a goal step, which goes after its reading time.
-## `opts`: `voice` and `spoken` (`AshTutorLines.voice_path` / `spoken`), and
-## `held` (false: an information hint, gone after its reading time). False
-## if she cannot: off, or nowhere on this screen clear for her (`tut_spot`).
+## Returns false if she is off or no spot is clear; a hint's line holds until the lesson is done.
+## Why: docs/why/Ash.md#teaching-lines
 func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts: Dictionary = {}) -> bool:
 	if not teaches():
 		return false
@@ -1208,11 +1068,7 @@ func _clear_lesson() -> void:
 	_lesson_host = null
 
 
-## Why a teaching line must go now; "" to stay. Not her bark rules: it may stand
-## over the cutaway, a wreck's window and the event band, and on the chart, the
-## map and the station. It goes when the screen does (a swap, the camera moving,
-## a jump, the escape menu), on the enemy's turn, or when something comes into
-## its box.
+## A teaching line skips bark rules; it goes with the screen, the enemy turn or an intruder.
 func _lesson_must_go() -> String:
 	# (over the escape menu: up while the menu is, gone with it)
 	if _lesson_menu:
@@ -1244,9 +1100,7 @@ func _lesson_must_go() -> String:
 
 # ------------------------------------------------------------------ where she teaches
 
-## Where a teaching line `text` stands on `cur`, pointing at `subject`: the
-## first spot clear of everything (`tut_avoid_rects`, `covers`, the subject)
-## inside the view (`tut_view_rect`); {} if none is.
+## The first spot clear of everything inside the view; empty if there is none.
 static func tut_spot(cur: Control, text: String, subject: Rect2 = Rect2()) -> Dictionary:
 	var v := tut_view_rect(cur)
 	if v.size.x <= 0.0:
@@ -1260,9 +1114,7 @@ static func tut_spot(cur: Control, text: String, subject: Rect2 = Rect2()) -> Di
 	return {}
 
 
-## WHERE SHE STANDS OVER THE ESCAPE MENU (the `save` lesson): the first of the
-## picture's corners, right of the menu's drawer, clear of the drawer and of
-## `subject`; {} if none is. Named "menu", so it never follows the goal line.
+## Over the escape menu: the first picture corner right of the drawer; it never follows the goal.
 static func menu_spot(text: String, drawer: Rect2, subject: Rect2, vs: Vector2) -> Dictionary:
 	var sz := AshPortrait.size_for(text)
 	var left := maxf(drawer.end.x + EDGE * 2.0, EDGE)
@@ -1275,10 +1127,7 @@ static func menu_spot(text: String, drawer: Rect2, subject: Rect2, vs: Vector2) 
 	return {}
 
 
-## The view she may teach in on `cur`, global. LOCAL and a fight: hers
-## (`view_rect`), right of the cutaway's panel while it is open. The chart and
-## the map: their picture inside its frame. The station: the deck's picture,
-## right of the decks; on the Hiring Board, the town's side of it.
+## The view she may teach in on each kind of screen.
 static func tut_view_rect(cur: Control) -> Rect2:
 	if cur == null or not is_instance_valid(cur) or Router.hud == null:
 		return Rect2()
@@ -1328,9 +1177,7 @@ static func _station_page(st: StationScreen) -> Control:
 	return null
 
 
-## A teaching line's spots on `cur`, global, for a frame of `sz`: her four
-## corners first, then the middles. On LOCAL and in a fight under the goal
-## line's band, as her barks stand; elsewhere the picture's own corners.
+## Four corners then middles; on LOCAL and fights they sit under the goal band, as barks do.
 static func tut_spot_boxes(cur: Control, sz: Vector2) -> Array:
 	var out: Array = []
 	var v := tut_view_rect(cur)
@@ -1354,20 +1201,13 @@ static func tut_spot_boxes(cur: Control, sz: Vector2) -> Array:
 	return out
 
 
-## EVERYTHING A TEACHING LINE MUST NOT COVER on `cur`, global: her bark list
-## (`avoid_rects`), and the toolbar row's pieces; over the cutaway its panel,
-## its exploded ship and its popup; over a wreck's window the window; on the
-## chart and the map every control in the picture, the scale and the words; on
-## the station the decks, UNDOCK, every button and word, the yard's ships and
-## their names, its drones and its screen. What a click picks in a picture
-## (a system, a world, a beacon) is `covers`.
+## Teaching lines avoid the bark list plus per-screen controls; clickable things are in `covers`.
+## Why: docs/why/Ash.md#teaching-lines
 static func tut_avoid_rects(cur: Control) -> Array:
 	var out := avoid_rects(cur)
 	if cur == null or not is_instance_valid(cur):
 		return out
-	# THE GOAL LINE'S BAND is LOCAL's: on the chart and the map the line lives
-	# in the toolbar row (its own rect is still in the list), and the station
-	# has none, so the band under the HUD is free there
+	# The goal band is LOCAL's; elsewhere the line lives in the toolbar row.
 	if not (cur is SectorScreen) and Router.hud != null:
 		var hud := Router.hud.get_global_rect()
 		var band := Rect2(hud.position.x, hud.end.y, hud.size.x, GOAL_BAND)
@@ -1481,9 +1321,7 @@ static func _map_rects(map: SystemMapScreen, out: Array) -> void:
 	out.append(g * Rect2(ship - Vector2(12, 12), Vector2(24, 24)))
 
 
-## The station's own: the decks and UNDOCK down the left, every button and word
-## on the screen, and in the yard the two ships and their names, the drones and
-## the deal's screen.
+## Station rects: decks, UNDOCK, every button and word, the yard's ships and drones.
 static func _station_rects(st: StationScreen, out: Array) -> void:
 	for v in st._tabs.values():
 		if v is Control and (v as Control).is_visible_in_tree():
@@ -1534,10 +1372,7 @@ static func _station_rects(st: StationScreen, out: Array) -> void:
 		out.append(g * Rect2(Vector2(tv.X, tv.Y), Vector2(float(tv.IW), float(tv.IH))))
 
 
-## WHAT A CLICK PICKS UNDER `r` in a picture, named; "" for nothing: a system
-## on the chart (`MapChart._node_at`), a world, a beacon, the star or a belt on
-## the map (`SystemOverlay.hit`), and an orbit's line drawn through it. Asked of
-## the picture's own hit tests at every 3 px, so nothing it can click is missed.
+## Asked of the picture's own hit tests every 3 px, so nothing clickable is missed.
 static func covers(cur: Control, r: Rect2) -> String:
 	if cur is StarchartScreen:
 		var mc := (cur as StarchartScreen)._chart
@@ -1585,9 +1420,7 @@ static func covers(cur: Control, r: Rect2) -> String:
 		for b in L.bodies:
 			if b.orbit <= 0.0:
 				continue
-			# (round each body's own centre where it is at the map's t, `Body.host_at`:
-			# star A at the origin, or in a pair star B or the balance point; `o` is
-			# the plane's origin on screen)
+			# Round each body's centre where it is at the map's t, for star A or the pair.
 			var bh: Vector2 = b.host_at(float(v.t))
 			for k in 180:
 				var a := TAU * float(k) / 180.0
@@ -1598,9 +1431,7 @@ static func covers(cur: Control, r: Rect2) -> String:
 	return ""
 
 
-## THE OUTLINE on what a teaching line means: a 1 px line round it in her ice,
-## as the goal line outlines a tab. Drawn in her column, over the picture and
-## under the escape menu; takes no click.
+## A 1 px ice outline round what a teaching line means, under the escape menu.
 func _outline_to(r: Rect2) -> void:
 	if r.size == Vector2.ZERO:
 		if _outline != null and is_instance_valid(_outline):

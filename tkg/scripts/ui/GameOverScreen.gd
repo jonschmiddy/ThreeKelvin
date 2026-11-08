@@ -10,9 +10,7 @@ const WIN_TITLE := "YOU WON"
 ## buttons. Null on the death screen.
 var card: NoteCard = null
 
-## `still`: the picture the run ended on (`DeathHandoff`), drawn under the
-## panel in place of the sky; `look`: how the panel arrives over it, &"rise"
-## (fades and rises in) or &"type" (RUN ENDED typed in, then the rest).
+## `still` is the picture the run ended on, drawn under the panel; `look` is how the panel arrives.
 func setup(still: Texture2D = null, look: StringName = &"") -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if Run.won:
@@ -34,16 +32,12 @@ func setup(still: Texture2D = null, look: StringName = &"") -> void:
 	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(centre)
 	var box := VBoxContainer.new()
-	# TIGHT AROUND WHAT IT SAYS. It was 330 wide with 14 between its three
-	# blocks, and the longest line in it is about 220 -- so the panel was mostly
-	# air, which reads as an unfinished screen rather than a quiet one (Jon).
+	# Tight around its text: at 330 wide it was mostly air, reading as an unfinished screen (Jon).
 	box.add_theme_constant_override("separation", 10)
 	box.custom_minimum_size = Vector2(250, 0)
 
-	# The two endings do not get the same colour. Reaching the core is the one
-	# thing in this game that goes right; a run ending is the other outcome and
-	# it should say so before the sentence under it is read. BAD rather than a
-	# literal, so it moves with the palette like everything else.
+	# The endings differ in colour: reaching the core is the
+	# one thing that goes right. BAD moves with the palette.
 	var title := UITheme.body("RUN ENDED", UITheme.BAD, UITheme.FS_HEAD)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
@@ -130,20 +124,14 @@ func _arrive(centre: Control, panel: Control, title: Label, rest: Array, look: S
 		block.queue_free())
 
 
-## THE WIN: Jon's note as a letter, the same look as his welcome note
-## (`NoteCard`), with the run's numbers under it and the way out. The moment
-## first, then the record. The dim is lighter than the title's, so the sky
-## behind still shows.
+## The win is Jon's note as a letter in the welcome
+## note's look; the dim is lighter so the sky shows.
 func _win() -> void:
 	card = NoteCard.new()
 	card.build(WIN_TITLE, ALPHA_THANKS, 0.5)
 	add_child(card)
 	card.add_section(_stats())
-	# BACK TO THE TITLE: the alpha ends here (`to_title`).
-	#
-	# TITLE IS THE PRIMARY, the welcome note's amber plate: the alpha ends at the
-	# core, so the way on is back to the title. NEW RUN and SAVE MY LOGS stay the
-	# game's own buttons beside it.
+	# TITLE is the primary, as the alpha ends at the core; NEW RUN and SAVE MY LOGS stay beside it.
 	var said := _said()
 	card.add_buttons([
 		NoteCard.primary("TITLE", to_title),
@@ -153,9 +141,7 @@ func _win() -> void:
 	card.add_footer(said)
 
 
-## BACK TO THE TITLE, from either ending. Left the way the escape menu's quit
-## leaves a run -- no ship, the state the title expects. The run is already in
-## the record and its save already gone (`Router._on_run_ended`).
+## Left as the escape menu's quit leaves a run; the record is kept and the save already gone.
 static func to_title() -> void:
 	Run.hull = null
 	Router.show_launcher()
@@ -169,9 +155,7 @@ func _stats() -> Label:
 		lines.append(Run.death_reason)
 	lines.append("%d jumps · %d kills · danger %d when it ended" % [
 		Run.jumps, Run.kills, Run.node_at().danger])
-	# The whole ledger, not just the row that used to be a field — exotics you
-	# never got to a bench is as much a thing you were carrying when it ended as
-	# scrap you never spent.
+	# The whole ledger counts: unbenched exotics were as much carried as unspent scrap.
 	var held: PackedStringArray = ["%d credits unspent" % Run.credits]
 	for stock in Run.material_stock():
 		held.append("%d %s" % [int(stock.count), str(stock.name).to_lower()])

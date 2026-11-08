@@ -1,18 +1,13 @@
 class_name CardData
 extends Resource
 
-## A single card contributed to the deck by a module (or the hull itself).
-## Effects are declarative: CardResolver reads these fields, so new cards
-## are data, not code.
+## A card a module (or the hull) contributes. Effects are declarative, read by CardResolver.
 
 @export var name: String = ""
 @export var energy: int = 1
 @export var heat: int = 0
 @export var copies: int = 1
-## The verb-pool key this card was drawn from — "ballistics", "ordnance",
-## "drone". Printed on the type line, because set-bonus play needs the lane
-## scannable and because it is the key that decides WHICH verbs a module of this
-## family can grant. Empty on hull-innate cards and on junk.
+## The verb-pool key, printed on the type line so set-bonus play can scan the lane.
 @export var lane: StringName = &""
 
 @export_group("Attack")
@@ -22,9 +17,7 @@ extends Resource
 @export var charge_turns: int = 0       ## fires automatically after N turns
 @export var heat_scale: int = 0         ## +1 damage per N current heat
 @export var damage_equals_heat: bool = false
-## +N damage per hit if the ship is over its heat capacity when this resolves
-## (a charged card: when it discharges). Solari's: heat over the cap is a cost
-## everywhere else, and here it is the trigger.
+## Heat over the cap is a cost elsewhere; here it is Solari's trigger.
 @export var flashpoint: int = 0
 @export var adapt: int = 0              ## permanently grows this combat
 
@@ -39,27 +32,9 @@ extends Resource
 @export var vent: int = 0
 @export var vent_all: bool = false
 @export var heal: int = 0
-## +1 hull healed for every N hull you are MISSING. Zero for a flat repair.
-##
-## THE LIFELINE DIAL, and the reason it exists rather than a bigger flat number.
-##
-## A flat heal is priced for the turn you play it on, which means it is priced
-## for a healthy turn — and the turn that actually needs it is three hull and one
-## energy, where a card that costs two is not a card at all. Raising the flat
-## number instead fixes that turn by also handing free value to every turn that
-## did not need it, which is how a repair card becomes a power creep card.
-##
-## Scaling on what is MISSING solves both ends at once. At full hull these cards
-## are nearly dead weight, so nothing is inflated. At three hull they are the
-## biggest thing in the deck. The card is worth exactly as much as the trouble
-## you are in, which is what a lifeline is.
-##
-## It also sharpens the greed clock rather than blunting it, and that ordering
-## matters: `design-doc.md`'s third pillar says deaths are self-authored — you
-## went one jump too far. An out does not remove that. It means you go one jump
-## FURTHER because you have one, and then die there. A player who never had the
-## option was stopped by arithmetic; a player who spent it and pushed anyway
-## authored the death, which is the pillar working rather than bending.
+## Scales on hull you are MISSING: a flat heal is priced for a healthy turn.
+## An out sharpens the greed clock: you push one jump further, so the death is still self-authored.
+## Why: docs/why/CardData.md#heal-scale
 @export var heal_scale: int = 0
 @export var draw: int = 0
 @export var lock_on: int = 0
@@ -71,69 +46,25 @@ extends Resource
 @export var evoke: int = 0
 @export var unplayable: bool = false
 
-## Junk you are still holding when the turn ends.
-##
-## AT THE END OF THE TURN, not when it is drawn. A card that hurt you on the
-## draw is a tax you cannot see coming and cannot answer — it has happened by
-## the time you know about it. Charged at the end, the same card is a QUESTION:
-## you are holding something that will cost you, you have a turn to find a way
-## to throw it away, and the discard verbs below are the answer. Same numbers,
-## and the difference between a punishment and a decision.
-##
-## Every unplayed card is discarded at end of turn anyway, so "still in hand"
-## means every malfunction you drew and could not get rid of.
-## CORRODE and SMOULDER, as they read on a card.
+## Charged at end of turn, not on draw: a cost you can answer is a decision, not a punishment.
+## Why: docs/why/CardData.md#junk-charging
 @export var hand_damage: int = 0
 @export var hand_heat: int = 0
 
-## FUSED. Not discarded at the end of your turn — it stays in your hand until
-## you get rid of it, and discarding works, it just costs you a card.
-##
-## The only malfunction keyword that COMPOUNDS. Everything else charges you once
-## and goes with the hand; a fused card charges you again every turn you leave
-## it there, and it is holding a hand slot the whole time.
+## The only malfunction keyword that compounds: it charges again every turn it stays in hand.
+## Why: docs/why/CardData.md#fused
 @export var fused: bool = false
 
-## GETTING RID OF THINGS. Two verbs, because they are two different sizes of
-## decision.
-##
-## DISCARD is the ordinary one: you pick, it goes to the discard pile, and it is
-## back in the deck the moment that pile reshuffles. `discard_hand` is the same
-## verb at the scale of a whole hand and pairs with `draw` — a real cost,
-## because it throws away what you wanted too.
-##
-## DECOMMISSION is the expensive one: the card is off the books for the rest of
-## the fight. Against junk that is the whole difference, because a discarded
-## malfunction comes back and a decommissioned one does not. The word is the
-## setting's own register — this is a universe of filings, riders and invoices,
-## and a part struck off the register is exactly what has happened.
-##
-## `self_decommission` is a card that takes ITSELF off the books when played,
-## which is how a card earns the right to be much stronger than its cost.
+## Discard returns on reshuffle; decommission removes the card for the fight, which beats junk.
+## Why: docs/why/CardData.md#discard-and-decommission
 @export var discard: int = 0
 @export var discard_hand: bool = false
 @export var decommission: int = 0
 @export var self_decommission: bool = false
 
-## What KIND of card this is, derived rather than authored.
-##
-## Type is carried by structure on the card face — a charge pip track, a
-## persists tag, a negative heat pip — never by colour, which belongs to the
-## manufacturer. Deriving it means a card cannot be drawn as one type and
-## resolve as another: the pips appear because charge_turns is set, and
-## charge_turns is what CardResolver reads.
-## Three types, not six.
-##
-## Attack, Skill, Malfunction. The earlier roster split Defend, Charge, Drone
-## and Utility into types of their own, which confused two different questions:
-## what a card IS in the rules, and what it happens to do. Charge is not a type
-## — a charged slug is an ATTACK that banks a turn first. A drone that deals
-## damage is an attack; one that only screens is a skill.
-##
-## Nothing is lost by collapsing them, because the behaviours never lived on
-## the type line anyway. They live in STRUCTURE — the charge pip track, the
-## negative heat pip, the art silhouette — and structure is where a player reads
-## them at 96px. See glyph_kind(), which still tells all six apart.
+## Derived from structure, so a card cannot be drawn as one type and resolve as another.
+## Three types, not six: Charge, Drone and Defend were behaviours, which live in structure.
+## Why: docs/why/CardData.md#card-type
 func type_name() -> String:
 	if unplayable:
 		return "Malfunction"
@@ -141,31 +72,9 @@ func type_name() -> String:
 		return "Attack"
 	return "Skill"
 
-## What the art window draws. Finer than the type, on purpose: the type line
-## answers "how do the rules treat this", the silhouette answers "what does it
-## do", and those are different questions with different right answers.
-## What the art window draws.
-##
-## THE VERB, NOT THE TYPE, and it used to be the type. There were five kinds —
-## attack, defend, charge, drone, utility — and the type line prints the same
-## answer one row below the picture, so the largest element on the card was also
-## the most redundant thing on it. Suppressing Fire, Full Auto, Ripple Fire,
-## Drumfire and Siege Round drew one identical round; Brace, Bulwark, Sink Plate,
-## Dig In and Bulkhead drew one identical plate. A hand of eight was two pictures.
-##
-## So this answers "what does playing it DO" instead, which is the question a
-## player is actually asking when they look at a card they cannot yet read.
-##
-## PRIORITY IS THE HEADLINE, and it is why this is a ladder rather than a set of
-## flags. Dig In braces, blocks AND vents; the picture has to pick one, and the
-## one it picks is the thing you played the card for. Defence outranks the vent
-## that came with it, an attack outranks the draw stapled to it, and the two
-## kinds that change how a card is USED rather than what it does — a charge that
-## fires later, a drone that fires without you — outrank everything, because
-## getting those wrong costs you a turn.
-##
-## Shape, never colour. Colour is the manufacturer channel and the two must never
-## share an encoding, so every one of these reads for a colourblind player.
+## The picture says what playing it does, not the type, which the type line already prints.
+## A priority ladder by headline. Shape, never colour, so it reads for colourblind players.
+## Why: docs/why/CardData.md#glyph-kind
 func glyph_kind() -> StringName:
 	# THE PART, NOT THE ROLL. See base_glyph.
 	if base_glyph != &"":
@@ -186,17 +95,12 @@ func glyph_kind() -> StringName:
 	# picture under the old scheme and are not remotely the same card.
 	if damage > 0:
 		return &"burst" if hits > 1 else &"slug"
-	# Defence, finest first. Brace is a wall you keep, Block is one that falls
-	# down at the end of the turn, and Feedback is one that bites back — three
-	# different plans, and the old glyph called them one plate.
+	# Defence, finest first: Brace, Block and Feedback are three plans, not one plate.
 	if feedback > 0:
 		return &"feedback"
 	if negate_next:
 		return &"slip"
-	# THE BIGGER NUMBER WINS when a card does both. Dig In braces 2 and blocks
-	# 8, and calling that a Brace card because Brace is checked first would draw
-	# a picture of the smaller half. A ladder is right for kinds that cannot be
-	# compared; these two are the same kind of thing in different amounts.
+	# The bigger number wins when a card does both, or Dig In would draw its smaller half.
 	if brace_from_heat:
 		return &"brace"
 	if brace > 0 or block > 0:
@@ -216,49 +120,22 @@ func glyph_kind() -> StringName:
 		return &"scrip"
 	return &"utility"
 
-## What the heat pip prints: what playing this leaves behind, net of what it
-## takes away. A vent card is not a second corner — it is the same corner
-## running backwards, which is how the card teaches that heat is bidirectional.
+## The heat pip prints the net, so a vent card is the same corner running backwards.
 func net_heat() -> int:
 	return heat - vent
 
-## What this card's picture was before any affix touched it.
-##
-## THE HAZARD THIS GUARDED AGAINST IS GONE, and the field is kept anyway. Affixes
-## used to mutate card fields — `resolved_cards()` called `AffixData.apply_to()`
-## on a duplicate — so a rolled part handed out cards with properties their
-## designer never gave them, and the ladder in glyph_kind() then drew the AFFIX
-## instead of the card. A Lock On that rolled Grafted stopped being a reticle and
-## became a weld; a Brace Frame that rolled Overbored drew a round. The picture
-## is supposed to say what a card is FOR, and +2 damage on a plate is not what
-## the plate is for.
-##
-## Affixes now pay in ship attributes and never touch a card, so a card's picture
-## can no longer be hijacked. What remains is the rule that produced the right
-## answer anyway: the glyph is decided once, on the base card. Empty on a card
-## nothing has resolved — the gallery and the tests build cards directly — and
-## glyph_kind() falls through to computing it, which is the same answer.
+## Kept though its hazard is gone: the glyph is decided once, on the base card.
+## Empty on unresolved cards; `glyph_kind()` then computes the same answer.
+## Why: docs/why/CardData.md#base-glyph
 var base_glyph: StringName = &""
 
-## WHICH ILLUSTRATION this card shows, without the folder or the extension.
-##
-## Empty is the ordinary case: `art_key()` then slugs the card's own name, so a
-## card called "Scored Barrel" looks for `scored_barrel.png` and no entry has to
-## be written for it. Seventy-six cards times one bookkeeping line each is the
-## kind of edit that goes wrong quietly, and the name is already the identity a
-## player uses.
-##
-## Set it when the file cannot follow the name: two cards that should share one
-## picture, or a card whose name changes and whose art should not be orphaned by
-## the rename.
+## Empty means `art_key()` slugs the card's name, saving 76 bookkeeping lines that fail quietly.
+## Set it when a file cannot follow the name: shared art, or a rename that must not orphan it.
+## Why: docs/why/CardData.md#card-art
 @export var art: StringName = &""
 
-## The file this card's illustration lives under, name-derived unless overridden.
-##
-## Lowercased, spaces and punctuation to underscores, runs collapsed. Written
-## once here rather than at each call site, because a slug rule that exists in
-## two places is a slug rule that disagrees with itself the first time a card is
-## named with a hyphen.
+## Written once here: a slug rule in two places disagrees the first time a name has a hyphen.
+## Why: docs/why/CardData.md#card-art
 func art_key() -> StringName:
 	if art != &"":
 		return art
@@ -273,72 +150,30 @@ func art_key() -> StringName:
 			gap = true
 	return StringName(out.rstrip("_"))
 
-## THE RESOLVED ILLUSTRATION, looked up ONCE when the catalogue is built.
-##
-## NEVER LOAD THIS FROM INSIDE `_draw`. That is not a style preference, it is
-## the bug this field exists to prevent: `load()` called during a draw pass
-## hands back a resource whose CPU image is perfectly correct and whose GPU
-## texture is not yet bound, so the card paints a SOLID WHITE RECTANGLE of
-## exactly the right size. Every probe says the texture is fine, because it is
-## -- it simply is not on the card when the draw command is recorded.
-##
-## `ModuleData.sprite` was right by accident on both counts: Database assigns it
-## while building the catalogue, which is nowhere near a frame, and it is
-## EXPORTED.
-##
-## Exported matters here as much as the timing. A card is `duplicate()`d on its
-## way into a deck, and Resource.duplicate copies exported properties and drops
-## everything else -- so a plain `var` holding the picture survives the
-## catalogue and is null on every card a player actually holds. The failure is
-## quiet and looks exactly like "the art did not load".
+## Never load this inside `_draw`: it paints a solid white rectangle, the GPU texture being unbound.
+## Exported, as `duplicate()` drops other properties and a plain var is null on held cards.
+## Why: docs/why/CardData.md#resolved-sprite
 @export var sprite: Texture2D
 
 ## Runtime-only, set by DeckBuilder
 var source_module: String = ""
-## The granting module's id. source_module is its NAME, which is for printing;
-## this is for looking the module back up. Without it the readout had to be
-## handed a module alongside every card — which worked in the gallery, where the
-## screen builds both, and not in combat, where a hand is only cards.
+## The module's id, for lookups; `source_module` is a name for printing. Combat has only cards.
 var source_id: StringName = &""
 var manufacturer: StringName = &""
 
-## FROM THE SHARED VOCABULARY -- see Database.SHARED. A card more than one
-## module is allowed to grant.
-##
-## It matters because a shared card must look the SAME wherever it came from.
-## Range is granted by Ranging Optics, the KX-9 Fire Director, the Signal Board
-## and the Ranging Scope; the first two are Korvan and sit at different rarities,
-## so stamping the granting part's identity onto the card produced four Ranges in
-## the catalogue wearing two manufacturers and three rarity ticks -- for one line of
-## rules text that is identical in every case. The card is common and unbranded;
-## the PART it came off is a fact about the part.
+## A shared card must look the same wherever it came from: four Ranges wore two manufacturers.
+## The card is common and unbranded; the part it came off is a fact about the part.
+## Why: docs/why/CardData.md#shared-cards
 @export var shared: bool = false
 ## Rarity of the module that granted this, for the footer's rarity tick.
 var source_rarity: int = 0
 
-## THIS CARD'S OWN rarity, as a ModuleData.Rarity. -1 means "the module decides",
-## which is what almost every card wants — see ModuleData.card_rarities for the
-## law that fills it in.
-##
-## Separate from `source_rarity`, which is the rarity of the PART it came off. A
-## legendary bay grants a legendary card and a common one; both have the same
-## source and only one of them is legendary.
+## The card's own rarity; -1 means the module decides. Separate from `source_rarity`, the part's.
+## Why: docs/why/CardData.md#card-rarity
 @export var rarity: int = -1
 
-## The rules words on this card, each with what it actually does.
-##
-## Lives here, beside the fields it explains, because these two go stale
-## together or not at all: a keyword whose definition sits in a UI file drifts
-## from the mechanic the first time somebody tunes the mechanic. Every entry
-## below was written against Combat.gd rather than from memory — brace really
-## is charged a heat per turn, feedback really does fire once per attacking
-## enemy — and if that changes, this is the file already open.
-##
-## Only the words that need explaining. "Deal 6" explains itself; Salvo does
-## not.
-##
-## Two of them are also the names of what they leave on your ship, the fight's
-## status chips (`SectorScreen._refresh_player`), which read them from here.
+## Lives beside the fields it explains so they go stale together; checked against Combat.gd.
+## Why: docs/why/CardData.md#keyword-glossary
 const KW_NEGATE := "Negate"
 const KW_GROWS := "Grows"
 
@@ -347,10 +182,7 @@ func keywords() -> Array:
 	if block > 0:
 		out.append(["Block", "Stops damage before your brace does. Gone at the end of the enemy's turn."])
 	if brace > 0 or brace_from_heat:
-		# BRACE, not "brace". Brace is the resource; Brace is the word the game
-		# actually says — it is what the card text prints and what Probate's set
-		# bonus calls this whole class of card. A glossary that explains a term
-		# appearing nowhere on the card is a glossary for a different game.
+		# BRACE, not 'brace': it is the word the card prints, and a glossary must match the card.
 		out.append(["Brace", "Stops damage. Stays up between turns, and costs 1 heat a turn to hold."])
 	if brace_from_heat:
 		out.append(["Brace from heat", "You brace for however much heat you are carrying."])
@@ -394,34 +226,13 @@ func keywords() -> Array:
 	if credit_cost > 0:
 		out.append(["Credit cost", "Paid from the same balance you repair and refit with."])
 	if unplayable:
-		# One word, one entry. "Unplayable" was never true anyway — you can play
-		# this, it simply does nothing except leave — and with the card printing
-		# nothing but PURGE, that it does nothing else is the obvious reading
-		# rather than a second thing to be told.
+		# One word, one entry: Purge does nothing but leave, so 'unplayable' was never true.
 		out.append(["Purge", "Removes this card from combat. It returns next combat."])
 	return out
 
-## The same line, with every explainable word marked up.
-##
-## Derived from describe() rather than written beside it: two strings that must
-## say the same thing are one string with a transform. The terms come from
-## keywords(), so a word is highlighted if and only if this card can explain it
-## — there is no list to keep in step, and a keyword that stops applying stops
-## being underlined on the same edit.
-##
-## Longest first. "Brace from heat" contains "Brace", and replacing the short
-## one first would leave markup inside the long one.
-## `live` is what the card will ACTUALLY throw per hit right now -- see
-## `Combat.card_output`. -1 means "print what the card was printed with", which
-## is what every caller outside a fight passes.
-## `hot` names the clauses that are currently paying -- see `Combat.card_hot`.
-## They go the same green as the raised damage number, so the clause reads as
-## THE REASON the number moved rather than as a second sum on top of it.
-##
-## Without this the face said the same thing twice: a live salvo card printed
-## "Deal 5 x 2. Salvo +2." where the 5 already contained the +2, which reads as
-## a promise of two more. Removing the SALVO status chip put the fact on the
-## card; this stops the card double-counting it.
+## Derived from `describe()`, so two strings that must agree are one string with a transform.
+## Longest term first, as 'Brace from heat' contains 'Brace'. `live` stops the face double-counting.
+## Why: docs/why/CardData.md#rich-description
 func describe_rich(live: int = -1,
 		hot: PackedStringArray = PackedStringArray()) -> String:
 	var terms: Array = []
@@ -432,11 +243,7 @@ func describe_rich(live: int = -1,
 	for t in terms:
 		out = out.replace(t, "[u][color=%s]%s[/color][/u]"
 			% ["#7fb89a" if hot.has(t) else "#c3d2e2", t])
-	# THE VALUE GOES GREEN WITH ITS KEYWORD. `describe` writes a hot clause as
-	# "Salvo +2" or "Heat scaling per 3" -- keyword, space, value, full stop --
-	# so once the keyword is wrapped the rest of the clause runs to the next
-	# period. Colouring only the word would leave the number it governs looking
-	# like it was still owed.
+	# The value goes green with its keyword, up to the next period, or the number looks still owed.
 	for t in hot:
 		var tag := "[u][color=#7fb89a]%s[/color][/u] " % t
 		var i := out.find(tag)
@@ -448,27 +255,17 @@ func describe_rich(live: int = -1,
 			j = out.length()
 		var val := out.substr(from, j - from)
 		out = out.replace(tag + val, tag + "[color=#7fb89a]%s[/color]" % val)
-	# COLOURED AFTER THE KEYWORDS, not inside `describe`. A number that silently
-	# differs from the one you learned is worse than either number: a player who
-	# knows Charged Slug hits for 8 and sees 12 cannot tell whether the card
-	# changed or they misremembered. Higher reads as a gain, lower as a loss.
-	#
-	# Safe in this order because no keyword is "Deal" or a digit, so the clause
-	# survives the replacement above untouched -- checked against `keywords()`,
-	# which is all capitalised game terms.
+	# Coloured after the keywords, not in `describe`: a silently changed number confuses.
+	# Safe in this order, as no keyword is 'Deal' or a digit.
+	# Why: docs/why/CardData.md#rich-description
 	if live >= 0 and damage > 0 and live != damage:
 		var col := "#7fb89a" if live > damage else "#d4614f"
 		out = out.replace("Deal %d" % live,
 			"Deal [color=%s]%d[/color]" % [col, live])
 	return out
 
-## Short human-readable effect line for the card face.
-##
-## `live` overrides the printed damage with what the card will throw per hit
-## right now. Default -1 prints the card as authored, which is what `BotBoard`
-## and `AttrTest` want and what everywhere outside combat wants -- in a shop you
-## are comparing this card against another one, and a figure inflated by a
-## lock-on you happen to be holding is the wrong answer to that question.
+## Default -1 prints the card as authored: in a shop you compare cards, not lock-on figures.
+## Why: docs/why/CardData.md#describe
 func describe(live: int = -1) -> String:
 	var bits: PackedStringArray = []
 	if damage > 0:
@@ -501,20 +298,9 @@ func describe(live: int = -1) -> String:
 	if vent_all:
 		bits.append("Vent all")
 	if heal > 0 or heal_scale > 0:
-		# A WORD PLUS ITS FLOOR, which is the pattern Brace and Salvo already use:
-		# the number on the face is what the card is guaranteed to do and the RULE
-		# lives in the keyword, where there is room to say it properly.
-		#
-		# It also has to be spelled this way to work at all. describe_rich() marks
-		# up only the terms this card's own keywords() can explain, by literal
-		# string match — so a face reading "Heal 2 +1 per 4 missing" contains no
-		# keyword, gets no underline, and the rule explaining the whole card is
-		# unreachable from the card. The phrase on the face and the key in
-		# keywords() are one string or the feature does not exist.
-		#
-		# Never the number it happens to be worth right now. A printed value that
-		# changes as you take damage is a card you cannot plan around before you
-		# take it.
+		# A word plus its floor, as Brace and Salvo: the face guarantees, the keyword has the rule.
+		# The face phrase and the `keywords()` key must be one string, or nothing underlines.
+		# Why: docs/why/CardData.md#heal-scale-text
 		if heal_scale > 0:
 			bits.append("Emergency repair %d" % heal)
 		else:
@@ -545,11 +331,8 @@ func describe(live: int = -1) -> String:
 		bits.append("+%d credits" % credit_gain)
 	if credit_cost > 0:
 		bits.append("Spend %d credits" % credit_cost)
-	# "Attack drone" and "Screen drone", not "Launch drone" and "Wasp screen".
-	# A keyword is a RULE and has to be manufacturer-neutral: "Wasp screen" is Cygnet's
-	# own flavour standing in for a mechanic any manufacturer could have, and it made
-	# the Shield Wasp Cradle's card read "Wasp Screen — Wasp screen 3." Both now
-	# point at the one glossary entry that explains them, which is Drone.
+	# 'Attack drone' and 'Screen drone': keywords stay manufacturer-neutral.
+	# 'Wasp screen' was Cygnet's.
 	if drone_damage > 0:
 		bits.append("Attack drone %d" % drone_damage)
 	if drone_brace > 0:
@@ -557,9 +340,6 @@ func describe(live: int = -1) -> String:
 	if evoke > 0:
 		bits.append("Evoke %d per drone" % evoke)
 	if unplayable:
-		# Just the verb. The cost gem already says what it costs — corner
-		# grammar is the card's only job — and the type line already says
-		# MALFUNCTION, so "unplayable" was a third statement of a thing the
-		# card had twice said. What is left is the one word that is news.
+		# Just the verb: the cost gem and type line already say the rest, so the word is the news.
 		bits.append("Purge")
 	return ". ".join(bits) + "."

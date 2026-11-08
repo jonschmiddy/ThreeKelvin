@@ -1,11 +1,7 @@
 class_name ShatteredView
 extends Node2D
 
-## A WORLD IN PIECES on screen: rubble behind, the nine pieces and the molten
-## heart (`shattered.gdshader`), rubble in front. Jon's pick, "Shards".
-##
-## The pieces' seed points and the rubble come from the world's seed through the
-## mockup's own generator, in its order of draws, so it breaks the same way.
+## A world in pieces (Jon's pick, Shards): the seed makes it break the same way each time.
 
 const SHADER := preload("res://shaders/shattered.gdshader")
 const K := 9
@@ -23,13 +19,8 @@ var _rub: Array = []
 var _t: float = 0.0
 var _light: Vector3 = Vector3(-0.83, -0.31, 0.47)
 var _cell := 1
-## ITS SURFACE'S MEMORY (`PixelTurn.world_mode` BLENDED, the default; as
-## `PlanetView`'s): the shader run a second time into a picture a pixel a block
-## (`mem_mode` 1) that remembers each block's kind, eased value and the shade it
-## shows, reading itself last frame from a copy (`_mem_copy`, inside it, so it
-## renders first); the pieces on screen drawn from it (`mem_mode` 2). Turned
-## plainly, the rock's grain and the pieces' edges went A, B, A as they slid
-## across the pixel grid. `worldmem=off` draws it as before.
+## The surface remembers last frame so grain and edges do not go A, B, A across the pixel grid.
+## Why: docs/why/ShatteredView.md#surface-memory
 var _mem_vp: SubViewport
 var _mem_copy: SubViewport
 var _mem_mat: ShaderMaterial
@@ -174,10 +165,7 @@ func step(t: float, light: Vector3, k_light: float = 1.0, star_at: Vector2 = Vec
 	_front.queue_redraw()
 
 
-## THE MEMORY built or rebuilt for the world and the size it now has (BLENDED,
-## the default), as `PlanetView._mem_setup`: a picture a pixel a block, the
-## shader working it out, a copy of it from last frame inside it; the pieces on
-## screen told to draw from it.
+## Memory built or rebuilt for the world's current size, as `PlanetView._mem_setup`.
 func _mem_setup() -> void:
 	if PixelTurn.world_mode != PixelTurn.Mode.BLENDED or spec.is_empty():
 		return

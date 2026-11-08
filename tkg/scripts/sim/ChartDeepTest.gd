@@ -1,29 +1,7 @@
 extends Node
 
-## TOO DEEP ON THE CHART, headless, through the real StarchartScreen:
-##   godot --headless --path . -- sheet=ChartDeepTest [depthcap=N]
-##
-## Ruling 13 A (Jon, Oct 27). A star inside the reach ring that a jump refuses
-## because it lies deeper than one jump may go (`Run.too_deep_only`) looked
-## like any other until it was clicked; Geno met it near the top of the map,
-## where the tilted chart puts rings close together on the screen. Now it is
-## drawn dimmed. On three galaxies, the ship parked where stars in reach are
-## too deep and others are not, zoomed out (dots) and zoomed in (glyphs):
-##
-## - every too-deep star in reach is drawn dimmed: its ink as drawn
-##   (`MapChart.drawn_ink`) has no colour in it and half its own star's value
-##   or less; zoomed in, every ink of its glyph is grey, lights and glass too;
-##   still so under the cursor and when picked;
-## - every star the ship can jump to is drawn in its own colour, lifted, and
-##   not dimmed;
-## - nothing else is dimmed: every star drawn dimmed is one the rule refuses
-##   for depth alone;
-## - its hover readout ends TOO DEEP, a reachable star's does not;
-## - picked, JUMP reads TOO DEEP and is off; a reachable star's does not.
-##
-## The rule is read through `Run.too_deep_only` and `Run.reachable_from`, so
-## the sheet holds with any `RunState.DEPTH_STEP`. `depthcap=N` flies another
-## one for comparison (the study lever `-- sim depthcap` uses).
+## Too-deep stars are drawn dimmed (ruling 13 A, Jon, Oct 27); read via `Run.too_deep_only`.
+## Why: docs/why/ChartDeepTest.md#chart-deep-test
 
 var _tree: SceneTree
 var _fails := 0
@@ -64,10 +42,7 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## Where to park the ship so the chart shows both kinds: a system with stars in
-## reach that `Run.too_deep_only` refuses and stars a jump takes, all of them in
-## sight. The one with the most too-deep stars, or -1. (`-- chartshot toodeep`
-## parks there too, for the still.)
+## Park where the chart shows both too-deep stars and jumpable ones.
 static func park_spot() -> int:
 	var best := -1
 	var best_n := 0

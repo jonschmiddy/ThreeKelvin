@@ -1,19 +1,9 @@
 class_name BraceFx
 extends Control
 
-## BRACE, DRAWN: a plated overlay (Jon's pick, "brace:I", Oct 13). Brace is
-## lasting armour that soaks after block. Jon wanted "the whole ship to have some
-## type of armor on top... like that is visually like OK i have brace": a
-## see-through steel layer over the whole hull, a pixel proud of its outline,
-## panel lines and rivets solid on it and a sheen band across it, the ship
-## dimmed beneath, in steel with the brace chip's teal so it never reads as the
-## hull. Windows and engine glow show through.
-## Gain: the panels clamp on in a quick wave from the side facing the enemy,
-## each landing with a glint. A hit it takes: a clang flash, sparks, and a dent
-## where it landed. As brace drops the panels nearest the hits come off in
-## proportion and tumble away; at 0 the last go. Still at rest but for a rare
-## glint. (The other two round-three looks, a plate shell and bands, were not
-## picked and are gone.)
+## Jon's pick brace:I (Oct 13): a see-through steel layer over the whole hull.
+## The plate shell and bands looks were not picked and are gone.
+## Why: docs/why/BraceFx.md#brace-overlay
 
 signal moment(kind: StringName, strength: float, length: float)
 
@@ -87,9 +77,7 @@ func _screen(p: Vector2i) -> Vector2:
 	return _origin + Vector2(_r.position) + Vector2(p)
 
 
-## The armour: the hull grown a pixel, less what shows through (windows: bright
-## and blue; engines: bright and warm), cut into pieces, each piece drawn as
-## steel shaded by the ship's form under it and lit from above.
+## Hull grown a pixel, minus windows and engines, cut into pieces and shaded by the ship's form.
 func _build() -> void:
 	var mask: PackedByteArray = _H.mask
 	var raw: PackedColorArray = _H.raw

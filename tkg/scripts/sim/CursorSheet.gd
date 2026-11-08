@@ -1,21 +1,7 @@
 extends RefCounted
 
-## The candidate cursors, on the screen they have to work on:
-##   godot --path . -- cursorsheet
-##
-## NEEDS A WINDOW, like every shot -- `--headless` never emits
-## `frame_post_draw`.
-##
-## A CURSOR CANNOT BE SCREENSHOTTED. `Input.set_custom_mouse_cursor` hands the
-## image to the operating system and the viewport capture never sees it, so
-## comparing three of them by setting each and taking a picture is not a thing
-## that works. They are BLITTED instead: the same PNG the OS would be given,
-## drawn into the frame at the size it would be drawn at.
-##
-## OVER FOUR GROUNDS, which is the whole question. A cursor crosses a lit hull,
-## an empty sky, a panel and a card in one sweep, and a shape that reads on any
-## one of those alone will vanish on another. The strip down the right is the
-## same three at 6x, for judging the shape rather than the legibility.
+## A cursor cannot be screenshotted, so candidates are blitted over four grounds instead.
+## Why: docs/why/CursorSheet.md#cursor-sheet
 
 const NAMES: Array[String] = ["reticle", "reticle_hot"]
 ## Where each one is dropped, in design pixels: hull, sky, drawer, card.
@@ -26,9 +12,7 @@ const ZOOM := 5
 
 class Sheet extends Control:
 	var shots: Array = []
-	# HANDED IN, not reached for. An inner class cannot name the script that
-	# holds it without a `class_name`, and this file is a harness rather than a
-	# type anything else refers to.
+	# Handed in, since an inner class cannot name its holding script without a `class_name`.
 	var over: Array = []
 	var labels: Array = []
 	var zoom: int = 6
@@ -44,9 +28,7 @@ class Sheet extends Control:
 			var tex: Texture2D = shots[i]
 			for at in over:
 				draw_texture(tex, at + Vector2(i * 40, 0))
-			# A ROW EACH, TALL ENOUGH TO HOLD ONE. The strip was spaced at 62
-			# pixels for a 192-pixel picture, so all three drew on top of one
-			# another and off the bottom of their own panel.
+			# A row each: the strip spaced at 62 px for a 192 px picture drew them over each other.
 			var side := float(tex.get_size().y) * float(zoom)
 			var big := Vector2(692, 192 + i * (side + 14))
 			draw_texture_rect(tex, Rect2(big, Vector2(side, side)), false)
@@ -70,9 +52,7 @@ func run(tree: SceneTree) -> void:
 	sheet.labels = NAMES
 	sheet.zoom = ZOOM
 	for n in NAMES:
-		# FROM DISK, NOT `res://`. These are candidates rather than assets --
-		# nothing has been chosen -- so they are read at runtime and the import
-		# pipeline never has to know they existed.
+		# From disk, not `res://`: candidates are not assets, so import never learns of them.
 		var img := Image.new()
 		var path := ProjectSettings.globalize_path("res://art/cursors/%s_2x.png" % n)
 		if img.load(path) != OK:

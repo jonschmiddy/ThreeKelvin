@@ -1,11 +1,7 @@
 class_name PlanetView
 extends Node2D
 
-## ONE WORLD ON SCREEN: its far ring, the world itself (`planet.gdshader`), its
-## near ring. Put it where the world's centre is, in whole game pixels; tell it
-## each frame where the light comes from and what time it is.
-##
-## A broken world is not drawn here -- see `ShatteredView`.
+## One world: far ring, the world, near ring. Broken worlds are `ShatteredView`'s.
 
 const SHADER := preload("res://shaders/planet.gdshader")
 const RING_SHADER := preload("res://shaders/planet_ring.gdshader")
@@ -23,38 +19,21 @@ var _band_back: ColorRect
 var _band_front: ColorRect
 ## Harness switch: off, small worlds are drawn plain, for comparing.
 static var no_rich := false
-## WHICH RINGS (`Rings.Look`): ICY, Jon's pick of three (2026-10-03, "A is the
-## best rings") -- a broad bright ring with ringlets and a clear gap, painted per
-## pixel by `planet_ring.gdshader` with its shadow on the world. DUSTY and DARK
-## were the other two; DOTS is the ring as it was, half a ring of dots. Set
-## before a world is drawn (`set_world`); the harnesses take `ring=A|B|C|DOTS`.
+## ICY rings were Jon's pick of three (Oct 3); the others stay as harness options.
+## Why: docs/why/PlanetView.md#ring-look
 static var ring_style := Rings.Look.ICY
-## THE SURFACE'S MEMORY (`PixelTurn.world_mode` BLENDED, the default): the
-## shader run a second time into a picture a pixel a block (`mem_mode` 1), which
-## remembers each block's eased value and the shade it shows, reading itself
-## last frame from a copy (`_mem_copy`, inside it, so it renders first); the
-## world on screen drawn from it (`mem_mode` 2). Twice the shader's cost.
+## Surface memory: the shader runs twice so the world shows eased values; twice the cost.
 var _mem_vp: SubViewport
 var _mem_copy: SubViewport
 var _mem_mat: ShaderMaterial
 var _mem_fresh := 0
 var _mem_r := -1.0
 var _mem_off := Vector2.INF
-## THE MEMORY ONLY WHERE IT CAN BE SEEN (LOCAL's near world, `LocalSky`: drawn
-## hundreds of px across, much of it below its picture or past its side). When
-## set, the memory's pass covers only the blocks inside the picture this view is
-## drawn in, `MEM_MARGIN` more each way and `mem_clip_lead` more on its right
-## (where the picture's camera, following a ship as it leaves, brings more of
-## the world in), the rest of the memory left clear. Nothing outside the picture
-## is ever drawn from it, and a block that comes into view has been worked out
-## all along, so nothing seen changes. (A block left clear that did come into
-## view would start afresh there, as every block of a new world does.)
+## Memory covers only blocks the picture can show; nothing seen changes.
+## Why: docs/why/PlanetView.md#memory-clip
 var mem_clip := false
 var mem_clip_lead := 0
-## (how far the picture slides over the world between two fresh starts of its
-## memory -- the cutaway's push-in and the zoom ladder move it a few px for each
-## 2 px of radius, and a new radius starts the memory afresh, `_mem_sync` -- with
-## room to spare)
+## Room for how far the picture slides over the world between fresh memory starts.
 const MEM_MARGIN := 16
 ## the blocks worked out this frame (`_mem_window`), the whole memory unclipped
 var _mem_win := Rect2i()
@@ -63,9 +42,7 @@ var _mem_win := Rect2i()
 const MEM_LIVE := ["time", "light", "k_light", "lift", "flare", "moon_sh", "n_moon_sh", "r", "ctr_off", "rich", "cell", "unlit"]
 
 
-## Half a ring of dust, drawn point by point as the mockup drew it: four bands,
-## the far half behind the world and the near half in front, each point dimmed
-## where the world's shadow falls across it.
+## Half a ring of dust as the mockup drew it: far half behind, near half in front, shadowed.
 class _Ring extends Node2D:
 	var view: PlanetView
 	var near: bool = false
@@ -130,9 +107,7 @@ func _band(near: bool) -> ColorRect:
 	return c
 
 
-## Which world, from its seed, at what radius in game pixels.
-## THE MAP'S WORLDS IN 2x2 BLOCKS: the disc's own dither, and the rings or
-## rubble round it, on the place's grid. The panel's portrait stays at 1.
+## Map worlds use 2x2 blocks; the panel's portrait stays at 1.
 func set_cell(c: int) -> void:
 	_cell = c
 	_mat.set_shader_parameter("cell", c)
@@ -206,9 +181,7 @@ func set_world(world: StringName, seed: int, r: float, spec_override: Dictionary
 	_mem_setup()
 
 
-## THE PAINTED RINGS, when a look other than the dots is picked: the world's
-## strip built for this size (`Rings.build`), handed to both halves and to the
-## world for its shadow. The dots stand down.
+## Painted rings: the strip built for this size goes to both halves and the world's shadow.
 func _set_rings() -> void:
 	if spec.is_empty():
 		return
@@ -246,11 +219,7 @@ func _set_rings() -> void:
 		m.set_shader_parameter("half_h", hh)
 
 
-## THE SMOOTH ZOOM (`SystemView`, Jon: "the planets resize and jitter as you
-## zoom in"): the world drawn at radius `r` and round a centre `off` px from
-## this node's, both continuous, inside the box `set_world` sized for its held
-## radius. Its surface stays on the block grid; only its round edge and its
-## features move, a block at a time and never back.
+## Smooth zoom (Jon): the surface stays on the block grid, only edge and features move.
 func set_live(r: float, off: Vector2) -> void:
 	_mat.set_shader_parameter("r", r)
 	_mat.set_shader_parameter("ctr_off", off)
@@ -261,16 +230,12 @@ func set_live(r: float, off: Vector2) -> void:
 			m.set_shader_parameter("ctr_off", off)
 
 
-## A WORLD DRIFTING INSIDE ITS BOX by any fraction of a pixel (`LocalSubject`'s
-## moons, BLENDED): drawn `off` px from its node, its surface's memory holding
-## through the drift as it holds through the turn.
+## A world drifting by sub-pixel amounts inside its box, its memory holding through the drift.
 func set_drift(off: Vector2) -> void:
 	_mat.set_shader_parameter("ctr_off", off)
 
 
-## Where the light comes from (screen x, y down, z toward you), what time it
-## is, how strongly the star's light reaches it, and where the star's disc is
-## (to hide a world behind it), in this node's parent's pixels.
+## Light direction, time, light strength and star disc position, in the parent's pixels.
 func step(t: float, light: Vector3, k_light: float = 1.0, star_at: Vector2 = Vector2(-9999, -9999), star_r: float = 0.0) -> void:
 	# STEPPED (`PixelTurn`, only to compare against): the clock held, and moved on
 	# when the equator has turned a whole block
@@ -320,9 +285,7 @@ func _set_rich() -> void:
 	_mat.set_shader_parameter("rich", k)
 
 
-## THE MEMORY built or rebuilt for the world and the size it now has (BLENDED,
-## the default): a picture a pixel a block, the shader working it out, a copy of it
-## from last frame inside it; the world on screen told to draw from it.
+## The memory rebuilt for the world's current size: a pixel a block, with a last-frame copy.
 func _mem_setup() -> void:
 	if PixelTurn.world_mode != PixelTurn.Mode.BLENDED or spec.is_empty():
 		return
@@ -349,9 +312,7 @@ func _mem_setup() -> void:
 		var last := TextureRect.new()
 		last.texture = _mem_vp.get_texture()
 		last.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		# (sized by hand, pixel for pixel: left to itself it keeps the size the
-		# picture had when it was first made, and a world sized again by `set_cell`
-		# was copied stretched)
+		# Sized by hand, or it keeps its first size and a resized world was copied stretched.
 		last.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		last.stretch_mode = TextureRect.STRETCH_SCALE
 		var cm := CanvasItemMaterial.new()
@@ -396,14 +357,8 @@ func _mem_sync() -> void:
 	var r := float(_mat.get_shader_parameter("r"))
 	var ov: Variant = _mat.get_shader_parameter("ctr_off")
 	var off: Vector2 = ov if ov is Vector2 else Vector2.ZERO
-	# (a drift of the centre is held through; a jump starts afresh, and so does a
-	# new size -- but not every sliver of one: the map's smooth zoom changes a
-	# world's radius every frame, so its memory started afresh every frame and the
-	# whole surface re-rasterised unheld, its fine features crawling and its
-	# lights scattering as the wheel eased. Its blocks are counted from the
-	# world's centre, so within a block of radius each still holds nearly the same
-	# ground; the memory is kept until the size has moved a block from where it
-	# started, and the hysteresis lets through any shade that really changed.)
+	# Keep the memory until size moves a block: the smooth zoom restarted it each frame.
+	# Why: docs/why/PlanetView.md#memory-hysteresis
 	var cl := float(maxi(_cell, 1))
 	if _mem_r < 0.0 or absf(r - _mem_r) >= cl or off.distance_to(_mem_off) > cl:
 		_mem_fresh = maxi(_mem_fresh, 1)
@@ -419,16 +374,8 @@ func _mem_sync() -> void:
 		PixelTurn.cpu_us += Time.get_ticks_usec() - t0
 
 
-## The blocks of the memory its pass works out this frame: with `mem_clip`, those
-## the picture this view is drawn in can show (`MEM_MARGIN` more each way), and
-## all of them otherwise. A block's place in the memory is its px from this
-## view's middle, a block a `_cell`, `mem_half` in (as `planet.gdshader` counts).
-## Told to the shader alone, which stops at once on a block outside: its pass
-## stays drawn over the whole memory. (Moving and sizing the pass's rect to the
-## window was tried: run here, just before drawing, a control's new size waits
-## for its redraw, which comes a frame late -- so on every frame the window
-## moved, on a push-in or a ship leaving, the memory was written a block-grid
-## off from where the world read it, and showed as a second, smaller world.)
+## Told to the shader only: resizing the pass rect lagged a frame and drew a second small world.
+## Why: docs/why/PlanetView.md#memory-window
 func _mem_window() -> void:
 	var n := _mem_vp.size.x
 	var full := Rect2i(0, 0, n, n)

@@ -2,35 +2,8 @@ class_name ContractData
 extends RefCounted
 
 ## @guarded-by SaveGame.VERSION
-##
-## THIS FILE IS PART OF THE SAVE FORMAT, and nothing said so out loud until it
-## broke. `to_wire`/`from_wire` read like a network pair and contracts never go
-## over the net -- SaveGame is the only caller. So renaming a key here changes
-## the shape of every save on disk, guarded by a number in another file.
-##
-## The annotation above is read by .github/scripts/version_guard.py, which
-## fails when the keys below move and that number does not.
-##
-## One piece of work a manufacturer has posted at a station.
-##
-## `docs/lore.md` §6 specified these as "an offer to take delivery, not a quest —
-## no objectives, no waypoints". That line is AMENDED rather than broken, and the
-## amendment is worth stating because the reasoning behind the original still
-## holds: what §6 was protecting is the third pillar, *greed is the clock, deaths
-## are self-authored*. A contract that expires, or that pushes you deeper on
-## somebody else's schedule, replaces a death you chose with one that was imposed.
-##
-## A waypoint does none of that so long as three things stay true, and they are
-## the design of this class rather than notes about it:
-##
-## **Nothing expires.** There is no clock on a contract and there never will be.
-## It sits in your ledger until you deliver it or die holding it.
-## **Refusing is free and normal.** Most offers should be declined. An offer you
-## always take is a tax with extra steps.
-## **It names a place, it does not send you there.** The pay is set against the
-## trip, so a contract to somewhere you were not going is priced like one — and
-## going anyway because the money is good is a greedy decision, which is the
-## correct kind.
+## Part of the save format. Contracts never expire, refusing is free, and they name a place only.
+## Why: docs/why/ContractData.md#contract-rules
 
 enum Kind {
 	## Something was left somewhere. Go and get it, bring it back.
@@ -52,9 +25,7 @@ enum State {
 	CLOSED,
 }
 
-## Unique within a run, and the id everything else refers to. Assigned from
-## `RunState.next_contract_id` on acceptance rather than at generation, because a
-## contract nobody has taken does not need to be told apart from anything.
+## Assigned on acceptance, as an untaken contract needs no identity.
 var id: int = 0
 ## Who is paying. Never empty. A station with no berth posts for its dock desk
 ## (`Contracts.dock_desk`), so the money still has a manufacturer behind it.
@@ -78,19 +49,13 @@ var standing: int = 1
 ## For HEAT: how much heat has to be on the hull when you dock.
 var amount: int = 0
 
-## The ask, in the manufacturer's own voice. Written at generation because it names a
-## real system on a real map and a template rendered at display time would have
-## to be handed the map again.
+## Written at generation, as it names a real system and a template would need the map again.
 var text: String = ""
 ## What was left out there, for FETCH. A name only — see Contracts.recover().
 var item: String = ""
 
 
-## Whether this station is one of the issuing manufacturer's berths.
-##
-## Delivery is to the MANUFACTURER, not to the desk that posted it. A contract you can
-## only close where you took it is a contract that sends you backwards, and the
-## map does not guarantee a route home.
+## Delivery is to the manufacturer, not the posting desk, as the map may offer no route home.
 static func berth_of(n: MapGen.MapNode, manufacturer: StringName) -> bool:
 	if n == null or manufacturer == &"" or n.type != MapGen.NodeType.STATION:
 		return false
@@ -103,11 +68,8 @@ static func berth_of(n: MapGen.MapNode, manufacturer: StringName) -> bool:
 ## One line for the ledger. Deliberately says the STATE first: a player checking
 ## their contracts is asking "what can I close", not "what did I agree to".
 func status_line() -> String:
-	# The WHAT comes from the kind and the WHERE from the state, so a heat
-	# contract — which has no target node and never will — is never asked to
-	# describe a place. It used to fall through to _where() and answer
-	# "somewhere out there" on the board, which is a heat contract describing
-	# itself as a fetch.
+	# What comes from the kind, where from the state: heat said 'somewhere out there'.
+	# Why: docs/why/ContractData.md#status-line
 	var who := DB.short_name(DB.manufacturer_name(manufacturer))
 	if state == State.CLOSED:
 		return "Closed."
@@ -122,9 +84,7 @@ func _where() -> String:
 	if at < 0 or Run.map.is_empty() or at >= Run.map.size():
 		return "somewhere out there"
 	var n: MapGen.MapNode = Run.map[at]
-	# COUNTED FROM ONE, as the chart and the sector count it ("LAYER 7/15").
-	# `n.layer` is from zero, and printing it raw sent every contract's reader
-	# one layer short of where the work was.
+	# Counted from one, as the chart does; the raw `n.layer` sent readers one layer short.
 	return "%s · layer %d" % [MapGen.star_name(n), n.layer + 1]
 
 

@@ -1,27 +1,7 @@
 extends Control
 
-## THE PICTURE OF ONE SYSTEM, as the approved mockup draws it (scratchpad
-## `sysmap/template.html`, `frame()`), in its order:
-##   1. the sky: its own nebula, baked once, its gas drifting (`SkyBake`,
-##      `sky.gdshader`), a few stars twinkling;
-##   2. the asteroid belts, lit warmer and brighter near the star;
-##   3. each world's shadow thrown across the plane away from the star;
-##   4. the star;
-##   5. THE PALETTE PASS: all of the above set to the system's own short
-##      palette (`SystemPalette`, `map_palette.gdshader`);
-##   6. the faint grey fabric of space sinking under the star and each body,
-##      and the faint grey orbits, each with a trail behind its body -- after
-##      the palette, so faint lines are not rounded away;
-##   7. the worlds (`PlanetView`, `ShatteredView`) in their own colours, nearest
-##      last, a world behind the star hidden by its disc; their moons.
-## The beacons, the ship, the selection and the panel are the screen's.
-##
-## Everything is in game pixels on the 960 x 540 canvas, the orbital plane seen
-## at a slant (`TILT`). THE CAMERA: the map zooms (`zoom`, 1 to 4) and pans
-## (`pan`), so a point (x, z) on the plane is at origin() + (x, z * TILT) * zoom
-## on screen, with the star at origin(). Zoomed, nothing is stretched: the
-## worlds, the star and the lines are drawn again at the new size, and the sky
-## slides behind them by a tenth of the pan (Jon: "a parallax background").
+## Layer order follows the approved mockup; the palette pass runs before the faint lines.
+## Why: docs/why/SystemView.md#sector-map-picture
 
 ## The panel sits beside the map now, not over it.
 const PANEL := 0
@@ -30,43 +10,22 @@ const PANEL := 0
 const CX := 480
 const CY := 270
 const TILT := 0.38
-## THE SKY IN LAYERS, like the star chart's (Jon: "the parallax background needs
-## to be at multiple layers"): for a pixel of pan, the baked nebula and its faint
-## stars slide this far, a field of stars (with the twinkling ones) further, and
-## a sparse field of nearer, brighter stars further still. Each reads as its own
-## depth because each moves at its own speed.
+## Each sky layer slides at its own rate per pixel of pan, so each reads as its own depth.
 const PARALLAX := 0.05
-## THE SKY IS AT INFINITY, SO ZOOMING DOES NOT MOVE IT (Jon: "When I zoom in,
-## the stars in the background of the sector map move a LOT ... The panning
-## movement makes sense for the parallax, just not the zoom"): the layers slide
-## by where the camera looks on the plane (the pan over the zoom), not by the
-## pan in screen pixels -- which grew with the zoom while the view held a world
-## or the ship, and slid the stars hundreds of pixels. PARALLAX_AT is the zoom at
-## which a pixel of pan slides each layer by its rate, as it always did.
+## Layers slide by where the camera looks, not by screen pan, which grew with the zoom.
+## Why: docs/why/SystemView.md#sky-parallax
 const PARALLAX_AT := 0.5
 const PARALLAX_TWINKLE := 0.16
-## MORE DEPTHS (Jon: "can we have more layers for the background parallax"): a
-## veil of faint gas in front of the far nebula, and star fields from far to
-## near: [count, faintest, brightest, share with a plus, parallax]. Five depths
-## of stars (Jon: "No distant stars or galaxies parallax in the background"),
-## the nearer bigger, warmer and sliding more; the last a scatter of dim dust
-## motes, nearest of all. Behind them all the distant galaxies (`SkyGalaxies`).
+## More depths of stars and gas behind the plane, nearer ones bigger, warmer and faster.
+## Why: docs/why/SystemView.md#sky-parallax
 const PARALLAX_VEIL := 0.28
 const FIELDS := [[420, 0.08, 0.25, 0.0, 0.03], [260, 0.15, 0.45, 0.03, 0.09],
 	[140, 0.3, 0.7, 0.08, 0.22], [50, 0.5, 1.0, 0.2, 0.36], [22, 0.6, 1.0, 0.7, 0.46], [26, 0.1, 0.22, 0.0, 0.55]]
 const SkyGalaxiesS := preload("res://scripts/ui/sysmap/SkyGalaxies.gd")
 var _galaxies: Node2D
 const VEIL := preload("res://shaders/sky_veil.gdshader")
-## DUST IN DEPTH (Jon: "can we make the space dust of the sectors ...
-## volumetric? ... I almost want the sectors and galaxies to look fluffy and
-## deep"; he picked C, both): sheets of dust at their own distances, each sized
-## and slid by where the camera is (`_step_depth`) -- wisps behind the plane,
-## fluffy masses lit from the star's side, and sparse wisps in front that you
-## pass through as you zoom.
-##
-## HOW MUCH, ONE DIAL: 0 is the map as it was, 1 every sheet at full strength;
-## each sheet's strength is its full strength times DEPTH_K. Jon picked 0.9, to
-## match the star chart's. A harness or a try-out takes `-- depth=K`.
+## One dial, `DEPTH_K`, scales every dust sheet from the old map (0) to full strength (1).
+## Why: docs/why/SystemView.md#dust-depth
 const DEPTH_K := 0.9
 const DEPTH := preload("res://shaders/sky_depth.gdshader")
 static var depth_k := DEPTH_K
@@ -79,60 +38,31 @@ const DEPTH_NEAR_K := 0.08
 var _sky_look: Dictionary = {}
 ## the dust's dial outside a nebula: very sparse thin dust
 const DEPTH_K_CLEAR := 0.15
-## THE NEBULA SEEN FROM INSIDE (Jon: "YES THAT WOULD BE SO COOL"): in a
-## nebula's systems the sky is the cloud itself, by its kind and its colours,
-## as the star chart draws it (`sky_nebula.gdshader`), lit by the system's sun,
-## with the depth sheets over it; and now and then its weather (`SkyWeather`).
-## `nebsky=0` on a harness's command line shows the old sky. (Before SIMPLIFIED the
-## old baked gas was kept faint under it, at 0.6, its dust at 0.55: the cloud
-## carries all of both now.)
+## Inside a nebula the sky is the cloud itself, lit by the system's sun.
+## Why: docs/why/SystemView.md#nebula-sky
 const NEB_SKY := preload("res://shaders/sky_nebula.gdshader")
 static var neb_sky := true
-## SIMPLIFIED (the rendering style Jon kept from the showcase as direction C,
-## "Alive", and the default): the cloud is baked once (`SkyBake.field`) and lit
-## every frame by the system's own sun, its gas streaming; the old gas and dust
-## of the bake under it are gone (the cloud carries all of it), and so is the
-## sky's own glow round the star (the cloud is lit by it instead).
-## The style setting itself is `DisplaySettings.render_style` (`style()`); the
-## screen draws the system again when it changes (`Sig.render_style_changed`).
+## SIMPLIFIED bakes the cloud once and lights it per frame; the old gas and dust are gone.
+## Why: docs/why/SystemView.md#rendering-styles
 const STYLE_SIMPLIFIED := &"simplified"
-## LEGACY (`legacy`, `is_legacy()`): the sector map as it was before SIMPLIFIED
-## -- the old cloud (`sky_nebula_legacy.gdshader`, its gas now streaming on
-## SIMPLIFIED's current), the old gas and dust of the bake kept faint under it
-## (NEB_GAS_K, NEB_DUST_K), the sky's own glow round the star, the old dust
-## sheets, palette, belts and pulsar web -- with what SIMPLIFIED brought that
-## every style shares: direction C's black hole (`CoreLegacy`), the sun's breath
-## and prominences, a flare brightening the worlds, the pulsar's beam lighting
-## the worlds and the belt, and the weather.
+## LEGACY keeps the pre-SIMPLIFIED map, plus the features every style shares.
+## Why: docs/why/SystemView.md#rendering-styles
 const STYLE_LEGACY := &"legacy"
 const NEB_SKY_LEGACY := preload("res://shaders/sky_nebula_legacy.gdshader")
 const NEB_GAS_K := 0.6
 const NEB_DUST_K := 0.55
 ## this system drawn in LEGACY (set as it is shown)
 var legacy := false
-## ON THE FIELD (`NavField`, the sector map's: Jon, Oct 18, "stars fill the
-## entire panel edge-to-edge"): its own far stars, galaxies and twinkling ones
-## left out, the stars the picture shows are the field's under it
-## (`SystemMapScreen` keys its empty sky away, `nav_key.gdshader`)
+## Over the star-chart field the sky leaves out its own far stars, as the field supplies them.
+## Why: docs/why/SystemView.md#field-under
 var field_under := false
-## PAINTED (`painted`, `is_painted()`; `SectorPainted`): direction B, "a pixel
-## artist's hand". The far picture is SIMPLIFIED's, drawn into its own viewport
-## and painted on the scene's curated palette; the sun, the worlds, their rings
-## and shadows, the belts, the hole and the pulsar paint themselves; the life
-## of the place is drawn as hand animation, in held poses (`pose`).
+## PAINTED draws SIMPLIFIED's far picture, then paints it on the scene's palette in held poses.
 const STYLE_PAINTED := &"painted"
 const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
 ## this system drawn in PAINTED (set as it is shown)
 var painted := false
-## RADIANT (`radiant`, `is_radiant()`): direction A, "light through gas". The
-## sky is SIMPLIFIED's cloud (so every event of the weather lands where it
-## does), lit as a volume the sun shines through: the worlds throw true shadow
-## shafts through the lit gas, the dust between a place and the sun dims its
-## light and reddens what shows through it, a flare lights the gas, a strike's
-## light scatters, a pulsar's beams light a fog; a clear sky keeps its plane's
-## faint dust lens (`sky_nebula` and `sky.gdshader`, `radiant`); a moon
-## goes dark in its giant's shadow; a world's air glows at its limb when lit
-## from behind.
+## RADIANT lights the SIMPLIFIED cloud as a volume the sun shines through.
+## Why: docs/why/SystemView.md#rendering-styles
 const STYLE_RADIANT := &"radiant"
 ## how many bodies throw shadows at once: the worlds, then their moons
 const SHADOW_CASTERS := 24
@@ -142,16 +72,11 @@ var _pt := {}
 ## the emission cloud's bubble round the sun, on the plane: a sphere in the
 ## system, so the worlds never slide across its wall as the map zooms
 var bubble_r := 400.0
-## A CLOUD'S RESERVED STEPS in the palette (C's shared tokens), by kind: the
-## emission bubble's dark teal (its glow falls to a dark thin gas, and without
-## them the outer bubble set to one teal plate), the strike's white-hot core and
-## deep H-alpha steps, and dark wine and violet steps so dust in shadow never
-## snaps to the void; the reflection haze's light turning blue, and its deep
-## navy; the core's disc colours and its cool far smoke (5)
+## Reserved steps per cloud kind keep its gradients from snapping to a plate or the void.
+## Why: docs/why/SystemView.md#reserved-palette-steps
 const C_RESERVED := {
-	# (the strike's pale pinks are left out: in the palette they took the cloud's
-	# brightest rose for themselves and set it as a candy-pink plate; its deep
-	# H-alpha steps instead, so the rose keeps its depth)
+	# The strike's pale pinks are left out: they took the cloud's brightest rose as a candy plate.
+	# Why: docs/why/SystemView.md#reserved-palette-steps
 	0: ["#1e3233", "#283f3f", "#33504e", "#3f625f", "#4a7672", "#558a85", "#ffe8f0", "#4a1426", "#6a1c34", "#8c2842", "#b03452", "#130a13", "#1a0a14", "#2c121e", "#1a1026"],
 	1: ["#f2f2ff", "#d6defc", "#b2c2f2", "#8ea4e2", "#0d1226", "#141c3c", "#1e2a52"],
 	5: ["#4a1406", "#84280c", "#c24a14", "#ec7a26", "#ffb054", "#ffdc96", "#1c1624", "#2a2236", "#3c3048", "#110b11", "#160c12"],
@@ -176,9 +101,7 @@ const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 var _comet
 var _puff
 var _drift
-## and the hot points at the heart of a few of the cloud's events (a new star,
-## the pearls' beads, the fan's hidden star), drawn over the depth sheets as the
-## twinkling stars are: under them the dust dimmed a white star to a grey speck
+## Hot points of cloud events draw over the depth sheets, or dust dims a white star to a grey speck.
 var _points
 ## A HARNESS'S CLOCK for everything the weather and the gas read off the wall
 ## clock (SystemShot's clips step it a frame at a time); -1: the wall clock
@@ -191,12 +114,8 @@ const DEPTH_D0 := 0.02
 const DEPTH_RHO := 1.6
 const DEPTH_NEAR := 4
 const FABRIC := preload("res://shaders/map_fabric.gdshader")
-## THE PLACE IN 2x2 BLOCKS (Jon: "everything looking like B would homogenize the
-## look"): the sky, its stars, the star, the worlds, their rings and moons, the
-## belts and the shadows are drawn into a picture half the size and shown at
-## twice, so all of it sits on one grid of 2x2 blocks. The orbits, the fabric,
-## the beacons, the cursor and the words stay single pixels on top, as the
-## chart's markings do over its galaxy.
+## Sky, stars and worlds draw at half size and show at twice, so all sit on one 2x2 grid.
+## Why: docs/why/SystemView.md#block-grid
 const SCENE := Vector2i(480, 270)
 const ZOOM_MAX := 4.0
 const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
@@ -234,12 +153,8 @@ var _veil_mat: ShaderMaterial
 var _depth: Array = []
 ## The half-size picture the place is drawn into.
 var _scene: SubViewport
-## THE CLOUD PAST THE PICTURE'S END (Jon: "the mirror is visible"): the map's
-## picture is 960 px wide and the screens' area runs on past it on the right
-## (under the side panel); in a cloud the same cloud is drawn on there, its own
-## material on a second rect in a strip of its own, `PAST_X0`..`PAST_X0 +
-## PAST_W` of the sky's px (its first 32 px over the picture's last, for
-## `cloud_round.gdshaderinc` `sky_wide` to hand over in). Null with no cloud.
+## The picture is 960 px but the area runs on under the side panel, so the cloud continues there.
+## Why: docs/why/SystemView.md#strip-past-the-picture
 var _past: SubViewport
 ## [the picture's material, the strip's copy of it], for the layers drawn
 ## from their own pixel (`px_span`, `px0`)
@@ -254,13 +169,8 @@ var _shadow_mat: ShaderMaterial
 var _star_layer: Node2D
 ## The star's own painter: a SunView, a PulsarView, or a CoreView.
 var star: Node2D
-## STAR B (ruling 20, Oct 30: two suns): its own SunView where the pair has it
-## (`star_screen`; the pair turns, ruling 23),
-## null with one sun. Sized as star A is, through the same 2x2 blocks and the
-## same hold (its own `_kq2` / `_klive2` / `_kcor2`), re-slotted among the worlds
-## by its own depth, and visibly another sun: its looks rolled apart from A's,
-## smaller, and warmer (`SunView.setup`'s `second`: the lighter star of a pair is
-## the cooler one, an orange K dwarf beside a yellow one).
+## Star B is its own `SunView`, sized like A but smaller, warmer and rolled apart from A's.
+## Why: docs/why/SystemView.md#twin-suns
 var star2: Node2D = null
 var _kq2 := -1.0
 var _klive2 := -1.0
@@ -269,13 +179,8 @@ var _kcor2 := -1.0
 ## and the dust take it (`STARCOL`'s, warmer)
 var _tint2 := Vector3.ONE
 const STAR_B_COL := Vector3(1.0, 0.74, 0.48)
-## how far star B's prominences run behind A's on the clock, so the two suns
-## are never at their height together (`prominence`: each erupts in a 40 s slot,
-## its start jittered over 14 s, for 19 s with 3 s at its height). They do
-## overlap at their edges: over four hours of the map's clock, star A erupting
-## 47.5% of the time, both 8.1%, both above half strength 0.9%, both at their
-## height never (a model of `prominence` and `SkyBake.hash2`, Oct 31). Each
-## world's flare is its own sun's by its share of the light (`step`).
+## B's prominences run behind A's so the two suns are rarely at their height together.
+## Why: docs/why/SystemView.md#twin-suns
 const STAR_B_PROM := 23.0
 ## star B's prominence's envelope this frame (0 with one sun): the flare of the
 ## worlds it lights
@@ -283,38 +188,19 @@ var _flare2 := 0.0
 var _flash: ColorRect
 ## A distant supernova, now and then, in the far sky.
 var _nova: _Nova
-## SIZES HELD IN WHOLE BLOCKS (Jon: "why do the stars and planets kinda shimmer
-## when zooming in?"): redrawn at every fraction of a zoom, a world's surface and
-## the star's were resampled each frame and their blocks flickered (measured: 110
-## of every 1,000 of the star's pixels flipped back each frame of a slow zoom).
-## Each now grows a block of radius at a time, and holds it until the zoom has
-## moved HOLD_PX on -- the project's rule, whole-pixel steps with hysteresis.
+## Sizes are held in whole blocks with hysteresis: redrawn at every zoom fraction they flickered.
+## Why: docs/why/SystemView.md#held-sizes
 const HOLD_PX := 1.4
 var _kq := -1.0
 var _sky_z := -1.0
 var _rq := {}
-## THE SMOOTH ZOOM (Jon: "No matter the rendering style, it seems like the planets
-## resize and jitter as you zoom in"). While the zoom moves, each world is drawn at
-## its true radius and round its true centre, both continuous (`PlanetView.set_live`:
-## the box stays on the grid, the disc moves inside it), and so are the star, the
-## moons and the shadows; held sizes and the odd-size nudge made a slow zoom pop a
-## block of radius and shift a block now and then. Once the zoom has been still for
-## SETTLE_S, everything eases (SETTLE_EASE) back to the crisp held size on the grid.
-## Per world: [radius, centre].
-##
-## THE EASE IS FOR THE SETTLE ALONE (Jon: "When moving the view left to right in
-## the sector view, the planets seem to lag behind"): it eased the centre toward
-## its place every frame, so a pan, which moves the place, left the picture
-## trailing its ring, label and beacons by ~2.4 frames of the pan. Now the live
-## centre is carried by however far its place on the grid moved (`_at_last`) --
-## the camera's pan and the world's own orbit -- and only what is left, the
-## settle onto the held size and the grid, is eased.
+## While zooming, worlds draw at true radius and centre; once still, they ease back onto the grid.
+## Only the settle is eased: easing the centre every frame made the picture lag behind a pan.
+## Why: docs/why/SystemView.md#smooth-zoom
 var _live := {}
 var _at_last := {}
 var _klive := -1.0
-## THE CORONA'S ZOOM (Jon's 4B): the star's true size while the zoom moves, so
-## everything round the disc grows every frame; eased back onto the disc's own
-## (`star_k`) once it is still, so at rest the sun is drawn as it always was
+## The corona follows the true zoom while it moves, then eases back onto the disc's size.
 var _kcor := -1.0
 var _zlast := -1.0
 var _zstill := 1.0
@@ -322,9 +208,7 @@ const SETTLE_S := 0.18
 const LIVE_Q := 0.5
 static var _nosmooth := "nosmooth" in OS.get_cmdline_user_args()
 const SETTLE_EASE := 0.08
-## THE PULSAR'S CENTRE, as a world's (`_live`): where the map truly puts it while
-## the zoom moves, carried with its block and settled back onto it after (see
-## `_pulsar_at`); and its block last frame
+## Pulsar centre is carried like a world's `_live`, then settles back onto its block.
 var _plive := Vector2.INF
 var _plast := Vector2.ZERO
 var _beat_off := 0.0
@@ -338,9 +222,7 @@ var orbits_on := true
 var _fabric: _Fabric
 var _worlds: Node2D
 var _moons: _Moons
-## THE WORLDS WHOSE MOONS' ORBITS ARE DRAWN: the one pointed at, the one
-## selected, the one the ship circles (the overlay sets it each frame); the
-## moons themselves always show
+## Only these worlds draw their moons' orbits; the moons themselves always show.
 var moon_focus: Dictionary = {}
 var _views: Dictionary = {}
 var _ready_sky := false
@@ -359,9 +241,7 @@ var _drawn_zoom := 1.0
 ## THE BELT POINTED AT, and how far its hover has eased in: its rocks brighten.
 var belt_lit := -1
 var belt_t := 0.0
-## THE SMALLEST A WORLD IS DRAWN, in map pixels (Jon's C: at least 5 blocks of
-## radius, so a small world reads as a world and not a smudge). Only how big it
-## is drawn: its orbit and its place in the layout are its own.
+## Minimum drawn size only, so a small world reads as a world; its orbit and layout are unchanged.
 static var min_r := 10.0
 ## PROFILING (`-- sheet=ZoomProf`): microseconds by part, kept only while on.
 static var prof := {}
@@ -373,15 +253,8 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
-## THE STRIP PAST THE PICTURE'S END (`_past`): the picture's own sky layers
-## again, in their order, over the sky's px `PAST_X0`.. -- each rect drawn
-## from its own pixel the same way (the sky, its veil, the dust sheets: their
-## material's copy told its span, `px_span` / `px0`; the cloud: its own
-## material, which reads its pixel from the rect's corner, on a rect started
-## `PAST_X0` back; the palette last, which reads the screen, the strip starting
-## on its dither's cells). The worlds, belts and drawn stars are not carried:
-## the strip is the cloud. Not in PAINTED (its paint pass is the picture's).
-## `hold`: round a pulsar the palette reads the picture's last frame -- left off.
+## The strip repeats the sky layers from `PAST_X0`; worlds, belts and stars are not carried.
+## Why: docs/why/SystemView.md#strip-past-the-picture
 func _past_build(hold: bool) -> void:
 	_past = SubViewport.new()
 	_past.size = Vector2i(PAST_W / 2, SCENE.y)
@@ -438,9 +311,7 @@ static func _has_uniform(sh: Shader, nm: StringName) -> bool:
 	return false
 
 
-## The strip drawn as the picture is this frame: each twin shown as its layer
-## is, each copy given every value the picture's has (but its own span), so the
-## gas there is lit and moved as the gas beside it.
+## The strip is drawn as the picture is this frame, so its gas is lit and moved alike.
 func _past_sync() -> void:
 	if _past == null or not is_instance_valid(_past):
 		return
@@ -553,9 +424,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	var pal: Array = _sky_look.pal
 	var neb_on: bool = neb_sky and _sky_look.has("neb") and not ("nebsky=0" in OS.get_cmdline_user_args())
 	if neb_on and legacy:
-		# LEGACY: the old baked gas kept faint under the cloud, and its far dust
-		# lanes thinner (over the cloud's glow, full strength, they set into black
-		# blots in the palette)
+		# LEGACY: far dust lanes thinner, as at full strength they set into black blots.
 		_sky_look.thick = float(_sky_look.thick) * NEB_GAS_K
 		_sky_look.dust = float(_sky_look.dust) * NEB_DUST_K
 	elif neb_on:
@@ -564,9 +433,7 @@ func show_system(n: MapGen.MapNode) -> void:
 		_sky_look.thick = 0.0
 		_sky_look.dust = 0.0
 	elif not bool(_sky_look.get("nebula", true)) and not legacy:
-		# SIMPLIFIED's clear sky (C): clean black, crisp stars in depth, the galaxy's
-		# band told by its crowd of faint stars -- no gas, no dust, no glow (any of
-		# them this faint set to the palette's first step as a grey smog)
+		# SIMPLIFIED's clear sky has no gas, dust or glow: this faint they set to grey smog.
 		_sky_look.thick = 0.0
 		_sky_look.dust = 0.0
 		# (PAINTED's band is set in its band memory by B's own rule, two tones
@@ -593,9 +460,7 @@ func show_system(n: MapGen.MapNode) -> void:
 		f.bare = painted
 		f.rate = spec[4]
 		_fields.append(f)
-	# the four far star fields behind the cloud (the showcase's: the gas hides what
-	# is behind it, so a cloud is not dusted all over with stars); the nearest
-	# stars and the motes in front of it
+	# Far star fields sit behind the cloud, as gas hides what is behind it.
 	for fi in 4:
 		_scene.add_child(_fields[fi])
 	# the twinkling stars behind it too
@@ -648,12 +513,8 @@ func show_system(n: MapGen.MapNode) -> void:
 		veil.visible = false
 		# GRAPHICS LOW: the two fluffy sheets only, no far wisps, no near ones
 		var low := gfx_low()
-		# A WISP SHEET THAT DRAWS NOTHING IS NOT BUILT (`_wisps_blank`): in a clear
-		# sky its colour is black, it adds nothing to any pixel, and three far and
-		# four near full-screen passes of it were most of the dust's GPU time. Each
-		# sheet still takes the seed it always had (`sk`, the count of sheets before
-		# it as they were built: a skipped wisp still counts, a LOW one never did),
-		# so the fluff's clouds stay where they were.
+		# A sheet that draws nothing is not built: those passes were most of the dust's GPU time.
+		# Why: docs/why/SystemView.md#dust-sheets
 		var blank := _wisps_blank()
 		var sk := 0
 		for fd: Array in DEPTH_FAR:
@@ -705,9 +566,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_shadow_mat.set_shader_parameter("px_scale", 2.0)
 	_shadows.material = _shadow_mat
 	_shadows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# (RADIANT in a cloud: the worlds' shadows are shafts through the lit gas
-	# itself, so this flat darkening goes; in a clear sky it carries the world's
-	# thin shadow line through the dust lens)
+	# RADIANT in a cloud: shadows are shafts through the lit gas, so this flat darkening goes.
 	_shadows.visible = layout.star != SystemLayout.StarKind.PULSAR and not (radiant and _neb_mat != null)
 	if radiant:
 		_sky_mat.set_shader_parameter("radiant", true)
@@ -718,9 +577,7 @@ func show_system(n: MapGen.MapNode) -> void:
 			# sun the gas went to a flat pale plate)
 			_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
 	_scene.add_child(_shadows)
-	# THE STAR. The sun and the pulsar draw under the palette with the sky; the
-	# black hole draws among the worlds (below), since its lens bends the worlds
-	# behind it and the worlds in front pass over its disc.
+	# Sun and pulsar draw under the palette; the black hole draws among the worlds its lens bends.
 	_star_layer = Node2D.new()
 	_scene.add_child(_star_layer)
 	match layout.star:
@@ -729,11 +586,8 @@ func show_system(n: MapGen.MapNode) -> void:
 			star.position = Vector2(CX, CY)
 			_star_layer.add_child(star)
 			star.call("setup", n.index, Rect2(0, 0, 960, 540))
-			# SIMPLIFIED: the remnant round it is the sky's own shell now, filaments and all
-			# (C), so the old web of fine threads over it goes: its threads, a sixteenth
-			# power of noise read at whole pixels of zoom 1, shimmered through every zoom
-			# (half the pulsar's flicker on a slow zoom)
-			# (LEGACY keeps its web)
+			# The sky's own shell replaces the web, whose noise shimmered on every zoom.
+			# Why: docs/why/SystemView.md#pulsar-web
 			(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", legacy)
 		SystemLayout.StarKind.CORE:
 			# SIMPLIFIED: direction C's hole, Jon's pick for every style (`CoreLegacy`)
@@ -756,9 +610,7 @@ func show_system(n: MapGen.MapNode) -> void:
 				if radiant and n.in_nebula:
 					var sm2: ShaderMaterial = star2.get("_mat")
 					sm2.set_shader_parameter("glow_i", float((star2.get("P") as Dictionary).glow_i) * 0.3)
-	# the near sheets: in front of everything the palette sets, sparse wisps (none
-	# where a wisp draws nothing, `_wisps_blank`; their seed is set each frame by
-	# their slot, `_step_depth`)
+	# Near sheets draw in front of the palette; none where a wisp draws nothing.
 	if depth_k > 0.0 and not gfx_low() and not _wisps_blank():
 		for sl in DEPTH_NEAR:
 			_scene.add_child(_depth_sheet([-1.0, DEPTH_NEAR_K * depth_k, 0, 260.0, 0.62], sl, pal, n.index))
@@ -769,13 +621,8 @@ func show_system(n: MapGen.MapNode) -> void:
 	_palette_mat.set_shader_parameter("pal_n", 0)
 	# its dither cell is one pixel of the half-size picture: a 2x2 block
 	_palette_mat.set_shader_parameter("cell", 1)
-	# ROUND A PULSAR the colour is read whole and held (`map_palette`'s `fine` and
-	# `hold_k`): its remnant shell grows with the map on every frame of a zoom, and
-	# the one-level wobbles of the shell and the dust sheets over it flipped dither
-	# pixels back and forth through every zoom (a slow zoom: 0.0042-0.0059 of the
-	# map flipping back a frame against the 0.0035 budget; now 0.0008-0.0014).
-	# The picture last frame, for the hold, is the place's own, copied each frame.
-	# (a harness's `palhold=0`: neither, the pulsar's palette as it was, to measure against)
+	# Round a pulsar the colour is read whole and held, as one-level wobbles flipped dither pixels.
+	# Why: docs/why/SystemView.md#pulsar-palette-hold
 	var hold := layout.star == SystemLayout.StarKind.PULSAR and not ("palhold=0" in OS.get_cmdline_user_args())
 	_palette_mat.set_shader_parameter("fine", hold)
 	if hold and not painted:
@@ -799,11 +646,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	# THE SHADOWS AFTER THE PALETTE, so their fade is not snapped to its colours
 	_scene.move_child(_shadows, _palette.get_index())
 	if painted:
-		# PAINTED: everything far goes into the far picture, which the band memory
-		# reads and the paint pass paints where the cut palette stood -- the pulsar
-		# and the worlds' shadows too (the beam in the sky's bands, a shadow a step
-		# or two down the ramp it falls on); the belts stay in the place, painting
-		# themselves
+		# PAINTED puts everything far into the far picture, which the paint pass reads.
 		_shadow_mat.set_shader_parameter("painted", true)
 		var near := [_belts, _palette]
 		var far: Array[Node] = []
@@ -821,10 +664,7 @@ func show_system(n: MapGen.MapNode) -> void:
 		_scene.move_child(_pt.rect, 1)
 	_worlds = Node2D.new()
 	_scene.add_child(_worlds)
-	# THE SUN AND THE BLACK HOLE DRAW AMONG THE WORLDS, between the ones behind
-	# and the ones in front: a world behind the sun is covered by its face and
-	# lit by its glow, not drawn over it (Jon: "planet that should be behind the
-	# sun isn't").
+	# Sun and hole draw among the worlds, so a world behind the sun is covered by its face.
 	if layout.star == SystemLayout.StarKind.CORE:
 		_worlds.add_child(star)
 		if not headless():
@@ -972,31 +812,13 @@ func star_class() -> String:
 	return STAR_FACTS[kind].kind
 
 
-## STAR B OF A PAIR, AS IT IS DRAWN (ruling 20): the lighter star, and the cooler,
-## an orange dwarf beside a yellow one (`SunView.WARM_B` and `GLOW_B`, the sky's
-## `STAR_B_COL`). Its class and surface are read off that colour: B's drawn light,
-## face and glow each against star A's, channel by channel in linear light, beside
-## a blackbody at each of K0 to K5 against one at G2's 5,770 K (Mamajek's dwarf
-## sequence), are all nearest K5 at 4,440 K (the best fits 4,290 to 4,450 K;
-## Nov 1). Its surface is rounded as G2's is to 5,700 K. It read YELLOW DWARF, G2,
-## 5,700 K, star A's, under the orange sun the map draws.
-## ITS MASS AND RADIUS ARE A K5'S OWN, 0.7 SOL each, in every binary (Jon, Nov 1,
-## "starb:B"). They read its mass against A's as the stars' pulls are
-## (`star_share`: B / A = (1 - share) / share, 0.72 to 0.92 SOL) and its radius
-## the one it is drawn at against one sun's 16 px (0.77 to 0.94), where a real K5
-## weighs about 0.70; the pair then read 1.72 to 1.92 SOL while the map pulls as
-## one sun. The sheet he picked from showed 0.70 SOL; written 0.7 SOL, to one
-## place as the yellow dwarf's 1.0 SOL and the pulsar's 1.4 SOL are (Nov 1).
+## Star B reads as a K5 orange dwarf of 0.7 SOL, fitted to its drawn colour (Jon, Nov 1).
+## Why: docs/why/SystemView.md#star-b-facts
 const STAR_B_FACTS := {"kind": "ORANGE DWARF", "cls": "K5", "temp": "4,400 K", "mass": "0.7 SOL", "radius": "0.7 SOL"}
 
 
-## STAR p'S FACTS AS SHOWN, {kind, cls, temp, mass, radius}: its kind's
-## (`STAR_FACTS`), the same as ever with one sun. In a pair, star A is drawn as the
-## one sun is, so it reads as one does, a G2 of 1.0 SOL (it read its share of the
-## pair's pull, 0.52 to 0.58 SOL, which no G2 weighs). Star B is the K5 orange
-## dwarf it is drawn as, with a K5's own numbers (`STAR_B_FACTS`). Only the words:
-## the pull, the share and the drawing are as they were, so a flight feels star B
-## at 0.72 to 0.92 of star A's pull whatever its page says.
+## Pair star facts change the words only: A reads as G2, B as K5; pull and drawing are unchanged.
+## Why: docs/why/SystemView.md#star-b-facts
 static func star_facts_of(L: SystemLayout, kind_name: String, p: int) -> Dictionary:
 	var f: Dictionary = STAR_FACTS[kind_name]
 	if L == null or not L.twin or p != SystemLayout.STAR_B:
@@ -1016,12 +838,8 @@ static func au(b: SystemLayout.Body) -> String:
 	return "%.1f AU" % (b.orbit / 80.0)
 
 
-## WHAT IT GOES AROUND, in a binary (ruling 20): its orbit in AU is about that
-## centre, so the panel says which. The stars are "<system> A" and "<system> B",
-## as the panel names them, and the pair BOTH STARS (it was BOTH SUNS beside
-## the page's BINARY: "Let's call it Binary instead of two suns", Nov 1; the
-## map's ORBITING words say the same, `SystemOverlay._settle_nm`). Empty with
-## one sun.
+## The binary panel names the centre BOTH STARS (Jon, Nov 1: call it Binary).
+## Why: docs/why/SystemView.md#star-b-facts
 func host_line(b: SystemLayout.Body) -> String:
 	if layout == null or not layout.twin:
 		return ""
@@ -1088,9 +906,7 @@ func world_r(b: SystemLayout.Body) -> float:
 	return maxf(b.r, min_r)
 
 
-## THE BELTS' GLINTS AND THE ORBITS' NEAR HALF (Jon kept both from the Oct 11
-## ideas round; `_Belts._glint`, `_Lines`), in every style. Static vars only so a
-## harness (`WowClip`) can film the map without them beside it.
+## Static so a harness (`WowClip`) can film the map without glints and the near half.
 static var belt_glints := true
 static var orbit_depth := true
 ## How big a pulsar's worlds are drawn against any other system's.
@@ -1100,10 +916,7 @@ const PULSAR_WORLD_K := 0.45
 var home_zoom := 1.0
 
 
-## THE SMALLEST A WORLD IS DRAWN ON SCREEN, whatever the zoom: zoomed out to the
-## whole (three times wider) system a world at its zoomed size is a speck, so it
-## stays a few pixels of disc (a giant a little more), redrawn at that size and
-## never stretched.
+## Zoomed out a world would be a speck, so it keeps a few pixels of disc, redrawn and not stretched.
 const MIN_SCREEN_R := 5.0
 const MIN_SCREEN_R_GIANT := 7.0
 const MIN_SCREEN_STAR := 7.0
@@ -1134,9 +947,7 @@ static func _held(raw: float, held: float, least: float) -> float:
 	return maxf(roundf(raw / 2.0) * 2.0, ceilf(least / 2.0) * 2.0)
 
 
-## How many times its mockup size the star is drawn: the zoom, but never smaller
-## than a few pixels of disc; the black hole's trace only exists from 1 up.
-## A pulsar grows exactly with the map (`PULSAR_OPEN_K`).
+## Star scale is the zoom floored to a few pixels of disc; the black hole's trace needs zoom 1.
 func star_k() -> float:
 	if layout != null and layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_OPEN_K * zoom / maxf(home_zoom, 0.01)
@@ -1160,9 +971,7 @@ func world_c(i: int) -> Vector2:
 	return at[i] + Vector2.ONE * float(Worlds.half_size(b.world, draw_r(b)) % 2)
 
 
-## How far world i's picture is from its place on the grid -- where its orbit
-## ring, its label and its beacons are drawn (`at`) -- this frame, screen px. 0
-## at rest; the zoom's settle eases it back to 0. For the harnesses (`panclip`).
+## For the harnesses (`panclip`): the picture's offset from its grid place, 0 at rest.
 func world_lag(i: int) -> Vector2:
 	if not _live.has(i):
 		return Vector2.ZERO
@@ -1171,14 +980,8 @@ func world_lag(i: int) -> Vector2:
 	return (_live[i][1] as Vector2) - (at[i] + Vector2.ONE * float(Worlds.half_size(b.world, held) % 2))
 
 
-## A PULSAR GROWS EXACTLY AS THE MAP DOES (Jon: "Pulsars still act REALLY weird
-## when zooming"): its cloud, beams, jets, spray, glow and web, all drawn by
-## `PulsarView` at one scale, are that scale times the map's zoom over the
-## zoom it opened at -- as its remnant shell in the sky already was
-## (`shell_k`). It was the sun's rule, the star's radius held in whole 2x2
-## blocks: for a 3 px star that is steps of a third, so the whole pulsar sat
-## still while the map zoomed and then jumped half as big again, and below
-## zoom 1 it did not shrink at all. At the opening zoom it is drawn as before.
+## A pulsar scales exactly with the zoom: block-held sizing made it sit still, then jump.
+## Why: docs/why/SystemView.md#pulsar
 const PULSAR_OPEN_K := 4.0 / 3.0
 
 
@@ -1186,9 +989,7 @@ func _star_k_raw() -> float:
 	return _star_k_raw_of(-1)
 
 
-## Star p's true size factor this frame (its drawn radius over its own), before
-## it is held in blocks: `sun_raw_k`, and in a twin below the fit, no more than
-## the plane radius it is drawn at there (`twin_floor`).
+## True size before block holding; in a twin it is capped by `twin_floor`.
 func _star_k_raw_of(p: int) -> float:
 	if layout != null and layout.star == SystemLayout.StarKind.CORE:
 		return maxf(zoom, 1.0)
@@ -1202,27 +1003,13 @@ func _star_k_raw_of(p: int) -> float:
 ## A sun of radius `sr` at zoom `z`: how many times its size it is drawn.
 static func sun_raw_k(sr: float, z: float, leg: bool) -> float:
 	if not leg:
-		# (both prototypes ease the star up to a floor of screen radius, the frame's
-		# light source: C's sqrt((r z)^2 + 8^2), B's a little bigger; held at 7 px
-		# it read as one more star at the opening zoom)
+		# The floor eases the star up: held at 7 px it read as one more star at opening zoom.
 		return maxf(z, sqrt(pow(sr * z, 2.0) + STAR_FLOOR * STAR_FLOOR) / sr)
 	return maxf(z, minf(1.0, MIN_SCREEN_STAR / sr))
 
 
-## THE TWIN SUN FLOOR (ruling 20's build, Oct 30). A twin's close rings and the
-## worlds round each star are fitted to its suns as drawn at `layout.fit_zoom`,
-## the zoom the system opens at with no job and no Hellbender out. A signed job
-## or the Hellbender out past its edge opens the map further out than that, and
-## the floor of screen radius (STAR_FLOOR, 10 px) then drew each sun wider on
-## the plane than the rings were fitted to: over 24 seeds' twins, with a fetch,
-## a hunt and the Hellbender all out, 184 star rings ran up to 2.5 plane px
-## inside their drawn suns and 550 worlds touched theirs (the layout's own
-## measure, Oct 30). So below `fit_zoom`, in a twin, a sun's drawn plane radius
-## never exceeds the one it has at `fit_zoom`: the floor shrinks with the zoom.
-## The zoom itself is not capped (the job's place must stay on screen). Its
-## true size (the corona's) at most `sun_raw_k` at the fit times zoom / fit; its
-## held disc at most the block it is held at there (the nearest), scaled the
-## same way and taken down to a whole block (`twin_held_cap`). One sun: never.
+## Below `fit_zoom` a twin sun's plane radius is capped, or rings drew inside their suns.
+## Why: docs/why/SystemView.md#twin-sun-floor
 func twin_floor_on() -> bool:
 	return layout != null and layout.twin and layout.fit_zoom > 0.0 and zoom < layout.fit_zoom
 
@@ -1252,9 +1039,7 @@ func star_k_of(p: int) -> float:
 	return _star_k_raw_of(p)
 
 
-## WHERE STAR p IS DRAWN, on screen: one sun at `origin`; each of two suns on
-## the block grid where the pair has it at the map's t (ruling 23: the pair
-## turns, so star A leaves the plane's origin too).
+## With two suns each sits where the pair has it at `t` (ruling 23), so star A leaves the origin.
 func star_screen(p: int) -> Vector2:
 	if layout == null or not layout.twin:
 		return origin()
@@ -1262,9 +1047,7 @@ func star_screen(p: int) -> Vector2:
 	return block_round(screen(q.x, q.y))
 
 
-## Star p's exact place on screen, off the block grid: for light (the cloud's,
-## the sheets'), which a rounded place would make flicker on every block hop as
-## the sun creeps. One sun: the origin unrounded, as the cloud's light had it.
+## Off the block grid on purpose: a rounded place made the light flicker on every block hop.
 func star_exact(p: int) -> Vector2:
 	if layout == null or not layout.twin:
 		return Vector2(CX, CY) + pan
@@ -1272,14 +1055,8 @@ func star_exact(p: int) -> Vector2:
 	return screen(q.x, q.y)
 
 
-## WHERE THE SYSTEM SITS ON ITS SKY, in sky pixels at no pan: what the sky is
-## baked round once a system (`SkyBake.make`: the gas brightened near it, thinned
-## over the system, the dust's rims facing it; the cloud's field, its pillars
-## leaning in and its young cluster, `SkyBake.field`, `cc_em`). One sun: the
-## star, at the frame's centre, as it always was. Two suns: their balance point
-## where the opening zoom puts it (ruling 23): the pair turns, and the gas was
-## carved and is lit by both suns over thousands of turns, so what is baked
-## holds still round the point they circle, and only their light moves.
+## In a twin the sky is baked round the balance point, since the gas holds still as the suns turn.
+## Why: docs/why/SystemView.md#sky-centre
 func sky_c() -> Vector2:
 	var c := Vector2(CX, CY)
 	if layout == null or not layout.twin:
@@ -1301,22 +1078,13 @@ func star_depth(p: int) -> float:
 	return layout.star_pos(p, t).y if layout != null else 0.0
 
 
-## A SunView painted as star p of this system (the map's star B, the panel's
-## portrait of either): star A rolled from the system's seed as it always was,
-## star B from its own, smaller and warmer (`SunView.setup`'s `second`), at
-## radius `r` game px.
+## Star B is rolled from its own seed, smaller and warmer (`SunView.setup`'s `second`).
 func sun_setup(sv: Node2D, p: int, r: float) -> void:
 	sv.call("setup", kind, node.index, r, p == SystemLayout.STAR_B)
 
 
-## WHERE THE PULSAR IS DRAWN: on the block grid with its orbits at rest, and
-## while the zoom moves where the map truly puts it, as a world's picture is
-## (`_live`). Rounded to the grid as a wheel zoom carried it across the screen it
-## stood still and then hopped a whole block, x and y at different frames, ~8
-## times a second on a slow zoom, every layer of it -- core, beams, cloud, its
-## light and shell -- ahead of or behind the map by up to a pixel and back. The
-## block stays the box's place; the drawing is shifted within it (`sub`). Once
-## the zoom is still it is carried with its block and eased onto it.
+## A pulsar block hop made every layer lead or lag the map, so the drawing shifts within the block.
+## Why: docs/why/SystemView.md#pulsar
 func _pulsar_at(o: Vector2, ez: float) -> Vector2:
 	var tc: Vector2 = Vector2(CX, CY) + pan if zooming() and not _nosmooth else o
 	if _plive.x == INF or zooming() or _nosmooth:
@@ -1359,9 +1127,8 @@ static func block_round(p: Vector2) -> Vector2:
 	return (p / 2.0).round() * 2.0
 
 
-## ROUNDED ONCE, by the caller: the exact pan plus the exact offset. Rounding the
-## star's pixel first and adding a fractional offset after rounded twice, and a
-## world the camera followed (LOCATION) shook by a pixel every few frames.
+## Round once, by the caller: rounding twice made a followed world shake by a pixel.
+## Why: docs/why/SystemView.md#screen-rounding
 func screen(x: float, z: float, dip: float = 0.0) -> Vector2:
 	return Vector2(CX, CY) + pan + Vector2(x, z * TILT + dip) * zoom
 
@@ -1377,17 +1144,8 @@ static func light_for(p: Vector2) -> Vector3:
 	return Vector3(-p.x / len, -p.y / len * TILT, -p.y / len * 0.5 + 0.42).normalized()
 
 
-## TWO SUNS' LIGHT (ruling 20's build, Oct 30). Every world keeps ONE light, so
-## `planet.gdshader` and `planet_ring.gdshader` keep their interface (and the
-## planet shader its 13-16 s cold compile on the Mac): with two suns it is the
-## light of both made one -- its direction each star's, weighted by the light it
-## gives there, its strength their sum, its tint theirs by the same weights. A
-## world round one star of a pair takes 88 to 98% of its light from that star,
-## and its one light comes from within 6 degrees of it (the four systemtest
-## seeds' 213 twins as rolled, 426 such worlds, `-- sheet=TwinDrawTest`), so it
-## is lit from its own sun; a body round both is lit from between the two.
-## How bright star p is against a lone sun: by its drawn area, as
-## `SystemLayout.light_distance` weighs it (star A 1, star B (r_B / 16)^2).
+## A world keeps one light, the weighted sum of both suns, so planet shaders keep their interface.
+## Why: docs/why/SystemView.md#twin-light
 func star_lum(p: int) -> float:
 	return star_lum_of(layout, p)
 
@@ -1404,11 +1162,7 @@ func light_here(x: float, z: float) -> float:
 	return light_here_of(layout, x, z, t)
 
 
-## THE LIGHT HELPERS TAKE THE PAIR AS IT STANDS (ruling 23: the pair turns, so
-## star A leaves the plane's origin): `t` is the moment the pair is posed at --
-## the map's own `t` for the map, the clock LOCAL holds the pair at for LOCAL.
-## It is required, so no caller reads the suns at a moment it never chose. One
-## sun: star A at the origin at every t, as it always was.
+## `t` is required so no caller reads the suns at a moment it never chose (ruling 23).
 static func light_here_of(L: SystemLayout, x: float, z: float, t: float) -> float:
 	if L == null or not L.twin:
 		return light_at(x, z)
@@ -1440,9 +1194,7 @@ func light_for_at(p: Vector2) -> Vector3:
 	return Vector3(u.x, u.y * TILT, u.y * 0.5 + 0.42).normalized()
 
 
-## The way to the light from plane point p, a unit vector on the plane: toward
-## star A with one sun, and with two toward each by its share there, the pair
-## posed at `t`.
+## Toward star A with one sun; with two, toward each by its share, posed at `t`.
 static func toward_light_of(L: SystemLayout, p: Vector2, t: float) -> Vector2:
 	if L == null or not L.twin:
 		return -p / maxf(p.length(), 1.0)
@@ -1495,13 +1247,8 @@ static func _lin_top(c: Vector3) -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
-## RADIANT'S SAFETY, the sector's half of the chart's (`ChartSky._radiant_safety`,
-## the same budget, `ChartRadiant.budget_ms`, and the same fall-back): the place
-## picture's GPU time over its first seconds of drawing is averaged, and if this
-## machine cannot hold it every map drawn after this one is SIMPLIFIED (this one
-## keeps its look: a picture never changes under a still view), with one line in
-## the log. A harness's `style=radiant` is never overruled (it is measuring)
-## unless it asks with `radiantprobe=MS`.
+## If this machine cannot hold RADIANT's GPU budget, later maps fall back to SIMPLIFIED.
+## Why: docs/why/SystemView.md#radiant-safety
 var _rprobe := {}
 
 
@@ -1527,19 +1274,13 @@ func _radiant_safety() -> void:
 	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == STYLE_RADIANT and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT sector measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
 		Run.log_line("RADIANT is too heavy for this machine, so the sector map is drawn SIMPLIFIED.", &"them")
-		# FROM THE NEXT PICTURE, NOT THIS ONE (Jon: the picture holds its
-		# brightness): it switched the style at once and the map, rebuilt under a
-		# still view, dropped from RADIANT's lit gas to SIMPLIFIED's -- the whole
-		# frame 16.9 -> 13.2 in a frame, settling at 14.6, three seconds in. The
-		# map up keeps its look; the next system drawn, the chart's next build and
-		# LOCAL's are SIMPLIFIED (`fell_back`, and the setting with it).
+		# Fall back from the next picture: switching under a still view changed its brightness.
+		# Why: docs/why/SystemView.md#radiant-safety
 		ChartRadiant.fell_back = true
 		DisplaySettings.fall_back_style(STYLE_SIMPLIFIED)
 
 
-## THE RENDERING STYLE (`DisplaySettings.render_style`): SIMPLIFIED is the
-## default; LEGACY, SIMPLIFIED and PAINTED are built; RADIANT is in progress
-## (behind `radiant`, not in BUILT).
+## SIMPLIFIED is the default; RADIANT is behind `radiant` and not yet in BUILT.
 static func style() -> StringName:
 	return DisplaySettings.render_style
 
@@ -1550,9 +1291,7 @@ static func is_legacy() -> bool:
 	return style() == STYLE_LEGACY or "style=legacy" in OS.get_cmdline_user_args()
 
 
-## PAINTED: chosen in the settings, or `-- style=painted` on a harness's command
-## line (read raw too, as `ChartPainted.wanted` does).
-## RADIANT: chosen in the settings, or `-- style=radiant` on a harness's command line.
+## The style can also come from a harness's `-- style=` argument.
 static func is_radiant() -> bool:
 	# (not once the safety has fallen back this session: the chart's and the
 	# sector's share it, `ChartRadiant.fell_back`)
@@ -1565,17 +1304,12 @@ static func is_painted() -> bool:
 	return style() == STYLE_PAINTED or "style=painted" in OS.get_cmdline_user_args()
 
 
-## HAND ANIMATION (PAINTED): a clock held in poses, `fps` of them a second, so
-## whatever is drawn from it steps from pose to pose and holds each one, as an
-## animator draws on twos and threes; the clock itself in the other styles.
+## PAINTED steps its clock in poses, as an animator draws on twos and threes.
 func pose(x: float, fps: float = 8.0) -> float:
 	return floor(x * fps) / fps if painted else x
 
 
-## GRAPHICS LOW (`DisplaySettings.graphics_low`; `-- graphics=low` on a
-## harness's command line): the cheaper sky -- one read a field, no flow, the
-## two fluffy depth sheets alone. Read every frame for the sky, and at a
-## system's entry for the sheets.
+## Graphics low is the cheaper sky, read every frame for the sky and at entry for the sheets.
 static func gfx_low() -> bool:
 	return DisplaySettings.graphics_low
 
@@ -1589,11 +1323,7 @@ static func breath(time: float) -> float:
 	return 1.0 + 0.06 * n
 
 
-## A PROMINENCE (C): in each slot of 40 s one erupts off the sun's limb at a
-## hashed moment -- up over 4 s, held 3, faded over 12 -- at a hashed place on
-## its upper limb, height and span: (angle, height in radii, envelope, span).
-## None with reduced motion. Its envelope is also the flare's: the worlds' lit
-## sides 10% brighter at its height, their auroras flickering.
+## One prominence per 40 s slot at a hashed moment; none with reduced motion.
 static func prominence(time: float) -> Vector4:
 	if DisplaySettings.reduced_motion:
 		return Vector4.ZERO
@@ -1611,10 +1341,7 @@ static func prominence(time: float) -> Vector4:
 	return best
 
 
-## HOW MUCH OF A PULSAR'S BEAM falls on a thing at screen offset `d` from the
-## pulsar (C: the worlds and the belt it sweeps catch its light): 1 on the beam,
-## either end of it, falling off over 0.18 rad; caught fast, let go over a third
-## of a second, so a sweep reads as light passing and never as a strobe.
+## Caught fast and let go over a third of a second, so a sweep reads as light, not a strobe.
 func beam_on(d: Vector2, key: Variant = null) -> float:
 	var ang: float = star.get("beam_angle") if star != null else NAN
 	var k := 0.0
@@ -1630,10 +1357,7 @@ func beam_on(d: Vector2, key: Variant = null) -> float:
 	return held
 
 
-## THE SKY'S LIGHT ON A WORLD'S NIGHT SIDE (C), linear: what the cloud round a
-## world at plane point p glows with -- teal inside an emission cloud's bubble,
-## rose outside it, blue in a reflection cloud's haze, the cloud's own colour
-## in the others, next to nothing in a clear sky -- more of it nearer the sun.
+## Night-side sky light on a world, by cloud kind, stronger nearer the sun.
 func night_fill(p: Vector2) -> Vector3:
 	# (from star A where the pair has it now: the plane's origin with one sun)
 	var pa := p - layout.star_pos(-1, t)
@@ -1656,9 +1380,7 @@ func night_fill(p: Vector2) -> Vector3:
 	var hl := Vector3(pow(h.x, 2.2), pow(h.y, 2.2), pow(h.z, 2.2))
 	match int(_sky_look.neb):
 		NebulaField.Kind.EMISSION:
-			# (inside the wall as it is drawn: in light px, so its plane radius grows
-			# as the map zooms in)
-			# (round the bubble's own centre, `bubble_c`: the balance point in a twin)
+			# The wall radius is in light px, so its plane radius grows as the map zooms in.
 			if (p - bubble_c()).length() * zoom < bubble_r * home_zoom * pow(maxf(zoom, 0.001) / maxf(home_zoom, 0.001), 0.42):
 				return Vector3(0.2, 0.95, 0.85) * 0.30 * js + Vector3(1.0, 0.2, 0.3) * 0.015
 			return Vector3(1.0, 0.2, 0.3) * 0.07 * (0.5 + js)
@@ -1677,9 +1399,7 @@ func star_light() -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
-## THE BUBBLE'S RADIUS on the plane: in a gap between orbits, as near as it can
-## be to four fifths of the frame at the opening zoom (the showcase's size), so it is a thing in the
-## system that no world stands on, with the rose cloud round it in view.
+## The bubble sits in an orbit gap no world stands on, so the rose cloud round it is in view.
 func _bubble_r() -> float:
 	var E := layout.edge
 	# where it should be: about four fifths of the way to the frame's edge at the
@@ -1710,11 +1430,7 @@ func _bubble_r() -> float:
 	return best
 
 
-## THE BUBBLE'S CENTRE ON THE PLANE (ruling 23): the balance point in a twin,
-## star A (the origin) with one sun. The pair turns, and a bubble round star A
-## slid its wall through the gas all visit; the gas was blown clear by the pair
-## over thousands of its turns, so its cavity is the pair's and holds still,
-## lit by both suns where they are (`sky_nebula`'s `bubble_at`).
+## In a twin the bubble centres on the balance point: the cavity is the pair's and holds still.
 func bubble_c() -> Vector2:
 	return layout.bary if layout != null and layout.twin else Vector2.ZERO
 
@@ -1727,27 +1443,16 @@ func bubble_exact() -> Vector2:
 	return screen(layout.bary.x, layout.bary.y)
 
 
-## THE BUBBLE'S GAP IN A TWIN (ruling 20): the bubble is a sphere round
-## `centre` (on the map the balance point, `bubble_c`; in LOCAL the sun that
-## lights the ship's place, `LocalSky._lit`, at plane point `centre`), and a
-## body circling star B or the balance point sweeps a band of distances from
-## it, not one radius -- from |host - centre| - orbit to |host - centre| + orbit
-## (a belt 28 px wider each side). So the gap is looked for between those
-## bands, merged, never inside one. (The one-sun rule above, kept as it was,
-## treats each orbit as a point.)
+## A body circling star B sweeps a band of distances, so the gap is sought between merged bands.
+## Why: docs/why/SystemView.md#bubble-gap
 static func bubble_gap(L: SystemLayout, want: float, centre := Vector2.ZERO) -> float:
 	var bands: Array = [[0.0, 0.0]]
-	# (each body's centre as laid out, at t 0, so `centre` is a place at t 0 too:
-	# the balance point, or a sun as laid out. The pair turns rigidly, so every
-	# distance here -- to the balance point, or within a sun's own frame -- is
-	# the same at every t)
+	# Distances use bodies at t 0, as the pair turns rigidly and they hold at every t.
 	for b in L.bodies:
 		var h := (b.host0 - centre).length()
 		var w := 28.0 if b.kind == &"belt" else 0.0
 		bands.append([maxf(0.0, absf(h - b.orbit) - w), h + b.orbit + w])
-	# (the pair's own stars: each sun's disc sits in the band of its distance
-	# from the centre -- 0 and `sep` round a sun, each sun's own radius round
-	# the balance point -- at t 0, as the bodies above)
+	# Each sun's disc sits in the band of its distance from the centre, at t 0.
 	for p: int in L.stars():
 		var d := (L.star_pos(p, 0.0) - centre).length()
 		bands.append([d, d])
@@ -1809,20 +1514,15 @@ func _step_star() -> void:
 				# (LEGACY: the sky's own glow round the sun breathes with it)
 				_sky_mat.set_shader_parameter("light_k", lerpf(1.0, breath(t), 0.6))
 		if star2 != null:
-			# STAR B lives as A does, on its own clock: its breath and its
-			# prominences STAR_B_PROM seconds behind A's, so the two are never at
-			# their height together
+			# Star B runs `STAR_B_PROM` s behind A so the suns are never at their height together.
 			star2.call("step", pose(t, 4.0))
 			var sm2: ShaderMaterial = star2.get("_mat")
 			sm2.set_shader_parameter("c_breath", breath(pose(t, 4.0) + STAR_B_PROM))
 			sm2.set_shader_parameter("c_prom", prominence(pose(t + STAR_B_PROM, 6.0)))
 			sm2.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
 	else:
-		# ON THE BEAT OF ITS SOUND: the beam points at you on each pass of
-		# `amb_pulsar`. The map's clock keeps running smoothly and is only
-		# shifted to sit on the loop, so the cloud never jumps.
-		# (a harness holding the clock -- a clip, a still -- holds the beat with it:
-		# the sound still playing out turned the beam under a stopped map)
+		# The beam points at you on each pass of `amb_pulsar`; the clock is shifted, never jumped.
+		# A harness holding the clock holds the beat too.
 		var heard := Audio.room_clock(&"amb_pulsar") if hclock < 0.0 else -1.0
 		if heard >= 0.0:
 			var loop: float = PulsarViewS.LOOP_S
@@ -1836,16 +1536,8 @@ func _step_star() -> void:
 		_flash.color = Color(PulsarViewS.SKY_FLASH_COLOR.r * f, PulsarViewS.SKY_FLASH_COLOR.g * f, PulsarViewS.SKY_FLASH_COLOR.b * f, 1.0)
 
 
-## THE BEAT FOLLOWS THE SOUND, SMOOTHLY (Jon: "the pulsar still slightly jitters
-## around when you zoom in"): the sound's clock as read each frame (the playback
-## position plus the time since the last mix) is right on average but wobbles by
-## a few ms from one frame to the next -- 3.4 ms sd, up to 13 ms, reversing 34
-## times a second, measured on this machine -- and set from it every frame the
-## beams, which turn once a second, lurched by up to 5 degrees a frame, a tip
-## 270 px out shaking by 20 px, more the further in you zoom. Followed over half
-## a second the beat still sits on what is heard (the wobble averages out; the
-## two clocks run at one rate) and turns as evenly as the frames. A jump -- the
-## sound starting, a loop, the system changing -- is taken at once.
+## The beat follows the sound over half a second: its per-frame clock wobbled and the beams lurched.
+## Why: docs/why/SystemView.md#pulsar-beat
 func beat_follow(off: float, want: float, dt: float) -> float:
 	var d := wrapf(want - off, -PulsarViewS.LOOP_S / 2.0, PulsarViewS.LOOP_S / 2.0)
 	if absf(d) > 0.1:
@@ -1863,9 +1555,7 @@ static func tick(key: String, t0: int) -> void:
 		prof[key] = int(prof.get(key, 0)) + Time.get_ticks_usec() - t0
 
 
-## One dust sheet: [distance beyond the plane (-1: a near slot), strength, look,
-## cloud size, cover]. `seed_n`: its place among the sheets for its seed (-1: the
-## sheets built so far).
+## Dust sheet: [distance, strength, look, cloud size, cover]; `seed_n` is its seed slot.
 func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int, seed_n: int = -1) -> ColorRect:
 	var r := ColorRect.new()
 	r.size = Vector2(960, 540)
@@ -1896,29 +1586,19 @@ func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int, seed_n: int = -1) -
 	return r
 
 
-## Whether a wisp sheet (`look` 0) would draw nothing here: outside LEGACY (whose
-## wisps take the sky's two gas colours) its colour is `_depth_look`'s last, and
-## in a clear sky that is black -- `sky_depth` adds it times its strength, so not
-## one pixel changes (outside a nebula, not at a pulsar or the core).
+## Outside LEGACY a clear sky's wisp colour is black, so such a sheet changes no pixel.
 func _wisps_blank() -> bool:
 	return not legacy and (_depth_look()[3] as Vector3) == Vector3.ZERO
 
 
-## THE DUST SHEETS' COLOURS in SIMPLIFIED (C), display colours: [the dense core,
-## a lit side far from the sun, near it, the wisps], by the sky -- dark wine
-## with rose turning teal in an emission cloud, navy and blue in a reflection
-## one, near-black and cold round a pulsar, warm round the core, a faint shade
-## of the cloud's own colour in the rest, and next to nothing in a clear sky.
+## Dust sheet colours in SIMPLIFIED follow the sky kind, near nothing in a clear sky.
 func _depth_look() -> Array:
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		return [Vector3(0.02, 0.03, 0.05), Vector3(0.16, 0.20, 0.26), Vector3(0.22, 0.28, 0.36), Vector3(0.06, 0.07, 0.12)]
 	if layout.star == SystemLayout.StarKind.CORE:
 		return [Vector3(0.05, 0.02, 0.02), Vector3(0.30, 0.18, 0.10), Vector3(0.45, 0.30, 0.16), Vector3(0.14, 0.08, 0.05)]
 	if _neb_mat == null:
-		# a clear sky's sheets only darken (C): any light on them this faint set
-		# to a grey disc round the sun
-		# (never darker than the void itself: set below it, they came out as black
-		# blots on the clear sky once its palette kept the true void)
+		# Clear sky sheets only darken and never go below the void, or they showed as black blots.
 		return [Vector3(0.027, 0.039, 0.071), Vector3(0.034, 0.044, 0.074), Vector3(0.040, 0.048, 0.078), Vector3(0.0, 0.0, 0.0)]
 	match int(_sky_look.neb):
 		NebulaField.Kind.EMISSION:
@@ -1931,10 +1611,7 @@ func _depth_look() -> Array:
 	return [h * 0.14 + Vector3(0.02, 0.015, 0.03), h * 0.45, h * 0.7, h * 0.18]
 
 
-## THE DUST SHEETS WHERE THE CAMERA IS: the plane is 1/zoom from it; a sheet
-## beyond the plane is smaller and slower (q < 1), one in front bigger and
-## faster, and grows past the camera as you zoom in -- faded as it nears it, and
-## as it sinks to the plane, while the next one along fades in.
+## Each sheet is sized and slid by the camera's distance, and faded near it and near the plane.
 func _step_depth(o: Vector2) -> void:
 	if _depth.is_empty():
 		return
@@ -1962,10 +1639,7 @@ func _step_depth(o: Vector2) -> void:
 		m.set_shader_parameter("home_zoom", home_zoom)
 		m.set_shader_parameter("lscale", clampf(window.size.x / 700.0, 0.5, 1.4))
 		m.set_shader_parameter("pan", pan)
-		# (two suns: the sheets stay lit from star A alone, as the cloud's rays are
-		# -- `sky_depth` has one light, and a second would grow a shader that
-		# compiles cold on the Mac for a faint rim on the fluff -- from where star
-		# A is now, exact, as the cloud's light: the pair turns)
+		# Sheets stay lit from star A alone: a second light would grow a shader that compiles cold.
 		m.set_shader_parameter("star_at", star_exact(-1))
 		m.set_shader_parameter("alpha", a)
 		m.set_shader_parameter("strength", float(e[3]))
@@ -1985,11 +1659,7 @@ func weather_now(at := Vector2.INF) -> void:
 		_weather.start_default(at)
 
 
-## STAR B ON THE SKY, each frame (ruling 20): its glow beside star A's on the
-## baked sky (`sky.gdshader`, the clear sky's and LEGACY's), its light on the
-## cloud (`sky_nebula`'s `light_at`, SIMPLIFIED and RADIANT), and PAINTED's halo
-## rings round it (`sector_b_state`) -- each by `star2_light_k`, so a one-sun
-## system sets nothing and the shaders add nothing.
+## Star B's light is set each frame by `star2_light_k`, so one-sun systems add nothing.
 func _step_twin_sky() -> void:
 	if star2 == null:
 		return
@@ -2002,13 +1672,8 @@ func _step_twin_sky() -> void:
 		if ms != null:
 			ms.set_shader_parameter("star2_px", sb)
 			ms.set_shader_parameter("sun2_r", star_disc(SystemLayout.STAR_B))
-		# AND ITS SILHOUETTES FACE BOTH SUNS (`sector_b_paint`): star B where it
-		# truly is, as the cloud's light has it (star A's likewise, as
-		# `SectorPainted.push` gives it: the pair turns, and a rounded place stepped
-		# the rims at every block hop), as bright as the cloud has it
-		# (`star2_light_k`) and the light reaching as far as on the cloud
-		# (`sky_nebula`'s lzoom, home_zoom and lscale), so the rims are on the side
-		# the cloud is lit from. They faced star A alone.
+		# Silhouettes now face both suns: they faced star A alone, so the rims were wrong.
+		# Why: docs/why/SystemView.md#twin-silhouettes
 		var mp: ShaderMaterial = _pt.get("paint")
 		if mp != null:
 			mp.set_shader_parameter("star2_at", star_exact(SystemLayout.STAR_B))
@@ -2016,9 +1681,7 @@ func _step_twin_sky() -> void:
 			mp.set_shader_parameter("light_lz", paint_light_lz())
 
 
-## How far the light reaches on the cloud, as `sky_nebula` works it (its LZ),
-## for PAINTED's silhouettes: the zoom against the opening one to the 0.42, by
-## the frame against the showcase's.
+## Mirrors `sky_nebula`'s LZ so PAINTED's silhouettes reach as far as the cloud's light.
 func paint_light_lz() -> float:
 	return pow(maxf(zoom, 1e-3) / maxf(home_zoom, 1e-3), 0.42) * clampf(window.size.x / 700.0, 0.5, 1.4)
 
@@ -2044,10 +1707,7 @@ func step() -> void:
 	var t_step := Time.get_ticks_usec()
 	_frame += 1
 	_step_bodies()
-	# STAR A WHERE THE PAIR HAS IT (ruling 23): its disc, its glow on the sky and
-	# the shadows' light below, on the block grid (`star_screen`; one sun, the
-	# plane's origin, `origin`, as it always was). A pulsar and the core are never
-	# a twin, so their `o` is the origin still.
+	# Star A is where the pair has it (ruling 23); a pulsar and the core are never a twin.
 	var o := star_screen(-1)
 	_flare = prominence(pose(t, 6.0)).z if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE else 0.0
 	# (two suns: star B's own eruptions, on its clock, for the worlds it lights)
@@ -2070,9 +1730,7 @@ func step() -> void:
 	_zlast = zoom
 	var ez := 1.0 - exp(-dtz / SETTLE_EASE)
 	if layout.star_r > 0.0 and layout.star != SystemLayout.StarKind.PULSAR:
-		# (the star in whole blocks of radius even while the zoom moves, but the nearest
-		# block, not one held back: its limb between blocks flickered with its corona's
-		# own life)
+		# Nearest block, not one held back: its limb between blocks flickered with the corona.
 		var kt := minf(maxf(roundf(layout.star_r * _star_k_raw() / 2.0) * 2.0, 2.0), _held_cap(-1)) / layout.star_r if zooming() else _kq
 		if layout.star == SystemLayout.StarKind.CORE:
 			kt = maxf(kt, 1.0)
@@ -2082,10 +1740,7 @@ func step() -> void:
 			_klive = kt
 		else:
 			_klive = lerpf(_klive, kt, ez)
-		# the corona at the star's true size while the zoom moves; once it is still,
-		# eased onto the disc's as the disc eases onto its held size (not while the
-		# system opens: the map's first move to the opening zoom is under the
-		# picture the palette is cut from, which stays the one it always was)
+		# Corona is true size while zooming, then eases onto the disc; not while a system opens.
 		var smooth := zooming() and not _nosmooth and _palette_built
 		var kc := _star_k_raw() if smooth else star_k()
 		if _kcor < 0.0 or smooth or _nosmooth or not _palette_built or absf(_kcor - kc) < 0.002 * kc:
@@ -2170,9 +1825,7 @@ func step() -> void:
 		elif star.has_method("set_zoom"):
 			star.call("set_zoom", star_k())
 		if layout.star == SystemLayout.StarKind.CORE and not legacy:
-			# THE HOLE AT THE SHOWCASE'S SIZE (the fidelity pass): small at the
-			# opening, opening out as the map zooms (as zoom^0.53, a ninth of the frame
-			# across at zoom 2); drawn at the old size it filled the frame
+			# The hole starts small and grows as zoom^0.53; at the old size it filled the frame.
 			star.set("hole_k", 0.36 * pow(maxf(zoom, 0.01) / maxf(home_zoom, 0.01), 0.53) / maxf(star_k(), 0.01))
 			(star.get("_hmat") as ShaderMaterial).set_shader_parameter("warm_glow", true)
 	if star2 != null:
@@ -2203,14 +1856,8 @@ func step() -> void:
 		_neb_mat.set_shader_parameter("time", 0.0 if DisplaySettings.reduced_motion else pose(wclock() - _neb_t0, 4.0))
 		_neb_mat.set_shader_parameter("low", gfx_low())
 	if _neb_mat != null and not legacy:
-		# THE SUN THAT LIGHTS IT, this frame: where, how far zoomed from the
-		# opening, the frame against the showcase's, its breath
-		# (the light from where the star truly is, not its pixel: rounded, it jumped
-		# a block every few frames of a zoom held on a world while the light opened
-		# out smoothly, and the lit gas flickered at every jump)
-		# (two suns: star A's exact place where the pair has it now; the bubble and
-		# RADIANT's zones round the balance point, `bubble_exact`, which holds still
-		# as the suns circle it -- one sun, both are star A's exact place)
+		# Light from the star's exact place: a rounded place made the gas flicker on each hop.
+		# Why: docs/why/SystemView.md#cloud-light
 		_neb_mat.set_shader_parameter("star_at", star_exact(-1))
 		if layout.twin:
 			_neb_mat.set_shader_parameter("bubble_at", bubble_exact())
@@ -2238,17 +1885,11 @@ func step() -> void:
 		_belt_mat.set_shader_parameter("origin", screen(layout.bary.x, layout.bary.y) if layout.twin else Vector2(CX, CY) + pan)
 		_belt_mat.set_shader_parameter("zoom", zoom)
 		_belt_mat.set_shader_parameter("tilt", TILT)
-	# the shadows: each world where its picture is drawn and how big (as
-	# `_step_worlds` places it below, held size and odd-size nudge and all), so
-	# the shadow leaves the disc at every zoom
-	# THE MOONS THIS FRAME (every style): where each is, and how deep in its
-	# world's shadow, for the shadows they cast and the eclipses
+	# Shadows follow each world's drawn place and size, so they leave the disc at every zoom.
 	var ml: Array = _moons.positions(get_process_delta_time())
 	var bp := PackedVector4Array()
 	var rg := PackedFloat32Array()
-	# WITH TWO SUNS EACH SHADOW FALLS AWAY FROM ITS OWN LIGHT (`light_screen`, the
-	# world's one light made of both): a point toward it per caster, its moons
-	# taking their world's
+	# Two suns: each shadow falls from its own light (`light_screen`); moons use their world's.
 	var twin := layout.twin
 	var from := PackedVector2Array()
 	for i in layout.bodies.size():
@@ -2293,9 +1934,7 @@ func step() -> void:
 		_neb_mat.set_shader_parameter("r_bodies", bp)
 		_neb_mat.set_shader_parameter("r_rings", rg)
 		_neb_mat.set_shader_parameter("r_nb", n_cast)
-		# (the cloud's flare stays star A's: the cloud's sun is A, its rays from A,
-		# star B's light added to it -- one uniform cannot flare each sun's light
-		# on its own clock; its bubble and zones are the pair's, `bubble_exact`)
+		# The cloud's flare stays star A's: one uniform cannot flare each sun on its own clock.
 		_neb_mat.set_shader_parameter("r_flare", _flare)
 		if twin:
 			_neb_mat.set_shader_parameter("r_from", from)
@@ -2319,15 +1958,10 @@ func step() -> void:
 	var dep := func(i: int) -> float: return depth(pos[i])
 	order.sort_custom(func(a, b2): return dep.call(a) < dep.call(b2))
 	var core_placed := false
-	# STAR B AT ITS OWN DEPTH (ruling 20): drawn after every world behind it and
-	# before every world in front of it, as star A is at 0 -- so a world round B
-	# passes over B's face at the near point of its circle and behind it at the
-	# far point (`-- sheet=TwinDrawTest` holds the order for both stars)
+	# Star B draws between the worlds behind and in front, so a world passes over then behind it.
 	var star2_placed := star2 == null
 	var d2 := star_depth(SystemLayout.STAR_B)
-	# STAR A AT ITS OWN DEPTH TOO (ruling 23, "stacked:A"): the pair turns, so
-	# either sun can be the nearer, and the nearer is drawn over the farther when
-	# one passes behind the other (0, the origin's, with one sun)
+	# Either sun can be nearer as the pair turns, so the nearer draws over the farther.
 	var da := star_depth(-1)
 	for k in order.size():
 		var i: int = order[k]
@@ -2375,9 +2009,7 @@ func step() -> void:
 			# a world round star B flickers when B erupts, not when A does)
 			vm.set_shader_parameter("flare", lerpf(_flare, _flare2, share_b(p)) if star2 != null else _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
-			# ITS MOONS' SHADOWS ON ITS FACE (Jon: "shouldn't moons cast eclipses on
-			# their planets?"): each moon's place about the world (screen px, x
-			# right, y down, z toward you) and its size
+			# Each moon's place about its world and size feed the shadows it casts on the face.
 			var msh := PackedVector4Array()
 			for mm: Dictionary in ml:
 				if int(mm.i) == i and msh.size() < 4:
@@ -2426,14 +2058,8 @@ func step() -> void:
 		_set_pal(pal)
 
 
-## THE PALETTE CUT FROM THE PICTURE `img` (the place's half-size picture): the
-## system's own colours (`SystemPalette.build`) with the steps `pal_extra` keeps
-## for it. With two suns, star B's light too: a cut round its disc and its glow's
-## dark end in its own warmer hue (`pal_star2`), put in after star A's and only
-## as many of them as fit the pass's 72 (`SystemPalette.build`'s `star2_*`). A
-## one-sun system's call is the one it always was, argument for argument
-## (`-- sheet=TwinPalProof`, a scratch harness: every one-sun system's palette
-## over the four systemtest seeds the same as main's, from the same picture).
+## With two suns the palette also keeps star B's steps; a one-sun call is unchanged.
+## Why: docs/why/SystemView.md#palette-cut
 func pal_from(img: Image) -> PackedVector3Array:
 	var cloud := _neb_mat != null
 	var extra := pal_extra()
@@ -2441,9 +2067,7 @@ func pal_from(img: Image) -> PackedVector3Array:
 		return SystemPaletteS.build(img, 0, Vector2(CX, CY) / 2.0, layout.star_r / 2.0, kind, 0,
 			SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
 			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
-	# (where each sun is in the half-size picture the palette is cut from, the
-	# system at its opening: both where the pair has them then -- the map's clock
-	# is kept, so star A can be a whole circle of the pair from the frame's centre)
+	# Suns are placed as at the system's opening, in the half-size picture the palette is cut from.
 	return SystemPaletteS.build(img, 0, star_screen(-1) / 2.0, layout.star_r / 2.0, kind, 0,
 		SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
 		not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy,
@@ -2454,9 +2078,7 @@ func pal_from(img: Image) -> PackedVector3Array:
 const PAL_N := 72
 
 
-## Star B's own steps in the palette: its glow's dark end in its own hue, as a
-## clear sky's sun has (`pal_extra`), only outside a cloud (where the cloud is
-## lit by it instead) and never in LEGACY (whose steps are the weather's alone).
+## Star B's steps only outside a cloud (lit by it instead) and never in LEGACY.
 func pal_star2() -> PackedVector3Array:
 	var out := PackedVector3Array()
 	if star2 == null or legacy or _neb_mat != null:
@@ -2469,19 +2091,12 @@ func pal_star2() -> PackedVector3Array:
 	return out
 
 
-## THE PALETTE'S RESERVED STEPS, by sky and style (`pal_from`): the weather's
-## colours, a clear sky's galaxies, a cloud's own reserved steps and the sun
-## painter's warm ones, a pulsar's remnant, a clear sky's sun glow falling off
-## in its own hue (and RADIANT's warm haze).
+## Which colours the palette reserves depends on the sky and the style.
 func pal_extra() -> PackedVector3Array:
-	# a cloud seen from inside has more colours to keep than open space
-	# and the weather's own colours, so a strike's core or an echo's ring
-	# has its step without taking any from the sky
+	# A cloud seen from inside has more colours to keep, so weather steps take none from the sky.
 	var extra: PackedVector3Array = PackedVector3Array() if no_ramp or _weather == null else SkyWeatherS.ramp(_weather.sky)
 	var cloud := _neb_mat != null
-	# the distant galaxies' own tones in a clear sky: a few blocks each, the cut
-	# never found them, and they set to the void (in a cloud they are faint
-	# behind it, and seven more steps there set its gas flickering between them)
+	# Galaxy tones are added in a clear sky only: seven more steps in a cloud flicker its gas.
 	if not cloud:
 		for gt: Vector3 in SkyGalaxiesS.TONES:
 			extra.append(gt)
@@ -2489,16 +2104,12 @@ func pal_extra() -> PackedVector3Array:
 		# LEGACY: the weather's colours alone, as before
 		pass
 	elif cloud:
-		# SIMPLIFIED's cloud: its own reserved steps, so its gradients never plate
-		# (RADIANT's core: A's heart is a rose-brown haze; SIMPLIFIED's cool violet
-		# steps caught it and set it mauve)
+		# RADIANT's core uses `R_CORE`: SIMPLIFIED's cool violet steps set its haze mauve.
 		var res: Array = R_CORE if radiant and int(_sky_look.neb) == 5 else C_RESERVED.get(int(_sky_look.neb), [])
 		for h: String in res:
 			var cr := Color(h)
 			extra.append(Vector3(cr.r, cr.g, cr.b))
-		# and the sun painter's warm steps (not its greys and blues, which caught
-		# the cloud): the weather's fire -- a jet's head, a fan of amber, an
-		# ember, a flier -- keeps its colour
+		# Only the sun painter's warm steps, not its greys and blues, which caught the cloud.
 		for h: String in ["#fff6e2", "#ffdc96", "#ffb054", "#ec7a26", "#c24a14", "#84280c", "#ff8a50"]:
 			var cw := Color(h)
 			extra.append(Vector3(cw.r, cw.g, cw.b))
@@ -2531,19 +2142,8 @@ func _set_pal(pal: PackedVector3Array) -> void:
 	_palette_mat.set_shader_parameter("pal_n", mini(72, pal.size()))
 
 
-## THE PALETTE CUT ONCE A SYSTEM (the Mac's map, Oct 27: every visit read the
-## picture back from the GPU and ran the median cut in GDScript, a tenth of a
-## second or more on the main thread as the map opened). Memory only, for this
-## session: the palette `step` cut for a system, by everything that changes the
-## picture it is cut from -- the system itself (the MapNode, so a new or loaded
-## run never meets another's), its bodies, the style, GRAPHICS LOW, the field
-## under it, the frame and the opening zoom, and a harness's switches. Every
-## visit opens the system on its clock's zero, unpanned, at its opening zoom, so
-## the picture a revisit would cut from is the one its first visit cut from; only
-## the gas's wall clock and the frame the bake ends on can move it, by a frame
-## or so, and a revisit now keeps the first visit's steps instead of a recut a
-## step apart (`-- sheet=MapPerfTest palcache` measures both). `-- palcache=0`
-## (and `pal_cache_on`): every visit cuts, as before.
+## The palette is cut once per system per session: each visit's GPU readback cost 0.1 s or more.
+## Why: docs/why/SystemView.md#palette-cache
 static var _pal_cache := {}
 const PAL_CACHE_MAX := 64
 static var pal_cache_on := not ("palcache=0" in OS.get_cmdline_user_args())
@@ -2581,15 +2181,8 @@ class _Twinkle extends Node2D:
 
 
 # ---------------------------------------------------------------- a distant supernova
-## A DISTANT SUPERNOVA (Jon: "these stars in the sector view are weird. can we
-## have them be the distant supernovas maybe? Like have them flash in briefly and
-## then disappear. it can be a rare event"). Once a minute to three, at random
-## (its own generator, seeded from the system and the clock, so it keeps time
-## with nothing), a point in the far sky brightens over 0.3 s into a bright star
-## with four spikes, holds a second, and fades over four, a faint tinted glow
-## left behind it a little longer. It slides with the far sky, under the gas, the
-## star and the worlds, in 2x2 blocks the palette pass maps like the rest, and
-## never comes up where a disc is. Silent.
+# A rare, silent supernova flashes in the far sky, never where a disc is.
+# Why: docs/why/SystemView.md#supernova
 class _Nova extends Node2D:
 	const RISE := 0.3
 	const HOLD := 1.0
@@ -2729,9 +2322,7 @@ class _Nova extends Node2D:
 
 
 # ---------------------------------------------------------------- the star fields
-## A field of stars at one depth: points, and a few with a plus round them,
-## scattered over a tile larger than the view that wraps round as the field
-## slides, so it never runs out however far the map pans.
+# A star field at one depth, on a tile larger than the view that wraps as it slides.
 class _Field extends Node2D:
 	const TW := 1280.0
 	const TH := 800.0
@@ -2739,9 +2330,7 @@ class _Field extends Node2D:
 	## how far it slides for a pixel of pan
 	var rate := 0.0
 	var _stars: Array = []
-	## THE WEATHER: a MICROLENS, one star swelling and settling ({"i": star,
-	## "A": how many times as bright}); and a GLOBULE's hole, the stars behind
-	## its centre (x, y on screen, radius) not drawn
+	## Weather: a microlens swells one star; a globule hides the stars behind its centre.
 	var lens: Dictionary = {}
 	var hide := Vector3(-9999, -9999, 0)
 	## no pluses: each star one block (PAINTED, whose paint draws them)
@@ -2806,8 +2395,7 @@ class _Field extends Node2D:
 
 
 # ---------------------------------------------------------------- belts
-## A band of rocks, lit on the side that faces the star, warmer and brighter
-## near it; a few bigger ones tumbling.
+# Belt rocks are lit on the star's side, with a few bigger ones tumbling.
 class _Belts extends Node2D:
 	var view
 
@@ -2816,11 +2404,7 @@ class _Belts extends Node2D:
 		_rocks()
 		view.tick("belts", t0)
 
-	## EACH BELT'S ROCKS' OWN DRAWS from its generator, seven a rock in the order
-	## `_rocks` takes them, made once and grown as a closer zoom asks for more
-	## rocks (the generator is seeded the same every frame and a rock's draws never
-	## depend on how many rocks there are, so the table is those draws exactly):
-	## belt -> [its seed, its generator, the draws]
+	## Rock draws are cached per belt, as a rock's draws never depend on the rock count.
 	var _rtab := {}
 
 	func _rock_draws(b: SystemLayout.Body, n: int) -> PackedFloat64Array:
@@ -2839,13 +2423,8 @@ class _Belts extends Node2D:
 			e[2] = tab
 		return tab
 
-	## THE SAME ROCKS FOR LESS (the Mac's map, Oct 27): up to 1,200 rocks a belt
-	## a frame, each with seven calls on the generator, two on an untyped view and
-	## the star's tone that only LEGACY reads. Now its draws come from the table
-	## (`_rock_draws`), its place is worked out in place (as `screen` and `block`
-	## work it, to the bit), a rock whose drawing (a glint's arms reach 4 px left
-	## and 6 right, a big rock 2 up) falls wholly off the place's 960 x 540 is not
-	## drawn, and the tone is worked out for LEGACY alone.
+	## Rock draws come from a table and positions work in place: 1,200 rocks a frame cost too much.
+	## Why: docs/why/SystemView.md#belt-performance
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
 		var glints: bool = view.belt_glints
@@ -2867,10 +2446,7 @@ class _Belts extends Node2D:
 			var spin: float = vt / b.period * TAU
 			var pulsar: bool = L.star == SystemLayout.StarKind.PULSAR
 			var o: Vector2 = view.origin()
-			# more rocks the closer you look, the first 300 always the same; the
-			# newest ones COME IN FAINT (each new rock popped in at full strength, a
-			# few more of them every frame of a zoom): the last 60 are faded by how
-			# near the zoom is to adding them
+			# New rocks come in faint, as they popped in at full strength a few per zoom frame.
 			var n_rocks := 300.0 * maxf(zm, 0.8)
 			var nr := ceili(n_rocks)
 			var D := _rock_draws(b, nr)
@@ -2898,9 +2474,7 @@ class _Belts extends Node2D:
 					# (PAINTED: a new rock is there or not, from half way in)
 					continue
 				if painted:
-					# PAINTED (B): each rock lit on its star side, in the rock's own ramp
-					# (its night and dusk leaning to the sky), brightest where we see its
-					# lit face full; round a pulsar, caught by the beam in held poses
+					# PAINTED rocks light on the star side in their ramp, by the beam at a pulsar.
 					var rk: Array = rk_all
 					var lv := (0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0)) * (0.85 + 0.3 * shade)
 					if pulsar:
@@ -2950,18 +2524,13 @@ class _Belts extends Node2D:
 					if gl.has(i) and not pulsar:
 						_glint(s, float(gl[i]), 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0), sc3)
 					continue
-				# LIT RUBBLE (C), never a ring of dark specks: each rock's lit face in
-				# the star's colour, brightest where we see it full (the far side of
-				# the belt, beyond the star), its night face only a step down;
-				# round a pulsar, lit as the beam sweeps across it
+				# Lit rubble, never a ring of dark specks; round a pulsar, lit as the beam sweeps.
 				var phase := 0.62 + 0.38 * clampf(-sin(a) * 0.9 + 0.3, 0.0, 1.0)
 				var alb := 0.78 + 0.32 * shade
 				var kb := 1.0
 				if pulsar:
 					kb = 0.45 + 1.1 * view.beam_on(s - o)
-				# (light rock, lighter than the gas it sits in: grey rock dimmed with
-				# distance read as dark specks against a lit cloud)
-				# (`light_at`, as it works it)
+				# Light rock, lighter than the gas: dimmed grey rock read as dark specks.
 				var litv: Vector3 = Vector3(0.80, 0.78, 0.74).lerp(sc3, 0.3) * (0.78 + 0.22 * (1.0 / (1.0 + (x * x + z * z) / (160.0 * 160.0))))
 				litv = (litv * (phase * alb * kb)).clamp(Vector3.ZERO, Vector3.ONE)
 				var lit := Color(litv.x, litv.y, litv.z)
@@ -2986,14 +2555,8 @@ class _Belts extends Node2D:
 				if gl.has(i) and not pulsar:
 					_glint(s, float(gl[i]), phase, sc3)
 
-	## GLINTS (Jon kept them, Oct 11): SUNLIGHT CATCHING A TUMBLING ROCK. Each of a
-	## belt's first 300 rocks (the ones always there, so a closer look only
-	## magnifies how many glint in a patch) flashes now and then as a flat face
-	## turns to the sun: up over a fifth of a second, gone over most of a second, a
-	## short bar of light along the row at its height -- never a cross, which read
-	## as one more star. Brighter where the belt is seen lit full (`phase`). About
-	## one rock in thirty is glinting at any moment; none round a pulsar, whose
-	## beam already lights the rubble. In each style's own hand (`_glint`).
+	## Glints are sunlight on a tumbling rock, on the first 300 rocks only, as bars never a cross.
+	## Why: docs/why/SystemView.md#belt-glints
 	const GLINT_UP := 0.2
 	const GLINT_S := 1.0
 
@@ -3019,14 +2582,8 @@ class _Belts extends Node2D:
 				out[i] = smoothstep(0.0, GLINT_UP, u) * (1.0 - smoothstep(GLINT_UP, GLINT_S, u))
 		return out
 
-	## The glint drawn over the rock at `s`, in 2x2 blocks:
-	##   SIMPLIFIED and LEGACY: gathered light, eased, the star's white (LEGACY's a
-	##     plainer white, its rubble being grey), the palette pass setting its steps;
-	##   RADIANT: the same light through A's own exposure (`_Moons._tone`), so its
-	##     core rolls off soft instead of clipping;
-	##   PAINTED: B's hand -- held poses (8 a second) in the rock's own ramp `rk`
-	##     (its core that ramp's top most of the way to white), three drawings from
-	##     a lit speck to a bar with its tips, never a fade.
+	## Each style draws the glint in its own hand (`_glint`).
+	## Why: docs/why/SystemView.md#belt-glints
 	func _glint(s: Vector2, e0: float, phase: float, sc3: Vector3, rk: Array = []) -> void:
 		# (brighter where the belt is seen lit full)
 		var k := 0.55 + 0.45 * clampf((phase - 0.62) / 0.38, 0.0, 1.0)
@@ -3073,13 +2630,8 @@ class _Belts extends Node2D:
 				draw_rect(Rect2(s + d, Vector2(2, 2)), tip)
 
 # ---------------------------------------------------------------- the fabric and the orbits
-## THE FABRIC OF SPACE, faint and grey (Jon: "more smooth looking, more simple,
-## gray, and understated"): one grid across the system, turned 45 degrees so
-## none of its lines runs straight away from the eye (those read as vertical
-## lines), sinking into a funnel under the star -- softly capped, so the black
-## hole's does not swallow the view -- and a dent under each body. Its lines are
-## worked out ten times a second (the bodies move slowly) and drawn every frame.
-## THE ORBITS: faint grey rings, a soft lighter trail behind each body.
+# The fabric is turned 45 degrees so no line runs straight from the eye.
+# Why: docs/why/SystemView.md#fabric-and-orbits
 class _Lines extends Node2D:
 	var view
 	var _fabric: Array = []
@@ -3123,20 +2675,8 @@ class _Lines extends Node2D:
 	## How many of a ring's points `orbit_runs` tests against the frame at once.
 	const SPAN := 32
 
-	## EVERY ORBIT'S LINE as drawn this frame, in drawing order: [[points, colours],
-	## ...], one entry for each unbroken stretch of a ring.
-	##
-	## THE SAME LINES FOR LESS (the Mac's map, Oct 27): every ring was worked out a
-	## point a pixel and a bit all the way round, up to 3,000 points, zoomed in
-	## where most of it is off the frame -- each point through two calls on an
-	## untyped view. Now the camera's values are read once, the point is worked
-	## out in place (as `screen` and `orbit_point` work it, to the bit), and
-	## SPAN points at a time are skipped whole when none of them can be in the
-	## frame: a ring's point moves at most `orbit * zoom` px a radian on screen, so
-	## nothing between two points is further from the nearer of them than that
-	## times half the angle between; a stretch whose two ends, grown by that and 2
-	## px more, miss the frame has no point in it (`cull` false works every point,
-	## for `-- sheet=MapPerfTest` to hold the two to the same lines).
+	## Orbit lines skip stretches wholly off frame; 3,000 points a ring were worked out on the Mac.
+	## Why: docs/why/SystemView.md#orbit-culling
 	func orbit_runs(cull := true) -> Array:
 		var runs: Array = []
 		var L: SystemLayout = view.layout
@@ -3152,16 +2692,8 @@ class _Lines extends Node2D:
 		var hole2 := _star2_hole()
 		var o2: Vector2 = view.star_screen(SystemLayout.STAR_B)
 		var two := hole2.x > 0.0
-		# A STAR'S HOLE ONLY BEHIND IT, in a twin (the lines are drawn over the whole
-		# picture, so the hole is all that hides them): a world round one star of a
-		# pair passes in front of its sun at the near point of its circle, drawn
-		# over it there (`step`'s depth order), and its ring's near half with it.
-		# Cut wherever it crossed the disc, 26% of the near half of every such
-		# ring was missing at the opening zoom, up to 38% (the four systemtest
-		# seeds under twin=all, 1,710 worlds, review Oct 31). With one star the
-		# hole cuts wherever a ring crosses it, as it always did (a sun's first
-		# orbit is at least 243 px out, its near point 92 x zoom px below the star
-		# against a hole of 16 x zoom + 2, so no ring's near half comes near it).
+		# In a twin the star's hole cuts only behind it: a world in front hid 26% of its ring.
+		# Why: docs/why/SystemView.md#twin-orbit-holes
 		var d2: float = view.star_depth(SystemLayout.STAR_B)
 		var odepth: bool = view.orbit_depth
 		var painted: bool = view.painted
@@ -3177,9 +2709,7 @@ class _Lines extends Node2D:
 			# A POINT EVERY PIXEL AND A BIT of the ellipse as drawn (Jon: "why are some
 			# of the planet orbits wobbly?"): its perimeter on screen, Ramanujan's
 			var orbit: float = b.orbit
-			# ROUND ITS OWN CENTRE (ruling 20): star A, star B or the pair's balance
-			# point, where it is at the map's t (`Body.host_at`: a world round one
-			# sun of a turning pair is carried with it; star A's origin with one sun)
+			# Orbits are round their own centre: star A, star B or the balance point (ruling 20).
 			var hh: Vector2 = b.host_at(view.t)
 			var hx: float = hh.x
 			var hz: float = hh.y
@@ -3192,9 +2722,7 @@ class _Lines extends Node2D:
 			var own_r: float = view.draw_r(b) + 1.5
 			var own_r2 := own_r * own_r
 			var at_b: Vector2 = ats[bi]
-			# A RINGED WORLD'S RINGS TOO (its orbit was drawn across the face of its
-			# own rings, a grey line laid over the near band): stopped at their outer
-			# edge as at the disc, an ellipse at the rings' squash
+			# The orbit stops at a ringed world's ring edge, as it crossed the face of the rings.
 			var ring_ab := Vector2.ZERO
 			if own:
 				var vw: Node2D = views[bi]
@@ -3247,9 +2775,7 @@ class _Lines extends Node2D:
 					pts = PackedVector2Array()
 					cols = PackedColorArray()
 					continue
-				# ON WHOLE PIXELS of the screen: the rings are drawn over the picture at
-				# its full size (snapped to the half-size picture's 2x2 blocks, as they
-				# were for a round, they stair-stepped and wobbled)
+				# Whole screen pixels: snapped to 2x2 blocks the rings stair-stepped and wobbled.
 				var q: Vector2 = sp.round()
 				var np := pts.size()
 				if np > 0 and pts[np - 1] == q:
@@ -3258,10 +2784,7 @@ class _Lines extends Node2D:
 				var behind := fposmod(a0 - a, TAU)
 				var tr := pow(1.0 - behind / 2.1, 1.6) if behind < 2.1 else 0.0
 				var c := c_far.lerp(c_near, tr)
-				# THE NEAR HALF BOLDER (Jon kept it, Oct 11): the half of the ring toward
-				# you (below the star) up to 1.45 times as strong, the far half down to
-				# 0.6, so the plane reads as a plane lying back -- by where on the ring,
-				# never by the zoom. PAINTED in three held bands, as B paints a ramp.
+				# The near half is bolder so the plane reads as lying back, never by zoom.
 				var dk := 1.0
 				if odepth:
 					var dz := smoothstep(-1.0, 1.0, (op.y - hz) / orb1)
@@ -3275,26 +2798,14 @@ class _Lines extends Node2D:
 
 
 # ---------------------------------------------------------------- the fabric
-## THE FABRIC OF SPACE, faint and grey (Jon: "more smooth looking, more simple,
-## gray, and understated"): one grid across the system, turned 45 degrees so no
-## line runs straight away from the eye, sinking into a funnel under the star
-## and a dent under each body. Laid out once as a mesh of short lines on the
-## plane, finer as the zoom doubles; `map_fabric.gdshader` sinks, places and
-## fades every point each frame, so moving the camera costs the CPU nothing.
+# The fabric is a mesh laid out once; `map_fabric.gdshader` moves it, so the camera costs no CPU.
+# Why: docs/why/SystemView.md#fabric
 class _Fabric extends Node2D:
 	var view
 	var _level := -1
 	var _mat: ShaderMaterial
-	## THE GRIDS, KEPT FOR EVERY MAP, laid out off the main thread (Jon on 2C:
-	## "still has a small delay/hitch"). The finest grid is a quarter of a
-	## million short lines; laid out on the spot, the frame the zoom first
-	## crossed into it took 78 ms -- the map's first deep frame on the way out
-	## of LOCAL every time (each map is new), and once mid-dive on the way in.
-	## A grid depends only on its spacing and how far out it reaches, so it is
-	## kept for the session, by level and reach (rounded up: past the edge the
-	## shader fades it to nothing, so a larger one draws the same), and every
-	## level of a new map's reach is started on worker threads the moment the
-	## map is laid out (`warm`), long before the camera gets there.
+	## Grids are kept for the session and built on workers: the finest took 78 ms on the spot.
+	## Why: docs/why/SystemView.md#fabric-grids
 	static var _meshes := {}
 	static var _jobs := {}
 	const REACH_STEP := 64.0
@@ -3319,16 +2830,8 @@ class _Fabric extends Node2D:
 		var stp := gap / 6.0
 		var kk := sqrt(0.5)
 		var lim := E * 1.42
-		# EACH SHORT LINE A THIN QUAD, its coverage worked out across it (Jon:
-		# "lines being drawn weird"): drawn as one-pixel lines, a slow zoom slid
-		# every segment by a sliver and its pixels hopped to the next row and back
-		# -- the grid crawled, most where it is packed tight. Now each segment is
-		# two pixels wide with a tent of coverage across it: on a pixel's middle it
-		# is that one crisp pixel, between two it is half of each, and as it slides
-		# the pixels fade over instead of hopping. Each corner carries its own
-		# point (VERTEX), its partner's (UV), which side it is on, whether its line
-		# is an odd one of its grid (the coarser level has only the even ones; the
-		# odd fade in toward the next level) and whether it is the segment's start.
+		# Each line is a thin quad with a tent of coverage, as one-pixel lines crawled on zoom.
+		# Why: docs/why/SystemView.md#fabric-lines
 		var verts := PackedVector2Array()
 		var partner := PackedVector2Array()
 		var cols := PackedColorArray()
@@ -3388,9 +2891,7 @@ class _Fabric extends Node2D:
 			var id := WorkerThreadPool.add_task(_points.bind(level, E, out), false, "map fabric grid")
 			_jobs[k] = {"id": id, "out": out}
 
-	## The grid at spacing 30 / 2^level, out to where it has faded: kept, or
-	## finished from its worker (waited for if it is still going), or laid out
-	## here if nothing started it.
+	## Grid at spacing 30 / 2^level: kept, finished from its worker, or laid out here.
 	func _mesh(level: int) -> ArrayMesh:
 		var L: SystemLayout = view.layout
 		var E := reach_for(L.edge)
@@ -3430,11 +2931,8 @@ class _Fabric extends Node2D:
 			_meshes[k] = m
 			return
 
-	## NO GRID IS LEFT ON A WORKER when a map goes, and quitting is why: a task
-	## nobody waits for hangs the process at exit (stowtest, killed by the gate's
-	## watchdog on every push from 37811eb on). Each job is waited for and kept,
-	## its id set to -1 so `_mesh` and `collect` take its points without waiting
-	## twice.
+	## Wait for every grid job on exit: an unwaited worker task hangs the process at quit.
+	## Why: docs/why/SystemView.md#grid-workers
 	func _exit_tree() -> void:
 		for k: String in _jobs:
 			var job: Dictionary = _jobs[k]
@@ -3446,16 +2944,8 @@ class _Fabric extends Node2D:
 		if _level >= 0:
 			draw_mesh(_mesh(_level), null)
 
-	## A HEAVY GIANT'S WELL IS WIDER (ruling 20: giants 1/10 to 1/4 of their star,
-	## "purely because it's more fun", felt by every autopilot flight): its width
-	## grown with its weight, depth kept (the tanh cap at 45 swallows a deeper
-	## well, so a deeper one barely shows). The lightest giant keeps today's
-	## 34 px -- before the ruling a giant pulled nothing and was drawn at 34, and
-	## every giant now weighs more, so none is drawn lighter -- and the heaviest,
-	## a quarter of its star, is 45 px: the width whose far reach (depth x
-	## width^2, the shader's sum far out) is a quarter of an ORDINARY star's at
-	## the giant's depth (21.6 x 44.6^2 is about 172,171 / 4). Between, by its
-	## weight. Anything else, and a giant with no weight, as laid out.
+	## A heavy giant's well is wider, 34 to 45 px, so its far reach stays a quarter of a star's.
+	## Why: docs/why/SystemView.md#giant-wells
 	static func giant_well_w(b: SystemLayout.Body) -> float:
 		if b.kind != &"giant" or b.gm_frac <= 0.0:
 			return b.well_w
@@ -3470,11 +2960,7 @@ class _Fabric extends Node2D:
 	func update() -> void:
 		var L: SystemLayout = view.layout
 		var z: float = view.zoom
-		# THE FINER GRID FADES IN, never pops (the grid's spacing halved at each
-		# doubling of the zoom, and half its lines appeared on one frame): the grid
-		# drawn is the finer of the two levels the zoom is between, its own new lines
-		# (the odd ones) faded in over the doubling; at a whole level they are out,
-		# which is the coarser grid exactly as it was drawn
+		# The finer grid fades in over each zoom doubling, so half its lines never pop in at once.
 		var lz := log(maxf(z, 0.01)) / log(2.0)
 		var base := floori(lz)
 		var level := clampi(base + 1, -1, 2)
@@ -3488,17 +2974,11 @@ class _Fabric extends Node2D:
 		_mat.set_shader_parameter("zoom", z)
 		_mat.set_shader_parameter("tilt", view.TILT)
 		_mat.set_shader_parameter("edge", L.edge + 20.0)
-		# (two suns: the shader's own funnel, fixed at the plane's origin, is off,
-		# and star A is a well where the pair has it, below -- the same law, so a
-		# still pair's fabric is the same)
+		# With two suns the shader's own funnel is off; star A is a well where the pair has it.
 		_mat.set_shader_parameter("star_d", 0.0 if L.twin else L.star_mass * 0.8)
 		_mat.set_shader_parameter("star_w", 46.0 + L.star_r * 1.4)
 		var wells := PackedVector4Array()
-		# STAR B'S WELL (ruling 20): a funnel of its own, star A's law, its depth
-		# star A's by B's share of the mass against A's (0.72 to 0.92 of it) and
-		# its width by its own radius -- so the lighter star dents the fabric less.
-		# STAR A'S WELL WHERE IT IS (ruling 23: the pair turns, and A leaves the
-		# origin). Both first in the list, so the sixteen wells always hold them.
+		# Star B's well uses A's law scaled by its mass share, so the lighter star dents less.
 		if L.twin:
 			var b2: Vector2 = L.star_pos(SystemLayout.STAR_B, view.t)
 			wells.append(Vector4(b2.x, b2.y, L.star_mass * 0.8 * (1.0 - L.star_share) / L.star_share, 46.0 + L.star2_r * 1.4))
@@ -3536,12 +3016,8 @@ class _Fabric extends Node2D:
 
 
 # ---------------------------------------------------------------- moons
-## A WORLD'S MOONS, over the picture at full size like the orbit lines (Jon:
-## "still weird rings on this giant"): each a small round dot lit on the star's
-## side, its orbit a faint line of single pixels at the map's own slant -- drawn
-## only for a world pointed at, selected or circled, and never across the
-## world's disc. A moon behind the world is hidden by it; one in front passes
-## over it. The orbits spread with the world's size, so they never bunch.
+# Moons draw at full size over the picture, only for the world pointed at, selected or circled.
+# Why: docs/why/SystemView.md#moons
 class _Moons extends Node2D:
 	var view
 
@@ -3551,16 +3027,8 @@ class _Moons extends Node2D:
 	## how deep each moon ("world:moon") sits in its world's shadow, eased
 	var _ecl := {}
 
-	## A WORLD BEHIND A STAR, its moons with it: its centre `s` inside the star's
-	## hole on screen (star A's at `o`, star B's at `o2`, `hole2` zero with one
-	## sun; star A where the pair has it, ruling 23). In a twin, only while the
-	## world is farther from you than that star (its own depth, which turns):
-	## in front of it, at the near point of its circle, the world is drawn over
-	## the sun and so are its moons (cut by the screen alone, a world round one
-	## star of a pair lost its moons for 23% of its time in front of its sun, up
-	## to 36%: the four systemtest seeds under twin=all, 573 worlds with moons,
-	## review Oct 31). With one star the screen test stands as it was (no sun's
-	## world in front comes near its hole: `_Lines.orbit_runs`).
+	## In a twin a world hides behind a star only while farther than it, else moons vanished.
+	## Why: docs/why/SystemView.md#twin-moons
 	func behind_star(i: int, s: Vector2, o: Vector2, hole: Vector2, o2: Vector2, hole2: Vector2) -> bool:
 		var two := hole2.x > 0.0
 		var d: float = (view.pos[i] as Vector2).y
@@ -3569,11 +3037,7 @@ class _Moons extends Node2D:
 		return two and d < float(view.star_depth(SystemLayout.STAR_B)) \
 			and pow((s.x - o2.x) / hole2.x, 2.0) + pow((s.y - o2.y) / hole2.y, 2.0) < 1.0
 
-	## THE MOONS THIS FRAME, as `_draw` places them: for each, its world, the
-	## world's centre and drawn radius, the moon on screen and how far toward you
-	## (px), its drawn radius, whether its world hides it; and its ECLIPSE, how
-	## deep it sits in its world's shadow (the light toward the star from it
-	## passes within the world), eased over a quarter second.
+	## Per moon: world, centre, radii, screen place, depth and an eclipse eased over 0.25 s.
 	func positions(dt: float) -> Array:
 		var out: Array = []
 		var L: SystemLayout = view.layout
@@ -3618,12 +3082,8 @@ class _Moons extends Node2D:
 	## the ring's gaps for each ringed world this size: "i:r" -> [radii in world radii]
 	var _slots := {}
 
-	## THE MOONS OF A RINGED WORLD SIT IN ITS GAPS (Jon: "The orbits of the moons
-	## on a ringed planet don't follow the gaps in the rings"), as shepherd moons
-	## do, or out past the outer edge -- never across a band. Read from the same
-	## strip the painted rings draw from (`Rings.build`, at the size the world is
-	## drawn), in world radii; the widest gaps first, then outside it all. Empty
-	## for a world without painted rings.
+	## Moons of a ringed world sit in its ring gaps, as shepherd moons do, never across a band.
+	## Why: docs/why/SystemView.md#moon-orbits
 	func ring_slots(i: int, b: SystemLayout.Body, r: float, moons: int) -> Array:
 		var v: Node2D = view._views[i]
 		var spec: Dictionary = v.get("spec")
@@ -3675,9 +3135,7 @@ class _Moons extends Node2D:
 	static func orbit_r(r: float, m: int, gap: float) -> float:
 		return r + gap * float(m + 1)
 
-	## How far apart the moons' orbits are: spread with the world's size, but
-	## all of them inside the orbit a ship rides out at the edge of its ring
-	## (`ShipFlight.orbit_r`), so the lines never cross it.
+	## Moon orbits stay inside the ship's `ShipFlight.orbit_r`, so the lines never cross it.
 	func gap_for(b: SystemLayout.Body, r: float, moons: int) -> float:
 		var ship_px: float = b.soi * 0.88 * float(view.zoom)
 		var room := (ship_px * 0.85 - r) / float(maxi(moons, 1))

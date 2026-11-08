@@ -1,29 +1,17 @@
 extends RefCounted
 
-## Real galaxy data for the sensor-ladder study:
-##   godot --headless --path . -- sensordump
-##
-## Writes `user://sensor_study.json`. Everything an outside tool needs to draw
-## what a given SENSORS rating shows you, taken from the running game rather
-## than reconstructed -- system positions, the galaxy's squash, the base radius
-## at a real node, and the constants sight and reach are built from.
-##
-## The point is that the ladder is judged against the galaxy that ships. A
-## hand-made field of dots would answer a question about the dots.
+## Taken from the running game so the ladder is judged against the galaxy that ships.
+## Why: docs/why/SensorDump.md#sensor-dump
 
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
-	# `seed=N` so a SPIRAL can be asked for. The default 4242 is a Giant
-	# Elliptical, `arms = 0`, and the arm-pull block never runs on one -- so it
-	# is the one kind that cannot show what the arm clamp does.
+	# `seed=N` asks for a spiral: the default 4242 is a Giant Elliptical with no arms.
 	Rng.forced = 4242
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("seed="):
 			Rng.forced = int((a as String).substr(5))
 	Run.start_new_run(&"korvan", 1)
-	# `kind=N` re-rolls the galaxy as a chosen kind and regenerates the map.
-	# Needed because the kind is rolled from the seed, and the arm-pull study
-	# wants a SPIRAL specifically -- kind 0 is Grand-Design, arms 2.
+	# `kind=N` re-rolls the kind and regenerates the map; kind 0 is Grand-Design, arms 2.
 	for a2 in OS.get_cmdline_user_args():
 		if (a2 as String).begins_with("kind="):
 			Run.galaxy_kind = int((a2 as String).substr(5))
@@ -43,9 +31,7 @@ func run(tree: SceneTree) -> void:
 	out["sense_reach"] = Run.SENSE_REACH
 	out["thrust_reach"] = Run.thrust_reach()
 	out["attr_thrust"] = Run.attr_thrust()
-	# The base every radius is a multiple of: the map's own spacing at this node,
-	# with no ship in it. Sight is base * (SENSE_FLOOR + sensors * SENSE_REACH)
-	# and reach is base * thrust_reach().
+	# The base every radius is a multiple of: map spacing at this node, with no ship.
 	out["base_radius"] = Run._map_range_from(here)
 	out["here"] = {"x": here.gal.x, "y": here.gal.y, "layer": here.layer}
 

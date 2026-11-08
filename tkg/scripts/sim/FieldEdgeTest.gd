@@ -1,23 +1,8 @@
 extends Node
 
-## NO BOX ROUND THE PICTURE (Jon, Oct 18, of the star chart on the one field:
-## "The new field is close, but why is there a box around the galaxy panel?").
-## Windowed -- it reads the pictures as drawn:
-##   godot --path . --resolution 1920x1080 -- sheet=FieldEdgeTest [out=<dir>]
-## At rest on the sector map and on the star chart, the picture's former edges
-## (left, top and bottom; the side panel stands on the right) are read in strips
-## straddling them, 24 px either side, row by row (or column by column) as the
-## median of each line: the screen as drawn less the field as drawn alone
-## (`NavField.picture`). Inside the edge and outside it the two must agree --
-## no line, no step in the ground's tone or colour, nothing the picture adds at
-## its edge -- to within the field's own line-to-line variation, and the lines
-## either side of the edge never differ by more than the field's own step
-## there. `out=`: each strip written beside the screen, as PNGs, for a look.
-## In every style (`style=legacy|simplified|painted|radiant`, the game's own
-## switch) and in a system inside a cloud (`at=nebula`: the map's cloud runs
-## past its picture, cloud:A -- the edge is then read against the gas either
-## side of it, not the field). And LOCAL's stars ARE the field's (styles:now):
-## on LOCAL at rest, where the field has a star, LOCAL draws it there.
+## No box round the picture (Jon, Oct 18): reads the former edges, wanting no step or line.
+## Windowed: it reads the pictures as drawn, in every style and inside a cloud.
+## Why: docs/why/FieldEdgeTest.md#test-purpose
 
 var _fails := 0
 var _tree: SceneTree
@@ -94,10 +79,7 @@ func _run() -> void:
 		_check(which)
 		if which == "SECTOR" and _cloud:
 			_cloud_past()
-	# THE TOP PLATE STEADY THROUGH A HOP BETWEEN THE MAP AND THE CHART (Jon: "When
-	# going from sector to starchart and vice versa the border on the top panel
-	# flickers? or something"): every frame of each, the plate's line and its
-	# ground clear of the row's words, against the frame before the click
+	# The top plate steady through a map and chart hop (Jon): checked every frame.
 	await _plate_hop(&"map")
 	await _plate_hop(&"chart")
 	if _cloud:
@@ -108,11 +90,7 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## LOCAL'S STARS ARE THE FIELD'S (styles:now): on LOCAL at rest, every place
-## the field has a star -- clear of LOCAL's cloud, its worlds, its ship and its
-## words, which stand in front of it -- LOCAL draws that star there. Measured as
-## the share of the field's stars LOCAL matches within 10 levels, where LOCAL's
-## sky is dark round them (its cloud's open sky).
+## LOCAL's stars are the field's: measured as the share matched within 10 levels in open sky.
 func _local_match() -> void:
 	if _cloud:
 		print("  --   LOCAL: inside a cloud its far stars stand behind the gas; the match is read in a clear sky")
@@ -155,15 +133,8 @@ func _local_match() -> void:
 		share >= 0.8)
 
 
-## THE CLOUD PAST THE MAP'S PICTURE IS THE CLOUD GOING ON (Jon: "the mirror is
-## visible"): the map's sky ends under the side panel; past it the same cloud is
-## drawn on (`SystemView._past`, the cloud's own material, read by `nav_ext`
-## with `past_on`), not a mirror or a copy of gas from elsewhere. Where the
-## strip starts over the picture's last 32 px it is the same gas, drawn the
-## same way: its light follows the picture's there (correlation 1.00 in
-## SIMPLIFIED and LEGACY on seed 4242's cloud; the picture's own gas mirrored
-## there 0.25, moved 16 px 0.19-0.34; the cloud alone without the sky and dust
-## sheets under it 0.24-0.57) at its level (within 2).
+## The cloud goes on past the map's picture, not a mirror (Jon): its light matches there.
+## Why: docs/why/FieldEdgeTest.md#cloud-past-the-picture
 func _cloud_past() -> void:
 	var v: Variant = (Router.current as SystemMapScreen).view if Router.current is SystemMapScreen else null
 	var pv: Variant = v.get("_past") if v != null else null
@@ -207,12 +178,8 @@ func _cloud_past() -> void:
 		r >= 0.9 and absf(my - mx) <= 2.0)
 
 
-## A CLOUD MADE SMALLER HAS NO STRAIGHT SIDE (Jon: "is there any way to have it
-## be less of a square when zooming out?"): the map in a cloud to the chart,
-## every frame the held cloud is drawn smaller and still half there, the cloud
-## as drawn (brighter than the field by 12 levels, the plates and the HUD left
-## out) found, and along its bounding box's four sides, 4 px in, how much of
-## each line is cloud: a rect would fill them; a cloud thinning out does not.
+## A shrinking cloud has no straight side (Jon): a rect would fill its box sides, a cloud thins.
+## Why: docs/why/FieldEdgeTest.md#cloud-hop
 func _cloud_hop() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_system()
@@ -303,15 +270,8 @@ func _cloud_hop() -> void:
 		seen >= 3 and corner_worst <= 0.10)
 
 
-## THE GALAXY RUNS ON PAST THE PICTURE (Jon: "why does a galaxy disappear near
-## the side panel?", "And also disappear in the corner?"): the chart's galaxy
-## set across each of the picture's four old edges in turn (its centre on the
-## edge's middle), and along each, in a band from 20 px inside to 24 px past it
-## (where it is open: clear of the field's own edge and its fade there, of the
-## plates, the words and the buttons), how much of the sky as the chart drew it stands on
-## the screen where the galaxy is bright -- the screen less the field over the
-## sky less the field, the median of each line. A picture cut or faded at its
-## old frame falls to nothing there; drawn on past it, every line is the sky's.
+## The galaxy runs on past the old edges (Jon): a cut or faded picture falls to nothing there.
+## Why: docs/why/FieldEdgeTest.md#galaxy-past-the-picture
 func _chart_edges() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_starchart()
@@ -399,11 +359,7 @@ func _chart_edges() -> void:
 	await _frames(30)
 
 
-## THE FIELD'S DRIFT IN LAYERS (Jon: "Why is the parallax gone from the sector
-## and starchart views?"): a drag on the chart, and the field's stars before and
-## after it matched star to star: they slid the way the drag went, by more
-## than one amount (the far stars least, the near most) -- and back on LOCAL
-## afterwards, LOCAL's stars are still the field's.
+## Field drift in layers (Jon: parallax gone): far stars slide least, near most.
 func _drift_layers() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_starchart()
@@ -624,12 +580,8 @@ func _check(which: String) -> void:
 		if pl != null:
 			ui.append(pl.get_global_rect().grow(4.0))
 	var c := Router.content.get_global_rect()
-	# (the picture's frame was 12 px of margin round it, then a line)
-	# THE PLATES SEE-THROUGH (Jon, Oct 18: "make both panels slightly see
-	# through like the other panels"): over the toolbar row's plate and the side
-	# panel's, clear of their words, the screen follows the field under it by
-	# about 1 - `NavField.PLATE_A` (fitted: the slope of the screen's luminance
-	# on the field's)
+	# Plates see-through (Jon, Oct 18): the screen follows the field by 1 minus `NavField.PLATE_A`.
+	# Why: docs/why/FieldEdgeTest.md#see-through-plates
 	var words := _ui_rects(cur)
 	for pl: Control in [ZoomLadder.bar_of(cur), ZoomLadder.side_of(cur)]:
 		if pl == null:
@@ -645,11 +597,7 @@ func _check(which: String) -> void:
 			print("  --   %s: under its plates, its painted sky" % which)
 			break
 		var r := pl.get_global_rect().grow(-4.0)
-		# (the plate's own pictures -- a star's portrait, a glow -- left out: only
-		# pixels near the plate's own dark, split by the field's under them, the
-		# field's stars against its void)
-		# (the field's own ground under it: its dark where it is dark, LEGACY's
-		# wash where that lifts it)
+		# Leaves out the plate's own pictures: only pixels near its dark, split by the field.
 		var fl_all: Array = []
 		for y in range(int(r.position.y), int(r.end.y), 4):
 			for x in range(int(r.position.x), int(r.end.x), 4):
@@ -740,10 +688,7 @@ func _check(which: String) -> void:
 			lines.append([k, meds[meds.size() / 2], fmeds[fmeds.size() / 2]])
 		if lines.is_empty():
 			continue
-		# the screen less the field, line by line: the two sides' means within STEP
-		# of each other, and no jump between lines bigger than the field's own
-		# there (how far any line stands off the field is reported: the picture's
-		# own things, faded toward its edge)
+		# Screen less field, line by line: side means within STEP, no jump above the field's own.
 		var worst := 0.0
 		var ins := 0.0
 		var outs := 0.0
@@ -767,9 +712,7 @@ func _check(which: String) -> void:
 			prev = l
 		var step := absf(ins / maxf(ni, 1) - outs / maxf(no, 1))
 		if _cloud and which == "SECTOR":
-			# (the cloud runs on past the picture: its gas either side, not the
-			# field -- the line at the edge no further from the one before it than
-			# the cloud's own lines are from theirs)
+			# Where the cloud runs on past the picture, read its gas either side, not the field.
 			var at_edge := 0.0
 			var others: Array = []
 			for i in range(1, lines.size()):
@@ -783,10 +726,7 @@ func _check(which: String) -> void:
 			_ok("%s, the picture's %s edge in the cloud: no step across it (the line at the edge %.1f from the one before it, the cloud's own up to %.1f)" % [which, nm, at_edge, typical],
 				at_edge <= typical + 2.0)
 			continue
-		# (the map's picture runs on past its frame now, in a clear sky too --
-		# its worlds, orbits and its sky's own faint light -- out to the field's
-		# edge, where it fades: across its frame no line jumps; the two sides
-		# differ by that fade at the field's edge, not by a cut)
+		# The map's picture runs on past its frame in clear sky, fading at the field's edge.
 		var runs_on: bool = which == "SECTOR" and cur is SystemMapScreen and (cur as SystemMapScreen)._gas_ext != null and (cur as SystemMapScreen)._gas_ext.visible
 		_ok("%s, the picture's %s edge: no step across it (the screen less the field: sides %.1f levels apart, the biggest jump line to line %.1f against the field's own %.1f; the most any line stood off the field %.1f%s)" % [which, nm, step, jump, fjump, worst, "; the picture runs on past its frame, the jump alone read" if runs_on else ""],
 			(step <= STEP or runs_on) and jump <= maxf(STEP, fjump + 1.0))

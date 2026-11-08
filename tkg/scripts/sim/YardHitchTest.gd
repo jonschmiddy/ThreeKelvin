@@ -1,9 +1,8 @@
 extends Node
 
-## THE SHIPYARD'S HITCHES (#34), timed headless:  -- sheet=YardHitchTest
-## A Korvan medium, whose belly gun's empty ring sits inside a yard stand, docked
-## with parts in the hold. Before the fix the click took 7.9 s, a part off the
-## hull 7.5 s and a move in the hold 5.7 s. The budgets catch seconds, not ms.
+## The shipyard's hitches (#34), timed headless with `sheet=YardHitchTest`.
+## A docked Korvan medium, its belly gun's ring inside a yard stand. Budgets catch seconds.
+## Why: docs/why/YardHitchTest.md#yard-hitches
 
 const OPEN_MS := 250.0
 const MOVE_MS := 100.0

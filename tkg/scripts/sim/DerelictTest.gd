@@ -1,40 +1,7 @@
 extends Node
 
-## THE DERELICT HAULER SAYS WHAT YOU ARE CLAIMING, AND CLAIMING IT NEVER COSTS
-## YOU THE STRIP:
-##   godot --headless --fixed-fps 60 --path . -- sheet=DerelictTest [seed N]
-##
-## Jeremy, friends' alpha: he flew a heavy ship, took "Claim the hull", got a
-## light frame he did not want, and had given up "Strip it for scrap" for it.
-## The frame was rolled off the loot stream after the choice, so nothing could
-## name it first, and LEAVE IT was the only way to say no.
-##
-## Everything here is read off what is drawn and what the run holds, never off
-## the new helpers, so the same sheet runs against the old code and fails there:
-##  1. On the real LOCAL, the derelict's page at three systems whose frame is
-##     light, medium and heavy, in all three layouts: the claim's card names the
-##     frame's weight and no other, and the page passes the box test at 960x540
-##     (the band on screen and off the HUD, every card inside it and off the
-##     others and the text, its words inside it). YOU CHOSE names it too, and the
-##     hull found is that weight.
-##  2. The same frame on every visit, and for a partner: claimed again with the
-##     loot stream moved and another seat, it is the same hull, number for number.
-##  3. Declining it pays the strip. The strip's credits and crate measured, then
-##     the claim's frame cut up with the rail's SCRAP (where LEAVE IT was, inside
-##     the rail, off TRANSFER, no wider than LEAVE IT left it) for the same credits
-##     and the same crate, once. SCRAP survives a backed-out TRANSFER and a save
-##     and load, and the system map's hull row has it too. A wreck's hull, which
-##     cost you nothing, keeps LEAVE IT.
-##  4. A frame still on offer is paid, never lost. Claiming a second derelict
-##     put the new frame over it, and buying a yard hull threw it away, its pay
-##     with it both times. Now each pays the strip's credits and crate first,
-##     and the log names the crate and says it is in SECTOR LOOT (Jon: a crate
-##     landing there with nothing on screen was "super NOT intuitive"). Backing
-##     out of the yard hull does not bring the paid frame back to pay twice.
-##  5. SCRAP at three digits (danger 5 or 6 pays 105): the box test on the rail
-##     and on the system map's row, its words inside the button.
-##  6. A 0.4.2-alpha.1 save (VERSION 36) holding a found hull loads it with
-##     LEAVE IT and no SCRAP, as that build had it.
+## Claiming must never cost the strip (Jeremy's alpha): the frame is named first and SCRAP pays.
+## Why: docs/why/DerelictTest.md#derelict-test
 
 const ID := &"derelict_hauler"
 const VIEW := Rect2(0, 0, 960, 540)
@@ -113,9 +80,7 @@ func _fresh(n: MapGen.MapNode, keep_hull := false) -> void:
 	Run.credits = 180
 
 
-## The map's own node at `n`'s index. A load (section 3 saves and loads) builds
-## Run.map anew, so a node held from before it is a copy the run no longer
-## reads: the page opens the live one, and `_fresh` on the old one resets nothing.
+## A load rebuilds Run.map, so a held node is a stale copy; open the live one.
 func _live(n: MapGen.MapNode) -> MapGen.MapNode:
 	return Run.map[n.index]
 
@@ -498,9 +463,7 @@ func _station_body(at: int) -> int:
 	return -9
 
 
-## Into the berth at the station the ship is at, the way a player docks: LOCAL
-## beside it, then DOCK (as SwapTest docks). LOCAL is built afresh for the
-## station's system, since the ship was on another system's LOCAL.
+## Dock as a player does: LOCAL beside the station, then DOCK; LOCAL is built afresh.
 func _dock() -> bool:
 	var at := Run.at
 	SystemMapScreen._parked[at] = {"at": _station_body(at), "mode": &"rail"}
@@ -520,9 +483,7 @@ func _transfer() -> TransferScreen:
 		return x is TransferScreen and (x as Control).is_visible_in_tree()) as TransferScreen
 
 
-## Claim A's frame and leave it on offer, fly to B and claim B's on its page:
-## A's frame is cut up for its pay first. The second claim used to put B's
-## frame over it, and the setter wiped A's pay.
+## A second claim used to put B's frame over A's and wipe A's pay.
 func _second_claim(a: MapGen.MapNode, b: MapGen.MapNode) -> void:
 	var strip: Dictionary = await _strip(a)
 	_fresh(a)
@@ -549,10 +510,7 @@ func _second_claim(a: MapGen.MapNode, b: MapGen.MapNode) -> void:
 	await _frames(2)
 
 
-## Claim A's frame and leave it on offer, dock at a station and take the yard's
-## hull: the frame is cut up for its pay first. TAKE IT used to throw it away.
-## Backing out of the yard hull refunds the yard and does not bring the paid
-## frame back to pay a second time.
+## TAKE IT used to throw the offered frame away; backing out must not bring it back to pay twice.
 func _yard_hull(a: MapGen.MapNode) -> void:
 	var strip: Dictionary = await _strip(a)
 	var d: LocalEventDrawer = await _open(a)

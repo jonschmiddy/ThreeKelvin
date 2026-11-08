@@ -1,75 +1,23 @@
 class_name StationFace
 extends Control
 
-## THE STATION, PULLED UP TO (Jon, on the dock: "the station becomes something on
-## the far right of the screen that the ship flies into .... and THAT becomes the
-## shipyard"). LOCAL at a station, with the one-camera flow on (`ZoomLadder`):
-## the station's side, side on, pinned to the view's right edge and running off
-## it, its landing hallway open at your ship's height and facing you.
-##
-## DOCKING (Jon: "it's an arrival, let it breathe"): your ship sets off from
-## where it sits and slowly flies in toward the station; the station's lights
-## flicker on to meet it (a welcome: the inner door's glow, then the seam's lamps
-## outward from the hallway, then the guide lights along both lips, which then
-## run in toward the door); your ship goes in behind the lips and on into the
-## bay, and once its tail is inside the camera pans sideways through the
-## station's own hull into the yard (`ZoomLadder`'s pan, `draw_hull`).
-## Undocking is all of it the other way round.
-##
-## WHICH SIDE (`StationSides`): seven kept sides, each with one of twelve kept
-## interiors in its recess, picked per station from the station alone. Every
-## side carries the Drum's entrance at the same rows, so everything below about
-## the hallway, the recess, the mask and the camera holds for all of them.
-##
-## ONE MOUTH FOR EVERY SHIP (Jon: "We need to have the ship door opening always
-## be the same size, no matter what ship you are in. We need to have it as tall
-## as the large ships."): every side's hallway is 48 rows taller than the art
-## was painted (`art/stations/mouth.py`), so the tallest fitted hull in the game
-## -- a C-grade heavy with its turrets, `sheet=MouthSize` -- goes in at its own
-## size along the curve Jon approved, with the medium's room about it; the light
-## and the medium go in with room to spare. Your ship's path on screen is as it
-## was; the plate sits so the mouth stands 60 px above its middle and 66 below
-## (`ROW`): the tallest passes the lips 10 px from each, the medium's room above
-## it as Jon approved its dock.
-##
-## EVERY KEPT SIDE (`art/stations/sides.py`, Jon's 1A for lights and depth): the
-## hull in layers, far first, the star's rim and shaded undersides baked in, each
-## layer moved by whole pixels as the camera comes in (`par`: the far ones less,
-## so the near boxes slide over the far); a dark crevice under them all, so a gap
-## opened by the parallax is the hull's own shadow and never a window onto your
-## ship behind it; the bay lit from its inner door at the door's power; the
-## lamps over it at their own power, and their light drawn as light.
-##
-## Two of these are made: the plate behind your ship (`front` false) and the
-## front layer over it (`front` true).
+## LOCAL at a station: its side pinned right, hallway open at your ship's height (Jon's design).
+## One mouth fits every ship, sized for the tallest fitted hull; layers move in whole pixels.
+## Why: docs/why/StationFace.md#station-face
 
-## where the plate stands: its left edge this far in from the view's right edge,
-## its row `ROW` level with your ship's middle. SHORTER ON SCREEN (Jon: "make
-## the length of the space station shorter horizontally"): pinned further right,
-## so of the drum only its end ring, the hallway with its door, and the seam's
-## groove and bend show -- `SHOWN` px of the view, where it was 317 -- and the
-## rest of its length runs on past the view's edge
+## Pinned further right so only the end ring and hallway show: `SHOWN` px, down from 317 (Jon).
+## Why: docs/why/StationFace.md#plate-position
 const IN_FROM_RIGHT := 312.0
 const SHOWN := 230.0
 const ROW := 266.0
-## THE HALLWAY (plate px): open to space at x 90, its inner door at 222..234, its
-## rows between the lips 203..333 (the upper lip's lamps on rows 203..205, the
-## lower's on 332..334); the lips start at x 83
+## The hallway in plate px: open at x 90, inner door 222 to 234, rows 203 to 333 between the lips.
 const SLOT := Rect2(90, 203, 132, 130)
 const DOOR_X := 222.0
 const LIP_X := 83.0
 const EDGE_X := 82.0
-## INTO THE HOLE AND COVERED UP (Jon: "have the ship go INTO the hole and be
-## covered up"; then, "The mask is wrong here"): the only part of the station
-## your ship is ever seen in front of is the bay's RECESS -- its dark interior,
-## from the open end to its back corner (rows 206..331, x < 212). Everything else
-## is hull and is drawn OVER your ship (each side's layers are the plate less the
-## recess, `art/stations/sides.py`): the lips, the frame
-## round the opening, the lit strip beside it, the plating beyond. So your ship
-## flies down the hallway and on past the recess's end, behind the hull, its
-## tail in past the recess's end a few frames before the camera pans (it is
-## still moving then: `TAIL_IN` is where the curve ends, deeper in) -- none of
-## it seen when the pan starts. Its size at most, as it goes deeper:
+## Only the bay's recess is drawn behind your ship;
+## other hull draws over it, so it flies into the hole.
+## Why: docs/why/StationFace.md#recess-mask
 const RECESS := Rect2(0, 206, 212, 126)
 const TAIL_IN := 380.0
 const SHIP_END_SCALE := 0.62
@@ -78,9 +26,7 @@ const SHIP_END_H := 56.0
 ## the camera's anchor along row `ROW` as it follows you in, k 0 -> 1
 const A0 := 110.0
 const A1 := 175.0
-## THE HULL THE CAMERA PANS THROUGH (`draw_hull`): each side's own window of
-## its plate (`StationSides.SideArt.hull_src`), tiled; drawn at this scale; and
-## how far past the plate it runs on LOCAL
+## The hull the camera pans through: each side's window of its plate, tiled at this scale.
 const HULL_K := 2.0
 const HULL_RUN := 1600.0
 
@@ -100,28 +46,21 @@ const GUIDE_LOW_Y := 332.0
 const STRIP := Rect2(223, 200, 14, 138)
 const DOOR_SLICES := 6
 
-## a lamp standing by (before you dock): this much of its light
-## (dead in its housing: Jon, "MUCH more dramatic between turned off and turned
-## on" -- only the always-on strobes and red beacon show while it sleeps)
+## A lamp standing by shows this much light, dead in its housing (Jon wanted far more drama).
 const STANDBY := 0.0
 ## the hull's plating seen by starlight alone while the station sleeps, of how it
 ## is seen once its own lights are on
 const HULL_SLEEP := 0.8
 ## a lamp's light spills this much further round it than it used to
 const SPILL := 1.5
-## THE WARNING LIGHTS AT THE MOUTH (plate px): on the tip of each lip, flashing
-## amber and red in turn while your ship waits (`ZoomLadder.DOCK_WARN_HZ`),
-## green once it is cleared to come in (`warn`)
+## Warning lights on each lip tip: amber and red in turn while waiting, green once cleared.
 const WARN_AT := [Vector2(86, 198), Vector2(86, 338)]
 const AMBER := Color("#ffb030")
 const GREEN := Color("#5ae678")
 ## the bay's light standing by, of its lit picture over its dark one
 const BAY_REST := 0.0
-## THE POWER-ON, along the approach (`power` 0 -> 1): when each group starts
-## coming on, and how long one lamp's flicker takes. (The power-on is its own
-## step of the dock now, `ZoomLadder.DOCK_POWER_S`, 1.3 s where the wake was 3:
-## the flicker is the larger share of it, so a lamp still stutters for about a
-## quarter of a second, each on and off near two frames, not under one.)
+## Power-on timing along the approach; the dock's step
+## is 1.3 s, so a lamp still stutters a quarter second.
 const ON_DOOR := 0.0
 const ON_SEAM := 0.18
 const ON_GUIDE := 0.42
@@ -130,16 +69,8 @@ const FLICKER := 0.21
 ## where the other sides' lamps come on outward from (plate px): the hallway
 const ON_FROM := Vector2(160, 269)
 
-## THE POWER-ON, HEARD (Jon, Oct 21: "Can we also get some sounds for when the
-## station turns on?"), out of the game's own sounds, nothing generated. Each
-## bank of lamps (the door, the side's own lamps, the guide lights) clunks on
-## as its first lamp lights -- a breaker, the outpost's lamp a step down -- and
-## buzzes through its stutter (`FLICKER`); the warning lights going green
-## chime. On the frame each is seen, from `power` and `warn` as they are set,
-## so the dock's POWER step and LOCAL's wake are heard alike. Levels against
-## their neighbours: the clunk's loudest tenth of a second about -22 dBFS (the
-## dock's entry burn -21.6, the arrival's flameout -10 to -18, the clamps -8.6),
-## the buzz under it near the idle bed (-39.5), the chime between.
+## Heard from the game's own sounds, nothing generated, levelled against the dock's burn and clamps.
+## Why: docs/why/StationFace.md#power-on-sound
 const POWER_CLUNK := &"lab_outpost_lamp"
 const POWER_CLUNK_DB := -6.0
 const POWER_CLUNK_PITCH := 0.85
@@ -152,12 +83,9 @@ const POWER_CHIME_PITCH := 1.0
 ## each bank a little different, as three breakers would be
 const POWER_PITCH_VAR := 0.04
 
-## THE PARALLAX (the other sides): a layer of parallax p is moved (1 - p) x
-## `PAR_GAIN` of the camera's travel across the plate (its view's middle, in
-## plate px, since it was at rest), in whole pixels, holding each step until the
-## travel is `PAR_HOLD` px past it (no A, B, A at a step's edge). Over the dock
-## the camera crosses about 600 px of plate: the farthest boxes (0.8) end 7 px
-## behind the near ones.
+## Layers move in whole pixels, held `PAR_HOLD` past
+## a step so none flickers; far boxes end 7 px behind.
+## Why: docs/why/StationFace.md#parallax
 const PAR_GAIN := 0.06
 const PAR_HOLD := 0.6
 
@@ -190,10 +118,7 @@ var warn := 0.0:
 		warn = v
 		if audible and not front and was < 2.0 and v >= 2.0 and v < 3.0:
 			_heard(POWER_CHIME, POWER_CHIME_DB, POWER_CHIME_PITCH)
-## THE POWER-ON IS HEARD while this is on: set by whoever plays one (the dock's
-## POWER step, LOCAL's wake: `SectorScreen`), off for a station lit at once (an
-## undock, a station already awake, a press that ends it). The back face alone
-## speaks, so a pair is heard once.
+## Set by whoever plays the power-on; off for a station lit at once. The back face alone speaks.
 var audible := false
 ## the side drawn, and its interior's two pictures ([] for the side's own bay)
 var side: StationSides.SideArt = null
@@ -489,10 +414,8 @@ func _warn_cores(o: Vector2) -> void:
 		draw_rect(Rect2(p, Vector2(3, 3)), Color(c.r, c.g, c.b, c.a))
 
 
-## One warning light's colour and how lit it is now (alpha): off asleep; while
-## your ship waits, amber and red in turn, each holding half the beat (no
-## flicker between); green and steady once it is cleared, fading as it goes in.
-## Reduced motion: steady amber.
+## One warning light's colour: off asleep, amber and red
+## in turn, then steady green. Reduced motion: amber.
 func _warn_color(i: int) -> Color:
 	if warn <= 0.0 or warn >= 3.0:
 		return Color(0, 0, 0, 0)
@@ -595,9 +518,7 @@ func _strip_lights(c: CanvasItem, flick: float) -> void:
 		_light(c, Vector2(STRIP.position.x + 6.0, STRIP.position.y + 9.0 + float(j) * 22.0), 9, HEAT[3], 0.2 * flick * on)
 
 
-## A side's light: the entrance's, each own lamp's as it comes on, and the
-## strobes and beacons on the hull's edge. Behind your ship there is none: the
-## bay's light is its lit panels.
+## A side's light: the entrance, each lamp as it comes on, and the strobes; none behind your ship.
 func _side_lights(c: CanvasItem) -> void:
 	if not front:
 		_bay_lights(c)
@@ -643,9 +564,8 @@ func _side_lights(c: CanvasItem) -> void:
 			_light(c, cl.at, int(cl.radius), cl.color, 0.12 + 0.3 * _pulse(float(cl.period), float(cl.offset)))
 
 
-## THE BAY'S OWN LIGHT, behind your ship: asleep, a faint red emergency glow at
-## the inner door's corners; awake, the door's light falling across the floor and
-## up the walls from it, in warm pools that fall off away from the door.
+## The bay's light behind your ship: faint red emergency
+## glow asleep, warm pools from the door awake.
 func _bay_lights(c: CanvasItem) -> void:
 	var d := door_on()
 	var e := (1.0 - d) * 0.06
@@ -692,12 +612,8 @@ func _guides(c: CanvasItem, row: float, n: int, base: float) -> void:
 
 # ------------------------------------------------------------------ the hull
 
-## THE STATION'S OWN HULL, close: the side's own window (`SideArt.hull_src`) of
-## every layer -- the crevice, the layers at their parallax `pars`, the lamps at
-## `lamp_k` -- tiled across `r` (in `c`'s px) at scale `k`, the tiles starting at
-## `x0`, the plate's row `ROW` level with `row_y`; with `ink` the dark behind it
-## all (the pan's), or space (LOCAL's own). The camera pans through it into the
-## yard (`ZoomLadder`).
+## Tiles the side's window of every layer across `r`; the pan uses dark ink, LOCAL's own uses space.
+## Why: docs/why/StationFace.md#station-hull-draw
 static func draw_hull(c: CanvasItem, r: Rect2, x0: float, row_y: float, mod: Color = Color(1, 1, 1), k: float = HULL_K,
 		s: StationSides.SideArt = null, pars: Dictionary = {}, lamp_k: float = 1.0, ink: bool = true) -> void:
 	if r.size.x <= 0.0 or r.size.y <= 0.0:

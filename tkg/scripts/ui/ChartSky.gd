@@ -1,45 +1,8 @@
 class_name ChartSky
 extends Node2D
 
-## THE STAR CHART'S SKY IN THE SIMPLIFIED STYLE: direction C, "Alive", from the
-## Oct 5 showcase (scratchpad `showcase/C/chart/`), THE DEFAULT of the rendering
-## styles (`DisplaySettings.render_style`). PAINTED draws with `ChartPainted`'s
-## passes on this node; LEGACY with a node of its own, `ChartLegacy`, which this
-## one hands the chart to and draws nothing. The
-## chart's own layered look refined and set in slow motion: an arm-model disc
-## and a cored bulge as gathered light, crisp dust lanes, sparse stars, four
-## depth sheets you wade through as you zoom, gas streaming along the arms,
-## knots that breathe and bloom, a rare supernova and its light echo, nebulae
-## in the arms with weather of their own, and C's black hole at the core
-## (`LegacyHole`). Everything a MapChart draws behind its systems is drawn here;
-## the systems, routes, rings, labels and the ship stay the chart's own marks.
-##
-## TWO HALVES.
-##   * ONCE A GALAXY (`_begin_bake` and the stages after it, on a node of its
-##     own so a bake finishes even if the chart that asked closes): two bakes on
-##     the GPU, read back and mip-mapped -- generic noise fields and this
-##     galaxy's arm structure, face-on (`chart_c_bake`); the chart's own star
-##     field cut down to the stars bright enough to be seen one at a time, as
-##     data textures; the knots on the arms; then THE PALETTE, cut once for the
-##     galaxy and never swapped while you move: the place pass rendered at the
-##     hero views unquantised, read back, and a k-means in OKLab on another
-##     thread anchored by fixed ramps for the key hues, the hole's bands and the
-##     event colours; and its lookup, on the GPU (`chart_c_lut`).
-##   * EVERY FRAME, three viewports at half the chart's size, so each of their
-##     pixels is one 2x2 block: the stars splatted into a light buffer
-##     (`chart_c_stars`), the place pass (`chart_c_place`, every block worked out
-##     afresh, so a zoom redraws and nothing is stretched), and the composite
-##     (`chart_c_comp`: toned, then the palette, dithered only on gradients).
-##     The blocks are anchored to the galaxy's centre on a whole pixel, so a pan
-##     moves the picture in whole blocks and the dither moves with it.
-##
-## Every animated thing is a pure function of the chart's clock
-## (`MapChart.clock`): the turn, the currents, the knots' breathing, the
-## supernovae, the weather, the hole's spin. Reduced motion turns the events off
-## and halves the drift.
-##
-## THE TURN. The galaxy turns as one, once every `TURN_MINUTES`, a view-only
-## angle (`MapChart.turn`): systems, routes and rings turn with it.
+## Simplified style: a once-a-galaxy bake plus three half-size viewports every frame.
+## Why: docs/why/ChartSky.md#chart-sky-design
 
 const TILT := 0.38
 ## One turn of the whole galaxy, in minutes: twelve hours, so at a glance it
@@ -51,10 +14,7 @@ const OMEGA := TAU / (TURN_MINUTES * 60.0)
 const HOLE_K := 2.0
 ## How far out the hole's disc reaches, in shadow radii (`legacy_hole`'s LH_OUT).
 const DISC_K := 3.0
-## The showcase's units: view px a galaxy unit at zoom 1. The place pass works
-## in them and is handed an effective zoom, so a chart of any size (the title
-## screen's is a square as wide as the screen's diagonal) draws the same picture
-## at the same scale on screen.
+## The showcase's units, so a chart of any size draws the same picture at the same scale.
 const K0 := 622.25
 ## The bakes cover -EXT..EXT galaxy units.
 const EXT := 1.2
@@ -83,73 +43,33 @@ const LUT_SH := preload("res://shaders/chart_c_lut.gdshader")
 static var _baked: Dictionary = {}
 ## The one node that runs bakes, under the scene's root.
 static var _baker: ChartSky = null
-## A galaxy whose bakes are in but whose palette is still being cut: drawable,
-## unquantised, so a new galaxy (the title's, on a first launch) shows its sky a
-## few hundred milliseconds sooner instead of the void. Moved to `_baked` whole
-## once the palette's lookup is in.
+## Bakes in but palette still being cut: drawable unquantised, so a new sky shows sooner.
 static var _early: Dictionary = {}
-## THE PALETTE'S SIZE, which is much of the zoom's flicker: two near colours
-## dithered or swapped at a block are a flip each time the zoom moves the
-## gradient past them. The fixed ramps are kept whole (only exact twins go);
-## `pal_merge` is how near (OKLab) a colour the cut finds may sit to one already
-## kept before it is dropped, `pal_free` how many the cut adds. Measured on the
-## grand-design's slow zooms (flip_back_mean, budget 0.0035): the showcase's
-## 0.03 / 12 with its dither gating gave core 0.0051, hole 0.0069; 0.06 / 10
-## with the stricter gating below, 0.0030 / 0.0035.
-## Tuning: `-- sheet=ChartLook palmerge=M palfree=N`.
+## Zoom flicker follows palette size. Measured: 0.06 / 10 gave 0.0030 / 0.0035 (core / hole),
+## against 0.0051 / 0.0069 at the showcase's 0.03 / 12.
+## Why: docs/why/ChartSky.md#palette-size
 static var pal_merge := 0.03
 static var pal_free := 12
 ## The composite's dither, 1 as made, 0 nearest colour only (tuning).
 static var dith := 1.0
 ## The palette pass on (false shows the place before it; tuning).
 static var quant := true
-## WHAT A ZOOM CHANGES, switched off one cause at a time (tuning, `diag=N` in
-## ChartLook; 0 as made): 1 the core's glare control, 2 every star (the chart's
-## and those the disc resolves into), 4 the detail the zoom adds (octaves, fine
-## grain, the bakes' mip held at zoom 1's), 8 LEGACY's palette a zoom level as
-## before Oct 11, 16 the chart's own stars only, 32 the resolved stars only, 64
-## LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
-## zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
-## stars adding their light on top as before, 512 no stars' light laid back
-## (`_star_debt`), 1024 the hole's cooling as far out as before, 2048 no supernova
-## remnants (`remnants`; to measure what they cost).
+## Tuning switches that turn off one cause of zoom change at a time; 0 as made.
+## Why: docs/why/ChartSky.md#zoom-diagnostics
 static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
-## THE SOLID GALAXY (Oct 12; Jon's idea 21 from the "magnificent" list: "I don't want
-## the galaxies to look like they are flat?"). The galaxy was a flat picture tilted
-## like a poster, so anything floating round it still read as a poster. So in
-## SIMPLIFIED the chart is seen through a real camera (`chart_c_place`'s solid
-## section): the near half of the disc nearer and bigger, the far half smaller and
-## squashed; the core bulging out of the disc. ONE projection for the sky and for
-## every mark the chart draws over it (`solid_fwd`, `solid_inv`; `StarchartScreen`'s
-## `_proj` and `_to_plane` call them). The camera never turns: a drag slides the
-## picture as the flat chart's does, and a zoom only magnifies it (Jon, Oct 12: "no
-## tilt while dragging". A drag that carried the camera over the disc re-drew every
-## pixel from a new angle every frame, and every style shimmered.)
-## The camera at Jon's "moderate": 2.2 gu away, at the sector map's tilt, looking at
-## the core (the near rim drawn 1.7 times the middle, the far 0.7).
+## One projection for the sky and every mark; the camera never turns, so a drag does not shimmer.
+## Why: docs/why/ChartSky.md#solid-galaxy
 const SOLID_D := 2.2
 ## Where the camera looks on the disc's plane: the core.
 const SOLID_T := Vector2.ZERO
 ## The camera: its distance, the sine and cosine of its elevation, 0.
 const SOLID_CAM := Vector4(SOLID_D, TILT, 0.92499, 0.0)
 
-## THE SOLID LOOK'S PARTS, all on in SIMPLIFIED (Jon approved them Oct 12: "THIS IS
-## PERFECT"); the other styles draw the flat chart. Each one's own section in
-## `chart_c_place` says what it is:
-##   * the gas with a body (`fluff`): round puffs lit from the core, standing up
-##     toward the camera (how strongly lit and how tall, how big the puffs);
-##   * the edge dissolving (`edge`): the outer disc thins over a long stretch into
-##     black space (where the fade starts gu, where it ends gu, how uneven gu);
-##   * the middle's relief (`terrain`): hills and valleys of dust lit from the core,
-##     their shadows cast outward (how much);
-##   * the nebulae's bodies (`nebulae`): the shells piled up at the rim with the
-##     oxygen's glow hugging its inside, the emission puffy, the dark ones mounds.
-## Their statics switch each off only for the cost bench (`ChartLook`'s costbench).
-## A harness's `chartflat` draws SIMPLIFIED flat, as before all this (a "before" to
-## film against).
+## Solid look parts, all on in SIMPLIFIED (Jon approved Oct 12); statics only for the cost bench.
+## Why: docs/why/ChartSky.md#solid-galaxy
 const FLUFF := Vector2(1.6, 1.25)
 const EDGE := Vector3(0.62, 1.2, 0.05)
 const TERRAIN := 2.0
@@ -160,19 +80,13 @@ static var _terr_on := true
 static var _neb_on := true
 
 
-## WHICH STYLES DRAW THE SOLID LOOK. Each style's port turns its own line on in its
-## own branch (its place pass wired to `chart_solid.gdshaderinc`); everything that
-## follows from it -- the camera, the marks' projection, the
-## stars pass, the uniforms pushed -- reads `solid()` and needs nothing else. A
-## harness's `solidstyle=<style>[,<style>...]` turns styles on for filming before
-## their line does.
+## Everything after the style choice reads `solid()`; each style turns its own line on.
+## Why: docs/why/ChartSky.md#solid-galaxy
 const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true, &"legacy": true}
 static var _solid_forced: Array[StringName] = []
 
 
-## The chart's style now: RADIANT (unless its safety fell back), LEGACY, PAINTED or
-## SIMPLIFIED. Worked out once a frame: the chart projects every mark through
-## `solid`, and the style can change mid-session (Settings, RADIANT's safety).
+## Worked out once a frame, as the style can change mid-session.
 static var _style_now := &"simplified"
 static var _style_frame := -1
 
@@ -239,9 +153,7 @@ static func solid_cam() -> Vector4:
 	return SOLID_CAM
 
 
-## The flat view (gu, y already tilted) to the camera's (gu); the shader's solidFwdN.
-## The point it looks at stays where the flat view has it; round it the disc's plane
-## is seen in perspective from its elevation.
+## Flat view to camera view; the looked-at point stays put, the rest is in perspective.
 static func solid_fwd(o: Vector2) -> Vector2:
 	var w := SOLID_CAM
 	var d := Vector2(o.x, o.y / TILT) - SOLID_T
@@ -295,13 +207,8 @@ var _m_state: ShaderMaterial = null
 ## Whether the composite has the palette yet (see `_early`).
 var _lut_on := false
 var _vp_origin := Vector2.ZERO
-## THE ZOOM'S HOLD (the showcase's fix for zoom shimmer). The blocks are anchored
-## to the galaxy's centre on a whole pixel, and during a zoom off the centre that
-## whole pixel re-rounds every frame, jittering the picture by up to half a block
-## (measured: 0.116 of pixels flipping back on a slow zoom at a nebula). So while
-## the zoom changes, and for about a second after (an eased wheel zoom has gaps),
-## the place is sampled at the exact centre and the dither holds still on the
-## screen; then it settles onto the snapped grid over two frames.
+## Sample at the exact centre while zooming: whole-pixel re-rounding jittered half a block.
+## Why: docs/why/ChartSky.md#zoom-hold
 var _last_zoom := -1.0
 var _since_zoom := 999
 
@@ -316,15 +223,11 @@ var _hold_d := Vector2.ZERO
 var _hold_c := Vector2.ZERO
 ## RADIANT's safety: the sky's own GPU time over its first frames (`_radiant_safety`).
 var _radiant_probe: GpuProbe = null
-## THE MACHINE'S PICK (`GpuProbe`): the title's sky, in any style, measured while
-## nobody has set GRAPHICS; the composite it was started on (a sky rebuilt
-## under it starts again) and whether it is LOW's pass being measured.
+## The machine's pick (`GpuProbe`): the title's sky is measured while nobody has set GRAPHICS.
 var _gfx_probe: GpuProbe = null
 var _gfx_on := 0
 var _gfx_low := false
-## How many probes this sky has started for the pick, and the last one to
-## finish (`-- menutest` reads them: a probe that never finishes, or starts
-## over every frame, is a pick that never lands).
+## Probe counts for `-- menutest`, to catch a probe that never finishes or restarts.
 var _gfx_tries := 0
 var _gfx_last: GpuProbe = null
 ## The colour held (`chart_c_comp`'s `hyst`): where the blocks were anchored last frame.
@@ -360,9 +263,7 @@ static func galaxy_key() -> String:
 	return "%d|%d|%.3f|%.4f" % [Run.galaxy_kind, Run.galaxy_seed, float(Run.galaxy.get("squash", 0.62)), Run.galaxy_spin]
 
 
-## How flat the galaxy's light is drawn: EVERY GALAXY lies in the sector map's
-## own plane, TILT ("increase the angle of the starchart to match the sector",
-## Jon), the ball-shaped ones too.
+## Every galaxy lies in the sector map's plane (TILT), ball-shaped ones too, at Jon's ask.
 static func eff_of(_g: Dictionary) -> float:
 	return TILT
 
@@ -391,13 +292,8 @@ func _ready() -> void:
 		_warm.call_deferred(get_tree().root)
 
 
-## THE SHADERS COMPILED ON THE FIRST FRAME, which the boot splash still covers.
-## A fresh profile has no shader cache, and the place pass takes a second or
-## more to compile (1.7 s on an RTX 3070, measured with the cache bypassed;
-## 6.1 s before its layers were each inlined once), so the title's galaxy --
-## the first thing a player sees -- was a black screen for that long. Drawn
-## here once, off screen, in the formats the bake and the frame use, from the
-## first ChartSky made (the title's), and thrown away.
+## Compile the place pass behind the boot splash: a fresh profile gave 1.7 s of black (RTX 3070).
+## Why: docs/why/ChartSky.md#shader-warm-up
 static var _warmed := false
 
 static func _warm(root: Node) -> void:
@@ -439,11 +335,7 @@ static func _warm(root: Node) -> void:
 	root.get_tree().create_timer(1.0).timeout.connect(holder.queue_free)
 
 
-## THE PICKED PLACE PASS, COMPILED BEFORE IT IS NEEDED: the machine's pick
-## (`GpuProbe`) changed GRAPHICS after the boot's warm (`_warm`) had compiled the
-## other one (LOW over HIGH's, or HIGH back over the hint's LOW), so the next
-## chart built would stall on it. Drawn once off screen in the style's own
-## format, as `_warm` does. (LEGACY's chart has one pass for both.)
+## Compile the picked pass ahead, as a changed GRAPHICS would stall the next chart built.
 static func warm_place(root: Node, low: bool) -> void:
 	var e: Array = [PLACE_LOW_SH if low else PLACE_SH, true]
 	if ChartRadiant.wanted():
@@ -467,10 +359,7 @@ static func warm_place(root: Node, low: bool) -> void:
 	root.get_tree().create_timer(1.0).timeout.connect(vp.queue_free)
 
 
-## The viewports the sky draws itself in, in any style: SIMPLIFIED's and
-## RADIANT's stars, place and composite, PAINTED's band memory besides, LEGACY's
-## picture and its copy. The composite (what is drawn, and sized to the screen's
-## share) last. Empty until they are built.
+## All viewports the sky draws in, any style; the composite last. Empty until built.
 func sky_viewports() -> Array[SubViewport]:
 	var out: Array[SubViewport] = []
 	if _legacy != null:
@@ -488,13 +377,8 @@ func sky_viewports() -> Array[SubViewport]:
 	return out
 
 
-## THE MACHINE'S PICK, a frame of it: on the title (whose galaxy is not the
-## run's), while nobody has set GRAPHICS, its sky's GPU time over its first
-## seconds, scaled to a full screen's, and the frames' length on the wall clock
-## (where the GPU reads 0: a Mac); then the pick (`GpuProbe.conclude`), and the
-## picked pass compiled if it changed. Only frames drawn with the window in
-## front count on the wall clock (a covered window is slowed by the system, not
-## by the sky), and none under a frame cap that would hide the machine.
+## Only frames drawn with the window in front count: a covered window is slowed by the system.
+## Why: docs/why/ChartSky.md#machine-pick
 func _gfx_step(delta: float) -> void:
 	if chart == null or chart.run_galaxy or not GpuProbe.wanted():
 		_gfx_drop()
@@ -605,9 +489,7 @@ func setup(c: StarchartScreen.MapChart) -> void:
 	_use_map = c.run_galaxy
 	# the style is part of the key: a simplified bake and a painted one differ
 	var key := galaxy_key() + ("|map" if _use_map else "") + ("|painted" if ChartPainted.wanted() else "") 		+ ("|radiant" if ChartRadiant.wanted() and not ChartPainted.wanted() else "")
-	# (RADIANT's safety gave up on it while this chart was up: this chart keeps
-	# its look -- a picture never changes under a still view -- and the next
-	# chart built is SIMPLIFIED; this is asked every frame)
+	# RADIANT gave up mid-chart: this chart keeps its look, the next is SIMPLIFIED.
 	if ChartRadiant.fell_back and _key.ends_with("|radiant") and key == _key.trim_suffix("|radiant"):
 		key = _key
 	if key != _key:
@@ -650,9 +532,7 @@ static func _snapshot_stars(c: StarchartScreen.MapChart) -> Dictionary:
 
 # ------------------------------------------------------------------ the galaxy's constants
 
-## The kind's shape: 0 a spiral disc, 1 a ball (the ellipticals, the dwarfs,
-## the merger), 2 an armless disc (the lenticulars). Read off the kind's own
-## archetype, so a rolled squash cannot tip a lenticular into a ball.
+## Shape read off the archetype, so a rolled squash cannot tip a lenticular into a ball.
 static func form_of(kind: int) -> int:
 	var base := GalaxyGen.params(kind)
 	if int(base.arms) > 0:
@@ -680,21 +560,8 @@ static func ball_of(kind: int, g: Dictionary) -> Vector4:
 	return b
 
 
-## A BALL'S DEPTH, three looks to compare (Jon, Oct 18: "Why do giant elliptical
-## galaxies look so much flatter than all the other galaxies?" -- a ball had only its
-## smooth glow and a broad mottle, none of the layers that give a spiral its body):
-##   0 today's ball;
-##   A (1) lit as a ball: a bright side toward the chart's key light (upper left, the
-##     painted style's `ballForm` light), a shaded side away, the light falling off
-##     toward the rim (limb darkening), so it reads as a sphere standing in space;
-##   B (2) the structure real ones have: a dust lane across SOME of them (seeded
-##     off the galaxy), faint shells of swallowed galaxies, a scatter of globular
-##     clusters round it, lumpier star clouds in its body;
-##   C (3) A and B together -- THE GAME'S (Jon picked it, Oct 18: "Galaxy depth: look:C
-##     lane:both", the lane in SIMPLIFIED and PAINTED alike).
-## `-- balllook=0|A|B|C` draws another (a harness's, in memory: 0 is the ball before,
-## for a before and an after); `balllane=0|1` forces the lane off or on, to show it.
-## Read by SIMPLIFIED's `ellBall` and PAINTED's ball.
+## Ball look C is the game's (Jon's Oct 18 pick); the others are for before and after.
+## Why: docs/why/ChartSky.md#ball-depth
 const BALL_LOOK := 3
 static var ball_look := -1
 static var ball_lane_forced := -1
@@ -712,10 +579,7 @@ static func ball_look_now() -> int:
 	return ball_look
 
 
-## The ball's depth for the place passes: (look, lane strength, lane angle, seed 0..1)
-## and (shells, globular clusters, star-cloud lumps, 0), each by kind. The lane is
-## seeded off the galaxy: about two old balls in five carry one (a giant swallowed a
-## gas-rich spiral not long ago); the merger has its own, the dwarfs none.
+## Ball depth per kind; the lane is seeded off the galaxy, on about two old balls in five.
 static func ball_depth(kind: int) -> Array[Vector4]:
 	var look := ball_look_now()
 	var h := absi(hash([Run.galaxy_seed, Run.galaxy_kind, 4471]))
@@ -745,15 +609,9 @@ static func ball_depth(kind: int) -> Array[Vector4]:
 	return [Vector4(float(look), lane, ang, seed01), e]
 
 
-## A BALL'S STORY (`chart_story.gdshaderinc` says what each look draws; Jon, Oct 19: a
-## round elliptical beside a spiral is "so boring"): `-- balllook2=0|A|B|C`, A the game's.
-## A its victims round it, B a busy core, C both. In every style; each style's light
-## for it at its own scale (`push_story`'s gain).
+## Ball story: Jon found a plain elliptical boring (Oct 19); `-- balllook2` picks, A is the game's.
 static var ball_look2 := -1
-## A GALAXY'S DEPTH AT ITS RIM (`chart_depth.gdshaderinc` says what it draws; Jon, Oct 19:
-## "They seem like a flat image right now. This is especially evident on the edges"):
-## `-- galdepth=0|1|2`, 0 today; 1 the disc's thickness at its rim, 2 and parallax. The
-## discs (spirals, lenticulars) in SIMPLIFIED; a ball is drawn round and has its story.
+## Galaxy depth at the rim, after Jon found the edges flat (Oct 19); `-- galdepth` picks.
 static var gal_depth := -1
 ## The game's: the clouds and their parallax (Jon, Oct 19, "Depth: puffs:2").
 const GAL_DEPTH := 2
@@ -792,9 +650,7 @@ static func ball_look2_now() -> int:
 	return ball_look2
 
 
-## The story's uniforms for the run's galaxy, its light at `gain`: seeded off the
-## galaxy, so the same ball has the same victims and the same jet every time.
-## Look 0 (nothing drawn) for anything that is not a ball.
+## Story uniforms seeded off the galaxy, so a ball has the same victims and jet each time.
 static func ball_story(gain: float) -> Dictionary:
 	var kind := Run.galaxy_kind
 	var look := ball_look2_now() if form_of(kind) == 1 else 0
@@ -839,10 +695,7 @@ static func push_story(m: ShaderMaterial, gain: float) -> void:
 		m.set_shader_parameter(k, d[k])
 
 
-## How far out a ball's light is lit, in gu across (its height is this times its
-## roundness, `ball_of`'s y): what the chart's frame of a region takes in round the
-## core so the whole ball is in view (`MapChart.frame_region`). The body's lit
-## bands, where SIMPLIFIED's amber and PAINTED's violet end, at the chart's opening.
+## How far out a ball is lit, so the chart's frame takes in the whole ball.
 static func ball_lit_gu(ball: Vector4) -> float:
 	return 1.8 * ball.x
 
@@ -958,13 +811,8 @@ func _begin_bake() -> void:
 		"t0": Time.get_ticks_msec()}
 
 
-## A HEADLESS HARNESS'S BAKE (`-- menutest`, the machine's pick on the real
-## title): headless never bakes, because the dummy renderer reads nothing back
-## and draws no frames to wait on, so the sky never built its viewports and the
-## title's pick could never be driven without a window. With this on, the CPU's
-## share is the real bake's and the GPU's four products (noise, structure,
-## palette, lookup) are blank stand-ins, ready at once; the sky then builds,
-## pushes and measures as it does in the game. SIMPLIFIED only. Never in the game.
+## Headless never bakes; stand-ins let `-- menutest` drive the title's pick. Never in the game.
+## Why: docs/why/ChartSky.md#headless-bake
 static var stand_in_bake := false
 
 
@@ -1107,9 +955,7 @@ func _queue_probes(g: Dictionary) -> void:
 	_job.frame = Engine.get_frames_drawn()
 
 
-## The hero views a palette is cut from (zoom, pan x, pan y in view px at the
-## probe's turn): the opening, the core twice, a nebula twice, the hole, and
-## YOU close and far; the nebula pair if there is one.
+## The hero views a palette is cut from: opening, core, nebula, hole and the ship.
 func _probe_views(g: Dictionary) -> Array[Vector3]:
 	var phi := OMEGA * 600.0
 	var out: Array[Vector3] = [Vector3(0.42, 0, 0), Vector3(1.5, 0, 0), Vector3(1.5, 0, 0), Vector3(6.0, 0, 0)]
@@ -1176,18 +1022,13 @@ func _stage_probes() -> void:
 	job.free_n = pal_free
 	job.merge = pal_merge
 	if (_job.g as Dictionary).has("radiant"):
-		# the radiant sky is light through gas: long soft ramps, many of them dim
-		# (the showcase's A: its own key hues reserved, a dark ramp read off the
-		# scene, the rest cut evenly; the hold keeps it from flickering)
+		# Radiant is light through gas: long soft ramps, many dim, its own key hues reserved.
 		job.fixed = ChartRadiant.fixed_palette()
 		job.free_n = ChartRadiant.PAL_FREE
 		job.merge = ChartRadiant.PAL_MERGE
 		job.even = true
 	if int((_job.g as Dictionary).p.form) != 0 and not (_job.g as Dictionary).has("radiant"):
-		# a ball (and an armless disc) is one long smooth gradient with little texture to shimmer (its
-		# zoom flicker measured 0.0009): it gets more of the cut's own colours,
-		# closer together, or its pale tans fell to the nearest saturated amber
-		# and drew a hard disc in the dwarf's middle
+		# Balls get more cut colours, closer together, or pale tans drew a hard disc in a dwarf.
 		job.free_n = pal_free + 6
 		job.merge = pal_merge * 0.6
 	_job.pjob = job
@@ -1248,10 +1089,7 @@ func _stage_lut() -> void:
 
 # ------------------------------------------------------------------ the stars as data
 
-## The chart's star field cut down to what the simplified sky draws as stars: every
-## point bright enough to be seen alone at some zoom (luminance 60 and up of
-## 255), the core's points, the globulars as knots, and the knots' young stars.
-## As three float textures (`chart_c_stars`).
+## Star field cut to stars bright enough to be seen alone at some zoom, as three textures.
 func _build_star_data(g: Dictionary, p: Dictionary) -> void:
 	var r_max: float = _src.r_max
 	var sq: float = p.squash
@@ -1344,17 +1182,8 @@ func _add_knot_stars(g: Dictionary) -> void:
 	g.times["debt"] = (Time.get_ticks_usec() - t0) / 1000
 
 
-## THE STARS' LIGHT IS KEPT AS YOU ZOOM (Oct 11; Jon: the zoom "still changes a
-## little"). A star is one block, whatever the zoom, so the galaxy it covers
-## shrinks as you zoom in and its share of a patch's light with it: a patch of
-## the arms darkened 0.7 from zoom 1 to 4.5 as its stars went from blocks to
-## points. What the chart's stars no longer bring a patch, against what they
-## brought it at the opening, is laid back into the patch as the diffuse light of
-## stars too faint to see one by one (`chart_c_place`'s `starDebt`). This is the
-## stars' light a plane area at each of a run of zooms (each `chart_c_stars`
-## shows as that shader shows it, times the plane area of a block at that zoom,
-## less the 1 / zoom^2 the shader puts back), in a grid over the plane, the
-## zooms side by side.
+## Stars' light is kept as you zoom: arms darkened 0.7 from zoom 1 to 4.5 as stars became points.
+## Why: docs/why/ChartSky.md#star-light-debt
 const DEBT_N := 48
 const DEBT_E := 1.25
 const DEBT_Z: Array[float] = [0.3, 0.42, 0.6, 0.85, 1.2, 1.7, 2.4, 3.4, 4.8, 6.8, 9.6]
@@ -1465,9 +1294,7 @@ static func _data_tex(f: PackedFloat32Array, n: int) -> ImageTexture:
 	return ImageTexture.create_from_image(Image.create_from_data(w, rows, false, Image.FORMAT_RGBAF, f.to_byte_array()))
 
 
-## THE KNOTS: pink gathered light on the arms' star-forming fronts, placed once a
-## galaxy from its own seed, as many as its gas allows; each with a little
-## cluster of hot young stars.
+## Knots: pink light on star-forming fronts, placed once per galaxy from its seed.
 static func _make_knots(p: Dictionary) -> Array:
 	var out: Array = []
 	var arms: int = p.arms
@@ -1497,9 +1324,7 @@ static func _make_knots(p: Dictionary) -> Array:
 	return out
 
 
-## The named clouds as the place pass draws them: kind numbered as the shader
-## numbers them, the lobes biggest first in the cloud's own round frame, a seed,
-## the emission cluster's stars, and the pulsar a remnant holds.
+## The named clouds as the place pass draws them, kinds numbered as the shader numbers them.
 func _make_clouds(p: Dictionary, g: Dictionary) -> Array:
 	var out: Array = []
 	var sq: float = p.squash
@@ -1552,20 +1377,14 @@ func _make_clouds(p: Dictionary, g: Dictionary) -> Array:
 
 # ------------------------------------------------------------------ the palette
 
-## The colours every simplified palette keeps whatever the cut finds: the void and
-## the navy steps just above it, the hole's bands, the emission cavity's pale
-## front, and ramps through the key hues -- the arms' blue, H-alpha, OIII, the
-## bulge's amber and its dark end, the knots' pink, and the event colours
-## (lightning, the supernova's flare) so events never mud.
+## Colours every palette keeps whatever the cut finds, so events never mud.
 static func _fixed_palette(form: int = 0, emits: bool = true) -> PackedColorArray:
 	var out := PackedColorArray()
 	for h in ["#070a12", "#0b1020", "#0e1327", "#0f1529", "#121830", "#141b33", "#171f3c"]:
 		out.append(Color(h))
 	for i in range(1, 8):
 		out.append(LegacyHole.PALETTE[i])
-	# the emission cavity's pale front, only where there is an emission cloud:
-	# elsewhere the gold-lit billows round the bulge took the pale rose and drew
-	# a lavender plate beside the hole
+	# Pale front only with an emission cloud: elsewhere gold billows drew a lavender plate.
 	if emits:
 		for h in ["#e4aeb0", "#f3cfc6", "#cdeee4", "#a6e3d6"]:
 			out.append(Color(h))
@@ -1648,9 +1467,7 @@ static func _to_lch(c: Color) -> Vector3:
 	return Vector3(L.x, Vector2(L.y, L.z).length(), fposmod(rad_to_deg(atan2(L.z, L.y)), 360.0))
 
 
-## A ramp of n steps through a key hue, darkest first (the showcase kit's
-## `P.ramp`): OKLab lightness lo to hi, the hue turning hue_shift degrees from
-## the dark end to the light, the chroma peaking in the middle steps.
+## A ramp through a key hue, darkest first, in OKLab.
 static func _ramp(key: Color, n: int, lo: float, hi: float, hue_shift: float) -> Array[Color]:
 	var lch := _to_lch(key)
 	var out: Array[Color] = []
@@ -1664,10 +1481,7 @@ static func _ramp(key: Color, n: int, lo: float, hi: float, hue_shift: float) ->
 	return out
 
 
-## THE PALETTE'S CUT, on another thread: k-means in OKLab over samples of the
-## unquantised hero views, weighted toward colour and light; the fixed colours
-## take part in the assignment but never move, so the free ones fill what the
-## ramps miss. Then the fixed and the free, near-duplicates dropped.
+## K-means in OKLab on another thread; fixed colours join the assignment but never move.
 class PaletteJob extends RefCounted:
 	var samples := PackedByteArray()
 	var fixed := PackedColorArray()
@@ -1752,12 +1566,8 @@ class PaletteJob extends RefCounted:
 			var c := Color8(roundi(clampf(ChartSky._l2s(lin.x), 0.0, 1.0) * 255.0),
 				roundi(clampf(ChartSky._l2s(lin.y), 0.0, 1.0) * 255.0), roundi(clampf(ChartSky._l2s(lin.z), 0.0, 1.0) * 255.0))
 			var L2 := ChartSky._oklab(c)
-			# NOTHING BELOW THE VOID (the radiant cut, which weighs every colour
-			# alike): it found the shadow's pure black and kept it beside the void's
-			# navy-black, and the hole's middle -- light 0, exactly between the two
-			# once toned -- flipped from one to the other and back as the zoom moved
-			# (a third of the hole's blocks, Oct 10 polish). The void is the darkest
-			# colour, as in every other style.
+			# Nothing below the void: a pure black cut flipped the hole's middle on zoom.
+			# Why: docs/why/ChartSky.md#void-darkest
 			if even and L2.x < ChartSky._oklab(fixed[0]).x:
 				continue
 			# in the dark, where nothing is dithered, a near colour only swaps
@@ -1942,9 +1752,7 @@ static func _knot_amp(knots: Array, i: int, t: float, calm: bool) -> float:
 	return a
 
 
-## A supernova: in slot n of 60 s, at 60n + 30 hash(n) s, at a disc star picked
-## by hash; rises in 0.4 s, holds 1.5, decays over about 12. Its light echo is a
-## ring sweeping out at 0.004 gu a second. Empty when there is none.
+## One supernova per 60 s slot at a hashed time and star; its light echo is a sweeping ring.
 static func _supernova(cand: PackedVector2Array, t: float, calm: bool) -> Dictionary:
 	if calm or cand.is_empty():
 		return {}
@@ -1960,12 +1768,8 @@ static func _supernova(cand: PackedVector2Array, t: float, calm: bool) -> Dictio
 	return {}
 
 
-## WHAT A SUPERNOVA LEAVES (Jon's idea 18 from the "magnificent" list, kept Oct
-## 12): the last ten minutes' supernovae, on `_supernova`'s own schedule and among
-## the same stars, each a remnant that every style draws as its own -- a ragged
-## shell that grows fast at first and slower after and fades out over the ten
-## minutes. (count, then (plane x, y, age s, seed) each, ten at most.) None under
-## reduced motion, which has no supernovae.
+## The last ten minutes' supernovae leave remnants in every style (Jon's idea 18, kept Oct 12).
+## Why: docs/why/ChartSky.md#supernova-remnants
 const REMNANT_N := 10
 
 
@@ -1986,9 +1790,7 @@ static func remnants(cand: PackedVector2Array, t: float, calm: bool) -> Array:
 	return [nr, rem]
 
 
-## Distant lightning in an emission or dark cloud: a flash every 6 to 14 s at a
-## point inside it, two or three pulses (80 ms rise, 250 ms decay, 120 ms
-## apart). (envelope, round-frame x, y, radius) or a zero envelope.
+## Distant lightning in a cloud: a flash every 6 to 14 s of two or three pulses.
 static func _lightning(c: Dictionary, rl: Array[Vector3], t: float, calm: bool) -> Vector4:
 	if calm or (int(c.kind) != 0 and int(c.kind) != 4):
 		return Vector4(0, 0, 0, 1)
@@ -2016,9 +1818,7 @@ static func _lightning(c: Dictionary, rl: Array[Vector3], t: float, calm: bool) 
 	return best
 
 
-## The clouds, knots and events at time t and turn phi, onto a place material;
-## the clouds' own stars into `extra` (block x, y, plus; linear colour) when a
-## frame wants them.
+## Clouds, knots and events at time t and turn phi onto a place material.
 func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: float, live: bool,
 		extra: Array = []) -> void:
 	var calm := (not live) or DisplaySettings.reduced_motion
@@ -2108,9 +1908,7 @@ func _solid_view(v: Vector2) -> Vector2:
 	return solid_fwd(v / K0) * K0
 
 
-## The clouds' own stars, this frame: an emission cloud's cluster, a reflection
-## cloud's two lamps, a planetary's hot star and a pulsar's beat. (block x, y,
-## plus) and linear colour pairs.
+## The clouds' own stars this frame: clusters, lamps, a planetary's hot star and a pulsar's beat.
 func _cloud_stars(g: Dictionary, t: float, phi: float, cpix: Vector2, z: float, origin: Vector2) -> Array:
 	var pos := PackedVector4Array()
 	var col := PackedVector4Array()
@@ -2235,21 +2033,13 @@ func _push() -> void:
 	var zooming := _last_zoom > 0.0 and absf(log(chart.zoom / _last_zoom)) > 1e-7
 	_last_zoom = chart.zoom
 	var was_held := _since_zoom < 61
-	# THE HOLD LETS GO ON A PAN, NOT ON A CLOCK: let go a second after a zoom, the
-	# block grid went over from the screen's anchor to the galaxy centre's, and
-	# when the two differed by a pixel the whole picture jumped a pixel with
-	# nothing moving -- one of PAINTED's "weird pops" (5% of the frame's pixels on
-	# one frame). Held until the view is dragged, the jump lands inside a move.
+	# The hold lets go on a pan, not a clock: a timed release jumped the picture a pixel.
 	var panned := chart.pan != _last_pan
 	_last_pan = chart.pan
 	if zooming:
 		_since_zoom = 0
 	elif panned:
-		# (let go on the FIRST frame of a drag, not after a second of dragging:
-		# held, the grid stays on the screen while the galaxy slides under it and
-		# every block is worked out afresh, and for the first second of every pan
-		# after a zoom the whole picture shimmered -- 9 to 19% of its pixels a
-		# frame that a rigid move would not change; Oct 10 polish)
+		# Let go on a drag's first frame: held, a pan's first second shimmered 9 to 19% of pixels.
 		_since_zoom = mini(maxi(_since_zoom, 59) + 1, 999)
 	elif _since_zoom < 59:
 		_since_zoom += 1
@@ -2260,32 +2050,15 @@ func _push() -> void:
 	# while held, the block grid stays where it was on the screen too: a grid
 	# that followed the centre's parity would shift the samples by a pixel
 	var anchor := _hold_c if zw > 0.0 else cpix
-	# PAINTED MOVES IN WHOLE BLOCKS. Its far sky (the little galaxies, the tiered
-	# stars, the wisps) slides by its own depth, far slower than the galaxy, and is
-	# drawn on the same grid of 2x2 blocks; a grid that followed the galaxy's
-	# centre pixel by pixel swapped parity on every pixel of a pan, and each far
-	# block hopped a pixel to and fro (0.0063 of the pixels flipping back on a
-	# slow pan at zoom 4). The galaxy is set on the even pixel nearest its centre
-	# instead, so a pan moves it a block at a time and the far sky only ever
-	# steps one way.
-	# EVERY STYLE, NOT ONLY PAINTED (Oct 13; Jon, on SIMPLIFIED's and RADIANT's
-	# chart: "jitter in the background stars ... like they're almost bouncing around
-	# as you pan"). Their far stars are drawn on the same 2x2 grid, and with the grid
-	# following the galaxy's centre pixel by pixel a far star could not slide at a
-	# fraction of the pan without hopping a pixel back every other pixel: measured on
-	# a slow steady drag at Jon's framing (`tour=skypan`), 0.82 back-steps a star a
-	# second in SIMPLIFIED and 0.34 in RADIANT, against PAINTED's 0.05. The galaxy
-	# moves a whole block of its own art at a time instead.
+	# The galaxy moves in whole blocks on every style, or far stars hop back a pixel (Jon, Oct 13).
+	# Why: docs/why/ChartSky.md#whole-block-panning
 	if zw <= 0.0:
 		var even := (cpix / 2.0).floor() * 2.0
 		ccon += even - cpix
 		cpix = even
 		anchor = even
 	var vis := _visible_rect()
-	# The blocks are anchored to the galaxy's centre, so a pan by one pixel moves
-	# the picture by one pixel rather than redrawing every block; a block's
-	# margin on each side, and the same size whichever way the blocks fall (a
-	# viewport resized every odd pixel of a drag reallocates every other frame).
+	# Blocks anchor to the galaxy's centre; a fixed margin avoids reallocating the viewport.
 	var vx := floorf(vis.position.x)
 	var vy := floorf(vis.position.y)
 	_vp_origin = Vector2(vx - posmod(int(vx) - int(anchor.x), 2) - 2.0, vy - posmod(int(vy) - int(anchor.y), 2) - 2.0)
@@ -2353,14 +2126,8 @@ func _push() -> void:
 	var mc := _m_comp
 	mc.set_shader_parameter("vp_size", vs)
 	mc.set_shader_parameter("block0", b0)
-	# the blocks' anchor moved by whole blocks on a pan: where each was last frame
-	# (not across a jump of the view: a block's colour from another place is no
-	# colour to hold)
-	# AGAINST THE LAST FRAME DRAWN, not the last push: a moving view pushes twice
-	# a frame (`_process`, then the chart's `queue_push`), and measured against the
-	# first push of the same frame the shift came out 0 -- each block was held to
-	# the colour of whatever stood there on the screen a frame before, so a pan
-	# dragged the colours with the screen instead of the galaxy (Oct 10 polish)
+	# Measure against the last frame drawn, not the last push: a moving view pushes twice a frame.
+	# Why: docs/why/ChartSky.md#block-hold
 	var fd := Engine.get_process_frames()
 	if fd != _hold_frame:
 		_hold_frame = fd
@@ -2374,10 +2141,7 @@ func _push() -> void:
 	_hold_bad = _hold_bad or resized
 	_frame_pan = _frame_pan or panned
 	_frame_zoom = _frame_zoom or zooming
-	# NOTHING HELD WHILE THE VIEW IS ONLY DRAGGED: a drag moves the galaxy rigidly,
-	# so there is no flicker to hold, and the far sky behind slides at its own
-	# depth -- held to the galaxy's shift its dim colours were dragged along with the
-	# galaxy and drew streaks across the halo the length of the drag
+	# Nothing held on a pure drag: held colours dragged streaks across the halo.
 	var dragging := _frame_pan and not _frame_zoom
 	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
@@ -2416,11 +2180,7 @@ func next_supernova(t: float) -> Dictionary:
 	return {}
 
 
-## THE SOLID GALAXY, A FRAME OF IT, for every style that draws it (`SOLID_STYLES`;
-## the run's chart, not the title's): whether the chart is solid this frame. (A style
-## with a push of its own calls this once a frame, then `push_solid` on its place pass
-## and `push_solid_stars` on its stars pass. The camera never moves, so there is
-## nothing else to do a frame.)
+## Whether the chart is solid this frame; styles with their own push call it once a frame.
 func solid_frame(_t: float) -> bool:
 	return solid() and _use_map
 
@@ -2446,20 +2206,8 @@ func push_solid_stars(m: ShaderMaterial, sol: bool) -> void:
 	m.set_shader_parameter("solidT", SOLID_T)
 
 
-## RADIANT'S SAFETY: it is the heavy style ("for photos probably", Jon). Over its
-## first seconds of drawing the sky's own viewports' GPU time is averaged; if
-## this machine cannot hold it (`ChartRadiant.FALLBACK_MS`), the chart falls
-## back to SIMPLIFIED from its next build (this one keeps its look), with one
-## line in the log. A harness's `style=radiant` is never overruled (it is
-## measuring) unless it asks with `radiantprobe=MS`. (The measure is every
-## style's now, `GpuProbe`: the same one picks GRAPHICS on the title.)
-## NOT BEFORE THE MACHINE'S PICK. On a RADIANT profile where nobody set
-## GRAPHICS, the title's sky is measured for the pick too, and both read the same
-## HIGH frames: the safety gave up on RADIANT (SIMPLIFIED, saved) as the pick
-## turned LOW on, so the player lost RADIANT that LOW may have held. So the title
-## waits while the pick is to come, and no picture judges a pass it is only
-## holding (`DisplaySettings.low_held`): RADIANT is judged on the pass it will
-## be drawn with, at the next chart built.
+## Judge RADIANT only on the pass it will draw with, not before the pick, or LOW's saving is lost.
+## Why: docs/why/ChartSky.md#radiant-safety
 func _radiant_safety() -> void:
 	if _radiant_probe == null:
 		return
@@ -2472,10 +2220,7 @@ func _radiant_safety() -> void:
 	if avg > ChartRadiant.budget_ms() and ((DisplaySettings.render_style == &"radiant" and not DisplaySettings.harness_style()) 			or ChartRadiant.probe_forced()):
 		push_warning("RADIANT measured %.1f ms a frame on this machine; drawing SIMPLIFIED" % avg)
 		Run.log_line("RADIANT is too heavy for this machine, so the star chart is drawn SIMPLIFIED.", &"them")
-		# FROM THE NEXT PICTURE, NOT THIS ONE (Jon: the picture holds its
-		# brightness; the sector map's safety, `SystemView._radiant_safety`, has
-		# the measure): the chart up keeps its look, the next one built is
-		# SIMPLIFIED (`fell_back`, and the setting with it).
+		# Change from the next picture, not this one: the picture holds its look (Jon).
 		ChartRadiant.fell_back = true
 		DisplaySettings.fall_back_style(&"simplified")
 

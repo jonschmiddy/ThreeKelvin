@@ -1,12 +1,7 @@
 extends Node
 
-## The title screen's galaxy on a cold start: when it first draws, and what the
-## screen shows before it does.
-##   godot --path . -- sheet=TitleBoot out=<dir>
-## Prints how long after the title's first frame its sky is drawing and the
-## longest frame, and saves the frame at 0.5, 1, 2 and 4 s (`boot_<ms>.png`). For
-## a first launch's cold shader compile, run it with the user's shader cache
-## moved aside. Needs a window.
+## Measures when the title's sky first draws on a cold start, and what shows before.
+## Why: docs/why/TitleBoot.md#title-boot
 
 var out := "user://titleboot"
 

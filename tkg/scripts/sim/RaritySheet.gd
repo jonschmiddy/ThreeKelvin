@@ -1,31 +1,10 @@
 extends Harness
 
-## What a rarity actually BUYS, in card numbers:
-##   godot --headless --path . -- rarity
-##
-## A MEASUREMENT, not a gate, in the shape of `-- content`: it prints and it
-## passes, because the answer is a balance question rather than a correctness
-## one and a test that fails until somebody retunes the tables is a test people
-## learn to skip.
-##
-## THE QUESTION IT EXISTS FOR. Affixes are moving off cards and onto the ship,
-## which takes the only thing that made a gun hit harder over a run with them.
-## The replacement is supposed to be rarity itself -- an Epic gun being a better
-## gun rather than a Common one with better rolls. That is a claim about the
-## module tables, and this is the number that says whether the claim is already
-## true, nearly true, or wishful.
-##
-## READS THE TABLES, not a rolled drop. `LootGen` adds affixes and jitters scrap
-## value; both are noise here. What is wanted is the AUTHORED card, which is what
-## `DB.modules` holds.
-##
-## PER MODULE, then averaged over its cards. A module granting three cards is
-## one data point and not three, or the parts with the thickest grants would
-## quietly set the mean for their whole rarity band.
+## A measurement, not a gate: a balance check that fails is one people learn to skip.
+## It reads the authored tables, per module, so thick grants cannot set a band's mean.
+## Why: docs/why/RaritySheet.md#rarity-sheet
 
-## The bands, in ladder order. Contraband sits outside the ladder -- it is a
-## legal status rather than a grade -- so it prints last and is excluded from the
-## trend line the whole sheet is for.
+## Contraband is a legal status, not a grade, so it prints last and is off the trend.
 const LADDER := [
 	ModuleData.Rarity.COMMON,
 	ModuleData.Rarity.UNCOMMON,
@@ -39,15 +18,8 @@ const LADDER := [
 
 
 func run() -> void:
-	# SEGMENTED BY SLOT, and the first version of this was not -- which made it
-	# lie. Pooled across every slot, COMMON out-damaged UNCOMMON and RARE, and
-	# the trend the whole sheet exists to show ran BACKWARDS. The cause is mix,
-	# not balance: the common band is mostly guns, and the bands above it carry
-	# systems and utilities whose cards deal no damage at all, so the mean was
-	# measuring what a band is MADE of rather than how hard it hits.
-	#
-	# "Does an Epic gun beat a Common gun" is a question about guns. Ask it
-	# about guns.
+	# Segmented by slot: pooled, COMMON out-damaged RARE because bands differ in mix, not balance.
+	# Why: docs/why/RaritySheet.md#rarity-sheet
 	_sheet("EVERY SLOT", -1)
 	_sheet("WEAPONS ONLY", ModuleData.Slot.WEAPON)
 	_sheet("SYSTEMS ONLY", ModuleData.Slot.SYSTEM)
@@ -93,16 +65,10 @@ func _sheet(title: String, only: int) -> void:
 		for c in m.cards:
 			var card := c as CardData
 			dmg += float(card.damage)
-			# WHAT IT ACTUALLY DOES IN A TURN, which is the number that matters
-			# for whether a rarity hits harder: a card dealing 4 x 3 is not a
-			# card dealing 4. `hits` defaults to 1, so this is safe on everything.
+			# Damage per turn is damage times hits, since a 4 x 3 card is not a 4.
 			out += float(card.damage) * float(maxi(1, card.hits))
-			# AND THE SAME NUMBER PER TURN, which is the fair comparison and the
-			# one that changes the answer. A siege driver reading "Deal 40,
-			# Charge 2" is not four times a mass driver reading "Deal 16, Charge
-			# 1" -- it is 40 across three turns against 16 across two. Raw output
-			# flatters every big slow gun, and the top of the rarity ladder is
-			# made of big slow guns.
+			# Per turn, not raw: raw output flatters big slow guns, which top the rarity ladder.
+			# Why: docs/why/RaritySheet.md#rarity-sheet
 			var turns := 1.0 + float(maxi(0, card.charge_turns))
 			per += float(card.damage) * float(maxi(1, card.hits)) / turns
 			nrg += float(card.energy)
@@ -139,16 +105,12 @@ func _sheet(title: String, only: int) -> void:
 			% [_band_name(r), n, b.cards, b.damage / n, b.output / n,
 				b.perturn / n, b.energy / n, b.brace / n, b.scrap / n])
 
-	# THE TREND IS THE POINT, so it is stated rather than left to be eyeballed
-	# off the table. Common to Epic is the span a run actually walks: Legendary
-	# and above are gated behind danger and Artifact is not a drop at all.
+	# State the trend rather than eyeball it; Common to Epic is the span a run walks.
 	print("")
 	var lo: Dictionary = bands[ModuleData.Rarity.COMMON]
 	var hi: Dictionary = bands[ModuleData.Rarity.EPIC]
 	if lo.modules > 0 and hi.modules > 0:
-		# TYPED OUT LONGHAND, because a Dictionary value is a Variant and `:=`
-		# has nothing to infer from. The alternative is four untyped locals in
-		# a file whose whole output is arithmetic.
+		# Typed longhand: a Dictionary value is a Variant, so `:=` has nothing to infer.
 		var a: float = float(lo.perturn) / float(lo.modules)
 		var z: float = float(hi.perturn) / float(hi.modules)
 		print("  COMMON -> EPIC damage per turn: %.2f -> %.2f  (x%.2f)"

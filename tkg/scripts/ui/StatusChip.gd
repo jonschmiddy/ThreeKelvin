@@ -1,29 +1,10 @@
 class_name StatusChip
 extends PanelContainer
 
-## One thing currently true about a ship, drawn rather than spelled.
-##
-## The status row under your hull used to be words in boxes -- "brace 5",
-## "lock +2", "salvo up". Words are unambiguous and they are also slow: a row of
-## five of them is a paragraph you have to read every turn, it grows wider than
-## the ship it belongs to, and at `FS_SMALL` under a sprite it competes with the
-## hull number that is the one thing there you must never misread.
-##
-## An icon is read in the shape rather than in the letters, so five of them are
-## still one glance. The cost is that the NAME is gone, and a picture nobody can
-## name is worse than a word -- so every chip carries a tooltip that says the
-## word out loud, and the magnitude stays as a digit beside the glyph. The icon
-## is the index; the tooltip is the entry.
-##
-## The glyphs are built from the same parts as `CardView`'s keyword art -- flat
-## rectangles on a small grid, no curves, no anti-aliasing -- but they are drawn
-## at a twelfth of the size, which means they are DIFFERENT drawings and not the
-## card art scaled down. A reticle that is legible at 44 pixels is four grey
-## smudges at 12.
+## Icons replace words in the status row: read by shape, with a tooltip as the entry.
+## Why: docs/why/StatusChip.md#status-chips
 
-## The glyph's box. Twelve, because the chip has to sit under a hull without
-## crowding the number beside it, and because every icon here is built from
-## whole pixels: an odd size gives a centred two-pixel mark nowhere to land.
+## Twelve pixels, so the chip fits under a hull and icons sit on whole pixels.
 const ICON := 12
 
 
@@ -47,13 +28,8 @@ class Glyph extends Control:
 		var dim := tint.lerp(Color("#0b0f16"), 0.35)
 		match kind:
 			&"brace":
-				# A plate with a point on it. Brace and block are both armour
-				# and have to differ in SHAPE rather than in colour, because
-				# colour is what tells you whose they are.
-				#
-				# The taper runs five rows, not two. The first version came off
-				# the sheet as a rounded bag: at twelve pixels a point has to be
-				# most of the shape or it is not a point.
+				# Brace and block differ by shape, not colour, as colour says whose they are.
+				# Why: docs/why/StatusChip.md#glyph-design
 				_p(1, 1, 10, 1, lit)
 				_p(1, 2, 10, 4, tint)
 				_p(2, 6, 8, 1, tint)
@@ -67,10 +43,7 @@ class Glyph extends Control:
 				_p(1, 5, 10, 4, tint)
 				_p(1, 9, 10, 1, dim)
 			&"lock":
-				# The reticle, which is the one glyph that also exists on a card
-				# -- see `CardView._type_glyph`, `&"lock"`. Same idea, redrawn:
-				# the card's version is written out corner by corner because an
-				# L has a handedness, and so is this.
+				# The reticle, redrawn from the card's, written corner by corner (L is handed).
 				_p(1, 1, 4, 1, tint)
 				_p(1, 1, 1, 4, tint)
 				_p(7, 1, 4, 1, tint)
@@ -81,23 +54,14 @@ class Glyph extends Control:
 				_p(10, 7, 1, 4, tint)
 				_p(5, 5, 2, 2, UITheme.HOT)
 			&"slip":
-				# The round going through where the ship WAS. Absence, drawn --
-				# the same joke the card's glyph tells, with fewer pixels.
-				#
-				# The halves have to be BIG. Drawn as narrow stubs they stopped
-				# reading as a ship at all and the whole glyph came off the
-				# sheet as a division sign.
+				# The halves must be big, or the missed-round glyph read as a division sign.
+				# Why: docs/why/StatusChip.md#glyph-design
 				_p(1, 0, 5, 4, dim)
 				_p(1, 8, 5, 4, dim)
 				_p(0, 5, 12, 2, lit)
 			&"salvo":
-				# Two rounds away, with the tracers behind them. The second
-				# volley, which is what the keyword pays for.
-				#
-				# It was two chevrons and they did not touch: six two-pixel
-				# blocks on a diagonal come off the sheet as a checkerboard,
-				# not as ">>". Solid shapes read at this size; implied ones do
-				# not.
+				# Solid chevrons: implied diagonals of blocks read as a checkerboard at this size.
+				# Why: docs/why/StatusChip.md#glyph-design
 				_p(1, 2, 3, 1, dim)
 				_p(4, 1, 5, 3, tint)
 				_p(9, 1, 2, 3, lit)
@@ -123,12 +87,8 @@ class Glyph extends Control:
 				_p(2, 7, 2, 2, dim)
 				_p(9, 5, 2, 1, lit)
 			&"wasp":
-				# The drone, standing over a shield. It is a drone that guards
-				# rather than shoots, so it is the drone glyph above armour --
-				# and the armour is the SAME taper `brace` uses, because it is
-				# the same thing being added.
-				#
-				# The first attempt was two flat bars, which read as neither.
+				# The guard drone reuses `brace`'s taper over the drone glyph, as it adds the same.
+				# Why: docs/why/StatusChip.md#glyph-design
 				_p(4, 0, 4, 2, tint)
 				_p(2, 0, 2, 1, dim)
 				_p(8, 0, 2, 1, dim)
@@ -150,31 +110,19 @@ class Glyph extends Control:
 				_p(3, 9, 6, 1, tint)
 				_p(2, 10, 8, 1, lit)
 			&"peaceful":
-				# Level. Nothing is happening and nothing is about to, so the
-				# glyph is the absence of a shape: two rules, flat, with air
-				# between them.
-				#
-				# It was a round blob, which at twelve pixels was the same
-				# picture as `brace` -- the two sat side by side on the contact
-				# sheet and could not be told apart. Thin horizontals are the
-				# one thing nothing else in the kit is made of; `block` is a
-				# solid mass, and mass is what this has to avoid.
+				# Level is two thin rules: a blob looked identical to `brace` on the sheet.
+				# Why: docs/why/StatusChip.md#glyph-design
 				_p(1, 3, 10, 1, tint)
 				_p(1, 7, 10, 1, tint)
 			_:
-				# An unnamed status still has to appear. A hollow box says "there
-				# is something here I have no picture for", which is a bug you
-				# can see rather than a status that silently vanished.
+				# An unnamed status shows a hollow box, a visible bug rather than a silent vanish.
 				_p(1, 1, 10, 1, tint)
 				_p(1, 10, 10, 1, tint)
 				_p(1, 2, 1, 8, tint)
 				_p(10, 2, 1, 8, tint)
 
 
-## A glyph, its magnitude, and the word it stands for.
-##
-## `text` is what the number was: "5", "+2", "1/2". Pass it empty for a status
-## that is simply on or off, and the chip is the icon alone.
+## `text` is the number; pass empty for an on or off status and the chip is the icon alone.
 static func make(kind: StringName, text: String, colour: Color,
 		tip: String) -> StatusChip:
 	var chip := StatusChip.new()

@@ -1,11 +1,7 @@
 extends Node
 
-## JON'S WELCOME NOTE, PHOTOGRAPHED on the real title screen:
-##   godot --path . --windowed --position 3840,0 -- sheet=WelcomeShot out=<dir> [wait=120]
-## The title is given `wait` frames to bring its galaxy up and saved alone
-## (`title.png`); then the note opens as on a first launch (START YOUR JOURNEY,
-## `welcome.png`) and from MESSAGE FROM JON (CLOSE, `welcome_menu.png`), each
-## saved once its fade has settled. Needs a window.
+## Photographs Jon's welcome note on the real title. Needs a window: `-- sheet=WelcomeShot`.
+## Why: docs/why/WelcomeShot.md#welcome-note-shot
 
 var _args: PackedStringArray
 

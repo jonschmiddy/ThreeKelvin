@@ -1,27 +1,7 @@
 extends Node
 
-## THE HULL FAILING, FILMED (`LowHull`, `HullScramble`), with sound, at true speed:
-##   godot --path . --resolution 1920x1080 --write-movie <dir>/film.avi --fixed-fps 30
-##       -- sheet=LowHullFilm scene=<local|fight|tooltip|ramp> [lowhull=subtle|medium|strong]
-##          [hull=0.22] [secs=8] [ash=1] out=<dir>
-##   local    LOCAL with the hull at `hull` of its max, the state already eased in
-##   fight    a fight with a pirate cutter at `hull`; two cards played
-##   tooltip  LOCAL at `hull`, the HUD hull's tooltip up (built the way Godot
-##            builds one: its TooltipPanel and TooltipLabel, under the cells)
-##   ramp     LOCAL at 35%, the hull stepping to 30, 20, 10 and 5% every
-##            `step` s (2.5), then repaired to 60%
-##   `ash=1`: A.S.H. says the same line (`line_of`) a second in, glitched by the
-##   hull's depth, her portrait slipping in step.
-## Each runs a pre-roll first (the screen settling, the state easing in), then
-## writes `marks.json` into `out`: the movie frame the film proper starts on,
-## the moments in it in seconds from that start, and the scramble's measure
-## (runs started a second, letters scrambled at once). Every clock is the game's.
-##
-##   godot --headless --path . -- sheet=LowHullFilm scene=voice out=<dir>
-## writes `voice.wav`: her line (`line_of`) at 30, 20, 10 and 5% of the hull,
-## back to back with VOICE_GAP_S of silence between, each through the same
-## worker path she is heard through in play (`VoiceGlitch.bake_placed`), and
-## `voice.json`, where each glitch is.
+## Films the failing hull with sound at true speed; every clock is the game's.
+## Why: docs/why/LowHullFilm.md#low-hull-film
 
 const VOICE_GAP_S := 0.5
 
@@ -106,11 +86,7 @@ static func line_of() -> String:
 	return line
 
 
-## A TOOLTIP, built the way Godot's viewport builds one for `target` (a plain
-## `tooltip_text` in a TooltipPanel holding a TooltipLabel; or what the control's
-## own `_make_custom_tooltip` gives), and shown under its middle. A harness's:
-## a pushed mouse event does not move the game viewport's hover (`GameShell`),
-## so the real one cannot be summoned headless or on the hidden desktop.
+## Built as Godot builds one, as a pushed mouse event cannot summon a real tooltip headless.
 static func show_tip(target: Control) -> PopupPanel:
 	var pp := PopupPanel.new()
 	pp.theme_type_variation = &"TooltipPanel"

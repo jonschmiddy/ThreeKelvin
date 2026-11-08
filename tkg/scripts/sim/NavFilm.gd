@@ -1,24 +1,8 @@
 extends Node
 
-## NAVIGATION AUDIT (Jon, Oct 17: "the movement between local > sector >
-## starchart ... EXTREMELY disorienting"). Every move between the distances a
-## player can make, made the way a player makes it -- a HUD tab clicked with a
-## pointer, Tab pressed, the wheel turned -- filmed under the movie writer with
-## sound, and every frame's state logged beside it for measuring.
-##   godot --path . --resolution 1920x1080 --write-movie <dir>/film.avi --fixed-fps 60
-##       -- sheet=NavFilm reel=<ladder|journey|dock|session> out=<dir> flow=c asrelease [seed=N] [at=nebula]
-## Writes <out>/frames.jsonl (one line a process frame: the screen up, the
-## ladder's phase, where your ship is on screen in game px, which HUD tab is lit,
-## the side bar's and toolbar's opacity, the map's zoom) and <out>/marks.json;
-## prints `mark <name> <drawn> <t>` at each action. The pointer is a software
-## arrow (FirstRunFilm's), since pushed events move no hardware cursor.
-##
-## FILMED AT TRUE SPEED. The ladder, LOCAL and the side bar's swap all run on the
-## process delta. Two clocks on the map and the chart read the wall instead
-## (which races ~13x under the movie writer), so this harness drives their own
-## overrides from the game clock every frame: the chart's `MapChart.clock_override`
-## and the map view's `hclock`, and it re-bases the map's `_glide` start onto the
-## game clock. Nothing in the game is changed.
+## Audit of moves between distances (Jon, Oct 17: disorienting), filmed at true speed by
+## driving wall-clock overrides.
+## Why: docs/why/NavFilm.md#navigation-audit
 
 var _args: PackedStringArray
 var _dir := ""
@@ -89,9 +73,8 @@ func _v(p: Vector2) -> Array:
 	return [snappedf(p.x, 0.1), snappedf(p.y, 0.1)]
 
 
-## Where your ship is on the live screen, game px: on LOCAL the hull's ink, on
-## the map the ship's marker, on the chart your star's mark, in the yard your
-## ship on its stands.
+## Where the ship is per screen: LOCAL hull ink, map marker, chart star, or the yard
+## stands.
 func _ship_on(s: Control) -> Variant:
 	if s == null or not is_instance_valid(s):
 		return null
@@ -552,10 +535,8 @@ func _reel_short() -> void:
 	await _settle(2.0)
 
 
-## THE FIELD'S DRIFT (Jon: "Why is the parallax gone from the sector and
-## starchart views?"): on the chart a slow drag one way and back and the wheel
-## in and out, then the same on the map, then LOCAL -- each drag a mark of its
-## own (`drag_chart`, `drag_map`) to cut clips at.
+## The field's drift: slow drags and wheel on chart, map and LOCAL (Jon: where did parallax
+## go?).
 func _reel_drift() -> void:
 	await _hop_tab("STARCHART", "L_C_tab")
 	await _drag(Vector2(420, 300), Vector2(250, 340), 1.6, "drag_chart")
@@ -589,9 +570,7 @@ func _drag(from: Vector2, to: Vector2, s: float, name: String) -> void:
 	await _wait(0.5)
 
 
-## A flight across the system (LOCAL mid-flight, and on arrival), GO on an
-## event, a jump from the chart (departure, arrival at the edge, LOCAL there),
-## and a fight entered and left.
+## Flight across a system, GO on an event, a chart jump and a fight entered and left.
 func _reel_journey() -> void:
 	await _rich_system()
 	await _hop_tab("SECTOR", "L_M_tab")

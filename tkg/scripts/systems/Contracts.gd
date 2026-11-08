@@ -1,29 +1,14 @@
 class_name Contracts
 extends RefCounted
 
-## What a station's manufacturer wants doing, and what it pays.
-##
-## POSITIONAL, like the shelf and the wreck. What is on a station's board is
-## drawn from `Rng.derive(&"work", node.index)`, so it is a property of the place
-## rather than of who walked in — four ships docking in four different orders see
-## one board, and it is the same board on the second visit as on the first.
-##
-## NOT CONTESTED, unlike the shelf. Two ships can both take the same contract and
-## both deliver it. A shelf holds one Legendary and a job holds as many hands as
-## want it; the thing being paid for is the flying, and both of them flew. See
-## `netcode.md` "One kill, one bag" for the shape it is deliberately NOT.
-##
-## Nothing here expires. See ContractData's header for why that is a rule rather
-## than an omission.
+## Boards are positional and derived, not contested: two ships can take and deliver one job.
+## Why: docs/why/Contracts.md#board
 
 ## How many offers a board carries. Two is enough to be a choice and few enough
 ## that declining both is a normal evening.
 const OFFERS := 2
 
-## Pay, per unit of the thing being priced. All three kinds are priced against
-## the TRIP rather than against the difficulty, because the trip is the cost the
-## player is actually being asked to bear — `docs/design-doc.md`'s greed clock is
-## a fuel budget with a danger gradient stapled to it.
+## Pay is priced against the trip, not the difficulty, as the trip is the cost the player bears.
 const PAY_BASE := 26
 const PAY_PER_LAYER := 9
 const PAY_PER_DANGER := 4
@@ -32,24 +17,14 @@ const HUNT_BONUS := 1.25
 ## Heat pays best of the three and is never explained. See `docs/lore.md` §1.
 const HEAT_PER_UNIT := 11
 
-## How much heat a berth will ask for. Small, because `RunState.cool_in_transit()`
-## sheds half a jump's worth every time you move: arriving anywhere with heat on
-## the hull means having chosen not to cool down, and that choice is the whole
-## mechanic. Anything larger than this is not a contract, it is a demand that you
-## fly hot for six jumps, which is the ambush layer being weaponised against the
-## player rather than offered to them.
+## Heat asks stay small: arriving hot already means choosing not to cool, so more is a demand.
+## Why: docs/why/Contracts.md#heat-asks
 const HEAT_MIN := 4
 const HEAT_MAX := 9
 
 
-## What this station is offering. Every station posts work (Jon, Nov 3: all five
-## decks at every station); one with no berth posts it for its dock desk (`dock_desk`).
-## Empty off a station, and rarely at one: an offer with nowhere to send you is
-## not posted, so a board with no ordinary system within reach can be bare.
-##
-## Idempotent and derived — nothing is stored on the node. A board that was
-## generated once and saved would be a board that could drift from the seed, and
-## there is nothing here a seed cannot say.
+## Every station posts work (Jon, Nov 3); derived from the seed, never stored, so it cannot drift.
+## Why: docs/why/Contracts.md#board
 static func board(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	if n == null or n.type != MapGen.NodeType.STATION:
@@ -58,9 +33,7 @@ static func board(n: MapGen.MapNode) -> Array:
 	if manufacturers.is_empty():
 		return out
 	var r := Rng.derive(&"work", n.index)
-	# Both offers are rolled against the same map, so the candidate pool is
-	# built once here and handed down rather than rebuilt inside each `_target`.
-	# `board()` is called on every station refresh and the scan is the whole map.
+	# The candidate pool is built once and handed down, as `board()` runs on every station refresh.
 	var pools: Dictionary = {}
 	for i in OFFERS:
 		var c := _roll(n, manufacturers[i % manufacturers.size()], r, pools)
@@ -69,10 +42,7 @@ static func board(n: MapGen.MapNode) -> Array:
 	return out
 
 
-## Every manufacturer with a berth here. `manufacturer` is the dominant one and `berths`
-## is everyone present, so a contested station posts two different manufacturers' work
-## side by side — which is the trade map the chart already draws, saying
-## something about itself.
+## A contested station posts two manufacturers' work side by side, as the trade map does.
 static func _manufacturers(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	if n.manufacturer != &"" and DB.manufacturers.has(n.manufacturer):
@@ -85,19 +55,8 @@ static func _manufacturers(n: MapGen.MapNode) -> Array:
 	return out
 
 
-## WHO POSTS WORK AT A STATION WITH NO BERTH (Jon, Nov 3: every station has all
-## five decks, the HIRING BOARD among them). One manufacturer, drawn off the
-## station's own position, so it is the same desk on every visit, for every ship
-## in a party and on a save from before this existed: it is derived, never
-## stored. That desk also takes delivery here (`ContractData.berth_of`).
-##
-## A DESK, NOT A BERTH. It hangs no banner, sets no shelf, holds no territory
-## and gives no standing price; all of those read `berths` or `manufacturer`,
-## and this is neither. Any manufacturer can be drawn, as a berth can: a locked
-## one's fetch is already a crate with no markings (`_item`).
-##
-## Empty for anything but a station, and for a station that has a berth.
-## Ported from the station study's `-- sim alldecks` (Nov 3), so its numbers stand.
+## A station with no berth posts work through a derived dock desk (Jon, Nov 3), never stored.
+## Why: docs/why/Contracts.md#dock-desk
 static func dock_desk(n: MapGen.MapNode) -> StringName:
 	if n == null or n.type != MapGen.NodeType.STATION:
 		return &""
@@ -106,12 +65,8 @@ static func dock_desk(n: MapGen.MapNode) -> StringName:
 	return dock_desk_from(n.index, DB.manufacturers)
 
 
-## The desk for station `index` out of `table`'s ids. Split from `dock_desk` so
-## StationDeckTest can hand it a table whose StringNames were made out of text
-## order. By their TEXT (`NetSession.sorted_ids`), never `keys().sort()`: an
-## Array of StringNames sorts by address, so the same seed's desk moved with how
-## the process started, and a saved job lost its desk (or two co-op copies
-## disagreed). The desk is derived, never saved, so this order is the save.
+## Sort desks by text via `NetSession.sorted_ids`: StringName `keys().sort()` sorts by address.
+## Why: docs/why/Contracts.md#dock-desk
 static func dock_desk_from(index: int, table: Dictionary) -> StringName:
 	var keys := NetSession.sorted_ids(table)
 	if keys.is_empty():
@@ -153,29 +108,14 @@ static func _roll(n: MapGen.MapNode, manufacturer: StringName,
 			c.at = target2
 			c.item = _item(manufacturer, r)
 			c.pay = _trip_pay(n, Run.map[target2])
-			# The deep ones are worth more standing as well as more money. This is
-			# the only place standing scales, and it scales on DEPTH rather than on
-			# how many you have done, so a manufacturer's regard is bought by flying
-			# somewhere unpleasant rather than by grinding the rim.
+			# Standing scales on depth, not grinding: regard comes from unpleasant places.
 			c.standing = 2 if Run.map[target2].layer >= 5 else 1
 			c.text = _voice(manufacturer, c.kind, MapGen.star_name(Run.map[target2]), 0, r)
 	return c
 
 
-## Somewhere to send them. Never this system, never the core, and never a place
-## the map cannot name.
-##
-## Biased OUTWARD-ish rather than always deeper: a board that only ever points
-## coreward is a board that is spending the player's fuel on the manufacturer's behalf,
-## which is the "somebody else's schedule" §6 was worried about. About a third of
-## the work sits shallower than the station posting it.
-##
-## ONLY AN ORDINARY SYSTEM, because the work is put there as an event on its
-## map (`post_goal`) and only an ordinary system holds events: a station IS its
-## shelf, a pulsar's one thing is its beam, the start is quiet on purpose and
-## the core is a boss. A fetch used to land on a station a quarter of the time,
-## where there was nothing to see, and a hunt needed a fight already rolled
-## there -- which was gone if you had won it before you signed.
+## Targets are ordinary systems only, as the work becomes an event there; partly biased outward.
+## Why: docs/why/Contracts.md#job-targets
 static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
 		pools: Dictionary) -> int:
 	if Run.map.is_empty():
@@ -215,22 +155,8 @@ const GOAL := {
 }
 
 
-## PUT THE WORK WHERE THE NOTE SAYS IT IS. A signed fetch or hunt is an event
-## on the named system's map -- a pod in orbit of a world, or a contact past the
-## last orbit -- so the system map, LOCAL and the panel all show it, and doing
-## it is what readies the contract. Before this nothing was ever put there: a
-## fetch closed itself on arrival with one log line, and a hunt waited for any
-## fight you happened to win, so a player who flew to the place found nothing
-## that said the job was there.
-##
-## IDEMPOTENT, and called from both doors: signing (`RunState.take_contract`)
-## and arriving (`Router.settle_arrival`). One untaken event per kind per
-## system serves every open job of that kind there. A hunt whose event was spent
-## without the kill -- you fled the fight -- gets a new one on the next arrival.
-##
-## PER SHIP. The event is written onto this machine's node only, because the
-## contract is this ship's alone (see the header: not contested); the claim
-## that would race a partner for it is skipped (`OptionTable.is_job`).
+## The work is put on the named system's map, idempotently at signing and arrival, per ship.
+## Why: docs/why/Contracts.md#posting-the-goal
 static func post_goal(job: ContractData) -> void:
 	if job == null or job.state != ContractData.State.TAKEN or not GOAL.has(job.kind):
 		return
@@ -245,10 +171,7 @@ static func post_goal(job: ContractData) -> void:
 		if n.options[i] == id and not n.taken.has(MapGen.OPTION_SITE + i):
 			_reopen(n)
 			return
-	# NO `map_changed`: signing happens at a station, whose screen rebuilds the
-	# whole board on that signal (`StationScreen`, `-- sheet=BoardSignTest`), and
-	# the target's map is drawn fresh when it is next opened. The chart's mark
-	# rides on `contracts_changed`, which signing already sends.
+	# No `map_changed`: the station rebuilds on it, and the chart mark rides `contracts_changed`.
 	n.options.append(id)
 	_reopen(n)
 
@@ -273,11 +196,7 @@ static func post_goals_at(n: MapGen.MapNode) -> void:
 			post_goal(job)
 
 
-## A SYSTEM ALREADY FINISHED IS OPENED AGAIN FOR THE JOB, and only for it. A
-## cleared node refuses every event (`Router.show_option_at`), so a contract
-## naming a system you had emptied -- or one the Hellbender ate after you
-## signed -- had nowhere to be. What was left unspent there is marked gone, as
-## the clearing meant it to be, and the job's event is the one thing open.
+## A cleared system is reopened for the job only, as a cleared node refuses every event.
 static func _reopen(n: MapGen.MapNode) -> void:
 	if not n.cleared:
 		return
@@ -295,12 +214,8 @@ static func _trip_pay(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 	return PAY_BASE + hops * PAY_PER_LAYER + MapGen.tier(to.danger) * PAY_PER_DANGER
 
 
-## What got left out there. A NAME AND NOTHING ELSE — see recover().
-##
-## Only a part this run can find (`LootGen.can_appear`): a Solari station on a
-## profile that has not unlocked Solari still posts its work, but the crate it
-## asks for is unmarked rather than named after a part the player has never
-## seen and cannot meet.
+## A fetch names only parts this run can find, or it would name a part the player cannot meet.
+## Why: docs/why/Contracts.md#fetch-items
 static func _item(manufacturer: StringName, r: RandomNumberGenerator) -> String:
 	var pool: Array = []
 	if not LootGen.can_appear(manufacturer):
@@ -316,11 +231,7 @@ static func _item(manufacturer: StringName, r: RandomNumberGenerator) -> String:
 
 # --- the seven, asking for things ------------------------------------------
 
-## The ask, in the manufacturer's own register.
-##
-## Every one of these is a person at a desk with a job, in the primary-source
-## voice of `docs/lore.md` §5. Nobody explains anything,
-## nobody is grateful, and nobody says what the heat is for.
+## Voiced as a person at a desk (`docs/lore.md` 5): nobody explains or is grateful.
 static func _voice(manufacturer: StringName, kind: ContractData.Kind, place: String,
 		amount: int, r: RandomNumberGenerator) -> String:
 	var lines: Array = _LINES.get(manufacturer, {}).get(kind, [])

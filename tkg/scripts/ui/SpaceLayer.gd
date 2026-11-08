@@ -1,30 +1,8 @@
 class_name SpaceLayer
 extends Control
-## The sky, once, behind every screen.
-##
-## `SpaceBackdrop` and `NebulaWeather` were built for the encounter view and
-## constructed inside it, so the one screen that fights had a world behind it
-## and the ones that do not — the refit bay, the hold, both galleries, the
-## record, chassis select, the party, the lobby — were panels on
-## the clear colour. The generator was never the problem. Its only consumer was.
-##
-## So the pair moves up to `Router`, above the screen that happens to be open,
-## and a screen swap changes what is IN FRONT of the sky rather than replacing
-## it. That is most of what "one continuous space" means in practice: the place
-## does not blink out because you opened your own hold.
-##
-## WHY IT IS NOT REBUILT PER SCREEN. `SpaceBackdrop.setup()` bakes a world into
-## an ImageTexture — tens of thousands of pixels of noise — and early-outs on a
-## node it has already baked. Hosting one layer for the run means that early-out
-## does its job: the bake happens on arrival, and walking from the refit bay to
-## the hold and back costs nothing. Rebuilding the pair per screen would put a
-## world bake on every navigation in the game.
-##
-## WHERE IT MUST NOT GO. The station decks are interiors and say so in their own
-## header: "you are inside this thing. Nothing here is drawn from outside, there
-## is no starfield." A layer that sits behind everything will leak sky into them
-## unless something turns it off, so `set_active(false)` is not an optimisation,
-## it is the ruling. `-- stationshot` is the check.
+## One sky above the open screen, or each swap rebakes a world. Station interiors turn it
+## off by ruling.
+## Why: docs/why/SpaceLayer.md#one-sky-for-all
 
 ## The sky itself, and the gas blowing through it. Child order is depth order:
 ## a Control draws itself, then its children, in order.
@@ -34,9 +12,8 @@ var weather: NebulaWeather
 ## Whether the sky belongs behind what is currently on screen. Interiors set
 ## this false; everything that happens in space leaves it true.
 var _active: bool = true
-## Headless has no window to draw into and the sim boots the whole project, so
-## the layer is inert there. Same guard `Audio._ready` uses, for the same
-## reason: a balance run should not pay for scenery it cannot see.
+## Inert headless: a balance run should not pay for scenery it cannot see, as in
+## `Audio._ready`.
 var _enabled: bool = true
 
 
@@ -56,9 +33,7 @@ func _init() -> void:
 	add_child(weather)
 
 
-## Point the sky at a system. Safe to call as often as you like — the backdrop
-## compares the node index and returns before doing any work when it is the same
-## place, which is what makes this callable from a screen swap.
+## Safe to repeat: the backdrop returns early on the same node index.
 func setup(n: MapGen.MapNode) -> void:
 	if not _enabled or n == null:
 		return
@@ -69,9 +44,8 @@ func setup(n: MapGen.MapNode) -> void:
 			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
 
 
-## Show or hide the whole sky. The station uses this; nothing else should need
-## to. Kept separate from `visible` so that hiding for an interior does not
-## discard the bake — walking back out of a station must not re-bake the world.
+## Separate from `visible` so hiding for an interior keeps the bake and a return does not
+## rebake.
 func set_active(on: bool) -> void:
 	_active = on
 	if not _enabled:

@@ -1,46 +1,22 @@
 class_name CardGalleryScreen
 extends Control
 
-## Every card in the game, on one page.
-##
-## A development screen, reached with the CARDS tab or `godot --path . -- cards`.
-## Card work is the most iterated thing in this project and the only way to see a
-## card used to be to draw it in a fight — which shows you five, chosen by the
-## shuffle, from whatever you happen to have installed. Half the catalog could be
-## wrong for a week and nothing would say so.
-##
-## Grouped by manufacturer, because the banner, the emblem and the cut are the
-## one part of a card that is meaningless in isolation — a manufacturer's mark only
-## works if it does not look like the other six.
-##
-## Hovering lifts the card off the grid and opens a readout beside it. It is a
-## LIFT and not a zoom: there are exactly two card scales, frozen an octave
-## apart, because anything between them puts the frame on half-pixels and softens
-## the 8px font. "Slightly bigger" is not a size this game has, and doubling — the
-## only other integer option — swallows a third of the screen.
-##
-## The lifted copy floats in an overlay rather than the real card moving, because
-## moving it means a child of a flow container changing position, and the
-## container answers by reflowing the entire catalog under your cursor.
+## A dev page of every card, as half the catalog could be wrong for a week if cards only show
+## in fights. A lift, not a zoom, in an overlay: moving a flow child reflows the whole catalog.
+## Why: docs/why/CardGalleryScreen.md#gallery-purpose
 
-## How far the hovered card comes off the grid. Enough that the row it left is
-## visibly a row with a gap in it — a two or three pixel nudge reads as a
-## rendering wobble rather than as a deliberate lift.
+## The lift is enough that the row visibly has a gap; a 2 or 3 px nudge reads as a rendering wobble.
 const LIFT := 18.0
 
 var _overlay: Control
 var _hot: CardView = null
-## Which module granted each view, so the readout can name it. The card itself
-## only carries the module's NAME, and a dev screen should be able to say more
-## than a string.
+## Which module granted each view, as the card only carries the module's name.
 var _owner: Dictionary = {}
 
 var _col: VBoxContainer
 var _filter: GalleryFilter
 var _count: Label
-## Where LEAVE goes. Handed in by Router rather than decided here: these pages
-## sit on the HUD and can be opened from anywhere, so the screen underneath is
-## the only thing that knows.
+## LEAVE is handed in by Router, as these pages open from anywhere and only the screen below knows.
 var _back: Callable
 
 var _all: int = 0
@@ -65,9 +41,7 @@ func _build() -> void:
 	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(_count)
-	# THE WAY OUT. These are reached from a HUD tab, and a tab does not untoggle
-	# -- so without this the only way off the page was to pick some other
-	# destination and pretend that was what you wanted.
+	# A HUD tab does not untoggle, so without LEAVE there was no way off the page.
 	head.add_child(Widgets.button("LEAVE", func() -> void:
 		if _back.is_valid():
 			_back.call()
@@ -75,19 +49,13 @@ func _build() -> void:
 			Router.show_sector()))
 	col_root.add_child(head)
 
-	# The same bar the module gallery and the Yard Manifest carry. Grade filters
-	# the CARD and slot filters the PART that grants it, which is the question a
-	# player actually asks: what does a Korvan utility put in my deck.
+	# Grade filters the card and slot filters the part: what does a Korvan utility put in my deck.
 	_filter = GalleryFilter.new()
 	_filter.setup([[
 		{key = &"manufacturer", label = "Manufacturer", options = GalleryFilter.manufacturer_options()},
-		# COLLAPSED BY DEFAULT, which is a change of what this page means and is
-		# therefore worth saying out loud. It used to answer "what does the deck
-		# get", so a module that authors one verb and grants two showed its card
-		# twice, side by side -- KM-4 grants Charged Slug twice, and Feed and
-		# Bolt On are shared cards several modules hand out. All correct, and all
-		# noise when the question is "what art still needs drawing".
-		# `All copies` puts the old view back.
+		# Collapsed by default: duplicates answered what the deck gets, but were noise when asking
+		# what art still needs drawing. `All copies` puts the old view back.
+		# Why: docs/why/CardGalleryScreen.md#copies-collapsed
 		{key = &"dupes", label = "Copies", options = [
 			{value = &"one", text = "Collapse"},
 			{value = &"all", text = "All copies"}]},
@@ -116,24 +84,15 @@ func _build() -> void:
 	_all = total
 	_count.text = "%d of %d cards" % [total, _all]
 
-	# Above everything, and deaf to the mouse: the pop must never become the
-	# thing the cursor is pointing at, or hovering it would count as leaving the
-	# card underneath and the two would fight.
+	# Above everything and deaf to the mouse, or hovering the pop would count as leaving the card.
 	_overlay = Control.new()
 	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_overlay)
 
-## GROUPED BY MANUFACTURER OR BY GRADE, and filtered, from the bar above.
-##
-## Manufacturers first and the unbranded last: precursor and grown things have no
-## banner to compare, so they are not part of the comparison the grouping exists
-## to make.
-##
-## Rebuilt on every press rather than hiding children, for the same reason the
-## module gallery is: the group headings carry counts, and a heading that has to
-## know how many of its own children are still visible is bookkeeping a rebuild
-## does for free.
+## Unbranded last, as they have no banner to compare. Rebuilt on every press, as headings carry
+## counts and tracking visible children is bookkeeping a rebuild does for free.
+## Why: docs/why/CardGalleryScreen.md#rebuild-on-press
 func _fill(col: VBoxContainer) -> int:
 	Widgets.clear(col)
 	var f: Dictionary = _filter.state() if _filter != null else {}
@@ -143,22 +102,20 @@ func _fill(col: VBoxContainer) -> int:
 	var by_grade: bool = f.get(&"sort", &"manufacturer") == &"grade"
 	var collapse: bool = f.get(&"dupes", &"one") != &"all"
 
-	# EVERY CARD A DECK CAN BE HANDED, carried with the module that grants it,
-	# because the filters are questions about the PART as often as about the card.
-	# "What does a Korvan utility put in my deck" is a slot filter on a card page.
+	# Every card is carried with its granting module,
+	# as filters ask about the part as often as the card.
 	var kept: Array = []
 	for k in DB.modules:
 		var m: ModuleData = DB.modules[k]
 		if slot >= 0 and int(m.slot) != slot:
 			continue
-		# resolved_cards(), not `cards`. The Grant Count Law decides how many a
-		# module actually puts in a deck, so authoring two verbs on a module that
-		# grants one means only one is ever seen. This page shows what the deck sees.
+		# `resolved_cards()`, not `cards`: the Grant
+		# Count Law decides what a module puts in a deck.
 		for c in m.resolved_cards():
 			var cd: CardData = c
-			# THE CARD'S OWN MANUFACTURER, not its part's (Jon, Oct 18): a shared card a
-			# Korvan part grants is drawn unbranded, so it files under UNBRANDED
-			# and never under KORVAN.
+			# Filed by the card's own manufacturer, not its part's (Jon, Oct 18):
+			# a shared card a Korvan part grants is drawn unbranded, so it files under UNBRANDED.
+			# Why: docs/why/CardGalleryScreen.md#card-manufacturer
 			if manufacturer == &"(unbranded)":
 				if cd.manufacturer != &"":
 					continue
@@ -168,9 +125,8 @@ func _fill(col: VBoxContainer) -> int:
 				continue
 			kept.append({card = cd, part = m})
 
-	# One row per distinct illustration, keyed on art_key() -- the same identity
-	# ArtCheck and the manifest count on, so a collapsed gallery and the coverage
-	# gate agree about how many cards there are.
+	# One row per illustration by `art_key()`,
+	# so the gallery and the coverage gate agree on the count.
 	if collapse:
 		var seen := {}
 		var thinned: Array = []
@@ -182,15 +138,9 @@ func _fill(col: VBoxContainer) -> int:
 			thinned.append(row4)
 		kept = thinned
 
-	# MALFUNCTIONS, which no module grants and which therefore never appeared on
-	# this page at all. Sixteen of the seventy-six illustrations the game owes
-	# are malfunctions, and the one dev screen that shows many cards at once
-	# could not show any of them -- which is how a rendering bug that blanked
-	# every malfunction art window survived being looked at.
-	#
-	# Shown only when no manufacturer or slot filter is set, because they answer
-	# neither question: a malfunction has no manufacturer and fits no slot. They carry
-	# `part = null` for the same reason, and nothing downstream reads `part`.
+	# Malfunctions are shown because no module grants them: 16 of 76 illustrations were
+	# never on this page. Only with no manufacturer or slot filter, as they have neither.
+	# Why: docs/why/CardGalleryScreen.md#malfunctions
 	var faults: Array = []
 	if manufacturer == &"" and slot < 0:
 		for row3 in DB.MALFUNCTIONS:
@@ -272,9 +222,8 @@ func _on_filter(_state: Dictionary) -> void:
 
 func _on_hover(v: CardView, entered: bool) -> void:
 	if not entered:
-		# Only the card that owns the pop may dismiss it. Moving between two
-		# adjacent cards fires exited on the old one AFTER entered on the new,
-		# so trusting every exited would clear a pop that had just been built.
+		# Only the card owning the pop may dismiss it:
+		# exited fires after entered between adjacent cards.
 		if _hot == v:
 			_clear()
 		return
@@ -286,33 +235,19 @@ func _on_hover(v: CardView, entered: bool) -> void:
 		Audio.play(&"card_hover", 0.08, 45)
 	_hot = v
 	Widgets.clear(_overlay)
-	# The card in the grid goes invisible while its lifted copy is out, or the
-	# two overlap and the bottom of the original shows below the copy as a
-	# duplicate banner. Alpha rather than `visible`, because a flow container
-	# skips hidden children and would close the gap the lift just opened —
-	# which is the gap that makes the lift read as a lift.
+	# The grid card goes invisible by alpha, not `visible`,
+	# which would close the gap the lift opened.
 	v.modulate.a = 0.0
 
-	# A LIFT, not a zoom.
-	#
-	# There are exactly two card scales and they are frozen an octave apart —
-	# 1x and 2x — because anything between them puts the frame on half-pixels
-	# and softens the 8px font, which is the one thing the frozen sizes exist to
-	# prevent. So "slightly bigger" is not a size this game has. Doubling was
-	# the only other integer option and it swallowed a third of the screen.
-	#
-	# The feel comes from the card rising off the grid instead: same size, six
-	# pixels up, an ember frame around it, and the readout opening to the right.
-	# That is what the hand does when you hover a card, and it costs no
-	# resolution at all.
+	# Only two card scales exist, frozen apart, and between them softens the 8px font. Doubling
+	# swallowed a third of the screen, so the card rises instead, at no cost in resolution.
+	# Why: docs/why/CardGalleryScreen.md#lift-not-zoom
 	var rest := v.global_position - global_position
 	# Never above the top edge: a card on the first visible row still has to
 	# have somewhere to rise to.
 	var pos := Vector2(rest.x, maxf(2.0, rest.y - LIFT))
 
-	# Frame and card ride in one wrapper so a single tween moves both, and so
-	# the tween dies with them: a tween bound to a node Godot has already freed
-	# is an error the next hover would trip over.
+	# Frame and card ride in one wrapper so one tween moves both and dies with them.
 	var wrap := Control.new()
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.position = rest
@@ -331,17 +266,14 @@ func _on_hover(v: CardView, entered: bool) -> void:
 	pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(pop)
 
-	# Rises from where the card is sitting rather than appearing above it. The
-	# travel is what says "this one came out of the grid" — a card that simply
-	# blinks into a higher position reads as a second card, not as the one you
-	# are pointing at.
+	# Rises from the card's own spot, as a card blinking
+	# into a higher place reads as a second card.
 	var tw := wrap.create_tween()
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw.tween_property(wrap, "position", pos, 0.14)
 
-	# The readout opens to the right, or to the left when there is no room —
-	# a panel that runs off the edge is worse than no panel, because the part
-	# that goes missing is the part you hovered for.
+	# The readout opens right, or left if no room:
+	# a panel off the edge loses the part you hovered for.
 	var info := Widgets.card_readout(v.card)
 	_overlay.add_child(info)
 	var iw := info.custom_minimum_size.x
@@ -355,17 +287,9 @@ func _on_hover(v: CardView, entered: bool) -> void:
 	var it := info.create_tween()
 	it.tween_property(info, "modulate:a", 1.0, 0.12)
 
-	# Only now can it be kept on screen.
-	#
-	# The panel's height is not a number this function knows: every label in it
-	# wraps, so how tall it ends up depends on how much text wrapped, and that
-	# is settled by the layout pass rather than by the code that builds it. The
-	# previous clamp used a flat 200px guess, which was fine for a two-keyword
-	# card and ran off the bottom of the screen for anything wordier.
-	#
-	# One frame later the real height exists. The fade covers the correction,
-	# and is_instance_valid covers the case where the cursor has already moved
-	# on and taken this panel with it.
+	# The panel's height is only known after layout, so it is clamped a frame later;
+	# a flat 200px guess ran off the bottom for wordier cards.
+	# Why: docs/why/CardGalleryScreen.md#readout-clamp
 	await get_tree().process_frame
 	if is_instance_valid(info):
 		info.position.y = clampf(pos.y, 2.0,

@@ -1,31 +1,8 @@
 extends Node
 
-## EVENTS RESOLVED ON LOCAL, photographed (`LocalEventDrawer`):
-##   godot --path . --windowed --position 3840,0 -- sheet=EventShot keepwindow
-##       out=<dir> [seed=1] [node=11] [layout=row|column|card] [flow] [compare] [reveal]
-##       [revealav=<dir>]
-##
-## `flow`     the map's list, an event's page (one sentence and GO), GO -- the
-##            flight and the zoom down, filmed into `flow/` -- the band up, the
-##            result, the bar under the view after CONTINUE, the map with the
-##            event stamped, and a fight event to its hand. Stills `01_`..`08_`.
-## `compare`  a short, a medium and a long event (the shortest, middle and
-##            longest bodies in `OptionTable`) in all three layouts, each still
-##            as the game draws it (`cmp_<layout>_<size>.png`), with the empty
-##            area of the drawer -- pixels that are bare panel, no text or card --
-##            printed as `[eventshot] empty <layout> <size> <px> <of> <share>`.
-## `reveal`   the medium event's text arriving (`SignalText`), one layout,
-##            stepped on a fixed 30 fps clock so the frames play at true speed,
-##            into `reveal_<layout>/`.
-## `revealav` the same reveal SEEN AND HEARD on the real clock. The text runs
-##            itself and the SFX bus is drained from an AudioEffectCapture every
-##            frame (as FlightClip's tape) into `<dir>/audio.wav`; Music and
-##            Ambient are muted. About 30 frames a second are saved with their
-##            times (`frames.txt`, "index seconds") so ffmpeg can lay them to the
-##            sound. Prints the blips played (`Audio.tape`) against the letters,
-##            and the most `text_blip` voices ever sounding at once, with and
-##            without the ones fading out.
-## Needs a window.
+## Photographs events resolved on LOCAL; modes cover the flow,
+## layout comparison, text reveal and its audio.
+## Why: docs/why/EventShot.md#event-shot-modes
 
 const FPS := 30.0
 
@@ -133,11 +110,8 @@ func _flow(n: MapGen.MapNode) -> void:
 	var k := 0
 	var t0 := Time.get_ticks_msec()
 	var settle := 0
-	# (GO's flight on map time takes up to 30 s and its ride 4.4 s first, ruling
-	# 20, and up to 40 when only the wider search finds it; with the conics the
-	# whole of it was over in 20. Waited on the map's own clock while the map is
-	# up, and a frame cap: a render slower than real time ran the wall clock
-	# out first, the map's clock behind it, a flight cut off)
+	# GO's flight can take up to 40 s, so wait on the map's
+	# clock with a frame cap, or a slow render cut it off.
 	var tm0: float = map.view.t
 	var f0 := Engine.get_process_frames()
 	while Engine.get_process_frames() - f0 < FLOW_FRAMES:
@@ -365,9 +339,8 @@ func _reveal_av(n: MapGen.MapNode, dir: String) -> void:
 		k, float(k) / FPS, done_at, blips, letters, SignalText.cps, most, most_full])
 
 
-## The SFX capture as a 16-bit wav at the mix rate. On a surround output the
-## capture hands over one 512-frame block per speaker pair in turn; the front
-## pair is the phase with the energy (as FlightClip's tape).
+## On surround one block per speaker pair comes in turn;
+## the front pair has the energy, as FlightClip's tape.
 func _write_wav(path: String, pcm: PackedVector2Array) -> void:
 	var pairs := int(AudioServer.get_speaker_mode()) + 1
 	if pairs > 1:

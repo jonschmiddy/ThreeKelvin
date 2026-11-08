@@ -1,41 +1,16 @@
 class_name PartyScreen
 extends Control
 
-## Everyone you are flying with, on one page.
-##
-## The convoy strip answers "who is in this room", which is the right question
-## while something is shooting at you and the wrong one the rest of the time. It
-## is also a fixed column with a fixed height: three partners plus separations
-## is 362 rows against the 378 the arena leaves, so it was measured for a party
-## of four and silently drops everybody past that. Photographed at seven, the
-## fourth ship is cut in half by the quiet strip and the last three are not
-## drawn at all.
-##
-## So the strip keeps its job — presence, at a glance, in the room — and this
-## takes the one it was never able to do: the whole party, however many that is,
-## with the numbers you would actually plan around. It scrolls, so it does not
-## care how many there are.
-##
-## EVERYTHING HERE IS ALREADY ON THE WIRE. A roster slot carries the ship, the
-## hull points, the heat, the heat cap and the system that player is in, because
-## `netcode.md`'s presence message has carried all five since the convoy strip
-## needed them to draw a gauge. Not one new message was added to build this
-## page, and that is the test of whether it deserved to exist: a screen that
-## needs a new channel is a feature, and a screen assembled out of facts the
-## party already agrees on is a view.
+## Does what the convoy strip cannot: the whole party, scrolling, from existing wire facts.
+## Why: docs/why/PartyScreen.md#party-page
 
-## What the page came from, so LEAVE goes back where you were rather than to a
-## fixed screen. The HUD reaches this from the sector, the chart and the refit
-## page, and landing on the sector from all three would be a navigation bug
-## wearing a convenience.
+## Remembers where it came from, so LEAVE goes back there, not to a fixed screen.
 var _back: Callable = Callable()
 
 var _list: VBoxContainer
 var _head: Label
 
-## One partner's hull, drawn at its own size. A heavy is 237 across and the
-## column has to hold the widest without the narrow ones rattling around in it,
-## so the cell is fixed and the ship sits in the middle of it.
+## A fixed cell wide enough for the widest hull (a heavy is 237), the ship centred in it.
 const CELL_W := 248
 const CELL_H := 104
 ## Between rows. Wider than the panels inside a row, so the party reads as a
@@ -47,9 +22,7 @@ func setup(back: Callable = Callable()) -> void:
 	_back = back
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
-	# The roster is the subject, so every message that moves it redraws this.
-	# `party_changed` covers somebody joining, leaving, jumping, taking damage
-	# or venting — presence is one message and it carries all of them.
+	# Presence is one message, so `party_changed` covers join, leave, jump, damage and vent.
 	Sig.party_changed.connect(_refresh)
 	Sig.party_fight_changed.connect(func(_at: int) -> void: _refresh())
 	Sig.map_changed.connect(_refresh)
@@ -86,9 +59,7 @@ func _build() -> void:
 	_list.add_theme_constant_override("separation", ROW_GAP)
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# THE PART THE CONVOY STRIP CANNOT DO. A scrolling list has no opinion about
-	# how many ships there are, which is the whole reason this page can answer a
-	# question a fixed-height column could not.
+	# A scrolling list has no opinion on how many ships there are.
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -112,15 +83,8 @@ func _refresh() -> void:
 		_list.add_child(_row(slot))
 
 
-## One ship, and the four numbers you would plan around: how much hull is left,
-## how hot they are running, where they are, and whether they are in a fight.
-##
-## Not a stat dump. `ShipBuild` deliberately carries what is DRAWN rather than
-## what is played — no cards, no affixes, no rolled numbers — so those are not
-## available to print here and should not be: what another player is holding is
-## their business, and `coop-design.md`'s first pillar is that the wallets stay
-## separate. What the party shares is exposure, and exposure is exactly these
-## four.
+## Four numbers only: hull, heat, place, fight. What others hold is theirs; wallets stay apart.
+## Why: docs/why/PartyScreen.md#party-rows
 func _row(slot: Dictionary) -> Control:
 	var id := int(slot.id)
 	var b: ShipBuild = Net.build_of(id)
@@ -149,9 +113,7 @@ func _row(slot: Dictionary) -> Control:
 	col.add_child(name_row)
 
 	if b == null:
-		# In the party, not yet in a ship. Said out loud rather than drawn as an
-		# empty hull with full gauges, which is a lie about a ship that does not
-		# exist. Same answer the convoy slot gives.
+		# Said out loud, not drawn as an empty hull with full gauges, which would be a lie.
 		col.add_child(UITheme.body("Still choosing a chassis.",
 			UITheme.QUOTE, UITheme.FS_SMALL))
 		return Widgets.panel_with(Widgets.pad(row))
@@ -163,11 +125,7 @@ func _row(slot: Dictionary) -> Control:
 
 	col.add_child(_gauge("HULL", BoxGauge.Mode.HULL, b.max_hp, b.hp,
 		"%d/%d" % [b.hp, b.max_hp]))
-	# Heat as a FRACTION as well as a count, because the count means nothing
-	# without the cap it is measured against — a Hairpin caps at 8 and a Furnace
-	# Baron at 26, so "9 heat" is a crisis on one ship and a warm afternoon on
-	# the other. This is the number `coop-design.md` §6's field is summed from,
-	# and reading it off three partners at once is the point of the page.
+	# Heat as a fraction too, as a count means nothing without the cap it is measured against.
 	col.add_child(_gauge("HEAT", BoxGauge.Mode.HEAT, b.heat_cap, b.heat,
 		"%d/%d" % [b.heat, b.heat_cap]))
 	col.add_child(UITheme.body(_where(id), UITheme.COLD, UITheme.FS_SMALL))
@@ -175,18 +133,11 @@ func _row(slot: Dictionary) -> Control:
 	return Widgets.panel_with(Widgets.pad(row))
 
 
-## The hull itself, at its own size, in a cell wide enough for the widest.
-##
-## `follow_peer` for a partner and nothing for yourself: ShipView answers "whose
-## ship is this" in one place and a peer id of zero already means the local
-## ship, so your own row costs no special case.
+## `follow_peer` for a partner, nothing for yourself: peer id zero already means local.
 func _portrait(id: int, b: ShipBuild) -> Control:
 	var box := Control.new()
 	box.clip_contents = true
-	# A ship nobody has picked yet reserves NOTHING. Holding the cell open would
-	# give the row its full height for a hull that does not exist, which draws a
-	# hundred empty rows of panel above the one sentence that explains why — and
-	# in a party still on the chassis select that is every row on the page.
+	# A ship nobody has picked reserves nothing, or the row keeps a full height for no hull.
 	if b == null:
 		return box
 	box.custom_minimum_size = Vector2(CELL_W, CELL_H)
@@ -220,11 +171,7 @@ func _marks(id: int, b: ShipBuild) -> Control:
 	return row
 
 
-## Where they are, by the name of the place rather than by its index.
-##
-## `where_is` returns -1 for somebody who has not reported a position, which is
-## a real answer and not an error: a player on the chassis select has a galaxy
-## and no place in it yet.
+## A name, not an index; -1 from `where_is` is a real answer, not an error.
 func _where(id: int) -> String:
 	var at := Net.where_is(id)
 	if at < 0 or at >= Run.map.size():

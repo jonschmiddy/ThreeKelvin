@@ -1,43 +1,8 @@
 extends Node2D
 
-## THE CORE ON THE SYSTEM MAP: the supermassive black hole Jon picked, with
-## all five of its motions -- the gas swirling faster in close, clumps of it
-## spiralling in and gone behind the hole, the glow breathing, a star circling
-## and being eaten with its stream hidden round the far side, and the map
-## behind it bent into arcs. A port of the mockup's `coreDraw`, `coreLens`,
-## `coreGlow` and its BH renderer (`sysmap/template.html`, the page built as
-## `sysmap/page/index.html`), with the map's settings: hole 15, disc to 110,
-## tilted 0.38 like the orbits.
-##
-## Put it at the hole's centre, in whole game pixels, call `setup()` once and
-## `step(t)` every frame. It draws nothing until `setup()` has traced the light
-## (one frame of GPU work, awaited; `ready_to_draw` and the `traced` signal say
-## when). Two layers:
-##   * `lens` -- the map behind bent round the hole. It reads the screen, so it
-##     must come AFTER whatever it bends (the sky, the far worlds) and BEFORE
-##     the hole. It is this node's first child, so by default it is drawn just
-##     before the hole; a screen that wants it elsewhere can `take_lens()` and
-##     put it anywhere in its own draw order. A taken lens is moved to this
-##     node's position by `set_zoom()` and `step()`, so it follows a pan.
-##   * the hole itself (`core_hole.gdshader`): the disc and its light, laid on
-##     as light added to what is behind, the shadow opaque.
-##
-## ZOOM (`set_zoom(k)`, 1 to 4, every frame while the map's zoom eases): the
-## hole is drawn again k times bigger in single game pixels -- hole, photon
-## ring, disc and its streaks, clumps, the eaten star and its stream, glow and
-## lens all k times the size, never the picture stretched. The light's paths
-## are traced for one size at a time, so:
-##   * the lens is worked out per pixel each frame, so it is always at k;
-##   * the hole draws the nearest trace it has, stretched by k / that trace's k
-##     (the hole's own ColorRect is scaled, never this node), for a moment
-##     soft or stepped;
-##   * once k has held still SETTLE seconds, the light is traced again at k
-##     (one GPU frame and a read back) and the hole drawn from it, sharp.
-## Traces are kept, one per ZOOM_BIN of k, shared by every Core, up to
-## CACHE_BYTES; going back to a zoom already traced is instant.
-##
-## The mockup draws all of it between the worlds behind the hole and the
-## worlds in front of it, so that is where this node belongs.
+## Port of the mockup's core renderer; it draws nothing until `setup()` has traced the light.
+## Zoom redraws the hole k times bigger: lens per pixel, hole retraced after SETTLE seconds.
+## Why: docs/why/CoreView.md#core-view
 
 signal traced
 ## A trace at `k` has come in and the hole is now drawn from it, sharp.
@@ -76,9 +41,7 @@ const ZOOM_MAX := 4.0
 const ZOOM_BIN := 0.25
 const SAME := 0.002
 const SETTLE := 0.15
-## What the kept traces may hold on the CPU (each view keeps the same again on
-## the GPU, as textures). One at zoom 4 is 17.7 MB, at 1 1.1 MB; zoom 1's is
-## never let go.
+## CPU budget for kept traces (the GPU holds the same again); zoom 1's trace is never let go.
 const CACHE_BYTES := 48 * 1024 * 1024
 
 var ready_to_draw := false
@@ -109,10 +72,7 @@ var _offs_xy := PackedVector2Array()
 ## What was drawn last frame, to clear: pixels, and whole blobs by their middle.
 var _dirty := PackedInt32Array()
 var _dirty_b := PackedInt32Array()
-## The trace being drawn: its zoom, picture size, and its bytes, read by the
-## CPU's own hiding of the dots. Per pixel, in its first band: the disc radius
-## it landed at (R, G) and the flags (B): kind (0 open sky, 1 fell in, 2
-## landed on the disc), and 8 when it is the near band in front of the hole.
+## The drawn trace, read by the CPU to hide dots: disc radius per pixel and kind flags in B.
 var _kt := 0.0
 var _w := W
 var _h := H
@@ -161,9 +121,7 @@ func _init() -> void:
 			_clumps.append(Vector3(hash2(i, 11) * 7.0, hash2(i, 12) * TAU, 5.0 + hash2(i, 13) * 3.0))
 
 
-## Takes the lens out of this node, for the screen to place in its own draw
-## order (it must be drawn after what it bends). `set_zoom` and `step` keep it
-## at this node's position.
+## The lens must draw after what it bends, so the screen places it; `step` keeps it in place.
 func take_lens() -> Node2D:
 	if lens.get_parent() == self:
 		remove_child(lens)
@@ -177,9 +135,7 @@ func set_raw(on: bool) -> void:
 	_hmat.set_shader_parameter("glow_on", not on)
 
 
-## Traces the light at the zoom set (1 unless `set_zoom` came first), unless a
-## trace of it is kept already. Must be in the tree. One frame of GPU work,
-## then a read back.
+## Traces the light at the set zoom unless one is kept; must be in the tree, costs a GPU frame.
 func setup() -> void:
 	var b := _bin(zoom)
 	if not _cache.has(b) or absf(float(_cache[b]["k"]) - zoom) > SAME:
@@ -438,9 +394,7 @@ func step(t: float) -> void:
 	_draw_dots(t, star, behind, r0, th, ce)
 
 
-## THE NEXT CLUMP TO GO OVER THE EDGE where the photon ring shows (over the
-## top), between `lo` and `hi` seconds from map time `t`: (seconds until, its
-## screen angle as the hole's shader reads it), or (-1, 0).
+## The next clump to go over the top where the photon ring shows: (seconds, screen angle).
 func next_plunge(t: float, lo: float, hi: float) -> Vector2:
 	# a clump's radius meets the shadow's at about this share of its fall
 	var u_edge := 0.996
@@ -470,9 +424,7 @@ static func _tide(r: float, a: float, inc: float, ce: float) -> Vector3:
 	return Vector3(cos(a) * r, zc * TILT - y * ce, zc)
 
 
-## A dot on the disc's far side at pixel xi, yi and disc radius r is hidden
-## when the ray through that pixel fell into the hole, met the near band of
-## disc, or landed on a part of the disc well in front of or behind it.
+## A far-side dot is hidden when its ray fell in, met the near band, or hit disc off-plane.
 func _hidden(xi: int, yi: int, zc: float, r: float) -> bool:
 	if zc >= 0.0:
 		return false
@@ -495,10 +447,7 @@ func _plot(xi: int, yi: int, c: int) -> void:
 	_dots[i] = c
 
 
-## One dot of gas at x, y: a single pixel at zoom 1, a round blob about k
-## pixels across at zoom k (`_offs`). A blob on the far side is hidden whole
-## when its middle and corners agree, else pixel by pixel (at an edge of what
-## hides it).
+## A dot is one pixel at zoom 1, a blob k across at zoom k; hidden whole if corners agree.
 func _blob(x: float, y: float, zc: float, r: float, c: int) -> void:
 	var xi := _jround(x)
 	var yi := _jround(y)

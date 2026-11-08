@@ -1,30 +1,12 @@
 class_name LobbyScreen
 extends Control
 
-## The party, before the dive. Read a code out, type a code in, watch four
-## names arrive.
-##
-## This is the first screen `NetSession` has ever had. Everything it shows was
-## already working headless — `-- nettest` forms a party of four in one process
-## — so nothing here decides anything. It reads `Net` and it calls four methods
-## on it. That is deliberate: the session layer must not learn about screens,
-## and a lobby that held state of its own would be a second roster to disagree
-## with the first.
-##
-## **The address problem is on this screen and it cannot be solved on it.**
-## `DirectTransport` folds the host's address into the code, and a machine
-## behind a router cannot learn its own public address by looking inward. So the
-## host gets a LAN address by default and a field to type a real one over. That
-## is honest rather than good, and it is the whole argument for the relay
-## transport in `docs/netcode.md` §2.
+## Reads `Net` and holds no state of its own; the address problem is why a relay exists.
+## Why: docs/why/LobbyScreen.md#lobby-design
 
 const READY_COLOUR := UITheme.GOOD
 
-## The text, not the fields. `Widgets.clear()` frees the children it removes,
-## so a LineEdit held across a rebuild is a freed object by the time the next
-## build tries to re-add it — which is a crash on the one path that rebuilds
-## the offline face twice: fail to join, then press TRY AGAIN. The fields are
-## rebuilt every time and only their contents persist.
+## Keeps the text, not the fields: `Widgets.clear()` frees them, so a held LineEdit crashes.
 var _name_text: String = ""
 var _code_text: String = ""
 var _host_text: String = ""
@@ -34,21 +16,12 @@ var _code_field: LineEdit
 var _host_field: LineEdit
 var _body: VBoxContainer
 var _status: Label
-## Set by `-- lobby host` or `-- lobby join CODE`. Drives the screen from the
-## command line and narrates it to stdout, which is the only way two instances
-## of a lobby can be tested without two humans and two keyboards.
+## Set by `-- lobby host` or `-- lobby join CODE`, the only way to test two lobbies.
 var _scripted: bool = false
 var _pending: bool = false
-## `-- lobby host auto` / `-- lobby join CODE auto`: press READY on arrival, and
-## LAUNCH as soon as everyone has. It exists to prove the one claim that cannot
-## be checked from a single window — that two machines given one seed build one
-## galaxy — without two people clicking at the same time.
+## `auto` presses READY and LAUNCH to prove two machines build one galaxy from a seed.
 var _auto: bool = false
-## `-- lobby host auto wait 4` holds the launch until four ships are in. Without
-## it the scripted host dives the moment the first joiner is ready, which is the
-## right default for a two-instance smoke test and useless for proving that four
-## machines agree.
-## Dev only: how many fabricated ships to put in the roster. See _run_flags().
+## `wait N` holds the launch until N ships are in, to prove four machines agree.
 var _crowd: int = 0
 var _wait_for: int = 2
 
@@ -60,10 +33,8 @@ var on_leave: Callable = Callable()
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# Connected, and never disconnected. Leaving this screen is not leaving the
-	# party — the dive starts from here and the peer has to survive the swap
-	# into the sector — so there is nothing to tear down. Godot drops the
-	# connections with the node.
+	# Never disconnected: leaving this screen is not leaving the party, so nothing to tear down.
+	# Why: docs/why/LobbyScreen.md#party-signals
 	Sig.party_changed.connect(_rebuild)
 	Sig.party_state_changed.connect(func(_s: int) -> void: _rebuild())
 	Sig.party_failed.connect(func(_r: String) -> void: _rebuild())
@@ -92,15 +63,8 @@ func setup() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_status)
 
-	# Defaults live here rather than in _build_offline(), because the rebuild is
-	# deferred by a frame and the command-line flags below fire before it. The
-	# fields are a view of these strings; nothing reads a field to decide
-	# anything, which is what makes the two orders equivalent.
-	#
-	# A different callsign per instance, so two windows on one machine are
-	# telling each other apart before the player has typed anything. Testing
-	# this screen means running it twice, and two rows both reading PILOT is
-	# the first thing that makes the roster unreadable.
+	# Defaults live in `setup()`, as the rebuild is deferred; callsigns differ per window.
+	# Why: docs/why/LobbyScreen.md#defaults
 	_name_text = "PILOT-%d" % (randi() % 900 + 100)
 	_host_text = DirectTransport.new().public_guess()
 
@@ -108,14 +72,8 @@ func setup() -> void:
 	_run_flags()
 
 
-## Dev flags:
-##   godot --path . -- lobby host          opens a party, prints the code
-##   godot --path . -- lobby join CODE     joins that code
-##
-## They exist because testing a lobby means running it twice at once, and
-## reading a code off one window to type into another is a slow loop to be in
-## while the thing you are changing is the code itself. They also make the whole
-## party path testable headless, which is how this screen was checked at all.
+## Flags exist because testing a lobby means two instances, and make the party path headless.
+## Why: docs/why/LobbyScreen.md#dev-flags
 func _run_flags() -> void:
 	var argv := OS.get_cmdline_user_args()
 	if "lobby" not in argv:
@@ -126,12 +84,8 @@ func _run_flags() -> void:
 			_wait_for = maxi(2, int(argv[i + 1]))
 	if "host" in argv:
 		_scripted = true
-		# `-- lobby host crowd 6` fills the roster with ships nobody is flying.
-		#
-		# The only other way to see this page at six is to start six Godot
-		# processes, and the thing worth looking at — whether READY and LAUNCH
-		# DIVE are still on the screen — is a layout question that does not need
-		# six real peers to answer. The roster is faked; the page is not.
+		# `crowd N` fakes the roster to check READY and LAUNCH DIVE fit, without N real peers.
+		# Why: docs/why/LobbyScreen.md#dev-flags
 		for i in argv.size():
 			if argv[i] == "crowd" and i + 1 < argv.size():
 				_crowd = clampi(int(argv[i + 1]), 1, 7)
@@ -151,9 +105,7 @@ func _run_flags() -> void:
 			return
 
 
-## Only under the dev flags. A lobby narrating itself to a terminal nobody is
-## reading is noise; a lobby that cannot be watched from a terminal cannot be
-## tested by a script.
+## Only under dev flags: a lobby that cannot be watched from a terminal cannot be scripted.
 func _narrate() -> void:
 	if not _scripted:
 		return
@@ -174,10 +126,7 @@ func _narrate() -> void:
 
 # --- the three faces ------------------------------------------------------
 
-## Coalesced to once a frame. Opening a party emits `party_state_changed` and
-## `party_changed` back to back and `_host()` asks for a redraw on top of them,
-## so the screen was rebuilding itself three times in one frame — which throws
-## away the field the player is typing in and the focus with it.
+## Coalesced to once a frame: three rebuilds in one frame threw away the field and focus.
 func _rebuild() -> void:
 	if _body == null or _pending:
 		return
@@ -220,9 +169,7 @@ func _build_offline() -> void:
 	jrow.add_theme_constant_override("separation", 6)
 	jrow.add_child(UITheme.body("CODE", UITheme.COLD, UITheme.FS_SMALL))
 	_code_field = _field(_code_text, 16)
-	# Corrected as it is typed rather than on submit. Seeing O become 0 is how
-	# a player learns the alphabet has no O in it, instead of finding out from
-	# a refusal thirty seconds later.
+	# Corrected as typed, so seeing O become 0 teaches the alphabet before a refusal does.
 	_code_field.text_changed.connect(_normalise_code)
 	jrow.add_child(_code_field)
 	if _can_clip():
@@ -234,13 +181,8 @@ func _build_offline() -> void:
 	_body.add_child(join_box)
 
 
-## Two ways to open a party, and the difference between them is the whole of
-## `docs/netcode.md` §1 compressed into two buttons.
-##
-## The relay is offered first and reads as the ordinary choice, because it is:
-## nobody opens a port and nobody types an address. Direct stays because it is
-## the only one that works with no service behind it — on a LAN, on a plane, or
-## on the day the relay is down.
+## Relay is offered first as the ordinary choice; Direct stays for LAN, planes and relay outages.
+## Why: docs/why/LobbyScreen.md#host-options
 func _host_box() -> Control:
 	var box := Widgets.section("HOST")
 
@@ -275,9 +217,7 @@ func _host_box() -> Control:
 		+ " as it stands. Anyone outside needs your public address typed over"
 		+ " it, and the port forwarded here.") % DirectTransport.DEFAULT_PORT
 	var note_label := UITheme.body(note, UITheme.QUOTE, UITheme.FS_SMALL)
-	# The only long note on this screen that was not wrapping. Harmless while the
-	# lobby was a full screen; as a panel it pushed the whole column wider than
-	# its frame and the text ran off the right-hand edge.
+	# The one unwrapped long note: as a panel it widened the column and ran off the edge.
 	note_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(note_label)
 	return box
@@ -305,18 +245,8 @@ func _build_party() -> void:
 
 	var roster := Widgets.section("SHIPS (%d/%d)" % [
 		Net.party_size(), NetSession.MAX_PLAYERS])
-	# THE LIST SCROLLS, and it is READY and LAUNCH DIVE that this protects.
-	#
-	# A row is 51px of panel plus 8 of separation and the first one starts at
-	# 154, so the buttons underneath walk off the bottom of a 540 viewport at
-	# about six ships. Measured, not guessed: `-- lobby host` and a ruler. At the
-	# tuned party of four there is room and this changes nothing; the moment
-	# MAX_PLAYERS is raised it is the difference between a host who can press
-	# LAUNCH and one who cannot.
-	#
-	# That is not hypothetical — a six-ship party formed correctly on the wire in
-	# testing and could only be launched because the `auto` flag pressed the
-	# button programmatically. Nobody could have done it by hand.
+	# The list scrolls to protect READY and LAUNCH DIVE; at about six ships they leave the screen.
+	# Why: docs/why/LobbyScreen.md#roster-scroll
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 8)
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -324,17 +254,13 @@ func _build_party() -> void:
 		rows.add_child(_slot_row(slot))
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	# Four rows' worth. Past that it scrolls rather than growing, which is the
-	# whole point; under it the container shrinks to fit and a party of two does
-	# not sit in a tall empty box.
+	# Four rows' worth, then it scrolls; a party of two does not sit in a tall empty box.
 	scroll.custom_minimum_size = Vector2(0, 0)
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows)
 	roster.add_child(scroll)
 	_body.add_child(roster)
-	# The roster is the only part of this page that grows, so it is the only part
-	# that gets the leftover height. Without this the section keeps its minimum
-	# and the scroll never has room to be a scroll.
+	# The roster is the one part that grows, so it gets the leftover height or the scroll is dead.
 	_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	roster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
@@ -359,13 +285,8 @@ func _build_party() -> void:
 		_status.text = "The host starts the dive."
 
 
-## The code, big, with a button that puts it on the clipboard.
-##
-## COPY is not a convenience. A lobby code is shared by pasting it into a chat
-## window, and a code that can only be READ off the screen makes the player
-## transcribe fourteen characters by hand into the one place a typo is most
-## likely — which is the exact failure the check character exists to catch, now
-## caused by the interface rather than caught by it.
+## COPY is not a convenience: hand-transcribing 14 characters defeats the check character.
+## Why: docs/why/LobbyScreen.md#copy-button
 func _code_box() -> Control:
 	var box := Widgets.section("CODE")
 	var pretty := LobbyCode.pretty(Net.transport.code)
@@ -379,18 +300,8 @@ func _code_box() -> Control:
 		row.add_child(copy)
 	box.add_child(row)
 
-	# WRAPPED, and its absence was not cosmetic.
-	#
-	# A Label with no autowrap reports a minimum width of its whole line, and
-	# this line is about two hundred characters — so the lobby's column claimed
-	# roughly 1200px inside a 960px viewport. A Control does not clip its
-	# children, so nothing looked broken; the page simply extended past the right
-	# edge of the window and everything anchored to that edge went with it. BACK
-	# was cut to "B", and every roster row's READY / STANDING BY chip was off
-	# screen entirely.
-	#
-	# Which is how a wrapping bug gets reported as "the host cannot see who is
-	# ready". The chips were being built and bound correctly the whole time.
+	# Without autowrap the note claimed about 1200 px and pushed BACK and READY off screen.
+	# Why: docs/why/LobbyScreen.md#note-wrapping
 	var note := UITheme.body(
 		"Send this to your friends. They paste it into FLY TOGETHER > JOIN."
 		+ " Dashes and capitals do not matter, and there is no letter O or I"
@@ -401,9 +312,7 @@ func _code_box() -> Control:
 	return box
 
 
-## Confirmed on the button itself, and put back after a beat. A copy that says
-## nothing leaves the player pressing it again to be sure, and pasting twice is
-## how you end up with half a code in the chat window.
+## Confirmed on the button and restored after a beat, or the player copies twice.
 func _copy(text: String) -> void:
 	DisplayServer.clipboard_set(text)
 	var b := _find_button("Copy")
@@ -420,10 +329,7 @@ func _copy(text: String) -> void:
 		still.disabled = false
 
 
-## Not every display server has one. Headless has none at all, and calling
-## clipboard_get() there pushes an engine error for something the player never
-## asked for — so the buttons are absent rather than broken, and the code stays
-## readable on screen either way.
+## Headless has no clipboard and `clipboard_get()` pushes an error, so the buttons are absent.
 func _can_clip() -> bool:
 	return DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD)
 
@@ -432,10 +338,7 @@ func _find_button(named: String) -> Button:
 	return _body.find_child(named, true, false) as Button
 
 
-## The `auto` flag, one step at a time. Deferred and re-entered through the
-## normal rebuild, so it walks the same path a player's clicks would rather
-## than a shortcut around it — a scripted test that skips the real methods
-## proves the script works, not the screen.
+## The `auto` flag runs through the normal rebuild, so a scripted test walks the real path.
 func _drive() -> void:
 	var me: Dictionary = Net.roster.get(Net.local_id(), {})
 	if not bool(me.get("ready", false)):
@@ -484,9 +387,7 @@ func _fill_crowd() -> void:
 	Sig.party_changed.emit()
 
 
-## No transport choice on this side, ever. The code says which kind of party it
-## is — see NetTransport.for_code() — so the only thing a joining player has to
-## get right is the code itself.
+## No transport choice on joining: the code says which kind of party it is.
 func _join() -> void:
 	if not Net.join_party(_code_text, _callsign(), &"", NetTransport.for_code(_code_text)):
 		_status.text = Net.last_error()
@@ -502,18 +403,8 @@ func _leave() -> void:
 	Router.show_launcher()
 
 
-## The seed the host rolled, made into a galaxy on this machine.
-##
-## This is the payoff and it is worth being precise about what it proves: both
-## machines now run `MapGen` and `GalaxyGen` over the same master seed, so both
-## sectors hold the same systems with the same names, the same danger and the
-## same shelves. Nothing is being kept in step — there are no gameplay messages
-## yet. The galaxy agrees because it was derived, not because it was sent.
-##
-## It goes through Router.new_run() rather than starting a run here, so the
-## party lands on the chassis select exactly as a solo run does. Four players
-## pick four different ships on one galaxy, which is the party composition rule
-## rather than an oversight.
+## Both machines derive the same galaxy from the seed; the party lands on chassis select.
+## Why: docs/why/LobbyScreen.md#launch-seed
 func _on_launched(seed_value: int) -> void:
 	if _scripted:
 		print("[lobby] dive on seed %d" % seed_value)
@@ -540,9 +431,7 @@ func _normalise_code(_t: String) -> void:
 	_code_field.caret_column = mini(at, clean.length())
 
 
-## MOVED TO `UITheme.field`. This was the first text field in the game and its
-## styling lived here on the grounds that one screen is not a pattern; the
-## ship's rename box made it two.
+## Moved to `UITheme.field` when the ship's rename box became the second user.
 func _field(initial: String, chars: int) -> LineEdit:
 	var e := UITheme.field(chars)
 	e.text = initial

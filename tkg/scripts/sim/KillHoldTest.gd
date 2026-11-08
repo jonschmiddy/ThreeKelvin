@@ -1,22 +1,7 @@
 extends Node
 
-## A KILL MOVES NOTHING, headless with the animations on:
-##   godot --headless --path . -- sheet=KillHoldTest
-## Jon, on the pack-of-three film: "The enemy dips down and then pops up after
-## the death animation?" The dying ship's readout lost its intent, the pack was
-## laid out again round the shorter block, and the breakup, anchored where the
-## art was mid-shake, handed back to a wreck drawn somewhere else.
-## For a seeded pack of three (drawn at half) and a pair (full size), the first
-## ship is killed outright and its breakup played to the end and one second on:
-##   - every slot, and every ship's resting place in it, stays exactly where it
-##     stood before the kill, every frame;
-##   - the breakup is drawn from the dying ship's resting place (riding its bob);
-##   - its last frame is the wreck the slot then draws, pixel for pixel.
-## And THE KILL TO LOCAL (`_window`): a lone ship killed, and in the stretch
-## after the fight is finished but before `Router.after_combat` has handed over,
-## Tab, NEXT SCREEN on another key and clicks on the SECTOR and STARCHART tabs
-## change nothing (`Router.fight_up`: they started a ladder move that raced the
-## hand-off), and the hand-off still lands on LOCAL and stays there.
+## A kill moves nothing (Jon: the enemy dips then pops up); input is ignored until the hand-off.
+## Why: docs/why/KillHoldTest.md#kill-moves-nothing
 
 var _fails := 0
 
@@ -82,11 +67,7 @@ func _case(tree: SceneTree, pack: Array, tag: String) -> void:
 	var after := -1.0
 	var moved := 0.0
 	var off := 0.0
-	# where the ship rested last frame: the breakup takes the bob a frame after
-	# the art does, and on a slow machine a frame is long enough for the bob to
-	# move two pixels in it, so "within a pixel of now" failed a breakup that
-	# was exactly one frame behind (Oct 15, both before and after the wreck
-	# changes). It is held to the nearer of this frame's place and last frame's.
+	# Held to the nearer of this and last frame's place: the breakup trails the art (Oct 15).
 	var want_was := Vector2(INF, INF)
 	var seen := false
 	var t0 := Time.get_ticks_msec()

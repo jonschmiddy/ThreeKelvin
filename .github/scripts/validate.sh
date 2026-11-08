@@ -2385,6 +2385,23 @@ else
 fi
 }
 
+unit_commentcheck() {
+step "Long reasoning lives in docs/why/, and every pointer to it resolves"
+# No .gd file holds a comment run over five lines, and every
+# `docs/why/<file>.md#<anchor>` in the code names a real heading.
+if [ -n "$PY" ]; then
+	if "$PY" tools/comment_check.py >/tmp/commentcheck.$$ 2>&1; then
+		ok "$(tail -n 1 /tmp/commentcheck.$$)"
+	else
+		head -n 20 /tmp/commentcheck.$$ | sed 's/^/        /'
+		bad "comment check: broken why-pointers or long comment runs (python tools/comment_check.py)"
+	fi
+	rm -f /tmp/commentcheck.$$
+else
+	bad "no python for the comment check"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
@@ -2478,6 +2495,9 @@ VOCAB_DOCS=$(
 	  | grep -v "maker's mark" \
 	  | grep -v 'house style' \
 	  | grep -v 'never .house. or .maker.' \
+	  | grep -v 'wrong for anyone outside the house' \
+	  | grep -v '`maker`' \
+	  | grep -v '`makers`' \
 	  | grep -viE 'never house, maker, brand, or marque' \
 	  | grep -v '`chassis_maker`'
 )
