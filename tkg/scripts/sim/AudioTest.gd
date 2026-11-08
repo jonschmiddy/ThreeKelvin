@@ -132,6 +132,13 @@ func run(tree: SceneTree) -> void:
 			(Audio._mv[Audio._now] as AudioStreamPlayer).stream == carried
 			and (Audio._mv[Audio._now] as AudioStreamPlayer).playing)
 
+	# A cue change inside the relay's tail reuses the old voice; the tail's stop must not reach it.
+	Audio.play_cue(Audio.TITLE_CUE)
+	await _settle()
+	await tree.create_timer(Audio.TAIL).timeout
+	_ok("a cue changed inside a relay's tail is still playing after the tail (%s)" % Audio.cue(),
+			Audio.cue() == Audio.TITLE_CUE and (Audio._mv[Audio._now] as AudioStreamPlayer).playing)
+
 	# Lights Out must not loop: relayed, a death would restart its elegy every seventy seconds.
 	# Why: docs/why/AudioTest.md#loop
 	Audio.music_state(&"gameover")

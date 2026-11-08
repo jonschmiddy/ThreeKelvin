@@ -468,11 +468,14 @@ func _relay() -> void:
 	# The fallback is the cue level, not 1.0 -- full scale is no longer unity.
 	o.set_meta(&"g", float(p.get_meta(&"g", db_to_linear(MUSIC_DB))))
 	o.play()
+	var gone := _now
 	_now = nxt
-	# The outgoing voice keeps its level and simply runs out of file.
+	# The outgoing voice keeps its level and simply runs out of file. Held in `_mfade`, so a
+	# cue change that reuses this voice inside the tail kills the stop instead of eating the cue.
 	var t := create_tween()
 	t.tween_interval(TAIL)
 	t.tween_callback(p.stop)
+	_mfade[gone] = t
 
 func _ramp(i: int, to: float, secs: float) -> void:
 	var p: AudioStreamPlayer = _mv[i]
@@ -1103,9 +1106,7 @@ func _bed_on(row: StringName, take: Dictionary) -> void:
 	if stream == null:
 		return
 	# (a room's loop, as `room` loops it: the same file, the same seam)
-	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	stream.loop_begin = 0
-	stream.loop_end = roundi(stream.get_length() * float(stream.mix_rate))
+	loop_whole(stream)
 	var pl: AudioStreamPlayer = _beds.get(row)
 	if pl == null:
 		pl = AudioStreamPlayer.new()
@@ -1488,7 +1489,7 @@ func ship_flight(dur: float, conic: bool) -> void:
 		_ship_depart.play()
 		var tw := create_tween()
 		tw.tween_interval((0.18 if conic else 0.45) * dur)
-		tw.tween_property(_ship_depart, "volume_db", -80.0, 0.2 if conic else 0.3 * dur)
+		tw.tween_property(_ship_depart, "volume_db", -80.0, (0.2 if conic else 0.3) * dur)
 	# the flameout, where its clean burn ends as the ship settles
 	if ResourceLoader.exists(SFX_PATH % aname):
 		var flame: float = ShipView.ARRIVE_LEAD_S + (ShipView.FLAMEOUTS[row][0] as Vector2).y * ShipView.ARRIVE_MS / 1000.0

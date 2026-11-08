@@ -1090,7 +1090,6 @@ const SHAKE_MAX := 4.0
 var _shake: float = 0.0            ## seconds left
 var _shake_px: float = 0.0         ## amplitude this kick started at
 
-## Hit for `amount`: a nick is one pixel, a big hit is four.
 func _key_test() -> void:
 	for _i in 20:
 		await get_tree().process_frame
@@ -1118,6 +1117,7 @@ func _press(code: Key) -> void:
 	up.pressed = false
 	Input.parse_input_event(up)
 
+## Hit for `amount`: a nick is one pixel, a big hit is four.
 func _kick(amount: int) -> void:
 	if not DisplaySettings.screen_shake or not Router.animating():
 		return

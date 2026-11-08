@@ -12,6 +12,7 @@ func run() -> void:
 	_swaps()
 	_turn_materials()
 	_moving_day()
+	_moving_hurt()
 	_changed_your_mind()
 	_legible()
 	_card_law()
@@ -375,6 +376,28 @@ func _moving_day() -> void:
 	var g := Run.hold_grid()
 	_in_bounds("moving day", g)
 	_no_overlap("moving day", g)
+
+
+## A hurt ship moves hurt: the ratio is taken with its plating still on, not against the bare frame.
+func _moving_hurt() -> void:
+	seed_run(1234)
+	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+	var plate := ModuleData.new()
+	plate.max_hull = 10
+	Run.installed.append(plate)
+	var full := Run.max_hp()
+	Run.hp = full - 10
+	var light: HullData = null
+	for f in DB.hull_frames:
+		if (f as HullData).weight == HullData.Weight.LIGHT:
+			light = f
+			break
+	if not _ok("moving hurt: a light frame exists", light != null):
+		return
+	var want := maxi(6, int(round(light.max_hull * float(full - 10) / float(full))))
+	Run.transfer_to_hull(light)
+	_ok("moving hurt: the hull keeps its condition (%d of %d, wanted %d)"
+		% [Run.hp, light.max_hull, want], Run.hp == want and Run.hp < light.max_hull)
 
 
 ## A swap moves nothing, so undo is an exact snapshot; checked after carrying something across.

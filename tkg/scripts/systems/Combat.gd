@@ -341,6 +341,9 @@ func begin_turn() -> void:
 		for i in times:
 			damage_enemy(d.damage, 1, "Drone")
 		d.fresh = false
+	# A drone can kill the last foe: the fight is over, so nothing below may run.
+	if finished:
+		return
 	if drone_brace > 0:
 		brace += drone_brace
 		_log("Shield wasps add %d brace." % drone_brace, &"good")
@@ -547,7 +550,8 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 
 func can_play(c: CardData) -> bool:
 	# Nothing is playable mid-choice, or two cards would resolve in an order neither stated.
-	return not finished and asking_at < 0 and choosing <= 0 and energy >= c.energy
+	return not finished and asking_at < 0 and choosing <= 0 and energy >= c.energy \
+			and Run.credits >= c.credit_cost
 
 ## Choice takes a hand index so the sim and bot pick like the screen. Junk first, never
 ## random.

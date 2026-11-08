@@ -288,6 +288,8 @@ func _on_run_started() -> void:
 	# Let go of the `Sig` bus first: a dropped fight's connections would outlive it.
 	drop_combat()
 	final_loot = false
+	# Quitting from a berth must not carry its dock into the next run's first arrival.
+	docked = false
 	# Parked ship spots are kept by system index, so a new run must not inherit them.
 	SystemMapScreen._parked.clear()
 	# Same for the event last opened on LOCAL, also kept by system index.

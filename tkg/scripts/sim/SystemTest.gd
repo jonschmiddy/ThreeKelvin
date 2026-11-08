@@ -117,6 +117,14 @@ func run() -> void:
 			var want_giant := n.gas_giant and n.type != MapGen.NodeType.PULSAR
 			if giants != (1 if want_giant else 0):
 				_fail("system %d: %d giants, gas_giant=%s" % [n.index, giants, str(n.gas_giant)])
+			# a neutron star has no coloured sky and no giant, so no event may ask for either
+			if n.type == MapGen.NodeType.PULSAR:
+				OptionTable.ensure(n)
+				if n.star != MapGen.Star.ORDINARY or n.gas_giant:
+					_fail("pulsar %d kept a star colour or a giant" % n.index)
+				for o in OptionTable.all():
+					if n.options.has(StringName(o.id)) and (o.has("needs_giant") or o.has("needs_star")):
+						_fail("pulsar %d rolled %s, which needs a giant or a star" % [n.index, o.id])
 			_weights(n, L)
 			if L.bodies.is_empty():
 				_fail("system %d has no bodies" % n.index)
