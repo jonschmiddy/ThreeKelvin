@@ -148,6 +148,39 @@ is `docs/coop-design.md` §6 one level down. The floor is what stops a party fro
 solving the fight by electing a victim: a cold ship is safer, never safe.
 ```
 
+## Enemy turn
+
+Above `func _swing_test() -> void:`:
+
+```text
+Two things the host owns at the enemy's turn (review, Nov 8).
+
+The first is the enemy's block and heal. They are set on the host's copy and
+pushed, and a shot is then soaked by the block, so the check hurts the foe
+after the swing. The scaled number is worked out in the test from the node's
+danger by hand, not by asking `Combat.scaled_for`, or the test would agree
+with a wrong scale.
+
+The second is the host dying inside its own swing. The handler leaves the
+fight from inside the first swing that lands on the host, as a killing blow
+does, and the turn has to rise by one with each foe swinging once. It tries up
+to twelve fights because the target is a weighted roll and only a swing at the
+host starts the bug.
+```
+
+## Hostile peer
+
+Above `func _hostile_peer_test() -> void:`:
+
+```text
+What a connected peer can say that no ship could (review, Nov 8). Each bad
+message is sent straight to the host's handler and must leave no trace, and a
+good one of the same shape is sent after it, so a guard that drops everything
+fails too. The host is put in the dive's galaxy first, since the range checks
+read its map. A direct call has sender 0, which is what a peer that never said
+hello looks like.
+```
+
 ## Fight race
 
 Above `func _race_test() -> void:`:

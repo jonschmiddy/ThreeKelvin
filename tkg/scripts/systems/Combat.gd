@@ -267,17 +267,16 @@ func look_for(i: int) -> int:
 			wrecks += 1
 	return Rng.derive(&"look", (n.index * 64 + wrecks) * 8 + i).randi() & 0xffff
 
-## HP scales faster than damage. Bosses are hand-tuned; the Custodian's hull grows with
-## jumps.
-## Why: docs/why/Combat.md#enemy-spawn-scaling
-func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: bool = true) -> EnemyState:
-	var e := EnemyState.new()
-	# Halved when danger went from 5 to 10 tiers, so the ladder top is unchanged and HP climbs
-	# 2x damage.
-	var hand_tuned := template.boss or template.miniboss
-	var hp_mult := 1.0 if hand_tuned else 1.0 + (danger - 1) * 0.05
-	var dmg_mult := 1.0 if hand_tuned else 1.0 + (danger - 1) * 0.025
-	# Scale a private copy of the intents so the template stays pristine.
+## Halved when danger went from 5 to 10 tiers, so the ladder top is unchanged and HP climbs
+## 2x damage.
+static func hp_mult_for(template: EnemyTemplate, danger: int) -> float:
+	return 1.0 if template.boss or template.miniboss else 1.0 + (danger - 1) * 0.05
+
+## A private copy with the intents scaled, so the template stays pristine. The host builds the same
+## copy to grant a shared foe's block and heal (`NetSession._foe_acts`).
+static func scaled_for(template: EnemyTemplate, danger: int) -> EnemyTemplate:
+	var hp_mult := hp_mult_for(template, danger)
+	var dmg_mult := 1.0 if template.boss or template.miniboss else 1.0 + (danger - 1) * 0.025
 	var scaled: Array[IntentData] = []
 	for i in template.loop:
 		var c := i.duplicate(true) as IntentData
@@ -293,6 +292,16 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: b
 	var t := template.duplicate(true) as EnemyTemplate
 	t.loop = scaled
 	t.pool = scaled_pool
+	return t
+
+## HP scales faster than damage. Bosses are hand-tuned; the Custodian's hull grows with
+## jumps.
+## Why: docs/why/Combat.md#enemy-spawn-scaling
+func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: bool = true) -> EnemyState:
+	var e := EnemyState.new()
+	var hand_tuned := template.boss or template.miniboss
+	var hp_mult := hp_mult_for(template, danger)
+	var t := scaled_for(template, danger)
 	e.template = t
 	var base := template.hull_at(Run.custodian_jumps()) if hand_tuned else template.max_hull
 	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share)))

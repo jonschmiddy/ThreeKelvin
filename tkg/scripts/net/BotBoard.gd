@@ -210,7 +210,7 @@ static func station(seq: int) -> Dictionary:
 			"sold": gone,
 			"affordable": Run.credits >= price,
 		})
-		if not gone and Run.credits >= price and not Run.hold_full():
+		if not gone and Run.credits >= price and Run.has_room_for(m):
 			moves.append("buy %d" % i)
 	d["hold"] = _modules(Run.cargo)
 	for i in Run.cargo.size():

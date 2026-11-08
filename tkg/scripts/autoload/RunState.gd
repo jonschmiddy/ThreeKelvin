@@ -2478,8 +2478,8 @@ func hellbender_defeated() -> void:
 ## Position, hull and counter arrive whole from the host, so a dropped push costs one
 ## update rather than a drift.
 func hellbender_adopt(to: int, hp: int, moves: int, feeding: bool) -> void:
-	hellbender_moves = moves
-	hellbender_hp = hp
+	hellbender_moves = maxi(0, moves)
+	hellbender_hp = maxi(0, hp)
 	if to < 0:
 		# Only a machine not in the fight gets here still thinking it alive, so this line
 		# tells it what it missed.

@@ -24,4 +24,4 @@ func _ready() -> void:
 
 func _on_line(text: String, kind: StringName) -> void:
 	var c := UITheme.log_colour(kind)
-	_rt.append_text("[color=#%s]%s[/color]\n" % [c.to_html(false), text])
+	_rt.append_text("[color=#%s]%s[/color]\n" % [c.to_html(false), text.replace("[", "[lb]")])

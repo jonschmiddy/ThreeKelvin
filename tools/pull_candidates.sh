@@ -11,6 +11,7 @@ set -u
 out="$1"; n="${2:-4}"; mkdir -p "$out"
 while read -r id name; do
   [ -z "${id:-}" ] && continue
+  name="${name##*/}"
   for i in $(seq 0 $((n - 1))); do
     f="$out/${name}_$((i + 1)).png"
     ok=""

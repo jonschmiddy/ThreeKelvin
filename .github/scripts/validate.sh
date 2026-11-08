@@ -53,6 +53,8 @@ set -uo pipefail
 GODOT="${GODOT:-godot}"
 PROJECT="${PROJECT:-tkg}"
 SIM_RUNS="${SIM_RUNS:-40}"
+# Digits only: it goes into shell arithmetic below.
+case "$SIM_RUNS" in ''|*[!0-9]*) echo "SIM_RUNS must be a whole number, not '$SIM_RUNS'" >&2; exit 2 ;; esac
 # How many units FlightTest and SolveTest run split into: as many as there are
 # `unit_flighttest_<K>` and `unit_solvetest_<K>` functions (checked below).
 GATE_FLIGHT_SHARDS=4

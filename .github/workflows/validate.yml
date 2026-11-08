@@ -14,6 +14,10 @@ on:
         description: "How many runs the simulator plays"
         default: "40"
 
+# Nothing here writes to the repository or the pull request.
+permissions:
+  contents: read
+
 # A second push supersedes the first. Nothing here is worth finishing for a
 # commit that has already been replaced.
 concurrency:

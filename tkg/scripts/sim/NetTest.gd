@@ -50,6 +50,11 @@ func run(tree: SceneTree) -> void:
 	_fight_rules_test()
 	_growth_rules_test()
 	await _fight_net_test()
+	print("\n=== the enemy's turn ===")
+	await _swing_test()
+	print("\n=== a peer says things it should not ===")
+	await _hostile_peer_test()
+	_bot_shelf_test()
 	print("\n=== two ships start different fights at one system in the same second ===")
 	await _race_test()
 	print("\n=== one Custodian for the galaxy ===")
@@ -103,6 +108,10 @@ func _code_tests() -> void:
 		check("direct %s:%d round trip" % [c[0], c[1]], "%s:%d" % [back.ip, back.port], "%s:%d" % [c[0], c[1]])
 		check("direct %s is 12 characters" % code, code.length(), 12)
 		check("direct %s parses clean" % code, back.error, "")
+
+	# A bad octet or port is refused, not masked into a code for another address.
+	for bad: Array in [["999.1.1.1", 1], ["a.b.c.d", 1], ["1.2.3", 1], ["1.1.1.1", 70000], ["1.1.1.1", 0]]:
+		check("direct %s:%d is refused" % [bad[0], bad[1]], LobbyCode.encode_direct(bad[0], bad[1]), "")
 
 	# A thousand rolls, as bit-packing errors only show on values straddling a character boundary.
 	for i in 1000:
@@ -379,6 +388,13 @@ func _wire_tests() -> void:
 	check("and carries no parts", junk.parts.size(), 0)
 	var empty := ShipBuild.from_wire({})
 	ok("and so does an empty message", empty.hull != null)
+	# The renderer calls `get` on each part, so one that is not a dictionary raises every draw.
+	var odd := ShipBuild.from_wire({"parts": [5, "x", {"slot": 0, "mount": 1}, null]})
+	check("only dictionary parts survive the wire", odd.parts.size(), 1)
+	var crowd: Array = []
+	crowd.resize(ShipBuild.MAX_PARTS + 40)
+	crowd.fill({"slot": 0})
+	check("and no more than a hull could carry", ShipBuild.from_wire({"parts": crowd}).parts.size(), ShipBuild.MAX_PARTS)
 
 
 ## Catches a partner drawn as the wrong ship, which looks like art, not a bug.
@@ -697,6 +713,20 @@ func _fight_rules_test() -> void:
 	ok("a ship that leaves is not waited for", f.waiting_on().is_empty())
 	check("and the enemy does not shrink back", f.foes[0].max_hp, 220)
 
+	# A shot off a socket is bounded: a huge `hits` once held the host's frame, a negative amount healed.
+	var shot := SharedFight.open(43, PackedStringArray(["cutter"]),
+		PackedInt32Array([100]), PackedInt32Array([0]), PackedInt32Array([100]), 11)
+	var t0 := Time.get_ticks_msec()
+	shot.hurt(0, 1, 2147483647, 11)
+	ok("a shot of two billion hits returns promptly", Time.get_ticks_msec() - t0 < 2000)
+	var mend := SharedFight.open(44, PackedStringArray(["cutter"]),
+		PackedInt32Array([100]), PackedInt32Array([0]), PackedInt32Array([50]), 11)
+	mend.hurt(0, -500, 1, 11)
+	check("a negative shot does not heal", mend.foes[0].hp, 50)
+	var big := SharedFight.open(45, PackedStringArray(["cutter"]),
+		PackedInt32Array([100]), PackedInt32Array([0]), PackedInt32Array([100]), 11)
+	check("a shot at the cap still lands in full", big.hurt(0, 40, SharedFight.MAX_HITS, 11) > 0, true)
+
 	# Killing it ends it, once, for everyone.
 	f.hurt(0, 999, 1, 11)
 	ok("a dead enemy ends the fight", f.over)
@@ -946,6 +976,214 @@ func _fight_net_test() -> void:
 	# Targeting. Read straight off the roster's heat, so this needs no fight.
 	_targeting_test(host)
 	await _teardown()
+
+
+## Two ships on one loopback: the host, and a guest with the given name.
+func _party_of_two(port: int, guest_name: String = "Pilot0") -> Array:
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = port
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var guest := _make_peer("guest")
+	guest.join_party(code, guest_name, &"korvan", DirectTransport.new())
+	var joined := await _wait_until(func() -> bool:
+		return host.party_size() == 2 and guest.party_size() == 2, 5.0)
+	ok("two ships in the party", joined)
+	return [host, guest] if joined else []
+
+
+## The first template whose loop (or pool) holds an intent with `field` set, and which one.
+func _intent_with(field: String, in_pool: bool) -> Array:
+	for t: EnemyTemplate in DB.enemies.values():
+		if t.boss or t.miniboss:
+			continue
+		var list: Array[IntentData] = t.pool if in_pool else t.loop
+		for k in list.size():
+			if int(list[k].get(field)) > 0:
+				return [String(t.id), k]
+	return []
+
+
+## The enemy keeps its own block and heal, and a host that dies mid-swing does not swing twice.
+## Why: docs/why/NetTest.md#enemy-turn
+func _swing_test() -> void:
+	if Run.map.is_empty():
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var pair := await _party_of_two(PORT_BASE + 50)
+	if pair.is_empty():
+		await _teardown()
+		return
+	var host: NetSession = pair[0]
+	var guest: NetSession = pair[1]
+	var juke := _intent_with("block", false)
+	var song := _intent_with("heal", true)
+	ok("an enemy that blocks and one that heals exist", juke.size() == 2 and song.size() == 2)
+	if juke.size() != 2 or song.size() != 2:
+		await _teardown()
+		return
+	var places: Array[int] = []
+	for n: MapGen.MapNode in Run.map:
+		if n.danger >= 3 and places.size() < 12:
+			places.append(n.index)
+	var ids := PackedStringArray([juke[0], song[0]])
+	var swung := false
+	for at in places:
+		var danger: int = Run.map[at].danger
+		host.open_fight(at, ids, PackedInt32Array([100, 100]), PackedInt32Array([0, 0]), PackedInt32Array([100, 100]))
+		await guest.open_fight(at, ids, PackedInt32Array([100, 100]), PackedInt32Array([0, 0]), PackedInt32Array([100, 100]))
+		var f: SharedFight = host.fight_at(at)
+		f.foes[0].kind = SharedFight.Pick.LOOP
+		f.foes[0].pick = juke[1]
+		f.foes[1].kind = SharedFight.Pick.POOL
+		f.foes[1].pick = song[1]
+		f.foes[1].hp -= 40
+		var hp_before := f.foes[1].hp
+		var raw: Array[IntentData] = (DB.enemies[StringName(juke[0])] as EnemyTemplate).loop
+		var raw_song: Array[IntentData] = (DB.enemies[StringName(song[0])] as EnemyTemplate).pool
+		var block: int = int(round(raw[juke[1]].block * (1.0 + (danger - 1) * 0.05)))
+		var heal: int = int(round(raw_song[song[1]].heal * (1.0 + (danger - 1) * 0.05)))
+		# The host leaves from inside the first swing that lands on it, as a killing blow does.
+		var swings: Array[int] = [0]
+		var left: Array[bool] = [false]
+		var on_swing := func(a: int, _w: int, _k: int, _p: int) -> void:
+			if a != at:
+				return
+			swings[0] += 1
+			if not left[0]:
+				left[0] = true
+				host.leave_fight(at)
+		Sig.party_fight_swing.connect(on_swing)
+		guest.report_end_turn(at)
+		await _wait_until(func() -> bool: return f.ended.has(guest.local_id()), 4.0)
+		host.report_end_turn(at)
+		await _wait_frames(12)
+		Sig.party_fight_swing.disconnect(on_swing)
+		if not left[0]:
+			host.leave_fight(at)
+			guest.leave_fight(at)
+			continue
+		swung = true
+		check("the enemy's block is granted on the host (danger %d)" % danger, f.foes[0].block, block)
+		check("and its heal", f.foes[1].hp, mini(f.foes[1].max_hp, hp_before + heal))
+		ok("block is real: a shot is soaked by it", f.hurt(0, 2, 1, guest.local_id()) == 0 and f.foes[0].block == block - 2)
+		check("the swing that the host's death interrupted ran once", f.turn, 2)
+		check("each foe swung once, not again at the partner", swings[0], 2)
+		print("  danger %d: Juke gave %d block, the song %d hull; the turn went 1 -> %d with %d swings" % [
+			danger, block, heal, f.turn, swings[0]])
+		break
+	ok("a swing landed on the host in twelve tries", swung)
+	await _teardown()
+
+
+## A peer that skipped the handshake, or that sends what no ship could, changes nothing.
+## Why: docs/why/NetTest.md#hostile-peer
+func _hostile_peer_test() -> void:
+	if Run.map.is_empty():
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var pair := await _party_of_two(PORT_BASE + 51, "[font_size=400]" + "x".repeat(40))
+	if pair.is_empty():
+		await _teardown()
+		return
+	var host: NetSession = pair[0]
+	var guest: NetSession = pair[1]
+	var gid := guest.local_id()
+	check("a long name with markup is cut to the cap", host.name_of(gid).length(), NetSession.NAME_MAX)
+
+	# Not on the roster: the sender of a direct call is 0, as a peer that never said hello is.
+	host._claim_at_host(3, 7)
+	ok("a message from a stranger is ignored", not host.claims.has(3))
+
+	# The checks below read the dive's galaxy, so say this host is in it.
+	host.dive_seed = Run.galaxy_seed if Run.galaxy_seed != 0 else 1
+	Run.galaxy_seed = host.dive_seed
+	host.state = NetSession.State.DIVING
+	var last := Run.map.size() - 1
+	host._apply_claim(-5, 3, gid)
+	host._apply_claim(99999, 3, gid)
+	host._apply_claim(1, -3, gid)
+	host._apply_claim(1, NetSession.OPTION_MAX + 1, gid)
+	ok("a claim off the map or past the options is dropped", host.claims.is_empty())
+	host._apply_claim(last, MapGen.OPTION_SHOP, gid)
+	check("a real claim still lands", host.who_took(last, MapGen.OPTION_SHOP), gid)
+	var full := {}
+	for o in NetSession.CLAIMS_PER_NODE:
+		full[o] = gid
+	host.claims[2] = full
+	host._apply_claim(2, NetSession.CLAIMS_PER_NODE + 5, gid)
+	check("a system's claim table stops growing", host.claims[2].size(), NetSession.CLAIMS_PER_NODE)
+
+	var ids := PackedStringArray([String(DB.enemies.keys()[0])])
+	var ten := PackedInt32Array([10])
+	var none := PackedInt32Array([0])
+	var lots := PackedInt32Array()
+	lots.resize(100000)
+	lots.fill(10)
+	host._open_or_join(4, ids, lots, lots, lots, 0, gid)
+	host._open_or_join(5, PackedStringArray(), PackedInt32Array(), none, none, 0, gid)
+	host._open_or_join(6, PackedStringArray(["nobody"]), ten, none, ten, 0, gid)
+	host._open_or_join(7, ids, PackedInt32Array([2000000000]), none, ten, 0, gid)
+	host._open_or_join(99999, ids, ten, none, ten, 0, gid)
+	ok("a fight opened with junk is never made", host.fights.is_empty())
+	host._open_or_join(8, ids, ten, none, ten, 0, gid)
+	ok("a real one still opens", host.fight_open_at(8))
+
+	var at0 := int(host.roster[gid].at)
+	var party0 := Run.party_jumps
+	host._apply_presence(gid, {}, 99999, 3)
+	check("a presence at no system is dropped", int(host.roster[gid].at), at0)
+	host._apply_presence(gid, {}, last, 3)
+	check("a real one lands", int(host.roster[gid].at), last)
+	Run.party_jumps = party0
+
+	host._apply_spot(gid, 1, 0, 0.0, 0.0, 0.0, INF, 0)
+	host._apply_spot(gid, 1, 0, NAN, 0.0, 0.0, 5.0, 0)
+	ok("a spot that is not a number is dropped", not host.spots.has(gid))
+	host._apply_spot(gid, 1, 0, 0.0, 0.0, 0.0, 1.0e30, 0)
+	check("a clock far past play is held to the cap", float(host.spots[gid].t), NetSession.MAP_CLOCK_MAX)
+
+	# The other way: what a host says to its guests. A bad row is skipped, not a crash.
+	var hb_at := Run.hellbender_at
+	var hb_moves := Run.hellbender_moves
+	var hb_hp := Run.hellbender_hp
+	Run.hellbender_adopt(999999, 5, -3, false)
+	check("a hellbender somewhere off the map is not followed", Run.hellbender_at, hb_at)
+	check("and its count never goes below nothing", Run.hellbender_moves, 0)
+	Run.hellbender_moves = hb_moves
+	Run.hellbender_hp = hb_hp
+	guest._push_roster_to([5, {}, {"id": 9999, "name": "Late"}])
+	check("a roster with bad rows keeps the good one", guest.roster.keys(), [9999])
+	print("  a stranger, a bad claim, fight, presence, spot, name and roster row: all refused, the real ones kept")
+	await _teardown()
+
+
+## A shelf part is not offered to a ship that cannot hold it, so it is never paid for and lost.
+func _bot_shelf_test() -> void:
+	var wide: ModuleData = null
+	for m: ModuleData in DB.modules.values():
+		if m.size.x * m.size.y >= 2:
+			wide = m
+			break
+	ok("a part wider than one cell exists", wide != null)
+	if wide == null or Run.hull == null:
+		return
+	var node: MapGen.MapNode = Run.node_at()
+	var shop0 := node.shop
+	var credits0 := Run.credits
+	node.shop = [wide]
+	Run.credits = 100000
+	ok("an empty hold is offered the part", "buy 0" in BotBoard.station(1).moves)
+	var filler: Array[HoldItem] = []
+	while Run.cargo_slots() - Run.cargo_used() > 1:
+		var one := ModuleData.new()
+		filler.append(one)
+		if not Run.place_in_hold(one):
+			break
+	ok("a hold with one cell free is not offered it", not ("buy 0" in BotBoard.station(2).moves))
+	for one in filler:
+		Run.take_from_hold(one)
+	node.shop = shop0
+	Run.credits = credits0
 
 
 ## The rule is `0.5 + heat_ratio`: heat matters in a fight, and the floor stops electing a victim.

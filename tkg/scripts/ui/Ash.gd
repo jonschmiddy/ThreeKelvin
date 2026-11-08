@@ -947,8 +947,8 @@ func comms_from(raw: Variant) -> void:
 		if line == "":
 			continue
 		var v := str(e.get("voice", ""))
-		# (a take this build does not have is said as text alone)
-		if v != "" and not ResourceLoader.exists(v):
+		# (a take this build does not have is said as text alone, and a save names no other folder)
+		if v != "" and not (v.begins_with(AshTutorLines.VOICE_DIR) and not v.contains("..") and ResourceLoader.exists(v)):
 			v = ""
 		comms.append({kind = StringName(str(e.get("kind", ""))), line = line, voice = v,
 			jump = int(e.get("jump", 0)), tutorial = bool(e.get("tutorial", false))})
