@@ -23,6 +23,9 @@ var _bench_clip: Control
 ## while you point at it, and the whole glass is the one key into it. Built
 ## once and restyled (`_refresh_bench`).
 var _glass_press: Button
+## The pointer was on the glass at the last look (`_process`), so its hover is
+## heard once on arriving (`Audio.lab_hover`).
+var _glass_on := false
 ## The sign-on, drawn into `_screen_vp` and shown on the glass by
 ## `_screen_pic`; the camera into the glass carries the same texture.
 var _login: LabLogin
@@ -1086,11 +1089,19 @@ func _process(_delta: float) -> void:
 	if _deck_swap != null:
 		_swap_decks()
 	if _login == null or _glass_press == null or _tab != &"bench":
+		_glass_on = false
 		return
 	if _lab_zoom != null and (_lab_zoom.is_open() or _lab_zoom.visible):
 		return
 	# (nor while the deck is still riding in: the glass is not where it will be)
 	var on := _glass_press.is_visible_in_tree() and _glass_press.is_hovered() and not deck_changing()
+	# THE HOVER IS HEARD ON THE EDGE, the frame the screen turns to its sign-in,
+	# once until the pointer leaves. Not on the camera's way back out with the
+	# pointer still on the glass: `_glass_on` is not touched while the camera is
+	# away, so it is still on from the press.
+	if on and not _glass_on:
+		Audio.lab_hover()
+	_glass_on = on
 	_login.set_state(LabLogin.LOGIN if on else LabLogin.LOGO)
 
 
@@ -1118,6 +1129,9 @@ func _open_lab(id: StringName) -> void:
 	# a zoom started then would start from a room that is still moving
 	if _lab_zoom == null or _lab_zoom.is_open() or deck_changing():
 		return
+	# (heard only on the press that signs in, the same frame as its ui_click;
+	# a press refused above clicks alone)
+	Audio.lab_login()
 	_login.set_state(LabLogin.SIGNING)
 	_lab_zoom.open(id)
 

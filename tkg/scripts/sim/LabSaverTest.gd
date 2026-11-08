@@ -32,6 +32,13 @@ extends Node
 ## pointed at while it is dark, the glass brightens over a quarter second and
 ## does not jump.
 ##
+## THE GLASS HEARD (Jon's picks, Nov 7; read off `Audio.tape`, Audio being off
+## headless): `lab_glass_hover` once as the pointer arrives on the glass, not
+## again while it stays, again after it leaves and comes back, never while the
+## glass is hidden, signing in or on the camera's way back out with the pointer
+## still on it; the press that signs in plays `lab_login` once, on the frame of
+## its `ui_click`; a press refused (the camera already in) clicks alone.
+##
 ## `cost` prints each saver's draw cost (`LabLogin.paint_us`) at rest, the mean
 ## and worst over a second, and fails one over `COST_MAX_US` on average.
 
@@ -79,6 +86,7 @@ func _run() -> void:
 		for o in OWNERS:
 			await _lab(dev, o)
 	await _turn()
+	await _sounds()
 	LabLogin.forced = ""
 	print("labsavertest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	_tree.quit(1 if _fails > 0 else 0)
@@ -371,6 +379,87 @@ func _turn() -> void:
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _frames(2)
 	LabLogin.hold_s = hold_was
+
+
+## How many times `name` is on the tape, and the frames it played on.
+func _heard(name: StringName) -> Array:
+	return Audio.tape.filter(func(e: Array) -> bool: return e[6] == name).map(func(e: Array) -> int: return int(e[5]))
+
+
+## THE GLASS HEARD.
+func _sounds() -> void:
+	var here := _station(MapGen.Development.SETTLEMENT, &"korvan")
+	var st := await _open_lab(here)
+	if not _ok("the sounds: the lab's screen is up", st != null):
+		return
+	var g := st._glass_press
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _frames(3)
+	Audio.taping = true
+	Audio.tape.clear()
+	g.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _frames(3)
+	_ok("the sounds: the pointer arriving on the glass plays its hover once (%s)" % [_heard(&"lab_glass_hover")],
+		_heard(&"lab_glass_hover").size() == 1 and st._login.state == LabLogin.LOGIN)
+	await _until(func() -> bool: return false, 600)
+	_ok("the sounds: held on the glass 0.6 s, not again (%d)" % _heard(&"lab_glass_hover").size(), _heard(&"lab_glass_hover").size() == 1)
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _until(func() -> bool: return false, 200)
+	_ok("the sounds: leaving plays nothing (%d)" % _heard(&"lab_glass_hover").size(), _heard(&"lab_glass_hover").size() == 1)
+	g.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _frames(3)
+	_ok("the sounds: left and come back, heard again (%d)" % _heard(&"lab_glass_hover").size(), _heard(&"lab_glass_hover").size() == 2)
+	# hidden (its deck's page down): the glass plays nothing however the pointer
+	# moves (the lab's own power-on scan shows and hides the clip it sits in, so
+	# the page is what is hidden here)
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _until(func() -> bool: return false, 200)
+	(st._pages[&"bench"] as Control).visible = false
+	g.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _until(func() -> bool: return false, 200)
+	_ok("the sounds: the glass hidden, nothing (%d)" % _heard(&"lab_glass_hover").size(), _heard(&"lab_glass_hover").size() == 2)
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	(st._pages[&"bench"] as Control).visible = true
+	await _until(func() -> bool: return false, 200)
+	_ok("the sounds: no login heard before a press", _heard(&"lab_login").is_empty())
+	# THE PRESS THAT SIGNS IN, a real click (the pointer arriving first)
+	Audio.tape.clear()
+	var zoom := st.lab_zoom()
+	await _click(g)
+	var clicks := _heard(&"ui_click")
+	var logins := _heard(&"lab_login")
+	_ok("the sounds: the press that signs in plays lab_login once on the frame of its ui_click (login %s, click %s, the screen %s)" % [logins, clicks, st._login.state],
+		logins.size() == 1 and clicks.size() == 1 and logins[0] == clicks[0] and st._login.state == LabLogin.SIGNING)
+	var hov_at_press := _heard(&"lab_glass_hover").size()
+	# signing in: the pointer off and on the glass is not heard
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _frames(3)
+	g.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _frames(3)
+	_ok("the sounds: signing in, the pointer off and on again is not heard (%d after %d)" % [_heard(&"lab_glass_hover").size(), hov_at_press],
+		_heard(&"lab_glass_hover").size() == hov_at_press)
+	await _until(func() -> bool: return zoom.landed(), 6000)
+	# a press with the camera already in: refused, clicks alone
+	g.pressed.emit()
+	await _frames(2)
+	_ok("the sounds: a press refused (the camera in) clicks and plays no login (login %d, click %d)" % [_heard(&"lab_login").size(), _heard(&"ui_click").size()],
+		_heard(&"lab_login").size() == 1 and _heard(&"ui_click").size() == 2)
+	# back out with the pointer still on the glass: the sign-in shows, unheard
+	zoom.close()
+	await _until(func() -> bool: return not zoom.is_open() and not zoom.visible, 6000)
+	await _frames(6)
+	_ok("the sounds: back out with the pointer on the glass, the sign-in up (%s) and no hover (%d after %d)" % [st._login.state, _heard(&"lab_glass_hover").size(), hov_at_press],
+		st._login.state == LabLogin.LOGIN and _heard(&"lab_glass_hover").size() == hov_at_press)
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _until(func() -> bool: return false, 200)
+	g.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _frames(3)
+	_ok("the sounds: and off and back on after, heard (%d after %d)" % [_heard(&"lab_glass_hover").size(), hov_at_press],
+		_heard(&"lab_glass_hover").size() == hov_at_press + 1)
+	g.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	await _frames(2)
+	Audio.taping = false
+	Audio.tape.clear()
 
 
 ## A click through the viewport, as a player makes it.

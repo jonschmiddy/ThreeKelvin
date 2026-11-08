@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   same seven, in its owner's colour, words and posters. Each owner has three of its own, and so
   does a lab with no owner. A new one comes up every 40 seconds, in the same order for everyone at
   that station. Pointing at the glass holds the one on screen, and a click still goes in to
-  RESEARCH.
+  RESEARCH. The glass has sounds now: a soft low tone when you point at it, and a swell and two
+  notes as you sign in.
 - **Changed** — the Lab's RECIPES page is laid out like AUGMENT. What you hold is on a rail on
   the left, the one you pick is drawn large in the middle under a scanner, and the recipes it can
   go into are rings on the right. Pick one, and MAKE is at the bottom with its cost. With nothing
