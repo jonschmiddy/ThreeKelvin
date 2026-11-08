@@ -143,6 +143,18 @@ This is cheap to raise and very expensive to have forgotten.
    which the host raises to the galaxy's, mid-fight too (`_regrow`). A
    version 15 partner sends a presence one number short and grows the
    Custodian on its own jumps.
+17: FAST TRANSFERS AND FASTER WORLDS (Jon, Nov 4-5). The worlds turn
+   `SystemLayout.WORLD_PACE` times faster, so a version 16 partner's worlds
+   stand somewhere else at the same clock. A flight lasts about 3 s and bends
+   round the stars, and the spots (one every SPOT_EVERY_MS, eased) cut its
+   chord, so the flier says the whole flight once, reliably, as it starts
+   (`report_flight`: its path from the ride round to its departure to its
+   spin-down onto the ring after, burns, place left and place to, on its own
+   map clock), and a cancel if it lets go of it; every partner draws the ship
+   on that path (`flight_of`), each end moved with its place to this
+   machine's clock and held where the sender's clock holds
+   (`SystemMapScreen.partner_points`, `sender_clock`); a ship joining while
+   one flies is told it (`_tell_flight`).
 ```
 
 ## Take timeout
@@ -739,4 +751,65 @@ The floor is the point. 0.5 base against a ceiling of 0.5 + 1.7 means a
 redlining ship draws roughly four times the fire of a cold one and a cold one
 is still never safe — a target rule with a zero in it is a party that solves
 the fight by electing a victim.
+```
+
+## Partner flights
+
+Above `var flights: Dictionary = {}`:
+
+```text
+EACH PARTNER'S FLIGHT UNDER WAY (PROTOCOL 17): peer id -> {at, from, to, t0
+(its first point, on the sender's map clock), dt (s between points), pts
+(PackedVector2Array, plane), burns (PackedByteArray), said (the sender's clock
+as it said it), got (this machine's msec as it came), host (the sun the
+place left goes round, for an orbit round one sun of a pair: -9 none),
+dep_s and arr_s (s from t0 to its departure and its arrival: the ride before
+and the spin-down after are its places')}. Dropped with the partner's spots.
+```
+
+## Flight point
+
+Above `static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int, sp: Dictionary = {}) -> Array:`:
+
+```text
+WHERE A PARTNER'S FLIGHT HAS IT NOW (PROTOCOL 17), on layout L at this
+machine's map clock `t`: its path at the sender's clock now (`sender_clock`,
+its spot `sp`), each end moved with its place to this clock (the place left,
+round its sun `host`, as it rides round to its departure; the place gone to
+from its arrival and its spin-down onto the ring; blended by smoothstep
+along the flight between), so a flight said from a clock seconds apart
+still leaves from its world here and lands on its target. [point, screen
+angle, burning], or [] when it is not flying now.
+```
+
+## Sender clock
+
+Above `static func sender_clock(fl: Dictionary, sp: Dictionary, now_ms: int) -> float:`:
+
+```text
+THE SENDER'S MAP CLOCK NOW for flight fl (as this machine's msec now_ms),
+its spot `sp` beside it: run on from when the flight was said; held where a
+spot said since that its clock holds (a zoom move, LOCAL); and by the spot's
+own clock where that is a quarter second or more off the flight's (its
+clock held and let go since), so the partner is not flown on by the wall
+clock while the sender's ship stands still, and snapped back after (the
+code review, Nov 5).
+```
+
+## Report flight
+
+Above `func report_flight(at: int, key: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:`:
+
+```text
+A FLIGHT LEAVING (PROTOCOL 17), said once as it starts to fly, reliably: its
+path decimated to `dt` apart (about 60 points a second), its burns, where it
+left from and goes to, and its first point's time on this machine's map
+clock `t0` and the clock as it is said `said`. `to` -9 lets go of the last
+one said (W off it). Throttled by the plan (`key`): the same flight is said
+once.
+(`shape` [host, dep_s, arr_s]: the sun the place left goes round, -9 none;
+the seconds from t0 to its departure and to its arrival. It is said from the
+ride round to its departure on, and its spin-down onto the ring after: a
+twin's 17.6 px ring at pace 8 goes 2.4 rad between two spots, and the
+partner drawn by them cut across it, the code review, Nov 5)
 ```

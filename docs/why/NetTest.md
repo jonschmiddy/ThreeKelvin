@@ -218,3 +218,17 @@ first rule) would have swung it by the angle between the clocks. A world's
 offset off the world, the world round star B carried with it. And one sun:
 a star's spot is the plane point it always was, to the bit.
 ```
+
+## Flight said test
+
+Above `func _flight_said_test(host: NetSession, early: NetSession, late: NetSession, id: int) -> void:`:
+
+```text
+A FLIGHT, SAID ONCE AS IT LEAVES (PROTOCOL 17): `early` says a 3 s flight
+from world 0 to world 1 of system 12 (an arc of 181 points at 60 a second,
+its first and last burning), and the host and `late` keep it whole; said
+again with the same key, nothing goes; let go of, it is gone on both. Drawn
+(`NetSession.flight_point`): at the sender's own clock, on its path within 1
+px at five moments; at a clock 10 s behind, it leaves from where world 0 is
+at that clock and lands where world 1 is, each end moved with its place.
+```

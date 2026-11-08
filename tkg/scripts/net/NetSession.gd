@@ -7,7 +7,7 @@ extends Node
 ## Bump on any change to the messages or the meaning of their fields.
 ## Cheap to raise, very expensive to forget: a mismatch is refused at the door.
 ## Why: docs/why/NetSession.md#protocol-versions
-const PROTOCOL: int = 16
+const PROTOCOL: int = 17
 
 ## Generous: giving up early costs a wreck, assuming costs the party's economy.
 ## Why: docs/why/NetSession.md#take-timeout
@@ -81,6 +81,16 @@ var fights: Dictionary = {}
 ## Not on the roster: it changes several times a second, so it is a small unreliable message.
 ## Why: docs/why/NetSession.md#spots
 var spots: Dictionary = {}
+## Each partner's flight under way (PROTOCOL 17): peer id -> its said path, burns, clocks and ends.
+## Dropped with the partner's spots.
+## Why: docs/why/NetSession.md#partner-flights
+var flights: Dictionary = {}
+## the flight this machine said last (its plan's instance id), so it is said once
+var _flight_said := 0
+## THE HOST'S OWN FLIGHT UNDER WAY, as it said it (the same row), told to a ship
+## joining while it flies (`_hello`): said once to the peers there then, a late
+## joiner never heard it (the code review, Nov 5)
+var _own_flight: Dictionary = {}
 ## Only the seed crosses the wire, so each guest reports what it built and mismatches are said.
 ## Why: docs/why/NetSession.md#galaxy-check
 var galaxy_mine: Array = []
@@ -152,6 +162,9 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -188,6 +201,9 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -216,6 +232,9 @@ func leave_party() -> void:
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -432,6 +451,14 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 		for f: SharedFight in fights.values():
 			if not f.over:
 				_push_fight_to.rpc_id(who, f.to_wire())
+		# THE FLIGHTS UNDER WAY (PROTOCOL 17), each said once as it left: the
+		# partners' as this machine keeps them and its own, the sender's clock
+		# run on to now
+		var now := Time.get_ticks_msec()
+		for fid in flights.keys():
+			_tell_flight(who, int(fid), flights[fid], now)
+		if not _own_flight.is_empty():
+			_tell_flight(who, 1, _own_flight, now)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -454,6 +481,7 @@ func _push_roster_to(rows: Array) -> void:
 	for id in spots.keys():
 		if not roster.has(int(id)):
 			spots.erase(id)
+			flights.erase(id)
 	if state == State.JOINING:
 		_set_state(State.IN_PARTY)
 	Sig.party_changed.emit()
@@ -647,6 +675,7 @@ func _on_peer_disconnected(id: int) -> void:
 		if f.crew.has(id):
 			_apply_leave(int(index), id)
 	spots.erase(id)
+	flights.erase(id)
 	_jumps_said.erase(id)
 	if roster.erase(id):
 		_builds.erase(id)
@@ -892,6 +921,131 @@ func spot_of(id: int, at: int) -> Dictionary:
 	if sp.is_empty() or int(sp.get("at", -1)) != at:
 		return {}
 	return sp
+
+
+## A flight leaving (PROTOCOL 17), said once as it starts, reliably: its path about 60 points a second,
+## burns, ends and clocks. `to` -9 lets go of the last one said. `shape` is [host, dep_s, arr_s].
+## Why: docs/why/NetSession.md#report-flight
+func report_flight(at: int, key: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:
+	if not _can_talk() or state != State.DIVING:
+		return
+	if key == _flight_said:
+		return
+	_flight_said = key
+	if is_host():
+		_own_flight = {} if to == -9 or pts.size() < 2 else _flight_row(at, from, to, t0, dt, pts, burns, said, shape)
+		_apply_flight(1, at, from, to, t0, dt, pts, burns, said, shape)
+	else:
+		_flight_at_host.rpc_id(1, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## THE FLIGHT LET GO OF (W off it, or another place clicked on the way): the
+## partners draw the ship by its spots again.
+func report_flight_off(at: int) -> void:
+	if _flight_said == 0:
+		return
+	_flight_said = 0
+	report_flight(at, -1, -9, -9, 0.0, 0.0, PackedVector2Array(), PackedByteArray(), 0.0)
+	_flight_said = 0
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _flight_at_host(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> void:
+	if is_host():
+		_apply_flight(multiplayer.get_remote_sender_id(), at, from, to, t0, dt, pts, burns, said, shape)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _flight_to(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> void:
+	if id != local_id():
+		_keep_flight(id, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+func _apply_flight(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:
+	if id != 1:
+		_keep_flight(id, at, from, to, t0, dt, pts, burns, said, shape)
+	if not multiplayer.get_peers().is_empty():
+		_flight_to.rpc(id, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## A KEPT FLIGHT TOLD AGAIN, to ship `who` (one joining while it flies), the
+## sender's clock run on from `said` by the time since it came.
+func _tell_flight(who: int, id: int, fl: Dictionary, now_ms: int) -> void:
+	var said := float(fl.said) + float(now_ms - int(fl.got)) / 1000.0
+	var shape := PackedFloat64Array([float(fl.get("host", -9)), float(fl.get("dep_s", 0.0)), float(fl.get("arr_s", -1.0))])
+	_flight_to.rpc_id(who, id, int(fl.at), int(fl.from), int(fl.to), float(fl.t0), float(fl.dt), fl.pts, fl.burns, said, shape)
+
+
+static func _flight_row(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> Dictionary:
+	var dur := float(dt) * float(maxi(pts.size() - 1, 0))
+	return {"at": at, "from": from, "to": to, "t0": t0, "dt": dt, "pts": pts, "burns": burns, "said": said,
+		"got": Time.get_ticks_msec(), "host": int(shape[0]) if shape.size() > 0 else -9,
+		"dep_s": shape[1] if shape.size() > 1 else 0.0, "arr_s": shape[2] if shape.size() > 2 and shape[2] >= 0.0 else dur}
+
+
+func _keep_flight(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:
+	if to == -9 or pts.size() < 2:
+		flights.erase(id)
+		return
+	flights[id] = _flight_row(at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## The sender's map clock now for flight fl: run on from when it was said, held where its spot says
+## the clock holds, so a partner is not flown on by the wall clock while the sender stands still.
+## Why: docs/why/NetSession.md#sender-clock
+static func sender_clock(fl: Dictionary, sp: Dictionary, now_ms: int) -> float:
+	var est := float(fl.said) + float(now_ms - int(fl.got)) / 1000.0
+	if sp.is_empty() or float(sp.get("t", -1.0)) < 0.0 or int(sp.get("got", -1)) < int(fl.got):
+		return est
+	if bool(sp.get("held", false)):
+		return float(sp.t)
+	var est2 := float(sp.t) + float(now_ms - int(sp.got)) / 1000.0
+	return est2 if absf(est2 - est) > 0.25 else est
+
+
+## A partner's flight in system `at` still to be drawn, or {}: one whose last
+## point has gone by on the sender's clock (`sender_clock`) is over, and the
+## spots have it again.
+func flight_of(id: int, at: int) -> Dictionary:
+	var fl: Dictionary = flights.get(id, {})
+	if fl.is_empty() or int(fl.at) != at:
+		return {}
+	var now_s := sender_clock(fl, spot_of(id, at), Time.get_ticks_msec())
+	if now_s > float(fl.t0) + float(fl.dt) * float((fl.pts as PackedVector2Array).size() - 1) + 0.05:
+		return {}
+	return fl
+
+
+## Where a partner's flight has it now (PROTOCOL 17) at this machine's clock t, each end moved with
+## its place. [point, screen angle, burning], or [] when it is not flying now.
+## Why: docs/why/NetSession.md#flight-point
+static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int, sp: Dictionary = {}) -> Array:
+	var pts: PackedVector2Array = fl.pts
+	var n := pts.size()
+	if n < 2:
+		return []
+	var sender_now := sender_clock(fl, sp, now_ms)
+	var dur := float(fl.dt) * float(n - 1)
+	var s := sender_now - float(fl.t0)
+	if s < 0.0 or s > dur:
+		return []
+	var x := s / float(fl.dt)
+	var j := mini(int(floor(x)), n - 2)
+	var q := pts[j].lerp(pts[j + 1], x - float(j))
+	var dlt := t - sender_now
+	var sa := clampf(float(fl.get("dep_s", 0.0)), 0.0, dur)
+	var sb := clampf(float(fl.get("arr_s", dur)), sa, dur)
+	var hs := int(fl.get("host", -9))
+	# (each end's place moved by the clocks' difference, at this point's moment)
+	var d0 := spot_anchor(L, int(fl.from), hs, sender_now + dlt) - spot_anchor(L, int(fl.from), hs, sender_now)
+	var d1 := spot_anchor(L, int(fl.to), -9, sender_now + dlt) - spot_anchor(L, int(fl.to), -9, sender_now)
+	var u := smoothstep(sa, maxf(sb, sa + 1e-6), s)
+	q += d0.lerp(d1, u)
+	var v := pts[j + 1] - pts[j]
+	var ang := atan2(v.y * 0.38, v.x)
+	var burns: PackedByteArray = fl.burns
+	var lit := j < burns.size() and burns[j] == 1
+	return [q, ang, lit]
 
 
 func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false, sure: bool = false) -> void:
@@ -1409,6 +1563,9 @@ func _drop(message: String) -> void:
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""

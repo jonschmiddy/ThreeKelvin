@@ -130,8 +130,10 @@ developer rows -- ONE CAMERA, each seam's design, 3B into the yard, the move
 timings and the station lights -- were built there under `DevMode.enabled`
 until Jon had them out, Oct 19; what he had them on is `ZoomLadder`'s
 constants. So the section, built with dev mode on, names exactly ANIMATION,
-CLICK TO SKIP JUMP, SCREEN SHAKE, FRAME CAP and VSYNC (Oct 27); and a settings file still
-holding the old `[flow]` keys loads without a word and moves nothing.
+CLICK TO SKIP JUMP, AUTOPILOT (Nov 5), SCREEN SHAKE, FRAME CAP and VSYNC (Oct 27); and a settings file still
+holding the old `[flow]` keys loads without a word and moves nothing. AUTOPILOT
+(Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): a file with no key for it, or a
+word it does not know, loads CURVED; DIRECT saved loads DIRECT.
 ```
 
 ## Graphics pick e2e

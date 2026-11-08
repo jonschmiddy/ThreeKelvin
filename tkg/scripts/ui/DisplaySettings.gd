@@ -52,6 +52,11 @@ static var reduced_motion: bool = false
 ## after JUMP skips it by accident and never sees it.
 ## Why: docs/why/DisplaySettings.md#skip-jump
 static var skip_jump: bool = false
+## THE AUTOPILOT'S FLIGHT (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): CURVED,
+## the default, swings wide round the stars as an orbit falls ("the curved
+## maneuvers are AESTHETIC"); DIRECT flies ruling 21's straighter line. Each
+## ship flies its own pilot's setting (`ShipFlight.flight_opts`).
+static var autopilot: StringName = &"curved"
 ## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
 static var frame_cap: int = 0
 ## 30, 60 and 120 joined NONE on Jon's call (Oct 27, perf C3): on a slow machine V-Sync gives
@@ -270,6 +275,11 @@ static func set_skip_jump(on: bool) -> void:
 	save()
 
 
+static func set_autopilot(p: StringName) -> void:
+	autopilot = &"direct" if p == &"direct" else &"curved"
+	save()
+
+
 static func set_reduced_motion(on: bool) -> void:
 	reduced_motion = on
 	save()
@@ -439,6 +449,7 @@ static func save() -> void:
 	cfg.set_value("display", "screen_look", int(screen_look))
 	cfg.set_value("display", "reduced_motion", reduced_motion)
 	cfg.set_value("display", "skip_jump", skip_jump)
+	cfg.set_value("display", "autopilot", String(autopilot))
 	cfg.set_value("display", "frame_cap", frame_cap)
 	cfg.set_value("display", "vsync", vsync)
 	cfg.set_value("display", "render_style", String(_file_style if _harness_style else render_style))
@@ -481,6 +492,7 @@ static func load_and_apply() -> void:
 	screen_look = cfg.get_value("display", "screen_look", int(Look.CRT_GENTLE)) as Look
 	reduced_motion = bool(cfg.get_value("display", "reduced_motion", false))
 	skip_jump = bool(cfg.get_value("display", "skip_jump", false))
+	autopilot = &"direct" if String(cfg.get_value("display", "autopilot", "curved")) == "direct" else &"curved"
 	frame_cap = maxi(int(cfg.get_value("display", "frame_cap", 0)), 0)
 	# A file from before VSYNC has no key: ON, as it always was. OFF with no
 	# cap is never kept: V-Sync comes back on.
