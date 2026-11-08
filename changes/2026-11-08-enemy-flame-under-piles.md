@@ -1,0 +1,1 @@
+- **Fixed** — The enemy ship's engine flame no longer shows through the draw and discard piles (#56).

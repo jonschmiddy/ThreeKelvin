@@ -30,7 +30,8 @@ var _img: Image
 var _tex: ImageTexture
 
 ## Live enemies with a picture idle their engines (look A, Jon, Oct 13), not coded or dead.
-## Drawn by a top-level `_flame_layer`, as this control clips to the ship's box.
+## Drawn by `_flame_layer` outside this control, which clips to the ship's box: top level until
+## a slot hosts it (`host_flame`).
 ## Why: docs/why/EnemyArt.md#engine-flame
 const NO_FLAME := ["custodian_tetra", "whale_fan", "leviathan_lev_spine"]
 var _flame_fx: ThrusterFx = null
@@ -41,16 +42,20 @@ var _flame_layer: Control
 class EnemyFlame extends Control:
 	var art: EnemyArt
 	func _process(_d: float) -> void:
-		if art != null and art._flame_fx != null and art.is_visible_in_tree():
+		if is_instance_valid(art) and art._flame_fx != null and art.is_visible_in_tree():
 			queue_redraw()
 	func _draw() -> void:
-		if art == null or art._flame_fx == null or not art.is_visible_in_tree():
+		if not is_instance_valid(art) or art._flame_fx == null or not art.is_visible_in_tree():
 			return
 		var origin := ((art.size - Vector2(EnemyArt.W, EnemyArt.H)) * 0.5).floor() + art._flame_at
-		draw_set_transform_matrix(art.get_global_transform() * Transform2D(0.0, origin))
+		# In the art's frame from wherever this sits: top level, or a holder (`host_flame`).
+		draw_set_transform_matrix(get_global_transform().affine_inverse()
+			* art.get_global_transform() * Transform2D(0.0, origin))
 		var mod := Color.WHITE
 		var n: CanvasItem = art
-		while n != null:
+		# Hosted, the holder and everything above it already tint this through the tree.
+		var inherited: CanvasItem = null if top_level else get_parent() as CanvasItem
+		while n != null and n != inherited:
 			mod *= n.modulate * (n.self_modulate if n == art else Color.WHITE)
 			n = n.get_parent() as CanvasItem
 		var t := ShipView.shot_clock if ShipView.shot_clock >= 0.0 else GameClock.now()
@@ -94,6 +99,20 @@ func _init() -> void:
 	fl.material = ThrusterFx.add_material()
 	_flame_layer = fl
 	add_child(fl, false, Node.INTERNAL_MODE_FRONT)
+
+## The flame as `holder`'s child right after this art, in tree order, so a panel opened later
+## (the piles, #56) covers it. Top level, it drew over everything on the screen.
+## Why: docs/why/EnemyArt.md#engine-flame
+func host_flame(holder: Control) -> void:
+	_flame_layer.get_parent().remove_child(_flame_layer)
+	_flame_layer.top_level = false
+	holder.add_child(_flame_layer)
+
+func _notification(what: int) -> void:
+	# A hosted flame outlives this art unless it goes with it.
+	if what == NOTIFICATION_PREDELETE and is_instance_valid(_flame_layer) \
+			and _flame_layer.get_parent() != self:
+		_flame_layer.queue_free()
 
 func px(x: int, y: int, w: int, h: int, c: Color) -> void:
 	# Tracked per stroke: the starfield makes `get_used_rect()` say the whole canvas.
