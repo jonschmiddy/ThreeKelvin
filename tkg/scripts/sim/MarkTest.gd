@@ -1,8 +1,8 @@
 extends Node
 
 ## One outline means "this one" (stripped-down UI C1, Jon, Nov 9): the mint `MarkOutline` on
-## the card you point at, on the target a held card will hit, on your ship, a wreck and a deck,
-## a dashed line from card to target, and nothing outlined at rest.
+## the card you point at, on your ship, a wreck and a deck, nothing outlined at rest; and the
+## fight's aim kept as on main (Jon: the wavy line and the brackets), the armed card in its orange.
 ##   tools/dev/godot.sh --headless --path tkg -- sheet=MarkTest
 ## Why: docs/why/MarkTest.md#test-purpose
 
@@ -31,7 +31,6 @@ func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
 	_theme()
-	_dashes()
 	await _fight()
 	h.verdict("marktest")
 	_tree.quit(h.code())
@@ -74,36 +73,6 @@ func _theme() -> void:
 	st.free()
 
 
-## THE DASHED LINE: whole pixels on the straight run, dashes with gaps, short of the tip.
-func _dashes() -> void:
-	print("\n--- the dashed line")
-	var a := Vector2(300.0, 400.0)
-	var b := Vector2(700.0, 150.0)
-	var pts := AimLine.dash_points(a, b, 0.0)
-	var span := a.distance_to(b)
-	var on_line := true
-	var whole := true
-	var furthest := 0.0
-	var dir := (b - a) / span
-	for q in pts:
-		if q != q.round():
-			whole = false
-		var d := (q - a) - dir * (q - a).dot(dir)
-		if d.length() > 0.75:
-			on_line = false
-		furthest = maxf(furthest, (q - a).dot(dir))
-	var share := float(pts.size()) / span
-	var want := AimLine.DASH / (AimLine.DASH + AimLine.GAP)
-	_ok("%d pixels over a %d px run: all whole, all on the line" % [pts.size(), int(span)],
-		pts.size() > 0 and whole and on_line)
-	_ok("dashed: %.2f of the run is drawn (dash %d of %d)" % [share, int(AimLine.DASH),
-		int(AimLine.DASH + AimLine.GAP)], absf(share - want) < 0.06)
-	_ok("stopping short of the tip (%.0f of %.0f)" % [furthest, span], furthest < span - AimLine.TIP + 1.0)
-	var later := AimLine.dash_points(a, b, 0.1)
-	_ok("and the dashes move with the clock", later != pts)
-	_ok("nothing drawn for a run shorter than the tip", AimLine.dash_points(a, a + Vector2(2, 0), 0.0).is_empty())
-
-
 ## THE FIGHT: nothing at rest, the card and its target outlined while aimed, the line up, all
 ## gone on release; then the wreck under the pointer.
 func _fight() -> void:
@@ -138,10 +107,9 @@ func _fight() -> void:
 	if not _ok("a fight is up with a hand", sc != null and v != null and sc.combat != null and sc._hand._views.size() > 0):
 		return
 	var slot := v.slot(0)
-	_ok("the enemy has the outline, off at rest", slot != null and slot.mark != null and not slot.mark.visible
-		and slot.mark.art == slot.art)
-	_ok("your hull in the fight has it, off at rest", v._ship_slot.mark != null and not v._ship_slot.mark.visible
-		and v._ship_slot.mark.view == v._ship_slot.art)
+	_ok("the enemy has the outline, off at rest, and no brackets", slot != null and slot.mark != null
+		and not slot.mark.visible and slot.mark.art == slot.art and not slot._hot)
+	_ok("your hull in the fight has no outline, no brackets", v._ship_slot.mark == null and not v._ship_slot._hot)
 	var rest_marked := 0
 	for cv: CardView in sc._hand._views:
 		if cv.marked:
@@ -177,9 +145,24 @@ func _fight() -> void:
 		mm.position = p
 		sc._input(mm)
 	await _frames(3)
-	_ok("aimed, the card is armed and outlined", sc._aim_view == card and card.armed and card.marked)
-	_ok("the target wears the outline, your hull does not", slot._hot and slot.mark.visible and not v._ship_slot.mark.visible)
-	_ok("the dashed line is up", sc._aim_line != null and sc._aim_line.visible)
+	_ok("aimed, the card is armed and framed in the aim's orange (Jon, Nov 9)", sc._aim_view == card and card.armed
+		and card.marked)
+	_ok("the target wears the brackets as on main, not the outline; your hull neither",
+		slot._hot and not slot.mark.visible and not v._ship_slot._hot)
+	_ok("the wavy line is up, the old one (its lock and waves)", sc._aim_line != null and sc._aim_line.visible
+		and sc._aim_line is AimLine and AimLine.LOCK_R == 8.0 and AimLine.WAVE_F.size() == 2)
+	await _tree.create_timer(0.3).timeout
+	# the lifted card draws whole (Jon, Nov 9: its top was clipped by the hand panel)
+	var cr := card.get_global_rect()
+	var clipped := ""
+	var anc: Node = card.get_parent()
+	while anc != null:
+		var ac := anc as Control
+		if ac != null and ac.clip_contents and not ac.get_global_rect().grow(0.5).encloses(cr):
+			clipped = ac.name if ac.name != "" else str(ac)
+		anc = anc.get_parent()
+	_ok("the armed card and its frame lie whole in the picture, clipped by nothing (%s)" % str(cr),
+		clipped == "" and Rect2(Vector2.ZERO, Vector2(960, 540)).encloses(cr) and cr.position.y < sc._hand_holder.get_global_rect().position.y)
 	var dim := 0
 	for cv: CardView in sc._hand._views:
 		if not sc.combat.can_play(cv.card) and not is_equal_approx(cv.modulate.a, UITheme.DIM):
@@ -190,8 +173,8 @@ func _fight() -> void:
 	mm2.position = Vector2(480.0, 120.0)
 	sc._input(mm2)
 	await _frames(2)
-	_ok("aimed at empty space, nothing on the board is outlined", not slot.mark.visible and not v._ship_slot.mark.visible
-		and card.marked)
+	_ok("aimed at empty space, nothing on the board is lit", not slot._hot and not v._ship_slot._hot
+		and not slot.mark.visible and card.marked)
 	# let go there: everything goes
 	var mb := InputEventMouseButton.new()
 	mb.button_index = MOUSE_BUTTON_LEFT
@@ -201,7 +184,7 @@ func _fight() -> void:
 	await _frames(3)
 	_ok("let go over nothing: the card is back, no outline, no line, the card still in hand",
 		sc._aim_view == null and not card.armed and not card.marked and not sc._aim_line.visible
-		and sc.combat.hand.has(card.card) and not slot.mark.visible)
+		and sc.combat.hand.has(card.card) and not slot._hot)
 
 	# C2: out of moves, everything but END TURN steps back
 	await _dim(sc, v)

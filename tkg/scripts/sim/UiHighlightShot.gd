@@ -125,6 +125,7 @@ func _run() -> void:
 	await _frames(2)
 	_out = _arg("out", "user://ui_highlight.png")
 	var stage := _arg("stage", "fight_hover")
+	MarkOutline.look = int(_arg("marklook", "0"))
 	# The window at the game's own size, as `Main._shoot` has it: root px are game px.
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)

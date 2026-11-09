@@ -919,10 +919,10 @@ func aimable(c: CardData) -> bool:
 ## No `_drop_data`: its body emits `card_dropped`, still wired to `SectorScreen`, and would
 ## play past aiming.
 
-## The outline shows aimed at, and on an openable wreck under the pointer (C1: a wreck
-## used to change only the cursor).
+## The outline shows on an openable wreck under the pointer (C1: a wreck used to change
+## only the cursor); the aim keeps its brackets.
 func mark_wanted() -> bool:
-	return _hot or (_wreck_on and _dead and opened.is_valid())
+	return _wreck_on and _dead and opened.is_valid()
 
 
 ## The pointer's last place on this slot, for the wreck's outline.
@@ -932,7 +932,17 @@ var _wreck_on := false
 func _draw() -> void:
 	if not _hot:
 		return
-	# The outline is `mark`, on the hull's own pixels, riding the bob with the art.
+	# Corner brackets rather than a filled panel: a full wash buries the sprite
+	# you are aiming at, which is the one thing you need to still see.
+	# Brackets use the holder's origin with the art's extent: the holder is a fixed 240x120
+	# box. The holder does not move, so the reticle frames where the ship is going to be.
+	# Why: docs/why/EnemySlot.md#reticle-bounds
+	var pad := 3.0
+	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
+	var r := Rect2(_art_holder.position + _art_base + Vector2(u.position) - Vector2(pad, pad),
+		Vector2(u.size) + Vector2(pad, pad) * 2.0)
+	draw_brackets(self, r, 7.0, UITheme.FLARE)
+
 	# The number paints over the target only while a card is held, so it reads as a question.
 	# Why: docs/why/EnemySlot.md#damage-preview-number
 	if _hot and _drag_text != "":

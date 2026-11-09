@@ -1434,7 +1434,9 @@ func _build_hand() -> Control:
 	# A holder lets the panel be lowered after a win; the root column measures the holder.
 	# Why: docs/why/SectorScreen.md#hand-lowering
 	_hand_holder = Control.new()
-	_hand_holder.clip_contents = true
+	# No clip until the band lowers (Jon, Nov 9): a lifted or armed card rises past the
+	# holder's top, and clipped there its mint frame lost its top edge.
+	_hand_holder.clip_contents = false
 	_hand_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hand_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hand_holder.size_flags_vertical = Control.SIZE_SHRINK_END
@@ -4849,6 +4851,8 @@ func _lower_band(then: Callable) -> void:
 		then.call()
 		return
 	_lowered = true
+	# the holder clips only now, as the panel slides down behind the bottom edge
+	_hand_holder.clip_contents = true
 	# a fight over before its hand was up: down from wherever it had got to
 	_stop_raise()
 	_clear_readout()

@@ -2022,14 +2022,11 @@ for good: 0.8 px off the grid and the pack laid out round it (found sliding
 the convoy column out, `-- sheet=ConvoySlideTest`).
 ```
 
-THE DASHED LINE (Nov 9, stripped-down UI C1, Jon's pick). The waves, the bow
-and the three-mark lock above were replaced by a straight dashed line in the
-one highlight colour, from the armed card's top edge to the pointer, with a
-3 px square at the tip where the hidden pointer is. The target it will hit
-wears the same outline as the card (`MarkOutline`), so the line only has to
-join them; a lock at the tip said the same thing twice. The dashes crawl
-toward the target at 18 px a second so the line reads as live; everything is
-plotted on whole pixels (`AimLine.dash_points`, pure, for `MarkTest`).
+KEPT (Nov 9). Stripped-down UI C1 replaced the waves, the bow and the lock
+with a straight dashed mint line for a day; Jon saw it and asked for the old
+view back ("I really liked the old view for pointing a card at an enemy"),
+so the class above is the one from main, moved to `AimLine.gd` unchanged.
+The armed card's frame went orange (FLARE) with it, at his word.
 
 ## Dim the rest
 

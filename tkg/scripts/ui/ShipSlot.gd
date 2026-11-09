@@ -37,11 +37,6 @@ func _init() -> void:
 	mounts.attach(art)
 	mounts.passive()
 	art.add_child(mounts)
-	# The one outline on your hull while a card is aimed at it (C1).
-	mark = MarkOutline.new()
-	mark.view = art
-	mark.visible = false
-	art.add_child(mark)
 
 	# Column sized to the hull, not the slot, or 20 px reads as a drawn rule, not a beam.
 	# Why: docs/why/ShipSlot.md#jump-flare
@@ -102,11 +97,24 @@ func _notification(what: int) -> void:
 		art.offset_right = art.offset_left
 		art.offset_bottom = art.offset_top
 
+## Where the hull actually is, in this slot's coordinates. Falls back to the
+## whole slot before the art has anything to measure.
+func _hull_box() -> Rect2:
+	if art == null:
+		return Rect2(Vector2.ZERO, size)
+	var r := art.ship_rect()
+	r.position += art.position
+	r = r.grow(5.0)
+	var clipped := r.intersection(Rect2(art.position, art.size))
+	return clipped if clipped.size.x > 8.0 and clipped.size.y > 8.0 else r
+
 func _draw() -> void:
 	if not _hot:
 		return
-	# The outline is `mark`, on the hull's own pixels. Only the number is drawn here.
-	# Card benefit shows over your hull, centred on its ink.
+	# Brackets bind to the hull, not the slot, which spans most of half the screen.
+	draw_brackets(self, _hull_box(), 10.0, UITheme.GOOD)
+
+	# Card benefit shows over your hull, centred on its ink, not the clipped bracket box.
 	# Why: docs/why/ShipSlot.md#drag-preview
 	if _drag_text != "":
 		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"gain"))

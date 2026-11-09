@@ -253,9 +253,11 @@ func _draw() -> void:
 	# Rarity is the name's colour and the module is in the readout, freeing a row for effect text.
 	# Why: docs/why/CardView.md#rarity-and-provenance
 
-	# Pointed at or armed: the one outline, over the frame's own line (C1).
+	# Pointed at: the one outline (C1); armed: the same frame in the aim's own orange, one with
+	# the wavy line and the brackets (Jon, Nov 9).
 	if marked:
-		MarkOutline.draw_rect_mark(self, Rect2(0, 0, w, h), UITheme.MARK_PX * s)
+		MarkOutline.draw_rect_mark(self, Rect2(0, 0, w, h), UITheme.MARK_PX * s,
+			UITheme.FLARE if armed else UITheme.MARK)
 
 ## A banner is identity: ground, mark and hem. The hem survives with no colour at all.
 ## A malfunction has no mark, as nobody built it and an emblem would invent an allegiance.
@@ -684,6 +686,7 @@ var marked: bool = false
 
 func _set_marked(on: bool) -> void:
 	if marked == on:
+		queue_redraw()
 		return
 	marked = on
 	queue_redraw()
