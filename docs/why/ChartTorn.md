@@ -105,8 +105,15 @@ top steps the sky under the rim's marks rose to 136 (MARK_LUMA 110, TornTest).
 
 PARALLAX: the giant is further off than the chart's plane, so a pan moves it `par` of
 the way: 0.4 at 0 lost rising to 0.8 at 10 as it closes in. The chart (the dwarf, its
-systems, YOU) pans 1:1; the stream's control points blend from 1:1 at the root to the
-giant's share at its end. Each slides as one rigid layer in whole blocks (`slide`), as a
+systems, YOU) pans 1:1, and so does the stream for most of its length: its root, its
+lower sweep and its bottom-left turn (P0, P1, P2) are held with the dwarf, and only its
+end in the giant's underside (P3) takes the giant's share. On the cubic that moves the
+climb alone (weight t^3). Jon, Nov 8: he first had the points blending 1:1 to the
+giant's share along the stream, saw the whole tail swing as he panned and did not like
+it. `HOOK_BEND` would start the bend earlier (P2 that share of the way toward the
+giant's); it is 0: drags of 140 px at 3 and 10 lost bent the climb smoothly, with no
+kink and nothing detached (at 0 lost the stream stops short of the climb and pans 1:1
+whole). Each moving point slides as one rigid layer in whole blocks (`slide`), as a
 galaxy's depth does (chart_depth's `depthSlide`): continuous parallax crawled there.
 The pan is read off the chart (`push`'s pan and zoom) against the opening's.
 ```

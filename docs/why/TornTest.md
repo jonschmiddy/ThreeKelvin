@@ -45,7 +45,8 @@ for each style and dwarf, the sky alone at the opening:
 THE HOOK (Jon, Nov 8, his approved mockup), headless: how far round the stream has
 come (0.62 at 0 lost, all the way from 3), the giant closing in and growing, its
 parallax (0.4 of a pan at 0 lost to 0.8 at 10) within a block of exact and in whole
-blocks, and the stream drawn only as far as it has come.
+blocks, the stream held with the dwarf under a pan but for its end in the giant (which
+slides exactly with the giant), and the stream drawn only as far as it has come.
 At TORN AWAY's opening (`ChartTorn.open_pan`, the dwarf down and right), at 0, 3, 5
 and 10 lost:
   clear    the giant's middle (`ChartTorn.giant_at`, its bulge's box, a share of its

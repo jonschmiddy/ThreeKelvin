@@ -175,6 +175,9 @@ func _hook(seed_v: int, kind: int) -> void:
 		var p := ChartTorn.par()
 		var want_p := 0.4 + 0.04 * float(l)
 		var g := ChartTorn.giant_at()
+		ChartTorn.view_off = Vector2.ZERO
+		ChartTorn.view_blk = 0.0
+		var still := ChartTorn.hook()
 		# (a pan of 120 px at the opening's zoom, in blocks of 2 px)
 		ChartTorn.view_off = Vector2(-120.0, 48.0) / (ChartSky.K0 * ChartTorn.Z_OPEN)
 		ChartTorn.view_blk = 2.0 / (ChartSky.K0 * ChartTorn.Z_OPEN)
@@ -182,12 +185,17 @@ func _hook(seed_v: int, kind: int) -> void:
 		var exact := (1.0 - p) * ChartTorn.view_off
 		var blocks := sl / ChartTorn.view_blk
 		var whole := blocks.is_equal_approx(blocks.round())
+		# (the root, the sweep and the turn held with the dwarf; only the end in the giant
+		# slides, with the giant: a pan bends just the climb)
+		var panned := ChartTorn.hook()
+		var held := panned[0] == still[0] and panned[1] == still[1] and panned[2] == still[2]
+		ok = ok and held and (panned[3] - still[3]).is_equal_approx(sl)
 		var rib := ChartTorn.ribbon()
 		var ends := rib[rib.size() - 1]
 		ok = ok and absf(r - want_r) < 1e-4 and absf(p - want_p) < 1e-4 and whole
 		ok = ok and (sl - exact).length() <= 0.75 * ChartTorn.view_blk and (l == 0 or g.x > prev_g.x and g.y > prev_g.y)
 		ok = ok and absf(ends.w - r) < 1e-4
-		notes.append("%d lost: round %.2f, parallax %.2f, giant at %s x%.2f" % [l, r, p, (g * ChartSky.K0 * ChartTorn.Z_OPEN).round(), ChartTorn.giant_s()])
+		notes.append("%d lost: round %.2f, parallax %.2f, giant at %s x%.2f, stream held but its end%s" % [l, r, p, (g * ChartSky.K0 * ChartTorn.Z_OPEN).round(), ChartTorn.giant_s(), "" if held else " (NOT)"])
 		prev_g = g
 	ChartTorn.view_off = Vector2.ZERO
 	ChartTorn.view_blk = 0.0

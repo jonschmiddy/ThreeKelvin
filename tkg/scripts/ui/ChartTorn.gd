@@ -59,6 +59,9 @@ const HOOK_IN := Vector2(-43.0, 22.0)
 ## stripped) and the least it narrows to before its tip (`tornW`).
 const HOOK_W0 := 22.0
 const HOOK_WMIN := 1.5
+## How far the turn (the hook's third point) slides toward the giant's share: 0 holds it
+## with the dwarf, so a pan bends only the climb.
+const HOOK_BEND := 0.0
 ## PARALLAX: the share of a pan the giant moves with, at 0 lost and at `HOOK_LOST`.
 const PAR_FAR := 0.4
 const PAR_NEAR := 0.8
@@ -374,8 +377,8 @@ static func root_at() -> Vector2:
 
 
 ## The hook's four control points (gu on the screen about the dwarf's core), as drawn
-## now: each slid by its share of the parallax (the dwarf's end 1:1, the giant's end
-## with the giant).
+## now: the root, the sweep and the turn held with the dwarf (1:1), only the end in the
+## giant's underside slid with the giant, so a pan bends just the climb (Jon, Nov 8).
 static func hook() -> PackedVector2Array:
 	var g := giant_at()
 	var s := giant_s()
@@ -384,8 +387,7 @@ static func hook() -> PackedVector2Array:
 	var c2 := Vector2(g.x + _m(HOOK_C2X * s), maxf(_m(HOOK_C2Y), c1.y + _m(9.0)))
 	var c3: Vector2 = g + _m(HOOK_IN * s)
 	var p := par()
-	return PackedVector2Array([root_at(), c1 + slide(1.0 - (1.0 - p) / 3.0),
-		c2 + slide(1.0 - 2.0 * (1.0 - p) / 3.0), c3 + slide(p)])
+	return PackedVector2Array([root_at(), c1, c2 + slide(1.0 - HOOK_BEND * (1.0 - p)), c3 + slide(p)])
 
 
 static func _bez(c: PackedVector2Array, t: float) -> Vector2:
