@@ -34,6 +34,7 @@ const RAMPS: Array = [
 	["#9c3266", "#e2678f", "#ffb3c4", "#fff6e2"],                          # 16 star, pink
 	["#121a30", "#2b2142", "#50345a", "#8a5062", "#c87b62", "#f1b583"],    # 17 ball
 	["#8a84d0", "#d8d0ff", "#fff6e2"],                                     # 18 a lightning bolt (C's violet-white)
+	["#181008", "#32220e", "#563c1a", "#886228", "#be8c3e", "#f0c478"],    # 19 old gold (the big dwarf spheroidal's body, Jon, Nov 8, "dim gold", 2B: steps as far apart as the arm blue's)
 ]
 ## The lit-side rim and the shadow-side outline of a material's big shapes.
 const RIM := {4: "#8a5062", 5: "#f1b583", 9: "#ff9c9a", 11: "#c87b62", 1: "#cfe6fb"}
@@ -134,6 +135,18 @@ static func ball_form(kind: int) -> Vector4:
 	return Vector4(1.0, 1.3, 2.4, 0.0)
 
 
+## THE BIG DWARF's envelope in this style (`ChartTorn.ball_v`, `chart_b_place`'s
+## `ballEnv`): its level against the body's middle and the power its light falls by,
+## by kind: the dwarf spheroidal's higher, its light is 0.4 of a ball's. Measured off
+## the painted chart: lit to about LIT_K of its reach, on its ramps' bottom steps.
+const BIG_ENV := {14: Vector2(0.3, 1.2), 15: Vector2(0.7, 0.5)}
+
+
+static func ball_env(kind: int) -> Vector4:
+	var e: Vector2 = BIG_ENV.get(kind, Vector2(0.2, 0.7))
+	return ChartTorn.ball_v(e.x, e.y)
+
+
 ## How round a ball is drawn in this style: `ChartSky.ball_of`'s, a flattened elliptical's
 ## squashed further, so it is a lens beside a round one's ball (0.55 against 0.74 read
 ## as the same ball turned a little).
@@ -157,6 +170,7 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 		"u_ballE": bd[1],
 		"u_ballK": ball_kind(ball),
 		"u_ballF": ball_form(Run.galaxy_kind),
+		"u_ballV": ball_env(Run.galaxy_kind),
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
 		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball_squash(Run.galaxy_kind, ball) if form == 1 else 0.86, ChartSky.hole_of(p)),
@@ -546,6 +560,26 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	gu4.z = 1.0 if calm else 0.0
 	mp.set_shader_parameter("u_g4", gu4)
 	feed_events(mp, g, t, phi, calm)
+	# TORN AWAY (the dwarfs, when the run sets it; `ChartTorn`): the giant, the one stream, the dwarf drawn smaller
+	ChartTorn.push(mp, sky._m_stars, phi, sky.chart.pan if sky._use_map and sky.chart != null else Vector2.ZERO, z if sky._use_map and sky.chart != null else 0.0)
+	# (and the clouds over the dwarf torn with it, in this style's order: NebulaField's)
+	if not g.has("_torn_cl"):
+		var xs: Array = []
+		var rs: Array = []
+		var sq: float = (g.p as Dictionary).squash
+		for raw in NebulaField.clouds():
+			if xs.size() >= ChartSky.MAX_CL:
+				break
+			var c: NebulaField.Cloud = raw
+			var reach := 0.0
+			for l in c.lobes.size():
+				reach = maxf(reach, (c.lobes[l] as Vector2).length() + c.lobe_r[l] * NebulaField.EXTENT)
+			xs.append(Vector2(c.pos.x, c.pos.y / sq))
+			rs.append(reach)
+		g["_torn_cl"] = [xs, rs]
+	var tear := ChartTorn.cloud_arrays(g._torn_cl[0], g._torn_cl[1], phi, ChartSky.MAX_CL)
+	mp.set_shader_parameter("u_tornCl", tear.u_tornCl)
+	mp.set_shader_parameter("u_tornClD", tear.u_tornClD)
 	# Solid look uniforms go on the place pass and the
 	# camera on the sparkles, so they follow the disc.
 	var sol := ChartSky.solid() and sky._use_map

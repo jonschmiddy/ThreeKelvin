@@ -57,6 +57,11 @@ uniform vec4 u_ballK = vec4(0.0, 1.25, 0.0, 0.0);
 // A BALL'S BODY: its size against `u_ball.x`, the power its light falls by, where its light
 // ends (ball radii), its halo of globular clusters 0..1
 uniform vec4 u_ballF = vec4(1.0, 1.3, 2.4, 0.0);
+// THE BIG DWARF (`ChartTorn.ball_v`, Jon, Nov 8: "I basically want the dwarf to be drawn
+// large"): its reach (gu, the ball's own frame, past its outermost ring), its envelope's
+// level against its body's middle, the power that light falls by, on (w). Off for every
+// other ball.
+uniform vec4 u_ballV = vec4(1.0, 0.0, 1.0, 0.0);
 uniform float u_bulgeR = 0.128;
 uniform float u_holeR = 0.0186;
 uniform float u_gasAmt = 1.0;
@@ -153,6 +158,9 @@ vec4 noiseRawL(vec2 p, float lod) { return textureLod(u_noise, bakeUV(p), lod); 
 #include "res://shaders/chart_story.gdshaderinc"
 #define DEPTH_PROBE u_tone_out
 #include "res://shaders/chart_depth.gdshaderinc"
+// TORN AWAY (`ChartTorn`): the shared drawing, on this style's own noise
+#define TORN_FBM(p, b, o) fbm2F(p, float(o))
+#include "res://shaders/chart_torn_core.gdshaderinc"
 
 // Currents: the gas turns at a flat rotation curve's rate less the arms' pattern
 // speed (corotation at 0.55 gu), so it streams THROUGH the arms while they stay.
@@ -455,7 +463,7 @@ float ballEdge(float s, vec2 gq, vec2 v, float clump) {
 // spirals' knots (`knots`), pink star-forming clumps with a white-hot middle and a few blue
 // young clusters, scattered through its gas where it is dense, breathing slowly. In the
 // ball's turning frame (gq, gu); `re` its radius.
-vec3 ballKnots(vec2 gq, float re) {
+vec3 ballKnots(vec2 gq, float re, float rE) {
 	vec3 c = vec3(0.0);
 	float ks = 0.11 * re;
 	float px = 1.0 / (u_zoom * u_k);
@@ -466,7 +474,10 @@ vec3 ballKnots(vec2 gq, float re) {
 			vec3 h = kitHash3(cc + ivec2(5113 + int(u_ballD.w * 97.0), 1907));
 			vec2 ctr = (vec2(cc) + 0.15 + 0.7 * h.xy) * ks;
 			float sk = length(ctr) / re;
-			float A = u_ballK.z * smoothstep(1.4, 0.3, sk) * smoothstep(0.08, 0.25, sk);
+			// (and a few through the big dwarf's envelope, rE: a fifth as thick, so they
+			// never read as a field of the chart's marks)
+			float skE = rE > 0.0 ? length(ctr) / rE : 9.0;
+			float A = u_ballK.z * min(smoothstep(1.4, 0.3, sk) + 0.2 * smoothstep(1.4, 0.3, skE), 1.0) * smoothstep(0.08, 0.25, sk);
 			if (h.z > 0.3 * A) {
 				continue;
 			}
@@ -524,6 +535,8 @@ vec3 ballShellsSoft(vec2 g, float blk) {
 	}
 	return (STORY_STAR * soft * 0.01 - storyShells(g, blk)) * u_storyK.z;
 }
+// TORN AWAY's light in this style's exposure (`tornLightN`)
+const float TORN_GAIN_C = 1.6;
 vec3 ellBall(vec2 v, out float gasOut) {
 	vec2 g = v / u_k;
 	float re = u_ball.x * u_ballF.x;
@@ -548,15 +561,35 @@ vec3 ellBall(vec2 v, out float gasOut) {
 	float clump = fbm2F(gq * 11.0 + vec2(5.0 + 7.0 * u_ballD.w, 2.0), ballOct(11.0, yg > 0.5 ? 5.0 : 3.0));
 	float fine = fbm2F(gq * 46.0 + vec2(9.0, 3.0 + 5.0 * u_ballD.w), ballOct(46.0, yg > 0.5 ? 3.0 : 2.0));
 	body *= ballEdge(s, gq, v, clump);
+	// THE BIG DWARF'S ENVELOPE (`u_ballV`): the body round its real-sized core, redrawn at
+	// the dwarf's new size -- read in the same clumps and grain at the same scales, so a
+	// bigger dwarf has more of them, never bigger ones -- falling slowly from the core and
+	// fading out over the last of its reach, its outline a little irregular, on the bottom
+	// steps of its colours
+	float sE = 9.0;
+	if (u_ballV.w > 0.5) {
+		sE = length(gr) / u_ballV.x * (1.0 + 0.12 * fbm2F(gq * (2.4 / re) + vec2(3.7 + 13.0 * u_ballD.w, 1.1), 3.0));
+		float emE = smoothstep(1.0, 0.86, sE);
+		if (emE < 0.999) {
+			emE = clamp(emE * (1.0 + 0.5 * (kitBayer4(edgeDq(v)) - 0.5)), 0.0, 1.0);
+		}
+		body += lum * 0.60 * (1.0 + 0.6 * yg) * u_ballV.y * pow(1.0 + (sE / 0.45) * (sE / 0.45), -u_ballV.z) * emE * smoothstep(0.08, 0.35, sE);
+	}
 	// (the outskirts' breakup, and the clumps' deepest dips, only out past 0.8 of where its
 	// light ends: inside it a clump is a dimmer patch of the body, never a hole of sky,
 	// Nov 5's review: the round and merger balls read moth-eaten at zoom 1, the blue compact
 	// dwarf's edge spiky)
-	float brk = smoothstep(0.55 * u_ballF.z, 0.8 * u_ballF.z, s);
+	// (the big dwarf's breaks up only over the last of its reach: its whole envelope broken
+	// read as a blotched sheet over the rings)
+	float brk = u_ballV.w > 0.5 ? 0.5 * smoothstep(0.78, 0.98, sE) : smoothstep(0.55 * u_ballF.z, 0.8 * u_ballF.z, s);
 	float cA = mix(0.4, 0.8, yg) + (0.6 + 0.3 * yg) * brk, fA = mix(0.18, 0.4, yg);
 	body *= max(1.0 + cA * clump + fA * fine, mix(0.55, 0.15, brk));
 	// a young ball's gas bunches into star clouds, as the arms' do
 	float blobs = yg * smoothstep(0.15, 0.45, clump);
+	// (fewer out in the big dwarf's envelope: thick through it they read as a blotched sheet)
+	if (u_ballV.w > 0.5) {
+		blobs *= 1.0 - 0.75 * smoothstep(0.3, 0.6, sE);
+	}
 	// THE HEART: the spiral's bulge, at the ball's size (a dwarf's small)
 	float bs = re / 0.30;
 	float sc = length(gr);
@@ -655,7 +688,7 @@ vec3 ellBall(vec2 v, out float gasOut) {
 		c += globulars(g, Rs);
 	}
 	if (yg > 0.0) {
-		c += ballKnots(gq, re) * smoothstep(0.0, 0.3, yg);
+		c += ballKnots(gq, re, u_ballV.w > 0.5 ? 0.62 * u_ballV.x : 0.0) * smoothstep(0.0, 0.3, yg);
 	}
 	c += ballStream(gq, clump, fine);
 	gasOut = min(u_gasAmt, 1.6) * exp(-rp / max(u_ball.x, 0.05)) * 0.8;
@@ -1018,10 +1051,21 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 		vec2 u = (v - cl.xy) / u_k;
 		u.y /= 0.46341;                                // clouds are drawn flattened to cloud_flat
 		int kind = int(ck.x + 0.5);
+		// TORN AWAY: a cloud over the dwarf torn with it (`chart_torn_cloud`): read where
+		// it lay as drawn whole, crumbling as it goes; never cut at the torn edge
+		float tkeep = 1.0;
+		if (tornOn() && tornClOn(i)) {
+			u = tornClWarp(i, u, u_tornClD[i].xy, (kind == 2 || kind == 3) ? cl.w : cl.z);
+			tkeep = tornClKeep(i, u, (kind == 2 || kind == 3) ? cl.w : cl.z);
+			if (tkeep <= 0.0) {
+				continue;
+			}
+		}
 		float ext = (kind == 2 || kind == 3) ? cl.w * 1.6 : cl.z * 1.9;
 		if (dot(u, u) > ext * ext) {
 			continue;
 		}
+		vec3 Cpre = C, Tpre = cloudT;
 		// the cloud lights the disc gas round it
 		if (kind == 0 || kind == 1) {
 			float d = length(u) / cl.z;
@@ -1078,6 +1122,10 @@ void cloudLayer(vec2 v, float irr, float gas, inout vec3 C, inout vec3 cloudT) {
 				float rimL = smoothstep(0.02, 0.25, d0 - dT) * smoothstep(0.03, 0.2, d0) * (1.0 - smoothstep(0.35, 0.7, d0));
 				C += LITDUST * (irr * 1.2 + 0.010) * rimL * 0.5 * u_neb;
 			}
+		}
+		if (tkeep < 1.0) {
+			C = mix(Cpre, C, tkeep);
+			cloudT = mix(Tpre, cloudT, tkeep);
 		}
 	}
 }
@@ -1392,6 +1440,13 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		// bottom edge, since below the core the plane runs out to the camera's horizon
 		// (2.38 gu out on the plane) long before the ball's light does (4.2 gu out).
 		vec3 Bb = ellBall(vb, gas);
+		// TORN AWAY (`ChartTorn`): what is left of the dwarf, at its real size, and its stars
+		// past the edge gone with their rings
+		if (tornOn()) {
+			vec2 gS = vec2(vb.x, vb.y / u_ball.y) / u_k;
+			Bb *= tornShapeN(gS, kitRot(-u_phi) * gS, blockGu(la));
+			star *= tornStarKeep(p);
+		}
 		// close in, the ball resolves into its stars and its diffuse light thins
 		// (the core's glare only: the ball's heart, never its outskirts)
 		Bb *= mix(1.0, 0.3, glareOn() * smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
@@ -1404,6 +1459,14 @@ vec3 galaxy(vec2 v, vec2 vsky, vec2 vb, ivec2 sb, ivec2 blk, ivec2 dq, float la,
 		float swl, scl;
 		C += storyLight(vb / u_k, u_phi, u_time, blockGu(la), swl, scl);
 		C += ballShellsSoft(vb / u_k, blockGu(la));
+		// TORN AWAY: the giant behind (where the dwarf leaves the sky), the stream over it all
+		if (tornOn()) {
+			bool young = ballGas();
+			vec3 dC = young ? vec3(0.45, 0.66, 1.0) : vec3(1.0, 0.72, 0.38);
+			vec3 sC = young ? vec3(0.75, 0.86, 1.0) : vec3(1.0, 0.86, 0.62);
+			vec4 tl = tornLightN(vb, blockGu(la), u_holeR, young, dC, sC, vec3(1.0, 0.74, 0.42), vec3(0.42, 0.52, 0.9), TORN_GAIN_C);
+			C += tl.rgb;
+		}
 	} else {
 		C += halo(v) + tailLight(p);
 		underSheet(v, la, C);

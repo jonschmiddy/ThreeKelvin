@@ -41,6 +41,19 @@ Writes <view>_full.png and <view>_sky.png (1x) and <view>_2x.png (sky, 2x).
 Prints the bake's time. Needs a window; leave it alone while it runs.
 ```
 
+## Torn clip
+
+Above `func _torn_clip(dir: String) -> void:`:
+
+```text
+TORN AWAY's film (`tornclip=<dir> [tornto=N] [tornfrom=S] [clipframes=300]`): 30
+frames a second of the game's clock, two drawn a frame; 1 s on the dwarf at zoom
+1.6, 5 s easing out to the opening (the giant and the stream come into view), then
+the rings falling away at the opening from `tornfrom` s, evenly to half a second
+before the end, each fall eased over 0.4 s and held (to `ChartTorn.max_lost`). The
+marks are drawn.
+```
+
 ## Chart tour
 
 Above `func _tour(dir: String) -> void:`:

@@ -103,6 +103,42 @@ func _run() -> void:
 				cl.kind = int(kk[1]) as NebulaField.Kind
 				break
 	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
+	# `dwarfbig=0|1`: the dwarfs drawn as before (0) or big (1, the game's: `ChartTorn.big`);
+	# `tornend=N|F`: how TORN AWAY ends (`ChartTorn.ending`: F, the default, the rules as
+	# they are; N every ring falls)
+	if _arg("dwarfbig") != "":
+		ChartTorn.big = _arg("dwarfbig") != "0"
+	if _arg("tornend") != "":
+		ChartTorn.ending = &"N" if _arg("tornend").to_upper() == "N" else &"F"
+	# `torn=N`: TORN AWAY on, with N rings lost (`ChartTorn`, the dwarfs' stream;
+	# off without it, as every run is until TORN AWAY sets it);
+	# `tornforce=0|1` off or on whatever the kind
+	if _arg("torn") != "":
+		ChartTorn.active = true
+		ChartTorn.lost = float(_arg("torn"))
+		# (YOU on no lost ring: on the outermost ring left, the nearest system of it,
+		# as a run that kept ahead of the fall would be; the mechanic decides the rest.
+		# `tornstay` leaves YOU where it is)
+		var here: MapGen.MapNode = Run.node_at()
+		# (`tornyou=N`: YOU on ring N instead, for a film that holds YOU still while
+		# the rings fall round it)
+		var keep := int(floor(ChartTorn.lost + 1e-4))
+		var pick := keep
+		if _arg("tornyou") != "":
+			pick = int(_arg("tornyou"))
+		if ChartTorn.on() and here != null and (here.layer < keep or _arg("tornyou") != "") and not "tornstay" in OS.get_cmdline_user_args():
+			var best: MapGen.MapNode = null
+			for raw in Run.map:
+				var mn: MapGen.MapNode = raw
+				if mn.layer == pick and (best == null or (mn.gal - here.gal).length() < (best.gal - here.gal).length()):
+					best = mn
+			if best != null:
+				Run.at = best.index
+				Run.trail = PackedInt32Array([best.index])
+				Run._range_cache.clear()
+				Run.chart_from(Run.node_at())
+	if _arg("tornforce") != "":
+		ChartTorn.force = int(_arg("tornforce"))
 	# `boltclock`: the clock held on the first emission cloud's next lightning
 	# bolt after the given clock (PAINTED's held bolt), for a still of it
 	if "boltclock" in OS.get_cmdline_user_args():
@@ -162,6 +198,10 @@ func _run() -> void:
 		kinds.append(NebulaField.Kind.keys()[(raw as NebulaField.Cloud).kind])
 	print("  chartlook: clouds %s" % [kinds])
 
+	if _arg("tornclip") != "":
+		await _torn_clip(_arg("tornclip"))
+		get_tree().quit()
+		return
 	if _arg("tourclip") != "":
 		await _tour(_arg("tourclip"))
 		get_tree().quit()
@@ -184,14 +224,41 @@ func _run() -> void:
 	for s in spec.split(","):
 		var f := (s as String).split(":")
 		views.append([f[0], float(f[1]), _pan_of(f[2], f[3] if f.size() > 3 else "0", float(f[1]))])
-	for v in views:
-		_view(v[1], v[2])
-		_chart.show_icons = true
-		_chart.queue_redraw()
-		await _shot("%s_full" % v[0], false)
-		_chart.show_icons = false
-		_chart.queue_redraw()
-		await _shot("%s_sky" % v[0], true)
+	# `tornset=A,B,...`: every view at each of those rings lost, named `tA_<view>`
+	var tset: Array = [""]
+	if _arg("tornset") != "":
+		tset = Array(_arg("tornset").split(","))
+	for tl: String in tset:
+		if tl != "":
+			ChartTorn.lost = float(tl)
+		var pre := "" if tl == "" else "t%s_" % tl
+		for v in views:
+			_view(v[1], v[2])
+			_chart.show_icons = true
+			_chart.queue_redraw()
+			await _shot("%s%s_full" % [pre, v[0]], false)
+			_chart.show_icons = false
+			_chart.queue_redraw()
+			await _shot("%s%s_sky" % [pre, v[0]], true)
+	# `tornmarks`: every system the chart shows, its ring and where (TORN AWAY's check
+	# that nothing is left standing off the drawn dwarf)
+	# (`tornall`: every system of the map, drawn or not, for the big dwarf's cover)
+	if "tornmarks" in OS.get_cmdline_user_args() or "tornall" in OS.get_cmdline_user_args():
+		var vis: Dictionary = _chart._visible_set(Run.node_at(), _chart._in_range())
+		if "tornall" in OS.get_cmdline_user_args():
+			vis = {}
+			for i in Run.map.size():
+				vis[i] = true
+		for i: int in vis.keys():
+			var nd: MapGen.MapNode = Run.map[i]
+			print("  tornmark %d L%d gone=%s at %s" % [i, nd.layer, ChartTorn.gone(nd), _chart._screen_pos(nd)])
+		print("  tornmark edge %.3f scale %.3f centre %s" % [ChartTorn.edge(), ChartTorn.scale(), _chart.centre_px()])
+		# (the stream's line, view px at zoom 1 about the core, and where it is drawn from)
+		if ChartTorn.on():
+			var rib := ChartTorn.ribbon(ChartTorn.last_phi)
+			print("  tornrim %.4f hole %.4f" % [ChartTorn.lit_along(ChartTorn.last_phi, rib), ChartSky.hole_of(ChartSky.params())])
+			for p4: Vector4 in rib:
+				print("  tornrib %.3f %.3f %.4f %.4f" % [p4.x, p4.y, p4.z, p4.w])
 	_chart.show_icons = true
 	get_tree().quit()
 
@@ -199,6 +266,9 @@ func _run() -> void:
 ## A view's pan from its spec: view px, or YOU, or a cloud.
 func _pan_of(x: String, y: String, z: float) -> Vector2:
 	var phi: float = _chart.turn()
+	# (`torn`: TORN AWAY's opening, the dwarf down and right, `ChartTorn.open_pan`)
+	if x == "torn":
+		return -ChartTorn.OPEN_SHIFT * ChartSky.K0 if ChartTorn.on() else Vector2.ZERO
 	if x == "ship":
 		var n: MapGen.MapNode = Run.node_at()
 		return ChartSky._to_view(Vector2(n.gal.x, n.gal.y / float(Run.galaxy.squash)), phi)
@@ -403,6 +473,38 @@ func _clip() -> void:
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
 
 
+## TORN AWAY's film: the dwarf, the pull-out, then the rings falling (`tornclip=<dir>`).
+## Why: docs/why/ChartLook.md#torn-clip
+func _torn_clip(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	_chart.show_icons = true
+	var n := int(_arg("clipframes", "300"))
+	var to := float(_arg("tornto", str(ChartTorn.max_lost())))
+	var l0 := ChartTorn.lost
+	var from := float(_arg("tornfrom", "2.0"))
+	var t := StarchartScreen.MapChart.clock_override
+	for i in n:
+		var s := float(i) / 30.0
+		var z := 1.6
+		if s > 1.0:
+			var e := clampf((s - 1.0) / 5.0, 0.0, 1.0)
+			e = e * e * (3.0 - 2.0 * e)
+			z = exp(lerpf(log(1.6), log(0.42), e))
+		# the rings fall from `tornfrom` s on (2 if not given; 6.5 waits for the camera to
+		# finish pulling out), evenly to half a second before the end
+		var fall := clampf((s - from) / maxf(float(n) / 30.0 - from - 0.5, 0.1), 0.0, 1.0) * (to - l0)
+		var whole := floorf(fall)
+		var rate := (to - l0) / maxf(float(n) / 30.0 - from - 0.5, 0.1)
+		var part := clampf((fall - whole) / (rate * 0.4), 0.0, 1.0)
+		ChartTorn.lost = l0 + whole + smoothstep(0.0, 1.0, part)
+		t += 1.0 / 30.0
+		StarchartScreen.MapChart.clock_override = t
+		_view(z, Vector2.ZERO)
+		_chart.queue_redraw()
+		await _frame_shot(dir, i)
+	print("  chartlook: torn clip, %d frames in %s" % [n, ProjectSettings.globalize_path(dir)])
+
+
 ## A fixed tour for a before and after at the same state, via the chart's own wheel and drag.
 ## Why: docs/why/ChartLook.md#chart-tour
 func _tour(dir: String) -> void:
@@ -450,6 +552,11 @@ func _tour(dir: String) -> void:
 		"skypan":
 			_view(1.2, Vector2(-220, -200))
 			segs = [["hold", 6], ["ldrag", 180, Vector2(90, 0)], ["hold", 6]]
+		"tornpan":
+			# (TORN AWAY's opening dragged about: the giant's parallax against the dwarf)
+			_view(0.42, _pan_of("torn", "0", 0.42))
+			segs = [["hold", 15], ["drag", 75, Vector2(140, 0)], ["hold", 10], ["drag", 120, Vector2(-260, 0)],
+				["hold", 10], ["drag", 75, Vector2(120, -50)], ["drag", 45, Vector2(0, 50)], ["hold", 15]]
 		"openzoom":
 			_view(0.42, Vector2.ZERO)
 			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]
@@ -519,6 +626,8 @@ func _cost_bench(names: String) -> void:
 				ChartSky._edge_on = on == 1 if nm == "edge" else true
 				ChartSky._terr_on = on == 1 if nm == "terrain" else true
 				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
+				if nm == "torn":
+					ChartTorn.force = on
 				# (`drama`: RADIANT's light that moves, its core's clock and the stars' flares)
 				ChartRadiant.drama_on = on == 1 if nm == "drama" else true
 				for _w in 3:
@@ -551,6 +660,8 @@ func _cost_bench(names: String) -> void:
 	ChartSky._edge_on = true
 	ChartSky._terr_on = true
 	ChartSky._neb_on = true
+	if names.contains("torn"):
+		ChartTorn.force = -1
 	ChartRadiant.drama_on = true
 
 

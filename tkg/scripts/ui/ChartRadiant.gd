@@ -175,6 +175,17 @@ static func ball_form(p: Dictionary) -> Vector4:
 	return Vector4(1.0, 0.5, 1.9, 0.72)
 
 
+## THE BIG DWARF's envelope in this style (`ChartTorn.ball_v`, `chart_r_place`'s): its
+## light and the power it falls by, by kind. Measured off the chart: lit to about
+## `ChartTorn.LIT_K` of its reach, on its colours' bottom steps.
+const BIG_ENV := {14: Vector2(0.08, 1.0), 15: Vector2(0.08, 1.0)}
+
+
+static func ball_env(kind: int) -> Vector4:
+	var e: Vector2 = BIG_ENV.get(kind, Vector2(0.05, 1.2))
+	return ChartTorn.ball_v(e.x, e.y)
+
+
 ## THE KNOTS OF A BALL THAT MAKES STARS (Nov 5): a blue compact dwarf full of them,
 ## a merger's remnant a few along its stream -- the spirals' own knots (`ChartSky`'s
 ## format: they breathe and bloom as a spiral's do, and the knot map draws them), in
@@ -194,6 +205,9 @@ static func ball_knots(p: Dictionary) -> Array:
 		if int(bk.x) == 1:
 			var a := rng.randf() * TAU
 			var r := re * 0.85 * sqrt(rng.randf())
+			# (a big dwarf's, `ChartTorn.big`: a few through its envelope too)
+			if i >= 10 and ChartTorn.big_on(int(p.kind)):
+				r = (0.25 + 0.4 * sqrt(rng.randf())) * ChartTorn.cover()
 			xy = Vector2(cos(a), sin(a)) * r
 		else:
 			xy = stream_at(0.15 + 0.75 * rng.randf(), re) + Vector2(rng.randf() - 0.5, rng.randf() - 0.5) * 0.04 * re
@@ -442,6 +456,8 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	var bf := ball_form(p)
 	m.set_shader_parameter("u_ballK", ball_kind(p) if L.ell else Vector4.ZERO)
 	m.set_shader_parameter("u_ballF", Vector4(bf.y, bf.z, float((p.ball as Vector4).x) * bf.x, 0.72 / bf.w) if L.ell else Vector4(0.5, 1.8, 0.3, 1.0))
+	m.set_shader_parameter("u_ballV", ball_env(int(p.kind)) if L.ell else Vector4(1.0, 0.0, 1.0, 0.0))
+	m.set_shader_parameter("u_ballSq", float((p.ball as Vector4).y))
 	ChartSky.push_story(m, STORY_GAIN_R)
 	m.set_shader_parameter("u_discA", g.discA)
 	m.set_shader_parameter("u_discB", g.discB)
@@ -564,6 +580,18 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 		n += 1
 	lt.resize(8)
 	m.set_shader_parameter("u_lt", lt)
+	# TORN AWAY: the clouds over the dwarf torn with it, in this style's order (after
+	# SIMPLIFIED's, which holds them sorted on the screen; `ChartTorn.cloud_tear`)
+	var txy: Array = []
+	var trc: Array = []
+	for c: Dictionary in g.clouds:
+		if txy.size() >= 8:
+			break
+		txy.append(c.xy)
+		trc.append(float(c.reach))
+	var tear := ChartTorn.cloud_arrays(txy, trc, ChartTorn.last_phi, ChartSky.MAX_CL)
+	m.set_shader_parameter("u_tornCl", tear.u_tornCl)
+	m.set_shader_parameter("u_tornClD", tear.u_tornClD)
 	# `feed_events` restores this style's lobes after SIMPLIFIED's overwrote them per frame.
 	# Why: docs/why/ChartRadiant.md#cloud-lobes
 	if not g.has("r_lobe"):
