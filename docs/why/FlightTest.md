@@ -523,3 +523,24 @@ from each keeping clear for 30 s, so again the arrivals miss. At the study's
 does not hold at 1 in 8; its list is main's but for that slot), to one place,
 the best burn keeping clear for 30 s again
 ```
+
+## Star starts clear of rings
+
+Above `for _k in 36:` in `_start()`'s "star":
+
+```text
+A STAR START A WORLD'S RING SWEEPS OVER (Nov 8). The start puts the ship
+clear of every world's disc at t, but not of a ring that reaches it during
+the click's wait. In seed 1999 system 206 (OMEGA WICK WATCH, a giant) star
+0's start sat on its star orbit 347 px out, near a world's track; 0.4 s on
+the world's ring took it (relative speed under CAPTURE), so the ship was on
+a rail, its preview no longer takeable and the redraw today's planner. The
+click then planned its own, and four clicks (to -1, 0, 1 and 2) failed
+"every click flew the drawn flight". The game does this, and it is right: a
+taken ship is drawn a new line. It is not a settled star orbit, though,
+which is what the start is for. It failed on main ca3c517d too, in the
+battery's full FlightTest; the gate's `short clicks=0` never clicks there.
+So the start is turned on round the centre, 0.17 rad at a time, until no
+world's ring (soi x 1.05) comes over the orbit in CLICK_S + PREVIEW_AHEAD +
+0.5 s.
+```

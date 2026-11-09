@@ -848,7 +848,15 @@ func _start(fl, L: SystemLayout, kind: String, b: int, t: float, seed: int) -> v
 			var r := lerpf(lo, L.edge * 0.8, R.randf())
 			var a := R.randf() * TAU
 			var p := _clear_of_stars(fl, L, _clear_of_worlds(fl, L, c0 + Vector2(cos(a), sin(a)) * r, t), t)
-			fl.settle_at(t, p, 1.0 if R.randf() < 0.8 else -1.0)
+			var sense := 1.0 if R.randf() < 0.8 else -1.0
+			fl.settle_at(t, p, sense)
+			# Not where a world's ring sweeps over it before the click: it would be taken.
+			# Why: docs/why/FlightTest.md#star-starts-clear-of-rings
+			for _k in 36:
+				if not _swept_by_world(fl, L, t):
+					break
+				p = _clear_of_stars(fl, L, _clear_of_worlds(fl, L, c0 + (p - c0).rotated(0.17), t), t)
+				fl.settle_at(t, p, sense)
 		"free":
 			var r2 := lerpf(fl.star_ring() + 40.0, L.edge * 0.9, R.randf())
 			var a2 := R.randf() * TAU
@@ -2500,6 +2508,27 @@ func _clear_of_worlds(fl, L: SystemLayout, p: Vector2, t: float) -> Vector2:
 			return p
 		p = c0 + (p - c0).rotated(0.17)
 	return p
+
+
+## Whether a world's ring passes over the ship's settled star orbit within the click's wait.
+func _swept_by_world(fl, L: SystemLayout, t: float) -> bool:
+	var c: Vector2 = fl.f.cen
+	var cv: Vector2 = fl._cen_vel(fl.f.cen_id, t)
+	var q: Vector2 = fl.f.p - c
+	var vr: Vector2 = fl.f.v - cv
+	var om := q.cross(vr) / maxf(q.length_squared(), 1e-6)
+	var span := CLICK_S + ShipFlightS.PREVIEW_AHEAD + 0.5
+	var tau := 0.0
+	while tau <= span:
+		var ps := c + cv * tau + q.rotated(om * tau)
+		for b in L.bodies:
+			if b.world == &"":
+				continue
+			var cb: Vector3 = fl.center(b.index, t + tau)
+			if Vector2(ps.x - cb.x, ps.y - cb.z).length() < b.soi * 1.05:
+				return true
+		tau += 0.05
+	return false
 
 
 ## Sharpest turn as drawn at `zoom`, in degrees per pixel; `skip` marks a ring's own curve.

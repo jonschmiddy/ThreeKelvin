@@ -1358,6 +1358,28 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 		elif sp < vmin:
 			vmin = sp
 			jmin = j
+	# The drawn curve is tightest where the tilted speed is least, often between two points.
+	# Why: docs/why/FlightSolve.md#arrival-cusps
+	for j in 16:
+		var wa := Vector2(vs[j].x, DRAW_TILT * vs[j].y)
+		var wg := Vector2(vs[j + 1].x, DRAW_TILT * vs[j + 1].y) - wa
+		var gw := wg.length_squared()
+		if gw < 1e-12:
+			continue
+		var uw := -wa.dot(wg) / gw
+		if uw <= 0.0 or uw >= 1.0 or (_tk == 1 and lerpf(lefts[j], lefts[j + 1], uw) <= 1.5):
+			continue
+		var tw := (float(j) + uw) / 16.0
+		var tqw := te - d + tw * d
+		var cw := _coast_at(tqw)
+		var wvx := cw[2] + (2.0 * Ax * tw + 3.0 * Bx * tw * tw) / d
+		var wvz := cw[3] + (2.0 * Az * tw + 3.0 * Bz * tw * tw) / d
+		_acc_at(cw[0] + Ax * tw * tw + Bx * tw * tw * tw, cw[1] + Az * tw * tw + Bz * tw * tw * tw, tqw)
+		var wax := _ax + (2.0 * Ax + 6.0 * Bx * tw) / (d * d)
+		var waz := _az + (2.0 * Az + 6.0 * Bz * tw) / (d * d)
+		var wdn := pow(wvx * wvx + DRAW_TILT * DRAW_TILT * wvz * wvz, 1.5)
+		if wdn > 1e-9 and DRAW_TILT * absf(wvx * waz - wvz * wax) / wdn > DRAW_K:
+			return true
 	var ja := jmin
 	var jb := jmin
 	# Not read in the last px and a half alongside: the ship falls in with the place's own crawl.

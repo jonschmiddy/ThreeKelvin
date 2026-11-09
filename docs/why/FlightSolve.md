@@ -736,6 +736,21 @@ plans of 4,656 and 4 of FlightTest's 3,832 flights that are no cusp,
 Nov 1)
 ```
 
+Inside `_arrival_cusps()`, above `for j in 16:` (the first one, the tilted speed's least):
+
+```text
+THE TILTED CURVE BETWEEN TWO POINTS (Nov 8). Seen tilted, a burn's curve is
+tightest where its speed across the screen is least: where the ship moves
+up or down the screen, the plane's tilt squeezing that motion to 0.38. That
+can fall between two of the 17 points. From world 2 to world 3 of seed 1999
+system 103 (KAPPA BRINE-2, a giant, a game's start), at main's x12 pace with
+science's layout, a 2.33 s arrival burn turned the ship 116 deg in 0.3 s at
+54 px/s, drawn 28 deg a px at zoom 1. Over DRAW_K for 0.06 s, between points
+0.146 s apart that read 0.14 and 0.10. So each step's least tilted speed,
+on the straight change of velocity across it, is read too when it falls
+inside the step, alongside's last px and a half left out as above.
+```
+
 ## Coast integration
 
 Above `func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float, dvz: float, t_end: float) -> void:`:
