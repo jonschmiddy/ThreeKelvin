@@ -119,7 +119,8 @@ func setup() -> void:
 		mat.set_shader_parameter(&"amount", 0.0)
 		var tw := create_tween().set_parallel(true)
 		# EASE IN: the sound accelerates into its snap, so the drawer does too.
-		tw.tween_property(drawer, "position:x", 0.0, OPEN_S) 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		tw.tween_property(drawer, "position:x", 0.0, OPEN_S) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 		tw.tween_method(func(v: float) -> void: mat.set_shader_parameter(&"amount", v),
 			0.0, 1.0, BACKDROP_S).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
@@ -149,7 +150,8 @@ func confirm(destroys: bool) -> void:
 	_exits.add_child(ask)
 	var why := "SHIP, CARGO AND MAP GONE. IT GOES ON THE RECORD."
 	if not destroys:
-		why = "CONTINUE FROM THE TITLE. THE FIGHT STARTS OVER." if fighting 			else "CONTINUE FROM THE TITLE, WHERE YOU LEFT OFF."
+		why = "CONTINUE FROM THE TITLE. THE FIGHT STARTS OVER." if fighting \
+			else "CONTINUE FROM THE TITLE, WHERE YOU LEFT OFF."
 	var note := UITheme.body(why, UITheme.COLD, UITheme.FS_SMALL)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_exits.add_child(note)
@@ -237,7 +239,7 @@ func _inset() -> Control:
 	box.clip_contents = true
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.add_child(box)
-	var chart := StarchartScreen.MapChart.new()
+	var chart := MapChart.new()
 	chart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chart.free_pan = true
@@ -326,7 +328,7 @@ func _tiles() -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	var low := Run.hp < Run.max_hp() * 0.35
-	for pair in [["HULL", "%d/%d" % [Run.hp, Run.max_hp()], Color("#d4614f") if low else UITheme.ICE],
+	for pair in [["HULL", "%d/%d" % [Run.hp, Run.max_hp()], UITheme.LEAVE if low else UITheme.ICE],
 			["CREDITS", str(Run.credits), UITheme.ICE], ["FUEL", "%d/%d" % [Run.fuel, Run.fuel_cap()], HudBar.FUEL_INK[HudBar.fuel_state()]]]:
 		var t := PanelContainer.new()
 		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -347,7 +349,7 @@ func _gap(h: int) -> Control:
 
 ## On the ship, not the middle: the chart will not pan past the rim, so a centre misses it.
 class InsetMarks extends Control:
-	var chart: StarchartScreen.MapChart
+	var chart: MapChart
 	var _at := Vector2.INF
 
 	## The galaxy turns (`MapChart.turn`), and the ship with it, so the

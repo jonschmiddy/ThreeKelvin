@@ -4,7 +4,7 @@ extends Node
 ## Windowed: it reads the pictures as drawn, in every style and inside a cloud.
 ## Why: docs/why/FieldEdgeTest.md#test-purpose
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 var _out := ""
 ## the run's system sits in a cloud (`at=nebula`)
@@ -19,12 +19,7 @@ const STEP := 2.0
 
 
 func _ok(what: String, c: bool) -> bool:
-	if not c:
-		print("  FAIL %s" % what)
-		_fails += 1
-	else:
-		print("  ok   %s" % what)
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -32,11 +27,6 @@ func _ready() -> void:
 		if a.begins_with("out="):
 			_out = a.substr(4)
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _settled() -> bool:
@@ -61,7 +51,7 @@ func _run() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_local()
 	ZoomLadder.hold_off = false
-	await _frames(120)
+	await Harness.frames(_tree, 120)
 	await _local_match()
 	for which: String in ["SECTOR", "STARCHART"]:
 		ZoomLadder.hold_off = true
@@ -74,7 +64,7 @@ func _run() -> void:
 			await _tree.process_frame
 			if _settled() and i > 90:
 				break
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		await RenderingServer.frame_post_draw
 		_check(which)
 		if which == "SECTOR" and _cloud:
@@ -86,8 +76,8 @@ func _run() -> void:
 		await _cloud_hop()
 	await _chart_edges()
 	await _drift_layers()
-	print("fieldedgetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("fieldedgetest")
+	_tree.quit(h.code())
 
 
 ## LOCAL's stars are the field's: measured as the share matched within 10 levels in open sky.
@@ -95,7 +85,7 @@ func _local_match() -> void:
 	if _cloud:
 		print("  --   LOCAL: inside a cloud its far stars stand behind the gas; the match is read in a clear sky")
 		return
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	await RenderingServer.frame_post_draw
 	var field: NavField = Router.field
 	if not _ok("LOCAL: the field is fed", field != null and field.picture() != null):
@@ -188,7 +178,7 @@ func _cloud_hop() -> void:
 		await _tree.process_frame
 		if _settled() and i > 60:
 			break
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	await RenderingServer.frame_post_draw
 	var cur := Router.current
 	var skip: Array = [Router.hud.get_global_rect()]
@@ -276,7 +266,7 @@ func _chart_edges() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_starchart()
 	ZoomLadder.hold_off = false
-	await _frames(90)
+	await Harness.frames(_tree, 90)
 	var scr := Router.current as StarchartScreen
 	if not _ok("chart edges: the chart up", scr != null and scr._chart != null and scr._chart._sky != null):
 		return
@@ -298,7 +288,7 @@ func _chart_edges() -> void:
 		ch.pan = pan0 + (e[1] as Vector2)
 		ch.queue_redraw()
 		sky.call(&"queue_push")
-		await _frames(45)
+		await Harness.frames(_tree, 45)
 		await RenderingServer.frame_post_draw
 		var shot := _shot()
 		var fimg := Router.field.picture().get_image()
@@ -355,7 +345,7 @@ func _chart_edges() -> void:
 			lines >= 8 and worst >= 0.8)
 	ch.pan = pan0
 	ch.queue_redraw()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 
 
 ## Field drift in layers (Jon: parallax gone): far stars slide least, near most.
@@ -363,7 +353,7 @@ func _drift_layers() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_starchart()
 	ZoomLadder.hold_off = false
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	await RenderingServer.frame_post_draw
 	var f: NavField = Router.field
 	var a := f.picture().get_image()
@@ -394,7 +384,7 @@ func _drift_layers() -> void:
 			vp.push_input(mm)
 			last = at
 		await _tree.process_frame
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	await RenderingServer.frame_post_draw
 	var b := f.picture().get_image()
 	b.convert(Image.FORMAT_RGB8)
@@ -436,7 +426,7 @@ func _drift_layers() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_local()
 	ZoomLadder.hold_off = false
-	await _frames(120)
+	await Harness.frames(_tree, 120)
 	print("  --   drift: back on LOCAL after the drag (the field at %s)" % f.pan)
 	await _local_match()
 
@@ -516,7 +506,7 @@ func _plate_hop(to: StringName) -> void:
 		await _tree.process_frame
 		if _settled() and i > 60:
 			break
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	await RenderingServer.frame_post_draw
 	var bar := ZoomLadder.bar_of(Router.current)
 	if bar == null:

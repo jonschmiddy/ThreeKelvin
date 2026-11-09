@@ -3,19 +3,9 @@ extends Node
 ## Photographs a creature event and its fight, so the fauna path can be inspected on screen.
 ## Why: docs/why/FoeTagShot.md#creature-shots
 
-var _args: PackedStringArray
-
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _frames(n: int) -> void:
@@ -32,10 +22,10 @@ func _snap(path: String) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var dir := _arg("out", "user://foetag")
+	var dir := Harness.arg("out", "user://foetag")
 	DirAccess.make_dir_recursive_absolute(dir)
 	LocalEventDrawer.quiet = false
-	for raw in _arg("ids", "in_the_wake,the_harpoon_line").split(","):
+	for raw in Harness.arg("ids", "in_the_wake,the_harpoon_line").split(","):
 		var oid := StringName(raw)
 		var o := OptionTable.by_id(oid)
 		if o.is_empty():
@@ -43,7 +33,7 @@ func _run() -> void:
 			continue
 		Router.combat = null
 		Router.current_fight = {}
-		Rng.forced = int(_arg("seed", "4242"))
+		Rng.forced = Harness.seed_arg(4242)
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var idx := -1
 		for m: MapGen.MapNode in Run.map:
@@ -73,7 +63,7 @@ func _run() -> void:
 			d.text.skip()
 		await _frames(30)
 		await _snap("%s/%s_1_event.png" % [dir, oid])
-		var j := int(_arg("choice", "-1"))
+		var j := int(Harness.arg("choice", "-1"))
 		var choices: Array = o.choices
 		if j < 0:
 			for k in choices.size():

@@ -821,11 +821,6 @@ func spine_off_at(x: int) -> int:
 	return _cur[x * 4 + 1]
 
 
-## The held step's time: what is drawn now was worked out for this moment.
-func step_t() -> float:
-	return floorf(t * fps() + 1e-3) / fps()
-
-
 ## What a shader needs to show a rest-space picture where this motion shows the
 ## body (`FaunaGuard.PRELUDE`), or {} when it is not moving the picture.
 func shader_inputs() -> Dictionary:

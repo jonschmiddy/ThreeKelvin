@@ -636,15 +636,6 @@ func _animate_lift(offset: float) -> void:
 	_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_tween.tween_property(self, "position:y", _base_y + offset, 0.12)
 
-## Fly the card toward the enemy as it resolves, then fade.
-func play_flourish(target: Vector2) -> void:
-	var tw := create_tween().set_parallel(true)
-	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tw.tween_property(self, "global_position", target, 0.18)
-	tw.tween_property(self, "modulate:a", 0.0, 0.18)
-	tw.tween_property(self, "scale", Vector2(0.7, 0.7), 0.18)
-	tw.chain().tween_callback(queue_free)
-
 func emitted_hover(entered: bool) -> void:
 	hovered.emit(self, entered)
 

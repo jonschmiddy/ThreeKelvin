@@ -1,5 +1,5 @@
 class_name EnemySlot
-extends Control
+extends AimTarget
 
 ## Brace is shown as countable cells: values are small and the exact count matters, so no
 ## label.
@@ -55,7 +55,8 @@ var _bar: ProgressBar
 var _brace_bar: BracePips
 ## Gives `art` a position of its own that the column does not overwrite.
 var _art_holder: Control
-var _hot: bool = false
+## Steel, so it never reads as a second kind of hull.
+const ARMOR_COL := Color("#9fb0c4")
 ## Told by the view when another slot takes the cursor.
 var claim: Callable
 var _dead: bool = false
@@ -384,7 +385,6 @@ func set_salvage(left: int) -> void:
 ## Set by EncounterView from the screen owning Combat: the slot knows only the card and the
 ## target.
 var preview: Callable
-var _drag_text: String = ""
 
 ## Godot asks this continuously while a drag hovers, which doubles as the
 ## "is this a legal target" highlight without any extra plumbing.
@@ -468,10 +468,6 @@ func _spacers(s: float) -> Vector2:
 	var rc := _reach(s)
 	return Vector2(maxf(0.0, float(RIM_GAP) - 2.0 - (top_m - rc.x)),
 		maxf(0.0, float(RIM_GAP) - 2.0 - (bot_m - rc.y)))
-
-## What the spacer adds to the column's height, its separation included.
-func _under_h() -> float:
-	return (_under.custom_minimum_size.y + 1.0) if _under != null and _under.visible else 0.0
 
 ## Measured once per picture with `ShieldFx.fit`, the same fit the shield is drawn with.
 static var _reach_cache: Dictionary = {}
@@ -638,7 +634,7 @@ static func _chip_row_h() -> float:
 
 ## The readout's widths and lines at slot width `w`: the widest line, the
 ## intent's own width, and the lines the longest intent text takes.
-func _reserved(w: float) -> Dictionary:
+func _reserved(_w: float) -> Dictionary:
 	var widest := float(BAR_W)
 	widest = maxf(widest, _text_w(_name))
 	for t in ["SALVAGE", "WRECKED", "STRIPPED", _hp.text]:
@@ -854,24 +850,6 @@ static func text_rect(l: Label) -> Rect2:
 	return Rect2(x, r.position.y, w, r.size.y)
 
 
-## The ship's width on screen, for the row's packing.
-func ship_width() -> float:
-	return _art_holder.custom_minimum_size.x if _art_holder != null else float(EnemyArt.W)
-
-
-## The column grows a spacer on the far side and stays centred, so ship, intent and bars
-## move together.
-func set_lift(dy: float) -> void:
-	if _lift_top == null:
-		return
-	var top := maxf(0.0, dy) * 2.0
-	var bot := maxf(0.0, -dy) * 2.0
-	if _lift_top.custom_minimum_size.y != top:
-		_lift_top.custom_minimum_size.y = top
-	if _lift_bot.custom_minimum_size.y != bot:
-		_lift_bot.custom_minimum_size.y = bot
-
-
 ## Hidden while a breakup draws the ship coming apart in its place, and back,
 ## as the wreck, when it is done. The slot keeps its place, its name and its bar.
 func hide_art(on: bool) -> void:
@@ -911,39 +889,14 @@ func aimable(c: CardData) -> bool:
 	return (c.damage > 0 or c.damage_equals_heat or c.evoke > 0) and not _dead
 
 
-## `set_drag_preview` hid the target under a 112x160 card; the aimed line keeps the board
-## visible.
-## Why: docs/why/EnemySlot.md#aim-preview
-func aim(on: bool, text: String = "") -> void:
-	set_hot(on)
-	var t := text if on else ""
-	if t != _drag_text:
-		_drag_text = t
-		queue_redraw()
-
-
-func set_hot(v: bool) -> void:
-	if _hot == v:
-		return
-	_hot = v
-	queue_redraw()
-
 ## No `_drop_data`: its body emits `card_dropped`, still wired to `SectorScreen`, and would
 ## play past aiming.
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END and _hot:
-		_hot = false
-		queue_redraw()
 
 func _draw() -> void:
 	if not _hot:
 		return
 	# Corner brackets rather than a filled panel: a full wash buries the sprite
 	# you are aiming at, which is the one thing you need to still see.
-	var c := UITheme.FLARE
-	var n := 7.0
 	# Brackets use the holder's origin with the art's extent: the holder is a fixed 240x120
 	# box. The holder does not move, so the reticle frames where the ship is going to be.
 	# Why: docs/why/EnemySlot.md#reticle-bounds
@@ -951,19 +904,7 @@ func _draw() -> void:
 	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
 	var r := Rect2(_art_holder.position + _art_base + Vector2(u.position) - Vector2(pad, pad),
 		Vector2(u.size) + Vector2(pad, pad) * 2.0)
-	var x0 := r.position.x
-	var y0 := r.position.y
-	var w := r.end.x
-	var h := r.end.y
-	for corner in [
-			[Vector2(x0, y0), Vector2(1, 1)],
-			[Vector2(w, y0), Vector2(-1, 1)],
-			[Vector2(x0, h), Vector2(1, -1)],
-			[Vector2(w, h), Vector2(-1, -1)]]:
-		var o: Vector2 = corner[0]
-		var d: Vector2 = corner[1]
-		draw_rect(Rect2(o + Vector2(0, -1 if d.y < 0 else 0), Vector2(n * d.x, 1)), c, true)
-		draw_rect(Rect2(o + Vector2(-1 if d.x < 0 else 0, 0), Vector2(1, n * d.y)), c, true)
+	draw_brackets(self, r, 7.0, UITheme.FLARE)
 
 	# The number paints over the target only while a card is held, so it reads as a question.
 	# Why: docs/why/EnemySlot.md#damage-preview-number
@@ -991,12 +932,6 @@ func ink_rect() -> Rect2:
 	var u: Rect2i = art.ink_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
 	var at := _art_holder.global_position - global_position + _art_base
 	return Rect2(at + Vector2(u.position), Vector2(u.size))
-
-
-## Where the held card's number is drawn, its letters' own box, in this slot's
-## coordinates (`HitText.ink_rect`). For the test that holds it to the ink.
-func preview_rect(text: String) -> Rect2:
-	return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
 
 
 ## Intent text as drawn, in global px. A landed number goes above it (Jon, Oct 13, "C").

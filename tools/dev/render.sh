@@ -18,14 +18,8 @@
 set -uo pipefail
 D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$D/env.sh"
-limit=600
-while [ $# -gt 0 ]; do
-	case "$1" in
-		-t) limit="$2"; shift 2 ;;
-		-C) cd "$2" || exit 1; shift 2 ;;
-		*) break ;;
-	esac
-done
+tk_parse_run_args "$@"
+set -- ${TK_RUN_ARGS[@]+"${TK_RUN_ARGS[@]}"}
 tk_guard || exit 3
 
 LOCKS="$TK_SCRATCH/render_locks"; mkdir -p "$LOCKS"
@@ -49,10 +43,10 @@ trap 'rm -rf "$SLOT" "$p"' EXIT INT TERM
 
 if [ "$TK_OS" = win ] && [ -n "${TK_HIDDESK:-}" ] && [ -x "$TK_HIDDESK" ]; then
 	log="$TK_SCRATCH/logs/render-$$.log"
-	tk_isolated "$p" tk_timeout "$limit" "$TK_HIDDESK" "$(cygpath -w "$log")" "$(cygpath -w "$GODOT")" \
+	tk_isolated "$p" tk_timeout "$TK_LIMIT" "$TK_HIDDESK" "$(cygpath -w "$log")" "$(cygpath -w "$GODOT")" \
 		--audio-driver Dummy "$@"
 	code=$?
 	cat "$log" 2>/dev/null; rm -f "$log"
 	exit $code
 fi
-tk_isolated "$p" tk_timeout "$limit" "$GODOT" --audio-driver Dummy "$@"
+tk_isolated "$p" tk_timeout "$TK_LIMIT" "$GODOT" --audio-driver Dummy "$@"

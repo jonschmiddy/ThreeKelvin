@@ -61,7 +61,7 @@ const PULLS := [["before", 0.75, 2.0], ["today", 0.9, 3.0], ["strongest", 1.0, 4
 func _pulls() -> void:
 	# process_frame, not frame_post_draw: this mode runs headless, where nothing draws
 	await get_tree().process_frame
-	var mt = load("res://scripts/sim/MapTest.gd").new()
+	var mt = _map_test()
 	var rolls := 120
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("rolls="):
@@ -157,7 +157,7 @@ func _pulls() -> void:
 ## Why: docs/why/GalaxyDump.md#dump-outputs
 func _nebulae() -> void:
 	await get_tree().process_frame
-	var mt = load("res://scripts/sim/MapTest.gd").new()
+	var mt = _map_test()
 	var rolls := 120
 	var natural := true
 	for a in OS.get_cmdline_user_args():
@@ -249,7 +249,7 @@ func _nebulae() -> void:
 ## Why: docs/why/GalaxyDump.md#dump-outputs
 func _spread() -> void:
 	await get_tree().process_frame
-	var mt = load("res://scripts/sim/MapTest.gd").new()
+	var mt = _map_test()
 	var rolls := 120
 	var settings: Array = [["before", MapGen.Placement.PULL], ["after", MapGen.Placement.SPREAD]]
 	var natural := true
@@ -484,7 +484,7 @@ func _arm_hw(rn: float) -> float:
 
 func _run() -> void:
 	await _frames(5)
-	StarchartScreen.MapChart.clock_override = 123.456
+	MapChart.clock_override = 123.456
 	for kind in GalaxyGen.count():
 		if not only.is_empty() and not only.has(kind):
 			continue
@@ -505,7 +505,7 @@ func _run() -> void:
 		scp.dismiss_primer()
 		_chart = scp._chart
 		_chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_chart._go_to(StarchartScreen.MapChart.ZOOM_MIN, Vector2.ZERO, false)
+		_chart._go_to(MapChart.ZOOM_MIN, Vector2.ZERO, false)
 		_chart.show_icons = true
 		_chart.queue_redraw()
 		var tag := "kind_%02d" % kind
@@ -518,9 +518,9 @@ func _run() -> void:
 		await _shot(tag + "_sky")
 		# The core at the chart's closest zoom, systems hidden: the black hole
 		# as the game draws it now, to set beside a remade one.
-		_chart._go_to(StarchartScreen.MapChart.ZOOM_MAX, Vector2.ZERO, false)
+		_chart._go_to(MapChart.ZOOM_MAX, Vector2.ZERO, false)
 		await _shot(tag + "_core_max")
-		_chart._go_to(StarchartScreen.MapChart.ZOOM_MIN, Vector2.ZERO, false)
+		_chart._go_to(MapChart.ZOOM_MIN, Vector2.ZERO, false)
 		_chart.show_icons = true
 		_chart.queue_redraw()
 		var d := _dump(kind, natural)
@@ -544,7 +544,7 @@ func _hex(c: Color) -> String:
 
 func _dump(kind: int, natural: int) -> Dictionary:
 	var ch = _chart
-	var r_max: float = ch._radius() * StarchartScreen.MapChart.DISC
+	var r_max: float = ch._radius() * MapChart.DISC
 	var g: Dictionary = {}
 	for k in Run.galaxy:
 		g[k] = Run.galaxy[k]
@@ -653,3 +653,7 @@ func _shot(name: String) -> void:
 	var at := _chart.get_global_transform_with_canvas().origin
 	img = img.get_region(Rect2i(Vector2i(at.round()), Vector2i(_chart.size.round())))
 	img.save_png(out.path_join(name + ".png"))
+
+
+func _map_test() -> Object:
+	return load("res://scripts/sim/MapTest.gd").new()

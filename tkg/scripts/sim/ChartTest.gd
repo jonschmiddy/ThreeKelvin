@@ -25,7 +25,7 @@ func run(tree: SceneTree) -> void:
 	var restored: Dictionary = chart._snapshot_sky()
 
 	# A genuine rebuild: no cache entry and no matching key.
-	StarchartScreen.MapChart._sky_cache.clear()
+	MapChart._sky_cache.clear()
 	chart._star_key = ""
 	chart._build_stars()
 	var built: Dictionary = chart._snapshot_sky()
@@ -50,7 +50,7 @@ func run(tree: SceneTree) -> void:
 
 	print("  %d fields, %d values compared" % [fields.size(), values])
 	print("  cache entries held: %d (a run is one galaxy, so this should be 1)"
-		% StarchartScreen.MapChart._sky_cache.size())
+		% MapChart._sky_cache.size())
 	await _style_switch(tree, chart)
 	print("=== %s (%d mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
 	tree.quit(1 if fails > 0 else 0)

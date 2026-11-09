@@ -10,13 +10,6 @@ var _film := false
 var _frame0 := 0
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
@@ -36,8 +29,8 @@ func _wait(s: float) -> void:
 
 func _run() -> void:
 	var tree := get_tree()
-	_out = _arg("out", "user://outcomeshot")
-	_film = _arg("film") != ""
+	_out = Harness.arg("out", "user://outcomeshot")
+	_film = Harness.arg("film") != ""
 	DirAccess.make_dir_recursive_absolute(_out)
 	await tree.process_frame
 	# 1080p stills: drawn 2x in a 1920x1080 window as Jon plays; settings can leave 960x540.
@@ -48,8 +41,8 @@ func _run() -> void:
 	print("  outcomeshot: window %s, screen %s, root %s" % [DisplayServer.window_get_size(), DisplayServer.screen_get_size(), tree.root.get_texture().get_size()])
 	LocalEventDrawer.quiet = true
 	var was_layout := LocalEventDrawer.layout
-	if _arg("layout") != "":
-		LocalEventDrawer.layout = StringName(_arg("layout"))
+	if Harness.arg("layout") != "":
+		LocalEventDrawer.layout = StringName(Harness.arg("layout"))
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n := _system()
@@ -57,12 +50,12 @@ func _run() -> void:
 	if "survey" in _args:
 		tree.quit()
 		return
-	var cases: Array = _arg("cases", "jon,gain,mix,card,nothing,credits,big").split(",")
+	var cases: Array = Harness.arg("cases", "jon,gain,mix,card,nothing,credits,big").split(",")
 	if _film:
-		cases = [_arg("case", "mix")]
-	var looks: Array = _arg("looks", "today,A,B,C,D,E").split(",")
+		cases = [Harness.arg("case", "mix")]
+	var looks: Array = Harness.arg("looks", "today,A,B,C,D,E").split(",")
 	if _film:
-		looks = [_arg("film")]
+		looks = [Harness.arg("film")]
 	var index: Array = []
 	for c in cases:
 		if not found.has(c):

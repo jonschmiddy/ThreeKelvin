@@ -12,13 +12,12 @@ const LEVELS := {"unclaimed": MapGen.Development.UNCLAIMED, "outpost": MapGen.De
 ## Why: docs/why/YardSeatTest.md#sink-limit
 const SINK_MAX := 6
 
-var _fails := 0
+var harness := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
 	if not c:
-		print("  FAIL %s" % what)
-		_fails += 1
+		harness._fail(what)
 	return c
 
 
@@ -77,8 +76,8 @@ func _run() -> void:
 	print("  the worst centring %.2f px, the most sunk %d rows" % [worst_c, worst_sink])
 	for key in order:
 		print("  %s: %s" % [key.get_file().get_basename(), ", ".join(by_sprite[key]["names"])])
-	print("yardseattest: %s" % ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
-	get_tree().quit(1 if _fails > 0 else 0)
+	harness.verdict("yardseattest")
+	get_tree().quit(harness.code())
 
 
 ## Off the pictures: the hull's canvas where its view stands, and each stand's

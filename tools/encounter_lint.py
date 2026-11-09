@@ -24,7 +24,9 @@ import sys
 import collections
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "tkg", "scripts", "systems", "OptionTable.gd")
+# The encounters are authored in OptionsPart01..NN.gd, joined in number order by
+# OptionTable._authored, so sorted names are the table's order.
+SRC = os.path.join(ROOT, "tkg", "scripts", "systems", "options")
 
 # The steep ladder, from the ruling. Index by tier 1..5.
 CHECK_BAND = {1: (3, 4), 2: (4, 5), 3: (5, 6), 4: (6, 7), 5: (7, 8)}
@@ -73,13 +75,21 @@ def tier(d):
 	return max(1, min(5, (d + 1) // 2))
 
 
-def encounters(src):
-	lines = src.split("\n")
-	st = [(m.group(1), n) for n, l in enumerate(lines)
-		for m in [re.match(r'\t*id = &"([a-z_]+)",\s*$', l)] if m]
-	for k, (eid, n) in enumerate(st):
-		end = st[k + 1][1] if k + 1 < len(st) else len(lines)
-		yield eid, "\n".join(lines[n:end]), n + 1
+def sources():
+	"""(file name, text) for each authored file, in table order."""
+	return [(n, io.open(os.path.join(SRC, n), encoding="utf-8").read())
+		for n in sorted(os.listdir(SRC)) if n.endswith(".gd")]
+
+
+def encounters():
+	"""(id, block, line, file name) for each encounter, in table order."""
+	for fname, src in sources():
+		lines = src.split("\n")
+		st = [(m.group(1), n) for n, l in enumerate(lines)
+			for m in [re.match(r'\t*id = &"([a-z_]+)",\s*$', l)] if m]
+		for k, (eid, n) in enumerate(st):
+			end = st[k + 1][1] if k + 1 < len(st) else len(lines)
+			yield eid, "\n".join(lines[n:end]), n + 1, fname
 
 
 def choices_of(blk):
@@ -93,11 +103,10 @@ def choices_of(blk):
 
 
 def main():
-	src = io.open(SRC, encoding="utf-8").read()
 	errors, warns = [], []
 	seen = 0
 
-	for eid, blk, ln in encounters(src):
+	for eid, blk, ln, fname in encounters():
 		seen += 1
 		lo = re.search(r"min_danger = (\d+)", blk)
 		hi = re.search(r"max_danger = (\d+)", blk)
@@ -111,10 +120,10 @@ def main():
 		chs = choices_of(blk)
 
 		def err(msg):
-			errors.append("%s:%d  %-22s %s" % ("OptionTable.gd", ln, eid, msg))
+			errors.append("%s:%d  %-22s %s" % (fname, ln, eid, msg))
 
 		def warn(msg):
-			warns.append("%s:%d  %-22s %s" % ("OptionTable.gd", ln, eid, msg))
+			warns.append("%s:%d  %-22s %s" % (fname, ln, eid, msg))
 
 		# --- 1. nothing reaches into the hold ---------------------------
 		if "consume_material_tier" in blk:

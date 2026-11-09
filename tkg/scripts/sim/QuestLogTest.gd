@@ -3,27 +3,19 @@ extends Node
 ## The QUESTS tab keeps one size with none, one or five quests (Jon); fit means nothing overlaps.
 ## Why: docs/why/QuestLogTest.md#quest-log-test
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 
 const SEEDS := [4242, 11, 777]
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_tree = get_tree()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _run() -> void:
@@ -33,8 +25,8 @@ func _run() -> void:
 		await _galaxy(sd)
 	print("  [event quests] %d" % SEEDS[0])
 	await _event_quests(SEEDS[0])
-	print("questlogtest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("questlogtest")
+	_tree.quit(h.code())
 
 
 func _galaxy(sd: int) -> void:
@@ -50,7 +42,7 @@ func _galaxy(sd: int) -> void:
 	QuestLog.forget()
 	QuestPanel.picked = -1
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var hud := Router.hud
 	var tab: Button = hud._tab_quests
 	var tab0 := hud.quests_tab_rect()
@@ -60,7 +52,7 @@ func _galaxy(sd: int) -> void:
 
 	# NONE
 	tab.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	if _ok("the tab opens the table", QuestPanel.is_open()):
 		var p := QuestPanel._open
 		var empty := p.find_child("Empty", true, false) as Label
@@ -68,7 +60,7 @@ func _galaxy(sd: int) -> void:
 			empty != null and empty.text == QuestLog.EMPTY and _rows(p).is_empty())
 		_fit("LOCAL, none held")
 	tab.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("and the tab shuts it", not QuestPanel.is_open())
 
 	# ONE, then FIVE
@@ -83,7 +75,7 @@ func _galaxy(sd: int) -> void:
 		held.append(Run.take_contract(job))
 		if held.size() == 1:
 			hud.refresh()
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 			_ok("one quest: the QUESTS tab has not moved or changed size, and reads QUESTS",
 				hud.quests_tab_rect() == tab0 and tab.text == "QUESTS")
 	if held.size() < 2:
@@ -91,14 +83,14 @@ func _galaxy(sd: int) -> void:
 	Run.reach_contract_target((held[0] as ContractData).at)
 	Run.heat = 3
 	hud.refresh()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("five quests: the QUESTS tab has not moved or changed size (%s / %s)" % [hud.quests_tab_rect(), tab0],
 		hud.quests_tab_rect() == tab0 and tab.text == "QUESTS")
 	_hud_fits("five held")
 
 	# THE TABLE
 	tab.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var p2 := QuestPanel._open
 	if not _ok("the table is open again", p2 != null):
 		return
@@ -144,7 +136,7 @@ func _galaxy(sd: int) -> void:
 	if _row_of(p2, hunt.id) == null:
 		return
 	_row_of(p2, hunt.id).pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var hrow := _row_of(p2, hunt.id)
 	var show: Button = null
 	var plot: Button = null
@@ -160,7 +152,7 @@ func _galaxy(sd: int) -> void:
 
 	# PLOT ROUTE
 	plot.pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var ch := Router.current as StarchartScreen
 	if _ok("PLOT ROUTE opens the chart and shuts the table", ch != null and not QuestPanel.is_open()):
 		_ok("with the quest's target the destination", ch._selected == hunt.at and ch._chart.selected == hunt.at
@@ -175,7 +167,7 @@ func _galaxy(sd: int) -> void:
 		await _tags(ch, "PLOT ROUTE")
 		# the table from the chart
 		Router.hud._tab_quests.pressed.emit()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_fit("the chart")
 		QuestPanel.close()
 		# another star drops the quest
@@ -187,21 +179,21 @@ func _galaxy(sd: int) -> void:
 				break
 		if other >= 0:
 			ch._on_node_picked(other)
-			await _frames(1)
+			await Harness.frames(_tree, 1)
 			_ok("picking another star drops the quest's tag and route",
 				ch._chart.quest_route.is_empty() and ch._chart.quest_tags.is_empty())
 
 	# SHOW ON STARCHART, for the READY one: its yard, no route
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	QuestPanel.open()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var ready: ContractData = held[0]
 	_row_of(QuestPanel._open, ready.id).pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var srow := _row_of(QuestPanel._open, ready.id)
 	(srow.find_child("ShowOnStarchart", true, false) as Button).pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var ch2 := Router.current as StarchartScreen
 	var yard := QuestLog.nearest_yard(ready.manufacturer)
 	if _ok("SHOW ON STARCHART opens the chart", ch2 != null):
@@ -212,19 +204,19 @@ func _galaxy(sd: int) -> void:
 
 	# THE SECTOR MAP, and the escape menu
 	Router.show_system()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	QuestPanel.open()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_fit("the sector map")
 	get_parent().toggle_menu(false)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("the escape menu shuts the table", not QuestPanel.is_open())
 	get_parent().toggle_menu(false)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	QuestPanel.open()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("and so does another screen", not QuestPanel.is_open())
 
 	# A STATION
@@ -235,10 +227,10 @@ func _galaxy(sd: int) -> void:
 	here.berths.append(&"korvan")
 	Router.park_at_station(here)
 	Router.show_station()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	if _ok("a station is up", Router.current is StationScreen):
 		Router.hud._tab_quests.pressed.emit()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("the tab opens the table at a station", QuestPanel.is_open())
 		_fit("a station")
 		QuestPanel.close()
@@ -267,7 +259,7 @@ func _event_quests(sd: int) -> void:
 	QuestLog.forget()
 	QuestPanel.picked = -1
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var hud := Router.hud
 	var tab0 := hud.quests_tab_rect()
 	var job := _offer(ContractData.Kind.HUNT)
@@ -294,7 +286,7 @@ func _event_quests(sd: int) -> void:
 		StringName(Run.event_quest_at(at).get("from", &"")) == &"the_runner")
 	QuestLog.forget()
 	hud.refresh()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("an event quest held: the QUESTS tab has not moved or changed size",
 		hud.quests_tab_rect() == tab0 and hud._tab_quests.text == "QUESTS")
 	var eid := QuestLog.EVENT_ID + at
@@ -304,7 +296,7 @@ func _event_quests(sd: int) -> void:
 	var jw := "HERE" if j == 0 else ("1 JUMP" if j == 1 else ("%d JUMPS" % j if j > 0 else "NO ROUTE"))
 
 	hud._tab_quests.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var p := QuestPanel._open
 	if not _ok("the table opens", p != null):
 		return
@@ -327,7 +319,7 @@ func _event_quests(sd: int) -> void:
 	if row == null:
 		return
 	row.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	row = _row_of(p, eid)
 	var plot: Button = row.find_child("PlotRoute", true, false) as Button if row != null else null
 	var show: Button = row.find_child("ShowOnStarchart", true, false) as Button if row != null else null
@@ -341,7 +333,7 @@ func _event_quests(sd: int) -> void:
 
 	# PLOT ROUTE and SHOW ON STARCHART
 	plot.pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var ch := Router.current as StarchartScreen
 	if _ok("its PLOT ROUTE opens the chart", ch != null and not QuestPanel.is_open()):
 		_ok("on its system", ch._selected == at and ch._chart.selected == at)
@@ -354,16 +346,16 @@ func _event_quests(sd: int) -> void:
 			and int(ch._chart.quest_tags[0].index) == at and String(ch._chart.quest_tags[0].text) == "2 %s" % String(words.tag))
 		await _tags(ch, "the event quest's PLOT ROUTE")
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	QuestPanel.show_on_chart(eid, false)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	ch = Router.current as StarchartScreen
 	_ok("its SHOW ON STARCHART opens the chart on its system, no route",
 		ch != null and ch._selected == at and ch._chart.quest_route.is_empty() and ch._chart.quest_tags.size() == 1)
 
 	# PAID IN FULL TAKEN: out of the open rows, under COMPLETED with what it paid
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Run.at = at
 	target.visited = true
 	Run.chart_from(target)
@@ -398,7 +390,7 @@ func _event_quests(sd: int) -> void:
 		and String((done[0] as Dictionary).pay2) == "+%d STANDING" % (Run.standing_with(job.manufacturer) - s0)
 		and QuestLog.entries().is_empty())
 	hud.refresh()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("everything finished: the QUESTS tab has not moved or changed size",
 		hud.quests_tab_rect() == tab0 and hud._tab_quests.text == "QUESTS")
 	await _completed_table(eid, job, "")
@@ -438,7 +430,7 @@ func _event_quests(sd: int) -> void:
 	_ok("with nothing recorded", Run.event_quests.is_empty() and Run.quests_done.is_empty())
 	QuestLog.forget()
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("an old save: the QUESTS tab has not moved or changed size",
 		Router.hud.quests_tab_rect() == tab0 and Router.hud._tab_quests.text == "QUESTS")
 	var open: Array = QuestLog.entries()
@@ -463,7 +455,7 @@ func _event_quests(sd: int) -> void:
 		int(dev.get("id", -1)) == eid and String(dev.pay) == "" and String(dev.who) == "The runner")
 	await _completed_table(eid, job, "the old save: ")
 	var p3 := QuestPanel.open()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("the old save's table shows the open event quest's row", p3 != null and _row_of(p3, QuestLog.EVENT_ID + at2) != null)
 	QuestPanel.close()
 
@@ -473,10 +465,10 @@ func _event_quests(sd: int) -> void:
 func _completed_table(eid: int, job: ContractData, when: String) -> void:
 	QuestPanel.close()
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	QuestPanel.picked = -1
 	var p := QuestPanel.open()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	if not _ok("%sthe table opens" % when, p != null):
 		return
 	var head := p.find_child("Completed", true, false) as Label
@@ -500,7 +492,7 @@ func _completed_table(eid: int, job: ContractData, when: String) -> void:
 	if _row_of(p, eid) == null:
 		return
 	_row_of(p, eid).pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var er := _row_of(p, eid)
 	_ok("%sa finished row opens its note and SHOW ON STARCHART, and has no PLOT ROUTE" % when,
 		er != null and er.find_child("Note", true, false) != null

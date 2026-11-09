@@ -7,15 +7,14 @@ const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
-var _fails := 0
+var h := Harness.new()
 var _checks := 0
 
 
 func _ok(what: String, cond: bool) -> bool:
 	_checks += 1
 	if not cond:
-		_fails += 1
-		print("  FAIL %s" % what)
+		h._fail(what)
 	return cond
 
 
@@ -33,8 +32,8 @@ func _ready() -> void:
 		for sd: int in seeds:
 			await _seed(sd)
 	print("  mapperftest: %d checks" % _checks)
-	print("mapperftest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	get_tree().quit(1 if _fails > 0 else 0)
+	h.verdict("mapperftest")
+	get_tree().quit(h.code())
 
 
 ## One run's systems worth checking, a twin included (ruling 20: its orbits circle three centres).

@@ -388,7 +388,7 @@ func _check_local_together(when: String) -> void:
 	var slots: Array = view.get("_made_convoy")
 	if not _ok("LOCAL draws the partner %s" % when, slots.size() >= 1):
 		return
-	var partner: EncounterView.ConvoySlot = slots[0]
+	var partner: ConvoySlot = slots[0]
 	_ok("and the partner's slot is on screen %s" % when, partner.is_inside_tree() and partner.is_visible_in_tree())
 	# Compares hull ink, not canvases: canvases carry exhaust and bob room and may touch.
 	var boxes: Array = view.player_boxes()

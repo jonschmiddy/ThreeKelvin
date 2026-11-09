@@ -7,24 +7,12 @@ var _tree: SceneTree
 var _zl: Script = load("res://scripts/ui/ZoomLadder.gd")
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(k + "="):
-			return (a as String).substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_run.call_deferred()
 
 
 func _img() -> Image:
 	return GameShell.input_target(_tree).get_texture().get_image()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _set_look(l: String) -> void:
@@ -54,11 +42,11 @@ func _check(im: Image, look: String, k: int) -> void:
 func _run() -> void:
 	_tree = get_tree()
 	await _tree.process_frame
-	var out := _arg("out", "user://sidebarshot")
+	var out := Harness.arg("out", "user://sidebarshot")
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 60.0
-	Rng.forced = int(_arg("seed", "1"))
+	Rng.forced = Harness.seed_arg(1)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var sys := Run.at
@@ -70,9 +58,9 @@ func _run() -> void:
 	SectorScreen._approached_at = sys
 	ZoomLadder.force = 0
 	Router.show_local()
-	await _frames(90)
+	await Harness.frames(_tree, 90)
 	ZoomLadder.force = 1
-	var looks := _arg("looks", "A,B,C,D,E,F").split(",")
+	var looks := Harness.arg("looks", "A,B,C,D,E,F").split(",")
 	for l in looks:
 		_set_look(l)
 		var d := "%s/%s" % [out, l]
@@ -103,7 +91,7 @@ func _run() -> void:
 		f.close()
 		print("  [sidebarshot] %s: %d frames, hops %s" % [l, k, hops])
 		# (back on LOCAL, at rest, for the next look)
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 	_set_look("")
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0

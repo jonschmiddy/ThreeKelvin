@@ -5,7 +5,6 @@ extends Node
 
 const VOICE_GAP_S := 0.5
 
-var _args: PackedStringArray
 var _tree: SceneTree
 var _t0 := 0.0
 var _f0 := 0
@@ -13,15 +12,7 @@ var _marks: Array = []
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _wait(s: float) -> void:
@@ -157,15 +148,15 @@ func _run() -> void:
 	_tree = get_tree()
 	HullScramble.logging = true
 	await _tree.process_frame
-	var scene := _arg("scene", "local")
+	var scene := Harness.arg("scene", "local")
 	if scene == "voice":
 		_voice_reel()
 		return
-	var secs := float(_arg("secs", "8"))
-	var hull := float(_arg("hull", "0.22"))
-	var ash := _arg("ash", "0") == "1"
+	var secs := float(Harness.arg("secs", "8"))
+	var hull := float(Harness.arg("hull", "0.22"))
+	var ash := Harness.arg("ash", "0") == "1"
 	print("film %s preset %s hull %.2f" % [scene, LowHull.Preset.keys()[LowHull.preset], hull])
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.hand_size_override = 5
 	_to_system()
@@ -223,7 +214,7 @@ func _run() -> void:
 			Router.show_local()
 			await _wait(4.0)
 			_start()
-			var step := float(_arg("step", "2.5"))
+			var step := float(Harness.arg("step", "2.5"))
 			await _wait(1.5)
 			for lv in [0.30, 0.20, 0.10, 0.05]:
 				_share(lv)
@@ -234,7 +225,7 @@ func _run() -> void:
 			_mark("repaired to 60%: eases off")
 			await _wait(3.0)
 	_mark("end")
-	var out := _arg("out", "")
+	var out := Harness.arg("out", "")
 	if out != "":
 		var f := FileAccess.open(out.path_join("marks.json"), FileAccess.WRITE)
 		if f != null:
@@ -255,7 +246,7 @@ func _voice_reel() -> void:
 	var all := PackedByteArray()
 	var rows: Array = []
 	var rng := RandomNumberGenerator.new()
-	rng.seed = int(_arg("seed", "4242"))
+	rng.seed = Harness.seed_arg(4242)
 	var at := 0.0
 	for share in [0.30, 0.20, 0.10, 0.05]:
 		var plan := LowHull.plan_for(st.get_length(), share, LowHull.look(), rng)
@@ -268,7 +259,7 @@ func _voice_reel() -> void:
 		all.append_array(gap)
 		at += VOICE_GAP_S
 		print("voice at %.0f%%: %d glitches" % [share * 100.0, (r.plan as Array).size()])
-	var out := _arg("out", "user://")
+	var out := Harness.arg("out", "user://")
 	var wav := VoiceGlitch.from_pcm(all, sr) as AudioStreamWAV
 	wav.save_to_wav(out.path_join("voice.wav"))
 	var f := FileAccess.open(out.path_join("voice.json"), FileAccess.WRITE)

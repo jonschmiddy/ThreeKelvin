@@ -259,7 +259,7 @@ func refresh() -> void:
 	# Colour carries it without the word: the label was a third copy of a working signal.
 	_hull_text.text = "%d/%d" % [hp, Run.max_hp()]
 	_hull_text.add_theme_color_override("font_color",
-		Color("#d4614f") if hp < Run.max_hp() * 0.35 else UITheme.COLD)
+		UITheme.LEAVE if hp < Run.max_hp() * 0.35 else UITheme.COLD)
 	_hint(_hull_text, hull_note)
 
 	var over := heat - Run.heat_cap()

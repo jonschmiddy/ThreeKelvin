@@ -5,22 +5,12 @@ extends Node
 ## Why: docs/why/BandDropTest.md#band-drop
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 var _frame := 0
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with(k + "="):
-			return a.get_slice("=", 1)
-	return d
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -100,5 +90,5 @@ func _run() -> void:
 				% [bar_early, int(bar_from), bar_frames],
 				bar_early == 0 and bar_from > 0.0 and bar_frames > 1 and sc._quiet_wrap.position.y == 0.0)
 		await _wait(1.0 if film else 0.3)
-	print("banddroptest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(0 if _fails == 0 else 1)
+	h.verdict("banddroptest")
+	_tree.quit(h.code())

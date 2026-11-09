@@ -4,7 +4,7 @@ extends Node
 ## What stands beside your ship must be what is at that place (`_scene_check`).
 ## Why: docs/why/OrbitWorldTest.md#orbit-world-test
 
-var _fails := 0
+var harness := Harness.new()
 var _tree: SceneTree
 var _seeds: Array[int] = [7, 11, 23, 42]
 var _quick := false
@@ -38,10 +38,7 @@ var _bars := {}
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
@@ -62,11 +59,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _idle() -> int:
 	for i in 900:
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"":
@@ -84,14 +76,14 @@ func _tab() -> void:
 		k.physical_keycode = KEY_TAB
 		k.pressed = pressed
 		Input.parse_input_event(k)
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 	await _idle()
 
 
 ## The HUD's LOCAL tab, pressed.
 func _here_tab() -> void:
 	Router.hud._tab_sector.pressed.emit()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	await _idle()
 
 
@@ -391,7 +383,7 @@ func _flyin_again(sd: int, label: String) -> void:
 		k.physical_keycode = KEY_SPACE
 		k.pressed = down
 		Input.parse_input_event(k)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var art := sc._view.ship_view()
 	_ok("seed %d %s: a key parks it at once (phase %d, arriving %s, shown %s)" % [sd, label, sc._phase, art.arriving(), art.visible],
 		sc._phase == SectorScreen.Phase.NONE and not sc._flyin and not art.arriving() and art.visible)
@@ -401,7 +393,7 @@ func _flyin_again(sd: int, label: String) -> void:
 		Router.show_system()
 		await _idle()
 	await _here_tab()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	sc = Router.current as SectorScreen
 	_ok("seed %d %s: LOCAL again, no flight between: parked, no fly-in (%d)" % [sd, label, SectorScreen.flyins - fi0],
 		sc != null and SectorScreen.flyins == fi0 and not sc._flyin and sc._view.ship_view().visible)
@@ -430,7 +422,7 @@ func _station_dock(sd: int) -> void:
 	_ok("seed %d station: DOCK docks" % sd, Router.current is StationScreen and Router.docked)
 	Router.show_sector()
 	await _idle()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_ok("seed %d station: UNDOCK back on LOCAL" % sd, Router.current is SectorScreen and not Router.docked)
 	await _entry_check("seed %d station: undock" % sd)
 
@@ -456,7 +448,7 @@ func _bar_here(sd: int, label: String) -> void:
 	LocalEventDrawer._auto[n.index] = LocalEventDrawer.visit_key(n)
 	Router.show_local()
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var sc := Router.current as SectorScreen
 	var here := 0
 	for i: int in EncounterDrawer.untaken(n):
@@ -486,7 +478,7 @@ func _settled() -> SectorScreen:
 			continue
 		if not sc._flyin and not sc._flyin_wait and sc._phase == SectorScreen.Phase.NONE and sc._events.deferred.is_empty():
 			break
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	return Router.current as SectorScreen
 
 
@@ -561,7 +553,7 @@ func _local_is_go(sd: int, label: String) -> void:
 	var sc := Router.current as SectorScreen
 	if sc != null and sc._events.page != &"":
 		sc._events.not_now()
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 	m = await _map_now()
 	await _here_tab()
 	var again := _ev_state(await _settled())
@@ -579,7 +571,7 @@ func _local_is_go(sd: int, label: String) -> void:
 		var sc2 := Router.current as SectorScreen
 		if sc2 != null and sc2._events.page != &"":
 			sc2._events.not_now()
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 	LocalEventDrawer.quiet = false
 
 
@@ -638,7 +630,7 @@ func _entry_check(what: String) -> void:
 		if not _arriving(sc) and sc._events.deferred.is_empty():
 			break
 		await _tree.process_frame
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	if not is_instance_valid(sc):
 		return
 	var log: Array = _bars.get(sc.get_instance_id(), [])
@@ -688,7 +680,7 @@ func _resolved_stays(sd: int, label: String) -> void:
 		Router.show_system()
 		await _idle()
 	await _here_tab()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	sc = Router.current as SectorScreen
 	if not _ok("seed %d %s: LOCAL again after the event was taken" % [sd, label], sc != null):
 		return
@@ -735,7 +727,7 @@ func _station_burn(sd: int) -> void:
 		if Router.current is SectorScreen and not ZoomLadder.busy():
 			break
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var sc := Router.current as SectorScreen
 	if _ok("seed %d station burn: on LOCAL" % sd, sc != null):
 		if _shots != "":
@@ -799,7 +791,7 @@ func _fly(p: int) -> bool:
 		if not is_instance_valid(m):
 			return false
 		if m.flight.reached() == p and m.flight.can_fly():
-			await _frames(10)
+			await Harness.frames(_tree, 10)
 			return true
 	return false
 
@@ -872,7 +864,7 @@ func _tour(sd: int, label: String) -> void:
 				if Router.current is SectorScreen and not ZoomLadder.busy():
 					break
 			await _idle()
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 		else:
 			if not _ok("seed %d %s: flown to %s (body %d)" % [sd, label, L.bodies[b].name, b], await _fly(b)):
 				continue
@@ -882,7 +874,7 @@ func _tour(sd: int, label: String) -> void:
 			else:
 				await _tab()
 				await _tab()
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 		await _check("seed %d %s: %s %s by %s" % [sd, label, L.bodies[b].kind, L.bodies[b].world, door])
 		# LOCAL's own arrival (Jon, Oct 21): the first LOCAL at a flown-to world flies it in.
 		var flew := int((SystemMapScreen.flown_to.get(n.index, {}) as Dictionary).get("n", -1)) != f0
@@ -989,7 +981,7 @@ func _early(sd: int, label: String, when: String) -> void:
 		if Router.current is SectorScreen and not ZoomLadder.busy():
 			break
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var sc := Router.current as SectorScreen
 	if not _ok("seed %d %s %s: on LOCAL" % [sd, label, when], sc != null):
 		return
@@ -1011,7 +1003,7 @@ func _early(sd: int, label: String, when: String) -> void:
 		await _idle()
 	m = Router.current as SystemMapScreen
 	if m != null:
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_ok("seed %d %s %s: the map again, the ship on %d (on %d, mode %s, reached %d)" % [sd, label, when, want, m.flight.orbit_body(), m.flight.mode, m.flight.reached()],
 			m.flight.orbit_body() == want)
 		for i in 1200:
@@ -1020,7 +1012,7 @@ func _early(sd: int, label: String, when: String) -> void:
 			await _tree.process_frame
 	Router.show_local()
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 ## How long the burn onto the orbit has to go, by the map's clock.
@@ -1062,7 +1054,7 @@ func _jump_to(to: int) -> bool:
 				and Router._post_arrive == false:
 			break
 	await _idle()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	return Run.at == to
 
 
@@ -1070,7 +1062,7 @@ func _jump_to(to: int) -> bool:
 func _arrival(sd: int, label: String) -> void:
 	if Router.current is SystemMapScreen:
 		await _here_tab()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_label = "s%d_%s_arrival" % [sd, label]
 	await _check("seed %d %s: arrival" % [sd, label])
 	await _entry_check("seed %d %s: arrival, LOCAL opened" % [sd, label])
@@ -1083,7 +1075,7 @@ func _reload(sd: int) -> void:
 	SaveGame.save()
 	Run.hull = null
 	Router.show_launcher()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	SystemMapScreen._parked = {}
 	Router.continue_run()
 	var t0 := Time.get_ticks_msec()
@@ -1092,10 +1084,10 @@ func _reload(sd: int) -> void:
 		if (Router.current is SectorScreen or Router.current is SystemMapScreen) and not ZoomLadder.busy():
 			break
 	await _idle()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	if Router.current is SystemMapScreen:
 		await _here_tab()
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 	_ok("seed %d: CONTINUE keeps the ship at body %d (%d)" % [sd, w.at, Run.site_here()], Run.site_here() == int(w.at))
 	_label = "s%d_continue" % sd
 	await _check("seed %d: after CONTINUE" % sd)
@@ -1123,7 +1115,7 @@ func _run() -> void:
 		var fl0 := SectorScreen.flyins
 		Router.show_local()
 		await _idle()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		await _check("seed %d start: launch" % sd)
 		await _entry_check("seed %d start: launch" % sd)
 		# (the first system has its own arrival, never LOCAL's fly-in)
@@ -1171,5 +1163,5 @@ func _end() -> void:
 	_watch = false
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
-	print("orbitworldtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("orbitworldtest")
+	_tree.quit(harness.code())

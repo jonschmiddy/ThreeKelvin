@@ -1685,7 +1685,7 @@ func free_step(st: FreeState, k: Dictionary, t: float, dt: float, stick: int, re
 ## A twin's star takes only slow inward ships: at 150 px/s the insertion dipped to 31 px
 ## from a sun whose keep-out is 47.
 ## Why: docs/why/ShipFlight.md#capture-rules
-func _star_takes(s: int, v: Vector2, rh: Vector2) -> bool:
+func _star_takes(_s: int, v: Vector2, rh: Vector2) -> bool:
 	if not L.twin:
 		return true
 	return -v.dot(rh) <= STAR_IN_V

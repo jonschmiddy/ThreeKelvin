@@ -35,7 +35,7 @@ const POPUP_INSET_V := 96
 ## The corner checkbox, kept so it can repaint itself when flipped.
 var _dev_box: Button = null
 var _seed_field: LineEdit = null
-var _sky: StarchartScreen.MapChart = null
+var _sky: MapChart = null
 ## Real size arrives after setup(); rotating before it swept a default-size square across the view.
 ## Why: docs/why/LauncherScreen.md#sky-fit
 var _fitted: bool = false
@@ -533,7 +533,7 @@ func _option(text: String, action: Callable, primary: bool = false) -> Button:
 ## Why: docs/why/LauncherScreen.md#title-galaxy
 func _make_sky() -> void:
 	_roll_sky_galaxy()
-	_sky = StarchartScreen.MapChart.new()
+	_sky = MapChart.new()
 	_sky.show_icons = false
 	_sky.turn_speed = TITLE_TURN
 	_sky.run_galaxy = false

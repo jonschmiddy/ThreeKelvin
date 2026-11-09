@@ -168,7 +168,7 @@ static func solid_inv(p: Vector2) -> Vector2:
 	return Vector2(SOLID_T.x + dx, (SOLID_T.y + dy) * TILT)
 
 
-var chart: StarchartScreen.MapChart = null
+var chart: MapChart = null
 
 ## Seconds between frames of the sky's own motion. 0 is every frame. See
 ## `MapChart.set_anim_interval`.
@@ -440,7 +440,7 @@ func _g_for() -> Dictionary:
 # ------------------------------------------------------------------ setup
 
 ## Hand the chart over; bake its galaxy if nobody has.
-func setup(c: StarchartScreen.MapChart) -> void:
+func setup(c: MapChart) -> void:
 	chart = c
 	_use_map = c.run_galaxy
 	# the style is part of the key: a simplified bake and a painted one differ
@@ -477,9 +477,9 @@ func _request_bake() -> void:
 
 
 ## What the bake reads from the chart, copied: the chart may close mid-bake.
-static func _snapshot_stars(c: StarchartScreen.MapChart) -> Dictionary:
+static func _snapshot_stars(c: MapChart) -> Dictionary:
 	return {
-		"r_max": c._radius() * StarchartScreen.MapChart.DISC,
+		"r_max": c._radius() * MapChart.DISC,
 		"pos": c._star_pos.duplicate(), "col": c._star_col.duplicate(), "big": c._star_big.duplicate(),
 		"cr": c._core_rad.duplicate(), "ca": c._core_ang.duplicate(), "cc": c._core_col.duplicate(),
 		"gc": c._glob_c.duplicate(), "gi": c._glob_i.duplicate(), "pulsar": c._pulsar.duplicate(),
@@ -651,11 +651,6 @@ static func push_story(m: ShaderMaterial, gain: float) -> void:
 		m.set_shader_parameter(k, d[k])
 
 
-## How far out a ball is lit, so the chart's frame takes in the whole ball.
-static func ball_lit_gu(ball: Vector4) -> float:
-	return 1.8 * ball.x
-
-
 ## A ball in the spiral's hand in SIMPLIFIED (`chart_c_place`'s `ellBall`, Jon Nov 5): (look, how
 ## far out its old warm light holds in ball radii, its young gas and star birth 0..1, how
 ## irregular its outline 0..1).
@@ -720,8 +715,8 @@ static func params(_use_map: bool = true) -> Dictionary:
 	var arms := int(g.get("arms", 2)) if form == 0 else 0
 	var gas := float(g.get("gas", 1.0))
 	var bulge := float(g.get("bulge", 0.3))
-	var shadow := float(g.get("hole", 0.03)) / StarchartScreen.MapChart.DISC
-	var bulge_r := bulge / StarchartScreen.MapChart.DISC
+	var shadow := float(g.get("hole", 0.03)) / MapChart.DISC
+	var bulge_r := bulge / MapChart.DISC
 	var hole_r := shadow * clampf(0.2 * bulge_r / maxf(shadow, 1e-4), 1.0, HOLE_K)
 	return {
 		"kind": kind, "form": form, "arms": arms, "gas": gas,
@@ -747,7 +742,7 @@ func hole_px() -> float:
 
 ## Chart px a galaxy unit at zoom 1: the chart's own projection.
 func _k() -> float:
-	return chart._radius() * StarchartScreen.MapChart.DISC
+	return chart._radius() * MapChart.DISC
 
 
 # ------------------------------------------------------------------ the bake
@@ -1298,7 +1293,7 @@ func _star_debt(g: Dictionary) -> ImageTexture:
 
 
 static func _data_tex(f: PackedFloat32Array, n: int) -> ImageTexture:
-	var w := StarchartScreen.MapChart.SKY_TEX_W
+	var w := MapChart.SKY_TEX_W
 	var rows := maxi(1, ceili(float(n) / float(w)))
 	f.resize(w * rows * 4)
 	return ImageTexture.create_from_image(Image.create_from_data(w, rows, false, Image.FORMAT_RGBAF, f.to_byte_array()))
@@ -1335,7 +1330,7 @@ static func _make_knots(p: Dictionary) -> Array:
 
 
 ## The named clouds as the place pass draws them, kinds numbered as the shader numbers them.
-func _make_clouds(p: Dictionary, g: Dictionary) -> Array:
+func _make_clouds(p: Dictionary, _g: Dictionary) -> Array:
 	var out: Array = []
 	var sq: float = p.squash
 	var r_max: float = _src.r_max
@@ -1634,13 +1629,13 @@ func _runtime() -> void:
 	_m_stars.set_shader_parameter("st_a", g.tex_a)
 	_m_stars.set_shader_parameter("st_b", g.tex_b)
 	_m_stars.set_shader_parameter("st_c", g.tex_c)
-	_m_stars.set_shader_parameter("tex_w", StarchartScreen.MapChart.SKY_TEX_W)
+	_m_stars.set_shader_parameter("tex_w", MapChart.SKY_TEX_W)
 	_m_stars.set_shader_parameter("n_star", int(g.n_star))
 	_m_stars.set_shader_parameter("bulge_r", float(g.p.bulge_r))
 	_m_stars.set_shader_parameter("k", K0)
 	_stars = MeshDraw.new()
 	_stars.material = _m_stars
-	_stars.mesh = StarchartScreen.MapChart._quads(int(g.n_star) + MAX_EXTRA)
+	_stars.mesh = MapChart._quads(int(g.n_star) + MAX_EXTRA)
 	_svp.add_child(_stars)
 	_m_place = ShaderMaterial.new()
 	if g.has("radiant"):
@@ -1838,7 +1833,7 @@ static func _lightning(c: Dictionary, rl: Array[Vector3], t: float, calm: bool) 
 
 ## Clouds, knots and events at time t and turn phi onto a place material.
 func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: float, live: bool,
-		extra: Array = []) -> void:
+		_extra: Array = []) -> void:
 	var calm := (not live) or DisplaySettings.reduced_motion
 	m.set_shader_parameter("u_drift", 0.5 if DisplaySettings.reduced_motion else 1.0)
 	m.set_shader_parameter("u_wxOn", 0.0 if calm else 1.0)
@@ -1994,8 +1989,8 @@ func push() -> void:
 		return
 	var t_us := Time.get_ticks_usec()
 	_push()
-	if StarchartScreen.MapChart.prof:
-		StarchartScreen.MapChart.prof_add("push", Time.get_ticks_usec() - t_us)
+	if MapChart.prof:
+		MapChart.prof_add("push", Time.get_ticks_usec() - t_us)
 
 
 ## The part of the chart that can be seen: all of it on the chart, the screen's
@@ -2037,7 +2032,7 @@ func _push() -> void:
 			_m_place.shader = PLACE_LOW_SH if _low_now else PLACE_SH
 	var k := _k()
 	var z := chart.zoom * k / K0
-	var t := StarchartScreen.MapChart.clock()
+	var t := MapChart.clock()
 	var phi: float = chart.turn()
 	var cpix: Vector2 = chart.centre_px()
 	var exact: Vector2 = chart.size * 0.5 + chart.pan
@@ -2104,7 +2099,7 @@ func _push() -> void:
 	var m := _m_place
 	_feed_view(m, g, vs, _vp_origin, ccon, res, z, t, phi)
 	# (the title screen's galaxy, which never zooms, is its own opening)
-	m.set_shader_parameter("u_zopen", StarchartScreen.MapChart.ZOOM_MIN * k / K0 if _use_map else z)
+	m.set_shader_parameter("u_zopen", MapChart.ZOOM_MIN * k / K0 if _use_map else z)
 	_feed_sky(m)
 	m.set_shader_parameter("u_block0", b0)
 	_feed_events(m, g, t, phi, z, true)
@@ -2247,5 +2242,5 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, chart.size), Color8(7, 10, 18), true)
 	else:
 		draw_texture_rect(_vp.get_texture(), Rect2(_vp_origin, Vector2(_vp.size) * 2.0), false)
-	if StarchartScreen.MapChart.prof:
-		StarchartScreen.MapChart.prof_add("sky", Time.get_ticks_usec() - t0)
+	if MapChart.prof:
+		MapChart.prof_add("sky", Time.get_ticks_usec() - t0)

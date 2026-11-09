@@ -1129,7 +1129,7 @@ func _mix_table(keys: Array, cut: int) -> void:
 
 
 ## Keeps the first jump where the fuel hint's rule is true, and whether it would name a dock.
-func _audit_jump(node: MapGen.MapNode, pick: int) -> void:
+func _audit_jump(node: MapGen.MapNode, _pick: int) -> void:
 	if _tr.is_empty():
 		return
 	var dear := 0

@@ -2,7 +2,7 @@
 # gate_land.sh <worktree> <branch> <label>
 #
 # The only way anything reaches main. In the worktree: merge main, import, run
-# the full gate (.github/scripts/validate.sh, about 12 minutes); on a pass,
+# the full gate (.github/scripts/validate.sh, about 10 minutes); on a pass,
 # fast-forward main in the main checkout to the branch and push it.
 # Last line: "LANDED <label> <sha>" or "FAILED <label> (why)".
 #
@@ -23,10 +23,7 @@ if git status --short | grep -qE "^(UU|AA|DU|UD)"; then
 	git status --short | grep -E "^(UU|AA|DU|UD)"; echo "FAILED $L (merge conflict)"; exit 1
 fi
 [ "$mrc" -eq 0 ] || { echo "FAILED $L (merge of main refused, no conflict: local changes?)"; exit 1; }
-p="$(tk_new_profile)"
-tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1 \
-	|| tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1
-rm -rf "$p"
+tk_import_project
 GODOT="$D/godot_quiet.sh" bash .github/scripts/validate.sh >"$LOG" 2>&1
 grep -E "FAIL" "$LOG" | head -12
 if ! grep -q "VALIDATION PASSED" "$LOG"; then echo "FAILED $L (gate, log $LOG)"; exit 1; fi

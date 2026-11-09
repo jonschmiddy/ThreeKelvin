@@ -786,10 +786,7 @@ func _seed_module_sizes() -> void:
 			m.size = UNIT
 
 ## Common and uncommon give no pips: yard stock is cards, so a common cannot out-plate a rare.
-## Preload the script: `Run` is a later autoload, so `Run.PER_PIP` is null here.
 ## Why: docs/why/Database.md#attribute-ladder
-const RUNSTATE := preload("res://scripts/autoload/RunState.gd")
-
 const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
 
 ## WHAT A COUPLING IS WORTH, in pips of REACTOR. Flat, and deliberately off the
@@ -872,7 +869,7 @@ func regrade(m: ModuleData, rarity: int) -> void:
 func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 	if pips == 0:
 		return
-	var fields: Dictionary = RUNSTATE.PER_PIP[axis]
+	var fields: Dictionary = Attributes.PER_PIP[axis]
 	for field in fields:
 		var unit: float = float(fields[field]) * float(pips)
 		match field:

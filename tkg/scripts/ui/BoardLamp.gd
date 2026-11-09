@@ -291,13 +291,13 @@ func _motes(v: float, lc: Color) -> void:
 		return
 	var t := _now()
 	for k in MOTES:
-		var sx := ShopLight.hash1(float(k) * 1.37 + 0.11)
-		var sy := ShopLight.hash1(float(k) * 2.71 + 5.3)
-		var sp := 0.15 + 0.5 * ShopLight.hash1(float(k) * 3.91 + 1.7)
+		var sx := UIHash.hash1(float(k) * 1.37 + 0.11)
+		var sy := UIHash.hash1(float(k) * 2.71 + 5.3)
+		var sp := 0.15 + 0.5 * UIHash.hash1(float(k) * 3.91 + 1.7)
 		var x := fposmod(sx * size.x + t * sp * 7.0 + 13.0 * sin(t * 0.21 + sx * 31.0), size.x)
 		var y := fposmod(sy * size.y - t * sp * 4.0 + 9.0 * sin(t * 0.17 + sy * 27.0), size.y)
 		var L := light_at(x, y)
 		if L < 0.35:
 			continue
-		var a := minf(0.85, (L - 0.25) * v * (0.5 + 0.6 * ShopLight.hash1(float(k) * 7.7)))
+		var a := minf(0.85, (L - 0.25) * v * (0.5 + 0.6 * UIHash.hash1(float(k) * 7.7)))
 		draw_rect(Rect2(floorf(x), floorf(y), 1.0, 1.0), Color(lc.r, lc.g, lc.b, a))

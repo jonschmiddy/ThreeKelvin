@@ -5,32 +5,25 @@ extends Node
 ## Why: docs/why/AshTest.md#ash-test
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 var _checks := 0
 var _quiet := false
 
 
 func _ok(what: String, c: bool) -> bool:
 	_checks += 1
-	if not c or not _quiet:
-		print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	if c and _quiet:
+		return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("off under a harness that did not ask", not Ash.enabled())
 	Ash.forced = true
 	Ash.reload()
@@ -64,7 +57,7 @@ func _local(weight: int = HullData.Weight.MEDIUM, wrecks: Array = [], seed_v: in
 	for w: Array in wrecks:
 		Run.new_wreck(Run.node_at(), DB.enemies[w[0]], int(w[1]))
 	Router.show_local()
-	await _frames(12)
+	await Harness.frames(_tree, 12)
 	_settle()
 	return Router.current as SectorScreen
 
@@ -76,7 +69,7 @@ func _fight(weight: int, foe: StringName, more: Array = []) -> SectorScreen:
 		extras.append(DB.enemies[x])
 	Run.node_at().danger = maxi(Run.node_at().danger, 4)
 	Router.start_combat(DB.enemies[foe], extras, false, false)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	_settle()
 	return Router.current as SectorScreen
 
@@ -154,7 +147,7 @@ func _talk() -> void:
 			if String(l).length() > longest.length():
 				longest = l
 	Ash.arm(&"launch")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var p := Ash.portrait
 	if not _ok("she is up on LOCAL at launch", p != null and p.speaking()):
 		Router.animate_in_harness = false
@@ -169,7 +162,7 @@ func _talk() -> void:
 		mouths[p._mouth] = true
 		if p.phase == AshPortrait.Phase.TYPING:
 			typed_for = GameClock.now() - t0
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var log: Array = p.frames_log.duplicate()
 	# changes a second while typing, and the shortest hold
 	var changes := 0
@@ -317,7 +310,7 @@ func _voice() -> void:
 	var sc := await _local()
 	Router.animate_in_harness = true
 	Ash.arm(&"launch")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var p := Ash.portrait
 	if not _ok("she is up to speak", p != null and p.speaking()):
 		Router.animate_in_harness = false
@@ -402,7 +395,7 @@ func _voice() -> void:
 	else:
 		bad.append("END TURN (never spoke)")
 	Run.heat = 0
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	# A CARD DRAGGED AND A HINT COMING DUE NO LONGER CUT HER (Jon, Oct 22): her
 	# voice goes on
 	var kept: Array[String] = []
@@ -414,7 +407,7 @@ func _voice() -> void:
 		sc._grab_view = sc._hand._views[0] if sc._hand._views.size() > 0 else null
 		sc._grab_mode = 2
 		Ash.poll(0.0)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		(kept if Audio.voice_now != "" and _taped("ash/stop").is_empty() else bad).append("a drag")
 		sc._grab_view = null
 		sc._grab_mode = 0
@@ -428,7 +421,7 @@ func _voice() -> void:
 		Audio.tape.clear()
 		Hints._cand = &"wreck"
 		Ash.poll(0.0)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		Hints._cand = &""
 		(kept if Audio.voice_now != "" and _taped("ash/stop").is_empty() else bad).append("a hint coming due")
 	else:
@@ -462,7 +455,7 @@ func _voice() -> void:
 	Audio.tape.clear()
 	sc = await _local()
 	Ash.arm(&"launch")
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_ok("Settings off: no voice (taped %s)" % str(_taped("ash/")), _taped("ash/").is_empty() and Audio.voice_now == "")
 	Ash.set_on(true)
 	Audio.taping = false
@@ -544,7 +537,7 @@ func _exits() -> void:
 	var sc := await _local()
 	Router.animate_in_harness = true
 	Ash.arm(&"launch")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var p := Ash.portrait
 	var gone_at := await _until_gone(p)
 	var log: Array = p.rev_log.duplicate()
@@ -565,7 +558,7 @@ func _exits() -> void:
 	# reduced motion: one blip, the lower, ending as she goes
 	sc = await _local()
 	Ash.arm(&"launch")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	p = Ash.portrait
 	gone_at = await _until_gone(p)
 	_ok("reduced motion: one blip reversed, ending as she goes (%s)" % str(p.rev_log),
@@ -582,10 +575,10 @@ func _exits() -> void:
 		mute.append("END TURN")
 	sc._on_end_turn()
 	Ash.poll(0.0)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	(none if Ash.portrait.rev_log.is_empty() else some).append("END TURN")
 	Run.heat = 0
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	# A CARD DRAGGED, A HINT COMING DUE: she plays out, and powers down of herself
 	var played: Array[String] = []
 	var cut_short: Array[String] = []
@@ -618,7 +611,7 @@ func _exits() -> void:
 	if not await _voice_up():
 		mute.append("the ship lost")
 	Run.hp = 0
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	(none if Ash.portrait.rev_log.is_empty() else some).append("the ship lost")
 	Run.hp = Run.max_hp()
 	sc = await _local()
@@ -627,7 +620,7 @@ func _exits() -> void:
 	if not await _voice_up():
 		mute.append("Settings off")
 	Ash.set_on(false)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	(none if Ash.portrait.rev_log.is_empty() else some).append("Settings off")
 	Ash.set_on(true)
 	_ok("no power-down when she is sent off (%s%s%s)" % [", ".join(none), "" if some.is_empty() else "; BUT " + ", ".join(some),
@@ -637,14 +630,14 @@ func _exits() -> void:
 	sc = await _local()
 	Router.animate_in_harness = true
 	Ash.arm(&"launch")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	p = Ash.portrait
 	while p.rev_log.is_empty() and p.speaking() and GameClock.now() - p._born < 14.0:
 		await _tree.process_frame
 	var started := not p.rev_log.is_empty()
 	Run.hp = 0
 	Ash.poll(0.0)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	_ok("the ship lost during the power-down hushes it (started %s, hushed %s, %d blip)" % [started, p.rev_hushed, p.rev_log.size()],
 		started and p.rev_hushed and p.rev_log.size() == 1)
 	Run.hp = Run.max_hp()
@@ -771,7 +764,7 @@ func _moments() -> void:
 			break
 	SectorScreen._approached_at = Run.at
 	Router.show_local()
-	await _frames(12)
+	await Harness.frames(_tree, 12)
 	k = await _said_after()
 	_ok("hull: a new run's hull pick is not a new body (%s; waiting %s)" % [k, Ash.waiting.keys()],
 		not _hull_said_since(said0) and not Ash.waiting.has(&"hull"))
@@ -782,7 +775,7 @@ func _moments() -> void:
 	Run.hull = null
 	SaveGame.load_into_run()
 	Router.resume_here()
-	await _frames(12)
+	await Harness.frames(_tree, 12)
 	k = await _said_after()
 	_ok("hull: a resumed run is not a new body (%s; waiting %s)" % [k, Ash.waiting.keys()],
 		not _hull_said_since(said0) and not Ash.waiting.has(&"hull"))
@@ -791,7 +784,7 @@ func _moments() -> void:
 	said0 = Ash.said_log.size()
 	Run.transfer_to_hull(DB.hull_for(&"korvan", HullData.Weight.LIGHT).duplicate() as HullData)
 	Run.old_hull = null
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	k = await _said_after()
 	_ok("hull: a hull found in the field and flown is not one bought (%s)" % k,
 		not _hull_said_since(said0) and not Ash.waiting.has(&"hull"))
@@ -799,22 +792,22 @@ func _moments() -> void:
 	sc = await _local()
 	var h := DB.hull_for(&"korvan", HullData.Weight.HEAVY).duplicate() as HullData
 	Router.show_station()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	Run.transfer_to_hull(h, 0, Run.node_at())
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Run.abandon_move()
 	Router.show_local()
-	await _frames(12)
+	await Harness.frames(_tree, 12)
 	k = await _said_after()
 	_ok("hull: a move called off at the dock says nothing (%s)" % k, k == &"")
 	Router.show_station()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	Run.transfer_to_hull(h, 0, Run.node_at())
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("hull: nothing on the dock's own screens (%s)" % Ash.held_by, Ash.said_log.back().kind != &"hull")
 	Run.old_hull = null
 	Router.show_local()
-	await _frames(12)
+	await Harness.frames(_tree, 12)
 	k = String(Ash.said_log.back().kind)
 	_ok("hull: the new hull, the first time she is up in it (%s)" % k, k == "hull")
 
@@ -960,12 +953,12 @@ func _clicks() -> void:
 	if p != null and p.speaking() and v != null:
 		var at := v.get_global_rect().get_center()
 		sc._on_card_grabbed(v, at)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		var held := p.speaking()
 		sc._end_reorder(false)
 		sc._on_card_grabbed(v, at)
 		sc._grab_decide(Vector2(at.x, sc._hand.get_global_rect().position.y - 120.0))
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		var dragged := p.speaking() and (sc._aim_view != null or sc._grab_mode != 0)
 		sc._end_aim(false)
 		await _until_gone(p)
@@ -981,7 +974,7 @@ func _clicks() -> void:
 	var sl := sc._view.slot(0)
 	if p != null and p.speaking() and sl != null and sl.opened.is_valid():
 		sl.opened.call()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		var tv: TransferView = sc._transfer
 		var covers := tv != null and tv.window_rect().intersects(p.rect())
 		var still := p.speaking()
@@ -1088,7 +1081,7 @@ func _limits() -> void:
 	_ok("turn: END TURN takes her off that frame, before a number can land (%s, visible %s)" % [
 		AshPortrait.Phase.keys()[Ash.portrait.phase], Ash.portrait.visible],
 		Ash.portrait.phase == AshPortrait.Phase.GONE and not Ash.portrait.visible)
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	Run.heat = 0
 
 
@@ -1202,7 +1195,7 @@ func _hints() -> void:
 	sc = await _fight(HullData.Weight.MEDIUM, &"cutter")
 	Run.heat = Run.heat_cap() + 2
 	Ash.arm(&"hot")
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("in a fight with hints due, her heat line waits (held by %s)" % Ash.held_by,
 		Ash.held_by == "hint" and not Ash.portrait.speaking())
 	Run.heat = 0
@@ -1268,9 +1261,9 @@ func _subject_local() -> SectorScreen:
 			# its band up, then NOT NOW: the subject as it stands while you are
 			# parked at it, the band down
 			sc._events.open(i)
-			await _frames(20)
+			await Harness.frames(_tree, 20)
 			sc._events.not_now()
-			await _frames(20)
+			await Harness.frames(_tree, 20)
 			_settle()
 			if LocalSubject.of(sc._view) != null:
 				print("    (the subject of %s, seed %d)" % [n.options[i], 4242 + s])
@@ -1440,5 +1433,5 @@ func _switch() -> void:
 func _finish() -> void:
 	Ash.forced = false
 	print("  %d checks" % _checks)
-	print("ashtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("ashtest")
+	_tree.quit(harness.code())

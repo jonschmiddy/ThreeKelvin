@@ -2173,7 +2173,7 @@ func _near_rest() -> Vector2:
 	return at + Vector2.ONE * float(hs % 2)
 
 
-func _step_near(o: Vector2) -> void:
+func _step_near(_o: Vector2) -> void:
 	if not _hand.is_empty():
 		_step_hand()
 	for e: Array in _near:

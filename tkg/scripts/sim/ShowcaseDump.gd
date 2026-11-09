@@ -23,7 +23,7 @@ func _ready() -> void:
 func _run() -> void:
 	for _i in 5:
 		await get_tree().process_frame
-	StarchartScreen.MapChart.clock_override = 600.0
+	MapChart.clock_override = 600.0
 	for kind in GalaxyGen.count():
 		if not only.is_empty() and not only.has(kind):
 			continue
@@ -46,7 +46,7 @@ func _run() -> void:
 		for _i in 10:
 			await get_tree().process_frame
 		var ch = scp._chart
-		ch._go_to(StarchartScreen.MapChart.ZOOM_MIN, Vector2.ZERO, false)
+		ch._go_to(MapChart.ZOOM_MIN, Vector2.ZERO, false)
 		ch._build_stars()
 		var d := _dump(ch, kind, natural)
 		var path := out.path_join("raw_kind_%02d.json" % kind)
@@ -96,7 +96,7 @@ func _plain(v: Variant) -> Variant:
 
 
 func _dump(ch, kind: int, natural: int) -> Dictionary:
-	var r_max: float = ch._radius() * StarchartScreen.MapChart.DISC
+	var r_max: float = ch._radius() * MapChart.DISC
 	var g: Dictionary = {}
 	for k in Run.galaxy:
 		g[k] = _plain(Run.galaxy[k])
@@ -189,8 +189,8 @@ func _dump(ch, kind: int, natural: int) -> Dictionary:
 		"params": g,
 		"sky": _plain(ChartSky.params(true)),
 		"chart": {"w": ch.size.x, "h": ch.size.y, "radius": _r(ch._radius()), "r_max": _r(r_max),
-			"zoom_min": StarchartScreen.MapChart.ZOOM_MIN, "zoom_max": StarchartScreen.MapChart.ZOOM_MAX,
-			"disc": StarchartScreen.MapChart.DISC, "tilt": ChartSky.TILT,
+			"zoom_min": MapChart.ZOOM_MIN, "zoom_max": MapChart.ZOOM_MAX,
+			"disc": MapChart.DISC, "tilt": ChartSky.TILT,
 			"turn_minutes": ChartSky.TURN_MINUTES, "hole_k": ChartSky.HOLE_K, "disc_k": ChartSky.DISC_K,
 			"shadow": _r(ch._shadow_r() / r_max), "core_clear": _r(ch._core_clear() / r_max),
 			"bulge": _r(ch._radius() * float(Run.galaxy.get("bulge", 0.2)) / r_max),

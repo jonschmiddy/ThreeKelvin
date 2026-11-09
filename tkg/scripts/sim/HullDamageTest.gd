@@ -16,11 +16,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _ok(what: String, c: bool) -> bool:
 	return h._ok(what, c)
 
@@ -94,7 +89,7 @@ func _marked(hx: HullHitFx) -> int:
 
 
 func _run() -> void:
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var ramp := {}
 	for c in ShipBreakup.HEAT_RAMP:
 		ramp[HullHitFx._key(c)] = true
@@ -227,9 +222,9 @@ func _fight() -> void:
 		Run.map[idx].visited = true
 		SectorScreen._approached_at = idx
 		Router.show_local()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"]], false, false)
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		var sc := Router.current as SectorScreen
 		var cb: Combat = Router.combat
 		if not _ok("look %d: a fight on the real screen" % look, sc != null and cb != null):
@@ -237,7 +232,7 @@ func _fight() -> void:
 		Run.hp = Run.max_hp()
 		sc._refresh_enemy()
 		sc._refresh_player()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var want := "HullHitFx" if look > 0 else "ShipHitFx"
 		var all := true
 		for i in 2:
@@ -252,18 +247,18 @@ func _fight() -> void:
 		var v0 := sl0.layers.hits.version
 		e.hp = e.max_hp
 		cb.damage_enemy(maxi(1, e.max_hp / 5), 1, "test", e)
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("look %d: a shot through damage_enemy marks the hull (version %d -> %d)" % [look, v0, sl0.layers.hits.version],
 			sl0.layers.hits.version > v0)
 		_ok("look %d: and the enemy's picture carries it" % look, sl0.art._img.get_data() != before)
 		if look > 0:
 			var wid := sl0.wreck_id
 			cb.damage_enemy(9999, 1, "test", e)
-			await _frames(8)
+			await Harness.frames(_tree, 8)
 			var marked: Dictionary = EnemyArt._marked.get(wid, {})
 			_ok("look %d: the kill leaves a marked wreck" % look, not marked.is_empty())
 		Router.combat = null
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	# the Custodian keeps today's
 	ShipHitFx.look = ShipHitFx._look_arg()
 	_ok("D is the game's look (%d)" % ShipHitFx.look, ShipHitFx.look == 4)

@@ -3,7 +3,7 @@ extends Node
 ## Jon, Nov 3: every station has all five decks at every level; the lab and board used to hide.
 ## Why: docs/why/StationDeckTest.md#test-purpose
 
-var _fails := 0
+var harness := Harness.new()
 var _tree: SceneTree
 
 ## RELIC ANALYSIS's bill at each level: 40 credits by `Market.service_index`.
@@ -13,20 +13,12 @@ const PANEL_W := 228.0
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_tree = get_tree()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _run() -> void:
@@ -39,8 +31,8 @@ func _run() -> void:
 	for dev: int in [MapGen.Development.OUTPOST, MapGen.Development.SETTLEMENT, MapGen.Development.CITY]:
 		await _bare(dev)
 	await _chart()
-	print("stationdecktest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("stationdecktest")
+	_tree.quit(harness.code())
 
 
 ## The dock desk from the map alone: none with a berth, stable, one per berthless station.
@@ -172,7 +164,7 @@ func _dock(here: MapGen.MapNode) -> StationScreen:
 	Router.powered.clear()
 	Router.park_at_station(here)
 	Router.show_station()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	return Router.current as StationScreen
 
 
@@ -182,11 +174,11 @@ func _open(st: StationScreen, id: StringName) -> bool:
 	(st._tabs[id] as Button).pressed.emit()
 	# (a few frames first: the deck's power-on shuts the lab's holder and then
 	# scans it open, so it is whole for a moment before it starts)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 20000 and not st.deck_subject(id).has_area():
 		await _tree.process_frame
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	if not st.deck_subject(id).has_area():
 		print("    %s not up after %d ms: tab %s, page shown %s, clip %s of window %s, %d rows" % [id,
 			Time.get_ticks_msec() - t0, st._tab, (st._pages[id] as Control).is_visible_in_tree(),
@@ -231,7 +223,7 @@ func _decks(dev: int, berth: bool) -> void:
 				var r2 := lab.get_global_rect()
 				if not win.grow(0.5).encloses(r2):
 					out.append("%s %s" % [lab.text.left(24), r2])
-			var b := _find_button(c, "MAKE")
+			var b := Harness.button_with_text(c, "MAKE")
 			if b == null or not win.grow(0.5).encloses(b.get_global_rect()):
 				out.append("MAKE %s" % (b.get_global_rect() if b != null else Rect2()))
 		_ok("%s: the row and its MAKE sit inside the screen's window %s (%s)"
@@ -258,7 +250,7 @@ func _decks(dev: int, berth: bool) -> void:
 	var posts: Array[StringName] = st._board.posts
 	var lead: StringName = &"korvan" if berth else desk
 	_ok("%s: %s's notice hangs first (%s)" % [tag, lead, str(posts)], not posts.is_empty() and posts[0] == lead)
-	_ok("%s: an offer's SIGN is on the board" % tag, _find_button(st._work, "SIGN") != null)
+	_ok("%s: an offer's SIGN is on the board" % tag, Harness.button_with_text(st._work, "SIGN") != null)
 	_ok("%s: no NO WORK POSTED. note on a board with work" % tag, _find_label(st._work, StationScreen.NO_WORK) == null)
 
 	# A JOB SIGNED HERE IS HANDED IN HERE: done, it is deliverable at this desk,
@@ -272,17 +264,17 @@ func _decks(dev: int, berth: bool) -> void:
 	else:
 		job.state = ContractData.State.READY
 	Sig.resources_changed.emit()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var at_desk := Run.deliverable_at(here).has(job) or Run.heat_deliverable_at(here).has(job)
 	_ok("%s: a %s job signed here can be handed in here" % [tag, String(ContractData.Kind.keys()[job.kind]).to_lower()], at_desk)
 	_ok("%s: and the chart counts this desk as its berth" % tag, ContractData.berth_of(here, job.manufacturer))
-	var hand_in := _find_button(st._work, "DELIVER") if job.kind != ContractData.Kind.HEAT \
-		else _find_button(st._work, "OFFLOAD %d HEAT" % job.amount)
+	var hand_in := Harness.button_with_text(st._work, "DELIVER") if job.kind != ContractData.Kind.HEAT \
+		else Harness.button_with_text(st._work, "OFFLOAD %d HEAT" % job.amount)
 	_ok("%s: the board shows it a button to hand it in" % tag, hand_in != null)
 	if hand_in != null:
 		var cash := Run.credits
 		hand_in.pressed.emit()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("%s: and pressed, it pays (%d -> %d)" % [tag, cash, Run.credits], Run.credits > cash)
 
 
@@ -310,7 +302,7 @@ func _bare(dev: int) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 20000 and not st.deck_subject(&"work").has_area():
 		await _tree.process_frame
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var kids := st._work.get_child_count()
 	var note := _find_label(st._work, StationScreen.NO_WORK)
 	_ok("%s: one note says %s (%d on the board)" % [tag, StationScreen.NO_WORK, kids], note != null and kids == 1)
@@ -329,12 +321,12 @@ func _chart() -> void:
 		_ok("chart: the station is up", false)
 		return
 	Router.show_starchart()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var ch := Router.current as StarchartScreen
 	if not _ok("chart: the star chart is up", ch != null):
 		return
 	ch._on_node_picked(here.index)
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var want := "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
 	var said := ""
 	var row_ok := false
@@ -386,13 +378,3 @@ func _find_label_containing(n: Node, text: String) -> Label:
 			return got
 	return null
 
-
-func _find_button(n: Node, text: String) -> Button:
-	var b := n as Button
-	if b != null and b.text == text and b.is_visible_in_tree():
-		return b
-	for c in n.get_children():
-		var got := _find_button(c, text)
-		if got != null:
-			return got
-	return null

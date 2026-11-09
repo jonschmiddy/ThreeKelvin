@@ -4,6 +4,7 @@
     python3 build.py music
     python3 build.py music burn    # one cue only
     python3 build.py sfx
+    python3 build.py sfx --overwrite-held   # also copy the files HELD_SFX names
 
     python3 build.py music theme --sampled    # recorded instruments, synth kit
     python3 build.py music theme --drums      # ...and a recorded kit too
@@ -165,7 +166,14 @@ def build_music(only=()):
               '   (unshipped: %s)' % ' '.join(skipped) if skipped else ''))
     print('music -> %.1f MB' % (total/1e6))
 
-def build_sfx():
+# Sounds the generator still builds that must not reach assets/audio/sfx/: the
+# bought takes that replaced it, and the sounds Jon cut (README, "The sound pass").
+HELD_SFX = {
+    'fauna_falls', 'shop_buy', 'take_credits',                          # bought takes
+    'combat_start', 'death_sting', 'svc_coolant', 'jump', 'explosion_boss', 'ui_confirm',  # cut
+}
+
+def build_sfx(overwrite_held=False):
     # sfx2 is the shipping set -- the hybrid redesign (recorded material +
     # foley palette + tonal glue).  sfx.py v1 stays runnable as the pure
     # synthesis reference.  sfx2 plays recorded doors, so it needs voices.
@@ -176,8 +184,12 @@ def build_sfx():
     d = os.path.join(ASSETS, 'sfx')
     os.makedirs(d, exist_ok=True)
     n = size = 0
+    held = []
     for f in sorted(os.listdir(src)):
         if not f.endswith('.wav'):
+            continue
+        if f[:-4] in HELD_SFX and not overwrite_held:
+            held.append(f)
             continue
         # SFX stay uncompressed: a UI click has to be instant, and the whole
         # set is smaller than a single music stem anyway.
@@ -185,6 +197,9 @@ def build_sfx():
         open(os.path.join(d, f), 'wb').write(data)
         n += 1; size += len(data)
     print('sfx   %d files -> %.1f MB' % (n, size/1e6))
+    if held:
+        print('sfx   held back (bought takes and cuts, see HELD_SFX): %s\n'
+              '      --overwrite-held copies them over assets/audio/sfx/' % ' '.join(held))
 
 if __name__ == '__main__':
     argv = sys.argv[1:]
@@ -205,5 +220,5 @@ if __name__ == '__main__':
     only = tuple(argv[1:])
     os.makedirs(ASSETS, exist_ok=True)
     if what in ('all', 'music'): build_music(only)
-    if what in ('all', 'sfx'):   build_sfx()
+    if what in ('all', 'sfx'):   build_sfx('--overwrite-held' in sys.argv)
     print('assets at %s' % ASSETS)

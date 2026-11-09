@@ -6,20 +6,11 @@ extends Node
 const ENEMY_SKIP := ["custodian_tetra", "whale_fan", "leviathan_lev_spine"]
 const LABEL_H := 12
 
-var _args: PackedStringArray
 var _t := 0.0
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 class Stars extends Control:
@@ -99,9 +90,9 @@ func _pictures(dir: String, prefix: String, skip: Array) -> Array:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var out := _arg("out")
-	var frames := int(_arg("frames", "75"))
-	var groups := _arg("groups", "player,pool,enemy").split(",")
+	var out := Harness.arg("out")
+	var frames := int(Harness.arg("frames", "75"))
+	var groups := Harness.arg("groups", "player,pool,enemy").split(",")
 	var layer := CanvasLayer.new()
 	layer.layer = 120
 	GameShell.input_target(tree).add_child(layer)
@@ -113,9 +104,9 @@ func _run() -> void:
 			"pool":
 				ships = _pictures("res://art/subjects/ships", "ship_", [])
 			"enemy":
-				ships = _pictures(_arg("enemydir", "res://art/sprites/enemies"), "", ENEMY_SKIP)
+				ships = _pictures(Harness.arg("enemydir", "res://art/sprites/enemies"), "", ENEMY_SKIP)
 		# `only=<id>,...`: just those ships (a re-film of the ones that changed)
-		var only := _arg("only", "")
+		var only := Harness.arg("only", "")
 		if only != "":
 			var keep: Array = []
 			for sh in ships:

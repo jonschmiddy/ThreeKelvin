@@ -421,7 +421,7 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 			shown.append(sub.cast[0] if sub != null and not sub.cast.is_empty() else &"")
 	LocalEventDrawer.quiet = false
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("on the real LOCAL every wired encounter (%d of %d) draws its kept art, plates pinned behind the hulls, nothing on your ship but the clamp's jaws on your bow, nothing under the band (%s)" % [n_live, KEPT3.size(),
 		", ".join(live_bad) if not live_bad.is_empty() else "all"], live_bad.is_empty() and n_live == KEPT3.size())
 	_ok("  the glass ring at two systems draws its two takes, and the first system its first again (%s)" % str(shown),
@@ -540,7 +540,7 @@ func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 				live.append("%s take %d: a clamp arm it should not have" % [oid, k + 1])
 	LocalEventDrawer.quiet = false
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("  on the real LOCAL, every take in every berth event (%d of 16): nothing on your ship or under the band, the clamp's arm from the take's metal to your bow, touching it (%s)" % [n_live,
 		", ".join(live) if not live.is_empty() else "all"], live.is_empty() and n_live == 16)
 
@@ -578,7 +578,7 @@ func _open_at(oid: StringName, sys: int, fresh: bool = true) -> Dictionary:
 	SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
-	await _frames(25)
+	await Harness.frames(_tree, 25)
 	var sc := Router.current as SectorScreen
 	return {sc = sc, sub = LocalSubject.of(sc._view) if sc != null else null}
 
@@ -684,7 +684,7 @@ func _bare_events() -> void:
 		SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 		LocalEventDrawer.request(idx, 0)
 		Router.show_local()
-		await _frames(25)
+		await Harness.frames(_tree, 25)
 		var sc := Router.current as SectorScreen
 		var sub := LocalSubject.of(sc._view) if sc != null else null
 		if sub == null:
@@ -726,14 +726,14 @@ func _bare_events() -> void:
 			# and opens again once the event is no longer up here
 			LocalEventDrawer.last = []
 			sc._refresh()
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 			gas_after = sky.closed
 		# a stage stood on the giant's face or its rings: on the view, off your ship
 		if &"beam" in want[0] and fx != null:
 			bad.append_array(await _beam_wrong(oid, sub, fx))
 	LocalEventDrawer.quiet = false
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("every built bare event (%d of %d) shows its plan on LOCAL, its stand-in gone, nothing on your ship or under the band, its beam eased (%s)" % [n, BUILT.size(),
 		", ".join(bad) if not bad.is_empty() else "all"], bad.is_empty() and n == BUILT.size())
 	_ok("  and the closed-in gas opens again when its event goes (%.2f)" % gas_after, gas_after == 0.0)
@@ -760,7 +760,7 @@ func _fx_wrong(oid: StringName, sub: LocalSubject, fx: LocalFx) -> Array[String]
 
 
 ## Beam: flat core outlasts a frame's turn, fades toward you, not drawn with reduced motion.
-func _beam_wrong(oid: StringName, sub: LocalSubject, fx: LocalFx) -> Array[String]:
+func _beam_wrong(oid: StringName, _sub: LocalSubject, fx: LocalFx) -> Array[String]:
 	var out: Array[String] = []
 	var st: Dictionary = {}
 	for s2: Dictionary in fx.stages:
@@ -790,7 +790,7 @@ func _beam_wrong(oid: StringName, sub: LocalSubject, fx: LocalFx) -> Array[Strin
 		out.append("%s: the beam never fades turning toward you (%.2f..%.2f)" % [oid, k_min, k_max])
 	var keep := DisplaySettings.reduced_motion
 	DisplaySettings.reduced_motion = true
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	if fx.beam_hit(Vector2(700.0, 160.0)) > 0.0:
 		out.append("%s: the beam still lights things with reduced motion" % oid)
 	for e: Dictionary in fx._rects:
@@ -1347,7 +1347,7 @@ func _orbit_switch() -> void:
 		return
 	map.flight.place_at(a, map.view.t)
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var sky := _local_sky()
 	_ok("in orbit of world %d, LOCAL draws it (%s)" % [a, _orbit_name(sky)], sky != null and sky.orbit_target == a)
 	map = await _map_up()
@@ -1364,10 +1364,10 @@ func _orbit_switch() -> void:
 		await _tree.process_frame
 	if not _ok("flown to world %d in %.1f s of the map's clock" % [b, map.view.t - t0], map.flight.reached() == b):
 		map.flight.place_at(b, map.view.t)
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	# LOCAL ONCE, by the HUD's tab: B, not A
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	sky = _local_sky()
 	var L2 := SystemLayout.of(Run.node_at())
 	var want := "%s (%s %s, seed %d)" % [L2.bodies[b].name, L2.bodies[b].kind, L2.bodies[b].world, L2.bodies[b].seed]
@@ -1376,7 +1376,7 @@ func _orbit_switch() -> void:
 	_ok("and the map puts the ship back at world %d (%d)" % [b, map.flight.reached() if map != null else -9], map != null and map.flight.reached() == b)
 	# off the map and its record dropped, so the next check's LOCAL is its own
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	SystemMapScreen._parked.erase(idx)
 
 
@@ -1428,7 +1428,7 @@ func _world_memory() -> void:
 	_ok("the map's %d worlds carry the memory (%s)" % [n_map, ", ".join(on_map) if not on_map.is_empty() else "all"], n_map > 0 and on_map.is_empty())
 	map.flight.place_at(at, map.view.t)
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var sky := _local_sky()
 	var on_local: Array[String] = []
 	var n_local := 0
@@ -1445,7 +1445,7 @@ func _world_memory() -> void:
 	else:
 		_ok("LOCAL's world and its moons, %d, carry the memory (%s; in orbit of %s)" % [n_local, ", ".join(on_local) if not on_local.is_empty() else "all", _orbit_name(sky)], n_local > 0 and on_local.is_empty())
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	SystemMapScreen._parked.erase(idx)
 	# A WORLD IN PIECES CARRIES IT TOO (`ShatteredView`, its own two passes): built
 	# as the map, the panel and LOCAL build one, in 2x2 blocks
@@ -1522,7 +1522,7 @@ func _shattered_in_orbit() -> void:
 	_ok("the map's shattered world carries the memory (%s)" % (mw if mw != "" else "yes"), mw == "")
 	map.flight.place_at(sat, map.view.t)
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	if LocalSky.headless():
 		print("  ..   world memory: LOCAL's shattered world not checked (headless builds none)")
 	else:
@@ -1536,10 +1536,10 @@ func _shattered_in_orbit() -> void:
 		_ok("LOCAL in orbit of a shattered world draws it with the memory (%s; in orbit of %s)" % [lw if lw != "" else "yes", _orbit_name(sky)], lw == "")
 		if sv != null:
 			var t0 := sv._t
-			await _frames(10)
+			await Harness.frames(_tree, 10)
 			_ok("and it turns there (its clock %.2f, then %.2f)" % [t0, sv._t], sv._t != t0)
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	SystemMapScreen._parked.erase(sidx)
 
 
@@ -1665,7 +1665,7 @@ func _orbit_reload(sd: int) -> void:
 		var from := "LOCAL"
 		if leg == 0:
 			Router.show_local()
-			await _frames(5)
+			await Harness.frames(_tree, 5)
 		else:
 			from = "the map"
 		# SAVE & EXIT, as the escape menu does it (`Main`): the save, then the
@@ -1673,7 +1673,7 @@ func _orbit_reload(sd: int) -> void:
 		SaveGame.save()
 		Run.hull = null
 		Router.show_launcher()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		# a fresh launch has no record in memory; something stale in its place
 		# must not survive the load either
 		SystemMapScreen._parked = {idx: {"at": -9, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
@@ -1694,14 +1694,14 @@ func _orbit_reload(sd: int) -> void:
 		if back != null:
 			back.frozen = true
 		Router.show_local()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		var t1 := Time.get_ticks_msec()
 		while _local_sky() == null and Time.get_ticks_msec() - t1 < WAIT_MS:
 			await _tree.process_frame
 		var sky := _local_sky()
 		_ok("  and LOCAL draws that world (%s)" % _orbit_name(sky), sky != null and sky.orbit_target == w)
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	SystemMapScreen._parked.erase(idx)
 
 
@@ -1732,11 +1732,6 @@ func _orbit_name(sky: LocalSky) -> String:
 		return "orbit %d" % sky.orbit_target
 	var bd: SystemLayout.Body = sky.layout.bodies[sky.orbit_target]
 	return "world %d, %s (%s %s, seed %d)" % [sky.orbit_target, bd.name, bd.kind, bd.world, bd.seed]
-
-
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
 
 
 ## The roles a pool ship is in.

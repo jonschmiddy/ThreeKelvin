@@ -7,14 +7,11 @@ const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 const IDS := ["custodian", "whale", "leviathan"]
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
@@ -38,8 +35,8 @@ func _run() -> void:
 		Router.current is SectorScreen and not (Router.current as SectorScreen)._fauna_winds_up(0))
 	DisplaySettings.reduced_motion = false
 	Router.animate_in_harness = false
-	print("faunatest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("faunatest")
+	_tree.quit(harness.code())
 
 
 func _enemy(id: String) -> Combat.EnemyState:

@@ -77,14 +77,6 @@ func item_at(p: Vector2) -> ItemIcon:
 			return c
 	return null
 
-## Which cell a point falls in. Outside the grid returns (-1,-1).
-func cell_at(p: Vector2) -> Vector2i:
-	var c := Vector2i(int(floor(p.x / float(CELL + GAP))),
-		int(floor(p.y / float(CELL + GAP))))
-	if c.x < 0 or c.y < 0 or c.x >= _cols or c.y >= _rows:
-		return -Vector2i.ONE
-	return c
-
 func _process(delta: float) -> void:
 	_beam_phase = fmod(_beam_phase + delta * 2.4, TAU)
 	queue_redraw()

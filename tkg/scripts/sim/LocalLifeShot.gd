@@ -29,13 +29,6 @@ var _hide: Array[StringName] = []
 var _approach := false
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
@@ -57,12 +50,12 @@ func _run() -> void:
 	await _tree.process_frame
 	Router.animate_in_harness = true
 	ShipView.shot_clock = 0.0
-	var out := _arg("out", "user://life")
-	var nf := int(_arg("frames", "240"))
-	for spec in _arg("cases", "giant").split(","):
+	var out := Harness.arg("out", "user://life")
+	var nf := int(Harness.arg("frames", "240"))
+	for spec in Harness.arg("cases", "giant").split(","):
 		var bits := (spec as String).split(":")
 		var cname := bits[0]
-		var h := bits[1] if bits.size() > 1 else _arg("hide", "all")
+		var h := bits[1] if bits.size() > 1 else Harness.arg("hide", "all")
 		_approach = (bits.size() > 2 and bits[2] == "approach") or "approach" in _args
 		_hide.clear()
 		for nm in IDEAS:
@@ -75,7 +68,7 @@ func _run() -> void:
 		if not await _show(String(c[0]), int(c[1]), String(c[2])):
 			print("life: %s: no system" % cname)
 			continue
-		await _frames(int(_arg("warm", "70")))
+		await _frames(int(Harness.arg("warm", "70")))
 		var sc := Router.current as SectorScreen
 		var view: EncounterView = sc._view if sc != null else null
 		var sky: LocalSky = view.backdrop if view != null else null

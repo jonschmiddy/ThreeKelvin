@@ -610,17 +610,6 @@ Asked without it, a full hold refuses every swap -- including swapping a part
 for one exactly the same size, which cannot fail by construction.
 ```
 
-Above `func hold_taken(m: HoldItem = null, leaving: HoldItem = null) -> Dictionary:`:
-
-```text
-Every occupied cell of the hold, once. `m` and `leaving` are not counted --
-the thing being placed, and a thing about to vacate its cells.
-
-Public because the drag paths need it too: probing candidate cells through
-`can_place` rebuilt this map per cell, which put an O(cells x cargo) scan on
-every drag-over frame for an answer one map gives in one pass.
-```
-
 ## Doors into the hold
 
 Above `func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:`:
@@ -758,20 +747,6 @@ which quietly puts the mess right.
 Three answers, in order of how little they cost you: the cell still works;
 some other cell does; or turning it is what broke it, so turn it back. Only
 if none of those hold does it fail, and then it has changed nothing.
-```
-
-## Repacking the hold
-
-Above `func repack_hold() -> void:`:
-
-```text
-Re-seat everything, largest first, after the grid changes shape.
-
-Called when the hull is swapped: a heavy's 4x10 hold becomes a light's 4x5 and
-every part below the fifth row is now outside the grid. Largest first because
-first-fit on a fresh grid strands big parts behind small ones — the one place
-a rule other than "leave it where it was" is worth having, since the player
-did not arrange this and cannot be surprised by it.
 ```
 
 ## Claims in co-op
@@ -1137,7 +1112,7 @@ old "hulls have no manufacturer" ruling existed to guarantee.
 
 ## Attributes
 
-Above `const ATTR_MAX := 10`:
+Above `# Attributes are functions of tracked state`:
 
 ```text
 ------------------------------------------------------------------- attributes
@@ -1156,49 +1131,6 @@ attribute is the damage, not a rating the damage is compared against.
 All six are 0-6. The constants below are FIRST VALUES, tuned against the three
 unbranded frames and not yet against the seven manufacturer hulls or against
 any real event table. Expect to move them.
-```
-
-Above `const ATTR_MAX := 10`:
-
-```text
-Ten, not six. Six cells could not separate twenty-one chassis: half the
-Thermal column landed on the same number and the difference between a Korvan
-medium and a Solari medium — which is most of what those two manufacturers ARE —
-rounded away. Every constant below was rescaled with it, not multiplied
-through: the point of the wider scale is that the ships spread out in it.
-HOW MANY CELLS THE BAR DRAWS. NOT a ceiling on the value.
-
-Attributes go over ten and are meant to. Pillar 5: the ceiling is meant to
-break, and a gauge that clamps is a gauge that hides the one moment the
-whole loot loop exists to produce. A stealth build that reads 14 should say
-14 — the bar runs out of cells, and the bar running out IS the readout.
-
-THE FLOOR STAYS. Zero is still zero; nothing reads negative. See attr_sensors
-for why that one is enforced and where.
-
-WHAT DOES CAP IS EVERY CONSUMER, at its own call site rather than here. The
-ambush roll divides by this and would take a probability negative at 17
-stealth; it clamps its own ratio now. That is the correct place for it: the
-gauge reports what you built, and each rule decides how much of it it can
-use.
-```
-
-## Hull reference
-
-Above `const HULL_REF := 70.0`:
-
-```text
-Hull is measured against a fixed reference, not against your own maximum.
-
-Dividing by max_hp was the obvious version and it is wrong: it reads 6 for a
-full Skiff and 6 for a full Ore Barge, so the attribute would say the two
-ships are equally sturdy while one has less than half the other's plating.
-A fixed reference makes frame size and damage both count, which is the whole
-point of a Hull check.
-
-70 rather than 60 because 60 put the Ore Barge at 6 on the first turn of the
-run, and an attribute already at its ceiling cannot be improved by the tier
-upgrades and found hulls that are supposed to improve it.
 ```
 
 ## Thermal
@@ -1304,101 +1236,6 @@ enough to lose a check you would pass cold, not enough to erase a build.
 This is also what makes ambush_chance() a decision rather than a tax: the
 stealth term there reads this, so running hot is punished twice through one
 number, and fitting for stealth answers both.
-```
-
-## Pip costs
-
-Above `const PER_PIP := {`:
-
-```text
-Every attribute, in display order, as {key, label, short, value, base, text}.
-
-`base` is the same attribute read off the bare chassis, so the display can
-paint what the ship IS separately from what you bolted to it. Both are
-computed here rather than differenced by the caller, because the difference
-has to be taken AFTER the rounding and the clamp — a module worth 0.4 of a
-cell moves neither number, and a caller subtracting raw values would paint a
-bonus cell that the attribute does not actually have.
-One list so the ship tab, the chassis select and any future check UI cannot
-disagree about the order or the names.
-WHAT ONE PIP COSTS, in the raw units the attribute formulas read.
-
-ONE ENTRY PER GAUGE, and a gauge with two terms moves BOTH. A part that
-raises MANEUVER raises dodge and initiative; a part that raises THERMAL
-raises how much heat you hold and how fast you lose it. That is the whole
-simplification: a part says +1 MANEUVER, not "+1 of the initiative half of
-maneuver", and there is nothing to explain in brackets afterwards.
-
-Each term carries HALF a pip, and the divisors above were set to whole
-numbers so that half a pip is one whole point in an int field. That is the
-constraint that decides those divisors, and it is why they are here rather
-than tuned to taste: dodge is a float and can carry a fraction, initiative
-and dissipation cannot.
-
-INVERTED OUT OF THE FUNCTIONS ABOVE, not measured against them. Change one
-of those formulas and this has to change with it, which is exactly what
-`-- attrtest` is for: it bolts every part onto a reference frame and checks
-the gauge actually moved by the number the grade promised.
-```
-
-Inside `attr_stealth()`, above `&"maneuver": {&"dodge": 1.0 / 23.0},`:
-
-```text
-DODGE ALONE, and initiative is deliberately not here any more. The comment
-above still holds for gauges with two live terms -- but initiative is not
-one: it is summed, it feeds attr_maneuver, and NOTHING else in the game
-reads it. Combat rolls randf() < Run.dodge() for the enemy to miss and never
-asks who goes first.
-
-So half of every maneuver pip was buying nothing at all, and a part or an
-affix advertising +1 MANEUVER delivered about 2% of enemy attacks missing
-where the gauge implied twice that. 1/23 rather than 1/46 makes the whole
-pip land on the half that works.
-
-Hull initiative is untouched: attr_maneuver still reads it, so a light frame
-still gauges higher than a heavy one. That is the gauge DESCRIBING a chassis,
-which it does honestly. What it may no longer do is sell a bonus.
-```
-
-Inside `attr_stealth()`, above `&"reactor": {&"reactor": 1.0},`:
-
-```text
-THE TWO THAT WERE MISSING. Every other gauge could be graded and these two
-could not, so a part meant to be worth a pip of REACTOR or THRUST had no
-unit to be worth it in. Both are one-for-one: a reactor level IS a pip
-(attr_reactor returns the level), and thrust is now its own field for the
-same reason -- see attr_thrust.
-
-A reactor pip is the dearest thing on this table: three cells of capacity
-AND half a point of energy, since energy steps every second level.
-```
-
-## Gauge names
-
-Above `const ATTR_LABEL := {`:
-
-```text
-THREE LETTERS PER GAUGE, and the one place they are spelled.
-
-Two things print them -- the attributes panel's own rows, and every rolled
-affix on a module readout -- and the second used to write the gauge out in
-full. "TUNED INJECTORS -- +1 THRUST" wrapped onto a second line inside a
-panel that is 93 pixels of card wide, so a part with three affixes spent six
-lines saying three things.
-
-A dictionary rather than a field on each row, because the affixes need the
-mapping without building a row: `attribute_rows()` computes seven live values
-and seven sentences, and Database calls this at seed time when there is no
-ship to compute them from.
-THE GAUGE NAMES IN FULL, and the one place they are spelled.
-
-Beside ATTR_SHORT rather than derived from it, because MANEUVERABILITY is not
-MNV with letters put back -- the short forms were chosen to be three
-characters, not to be abbreviations of these.
-
-The station's part panel prints these. The abbreviations exist because a card
-readout is 93 pixels wide and "+1 THRUST" wrapped; the shelf's column is 256
-and has no such problem, so it says the whole word.
 ```
 
 ## Bare hull attributes
@@ -1823,22 +1660,6 @@ It cannot be farmed past the fuel to the dock: once bought, that dock is in
 reach and the offer is gone. Flying off and back burns more than it returns.
 ```
 
-## Jump neighbours
-
-Above `const JUMP_NEIGHBOURS := 6`:
-
-```text
-How many systems the drive can pick from. Range is whatever radius happens
-to enclose this many of your nearest neighbours, so it scales itself: half a
-disc out on the rim where systems are strung far apart, almost nothing near
-the core where they are packed.
-
-Deriving it from the FURTHEST charted link, as this first did, meant one long
-link inflated the radius and dragged a dozen distant systems into range with
-it — the lines that reached across the galaxy while ignoring the neighbour
-sitting right there.
-```
-
 ## Thrust reach
 
 Above `const THRUST_REF := 4`:
@@ -2200,124 +2021,6 @@ surveyed last ring does not stop existing when you move on.
 Cannot stand a ship still. Sight is base * (1 + sensors * 0.25) and reach is
 base * thrust_reach(), thrust_reach is floored at 1.0, so everything within
 the base radius is always both -- and that set is never empty.
-```
-
-## The hellbender
-
-Above `const HELLBENDER_STRIDE := 3`:
-
-```text
-THE GALAXY'S OTHER HARVESTER. One rival crew per dive, flying a furnace of a
-ship, doing exactly what you are doing — and it is the one enemy with a
-POSITION instead of an address. It rides the same link lattice the player
-does, one hop at a time, eating the derelicts it lands on.
-
-WHO DECIDES WHERE IT IS. The map's other shared facts are positional — a
-seed puts the same wreck on four machines — but a thing that MOVES needs a
-clock, and this game deliberately has no shared one: four ships jump at
-their own pace. So the hellbender is host-authoritative, like a claim. The host
-counts every ship's jumps (its own directly, a client's when the presence
-message lands), moves the hellbender every `hellbender_stride()` of them —
-a threshold that scales with the crew, so a bigger party does not shake it
-off the chart — and pushes the whole state — position, hull, move counter —
-through `Net.push_hellbender()`.
-Solo, this machine IS the host of nothing and runs the same code without a
-wire. WHERE it goes is `Rng.derive(&"hellbender", move counter)` — positional in
-time rather than in space, so a replayed seed replays the pursuit and a
-client handed the counter could re-derive the walk.
-
-WHY IT EATS. §0 of `docs/coop-design.md` measured that attaching more
-fights to a mechanic adds texture, not pressure, because fights pay. The
-hellbender is pressure because AVOIDING it costs: every derelict it reaches
-first is salvage the party does not get. Kill it or route around it, and
-both of those are decisions with prices.
-
-WHY IT HEALS IN TRANSIT. It breaks off at 35% hull (see
-Combat.escape_intent()) carrying its damage, and mends HELLBENDER_MEND per move
-after. That is the chase: the hull you took off it is a debt it pays back
-slowly, so catching it two jumps later finishes a fight you already started,
-and letting it go quiet for twenty is starting over.
-```
-
-Above `const HELLBENDER_STRIDE_CREW := 2`:
-
-```text
-Jumps between moves in a crew, PER SHIP. The clock counts the whole party's
-jumps, so a flat threshold means the more of you there are the faster it
-runs: at three, two ships moved it every jump and a half each, and it was
-always gone by the time anybody landed on it. Nobody ever met it. Scaled by
-the crew, the cadence is a thing each pilot can feel — two of YOUR jumps per
-port, however many of you are flying — and the second jump is the window
-somebody catches it in. A shade quicker per ship than the solo three,
-because four ships strip a galaxy four times as fast and a rival that cannot
-keep up is not a rival.
-```
-
-Above `func hellbender_stride() -> int:`:
-
-```text
-Party jumps per move, for the crew currently flying. See the constants: the
-count is the whole party's, so the threshold has to be the whole party's too
-or the rival outruns a bigger crew. The call site tests the counter against
-this with `<` rather than an equality, so a crew that SHRINKS mid-run — the
-threshold dropping under a counter already past it — moves the rival on the
-next jump instead of stranding it forever.
-```
-
-Above `func _hellbender_step(feeding: bool, away_from: int = -1) -> void:`:
-
-```text
-One hop. `feeding` is false on a flee hop — a ship running for its life is
-not stopping to cut salvage, and the client applying the pushed position
-must agree about which kind of landing it was. See hellbender_land().
-`away_from` is a system a flee hop never lands in: the one it ran from. Two
-hops out could be A to B and straight back to A, so its escape burn put it
-at anchor where you had just watched it go (`hellbender_breaks_off`).
-```
-
-## Heat contracts
-
-Above `func heat_deliverable_at(n: MapGen.MapNode) -> Array:`:
-
-```text
-Heat contracts you could close RIGHT NOW, standing where you are.
-
-Separate from deliverable_at() because a heat contract is never READY out in
-the dark — it becomes closable at the moment you dock still carrying the heat,
-and it stops being closable the moment you vent. It is the one job whose
-completion is a fact about this second.
-```
-
-## Fetch contracts
-
-Above `func reach_contract_target(index: int) -> void:`:
-
-```text
-Taking the pickup finishes any FETCH pointed at this system.
-
-Called by the pickup's own event (`OptionTable` `job_pickup`), which
-`Contracts.post_goal` puts on the named system's map; and on arrival
-(`Router.settle_arrival`) only for a fetch naming a place that cannot hold
-an event, which nothing signed now does. A recovered item is
-NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
-accident and cannot be lost to a full hold. A contract that soft-locks on
-inventory is a bug wearing a decision's clothes, and there is no version of
-"you sold the thing you were paid to fetch" that is worth what it costs.
-```
-
-## Delivery markers
-
-Above `func delivery_manufacturers() -> Array:`:
-
-```text
-Manufacturers with something waiting to be handed over: a heat contract you are
-carrying the heat for, or any job you have already finished out there.
-
-THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place
-before you go; this points at a place afterwards, and a heat contract points
-at one and never had a target at all. Without it the chart answers "where is
-the work" and goes silent on "where do I take it", which is the half of the
-trip that actually costs fuel.
 ```
 
 ## Stations heard

@@ -271,7 +271,8 @@ static func mount_anchor(slot: ModuleData.Slot, box: Vector2, upright: bool,
 	if slot != ModuleData.Slot.WEAPON:
 		return box * 0.5
 	var half := cell * 0.5
-	return Vector2(box.x * 0.5, box.y - half) if upright 		else Vector2(half, box.y * 0.5)
+	return Vector2(box.x * 0.5, box.y - half) if upright \
+		else Vector2(half, box.y * 0.5)
 
 
 ## Matches long axis to long axis, as weapons are authored long across and masts long down.
@@ -302,109 +303,3 @@ static func part_scale(slot: ModuleData.Slot, f: Vector2i, box: Vector2) -> floa
 		nat = Vector2(nat.y, nat.x)
 	var room := Vector2(maxf(4.0, box.x - PAD * 2.0), maxf(4.0, box.y - PAD * 2.0))
 	return maxf(0.35, minf(room.x / nat.x, room.y / nat.y))
-
-## Drawn from the first card, not authored per module, which would drift from its effects.
-func _glyph(mark: Color) -> void:
-	var kind := &"utility"
-	if not module.cards.is_empty():
-		kind = (module.cards[0] as CardData).glyph_kind()
-	var c := Vector2(size.x * 0.5 + 1.0, size.y * 0.5)
-	var ink := mark.lightened(0.25)
-	var dim := mark.darkened(0.35)
-	match kind:
-		&"slug":
-			# A barrel and its muzzle flash. One shot.
-			draw_rect(Rect2(c + Vector2(-11, -2), Vector2(15, 5)), ink, true)
-			draw_rect(Rect2(c + Vector2(4, -5), Vector2(3, 11)), dim, true)
-			draw_rect(Rect2(c + Vector2(7, -2), Vector2(4, 5)), ink, true)
-		&"burst":
-			# Three muzzles: at 44px there is no room to count, so it says more than one.
-			for i in 3:
-				draw_rect(Rect2(c + Vector2(-11, -8 + i * 6), Vector2(13, 3)), ink, true)
-				draw_rect(Rect2(c + Vector2(4, -8 + i * 6), Vector2(4, 3)), dim, true)
-		&"pyre":
-			# A barrel fed from the reactor. The one weapon lit from inside.
-			draw_rect(Rect2(c + Vector2(-11, -2), Vector2(15, 5)), ink, true)
-			draw_rect(Rect2(c + Vector2(-7, -1), Vector2(8, 3)), UITheme.FLARE, true)
-			draw_rect(Rect2(c + Vector2(4, -4), Vector2(5, 9)), UITheme.HOT, true)
-		&"charge":
-			# A capacitor filling: three bars, the last one lit.
-			for i in 3:
-				var h := 4 + i * 4
-				draw_rect(Rect2(c + Vector2(-9 + i * 7, 6 - h), Vector2(5, h)),
-					ink if i == 2 else dim, true)
-		&"drone":
-			# A carrier and the thing it launched.
-			draw_rect(Rect2(c + Vector2(-11, -1), Vector2(10, 7)), dim, true)
-			draw_rect(Rect2(c + Vector2(2, -8), Vector2(6, 6)), ink, true)
-			draw_rect(Rect2(c + Vector2(4, -2), Vector2(2, 3)), ink, true)
-		&"brace":
-			# A plate with a bevel. Whole, because Brace is a wall you keep.
-			draw_rect(Rect2(c + Vector2(-8, -9), Vector2(16, 15)), dim, true)
-			draw_rect(Rect2(c + Vector2(-8, -9), Vector2(16, 3)), ink, true)
-			draw_rect(Rect2(c + Vector2(-8, -9), Vector2(3, 15)), ink, true)
-		&"block":
-			# The same footprint, SEGMENTED. Gaps say it falls down at the end of
-			# the turn, which is the one distinction that decides a defensive turn.
-			for i in 3:
-				draw_rect(Rect2(c + Vector2(-8, -9 + i * 6), Vector2(16, 4)),
-					ink if i == 1 else dim, true)
-		&"feedback":
-			# A wall, and a round leaving it.
-			draw_rect(Rect2(c + Vector2(-10, -9), Vector2(6, 17)), ink, true)
-			draw_rect(Rect2(c + Vector2(0, -2), Vector2(7, 4)), dim, true)
-			draw_rect(Rect2(c + Vector2(7, -1), Vector2(4, 2)), UITheme.HOT, true)
-		&"slip":
-			# The gap the shot goes through.
-			draw_rect(Rect2(c + Vector2(-9, -10), Vector2(5, 7)), dim, true)
-			draw_rect(Rect2(c + Vector2(-9, 3), Vector2(5, 7)), dim, true)
-			draw_rect(Rect2(c + Vector2(-1, -2), Vector2(11, 3)), ink, true)
-		&"vent":
-			# Heat leaving through slats.
-			draw_rect(Rect2(c + Vector2(-10, 2), Vector2(20, 5)), dim, true)
-			for i in 3:
-				draw_rect(Rect2(c + Vector2(-8 + i * 7, -9), Vector2(4, 10)), ink, true)
-		&"repair":
-			# A seam and the weld across it.
-			draw_rect(Rect2(c + Vector2(-9, -7), Vector2(19, 13)), dim, true)
-			draw_rect(Rect2(c + Vector2(-2, -10), Vector2(5, 19)), ink, true)
-			draw_rect(Rect2(c + Vector2(-9, -2), Vector2(19, 4)), ink, true)
-		&"lock":
-			# The four corners are written out: a loop pointed the lower brackets wrong.
-			# Why: docs/why/ModuleIcon.md#reticle-glyph
-			var arm := Vector2(6, 2)
-			var leg := Vector2(2, 6)
-			draw_rect(Rect2(c + Vector2(-11, -11), arm), ink, true)   ## top left
-			draw_rect(Rect2(c + Vector2(-11, -11), leg), ink, true)
-			draw_rect(Rect2(c + Vector2(5, -11), arm), ink, true)     ## top right
-			draw_rect(Rect2(c + Vector2(9, -11), leg), ink, true)
-			draw_rect(Rect2(c + Vector2(-11, 9), arm), ink, true)     ## bottom left
-			draw_rect(Rect2(c + Vector2(-11, 5), leg), ink, true)
-			draw_rect(Rect2(c + Vector2(5, 9), arm), ink, true)       ## bottom right
-			draw_rect(Rect2(c + Vector2(9, 5), leg), ink, true)
-			draw_rect(Rect2(c + Vector2(-1, -1), Vector2(3, 3)), UITheme.HOT, true)
-		&"draw":
-			# Cards, one lifted.
-			draw_rect(Rect2(c + Vector2(-10, -3), Vector2(9, 12)), dim, true)
-			draw_rect(Rect2(c + Vector2(-5, -6), Vector2(9, 12)), dim, true)
-			draw_rect(Rect2(c + Vector2(0, -10), Vector2(9, 13)), ink, true)
-		&"power":
-			# A cell with a charge in it.
-			draw_rect(Rect2(c + Vector2(-7, -9), Vector2(14, 18)), dim, true)
-			draw_rect(Rect2(c + Vector2(-2, -6), Vector2(4, 6)), UITheme.FLARE, true)
-			draw_rect(Rect2(c + Vector2(-2, 1), Vector2(4, 6)), UITheme.HOT, true)
-		&"scrip":
-			# Stacked notes.
-			for i in 3:
-				draw_rect(Rect2(c + Vector2(-9 + i * 2, -7 + i * 5), Vector2(16, 4)),
-					ink if i == 2 else dim, true)
-		&"malfunction":
-			# A crack. Nothing else in the set is diagonal.
-			for i in 5:
-				draw_rect(Rect2(c + Vector2(-8 + i * 4, -8 + i * 3), Vector2(4, 3)),
-					ink, true)
-		_:
-			# A housing with a fitting on it: an unclassified part.
-			draw_rect(Rect2(c + Vector2(-9, -6), Vector2(17, 12)), dim, true)
-			draw_rect(Rect2(c + Vector2(-5, -3), Vector2(9, 6)), ink, true)
-			draw_rect(Rect2(c + Vector2(8, -2), Vector2(4, 4)), dim, true)

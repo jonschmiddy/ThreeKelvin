@@ -10,7 +10,7 @@ ONE BLACK HOLE AT THE CORE, ONE PULSAR AT A PULSAR, headless:
 Jon, Oct 13, at the core: "why are there two black holes lololool". LOCAL's
 sky draws the system's own star -- the core's hole (`CoreLegacy`, the hole
 every style shares) and a pulsar with its beams -- and the encounter's place
-picture (`EncounterView.AreaView`) drew it a second time beside your ship.
+picture (`AreaView`) drew it a second time beside your ship.
 For several galaxies: at the core and at every pulsar the place picture is
 empty while the sky's star is that star; every other kind of system keeps
 its place picture (a station, a beacon, a battlefield, a derelict). Then the

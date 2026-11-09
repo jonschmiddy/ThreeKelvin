@@ -6,28 +6,18 @@ extends Node
 const Film := preload("res://scripts/sim/HullDamageFilm.gd")
 const OUT := "user://hull_damage_sheet.png"
 
-var _args: PackedStringArray
-
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _run() -> void:
 	await get_tree().process_frame
-	var out := _arg("out", OUT)
-	var ships := _arg("ships", "cutter:0,hulk:0,marauder:2").split(",")
-	var looks := _arg("looks", "0,1,2,3,4").split(",")
-	var half := float(_arg("scale", "1")) < 1.0
-	var zoom := int(_arg("k", "2"))
+	var out := Harness.arg("out", OUT)
+	var ships := Harness.arg("ships", "cutter:0,hulk:0,marauder:2").split(",")
+	var looks := Harness.arg("looks", "0,1,2,3,4").split(",")
+	var half := float(Harness.arg("scale", "1")) < 1.0
+	var zoom := int(Harness.arg("k", "2"))
 	for s in ships:
 		var parts := (s as String).split(":")
 		var tex := DB.enemy_sprite(StringName(parts[0]), int(parts[1]) if parts.size() > 1 else 0, half)
@@ -70,7 +60,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 	h.mark_scale = scale
 	add_child(h)
 	h.setup(pic, pic.get_used_rect(), Vector2.ZERO, 4242, -1)
-	if _arg("debug") == "1" and h is HullHitFx:
+	if Harness.arg("debug") == "1" and h is HullHitFx:
 		var hx := h as HullHitFx
 		var p0 := Vector2i(int(float(hx._H.cx)), int(float(hx._H.cy)))
 		print("debug: p0 %s ok %s pal %d mask %d lum %.2f" % [p0, hx._ok(p0.x, p0.y), hx._pal.size(), hx._mask[p0.y * hx._w + p0.x], hx._lum[p0.y * hx._w + p0.x]])
@@ -81,7 +71,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		before = hx.version
 		hx._soot(p0, true)
 		print("debug: soot version %d -> %d" % [before, hx.version])
-	if _arg("stamp") != "" and h is HullHitFx:
+	if Harness.arg("stamp") != "" and h is HullHitFx:
 		# each kind alone at the points given, the hull 4x round each
 		var hx2 := h as HullHitFx
 		var pi0 := 12 * hx2._w + 128
@@ -93,7 +83,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		print("debug: pal ", " ".join(pl))
 		hx2._tone(pi0, 0.5)
 		print("debug: after tone %s" % hx2._col[pi0])
-		var pts := _arg("stamp").split(";")
+		var pts := Harness.arg("stamp").split(";")
 		var nk: int = {1: 5, 4: 8}.get(look, 3)
 		var tiles: Array[Image] = []
 		for kk in nk:
@@ -119,7 +109,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		sheet.fill(Color(0.04, 0.05, 0.08))
 		for j in tiles.size():
 			sheet.blend_rect(tiles[j], Rect2i(0, 0, 192, 112), Vector2i((j % pts.size()) * 192, (j / pts.size()) * 112))
-		sheet.save_png(_arg("out", OUT).get_basename() + "_stamp%d.png" % look)
+		sheet.save_png(Harness.arg("out", OUT).get_basename() + "_stamp%d.png" % look)
 	var shots := Film.SHOTS
 	var hp := 100
 	var snaps: Array[Image] = []
@@ -129,7 +119,7 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 		var v0 := h.version
 		var m0 := h._marks.size()
 		h.hit(shots[i], hp, 100)
-		if _arg("debug") == "1":
+		if Harness.arg("debug") == "1":
 			var ps := []
 			for mk in h._marks.slice(m0):
 				ps.append("(%d,%d)" % [int(mk.p.x), int(mk.p.y)])
@@ -160,10 +150,10 @@ func _row(pic: Image, look: int, scale: float) -> Image:
 			light += 1
 		else:
 			same += 1
-	if _arg("debug") == "1":
+	if Harness.arg("debug") == "1":
 		var mm := m.duplicate() as Image
 		mm.resize(mm.get_width() * 4, mm.get_height() * 4, Image.INTERPOLATE_NEAREST)
-		mm.save_png(_arg("out", OUT).get_basename() + "_marks%d.png" % look)
+		mm.save_png(Harness.arg("out", OUT).get_basename() + "_marks%d.png" % look)
 	print("hulldamagesheet: look %d marks %d darker, %d lighter, %d about the same" % [look, dark, light, same])
 	h.queue_free()
 	var w := pic.get_width()

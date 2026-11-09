@@ -247,21 +247,6 @@ Not a hard stop either: a mix cut mid-sample is its own click, and
 this one would land in the silence the ending needs.
 ```
 
-## Pointer mapping
-
-Above `func _game_at(win: Vector2) -> Vector2:`:
-
-```text
-Window pixel -> the game pixel actually drawn there: the bend, then the snap.
-
-THE SNAP MATTERS. The bend is continuous; the picture is not. `sharp_uv` in
-the shader gives each screen pixel one whole game texel, so the edge you can
-SEE is on a game-pixel boundary while a continuous map puts the hit edge
-anywhere inside that pixel -- half a pixel out, which is what "better, but
-not pixel perfect" feels like. Landing on the middle of the texel the shader
-shows makes the two the same edge by construction.
-```
-
 ## Vignette
 
 Inside `_apply()`, above `var vign := 0.0`:

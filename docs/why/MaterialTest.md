@@ -54,17 +54,6 @@ Both halves are checked, because a jettison that removed the item and
 forgot to append it would look identical from the hold.
 ```
 
-Inside `run()`, above `var row := Widgets.material_row(thrown, Widgets.ModuleContext.BAG, 0,`:
-
-```text
-AND THE SECTOR CAN DRAW IT. This is the half that made jettison look
-broken when it was not: the item went into the bag correctly and the
-salvage list built its rows with `Widgets.module_row`, which reads a
-manufacturer, a slot and an affix list off whatever it is handed. A crate
-has none of those, so the row failed and the system appeared to have
-swallowed the thing.
-```
-
 ## Take back
 
 Inside `run()`, above `Run.cargo.clear()`:

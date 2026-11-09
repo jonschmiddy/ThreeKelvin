@@ -6,20 +6,11 @@ extends Node
 
 const HINT_S := 0.5
 
-var _args: PackedStringArray
 var _out := ""
 var _k := 0
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
 
 
@@ -94,11 +85,11 @@ func _play_one(cb: Combat) -> bool:
 
 func _run() -> void:
 	var tree := get_tree()
-	_out = _arg("out", "user://hintshot")
+	_out = Harness.arg("out", "user://hintshot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	await tree.process_frame
 	Hints.reset()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# LOCAL as a new run hands it over: the goal and its first step
 	Router.show_local()

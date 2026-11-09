@@ -258,13 +258,15 @@ func _pose_cast() -> void:
 		var far: bool = _roll(n, 3.0, salt) < 0.6
 		var tex: Texture2D = ship.far if far else ship.near
 		var sz := Vector2(tex.get_size())
-		var speed: float = (18.0 + 12.0 * _roll(n, 4.0, salt)) if far 			else (38.0 + 26.0 * _roll(n, 4.0, salt))
+		var speed: float = (18.0 + 12.0 * _roll(n, 4.0, salt)) if far \
+			else (38.0 + 26.0 * _roll(n, 4.0, salt))
 		var run: float = (_clock - t0) * speed
 		if run > PANEL.x + sz.x:
 			continue
 		var dir := int(ship.facing)
 		var x: float = (-sz.x + run) if dir > 0 else (PANEL.x - run)
-		var y: float = band.position.y + band.size.y * (0.12 + 0.6 * _roll(n, 5.0, salt)) 			- sz.y * 0.5
+		var y: float = band.position.y + band.size.y * (0.12 + 0.6 * _roll(n, 5.0, salt)) \
+			- sz.y * 0.5
 		# Farther is dimmer and bluer: there is more nothing in the way.
 		var tint := Color(0.62, 0.68, 0.80) if far else Color(0.86, 0.89, 0.96)
 		_posed.append([tex, Vector2(floorf(x), floorf(y)), tint])

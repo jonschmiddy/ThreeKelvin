@@ -126,7 +126,7 @@ func _flare_shot(tree: SceneTree) -> void:
 	# Across the whole life, including 0.0 (nothing) and past the peak, so a
 	# flare that never closes is visible in the sheet rather than only in play.
 	for at in [0.08, 0.22, 0.42, 0.62, 0.80, 0.96]:
-		slot.art.visible = at >= EncounterView.JumpFlare.PEAK
+		slot.art.visible = at >= JumpFlare.PEAK
 		slot.flare.visible = true
 		slot.flare.set("_t", at)
 		slot.flare.set("_delay", 0.0)
@@ -155,8 +155,8 @@ func _flare_shot(tree: SceneTree) -> void:
 	print("wrote ", ProjectSettings.globalize_path("user://jump_flare.png"))
 
 
-func _find_slot(n: Node) -> EncounterView.ConvoySlot:
-	if n is EncounterView.ConvoySlot:
+func _find_slot(n: Node) -> ConvoySlot:
+	if n is ConvoySlot:
 		return n
 	for c in n.get_children():
 		var found := _find_slot(c)

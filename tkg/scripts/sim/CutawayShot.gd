@@ -23,13 +23,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _frames(n: int) -> void:
 	for i in n:
 		await RenderingServer.frame_post_draw
@@ -51,28 +44,28 @@ func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	Router.animate_in_harness = true
-	_dir = _arg("clip")
+	_dir = Harness.arg("clip")
 	if _dir != "":
 		DirAccess.make_dir_recursive_absolute(_dir)
-	_every = int(_arg("every", "1"))
+	_every = int(Harness.arg("every", "1"))
 	CutawayView.fixed_step = 1.0 / 30.0
 	# (and every hull's bob on the same clock, or a slow window films it fast)
 	ShipView.shot_clock = 0.0
 	if "bobcheck" in _args:
 		CutawayView.fixed_step = 0.0
 		ShipView.shot_clock = -1.0
-	Rng.forced = int(_arg("seed", "4242"))
-	var wt: int = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)
+	Rng.forced = Harness.seed_arg(4242)
+	var wt: int = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)
 	# `manufacturer` and `grade` pick a chassis with its starter kit; `fit=full` fills every mount.
-	var mk := StringName(_arg("manufacturer", "korvan"))
+	var mk := StringName(Harness.arg("manufacturer", "korvan"))
 	Run.start_new_run(mk, int(wt))
-	if _arg("grade", "") != "":
-		Run.fit_chassis(mk, wt as HullData.Weight, int(_arg("grade", "0")))
-	if _arg("fit", "") == "full":
+	if Harness.arg("grade", "") != "":
+		Run.fit_chassis(mk, wt as HullData.Weight, int(Harness.arg("grade", "0")))
+	if Harness.arg("fit", "") == "full":
 		_fit_full()
 	# `carry=<slot>` wants an empty mount of that slot to show: a hull that
 	# launches with all of them fitted has one part of it taken off, to the hold
-	var cs := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(_arg("carry"), -1) as int
+	var cs := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(Harness.arg("carry"), -1) as int
 	if cs >= 0:
 		var css := cs as ModuleData.Slot
 		if Run.slots_for(css) > 0 and Run.slots_used(css) >= Run.slots_for(css):
@@ -80,9 +73,9 @@ func _run() -> void:
 	# `proc`: Solari's thirteen parts, fitted where free and the rest in the hold and wreck.
 	var proc_left: Array[ModuleData] = []
 	# `takemap` wears candidate pictures over procedural drawing, to judge takes before install.
-	if _arg("takemap") != "":
-		var tm: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_arg("takemap")))
-		var k := int(_arg("takeslot", "0"))
+	if Harness.arg("takemap") != "":
+		var tm: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Harness.arg("takemap")))
+		var k := int(Harness.arg("takeslot", "0"))
 		for tid: String in tm:
 			var paths: Array = tm[tid]
 			if k < paths.size() and DB.modules.has(StringName(tid)):
@@ -91,8 +84,8 @@ func _run() -> void:
 					(DB.modules[StringName(tid)] as ModuleData).sprite = ImageTexture.create_from_image(img)
 					print("cutawayshot: %s wears %s" % [tid, String(paths[k]).get_file()])
 	var proc_ids: Array = PROC
-	if _arg("procset") != "":
-		proc_ids = Array(_arg("procset").split(",")).map(func(x: String) -> StringName: return StringName(x))
+	if Harness.arg("procset") != "":
+		proc_ids = Array(Harness.arg("procset").split(",")).map(func(x: String) -> StringName: return StringName(x))
 	if "proc" in _args:
 		Run.installed.clear()
 		for pid: StringName in proc_ids:
@@ -131,7 +124,7 @@ func _run() -> void:
 			Run.stow(LootGen.roll_module(3, mk))
 		wreck.items.append(LootGen.roll_module(4, mk))
 	wreck.items.append(MaterialData.of(MaterialTable.all()[2]))
-	if _arg("loot", "yes") != "no":
+	if Harness.arg("loot", "yes") != "no":
 		var pile := Run.sector_jetsam(n, true)
 		pile.items.append(LootGen.roll_module(3))
 		pile.items.append(MaterialData.of(MaterialTable.all()[5]))
@@ -203,7 +196,7 @@ func _run() -> void:
 	print("cutawayshot: %s" % cut.fit_note)
 	# THE ZOOMED SKY, held, for `frames.py` (`skyclip=<dir>`): the cutaway open,
 	# its ship, parts and panel hidden for 90 frames, saved at the game's 1x
-	var sky_dir := _arg("skyclip")
+	var sky_dir := Harness.arg("skyclip")
 	if sky_dir != "":
 		DirAccess.make_dir_recursive_absolute(sky_dir)
 		var art := sc._view.ship_view()
@@ -246,7 +239,7 @@ func _run() -> void:
 	# A carried part rings and pulses its empty mounts; at rest an empty mount is not drawn.
 	var carried: ModuleData = in_hold
 	var shown: ModuleData = carried
-	var want := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(_arg("carry"), -1) as int
+	var want := {"weapon": ModuleData.Slot.WEAPON, "system": ModuleData.Slot.SYSTEM, "utility": ModuleData.Slot.UTILITY}.get(Harness.arg("carry"), -1) as int
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		if want >= 0 and slot != want:
 			continue

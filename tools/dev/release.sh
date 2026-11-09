@@ -34,10 +34,7 @@ rm -f "$NT"
 REL="$TK_WT/release-$VER"
 git -C "$TK_REPO" worktree add -q --detach "$REL" "$SHA" || exit 1
 cd "$REL" || exit 1
-p="$(tk_new_profile)"
-tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1 \
-	|| tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1
-rm -rf "$p"
+tk_import_project
 BLOG="$TK_SCRATCH/logs/build_$VER.log"
 # NOT isolated: Godot finds its export templates through the same user folder
 # (APPDATA on Windows, HOME on a Mac). tools/export.sh points its own smoke runs

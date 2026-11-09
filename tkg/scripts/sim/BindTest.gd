@@ -113,7 +113,7 @@ func _ship_screen() -> void:
 	var ship := await _wait_for(func() -> bool: return Router.current is ShipScreen)
 	if not _ok("the ship screen is up", ship):
 		return
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var scr := Router.current as ShipScreen
 	await _press(KEY_Z)
 	_ok("Z zooms the ship (the default)", scr._zoomed)
@@ -123,7 +123,7 @@ func _ship_screen() -> void:
 	# REBIND THROUGH SETTINGS, with the pause menu open, by pressing keys.
 	_main.call("toggle_menu", false)
 	_main.call("_open_settings")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var page := _page()
 	if not _ok("Settings is open in the pause menu, with CONTROLS", page != null):
 		return
@@ -142,7 +142,7 @@ func _ship_screen() -> void:
 	_ok("ESC with nothing waiting backs out of Settings", not _in_settings())
 	await _press(KEY_ESCAPE)
 	_ok("and ESC again closes the menu", _main.get("_menu") == null)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 	await _press(KEY_X)
 	_ok("X now zooms the ship", scr._zoomed)
@@ -174,7 +174,7 @@ func _persistence() -> void:
 
 func _settings_clash() -> void:
 	_main.call("_open_settings")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var page := _page()
 	if not _ok("Settings is open again", page != null):
 		return
@@ -214,7 +214,7 @@ func _settings_clash() -> void:
 	cfg.load(SCRATCH)
 	_ok("and leaves nothing in the file's key section", not cfg.has_section(Keys.SECTION))
 	_main.call("_close_settings")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 func _star_chart() -> void:
@@ -225,7 +225,7 @@ func _star_chart() -> void:
 		return
 	var scr := Router.current as StarchartScreen
 	scr.dismiss_primer()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var chart := scr._chart
 	var was: bool = StarchartScreen._region_on
 	await _press(KEY_L)
@@ -254,7 +254,7 @@ func _star_chart() -> void:
 		return Router.current is StarchartScreen and (Router.current as StarchartScreen)._chart != null)
 	scr = Router.current as StarchartScreen
 	chart = scr._chart
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 	await _down(KEY_W)
 	_ok("W held pans up (the default)", chart._walk.y < 0.0)
@@ -288,7 +288,7 @@ func _star_chart() -> void:
 
 ## The chart's view where LOCAL REGION frames it (`frame_region`, snapped),
 ## [zoom, pan]; the view left as it was.
-func _region_frame(chart: StarchartScreen.MapChart) -> Array:
+func _region_frame(chart: MapChart) -> Array:
 	var z := chart.zoom
 	var p := chart.pan
 	chart.frame_region(Run.node_at(), 0.24, false)
@@ -299,10 +299,10 @@ func _region_frame(chart: StarchartScreen.MapChart) -> Array:
 
 
 ## The chart's glide to rest (`glide_to`), bounded.
-func _glided(chart: StarchartScreen.MapChart) -> void:
+func _glided(chart: MapChart) -> void:
 	await _until(func() -> bool:
 		return chart._glide == null or not chart._glide.is_valid() or not chart._glide.is_running(), 600)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## `cond` within `n` frames (a glide and a move are timed, not counted).
@@ -329,7 +329,7 @@ func _region_key(scr: StarchartScreen, key: Key, name: String) -> void:
 	await _press(key)
 	await _glided(chart)
 	_ok("%s again: off, and the whole galaxy (zoom %.3f)" % [name, chart.zoom],
-		not StarchartScreen._region_on and absf(chart.zoom - StarchartScreen.MapChart.ZOOM_MIN) < 0.002)
+		not StarchartScreen._region_on and absf(chart.zoom - MapChart.ZOOM_MIN) < 0.002)
 
 
 ## `key` pressed while the calm move from LOCAL to the chart is under way (the
@@ -338,18 +338,18 @@ func _region_mid_move(key: Key, name: String) -> void:
 	StarchartScreen._region_on = false
 	Router.show_local()
 	await _wait_for(func() -> bool: return Router.current is SectorScreen)
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	ZoomLadder.force = 1
 	Router.animate_in_harness = true
 	Router.show_starchart()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var mid := ZoomLadder.busy() and ZoomLadder.active._calm and not (Router.current is StarchartScreen)
 	await _press(key)
 	await _until(func() -> bool: return not ZoomLadder.busy() and Router.current is StarchartScreen, 600)
 	var scr := Router.current as StarchartScreen
 	if scr != null and scr._chart != null:
 		await _glided(scr._chart)
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		await _glided(scr._chart)
 	ZoomLadder.force = -1
 	Router.animate_in_harness = false
@@ -397,26 +397,26 @@ func _sector_map() -> void:
 		return
 	var scr := Router.current as SystemMapScreen
 	scr.harness_keys = false
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 	await _down(KEY_W)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("W held is THRUST (the default)", scr._wasd.w)
 	_ok("and the ship burns", scr.flight.burn)
 	await _up(KEY_W)
 	_ok("letting go of W lets go of THRUST", not scr._wasd.w)
 
 	Keys.set_key(&"ship_thrust", 0, KEY_I)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	# (THE SETTLE'S OWN BURN onto the star's orbit after a thrust is not W: its
 	# length goes with how long the frames were, so it is let finish first)
 	await _until(func() -> bool: return not scr.flight.burn, 600)
 	await _down(KEY_W)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("rebound to I, W no longer thrusts (held %s, burning %s)" % [scr._wasd.w, scr.flight.burn], not scr._wasd.w and not scr.flight.burn)
 	await _up(KEY_W)
 	await _down(KEY_I)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("and I does", scr._wasd.w)
 	_ok("and the ship burns on it", scr.flight.burn)
 	await _up(KEY_I)
@@ -453,29 +453,29 @@ func _sector_map() -> void:
 		await _press(KEY_BRACKETLEFT)
 		_ok("and [ steps back", scr.panel.open_opt == first_open)
 	scr.panel_back()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 func _next_screen() -> void:
 	Router.show_ship()
 	await _wait_for(func() -> bool: return Router.current is ShipScreen)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var was := Router.current
 	await _press(KEY_TAB)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("TAB changes the page (the default; %s)" % _name(Router.current),
 		Router.current != was and not (Router.current is ShipScreen))
 
 	Keys.set_key(&"next_screen", 0, KEY_N)
 	Router.show_ship()
 	await _wait_for(func() -> bool: return Router.current is ShipScreen)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	was = Router.current
 	await _press(KEY_TAB)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("rebound to N, TAB does nothing", Router.current == was)
 	await _press(KEY_N)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("and N changes the page", Router.current != was)
 	Keys.reset(&"next_screen")
 
@@ -515,23 +515,18 @@ func _key(code: Key, pressed: bool) -> InputEventKey:
 
 func _down(code: Key) -> void:
 	Input.parse_input_event(_key(code, true))
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 
 
 func _up(code: Key) -> void:
 	Input.parse_input_event(_key(code, false))
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 
 
 func _press(code: Key) -> void:
 	await _down(code)
 	await _up(code)
-	await _frames(1)
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
+	await Harness.frames(_tree, 1)
 
 
 ## A bounded wait on the thing looked for, not a count of frames at it.

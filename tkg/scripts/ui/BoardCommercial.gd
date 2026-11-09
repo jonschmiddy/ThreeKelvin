@@ -45,8 +45,8 @@ static func draw(b: PostingBoard, sz: Vector2, i: int, t: float) -> void:
 
 static func _stars(b: PostingBoard, sz: Vector2, t: float, n: int, speed: float, col: Color) -> void:
 	for k in n:
-		var x := fposmod(ShopLight.hash1(float(k) * 3.7) * sz.x - t * speed * (0.5 + ShopLight.hash1(float(k) * 1.3)), sz.x)
-		var y := floorf(ShopLight.hash1(float(k) * 7.1 + 2.0) * (sz.y - 8.0))
+		var x := fposmod(UIHash.hash1(float(k) * 3.7) * sz.x - t * speed * (0.5 + UIHash.hash1(float(k) * 1.3)), sz.x)
+		var y := floorf(UIHash.hash1(float(k) * 7.1 + 2.0) * (sz.y - 8.0))
 		var tw := 0.5 + 0.5 * sin(t * 3.0 + float(k))
 		b.draw_rect(Rect2(floorf(x), y, 1.0, 1.0), Color(col.r, col.g, col.b, 0.3 + 0.7 * tw))
 
@@ -101,8 +101,8 @@ static func _hull_wax(b: PostingBoard, sz: Vector2, t: float) -> void:
 static func _star_taxi(b: PostingBoard, sz: Vector2, t: float) -> void:
 	b.draw_rect(Rect2(Vector2.ZERO, sz), Color("#06080e"))
 	for k in 18:
-		var y := floorf(ShopLight.hash1(float(k) * 5.3) * (sz.y - 10.0))
-		var x := fposmod(ShopLight.hash1(float(k) * 2.9) * sz.x * 2.0 - t * 140.0 * (0.6 + ShopLight.hash1(float(k))), sz.x + 40.0) - 20.0
+		var y := floorf(UIHash.hash1(float(k) * 5.3) * (sz.y - 10.0))
+		var x := fposmod(UIHash.hash1(float(k) * 2.9) * sz.x * 2.0 - t * 140.0 * (0.6 + UIHash.hash1(float(k))), sz.x + 40.0) - 20.0
 		var x0 := maxf(floorf(x), 0.0)
 		var x1 := minf(floorf(x) + 14.0, sz.x)
 		if x1 > x0:
@@ -122,7 +122,7 @@ static func _star_taxi(b: PostingBoard, sz: Vector2, t: float) -> void:
 	for k in 5:
 		b.draw_rect(Rect2(x2 + 2.0 + float(k) * 8.0, y2 + 5.0, 4.0, 2.0), Color("#1a1a1a") if k % 2 == 0 else cab)
 	# its exhaust, flickering
-	var fl := 4.0 + floorf(ShopLight.hash1(floorf(t * 20.0)) * 6.0)
+	var fl := 4.0 + floorf(UIHash.hash1(floorf(t * 20.0)) * 6.0)
 	b.draw_rect(Rect2(x2 - fl, y2 + 3.0, fl, 6.0), Color("#ff8a3a"))
 	b._centre_at("STAR", 0.0, 26.0, sz.x, UITheme.FS_HEAD, cab)
 	b._centre_at("TAXI", 0.0, 44.0, sz.x, UITheme.FS_HEAD, cab)
@@ -176,7 +176,7 @@ static func _drone(b: PostingBoard, sz: Vector2, t: float) -> void:
 	# the arms and their rotors, a blur that flickers
 	for s in [-1.0, 1.0]:
 		b.draw_rect(Rect2(c.x + s * 10.0 - (6.0 if s < 0.0 else 0.0), c.y - 9.0, 6.0, 2.0), Color("#8a9aa4"))
-		var rw := 6.0 + floorf(ShopLight.hash1(floorf(t * 24.0) + s) * 6.0)
+		var rw := 6.0 + floorf(UIHash.hash1(floorf(t * 24.0) + s) * 6.0)
 		b.draw_rect(Rect2(c.x + s * 16.0 - rw * 0.5, c.y - 12.0, rw, 1.0), Color(1, 1, 1, 0.7))
 	PostingBoard._disc(b, c, 10, Color("#5a6a74"))
 	PostingBoard._disc(b, c, 9, Color("#b8c8d0"))
@@ -213,8 +213,8 @@ static func _coolant(b: PostingBoard, sz: Vector2, t: float) -> void:
 	b.draw_rect(Rect2(Vector2.ZERO, sz), Color("#5a1a10").lerp(Color("#0e2a4a"), u))
 	if u > 0.3:
 		for k in 26:
-			var x := floorf(ShopLight.hash1(float(k) * 3.3) * sz.x + sin(t * 2.0 + float(k)) * 3.0)
-			var y := floorf(fposmod(ShopLight.hash1(float(k) * 8.1) * sz.y + t * (14.0 + float(k % 5) * 4.0), sz.y))
+			var x := floorf(UIHash.hash1(float(k) * 3.3) * sz.x + sin(t * 2.0 + float(k)) * 3.0)
+			var y := floorf(fposmod(UIHash.hash1(float(k) * 8.1) * sz.y + t * (14.0 + float(k % 5) * 4.0), sz.y))
 			b.draw_rect(Rect2(x, y, 1.0, 1.0), Color(1, 1, 1, (u - 0.3) * 1.2))
 	var tube := Rect2(sz.x * 0.5 - 5.0, 44.0, 10.0, 80.0)
 	b.draw_rect(tube.grow(2.0), Color("#e8eef4"))

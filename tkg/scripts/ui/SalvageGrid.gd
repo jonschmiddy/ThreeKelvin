@@ -313,12 +313,6 @@ func _draw() -> void:
 	draw_rect(r, Color(c.r, c.g, c.b, 0.7), false, 1.0)
 
 
-## Which entry an item is, so a claim can name it. Identity, not equality --
-## `n.bag` holds the very objects the icons were built from.
-func index_of(m: HoldItem) -> int:
-	return _items.find(m)
-
-
 ## Your things dropped here are jettison; ones already
 ## here are rearranged, as refusing read as broken.
 ## Why: docs/why/SalvageGrid.md#drops

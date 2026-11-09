@@ -7,7 +7,7 @@ const GoalTestScript := preload("res://scripts/sim/GoalTest.gd")
 const GOLDEN := "res://scripts/sim/badge_golden.json"
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 ## the union of every pixel the badge inks at a jump (local to its corner), by jump
 var _ink := {}
 ## frames on screen that were not the frame the badge said (`_screen_bad`), and
@@ -18,28 +18,20 @@ var _tex_read := false
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_ladder()
 	await _core_boss()
 	_golden()
@@ -177,21 +169,21 @@ func _core_boss() -> void:
 	Run.at = idx
 	Run.map[idx].visited = true
 	Router.show_local()
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	Router.engage_here()
 	var cb: Combat = null
 	for i in 30:
 		cb = Router.combat
 		if cb != null and not cb.enemies.is_empty():
 			break
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 	_ok("ENGAGE at the core fights the core boss (%s)" % (cb.enemies[0].template.name if cb != null and not cb.enemies.is_empty() else "no fight"),
 		cb != null and not cb.enemies.is_empty() and cb.enemies[0].template.id == DB.core_boss().id)
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.at = was if was < Run.map.size() else Run.at
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 
 
 # ------------------------------------------------------------------ 2. the approved pixels
@@ -344,19 +336,19 @@ func _per_second() -> void:
 ## each stage, as many repaints as the frame changed, never above 12 a second.
 func _repaints() -> void:
 	Router.show_local()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var b := _badge()
 	var rows: Array[String] = []
 	var ok := true
 	for j: int in [1, 15, 18, 20, 28, 35]:
 		Run.jumps = j
 		Run.custodian_seen = j
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var p0 := b.paints
 		var keys := 0
 		var last := String(b.shown.get("key", ""))
 		for i in 180:
-			await _frames(1)
+			await Harness.frames(_tree, 1)
 			_check_screen(b)
 			var k := String(b.shown.get("key", ""))
 			if k != last:
@@ -437,17 +429,17 @@ func _screens() -> void:
 				Router.show_starchart()
 			"a fight":
 				Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-		await _frames(60)
+		await Harness.frames(_tree, 60)
 		await _fit_every_jump(which)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	# A STEP PENDING (hints on, no jump made): its line under the goal, clear of
 	# the badge, and the badge drawn at its tallest (FULL) clear of it too
 	Hints.forced = true
 	Hints.set_process(false)
 	Hints.reset()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var g := _goal()
 	var sr := g.step_rect()
 	var tall := CustodianBadge.frame(35, 0.0, -1.0).get_used_rect()
@@ -458,7 +450,7 @@ func _screens() -> void:
 	Hints.forced = false
 	Hints.set_process(true)
 	Hints.reset()
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 
 
 func _fit_every_jump(which: String) -> void:
@@ -475,7 +467,7 @@ func _fit_every_jump(which: String) -> void:
 	for j in 41:
 		Run.jumps = j
 		Run.custodian_seen = j
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		if not (g.is_visible_in_tree() and g.modulate.a > 0.99 and b.is_visible_in_tree()):
 			bad.append("%d: not up (line %s, badge %s)" % [j, g.is_visible_in_tree(), b.is_visible_in_tree()])
 			continue
@@ -523,7 +515,7 @@ func _watch(n: int) -> Array:
 	var b := _badge()
 	var out: Array = []
 	for i in n:
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		_check_screen(b)
 		out.append(int(b.shown.get("step", -2)) if b.is_visible_in_tree() else -9)
 	return out
@@ -535,7 +527,7 @@ func _until_up(b: CustodianBadge) -> int:
 	for i in 1200:
 		if g != null and g.is_visible_in_tree() and g.modulate.a > 0.99 and b.is_visible_in_tree():
 			return i
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 	return -1
 
 
@@ -556,7 +548,7 @@ func _arrivals() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_ok("a new run has seen no arrival (custodian_seen %d)" % Run.custodian_seen, Run.custodian_seen == 0 and Run.jumps == 0)
 	# ---- the wake on LOCAL, at 10 steps a second, then idle
 	for j: int in [16, 20, 25, 33, 7]:
@@ -602,7 +594,7 @@ func _real_jump() -> void:
 	Run.jumps = 15
 	Run.custodian_seen = 15
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var to := _neighbour()
 	if not _ok("a star in range to jump to", to != null):
 		return
@@ -612,7 +604,7 @@ func _real_jump() -> void:
 	var where := ""
 	var early: Array[String] = []
 	for i in 150:
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		_check_screen(_badge())
 		var e := _early_bad(_badge())
 		if e != "":
@@ -637,7 +629,7 @@ func _animated_jump() -> void:
 	Run.jumps = 19
 	Run.custodian_seen = 19
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var to := _neighbour()
 	if to == null:
 		_ok("a star in range to jump to, animated", false)
@@ -649,7 +641,7 @@ func _animated_jump() -> void:
 	var faded := false
 	var shown_early: Array[String] = []
 	for i in 1500:
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		_check_screen(_badge())
 		var eb := _early_bad(_badge())
 		if eb != "":
@@ -665,7 +657,7 @@ func _animated_jump() -> void:
 	_ok("animated, the jump to 20 lands (jumps %d) and its arrival starts once the ship has stopped and the line is up (%s)" % [Run.jumps, started],
 		Run.jumps == 20 and started != "" and not early and faded)
 	_ok("animated, jump 19's eye at rest shows until then, the old line fading out too (%s)" % ("every frame" if shown_early.is_empty() else "; ".join(shown_early.slice(0, 3))), shown_early.is_empty())
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	await _skipped_jump()
 
 
@@ -676,7 +668,7 @@ func _skipped_jump() -> void:
 	Run.jumps = 15
 	Run.custodian_seen = 15
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var to := _neighbour()
 	if to == null:
 		_ok("a star in range to jump to, skipped", false)
@@ -689,7 +681,7 @@ func _skipped_jump() -> void:
 	var early: Array[String] = []
 	var woke := false
 	for i in 1500:
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		if not skipped and sc != null and is_instance_valid(sc) and sc._phase == SectorScreen.Phase.DEPART:
 			sc._skip()
 			skipped = true
@@ -707,7 +699,7 @@ func _skipped_jump() -> void:
 	_ok("a departure skipped on its first frame lands at 16 and wakes it (skipped %s, jumps %d, the line fading out with jump 16 committed on %d frames)" % [
 		skipped, Run.jumps, fading_at_16], skipped and woke and Run.jumps == 16)
 	_ok("and the fading line holds jump 15's eye until the wake (%s)" % ("every frame" if early.is_empty() else "; ".join(early.slice(0, 3))), early.is_empty())
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 
 
 func _neighbour() -> MapGen.MapNode:
@@ -732,7 +724,7 @@ func _hover_and_mouse() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var g := _goal()
 	var b := _badge()
 	_not_pressable(g)
@@ -747,7 +739,7 @@ func _hover_and_mouse() -> void:
 				Router.show_starchart()
 			"a fight":
 				Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-		await _frames(60)
+		await Harness.frames(_tree, 60)
 		var bad: Array[String] = []
 		var late: Array[String] = []
 		var timing: Array[String] = []
@@ -755,12 +747,12 @@ func _hover_and_mouse() -> void:
 			Run.jumps = j
 			Run.custodian_seen = j
 			_move_to(Vector2(8, 300))
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			var mid := b.box_rect().get_center().floor()
 			_move_to(mid)
-			await _frames(12)
+			await Harness.frames(_tree, 12)
 			var early := b.tip.visible
-			await _frames(6)
+			await Harness.frames(_tree, 6)
 			var up := b.tip.is_visible_in_tree()
 			if early or not up:
 				late.append("%d: up at 0.2 s %s, at 0.3 s %s" % [j, early, up])
@@ -800,7 +792,7 @@ func _hover_and_mouse() -> void:
 			if hov != null and (hov == g or g.is_ancestor_of(hov)):
 				bad.append("%d: the pointer is over %s" % [j, hov.name])
 			_move_to(Vector2(mid.x, 300))
-			await _frames(1)
+			await Harness.frames(_tree, 1)
 			if b.tip.is_visible_in_tree():
 				bad.append("%d: still up after leaving" % j)
 		_ok("%s: the tooltip comes up after a quarter second and not before, at every jump 0, 15, 16, 25, 33, 40 (%s)" % [which,
@@ -812,7 +804,7 @@ func _hover_and_mouse() -> void:
 		if which == "the chart" or which == "the map":
 			await _picture_hover_under_badge(which)
 	Router.show_local()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 
 
 ## A press on the badge on the chart is the chart's: a pan starts (or a star
@@ -822,7 +814,7 @@ func _press_reaches_chart() -> void:
 	var chart: Control = (Router.current as StarchartScreen)._chart
 	var mid := b.box_rect().get_center().floor()
 	_move_to(mid)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var picked := [false]
 	var on_pick := func(_i: int) -> void: picked[0] = true
 	chart.connect(&"node_picked", on_pick)
@@ -832,7 +824,7 @@ func _press_reaches_chart() -> void:
 	mb.position = mid
 	mb.global_position = mid
 	get_viewport().push_input(mb, true)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	# (headless keeps no hover, so what the pointer is over is read where the
 	# viewport has one)
 	var hov := get_viewport().gui_get_hovered_control()
@@ -842,10 +834,10 @@ func _press_reaches_chart() -> void:
 	var up := mb.duplicate() as InputEventMouseButton
 	up.pressed = false
 	get_viewport().push_input(up, true)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	chart.disconnect(&"node_picked", on_pick)
 	_move_to(Vector2(8, 300))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## One tooltip under the pointer: the picture under the badge must hover nothing.
@@ -855,7 +847,7 @@ func _picture_hover_under_badge(which: String) -> void:
 	Run.jumps = 16
 	Run.custodian_seen = 16
 	_move_to(Vector2(8, 300))
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var mid := b.box_rect().get_center().floor()
 	var aside := Vector2(b.box_rect().end.x + 40.0, mid.y)
 	var rows: Array[String] = []
@@ -865,7 +857,7 @@ func _picture_hover_under_badge(which: String) -> void:
 		var hovered := _picture_hover(which, spot)
 		if spot == mid:
 			_move_to(mid)
-			await _frames(18)
+			await Harness.frames(_tree, 18)
 			var tip := b.tip.is_visible_in_tree()
 			rows.append("under the badge: %s there, the picture hovers %s, the badge's tooltip %s" % [under, hovered, "up" if tip else "shut"])
 			ok = ok and under != "" and hovered == "" and tip
@@ -873,14 +865,14 @@ func _picture_hover_under_badge(which: String) -> void:
 			rows.append("beside it: %s there, hovers %s" % [under, hovered])
 			ok = ok and under != "" and hovered != ""
 		_move_to(Vector2(8, 300))
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	_picture_hover(which, Vector2(8, 300))
 	_ok("%s: one tooltip at a time, the picture's hover is not under the badge (%s)" % [which, "; ".join(rows)], ok)
 	if which == "the chart":
 		Router.show_starchart()
 	else:
 		Router.show_system()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 
 
 ## Brings what the picture shows under `spot`: the chart pans, the map takes the first world.
@@ -891,7 +883,7 @@ func _bring_under(which: String, spot: Vector2) -> String:
 		var n := Run.node_at()
 		chart.pan += p - chart._screen_pos(n)
 		chart.queue_redraw()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		chart.pan += p - chart._screen_pos(n)
 		var h: int = chart._node_at(p)
 		return "system %d" % h if h >= 0 else ""
@@ -1044,7 +1036,7 @@ func _coop() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var b := _badge()
 	# Windowed, a new run's LOCAL plays its intro first: wait for the line to be
 	# fully up, as an arrival does, before the count moves.
@@ -1054,7 +1046,7 @@ func _coop() -> void:
 	# the tick plays once on LOCAL
 	Run.jumps = 10
 	Run.custodian_seen = 10
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	Run.party_jumps = 11
 	var rs := _runs(await _watch(120))
 	_ok("a partner's jump past yours plays its arrival once, with no jump of yours (steps:frames %s; seen %d, shown %d)" % [
@@ -1071,14 +1063,14 @@ func _coop() -> void:
 		Run.party_jumps = 0
 		Run.jumps = int(row[0])
 		Run.custodian_seen = int(row[0])
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		Run.party_jumps = int(row[1])
 		var seq: Array = []
 		var w0: Array = []
 		var wi: Array = []
 		var froms: Array = []
 		for i in 150:
-			await _frames(1)
+			await Harness.frames(_tree, 1)
 			_check_screen(b)
 			var st := int(b.shown.get("step", -2))
 			seq.append(st)
@@ -1111,12 +1103,12 @@ func _coop() -> void:
 	Run.party_jumps = 0
 	Run.jumps = 15
 	Run.custodian_seen = 15
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	Run.jumps = 17
 	var seq6: Array = []
 	var froms6: Array = []
 	for i in 150:
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		var st6 := int(b.shown.get("step", -2))
 		seq6.append(st6)
 		if st6 >= 0:
@@ -1137,7 +1129,7 @@ func _coop() -> void:
 		Run.jumps = 0
 		Run.party_jumps = 0
 		Run.custodian_seen = 0
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		door.galaxy_jumps = 0
 		door._push_growth_to(g, true)
 		var seq4: Array = await _watch(60)
@@ -1149,16 +1141,16 @@ func _coop() -> void:
 	Run.party_jumps = 30
 	Run.jumps = 20
 	Run.custodian_seen = 30
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	Run.jumps = 21
 	var seq5: Array = await _watch(60)
 	_ok("your own jump behind the lead ship plays nothing (shows %d)" % int(b.shown.get("j", -1)),
 		not seq5.any(func(s: int) -> bool: return s >= 0) and int(b.shown.get("j", -1)) == 30)
 	# THE TOOLTIP ON SCREEN says the party's words behind a lead ship
 	_move_to(Vector2(8, 300))
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_move_to(b.box_rect().get_center().floor())
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var lines: Array[String] = []
 	if b.tip != null and b.tip.is_visible_in_tree():
 		for l in b._tip_box.get_children():
@@ -1166,11 +1158,11 @@ func _coop() -> void:
 				lines.append((l as Label).text)
 	_ok("its tooltip behind a lead ship at 30 says the party's words (%s)" % " / ".join(lines), lines == Array(CustodianBadge.tooltip(30, true)))
 	_move_to(Vector2(8, 300))
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Run.party_jumps = 0
 	Run.jumps = 0
 	Run.custodian_seen = 0
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 
 
 ## An arrival's runs: steps 0 to n-1 at about 6 frames each (10 a second at 60),
@@ -1186,24 +1178,24 @@ func _steps_ok(rs: Array, n: int) -> bool:
 
 func _no_growth() -> void:
 	Router.show_local()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	var with_badge := _clickables()
 	var e := DB.core_boss()
 	var was := e.grow_after
 	e.grow_after = -1
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var g := _goal()
 	var off_ok := not CustodianBadge.enabled() and not _badge().visible and g.size == g._panel.size
 	var without := _clickables()
 	e.grow_after = was
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("a core boss that never grows has no badge, and the line is its words alone (%s)" % g.size if not off_ok else "a core boss that never grows has no badge, and the line is its words alone", off_ok)
 	_ok("nothing clickable moves for the badge (%d controls: the HUD's tabs, the fight's END TURN, LOG, the hand)" % with_badge.size(),
 		with_badge == without and with_badge.size() > 3)
 	Router.show_local()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 
 
 func _clickables() -> Dictionary:
@@ -1231,5 +1223,5 @@ func _finish() -> void:
 	Hints.forced = false
 	Hints.set_process(true)
 	Hints.reset()
-	print("badgetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("badgetest")
+	_tree.quit(harness.code())

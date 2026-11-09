@@ -3,13 +3,12 @@ extends Node
 ## A kill moves nothing (Jon: the enemy dips then pops up); input is ignored until the hand-off.
 ## Why: docs/why/KillHoldTest.md#kill-moves-nothing
 
-var _fails := 0
+var h := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
 	if not c:
-		print("  FAIL %s" % what)
-		_fails += 1
+		h._fail(what)
 	return c
 
 
@@ -26,8 +25,8 @@ func _run() -> void:
 	await _window(tree)
 	await _failed_exit(tree)
 	Router.animate_in_harness = false
-	print("killholdtest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit(1 if _fails > 0 else 0)
+	h.verdict("killholdtest")
+	tree.quit(h.code())
 
 
 func _rest(sl: EnemySlot) -> Vector2:

@@ -1,6 +1,6 @@
 shader_type canvas_item;
 
-// THE CHART'S MARKS (`StarchartScreen.MapChart`): everything the chart draws
+// THE CHART'S MARKS (`MapChart`): everything the chart draws
 // over the sky passes through untouched, except its dark rims -- the rim round
 // a system's glyph, the underlay under a route, a ring, the trail and the YOU
 // label. Those are drawn in a key colour (pure green, `MapChart._UNDER`), and

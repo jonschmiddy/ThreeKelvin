@@ -54,12 +54,6 @@ static func rack_height(boards: int = BOARDS) -> float:
 	return float(CAP_H + 6 + PITCH * boards + PLINTH_H)
 
 
-## Two or three boards tall; a hub gets the tall rack, asked of `_pack` so they cannot disagree.
-## Why: docs/why/ShelfDisplay.md#rack-size
-static func boards_for(rows: Array) -> int:
-	return 2 if _pack(rows, 2)[1] == 0 else BOARDS
-
-
 ## Whether these parts all stand on `count` boards, packed the way `stock`
 ## packs them. What the shop's stock roll asks before it takes a part.
 static func stands_on(mods: Array, count: int) -> bool:
@@ -264,7 +258,7 @@ func _draw() -> void:
 			# A glow up the back panel behind the part, then the lit strip itself.
 			for k in 4:
 				draw_rect(Rect2(pr.position.x, pr.position.y - 4.0 - float(k) * 2.0,
-					pr.size.x, 2.0), Color(pc.r, pc.g, pc.b, 0.10 - 0.022 * float(k)))
+					pr.size.x, 2.0), Color(pc, 0.10 - 0.022 * float(k)))
 			draw_rect(pr, pc)
 		return
 
@@ -275,7 +269,7 @@ func _draw() -> void:
 	while sx < w - float(POST_W) - 6.0:
 		var sy := 8.0
 		while sy < h - 8.0:
-			draw_rect(Rect2(sx, sy, 2.0, 5.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+			draw_rect(Rect2(sx, sy, 2.0, 5.0), Color(SHADE, 0.5))
 			sy += 14.0
 		sx += 19.0
 
@@ -284,11 +278,11 @@ func _draw() -> void:
 		draw_rect(Rect2(px, 0.0, float(POST_W), h), POST)
 		draw_rect(Rect2(px, 0.0, 1.0, h), EDGE)
 		draw_rect(Rect2(px + float(POST_W) - 1.0, 0.0, 1.0, h),
-			Color(SHADE.r, SHADE.g, SHADE.b, 0.7))
+			Color(SHADE, 0.7))
 	var y := 13.0
 	while y < h - 8.0:
 		for hx in [4.0, w - float(POST_W) + 4.0]:
-			draw_rect(Rect2(hx, y, 4.0, 3.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.75))
+			draw_rect(Rect2(hx, y, 4.0, 3.0), Color(SHADE, 0.75))
 			draw_rect(Rect2(hx, y + 3.0, 4.0, 1.0), EDGE)
 		y += 15.0
 
@@ -299,13 +293,13 @@ func _draw() -> void:
 	draw_rect(Rect2(0.0, h - float(PLINTH_H), w, float(PLINTH_H)), POST)
 	draw_rect(Rect2(0.0, h - float(PLINTH_H), w, 1.0), LIP)
 	draw_rect(Rect2(5.0, h - float(PLINTH_H) + 3.0, w - 10.0, float(PLINTH_H) - 3.0),
-		Color(SHADE.r, SHADE.g, SHADE.b, 0.6))
+		Color(SHADE, 0.6))
 
 	# --- AND THE BOARDS THE PARTS ARE STANDING ON.
 	for by in _boards:
 		# The shadow the goods cast down onto their own board, so they are ON it.
 		draw_rect(Rect2(float(POST_W), by - 3.0, w - float(POST_W * 2), 3.0),
-			Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+			Color(SHADE, 0.5))
 		# Stepped brackets of three rects: a diagonal cannot be trusted to hit the pixel grid.
 		for step in 3:
 			var bw := 13.0 - 4.0 * float(step)
@@ -319,7 +313,7 @@ func _draw() -> void:
 		draw_rect(Rect2(0.0, by, w, float(PLANK)), POST)
 		draw_rect(Rect2(0.0, by, w, 1.0), LIP)
 		draw_rect(Rect2(0.0, by + float(PLANK) - 1.0, w, 1.0),
-			Color(SHADE.r, SHADE.g, SHADE.b, 0.75))
+			Color(SHADE, 0.75))
 
 
 ## The rarity lights and price tags, drawn onto another layer -- the one over
@@ -381,7 +375,7 @@ class PriceTag extends Control:
 		var ink := INK if can else INK_DIM
 		# The string up to the board's lip, and the shadow the card casts.
 		ci.draw_rect(Rect2(at + Vector2(floorf(w * 0.5), -2.0), Vector2(1.0, 2.0)),
-			Color(STRING.r, STRING.g, STRING.b, 0.85))
+			Color(STRING, 0.85))
 		ci.draw_rect(Rect2(at + Vector2(1.0, 1.0), Vector2(w, h)), SHADOW)
 		ci.draw_rect(Rect2(at, Vector2(w, h)), card)
 		ci.draw_rect(Rect2(at, Vector2(w, 1.0)), LIP if can else card.lightened(0.3))

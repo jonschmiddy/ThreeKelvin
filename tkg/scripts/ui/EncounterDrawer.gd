@@ -234,7 +234,7 @@ static func result_stamp(r: StringName) -> Array:
 	match r:
 		MapGen.R_SUCCESS: return ["SUCCESS", UITheme.GOOD]
 		MapGen.R_PARTIAL: return ["PARTIAL", UITheme.EMBER]
-		MapGen.R_BOTCHED: return ["BOTCHED", Color("#d4614f")]
+		MapGen.R_BOTCHED: return ["BOTCHED", UITheme.LEAVE]
 		# `CHILL`, not `COLD`: this seal is already faint and nothing you did produced it.
 		MapGen.R_GONE: return ["UNAVAILABLE", UITheme.CHILL]
 	return ["RESOLVED", UITheme.CHILL]

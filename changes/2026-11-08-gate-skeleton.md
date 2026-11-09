@@ -1,0 +1,1 @@
+- **Changed** — nothing a player will see; this is internal. The gate's repeated test steps now share one helper and its long comments moved to docs/why/validate.md. The gate now fails, where it used to skip, when there is no Python. The dev handoff is current, and `build.py sfx` no longer copies over the bought sound takes unless told to.

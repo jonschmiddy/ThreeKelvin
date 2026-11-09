@@ -4,17 +4,14 @@ extends Node
 ## The box test checks the button and log touch nothing, in every hull and enemy mix.
 ## Why: docs/why/FightLogTest.md#fight-log
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 var _shots := ""
 var _boxed := 0
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -22,11 +19,6 @@ func _ready() -> void:
 		if (a as String).begins_with("shots="):
 			_shots = (a as String).substr(6)
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _shot(name: String) -> void:
@@ -61,7 +53,7 @@ func _click(c: Control) -> void:
 		mb.global_position = at
 		Input.parse_input_event(mb)
 		await _tree.process_frame
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 
 ## A fight on LOCAL at an ordinary system: `ids` the ships, in the `w` hull.
@@ -79,19 +71,19 @@ func _fight(w: int, ids: Array) -> SectorScreen:
 		(raw as MapGen.MapNode).ambush_rolled = true
 		(raw as MapGen.MapNode).ambush_pending = false
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var extras: Array = []
 	for i in range(1, ids.size()):
 		extras.append(DB.enemies[ids[i]])
 	Router.start_combat(DB.enemies[ids[0]], extras, false, false)
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	# (in a window the band rises and LOG fades in after it: wait for it whole)
 	var sc := Router.current as SectorScreen
 	for i in 600:
 		if sc == null or sc._fight_log == null or sc._fight_log.button.modulate.a >= 1.0:
 			break
 		await _tree.process_frame
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	return sc
 
 
@@ -107,14 +99,14 @@ func _play_turn() -> void:
 				cb.play(i, 0)
 				played = true
 				break
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		if not played or cb.finished:
 			break
 	if not cb.finished:
 		cb.end_turn()
 	# (your hull kept full: the fight is the log's, not a race to the wreck)
 	Run.hp = Run.max_hp()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 
 
 ## Where everything that can be clicked is: the hand's buttons and piles, the
@@ -250,7 +242,7 @@ func _run() -> void:
 	var before := _clickables(sc)
 	await _click(f.button)
 	_ok("clicked: LOG pressed, the log shows", f.button.button_pressed and f.panel.is_visible_in_tree())
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var txt := f.shown_text()
 	var missing := 0
 	for l: Dictionary in FightLog.lines:
@@ -297,7 +289,7 @@ func _run() -> void:
 			if not _ok("%s / %s: the fight opens" % [["light", "medium", "heavy"][int(w)], "+".join(ids)], sc != null and sc.fighting()):
 				continue
 			await _play_turn()
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 			_box_test("%s / %s" % [["light", "medium", "heavy"][int(w)], "+".join(ids)], sc)
 	_ok("boxed %d screens" % _boxed, _boxed == 18)
 	# 6. OUT OF A FIGHT: no LOG
@@ -306,5 +298,5 @@ func _run() -> void:
 
 
 func _end() -> void:
-	print("fightlogtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("fightlogtest")
+	_tree.quit(h.code())

@@ -5,16 +5,16 @@ extends RefCounted
 ## Why: docs/why/JumpCine.md#jump-cinematic
 
 const SHOTS := {
-	 0.30: "01_rev_early",
-	 0.78: "02_rev_moving",
-	 1.05: "03_rev_late",
-	 1.60: "03_card_in",
-	 2.60: "04_card_held",
-	 3.60: "05_card_gone",
-	 5.00: "06_flying_in",
-	 7.20: "07_coasting",
-	 8.50: "08_parked_shut",
-	 9.30: "09_drawer_open",
+		0.30: "01_rev_early",
+		0.78: "02_rev_moving",
+		1.05: "03_rev_late",
+		1.60: "03_card_in",
+		2.60: "04_card_held",
+		3.60: "05_card_gone",
+		5.00: "06_flying_in",
+		7.20: "07_coasting",
+		8.50: "08_parked_shut",
+		9.30: "09_drawer_open",
 }
 
 
@@ -35,13 +35,13 @@ func _line(at: float, name: String) -> void:
 	var art := sc._view.ship_view()
 	print("  %5.2fs %-16s  phase %d  ship x %+6.1f vis %s  card %s"
 			% [at, name, sc._phase,
-			   art.position.x if art != null else 0.0,
-			   "y" if art != null and art.visible else "n",
-			   "%.2f" % sc._card.modulate.a if sc._card != null else "-"]
+				art.position.x if art != null else 0.0,
+				"y" if art != null and art.visible else "n",
+				"%.2f" % sc._card.modulate.a if sc._card != null else "-"]
 		+ "  drawer y %+6.1f of %.0f  band %.0f  bleed %.0f  viewend %.0f/%.0f"
 			% [sc._quiet_wrap.position.y, sc._quiet_wrap.size.y,
-			   sc._quiet_holder.size.y, sc._view._bleed,
-			   sc._view.get_global_rect().end.y, sc.get_global_rect().end.y])
+				sc._quiet_holder.size.y, sc._view._bleed,
+				sc._view.get_global_rect().end.y, sc.get_global_rect().end.y])
 
 
 ## One strip per style, cropped to the hull, so twenty styles can be compared side by side.
@@ -70,7 +70,7 @@ func _demo(tree: SceneTree) -> void:
 			0, int(tree.root.size.y) - DEMO_H))
 	print("  hull_rect %s  art.size %s  art.gpos %s  dest-> box-local %.0f"
 		% [art0.hull_rect(), art0.size, art0.get_global_rect().position,
-		   art0.hull_rect().size.x * (0.5 + JumpFx.HYPER_DEST)])
+			art0.hull_rect().size.x * (0.5 + JumpFx.HYPER_DEST)])
 	print("  crop %s  %dx%d  %d frames at %.0f ms"
 		% [org, DEMO_W, DEMO_H, DEMO_FRAMES, DEMO_STEP * 1000.0])
 

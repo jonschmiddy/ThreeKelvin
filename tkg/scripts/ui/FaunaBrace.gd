@@ -69,7 +69,7 @@ void fragment() {
 
 
 
-func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
+func setup(_img: Image, _used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	facing = the_facing

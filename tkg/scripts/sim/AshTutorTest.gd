@@ -7,7 +7,7 @@ extends Node
 const HintActs := preload("res://scripts/sim/HintActs.gd")
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 var _checks := 0
 var _screens: Dictionary = {}
 ## Seeded, for the clicks on her box.
@@ -80,19 +80,11 @@ const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiri
 
 func _ok(what: String, c: bool) -> bool:
 	_checks += 1
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 ## The map_fly line points at a world, not the ship (Jon, Nov 4), and a click at its
@@ -124,7 +116,7 @@ func _map_fly_world(m: SystemMapScreen) -> void:
 	# star: at its own pace it moves under a pixel in the two seconds; put back)
 	for f in 120:
 		m.view.t += 3.0
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		var pf := Hints._map_fly_probe(m, Hints._hud_rect())
 		var sf: Rect2 = pf.get("subject", Rect2())
 		followed += int(int(pf.get("world", -1)) == on and sf.has_point(g * m.view.at[on])
@@ -143,7 +135,7 @@ func _map_fly_world(m: SystemMapScreen) -> void:
 	var sn: Rect2 = pn.get("subject", Rect2())
 	_ok("map_fly: in a system with no world, the outline is on the ship (subject %s, ship %s)" % [sn, g * m.overlay._ship_at],
 		not pn.has("world") and sn.has_point(g * m.overlay._ship_at))
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	Hints._fly_pick = [0, -1]
 	var p0 := Hints._map_fly_probe(m, Hints._hud_rect())
 	var w0 := int(p0.get("world", -1))
@@ -185,7 +177,7 @@ func _map_fly_world(m: SystemMapScreen) -> void:
 
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("off under a harness that did not ask", not Ash.teaches() and not Hints.enabled())
 	Ash.forced = true
 	Ash.reload()
@@ -213,13 +205,6 @@ func _run() -> void:
 
 # ------------------------------------------------------------------ helpers
 
-func _press() -> InputEventMouseButton:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
-	return ev
-
-
 func _local() -> SectorScreen:
 	Router.show_local()
 	# (from the map the ladder's move down takes longer than the 40 frames)
@@ -227,7 +212,7 @@ func _local() -> SectorScreen:
 		if Router.current is SectorScreen and not ZoomLadder.busy():
 			break
 		await _tree.process_frame
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	return Router.current as SectorScreen
 
 
@@ -326,7 +311,7 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 				Hints.seen(id))
 			if after.is_valid():
 				after.call()
-				await _frames(2)
+				await Harness.frames(_tree, 2)
 			Hints.poll(Hints.GAP_S + 0.1)
 			return
 		if shut:
@@ -335,7 +320,7 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 			# (so it is armed once more: it comes back unspent)
 			_armed[id] = int(_armed.get(id, 0)) + 1
 			reopen.call()
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			_ok("%s: opened again, she says it again" % lid, await _until_said(lid))
 		for i in 30:
 			Hints.poll(0.2)
@@ -373,10 +358,10 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 			sc._cutaway.close_now()
 		if sc._transfer != null:
 			sc._close_transfer()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 	if after.is_valid():
 		after.call()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	Hints.poll(Hints.GAP_S + 0.1)
 
 
@@ -426,7 +411,7 @@ func _do(id: StringName) -> String:
 	var st := Router.current as StationScreen
 	if st != null and st._cutaway != null and is_instance_valid(st._cutaway):
 		st._cutaway.close_now()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	return did
 
 
@@ -479,7 +464,7 @@ func _expect_step(lid: StringName) -> void:
 	_ok("%s: said for good" % lid, Hints.said(lid))
 	_ok("%s: the goal line's step hidden on every frame she says it (%d frames shown)" % [lid, shown], shown == 0)
 	Hints.poll(0.1)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var sr := gl.step_rect()
 	_ok("%s: once she is done, the step's line back as the reminder (%s), in its room under the goal" % [lid, sr],
 		sr.size != Vector2.ZERO and GoalLine.stack_rect(Router.current).encloses(sr))
@@ -858,12 +843,12 @@ func _used_state() -> void:
 	Ash.waiting.clear()
 	Ash._last_end = -INF
 	Ash.arm(&"launch")
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	_ok("a bark of hers already said this run (%s)" % (Ash.said_log.back().kind if not Ash.said_log.is_empty() else "none"),
 		not Ash.said_log.is_empty() and Ash.said_log.back().kind == &"launch")
 	if Ash.portrait != null:
 		Ash.portrait.cut()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	# the settings file: hints and a step seen, reset, one seen since
 	Hints.mark_seen(&"ship")
 	Hints.mark_seen(&"wreck")
@@ -903,17 +888,17 @@ func _flow() -> void:
 	await _never(&"ship", "before the first jump, the ship's hint does not come")
 	# THE CHART: its list first, then the step as it reads there
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	await _expect(&"chart")
 	await _expect_step(&"step_jump_chart")
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	await _never(&"chart", "the chart again: its line does not come back")
 	# THE SECOND CHART: its layer strip
 	await _expect(&"layers")
 	# A STAR THE SHIP CANNOT JUMP TO, picked on a chart of its own: JUMP says why
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var chb := Router.current as StarchartScreen
 	var far := -1
 	for raw in Run.map:
@@ -923,7 +908,7 @@ func _flow() -> void:
 			break
 	if _ok("a charted star out of reach to pick (%d)" % far, far >= 0 and chb != null):
 		chb._on_node_picked(far)
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		_ok("its JUMP is off and says why (\"%s\")" % chb._jump.text, chb._jump.disabled and chb._jump.text != "JUMP")
 		# (a click on her box lands on the chart's sky, which drops the pick: the
 		# click's own job; the star picked again)
@@ -933,7 +918,7 @@ func _flow() -> void:
 	if n.options.is_empty():
 		_plant_event(n)
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	# THE FIRST ARRIVAL: the tank, before the step (information: it goes by itself)
 	await _expect(&"fuel_first")
 	await _expect_step(&"step_event_map")
@@ -944,7 +929,7 @@ func _flow() -> void:
 	# THE MAP AGAIN, the ship on no orbit (circling the star as it arrived):
 	# flying it by hand, the keys as bound on a line of their own
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var mpf := Router.current as SystemMapScreen
 	_ok("the map: the ship on no world's orbit (%s)" % (mpf.flight.mode if mpf != null else &"?"),
 		mpf != null and int(mpf.flight.reached()) == -9)
@@ -984,18 +969,18 @@ func _flow() -> void:
 	await _never(&"wreck", "not the wreck's line over the event's band")
 	_ok("the step is done by the event opening, not said over it", Hints.seen(&"step_event"))
 	sc._events.not_now()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	# (each of these opens what it is about: put away again, as a player does)
 	await _expect(&"wreck")
 	sc._close_transfer()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	await _expect(&"loot")
 	sc._close_transfer()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	await _expect(&"ship")
 	if sc._cutaway != null:
 		sc._cutaway.close_now()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	# THE HULL SHORT OF FULL, on a LOCAL of its own (one new lesson a visit):
 	# said whole and LOCAL left, it is spent
 	Run.hp = Run.max_hp() - 5
@@ -1013,7 +998,7 @@ func _flow() -> void:
 	# OVER THE CUTAWAY (her bark rules keep her off it; a lesson may)
 	var cut := sc.open_cutaway()
 	if _ok("the cutaway opens", cut != null):
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		print("    (cutaway: open %s, its rect %s, panel %s %s, pic %s, view %s)" % [cut.is_open(), cut.get_global_rect(),
 			cut._panel.get_global_rect(), cut._panel.is_visible_in_tree(), cut.get_global_transform() * cut._pic, Ash.tut_view_rect(sc)])
 		# (after it, a part picked up: the mounts that take it light)
@@ -1023,12 +1008,12 @@ func _flow() -> void:
 			# (a part off the ship: the fit changed since it was first opened up)
 			if sc._cutaway == null or not is_instance_valid(sc._cutaway):
 				sc.open_cutaway()
-				await _frames(30)
+				await Harness.frames(_tree, 30)
 			await _expect(&"cards_from_parts", &"", "", func() -> void: sc.open_cutaway())
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
 			sc._cutaway.close_now()
 		_refit()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 	# OVER THE EVENT BAND AGAIN: a choice that tests the ship, then the result
 	# with a REWARD (the band's line, said once above, not again)
 	await _band_deep(sc, n)
@@ -1037,24 +1022,24 @@ func _flow() -> void:
 	loaded.items.append(CreditChit.of(30))
 	sc = await _local()
 	sc._open_jetsam(loaded)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	await _expect(&"salvage")
 	sc._close_transfer()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	# THE CUTAWAY AGAIN, after a check was taught: the ship's stats
 	var cut2 := sc.open_cutaway()
 	if _ok("the cutaway opens again", cut2 != null):
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		await _expect(&"attributes", &"", "", func() -> void: sc.open_cutaway())
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
 			sc._cutaway.close_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 
 	# A FIGHT: five lines in one fight, her one-line limit is for barks
 	Run.heat = 0
 	var f0 := Ash.said_log.size()
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var fs := Router.current as SectorScreen
 	var cb: Combat = Router.combat
 	if _ok("a fight is up", fs != null and fs.fighting() and cb != null):
@@ -1064,7 +1049,7 @@ func _flow() -> void:
 		# TURN 1: the hand (its action a card played), the energy after it, END
 		# TURN with nothing left; nothing else
 		await _expect(&"hand")
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		await _expect(&"energy")
 		_ok("turn 1 teaches the hand, energy and END TURN alone (no intent yet)", not Hints.seen(&"intent"))
 		while await _play_one(cb):
@@ -1087,7 +1072,7 @@ func _flow() -> void:
 		await _settle_turn(fs)
 		cb.brace = 60
 		fs._refresh_player()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		await _expect(&"brace")
 		await _settle_turn(fs)
 		await _give(cb, fs, _with(cb, {brace = 3, damage = 0, energy = 0}))
@@ -1098,7 +1083,7 @@ func _flow() -> void:
 		await _give(cb, fs, _with(cb, {discard = 1, damage = 0, energy = 0, name = "Sort"}))
 		cb.play(cb.hand.size() - 1, -1)
 		fs._refresh_hand()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_ok("a discard asked for (%d to pick)" % cb.choosing, cb.choosing > 0)
 		await _expect(&"discard_pick")
 		await _next_turn(fs)
@@ -1114,7 +1099,7 @@ func _flow() -> void:
 		Run.hp = Run.max_hp()
 		# A SECOND FIGHT, the hull at half: FLEE and HAIL (one of these a fight)
 		Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		fs = Router.current as SectorScreen
 		cb = Router.combat
 		for e in cb.enemies:
@@ -1126,10 +1111,10 @@ func _flow() -> void:
 		if fs._exit_ask != null:
 			fs._close_exit_ask()
 		Run.hp = Run.max_hp()
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		# A THIRD, turn 2: the piles
 		Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		fs = Router.current as SectorScreen
 		cb = Router.combat
 		for e in cb.enemies:
@@ -1157,7 +1142,7 @@ func _flow() -> void:
 	# (DOCK only at the station itself, Jon's dock:A: park there first)
 	Router.park_at_station()
 	Router.show_station()
-	await _frames(90)
+	await Harness.frames(_tree, 90)
 	# (what the decks need to be used: credits, a part to sell, the lab's stuff)
 	HintActs.stock_up()
 	# (a deck picked is the dock's action; then on to the yard, its first deck)
@@ -1170,21 +1155,21 @@ func _flow() -> void:
 	# (the ship's action opens it up: the cutaway's line is said there)
 	await _expect(&"ship")
 	if st != null and st._cutaway != null:
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		var sct := st._cutaway
 		print("    (station cutaway: its rect %s xform %s, panel %s, pic %s, view %s)" % [sct.get_global_rect(), sct.get_global_transform(),
 			sct._panel.get_global_rect(), sct.get_global_transform() * sct._pic, Ash.tut_view_rect(st)])
 		await _expect(&"cutaway", &"", "", func() -> void: st.open_cutaway())
 		if st._cutaway != null and is_instance_valid(st._cutaway):
 			st._cutaway.close_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 	if st != null:
 		# THE YARD AGAIN: the FAULTS drone (its picker its action), then the
 		# ship for sale (said whole and the deck left: TAKE IT is not pressed)
 		await _revisit(st)
 		await _expect(&"faults")
 		st._close_purge()
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		await _revisit(st)
 		_ok("the deal on the TV", await _deal_up(st))
 		await _expect(&"hull_sale", &"", "", Callable(), Callable(), func() -> void: _tab_to(&"stock"))
@@ -1201,17 +1186,17 @@ func _flow() -> void:
 	n = _system()
 	Run.jumps = 1
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var signed := Run.contracts.any(func(j: ContractData) -> bool: return j.state == ContractData.State.TAKEN and j.at >= 0)
 	if _ok("a job signed at the board, with a target", signed):
 		await _expect(&"contract_track")
 	if _ok("a mark planted in sight on the chart", _plant_quest()):
 		Router.show_starchart()
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		await _expect(&"quest")
 	# FUEL LOW: on the chart, by where the nearest dock is
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var was := Run.fuel
 	# a third of the tank, and as much of it as still leaves a dock in reach
 	Run.fuel = 15
@@ -1225,7 +1210,7 @@ func _flow() -> void:
 			Run.at = m.index
 			d = Run.nearest_dock()
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	# (what is charted moves with the chart up: asked again as the hint will)
 	d = Run.nearest_dock()
 	var lid := AshTutorLines.line_id(&"fuel", d)
@@ -1251,7 +1236,7 @@ func _flow() -> void:
 		Hints._dock_key = Vector2i(Run.at, Run.fuel)
 		Hints._dock = Run.nearest_dock() if want == &"fuel_here" else {}
 		Router.show_starchart()
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		await _expect(&"fuel", want)
 	Run.fuel = was
 	# THE ESCAPE MENU: SAVE & EXIT, said over the menu
@@ -1259,7 +1244,7 @@ func _flow() -> void:
 	var main := _main()
 	if _ok("the escape menu's owner", main != null):
 		main.toggle_menu()
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		await _expect(&"save")
 		_ok("save: the menu shut, she goes with it", not Hints.menu_up() and Ash.lesson != &"save")
 	await _chassis_card()
@@ -1343,7 +1328,7 @@ func _fuel_unflyable() -> void:
 		_rearm(&"fuel")
 		Hints._dock_key = Vector2i(-2, -2)
 		Router.show_starchart()
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		var d := Run.nearest_dock()
 		var lid := AshTutorLines.line_id(&"fuel", d)
 		await _expect(&"fuel", lid)
@@ -1373,11 +1358,11 @@ func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
 		return
 	var drawn := Ash.said_log.filter(func(d: Dictionary) -> bool: return d.kind == &"tut_drawer").size()
 	sc._events.open(po)
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	await _expect(&"odds")
 	_ok("the event band's line, said once already, is not said again",
 		Ash.said_log.filter(func(d: Dictionary) -> bool: return d.kind == &"tut_drawer").size() == drawn)
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var d := sc._events
 	await _band_down(d)
 	# A RESULT WITH REWARD, from the table as played
@@ -1410,7 +1395,7 @@ func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
 				await _tree.process_frame
 				if d.page == &"result" and not d._busy:
 					break
-			await _frames(10)
+			await Harness.frames(_tree, 10)
 			var rw := d.find_child("Reward", true, false) as Button
 			if d.page == &"result" and OptionResolve.shows_reward(d.out) and rw != null and not rw.disabled:
 				found = "%s, choice %d (%d on the pile)" % [o.id, j, int(d.out.get("loot", 0))]
@@ -1426,7 +1411,7 @@ func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
 		d.not_now()
 	elif d.page != &"":
 		d.continue_on()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 
 
 ## The band put down, whatever page it is on (a result's CONTINUE, an event's
@@ -1443,7 +1428,7 @@ func _band_down(d: LocalEventDrawer) -> void:
 			d.continue_on()
 		else:
 			d._drop()
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 
 
 ## A card like the first in the hand, with `props` set (a test's own card).
@@ -1467,7 +1452,7 @@ func _give(cb: Combat, fs: SectorScreen, c: CardData) -> void:
 		await _tree.process_frame
 		if fs._hand._views.any(func(v: CardView) -> bool: return v != null and is_instance_valid(v) and v.card == c):
 			break
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 
 
 ## END TURN (unless it is already ending) and the next turn up.
@@ -1505,7 +1490,7 @@ func _refit() -> void:
 ## The yard again by the rail (another deck, then back): a new visit.
 func _revisit(st: StationScreen) -> void:
 	_tab_to(&"stock")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	# (the hints see the deck change, as they do every frame in play)
 	Hints.poll(0.01)
 	await _visit(st, &"shipyard")
@@ -1569,7 +1554,7 @@ func _menu_box() -> void:
 ## clicked on and still up, spent by LAUNCH.
 func _chassis_card() -> void:
 	Router.show_chassis_select()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var up := false
 	for i in 80:
 		Hints.poll(0.1)
@@ -1605,7 +1590,7 @@ func _play_one(cb: Combat) -> bool:
 		var c: CardData = cb.hand[i]
 		if cb.can_play(c):
 			cb.play(i, 0)
-			await _frames(6)
+			await Harness.frames(_tree, 6)
 			return true
 	return false
 
@@ -1615,7 +1600,7 @@ func _settle_turn(sc: SectorScreen) -> bool:
 		await _tree.process_frame
 		if not sc._hold and not sc._opening and sc._end_button != null \
 				and sc._end_button.is_visible_in_tree() and not sc._end_button.disabled:
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 			return true
 	return false
 
@@ -1685,7 +1670,7 @@ func _never_stuck() -> void:
 		Hints.mark_seen(id, id == &"intent" or not (id in [&"hand", &"endturn"]))
 	Run.heat = 0
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var fs := Router.current as SectorScreen
 	var cb: Combat = Router.combat
 	if not _ok("stuck: a fight is up", fs != null and cb != null and fs.fighting()):
@@ -1816,7 +1801,7 @@ func _bark_and_lesson() -> void:
 		barks.is_empty() and Ash.lesson == &"ship" and Ash.lesson_up())
 	await _do(&"ship")
 	Hints.poll(Hints.GAP_S + 0.1)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Ash._last_end = -INF
 	var said_bark := false
 	for i in 120:
@@ -2011,11 +1996,11 @@ func _cutaway_once() -> void:
 	var shown_voice := ""
 	# SHUT WHILE SHE IS STILL SAYING IT: unspent, it comes again
 	var c1 := sc.open_cutaway()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var mid: bool = await _until_said(&"cutaway")
 	if c1 != null:
 		c1.close_now()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	Hints.poll(Hints.GAP_S + 0.1)
 	_ok("shut while she is still saying it: unspent (said %s)" % mid, mid and not Hints.seen(&"cutaway"))
 	before = said.call()
@@ -2023,7 +2008,7 @@ func _cutaway_once() -> void:
 		var cut := sc.open_cutaway()
 		if not _ok("open %d: the cutaway opens" % (i + 1), cut != null):
 			break
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		# held as long as it takes her to say it whole (her take is 6.7 s), and
 		# a little more; no module moved
 		for f in (600 if i == 0 else 120):
@@ -2038,7 +2023,7 @@ func _cutaway_once() -> void:
 		_ok("open %d: no module moved, her line %s" % [i + 1, "up, unspent" if i == 0 else "not said"],
 			(i == 0 and Hints.lesson == &"cutaway" and not Hints.seen(&"cutaway")) or (i > 0 and Hints.lesson == &""))
 		cut.close_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		Hints.poll(Hints.GAP_S + 0.1)
 	_ok("said whole, then shut: spent; opened and shut three times, she says it once (%d)" % (said.call() - before),
 		said.call() - before == 1 and Hints.seen(&"cutaway"))
@@ -2058,7 +2043,7 @@ func _cutaway_once() -> void:
 	before = said.call()
 	for i in 2:
 		var cut := sc.open_cutaway()
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		for f in 120:
 			Hints.poll(0.1)
 			await _tree.process_frame
@@ -2067,7 +2052,7 @@ func _cutaway_once() -> void:
 				HintActs.act(&"cutaway")
 		if cut != null:
 			cut.close_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		Hints.poll(Hints.GAP_S + 0.1)
 	_ok("REPLAY TUTORIAL: once more, a module moved spends it, and once only (%d)" % (said.call() - before),
 		said.call() - before == 1 and Hints.seen(&"cutaway"))
@@ -2075,14 +2060,14 @@ func _cutaway_once() -> void:
 	Hints.set_tutorial(false)
 	before = said.call()
 	var c2 := sc.open_cutaway()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	for f in 40:
 		Hints.poll(0.1)
 		await _tree.process_frame
 	_ok("tutorial OFF: not at all (%d)" % (said.call() - before), said.call() == before and Hints.card == null)
 	if c2 != null:
 		c2.close_now()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	Hints.set_tutorial(true)
 	Hints.reset()
 
@@ -2111,7 +2096,7 @@ func _visit(st: StationScreen, id: StringName) -> bool:
 		await _tree.process_frame
 		i += 1
 		if st._tab == tab and st.deck_subject(tab).has_area():
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 			return true
 	return false
 
@@ -2135,7 +2120,7 @@ func _decks() -> void:
 	Router.docked = false
 	Router.park_at_station()
 	Router.show_station()
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	HintActs.stock_up()
 	var st := Router.current as StationScreen
 	if not _ok("decks: a station with all five up (%s)" % (MapGen.star_name(full) if full != null else "none"), full != null and st != null):
@@ -2295,7 +2280,7 @@ func _decks() -> void:
 	Run.hp = Run.max_hp()
 	if Ash.portrait != null:
 		Ash.portrait.cut()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 # ------------------------------------------------------------------ TUTORIAL ON / OFF
@@ -2318,7 +2303,7 @@ func _tutorial_switch() -> void:
 	var up: bool = await _until_said(&"ship")
 	if _ok("tutorial: her line is up to turn off under", up):
 		Hints.set_tutorial(false)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("tutorial OFF mid-line: she goes at once, unspent, and no card comes instead",
 			Ash.lesson == &"" and Hints.lesson == &"" and not Ash.portrait.speaking() and Hints.card == null
 			and not Hints.seen(&"ship"))
@@ -2366,7 +2351,7 @@ func _tutorial_switch() -> void:
 	Hints.poll(Hints.GAP_S + 0.1)
 	if Ash.portrait != null:
 		Ash.portrait.cut()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Hints.reset()
 	Ash.waiting.clear()
 
@@ -2422,7 +2407,7 @@ func _intro() -> void:
 		Audio.tape.clear()
 		# (the hints' clock stops with the step's line up: let it go)
 		Hints.reset()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 
 	# A run picked up with CONTINUE does not hear the intro; its launch line comes at once.
 	var picks: Dictionary = {}
@@ -2455,7 +2440,7 @@ func _intro() -> void:
 		picks[l] = int(picks.get(l, 0)) + 1
 		if Ash.portrait != null:
 			Ash.portrait.cut()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	_ok("a run picked up with CONTINUE before its first jump: no intro due, its launch still to come (%s)" % said_after_load, said_after_load)
 	_ok("six runs picked up: each launch is from the bag, not forced (%s)" % str(picks.values()),
 		all_pool and picks.size() >= 2 and int(picks.get(intro, 0)) < 6)
@@ -2613,7 +2598,7 @@ func _first_launch() -> void:
 		Router.animate_in_harness = false
 		if Ash.portrait != null:
 			Ash.portrait.cut()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		Hints.reset()
 		Ash.waiting.clear()
 
@@ -2746,7 +2731,7 @@ func _heat_turns() -> void:
 			_fresh(&"heat")
 		Run.heat = 4
 		Router.start_combat(DB.enemies[&"hulk"], [], false, false)
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		var fs := Router.current as SectorScreen
 		var cb: Combat = Router.combat
 		if not _ok("heat: a fight with the Dreg Hulk is up", fs != null and fs.fighting() and cb != null):
@@ -2791,7 +2776,7 @@ func _heat_turns() -> void:
 			Run.heat = 3
 			fs._refresh_player()
 			var back: bool = await _said_in(&"heat")
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 			var p := Ash.portrait
 			_ok("heat: the next turn's start, the same fight: back as text only (quiet %s, %d chirps, voice \"%s\")" % [
 				p.quiet, p.chirps, p.voice], back and p.quiet and p.chirps == 0 and p.voice == "" and p._text.done)
@@ -2827,7 +2812,7 @@ func _screen_again() -> void:
 			break
 		await _tree.process_frame
 	var back: bool = await _said_in(&"chart")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var p := Ash.portrait
 	_ok("chart: the chart again: back quietly, the words out at once, no chirp, no take (%d chirps, %d takes)" % [
 		p.chirps, _takes(take) - n0], back and p.quiet and p.chirps == 0 and p.voice == "" and p._text.done
@@ -2921,7 +2906,7 @@ func _comms() -> void:
 	if _ok("comms: the hull's line is said", await _until_said(&"hull")):
 		await _until_whole()
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	Run.hp = Run.max_hp()
 	sc = await _local()
 	Hints.poll(Hints.GAP_S + 0.1)
@@ -2949,7 +2934,7 @@ func _comms() -> void:
 	Hints.mark_seen(&"ship", false)
 	sc = await _local()
 	var quiet_up: bool = await _until_said(&"ship")
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("comms: the ship's line back quietly is not in it again (%d lines, quiet %s)" % [Ash.comms.size(),
 		Ash.portrait.quiet], quiet_up and Ash.portrait.quiet and Ash.comms.size() == 3)
 	await _do(&"ship")
@@ -2961,7 +2946,7 @@ func _comms() -> void:
 	_comms_row_fits(hud)
 	# THE TABLE, newest first
 	hud._tab_comms.pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var cp := CommsPanel._open
 	if not _ok("comms: the tab opens the table", CommsPanel.is_open() and cp != null):
 		return
@@ -2981,24 +2966,24 @@ func _comms() -> void:
 	while not Ash.can_replay() and GameClock.now() - t0 < 12.0:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var play := cp.find_child("Play0", true, false) as Button
 	var take := "ash/" + String(Ash.comms[0].voice).get_file().get_basename()
 	Audio.tape.clear()
 	if _ok("comms: PLAY on the oldest line, pressable", play != null and not play.disabled):
 		play.pressed.emit()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("comms: PLAY says it again in her voice (%s on the tape)" % take, _takes(take) == 1)
 		_ok("comms: and while she speaks, PLAY waits", play.disabled)
 		Audio.ash_voice_stop()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("comms: done, PLAY again", not play.disabled)
 	# ONE TABLE AT A TIME
 	hud._tab_quests.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("comms: QUESTS opened, COMMS shut", QuestPanel.is_open() and not CommsPanel.is_open())
 	hud._tab_comms.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("comms: COMMS opened, QUESTS shut", CommsPanel.is_open() and not QuestPanel.is_open())
 	# A full log (at the cap) drops its oldest line as it adds one: the size does not move, the table must
 	var kept := Ash.comms.duplicate()
@@ -3006,13 +2991,13 @@ func _comms() -> void:
 	fresh.line = "A LINE AT THE CAP"
 	Ash.comms.append(fresh)
 	Ash.comms.pop_front()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var top := CommsPanel._open._rows.find_children("Words", "Label", true, false)
 	_ok("comms: a log that drops one as it adds one still redraws the table",
 		not top.is_empty() and (top[0] as Label).text == "A LINE AT THE CAP")
 	Ash.comms = kept
 	CommsPanel.close()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	# THE RUN'S SAVE
 	var want := JSON.stringify(Ash.comms_to())
 	SaveGame.save()
@@ -3020,7 +3005,7 @@ func _comms() -> void:
 	_ok("comms: the run's save keeps the log (%d lines)" % (d.get("ash_comms", []) as Array).size(),
 		(d.get("ash_comms", []) as Array).size() == 3)
 	var loaded := SaveGame.load_into_run()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("comms: CONTINUE puts it back, in order", loaded and JSON.stringify(Ash.comms_to()) == want)
 	SaveGame.save()
 	var old := SaveGame._read()
@@ -3033,7 +3018,7 @@ func _comms() -> void:
 	f.store_string(JSON.stringify(old, "", true, true))
 	f.close()
 	loaded = SaveGame.load_into_run()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("comms: a version %d save from before COMMS loads, its log empty" % int(old.get("version", -1)),
 		loaded and int(old.get("version", -1)) == 35 and Ash.comms.is_empty())
 	Audio.taping = false
@@ -3104,5 +3089,5 @@ func _finish() -> void:
 	Hints.set_process_input(true)
 	Hints.reset()
 	print("  %d checks" % _checks)
-	print("ashtutortest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("ashtutortest")
+	_tree.quit(harness.code())

@@ -3,13 +3,11 @@ extends Node
 ## Presses REGENERATE GALAXY and checks the new map, kept ship and rebaked chart. Needs a window.
 ## Why: docs/why/RegenTest.md#regenerate-check
 
-var _fails: Array[String] = []
+var h := Harness.new()
 
 
 func _ok(what: String, good: bool) -> void:
-	print("  %s  %s" % ["ok  " if good else "FAIL", what])
-	if not good:
-		_fails.append(what)
+	h._ok(what, good)
 
 
 func _ready() -> void:
@@ -107,8 +105,5 @@ func _restore_save() -> void:
 
 func _verdict() -> void:
 	_restore_save()
-	if _fails.is_empty():
-		print("regentest: PASS")
-	else:
-		print("regentest: %d FAILURES" % _fails.size())
-	get_tree().quit(0 if _fails.is_empty() else 1)
+	h.verdict("regentest")
+	get_tree().quit(h.code())

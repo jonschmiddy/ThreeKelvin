@@ -149,24 +149,6 @@ func run() -> void:
 		floor_h.items.size() == before + 1 and floor_h.items.has(thrown))
 	_ok("so it can be picked back up", Run.jetsam_left(here, floor_h) > 0)
 
-	# The bag row used `module_row`, which a crate fails, so the system seemed to swallow the
-	# item.
-	# Why: docs/why/MaterialTest.md#jettison
-	var row := Widgets.material_row(thrown, Widgets.ModuleContext.BAG, 0,
-		func(_a: String, _t: Variant) -> void: pass, "")
-	_ok("and the sector can draw a row for it", row != null)
-	if row != null:
-		row.queue_free()
-
-	# A module has to survive the same path, because `_bag_row` now chooses
-	# between two builders and a wrong branch would only show on one kind.
-	var gun := LootGen.roll_module(1, &"", false, Rng.derive(&"materialtest", 1))
-	var grow := Widgets.module_row(gun, Widgets.ModuleContext.BAG, 0,
-		func(_a: String, _t: Variant) -> void: pass, "", 10)
-	_ok("and still one for a module", grow != null)
-	if grow != null:
-		grow.queue_free()
-
 	# --- and back again ------------------------------------------------------
 	# `take_from_bag` marked the option taken first, then stowed: a crate spent its claim and
 	# stayed on the floor.

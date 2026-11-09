@@ -355,7 +355,7 @@ func _held(mounts: MountPoints) -> Array[ModuleData]:
 
 ## Between grab and drop the part is in neither list, so an abandoned drag must put it back.
 ## Why: docs/why/FitTest.md#lifting
-func _lifting(grid: HoldGrid, mounts: MountPoints) -> void:
+func _lifting(_grid: HoldGrid, mounts: MountPoints) -> void:
 	var screen := Router.current as ShipScreen
 	var m: ModuleData = null
 	for sp in mounts.spots():

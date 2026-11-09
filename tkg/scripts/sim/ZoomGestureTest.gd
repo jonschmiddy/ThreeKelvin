@@ -13,11 +13,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(k: int) -> void:
-	for i in k:
-		await get_tree().process_frame
-
-
 func _idle() -> void:
 	for i in 900:
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"":
@@ -68,10 +63,10 @@ func _ways(screen: String, at: Vector2, reset: Callable, read: Callable) -> void
 	]
 	for c: Array in cases:
 		reset.call()
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 		var z0: float = read.call()
 		(c[1] as Callable).call()
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 		var z1: float = read.call()
 		var want: int = c[2]
 		var moved := 0 if absf(z1 - z0) < 0.0001 else (1 if z1 > z0 else -1)
@@ -83,17 +78,17 @@ func _run() -> void:
 	await get_tree().process_frame
 	h.seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	_vp().notification(Node.NOTIFICATION_VP_MOUSE_ENTER)
 
 	Router.show_starchart()
 	await _idle()
-	await _frames(30)
+	await Harness.frames(get_tree(), 30)
 	var ch := Router.current as StarchartScreen
 	h._ok("the chart is up", ch != null)
 	if ch != null:
 		var chart := ch._chart
-		var mid := sqrt(StarchartScreen.MapChart.ZOOM_MIN * StarchartScreen.MapChart.ZOOM_MAX)
+		var mid := sqrt(MapChart.ZOOM_MIN * MapChart.ZOOM_MAX)
 		await _ways("the chart", chart.get_global_rect().get_center(),
 			func() -> void:
 				chart.zoom = mid
@@ -108,7 +103,7 @@ func _run() -> void:
 		if m != null and m.flight != null and m.view.layout != null:
 			break
 		await get_tree().process_frame
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	h._ok("the map is up", m != null)
 	if m != null:
 		var mmid := sqrt(m.zoom_min * m.view.ZOOM_MAX)

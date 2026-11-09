@@ -1292,9 +1292,9 @@ static func _chart_rects(ch: StarchartScreen, out: Array, quests: bool = true) -
 		out.append(g * Rect2(c + Vector2(-48, -24), Vector2(96, 34)))
 	# the scale block in the bottom right corner (`_draw_scale`)
 	var sz := mc.size
-	var pad := StarchartScreen.MapChart.BAR_PAD
-	var w := StarchartScreen.MapChart.BAR_MAX_PX + 8.0
-	var h := StarchartScreen.MapChart.BAR_LABEL_H + 18.0
+	var pad := MapChart.BAR_PAD
+	var w := MapChart.BAR_MAX_PX + 8.0
+	var h := MapChart.BAR_LABEL_H + 18.0
 	out.append(g * Rect2(Vector2(sz.x - pad - w, sz.y - pad - h), Vector2(w + pad, h + pad)))
 
 
@@ -1393,7 +1393,7 @@ static func covers(cur: Control, r: Rect2) -> String:
 		while y <= r.end.y:
 			var x := r.position.x
 			while x <= r.end.x:
-				var hit: int = StarchartScreen.MapChart.node_among(inv * Vector2(x, y), near)
+				var hit: int = MapChart.node_among(inv * Vector2(x, y), near)
 				if hit >= 0:
 					return "a system (%s)" % MapGen.star_name(Run.map[hit])
 				x += 3.0

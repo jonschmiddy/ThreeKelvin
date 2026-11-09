@@ -113,13 +113,13 @@ func _fill_for(i: int) -> int:
 
 func _cell(pos: Vector2, kind: int) -> void:
 	var bg := Color("#10161f")
-	var hi := Color("#080b11")
+	var hi := UITheme.BEVEL_LO
 	var lo := Color("#2a3644")
 	match kind:
 		1:
 			bg = UITheme.COLD
 			hi = UITheme.CHILL
-			lo = Color("#3d4d61")
+			lo = UITheme.BEVEL_HI
 		2:
 			bg = UITheme.FLARE if mode == Mode.ENERGY else UITheme.EMBER
 			hi = UITheme.HOT

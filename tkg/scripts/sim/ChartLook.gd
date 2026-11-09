@@ -7,28 +7,21 @@ var out := "user://chartlook"
 var _chart: Control = null
 
 
-func _arg(name: String, fallback: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(name + "="):
-			return (a as String).substr(name.length() + 1)
-	return fallback
-
-
 func _ready() -> void:
-	out = _arg("out", out)
+	out = Harness.arg("out", out)
 	DirAccess.make_dir_recursive_absolute(out)
 	get_viewport().gui_disable_input = true
 	_run.call_deferred()
 
 
 func _run() -> void:
-	Rng.forced = int(_arg("runseed", "4242"))
+	Rng.forced = int(Harness.arg("runseed", "4242"))
 	# `corekeep=0`: the clouds as placed before they were kept off the core (a before/after)
-	if _arg("corekeep") == "0":
+	if Harness.arg("corekeep") == "0":
 		NebulaField.keep_core = false
 	Run.start_new_run(&"korvan", 1)
-	if _arg("kind") != "":
-		Run.galaxy_kind = clampi(int(_arg("kind")), 0, GalaxyGen.count() - 1)
+	if Harness.arg("kind") != "":
+		Run.galaxy_kind = clampi(int(Harness.arg("kind")), 0, GalaxyGen.count() - 1)
 		Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
 		Run.map = MapGen.generate(Run.MAP_CANVAS)
 		Run.at = 0
@@ -36,7 +29,7 @@ func _run() -> void:
 		Run._range_cache.clear()
 		Run.chart_from(Run.node_at())
 	# `at=dark` puts YOU beside the first dark cloud, so `ship` views show a nebula and jump lines.
-	var at_s := _arg("at")
+	var at_s := Harness.arg("at")
 	if at_s != "":
 		var want_i := -1
 		if at_s.begins_with("dark"):
@@ -63,7 +56,7 @@ func _run() -> void:
 			Run.chart_from(Run.node_at())
 	# `visit=N`: a run's worth of history -- N hops from where YOU are, each to the
 	# nearest system not yet visited, all marked visited, YOU at the last
-	var nv := int(_arg("visit", "0"))
+	var nv := int(Harness.arg("visit", "0"))
 	if nv > 0 and not Run.map.is_empty():
 		var cur: MapGen.MapNode = Run.node_at()
 		cur.visited = true
@@ -94,7 +87,7 @@ func _run() -> void:
 		DisplaySettings.reduced_motion = true
 	else:
 		DisplaySettings.reduced_motion = false
-	var nk := _arg("nebkind")
+	var nk := Harness.arg("nebkind")
 	if nk != "":
 		var kk := nk.split(":")
 		for raw in NebulaField.clouds():
@@ -102,7 +95,7 @@ func _run() -> void:
 			if int(cl.kind) == int(kk[0]):
 				cl.kind = int(kk[1]) as NebulaField.Kind
 				break
-	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
+	MapChart.clock_override = float(Harness.arg("clock", "600"))
 	# `boltclock`: the clock held on the first emission cloud's next lightning
 	# bolt after the given clock (PAINTED's held bolt), for a still of it
 	if "boltclock" in OS.get_cmdline_user_args():
@@ -110,31 +103,31 @@ func _run() -> void:
 		for raw in NebulaField.clouds():
 			var bc: NebulaField.Cloud = raw
 			if bc.kind == NebulaField.Kind.EMISSION:
-				var bt := StarchartScreen.MapChart.clock_override
-				while bt < StarchartScreen.MapChart.clock_override + 600.0:
+				var bt := MapChart.clock_override
+				while bt < MapChart.clock_override + 600.0:
 					if ChartPainted._bolt(bc, bi, bt).x == 1.0 and ChartPainted._bolt(bc, bi, bt - 0.15).x == 1.0:
 						break
 					bt += 0.05
-				StarchartScreen.MapChart.clock_override = bt
+				MapChart.clock_override = bt
 				print("  chartlook: bolt in %s at clock %.2f" % [bc.name, bt])
 				break
 			bi += 1
-	if _arg("hyst") != "":
-		ChartSky.hyst = float(_arg("hyst"))
-	if _arg("palmerge") != "":
-		ChartSky.pal_merge = float(_arg("palmerge"))
-	if _arg("dithgs") != "":
-		ChartSky.dith_gs = float(_arg("dithgs"))
-	if _arg("dithcoh") != "":
-		ChartSky.dith_coh = float(_arg("dithcoh"))
-	if _arg("diag") != "":
-		ChartSky.diag = int(_arg("diag"))
-	if _arg("quant") == "0":
+	if Harness.arg("hyst") != "":
+		ChartSky.hyst = float(Harness.arg("hyst"))
+	if Harness.arg("palmerge") != "":
+		ChartSky.pal_merge = float(Harness.arg("palmerge"))
+	if Harness.arg("dithgs") != "":
+		ChartSky.dith_gs = float(Harness.arg("dithgs"))
+	if Harness.arg("dithcoh") != "":
+		ChartSky.dith_coh = float(Harness.arg("dithcoh"))
+	if Harness.arg("diag") != "":
+		ChartSky.diag = int(Harness.arg("diag"))
+	if Harness.arg("quant") == "0":
 		ChartSky.quant = false
-	if _arg("dith") != "":
-		ChartSky.dith = float(_arg("dith"))
-	if _arg("palfree") != "":
-		ChartSky.pal_free = int(_arg("palfree"))
+	if Harness.arg("dith") != "":
+		ChartSky.dith = float(Harness.arg("dith"))
+	if Harness.arg("palfree") != "":
+		ChartSky.pal_free = int(Harness.arg("palfree"))
 	var t0 := Time.get_ticks_msec()
 	Router.show_starchart()
 	var scp := Router.current as StarchartScreen
@@ -162,25 +155,25 @@ func _run() -> void:
 		kinds.append(NebulaField.Kind.keys()[(raw as NebulaField.Cloud).kind])
 	print("  chartlook: clouds %s" % [kinds])
 
-	if _arg("tourclip") != "":
-		await _tour(_arg("tourclip"))
+	if Harness.arg("tourclip") != "":
+		await _tour(Harness.arg("tourclip"))
 		get_tree().quit()
 		return
-	if _arg("costbench") != "":
-		await _cost_bench(_arg("costbench"))
+	if Harness.arg("costbench") != "":
+		await _cost_bench(Harness.arg("costbench"))
 		get_tree().quit()
 		return
 	if "solidtest" in OS.get_cmdline_user_args():
 		await _solid_test()
 		get_tree().quit()
 		return
-	if _arg("zoomclip") != "" or _arg("liveclip") != "" or _arg("panclip") != "" or _arg("wheelclip") != "" or _arg("glideclip") != "" or _arg("playclip") != "":
+	if Harness.arg("zoomclip") != "" or Harness.arg("liveclip") != "" or Harness.arg("panclip") != "" or Harness.arg("wheelclip") != "" or Harness.arg("glideclip") != "" or Harness.arg("playclip") != "":
 		await _clip()
 		get_tree().quit()
 		return
 
 	var views: Array = []
-	var spec := _arg("views", "opening:0.42:0:0,core:1.5:0:0,neb:4:neb:0,hole:6:0:0")
+	var spec := Harness.arg("views", "opening:0.42:0:0,core:1.5:0:0,neb:4:neb:0,hole:6:0:0")
 	for s in spec.split(","):
 		var f := (s as String).split(":")
 		views.append([f[0], float(f[1]), _pan_of(f[2], f[3] if f.size() > 3 else "0", float(f[1]))])
@@ -244,7 +237,7 @@ func _cloud(want: int, nth: int) -> NebulaField.Cloud:
 
 ## The chart at zoom z with the frame's centre at view px `at`.
 func _view(z: float, at: Vector2) -> void:
-	var k: float = _chart._radius() * StarchartScreen.MapChart.DISC
+	var k: float = _chart._radius() * MapChart.DISC
 	var zoom := z * ChartSky.K0 / k
 	var ze := zoom * k / ChartSky.K0
 	_chart._go_to(zoom, -at * ze, false)
@@ -252,47 +245,47 @@ func _view(z: float, at: Vector2) -> void:
 
 
 func _clip() -> void:
-	var dir := _arg("zoomclip", _arg("liveclip", _arg("panclip", _arg("wheelclip", _arg("glideclip", _arg("playclip"))))))
+	var dir := Harness.arg("zoomclip", Harness.arg("liveclip", Harness.arg("panclip", Harness.arg("wheelclip", Harness.arg("glideclip", Harness.arg("playclip"))))))
 	DirAccess.make_dir_recursive_absolute(dir)
-	var cv := _arg("clipview", "1.5:0:0").split(":")
+	var cv := Harness.arg("clipview", "1.5:0:0").split(":")
 	var z0 := float(cv[0])
 	var at := _pan_of(cv[1], cv[2] if cv.size() > 2 else "0", z0)
 	_chart.show_icons = false
 	# `turn=title`: the galaxy turning at the title screen's speed (once every
 	# five minutes), not the chart's (once every twelve hours)
-	if _arg("turn") == "title":
+	if Harness.arg("turn") == "title":
 		_chart.turn_speed = LauncherScreen.TITLE_TURN
-	if _arg("panclip") != "":
+	if Harness.arg("panclip") != "":
 		# a slow pan: 12 view px over the frames (`panpx=`), as a drag would move it,
 		# at the clip view's zoom (it used to pan at whatever zoom the chart opened on)
 		_view(z0, at)
 		for _i in 6:
 			await RenderingServer.frame_post_draw
-		var pp := float(_arg("panpx", "12"))
-		var n3 := int(_arg("clipframes", "61"))
+		var pp := float(Harness.arg("panpx", "12"))
+		var n3 := int(Harness.arg("clipframes", "61"))
 		for i in n3:
 			var before: Vector2 = _chart.pan
 			_chart.pan = -(at + Vector2(pp * float(i) / float(n3 - 1), 0.0)) * z0
 			_chart.sky_pan += _chart.pan - before
 			_chart._repaint_galaxy()
 			await _frame_shot(dir, i)
-	elif _arg("playclip") != "":
+	elif Harness.arg("playclip") != "":
 		# `playclip=<dir>`: a hand playing: wheel notches at wandering cursors and
 		# drags, for `clipframes` frames, the clock running (`playseed=N`)
 		_view(z0, at)
 		for _i in 6:
 			await RenderingServer.frame_post_draw
-		if _arg("bhold") != "" and (_chart._sky as ChartSky)._m_state != null:
-			(_chart._sky as ChartSky)._m_state.set_shader_parameter("hold", float(_arg("bhold")))
+		if Harness.arg("bhold") != "" and (_chart._sky as ChartSky)._m_state != null:
+			(_chart._sky as ChartSky)._m_state.set_shader_parameter("hold", float(Harness.arg("bhold")))
 			(_chart._sky as ChartSky)._g_for()["_hold_fixed"] = true
 		var rng := RandomNumberGenerator.new()
-		rng.seed = int(_arg("playseed", "7"))
-		var t := StarchartScreen.MapChart.clock_override
+		rng.seed = int(Harness.arg("playseed", "7"))
+		var t := MapChart.clock_override
 		var drag := Vector2.ZERO
 		var drag_n := 0
-		for fi in int(_arg("clipframes", "300")):
+		for fi in int(Harness.arg("clipframes", "300")):
 			t += 1.0 / 60.0
-			StarchartScreen.MapChart.clock_override = t
+			MapChart.clock_override = t
 			var r := rng.randf()
 			if drag_n > 0:
 				var before: Vector2 = _chart.pan
@@ -303,7 +296,7 @@ func _clip() -> void:
 				drag_n -= 1
 			elif r < 0.12:
 				var cur := _chart.size * Vector2(rng.randf_range(0.15, 0.85), rng.randf_range(0.15, 0.85))
-				var f := StarchartScreen.MapChart.ZOOM_STEP if (rng.randf() < 0.55 or _chart.zoom < 2.0) and _chart.zoom < 5.5 else 1.0 / StarchartScreen.MapChart.ZOOM_STEP
+				var f := MapChart.ZOOM_STEP if (rng.randf() < 0.55 or _chart.zoom < 2.0) and _chart.zoom < 5.5 else 1.0 / MapChart.ZOOM_STEP
 				_chart._zoom_at(cur, f)
 			elif r < 0.16:
 				drag = Vector2(rng.randf_range(-6.0, 6.0), rng.randf_range(-4.0, 4.0))
@@ -313,16 +306,16 @@ func _clip() -> void:
 			if "playlog" in OS.get_cmdline_user_args():
 				var sk := _chart._sky as ChartSky
 				print("  play %d zoom %.6f pan %.4f %.4f sky %.4f %.4f t %.4f origin %s size %s since %d" % [fi, _chart.zoom, _chart.pan.x, _chart.pan.y, _chart.sky_pan.x, _chart.sky_pan.y, t, sk._vp_origin, sk._vp.size, sk._since_zoom])
-	elif _arg("glideclip") != "":
+	elif Harness.arg("glideclip") != "":
 		# `glideclip=<dir>`: glides as a press makes them (`glide_to`), from the clip
 		# view in to `glideto=Z:X:Y` and back, every frame drawn as the game draws it
 		_view(z0, at)
 		for _i in 6:
 			await RenderingServer.frame_post_draw
-		var gt := _arg("glideto", "5:0:0").split(":")
+		var gt := Harness.arg("glideto", "5:0:0").split(":")
 		var z1 := float(gt[0])
 		var at1 := _pan_of(gt[1], gt[2] if gt.size() > 2 else "0", z1)
-		var k: float = _chart._radius() * StarchartScreen.MapChart.DISC
+		var k: float = _chart._radius() * MapChart.DISC
 		var fi := 0
 		for leg in 2:
 			var zz := z1 if leg == 0 else z0
@@ -332,23 +325,23 @@ func _clip() -> void:
 			for _j in 50:
 				await _frame_shot(dir, fi)
 				fi += 1
-	elif _arg("wheelclip") != "":
+	elif Harness.arg("wheelclip") != "":
 		# `wheelclip` plays as a hand does: wheel turns at a cursor, in and out, with drags.
 		_view(z0, at)
 		for _i in 6:
 			await RenderingServer.frame_post_draw
-		var wa := _arg("wheelat", "0.45:0.4").split(":")
+		var wa := Harness.arg("wheelat", "0.45:0.4").split(":")
 		var cur := _chart.size * Vector2(float(wa[0]), float(wa[1]))
-		var gap := int(_arg("wheelgap", "4"))
-		var steps := int(_arg("wheelsteps", "24"))
-		var t := StarchartScreen.MapChart.clock_override
+		var gap := int(Harness.arg("wheelgap", "4"))
+		var steps := int(Harness.arg("wheelsteps", "24"))
+		var t := MapChart.clock_override
 		var fi := 0
 		for dirn in [1, -1]:
 			for st in steps:
-				_chart._zoom_at(cur, StarchartScreen.MapChart.ZOOM_STEP if dirn > 0 else 1.0 / StarchartScreen.MapChart.ZOOM_STEP)
+				_chart._zoom_at(cur, MapChart.ZOOM_STEP if dirn > 0 else 1.0 / MapChart.ZOOM_STEP)
 				for _j in gap:
 					t += 1.0 / 60.0
-					StarchartScreen.MapChart.clock_override = t
+					MapChart.clock_override = t
 					if st % 6 == 5 and _j < 2:
 						var before: Vector2 = _chart.pan
 						_chart.pan += Vector2(3.0, 1.0)
@@ -357,13 +350,13 @@ func _clip() -> void:
 					_chart._repaint_sky()
 					await _frame_shot(dir, fi)
 					fi += 1
-	elif _arg("zoomclip") != "":
-		var n := int(_arg("clipframes", "61"))
-		var f := float(_arg("clipzoom", "1.1"))
+	elif Harness.arg("zoomclip") != "":
+		var n := int(Harness.arg("clipframes", "61"))
+		var f := float(Harness.arg("clipzoom", "1.1"))
 		# `bhold=N`: PAINTED's band memory held N frames at most (0: none), to see
 		# what the memory itself does to a zoom
-		if _arg("bhold") != "" and (_chart._sky as ChartSky)._m_state != null:
-			(_chart._sky as ChartSky)._m_state.set_shader_parameter("hold", float(_arg("bhold")))
+		if Harness.arg("bhold") != "" and (_chart._sky as ChartSky)._m_state != null:
+			(_chart._sky as ChartSky)._m_state.set_shader_parameter("hold", float(Harness.arg("bhold")))
 			(_chart._sky as ChartSky)._g_for()["_hold_fixed"] = true
 		# `clipback`: in over the frames, held still half as long (`clipstill=N`
 		# frames), back out, held again -- what a zoom leaves behind once it stops
@@ -371,7 +364,7 @@ func _clip() -> void:
 		for i in n:
 			path.append(float(i) / float(n - 1))
 		if "clipback" in OS.get_cmdline_user_args():
-			var hold_n := int(_arg("clipstill", str(n / 2)))
+			var hold_n := int(Harness.arg("clipstill", str(n / 2)))
 			for i in hold_n:
 				path.append(1.0)
 			for i in n:
@@ -382,11 +375,11 @@ func _clip() -> void:
 			_view(z0 * pow(f, path[i]), at)
 			await _frame_shot(dir, i)
 	else:
-		var ct := _arg("cliptime", "600:610:96").split(":")
+		var ct := Harness.arg("cliptime", "600:610:96").split(":")
 		var n2 := int(ct[2])
 		_view(z0, at)
 		for i in n2:
-			StarchartScreen.MapChart.clock_override = lerpf(float(ct[0]), float(ct[1]), float(i) / maxf(1.0, float(n2 - 1)))
+			MapChart.clock_override = lerpf(float(ct[0]), float(ct[1]), float(i) / maxf(1.0, float(n2 - 1)))
 			_chart._repaint_sky()
 			await _frame_shot(dir, i)
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
@@ -396,11 +389,11 @@ func _clip() -> void:
 ## Why: docs/why/ChartLook.md#chart-tour
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
-	var tour := _arg("tour", "dive")
+	var tour := Harness.arg("tour", "dive")
 	_chart.show_icons = "icons" in OS.get_cmdline_user_args()
 	var segs: Array = []
 	var cur := _chart.size * Vector2(0.62, 0.42)
-	var ta := _arg("tourat", "")
+	var ta := Harness.arg("tourat", "")
 	if ta == "ship":
 		cur = _chart._screen_pos(Run.node_at())
 	elif ta != "":
@@ -415,8 +408,8 @@ func _tour(dir: String) -> void:
 			segs = [["drag", 240, Vector2(300, -40)]]
 		"sn":
 			var sky0 := _chart._sky as ChartSky
-			var sn: Dictionary = sky0.next_supernova(StarchartScreen.MapChart.clock_override)
-			StarchartScreen.MapChart.clock_override = float(sn.t0) - 1.5
+			var sn: Dictionary = sky0.next_supernova(MapChart.clock_override)
+			MapChart.clock_override = float(sn.t0) - 1.5
 			_view(1.4, ChartSky._to_view(sn.xy, _chart.turn()))
 			segs = [["hold", 360]]
 		"remlapse":
@@ -429,11 +422,11 @@ func _tour(dir: String) -> void:
 			_view(0.6, Vector2(60, 10))
 			segs = [["zoom", 180, 5.0, _chart.size * 0.5], ["hold", 30]]
 		"soliddrag":
-			_view(float(_arg("tourzoom", "0.42")), Vector2.ZERO)
+			_view(float(Harness.arg("tourzoom", "0.42")), Vector2.ZERO)
 			segs = [["drag", 120, Vector2(180, 0)], ["hold", 15], ["drag", 120, Vector2(0, 110)], ["hold", 15],
 				["drag", 150, Vector2(-180, -110)], ["hold", 30]]
 		"soliddraglong":
-			_view(float(_arg("tourzoom", "0.42")), Vector2.ZERO)
+			_view(float(Harness.arg("tourzoom", "0.42")), Vector2.ZERO)
 			segs = [["drag", 120, Vector2(180, 0)], ["hold", 15], ["drag", 120, Vector2(0, 110)], ["hold", 15],
 				["drag", 150, Vector2(-180, -110)], ["hold", 120]]
 		"skypan":
@@ -450,8 +443,8 @@ func _tour(dir: String) -> void:
 			segs = [["hold", 30], ["zoom", 150, 2.4 / 0.42, cur], ["drag", 60, Vector2(-120, -40)], ["hold", 30]]
 	for _i in 6:
 		await RenderingServer.frame_post_draw
-	var t := StarchartScreen.MapChart.clock_override
-	StarchartScreen.MapChart.clock_override = t
+	var t := MapChart.clock_override
+	MapChart.clock_override = t
 	var fi := 0
 	for s: Array in segs:
 		var n: int = s[1]
@@ -472,7 +465,7 @@ func _tour(dir: String) -> void:
 			done = u
 			# (a time-lapse steps the clock s[2] seconds a frame)
 			t += float(s[2]) if String(s[0]) == "lapse" else 1.0 / 30.0
-			StarchartScreen.MapChart.clock_override = t
+			MapChart.clock_override = t
 			_chart._repaint_sky()
 			await _frame_shot(dir, fi)
 			fi += 1
@@ -493,7 +486,7 @@ func _cost_bench(names: String) -> void:
 	var views := [["opening", 0.42, Vector2.ZERO], ["arms1.2", 1.2, Vector2(150, 20)],
 		["arms2.5", 2.5, Vector2(200, 30)], ["hole6", 6.0, Vector2.ZERO], ["middle1.5", 1.5, Vector2.ZERO],
 		["middle2.5", 2.5, Vector2.ZERO]]
-	var t := StarchartScreen.MapChart.clock_override
+	var t := MapChart.clock_override
 	var sol0 := ChartSky._solid
 	for nm in names.split(","):
 		for v: Array in views:
@@ -510,12 +503,12 @@ func _cost_bench(names: String) -> void:
 				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
 				for _w in 3:
 					t += 1.0 / 60.0
-					StarchartScreen.MapChart.clock_override = t
+					MapChart.clock_override = t
 					_chart._repaint_sky()
 					await RenderingServer.frame_post_draw
 				for _f in 8:
 					t += 1.0 / 60.0
-					StarchartScreen.MapChart.clock_override = t
+					MapChart.clock_override = t
 					_chart._repaint_sky()
 					var t0 := Time.get_ticks_usec()
 					await RenderingServer.frame_post_draw
@@ -546,7 +539,7 @@ func _solid_test() -> void:
 	_chart.show_icons = true
 	var sky := _chart._sky as ChartSky
 	_view(0.8, Vector2(40, 10))
-	var t := StarchartScreen.MapChart.clock_override
+	var t := MapChart.clock_override
 	var worst := 0.0
 	var bad_pick := 0
 	var n_checked := 0
@@ -563,7 +556,7 @@ func _solid_test() -> void:
 			else:
 				_chart._zoom_at(_chart.size * Vector2(0.55, 0.45), 1.02)
 			t += 1.0 / 30.0
-			StarchartScreen.MapChart.clock_override = t
+			MapChart.clock_override = t
 			_chart._repaint_sky()
 			await RenderingServer.frame_post_draw
 		ChartSky.diag = 4096
@@ -611,7 +604,7 @@ static func _ease(u: float) -> float:
 
 
 func _frame_shot(dir: String, i: int) -> void:
-	for _k in int(_arg("clipwait", "3")):
+	for _k in int(Harness.arg("clipwait", "3")):
 		await RenderingServer.frame_post_draw
 	_crop().save_png(dir.path_join("f_%04d.png" % i))
 

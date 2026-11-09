@@ -59,13 +59,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _has(k: String) -> bool:
 	return k in _args
 
@@ -80,7 +73,7 @@ func _log(ev: String, extra: Dictionary = {}) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	_dir = _arg("out")
+	_dir = Harness.arg("out")
 	_film = _dir != "" and not _has("nofilm")
 	_timing = _has("timing")
 	if _dir != "":
@@ -88,19 +81,19 @@ func _run() -> void:
 	Router.animate_in_harness = true
 	Audio.taping = true
 	# `handoff=A|B|C`: which way a death goes into RUN ENDED (`DeathHandoff`)
-	SectorScreen.handoff_override = _arg("handoff", "")
+	SectorScreen.handoff_override = Harness.arg("handoff", "")
 	if _has("hints"):
 		Hints.forced = true
 		Hints.reset()
 
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	var weight := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
-		"heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM) as int
-	Run.start_new_run(StringName(_arg("manufacturer", "korvan")), weight)
+		"heavy": HullData.Weight.HEAVY}.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM) as int
+	Run.start_new_run(StringName(Harness.arg("manufacturer", "korvan")), weight)
 	var idx := -1
 	# `at=core`: the galaxy's core, where ENGAGE meets the Custodian and the
 	# win follows the kill
-	var at_core := _arg("at") == "core"
+	var at_core := Harness.arg("at") == "core"
 	for n: MapGen.MapNode in Run.map:
 		if (n.type == MapGen.NodeType.CORE) if at_core else (n.type == MapGen.NodeType.SYSTEM and not n.cleared):
 			idx = n.index
@@ -111,8 +104,8 @@ func _run() -> void:
 		return
 	Run.at = idx
 	Run.map[idx].visited = true
-	if _arg("danger") != "":
-		Run.map[idx].danger = int(_arg("danger"))
+	if Harness.arg("danger") != "":
+		Run.map[idx].danger = int(Harness.arg("danger"))
 	SectorScreen._approached_at = idx
 	Router.show_local()
 	_overlay(tree)
@@ -120,11 +113,11 @@ func _run() -> void:
 	_record.call()
 	for i in 40:
 		await _tick()
-	if _arg("hp") != "":
-		Run.hp = int(_arg("hp"))
-	if _arg("heat") != "":
-		Run.heat = int(_arg("heat"))
-	var ids := _arg("fight", "cutter").split(",")
+	if Harness.arg("hp") != "":
+		Run.hp = int(Harness.arg("hp"))
+	if Harness.arg("heat") != "":
+		Run.heat = int(Harness.arg("heat"))
+	var ids := Harness.arg("fight", "cutter").split(",")
 	var extras: Array = []
 	for i in range(1, ids.size()):
 		extras.append(DB.enemies[StringName(ids[i])])
@@ -150,9 +143,9 @@ func _run() -> void:
 	_hook_fight()
 	# `foehp=N`: every contact opens at no more than N hull, so a long fight
 	# (the core's guard) can be filmed to its end without the model losing it.
-	if _arg("foehp") != "":
+	if Harness.arg("foehp") != "":
 		for e0 in _cb.enemies:
-			(e0 as Combat.EnemyState).hp = mini((e0 as Combat.EnemyState).hp, int(_arg("foehp")))
+			(e0 as Combat.EnemyState).hp = mini((e0 as Combat.EnemyState).hp, int(Harness.arg("foehp")))
 		_cb.enemies[0].pick_intent()
 		Sig.enemy_changed.emit()
 	for e in _cb.enemies:
@@ -167,14 +160,14 @@ func _run() -> void:
 	await _wait(45)
 	# `youblock=N`: N block on your ship now, as a card would give it (a deck
 	# may hold no block card), so a film shows your bubble come up and take hits
-	if _arg("youblock") != "":
-		_cb.block += int(_arg("youblock"))
+	if Harness.arg("youblock") != "":
+		_cb.block += int(Harness.arg("youblock"))
 		_log("you_block", {block = _cb.block})
 		Sig.player_combat_state_changed.emit()
 		await _wait(30)
 
-	var end := _arg("end", "win")
-	var cap := int(_arg("maxframes", "2400"))
+	var end := Harness.arg("end", "win")
+	var cap := int(Harness.arg("maxframes", "2400"))
 	var pol := Policy.new()
 	var rested := false
 	while not _cb.finished and _frame < cap:
@@ -191,7 +184,7 @@ func _run() -> void:
 		var pick := pol.best_card(_cb)
 		# `prefer=defence`: a playable block or brace card first, so a film
 		# shows your bubble and your armour (HitLayers)
-		if _arg("prefer") == "defence":
+		if Harness.arg("prefer") == "defence":
 			for k in _cb.hand.size():
 				var hc: CardData = _cb.hand[k]
 				if (hc.block > 0 or hc.brace > 0) and _cb.can_play(hc):
@@ -208,7 +201,7 @@ func _run() -> void:
 
 	_log("loop_done", {finished = _cb.finished, result = _cb.result})
 	# The ending as it plays out: the panel, the router's swap, the next screen.
-	var after := int(_arg("after", "150"))
+	var after := int(Harness.arg("after", "150"))
 	var lost_logged := false
 	for i in after:
 		await _tick()
@@ -219,7 +212,7 @@ func _run() -> void:
 				secs = _sc.loss.duration, boss = _sc.loss.boss})
 	# A panel left waiting for CONTINUE is part of what the player has to do.
 	if is_instance_valid(_sc) and _sc.is_inside_tree():
-		var cont := _find_button(_sc, "CONTINUE")
+		var cont := Harness.button_with_text(_sc, "CONTINUE")
 		if cont != null and cont.is_visible_in_tree():
 			await _click(cont)
 			for i in 90:
@@ -246,12 +239,12 @@ func _run() -> void:
 		var tv: Control = sc2._transfer
 		for i2 in 45:
 			await _tick()
-		var take := _find_button(tv, "TAKE ALL")
+		var take := Harness.button_with_text(tv, "TAKE ALL")
 		if take != null and take.is_visible_in_tree() and not take.disabled:
 			await _click(take)
 		for i3 in 60:
 			await _tick()
-		var done_b := _find_button(tv, "DONE")
+		var done_b := Harness.button_with_text(tv, "DONE")
 		if done_b != null:
 			await _click(done_b)
 		_log("core_loot_done", {won = Run.won})
@@ -513,25 +506,13 @@ func _play(pick: int, rest: bool) -> void:
 	await _glide(Vector2(_ptr.x, 470), 10)
 
 
-func _find_button(root: Node, text: String) -> Button:
-	# VISIBLE ONLY. The screen keeps a hidden full-screen overlay with its own
-	# CONTINUE; pressing that one mid-fight is not something a player can do.
-	if root is Button and (root as Button).text == text and (root as Button).is_visible_in_tree():
-		return root
-	for c in root.get_children():
-		var b := _find_button(c, text)
-		if b != null:
-			return b
-	return null
-
-
 func _take_exit(kind: String) -> void:
 	await _wait(20)
 	var b: Button = _sc._flee_button if kind == "flee" else _sc._hail_button
 	await _click(b)
 	await _wait(50)
 	var go_label := "BREAK CONTACT" if kind == "flee" else "HAIL THEM"
-	var go := _find_button(_sc, go_label)
+	var go := Harness.button_with_text(_sc, go_label)
 	if go == null:
 		_log("no_go_button", {label = go_label})
 		return
@@ -541,7 +522,7 @@ func _take_exit(kind: String) -> void:
 		heat = Run.heat, note = _cb.exit_note})
 	if not _cb.finished:
 		# It failed: the panel says so, and the fight goes on. Close it.
-		var cont := _find_button(_sc, "CONTINUE")
+		var cont := Harness.button_with_text(_sc, "CONTINUE")
 		if cont != null:
 			await _click(cont)
 		await _wait(60)

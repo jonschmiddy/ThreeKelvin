@@ -540,7 +540,8 @@ static func _sprite_box(r: Rect2, kk: int) -> Rect2:
 
 
 func _process(delta: float) -> void:
-	if not scenes.is_empty() and _ship._bob_amp > 0 and _src != null and is_instance_valid(_src) 			and _ship._bob_off != _src._bob_off:
+	if not scenes.is_empty() and _ship._bob_amp > 0 and _src != null and is_instance_valid(_src) \
+			and _ship._bob_off != _src._bob_off:
 		_ship._bob_off = _src._bob_off
 		_ship.refresh()
 	if _goal != t:

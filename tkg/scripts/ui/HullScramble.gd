@@ -177,7 +177,8 @@ func _process(_d: float) -> void:
 	var dt := clampf(get_process_delta_time(), 0.0, 0.25)
 	var lk: Dictionary = LowHull.look().scr
 	var d := LowHull.depth
-	var rate := lerpf(float(lk.rate[0]), float(lk.rate[1]), pow(d, 1.5)) * smoothstep(0.0, 1.0, LowHull.on) 		* clampf(float(_wsum) / float(REF_LETTERS), DENSITY[0], DENSITY[1])
+	var rate := lerpf(float(lk.rate[0]), float(lk.rate[1]), pow(d, 1.5)) * smoothstep(0.0, 1.0, LowHull.on) \
+		* clampf(float(_wsum) / float(REF_LETTERS), DENSITY[0], DENSITY[1])
 	_refresh_some(now)
 	_acc += rate * dt
 	var guard := 0

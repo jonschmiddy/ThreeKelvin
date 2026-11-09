@@ -13,17 +13,11 @@
 # needs one `--import` before its first test, or class names will not resolve.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-limit=600
-while [ $# -gt 0 ]; do
-	case "$1" in
-		-t) limit="$2"; shift 2 ;;
-		-C) cd "$2" || exit 1; shift 2 ;;
-		*) break ;;
-	esac
-done
+tk_parse_run_args "$@"
+set -- ${TK_RUN_ARGS[@]+"${TK_RUN_ARGS[@]}"}
 tk_guard || exit 3
 p="$(tk_new_profile)"
-tk_isolated "$p" tk_timeout "$limit" "$GODOT" --audio-driver Dummy "$@"
+tk_isolated "$p" tk_timeout "$TK_LIMIT" "$GODOT" --audio-driver Dummy "$@"
 code=$?
 rm -rf "$p"
 exit $code

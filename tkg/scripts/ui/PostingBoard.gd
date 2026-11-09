@@ -17,11 +17,31 @@ const CORK := Color("#241c14")
 const GRAIN := Color("#2e2418")
 const HOLE := Color("#15100b")
 const FRAME := Color("#3a2c1c")
-const FRAME_DARK := Color("#2a1f14")
 const LIP := Color("#54402a")
 const SHADE := Color("#070a10")
-const PIN := Color("#d4614f")
+const PIN := UITheme.LEAVE
 const PIN_COOL := Color("#6f8fb0")
+## The LCD board's chrome: cyan rules, pale ink, blue, alarm red, amber, the dark glass.
+const LCD_CYAN := Color("#3ec8e0")
+const LCD_INK := Color("#c8f0ff")
+const LCD_BLUE := Color("#7fd4ff")
+const LCD_ALARM := Color("#ff7a66")
+const LCD_AMBER := Color("#f0c040")
+const LCD_GLASS := Color("#0c2034")
+const SMUDGE := Color("#9aa4ac")
+const GLASS := Color("#08101c")
+const GRID := Color("#0d1828")
+
+## Every sheet is lighter than the cork and a different shade from its neighbour.
+const PAPER := Color("#c2b48e")
+const NEWSPRINT := Color("#a7a397")
+const CARD := Color("#cdc1a0")
+const INDEX := Color("#d6d0bd")
+const INK := Color("#2a241a")
+const INK_SOFT := Color("#5d5445")
+const RED := Color("#9b3a2b")
+const BLUE := Color("#3d5a86")
+const EMBER := UITheme.EMBER
 
 ## Board kind follows the station's development level (Jon, Oct 1), drawn in code, not generated.
 ## Why: docs/why/PostingBoard.md#board-by-development
@@ -236,7 +256,8 @@ func gallery_count() -> int:
 		"white":
 			return BoardWhite.count()
 		"lcd":
-			return BoardScreen.ADS.size() + BoardScreen.STRIPS.size() + BoardScreen.POPUPS.size() 				+ BoardCommercial.count() * REEL_FRAMES
+			return BoardScreen.ADS.size() + BoardScreen.STRIPS.size() + BoardScreen.POPUPS.size() \
+				+ BoardCommercial.count() * REEL_FRAMES
 		_:
 			return BoardCork.count()
 
@@ -451,7 +472,7 @@ func _decoy_listing(r: Rect2, i: int) -> void:
 	draw_rect(r, Color("#1c3a52"), false, 1.0)
 	# the stamp, across the photo
 	var st := String(BoardScreen.STAMPS[_nth(BoardScreen.STAMPS.size(), 6, i)])
-	var col := Color("#ff7a66") if st != "PENDING" else Color("#f0c040")
+	var col := LCD_ALARM if st != "PENDING" else LCD_AMBER
 	var sw := float(st.length()) * 12.0 + 12.0
 	var sr := Rect2(r.position.x + (r.size.x - sw) * 0.5, r.position.y + 10.0, sw, 22.0)
 	draw_rect(sr, Color(0, 0, 0, 0.5))
@@ -526,8 +547,8 @@ func _hand(t: String, at: Vector2, col: Color, seed: float, fs: int = UITheme.FS
 	var x := at.x
 	for k in t.length():
 		var ch := t.substr(k, 1).to_upper()
-		var h1 := ShopLight.hash1(seed * 3.1 + float(k) * 1.7)
-		var h2 := ShopLight.hash1(seed * 1.3 + float(k) * 2.9)
+		var h1 := UIHash.hash1(seed * 3.1 + float(k) * 1.7)
+		var h2 := UIHash.hash1(seed * 1.3 + float(k) * 2.9)
 		if ch == " ":
 			x += 3.5 * sc + h1 * 1.5
 			continue
@@ -545,7 +566,7 @@ func _hand(t: String, at: Vector2, col: Color, seed: float, fs: int = UITheme.FS
 				if j > 0:
 					draw_line(prev.round(), q.round(), col, 1.0)
 					# the marker's width, laid beside the stroke
-					draw_line(prev.round() + Vector2(1, 0), q.round() + Vector2(1, 0), Color(col.r, col.g, col.b, 0.6), 1.0)
+					draw_line(prev.round() + Vector2(1, 0), q.round() + Vector2(1, 0), Color(col, 0.6), 1.0)
 				prev = q
 		x += 4.0 * ls + 1.8 * sc + (h2 - 0.5) * 0.6
 
@@ -555,7 +576,7 @@ func _hand(t: String, at: Vector2, col: Color, seed: float, fs: int = UITheme.FS
 func _wobble_line(a: Vector2, b: Vector2, col: Color, seed: float) -> void:
 	var d := b - a
 	var n := maxi(1, int(d.length() / 8.0))
-	var bow := (ShopLight.hash1(seed * 1.9) - 0.5) * minf(3.0, d.length() * 0.05)
+	var bow := (UIHash.hash1(seed * 1.9) - 0.5) * minf(3.0, d.length() * 0.05)
 	var nrm := Vector2(-d.y, d.x).normalized()
 	var prev := a
 	for k in n:
@@ -578,7 +599,7 @@ func _wobble_rect(r: Rect2, col: Color, seed: float) -> void:
 ## The hand circle closes past its start, as a hand does; it once stopped short at the top.
 func _wobble_circle(c: Vector2, rad: float, col: Color, seed: float) -> void:
 	var n := 24
-	var start := ShopLight.hash1(seed * 2.3) * TAU
+	var start := UIHash.hash1(seed * 2.3) * TAU
 	var sweep := TAU + 0.3
 	var prev := Vector2.ZERO
 	for k in n + 1:
@@ -596,7 +617,7 @@ func _wobble_circle(c: Vector2, rad: float, col: Color, seed: float) -> void:
 func _ticker(w: float, h: float) -> void:
 	var r := Rect2(FRAME_W, h - FRAME_W - TICKER, w - FRAME_W * 2.0, TICKER)
 	draw_rect(r, Color("#0a2a44"))
-	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.0), Color("#3ec8e0"))
+	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.0), LCD_CYAN)
 	draw_rect(Rect2(r.position.x, r.position.y + 1.0, 30.0, TICKER - 1.0), Color("#c83a3a"))
 	_text("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
 	var f := UITheme.pixel_font()
@@ -612,7 +633,7 @@ func _ticker(w: float, h: float) -> void:
 			k += 1
 		if k < text.length():
 			draw_string(f, Vector2(floorf(at), r.position.y + 10.0), text.substr(k),
-				HORIZONTAL_ALIGNMENT_LEFT, r.end.x - at, UITheme.FS_SMALL, Color("#c8f0ff"))
+				HORIZONTAL_ALIGNMENT_LEFT, r.end.x - at, UITheme.FS_SMALL, LCD_INK)
 		x += tw
 	draw_rect(Rect2(r.position.x, r.position.y + 1.0, 30.0, TICKER - 1.0), Color("#c83a3a"))
 	_text("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
@@ -622,16 +643,16 @@ func _ticker(w: float, h: float) -> void:
 func _app_bar(w: float) -> void:
 	var e := FRAME_W
 	draw_rect(Rect2(e, e, w - e * 2.0, HEADER), Color("#0a2a44"))
-	draw_rect(Rect2(e, e + HEADER - 1.0, w - e * 2.0, 1.0), Color("#3ec8e0"))
-	_text("STATION LISTINGS", e + 8.0, e + 14.0, UITheme.FS_SMALL, Color("#c8f0ff"))
+	draw_rect(Rect2(e, e + HEADER - 1.0, w - e * 2.0, 1.0), LCD_CYAN)
+	_text("STATION LISTINGS", e + 8.0, e + 14.0, UITheme.FS_SMALL, LCD_INK)
 	# the search box, kept for the look of the thing (Jon: "you can keep the
 	# search box")
 	var sx := e + 126.0
 	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), Color("#061426"))
-	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), Color("#3ec8e0"), false, 1.0)
+	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), LCD_CYAN, false, 1.0)
 	_text("SEARCH WORK", sx + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#4a7a96"))
 	if int(_t() * 2.0) % 2 == 0:
-		draw_rect(Rect2(sx + 76.0, e + 7.0, 1.0, 8.0), Color("#c8f0ff"))
+		draw_rect(Rect2(sx + 76.0, e + 7.0, 1.0, 8.0), LCD_INK)
 	# the tabs: real ones, each with how many it holds
 	_tab_rects.clear()
 	var tx := sx + 132.0
@@ -640,12 +661,12 @@ func _app_bar(w: float) -> void:
 		var tr := Rect2(tx, e + 4.0, float(label.length()) * 6.0 + 10.0, 13.0)
 		_tab_rects.append(tr)
 		if i == tab:
-			draw_rect(tr, Color("#3ec8e0"))
+			draw_rect(tr, LCD_CYAN)
 			_text(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#061426"))
 		else:
 			var hot := i == _tab_hover
 			draw_rect(tr, Color("#12405e") if hot else Color("#0c2a40"))
-			draw_rect(tr, Color("#3ec8e0") if hot else Color("#2c6a88"), false, 1.0)
+			draw_rect(tr, LCD_CYAN if hot else Color("#2c6a88"), false, 1.0)
 			var empty := i < tab_counts.size() and tab_counts[i] == 0
 			_text(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL,
 				Color("#3e6a84") if empty else Color("#a8dcf0"))
@@ -657,9 +678,9 @@ func _app_bar(w: float) -> void:
 	draw_rect(Rect2(rx - 10.0, e + 5.0, 6.0, 6.0), Color("#f0d0a8"))
 	draw_rect(Rect2(rx - 12.0, e + 12.0, 10.0, 6.0), Color("#f0d0a8"))
 	var bx := rx - 34.0
-	draw_rect(Rect2(bx, e + 6.0, 9.0, 8.0), Color("#c8f0ff"))
-	draw_rect(Rect2(bx - 1.0, e + 13.0, 11.0, 2.0), Color("#c8f0ff"))
-	draw_rect(Rect2(bx + 3.0, e + 15.0, 3.0, 2.0), Color("#c8f0ff"))
+	draw_rect(Rect2(bx, e + 6.0, 9.0, 8.0), LCD_INK)
+	draw_rect(Rect2(bx - 1.0, e + 13.0, 11.0, 2.0), LCD_INK)
+	draw_rect(Rect2(bx + 3.0, e + 15.0, 3.0, 2.0), LCD_INK)
 	draw_rect(Rect2(bx + 6.0, e + 2.0, 9.0, 9.0), Color("#e03a3a"))
 	_text("%d" % (3 + int(_t() / 11.0) % 7), bx + 8.0, e + 10.0, UITheme.FS_SMALL, Color.WHITE)
 	var on := 40 + int(_t() / 5.0) % 9
@@ -686,7 +707,7 @@ func _side(col: Rect2) -> void:
 	var x := col.position.x
 	var y := col.position.y + 4.0
 	var poster := Vector2(minf(136.0, col.size.x * 0.56), 170.0)
-	_tag("FEATURED", Vector2(x + 4.0, y), Color("#f0c040"))
+	_tag("FEATURED", Vector2(x + 4.0, y), LCD_AMBER)
 	_sheet(Vector2(x + 4.0, y + 10.0), poster, 0.0, _featured, 0.5)
 	# the ad, turning over every AD_EVERY seconds
 	var aw := col.end.x - (x + poster.x + 14.0)
@@ -703,7 +724,7 @@ func _side(col: Rect2) -> void:
 	# four dots under it, as a carousel has, the lit one walking along
 	for d in 4:
 		draw_rect(Rect2(ad_at.x + aw * 0.5 - 16.0 + float(d) * 9.0, ad_at.y + poster.y + 4.0, 5.0, 2.0),
-			Color("#c8f0ff") if d == turn % 4 else Color("#2c4a60"))
+			LCD_INK if d == turn % 4 else Color("#2c4a60"))
 	# the manufacturers' own, as sponsored posts
 	var sy := y + poster.y + 26.0
 	var put := 0
@@ -748,7 +769,7 @@ func _side(col: Rect2) -> void:
 ## No bounty, sum or VIEW chip: the bounty was never paid (Jon, Oct 22) and ads are not buttons.
 ## Why: docs/why/PostingBoard.md#featured-listing
 func _featured(sz: Vector2) -> void:
-	draw_rect(Rect2(Vector2.ZERO, sz), Color("#0c2034"))
+	draw_rect(Rect2(Vector2.ZERO, sz), LCD_GLASS)
 	var ph := Rect2(0.0, 0.0, sz.x, 70.0)
 	draw_rect(ph, Color("#183a5a"))
 	# a sky behind the photo: a few stars
@@ -769,17 +790,17 @@ func _featured(sz: Vector2) -> void:
 		draw_rect(Rect2(bx + 8.0 + float(d) * bw * 0.2, cy - 1.0, 3.0, 2.0), EMBER)
 	# the gold star on the corner, and the photo's edge
 	var st := Vector2(sz.x - 16.0, 4.0)
-	draw_rect(Rect2(st, Vector2(13.0, 13.0)), Color("#f0c040"))
+	draw_rect(Rect2(st, Vector2(13.0, 13.0)), LCD_AMBER)
 	draw_rect(Rect2(st.x + 5.0, st.y + 2.0, 3.0, 9.0), Color("#7a5a10"))
 	draw_rect(Rect2(st.x + 2.0, st.y + 5.0, 9.0, 3.0), Color("#7a5a10"))
-	draw_rect(Rect2(0.0, ph.end.y, sz.x, 1.0), Color("#3ec8e0"))
+	draw_rect(Rect2(0.0, ph.end.y, sz.x, 1.0), LCD_CYAN)
 	_text("WANTED", 6.0, 92.0, UITheme.FS_HEAD, UITheme.EMBER)
-	_text("THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, Color("#c8f0ff"))
+	_text("THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, LCD_INK)
 	_text("RIVAL HARVESTER", 6.0, 121.0, UITheme.FS_SMALL, Color("#6fa8c4"))
 	_text("FOR STOLEN HEAT", 6.0, 132.0, UITheme.FS_SMALL, Color("#6fa8c4"))
 	if not Run.hellbender_alive():
-		_stamp(DEAD_STAMP, 18.0, sz.x, Color("#ff7a66"))
-	draw_rect(Rect2(Vector2.ZERO, sz), Color("#f0c040"), false, 1.0)
+		_stamp(DEAD_STAMP, 18.0, sz.x, LCD_ALARM)
+	draw_rect(Rect2(Vector2.ZERO, sz), LCD_AMBER, false, 1.0)
 
 
 ## A sponsored post has no MORE chip: it cannot be pressed, so it must not look pressable.
@@ -805,7 +826,7 @@ func _sponsored(sz: Vector2, mid: StringName) -> void:
 	var big: String = entry[1]
 	if big != "":
 		_text(big, 5.0, sz.y - 6.0, UITheme.FS_SMALL, ink)
-	_text("SPONSORED", 4.0, 9.0, UITheme.FS_SMALL, Color(ink.r, ink.g, ink.b, 0.7))
+	_text("SPONSORED", 4.0, 9.0, UITheme.FS_SMALL, Color(ink, 0.7))
 
 
 func _tag(s: String, at: Vector2, col: Color) -> void:
@@ -876,25 +897,11 @@ func _pal(c: Color) -> Color:
 		NEWSPRINT: return Color("#10263a")
 		CARD: return Color("#0e2030")
 		INDEX: return Color("#12283a")
-		INK: return Color("#c8f0ff")
+		INK: return LCD_INK
 		INK_SOFT: return Color("#6fa8c4")
-		RED: return Color("#ff7a66")
-		BLUE: return Color("#7fd4ff")
+		RED: return LCD_ALARM
+		BLUE: return LCD_BLUE
 	return c
-const SMUDGE := Color("#9aa4ac")
-const GLASS := Color("#08101c")
-const GRID := Color("#0d1828")
-
-## Every sheet is lighter than the cork and a different shade from its neighbour.
-const PAPER := Color("#c2b48e")
-const NEWSPRINT := Color("#a7a397")
-const CARD := Color("#cdc1a0")
-const INDEX := Color("#d6d0bd")
-const INK := Color("#2a241a")
-const INK_SOFT := Color("#5d5445")
-const RED := Color("#9b3a2b")
-const BLUE := Color("#3d5a86")
-const EMBER := Color("#d97b29")
 
 ## How thick the board's wooden frame is.
 const FRAME_W := 16.0
@@ -1034,7 +1041,7 @@ func make_pins() -> Control:
 
 ## A repeatable scatter, so the holes land in the same place every redraw.
 func _scatter(i: int, span: float) -> float:
-	return fmod(float(i) * 2654435761.0 / 65536.0, maxf(1.0, span))
+	return UIHash.scatter(i, maxf(1.0, span))
 
 
 func _draw() -> void:
@@ -1074,7 +1081,7 @@ func _draw() -> void:
 			for corner: Vector2 in [Vector2.ZERO, Vector2(c.size.x, 0.0), c.size,
 					Vector2(0.0, c.size.y)]:
 				pts.append(off + t * corner + Vector2(3.0, 4.0))
-			draw_colored_polygon(pts, Color(SHADE.r, SHADE.g, SHADE.b, 0.55))
+			draw_colored_polygon(pts, Color(SHADE, 0.55))
 
 	# --- AND THE FRAME, last, so anything pinned near an edge tucks under it.
 	_frame(w, h, k)
@@ -1097,7 +1104,7 @@ func _cork(w: float, h: float, worn: bool) -> void:
 			floorf(8.0 + _scatter(i * 13 + 9, h - 16.0)), 1.0, 1.0), HOLE)
 	for g in 3:
 		draw_rect(Rect2(w * (0.08 + 0.21 * float(g)), h * (0.56 + 0.1 * float(g % 2)),
-			70.0 + 12.0 * float(g), 44.0 + 8.0 * float(g)), Color(GRAIN.r, GRAIN.g, GRAIN.b, 0.55))
+			70.0 + 12.0 * float(g), 44.0 + 8.0 * float(g)), Color(GRAIN, 0.55))
 	if worn:
 		# staples left behind, in pairs
 		for i in 26:
@@ -1124,9 +1131,9 @@ func _whiteboard(w: float, h: float) -> void:
 		var sy := floorf(FRAME_W + _scatter(i * 37 + 9, h - 90.0))
 		var sw := 60.0 + _scatter(i * 13 + 1, 90.0)
 		var sh := 14.0 + _scatter(i * 19 + 5, 30.0)
-		draw_rect(Rect2(sx, sy, sw, sh), Color(SMUDGE.r, SMUDGE.g, SMUDGE.b, 0.10))
+		draw_rect(Rect2(sx, sy, sw, sh), Color(SMUDGE, 0.10))
 		# a wiped line, streaked sideways
-		draw_rect(Rect2(sx + 6.0, sy + sh * 0.5, sw - 12.0, 1.0), Color(SMUDGE.r, SMUDGE.g, SMUDGE.b, 0.18))
+		draw_rect(Rect2(sx + 6.0, sy + sh * 0.5, sw - 12.0, 1.0), Color(SMUDGE, 0.18))
 	# a dull sheen across the enamel
 	for i in 3:
 		var x0 := w * (0.2 + 0.28 * float(i))
@@ -1153,7 +1160,7 @@ func _lcd(w: float, h: float) -> void:
 		draw_rect(Rect2(x, FRAME_W, 1.0, h - FRAME_W * 2.0), Color(0, 0, 0, 0.10))
 		x += 3.0
 	# the title bar, and a cursor blinking at its end
-	draw_rect(Rect2(FRAME_W, FRAME_W, w - FRAME_W * 2.0, 1.0), Color("#3ec8e0"))
+	draw_rect(Rect2(FRAME_W, FRAME_W, w - FRAME_W * 2.0, 1.0), LCD_CYAN)
 	draw_rect(Rect2(FRAME_W + 4.0, h - FRAME_W - 5.0, w * 0.3, 1.0), Color(0.25, 0.78, 0.9, 0.5))
 
 
@@ -1176,11 +1183,11 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 			draw_rect(Rect2(3.0 + float(i % 2) * 3.0, gy2, 1.0, h / 9.0), fd)
 			draw_rect(Rect2(w - e + 4.0 + float((i + 1) % 2) * 3.0, gy2 + 14.0, 1.0, h / 10.0), fd)
 	draw_rect(Rect2(0.0, 0.0, w, 1.0), lip)
-	draw_rect(Rect2(0.0, 0.0, 1.0, h), Color(lip.r, lip.g, lip.b, 0.7))
+	draw_rect(Rect2(0.0, 0.0, 1.0, h), Color(lip, 0.7))
 	draw_rect(Rect2(0.0, h - 1.0, w, 1.0), fd)
 	draw_rect(Rect2(w - 1.0, 0.0, 1.0, h), fd)
-	draw_rect(Rect2(e, e, w - e * 2.0, 1.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.7))
-	draw_rect(Rect2(e, e, 1.0, h - e * 2.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+	draw_rect(Rect2(e, e, w - e * 2.0, 1.0), Color(SHADE, 0.7))
+	draw_rect(Rect2(e, e, 1.0, h - e * 2.0), Color(SHADE, 0.5))
 	match dev:
 		0:
 			# mitred corners, roughly cut
@@ -1206,7 +1213,7 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 					var mc: Color = [Color("#2a2a2a"), Color("#c0302a"), Color("#2a4ab0")][m]
 					var mx := e + 42.0 + float(m) * 46.0
 					# the barrel, white, with its colour band and a cap at one end
-					draw_rect(Rect2(mx + 2.0, ty - 5.0, 38.0, 7.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.3))
+					draw_rect(Rect2(mx + 2.0, ty - 5.0, 38.0, 7.0), Color(SHADE, 0.3))
 					draw_rect(Rect2(mx, ty - 7.0, 30.0, 7.0), Color("#e8e8e4"))
 					draw_rect(Rect2(mx, ty - 7.0, 30.0, 1.0), Color("#ffffff"))
 					draw_rect(Rect2(mx, ty - 1.0, 30.0, 1.0), Color("#a8a8a4"))
@@ -1216,7 +1223,7 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 					draw_rect(Rect2(mx + 39.0, ty - 6.0, 2.0, 5.0), mc.darkened(0.3))
 				# the eraser: felt underneath, a dark handle on top
 				var ex := e + 42.0 + 3.0 * 46.0 + 8.0
-				draw_rect(Rect2(ex + 2.0, ty - 9.0, 50.0, 12.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.3))
+				draw_rect(Rect2(ex + 2.0, ty - 9.0, 50.0, 12.0), Color(SHADE, 0.3))
 				draw_rect(Rect2(ex, ty - 14.0, 48.0, 9.0), Color("#2e2e34"))
 				draw_rect(Rect2(ex, ty - 14.0, 48.0, 1.0), Color("#5a5a62"))
 				draw_rect(Rect2(ex + 6.0, ty - 12.0, 36.0, 2.0), Color("#46464e"))
@@ -1257,8 +1264,8 @@ func _monitor(w: float, h: float, k: Dictionary) -> void:
 		# brushed: fine streaks along the rails
 		for i in 22:
 			var sx := 6.0 + float(i) * (w - 12.0) / 22.0
-			draw_rect(Rect2(sx, 3.0 + float(i % 3) * 3.0, w / 30.0, 1.0), Color(lip.r, lip.g, lip.b, 0.35))
-			draw_rect(Rect2(sx + 9.0, h - e + 3.0 + float((i + 1) % 3) * 3.0, w / 34.0, 1.0), Color(lip.r, lip.g, lip.b, 0.25))
+			draw_rect(Rect2(sx, 3.0 + float(i % 3) * 3.0, w / 30.0, 1.0), Color(lip, 0.35))
+			draw_rect(Rect2(sx + 9.0, h - e + 3.0 + float((i + 1) % 3) * 3.0, w / 34.0, 1.0), Color(lip, 0.25))
 	# the camera eye, top middle
 	var cx := floorf(w * 0.5)
 	draw_rect(Rect2(cx - 2.0, 5.0, 5.0, 5.0), fd.darkened(0.4))
@@ -1340,7 +1347,7 @@ func _sheet(at: Vector2, sz: Vector2, deg: float, paint: Callable, pin_x: float)
 	draw_set_transform(at, deg_to_rad(deg), Vector2.ONE)
 	# The flyer throws its own shadow: none where its tabs were torn off.
 	if paint.get_method() != &"_flyer":
-		draw_rect(Rect2(3.0, 4.0, sz.x, sz.y), Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+		draw_rect(Rect2(3.0, 4.0, sz.x, sz.y), Color(SHADE, 0.5))
 	paint.call(sz)
 	_pin(Vector2(floorf(sz.x * pin_x), 4.0), PIN)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -1377,10 +1384,10 @@ static func _disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 ## A front-view push pin with a shadow, a shaded cap and a glint (Jon).
 static func draw_pushpin(ci: CanvasItem, at: Vector2, col: Color) -> void:
 	var c := (at + Vector2(1, -1)).round()
-	_disc(ci, c + Vector2(2, 3), 4, Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+	_disc(ci, c + Vector2(2, 3), 4, Color(SHADE, 0.5))
 	# the needle, going in below the cap
 	ci.draw_rect(Rect2(c.x + 1.0, c.y + 4.0, 1.0, 2.0), Color("#b8b8b0"))
-	ci.draw_rect(Rect2(c.x + 2.0, c.y + 5.0, 2.0, 1.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.6))
+	ci.draw_rect(Rect2(c.x + 2.0, c.y + 5.0, 2.0, 1.0), Color(SHADE, 0.6))
 	_disc(ci, c, 4, col.darkened(0.4))
 	_disc(ci, c + Vector2(0, -1), 3, col)
 	ci.draw_rect(Rect2(c.x - 2.0, c.y - 3.0, 2.0, 1.0), col.lightened(0.6))
@@ -1392,7 +1399,7 @@ static func draw_pushpin(ci: CanvasItem, at: Vector2, col: Color) -> void:
 ## underneath and light on top, a shiny crescent, and its shadow on the enamel.
 static func draw_magnet(ci: CanvasItem, at: Vector2, col: Color) -> void:
 	var c := (at + Vector2(1, 0)).round()
-	_disc(ci, c + Vector2(1, 3), 6, Color(SHADE.r, SHADE.g, SHADE.b, 0.35))
+	_disc(ci, c + Vector2(1, 3), 6, Color(SHADE, 0.35))
 	_disc(ci, c, 6, col.darkened(0.45))
 	_disc(ci, c + Vector2(0, -1), 5, col)
 	# the shine: a crescent up and to the left, and a spot of light
@@ -1482,7 +1489,7 @@ func _flyer(sz: Vector2) -> void:
 	var tabs := 8
 	var tw := sz.x / float(tabs)
 	if not screen():
-		var sh := Color(SHADE.r, SHADE.g, SHADE.b, 0.5)
+		var sh := Color(SHADE, 0.5)
 		draw_rect(Rect2(3.0, 4.0, sz.x, body), sh)
 		for i in tabs:
 			if i % 3 != 1:
@@ -1559,10 +1566,10 @@ func _post(sz: Vector2, mid: StringName) -> void:
 	# rest on dark, so the mark is pushed away from whichever the field is.
 	var pale := m.field.get_luminance() > 0.5
 	var ink := m.colour.darkened(0.3) if pale else m.colour.lightened(0.12)
-	var soft := Color(ink.r, ink.g, ink.b, 0.8)
+	var soft := Color(ink, 0.8)
 	draw_rect(Rect2(Vector2.ZERO, sz), m.field)
 	draw_rect(Rect2(0.0, 0.0, sz.x, 3.0), m.colour)
-	draw_rect(Rect2(Vector2.ZERO, sz), Color(ink.r, ink.g, ink.b, 0.45), false, 1.0)
+	draw_rect(Rect2(Vector2.ZERO, sz), Color(ink, 0.45), false, 1.0)
 	CardView.draw_emblem(self, mid, Vector2(sz.x * 0.5, 14.0), 1.0, m.colour, m.field)
 	var entry: Array = POSTS.get(mid, [[], ""])
 	var lines: Array = entry[0]

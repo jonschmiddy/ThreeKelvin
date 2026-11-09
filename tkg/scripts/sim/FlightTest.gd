@@ -899,7 +899,7 @@ func _clear_of_stars(fl, L: SystemLayout, p: Vector2, t: float) -> Vector2:
 
 
 ## The plan's own numbers: closest approaches, top speed and pull, and the biggest kink.
-func _measure(fl, L: SystemLayout, pl, i: int, t: float, from_b: int) -> Dictionary:
+func _measure(fl, L: SystemLayout, pl, i: int, _t: float, from_b: int) -> Dictionary:
 	var m := {"star": INF, "world": INF, "speed": 0.0, "acc": 0.0, "kink": 0.0}
 	var n: int = pl.samp.size()
 	var pv := Vector3.INF
@@ -2448,7 +2448,7 @@ func _run_starride() -> void:
 
 ## What is wrong with a plan's points, if anything: not a number, off the map,
 ## through a star's disc (where the star is at that sample's moment).
-func _degenerate(fl, L: SystemLayout, pl) -> String:
+func _degenerate(_fl, L: SystemLayout, pl) -> String:
 	for kq in pl.samp.size():
 		var q: Vector3 = pl.samp[kq]
 		var tq: float = float(pl.t0) + kq * pl.sdt
@@ -2543,7 +2543,7 @@ func _turn_max(p3: PackedVector3Array, zoom: float, skip := PackedByteArray()) -
 
 ## A small ring's own ends turn faster than CORNER (2.5 px at zoom 1), so ring curves are skipped.
 ## Why: docs/why/FlightTest.md#ring-skips
-func _ring_skip(fl, L: SystemLayout, pl, path3: PackedVector3Array, i: int, from_b: int, zoom: float) -> PackedByteArray:
+func _ring_skip(fl, _L: SystemLayout, pl, path3: PackedVector3Array, i: int, from_b: int, zoom: float) -> PackedByteArray:
 	var out := PackedByteArray()
 	out.resize(path3.size())
 	var ns: int = pl.samp.size()

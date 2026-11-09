@@ -16,7 +16,7 @@ const GAIN := Color("#ffffff")
 ## A loss is an unlit cell with a red slash, since a red fill matches Redline's accent
 ## #e24b4a.
 ## Why: docs/why/AttrBlock.md#loss-cell
-const LOSS := Color("#d4614f")
+const LOSS := UITheme.LEAVE
 
 
 ## Separator so pip count and hull do not read as one number (Jon, Oct 29, hull:B);

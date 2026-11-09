@@ -5,36 +5,28 @@ extends Node
 ## Why: docs/why/HullNumberTest.md#hull-number
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 ## The flight record's path before `_unlock_all` pointed it at a scratch file.
 var _history_was := ""
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_tooltip_text()
 
 	# (before the screen is built, so it is built as a player with all seven sees it)
 	_unlock_all()
 	Router.new_run(4242)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var cs := Router.current as ChassisSelect
 	if not _ok("a new run opens the chassis select", cs != null):
 		return _finish()
@@ -50,7 +42,7 @@ func _run() -> void:
 		for w in ChassisSelect.WEIGHTS:
 			cs._select(i)
 			cs._pick_weight(w)
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			_check(cs, manufacturer, w, screen)
 			flown += 1
 	var every := DB.STARTABLE.size() * ChassisSelect.WEIGHTS.size()
@@ -89,7 +81,7 @@ func _tooltip_text() -> void:
 func _check(cs: ChassisSelect, manufacturer: StringName, w: HullData.Weight, screen: Rect2) -> void:
 	var tag := "%s %s" % [manufacturer, HullData.weight_name(w)]
 	var frame := DB.hull_for(manufacturer, w)
-	var block := _find(cs, func(n: Node) -> bool:
+	var block := Harness.first(cs, func(n: Node) -> bool:
 		return n is AttrBlock and (n as AttrBlock).is_visible_in_tree()) as AttrBlock
 	if not _ok("%s: the attribute block is up" % tag, block != null):
 		return
@@ -184,7 +176,7 @@ func _plain_blocks() -> void:
 	add_child(full)
 	plain.setup(Run.attributes())
 	full.callv(&"setup", [Run.attributes(), UITheme.CHILL, true])
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("a block set up without amounts prints no readout (the refit screen, cutaway, yard)",
 		_amounts_of(plain).is_empty())
 	_ok("and one set up with them prints HULL's alone",
@@ -206,18 +198,6 @@ func _hull_row(rows: Array[Dictionary]) -> Dictionary:
 	return {}
 
 
-func _find(root: Node, matches: Callable) -> Node:
-	if root == null:
-		return null
-	if matches.call(root):
-		return root
-	for c in root.get_children():
-		var f := _find(c, matches)
-		if f != null:
-			return f
-	return null
-
-
 ## Every startable manufacturer is open whatever DevMode says:
 ## the sheet skipped locked ones and relied on the editor.
 func _unlock_all() -> void:
@@ -235,5 +215,5 @@ func _finish() -> void:
 	if _history_was != "":
 		RunHistory.clear()
 		RunHistory.path = _history_was
-	print("hullnumbertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("hullnumbertest")
+	_tree.quit(h.code())

@@ -1174,7 +1174,7 @@ func _on_map_input(e: InputEvent) -> void:
 			_scan_px = fmod(_scan_px, SCAN_STEP)
 			_sound(&"chart_scan", 0.08, SCAN_LIMIT_MS)
 	elif e is InputEventGesture:
-		var f := StarchartScreen.MapChart.gesture_zoom(e, ZOOM_STEP)
+		var f := MapChart.gesture_zoom(e, ZOOM_STEP)
 		if f != 1.0:
 			_zoom_by(f, _map_at((e as InputEventGesture).position))
 		_frame.accept_event()
@@ -1576,7 +1576,7 @@ func ladder_anchor(other: int, seam: int, design: String) -> Vector2:
 
 
 ## How far the map moves before it hands over (a share of k), 0 for none.
-func ladder_pre(target: int, seam: int, design: String) -> float:
+func ladder_pre(_target: int, seam: int, design: String) -> float:
 	if not ladder_ready():
 		return 0.0
 	if seam == 2 and design == "B":

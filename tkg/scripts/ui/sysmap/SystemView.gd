@@ -1252,7 +1252,7 @@ func _radiant_safety() -> void:
 		DisplaySettings.fall_back_style(STYLE_SIMPLIFIED)
 
 
-## SIMPLIFIED is the default; PAINTED and RADIANT are the others (`DisplaySettings.BUILT`).
+## SIMPLIFIED is the default; PAINTED and RADIANT are the others (`DisplaySettings.STYLES`).
 static func style() -> StringName:
 	return DisplaySettings.render_style
 
@@ -1574,7 +1574,7 @@ func _depth_look() -> Array:
 
 
 ## Each sheet is sized and slid by the camera's distance, and faded near it and near the plane.
-func _step_depth(o: Vector2) -> void:
+func _step_depth(_o: Vector2) -> void:
 	if _depth.is_empty():
 		return
 	var D := 1.0 / maxf(zoom, 0.01)
