@@ -28,11 +28,11 @@ class BracePips extends Control:
 		var x: float = (size.x - w) * 0.5
 		for i in n:
 			draw_rect(Rect2(Vector2(x + i * (CELL.x + GAP), 0), CELL),
-				EnemySlot.ARMOR_COL, true)
+				UITheme.BRACE, true)
 		# More than the strip can hold says so rather than lying about the count.
 		if value > n:
 			draw_rect(Rect2(Vector2(x + w + 2, 1), Vector2(2, CELL.y - 2)),
-				EnemySlot.ARMOR_COL, true)
+				UITheme.BRACE, true)
 
 ## One enemy and its drop target: the slot owns art, name and bar so a target is a single
 ## object.
@@ -55,8 +55,6 @@ var _bar: ProgressBar
 var _brace_bar: BracePips
 ## Gives `art` a position of its own that the column does not overwrite.
 var _art_holder: Control
-## Steel, so it never reads as a second kind of hull.
-const ARMOR_COL := Color("#9fb0c4")
 var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable
@@ -260,6 +258,8 @@ func _init() -> void:
 	# `enter()`.
 	art.size = Vector2(EnemyArt.W, EnemyArt.H)
 	_art_holder.add_child(art)
+	# The flame beside the art here, not top level, so the piles' panel covers it (#56).
+	art.host_flame(_art_holder)
 	col.add_child(_art_holder)
 	_under = Control.new()
 	_under.mouse_filter = Control.MOUSE_FILTER_IGNORE

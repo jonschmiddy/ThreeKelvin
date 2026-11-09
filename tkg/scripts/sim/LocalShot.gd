@@ -180,7 +180,7 @@ func _run() -> void:
 			_rects(view, r_ships, r_labels)
 		var hid: Array[CanvasItem] = []
 		for c in view.get_children():
-			var keep_c: bool = c == view.get("dust") or (not "dustonly" in _args and (c == view.backdrop or c == view.weather))
+			var keep_c: bool = c == view.get("dust") or (not "dustonly" in _args and c == view.backdrop)
 			if not "clipfull" in _args and c is CanvasItem and not keep_c and (c as CanvasItem).visible:
 				(c as CanvasItem).visible = false
 				hid.append(c)

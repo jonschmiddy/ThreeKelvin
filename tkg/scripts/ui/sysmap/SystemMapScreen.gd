@@ -513,6 +513,33 @@ func _report_spot(held := false) -> void:
 	Net.report_spot(Run.at, body, p, float(flight.ang), false, view.t, host, held)
 
 
+## Your flight, said once as it starts (PROTOCOL 17, `NetSession.report_flight`): its whole path,
+## so a partner draws the arc it flies; let go of before it lands, said too.
+## Why: docs/why/SystemMapScreen.md#flight-said-once
+var _said_key := 0
+var _said_end := 0.0
+var _said_to := -9
+const FLIGHT_SAY_DT := 1.0 / 60.0
+func _report_flight() -> void:
+	if flight == null or view.node == null or view.layout == null or not Net.is_networked() or view.node.index != Run.at:
+		return
+	var pl = flight.plan
+	if pl != null and pl.get_instance_id() != _said_key:
+		var sp: Array = flight.said_path(view.t, FLIGHT_SAY_DT)
+		if sp.size() == 4:
+			var dep: Dictionary = pl.dep
+			_said_key = pl.get_instance_id()
+			_said_end = view.t + float(sp[3])
+			_said_to = int(pl.to)
+			var shape := PackedFloat64Array([float(dep.get("host", -9)), float(sp[2]), float(sp[3])])
+			Net.report_flight(Run.at, _said_key, int(dep.get("place", -9)), _said_to, view.t, FLIGHT_SAY_DT, sp[0], sp[1], view.t, shape)
+			return
+	if _said_key != 0 and (pl == null or pl.get_instance_id() != _said_key):
+		if view.t < _said_end - 0.05 and flight.heading_to() != _said_to and flight.orbit_body() != _said_to:
+			Net.report_flight_off(Run.at)
+		_said_key = 0
+
+
 ## Where a jump arrival puts a ship, so a partner who just arrived is drawn there.
 var _arrival_p := Vector2.INF
 
@@ -527,6 +554,14 @@ func partner_points() -> Array:
 		var id := int(s.id)
 		if Net.where_is(id) != at:
 			continue
+		# ON ITS WAY (PROTOCOL 17): on the path it said as it left, its ends
+		# moved with their places to this clock (`NetSession.flight_point`)
+		var fl := Net.flight_of(id, at)
+		if not fl.is_empty():
+			var fp := NetSession.flight_point(fl, view.layout, view.t, Time.get_ticks_msec(), Net.spot_of(id, at))
+			if not fp.is_empty():
+				out.append([id, fp[0], float(fp[1]), String(s.get("name", "")).to_upper(), -9, true])
+				continue
 		var sp := Net.spot_of(id, at)
 		var body := int(sp.get("body", -10))
 		var q: Vector2
@@ -720,6 +755,14 @@ func _process(delta: float) -> void:
 		_catch_up(delta)
 	_step_ship(delta, hold)
 	_report_spot(held)
+	_report_flight()
+	# A CLICK MADE WHILE THE SHIP SPUN DOWN onto its ring (`_after_spin`), now
+	# it is on it
+	if _after_spin.is_valid() and flight != null and not flight.spinning():
+		var c := _after_spin
+		_after_spin = Callable()
+		if flight.can_fly():
+			c.call()
 	_step_camera(delta)
 	overlay.mark_keep = mark_keep()
 	# THE BELT POINTED AT (or selected) brightens, eased in with the hover
@@ -1215,6 +1258,9 @@ func _go_then(body: int, then: Callable) -> void:
 		return
 	# ONLY OUT OF AN ORBIT (Jon: "You have to be IN AN ORBIT ... AND THEN CLICK
 	# to go to another planet"): anywhere else the panel says so and nothing flies
+	# (spinning down onto it after a fast flight, it flies once that is over)
+	if _wait_spin(func() -> void: _go_then(body, then)):
+		return
 	if not flight.can_fly():
 		return
 	# (from the berth: refused, UNDOCK is the only way out, `Router.cast_off`)
@@ -1271,8 +1317,21 @@ func _body_of_beacon(bc) -> int:
 	return -1
 
 
+## A CLICK WHILE THE SHIP SPINS DOWN ONTO ITS RING after a fast flight (at most
+## `ShipFlight.SPIN_S`, when `can_fly` is false): kept and made once it is on
+## it, where it was dropped (the code review, Nov 5). The last one made wins.
+var _after_spin := Callable()
+func _wait_spin(c: Callable) -> bool:
+	if flight == null or not flight.spinning():
+		return false
+	_after_spin = c
+	return true
+
+
 ## Your ship into orbit of place `i` or alongside; the panel stays on it and opens it.
 func fly_to_body(i: int) -> void:
+	if not _taking and _wait_spin(func() -> void: fly_to_body(i)):
+		return
 	if _taking or not flight.can_fly():
 		return
 	# (from the berth: refused, UNDOCK is the only way out, `Router.cast_off`)

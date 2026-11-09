@@ -12,6 +12,7 @@ signal log_line(text: String, kind: StringName)
 signal jumped(node_index: int)
 signal map_changed()
 signal screen_changed()             ## a screen was swapped in; nav re-evaluates
+signal undock_wanted()              ## `Router.cast_off` refused a way off the berth
 ## The HUD is built once at boot, so anything building controls behind DevMode must rebuild here.
 signal dev_mode_changed()
 

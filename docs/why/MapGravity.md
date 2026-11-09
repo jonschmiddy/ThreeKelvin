@@ -59,7 +59,7 @@ Above `static func keep_out_star(L: SystemLayout, p: int) -> float:`:
 ```text
 A STAR'S KEEP-OUT, plane px from its centre: the larger of the layout's
 keep-clear and the sun as drawn at `keep_zoom` plus STAR_MARGIN. Drawn
-(`SystemView._star_k_raw`, not LEGACY): a sun at sqrt((r z)^2 + 10^2) screen
+(`SystemView._star_k_raw`): a sun at sqrt((r z)^2 + 10^2) screen
 px, eased up to its floor; the black hole at r max(z, 1); a pulsar at 4/3 r
 (`PULSAR_OPEN_K` at the zoom it opens at). Screen px over the zoom is plane
 px across the map (the slant only shortens it top to bottom). A one-star
@@ -74,4 +74,18 @@ hole's lens reaches far past its disc"), 144. Kept to its disc as drawn
 of the core's flights from the game's starts inside 150 px, 8 under 70,
 where today's planner never came inside 161 (the one-sun review, Oct 31) --
 and the Custodian's ENGAGE flies there in every won run.
+```
+
+## Paced copy
+
+Above `func paced(k: float) -> MapGravity:`:
+
+```text
+THE SAME SYSTEM ON A FLIGHT'S OWN CLOCK (the fast transfers, Nov 5): a
+copy with every rate divided by k (the pair's turn, the giants', the worlds'
+and the places'), phases and pulls as they are, so at flight time tau every
+body is exactly where it really is at map time tau / k. A flight solved on
+it at today's THRUST and gravity, played k times faster, is the same path
+with its pulls k^2 stronger on the map (`FlightSolve.solve`'s `pace`). A new
+object each call: nothing shared is written, so a worker may make one.
 ```

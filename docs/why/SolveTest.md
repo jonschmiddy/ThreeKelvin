@@ -8,7 +8,7 @@ Above `const SEEDS := [4242, 7, 1999, 31337]`:
 THE AUTOPILOT'S SOLVED FLIGHTS (ruling 20, Oct 30), planned and measured:
   godot --headless --path . -- sheet=SolveTest [systems=N] [lineups=N] [twins=N]
     [twinlineups=N] [worker=N] [only=one|giant|twin|rtwin|rclose|phase|proto] [short]
-    [shard=K/N]
+    [shard=K/N] [shapes=<jsonl>]
 `shard=K/N`: every Nth case from the Kth (`Harness.mine`), the pair-phase
 sweep's among them, the rest of the run (the bench, the prototype's flight,
 the conic's aim) in shard 1; the shares of a sweep and of the replans are
@@ -16,6 +16,19 @@ summed across the shards by `ShardSum`.
 `short`: the gate's run, every sweep at fewer systems and line-ups
 (systems=1 lineups=4 twins=1 twinlineups=3 worker=100; the phase sweep at
 PHASES_SHORT angles of two pairs).
+THE TWO PATHS (the fast transfers, Nov 5: AUTOPILOT DIRECT . CURVED,
+`FlightSolve.solve`'s opts): `path=direct|curved|both` (both unless asked)
+and `pace=K` (each path's own `ShipFlight.FLIGHT_PACE`, DIRECT 4 and CURVED
+4, unless asked). Every case is built on the map as before and then put on
+the flight's own clock, tau = pace x map time (its ring's and a free start's
+speed / pace, the target's ring speed / pace, the system as
+`MapGravity.paced`), and every check below reads it there, the layout's own
+Body read at tau / pace (`centre`): the same thresholds hold in tau. Each
+sweep is judged per path (its name with " curved" after it for CURVED).
+`path=direct pace=1` is today's run, number for number. Each path prints
+its flights' bend (the farthest a flight strays from the straight line
+between its ends, over that line) and its coast's whole turn, and CURVED's
+median bend must be at least BEND_MARGIN times DIRECT's where both ran.
 `FlightSolve` from every start to every place, at line-ups (map times), in
 four sweeps:
   one    real one-star systems from systemtest's four seeds (SYSTEM, PULSAR
@@ -235,4 +248,17 @@ places and the ship's turned by golden-angle steps) against its typical
 still, as the prototype flew it: turning (ruling 23), worlds a and b go
 round their suns four times as fast, the line-up is no longer a free one
 (62.7 px/s in 8.2 s at x4), and the turning pair's figures are only shown.
+```
+
+## Spin not replayed
+
+Inside `_replays()`, above `if StringName(dep.kind) == &"ring" and float(dep.get("spin", 0.0)) > 0.0:`:
+
+```text
+(NOT ON A FLIGHT'S OWN CLOCK, `dep.spin`: a plan made for now has its
+ride spin up from now, and a ship left riding its ring at its own
+rate half a second is that much short of it. The game never asks it:
+its plans are made a moment ahead, PLAN_AHEAD or PREVIEW_AHEAD, the
+ship at its own rate until then, and FlightTest's clicks on the drawn
+flight a moment on hold that)
 ```

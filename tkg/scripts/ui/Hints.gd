@@ -1441,15 +1441,16 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 			var cb: Combat = Router.combat
 			if not _hand_settled(sc) or cb == null or cb.brace_held <= 0 or cb.brace <= 0:
 				return {}
-			if sc._player_chips == null or sc._player_chips.get_child_count() == 0:
-				return {}
-			var chip := sc._player_chips.get_child(0) as Control
-			if chip == null or not chip.is_visible_in_tree() or chip.size.x < 2.0:
+			# the brace on your hull bar, and its "+N"
+			var bar: HullBar = sc._self_bar
+			var num: Label = sc._self_brace
+			if bar == null or num == null or not bar.is_visible_in_tree() \
+					or not num.is_visible_in_tree() or bar.brace <= 0 or num.size.x < 2.0:
 				return {}
 			# and off the hand under it: the card went over the first two cards' costs
 			var bav := _fight_avoid(sc, hud)
 			bav.append(sc._hand.get_global_rect())
-			return {subject = chip.get_global_rect(), avoid = bav}
+			return {subject = bar.drawn_rect().merge(num.get_global_rect()), avoid = bav}
 		&"heat":
 			# It stays when heat is vented to nothing: it went
 			# and came back four times in one fight (0.4.1 log).

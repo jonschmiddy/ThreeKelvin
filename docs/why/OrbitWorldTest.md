@@ -103,3 +103,16 @@ one that ended while the map was still being left found the ship flying
 A ride too short for it is flown on to the place, and the flight tried
 back the other way, up to RIDE_TRIES times
 ```
+
+## Ride clock
+
+Above `const RIDE_LEFT`. The ride round the ring is timed on the flight's own
+clock: the map's seconds times the plan's pace (`FlightPlan.pace`, from
+`ShipFlight.FLIGHT_PACE`; 1 for today's planner). Before the pace (main, a
+pace of 1) a ride had 3.07 to 4.62 s; at CURVED's x12 it has 0.13 to 0.57 s of
+the map's clock, 1.6 to 6.8 s of its own. 1.5 s of the map's clock was more
+than any ride had, so the check failed seeds 7, 11 and 23 (Nov 8). Jon's ruling, "Scale to flight speed": 1.5 s of the
+flight's clock asks for the same share of the ride the check always asked for.
+The assertions and RIDE_TRIES are unchanged. The wait before the click scales
+the same way: RIDE_LEFT over the pace, plus RIDE_SLACK, which stays on the
+map's clock because PLAN_AHEAD and the frames it covers are map time.

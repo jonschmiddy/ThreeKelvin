@@ -55,8 +55,11 @@ PROJECT="${PROJECT:-tkg}"
 SIM_RUNS="${SIM_RUNS:-40}"
 # How many units FlightTest and SolveTest run split into: as many as there are
 # `unit_flighttest_<K>` and `unit_solvetest_<K>` functions (checked below).
+# SolveTest 8 since the x12 flights (Jon, Nov 8, "split: yes"): its 4 shards
+# took 312 to 363 s side by side and 302 s alone on the PC, past the 300 they
+# had then and close to the 420 of #54.
 GATE_FLIGHT_SHARDS=4
-GATE_SOLVE_SHARDS=4
+GATE_SOLVE_SHARDS=8
 # Overridable so CI can put the logs somewhere it can upload from.
 LOG_DIR="${LOG_DIR:-$(mktemp -d)}"
 mkdir -p "$LOG_DIR"
@@ -978,7 +981,11 @@ fi
 # sweep's found-and-clean share, the flights left put there, the replans found
 # again) from the shards' logs (`sheet=ShardSum`), and check every case ran
 # once. A shard's unit is one of `unit_flighttest_<K>` below: as many as the
-# count.
+# count. FlightTest's hand phase (flying by hand in a twin and the turning
+# pair's checks, `_hand_phase`) is a unit of its own, `flighthand`
+# (`phase=hand`), and the shards run without it (`phase=rest`): at x12 it took
+# about 205 s and held the 4th shard to 328 s, past the 300 it had then (Jon,
+# Nov 8).
 gate_flight_shard() {
 step "FlightTest, shard $1 of $GATE_FLIGHT_SHARDS"
 # Ruling 20 (Oct 30): FlightSolve's flights on map time, one sun, a heavy
@@ -989,9 +996,9 @@ step "FlightTest, shard $1 of $GATE_FLIGHT_SHARDS"
 # full run is about 700 s: this is its `short` one (one seed, four systems a
 # sweep; about 120 s unsplit with the pair turning), its clicks apart in
 # `flightclicks`, which times frames. Split, a shard took 40 s with all eight
-# shards of both tests at once on the PC (Nov 3), but the 4th, which flies by
-# hand and the turning pair's checks (`_orbit_phase`), 108 s: 300 holds either.
-if run_godot "flighttest_$1" 420 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 "shard=$1/$GATE_FLIGHT_SHARDS"; then
+# shards of both tests at once on the PC (Nov 3); the hand phase is
+# `flighthand`'s (below), so no shard holds it.
+if run_godot "flighttest_$1" 420 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 phase=rest "shard=$1/$GATE_FLIGHT_SHARDS"; then
 	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighttest_$1.log"; then
 		ok "its flights solved (or today's planner, with one sun), flown as drawn, landed"
 	else
@@ -1017,6 +1024,28 @@ gate_flight_shard 3
 
 unit_flighttest_4() {
 gate_flight_shard 4
+}
+
+unit_flighthand() {
+step "FlightTest's flying by hand in a twin and the turning pair"
+# The `short clicks=0` run's hand phase alone (`phase=hand`): its systems the
+# same wide and close pairs the shards' starts give (picked from every system,
+# as the shard that held it picked them), nothing else flown. Let go far out
+# and between the stars it settles inside the map, taken by no ring; W at a
+# sun never takes it inside its keep-out; then the turning pair (ruling 23).
+# About 205 s at x12 (it was the 4th shard's, which took 328 s side by side);
+# 221 s in a gate-like run on the PC and 327 s beside other jobs. Its limit is
+# twice the 221 s, rounded up, and above its shards' 420.
+if run_godot flighthand 450 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 phase=hand; then
+	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighthand.log"; then
+		ok "let go anywhere in a twin it settles inside the map, W never takes it into a sun, and the turning pair holds"
+	else
+		bad "flying by hand in a twin left the map, was taken by a ring or a sun, or the turning pair failed"
+		grep -E 'FAIL|^flighttest' "$LOG_DIR/flighthand.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "flighthand did not finish"
+fi
 }
 
 # The totals of a split test (above), from its shards' logs: one of AFTER_UNITS.
@@ -1073,7 +1102,8 @@ step "SolveTest, shard $1 of $GATE_SOLVE_SHARDS"
 # run is about 1,200 s: this is `short`, about 250 s alone unsplit since the
 # pair turns (the twins' plans cost about a fifth more, and the phase sweep at 4
 # angles of two pairs); split, a shard took 92 to 114 s with all eight shards of
-# both tests at once on the PC (Nov 3), so 300 holds it as it did main's.
+# both tests at once on the PC (Nov 3), and 4 shards 312 to 363 s at x12 (Nov
+# 8), so 8 shards now, each about half of that.
 if run_godot "solvetest_$1" 420 --headless --path "$PROJECT" -- sheet=SolveTest short "shard=$1/$GATE_SOLVE_SHARDS"; then
 	if grep -qE '^solvetest: PASS' "$LOG_DIR/solvetest_$1.log"; then
 		ok "its flights are found, clean, replayed and the same on a worker"
@@ -1100,6 +1130,22 @@ gate_solve_shard 3
 
 unit_solvetest_4() {
 gate_solve_shard 4
+}
+
+unit_solvetest_5() {
+gate_solve_shard 5
+}
+
+unit_solvetest_6() {
+gate_solve_shard 6
+}
+
+unit_solvetest_7() {
+gate_solve_shard 7
+}
+
+unit_solvetest_8() {
+gate_solve_shard 8
 }
 
 unit_solvetest() {
@@ -2612,10 +2658,9 @@ gate_weight() {
 	case "$1" in
 		orbitworldtest) echo 407 ;; packlayouttest) echo 328 ;; fightcounttest) echo 314 ;;
 		twinsitetest) echo 289 ;; laddertest) echo 254 ;; ashtest) echo 250 ;;
-		maptest) echo 222 ;; twindrawtest) echo 187 ;; flighttest_4) echo 187 ;;
-		wrecksitetest) echo 187 ;; solvetest_2) echo 183 ;; solvetest_1) echo 173 ;;
-		solvetest_4) echo 166 ;; ashtutortest) echo 159 ;; enemyarttest) echo 149 ;;
-		solvetest_3) echo 146 ;; dockflytest) echo 141 ;; localeventtest) echo 116 ;;
+		maptest) echo 222 ;; twindrawtest) echo 187 ;; flighthand) echo 187 ;;
+		wrecksitetest) echo 187 ;; ashtutortest) echo 159 ;; enemyarttest) echo 149 ;;
+		dockflytest) echo 141 ;; localeventtest) echo 116 ;;
 		soundmomenttest) echo 114 ;; cutawaytest) echo 112 ;; subjecttest) echo 91 ;;
 		stationdecktest) echo 86 ;; popplacetest) echo 75 ;; attrtest) echo 72 ;;
 		fightlogtest) echo 66 ;; midjointest) echo 61 ;; flighttest_1) echo 59 ;;
@@ -2632,7 +2677,7 @@ gate_weight() {
 		boardsigntest) echo 24 ;; systemtest) echo 24 ;; derelicttest) echo 23 ;;
 		fueltest) echo 22 ;; deeploottest) echo 22 ;; goaltest) echo 21 ;;
 		bindtest) echo 20 ;; swaptest) echo 20 ;; arriveidletest) echo 20 ;;
-		nettest) echo 20 ;;
+		nettest) echo 20 ;; solvetest_*) echo 170 ;;
 		*) echo 15 ;;
 	esac
 }

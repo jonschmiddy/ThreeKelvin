@@ -64,6 +64,9 @@ var edge := 930.0
 ## point with their whole pull (`FlightSolve` seeds).
 var twin := false
 var bary := Vector2.ZERO
+## THE CLOCK THIS COPY RUNS ON (`paced`): 1 for map time; k for a flight's own
+## clock, tau = k x map time, every body where it really is at map time tau / k.
+var pace := 1.0
 
 
 static func from_layout(L: SystemLayout) -> MapGravity:
@@ -90,6 +93,63 @@ static func from_layout(L: SystemLayout) -> MapGravity:
 		elif b.world != &"":
 			G.add_world(b.index, b.host0.x, b.host0.y, b.orbit, b.period, b.phase, b.r + WORLD_MARGIN, b.r, hs)
 	return G
+
+
+## The same system on a flight's own clock (fast transfers, Nov 5): every rate / k, phases and pulls kept.
+## A new object each call, so a worker may make one.
+## Why: docs/why/MapGravity.md#paced-copy
+func paced(k: float) -> MapGravity:
+	if k == pace:
+		return self
+	var G := MapGravity.new()
+	var f := pace / k
+	G.star_id = star_id.duplicate()
+	G.star_x0 = star_x0.duplicate()
+	G.star_z0 = star_z0.duplicate()
+	G.star_gm = star_gm.duplicate()
+	G.star_keep = star_keep.duplicate()
+	G.star_cx = star_cx.duplicate()
+	G.star_cz = star_cz.duplicate()
+	G.star_rad = star_rad.duplicate()
+	G.star_ph = star_ph.duplicate()
+	G.pair_n = pair_n * f
+	G.gi_body = gi_body.duplicate()
+	G.gi_hx = gi_hx.duplicate()
+	G.gi_hz = gi_hz.duplicate()
+	G.gi_orb = gi_orb.duplicate()
+	G.gi_n = _scaled(gi_n, f)
+	G.gi_ph = gi_ph.duplicate()
+	G.gi_gm = gi_gm.duplicate()
+	G.gi_keep = gi_keep.duplicate()
+	G.gi_r = gi_r.duplicate()
+	G.gi_hs = gi_hs.duplicate()
+	G.wo_body = wo_body.duplicate()
+	G.wo_hx = wo_hx.duplicate()
+	G.wo_hz = wo_hz.duplicate()
+	G.wo_orb = wo_orb.duplicate()
+	G.wo_n = _scaled(wo_n, f)
+	G.wo_ph = wo_ph.duplicate()
+	G.wo_keep = wo_keep.duplicate()
+	G.wo_r = wo_r.duplicate()
+	G.wo_hs = wo_hs.duplicate()
+	G.pl_hx = pl_hx.duplicate()
+	G.pl_hz = pl_hz.duplicate()
+	G.pl_orb = pl_orb.duplicate()
+	G.pl_n = _scaled(pl_n, f)
+	G.pl_ph = pl_ph.duplicate()
+	G.pl_hs = pl_hs.duplicate()
+	G.edge = edge
+	G.twin = twin
+	G.bary = bary
+	G.pace = k
+	return G
+
+
+static func _scaled(a: PackedFloat64Array, f: float) -> PackedFloat64Array:
+	var out := a.duplicate()
+	for j in out.size():
+		out[j] *= f
+	return out
 
 
 ## Star k's place at t as `SystemLayout.star_pos` has it, in 64 bits.

@@ -949,6 +949,29 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 	b.add_theme_color_override("font_pressed_color", UITheme.HOT)
 	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 		b.add_theme_stylebox_override(st, UITheme.empty())
+	# Black copies of the words a pixel each way behind the button (`show_behind_parent`), so
+	# ember words stay readable over a galaxy's warm light.
+	# Why: docs/why/StarchartScreen.md#corner-word-shadow
+	var shs: Array[Label] = []
+	for o: Vector2 in [Vector2(1, 1), Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
+		var sh := Label.new()
+		sh.show_behind_parent = true
+		sh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sh.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+		sh.add_theme_color_override("font_color", Color(0, 0, 0, 0.85))
+		sh.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		sh.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		sh.set_anchors_preset(Control.PRESET_FULL_RECT)
+		sh.offset_left = o.x
+		sh.offset_top = o.y
+		sh.offset_right = o.x
+		sh.offset_bottom = o.y
+		b.add_child(sh)
+		shs.append(sh)
+	b.draw.connect(func() -> void:
+		for sh: Label in shs:
+			if sh.text != b.text:
+				sh.text = b.text)
 	b.set_anchors_preset(Control.PRESET_TOP_RIGHT if top else Control.PRESET_BOTTOM_RIGHT)
 	# Measured off the chart's own constants, so retuning either keeps the two together.
 	b.offset_left = -(wide + MapChart.BAR_PAD)
@@ -2856,13 +2879,21 @@ class MapChart extends Control:
 			return
 		# A bar with end ticks, not a bare line: the ticks are what say where
 		# it starts and stops on a field of stars.
-		draw_line(Vector2(x, y), Vector2(x + w, y), ink, 1.0)
-		draw_line(Vector2(x, y - 4.0), Vector2(x, y + 1.0), ink, 1.0)
-		draw_line(Vector2(x + w, y - 4.0), Vector2(x + w, y + 1.0), ink, 1.0)
+		# (each with a shadow under it, as the chart's labels have: over a galaxy's warm
+		# light close in the bar and its words were lost)
+		var sh := Color(0, 0, 0, 0.85 * ui_a)
+		for o: Vector2 in [Vector2(1, 1), Vector2.ZERO]:
+			var c := sh if o != Vector2.ZERO else ink
+			draw_line(Vector2(x, y) + o, Vector2(x + w, y) + o, c, 1.0)
+			draw_line(Vector2(x, y - 4.0) + o, Vector2(x, y + 1.0) + o, c, 1.0)
+			draw_line(Vector2(x + w, y - 4.0) + o, Vector2(x + w, y + 1.0) + o, c, 1.0)
 		# Thousands read better than five digits on an 8px face.
 		var txt := ("%d ly" % int(ly) if ly < 1000.0
 			else "%dk ly" % int(ly / 1000.0))
 		# Hung off the far tick: the near one moves with the step, so a label there slides on zoom.
+		draw_string(UITheme.pixel_font(),
+			Vector2(x + w - BAR_MAX_PX, y - 7.0) + Vector2(1, 1), txt,
+			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, sh)
 		draw_string(UITheme.pixel_font(),
 			Vector2(x + w - BAR_MAX_PX, y - 7.0), txt,
 			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, ink)

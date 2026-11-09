@@ -131,6 +131,7 @@ func _run() -> void:
 	await _ring_words_ride()
 	await _put_back_framed()
 	await _ladder_holds_the_pair()
+	await _fly_direct(n)
 	await _end_planning()
 	_end()
 
@@ -1485,6 +1486,54 @@ func _capture_curl_b(n: MapGen.MapNode) -> void:
 	_saw("captures at star B", cases)
 
 
+## THE DIRECT PATH IN A TWIN (the fast transfers, Nov 5: every flight case
+## runs on CURVED, the game's default, above; this one on DIRECT): from star
+## A's close orbit to the world furthest from it, AUTOPILOT DIRECT, flown on
+## the map to settled. Its plan is DIRECT's at its pace (`ShipFlight.FLIGHT_PACE`),
+## solved, and it lands on that world in under 10 s of map time.
+func _fly_direct(n: MapGen.MapNode) -> void:
+	var m := await _map()
+	if m == null:
+		h._fail("direct: no map for the flight")
+		return
+	var L: SystemLayout = m.view.layout
+	var to := -9
+	var far := 0.0
+	for b in L.bodies:
+		var c3: Vector3 = m.flight.center(b.index, m.view.t)
+		if b.world != &"" and Vector2(c3.x, c3.z).length() > far:
+			far = Vector2(c3.x, c3.z).length()
+			to = b.index
+	m.flight.place_at(-1, m.view.t)
+	for i in 120:
+		if m.flight.can_fly():
+			break
+		await get_tree().process_frame
+	var was: StringName = FlightS.path_k
+	FlightS.path_k = &"direct"
+	var t0 := float(m.view.t)
+	m.fly_to_body(to)
+	var path := &""
+	var pace := 0.0
+	var solved := false
+	var landed := false
+	for i in 1200:
+		await get_tree().process_frame
+		var pl = m.flight.plan
+		if pl != null and pl.res != null and path == &"":
+			path = pl.res.path
+			pace = float(pl.pace)
+			solved = true
+		if m.flight.reached() == to and m.flight.can_fly():
+			landed = true
+			break
+	var secs := float(m.view.t) - t0
+	FlightS.path_k = was
+	h._ok("direct: a twin's flight from star A's close orbit to %s, solved on DIRECT at pace %.0f (%s at %.1f), lands in %.2f s of map time (under 10)" % [
+		L.bodies[to].name if to >= 0 else "?", float(FlightS.FLIGHT_PACE[&"direct"]), path, pace, secs],
+		solved and path == &"direct" and pace == float(FlightS.FLIGHT_PACE[&"direct"]) and landed and secs < 10.0)
+
+
 ## Leaving the map mid-flight once put the ship back at the system's edge with the flight gone.
 ## Why: docs/why/TwinSiteTest.md#map-left-mid-flight
 func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
@@ -1515,10 +1564,10 @@ func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
 		if m.flight.mode == &"fly":
 			if not Hints._map_fly_probe(m, Rect2()).is_empty():
 				quiet = false
-			if m.view.t - float(m.flight.fly_t0) > 2.0:
+			if m.view.t - float(m.flight.fly_t0) > _into(m, 2.0):
 				coast = true
 				break
-	if not h._ok("%s: on its way to %s, 2 s into the flight (mode %s)" % [what, L.bodies[to].name, m.flight.mode], coast):
+	if not h._ok("%s: on its way to %s, 2 s (or 40%%) into the flight (mode %s)" % [what, L.bodies[to].name, m.flight.mode], coast):
 		return
 	h._ok("%s: the map_fly hint keeps quiet on the way" % what, quiet)
 	var n0 := SystemMapScreen.flights
@@ -1569,7 +1618,7 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	var n0 := SystemMapScreen.flights
 	m._go_then(b, errand)
 	var coasting: bool = await _coast(m, 2.0)
-	if not h._ok("%s: a GO is on its coast to %s, 2 s in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
+	if not h._ok("%s: a GO is on its coast to %s, 2 s (or 40%%) in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
 		return
 	m = await _restyle(m)
 	h._ok("%s: drawn again on its coast, the GO is in orbit of %s (%d, %s), its errand run once (%d), the map open (_taking %s), the flight counted once (%d)" % [
@@ -1608,7 +1657,7 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	await _sit(m, a)
 	m.fly_to_body(b)
 	coasting = await _coast(m, 2.0)
-	if not h._ok("%s: FLY HERE is on its coast to %s, 2 s in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
+	if not h._ok("%s: FLY HERE is on its coast to %s, 2 s (or 40%%) in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
 		return
 	m = await _restyle(m)
 	await _frames(4)
@@ -1680,10 +1729,16 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	var coasting: bool = await _coast(m, 1.0)
 	if not h._ok("%s: the GO is on its coast to %s (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
 		return
+	# The map's clock held until the inputs are judged, so they all reach a flight still on its coast.
+	# At x12 the twin's flight is under a second; unheld, the click landed on the ride or after (Nov 7).
+	# Why: docs/why/TwinSiteTest.md#mid-go-clock-held
+	m.frozen = true
+	var u0: float = (m.view.t - float(m.flight.fly_t0)) / float(m.flight.plan.dur)
 	var sel0: int = m.overlay.selected
 	var page0 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
 	var c := _pointable(m, [a, b])
 	if not h._ok("%s: a place on screen to point at mid-GO (%d)" % [what, c], SystemLayout.is_place(c)):
+		m.frozen = false
 		return
 	_pointer_on(m)
 	_took = 0
@@ -1749,9 +1804,13 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	m._wasd.w = false
 	m.harness_keys = false
 	var page1 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
+	var u1: float = (m.view.t - float(m.flight.fly_t0)) / float(m.flight.plan.dur) if m.flight.plan != null else -1.0
+	h._ok("%s: the inputs all reached the GO on its coast (mode %s, %.0f%% of the way at the first, %.0f%% after the last)" % [
+		what, m.flight.mode, u0 * 100.0, u1 * 100.0], m.flight.mode == &"fly" and u1 > 0.0 and u1 < 1.0)
 	h._ok("%s: mid-GO a click, a double click, a right-click (it only moves the view), FLY HERE and W select, open and fly nothing (selected %d, was %d; page %s, was %s; heading to %d, mode %s, _taking %s)" % [
 		what, m.overlay.selected, sel0, page1, page0, m.flight.heading_to(), m.flight.mode, m._taking],
 		m.overlay.selected == sel0 and page1 == page0 and m.flight.heading_to() == b and m._taking and ran[0] == 0)
+	m.frozen = false
 	# ON ARRIVAL ITS ERRAND RUNS, ONCE, AND THE MAP TAKES CLICKS AGAIN
 	var land := -1.0
 	for i in 90 * 60:
@@ -1869,12 +1928,19 @@ func _sit(m: SystemMapScreen, i: int) -> void:
 
 
 ## Until the flight has coasted `secs` (true), or it never does.
+## (on a fast flight, about 3 s in all since Nov 5, `secs` or 40% of its
+## flight, whichever is sooner: a 2 s wait found the ship already in orbit)
 func _coast(m: SystemMapScreen, secs: float) -> bool:
 	for i in 1800:
 		await get_tree().process_frame
-		if m.flight.mode == &"fly" and m.view.t - float(m.flight.fly_t0) > secs:
+		if m.flight.mode == &"fly" and m.view.t - float(m.flight.fly_t0) > _into(m, secs):
 			return true
 	return false
+
+
+static func _into(m: SystemMapScreen, secs: float) -> float:
+	var pl = m.flight.plan
+	return minf(secs, float(pl.dur) * 0.4) if pl != null else secs
 
 
 ## THE MAP DRAWN AGAIN as Settings does it (`Sig.render_style_changed`); back

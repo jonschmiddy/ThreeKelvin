@@ -9,7 +9,7 @@ LOCAL, photographed: the side-on view (`SectorScreen`, `EncounterView`) in a
 system of a chosen sky, quiet or mid-fight, in the style on the command line.
 
   godot --path . --windowed --position 3840,0 -- sheet=LocalShot keepwindow
-      [style=simplified|legacy|painted|radiant] [graphics=low] [seed=N]
+      [style=simplified|painted|radiant] [graphics=low] [seed=N]
       [sky=emission|reflection|planetary|remnant|dark|calm|pulsar|core] [node=I]
       [combat [fire]] [approach] [wait=F] [out=<png>] [skyout=<png>]
       [clip=<dir> clipframes=61 clipms=33 cliph=297] [stats=<json>] [bare=<png>] [reduced]

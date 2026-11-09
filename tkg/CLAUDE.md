@@ -294,7 +294,7 @@ to build. See `Unlocks.gd`. (The archive of recovered documents was the second, 
 it was cut on Oct 22.)
 
 Open, in rough order: the `Run` singleton is still the largest single obstacle to
-anything the host has to hold four of (`docs/netcode.md` §5); `CREW_SHARE` is linear
-with no ceiling and has been flown at two, so an eight-ship custodian is allowed and
-untuned; and `_push_roster_to` sends the whole roster to everyone on every presence
+anything the host has to hold four of (`docs/netcode.md` §5); `PartyScale` is linear
+with no ceiling and was measured at two to four, so an eight-player custodian is allowed
+and untuned; and `_push_roster_to` sends the whole roster to everyone on every presence
 change, which is O(n²) and invisible at four.

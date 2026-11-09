@@ -59,10 +59,10 @@ func _init() -> void:
 
 ## Whether the list's foot is offering JOIN FIGHT. A partner's fight opening or
 ## ending here rebuilds the list; a push about one three systems away does not.
-var _join_shown := false
+var _join_shown := Router.JOIN_NONE
 
 func _on_party_fight(_at: int) -> void:
-	if mode == &"list" and is_inside_tree() and Router.can_join_fight() != _join_shown:
+	if mode == &"list" and is_inside_tree() and Router.join_state() != _join_shown:
 		_list()
 
 
@@ -482,11 +482,13 @@ func _list() -> void:
 		_act("SECTOR LOOT", func() -> void: screen.open_sector_loot())
 	# A PARTNER IS FIGHTING IN THIS SYSTEM: the way in, from wherever you are in
 	# it (Oct 22 playtest: there was no way into a partner's fight at all)
-	_join_shown = Router.can_join_fight()
-	if _join_shown:
+	_join_shown = Router.join_state()
+	if _join_shown != Router.JOIN_NONE:
 		var jb := _act("JOIN FIGHT", Router.join_fight)
 		jb.name = "JoinFight"
-		jb.tooltip_text = Widgets.tip("%s is fighting in this system. Join them: the enemy grows for two, and the turn waits for both of you." % Router.join_fight_names())
+		# greyed while the Hellbender spools its escape, and saying why
+		jb.disabled = _join_shown == Router.JOIN_SHUT
+		jb.tooltip_text = Widgets.tip(Router.join_tip())
 	var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
 	# beside a GO it is the way out, not the way on
 	if goes:

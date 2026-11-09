@@ -106,8 +106,10 @@ vec4 structure(vec2 p) {
 	}
 	lip *= smoothstep(0.02, 0.06, r);
 	// nothing at the bake's edge: a sample past it reads the edge texel, and an
-	// arm still lit there smeared into spikes above and below the disc
-	float rim = 1.0 - smoothstep(ext * 0.86, ext * 0.97, max(abs(p.x), abs(p.y)));
+	// arm still lit there smeared into spikes above and below the disc. Round, as
+	// this rim is the arms' outer edge: a square one drew a box round the title's
+	// galaxy (#39)
+	float rim = 1.0 - smoothstep(ext * 0.80, ext * 0.97, r);
 	return clamp(vec4(ridge, lane, lip, front) * rim, 0.0, 1.0);
 }
 

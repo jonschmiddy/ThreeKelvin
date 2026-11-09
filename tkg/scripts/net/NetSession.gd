@@ -7,7 +7,7 @@ extends Node
 ## Bump on any change to the messages or the meaning of their fields.
 ## Cheap to raise, very expensive to forget: a mismatch is refused at the door.
 ## Why: docs/why/NetSession.md#protocol-versions
-const PROTOCOL: int = 16
+const PROTOCOL: int = 18
 
 ## Generous: giving up early costs a wreck, assuming costs the party's economy.
 ## Why: docs/why/NetSession.md#take-timeout
@@ -56,6 +56,20 @@ var forced_build: String = ""
 ## Test seam: holds fight asks until `release_asks()`. Never set from game code.
 var hold_asks: bool = false
 var _held_asks: Array = []
+## A SWING'S TARGET, FORCED (`-- nettest`, `-- sheet=MidJoinTest`): every swing
+## goes to this peer while it is in the fight's crew. 0 is the real roll.
+## Never set from game code.
+var forced_target: int = 0
+## THE FIGHT THIS MACHINE IS ASKING TO BE SEATED IN, or -1 (PROTOCOL 18). A
+## stunned joiner counts as ended, so a partner's END TURN can swing at it
+## while its ask is still on the wire and no Combat is listening yet: those
+## swings are held here (`_held_swings`) and the Combat plays them as it begins
+## (`take_held_swings`).
+var _asking_at: int = -1
+var _held_swings: Array = []
+## The system whose JOIN the host answered with "nothing open here any more"
+## (`_no_fight_to`), or -1.
+var _no_fight_at: int = -1
 
 ## Arrival order, as peer ids are random and sorting by them shuffles the lobby list.
 var _join_serial: int = 0
@@ -81,6 +95,16 @@ var fights: Dictionary = {}
 ## Not on the roster: it changes several times a second, so it is a small unreliable message.
 ## Why: docs/why/NetSession.md#spots
 var spots: Dictionary = {}
+## Each partner's flight under way (PROTOCOL 17): peer id -> its said path, burns, clocks and ends.
+## Dropped with the partner's spots.
+## Why: docs/why/NetSession.md#partner-flights
+var flights: Dictionary = {}
+## the flight this machine said last (its plan's instance id), so it is said once
+var _flight_said := 0
+## THE HOST'S OWN FLIGHT UNDER WAY, as it said it (the same row), told to a ship
+## joining while it flies (`_hello`): said once to the peers there then, a late
+## joiner never heard it (the code review, Nov 5)
+var _own_flight: Dictionary = {}
 ## Only the seed crosses the wire, so each guest reports what it built and mismatches are said.
 ## Why: docs/why/NetSession.md#galaxy-check
 var galaxy_mine: Array = []
@@ -152,6 +176,9 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -188,6 +215,9 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -216,6 +246,9 @@ func leave_party() -> void:
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""
@@ -284,6 +317,23 @@ func local_id() -> int:
 
 func party_size() -> int:
 	return roster.size()
+
+
+## The players in this game, for the enemy's hull and the pay (`PartyScale`, PROTOCOL 18).
+## 1 alone or off the dive's galaxy; a dead pilot or one `away` is not counted.
+## Why: docs/why/NetSession.md#party-count
+func party_count() -> int:
+	if not is_networked() or not _on_dive_galaxy():
+		return 1
+	var n := 0
+	for id: int in roster.keys():
+		if bool(roster[id].get("away", false)):
+			continue
+		var b := build_of(id)
+		if b != null and b.dead:
+			continue
+		n += 1
+	return clampi(n, 1, MAX_PLAYERS)
 
 
 func everyone_ready() -> bool:
@@ -432,6 +482,14 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 		for f: SharedFight in fights.values():
 			if not f.over:
 				_push_fight_to.rpc_id(who, f.to_wire())
+		# THE FLIGHTS UNDER WAY (PROTOCOL 17), each said once as it left: the
+		# partners' as this machine keeps them and its own, the sender's clock
+		# run on to now
+		var now := Time.get_ticks_msec()
+		for fid in flights.keys():
+			_tell_flight(who, int(fid), flights[fid], now)
+		if not _own_flight.is_empty():
+			_tell_flight(who, 1, _own_flight, now)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -454,6 +512,7 @@ func _push_roster_to(rows: Array) -> void:
 	for id in spots.keys():
 		if not roster.has(int(id)):
 			spots.erase(id)
+			flights.erase(id)
 	if state == State.JOINING:
 		_set_state(State.IN_PARTY)
 	Sig.party_changed.emit()
@@ -494,16 +553,18 @@ func _push_claims_to(all: Dictionary) -> void:
 
 
 ## Open-or-join in one message: only the host can say who was first in a same-second race.
+## `players`: the count the asker built its hull for; `join_only`: a JOIN door's ask, which opens nothing (PROTOCOL 18).
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, players: int,
+		join_only: bool) -> void:
 	if not is_host():
 		return
 	var by := multiplayer.get_remote_sender_id()
 	if hold_asks:
-		_held_asks.append([index, ids, hp, brace, cur, grown, by])
+		_held_asks.append([index, ids, hp, brace, cur, grown, by, players, join_only])
 		return
-	_open_or_join(index, ids, hp, brace, cur, grown, by)
+	_open_or_join(index, ids, hp, brace, cur, grown, by, players, join_only)
 
 
 ## The test seam's other half: answer every held ask now, in the order asked.
@@ -511,7 +572,15 @@ func release_asks() -> void:
 	var held := _held_asks
 	_held_asks = []
 	for a: Array in held:
-		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6])
+		_open_or_join(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8])
+
+
+## A JOIN THAT CAME AFTER THE KILL (PROTOCOL 18): nothing is open at `index`
+## to join, and the host opened nothing. Sent to the asker alone, after the
+## fight that ended; its wait (`open_fight`) hands that fight back.
+@rpc("authority", "call_remote", "reliable")
+func _no_fight_to(index: int) -> void:
+	_no_fight_at = index
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -566,7 +635,27 @@ func _push_growth_to(g: int, quiet: bool) -> void:
 ## Sent to one peer only; the intent is an index into lists every machine built identically.
 @rpc("authority", "call_remote", "reliable")
 func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
+	# Still asking to be seated there: nothing is listening yet, so it is held
+	# for the Combat to play as it begins (`take_held_swings`).
+	if at == _asking_at:
+		_held_swings.append([at, which, kind, pick])
+		return
 	Sig.party_fight_swing.emit(at, which, kind, pick)
+
+
+## THE HITS THAT LANDED WHILE THIS SHIP WAS ASKING TO JOIN THE FIGHT AT `at`,
+## as `[at, which, kind, pick]` rows, in order; taken once. `Combat.begin`
+## plays them before it decides between a hand and the stun.
+func take_held_swings(at: int) -> Array:
+	var out: Array = []
+	var kept: Array = []
+	for row: Array in _held_swings:
+		if int(row[0]) == at:
+			out.append(row)
+		else:
+			kept.append(row)
+	_held_swings = kept
+	return out
 
 
 ## Unreliable: the next one replaces a lost one, and a stale queued one is worse than none.
@@ -647,6 +736,7 @@ func _on_peer_disconnected(id: int) -> void:
 		if f.crew.has(id):
 			_apply_leave(int(index), id)
 	spots.erase(id)
+	flights.erase(id)
 	_jumps_said.erase(id)
 	if roster.erase(id):
 		_builds.erase(id)
@@ -713,6 +803,9 @@ func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> voi
 	var said := int(_jumps_said.get(id, -1))
 	roster[id].build = wire
 	roster[id].at = at
+	# (in the dive, a presence with no jumps to say is a ship off this galaxy:
+	# not one of the players the fights are built for, `party_count`)
+	roster[id].away = state == State.DIVING and jumps < 0
 	_jumps_said[id] = jumps
 	# Both presences must be from this dive's galaxy, so a first or late presence is no jump.
 	if is_host() and id != 1 and state == State.DIVING \
@@ -894,6 +987,131 @@ func spot_of(id: int, at: int) -> Dictionary:
 	return sp
 
 
+## A flight leaving (PROTOCOL 17), said once as it starts, reliably: its path about 60 points a second,
+## burns, ends and clocks. `to` -9 lets go of the last one said. `shape` is [host, dep_s, arr_s].
+## Why: docs/why/NetSession.md#report-flight
+func report_flight(at: int, key: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:
+	if not _can_talk() or state != State.DIVING:
+		return
+	if key == _flight_said:
+		return
+	_flight_said = key
+	if is_host():
+		_own_flight = {} if to == -9 or pts.size() < 2 else _flight_row(at, from, to, t0, dt, pts, burns, said, shape)
+		_apply_flight(1, at, from, to, t0, dt, pts, burns, said, shape)
+	else:
+		_flight_at_host.rpc_id(1, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## THE FLIGHT LET GO OF (W off it, or another place clicked on the way): the
+## partners draw the ship by its spots again.
+func report_flight_off(at: int) -> void:
+	if _flight_said == 0:
+		return
+	_flight_said = 0
+	report_flight(at, -1, -9, -9, 0.0, 0.0, PackedVector2Array(), PackedByteArray(), 0.0)
+	_flight_said = 0
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _flight_at_host(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> void:
+	if is_host():
+		_apply_flight(multiplayer.get_remote_sender_id(), at, from, to, t0, dt, pts, burns, said, shape)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _flight_to(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> void:
+	if id != local_id():
+		_keep_flight(id, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+func _apply_flight(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:
+	if id != 1:
+		_keep_flight(id, at, from, to, t0, dt, pts, burns, said, shape)
+	if not multiplayer.get_peers().is_empty():
+		_flight_to.rpc(id, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## A KEPT FLIGHT TOLD AGAIN, to ship `who` (one joining while it flies), the
+## sender's clock run on from `said` by the time since it came.
+func _tell_flight(who: int, id: int, fl: Dictionary, now_ms: int) -> void:
+	var said := float(fl.said) + float(now_ms - int(fl.got)) / 1000.0
+	var shape := PackedFloat64Array([float(fl.get("host", -9)), float(fl.get("dep_s", 0.0)), float(fl.get("arr_s", -1.0))])
+	_flight_to.rpc_id(who, id, int(fl.at), int(fl.from), int(fl.to), float(fl.t0), float(fl.dt), fl.pts, fl.burns, said, shape)
+
+
+static func _flight_row(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> Dictionary:
+	var dur := float(dt) * float(maxi(pts.size() - 1, 0))
+	return {"at": at, "from": from, "to": to, "t0": t0, "dt": dt, "pts": pts, "burns": burns, "said": said,
+		"got": Time.get_ticks_msec(), "host": int(shape[0]) if shape.size() > 0 else -9,
+		"dep_s": shape[1] if shape.size() > 1 else 0.0, "arr_s": shape[2] if shape.size() > 2 and shape[2] >= 0.0 else dur}
+
+
+func _keep_flight(id: int, at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape := PackedFloat64Array()) -> void:
+	if to == -9 or pts.size() < 2:
+		flights.erase(id)
+		return
+	flights[id] = _flight_row(at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## The sender's map clock now for flight fl: run on from when it was said, held where its spot says
+## the clock holds, so a partner is not flown on by the wall clock while the sender stands still.
+## Why: docs/why/NetSession.md#sender-clock
+static func sender_clock(fl: Dictionary, sp: Dictionary, now_ms: int) -> float:
+	var est := float(fl.said) + float(now_ms - int(fl.got)) / 1000.0
+	if sp.is_empty() or float(sp.get("t", -1.0)) < 0.0 or int(sp.get("got", -1)) < int(fl.got):
+		return est
+	if bool(sp.get("held", false)):
+		return float(sp.t)
+	var est2 := float(sp.t) + float(now_ms - int(sp.got)) / 1000.0
+	return est2 if absf(est2 - est) > 0.25 else est
+
+
+## A partner's flight in system `at` still to be drawn, or {}: one whose last
+## point has gone by on the sender's clock (`sender_clock`) is over, and the
+## spots have it again.
+func flight_of(id: int, at: int) -> Dictionary:
+	var fl: Dictionary = flights.get(id, {})
+	if fl.is_empty() or int(fl.at) != at:
+		return {}
+	var now_s := sender_clock(fl, spot_of(id, at), Time.get_ticks_msec())
+	if now_s > float(fl.t0) + float(fl.dt) * float((fl.pts as PackedVector2Array).size() - 1) + 0.05:
+		return {}
+	return fl
+
+
+## Where a partner's flight has it now (PROTOCOL 17) at this machine's clock t, each end moved with
+## its place. [point, screen angle, burning], or [] when it is not flying now.
+## Why: docs/why/NetSession.md#flight-point
+static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int, sp: Dictionary = {}) -> Array:
+	var pts: PackedVector2Array = fl.pts
+	var n := pts.size()
+	if n < 2:
+		return []
+	var sender_now := sender_clock(fl, sp, now_ms)
+	var dur := float(fl.dt) * float(n - 1)
+	var s := sender_now - float(fl.t0)
+	if s < 0.0 or s > dur:
+		return []
+	var x := s / float(fl.dt)
+	var j := mini(int(floor(x)), n - 2)
+	var q := pts[j].lerp(pts[j + 1], x - float(j))
+	var dlt := t - sender_now
+	var sa := clampf(float(fl.get("dep_s", 0.0)), 0.0, dur)
+	var sb := clampf(float(fl.get("arr_s", dur)), sa, dur)
+	var hs := int(fl.get("host", -9))
+	# (each end's place moved by the clocks' difference, at this point's moment)
+	var d0 := spot_anchor(L, int(fl.from), hs, sender_now + dlt) - spot_anchor(L, int(fl.from), hs, sender_now)
+	var d1 := spot_anchor(L, int(fl.to), -9, sender_now + dlt) - spot_anchor(L, int(fl.to), -9, sender_now)
+	var u := smoothstep(sa, maxf(sb, sa + 1e-6), s)
+	q += d0.lerp(d1, u)
+	var v := pts[j + 1] - pts[j]
+	var ang := atan2(v.y * 0.38, v.x)
+	var burns: PackedByteArray = fl.burns
+	var lit := j < burns.size() and burns[j] == 1
+	return [q, ang, lit]
+
+
 func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false, sure: bool = false) -> void:
 	if id != 1:
 		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
@@ -1043,23 +1261,44 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 
 ## Null means fight it alone. The host may seat a second asker in an existing fight.
 ## No private fight while the link is up: a private copy once left the party on WAIT.
+## `join_only` (PROTOCOL 18): a JOIN door's ask opens nothing; past the kill it gets the ended fight.
+## The hull is built for `party_count()`; the host scales it to its own count.
 ## Why: docs/why/NetSession.md#shared-fights
 func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int = -1,
+		join_only: bool = false) -> SharedFight:
 	if not _can_talk() or index < 0 or party_size() < 2:
 		return null
 	if is_host():
-		_open_or_join(index, ids, hp, brace, cur, grown, 1)
+		_open_or_join(index, ids, hp, brace, cur, grown, 1, party_count(), join_only)
 		return fights.get(index, null)
 	# Ask and wait like `take()`: an optimistic private frigate would get different numbers.
-	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown)
+	_asking_at = index
+	_held_swings.clear()
+	_no_fight_at = -1
+	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur, grown, party_count(), join_only)
 	var me := local_id()
+	var out: SharedFight = null
 	while _can_talk():
 		await get_tree().process_frame
 		var f: SharedFight = fights.get(index, null)
 		if f != null and f.crew.has(me):
-			return f
-	return null
+			out = f
+			break
+		# The host's "nothing open there" comes after the push it sent first,
+		# so the copy here is the ended fight by now
+		if _no_fight_at == index:
+			out = f
+			if out == null:
+				out = SharedFight.new()
+				out.at = index
+				out.over = true
+			break
+	_asking_at = -1
+	_no_fight_at = -1
+	if out == null:
+		_held_swings.clear()
+	return out
 
 
 ## The fight at a system, shared or not, over or not. Callers check `over`.
@@ -1173,14 +1412,32 @@ func _push_claims() -> void:
 # --- fights, on the host --------------------------------------------------
 
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int,
+		players: int = 1, join_only: bool = false) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
-		# A second ship in is help, not a second frigate: its `grown`, hp and ids are ignored.
+		# A second ship in is help, not a second frigate (stunned past turn one): its `grown`, hp and ids are ignored.
 		# Why: docs/why/NetSession.md#shared-fights
 		f.join(by)
+	elif join_only and f != null:
+		# A JOIN THAT CAME AFTER THE KILL (PROTOCOL 18): it opens nothing, as
+		# a JOIN door never opens a fight. The asker is sent the fight that
+		# ended, then told. (The host's own JOIN reads its copy at once.)
+		if by != 1:
+			_push_fight_to.rpc_id(by, f.to_wire())
+			_no_fight_to.rpc_id(by, index)
+		return
 	else:
-		f = SharedFight.open(index, ids, hp, brace, cur, by, grown)
+		# BUILT FOR THE GAME'S PLAYERS AS THE HOST COUNTS THEM (PROTOCOL 18).
+		# The asker built its hull for the count it had heard; a roster push
+		# still on its way to it is the only way the two differ.
+		var mine := party_count()
+		players = clampi(players, 1, MAX_PLAYERS)
+		if players != mine:
+			var k := PartyScale.hull(mine) / PartyScale.hull(players)
+			hp = _scaled(hp, k)
+			cur = _scaled(cur, k)
+		f = SharedFight.open(index, ids, hp, brace, cur, by, grown, mine)
 		fights[index] = f
 		# Fold the opener's count first, then grow a fight grown at less before anyone sees it.
 		_fold_growth(grown)
@@ -1188,6 +1445,13 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		for i in f.foes.size():
 			_pick_intent(f, i)
 	_push_fight(f)
+
+
+static func _scaled(v: PackedInt32Array, k: float) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for x in v:
+		out.append(maxi(1, int(round(x * k))))
+	return out
 
 
 func _apply_hurt(index: int, which: int, amount: int, hits: int, by: int) -> void:
@@ -1222,7 +1486,8 @@ func _apply_leave(index: int, by: int) -> void:
 	# `paid == 0` says nobody killed it: `leave()` sets `over`, and a won fight empties its crew.
 	if f.over and not was_over and f.paid == 0 and not f.broke \
 			and _is_hellbender_fight(f) and not f.foes.is_empty():
-		Run.hellbender_scarred(f.foes[0].hp)
+		# in one ship's terms, whoever fought it (`PartyScale.solo_hull`)
+		Run.hellbender_scarred(PartyScale.solo_hull(f.foes[0].hp, f.party))
 	# Somebody leaving can be the thing that closes the barrier — three ships
 	# waiting on a fourth who just died is a fight that would otherwise stop.
 	if not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
@@ -1240,7 +1505,7 @@ func _swing(f: SharedFight) -> void:
 		if e0.kind == SharedFight.Pick.ESCAPE:
 			f.broke = true
 			f.over = true
-			Run.hellbender_breaks_off(e0.hp)
+			Run.hellbender_breaks_off(PartyScale.solo_hull(e0.hp, f.party))
 			_push_fight(f)
 			return
 	for i in f.alive():
@@ -1262,8 +1527,11 @@ func _swing(f: SharedFight) -> void:
 
 
 ## Weighted by heat with a floor, so a cold ship is never safe and a party cannot elect a victim.
+## A stunned ship is in the pool: it can be shot (Jon, Nov 5).
 ## Why: docs/why/NetSession.md#target-weighting
 func _who_gets_hit(f: SharedFight) -> int:
+	if forced_target != 0 and f.crew.has(forced_target):
+		return forced_target
 	var pool: PackedInt32Array = PackedInt32Array()
 	var weights: PackedFloat32Array = PackedFloat32Array()
 	var total := 0.0
@@ -1409,6 +1677,9 @@ func _drop(message: String) -> void:
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
+	flights.clear()
+	_own_flight = {}
+	_flight_said = 0
 	_galaxy_theirs.clear()
 	galaxy_mine.clear()
 	galaxy_warning = ""

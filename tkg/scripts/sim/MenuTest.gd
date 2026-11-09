@@ -137,8 +137,11 @@ func _style_case() -> void:
 	DisplaySettings.path = SCRATCH
 	var fresh := ConfigFile.new()
 	_ok("  a fresh settings file is SIMPLIFIED", DisplaySettings.style_in(fresh) == &"simplified")
-	_ok("  SIMPLIFIED is built, LEGACY first in the list", DisplaySettings.style_built(&"simplified")
-		and DisplaySettings.STYLES[0] == &"legacy" and DisplaySettings.STYLES[1] == &"simplified")
+	_ok("  SIMPLIFIED is built and first in the list", DisplaySettings.style_built(&"simplified")
+		and DisplaySettings.STYLES[0] == &"simplified")
+	_ok("  LEGACY is gone: not built, not listed, three styles (%s)" % [DisplaySettings.STYLES],
+		not DisplaySettings.style_built(&"legacy") and not DisplaySettings.STYLES.has(&"legacy")
+		and str(DisplaySettings.STYLES) == str([&"simplified", &"painted", &"radiant"]))
 	var heard := [0]
 	var on_change := func() -> void: heard[0] += 1
 	Sig.render_style_changed.connect(on_change)
@@ -158,6 +161,24 @@ func _style_case() -> void:
 		var back := ConfigFile.new()
 		back.load(SCRATCH)
 		_ok("  a saved %s loads as the default" % [JSON.stringify(bad)], DisplaySettings.style_in(back) == DisplaySettings.DEFAULT_STYLE)
+	# LEGACY WENT (Jon, Nov 7): a file that chose it, by name or by its old place
+	# in the list (0), loads through the boot's own read as SIMPLIFIED with no
+	# error, and that read's save writes SIMPLIFIED over it; the other three keep
+	# what they were saved as, by name and by their old places (1, 2, 3), so
+	# nobody else's choice moves
+	for c: Array in [["legacy", &"simplified"], [0, &"simplified"], ["simplified", &"simplified"],
+			[1, &"simplified"], ["painted", &"painted"], [2, &"painted"], ["radiant", &"radiant"], [3, &"radiant"]]:
+		var f := ConfigFile.new()
+		f.set_value("display", "mode", int(DisplaySettings.mode))
+		f.set_value("display", "window_scale", DisplaySettings.window_scale)
+		f.set_value("display", "render_style", c[0])
+		f.save(SCRATCH)
+		DisplaySettings.load_and_apply()
+		var after := ConfigFile.new()
+		after.load(SCRATCH)
+		var wrote := str(after.get_value("display", "render_style", ""))
+		_ok("  a saved %s loads as %s and is saved as %s" % [JSON.stringify(c[0]), String(c[1]).to_upper(), wrote],
+			DisplaySettings.render_style == c[1] and wrote == String(c[1]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.render_style = &"simplified"
 	DisplaySettings.save()
@@ -1076,7 +1097,7 @@ func _retina_case() -> void:
 
 ## MOTION holds only the player's rows even in dev mode, after Jon removed the ladder rows.
 ## Why: docs/why/MenuTest.md#motion-rows
-const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
 const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
 	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
 	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",
@@ -1128,6 +1149,12 @@ func _dev_motion_case() -> void:
 		ZoomLadder.design_for(1) == "A" and ZoomLadder.design_for(2) == "C"
 		and ZoomLadder.design_for(3) == "B" and ZoomLadder.seam3_fade() == "F")
 	_ok("  the calm move stays on", ZoomLadder.calm_on())
+	_ok("  a file with no AUTOPILOT key flies CURVED (%s)" % DisplaySettings.autopilot, DisplaySettings.autopilot == &"curved")
+	for ap: Array in [["direct", &"direct"], ["sideways", &"curved"], ["curved", &"curved"]]:
+		old.set_value("display", "autopilot", ap[0])
+		old.save(SCRATCH)
+		DisplaySettings.load_and_apply()
+		_ok("  AUTOPILOT saved as %s loads %s (%s)" % [ap[0], ap[1], DisplaySettings.autopilot], DisplaySettings.autopilot == ap[1])
 	_ok("  and the timings are the baked ones (UI out %.2f, hop camera %.2f, station on %.2f)" % [
 		ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S, ZoomLadder.LIGHT_ON],
 		is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)

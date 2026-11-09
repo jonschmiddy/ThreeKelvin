@@ -29,12 +29,8 @@ THE STYLES, as the map draws them:
     memory (`SectorPainted`), the sun and the worlds painting themselves, the
     life of it in held poses;
   * RADIANT: the cloud as a volume the sun shines through, the worlds'
-    shadows as shafts in the lit gas;
-  * LEGACY: LOCAL as it was before the port -- the view's wash, tinted by
-    the system's star toward the right, its plain grey starfield, and the
-    gas blowing through (`NebulaWeather`, the view's) -- with the map's old
-    cloud (`sky_nebula_legacy`) and the system's band, set to its palette
-    as the map's LEGACY is.
+    shadows as shafts in the lit gas.
+  (LEGACY, LOCAL as it was before the port, went with that style on Nov 7.)
 
 WHERE THE SHIP IS (Jon: "have LOCAL change depending on what you are orbiting
 and how far from the star you are"), read from the sector map's own record of
