@@ -143,7 +143,7 @@ void tornNear(vec2 v, out float sd, out float al, out float f, out float W) {
 		vec4 B = u_tornP[i + 1];
 		vec2 ab = B.xy - A.xy;
 		float L2 = max(dot(ab, ab), 1e-6);
-		float t = clamp(dot(v - A.xy, ab) / L2, i == 0 ? -1e3 : 0.0, 1.0);
+		float t = clamp(dot(v - A.xy, ab) / L2, 0.0, 1.0);
 		vec2 d = v - (A.xy + ab * t);
 		float d2 = dot(d, d);
 		if (d2 < best) {
@@ -154,7 +154,8 @@ void tornNear(vec2 v, out float sd, out float al, out float f, out float W) {
 			f = clamp(mix(A.w, B.w, t), 0.0, 1.0);
 		}
 	}
-	W = tornW(f);
+	// (its width wandering a little along it, Jon's "too squared off": never straight sides)
+	W = tornW(f) * (1.0 + 0.16 * kitSnoise2(vec2(al * 2.4, 5.3)));
 }
 
 // the flow's held clock for one lane of the stream's matter: it steps one block
@@ -190,17 +191,18 @@ float tornStreamL(vec2 v, float bw, float holeR, bool gas, out int star) {
 	star = 0;
 	float sd, al, f, W;
 	tornNear(v, sd, al, f, W);
-	// (only ahead of its root on the dwarf's left side: nothing of it behind, in the body)
-	vec2 d0 = normalize(u_tornP[1].xy - u_tornP[0].xy + 1e-6);
+	// (its root rounded: behind it the distance is to the root's point, so it ends in a
+	// round cap, never cut square across; inside the dwarf's light it is faint, below)
 	float R0 = max(u_tornA.x, 1e-3);
-	float ahead = smoothstep(-0.6, 0.0, dot((v - u_tornP[0].xy) / u_k, d0) / R0);
-	if (ahead <= 0.0) {
-		return 0.0;
-	}
+	float ahead = 1.0;
 	// (its edge torn, held where it lies: a slow lumpy rag at its own width and a finer
 	// one, each side its own; the matter drifts through it)
 	float sdS = sd >= 0.0 ? 1.0 : -1.0;
-	float rag = (0.3 - 0.15 * smoothstep(0.08, 0.3, W)) * kitSnoise2(vec2(al * 5.0, 2.0 + 3.0 * sdS)) + 0.12 * TORN_FBM(vec2(al * 22.0, 7.0 + 5.0 * sdS), bw * 22.0, 2);
+	// (Jon's 3A: its first stretch off the dwarf one wide smooth glow, the mockup's band;
+	// its strands, clumps, knots and torn edge come in further along)
+	float tx = smoothstep(0.12, 0.5, f);
+	// (its edges still wander slowly there, each side its own: only the fine rag waits)
+	float rag = mix(0.4, 1.0, tx) * (0.3 - 0.15 * smoothstep(0.08, 0.3, W)) * kitSnoise2(vec2(al * 5.0, 2.0 + 3.0 * sdS)) + tx * 0.12 * TORN_FBM(vec2(al * 22.0, 7.0 + 5.0 * sdS), bw * 22.0, 2);
 	float x = (sd + rag * W * sdS) / W;
 	if (abs(x) > 3.2) {
 		return 0.0;
@@ -223,19 +225,19 @@ float tornStreamL(vec2 v, float bw, float holeR, bool gas, out int star) {
 	float knots = smoothstep(0.22, 0.68, 0.5 + 0.5 * TORN_FBM(vec2(al * 4.5, 0.0), bw * 4.5, 2));
 	vec2 gq = vec2(al, sd) / (2.0 * bw);
 	float grain = 0.6 + 0.8 * kitHash3(ivec2(floor(gq)) + ivec2(0, 17)).x;
-	float lA = B * (core * (0.3 + 0.7 * strand) * (0.4 + 0.9 * clump) * grain + 0.12 * exp(-abs(x) * 1.3) * (0.6 + 0.6 * clump));
-	lA *= 0.3 + 0.95 * knots;
+	float lA = B * (core * mix(0.45, (0.3 + 0.7 * strand) * (0.4 + 0.9 * clump) * grain, tx) + 0.12 * exp(-abs(x) * 1.3) * mix(0.9, 0.6 + 0.6 * clump, tx));
+	lA *= mix(0.8, 0.3 + 0.95 * knots, tx);
 	// (its light gathers as it narrows: what left the dwarf across its whole width runs
 	// into the giant down a thread)
 	lA *= 1.0 + 0.5 * (1.0 - clamp(W / R0, 0.0, 1.0));
-	// (out of the dwarf's own light: it rises faint inside the lit body's outer part and
-	// is brightest just past where that light ends (`ChartTorn.lit_r`, er, in the ball's
-	// own frame), where the stars are pulled off; never near its core, the goal)
+	// (out of the dwarf's own light: it rises from faint inside the lit body's outer part
+	// to full a little past where that light ends (`ChartTorn.lit_r`, er, in the ball's own
+	// frame), with no peak at the edge, where the standing rim's marks are; never near the core)
 	float er = u_tornB.z;
 	float bsq = KIT_TILT / max(u_tornB.x, 1e-3);
 	float rB = length(vec2(v.x, v.y / bsq)) / u_k;
 	float rise = max(0.1, 0.45 * er);
-	lA *= smoothstep(er - rise, er, rB) * (1.0 + 0.6 * exp(-pow((rB - er - 0.15 * rise) / (0.8 * rise), 2.0))) * ahead;
+	lA *= smoothstep(er - rise, er + 0.6 * rise, rB) * ahead;
 	lA *= smoothstep(2.5 * holeR, 4.0 * holeR, length(v) / u_k);
 	// (and thins out at its far end, into the giant's disc)
 	lA *= u_tornA.z >= 0.999 ? smoothstep(1.0, 0.85, f) : 1.0;

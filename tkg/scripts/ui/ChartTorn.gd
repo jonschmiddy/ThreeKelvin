@@ -38,7 +38,8 @@ const HOOK_PX := 1.5
 ## The opening's zoom (`MapChart.ZOOM_MIN`, as a harness's z): opening px per view px.
 const Z_OPEN := 0.42
 ## The giant's middle at 0 lost, and how far it closes in by `HOOK_LOST` (mockup px).
-const GIANT_M := Vector2(-177.0, -88.0)
+## (Jon's 3A: up and left of the mockup's, to stand whole at GIANT_SIZE)
+const GIANT_M := Vector2(-150.0, -104.67)
 const GIANT_IN := Vector2(42.0, 26.0)
 ## Its half length and half breadth on the screen (mockup px; it grows by GIANT_GROW),
 ## and its tilt (rad, its right end up).
@@ -46,6 +47,9 @@ const GIANT_RX := 62.0
 const GIANT_RY := 30.0
 const GIANT_GROW := 0.3
 const GIANT_ANG := -0.25
+## The giant against the mockup's (Jon's 3A, "bigger giant"): as long as the game's big
+## dwarf is wide (190 px at the opening), so it reads as the bigger galaxy
+const GIANT_SIZE := 2.043
 ## The rings lost by which the giant is in closest and the stream's share is whole.
 const HOOK_LOST := 10.0
 ## The stream's bend: from the root, its first control point this far on (down and left),
@@ -67,7 +71,7 @@ const PAR_FAR := 0.4
 const PAR_NEAR := 0.8
 ## THE OPENING (TORN AWAY on): the dwarf's core this far right and down of the chart's
 ## middle (gu at zoom 1), so the giant stands whole in the upper left.
-const OPEN_SHIFT := Vector2(0.25, 0.135)
+const OPEN_SHIFT := Vector2(0.356, 0.203)
 ## The stream's points (the shader's TORN_N).
 const N := 48
 ## THE BIG DWARF FAINTER UNDER THE GIANT: with TORN AWAY on, its envelope's light is
@@ -338,7 +342,7 @@ static func giant_at() -> Vector2:
 
 ## Its half length (gu on the screen).
 static func giant_len() -> float:
-	return _m(GIANT_RX) * giant_s()
+	return _m(GIANT_RX * GIANT_SIZE) * giant_s()
 
 
 ## The chart's pan at the opening (px, the core off the chart's middle) at zoom `ze`
@@ -385,7 +389,7 @@ static func hook() -> PackedVector2Array:
 	var b0 := Vector2(LIT_K * cover(), LIT_K * cover() * _bsq()) if big_on() else _body()
 	var c1: Vector2 = Vector2(-0.85 * b0.x, 0.15 * b0.y) + _m(HOOK_C1)
 	var c2 := Vector2(g.x + _m(HOOK_C2X * s), maxf(_m(HOOK_C2Y), c1.y + _m(9.0)))
-	var c3: Vector2 = g + _m(HOOK_IN * s)
+	var c3: Vector2 = g + _m(HOOK_IN * s * GIANT_SIZE)
 	var p := par()
 	return PackedVector2Array([root_at(), c1, c2 + slide(1.0 - HOOK_BEND * (1.0 - p)), c3 + slide(p)])
 

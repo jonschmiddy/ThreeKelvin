@@ -76,11 +76,19 @@ HOOK_PX opening px each (the mockup drew 1 px for 2.5 window px; here 1.5).
 WHY NOT THE MOCKUP'S SCALE: the game's dwarf is drawn big (its body covers all 14
 rings, Jon's "SIZE: bigger"), about 2.5x the mockup's against the frame, and the opening
 zoom is the chart's least (ZOOM_MIN). At the mockup's own 2.5 the giant falls off the
-chart's left. At 1.5 the giant, the hook and the giant's growth all fit in the chart, so
-the giant and the stream match the mockup's camera and the dwarf is bigger than its.
+chart's left. At 1.5 the hook and the giant's growth fit in the chart.
+
+THE GIANT BIGGER (Jon's 3A, Nov 8: at 1.5 it was about half the dwarf's size where the
+mockup has it 1.35x): GIANT_SIZE, 2.04 of the mockup's, its half length the big
+dwarf's half width (190 px at the opening), at GIANT_M up and left of the mockup's place;
+the stream's end in its underside (HOOK_IN) grows with it. 1.35x does not fit: with
+the dwarf 380 px wide in a 655 px chart, a giant that size could not stand whole in
+the frame without lying over the dwarf's systems. At 2.04 its disc runs from the
+chart's left edge to its top (10 to 380 px across, 4 to 206 down), its edge just meeting
+the dwarf's outermost light and passing under the goal line.
 
 THE OPENING (TORN AWAY on): the core OPEN_SHIFT right and down of the chart's middle
-(0.25, 0.135 gu at zoom 1: 65, 35 px at the opening), where the run's first chart opens
+(0.356, 0.203 gu at zoom 1: 93, 53 px at the opening, since 3A's bigger giant), where the run's first chart opens
 and where FRAME GALAXY (LOCAL REGION off) goes back to (`MapChart._open_pan`). The
 dwarf's systems still all fit the opening clear of the toggles and the scale. Without
 it the giant's disc ran past the chart's left edge at any size that still read as the
@@ -99,6 +107,11 @@ puffs of its gas (2 x 2) and pink cloud specks (2 x 1) ride lanes along it towar
 giant, each lane at its own calm pace, a block a step (`tornDrift`, the old lanes'
 clock): a frame moves a lane or two, nothing flips back. Its band of light is held where
 it lies; only the sprites move. Nothing clickable moves.
+
+ITS START A SMOOTH BAND (Jon's 3A: "one wide, smooth, tapering glow", not the clump of
+puffs it was): over its first stretch (age 0.12 to 0.5, `tx`) its strands, clumps,
+grain, knots and torn edge fade in from nothing, so off the dwarf it is a plain glow
+across (exp of x squared) narrowing as it goes; each style steps it in its own hand.
 
 PAINTED's band is held at its arm ramp's step 0.5 at most (`tornOver`): at the ramp's
 top steps the sky under the rim's marks rose to 136 (MARK_LUMA 110, TornTest).

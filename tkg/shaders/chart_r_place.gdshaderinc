@@ -1524,7 +1524,7 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 			C = Ccl + (C - Ccl) * tK;
 			T = mix(Tcl, T, tK);
 			bool young = u_ballK.x > 0.5 && u_ballK.x < 1.5;
-			vec3 dC = young ? vec3(0.45, 0.66, 1.0) : vec3(1.0, 0.8, 0.55);
+			vec3 dC = young ? vec3(0.45, 0.66, 1.0) : vec3(0.7, 0.56, 0.385);   // (an old one's held down: its warm band lifted a rim mark's sky past MARK_LUMA, TornTest)
 			vec3 sC = young ? vec3(0.75, 0.86, 1.0) : vec3(1.0, 0.88, 0.7);
 			C += tornLightN(vb, 2.0 / (u_zoom * u_k), u_holeR, young, dC, sC, vec3(1.0, 0.74, 0.42), vec3(0.42, 0.52, 0.9), TORN_GAIN_R).rgb;
 		}
