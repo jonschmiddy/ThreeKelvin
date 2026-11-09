@@ -1,23 +1,7 @@
 extends Node
 
-## THE CODED ENGINE FLAME BESIDE TODAY'S, for Jon to pick a look (Oct 13).
-##   godot --path . --windowed --position 3840,0 -- sheet=ThrusterSheet out=<dir>
-##       [ships=hull_light_s,...,ship_armedtrader,...] [frames=150]
-## One film per ship, at the game's own pixel size (1x), each frame a grid:
-## columns TODAY | A OVERLOAD | B DRIVE | C SPILL (ThrusterFx.Look), rows IDLE,
-## CRUISE, FULL (ThrusterFx.Thrust). TODAY on a player hull is what the game
-## shows: no flame at idle (the engines are off in a fight -- ShipView `_burning`)
-## and the rigged PixelLab strips at cruise and full (the chassis select, the
-## arrival and departure), composited the way ShipView does it: `back` strips,
-## then the hull, then the rest, the strip frame at FLAME_HZ. TODAY on a pool
-## ship is no flame at all; they have none.
-##
-## Drawn into a SubViewport as big as the grid, so a heavy's four columns fit
-## at 1x. Every clock is the film's, stepped 1/30 s a frame: f_####.png at 30
-## fps is true speed. No bob, so the flicker measures the flame alone.
-## Each folder gets layout.json: every tile's rect, and per coded look its
-## nozzles, its lengths, the ms to build its pictures, and the CPU a frame its
-## `draw` costs (measured round the calls, per ship).
+## Films the coded flame beside today's for Jon to pick a look (Oct 13), at 1x, 30 fps.
+## Why: docs/why/ThrusterSheet.md#thruster-sheet
 
 const PLAYER := ["hull_light_s", "hull_medium_c", "hull_medium_s", "hull_heavy_s"]
 const POOL := ["ship_armedtrader", "ship_ringdrive", "ship_pr_drum"]
@@ -76,9 +60,7 @@ func _hull(name: String) -> HullData:
 	for h in DB.hull_frames:
 		if h.sprite != null and DB.hull_art_key(h.weight, h.tier, h.manufacturer) == name:
 			return h
-	# Not every frame is in the table (no Korvan heavy S): rig one the way the
-	# table would, from its art and DB.HULL_EXHAUST. Another manufacturer's
-	# picture is named by its folder, "solari/hull_light_a".
+	# A missing table frame is rigged from its art and `DB.HULL_EXHAUST`.
 	var mf := &"korvan"
 	var stem := name
 	if "/" in name:
@@ -163,9 +145,7 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var pad_r := 8 if player else 66
 	var tw := cw + 16 + pad_r
 	var th := chh + 16
-	# THE COLUMNS: today, then one per flame setting. By default the three
-	# looks at `fps=`/`rag=`; `set=a_dyn` is Jon's pick, A at the lively speed,
-	# before and after "more visually dynamic" and "more sparks and fire".
+	# Columns are today then one per flame setting; `set=a_dyn` is Jon's pick of A.
 	var configs: Array = []
 	if _arg("set", "") == "a_dyn":
 		configs = [{look = 0, name = "A  LIVELY (before)", fps = 8.0, rag = 1.0, dyn = false},
@@ -302,27 +282,8 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	await tree.process_frame
 
 
-## THE NOZZLE CHECK (Jon, Oct 13: the coded flame must leave from where the
-## PixelLab flame leaves). Measured on what each draws, not on the rig:
-##   today  each strip's VISIBLE start -- per frame, the last column holding a
-##          strip pixel that shows (a `back` strip's pixels under the hull do
-##          not); the most common one over the frames; the rows showing there in
-##          at least half of them.
-##   coded  each look's flame picture at every thrust: its last lit column and
-##          the rows lit there.
-## FAIL when the column is more than 1 px off, or the flame's START HEIGHT is
-## more than 1 px off its nozzle's mouth read off the hull (or the strip's
-## height 2-6 px out, on a flat stern): "a bit bigger than the nozzle" (Jon on
-## light A and heavy A) is what the strip-height rule did to real nozzles. The row span used to have to match
-## the strip's start rows, which are its narrowest, and every blunt stern got
-## a thin stream out of a big engine (Jon, Oct 13: "too small on the main body").
-## Also counts flame pixels on a hull pixel the strip leaves visible (one it
-## does not cover in every frame); that must be 0 (heavy S's dome).
-## A NOZZLE'S OPENING, read off the hull alone: the rows round the nozzle's
-## middle whose stern edge (the first hull pixel, from well behind it) is within
-## 1 px of that row's, less the outline rows at either end -- a row whose 4 px
-## from the edge into the hull are all dark (lightness under 0.15) is the
-## nozzle's rim drawn as a line, not its opening.
+## The coded flame must leave from where the PixelLab flame leaves (Jon, Oct 13).
+## Why: docs/why/ThrusterSheet.md#nozzle-check
 func _opening(img: Image, pts: PackedVector2Array) -> int:
 	if pts.is_empty():
 		return 0
@@ -532,11 +493,8 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 									if hit:
 										sh += 1
 								s_lo = mini(s_lo, sh)
-								# THE FIRST COLUMN against the opening: how many rows are lit
-								# in the flame's own first two columns (its start column and
-								# the next), which must not be more than the nozzle's opening
-								# inside its outline (Jon on light B's top pipe: "still
-								# slightly bigger than nozzle")
+								# First column must not exceed the nozzle opening (Jon).
+								# Why: docs/why/ThrusterSheet.md#nozzle-check
 								var sx := -(1 << 20)
 								for q2 in (fx.nozzles[ni].pts as PackedVector2Array):
 									sx = maxi(sx, int(q2.x))
@@ -558,9 +516,7 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 							r1_hi = maxi(r1_hi, c1)
 							if c_col < 0 or (absi(c_col - today_col) > 1 and not is_nozzle):
 								ok = false
-					# THE START IS THE MOUTH (Oct 13): within 1 px of the nozzle's opening
-					# read off the hull (`ThrusterFx.for_hull`), or of the strip's height
-					# where the stern is flat. A bell has its own checks below.
+					# Start within 1 px of the nozzle mouth, or the strip height if flat.
 					var start_ref := today_h
 					var is_bell := false
 					if ni >= 0:
@@ -608,12 +564,8 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 	for nzb in (looks[0].fx as ThrusterFx).nozzles:
 		if (nzb as Dictionary).has("bell"):
 			has_bell = true
-	# Only a hull with a bell: a strip that laps the hull's edge by a pixel
-	# covers a few hull pixels the stream is not meant to fill.
-	# And at IDLE (Jon: "The flame should extend slightly out of the ship ...
-	# that little depression is the entire exhaust"): the bell at least 90% lit
-	# and the flame at least 8 px past the rim, at the idle length and at the
-	# shortest its flicker takes it to.
+	# A bell must be 90% lit with the flame 8 px past the rim at idle (Jon's depression remark).
+	# Why: docs/why/ThrusterSheet.md#nozzle-check
 	var rim_x := 1 << 20
 	for y10 in chh:
 		for x10 in cw:
@@ -690,10 +642,8 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 				particle_px = drawn, on_hull_px = on_hull, ok = ok3})
 			print("  particles %-6s %-20s %d px over 150 frames, %d on visible hull %s" % [ThrusterFx.THRUST_NAMES[thrust3],
 				looks[look3].info.look, drawn, on_hull, "ok" if ok3 else "FAIL"])
-	# THE MAIN DRIVE IS NOT OUTBURNED (Jon on light B: the main flame read
-	# "short and stubby" beside the top pipe's): the hull's main drive (its
-	# biggest strip) is never shorter at full burn than a secondary engine, and
-	# of two engines in the same role the bigger mouth is never the shorter.
+	# The main drive is never outburned by a secondary engine (Jon on light B).
+	# Why: docs/why/ThrusterSheet.md#nozzle-check
 	var fx9: ThrusterFx = looks[0].fx
 	for i9 in fx9.nozzles.size():
 		for j9 in fx9.nozzles.size():
@@ -708,10 +658,8 @@ func _check_starts(h: HullData, hull_img: Image, looks: Dictionary) -> Array:
 			var ma := (a9.pts as PackedVector2Array).size()
 			var mb := (b9.pts as PackedVector2Array).size()
 			var why := ""
-			# mouths are compared within a role: the rig names the main drive (its
-			# biggest strip), and light B's main nozzle reads 6 rows against its
-			# top pipe's 9 (the pipe's two outline rows count as mouth) while Jon
-			# wants the main drive the longer flame
+			# Mouths compare within a role: light B's main reads 6 rows against the pipe's 9.
+			# Why: docs/why/ThrusterSheet.md#nozzle-check
 			var same_role := bool(a9.get("main", false)) == bool(b9.get("main", false))
 			if same_role and ma > mb + 1 and la < lb:
 				why = "a bigger mouth (%d rows) burns shorter (%d px) than a smaller one (%d rows, %d px)" % [ma, la, mb, lb]

@@ -1,39 +1,8 @@
 class_name ShipHitFx
 extends Control
 
-## HITS ON A SHIP, made of the death styles' pieces (Oct 13, mockups for a pick
-## page; nothing here is in a fight yet).
-##
-## Jon loved the deaths and wants "these effects used during the fight, for
-## damage and so on", then: "The bullet holes from chain are also GREAT", and
-## then that he wants all of it, for variety, the way deaths roll. So a hit is
-## one of four KINDS, rolled per hit from the fight's seeded generator:
-##   SCORCH  a sharp flash and a spray of sparks; a scorch mark stays.
-##   HOLE    E CHAIN's blast hole: a ragged bite punched in, scorched round,
-##           its chips flying off, its lip glowing and cooling.
-##   CRACK   cracks run from the hit along a network laid over the hull,
-##           white-hot, cooling to dark lines, joining up as hits add up.
-##   VENT    a puncture at the edge, air jetting out; from then on, while the
-##           hull is low, the hole sputters now and then.
-## Small hits lean to scorch, big ones to holes and cracks; venting only once
-## the hull is at half or less (`roll`). Every mark stays and they build up
-## together, each placed clear of the others on the side the shots come from,
-## so a badly hurt ship is a mix and not a pile.
-##
-## AN OVERLAY, NEVER A REDRAW. The ship is drawn by its owner (EnemyArt,
-## ShipView); this is handed its pixels only to know where the hull is and what
-## a scorched pixel becomes. What stays is a picture of the changed pixels
-## alone, transparent elsewhere, drawn over the ship and never moved: it cannot
-## shimmer. Everything that moves is light or a mote, in whole pixels, stepped,
-## and out within half a second, except a vent's sputters (a short puff
-## seconds apart).
-##
-## THE MARKS OUTLIVE THE SHIP. `damaged(img)` is the ship's picture with every
-## mark on it; hand that to ShipBreakup.setup and to wreck_image and the pieces
-## and the wreck keep the damage (one blend; the owner keeps that image for the
-## wreck instead of the clean one).
-##
-## `moment` names each visible event for sound, as ShipBreakup's does.
+## An overlay, never a redraw: changed pixels only, so it cannot shimmer; marks outlive the ship.
+## Why: docs/why/ShipHitFx.md#hit-overlay
 
 signal moment(kind: StringName, strength: float, length: float)
 
@@ -51,12 +20,8 @@ const SOUND := {
 	Kind.CRACK: "0.00 impact; 0.00 crack, 0.15-0.35 long (the crack running)",
 	Kind.VENT: "0.00 impact; 0.00 hiss, 0.35-0.45 long; below half hull, sputter every 1-3 s per hole, 0.15-0.25 long"}
 
-## WHICH LOOK A SHIP'S HULL TAKES ITS HITS IN. Jon picked D (Oct 17): A, B and C
-## mixed per hit (`HullHitFx`), so D is the game's. 0 is this file's marks,
-## Chain's holes and all, which only the Custodian still wears (`HitLayers`:
-## it is grown, not built); 1 A battle-worn, 2 B heat and stress and 3 C crack
-## and peel are D's parts, kept as looks of their own for comparing.
-## `-- hull=today|A|B|C|D` on the command line plays one.
+## Jon picked D (Oct 17); look 0 is this file's marks, which only the Custodian wears.
+## Why: docs/why/ShipHitFx.md#hit-looks
 static var look := _look_arg()
 
 
@@ -69,9 +34,7 @@ static func _look_arg() -> int:
 const SOOT := Color(0.17, 0.12, 0.10)
 const HOLE_COL := Color(0.05, 0.045, 0.055)
 const MAX_VENTS := 3
-## Jon picked "More" (Oct 13): marks half as big again, and more of them per
-## hit as the hull goes, so half hull already looks battered and a quarter
-## looks wrecked. `extras` is how many smaller marks a hit adds round its own.
+## Jon picked More (Oct 13): marks half as big again, more as the hull goes.
 const SIZE := 1.5
 ## Hull at or under which a hit can vent (Jon: from 60%, not 50%).
 const VENT_FROM := 0.6
@@ -111,9 +74,7 @@ var _sc := SIZE   ## the size of the mark being made (an extra is smaller)
 ## How big marks are on this picture: 1 on a full sheet, less on a half one, so
 ## a hole is the same size on the ship whichever sheet draws it.
 var mark_scale := 1.0
-## False when the owner bakes the marks into its own picture (EnemyArt does, so
-## its dark blend and its wreck cut take them); this then draws only the light,
-## the chips and the vents.
+## False when the owner bakes the marks into its picture, so it draws only light, chips and vents.
 var draw_marks := true
 ## Goes up whenever a mark changes, so an owner that bakes them knows to redraw.
 var version := 0
@@ -128,9 +89,7 @@ class Layer extends Control:
 		paint.call(self)
 
 
-## `img` the ship's canvas, `used` its box in it, `origin` where the canvas's
-## top-left sits in this control. `seed` from the fight (Rng.derive), so the same
-## fight rolls the same hits.
+## `seed` comes from the fight (`Rng.derive`), so the same fight rolls the same hits.
 func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -237,10 +196,7 @@ func roll(frac: float, hp_after: float) -> int:
 	return Kind.SCORCH
 
 
-## A point on the hull on the side the shots come from, clear of the marks
-## already there when it can be. `edge`: on the outline (a puncture vents
-## outward from there); else well inside it. `near`: as close as it gets to a
-## screen point (a shot that came through a shield).
+## A hull point on the shots' side, clear of earlier marks when it can be.
 func _pick(edge: bool, rad: float, near: Vector2 = Vector2.INF, around: Vector2 = Vector2.INF) -> Vector2i:
 	var best := -1e9
 	var bp := Vector2i(int(float(_H.get("cx", 0.0))), int(float(_H.get("cy", 0.0))))
@@ -348,9 +304,7 @@ func hit(amount: int, hp_after: int, max_hp: int, kind: int = -1, near: Vector2 
 	return kind
 
 
-## The ship's picture with every mark on it, for the death and the wreck.
-## The marks alone (every changed pixel, transparent elsewhere) and where they
-## go on the canvas: for an owner that bakes them in.
+## The picture with every mark for the death and wreck, or the marks alone for baking owners.
 func marks() -> Image:
 	return _dmg
 

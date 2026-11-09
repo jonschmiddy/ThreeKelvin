@@ -1,29 +1,9 @@
 class_name YardDrones
 extends RefCounted
 
-## The Yard's four services, each carried on one of the station's flyer drones
-## over your ship (the Yard Drones page's drones, `step`, `carry`, `buy`,
-## `drawDrone`, `drawWork`): PATCH, REPAIR, REFUEL and FAULTS.
-##
-## THEY COME AFTER THE TV (Jon: "can we have the drones fly in more spread out
-## AFTER the TV turns on ?", then "closer together ... but not all at the same
-## time"): the first 0.4 s after the deal has scanned onto the TV, the others
-## about 0.42 s behind each other. Each bobs above your ship, and what it
-## carries says what it will do and what it costs. Pointed at, its glass lights
-## amber; clicked, it dips to the hull and does the work -- a torch for a patch,
-## a welder's white for a repair, fuel coming down, a scan down the hull for a
-## fault. When there is nothing left for it to do its screen says why ("HULL
-## FULL", "NO FAULTS") and it flies off; on paper, at an unclaimed station, what
-## it offered is scribbled out in red first. One with nothing to do when you
-## dock never comes; REFUEL always does.
-##
-## WHAT THEY CARRY is the level's (Jon, 2026-09-29): paper scraps at an
-## unclaimed station, chunky casings at an outpost or settlement, riveted
-## frames in a city, glowing frames at a capital.
-##
-## AND NOW AND THEN, ONE OF THEM MISBEHAVES (the page's rare events): it nods
-## off and sinks (E1), two bump screens (E5), one shows a joke (E6), one
-## sneezes (E18).
+## Four services ride the flyer drones, flying in after the TV turns on (Jon), 0.42 s apart.
+## What they carry is the level's (Jon, 2026-09-29). A drone with nothing to do never comes.
+## Why: docs/why/YardDrones.md#yard-services
 
 const PH := [0.0, 1.3, 0.6, 2.1]
 ## The flyers that carry the four screens (the station's own, twelve frames).
@@ -96,11 +76,7 @@ func _layout() -> void:
 var _entry_done := false
 
 
-## NOTHING TO SELL, NOT SENT (Jon: "if your hull is 100% or you have no faults
-## when you enter a space station, these don't show up, just the refuel"). The
-## first offers of a docking decide who comes: a drone whose job is already
-## done stays away, and the rest close up over the ship. One that runs out of
-## work later, by a sale, still tells you why and flies off.
+## Nothing to sell, not sent (Jon): a drone whose job is done stays away at docking.
 func _stay_away() -> void:
 	for d: Dictionary in D:
 		if String(offer(int(d["i"])).get("done", "")) != "":
@@ -212,10 +188,7 @@ func step(d: Dictionary, t: float) -> void:
 			d["mode"] = "gone"
 
 
-## A service is about to go through: what every drone offers now, before the
-## money moves, so one whose job it finishes can show what it offered, crossed
-## out (the page's `before`). Taken first because the purchase itself refreshes
-## the offers, on the game's own signals, before it comes back here.
+## Taken before the money moves, so a drone whose job ends can show its offer crossed out.
 func serving(i: int) -> void:
 	_before = []
 	for e: Dictionary in D:
@@ -245,9 +218,7 @@ var _before: Array = []
 var _served_i := -1
 
 
-## The new offers are in: whichever drone has nothing left to do tells you, and
-## goes (the page's check after a sale). The first offers of a docking only
-## decide who comes at all (`_stay_away`).
+## After a sale, a drone with nothing left says why and goes. First offers decide who comes.
 func offers_changed(t: float) -> void:
 	if not _entry_done and not scene.offers.is_empty():
 		_entry_done = true
@@ -289,11 +260,7 @@ func hit(p: Vector2) -> int:
 	return -1
 
 
-## WHERE THE SERVICES HANG, in the hall's pixels: the box round every drone that
-## came and its screen, each at its home, wide and tall enough for its sway and
-## bob, so an outline on it holds still while they move (the shipyard's
-## first-visit hint, `StationScreen.deck_subject`). Empty until every one that
-## came is hovering; one flying off with its job done is left out.
+## Box round the drones and screens at home, so a hint outline holds still while they sway.
 func services_rect() -> Rect2:
 	var out := Rect2()
 	for d: Dictionary in D:
@@ -481,9 +448,7 @@ func _draw_drone(P: YardPaint, d: Dictionary, t: float) -> void:
 		scribble(P, float(d["r"]["sx"]), float(d["r"]["sy"]), sc["glass"], t - float(d["tt"]), float(i) * 3.7 + 1.3, M)
 
 
-## A drone and what it carries (the page's `carry`): its cables, the drone
-## lit from above and darker underneath, the screen shaded along its top where
-## the drone hangs over it, its glass unlit, and what the glass says.
+## A drone and what it carries: cables, lit-from-above body, shaded screen top and its glass.
 func carry(P: YardPaint, i: int, cx: float, cy: float, t: float, lines: Array, hot: bool, M: Color) -> Dictionary:
 	var F: Dictionary = fly[i]
 	var sc: Dictionary = screens[i]
@@ -545,9 +510,7 @@ func _put(P: YardPaint, s: String, mx: float, y: float, col: Color, ink: Diction
 	P.text(font, Vector2(x, y), s, 8, YardScene.lit(col, M) if paper else col)
 
 
-## A RED X, SCRIBBLED: two pen strokes across a used-up paper tag, the second
-## after the first, each a little wobbly and overshooting its end. The wobble
-## is fixed per tag, so the X does not shimmer.
+## A red X on a used-up tag, with wobble fixed per tag so it does not shimmer.
 func scribble(P: YardPaint, sx: float, sy: float, glass: Array, e: float, seed: float, M: Color) -> void:
 	var x0 := sx + float(glass[0]) + 3.0
 	var y0 := sy + float(glass[1]) + 2.0

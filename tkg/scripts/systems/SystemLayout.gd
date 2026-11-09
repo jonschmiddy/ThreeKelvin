@@ -1,54 +1,11 @@
 class_name SystemLayout
 extends RefCounted
 
-## WHAT IS IN A SYSTEM, AND WHERE: its star, the bodies going round it, and
-## which body each of the system's options sits on.
-##
-## DERIVED, NEVER SAVED. Everything here comes from `Rng.derive(&"system",
-## n.index)` and the node's own facts, so the same system lays out the same way
-## every time it is asked, on every machine, with nothing in the save -- the way
-## `_roll_foes` needs no save. The option list, the claim ids (`OPTION_SITE + i`)
-## and the results are untouched: this only says where on the map each option is
-## drawn.
-##
-## Ported from the approved system-map mockup (`layout()` in the scratchpad's
-## `sysmap/template.html`), rule for rule:
-##
-## - one body for every option, chosen by its tags: a fight with nothing to
-##   salvage is a CONTACT in open space; salvage and hazard together, or hazard
-##   alone, is a BELT (one belt holds all of them); salvage alone is a DERELICT
-##   or a belt; anything else -- a contract, a signal, fauna -- is a PLANET;
-## - a gas giant if and only if the node has one (never round a pulsar);
-## - a station's station as a body of its own, with DOCK on it;
-## - about a third of the systems with no belt get one anyway, as scenery, and
-##   a pulsar or the core always does;
-## - ONE EVENT TO A WORLD (Jon, Oct 15: "A planet should only hold one event.
-##   That should be a rule."): every option that wants a planet gets its own,
-##   and the giant and the star each hold one at most -- a second that wanted
-##   them takes its place by its tags. A place is where a fight leaves its
-##   wrecks (`Jetsam.site`), so one event to a place is one fight's wrecks to a
-##   place. A belt still holds every option that wanted a belt;
-## - no padding: one body is always there, and a system has as many more as
-##   its options, its giant, its station and its belt make -- one, two or three
-##   is normal (Jon: "I like the diversity and scarcity");
-## - the core's custodian as a contact on the outermost orbit;
-## - the Hellbender, while it is anchored here or its wreck lies here, as a
-##   contact of its own past every orbit, added last so no other body moves
-##   (Jon, Oct 15: the system's contact at a place of its own, so you fly there
-##   to fight it and its wrecks are its own);
-## - at about one ordinary system in four, TWO SUNS (ruling 20), of two kinds
-##   (Jon, Nov 1, "Binary kinds: close:B share:A"): two in three a WIDE PAIR, a
-##   world round each sun and everything else round both (`_twin`); one in
-##   three a CLOSE PAIR, every body round both (`_close`).
-##
-## Orbits are spread from just outside the star (further out round a red giant
-## and the black hole) to `HI`; periods follow Kepler, the square of the period
-## going as the cube of the orbit, so the inner bodies go round faster.
+## Derived from `Rng.derive` and the node's facts, never saved: same system, same layout.
+## Ported rule for rule from the approved system-map mockup (`layout()` in `template.html`).
+## Why: docs/why/SystemLayout.md#layout-rules
 
-## THREE TIMES THE OLD SPREAD (Jon: "can the solar system also be a bit more
-## zoomed out? with further away orbits?" -- "even 3x would be good"), so there is
-## room to fly between worlds. The first orbit still sits just clear of the star;
-## the rest are spaced by ratio out to here. The map opens zoomed out to fit it.
+## Three times the old spread (Jon), so there is room to fly between worlds.
 const HI := 900.0
 const ROMAN := ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 
@@ -60,13 +17,9 @@ enum StarKind { ORDINARY, RED, BLUE, PULSAR, CORE }
 const STAR_R := {StarKind.ORDINARY: 16.0, StarKind.RED: 48.0, StarKind.BLUE: 24.0, StarKind.PULSAR: 3.0, StarKind.CORE: 16.0}
 const STAR_MASS := {StarKind.ORDINARY: 46.0, StarKind.RED: 62.0, StarKind.BLUE: 56.0, StarKind.PULSAR: 66.0, StarKind.CORE: 110.0}
 
-## THE PULL A SHIP FEELS, on map time (Phase 13, ruled Oct 29 "clock:map", and
-## ruling 20, Oct 30): a system's whole star mass pulls a ship with this GM
-## (px^3/s^2), whatever its kind. It is KAPPA times the Kepler GM that turns the
-## worlds (GM_KEPLER: a world 100 px out laps in 800 s), because on map time a
-## ship flies about a hundred times faster than the worlds move. A ship riding
-## 170 px out at RAIL_V 35 px/s is on a circular orbit under it. Only autopilot
-## flights feel it; flying by hand has no gravity (Jon, Oct 3).
+## KAPPA times the Kepler GM: on map time a ship flies about 100 times faster than worlds.
+## Only autopilot flights feel it. Flying by hand has no gravity (Jon, Oct 3).
+## Why: docs/why/SystemLayout.md#ship-gravity
 const GM_KEPLER := 61.685
 const KAPPA := 3376.0
 const GM_SHIP := 208250.0
@@ -74,140 +27,76 @@ const GM_SHIP := 208250.0
 ## it's more fun"), rolled per giant; every autopilot flight feels it.
 const GIANT_MIN := 0.10
 const GIANT_MAX := 0.25
-## STAR B'S PLACE. A place in a system is an int: a body's index (0 or more),
-## -1 star A (the star, its close orbit), STAR_B star B. -2 is "nowhere", -3
-## the edge as arrived, -9 open space, -10 a co-op arrival, -99 SITE_ANY, so
-## star B takes -4, which nothing used. Test with `is_star` / `is_place`, never
-## `>= -1` or `< 0`.
+## Star B takes -4, which no other place id uses. Test with `is_star`/`is_place`, never `>= -1`.
 const STAR_B := -4
 
-## TWO SUNS: THE NUMBERS (ruling 20, Oct 30; `of` lays them out, `_twin`).
-## Star A's share of the pair's mass, rolled. The build asked 0.52 to 0.65. The
-## higher the share, the smaller star B's steady zone (0.255 of the separation
-## at 0.55, 0.243 at 0.58, 0.236 at 0.60, 0.217 at 0.65), and its world has to
-## stand clear of B's drawn sun at the opening zoom, which spreading the pair
-## lowers in turn: near 0.60 the two almost keep pace, and a pair runs away.
-## Measured in a model of this fit on the 1,633 twins of eight seeds (layout
-## review, Oct 30): capped at 0.60, 5% of pairs went past 380 px, the widest to
-## 564 px and an opening zoom of 0.158; at 0.59, 1% and 435 px; at 0.58, none
-## past 380 and the least zoom 0.229.
+## Star A's mass share is capped: a higher share shrinks star B's steady zone.
+## Measured on 1,633 twins (Oct 30): a 0.58 cap left none past 380 px, 0.60 left 5%.
+## Why: docs/why/SystemLayout.md#two-suns
 const TWIN_SHARE_LO := 0.52
 const TWIN_SHARE_HI := 0.58
-## How far apart the two stars are, rolled (px). A pair whose worlds would not
-## fit is moved further apart until they do (`_twin`): about a third of them in
-## a model of the fit, and none past 380 in 24 seeds' 5,014 twins (Oct 30).
+## A pair whose worlds will not fit is moved apart by `_twin` until they do.
+## Measured: none past 380 px in 5,014 twins (Oct 30).
+## Why: docs/why/SystemLayout.md#two-suns
 const TWIN_SEP_LO := 320.0
 const TWIN_SEP_HI := 380.0
-## THE CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B share:A", from the
-## binary-kinds sheet): one binary in three, rolled off a stream of its own
-## (`is_close`), so a wide pair keeps every draw it makes today. Its suns are
-## rolled 150 to 170 px apart (the sheet's B), off the "twin" stream's
-## separation draw, and every body goes round both (`_close`). At B, on the 55
-## binaries of seed 7: the two suns 19 to 33 game px apart edge to edge at the
-## opening zoom (A's 90 to 110 touched and read as one sun); a hot world first
-## in all but 2; 43 of 55 with a world in the middle band (C's 230 to 250 had
-## no hot world at all); each sun's close orbit as a wide pair's. Over
-## SystemTest's 343 close pairs the two keep-outs stay 64 px apart or more, a
-## sun's close orbit 62 px off the other's keep-out, the capture rings 56 apart
-## (70, 68 and 62 before a close pair kept room to arrive in, `_close`).
+## One binary in three, rolled off its own stream (`is_close`) so wide pairs keep their draws.
+## Numbers are option B of the binary-kinds sheet (Jon, Nov 1); SystemTest checks the gaps.
+## Why: docs/why/SystemLayout.md#close-pair
 const CLOSE_SHARE := 1.0 / 3.0
 const CLOSE_SEP_LO := 150.0
 const CLOSE_SEP_HI := 170.0
 ## (`open_zoom`'s floor: every ring a close pair's ladder can have is at most its
 ## size here, `_close`)
 const ZOOM_FLOOR := 0.1
-## Star B is never more than this (radians, 40 degrees) off the map's level line
-## from star A: seen at the map's slant a pair one above the other stands 0.38 of
-## its distance apart, and two suns that close on screen read as one. At 40
-## degrees they stand 0.80 of it apart.
+## Star B stays within 40 degrees of the level line: higher, the slant reads two suns as one.
 const TWIN_TURN := 0.6981317
-## THE FARTHEST STEADY ORBIT ROUND ONE STAR OF A PAIR (Holman and Wiegert 1999,
-## circular orbits): a = (HW_0 - HW_MU mu) x separation, mu the OTHER star's
-## share. 0.293 round A and 0.255 round B at a 0.55 share.
+## Farthest steady orbit round one star of a pair (Holman and Wiegert 1999, circular orbits).
 const HW_0 := 0.464
 const HW_MU := 0.380
 ## Where in that zone a world round one star goes: 0.70 to 0.90 of the limit.
 const S_LO := 0.70
 const S_HI := 0.90
-## THE NEAREST STEADY ORBIT ROUND BOTH, as a share of the separation from the
-## balance point (`p_limit`): Holman and Wiegert's circumbinary limit for
-## circular orbits, HW_P0 + HW_P1 mu - HW_P2 mu^2 with mu star B's share, and
-## never under the build's 2.423. The formula peaks at 2.434 at mu 0.40 (star A
-## at 0.60) and is 2.405 at mu 0.48, so 2.423 alone sat inside it for star A
-## above about 0.555 (layout review, Oct 30). The first world round both goes a
-## few percent past it.
+## Holman and Wiegert's circumbinary limit, never under the build's 2.423.
+## The formula peaks at 2.434, so 2.423 alone sat inside it for star A above about 0.555.
+## Why: docs/why/SystemLayout.md#two-suns
 const P_LIMIT := 2.423
 const HW_P0 := 1.60
 const HW_P1 := 4.12
 const HW_P2 := 5.09
 const P_MARGIN := 1.03
-## The worlds round both are spread by ratio over this much of their first
-## orbit, as a one-star system's are over lo to HI (3.7 times): kept close,
-## because every pixel out shrinks the whole map at its opening zoom.
+## Kept close: every pixel out shrinks the whole map at its opening zoom.
 const P_SPREAD := 1.25
-## A WORLD'S RING ROUND ONE STAR OF A PAIR (px). A one-star world's is 62 to 91
-## (`soi_of`), and the steady zone round a star is 70 to 105 px: the prototype's
-## 38.4 did not fit inside it. 20 holds the ship 17.6 px out (`ORBIT_K`), clear
-## of the largest world drawn (12, a broken one).
+## A pair world's ring is 20 px: the prototype's 38.4 did not fit the 70 to 105 px steady zone.
 const S_RING := 20.0
-## EACH TWIN STAR'S KEEP-OUT, CLOSE ORBIT AND RING (`_twin_ladder`), in plane
-## px from its centre, all fitted to the zoom the layout is fitted to
-## (`fit_zoom`), where the sun is drawn widest on the plane it ever is with no
-## job or Hellbender out (the map never zooms out past its opening zoom):
-## - keep-clear (`keep_clear_of`): RING_OUT outside the drawn sun, the
-##   autopilot's keep-out round a sun (the drawn sun + 6, ruling 20's build),
-##   and never under TWIN_KEEP past its surface. One source: the planner's
-##   keep-out (the larger of this and the drawn sun + 6) is exactly this, so
-##   long as it measures the sun at `fit_zoom` and not at the zoom the map
-##   opens at, which a job or the Hellbender lowers.
-## - the close orbit a ship rides (`star_rail_of`): TWIN_RIDE outside that, so a
-##   ship parked there starts every flight outside the keep-out.
-## - the ring a ship is taken onto it inside (`star_ring_of`): TWIN_TAKE past it.
-## One star keeps 48, 60 and 95 (r + 32, + 44, + 79), made for a 243 px first
-## orbit; a twin's world is 65 to 110 px out, so the three sit 2 px apart. The
-## first fit (r + 10, r + 14 and the drawn sun + 6) left the close orbit inside
-## the drawn sun at every twin's opening zoom and the ring on the keep-out
-## itself, so nothing ridable was outside it (layout review, Oct 30). These 4 px
-## cost a median opening zoom of 0.254 against 0.256, in a model of the fit.
+## Keep-out, close orbit and ring are fitted to `fit_zoom`, so a job or Hellbender moves nothing.
+## The first fit left the close orbit inside the drawn sun (layout review, Oct 30).
+## Why: docs/why/SystemLayout.md#twin-star-ladder
 const TWIN_KEEP := 10.0
 const RING_OUT := 6.0
 const TWIN_RIDE := 2.0
 const TWIN_TAKE := 2.0
 ## How far a world's ring keeps from its star's close-orbit ring (px).
 const RING_CLEAR := 8.0
-## AT THE OPENING ZOOM a world round one star stands this far (game px) clear of
-## its sun's drawn disc beside it, as drawn: SystemView holds both in 2 px
-## blocks (`held_most`), so a world at its 5 px floor is drawn at 6 and a sun
-## up to HOLD_PX over its true size. The first fit counted 4 game px of the
-## true sizes, which drawn came to 2.75 (layout review, Oct 30). (At its near
-## point, in front of the sun, it cannot: see `_twin`.)
+## Counted as drawn: `SystemView` holds sizes in 2 px blocks, so true sizes gave 2.75 px, not 4.
+## Why: docs/why/SystemLayout.md#twin-side-gap
 const SIDE_GAP := 3.0
 ## `SystemView.HOLD_PX`: a held size moves to the nearest block only once the
 ## true size is this far from it; and the sun's least held radius.
 const HOLD_PX := 1.4
 const SUN_LEAST := 2.0
-## The map's drawing, which the twins' numbers are fitted to: the sun's floor of
-## screen radius (`SystemView.STAR_FLOOR`), a world's least drawn radius on the
-## plane and on screen (`SystemView.min_r`, `MIN_SCREEN_R`), the largest world
-## drawn round one star of a pair (a broken one's r), and the frame the opening
-## zoom is fitted to before the screen is laid out (`SystemMapScreen._fit_zoom`).
+## The drawing constants the twins' numbers are fitted to (`SystemView`, `SystemMapScreen`).
 const SUN_FLOOR := 10.0
 const WORLD_MIN_R := 10.0
 const WORLD_FLOOR := 5.0
 const S_WORLD_MOST := 12.0
 const FIT_FRAME := Vector2(655.0, 420.0)
-## ZONES BY DISTANCE FROM THE LIGHT, in a twin (a one-star system's go by index,
-## as they always have): a body's light, as the distance from a lone sun that
-## would give it as much, under 380 px is near and under 600 the middle. Those
-## are where a one-star system's index rule puts them (its orbits 243 to 900 px
-## by ratio, a third and seven tenths of the way out). A star's light goes as its
-## drawn area: star A as a lone sun's, star B as (r_B / 16)^2 of it.
+## In a twin, zones go by light, not index. 380 and 600 px match a one-star system's index rule.
+## Why: docs/why/SystemLayout.md#twin-zones
 const ZONE_NEAR := 380.0
 const ZONE_FAR := 600.0
 
-## EVERY WORLD IN THE MIX, by how far out it is: the scorched and burning close
-## in, the living in the middle, the frozen far out. The names are the planet
-## painter's.
+## Worlds by distance out: scorched and burning close in, living in the middle, frozen far.
 const POOLS := [
 	[&"lava", &"iron", &"desert", &"rock", &"toxic", &"cracked", &"volcanic", &"scorched", &"carbonA", &"carbonB", &"eyeball"],
 	[&"verdant", &"ocean", &"desert", &"iron", &"rock", &"toxic", &"crystal", &"hurricane", &"haze", &"biolum", &"aurora", &"lightning", &"swamp", &"eyeball", &"carbonC"],
@@ -259,22 +148,13 @@ class Body extends RefCounted:
 	## Its ring: let go inside it slow enough and you are on its orbit
 	## (`ShipFlight`). Worlds only; 0 for everything else.
 	var soi: float = 0.0
-	## THE CENTRE OF ITS CIRCLE on the plane (x, z) AT MAP TIME 0: star A at the
-	## origin in a one-star system and for a world round star A; star B's place
-	## for a world round star B; the pair's balance point for a world round both
-	## (P-type). THE PAIR TURNS (ruling 23, Jon, Nov 1: "Orbiting pair"), so a
-	## world round one sun of a pair is carried round with it: where its centre
-	## is at t is `host_at(t)`. Named for its time so a reader that wants "where
-	## it is now" cannot take it by mistake; one sun, a close pair and every
-	## world round both hold still here at every t.
+	## Centre at map time 0, named for its time so nobody takes it for where it is now.
+	## The pair turns (ruling 23, Jon, Nov 1): use `host_at(t)` for the live centre.
+	## Why: docs/why/SystemLayout.md#body-centres
 	var host0: Vector2 = Vector2.ZERO
 	## Which: -1 star A, STAR_B star B, -9 both (round the balance point).
 	var host_id: int = -1
-	## ITS CENTRE'S OWN CIRCLE, for a world round one sun of a turning pair
-	## (`spin_pair`): round `hc` (the balance point), `hr` out along the pair's
-	## line (signed: star B's side positive, star A's negative, so the centre is
-	## exactly where `star_pos` puts its sun), at the pair's rate `hn` rad/s from
-	## the pair's angle `hph` at t = 0. `hr` 0 holds the centre still at `host0`.
+	## The centre's own circle round the balance point, set where `star_pos` puts its sun.
 	var hc: Vector2 = Vector2.ZERO
 	var hr: float = 0.0
 	var hn: float = 0.0
@@ -282,9 +162,7 @@ class Body extends RefCounted:
 	## The pull a ship feels from it (px^3/s^2): a giant's, `gm_frac` of the
 	## stars' whole GM_SHIP; 0 for every other body (worlds pull nothing).
 	var gm: float = 0.0
-	## A giant's weight against its star or stars (GIANT_MIN to GIANT_MAX); 0
-	## for every other body. The fabric's dent (`mass`) and the capture ring
-	## (`soi`) do not follow it.
+	## A giant's weight against its star(s), 0 for others. `mass` and `soi` do not follow it.
 	var gm_frac: float = 0.0
 
 	## Where it is at time `t`, on the plane: x across, z toward the viewer.
@@ -293,9 +171,7 @@ class Body extends RefCounted:
 		var p := point3(t)
 		return Vector2(p.x, p.z)
 
-	## Where it is at time t, as the flight's (x, 0, z): every world is on the
-	## plane (Jon: "we can get rid of planets with tilted orbits, it doesn't
-	## work on a flat plane for this game").
+	## Every world is on the plane: tilted orbits do not work on a flat plane here (Jon).
 	func point3(t: float) -> Vector3:
 		return orbit_point(phase + t / period * TAU, t)
 
@@ -334,27 +210,19 @@ var star: StarKind = StarKind.ORDINARY
 var star_r: float = 16.0
 var star_mass: float = 46.0
 var bodies: Array[Body] = []
-## The events on the star itself (an option whose `site` is the star, at a red
-## or blue star): open from a close orbit of it, body -1 everywhere a place is
-## asked for.
+## Events on the star itself (red or blue star): open from a close orbit, as body -1.
 var star_beacons: Array[Beacon] = []
 ## How far out the outermost orbit reaches, plus a margin: from star A, round
 ## whatever centre each body circles.
 var edge: float = HI + 30.0
-## THE ZOOM THE LAYOUT IS FITTED TO: the opening zoom (`open_zoom`) of the
-## system with no signed job and no Hellbender out past its edge, which come and
-## go and must move nothing. The map opens there or nearer, and only further out
-## while one of them is posted. A twin's star rings are fitted to it, and the
-## autopilot's keep-out round a sun should be measured at it too, so the
-## keep-out is the layout's and not moved by a job (`keep_clear_of`).
+## Opening zoom with no job and no Hellbender, which come and go and must move nothing.
+## Twin rings and the autopilot keep-out use it, so a posted job cannot move the keep-out.
+## Why: docs/why/SystemLayout.md#fit-zoom
 var fit_zoom: float = 0.0
 
-## TWO STARS (ruling 20, Oct 30). Star A is `star`, at the origin at map time
-## 0 as the one star always was; star B at `star2_at0` then. THE PAIR TURNS
-## (ruling 23, Jon, Nov 1, "Orbiting pair: after4:D speed:A stacked:A"): both
-## suns circle the balance point, which holds still, so where either is at t is
-## `star_pos(p, t)`. Off (`twin` false) every field here keeps its one-star
-## value and nothing changes.
+## Star A is `star` at the origin at t 0, B at `star2_at0`. The pair turns (ruling 23, Jon, Nov 1).
+## With `twin` false every field keeps its one-star value.
+## Why: docs/why/SystemLayout.md#two-suns
 var twin: bool = false
 var star2: StarKind = StarKind.ORDINARY
 var star2_r: float = 0.0
@@ -368,14 +236,9 @@ var star_share: float = 1.0
 var bary: Vector2 = Vector2.ZERO
 ## The stars' distance apart (0 alone).
 var sep: float = 0.0
-## A CLOSE PAIR (`is_close`, `_close`): every body round both suns, none round
-## one. False alone and in a wide pair, whose worlds round one sun are its
-## first two planets.
+## Every body goes round both suns, none round one. False alone and in a wide pair.
 var close: bool = false
-## THE PAIR'S TURN (`spin_pair`): its rate, rad/s (0 alone, or held still by a
-## harness, `pair_k` 0); star B's angle round the balance point at t = 0; and
-## star A's distance from it ((1 - share) x sep; star B's is the rest of sep).
-## The suns go round the way the worlds do (counter-clockwise on the plane).
+## The pair's turn (`spin_pair`): rate, B's angle at t 0, A's distance from the balance point.
 var pair_n: float = 0.0
 var pair_ph: float = 0.0
 var pair_ra: float = 0.0
@@ -395,10 +258,7 @@ static func is_place(p: int) -> bool:
 	return p >= -1 or p == STAR_B
 
 
-## A STAR'S NAME (ruling 20, Oct 30): the system's own name for its one star,
-## as the map always named it, and "<system> A" and "<system> B" for the two of
-## a pair, wherever a star is named (the map's words and tip, the panel, LOCAL's
-## event line). Added by the sites build; it lays out nothing.
+## A star's name: the system's own for one star, 'A' and 'B' suffixes for a pair. Lays out nothing.
 func star_title(n: MapGen.MapNode, p: int = -1) -> String:
 	var s := MapGen.star_name(n)
 	if not twin:
@@ -414,12 +274,8 @@ func stars() -> Array[int]:
 	return out
 
 
-## WHERE STAR p IS ON THE PLANE (x, z) AT MAP TIME t. One sun: the origin.
-## Two: both on one line through the balance point, star B `share x sep` out
-## from it and star A `(1 - share) x sep` on the far side, turned `pair_n * t`
-## from where the layout put them, so at t = 0 they are exactly there (A at
-## the origin, B at `star2_at0`). t has no default: a caller that does not say
-## which moment it means is a caller that has not been thought about.
+## Star p at map time t. `t` has no default: a caller must say which moment it means.
+## Why: docs/why/SystemLayout.md#star-positions
 func star_pos(p: int, t: float) -> Vector2:
 	if pair_n == 0.0 or t == 0.0:
 		return star2_at0 if p == STAR_B else Vector2.ZERO
@@ -435,17 +291,12 @@ func star_vel(p: int, t: float) -> Vector2:
 	return Vector2(-sin(a), cos(a)) * (_pair_r(p) * pair_n)
 
 
-## THE PAIR'S ANGLE AT t: the way from the balance point to star B, radians
-## (`pair_ph` at t = 0). For a frame that turns with the pair (co-op's spots,
-## LOCAL's band): a point turned by -pair_angle(t) about `bary` is the same
-## point in the pair's own frame at every t.
+## For frames that turn with the pair (co-op spots, LOCAL's band): rotate by -pair_angle(t).
 func pair_angle(t: float) -> float:
 	return pair_ph + pair_n * t
 
 
-## (star p's signed distance from the balance point along the pair's line:
-## star B's side positive. `Body.hr` is the same number for a world round it,
-## so a carried world's centre is exactly where its sun is.)
+## Signed distance of star p from the balance point. `Body.hr` is the same for a carried world.
 func _pair_r(p: int) -> float:
 	return (sep - pair_ra) if p == STAR_B else -pair_ra
 
@@ -463,13 +314,9 @@ func star_gm(p: int) -> float:
 	return GM_SHIP * ((1.0 - star_share) if p == STAR_B else star_share)
 
 
-## STAR p'S CLOSE ORBIT, the rail (the black hole's lens reaches far past its
-## disc, so its close orbit sits outside it), and the ring a ship is taken onto
-## it inside. One star: today's numbers, star_r + 44 and + 79, and `ShipFlight`
-## rides 8 inside the ring. In a twin (`_twin_ladder`) the rail IS the orbit to
-## ride, 2 px outside the keep-out, and the ring 2 px past it: ring - 8 there is
-## inside the keep-out, and rail-derived radii such as ShipFlight's bumper
-## (rail + 25) land past the ring.
+## In a twin the rail is the orbit to ride, 2 px outside the keep-out, and the ring 2 px past it.
+## One star keeps today's numbers. There, ring - 8 would sit inside a twin's keep-out.
+## Why: docs/why/SystemLayout.md#star-rail
 func star_rail_of(p: int = -1) -> float:
 	if _rail.has(p):
 		return _rail[p]
@@ -486,9 +333,7 @@ func star_ring_of(p: int = -1) -> float:
 	return star_rail_of(p) + 35.0
 
 
-## How far a flight keeps from star p's centre. One star: star_r + 32. In a
-## twin: the drawn sun at `fit_zoom` plus RING_OUT, so it is the autopilot's
-## keep-out itself (`_twin_ladder`).
+## One star: star_r + 32. A twin: the drawn sun at `fit_zoom` plus RING_OUT, the autopilot keep-out.
 func keep_clear_of(p: int = -1) -> float:
 	if _keep.has(p):
 		return _keep[p]
@@ -501,39 +346,24 @@ static func s_limit(mu: float) -> float:
 	return HW_0 - HW_MU * mu
 
 
-## The nearest steady orbit round both stars of a pair, as a share of the
-## separation from the balance point; `mu` is star B's share (Holman and
-## Wiegert 1999, circular orbits), never under P_LIMIT.
+## Nearest steady orbit round both, as a share of the separation. Never under P_LIMIT.
 static func p_limit(mu: float) -> float:
 	return maxf(P_LIMIT, HW_P0 + HW_P1 * mu - HW_P2 * mu * mu)
 
 
-## The most a size of `raw` game px can be drawn at once SystemView holds it in
-## 2 px blocks (`SystemView._held`): the nearest block, or one up to HOLD_PX
-## above it still held from a nearer zoom, and never under `least`.
+## Largest drawn size while `SystemView` holds sizes in 2 px blocks, never under `least`.
 static func held_most(raw: float, least: float) -> float:
 	return maxf(maxf(roundf(raw / 2.0) * 2.0, floorf((raw + HOLD_PX) / 2.0) * 2.0), ceilf(least / 2.0) * 2.0)
 
 
-## THE ZOOM A SYSTEM OPENS AT for its edge: `SystemMapScreen._fit_zoom`, with
-## the frame it is fitted to before the screen is laid out. A wide pair opens
-## nearer, on its own part (`pair_box`), and is wheeled out to this.
+## Mirrors `SystemMapScreen._fit_zoom` before layout. A wide pair opens nearer, on `pair_box`.
 static func open_zoom(edge: float) -> float:
 	return clampf(minf(FIT_FRAME.x / (2.0 * (edge + 20.0)), FIT_FRAME.y / (2.0 * (edge + 20.0) * SLANT + 60.0)), ZOOM_FLOOR, 1.0)
 
 
-## THE PAIR'S OWN PART OF A WIDE BINARY (Jon, Nov 1, "gap:A"), which its map
-## opens framed on (`SystemMapScreen.open_view`): the two suns and the worlds
-## that circle one of them, each world by its whole orbit and reach. Fitted to
-## the whole system, a wide pair's world round one sun was drawn as little as
-## 5 px from its sun's disc (seed 7, the binary-gap prototype); framed on the
-## pair, 28 to 45 px (the wide pairs of seeds 7, 4242 and 1999). On the
-## plane (x across, y deep), star A at the origin: centred on the middle of the
-## suns' discs and those orbits, and reaching from there PAIR_SUN_PAD past each
-## sun's disc and past every such orbit, and PAIR_PAD more all round. Empty for one sun and for a close pair, which
-## nothing circles one sun of: they open on their whole system as they did.
-## AT MAP TIME t: the pair turns (ruling 23), so the box is the pair as it
-## stands then; at t 0 it is the box the binary-gap sheet measured.
+## A wide pair opens framed on its own part (Jon, Nov 1): fitted to all, worlds sat 5 px off a sun.
+## Framed on the pair they sit 28 to 45 px off. Empty for one sun and for a close pair.
+## Why: docs/why/SystemLayout.md#pair-box
 func pair_box(t: float) -> Rect2:
 	if not twin or close:
 		return Rect2()
@@ -564,7 +394,7 @@ const PAIR_PAD := 30.0
 
 
 ## A sun's drawn radius on screen (game px) at zoom z: the floor the map eases
-## it up to (`SystemView._star_k_raw`, every style but LEGACY).
+## it up to (`SystemView._star_k_raw`, every style).
 static func sun_drawn(r: float, z: float) -> float:
 	return sqrt(pow(r * z, 2.0) + SUN_FLOOR * SUN_FLOOR)
 
@@ -574,10 +404,7 @@ static func world_drawn(b: Body, z: float) -> float:
 	return maxf(maxf(b.r, WORLD_MIN_R) * z, WORLD_FLOOR)
 
 
-## WHETHER A BINARY IS A CLOSE PAIR (Jon, Nov 1, "share:A": one in three), off
-## its own stream, `Rng.derive(&"binary_kind", index)`, so nothing else a system
-## rolls moves: a wide pair is drawn as it always was. Only asked of a system
-## with two suns.
+## One in three, off its own stream so nothing else a system rolls moves (Jon, Nov 1).
 static func is_close(n: MapGen.MapNode) -> bool:
 	var force := _close_force()
 	if force != 0:
@@ -585,10 +412,7 @@ static func is_close(n: MapGen.MapNode) -> bool:
 	return Rng.derive(&"binary_kind", n.index).randf() < CLOSE_SHARE
 
 
-## (a harness's switch, as `MapGen.twin_force` is: `-- twin=close` makes every
-## binary a close pair and `twin=wide` every one wide, each with every system
-## that may have two suns given them; a harness can set it itself, 1 close, -1
-## wide, 0 as the command line says)
+## Harness switch: `-- twin=close` or `twin=wide`; 1 close, -1 wide, 0 follows the command line.
 static var close_force := 0
 
 
@@ -632,11 +456,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 
 	# what each option wants to sit on
 	var want: Array = []
-	# WHERE THE TEXT SAYS IT IS (an option's `site`, `OptionTable`): an event
-	# whose text has the giant filling the sky sits on the giant, one in a red
-	# or blue star's glare on the star itself -- not on a belt LOCAL draws as
-	# rocks. Only where the system has that giant or that star; otherwise it
-	# takes its place by its tags, as every other option does.
+	# An event whose text has the giant in the sky sits on the giant, a red-star glare on the star.
 	var on_giant: Array[int] = []
 	var giant_here := n.gas_giant and L.star != StarKind.PULSAR
 	var hot_star := L.star == StarKind.RED or L.star == StarKind.BLUE
@@ -668,11 +488,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			k = &"belt"
 		want.append([i, k])
 
-	# the order out from the star. FEW BODIES ARE FINE (Jon: "1, 2, or 3 is fine.
-	# I like the diversity and scarcity"; "sometimes two planets or three planets
-	# is fine, too"): options that want a world share one about half the time,
-	# so one planet can hold two or three encounters, and the planet that is
-	# always there is only added when no option brought one
+	# Few bodies are fine (Jon): options share a world half the time, the planet only if none.
 	var order: Array = []
 	if n.type == MapGen.NodeType.STATION:
 		order.append({"kind": &"station", "r": 4.0})
@@ -683,12 +499,9 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			order.append({"kind": w[1], "opt": w[0], "r": 3.0 if w[1] == &"derelict" else 0.0})
 	if not order.any(func(o): return o.kind == &"planet"):
 		order.insert(0, {"kind": &"planet"})
-	# A WORLD ROUND EACH SUN, always (ruling 20: the flight from one to the
-	# other is why a twin is there): its first two planets go round its two
-	# stars, so where the options bring one a bare second goes in beside it.
-	# A CLOSE PAIR GETS IT TOO, round both: the binary-kinds sheet's numbers that
-	# Jon picked on were measured with it (43 of seed 7's 55 with a world in the
-	# middle band; 35 without it), and it keeps R's draws as a wide pair's
+	# A world round each sun, always: the flight between them is why a twin exists.
+	# Close pairs get it too: the sheet's numbers were measured with it (43 vs 35 of 55).
+	# Why: docs/why/SystemLayout.md#twin-worlds
 	if L.twin and order.filter(func(o): return o.kind == &"planet").size() < 2:
 		for k in order.size():
 			if order[k].kind == &"planet":
@@ -755,22 +568,12 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 
 	# what each world is
 	_worlds(L, n, R)
-	# ORBITS, spread out from clear of the star, each at least as far from the
-	# last as the two bodies on them are wide. The mockup spread them evenly and
-	# sized the bodies afterwards, so a ringed giant beside a large world could
-	# overlap it -- by 24 px at worst, measured by `-- systemtest`.
-	# The first orbit is far enough out that a world at the front of it, seen at
-	# the map's slant, sits clear of the star's disc (Jon: "the first planet of a
-	# system is always SUPER CLOSE to the sun"). Each body then takes its own
-	# slot between there and `HI`, spaced by ratio as real systems are, and
-	# lands anywhere in it, so the first is not always on the inner edge.
+	# Orbits at least as far apart as their bodies are wide: even spacing overlapped by 24 px.
+	# First orbit clear of the star at the map's slant (Jon), then spaced by ratio.
+	# Why: docs/why/SystemLayout.md#orbit-spacing
 	var lo := L.star_r + (62.0 if L.star == StarKind.RED else (84.0 if L.star == StarKind.CORE else 46.0))
 	lo = maxf(lo, (L.star_r + CLEAR) / SLANT)
-	# OUT IN PROPORTION TO THE WIDER SYSTEM (Jon: "planets don't have to be so
-	# hella close to their star"): the first orbit was set when the system
-	# reached 300; at 900 it sat at a ninth of it. Now a quarter and more (more
-	# again round a red giant or the core), and every world's ring kept clear of
-	# the star's close-orbit ring
+	# First orbit scaled to the wider system (Jon): at 900 it sat at a ninth, now a quarter.
 	lo = maxf(lo, HI * (0.32 if L.star == StarKind.RED or L.star == StarKind.CORE else 0.27))
 	var star_ring := L.star_ring_of(-1)
 	var sysname := MapGen.star_name(n)
@@ -787,18 +590,14 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		if b.world != &"":
 			want_at = maxf(want_at, star_ring + soi_of(b) + RING_GAP)
 		b.orbit = want_at
-		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + R.randf() * 0.1)
+		b.period = kepler_s() * pow(b.orbit / 100.0, 1.5) * (0.95 + R.randf() * 0.1)
 		b.phase = R.randf() * TAU
 		b.name = "%s %s" % [short, ROMAN[mini(i, ROMAN.size() - 1)]]
 		last = b.orbit
 		last_reach = reach
 	L.edge = maxf(HI, last + last_reach) + 30.0
 	L.fit_zoom = open_zoom(L.edge)
-	# A SIGNED CONTRACT'S WORK, each on a place of its own past every orbit
-	# (`Contracts.post_goal`): a hunt's target is a contact, a fetch's pickup a
-	# world. Drawn off its own stream and added after the system's own bodies,
-	# like the Hellbender below, so the worlds you saw before you signed are
-	# the worlds you see after.
+	# Job targets are added last on their own stream, so worlds seen before signing do not move.
 	for k in jobs.size():
 		var jr := Rng.derive(&"job_place", n.index * 8 + k)
 		var jb := _job_body(L, n, jobs[k], jr)
@@ -806,7 +605,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		if jb.world != &"":
 			at += soi_of(jb)
 		jb.orbit = at
-		jb.period = 800.0 * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
+		jb.period = kepler_s() * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
 		jb.phase = jr.randf() * TAU
 		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
 		L.bodies.append(jb)
@@ -818,7 +617,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	if hellbender_here(n):
 		var hb := _hellbender_body(L, n)
 		hb.orbit = maxf(HI, last + last_reach) + reach_of(hb) + GAP + 24.0
-		hb.period = 800.0 * pow(hb.orbit / 100.0, 1.5)
+		hb.period = kepler_s() * pow(hb.orbit / 100.0, 1.5)
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
@@ -832,9 +631,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	return L
 
 
-## WHAT EACH WORLD IS: its painter's world and size by its zone, and the dent it
-## makes in the fabric. Its zone is set first, by index round one star, by
-## distance from the light round two (`_twin`).
+## Zone is set first: by index round one star, by distance from the light round two.
 static func _worlds(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator) -> void:
 	for b in L.bodies:
 		b.seed = n.index * 31 + b.index * 7 + 1
@@ -921,10 +718,7 @@ static func _hellbender_body(L: SystemLayout, n: MapGen.MapNode) -> Body:
 	return hb
 
 
-## A GIANT'S WEIGHT (ruling 20: "1/4 - 1/10 ... purely because it's more fun"),
-## in every system with one, one sun or two: rolled off a stream of its own, so
-## nothing else a layout rolls moves, and kept off `mass` and `soi`, so no orbit
-## moves either.
+## Weight rolled on its own stream and kept off `mass` and `soi`, so no orbit moves.
 static func _weigh_giant(L: SystemLayout, n: MapGen.MapNode) -> void:
 	for b in L.bodies:
 		if b.kind == &"giant":
@@ -932,25 +726,44 @@ static func _weigh_giant(L: SystemLayout, n: MapGen.MapNode) -> void:
 			b.gm = b.gm_frac * GM_SHIP
 
 
-## THE PAIR'S SPEED (ruling 23, Jon, Nov 1, "speed:A"): four times the game's
-## own Kepler rate (`GM_KEPLER`: 800 s a lap at 100 px with the whole mass, as
-## the worlds go). A wide pair laps in 19 to 25 minutes of map time and a close
-## pair in 6 to 7; at Kepler (77 to 99 and 25 to 30 minutes) nobody would see it
-## move in a visit. The worlds round one sun go four times faster too, so each
-## still laps its sun 5.4 to 7.6 times a lap of the pair, as a steady world
-## round one sun of a real binary does (any speed-up of the pair alone past
-## about x1.1 breaks that rule). Worlds round both, giants and map time itself
-## keep their speed.
+## Four times Kepler (ruling 23, Jon, Nov 1): at Kepler nobody would see the pair move in a visit.
+## Worlds round one sun speed up too to keep steady laps. Worlds round both and map time do not.
+## Why: docs/why/SystemLayout.md#pair-speed
 const PAIR_K := 4.0
 ## (a harness's switch, `-- pair=K`: K times Kepler, 0 holding the pair still
 ## as before ruling 23; -1 means PAIR_K, or the command line's)
 static var pair_k := -1.0
 
+## THE WORLDS' PACE (Jon, Nov 4-5, "3D"): every body's period and the pair's turn go WORLD_PACE times
+## the old Kepler rate. Not the map's clock, comets or the ship's parked orbit. A game constant
+## every peer must share (`NetSession.PROTOCOL` 17).
+## Why: docs/why/SystemLayout.md#world-pace
+const WORLD_PACE := 4.0
+## (a harness's switch, `-- worldpace=K`; -1 means WORLD_PACE, or the command
+## line's)
+static var world_k := -1.0
 
-## The pair's speed as a multiple of Kepler: `pair_k` if a harness set it, else
-## the command line's `pair=K`, else PAIR_K. NOT DisplaySettings' reduced
-## motion: the pair's angle feeds flights, saves and co-op, so a setting one
-## player has on cannot change it (the review of the plan, Nov 1).
+
+## The worlds' pace: `world_k` if a harness set it, else the command line's
+## `worldpace=K`, else WORLD_PACE.
+static func world_pace() -> float:
+	if world_k > 0.0:
+		return world_k
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("worldpace="):
+			world_k = maxf(float((a as String).substr(10)), 0.01)
+			return world_k
+	world_k = WORLD_PACE
+	return world_k
+
+
+## SECONDS A LAP AT 100 px round the whole mass (Kepler's law sets the rest):
+## 800 at a pace of 1, as the game always had it, over the worlds' pace.
+static func kepler_s() -> float:
+	return 800.0 / world_pace()
+
+
+## Not DisplaySettings' reduced motion: the pair's angle feeds flights, saves and co-op.
 static func pair_speed() -> float:
 	if pair_k >= 0.0:
 		return pair_k
@@ -962,14 +775,9 @@ static func pair_speed() -> float:
 	return pair_k
 
 
-## THE PAIR TURNS (ruling 23): its rate (`pair_n`), angle at t = 0 and star
-## A's distance from the balance point, and each world round one sun carried
-## round with its sun (`Body.hc` .. `hph`) at `pair_speed` times its own Kepler
-## rate. A pair turns as one rigid thing, so every distance from a sun to its
-## world, from the balance point to anything, and between the suns is the same
-## at every t: the steady zones, ladders, keep-outs, rails and rings laid out
-## at t = 0 hold at every angle. Laid last, once the layout is done; a harness
-## that builds a pair by hand calls it too. One sun: nothing.
+## The pair turns as one rigid thing, so the t = 0 distances, ladders and rings hold at every t.
+## Laid last, once the layout is done.
+## Why: docs/why/SystemLayout.md#pair-turning
 static func spin_pair(L: SystemLayout) -> void:
 	if not L.twin or L.sep <= 0.0:
 		return
@@ -979,7 +787,7 @@ static func spin_pair(L: SystemLayout) -> void:
 	var k := pair_speed()
 	if k <= 0.0:
 		return
-	L.pair_n = TAU / (800.0 * pow(L.sep / 100.0, 1.5)) * k
+	L.pair_n = TAU / (kepler_s() * pow(L.sep / 100.0, 1.5)) * k
 	for b in L.bodies:
 		if not is_star(b.host_id):
 			continue
@@ -993,47 +801,9 @@ static func spin_pair(L: SystemLayout) -> void:
 			b.period /= k
 
 
-## A WIDE PAIR, two binaries in three (ruling 20, Oct 30: "Prototype: twin:A";
-## the close pair is `_close`). Star A stays at the origin;
-## star B `sep` from it at `star2_at0`, a little smaller (as laid out, at map
-## time 0: the pair then turns round its balance point, `spin_pair`). The first two
-## planets go round one star each (S-type), inside the farthest steady orbit round
-## it, at 0.70 to 0.90 of it. Everything else -- the giant, the belt, any further
-## world, a contact, a signed job, the Hellbender -- goes round both (P-type),
-## past the nearest steady orbit round the pair, circling the balance point. So
-## index order is not radial order here: there are three centres.
-##
-## FITTED TO THE MAP AT ITS OPENING ZOOM (`fit_zoom`). A world round one star is
-## 65 to 110 px from it and the whole system 1,000 to 1,400 px across the frame's
-## half, so the map opens at about a quarter zoom, where a sun is drawn at its 10
-## px floor (40 plane px, against its own 16) and a world at 5. So each star's
-## keep-out sits RING_OUT outside its drawn sun, its close orbit and ring just
-## past that (`_twin_ladder`), each world's ring RING_CLEAR outside the star's,
-## and each world stands SIDE_GAP clear of its sun's disc beside it as drawn.
-## Where a pair's worlds would not fit, the stars move further apart; that moves
-## the edge and so the opening zoom, so the two are solved together
-## (`_twin_edge_most`, `_twin_fit`).
-## A SIGNED JOB OR THE HELLBENDER out past the edge opens the map further out
-## than `fit_zoom` while it is there, and the suns are drawn wider on the plane
-## than the rings were fitted to: by up to about 10 px with a fetch's world out
-## (systemtest measures it). Fitting to that instead cannot be done: the fit is
-## a fixed point (the worlds need about 19 / zoom px from their sun, and the zoom
-## falls as the pair spreads) whose slope is about 0.82, so the 271 px that a
-## fetch, a hunt and the Hellbender can add came back about five times over, and
-## in a model of 1,633 twins 98% of pairs went past 380 px apart and the median
-## opening zoom fell from 0.26 to 0.13 (layout review, Oct 30). So the keep-out
-## stays the layout's (`keep_clear_of`), and nothing moves when they come.
-## IN FRONT OF ITS SUN, at its orbit's near point, a world round one star cannot
-## clear the drawn disc at the opening zoom, for any numbers: it is a z SLANT
-## below the sun there, and with anything round both the edge is at least 2.8
-## times the separation while a is at most 0.30 of it, so that is at most 13
-## game px against the sun's 10 and the world's 5. It passes over the sun's lower
-## edge (systemtest measures it: 5.6 to 10 game px of overlap as drawn in 2 px
-## blocks, 4 to 8 of the true sizes) and clears it from a zoom of about 0.6.
-##
-## Draws: the "twin" stream for the pair (its first draw is MapGen's, whether
-## there are two suns at all), then R in a twin's own order -- the orbits' three
-## draws a body first, since where a body is decides its zone, then its world.
+## Fitted to the opening zoom, and solved with the edge as stars move apart to fit worlds.
+## Fitting to jobs or the Hellbender cannot converge (slope 0.82), so the keep-out stays fixed.
+## Why: docs/why/SystemLayout.md#wide-pair
 static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, jobs: Array[int]) -> void:
 	var tw := Rng.derive(&"twin", n.index)
 	tw.randf()
@@ -1065,14 +835,8 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 			outer.append(i)
 	var lim_a := s_limit(1.0 - L.star_share)
 	var lim_b := s_limit(L.star_share)
-	# THE SEPARATION, as rolled or as far apart as the worlds round each star
-	# need: never shrunk, and moving it out moves the opening zoom (smaller, so
-	# a sun's floor is wider on the plane). Near the answer each step of going
-	# out by what the worlds need closes only 7 to 9% of the distance left, and
-	# the first fit's 32 such steps ran out short in about half the spread pairs,
-	# its rings fitted to the step before (layout review, Oct 30). So it is
-	# bisected: from a separation that fits, halved toward the rolled one 48
-	# times, and everything below is fitted to the one it ends on.
+	# Separation is bisected: stepping out closed only 7 to 9% of the gap and left rings misfit.
+	# Why: docs/why/SystemLayout.md#wide-pair
 	var sep := sep0
 	if not _twin_fits(L, sep, lim_a, lim_b, outer, jit):
 		var lo := sep0
@@ -1104,9 +868,7 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	L._keep = {-1: lad_a[0], STAR_B: lad_b[0]}
 	L._rail = {-1: lad_a[1], STAR_B: lad_b[1]}
 	L._ring = {-1: lad_a[2], STAR_B: lad_b[2]}
-	# round one star each, where in the steady zone it rolled, or as far out as
-	# its ring and its drawn disc need (the separation was found so that is
-	# inside the steady limit, which is the rule)
+	# One star each, in the steady zone it rolled, or as far out as its ring and disc need.
 	var wa := L.bodies[sa]
 	wa.host0 = Vector2.ZERO
 	wa.host_id = -1
@@ -1122,13 +884,11 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 		b.host0 = L.bary
 		b.host_id = -9
 		b.orbit = po[k]
-	# KEPLER ROUND WHAT IT CIRCLES: a world round one star goes round as its
-	# share of the mass pulls it, slower (the period formula has the whole mass
-	# as 1); a world round both, as round a lone star
+	# Kepler round what it circles: a world round one star feels only its share of the mass.
 	for i in N:
 		var b := L.bodies[i]
 		var m := 1.0 if b.host_id == -9 else (L.star_share if b.host_id == -1 else 1.0 - L.star_share)
-		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m) * (0.95 + pj[i] * 0.1)
+		b.period = kepler_s() * pow(b.orbit / 100.0, 1.5) / sqrt(m) * (0.95 + pj[i] * 0.1)
 		b.phase = ph[i] * TAU
 	for b in L.bodies:
 		b.zone = L.zone_of(b)
@@ -1143,17 +903,11 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	_past_the_edge(L, n, jobs, short)
 
 
-## THE EDGE OF A BINARY, and the jobs and the Hellbender past it, round both
-## suns: by how far each body reaches from its own centre, not the last one's
-## orbit, and never nearer than `least` (a close pair's room to arrive in,
-## `_close`). Then each world's ring (S_RING round one sun of a wide pair).
+## Edge of a binary: by each body's reach from its own centre, never under `least`.
 static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String, least := 0.0) -> void:
 	var far := 0.0
 	var ext := 0.0
-	# (from star A's place at t 0, the origin: a world round one sun of a turning
-	# pair reaches further from the origin half a lap on, but never past the
-	# worlds round both, so the edge holds at every angle; `ext`, from the
-	# balance point, is the same at every angle)
+	# Measured from star A's origin: the edge holds at every angle of the turning pair.
 	for b in L.bodies:
 		far = maxf(far, b.host0.length() + b.orbit + reach_of(b))
 		ext = maxf(ext, b.host0.distance_to(L.bary) + b.orbit + reach_of(b))
@@ -1167,7 +921,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		jb.orbit = at
 		jb.host0 = L.bary
 		jb.host_id = -9
-		jb.period = 800.0 * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
+		jb.period = kepler_s() * pow(jb.orbit / 100.0, 1.5) * (0.95 + jr.randf() * 0.1)
 		jb.phase = jr.randf() * TAU
 		jb.name = "%s %s" % [short, ROMAN[mini(jb.index, ROMAN.size() - 1)]]
 		L.bodies.append(jb)
@@ -1178,7 +932,7 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		hb.orbit = maxf(HI, ext) + reach_of(hb) + GAP + 24.0
 		hb.host0 = L.bary
 		hb.host_id = -9
-		hb.period = 800.0 * pow(hb.orbit / 100.0, 1.5)
+		hb.period = kepler_s() * pow(hb.orbit / 100.0, 1.5)
 		hb.phase = float(Rng.derive(&"hellbender_place", n.index).randf()) * TAU
 		hb.name = "%s %s" % [short, ROMAN[mini(hb.index, ROMAN.size() - 1)]]
 		L.bodies.append(hb)
@@ -1186,12 +940,9 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 	for b in L.bodies:
 		if b.world != &"":
 			b.soi = S_RING if is_star(b.host_id) else soi_of(b)
-	# A CLOSE PAIR'S ROOM TO ARRIVE IN (`_close`) past what was put out here too:
-	# `least` counts only the bodies laid out before the jobs and the Hellbender,
-	# so with the Hellbender out past them the edge stopped short of a circle
-	# clear of it, and a ship jumping in was put inside the first world beside
-	# the suns (seed 1999's THETA ABYSSAL MINOR, every system two suns, once
-	# stations were halved on Nov 3: at 322 px, where the clear circle is 1000)
+	# Room to arrive counts the jobs and Hellbender too, or a jump landed inside a world.
+	# Seen at seed 1999 THETA ABYSSAL MINOR: edge at 322 px where the clear circle is 1000.
+	# Why: docs/why/SystemLayout.md#close-pair
 	if least > 0.0:
 		var arrive := 0.0
 		for b in L.bodies:
@@ -1199,35 +950,9 @@ static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int],
 		L.edge = maxf(L.edge, L.bary.length() + arrive + ARRIVE_IN + GAP)
 
 
-## A CLOSE PAIR (Jon, Nov 1, "Binary kinds: close:B"). Star A at the origin
-## and star B `sep` from it at map time 0, 150 to 170 px (`CLOSE_SEP_LO`),
-## a little smaller, as in a wide pair. Every body goes round both (P-type),
-## circling the balance point past the nearest steady orbit round the pair, and
-## none round one sun: round one, the steady orbits end 43 to 51 px out, inside
-## its close orbit's ring. The real close pairs Kepler-16 and Kepler-47 have
-## this shape, planets round both suns.
-##
-## LAID OUT AS ROUND ONE SUN (`of`'s rules): by ratio from that first steady
-## orbit (`p_limit`, P_MARGIN past it; never nearer than a one-sun system's
-## first, which it always is past) out to HI, each body at least as far from the
-## last as the two could be wide (`_reach_most`: their worlds are rolled after,
-## by their light), and each world's ring RING_GAP clear of both suns' close-
-## orbit rings. Zones by light (`zone_of`), as a wide pair's: the middle band is
-## about 490 to 830 px out, so the first body is hot in all but 2 of seed 7's 55
-## close pairs and 43 of them have a planet in the middle band, where a city, a
-## green world or an ocean can be. THE COST (the sheet's): the bodies are packed
-## between about 440 and 900 px, not 243 to 900, so a world's ring holds a
-## neighbour about twice as often as round one sun; the bodies never meet.
-##
-## Each sun keeps its keep-out, close orbit and ring, a wide pair's ladder
-## (`_twin_ladder`) at the zoom this layout is fitted to (`fit_zoom`), which
-## takes in the room past the worlds a ship arrives in: at 150 px apart the two
-## keep-outs, and each sun's close orbit and the other's keep-out, are 62 px or
-## more apart.
-##
-## Draws: `_twin`'s, in its order: the "twin" stream's share, separation, side
-## and turn; R's three a body (where in its slot, its period's jitter, its
-## phase); then its world.
+## Every body goes round both: round one sun the steady orbits end inside its close-orbit ring.
+## Packed 440 to 900 px, a ring holds a neighbour twice as often. Bodies never meet.
+## Why: docs/why/SystemLayout.md#close-pair
 static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, jobs: Array[int]) -> void:
 	var tw := Rng.derive(&"twin", n.index)
 	tw.randf()
@@ -1270,7 +995,7 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 		b.host0 = L.bary
 		b.host_id = -9
 		b.orbit = want
-		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + pj[i] * 0.1)
+		b.period = kepler_s() * pow(b.orbit / 100.0, 1.5) * (0.95 + pj[i] * 0.1)
 		b.phase = ph[i] * TAU
 		last = want
 		last_reach = reach
@@ -1278,15 +1003,9 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 	for b in L.bodies:
 		b.zone = L.zone_of(b)
 	_worlds(L, n, R)
-	# ROOM PAST THE WORLDS FOR A SHIP TO ARRIVE IN (`ShipFlight.arrival_r`): the
-	# edge out far enough that a circle round both suns clears every world's
-	# ring inside it (`arrive_reach`). Packed from about 440 px, a close pair's
-	# rings left no clear circle out there in 53 of the 56 close pairs of seeds
-	# 7, 4242 and 1999, and in 43 a ship jumping in was put inside the first
-	# world beside the suns, at 0.30 to 0.43 of the edge, where one sun's arrive
-	# at 0.98 (the built stills, Nov 2). It costs those 53 some opening zoom, a
-	# median 5% further out and 12% at the most: as the map opens the two suns
-	# stand 17 to 34 game px apart edge to edge (20 to 36 before; TwinSiteTest)
+	# Room past the worlds for a ship to arrive: 53 of 56 close pairs had no clear circle.
+	# Costs a median 5% opening zoom, 12% at most (built stills, Nov 2).
+	# Why: docs/why/SystemLayout.md#close-pair
 	var arrive := 0.0
 	for b in L.bodies:
 		if b.world != &"":
@@ -1309,11 +1028,7 @@ static func _close(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator,
 	_past_the_edge(L, n, jobs, short, least_edge)
 
 
-## HOW FAR A SHIP ARRIVING ON A CIRCLE ROUND THE STAR (or a pair's balance
-## point) KEEPS ITS CIRCLE FROM BODY b's ORBIT (`ShipFlight.arrival_r`): a
-## world's ring ARRIVE_RING_K over, a station's, belt's, hulk's or contact's
-## alongside reach (`ShipFlight.KEEP_R`) as the slant stretches it, and
-## ARRIVE_PAD past either; nothing else has a reach.
+## How far an arrival circle keeps from body b's orbit (`ShipFlight.arrival_r`), plus ARRIVE_PAD.
 static func arrive_reach(b: Body) -> float:
 	if b.world != &"":
 		return b.soi * ARRIVE_RING_K + ARRIVE_PAD
@@ -1322,9 +1037,7 @@ static func arrive_reach(b: Body) -> float:
 	return 0.0
 
 
-## (`arrive_reach`'s numbers; ALONGSIDE is `ShipFlight.KEEP_R`, how close a ship
-## sits alongside, as seen; ARRIVE_IN how far inside the edge an arrival's
-## circle stays at its furthest)
+## `arrive_reach`'s numbers: ALONGSIDE is `ShipFlight.KEEP_R`, ARRIVE_IN is the circle's inset.
 const ARRIVE_RING_K := 1.3
 const ARRIVE_PAD := 10.0
 const ALONGSIDE := 22.0
@@ -1339,15 +1052,8 @@ static func _soi_most(b: Body) -> float:
 	return soi_of(most)
 
 
-## The orbits round both stars, in index order: spread by ratio from just past
-## the nearest steady one, each at least as far from the last as the two bodies
-## could be wide (`_reach_most`: the spacing is fixed before the worlds are
-## rolled, so it cannot depend on them). As round one sun, the bodies are kept
-## apart, not their rings: a giant's 131 px ring holds its neighbours round both
-## far more often than round one sun, where the orbits spread 3.7 times from the
-## first (systemtest prints how often). Keeping every body out of the giant's
-## ring cost, in a model of 1,633 twins, the least opening zoom 0.229 to 0.145
-## and pushed 9% of pairs past 380 px apart (layout review, Oct 30).
+## Bodies are kept apart, not their rings: a giant's ring would cost opening zoom 0.229 to 0.145.
+## Why: docs/why/SystemLayout.md#orbits-round-both
 static func _p_orbits(L: SystemLayout, sep: float, outer: Array[int], jit: PackedFloat64Array) -> PackedFloat64Array:
 	var lo := p_limit(1.0 - L.star_share) * P_MARGIN * sep
 	var hi := lo * P_SPREAD
@@ -1378,13 +1084,8 @@ static func _reach_most(b: Body) -> float:
 	return reach_of(b)
 
 
-## How far out a twin reaches from star A at the most, for separation `sep`,
-## with every world as big as it can be: its opening zoom can then only be this
-## or nearer, and nearer only clears the suns more. Not the Hellbender's place
-## or a signed job's: they come and go, and must move nothing when they do
-## (systemtest, contracttest), and room kept for them always cannot be had (see
-## `_twin`), so while one is out past the edge the map opens further out than
-## the layout's `fit_zoom` and the suns are drawn wider than it.
+## Leaves out the Hellbender and signed jobs: they come and go and must move nothing.
+## Why: docs/why/SystemLayout.md#wide-pair
 static func _twin_edge_most(L: SystemLayout, sep: float, lim_a: float, lim_b: float, outer: Array[int], jit: PackedFloat64Array) -> float:
 	var bary_r := (1.0 - L.star_share) * sep
 	var ext := maxf(bary_r + S_HI * lim_a * sep, L.star_share * sep + S_HI * lim_b * sep) + S_WORLD_MOST
@@ -1394,31 +1095,20 @@ static func _twin_edge_most(L: SystemLayout, sep: float, lim_a: float, lim_b: fl
 	return maxf(HI, bary_r + ext) + 30.0
 
 
-## A twin star's keep-out, close orbit and ring at zoom z: RING_OUT outside its
-## drawn sun and at least TWIN_KEEP past its surface, then TWIN_RIDE and
-## TWIN_TAKE further out. (64-bit: a Vector3's 32-bit parts rounded the keep-out
-## under the drawn sun + 6 it is measured against.)
+## Keep-out, close orbit and ring at zoom z. 64-bit: a Vector3's 32-bit parts rounded the keep-out.
 static func _twin_ladder(r: float, z: float) -> PackedFloat64Array:
 	var keep := maxf(r + TWIN_KEEP, sun_drawn(r, z) / z + RING_OUT)
 	return PackedFloat64Array([keep, keep + TWIN_RIDE, keep + TWIN_RIDE + TWIN_TAKE])
 
 
-## The least orbit a world round a star of radius r needs at zoom z: its ring
-## clear of the star's, and its disc clear of the drawn sun beside it
-## (`_side_need`).
+## Least orbit for a world: its ring clear of the star's, its disc clear of the drawn sun.
 static func _s_need(r: float, z: float) -> float:
 	return maxf(_twin_ladder(r, z)[2] + RING_CLEAR + S_RING, _side_need(r, z))
 
 
-## The least orbit that keeps a world SIDE_GAP clear of its sun beside it, both
-## at the most SystemView draws them (`held_most`), at zoom z AND at every
-## nearer zoom, since the map can open nearer than the layout was fitted to.
-## The world's distance grows with the zoom but the held sun steps up 2 px at
-## a time: just past z its next step can take back what the zoom gave (fitted at
-## a sun of 10.58 game px, held at 10, a twin opened at a sun past 10.6, held at
-## 12, and its world stood 1.8 game px off). Past that step the next ones come
-## too far apart to matter (`_side_need` takes the first only: a sun of r 16
-## steps again at 0.48 zoom, needing half the orbit).
+## Checked at z and every nearer zoom: the held sun steps up 2 px and can take back the gap.
+## Only the first step matters, later ones come too far apart.
+## Why: docs/why/SystemLayout.md#twin-side-gap
 static func _side_need(r: float, z: float) -> float:
 	var raw := sun_drawn(r, z)
 	var worst := (held_most(raw, SUN_LEAST) + _disc_most(z) + SIDE_GAP) / z
@@ -1449,11 +1139,7 @@ static func _twin_fits(L: SystemLayout, sep: float, lim_a: float, lim_b: float, 
 	return fit[1] <= S_HI * lim_a * sep and fit[2] <= S_HI * lim_b * sep
 
 
-## HOW FAR FROM THE LIGHT a body is: the distance from a lone sun that would
-## give it the light it gets here, averaged round its orbit (round a circle of
-## radius a, 1/d^2 from a star c from its centre averages 1/|c^2 - a^2|). Star A
-## is as bright as a lone sun, star B as its drawn area of one. One star: the
-## orbit.
+## Distance from a lone sun giving the same light, averaged round the orbit. B counts by area.
 func light_distance(b: Body) -> float:
 	var flux := 0.0
 	for p in stars():
@@ -1560,13 +1246,9 @@ func dock_place() -> int:
 	return -2
 
 
-## THE BODIES IN THE ORDER OF THEIR NAMES (I, II, III ...): the panel's
-## SATELLITES list (Jon, Nov 1, "list:C"). Round one sun every body is named by
-## its index (`ROMAN[i]`), so this is the order they were made in and nothing
-## there moves. In a binary they are named out from the suns (star A's world,
-## star B's world, then those round both, `_twin`), not in the order they were
-## made: SIGMA KESTREL PRIME on seed 7 read III, IV, I, V, II, VI. By the numeral
-## each name ends in; a tie (past X, which `ROMAN` stops at) by index.
+## Binary bodies are named out from the suns, not in make order (seed 7 read III, IV, I, V, II, VI).
+## Ordered by numeral, ties by index. One-sun systems are unchanged.
+## Why: docs/why/SystemLayout.md#body-names
 func name_order() -> Array[int]:
 	var num := {}
 	for b in bodies:

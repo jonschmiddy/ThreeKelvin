@@ -1,24 +1,9 @@
 extends RefCounted
 
-## What every repair card is actually worth, and when:
-##   godot --headless --path . -- repairs
-##
-## `heal_scale` is a dial you cannot read off the data. A card printed as "heal 2"
-## that scales at 4 is worth 2 on a turn you are fine and 10 on the turn you are
-## about to die, and the whole design question — IS THIS A LIFELINE — is a
-## question about the second number, which appears nowhere in Database.gd.
-##
-## So this prints the second number. Three columns: full hull, half hull, and
-## three hull left, against the three real weight classes rather than a made-up
-## one, because a card that saves a heavy does not necessarily save a light.
-##
-## The bar it is checked against: at three hull, ONE CARD FOR AT MOST ONE ENERGY
-## should buy a turn. Anything under that is a repair card, not a lifeline, and
-## the difference is the entire reason the field exists.
+## `heal_scale` cannot be read off the data: at three hull, one card for one energy buys a turn.
+## Why: docs/why/RepairSheet.md#repair-worth
 
-## What "buys a turn" means, as a fraction of the hull you are trying to save.
-## A fifth of a hull back is roughly one enemy swing at mid danger, which is the
-## thing a lifeline has to be worth.
+## Buying a turn is a fifth of a hull, about one enemy swing at mid danger.
 const LIFELINE := 0.20
 ## The state the whole design is aimed at. Three hull and one energy.
 const DESPERATE := 3
@@ -56,9 +41,7 @@ func run() -> void:
 				var cap := int(h[1])
 				row += "   %2d/%2d/%2d" % [_at(card, cap, cap),
 					_at(card, cap, cap / 2), _at(card, cap, DESPERATE)]
-			# Copies matter to the answer: two cards that heal seven are a
-			# different lifeline from one that heals fourteen, because you have to
-			# draw both and pay twice.
+			# Copies matter: two cards healing seven differ from one healing fourteen.
 			if card.copies > 1:
 				row += "  x%d" % card.copies
 			if card.credit_cost > 0:
@@ -71,20 +54,14 @@ func run() -> void:
 			var cap_m := int(hulls[1][1])
 			var got := _at(card, cap_m, DESPERATE)
 			if card.energy <= 1 and float(got) / float(cap_m) < LIFELINE:
-				# The scaled-ness is recorded HERE, where it is known, rather
-				# than formatted into a sentence and parsed back out of it
-				# later. The first version appended a string, then split the
-				# card's name off the front of it and rescanned the whole module
-				# catalogue to recover this one boolean.
+				# Scaled-ness is recorded where known, not parsed back out of a string.
 				fails.append({
 					"line": "%s buys %d of %d at three hull" % [card.name, got, cap_m],
 					"scaled": card.heal_scale > 0,
 				})
 
 	print("")
-	# Flat healers are supposed to fail this and are not reported as failures —
-	# Calyx heals you all fight rather than saving you at the end of one, and the
-	# bar above is a bar for lifelines. See Database._seed_modules.
+	# Flat healers are not failures: Calyx heals all fight, and the bar is for lifelines.
 	var real: Array = []
 	for f in fails:
 		if bool((f as Dictionary)["scaled"]):

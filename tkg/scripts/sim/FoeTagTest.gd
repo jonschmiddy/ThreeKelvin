@@ -1,31 +1,8 @@
 extends Node
 
-## WHAT AN EVENT'S FIGHT BRINGS IS WHAT ITS TEXT SET UP, headless:
-##   godot --headless --path . -- sheet=FoeTagTest [seeds=N]
-##
-## Jon, Oct 17: a fight started from an event's choice may bring a creature,
-## "but the text leading up to the fight should make sense. Like it should
-## mention the megafauna or whales you know?" The rule is data: an option (or
-## one of its choices) carries `foe = &"whale"` / `&"leviathan"` when its text
-## is about that creature (`OptionTable.fight_foe`), and `Router.option_foe`
-## fields exactly that, or a ship off the ordinary pool when there is no tag.
-##
-## Three parts:
-##   1. THE TABLE. Every tag names a creature, sits on a fauna-gated option that
-##      can actually start a fight, and its body names that creature (a calf
-##      event says "calf", a leviathan event "leviathan"). Every untagged option
-##      that can start a fight has no creature in its body.
-##   2. THE SWEEP, over N seeded galaxies (default 24): every fight-capable
-##      choice of every option rolled at every system, asked of the same door
-##      the game asks. A creature exactly when the option is tagged, and the
-##      creature it named; a ship otherwise, fauna space included. Then the
-##      same sweep against two broken builds -- the tag dropped on the way to
-##      `option_foe`, and the old rule that took fauna from the region -- each
-##      of which must be caught, so this check is known to see the fault.
-##   3. THE DOORS. Each creature event and two ship events opened on the real
-##      LOCAL, its fight choice taken through the event band
-##      (`LocalEventDrawer.choose`, `OptionResolve.take`), and the fight that
-##      `Router.start_ambush` opens read off `Router.combat`.
+## An event's fight brings what its text set up (Jon, Oct 17). Run: `-- sheet=FoeTagTest`.
+## The sweep also runs two broken builds, which must be caught.
+## Why: docs/why/FoeTagTest.md#foe-tag-checks
 
 var _fails := 0
 var _shown := 0
@@ -81,10 +58,7 @@ func _run() -> void:
 	_tree.quit()
 
 
-## Which choices of each option can start a fight: every outcome of every
-## choice run once on a scratch ship kept alive, and the ones whose result
-## says `fight` kept. By running them, not by reading them, so a fight hidden
-## in a botched branch counts.
+## Find fight choices by running every outcome, so a fight hidden in a botched branch counts.
 func _fight_choices() -> Dictionary:
 	var out := {}
 	for o in OptionTable.all():
@@ -152,10 +126,7 @@ func _table(fights: Dictionary) -> void:
 	_ok("no ship fight follows text about a creature (%d ship events)" % ship, _fails == before)
 
 
-## Every fight-capable choice of every option a system rolled, over `seeds`
-## galaxies. `how` is the build under test: "game" asks the door the game
-## asks; "dropped" loses the tag on the way; "region" is the old rule that
-## fielded fauna wherever the region was fauna.
+## `how` picks the build: the game's door, a dropped tag, or the old region rule.
 func _bring(n: MapGen.MapNode, o: Dictionary, c: Dictionary, how: String) -> EnemyTemplate:
 	match how:
 		"dropped":
@@ -236,9 +207,7 @@ func _sweep(fights: Dictionary, seeds: int) -> void:
 	_ok("the check catches a build that takes creatures from the region (%d wrong there)" % int(tally.region), int(tally.region) > 0)
 
 
-## The real doors: LOCAL, the event band, `OptionResolve.take`, the drawer's
-## `_fight`, `Router.start_ambush`. One fight choice of each creature event,
-## and two ship events taken in fauna space.
+## The real doors: LOCAL, the band, `OptionResolve.take`, `_fight`, `Router.start_ambush`.
 func _doors() -> void:
 	var ids: Array[StringName] = []
 	for o in OptionTable.all():

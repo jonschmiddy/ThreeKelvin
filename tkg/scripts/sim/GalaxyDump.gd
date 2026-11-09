@@ -1,23 +1,7 @@
 extends Node
 
-## Every galaxy kind as data, for mocking up a new rendering of the star chart:
-##   godot --path . -- sheet=GalaxyDump out=<dir> [kinds=0,3,8]
-##   godot --path . -- sheet=GalaxyDump out=<dir> pulls   (systems at three arm pulls)
-##
-## For seed 4242 and each kind GalaxyGen can roll (forced the way ChartShot's
-## `kind=N` does it: roll the kind, regenerate the map), writes
-##   <dir>/kind_NN.json  the rolled parameters, the chart's own star field
-##                       (`_star_pos`/`_star_col`/`_star_big`, in galaxy units
-##                       where 1.0 is the disc radius, the space MapNode.gal
-##                       speaks), the turning core's particles, the clouds, the
-##                       systems with their colours and whether the chart shows
-##                       them, the ship and its two rings;
-##   <dir>/kind_NN_full.png  the chart's rect at the default view (zoom 0.42,
-##                       pan zero), systems drawn;
-##   <dir>/kind_NN_sky.png   the same with the systems hidden;
-##   <dir>/kind_NN_core_max.png  the core at the chart's closest zoom (6.0),
-##                       systems hidden.
-## Needs a window; input is switched off while it runs.
+## Dumps every galaxy kind for seed 4242 as data, for mocking up a new star chart rendering.
+## Why: docs/why/GalaxyDump.md#dump-outputs
 
 var out := "user://galaxydump"
 var only: Array = []
@@ -51,10 +35,8 @@ func _ready() -> void:
 	if "nebulae" in OS.get_cmdline_user_args():
 		_nebulae.call_deferred()
 		return
-	# `placement=pull|spread` lays the systems out that way (`MapGen.placement`),
-	# `clouds=ridge|fit` places the clouds that way (`NebulaField.placement`),
-	# `allsys` draws every system rather than the charted ones, and `lean` takes
-	# only kind_NN_full.png -- the before | after pictures for a placement.
+	# Options pick system and cloud placement;
+	# `lean` takes only the full picture for before and after.
 	for a in OS.get_cmdline_user_args():
 		var s2 := a as String
 		if s2 == "placement=pull":
@@ -72,10 +54,8 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-## `pulls`: every system of every kind (seed 4242) at three strengths of the
-## arm pull (`MapGen.arm_pull` / `arm_pull_cap`), and for each strength the
-## flyability `-- maptest` measures (its rule, 120 pinned seeds), plus the
-## widest angular gap in ring 8 of every spiral (the measure in `galaxy_pos`). Writes <dir>/pulls.json. Puts the hook back after.
+## `pulls` measures every system at three arm-pull strengths
+## with maptest's flyability and the widest ring gap.
 const PULLS := [["before", 0.75, 2.0], ["today", 0.9, 3.0], ["strongest", 1.0, 4.5]]
 
 func _pulls() -> void:
@@ -107,10 +87,9 @@ func _pulls() -> void:
 				sys.append([_r4(node.gal.x), _r4(node.gal.y), MapGen.NodeType.keys()[node.type],
 					_hex(MapGen.star_colour(node)), node.layer])
 			kinds.append({"kind": kind, "name": GalaxyGen.type_name(kind), "systems": sys})
-		# flyability, as maptest asks it: its rolls, its rule
-		# The same 120 galaxies for every setting. maptest's own `Rng.reseed`
-		# does not pin them: `start_new_run` rolls a fresh master seed unless
-		# `Rng.forced` is set, so its rolls differ run to run.
+		# The same 120 galaxies for every setting: maptest's own reseed does not pin them,
+		# as `start_new_run` rolls a fresh master seed unless `Rng.forced` is set.
+		# Why: docs/why/GalaxyDump.md#pinned-seeds
 		var fails := 0
 		var fly_total := 0
 		var flown := 0
@@ -174,13 +153,8 @@ func _pulls() -> void:
 	get_tree().quit()
 
 
-## `nebulae`: where the clouds sit, RIDGE against FIT (`NebulaField.placement`),
-## every kind forced onto the pinned seeds (90210 + i, `rolls=`, 120), plus
-## maptest's natural 120 (skip with `nonatural`). Per kind and placement: each
-## cloud's share inside the arm band (`NebulaField.arm_share`; mean, lowest, and
-## how many clouds have under half) -- the cloud put over the core is left out,
-## it sits in the bulge on purpose -- pulsars per galaxy, and unflyable / mean
-## jumps (maptest's rule). Writes <dir>/nebulae.json. Runs headless.
+## `nebulae` compares RIDGE and FIT cloud placement on pinned seeds plus maptest's natural 120.
+## Why: docs/why/GalaxyDump.md#dump-outputs
 func _nebulae() -> void:
 	await get_tree().process_frame
 	var mt = load("res://scripts/sim/MapTest.gd").new()
@@ -271,16 +245,8 @@ func _nebulae() -> void:
 	get_tree().quit()
 
 
-## `spread`: the arm pull (PULL, 0.9 / 3.0) against SPREAD (`MapGen.placement`),
-## every kind forced onto the same pinned seeds (90210 + i, `rolls=`, 120), plus
-## maptest's own natural 120. Per kind and placement: unflyable count and mean
-## jumps to the core (maptest's rule), each system's nearest neighbour on the
-## chart in ring gaps (min, 5th percentile, median, share under 0.3 -- the
-## piles), the share of systems on an arm against the share of the ring that is
-## arm, and the largest hole in the arms (the farthest a point within an arm's
-## half-width of its ridge sits from any system, in ring gaps). `floor=` / `gap=` / `width=` set SPREAD's `arm_floor` /
-## `spread_gap` / `arm_width` (here and for the pictures), and
-## `only=after` skips the PULL pass, `nonatural` maptest's natural 120. Writes <dir>/spread.json. Runs headless.
+## `spread` compares arm pull with SPREAD on pinned seeds, measuring piles and holes in the arms.
+## Why: docs/why/GalaxyDump.md#dump-outputs
 func _spread() -> void:
 	await get_tree().process_frame
 	var mt = load("res://scripts/sim/MapTest.gd").new()
@@ -451,10 +417,7 @@ func _measure(map: Array) -> Dictionary:
 				if dd <= hw:
 					hit += 1
 			area += float(hit) / 180.0
-		# THE LARGEST HOLE IN THE ARMS: points across every arm's band (within
-		# its half-width of the ridge), on every ring and halfway between rings,
-		# and the farthest any of them is from a system, in ring gaps. A pile
-		# leaves a hole beside it; an even spread along the arm does not.
+		# Largest arm hole: a pile leaves a hole beside it, an even spread along the arm does not.
 		void_len = 0.0
 		var cell := 0.06 * reach
 		var grid: Dictionary = {}

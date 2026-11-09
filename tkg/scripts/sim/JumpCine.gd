@@ -1,24 +1,8 @@
 extends RefCounted
 
-## The jump, photographed frame by frame:
-##   godot --path . -- jumpcine [seed=N]
-##
-## NEEDS A WINDOW, like every shot tool here: under `--headless` the dummy
-## display server never emits `frame_post_draw`, so nothing is captured and it
-## looks exactly like a hang.
-##
-## AND IT IS DELIBERATELY NOT CALLED `jumpshot`. `Router.animating()` returns
-## false for any argument ending in "shot", which is what keeps the screenshot
-## tools from photographing half-finished tweens -- and the whole subject here
-## IS the tweens. A shot tool cannot see this sequence by construction, so this
-## one is named out of that rule rather than fighting it.
-##
-## IT EXISTS BECAUSE A CINEMATIC IS A LAYOUT THAT MOVES. `sectorshot` proves the
-## end state and says nothing about the seven seconds before it: whether the
-## drawer is parked below the floor while the ship flies in, whether the name
-## card is still up when the hull arrives, whether anything is drawn in the band
-## the drawer will occupy. Those are questions about particular frames, and the
-## only honest way to answer them is to look at those frames.
+## Needs a window: `--headless` never emits `frame_post_draw`, so nothing is captured.
+## Not named `*shot`: `Router.animating()` is false for those, which would hide the tweens.
+## Why: docs/why/JumpCine.md#jump-cinematic
 
 const SHOTS := {
 	 0.30: "01_rev_early",
@@ -60,12 +44,8 @@ func _line(at: float, name: String) -> void:
 			   sc._view.get_global_rect().end.y, sc.get_global_rect().end.y])
 
 
-## Every jump style, as a strip of frames, straight out of the game.
-##
-## ONE STRIP PER STYLE, frames laid left to right, cropped to the hull so the
-## flare fills the picture rather than sitting in a corner of a 960x540 screen.
-## Twenty of these is something you can look at side by side and choose from;
-## twenty descriptions of light is not.
+## One strip per style, cropped to the hull, so twenty styles can be compared side by side.
+## Why: docs/why/JumpCine.md#jump-strips
 const DEMO_W := 416
 const DEMO_H := 176
 const DEMO_FRAMES := 28
@@ -73,20 +53,15 @@ const DEMO_STEP := 0.032
 
 func _demo(tree: SceneTree) -> void:
 	var sc := Router.current as SectorScreen
-	# ON THE HULL, not on the slot it floats in -- the same distinction the
-	# flare itself had to learn. `hull_rect()` is in the view's own coordinates.
-	# STRAIGHT TO THE END OF THE ARRIVAL FIRST. The first system of a run plays
-	# the whole sequence now, so without this the name card is still up across
-	# the middle of every strip.
+	# On the hull, not its slot. Skip to the arrival's
+	# end first, or the name card covers every strip.
 	sc._skip()
 	for _s in 4:
 		await tree.process_frame
 	var art0 := sc._view.ship_view()
 	var box := Rect2(art0.get_global_rect().position + art0.hull_rect().position,
 		art0.hull_rect().size)
-	# LEADING THE SHIP. It is already a hundred pixels right by the time the
-	# column fires and still accelerating, so a crop centred on where it parks
-	# photographs the space it has left.
+	# Lead the ship: it is already 100 px right and accelerating, so a centred crop misses it.
 	var lead := 0.0 if sc._view.ship_flare_melts() else ShipView.DEPART_OVER * 0.62
 	var org := Vector2i(
 		clampi(int(box.get_center().x + lead) - DEMO_W / 2,
@@ -108,9 +83,8 @@ func _demo(tree: SceneTree) -> void:
 		# Format taken from the viewport rather than assumed: `blit_rect` wants
 		# both images in the same one and a guess here is twenty silent frames.
 		var strip: Image = null
-		# THE REAL DEPARTURE, not a column over a parked ship. The hull is
-		# accelerating out from under the flare by the time it is taken, and
-		# that is most of what these are being compared on.
+		# The real departure, not a column over a parked
+		# ship: the hull is accelerating out of the flare.
 		art.depart(sc._view.ship_flare_melts())
 		var t0 := 0.0
 		while t0 < (JumpFx.HYPER_REV if sc._view.ship_flare_melts() else SectorScreen.REV_S):
@@ -143,14 +117,8 @@ func _demo(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## The hyperdrive as a film, for reviewing it WITH its sound:
-##   godot --path . -- jumpcine film
-##
-## Frames of the real departure, cropped around the hull and the spark, each
-## logged with the moment it was taken, plus the offsets the two clips start
-## at. A muxer lays the clips under the frames and makes one file to watch. A
-## strip of stills is not a review of a sound, and a sound on its own is not a
-## review of whether it lands on the picture.
+## A film with its sound: stills do not review a sound, nor a sound the picture.
+## Why: docs/why/JumpCine.md#jump-film
 const FILM_FPS := 30.0
 
 func _film(tree: SceneTree) -> void:
@@ -212,12 +180,8 @@ func _film(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## Every ending, as a strip, straight out of the game:
-##   godot --path . -- jumpcine endings
-##
-## Only the part that differs is photographed. Each run SEEKS the flare to the
-## middle of the snap rather than sitting through the charge twenty times, so a
-## strip is the hull going, the beam running, and the ending.
+## Seeks the flare to the snap's middle instead of sitting through the charge twenty times.
+## Why: docs/why/JumpCine.md#ending-strips
 const END_FRAMES := 32
 const END_STEP := 0.030
 
@@ -273,12 +237,8 @@ func _endings(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## Every bar look, as a strip, straight out of the game:
-##   godot --path . -- jumpcine bars
-##
-## From partway into the charge -- seeked there, so the whole charge is not sat
-## through twelve times -- to the end of the run, which is everywhere the bar is
-## on screen: growing on the hull, full at the snap, and running off.
+## Seeks to partway into the charge, so the whole charge is not sat through twelve times.
+## Why: docs/why/JumpCine.md#bar-strips
 const BAR_FRAMES := 44
 const BAR_STEP := 0.040
 
@@ -334,12 +294,8 @@ func _bars(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## EVERY SPOOL LOOK, as a strip of frames: the hull through the whole charge.
-##   godot --path . -- jumpcine spools
-##
-## The same harness as `bars`, started at the top of the charge instead of partway
-## in, since the looks are what the hull does as the spool STARTS. Forty frames
-## across CHARGE_S, cropped to the hull and nothing past it.
+## Started at the top of the charge, as the looks are what the hull does as the spool starts.
+## Why: docs/why/JumpCine.md#spool-strips
 const SPOOL_FRAMES := 40
 const SPOOL_STEP := 0.095
 
@@ -412,15 +368,8 @@ func _spools(tree: SceneTree, rows: Array = []) -> void:
 	tree.quit()
 
 
-## THE WHOLE JUMP, as a film with its sound:
-##   godot --path . -- jumpcine whole
-##
-## Everything between pressing JUMP and the drawer settling, through the real
-## Router path -- `begin_jump`, the departure, the commit, the swap, the name
-## card, the approach, the drawer -- captured full-frame. Every effect that
-## actually plays is taped by `Audio` with the moment it played, so the muxer
-## lays the real sounds under the frames: which arrival clip was drawn, whether
-## the screen-change tick fired, none of it assumed.
+## Real Router path, full frame, with every effect taped by `Audio` so no sound is assumed.
+## Why: docs/why/JumpCine.md#whole-jump-film
 const WHOLE_FPS := 30.0
 const WHOLE_TAIL := 1.2
 
@@ -461,18 +410,9 @@ func _whole(tree: SceneTree, to: int) -> void:
 	tree.quit()
 
 
-## THE SKIP HAS TO TAKE THE SOUND WITH IT:
-##   godot --path . -- jumpcine hush
-##
-## A real jump, skipped on the frame the warp is loudest, and then a question
-## the sound tape cannot answer: what is STILL PLAYING? `Audio.tape` records
-## what started, so a five-second warp running on over a sector that has already
-## arrived leaves no mark in it at all -- which is how this shipped.
-##
-## The voices are read directly rather than through an accessor. A harness
-## reaching into the thing it is checking is the point of a harness; adding a
-## public "what are you playing" to the mixer to serve one test would be a worse
-## trade than this line.
+## Asks what is still playing after a skip: `Audio.tape`
+## records starts only, so a lingering warp left no mark.
+## Why: docs/why/JumpCine.md#hush-test
 const HUSH_WAIT := 4.0
 const HUSH_SETTLE := 0.45
 
@@ -490,10 +430,8 @@ func _hush(tree: SceneTree, to: int) -> void:
 		await tree.process_frame
 
 	Router.begin_jump(to)
-	# WAIT FOR THE WARP ITSELF, not for a number of seconds. The charge is timed
-	# off JumpFx and the clip off the charge; a fixed delay here would be a third
-	# copy of that arithmetic, and the first one to drift would fail this test
-	# for the wrong reason.
+	# Wait for the warp itself, not a fixed delay, which
+	# would be a third copy of the timing arithmetic.
 	var t0 := Time.get_ticks_msec()
 	var heard := false
 	while float(Time.get_ticks_msec() - t0) / 1000.0 < HUSH_WAIT:
@@ -529,9 +467,7 @@ func run(tree: SceneTree) -> void:
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("seed="):
 			Rng.forced = int((a as String).substr(5))
-	# weight=heavy or weight=light to photograph another hull; medium by default.
-	# The warp line sat above the middle of a heavy, which a medium-only harness
-	# could never show.
+	# weight=heavy or light photographs another hull; the warp line sat above a heavy's middle.
 	var weight := int(HullData.Weight.MEDIUM)
 	for a in OS.get_cmdline_user_args():
 		if a == "weight=heavy":

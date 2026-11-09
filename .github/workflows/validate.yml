@@ -22,13 +22,19 @@ concurrency:
 
 jobs:
   validate:
+    name: validate (${{ matrix.part }} of 4)
     runs-on: ubuntu-latest
+    # The gate in four parts on four runners at once: 108 CPU minutes on one
+    # 4-core runner took 30 minutes of wall and was within sight of the limit.
+    # The script deals the units (GATE_PART); a failed part fails the whole.
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     # The script imposes its own per-step limits; this is the backstop for
-    # anything that hangs outside them, such as the Godot download. It was 25
-    # and the gate outgrew it: by a6976ef the steps alone took about 26 minutes
-    # on a runner (fightcounttest and packlayouttest are four each), so every
-    # push from 3e47e4d on was cancelled mid-gate rather than failed by a step.
-    timeout-minutes: 40
+    # anything that hangs outside them, such as the Godot download. A part
+    # takes about eight minutes.
+    timeout-minutes: 20
 
     env:
       # Must match what the project is developed against. Godot is strict about
@@ -67,13 +73,13 @@ jobs:
         run: ~/godot-bin/godot --headless --version
 
       - name: Validate
-        run: GODOT="$HOME/godot-bin/godot" .github/scripts/validate.sh
+        run: GODOT="$HOME/godot-bin/godot" GATE_PART="${{ matrix.part }}/4" .github/scripts/validate.sh
 
       - name: Keep the logs when it fails
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: validate-logs
+          name: validate-logs-part-${{ matrix.part }}
           path: ci-logs/*.log
           if-no-files-found: ignore
           retention-days: 14

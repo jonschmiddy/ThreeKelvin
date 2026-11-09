@@ -1,27 +1,8 @@
 extends Node2D
 
-## WHAT IS DRAWN OVER A SYSTEM'S PICTURE: the stations and derelicts, a beacon
-## for every encounter, the selection, your ship and the hover tip -- the
-## approved mockup's (scratchpad `sysmap/template.html`: `frame()`, `shipDraw`,
-## `tip`) in the game's own colours and face.
-##
-## A beacon rides its body: a glyph for its lead tag in its tag's colour, a
-## dotted stem down to the body, a ring pulsing out while it is open; spent, it
-## stays put, dim, and says what it came to. Hovering a beacon in an exclusive
-## group dims its rivals, joins them with a dashed line and marks each WILL
-## BE MADE UNAVAILABLE (Jon's words, the same as the panel's cards); pointing
-## at a card in the panel does the same here. Two beacons on one world stand
-## side by side. Your ship warps in at the system's edge and is flown
-## (`ShipFlight`, Jon's arcade orbits): WASD, the rings that take it into orbit,
-## the dotted line of where it will end up, and the transfer orbit a second click
-## flies. A place's beacons are lit only while you are in orbit of it or
-## alongside it; until then they stand dim (Jon: "when orbiting a planet, that's
-## when an event on a planet should become available").
-##
-## HOVER AS THE STAR CHART DOES (`StarchartScreen._draw_tip`): four corner ticks
-## closing in on the thing as the hover eases in, the tip sliding in with it; the
-## selection is the same reticle, closed and held. A belt is hovered as its whole
-## band and brightens.
+## Follows the approved mockup in the game's own colours and face.
+## Beacons are lit only in orbit of a place or alongside it, so its events become available there.
+## Why: docs/why/SystemOverlay.md#overlay-design
 
 const GLYPH := {
 	&"fight": ["..#..", ".#.#.", "#...#", ".#.#.", "..#.."],
@@ -44,9 +25,7 @@ var hover: Dictionary = {}
 var selected: int = -2
 ## Every beacon drawn this frame, for hit-testing: [at, body index, Beacon]
 var beacons_at: Array = []
-## A beacon lit from the panel: pointing at its card lights it here as pointing
-## at it would (brackets, rivals dimmed and marked), without the tip. `linked`
-## is the Beacon, or null with `link_body` -1 for the pulsar's own.
+## A card in the panel lights its beacon here as pointing at it would, without the tip.
 var link_on := false
 var linked = null
 var link_body := -2
@@ -57,29 +36,21 @@ var flight
 ## lands, so the tip offers none (only pressable things look pressable).
 var clicks_held := false
 var _ship_at := Vector2.ZERO
-## YOUR OWN HULL, drawn at the map's scale (`MapHull`): the picture it is made
-## from (`ShipView.hull_art`, the one LOCAL draws) and the map's picture of it,
-## remade when the hull is swapped. {} (and the old arrow) with no hull art.
+## Hull drawn at map scale from the art LOCAL draws, remade when the hull is swapped.
 const MapHullS := preload("res://scripts/ui/sysmap/MapHull.gd")
 var hull_src: Texture2D = null
 var hull_pic: Dictionary = {}
 var _hull_key: Array = []
-## THE ION DRIVE'S COLOURS, two steps of the player's cold drive ramp
-## (`ThrusterFx.COOL_RAMP`): the cool blue the flame leaves the stern in, and
-## the paler blue it fades to at the tip. The ramp's deep blue was tried for
-## the flame's edges and vanished against the map's blue nebulae.
+## The ion drive uses two steps of the cold ramp:
+## the ramp's deep blue vanished against the map's blue nebulae.
+## Why: docs/why/SystemOverlay.md#ship-drawing
 const ION_CORE := Color("#5ea6ff")
 const ION_TIP := Color("#bfe2ff")
-## FOR THE HARNESSES (`-- sheet=MapShipTest`): every pixel of the ship drawn
-## last frame, `[screen point, colour, &"hull" | &"outline" | &"rim" | &"glow" |
-## &"flame" | &"rcs"]` (&"rim" the light outline on a binary's small world's
-## ring, `ringed_world`), kept while `record_px` is on (headless draws nothing
-## anyone can read back).
+## Harness record of every ship pixel, kept only while
+## `record_px` is on, as headless draws nothing readable.
 var record_px := false
 var ship_px: Array = []
-## THE LIGHT OUTLINE round the ship on the ring of a world that circles one sun
-## of a binary (Jon, Nov 1, "ring:A"): 1 px of the ice the HUD draws in, outside
-## the hull's own dark outline.
+## 1 px ice outline outside the hull's own, for a world circling one sun of a binary.
 const RING_OUTLINE := UITheme.ICE
 var _last_rel := Vector2.INF
 ## The hover easing in, as the chart's `_hover_t` (move_toward at 9 a second),
@@ -88,12 +59,9 @@ var _hover_t := 0.0
 var _hover_key := ""
 ## The flight a second click would fly, drawn before you fly it.
 var preview_to := -9
-## IN ORBIT OR NOT, AT A GLANCE (Jon: "it's hard to tell if I'm in an orbit or
-## not"). In orbit the orbit is a solid ring the ship rides, never drawn smaller
-## than the world's disc plus 9 px: at the opening zoom the ship's offset from
-## its world is drawn scaled up by `_ok` (eased, so a capture never jumps), from
-## `_ok_body`. A trail behind the ship; a pulse on capture; the ring left behind
-## fading as you break away.
+## The orbit is a solid ring never smaller than the world's disc plus 9 px,
+## so being in orbit or not reads at a glance.
+## Why: docs/why/SystemOverlay.md#orbit-look
 const ORBIT_MIN_PX := 9.0
 const TRAIL_S := 1.4
 var _ok := 1.0
@@ -114,13 +82,9 @@ var _star_c := Vector2.ZERO
 var _preview: Array = []
 var _preview_key := ""
 var _preview_ms := 0.0
-## THE PLAN DRAWN BEFORE IT IS FLOWN, held steady (Jon: "the predictive path
-## updates every time the ship rotates around the planet"): from an orbit it is
-## planned from the orbit itself (its departure point fixed on the ring), and
-## replanned only when the place, the orbit or the state changes, or every 3 s
-## to follow the worlds, keeping to the same choice; in free flight every half
-## second. Each replan blends in over PV_BLEND s, point for point along the path.
-## (1,600: at 320 a turn-round a few pixels across was cut into corners)
+## The preview is planned from the orbit and replanned only on change, so it holds steady.
+## PV_N is 1,600 because at 320 a turn-round a few pixels across was cut into corners.
+## Why: docs/why/SystemOverlay.md#plan-preview
 const PV_N := 1600
 const PV_BLEND := 0.5
 var _pv_at := -99.0
@@ -131,10 +95,7 @@ var _pv_lit := PackedByteArray()
 var _pv_u := PackedFloat32Array()
 var _pv_b0 := -99.0
 var _pv_choice: Dictionary = {}
-## THE PLAN DRAWN (`ShipFlight.FlightPlan`), which a click flies as it is while
-## its departure is still ahead (`ShipFlight.fly_bg`), and the key it was asked
-## for under: planned on a worker since ruling 20 (a twin's solved flight takes
-## a median of 40 ms), so it comes in a few frames after it is asked for
+## The plan drawn, which a click flies as is; planned on a worker, so it arrives a few frames late.
 var _pv_plan = null
 var _pv_req_key := ""
 ## the ship the preview was made for (`_draw_paths` starts afresh on a new one)
@@ -165,43 +126,28 @@ func _font() -> FontFile:
 	return UITheme.pixel_font()
 
 
-## THE MAP'S WORDS, QUEUED and laid out last (Jon: "why do I get so much text
-## here?"): each with a priority -- the orbit you are on 4, the forecast's 3,
-## a selection's name and TOO FAST 2, YOU 1 -- placed highest first, and any
-## that would overlap one already placed dropped. YOU is dropped too whenever a
-## forecast or orbit label is near the ship.
+## Words queue by priority and any overlapping a placed
+## one are dropped, as the map showed too much text.
 var _lq: Array = []
 ## WHERE THE WORDS WENT last frame: the weather keeps its events off them
 ## (`SkyWeather.clear_at`)
 var label_rects: Array = []
 ## and the words in each (a harness reads which is which)
 var label_says: Array = []
-## THE WORDS HELD BACK last frame to keep them off a binary's suns, where no
-## spot cleared (`_spot_off_suns`): a harness tells them from words a higher
-## label took the place of
+## Words held back to keep off a binary's suns, so a harness can tell them from displaced ones.
 var label_held: Array = []
 var _held_q: Array = []
-## THE WORDS LEFT ON A BEACON last frame: in a binary, where no spot cleared the
-## suns and the events' beacons both (`_clear_of_beacons`), so they stand where
-## the suns alone allow (the ship's, `_words_off_suns`; a selected name; the
-## forecast's, `_label_clear`); a harness tells them from words that missed one
+## Words left on a beacon when no spot cleared suns and beacons both; for a harness.
 var label_on_beacon: Array = []
 var _on_beacon_q: Array = []
 ## THE WORDS A HIGHER LABEL TOOK THE PLACE OF last frame (`_place_labels`), each
 ## [the words, the box they would have had]: a harness tells which hid which
 var label_under: Array = []
-## THE WORDS BY THE SHIP last frame as `_draw_ship` placed them, for a harness:
-## {says, at (their baseline's left end), clear}, or {} for none. `clear` is
-## what the spot `_words_off_suns` stepped them to is clear of: &"all" (the
-## suns, the events' beacons, the reticle's ticks round the place they name and
-## the words queued under them), &"marks" (all but those words, which they then
-## hide: no spot cleared them too), &"suns" (the suns alone: `label_on_beacon`);
-## &"" where they stand where they first stood, as with one sun.
+## Where the ship's words were placed last frame and what that spot is clear of, for a harness.
+## Why: docs/why/SystemOverlay.md#harness-records
 var ship_words: Dictionary = {}
 var _ship_words_q: Dictionary = {}
-## A FLASH NEAR THE SHIP (`SkyWeather` `nearstrike`): its place on screen, its
-## colour and how strong it is now ({} for none). The edge of the hull facing it
-## catches its light for a moment; the outline stays.
+## A nearby flash lights the hull edge facing it for a moment; the outline stays.
 var catch_light: Dictionary = {}
 
 
@@ -209,9 +155,7 @@ func _label(at: Vector2, s: String, c: Color, prio: int, shadow: bool) -> void:
 	_lq.append([prio, at, s, c, shadow])
 
 
-## HIDE NAMES (the map's toolbar, `SystemMapScreen._on_names`): the words that
-## name a place -- the one selected, the orbit you are in or going to, where a
-## flight will leave you -- held back; YOU and the flight's warnings stay.
+## Hide names holds back place-naming words; YOU and the flight's warnings stay.
 var names_on := true
 
 
@@ -270,14 +214,9 @@ func _words_box(at: Vector2, words: String) -> Rect2:
 	return Rect2(at + Vector2(-2, -10), Vector2(tw + 4, 14))
 
 
-## WHETHER WORDS AT `at` WOULD BE WRITTEN ACROSS A SUN: their box, as
-## `_place_labels` builds it, against the disc of each star of a pair but `but`
-## (one sun has no other). The words a twin puts by a star or a selected name
-## sat across the other sun about half the time at the opening zoom: the suns
-## are 56 to 106 px apart there, and such words 140 to 230 px wide (the words
-## review, Oct 31).
-## `grow`: the box grown by that much each way (words held off their first
-## spot come back only once it clears by a margin, `_draw_ship`).
+## Words by a twin's star sat across the other sun about half the time at the opening zoom:
+## the suns are 56 to 106 px apart and the words 140 to 230 px wide.
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _meets_sun(at: Vector2, words: String, but := -99, grow := 0.0) -> bool:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
@@ -310,12 +249,9 @@ static func reticle_boxes(at: Vector2, reach: float) -> Array:
 	return out
 
 
-## WORDS CLEAR OF THE BEACONS, a test for `_spot_off_suns`'s `ok`: their box, as
-## `_place_labels` builds it, against every event's beacon drawn this frame
-## (`beacons_at`, filled before any words are placed) and each of `also`.
-## Stepping the ship's words off a binary's suns put IN ORBIT · OMEGA CALLOUS I
-## over the event beacon above its world, touching the world's reticle (seed 7,
-## the opening zoom, the picks stills, Nov 1).
+## Stepping the ship's words off the suns put them over an event beacon (seed 7),
+## so spots are also kept clear of beacons.
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _clear_of_beacons(words: String, also: Array = [], grow := 0.0) -> Callable:
 	var tw := _font().get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var keep: Array = also.duplicate()
@@ -396,10 +332,8 @@ func _process(d: float) -> void:
 			_was = now
 		var sw: float = flight.f.orbit_r if flight.star_orbiting() else -1.0
 		if sw < 0.0 and _star_r > 0.0:
-			# (the wide orbit left behind, round what it circled, kept under that
-			# star's id, or -9 round both suns, so a capture into the close orbit
-			# of the star it circled draws no fade, as with one sun; it fades round
-			# where that is as it goes, `_draw_rings`)
+			# Kept under the circled star's id (-9 for both),
+			# so a close-orbit capture draws no fade.
 			_left = {"body": _star_id, "r": _star_r * view.zoom, "t0": _clock(), "a": 0.35, "id": _star_id}
 		elif sw > 0.0 and _star_r < 0.0:
 			_pulse = {"body": -2, "t0": _clock()}
@@ -489,9 +423,8 @@ func _draw() -> void:
 				var bh: Vector2 = b.host_at(t)
 				sx = view.screen(bh.x + cos(a) * b.orbit, bh.y + sin(a) * b.orbit).round()
 			elif b.beacons.size() > 1:
-				# TWO ON ONE WORLD STAND SIDE BY SIDE. They were drawn on the
-				# same spot, so a world with two events showed one beacon and
-				# the one underneath could not be pointed at or clicked.
+				# Two beacons on one world stand side by side,
+				# or the lower one could not be clicked.
 				sx.x += roundf((float(k) - float(b.beacons.size() - 1) * 0.5) * 14.0)
 			var by := sx.y - maxf(view.draw_r(b), 2.0) - 14.0
 			var at := Vector2(sx.x, by)
@@ -610,19 +543,9 @@ func _draw() -> void:
 			if lx + tw > view.window.end.x - 4.0:
 				lx = s.x - r - 4.0 - tw
 			var at := Vector2(lx, s.y + 3.0)
-			# NEVER ACROSS A SUN of a pair: the other side, else under the
-			# reticle, else over it (on a flight to star B it lay over star A's
-			# disc); then each a step further out (`_spot_off_suns`), the side
-			# spots up or down. Where none clears, the name is held back: the
-			# panel names what is selected. A world close to its sun kept its
-			# name across that sun where both first tries met it (SIGMA
-			# CINDER-2 II on seed 7, the picks review, Nov 1). Each spot clear
-			# of the events' beacons too and of the words by the ship where
-			# they first stand (`_ship_words_first`), else of the beacons, else
-			# of the suns alone, as the words by the ship (`_words_off_suns`):
-			# over the reticle is where the place's own beacon stands, and a
-			# step past it they stood on the ship's words, which hid them
-			# (LAMBDA FLINT II on seed 11, the review of the beacons, Nov 1).
+			# A selected name never sits across a pair's sun; spots step out until one clears,
+			# else the name is held back, as the panel names what is selected.
+			# Why: docs/why/SystemOverlay.md#words-off-suns
 			if _meets_sun(at, nm, selected):
 				var side2 := Vector2(s.x - r - 4.0 - tw if lx > s.x else s.x + r + 4.0, s.y + 3.0)
 				var cx := clampf(s.x - roundf(tw / 2.0), view.window.position.x + 4.0, view.window.end.x - tw - 4.0)
@@ -672,52 +595,17 @@ func _draw() -> void:
 
 
 # ---------------------------------------------------------------- the edge marks
-## WHAT IS OFF THE PICTURE, MARKED AT ITS EDGE (Jon, Nov 1, "gap:A"): a wide
-## pair opens framed on its two suns and their own worlds
-## (`SystemMapScreen.open_view`), so the events out on what circles both suns
-## -- fights, salvage, jobs, the Hellbender -- start off screen. Each event's
-## beacon off the picture, your ship and each partner's has a small arrow at the
-## frame's edge pointing to it, where the line to it from the frame's middle
-## crosses the edge. The look is Jon's "Edge arrows: C" (Nov 2): a narrow
-## triangle (`tri_px`) in the beacon's own colour, closed or not (your ship's in
-## ice, a partner's in the party's green), an event's with its key glyph just
-## behind it and one dark outline round both, a tag on the arrow and never a
-## second beacon; and since Nov 5 ("make the icon the same height as the arrow
-## and make the arrow hollow") the glyph in 2 px cells, as tall as the arrow,
-## and the arrow its line alone (`tri_line`), the map showing through it; that
-## line 2 px (Jon, Nov 5, "Two px": the 1 px line read lighter than the glyph's
-## 2 px strokes). Your ship's and each partner's arrow is hollow too, and named
-## (Jon, Nov 5, "hollow arrow with their name"): YOU, the star chart's word for
-## your ship, in ice, a partner's pilot in the party's green, the map's small
-## words beside the arrow on its inward side (`_name_at`), inside the frame and
-## moving round the edge with it. The map screen draws them over the picture
-## (`SystemMapScreen._Marks`, from `mark_rects`), out of the key shader's edge
-## fade, which left the first arrows faint. Only at the opening zoom or further
-## out (`mark_zoom`): zoomed in, looking closer is the player's choice, and
-## LOCATION and a right-click hold what they look at. Never on anything else
-## drawn there: each arrow is slid round the edge clear of the words
-## (MARK_WORDS_CLEAR off them: an arrow just under the status line read as its
-## bullet, a thing to press) and of the column under the status line and the
-## goal (MARK_UNDER_WORDS: an up arrow there read as the line's caret), the
-## suns, the worlds, the beacons, the reticles and the bracket, your ship and
-## the partners', the goal and the instrument (`mark_keep`) and the arrows
-## already placed, and left out where no spot clears. Not a control: it takes
-## no click (only pressable things look pressable).
+# A wide pair opens framed on its suns, so off-screen events and ships get an edge arrow.
+# The look is Jon's Edge arrows C (Nov 2, Nov 5). It is not a control: it takes no click.
+# Why: docs/why/SystemOverlay.md#edge-marks
 var mark_zoom := INF
 ## the screen's own things the arrows keep off, in this space
 ## (`SystemMapScreen.mark_keep`)
 var mark_keep: Array = []
-## THE ARROWS DRAWN last frame, for a harness: {at (the arrow's middle), box
-## (round all of it, outline and name in), arrow_box, glyph_box (Rect2() with
-## none), glyph (the key glyph's name, &"" for a ship), name (the words drawn
-## beside a ship's arrow, "" for an event's), name_box (their box, rim in, or
-## Rect2()), body (the beacon's place, or -9 a ship), peer (a partner's id, 0
-## for yours or a beacon), dir (one of the eight, x and y -1 to 1), to (where
-## what it points at is drawn)}
+## The arrows drawn last frame, with their boxes, glyph, name and target, for a harness.
+## Why: docs/why/SystemOverlay.md#harness-records
 var edge_marks: Array = []
-## THE NAMES BESIDE THE SHIPS' ARROWS this frame, for the screen to draw with
-## them (`SystemMapScreen._Marks`): [their baseline's left end, the words, the
-## colour, their box (rim in)], in this space
+## Names beside the ships' arrows, for the screen to draw with them.
 var mark_words: Array = []
 ## how far in from the frame's edge an arrow's middle stands (clear of the
 ## frame's bezel), and the step it is slid round the edge by
@@ -725,17 +613,13 @@ const MARK_IN := 12.0
 const MARK_STEP := 3.0
 ## and how many steps either way it may go (240 px) before it is left out
 const MARK_SLIDES := 80
-## how far an arrow keeps off words (the status line, the map's words, a group's
-## warning; at 8 the top-left arrow read as the status line's bullet), and off
-## everything else
+## How far an arrow keeps off words: at 8 the top-left arrow read as the status line's bullet.
 const MARK_WORDS_CLEAR := 12.0
 const MARK_CLEAR := 2.0
 ## A PARTNER'S HULL's half-size on screen (`_draw_partners`: its cells reach 4
 ## back and 7 forward, 4 either side, with the outline)
 const PARTNER_HALF := 8.0
-## THE MARKS DRAWN BEFORE THE ARROWS that no list holds, this frame, in this
-## space: the selection's and hover's reticles, a card's bracket and an
-## exclusive group's words (`_draw_edge_marks` keeps off them)
+## Marks drawn before the arrows that no list holds, which `_draw_edge_marks` keeps off.
 var _drawn_marks: Array = []
 ## what the screen draws over the picture for the arrows this frame, in this
 ## space, [Rect2, Color] each (outline first)
@@ -746,44 +630,31 @@ var tip_rect := Rect2()
 ## the overlay has drawn this frame's arrows (the screen redraws its layer on
 ## it, so the arrows are never a frame behind the picture)
 signal marks_drawn
-## nothing in the column under the status line (and the goal) this far down:
-## 12 px under it, an up arrow left-aligned under ORBITING read as the line's
-## caret
+## Nothing in the column under the status line: an up arrow 12 px under it read as its caret.
 const MARK_UNDER_WORDS := 40.0
 ## the glyph's cells this far (the outline's width) off the arrow's
 const MARK_GLYPH_GAP := 1
-## THE KEY GLYPH BESIDE THE ARROW (Jon, Nov 5): its 5x5 cells drawn 2 px each,
-## so 10 px, as tall as a side arrow is across (TRI_SIDE's 10 rows), centred on
-## its axis; a diagonal arrow's on its middle line, the same 10 px (its 2 px
-## grid has no 12)
+## Glyph cells are 2 px each (Jon, Nov 5), 10 px, as tall as a side arrow is across.
 const MARK_GLYPH_CELL := 2
 const MARK_GLYPH_PX := 5 * MARK_GLYPH_CELL
 ## THE ARROW'S LINE, 2 px (Jon, Nov 5, "Two px"), as the glyph's strokes are
 const MARK_LINE := 2
-## A SHIP'S NAME beside its arrow: this far off the arrow's outline (its box
-## holds the letters' 1 px rim, so 1 px of the map between), the caps (5 px of
-## the map's 8 px face) centred on the arrow's axis, and cut with ".." past
-## MARK_NAME_MOST px, or MARK_NAME_SHORT where no spot round the edge clears
-## the longer one (`_draw_edge_marks`)
+## A ship's name sits 1 px off the arrow's outline and is cut with .. past MARK_NAME_MOST.
 const MARK_NAME_GAP := 1.0
 const MARK_NAME_MOST := 72.0
 const MARK_NAME_SHORT := 30.0
 ## and kept this far inside the frame
 const MARK_NAME_IN := 2.0
 const MARK_DARK := Color("#05070b")
-## THE ARROW, a narrow triangle 13 px long and 10 across, its point cut to
-## 2 px, its sides in even 3 px stairs (about 40 degrees at the point: the
-## 90-degree one read as a mound pointing up, a play button pointing right).
-## Pointing right, round its middle (the row and column of the first cell):
+## Narrow triangle, about 40 degrees at the point: a 90-degree one read as a mound or a play button.
+## Why: docs/why/SystemOverlay.md#edge-arrow-shape
 const TRI_SIDE := ["##...........", "#####........", "########.....", "###########..",
 	"#############", "#############", "###########..", "########.....", "#####........",
 	"##..........."]
 const TRI_SIDE_AT := Vector2i(-7, -5)
-## and pointing up-right: the same triangle turned 45 degrees, its point on the
-## diagonal and no edge along the frame (the wedge with its legs on the axes
-## read as a ramp, and pointing down-right as a window's resize grip), its point
-## a 2 px corner and its back corners blunted a pixel (a 3 px square point with
-## 1 px back corners read as pointing the other way)
+## Diagonal is the triangle turned 45 degrees: the wedge
+## with legs on the axes read as a ramp or resize grip.
+## Why: docs/why/SystemOverlay.md#edge-arrow-shape
 const TRI_DIAG := ["..........##", ".........###", ".......####.", ".....#####..",
 	"..########..", "#########...", "#########...", "########....", ".#######....",
 	"..######....", "...####.....", "....###....."]
@@ -792,9 +663,7 @@ static var _tri_cache := {}
 static var _line_cache := {}
 
 
-## The arrow pointing `dir`, as its pixels round its middle (each the
-## top left of a 1 px square; the middle is a pixel corner): TRI_SIDE turned
-## for up, left and down, TRI_DIAG mirrored for the other three diagonals.
+## TRI_SIDE is turned for up, left and down; TRI_DIAG is mirrored for the other diagonals.
 static func tri_px(dir: Vector2i) -> Array:
 	if _tri_cache.has(dir):
 		return _tri_cache[dir]
@@ -810,10 +679,7 @@ static func tri_px(dir: Vector2i) -> Array:
 	return out
 
 
-## THE HOLLOW ARROW (Jon, Nov 5): the cells of `tri_px` on its edge (one of
-## their four neighbours outside it), and the cells on the edge of what is left,
-## MARK_LINE (2) px of line in steps round the shape; the cells inside are not
-## drawn but the dark ring along the line (`_tri_queue`).
+## Hollow arrow (Jon, Nov 5): the edge cells of `tri_px`, MARK_LINE (2) px of line.
 static func tri_line(dir: Vector2i) -> Array:
 	if _line_cache.has(dir):
 		return _line_cache[dir]
@@ -846,11 +712,7 @@ static func _tri_turn(p: Vector2i, dir: Vector2i) -> Vector2i:
 	return Vector2i(floori(v.x), floori(v.y))
 
 
-## The glyph's MARK_GLYPH_PX box behind the arrow pointing `dir` (its top
-## left, round the arrow's middle): from the arrow's middle stepped back along
-## -dir until it is MARK_GLYPH_GAP px clear of every arrow pixel, so the two
-## outlines meet. Stepped along the axis, a side arrow's is centred on it (10 on
-## 10 rows), a diagonal's on its middle line.
+## Glyph box is stepped back along -dir until clear of every arrow pixel, so outlines meet.
 static func _glyph_at(dir: Vector2i) -> Vector2i:
 	var key := dir + Vector2i(10, 10)
 	if _tri_cache.has(key):
@@ -880,11 +742,7 @@ static func _glyph_at(dir: Vector2i) -> Vector2i:
 	return g
 
 
-## Where an arrow at `q` pointing `dir` stands and what it holds:
-## [the box round all of it (outline and name in), the arrow's box (outline
-## in), the glyph's box (its MARK_GLYPH_PX, no outline) or Rect2(), the name's
-## box or Rect2(), the name's baseline's left end], in this space. `name_w`,
-## the width of a ship's name beside it (-1 for none).
+## Where an arrow at `q` stands and the boxes it holds: all, arrow, glyph, name and baseline.
 func _tri_boxes(q: Vector2, dir: Vector2i, glyph_too: bool, name_w := -1.0) -> Array:
 	var ab := Rect2()
 	for p: Vector2i in tri_px(dir):
@@ -911,19 +769,14 @@ static func name_beside(ab: Rect2, nb: Rect2, dir: Vector2i) -> bool:
 	return not nb.intersects(ab) and (nb.get_center() - ab.get_center()).dot(Vector2(dir)) < 0.0
 
 
-## The box of a ship's name `w` px wide with its baseline's left end at `base`:
-## the 5 px caps of the map's 8 px face and a Q's tail, with the 1 px dark rim
-## round them (`SystemMapScreen._Marks`).
+## Name box: the 5 px caps and a Q's tail with the 1 px dark rim round them.
 static func name_box(base: Vector2, w: float) -> Rect2:
 	return Rect2(base + Vector2(-1.0, -6.0), Vector2(w + 2.0, 9.0))
 
 
-## WHERE A SHIP'S NAME STANDS beside its arrow at `q` pointing `dir` (`ab` the
-## arrow's box, outline in), as its baseline's left end: on the arrow's inward
-## side, MARK_NAME_GAP off its outline. Beside a side arrow, the caps on its
-## axis; beside a diagonal one, on the same side and half the caps further in;
-## under an up arrow and over a down one, centred on it. Kept MARK_NAME_IN
-## inside the frame (a down arrow near a corner slides its name along).
+## A ship's name stands on the arrow's inward side, MARK_NAME_GAP off its outline,
+## and is kept MARK_NAME_IN inside the frame.
+## Why: docs/why/SystemOverlay.md#edge-arrow-shape
 func _name_at(q: Vector2, dir: Vector2i, ab: Rect2, w: float) -> Vector2:
 	var b := Vector2.ZERO
 	if dir.x == 0:
@@ -941,12 +794,9 @@ func _name_at(q: Vector2, dir: Vector2i, ab: Rect2, w: float) -> Vector2:
 	return b
 
 
-## The arrow's line (`tri_line`) and the glyph's 2 px cells, outlined 1 px
-## all round as one shape (its corners too, in one even dark), queued for the
-## screen to draw over the picture. Inside the hollow arrow the same dark runs
-## just inside its line and nothing further in: on a sun's glow, the line with
-## the bright glow on its inner side read as a filled pale arrow, its colour
-## lost (the Nov 5 sheet), and on the map's dark the ring is the dark it sits on.
+## Dark runs just inside the hollow line only: on a sun's glow its bright inner side
+## read as a filled pale arrow and lost the colour.
+## Why: docs/why/SystemOverlay.md#edge-arrow-shape
 func _tri_queue(q: Vector2, dir: Vector2i, c: Color, glyph_too: bool, gname: StringName) -> void:
 	var solid := {}
 	for p: Vector2i in tri_px(dir):
@@ -1007,9 +857,9 @@ func _draw_edge_marks(status: String) -> void:
 			want.append([e[0], int(e[1]), col, 0, &"harvest" if bc == null else beacon_look(bc)[0], ""])
 	if flight != null and not win.grow(-2.0).has_point(_ship_at):
 		want.append([_ship_at, -9, UITheme.ICE, 0, &"", "YOU"])
-	# and each partner's (the whole-system view kept every partner on the
-	# picture; framed on a wide pair's own part, one out on a world round both
-	# suns was nowhere: 15 of 16 such on seed 7, the gap:A review), named
+	# Partners get arrows too: framed on a wide pair's own part,
+	# 15 of 16 out on a world round both were nowhere.
+	# Why: docs/why/SystemOverlay.md#edge-marks
 	for e: Array in partner_at:
 		if not win.grow(-2.0).has_point(e[1]):
 			want.append([e[1], -9, UITheme.GOOD, int(e[0]), &"", String(e[2]) if e.size() > 2 else ""])
@@ -1051,11 +901,8 @@ func _draw_edge_marks(status: String) -> void:
 		var k := minf(absf((inner.size.x * 0.5) / d.x) if absf(d.x) > 0.001 else INF,
 			absf((inner.size.y * 0.5) / d.y) if absf(d.y) > 0.001 else INF)
 		var s0 := _round_s(inner, mid + d * k)
-		# slid round the edge, nearest first either way and round a corner, to a
-		# spot clear of everything (the goal fills most of the top left: a mark
-		# for something up there goes down the left side, under it); a ship's
-		# with its name, cut to MARK_NAME_MOST, then shorter where that clears
-		# nowhere
+		# Arrows slide round the edge to a clear spot;
+		# a mark for the goal's corner goes down the left side.
 		var spot := Vector2.INF
 		var glyph_too: bool = int(w[1]) != -9
 		var nm := ""
@@ -1079,9 +926,7 @@ func _draw_edge_marks(status: String) -> void:
 					var qd := _eight_way(to - q)
 					var bxs: Array = _tri_boxes(q, qd, glyph_too, nw)
 					var box: Rect2 = bxs[0]
-					# (and its name beside it on its inward side: near a corner the
-					# frame pushed a diagonal arrow's name onto the arrow, MERCER
-					# over its own up-right arrow on the left edge)
+					# Near a corner the frame pushed a diagonal arrow's name onto the arrow itself.
 					var hit := not win.encloses(box) or (nw >= 0.0 and not name_beside(bxs[1], bxs[3], qd))
 					for r: Rect2 in keep:
 						if hit or r.intersects(box):
@@ -1158,11 +1003,8 @@ func _reach(body: int) -> float:
 
 
 # ---------------------------------------------------------------- the stars
-## STAR p ON SCREEN (-1 star A, the star; `SystemLayout.STAR_B` star B of two
-## suns, ruling 20): where its disc is drawn, on the block grid as `origin()`
-## puts star A. The view says where it draws star B (`SystemView.star_screen`)
-## once it does; until then it is worked out the same way, where the pair has
-## it at the view's t.
+# Star B's screen place comes from the view once it says; until then it is worked out the same way.
+# Why: docs/why/SystemOverlay.md#star-positions
 func star_scr(p: int) -> Vector2:
 	if view.has_method(&"star_screen"):
 		return view.call(&"star_screen", p)
@@ -1173,12 +1015,9 @@ func star_scr(p: int) -> Vector2:
 	return view.origin()
 
 
-## WHERE A WIDE ORBIT ROUND `id` IS DRAWN ROUND on screen, its centre at plane
-## point `c`: one sun, the star where it is drawn (`origin()`); a sun of a pair,
-## that sun's disc on the block grid (`star_scr`), so the ring never wobbles a
-## pixel against it as the sun creeps (ruling 23); the balance point, on the
-## same grid. (Told by id: a centre of exactly zero was star A only while star
-## A held still at the origin.)
+## Wide orbits are told by id, as a zero centre was star A only while A held still.
+## A sun's ring rides its disc on the block grid, so it never wobbles against it.
+## Why: docs/why/SystemOverlay.md#star-positions
 func _ring_c(id: int, c: Vector2) -> Vector2:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
@@ -1188,10 +1027,7 @@ func _ring_c(id: int, c: Vector2) -> Vector2:
 	return view.block_round(view.screen(c.x, c.y))
 
 
-## How big star p's disc is drawn (its radius on screen, px): the view's own
-## size for it (`SystemView.star_disc`) once it says, else star A's as it was
-## always read here and star B's at the floor the map eases a sun up to
-## (`SystemLayout.sun_drawn`, a block or so off the held size).
+## Star disc size comes from the view once it says, else star A's as before.
 func star_disc(p: int) -> float:
 	if view.has_method(&"star_disc"):
 		return float(view.call(&"star_disc", p))
@@ -1201,9 +1037,7 @@ func star_disc(p: int) -> float:
 	return L.star_r * view.star_k()
 
 
-## Where place p is drawn: a star's disc, or a body's place on the grid. (`at`
-## is an Array, and `at[-4]` would quietly have been the fourth body from the
-## end.)
+## `at` is an Array, and `at[-4]` would quietly have been the fourth body from the end.
 func _place_scr(p: int) -> Vector2:
 	if SystemLayout.is_star(p):
 		return star_scr(p)
@@ -1223,12 +1057,9 @@ func star_class_of(p: int) -> String:
 	return view.star_class()
 
 
-## THE INSERTION A CAPTURE AT `body` WILL FLY (the ship at `rel` from it,
-## moving `rv` relative to it): `ShipFlight.insert_plan` as `start_rail` makes
-## it, cleared against the very star it is onto. Drawn with star A's keep-out
-## for a twin's star B, bigger by 0.4 to 1.5 px where B's rail is 2 px clear,
-## the curl drawn was up to 58 px off the one flown, 961 of 1,666 captures at
-## star B (the seams review, Oct 31).
+## Cleared against the very star it is onto: star A's keep-out
+## for star B drew a curl up to 58 px off the one flown.
+## Why: docs/why/SystemOverlay.md#capture-insertion
 func capture_ins(body: int, rel: Vector2, rv: Vector2) -> Dictionary:
 	var rt: float = flight.orbit_r(body)
 	var dir := 1.0 if rel.x * rv.y - rel.y * rv.x >= 0.0 else -1.0
@@ -1242,19 +1073,14 @@ func _place_nm(p: int) -> String:
 	return star_name_of(p) if SystemLayout.is_star(p) else view.layout.bodies[p].name
 
 
-## THE CENTRE OF THE WIDE STAR ORBIT the ship is settled on (plane), now: star
-## A at the origin with one sun, or, in a pair, whatever the flight settles
-## round (the nearer star or both suns' balance point, `_settle_id`) where it is
-## at the view's t. Worked out from what it circles, never kept as a point: a
-## pair's suns turn (ruling 23), and a centre kept from the settle was off its
-## sun within seconds.
+## The centre is worked out from what the ship circles, never kept as a point,
+## as a kept centre was off its turning sun within seconds.
+## Why: docs/why/SystemOverlay.md#settle-id
 func _settle_c() -> Vector2:
 	return centre_of(_settle_id(), float(view.t))
 
 
-## WHERE A WIDE ORBIT ROUND `id` IS CENTRED at map time t (-1 star A, the one
-## star; `SystemLayout.STAR_B`; -9 both suns): a sun where the pair has it then,
-## the balance point (which never moves), or the origin with one sun.
+## A sun where the pair has it then, the fixed balance point, or the origin with one sun.
 func centre_of(id: int, t: float) -> Vector2:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
@@ -1262,12 +1088,9 @@ func centre_of(id: int, t: float) -> Vector2:
 	return L.star_pos(id, t) if SystemLayout.is_star(id) else L.bary
 
 
-## WHAT THE WIDE ORBIT THE SHIP IS SETTLED ON CIRCLES, as a place id: -1 star A
-## (the one star), `SystemLayout.STAR_B` star B, -9 both suns. The flight says
-## which (`ShipFlight.f.cen_id`) while it is settled; after it breaks away, what
-## it last circled (`_star_id`). By id, never by where a centre is: once the
-## pair turns a centre read off a point drifts off its sun, and a ship round
-## star B read ORBITING BOTH STARS.
+## Read by id, never by a centre point: once the pair turns a point drifts,
+## and a ship round star B read ORBITING BOTH STARS.
+## Why: docs/why/SystemOverlay.md#settle-id
 func _settle_id() -> int:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
@@ -1279,20 +1102,16 @@ func _settle_id() -> int:
 	return _star_id
 
 
-## What a wide orbit round `id` (`_settle_id`) circles, named: a star, or BOTH
-## STARS round the pair (it was BOTH SUNS: "Let's call it Binary instead of two
-## suns", Nov 1; the panel's AROUND row says the same, `SystemView.host_line`).
-## One sun: the star.
+## Both suns is named BOTH STARS (Jon, Nov 1: call it Binary instead of two suns),
+## matching the panel's AROUND row.
+## Why: docs/why/SystemOverlay.md#settle-id
 func _settle_nm(id: int) -> String:
 	if not view.layout.twin:
 		return star_name_of(-1)
 	return "BOTH STARS" if id == -9 else star_name_of(id)
 
 
-## The stars' discs a point on the plane is behind, as [screen centre, radius]:
-## what hides a ship (yours, a partner's) or the far half of an orbit. A point
-## is behind a star where it is further from the viewer (`depth`), as it was
-## behind the one star at the origin.
+## A point is behind a star where it is further from the viewer (`depth`).
 func _star_occ(q: Vector2) -> Array:
 	var out: Array = []
 	var d: float = view.depth(q)
@@ -1380,9 +1199,8 @@ func _draw_rings(t: float) -> void:
 			var lb := int(_left.body)
 			var lw: Vector2
 			if _left.has("id"):
-				# a wide orbit left: round what it circled, where that is now,
-				# behind that star's disc if it was one (round both, -9, there is
-				# no disc at its middle)
+				# A left wide orbit is drawn round what it circled,
+				# behind that star's disc; none for both.
 				var lc := centre_of(int(_left.id), float(view.t))
 				lw = _scr(lc.x, lc.y)
 			else:
@@ -1390,11 +1208,7 @@ func _draw_rings(t: float) -> void:
 			_ring(lw, float(_left.r), Color(UITheme.FLARE, float(_left.get("a", 0.8)) * (1.0 - age2 / 0.9)), lb, true)
 
 
-## THE STAR ORBIT of plane radius r: faint all round, bright for a stretch either
-## side of plane point `by` (the ship); `k` fades it, `arc_only` draws the stretch.
-## Round `_star_c`: star A at the origin with one sun; in a pair, the star or
-## the balance point the flight settles round, its far half behind either sun.
-## On screen round where its sun is drawn (`_ring_c`).
+## Faint all round, bright either side of the ship; round a pair its far half goes behind a sun.
 func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
 	var c := _star_c
 	var o: Vector2 = _ring_c(_star_id, c)
@@ -1445,10 +1259,7 @@ func _star_orbit(r: float, by: Vector2, k: float, arc_only: bool) -> void:
 
 
 # ---------------------------------------------------------------- the lines
-## WHERE YOU WILL END UP (`ShipFlight.predict`): the coast, to the ring it slides
-## into and round the orbit you will be on, with TOO FAST and BUMP where they
-## happen; with a key held, a fainter line for keeping it held. A flight shows
-## what is left of it; a selected place, the flight a second click would fly.
+# The forecast line: the coast to the ring and orbit you end on, plus a fainter held-key line.
 func _draw_paths(t: float) -> void:
 	if flight == null:
 		return
@@ -1462,11 +1273,7 @@ func _draw_paths(t: float) -> void:
 			_line(flight.line, 0.25 if previewing else 0.55, t, not previewing)
 	var arriving: bool = flight.plan != null and (flight.rail.has("arrive") or flight.keep.has("arrive"))
 	if flight.plan != null and (flight.mode == &"fly" or arriving or (flight.mode == &"rail" and flight.rail.has("phase")) or (flight.mode == &"keep" and flight.keep.has("hold"))):
-		# THE FLIGHT BEING FLOWN (or ridden round to, or held alongside for, or
-		# its last burn onto the place): what is left of it -- faded when
-		# another place is chosen, its flight drawn over it. Round a settled
-		# star orbit its ride is the plan's first samples, not drawn: the line
-		# starts where it leaves, as it was drawn
+		# A flight under way shows what is left of it; round a star orbit the ride is not drawn.
 		if _fly_line_plan != flight.plan:
 			_fly_line_plan = flight.plan
 			_fly_line = _plan_line(flight.plan, true)
@@ -1475,19 +1282,14 @@ func _draw_paths(t: float) -> void:
 			u = clampf((t - flight.fly_t0) / flight.plan.dur, 0.0, 1.0)
 		u = maxf(u, float(flight.plan.u_dep))
 		_draw_line3(_fly_line[0], _fly_line[1], 1.0, _fly_line[2], u, flight.plan)
-	# FLYING BY HAND (a key held, or let go of a moment ago): only where you are
-	# going is drawn, never a plan replanned from under you (Jon: "why does the
-	# predicted orbit act so weird")
-	# ONLY OUT OF AN ORBIT does a click fly (`ShipFlight.can_fly`), so only then
-	# is its flight drawn: not on the way, not burning onto an orbit, not under
-	# thrust or settling
+	# By hand only where you are going is drawn, never a plan replanned from under you.
+	# A click flies only out of an orbit, so only then is its flight drawn.
+	# Why: docs/why/SystemOverlay.md#flight-line
 	var by_hand: bool = flight.mode == &"free" and t - float(flight.thrust_t) < 1.0
 	var can: bool = flight.can_fly() and not by_hand
-	# A NEW SHIP (another system shown, or this one again): nothing drawn for the
-	# last one carries over. Its clock starts again at 0 and the arrival orbit's
-	# key is the same every visit, so a preview from an earlier visit could pass
-	# as this one's and, its time ahead of the clock, never be planned again
-	# (the flight review, Oct 31)
+	# A new ship drops all preview state: its clock restarts at 0 and the arrival key repeats,
+	# so an old preview could pass as current and never be planned again.
+	# Why: docs/why/SystemOverlay.md#plan-preview
 	if flight != _pv_flight:
 		_pv_flight = flight
 		_preview_key = ""
@@ -1507,16 +1309,12 @@ func _draw_paths(t: float) -> void:
 		flight.drop_bg(&"preview")
 	if SystemLayout.is_place(preview_to) and can and flight.orbit_body() != preview_to:
 		var in_orbit: bool = flight.mode == &"rail" and not flight.inserting()
-		var key := "%d:%d:%d:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode]
-		# PLANNED AGAIN: round a ring every 3 s to check it holds (its choice
-		# rebuilds the very flight while its departure is ahead), alongside or
-		# round a star orbit every second (DESIGN: a departure from there is
-		# only kept while its hold lasts), and as its departure comes up (the
-		# drawn flight then gives way to the one after it)
+		# (the AUTOPILOT setting's path too: changed, the line is planned again)
+		var key := "%d:%d:%d:%s:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode, flight.flight_opts().path]
+		# Replan every 3 s on a ring, every 1 s alongside
+		# or round a star orbit, and as departure nears.
 		var every := 3.0 if in_orbit else 1.0
-		# (today's planner, the fallback, is made on the worker ahead as a solved
-		# flight is, and kept the same way; made for the moment only, every 2 s
-		# at the least, as before)
+		# The old planner's plan is made ahead on the worker too and kept the same way.
 		var ahead: bool = _pv_plan != null and (_pv_plan.res != null or _pv_plan.ahead)
 		if _pv_plan != null and not ahead:
 			every = maxf(every, 2.0)
@@ -1537,18 +1335,12 @@ func _draw_paths(t: float) -> void:
 		if not got.is_empty():
 			var pl = got.plan
 			_preview_ms = float(flight.last_ms)
-			# STALE (another place chosen, or the ship off what it was planned
-			# from, or its departure gone by while it was made): dropped, and asked
-			# for again
+			# A stale plan is dropped and asked for again.
 			if pl != null and int(got.i) == preview_to and _pv_req_key == key and not flight._takeable(pl, t).is_empty():
 				var was_same: bool = _pv_plan != null and int(_pv_plan.to) == preview_to
-				# A SOLVED FLIGHT IS DRAWN AS IT IS, never blended in: the line on
-				# screen is the flight a click flies. Blended over PV_BLEND from
-				# the last, it was another flight for that half second, a fifth of
-				# the time a preview showed (the flight review, Oct 31); the same
-				# flight planned again is the same line point for point, so the
-				# blend only ever showed a flight that had changed. Today's
-				# planner's made for the moment only still blend, as they did.
+				# A solved flight is drawn as it is, never blended: blended over PV_BLEND the line
+				# was another flight for that half second.
+				# Why: docs/why/SystemOverlay.md#plan-preview
 				var blend: bool = was_same and _pv_new.size() == PV_N and pl.res == null and not pl.ahead and _pv_plan.res == null and not _pv_plan.ahead
 				_pv_plan = pl
 				_pv_choice = pl.choice
@@ -1567,11 +1359,8 @@ func _draw_paths(t: float) -> void:
 				_pv_at = -99.0
 		if _pv_new.size() == PV_N:
 			var pvl := _pv_blend()
-			# FROM THE SHIP WHERE IT IS NOW: in open space today's planner's plan
-			# starts at the ship, which moves on between replans, so the line's
-			# start is eased onto it over the first stretch, not left behind it. A
-			# solved flight's line starts where it leaves the star orbit, ahead of
-			# the ship, as round a ring: eased onto the ship it was not the flight
+			# The old planner's line eases onto the ship;
+			# a solved flight's starts where it leaves, ahead.
 			if flight.mode == &"free" and _pv_plan != null and _pv_plan.res == null and not _pv_plan.ahead:
 				var off: Vector3 = flight.where3() - pvl[0]
 				if off.length() > 0.5:
@@ -1600,26 +1389,16 @@ func _pv_blend() -> PackedVector3Array:
 	return out
 
 
-## A WHOLE FLIGHT LAID OUT ALONG ITS LENGTH: PV_N points at even distances along
-## it (the escape, the coast, the insertion after), whether the engine burns at
-## each, and how far through the flight each is (`ShipFlight.lay_out`, made on
-## the worker with the plan when it was asked for so, `plan_bg`'s `lay`).
+## PV_N even-spaced points, made on the worker with the plan when it was asked for so.
 func _plan_line(pl, _with_u: bool) -> Array:
 	if (pl.line as Array).size() == 3 and (pl.line[0] as PackedVector3Array).size() == PV_N:
 		return pl.line
 	return flight.lay_out(pl, PV_N)
 
 
-## A LAID-OUT FLIGHT, DOTTED: projected point by point, a smooth curve through
-## them, a dot every 3 px of it -- in the burn's colour where the engine burns,
-## ice on the coast; from `u0` of the flight on. `pl`, the plan it is: its ends
-## drawn at its rings' drawn size (`_drawn_ends`).
-## HIDDEN BEHIND what stands in front of it, as the ship is: a sun's disc, a
-## nearer world's. Dotted over everything, a flight's line ran across a sun's
-## face where it passed behind it -- a quarter of a twin's flights at the
-## opening zoom, up to 26 px of it, the ship itself hidden on that stretch --
-## and over nearer worlds (the seen review, Oct 31). Each dot goes by the point
-## of the flight it is on.
+## The dotted line hides behind suns and nearer worlds: dotted over everything,
+## it ran across a sun's face in a quarter of a twin's flights.
+## Why: docs/why/SystemOverlay.md#flight-line
 func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: PackedFloat32Array, u0: float, pl = null) -> void:
 	var drawn := _drawn_ends(pts, us, pl)
 	var sp := PackedVector2Array()
@@ -1662,9 +1441,7 @@ func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: Pa
 			_px(wp[j].round(), Color(ION_CORE, 0.85 * k) if on else Color(UITheme.ICE, 0.65 * k))
 
 
-## WHAT CAN STAND IN FRONT OF A POINT ON THE PLANE, as [screen centre, drawn
-## radius, depth]: each sun's disc and each world drawn. `_hidden` is the rule
-## `_draw_ship` and `_draw_partners` keep (`_star_occ`, nearer worlds).
+## What can stand in front of a point: each sun's disc and each drawn world.
 func _occluders() -> Array:
 	var out: Array = []
 	var L: SystemLayout = view.layout
@@ -1684,18 +1461,9 @@ static func _hidden(x: Vector2, d: float, occ: Array) -> bool:
 	return false
 
 
-## A SOLVED FLIGHT'S ENDS AT ITS RINGS' DRAWN SIZE: a ring is drawn bigger than
-## life to read (`_orbit_k`), and the ship on it drawn out with it (`_ok`, on
-## its spring: easing to life size as it leaves, to the ring's size as it burns
-## on), while its line was laid at life size. At a twin's worlds round one
-## star (a ring of 4 to 5 px drawn at about 10) the line began and ended on the
-## world's face and the ship rode 3.5 to 8.9 px off it at each end (the seen
-## review, Oct 31). Each point is drawn off its place as the ship will be drawn
-## there at its moment: the departure's spring from the plan's start, the
-## arrival's from its burn (`ShipFlight._arrive_t`). The moments and places are
-## worked out once a plan (`_ends_table`); the sizes, which go with the zoom,
-## every frame. Today's planner's lines, and a one-sun or giant system's (where
-## a ring is drawn its own size), are as laid out.
+## Ends are drawn at the rings' drawn size: laid at life size the line began and ended
+## on a world's face and the ship rode 3.5 to 8.9 px off it.
+## Why: docs/why/SystemOverlay.md#flight-line
 func _drawn_ends(pts: PackedVector3Array, us: PackedFloat32Array, pl) -> PackedVector3Array:
 	if pl == null or pl.res == null or us.size() != pts.size() or pts.is_empty():
 		return pts
@@ -1768,11 +1536,7 @@ func _ends_table(pts: PackedVector3Array, us: PackedFloat32Array, pl) -> Diction
 	return tab
 
 
-## A SMOOTH CURVE THROUGH POINTS ON SCREEN (Jon: "why is this path so lumpy?"):
-## a Catmull-Rom spline walked about a pixel at a time -- its points, the
-## distance walked to each, and the stretch of the input each is in -- so dots
-## and dashes can be laid at even distances along it rather than between
-## sparse corners.
+## Catmull-Rom spline walked about a pixel at a time, so dots and dashes sit at even distances.
 static func _spline(sp: PackedVector2Array) -> Array:
 	var out := PackedVector2Array([sp[0]])
 	var dist := PackedFloat32Array([0.0])
@@ -1813,38 +1577,20 @@ func _orbit_r(body: int) -> float:
 	return flight.orbit_r(body)
 
 
-## How much bigger than life an orbit is drawn: never closer to the world's disc
-## than ORBIT_MIN_PX, so it reads round a 5 px world at the opening zoom; in a
-## pair, never further out than fits there (`_orbit_cap`).
+## Never closer than ORBIT_MIN_PX to the disc, so it reads round a 5 px world; capped in a pair.
 func _orbit_k(body: int, r: float) -> float:
 	return orbit_floor_k(r * view.zoom, _reach(body) - 7.0, _orbit_cap(body))
 
 
-## (static, so a harness can measure it for every pair without a map) An orbit
-## of `r_px` round a disc of `disc` px, drawn out to the disc + ORBIT_MIN_PX but
-## no further than `cap` px; never smaller than it is.
+## Static so a harness can measure it for every pair without a map.
 static func orbit_floor_k(r_px: float, disc: float, cap: float) -> float:
 	var want := minf(maxf(r_px, disc + ORBIT_MIN_PX), maxf(cap, r_px))
 	return maxf(1.0, want / maxf(r_px, 0.01))
 
 
-## HOW FAR OUT AN ORBIT ROUND `body` MAY BE DRAWN in a pair (ruling 20), px. The
-## floor above drew a star's close orbit at its disc + 9 px, about 19 px at a
-## twin's opening zoom, where it rides 12.5 to 13 px out, and that cut into the
-## disc of the star's own world; and it drew a ship riding a world round a star
-## at the world's disc + 9 px, where it rides about 5 px out, across its sun's
-## disc every lap. Measured at fit_zoom over the 470 stars of seed 4242's twins
-## (TwinSiteTest): 454 close orbits drawn into their world's disc (5 outside
-## its orbit altogether) and 454 world orbits onto their sun. So in a twin:
-##   - a star's close orbit stops 2 px short of the disc of each world round
-##     that star, where the world stands widest from it on screen;
-##   - an orbit round a world that goes round one star stops 2 px short of that
-##     star's disc there.
-## Neither is ever drawn smaller than it is. With the cap, 0 and 0, and the
-## least room left between a close orbit as drawn and its sun is 1.84 px. One
-## sun: no cap (INF), since its close orbit (ring - 8, 87 px) and its worlds are
-## far wider than the floor. (The tilt brings both nearer above and below the
-## star, where a world passes in front of and behind its sun anyway.)
+## In a twin an orbit is capped 2 px short of the discs it would cut: uncapped, 454 close
+## orbits drew into their world's disc (TwinSiteTest, seed 4242).
+## Why: docs/why/SystemOverlay.md#orbit-cap
 func _orbit_cap(body: int) -> float:
 	var L: SystemLayout = view.layout
 	if L == null or not L.twin:
@@ -1894,12 +1640,9 @@ func _ring(w: Vector2, r: float, col: Color, body: int, dashed: bool) -> void:
 		_px(q, col)
 
 
-## The pixels `_ring` draws (public for TwinSiteTest). Its far half goes behind
-## the place's disc round w, and behind the place's disc where it is drawn now
-## (`_place_scr`): a ring round where a world will be when the ship gets there
-## (`_line`) stands off the world as drawn, at Kepler x 4 by 5 to 9 px round a
-## sun of a turning pair (ruling 23), and its far half was drawn across the
-## world's disc while the cut fell on empty space.
+## The far half hides behind the disc where it is drawn now, as a ring round a future
+## world stood 5 to 9 px off the world as drawn.
+## Why: docs/why/SystemOverlay.md#ring-drawing
 func ring_pts(w: Vector2, r: float, body: int, dashed: bool) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	var disc := _reach(body) - 7.0
@@ -1993,10 +1736,8 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	for q0 in ln.pts:
 		path.append(_scr(q0.x, q0.y))
 	if o.kind == &"star":
-		# SETTLING ROUND THE STAR: the stretch of that orbit where it settles, dashed
-		# (round what it settles round: star A at the origin, or in a pair what
-		# the flight's settle names, `out.id`, where that will be when it settles,
-		# `out.t`: a sun of a pair turns on meanwhile, ruling 23)
+		# Dashed stretch where it settles, round what it
+		# settles round at `out.t`, as a sun turns on.
 		var sr: float = o.r
 		var sid: int = int(o.get("id", -1))
 		var sc0: Vector2 = centre_of(sid, float(o.get("t", view.t))) if L.twin else (o.get("c", Vector2.ZERO) as Vector2)
@@ -2028,9 +1769,7 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 		_ring(cw, under, Color(UITheme.HOT, a * 0.9), body, true)
 		tag = "WILL BE ALONGSIDE " + nm
 	else:
-		# THE ORBIT YOU WILL BE ON, round where its world will be when you get
-		# there: the line curls in from where the ring takes you onto it, as the
-		# rail eases you in, and goes round it, dashed
+		# The orbit you will be on, round where its world will be when you get there.
 		var rt: float = flight.orbit_r(body)
 		var rpx := _orbit_px(body, rt)
 		var rv: Vector2 = o.rv if o.get("rv") != null else Vector2.ZERO
@@ -2050,13 +1789,9 @@ func _line(ln: Dictionary, a: float, t: float, main: bool) -> void:
 	_label_clear(tag, cw, maxf(under * view.TILT, _reach(body) - 7.0), path, a)
 
 
-## A WORD AT A POINT ON THE LINE (TOO FAST, BUMP), on its right as it always
-## was; in a binary NEVER ACROSS A SUN (`_meets_sun`): on its left, else each a
-## step up or down (`_spot_off_suns`, held where it stood, `_spot_kept`), else
-## held back. A coast let go by a turning pair's sun bumps off that sun's
-## keep-out, a few px past its disc, and BUMP on the bump's right sat across the
-## sun's face (seed 7 ETA THORN SECUNDUS, coasting into ETA THORN I, with the
-## pair turned; the sweep met no such coast while the pair held still).
+## Words on the line never sit across a binary's sun: BUMP on the right sat across
+## the sun's face once the pair turned.
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _mark_word(key: String, p: Vector2, words: String, col: Color) -> void:
 	var right := p + Vector2(5, -4)
 	if not _meets_sun(right, words):
@@ -2071,19 +1806,9 @@ func _mark_word(key: String, p: Vector2, words: String, col: Color) -> void:
 	_label(got[0], words, col, 2, true)
 
 
-## THE WORDS FOR WHERE THE LINE ENDS, on a shadow and clear of the line: under
-## the ring (`half` its half-height round `at`), on the side away from where the
-## path comes in; failing that centred, or over it, or on the other side.
-## NEVER ACROSS A SUN of a binary (`_meets_sun`): a spot clear of the line that
-## meets one is passed over; where the one it falls back on meets one, each spot
-## a step further out (`_spot_off_suns`), clear of the line and the events'
-## beacons (`_clear_of_beacons`), else of the line, else not; else the words are
-## held back (the ring and the reticle still show the place). Coasting into
-## OMEGA CALLOUS I's ring on seed 7, WILL ORBIT OMEGA CALLOUS I sat across star A
-## in every frame; over 40 binaries a seed about half the forecasts crossed a sun
-## (the picks review, Nov 1), and a quarter of those stepped off one then stood
-## on a beacon (75 of 294 frames, TwinSiteTest's sweep). One sun: as it always
-## was.
+## Forecast words step off suns and beacons: about half the forecasts crossed a sun,
+## and a quarter of those stepped onto a beacon (TwinSiteTest).
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Array, a: float) -> void:
 	var tw := _font().get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var entry: Vector2 = path[0] if path.size() > 0 else at
@@ -2115,9 +1840,8 @@ func _label_clear(tag: String, at: Vector2, half: float, path: PackedVector2Arra
 	for cv: Vector2 in cands:
 		spots.append(Vector2(clampf(cv.x, view.window.position.x + 4.0, view.window.end.x - tw - 4.0), cv.y))
 	var pick: Vector2 = cands[0]
-	# (in a binary the spot last frame's words took, while it stays clear: the
-	# suns turn, ruling 23, and the first clear spot changed under them as one
-	# crept past; `_spot_kept`)
+	# In a binary, last frame's spot is kept while clear,
+	# as the turning suns changed the first clear spot.
 	var two: bool = view.layout.twin
 	var took := -1
 	var was: Array = _spot_mem.get("fc_pick", []) if two else []
@@ -2161,18 +1885,12 @@ var partner_at: Array = []
 ## ship reported six times a second flies rather than steps.
 var _partner_plane: Dictionary = {}
 var _partner_ms: int = 0
-## AND ON AN ORBIT, AT THE ORBIT'S DRAWN SIZE, as your own ship is (`_ok`): by
-## partner, [the place it is drawn off, how much bigger than life], eased. At
-## its true offset a partner riding with you round a twin's world round one
-## star sat on the world's disc, 5 px off the ring as drawn (the seams review).
+## Partners on an orbit are drawn at its size, as at true offset they sat on the world's disc.
 var _partner_kb: Dictionary = {}
 
-## THE PARTY ON THE MAP: the small arrow your own ship was before it was your
-## hull, in the party's colour, with its pilot's name (Oct 22 playtest:
-## partners were never drawn here). A partner sitting where you are -- two
-## ships that jumped in together arrive on the same point -- is drawn a ship's
-## length off, in formation, never on top of you: as far below as your hull
-## reaches (`ship_r`), and a row more for each partner after.
+## Partners were never drawn here (Oct 22 playtest);
+## one sitting on you is drawn a ship's length off.
+## Why: docs/why/SystemOverlay.md#partners
 func _draw_partners(_t: float) -> void:
 	partner_at.clear()
 	var scr = get_parent()
@@ -2183,10 +1901,7 @@ func _draw_partners(_t: float) -> void:
 	var now := Time.get_ticks_msec()
 	var dt := clampf(float(now - _partner_ms) / 1000.0, 0.0, 0.25)
 	_partner_ms = now
-	# HELD WITH THE MAP'S CLOCK through a move, as your own ship is (Jon, Nov 2,
-	# "Pair calls: 4A"): each partner stays where it was drawn, and eases on to
-	# its latest report once the move is over; a report that came in meanwhile
-	# moved it against the still picture
+	# Held with the map's clock through a move (Jon, Nov 2), so a new report does not move them.
 	var hold: bool = scr.has_method("clock_held") and scr.clock_held()
 	var k := 0.0 if hold else 1.0 - exp(-dt * 8.0)
 	var row := 0
@@ -2196,7 +1911,9 @@ func _draw_partners(_t: float) -> void:
 		var q: Vector2 = _partner_plane.get(id, want)
 		# a jump across the system is a new place, not a flight to it
 		var jumped := q.distance_to(want) > 400.0 and not hold
-		q = want if jumped else q.lerp(want, k)
+		# (on a flight it said (PROTOCOL 17): on its path exactly, not eased)
+		var flying: bool = e.size() > 5 and bool(e[5]) and not hold
+		q = want if (jumped or flying) else q.lerp(want, k)
 		_partner_plane[id] = q
 		var pb: int = int(e[4]) if e.size() > 4 else -10
 		var want_k := 1.0
@@ -2220,9 +1937,8 @@ func _draw_partners(_t: float) -> void:
 			row += 1
 			x = _ship_at + Vector2(-6.0, ship_r() + 5.0 + 12.0 * (row - 1))
 		partner_at.append([id, x, String(e[3])])
-		# HIDDEN BEHIND what stands in front of it, as your own ship is: the
-		# star's disc (either sun's, of two), a nearer world's (the first stills
-		# had a partner in close orbit drawn across the face of the star)
+		# Hidden behind a star or nearer world as your ship is;
+		# a close-orbit partner was drawn over the star.
 		var depth: float = view.depth(q)
 		var occ: Array = _star_occ(q)
 		for i: int in view._views:
@@ -2249,14 +1965,9 @@ func _draw_partners(_t: float) -> void:
 					_px(q2, UITheme.GOOD if u > 3 or absi(v) < 2 else UITheme.GOOD.darkened(0.3))
 				elif in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1):
 					_px(q2, Color("#05070b"))
-		# The name UNDER the ship, where YOU (over yours) cannot meet it when
-		# the two sit side by side, and at priority 0: placed last, so it gives
-		# way to every word the map already had, and outside YOU's own rule
-		# (priority 1, dropped near your orbit's words), under which every
-		# partner's name went whenever you were in orbit. Not for a ship wholly
-		# behind the star. Nor for one off the picture: its arrow at the edge
-		# carries the name (`_draw_edge_marks`), and this one ran in past the
-		# frame, the name said twice and the second cut (Nov 5)
+		# Partner names go under the ship at priority 0 so they yield to every other word;
+		# none for a ship off the picture, whose edge arrow names it.
+		# Why: docs/why/SystemOverlay.md#partners
 		if shown > 0 and _win_in(2.0).has_point(x):
 			_label(x + Vector2(-8, 17), String(e[3]), UITheme.GOOD, 0, true)
 
@@ -2271,10 +1982,7 @@ func ship_rel() -> Vector2:
 	return Vector2(p.x, p.z * view.TILT) * view.zoom
 
 
-## A place relative to the plane's origin on screen (star A's place at t 0,
-## the one star's always), for LOCATION holding a world you orbit and a
-## right-click holding a place. A star where the pair has it at the view's t;
-## anything that is not a place, the origin.
+## A place relative to the origin for LOCATION and right-click holds; a star where the pair has it.
 func place_rel(body: int) -> Vector2:
 	if SystemLayout.is_star(body) and view.layout != null:
 		var sp: Vector2 = view.layout.star_pos(body, float(view.t))
@@ -2302,11 +2010,7 @@ func _hull_pic() -> Dictionary:
 	return hull_pic
 
 
-## THE WORLD WHOSE RING THE SHIP RIDES, where that world circles one sun of a
-## binary (on its rail: in orbit, burning onto it or riding round to leave); -9
-## anywhere else, a world round both suns and every one-sun system included.
-## There the ship is drawn over that world all the way round, outlined
-## (`_draw_ship`, `RING_OUTLINE`).
+## The world whose ring the ship rides: drawn over that world all the way round, outlined.
 func ringed_world() -> int:
 	if flight == null or view == null or view.layout == null or not view.layout.twin or flight.mode != &"rail":
 		return -9
@@ -2316,9 +2020,7 @@ func ringed_world() -> int:
 	return w if SystemLayout.is_star(view.layout.bodies[w].host_id) else -9
 
 
-## HOW FAR THE SHIP REACHES from its middle, whichever way it points (px): what
-## the words round it, the ring and a partner in formation keep clear of. The
-## old arrow's was 7.
+## How far the ship reaches from its middle: what words, ring and partners keep clear of.
 func ship_r() -> int:
 	return 7 if hull_pic.is_empty() else int(hull_pic.R)
 
@@ -2352,13 +2054,9 @@ func _draw_ship(t: float) -> void:
 	# of two), a nearer world's
 	var my_depth: float = view.depth(Vector2(p3.x, p3.z))
 	var occ: Array = _star_occ(Vector2(p3.x, p3.z))
-	# ON THE RING OF A WORLD ROUND ONE SUN OF A BINARY (Jon, Nov 1, "ring:A"):
-	# that world is small and its ring tight, so at the opening zoom the ship sat
-	# on it (its middle on the disc for a quarter of the lap and up to all of it,
-	# TwinDrawTest), and on the far side the world hid part of the hull. It is
-	# drawn over its own world all the way round, in a 1 px light outline
-	# (`RING_OUTLINE`), so the hull reads on any world and the camera never moves
-	# on its own. Every other world and either sun still hides it.
+	# On a small world's tight ring the ship sat on the disc, so it is drawn over its own
+	# world all the way round, outlined, and the camera never moves on its own.
+	# Why: docs/why/SystemOverlay.md#ship-drawing
 	var own_w := ringed_world()
 	for i: int in view._views:
 		if i == own_w:
@@ -2445,9 +2143,7 @@ func _draw_ship(t: float) -> void:
 			_px(q, hc)
 			if record_px:
 				ship_px.append([q, hc, &"hull" if hulls[i] > 0.0 else &"outline"])
-	# THE LIGHT OUTLINE on its own world's ring (above): each pixel beside the
-	# shape and not in it, hidden as the hull is; under the drive, so its glow
-	# and flame still show
+	# Light outline is drawn under the drive, so its glow and flame still show.
 	if own_w >= 0:
 		var rim := {}
 		for k: Vector2i in shape:
@@ -2466,10 +2162,8 @@ func _draw_ship(t: float) -> void:
 			_px(q, RING_OUTLINE)
 			if record_px:
 				ship_px.append([q, RING_OUTLINE, &"rim"])
-	# THE DRIVE, AN ION DRIVE (Jeremy: blue engines on the map, so flying in a
-	# system reads as the drive and not the warp): the old flame's shape and
-	# motion in the player's cold drive ramp (`ThrusterFx.COOL_RAMP`), a cool
-	# blue core and a paler tip. LOCAL's and the fight's flames are their own.
+	# Blue ion drive so flying in a system reads as the drive,
+	# not the warp; LOCAL's flames are their own.
 	var o0: int = stern[0]
 	var o1: int = stern[1]
 	var o2: int = stern[2]
@@ -2505,10 +2199,7 @@ func _draw_ship(t: float) -> void:
 		for k in range(0, 40, 2):
 			var an := float(k) / 40.0 * TAU
 			_px(x + Vector2(cos(an) * rr, sin(an) * rr * 0.8), Color(UITheme.FLARE, 0.75))
-	# WHAT IT IS DOING, by the ship itself (`_ship_words_first`). Off the
-	# picture its arrow at the edge says YOU (`_draw_edge_marks`, the same
-	# rule): YOU over the hull too would say it twice, the second over nothing
-	# or cut by the frame (Nov 5)
+	# Off the picture its edge arrow says YOU, so YOU over the hull would say it twice.
 	var on: int = flight.orbit_body()
 	var first := _ship_words_first(x)
 	var off_pic: bool = not _win_in(2.0).has_point(x)
@@ -2519,38 +2210,19 @@ func _draw_ship(t: float) -> void:
 		var words: String = first[0]
 		var lx: float = (first[1] as Vector2).x
 		var ly: float = (first[1] as Vector2).y
-		# NEVER ACROSS A SUN of a binary (`_words_off_suns`). In a star's close
-		# orbit they sat across the other one, 46 of 90 twins; on the ring of a
-		# world round star A at the opening zoom, under the ring, above it and
-		# under the ship all crossed a sun (OMEGA CALLOUS REACH on seed 7, Nov 1:
-		# the suns 76 px apart, the words 136 px wide). NOR OVER AN EVENT'S
-		# BEACON in a binary, where a spot clears both: stepped off the suns they
-		# covered the beacon over OMEGA CALLOUS I, and in star B's close orbit
-		# of TAU BRINE-2 (seed 7, every system a binary) they sat on one where
-		# they first stood. Off a beacon alone and nothing clear, they stay put.
-		# One sun: as it always was.
+		# The ship's words keep off a binary's suns and, where a spot clears both, off an event's
+		# beacon too. In a star's close orbit 46 of 90 twins had them across the other sun.
+		# Why: docs/why/SystemOverlay.md#words-off-suns
 		var sun: bool = names_on and _meets_sun(Vector2(lx, ly), words)
 		var clear_of := &""
-		# BACK TO THEIR FIRST SPOT ONLY CLEAR BY A MARGIN (WORDS_BACK_PX): words
-		# stepped off last frame (`_spot_kept`'s memory) stay where they stepped
-		# to, while that still clears, until a sun or a beacon creeping a pixel
-		# or two past can no longer flip them. A beacon on a world round both
-		# suns crept along the words' left end as star B carried them the same
-		# way, and in star B's close orbit of a close pair (seed 7, system 41)
-		# the words hopped 16 px down, up and down again in 4 s (review 2)
+		# Words go back to their first spot only when clear by WORDS_BACK_PX, or they hopped
+		# 16 px down, up and down again in 4 s.
+		# Why: docs/why/SystemOverlay.md#words-off-suns
 		var was: Array = _spot_mem.get("ship", [])
 		var grow := WORDS_BACK_PX if was.size() == 4 and was[0] == words else 0.0
-		# NOR CUT BY THE FRAME (Nov 5): under a ring near the frame's edge, or
-		# under a world off the picture, they ran in past the edge, the first
-		# letters cut ("ᴀLONGSIDE · ALPHA KESTREL III" under your ship's arrow
-		# at the edge). With the ship on the picture they step in as off a sun
-		# (`_words_off_suns` keeps every spot inside the frame), back only clear
-		# of the edge by the same margin. Off the picture its arrow says YOU and
-		# the status line at the frame's top left says the same, so words that
-		# would be cut go, and so do words pushed in to hug the edge, in the key
-		# shader's edge fade (`NavField.EDGE_FADE`): under a world off the
-		# picture's left side, ALONGSIDE · SIGMA KESTREL III stood 4 px in, its
-		# A faded out (seed 7, system 314, the review of round two)
+		# Words are not cut by the frame: ones that would be are dropped, as the edge arrow
+		# and the status line already say YOU.
+		# Why: docs/why/SystemOverlay.md#words-off-suns
 		var cut: bool = names_on and not _win_in(0.0).encloses(_words_box(Vector2(lx, ly), words))
 		var stepped: bool = grow > 0.0 and names_on and (_meets_sun(Vector2(lx, ly), words, -99, grow) \
 			or (view.layout.twin and not _clear_of_beacons(words, [], grow).call(Vector2(lx, ly))) \
@@ -2585,17 +2257,8 @@ func _draw_ship(t: float) -> void:
 			_ship_words_q = {"says": words, "at": Vector2(lx, ly), "clear": clear_of}
 
 
-## THE WORDS BY THE SHIP AND WHERE THEY FIRST STAND, the ship drawn at `x`:
-## [the words, their baseline's left end], or [] where it says YOU instead.
-## What it is doing, by the ship itself: in orbit, alongside, a close orbit
-## (which says which ship well enough: YOU would sit on the ring). Under the
-## ring they name, centred on its place (under the ship they sat on the world
-## when zoomed in); off a ring, under the ship. `_draw_ship` steps them off a
-## binary's suns and beacons from here (`_words_off_suns`); a selected place's
-## name stepping off a sun keeps off them here too.
-## The map's window drawn in by `m` px, never a negative size: before the map
-## is laid out (a harness, a screen still opening) the window can be empty, and
-## a negative Rect2's has_point and encloses log errors (the Nov 5 gate).
+## The window is never a negative Rect2, whose has_point and encloses log errors (Nov 5 gate).
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _win_in(m: float) -> Rect2:
 	var r: Rect2 = (view.window as Rect2).abs().grow(-m)
 	r.size = r.size.max(Vector2.ZERO)
@@ -2632,38 +2295,16 @@ func _ship_words_first(x: Vector2) -> Array:
 	return [words, Vector2(lx, ly)]
 
 
-## HOW FAR WORDS MAY STEP OFF THEIR PLACE to clear a sun (px; the ship's, a
-## selected name, the let-go forecast's, `_spot_off_suns`): past this they
-## would read as another place's.
+## Past this distance stepped words would read as another place's.
 const WORDS_STEP_MOST := 40.0
 ## and how far clear their first spot must be before words stepped off it go
 ## back (px, `_draw_ship`)
 const WORDS_BACK_PX := 2.0
 
 
-## WHERE THE WORDS BY THE SHIP GO CLEAR OF A BINARY'S SUNS (`_meets_sun`) and
-## its events' beacons, as [their baseline's left end, the words, what that
-## spot is clear of (`ship_words`)], or [] where nothing clears. The spots the
-## words always tried: under the ring they name (under the ship off a ring),
-## above it, under the ship. The two by the ring first, each a step further
-## out, 2 px at a time to `WORDS_STEP_MOST`, the nearer first; then under the
-## ship, the same. Tried nearest first all three together, the words hopped
-## between the ring's spots and the ship's as it rode round, about twice an
-## orbit on OMEGA CALLOUS I (seed 7, Nov 1): under the ring stands still, under
-## the ship goes round with it. Then the same for the words before their " · "
-## alone (IN ORBIT, CLOSE ORBIT, ALONGSIDE: the status line at the frame's top
-## left still names the place). Each spot clear of the events' beacons too, of
-## the corner ticks of the reticle round the place they name
-## (`_clear_of_beacons`), and of the words queued under them (a selected
-## place's name, the forecast's), which `_place_labels` would hold back under
-## them: above the ring they covered the beacon over OMEGA CALLOUS I, and
-## stepped off a beacon or a tick they hid the name of IOTA CINDER-2 II,
-## selected from IOTA CINDER-2 I's ring (seed 7, Nov 1). Where none clears all
-## that, the same clear of the beacons and ticks alone (&"marks", the name
-## under them held back), then of the suns alone (&"suns", `label_on_beacon`),
-## so a beacon never holds them back. Where nothing clears, the words are held
-## back off a sun, as `_place_labels` holds back words that would sit on
-## others, and the status line says them.
+## Ring spots are tried before the ship's: tried all together, the words hopped between
+## them about twice an orbit.
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 	var win: Rect2 = view.window
 	var sayings: Array[String] = [words]
@@ -2713,29 +2354,14 @@ func _words_off_suns(words: String, on: int, x: Vector2) -> Array:
 	return [got[0], tr[3], tr[5]]
 
 
-## (each kind of words' spot as last frame placed it, `_spot_kept`: by key,
-## [the words, the try's tag, which spot, how far along its step]; and this
-## frame's, which `_place_labels` makes last frame's)
+## Each kind of words' spot as last frame placed it, for `_spot_kept`.
 var _spot_mem := {}
 var _spot_seen := {}
 
 
-## WORDS STEPPED OFF A BINARY'S SUNS HOLD WHERE THEY STOOD (ruling 23): the suns
-## of a pair turn, and each frame's nearest clear spot (`_spot_off_suns`) made
-## the words hop a whole step (up to `WORDS_STEP_MOST`) whenever a sun crept
-## across a spot tried before theirs: a lap of a close pair turning under the
-## words by the ship in star A's close orbit, placed afresh each frame, moved
-## them 59 times and hopped them 13 over three pairs, held 26 and 8
-## (TwinSiteTest, seeds 7, 4242 and 1999). So each kind of words stepped (`key`:
-## the ship's, a selected name, the forecast's, a warning on the line) keeps
-## last frame's spot, as the same try (its spot and how far along its step),
-## while those same `words` still stand clear there; pushed by a sun, they step
-## on along that same way first; only where that way is used up are the spots
-## tried afresh, nearest first. The spot is the try's own each frame, so the
-## words ride with the place they name (a world round one sun goes round with
-## it). `tries`: [[tag, spots, steps, the words to place, ok (`_spot_off_suns`),
-## anything else], ...], the order to try them afresh in. Returns [the spot, the
-## try], or [] where none clears.
+## Stepped words keep last frame's spot while clear, as turning suns made them hop:
+## placed afresh they moved 59 times, held 26 (TwinSiteTest).
+## Why: docs/why/SystemOverlay.md#words-off-suns
 func _spot_kept(key: String, words: String, tries: Array, but := -99) -> Array:
 	var m: Array = _spot_mem.get(key, [])
 	if m.size() == 4 and m[0] == words:
@@ -2754,19 +2380,9 @@ func _spot_kept(key: String, words: String, tries: Array, but := -99) -> Array:
 	return []
 
 
-## THE NEAREST SPOT CLEAR OF A BINARY'S SUNS for `words` (`_meets_sun`, every
-## star but `but`): each of `spots` as it is, in its order, then each moved on
-## along its own `steps` 2 px at a time to `WORDS_STEP_MOST`, the nearest first.
-## Their box, as `_place_labels` builds it, inside the frame, and passing `ok`
-## where one is given (clear of the events' beacons, `_clear_of_beacons`; the
-## let-go forecast's words clear of its path too). Vector2.INF where none
-## clears. The ship's words (`_words_off_suns`), a selected place's name and the
-## forecast's (`_label_clear`) all step out this way: the forecast's
-## WILL ORBIT <world> sat across a sun in about half the coasts into a binary's
-## rings at the opening zoom, and a selected world close to its sun had its name
-## across that sun on every side it tried (the picks review, Nov 1). `only` and
-## `from_d`: that one spot alone, from that far along its step on (a spot held,
-## `_spot_kept`). Which spot it found and how far along, `_spot_i` and `_spot_d`.
+## One nearest-clear-spot search serves the ship, selected name and forecast words;
+## the forecast's WILL ORBIT sat across a sun in about half the coasts.
+## Why: docs/why/SystemOverlay.md#words-off-suns
 var _spot_i := -1
 var _spot_d := 0.0
 
@@ -2793,10 +2409,7 @@ func _spot_off_suns(spots: Array, steps: Array, words: String, but := -99, ok :=
 	return Vector2.INF
 
 
-## Where the ship's status is written (its words' baseline) from the frame's top
-## left: under the goal line and its step (`GoalLine`, at the picture's top left
-## since Jon's Oct 20 ruling; 4 px in, two 13 px lines and 1 between), 6 px clear
-## of them. It was 16, where the goal now stands.
+## Status sits 6 px under the goal line, where the old 16 now collides with the goal.
 const STATUS_AT := Vector2(10, 47)
 ## Its box from there: the words' height above the baseline, and the line.
 const STATUS_UP := 10.0
@@ -2854,8 +2467,7 @@ func ship_status() -> Array:
 
 
 # ---------------------------------------------------------------- the tip
-## THE TIP'S WORDS for what is pointed at (`hit`), as [lines, chip colour]: each
-## line [words, colour]. What `_draw_tip` draws, and what a harness reads.
+# The tip's words for what is pointed at, as [lines, chip colour], which a harness reads.
 func tip_lines(h: Dictionary) -> Array:
 	var L: SystemLayout = view.layout
 	var lines: Array = []
@@ -2948,10 +2560,7 @@ func _draw_tip() -> void:
 		_text(Vector2(x + 8, y + 12 + k * 11), lines[k][0], Color(lc, lc.a * al))
 
 
-## What a click on this place will do: select it, fly there (a second click on
-## the selection), or nothing, being there already; as the tip's lines, one or
-## none. While a GO flies (`clicks_held`) a click does nothing, so no line offers
-## one: its place is ON YOUR WAY, and the rest say nothing of clicking.
+## While a GO flies a click does nothing, so no line offers one.
 func _click_line(body: int) -> Array:
 	if flight != null and flight.reached() == body:
 		return [["YOU ARE HERE", UITheme.FLARE]]
@@ -2985,15 +2594,9 @@ static func _wrap(text: String, n: int) -> Array:
 
 
 # ---------------------------------------------------------------- what the pointer is over
-## A BODY AT PLANE POINT q IS HIDDEN AT SCREEN POINT p by a sun in front of it,
-## whose disc p is on. In a pair a world round one star passes 6 to 8 px from
-## its sun's middle at the far side of its circle, behind the disc, and its
-## click circle covered the sun's middle there (the review: on ZETA HOLLOW-4,
-## seed 4242, 8 of 48 clicks on star B over one turn went to its world). A
-## click on the sun you see is on the sun: TwinSiteTest puts each star's world
-## just behind its middle, and on its own turn where it is behind (2 and 3 of 48
-## on LAMBDA CALLOUS SECUNDUS), and every click is the sun's. One sun's
-## innermost world never comes that near.
+# A body behind a sun is hidden there: its click circle covered the sun's middle,
+# so 8 of 48 clicks on star B went to its world.
+# Why: docs/why/SystemOverlay.md#click-hit-test
 func _behind_sun(q: Vector2, p: Vector2) -> bool:
 	var L: SystemLayout = view.layout
 	for s: int in L.stars():
@@ -3024,17 +2627,12 @@ func hit(p: Vector2) -> Dictionary:
 		var at: Vector2 = view.at[i]
 		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0 and not _behind_sun(view.pos[i], p):
 			return {"kind": &"body", "body": i, "beacon": null, "at": at}
-	# EITHER STAR, at its own place and drawn size (star B, ruling 20: -4), the
-	# nearer first: a turning pair stands one sun in front of the other twice a
-	# lap (ruling 23, "stacked:A", the near sun drawn over the far), and a click
-	# where their discs overlap is on the sun drawn on top
+	# A click where two suns overlap is on the sun drawn on top, the nearer.
 	for s: int in _suns_near_first():
 		var sc: Vector2 = star_scr(s)
 		if p.distance_to(sc) <= maxf(8.0, star_disc(s)):
 			return {"kind": &"star", "body": s, "beacon": null, "at": sc}
-	# A BELT IS ITS BAND: anywhere within the band's width of its orbit, all the
-	# way round (it had no hit at all, so it could only be reached by its beacon);
-	# round its own centre, which in a pair is the balance point
+	# A belt is hit anywhere within its band, as it had no hit and only its beacon reached it.
 	var rel: Vector2 = (p - view.origin()) / maxf(view.zoom, 0.0001)
 	var plane := Vector2(rel.x, rel.y / view.TILT)
 	for i in L.bodies.size():

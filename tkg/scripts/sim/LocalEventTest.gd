@@ -1,25 +1,7 @@
 extends Harness
 
-## Every authored option, opened and resolved through LOCAL's event band
-## (`LocalEventDrawer`), the one place a choice is taken now:
-##   godot --headless --path . -- localeventtest
-##
-## For every option in `OptionTable` and every one of its choices, on a fresh
-## copy of one system: the band opens on it (its text, one card per choice),
-## the choice resolves through `OptionResolve` -- the one rule -- and the band
-## shows how it went: the result page with the band word and CONTINUE, or LEFT
-## ALONE with CHOOSE AGAIN for a walk-away, or THEY ARE FIRING for a fight with
-## something to read, or straight to the fight (`fight_now`), or the game over.
-## A choice the band will not let you afford (credits, a material you are not
-## carrying) is given what it wants first, so every branch is reached. In all
-## three layouts. The screens a fight or a death would open are not opened
-## (`LocalEventDrawer.quiet`).
-##
-## And WHAT YOU END UP WITH, in every look (`OutcomeRow`): each result drawn
-## again as today, A, B and C and held to what the run actually moved
-## (`OutcomeCheck`: the ledger, the system's pile, the hold and the frame,
-## diffed), with the box test. Every choice in the column layout,
-## every fifth option in the other two.
+## Every authored option is opened and resolved through LOCAL's event band: `-- localeventtest`.
+## Why: docs/why/LocalEventTest.md#event-band-checks
 
 var _tree: SceneTree
 var _opt_i := -1
@@ -119,9 +101,7 @@ func run(tree: SceneTree) -> void:
 				elif what != "":
 					resolved += 1
 					kinds[what] = int(kinds.get(what, 0)) + 1
-				# WHAT YOU END UP WITH, in every look (`OutcomeRow`): the numbers the
-				# run actually moved, and the box test. Every choice in Jon's
-				# layout (the column); every fifth option in the other two.
+				# Outcome rows in every look: Jon's column for every choice, every fifth elsewhere.
 				if what != "" and d.page == &"result" and (layout == &"column" or _opt_i % 5 == 0):
 					var want := OutcomeCheck.expect(n, before, r.get("res", {}))
 					_tally(want)
@@ -151,10 +131,7 @@ func run(tree: SceneTree) -> void:
 	_end(tree)
 
 
-## THE LETTERS' SOUND, counted (`SignalText.blips`; `Audio` is off headless, so
-## what is checked is what the text asks for). A whole reveal asks for one blip
-## per three letters, spaces not counted. A reveal skipped part way asks for no
-## more after the skip. Reduced motion has no reveal and so no blips.
+## Counts what the text asks for, as Audio is off headless: one blip per three letters.
 func _reveal_sound(holder: Control) -> void:
 	var body := "A cargo lighter is moored to the loading mast outside the station. Its load has moved. Forty tonnes of something has come off its tethers."
 	var letters := body.replace(" ", "").length()
@@ -190,9 +167,55 @@ func _reveal_sound(holder: Control) -> void:
 	for k in 30:
 		t._process(1.0 / 60.0)
 	_ok("reduced motion shows the text whole with no blips (got %d)" % t.blips, t.done and t.blips == 0)
+	DisplaySettings.reduced_motion = false
+	_reveal_words(t, body)
 	DisplaySettings.reduced_motion = was_rm
 	Router.animate_in_harness = was_anim
 	t.queue_free()
+
+
+## The band's text by word (issue #38): only whole words show, one blip a word,
+## a little quicker than by letter, and a skip asks for no more.
+func _reveal_words(t: SignalText, body: String) -> void:
+	var got := SignalText.word_starts("  Hull  holds.\nNot for long")
+	_ok("words start after spaces and a new line (%s)" % [got], got == PackedInt32Array([2, 8, 15, 19, 23]))
+	var d := LocalEventDrawer.new()
+	d._text_box("two words", UITheme.CHILL)
+	_ok("the event band's text reveals word by word", d.text.by_word)
+	d._scroll.free()
+	d.free()
+	var words := SignalText.word_starts(body)
+	t.by_word = false
+	t.play()
+	var letter_frames := 0
+	while not t.done and letter_frames < 6000:
+		t._process(1.0 / 60.0)
+		letter_frames += 1
+	t.by_word = true
+	t.play()
+	var frames := 0
+	var whole := true
+	while not t.done and frames < 6000:
+		t._process(1.0 / 60.0)
+		frames += 1
+		var e := int(t.shown)
+		if e < body.length() and not words.has(e):
+			whole = false
+	_ok("by word only whole words ever show", whole)
+	_ok("by word a whole reveal asks for one blip a word (%d words, got %d)" % [words.size(), t.blips],
+		t.done and t.blips == words.size())
+	_ok("by word takes no longer than by letter, and not under 70%% of it (%d frames against %d)" % [frames, letter_frames],
+		frames <= letter_frames and frames >= int(letter_frames * 0.7))
+	t.play()
+	while t.shown < 40.0 and frames < 12000:
+		t._process(1.0 / 60.0)
+		frames += 1
+	var before := t.blips
+	t.skip()
+	for k in 30:
+		t._process(1.0 / 60.0)
+	_ok("by word a skipped reveal asks for nothing after (%d before, %d after)" % [before, t.blips],
+		before > 0 and t.blips == before)
 
 
 func _end(tree: SceneTree) -> void:

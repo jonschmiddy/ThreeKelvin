@@ -1,36 +1,20 @@
 class_name JettisonBin
 extends Control
 
-## The hatch. Drag something onto it and it goes overboard.
-##
-## Right-clicking an item already does this and will keep working -- see
-## `ItemIcon._gui_input` -- but a right-click is a thing you have to be told
-## about, and nothing on the ship screen was telling you. A hatch beside the
-## hold is the same instruction drawn instead of written.
-##
-## It puts things on the SYSTEM'S FLOOR, not into a wreck: this is the ship
-## page, there is no container open, and `RunState.jettison` is exactly the
-## "no screen open to say where you meant" case. What you drop here is
-## recoverable from SECTOR LOOT for the rest of the run. A system is a place
-## you can leave things; the price of coming back for one is the trip.
+## Right-click needs telling about; a hatch beside the hold draws the instruction instead.
+## Items land on the system's floor, recoverable from SECTOR LOOT for the rest of the run.
+## Why: docs/why/JettisonBin.md#jettison-hatch
 
 signal dumped(item: HoldItem)
 
-## SQUARE, because the mark on it is, and small because it sits on a heading
-## rather than under a grid. 20 is the row's own height: any taller and the
-## label beside it stops being the tallest thing in the line, which is what
-## makes a heading read as one.
+## Square like its mark, 20 tall so the heading's label stays the tallest thing in the line.
 const W := 20
 const H := 20
 
 ## Lit while something is being carried over it.
 var _hot: bool = false
-## Awake while something of YOURS is in the air anywhere on screen.
-##
-## Three states rather than two, and the third is the one that was missing: a
-## control that is always red is always shouting, and a red cross beside a hold
-## you are not touching reads as a warning about the hold. Grey until there is
-## something it could act on.
+## Three states: always red shouts, and red beside an untouched hold reads as a warning.
+## Why: docs/why/JettisonBin.md#hatch-states
 var _armed: bool = false
 
 
@@ -50,9 +34,7 @@ static func _held(data: Variant) -> HoldItem:
 
 func _can_drop_data(_at: Vector2, data: Variant) -> bool:
 	var m := _held(data)
-	# ONLY WHAT YOU ARE CARRYING. A part on the hull is not in the hold, and
-	# dropping one here would have to take it off the ship first -- which is a
-	# different decision and belongs to the mount it is bolted to.
+	# Only what you carry: taking a hull part off is the mount's decision, not the hatch's.
 	var ok := m != null and Run.cargo.has(m)
 	if ok != _hot:
 		_hot = ok
@@ -70,14 +52,10 @@ func _drop_data(_at: Vector2, data: Variant) -> void:
 
 
 func _notification(what: int) -> void:
-	# NOTIFICATION_DRAG_BEGIN reaches every control, which is exactly what this
-	# needs: the drag starts on an icon somewhere else and this has to hear
-	# about it without being under the cursor.
+	# `NOTIFICATION_DRAG_BEGIN` reaches every control, so this hears drags started elsewhere.
 	if what == NOTIFICATION_DRAG_BEGIN:
 		var m := _held(get_viewport().gui_get_drag_data())
-		# Only what is in the HOLD. A part on the hull is not yours to drop from
-		# here -- taking it off the ship is the mount's decision -- so carrying
-		# one must leave this asleep rather than promising something it refuses.
+		# Only hold items arm it, so carrying a hull part leaves it asleep rather than promising.
 		_armed = m != null and Run.cargo.has(m)
 		queue_redraw()
 	elif what == NOTIFICATION_DRAG_END:
@@ -91,17 +69,10 @@ func _draw() -> void:
 	var box := Rect2(Vector2.ZERO, size)
 	draw_rect(box, UITheme.VOID, true)
 
-	# A SQUARE WITH A RED CROSS, and the plainness is the point.
-	#
-	# This has been a hatch with jaws (read as a face at 56px) and then a hatch
-	# with an arrow through it (legible, and still a small diagram you had to
-	# work out). A cross is the one mark nobody has to read -- it means the
-	# thing under it stops -- and red is the only colour in this palette that
-	# has never meant anything else.
+	# A red cross: the jaws read as a face and the arrow was a diagram. Nobody must read a cross.
+	# Why: docs/why/JettisonBin.md#hatch-mark
 	var pad := 5.0
-	# ASLEEP, AWAKE, AIMED AT. Grey while nothing is in the air, the real red
-	# once you are carrying something it can take, and brighter still when you
-	# are over it -- so the mark answers before you have let go.
+	# Grey asleep, red when carrying something it can take, brighter when over it.
 	var c := UITheme.LINE
 	if _hot:
 		c = Color("#e0503c")

@@ -1,0 +1,1 @@
+- **Changed** — an encounter's text now arrives a word at a time instead of letter by letter.

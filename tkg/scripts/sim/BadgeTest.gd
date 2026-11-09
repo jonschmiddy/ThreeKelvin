@@ -1,57 +1,7 @@
 extends Node
 
-## THE CUSTODIAN'S BADGE (`CustodianBadge`, on `GoalLine`), on the real screens,
-## headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=BadgeTest
-##
-## Badge 9b, "The eye opens, loud" (eye-1b), approved by Jon on Nov 4. Through
-## a real run, the real HUD and its goal line, and the real Router; no stub.
-##
-##   1. THE LADDER FROM DATA: the core boss is the one ENGAGE fights at the core
-##      (`DB.core_boss`), it wakes at 16 and is at full strength from 33 by its
-##      own growth (`EnemyTemplate.hull_at`), and every jump 0 to 40 has the
-##      page's stage, tier, countdown and transition.
-##   2. THE APPROVED PIXELS: every frame in `badge_golden.json` (the page's own
-##      code drawing them, `tools/dev/badge/dump_golden.py`): `paint` gives the
-##      same bytes, the digits too; the digits table is the game font's glyphs;
-##      every transition ends on its stage's idle frame 0.
-##   3. ON EVERY SCREEN, every jump 0 to 40: LOCAL, the map, the chart and a
-##      fight. Up with the line, 6 blank columns after GOAL: REACH THE CORE, its
-##      middle row on the capitals' middle, inside the line's room; the union of
-##      every frame it inks clear of everything `GoalTest` keeps the line off
-##      (its own list), of the step's line under it and of A.S.H.'s spots.
-##      On screen, every frame watched, the badge's own Image is `frame()` at
-##      the clock it shows (`_screen_bad`; its texture too where it renders).
-##   4. THE ARRIVAL, ONCE A JUMP: at 10 steps a second on the game's clock,
-##      ending in idle; never again moving between screens, after a save is
-##      loaded, or on the chart a real jump left from; and, animated, never
-##      before the ship has stopped and the line is fully up; the jump before
-##      at rest until then, a departure skipped on its first frame too.
-##   5. IDLE, PER SECOND: each stage's changes a second as the page measured
-##      them, never above 12, no frame shorter than its rate, FULL the same every
-##      second; on screen it repaints only when the frame changes.
-##   6. THE TOOLTIP: after the HUD's quarter second, gone on leaving, the page's
-##      lines under the boss's name from data (renaming it renames them), no hull
-##      figure, on the theme's tooltip plate, clear of the goal, the badge and
-##      everything on the screen.
-##   7. THE MOUSE: nothing in it takes the mouse or looks pressable, the picture
-##      under it is what the pointer is over, a press there reaches the chart,
-##      the chart's and the map's hover keep off it (one tooltip at a time),
-##      and nothing clickable moves for it.
-##   8. ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4: "The custodian strength and
-##      icon should be the same for everyone in the galaxy, even if they join
-##      late."): it shows the lead ship's jumps (`CustodianBadge.count`). Every
-##      single-step arrival is the page's; a rise of several plays the biggest
-##      edge crossed, from the count last shown (14 to 17 the wake, ending on
-##      S1; 18 to 26 the worse one from S2; 30 to 40 the full one); a partner's
-##      jump plays once with no jump of yours and never again on a screen
-##      change; the door's quiet push at 0, 16, 20 and 33 plays nothing; your
-##      own jump behind the lead plays nothing; the hover box is the look on
-##      show and follows the count; the party's tooltip words. Solo, none of
-##      this moves a frame: the goldens above are the same bytes. The one solo
-##      change: an arrival that never showed (a second jump begun inside the
-##      line's fade in, 15 shown and 17 jumps) plays the wake from 15, where
-##      the jump before (16) played nothing.
+## Runs the Custodian badge through the real HUD, goal line and Router, with no stub.
+## Why: docs/why/BadgeTest.md#badge-test
 
 const GoalTestScript := preload("res://scripts/sim/GoalTest.gd")
 const GOLDEN := "res://scripts/sim/badge_golden.json"
@@ -118,11 +68,7 @@ func _badge() -> CustodianBadge:
 	return g.badge() if g != null else null
 
 
-## WHAT IS ON SCREEN IS THE FRAME IT SAYS IT IS: the badge's own Image, and the
-## texture it draws, are `frame()` at the jump and clock it shows, the texture
-## its size, and the badge at its place on the line. "" when so. (Every pixel
-## check but this one is of the static `paint`; this is the one that reads the
-## screen.)
+## Reads the screen: the badge's Image and texture must be `frame()` at the clock it shows.
 func _screen_bad(b: CustodianBadge) -> String:
 	if b == null or not b.is_visible_in_tree():
 		return ""
@@ -165,9 +111,7 @@ func _screen_summary() -> void:
 		_pix_n > 1000 and _pix_bad.is_empty())
 
 
-## THE NEW LOOK NEVER SHOWS BEFORE ITS ARRIVAL: while the arrival at this count
-## has yet to start, the badge on screen is the count last shown at rest (the
-## transition's step 0; alone, the jump before). "" when so.
+## The new look never shows before its arrival begins; the count last shown stays at rest.
 func _early_bad(b: CustodianBadge) -> String:
 	var g := CustodianBadge.count()
 	if b == null or not b.is_visible_in_tree() or Run.custodian_seen >= g \
@@ -358,10 +302,7 @@ func _ends_on_idle() -> void:
 ## Changes a second at 60 frames a second, over 6 s (a whole number of every
 ## stage's loops, so the count is the loop's, wrapping round): what a player sees.
 func _per_second() -> void:
-	# each stage's changes in one loop over the loop's length (S0 6 in 3 s, 11 on
-	# the last free jump; S1 12 in 2; S2 12 in 1.5; S3 10 in 1; FULL 12 in 1).
-	# The page's harness measured the same frames over 3 s, not a whole loop
-	# each: 2.0, 3.3, 5.3, 8.0, 9.7 and 11.7
+	# Per-stage change counts over one whole loop; the page's harness measured 3 s windows.
 	var want := {1: 2.0, 10: 2.0, 15: 11.0 / 3.0, 16: 6.0, 18: 6.0, 20: 8.0, 28: 10.0, 35: 12.0}
 	var rows: Array[String] = []
 	var bad: Array[String] = []
@@ -728,10 +669,7 @@ func _animated_jump() -> void:
 	await _skipped_jump()
 
 
-## A DEPARTURE SKIPPED ON ITS FIRST FRAME (`SectorScreen._skip`, a click the
-## moment JUMP is pressed): the jump is committed while the old line is still
-## fading out, and that fading line still holds jump 15's eye, never the open
-## one, which waits for its wake on the next screen.
+## A skip on the first frame commits while the old line fades, still holding jump 15's eye.
 func _skipped_jump() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -910,13 +848,8 @@ func _press_reaches_chart() -> void:
 	await _frames(2)
 
 
-## ONE TOOLTIP UNDER THE POINTER: a system on the chart (a world on the map)
-## brought right under the badge, the pointer resting there, the badge's
-## tooltip opens and the picture under it hovers nothing, so its own tooltip
-## does not open under the badge's; brought a little right of the badge, the
-## picture hovers it as ever (so the test is driving its hover at all). The
-## picture's motion is handed to it as the GUI hands it a real pointer's:
-## headless, the GUI delivers no hover.
+## One tooltip under the pointer: the picture under the badge must hover nothing.
+## Why: docs/why/BadgeTest.md#tooltip-hover
 func _picture_hover_under_badge(which: String) -> void:
 	var b := _badge()
 	Run.jumps = 16
@@ -950,11 +883,7 @@ func _picture_hover_under_badge(which: String) -> void:
 	await _frames(30)
 
 
-## Brings what the picture shows under `spot` (global): the chart panned so
-## the ship's system sits there; on the map, whose pan stops short of putting a
-## world that high, the first world drawn there this frame (`view.at`, which
-## the map's hover reads, and which the next frame works out again). Returns
-## what the picture would pick there ("" nothing).
+## Brings what the picture shows under `spot`: the chart pans, the map takes the first world.
 func _bring_under(which: String, spot: Vector2) -> String:
 	if which == "the chart":
 		var chart: Control = (Router.current as StarchartScreen)._chart
@@ -1001,9 +930,7 @@ func _picture_hover(which: String, spot: Vector2) -> String:
 	return "%s %d" % [hv.kind, int(hv.body)] if not hv.is_empty() else ""
 
 
-## Not a control: it and everything in it ignore the mouse, nothing is a
-## button, no hand, no focus (`GoalTest._not_pressable`, with the badge and its
-## tooltip in it).
+## Not a control: it and its contents ignore the mouse, as `GoalTest._not_pressable` checks.
 func _not_pressable(g: Control) -> void:
 	var all: Array = [g]
 	all.append_array(g.find_children("*", "", true, false))
@@ -1027,9 +954,7 @@ func _not_pressable(g: Control) -> void:
 ## has moved for the badge.
 # ------------------------------------------------------------------ 8. one Custodian for the galaxy
 
-## THE ARRIVAL FROM THE COUNT LAST SHOWN: every single step is the page's
-## table, and a rise of several plays the biggest edge crossed, its frames the
-## page's own for that edge between the two counts at rest.
+## Every single step is the page's table; a rise of several plays the biggest edge crossed.
 func _coop_kinds() -> void:
 	var bad: Array[String] = []
 	for j in 41:
@@ -1048,9 +973,7 @@ func _coop_kinds() -> void:
 			tb.append("%d to %d: %s, not %s" % [row[0], row[1], got, row[2]])
 	_ok("a rise of several plays the biggest edge crossed: 14 to 17 wakes, 18 to 26 worse, 30 to 40 full, 16 to 19 nothing (%s)"
 		% ("all %d" % table.size() if tb.is_empty() else "; ".join(tb)), tb.is_empty())
-	# THE FRAMES: step 0 is the count it runs from at rest, the steps between
-	# are that edge's own (as a single step draws them), the last the new count
-	# at rest
+	# Step 0 is the count at rest, the between steps are that edge's own, the last the new count.
 	var fb: Array[String] = []
 	for row: Array in [[14, 17, 16], [18, 26, 25], [30, 40, 33], [3, 7, 7], [12, 22, 20]]:
 		var from: int = row[0]
@@ -1184,9 +1107,7 @@ func _coop() -> void:
 			_ok("the box and covers() follow the count, 17, not your 14 (%d px; covers 10 px in %s, 30 px in %s)" % [
 				int(b.box_rect().size.x), CustodianBadge.covers(inside), CustodianBadge.covers(past)],
 				int(b.box_rect().size.x) == CustodianBadge.BOX_W and CustodianBadge.covers(inside) and not CustodianBadge.covers(past))
-	# ALONE, AN ARRIVAL THAT NEVER SHOWED (a second jump begun inside the
-	# line's fade in): the count last shown is 15, the jumps 17, and the wake
-	# plays from 15, where the jump before (16) would play nothing
+	# Alone, an arrival that never showed plays the wake from 15, where jump 16 played nothing.
 	Run.party_jumps = 0
 	Run.jumps = 15
 	Run.custodian_seen = 15

@@ -1,23 +1,9 @@
 class_name YardLife
 extends RefCounted
 
-## Everyone and everything at work in the Yard (the Yard Drones page's floor
-## life, crew, air and wall): the crew walking their lanes, the forklift and its
-## crates, the welder on his scissor lift under the ship for sale, the tech at
-## his console, the mechanic under his machine, the grinder at his bench, the
-## station's flyers and small drones, the city's tenants and lift cars, the
-## capital's stars, the settlement's moths, dust in the cones -- and, one at a
-## time, the rare events Jon kept (the page's E2-E3, E10-E15, E17, E19, E20).
-##
-## ALL OF IT STANDS IN THE HALL'S LIGHT. Something standing on the floor takes
-## the light where it stands, so it walks into the ships' shadows; it is
-## grounded as the hulls are: a contact shadow, its foot in the polish. It is
-## drawn back to front in depth order, behind the ships if it stands behind
-## them (`YardScene`'s back and front layers).
-##
-## A DIFFERENT YARD EVERY VISIT (Jon: "the same things in the same places all
-## the time would be boring"): the mechanic's machine and the bench's grinder
-## are picked when you arrive.
+## Yard floor life stands in the hall's light, grounded with contact shadows. The mechanic
+## and grinder vary by visit.
+## Why: docs/why/YardLife.md#yard-life
 
 const TINT := Color(0.8, 0.8, 0.82)
 ## Where the ships' depth is, on the floor: nearer than this row stands in
@@ -26,10 +12,7 @@ const SHIP_ROW := 330.0
 const MECHS := ["mech_gen_1", "mech_gen_2", "mech_legs_1", "mech_legs_2", "mech_kneel_2"]
 const LIFT := Vector2(560, 318)
 const DESK := {"cx": 52.0, "feet": 336.0}
-## Which way the console stands. The first console was mirrored to turn its
-## keyboard to the tech; take 9 of Jon's ten has its front on the right as
-## drawn (its cable hangs from its back, on the left), so it stands as drawn --
-## mirrored, "lol the cart is facing the wrong way".
+## Console stands as drawn (take 9 of Jon's ten): the first was mirrored the wrong way.
 const CONSOLE_FLIP := false
 const ENG := Vector2(194, 436)
 const BENCH := Vector2(412, 262)
@@ -125,9 +108,7 @@ func _init(s: YardScene) -> void:
 			"sp": 0.35 + 1.0 * b, "tw": YardLight.hash1(float(k) * 3.7) < 0.3})
 	var con: Dictionary = (art.get("life", {}) as Dictionary).get("console", {})
 	_console_img = scene.img(String(con.get("picture", "")))
-	# the screen's glow sits on the screen the console has, wherever its
-	# picture puts it (take 9 of Jon's ten has it three rows higher than the
-	# first console did)
+	# The glow follows the console's own screen position, which take 9 puts three rows higher.
 	var scr0: Array = con.get("screen", [])
 	if not scr0.is_empty():
 		var sum := Vector2.ZERO
@@ -320,9 +301,7 @@ func late(t: float) -> bool:
 	return true
 
 
-## E15 THE SIDEWALK SHUFFLE: two walkers meet head-on, both step the same way,
-## both step the other way, then one steps back and waits while the other
-## squeezes past.
+## E15 sidewalk shuffle: two walkers meet, both dodge twice, then one waits.
 func shuffle(t: float) -> bool:
 	if not SHUF.is_empty():
 		return false
@@ -474,11 +453,8 @@ const WELD_GAP := 2.0
 const LIFT_MAX := 120.0
 
 
-## HOW FAR THE LIFT GOES UP to put the torch under the hull for sale (Jon: "why
-## is he so low below the ship?"). The lift was one picture at one height, and
-## a hull standing tall left him welding the air. The belly is measured per
-## column (`YardScene._stand`), so the lift rises until his working torch is
-## WELD_GAP under it; a hull lower than his reach leaves the lift down.
+## Lift rises until the torch sits `WELD_GAP` under the measured belly (Jon: he was too
+## low).
 func _lift_rise(LS: Dictionary, wx: float) -> float:
 	var S: Dictionary = scene.placed[1] if scene.placed.size() > 1 else {}
 	if S.is_empty() or not S.has("under"):
@@ -525,9 +501,8 @@ func _welder(t: float) -> void:
 		_put_lift(P, LS, rise))
 
 
-## The lift, risen: its chassis and scissors where they stand, more scissors
-## stacked on them for every row it has gone up, and the platform on top --
-## each with its reflection in the floor, as `put` gives the whole picture.
+## Risen lift: chassis, extra scissors for each row up, platform, each reflected in the
+## floor.
 func _put_lift(P: YardPaint, LS: Dictionary, rise: float) -> void:
 	if rise <= 0.0:
 		put(P, LS, LIFT.x, LIFT.y, {"k": 0.5})
@@ -1054,9 +1029,7 @@ func _draw_plane(P: YardPaint, t: float) -> void:
 		P.rect(Rect2(x + float(a[0]), y + float(a[1]), float(a[2]), 1), YardScene.lit(Color(String(a[3])), M))
 
 
-## E14 SOMEONE LOOKS OUT OF A HATCH: a floor hatch lifts, a crewman's head comes
-## up, looks left, looks right, ducks back down, and the lid drops. The hatch's
-## plate is always there, set in the floor.
+## E14 hatch peek: the hatch plate is always set in the floor.
 func hatch_peek(t: float) -> bool:
 	if not HEAD.is_empty():
 		return false
@@ -1387,9 +1360,7 @@ func _tenants(P: YardPaint, dt: float) -> void:
 					P.rect(Rect2(x, y, 1, 1), TEN_RIM if j == 0 else TEN_INK)
 
 
-## THE CITY'S LIFTS (Jon: "THEYRE SOOO COOL"): each car stops, its doors slide
-## open, whoever rode steps out, one or two step in (now and then nobody), the
-## doors close with them behind the glass, and it goes (the page's `drawLifts`).
+## The city's lifts (Jon: "THEYRE SOOO COOL"): doors open, riders swap, doors close.
 func _lifts(Pl: YardPaint, dt: float) -> void:
 	var hall := scene.light.hall_img
 	if hall == null:
@@ -1578,9 +1549,7 @@ func _car_pixels(L: Dictionary, hall: Image) -> Array:
 	return [cols, lit]
 
 
-## THE CAPITAL'S ROSE WINDOW looks out on space: stars drifting slowly past
-## behind its gold tracery, left to right, the brighter ones faster (Jon: "the
-## stars should move slowly left to right ... not circling").
+## Stars drift slowly left to right behind the rose window (Jon), not circling.
 func _stars(P: YardPaint, t: float) -> void:
 	var W: Variant = scene.light.doc.get("stars")
 	if not (W is Dictionary):
@@ -1611,11 +1580,7 @@ func _stars(P: YardPaint, t: float) -> void:
 
 # ------------------------------------------------------------------ the frame
 
-## This tick's floor, before anything is drawn: who is where, and what lights up.
-## The yard is going. A closure here holds this object -- a draw item, a crew
-## member's event, a step of the forklift's run -- and an event also holds the
-## crew member it sits on, so let go of every one, or this keeps itself and its
-## pictures alive after the scene has gone.
+## Let go of every closure and crew event, or this keeps itself and its pictures alive.
 func release() -> void:
 	for c: Dictionary in CREW + RUN:
 		c.erase("ev")
@@ -1633,9 +1598,8 @@ func tick(t: float, dt: float) -> void:
 	_shuffle_step(t)
 	_crew(t)
 	_welder(t)
-	# THE WELDER'S SPARKS RAIN DOWN, as on the page. `_sparks` was ported and
-	# never called, so the arc lit the hull with nothing falling from it (Jon:
-	# "can we have the sparks?").
+	# Welder's sparks rain down: `_sparks` was ported but never called (Jon: can we have the
+	# sparks?).
 	_sparks(t, dt)
 	_desk(t)
 	_engine(t)
@@ -1650,9 +1614,8 @@ func tick(t: float, dt: float) -> void:
 	_plane_shadow()
 
 
-## The small lights the floor makes this tick (the page's `lightDynamic`, the
-## floor's part): the tech's screen on him, the grinder's sparks at the bench,
-## the welder's arc on the belly over it, the forklift's beacon and work lights.
+## The floor's small lights this tick: tech screen, grinder sparks, welder arc, forklift
+## beacon.
 func light_up(t: float) -> void:
 	var dyn: Array = scene.light.dyn
 	if float(CONSOLE["k"]) > 0.0:

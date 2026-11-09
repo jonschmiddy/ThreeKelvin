@@ -1,29 +1,8 @@
 extends Node
 
-## The star chart and the title screen's galaxy, photographed at fixed states:
-##   godot --path . -- sheet=ChartSheet out=<dir>
-##
-## FOR PROVING A CHANGE TO THE CHART'S DRAWING CHANGED NOTHING YOU CAN SEE. Run it
-## before the change and after, into two folders, and diff the folders. Every
-## state is reached the same way both times -- the same seed, the same zooms,
-## the same drag a frame at a time -- and the sky's clock is held on a chosen
-## moment through `MapChart.clock_override`, so even the galaxy's turn, the gas
-## and the swirl round the hole are compared at the same instant.
-##
-## The states: the chart as it opens; a ladder of zooms on the core from the
-## minimum to the maximum; the ship framed; the wheel in and out about a point
-## off centre (which pivots the sky); drags short, long, by fractions of a pixel,
-## zoomed in and at the minimum (the old sky's slide margin set their lengths);
-## the core at several moments, the galaxy turned to each of them, a
-## pulsar's flash and a gamma-ray burst in each of the places one can happen; a
-## system pointed at, one selected and a cloud pointed at, which are the chart's
-## own drawing rather than the sky's; the escape menu's inset; and the title
-## screen's galaxy, turned and not.
-##
-## Each PNG is the chart's own rect cut out of the frame it is drawn in (the
-## title shots are the whole 960x540 frame, with everything but the galaxy
-## hidden). `out` defaults to user://chartsheet.
-## NEEDS A WINDOW: the renderer has to run for there to be pixels.
+## Run before and after a chart drawing change and diff the folders.
+## Same seed, zooms and drags, sky clock held by `MapChart.clock_override`. Needs a window.
+## Why: docs/why/ChartSheet.md#chart-sheet
 
 var out := "user://chartsheet"
 var _chart: Control = null
@@ -127,9 +106,8 @@ func _run() -> void:
 	MC.clock_override = 182.9
 	await _shot("c57_core_t182.9")
 
-	# THE CHART'S OWN DRAWING: a system pointed at, one selected, a cloud
-	# pointed at. Picked the same way every time: the first charted system in
-	# range, and the first cloud.
+	# The chart's own drawing: first charted system in
+	# range and first cloud, picked the same way each time.
 	MC.clock_override = 123.456
 	_chart.center_on_ship(1.4)
 	var pick := -1
@@ -198,12 +176,8 @@ func _run() -> void:
 	get_tree().quit()
 
 
-## THE ZOOM SWEEP (`sweep`): every zoom the player can reach, not just the
-## wheel's notches, at five places -- the core, YOU, the first cloud that is not
-## dark, a point out in the arms and the rim -- `sweepn=` steps (default 25)
-## evenly spaced in log zoom from ZOOM_MIN to ZOOM_MAX, so the in-between values a
-## glide passes through are in it too. `s_<place>_<i>_<zoom>.png`, for finding
-## what goes wrong as you zoom: holes, seams, dust that thins or flattens.
+## Every reachable zoom, not just the wheel's notches, so in-between glide values are covered.
+## Why: docs/why/ChartSheet.md#zoom-sweep
 func _sweep() -> void:
 	var MC = StarchartScreen.MapChart
 	var n := 25

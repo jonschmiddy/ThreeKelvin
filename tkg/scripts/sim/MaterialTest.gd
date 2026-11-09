@@ -1,16 +1,8 @@
 extends Harness
 
-## Every catalogue row becomes an item the hold can actually hold.
-##
-## `MaterialTable` authored 64 rows before anything could carry one, so its
-## shapes, values and ids have never been checked against the thing that has to
-## accept them. This is that check, and it is the gate
-## `docs/briefs/MATERIALS_NOTE.md` §4 asks for.
-##
-## The point is the SHAPE. A row whose `cells` reads "5x1" parses fine, builds a
-## fine instance, and can never be placed in a four-wide hold -- it would roll,
-## drop, and refuse to go anywhere, and nothing would say why. That is precisely
-## the failure a table authored ahead of its consumer produces.
+## Checks each of 64 authored rows against a real hold; a "5x1" row would parse yet never
+## place.
+## Why: docs/why/MaterialTest.md#catalogue-check
 
 
 func run() -> void:
@@ -53,10 +45,8 @@ func run() -> void:
 		print("       %s" % ", ".join(lost))
 
 	# --- THE SHAPE FITS A REAL HOLD ------------------------------------------
-	#
-	# Against the SMALLEST hold in the game, not against the biggest. An item
-	# that fits a heavy and not a light is an item that vanishes for half the
-	# roster, and it would do it quietly.
+	# Against the smallest hold: an item fitting only a heavy vanishes quietly for half the
+	# roster.
 	var smallest := Vector2i(99, 99)
 	var which := ""
 	for h in DB.hull_frames:
@@ -90,11 +80,9 @@ func run() -> void:
 		print("       %s" % ", ".join(worthless))
 
 	# --- and it can be carried -----------------------------------------------
-	#
-	# Placed for real, into a real hold, one at a time. `parse_cells` returning
-	# a sane Vector2i is not the same claim as `place_in_hold` accepting it.
-	# The LIGHTEST hull, matching the shape check above: placing into a heavy's
-	# hold would pass rows that a light can never carry.
+	# Placed for real in the lightest hull's hold; `parse_cells` sanity is not `place_in_hold`
+	# accepting it.
+	# Why: docs/why/MaterialTest.md#carry-check
 	Run.start_new_run(&"korvan", int(HullData.Weight.LIGHT))
 	print("  placing into %s, %dx%d" % [Run.hull.name,
 		Run.hull.hold_grid.x, Run.hull.hold_grid.y])
@@ -116,11 +104,9 @@ func run() -> void:
 					Run.hull.hold_grid.x, Run.hull.hold_grid.y])
 
 	# --- and it survives a save ----------------------------------------------
-	#
-	# A material stores only its id and its cell; everything else is rebuilt from
-	# the catalogue. That is the right way round, and it is also the half that
-	# can silently fail -- a row rebuilt from a table is a row that can come back
-	# as something else, or as nothing.
+	# Only id and cell are stored and the rest rebuilt from the catalogue, the half that can
+	# silently fail.
+	# Why: docs/why/MaterialTest.md#save-check
 	Run.cargo.clear()
 	var want: Array[StringName] = []
 	for row in rows:
@@ -148,11 +134,9 @@ func run() -> void:
 	_ok("and came back in the same cells", cells_back == placed_at)
 
 	# --- overboard -----------------------------------------------------------
-	#
-	# The ruling is that jettison DESTROYS NOTHING: it moves the item into the
-	# bag at the system you are standing in, so it is recoverable until you jump.
-	# Both halves are checked, because a jettison that removed the item and
-	# forgot to append it would look identical from the hold.
+	# Jettison destroys nothing: it moves the item to the system bag, and both halves are
+	# checked.
+	# Why: docs/why/MaterialTest.md#jettison
 	Run.cargo.clear()
 	var here: MapGen.MapNode = Run.node_at()
 	var floor_h := Run.sector_jetsam(here)
@@ -165,12 +149,9 @@ func run() -> void:
 		floor_h.items.size() == before + 1 and floor_h.items.has(thrown))
 	_ok("so it can be picked back up", Run.jetsam_left(here, floor_h) > 0)
 
-	# AND THE SECTOR CAN DRAW IT. This is the half that made jettison look
-	# broken when it was not: the item went into the bag correctly and the
-	# salvage list built its rows with `Widgets.module_row`, which reads a
-	# manufacturer, a slot and an affix list off whatever it is handed. A crate
-	# has none of those, so the row failed and the system appeared to have
-	# swallowed the thing.
+	# The bag row used `module_row`, which a crate fails, so the system seemed to swallow the
+	# item.
+	# Why: docs/why/MaterialTest.md#jettison
 	var row := Widgets.material_row(thrown, Widgets.ModuleContext.BAG, 0,
 		func(_a: String, _t: Variant) -> void: pass, "")
 	_ok("and the sector can draw a row for it", row != null)
@@ -187,12 +168,9 @@ func run() -> void:
 		grow.queue_free()
 
 	# --- and back again ------------------------------------------------------
-	#
-	# `stow` is what TAKE calls once the claim is won, and it was the last
-	# `ModuleData` on the path from a bag to a hold. The failure was the bad
-	# kind: `take_from_bag` marked the option taken FIRST and then stowed, so a
-	# crate spent its claim and stayed on the floor -- gone from the bag's point
-	# of view and never in your hold.
+	# `take_from_bag` marked the option taken first, then stowed: a crate spent its claim and
+	# stayed on the floor.
+	# Why: docs/why/MaterialTest.md#take-back
 	Run.cargo.clear()
 	var retrieved := MaterialData.of(rows[1])
 	_ok("a material stows", Run.stow(retrieved))
@@ -204,16 +182,9 @@ func run() -> void:
 	_ok("a module still stows", Run.stow(part))
 
 	# --- what the cursor is aiming at ----------------------------------------
-	#
-	# The ghost centres the plate on the pointer, so the cell a 3x1 lands on is
-	# a cell and a half LEFT of the pointer -- and `target_for` was reading the
-	# pointer as the item's top-left. For a 1x1 the two answers agree, which is
-	# why it looked fine until something long was dragged.
-	#
-	# Pointer at the centre of cell (2,1) is (100, 60) at a 40px cell. A 3x1
-	# centred there starts at x=40, which is column 1.
-	# --- an inspection of a hold with a material in it -------------------------
-	# contraband_count read `contraband` off every cargo item; a material has none
+	# The ghost centres the plate, so a 3x1 lands a cell and a half left; `target_for` read
+	# top-left.
+	# Why: docs/why/MaterialTest.md#drag-target
 	Run.cargo.clear()
 	Run.cargo.append(MaterialData.new())
 	_ok("a hold with a material counts no contraband, and does not crash", Run.contraband_count() == 0)
@@ -239,12 +210,9 @@ func run() -> void:
 	grid.queue_free()
 
 	# --- swapping out of a full hold -----------------------------------------
-	#
-	# Dragging a stowed part onto an occupied hardpoint takes the resident off
-	# the hull and puts the new one on. The resident lands in the cells the new
-	# one is that instant giving up, so a swap for a part of the same size or
-	# smaller cannot fail -- and a full hold refused all of them, because the
-	# room test ran while the departing part was still counted as in the way.
+	# A swap lands the resident in cells the new part is giving up; a full hold refused them
+	# all.
+	# Why: docs/why/MaterialTest.md#full-hold-swap
 	Run.cargo.clear()
 	var packed := 0
 	for prow in rows:
@@ -271,12 +239,9 @@ func run() -> void:
 		not Run.has_room_for(bigger, leaving) or bigger.cells() <= leaving.cells())
 
 	# --- out, back, out, back ------------------------------------------------
-	#
-	# Taking from a bag marks the index claimed rather than removing the entry,
-	# so jettison used to APPEND -- and the second throw put a second reference
-	# to one object in the bag. `find()` answers with the first, which is the
-	# spent one, so `take_from_bag` saw a claimed index and refused. Anything
-	# you had thrown out more than once could not be picked back up.
+	# Jettison appended a second reference to one object, so `find()` hit the spent one and
+	# refused pickup.
+	# Why: docs/why/MaterialTest.md#repeated-throw
 	Run.cargo.clear()
 	var here2: MapGen.MapNode = Run.node_at()
 	here2.jetsam.clear()
@@ -298,13 +263,9 @@ func run() -> void:
 	_ok("so it is loose out there", Run.jetsam_left(here2, floor2) == 1)
 
 	# --- a turn that did not land --------------------------------------------
-	#
-	# Pressing R mid-drag flips `turned` on the item while it is still sitting
-	# in the hold at the cell it was picked up from. If the drag is then
-	# cancelled, that cell now holds a different shape -- a 4x1 in the bottom
-	# row becomes a 1x4 hanging off the bottom of the grid, over whatever it
-	# crosses. That is the state this reproduces and `Run.settle` is what
-	# answers it.
+	# R mid-drag flips `turned` in place; a cancelled drag left a 4x1 as a 1x4 off the grid.
+	# `Run.settle` fixes it.
+	# Why: docs/why/MaterialTest.md#cancelled-turn
 	Run.cargo.clear()
 	var g2 := Run.hold_grid()
 	var bar := MaterialData.new()
@@ -330,11 +291,8 @@ func run() -> void:
 	_ok("and it is still in the hold", Run.cargo.has(bar))
 
 	# --- money takes no room -------------------------------------------------
-	#
-	# A chit is a HoldItem that lies: it has a footprint so a container can draw
-	# it, and it never occupies a cell. The claim worth checking is that a FULL
-	# hold still takes it -- that is the one item in the game where "do I have
-	# room" is not a question, and the whole point of it.
+	# A chit has a footprint to draw but occupies no cell; a full hold must still take it.
+	# Why: docs/why/MaterialTest.md#money-takes-no-room
 	Run.cargo.clear()
 	while not Run.hold_full():
 		var filler := MaterialData.of(rows[0])

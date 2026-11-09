@@ -1,63 +1,9 @@
 class_name GalaxyGen
 extends RefCounted
 
-## Which galaxy this run takes place in.
-##
-## Pure presentation. Systems are laid out on rings by MapGen and placed on
-## rings by the chart, so the shape of the galaxy behind them can vary freely
-## without moving a single jump or changing a single fuel cost. That separation
-## is what makes fifteen of these cheap.
-##
-## THAT SEPARATION WAS NEVER TRUE, and this note is what replaced the claim.
-## `MapGen` read the galaxy in two places: `ring_count()` took `squash` -- a
-## CAMERA ANGLE -- and made node population depend on it, and `hop_distance()`
-## measured in the same foreshortened space, so a tilted galaxy was a smaller
-## galaxy whose jumps were cheaper. Measured over 500 runs: 132 systems on a
-## Lenticular against 188 on a Round Elliptical, and a 33-point spread in win
-## rate that nobody authored.
-##
-## Both are fixed rather than normalised away, because galaxies playing
-## differently is the point. `density` and `reach` below say it OUT LOUD, per
-## kind, and `squash` went back to being what its own docstring says it is.
-##
-## AND NO KIND HAS A HOLE IN IT ANY MORE. Barred Ring Spiral (`ring = 0.34`)
-## and Collisional Ring (`ring = 0.52`) were the only two, and the hole was not
-## a picture: `MapGen.ring_radius` remaps every populated ring into the annulus
-## `[ring, 1.0]`, while the Core is drawn at the origin regardless. Measured
-## across four seeds each, the nearest system to the Core sat at 0.046..0.100
-## of the disc radius on every other kind, at 0.235 on the Barred Ring and at
-## 0.397 on the Collisional Ring -- so the last jump of a run crossed four to
-## eight times more empty space than anywhere else, and the Barred Ring also
-## held the longest single link in the game at 1.363, sixty per cent past the
-## next worst.
-##
-## They were replaced rather than retuned. A smaller hole is the same hole.
-##
-## `ring` itself stays in the schema and stays applied, because the machinery
-## is correct and a future ring galaxy would want it -- but it would want the
-## hole to be PAINT ONLY, with systems filling the middle the way stars in a
-## real collisional ring still do. Nothing reads it at 0.0.
-##
-## Content is data, not code: a new galaxy is a dictionary entry, and the
-## renderer already knows how to draw every field in it.
-##
-## Fields:
-##   arms        0 for no spiral structure at all (ellipticals, irregulars)
-##   twist       radians of winding across the full disc; higher is tighter
-##   bar         fraction of the radius held by a straight bar, 0 for none
-##   squash      vertical foreshortening; 1.0 is face-on round, 0.3 is edge-on
-##   core_share  fraction of stars belonging to the concentrated population
-##   core_pow    falloff of that population; higher packs harder into the middle
-##   halo_pow    falloff of the extended population that reaches the rim
-##   spread      how far stars stray off the arm ridge
-##   chaos       positional noise; what makes an irregular irregular
-##   ring        inner radius of a hole, as a fraction; 0 for a filled disc
-##   bulge       radius of the burning core, as a fraction of the disc
-##   dust        falloff of the wash between the arms
-##   gas         how much star-forming material is left; scales nebulae,
-##               dust lanes and supernova remnants. Spirals are rich, the
-##               ellipticals and lenticulars that ran out are nearly bare
-##   tail        draw a tidal stream flung off one side
+## Layout is not purely presentation: squash changed system counts (132 vs 188). Ring holes
+## were removed.
+## Why: docs/why/GalaxyGen.md#galaxy-kinds
 
 const KINDS := [
 	{
@@ -191,16 +137,9 @@ const _NOUN := [
 	"Crown", "Tide", "Anvil", "Choir", "Threshold", "Ember", "Verge", "Fathom",
 ]
 
-## One galaxy, rolled from a type.
-##
-## KINDS holds the archetype; this returns a copy with every parameter nudged,
-## so two Grand-Design Spirals are recognisably the same kind of object and not
-## the same object. Rolled ONCE per run and stored on RunState, because the node
-## layout is derived from squash and twist — re-rolling per call would move the
-## systems out from under the player.
-## `r` defaults to the world stream. It is a parameter at all so that the
-## determinism test can roll a galaxy twice from two generators and compare,
-## without reseeding the run out from under everything else.
+## Rolled once per run and stored on RunState, since node layout derives from squash and
+## twist.
+## Why: docs/why/GalaxyGen.md#rolling-a-galaxy
 static func roll(kind: int, r: RandomNumberGenerator = Rng.world) -> Dictionary:
 	var g: Dictionary = params(kind).duplicate()
 	g.twist = float(g.twist) * r.randf_range(0.86, 1.16)
@@ -211,15 +150,11 @@ static func roll(kind: int, r: RandomNumberGenerator = Rng.world) -> Dictionary:
 	g.spread = maxf(0.0, float(g.spread) * r.randf_range(0.8, 1.25))
 	g.bulge = clampf(float(g.bulge) * r.randf_range(0.8, 1.25), 0.08, 0.5)
 	g.dust = maxf(0.8, float(g.dust) + r.randf_range(-0.25, 0.25))
-	# Gas is the one parameter with a visible floor of zero: a galaxy that has
-	# genuinely stopped forming stars should have no nebulae at all, not a
-	# scattering of faint ones. That absence is what makes a lenticular read as
-	# dead beside a starburst.
+	# Gas can floor at zero so a dead galaxy has no nebulae at all, not a scattering of faint
+	# ones.
 	g.gas = maxf(0.0, float(g.gas) * r.randf_range(0.75, 1.3))
-	# The black hole. Scaled off the bulge, because the two really do correlate
-	# — a galaxy with a big central bulge has a big central mass — and then
-	# rolled wide, so one galaxy has a pinprick at its heart and the next has a
-	# throat you can see from the rim.
+	# Hole scales off the bulge, which correlates with central mass, then rolls wide for
+	# variety.
 	g.hole = clampf(float(g.bulge) * r.randf_range(0.05, 0.13), 0.012, 0.046)
 	g.chaos = maxf(0.0, float(g.chaos) * r.randf_range(0.7, 1.4))
 	if float(g.ring) > 0.0:
@@ -241,9 +176,8 @@ static func type_name(kind: int) -> String:
 static func blurb(kind: int) -> String:
 	return params(kind).blurb
 
-## A catalogue designation and the name people actually use for it. Both are
-## rolled once per run and then fixed: a galaxy that renames itself between
-## visits to the chart is not a place.
+## Both names are rolled once per run: a galaxy that renames itself between visits is not a
+## place.
 static func roll_name(r: RandomNumberGenerator = Rng.world) -> String:
 	return "%s %d" % [Rng.pick(r, _CATALOGUE), r.randi_range(102, 9899)]
 
@@ -259,13 +193,9 @@ const _NEB_NOUN := [
 	"Chapel", "Net", "Kiln", "Wake", "Fathom", "Mantle", "Bell",
 ]
 
-## The clouds between the systems. Named from a hash rather than rolled, because
-## the chart rebuilds its star field whenever the panel resizes, and a landmark
-## that renames itself when you drag the window is not a landmark.
-##
-## Half come out as catalogue entries and half as names people gave them, which
-## is how a sky actually reads: the ones anyone has looked at long enough to
-## describe got a name, and the rest got a number.
+## Named from a hash, not rolled: the chart rebuilds stars on resize and a landmark must
+## not rename.
+## Why: docs/why/GalaxyGen.md#nebula-names
 static func nebula_name(h: int) -> String:
 	h = absi(h)
 	if h % 2 == 0:
@@ -274,19 +204,9 @@ static func nebula_name(h: int) -> String:
 		_NEB_ADJ[(h >> 5) % _NEB_ADJ.size()], _NEB_NOUN[(h >> 13) % _NEB_NOUN.size()]]
 
 
-## The kind table, as a string two peers can compare.
-##
-## LIVES HERE RATHER THAN IN NetSession, and not only for tidiness. Two peers
-## with different `density` or `reach` values lay out DIFFERENT MAPS from the
-## same seed -- `MapGen.ring_count` and the position of every system read them --
-## so they must not agree on a fingerprint. But writing that loop inside
-## `content_fingerprint` meant `NetSession` grew the strings "density" and
-## "reach", and `version_guard.py` cannot tell a dictionary read from a wire key
-## in a file it is watching: it demanded a PROTOCOL bump for a change that moves
-## no wire shape at all.
-##
-## Asking the table to describe itself is the better factoring regardless. The
-## guard going quiet is a consequence of the code being right, not the reason.
+## Lives here, not in NetSession: it also kept `version_guard.py` from demanding a PROTOCOL
+## bump for no wire change.
+## Why: docs/why/GalaxyGen.md#table-fingerprint
 static func table_fingerprint() -> String:
 	var parts: PackedStringArray = []
 	for k in KINDS:

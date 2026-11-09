@@ -1,18 +1,9 @@
 class_name Harness
 extends RefCounted
 
-## What every pass/fail harness in `scripts/sim/` counts and prints.
-##
-## Four of them carried a byte-identical `_ok()` and a verdict line that differed
-## only in the name it printed. Harmless right up until the format changes, at
-## which point the merge gate's ERROR_PATTERNS have to match four spellings of
-## the same sentence.
-##
-## NOT every harness extends this, deliberately. `HeadlessSim`, `MarketSim`,
-## `SaveTest`, `GlyphSheet` and `RepairSheet` report a MEASUREMENT rather than a
-## pass count — a win rate, a price sweep, a distribution — and folding those
-## into a failure counter would be imposing a shape on them rather than sharing
-## one they already had.
+## Shared so the merge gate's ERROR_PATTERNS need not match four spellings of one verdict.
+## Measurement harnesses do not extend it: a pass count would impose a shape on them.
+## Why: docs/why/Harness.md#harness-base
 
 var _fails: int = 0
 
@@ -34,9 +25,7 @@ func _fail(why: String) -> void:
 	_fails += 1
 
 
-## The line the merge gate reads. `label` is the flag the harness runs under, so
-## a failure in a 400-line log says which command to re-run -- and with which
-## seed, when it started runs (`seed_run`).
+## The line the merge gate reads; `label` is the flag, so a failure says which command to re-run.
 func verdict(label: String) -> void:
 	if _fails > 0 and not seeds.is_empty():
 		var names := PackedStringArray()
@@ -51,17 +40,9 @@ func verdict(label: String) -> void:
 var seeds: Array[int] = []
 
 
-## THE NEXT RUN STARTS FROM SEED `n`: call it right before `Run.start_new_run`.
-##
-## A `Rng.reseed(n)` there did nothing. `start_new_run` draws the run's own seed
-## first (`Rng.roll_master`: `Rng.forced`, or else the global generator) and
-## reseeds every stream from THAT, so each harness that reseeded drove a fresh
-## random galaxy, ship and hold every time it ran -- and a check that depended
-## on any of them came and went between gate runs (maptest, fittest and
-## subjecttest all did, Oct 11-12). This sets `Rng.forced`, which sticks.
-##
-## `-- <harness> seed N` on the command line wins over `n`, so a failure's seed
-## (printed here and by `verdict`) replays it.
+## `Rng.reseed` did nothing, as `start_new_run` rolls its own seed first, so checks came and went
+## between gate runs. This sets `Rng.forced`, which sticks.
+## Why: docs/why/Harness.md#seed-run
 func seed_run(n: int) -> int:
 	var s := n
 	var args := OS.get_cmdline_user_args()
@@ -75,13 +56,9 @@ func seed_run(n: int) -> int:
 	return s
 
 
-## The first node under `root` that `matches` accepts, depth-first, or null.
-##
-## Godot's `find_child` matches on a NAME, and a harness driving a real screen
-## almost never knows the name — it knows the button reads "STOW", or that the
-## node it wants is an inner class the engine has no name for. Both of those are
-## a predicate, so this takes one. `ConvoyTest._find_slot` is the second copy of
-## this walk and is left alone until that file has some other reason to move.
+## Takes a predicate: a harness knows a button's text
+## or an inner class, not the name `find_child` needs.
+## Why: docs/why/Harness.md#finding-nodes
 func first(root: Node, matches: Callable) -> Node:
 	if matches.call(root):
 		return root
@@ -97,11 +74,8 @@ func code() -> int:
 	return 1 if _fails > 0 else 0
 
 
-## SHARDS: a slow harness split over N processes run side by side, each its K-th
-## share of the cases (`-- shard=K/N`, K from 1). FlightTest and SolveTest each
-## took ten minutes as one process and set the battery's length. A case is a
-## shard's when its index modulo N is K - 1, so neighbours (alike in cost) are
-## dealt round. [K, N]; [1, 1] when unsplit.
+## Shards split a slow harness over N processes: FlightTest and
+## SolveTest took ten minutes each and set the battery's length.
 static func shard() -> Vector2i:
 	for a in OS.get_cmdline_user_args():
 		var s := a as String
@@ -122,12 +96,9 @@ func mine(i: int) -> bool:
 var _shard := Vector2i.ZERO
 
 
-## AN ASSERTION OVER EVERY CASE (a share, a count against a limit), which no
-## shard can judge on its own cases: unsplit it is `_ok(what, expr)`; split,
-## each shard prints its numbers and `ShardSum` adds them up across the shards'
-## logs and judges `expr` on the sums. `vars` are the expression's inputs:
-## lower-case names are added up, UPPER-case ones are constants every shard
-## must agree on. `key` names the assertion the same way in every shard.
+## An assertion over every case no shard can judge alone:
+## shards print numbers and `ShardSum` judges the sums.
+## Why: docs/why/Harness.md#totals-over-shards
 func total(key: String, what: String, expr: String, vars: Dictionary) -> bool:
 	if shard().y > 1:
 		var parts := PackedStringArray()

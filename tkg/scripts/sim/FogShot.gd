@@ -1,19 +1,8 @@
 extends RefCounted
 
-## What the chart actually looks like now that sight is live:
-##   godot --path . -- fogshot
-##
-## NEEDS A WINDOW. `--headless` never emits `frame_post_draw`.
-##
-## THE SIMULATOR CANNOT SEE THIS CHANGE. Its policy chooses from what is
-## reachable this instant and never plans a route, so an accumulated chart is
-## worth nothing to it -- live sight moved win rate by one run in five hundred.
-## What a chart is FOR is planning, and the only way to judge it is to look.
-##
-## Three shots: the first frame, a few jumps in, and deep. What to look for is
-## whether the lit part is enough to choose from -- a spawn in a sparse region
-## is the stated worry, and `_map_range_from` being relative to the nearest
-## neighbour rather than absolute is the reason it may not be.
+## The simulator cannot see this: it never plans a route, so live sight moved win rate 1 in 500.
+## Needs a window, as `--headless` never emits `frame_post_draw`.
+## Why: docs/why/FogShot.md#fog-shot
 
 const SHOTS := [0, 4, 12]
 
@@ -38,12 +27,8 @@ func run(tree: SceneTree) -> void:
 			Run.jump_to(pick)
 			jumped += 1
 		Router.show_starchart()
-		# ZOOMED, AND CENTRED ON THE SHIP. The default view centres the GALAXY,
-		# and the ship spawns on the rim -- so the one thing these shots are of
-		# sits off the edge of the frame.
-		# AFTER the screen has settled. `show_starchart` builds a fresh screen and
-		# its deferred fit sets zoom and pan itself, so anything set before that
-		# lands is simply overwritten.
+		# Zoomed and centred on the ship, after the screen settles, or its deferred fit overwrites.
+		# Why: docs/why/FogShot.md#fog-shot-framing
 		for i in 20:
 			await RenderingServer.frame_post_draw
 		var chart = (Router.current as StarchartScreen)._chart
@@ -60,9 +45,7 @@ func run(tree: SceneTree) -> void:
 			var t: MapGen.MapNode = n
 			if t.sensed or t.visited or Run.station_heard(t.index):
 				seen += 1
-		# WHY each visible system is visible. `_visible_set` has four reasons and
-		# only one of them is the dish, so a system can be lit well outside the
-		# sensor ring and still be correct -- or not, which is the question.
+		# Why each system is visible: `_visible_set` has four reasons and only one is the dish.
 		var here2: MapGen.MapNode = Run.node_at()
 		var r_sight := Run.sense_radius()
 		var out_only_sensed := 0
@@ -92,10 +75,7 @@ func run(tree: SceneTree) -> void:
 		tree.root.get_texture().get_image().save_png(
 			"user://fog_%02d.png" % jumped)
 
-	# AND THE REACH OVERLAY, which is hover-driven and so cannot be seen from a
-	# screenshot without saying what is hovered. Points at a system a couple of
-	# hops out rather than the ship's own, since the ship already draws its
-	# dotted lines and would prove nothing.
+	# The reach overlay is hover-driven: hover a system a couple of hops out, not the ship's own.
 	var chart2 = (Router.current as StarchartScreen)._chart
 	if chart2 != null:
 		chart2.show_links = true

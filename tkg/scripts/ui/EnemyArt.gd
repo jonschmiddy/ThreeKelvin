@@ -1,23 +1,9 @@
 class_name EnemyArt
 extends TextureRect
 
-## Procedural enemy sprites. Ships get riveted industrial plating; fauna get
-## dithered organic segments. The Hulk's "winding up" telegraph lights its ram
-## prow — art and mechanics doing the same job.
-##
-## Everything below obeys ART_CONTRACT's two-plane rule, and `_hull` is that
-## rule written once: a lit top face, a bright lip, a front wall falling away
-## into shadow, and a 1px ink outline around the silhouette. The first version
-## of these sprites filled rectangles with one flat colour each, which is why
-## the Hulk read as a brown box with three orange boxes on it and the fauna read
-## as a bar chart. The shapes were never really the problem — nothing was
-## lighting them, and every silhouette was a rectangle because a rectangle is
-## what `px()` draws.
-##
-## So the two things this file adds are a ramp and a profile. A ramp is six
-## value stops out of ART_CONTRACT section 3, spaced widely enough to survive
-## being looked at from across a screen. A profile is a handful of control
-## points that `_hull` tapers between, so a hull can be a shape.
+## Everything obeys ART_CONTRACT's two-plane rule, written once in `_hull`.
+## Flat fills read as boxes, so a ramp and a profile were added: shapes were never the problem.
+## Why: docs/why/EnemyArt.md#enemy-art
 
 ## The box the ship occupies inside this canvas, in local pixels. See set_enemy.
 var _used: Rect2i = Rect2i(0, 0, 240, 120)
@@ -34,11 +20,7 @@ var _ink_box: Rect2i = Rect2i()
 func ink_rect() -> Rect2i:
 	return _ink_box if _ink_box.size != Vector2i.ZERO else _used
 
-## THE CANVAS, 340x160 since the Custodian grew past 240x120 (Oct 13). Every
-## other picture still fits the old box; the slot fits itself to the ship
-## (`EnemySlot._fit_holder`), so the bigger canvas costs no room on screen. The
-## coded drawings are authored in a 240x120 box and drawn centred in this one
-## (`_draw_coded`).
+## 340x160 since the Custodian outgrew 240x120 (Oct 13). Coded drawings stay centred in the old box.
 const W := 340
 const H := 160
 ## The box the coded drawings were authored in.
@@ -47,16 +29,10 @@ const CODED := Vector2i(240, 120)
 var _img: Image
 var _tex: ImageTexture
 
-## THE ENGINE FLAME (look A, Jon's pick, Oct 13): a live enemy with a picture
-## idles its engines, found on the picture or placed by hand in art/engines.json
-## (`ThrusterFx.for_picture`). Not on a coded drawing (it has its own stern
-## wash), not on a dead ship, and not on the three that get their own movement
-## instead of thrusters (NO_FLAME).
-##
-## Drawn by `_flame_layer`, TOP LEVEL: this control is clipped to the ship's
-## own box (`clip_contents`, the slot fits itself to the hull), and the flame
-## burns out past it. It reads this control's transform every frame and draws
-## in it, so it moves, scales and fades with the ship.
+## Live enemies with a picture idle their engines (look A, Jon, Oct 13), not coded or dead.
+## Drawn by `_flame_layer` outside this control, which clips to the ship's box: top level until
+## a slot hosts it (`host_flame`).
+## Why: docs/why/EnemyArt.md#engine-flame
 const NO_FLAME := ["custodian_tetra", "whale_fan", "leviathan_lev_spine"]
 var _flame_fx: ThrusterFx = null
 var _flame_at := Vector2.ZERO        ## where the picture's (0, 0) sits on the canvas
@@ -66,16 +42,20 @@ var _flame_layer: Control
 class EnemyFlame extends Control:
 	var art: EnemyArt
 	func _process(_d: float) -> void:
-		if art != null and art._flame_fx != null and art.is_visible_in_tree():
+		if is_instance_valid(art) and art._flame_fx != null and art.is_visible_in_tree():
 			queue_redraw()
 	func _draw() -> void:
-		if art == null or art._flame_fx == null or not art.is_visible_in_tree():
+		if not is_instance_valid(art) or art._flame_fx == null or not art.is_visible_in_tree():
 			return
 		var origin := ((art.size - Vector2(EnemyArt.W, EnemyArt.H)) * 0.5).floor() + art._flame_at
-		draw_set_transform_matrix(art.get_global_transform() * Transform2D(0.0, origin))
+		# In the art's frame from wherever this sits: top level, or a holder (`host_flame`).
+		draw_set_transform_matrix(get_global_transform().affine_inverse()
+			* art.get_global_transform() * Transform2D(0.0, origin))
 		var mod := Color.WHITE
 		var n: CanvasItem = art
-		while n != null:
+		# Hosted, the holder and everything above it already tint this through the tree.
+		var inherited: CanvasItem = null if top_level else get_parent() as CanvasItem
+		while n != null and n != inherited:
 			mod *= n.modulate * (n.self_modulate if n == art else Color.WHITE)
 			n = n.get_parent() as CanvasItem
 		var t := ShipView.shot_clock if ShipView.shot_clock >= 0.0 else GameClock.now()
@@ -84,12 +64,9 @@ class EnemyFlame extends Control:
 ## What the current image was drawn from. See set_enemy.
 var _sig: String = ""
 
-## Six stops, darkest first: shadow, wall, lit wall, deck, lit deck, rim.
-##
-## Sampled from ART_CONTRACT section 3. Do not add a seventh stop to one of
-## these — add a whole ramp, which is how a new manufacturer is supposed to
-## enter the game. The gap between stop 1 and stop 3 is the two-plane break and
-## it is deliberately large; closing it is how you get a flat sprite back.
+## Six stops from ART_CONTRACT section 3. A new manufacturer gets a whole ramp, not a seventh stop.
+## The gap between stops 1 and 3 is the two-plane break: closing it flattens the sprite.
+## Why: docs/why/EnemyArt.md#ramps
 var _steel: Array[Color] = [Color("#131a23"), Color("#232d3a"), Color("#344254"),
 	Color("#4a5c72"), Color("#6c8098"), Color("#92aac4")]
 var _brass: Array[Color] = [Color("#2c2212"), Color("#4a3a20"), Color("#6c542e"),
@@ -105,15 +82,9 @@ var _ink: Color = Color("#0b0f16")
 
 func _init() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	# Draw at native size, centred. KEEP_ASPECT_CENTERED rescales the texture to
-	# whatever rect it is handed, so the enemy changed size whenever a side rail
-	# opened — and scaled pixel art by arbitrary fractions while doing it.
+	# Native size, centred: KEEP_ASPECT rescaled the enemy whenever a rail opened.
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-	# A TextureRect takes its minimum size FROM ITS TEXTURE unless told not to,
-	# so custom_minimum_size could never shrink this below the 240x120 canvas —
-	# which is why cropping the empty margin appeared to do nothing at all and
-	# the health bar stayed a canvas-height away from the hull. IGNORE_SIZE
-	# hands the decision back to us; clip_contents keeps the overflow off screen.
+	# A TextureRect takes its minimum from its texture, so IGNORE_SIZE lets cropping work.
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	clip_contents = true
 	custom_minimum_size = Vector2(W, H)
@@ -129,11 +100,22 @@ func _init() -> void:
 	_flame_layer = fl
 	add_child(fl, false, Node.INTERNAL_MODE_FRONT)
 
+## The flame as `holder`'s child right after this art, in tree order, so a panel opened later
+## (the piles, #56) covers it. Top level, it drew over everything on the screen.
+## Why: docs/why/EnemyArt.md#engine-flame
+func host_flame(holder: Control) -> void:
+	_flame_layer.get_parent().remove_child(_flame_layer)
+	_flame_layer.top_level = false
+	holder.add_child(_flame_layer)
+
+func _notification(what: int) -> void:
+	# A hosted flame outlives this art unless it goes with it.
+	if what == NOTIFICATION_PREDELETE and is_instance_valid(_flame_layer) \
+			and _flame_layer.get_parent() != self:
+		_flame_layer.queue_free()
+
 func px(x: int, y: int, w: int, h: int, c: Color) -> void:
-	# While _track is on, every stroke widens the hull's bounding box. It has to
-	# be measured this way rather than from the finished image: the canvas gets
-	# a starfield painted across it first, so get_used_rect() on the image
-	# correctly answers "all of it" and tells you nothing about the ship.
+	# Tracked per stroke: the starfield makes `get_used_rect()` say the whole canvas.
 	if _track:
 		var r := Rect2i(x, y, maxi(w, 1), maxi(h, 1))
 		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
@@ -144,22 +126,9 @@ func px(x: int, y: int, w: int, h: int, c: Color) -> void:
 			if xx >= 0 and xx < _img.get_width() and yy >= 0 and yy < _img.get_height():
 				_img.set_pixel(xx, yy, c)
 
-## Put a generated ship on the canvas. False if there is no sprite, which is the
-## caller's cue to draw one instead.
-##
-## CENTRED, NEVER SCALED. The canvas is a fixed 240x120 and a sprite is authored
-## to its own ink, so the two are not the same size and never will be --
-## `ArtCheck` asks only that the art fits. Centring is the one placement that
-## does not need a per-ship anchor table, and it matches how the texture is
-## presented (`STRETCH_KEEP_CENTERED`), so a sprite lands where the drawing it
-## replaces already was. Resampling is refused outright: the whole art direction
-## rests on nearest-neighbour crispness.
-##
-## THE BOUNDS COME FROM THE SPRITE'S OWN INK, not from its canvas. Everything
-## that reads `used_rect()` -- the aim reticle's brackets, the Control's minimum
-## size -- wants the ship, and a file with transparent margin would hand them the
-## margin as well. `get_used_rect()` is honest here in a way it is not for the
-## drawn path, because nothing has been painted behind it yet.
+## Centred, never scaled: no per-ship anchor table, and crisp pixels are the art direction.
+## Bounds come from the sprite's own ink, so transparent margin does not leak into them.
+## Why: docs/why/EnemyArt.md#sprite-blit
 func _blit_sprite(tex: Texture2D) -> bool:
 	if tex == null:
 		return false
@@ -177,9 +146,7 @@ func _blit_sprite(tex: Texture2D) -> bool:
 	var ink := src.get_used_rect()
 	if ink.size == Vector2i.ZERO:
 		return false
-	# Oversized art is refused rather than squeezed, and says so once. A ship
-	# that does not fit is a failed asset, not one to resample -- the same rule
-	# `pixeltools.fit` applies to every module.
+	# Oversized art is refused, not squeezed: a failed asset, as `pixeltools.fit` treats modules.
 	if ink.size.x > W or ink.size.y > H:
 		push_warning("EnemyArt: sprite ink is %dx%d, canvas is %dx%d; drew instead"
 			% [ink.size.x, ink.size.y, W, H])
@@ -193,10 +160,7 @@ func _blit_sprite(tex: Texture2D) -> bool:
 		_ink_box = r
 	return true
 
-## HOW BIG THE PICTURE IS DRAWN: 1, or 0.5 from the picture's half sheet.
-## A fight with three or more ships draws every one at half (Jon: "render them
-## at 1X, kinda like how we do for multiplayer"; `EncounterView._layout_pack`),
-## from a second file made offline the way the hulls' are -- never a resample.
+## 1, or 0.5 from the half sheet: three or more ships draw at half (Jon), from a file made offline.
 var draw_scale: float = 1.0
 ## The picture's size and its half sheet's: what the pack layout plans with
 ## (zero while a coded drawing is drawn).
@@ -223,13 +187,8 @@ func rivets(x: int, y: int, count: int, step: int, c: Color) -> void:
 
 # --- The two-plane kit -------------------------------------------------------
 
-## Control points (x, top, bottom) filled in for every column between them.
-##
-## Authoring a hull as six points and letting this interpolate the taper is the
-## whole difference between a ship and a rectangle. It is also what lets a
-## silhouette be raked — the Cutter's top edge falls away toward the nose while
-## its belly stays flat, and tapering both edges by the same amount is exactly
-## what made the first attempt read as an airship.
+## Six points interpolated, not rectangles. Equal taper on both edges looked like an airship.
+## Why: docs/why/EnemyArt.md#hull-profile
 func _profile(pts: Array) -> Dictionary:
 	var out := {}
 	for i in range(pts.size() - 1):
@@ -242,16 +201,9 @@ func _profile(pts: Array) -> Dictionary:
 				int(round(lerpf(float(a.z), float(b.z), t))))
 	return out
 
-## One body, lit from the top of the frame.
-##
-## Column by column, because the shape changes column by column: rim, top face,
-## the bright lip where the deck turns, then the wall dropping through two
-## dithered steps into the shadow it sits in. `deck` is how much of the height
-## the top face takes — high for something seen more from above, low for a
-## strake hanging off the underside.
-##
-## `cap` closes the two ends with ink. Turn it off for a piece that runs into
-## another one, or you get a black seam where they meet.
+## Column by column since the shape changes by column. `deck` is the top face's share.
+## Turn `cap` off for a piece that runs into another, or a black seam appears.
+## Why: docs/why/EnemyArt.md#hull-drawing
 func _hull(prof: Dictionary, r: Array, deck: float = 0.55, cap: bool = true) -> void:
 	var xs := prof.keys()
 	xs.sort()
@@ -282,9 +234,7 @@ func _hull(prof: Dictionary, r: Array, deck: float = 0.55, cap: bool = true) -> 
 			var e: Vector2i = prof[pair[0]]
 			px(int(pair[0]) + int(pair[1]), e.x - 1, 1, e.y - e.x + 2, _ink)
 
-## Anything slung UNDER a hull sits in that hull's shadow, so it takes the same
-## ramp shifted two stops down. Given the deck ramp it reads as a separate
-## object floating below the ship rather than a part of it.
+## Slung under a hull sits in its shadow: the ramp two stops down, else it floats apart.
 func _under(r: Array) -> Array:
 	return [r[0], r[0], r[1], r[1], r[2], r[3]]
 
@@ -301,9 +251,7 @@ func _seam(x: int, y: int, h: int, r: Array) -> void:
 func _streak(x: int, y: int, h: int, r: Array) -> void:
 	dither(x, y, 2, h, r[0], 0.55)
 
-## A thruster wash: the only warmth a hull is allowed, and it falls off. Solid
-## near the nozzle, dithered out to nothing, so the plume has an edge without
-## having a boundary.
+## The only warmth a hull is allowed: solid near the nozzle, dithered out so it has no boundary.
 func _glow(x: int, y: int, half: int, length: int) -> void:
 	for i in length:
 		var t := float(i) / float(length)
@@ -329,18 +277,10 @@ func _vent(x: int, y: int, w: int, h: int) -> void:
 	px(x, y, w, maxi(1, h / 2), _heat[1])
 	px(x, y, w, 1, _heat[2])
 
-## A hole, not a decal.
-##
-## Scorch first, in three rings of falling size and rising density so the edge
-## has no boundary; then a ragged core built from three offset boxes, because a
-## single box reads as a sticker someone put on the ship; then whatever is still
-## burning at the bottom of it.
+## A hole, not a decal: scorch rings and a ragged three-box core, as one box reads as a sticker.
+## Why: docs/why/EnemyArt.md#wounds
 func _wound(cx: int, cy: int, w: int, h: int, ember: bool = true) -> void:
-	# SCORCHED INTO THE HULL'S OWN PIXELS, never painted over it. The wound used
-	# to be three flat near-black rectangles stamped on, which read as a hole cut
-	# in the sprite (combat polish audit F5) and spilled past the silhouette.
-	# Now the plating under it darkens in a dithered oval -- deepest in the
-	# middle, broken up at the edge -- and only where there is plating.
+	# Scorched into the hull's own pixels: flat rectangles read as a cut-out (audit F5).
 	var bayer := [0.0, 0.5, 0.75, 0.25]
 	var rx := maxi(2, w / 2 + 3)
 	var ry := maxi(2, h / 2 + 2)
@@ -365,9 +305,7 @@ func _wound(cx: int, cy: int, w: int, h: int, ember: bool = true) -> void:
 			_img.set_pixel(x, y, Color(c.r * k, c.g * k * 0.94, c.b * k * 0.88, c.a))
 	if not ember:
 		return
-	# AND A CRACK THAT IS STILL HOT, as light: a jagged line of the heat ramp
-	# across the middle, brightest at its centre, with a dim dithered spill
-	# beside it, on plating only.
+	# A still-hot crack drawn as light, on plating only.
 	var half := maxi(2, w / 2)
 	for i in range(-half, half + 1):
 		var x2 := cx + i
@@ -386,26 +324,18 @@ func _wound(cx: int, cy: int, w: int, h: int, ember: bool = true) -> void:
 
 # --- The enemies -------------------------------------------------------------
 
-## HOW A SHIP DIES: one of these, rolled per kill (Jon's picks, Oct 13). Ships
-## roll from the kept ship styles -- A B C D F G I J K L M; E CHAIN and H SLICE
-## were cut and stay in `ShipBreakup` unplayed -- and creatures from their own
-## three, N O P. The two pools never cross: a whale does not snap like a
-## cutter, and a cutter does not bloom spores. The Custodian rolls from the
-## ships' pool and plays its boss version.
+## Ships and creatures roll from separate pools (Jon, Oct 13). E CHAIN and H SLICE are cut.
+## The Custodian rolls from the ships' pool and plays its boss version.
+## Why: docs/why/EnemyArt.md#death-styles
 const SHIP_STYLES: Array[int] = [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12]
 const CREATURE_STYLES: Array[int] = [13, 14, 15]
-## The bosses die their own set pieces (ShipBreakup, Oct 13). Jon on the
-## Custodian: "C1A, B, and C are all good. let's have them randomly be picked."
-## The Hellbender has the one he picked, H3 UNCOIL.
+## Bosses die their own set pieces (ShipBreakup, Oct 13). Jon picked the Custodian's three.
 const CUSTODIAN_STYLES: Array[int] = [16, 22, 23]
 const HELLBENDER_STYLES: Array[int] = [21]
 
-## WHICH STYLE THIS WRECK DIED IN, as a fact about where it lies rather than a
-## roll made at the time: the system, and which wreck of that system's it is
-## (the n-th wreck there, in the order `Combat._victory` makes them -- other
-## things in the jetsam, a pile of loose material, do not count). So the kill
-## and LOCAL's wreck, long after, agree without anything saved, and a seeded
-## run replays the same deaths. `Rng.derive`, as every positional thing is.
+## A fact about where the wreck lies, so the kill and LOCAL's wreck agree with nothing saved.
+## `Rng.derive`, as every positional thing is, so a seeded run replays the same deaths.
+## Why: docs/why/EnemyArt.md#death-styles
 static func death_style(t: EnemyTemplate, node_index: int, nth_wreck: int) -> int:
 	var pool := CREATURE_STYLES if t.fauna else SHIP_STYLES
 	if t.id == &"custodian":
@@ -428,29 +358,15 @@ static func wreck_seed(t: EnemyTemplate) -> int:
 func snapshot() -> Image:
 	return _img.duplicate()
 
-## WRECKS ARE CUT AHEAD OF THE KILL. Cutting a hull into its wreck takes 40 to
-## 90 ms of GDScript, and doing it on the frame the killing shot landed froze
-## the picture for three to six frames at exactly the moment it should move. So
-## each kind's wreck is cut once, on a worker thread, when the fight opens
-## (`warm_wreck`), and every later dead draw -- the slot at the kill, the wrecks
-## on LOCAL -- takes it from here.
-##
-## NO LOCK, AND NO OBJECT IN A STATIC. Each task writes only into its own
-## holder, read by the main thread after waiting on that task; a Mutex held in a
-## static var crashed the engine on its way out (moontest and laddertest passed
-## and then exited 139).
+## Cut ahead of the kill: 40 to 90 ms on the killing frame froze three to six frames.
+## No lock and no object in a static: a Mutex in a static var crashed on exit (139).
+## Why: docs/why/EnemyArt.md#wreck-cache
 static var _wrecks: Dictionary = {}
-## Wrecks that carry their fight's hit marks (Jon's picks, Oct 13): by where
-## they lie (`node index * 64 + nth wreck there`, the same place the death style
-## is rolled from), each {style, img}. Cut from the damaged picture when the
-## ship died, so the slot's wreck and LOCAL's afterwards are the breakup's last
-## frame, marks and all. This session only: a saved run comes back to clean
-## wrecks.
+## Wrecks keep their fight's hit marks (Jon, Oct 13). This session only: a save restores clean ones.
+## Why: docs/why/EnemyArt.md#wreck-cache
 static var _marked: Dictionary = {}
 
-## THE HIT MARKS this ship carries, when a fight has given it some
-## (`HitLayers.hits`): baked into the picture as it is drawn, under the dark
-## blend, so the wreck cut from the picture keeps them too.
+## Hit marks are baked in under the dark blend, so the wreck cut from the picture keeps them.
 var marks: ShipHitFx = null
 ## Where this ship's wreck will lie (`node * 64 + nth`), or -1.
 var wreck_id: int = -1
@@ -460,17 +376,12 @@ static func set_marked_wreck(id: int, style: int, img: Image) -> void:
 		_marked[id] = {style = style, img = img}
 static var _wreck_tasks: Dictionary = {}
 
-## Whether the coded fauna drawing is the big one (`_draw_fauna`): the adult,
-## by template. It was `max_hp > 60`, which split calf (40) from leviathan (88)
-## at the original hulls and called every calf big from enemy hull x2 on (80;
-## 160 at x4). Keyed to the kind so the next hull change cannot move it.
+## Keyed to the kind: `max_hp > 60` called every calf big once enemy hull went to x2.
 static func big_fauna(t: EnemyTemplate) -> bool:
 	return t.fauna and t.id == &"leviathan"
 
 static func _wreck_key(t: EnemyTemplate, style: int, look: int, scale: float = 1.0) -> String:
-	# Size only changes the drawing for fauna; see `_draw_fauna`. `look` is which
-	# of the kind's pictures this ship wears (`Combat.look_for`); `scale` how big
-	# the pack drew it (`draw_scale`).
+	# Size only changes fauna. `look` is the picture worn, `scale` is how big the pack drew it.
 	return "%s|%d|%d|%d|%.3f" % [t.id, int(big_fauna(t)), style, look, scale]
 
 ## Start cutting this enemy's wreck now, off the main thread. Drawing the dead
@@ -499,12 +410,8 @@ static func _take_wreck(key: String) -> Image:
 			_wrecks[key] = held[&"w"]
 	return _wrecks.get(key)
 
-## THE PICTURE A DEATH IS CUT FROM: the ship drawn dead, whole (scorched,
-## darkened, engines still on until the cut puts them out), and its box. The
-## breakup cuts this, not the live picture, so its last frame and every later
-## dead draw -- the slot, LOCAL's wreck -- are one image to the pixel; the live
-## picture's wound depends on the hull it had, which nothing after the kill
-## knows. The difference is hidden under the hit's flash.
+## The breakup cuts this, not the live picture, so every later dead draw is one image to the pixel.
+## Why: docs/why/EnemyArt.md#dead-canvas
 static func dead_canvas(e: Combat.EnemyState, with_marks: ShipHitFx = null, scale: float = 1.0) -> Array:
 	var art := EnemyArt.new()
 	art.marks = with_marks
@@ -528,27 +435,15 @@ static func reap_wrecks() -> void:
 	for key in _wreck_tasks.keys():
 		_take_wreck(key)
 
-## `hp` stands in for the enemy's hull when the screen is holding a number back
-## until the shot that changed it has landed (combat polish, Oct 13). -1 reads
-## the enemy's own. `cut_wreck` false draws a dead ship whole (what a wreck is
-## cut from).
+## `hp` stands in for hull while the screen holds a number back (combat polish, Oct 13).
 func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		cut_wreck: bool = true, style: int = -1) -> void:
 	var hull := e.hp if hp < 0 else hp
 	var wounded := float(hull) / float(maxi(1, e.max_hp))
 	var dead := hull <= 0
-	# Rebuilding a 240x120 image column by column is not free, and bind() runs
-	# on every combat refresh — every card played, every intent that changes.
-	# Nothing below reads anything except which art, whether it is winding up,
-	# roughly how hurt it is and how big it is, so the redraw is skipped unless
-	# one of those four actually moved. Skipping is safe for the layout too:
-	# _used and custom_minimum_size are left from the draw that still matches.
-	#
-	# THE ID IS IN THE SIGNATURE, NOT JUST THE ART KEY. Three kinds draw as
-	# `cutter` and three as `hulk`, so keying the cache on `art` alone meant two
-	# different ships in the same fight could hold each other's picture. It never
-	# showed while they were literally the same pixels; the moment one of them
-	# has a sprite and the other does not, it would.
+	# Skip the redraw unless art, wind-up, hurt or size moved: bind() runs every refresh.
+	# The id is in the signature: three kinds share `cutter`, three `hulk`.
+	# Why: docs/why/EnemyArt.md#redraw-cache
 	var sig := "%s|%s|%d|%d|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
 		int(wounded * 20.0), int(big_fauna(e.template)), int(dead), int(cut_wreck) * (style + 2)]
 	sig += "|look %d|scale %.3f" % [e.look, draw_scale]
@@ -563,23 +458,13 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	# Transparent: the encounter draws one starfield behind everything, and an
 	# opaque fill turns the sprite into a box sitting on top of it.
 	_img.fill(Color(0, 0, 0, 0))
-	# Bounds tracking starts AFTER the starfield and stops before the wound
-	# tint, so what it measures is the ship and nothing else. A 240x120 canvas
-	# carries a hull about 150 wide; anything aiming at the canvas is aiming at
-	# a lot of empty pixels, which costs real estate as soon as two enemies
-	# share the arena.
+	# Bounds track after the starfield and before the tint, so they measure the ship alone.
 	_bounds = Rect2i()
 	_ink_box = Rect2i()
 	_track = true
-	# ONE DOOR: the ship's own sprite if it has one, the drawing if it does not.
-	# The same shape `ModuleIcon.draw_body` uses, and for the same reason -- there
-	# is no third state where an enemy vanishes because its file has not been
-	# generated yet.
-	#
-	# THE DAMAGE AND THE TELEGRAPH STAY DRAWN EITHER WAY. `_wound`, the dark
-	# blend and the two telegraph glows are painted OVER the hull, so a sprite
-	# inherits all of them for nothing. That is what keeps the asset set at nine
-	# files rather than nine times four wound bands times two telegraphs.
+	# One door: sprite if it has one, drawing if not, so no enemy vanishes for a missing file.
+	# Damage and telegraph stay drawn over a sprite, keeping the asset set at nine files.
+	# Why: docs/why/EnemyArt.md#sprite-or-drawing
 	_flame_fx = null
 	if not _draw_sprite(e, wounded, telegraphing):
 		_draw_coded(e, wounded, telegraphing)
@@ -599,20 +484,12 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 			_img.set_pixel(int(q.x), int(q.y), Color(0, 0, 0, 0))
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
 
-	# And the Control shrinks to fit it. The canvas is a fixed 240x120 while a
-	# hull is about 150 wide and 40 tall, so the Control was carrying eighty
-	# pixels of empty image below the ship — which is what held the health bar
-	# and the intent so far away from it. Nothing that reads as "near the ship"
-	# can be, while the ship's own box is mostly not ship.
-	#
-	# Sized symmetrically about the canvas centre because the texture is drawn
-	# KEEP_CENTERED: taking the larger half-extent on each axis crops the margin
-	# without ever moving the hull inside the frame.
+	# The Control shrinks to the ship: eighty empty pixels held the health bar and intent far away.
+	# Sized symmetrically about the centre, as the texture is KEEP_CENTERED.
+	# Why: docs/why/EnemyArt.md#control-sizing
 	var cx := W * 0.5
 	var cy := H * 0.5
-	# THE PICTURE'S OWN BOX, not the light it throws: a wind-up's flare or burn
-	# spills past the hull into the space round it, and a box that grew with it
-	# would move the ship's neighbours every time an intent changed.
+	# The picture's own box, not its light: a wind-up flare would move its neighbours.
 	var box := _ink_box if _ink_box.size != Vector2i.ZERO else _used
 	var half_w: float = maxf(absf(float(box.position.x) - cx), absf(float(box.end.x) - cx))
 	var half_h: float = maxf(absf(float(box.position.y) - cy), absf(float(box.end.y) - cy))
@@ -620,9 +497,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 	custom_minimum_size = Vector2(half_w, half_h) * 2.0 + Vector2(6, 6)
 	if wounded < 0.3:
 		_blend_rect(0, 0, W, H, Color(0.031, 0.043, 0.067, 0.35))
-	# A DEAD SHIP IS THE WRECK ITS DEATH LEFT: the chunks where the breakup
-	# settled them, engines out. Drawn here so LOCAL's wrecks, long after the
-	# fight, are the same broken hull the animation ended on.
+	# A dead ship is its wreck, so LOCAL's wrecks match the hull the animation ended on.
 	if dead and cut_wreck:
 		var st := style if style >= 0 else _default_style(e.template)
 		var key := _wreck_key(e.template, st, e.look, draw_scale)
@@ -637,13 +512,8 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool, hp: int = -1,
 		_img = w.duplicate()
 	_tex.update(_img)
 
-## THE PICTURE, when the kind has one: Jon's kept ship, centred and never
-## scaled, then what the fight has done to it drawn over it.
-##
-## NO STARS ON THIS CANVAS. The coded drawings put a starfield behind the hull;
-## a sprite does not, so the canvas holds the ship and nothing else, and what a
-## breakup cuts out of it is the ship's own alpha -- a star showing through a
-## gap in a ring would otherwise break off as hull.
+## No stars on this canvas: a star through a gap would break off as hull in the breakup cut.
+## Why: docs/why/EnemyArt.md#sprite-drawing
 func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> bool:
 	var full := DB.enemy_sprite(e.template.id, e.look)
 	var half := DB.enemy_sprite(e.template.id, e.look, true)
@@ -652,9 +522,7 @@ func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> b
 	if not _blit_sprite(half if draw_scale < 1.0 and half != null else full):
 		return false
 	var ink := _bounds
-	# Damage, on the hull and sized to it. `_wound` is the one the coded ships
-	# use, so a sprite is hurt the way a drawing is.
-	# A fight's hit marks stand in for the two stock wounds (`marks`).
+	# Damage uses `_wound` like coded ships. A fight's hit marks stand in for the stock wounds.
 	if wounded < 0.5 and marks == null:
 		var p := _on_hull(ink, Vector2(0.42, 0.55))
 		_wound(p.x, p.y, clampi(ink.size.x / 9, 10, 22), clampi(ink.size.y / 6, 7, 14))
@@ -665,9 +533,7 @@ func _draw_sprite(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> b
 		_windup(e.template, ink, e.look)
 	return true
 
-## THE DRAWINGS, for a kind with no picture. Authored in a 240x120 box, so drawn
-## into one and laid in the middle of the canvas; the stars go behind them as
-## they always did.
+## For kinds with no picture. Authored in 240x120, laid in the middle, stars behind as ever.
 func _draw_coded(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> void:
 	var full := _img
 	_img = Image.create(CODED.x, CODED.y, false, Image.FORMAT_RGBA8)
@@ -677,10 +543,7 @@ func _draw_coded(e: Combat.EnemyState, wounded: float, telegraphing: bool) -> vo
 		&"cutter": _draw_cutter(wounded)
 		&"hulk": _draw_hulk(wounded, telegraphing)
 		&"hellbender": _draw_hellbender(wounded, telegraphing)
-		# EXPLICIT, THOUGH IT IS ALSO WHAT THE FALLBACK DID. The `_:` case
-		# silently turned any unmatched key into a fauna, which is how the
-		# Custodian came to be a salvage barge without anyone noticing. Named
-		# here, a typo'd or new key lands in the fallback below and says so.
+		# Explicit: the `_:` fallback turned unmatched keys into fauna (the Custodian).
 		&"whale": _draw_fauna(wounded, big_fauna(e.template))
 		_:
 			push_warning("EnemyArt: no drawing for art key '%s' (%s); drew fauna"
@@ -725,21 +588,14 @@ func _solid(p: Vector2i, r: int) -> bool:
 	return true
 
 
-## THE WIND-UP, as light over the picture: the Hulk's ram at its nose, the
-## Hellbender's escape burn at its drive, anything else (the Custodian's
-## charge) at its heart. The coded drawings paint these into the hull; a sprite
-## is lit instead -- the plating near the source brightens with distance, in
-## whole steps with a dithered edge (memory draw-light-as-light), and only a
-## real emitter (a ram's hot point, a drive) puts light past the silhouette.
-## Still while the intent holds: the picture is only redrawn when it changes.
+## A sprite is lit, not painted: plating near the source brightens, emitters pass the edge.
+## Still while the intent holds, as the picture redraws only on change.
+## Why: docs/why/EnemyArt.md#wind-up-light
 const WINDUP := {&"hulk": &"nose", &"hellbender": &"stern"}
 const COLD: Array[Color] = [Color("#3a6b8c"), Color("#5c9cc4"), Color("#8ec8e6"),
 	Color("#cfe8f5"), Color("#eaf6fc"), Color("#ffffff")]
 
-## WHERE A PICTURE'S HEART IS, where its own drawing says it is, as a share of
-## its box; a picture not listed charges at its mass. The Custodian's take 1 is
-## one huge octahedron leading a chain of small ones, and its mass falls in the
-## gap between them -- the light belongs in the big one.
+## Where a picture's heart is, as a box share. Unlisted ones charge at their mass.
 const CORE_AT := {"custodian_t1_grown": Vector2(0.23, 0.46)}
 
 func _windup(t: EnemyTemplate, ink: Rect2i, look: int = 0) -> void:
@@ -818,11 +674,7 @@ func _light(p: Vector2i, r: float, col: Color, strength: float) -> void:
 			_img.set_pixel(x, y, Color(minf(1.0, c.r + col.r * k), minf(1.0, c.g + col.g * k),
 				minf(1.0, c.b + col.b * k), c.a))
 
-## THE SAME LIGHT AS A SMOOTH POOL, for a charge building in the body (the
-## Custodian's). `_light`'s quarter steps read as rings on a big pool -- Jon saw
-## them on the core's guard -- so this one falls off continuously and is put
-## into pixels by a 4x4 ordered dither between eighths: no step ever lines up
-## into a band, and it still only lands on plating, never as a haze off it.
+## Smooth pool via a 4x4 ordered dither: `_light`'s quarter steps read as rings on the core guard.
 const BAYER4: Array[float] = [0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
 	3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0]
 
@@ -887,9 +739,7 @@ func _draw_cutter(wounded: float) -> void:
 		_seam(x, span.x + 2, int(float(span.y - span.x) * 0.56) - 3, _steel)
 	rivets(84, 47, 20, 4, _steel[1])
 	rivets(84, 71, 20, 4, _steel[0])
-	# Recessed deck hatches: a well loses its top face but is still lit by the
-	# sky, so it goes one stop down and keeps a bright lip on its far side.
-	# Drawn near black it reads as a hole punched through the sprite.
+	# Recessed hatches go one stop down with a far-side lip: near black they read as holes.
 	for raw in [[94, 12], [110, 9], [123, 12]]:
 		var hatch: Array = raw
 		var hx: int = hatch[0]
@@ -1031,17 +881,9 @@ func _draw_hulk(wounded: float, telegraphing: bool) -> void:
 	if wounded < 0.5:
 		_wound(100, 58, 24, 17)
 
-## The Hellbender: a furnace wearing a hull. Every other ship out here is cold
-## metal with one warm exception at the nozzle; this one is black iron leaking
-## its own cargo — ember light standing in every seam, a radiator spine that
-## cannot not glow, and an intake maw at the bow because it eats wrecks for a
-## living. No new ramp: ART_CONTRACT reserves those for manufacturers, and the
-## whole design is _gun darks letting _heat out, which is the one warm ramp a
-## ship is allowed and the one thing this ship IS.
-##
-## Telegraphing here is the ESCAPE BURN — the only telegraph in its kit — so
-## the tell lights the DRIVE, not a weapon: the hulk teaches you its glow means
-## a ram is coming, this one teaches you its glow means it is leaving.
+## A furnace wearing a hull: black iron with ember light. No new ramp, those are for manufacturers.
+## Its telegraph is the escape burn, so the tell lights the drive, not a weapon.
+## Why: docs/why/EnemyArt.md#hellbender-art
 func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 	var body := _profile([
 		Vector3i(46, 52, 74), Vector3i(58, 44, 82), Vector3i(72, 40, 86),
@@ -1059,9 +901,7 @@ func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 	for i in 5:
 		_vent(84 + i * 13, 31, 8, 5)
 
-	# Plate seams — and the light behind them. A cold ship's seam is a shadow
-	# line; on this one the lower half of every seam is a slit with the hold's
-	# fire standing in it. The two-plane break stays untouched above the lip.
+	# Seams carry the hold's fire in their lower half. The two-plane break stays above the lip.
 	for x in [70, 92, 114, 136, 156]:
 		var span: Vector2i = body[x]
 		var d := int(float(span.y - span.x) * 0.5)
@@ -1076,10 +916,7 @@ func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 		px(66 + i * 11, 78, 3, 2, _heat[0])
 		px(66 + i * 11, 78, 3, 1, _heat[3])
 
-	# The salamander device, amidships on a plaque: a bright curl of a beast
-	# over three licks of flame. Enough pixels to read as heraldry, not enough
-	# to pretend it explains itself — see docs/lore.md on devices going
-	# unglossed.
+	# The salamander device on a plaque: enough pixels for heraldry, unglossed (docs/lore.md).
 	px(99, 55, 18, 13, _ink)
 	px(100, 56, 16, 11, _gun[1])
 	px(100, 56, 16, 1, _gun[3])
@@ -1090,9 +927,7 @@ func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 	for fx in [103, 107, 111]:
 		px(fx, 65, 1, 1, _heat[2])
 
-	# The intake maw: an upper jaw, a lower jaw hanging in the hull's shadow,
-	# and between them the dark it feeds wrecks into — never fully cold, even
-	# at rest. This is the bow because this is what the ship is for.
+	# The intake maw is the bow, as it is what the ship is for. Never fully cold.
 	_hull(_profile([Vector3i(26, 46, 58), Vector3i(48, 44, 60)]), _gun, 0.55)
 	_hull(_profile([Vector3i(30, 64, 76), Vector3i(48, 62, 78)]),
 		_under(_gun), 0.35, false)
@@ -1112,10 +947,7 @@ func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 	px(188, 53, 6, 16, _gun[1])
 	px(188, 53, 6, 1, _gun[3])
 
-	# The escape burn, spooling. The drive goes white-hot, the spine's louvres
-	# jump two stops, and a pre-burn haze stands off the stern — one full turn
-	# of THIS is the window the fight gives you to finish it. See
-	# Combat.escape_intent().
+	# Escape burn spooling: one full turn of this is the window to finish it.
 	if telegraphing:
 		px(189, 55, 4, 12, _heat[5])
 		for i in 5:
@@ -1128,28 +960,19 @@ func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 
 	if wounded < 0.5:
 		_wound(94, 60, 20, 14)
-	# A second, older hole. This ship carries its damage between engagements —
-	# RunState mends it a few points per move — so a hellbender met twice
-	# should look like a ship you have already been beating on.
+	# A second, older hole: damage carries between engagements, so a repeat meeting shows it.
 	if wounded < 0.25:
 		_wound(142, 50, 13, 9)
 
 
-## The fauna: an armoured, segmented thing. Not a ship, and lit like one anyway,
-## because the light in this sector does not care what it is falling on. What
-## separates it from the ships is that its light is COLD — nothing alive out
-## here runs a furnace.
+## Fauna light is cold: nothing alive out here runs a furnace.
 func _draw_fauna(wounded: float, big: bool) -> void:
 	var segs := 12 if big else 10
 	var seg_w := 11 if big else 10
 	var span := 52.0 if big else 42.0
 	var x0 := 54
 
-	# Drawn tail first so each plate overlaps the one behind it. The trailing
-	# edge is then laid down AFTER its own plate and never covered, because
-	# everything drawn later is to the left of it — without that edge the
-	# overlaps merge into one smooth teardrop, which is the exact failure the
-	# flat version had.
+	# Tail first so plates overlap, trailing edge laid last or it merges into a teardrop.
 	for k in segs:
 		var i := segs - 1 - k
 		var h := int(round(span - absf(float(i) - float(segs) / 2.0 + 0.5) * 4.4))
@@ -1230,9 +1053,7 @@ func _blend_rect(x: int, y: int, w: int, h: int, c: Color) -> void:
 			var xx := x + i
 			var yy := y + j
 			if xx >= 0 and xx < W and yy >= 0 and yy < H:
-				# ON THE HULL ONLY. Lerping transparent pixels toward a dark
-				# colour at 0.35 left a faint box the size of the whole canvas
-				# round every ship below 30% hull.
+				# On the hull only: lerping transparent pixels left a faint box round the ship.
 				var was := _img.get_pixel(xx, yy)
 				if was.a <= 0.0:
 					continue

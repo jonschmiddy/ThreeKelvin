@@ -1,19 +1,7 @@
 extends Node
 
-## JON'S WELCOME NOTE, on a fresh profile and after it:
-##   godot --headless --path . -- sheet=WelcomeTest welcome
-## (`welcome` lets it open by itself under a harness; the seen flags go to this
-## process's scratch settings file, so the profile starts fresh every run.)
-##
-## The title on a fresh profile opens the note, word for word, inside the screen;
-## showing it does not mark it seen, so a title opened again before it is closed
-## shows it again; CLOSE shuts it and marks it; the next title (the second
-## launch) does not open it. MESSAGE FROM JON sits directly above QUIT, styled as
-## its neighbours and reachable by focus, and opens it again; Escape shuts it.
-## And what follows it on a first launch (tutorial direction B, Oct 17): NEW
-## RUN on a fresh profile goes straight to the hull pick with no seed panel (the
-## panel stays once a save exists), and LAUNCH there puts you on LOCAL with no
-## tour and no note: the goal line under the HUD, and the controls yours.
+## Checks the first-launch note flow on a fresh profile with a scratch settings file.
+## Why: docs/why/WelcomeTest.md#welcome-test
 
 var _tree: SceneTree
 var _fails := 0
@@ -159,10 +147,7 @@ func _run() -> void:
 	_finish()
 
 
-## NEW THINGS (Jon, Nov 5): the data's version rule, the button above MESSAGE
-## FROM JON with its unseen mark, the page (every heading and line as written,
-## each inside the page and none on another, the list scrolling by wheel and
-## keys) and the mark cleared by opening it, saved and read back.
+## New things (Jon, Nov 5): version rule, button, page layout and the seen mark saved and read back.
 func _check_new_things() -> void:
 	# THE DATA. Newest first: NEXT (work not out yet) with this build's version
 	# right under it, or this build's version itself. See NewThings' rule.
@@ -452,10 +437,7 @@ func _check_letter(w: WelcomePopup) -> void:
 	print("    screen %s, panel %s, note scrolls: %s" % [screen,
 		w.panel_rect(), w.note_scrolls()])
 	_ok("  the panel is inside the screen", screen.grow(0.5).encloses(w.panel_rect()))
-	# THE DIM REACHES THE GLASS (Jon, Oct 20: "a weird dark box around the
-	# background ... in the corners and side of the screen"): the title's galaxy
-	# runs past the screen's rect, which stops Main's margin short of the
-	# picture's edge, so a dim the size of the screen left it lit round the note
+	# The dim must reach the glass (Jon, Oct 20): the title galaxy runs past the screen's rect.
 	var dim := card.get_child(0) as ColorRect
 	var pic := w.get_viewport_rect()
 	_ok("  its dim covers the whole picture, Main's margin too (%s on %s)" % [

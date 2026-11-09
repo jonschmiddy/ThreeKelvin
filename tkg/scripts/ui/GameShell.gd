@@ -1,48 +1,16 @@
 class_name GameShell
 extends Control
-## THE WINDOW THE GAME IS SHOWN IN, and the reason it exists is the curve.
-##
-## The game draws at 960x540 and always has. Until now Godot scaled that whole
-## frame to the window for us (`stretch/mode = viewport`), which meant any
-## screen shader ran INSIDE the 960x540 frame -- and a curve computed there can
-## only blur the art or stagger it, because there is no room between one game
-## pixel and the next to put the bend in. Jon, on the blurred version: "REALLY
-## blurry and unreadable"; on the staggered one: "the pixels are jagged and
-## really bad looking". Both were true.
-##
-## So the game now renders into a SubViewport of exactly 960x540 -- unchanged,
-## every coordinate in the game still means what it meant -- and THIS node draws
-## that texture to the window through `screen_filter.gdshader`. The shader runs
-## once per SCREEN pixel, so the curve is computed at the size you are actually
-## looking at, and each screen pixel still picks one game pixel: crisp art, bent
-## glass.
-##
-## What Godot used to do and this now does by hand:
-##   * INTEGER SCALE. The game is drawn at a whole multiple of 960x540 or not at
-##     all. A 1.5x picture of pixel art is two different pixel sizes in one
-##     image, which is the one thing the art cannot survive.
-##   * LETTERBOX. Whatever is left over is black, and the shader paints the
-##     corners the curve pushes off the glass to match.
-##
-## Everything else in the game is inside the SubViewport and does not know this
-## node exists. The shot tools still photograph `get_viewport()` from in there,
-## so they still write a 960x540 png.
+## The game renders in a 960x540 SubViewport the shell draws, so the curve is per screen pixel.
+## Integer scale only: a 1.5x pixel-art picture mixes two pixel sizes.
+## Why: docs/why/GameShell.md#shell-window
 
 const BASE := Vector2i(960, 540)
 const FILTER := preload("res://shaders/screen_filter.gdshader")
 const GAME := preload("res://scenes/Main.tscn")
 
 static var instance: GameShell = null
-## HOW THE TUBE ENDS. Jon's pick, from the four ways other games do it and then
-## from four roundings of the one he chose: OVERSCAN with the corner rounded by
-## 26 px and the picture darkening slightly into it. Overscan is what a
-## television did -- the outer few per cent of the picture fell off the glass --
-## so there is no empty wedge to finish; the rounding is only there because a
-## right-angled corner on a bowed picture "is just not nice to look at".
-##
-## The others are kept for `-- edge=N`: 0 hard edge, 1 overscan square,
-## 2 shaped glass, 3 in a bezel, 4 a deeper bezel, 5 and 7 the same rounding at
-## 14 and 40 px.
+## Overscan with a 26 px rounded corner is Jon's pick; the others stay for `-- edge=N`.
+## Why: docs/why/GameShell.md#tube-edge
 static var _edge_style: int = 6
 ## AND HOW DARK THE CORNERS GO, while Jon judges it: `-- vig=0.5`. Below zero
 ## means the look's own number stands.
@@ -53,11 +21,7 @@ var _frame: SubViewportContainer
 ## The black round the glass: above, below, left, right (`_fit_bands`).
 var _bands: Array[ColorRect] = []
 var _mat: ShaderMaterial
-## WHAT THE GLASS IS DOING TO THE PICTURE RIGHT NOW, kept so the mouse can be
-## put through the same bend. Zero curve means the two spaces agree and there
-## is nothing to do.
-## WHERE THE UNNUDGED RECT SITS. `_fit` owns it; `_nudge` moves the rect off it
-## every frame and back.
+## Kept so the mouse goes through the same bend; `_fit` owns `_home`, `_nudge` moves off it.
 var _home: Vector2 = Vector2.ZERO
 ## What draws the picture through the glass: the game's frame, at `_home`,
 ## always. The container that takes input moves under the pointer; this does not.
@@ -75,12 +39,9 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# THE BLACK AROUND THE PICTURE, four bands that `_fit` lays round the glass.
-	# It was one black rect under the whole window, and at 3X the glass covers
-	# every pixel of that: 4.7 million pixels drawn a frame for nobody. UNTIL
-	# THE GLASS EXISTS the first band is the whole window, as that rect was:
-	# the game boots inside the `add_child` below, and `DisplaySettings.
-	# load_and_apply` force-draws a dark frame into the grown window from there.
+	# Four bands round the glass, not one rect under the window, which drew 4.7M pixels for nobody.
+	# Until the glass exists band one is the whole window, as the game boots inside `add_child`.
+	# Why: docs/why/GameShell.md#letterbox-bands
 	for i in 4:
 		var band := ColorRect.new()
 		band.color = Color.BLACK
@@ -94,36 +55,21 @@ func _ready() -> void:
 	_mat.shader = FILTER
 
 	_frame = SubViewportContainer.new()
-	# STRETCH AND SHRINK TOGETHER. `stretch` alone resizes the SubViewport to the
-	# container, which would hand the game a 1920x1080 frame and draw the whole
-	# interface at half the size it is designed at. `stretch_shrink` is the
-	# factor between them: container 1920x1080, shrink 2, frame 960x540.
+	# Stretch and shrink together, or the game gets a 1920x1080 frame at half the design size.
 	_frame.stretch = true
 	_frame.stretch_shrink = 2
 	# The shader does its own sampling and wants the real texels either side of
 	# an edge, so the container hands it a linear tap rather than a snapped one.
 	_frame.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	# THE CONTAINER IS FOR INPUT ONLY NOW, AND IS NOT SEEN. `_nudge` slides it
-	# under the pointer so hover and clicks land where the bent picture says;
-	# when it also DREW the picture, sliding it dragged the glass's own edge in
-	# with it -- a sliver of backdrop down one side and across the top whenever
-	# the pointer went near a corner (Jon: "the crt edge pulls inward on the
-	# sides and top"). The picture is drawn by `_glass`, which never moves.
-	# MODULATE, NOT SELF_MODULATE: Godot skips drawing an item whose modulate is
-	# transparent, and still drew this one, a whole window of nothing, when only
-	# its self_modulate was. Not `visible = false` either: that takes it out of
-	# the input path and freezes the game's frame. Modulate does neither, and
-	# does not reach the game inside its SubViewport.
+	# The container takes input only and is unseen, so `_nudge` cannot drag the glass edge in.
+	# Modulate, not self_modulate or visible: Godot skips drawing at zero modulate; input stays.
+	# Why: docs/why/GameShell.md#input-container
 	_frame.modulate = Color(1, 1, 1, 0)
 	add_child(_frame)
 
 	view = SubViewport.new()
-	# NEAREST, LIKE THE REST OF THE PROJECT. `textures/canvas_textures/
-	# default_texture_filter` is applied to the ROOT viewport only; a Viewport
-	# made in code starts on LINEAR whatever the project says. Every stretched
-	# texture in the game was being blended -- which showed up as a sheen across
-	# the buttons, because a StyleBoxTexture stretches a 4x4 image over the
-	# whole plate and linear sampling smeared its bevel into the middle.
+	# Set NEAREST here: the project filter covers the root viewport only, so code-made ones blur.
+	# Why: docs/why/GameShell.md#texture-filter
 	view.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	# Set for the first frame; `stretch_shrink` owns it from then on.
 	view.size = BASE
@@ -146,9 +92,7 @@ func _ready() -> void:
 	_fit()
 	refresh()
 
-	# `-- shellshot[=path]` photographs THE WINDOW, tube and all. `-- shot`
-	# photographs the game's own frame from inside the SubViewport, which is
-	# what every art harness wants and which no longer shows the glass.
+	# `shellshot` photographs the window, tube and all; `-- shot` no longer shows the glass.
 	for a in OS.get_cmdline_user_args():
 		if a == "shellshot" or (a as String).begins_with("shellshot="):
 			_shell_shot((a as String).split("=")[1] if "=" in a else "user://shell.png")
@@ -163,60 +107,9 @@ func _shell_shot(path: String) -> void:
 		img.get_width(), img.get_height()])
 	get_tree().quit()
 
-## THE POINTER GOES THROUGH THE GLASS, AND SO DOES THE HOVER.
-##
-## The shader bends the picture per screen pixel and the container that feeds
-## the game maps the window to the viewport with a straight divide, so a button
-## DRAWN in the corner sat a long way from where it could be CLICKED -- 45 game
-## pixels at the top-left tab on the arcade setting. Jon found it by hand and
-## his diagnosis was exactly right: the picture moved and the hit boxes did not.
-##
-## TWO SEPARATE THINGS HAD TO BE BENT, and missing the second is why this took
-## three goes and two wrong "fixed" claims:
-##
-##   THE EVENT decides where a click LANDS. Bending it in place is enough for
-##   that, and `-- warptest` measures the whole chain at 0.00 game px.
-##
-##   THE VIEWPORT'S OWN MOUSE POSITION decides which control is HOVERED. Godot
-##   keeps that separately and takes it from the container's local mouse
-##   position -- the OS pointer through a straight transform -- so the click
-##   goes where the picture says and the highlight goes somewhere else: 6.7
-##   game px at the top-left tab on the default look, 45 on the arcade one.
-##
-##   THIS IS NOT FIXED, and here is what does not work, so nobody spends the
-##   day again. Pushing bent events into the SubViewport does not move it --
-##   `gui_get_hovered_control()` returns null for every one. Taking the
-##   container out of the mouse path (`mouse_filter = IGNORE`) stops the wrong
-##   updates and stops the right ones too: the viewport then believes the
-##   pointer is outside it and skips GUI picking entirely.
-##
-##   `view.warp_mouse(bent)` DOES fix it, and it cost Jon his cursor: a
-##   SubViewport has no window of its own, so the warp goes to the real one and
-##   drags the hardware pointer toward the bend, which feeds the next warp.
-##   "My cursor is floating to the center of the screen." It is out.
-## `relative` is left alone. It drives panning, the scale it would want differs
-## across the screen, and a pan that changed speed toward the corners would be a
-## worse bug than the one being fixed.
-## THE GLASS MOVES SO THE POINTER DOES NOT HAVE TO.
-##
-## Everything before this bent the EVENT, which fixed the click and left the
-## highlight behind -- Godot works out what is hovered from the container's own
-## transform and never looks at an event. Three ways round that are dead:
-## pushing bent events (nothing is ever hovered), `mouse_target` (judged by
-## hand, no better), and `warp_mouse` (works, and drags the real cursor).
-##
-## So bend the CONTAINER instead. Godot maps a window point to the game with
-## `(point - position) / stretch_shrink`; that is affine and the bend is not,
-## but it only has to be right AT ONE POINT -- the pointer. Put the container
-## where that arithmetic comes out at the bent pixel and the engine does the
-## rest: hover, clicks, drags, tooltips, everything, from the one transform it
-## already trusts.
-##
-## THE PICTURE MUST NOT MOVE WITH IT, so the container is not what is seen:
-## `_glass` draws the same frame through the shader from a rect that stays at
-## `_home`. (It used to be the container itself, handed the nudge back in UV;
-## that kept the picture still but slid the glass's edge in at one side and the
-## top, up to 6% of the frame, whenever the pointer neared a corner.)
+## Bend the container, not events: pushed events never hover and `warp_mouse` drags the cursor.
+## The picture is drawn by `_glass` from a still rect, so it does not move with the nudge.
+## Why: docs/why/GameShell.md#pointer-through-glass
 func _nudge() -> void:
 	if _frame == null or view == null:
 		return
@@ -226,11 +119,8 @@ func _nudge() -> void:
 		_mat.set_shader_parameter(&"uv_shift", Vector2.ZERO)
 		return
 	var p := _pointer if _pointer.x >= 0.0 else get_viewport().get_mouse_position()
-	# THE POINTER HAS TO BE ON THE GLASS. Off it -- outside the window, or
-	# anywhere at all before the player has moved the mouse -- there is nothing
-	# to line up, and lining up with a point a thousand pixels away sends the
-	# rect off the screen. The first version of this rendered pure black for
-	# exactly that reason, on a shot tool where the cursor was somewhere else.
+	# Nudge only with the pointer on the glass: a far point sent the rect off screen.
+	# Why: docs/why/GameShell.md#pointer-through-glass
 	if not Rect2(_home, _frame.size).has_point(p):
 		_frame.position = _home
 		_mat.set_shader_parameter(&"uv_shift", Vector2.ZERO)
@@ -240,18 +130,11 @@ func _nudge() -> void:
 	var straight := (p - _home) / k
 	var bent := _bend_at(p, _home)
 	var want := p - bent * k
-	# AND THE NUDGE IS BOUNDED BY THE BEND, never more. The bend cannot move a
-	# point further than the curve does, so anything past that is arithmetic
-	# going wrong rather than a picture to follow.
+	# The nudge is capped by the bend; anything larger is arithmetic going wrong.
 	var cap := _frame.size * 0.06
 	var delta := (want - _home).clamp(-cap, cap)
-	# WHOLE GAME PIXELS, NOT FRACTIONS OF ONE. The compensation keeps the
-	# picture in the same place -- measured, the best match between a frame with
-	# the pointer at the middle and one with it in a corner is at zero shift --
-	# but a fractional nudge changes which texel each screen pixel lands on, and
-	# on pixel art that crawls as the mouse moves. Rounded to a texel, the
-	# sampling is identical and only the rect moves. It costs half a game pixel
-	# of aim, which is the precision the snap already worked to.
+	# Nudge in whole game pixels: a fractional shift changes texel sampling and pixel art crawls.
+	# Why: docs/why/GameShell.md#pointer-through-glass
 	delta = (delta / k).round() * k
 	_frame.position = _home + delta
 	_slip = (straight - bent).length()
@@ -261,35 +144,15 @@ func _process(_delta: float) -> void:
 	_nudge()
 
 
-## SWITCH THE SET OFF, then go.
-##
-## Jon asked for it and a tube is the one thing this shell already is, so the
-## whole effect is one uniform: the picture folds to a line, the line closes to
-## a dot, the dot burns out. Three quarters of a second, which is about what a
-## real set took and is short enough that nobody quitting in a hurry is made to
-## watch it.
-##
-## IT RUNS EVEN WITH THE CURVE OFF, because it is not the curve -- a flat
-## screen still had a beam. It is skipped when motion is reduced and when there
-## is no shell at all, and in both of those it quits at once.
-##
-## THE QUIT IS GUARANTEED. `await` on a tween that never finishes would leave
-## the window open for ever, so the timer runs the quit whether or not the
-## picture got there.
-## THREE SECONDS, AND THE TIME IS SPENT ON THE LINE. Jon: "make it last a
-## while." Stretching the fold would only look slow; what lasts is the bright
-## bar the picture folds into, which sits and drains for well over a second
-## before the line closes. That is the beat the sound was cut for -- the whine
-## runs the whole length of the hold.
+## The switch-off is one uniform, runs even with the curve off, and the quit is timer guaranteed.
+## Three seconds, spent on the bright line (Jon), not on a slower fold.
+## Why: docs/why/GameShell.md#power-off
 const OFF_S := 3.0
 ## Where the line becomes a dot, in seconds. The shader's own 0.50 of the way
 ## through; kept here because the sound has to land on it.
 const CLOSE_S := 0.50 * OFF_S
-## AND THEN A BLACK SECOND, before the window goes. Jon asked for it, and it is
-## the part that makes the rest read as a set rather than as an animation: a
-## picture ending is a thing you watch finish, and a window vanishing on the
-## same frame as the last of the light turns the whole sequence into a
-## transition. The dot is gone well before this; what is held is nothing at all.
+## A black second after the light (Jon): a window vanishing with the light reads as a transition.
+## Why: docs/why/GameShell.md#power-off
 const BLACK_S := 1.0
 
 static func shut_down(tree: SceneTree) -> void:
@@ -302,21 +165,13 @@ static func shut_down(tree: SceneTree) -> void:
 func _fade_out(tree: SceneTree) -> void:
 	set_process(false)          # the nudge stops; the rect holds still to die
 	Audio.play(&"power_off")
-	# The music and the room slow down with the picture, and are still slowing
-	# when the hole cuts them. Ending on the bend rather than on a fade is what
-	# makes the cut sound like power going rather than like a mix stopping.
+	# Audio slows with the picture and is cut on the bend, so the cut sounds like power going.
 	Audio.power_down(CLOSE_S - 0.06)
-	# THE HOLE, and it does half the work. The click in `power_off` lands where
-	# the line becomes a dot; everything else in the game is cut a moment
-	# BEFORE it, so it lands in silence rather than over a mix. It is what film
-	# does and it is the one thing no sound file can carry, because the thing
-	# being silenced is the rest of the game.
+	# The hole: everything else is cut just before the `power_off` click so it lands in silence.
+	# Why: docs/why/GameShell.md#power-off
 	tree.create_timer(CLOSE_S - 0.06).timeout.connect(func() -> void:
-		# 40 ms, not SWAP's 2.5 s. The hole is only a hole if the mix is
-		# actually gone when the click lands; a swap-length fade left the music
-		# audible -- and still bending -- for two and a half seconds after it.
-		# Not a hard stop either: a mix cut mid-sample is its own click, and
-		# this one would land in the silence the ending needs.
+		# 40 ms, not SWAP's 2.5 s fade, or music stayed audible; not a hard stop, which clicks.
+		# Why: docs/why/GameShell.md#power-off
 		Audio.stop_music(0.04)
 		Audio.room(&"", 0.04))
 	var t := create_tween()
@@ -336,29 +191,18 @@ func hold_off(v: float) -> void:
 		_mat.set_shader_parameter(&"power_off", clampf(v, 0.0, 1.0))
 
 
-## WHERE THE PICTURE IS, in window pixels. A harness asking "which window pixel
-## shows this game pixel" needs the rect the glass is drawn in, and should not
-## have to go looking for a node to find it.
+## Harnesses ask for the glass rect instead of searching for a node.
 func frame_rect() -> Rect2:
 	return Rect2(_frame.position, _frame.size) if _frame != null else Rect2()
 
 
-## Window pixel -> the game pixel actually drawn there: the bend, then the snap.
-##
-## THE SNAP MATTERS. The bend is continuous; the picture is not. `sharp_uv` in
-## the shader gives each screen pixel one whole game texel, so the edge you can
-## SEE is on a game-pixel boundary while a continuous map puts the hit edge
-## anywhere inside that pixel -- half a pixel out, which is what "better, but
-## not pixel perfect" feels like. Landing on the middle of the texel the shader
-## shows makes the two the same edge by construction.
+## Snap to the texel the shader shows, so the visible edge and the hit edge are the same.
+## Why: docs/why/GameShell.md#pointer-mapping
 func _game_at(win: Vector2) -> Vector2:
 	return _bend(win).floor() + Vector2(0.5, 0.5)
 
 
-## The bend alone, in game pixels and without the snap. The same barrel and
-## overscan as `screen_filter.gdshader`, in the same order; if that changes,
-## this changes with it. Kept separate because it is INVERTIBLE and the snapped
-## version is not -- `-- warptest` has to go backwards through it.
+## Kept apart from the snap because it is invertible and `-- warptest` runs it backwards.
 func _bend_at(win: Vector2, origin: Vector2) -> Vector2:
 	if _frame.size.x <= 0.0 or _frame.size.y <= 0.0:
 		return Vector2.ZERO
@@ -383,11 +227,7 @@ func _bend(win: Vector2) -> Vector2:
 	return uv * Vector2(BASE)
 
 
-## WHERE A SYNTHETIC EVENT GOES. The game lives in the shell's SubViewport now,
-## so a harness pushing at `tree.root` is aiming at the window -- the container
-## would rescale the position on the way in and the click would land at half the
-## coordinate it meant. Harnesses push here instead, in the game's own 960x540
-## space. Falls back to the root for anything booted without a shell.
+## Harnesses push here, in game space; at `tree.root` the container would halve the position.
 static func input_target(tree: SceneTree) -> Viewport:
 	if instance != null and instance.view != null:
 		return instance.view
@@ -412,13 +252,8 @@ func _fit() -> void:
 		_mat.set_shader_parameter(&"out_scale", float(k))
 	refresh()
 
-## THE BLACK IS WHERE THE GLASS IS NOT: the rows above and below the picture,
-## then the columns either side of it, each hidden when it is empty. A window
-## that is a whole multiple of 960x540 has none at all; BORDERLESS on a 1080p
-## or Retina screen has a top and a bottom. The glass writes every pixel of its
-## own rect, the corners the curve leaves included, so nothing under it is
-## ever seen. The root's clear colour is the interface navy and stays so (the
-## game's own frame clears with it), which is why the bands are drawn at all.
+## Black is only where the glass is not; the root clear stays navy, so the bands are drawn.
+## Why: docs/why/GameShell.md#letterbox-bands
 func _fit_bands(win: Vector2, px: Vector2) -> void:
 	var top := clampf(_home.y, 0.0, win.y)
 	var bottom := clampf(_home.y + px.y, top, win.y)
@@ -460,13 +295,8 @@ func _apply() -> void:
 	var curve := 0.0
 	var scan := 0.0
 	var mask := 0.0
-	## HOW DARK THE CORNERS GO. The tube's ladder, and Jon set its middle rung by
-	## eye against four depths shot on the card gallery: 0.55 on the look he
-	## plays in, where the corner sits at 64% of the middle and the edges at 57%.
-	## The old 0.35 was there and measurable and he could not see it, which is
-	## the whole lesson -- a vignette on a screen whose edges are already dark
-	## has to be deeper than the arithmetic suggests. The other two keep their
-	## distance from it rather than their old numbers.
+	## Corner depth was set by Jon's eye: the old 0.35 was measurable but invisible on dark edges.
+	## Why: docs/why/GameShell.md#vignette
 	var vign := 0.0
 	match d.screen_look:
 		DisplaySettings.Look.SCANLINES:
@@ -488,10 +318,7 @@ func _apply() -> void:
 		vign = _vig_override
 	_mat.set_shader_parameter(&"curve", curve)
 	_curve = curve
-	# The corner treatment, picked by `-- corner=N` while Jon judges it.
-	# HOW THE EDGE OF THE TUBE IS FINISHED. The four ways other games do it,
-	# from the survey: leave it flat, overscan past the frame, shape the glass,
-	# or set the glass in plastic. `-- edge=N` picks one while Jon judges them.
+	# Corner and edge styles are picked by `-- corner=N` and `-- edge=N` while Jon judges them.
 	var e := int(_edge_style)
 	var curved := curve > 0.0
 	#  0 hard edge          3 glass in a bezel      6 overscan, rounded 26
@@ -510,27 +337,9 @@ func _apply() -> void:
 	_mat.set_shader_parameter(&"scanline", scan)
 	_mat.set_shader_parameter(&"mask_amount", mask)
 	_mat.set_shader_parameter(&"vignette", vign)
-	# GIVE BACK WHAT THE TUBE TOOK, and get the arithmetic right this time.
-	#
-	# The first version of this line guessed at two of the three costs, and Jon
-	# found it by eye: "CRT mode shouldn't darken the screen much." Measured on
-	# the same screen, it was 14% down on the gentle setting, 21% on CRT and 33%
-	# on the arcade one. Both guesses were the same mistake -- assuming a mark
-	# costs what it costs at its own strength rather than what it costs ACROSS
-	# THE WHOLE SCREEN:
-	#
-	#   VIGNETTE. Its profile is `clamp(r * 0.72, 0, 1) ^ 1.6`, whose mean over
-	#   the screen is 0.412, not the 0.2 this assumed. That one number is most of
-	#   the darkening.
-	#   MASK. It dims two subpixels in three, so it costs `mask * 2/3`, not
-	#   `mask / 3`.
-	#   SCANLINE. Half the rows at full strength: `scan * 0.5`. This one was
-	#   right.
-	#
-	# The floor is gone with them. It existed to stop the old formula asking for
-	# a gain it could not deliver; the shader now rolls its highlights off with a
-	# soft knee instead, so a gain of two is a brighter picture rather than a
-	# clipped one.
+	# Measured costs, not guesses: vignette mean 0.412, mask 2/3, scanlines 1/2.
+	# The floor is gone: a soft knee rolls highlights off, so a gain of two does not clip.
+	# Why: docs/why/GameShell.md#brightness-gain
 	const VIGNETTE_MEAN := 0.412
 	_mat.set_shader_parameter(&"gain",
 		1.0 / maxf(0.2, (1.0 - scan * 0.5) * (1.0 - mask * 2.0 / 3.0)

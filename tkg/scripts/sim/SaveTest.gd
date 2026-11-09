@@ -1,33 +1,12 @@
 extends RefCounted
 
-## Round-trip test for SaveGame and RunHistory.
-##
-##   godot --headless --path . -- savetest
-##
-## RUN THIS AFTER TOUCHING EITHER FILE. A save system fails silently by nature:
-## a field someone forgot to serialise does not crash, it just comes back as a
-## default, and the run continues around it looking almost right. The only way
-## to catch that is to compare a run against itself.
-##
-## The method is deliberately blunt. Play a run forward into a messy state,
-## fingerprint every field that matters, save, SCRAMBLE the live state so
-## nothing can survive by accident, load, and fingerprint again. A field the
-## save does not carry shows up as a mismatch rather than as a value that
-## happened to already be right.
-##
-## Floats are compared to nine decimals. JSON does not round-trip doubles
-## bit-exactly — see the note in SaveGame.save() — and nine decimals is three
-## orders of magnitude stricter than anything the game can observe while still
-## catching a genuinely wrong number.
-##
-## Loaded by path rather than by class_name, so a test costs nothing in the
-## global class cache that every screen pays to look through.
+## Scramble live state before loading so nothing survives by accident; floats to nine decimals.
+## Why: docs/why/SaveTest.md#round-trip-method
 
 var fails: int = 0
 
-## The flight record the history checks write and clear. `RunHistory.path`
-## points here while they run: clearing the real one deleted the player's whole
-## record, and every unlock read from it, on every gate run.
+## `RunHistory.path` points at a test file: clearing the real one wiped the player's record.
+## Why: docs/why/SaveTest.md#history-file
 const HISTORY := "user://savetest_history.json"
 
 func check(what: String, a: Variant, b: Variant) -> void:
@@ -39,11 +18,7 @@ func fingerprint() -> Dictionary:
 	var mods := func(list: Array) -> Array:
 		var out: Array = []
 		for raw in list:
-			# A CRATE HAS AN ID AND A CELL AND NOTHING ELSE TO LOSE. The hold
-			# carries materials now, and everything below this line is a
-			# module's -- affixes, rarity, scrap value, mount. A material that
-			# came back in the wrong place, or did not come back, still shows
-			# up: those are the two fields it has.
+			# A crate has only an id and a cell, the two fields it can lose.
 			var mat := raw as MaterialData
 			if mat != null:
 				out.append("%s|h%d,%d" % [mat.id, mat.hold_at.x, mat.hold_at.y])
@@ -52,11 +27,7 @@ func fingerprint() -> Dictionary:
 			var af: Array = []
 			for a in m.affixes:
 				af.append(a.name)
-			# WHERE it is, as well as what it is. Neither `mount` nor `hold_at`
-			# was fingerprinted before, so this test passed on a save that
-			# dropped every position — the loadout you built came back as the
-			# same parts in a different arrangement and nothing here noticed.
-			# That is the exact failure mode the scramble exists to catch.
+			# Position is fingerprinted too: a save that dropped every position used to pass.
 			out.append("%s|%d|%d|%s|m%d|h%d,%d" % [m.id, int(m.rarity),
 				m.scrap_value, ",".join(af), m.mount, m.hold_at.x, m.hold_at.y])
 		return out
@@ -65,47 +36,27 @@ func fingerprint() -> Dictionary:
 		var n: MapGen.MapNode = e
 		var shop: Array = []
 		for m in n.shop:
-			# The price is no longer ON the item — Market derives it from the
-			# place and the part — so what has to survive is the part. The
-			# quoted price is checked separately, below, against the market that
-			# quotes it.
+			# The price is derived, so the part must survive; the quote is checked separately.
 			shop.append("%s:%d" % [m.id, m.scrap_value])
 		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
 			n.visited, n.cleared, n.eaten, n.inspected, n.fled,
-			# A shelf that came back un-stocked re-rolls on the next visit, and a
-			# market that came back un-saturated pays full price again. Both are
-			# run marks and both are silent when lost.
+			# An unstocked shelf rerolls and an unsaturated market pays full price; both silent.
 			n.stocked, n.trades,
 			Array(n.links), n.berths, shop,
 			# What the system is offering. Rolled on arrival and fixed from then
 			# on, so losing it across a save is a re-roll the player can force.
 			n.foes, n.event_key,
-			# WHICH options are used up, which is not the same question as
-			# whether the system is finished. A system with three things to do
-			# and one of them taken comes back with all three on offer if this
-			# is lost, and `cleared` is false either way — so nothing else in
-			# this fingerprint would notice.
+			# `taken` is not `cleared`: losing it re-offers used options and nothing else notices.
 			Array(n.taken),
-			# AND WHAT THOSE THINGS ARE. `taken` above is a list of INDICES into
-			# this one, so losing it does not merely re-roll the system -- it
-			# renumbers what `taken` refers to, and option 2 of the new list is
-			# marked spent because option 2 of the old one was. Nothing else here
-			# would see it: `cleared` is false either way and the counts match.
+			# `taken` indexes `options`, so losing the list renumbers what counts as spent.
 			n.options,
-			# WHETHER A FIGHT IS OWED HERE, and whether the roll has happened at
-			# all. Never covered before this: the old `ambush` array was not in
-			# the fingerprint either, so the save could have dropped it silently
-			# for as long as it existed. Losing `ambush_pending` hands back a
-			# system that quietly forgets it was about to jump you; losing
-			# `ambush_rolled` re-rolls it on the next redraw until something
-			# bites, which is worse.
+			# Never covered before: losing `ambush_rolled` rerolls each redraw until it bites.
+			# Why: docs/why/SaveTest.md#ambush-fingerprint
 			n.ambush_pending, n.ambush_rolled])
-	# WHAT EACH SYSTEM'S CARDS SAY (VERSION 29): the bands, the walk-aways and
-	# the outcome lines, by option index. Sorted, because a dictionary rebuilt
-	# from two arrays need not hash in the order it was written.
+	# Cards (VERSION 29), sorted: a dictionary rebuilt from arrays need not hash in write order.
 	var cards: Array = []
 	for e in Run.map:
 		var n: MapGen.MapNode = e
@@ -122,19 +73,13 @@ func fingerprint() -> Dictionary:
 		cards.append("%d:%s" % [n.index, ";".join(bits)])
 	return {
 		cards = cards,
-		# WHERE THE SHIP WAS LEFT, by system (VERSION 30): the world it orbits,
-		# or the spot in open space it was flying at. Fixtured below, because
-		# an empty record round-trips to empty whatever the save does.
+		# Parked position (VERSION 30), fixtured since an empty record round-trips to empty.
 		parked = _parked(),
 		# AND EACH SYSTEM'S MAP CLOCK (VERSION 39), which those spots were left
 		# at and a binary's suns turn by. Fixtured below, for the same reason.
 		clocks = _clocks(),
-		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
-		# loader does not call `at_tier`, so nothing regrants them on the way
-		# back in — an S-tier ship that lost all three would come back with
-		# every number here identical and three perks missing, and this test
-		# would have said PASS. `perk_id` alone could not see it: that one is
-		# the MANUFACTURER's and survives on the frame.
+		# Perks must be fingerprinted: the loader never calls `at_tier`, so lost perks read PASS.
+		# Why: docs/why/SaveTest.md#grade-perks
 		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s|%s" % [
 			Run.hull.name, Run.hull.tier, Run.hull.reactor, Run.hull.hand_size,
 			Run.hull.max_hull, Run.hull.heat_cap, Run.hull.dodge,
@@ -144,15 +89,10 @@ func fingerprint() -> Dictionary:
 				return String(x)))],
 		installed = mods.call(Run.installed),
 		cargo = mods.call(Run.cargo),
-		# THE PAD, WHICH IS NOT CARGO. It holds what came off a frame with
-		# nowhere to go, and it is the newest thing in the file -- so it is
-		# exactly the field a round-trip is worth running against. Fixtured
-		# below, because an empty pad compares equal to a pad the writer forgot.
+		# The pad is not cargo and is the newest field; fixtured as empty equals empty.
 		pad = mods.call(Run.pad),
-		# THE FRAME THE PAD CAME OFF (VERSION 36). The move draws its left half,
-		# and the parts still bolted to it, from this; a save without it came
-		# back with those parts drawn nowhere (Jon, Oct 23). Fixtured below by
-		# the `transfer_to_hull` that fills the pad.
+		# Old hull is saved (VERSION 36): without it a save drew those parts nowhere (Jon, Oct 23).
+		# Why: docs/why/SaveTest.md#old-hull
 		old_hull = "%s|%d|%d|%s" % [Run.old_hull.name, Run.old_hull.tier,
 			Run.old_hull.max_hull, Run.old_hull.perk_id] if Run.old_hull != null else "",
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
@@ -161,24 +101,15 @@ func fingerprint() -> Dictionary:
 		# load that fell back to the profile's own (Korvan alone here) shows.
 		unlocked = ",".join(Array(Run.unlocked_manufacturers).map(
 			func(m: StringName) -> String: return String(m))),
-		# Every material, not just the one that used to be a field. Written as a
-		# sorted list so a ledger that came back with the same counts under
-		# String keys instead of StringName ones still compares equal — the
-		# counts are what the run is made of, not how the dictionary hashes.
+		# Every material as a sorted list, so String and StringName keys still compare equal.
 		materials = _materials(),
-		# What the market here would quote for the shelf and the hold. Prices are
-		# derived rather than stored, so this is not testing the save — it is
-		# testing that everything the derivation reads (the node's axes, its
-		# saturation, the part's roll, the hull perk) came back intact. A price
-		# is the most sensitive reading of all of them at once.
+		# Quotes test all that prices derive from (axes, saturation, roll, perk) at once.
 		quotes = _quotes(),
 		pos = [Run.at, Array(Run.trail), Run.jumps, Run.kills],
 		# THE LEAD SHIP'S JUMPS (VERSION 40), which a co-op Custodian grows on.
 		# Fixtured above your own, so a save that dropped it shows here.
 		party = [Run.party_jumps, Run.custodian_jumps()],
-		# The roamer. The move counter is a SEED SOURCE — Rng.derive keys each
-		# hop on it — so losing it is not a cosmetic reset, it is a different
-		# walk from the same position.
+		# The move counter seeds `Rng.derive`, so losing it is a different walk, not a reset.
 		hellbender = [Run.hellbender_at, Run.hellbender_hp, Run.hellbender_max,
 			Run.hellbender_moves, Run.hellbender_ticks],
 		# THE ASCENSION LEVEL (VERSION 41), which decides whether there is one.
@@ -187,11 +118,7 @@ func fingerprint() -> Dictionary:
 			Run.galaxy_name, Run.galaxy_title],
 		gparams = _round_floats(Run.galaxy),
 		nodes = nodes,
-		# EACH SYSTEM'S SKY (VERSION 25, and two suns, 38): which options it may
-		# hold, and for two suns its whole layout -- which world goes round which
-		# star, every body's index. None of it was in the fingerprint before, so
-		# a save that dropped `twin` would have come back with every pair a lone
-		# sun and its parked ships and wrecks on other bodies, and this said PASS.
+		# Sky and twin layout are fingerprinted: a save dropping `twin` used to pass.
 		sky = _sky(),
 		derived = ["%.9f" % Run.jump_range(), Run.max_hp(), Run.heat_cap(),
 			Run.reactor(), Run.hand_size(), Run.dissipation()],
@@ -234,11 +161,7 @@ func _parked() -> String:
 			parts.append("%d:cen=%d r=%.6f sense=%.1f" % [int(k), int(e.get("cen", -99)), float(e.r), float(e.get("sense", 0.0))])
 	return " ".join(parts)
 
-## What you are carrying, as a stable string. Off the HOLD, because that is the
-## only store now -- see `RunState.material`. Counted per catalogue id rather
-## than listed per instance, so a round trip that kept every crate but shuffled
-## their cells still compares equal: this probe is about survival, and
-## `-- holdtest` is about placement.
+## Counted per catalogue id so shuffled cells still match; `-- holdtest` covers placement.
 func _materials() -> String:
 	var seen: Dictionary = {}
 	for raw in Run.cargo:
@@ -259,10 +182,7 @@ func _quotes() -> String:
 		"refuel=%d" % Market.refuel_price(n)]
 	for m in n.shop:
 		parts.append("ask:%s=%d" % [m.id, Market.ask(n, m)])
-	# PARTS QUOTE, MATERIALS PRICE. `bid` and `melt` are a module's two numbers
-	# -- what a counter offers and what a furnace pays -- and a material has
-	# neither. It has one flat value and the row below already quotes every one
-	# of those, so a crate in the hold contributes its identity and nothing else.
+	# Materials have one flat value, so a crate contributes its identity only.
 	for raw in Run.cargo:
 		var m := raw as ModuleData
 		if m == null:
@@ -306,9 +226,7 @@ func run() -> void:
 			break
 		Run.jump_to(pick.index)
 		Run.node_at().cleared = (i % 2 == 0)
-		# One option consumed at a system that is NOT finished. The case a
-		# single boolean cannot hold, and therefore the case a save written
-		# against the boolean silently drops.
+		# One option consumed at an unfinished system: the case a single boolean cannot hold.
 		if i % 3 == 1:
 			Run.node_at().taken = PackedInt32Array([2])
 		Run.node_at().inspected = (i % 3 == 0)
@@ -316,27 +234,17 @@ func run() -> void:
 	Run.hp = maxi(1, Run.hp - 9)
 	Run.heat = 5
 	Run.heat_cap_bonus = 2
-	# TWO THINGS ON THE DOCK. `pad` is populated by a hull swap that overflowed,
-	# and no probe in this file buys a hull -- so without a fixture the round
-	# trip would be checking that an empty array survives being written as an
-	# empty array. Placed by hand rather than through `transfer_to_hull` for the
-	# same reason the materials above are: a probe wants the STATE, not the
-	# journey that usually produces it.
+	# Placed by hand: no probe buys a hull, so an empty pad would only prove empty survives.
+	# Why: docs/why/SaveTest.md#pad-fixture
 	for stranded in [&"plate", &"coolant"]:
 		var sm := (DB.modules[stranded] as ModuleData).duplicate(true) as ModuleData
 		sm.hold_at = -Vector2i.ONE
 		Run.pad.append(sm)
-	# LOUD IF THE FIXTURE STOPS FIXTURING. Both ids are read straight out of the
-	# catalogue with no `has` guard, so a rename fails here rather than seeding
-	# nothing and leaving the probe comparing an empty array to an empty array.
+	# Ids are read with no `has` guard, so a rename fails here instead of seeding nothing.
 	assert(Run.pad.size() == 2)
 	Run.credits += 37
-	# All three materials, not just the one that used to be a bare field. A
-	# ledger keyed by StringName and reloaded from JSON's String keys is exactly
-	# the kind of thing that comes back looking right and compares wrong.
-	# ABOARD, because the probe is asking whether a save keeps what you are
-	# CARRYING. `add_material` leaves them in the sector, which is the right
-	# answer for a reward and the wrong one for a fixture.
+	# All three materials, kept aboard not in the sector: String keys after JSON compare wrong.
+	# Why: docs/why/SaveTest.md#material-fixtures
 	for seeded in [&"exotic", &"exotic", &"exotic", &"relic", &"relic"]:
 		Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
 	Run.dross = [&"slag", &"arcfault"] as Array[StringName]
@@ -356,20 +264,10 @@ func run() -> void:
 			break
 	Run.found_hull = LootGen.roll_hull(4)
 	Run.transfer_to_hull(LootGen.roll_hull(5))
-	# ARRANGE the hold, do not just fill it.
-	#
-	# Everything above lands by first fit, and the loader re-packs anything that
-	# comes back without a position by running that same first fit — so a save
-	# that dropped every cell still reproduced the identical layout and this test
-	# passed. Verified by deliberately breaking the writer: it did not fail.
-	#
-	# Moving one part somewhere first fit would never have put it is what makes
-	# the saved value load-bearing, which is what a player rearranging their hold
-	# does every time they touch it.
+	# Arrange the hold: first fit alone hid a writer that dropped every cell.
+	# Why: docs/why/SaveTest.md#hold-arrangement
 	if not Run.cargo.is_empty():
-		# `HoldItem`: the last thing in the hold may be a crate, and what this
-		# block is proving is that a POSITION survives a round trip, which is
-		# true of anything that occupies cells.
+		# `HoldItem`: this proves a position survives a round trip, true of anything with cells.
 		var last: HoldItem = Run.cargo[Run.cargo.size() - 1]
 		var home := last.hold_at
 		var g := Run.hold_grid()
@@ -385,9 +283,7 @@ func run() -> void:
 	var st: MapGen.MapNode = Run.map[Run.at]
 	st.shop = [LootGen.roll_module(2), LootGen.roll_module(4, &"", true)]
 	st.shop_hull = LootGen.roll_hull(3)
-	# A shelf that has been rolled and a market that has been sold into. Both are
-	# silent when lost: a station that comes back un-stocked re-rolls its whole
-	# inventory on the next visit, which is the exploit this run of work closed.
+	# A rolled shelf and sold-into market are silent when lost; unstocked rerolls inventory.
 	st.stocked = true
 	st.trades = 3
 	# A second market, saturated differently, so a single value restored to every
@@ -397,25 +293,17 @@ func run() -> void:
 		if n2.index % 7 == 0:
 			n2.stocked = true
 			n2.trades = n2.index % 5
-	# A fight and a hail with their rolls already made. These are the fields that
-	# decide what is waiting at a system, so a save that forgets them hands the
-	# player a fresh draw every time they quit and resume.
+	# Fight and hail rolls already made, or a save hands a fresh draw on each resume.
 	for e in Run.map:
 		var n: MapGen.MapNode = e
 		if n.type == MapGen.NodeType.SYSTEM and not n.cleared and n.foes.is_empty():
 			n.foes = [&"cutter", &"lancer"]
 		elif n.type == MapGen.NodeType.SYSTEM and not n.cleared and n.event_key.is_empty():
 			n.event_key = "Dead station"
-		# AND WHAT THE SYSTEM IS OFFERING, rolled the way arriving would roll it.
-		#
-		# Without this every node's list is empty, empty round-trips to empty,
-		# and the fingerprint above proves nothing -- verified by deleting the
-		# field from `_node_to` and watching the test still pass.
+		# Roll options as arriving would: empty lists round-trip to empty and prove nothing.
 		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.CORE 				and n.options.is_empty():
 			n.options = OptionTable.roll_for(n)
-		# A fight owed on arrival, and a roll already made. Both have to be on
-		# some nodes and not others, or an all-false field round-trips to
-		# all-false whatever the save does.
+		# Ambush fields must be on some nodes and not others, or all-false proves nothing.
 		if n.type != MapGen.NodeType.SYSTEM and n.type != MapGen.NodeType.CORE:
 			n.ambush_rolled = n.index % 2 == 0
 			n.ambush_pending = n.index % 4 == 0
@@ -435,10 +323,7 @@ func run() -> void:
 			nd.taken.append(MapGen.OPTION_WHOLE)
 			break
 
-	# A SYSTEM HALF WORKED THROUGH, as its cards show it: option 0 taken with a
-	# band and a line of what came of it, option 1 walked away from. Written the
-	# way `OptionResolve.take` writes them. Without a fixture both maps are empty
-	# everywhere and round-trip to empty whatever the save does.
+	# A half-worked system, written as `OptionResolve.take` does; empty maps prove nothing.
 	var card_node := -1
 	for e in Run.map:
 		var nc: MapGen.MapNode = e
@@ -453,15 +338,11 @@ func run() -> void:
 	if card_node < 0:
 		print("  FAIL: no system to hold the card fixture"); fails += 1
 
-	# PARKED IN TWO SYSTEMS, two ways: in orbit of a world (the map's rail),
-	# and stopped in open space where it was flown by hand. Written the way the
-	# map writes them (`SystemMapScreen._keep_ship`).
+	# Parked in orbit and in open space, written as `SystemMapScreen._keep_ship` writes them.
 	SystemMapScreen._parked.clear()
 	SystemMapScreen._parked[Run.at] = {"at": 1, "p": Vector2(212.5, -40.25), "v": Vector2(0.75, -1.5), "head": 2.25, "mode": &"rail"}
 	SystemMapScreen._parked[card_node if card_node >= 0 else 0] = {"at": -9, "p": Vector2(-318.125, 96.5), "v": Vector2.ZERO, "head": -0.625, "mode": &"free"}
-	# AND IN STAR B'S CLOSE ORBIT, in a system with two suns (ruling 20): a
-	# system that may have them made a twin, as a harness may (`n.twin`), so the
-	# case is there whatever this run rolled. `at` is SystemLayout.STAR_B, -4.
+	# Star B close orbit (ruling 20): force a twin so the case exists whatever the run rolled.
 	var twin_node := -1
 	for e in Run.map:
 		var nt: MapGen.MapNode = e
@@ -472,9 +353,7 @@ func run() -> void:
 			break
 	if twin_node < 0:
 		print("  FAIL: no system that may have two suns, for the star B fixture"); fails += 1
-	# AND SETTLED ON A WIDE ORBIT ROUND STAR B, in another of them: round what,
-	# how wide and which way (`cen`, `r`, `sense`), so the map puts it back on
-	# that orbit and not on the arrival orbit's radius (the saves review, Oct 31)
+	# Wide orbit stores centre, radius and sense so the map restores it (saves review, Oct 31).
 	var wide_node := -1
 	for e in Run.map:
 		var nw: MapGen.MapNode = e
@@ -486,9 +365,7 @@ func run() -> void:
 			break
 	if wide_node < 0:
 		print("  FAIL: no second system that may have two suns, for the wide orbit fixture"); fails += 1
-	# EACH SYSTEM'S MAP CLOCK (VERSION 39), written the way the map writes it
-	# (`SystemMapScreen._keep_ship`): the two binaries' suns turned to where
-	# those spots were left, and one system at a clock with no ship kept
+	# Map clocks (VERSION 39), written as the map writes them, plus one system with no ship kept.
 	Run.map_clock.clear()
 	Run.map_clock[Run.at] = 37.6875
 	var twin_clock := 412.375
@@ -593,9 +470,7 @@ func run() -> void:
 			lt.pair_n == 0.0 or lt.star_pos(SystemLayout.STAR_B, Run.map_t(twin_node)).distance_to(lt.star2_at0) > 1.0)
 	check("a system never opened: map clock 0", 0.0, Run.map_t(Run.map.size() + 7))
 
-	# AND THE CARDS READ IT BACK: the walk-away is still LEFT ALONE after the
-	# reload (Jon: "left alone should survive a reload"), the taken one keeps its
-	# band and its line, and taking the walked-away one afterwards clears it.
+	# Walk-away must survive a reload (Jon): LEFT ALONE stays, and taking it clears it.
 	if card_node >= 0:
 		var nl: MapGen.MapNode = Run.map[card_node]
 		check("card 1 after reload", "left", String(EncounterDrawer.option_state(nl, 1).kind))
@@ -614,22 +489,8 @@ func run() -> void:
 
 	print("=== %s (%d mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
 
-## A file from the version before this one is REFUSED, and a flight record
-## from before a rename is still READ. The two rules look contradictory and
-## are not, which is exactly why neither had a test.
-##
-## Both were broken at once by the vocabulary pass: it renamed keys in three
-## serialisers and raised none of the numbers guarding them. Nothing failed.
-## A save stamped 10 was read with keys that were not in it and came back as a
-## galaxy with no berths and no contracts, and every past run stopped
-## unlocking its manufacturer because the record said `chassis_maker` and the
-## reader had moved on to `chassis_manufacturer`.
-##
-## THE SAVE DISCARDS AND THE RECORD DOES NOT, because they are different
-## kinds of file. A suspend save is one run in progress; refusing it costs
-## that run and protects everything else. The flight record is append-only
-## and holds every run ever flown, so refusing it deletes the lot -- which is
-## why RunHistory keeps VERSION at 1 and reads the old key instead.
+## The save discards but the record does not: refusing the flight record deletes every run flown.
+## Why: docs/why/SaveTest.md#version-rules
 func run_version_test() -> void:
 	print("=== VERSION GATES ===")
 	var fails_before := fails
@@ -649,9 +510,7 @@ func run_version_test() -> void:
 	check("and an ordinary save brings no fight with it", true, Router.fight_on_resume.is_empty())
 	Router.fight_on_resume = {}
 
-	# THE MAP CLOCKS (VERSION 39): this build writes 39, and a 38 save -- this
-	# shape without `clocks` -- loads with every system at t 0, its suns where
-	# they were laid out, which is the picture a 38 build drew on every visit
+	# VERSION 39: a 38 save without `clocks` loads with every system at t 0, as a 38 build drew.
 	Run.start_new_run(&"korvan", 1)
 	Run.map_clock[Run.at] = 512.5
 	SystemMapScreen._parked[Run.at] = {"at": -9, "p": Vector2(140.5, -60.25), "v": Vector2.ZERO, "head": 0.5, "mode": &"free"}
@@ -683,11 +542,8 @@ func run_version_test() -> void:
 	Run.start_new_run(&"korvan", 1)
 	check("a new run keeps no map clock of the last", 0, Run.map_clock.size())
 
-	# THE LEAD SHIP'S JUMPS (VERSION 40, Jon, Nov 4): this build writes 40. The
-	# Custodian grows on `Run.custodian_jumps()`, the lead ship's jumps in co-op,
-	# so they are saved; a 39 save has none and grows on its own jumps, as a 39
-	# build did. The load counts the count as seen, so CONTINUE replays no
-	# arrival; a new run clears it.
+	# VERSION 40 (Jon, Nov 4) saves the lead ship's jumps; a 39 save grows on its own jumps.
+	# Why: docs/why/SaveTest.md#version-rules
 	# (this build writes 41; the lead ship's jumps came in at 40)
 	Run.start_new_run(&"korvan", 1)
 	Run.jumps = 7

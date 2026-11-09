@@ -1,56 +1,23 @@
 class_name SideSwap
 extends ColorRect
 
-## THE SIDE BAR'S SWAP (Jon, Oct 13: "When going from local to sector or sector
-## to starchart etc... the side bar goes blank and then draws the new side bar.
-## Can we not have it go blank and just have it transition to the new side
-## bar?"). It went blank because the side bar was part of each screen's UI
-## (`ladder_chrome`), which leaves before the camera moves and comes back after
-## it lands: the chart's and the map's panels faded out over 0.22 s, the side
-## column stood empty through the whole camera move, and the new panel faded in
-## over 0.4 s after it -- 60 to 122 frames of empty column at 60 fps a hop.
-##
-## Now the side bar is not the screens' UI. The panel being left stays whole
-## while its camera moves (`ZoomLadder.preroll`), and from the swap -- the
-## arriving screen built, its panel laid out and live underneath -- this draws
-## over the side bar's rect, from the held picture's copy of the old panel to
-## the live new one, in the look picked (`ZoomLadder.SIDE_LOOK`), and goes once
-## the new one stands alone. The held picture leaves this rect to it
-## (`zoom_ladder.gdshader`'s `side`). The other UI keeps its three beats.
-##
-## A hop with a side bar at one end only (LOCAL <-> the map) runs the same look
-## with the picture arriving (LOCAL's own, live) as the new, or, arriving from
-## LOCAL, the picture that was there as the old -- going on the held picture's
-## own curve, as the rest of it goes, the look kept at least level with it.
-##
-## CLICKS (Jon on the Lab's rolling screen: anything that moves the rows "can
-## cause a misclick"): nothing a hand can click moves while it can be clicked.
-## `blocks` says where a click would land on content not yet resolved -- A
-## before the crossfade's middle, B and C until they are done, D below the
-## line, E and F a row or icon not yet written -- and the ladder eats a click
-## there (`ZoomLadder._input`), ending the move but landing on nothing.
+## The side bar transitions instead of going blank (Jon, Oct 13): it was 60 to 122 frames.
+## Nothing clickable moves while it can be clicked: `blocks` eats clicks on unresolved content.
+## Why: docs/why/SideSwap.md#side-bar-swap
 
 const SHADER := preload("res://shaders/side_swap.gdshader")
 const MAXR := 64
 const MAXS := 16
 ## E and F: a glyph's cell, px (Silkscreen at the panels' sizes)
 const CELL := Vector2(6.0, 8.0)
-## B's and A's length is the rest of the move (`ZoomLadder._hold`); the others
-## are their own: C a section every 40 ms, each crossing in 120; D's line down
-## the rect; E's rows resolving; F's lost signal and its print
+## B and A last the rest of the move; C, D, E and F have their own timings.
 const C_STAGGER := 0.04
 const C_EACH := 0.12
 const D_S := 0.5
-## E, SLOW (Jon: "can we have the decode animation happen slowly and not so
-## fast?"): each line resolves left to right over `E_ROW`, the lines starting
-## one after another down the panel 60-80 ms apart, the whole about 1.1 s, or
-## to 0.3 s past the camera landing on a longer move; a hop shorter than that
-## (LOCAL -> map) lets the decode run on past the zoom rather than hurrying it
-## (`ZoomLadder._end` hands it on). The glyphs turn over `GLYPH_HZ` a second.
+## E runs slowly at Jon's ask, and runs on past the zoom on short hops rather than hurrying.
+## Why: docs/why/SideSwap.md#slow-decode
 const E_ROW := 0.45
-## E leaving for a screen with no side bar (map -> LOCAL): once the letters have
-## decoded away on the old panel's ground, the empty panel fades over this
-## (a toolbar on its band goes with the band instead, `SideBand`)
+## E leaving for a screen with no side bar: the empty panel fades over this.
 const OUT_FADE := 0.3
 const E_STAGGER := Vector2(0.06, 0.08)
 const E_TARGET := 1.1
@@ -69,25 +36,19 @@ var held: Callable
 var dur := 1.0
 ## the rest of the move when it began, s
 var _rem := 1.0
-## A TOOLBAR, not a side bar (`ZoomLadder.bar_of`): one row of things, so E
-## starts each one after the one to its left rather than each line after the
-## one above
+## A toolbar is one row, so E starts each thing after the one to its left.
 var across := false
 ## (a toolbar between LOCAL and a screen with one) its missing side is the
 ## band's ground, never the scene under it (`SideBand`)
 var banded := false
 var _decode_end := 0.0
-## THE CALM MOVE (`ZoomLadder`): held at its first frame -- the old panel, whole
-## -- while the camera moves, and let go once it has landed; and E's whole
-## length set by the move (`ZoomLadder.CALM_DECODE_S`) rather than its own
+## The calm move: held at its first frame while the camera moves, then released.
 var frozen := false
 var target_s := -1.0
 ## (a calm move hurried by a press: the decode hurries with it)
 var rate := 1.0
 
-## EVERY SWAP STILL DRAWING, the ladder's and any it handed on when it ended
-## before the decode did (`ZoomLadder._end`): finished at once by the next
-## screen change or move (`finish_all`).
+## Every swap still drawing, including ones the ladder handed on; the next change finishes them.
 static var live: Array = []
 
 
@@ -120,9 +81,7 @@ func _notification(what: int) -> void:
 		live.erase(self)
 
 
-## A click here lands on nothing while what is under it has not resolved: the
-## ladder eats it while the move is on (`ZoomLadder._side_eats`); once a decode
-## runs on past the move, this does.
+## A click lands on nothing while what is under it has not resolved.
 func _has_point(point: Vector2) -> bool:
 	return blocks(get_global_transform() * point)
 ## +1 zooming in (the content goes up), -1 out
@@ -147,9 +106,7 @@ static func look_index(l: String) -> int:
 	return maxi(0, ZoomLadder.SIDE_LOOKS.find(l))
 
 
-## Over `old_side` (the panel being left, still in the tree: the held frame
-## `tex` is its picture) to `new_side_` (the arriving screen's, laid out or
-## about to be); either may be null, not both.
+## Over `old_side` (still in the tree) to `new_side_`; either may be null, not both.
 func setup(old_side: Control, new_side_: Control, tex: Texture2D, look_: String, dir_: float, dur_: float) -> void:
 	look = look_
 	_li = look_index(look)
@@ -165,9 +122,7 @@ func setup(old_side: Control, new_side_: Control, tex: Texture2D, look_: String,
 		_old_rows = rows_of(old_side, old_rect)
 		_old_secs = sections_of(old_side)
 	new_side = new_side_
-	# (the arriving screen is put in its place later this frame, and laid out
-	# again under the game's theme once it is: a screen built ahead stood
-	# outside it, its buttons in Godot's own, taller -- so after that)
+	# Laid out again under the game's theme: a screen built ahead stood outside it.
 	(func() -> void: _lay.call_deferred()).call_deferred()
 
 
@@ -238,9 +193,7 @@ func _lay() -> void:
 		finish()
 
 
-## The arriving panel's rows and sections, and the look's times from them;
-## again whenever the panel lays itself out anew in the middle of the swap (the
-## map's panel is rebuilt as the map arrives, its rows where they were not).
+## Rows and sections recomputed when the panel lays out anew mid-swap, as the map's does.
 var _sig := ""
 
 
@@ -270,10 +223,7 @@ func _content() -> void:
 		3:
 			_total = D_S
 		4:
-			# (line by line down the panel: the rows that share a line start
-			# together, each line 60-80 ms after the one above; along a toolbar,
-			# each thing 60-80 ms after the one to its left, a run of things
-			# closer than 8 px -- the layer pips -- one thing)
+			# Rows on a line start together, 60 to 80 ms apart; pips under 8 px count as one.
 			var key := func(r: Rect2) -> float: return r.position.x if across else r.position.y
 			var keys: Array = rows.map(func(r: Array) -> float: return key.call(r[0] as Rect2))
 			var order := range(rows.size())
@@ -301,10 +251,7 @@ func _content() -> void:
 				var t0 := st * int(group[i])
 				rows[i] = [rows[i][0], rows[i][1], t0, t0 + row_s, rows[i][4], rows[i][5], rows[i][6]]
 				_total = maxf(_total, t0 + row_s)
-			# WHAT DOES NOT CHANGE DOES NOT DECODE (LOCAL's band and the map's
-			# both read DANGER 1/10): a word the old side had, the same, in the
-			# same place, is resolved from the start; and the pips after a
-			# readout that did not change, where the old side had them too
+			# What does not change does not decode: an identical word in place starts resolved.
 			if _new_rect.size.x > 0.0 and old_rect.size.x > 0.0:
 				var same_word := func(r: Array) -> bool:
 					if String(r[6]) == "":
@@ -397,9 +344,7 @@ func _process(delta: float) -> void:
 		visible = true
 		t += (ZoomLadder.fixed_dt if ZoomLadder.fixed_dt > 0.0 else minf(delta, 1.0 / 30.0)) * rate
 		_blip()
-	# (where there was no side bar, the crossfade, the slide, the cascade and
-	# the line keep at least level with the held picture going from over them,
-	# so the rect is never the bare ground between the two)
+	# With no old side bar the looks stay level with the held picture, never bare ground.
 	if old_rect.size.x <= 0.0 and held.is_valid() and _li in [0, 1, 2, 3]:
 		t = maxf(t, (1.0 - clampf(float(held.call()), 0.0, 1.0)) * _total)
 	if t >= _total:
@@ -408,9 +353,7 @@ func _process(delta: float) -> void:
 	_push()
 
 
-## E, HEARD: the event text's blip as a line starts to resolve (`Audio.FX`
-## side_decode, at most two in the air), once a frame however many rows of the
-## line start on it. The side bar's, not a toolbar's.
+## E, heard: one blip per frame as lines start, on the side bar only.
 var _blip_to := -1.0     ## the decode's time heard up to
 
 
@@ -459,18 +402,13 @@ func _out_fade() -> float:
 
 # ------------------------------------------------------------ what it shows
 
-## At viewport point `p`, this frame: how much of the old content shows, how
-## much of the new (or of the static that stands for it), and how settled the
-## new is there for a click (1 resolved and still). The shader's own sums, on
-## the CPU, for the harness and for `blocks`.
+## The shader's own sums on the CPU, for the harness and for `blocks`.
 func state_at(p: Vector2) -> Vector3:
 	if done or not _laid or not _rect.has_point(p):
 		return Vector3(0.0, 1.0, 1.0)
 	var st := _state_at(p)
 	if old_rect.size.x <= 0.0:
-		# (no old panel: the picture that was there, going as the rest of the
-		# held picture's standing copy goes, then the screen's bare ground,
-		# which is no content)
+		# No old panel: the held picture's copy fades, then bare ground, which is no content.
 		var h := clampf(float(held.call()), 0.0, 1.0) if held.is_valid() else 0.0
 		# (crossing from a picture that stays whole -- chrome that has just
 		# landed -- the old is that picture, as with a side bar)
@@ -516,9 +454,7 @@ func _state_at(p: Vector2) -> Vector3:
 			return Vector3(1.0, 0.0, 0.0)
 		4:
 			if not hn:
-				# (leaving for a screen with none: the old panel -- its letters
-				# decoding away on its own ground -- holds the rect, and takes no
-				# click, until it has gone)
+				# Leaving for a screen with none: the old panel holds the rect, taking no click.
 				var of := _out_fade()
 				return Vector3(1.0 - of, of, 1.0 if of >= 1.0 else 0.0)
 			for r: Array in _rows_now:
@@ -584,9 +520,7 @@ func blocks(p: Vector2) -> bool:
 
 # ------------------------------------------------------------ the content
 
-## The rows of text and the icons in a panel, top to bottom (viewport px,
-## inside `clip`): a Label or a RichTextLabel a row per line, a Button one, any
-## other leaf (a picture, a glyph) an icon. At most `MAXR`, the nearest merged.
+## Rows of text and icons in a panel, top to bottom; at most `MAXR`, the nearest merged.
 static func rows_of(root: Control, clip: Rect2) -> Array:
 	var out: Array = []
 	_collect(root, clip, out)
@@ -641,9 +575,7 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 		var h := lines * lh + (lines - 1) * sp
 		var y0 := r.position.y + (r.size.y - h) * (0.5 if l.vertical_alignment == VERTICAL_ALIGNMENT_CENTER else
 			(1.0 if l.vertical_alignment == VERTICAL_ALIGNMENT_BOTTOM else 0.0))
-		# (each line a row, 2 px over at top and bottom: a glyph's ink can sit
-		# past its line's box, and a row must hold all of it; the first row from
-		# the label's own top, the last to its own bottom)
+		# Each row is 2 px over at top and bottom, as a glyph's ink can sit past its line box.
 		for i in lines:
 			var top := y0 + i * (lh + sp) - 2.0
 			var bot := y0 + (i + 1) * (lh + sp) + 2.0
@@ -662,9 +594,7 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 				ch / n + (2.0 if i > 0 else 0.0) + (r.size.y - ch if i == n - 1 else 2.0)), 0, clip)
 		return
 	if c is BaseButton:
-		# (only as wide as its word, where it sits on the plate -- the plate
-		# itself comes up with the layout -- its ground the plate just before
-		# the word; a button with no word, its whole plate, read 3 px in)
+		# Only as wide as its word; a button with no word is read 3 px in, over its whole plate.
 		var gb := 3.0
 		if c is Button and (c as Button).text != "":
 			var bt := c as Button
@@ -691,18 +621,14 @@ static func _collect(c: Control, clip: Rect2, out: Array) -> void:
 		_add(out, r, 1, clip)
 
 
-## A row: [rect, kind, t0, t1, where its ground is read -- px in from its left
-## edge, or -1 for the panel's own ground, and for a button the whole of it,
-## which takes no click until its word has resolved]
+## A row: rect, kind, t0, t1 and where its ground is read; a button takes no click until resolved.
 static func _add(out: Array, r: Rect2, kind: int, clip: Rect2, gx: float = -1.0, hit: Rect2 = Rect2(), text: String = "") -> void:
 	var cr := r.intersection(clip)
 	if cr.size.x >= 1.0 and cr.size.y >= 1.0:
 		out.append([Rect2(cr.position.floor(), cr.size.ceil()), kind, 0.0, 0.0, gx, hit, text])
 
 
-## A panel's sections, top to bottom (viewport y): its rows gathered into
-## blocks wherever a gap of more than 5 px parts them, the panel's own top
-## first. At most `MAXS`, the two nearest merged.
+## Sections are rows gathered into blocks wherever a gap over 5 px parts them; at most `MAXS`.
 static func sections_of(side: Control) -> Array:
 	var r := side.get_global_rect()
 	var rows := rows_of(side, r)

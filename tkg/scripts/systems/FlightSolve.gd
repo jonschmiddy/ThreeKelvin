@@ -1,404 +1,298 @@
 class_name FlightSolve
 extends RefCounted
 
-## THE AUTOPILOT'S FLIGHT, SOLVED under the real pull of the stars and the
-## giant on map time (ruling 20, Oct 30: "Prototype: twin:A giant:A"; Phase 13
-## step 2, ruled Oct 29 "flight:N clock:map"). Data in, data out: no Nodes, no
-## Callables, nothing shared but the read-only `MapGravity`, so it is safe on a
-## `WorkerThreadPool` task, and the same inputs always give the same flight.
-##
-## A FLIGHT, from where the ship is to a place:
-## 1. the ride: round its ring (a world's, a star's close orbit, or any circle
-##    round a fixed point) at the ring's own pace for up to LEAD_MAX 4.4 s, and
-##    past that sped up by a phasing burn whose push is held to THRUST
-##    (`ShipFlight._step_phase` flies it); alongside a station, belt, hulk or
-##    contact, holding there KEEP_HOLD 1 s;
-## 2. the departure burn, in one direction, from the ring's own motion
-##    (velocity continuous), at THRUST 40 px/s^2 but eased while the ship is
-##    slow so it turns no tighter than R_BURN;
-## 3. the coast, integrated through the stars and the moving giant (RK4 in
-##    64-bit scalars, each step ETA of the nearest pull's own time);
-## 4. the arrival burn, onto the target's ring at its speed either way round:
-##    a constant pull of THRUST that ends exactly on the ring (`_const_burn`),
-##    its end where that pull is exact; alongside, the coast's path plus a cubic
-##    that ends exactly at the spot, its own pull at most THRUST and linear in
-##    time. With gravity's change across the burn, at most THRUST_SLACK over.
-## Keep-out (`MapGravity`) holds along the whole path: each step's closest
-## approach on the cubic through its ends, and the arrival burn's own path. The
-## flight's own departure and target world keep out only to their rings
-## (OWN_GAP). No burn all but stops the ship and turns it round a point, which
-## draws a cusp (V_CUSP).
-##
-## THE COST: engine work (the ride's phasing and both burns, px/s) + TIME_W x
-## seconds from now to arrival. Flying inside a system costs no fuel; the cost
-## only picks the path. TIME_W is the dial: more, faster flights that burn more.
-##
-## HOW IT IS FOUND (prototyped in tk-scratch/twin-build/solve-proto, measured):
-## - conic guesses (Lambert about the star; in a twin about the pair's balance
-##   point and about each star the flight leaves or reaches), priced from the
-##   very point and moment the ship can leave, aimed at the target ring's
-##   tangent point (where the ring's motion runs along the coast's own);
-## - the cheapest refined by Newton (finite differences, then Broyden) on the
-##   departure velocity until the coast meets that tangent point at its time;
-## - in a twin always, otherwise when no conic flies clean: a scan of real
-##   departures (SCAN_HEAD headings x four speeds, each leaving from the ring
-##   point whose motion runs along it, or the end of the ride's reach; out of a
-##   twin star's well to a place round both, faster: FAR_SPEED), the best
-##   refined by a minimum-norm Newton on the signed miss at the coast's pass of
-##   the target (its time free: along-track timing is the sensitive direction
-##   of an arc), from the point it left; then a second scan between the
-##   first's headings, and a third slower and faster;
-## - last, the rest of the conics as they are. At most BUDGET integrations,
-##   and one more for the samples;
-## - when all of that finds nothing to T_CAP, THE FALLBACK (`_fallback`, ruling
-##   21): the as-built search (all of the above to T_CAP_BACK at TIME_W_BACK,
-##   BUDGET more) and a wider search to T_CAP_WIDE at TIME_W, its scan faster
-##   and, out of a settled star orbit, toward the target (`_search_wide`,
-##   BUDGET_WIDE more), the flight that arrives first kept; when both find
-##   nothing, the wider search again at TIME_W_BACK. A flight found to T_CAP
-##   whose samples cut a keep-out gets the fallback's look too, and the
-##   fallback's flight is kept if it is clean (`_build_fresh`);
-## - in a twin, when even that finds nothing, a flight in two legs (`_chain`):
-##   the first aimed at a point round the pair, the second leaving free off its
-##   coast before the first's arrival burn, so the ship never stops there, both
-##   legs by the as-built search alone. One Result.
-## A burn that all but stops the ship and turns it round (`V_CUSP`, `CUSP_TURN`),
-## or an arrival burn the map would draw as a corner (`DRAW_K`), is not flown.
-##
-## MEASURED (SolveTest, Oct 30, this Mac's i5-8257U, with the LAYOUT branch's
-## twins merged in; 10,362 plans, every start to every place): found and
-## clean in 99.97% of 3,084 one-star plans, 100% of 3,768 with the giant at
-## 1/10 and 1/4, 99.16% of 2,610 in the layout's own twins (8, the most bodies
-## of four seeds, 6 line-ups), 98.9% of 900 in the prototype's twins built by
-## hand. Each lands on its ring within 0.0001 px and 0.07 px/s; the drawn
-## coast within 0.11 px of a plain RK4 at SAMPLE; 82% of arrivals onto a ring
-## a constant burn. Planning median 13 ms one-star, 14 with a giant, 37 in a
-## real twin; the worst 61, 70 and 136 ms (209 in the hand twins). A twin's
-## plans are over DESIGN's median of 25 ms, so the game plans them on a worker
-## while the ship rides its ring (a plan made on a worker is the same plan, bit
-## for bit). The prototype's free twin flight (world a to world b at its best
-## line-up, 9.2 s): 1.6 px/s in 9.3 s. The first build, on the same real
-## twins: 89.8% found (the planner review), its rides phasing at up to 436
-## px/s^2 for free and its arrival burns three times their least.
-##
-## THE PAIR TURNS (ruling 23, Jon, Nov 1, "Orbiting pair: after4:D"): a
-## binary's suns circle their balance point at four times Kepler, every world
-## round one sun carried with it. The coast reads both suns at each step's
-## start, middle and end (one cos and sin a place for both); keep-outs, the
-## arrival burn's checks and the pull a burn is held to read them, and every
-## circle carried with one, where they are then; a place round one sun -- a
-## world, its close orbit, a settled orbit round it (`host`) -- rides with it
-## (`_dhs`, `_ths`); a conic about a sun is solved in its own frame and asks by
-## the sun's index whether the target is that sun (`_lam`, `_aims`). A sun
-## that holds still -- one alone, a pair held still (`-- pair=0`) -- runs the
-## very same arithmetic as before: SolveTest's one-star, giant, hand-twin and
-## real-twin sweeps print the same numbers to the last digit at pair=0.
-## Turning (SolveTest, Nov 2, this PC, other jobs beside it): found and clean
-## in 3,022 of 3,024 real wide-pair plans (the two misses free starts, a
-## harness's), 3,024 of 3,024 close, 1,080 of 1,080 hand twins, and 1,872 of
-## 1,872 in the pair-phase sweep (three of the busiest pairs at 8 angles a
-## lap, from a settled orbit round each sun too); every landing within 0.0001
-## px and 0.07 px/s of the ring where the layout's Body has it; the drawn coast
-## within 0.13 px of plain RK4 through `MapGravity.acc`; every replay and
-## worker plan the same. An RK4 step through a turning pair costs a tenth to a
-## fifth more (the prototype's bench, `tk-scratch/orbiting-pair/autopilot`).
-##
-## USE
-##   var G := MapGravity.from_layout(L)          # once per system; shareable
-##   var r := FlightSolve.solve(G, dep, tgt, t)   # or (..., prefer = r.choice)
-##   dep: {kind: &"ring", place: int, rt: float, ang: float, w: float}
-##          place: a body index, -1 star A, SystemLayout.STAR_B, or -9 with
-##          c: Vector2, a fixed centre (a settled star orbit); w signed rad/s
-##          (a star's rt: `star_orbit_r`). A -9 round one sun of a turning
-##          pair also passes host: that sun's place id (`ShipFlight` f.cen_id);
-##          the circle then rides with the sun and c is not read (-9, or none,
-##          a fixed centre: the balance point, the edge as arrived)
-##        {kind: &"keep", place: int, off: Vector2}   alongside, `off` from it
-##        {kind: &"free", p: Vector2, v: Vector2}
-##   tgt: {kind: &"ring", place: int, R: float, V: float, sense: 0 | 1 | -1}
-##          R the radius it arrives on: a world's `ShipFlight.orbit_r(i)`, a
-##          star's `FlightSolve.star_orbit_r(L, p)` (in a twin its rail, NOT
-##          its ring - 8, which is inside its keep-out); V the ring speed (RAIL_V
-##          35, a star's STAR_RAIL_V 45); sense 0 either way round
-##        {kind: &"keep", place: int, off: Vector2}
-##   t: map time now.
-## The result (`Result`) fills a ShipFlight.FlightPlan: samp from t0 (after
-## the ride, or the hold alongside) SAMPLE apart, burns per sample, end {body,
-## p, v, a, arel, rv, t, keep, sense} (a: the ring's own pull, relative, so the
-## insertion that follows flies none), lead and lead_k for rail.phase (a ride
-## of up to 4.4 s: rail.phase {T: lead, k: lead_k} as it is; alongside, the
-## ship holds at its spot for `lead`), dur, amax, esc_t (the departure burn),
-## `legs` (2 for a flight in two legs, `wp` its point, `k_cut` and `t_cut` the
-## sample and moment its second leaves) and `choice`. Passing that choice back
-## as `prefer` rebuilds the same flight
-## exactly (one integration) while it is the same flight (`_same_flight`) and
-## its departure is still ahead: round a ring while the ride from where the
-## ship is now reaches it at a phasing within THRUST (its ride may then phase
-## harder than it did, at up to 2 THRUST lead / pi px/s more work), alongside
-## while the hold lasts, free at the same moment and state. Otherwise the
-## search starts from it and keeps that flight while it costs about what it
-## did (WARM_K, WARM_ADD), so a preview does not flip between near equals; a
-## flight the fallback found, rebuilt or searched from, only while a fresh
-## search (C's own, else the fallback's two) finds none arriving sooner. A
-## flight in two legs comes back from its legs (`_chain_again`: rebuilt while
-## the first is the same flight, else searched from them, while it costs about
-## what it did), and round a ring or alongside is kept only while a fresh plan
-## (one leg, else two) finds none arriving sooner (`_sooner_of`), its own drawn
-## flight too. A flight of one leg that took over from one in two carries those
-## legs in its choice (`alt`), and they are tried again beside it each time it
-## is planned again (searched again once their departure has gone by), so a
-## later flight in two legs found afresh never stands where the old legs still
-## fly sooner. A flight in two legs looked for again through its old point
-## (`_chain`'s hint) is kept only while the first one found without it arrives
-## no sooner.
-## `found` false: nothing clean within the budget, and no samples (the caller
-## falls back); `clean` false on a found plan only if its own samples cut a
-## keep-out (none in the sweeps).
+## Pure data in, data out, so it is safe on a worker thread and always repeatable.
+## Plans the autopilot's flight under the real pull of the stars and the giant.
+## Why: docs/why/FlightSolve.md#autopilot-flight-solver
 
 const THRUST := 40.0
 ## an arrival burn may pull this much over THRUST where gravity's own pull
 ## changes across it (its own pull holds to THRUST)
 const THRUST_SLACK := 1.1
-## an arrival burn's own pull may be this much over THRUST where its end is
-## moved onto the sample grid (`_build`): a constant burn whose end moves by
-## up to SAMPLE needs at most a few tenths of a percent more
+## An arrival burn may pull slightly over `THRUST` where `_build` moves its end onto the grid.
 const BURN_TOL := 0.01
-## the arrival burn's path is checked every 0.05 s of it and kept this far
-## (px) inside its keep-outs' edge: checked every 0.1 s, two arrivals onto a
-## twin's close orbit cut 0.15 and 1.5 px in between the points
+## Checked every 0.05 s and padded inward: a 0.1 s check let two arrivals cut keep-outs.
+## Why: docs/why/FlightSolve.md#arrival-burn-checks
 const BURN_PAD := 0.5
-## an arrival burn starts at least this long (s) after the departure burn
-## ends, so moving its end onto the sample grid (`_build`) cannot start it
-## before: one did, by under a sample, and the flight's first samples carried
-## its pull (0.18 px off the place it left, SolveTest)
+## Gap after the departure burn, so moving the end onto the grid cannot start it early.
+## Why: docs/why/FlightSolve.md#arrival-burn-checks
 const TB_PAD := 2.0 * (1.0 / 240.0)
-## THE RIDE round to the departure point, at the ring's own pace, lasts at
-## most this (s): twice `ShipFlight.LEAD_MAX`'s 2.2. Past it the ride phases
-## (below). Priced honestly, phasing costs 2 V of engine work for each unit of
-## k (70 px/s on a world's ring) where riding on costs TIME_W a second, 2.2 s
-## of it for the same way round: at the as-built TIME_W of 0.5 riding was about
-## sixty times cheaper, and at 16 (ruling 21) it is still half the price; held to
-## 2.2 s and THRUST, the twins built by hand fell from 99.1% found to 95%
-## (SolveTest, Oct 30). A ride's seconds are in the flight's time, so the cost
-## keeps it short where it can.
+## Twice `ShipFlight.LEAD_MAX`: a 2.2 s ride cap dropped hand-built twins from 99.1% to 95%.
+## Why: docs/why/FlightSolve.md#ride-length
 const LEAD_MAX := 4.4
-## THE PHASING BURN's top pace, in times the ring's own, at the most: the ride
-## speeds round as `ShipFlight._step_phase` flies it, pace 1 + (k - 1) sin^2,
-## and its push along the ring peaks at |w| (k - 1) pi rt / LEAD_MAX. That push
-## is held to THRUST (`_kmax`): k at most 2.6 on a world's ring at RAIL_V,
-## 2.25 on a star's close orbit at STAR_RAIL_V, its top speed under VMAX. The
-## first build let k reach 8 within 2.2 s, which pushed at up to 436 px/s^2
-## and whirled a ship round a twin's 17.6 px rings at up to 350 px/s, free in
-## the cost (the planner review, Oct 30). Its work, 2 |k - 1| |w| rt, is in the
-## cost.
+## Top pace is held to `THRUST`: the first build let k reach 8 and pushed at 436 px/s^2.
+## Why: docs/why/FlightSolve.md#phasing-burn
 const PHASE_K_MAX := 4.0
 ## `ShipFlight.VMAX`: the ride's top speed
 const VMAX := 150.0
-## ALONGSIDE, A FLIGHT LEAVES THIS LONG AFTER IT IS PLANNED (the ship holding
-## alongside meanwhile), so the drawn flight is still ahead when it is clicked
-## and is rebuilt exactly from its choice (a ring's ride does the same). With
-## no hold, 48 of 48 clicks a quarter second after their preview flew another
-## flight, by a median 17.8 px (the planner review, Oct 30).
+## The hold keeps the drawn flight ahead of the click, so it is rebuilt exactly from its choice.
+## Why: docs/why/FlightSolve.md#alongside-hold
 const KEEP_HOLD := 1.0
-## A FLIGHT'S OWN DEPARTURE AND TARGET WORLD keeps out only to its ring less
-## this (px), not to r + 8: a twin's worlds round one star ride a 17.6 px ring,
-## inside r + 8 for any world over 9.6 px (1 twin in 26), so nothing flew to
-## or from them; where it did fit, it left a median 2.7 px
+## Own departure and target world keep out only to their ring: r + 8 blocked twin worlds.
+## Why: docs/why/FlightSolve.md#own-world-keep-out
 const OWN_GAP := 2.0
-## A PREVIEW'S FLIGHT IS KEPT (`prefer`, its departure gone by) while it costs
-## at most WARM_K more than it did, or WARM_ADD: past that the search runs, and
-## the kept flight stays only if the search does not beat it by as much. With
-## none, kept flights ran up to 81.6 over a fresh search (the planner review).
+## A kept preview flight stays only while near the fresh cost, or kept flights ran far over.
+## Why: docs/why/FlightSolve.md#warm-start
 const WARM_K := 0.25
 const WARM_ADD := 10.0
+## CURVED's warm slack (`_slack`): flights of near one cost bend very differently, and a preview
+## planned again jumped between them (Nov 5). `-- warmk=X` sets it for a harness.
+## Why: docs/why/FlightSolve.md#warm-slack-curved
+const WARM_K_CURVED := 0.25
+static var warm_k_c := -1.0
+
+
+static func warm_k_curved() -> float:
+	if warm_k_c < 0.0:
+		warm_k_c = WARM_K_CURVED
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("warmk="):
+				warm_k_c = maxf(float((a as String).substr(6)), 0.0)
+	return warm_k_c
+
+
+## The warm slack for this search's path: WARM_K, or CURVED's WARM_K_CURVED.
+func _slack(j: float) -> float:
+	return maxf(WARM_ADD, (warm_k_curved() if _curved else WARM_K) * j)
 ## a flight arrives within this of now: 16 s (ruling 21, Nov 1, "Flight length:
 ## C"), where ruling 20 built it to 30 (T_CAP_BACK, the fallback's)
 const T_CAP := 16.0
-## WHEN THE SEARCH FINDS NOTHING, A WIDER ONE (`_search_wide`): arriving within
-## T_CAP_WIDE of now, the cheapest conics to then refined, and a scan of
-## WIDE_HEAD headings whose departures are at least as fast as crossing to the
-## target in WIDE_T takes (`_wide_need`) -- out of a settled star orbit, across
-## WIDE_SPAN either side of the target's bearing -- within BUDGET_WIDE more
-## integrations. Out of a settled star orbit the scan's speeds were its ring's
-## own times 1 to 3.9, and a twin's settled orbits far out go round at 11 to 16
-## px/s: 41 px/s at the most in its first pass, too slow to cross a two-star
-## system inside T_CAP, and the edge as arrived (every visit's first flight) was
-## found for 201 of 224 flights. Measured on FlightTest's game starts (Oct 31,
-## three seeds): twins 1,432 found of 1,478 before, 1,460 with it; a heavy
-## giant 913 of 921, 917; one star 694 of 696, the same. It runs only for
-## flights nothing else found, so every flight found before is the same flight;
-## those it finds take a median of 200 ms and at most about 250 (on a worker).
-## Budgets of 400, 16 headings, headings within 30 or 45 deg of the bearing and
-## a cap of 55 s found no more; what it still misses (18 twin flights of 1,478)
-## leave a star's close orbit or a settled orbit far out for a station, belt,
-## hulk or contact on the far side of the pair, which no departure burn and one
-## coast reaches (the closest any of 1,260 departures came was 42 to 249 px):
-## those fly in two legs (`_chain`). Those numbers are the as-built search's;
-## at C the wider one looks beside it (`_fallback`).
+## Runs only when nothing else found a flight, so every flight found before is unchanged.
+## Scans toward the target: the ring's own speeds were too slow to cross a two-star system.
+## Why: docs/why/FlightSolve.md#wider-search
 const T_CAP_WIDE := 40.0
 const WIDE_T := 20.0
 const BUDGET_WIDE := 250
 const WIDE_HEAD := 12
 const WIDE_SPAN := PI * 75.0 / 180.0
-## WHEN EVEN THAT FINDS NOTHING, IN A TWIN, A FLIGHT IN TWO LEGS (`_chain`):
-## the first aimed at a point in open space (`_waypoints`), the second leaving
-## free off its coast CHAIN_PRE s (each in turn) before its arrival burn, at
-## least CHAIN_AFTER after its departure burn. The points: round the pair, half
-## way round from the ship to where the place is CHAIN_T on, at CHAIN_R times
-## the farther from the balance point, at least CHAIN_CLEAR separations out and
-## within CHAIN_EDGE of the map's edge. Measured (FlightTest, Oct 31, three
-## seeds' 36 twins, 1,790 plans): 37 fly in two legs -- every one of the 18 game
-## starts one leg missed (a star's close orbit, a settled star orbit and the
-## edge, to places round both on the far side of the pair), all 13 free starts
-## it missed, 6 close by a world -- in a median of 45 s, at worst 57, planned in
-## a median of 270 ms, at worst 530 (on a worker in the game), out to 0.98 of the
-## edge at the farthest; the turn onto the second leg at worst 13 deg a px at
-## zoom 1 (a corner is 20). SolveTest's real twins: 3,024 of 3,024 found (99.31%
-## with one leg). The 24 left were all close by a world coasting fast: in 23,
-## no burn at THRUST keeps the coast clear of a keep-out for a second (the one
-## where a burn did, seed 7 system 110, is FlightTest's residual). Points all
-## round the pair (12 bearings, two radii) and round the place found no more,
-## nor, there, a first leg that was that burn and its coast.
+## Last resort in a twin: the ship flies via an open-space point so it never stops there.
+## Needed for far-side targets that no departure burn and one coast reaches.
+## Why: docs/why/FlightSolve.md#flights-in-two-legs
 const CHAIN_PRE := [0.5, 3.0, 6.0]
 const CHAIN_AFTER := 0.5
 const CHAIN_T := 15.0
 const CHAIN_R := [1.0, 0.7]
 const CHAIN_CLEAR := 1.5
 const CHAIN_EDGE := 0.95
-## px/s of engine work one second of flight is worth: Jon's dial. Ruling 21
-## (Nov 1, "Flight length: C", picked from the Autopilot Flight Time page, eight
-## flights played at game speed) set it to 16 with T_CAP 16. As built (ruling
-## 20) it was 0.5 to a cap of 30 s, and a flight from place to place with one
-## sun took a median of 23.5 s from the click to settled (FlightTest), the v2
-## pick (B: 1, to 23 s) 18.9 s, and today's autopilot on main 6.9 s. At C it
-## takes 10.8 s, 14.9 s for 9 in 10, at worst 20; every game start 13.4 s with
-## one sun and 14.0 s in a twin. The engine works harder for it: a median of
-## 157 px/s, where the as-built flight's was 91 (the study, Nov 1).
+## Jon's dial: engine work one second of flight is worth. 16 per ruling 21, as built was 0.5.
+## Why: docs/why/FlightSolve.md#time-weight
 const TIME_W := 16.0
-## THE AS-BUILT SEARCH, behind C's (`_fallback`): ruling 20's dials, T_CAP_BACK
-## 30 s at TIME_W_BACK 0.5, with its own conic guesses and FAR_T. C's dials
-## alone missed 10 of SolveTest's 12,648 flights that the as-built search finds
-## (9 in twins, most from a settled star orbit to a station). Where C's own
-## search finds nothing, this and the wider search at TIME_W both look and the
-## flight that arrives first is kept. The as-built search alone held C's
-## flights from the edge and settled star orbits to about 29 s, one game start
-## in five to eight, where the wider one found quicker; the wider one alone let
-## flights of up to 40 s stand where the as-built found one under 30. With
-## both, C misses none of those A finds, finds one A misses, and never arrives
-## after the as-built search's flight. A flight in two legs flies both by it,
-## so those keep the as-built length: 30 of 1,790 twin plans, a median of 47 s.
+## Ruling 20's dials kept as a fallback: C's dials alone missed 10 flights this one finds.
+## Why: docs/why/FlightSolve.md#as-built-fallback
 const T_CAP_BACK := 30.0
 const TIME_W_BACK := 0.5
 const CONIC_TS_BACK := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
 const FAR_T_BACK := 18.0
+## CURVED'S ARC (Jon, Nov 5: "more of a bend"): the as-built search with a time cap, a time weight and a
+## reward per unit of the coast's bend up to `aim`. `_arc_look` then refines `keep` guesses on their own budget.
+## Level by `CURVED_ARC_LEVEL`; `-- arc=mild|strong|wide` and `arc_*=` for a harness. Two legs keep the as-built dials.
+## Why: docs/why/FlightSolve.md#curved-arc
+const CURVED_ARC := {
+	&"mild": {"cap": 60.0, "tw": 0.5, "bend": 800.0, "aim": 0.22, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+	&"strong": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.28, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+	&"wide": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.40, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+}
+const CURVED_ARC_LEVEL := &"wide"
+## the least more bend the arc look's flight must have over the first look's
+## to be kept (`_arc_look`; 0.1 gave back half of what the look bent: flights
+## under 0.1 were 7 to 12% of each level)
+const ARC_GAIN := 0.05
+static var _arc_dials: Dictionary = {}
+
+
+## CURVED's first look's dials: {cap, tw, bend, aim, dip, ref, keep, tmax
+## (deg), level, and arc and aimsw where set} (`CURVED_ARC`), as a
+## harness's command line may set them.
+static func curved_arc() -> Dictionary:
+	if _arc_dials.is_empty():
+		var lv: StringName = CURVED_ARC_LEVEL
+		var over := {}
+		for a in OS.get_cmdline_user_args():
+			var t := a as String
+			if t.begins_with("arc=") and CURVED_ARC.has(StringName(t.substr(4))):
+				lv = StringName(t.substr(4))
+			elif t.begins_with("arc_cap="):
+				over["cap"] = maxf(float(t.substr(8)), 6.0)
+			elif t.begins_with("arc_tw="):
+				over["tw"] = maxf(float(t.substr(7)), 0.0)
+			elif t.begins_with("arc_w="):
+				over["arc"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_b="):
+				over["bend"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_aim="):
+				over["aim"] = maxf(float(t.substr(8)), 0.0)
+			elif t.begins_with("arc_sw="):
+				over["aimsw"] = deg_to_rad(maxf(float(t.substr(7)), 0.0))
+			elif t.begins_with("arc_dip="):
+				over["dip"] = maxf(float(t.substr(8)), 0.0)
+			elif t.begins_with("arc_ref="):
+				over["ref"] = maxi(int(t.substr(8)), 0)
+			elif t.begins_with("arc_keep="):
+				over["keep"] = maxi(int(t.substr(9)), 1)
+			elif t.begins_with("arc_tmax="):
+				over["tmax"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_s="):
+				over["s"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_hook="):
+				over["hook"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_loop="):
+				over["loop"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_wob="):
+				over["wob"] = maxf(float(t.substr(8)), 0.0)
+		var d: Dictionary = (CURVED_ARC[lv] as Dictionary).duplicate()
+		d.merge(over, true)
+		d["level"] = lv
+		_arc_dials = d
+	return _arc_dials
+
+
+## The cap and weight of a path's first look: DIRECT's T_CAP and TIME_W,
+## CURVED's arc's (`curved_arc`); past the cap, the fallback's.
+static func first_cap(path: StringName) -> float:
+	return float(curved_arc().get("cap", T_CAP_BACK)) if path == &"curved" else T_CAP
+
+
+static func first_tw(path: StringName) -> float:
+	return float(curved_arc().get("tw", TIME_W_BACK)) if path == &"curved" else TIME_W
+
+
+## CURVED's conic guesses' flight times to its cap: CONIC_TS_BACK, and on
+## past 29 s about every 6 s to just under the cap.
+static func _arc_ts(cap: float) -> Array:
+	var ts: Array = CONIC_TS_BACK.duplicate()
+	var t := 35.0
+	while t < cap - 0.5:
+		ts.append(t)
+		t += 6.0
+	if cap > 30.0 + 1e-6:
+		ts.append(cap - 1.0)
+	return ts
+
+
 const SAMPLE := 1.0 / 240.0
-## the coast's step: ETA of the nearest pull's dynamical time sqrt(r^3/GM),
-## clamped; a burn's steps at most H_BURN. Measured (SolveTest): at 0.1 and
-## 0.25 s the drawn coast was within 0.013 px of a plain RK4 at SAMPLE; at 0.15
-## and 0.5 s within 0.08 px, in half the steps, the same flights found
+## Step is ETA of the nearest pull's dynamical time: measured as accurate in half the steps.
+## Why: docs/why/FlightSolve.md#coast-step
 const ETA := 0.15
 const H_MIN := 1.0 / 120.0
 const H_MAX := 0.5
 const H_BURN := 0.1
-## the longest arrival burn (a constant one of 120 px/s): the coast is flown
-## on this far past a keep-out it breaks, for an arrival whose burn starts
-## before it
+## The coast flies this far past a keep-out it breaks, for an arrival whose burn starts before it.
 const D2_MAX := 3.0
 ## how far round a pass a coast is priced from the target (px past its ring)
 const NEAR := 260.0
 ## a coast passing within this of the ring's virtual circle is priced at its
 ## closest even when it does not cross it
 const GRAZE := 60.0
-## THE SCAN (`_scan`): headings, and per pass the speeds (times the ring's
-## own) a ring departure tries, or the kicks (px/s) on a place's own motion
-## alongside or free; the third pass, when two find nothing, slower and faster
-## (the first build's speeds, along the ring's motion only)
+## Scan headings and per-pass speeds or kicks; the third pass is slower and faster.
 const SCAN_HEAD := 8
 const SCAN_SPEED := [[1.0, 1.43, 2.0, 2.71], [1.2, 1.71, 2.34, 3.29], [0.66, 0.8, 1.57, 3.86]]
 const SCAN_KICK := [[15.0, 35.0, 60.0], [7.0, 25.0, 47.0, 80.0], [12.0, 22.0, 100.0]]
-## A TARGET FAR OUT OF A TWIN STAR'S WELL is scanned from at least the speed
-## that climbs out to it in about FAR_T s (the as-built 18 s scaled to T_CAP,
-## 9.6; the as-built search keeps FAR_T_BACK); a point is round a star where
-## its pull is FAR_SHARE times the other's
+## Far targets out of a twin star's well are scanned from the speed that climbs out in FAR_T s.
 const FAR_T := FAR_T_BACK * (T_CAP / T_CAP_BACK)
 const FAR_SHARE := 3.0
 ## its scan's speeds per pass, in times that need
 const FAR_SPEED := [[0.8, 1.1, 1.5, 2.0], [0.9, 1.25, 1.75, 2.4], [0.7, 1.0, 1.35, 2.9]]
-## A RING DEPARTURE'S BURN is centred on its point (the ship comes off the
-## ring half a burn sooner) only as far back as the ring turns this much (rad):
-## further, the burn starts along a chord that dips inside the ring by about
-## rt theta^2 / 8, 2.3 px for a 1.2 s burn on a twin star's close orbit, which
-## is only 2 px outside its keep-out
+## Burn centring only goes back so far: a longer chord dips inside the ring's keep-out.
+## Why: docs/why/FlightSolve.md#ring-departure-burn
 const BACK_TURN := 0.25
-## INTEGRATIONS A PLAN MAY TAKE: `_fly` flies no more past it, so a
-## refinement under way stops there too (the first build only checked it
-## between scan flights, and a plan took up to 144); the samples take one
-## more, and a warm start that is not kept gives the search a budget of its
-## own after it. A twin's flights are short and its search wide.
+## `_fly` stops at the budget, so a refinement under way stops too instead of overrunning.
+## Why: docs/why/FlightSolve.md#integration-budget
 const BUDGET := 140
-## THE CONIC GUESSES' FLIGHT TIMES (s): the as-built ones (CONIC_TS_BACK)
-## scaled to T_CAP, x 16/30 (3.2, 4.8, 6.93, 9.6, 12.8, 15.47), and beside them
-## the as-built ones under T_CAP (6, 9, 13). With the scaled ones alone, the
-## v2 pick (B) flew longer than the as-built search in about a fifth of game
-## starts (the review of Nov 1); with both, C does in 1 to 2%, by at most 6 s
+## Scaled as-built times plus the unscaled ones, or B flew longer in a fifth of game starts.
+## Why: docs/why/FlightSolve.md#conic-flight-times
 const CONIC_TS := [6.0 * (T_CAP / T_CAP_BACK), 9.0 * (T_CAP / T_CAP_BACK), 6.0, 13.0 * (T_CAP / T_CAP_BACK), 9.0,
 	18.0 * (T_CAP / T_CAP_BACK), 24.0 * (T_CAP / T_CAP_BACK), 13.0, 29.0 * (T_CAP / T_CAP_BACK)]
 ## the wider search's (`_search_wide`), to T_CAP_WIDE
 const CONIC_TS_WIDE := [18.0, 24.0, 29.0, 34.0, 39.0]
 ## the conics the second stage re-solves from the real departure
 const CONIC_KEEP := 6
-## THE DEPARTURE BURN IS EASED WHILE THE SHIP IS SLOW (Jon: "why are there
-## sharp angles on some of the trajectories?"): a ship at speed v turned by a
-## pull a goes round a curve of v^2 / a, so out of a settled star orbit at 14 to
-## 23 px/s a burn at THRUST across its motion bent it round 5 to 13 px, drawn at
-## zoom 1 as tight as 0.7 px (the plane's slant shortens a curve seen end on to
-## 0.38^2 of it): FlightTest counted a corner, over 20 deg a px, in 3 to 7 of a
-## system's flights from a star orbit (Oct 31). So the pull is at most v^2 /
-## R_BURN (a curve of R_BURN px at the least), never under P_MIN, and THRUST from
-## about 24 px/s. The work is the same; the burn takes longer. Out of a
-## settled star orbit only (a ring round a fixed point, place -9: the edge as
-## arrived is one), whose pace is 14 to 40 px/s: a world's ring and a star's
-## close orbit leave at 35 and 45, and eased there a burn deep in a star's well
-## was too weak to climb out (SolveTest's star-to-star flights in the hand twins
-## found 79%, against 90%); alongside, the ship leaves all but at rest and its
-## first curve is under a pixel; free, only a harness leaves (SolveTest's free
-## starts at 10 to 40 px/s were found 1.7% less often eased, Oct 31).
+## Eased while slow so a burn from a settled star orbit does not draw a sharp corner (Jon).
+## Only for place -9: easing the other rings made burns too weak to climb out of a well.
+## Why: docs/why/FlightSolve.md#eased-departure-burn
 const R_BURN := 14.0
 const P_MIN := 3.0
-## A BURN THAT ALL BUT STOPS THE SHIP AND TURNS IT draws a cusp however gently
-## it pulls: its speed (on the plane, where it is drawn) dipping under this
-## mid-burn, below where it starts and ends, so the motion swings round a
-## point tighter than R_BURN at P_MIN. Such a departure out of a ring (a
-## world's, a star's close orbit or a settled star orbit) or an arrival is not
-## flown: the search finds another. (At 12 px/s,
-## before the burn was eased, it cut SolveTest's flights found from 99.97% to
-## 96.2% one-star, Oct 31.)
+## A burn that all but stops the ship draws a cusp however gently it pulls, so it is not flown.
+## Why: docs/why/FlightSolve.md#cusp-tests
 const V_CUSP := 5.0
-## and turned down this much above it (px/s): the burn's speed read here from
-## the coast's nodes and a few points of the arrival, SolveTest's from every
-## sample (one flight of 3,061 read just under 5 there and passed here, Oct 31)
+## Pad on the cusp test: this read uses the coast's nodes, SolveTest's uses every sample.
+## Why: docs/why/FlightSolve.md#cusp-tests
 const CUSP_PAD := 0.5
-## A CUSP IS WHERE THE MOTION ALL BUT STOPS MID-BURN AND TURNS ROUND: its least
-## speed inside the burn (CUSP_IN under both its ends) and the motion turned by
-## more than CUSP_TURN while slower than V_SLOW. It was a least speed 2 px/s
-## under both ends, which let through a departure out of a star orbit at 15.5
-## px/s that burned down to 1.0 and left at 2.3 the other way: a turn of about
-## 150 deg round a third of a pixel, 64 deg a px on screen at zoom 2
-## (FlightTest, seed 4242 system 104, Oct 31). A burn that only slows (its
-## least speed its end) still flies.
+## Cusp means the least speed sits well under both ends, as 2 px/s let a 150 deg turn through.
+## Why: docs/why/FlightSolve.md#cusp-tests
 const CUSP_IN := 0.25
 const CUSP_TURN := PI / 3.0
 const V_SLOW := 2.0 * V_CUSP
-## AN ARRIVAL BURN IS NOT FLOWN where its curve as the map draws it at zoom 1
-## (`ShipFlight.TILT` 0.38: the plane's depth drawn at that) turns more than
-## DRAW_K rad a px: FlightTest's corner is 20 deg a px over 2 px, a curve 1.43
-## px across; this keeps 1.67.
+## An arrival is not flown if the map would draw its curve tighter than `DRAW_K` at zoom 1.
+## Why: docs/why/FlightSolve.md#arrival-draw-limit
 const DRAW_TILT := 0.38
 const DRAW_K := 0.6
-## the version of `choice` this file writes and reads: 2 from the orbiting pair
-## (ruling 23), whose choice carries the sun each circle rides with (`dhs`,
-## `ths`), so no preview planned under the old meaning is rebuilt as it was
-const CHOICE_V := 2
+## Version of `choice` this file writes, so a preview planned under the old meaning is not rebuilt.
+const CHOICE_V := 3
+## THE FAST TRANSFERS (Jon, Nov 4-5): every flight solved on its own clock, tau = pace x map time,
+## and played back pace times faster. DIRECT is ruling 21's C search, CURVED the as-built one with its arc.
+## ALONGSIDE, the hold before leaving is at least HOLD_MAP of map time.
+## Why: docs/why/FlightSolve.md#fast-transfers
+const HOLD_MAP := 0.4
+## A ring is left and arrived on in tau at its speed / pace, never under RING_TAU px/s nor over its own.
+## `-- ringtau=X` sets it for a harness (0: speed / pace, as first built).
+## Why: docs/why/FlightSolve.md#ring-speeds-on-the-flights-clock
+const RING_TAU := 60.0
+## The spin-up's length on the map (s): the ship's rate eased from its ring's own to the departure's.
+## 0.3 (Jon, Nov 7, "2B"); it was 0.15. `-- spinup=S` sets it for a harness.
+## Why: docs/why/FlightSolve.md#spin-up
+const SPIN_UP := 0.3
+static var ring_tau := -1.0
+static var spin_up_s := -1.0
+
+
+static func spin_up() -> float:
+	if spin_up_s < 0.0:
+		spin_up_s = SPIN_UP
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("spinup="):
+				spin_up_s = maxf(float((a as String).substr(7)), 0.0)
+	return spin_up_s
+
+
+static func ring_floor() -> float:
+	if ring_tau < 0.0:
+		ring_tau = RING_TAU
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("ringtau="):
+				ring_tau = maxf(float((a as String).substr(8)), 0.0)
+	return ring_tau
+
+
+## A ring's speed v (px/s, signed) on a flight's clock at pace k (`RING_TAU`).
+static func tau_speed(v: float, k: float) -> float:
+	if k == 1.0:
+		return v
+	var a := absf(v)
+	return signf(v) * minf(a, maxf(a / k, ring_floor()))
+
+
+## A departure or a target on the flight's clock at pace k: a ring's or a
+## target ring's speed by `tau_speed`, a free start's motion / k.
+static func dep_tau(dep: Dictionary, k: float) -> Dictionary:
+	var d := dep.duplicate()
+	match StringName(d.get("kind", &"")):
+		&"ring":
+			var rt := float(d.rt)
+			var w0 := float(d.w) / k
+			d.w = tau_speed(float(d.w) * rt, k) / rt
+			if absf(float(d.w) - w0) > 1e-12:
+				d.w0 = w0
+				d.spin = spin_up() * k
+		&"free":
+			d.v = (d.v as Vector2) / k
+	return d
+
+
+static func tgt_tau(tgt: Dictionary, k: float) -> Dictionary:
+	var g := tgt.duplicate()
+	if StringName(g.get("kind", &"")) == &"ring":
+		g.V = tau_speed(float(g.V), k)
+	return g
 
 
 class Result:
@@ -454,6 +348,36 @@ class Result:
 	var wp := Vector2.ZERO
 	var k_cut := 0
 	var t_cut := 0.0
+	## THE CLOCK IT WAS SOLVED ON (`solve`'s pace) and the search (&"direct",
+	## &"curved"); `tau` true while its times are still the flight's own clock
+	## (`to_map` makes them map time)
+	var pace := 1.0
+	var path: StringName = &"direct"
+	var tau := false
+
+	## ITS TIMES ON THE MAP'S CLOCK: every time and length / pace, every speed
+	## x pace, every pull x pace^2; positions as they are. Its choice stays in
+	## tau, as `solve` reads it back (`prefer`).
+	func to_map(k: float) -> void:
+		if k == 1.0 or not tau:
+			tau = false
+			return
+		tau = false
+		t0 /= k
+		lead /= k
+		sdt /= k
+		dur /= k
+		esc_t /= k
+		T /= k
+		d2 /= k
+		t_cut /= k
+		amax *= k * k
+		if not end.is_empty():
+			end = end.duplicate()
+			end.t = float(end.t) / k
+			end.v = (end.v as Vector3) * k
+			end.rv = (end.rv as Vector2) * k
+			end.a = (end.a as Vector2) * (k * k)
 
 
 # ---------------------------------------------------------------- the problem
@@ -469,6 +393,15 @@ var _dph := 0.0
 var _drt := 0.0
 var _dang := 0.0
 var _dw := 0.0
+## (a ring ridden at its own rate until a fast flight's ride spins up to _dw
+## over _spin tau-s: `SPIN_UP`)
+var _dw0 := 0.0
+var _spin := 0.0
+## the longest ride: LEAD_MAX, and never shorter than a fast flight's spin-up.
+## (Held to 0.55 s on the map for DIRECT, LEAD_MAX's 4.4 tau-s at pace 8, the
+## click to settled went from a median 4.1 s to 3.9 and twins lost flights and
+## grew corners: FlightTest, Nov 5. Not kept.)
+var _lmax := LEAD_MAX
 var _doffx := 0.0
 var _doffz := 0.0
 var _dpx := 0.0
@@ -476,12 +409,8 @@ var _dpz := 0.0
 var _dvx := 0.0
 var _dvz := 0.0
 var _dplace := -9
-## THE SUN A CIRCLE RIDES WITH (ruling 23, the orbiting pair): the index in G
-## of the star the departure's / target's circle is centred on where that star
-## turns -- a world round one sun, a sun's close orbit, a settled orbit round
-## one sun -- or -1 for a centre that holds still at _dhx, _dhz (_thx, _thz).
-## Where it rides, _dhx (_thx) is the centre at t = 0, and `_dep_at` (`_tgt_at`)
-## reads the star where it is at t.
+## Index of the star a circle is centred on where it turns, or -1 for a fixed centre.
+## Why: docs/why/FlightSolve.md#sun-a-circle-rides-with
 var _dhs := -1
 var _ths := -1
 ## the target: 0 ring, 1 keep
@@ -502,6 +431,8 @@ var _twin := false
 ## (a departure out of a settled star orbit, round a fixed point or riding with
 ## one sun of a turning pair: its burn eased while slow, R_BURN)
 var _ease := false
+## (eased only as `_fresh`'s last look, or rebuilding a choice that was: `ez`)
+var _ease_forced := false
 ## the ride's top phasing (`_kmax`)
 var _kmax := 1.0
 ## the keep-outs this flight holds: MapGravity's, its own departure and
@@ -513,21 +444,65 @@ var _budget := BUDGET
 ## or T_CAP_WIDE in the wider one), and whether the scan is the wider one's
 var _tcap := T_CAP
 var _wide := false
-## the time weight this search prices with (TIME_W, or TIME_W_BACK in the
-## as-built one), and whether it uses the as-built search's own times (its
-## conic guesses, FAR_T_BACK)
+## The time weight this search prices with, and whether it uses the as-built search's times.
 var _tw := TIME_W
 var _back := false
+## CURVED (`solve`'s path): the as-built search is the first look, its cap
+## `_cap0` (T_CAP_BACK; DIRECT's T_CAP), its weight TIME_W_BACK; and the hold
+## alongside before leaving, in tau (`HOLD_MAP`)
+var _curved := false
+var _cap0 := T_CAP
+## the as-built search's dials for this flight (`_search_back`): its cap,
+## weight, conic times and FAR_T, and the reward for the coast's sweep round
+## the star (`CURVED_ARC`: CURVED's own; DIRECT's fallback and a flight's legs
+## the as-built consts and none); and the wider search's cap and conic times,
+## past the as-built cap where CURVED's is
+var _bcap := T_CAP_BACK
+var _btw := TIME_W_BACK
+var _bts: Array = CONIC_TS_BACK
+var _arcw := 0.0
+var _arcb := 0.0
+var _aim := INF
+var _aimsw := INF
+var _dip := 0.0
+## the arc look's (`_arc_look`): guesses refined, guesses kept, and the most a
+## rewarded coast turns (rad)
+var _aref := 0
+var _akeep := CONIC_KEEP
+var _tnmax := INF
+var _in_look := false
+## CURVED's shape dials (`CURVED_ARC` s, hook, loop): the bend rewarded is the
+## farther side's less `_sw_s` times the nearer side's (an S) and `_sw_h` times
+## how far the coast runs past either end (a hook); a coast that turns more
+## than `_tnmax` costs `_loop_pen` px/s more (a loop)
+var _sw_s := 0.0
+var _sw_h := 0.0
+var _loop_pen := 0.0
+## and `_wob_w` px/s for each radian the coast turns back on itself (its turn
+## less its net turn: a wobble, an S, a hump)
+var _wob_w := 0.0
+## the bend as rewarded, uncapped, at the node `_arc_of` last read, and in the
+## flight just priced (`_arc_look` compares the looks by it)
+var _ab_raw := 0.0
+var _e_bnd := 0.0
+var _wcap := T_CAP_WIDE
+var _wts: Array = CONIC_TS_WIDE
+var _hold := KEEP_HOLD
+## The pace a flight is solved at, and the eased burn's least pull on its clock (P_MIN / pace).
+## The cusp speeds are not scaled: a cusp is v^2 / a, which the flight's clock leaves as it is.
+## Why: docs/why/FlightSolve.md#solve-pace-and-cusp
+var _kp := 1.0
+var _vc := V_CUSP
+var _vsl := V_SLOW
+var _cpad := CUSP_PAD
+var _cin := CUSP_IN
+var _pmin := P_MIN
 ## whether the flight kept was found by the search to T_CAP itself, not the
 ## fallback (`_build_fresh`)
 var _own := false
 ## where the coast just flown first turns tighter than the map draws (`_coast_tight`)
 var _tight_t := INF
-## A LEG OF A FLIGHT IN TWO (`_chain`): 0 a flight of one, 1 the first (to a
-## point in open space), 2 the second (leaving free off the first's coast, its
-## burn eased while slow and kept from swinging round a point, as a settled star
-## orbit's is); whether the wider search may run; whether `_setup` took the
-## flight (so a chain is only looked for where a flight could be)
+## Leg of a flight in two: 0 one leg, 1 the first, 2 the second. Also gates the wider search.
 var _leg := 0
 var _wide_ok := true
 var _set := false
@@ -580,6 +555,8 @@ var _e_d2 := 0.0
 var _e_w2 := 0.0
 ## the arrival cubic's own top pull (THRUST, or less where gravity adds to it)
 var _e_pk := THRUST
+## the arc reward in the flight just priced (`_arc_of`; none but CURVED's)
+var _e_arc := 0.0
 var _e_ux := 0.0
 var _e_uz := 0.0
 var _e_fix := false
@@ -590,24 +567,78 @@ var _b_J := INF
 var _b := {}
 
 
-## THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
-## In a twin, where nothing is found, a flight in two legs (`_chain`).
-static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
+## The flight from `dep` to `tgt` at map time t; in a twin, where nothing is found, two legs (`_chain`).
+## `opts` {path, pace} (`ShipFlight.flight_opts`); none is DIRECT at pace 1. The search runs on the flight's
+## own clock; the Result comes back on the map's (`Result.to_map`) unless opts.tau.
+## Why: docs/why/FlightSolve.md#solve
+static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}, opts: Dictionary = {}) -> Result:
+	var k := float(opts.get("pace", 1.0))
+	var path := StringName(opts.get("path", &"direct"))
+	var curved := path == &"curved"
+	var pf := prefer
+	if not pf.is_empty() and (StringName(pf.get("path", &"direct")) != path or float(pf.get("pace", 1.0)) != k):
+		pf = {}
+	var r: Result
+	if k == 1.0 and not curved:
+		r = _solve_tau(grav, dep, tgt, t, pf)
+	else:
+		var d := dep_tau(dep, k)
+		if curved:
+			d["_curved"] = true
+		if not d.has("_hold"):
+			d["_hold"] = maxf(KEEP_HOLD, HOLD_MAP * k)
+		if not d.has("_pace"):
+			d["_pace"] = k
+		var g := tgt_tau(tgt, k)
+		# (at pace 1 -- CURVED at today's speed, or a harness already in tau -- the
+		# system as it is given)
+		r = _solve_tau(grav if k == 1.0 else grav.paced(k), d, g, t * k, pf)
+	r.pace = k
+	r.path = path
+	r.tau = true
+	if r.found:
+		r.choice = r.choice.duplicate()
+		r.choice["path"] = path
+		r.choice["pace"] = k
+	if not bool(opts.get("tau", false)):
+		r.to_map(k)
+	return r
+
+
+## THE SHAPE OF A FLIGHT from its samples: [bend, turn] -- the farthest a
+## sample strays from the straight line between its two ends over that line's
+## length, and how far its motion turns in all (deg), read every 8th sample.
+static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
+	var n := samp.size()
+	if n < 3:
+		return PackedFloat64Array([0.0, 0.0])
+	var a := Vector2(samp[0].x, samp[0].z)
+	var b := Vector2(samp[n - 1].x, samp[n - 1].z)
+	var ch := (b - a).length()
+	var far := 0.0
+	var turn := 0.0
+	var pv := Vector2.ZERO
+	var step := maxi(1, n / 400)
+	for j in range(0, n, step):
+		var q := Vector2(samp[j].x, samp[j].z)
+		if ch > 1e-6:
+			far = maxf(far, absf((b - a).cross(q - a)) / ch)
+		if j + step < n:
+			var v := Vector2(samp[j + step].x - samp[j].x, samp[j + step].z - samp[j].z)
+			if pv != Vector2.ZERO and v.length() > 1e-6:
+				turn += absf(pv.angle_to(v))
+			if v.length() > 1e-6:
+				pv = v
+	return PackedFloat64Array([far / maxf(ch, 1e-6), rad_to_deg(turn)])
+
+
+## (the search on the flight's own clock: dep, tgt and t already in tau)
+static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
 	if grav.star_x0.size() > 1:
 		var held := StringName(dep.get("kind", &"")) != &"free"
 		if prefer.has("chain"):
-			# A FLIGHT IN TWO LEGS DRAWN BEFORE: its own legs again while they hold,
-			# else looked for afresh, its old point tried first (and kept only
-			# while the first found without it arrives no sooner, `_chain`).
-			# Held, it is kept only while a fresh plan, of one leg or else of two,
-			# finds none that arrives sooner (`_sooner_of`), the rule a flight the
-			# fallback found is kept by. Against one leg alone, legs searched from
-			# their old ones each time their departure went by stood later than
-			# two found afresh: in the review's replan chains (the overlay's
-			# preview, 30 s, 16 line-ups), 89 drawn plans more than 1 s later, at
-			# worst 18.8 s (seed 4242 node 281, orbit9 -9 to keep 5, line-up 1:
-			# 139.8 kept where a fresh plan in two legs arrived 121.0; the fifth
-			# review, Nov 1)
+			# A held two-leg flight is kept only while a fresh plan finds none arriving sooner.
+			# Why: docs/why/FlightSolve.md#two-leg-replans
 			var t_us := Time.get_ticks_usec()
 			var rc := _chain_again(grav, dep, tgt, t, prefer)
 			if rc == null:
@@ -618,21 +649,8 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 			rc.usec = Time.get_ticks_usec() - t_us
 			return rc
 		if prefer.has("alt") and held:
-			# A FLIGHT OF ONE LEG THAT TOOK OVER FROM ONE IN TWO (`_sooner_of`):
-			# itself from its choice as any flight is (else one found afresh, and
-			# where one leg finds nothing, two found afresh), beside the old legs
-			# again (`_chain_again`), the one that arrives first kept, the old
-			# legs on a tie. Without them, the preview that went to one leg went
-			# next, where one leg found nothing, to two found afresh, later than
-			# its old legs flew (seed 31337 node 28, ring 1 to keep 5, line-up 10:
-			# 486.1 drawn where the old legs arrived 463.4, the review of Nov 1).
-			# Two found afresh are a fresh plan's, not tried through the old
-			# legs' point first: the old legs stand beside them already, and
-			# through that point first, where the old legs no longer held, the
-			# first found stood later than a fresh plan's (seed 7 node 143, ring
-			# 1 to keep 2, line-up 5: 291.63 where a fresh plan arrives 291.50;
-			# seed 1999 node 150, star -1 to keep 2, line-up 1: 131.39 against
-			# 127.84; the fifth review, Nov 1)
+			# Old legs are tried beside the fresh plan, or the preview went later than they flew.
+			# Why: docs/why/FlightSolve.md#two-leg-replans
 			var t_ua := Time.get_ticks_usec()
 			var alt: Dictionary = prefer.alt
 			var c1 := prefer.duplicate()
@@ -646,30 +664,8 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 	return _solve_or_chain(grav, dep, tgt, t, prefer, Vector2.INF)
 
 
-## A FLIGHT IN TWO LEGS HELD FROM ITS CHOICE (`_chain_again`: rebuilt, or
-## searched from its legs) against another plan, r1 (a fresh plan, of one leg
-## as a first plan's is, else of two; or, from a flight of one leg that took
-## over from them, that flight planned again, else two legs found afresh): the one
-## that arrives first, the held legs where they arrive no later, and never a
-## flight that is not clean. Held on their cost alone, a preview in two legs
-## that began where one leg found nothing stayed in two legs while a fresh
-## flight of one arrived far sooner: of every SolveTest fallback flight from a
-## ring or alongside planned again 15 times as the overlay does, 63 steps (the
-## review of Nov 1), at worst 50.9 s in two legs where one leg flew 13.5 (twin
-## 300, ring 2 to star -1, line-up 4). Only round a ring or alongside, the ship
-## still where the flight leaves from: free, it is on its way (or a harness's
-## free start), and the flight is as `_chain_again` gives it. A flight of one
-## leg kept carries the held legs' choice as its `alt` (`solve`): the legs as
-## they were flown this time, so once their departure has gone by they are
-## searched again from the last search's legs, priced against its cost, and may
-## arrive later each time (seed 31337 node 28, ring 1 to keep 5, line-up 11:
-## 483.95 to 516.62 over 7 replans, the review of Nov 1). That is kept: they
-## are taken only where they arrive sooner than the one leg, and held to the
-## arrival they had as one leg took over, or dropped once their departure went
-## by, the overlay's preview drew later than this, net, for 12 to 28 s of its
-## preview time in each sweep (16 line-ups, 30 s each, the fifth review), to
-## save a median of about 90 integrations a replan carrying them. Its
-## integrations are both plans'.
+## Held legs lose to a fresh plan that arrives sooner, or a preview stayed slow in two legs.
+## Why: docs/why/FlightSolve.md#sooner-of-two-plans
 static func _sooner_of(rc: Result, r1: Result) -> Result:
 	var n := rc.integrations + r1.integrations
 	var st := rc.steps + r1.steps
@@ -702,11 +698,8 @@ static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, 
 	return rc
 
 
-## THE RADIUS OF STAR p'S CLOSE ORBIT, ridden and arrived on (a ring's R and
-## rt). One star: 8 inside its ring, as `ShipFlight.orbit_r(-1)` rides it. A
-## twin's star: its rail (`star_rail_of`), 2 px outside the keep-out, since its
-## ring is only 4 px out and ring - 8 is inside the keep-out (for every twin
-## star of 1,710: none of 96 flights there was found, the planner review, Oct 30).
+## A twin star uses its rail, not ring - 8, which is inside its keep-out (96 flights failed).
+## Why: docs/why/FlightSolve.md#star-orbit-radius
 static func star_orbit_r(L: SystemLayout, p: int) -> float:
 	if L.twin:
 		return L.star_rail_of(p)
@@ -718,25 +711,57 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	G = grav
 	t_now = t
 	_twin = G.star_x0.size() > 1
+	_curved = bool(dep.get("_curved", false))
+	if _curved and _leg == 0:
+		var ad := curved_arc()
+		_bcap = float(ad.get("cap", T_CAP_BACK))
+		_btw = float(ad.get("tw", TIME_W_BACK))
+		_arcw = float(ad.get("arc", 0.0))
+		_arcb = float(ad.get("bend", 0.0))
+		_aim = float(ad.get("aim", INF))
+		_aimsw = float(ad.get("aimsw", INF))
+		_dip = float(ad.get("dip", 0.0))
+		_aref = int(ad.get("ref", 0))
+		_akeep = int(ad.get("keep", CONIC_KEEP))
+		_tnmax = deg_to_rad(float(ad.get("tmax", INF)))
+		_sw_s = float(ad.get("s", 0.0))
+		_sw_h = float(ad.get("hook", 0.0))
+		_loop_pen = float(ad.get("loop", 0.0))
+		_wob_w = float(ad.get("wob", 0.0))
+		_bts = _arc_ts(_bcap)
+		if _bcap + 10.0 > T_CAP_WIDE:
+			_wcap = _bcap + 10.0
+			_wts = CONIC_TS_WIDE.duplicate()
+			var tw2 := 45.0
+			while tw2 < _wcap - 0.5:
+				_wts.append(tw2)
+				tw2 += 6.0
+	_cap0 = _bcap if _curved else T_CAP
+	_hold = float(dep.get("_hold", KEEP_HOLD))
+	_kp = float(dep.get("_pace", 1.0))
+	_vc = V_CUSP
+	_vsl = V_SLOW
+	_cpad = CUSP_PAD
+	_cin = CUSP_IN
+	_pmin = P_MIN / _kp
 	if not _setup(dep, tgt):
 		var bad := Result.new()
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
 	_set = true
-	_tw = TIME_W
+	# (a choice found eased, `_fresh`'s last look: rebuilt and warmed eased)
+	_ease_forced = false
+	if _dk == 0 and _kp > 1.0 and bool(prefer.get("ez", false)) and int(prefer.get("v", 0)) == CHOICE_V:
+		_ease = true
+		_ease_forced = true
+	_tw = _btw if _curved else TIME_W
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
 		_warm_tier(prefer)
 		res = _replay(prefer)
-		if res != null and _leg == 0 and _tcap > T_CAP + 1e-6:
-			# A FLIGHT THE FALLBACK FOUND, REBUILT AS DRAWN, is kept by the rule it
-			# is kept by warm (below): only while a fresh plan (its own budget)
-			# finds none clean that arrives sooner. Rebuilt with no look, a preview of
-			# the fallback's flight whose departure was still ahead held while a
-			# fresh plan flew sooner: of every SolveTest fallback flight from a
-			# ring or alongside planned again 15 times as the overlay does, 163
-			# steps, at worst 7.9 s (twin 280, ring 0 to ring 2, line-up 11; the
-			# review of Nov 1)
+		if res != null and _leg == 0 and _tcap > _cap0 + 1e-6:
+			# A rebuilt fallback flight is kept only while a fresh plan finds none arriving sooner.
+			# Why: docs/why/FlightSolve.md#fallback-flight-rebuild
 			_b_J = INF
 			_b = {}
 			_budget = _n_integ + BUDGET
@@ -746,65 +771,65 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				if rf.found and rf.clean and float(rf.end.t) < float(res.end.t) - 1e-6:
 					res = rf
 		if res == null and _warm(prefer):
-			# KEPT while it costs about what it did; else the search, and the kept
-			# flight only if the search does not beat it by as much. A flight the
-			# fallback found (its cap past T_CAP) is kept only while a fresh
-			# search finds none that arrives sooner, the rule `_fallback` keeps
-			# between its two, so the fresh search runs every time. Kept on its
-			# own cost, one fallback while a preview was drawn held every later
-			# plan of that errand to its slow flight, C's own search never looking
-			# again; with C's own search alone looking, an as-built flight of
-			# 29.0 s stood where the wider search found one of 18.2, and priced
-			# against the fallback's flight with the warm slack, a wider flight of
-			# 26.3 s where the as-built one found 23.9 (the reviews, Nov 1: each
-			# of SolveTest's fallback flights from a ring or alongside planned
-			# again 15 times as the overlay does, 1,790 of the 5,745 kept warm
-			# were kept where a fresh plan arrived sooner; none now)
+			# A fallback flight is kept only against a fresh search, or it held every replan.
+			# Why: docs/why/FlightSolve.md#warm-start
 			var j_old := float(prefer.get("J", INF))
-			var fell := _leg == 0 and _tcap > T_CAP + 1e-6
-			if not fell and _b_J <= j_old + _warm_slack(j_old):
-				res = _build(&"warm")
-			else:
+			var fell := _leg == 0 and _tcap > _cap0 + 1e-6
+			var rk: Result = null
+			if not fell:
+				rk = _build(&"warm")
+				if rk.found and rk.cost <= j_old + _slack(j_old):
+					res = rk
+			if res == null:
 				var wj := _b_J
 				var wb := _b.duplicate()
 				var wcap := _tcap
 				var wtw := _tw
 				var wback := _back
+				# (and its easing: a fresh search that found nothing else eases,
+				# `_fresh`'s last look, and the kept flight is flown as it was)
+				var wease := _ease
+				var wezf := _ease_forced
 				_b_J = INF
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
 				_budget = _n_integ + BUDGET
-				# (and the fallback when that finds nothing, as a fresh plan has:
-				# without the wider search a kept flight of 359 stood where a fresh
-				# one found 206, SolveTest Oct 31)
+				# Fresh plans include the fallback: a kept 359 stood where 206 was found.
+				# Why: docs/why/FlightSolve.md#warm-start
 				_fresh()
 				var keep := _b_J == INF
+				var rf: Result = null
 				if not keep and fell:
 					keep = float(wb.te) <= float(_b.te) + 1e-6
 				elif not keep:
-					# (both at one weight: TIME_W where their searches priced them
-					# at two, since at TIME_W_BACK a second costs 32 times less;
-					# a leg's two are both the as-built search's)
-					var fj := _b_J
-					var kj := wj
-					if absf(_tw - wtw) > 1e-9:
-						fj = _at_time_w(_b_J, _b, _tw)
-						kj = _at_time_w(wj, wb, wtw)
-					keep = fj + _warm_slack(fj) >= kj
+					rf = _build_fresh()
+					# Both priced at one weight, as at TIME_W_BACK a second costs 32 times less.
+					var fj := rf.cost
+					var kj := rk.cost
+					var ftw := float(rf.choice.get("tw", wtw))
+					if absf(ftw - wtw) > 1e-9:
+						fj += (TIME_W - ftw) * rf.T
+						kj += (TIME_W - wtw) * rk.T
+					keep = rk.found and (not rf.found or fj + _slack(fj) >= kj)
 				if keep:
+					# (built again, not rk: the fresh search flew over the coast
+					# rk was built on, and a leg's second leaves from it,
+					# `_leg_two` reading `_coast_at` of the first's solver)
 					_b_J = wj
 					_b = wb
 					_tcap = wcap
 					_tw = wtw
 					_back = wback
+					_ease = wease
+					_ease_forced = wezf
 					res = _build(&"warm")
+				elif rf != null:
+					res = rf
 				else:
 					res = _build_fresh()
 	if res == null:
-		# (a budget of its own after a warm start that flew nothing, so it finds
-		# what a fresh plan does: on what the warm start had used, C's own search
-		# ran short and a flight of 17.9 s the fallback found stood where a
-		# fresh plan found one of 14.9, twin 280, orbit9 -9 to ring 1, line-up 4)
+		# A warm start that flew nothing gets its own budget so it finds what a fresh plan does.
+		# Why: docs/why/FlightSolve.md#warm-start
 		_b_J = INF
 		_b = {}
 		_budget = _n_integ + BUDGET
@@ -830,11 +855,13 @@ func _at_time_w(j: float, b: Dictionary, tw: float) -> float:
 	return j + (TIME_W - tw) * (float(b.te) - t_now)
 
 
-## A CHOICE IS WARMED AS THE SEARCH THAT FOUND IT PRICED IT: to its own time
-## cap (`cap`), and at TIME_W_BACK with the as-built search's times where the
-## as-built search found it (past T_CAP, its `tw`), so the flight the fallback
-## found is kept or beaten on its own terms.
+## A choice is warmed as the search that found it priced it, to judge it fairly.
 func _warm_tier(c: Dictionary) -> void:
+	if _curved:
+		_tcap = clampf(float(c.get("cap", _bcap)), _bcap, maxf(_wcap, _bcap))
+		_tw = _btw
+		_back = true
+		return
 	_tcap = clampf(float(c.get("cap", T_CAP)), T_CAP, maxf(T_CAP_WIDE, T_CAP_BACK))
 	_tw = TIME_W
 	_back = false
@@ -846,16 +873,13 @@ func _warm_tier(c: Dictionary) -> void:
 func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	if not _setup_in(dep, tgt):
 		return false
-	# (keyed on the settled orbit, place -9, whatever it circles: one round a
-	# sun of a turning pair rides with that sun, `_dhs`, at the same slow pace,
-	# and eases the same. Its pull is read off the ship's speed on the plane,
-	# where the curve is drawn, the sun's own motion in it)
+	# Keyed on the settled orbit, place -9: one round a turning sun eases at the same slow pace.
 	_ease = (_dk == 0 and _dplace == -9) or (_leg == 2 and _dk == 2)
 	# THE RIDE'S PHASING, held to THRUST and VMAX on the ring being ridden
 	_kmax = 1.0
 	if _dk == 0:
 		var vr := absf(_dw) * _drt
-		_kmax = clampf(minf(1.0 + THRUST * LEAD_MAX / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
+		_kmax = clampf(minf(1.0 + THRUST * _lmax / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
 	# ITS OWN WORLDS keep out to their rings, not past them
 	_wkeep = PackedFloat64Array()
 	_wkeep.resize(G.wo_keep.size())
@@ -887,6 +911,9 @@ func _own_r(i: int) -> float:
 
 
 func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
+	_dw0 = 0.0
+	_spin = 0.0
+	_lmax = LEAD_MAX
 	match StringName(dep.get("kind", &"")):
 		&"ring":
 			_dk = 0
@@ -895,6 +922,9 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 			_drt = float(dep.rt)
 			_dang = float(dep.ang)
 			_dw = float(dep.w)
+			_dw0 = float(dep.get("w0", _dw))
+			_spin = float(dep.get("spin", 0.0)) if absf(_dw - _dw0) > 1e-12 else 0.0
+			_lmax = maxf(LEAD_MAX, _spin)
 			if absf(_dw) < 1e-6 or _drt <= 0.0:
 				return false
 		&"keep":
@@ -934,11 +964,7 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 	return _place_circle(int(tgt.get("place", -9)), tgt.get("c", Vector2.ZERO), false, int(tgt.get("host", -9)))
 
 
-## A place's circle into the departure's (dep) or the target's fields, and the
-## sun it rides with (`_dhs`, `_ths`): a world round one sun of a turning pair
-## its sun (MapGravity `pl_hs`), a sun's close orbit that sun, and a -9 circle
-## the sun `host` names (a settled orbit round one sun: c is then not read, its
-## centre being that sun wherever it is). Every other centre holds still.
+## Also sets the sun a circle rides with; every other centre holds still.
 func _place_circle(p: int, c: Vector2, dep: bool, host: int = -9) -> bool:
 	var hx := c.x
 	var hz := c.y
@@ -988,10 +1014,7 @@ func _place_circle(p: int, c: Vector2, dep: bool, host: int = -9) -> bool:
 	return true
 
 
-## The departure's place at t into _cx, _cz and its motion into _cvx, _cvz:
-## round its circle, and where the circle rides with a turning sun (`_dhs`), the
-## sun where it is at t and its motion added (as `MapGravity.sx`, `svx` have it,
-## one cos and sin for both). A centre that holds still is read as it always was.
+## Where the circle rides with a turning sun, the sun's position and motion are added.
 func _dep_at(t: float) -> void:
 	var a := _dph + _dn * t
 	var c := cos(a)
@@ -1034,7 +1057,31 @@ func _tgt_at(t: float) -> void:
 # ---------------------------------------------------------------- the ride and the departure
 ## How far round its ring the ride reaches within LEAD_MAX (rad).
 func _reach() -> float:
-	return absf(_dw) * LEAD_MAX * (_kmax + 1.0) * 0.5 - 1e-6
+	return absf(_dw) * _lmax * (_kmax + 1.0) * 0.5 - _spin_short() - 1e-6
+
+
+## How much less far round the spin-up takes a ride (rad): (w - w0) spin / 2.
+func _spin_short() -> float:
+	return absf(_dw - _dw0) * _spin * 0.5
+
+
+## THE RIDE dang radians round, the spin-up first: [lead, phasing k] (at least
+## the spin long: under it, slowed, and a k under RIDE_K_MIN cannot be flown).
+func _ride_lead(dang: float) -> PackedFloat64Array:
+	if _spin <= 0.0:
+		return _lead_of(dang, absf(_dw))
+	var w := absf(_dw)
+	var d2 := dang + _spin_short()
+	var nat := d2 / w
+	if nat < _spin:
+		return PackedFloat64Array([_spin, 1.0 + 2.0 * (d2 / (w * _spin) - 1.0)])
+	if nat <= _lmax:
+		return PackedFloat64Array([nat, 1.0])
+	return PackedFloat64Array([_lmax, 1.0 + 2.0 * (d2 / (w * _lmax) - 1.0)])
+
+
+## the least phasing a ride is flown at (`ShipFlight._takeable`'s)
+const RIDE_K_MIN := 0.2
 
 
 ## The ride's phasing work at k (px/s): its push along the ring, up by
@@ -1052,9 +1099,7 @@ static func _lead_of(dang: float, w: float) -> PackedFloat64Array:
 	return PackedFloat64Array([LEAD_MAX, 1.0 + 2.0 * (dang / (w * LEAD_MAX) - 1.0)])
 
 
-## The departure angle on the ring for a flight leaving along (ux, uz) relative
-## to its place: the point whose ring motion runs along it, or the nearer end
-## of the arc the ride reaches.
+## Departure angle for leaving along (ux, uz): the ring point whose motion runs along it.
 func _aligned(ux: float, uz: float) -> float:
 	var dr := 1.0 if _dw >= 0.0 else -1.0
 	var a := atan2(uz, ux) - dr * PI * 0.5
@@ -1062,6 +1107,13 @@ func _aligned(ux: float, uz: float) -> float:
 	var reach := _reach()
 	if dang > reach:
 		a = _dang + dr * (reach if dang - reach < TAU - dang else 0.0)
+		dang = fposmod(dr * (a - _dang), TAU)
+	# (a fast flight's ride spins up first: it leaves no nearer than the spin
+	# takes it, (w + w0) spin / 2 on; a point nearer, as leaving at once was,
+	# is that point)
+	var near := (absf(_dw) + absf(_dw0)) * _spin * 0.5
+	if _spin > 0.0 and dang < near:
+		a = _dang + dr * near
 	return a
 
 
@@ -1070,8 +1122,11 @@ func _aligned(ux: float, uz: float) -> float:
 func _ride_to(a: float) -> bool:
 	var dr := 1.0 if _dw >= 0.0 else -1.0
 	var dang := fposmod(dr * (a - _dang), TAU)
-	var lk := _lead_of(dang, absf(_dw))
-	if lk[1] > _kmax + 1e-6:
+	var lk := _ride_lead(dang)
+	if lk[1] > _kmax + 1e-6 or lk[1] < RIDE_K_MIN:
+		return false
+	# (a ride slowed to hold its spin-up, its push held to THRUST as a sped one's)
+	if lk[1] < 1.0 and (1.0 - lk[1]) * PI * absf(_dw) * _drt > THRUST * lk[0] + 1e-9:
 		return false
 	_e_lead = lk[0]
 	_e_k = lk[1]
@@ -1088,11 +1143,7 @@ func _ride_to(a: float) -> bool:
 	return true
 
 
-## THE DEPARTURE for leaving with velocity (ux, uz) relative to its place (free:
-## absolute), from ring angle a_fix if has_fix: its state and burn into _e_*.
-## On a ring the burn is centred on the point the flight leaves from: the ship
-## comes off the ring half a burn sooner (as far as the ride allows), so the
-## finite burn does what an instant one would there.
+## On a ring the burn is centred on the departure point, as an instant one would be.
 func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 	_e_ux = ux
 	_e_uz = uz
@@ -1114,8 +1165,8 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 		return true
 	if _dk == 1:
 		# (holding alongside for KEEP_HOLD first)
-		_e_td = t_now + KEEP_HOLD
-		_e_lead = KEEP_HOLD
+		_e_td = t_now + _hold
+		_e_lead = _hold
 		_e_k = 1.0
 		_e_ad = 0.0
 		_dep_at(_e_td)
@@ -1155,10 +1206,7 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 	return true
 
 
-## Fly the departure for (ux, uz) and price its arrival: the flight's cost, INF
-## when it has no clean arrival. The coast stays in _c*, the flight in _e_*.
-## No coast is flown (`_cn` 0) when the ride cannot reach the departure, or
-## past the budget: everything that reads the coast checks for one.
+## Returns INF with no clean arrival. No coast flies if the ride cannot reach or budget is out.
 func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	_e_J = INF
 	if _n_integ >= _budget or not _depart(ux, uz, has_fix, a_fix):
@@ -1167,9 +1215,10 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	var t0 := Time.get_ticks_usec()
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
-	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`;
-	# nor an eased one the map would draw as a hook, `_burn_tight`)
-	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not (_ease and _burn_tight()):
+	# A departure burn that swings round a point is not flown (`V_CUSP`), nor an eased one drawn as a hook
+	# (`_burn_tight`), nor one out of a ring on a flight's own clock that hooks tighter. Not alongside.
+	# Why: docs/why/FlightSolve.md#departure-burns-turned-down
+	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not ((_ease or (_kp > 1.0 and _dk == 0)) and _burn_tight()):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -1179,10 +1228,7 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	return _e_J
 
 
-## WHETHER THE DEPARTURE BURN JUST FLOWN draws a cusp (`V_CUSP`): its speed at
-## the coast's nodes through the burn (H_BURN apart, gravity in), and the burn's
-## own least speed between them, dipping under V_CUSP and under where it starts
-## and ends.
+## True if the departure burn dips under `V_CUSP` and under both of its ends.
 func _departure_cusps() -> bool:
 	if _cn < 2 or _tc0 <= _cT[0] + 1e-6:
 		return false
@@ -1205,28 +1251,22 @@ func _departure_cusps() -> bool:
 			kmin = k
 		k += 1
 		v1 = sqrt(_cVX[k] * _cVX[k] + _cVZ[k] * _cVZ[k])
-	return vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN and _turn_round(kmin, k) > CUSP_TURN
+	return vmin < _vc + _cpad and vmin < minf(v0, v1) - _cin and _turn_round(kmin, k) > CUSP_TURN
 
 
-## THE MOTION'S TURN ROUND THE BURN'S LEAST SPEED (rad), on step kmin of a burn
-## ending at node kend: from the last node before it slower than V_SLOW (or the
-## burn's start) to the first after it (or the burn's end).
+## The motion's turn around the burn's least speed, between the slow nodes either side.
 func _turn_round(kmin: int, kend: int) -> float:
 	var ka := kmin
-	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < V_SLOW * V_SLOW:
+	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < _vsl * _vsl:
 		ka -= 1
 	var kb := mini(kmin + 1, kend)
-	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < V_SLOW * V_SLOW:
+	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < _vsl * _vsl:
 		kb += 1
 	return absf(Vector2(_cVX[ka], _cVZ[ka]).angle_to(Vector2(_cVX[kb], _cVZ[kb])))
 
 
-## WHERE THE COAST FIRST TURNS TIGHTER THAN THE MAP CAN DRAW (DRAW_K at zoom
-## 1), or INF; an arrival whose burn starts after it is not flown. A coast that
-## all but stops at the top of its climb and falls back turns there round a
-## fraction of a px: out of a settled star orbit, climbing to 1.0 px/s, it drew
-## 66 deg a px at zoom 1 (FlightTest, seed 1999 system 226, Oct 31). Read on
-## each step's straight change of velocity, at its slowest.
+## A coast that all but stops at its climb top turns too tight to draw, so it is not flown.
+## Why: docs/why/FlightSolve.md#coast-turn-limit
 func _coast_tight() -> float:
 	var k := 0
 	while k < _cn - 1 and _cT[k] < _tc0 - 1e-9:
@@ -1234,19 +1274,8 @@ func _coast_tight() -> float:
 	return _tight_in(k, _cn - 1)
 
 
-## WHETHER THE EASED DEPARTURE BURN JUST FLOWN TURNS TIGHTER THAN THE MAP CAN
-## DRAW (DRAW_K at zoom 1, as the coast and the arrival are held to): the one
-## part of a flight with no such check. Out of a settled orbit round a close
-## pair's balance point to star A's close orbit, a burn that dipped to 5.8 px/s,
-## over the cusp test's 5.5, bent round 4 px and drew 20 deg a px (FlightTest,
-## seed 4242 system 208, Nov 2); found without it, 14.55 s against 8.16, bent
-## round 20.7 px. In every system, one sun included (Jon, Nov 2, "Pair calls:
-## 2Y"), so a one-sun flight it flags is no longer the one flown before this
-## branch. Out of a settled star orbit to world 1, seed 7 system 125 drew a
-## tight U-turn as it left the orbit, at zoom 1 and 2: 11.83 s became 13.70 s,
-## riding further round first. It changes 0 of 3888 SolveTest plans round one
-## sun, 3 of 4656 with a heavy giant, and 1 of 899 and 1 of 1162 FlightTest
-## flights (review 2).
+## The eased departure burn was the one part with no draw check, so it flew sharp U-turns.
+## Why: docs/why/FlightSolve.md#burn-turn-limit
 func _burn_tight() -> bool:
 	if _cn < 2:
 		return false
@@ -1275,14 +1304,8 @@ func _tight_in(k: int, kend: int) -> float:
 	return INF
 
 
-## Whether the arrival burn ending at te (`_arrival`'s [.., d, dxx, dxz, dux,
-## duz, ..]) draws a cusp: the coast's motion plus the burn's, sampled at 17
-## points, its least speed read between each two as well. The points alone are
-## 1/16 of the burn apart, and a fast arrival's burn is long: from alongside a
-## station to world 0 (SolveTest, seed 4242 node 281, line-up 3, at ruling
-## 21's C) a 6.2 s burn took the ship from 111 px/s down to 4.4 and out at
-## 34.5, turned round 177 deg, and was flown, since the points either side of
-## its least speed, 0.39 s apart, read 7.5 and 6.4 px/s (Nov 1).
+## Sampled at 17 points plus the least speed between each two: a long burn hid its cusp.
+## Why: docs/why/FlightSolve.md#arrival-cusps
 func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 	var d := ar[2]
 	if d <= 1e-6:
@@ -1310,13 +1333,8 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 		var vx := c[2] + (2.0 * Ax * tau + 3.0 * Bx * tau * tau) / d
 		var vz := c[3] + (2.0 * Az * tau + 3.0 * Bz * tau * tau) / d
 		vs.append(Vector2(vx, vz))
-		# A BURN TURNING THE SHIP TIGHTER THAN THE MAP CAN DRAW: its curve as
-		# drawn at zoom 1 (the plane tilted, TILT), the stars' and the giant's
-		# pull and the burn's together. Arriving at 19 px/s, a constant burn
-		# at THRUST across the motion bent it round 9 px, seen end on 1.3 px
-		# across: 22 deg a px (FlightTest, seed 4242 system 291, Oct 31).
-		# (Alongside, the line ends where the ship stops: its last px and a
-		# half, where it slows to the place's own crawl, is not a turn drawn)
+		# Rejects a burn turning tighter than the map can draw at zoom 1, tilt included.
+		# Why: docs/why/FlightSolve.md#arrival-cusps
 		var px := c[0] + Ax * tau * tau + Bx * tau * tau * tau
 		var pz := c[1] + Az * tau * tau + Bz * tau * tau * tau
 		if j == 0:
@@ -1342,18 +1360,8 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 			jmin = j
 	var ja := jmin
 	var jb := jmin
-	# (between each two: the least speed on the straight change of velocity
-	# across the step, as `_departure_cusps` reads a departure's. Alongside,
-	# not where that least speed falls in the last px and a half left (the
-	# step's two lefts, taken at its point), where the ship falls in with the
-	# place's own crawl: it all but stops there and turns with the place, which
-	# is no turn drawn. Read there, it lost 7 of SolveTest's 8,544 one-sun
-	# and giant flights and flew 135 others another way (117 of them over
-	# 0.3 s longer), every one arriving alongside; and skipped only where a
-	# step started in that last px and a half, the last step (from 1.5 to
-	# 4.5 px out, to the end) still read the crawl and turned down 9 giant
-	# plans of 4,656 and 4 of FlightTest's 3,832 flights that are no cusp,
-	# Nov 1)
+	# Not read in the last px and a half alongside: the ship falls in with the place's own crawl.
+	# Why: docs/why/FlightSolve.md#arrival-cusps
 	for j in 16:
 		if _tk == 1 and lefts[j] <= 1.5:
 			continue
@@ -1371,12 +1379,12 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 				vmin = su
 				ja = j
 				jb = j + 1
-	if not (vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN):
+	if not (vmin < _vc + _cpad and vmin < minf(v0, v1) - _cin):
 		return false
 	# (the turn round it while slower than V_SLOW, as `_turn_round` reads a departure)
-	while ja > 0 and vs[ja].length() < V_SLOW:
+	while ja > 0 and vs[ja].length() < _vsl:
 		ja -= 1
-	while jb < 16 and vs[jb].length() < V_SLOW:
+	while jb < 16 and vs[jb].length() < _vsl:
 		jb += 1
 	return absf(vs[ja].angle_to(vs[jb])) > CUSP_TURN
 
@@ -1385,15 +1393,12 @@ func _keep_best() -> void:
 	_b_J = _e_J
 	_b = {"ux": _e_ux, "uz": _e_uz, "fix": _e_fix, "afix": _e_afix, "a0": _e_a0, "td": _e_td, "ad": _e_ad,
 		"x0": _e_x0, "z0": _e_z0, "vx0": _e_vx0, "vz0": _e_vz0, "dvx": _e_dvx, "dvz": _e_dvz,
-		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk}
+		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk, "arc": _e_arc, "bnd": _e_bnd}
 
 
 # ---------------------------------------------------------------- the coast
-## THE FLIGHT FROM (x, z, vx, vz) AT td: a burn of (dvx, dvz) at THRUST, then the
-## coast, to t_now + T_CAP (or on past a broken keep-out for D2_MAX, or out of
-## the system). Fixed-step RK4 in scalars, the pull summed inline (two stars
-## and a giant at most take the fast path), each step's closest approach to
-## every keep-out on the cubic through its ends.
+# Fixed-step RK4 in scalars with the pull inline, checking every keep-out on each step.
+# Why: docs/why/FlightSolve.md#coast-integration
 func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float, dvz: float, t_end: float) -> void:
 	_n_integ += 1
 	var cap := 4096
@@ -1421,12 +1426,8 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	var s1z := G.star_z0[1] if ns > 1 else 0.0
 	var s1g := G.star_gm[1] if ns > 1 else 0.0
 	var s1k := G.star_keep[1] if ns > 1 else 0.0
-	# THE PAIR TURNS (ruling 23): both suns on their circle round the balance
-	# point, read as the giant is at the step's start (carried from the last
-	# step's end), middle and end; one cos and sin a place for both, since they
-	# share one angle (MapGravity `star_ph`, their signed `star_rad` along the
-	# line). A sun that holds still -- one alone, a pair held still -- is read
-	# as it always was.
+	# Ruling 23: both suns are read at step start, middle and end with one cos and sin.
+	# Why: docs/why/FlightSolve.md#turning-pair
 	var spin := ns == 2 and G.pair_n != 0.0 and G.star_rad[0] != 0.0 and G.star_rad[1] != 0.0
 	var pcx0 := G.star_cx[0] if spin else 0.0
 	var pcz0 := G.star_cz[0] if spin else 0.0
@@ -1489,7 +1490,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			var pull := THRUST
 			if _ease:
 				var sp0 := sqrt(vx * vx + vz * vz)
-				pull = clampf(sp0 * sp0 / R_BURN, P_MIN, THRUST)
+				pull = clampf(sp0 * sp0 / R_BURN, _pmin, THRUST)
 			h = minf(H_BURN, rem / pull)
 			ax_t = bux * pull
 			az_t = buz * pull
@@ -1732,9 +1733,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 				if m2 < 0.0 and _t_bad == INF:
 					_t_bad = t
 		for j in nw:
-			# (cheap first: how far the step is from the world's whole orbit,
-			# round where its centre is at the step's middle: a world round one
-			# sun of a turning pair rides with it, `wo_hs`)
+			# Cheap first check against the world's whole orbit, centred on its sun mid-step.
 			var whs := G.wo_hs[j]
 			var whx: float = G.wo_hx[j] if whs < 0 else (m0x if whs == 0 else (m1x if whs == 1 else G.sx(whs, t + hh)))
 			var whz: float = G.wo_hz[j] if whs < 0 else (m0z if whs == 0 else (m1z if whs == 1 else G.sz(whs, t + hh)))
@@ -1851,13 +1850,8 @@ func _coast_k(k: int, tq: float) -> PackedFloat64Array:
 
 
 # ---------------------------------------------------------------- the arrival
-## THE RING POINT A CONSTANT-THRUST BURN WOULD END ON from the coast's state (r,
-## u) relative to the target at te, sense s, its pull pk: [radial mismatch g,
-## angle phi, burn length d]. A constant burn of length d ends at r_T, u_T
-## exactly when r_T - u_T d/2 = r - u d/2 (the virtual point q), and |r_T - u_T
-## d/2| is the same all round the ring, so phi follows from q's angle and g is
-## the miss. Into _vg, _vphi, _vd (it runs at every node near the target, so it
-## takes a few rounds of d, not the exact one: `_const_burn` is that).
+# Runs at every node near the target, so it takes a few rounds of d, not the exact `_const_burn`.
+# Why: docs/why/FlightSolve.md#constant-burn
 var _vg := 0.0
 var _vphi := 0.0
 var _vd := 0.0
@@ -1880,14 +1874,8 @@ func _virt(rx: float, rz: float, ux: float, uz: float, s: float, rounds: int = 3
 	_vd = d
 
 
-## THE CONSTANT BURN THAT ENDS ON THE RING AT te EXACTLY, from the coast's
-## state (r, u) relative to the target there, sense s. A constant pull a for d
-## seconds on top of the coast ends at r + a d^2/2, u + a d: on the ring at its
-## speed when r - u d/2 = R e(phi) - s V d/2 e'(phi), whose size is sqrt(R^2 +
-## V^2 d^2/4) all round, so d is a root of
-##   (|u|^2 - V^2)/4 d^2 - (r.u) d + |r|^2 - R^2 = 0
-## (the one nearest d_near) and phi follows from the angle. Into _kd, _kphi and
-## _ka, the pull |du| / d it takes; false when there is no root.
+## Exact constant-thrust burn onto the ring: d is the root of a quadratic in the burn length.
+## Why: docs/why/FlightSolve.md#constant-burn
 var _kd := 0.0
 var _kphi := 0.0
 var _ka := 0.0
@@ -1927,9 +1915,7 @@ func _const_burn(rx: float, rz: float, ux: float, uz: float, s: float, d_near: f
 	return true
 
 
-## The pull of the constant burn ending at te (`_const_burn`), NAN where there
-## is none or it would start before the departure burn ends.
-## (d_near < 0: the virtual point's own d)
+## NAN where there is no constant burn or it would start before the departure burn ends.
 func _ka_at(te: float, s: float, d_near: float) -> float:
 	if te > _cT[_cn - 1] or te < _tc0:
 		return NAN
@@ -1947,13 +1933,8 @@ func _ka_at(te: float, s: float, d_near: float) -> float:
 	return _ka
 
 
-## WHERE THE ARRIVAL'S CONSTANT BURN PULLS pk EXACTLY: a secant on te from te0
-## (where the coast's virtual point crosses the ring's, found between nodes),
-## the pull falling as the arrival comes later. te0 when it finds none. Found
-## between nodes alone, the crossing left the burn up to some px off a
-## constant one, and the burn that held its pull then lasted three times as
-## long, pulling against its own change for the first third (the planner
-## review, Oct 30).
+## Secant on te so the burn holds its pull: node-only crossings left burns three times as long.
+## Why: docs/why/FlightSolve.md#constant-burn
 func _te_for(te0: float, s: float, pk: float, d_near: float) -> float:
 	var lo := _tc0
 	var hi := minf(_cT[_cn - 1], t_now + _tcap)
@@ -1982,19 +1963,9 @@ func _te_for(te0: float, s: float, pk: float, d_near: float) -> float:
 	return te0
 
 
-## THE ARRIVAL BURN for a change of position (dxx, dxz) and velocity (dux, duz)
-## off the coast: P(tau) = A tau^2 + B tau^3 on top of the coast, A = 3 dx -
-## du d, B = du d - 2 dx; its pull (2A + 6B tau) / d^2 is linear, so at most
-## pk means at both ends. [d, engine work], d the least that holds, or empty
-## past 64 s. No burn that holds to pk changes the velocity by |du| in less
-## than |du| / pk; there, it holds only as a constant burn (dx = du d/2), and
-## just past it only in a window a few percent wide (one end's pull falls as
-## the burn lengthens and the other's rises), or not at all where the miss is
-## across the motion. So the least pull is looked for there first (to BURN_TOL
-## over), and only then further out, where the pull turns over: it first pulls
-## against du, then with it, from about three times as long. The first build
-## doubled its way out from 0.05 s and so always stepped over the window, and
-## every arrival burn lasted three times the least (the planner review).
+## Looks for the least pull first, since the feasible window is a few percent wide.
+## Doubling out from 0.05 s stepped over it and made every burn three times the least.
+## Why: docs/why/FlightSolve.md#cubic-burn
 static func _cubic_burn(dxx: float, dxz: float, dux: float, duz: float, pk: float = THRUST) -> PackedFloat64Array:
 	var du := sqrt(dux * dux + duz * duz)
 	var lb := maxf(du / pk, 1e-3)
@@ -2066,10 +2037,8 @@ static func _peak(dxx: float, dxz: float, dux: float, duz: float, d: float) -> f
 	return maxf(sqrt(ax * ax + az * az), sqrt(bx * bx + bz * bz)) / (d * d)
 
 
-## THE CUBIC BURN'S ENGINE WORK, exactly: its pull p + q u (u 0 to 1) is linear,
-## and the integral of its size sqrt(A u^2 + 2 B u + C) is closed (Simpson on
-## four steps read 1.167 |du| for a burn whose pull passes through nothing,
-## against 1.25).
+## Closed form for the work: Simpson on four steps read 1.167 |du| where it is 1.25.
+## Why: docs/why/FlightSolve.md#cubic-burn
 static func _cubic_work(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:
 	var px := (6.0 * dxx - 2.0 * dux * d) / (d * d)
 	var pz := (6.0 * dxz - 2.0 * duz * d) / (d * d)
@@ -2097,10 +2066,7 @@ static func _half_hyp(w: float, k2: float) -> float:
 	return 0.5 * (w * s + k2 * (ash if w >= 0.0 else -ash))
 
 
-## The arrival ending at te from the coast's state (x, z, vx, vz) there, sense
-## s: [work, phi, d, dxx, dxz, dux, duz, constant (1 or 0)], or empty. Onto a
-## ring the constant burn ending there (`_const_burn`) where its pull is
-## within BURN_TOL of pk; the cubic otherwise, and alongside.
+## Onto a ring, the constant burn where its pull is within `BURN_TOL`; the cubic otherwise.
 func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk: float = THRUST) -> PackedFloat64Array:
 	_tgt_at(te)
 	var rx := x - _cx
@@ -2137,11 +2103,8 @@ func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk:
 	return PackedFloat64Array([cb[1], phi, cb[0], dxx, dxz, dux, duz, 0.0])
 
 
-## WHERE AN ARRIVAL ALONGSIDE (or a graze of a ring) IS BEST, between the nodes
-## round node kk: the time its virtual point passes closest to the spot (the
-## ring's virtual circle), golden section on the coast. Found only at a node, it
-## was up to half a step (some 25 px of the coast) off, and the burn made up
-## the rest.
+## Found by golden section between nodes: at a node it was up to 25 px off.
+## Why: docs/why/FlightSolve.md#alongside-arrival-time
 func _te_near(kk: int, s: float) -> float:
 	var a := _cT[maxi(kk - 1, 0)]
 	var b := _cT[mini(kk + 1, _cn - 1)]
@@ -2188,10 +2151,7 @@ func _miss_at(tq: float, s: float) -> float:
 	return absf(_vg)
 
 
-## The least keep-out margin along an arrival burn's path (the coast plus the
-## cubic, at n points); and into _bthr the most the engine pulls there: the
-## cubic's own (2A + 6B tau) / d^2 and the change of gravity's pull between the
-## coast and the burn's path (close to a star or a heavy giant it is not small).
+## Least keep-out margin along the burn, and the peak pull including gravity's change.
 var _bthr := 0.0
 func _burn_clear(te: float, d: float, dxx: float, dxz: float, dux: float, duz: float, n: int = 16) -> float:
 	var Ax := 3.0 * dxx - dux * d
@@ -2233,9 +2193,7 @@ func _burn_clear(te: float, d: float, dxx: float, dxz: float, dux: float, duz: f
 	return least
 
 
-## `MapGravity.margin`, a world's place worked out only when it is near
-## enough for its orbit to matter. The suns, and every circle carried round
-## with one (`gi_hs`, `wo_hs`), where they are at t (`_sun_cs`).
+## A world's place is worked out only when near enough for its orbit to matter.
 func _margin(x: float, z: float, t: float) -> float:
 	var least := INF
 	_sun_cs(t)
@@ -2274,10 +2232,7 @@ func _margin(x: float, z: float, t: float) -> float:
 	return least
 
 
-## THE PAIR'S ANGLE AT t as its cos and sin, into _pc, _ps (0 and 0 where it
-## holds still, so a still star's circle reads its own place): both suns share
-## one angle (MapGravity `star_ph`), so one pair serves every star and every
-## circle carried with one, at the same numbers `MapGravity.sx` gives.
+## Both suns share one angle, so one cos and sin serve every star and carried circle.
 var _pc := 0.0
 var _ps := 0.0
 func _sun_cs(t: float) -> void:
@@ -2325,9 +2280,7 @@ func _acc_at(x: float, z: float, t: float) -> void:
 		_az += f * dz
 
 
-## The square of how fast the pull changes with place there (2 GM / r^3 of
-## the nearest-felt body, summed loosely): an upper bound for a few px. The
-## suns and giants where they are at t, as `_acc_at`.
+## Upper bound on how fast the pull changes with place, good for a few px.
 func _grad2(x: float, z: float, t: float) -> float:
 	var g := 0.0
 	_sun_cs(t)
@@ -2354,11 +2307,7 @@ func _grad2(x: float, z: float, t: float) -> float:
 	return g * g
 
 
-## THE CHEAPEST CLEAN ARRIVAL ON THE COAST into _e_*: where the coast's virtual
-## point crosses the ring's virtual circle, or passes closest to it within
-## GRAZE (for a station, belt, hulk or contact: comes closest to its spot);
-## each priced by its burn, the coast clean up to the burn and the burn's own
-## path clean. _e_J stays INF when there is none.
+## Cheapest clean arrival: crossing or graze priced by its burn, cheapest checked first.
 func _price() -> void:
 	if _cn < 2:
 		return
@@ -2378,6 +2327,7 @@ func _price() -> void:
 	for j in ns:
 		k1[j] = -1
 	var cands := PackedFloat64Array()
+	var sw := _sweeps(t_lim) if _arcw > 0.0 or _arcb > 0.0 else false
 	for k in _cn:
 		var tk := _cT[k]
 		if tk > t_lim:
@@ -2394,11 +2344,7 @@ func _price() -> void:
 			continue
 		var ux := _cVX[k] - _cvx
 		var uz := _cVZ[k] - _cvz
-		# A LOWER BOUND ON THE MISS, cheap: the burn is at most (|u| + V) / THRUST
-		# long, so the virtual point is at most |u| d/2 off the coast and the
-		# virtual circle at most rho_max across. Far above GRAZE, no sense can
-		# cross or graze here, and the solve is skipped (most nodes of a twin's
-		# compact flights are within NEAR of everything)
+		# Cheap lower bound on the miss, so most nodes of a twin's compact flights skip the solve.
 		var mu := sqrt(ux * ux + uz * uz)
 		var lb := 0.0
 		if keepd:
@@ -2452,9 +2398,7 @@ func _price() -> void:
 			g1[j] = g
 			k1[j] = k
 			ap[j] = 0
-	# EACH CANDIDATE'S ARRIVAL TIME made exact (a crossing: where its constant
-	# burn pulls THRUST; alongside or a graze: where it passes closest), priced
-	# (cheap), then its path checked cheapest first, so the first clean is the one
+	# Arrival time made exact and priced cheaply, then paths checked cheapest first.
 	var priced: Array = []
 	for c in range(0, cands.size(), 4):
 		var kk := int(cands[c])
@@ -2476,7 +2420,7 @@ func _price() -> void:
 				continue
 			var dux0 := -sin(_vphi) * s * _tV - ux0
 			var duz0 := cos(_vphi) * s * _tV - uz0
-			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + _tw * (te0 - t_now), c, te0])
+			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + _tw * (te0 - t_now) - _arc_of(sw, kk), c, te0])
 			continue
 		var te := _te_near(kk, s)
 		if te > t_now + _tcap or te < _tc0:
@@ -2485,13 +2429,14 @@ func _price() -> void:
 		var ar := _arrival(te, st[0], st[1], st[2], st[3], s)
 		if ar.is_empty() or te - ar[2] < _tc0 + TB_PAD:
 			continue
-		priced.append([ar[0] + _tw * (te - t_now), c, te])
+		priced.append([ar[0] + _tw * (te - t_now) - _arc_of(sw, kk), c, te])
 	priced.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]) or (float(a[0]) == float(b[0]) and int(a[1]) < int(b[1])))
 	var best := INF
 	for pc in priced:
 		if float(pc[0]) >= best:
 			break
 		var c: int = pc[1]
+		var c_k := int(cands[c])
 		var s2 := cands[c + 2]
 		var crossing := cands[c + 3] > 0.5
 		var te: float = pc[2]
@@ -2499,10 +2444,7 @@ func _price() -> void:
 			te = _te_for(te, s2, THRUST, -1.0)
 			if te > t_now + _tcap:
 				continue
-		# WHERE GRAVITY'S PULL CHANGES ACROSS THE BURN (close to a star or a heavy
-		# giant) the engine pulls more than the burn's own: a gentler burn then,
-		# its own pull cut by what it overshot (onto a ring, ending where that
-		# pull is exact), up to three times
+		# Near a star or heavy giant gravity's change adds pull, so a gentler burn is retried.
 		var pk := THRUST
 		var ok := false
 		var ar := PackedFloat64Array()
@@ -2515,7 +2457,7 @@ func _price() -> void:
 			var tb := te - ar[2]
 			if tb < _tc0 + TB_PAD or tb > _tight_t:
 				break
-			cost = ar[0] + _tw * (te - t_now)
+			cost = ar[0] + _tw * (te - t_now) - _arc_of(sw, c_k)
 			if cost >= best:
 				break
 			# the coast clean up to the burn, and the burn's own path
@@ -2541,14 +2483,194 @@ func _price() -> void:
 		_e_d2 = ar[2]
 		_e_w2 = ar[0]
 		_e_pk = pk
+		_e_arc = _arc_of(sw, c_k)
+		_e_bnd = _ab_raw
 	if best < INF:
 		_e_J = sqrt(_e_dvx * _e_dvx + _e_dvz * _e_dvz) + _e_ph + best
 
 
+## THE COAST'S SWEEP ROUND THE STAR (CURVED's arc reward, `CURVED_ARC`): at
+## each node up to t_lim, how far round the star (the pair's balance point in
+## a twin) the coast has gone since it left, in radians, unwrapped, the
+## nearest it has come to it, and the farthest from the map's centre
+## (`_aw_sw`, `_aw_rm`, `_aw_out`).
+var _aw_sw := PackedFloat64Array()
+var _aw_rm := PackedFloat64Array()
+var _aw_out := PackedFloat64Array()
+var _aw_tn := PackedFloat64Array()
+var _aw_tns := PackedFloat64Array()
+
+
+## whether this search prices CURVED's arc
+func _arc_on() -> bool:
+	return _arcw > 0.0 or _arcb > 0.0
+
+
+func _arc_cen() -> Vector2:
+	return G.bary if _twin else Vector2(G.star_x0[0], G.star_z0[0])
+
+
+func _sweeps(t_lim: float) -> bool:
+	_aw_sw.resize(_cn)
+	_aw_rm.resize(_cn)
+	_aw_out.resize(_cn)
+	_aw_tn.resize(_cn)
+	_aw_tns.resize(_cn)
+	var c := _arc_cen()
+	var a0 := 0.0
+	var acc := 0.0
+	var tn := 0.0
+	var tns := 0.0
+	var rm := INF
+	var ro := 0.0
+	for k in _cn:
+		var dx := _cX[k] - c.x
+		var dz := _cZ[k] - c.y
+		var a := atan2(dz, dx)
+		if k > 0:
+			acc += wrapf(a - a0, -PI, PI)
+			var dh := wrapf(atan2(_cVZ[k], _cVX[k]) - atan2(_cVZ[k - 1], _cVX[k - 1]), -PI, PI)
+			tn += absf(dh)
+			tns += dh
+		a0 = a
+		rm = minf(rm, sqrt(dx * dx + dz * dz))
+		ro = maxf(ro, sqrt(_cX[k] * _cX[k] + _cZ[k] * _cZ[k]))
+		_aw_tn[k] = tn
+		_aw_tns[k] = tns
+		_aw_sw[k] = acc
+		_aw_rm[k] = rm
+		_aw_out[k] = ro
+		if _cT[k] > t_lim:
+			break
+	return true
+
+
+## The arc reward for arriving at node k: px/s a unit of bend (to `_aim`), none where the coast
+## dips nearer the star than `_dip` of its nearer end, nor where it swings past the map's edge.
+## Why: docs/why/FlightSolve.md#arc-reward
+func _arc_of(on: bool, k: int) -> float:
+	_ab_raw = 0.0
+	if not on or k < 0 or k >= _aw_sw.size():
+		return 0.0
+	if _aw_out[k] > _arc_out(_cX[0], _cZ[0]):
+		return 0.0
+	var c := _arc_cen()
+	var r0 := Vector2(_cX[0] - c.x, _cZ[0] - c.y).length()
+	var rk := Vector2(_cX[k] - c.x, _cZ[k] - c.y).length()
+	var bd := _bend_to(k) if _arcb > 0.0 else 0.0
+	var rw := _arc_reward(absf(_aw_sw[k]), bd, _aw_rm[k], minf(r0, rk), _aw_tn[k], _aw_tn[k] - absf(_aw_tns[k]))
+	_ab_raw = bd if rw > 0.0 else 0.0
+	return rw
+
+
+## How far from the map's centre a rewarded coast may go: the map's edge, or
+## where it left if that is farther out.
+func _arc_out(x0: float, z0: float) -> float:
+	return maxf(G.edge, sqrt(x0 * x0 + z0 * z0)) + 0.5
+
+
+func _arc_reward(sweep: float, bend: float, rmin: float, rends: float, turn: float, wob: float) -> float:
+	if _dip > 0.0 and rmin < _dip * rends:
+		return 0.0
+	if turn > _tnmax:
+		return -_loop_pen
+	return _arcw * minf(sweep, _aimsw) + _arcb * minf(bend, _aim) - _wob_w * wob
+
+
+## The coast's bend from where it left to node k as rewarded (`_bend3`).
+func _bend_to(k: int) -> float:
+	return _bend3(_cX, _cZ, k)
+
+
+## The bend of points 0..k as rewarded: the farthest a point strays from the
+## straight line between the ends on one side, less `_sw_s` times the farthest
+## on the other (an S) and `_sw_h` times the farthest past either end along it
+## (a hook), each over that line's length.
+func _bend3(xs: PackedFloat64Array, zs: PackedFloat64Array, k: int) -> float:
+	var ax := xs[0]
+	var az := zs[0]
+	var bx := xs[k] - ax
+	var bz := zs[k] - az
+	var ch2 := bx * bx + bz * bz
+	if ch2 < 1.0:
+		return 0.0
+	var hi := 0.0
+	var lo := 0.0
+	var ov := 0.0
+	for j in range(1, k):
+		var d := bx * (zs[j] - az) - bz * (xs[j] - ax)
+		hi = maxf(hi, d)
+		lo = minf(lo, d)
+		if _sw_h > 0.0:
+			var u := bx * (xs[j] - ax) + bz * (zs[j] - az)
+			ov = maxf(ov, maxf(-u, u - ch2))
+	return (maxf(hi, -lo) - _sw_s * minf(hi, -lo) - _sw_h * ov) / ch2
+
+
+## The arc reward on a conic guess: its two-body coast about (cx, cz) from p1
+## at v1 for T, 32 steps of RK4, read as `_arc_of` reads a coast.
+func _conic_arc(cx: float, cz: float, gm: float, p1x: float, p1z: float, v1x: float, v1z: float, T: float) -> float:
+	var n := 32
+	var h := T / float(n)
+	var x := p1x - cx
+	var z := p1z - cz
+	var vx := v1x
+	var vz := v1z
+	var xs := PackedFloat64Array([x])
+	var zs := PackedFloat64Array([z])
+	var rm := sqrt(x * x + z * z)
+	var lim := _arc_out(p1x, p1z)
+	var sw := 0.0
+	var tn := 0.0
+	var tns := 0.0
+	var a0 := atan2(z, x)
+	for _i in n:
+		var r3 := pow(x * x + z * z, 1.5)
+		var ax1 := -gm * x / r3
+		var az1 := -gm * z / r3
+		var x2 := x + 0.5 * h * vx
+		var z2 := z + 0.5 * h * vz
+		var r32 := pow(x2 * x2 + z2 * z2, 1.5)
+		var ax2 := -gm * x2 / r32
+		var az2 := -gm * z2 / r32
+		var vx2 := vx + 0.5 * h * ax1
+		var vz2 := vz + 0.5 * h * az1
+		var x3 := x + 0.5 * h * vx2
+		var z3 := z + 0.5 * h * vz2
+		var r33 := pow(x3 * x3 + z3 * z3, 1.5)
+		var ax3 := -gm * x3 / r33
+		var az3 := -gm * z3 / r33
+		var vx3 := vx + 0.5 * h * ax2
+		var vz3 := vz + 0.5 * h * az2
+		var x4 := x + h * vx3
+		var z4 := z + h * vz3
+		var r34 := pow(x4 * x4 + z4 * z4, 1.5)
+		var ax4 := -gm * x4 / r34
+		var az4 := -gm * z4 / r34
+		var vx4 := vx + h * ax3
+		var vz4 := vz + h * az3
+		x += h / 6.0 * (vx + 2.0 * vx2 + 2.0 * vx3 + vx4)
+		z += h / 6.0 * (vz + 2.0 * vz2 + 2.0 * vz3 + vz4)
+		var hv0 := atan2(vz, vx)
+		vx += h / 6.0 * (ax1 + 2.0 * ax2 + 2.0 * ax3 + ax4)
+		vz += h / 6.0 * (az1 + 2.0 * az2 + 2.0 * az3 + az4)
+		var dh := wrapf(atan2(vz, vx) - hv0, -PI, PI)
+		tn += absf(dh)
+		tns += dh
+		xs.append(x)
+		zs.append(z)
+		if Vector2(x + cx, z + cz).length() > lim:
+			return 0.0
+		rm = minf(rm, sqrt(x * x + z * z))
+		var a := atan2(z, x)
+		sw += wrapf(a - a0, -PI, PI)
+		a0 = a
+	var far := _bend3(xs, zs, n)
+	return _arc_reward(absf(sw), far, rm, minf(sqrt(xs[0] * xs[0] + zs[0] * zs[0]), sqrt(xs[n] * xs[n] + zs[n] * zs[n])), tn, tn - absf(tns))
+
+
 # ---------------------------------------------------------------- refining
-## THE TANGENT POINT the coast should meet at te: the ring point (relative to
-## the target) whose ring motion for sense s runs along the coast's own (u),
-## and the constant burn onto it. Its miss, q - aim: [fx, fz], or empty.
+# The tangent point the coast should meet, and the constant burn onto it.
 func _qres(te: float, s: float) -> PackedFloat64Array:
 	if _cn < 2 or te > _cT[_cn - 1] or te < _tc0:
 		return PackedFloat64Array()
@@ -2571,9 +2693,7 @@ func _qres(te: float, s: float) -> PackedFloat64Array:
 	return PackedFloat64Array([rx - _tR * cos(phi) - (m - _tV) * hx * d * 0.5, rz - _tR * sin(phi) - (m - _tV) * hz * d * 0.5])
 
 
-## NEWTON ON THE DEPARTURE so the coast meets the target ring's tangent point at
-## te (the conic's arrival time): a finite-difference Jacobian, then Broyden,
-## a step that does worse taken a quarter as far.
+## Newton on the departure: finite-difference Jacobian, then Broyden.
 func _refine_at(ux: float, uz: float, has_fix: bool, a_fix: float, te: float, s: float, iters: int = 4) -> void:
 	var fd := 1.0
 	_fly(ux, uz, has_fix, a_fix)
@@ -2628,10 +2748,7 @@ func _refine_at(ux: float, uz: float, has_fix: bool, a_fix: float, te: float, s:
 			return
 
 
-## THE COAST'S PASS OF THE TARGET, its time free: where an arrival burn along
-## its own motion would start (r.u_hat = (|u| - V) d/2), and the signed miss
-## there, r.left(u_hat) + s R (0: it meets the ring's tangent point). NAN when
-## it does not pass.
+## The coast's pass of the target with its time free, and the signed miss there.
 func _pass_miss(s: float) -> float:
 	var keepd := _tk == 1
 	var R := 0.0 if keepd else _tR
@@ -2676,9 +2793,7 @@ func _pass_miss(s: float) -> float:
 	return NAN
 
 
-## MINIMUM-NORM NEWTON on the signed miss at the pass (one number, its time
-## free), from a scanned departure: the step along the miss's gradient that
-## clears it, the gradient by finite differences and then Broyden.
+## Minimum-norm Newton on the signed miss, since the time is free.
 func _refine_pass(ux: float, uz: float, has_fix: bool, a_fix: float, s: float, iters: int = 5) -> void:
 	var fd := 1.0
 	_fly(ux, uz, has_fix, a_fix)
@@ -2761,9 +2876,7 @@ func _search() -> void:
 			_fly(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7])
 		if _b_J < INF:
 			return
-	# A SCAN OF REAL DEPARTURES (in a twin always: its cheap flights come from the
-	# two stars' pull, which no conic sees), the best refined at their pass from
-	# the very ring point each left from
+	# A twin always scans real departures: its cheap flights come from pulls no conic sees.
 	if _scan_passes():
 		return
 	# last, the rest of the conics as they are
@@ -2800,11 +2913,23 @@ func _scan_passes() -> bool:
 	return false
 
 
-## A FRESH SEARCH into _b: to T_CAP at TIME_W, and where that finds nothing,
-## the fallback (`_fallback`). A leg of a flight in two (`_chain`) is searched
-## by the as-built search alone (T_CAP_BACK at TIME_W_BACK), so those flights
-## keep the as-built length.
+## Fresh search, then the fallback. Two-leg legs use the as-built search to keep its length.
 func _fresh() -> void:
+	_fresh_in()
+	# Eased, as a last look, out of a ring on a flight's own clock, where every tight departure burn
+	# was turned down and nothing else found (seed 4242 system 50). The choice says so (`ez`).
+	# Why: docs/why/FlightSolve.md#eased-last-look
+	if _b_J == INF and _kp > 1.0 and _dk == 0 and _leg == 0 and not _ease:
+		_ease = true
+		_ease_forced = true
+		_budget = _n_integ + BUDGET
+		_fresh_in()
+		if _b_J == INF:
+			_ease = false
+			_ease_forced = false
+
+
+func _fresh_in() -> void:
 	_own = false
 	_back = false
 	if _leg > 0:
@@ -2813,6 +2938,14 @@ func _fresh() -> void:
 		_back = true
 		_search()
 		_back = false
+		return
+	if _curved:
+		# CURVED: the as-built search first (its own budget, `_search_back`)
+		_search_back()
+		if _b_J < INF:
+			_own = true
+			return
+		_fallback()
 		return
 	_tcap = T_CAP
 	_tw = TIME_W
@@ -2823,15 +2956,18 @@ func _fresh() -> void:
 	_fallback()
 
 
-## NOTHING FOUND TO T_CAP: THE SOONER OF TWO. The as-built search to T_CAP_BACK
-## (`_search_back`) and the wider search to T_CAP_WIDE at TIME_W both look, a
-## budget each, and the flight that arrives first is kept. Where both find
-## nothing, the wider search again at TIME_W_BACK, with FAR_T_BACK (its scan
-## reads it). (The study, Nov 1: the wider search first let flights of up to
-## 40 s stand where the as-built one found one under 30; the as-built one first
-## held flights from the edge and settled star orbits to about 29 s, where the
-## wider one found quicker ones in one game start in five to eight.)
+## Both searches look and the sooner is kept: either one alone left slow flights standing.
+## Why: docs/why/FlightSolve.md#fallback-search
 func _fallback() -> void:
+	if _curved:
+		# (CURVED's own look was the as-built search: the wider one behind it,
+		# at its weight, as the as-built fallback had it)
+		if not _wide_ok:
+			return
+		_back = true
+		_search_wide(_btw)
+		_back = false
+		return
 	_search_back()
 	if not _wide_ok:
 		return
@@ -2856,25 +2992,45 @@ func _fallback() -> void:
 ## THE AS-BUILT SEARCH (ruling 20's), to T_CAP_BACK at TIME_W_BACK with its own
 ## conic guesses and FAR_T_BACK, a budget of its own.
 func _search_back() -> void:
-	_tcap = T_CAP_BACK
-	_tw = TIME_W_BACK
+	_tcap = _bcap
+	_tw = _btw
 	_budget = _n_integ + BUDGET
 	_back = true
 	_search()
+	if _aref > 0 and _arc_on():
+		_arc_look()
 	_back = false
 	if _b_J == INF:
 		_tcap = T_CAP
 		_tw = TIME_W
 
 
-## A FRESH SEARCH'S FLIGHT AS SAMPLES (`_build`). Where the search to T_CAP
-## found it and its samples cut a keep-out (the search priced it clear; the
-## samples are checked again once built), the fallback looks as it would had
-## nothing been found, and its flight is kept if it is clean.
-## Without it, a harness's free start at seed 4242 system 291 (FlightTest, to
-## place 1, one sun) kept an 11.8 s flight 0.72 px into a keep-out, found and
-## not clean, and the fallback never ran; with it, the wider search's clean
-## flight of 18.4 s (Nov 1).
+## CURVED'S ARC LOOK, after its first look (`CURVED_ARC`): `keep` conic guesses
+## ranked by plain cost, each priced with the arc reward from where the ship
+## really leaves, the first `ref` of those refined on a budget of their own;
+## `_fly` keeps whichever flight of both looks costs least.
+func _arc_look() -> void:
+	var kj := _b_J
+	var kb := _b.duplicate()
+	_budget = _n_integ + BUDGET
+	_in_look = true
+	var seeds := _seeds()
+	_in_look = false
+	for i in mini(_aref, floori(seeds.size() / 9.0)):
+		if _n_integ >= _budget:
+			break
+		_refine_at(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7], seeds[i * 9 + 8], seeds[i * 9 + 5])
+	# (kept only where it bends more by ARC_GAIN: a cheaper flight that bent
+	# about as little took an arrival burn the first look did not, a corner
+	# from a game's start, FlightTest Nov 7: seed 4242 system 231's close pair,
+	# star A's close orbit to world 0, 0.07 against 0.03)
+	if kj < INF and _b_J < kj and float(_b.get("bnd", 0.0)) < float(kb.get("bnd", 0.0)) + ARC_GAIN:
+		_b_J = kj
+		_b = kb
+
+
+## A found flight whose samples cut a keep-out gets the fallback's look, or it stays unclean.
+## Why: docs/why/FlightSolve.md#fresh-search-samples
 func _build_fresh() -> Result:
 	var res := _build(&"solved")
 	if not res.found or res.clean or not _own:
@@ -2888,11 +3044,9 @@ func _build_fresh() -> Result:
 	return res2 if res2.clean else res
 
 
-## THE WIDER LOOK (T_CAP_WIDE), priced at tw. The scan again, its departures
-## at least as fast as crossing to the target in WIDE_T (`_wide_need`), its
-## arrival up to T_CAP_WIDE on, within BUDGET_WIDE more integrations.
+## The wider scan priced at tw, its departures at least as fast as crossing in WIDE_T.
 func _search_wide(tw: float) -> void:
-	_tcap = T_CAP_WIDE
+	_tcap = _wcap
 	_tw = tw
 	_budget = _n_integ + BUDGET_WIDE
 	_wide = true
@@ -2907,16 +3061,9 @@ func _search_wide(tw: float) -> void:
 	_wide = false
 
 
-## DEPARTURES TO FLY AS THEY ARE, pass 0, 1 or 2: SCAN_HEAD headings, the
-## first toward where the target is, each at SCAN_SPEED times the departure's
-## own speed scale (its ring's, or its place's motion plus SCAN_KICK px/s).
-## Round a ring each leaves from the point whose motion runs along it (or the
-## end of the ride's reach nearer it), so a heading the ride cannot bring
-## round leaves across the ring's motion. The first build left only along the
-## ring's motion from points across the ride's reach, which a ride held to
-## THRUST no longer makes a full lap, and its departures out of a twin star's
-## well were too slow for places round both (the planner review, Oct 30).
-## Flat: [ux, uz, has_fix, a_fix] each.
+## Each heading leaves from the ring point whose motion runs along it.
+## The first build left only along the ring's motion, too slow out of a twin star's well.
+## Why: docs/why/FlightSolve.md#departure-scan
 func _scan(pass_i: int) -> PackedFloat64Array:
 	var out := PackedFloat64Array()
 	var off: float = [0.0, 0.5, 0.25][pass_i]
@@ -2934,10 +3081,8 @@ func _scan(pass_i: int) -> PackedFloat64Array:
 		var speeds := PackedFloat64Array()
 		for m: float in (SCAN_SPEED[pass_i] if need <= 0.0 else FAR_SPEED[pass_i]):
 			speeds.append(vr * m if need <= 0.0 else maxf(0.66 * vr, need * m))
-		# THE WIDER SCAN OUT OF A SETTLED STAR ORBIT looks toward the target: its
-		# ride all but stands still (a twin's far out goes round at 11 to 16
-		# px/s), so the ring's own way is no guide, and headings a full turn apart
-		# by 45 deg passed a target 2,000 px off by hundreds of px
+		# The wider scan aims at the target: 45 deg headings missed a far one by hundreds of px.
+		# Why: docs/why/FlightSolve.md#departure-scan
 		var toward := _wide and _dplace == -9
 		if toward:
 			th0 = _bearing()
@@ -2969,9 +3114,7 @@ func _bearing() -> float:
 	return atan2(_cz + _toffz - pz, _cx + _toffx - px)
 
 
-## The scan's first heading: round a ring, its own motion where the ship is
-## now (leaving at once); else from the departure's place to where the target
-## is in a typical flight's time.
+## The scan's first heading: the ring's own motion, else toward where the target will be.
 func _toward() -> float:
 	if _dk == 0:
 		var dr := 1.0 if _dw >= 0.0 else -1.0
@@ -2986,16 +3129,8 @@ func _toward() -> float:
 	return atan2(_cz - pz, _cx - px)
 
 
-## THE SPEED A FLIGHT OUT OF A TWIN STAR'S WELL TO A PLACE ROUND BOTH TAKES
-## (px/s, relative to the place it leaves), or 0 for any other flight: what
-## climbing out to it in about FAR_T takes, vis-viva about the star with the
-## pair's whole pull (roughly what the ship feels on the way), less the
-## place's own motion round the star. Such flights were 84% of the first
-## build's misses in real twins, from a world's ring or a star's close orbit
-## to the stations, belts, hulks and worlds round both; a brute scan flew them
-## at 60 to 110 px/s off the ring (the planner review, Oct 30). So their scan
-## speeds bracket this (FAR_SPEED), not the ring's own. The as-built search
-## climbs out in FAR_T_BACK.
+## Scan speeds bracket this, not the ring's: such flights were 84% of the first build's misses.
+## Why: docs/why/FlightSolve.md#far-target-speed
 func _far_need() -> float:
 	if not _twin or _dk == 2:
 		return 0.0
@@ -3034,9 +3169,7 @@ func _far_need() -> float:
 	return maxf(sqrt(maxf(v2, 0.0)) - own, 20.0)
 
 
-## THE WIDER SCAN'S LEAST SPEED (px/s, relative to the place it leaves): from
-## where the ship is now to where the target is WIDE_T on, in WIDE_T, and never
-## under twice its ring's own pace (`_search_wide`).
+## The wider scan's least speed: cross to the target in WIDE_T, never under twice the ring's pace.
 func _wide_need() -> float:
 	var px := _dpx
 	var pz := _dpz
@@ -3052,9 +3185,7 @@ func _wide_need() -> float:
 	return maxf(maxf(d / WIDE_T, 2.0 * own), 20.0)
 
 
-## The star a point is round at t: in a twin, the one whose pull there is the
-## greater, if it is the greater by FAR_SHARE; else none (-2). The suns where
-## they are at t (in a turning pair the answer moves with them).
+## The star a point is round at t, only if its pull wins by FAR_SHARE; else none (-2).
 func _star_of(x: float, z: float, t: float) -> int:
 	if G.star_x0.size() < 2:
 		return G.star_id[0] if G.star_x0.size() > 0 else -2
@@ -3072,23 +3203,12 @@ func _star_of(x: float, z: float, t: float) -> int:
 
 
 # ---------------------------------------------------------------- conic guesses
-## CONIC GUESSES, cheapest first, priced from where the ship can really leave.
-## Stage 1 from the place's centre now (a world's ring is small beside the
-## flight; round a star, from two points on its ring), every length in CONIC_TS
-## and both ways round; stage 2 the CONIC_KEEP cheapest again from the very
-## point and moment it would leave, aimed at the target ring's tangent point.
-## Flat: [price, ux, uz, T, way, s, has_fix, a_fix, te] each.
-## A CONIC ABOUT A SUN OF A TURNING PAIR is solved in that sun's own frame
-## (`_lam`): its centre is the sun's index (a centre's fourth number; -1 a
-## centre that holds still), and whether the target is the sun it is about is
-## asked by that index, not by place, since the sun at the arrival is not
-## where it was when the conic was laid (`_aims`).
+# Priced from where the ship can really leave, cheapest first, then re-aimed at the tangent point.
+# Why: docs/why/FlightSolve.md#conic-guesses
 func _seeds() -> PackedFloat64Array:
 	var centres := PackedFloat64Array()
 	if _twin:
-		# the pair's balance point with their whole pull, and each star the
-		# flight leaves from or goes to with its own (a flight out of one star's
-		# well is that star's conic first), where it is now
+		# The balance point with the whole pull, and each star flown from or to with its own.
 		centres.append_array(PackedFloat64Array([G.bary.x, G.bary.y, SystemLayout.GM_SHIP, -1.0]))
 		var own := PackedInt32Array()
 		var px := _dpx
@@ -3135,7 +3255,7 @@ func _seeds() -> PackedFloat64Array:
 		var oz := _doffz if _dk == 1 else 0.0
 		p1s.append_array(PackedFloat64Array([_cx + ox, _cz + oz, _cvx, _cvz]))
 	var rough: Array = []
-	for T: float in (CONIC_TS_WIDE if _wide else (CONIC_TS_BACK if _back else CONIC_TS)):
+	for T: float in (_wts if _wide else (_bts if _back else CONIC_TS)):
 		for pi in range(0, p1s.size(), 4):
 			for ci in range(0, centres.size(), 4):
 				var ck0 := int(centres[ci + 3])
@@ -3146,10 +3266,12 @@ func _seeds() -> PackedFloat64Array:
 						if sol.is_empty():
 							continue
 						var pr := _price_conic(t_now + T, sol[0] - p1s[pi + 2], sol[1] - p1s[pi + 3], sol[0], sol[1], sol[2], sol[3], false, 0.0, 0.0)
+						if _arc_on() and not _in_look:
+							pr -= _conic_arc(centres[ci], centres[ci + 1], centres[ci + 2], p1s[pi], p1s[pi + 1], sol[0], sol[1], T)
 						rough.append([pr + _tw * T, T, ci, way, pi, ai, sol[2], sol[3]])
 	rough.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	var out: Array = []
-	for r in rough.slice(0, CONIC_KEEP):
+	for r in rough.slice(0, _akeep if _in_look else CONIC_KEEP):
 		var T: float = r[1]
 		var ci: int = r[2]
 		var way: float = r[3]
@@ -3183,9 +3305,7 @@ func _seeds() -> PackedFloat64Array:
 					var s2 := _lam(ck, cx, cz, gm, _e_td, _e_x0, _e_z0, aa[0], aa[1], T - _e_lead, way)
 					if s2.is_empty() or T - _e_lead < 3.0:
 						break
-					# (the conic's velocity relative to the place it leaves: on the
-					# plane, less the place's own motion then -- none where it holds
-					# still, a turning sun's where it rides with one)
+					# The conic's velocity is relative to the place it leaves, less its motion.
 					ux = s2[0]
 					uz = s2[1]
 					if _dhs >= 0:
@@ -3200,7 +3320,7 @@ func _seeds() -> PackedFloat64Array:
 			vx = _e_vx0
 			vz = _e_vz0
 		elif _dk == 1:
-			td = t_now + KEEP_HOLD
+			td = t_now + _hold
 			_dep_at(td)
 			px = _cx + _doffx
 			pz = _cz + _doffz
@@ -3245,6 +3365,8 @@ func _seeds() -> PackedFloat64Array:
 			if sol.is_empty():
 				continue
 			var pr := _price_conic(te, sol[0] - cvdx, sol[1] - cvdz, sol[0], sol[1], sol[2], sol[3], true, vx, vz)
+			if _arcw > 0.0 or _arcb > 0.0:
+				pr -= _conic_arc(cx, cz, gm, px, pz, sol[0], sol[1], Te)
 			out.append([pr + _tw * T, sol[0] - (cvdx if _dk != 2 else 0.0), sol[1] - (cvdz if _dk != 2 else 0.0), T, way, s, 0.0, 0.0, te])
 	out.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	var flat := PackedFloat64Array()
@@ -3253,14 +3375,8 @@ func _seeds() -> PackedFloat64Array:
 	return flat
 
 
-## Where a conic aims at te: the target's centre (or its spot alongside); to
-## a star's close orbit round this centre, the ring point most of a half lap on.
-## ck: the turning sun the conic is about (-1 a centre that holds still). That
-## sun is asked by index (THE CONIC'S "OWN STAR" AIM, ruling 23): the sun at te
-## is not where the centre was laid (by some px in a flight), so asked by place
-## the aim went to the sun's centre, through its keep-out, not round its ring.
-## The ring point is round where the sun is at te, most of a half lap on from p1
-## as seen from the centre now.
+## A turning sun is asked by index: by place the aim went to its centre, through its keep-out.
+## Why: docs/why/FlightSolve.md#conic-aim
 func _aims(te: float, p1x: float, p1z: float, cx: float, cz: float, way: float, ck: int = -1) -> PackedFloat64Array:
 	_tgt_at(te)
 	if _tk == 1:
@@ -3297,12 +3413,8 @@ func _price_conic(te: float, ux: float, uz: float, v1x: float, v1z: float, v2x: 
 	return c1 + c2
 
 
-## THE CONIC ABOUT CENTRE ck from p1 at t1 to p2 T later: [v1x, v1z, v2x,
-## v2z] on the plane, or empty. ck -1: about the fixed (cx, cz), as
-## `_lambert_gm`. ck a turning sun's index: solved in that sun's own frame --
-## p1 from where it is at t1, p2 from where it is at t1 + T -- and its motion
-## then added back to each end (the sun's own pull round the balance point,
-## some thousandths of a px/s^2, is left out: these are guesses Newton refines).
+## Solved in the sun's own frame, then its motion added back. Newton refines the small errors.
+## Why: docs/why/FlightSolve.md#conic-about-a-turning-sun
 func _lam(ck: int, cx: float, cz: float, gm: float, t1: float, p1x: float, p1z: float, p2x: float, p2z: float, T: float, way: float) -> PackedFloat64Array:
 	if ck < 0:
 		return _lambert_gm(cx, cz, gm, p1x, p1z, p2x, p2z, T, way)
@@ -3323,10 +3435,7 @@ func _lam(ck: int, cx: float, cz: float, gm: float, t1: float, p1x: float, p1z: 
 	return sol
 
 
-## THE CONIC about (cx, cz) of pull gm from p1 to p2 in T, way 1 counter-
-## clockwise (the worlds' way), -1 clockwise: [v1x, v1z, v2x, v2z], or empty.
-## Within 7 degrees of a half lap (or none) a conic has no plane: aimed as far
-## round as the ring's own size, or just out of that zone.
+## Within 7 degrees of a half lap a conic has no plane, so it is aimed just out of that zone.
 func _lambert_gm(cx: float, cz: float, gm: float, p1x: float, p1z: float, p2x: float, p2z: float, T: float, way: float) -> PackedFloat64Array:
 	var r1x := p1x - cx
 	var r1z := (p1z - cz) * way
@@ -3392,9 +3501,7 @@ static func _y_of(z: float, r1: float, r2: float, A: float) -> float:
 	return r1 + r2 + A * (z * sv - 1.0) / sqrt(c)
 
 
-## LAMBERT'S PROBLEM by universal variables, mu 1, counterclockwise, in 64-bit
-## scalars (`ShipFlight.lambert`'s solver, whose Vector3 inputs are 32-bit):
-## the conic from r1 to r2 sweeping dth in tof: [v1x, v1z, v2x, v2z], or empty.
+## Lambert's problem in 64-bit scalars, as `ShipFlight.lambert`'s Vector3 inputs are 32-bit.
 static func lambert(r1x: float, r1z: float, r2x: float, r2z: float, dth: float, tof: float) -> PackedFloat64Array:
 	var r1 := sqrt(r1x * r1x + r1z * r1z)
 	var r2 := sqrt(r2x * r2x + r2z * r2z)
@@ -3448,14 +3555,8 @@ static func lambert(r1x: float, r1z: float, r2x: float, r2z: float, dth: float, 
 
 
 # ---------------------------------------------------------------- replay
-## Whether a choice was made for this very flight: the same departure (kind,
-## place, ring or spot, centre, the sun it rides with) and the same target
-## (kind, place, ring and speed or spot, centre, sun), its sense one the target
-## allows. The first build checked only the places and the ring, so a choice
-## made for another radius, spot or sense was rebuilt as it was (the planner
-## review, Oct 30). A settled orbit round a sun of a turning pair is a -9
-## circle whose centre moves: it is the same flight by its sun (`dhs`), its
-## centre at t = 0 being that sun's, not by where the ship saw the sun.
+# A choice replays only for the very same departure and target, or it was rebuilt for another.
+# Why: docs/why/FlightSolve.md#same-flight-check
 func _same_flight(c: Dictionary) -> bool:
 	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
 		return false
@@ -3481,11 +3582,7 @@ static func _near(a: Variant, b: float) -> bool:
 	return absf(float(a) - b) <= 1e-9
 
 
-## THE SAME FLIGHT AGAIN from its choice, one integration, every number as it
-## was: round a ring, while its departure is still ahead and the ride from
-## where the ship is now reaches it at a phasing within THRUST; alongside,
-## while it is still ahead (the ship holds there, KEEP_HOLD); free, at the
-## same moment from the same state. Null when it cannot be.
+## Rebuilds the flight from its choice in one integration, or null where it cannot be.
 func _replay(c: Dictionary) -> Result:
 	if not _same_flight(c):
 		return null
@@ -3500,12 +3597,26 @@ func _replay(c: Dictionary) -> Result:
 		var dr := 1.0 if _dw >= 0.0 else -1.0
 		var dang := fposmod(dr * (ad - _dang), TAU)
 		if lead < 1e-6:
-			if dang > 1e-4 and dang < TAU - 1e-4:
+			# (nor one that must still spin up, `_spin`)
+			if (dang > 1e-4 and dang < TAU - 1e-4) or _spin > 0.0:
 				return null
 		else:
 			# the ride's phasing over the lead that is left, its push at most
-			# THRUST and its speed under VMAX
+			# THRUST and its speed under VMAX (its spin-up first, over what is
+			# left of the ride if that is shorter, as `ShipFlight._ride_shape`
+			# flies it)
 			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
+			if _spin > 0.0:
+				# (the ship rides at its ring's own rate until its spin-up, which
+				# may start any time the ride allows: from where it reaches the
+				# departure at the ride's own pace, as `ShipFlight._ride_shape`
+				# flies it, a phasing k only for what that cannot make up)
+				var w := absf(_dw)
+				var w0 := absf(_dw0)
+				var sp := minf(_spin, lead)
+				var lf := clampf((dang - w0 * lead + (w - w0) * sp * 0.5) / (w - w0), sp, lead)
+				var plain := w0 * (lead - lf) + w * lf - (w - w0) * sp * 0.5
+				k = 1.0 + 2.0 * (dang - plain) / (w * lead)
 			var vr := absf(_dw) * _drt
 			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX + 1e-6 or k < 0.2:
 				return null
@@ -3550,12 +3661,8 @@ func _replay(c: Dictionary) -> Result:
 	return _build(&"replay")
 
 
-## FROM A CHOICE THAT CANNOT BE REBUILT (its departure gone by, or open
-## space), for the same places: its departure flown again, toward its old
-## arrival time, from its old ring point while the ride still reaches it (or
-## else from wherever its motion runs along the flight's). True when it flies;
-## `_solve` keeps it only while it costs about what it did. The first build
-## kept any flight that flew, from any departure place (the planner review).
+## Reflies a choice that cannot be rebuilt, for the same places only. The first build kept any.
+## Why: docs/why/FlightSolve.md#warm-start
 func _warm(c: Dictionary) -> bool:
 	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
 		return false
@@ -3583,9 +3690,7 @@ func _warm(c: Dictionary) -> bool:
 
 
 # ---------------------------------------------------------------- the result
-## THE BEST FLIGHT AS SAMPLES: flown once more (the same integration), then the
-## coast and the arrival burn sampled SAMPLE apart from the departure, the
-## arrival's end on the sample grid (its burn worked out again there).
+# The best flight as samples, with the arrival's end put on the sample grid.
 func _build(kind: StringName) -> Result:
 	var t_b := Time.get_ticks_usec()
 	var res := _build_in(kind)
@@ -3604,10 +3709,7 @@ func _build_in(kind: StringName) -> Result:
 	_integrate(float(b.td), float(b.x0), float(b.z0), float(b.vx0), float(b.vz0), float(b.dvx), float(b.dvz), float(b.te) + 0.5)
 	var td := float(b.td)
 	var s := float(b.s)
-	# THE END ON THE SAMPLE GRID: the next sample after the arrival, where the
-	# constant burn onto a ring pulls a little less than it did (its pull falls
-	# as the arrival comes later), else the one before; the burn worked out
-	# again there, constant within BURN_TOL or else the cubic
+	# End on the sample grid: the next sample after the arrival, else the one before.
 	var n0 := maxi(2, ceili((float(b.te) - td) / SAMPLE - 1e-6))
 	var n := n0
 	var ar := PackedFloat64Array()
@@ -3692,7 +3794,9 @@ func _build_in(kind: StringName) -> Result:
 	res.work = res.dvp + res.dv1 + res.dv2
 	res.d2 = d2
 	res.T = te - t_now
-	res.cost = res.work + _tw * res.T
+	# (less CURVED's arc reward as the search priced it, so a choice's J and a
+	# kept flight's cost are on the search's own terms)
+	res.cost = res.work + _tw * res.T - float(b.get("arc", 0.0))
 	res.priced = _b_J
 	_tgt_at(te)
 	var keepd := _tk == 1
@@ -3711,26 +3815,15 @@ func _build_in(kind: StringName) -> Result:
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
 		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap, "tw": _tw}
+	if _ease_forced:
+		res.choice["ez"] = true
 	return res
 
 
 # ---------------------------------------------------------------- a flight in two legs
-## A FLIGHT IN TWO LEGS, in a twin, where one departure burn and one coast
-## reach nothing (the wider search too): its first leg aimed at a point in open
-## space (`_waypoints`: a keep target at place -9, c that point), its second
-## leaving free off the first's coast CHAIN_PRE s before the first's arrival
-## burn would start, so the ship never stops there -- a coast, a burn that
-## turns it, a coast, the arrival. One Result, one set of samples SAMPLE apart
-## from the first's departure: drawn, previewed and flown as any other. Its
-## choice is the first leg's with `chain` {W, k, pre, c1, c2}, so the same
-## flight comes back (`_chain_again`): the first leg rebuilt from c1 as any
-## flight is, the second then leaving from the very same state is rebuilt from
-## c2 as a free one is. The first found is kept; with a `hint` (an old flight's
-## point, tried first), the flight through it only while the first found
-## without it (a fresh plan's) arrives no sooner. Through the hint alone, a
-## flight in two legs looked for again where its legs no longer held stood
-## later than a fresh plan's (seed 31337 node 28, orbit9 -9 to keep 2, line-up
-## 4, planned again 14 times: 243.82 against 242.54; the fifth review, Nov 1).
+# The second leg leaves free off the first's coast, so the ship never stops at the waypoint.
+# With a hint, the flight through it is kept only if a fresh one arrives no sooner.
+# Why: docs/why/FlightSolve.md#flights-in-two-legs
 static func _chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> Result:
 	var rh: Result = null
 	if hint.is_finite():
@@ -3782,9 +3875,7 @@ static func _wp_target(W: Vector2) -> Dictionary:
 	return {"kind": &"keep", "place": -9, "c": W, "off": Vector2.ZERO}
 
 
-## THE SECOND LEG off the first (r1, flown by l1): free from its coast at sample
-## k (k < 0: `pre` s before its arrival burn, and after its departure burn by
-## CHAIN_AFTER), `c2` its choice to rebuild it from; joined into one flight.
+## The second leg off the first, joined into one flight, with `c2` to rebuild it from.
 static func _leg_two(G: MapGravity, l1: FlightSolve, r1: Result, tgt: Dictionary, t: float, W: Vector2, pre: float, k_fix: int, c2: Dictionary) -> Result:
 	var tb := r1.t0 + r1.dur - r1.d2
 	var k := k_fix if k_fix >= 0 else _cut_k(r1, pre)
@@ -3795,16 +3886,14 @@ static func _leg_two(G: MapGravity, l1: FlightSolve, r1: Result, tgt: Dictionary
 	var l2 := FlightSolve.new()
 	l2._leg = 2
 	l2._wide_ok = false
-	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3])}
+	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3]), "_pace": l1._kp}
 	var r2 := l2._solve(G, d2, tgt, tc, c2)
 	if not r2.found or not r2.clean:
 		return null
 	return _join(r1, k, r2, t, W, tb - tc)
 
 
-## THE TWO LEGS AS ONE FLIGHT: the first's samples up to sample k, then the
-## second's (its first sample is the first's state there), its end, the work of
-## both (the first's arrival burn never flown), and the choice to rebuild it.
+## The two legs as one flight: the first's samples up to k, then the second's.
 static func _join(r1: Result, k: int, r2: Result, t: float, W: Vector2, pre: float) -> Result:
 	var res := Result.new()
 	res.found = true
@@ -3849,13 +3938,8 @@ static func _join(r1: Result, k: int, r2: Result, t: float, W: Vector2, pre: flo
 	return res
 
 
-## A FLIGHT IN TWO LEGS FROM ITS CHOICE: the first leg from c1 (rebuilt as any
-## flight is while its departure is ahead, else searched from it), the second
-## off it -- at the very sample it left from when the first is the same flight,
-## so it is rebuilt too, else as long before the first's arrival burn -- from
-## c2. Kept while it costs about what it did (WARM_K, WARM_ADD); else null, and
-## the caller looks again. Kept, `solve` holds it against a fresh plan of one
-## leg (`_sooner_of`).
+## Rebuilt from its choice while kept, else null so the caller looks again.
+## Why: docs/why/FlightSolve.md#flights-in-two-legs
 static func _chain_again(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, c: Dictionary) -> Result:
 	var ch: Dictionary = c.chain
 	var W: Vector2 = ch.get("W", Vector2.INF)
@@ -3890,11 +3974,7 @@ func _dep_pos(t: float) -> Vector2:
 	return Vector2(_cx + _drt * cos(_dang), _cz + _drt * sin(_dang))
 
 
-## THE POINTS A FLIGHT IN TWO LEGS IS AIMED THROUGH, best first: round the
-## pair's balance point, half way round from where the ship is to where the
-## place will be in CHAIN_T, the short way then the long, at CHAIN_R times the
-## farther of the two from it (never closer than CHAIN_CLEAR times the stars'
-## separation, nor past CHAIN_EDGE of the map's edge from star A).
+## Waypoints round the balance point, best first, kept clear of the suns and the map's edge.
 static func _waypoints(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	var fs := FlightSolve.new()

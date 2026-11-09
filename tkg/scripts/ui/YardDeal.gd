@@ -1,27 +1,9 @@
 class_name YardDeal
 extends RefCounted
 
-## The deal, on each level's own TV at the bottom right of the Yard (the Yard
-## Drones page's `drawTerminal`, `groundTV`, `LIGHTS`, `signal`, `sagWithBulb`).
-##
-## JON'S PICK FOR EACH LEVEL, lit and misbehaving the way that level's lab does:
-## its lamps are its own painted pixels, brightened and dimmed by the lab's
-## clock (`LabScene._weights`, ported); its glass warms, then the deal scans in
-## -- what they ask, what your ship is worth to them, and what leaves your
-## account, over TAKE IT. Then the lab's screen trick: unclaimed's screen
-## failing with its bulb, the outpost losing its signal every 2.6 s and the
-## settlement every 14, the city's sweep, the gold light running round the
-## capital's glass.
-##
-## THE BOX TAKES THE HALL'S LIGHT as it stands when the TV is fully on (Jon:
-## "the boxes shouldn't be fully dark... just the screen"): only its glass and
-## lamps follow the power-on. It stands on the floor, with a top, a contact
-## shadow and its foot in the polish, and its lamps light the floor in front
-## of it ("it looked pasted in").
-##
-## THE GLASS is composed in its own small viewport every tick, as the page
-## composed it in a canvas of its own: the bands a bad signal slips are pieces
-## of that picture.
+## Jon's pick per level, lit and misbehaving as that level's lab does, from the lab's clock.
+## The box takes the hall's light when fully on (Jon); only the glass and lamps follow the power-on.
+## Why: docs/why/YardDeal.md#yard-deal-tv
 
 const LID := 13
 const DEAL_CAP := Color("#8fa3ba")
@@ -248,9 +230,7 @@ func sag_with_bulb(t: float, s: Dictionary) -> Dictionary:
 
 # ------------------------------------------------------------------ this tick
 
-## Its lamps' weights and what they light, before anything is drawn (the
-## page's `lightDynamic`, the TV's part): a stepped pool on the floor in front
-## of it for each lamp, and what they put at its own feet.
+## Lamp weights and what they light before drawing: a stepped pool in front of each.
 func light_up(t: float, tb: float) -> void:
 	W8 = lights(t, tb)
 	var sc: Array = T.get("screen", [2.4, 2.9])
@@ -425,9 +405,7 @@ func on_take(p: Vector2) -> bool:
 	return p.x >= GX + float(k[0]) and p.x < GX + float(k[0]) + float(k[2]) and p.y >= GY + float(k[1]) and p.y < GY + float(k[1]) + float(k[3])
 
 
-## The glass as the page composed it in a canvas of its own: the picture, its
-## backlight warming, the deal scanned in with TAKE IT (`_Rows`, clipped at the
-## scan), and the scan line, the sweep or the rim running round it (`_Over`).
+## The glass as the page composed it in its own canvas: picture, backlight, deal, scan line.
 class _Glass:
 	extends Control
 	var deal: YardDeal

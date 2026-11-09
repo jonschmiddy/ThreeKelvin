@@ -1,28 +1,8 @@
 class_name ShieldFx
 extends Control
 
-## BLOCK, DRAWN AS K's HEX BUBBLE (Oct 13, mockups for a pick page; nothing
-## here is in a fight yet). In the sim block soaks damage first and is cleared
-## when the enemy's turn opens.
-##
-## Round two, Jon's picks on round one: the BUBBLE, with changes --
-##   - fitted: an oval round the picture's own ink, a few pixels out, grown
-##     until no hull pixel is under its rim or outside it (`fit`; the harness's
-##     `fitcheck` proves it on every enemy picture, the Custodian takes and the
-##     player hulls);
-##   - the same at rest whatever block is left: no cells dropping per hit, no
-##     brightness steps;
-##   - alive: now and then (every 3-6 s, seeded per ship) a soft ripple crosses
-##     it, or a glitch -- a torn band, a one-pixel jump, a band flickering --
-##     for two to four frames; between those it holds still;
-##   - a soaked hit shimmers over the whole bubble for 0.4 s, brightest where
-##     it struck;
-##   - at 0 block it FIZZLES (sputters, flickers and dies over 0.7 s) rather
-##     than shattering, and so does leftover block at turn start;
-##   - a hit that breaks through still carries on to the hull (`through`).
-##
-## Every change is held for whole frames and comes from an event or the idle
-## schedule; the rest frame is one still picture.
+## Block is a fitted hex bubble with idle life, hit shimmer and a fizzle at 0 (Jon's round two).
+## Why: docs/why/ShieldFx.md#shield-bubble
 
 signal moment(kind: StringName, strength: float, length: float)
 ## The shot that broke the shield goes on, this much, here.
@@ -34,10 +14,7 @@ const MARGIN := 4.0
 const RIM_FROM := 0.93
 const FIZZLE := 0.7
 const SHIMMER := 0.42
-## Jon, round three: "Idle resting glitches and ripples can be more often and
-## more significant. The shields are too static right now." An idle event
-## every 0.8-2 s a ship (seeded, so ships are out of step), and between them a
-## faint shimmer of single cells, never fully still.
+## Round three (Jon): idle events every 0.8 to 2 s, seeded per ship, never fully still.
 const IDLE_MIN := 0.8
 const IDLE_MAX := 2.0
 ## The always-on shimmer's step: 8 a second, each cell's turn held for it.
@@ -188,9 +165,7 @@ func _build_cells() -> void:
 						bid = (i + 500) * 1000 + (j + 500)
 			ids[y * W + x] = bid
 			rns[y * W + x] = rn
-	# THE RIM IS A FINE LINE (Jon: "The edge of the shield is toooo thickkk"):
-	# the oval's own edge pixel at full light, and the pixel inside it a
-	# dimmer line, dithered -- two pixels, not the band of the outer 7% it was.
+	# The rim is a fine two-pixel line (Jon: the edge was too thick).
 	var outer_at := PackedByteArray()
 	outer_at.resize(W * Hh)
 	for y in Hh:
@@ -380,14 +355,8 @@ func advance(delta: float) -> void:
 		(c2 as CanvasItem).queue_redraw()
 
 
-## The idle life, one event at a time:
-##   ripple  a wave of light (one, or two from different points at once)
-##           spreading over the whole bubble in 0.7 s, lifting the cells it
-##           crosses and the rim with them;
-##   tear    a band of rows jumping 1-3 px sideways, 3-6 frames;
-##   slice   a taller band of cells jumping 3 px, then back;
-##   patch   a patch of cells going out, back, out, back;
-##   stutter the whole bubble dropping dim for a frame or two.
+## Idle events: ripple, tear, slice, patch and stutter, one at a time.
+## Why: docs/why/ShieldFx.md#idle-events
 func _start_idle() -> void:
 	_next_idle = t + _rng.randf_range(IDLE_MIN, IDLE_MAX)
 	var r := _rng.randf()

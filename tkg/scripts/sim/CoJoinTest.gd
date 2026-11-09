@@ -1,24 +1,8 @@
 class_name CoJoinTest
 extends Harness
 
-## Two processes, flown the way two friends fly: into one system, into one
-## fight, and back out again. The co-op playtest of Oct 22, as a harness.
-##
-##   godot --headless --path . -- cojoin host [relay]
-##   godot --headless --path . -- cojoin join CODE
-##   tools/cojoin.sh [relay] [late]
-##
-## Jon and Kevin, Oct 22: "I couldn't join the fight he was in", "we could not
-## see each other flying around on the sector map", and where both ships were
-## drawn together they were "totally on top of each other". `cofight` never saw
-## any of it, because it PLACES both ships on a node and opens the fight by
-## hand, and the game stopped opening fights that way when the three node types
-## became one: a system's hostiles are an option now, and an option's fight was
-## private. This one goes through the doors a player uses -- the jump, LOCAL,
-## the SECTOR map, the option's fight, JOIN -- and fails on what they found.
-##
-## `late`: the host dives alone and flies a jump before the guest has even
-## typed the code. A friend whose game crashed and who joins back in is that.
+## The Oct 22 co-op playtest as a harness, flying through the doors players use.
+## Why: docs/why/CoJoinTest.md#co-join-harness
 
 const CODE_TAG := "[cojoin] code "
 const PARTNER_TIMEOUT := 45.0
@@ -31,9 +15,7 @@ var _me: String = ""
 var _late: bool = false
 var _relay: bool = false
 var _skew: bool = false
-## `shots=<dir>`: a still of each moment Jon asked to look at, from this
-## machine's side, as `<dir>/<nn>_<what>_<host|guest>.png`. Needs a window (run
-## through render_slot.sh); headless has no pixels and saves nothing.
+## `shots=<dir>` stills from this machine's side; it needs a window, as headless has no pixels.
 var _shots: String = ""
 ## `hold=<seconds>`: how long a host waits before each move, so a partner in a
 ## window (slower: it animates) is still beside it when it takes its stills.
@@ -262,7 +244,12 @@ func _fight_leg(at: int, other: int) -> void:
 	var f0 := Net.fight_at(at)
 	_ok("against the same enemy on both machines (%s)" % f0.foe_ids[0],
 		String(cb.enemies[0].template.id) == f0.foe_ids[0])
-	_ok("grown for two ships", f0.foes[0].max_hp > f0.foes[0].base)
+	# BUILT FOR THE GAME'S TWO PLAYERS (`PartyScale`, Jon, Nov 5), not grown
+	# by the join
+	var two := Combat.new()
+	two.plan(cb.enemies[0].template, Run.node_at().danger, [], 2)
+	_ok("built for the game's two players (%d hull, party %d; planned for two %d, this ship's %d, danger %d), the same on both" % [f0.foes[0].max_hp, f0.party, two.enemies[0].max_hp, cb.enemies[0].max_hp, Run.node_at().danger],
+		f0.party == 2 and f0.foes[0].max_hp == two.enemies[0].max_hp and cb.enemies[0].max_hp == f0.foes[0].max_hp)
 	await _play(cb)
 	var f1 := Net.fight_at(at)
 	print("[cojoin] outcome %s %s paid%d" % [cb.result, f0.foe_ids[0], f1.paid if f1 != null else -1])
@@ -287,9 +274,7 @@ func _fight_leg(at: int, other: int) -> void:
 		desc.append("%s[%s]" % [h.art, ",".join(ids)])
 	print("[cojoin] wreck %s" % "|".join(desc))
 	if slot < 0:
-		# An empty wreck is a roll, not a bug: the pile matching on both machines
-		# (`wreck`, compared by the shell) is the claim, and there is nothing to
-		# race for. Said so, rather than failed.
+		# An empty wreck is a roll, not a bug: matching piles are the claim, so say so, not fail.
 		print("  %s: the wreck rolled empty this seed; nothing to race for" % _me)
 		print("[cojoin] took skip")
 		print("[cojoin] taker nobody")
@@ -360,9 +345,7 @@ func _late_leg() -> void:
 		_ok("the late ship knows where the host is",
 			await _until(func() -> bool: return Net.where_is(other) >= 0, 10.0))
 		_ok("in the same galaxy (seed %d)" % Net.dive_seed, Run.map.size() > 0)
-		# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16): the lead ship's count came
-		# at the door, quietly, so the late ship's badge shows the eye as it is
-		# with no arrival for jumps it never saw
+		# The lead ship's count arrives at the door (PROTOCOL 16), not by unseen jumps.
 		var b := Router.hud.goal.badge() if Router.hud != null and Router.hud.goal != null else null
 		var steps: Array[int] = []
 		for i in 30:
@@ -406,9 +389,7 @@ func _check_local_together(when: String) -> void:
 		return
 	var partner: EncounterView.ConvoySlot = slots[0]
 	_ok("and the partner's slot is on screen %s" % when, partner.is_inside_tree() and partner.is_visible_in_tree())
-	# The INK of each hull, not the canvases: a canvas carries the exhaust's
-	# clearance and the bob's headroom, and two canvases may touch where no
-	# ship does.
+	# Compares hull ink, not canvases: canvases carry exhaust and bob room and may touch.
 	var a: Rect2 = view.player_boxes()[0]
 	var b: Rect2 = partner.art.get_global_transform() * partner.art.ship_rect()
 	b = b.intersection(partner.get_global_rect())
@@ -500,7 +481,7 @@ func _play(cb: Combat) -> void:
 	var turns := 0
 	while not cb.finished and turns < TURN_CEILING:
 		await _tree.process_frame
-		if cb.waiting:
+		if cb.waiting or cb.stunned or cb.asking_at >= 0:
 			continue
 		turns += 1
 		var acted := true
@@ -555,9 +536,7 @@ func _other_id() -> int:
 	return 0
 
 
-## A system this ship can jump to now that holds options (not a station), not
-## one of `avoid`, and -- when `toward` is given -- one from which `toward` can
-## be reached on the tank left.
+## A jump target with options (not a station), not in `avoid`, and `toward` reachable on the tank.
 func _pick_jump(avoid: Array = [], toward: int = -1) -> int:
 	var best := -1
 	var best_d := INF

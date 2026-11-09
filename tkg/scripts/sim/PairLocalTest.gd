@@ -1,39 +1,8 @@
 extends Node
 
-## THE PAIR AS THE MAP LEFT IT, IN LOCAL AND THROUGH A SAVE (ruling 23, Jon,
-## Nov 1: "Orbiting pair"), headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=PairLocalTest
-## A binary's suns turn round their balance point on the system's map clock,
-## and map time does not run off the map, so LOCAL holds the pair where the map
-## left it (`LocalSky._hold_pair`) and the map opens on that angle again.
-##  1. AT 8 OF THE PAIR'S ANGLES round a lap, a wide pair (the ship at the world
-##     round star B) and a close one (the ship in star B's close orbit): LOCAL
-##     built at that kept clock holds that clock and that angle; star B on the
-##     band on the side of star A the map has it, and the nearer sun the one
-##     nearer on the map (drawn over the farther, stacked:A); a wide pair's B
-##     where the band puts the pair's line from A, a close pair's pushed clear
-##     of A's disc only while the pair lies within TWIN_TURN of level, and not
-##     at all end on (the suns one in front of the other); the lit sun the one
-##     lighting the ship's place (its own); a world round star B within its
-##     orbit of B on the band, and still there a minute of LOCAL's clock on.
-##  2. MAP -> LOCAL -> MAP: the map's clock goes into LOCAL whole, LOCAL holds it
-##     while it is up, and the map opens on it again, the ship where it rode
-##     round star B (review 2). IN CO-OP, a partner's map
-##     clock 10 s ahead, with the zoom ladder off and on: at both handovers
-##     the picture coming up has the clock of the one going (LOCAL does not take
-##     the party's from its map, the map does not take it from LOCAL), the kept
-##     clock never goes back, and the map then catches up with the party, a
-##     little faster than time and never by a jump (review 1), level within
-##     LEVEL_S. Ten minutes on instead, too far to catch up (CATCH_CUT), the
-##     map out of LOCAL takes the party's clock at once. And three rounds of
-##     4 s on the map and 4 s in LOCAL, the partner's map running: the gap
-##     shrinks round by round (review 2).
-##     OPENED ANY OTHER WAY (out of the chart), a map and LOCAL take the
-##     party's clock at once, and a ship parked settled round star B goes with
-##     B (review 2).
-##  3. A SAVE: the clock written, the run's clocks scrambled, the save read back:
-##     LOCAL opens on the very angle.
-##  4. ONE SUN: star A at the band's anchor and nothing turned, at any clock.
+## Map time stops off the map, so LOCAL holds the pair where the map left it (ruling 23).
+## Checks 8 angles, map to LOCAL to map, co-op handovers, a save, and one sun unturned.
+## Why: docs/why/PairLocalTest.md#pair-in-local-and-save
 
 const TILT := 0.07
 
@@ -152,9 +121,7 @@ func _sweep(close: bool) -> void:
 			if on_band.distance_to(want) > 2.0:
 				place_bad += 1
 		else:
-			# (pushed out along the pair's line to SUNS_APART past both discs, by
-			# `apart_k`: all of it within TWIN_TURN of level, so a pair as laid
-			# out is drawn as it always was)
+			# Pushed out only within TWIN_TURN of level, so a laid-out pair is drawn as ever.
 			var ra := L.star_r * s.star_k_of(-1)
 			var rb := L.star2_r * s.star_k_of(B)
 			var need := (ra + rb + LocalSky.SUNS_APART) * LocalSky.apart_k(rel)
@@ -189,10 +156,7 @@ func _sweep(close: bool) -> void:
 		var r_both := L.star_r * se.star_k_of(-1) + L.star2_r * se.star_k_of(B)
 		_ok("close pair end on (%.0f deg): its suns cross on the band (%.1f px apart, discs %.1f across together), star B the nearer (%.1f)" % [
 			rad_to_deg(L.pair_angle(tz)), gap_e, r_both, se.suns_depth()], gap_e < r_both and se.suns_depth() > 0.0 and rel_e.y > 0.0)
-		# THE DRAWING ORDER (`LocalSky.band_order`, what `_step_worlds` moves the
-		# suns and worlds by; not built headless): end on with B nearer, B after
-		# A, and the other way half a lap on, each among the band's worlds by
-		# depth -- the real band's, and one with a world far nearer than both
+		# Drawing order: end on with B nearer, B after A, and half a lap on, among worlds.
 		var tz2 := tz + 0.5 * TAU / L.pair_n
 		Run.map_clock[idx] = tz2
 		var so := _sky_at(idx)
@@ -216,10 +180,7 @@ func _sweep(close: bool) -> void:
 	Run.map_clock.erase(idx)
 
 
-## Whether LOCAL sky `s` draws its band farthest first (`LocalSky.band_order`):
-## its suns and its worlds in depth order, star B after star A exactly when
-## `b_near`; for the band's own worlds at its clock and for a band with one
-## world far behind both suns and one far nearer.
+## Whether LOCAL draws farthest first, star B after A exactly when `b_near`.
 func _drawn_in_depth(s: LocalSky, b_near: bool) -> bool:
 	var d2 := s.suns_depth()
 	var ok := (d2 > 0.0) == b_near
@@ -265,10 +226,7 @@ func _through_the_map() -> void:
 	_ok("LOCAL holds the clock the map was left at (%.6f, left at %.6f)" % [sky.held_t(), left], absf(sky.held_t() - left) < 1e-9)
 	_ok("and the pair's angle then", absf(angle_difference(sky.held_angle(), L.pair_angle(left))) < 1e-6)
 	var b_before := sky._sun_at(SystemLayout.STAR_B)
-	# (the map, hidden as LOCAL is built, is freed a frame later and writes its
-	# clock again as it goes, `_keep_ship`: hidden, its clock holds,
-	# `clock_held`, so the clock kept is LOCAL's to the bit -- it ran a frame on
-	# before, review 1 -- and from there it must not move)
+	# The hidden map writes its clock as it is freed, so `clock_held` keeps LOCAL's clock.
 	var kept := Run.map_t(idx)
 	_ok("the clock kept as the map went is LOCAL's (%.6f, LOCAL %.6f)" % [kept, sky.held_t()],
 		kept == left and kept == sky.held_t())
@@ -290,11 +248,8 @@ func _through_the_map() -> void:
 	await _frames(4)
 
 
-## 2b. In co-op, a partner's clock ahead by `lead`: under CATCH_CUT the
-## handovers keep one clock and the map then catches up, level within
-## LEVEL_S; further on, the map out of LOCAL takes the party's at once
-## (`NetSession.handed_clock`, review 2: caught up at CATCH_K alone, 10
-## minutes in LOCAL took 40 to come level).
+## Past CATCH_CUT the map takes the party's clock at once: CATCH_K alone took 40 minutes for 10.
+## Why: docs/why/PairLocalTest.md#co-op-catch-up
 const LEVEL_S := 25.0
 func _coop_handovers(ladder: int, lead: float) -> void:
 	ZoomLadder.force = ladder
@@ -410,12 +365,8 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 	_no_partner()
 
 
-## 2c. MAP AND LOCAL IN TURN, in co-op, with a partner whose map runs on (its
-## clock said every frame, a frame on): three rounds of 4 s on the map and 4 s
-## in LOCAL from 16 s behind. LOCAL holds the clock each time while the
-## partner's runs, and the map must win back more than that: the gap shrinks
-## round by round and never reaches CATCH_CUT (review 2: at CATCH_K alone it
-## grew by about 3 s a round, for good).
+## The gap must shrink round by round: at CATCH_K alone it grew about 3 s a round, for good.
+## Why: docs/why/PairLocalTest.md#co-op-rounds
 func _coop_rounds() -> void:
 	ZoomLadder.force = 0
 	var idx := _pair_of(true)
@@ -468,12 +419,8 @@ func _coop_rounds() -> void:
 	_no_partner()
 
 
-## 2d. OPENED ANY OTHER WAY, IN CO-OP: a map or LOCAL opened after something
-## that showed no angle of the pair (here the chart) takes the party's clock at
-## once (`Router.show_system`'s and `LocalSky._hold_pair`'s `adopt_clock`),
-## and a ship parked settled round star B goes with B to where it stands then
-## (`NetSession.carry_parked`). Cut either call and the gate stayed green while
-## two machines opened the pair at two angles (review 2).
+## Cut either call and the gate stayed green while two machines opened the pair at two angles.
+## Why: docs/why/PairLocalTest.md#co-op-cold-open
 func _coop_opened_cold() -> void:
 	ZoomLadder.force = 0
 	var idx := _pair_of(true)
@@ -534,9 +481,7 @@ func _coop_opened_cold() -> void:
 	SystemMapScreen._parked[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 
 
-## The ride a put-back ship may show (px): two frames of a star's close orbit
-## at STAR_RAIL_V (the map's first step comes in the swap's own frame, and this
-## reads it a frame on), and a half for rounding. Put back at +x it is tens.
+## The ride a put-back ship may show: two frames of a close orbit plus a half for rounding.
 const RIDE_FRAME := 2.5 * 45.0 / 60.0
 
 
@@ -546,9 +491,7 @@ func _ship_off(m: SystemMapScreen, body: int) -> Vector2:
 	return m.flight.f.p - Vector2(c.x, c.z)
 
 
-## A PARTNER (peer 77) in system `idx` on the roster, its map's clock `t`
-## said just now, held or running (`NetSession.party_t` counts a partner only
-## where the roster has it).
+## A partner (peer 77) on the roster with its clock said just now, held or running.
 func _partner(idx: int, t: float, held: bool) -> void:
 	Net.roster[77] = Net._slot(77, "PARTNER", &"korvan", 9)
 	Net.roster[77].at = idx

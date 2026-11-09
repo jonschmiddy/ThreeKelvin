@@ -1,27 +1,7 @@
 extends Node
 
-## THE SIDE BAR NEVER GOES BLANK (Jon, Oct 13: "When going from local to sector
-## or sector to starchart etc... the side bar goes blank and then draws the new
-## side bar. Can we not have it go blank and just have it transition to the new
-## side bar?"), headless:
-##   godot --headless --path . -- sheet=SideBarTest [looks=A,B,C,D,E,F]
-## Every hop that has a side bar at one end -- LOCAL -> map, map -> chart,
-## chart -> map, map -> LOCAL -- through the Router's own doors with the
-## animation on and the ladder's clock stepped 1/60 s a frame, for every look the
-## swap has (`ZoomLadder.SIDE_LOOKS`). Each frame the screen up has a side bar,
-## how much of its rect shows content is measured: the live panel's own opacity,
-## or, while a swap is drawn over it (`SideSwap`), the swap's old and new at a
-## grid of points across it. A frame under half is a BLANK frame, and any blank
-## frame fails. Also: no more than the crossfade's middle shows both contents
-## half and half; a click is only let through where the new content stands
-## resolved (A: from the crossfade's middle on); and with the animation off
-## (headless, reduced motion) the new side bar is whole the very frame it is
-## asked for. Prints the blank frames per hop, which is the number on main.
-## THE TOOLBAR the same (Jon: "these buttons" -- the chart's LAYER row, the
-## map's DANGER strip, `ladder_bar`): never blank, decoded on every hop, and a
-## click on a button in it before it has resolved eaten.
-## Written to run on main too (it reaches the swap only by name), so it can be
-## watched failing there.
+## The side bar must never go blank (Jon, Oct 13) in any swap look, and clicks wait for resolve.
+## Why: docs/why/SideBarTest.md#side-bar-test
 
 var _fails := 0
 var _tree: SceneTree
@@ -102,9 +82,7 @@ func _swap_now() -> Object:
 	return _live(&"side_now")
 
 
-## Where the scene starts this frame, viewport y: under the screen's toolbar
-## band if it has one, under a band laid over it (`SideBand`), or the top of
-## the screens' area.
+## Where the scene starts this frame: under the toolbar band, a laid-over band, or the area top.
 var _sb: Script = load("res://scripts/ui/SideBand.gd") if ResourceLoader.exists("res://scripts/ui/SideBand.gd") else null
 var _cs: Script = load("res://scripts/ui/ChromeSlide.gd") if ResourceLoader.exists("res://scripts/ui/ChromeSlide.gd") else null
 ## (the toolbar's height, where the build has one)
@@ -134,9 +112,7 @@ func _slides() -> Array:
 	return out
 
 
-## THE CALM MOVE'S COVERS (the map and the chart): the side bar and toolbar as the
-## held picture had them, standing where they stood until the decode -- what is
-## seen over their rects while the screen arriving fades up under them.
+## Calm move covers: the side bar and toolbar stand as held until the decode.
 func _covers() -> Array:
 	var out: Array = []
 	if ZoomLadder.busy():
@@ -155,10 +131,7 @@ func _covered(r: Rect2) -> bool:
 	return false
 
 
-## Where the scene's picture ends on the right this frame, viewport x: where
-## the side bar's column begins -- a piece of it on the move, the screen's own
-## side bar or a swap drawing over where it was (less the 5 px gap beside the
-## picture's frame) -- or the screens' own right edge.
+## Where the picture ends on the right this frame: the side bar column's start or the area edge.
 func _side_edge() -> float:
 	var c := Router.content.get_global_rect()
 	var e := c.end.x
@@ -223,18 +196,14 @@ func _bar_of(s: Variant) -> Control:
 	return null
 
 
-## This frame: [coverage 0..1, both-at-once 0..1, clicks let through onto
-## unresolved content (count of grid points)], or [] when the screen up has no
-## side bar.
+## Returns [coverage, both-at-once, clicks onto unresolved content], or [] with no side bar.
 func _measure() -> Array:
 	return _measure_region(_side_of(Router.current), _swap_now(), &"side")
 
 
 ## (a piece of it on the move, `ChromeSlide`, is it, drawn whole)
 func _measure_region(side: Control, sw: Object, kind: StringName = &"") -> Array:
-	# (a swap held at its first frame through the calm move's camera draws
-	# nothing yet: what stands over the rect is what stood there, or the column
-	# and band that came on before the move)
+	# A swap held frozen through the camera move draws nothing; what stands is the old content.
 	if sw != null and sw.get("frozen") == true:
 		sw = null
 	if side == null and sw == null:
@@ -285,16 +254,10 @@ func _set_look(l: String) -> void:
 			_zl.call(&"force_side_look", l)
 
 
-## One hop, every frame until the ladder is idle: the blank frames (the screen up
-## has a side bar and under half of it shows), the frames both contents show
-## half and half, the frames a click would have gone through onto content not
-## yet resolved, and how many frames the swap drew.
+## One hop, every frame until the ladder is idle, counting blank, half and half, let-through frames.
 func _hop(label: String, call: Callable, want: Script) -> int:
-	# THE CALM MOVE WITH LOCAL AT ONE END (Jon, Oct 17): out of LOCAL the side
-	# panel comes on only after the camera has landed, into LOCAL it goes before
-	# the camera moves -- so with LOCAL at one end there is no side bar to show
-	# while the camera moves. Blank is counted out of LOCAL from the decode on
-	# (it must never go blank once it is there), and not at all into LOCAL.
+	# With LOCAL at one end the bar is absent mid-move (Jon, Oct 17), so blanks count out of LOCAL.
+	# Why: docs/why/SideBarTest.md#calm-move-with-local
 	var from_local := Router.current is SectorScreen
 	var calm_local := _calm and (from_local or want == SectorScreen)
 	var decoding := false
@@ -389,18 +352,15 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		_ok("%s: the side bar's left edge, the picture's right, never more than 10 px in a frame (most %.0f)" % [label, side_jump], side_jump <= 10.0)
 		_ok("%s: no decoded letter off a band (%d rows)" % [label, loose], loose == 0)
 	if _calm and _cur_look == "E" and letter_frames > 0:
-		# THE CALM MOVE: the decode runs after the camera has landed, never under
-		# it, over its dial (`ZoomLadder.CALM_DECODE_S`: Jon's "slowly" was 1.1 s
-		# when it ran under the camera; after it, that second was the hop's)
+		# The calm move decodes after the camera lands: under it, Jon's slowly was 1.1 s.
+		# Why: docs/why/SideBarTest.md#calm-decode
 		var dsecs := letter_frames / 60.0
 		var d_start := decode_end - letter_frames + 1
 		var dial := float(_zl.get("CALM_DECODE_S"))
 		_ok("%s: E decodes after the landing (from frame %d, landed %d) over its dial (%.2f s for %.2f)" % [label, d_start, landed_at, dsecs, dial],
 			d_start >= landed_at and dsecs >= dial - 0.15 and dsecs <= dial + 0.2)
 	elif _cur_look == "E" and letter_frames > 0:
-		# E, SLOW (Jon: "happen slowly and not so fast"): the side bar decodes for
-		# a second or more, and is done within 0.35 s of the camera landing --
-		# or, on a hop shorter than that, runs on past it no longer than it needs
+		# E, SLOW (Jon): the bar decodes for a second or more, done within 0.35 s of landing.
 		var secs := letter_frames / 60.0
 		var past := (decode_end - landed_at) / 60.0
 		_ok("%s: E decodes slowly (%.2f s) and is done %.2f s after the landing" % [label, secs, past],
@@ -428,9 +388,7 @@ func _instant(why: String) -> void:
 		await _frames(3)
 
 
-## A click on the side bar in the middle of a swap, map -> chart, at the
-## chart's JUMP while it is not yet resolved under the pointer: the move ends,
-## and the press reaches no control in the new side bar.
+## A click mid-swap at the chart's JUMP ends the move and reaches no control in the new bar.
 func _click_mid_swap() -> void:
 	Router.show_starchart()
 	var sw: Object = null
@@ -483,9 +441,7 @@ func _click_mid_swap() -> void:
 	await _frames(4)
 
 
-## A click on the toolbar before it has resolved: map -> chart, on the
-## chart's first button along its top (HIDE SYSTEMS in dev mode) while the
-## toolbar decodes -- eaten, the button never hears it.
+## A click on the unresolved toolbar is eaten and the button never hears it.
 func _click_bar_mid_decode() -> void:
 	Router.show_starchart()
 	var bw: Object = null
@@ -525,11 +481,7 @@ func _click_bar_mid_decode() -> void:
 		(target as Button).text if target is Button else "its row", blocked, heard[0]], blocked and heard[0] == 0)
 
 
-## THE MAP'S TOOLBAR IS THE CHART'S ROW (Jon: "the same style as the layer
-## bar ... the same height as the button bar for the starchart"): the two rows
-## the same height and at the same place to the pixel, the danger pips the
-## chart's own blocks, and its toggles -- HIDE NAMES, HIDE ORBITS -- reaching
-## the overlay and the view and kept across a visit to the chart and back.
+## The map's toolbar matches the chart's layer row (Jon): same height, place and toggles kept.
 func _toolbar_rows() -> void:
 	ZoomLadder.force = 0
 	Router.show_system()
@@ -574,9 +526,7 @@ func _toolbar_rows() -> void:
 	ZoomLadder.force = 1
 
 
-## A click on the side bar's column while it slides off LOCAL (map -> LOCAL):
-## the move ends and the click reaches nothing under it -- LOCAL's scene, which
-## it was about to uncover, never hears it.
+## A click while the bar slides off LOCAL ends the move and reaches nothing under it.
 func _click_moving_chrome() -> void:
 	if _cs == null:
 		return
@@ -711,9 +661,7 @@ func _run() -> void:
 		await _idle()
 	_set_look("")
 	print("  [sidebar] blank frames over every hop: %d" % total)
-	# THE DIVES TOO (Tab: LOCAL to the chart and back -- through black before
-	# the calm move, the one move with it), the chrome sliding in them as in the
-	# moves
+	# The Tab dives go through black before the calm move, with the chrome sliding as in moves.
 	_cur_look = "E"
 	_set_look("E")
 	total += await _hop("LOCAL -> chart (dive)", Router.show_starchart, StarchartScreen)

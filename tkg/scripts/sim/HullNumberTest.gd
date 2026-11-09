@@ -1,26 +1,8 @@
 extends Node
 
-## THE HULL NUMBER BESIDE THE PIPS (ruling 12 C, Jon, Oct 27):
-##   godot --headless --path . --fixed-fps 60 -- sheet=HullNumberTest
-##
-## Geno, in the friends' alpha, read the chassis select's HULL as 4, 6 and 8
-## pips against Korvan's 29, 40 and 57 hull and took them for a mismatch. The
-## pips are hull over 7, rounded, and the tooltip claimed an exact "A pip is 7
-## hull". So:
-##
-## - the real chassis select, at the game's 960x540, prints every frame's real
-##   hull ("29 hull") after HULL's number, for every manufacturer and weight,
-##   and that is the hull the run launches with (`Run.max_hp()`, full). Every
-##   startable frame, for certain: a scratch flight record with a win for every
-##   manufacturer opens them all (`_unlock_all`), so the count does not hang on
-##   DevMode being on, and it must be all of them;
-## - HULL is the only row that carries one;
-## - it fits: no overlap with anything drawn on the screen, inside its column,
-##   the column no wider than `ChassisSelect.SIDE_W`, inside the screen;
-## - the HULL tooltip says about 7, never an exact 7, and its sum is the ship's
-##   own, "Your 29 hull rounds to 4 pips." (also on a damaged ship and at 1 pip);
-## - a block set up without `amounts` (the refit screen, the cutaway, the yard)
-##   prints no readout.
+## Geno read HULL as 4, 6, 8 pips against 29, 40, 57 hull and saw a mismatch (ruling 12 C, Oct 27).
+## So the chassis select prints the real hull number and the tooltip says about 7.
+## Why: docs/why/HullNumberTest.md#hull-number
 
 var _tree: SceneTree
 var _fails := 0
@@ -186,10 +168,8 @@ func _drawn(root: Node) -> Array[Control]:
 	return out
 
 
-## A block set up the refit screen's way prints no readout.
-##
-## Through `callv` and `_amounts_of` rather than by name, so that on the code
-## before the readout this reports a failure instead of failing to compile.
+## Through `callv` and `_amounts_of`, so before the
+## readout this fails rather than failing to compile.
 func _plain_blocks() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var takes := 0
@@ -238,10 +218,8 @@ func _find(root: Node, matches: Callable) -> Node:
 	return null
 
 
-## EVERY STARTABLE MANUFACTURER OPEN, whatever DevMode says. A locked one cannot
-## be picked (`ChassisSelect._select`), and the sheet skipped them, so it only
-## covered all seven because DevMode is on from the editor. A scratch flight
-## record with a win for each opens the chain the way a player opens it.
+## Every startable manufacturer is open whatever DevMode says:
+## the sheet skipped locked ones and relied on the editor.
 func _unlock_all() -> void:
 	_history_was = RunHistory.path
 	RunHistory.path = TestRun.scratch("hullnumber_history", "json")
