@@ -13,32 +13,17 @@ const MEAN_PAD_MS := 1.0
 const SEED := 5150
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 var _checks := 0
 
 
 func _ok(what: String, c: bool) -> bool:
 	_checks += 1
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
-func _press() -> InputEventMouseButton:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
-	return ev
 
 
 func _median(a: Array) -> float:
@@ -67,7 +52,7 @@ func _most(a: Array) -> float:
 
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Ash.forced = true
 	Ash.reload()
 	Ash.set_on(true)
@@ -81,11 +66,11 @@ func _run() -> void:
 	Hints.mark_seen(&"ship")
 	Hints.mark_seen(&"said_step_jump")
 	Router.show_local()
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	Ash.waiting.clear()
 	if Ash.portrait != null:
 		Ash.portrait.cut()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("on: she teaches, the hints are on", Ash.teaches() and Hints.enabled() and Hints.by_ash())
 
 	# THE CHART WITH NOTHING LEFT TO TEACH THERE (the deep tutorial's chart
@@ -95,7 +80,7 @@ func _run() -> void:
 	for id: StringName in [&"layers", &"contract_track", &"quest", &"jump_blocked"]:
 		Hints.mark_seen(id)
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var quiet := await _time(240, func() -> bool: return true)
 	var base := _mean(quiet)
 	_ok("the chart with her silent: nothing taught (%s), mean %.2f ms (median %.2f), most %.2f ms" % [Ash.lesson, base, _median(quiet), _most(quiet)],
@@ -106,7 +91,7 @@ func _run() -> void:
 	Hints.mark_seen(&"chart", false)
 	Hints.mark_seen(&"said_step_jump_chart", false)
 	Router.show_local()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	Router.show_starchart()
 	var waited := 0
 	# (the frame she starts on timed too: where she stands is found then, every
@@ -133,7 +118,7 @@ func _run() -> void:
 	_same_answer()
 	# ITS ACTION DONE (stood in for: `Hints.spend`): then the goal's step in her
 	# voice, no subject of its own
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Hints.spend()
 	waited = 0
 	while Ash.lesson != &"step_jump_chart" and waited < 400:
@@ -171,7 +156,7 @@ func _judge(what: String, ms: Array, base: float) -> void:
 
 
 ## `covers` against the scan it replaced: `_node_at` at every 3 px of the box.
-func _old_covers(mc: StarchartScreen.MapChart, r: Rect2) -> String:
+func _old_covers(mc: MapChart, r: Rect2) -> String:
 	var inv := mc.get_global_transform().affine_inverse()
 	var y := r.position.y
 	while y <= r.end.y:
@@ -225,5 +210,5 @@ func _finish() -> void:
 	Hints.forced = false
 	Hints.reset()
 	print("  %d checks" % _checks)
-	print("AshTeachCostTest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("AshTeachCostTest")
+	_tree.quit(h.code())

@@ -576,6 +576,18 @@ is in that one message, so a client that is going to be turned away is turned
 away before it has been told anything about the party.
 ```
 
+Above `_member_sender()`:
+
+```text
+THE HANDSHAKE IS NOT A DOOR. Godot's peer has no auth step here, so a client
+that never sends `_hello`, or that was refused and did not close itself, is
+still connected and its messages are still delivered. Every message bound for
+the host therefore asks first whether the sender is on the roster, and a
+stranger's is dropped quietly. Not done: kicking the stranger. The relay's
+`disconnect_peer` does nothing for a peer that is not this one, so that needs
+a new relay frame and a protocol bump (review, Nov 8).
+```
+
 ## Late joiners
 
 Inside `_hello()`, above `if state == State.DIVING and dive_seed != 0:`:
@@ -749,6 +761,23 @@ victim's machine against its own `Run`, because those numbers live nowhere
 else and no other player has any use for them. Mirroring three partners'
 block values across the party would be a lot of wire for something nobody
 reads.
+```
+
+## Foe block and heal
+
+Above `func _foe_acts(f: SharedFight, i: int) -> void:`:
+
+```text
+BLOCK AND HEAL ARE THE ENEMY'S, SO THE HOST KEEPS THEM. `Combat._act_one` adds
+them to the victim's own copy only, and the host's next push overwrote that on
+every machine, so a "Gain 4 block" or a heal did nothing in a shared fight
+(review, Nov 8). The host grants them as the foe swings, from the same scaled
+intent list the victim reads (`Combat.scaled_for`, at the node's danger, which
+every machine already agrees on), so nothing new crosses the wire.
+
+Last turn's block expires as the foe acts again, as it does solo
+(docs/why/Combat.md#block-expiry), so `SharedFight.advance` no longer clears
+it: that cleared it in the same call that granted it.
 ```
 
 ## Target weighting

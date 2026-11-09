@@ -132,6 +132,13 @@ func run(tree: SceneTree) -> void:
 			(Audio._mv[Audio._now] as AudioStreamPlayer).stream == carried
 			and (Audio._mv[Audio._now] as AudioStreamPlayer).playing)
 
+	# A cue change inside the relay's tail reuses the old voice; the tail's stop must not reach it.
+	Audio.play_cue(Audio.TITLE_CUE)
+	await _settle()
+	await tree.create_timer(Audio.TAIL).timeout
+	_ok("a cue changed inside a relay's tail is still playing after the tail (%s)" % Audio.cue(),
+			Audio.cue() == Audio.TITLE_CUE and (Audio._mv[Audio._now] as AudioStreamPlayer).playing)
+
 	# Lights Out must not loop: relayed, a death would restart its elegy every seventy seconds.
 	# Why: docs/why/AudioTest.md#loop
 	Audio.music_state(&"gameover")
@@ -172,6 +179,7 @@ func run(tree: SceneTree) -> void:
 			if m != null and m.rarity == want:
 				wreck.items.append(m)
 				break
+	var placed_common := wreck.items.any(func(m: ModuleData) -> bool: return m.rarity == ModuleData.Rarity.COMMON)
 	var view := TransferView.new()
 	tree.root.add_child(view)
 	Audio.taping = true
@@ -182,7 +190,7 @@ func run(tree: SceneTree) -> void:
 	for row in Audio.tape:
 		heard.append(str((row as Array)[0]))
 	_ok("a wreck opening rings a legendary (%s)" % [heard], heard.has("take_legendary"))
-	_ok("and says nothing for the common beside it", not heard.has("take_common"))
+	_ok("and says nothing for the common beside it", placed_common and not heard.has("take_common"))
 	Audio.taping = false
 	Audio.tape.clear()
 	view.queue_free()

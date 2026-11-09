@@ -614,7 +614,7 @@ func _on_hover_in() -> void:
 
 func _on_hover_out() -> void:
 	emitted_hover(false)
-	_tint = DB.manufacturer_colour(card.manufacturer)
+	_tint = UITheme.FLARE if armed else DB.manufacturer_colour(card.manufacturer)
 	queue_redraw()
 	_animate_lift(0.0)
 
@@ -636,15 +636,6 @@ func _animate_lift(offset: float) -> void:
 	_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_tween.tween_property(self, "position:y", _base_y + offset, 0.12)
 
-## Fly the card toward the enemy as it resolves, then fade.
-func play_flourish(target: Vector2) -> void:
-	var tw := create_tween().set_parallel(true)
-	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tw.tween_property(self, "global_position", target, 0.18)
-	tw.tween_property(self, "modulate:a", 0.0, 0.18)
-	tw.tween_property(self, "scale", Vector2(0.7, 0.7), 0.18)
-	tw.chain().tween_callback(queue_free)
-
 func emitted_hover(entered: bool) -> void:
 	hovered.emit(self, entered)
 
@@ -664,11 +655,6 @@ func set_armed(on: bool) -> void:
 ## No `_get_drag_data`: `set_drag_preview` pins the card to the pointer, but aiming needs it still.
 ## Why: docs/why/CardView.md#grab-gesture
 
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END:
-		modulate = Color.WHITE
-		mouse_filter = Control.MOUSE_FILTER_STOP
 
 ## A card on top of the hand would swallow the drop, so it forwards: put it here.
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:

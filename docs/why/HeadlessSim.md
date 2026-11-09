@@ -13,7 +13,7 @@ This tool is worth as much as the game code. In the web prototype it found
 three real bugs (including an infinite draw loop) and a structural map flaw
 in minutes. Run it after any balance change.
 
-Driven by Main.gd's sim branch, NOT by --script. The sim reads the Run and DB
+Driven by DevFlags.gd's sim row, NOT by --script. The sim reads the Run and DB
 autoloads, and Godot only creates autoloads when the project boots normally;
 --script replaces the main loop and skips them entirely, so every reference
 here would fail to compile.

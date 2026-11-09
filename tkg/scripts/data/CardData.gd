@@ -185,7 +185,7 @@ func keywords() -> Array:
 		# BRACE, not 'brace': it is the word the card prints, and a glossary must match the card.
 		out.append(["Brace", "Stops damage. Stays up between turns, and costs 1 heat a turn to hold."])
 	if brace_from_heat:
-		out.append(["Brace from heat", "You brace for however much heat you are carrying."])
+		out.append(["Brace from heat", "You brace for half the heat you are carrying, plus 2."])
 	if feedback > 0:
 		out.append(["Feedback", "Deals this straight back to any enemy that attacks you."])
 	if negate_next:
@@ -204,7 +204,7 @@ func keywords() -> Array:
 	if flashpoint > 0:
 		out.append(["Flashpoint", "Deals this much more per hit if your heat is over your capacity when it is played."])
 	if damage_equals_heat:
-		out.append(["Damage from heat", "Hits for exactly however much heat you are carrying."])
+		out.append(["Damage from heat", "Hits for the heat you are carrying, plus 2."])
 	if lock_on > 0:
 		out.append(["Lock on", "Your next attack this turn deals this much more per hit. Lock on from more cards adds up."])
 	if vent > 0 or vent_all:

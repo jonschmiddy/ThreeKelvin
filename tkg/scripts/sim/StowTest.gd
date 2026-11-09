@@ -83,6 +83,7 @@ func run(tree: SceneTree) -> void:
 		Run.at = to2
 		Router.show_sector()
 		await _map_ready()
+		_ok("the next arrival is the system map", Router.current is SystemMapScreen)
 		_ok("and it is STILL shut on the next system's map",
 			_find_button(Router.current, "DECIDE LATER") == null)
 		_ok("with the offer still standing", Run.found_hull != null)

@@ -3,20 +3,11 @@ extends Node
 ## A.S.H.'s outline sits on the world nearest the ship, not the ship (Jon, Nov 4). Needs a window.
 ## Why: docs/why/MapFlyShot.md#map-fly-shot
 
-var _args: PackedStringArray
 var _out := ""
 var _tree: SceneTree
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
 
 
@@ -36,7 +27,7 @@ func _worlds(L: SystemLayout) -> int:
 
 func _run() -> void:
 	_tree = get_tree()
-	_out = _arg("out", "user://mapflyshot")
+	_out = Harness.arg("out", "user://mapflyshot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	await _tree.process_frame
 	Ash.forced = true
@@ -45,7 +36,7 @@ func _run() -> void:
 	Hints.forced = true
 	Hints.reset()
 	Ash.reload()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Ash.mark_intro(true)
 	for id in Hints.ORDER:
@@ -77,13 +68,13 @@ func _run() -> void:
 			most = w
 			many = m
 	var shots: Array = [[one, "one"], [many, "many"], [twin, "binary"]]
-	var nn := int(_arg("node", "-1"))
+	var nn := int(Harness.arg("node", "-1"))
 	if nn >= 0 and nn < Run.map.size():
 		shots.append([Run.map[nn], "node%d" % nn])
 	for pair in shots:
 		var m: MapGen.MapNode = pair[0]
 		if m == null:
-			print("[mapflyshot] MISSING %s: no such system on seed %s" % [pair[1], _arg("seed", "4242")])
+			print("[mapflyshot] MISSING %s: no such system on seed %s" % [pair[1], Harness.arg("seed", "4242")])
 			continue
 		Hints.mark_seen(&"map_fly", false)
 		Run.at = m.index

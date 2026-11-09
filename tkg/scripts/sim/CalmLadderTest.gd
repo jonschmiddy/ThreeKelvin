@@ -5,7 +5,7 @@ extends Node
 ## Why: docs/why/CalmLadderTest.md#calm-ladder-checks
 
 const SF := preload("res://scripts/ui/sysmap/ShipFlight.gd")
-var _fails := 0
+var harness := Harness.new()
 var _tree: SceneTree
 var _zl: GDScript = load("res://scripts/ui/ZoomLadder.gd")
 const JUMP_PX := 40.0
@@ -23,18 +23,12 @@ const RESUME_PX := 2.0
 
 func _ok(what: String, c: bool) -> bool:
 	if not c:
-		print("  FAIL %s" % what)
-		_fails += 1
+		harness._fail(what)
 	return c
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _settled() -> bool:
@@ -47,7 +41,7 @@ func _rest() -> void:
 		if _settled():
 			break
 		await _tree.process_frame
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 
 
 ## Your ship's place on screen, as the screen `s` draws it now (or INF).
@@ -259,7 +253,7 @@ func _click(at: Vector2, c: Control = null) -> void:
 	vp.push_input(mm)
 	if c != null:
 		c.notification(Control.NOTIFICATION_MOUSE_ENTER)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	for down in [true, false]:
 		var mb := InputEventMouseButton.new()
 		mb.button_index = MOUSE_BUTTON_LEFT
@@ -269,7 +263,7 @@ func _click(at: Vector2, c: Control = null) -> void:
 		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
 		vp.push_input(mb)
 		if down:
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 	if c != null and is_instance_valid(c):
 		c.notification(Control.NOTIFICATION_MOUSE_EXIT)
 
@@ -626,7 +620,7 @@ func _at(rank: int) -> void:
 		ZoomLadder.CHART:
 			Router.show_starchart()
 	ZoomLadder.hold_off = false
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	await _rest()
 
 
@@ -649,7 +643,7 @@ func _run() -> void:
 	ZoomLadder.hold_off = true
 	Router.show_local()
 	ZoomLadder.hold_off = false
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	await _rest()
 	var L := ZoomLadder.LOCAL
 	var M := ZoomLadder.MAP
@@ -703,7 +697,7 @@ func _run() -> void:
 			await _at(L)
 		Router._post_arrive = true
 		Router.show_system()
-		await _frames(300)
+		await Harness.frames(_tree, 300)
 		await _rest()
 		var mp := Router.current as SystemMapScreen
 		print("  [calm] at the edge: your ship at %s, flying %s" % [_ship(mp), mp.flight.mode if mp != null and mp.flight != null else &"-"])
@@ -719,8 +713,8 @@ func _run() -> void:
 	await _keys_let_go(&"w")
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
-	print("calmladdertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("calmladdertest")
+	_tree.quit(harness.code())
 
 
 ## A partner holds with the map clock as your ship does, easing on once the clock runs.
@@ -815,7 +809,7 @@ func _preview_holds() -> void:
 		await _tree.process_frame
 		if ov._pv_plan != null:
 			break
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var drawn = ov._pv_plan
 	if not _ok("a preview drawn before the move", drawn != null):
 		m.select_body(-9)
@@ -876,7 +870,7 @@ func _flight_holds(path: StringName) -> void:
 	if not _ok("the %s flight leaves (%s)" % [path, m.flight.mode], m.flight.mode == &"fly"):
 		SF.path_k = was
 		return
-	await _frames(15)
+	await Harness.frames(_tree, 15)
 	var pace := float(m.flight.plan.pace) if m.flight.plan != null else 0.0
 	_click(_tab_at(ZoomLadder.CHART), _tab_button(ZoomLadder.CHART))
 	var held_n := 0
@@ -923,7 +917,7 @@ func _keys_let_go(key: StringName) -> void:
 		return
 	m.harness_keys = true
 	m._wasd[String(key)] = true
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var want0 := Audio.ship_want
 	var mode0: StringName = m.flight.mode
 	var want_mode: StringName = &"free" if key == &"w" else &"rail"
@@ -997,13 +991,13 @@ func _field_drift() -> void:
 		return
 	for r: int in [ZoomLadder.CHART, ZoomLadder.MAP]:
 		await _at(r)
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		var p0 := f.pan
 		var q0: Variant = NavField.screen_pan(Router.current)
 		var pic: Rect2 = Router.current.call(&"ladder_picture")
 		var c := pic.get_center()
 		await _drag(c + Vector2(80, 20), c + Vector2(-60, -10))
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		var p1 := f.pan
 		var q1: Variant = NavField.screen_pan(Router.current)
 		var want: Vector2 = ((q1 as Vector2) - (q0 as Vector2)) if q0 is Vector2 and q1 is Vector2 else Vector2.ZERO
@@ -1013,7 +1007,7 @@ func _field_drift() -> void:
 		var away := ZoomLadder.LOCAL if r == ZoomLadder.CHART else ZoomLadder.CHART
 		await _hop("drift: tab %s -> %s after a drag" % [_nm(r), _nm(away)], func() -> void: _click(_tab_at(away), _tab_button(away)), away)
 		await _rest()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_ok("drift: across the hop %s -> %s the field stands where it was (%s, then %s)" % [_nm(r), _nm(away), p1, f.pan], f.pan == p1)
 		if away == ZoomLadder.LOCAL:
 			var sky := NavField.live_local_sky()
@@ -1126,7 +1120,7 @@ func _goal_line() -> void:
 		return
 	Hints.forced = true
 	await _at(ZoomLadder.LOCAL)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var gl := g as Control
 	for h: Array in [[ZoomLadder.LOCAL, ZoomLadder.MAP, KEY_TAB], [ZoomLadder.MAP, ZoomLadder.CHART, KEY_TAB],
 			[ZoomLadder.CHART, ZoomLadder.LOCAL, KEY_TAB]]:

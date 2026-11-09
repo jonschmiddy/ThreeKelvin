@@ -70,22 +70,28 @@ func derive(tag: StringName, index: int) -> RandomNumberGenerator:
 
 
 ## Stream cursors are saved, or a load would rewind them and repeat the first module.
+## The 64-bit ones go as strings: JSON reads a number back as a double, which keeps 53 bits.
 func state() -> Dictionary:
 	return {
 		"master": master, "seat": seat,
-		"world": world.state, "loot": loot.state, "event": event.state,
-		"foe": foe.state, "fight": fight.state,
+		"world": str(world.state), "loot": str(loot.state), "event": str(event.state),
+		"foe": str(foe.state), "fight": str(fight.state),
 	}
 
 
 func restore(d: Dictionary) -> void:
 	# Seat first, so a pre-seat save lands on 0 and a co-op resume keeps its ship.
 	reseed(int(d.get("master", 0)), int(d.get("seat", 0)))
-	world.state = int(d.get("world", world.state))
-	loot.state = int(d.get("loot", loot.state))
-	event.state = int(d.get("event", event.state))
-	foe.state = int(d.get("foe", foe.state))
-	fight.state = int(d.get("fight", fight.state))
+	world.state = _cursor(d.get("world", world.state))
+	loot.state = _cursor(d.get("loot", loot.state))
+	event.state = _cursor(d.get("event", event.state))
+	foe.state = _cursor(d.get("foe", foe.state))
+	fight.state = _cursor(d.get("fight", fight.state))
+
+
+## A string (what state() writes) or the number an older save holds.
+static func _cursor(v: Variant) -> int:
+	return (v as String).to_int() if typeof(v) == TYPE_STRING else int(v)
 
 
 # --- what Array gives you for free, and RandomNumberGenerator does not -----

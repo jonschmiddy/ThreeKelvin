@@ -4,7 +4,6 @@ extends Node
 ## driving wall-clock overrides.
 ## Why: docs/why/NavFilm.md#navigation-audit
 
-var _args: PackedStringArray
 var _dir := ""
 var _t := 0.0
 var _marks: Array = []
@@ -35,7 +34,6 @@ class Ptr extends Control:
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	process_priority = 1000000
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var early := _Early.new()
@@ -43,13 +41,6 @@ func _ready() -> void:
 	early.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(early)
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 # ------------------------------------------------------------------ the log
@@ -111,7 +102,7 @@ func _lit(b: Button) -> int:
 class _Early extends Node:
 	func _process(delta: float) -> void:
 		var g := GameClock.now()
-		StarchartScreen.MapChart.clock_override = g
+		MapChart.clock_override = g
 		for s: Variant in [Router.current, ZoomLadder.prebuilt]:
 			if s is SystemMapScreen and is_instance_valid(s):
 				var mp := s as SystemMapScreen
@@ -331,18 +322,6 @@ func _wheel(at: Vector2, up: bool, n: int, why: String, gap_s: float = 0.07) -> 
 		await _wait(gap_s)
 
 
-func _find_button(root: Node, text: String) -> Button:
-	if root == null:
-		return null
-	if root is Button and (root as Button).text == text and (root as Button).is_visible_in_tree() and not (root as Button).disabled:
-		return root
-	for c in root.get_children():
-		var b := _find_button(c, text)
-		if b != null:
-			return b
-	return null
-
-
 func _tab(which: String) -> Button:
 	var h := Router.hud
 	match which:
@@ -403,18 +382,18 @@ func _park(sys: int) -> int:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	_dir = _arg("out", "user://navfilm")
+	_dir = Harness.arg("out", "user://navfilm")
 	DirAccess.make_dir_recursive_absolute(_dir)
 	_log = FileAccess.open(_dir + "/frames.jsonl", FileAccess.WRITE)
 	Router.animate_in_harness = true
 	Audio.taping = true
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", HullData.Weight.MEDIUM)
 	StarchartScreen._primed_for = Run.galaxy_seed
 	_overlay()
 	# (`at=nebula`: the run moved to the first system that sits in a cloud, so a
 	# reel films the map's and LOCAL's gas)
-	if _arg("at", "") == "nebula":
+	if Harness.arg("at", "") == "nebula":
 		for n: MapGen.MapNode in Run.map:
 			if n.in_nebula and n.type == MapGen.NodeType.SYSTEM:
 				Run.at = n.index
@@ -427,7 +406,7 @@ func _run() -> void:
 	_quietly(Router.show_local)
 	await _wait(3.0)
 	_mark("start", {seed = Rng.forced, sys = sys})
-	match _arg("reel", "ladder"):
+	match Harness.arg("reel", "ladder"):
 		"ladder":
 			await _reel_ladder()
 		"short":
@@ -623,7 +602,7 @@ func _journey_rest() -> void:
 		var at: Vector2 = mp._ladder_origin() + mp.overlay.place_rel(to)
 		await _click_at(at, "a world on the map")
 		await _wait(1.2)
-		var fly := _find_button(mp, "FLY HERE")
+		var fly := Harness.button_with_text(mp, "FLY HERE", false, true)
 		if fly != null:
 			await _click(fly, "FLY HERE")
 		else:
@@ -870,7 +849,7 @@ func _fight() -> void:
 	await _until(func() -> bool: return Router.combat == null and Router.current is SectorScreen, 30.0)
 	sc = Router.current as SectorScreen
 	await _wait(2.0)
-	var cont := _find_button(sc, "CONTINUE")
+	var cont := Harness.button_with_text(sc, "CONTINUE", false, true)
 	if cont != null:
 		await _wait(2.0)
 		_hop_n += 1
@@ -947,11 +926,11 @@ func _reel_dock() -> void:
 	var sc := Router.current as SectorScreen
 	_hop_n += 1
 	_mark("hop", {n = _hop_n, label = "L_S_dock", route = "click", from = "L"})
-	await _click(_find_button(sc, "DOCK"), "DOCK")
+	await _click(Harness.button_with_text(sc, "DOCK", false, true), "DOCK")
 	await _settle(3.0, 40.0)
 	_hop_n += 1
 	_mark("hop", {n = _hop_n, label = "S_L_undock", route = "click", from = "S"})
-	await _click(_find_button(Router.current, "UNDOCK"), "UNDOCK")
+	await _click(Harness.button_with_text(Router.current, "UNDOCK", false, true), "UNDOCK")
 	await _settle(2.5, 40.0)
 	await _hop_tab("SECTOR", "L_M_tab_station")
 	await _hop_tab("STARCHART", "M_C_tab_station")
@@ -969,7 +948,7 @@ func _reel_dock() -> void:
 	await _hop_tab("SECTOR", "L_M_tab_station2")
 	var mp := Router.current as SystemMapScreen
 	if mp != null:
-		var dk := _find_button(mp, "DOCK")
+		var dk := Harness.button_with_text(mp, "DOCK", false, true)
 		if dk == null:
 			# the station's place picked first, its page has DOCK
 			for b in mp.view.layout.bodies:
@@ -977,7 +956,7 @@ func _reel_dock() -> void:
 					if bc.dock:
 						mp.select_body(b.index)
 			await _wait(1.5)
-			dk = _find_button(mp, "DOCK")
+			dk = Harness.button_with_text(mp, "DOCK", false, true)
 		if dk != null:
 			_hop_n += 1
 			_mark("hop", {n = _hop_n, label = "M_S_dock", route = "click", from = "M"})
@@ -1045,7 +1024,7 @@ func _reel_session() -> void:
 		if to >= 0:
 			await _click_at(mp._ladder_origin() + mp.overlay.place_rel(to), "a world")
 			await _wait(1.0)
-			var fly := _find_button(mp, "FLY HERE")
+			var fly := Harness.button_with_text(mp, "FLY HERE", false, true)
 			if fly != null:
 				await _click(fly, "FLY HERE")
 			else:

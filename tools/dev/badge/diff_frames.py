@@ -38,6 +38,9 @@ def main():
             x, y = diff[0]
             print("%s: %d pixels differ, first at (%d,%d): game %s, page %s" % (n, len(diff), x, y, pa[x, y], pb[x, y]))
             bad += 1
+    extra = sorted(web_names - set(names))
+    for n in extra:
+        print("only in the page:", n)
     print("%d of %d frames identical to the page" % (len(names) - bad, len(names)))
     if len(sys.argv) > 3:
         rows = {}
@@ -53,7 +56,7 @@ def main():
                     sheet.alpha_composite(im, (pad + c * (w * z + pad), pad + r * (2 * h * z + 3 * pad) + i * (h * z + pad)))
         sheet.save(sys.argv[3])
         print("wrote", sys.argv[3])
-    return 0 if bad == 0 else 1
+    return 0 if bad == 0 and not extra else 1
 
 
 if __name__ == "__main__":

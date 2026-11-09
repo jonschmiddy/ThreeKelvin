@@ -4,7 +4,6 @@ extends Node
 ## window.
 ## Why: docs/why/AshShot.md#ash-photography
 
-var _args: PackedStringArray
 var _tree: SceneTree
 var _out := ""
 var _test: Node = null
@@ -12,28 +11,15 @@ var _test: Node = null
 const SCREENS := ["local", "fight_one", "fight_pair", "fight_three"]
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _run() -> void:
 	_tree = get_tree()
-	_out = _arg("out", "user://ashshot")
+	_out = Harness.arg("out", "user://ashshot")
 	DirAccess.make_dir_recursive_absolute(_out)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Ash.forced = true
 	Ash.reload()
 	Ash.set_on(true)
@@ -41,7 +27,7 @@ func _run() -> void:
 	# are the ones she says
 	Ash.mark_intro(true)
 	_test = load("res://scripts/sim/AshTest.gd").new()
-	match _arg("mode", "stills"):
+	match Harness.arg("mode", "stills"):
 		"stills":
 			await _stills()
 		"options":
@@ -54,7 +40,7 @@ func _run() -> void:
 ## Up on `screen`, with nothing said and nothing waiting.
 func _screen(screen: String) -> SectorScreen:
 	var weight := HullData.Weight.MEDIUM
-	var seed_v := int(_arg("seed", "4242"))
+	var seed_v := Harness.seed_arg(4242)
 	Rng.forced = seed_v
 	Run.start_new_run(&"korvan", weight)
 	for m: MapGen.MapNode in Run.map:
@@ -67,7 +53,7 @@ func _screen(screen: String) -> SectorScreen:
 		Run.new_wreck(Run.node_at(), DB.enemies[&"cutter"], 0)
 		Run.new_wreck(Run.node_at(), DB.enemies[&"marauder"], 0)
 	Router.show_local()
-	await _frames(90)
+	await Harness.frames(_tree, 90)
 	var foes: Array = []
 	match screen:
 		"fight_one":
@@ -82,7 +68,7 @@ func _screen(screen: String) -> SectorScreen:
 			extras.append(DB.enemies[x])
 		Run.node_at().danger = maxi(Run.node_at().danger, 4)
 		Router.start_combat(DB.enemies[foes[0]], extras, false, false)
-		await _frames(150)
+		await Harness.frames(_tree, 150)
 	_quiet()
 	return Router.current as SectorScreen
 
@@ -108,7 +94,7 @@ func _speak(sc: SectorScreen, line: String = "") -> bool:
 		await _tree.process_frame
 		var p := Ash.portrait
 		if p != null and p.phase == AshPortrait.Phase.HOLDING:
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			return true
 	print("[ashshot] she did not speak (held by %s)" % Ash.held_by)
 	return false
@@ -133,8 +119,8 @@ func _stills() -> void:
 
 
 func _options() -> void:
-	var screens := _arg("screens", ",".join(SCREENS)).split(",")
-	var spots := _arg("spots", ",".join(Ash.ALL_SPOTS)).split(",")
+	var screens := Harness.arg("screens", ",".join(SCREENS)).split(",")
+	var spots := Harness.arg("spots", ",".join(Ash.ALL_SPOTS)).split(",")
 	DirAccess.make_dir_recursive_absolute(_out + "/options")
 	var doc := {}
 	for scr in screens:

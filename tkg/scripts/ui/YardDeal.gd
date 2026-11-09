@@ -6,12 +6,12 @@ extends RefCounted
 ## Why: docs/why/YardDeal.md#yard-deal-tv
 
 const LID := 13
-const DEAL_CAP := Color("#8fa3ba")
-const DEAL_VAL := Color("#c3d2e2")
+const DEAL_CAP := UITheme.CHILL
+const DEAL_VAL := UITheme.ICE
 const DEAL_PRICE := Color("#ffbe55")
 const DEAL_RULE := Color("#2c3b4d")
 const AMBER := Color("#f0a030")
-const POOR := Color("#5a6470")
+const POOR := UITheme.QUOTE
 const SHADOW := Color(4.0 / 255.0, 6.0 / 255.0, 10.0 / 255.0, 0.75)
 
 var scene: YardScene
@@ -34,7 +34,6 @@ var _tex := {}
 ## Each lamp on the TV, as pictures: its lit pixels, its outline, and (the
 ## unclaimed bulb) its unlit glass.
 var _lamps: Array = []
-var _halos := {}
 var bulb_was := -1.0
 ## What its lamps put at its own feet, now and at full (the page's `SPILLAT`).
 var spill_now := PackedFloat32Array([0, 0, 0, 0, 0])
@@ -317,9 +316,9 @@ func draw(P: YardPaint, t: float, tb: float) -> void:
 	P.tex(gt, Vector2(GX, GY + jolt), Rect2(0, 0, GW, GH), Mg)
 	if sag.has("sag"):
 		var a := 1.0 - float(sag["sag"])
-		P.tex(_tex["art"], Vector2(GX, GY), Rect2(), Color(Mq.r, Mq.g, Mq.b, a))
+		P.tex(_tex["art"], Vector2(GX, GY), Rect2(), Color(Mq, a))
 	if sag.has("flash"):
-		P.rect(Rect2(GX, GY, GW, GH), Color(tint.r, tint.g, tint.b, float(sag["flash"])))
+		P.rect(Rect2(GX, GY, GW, GH), Color(tint, float(sag["flash"])))
 	if not s.is_empty():
 		for bd: Array in s["bands"]:
 			var by := float(bd[0])
@@ -331,7 +330,7 @@ func draw(P: YardPaint, t: float, tb: float) -> void:
 			var cut0 := maxf(0.0, -sh)
 			var cut1 := maxf(0.0, sh)
 			P.tex(gt, Vector2(x0 + cut0, GY + by), Rect2(cut0, src, float(GW) - cut0 - cut1, bh))
-		var snc := Color(tint.r, tint.g, tint.b, 0.35)
+		var snc := Color(tint, 0.35)
 		for ly: int in s["snow"]:
 			var x := 0
 			while x < GW:
@@ -506,8 +505,8 @@ class _Over:
 		var sy := floorf(D.reveal * float(D.GH))
 		var tn := D.tint
 		if D.reveal > 0.0 and D.reveal < 1.0:
-			draw_rect(Rect2(0, sy, D.GW, 1), Color(tn.r, tn.g, tn.b, 0.6))
-			draw_rect(Rect2(0, maxf(0.0, sy - 2.0), D.GW, 2), Color(tn.r, tn.g, tn.b, 0.18))
+			draw_rect(Rect2(0, sy, D.GW, 1), Color(tn, 0.6))
+			draw_rect(Rect2(0, maxf(0.0, sy - 2.0), D.GW, 2), Color(tn, 0.18))
 		var fx: Dictionary = D.T.get("fx", {})
 		var rv: Array = D.T.get("reveal", [2.7, 3.3])
 		var kind := String(fx.get("kind", ""))
@@ -516,8 +515,8 @@ class _Over:
 			var ph := fmod(t, 7.0) / 1.4
 			if ph <= 1.0:
 				var ly := floorf(ph * float(D.GH))
-				draw_rect(Rect2(0, ly, D.GW, 1), Color(tn.r, tn.g, tn.b, 0.45))
-				draw_rect(Rect2(0, maxf(0.0, ly - 2.0), D.GW, 2), Color(tn.r, tn.g, tn.b, 0.12))
+				draw_rect(Rect2(0, ly, D.GW, 1), Color(tn, 0.45))
+				draw_rect(Rect2(0, maxf(0.0, ly - 2.0), D.GW, 2), Color(tn, 0.12))
 		# rim: a gold streak runs once round the glass's inside edge, every 7 s,
 		# in 2px steps as the lab's does
 		if kind == "rim" and tb >= float(rv[1]) + 0.5:

@@ -26,13 +26,6 @@ var _args: PackedStringArray
 var _tree: SceneTree
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
@@ -57,10 +50,10 @@ func _run() -> void:
 	ShipView.shot_clock = 0.0
 	if "noblur" in _args:
 		CutawayView.harness_no_blur = true
-	var out := _arg("out", "user://local_audit")
-	var styles := _arg("styles", "simplified,painted,radiant").split(",")
-	var cases: PackedStringArray = _arg("cases", ",".join(CASES.keys())).split(",")
-	var nclip := int(_arg("clipframes", "45"))
+	var out := Harness.arg("out", "user://local_audit")
+	var styles := Harness.arg("styles", "simplified,painted,radiant").split(",")
+	var cases: PackedStringArray = Harness.arg("cases", ",".join(CASES.keys())).split(",")
+	var nclip := int(Harness.arg("clipframes", "45"))
 	for st in styles:
 		DisplaySettings.render_style = StringName(st)
 		var dir := "%s/%s" % [out, st]

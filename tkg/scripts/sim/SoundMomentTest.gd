@@ -5,7 +5,7 @@ extends Node
 ## Why: docs/why/SoundMomentTest.md#sound-moments
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 ## every moment a picture emitted: [source, kind, frame, game s]
 var _moments: Array = []
 ## Sig.hit_landed: [amount, to_player, absorbed, frame]
@@ -22,19 +22,11 @@ var _sfx: Dictionary = {}
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _fr() -> int:
@@ -122,7 +114,7 @@ func _on_node_added(n: Node) -> void:
 
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_tree.process_frame.connect(_on_frame)
 	_tree.node_added.connect(_on_node_added)
 	Sig.hit_landed.connect(func(a: int, tp: bool, _w: int, ab: int) -> void:
@@ -161,8 +153,8 @@ func _run() -> void:
 
 	Router.animate_in_harness = false
 	Audio.taping = false
-	print("soundmomenttest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("soundmomenttest")
+	_tree.quit(harness.code())
 
 
 # ---------------------------------------------------------------- the table
@@ -285,13 +277,13 @@ func _start(seed: int, id: StringName, pick_node: Callable = Callable()) -> Sect
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Router.start_combat(DB.enemies[id], [], false, false)
 	for i in 900:
 		await _tree.process_frame
 		var sc := Router.current as SectorScreen
 		if Router.combat != null and sc != null and sc.fighting() and not sc._opening:
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			return sc
 	return null
 
@@ -349,7 +341,7 @@ func _hulk() -> void:
 	var t0b := Audio.tape.size()
 	e.brace += 4
 	sc._fx_sync_enemy(0)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var bolts := _moments_of(&"enemy", [&"bolt_on"], m0b)
 	var clamps := _moments_of(&"enemy", [&"clamp"], m0b)
 	var on := _heard(&"brace_on", h0b)
@@ -375,7 +367,7 @@ func _hulk() -> void:
 	var h1 := _heard_rows().size()
 	var t1 := Audio.tape.size()
 	_play(DB.SHARED[&"brace"])
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	var mine := _moments_of(&"you", [&"bolt_on"], m1)
 	var yours := _heard(&"brace_on_yours", h1)
 	_ok("Bolt On: your plates go on (%d) and are heard on that frame (%s vs %s)"
@@ -400,14 +392,14 @@ func _hulk() -> void:
 		offs.size() == 1 and shed.size() == 1 and int(shed[0][4]) == int(offs[0][2]))
 	_ok("as jettison at -10 dB", not offs.is_empty() and _taped_at(&"jettison", int(offs[0][2]), t2).size() == 1
 		and is_equal_approx(float(_taped_at(&"jettison", int(offs[0][2]), t2)[0][2]), -10.0))
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	# (the impact's and the plate's own rate limits are the wall's: let some pass)
 	OS.delay_msec(150)
 	var shot: Dictionary = (DB.SHARED[&"cut"] as Dictionary).duplicate()
 	shot.energy = 0
 	_play(shot)
 	await _until(func() -> bool: return _landed.size() > l2, 180)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var land: Array = _landed[l2] if _landed.size() > l2 else [0, false, 0, -1]
 	_ok("the hit lands partly taken (%d through, %d taken)" % [land[0], land[2]], int(land[0]) > 0 and int(land[2]) > 0)
 	var part := _heard(&"hit_partial", h2)
@@ -437,7 +429,7 @@ func _hulk() -> void:
 		and is_equal_approx(float(_taped_at(&"shield_block", int(ups[0][2]), t3)[0][2]), -6.0))
 	# ITS HUM: up on the frame the shield is (one hum, whoever holds one; the
 	# screen asks after the shields every frame, later in this one)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var hum := _heard(&"shield_idle", h3)
 	_ok("the shield's hum comes up with it (%s vs %s), as shield_idle_bed" % [hum.map(func(r: Array) -> int: return int(r[4])),
 		ups.map(func(m: Array) -> int: return int(m[2]))],
@@ -445,7 +437,7 @@ func _hulk() -> void:
 		and _beds().has(&"shield_idle"))
 	cb.block = 12
 	sc._fx_sync_player()
-	await _frames(240)
+	await Harness.frames(_tree, 240)
 	_ok("a second shield (yours) does not stack a second hum (%d)" % _heard(&"shield_idle", h3).size(),
 		_heard(&"shield_idle", h3).size() == 1)
 	# ITS RIPPLES AND GLITCHES, four seconds of them: on their frames, half a
@@ -462,11 +454,11 @@ func _hulk() -> void:
 		and gh.all(func(r: Array) -> bool: return int(r[4]) in gf and _one(&"shield_glitch", int(r[4]), t3, 0.0)))
 	cb.block = 0
 	sc._fx_sync_player()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	OS.delay_msec(150)
 	_play(shot)
 	await _until(func() -> bool: return _landed.size() > l3, 180)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var land3: Array = _landed[l3] if _landed.size() > l3 else [0, false, 0, -1]
 	var whole := _taped_at(&"shield_block", int(land3[3]), t3)
 	_ok("a hit taken whole: shield_block at -4 dB, no partial (%s)" % [whole],
@@ -477,7 +469,7 @@ func _hulk() -> void:
 	var h3b := _heard_rows().size()
 	e.block = 0
 	sc._fx_sync_enemy(0)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var stop := _heard(&"shield_idle", h3b).filter(func(r: Array) -> bool: return r[1] == &"stop")
 	var fz := _moments_of(&"enemy", [&"shield_fizzle"], m3b)
 	_ok("its hum goes down as the shield fizzles (%s vs %s)" % [stop.map(func(r: Array) -> int: return int(r[4])),
@@ -517,7 +509,7 @@ func _hulk() -> void:
 	if shown is Dictionary:
 		(shown as Dictionary)[0] = e.hp
 	sc._fx_sync_enemy(0)
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var m4 := _moments.size()
 	var h4 := _heard_rows().size()
 	var t4 := Audio.tape.size()
@@ -541,7 +533,7 @@ func _hulk() -> void:
 	_ok("three vents opened on one frame (%d) heard once (%d)" % [hiss.size(), hh.size()],
 		hiss.size() == 3 and hh.size() == 1 and int(hh[0][4]) == int(hiss[0][2]))
 	_ok("as gas_vent at 0 dB", not hh.is_empty() and _one(&"gas_vent", int(hh[0][4]), t4, 0.0))
-	await _frames(600)
+	await Harness.frames(_tree, 600)
 	var sp := _moments_of(&"enemy", [&"sputter"], m4)
 	var sh := _heard(&"vent_sputter", h4)
 	var sp_frames := sp.map(func(m: Array) -> int: return int(m[2]))
@@ -571,7 +563,7 @@ func _hulk() -> void:
 	var m5 := _moments.size()
 	var h5 := _heard_rows().size()
 	sc._view.slot(0).hide_art(true)
-	await _frames(400)
+	await Harness.frames(_tree, 400)
 	var hid := _moments_of(&"enemy", [&"sputter"], m5)
 	_ok("its layers hidden, its sputters (%d) are not heard (%d)" % [hid.size(), _heard(&"vent_sputter", h5).size()],
 		hid.size() >= 1 and _heard(&"vent_sputter", h5).is_empty())
@@ -608,7 +600,7 @@ func _leave() -> void:
 		if Router.combat == null:
 			break
 		await _tree.process_frame
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 
 
 ## The first system (over seeds from `seed0`) where a `id` dies in `style`.
@@ -634,7 +626,7 @@ func _kill_and_watch(max_frames: int = 1500) -> bool:
 	for i in max_frames:
 		await _tree.process_frame
 		if not _moments_of(&"death", [&"finished"], m0).is_empty():
-			await _frames(20)
+			await Harness.frames(_tree, 20)
 			return true
 	return false
 
@@ -771,7 +763,7 @@ func _custodian(style: int) -> void:
 	SectorScreen._approached_at = core
 	Router.final_loot = false
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Router.start_combat(DB.enemies[&"custodian"], [], false, false)
 	var sc: SectorScreen = null
 	for i in 900:
@@ -779,7 +771,7 @@ func _custodian(style: int) -> void:
 		sc = Router.current as SectorScreen
 		if Router.combat != null and sc != null and sc.fighting() and not sc._opening:
 			break
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	if not _ok("its fight opens", Router.combat != null):
 		return
 	var m0 := _moments.size()
@@ -827,7 +819,7 @@ func _custodian(style: int) -> void:
 			split.map(func(m: Array) -> int: return int(m[2]))],
 			split.size() == 1 and sh.size() == 1 and int(sh[0][4]) == int(split[0][2]))
 		_ok("as glass_shatter at 0 dB", not split.is_empty() and _one(&"glass_shatter", int(split[0][2]), t0, 0.0))
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	Router.final_loot = false
 
 
@@ -933,7 +925,7 @@ func _mask_points(h: ShipHitFx, n: int) -> Array:
 	var w: int = h.get("_w")
 	var step := maxi(1, mask.size() / (n + 1))
 	for i in range(step / 2, mask.size()):
-		if mask[i] == 1 and (out.is_empty() or i - (out.back() as Vector2i).y * w > step / 2):
+		if mask[i] == 1 and (out.is_empty() or i - ((out.back() as Vector2i).y * w + (out.back() as Vector2i).x) > step / 2):
 			out.append(Vector2i(i % w, i / w))
 		if out.size() >= n:
 			break
@@ -970,7 +962,7 @@ func _loss() -> void:
 		if Router.current is GameOverScreen:
 			duck.at_swap = GameClock.now()
 			break
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_sampler = Callable()
 	if not _ok("the run's screen comes", Router.current is GameOverScreen):
 		return
@@ -1025,7 +1017,7 @@ func _ladder() -> void:
 			break
 	SectorScreen._approached_at = sys
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	# Out of LOCAL the panel slides on drawn (Jon, Oct 18): the slide sound, no blips.
 	await _hop("LOCAL -> map", Router.show_system, &"chrome_on", &"menu_open", false)
 	await _hop("map -> chart", Router.show_starchart, &"", &"", true)
@@ -1089,7 +1081,7 @@ func _hop(label: String, door: Callable, chrome_row: StringName, chrome_file: St
 		await _tree.process_frame
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and SideSwap.side_now() == null and SideSwap.bar_now() == null:
 			break
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_sampler = Callable()
 	if chrome_row != &"":
 		var ch := _heard(chrome_row, h0)

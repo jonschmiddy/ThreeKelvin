@@ -10,21 +10,9 @@ var _args: PackedStringArray
 var _out := ""
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await RenderingServer.frame_post_draw
 
 
 ## GO's whole flow, on the map's clock (s), and at most this many frames
@@ -49,13 +37,13 @@ func _shot(name: String) -> void:
 
 func _run() -> void:
 	var tree := get_tree()
-	_out = _arg("out", "user://eventshot")
+	_out = Harness.arg("out", "user://eventshot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	await tree.process_frame
-	Rng.forced = int(_arg("seed", "1"))
+	Rng.forced = Harness.seed_arg(1)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	LocalEventDrawer.layout = StringName(_arg("layout", "column"))
-	var idx := int(_arg("node", "11"))
+	LocalEventDrawer.layout = StringName(Harness.arg("layout", "column"))
+	var idx := int(Harness.arg("node", "11"))
 	var n: MapGen.MapNode = Run.map[idx]
 	Run.at = idx
 	n.visited = true
@@ -68,8 +56,8 @@ func _run() -> void:
 		await _compare(n)
 	if "reveal" in _args:
 		await _reveal(n)
-	if _arg("revealav") != "":
-		await _reveal_av(n, _arg("revealav"))
+	if Harness.arg("revealav") != "":
+		await _reveal_av(n, Harness.arg("revealav"))
 	tree.quit()
 
 

@@ -36,7 +36,7 @@ static func size_of(i: int) -> Vector2:
 
 
 static func _shadow(b: PostingBoard, r: Rect2, a: float = 0.4) -> void:
-	b.draw_rect(Rect2(r.position + Vector2(3, 4), r.size), Color(SHADE.r, SHADE.g, SHADE.b, a))
+	b.draw_rect(Rect2(r.position + Vector2(3, 4), r.size), Color(SHADE, a))
 
 
 static func draw(b: PostingBoard, i: int) -> void:
@@ -47,10 +47,10 @@ static func draw(b: PostingBoard, i: int) -> void:
 			b.draw_rect(sh, Color("#b8ab88"))
 			for k in 6:
 				b.draw_rect(Rect2(sh.position.x + 8.0, sh.position.y + 14.0 + float(k) * 10.0,
-					sh.size.x - 20.0 - float((k * 13) % 30), 2.0), Color(INK_SOFT.r, INK_SOFT.g, INK_SOFT.b, 0.5))
+					sh.size.x - 20.0 - float((k * 13) % 30), 2.0), Color(INK_SOFT, 0.5))
 			var sr := Rect2(sh.position.x + 14.0, sh.get_center().y - 12.0, sh.size.x - 28.0, 22.0)
-			b.draw_rect(sr, Color(RED.r, RED.g, RED.b, 0.85), false, 2.0)
-			b._centre_at("FILLED", sr.position.x, sr.position.y + 17.0, sr.size.x, UITheme.FS_HEAD, Color(RED.r, RED.g, RED.b, 0.85))
+			b.draw_rect(sr, Color(RED, 0.85), false, 2.0)
+			b._centre_at("FILLED", sr.position.x, sr.position.y + 17.0, sr.size.x, UITheme.FS_HEAD, Color(RED, 0.85))
 			b._pin(Vector2(sh.position.x + sh.size.x * 0.5, sh.position.y + 3.0), PIN)
 		1:
 			# three stickies, overlapping
@@ -60,7 +60,7 @@ static func draw(b: PostingBoard, i: int) -> void:
 				_shadow(b, Rect2(at, Vector2(48, 48)), 0.35)
 				b.draw_rect(Rect2(at, Vector2(48, 48)), cols[k])
 				for l in 3:
-					b.draw_rect(Rect2(at.x + 6.0, at.y + 12.0 + float(l) * 9.0, 34.0 - float(l * 7), 2.0), Color(INK.r, INK.g, INK.b, 0.6))
+					b.draw_rect(Rect2(at.x + 6.0, at.y + 12.0 + float(l) * 9.0, 34.0 - float(l * 7), 2.0), Color(INK, 0.6))
 		2:
 			# a business card and a polaroid
 			var bc := Rect2(Vector2(2, 2), Vector2(84.0, 46.0))
@@ -98,7 +98,7 @@ static func draw(b: PostingBoard, i: int) -> void:
 			b.draw_rect(sh2, Color("#a8a090"))
 			for k in 5:
 				b.draw_rect(Rect2(sh2.position.x + 8.0, sh2.position.y + 12.0 + float(k) * 10.0,
-					sh2.size.x - 24.0 - float((k * 11) % 26), 2.0), Color(INK_SOFT.r, INK_SOFT.g, INK_SOFT.b, 0.45))
+					sh2.size.x - 24.0 - float((k * 11) % 26), 2.0), Color(INK_SOFT, 0.45))
 			var st := Rect2(sh2.end - Vector2(46, 40), Vector2(48, 48))
 			_shadow(b, st, 0.35)
 			b.draw_rect(st, Color("#f0d878"))
@@ -406,7 +406,7 @@ static func _pc(i: int, k: int = 0) -> Color:
 
 
 static func _a(c: Color, a: float) -> Color:
-	return Color(c.r, c.g, c.b, a)
+	return Color(c, a)
 
 
 static func _poly(b: PostingBoard, pts: Array, col: Color, off: Vector2 = Vector2.ZERO) -> void:
@@ -1196,7 +1196,7 @@ static func _menu(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 
 
 ## A coupon, cut out along its dashed line, and stapled up.
-static func _coupon(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
+static func _coupon(b: PostingBoard, P: Dictionary, sz: Vector2, _i: int) -> void:
 	var r := _r(sz)
 	var col: Color = P["c"]
 	_paper(b, r, col, 0.4, false)
@@ -1672,7 +1672,7 @@ static func _iou(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 
 
 ## A photo booth strip: four goes at the same picture.
-static func _strip(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
+static func _strip(b: PostingBoard, _P: Dictionary, sz: Vector2, i: int) -> void:
 	var r := _r(sz)
 	_paper(b, r, Color("#f0eee8"), 0.4, false)
 	for k in 4:
@@ -1802,7 +1802,7 @@ static func _vote(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 
 
 ## HANG IN THERE, with a drone holding on to a pipe.
-static func _hang(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
+static func _hang(b: PostingBoard, _P: Dictionary, sz: Vector2, i: int) -> void:
 	var r := _r(sz)
 	_paper(b, r, Color("#202830"), 0.45, false)
 	b.draw_rect(r, Color("#f0ece0"), false, 1.0)
@@ -1825,7 +1825,7 @@ static func _hang(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 
 
 ## A crossword cut out of the sheet, a few of it filled in, in pen.
-static func _xword(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
+static func _xword(b: PostingBoard, _P: Dictionary, sz: Vector2, i: int) -> void:
 	var r := _r(sz)
 	_paper(b, r, NEWS, 0.4, false)
 	_tx(b, "CROSSWORD", r.position.x + 5.0, 13.0, F, INK, r.size.x - 20.0)
@@ -1860,7 +1860,7 @@ static func _xword(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 
 
 ## A playing card, taped up for luck.
-static func _card(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
+static func _card(b: PostingBoard, _P: Dictionary, sz: Vector2, _i: int) -> void:
 	var r := _r(sz)
 	_paper(b, r, Color("#f8f6f0"))
 	_tx(b, "A", r.position.x + 4.0, 14.0, F, Color("#c82a2a"), 10.0)

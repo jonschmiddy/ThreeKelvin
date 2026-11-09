@@ -5,14 +5,11 @@ extends Node
 ## Why: docs/why/OutcomeTest.md#outcome-test
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -46,8 +43,8 @@ func _run() -> void:
 	OutcomeRow.look = &"today"
 	LocalEventDrawer.quiet = false
 	print("")
-	print("outcometest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("outcometest")
+	_tree.quit(h.code())
 
 
 ## Case f on the real LOCAL, its band up and its choice taken; the drawer.

@@ -14,8 +14,8 @@ whole; when it does not, draw_ship() draws it procedurally exactly as it
 always has. That fallback is the point — real art arrives one asset at a time
 and the game has to stay playable through a migration that will take a while.
 
-Every screen goes through this class rather than through ShipSprite, which was
-written for real art and never instantiated. Five call sites already use this
+Every screen goes through this class rather than through ShipSprite (since
+deleted), which was written for real art and never instantiated. Five call sites already use this
 one, and it already owns magnification, showroom preview, heat and damage.
 
 ONE SUBJECT, NOT ONE SHIP. Every read used to go straight to `Run` — the

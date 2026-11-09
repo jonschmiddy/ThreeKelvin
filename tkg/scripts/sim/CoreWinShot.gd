@@ -3,22 +3,13 @@ extends Node
 ## Audio is the Dummy driver, so the clip is silent; it prints each music ask.
 ## Why: docs/why/CoreWinShot.md#core-win-shot
 
-var _args: PackedStringArray
 var _dir := ""
 var _every := 2
 var _k := 0
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _draw_frames(n: int, film: bool = true) -> void:
@@ -38,11 +29,11 @@ func _still(name: String) -> void:
 
 func _run() -> void:
 	var tree := get_tree()
-	_dir = _arg("out")
-	_every = maxi(1, int(_arg("every", "2")))
+	_dir = Harness.arg("out")
+	_every = maxi(1, int(Harness.arg("every", "2")))
 	DirAccess.make_dir_recursive_absolute(_dir + "/clip")
 	await tree.process_frame
-	Rng.forced = int(_arg("seed", "31337"))
+	Rng.forced = Harness.seed_arg(31337)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for i in 2:
 		Run.stow(LootGen.roll_module(6))
@@ -116,7 +107,7 @@ func _run() -> void:
 	await _still("loot_taken.png")
 	await _draw_frames(20)
 	var tv: TransferView = sc._transfer if sc != null else null
-	var done: Button = _find(tv, func(n: Node) -> bool:
+	var done: Button = Harness.first(tv, func(n: Node) -> bool:
 		return n is Button and (n as Button).text == "DONE") as Button
 	if done != null:
 		done.pressed.emit()
@@ -128,14 +119,3 @@ func _run() -> void:
 	print("corewinshot: %d clip frames" % _k)
 	tree.quit()
 
-
-func _find(root: Node, matches: Callable) -> Node:
-	if root == null:
-		return null
-	if matches.call(root):
-		return root
-	for c in root.get_children():
-		var f := _find(c, matches)
-		if f != null:
-			return f
-	return null

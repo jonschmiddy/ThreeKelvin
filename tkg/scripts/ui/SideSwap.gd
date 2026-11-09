@@ -257,7 +257,8 @@ func _content() -> void:
 					if String(r[6]) == "":
 						return false
 					for o: Array in _old_rows:
-						if String(o[6]) == String(r[6]) and absf((o[0] as Rect2).position.x - (r[0] as Rect2).position.x) <= 1.0 								and absf((o[0] as Rect2).position.y - (r[0] as Rect2).position.y) <= 1.0:
+						if String(o[6]) == String(r[6]) and absf((o[0] as Rect2).position.x - (r[0] as Rect2).position.x) <= 1.0 \
+								and absf((o[0] as Rect2).position.y - (r[0] as Rect2).position.y) <= 1.0:
 							return true
 					return false
 				var kept := {}
@@ -274,7 +275,8 @@ func _content() -> void:
 						var left := -1
 						for j in rows.size():
 							var rj := rows[j][0] as Rect2
-							if int(rows[j][1]) == 0 and absf(rj.get_center().y - rr.get_center().y) < 6.0 and rj.end.x <= rr.position.x 									and (left < 0 or rj.end.x > (rows[left][0] as Rect2).end.x):
+							if int(rows[j][1]) == 0 and absf(rj.get_center().y - rr.get_center().y) < 6.0 and rj.end.x <= rr.position.x \
+									and (left < 0 or rj.end.x > (rows[left][0] as Rect2).end.x):
 								left = j
 						keep = had and left >= 0 and kept.has(left)
 					if keep:

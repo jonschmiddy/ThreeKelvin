@@ -1129,8 +1129,8 @@ func draw_ship() -> void:
 		glow = lerp(Color("#1a2029"), Color("#241a12"), t) as Color
 		core = Color("#141a21")
 	elif ratio < 1.0:
-		glow = lerp(Color("#6b3210"), Color("#ff9d3d"), ratio) as Color
-		core = lerp(Color("#a34a18"), Color("#ffd28a"), ratio) as Color
+		glow = lerp(Color("#6b3210"), UITheme.FLARE, ratio) as Color
+		core = lerp(Color("#a34a18"), UITheme.HOT, ratio) as Color
 	else:
 		glow = Color("#ffd9a0")
 		core = Color("#fff4de")

@@ -135,7 +135,7 @@ static func _build() -> Array:
 	# A galaxy that stopped forming stars gets no clouds: absence makes a lenticular finished.
 	var count := clampi(int(round(gas * 4.0)), 0, 9)
 	var out: Array = []
-	# Whether a shell — remnant or planetary — has been rolled yet. See below.
+	# Whether a remnant has been rolled yet. See below.
 	var has_host := false
 	if count <= 0:
 		return out
@@ -254,7 +254,7 @@ static func _build() -> Array:
 ## Clouds stay outside the bulge plus a margin: one over the core was messy (Jon, Oct 5).
 ## Why: docs/why/NebulaField.md#core-kept-clear
 static func core_keep(g: Dictionary) -> float:
-	# (2.05: the chart's DISC, `StarchartScreen.MapChart.DISC`, bulge to plane units)
+	# (2.05: the chart's DISC, `MapChart.DISC`, bulge to plane units)
 	return 1.5 * float(g.get("bulge", 0.26)) / 2.05 + 0.04
 
 static var keep_core := true

@@ -186,7 +186,7 @@ void trace(float x, float y, out int kind, out float v, out float sh, out vec3 n
 		float rr = length(hit_p), grain = fbm3(vec3(hit_p.x * 6.0 + seed, hit_p.y * 6.0 + time * 0.08, hit_p.z * 6.0), 3);
 		if (rr > 0.88) {
 			vec3 sj = seeds[hit_face], si = seeds[hit_i];
-			nl = turn(-normalize(sj - si), sa, ca);
+			nl = turn(normalize(sj - si), sa, ca);
 			kind = K_CRUST;
 			v = 0.2 + grain * 0.3;
 			sh = 0.25 + 0.75 * max(0.0, dot(nl, light));

@@ -19,7 +19,9 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "tkg", "scripts", "systems", "OptionTable.gd")
+# The encounters are authored in OptionsPart01..NN.gd, joined in number order by
+# OptionTable._authored, so sorted names are the table's order.
+SRC = os.path.join(ROOT, "tkg", "scripts", "systems", "options")
 OUT = os.path.join(ROOT, "tools", "out", "encounter-bench.html")
 
 PAY = [0, 1.0, 1.8, 3.0, 4.7, 7.2]
@@ -62,10 +64,23 @@ def ledger(chunk, t):
 	return out or [["none", "nothing moves", ""]]
 
 
-def parse(src):
-	lines = src.split("\n")
-	st = [(m.group(1), n) for n, l in enumerate(lines)
-		for m in [re.match(r'\t*id = &"([a-z_]+)",\s*$', l)] if m]
+def sources():
+	"""(file name, text) for each authored file, in table order."""
+	return [(n, io.open(os.path.join(SRC, n), encoding="utf-8").read())
+		for n in sorted(os.listdir(SRC)) if n.endswith(".gd")]
+
+
+def parse(srcs):
+	recs = []
+	for src in srcs:
+		lines = src.split("\n")
+		st = [(m.group(1), n) for n, l in enumerate(lines)
+			for m in [re.match(r'\t*id = &"([a-z_]+)",\s*$', l)] if m]
+		recs += parse_file(lines, st)
+	return recs
+
+
+def parse_file(lines, st):
 	recs = []
 	for k, (eid, n) in enumerate(st):
 		end = st[k + 1][1] if k + 1 < len(st) else len(lines)
@@ -130,7 +145,7 @@ def lint():
 			kind = "error"
 		elif line.startswith("REVIEW"):
 			kind = "review"
-		m = re.match(r"\s+OptionTable\.gd:\d+\s+(\S+)\s+(.*)", line)
+		m = re.match(r"\s+\w+\.gd:\d+\s+(\S+)\s+(.*)", line)
 		if m and kind:
 			out.setdefault(m.group(1), []).append([kind, m.group(2).strip()])
 	return out
@@ -397,7 +412,7 @@ render();
 
 
 def main():
-	recs = parse(io.open(SRC, encoding="utf-8").read())
+	recs = parse([t for _n, t in sources()])
 	page = (PAGE.replace("@@N@@", str(len(recs)))
 		.replace("@@ENC@@", json.dumps(recs, ensure_ascii=False))
 		.replace("@@LINT@@", json.dumps(lint(), ensure_ascii=False)))

@@ -22,7 +22,7 @@ const WALL := Color("#0d141d")
 const PLATE := Color("#151e2a")
 const EDGE := Color("#202d3d")
 const DEEP := Color("#080c12")
-const LAMP := Color("#d97b29")
+const LAMP := UITheme.EMBER
 ## How thick the station's outer hull is, down both edges of every floor.
 const HULL_W := 6.0
 ## The deck plate between one floor and the next.

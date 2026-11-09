@@ -7,13 +7,6 @@ var _tree: SceneTree
 var _out := ""
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(k + "="):
-			return (a as String).substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_run.call_deferred()
 
@@ -35,10 +28,10 @@ func _shot(name: String) -> void:
 
 func _run() -> void:
 	_tree = get_tree()
-	_out = _arg("out", "user://questlogshot")
+	_out = Harness.arg("out", "user://questlogshot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	DisplaySettings.reduced_motion = true
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for raw in Run.map:
 		var n: MapGen.MapNode = raw
@@ -49,7 +42,7 @@ func _run() -> void:
 	Run.chart_from(Run.node_at())
 	QuestLog.forget()
 	QuestPanel.picked = -1
-	if _arg("events") != "":
+	if Harness.arg("events") != "":
 		await _events()
 		_tree.quit(0)
 		return

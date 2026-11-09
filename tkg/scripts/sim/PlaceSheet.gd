@@ -21,7 +21,7 @@ func run(tree: SceneTree) -> void:
 	]
 	var sheet := Image.create(W * SHOTS, H * rows.size(), false, Image.FORMAT_RGBA8)
 
-	var period: float = EncounterView.AreaView.RING_S * 5.0
+	var period: float = AreaView.RING_S * 5.0
 	for r in rows.size():
 		var n: MapGen.MapNode = rows[r][1]
 		# (a station's ring is drawn only at the station: dock:A)
@@ -51,10 +51,10 @@ func _frame(tree: SceneTree, n: MapGen.MapNode, at: float) -> Image:
 	vp.add_child(view)
 	view.set_place(n)
 	view.show_area(n)
-	var area: EncounterView.AreaView = view._area
+	var area: AreaView = view._area
 	area.set_process(false)          # nothing may advance it under us
 	area._clock = at
-	area._phase = fposmod(at / EncounterView.AreaView.RING_S, 5.0)
+	area._phase = fposmod(at / AreaView.RING_S, 5.0)
 	area.queue_redraw()
 
 	await RenderingServer.frame_post_draw

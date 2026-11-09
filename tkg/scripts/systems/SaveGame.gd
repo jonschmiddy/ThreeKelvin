@@ -64,20 +64,14 @@ static func save_core_won() -> void:
 	_write(true)
 
 
-static func _write(core_won: bool) -> void:
+static func _write(_core_won: bool) -> void:
 	# The map still up writes its ship's spot first, as it records it only when put away.
 	if Router.current is SystemMapScreen:
 		(Router.current as SystemMapScreen)._keep_ship()
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_warning("SaveGame: could not open %s for writing (%d)" % [
-			path, FileAccess.get_open_error()])
-		return
 	# `full_precision` on: the default rounds floats enough to move systems on the chart.
 	# Not bit-exact (worst error 9.3e-14) but unobservable. JSON stays readable in dev.
 	# Why: docs/why/SaveGame.md#json-precision
-	f.store_string(JSON.stringify(_snapshot(), "", true, true))
-	f.close()
+	SafeFile.write_text(path, JSON.stringify(_snapshot(), "", true, true))
 
 ## Mid-fight SAVE & EXIT keeps the old save and notes the fight to restart on CONTINUE.
 static func mark_fight(fight: Dictionary) -> void:
@@ -85,11 +79,7 @@ static func mark_fight(fight: Dictionary) -> void:
 	if d.is_empty() or fight.is_empty():
 		return
 	d["fight"] = fight
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		return
-	f.store_string(JSON.stringify(d, "", true, true))
-	f.close()
+	SafeFile.write_text(path, JSON.stringify(d, "", true, true))
 
 static func clear() -> void:
 	if FileAccess.file_exists(path):
@@ -150,7 +140,6 @@ static func _snapshot() -> Dictionary:
 		heat = Run.heat,
 		heat_cap_bonus = Run.heat_cap_bonus,
 		credits = Run.credits,
-		# The whole ledger, so a new material is saved by construction.
 		fuel = Run.fuel,
 		dross = Run.dross.map(func(x: StringName) -> String: return String(x)),
 		whale_boon = Run.whale_boon,
@@ -290,8 +279,6 @@ static func load_into_run() -> bool:
 	Run.heat = int(d.get("heat", 0))
 	Run.heat_cap_bonus = int(d.get("heat_cap_bonus", 0))
 	Run.credits = int(d.get("credits", 0))
-	# Rebuild the ledger entry by entry so keys hash as StringName, not String.
-	var mats: Dictionary = {}
 	Run.fuel = int(d.get("fuel", 0))
 	# A save written when dross was a COUNT restores as that many Dross, which is
 	# exactly what it meant at the time. Nothing is lost and nothing is invented.
@@ -360,9 +347,6 @@ static func load_into_run() -> bool:
 	Run.won = bool(d.get("core_won", false))
 	Run.dead = false
 	Run.death_reason = ""
-	# Jump range is a pure function of a system and the galaxy, and both just
-	# changed underneath it.
-	Run._range_cache.clear()
 	# Last, once the map is back: a part put in the hold announces a ship change.
 	var mended := Run.mend_loadout()
 	if mended > 0:

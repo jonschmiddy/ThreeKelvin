@@ -3,22 +3,13 @@ extends Node
 ## Films A.S.H. teaching a first run (Jon's tutorial A, Oct 17) with her real clocks.
 ## Why: docs/why/AshTutorFilm.md#tutor-film
 
-var _args: PackedStringArray
 var _tree: SceneTree
 var _f0 := 0
 var _marks: Array = []
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _secs() -> float:
@@ -27,18 +18,6 @@ func _secs() -> float:
 
 func _wait(s: float) -> void:
 	await _tree.create_timer(s).timeout
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
-func _press() -> InputEventMouseButton:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
-	return ev
 
 
 ## Until she is saying line `lid`, then read it and click it away (a hint) or
@@ -62,7 +41,7 @@ func _hear(lid: StringName, limit: float = 12.0) -> void:
 	else:
 		await _wait(AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(p.line.length()))
 		Hints.spend()
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 	m["end"] = _secs()
 	_marks.append(m)
 
@@ -102,14 +81,14 @@ func _plant_event(n: MapGen.MapNode) -> int:
 
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Ash.forced = true
 	Ash.reload()
 	Ash.set_on(true)
 	Hints.forced = true
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	var seg := _arg("segment", "jump")
+	var seg := Harness.arg("segment", "jump")
 	var n := _system()
 	Ash.waiting.clear()
 	match seg:
@@ -208,7 +187,7 @@ func _run() -> void:
 			_f0 = Engine.get_frames_drawn()
 			await _hear(&"dock", 20.0)
 			await _wait(1.5)
-	var out := _arg("out", "")
+	var out := Harness.arg("out", "")
 	if out != "":
 		var f := FileAccess.open(out.path_join("marks.json"), FileAccess.WRITE)
 		f.store_string(JSON.stringify({segment = seg, start_frame = _f0, marks = _marks}, "  "))

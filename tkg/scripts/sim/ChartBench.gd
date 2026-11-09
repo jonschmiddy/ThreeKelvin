@@ -23,7 +23,7 @@ func run(tree: SceneTree) -> void:
 	# Input off while measuring: a Tab or HUD click freed the chart (the 'previously freed' crash).
 	# Why: docs/why/ChartBench.md#bench-input
 	tree.root.gui_disable_input = true
-	StarchartScreen.MapChart.prof = true
+	MapChart.prof = true
 	if GameShell.instance != null:
 		_gpu_rid = GameShell.instance.view.get_viewport_rid()
 		RenderingServer.viewport_set_measure_render_time(_gpu_rid, true)
@@ -163,11 +163,11 @@ func _sky_rid(chart: Node) -> Array[RID]:
 	return out
 
 
-func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: Array[RID] = []) -> float:
+func _sample(_tree: SceneTree, chart: Node, move: String, label := "", sky_rid: Array[RID] = []) -> float:
 	for i in 20:
 		if not await _step(chart, move, i):
 			return -1.0
-	StarchartScreen.MapChart.prof_us.clear()
+	MapChart.prof_us.clear()
 	var gpu := 0.0
 	var gpu_root := 0.0
 	var gpu_sky := 0.0
@@ -189,7 +189,7 @@ func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: A
 		gpu / float(FRAMES), gpu_sky / float(FRAMES), gpu_root / float(FRAMES)])
 	var parts := []
 	for k in ["sky", "chart", "push"]:
-		var us := int(StarchartScreen.MapChart.prof_us.get(k, 0))
+		var us := int(MapChart.prof_us.get(k, 0))
 		parts.append("%s %.2f" % [k, float(us) / float(FRAMES) / 1000.0])
 	print("      [%s] GDScript drawing, ms a frame: %s" % [label, ", ".join(parts)])
 	return float(t1 - t0) / float(FRAMES) / 1000.0

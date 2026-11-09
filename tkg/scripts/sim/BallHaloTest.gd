@@ -29,19 +29,12 @@ var _shots := ""
 var _first := &""
 
 
-func _arg(name: String, fallback: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(name + "="):
-			return (a as String).substr(name.length() + 1)
-	return fallback
-
-
 func _ready() -> void:
 	get_viewport().gui_disable_input = true
 	# Judged without the shared field: its cloud and edge fade were read as the ball.
 	# Why: docs/why/BallHaloTest.md#chart-sky
 	NavField.harness_off = true
-	_shots = _arg("shots")
+	_shots = Harness.arg("shots")
 	if _shots != "":
 		DirAccess.make_dir_recursive_absolute(_shots)
 	_run.call_deferred()
@@ -49,9 +42,9 @@ func _ready() -> void:
 
 func _run() -> void:
 	print("\n=== BALL HALO: a ball galaxy's light about its core ===")
-	StarchartScreen.MapChart.clock_override = 600.0
+	MapChart.clock_override = 600.0
 	DisplaySettings.reduced_motion = false
-	var styles := _arg("styles", "simplified,painted,radiant").split(",")
+	var styles := Harness.arg("styles", "simplified,painted,radiant").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
 	for k in BALL_KINDS + DISC_KINDS:
@@ -80,7 +73,7 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 		Run.chart_from(Run.node_at())
 	var ball := ChartSky.form_of(Run.galaxy_kind) == 1
 	var op: Dictionary = await _open()
-	var chart: StarchartScreen.MapChart = op.chart
+	var chart: MapChart = op.chart
 	var img: Image = op.img
 	var k: float = op.k
 	# With a story on, the ball's light is judged without it, as the story is lopsided on purpose.
@@ -95,7 +88,7 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 		chart = op.chart
 		img = op.img
 	var core := chart.centre_px()
-	var gu: float = chart._radius() * StarchartScreen.MapChart.DISC * chart.zoom
+	var gu: float = chart._radius() * MapChart.DISC * chart.zoom
 	var m := _measure(img0, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
@@ -260,14 +253,14 @@ func _open(fresh: bool = false) -> Dictionary:
 	while (Router.current == old or not Router.current is StarchartScreen) and Time.get_ticks_msec() - t0 < 10000:
 		await get_tree().process_frame
 	var scp := Router.current as StarchartScreen
-	var chart: StarchartScreen.MapChart = scp._chart
+	var chart: MapChart = scp._chart
 	var sky := chart._sky as ChartSky
 	while not sky.ready_to_draw() and Time.get_ticks_msec() - t0 < 30000:
 		await get_tree().process_frame
 	scp.dismiss_primer()
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# the chart's opening zoom (ChartLook's `opening`), the core in the middle
-	var k: float = chart._radius() * StarchartScreen.MapChart.DISC
+	var k: float = chart._radius() * MapChart.DISC
 	chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
 	chart._repaint_sky()
 	chart.show_icons = false
@@ -283,7 +276,7 @@ func _open(fresh: bool = false) -> Dictionary:
 
 ## The boxes the chart's clickables stand in (the chart's rect, px): every system it
 ## shows, and YOU's mark and name.
-func _mark_boxes(chart: StarchartScreen.MapChart) -> Array[Rect2]:
+func _mark_boxes(chart: MapChart) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var here := Run.node_at()
 	var visible: Dictionary = chart._visible_set(here, chart._in_range())

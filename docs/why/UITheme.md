@@ -26,7 +26,7 @@ nearly black: fine as a plate's ground, unreadable as ink on one.
 Above `const TRACTOR := Color("#4fe0cc")`:
 
 ```text
-A mount reaching for the thing you are holding. See ModuleCell.Tractor.
+A mount reaching for the thing you are holding.
 
 The one colour in the game that is neither the cold of the void nor the warm
 of something burning, which is exactly what makes it read as MACHINERY doing

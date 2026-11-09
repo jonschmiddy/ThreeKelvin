@@ -3,7 +3,7 @@ extends Node
 ## UNDOCK is the only way out of a station (Jon, Oct 27); `Router.cast_off` refuses all else.
 ## Why: docs/why/DockFlyTest.md#berth-rule
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 var _st := -1
 var _shots := ""
@@ -91,10 +91,7 @@ func _fits(what: String, b: Button, m: SystemMapScreen) -> void:
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -107,11 +104,6 @@ func _ready() -> void:
 		elif s == "proper":
 			_proper_only = true
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _idle() -> int:
@@ -140,13 +132,13 @@ func _tab() -> void:
 	k.physical_keycode = KEY_TAB
 	k.pressed = true
 	Input.parse_input_event(k)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var u := InputEventKey.new()
 	u.keycode = KEY_TAB
 	u.physical_keycode = KEY_TAB
 	u.pressed = false
 	Input.parse_input_event(u)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	await _idle()
 
 
@@ -154,7 +146,7 @@ func _tab() -> void:
 ## the chart (back into the berth), and LOCAL greyed at the berth itself.
 func _here_tab() -> void:
 	Router.hud._tab_sector.pressed.emit()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	await _idle()
 	# (LOCAL's own arrival at a place flown to, watched out as a player would:
 	# a key mid-way parks it, and is spent doing so, `SectorScreen._flyin`)
@@ -210,10 +202,10 @@ func _to_berth() -> bool:
 	if not (Router.current is SectorScreen):
 		Router.show_local()
 		await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Router.show_station()
 	await _idle()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	return Router.current is StationScreen and Router.docked
 
 
@@ -230,9 +222,9 @@ func _fly(p: int) -> bool:
 	if p == -3:
 		m.harness_keys = true
 		m._wasd.w = true
-		await _frames(45)
+		await Harness.frames(_tree, 45)
 		m._wasd.w = false
-		await _frames(90)
+		await Harness.frames(_tree, 90)
 		m.harness_keys = false
 		return m.flight.reached() == -9
 	m.fly_to_body(p)
@@ -241,7 +233,7 @@ func _fly(p: int) -> bool:
 		if not is_instance_valid(m):
 			return false
 		if m.flight.reached() == p and m.flight.can_fly():
-			await _frames(10)
+			await Harness.frames(_tree, 10)
 			return true
 	return false
 
@@ -250,7 +242,7 @@ func _fly(p: int) -> bool:
 func _local() -> Dictionary:
 	# (the hull's bob held at one moment, so both trips are measured on it)
 	ShipView.shot_clock = 0.0
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var d := _local_now()
 	ShipView.shot_clock = -1.0
 	return d
@@ -323,7 +315,7 @@ func _route(name: String, go: Callable) -> void:
 			return
 		_watch_on()
 		await go.call(false)
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		var seen := _watch_off()
 		_ok("%s: from the berth, refused and back in the berth, docked throughout and never on LOCAL (seen: %s; on %s, at %d)" % [
 			name, "nothing" if seen.is_empty() else ", ".join(seen), _name_of(Router.current), Run.at],
@@ -335,14 +327,14 @@ func _route(name: String, go: Callable) -> void:
 	Router.show_sector()
 	await _idle()
 	_ok("%s: UNDOCK lands on LOCAL" % name, Router.current is SectorScreen and not Router.docked)
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	await go.call(true)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var b := await _local()
 	print("    after UNDOCK: %s" % b)
 	await _shot("%s_proper" % name)
 	_clean(name, b)
-	_ok("%s: the ship where the map left it (site %d)" % [name, b.site], b.site == int(_want.get(name, b.site)))
+	_ok("%s: the ship where the map left it (site %d)" % [name, b.site], not _want.has(name) or b.site == int(_want[name]))
 
 
 ## From the berth the flight is refused and `back` returns in; from LOCAL it completes.
@@ -361,12 +353,12 @@ func _map_trip(p: int, back: String) -> Callable:
 			if p == -3:
 				m.harness_keys = true
 				m._wasd.w = true
-				await _frames(45)
+				await Harness.frames(_tree, 45)
 				m._wasd.w = false
 				m.harness_keys = false
 			else:
 				m.fly_to_body(p)
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			_ok("  from the berth the flight to %d is refused: still docked, the ship where it was (at %d, was %d)" % [p, m.flight.reached(), at0],
 				Router.docked and Router.current == m and m.flight.reached() == at0)
 		else:
@@ -394,11 +386,11 @@ func _jump_trip(go_event: bool) -> Callable:
 			var ch := Router.current as StarchartScreen
 			if ch != null:
 				ch._on_node_picked(to)
-				await _frames(2)
+				await Harness.frames(_tree, 2)
 				_ok("  from the berth JUMP reads DOCKED, greyed, and says \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
 					ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
 			Router.begin_jump(to)
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			_ok("  the jump refused: still at the station, docked, on the chart (at %d, on %s)" % [Run.at, _name_of(Router.current)],
 				Run.at == _st and Router.docked and Router.current is StarchartScreen)
 			await _tab()
@@ -410,7 +402,7 @@ func _jump_trip(go_event: bool) -> Callable:
 					and Router._post_arrive == false:
 				break
 		await _idle()
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		_ok("  arrived at %d (at %d, on %s)" % [to, Run.at, Router.current.get_script().get_global_name()], Run.at == to)
 		if not go_event:
 			if Router.current is SystemMapScreen:
@@ -432,7 +424,7 @@ func _jump_trip(go_event: bool) -> Callable:
 			if Router.current is SectorScreen and not ZoomLadder.busy():
 				break
 		await _idle()
-		await _frames(60)
+		await Harness.frames(_tree, 60)
 
 
 ## Docked, every other door is shut or goes back in without leaving (Jon, Oct 27).
@@ -462,7 +454,7 @@ func _berth_shut(p: int) -> void:
 	_watch_on()
 	# (a press it will not take, sent by hand: the door behind it is shut too)
 	tab.pressed.emit()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	await _idle()
 	var seen := _watch_off()
 	_ok("berth: LOCAL pressed anyway goes nowhere: the station still up, docked, never LOCAL (seen: %s)" % ", ".join(seen),
@@ -477,7 +469,7 @@ func _berth_shut(p: int) -> void:
 	click.button_index = MOUSE_BUTTON_LEFT
 	click.pressed = true
 	tab.gui_input.emit(click)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var clicked := st._nudge_tween != null and st._nudge_tween.is_valid() and not Router.undock_nudge
 	_ok("berth: the refused press blinks UNDOCK (%s), and so does a click on the greyed tab (%s)" % [blinked, clicked],
 		blinked and clicked and Router.current == st and Router.docked)
@@ -495,7 +487,7 @@ func _berth_shut(p: int) -> void:
 			await _tree.process_frame
 		var at0: int = m.flight.reached()
 		m.select_body(p)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var fly: Button = null
 		for b in m.panel.find_children("*", "Button", true, false):
 			if (b as Button).is_visible_in_tree() and (b as Button).text in ["DOCKED", "FLY HERE", "CANNOT UNDOCK"]:
@@ -505,13 +497,13 @@ func _berth_shut(p: int) -> void:
 			fly != null and fly.text == "DOCKED" and fly.disabled and fly.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
 		_fits("the world page's DOCKED", fly, m)
 		m.fly_to_body(p)
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		_ok("berth: FLY HERE refused, still docked, the ship where it was (%d)" % m.flight.reached(),
 			Router.docked and m.flight.reached() == at0 and m.flight.can_fly())
 		_ok("berth: the panel offers no flight", not m.panel._can_go() and m.panel._held())
 		m.harness_keys = true
 		m._wasd.w = true
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		m.harness_keys = false
 		_ok("berth: WASD refused (still docked, at %d, keys let go)" % m.flight.reached(),
 			Router.docked and m.flight.reached() == at0 and not m._wasd.w)
@@ -525,22 +517,22 @@ func _berth_shut(p: int) -> void:
 			var k := n.options.size() - 1
 			# GO reads DOCKED in the same words; the longer word must fit where two letters stood.
 			m.panel.open_page(k)
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			var pg := m.panel.find_child("Go", true, false) as Button
 			_ok("berth: the event's page: GO reads DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE, _says(pg)],
 				pg != null and pg.text == "DOCKED" and pg.disabled and pg.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
 			_fits("the event page's DOCKED", pg, m)
 			m.panel.show_body(_station_body())
 			m.panel._place_event(_station_body(), k)
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			var rg := m.panel.find_child("Go", true, false) as Button
 			_ok("berth: the event's row on the station's page: GO reads DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE, _says(rg)],
 				rg != null and rg.text == "DOCKED" and rg.disabled and rg.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
 			_fits("the station page's DOCKED", rg, m)
 			m.panel.show_system()
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 			m.go_event(k)
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			_ok("berth: GO refused: still docked, on the map, no event waiting for LOCAL (on %s)" % _name_of(Router.current),
 				Router.docked and Router.current == m and LocalEventDrawer.pending.is_empty())
 			n.options = kept
@@ -550,13 +542,13 @@ func _berth_shut(p: int) -> void:
 	var to := _jump_target(false)
 	if _ok("berth: Tab goes on to the chart, still docked", ch != null and Router.docked) and to >= 0:
 		ch._on_node_picked(to)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("berth: JUMP reads DOCKED, greyed, saying \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
 			ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
 		_ok("berth: the chart's DOCKED button whole on screen, its word whole (%s, %.0f of %.0f px)" % [ch._jump.get_global_rect(), _word_w(ch._jump), _room(ch._jump)],
 			get_viewport().get_visible_rect().encloses(ch._jump.get_global_rect()) and _word_w(ch._jump) <= _room(ch._jump) + 0.5)
 		Router.begin_jump(to)
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		_ok("berth: the chart's JUMP refused (at %d, still docked, on %s)" % [Run.at, _name_of(Router.current)],
 			Run.at == _st and Router.docked and Router.current is StarchartScreen)
 	await _tab()
@@ -588,7 +580,7 @@ func _berth_shut(p: int) -> void:
 			await _tree.process_frame
 			if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
 				break
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		seen = _watch_off()
 		_ok("berth: %s goes straight back in: docked throughout, never LOCAL (seen: %s; on %s)" % [how, ", ".join(seen), _name_of(Router.current)],
 			seen.is_empty() and Router.current is StationScreen and Router.docked)
@@ -597,7 +589,7 @@ func _berth_shut(p: int) -> void:
 	# PARTY (co-op): its LEAVE went to the map, undocking on the way
 	_watch_on()
 	Router.show_party()
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	var leave: Button = null
 	if Router.current is PartyScreen:
 		for b in Router.current.find_children("*", "Button", true, false):
@@ -606,7 +598,7 @@ func _berth_shut(p: int) -> void:
 	if _ok("berth: PARTY opens from the berth, with LEAVE", leave != null):
 		leave.pressed.emit()
 		await _idle()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		seen = _watch_off()
 		_ok("berth: PARTY's LEAVE goes back to the berth, docked throughout (seen: %s; on %s)" % [", ".join(seen), _name_of(Router.current)],
 			seen.is_empty() and Router.current is StationScreen and Router.docked)
@@ -616,7 +608,7 @@ func _berth_shut(p: int) -> void:
 	if _ok("berth: on the station, UNDOCK on its rail", st != null and st._undock != null and not st._undock.disabled):
 		st._undock.pressed.emit()
 		await _idle()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		Router.hud.refresh()
 		_ok("berth: UNDOCK leaves: on LOCAL, undocked, the tab reads LOCAL, lit (on %s, docked %s, %s)" % [_name_of(Router.current), Router.docked, tab.text],
 			Router.current is SectorScreen and not Router.docked and tab.text == "LOCAL" and tab.disabled
@@ -651,7 +643,7 @@ func _only_at_station() -> void:
 		await _tab()
 	var m := Router.current as SystemMapScreen
 	if _ok("dockplace: on the map", m != null):
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_ok("dockplace: arrived alongside the station (the map's ship at %d, station %d)" % [m.flight.reached(), sb],
 			m.flight.reached() == sb and Router.at_station())
 		await _map_dock("dockplace: arrived", m, true)
@@ -681,7 +673,7 @@ func _only_at_station() -> void:
 		return
 	dk.pressed.emit()
 	await _idle()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_ok("dockplace: DOCK docks (on %s, docked %s)" % [Router.current.get_script().get_global_name(), Router.docked],
 		Router.current is StationScreen and Router.docked)
 	# docked, the map is a view: away to the world refused, back in by the tab
@@ -694,7 +686,7 @@ func _only_at_station() -> void:
 			await _tree.process_frame
 		var at0: int = m.flight.reached()
 		m.fly_to_body(world)
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		_ok("dockplace: from the berth, FLY HERE to the world refused (docked %s, at %d, was %d)" % [Router.docked, m.flight.reached(), at0],
 			Router.docked and m.flight.reached() == at0)
 	await _here_tab()
@@ -724,7 +716,7 @@ func _at_dock(what: String) -> Button:
 		loc != null and dk != null and loc._face != null and Router.at_station())
 	_ok("%s: its bar says a station is here" % what, _bar_has(loc, "A STATION HERE"))
 	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Refuel here before you leave.")
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	return dk
 
 
@@ -738,7 +730,7 @@ func _jump_to(to: int) -> bool:
 		if Run.at == to and not ZoomLadder.busy() and (Router.current is SystemMapScreen or Router.current is SectorScreen) 				and Router._post_arrive == false:
 			break
 	await _idle()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	return Run.at == to
 
 
@@ -746,7 +738,7 @@ func _jump_to(to: int) -> bool:
 ## on its button; and its beacon taken from away is refused.
 func _map_dock(what: String, m: SystemMapScreen, there: bool) -> void:
 	m.panel.show_system()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var card = m.panel._cards.get(&"dock")
 	var btn := (card._right as Button) if card != null else null
 	if not _ok("%s: the map lists the DOCK card" % what, btn != null):
@@ -763,7 +755,7 @@ func _map_dock(what: String, m: SystemMapScreen, there: bool) -> void:
 			bc = b
 	var at0: int = m.flight.reached()
 	m.take_action(bc)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	_ok("%s: the DOCK beacon from here docks nothing and flies nowhere" % what,
 		Router.current == m and not Router.docked and m.flight.reached() == at0 and m.flight.can_fly())
 
@@ -779,7 +771,7 @@ func _no_dock(what: String) -> void:
 	_ok("%s: the bar says to fly to the station" % what, _bar_has(loc, "FLY TO THE STATION TO DOCK"))
 	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Fly to the station here to refuel.")
 	Router.show_station()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	_ok("%s: docking refused, still on LOCAL" % what, Router.current == loc and not Router.docked)
 
 
@@ -856,7 +848,8 @@ func _run() -> void:
 	Run.fuel = 99
 	var pl := _places()
 	print("station %d: its body %d, a world %d, a belt %d" % [_st, _station_body(), pl.world, pl.belt])
-	_want = {"world_hud": pl.world, "world_tab": pl.world, "star_hud": -1, "belt_hud": pl.belt, "open_tab": -9}
+	# (`jump_go` has none: its GO flies on to the event's world, wherever that is)
+	_want = {"world_hud": pl.world, "world_tab": pl.world, "star_hud": -1, "belt_hud": pl.belt, "open_tab": -9, "jump": -9}
 	await _berth_shut(int(pl.world))
 	await _only_at_station()
 	await _route("world_hud", _map_trip(int(pl.world), "hud"))
@@ -873,5 +866,5 @@ func _run() -> void:
 func _end() -> void:
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
-	print("dockflytest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("dockflytest")
+	_tree.quit(h.code())

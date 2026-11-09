@@ -13,17 +13,12 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _ok(what: String, c: bool) -> bool:
 	return h._ok(what, c)
 
 
 func _run() -> void:
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	h.seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := -1
@@ -35,7 +30,7 @@ func _run() -> void:
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	# every enemy's layers as they are built (yours follow your ShipView)
 	var built: Array = []
 	var count := func(n: Node) -> void:
@@ -43,7 +38,7 @@ func _run() -> void:
 			built.append(n)
 	_tree.node_added.connect(count)
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"], DB.enemies[&"cutter"]], false, false)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_tree.node_added.disconnect(count)
 	var sc := Router.current as SectorScreen
 	var cb: Combat = Router.combat
@@ -53,7 +48,7 @@ func _run() -> void:
 	Run.hp = Run.max_hp()
 	sc._refresh_enemy()
 	sc._refresh_player()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 	# armed
 	var armed := 0
@@ -87,7 +82,7 @@ func _run() -> void:
 	e.block = 6
 	e.brace = 6
 	sc._refresh_enemy()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("enemy block: the bubble up with it (%d)" % L.shield.block, L.shield.block == 6 and L.shield._up)
 	var on0 := L.brace._pieces.filter(func(p: Dictionary) -> bool: return p.on).size()
 	_ok("enemy brace: the armour clamped on (%d of %d panels)" % [on0, L.brace._pieces.size()],
@@ -96,30 +91,30 @@ func _run() -> void:
 	# a shot the block soaks
 	var v0 := L.hits.version
 	cb.damage_enemy(4, 1, "test", e)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("a soaked shot: the bubble takes it and stays (%d left)" % L.shield.block,
 		L.shield.block == 2 and L.shield._fizz_t < 0.0 and L.shield._shim_t >= 0.0)
 	_ok("and marks nothing", L.hits.version == v0)
 	# one that empties it and goes on into the brace
 	cb.damage_enemy(5, 1, "test", e)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var on1 := L.brace._pieces.filter(func(p: Dictionary) -> bool: return p.on).size()
 	_ok("a shot that empties the block: it fizzles", L.shield.block == 0 and L.shield._fizz_t >= 0.0)
 	_ok("and the rest lands on the armour, which sheds in proportion (%d -> %d panels, brace %d)" % [on0, on1, L.brace.brace],
 		L.brace.brace == 3 and on1 < on0 and on1 > 0)
 	# through the rest of the brace into the hull
 	cb.damage_enemy(9, 1, "test", e)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var on2 := L.brace._pieces.filter(func(p: Dictionary) -> bool: return p.on).size()
 	_ok("brace spent: the last of the armour goes (%d panels)" % on2, L.brace.brace == 0 and on2 == 0)
 	_ok("and the hull is marked (%d)" % L.hits.version, L.hits.version > v0)
 	var vm := L.hits.version
 	for k in 3:
 		cb.damage_enemy(4, 1, "test", e)
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 	_ok("more hits, more marks (%d -> %d)" % [vm, L.hits.version], L.hits.version > vm)
 	await _tree.create_timer(0.7).timeout   # a crack runs over a quarter second
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("baked into the enemy's own picture, cracks and all", sc._view.slot(0).art._sig.contains("marks %d" % L.hits.version))
 
 	# your ship
@@ -127,7 +122,7 @@ func _run() -> void:
 	cb.block = 5
 	cb.brace = 4
 	sc._refresh_player()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("your block: your bubble up (%d)" % Y.shield.block, Y.shield.block == 5 and Y.shield._up)
 	_ok("your brace: your armour on (%d)" % Y.brace.brace, Y.brace.brace == 4)
 	var yv := Y.hits.version
@@ -139,16 +134,16 @@ func _run() -> void:
 		Y.shield.block == 0 and Y.brace.brace == 0 and Y.hits.version > yv)
 	cb.block = 3
 	sc._refresh_player()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	cb.block = 0
 	sc._refresh_player()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	_ok("your leftover block at the turn's end: it fizzles", Y.shield.block == 0 and Y.shield._fizz_t >= 0.0)
 
 	# the kill: its wreck keeps the marks
 	var wid := sc._wreck_id_of(0)
 	cb.damage_enemy(999, 1, "test", e)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var sl0 := sc._view.slot(0)
 	var marked: Dictionary = EnemyArt._marked.get(wid, {})
 	_ok("the kill leaves a marked wreck where it lies (id %d)" % wid, not marked.is_empty())

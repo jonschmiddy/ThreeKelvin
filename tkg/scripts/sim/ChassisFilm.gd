@@ -3,27 +3,17 @@ extends Node
 ## Bob and flame run on `ShipView.shot_clock`, stepped per frame, so 30 fps is true speed.
 ## Why: docs/why/ChassisFilm.md#chassis-film
 
-var _args: PackedStringArray
-
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var dir := _arg("out")
+	var dir := Harness.arg("out")
 	DirAccess.make_dir_recursive_absolute(dir)
-	var frames := int(_arg("frames", "150"))
+	var frames := int(Harness.arg("frames", "150"))
 	Router.show_chassis_select()
 	ShipView.shot_clock = 0.0
 	# Let the screen settle and the flames' pictures land.

@@ -79,10 +79,8 @@ static var applied_vsync: int = -1
 const STYLES: Array[StringName] = [&"simplified", &"painted", &"radiant"]
 ## The order while LEGACY was a style, for a value saved as its place (`valid_style`).
 const OLD_ORDER: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
-## The default, and what anything unknown or not built falls back to.
+## The default, and what anything unknown falls back to.
 const DEFAULT_STYLE := &"simplified"
-## Only styles with a renderer; the STYLE row appears once there are two. Add a style here only.
-const BUILT: Array[StringName] = [&"simplified", &"painted", &"radiant"]
 static var render_style: StringName = DEFAULT_STYLE
 ## GRAPHICS LOW: the cheaper path every style's renderer keeps.
 static var graphics_low: bool = false
@@ -106,7 +104,7 @@ static var _file_low := false
 static var harness_args := PackedStringArray()
 
 static func style_built(s: StringName) -> bool:
-	return BUILT.has(s)
+	return STYLES.has(s)
 
 static func style_name(s: StringName) -> String:
 	match s:
@@ -122,7 +120,7 @@ static func built_styles() -> Array[StringName]:
 			out.append(s)
 	return out
 
-## Unknown or unbuilt values fall to the default. "legacy" (dropped Nov 7, or SIMPLIFIED's
+## Unknown values fall to the default. "legacy" (dropped Nov 7, or SIMPLIFIED's
 ## name before Oct 5) loads as SIMPLIFIED; a number is a place in `OLD_ORDER`.
 static func valid_style(v: Variant) -> StringName:
 	if v is int:

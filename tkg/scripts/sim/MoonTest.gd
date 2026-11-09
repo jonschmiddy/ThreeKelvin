@@ -3,24 +3,16 @@ extends Node
 ## Moons never pass over staged things (Jon, Oct 11) and hold still in events, fights and docks.
 ## Why: docs/why/MoonTest.md#moon-exclusion
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _sky() -> LocalSky:
@@ -40,7 +32,7 @@ func _park(idx: int, bi: int, options: Array = []) -> LocalSky:
 	SectorScreen._approached_at = idx
 	SystemMapScreen._parked[idx] = {"at": bi, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_local()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	return _sky()
 
 
@@ -158,7 +150,7 @@ func _run() -> void:
 			LocalEventDrawer.quiet = true
 			LocalEventDrawer.request(node.index, 0)
 			Router.show_local()
-			await _frames(25)
+			await Harness.frames(_tree, 25)
 			var sky := _sky()
 			LocalEventDrawer.quiet = false
 			if sky == null or sky.life == null or sky.life._world().is_empty():
@@ -172,7 +164,7 @@ func _run() -> void:
 			tried += 1
 			var p0 := _phases(sky)
 			for f in 90:
-				await _frames(1)
+				await Harness.frames(_tree, 1)
 				over += _over(sky, sky.life.keep_out(false))
 			if _phases(sky) != p0 or sky.life.quiet():
 				still = false
@@ -181,11 +173,11 @@ func _run() -> void:
 		# 3. a fight
 		await _park(int(giant_world[1]), int(giant_world[2]))
 		Router.start_combat(DB.enemies[&"cutter"], [], false)
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		var sky_f := _sky()
 		if _ok("a fight opens on LOCAL at the giant", sky_f != null and sky_f.life != null):
 			var p1 := _phases(sky_f)
-			await _frames(90)
+			await Harness.frames(_tree, 90)
 			_ok("in a fight every moon holds still", _phases(sky_f) == p1 and not sky_f.life.quiet())
 
 	# The dock is only at the station (Jon, Oct 18), which has no moons, so no moon crosses a dock.
@@ -193,11 +185,11 @@ func _run() -> void:
 		Rng.forced = int(station_world[0])
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		await _park(int(station_world[1]), int(station_world[2]))
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		var loc := Router.current as SectorScreen
 		Router.show_station()
-		await _frames(60)
+		await Harness.frames(_tree, 60)
 		_ok("at a world of a station's system: no station side, no DOCK, and docking refused (still on LOCAL, docked %s)" % Router.docked,
 			Router.current == loc and not Router.docked and loc._face == null and loc.find_child("Dock", true, false) == null)
-	print("moontest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("moontest")
+	_tree.quit(h.code())

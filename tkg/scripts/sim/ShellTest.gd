@@ -14,7 +14,7 @@ const BENCH_FRAMES := 900
 var _args: PackedStringArray
 var _tree: SceneTree
 var _shell: GameShell
-var _fails := 0
+var harness := Harness.new()
 var _out := ""
 var _manifest := {}
 var _pic: TextureRect = null
@@ -27,18 +27,8 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _frames(n: int) -> void:
@@ -49,7 +39,7 @@ func _frames(n: int) -> void:
 func _run() -> void:
 	_tree = get_tree()
 	_shell = GameShell.instance
-	_out = _arg("out")
+	_out = Harness.arg("out")
 	if _out != "":
 		DirAccess.make_dir_recursive_absolute(_out)
 	var parts := PackedStringArray()
@@ -102,8 +92,8 @@ func _finish() -> void:
 		var f := FileAccess.open(_out.path_join("shell.json"), FileAccess.WRITE)
 		if f != null:
 			f.store_string(JSON.stringify(_manifest, "  "))
-	print("shelltest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(0 if _fails == 0 else 1)
+	harness.verdict("shelltest")
+	_tree.quit(harness.code())
 
 
 # --------------------------------------------------------------- the window

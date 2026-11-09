@@ -10,11 +10,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await get_tree().process_frame
-
-
 func _close() -> void:
 	get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST)
 	await get_tree().process_frame
@@ -64,7 +59,7 @@ func _loot_case() -> void:
 	var n := _park()
 	Run.jumps = 3   # a used run, past its launch
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	h._ok("LOCAL is up and the run is saved", Router.current is SectorScreen and SaveGame.has_save())
 	var w := Run.new_wreck(n, DB.enemies[&"cutter"])
 	var part := LootGen.roll_module(2)
@@ -103,10 +98,10 @@ func _fight_case() -> void:
 	_park()
 	Run.jumps = 3
 	Router.show_local()
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	var saved := SaveGame._read()
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(30)
+	await Harness.frames(get_tree(), 30)
 	h._ok("a fight is on", Router.in_combat())
 	Run.add_credits(500)
 	Run.hp = maxi(1, Run.hp - 10)
@@ -125,6 +120,6 @@ func _title_case() -> void:
 	SaveGame.clear()
 	Run.hull = null
 	Router.show_launcher()
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	await _close()
 	h._ok("nothing is written", not SaveGame.has_save())

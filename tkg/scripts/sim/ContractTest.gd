@@ -50,8 +50,8 @@ func _boards() -> void:
 	print("  %d of %d systems are posting work" % [boards, Run.map.size()])
 
 
-## Every station posts work (Jon, Nov 3). A bare board is legal only if no ordinary system
-## is within reach.
+## Every station posts work (Jon, Nov 3). Counts bare boards as a rate; it does not test each
+## one's reach.
 ## Why: docs/why/ContractTest.md#every-station-posts
 func _every_station_posts() -> void:
 	var stations := 0
@@ -144,7 +144,7 @@ func _heat() -> void:
 		return
 	var mine := Run.take_contract(job)
 	var berth := _berth(mine.manufacturer)
-	if berth < 0:
+	if not _ok("the galaxy holds one of their berths for a heat job", berth >= 0):
 		return
 	var n: MapGen.MapNode = Run.map[berth]
 

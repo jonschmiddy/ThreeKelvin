@@ -16,8 +16,7 @@ const BURST := 0.62
 
 ## A repeatable scatter in 0..1 (`hash1`).
 static func hash1(v: float) -> float:
-	var x := sin(v * 127.1) * 43758.5453
-	return x - floorf(x)
+	return UIHash.hash1(v)
 
 
 static func _vnoise(x: float) -> float:

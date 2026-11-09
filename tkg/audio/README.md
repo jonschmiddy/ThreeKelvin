@@ -32,7 +32,8 @@ pip install numpy scipy soundfile
 python3 build.py               # music + sfx -> ../assets/audio/
 python3 build.py music
 python3 build.py music burn    # one cue, for iterating on a score
-python3 build.py sfx
+python3 build.py sfx                # skips the bought takes and the cuts (HELD_SFX)
+python3 build.py sfx --overwrite-held   # ...unless you mean to undo the sound pass
 
 python3 fetch_samples.py       # once: ~1.1 GB of CC0 samples, gitignored
 python3 build.py music --sampled     # recorded melodic instruments, synth kit

@@ -7,7 +7,7 @@
     python tools/prose_tells.py --rank        the densest files and strings, worst first
 
 `encounter_lint.py` checks what an encounter DOES and `prose_grade.py` how hard it
-is to READ. Neither looks at how it is WRITTEN, and both stop at OptionTable.gd.
+is to READ. Neither looks at how it is WRITTEN, and both stop at the encounters (OptionTable.gd and options/).
 The tells themselves were already written down -- `.claude/skills/encounter-prose`
 SKILL.md §3 to §3c lists them, with counts -- but only for a person to catch by
 eye. A list a person has to remember is a list that stops being applied around
@@ -42,7 +42,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(ROOT, "tkg", "scripts")
 BASELINE = os.path.join(ROOT, "tools", "prose_tells_baseline.txt")
-ENCOUNTERS = "systems/OptionTable.gd"
+ENCOUNTERS = ("systems/OptionTable.gd", "systems/options/")
+
+
+def is_encounter_file(rel):
+	"""The machine and the files its encounters are authored in (OptionsPartNN.gd)."""
+	return rel.startswith(ENCOUNTERS)
 SKIP_DIRS = ("sim",)
 
 # Every string on the line, each one whole, and only then the long ones. The
@@ -58,7 +63,7 @@ NOT_PLAYER_TEXT = re.compile(
 # --- ERRORS -----------------------------------------------------------------
 #
 # id, how many a unit may carry before it is a finding, pattern, what it is.
-# A unit is one encounter in OptionTable.gd and one string everywhere else.
+# A unit is one encounter in options/ and one string everywhere else.
 ERRORS = [
 	("reframe", 1,
 		r"\b(?:is|was|are|were) not\b[^.!?]{1,60}[.!?]\s+"
@@ -193,14 +198,14 @@ def _player_lines():
 			rel = os.path.normpath(os.path.join(rel_dir, name)).replace(os.sep, "/")
 			unit = None
 			for n, line in enumerate(io.open(os.path.join(dirpath, name), encoding="utf-8"), 1):
-				if rel == ENCOUNTERS:
+				if is_encounter_file(rel):
 					m = re.match(r'\t*id = &"([a-z_0-9]+)",\s*$', line)
 					if m:
 						unit = m.group(1)
 				stripped = line.lstrip()
 				if stripped.startswith("#") or NOT_PLAYER_TEXT.search(line):
 					continue
-				yield rel, n, (unit if rel == ENCOUNTERS and unit else None), line
+				yield rel, n, (unit if is_encounter_file(rel) and unit else None), line
 
 
 def player_strings():
@@ -268,7 +273,7 @@ def main() -> int:
 				if per_unit[(ukey, tid)] > cap:
 					s = sentence_at(text, m.start())
 					errors.append((_key(rel, tid, text, s), rel, n, tid, why, s))
-		if rel == ENCOUNTERS:
+		if is_encounter_file(rel):
 			for m in HANDS.finditer(text):
 				s = sentence_at(text, m.start())
 				density[rel] += 1

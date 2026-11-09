@@ -76,7 +76,8 @@ func _init() -> void:
 
 ## Called on every refresh, so the early-out is load-bearing: bake on arrival only.
 func setup(n: MapGen.MapNode) -> void:
-	if n == null or n.index == _index:
+	# The node's identity too: a later run's map reuses indices.
+	if n == null or (n.index == _index and n == _node):
 		return
 	_index = n.index
 	# Two constants apart from the name hash, so a system's sky and its name are

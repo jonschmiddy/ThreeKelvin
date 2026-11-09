@@ -1,8 +1,8 @@
 class_name Harness
 extends RefCounted
 
-## Shared so the merge gate's ERROR_PATTERNS need not match four spellings of one verdict.
-## Measurement harnesses do not extend it: a pass count would impose a shape on them.
+## The one verdict, argument and frame-wait path for the sim tools. A RefCounted test extends it;
+## a Node test composes it (`var h := Harness.new()`, `h._ok`, `h.verdict`, `quit(h.code())`).
 ## Why: docs/why/Harness.md#harness-base
 
 var _fails: int = 0
@@ -44,11 +44,7 @@ var seeds: Array[int] = []
 ## between gate runs. This sets `Rng.forced`, which sticks.
 ## Why: docs/why/Harness.md#seed-run
 func seed_run(n: int) -> int:
-	var s := n
-	var args := OS.get_cmdline_user_args()
-	for i in args.size():
-		if args[i] == "seed" and i + 1 < args.size() and (args[i + 1] as String).is_valid_int():
-			s = int(args[i + 1])
+	var s := seed_arg(n)
 	Rng.forced = s
 	if not s in seeds:
 		seeds.append(s)
@@ -56,10 +52,39 @@ func seed_run(n: int) -> int:
 	return s
 
 
+## The seed on the command line, as `seed=N` or `seed N` (the last given wins), else `fallback`.
+static func seed_arg(fallback: int) -> int:
+	var s := fallback
+	var args := OS.get_cmdline_user_args()
+	for i in args.size():
+		var a := args[i]
+		if a.begins_with("seed=") and a.substr(5).is_valid_int():
+			s = int(a.substr(5))
+		elif a == "seed" and i + 1 < args.size() and args[i + 1].is_valid_int():
+			s = int(args[i + 1])
+	return s
+
+
+## The value of the first `key=value` on the command line after `--`, else `fallback`.
+static func arg(key: String, fallback: String = "") -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with(key + "="):
+			return a.substr(key.length() + 1)
+	return fallback
+
+
+## Wait `n` rendered frames of `tree`: `await Harness.frames(_tree, 3)`.
+static func frames(tree: SceneTree, n: int) -> void:
+	for i in n:
+		await tree.process_frame
+
+
 ## Takes a predicate: a harness knows a button's text
 ## or an inner class, not the name `find_child` needs.
 ## Why: docs/why/Harness.md#finding-nodes
-func first(root: Node, matches: Callable) -> Node:
+static func first(root: Node, matches: Callable) -> Node:
+	if root == null:
+		return null
 	if matches.call(root):
 		return root
 	for c in root.get_children():
@@ -67,6 +92,24 @@ func first(root: Node, matches: Callable) -> Node:
 		if found != null:
 			return found
 	return null
+
+
+## The first VISIBLE button whose text is `text` (or starts with it), so a hidden overlay's twin is
+## never pressed; `enabled_only` also skips a disabled one.
+static func button_with_text(root: Node, text: String, starts_with := false, enabled_only := false) -> Button:
+	return first(root, func(n: Node) -> bool:
+		if not n is Button or not (n as Button).is_visible_in_tree():
+			return false
+		if enabled_only and (n as Button).disabled:
+			return false
+		var shown := (n as Button).text
+		return shown.begins_with(text) if starts_with else shown == text) as Button
+
+
+## The first node under `root` running exactly `script` that is not on its way out.
+static func node_with_script(root: Node, script: Script) -> Node:
+	return first(root, func(n: Node) -> bool:
+		return n.get_script() == script and not n.is_queued_for_deletion())
 
 
 ## Nonzero when anything failed, for `SceneTree.quit()`.

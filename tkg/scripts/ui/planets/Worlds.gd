@@ -124,7 +124,7 @@ static func ramp_color(ramp: StringName, v: float, x: int, y: int) -> Color:
 
 
 ## The node that draws a world of this kind: a broken world has its own.
-static func view_for(world: StringName) -> Node2D:
+static func view_for(world: StringName) -> WorldView:
 	if world == &"shattered":
 		return ShatteredView.new()
 	return PlanetView.new()

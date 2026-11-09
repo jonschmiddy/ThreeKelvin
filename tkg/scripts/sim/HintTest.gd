@@ -47,10 +47,10 @@ func run(tree: SceneTree) -> void:
 
 	# THE CHART: its list and its two bars, once
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	await _expect(&"chart")
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	await _none("the chart again: its hint does not come back")
 
 	# THE SECTOR MAP'S EVENTS, which this file had seen before the run began
@@ -119,11 +119,11 @@ func run(tree: SceneTree) -> void:
 	sc._events.deferred = []
 	var pe := _plant_event(n)
 	sc._events.open(pe)
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	await _never(&"ship", "the event band is up: the ship's hint waits")
 	var band_card := Hints.card != null and Hints.card.id == &"drawer"
 	sc._events.not_now()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	Hints.poll(0.05)
 	# NOT NOW is one of the band's two answers (the deep tutorial's line says so):
 	# it spends the band's card, as a choice does
@@ -137,25 +137,25 @@ func run(tree: SceneTree) -> void:
 	if _ok("the cutaway opens", cut != null):
 		await _expect(&"cutaway")
 		cut.close_now()
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		cut = sc.open_cutaway()
 		await _none("opened a second time, the cutaway's hint does not come back")
 		if cut != null:
 			cut.close_now()
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 
 	# the event band's choices
 	if _ok("an event with choices to open", pe >= 0 and sc._events != null):
 		sc._events.open(pe)
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		await _expect(&"drawer")
 		sc._events.not_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		sc._events.open(pe)
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		await _none("the band opened again: its hint does not come back")
 		sc._events.not_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 
 	# A WRECK'S WINDOW: drag a part into the hold, or double-click it
 	var loaded := Run.new_wreck(n, DB.enemies[&"cutter"])
@@ -163,20 +163,20 @@ func run(tree: SceneTree) -> void:
 	sc = await _local()
 	await _none("LOCAL with a wreck, no window open: no salvage hint")
 	sc._open_jetsam(loaded)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	await _expect(&"salvage")
 	sc._close_transfer()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	sc._open_jetsam(loaded)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	await _none("a wreck's window again: its hint does not come back")
 	sc._close_transfer()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 
 	# A FIGHT, IN THE ORDER IT TEACHES ITSELF
 	Run.heat = 0
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var fs := Router.current as SectorScreen
 	var cb: Combat = Router.combat
 	if _ok("a fight is up", fs != null and fs.fighting() and cb != null):
@@ -189,7 +189,7 @@ func run(tree: SceneTree) -> void:
 		await _expect(&"hand")
 		await _never(&"intent", "turn 1, a card played: still no intent")
 		# play out the hand: then END TURN
-		await _none("a card left to play: END TURN's hint waits", [], true)
+		await _none("a card left to play: END TURN's hint waits")
 		while await _play_one(cb):
 			pass
 		# brace up but not yet held over an end of turn: nothing
@@ -221,7 +221,7 @@ func run(tree: SceneTree) -> void:
 		await _none("every fight hint spent: none comes back this turn")
 	# a second fight: none of them again
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	fs = Router.current as SectorScreen
 	cb = Router.combat
 	if fs != null and cb != null:
@@ -252,26 +252,26 @@ func run(tree: SceneTree) -> void:
 	Router.docked = false
 	Router.park_at_station()
 	Router.show_station()
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	await _expect(&"dock")
 	await _decks()
 	Run.hp = hp0
 	Run.fuel = fuel0
 	Router.show_station()
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	await _none("docked again: the station's hint does not come back", [&"ship"])
 
 	# FUEL: not while the tank is full; once a third of it is left (`-- sheet=FuelTest`
 	# has the threshold and the dock it names)
 	n = _system()
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	await _none("a full tank: no fuel hint")
 	var was_fuel := Run.fuel
 	Run.fuel = 3
 	await _expect(&"fuel")
 	Router.show_starchart()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	await _none("the tank still short: its hint does not come back")
 	Run.fuel = was_fuel
 
@@ -298,7 +298,7 @@ func run(tree: SceneTree) -> void:
 			card_was != null and Hints.card == card_was and is_instance_valid(card_was) and not Hints.seen(&"ship")
 			and Hints.shown_log.size() == n_log)
 		Router.show_system()
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		Hints.poll(0.5)
 		_ok("its subject gone after a long while: it hides, unspent",
 			Hints.card == null and not Hints.seen(&"ship"))
@@ -339,12 +339,12 @@ func run(tree: SceneTree) -> void:
 	var was_id := Hints.card.id if Hints.card != null else &""
 	if _ok("tutorial: a card is up to turn off under (%s)" % was_id, shown_any):
 		Hints.set_tutorial(false)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("tutorial OFF mid-card: it goes at once, unspent", Hints.card == null and not Hints.seen(was_id))
 	else:
 		Hints.set_tutorial(false)
 	var gl: GoalLine = Router.hud.goal
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var step_txt := gl._step.text if gl != null else "?"
 	_ok("tutorial OFF: GOAL shows, with no step under it (step \"%s\")" % step_txt, gl != null and gl.visible
 		and gl.step_rect() == Rect2() and step_txt == "")
@@ -371,10 +371,10 @@ func run(tree: SceneTree) -> void:
 		main = main.get_parent()
 	if _ok("the escape menu's owner is above the screens", main != null):
 		main.toggle_menu()
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		await _none("the escape menu is up: no hint shows over it")
 		main.toggle_menu(false)
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 
 	# off in a party (Jon, Oct 17: "coop:B")
 	Hints.forced = false
@@ -401,14 +401,9 @@ func _end() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
-
-
 func _local() -> SectorScreen:
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	return Router.current as SectorScreen
 
 
@@ -552,7 +547,7 @@ func _visit(st: StationScreen, id: StringName) -> bool:
 	while Time.get_ticks_msec() - t0 < 20000:
 		await _tree.process_frame
 		if st._tab == tab and st.deck_subject(tab).has_area():
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 			return true
 	return false
 
@@ -633,13 +628,6 @@ func _card_words(c: HintCard) -> Array:
 	return out
 
 
-func _press() -> InputEventMouseButton:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
-	return ev
-
-
 ## `id` shows, in the tree, clear of its subject and on screen; a click
 ## dismisses it and it is seen.
 func _fuel_unflyable() -> void:
@@ -674,7 +662,7 @@ func _fuel_unflyable() -> void:
 		Hints.mark_seen(&"fuel", false)
 		Hints._dock_key = Vector2i(-2, -2)
 		Router.show_starchart()
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		var up: bool = await _step_until(&"fuel")
 		var lines: Array = []
 		if up:
@@ -715,7 +703,7 @@ func _put_away() -> void:
 	var st := Router.current as StationScreen
 	if st != null and st._cutaway != null and is_instance_valid(st._cutaway):
 		st._cutaway.close_now()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 
 
 ## Real clicks at the card's middle and two seeded points;
@@ -786,14 +774,14 @@ func _dismiss(id: StringName) -> void:
 		var st := Router.current as StationScreen
 		if id == &"dock" and st != null and st._tab != &"services":
 			(st._tabs[&"services"] as Button).pressed.emit()
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 	# past the quiet between two hints
 	Hints.poll(Hints.GAP_S + 0.1)
 
 
 ## Nothing shows over a few seconds of the hints' clock (bar the ones in
-## `allowed`, dismissed as they come). `quiet`: and nothing at all even of those.
-func _none(what: String, allowed: Array = [], _quiet: bool = false) -> void:
+## `allowed`, dismissed as they come).
+func _none(what: String, allowed: Array = []) -> void:
 	var shown := ""
 	for i in 30:
 		Hints.poll(0.1)
@@ -833,7 +821,7 @@ func _play_one(cb: Combat) -> bool:
 		var c: CardData = cb.hand[i]
 		if cb.can_play(c):
 			cb.play(i, 0)
-			await _frames(6)
+			await Harness.frames(_tree, 6)
 			return true
 	return false
 
@@ -844,7 +832,7 @@ func _settle(sc: SectorScreen) -> bool:
 		await _tree.process_frame
 		if not sc._hold and not sc._opening and sc._end_button != null \
 				and sc._end_button.is_visible_in_tree() and not sc._end_button.disabled:
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 			return true
 	return false
 
@@ -880,7 +868,7 @@ func _map_list(n: MapGen.MapNode) -> SystemMapScreen:
 	if n.options.is_empty():
 		_plant_event(n)
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	return Router.current as SystemMapScreen
 
 

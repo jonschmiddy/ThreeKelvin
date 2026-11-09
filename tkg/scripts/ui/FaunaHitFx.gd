@@ -230,7 +230,7 @@ func _wound(p: Vector2i, big: bool, extra: bool) -> void:
 func _bruise(p: Vector2i, big: bool, _frac: float, _extra: bool) -> void:
 	var k := _sc / SIZE
 	var R := (9.0 if big else 6.5) * k
-	var fd := ShipBreakup._field(_rng, _w, _h, 3)
+	var fd := BreakupCuts._field(_rng, _w, _h, 3)
 	var reach := int(ceil(R)) + 2
 	for y in range(p.y - reach, p.y + reach + 1):
 		for x in range(p.x - reach, p.x + reach + 1):
@@ -239,7 +239,7 @@ func _bruise(p: Vector2i, big: bool, _frac: float, _extra: bool) -> void:
 			var i := y * _w + x
 			if _mask[i] == 0 or _what[i] == 2:
 				continue
-			var d := Vector2(x - p.x, y - p.y).length() / R + 0.18 * ShipBreakup._nz(fd, x, y)
+			var d := Vector2(x - p.x, y - p.y).length() / R + 0.18 * BreakupCuts._nz(fd, x, y)
 			var odd := ((x + y + _r.position.x + _r.position.y) & 1) == 0
 			var c := _col[i]
 			var q := c
@@ -291,7 +291,7 @@ func _dim_lights(p: Vector2i, big: bool, frac: float, bruise: bool) -> void:
 func _shed(p: Vector2i, big: bool, extra: bool) -> void:
 	var k := _sc / SIZE
 	var R := (4.5 if big else 3.2) * k
-	var fd := ShipBreakup._field(_rng, _w, _h, 3)
+	var fd := BreakupCuts._field(_rng, _w, _h, 3)
 	var patch: Array[Vector2i] = []
 	var reach := int(ceil(R)) + 3
 	for y in range(p.y - reach, p.y + reach + 1):
@@ -301,7 +301,7 @@ func _shed(p: Vector2i, big: bool, extra: bool) -> void:
 			var i := y * _w + x
 			if _mask[i] == 0:
 				continue
-			var d := Vector2(x - p.x, y - p.y).length() - 1.2 * ShipBreakup._nz(fd, x, y)
+			var d := Vector2(x - p.x, y - p.y).length() - 1.2 * BreakupCuts._nz(fd, x, y)
 			if d <= R:
 				if _what[i] != 2:
 					patch.append(Vector2i(x, y))
@@ -548,9 +548,7 @@ func _paint_body(ci: CanvasItem) -> void:
 			continue
 		var rot := posmod(int(floor(age * float(c.spin))), 4)
 		var al := 1.0 if age < 0.45 else (0.6 if age < 0.6 else (0.3 if age < 0.7 else 0.12))
-		ci.draw_set_transform(pp + Vector2(sz, sz) * 0.5, float(rot) * PI * 0.5, Vector2.ONE)
-		ci.draw_texture(c.tex, -Vector2(sz, sz) * 0.5, Color(1, 1, 1, al))
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		FxKit.draw_chip(ci, c.tex, pp, Vector2(sz, sz), rot, al)
 		h = h * 31 + int(pp.x) * 3 + int(pp.y) * 7 + rot
 	# vapour is matter, drawn over (not light)
 	h = h * 31 + _vapour.paint(ci, keep, tq)

@@ -10,7 +10,7 @@ THE NUMBER ON A TARGET, ONE LOOK FOR BOTH TIMES IT IS SHOWN (Jon, Oct 13:
 enemy ship").
 
 A card held over a target paints what it would do there (`EnemySlot`,
-`EncounterView.ShipSlot`); the same card landing pops what it did
+`ShipSlot`); the same card landing pops what it did
 (`CombatFx.pop`). They were two styles -- the landing smaller, its colours
 its own -- so the answer did not read as the answer to the question the
 preview had asked. Both draw through here now: the pixel font at the

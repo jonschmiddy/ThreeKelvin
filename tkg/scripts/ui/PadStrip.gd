@@ -20,8 +20,9 @@ func refresh() -> void:
 	var y := 0
 	var rows := 1
 	for m in Run.pad:
-		var w: int = maxi(1, m.size.x)
-		var h: int = maxi(1, m.size.y)
+		var f := m.footprint()
+		var w: int = maxi(1, f.x)
+		var h: int = maxi(1, f.y)
 		# Wrap before placing: a 4x1 in column 3 of 5 would hang off the edge.
 		if x + w > cols:
 			x = 0

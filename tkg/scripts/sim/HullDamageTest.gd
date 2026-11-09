@@ -16,11 +16,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _ok(what: String, c: bool) -> bool:
 	return h._ok(what, c)
 
@@ -58,6 +53,7 @@ func _play(hx: HullHitFx) -> Dictionary:
 	var last_step := -1.0
 	var mingap := 1e9
 	var maxgap := 0.0
+	var steps := 0
 	for i in Film.SHOTS.size():
 		hp -= Film.SHOTS[i]
 		hx.hit(Film.SHOTS[i], hp, 100)
@@ -73,13 +69,14 @@ func _play(hx: HullHitFx) -> Dictionary:
 				# a hit lights its flash the frame it lands; between hits the
 				# glow keeps its own steps
 				if s > 0:
+					steps += 1
 					if last_step >= 0.0:
 						mingap = minf(mingap, t - last_step)
 					last_step = t
 				last_change = t
 			elif glowing and last_change >= 0.0:
 				maxgap = maxf(maxgap, t - last_change)
-	return {m60 = marked60, end = _marked(hx), mingap = mingap, maxgap = maxgap}
+	return {m60 = marked60, end = _marked(hx), mingap = mingap, maxgap = maxgap, steps = steps}
 
 
 func _marked(hx: HullHitFx) -> int:
@@ -92,7 +89,7 @@ func _marked(hx: HullHitFx) -> int:
 
 
 func _run() -> void:
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var ramp := {}
 	for c in ShipBreakup.HEAT_RAMP:
 		ramp[HullHitFx._key(c)] = true
@@ -157,8 +154,8 @@ func _run() -> void:
 						if hx._mask[i] == 0 or not ramp.has(HullHitFx._key(c3)):
 							gbad += 1
 				_ok("%s: every glowing pixel the heat ramp's, on the hull (%d not)" % [tag, gbad], gbad == 0)
-				_ok("%s: a glow changes shape 8 to 12 times a second (gaps %.3f to %.3f s)" % [tag, r.mingap, r.maxgap],
-					r.mingap >= 1.0 / 12.0 - 0.01 and r.maxgap <= 1.0 / 8.0 + 0.01)
+				_ok("%s: a glow changes shape 8 to 12 times a second (%d steps, gaps %.3f to %.3f s)" % [tag, r.steps, r.mingap, r.maxgap],
+					r.steps > 0 and r.mingap >= 1.0 / 12.0 - 0.01 and r.maxgap <= 1.0 / 8.0 + 0.01)
 				_ok("%s: the marks build up (%d px at 60 hull, %d at 6)" % [tag, r.m60, r.end], r.end > r.m60 and r.m60 > 0)
 				# repeatable
 				var hx2 := _make(pic, look, sc, 4242)
@@ -225,9 +222,9 @@ func _fight() -> void:
 		Run.map[idx].visited = true
 		SectorScreen._approached_at = idx
 		Router.show_local()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"]], false, false)
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		var sc := Router.current as SectorScreen
 		var cb: Combat = Router.combat
 		if not _ok("look %d: a fight on the real screen" % look, sc != null and cb != null):
@@ -235,7 +232,7 @@ func _fight() -> void:
 		Run.hp = Run.max_hp()
 		sc._refresh_enemy()
 		sc._refresh_player()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var want := "HullHitFx" if look > 0 else "ShipHitFx"
 		var all := true
 		for i in 2:
@@ -250,24 +247,26 @@ func _fight() -> void:
 		var v0 := sl0.layers.hits.version
 		e.hp = e.max_hp
 		cb.damage_enemy(maxi(1, e.max_hp / 5), 1, "test", e)
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("look %d: a shot through damage_enemy marks the hull (version %d -> %d)" % [look, v0, sl0.layers.hits.version],
 			sl0.layers.hits.version > v0)
 		_ok("look %d: and the enemy's picture carries it" % look, sl0.art._img.get_data() != before)
 		if look > 0:
 			var wid := sl0.wreck_id
 			cb.damage_enemy(9999, 1, "test", e)
-			await _frames(8)
+			await Harness.frames(_tree, 8)
 			var marked: Dictionary = EnemyArt._marked.get(wid, {})
 			_ok("look %d: the kill leaves a marked wreck" % look, not marked.is_empty())
 		Router.combat = null
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	# the Custodian keeps today's
 	ShipHitFx.look = ShipHitFx._look_arg()
 	_ok("D is the game's look (%d)" % ShipHitFx.look, ShipHitFx.look == 4)
 	var L := HitLayers.new()
 	L.kind = FaunaMotion.Kind.CUSTODIAN
-	_ok("the Custodian keeps the older marks", L._hull_hits().get_script().get_global_name() == "ShipHitFx")
+	var older := L._hull_hits()
+	_ok("the Custodian keeps the older marks", older.get_script().get_global_name() == "ShipHitFx")
+	older.free()
 	L.kind = -1
 	var mine := L._hull_hits()
 	_ok("every other ship wears D", mine is HullHitFx and (mine as HullHitFx).style == 4)

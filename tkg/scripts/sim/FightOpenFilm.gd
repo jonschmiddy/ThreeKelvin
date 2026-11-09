@@ -48,22 +48,15 @@ func _ready() -> void:
 		_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(k + "="):
-			return (a as String).substr(k.length() + 1)
-	return d
-
-
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	_out = _arg("out", "user://fightopen")
+	_out = Harness.arg("out", "user://fightopen")
 	DirAccess.make_dir_recursive_absolute(_out)
 	if "animate" in OS.get_cmdline_user_args():
 		Router.animate_in_harness = true
 	_rec = FileAccess.open(_out.path_join("boxes.jsonl"), FileAccess.WRITE)
-	await play(_arg("entry", "engage"), int(_arg("seed", "4242")))
+	await play(Harness.arg("entry", "engage"), Harness.seed_arg(4242))
 	_rec.close()
 	_rec = null
 	_mark("end")
@@ -111,7 +104,7 @@ func _pack() -> void:
 	# `wrecks=N`: N hulls already lie here, so the fight opens over them
 	var foes: Array = DB.enemies.keys()
 	foes.sort()
-	for w in int(_arg("wrecks", "0")):
+	for w in int(Harness.arg("wrecks", "0")):
 		Run.new_wreck(n, DB.enemies[foes[(w * 7 + 3) % foes.size()]])
 	Run.at = n.index
 	SectorScreen._approached_at = Run.at
@@ -123,9 +116,9 @@ func _pack() -> void:
 	_mark("trigger")
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"], DB.enemies[&"marauder"]], false, false)
 	# `block=N`: every contact opens holding N block (its shield up as it comes)
-	if _arg("block") != "" and Router.combat != null:
+	if Harness.arg("block") != "" and Router.combat != null:
 		for e in Router.combat.enemies:
-			e.block = int(_arg("block"))
+			e.block = int(Harness.arg("block"))
 		Sig.enemy_changed.emit()
 	await _settle()
 	# `kill`: once the band has settled, the first contact is killed outright
@@ -298,5 +291,5 @@ func _settle() -> void:
 		if still >= 30:
 			break
 	_mark("settled")
-	await _wait(maxf(0.0, float(_arg("hold", "2")) - 2.0))
+	await _wait(maxf(0.0, float(Harness.arg("hold", "2")) - 2.0))
 	await _wait(2.0)

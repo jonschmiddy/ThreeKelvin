@@ -1,18 +1,14 @@
 class_name PlanetView
-extends Node2D
+extends WorldView
 
 ## One world: far ring, the world, near ring. Broken worlds are `ShatteredView`'s.
 
 const SHADER := preload("res://shaders/planet.gdshader")
 const RING_SHADER := preload("res://shaders/planet_ring.gdshader")
 
-var spec: Dictionary = {}
-var _disc: ColorRect
-var _mat: ShaderMaterial
 var _ring_back: _Ring
 var _ring_front: _Ring
 var _light: Vector3 = Vector3(-0.83, -0.31, 0.47)
-var _cell := 1
 var _seed := 0
 ## The painted rings, far half and near half (`planet_ring.gdshader`).
 var _band_back: ColorRect
@@ -22,13 +18,6 @@ static var no_rich := false
 ## ICY rings were Jon's pick of three (Oct 3); the others stay as harness options.
 ## Why: docs/why/PlanetView.md#ring-look
 static var ring_style := Rings.Look.ICY
-## Surface memory: the shader runs twice so the world shows eased values; twice the cost.
-var _mem_vp: SubViewport
-var _mem_copy: SubViewport
-var _mem_mat: ShaderMaterial
-var _mem_fresh := 0
-var _mem_r := -1.0
-var _mem_off := Vector2.INF
 ## Memory covers only blocks the picture can show; nothing seen changes.
 ## Why: docs/why/PlanetView.md#memory-clip
 var mem_clip := false
@@ -285,93 +274,17 @@ func _set_rich() -> void:
 	_mat.set_shader_parameter("rich", k)
 
 
-## The memory rebuilt for the world's current size: a pixel a block, with a last-frame copy.
-func _mem_setup() -> void:
-	if PixelTurn.world_mode != PixelTurn.Mode.BLENDED or spec.is_empty():
-		return
-	var cl := maxi(_cell, 1)
-	var hs := int(_mat.get_shader_parameter("half_size"))
-	var half := ceili(float(hs) / float(cl))
-	var n := 2 * half + 1
-	if _mem_vp == null:
-		_mem_vp = SubViewport.new()
-		_mem_vp.transparent_bg = true
-		_mem_vp.disable_3d = true
-		_mem_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
-		var rect := ColorRect.new()
-		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_mem_mat = ShaderMaterial.new()
-		_mem_mat.shader = SHADER
-		rect.material = _mem_mat
-		_mem_vp.add_child(rect)
-		# last frame's memory, copied exactly (its alpha is a count, not a coverage)
-		_mem_copy = SubViewport.new()
-		_mem_copy.transparent_bg = true
-		_mem_copy.disable_3d = true
-		_mem_copy.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		var last := TextureRect.new()
-		last.texture = _mem_vp.get_texture()
-		last.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		# Sized by hand, or it keeps its first size and a resized world was copied stretched.
-		last.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		last.stretch_mode = TextureRect.STRETCH_SCALE
-		var cm := CanvasItemMaterial.new()
-		cm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
-		last.material = cm
-		_mem_copy.add_child(last)
-		_mem_vp.add_child(_mem_copy)
-		add_child(_mem_vp)
-		RenderingServer.frame_pre_draw.connect(_mem_sync)
-		PixelTurn.timed(_mem_vp)
-		PixelTurn.timed(_mem_copy)
-	_mem_vp.size = Vector2i(n, n)
-	_mem_copy.size = Vector2i(n, n)
-	(_mem_vp.get_child(0) as ColorRect).size = Vector2(n, n)
-	(_mem_copy.get_child(0) as TextureRect).size = Vector2(n, n)
+func _mem_live() -> Array:
+	return MEM_LIVE
+
+
+func _mem_resized(n: int) -> void:
 	_mem_win = Rect2i(0, 0, n, n)
 	_mem_mat.set_shader_parameter("mem_win", Vector4.ZERO)
-	# everything the world on screen was given, then the memory's own
-	for u: Dictionary in _mat.shader.get_shader_uniform_list():
-		var nm := String(u.name)
-		if not nm.begins_with("mem_"):
-			_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))
-	for m: ShaderMaterial in [_mat, _mem_mat]:
-		m.set_shader_parameter("mem_n", n)
-		m.set_shader_parameter("mem_half", half)
-		m.set_shader_parameter("mem_ease", PixelTurn.EASE)
-		m.set_shader_parameter("mem_hyst", PixelTurn.HYST)
-		m.set_shader_parameter("mem_release", PixelTurn.RELEASE)
-	_mem_mat.set_shader_parameter("mem_mode", 1)
-	_mem_mat.set_shader_parameter("mem_prev", _mem_copy.get_texture())
-	_mat.set_shader_parameter("mem_mode", 2)
-	_mat.set_shader_parameter("mem_now", _mem_vp.get_texture())
-	_mem_fresh = 2
 
 
-## Each frame before anything is drawn: the memory's pass handed what changed
-## this frame; nothing held on a new size or centre (the map's smooth zoom).
-func _mem_sync() -> void:
-	if _mem_mat == null or not is_inside_tree():
-		return
-	var t0 := Time.get_ticks_usec() if PixelTurn.cost_on else 0
-	var r := float(_mat.get_shader_parameter("r"))
-	var ov: Variant = _mat.get_shader_parameter("ctr_off")
-	var off: Vector2 = ov if ov is Vector2 else Vector2.ZERO
-	# Keep the memory until size moves a block: the smooth zoom restarted it each frame.
-	# Why: docs/why/PlanetView.md#memory-hysteresis
-	var cl := float(maxi(_cell, 1))
-	if _mem_r < 0.0 or absf(r - _mem_r) >= cl or off.distance_to(_mem_off) > cl:
-		_mem_fresh = maxi(_mem_fresh, 1)
-		_mem_r = r
-	_mem_off = off
-	for nm: String in MEM_LIVE:
-		_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))
-	_mem_mat.set_shader_parameter("mem_fresh", _mem_fresh > 0)
-	if _mem_fresh > 0:
-		_mem_fresh -= 1
+func _mem_synced() -> void:
 	_mem_window()
-	if PixelTurn.cost_on:
-		PixelTurn.cpu_us += Time.get_ticks_usec() - t0
 
 
 ## Told to the shader only: resizing the pass rect lagged a frame and drew a second small world.
@@ -399,17 +312,10 @@ func _mem_window() -> void:
 	_mem_mat.set_shader_parameter("mem_win", Vector4.ZERO if w == full else Vector4(w.position.x, w.position.y, w.end.x, w.end.y))
 
 
-func _exit_tree() -> void:
-	if RenderingServer.frame_pre_draw.is_connected(_mem_sync):
-		RenderingServer.frame_pre_draw.disconnect(_mem_sync)
-
-
 ## Moved from one picture to another with its memory kept (the zoom ladder hands
 ## the map's world to LOCAL: `LocalSky.adopt_near`): not started afresh.
 var keep_mem := false
 
 
-func _enter_tree() -> void:
-	if _mem_mat != null and not RenderingServer.frame_pre_draw.is_connected(_mem_sync):
-		RenderingServer.frame_pre_draw.connect(_mem_sync)
-		_mem_fresh = 0 if keep_mem else 2
+func _mem_fresh_on_enter() -> int:
+	return 0 if keep_mem else 2

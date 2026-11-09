@@ -89,7 +89,8 @@ func setup() -> void:
 	_refresh()
 	_nudge_undock.call_deferred()
 
-## Five separate errands, so five pages, each built once and hidden so the shelf can refresh unseen.
+## Page order for the harness (`StationShot deck=`); the rail is built from `DECKS`, below.
+## Five pages, each built once and hidden so the shelf can refresh unseen.
 ## Why: docs/why/StationScreen.md#five-pages
 const TABS := [
 	[&"services", "SERVICES"],
@@ -114,13 +115,6 @@ const RAIL_W := 156
 ## How tall one deck cell is. Two lines of FS_SMALL plus the padding that keeps
 ## the highlight from touching the text.
 const DECK_H := 44
-## Silkscreen sits three pixels low in its box, so air above and below differs by one, measured.
-## Why: docs/why/StationScreen.md#heading-centring
-const HEAD_TOP := 11
-const HEAD_BOT := 10
-## Every row on this screen is this tall. One number, so a service, a contract
-## and a shelf entry sit on the same rhythm instead of three.
-const ROW_H := 22
 
 func _build() -> void:
 	# The yard's hall runs on into the elevator's column while the elevator is away.
@@ -233,30 +227,6 @@ func _build() -> void:
 		if a.begins_with("tab="):
 			_tab = StringName(a.split("=")[1])
 	_show_tab(_tab)
-
-## Two panels stacked, not side by side: a price list and a ship comparison want different shapes.
-## Why: docs/why/StationScreen.md#services-panels
-func _heading(title: String) -> MarginContainer:
-	var pad := MarginContainer.new()
-	pad.add_theme_constant_override("margin_top", HEAD_TOP)
-	pad.add_theme_constant_override("margin_bottom", HEAD_BOT)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.name = "Row"
-	row.add_child(UITheme.header(title, UITheme.FS_HEAD))
-	pad.add_child(row)
-	return pad
-
-
-## No vertical padding: a heading over a rule cannot spend `panel_with`'s twelve symmetrically.
-func _flat_panel(child: Control) -> PanelContainer:
-	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel",
-		# `UITheme.flat` takes vertical padding first; the wrong order gives no side padding.
-		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 0, 12))
-	p.add_child(child)
-	return p
-
 
 ## Services fly as drones over your ship, as on the
 ## Yard Drones page Jon judged; `YardScene` draws them.
@@ -505,7 +475,6 @@ func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 	return slab
 
 
-## A label, a gauge and a figure, on the row height everything else uses.
 func _page_work() -> Control:
 	# The whole deck is the board: a hiring hall is its paper, so the cork runs edge to edge.
 	# Why: docs/why/StationScreen.md#hiring-board
@@ -545,9 +514,6 @@ func _page_work() -> Control:
 ## Why: docs/why/StationScreen.md#promenade
 const PICK_W := 256
 
-## How tall the block between the name and the price stands, whatever is in it.
-## See where it is built for the arithmetic.
-const DESC_H := 86
 ## What stands in the shop: the rack, placed where the station's room puts it.
 ## The counter is `_till`, beside it in the same stack.
 var _shelf: Control
@@ -556,46 +522,23 @@ var _shelf: Control
 func _page_stock() -> Control:
 	# The deck is one of Jon's fifteen rooms: `ShopScene` places everything, nothing here does.
 	# Why: docs/why/StationScreen.md#promenade-room
-	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 5)
-	var stack := Control.new()
-	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_shop = ShopScene.new()
-	_shop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	stack.add_child(_shop)
-
-	# The rack stands in a holder of its own, which `_refresh_stock` empties
-	# and restocks; the counter is built once.
-	_shelf = Control.new()
-	_shelf.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_shelf.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stack.add_child(_shelf)
-
-	# A shelf needs a till: carrying a part to it is the same gesture the Exchange uses to sell.
-	# Why: docs/why/StationScreen.md#till
-	_till = TradeCounter.new()
-	_till.side = TradeCounter.Side.CHARGES
-	_till.fitted = true
-	_till.lit_elsewhere = ShopScene.lit_marks
-	_till.took.connect(_on_till)
-	stack.add_child(_till)
-	_shop.till_node = _till
-
-	# The room's own layers go on last, over the rack
-	# and counter. No cables: the shop wears no livery.
-	for layer in [_shop.front_layer(), _shop.light_layer(), _shop.glow_layer()]:
-		var c: Control = layer
-		c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		stack.add_child(c)
-	# A room's art arrives when it is first drawn; the furniture is placed then.
-	_shop.room_loaded.connect(_place_shop_furniture)
-	outer.add_child(stack)
 	# The note sits under the room: inside the right column it pushed the counter off the floor.
 	_till_note = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
 	_till_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	outer.add_child(_till_note)
-	return Widgets.panel_with(Widgets.pad(outer))
+	# A shelf needs a till: carrying a part to it is the same gesture the Exchange uses to sell.
+	# Why: docs/why/StationScreen.md#till
+	# No cables: the shop wears no livery.
+	var made := _room_page(_shop, func(stack: Control) -> void:
+		# The rack stands in a holder of its own, which `_refresh_stock` empties
+		# and restocks; the counter is built once.
+		_shelf = Control.new()
+		_shelf.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_shelf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		stack.add_child(_shelf),
+		TradeCounter.Side.CHARGES, _on_till, _place_shop_furniture, _till_note)
+	_till = made[1] as TradeCounter
+	return made[0] as Control
 
 
 ## The till already said yes; `_on_action` re-checks anyway as it races other players for the slot.
@@ -612,41 +555,51 @@ func _on_till(item: HoldItem) -> void:
 func _page_hold() -> Control:
 	# The deck is one of Jon's five rooms, drawn in layers round the hold and the counter.
 	# Why: docs/why/StationScreen.md#exchange-room
+	_exchange = ExchangeScene.new()
+	_sell_note = UITheme.body("Carry something to the counter to be paid for it.",
+		UITheme.QUOTE, UITheme.FS_SMALL)
+	_sell_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# THE SAME COUNTER THE SHOP HAS, on the side that pays. See `TradeCounter.Side`.
+	var made := _room_page(_exchange, func(stack: Control) -> void:
+		# The hold is the real grid, untouched; it stands in the frame's opening, fitted cell for cell.
+		_hold_grid = HoldGrid.new()
+		_hold_grid.dropped.connect(_on_hold_move)
+		stack.add_child(_hold_grid),
+		TradeCounter.Side.PAYS, _on_counter, _place_exchange_furniture, _sell_note)
+	_sell_desk = made[1] as TradeCounter
+	return made[0] as Control
+
+
+## A room deck (Promenade, Exchange): the room, its furniture, a counter on `side`, the room's
+## three layers over both, then `note` under it. Child order is draw order. Returns [panel, counter].
+func _room_page(room: ShopScene, furniture: Callable, side: TradeCounter.Side,
+		on_took: Callable, on_loaded: Callable, note: Label) -> Array[Control]:
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 5)
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_exchange = ExchangeScene.new()
-	_exchange.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	stack.add_child(_exchange)
-
-	# The hold is the real grid, untouched; it stands in the frame's opening, fitted cell for cell.
-	_hold_grid = HoldGrid.new()
-	_hold_grid.dropped.connect(_on_hold_move)
-	stack.add_child(_hold_grid)
-
-	# THE SAME COUNTER THE SHOP HAS, on the side that pays. See `TradeCounter.Side`.
-	_sell_desk = TradeCounter.new()
-	_sell_desk.side = TradeCounter.Side.PAYS
-	_sell_desk.fitted = true
-	_sell_desk.lit_elsewhere = ShopScene.lit_marks
-	_sell_desk.took.connect(_on_counter)
-	stack.add_child(_sell_desk)
-	_exchange.till_node = _sell_desk
-
-	# The room's own layers over the hold and the counter, as the shop's are.
-	for layer in [_exchange.front_layer(), _exchange.light_layer(), _exchange.glow_layer()]:
+	room.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(room)
+	furniture.call(stack)
+	var counter := TradeCounter.new()
+	counter.side = side
+	counter.fitted = true
+	counter.lit_elsewhere = ShopScene.lit_marks
+	counter.took.connect(on_took)
+	stack.add_child(counter)
+	room.till_node = counter
+	# The room's own layers go on last, over the furniture and the counter.
+	for layer in [room.front_layer(), room.light_layer(), room.glow_layer()]:
 		var c: Control = layer
 		c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		stack.add_child(c)
-	_exchange.room_loaded.connect(_place_exchange_furniture)
+	# A room's art arrives when it is first drawn; the furniture is placed then.
+	room.room_loaded.connect(on_loaded)
 	outer.add_child(stack)
-	_sell_note = UITheme.body("Carry something to the counter to be paid for it.",
-		UITheme.QUOTE, UITheme.FS_SMALL)
-	_sell_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	outer.add_child(_sell_note)
-	return Widgets.panel_with(Widgets.pad(outer))
+	outer.add_child(note)
+	var made: Array[Control] = [Widgets.panel_with(Widgets.pad(outer)), counter]
+	return made
 
 
 ## Placed again whenever the room's art arrives or the hull, and so the frame, may have changed.
@@ -888,21 +841,8 @@ func _open_purge() -> void:
 	var cost := Market.purge_price(n)
 
 	# The shade eats input so the deck below cannot be clicked through; the dim margin closes it.
-	var shade := ColorRect.new()
-	shade.color = Color(0.02, 0.03, 0.05, 0.80)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.mouse_filter = Control.MOUSE_FILTER_STOP
-	shade.gui_input.connect(func(e: InputEvent) -> void:
-		var mb := e as InputEventMouseButton
-		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			_close_purge())
-	add_child(shade)
-	_purge_prompt = shade
-
-	var mid := CenterContainer.new()
-	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	shade.add_child(mid)
+	var mid := Widgets.prompt(self, _close_purge)
+	_purge_prompt = mid.get_parent() as Control
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
@@ -1228,15 +1168,15 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 
 
 ## Sprite and card art do different jobs, so neither is a crop of the other.
-## Cell is 44: module sprites are 20 px a cell, so 2x leaves two pixels of air.
+## Cell is 44, not the hold's 40 (`HoldGrid.CELL`): module sprites are 20 px a cell, so 2x leaves two pixels of air.
 ## Why: docs/why/StationScreen.md#hold-plate
-const CELL := 44
+const PART_CELL := 44
 
 
 func _hold_plate(m: ModuleData) -> Control:
 	var cells := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	var box := Control.new()
-	box.custom_minimum_size = Vector2(cells) * CELL
+	box.custom_minimum_size = Vector2(cells) * PART_CELL
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var grid := GridContainer.new()
@@ -1248,7 +1188,7 @@ func _hold_plate(m: ModuleData) -> Control:
 	box.add_child(grid)
 	for i in cells.x * cells.y:
 		var sq := PanelContainer.new()
-		sq.custom_minimum_size = Vector2(CELL, CELL)
+		sq.custom_minimum_size = Vector2(PART_CELL, PART_CELL)
 		sq.add_theme_stylebox_override("panel",
 			UITheme.flat(Color("#0a0f17"), Color("#1b2735"), 0, 0, 0))
 		grid.add_child(sq)
@@ -1284,7 +1224,7 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 	var plate := HBoxContainer.new()
 	plate.add_theme_constant_override("separation", 10)
 	# Reserve the tallest footprint (BULK, two deep), or opening a 2x2 shifts everything below it.
-	plate.custom_minimum_size = Vector2(0, CELL * 2)
+	plate.custom_minimum_size = Vector2(0, PART_CELL * 2)
 	var cells_box := _hold_plate(mod)
 	cells_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	plate.add_child(cells_box)
@@ -1364,9 +1304,13 @@ func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
 		v.tooltip_text = " "
 		fan.add_child(v)
 	return deck
+
+
 ## `SLAB_W` is a ceiling, not a width: read as a floor it left the right third empty.
 ## Why: docs/why/StationScreen.md#slab-width
 const SLAB_W := 470
+
+
 func _refresh_stock(n: MapGen.MapNode) -> void:
 	Widgets.clear(_shelf)
 
@@ -1586,8 +1530,13 @@ func _fabricate(r: Dictionary) -> void:
 	Audio.play(&"fabricate", 0.04)
 	Run.log_line(line, &"good")
 
+## True while a co-op client waits on the host for a claim, so a second click cannot pay twice.
+var _asking := false
+
 func _on_action(action: String, thing: Variant) -> void:
 	var n: MapGen.MapNode = Run.node_at()
+	if _asking and (action == "buy" or action == "take_hull"):
+		return
 	match action:
 		"buy":
 			var m := thing as ModuleData
@@ -1602,7 +1551,10 @@ func _on_action(action: String, thing: Variant) -> void:
 				Run.log_line("The hold is full. Nowhere to put it.", &"them")
 				return
 			# One shelf, four buyers: ask first and pay only if you won (`RunState.take_option`).
-			if not await Run.take_option(n, MapGen.OPTION_SHOP + slot):
+			_asking = true
+			var won: bool = await Run.take_option(n, MapGen.OPTION_SHOP + slot)
+			_asking = false
+			if not won:
 				var who := Net.taker_name(n.index, MapGen.OPTION_SHOP + slot)
 				Run.log_line("Sold.%s" % (" %s got there first." % who.to_upper()
 					if who != "" else ""), &"them")
@@ -1636,7 +1588,10 @@ func _on_action(action: String, thing: Variant) -> void:
 				return
 			# One rack, one hull. Same race as the shelf above, and the same
 			# order: ask, then pay.
-			if not await Run.take_option(n, MapGen.OPTION_SHOP_HULL):
+			_asking = true
+			var won2: bool = await Run.take_option(n, MapGen.OPTION_SHOP_HULL)
+			_asking = false
+			if not won2:
 				var who2 := Net.taker_name(n.index, MapGen.OPTION_SHOP_HULL)
 				Run.log_line("Gone.%s" % (" %s is flying it." % who2.to_upper()
 					if who2 != "" else ""), &"them")
@@ -1842,8 +1797,8 @@ func _note(paper: Color, body: Control) -> Control:
 	var pc := PanelContainer.new()
 	pc.custom_minimum_size = Vector2(NOTE, NOTE)
 	if _on_screen():
-		var edge := Color("#3ec8e0") if paper != NOTE_STICKY else Color("#f0c040")
-		pc.add_theme_stylebox_override("panel", UITheme.flat(Color("#0c2034"), edge, 0, 7, 8))
+		var edge := PostingBoard.LCD_CYAN if paper != NOTE_STICKY else PostingBoard.LCD_AMBER
+		pc.add_theme_stylebox_override("panel", UITheme.flat(PostingBoard.LCD_GLASS, edge, 0, 7, 8))
 	else:
 		pc.add_theme_stylebox_override("panel", UITheme.flat(paper, paper.darkened(0.28), 0, 7, 8))
 	pc.add_child(body)
@@ -1861,7 +1816,7 @@ func _ink(which: StringName) -> Color:
 		match which:
 			&"pay": return UITheme.EMBER
 			&"soft": return UITheme.QUOTE
-			&"head": return Color("#7fd4ff")
+			&"head": return PostingBoard.LCD_BLUE
 			_: return UITheme.CHILL
 	match which:
 		&"pay": return PostingBoard.RED
@@ -2021,7 +1976,7 @@ class _SignedStamp extends Control:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
-		var col := Color("#ff7a66") if screen else PostingBoard.RED
+		var col := PostingBoard.LCD_ALARM if screen else PostingBoard.RED
 		var r := Rect2(Vector2(1.0, 1.0), size - Vector2(2.0, 2.0))
 		if screen:
 			draw_rect(r, Color(0, 0, 0, 0.5))
@@ -2122,7 +2077,8 @@ func deck_subject(tab: StringName) -> Rect2:
 
 ## Whether your ship can be opened up here now: on the yard, nothing over it.
 func cutaway_ready() -> bool:
-	return Run.hull != null and _cutaway == null and _mine_view != null and is_instance_valid(_mine_view) 		and _mine_view.is_visible_in_tree() and (Router.dock == null or not is_instance_valid(Router.dock))
+	return Run.hull != null and _cutaway == null and _mine_view != null and is_instance_valid(_mine_view) \
+		and _mine_view.is_visible_in_tree() and (Router.dock == null or not is_instance_valid(Router.dock))
 
 
 ## The pointer on your ship in the yard: the amber outline on its own pixels, and
@@ -2157,6 +2113,8 @@ func _on_mine_input(e: InputEvent) -> void:
 
 
 var _edge: _YardEdge = null
+## how long the elevator takes to slide back in once your hull is down: a dial,
+## `ZoomLadder.ELEVATOR_S`
 ## undocking: how long the elevator takes to go, before your ship lifts off (s)
 ## (three fifths of the time it takes to come back in, `ZoomLadder.ELEVATOR_S`)
 static func undock_elev_s() -> float:
@@ -2172,8 +2130,6 @@ func ladder_track_speed(dur: float) -> float:
 	if _lad.is_empty():
 		return 0.0
 	return YARD_M * float(_lad.off) / maxf(dur, 0.001)
-## how long the elevator takes to slide back in once your hull is down: a dial,
-## `ZoomLadder.ELEVATOR_S`
 class _YardEdge extends Node:
 	var screen: StationScreen
 
@@ -2619,7 +2575,8 @@ func ladder_chrome(k: float) -> void:
 
 func ladder_hull() -> Rect2:
 
-	if _mine_view == null or not is_instance_valid(_mine_view) or _mine_view._tex == null 			or not _mine_view.is_visible_in_tree() and not _lad_hid:
+	if _mine_view == null or not is_instance_valid(_mine_view) or _mine_view._tex == null \
+			or not _mine_view.is_visible_in_tree() and not _lad_hid:
 		return Rect2()
 	var g := _mine_view.get_global_transform()
 	return Rect2(g * _mine_view.canvas_to_local(Vector2.ZERO),

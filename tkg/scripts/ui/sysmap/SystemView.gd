@@ -676,10 +676,10 @@ func show_system(n: MapGen.MapNode) -> void:
 		var b := layout.bodies[i]
 		if b.world == &"":
 			continue
-		var v: Node2D = Worlds.view_for(b.world)
-		v.call("set_world", b.world, b.seed, world_r(b))
+		var v: WorldView = Worlds.view_for(b.world)
+		v.set_world(b.world, b.seed, world_r(b))
 		# EVERY WORLD IN 2x2 BLOCKS, the small ones too (Jon)
-		v.call("set_cell", 2)
+		v.set_cell(2)
 		_worlds.add_child(v)
 		_views[i] = v
 		if painted:
@@ -1252,7 +1252,7 @@ func _radiant_safety() -> void:
 		DisplaySettings.fall_back_style(STYLE_SIMPLIFIED)
 
 
-## SIMPLIFIED is the default; PAINTED and RADIANT are the others (`DisplaySettings.BUILT`).
+## SIMPLIFIED is the default; PAINTED and RADIANT are the others (`DisplaySettings.STYLES`).
 static func style() -> StringName:
 	return DisplaySettings.render_style
 
@@ -1574,7 +1574,7 @@ func _depth_look() -> Array:
 
 
 ## Each sheet is sized and slid by the camera's distance, and faded near it and near the plane.
-func _step_depth(o: Vector2) -> void:
+func _step_depth(_o: Vector2) -> void:
 	if _depth.is_empty():
 		return
 	var D := 1.0 / maxf(zoom, 0.01)
@@ -1910,7 +1910,7 @@ func step() -> void:
 		var held := _held(_draw_r_raw(bw), was, minf(least, _draw_r_raw(bw)))
 		if held != was:
 			_rq[i] = held
-			_views[i].call("set_world", bw.world, bw.seed, held)
+			(_views[i] as WorldView).set_world(bw.world, bw.seed, held)
 	tick("world resize", t_resize)
 	var t_worlds := Time.get_ticks_usec()
 	# the worlds, nearest drawn last; one behind the star hidden by its disc --
@@ -1929,7 +1929,7 @@ func step() -> void:
 		var i: int = order[k]
 		if not _views.has(i):
 			continue
-		var v: Node2D = _views[i]
+		var v: WorldView = _views[i]
 		var p := pos[i]
 		# (the farther of the two suns first, should one world come after both)
 		if not star2_placed and d2 < da and dep.call(i) >= d2:
@@ -1946,7 +1946,7 @@ func step() -> void:
 		var hs := Worlds.half_size(layout.bodies[i].world, float(_rq.get(i, draw_r(layout.bodies[i]))))
 		v.position = at[i] + Vector2.ONE * float(hs % 2)
 		if _live.has(i) and v.has_method("set_live"):
-			v.call("set_live", float(_live[i][0]), (_live[i][1] as Vector2) - v.position)
+			v.set_live(float(_live[i][0]), (_live[i][1] as Vector2) - v.position)
 		var behind: bool = dep.call(i) < da and not core
 		# (lit as the showcase lit them: a world far out still bright on its day side)
 		# (two suns: the light of both, `light_here`; one sun, `light_at` itself)
@@ -1959,10 +1959,10 @@ func step() -> void:
 			if painted:
 				bo = round(bo * 2.0) / 2.0
 			kl = 0.55 + 0.9 * bo
-		v.call("step", t, light_for_at(p), kl, o if behind else Vector2(-9999, -9999), layout.star_r * star_k() if behind else 0.0)
+		v.step(t, light_for_at(p), kl, o if behind else Vector2(-9999, -9999), layout.star_r * star_k() if behind else 0.0)
 		# LIT BY ITS OWN STAR (C): the lit side in its colour, the night side
 		# filled by the sky round it, brighter at a flare's height
-		var vm: ShaderMaterial = v.get("_mat")
+		var vm: ShaderMaterial = v.world_mat()
 		if vm != null:
 			vm.set_shader_parameter("star_tint", tint_at(p))
 			vm.set_shader_parameter("night_fill", night_fill(p))

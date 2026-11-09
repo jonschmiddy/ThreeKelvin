@@ -4,37 +4,29 @@ extends Node
 ## Why: docs/why/GoalTest.md#goal-test
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 ## the goal's rect where first seen up: every screen after has it the same
 var _goal_rects := {}
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Hints.forced = true
 	Hints.set_process(false)
 	Hints.reset()
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 
 	# ---- LOCAL at launch
 	var g := _goal()
@@ -47,13 +39,13 @@ func _run() -> void:
 
 	# ---- the chart
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_check(g, "the chart", "Pick a star in range, then JUMP.")
 	_ok("the chart: no tab outlined (you are on it)", g.get("cue") == &"")
 
 	# ---- the start system's map: the jump is still the step
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_check(g, "the start system's map", "Open STARCHART. Pick a star in range, then JUMP.")
 
 	# ---- the first jump, to a neighbour with an event open
@@ -61,14 +53,14 @@ func _run() -> void:
 	if not _ok("a neighbour in range with an event in it", to != null):
 		return _finish()
 	Router.commit_jump(to.index, true)
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	_ok("jumped (%d jump, on %s)" % [Run.jumps, _name(Router.current)], Run.jumps == 1)
 	_ok("the jump step is done for good", Hints.seen(&"step_jump"))
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_check(g, "the map after the first jump", "Click an event, then GO.")
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_check(g, "LOCAL after the first jump", "Open SECTOR. Click an event, then GO.")
 	_ok("LOCAL after the first jump: the SECTOR tab is outlined", g.get("cue") == &"sector")
 
@@ -77,48 +69,48 @@ func _run() -> void:
 	var oi := _open_event(Run.node_at())
 	if _ok("an event to open here", sc != null and oi >= 0):
 		sc._events.open(oi)
-		await _frames(30)
+		await Harness.frames(_tree, 30)
 		_check(g, "LOCAL with an event's band up", "")
 		_ok("the event step is done for good", Hints.seen(&"step_event"))
 		sc._events.not_now()
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		_check(g, "LOCAL after NOT NOW", "")
 
 	# ---- a fight
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(60)
+	await Harness.frames(_tree, 60)
 	sc = Router.current as SectorScreen
 	if _ok("a fight is up", sc != null and sc.fighting()):
 		_check(g, "a fight", "")
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 
 	# ---- hidden over the cutaway, and the escape menu
 	sc = Router.current as SectorScreen
 	if sc != null:
 		var cut := sc.open_cutaway()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_ok("hidden over the cutaway", cut != null and not g.visible)
 		if cut != null:
 			cut.close_now()
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_ok("back when the cutaway shuts", g.visible)
 	var main: Node = Router.content
 	while main != null and not main.has_method("toggle_menu"):
 		main = main.get_parent()
 	if main != null:
 		main.toggle_menu()
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 		_ok("hidden under the escape menu", not g.visible)
 		main.toggle_menu(false)
-		await _frames(5)
+		await Harness.frames(_tree, 5)
 
 	# ---- steps off under a harness that did not ask for hints; GOAL stays
 	Hints.forced = false
 	Hints.reset()
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_ok("hints off: GOAL still shows, with no step under it (step \"%s\")" % _step_text(g),
 		g.visible and _goal_text(g) == "GOAL: REACH THE CORE" and _step_text(g) == "")
 	_finish()
@@ -313,5 +305,5 @@ func _finish() -> void:
 	Hints.forced = false
 	Hints.set_process(true)
 	Hints.reset()
-	print("goaltest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("goaltest")
+	_tree.quit(h.code())

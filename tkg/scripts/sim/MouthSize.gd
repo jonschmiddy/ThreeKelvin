@@ -11,18 +11,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
-func _arg(k: String, d: String) -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(k + "="):
-			return (a as String).substr(k.length() + 1)
-	return d
-
-
 func _fit_full() -> void:
 	var own: Array[ModuleData] = []
 	for mid in DB.modules:
@@ -60,24 +48,24 @@ func _run() -> void:
 	SectorScreen._approached_at = st
 	Router.park_at_station()
 	Router.show_local()
-	await _frames(90)
+	await Harness.frames(_tree, 90)
 	var weights := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
 	var top := INF
 	var bot := -INF
 	var who_top := ""
 	var who_bot := ""
-	for wn in _arg("weights", "heavy,medium,light").split(","):
+	for wn in Harness.arg("weights", "heavy,medium,light").split(","):
 		for m: StringName in DB.STARTABLE:
 			for tier in HullData.TIER_NAMES.size():
 				Run.fit_chassis(m, weights[wn], tier)
 				_fit_full()
 				Sig.ship_changed.emit()
-				await _frames(4)
+				await Harness.frames(_tree, 4)
 				var loc := Router.current as SectorScreen
 				if loc == null or loc._face == null:
 					continue
 				loc._place_face()
-				await _frames(2)
+				await Harness.frames(_tree, 2)
 				var art := loc._view.ship_view()
 				if art == null:
 					continue

@@ -28,8 +28,8 @@
 
    Rules
      - The ink stays inside the 24 x 15 box: x .. x+23, cy-7 .. cy+7 (badgeBox(x, cy)).
-       Optional s0w: N in BADGES.push widens the box to N x 15 for jumps 1-15 only (S0, and the FROM
-       step arriving at 16), for a countdown set beside the sleeping shape; boxW(B, j) says which.
+       Optional s0w: N in BADGES.push widens the box to N x 15 for jumps 1-15 only (S0), for a
+       countdown set beside the sleeping shape; boxW(B, j) says which.
      - Only core.js helpers and canvas calls. No DOM, no timers, no state kept between calls
        (each call draws the whole badge from j and t alone). off() for a scratch canvas is fine.
      - Colours from COL / IC (the game's palette), mix() of two of them, or the sprite IMG.spr.

@@ -7,7 +7,6 @@ const ALL_SCREENS := ["title", "chart", "map", "map2", "local", "fight", "yard"]
 ## Samples run 2.5 s because `TIME_PROCESS` is the engine's once-a-second worst.
 const MIN_SECS := 2.5
 
-var _args: PackedStringArray
 var _rows: Array = []
 ## Where every screen but the title is: a system with a giant to orbit
 ## (LOCAL, the map, the fight), and a station whose yard is measured.
@@ -21,15 +20,7 @@ var _root_rid := RID()
 var _held_galaxy: Dictionary = {}
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
 
 
@@ -57,14 +48,14 @@ func _run() -> void:
 	RenderingServer.viewport_set_measure_render_time(_game_rid, true)
 	RenderingServer.viewport_set_measure_render_time(_root_rid, true)
 	var scales: Array[int] = []
-	for s in _arg("scales", "1,2,3").split(",", false):
+	for s in Harness.arg("scales", "1,2,3").split(",", false):
 		scales.append(int(s))
-	var looks := _arg("looks", "flat,crt").split(",", false)
-	var gfx := _arg("gfx", "high,low").split(",", false)
-	var screens := _arg("screens", ",".join(ALL_SCREENS)).split(",", false)
-	var frames := maxi(10, int(_arg("frames", "120")))
+	var looks := Harness.arg("looks", "flat,crt").split(",", false)
+	var gfx := Harness.arg("gfx", "high,low").split(",", false)
+	var screens := Harness.arg("screens", ",".join(ALL_SCREENS)).split(",", false)
+	var frames := maxi(10, int(Harness.arg("frames", "120")))
 	_machine("before")
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_pick_places()
 	var done_k: Array[int] = []
@@ -95,7 +86,7 @@ func _run() -> void:
 	_restore_galaxy()
 	_machine("after")
 	_table()
-	var outp := _arg("out")
+	var outp := Harness.arg("out")
 	if outp != "":
 		var f := FileAccess.open(outp, FileAccess.WRITE)
 		if f != null:

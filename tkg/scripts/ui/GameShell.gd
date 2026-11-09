@@ -177,7 +177,8 @@ func _fade_out(tree: SceneTree) -> void:
 	var t := create_tween()
 	t.tween_method(func(v: float) -> void:
 		if _mat != null:
-			_mat.set_shader_parameter(&"power_off", v), 0.0, 1.0, OFF_S) 		.set_trans(Tween.TRANS_LINEAR)
+			_mat.set_shader_parameter(&"power_off", v), 0.0, 1.0, OFF_S) \
+		.set_trans(Tween.TRANS_LINEAR)
 	t.tween_interval(BLACK_S)
 	t.tween_callback(tree.quit)
 	# And a floor under it, in case the tween is killed with the tree.
@@ -194,12 +195,6 @@ func hold_off(v: float) -> void:
 ## Harnesses ask for the glass rect instead of searching for a node.
 func frame_rect() -> Rect2:
 	return Rect2(_frame.position, _frame.size) if _frame != null else Rect2()
-
-
-## Snap to the texel the shader shows, so the visible edge and the hit edge are the same.
-## Why: docs/why/GameShell.md#pointer-mapping
-func _game_at(win: Vector2) -> Vector2:
-	return _bend(win).floor() + Vector2(0.5, 0.5)
 
 
 ## Kept apart from the snap because it is invertible and `-- warptest` runs it backwards.

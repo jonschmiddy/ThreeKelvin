@@ -45,6 +45,7 @@ var _weld_was := false
 var _weld_fade: Tween = null
 ## Each flickering light's voice, so the next slice cuts the last off.
 var _flick: Dictionary = {}
+var _flick_tw: Dictionary = {}
 var _flick_turn := 0
 var _drop: Dictionary = {}
 ## The drones winding down: [player, started, rate, gain].
@@ -184,6 +185,10 @@ func flick(key: String, strong: bool = false) -> void:
 	if p == null:
 		p = _player(&"Ambient")
 		_flick[key] = p
+	# A repeat flick on the same light must not be cut by the last one's fade.
+	var old_tw: Tween = _flick_tw.get(key)
+	if old_tw != null:
+		old_tw.kill()
 	p.stop()
 	var dur := 0.12 if strong else 0.07
 	var g := 0.55 if strong else 0.32
@@ -193,6 +198,7 @@ func flick(key: String, strong: bool = false) -> void:
 	var tw := create_tween()
 	tw.tween_method(func(v: float) -> void: p.volume_db = linear_to_db(maxf(v, 0.0001)), g, 0.0001, dur)
 	tw.tween_callback(p.stop)
+	_flick_tw[key] = tw
 	_taped(name)
 
 

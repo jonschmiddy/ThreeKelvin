@@ -26,7 +26,7 @@ func run(tree: SceneTree) -> void:
 		var at := DB.hull_exhaust_at(HullData.Weight.HEAVY, 0, id)
 		print("exhaust_%-3d %-10s %-9s %-8s %s"
 			% [id, "%dx%d" % [w, h], "%dx%d" % [w / DB.EXHAUST_FRAMES, h],
-			   "%d,%d" % [at.x, at.y], note])
+				"%d,%d" % [at.x, at.y], note])
 
 	# Both offset paths must hold: rigged in the bench, or centred on the canvas.
 	print("")

@@ -49,9 +49,6 @@ func _hint(name: String) -> void:
 			await _secs(HINT_S)
 			_shot(name)
 			print("  fuelshot: %s reads \"%s\" / \"%s\"" % [name, Hints.lines(&"fuel")[0], Hints.fuel_dock_line()])
-			var ev := InputEventMouseButton.new()
-			ev.button_index = MOUSE_BUTTON_LEFT
-			ev.pressed = true
 			Hints.spend()
 			await _secs(Hints.GAP_S + 0.3)
 			return

@@ -20,11 +20,13 @@ WHAT IS STILL NOT AUTOMATED, deliberately: whether the character is any good.
 That is Jon's, and it is why this prints a contact sheet rather than a verdict.
 """
 
+import hashlib
 import io
 import json
 import os
 
 import sys
+import tempfile
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -95,8 +97,7 @@ def choose(n, cycle_px):
 
     Frames advance by DISTANCE, so frames a second is pace x frames / cycle.
     Keeping every k-th frame divides the rate by k for free -- no new art. Take
-    the smallest k that lands under the ceiling, because every frame dropped is
-    smoothness dropped.
+    the k whose rate lands nearest FPS_AIM among those under the ceiling.
 
     Only k that divides n evenly is allowed. An uneven subsample leaves the
     wrap from the last frame to the first a part-step short, which is a hitch
@@ -129,16 +130,19 @@ def roll(name, urls, dry=False):
     os.makedirs(d, exist_ok=True)
     paths = []
     for i, u in enumerate(urls):
-        paths.append(fetch(u, os.path.join(d, "%d.png" % i)))
+        # Keyed on the URL too, so a new URL under the same name is fetched.
+        key = hashlib.sha1(str(u).encode("utf-8")).hexdigest()[:10]
+        paths.append(fetch(u, os.path.join(d, "%d_%s.png" % (i, key))))
 
     n = lap(paths)
     lapped = paths[:n]
 
     # The cycle distance is measured on the TRIMMED lap -- a strip still
     # carrying a partial second lap fits a stride that explains neither. Built
-    # under the real name so nothing temporary is left in the station folder;
-    # if a subsample wins it is rebuilt over the top a moment later.
-    out, meta = walker_install.build(name, lapped)
+    # in a scratch folder, so a dry run or a failed build never touches the
+    # installed strip; the real one is built below.
+    with tempfile.TemporaryDirectory() as scratch:
+        _out, meta = walker_install.build(name, lapped, scratch)
     cycle = meta["cycle"]
 
     k, kept, fps, fitted = choose(n, cycle)
@@ -150,11 +154,9 @@ def roll(name, urls, dry=False):
         "in_band": fitted, "frame_h": meta["frame_h"],
     }
     if dry:
-        os.remove(out)
         return row, None
 
-    if k > 1:
-        out, meta = walker_install.build(name, frames)
+    out, meta = walker_install.build(name, frames)
     m2 = meta
     row["advance"] = m2["advance"]
     row["frame_h"] = m2["frame_h"]
@@ -211,6 +213,11 @@ def roll(name, urls, dry=False):
     return row, m2
 
 
+def save_index(idx):
+    io.open(walker_install.INDEX, "w", encoding="utf-8",
+            newline="\n").write(json.dumps(idx, indent=1, sort_keys=True))
+
+
 def main(argv):
     dry = "--dry" in argv
     argv = [a for a in argv if a != "--dry"]
@@ -227,12 +234,13 @@ def main(argv):
     for name in sorted(man):
         try:
             row, meta = roll(name, man[name], dry)
-        except Exception as e:  # one bad cycle must not stop the batch
+        except (Exception, SystemExit) as e:  # one bad cycle must not stop the batch
             print("%-15s FAILED  %s" % (name, e))
             continue
         rows.append(row)
         if meta:
             idx[name] = meta
+            save_index(idx)  # the index follows each strip, so a crash cannot split them
         print("%-13s %4d %4d %6d %7.1f %6.2f %5.2f %5s %4.0f%% %4.0f%% %s%s"
               % (name, row["returned"], row["lap"], row["frames"],
                  row["cycle"], row.get("advance", 0), row["fps"],
@@ -243,8 +251,6 @@ def main(argv):
                  "  OUT OF BAND" if not row["in_band"] else ""))
 
     if not dry:
-        io.open(walker_install.INDEX, "w", encoding="utf-8",
-                newline="\n").write(json.dumps(idx, indent=1, sort_keys=True))
         print("\n%d installed, index has %d" % (len(rows), len(idx)))
 
 

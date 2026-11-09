@@ -4,14 +4,11 @@ extends Node
 ## Why: docs/why/IdleSoundTest.md#idle-sound
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -185,5 +182,5 @@ func _run() -> void:
 
 
 func _finish() -> void:
-	print("idlesoundtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(0 if _fails == 0 else 1)
+	h.verdict("idlesoundtest")
+	_tree.quit(h.code())

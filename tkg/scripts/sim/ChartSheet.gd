@@ -18,7 +18,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	await _frames(5)
-	var MC = StarchartScreen.MapChart
+	var MC = MapChart
 	MC.clock_override = 123.456
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", 1)
@@ -179,7 +179,7 @@ func _run() -> void:
 ## Every reachable zoom, not just the wheel's notches, so in-between glide values are covered.
 ## Why: docs/why/ChartSheet.md#zoom-sweep
 func _sweep() -> void:
-	var MC = StarchartScreen.MapChart
+	var MC = MapChart
 	var n := 25
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("sweepn="):
@@ -246,7 +246,7 @@ func _shot(name: String) -> void:
 func _find_chart(n: Node) -> Control:
 	if n == null:
 		return null
-	if n is StarchartScreen.MapChart:
+	if n is MapChart:
 		return n as Control
 	for c in n.get_children():
 		var f := _find_chart(c)
