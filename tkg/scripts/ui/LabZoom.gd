@@ -237,7 +237,7 @@ func _on_buy(b: int) -> void:
 	if line.is_empty():
 		Audio.denied()
 		return
-	Audio.play(&"fabricate", 0.04)
+	Audio.lab_research_buy()
 	board.mark_bought(Vector2i(b, k))
 
 

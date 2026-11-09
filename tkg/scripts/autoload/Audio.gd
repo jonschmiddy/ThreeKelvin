@@ -860,6 +860,10 @@ func lab_hover() -> void: play(&"lab_glass_hover", 0.02, 120)
 ## file's start (Jon's offset 0), its swell peaking ~0.55 s into the camera's
 ## 0.9 s move onto the glass and its two notes after.
 func lab_login() -> void: play(&"lab_login", 0.0)
+## `lab_research_buy`: a step bought on the research board (`LabZoom._on_buy`), on the
+## press, as the board's 1.5 s flash starts (Jon's pick C15, Nov 9: punch tape and two
+## beeps). At 0 dB: the file carries its level, matched to `lab_login`.
+func lab_research_buy() -> void: play(&"lab_research_buy", 0.0)
 
 
 # ---------------- the effects' moments ----------------
