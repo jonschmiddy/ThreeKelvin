@@ -52,7 +52,10 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 		// brightest steps lifted their sky past MARK_LUMA, TornTest)
 		float lv = clamp(0.9 + log2(lR) / 6.0, 0.0, 0.5);
 		Cand rc = cand(M_ARM, lv, 0, 0.0);
-		if (!ballGas()) {
+		if (goldD()) {
+			// (the dim-gold dwarf's: its own gold ramp, as its body, Jon's 2B)
+			rc = cand(M_GOLD, lv, 0, 0.0);
+		} else if (!ballGas()) {
 			// (an old dwarf's: the halo's violet haze, its middle a few of the warm ramp's
 			// orange steps, its stars gold, below -- the warm ramp's bright steps were a
 			// flame the marks' orange words were lost on)
@@ -79,7 +82,7 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 		res = cand(M_HA, 0.62, 0, 0.0);
 	} else if (st == 4) {
 		// (a puff of its gas: a step up its own ramp over what lies there)
-		Cand pc = ballGas() ? cand(M_ARM, 0.55, 0, 0.0) : cand(M_HALO, 0.75, 0, 0.0);
+		Cand pc = ballGas() ? cand(M_ARM, 0.55, 0, 0.0) : (goldD() ? cand(M_GOLD, 0.55, 0, 0.0) : cand(M_HALO, 0.75, 0, 0.0));
 		if (pc.y > res.y || res.m == M_SKY || res.sid == SID_FAR) {
 			res = pc;
 		}

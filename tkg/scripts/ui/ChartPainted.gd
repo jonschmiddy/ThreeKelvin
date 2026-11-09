@@ -34,7 +34,7 @@ const RAMPS: Array = [
 	["#9c3266", "#e2678f", "#ffb3c4", "#fff6e2"],                          # 16 star, pink
 	["#121a30", "#2b2142", "#50345a", "#8a5062", "#c87b62", "#f1b583"],    # 17 ball
 	["#8a84d0", "#d8d0ff", "#fff6e2"],                                     # 18 a lightning bolt (C's violet-white)
-	["#1a120a", "#2e2010", "#422f16", "#563c1a", "#7c5a26", "#a0783a"],    # 19 old gold (the big dwarf spheroidal's body, Jon, Nov 8, "dim gold")
+	["#181008", "#32220e", "#563c1a", "#886228", "#be8c3e", "#f0c478"],    # 19 old gold (the big dwarf spheroidal's body, Jon, Nov 8, "dim gold", 2B: steps as far apart as the arm blue's)
 ]
 ## The lit-side rim and the shadow-side outline of a material's big shapes.
 const RIM := {4: "#8a5062", 5: "#f1b583", 9: "#ff9c9a", 11: "#c87b62", 1: "#cfe6fb"}
