@@ -1,9 +1,6 @@
 extends Node
 
-## The legacy black hole's photon table, traced and written to
-## `LegacyHole.TABLE_PATH`, so the game loads it instead of tracing it:
-##   godot --headless --path . -- sheet=LegacyLensBake
-## Run it again only if `LegacyHole`'s table constants change.
+## Traces the legacy hole's photon table once; rerun only if its constants change.
 
 
 func _ready() -> void:

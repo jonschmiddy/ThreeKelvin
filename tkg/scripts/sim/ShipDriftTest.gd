@@ -1,20 +1,7 @@
 extends RefCounted
 
-## Does the ship move when you change its loadout?
-##   godot --headless --path . -- shipdrift
-##
-## IT SHOULD NOT. Where the hull sits in its window is a fact about the hull and
-## the window. Bolting a gun on may add a gun; it may not slide the ship.
-##
-## Reported twice. The first report blamed moving a part in the hold and the
-## cause was a stuck pan flag, fixed in `_on_clip_input`. The second blamed
-## unmounting a module, and this is a different fault with the same symptom:
-## `ShipView.ship_offset_x()` measures `_img.get_used_rect()`, the bounding box
-## of everything DRAWN -- and `_draw_modules` draws the fitted parts into that
-## same image. So the box moves with the loadout, `ShipScreen._ship_x()`
-## subtracts the offset, and the hull slides.
-##
-## Headless is fine: this measures the composited image, not a rendered frame.
+## The hull must not slide on loadout change: its used rect includes the drawn modules.
+## Why: docs/why/ShipDriftTest.md#ship-drift
 
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
@@ -52,10 +39,7 @@ func run(tree: SceneTree) -> void:
 	var restored: float = view.ship_offset_x()
 	view.queue_free()
 
-	# AND THE REAL SCREEN, which is where it was reported. `ship_offset_x` is
-	# only one of three inputs to `ShipScreen._ship_x()`, and it is the one that
-	# turned out to be stable -- so measure what the eye actually sees: where the
-	# view gets placed inside its window.
+	# Measures the real screen, as `ship_offset_x` is only one of three inputs.
 	var screen := ShipScreen.new()
 	tree.root.add_child(screen)
 	screen.setup()
@@ -76,9 +60,7 @@ func run(tree: SceneTree) -> void:
 	print("  screen: view.x %.1f -> %.1f   (pan.x %.1f -> %.1f)" % [x0, x1, p0, p1])
 	print("  clip %.0f wide - view %.0f wide - ship_x %.1f - bleed %.1f" % [
 		screen._clip.size.x, screen._view.size.x, screen._ship_x(), screen._bleed()])
-	# AND IT MUST BE CENTRED, not merely stable. A ship narrower than its window
-	# has nowhere to pan to, so a non-zero pan at 1x is the bug even when it is
-	# not currently moving.
+	# Must be centred, not just stable: a narrow ship at 1x has nowhere to pan.
 	if absf(p1) >= 0.5 and screen._view.size.x <= screen._clip.size.x:
 		print("  FAIL pan.x is %.1f with the ship fitting its window" % p1)
 	elif absf(x1 - x0) >= 0.5:

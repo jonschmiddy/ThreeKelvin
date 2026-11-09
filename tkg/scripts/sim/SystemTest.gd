@@ -1,62 +1,7 @@
 extends Harness
 
-## Does the system map's layout keep its promises?
-##   godot --headless --path . -- systemtest
-##
-## A GATE. `SystemLayout` is derived and never saved, so everything it gets
-## wrong is wrong silently: an option with no body is an encounter nobody can
-## click, an unstable layout is a planet that moves between a save and a load
-## (or sits in two places for two players), and an orbit run through a body is a
-## planet drawn on top of another. The five promises:
-##
-## **Every option is on exactly one body** (or on the star itself, an event
-## sited there at a red or blue star), a station has its DOCK and the core its
-## custodian.
-## **Stable**: the same node lays out the same way twice in one run, and the same
-## seed lays out the same way in a fresh run.
-## **A gas giant if and only if the node has one** (never round a pulsar), and
-## every giant weighs 1/10 to 1/4 of its star (ruling 20) with its ring and dent
-## where they were.
-## **Orbits never cross a body**: neighbouring orbits are further apart than the
-## two bodies on them are wide.
-## **No shared stream is touched**: laying out a system draws only from
-## `Rng.derive`, so looking at the map cannot move what the run rolls next.
-## **One event to a world** (Jon, Oct 15: "A planet should only hold one event.
-## That should be a rule."): no planet, giant or star holds two options.
-## **The Hellbender has a place of its own** where it is anchored, last, past
-## every orbit, and every other body is where it would be without it.
-##
-## AND TWO SUNS (ruling 20, Oct 30), about one ordinary system in four, and every
-## one of them under `twin=all`: a world round each star, inside the farthest
-## steady orbit round it (Holman and Wiegert); everything else round both, past
-## the nearest steady orbit round the pair (theirs, for the pair's own shares);
-## neighbours apart round each centre, not by index; each world round a star
-## with its ring clear of its star's close ring, of both stars' keep-clear and
-## of every ring it can meet; every ring round both clear of both stars' close
-## rings; each star's keep-clear the autopilot's keep-out at the zoom the layout
-## is fitted to, its close orbit and ring outside it, and that zoom never above
-## the one the map opens at; each world round a star standing 3 game px clear of
-## its sun's drawn disc beside it at the opening zoom, as SystemView draws both
-## in 2 px blocks; zones by distance from the light; Kepler round what each body
-## circles. Round both, as round one sun, the bodies are kept apart and not their
-## rings: how often a body sits inside a world's ring is printed, not promised.
-## THE TWO KINDS (Jon, Nov 1, "Binary kinds: close:B share:A"): a close pair at
-## about one binary in three, the rest wide (all the above is a wide pair's); a
-## close pair's own promises are `_close_checks`.
-## A SIGNED JOB AND THE HELLBENDER (`_comers`), put in every twin: they move no
-## other body and none of the stars' rings or keep-outs, and how far they push
-## the opening zoom past the layout's is measured against the drawn suns.
-## THE PAIR TURNS (ruling 23, Jon, Nov 1, "Orbiting pair: speed:A"; `_turn`):
-## at four times Kepler round the balance point, the worlds round one sun four
-## times Kepler round it (their own Kepler promise above is Kepler x 4) and
-## carried with it; every place a pure function of the layout and the map's
-## time, so two machines and a save and a load at the same t put it in the same
-## place; the rest pose (t 0) exactly the layout as laid out; the turn rigid at
-## eight angles round a lap (the suns `sep` apart about a still balance point,
-## each world round one sun its orbit from it, the edge past everything);
-## `MapGravity` reading the suns where the layout has them; and reduced motion
-## moving nothing. One sun is still at every t, every body exactly where the
-## old formula put it.
+## A gate: `SystemLayout` is derived and never saved, so every layout fault is silent.
+## Why: docs/why/SystemTest.md#system-test-promises
 
 const SEEDS := [4242, 7, 1999, 31337]
 const STAR_B := SystemLayout.STAR_B
@@ -158,9 +103,8 @@ func run() -> void:
 					_fail("system %d: a beacon for option %d, which it does not have" % [n.index, int(k)])
 			if n.type == MapGen.NodeType.STATION and not L.bodies.any(func(b): return b.beacons.any(func(bc): return bc.dock)):
 				_fail("station %d has no DOCK" % n.index)
-			# ONE STATION TO A STATION SYSTEM AND NONE ELSEWHERE (Jon, Nov 3:
-			# "two stations next to each other should never happen"), after
-			# `MapGen._place_stations` turned some back into systems and moved others
+			# One station to a station system (Jon, Nov 3), after `_place_stations` thins them.
+			# Why: docs/why/SystemTest.md#stations
 			var st_bodies := L.bodies.filter(func(b): return b.kind == &"station").size()
 			if st_bodies != (1 if n.type == MapGen.NodeType.STATION else 0):
 				_fail("system %d (%s) holds %d stations" % [n.index, MapGen.type_label(n.type), st_bodies])
@@ -249,6 +193,7 @@ func run() -> void:
 	_all_twins()
 	_report()
 	_turn_report()
+	_comet_pace()
 	var keys := worlds.keys()
 	keys.sort_custom(func(a, b): return int(worlds[a]) > int(worlds[b]))
 	var line: Array[String] = []
@@ -277,11 +222,7 @@ func _tn(k: String, v: float) -> void:
 	_turn_st[k] = [minf(float(e[0]), v), maxf(float(e[1]), v), int(e[2]) + 1]
 
 
-## THE PAIR TURNS (ruling 23), on one layout of either kind. One sun: still at
-## every t, every body exactly where the old formula put it (one-sun systems
-## bit-identical). Two: the rate is Kepler x `pair_speed`, the rest pose is the
-## layout as laid out, and at eight angles round the lap the turn is rigid and
-## `MapGravity` agrees with the layout; reduced motion moves nothing.
+## The pair turns (ruling 23): one sun is still at every t, two turn rigidly at eight angles.
 func _turn(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var ts: Array[float] = [0.0, 0.5, 37.25, 400.0, 1234.5]
 	if not L.twin:
@@ -300,7 +241,7 @@ func _turn(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var k := SystemLayout.pair_speed()
 	var kind := "close" if L.close else "wide"
 	# THE RATE: Kepler round the pair's whole mass, times the ruling's speed
-	var lap := 800.0 * pow(L.sep / 100.0, 1.5)
+	var lap := SystemLayout.kepler_s() * pow(L.sep / 100.0, 1.5)
 	if k <= 0.0:
 		if L.pair_n != 0.0:
 			_fail("%s: the pair held still (pair=0) and turns" % at)
@@ -365,9 +306,7 @@ func _turn(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		for b in L.bodies:
 			if SystemLayout.is_star(b.host_id):
 				_tn("wide pair: a world's laps of its sun a lap of the pair", (TAU / L.pair_n) / b.period)
-	# THE SAME t, THE SAME PLACE: a second layout of the node, with reduced
-	# motion on, puts every sun and world where the first does (the pair's angle
-	# feeds flights, saves and co-op, so no one machine's setting may move it)
+	# Reduced motion must not move the pair's angle: it feeds flights, saves and co-op.
 	var rm := DisplaySettings.reduced_motion
 	var rows: Array = []
 	for pass_i in 2:
@@ -394,25 +333,27 @@ func _turn_report() -> void:
 		print("  turn: %s: %.4f to %.4f (%d)" % [k, float(e[0]), float(e[1]), int(e[2])])
 	_ok("the pair turns: Kepler x %.0f, rigid at %d angles a lap, MapGravity with it, one sun still" % [SystemLayout.pair_speed(), TURN_STEPS],
 		_turn_st.has("one sun: still at every t") and (SystemLayout.pair_speed() <= 0.0 or _turn_st.has("wide pair: a lap, minutes")))
-	# THE RULED SPEED ITSELF (ruling 23, "speed:A"): four times Kepler, a wide
-	# pair's lap 19 to 25 minutes and a close pair's 6 to 7 (the ruling's
-	# rounding of 6.1 to 7.4: close pairs lie 150 to 170 px apart). Every rate
-	# check above is against `pair_speed()`, which reads PAIR_K, so a changed
-	# PAIR_K passed them all, and 0 skipped them (review 2). Only a harness's
-	# `pair=` on the command line may ask for another speed
+	# Pins the ruled speed itself: a changed or zeroed `PAIR_K` otherwise passed every rate check.
+	# Why: docs/why/SystemTest.md#pair-speed
 	var asked := false
+	var wasked := false
 	for a in OS.get_cmdline_user_args():
 		asked = asked or (a as String).begins_with("pair=")
+		wasked = wasked or (a as String).begins_with("worldpace=")
+	var W := SystemLayout.world_pace()
+	if not wasked:
+		_ok("the worlds' pace is the ruled WORLD_PACE (%.2f)" % W, W == SystemLayout.WORLD_PACE)
 	if not asked:
 		var wide: Array = _turn_st.get("wide pair: a lap, minutes", [])
 		var close: Array = _turn_st.get("close pair: a lap, minutes", [])
-		_ok("the ruled speed: PAIR_K 4 (%.2f), wide pairs lap in 19 to 25 min (%s), close pairs in 6 to 7.5 (%s)" % [
-			SystemLayout.PAIR_K,
+		_ok("the ruled speed: PAIR_K 4 (%.2f) at the worlds' pace %.2f, wide pairs lap in %.1f to %.1f min (%s), close pairs in %.1f to %.2f (%s)" % [
+			SystemLayout.PAIR_K, W, 19.0 / W, 25.0 / W,
 			"none seen" if wide.is_empty() else "%.2f to %.2f" % [float(wide[0]), float(wide[1])],
+			6.0 / W, 7.5 / W,
 			"none seen" if close.is_empty() else "%.2f to %.2f" % [float(close[0]), float(close[1])]],
 			SystemLayout.PAIR_K == 4.0 and SystemLayout.pair_speed() == 4.0
-				and not wide.is_empty() and float(wide[0]) >= 19.0 and float(wide[1]) <= 25.0
-				and not close.is_empty() and float(close[0]) >= 6.0 and float(close[1]) <= 7.5)
+				and not wide.is_empty() and float(wide[0]) >= 19.0 / W - 1e-9 and float(wide[1]) <= 25.0 / W + 1e-9
+				and not close.is_empty() and float(close[0]) >= 6.0 / W - 1e-9 and float(close[1]) <= 7.5 / W + 1e-9)
 
 
 ## Least / median / most of a list, for a line.
@@ -424,9 +365,7 @@ func _spread(v: Array[float]) -> String:
 	return "%.3f / %.3f / %.3f (least / median / most of %d)" % [s[0], s[int(s.size() / 2.0)], s[s.size() - 1], s.size()]
 
 
-## A GIANT'S WEIGHT (ruling 20): 1/10 to 1/4 of its star, in every system that
-## has one, felt by the autopilot through `gm`; its ring and its dent in the
-## fabric are where they were, so no orbit moved. Nothing else pulls.
+## A giant weighs 1/10 to 1/4 of its star (ruling 20); its ring and dent are where they were.
 func _weights(n: MapGen.MapNode, L: SystemLayout) -> void:
 	for b in L.bodies:
 		if b.kind == &"giant":
@@ -495,23 +434,8 @@ func _tally(k: String) -> void:
 	_twin_n[k] = int(_twin_n.get(k, 0)) + 1
 
 
-## A SIGNED JOB AND THE HELLBENDER OUT PAST A TWIN'S EDGE (`Contracts.post_goal`
-## appends a job's event to the node; the Hellbender anchors or dies here): a
-## fetch's world, a hunt's contact and the Hellbender, alone and together. They
-## move no other body, and none of the stars' keep-outs, close orbits or rings
-## or the zoom the layout is fitted to, so a planned flight's keep-out is the
-## layout's whatever comes (`SystemLayout.keep_clear_of`). They do push the
-## edge out, and the map opens further out than the layout was fitted to while
-## one is there: how far the drawn suns then reach past the stars' rings and
-## toward the worlds is measured, not promised, since fitting to that zoom
-## cannot be had (`SystemLayout._twin`). First measured Oct 30 over the four
-## seeds' 1,068 twins: a hunt or the Hellbender alone left every star's ring 4.2
-## plane px outside its drawn sun and every world 1.9 game px off its sun; a
-## fetch's world, 3 of 2,136 rings up to 0.2 px inside and 3 worlds touching;
-## all three, 34 rings up to 2.3 px inside and worlds up to 1.1 game px over.
-## Over 24 seeds' 5,014 twins: a fetch, 22 of 10,028 rings up to 0.4 px inside
-## and 13 worlds up to 0.4 game px over; all three, 184 and 550, 2.5 and 1.2.
-## Leaves the node and the run as they were.
+## Jobs and the Hellbender push the edge out, so the suns' reach is measured, not promised.
+## Why: docs/why/SystemTest.md#comers
 func _comers(n: MapGen.MapNode, at: String) -> void:
 	var hb_at := Run.hellbender_at
 	var hb_hp := Run.hellbender_hp
@@ -650,22 +574,17 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 			_least("gap between neighbours round both", gap, at)
 			if gap <= 0.0:
 				_fail("%s: %s and %s cross their bodies round the same centre (gap %.1f)" % [at, g[i - 1].name, g[i].name, gap])
-	# KEPLER ROUND WHAT IT CIRCLES: a world round one star by that star's share,
-	# and (ruling 23) as many times faster than Kepler as the pair turns, so it
-	# laps its sun as often a lap of the pair as at Kepler
+	# Kepler round what it circles, times the pair's speed (ruling 23), so laps match.
 	var kk := maxf(SystemLayout.pair_speed(), 1.0)
 	for b in L.bodies:
 		var m := 1.0 if b.host_id == -9 else (share if b.host_id == -1 else 1.0 - share)
-		var kep := 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m)
+		var kep := SystemLayout.kepler_s() * pow(b.orbit / 100.0, 1.5) / sqrt(m)
 		if b.host_id != -9:
 			kep /= kk
 		var k := b.period / kep
 		if k < 0.95 - 1e-6 or k > 1.05 + 1e-6:
 			_fail("%s: %s's period is %.3f of Kepler's%s round what it circles" % [at, b.name, k, "" if b.host_id == -9 else " x %.0f" % kk])
-	# THE RINGS. Each star: keep-clear, then rail, then ring, out from its surface;
-	# the keep-clear no nearer than the autopilot's keep-out round a sun (its
-	# drawn radius + 6) at the zoom the layout is fitted to, so the close orbit a
-	# ship rides and the ring it is taken onto it inside are outside that
+	# The keep-clear is no nearer than the autopilot's keep-out at the fitted zoom.
 	var fz := L.fit_zoom
 	if not (fz > 0.0):
 		_fail("%s: no zoom the layout is fitted to (%.3f)" % [at, fz])
@@ -706,9 +625,7 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 			var near := b.orbit - b.host0.distance_to(L.star_pos(p, 0.0)) - _ring(b) - L.star_ring_of(p)
 			if near < SystemLayout.RING_CLEAR:
 				_fail("%s: %s %s's ring comes %.1f px from star %d's close ring" % [at, b.kind, b.name, near, p])
-	# ROUND BOTH, bodies apart but not rings, as round one sun: how often a body
-	# sits inside another world's ring (where letting go by hand is taken onto that
-	# world), and a giant's neighbours inside its ring in particular
+	# Round both, bodies are kept apart but not rings, as round one sun; the overlap is printed.
 	for b in both:
 		_tally("bodies round both")
 		var held := false
@@ -721,13 +638,8 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 					_tally("of them inside the giant's ring")
 		if held:
 			_tally("of them inside another world's ring")
-	# AT THE OPENING ZOOM, with no job or Hellbender out (`_comers` puts them in):
-	# the map opens no further out than the layout was fitted to, each star's
-	# close orbit is outside the keep-out there, and each world round a star
-	# stands 3 game px clear of its sun's drawn disc beside it, both as drawn in 2
-	# px blocks. At its near point, in front of the sun, it cannot -- the edge is
-	# too far out for the zone it is in (`SystemLayout._twin`) -- so that is
-	# measured, not promised.
+	# At the near point the edge is too far out for the zone, so that is measured, not promised.
+	# Why: docs/why/SystemTest.md#opening-zoom
 	var z := SystemLayout.open_zoom(L.edge)
 	var bare := not _comers_in(n, L)
 	# (the edge adds 32-bit `Vector2` host lengths: a millionth either way)
@@ -776,17 +688,8 @@ func _zones_and_names(L: SystemLayout, at: String) -> void:
 		names[b.name] = true
 
 
-## THE CLOSE PAIR'S PROMISES (Jon, Nov 1, "Binary kinds: close:B"), on one
-## close pair: its suns 150 to 170 px apart; every body round both, at the
-## balance point, past the first steady orbit round the pair; neighbours apart;
-## Kepler round both; each sun's keep-clear, close orbit and ring in order and
-## outside the autopilot's keep-out at the zoom the layout is fitted to; the two
-## suns' keep-outs apart, each sun's close orbit outside the other's keep-out,
-## and their capture rings apart; every world's ring RING_GAP clear of both
-## suns' close rings, every other body RING_CLEAR; the map opening no further
-## out than it was fitted to; zones by light. Counted: how many have a planet in
-## the middle band, what the first body is, and how often a body sits inside a
-## world's ring (as round one sun, printed, not promised).
+## The close pair's promises (Jon, Nov 1); some are counted and printed rather than promised.
+## Why: docs/why/SystemTest.md#close-pair
 func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	_tally("close pairs")
 	if L.sep < SystemLayout.CLOSE_SEP_LO - 1e-6 or L.sep > SystemLayout.CLOSE_SEP_HI + 1e-6:
@@ -800,7 +703,7 @@ func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		if b.orbit < lo - 1e-6:
 			_fail("%s: %s %s round both at %.1f px, inside the first steady orbit %.1f" % [at, b.kind, b.name, b.orbit, lo])
 		_least("close pair: orbit past its steady limit (share)", b.orbit / (lo / SystemLayout.P_MARGIN), at)
-		var k := b.period / (800.0 * pow(b.orbit / 100.0, 1.5))
+		var k := b.period / (SystemLayout.kepler_s() * pow(b.orbit / 100.0, 1.5))
 		if k < 0.95 - 1e-6 or k > 1.05 + 1e-6:
 			_fail("%s: %s's period is %.3f of Kepler's round both" % [at, b.name, k])
 	var g: Array = L.bodies.duplicate()
@@ -864,9 +767,7 @@ func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	_tally("close pairs whose first body is %s" % ["hot", "temperate", "cold"][first.zone])
 
 
-## EVERY SYSTEM THAT MAY HAVE TWO SUNS, WITH THEM (`MapGen.twin_force`, the
-## harness's `-- twin=all`): each lays out as a twin and keeps every promise;
-## and with `twin=none`, none does.
+## `twin=all` makes every eligible system a twin and each keeps every promise; `none` makes none.
 func _all_twins() -> void:
 	MapGen.twin_force = 1
 	var laid := 0
@@ -982,3 +883,44 @@ func _hellbender(label: String) -> void:
 		for b in without.bodies:
 			past = past and hb.orbit - SystemLayout.reach_of(hb) > b.host0.distance_to(hb.host0) + b.orbit + SystemLayout.reach_of(b)
 	_ok("%spast every orbit" % label, past)
+
+
+## Comets keep today's speed (Jon, Nov 5): WORLD_PACE turns the worlds and the pair faster, nothing else.
+## At WORLD_PACE 1 and 4 a comet planned off the radii is at the same place at every age.
+## Why: docs/why/SystemTest.md#comet-pace
+func _comet_pace() -> void:
+	var SW := preload("res://scripts/ui/sysmap/SkyWeather.gd")
+	var was := SystemLayout.world_k
+	var worst := 0.0
+	var n_sys := 0
+	var faster := true
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type != MapGen.NodeType.SYSTEM:
+			continue
+		n_sys += 1
+		var paths: Array = []
+		var periods: Array = []
+		for k: float in [1.0, 4.0]:
+			SystemLayout.world_k = k
+			var L := SystemLayout.of(n)
+			var inner := INF
+			for b in L.bodies:
+				if b.kind != &"belt" and (b.host_id == -1 or L.close):
+					inner = minf(inner, b.orbit)
+			if inner == INF:
+				inner = L.star_r * 6.0
+			var q := inner * 0.9
+			var De := sqrt(maxf(L.edge / q - 1.0, 0.1))
+			var ev := {"q": q, "w": 0.7, "K": 70.0 / (De + De * De * De / 3.0), "tp": 35.0}
+			var pts: Array = []
+			for age in 81:
+				pts.append(SW.Comet.comet_pos(ev, float(age)))
+			paths.append(pts)
+			periods.append(L.bodies[0].period if not L.bodies.is_empty() else 0.0)
+		for j in (paths[0] as Array).size():
+			worst = maxf(worst, ((paths[0][j] as Vector2) - (paths[1][j] as Vector2)).length())
+		if float(periods[0]) > 0.0 and absf(float(periods[0]) / float(periods[1]) - 4.0) > 1e-6:
+			faster = false
+	SystemLayout.world_k = was
+	_ok("comets keep today's speed at every WORLD_PACE: %d systems' comets at the same place round their sun at every age, at 1 and 4 (worst %.6f px), while the worlds go 4 times as fast" % [n_sys, worst], n_sys > 0 and worst == 0.0 and faster)

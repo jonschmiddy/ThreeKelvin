@@ -1,24 +1,11 @@
 extends RefCounted
 
-## Every exhaust strip in the library, loaded and measured.
-##
-##   godot --headless --path . -- exhaust
-##
-## WHY THIS EXISTS. A plume that fails to load is invisible rather than loud:
-## `exhaust` goes null, `ShipView` skips the blit, and the ship simply flies with
-## its engines out. Nothing throws and no test fails. The same is true of a strip
-## whose width is not a multiple of `EXHAUST_FRAMES` — the slicer takes a
-## truncated cell and the flame develops a seam that only shows in motion.
-##
-## So this asserts the two things the art has to be true about, per file, and
-## prints the frame size and offset so a wrong-looking plume can be checked
-## against a number instead of an impression.
+## A plume that fails to load is invisible: nothing throws and the ship flies engines out.
+## Why: docs/why/ExhaustCheck.md#exhaust-check
 
 
 func run(tree: SceneTree) -> void:
-	# One frame before anything, for the reason ConvoyTest records: Main is still
-	# inside _ready(), and quitting the tree from inside a node's setup hangs
-	# rather than exits.
+	# One frame first: quitting the tree from inside a node's setup hangs (see ConvoyTest).
 	await tree.process_frame
 	var bad := 0
 	print("exhaust library: %d strips, %d frames each"
@@ -41,11 +28,7 @@ func run(tree: SceneTree) -> void:
 			% [id, "%dx%d" % [w, h], "%dx%d" % [w / DB.EXHAUST_FRAMES, h],
 			   "%d,%d" % [at.x, at.y], note])
 
-	# And the wiring. Two ways a hull can get its offset and both must hold:
-	# one RIGGED in the bench carries the offset a person placed, one that has
-	# not been rigged falls back to centring on its own canvas. Checking only
-	# the second is how this file first reported a correctly-rigged hull as
-	# broken.
+	# Both offset paths must hold: rigged in the bench, or centred on the canvas.
 	print("")
 	var rigged := 0
 	var plumes := 0
@@ -59,9 +42,7 @@ func run(tree: SceneTree) -> void:
 		var listed := DB.HULL_EXHAUST.has(key)
 		if listed:
 			rigged += 1
-			# EVERY entry, not just the first. A hull can carry three, and a check
-			# that looked only at the first would pass a ship whose other two were
-			# hanging off the canvas.
+			# Every entry, not just the first: a hull can carry three.
 			var want: Array = DB.HULL_EXHAUST[key]
 			if h.thrusters.size() != want.size():
 				print("hull '%s' (%s) carries %d plumes, rigged for %d" % [h.name, key, h.thrusters.size(), want.size()])

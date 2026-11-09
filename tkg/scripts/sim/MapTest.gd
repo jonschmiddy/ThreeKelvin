@@ -1,39 +1,13 @@
 extends Harness
 
-## Is the galaxy actually traversable, and how short is the short way?
-##   godot --headless --path . -- maptest
-##
-## A GATE, not a measurement, unlike `-- content` and `-- rarity`. Everything it
-## checks is a thing that makes a run UNWINNABLE rather than merely unbalanced,
-## and none of it is visible from inside a run — a player meeting a ring with no
-## way inward does not see a generation fault, they see a game that stopped.
-##
-## IT EXISTS BECAUSE OF THE SPARSE-LINK WORK. `_link()` currently gives EVERY
-## system a coreward link, so "can you get in" was true by construction and
-## needed no checking. Thinning those links removes that guarantee, and
-## `GALAXY_SCALE.md` §3 flags the exact hazard: the reachability pass guarantees
-## every forward system is reachable FROM somewhere, not that every ring has an
-## exit. A ring with no doors is a run that cannot be finished.
-##
-## It also answers the question the design briefs kept guessing at. §0 opens "a
-## run is eight jumps long" — that is the FORCED path, and this measures it
-## rather than deriving it from the layer count, because reachability is not
-## only about `links`: `RunState.reachable_from` also lets a hop through when
-## either end thinks the other is close, so thinning links may not thin the
-## shortest path by as much as the link count suggests.
+## A gate, not a measurement: it checks what makes a run unwinnable, which players never see.
+## Exists because thinning links removed the guarantee that every ring has an exit.
+## Why: docs/why/MapTest.md#map-gate
 
-## How many galaxies to roll, on pinned seeds (`-- maptest seeds=N from=S` rolls
-## others, `seedlist=a,b` exactly those, `noknown` leaves out KNOWN_BAD). Every
-## kind should appear several times, and the rare failure is what this is for —
-## one map proves nothing.
+## Pinned seeds, several of every kind: one map proves nothing and the rare failure is the point.
 const ROLLS := 120
-## SEEDS THAT ONCE BROKE A GALAXY, rolled every time on top of the 120, so the
-## gate cannot pass by not happening to roll them. The 120 are pinned too (from
-## 90210): until Oct 11 this gate rolled 120 FRESH galaxies a run, because
-## `start_new_run` draws its own seed and the reseed before it was thrown away,
-## and a failure came and went between runs.
-##   65867625  a Magellanic Irregular whose start sat alone in the dark at the
-##             rim, 0.243 from its nearest system (`MapGen._ensure_flyable`)
+## Seeds that once broke a galaxy are always rolled; the 120 are pinned since Oct 11.
+## Why: docs/why/MapTest.md#known-bad-seeds
 const KNOWN_BAD: Array[int] = [65867625]
 
 
@@ -80,9 +54,7 @@ func run() -> void:
 		list.append_array(KNOWN_BAD)
 	if not list.is_empty():
 		rolls = list.size()
-	# (`pull=K`: the old PULL placement at arm pull cap K, which used to fail
-	# about one galaxy in 120 at 4.0 -- a stress test for `_ensure_flyable`'s
-	# bridging, which the shipped placement rarely needs)
+	# `pull=K` is the old placement, a stress test of `_ensure_flyable`'s bridging.
 	MapGen.flyable_repair = not "norepair" in OS.get_cmdline_user_args()
 	MapGen.test_stretch = float(_arg_of("stretch", "1"))
 	var pull := float(_arg_of("pull", "0"))
@@ -90,9 +62,7 @@ func run() -> void:
 		MapGen.placement = MapGen.Placement.PULL
 		MapGen.arm_pull_cap = pull
 	for i in rolls:
-		# THE SEED IS FORCED, not reseeded: `start_new_run` rolls its own master
-		# seed (`Rng.roll_master`) from the global generator, so a reseed before
-		# it was thrown away and every run of this gate rolled 120 new galaxies
+		# Forced, not reseeded: `start_new_run` rolls its own master seed and discards a reseed.
 		Rng.forced = list[i] if not list.is_empty() else first + i
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var map := Run.map
@@ -100,9 +70,7 @@ func run() -> void:
 			unreachable.append("seed %d produced no map" % Rng.forced)
 			continue
 
-		# STATIONS RARER AND SPACED (Jon, Nov 3, S3): none within a bare
-		# drive's jump of another, never the start or the core, and about 36 a
-		# galaxy
+		# Stations are rarer and spaced (Jon, Nov 3): none within a bare drive's jump of another.
 		var here_st := _stations(map)
 		st_maps += 1
 		st_total += here_st.size()
@@ -123,10 +91,7 @@ func run() -> void:
 					st_close.append("seed %d: stations %d and %d are %.3f apart" % [Rng.forced,
 						a.index, (here_st[sj] as MapGen.MapNode).index, d])
 
-		# EVERY RING NEEDS AN EXIT. Counted on `links` rather than on
-		# reachability, because this is asking about the structure the linker
-		# built: a ring whose systems all fail to connect inward is a fault in
-		# `_link`, whatever `reachable_from` may allow on top of it.
+		# Every ring needs an exit, counted on `links`: an unconnected ring is a `_link` fault.
 		for layer in MapGen.LAYERS - 1:
 			var here := _in_layer(map, layer)
 			if here.is_empty():
@@ -143,10 +108,7 @@ func run() -> void:
 			if doors == 0:
 				doorless.append("seed %d ring %d has no way inward" % [Rng.forced, layer])
 
-		# AND THE CORE HAS TO BE REACHABLE, which is the only check that
-		# actually matters to a player. Breadth-first over `links`, so it
-		# measures the map rather than the ship — fuel and jump range are a
-		# RunState question and a different kind of stranding.
+		# The core must be reachable, breadth-first over `links`: map structure, not fuel.
 		var goal := _goal(map)
 		var start := _start(map)
 		if goal < 0 or start < 0:
@@ -161,15 +123,8 @@ func run() -> void:
 		worst_path = maxi(worst_path, hops)
 		best_path = mini(best_path, hops)
 
-		# AND THE SAME QUESTION ASKED OF THE RULE THE SHIP FLIES. The search
-		# above walks `links`, which is the graph the CHART draws and which
-		# nothing in the jump path consults. This one walks `reachable_from` --
-		# a radius, fixed since JUMP_RADIUS landed, so a gap wider than it is a
-		# wall that the link graph knows nothing about.
-		#
-		# Fuel is deliberately not considered: running dry is a RunState problem
-		# and a different kind of stranding. This asks whether the geometry
-		# permits the route at all.
+		# Also walks `reachable_from`, what the ship flies: a wide gap is a wall `links` misses.
+		# Why: docs/why/MapTest.md#flyable-route
 		var flyable := _shortest_by_range(map, start, goal)
 		if flyable < 0:
 			unflyable.append("seed %d: the core cannot be FLOWN to (kind %s)%s"
@@ -205,10 +160,7 @@ func run() -> void:
 	_ok("the core can be FLOWN to in every galaxy", unflyable.is_empty())
 	for u in unflyable:
 		_fail(u)
-	# ONE JUMP PER TWO RINGS AT BEST (RunState.DEPTH_STEP): there are LAYERS - 1
-	# steps from the rim ring to the core, so nothing may take fewer than half
-	# of them, rounded up: seven. Under Oct 22's one ring it was fourteen, and
-	# before any cap the shortest way in was six.
+	# At best one jump per two rings (`DEPTH_STEP`), so no route may take fewer than seven.
 	if flown > 0:
 		var floor_jumps := ceili(float(MapGen.LAYERS - 1) / float(RULE))
 		_ok("no galaxy is flown in fewer than one jump per %d rings (%d, at least %d)"
@@ -264,10 +216,7 @@ func _station_list(map: Array) -> Array[int]:
 	return out
 
 
-## THE STATIONS ARE THE SEED'S, wherever the run's other dice have got to: the
-## same seed gives the same stations twice, and the map built again on the
-## same world cursor after 1,000 loot, foe and event rolls gives them again
-## (the pass reads `Rng.derive`, never a stream).
+## Stations are the seed's: later loot, foe and event rolls cannot change them (`Rng.derive`).
 func _stations_same(sd: int) -> void:
 	Rng.forced = sd
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -297,12 +246,8 @@ func _stations_same(sd: int) -> void:
 const RULE := 2
 
 
-## THE TWO-RING RULE, asked of every pair in one galaxy (`RunState.too_deep`).
-## A jump goes at most two rings deeper; outward and along a ring it goes as far
-## as the drive reaches; the core from the last ring always, from the ring
-## before it when in reach, and never from further out. And a star the rule
-## refuses from inside the reach ring is the case the chart has to name
-## (`too_deep_only`, TOO DEEP), so it has to say so.
+## The two-ring rule asked of every pair; a refusal inside reach is what the chart must name.
+## Why: docs/why/MapTest.md#depth-rule
 func _depth_rule(map: Array) -> void:
 	_ok("the game's rule is Jon's: %d rings deeper a jump at most (RunState.DEPTH_STEP %d)"
 		% [RULE, Run.DEPTH_STEP], Run.DEPTH_STEP == RULE and Run.depth_step == RULE)
@@ -377,11 +322,7 @@ func _depth_rule(map: Array) -> void:
 		second_near > 0 and from_before == 0 and from_second == second_near)
 
 
-## THE CHART SAYS THE SAME RULE (`StarchartScreen.DEPTH_ROW`, the FUEL row of a
-## star refused for depth, and the legend's line on the chart's first survey):
-## both name the rule's count, neither the old one, and both still fit where
-## they sit. A rule changed without its words is a chart that gives the wrong
-## reason, which nothing else here would notice.
+## The chart's words must name the rule's current count, or it gives the wrong reason silently.
 const COUNT_WORDS: Array[String] = ["NO", "ONE", "TWO", "THREE", "FOUR"]
 
 func _chart_words() -> void:
@@ -395,9 +336,7 @@ func _chart_words() -> void:
 		row.begins_with(word + " RING") and not row.contains("ONE RING AT A TIME"))
 	_ok("the chart's legend names the rule (\"%s\")" % legend,
 		legend.contains("%s ring" % word.to_lower()) and not legend.contains("one ring deeper"))
-	# FITS: the row beside its key inside the panel's 228 px column, and the
-	# legend's line wrapping to no more lines at the card's width than Oct 22's
-	# words did, so the card does not grow
+	# Fits the 228 px column and wraps to no more lines than before, so the card does not grow.
 	var font := UITheme.pixel_font()
 	var fs := UITheme.FS_SMALL
 	var row_w := font.get_string_size("FUEL", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x \
@@ -411,13 +350,8 @@ func _chart_words() -> void:
 		h_now > 0.0 and h_now <= h_was)
 
 
-## EVERY GALAXY KIND IS COMPLETABLE UNDER THE DEPTH RULE, for the slowest
-## ship (thrust adds nothing, so the base `JUMP_RADIUS`): `seeds` galaxies of
-## each `GalaxyGen` kind (15 each of 17 kinds, 255 galaxies), laid out the way
-## the run-length study laid them out (seeds 900001 + kind * 1000 + i). The
-## study found a few that one ring a jump could not finish;
-## `MapGen._ensure_flyable` walks by the rule (two rings since Oct 27) and
-## bridges the gap, and this is the sweep that says it did.
+## Every kind is completable for the slowest ship; the study found some it could not finish.
+## Why: docs/why/MapTest.md#kind-sweep
 const KIND_SEEDS := 15
 
 func _every_kind(seeds: int) -> void:
@@ -456,9 +390,7 @@ func _every_kind(seeds: int) -> void:
 		_fail("cannot reach the core: " + u)
 
 
-## Fewest jumps start to core for a ship with no thrust bonus: the game's own
-## rule (`reachable_from`, so the depth cap and the core's approach) and no
-## hop longer than the base radius; -1 if there is no way in.
+## Fewest jumps for a ship with no thrust bonus, by the game's own rule; -1 if no way in.
 func _slowest_path(map: Array) -> int:
 	var start := _start(map)
 	var goal := _goal(map)
@@ -497,34 +429,11 @@ func _slowest_path(map: Array) -> int:
 	return depth if seen.has(goal) else -1
 
 
-## Every enum value still has a name, and the name still belongs to it.
-##
-## THE BUG THIS EXISTS FOR IS SILENT AND ALREADY HAPPENED. `type_label` was a
-## hand-written array indexed by the enum value; the 8a-2 collapse renumbered
-## `NodeType` and left the array alone, so STATION read "FIGHT", CORE read
-## "STATION", PULSAR read "EVENT" and SYSTEM read "DERELICT" -- four of five node
-## types naming themselves wrong on the sector screen for a day.
-##
-## Nothing errored. The array was still seven long and every lookup was in
-## bounds, which is the whole hazard: a parallel array does not break when it
-## stops corresponding, it answers a different question. A warning comment sat
-## directly above the enum and survived the edit it was warning about, because
-## comments do not run.
-##
-## `type_label` reads `NodeType.keys()` now and cannot drift. The other three
-## CANNOT do that and should not: `region_name` deliberately maps FAUNA to
-## "Migration Route" and CORE to "Precursor Ruins", which are prose, not keys.
-##
-## So what is checked is LENGTH. The first cut of this looked for BLANK labels
-## and would have passed the very bug it was written for: the array was too LONG,
-## so every lookup was in bounds and every label was a real word -- just the
-## wrong one. A count is the only thing that actually drifted.
+## Guards a silent bug: a renumbered enum left a label array wrong. Check length, not blanks.
+## Why: docs/why/MapTest.md#label-drift
 func _labels() -> void:
 	var bad: Array[String] = []
-	# LENGTH, NOT BLANKNESS, because the bug that happened was an array that was
-	# too LONG and full of the wrong names -- every lookup in bounds, every label
-	# non-empty, and four of five of them wrong. Checking for blanks would have
-	# passed it. A count is the only thing that actually drifted.
+	# Check length, not blankness: the old bug was a too-long array of real but wrong names.
 	if MapGen.REGION_NAMES.size() != MapGen.Region.size():
 		bad.append("Region: %d names for %d values"
 			% [MapGen.REGION_NAMES.size(), MapGen.Region.size()])
@@ -534,9 +443,7 @@ func _labels() -> void:
 	if HullData.WEIGHT_NAMES.size() != HullData.Weight.size():
 		bad.append("Weight: %d names for %d values"
 			% [HullData.WEIGHT_NAMES.size(), HullData.Weight.size()])
-	# `type_label` reads `NodeType.keys()` and cannot drift by construction, so
-	# what is checked there is that it still does -- a future edit swapping it
-	# back to a literal array would slip past everything above.
+	# Checks `type_label` still reads `NodeType.keys()`, so a revert to a literal array is caught.
 	for i in MapGen.NodeType.size():
 		if MapGen.type_label(i) != MapGen.NodeType.keys()[i]:
 			bad.append("NodeType[%d] is %s, not %s"
@@ -586,16 +493,8 @@ func _shortest(map: Array, a: int, b: int) -> int:
 	return -1
 
 
-## Fewest hops to the core under the rule the ship actually flies.
-##
-## `reachable_from`, not `links`. Breadth-first, and deliberately blind to fuel:
-## this asks whether the GEOMETRY permits a route, which is the thing a galaxy
-## can be generated wrong. Running dry is a different failure with a different
-## fix.
-##
-## O(n) per node because `reachable_from` has no index behind it, so this is
-## about n^2 a galaxy. At ~350 systems and 120 rolls that is affordable, and it
-## only runs in the harness.
+## Blind to fuel on purpose: it asks if the geometry permits a route. About n^2, harness only.
+## Why: docs/why/MapTest.md#flyable-route
 func _shortest_by_range(map: Array, start: int, goal: int) -> int:
 	var seen: Dictionary = {start: true}
 	var frontier: Array[int] = [start]
@@ -627,9 +526,7 @@ func _arg_of(k: String, d: String) -> String:
 	return d
 
 
-## Why a galaxy cannot be flown: everything the ship can get to from the start,
-## and the shortest hop from there to anywhere it cannot -- the wall's width
-## against the jump radius, and which rings it lies between.
+## Why a galaxy cannot be flown: the wall's width against the jump radius, and its rings.
 func _why(map: Array, start: int) -> String:
 	var seen: Dictionary = {start: true}
 	var frontier: Array[int] = [start]

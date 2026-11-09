@@ -1,16 +1,7 @@
 extends Node
 
-## THE BOSSES' OWN DEATHS, FILMED WITH THEIR SCREEN HOOKS APPLIED (Oct 13).
-##   godot --path . --fixed-fps 30 --windowed --position 3840,0 -- sheet=BossDeathSheet
-##       out=<dir> [styles=16,17,...] [custodian=<png>] [hellbender=<png>]
-## Each style alone, as the fight frames it: your ship on the left, the boss on
-## the right, on a dark sky. The set piece's `moment`s that are screen hooks are
-## played here as the screen would: `shake` moves the whole view in whole
-## pixels, `slowmo` slows the death's own clock (the film runs on), `flash`
-## lays white over the screen, and the music cues (`duck`, `stinger`) show as a
-## caption, since the film is silent. Out: out/<id>/f_####.png and meta.json
-## (every moment with the death's time and the film's, and whether the last
-## frame is `wreck_image` pixel for pixel).
+## Each death style is filmed with its screen hooks applied, as the fight screen would.
+## Why: docs/why/BossDeathSheet.md#boss-death-film
 
 ## Room round the boss for its pieces to settle in: H3 scatters its rib
 ## sections up to about 30 px.
@@ -126,9 +117,7 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 	stage.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	root.add_child(stage)
 	var pp := Pic.new()
-	# SIZED. A zero-size Control is dropped from the drawing the moment the
-	# shake moves its rect off the origin -- your ship blinked out on every
-	# shaken frame (Jon: "the ship disappears still").
+	# Sized: a zero-size Control is dropped once shake moves it, so the ship blinked out (Jon).
 	pp.size = Vector2(960, 540)
 	pp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pp.tex = ImageTexture.create_from_image(player[0])
@@ -204,10 +193,7 @@ func _film(layer: CanvasLayer, st: int, boss: Array, player: Array) -> void:
 			worst_us = maxi(worst_us, us)
 		if b.done and done_at < 0:
 			done_at = f
-		# SHAKE: a jolt that decays, not a random jump every frame (Jon: "Why
-		# does the ship flicker in and out when the explosion happen?"). A new
-		# direction at most every three frames, eased toward, in whole pixels,
-		# its size falling off as (1 - x)^2.
+		# A decaying jolt, not a random jump each frame, after the ship flickered (Jon).
 		var amp := 0.0
 		for sh in hooks.shake:
 			var a := f - int(sh.f0)

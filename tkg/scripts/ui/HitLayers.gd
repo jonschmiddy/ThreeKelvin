@@ -1,21 +1,9 @@
 class_name HitLayers
 extends Control
 
-## ONE SHIP'S DAMAGE, BLOCK AND BRACE, DRAWN (Jon's picks, Oct 13: "Hits: brace:I
-## go:A" -- hits B, the bubble shield, brace I). Laid over a ship's picture in a
-## fight, in that picture's canvas pixels, by whoever draws the ship:
-##   `hits`   HullHitFx (Jon's pick, D: dents, scrapes, heat blooms, knocked and
-##            peeled plates, mixed per hit, building up; no holes), or for the
-##            Custodian ShipHitFx's older marks (`ShipHitFx.look`);
-##   `shield` ShieldFx: block as the hex bubble, fitted to the ship;
-##   `brace`  BraceFx: brace as the plated overlay.
-## Driven only by what the screen has SHOWN: `land` on the frame a volley lands
-## (with its pop and its sound), `sync` when the screen catches its numbers up
-## (a card's block or brace, a turn's start), `expire_block` when a turn opens.
-## Nothing here reads the fight, so a held number and a held picture agree.
-##
-## DETERMINISTIC from `seed` (the fight's node and the ship's place), so two
-## machines in a shared fight draw the same marks for the same landings.
+## Jon's picks, Oct 13: hits D, bubble shield, brace I. Seeded, so shared fights draw the
+## same marks.
+## Why: docs/why/HitLayers.md#hit-layers
 
 signal moment(kind: StringName, strength: float, length: float)
 
@@ -25,11 +13,7 @@ var brace: BraceFx
 var max_hp := 1
 var _img: Image
 var _used: Rect2i
-## A LIVING CREATURE (`FaunaGuard.wants`, the kind from `FaunaMotion.kind_of`,
-## set before `setup`) takes the creature looks instead: `FaunaShield`,
-## `FaunaBrace`, `FaunaHitFx`, which draw with its motion (`motion`, handed in
-## by its slot as each cut attaches) and keep off its words (`keep`, this
-## layer's own px: its intent words and its readout). -1: a ship.
+## A living creature takes the creature looks and keeps off its words; -1 is a ship.
 var kind := -1
 var body: FaunaGuard.Body = null
 var motion: FaunaMotion = null
@@ -39,10 +23,8 @@ var keep: Array = []
 var skin_mod := Color.WHITE
 
 
-## `img` the ship's picture as drawn now (its canvas), `used` its ink, `facing`
-## -1 when shots come from the left (an enemy), 1 from the right (you). `scale`
-## less than 1 on a half sheet. `bake` true when the owner draws the marks into
-## its own picture (`hits.marks()`).
+## `facing` -1 for enemy shots from the left; `bake` true when the owner draws marks into
+## its picture.
 func setup(img: Image, used: Rect2i, seed: int, facing: int, hull_max: int, scale: float = 1.0,
 		bake: bool = false) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -78,9 +60,7 @@ func setup(img: Image, used: Rect2i, seed: int, facing: int, hull_max: int, scal
 		c.moment.connect(func(k: StringName, s: float, l: float) -> void: moment.emit(k, s, l))
 
 
-## A ship's hull marks in the look `ShipHitFx.look` picks (D, the game's, unless
-## a harness or `-- hull=` says otherwise). The Custodian keeps ShipHitFx's
-## older marks: it is grown, not built.
+## Custodian keeps ShipHitFx's older marks: it is grown, not built.
 func _hull_hits() -> ShipHitFx:
 	if ShipHitFx.look > 0 and kind != FaunaMotion.Kind.CUSTODIAN:
 		var h := HullHitFx.new()
@@ -110,10 +90,8 @@ func land(dealt: int, absorbed: int, hp_after: int) -> void:
 	hits.set_hull(float(hp_after) / float(max_hp))
 
 
-## Catch the drawing up with the numbers the screen now shows. Rises are a gain
-## (the bubble shimmers up, the plates clamp on); a fall in block with nothing
-## in flight is the turn clearing it, and it fizzles; a fall in brace with
-## nothing in flight sheds quietly.
+## Rises shimmer or clamp on; a fall in block with nothing in flight is the turn clearing,
+## so it fizzles.
 func sync(block: int, brace_now: int, hp: int, settle_falls: bool) -> void:
 	if block > shield.block:
 		shield.gain(block - shield.block)
@@ -131,11 +109,8 @@ func sync(block: int, brace_now: int, hp: int, settle_falls: bool) -> void:
 
 # ---------------------------------------------------------------- your ship
 
-## The ShipView these lie over (your ship), or null when the owner places them.
-## Read, never changed: ShipView is drawn by others (the thrusters' flame layer
-## among them), so this sits beside it and follows it -- the canvas's origin in
-## the view, its magnification, and the bob, which moves the hull inside the
-## canvas (`bob0` is where it was when the picture was taken).
+## Read, never changed: ShipView is drawn by others, so this follows its origin,
+## magnification and bob.
 var follow: ShipView = null
 var bob0 := 0
 

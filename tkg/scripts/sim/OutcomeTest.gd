@@ -1,34 +1,8 @@
 extends Node
 
-## WHAT YOU END UP WITH, on the real LOCAL with the real HUD and theme
-## (`OutcomeRow`, every look):
-##   godot --headless --fixed-fps 60 --path . -- sheet=OutcomeTest
-##
-## The real outcomes `OutcomeCheck.find_cases` finds (Jon's lifepod, credits and
-## a part, credits and fuel, a part alone, nothing, credits alone, the most
-## changes), each
-## played through LOCAL's band as the map's GO asks for it, its result drawn in
-## every look in all three layouts:
-##   the numbers the run moved, said (`OutcomeCheck.check`);
-##   the box test, in Silkscreen at the game's own sizes: every entry inside
-##     the band, off every other, off the buttons, the text, the head and the
-##     YOU CHOSE line, B's rows in their columns;
-##   E's plates: one for each part and material that came aboard, said once,
-##     clear of the text and the buttons' column (`OutcomeCheck.prize_place`);
-##   CONTINUE exactly where today's look has it (in the band layouts; the card
-##     is seated by its height, so there it is the card's width that holds);
-##     but D's, at the band's top right, its size and right edge today's;
-##   D's table at 8, only the four stats that moved, no totals (none, no table), the
-##     buttons level with the title and clear of everything, the table
-##     centred under them (`OutcomeCheck.check` / `d_place`).
-## Then C's flight, animated (the game's clock stepped 1/60 s):
-##   the HUD holds its old number until the flight for it lands, then shows the
-##   new one; something is in the air between; a readout flickers on landing
-##   and is back to its own colour after; no HUD readout, tab or button moves a
-##   pixel (only pressable things look pressable, and nothing pressable moves);
-##   nothing is left held. CONTINUE pressed mid-flight lands everything at once.
-##   Reduced motion: nothing flies, the numbers change at once, it still
-##   flickers.
+## Runs the real outcomes through LOCAL's band in every look and layout.
+## C's flights are checked animated: the HUD holds its old number until the flight lands.
+## Why: docs/why/OutcomeTest.md#outcome-test
 
 var _tree: SceneTree
 var _fails := 0
@@ -128,9 +102,7 @@ func _looks(n: MapGen.MapNode, c: String, f: Dictionary, layout: StringName) -> 
 			if lk == &"today":
 				cont_today = cr
 			elif lk == &"D":
-				# D's at the band's top right (Jon, Oct 19): the same size and
-				# the same right edge as today's, at the top of the band
-				# (`OutcomeCheck.d_place` holds it level with the title)
+				# D's at the band's top right (Jon, Oct 19), same size and edge as today's.
 				if not cr.size.is_equal_approx(cont_today.size) or absf(cr.end.x - cont_today.end.x) > 0.5:
 					bad.append("D: CONTINUE %s, not today's %s moved up" % [cr, cont_today])
 				if cr.position.y > d.panel.get_global_rect().position.y + 12.0:
@@ -208,9 +180,7 @@ func _flight(n: MapGen.MapNode, f: Dictionary, reduced: bool) -> void:
 			var w: Control = watch[wi]
 			if not is_instance_valid(w):
 				continue
-			# a button or a tab not by a pixel; a readout whose number got
-			# shorter is the HUD's own layout (the economy is pinned right),
-			# so a readout keeps its right edge and its row
+			# A shorter number is the HUD's own layout, so a readout keeps its right edge and row.
 			var r0: Rect2 = at0[wi]
 			var r1 := w.get_global_rect()
 			var still := r1.is_equal_approx(r0) if w is BaseButton 				else (is_equal_approx(r1.end.x, r0.end.x) and is_equal_approx(r1.position.y, r0.position.y))

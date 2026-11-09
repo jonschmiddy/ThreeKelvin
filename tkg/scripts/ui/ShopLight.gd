@@ -1,20 +1,9 @@
 class_name ShopLight
 extends RefCounted
 
-## The shop's light while it is running: how a failing lamp fails, and the two
-## layers that go over the room once the rack and the counter are in it.
-##
-## PORTED, NOT REDESIGNED. Every function here is the room bench's own
-## (`tools/room_bench.tmpl.html`), line for line, because the bench is where
-## Jon judged these rooms and a light that fails differently in the game is a
-## different room. The names match the bench's so the two can be read side by
-## side.
-##
-## The light itself was worked out by `tools/room_install.py` and is applied by
-## `shop_light_mul/add.gdshader`; what is left to do at run time is the part
-## that moves -- a failing lamp, the dust in its light, the glass of the lamps
-## -- and it is done here on the room's 30 Hz clock, the rate the bench draws
-## at and the rate the faults were shaped for.
+## Ported line for line from the room bench (`tools/room_bench.tmpl.html`), where Jon judged them.
+## Runs on the room's 30 Hz clock, the rate the faults were shaped for.
+## Why: docs/why/ShopLight.md#shop-light
 
 const MUL := preload("res://shaders/shop_light_mul.gdshader")
 const ADD := preload("res://shaders/shop_light_add.gdshader")
@@ -67,11 +56,7 @@ static func _shape_strike(u: float, per: float, seed: float) -> float:
 	return 1.0 if hash1(floorf(seed * 11.0) * 0.77 + floorf(e / per + 0.5)) < 0.45 else 0.05
 
 
-## How bright a lamp burns at `t_ms` (`flickerAt`), as a Color: `a` is the
-## brightness, 0..1, and r, g, b the colour its fault throws, as multipliers.
-## `x`/`y` are where the lamp hangs, which is its seed, and `rate0` its own
-## speed (0: the scatter). A Color and not an out-parameter because a packed
-## array handed to a function is the function's own copy.
+## Returns a Color, as a packed array handed to a function is the function's own copy.
 static func flicker_at(mode: int, t_ms: float, x: float, y: float, rate0: float) -> Color:
 	if mode == 0:
 		return Color(1.0, 1.0, 1.0, 1.0)
@@ -132,10 +117,7 @@ static func rgb_of(col: String) -> Vector3:
 
 # ------------------------------------------------------------------ the layers
 
-## THE LIGHT OVER THE WHOLE ROOM, furniture included: two full-room rects, one
-## multiplying and one adding. Above the rack and the counter because the bench
-## lights them with everything else -- "a rack lit by a different rule from the
-## wall behind it is a rack standing in a photograph of a room".
+## Above the rack and counter: the bench lights them with everything else in the room.
 class Overlay extends Control:
 	var mul: ColorRect
 	var add: ColorRect
@@ -169,12 +151,9 @@ class Overlay extends Control:
 			((r as ColorRect).material as ShaderMaterial).set_shader_parameter(k, v)
 
 
-## WHAT GOES OVER THE LIGHT: dust in the air, the lamps' glass, lit panels, and
-## the shop's own marks -- the prices, the rarity lights, the counter's quote --
-## which stay readable however dark the room is. That last is option 4A of the
-## port plan, taken when the rooms went in with the plan's four questions still
-## open: the room stays moody and the prices stay readable. The bench lights the
-## marks like everything else; `lit_marks = false` on the shop puts that back.
+## Shop marks stay readable however dark the room (option 4A of the port plan).
+## `lit_marks = false` on the shop restores the bench's behaviour.
+## Why: docs/why/ShopLight.md#shop-marks
 class Glow extends Control:
 	var shop: ShopScene
 

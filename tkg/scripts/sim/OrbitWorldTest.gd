@@ -1,25 +1,8 @@
 extends Node
 
-## LOCAL SHOWS THE WORLD YOU ORBIT, BIG, FROM ITS FIRST FRAME, headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=OrbitWorldTest [seeds=7,11,...] [quick]
-## Jon, Oct 21: "Does the local view show the planet you are orbiting the first
-## time you go to a planet? That was an issue before. I want the planet you are
-## orbiting to be large in the background (you are close to it)."
-## Through the real doors with the ladder on (its clock stepped 1/30 s): a new
-## run launched onto LOCAL; then in each system visited -- the start, a jump on,
-## a station's -- every world flown to on the map for the first time (FLY HERE,
-## and GO on an event where one is) and LOCAL by the HUD's tab, Tab round the
-## chart, or the GO's own zoom down. On the FIRST frame LOCAL is up (or built
-## ahead and handed in), its sky's world is the one the ship orbits (the body,
-## its kind and seed), never the world before and never none; open space, the
-## star and a station keep no world. After SAVE & EXIT and CONTINUE, still it.
-## Every world drawn at least `LocalSky.near_r_min()` across its radius,
-## behind your ship (the sky under the scene), and clear of the HUD and the
-## goal line. And on every one of those LOCALs, what stands beside your ship is
-## what is at that place (`_scene_check`): the place picture and an event's
-## subject only where the event stands (an event taken keeps its subject while
-## you stay), and a station's side, ring and bar only at the station, also when
-## LOCAL is pressed as the ship burns onto its orbit.
+## LOCAL must show the world you orbit from its first frame (Jon, Oct 21), through the real doors.
+## What stands beside your ship must be what is at that place (`_scene_check`).
+## Why: docs/why/OrbitWorldTest.md#orbit-world-test
 
 var _fails := 0
 var _tree: SceneTree
@@ -29,9 +12,9 @@ var _quick := false
 ## and its rest, saved at 960x540
 var _shots := ""
 var _label := ""
-## LOCAL opened while the ship rides round to leave (`_early`): a ride with at
-## least this much of the map's clock left (s), the flight tried up to this
-## many times for one
+## LOCAL opened during a ride: needs at least this much of the flight's own clock left
+## (its pace x the map's), tried up to this many times.
+## Why: docs/why/OrbitWorldTest.md#ride-clock
 const RIDE_LEFT := 1.5
 const RIDE_TRIES := 4
 ## and the ride sought before the click this much longer (s): the click plans
@@ -254,15 +237,9 @@ func _check(what: String) -> void:
 	_mem_check(what, sky)
 
 
-## ITS SURFACE'S MEMORY OVER ALL OF IT THAT CAN BE SEEN (`PlanetView.mem_clip`):
-## the world you orbit works its memory out only inside the near picture (much
-## of a giant runs off its bottom or side), so every block of the disc that
-## picture shows must lie inside the memory's window -- and the window must be
-## smaller than the whole memory when the disc runs well off the picture (past
-## its margin and, on the right, the lead a leaving ship's camera needs), or
-## the clip has stopped saving anything. Headless the sky builds no near world,
-## so one is stood in a near picture of its own as `_build_near` builds it, from
-## the same plan; the window is worked out as the frame before drawing would.
+## Every disc block the near picture shows must lie inside the memory window.
+## The window must be smaller than the whole memory, or the clip has stopped saving anything.
+## Why: docs/why/OrbitWorldTest.md#surface-memory
 func _mem_check(what: String, sky: LocalSky) -> void:
 	var pv := sky._near_world as PlanetView
 	var stand: SubViewport = null
@@ -296,10 +273,7 @@ func _mem_cover(what: String, pv: PlanetView) -> void:
 	pv._mem_window()
 	var win: Rect2i = pv._mem_win
 	var n := pv._mem_vp.size.x
-	# THE WINDOW IS THE SHADER'S ALONE, its pass drawn over the whole memory: a
-	# pass rect moved and sized to the window just before drawing took its new
-	# size a frame late, so on every frame the window moved (a push-in, a ship
-	# leaving) the memory was written a grid off from where the world read it
+	# The window is the shader's alone: a resized pass rect lagged a frame, memory a grid off.
 	var pass_rect := pv._mem_vp.get_child(0) as ColorRect
 	var u: Vector4 = pv._mem_mat.get_shader_parameter("mem_win")
 	var u_want := Vector4.ZERO if win == Rect2i(0, 0, n, n) else Vector4(win.position.x, win.position.y, win.end.x, win.end.y)
@@ -325,12 +299,9 @@ func _mem_cover(what: String, pv: PlanetView) -> void:
 		_ok("%s: and less than the whole of it (%d of %d blocks)" % [what, win.get_area(), n * n], win.get_area() < n * n)
 
 
-## A WORLD THAT GIVES OFF LIGHT OF ITS OWN IS DRAWN FROM ITS OWN SAMPLES
-## (`planet.gdshader`, `own_light`): drawn from its memory, a world's screen pass
-## takes none of its four samples unless it is one of these -- so every kind
-## whose surface burns (`has_emit`), glows, glints or shows an oil slick's
-## colours must be on that list, or it would lose that light wherever the
-## memory holds it (LOCAL's world, the map's). Read off the shader's source.
+## Drawn from memory, a world's pass takes none of its samples unless listed in `own_light`.
+## Every burning, glowing or glinting kind must be listed, or LOCAL and the map lose that light.
+## Why: docs/why/OrbitWorldTest.md#own-light
 func _own_light_check() -> void:
 	var src := FileAccess.get_file_as_string("res://shaders/planet.gdshader")
 	var s0 := src.find("Surf surf(")
@@ -359,19 +330,9 @@ func _own_light_check() -> void:
 		gives >= 9 and missing.is_empty())
 
 
-## WHAT STANDS BESIDE YOUR SHIP IS WHAT IS AT THAT PLACE (Jon, Oct 21: "This
-## planet has no events here, but when I orbit the planet and click LOCAL, it
-## has this weird signal model... Every planet in this sector has this signal"):
-##  - the place picture (`EncounterView.AreaView`: the beacon, the derelict, the
-##    battlefield) only where one of the system's events stands, and none at a
-##    world, the star or the edge with none;
-##  - the event's subject (`LocalSubject`) only at that event's own place, and
-##    an event over keeps its subject while you are still parked at it (the bar
-##    says how it went: `LocalEventDrawer.bar_option`);
-##  - in a station's system, the station's side, its ring and the bar's "A
-##    STATION HERE" all together where the ship is at the station (`Router.
-##    at_station`, as the map kept it), none of them anywhere else -- also when
-##    LOCAL was opened as the ship burned onto the station's orbit.
+## What stands beside your ship is what is at that place (Jon, Oct 21: every planet had a signal).
+## Place picture and subject only where an event stands; station parts only at the station.
+## Why: docs/why/OrbitWorldTest.md#scene-check
 func _scene_check(what: String, sc: SectorScreen) -> void:
 	var n := Run.node_at()
 	var L := SystemLayout.of(n)
@@ -418,9 +379,7 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 				line.begins_with(want))
 
 
-## A KEY PARKS IT, AND IT IS NOT PLAYED AGAIN: LOCAL's own arrival under way,
-## a key -- your ship parked at its mooring at once, shown, the bar up -- then
-## the map and LOCAL again with the ship where it was: no fly-in.
+## A key parks the ship at once, and the fly-in is not played again after the map and back.
 func _flyin_again(sd: int, label: String) -> void:
 	var sc := Router.current as SectorScreen
 	if not _ok("seed %d %s: LOCAL's own arrival under way for the key (%s)" % [sd, label, sc._phase if sc != null else -1],
@@ -448,9 +407,7 @@ func _flyin_again(sd: int, label: String) -> void:
 		sc != null and SectorScreen.flyins == fi0 and not sc._flyin and sc._view.ship_view().visible)
 
 
-## AT THE STATION, AWAKE, AND DOCK STILL DOCKS: LOCAL by the station's side
-## once its arrival and the station's wake are over -- lit, the warning lights
-## gone -- then DOCK into the berth, and UNDOCK back.
+## LOCAL at the station once awake, then DOCK into the berth and UNDOCK back.
 func _station_dock(sd: int) -> void:
 	var sc := Router.current as SectorScreen
 	if sc == null or sc._face == null:
@@ -478,9 +435,7 @@ func _station_dock(sd: int) -> void:
 	await _entry_check("seed %d station: undock" % sd)
 
 
-## THE BAR WHERE THERE IS SOMETHING (`_scene_check` sees the rest): LOCAL at a
-## world with an event not yet taken and no event opened, "N THING(S) HERE", N
-## that world's alone; then put back.
+## The bar where there is something (`_scene_check` covers the rest): N THING(S) HERE.
 func _bar_here(sd: int, label: String) -> void:
 	var n := Run.node_at()
 	var L := SystemLayout.of(n)
@@ -544,14 +499,9 @@ func _ev_state(sc: SectorScreen) -> Dictionary:
 		"subject": sub.oid if sub != null else &""}
 
 
-## LOCAL IS GO (Jon, Oct 21: "I want to see the actual event of that
-## planet/POI... Clicking GO or clicking LOCAL should have the same result"): at
-## a world with an open event (the first open there in the map's list order),
-## GO from another world, then FLY HERE and the HUD's LOCAL, then FLY HERE and
-## Tab round the chart -- each with LOCAL's own arrival -- all end the same: that
-## event's band up on it, its subject drawn. NOT NOW, and LOCAL again with no
-## flight between leaves it closed (its subject still there); GO, pressed,
-## opens it again (GO's own rule: a press is a press).
+## GO and LOCAL must end the same way (Jon, Oct 21): the open event's band up, its subject drawn.
+## NOT NOW stays closed, and a press of GO opens it again.
+## Why: docs/why/OrbitWorldTest.md#local-is-go
 func _local_is_go(sd: int, label: String) -> void:
 	var n := Run.node_at()
 	var L := SystemLayout.of(n)
@@ -677,11 +627,7 @@ func _arriving(sc: SectorScreen) -> bool:
 	return Router.current != sc or moving or sc._flyin_wait or sc._flyin or sc._phase == SectorScreen.Phase.ARRIVE
 
 
-## ENTERING LOCAL WITH NO BAR (Jon, Oct 22: "You should enter the sector with NO
-## bottom drawer shown"): this LOCAL, once it has settled, frame by frame from
-## its first: nothing at the bottom while the ship arrives; an event's band
-## rising from below the screen, never from the thin bar; the thin bar only once
-## the arrival has settled, when no event came.
+## Enter LOCAL with no bar (Jon, Oct 22): the band rises from below, the thin bar after.
 func _entry_check(what: String) -> void:
 	var sc := Router.current as SectorScreen
 	if sc == null:
@@ -726,10 +672,7 @@ func _bar_line(sc: SectorScreen) -> String:
 	return ""
 
 
-## AN EVENT OVER, AND STILL HERE: the event GO opened on LOCAL taken, then the
-## map and LOCAL again with the ship where it was: its subject still drawn (the
-## bar's event, `LocalEventDrawer.bar_option`), and the place picture still
-## this place's. The next world along shows neither (`_scene_check`).
+## An event over and still here: its subject and place picture stay, the next world has none.
 func _resolved_stays(sd: int, label: String) -> void:
 	var n := Run.node_at()
 	var sc := Router.current as SectorScreen
@@ -756,10 +699,7 @@ func _resolved_stays(sd: int, label: String) -> void:
 	_scene_check("seed %d %s: %s taken" % [sd, label, n.options[i]], sc)
 
 
-## LOCAL PRESSED AS THE SHIP BURNS ONTO THE STATION'S ORBIT (from a world of its
-## system): the station's side, its ring and its bar all at the station, as
-## the sky already was (`_scene_check`). LOCAL built ahead of the swap read the
-## map's `reached` (none, mid-burn) and the swapped one the kept place.
+## LOCAL built ahead of the swap read the map's `reached` (none mid-burn).
 func _station_burn(sd: int) -> void:
 	var n := Run.node_at()
 	var L := SystemLayout.of(n)
@@ -944,9 +884,7 @@ func _tour(sd: int, label: String) -> void:
 				await _tab()
 			await _frames(4)
 		await _check("seed %d %s: %s %s by %s" % [sd, label, L.bodies[b].kind, L.bodies[b].world, door])
-		# LOCAL'S OWN ARRIVAL (Jon, Oct 21, "station:BC"): the first LOCAL at a
-		# world the map flew the ship to flies it in, with no name card -- GO's
-		# too, its event opening once the ship has settled (one result)
+		# LOCAL's own arrival (Jon, Oct 21): the first LOCAL at a flown-to world flies it in.
 		var flew := int((SystemMapScreen.flown_to.get(n.index, {}) as Dictionary).get("n", -1)) != f0
 		var sc := Router.current as SectorScreen
 		var want_in := flew
@@ -968,11 +906,7 @@ func _tour(sd: int, label: String) -> void:
 			break
 
 
-## LOCAL PRESSED AS THE SHIP ARRIVES: flown to world `p` and the HUD's LOCAL
-## pressed the first frame the ship is burning onto its orbit (`inserting`, the
-## map drawing it at the world), or still riding the orbit it is leaving
-## (`phase`): LOCAL draws the world the ship is on or going onto, and the map
-## put back where it was.
+## LOCAL pressed as the ship arrives draws the world it is on or going onto, with the map put back.
 func _early(sd: int, label: String, when: String) -> void:
 	var n := Run.node_at()
 	var ws := _worlds(n)
@@ -998,26 +932,20 @@ func _early(sd: int, label: String, when: String) -> void:
 		if m.flight != null and m.flight.can_fly():
 			break
 		await _tree.process_frame
-	# (clicked when its ride round will be long: the flight the click makes,
-	# planned here first every tenth of a second for up to two of a world's
-	# laps. A random moment rode under RIDE_LEFT three times running, seed 7,
-	# Oct 31: a world's ring goes round in about 3.2 s)
+	# Clicked when the ride is long: a random moment rode under RIDE_LEFT thrice (seed 7).
 	if when == "phase":
 		for _k in 70:
 			var pl0 = m.flight.make_plan(to, float(m.view.t), {}, ShipFlightS.PLAN_AHEAD)
-			if pl0 != null and float(pl0.t0) - float(m.view.t) >= RIDE_LEFT + RIDE_SLACK:
+			if pl0 != null and float(pl0.t0) - float(m.view.t) >= RIDE_LEFT / maxf(float(pl0.pace), 1.0) + RIDE_SLACK:
 				break
 			for _j in 6:
 				await _tree.process_frame
 	m.fly_to_body(to)
 	var f = m.flight
 	var seen := false
-	# RIDING OUT WITH TIME LEFT TO OPEN LOCAL IN: a solved flight's ride round
-	# to its departure (ruling 20) can be as short as a quarter second, and
-	# one that ended while the map was still being left found the ship flying
-	# (seed 11, Oct 31): what is checked here is LOCAL opened during the ride.
-	# A ride too short for it is flown on to the place, and the flight tried
-	# back the other way, up to RIDE_TRIES times
+	# A solved ride to departure can be 0.25 s, and one ending mid exit found the ship flying.
+	# Too-short rides are flown on and retried up to RIDE_TRIES times (seed 11, Oct 31).
+	# Why: docs/why/OrbitWorldTest.md#early-ride
 	var tries := 0
 	for i in 3600 * RIDE_TRIES:
 		await _tree.process_frame
@@ -1025,8 +953,9 @@ func _early(sd: int, label: String, when: String) -> void:
 		var riding: bool = f.rail.has("phase") and not f.rail.phase.get("wait", false)
 		if when == "phase" and (riding or f.mode == &"fly"):
 			var left := float(f.rail.phase.T) - (float(m.view.t) - float(f.rail.phase.t0)) if riding else 0.0
-			if left >= RIDE_LEFT:
-				print("    the ride round to leave: %.2f s of the map's clock left" % left)
+			var pace := maxf(float(f.plan.pace), 1.0) if f.plan != null else 1.0
+			if left * pace >= RIDE_LEFT:
+				print("    the ride round to leave: %.2f s of the flight's clock left (%.2f of the map's, pace %.0f)" % [left * pace, left, pace])
 				seen = true
 				break
 			tries += 1
@@ -1040,7 +969,7 @@ func _early(sd: int, label: String, when: String) -> void:
 			var back := from
 			from = to
 			to = back
-			print("    the ride round to leave was %.2f s: flown on, and tried back to %d" % [left, to])
+			print("    the ride round to leave was %.2f s of the flight's clock (%.2f of the map's): flown on, and tried back to %d" % [left * pace, left, to])
 			m.fly_to_body(to)
 			continue
 		if when == "insert" and f.mode == &"rail" and f.orbit_body() == to and f.inserting():

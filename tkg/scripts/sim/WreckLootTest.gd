@@ -1,19 +1,7 @@
 extends Node
 
-## EACH WRECK HOLDS ITS OWN SHIP'S LOOT (Jon, Oct 13: "Each ship you kill has a
-## chance to get credits and modules and other parts").
-##   godot --headless --path . -- sheet=WreckLootTest
-##
-## Five claims, each one a way the per-wreck roll could quietly be wrong:
-##   - a won fight's wrecks each hold what THEIR OWN template rolls at their own
-##     place, and the victory line says what they hold;
-##   - the credit chance and the amount stay inside their bounds over thousands
-##     of wrecks, the Hellbender always pays its number, fauna pay exotic and no
-##     money, and the parts follow the table (bigger hulls more, lawless double);
-##   - a two-ship fight pays about the sum of its two ships, not the last one's;
-##   - two machines in a party, on different seats with their streams at
-##     different places, roll every wreck identically, sized for the crew;
-##   - a save keeps every wreck's contents, and what was taken out of it.
+## Each wreck holds its own ship's loot (Jon, Oct 13); five claims guard the per-wreck roll.
+## Why: docs/why/WreckLootTest.md#wreck-loot
 
 var h := Harness.new()
 
@@ -177,17 +165,19 @@ func _bounds() -> void:
 		mean_parts[&"cutter"] < mean_parts[&"lancer"] and mean_parts[&"lancer"] < mean_parts[&"hulk"]
 		and mean_parts[&"sentinel"] >= mean_parts[&"marauder"] and mean_parts[&"sentinel"] > mean_parts[&"hulk"])
 
-	# The Hellbender always pays, its number exactly, and three parts a hand.
+	# The Hellbender always pays, its number exactly, and three parts, each
+	# times the party's pay (`PartyScale.loot`, Jon, Nov 5)
 	var hb: EnemyTemplate = DB.enemies[&"hellbender"]
 	var hb_bad := 0
 	for n in plain.slice(0, 30):
 		for k in 8:
-			for hands in [1, 3]:
-				var got := Combat.roll_wreck(n, hb, k, hands)
-				if _credits(got) != int(round(Combat.wreck_purse(hb, n.danger))) \
-						or _parts(got) != Combat.HELLBENDER_PARTS * hands:
+			for players in [1, 3]:
+				var loot := PartyScale.loot(players)
+				var got := Combat.roll_wreck(n, hb, k, loot)
+				if _credits(got) != int(round(Combat.wreck_purse(hb, n.danger) * loot)) \
+						or _parts(got) != int(round(Combat.HELLBENDER_PARTS * loot)):
 					hb_bad += 1
-	h._ok("the Hellbender always pays its purse exactly and 3 parts a hand (%d wrong)" % hb_bad,
+	h._ok("the Hellbender always pays its purse exactly and 3 parts, times the party's pay (%d wrong)" % hb_bad,
 		hb_bad == 0)
 	# Fauna: exotic in the body, no money, no parts.
 	for id in [&"whale", &"leviathan"]:
@@ -333,6 +323,8 @@ func _coop() -> void:
 		f.paid = 2
 		cb.shared = f
 		cb.shared_at = n.index
+		# a game of two (`PartyScale`): the wrecks pay for two
+		cb.party = 2
 		for e in cb.enemies:
 			e.hp = 0
 		cb._victory()
@@ -343,7 +335,7 @@ func _coop() -> void:
 		for i in ws.size():
 			all.append("%s[%s]" % [ws[i].art, ",".join(_says(ws[i].items))])
 			parts += _parts(ws[i].items)
-			expect += _parts(Combat.roll_wreck(n, DB.enemies[ws[i].art], i, 2))
+			expect += _parts(Combat.roll_wreck(n, DB.enemies[ws[i].art], i, PartyScale.loot(2)))
 		seen.append(all)
 		parts_seen.append([parts, expect, cb.wreck_hands])
 	h._ok("the three machines' private streams really were apart",
@@ -351,25 +343,29 @@ func _coop() -> void:
 	print("  seat 0: %s" % " | ".join(seen[0]))
 	h._ok("every seat rolls every wreck identically",
 		seen[0] == seen[1] and seen[1] == seen[2] and seen[0].size() == 2)
-	h._ok("sized for a crew of two: each wreck rolled per hand (%s)" % str(parts_seen[0]),
+	h._ok("sized for a game of two: each wreck rolled for the party's pay (%s)" % str(parts_seen[0]),
 		parts_seen[0][2] == 2 and parts_seen[0][0] == parts_seen[0][1])
-	# Two hands hold more parts than one, over many wrecks.
+	# A game of two holds about the party's pay times the parts of one, over
+	# many wrecks (Jon, Nov 5: "loot pools are increased as the playercount
+	# increases")
+	var k2 := PartyScale.loot(2)
 	var one := 0
 	var two := 0
 	for n2 in _systems().slice(0, 60):
 		for k in 8:
-			one += _parts(Combat.roll_wreck(n2, DB.enemies[&"hulk"], k, 1))
-			two += _parts(Combat.roll_wreck(n2, DB.enemies[&"hulk"], k, 2))
-	h._ok("two hands hold about twice the parts of one (%d against %d)" % [two, one],
-		absf(float(two) / float(maxi(1, one)) - 2.0) < 0.12)
-	# The money does not multiply with the crew: one hull, one purse.
+			one += _parts(Combat.roll_wreck(n2, DB.enemies[&"hulk"], k, 1.0))
+			two += _parts(Combat.roll_wreck(n2, DB.enemies[&"hulk"], k, k2))
+	h._ok("a game of two holds about x%.2f the parts of one (%d against %d)" % [k2, two, one],
+		absf(float(two) / float(maxi(1, one)) - k2) < 0.12)
+	# And the money with it: each purse times the party's pay
 	var purse1 := 0
 	var purse2 := 0
 	for n3 in _systems().slice(0, 60):
 		for k in 8:
-			purse1 += _credits(Combat.roll_wreck(n3, DB.enemies[&"hulk"], k, 1))
-			purse2 += _credits(Combat.roll_wreck(n3, DB.enemies[&"hulk"], k, 2))
-	h._ok("the money is the same however many hands (%d, %d)" % [purse1, purse2], purse1 == purse2)
+			purse1 += _credits(Combat.roll_wreck(n3, DB.enemies[&"hulk"], k, 1.0))
+			purse2 += _credits(Combat.roll_wreck(n3, DB.enemies[&"hulk"], k, k2))
+	h._ok("and x%.2f the money (%d, %d)" % [k2, purse1, purse2],
+		absf(float(purse2) / float(maxi(1, purse1)) - k2) < 0.01)
 
 
 ## A save keeps every wreck, what it holds and what was taken out of it.

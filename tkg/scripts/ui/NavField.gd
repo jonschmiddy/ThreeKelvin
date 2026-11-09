@@ -1,34 +1,9 @@
 class_name NavField
 extends Control
 
-## THE SPACE THE THREE NAVIGATION SCREENS ARE BUILT ON (Jon, Oct 18: "I just
-## want the swap to feel smooth and cohesive. Why don't we have stars fill the
-## entire panel edge-to-edge ... Let's have the panels built ON TOP of this
-## screen"). One field of stars and far galaxies across the whole screens' area,
-## behind LOCAL, the sector map and the star chart alike, that never cuts,
-## fades or changes when you move between them: a hop changes what is in front
-## of it, never it.
-##
-## IT IS LOCAL'S OWN FAR SKY (`LocalSky`: `local_far.gdshader` on
-## `chart_bg.gdshaderinc`, the far galaxies and three depths of stars every chart
-## style keeps, toned by LOCAL's play tone and cut to the system's palette),
-## drawn the same way in the same frame -- a 480x270 picture of 2x2 blocks with
-## the window as its frame -- so on LOCAL, where the sky is drawn whole over it,
-## the stars LOCAL shows are this field's stars, pixel for pixel, wherever the
-## system's cloud and worlds are not. While a LOCAL sky is up its far sky's
-## settings are copied here (its camera's slide, its palette once cut), so the
-## field is LOCAL's far sky as it last stood when LOCAL goes. The one thing left
-## out is the clear sky's glow round the system's star: that is the star's light,
-## and it goes with LOCAL.
-##
-## Above it: the map's and the chart's pictures with their own far stars off and
-## their empty sky keyed away (`nav_key.gdshader`), the panels and the toolbar
-## rows as glass plates. The ladder holds a screen's picture with this field
-## keyed out of it (`ZoomLadder`, `calm_ladder.gdshader`), so a move carries the
-## things in front and the stars stay where they are.
-##
-## Router's, next above `SpaceLayer` (which the three screens hide), inert
-## headless but there, so the harness can hold it to the same instance.
+## One star field sits behind LOCAL, map and chart so a hop changes what is in front, never it.
+## It is LOCAL's own far sky, drawn the same way, so LOCAL's stars match it pixel for pixel.
+## Why: docs/why/NavField.md#navigation-field
 
 const FAR := preload("res://shaders/local_far.gdshader")
 const GRADE := preload("res://shaders/local_grade.gdshader")
@@ -59,12 +34,8 @@ static func key_material() -> ShaderMaterial:
 	return m
 
 
-## HOW MUCH OF THE FIELD A PLATE LETS THROUGH (Jon, Oct 18: "Let's have the top
-## part also be a panel. Let's make both panels slightly see through like the
-## other panels"): the side panel and the toolbar row on the map and the chart,
-## glass over the stars at LOCAL's own event drawer's alpha
-## (`SectorScreen.DRAWER_A`, the plate already over this sky), a shade more
-## open than `UITheme.PANEL_A`.
+## Plates let the field through at LOCAL's drawer alpha (Jon, Oct 18), above `UITheme.PANEL_A`.
+## Why: docs/why/NavField.md#glass-plates
 const PLATE_A := 0.80
 
 
@@ -74,12 +45,8 @@ static func plate_style() -> StyleBoxFlat:
 	return UITheme.flat(Color(UITheme.PANEL, PLATE_A), UITheme.LINE, 0, 12, 12)
 
 
-## A TOOLBAR ROW ON ITS PLATE (Jon, Oct 18: "the size of that panel also
-## doesn't seem big enough... the border comes right up to the button's
-## edges"): the row inside a plate of the side panel's own look, its line as
-## far from the row's ends as the side panel's is from its contents (12 px),
-## and close above and below (`ROW_PAD_V`: "The row is good on the width...
-## but a bit excessive on the height"). The ladder's `ladder_bar`.
+## The toolbar row sits on a plate padded 12 px to the sides, less above and below (Jon, Oct 18).
+## Why: docs/why/NavField.md#toolbar-plate
 const ROW_PAD_V := 5
 static func row_plate(row: Control) -> PanelContainer:
 	var pc := PanelContainer.new()
@@ -112,16 +79,8 @@ var node_index := -1
 var version := 0
 ## whether it is drawn: under LOCAL, the map and the chart (`Router`)
 var on := false
-## THE FIELD'S DRIFT (Jon: "Why is the parallax gone from the sector and
-## starchart views?"): its far layers slide by `pan` (`chart_bg`'s `u_skyPan`,
-## whole game px: the far nebulae 0.02 of it, the far galaxies 0.05, the three
-## depths of stars 0.04, 0.10 and 0.20) -- on the chart by the chart's own sky
-## pan (`MapChart.sky_pan`, exactly as its own far sky slid), on the map by the
-## map's (`SystemView._cam_pan`, at MAP_K: its old five fields slid 0.03-0.55
-## of it), on LOCAL by LOCAL's camera (copied, `feed`). Each screen moves it by
-## how far its own pan has gone since it came up, from wherever it stood, so a
-## hop never puts it back; and through a move it holds still (a move is not a
-## pan: `ZoomLadder.busy`).
+## The field's layers slide by each screen's own pan, and hold still through a move (Jon).
+## Why: docs/why/NavField.md#field-drift
 var pan := Vector2.ZERO
 const MAP_K := 0.9
 ## the screen moving it now, its own pan when it took over, the field's then
@@ -251,9 +210,7 @@ func _set_palette(cached: Array) -> void:
 		_pal.visible = true
 
 
-## PAINTED: a LOCAL sky of the field's own, far sky only, through B's whole
-## paint (its tables, its ramps, its band memory), so the stars LOCAL paints and
-## the field's are the same where its cloud is not.
+## PAINTED: a field-owned LOCAL sky, far sky only, so painted stars match where its cloud is not.
 func _paint_field(n: MapGen.MapNode) -> void:
 	if _box != null:
 		_box.visible = false
@@ -413,18 +370,13 @@ func set_pan(p: Vector2) -> void:
 		_painted.sky_pan_hold = pan
 
 
-## THE MAP'S CLOUD PAST ITS PICTURE (cloud:A): in a system inside a cloud, the
-## map's own sky, where its picture has it, across the screens' area, under the
-## picture's own soft edge (`nav_ext.gdshader`); none in a clear sky.
+## In a cloud, the map's own sky runs across the screens' area under the picture's soft edge.
 func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	var ext: TextureRect = map.get("_gas_ext")
 	if ext == null or not is_instance_valid(ext):
 		return
 	var v = map.view
-	# (in a clear sky too, Jon: "why does a galaxy disappear near the side
-	# panel?" -- the map's worlds, orbits and its star's light run on past its
-	# picture's frame to the field's own edges, under the glass, as a cloud's gas
-	# does; only the picture is clicked)
+	# In a clear sky too (Jon): worlds, orbits and starlight run past the frame under the glass.
 	var drawn: bool = v != null and v.get("_scene") != null and bool(v.get("_ready_sky"))
 	var cloud: bool = drawn and v.get("_neb_mat") != null
 	ext.visible = drawn
@@ -455,9 +407,7 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 		m.set_shader_parameter("past_tex", (pv as SubViewport).get_texture())
 
 
-## Each map's and chart's key told where its picture's frame stands now, for the
-## soft edge (`nav_key.gdshader`): the screen up, and one built ahead or
-## arriving on a move.
+## Each map's and chart's key is told where its picture's frame stands now, for the soft edge.
 func _frames_keyed() -> void:
 	var screens: Array = []
 	if Router.content != null:

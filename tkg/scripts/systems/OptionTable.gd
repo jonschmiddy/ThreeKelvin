@@ -1,89 +1,15 @@
 class_name OptionTable
 
-## What a system holds, and the rules for picking it.
-##
-## `ENCOUNTER_REBUILD.md` §4–§5. A system rolls 2–4 of these on arrival; each one
-## is a SITUATION with its own choices inside it, and the chart never says what
-## they are.
-##
-## NESTED RATHER THAN FLAT, ruled 2026-08-26. §4 of that brief specifies a flat
-## option -- one label, one resolution -- and all thirteen authored options in
-## `batch-02-draft.md` are written the other way: a title, shared prose, and two
-## or three lines to take. Flattening them would turn 13 into ~33, repeat the
-## prose on every line, and lose the thing `group` is for -- the authored groups
-## pair WHOLE situations ("salvage_rights competes with still_under_warranty"),
-## not individual lines.
-##
-## `EventTable` WAS DELETED 2026-08-27, its last seven entries ported here. It is
-## named below because it is why this shape is what it is, not because you can go
-## and read it.
-##
-## So the shape is that `EventTable` entry plus four fields: `id`, gating,
-## `group`, `weight`. That is also why the port is cheap -- OPT-007 to 012 are
-## literally existing events with a header written on them.
-##
-## ```gdscript
-## {
-##     id = &"salvage_rights",          # stable identity, never the title
-##     title = "Salvage rights",
-##     body = "A hull lies open across two claims...",
-##     tags = [&"salvage", &"contract"],
-##     group = &"wreck",                # &"" is independent
-##     weight = 11,
-##     regions = [MapGen.Region.LAWLESS], min_danger = 2,   # gating, all ANDed
-##     choices = [ {label, label_at?, check?, stay?, effect|met/clean/partial/botched}, ... ],
-##     subject = {stage = &"tether", pieces = [&"...tank_1"], count = 6},   # optional
-## }
-## ```
-##
-## `subject` IS WHAT LOCAL SHOWS while the event is open there (`LocalSubject`):
-## kept pieces of art from `art/subjects/index.json` and how they are staged --
-## one thing, a row, a tether, a field, a herd, a line, round a body, on a rock --
-## with the counts the text gives ("six fuel tanks on a tether", "nine of them in
-## a line"). Optional: an encounter without one keeps the scene as it is. Filled
-## from the subjects audit (scratchpad `local_role/subjects.md`) wherever the
-## subject has art Jon kept; the rest wait for theirs.
-## Ships are named by what they are, not which picture: `role:hauler` is one of
-## Jon's kept pool ships that serve as haulers, the same one for this encounter
-## every time; `foe` is the ship the event's fight would bring, so the scene
-## before a fight hands over to the fight's own ship.
-##
-## `foe = &"whale"` (or `&"leviathan"`) IS WHAT THE EVENT'S FIGHT BRINGS, when it
-## is a creature: the one named, every time (`fight_foe`, `Router.option_foe`).
-## With no `foe` an event's fight brings a ship off the ordinary pool, never a
-## creature. Jon, Oct 17: an event's fight may bring megafauna, "but the text
-## leading up to the fight should make sense" -- so the creature is a property
-## of the TEXT, declared by the author beside it, and never rolled from the
-## region: a whale cannot follow a body about pirates, and a ship cannot follow
-## one about a whale. A creature event names its creature (a calf is not a
-## leviathan), is fauna-gated (`needs_fauna`), and pays what animals pay: the
-## body's exotic in its wreck, never credits off the animal. A choice may carry
-## its own `foe`, which wins over the option's. `-- sheet=FoeTagTest` holds it.
-##
-## `stay = true` MARKS A WALK-AWAY: a choice that rolls nothing, costs nothing
-## and pays nothing — "Leave it", "Decline", "Pass". The sector shows its prose
-## and does NOT mark the option resolved, so declining a thing leaves it there
-## to come back to. It is a declaration, not a detection, because only the
-## author knows whether "she goes to ask the next ship" means the encounter is
-## narratively spent — a choice whose effect changes anything must never carry
-## it.
-##
-## IDENTITY IS THE `id`, NEVER THE TITLE. `EventTable.by_key()` matches on
-## `str(e.title)`, so renaming "Whale fall" invalidates every save that rolled
-## it. That is not carried forward: the title is copy and the id is a key.
+## Nested situations, not flat lines (ruled 2026-08-26), so groups pair WHOLE situations.
+## Identity is `id`, never the title.
+## Why: docs/why/OptionTable.md#option-shape
 
-## Where a system's option ids live: `OPTION_SITE + i` is the i-th one.
-##
-## On MapGen with the others -- see `MapGen.OPTION_SITE` for why 300 and why the
-## list must never shrink.
+## Option ids live on MapGen with the others: `MapGen.OPTION_SITE` says why 300 and why it
+## never shrinks.
 
-## Every option in the game.
-##
-## STATIC AND BUILT ONCE. `EventTable.build_all()` reconstructs fourteen
-## dictionaries and every closure inside them on each call, including from
-## `by_key()`, which then linear-searches. At ~290 systems each rolling its own
-## list that pattern stops being merely wasteful -- `ENCOUNTER_REBUILD.md` §5a
-## says so in as many words.
+## Static and built once: `EventTable.build_all()` rebuilt every closure per call, too dear
+## at ~290 systems.
+## Why: docs/why/OptionTable.md#static-option-table
 static var _all: Array[Dictionary] = []
 static var _by_id: Dictionary = {}
 
@@ -95,45 +21,22 @@ static func all() -> Array[Dictionary]:
 	return _all
 
 
-## One option by id, or an empty dictionary.
-##
-## Returns empty rather than pushing an error: a save may name an option this
-## build no longer has, and `ENCOUNTER_REBUILD.md` §4 rules that the right answer
-## is to drop it with a warning rather than refuse the save.
+## Returns empty, not an error: a save may name an option this build lacks, and it is
+## dropped with a warning.
 static func by_id(id: StringName) -> Dictionary:
 	if _all.is_empty():
 		_build()
 	return _by_id.get(id, {})
 
 
-## HOW MUCH DEEPER IS WORTH, as a multiple of the same thing on the rim.
-##
-## MEASURED FIRST, and the measurement is why this exists. With every payout a
-## literal, the ladder came out FLAT: average credits per tier read 50, 50, 49,
-## 52, 56 from EASY to LETHAL, and the top prize was 190 at every tier including
-## the first. Hull cost was flat from HARD up, and BRUTAL cost LESS than HARD.
-## Depth controlled which encounters you met and nothing about what they were
-## worth.
-##
-## It could not have been otherwise. THIRTY-ONE of forty-seven encounters span
-## three tiers and four span all five, so one literal has to serve danger 3 and
-## danger 8 at once. Narrowing every band would have worked and would have cost
-## the table most of its range; scaling the number costs nothing.
-##
-## The author writes what a thing is worth ON THE RIM and the tier multiplies
-## it. `pay(30)` is thirty credits at EASY and two hundred and sixteen at
-## LETHAL.
-##
-## SAFE FOR THE PROSE, and that was checked before a line of this was written:
-## of 207 outcome texts, ZERO quote a credit sum and only twenty contain a digit
-## at all -- those count hours and racks, not money. The ledger rail under the
-## result already prints what actually moved. So the words never have to agree
-## with a figure, and the rule going forward is that they never may.
+## Measured flat: credits per tier read 50,50,49,52,56. Authors price on the rim and the
+## tier multiplies it.
+## Why: docs/why/OptionTable.md#depth-pay-scale
 const PAY_SCALE: Array[float] = [0.0, 1.0, 1.8, 3.0, 4.7, 7.2]
 
-## Hull is the currency depth is bought with, and it climbs less steeply than
-## the reward on purpose -- 5.8x against 7.2x. A ladder where the cost outruns
-## the prize is a ladder nobody climbs twice.
+## Toll climbs less steeply than pay on purpose (5.8x against 7.2x): a ladder costing more
+## than it pays is climbed once.
+## Why: docs/why/OptionTable.md#depth-pay-scale
 const TOLL_SCALE: Array[float] = [0.0, 1.0, 1.9, 3.0, 4.3, 5.8]
 
 
@@ -144,15 +47,13 @@ static func _here_danger() -> int:
 	return 1 if n == null else n.danger
 
 
-## What a rim-priced reward is worth here.
-##
-## NOT `pay`. That name was already taken by the function that turns a resolved
-## outcome into the REWARD line -- a different job entirely, and the collision
-## was a parse error rather than a silent shadow only because GDScript refuses
-## two functions of one name.
+## Not named `pay`: that name is taken by the outcome-to-REWARD function, and the clash
+## would be a parse error.
+## In an n-player game it pays `PartyScale.loot(n)` of it (Jon, Nov 5).
+## Why: docs/why/OptionTable.md#purse-naming
 static func purse(base: int) -> int:
-	return maxi(1, int(round(float(base)
-		* PAY_SCALE[MapGen.tier(_here_danger())])))
+	return PartyScale.pay(maxi(1, int(round(float(base)
+		* PAY_SCALE[MapGen.tier(_here_danger())]))))
 
 
 ## What a rim-priced injury costs here.
@@ -161,20 +62,14 @@ static func toll(base: int) -> int:
 		* TOLL_SCALE[MapGen.tier(_here_danger())])))
 
 
-## Does this option's gating admit this system?
-##
-## Every clause is optional and they are ANDed. All seven axes already exist on
-## `MapNode` and are richly generated -- and `EventTable.pick_key()` reads none
-## of them, which is most of why fourteen events feel same-y: a whale fall can
-## surface in the core, a customs cordon in unclaimed space.
+## Gating clauses are ANDed. Without them a whale fall could surface in the core and a
+## cordon in unclaimed space.
+## Why: docs/why/OptionTable.md#option-gating
 static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
-	# PLACED OPTIONS ARE NEVER ROLLED. A quest is the payoff of something you
-	# did somewhere else, and meeting the buyer at the far end without having carried the
-	# package is the one way it can be worthless. This is the gate rather than
-	# a zero weight because a weight of zero still leaves the row in the pool
-	# and `roll_for` floors every weight at one.
+	# Placed options are never rolled: a quest buyer without the package is worthless. A gate,
+	# as weight 0 floors to 1.
 	if bool(o.get("placed", false)):
 		return false
 	if o.has("min_danger") and n.danger < int(o.min_danger):
@@ -187,15 +82,9 @@ static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 		return false
 	if o.has("min_development") and int(n.development) < int(o.min_development):
 		return false
-	# A CEILING AS WELL AS A FLOOR, added for batch 04. `long_claim` is a seam
-	# nobody works "because hauling ore back costs more than the ore" -- that is
-	# false at a city and the option would have been lying wherever it landed.
-	#
-	# Worth noting how it would have failed: `admits` ignores keys it does not
-	# know, so an option carrying an unimplemented gate is not rejected loudly.
-	# It simply appears everywhere. A gate that silently does nothing is worse
-	# than one that does not exist, because the content reads as if it were
-	# placed.
+	# `admits` ignores unknown keys, so an unimplemented gate silently appears everywhere.
+	# `max_development` is a ceiling so `long_claim` is not offered at a city.
+	# Why: docs/why/OptionTable.md#silent-gate-failure
 	if o.has("max_development") and int(n.development) > int(o.max_development):
 		return false
 	if o.has("regions"):
@@ -204,21 +93,12 @@ static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 			return false
 	if o.has("needs_fauna") and bool(o.needs_fauna) and not n.fauna:
 		return false
-	# WHAT IS ACTUALLY IN THE SKY. These four options describe a specific thing
-	# overhead -- a star throwing tantrums, a gas giant with you in its well, a
-	# pulsar sweeping the arc -- and had `min_danger` for a gate, which says
-	# "deep enough that it is plausible" and nothing more. `the_sweep` could
-	# land on a system with no pulsar within reach and the prose simply lied.
-	#
-	# The header above says it: a gate that silently does nothing is worse than
-	# one that does not exist, because the content reads as if it were placed.
-	# These were the four where that was true.
+	# Sky-specific options need real gates: `min_danger` let `the_sweep` land with no pulsar
+	# and the prose lied.
+	# Why: docs/why/OptionTable.md#silent-gate-failure
 	if o.has("needs_star") and int(n.star) != int(o.needs_star):
 		return false
-	# INSIDE THE GAS, which every node already knows and no encounter could ask.
-	# `in_nebula` is generated, saved, drawn on the chart and printed in the
-	# destination panel's WARNING row -- it was the one sky fact with no gate, so
-	# the category had zero content and no way to write any.
+	# `in_nebula` was the one sky fact with no gate, so nebula content could not be written.
 	if o.has("needs_nebula") and bool(o.needs_nebula) and not n.in_nebula:
 		return false
 	if o.has("needs_giant") and bool(o.needs_giant) and not n.gas_giant:
@@ -232,11 +112,7 @@ static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 	return true
 
 
-## THE WORDS A CHOICE SHOWS AT SYSTEM `n`: its card, and YOU CHOSE on the
-## result. Almost always the `label` as written. A choice whose words name
-## something rolled at the system carries `label_at`, a function of the node,
-## and that is what prints; `label` stays the plain words for the tools that
-## read this file (`encounter_lint.py`, the prose tools, the dumps).
+## `label_at` holds node-dependent words; `label` stays plain for the lint and prose tools.
 static func label_of(c: Dictionary, n: MapGen.MapNode) -> String:
 	var f: Callable = c.get("label_at", Callable())
 	if f.is_valid() and n != null:
@@ -244,25 +120,17 @@ static func label_of(c: Dictionary, n: MapGen.MapNode) -> String:
 	return String(c.get("label", ""))
 
 
-## THE DERELICT HAULER'S FRAME, rolled where it lies.
-##
-## It was rolled off the loot stream when you claimed it, so the choice could
-## not say what it was. Jeremy (friends' alpha) flew a heavy ship, claimed the
-## hull, got a light frame he did not want, and had given up "Strip it for
-## scrap" for it. Rolled from the system instead (`Rng.derive`), it is the same
-## frame on every visit and for every ship in a party, nothing else moves it,
-## and the label can name its weight before you choose (`derelict_hauler`).
+## Rolled from the system so the choice can name the frame; before, a heavy pilot claimed a
+## light one blind.
+## Why: docs/why/OptionTable.md#derelict-frame
 static func derelict_frame(n: MapGen.MapNode) -> HullData:
 	var at := -1 if n == null else n.index
 	var danger := 1 if n == null else n.danger
 	return LootGen.roll_hull(danger, Rng.derive(&"derelict_hull", at))
 
 
-## WHAT STRIPPING THE DERELICT PAYS HERE: `purse(base)` credits and the one
-## `wreck` material `pay` would roll for the strip at this system (the same
-## generator, `Rng.derive(&"material")`, and the same danger). The claimed frame
-## carries it (`Run.find_hull`), so a frame you do not fly cuts up for what the
-## strip would have paid, and the claim never costs you the strip.
+## The claimed frame carries the strip pay, so a frame you do not fly cuts up for what
+## stripping paid.
 static func strip_pay(n: MapGen.MapNode, base: int) -> Dictionary:
 	var row: Dictionary = {}
 	if n != null:
@@ -270,21 +138,15 @@ static func strip_pay(n: MapGen.MapNode, base: int) -> Dictionary:
 	return {credits = purse(base), material = StringName(row.get("id", &""))}
 
 
-## The creature a fight out of choice `c` of option `o` brings, or `&""` for a
-## ship off the ordinary pool. The choice's own `foe` first, then the option's.
-## Every door that starts an event's fight asks this and hands the answer to
-## `Router.option_foe`: the drawer on LOCAL (through `OptionResolve.take`), the
-## old detail view, and the simulator's `Policy`.
+## Every door that starts an event's fight asks this, then hands the answer to
+## `Router.option_foe`.
 static func fight_foe(o: Dictionary, c: Dictionary = {}) -> StringName:
 	return StringName(c.get("foe", o.get("foe", &"")))
 
 
-## How many options a system of this tier holds, and how many share a group.
-##
-## `ENCOUNTER_REBUILD.md` §4. COUNTS STAY FLAT and only the grouping moves --
-## the galaxy already applies a depth gradient through `ring_count`, and applying
-## it twice compounds. Depth changes what the options cost you and how many you
-## must give up, not how many there are.
+## Counts stay flat: the galaxy already applies a depth gradient via `ring_count`, and
+## twice compounds.
+## Why: docs/why/OptionTable.md#tier-plan-counts
 const TIER_PLAN := {
 	1: {"lo": 2, "hi": 3, "groups": 0},
 	2: {"lo": 2, "hi": 4, "groups": 1},
@@ -294,28 +156,9 @@ const TIER_PLAN := {
 }
 
 
-## Hand over everything an outcome promised, and say what arrived.
-##
-## ONE PLACE, BECAUSE THREE WAS ALREADY ONE TOO MANY. An outcome dictionary is
-## paid in three unrelated files -- `Policy` for the sim, `SectorScreen` for a row
-## that resolves in place, `EventScreen` for one that opened the detail view --
-## and each held its own copy of the same two lines. They had already drifted:
-## `EventScreen` never learned about `module`, so `salvage_rights` paid nothing
-## through the only path it can actually be taken by. Nothing failed; the reward
-## simply did not arrive.
-##
-## Batch 04 adds four more payload forms. Four forms across three hand-maintained
-## sites is twelve chances to repeat that, so the sites now call this instead.
-##
-## `fight` is deliberately NOT handled here: it is the CALLER's business, because
-## starting a battle means something different in a sim than on a screen. This
-## function grants; it does not decide what happens next.
-## Close everything the option at `i` shares a group with.
-##
-## RULING 1's other half. The list shows what a choice forecloses; this is the
-## foreclosing. A closed option is marked `taken` so nothing offers it again AND
-## given `R_GONE`, so the card can say UNAVAILABLE rather than quietly not
-## being there -- which is the difference between a rule and a disappearance.
+## One place pays outcomes: three copies drifted and `EventScreen` never paid `module`.
+## Closed options get `R_GONE`, so the card says UNAVAILABLE instead of vanishing.
+## Why: docs/why/OptionTable.md#paying-outcomes
 static func foreclose(n: MapGen.MapNode, i: int) -> void:
 	if n == null or i < 0 or i >= n.options.size():
 		return
@@ -332,18 +175,9 @@ static func foreclose(n: MapGen.MapNode, i: int) -> void:
 		n.results[j] = MapGen.R_GONE
 
 
-## Whether this outcome's payload asks for a rolled MODULE (`module = true`),
-## which `pay` puts on the system's pile.
-##
-## NOT WHETHER THE RESULT SHOWS REWARD, though it used to be. It was the one
-## question the screens asked, and a part is not the only thing that lands on
-## the pile: `material` and `material_id` are put there by `MaterialTable.grant`,
-## and an effect that calls `Run.add_material` itself (`whale_fall`) puts them
-## there with no key at all. Every one of those results said CONTINUE, dropped,
-## and left the crate under SECTOR LOOT with nothing on the result to say so
-## (Jon, Oct 22: "some quests don't show REWARD... that's super NOT
-## intuitive"). The screens now ask what actually arrived on the pile
-## (`OptionResolve.shows_reward`), which no payload form can slip past.
+## Screens ask what arrived on the pile, not whether a part rolled (Jon, Oct 22: quests
+## missed REWARD).
+## Why: docs/why/OptionTable.md#reward-display
 static func pays_item(res: Dictionary) -> bool:
 	return bool(res.get("module", false))
 
@@ -355,27 +189,14 @@ static func pay(res: Dictionary, n: MapGen.MapNode, src: StringName = &"") -> St
 		return ""
 	var got: Array[String] = []
 	if pays_item(res):
-		# INTO THE SYSTEM, NOT INTO YOUR POCKET. `MATERIALS_NOTE` 3.6: if
-		# something hands you a physical thing it hands you a CONTAINER, and you
-		# reach in for it with your own hold open beside you.
-		#
-		# It was `Run.place_in_hold(...)` with the result thrown away, which
-		# meant a reward you had earned quietly ceased to exist whenever the
-		# hold was full -- 3.4's exact failure, in the one place where the game
-		# is supposed to be paying you. A bag cannot fail that way: it sits in
-		# the system until you take it or you jump, and if there is no room you
-		# can see there is no room and decide what leaves.
-		# NOT `n.bagged`. That flag means "the kill bag here has been rolled"
-		# and `open_bag` refuses to fill a node that has it -- so an option
-		# setting it would silently rob the next fight in this system of its
-		# entire payout. An option cannot be taken twice anyway; `n.taken` is
-		# what stops that.
-		# THE FLOOR, not a wreck: nothing died to produce this, so it lands in
-		# the system's own pile beside anything you have put down here.
-		Run.sector_jetsam(n).items.append(LootGen.roll_module(n.danger))
-	# THE ROLL IS POSITIONAL, like everything else a system decides about itself:
-	# derived from the node index so a party at one system is handed the same
-	# thing, and so a reload cannot shop for a better item.
+		# Rewards go into the system pile: `place_in_hold` lost earnings on a full hold. Not
+		# `n.bagged`.
+		# Why: docs/why/OptionTable.md#pay-into-the-system
+		# One more for each player past the first (`PartyScale`), as the event's money is.
+		for i in PartyScale.pay(1):
+			Run.sector_jetsam(n).items.append(LootGen.roll_module(n.danger))
+	# Positional roll from the node index: a party gets the same item and a reload cannot
+	# shop.
 	var r := Rng.derive(&"material", n.index)
 	# WHAT THIS PUTS SOMEWHERE ELSE. The reward for some options is not a number
 	# and not an object -- it is the encounter this plants four jumps deeper.
@@ -387,55 +208,29 @@ static func pay(res: Dictionary, n: MapGen.MapNode, src: StringName = &"") -> St
 		got.append(MaterialTable.grant(MaterialTable.roll(
 			StringName(res.material), n.danger, r)))
 	if res.has("material_id"):
-		# NAMED, AND NOT TIER-GATED. Five options were written around a specific
-		# item -- the text of `sweep_glass` describes the moment `the_sweep` hands
-		# it over -- so gating the named drop would silently break the pairing the
-		# prose depends on.
+		# Named drops are not tier-gated, or the pairing with the prose (`sweep_glass`) would
+		# silently break.
 		got.append(MaterialTable.grant(
 			MaterialTable.by_id(StringName(res.material_id))))
-	# NOTHING USES THIS, AND THAT IS A RULING RATHER THAN AN ACCIDENT.
-	#
-	# `holding_pattern` was the only caller. `spend_material_tier` takes the FIRST
-	# item of that tier it finds in the hold, so the encounter reached in and chose
-	# for you -- tolerable while materials were a ledger counter, indefensible now
-	# they are objects with names, values and cells. THE HOLD IS THE PLAYER'S.
-	#
-	# The mechanism stays because a future encounter might legitimately want to
-	# take something NAMED that the player has already agreed to hand over. It must
-	# not be used to take a tier and let the code pick.
+	# Nothing uses this by ruling: taking a tier lets the code pick from the player's hold,
+	# which is theirs.
+	# Why: docs/why/OptionTable.md#material-consumption-ruling
 	if res.has("consume_material_tier"):
-		# UNDER THE SHIM THIS IS THE LEDGER, not the hold. `holding_pattern` asks
-		# for one exotic-TIER item and there are no items yet, so it spends the
-		# live `exotic` counter -- which is the same thing today, because the
-		# ledger is what exotic currently means. It becomes a hold search when
-		# materials become items, in this function and nowhere else.
+		# Under the shim this spends the exotic ledger counter, becoming a hold search here alone
+		# later.
 		Run.spend_material_tier(StringName(res.consume_material_tier))
 	got.erase("")
 	return ", ".join(got)
 
 
-## Does this system offer an option carrying `tag`?
-##
-## What `NodeType.FIGHT` and `NodeType.DERELICT` used to answer. Contracts ask
-## for `fight` and the hellbender eats `salvage`, and both now read what is
-## actually here rather than a label that was chosen before anything was rolled.
+## Replaces what `NodeType.FIGHT` and `DERELICT` answered, reading what is really rolled
+## here.
 static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 	if n == null:
 		return false
-	# ROLLS THE SYSTEM IF IT HAS NOT BEEN ROLLED, and the hellbender needs that:
-	# it scans the whole map, so most systems it cares about are ones nobody has
-	# flown to. (A contract board asked too, for a hunt's fight, until a hunt
-	# brought its own target -- `Contracts.post_goal`.)
-	# Reading `n.options` raw would have answered "no fight anywhere", which is
-	# how the hunt contract stopped being findable.
-	#
-	# Safe because the answer does not depend on WHEN it is asked. `admits` gates
-	# on node properties only -- danger, security, development, region, fauna,
-	# berths, all fixed at map generation -- and the draw is positional, which is
-	# what `-- optiontest`'s "the same system always rolls the same options" is
-	# there to prove. Rolling early writes the list the arrival would have
-	# written, so the anti-save-scum contract in `_roll_here` is untouched: it is
-	# still decided once and still written before the autosave.
+	# Rolls the system if needed: the hellbender scans unvisited systems. Safe as the draw is
+	# positional.
+	# Why: docs/why/OptionTable.md#rolling-early
 	ensure(n)
 	for id in n.options:
 		var o := by_id(id)
@@ -447,37 +242,9 @@ static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 	return false
 
 
-## Put an option on a system ahead of this one, and say which.
-##
-## THE MECHANISM IS AN ARRAY APPEND. A system's encounters are `MapNode.options`
-## and nothing else, so a consequence that travels is one id written onto a node
-## you have not reached. It saves for free -- `options` is already in the file --
-## and it survives a jump for the same reason the wrecks do: it is node state.
-##
-## THE TARGET IS DERIVED, NOT CHOSEN, and that is what makes this work in co-op
-## without a single packet. `roll_for`'s note says options are positional
-## because "what is AT a place is a property of the place and four machines must
-## agree about it" -- a placement is NOT a property of the place, it is a
-## consequence of what one ship did elsewhere, so it would have had to be
-## replicated. Deriving the target from the SOURCE node's index instead makes it
-## a property of the place after all: every machine that resolves the same
-## option at the same system computes the same target and nobody has to be told.
-##
-## `ensure` FIRST, and this is the trap. It rolls a system's own options only
-## when the list is EMPTY -- so appending to a system that has not been visited
-## yet would leave it non-empty forever, and you would arrive at a place
-## offering the quest and nothing else. Rolling it before appending is one line
-## and the difference between a working thread and a content bug that surfaces
-## months later.
-##
-## Returns the node index it landed on, or -1 if there was nowhere: near the
-## core there may be no unvisited system deep enough, and a thread that never
-## pays off is better than one that pays off in the wrong place.
-##
-## AND IT IS WRITTEN DOWN (`Run.note_placed`): the system, the option and `src`,
-## the option that placed it, so the QUESTS table can say who gave it. Only on
-## the machine that took the event, which is the ship it belongs to: nothing
-## here goes to the party.
+## Placement appends to `MapNode.options`; target derived from the source index. `ensure`
+## first, as it rolls only an empty list.
+## Why: docs/why/OptionTable.md#placing-options-ahead
 const PLACE_DEPTH := 3
 
 static func place(from: MapGen.MapNode, id: StringName, src: StringName = &"") -> int:
@@ -486,14 +253,9 @@ static func place(from: MapGen.MapNode, id: StringName, src: StringName = &"") -
 	var what := by_id(id)
 	if what.is_empty():
 		return -1
-	# A QUEST STANDS ALONE. An exclusive set is a choice between things that are
-	# both there for you to weigh; a placed payoff is the consequence of
-	# something you already did, and putting it in a group means the system it
-	# lands on can foreclose it with an option that has nothing to do with the
-	# thread. You would lose the delivery by bidding at an auction.
-	#
-	# Refused rather than stripped: a grouped quest is an authoring mistake, and
-	# quietly ungrouping it here would hide the mistake in a place nobody looks.
+	# A quest stands alone: in a group, an unrelated option could foreclose it. Refused, not
+	# stripped.
+	# Why: docs/why/OptionTable.md#quests-stand-alone
 	if StringName(what.get("group", &"")) != &"":
 		push_warning("placed option %s carries a group; not placed" % id)
 		return -1
@@ -507,9 +269,8 @@ static func place(from: MapGen.MapNode, id: StringName, src: StringName = &"") -
 				continue
 			if o.type != MapGen.NodeType.SYSTEM:
 				continue
-			# ONE THREAD PER SYSTEM. Two payoffs landing on one node reads as a
-			# coincidence rather than as a consequence, and the chart can only
-			# mark it once.
+			# One thread per system: two payoffs on one node read as coincidence and the chart
+			# marks once.
 			if holds_quest(o):
 				continue
 			picks.append(o.index)
@@ -527,49 +288,31 @@ static func place(from: MapGen.MapNode, id: StringName, src: StringName = &"") -
 	return at
 
 
-## Does this system hold a placed encounter nobody has taken yet? The chart asks,
-## to know whether to mark it.
-## THE IDS THAT CAN ONLY BE PLACED, as a set, built once.
-##
-## `holds_quest` is asked of every system on the chart on every mouse-motion
-## frame, and `by_id` is a linear walk of the whole table -- a hundred and ninety
-## systems times three options times fifty rows is thirty thousand comparisons a
-## frame for an answer that changes about twice a run. `_draw_work` solved the
-## same problem by caching in the view; this fixes it at the source instead, so
-## nothing downstream has to know it was ever expensive.
+## Built once: `holds_quest` runs per system per mouse frame, and `by_id` is linear, ~30k
+## comparisons a frame.
+## Why: docs/why/OptionTable.md#placed-id-cache
 static var _placed: Dictionary = {}
 
 
 static func placed_ids() -> Dictionary:
 	if _placed.is_empty():
 		for o in all():
-			# A CONTRACT'S EVENT IS NOT A THREAD. It is placed, never rolled,
-			# but the chart already marks a signed job's system by the job
-			# (`Run.contract_at`), and a second marker by the event's title
-			# would say the one thing twice.
+			# A contract's event is not a thread: the chart already marks it by the job
+			# (`Run.contract_at`).
 			if bool(o.get("placed", false)) and not bool(o.get("job", false)):
 				_placed[StringName(o.id)] = true
 	return _placed
 
 
-## Whether this option is a signed contract's work (`Contracts.post_goal`):
-## placed on one ship's map for that ship's contract, laid out past the
-## system's own worlds (`SystemLayout`), and never raced for over the wire.
+## A signed job is placed on one ship's map past the system's worlds and never raced over
+## the wire.
 static func is_job(id: StringName) -> bool:
 	return bool(by_id(id).get("job", false))
 
 
-## WHETHER THIS OPTION IS ONE SHIP'S OWN: a signed contract's work (`is_job`)
-## or an event quest (`placed_ids`, what `place` put on this ship's map for
-## what this ship did). Neither is on a partner's map, so neither is raced for
-## over the wire (`OptionResolve.take`, `Router.claim_open_option`), and a
-## partner's claim on the same slot index never closes it
-## (`RunState.adopt_party_claims`): the slot is theirs, not this.
-##
-## It was jobs only, and a taken PAID IN FULL went to the party as a claim on
-## (system, slot), which a partner's machine wrote into its own copy of that
-## system whatever sat there: their contract pickup or their own quest at the
-## same index came up already taken (Oct 22).
+## Jobs and quests are one ship's own, never raced or closed by a partner's claim at the
+## same slot (Oct 22).
+## Why: docs/why/OptionTable.md#ship-owned-options
 static func is_mine(id: StringName) -> bool:
 	return is_job(id) or placed_ids().has(id)
 
@@ -600,14 +343,9 @@ static func quest_name(n: MapGen.MapNode) -> String:
 	return ""
 
 
-## What this system holds. Ids only -- callables are never built here.
-##
-## POSITIONAL, off `Rng.derive(&"options", n.index)`, because what is AT a place
-## is a property of the place and four machines in a co-op session must agree
-## about it. What happens TO you comes off a seat-salted stream instead; the
-## ambush roll is that and this is not.
-##
-## Drawn without replacement so a system never offers the same situation twice.
+## Positional off `Rng.derive`: what is at a place is the place's property, and four
+## machines must agree.
+## Why: docs/why/OptionTable.md#positional-roll
 static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 	var out: Array[StringName] = []
 	if n == null:
@@ -640,9 +378,8 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 			chosen = pool.size() - 1
 		var got: Dictionary = pool[chosen]
 		pool.remove_at(chosen)
-		# A GROUP MAY ONLY BE OPENED AS OFTEN AS THE TIER ALLOWS. An option whose
-		# group is already spoken for is skipped rather than dropped from the
-		# pool for good -- it may still arrive at another system.
+		# A full group is skipped, not dropped from the pool, as it may still arrive at another
+		# system.
 		var g := StringName(got.get("group", &""))
 		if g != &"":
 			if not groups_used.has(g) and groups_used.size() >= int(plan.groups):
@@ -652,22 +389,9 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 	return out
 
 
-## Roll this system's list if it has none, and answer whether it has one.
-##
-## THE SAME DECISION IN ONE PLACE. `Router._roll_here` rolls on arrival for a
-## played run and the headless simulator never goes through Router at all, so
-## without this the two would each carry a copy of "which nodes get options"
-## and drift the first time either changed.
-##
-## Stations are excluded because a station IS its option list -- the shelf, the
-## rack, repair and fuel -- and it is the one node the chart telegraphs. The core
-## is excluded because it is a hand-authored boss.
-##
-## AND THE START IS QUIET ON PURPOSE. A run opens on a system with nothing in it,
-## so the first thing a player does is read the chart rather than resolve an
-## encounter -- which matters more now that sight is live and most of the map is
-## dark. It is also the one arrival nobody chose, and asking someone to spend a
-## decision before they have seen the galaxy is asking them to guess.
+## One decision for both `Router._roll_here` and the headless sim, so they cannot drift.
+## The start is quiet on purpose: no decision before the player has seen the galaxy.
+## Why: docs/why/OptionTable.md#ensure-and-quiet-start
 static func ensure(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
@@ -680,19 +404,14 @@ static func ensure(n: MapGen.MapNode) -> bool:
 		return false
 	if n.options.is_empty():
 		n.options = roll_for(n)
-		# A partner's claim can arrive BEFORE the options it closes are rolled
-		# here -- they took an exclusive option in a system this machine has
-		# never visited. Foreclosure is derived from `taken`, so deriving it
-		# again the moment the options exist catches everything adoption could
-		# not resolve at the time.
+		# A partner's claim can precede our roll, so foreclosure is derived again once the options
+		# exist.
 		for t in n.taken:
 			var i := int(t) - MapGen.OPTION_SITE
 			if i >= 0 and i < n.options.size():
 				foreclose(n, i)
-		# AND A CLAIM PAST THE ROLLED LIST IS A PARTNER'S OWN OPTION (a job or
-		# an event quest on their map, `is_mine`), adopted before this list
-		# existed. Dropped, so what this ship's own `place` or `post_goal`
-		# appends at that index next is not born taken.
+		# A claim past the list is a partner's own option; dropped so our `place` is not born
+		# taken.
 		var keep := PackedInt32Array()
 		for t in n.taken:
 			var k := int(t)
@@ -715,12 +434,9 @@ static func _build() -> void:
 		_by_id[id] = o
 
 
-## The options themselves, ported from `docs/briefs/batch-02-draft.md`.
-##
-## THE MACHINE, NOT THE CONTENT. `ROADMAP.md` §11 puts authoring the pool out of
-## scope for this phase -- `ENCOUNTER_GENERATION.md` is how it gets filled, and
-## that is its own job with its own volume problem. What is here is enough to
-## exercise gating, grouping, weighting and the tier plan honestly.
+## The machine, not the content: authoring the pool is out of scope (`ROADMAP.md` 11),
+## enough to exercise rules.
+## Why: docs/why/OptionTable.md#authored-options-scope
 static func _authored() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([
@@ -856,9 +572,8 @@ static func _authored() -> Array[Dictionary]:
 			group = &"",
 			weight = 7,
 			min_danger = 5,
-			# THE STAR HERE IS MID-TANTRUM, which is a fact about the star and
-			# not about how deep you are. Danger stays off it entirely: a
-			# flare star on the rim is exactly as dangerous to sit next to.
+			# A mid-tantrum star is a fact about the star, not depth: a flare star on the rim is as
+			# dangerous.
 			needs_star = MapGen.Star.RED,
 			choices = [
 				{label = "Go in hot",
@@ -1003,10 +718,8 @@ static func _authored() -> Array[Dictionary]:
 			],
 		},
 		{
-			# PLACED, NEVER ROLLED. `admits` refuses anything carrying this key,
-			# so the only way to reach the buyer is to have taken the package.
-			# Ungrouped on purpose -- see `place`: a quest that an auction can
-			# foreclose is a consequence you can lose without touching it.
+			# Placed, never rolled, and ungrouped on purpose: an auction must not foreclose a
+			# consequence.
 			id = &"paid_in_full",
 			title = "Paid in full",
 			subject = {stage = &"structure", pick = true, pieces = [&"st_dock_face_1", &"st_dock_face_2", &"st_dock_face_3", &"st_dock_face_4"], add_lights = [{at = "collar", off = [-2, 0], r = 12, col = "#ffcf7a", kind = "breathe", period = 6.0, k = 1.8, cone = 90, cone_k = 0.8}]},
@@ -1014,19 +727,15 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"quest"],
 			group = &"",
 			placed = true,
-			# ITS ROW IN THE QUESTS TABLE (`QuestLog`): the task beside the
-			# signed jobs' tasks, the chart tag's word, and the note, which is
-			# the runner's own line from `the_runner`'s body, word for word
-			# (`-- sheet=QuestLogTest` holds it there). `from` is the event that
-			# places it, for a save written before the run kept that
-			# (`Run.event_quests`).
+			# Row in the QUESTS table (`QuestLog`); the note matches the body word for word
+			# (`QuestLogTest`).
+			# Why: docs/why/OptionTable.md#quest-table-row
 			quest = {task = "Deliver the runner's parcel", tag = "DELIVER", from = &"the_runner",
 				note = "She says the person it goes to will pay properly on delivery, but she is only repeating what she was told."},
 			weight = 0,
 			choices = [
-				# NO FAILING BAND AND NOTHING TO DECLINE. `batch-03`: taxing a
-				# reward the player earned four jumps ago teaches them not to
-				# take the offer next time. Both of these are gains.
+				# No failing band: `batch-03` ruled that taxing an earned reward teaches players to
+				# refuse the offer.
 				{label = "Take the money", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(36))
 					return {text = "He pays in full and in cash, and then he thanks you."}},
@@ -1036,10 +745,8 @@ static func _authored() -> Array[Dictionary]:
 			],
 		},
 		{
-			# A SIGNED FETCH'S PICKUP, put on the named system by
-			# `Contracts.post_goal` -- never rolled (`placed`), and per ship
-			# (`job`). Taking it readies every fetch pointed here; the thing is
-			# named and not carried (`RunState.reach_contract_target`).
+			# Pickup for a signed fetch, placed by `Contracts.post_goal`, per ship, and never
+			# rolled.
 			id = &"job_pickup",
 			title = "Contract pickup",
 			subject = {stage = &"single", pieces = [&"r4_pod_cargo_pod_1"], tumble = 2.0},
@@ -1059,9 +766,8 @@ static func _authored() -> Array[Dictionary]:
 			],
 		},
 		{
-			# A SIGNED HUNT'S TARGET, the same way. The kill is what readies the
-			# hunt (`Combat._victory` -> `RunState.clear_contract_target`); flee
-			# and the next arrival posts it again.
+			# Hunt target, same way. The kill readies it (`Combat._victory`); fleeing posts it
+			# again.
 			id = &"job_target",
 			title = "Contract target",
 			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85},
@@ -1705,9 +1411,9 @@ static func _authored() -> Array[Dictionary]:
 			regions = [MapGen.Region.DEEP],
 			needs_berth = true,
 			choices = [
-				# 4 for 6 units, so "the cheapest in the galaxy" is true: a
-				# capital's REFUEL is 24 for 25, about 1 a unit (fuel:A, Oct 18).
-				# It was 30 for 6, five a unit, dearer than any dock.
+				# 4 credits for 6 fuel keeps "cheapest in the galaxy" true (fuel:A, Oct 18); it was
+				# 30 for 6.
+				# Why: docs/why/OptionTable.md#fuel-price
 				{label = "Buy fuel at her rates", cost_credits = 4, effect = func() -> Dictionary:
 					Run.add_credits(-4)
 					Run.fuel += 6
@@ -1730,11 +1436,8 @@ static func _authored() -> Array[Dictionary]:
 			min_danger = 9,
 			regions = [MapGen.Region.DEEP],
 			choices = [
-				# NOBODY IS OUT HERE TO PAY YOU, so nothing here pays in credits.
-				# Every branch hands over an OBJECT and the object becomes money at
-				# a station, where somebody is standing behind a counter. See the
-				# note on `purse` -- cash is what people give you, and a relay two
-				# centuries dead is not people.
+				# No credits out here, nobody pays. Branches hand over objects that become money at
+				# a station.
 				{label = "Cut the core out",
 					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
@@ -1744,14 +1447,9 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You take it fast and pay for the speed in waste heat, which the radiators will take an hour to shed. The core keeps counting down in the hold.", material_id = &"counting_core"},
 					partial = func() -> Dictionary:
 						Run.heat += 8
-						# NAMED FOR THE STORY, ROLLED FOR THE SCALE, and a branch this
-						# deep wants both. `survey_film` is the readings and is worth
-						# 35 whatever the danger -- a named material has a FIXED value
-						# and is the one kind of payout the tier ladder cannot reach.
-						# Alone it made a LETHAL partial pay less than an EASY
-						# success. The rolled wreck material beside it goes through
-						# `MaterialTable.roll(table, danger)`, which grades, so the
-						# depth is paid for by the half of the haul that can be.
+						# `survey_film` is a fixed 35 and the tier ladder cannot reach it, so a
+						# rolled wreck material grades depth.
+						# Why: docs/why/OptionTable.md#named-plus-rolled-payout
 						return {text = "Years of heat and cold have welded the housing to its frame, and the cutter cannot free it in time. You take the readings instead: the interval, the bearing and the decay curve, shot onto film straight off the dish. You also take something the cutter shook loose.", material_id = &"survey_film", material = &"wreck"},
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(4), "Something kept the core warm for two hundred years. When the cutter opened it, it came through the hull.")
@@ -1938,9 +1636,8 @@ static func _authored() -> Array[Dictionary]:
 			min_security = 3,
 			choices = [
 				{label = "Wait your turn and bid on the load", cost_credits = 40, effect = func() -> Dictionary:
-					# The bid itself, which every other priced choice spends in its
-					# own effect. This one leaned on the screen deducting it, and
-					# the screen no longer does.
+					# The bid is spent in this effect like other priced choices, as the screen no
+					# longer deducts it.
 					Run.add_credits(-40)
 					var lost := Run.contraband_count()
 					if lost > 0:
@@ -1978,10 +1675,8 @@ static func _authored() -> Array[Dictionary]:
 			max_danger = 6,
 			min_danger = 2,
 			choices = [
-				# THE FRAME IS NAMED BEFORE YOU CHOOSE (`derelict_frame`): its
-				# weight is on the card, and the frame claimed is the one named.
-				# It carries the strip's pay (`strip_pay`, the same 35 as the
-				# strip below), so a frame you do not fly still cuts up for it.
+				# The frame is named before you choose and carries the strip's pay, so a flown-
+				# other frame still cuts up.
 				{label = "Claim the hull",
 					label_at = func(n: MapGen.MapNode) -> String:
 						return "Claim the %s frame" % HullData.weight_name(OptionTable.derelict_frame(n).weight).to_lower(),
@@ -2005,20 +1700,9 @@ static func _authored() -> Array[Dictionary]:
 			group = &"",
 			weight = 16,
 			choices = [
-				# TWO STATEMENTS, NOT ONE, and collapsing them broke RULING 5.
-				#
-				# `fight` in the RETURNED dictionary is the TRIGGER: it is what
-				# `EventScreen._choose` reads to start the fight, and it is how
-				# EventTable's two hostile endings have always worked. It is only
-				# knowable by running the callable.
-				#
-				# `fight` on the CHOICE is a DECLARATION: this row leads to a
-				# fight. The sector list has to print a contact reading BEFORE the
-				# click, so it needs an answer that does not require resolving the
-				# option first. Removing it made every hostile row print nothing.
-				#
-				# An outcome may still open a fight the choice did not declare --
-				# that is a twist, and it is why the trigger is the runtime one.
+				# `fight` returned is the trigger; `fight` on the choice is a declaration the
+				# sector list reads before the click.
+				# Why: docs/why/OptionTable.md#fight-declaration
 				{label = "Engage", fight = true, effect = func() -> Dictionary:
 					return {text = "You light the drives and close before it is ready for you. It did not expect you to attack first.", fight = true}},
 				{label = "Burn past it", effect = func() -> Dictionary:
@@ -4907,11 +4591,9 @@ static func _authored() -> Array[Dictionary]:
 					return {text = "You read the labels off the near row and go. The rows are still clamped to the rock when the dish loses them. They sit in the order somebody set them down in twenty-two years ago."}},
 			],
 		},
-		# THE CREATURE EVENTS (Jon, Oct 17): an event's fight may bring a creature
-		# when the text before it is about that creature. Each one names the one
-		# it brings (`foe`, read by `fight_foe`), is fauna-gated, and pays what
-		# animals pay: hide and fauna rolls on the quiet branches, the body's
-		# exotic in its wreck after the fight, credits only from people.
+		# Creature events (Jon, Oct 17): a fight may bring a creature when the text is about it;
+		# fauna-gated.
+		# Why: docs/why/OptionTable.md#creature-events
 		{
 			id = &"in_the_wake",
 			title = "In the wake",

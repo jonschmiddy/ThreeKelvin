@@ -1,28 +1,11 @@
 class_name CombatFx
 extends Control
 
-## Everything combat throws across the screen: tracers, beams, impact sparks and
-## the debris a dead hull leaves behind.
-##
-## A layer of its own, over the encounter and under the readouts, because none
-## of this is state — it is the report of a state change that already happened.
-## Combat resolves instantly and always has; these effects are how long it
-## *reads* as taking. Nothing here can alter a number.
-##
-## Drawn as loose pixels rather than sprites or particles: a 1px tracer with a
-## short trail sits correctly beside a pixel-art ship at integer scale, where a
-## smooth line or a soft particle would be the only anti-aliased thing on screen.
-##
-## WHAT THE COMBAT POLISH PASS ADDED (Oct 13): volleys (a card's hits are one
-## volley, and `volley_landed` says when the last of them arrived, which is when
-## the numbers are allowed to move), misses that fly past rather than vanish, the
-## damage numbers that pop where a volley lands, and the impact's light -- a small
-## gathered glow, stepped and dithered, drawn additively (memory draw-light-as-
-## light) rather than the 1-pixel sparks alone, which read as no impact at all.
+## Its own layer: it only reports a state change that already happened and alters no number.
+## Loose pixels, as a smooth line would be the only anti-aliased thing beside pixel art.
+## Why: docs/why/CombatFx.md#combat-effects
 
-## Fired when a shot arrives, so the thing it hit can flinch on impact rather
-## than at the moment the card was played. The delay between the two is most of
-## what makes a shot feel like it travelled.
+## Fires on arrival so the target flinches on impact. The delay makes a shot feel travelled.
 signal landed(who: int, to_player: bool, kind: int)
 ## The last shot of a volley has arrived (or gone past). See `fire`'s `volley`.
 signal volley_landed(volley: int)
@@ -142,10 +125,7 @@ static func gathered_light(radius: int) -> Image:
 	return im
 
 
-## One attack. `hits` staggers several shots down the same line, which is what
-## makes a salvo read as a salvo rather than as one bigger number. The last
-## `missed` of them go past the target. `volley` names the attack, so the screen
-## hears once, on `volley_landed`, when all of it has arrived.
+## `hits` staggers shots so a salvo reads as a salvo; the screen hears `volley_landed` once.
 func fire(from: Vector2, to: Vector2, kind: int, hits: int, who: int,
 		to_player: bool, volley: int = -1, missed: int = 0) -> void:
 	var n := maxi(1, hits)
@@ -172,17 +152,12 @@ func fire(from: Vector2, to: Vector2, kind: int, hits: int, who: int,
 func in_flight() -> bool:
 	return not _shots.is_empty()
 
-## A number where a volley landed. Rises a few pixels in whole steps, holds,
-## and goes in three steps rather than a smooth fade.
-## The highest a pop's letters may reach, risen, in this layer (the top of the
-## fight, under the HUD). Set by the screen hosting the fight.
+## Rises in whole steps, holds, goes in three steps. Set by the screen hosting the fight.
 var pop_top := -INF
 
 func pop(at: Vector2, text: String, col: Color, big: bool = true, delay: float = 0.0) -> void:
 	var p := Pop.new()
-	# STACKED, never on top of each other. Three hits in a row on one hull put
-	# BLOCKED 5, -5 and -10 in one place as an unreadable smear; a pop that
-	# would land on one still being read goes above it instead.
+	# Stacked: three hits in a row made an unreadable smear, so a pop goes above one still read.
 	var spot := at.round()
 	var moved := true
 	while moved:
@@ -210,9 +185,7 @@ func flash(at: Vector2, big: bool = false, warm: bool = true) -> void:
 	g.life = 0.34 if big else 0.2
 	_glows.append(g)
 
-## A hull coming apart. Bigger, slower and tumbling, so it does not read as
-## another burst of sparks. (A kill is `ShipBreakup` now; this stays for the
-## places that still want a burst of debris.)
+## A hull coming apart, bigger and tumbling. A kill is `ShipBreakup` now; this stays for bursts.
 func wreck(at: Vector2, tint: Color) -> void:
 	for i in 34:
 		var m := Mote.new()
@@ -360,9 +333,7 @@ func _draw_tracer(s: Shot) -> void:
 		draw_rect(Rect2(p.round(), Vector2.ONE), tail if i > 2 else tip, true)
 	draw_rect(Rect2(head.round() - Vector2.ONE, Vector2(2, 2)), tip, true)
 
-## An energy weapon does not travel — it is drawn the instant it fires and then
-## decays. Dashed, because a continuous line is the one shape a pixel galaxy
-## has nowhere else.
+## An energy weapon is drawn the instant it fires and decays, dashed so it reads in a pixel galaxy.
 func _draw_beam(s: Shot) -> void:
 	var fade := 1.0 - clampf(s.t, 0.0, 1.0)
 	var span := s.from.distance_to(s.to)

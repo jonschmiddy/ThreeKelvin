@@ -1,16 +1,8 @@
 class_name ChitIcon
 extends ItemIcon
 
-## Money in a container.
-##
-## Drawn as stacked notes rather than as a crate, because the one thing it must
-## not look like is something that will cost you room -- see `CreditChit`. A
-## player who reads it as cargo will leave it behind when the hold is full,
-## which is the exact decision this item exists not to make you take.
-##
-## Same flat rectangles as everything else, and the same stacked-notes idiom
-## `CardView` already uses for its `scrip` glyph: "the human economy, which is
-## the only kind a card ever pays out in".
+## Drawn as notes, not a crate: it must not look like cargo that costs room, or players leave it.
+## Why: docs/why/ChitIcon.md#credit-chit
 
 var chit: CreditChit = null
 
@@ -42,9 +34,7 @@ func _ghost() -> Control:
 func _draw() -> void:
 	if chit == null:
 		return
-	# Brass, which is what the tier ladder already calls legendary, and the only
-	# warm colour in a hold otherwise made of steel and ore. Money should be the
-	# thing your eye goes to.
+	# Brass is the only warm colour in a hold of steel and ore, so money draws the eye.
 	var ink := Color("#0b0f16")
 	var note := Color("#b8894a")
 	var lit := note.lerp(Color.WHITE, 0.34)

@@ -82,8 +82,8 @@ Three things follow, and the third is the one that makes it a design rule rather
 than a bug fix:
 
 - **The bag scales with the crew.** Two ships, twice the parts. Bringing a friend
-  must not halve what a fight is worth to you — the enemy already grew by
-  `CREW_SHARE` to meet you, and this is the other side of that bargain.
+  must not halve what a fight is worth to you — the enemy was built for the
+  party (`PartyScale`), and this is the other side of that bargain.
 - **It does not touch the wallets.** Pillar 1 stands exactly as written: what you
   are CARRYING is private, and the bag is not carried by anybody until somebody
   reaches into it. Credits, dross and exotic are still paid per ship.
@@ -302,7 +302,7 @@ Catch it and it is a set piece: hand-tuned like the custodian (90 hull, 6 armor,
 
 ### The moment this exists to produce
 
-One ship jumps into its system, sees it at anchor, and says the thing into the voice channel this design has been building toward: *everyone get here, now.* Everything that makes that sentence WORK was already built — a fight a latecomer can join at 10% health, an enemy that grows by `CREW_SHARE` to meet each arrival, one bag when it dies — and the hellbender is the first thing worth saying it about that can also LEAVE. The escape burn is what makes the party hurry; the banked damage is what makes a failed first attempt a down payment instead of a waste; the mend-per-move is what makes dawdling cost the down payment back.
+One ship jumps into its system, sees it at anchor, and says the thing into the voice channel this design has been building toward: *everyone get here, now.* Everything that makes that sentence WORK was already built — a fight a latecomer can join at 10% health, an enemy built for the whole party (`PartyScale`, which replaced growing by `CREW_SHARE` on each arrival, Nov 5), one bag when it dies — and the hellbender is the first thing worth saying it about that can also LEAVE. The escape burn is what makes the party hurry; the banked damage is what makes a failed first attempt a down payment instead of a waste; the mend-per-move is what makes dawdling cost the down payment back.
 
 While it holds a system it is a blockade: nothing there is reachable past it — not the dock, not the node's own contact. Arrival does not auto-engage, for the reason the core stopped auto-engaging: two people never arrive on the same second, and a set piece a party cannot gather at is fought alone by design. The sector says what it is and the button says ENGAGE, and whether to press it before the others land is the player's own greed talking.
 
@@ -559,7 +559,7 @@ Measured against `main` in August, not assumed. Cells corrected Oct 20 where the
 | 20 | Does a station's stock restock, or is one shelf all four ships get for the dive | Currently one shelf, claimed a slot at a time. That is the honest reading of §3's closed economy and it makes docking together a real cost — but four ships sharing three parts is untested at the table |
 | 17 | Does a shared fight get reinforcements, and whose roll is it | Off today. Needs the host spawning into the shared enemy list at an index everyone agrees on — short, because foe ids are already on the wire |
 | 18 | Can a party pacify fauna together, and does one ship shooting ruin it for everyone | Off today. Needs the host counting quiet turns per ship. The interesting version is that it CAN be ruined |
-| 19 | Should a ship that flees a shared fight shrink the enemy back down | Currently no — the party is left holding a frigate scaled for the crew that was there. Harsh, honest, and untested at the table |
+| ~~19~~ | ~~Should a ship that flees a shared fight shrink the enemy back down~~ — **ANSWERED by Jon, Nov 5: the enemy is built for the players in the GAME, not the ships in the fight** (`PartyScale`, PROTOCOL 18). Nothing grows when a ship walks in and nothing shrinks when one leaves; a fight keeps the count it opened at, and the next fight takes the new one. Joining after the first turn arrives STUNNED until the enemy's turn is over (and can be shot); joining on turn 1 never is. The convoy column slides in when a partner arrives and out when they go (J4 B). Measured caveat: a ship fighting ALONE in an n-player game meets the party's hull, and a starter kit dies to a two-player pack every time (`-- sheet=PartySize`, `alone` rows) | Closed. The lone-ship cost is Jon's to weigh |
 | 16 | Transit cooling rate — currently half a turn's worth per jump, floor 1. At ~8 jumps per fight almost any value clears the residue | §0, and how long a commit is felt |
 
 ---

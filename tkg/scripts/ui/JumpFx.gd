@@ -1,33 +1,9 @@
 class_name JumpFx
 extends Control
 
-## Twenty-one ways for a ship to not be here any more.
-##
-## The original was one: `EncounterView.JumpFlare`, a vertical column of light
-## that opens, flashes and shuts. It is still the first entry here and still the
-## default. The rest exist because a jump is the most-repeated moment in the
-## game after a card play, and the one worth being sure about.
-##
-## TWENTY OF THEM SHARE A CLOCK, and that is not a detail. `peaked` fires at
-## PEAK for all of those, because that is the frame the hull hides, the frame
-## the jump is committed, and the frame the screen swaps — see
-## `SectorScreen._pulse_out`. So picking between them picks a LOOK and nothing
-## else: none can be better or worse timed than another, and swapping one for
-## another cannot desynchronise anything.
-##
-## `hyperdrive` is the twenty-first and the exception, because it is not an
-## overlay at all — it takes the hull apart. It needs its own, longer clock, and
-## `life()` and `peak()` exist so that everything downstream asks rather than
-## assumes. See MELTING below.
-##
-## NOTHING WARM. `UITheme` rules that EMBER, FLARE and HOT mean something is
-## emitting heat, "never as decoration" — and a jump is the one bright thing in
-## this game that is not combustion. Everything here is drawn in the same cold
-## white the original column used.
-##
-## Set `JumpFx.style` to choose. It is static because it is a setting rather
-## than a property of any one ship: four hulls jumping out of a convoy should
-## not jump out four different ways.
+## Twenty share one clock: `peaked` fires at PEAK, so a style changes the look, never the timing.
+## Nothing warm: UITheme reserves EMBER, FLARE and HOT for heat, and a jump is not combustion.
+## Why: docs/why/JumpFx.md#jump-styles
 
 ## Long enough to be an event, short enough that four of them staggered do not
 ## turn arriving into a cutscene. Straight from JumpFlare, which tuned it.
@@ -48,58 +24,23 @@ const STYLES: Array[StringName] = [
 	&"hyperdrive",
 ]
 
-## THE ONE THAT IS NOT AN OVERLAY, and the one exception to the shared clock.
-##
-## Every other style here draws over a ship that is still a ship. This one takes
-## the hull apart, and it spools up before it does. Jon, on the first version:
-## "the horizontal bar exists right as the ship is jumping... it might be nice
-## to have a spool up... make it dramatic." So the bar is where the charge
-## ARRIVES, not where it starts.
-##
-## AND THEN, ON THE SECOND: "kinda cartooney". The first spool had motes of light
-## streaking in, a pulsing square at the middle, a fat halo, a jittering hull and
-## a spark that was a perfect ring of twelve identical dots -- each a charge-up
-## convention, and together a drawing of power rather than power. What survived
-## is what reads as physics: a hot line along the hull's own centre, crackle ON
-## the line rather than things flying AT it, a tremor only at the very end, and
-## a spark that is thrown rather than drawn.
-##
-## Which is why `melts()` exists: the caller asks whether a style wants the hull
-## dismantled rather than hidden, instead of checking for a name.
+## The one style that is not an overlay: it takes the hull apart, after a spool (Jon).
+## Cartoony first versions were cut: a hot line, crackle on it and a thrown spark read as physics.
+## Why: docs/why/JumpFx.md#hyperdrive
 const MELTING: Array[StringName] = [&"hyperdrive"]
-## THE WHOLE CHOREOGRAPHY, IN SECONDS, AND THE SOUND READS IT.
-## `audio/hyperjump.py` parses CHARGE_S, SNAP_S, ZIP_S and SPARK_S, builds the
-## sound on them, and refuses to render if the sound no longer fits them. Change
-## one and re-run that script -- the same rule as FLAMEOUTS, for the same reason.
-##
-## HYPER_REV is a held moment before any of it, counted from `depart()`. It was
-## half a second of engines lit, and with no thrusters on ("the thrusters
-## shouldn't be on") half a second of nothing is dead air, not a build.
-## CHARGE_S was 1.60 and is longer at Jon's ask: the spool is the part to savour.
-##
-## THEN THE SOUND SET IT. The start-up is one recording, turbine-2, and it builds
-## to its loudest 3.8 s in -- the frame the hull goes -- so CHARGE_S is 3.80.
-## `audio/hyperjump.py` measures where that take tops out and will not render if
-## CHARGE_S has moved away from it.
-##
-## HANDOFF_S is where the picture changes gear: before it the seam only creeps,
-## to RUMBLE_C; after it the build, the crackle and the tremor come in. It was
-## set for a second take that came in at 1.80 s. turbine-2 has swelled to its
-## plateau by about then, so it stayed; the sound no longer reads it.
+## `audio/hyperjump.py` parses CHARGE_S, SNAP_S, ZIP_S and SPARK_S and refuses to render if off.
+## CHARGE_S is 3.80, where turbine-2 tops out. Change one and re-run that script.
+## Why: docs/why/JumpFx.md#hyperdrive-timing
 const HYPER_REV := 0.25
 const CHARGE_S := 3.80
 const HANDOFF_S := 1.80
 const RUMBLE_C := 0.35
 const SNAP_S := 0.16
 const ZIP_S := 0.34
-## The onward glint's whole run off the frame. It was 0.50 until Jon asked to
-## "triple the speed of the dot leaving the screen": the same 400 px in a third
-## of the time.
+## Was 0.50 until Jon asked for triple speed: the same 400 px in a third of the time.
 const SPARK_S := 0.17
 const LONG_LIFE := CHARGE_S + SNAP_S + ZIP_S + SPARK_S
-## The line's pulse, accelerating across the charge. Slower than it was -- 3 to
-## 18 over a longer charge would have been thirty throbs, which is a wobble, not
-## a build. Linear in frequency, so its phase is a closed form both ends compute.
+## Slower pulse: 3 to 18 over a longer charge was a wobble. Linear in frequency for a closed form.
 const PULSE_F0 := 2.0
 const PULSE_F1 := 12.0
 ## A tremor, not a shake: one pixel, and only in the last stretch of the charge.
@@ -108,29 +49,17 @@ const SHAKE_PX := 1.0
 const CRACKLE := 6
 ## What the beam throws when it arrives.
 const SPARKS := 9
-## Late, because the spark it ends on has to be seen before the screen swaps
-## behind it. The commit lands as the last of it goes out.
-##
-## It was 0.97, a fraction of the WHOLE clock, which moved the swap whenever
-## SPARK_S changed: with the glint made three times faster, 0.97 would have cut to
-## the next system a fifth of the way through it. So it is stated as how far into
-## the ending the swap falls, which is what 0.97 meant when SPARK_S was 0.50.
+## Stated as how far into the ending the swap falls, not a fraction of the whole clock.
+## At 0.97 of the clock, the faster glint would cut to the next system a fifth through.
+## Why: docs/why/JumpFx.md#hyperdrive-timing
 const PEAK_INTO_ENDING := 0.71
 const LONG_PEAK := (LONG_LIFE - SPARK_S * (1.0 - PEAK_INTO_ENDING)) / LONG_LIFE
-## Where the beam ends up, as a fraction of the hull's width right of centre.
-## Just past the nose -- far enough to read as having gone somewhere, near
-## enough that the spark is still beside the ship rather than out in the
-## scenery.
+## Just past the nose: far enough to have gone somewhere, near enough to stay beside the ship.
 const HYPER_DEST := 0.62
 
-## WHAT IS LEFT WHERE THE BEAM ARRIVES, on the last SPARK_S of the clock.
-##
-## It was a spray of sparks and before that a ring of them, and Jon's word for
-## the spray was "silly". A small thing seen at the end of every jump is worth
-## choosing rather than guessing, so there are twenty, and `ending` picks one.
-## They all live inside the same SPARK_S, so which one plays cannot move the
-## frame the jump commits on. `spray` is the one that was there, kept last so the
-## others can be judged against it.
+## Twenty endings inside one SPARK_S, so which plays cannot move the frame the jump commits on.
+## `spray` is the old one (Jon called it silly), kept last for comparison.
+## Why: docs/why/JumpFx.md#jump-endings
 const ENDINGS: Array[StringName] = [
 	&"wink", &"pinhole", &"star", &"recede", &"lens",
 	&"glint", &"blink", &"afterimage", &"dust", &"ripple",
@@ -138,43 +67,26 @@ const ENDINGS: Array[StringName] = [
 	&"split", &"snapout", &"onward", &"echo", &"nothing",
 	&"spray",
 ]
-## Which ending plays. A setting, like `style`, for the same reason.
-##
-## `onward`, Jon's pick: the light does not stop where it closes up, it keeps
-## going and leaves the frame. The sound's tail is the recording's own, so any
-## ending can be picked without re-rendering it.
+## A setting like `style`. `onward` is Jon's pick: the light leaves the frame.
 static var ending: int = 17
 
-## THE BAR'S LOOK. Jon: "can we have the horizontal bar look cooler". So there
-## are twelve, and `bar` picks. Every one goes through `_beam`, so the charge,
-## the snap and the run all wear the same treatment -- and none of them draws
-## past the ends it is given, which while the line is on the ship are the
-## hull's own nose and tail. `plain` is the one that was there, kept first.
+## Twelve looks (Jon wanted a cooler bar), all through `_beam`, none drawing past its given ends.
 const BARS: Array[StringName] = [
 	&"plain", &"glow", &"scan", &"flow", &"ion", &"twist",
 	&"dash", &"spindle", &"arc", &"stack", &"wave", &"terminals",
-	# BLENDS of the four Jon picked out -- "glow scan ion spindle... all good in
-	# their own way" -- drawn by `_blend` out of the same four ideas, so each is a
-	# combination of switches rather than a sixth drawing of light.
+	# Blends of the four Jon picked, drawn by `_blend` as switch combinations, not a sixth drawing.
 	&"spindle_ion", &"glow_scan", &"ion_glow", &"spindle_glow", &"scan_ion", &"all_four",
 ]
-## Which look the bar wears. A setting, like `style` and `ending`.
-##
-## `spindle_ion`, Jon's pick, after the run was made to taper: a swell of
-## white-hot light through the middle of the hull with cyan and violet
-## edges, discharging to a fine line as it leaves. `plain` is index 0.
+## A setting. `spindle_ion` is Jon's pick, after the run was made to taper.
 static var bar: int = 12
 ## The two edge colours `ion` uses. Both cold: a cyan and a blue-violet, the far
 ## side of the palette from anything that means heat.
 const ION_HI := Color("#7fe8ff")
 const ION_LO := Color("#8f86ff")
 
-## WHAT THE HULL DOES AS THE SPOOL STARTS. Jon: "can we have some visual effects
-## happening to the ship as the spool is starting?" So there are ten, and `spool`
-## picks, like `bar` and `ending`. `ShipView` draws them onto the hull's own
-## pixels -- whole pixels, cold light only, nothing scaled -- from `spool_amount()`
-## pushed in every frame on this clock, the same way the melt is. `none` is the
-## jump as it was, kept first.
+## Ten spool effects (Jon asked), drawn by `ShipView` on the hull's pixels from `spool_amount()`.
+## Whole pixels, cold light, nothing scaled. `none` is the old jump, kept first.
+## Why: docs/why/JumpFx.md#spool-effects
 const SPOOLS: Array[StringName] = [
 	&"none", &"frost", &"scan", &"rim", &"static",
 	&"pulse", &"bands", &"ghost", &"drain", &"interlace",
@@ -203,9 +115,7 @@ func peak() -> float:
 func spool_look() -> StringName:
 	return SPOOLS[clampi(spool, 0, SPOOLS.size() - 1)]
 
-## How strongly the hull shows the spool now, 0 to 1: up over SPOOL_IN_S as the
-## charge starts, building with the charge after that, and gone the frame the hull
-## starts to melt -- the melt owns the hull from there.
+## Up over SPOOL_IN_S, building with the charge, gone when the melt owns the hull.
 func spool_amount() -> float:
 	if not melts() or _t < 0.0:
 		return 0.0
@@ -222,9 +132,7 @@ func charge_secs() -> float:
 func _secs() -> float:
 	return _t * life()
 
-## How far the hull has gone to light, for `ShipSlot` to push into the view:
-## nothing through the charge, all of it by the end of the snap. -1 when this
-## style does not melt, or is not playing.
+## Nothing through the charge, all by the snap's end. -1 when the style does not melt.
 func melt_amount() -> float:
 	if not melts() or _t < 0.0:
 		return -1.0
@@ -243,16 +151,12 @@ func shake_amount() -> float:
 		return SHAKE_PX * (1.0 - (s - CHARGE_S) / SNAP_S)
 	return 0.0
 
-## The seam's brightness at `s` seconds into the charge, 0 to 1: the closed form
-## of a pulse whose frequency runs PULSE_F0 to PULSE_F1 across CHARGE_S. Starts
-## dark, so the first thing seen is the seam arriving rather than a flash.
+## Closed form of a pulse sweeping PULSE_F0 to PULSE_F1. Starts dark, so the seam arrives.
 static func pulse_at(s: float) -> float:
 	var ph := TAU * (PULSE_F0 * s + (PULSE_F1 - PULSE_F0) * s * s / (2.0 * CHARGE_S))
 	return 0.5 - 0.5 * cos(ph)
 
-## How far the charge has come at `s`, 0 to 1, in the sound's two gears: it
-## creeps to RUMBLE_C through the rumble, then builds the rest of the way once
-## boom comes in at HANDOFF_S. Continuous at the handoff, so nothing jumps.
+## Two gears, creeping to RUMBLE_C, then building at HANDOFF_S. Continuous there so nothing jumps.
 static func charge_at(s: float) -> float:
 	if s < HANDOFF_S:
 		return RUMBLE_C * clampf(s / HANDOFF_S, 0.0, 1.0)
@@ -271,10 +175,7 @@ func seek(secs: float) -> void:
 	_fired = _t >= peak()
 	queue_redraw()
 
-## Which one the game plays. See the class note: a setting, not a property.
-##
-## `hyperdrive`. The column was the default for as long as it was the only one,
-## and it is still index 0 if this wants putting back.
+## `hyperdrive`. The column was default while alone and is still index 0 to put back.
 static var style: int = 20
 
 signal peaked()
@@ -429,29 +330,19 @@ func _draw() -> void:
 			if _t < peak() + 0.08:
 				draw_rect(Rect2(cx - 30.0, cy - 14.0, 60.0, 28.0), core, true)
 		&"hyperdrive":
-			# CHARGE, SNAP, RUN, SPARK -- on this style's own clock, in seconds.
-			# `ShipView` holds station and renders what `ShipSlot` tells it from
-			# `melt_amount` and `shake_amount`; everything that travels is here.
-			#
-			# The box is the hull's opaque body (ShipSlot sizes it with
-			# `hull_body`), so half its width is nose to centre and NOTHING here
-			# draws the line wider than that. The run is the only thing that goes
-			# past the nose, and it gets shorter as it goes.
+			# `ShipView` renders what `ShipSlot` tells it; everything that travels is drawn here.
+			# The box is the hull's opaque body, so no line is drawn wider than nose to centre.
+			# Why: docs/why/JumpFx.md#hyperdrive-draw
 			var s := _secs()
 			var hw := size.x * 0.5
 			var dest := size.x * HYPER_DEST
 			if s < CHARGE_S:
 				_charge(s, cx, cy, hw)
 			elif s < CHARGE_S + SNAP_S:
-				# THE SNAP. The hull drops its rows under this and the line goes
-				# to full. No swelling flash any more -- a bar that bloomed past
-				# the hull was the loudest part of the cartoon, and the crack in
-				# the sound carries the hit better than a picture of one.
+				# No swelling flash: a bloom past the hull was the loudest cartoon part.
 				_beam(cx - hw, cx + hw, cy, 1.0, 1.0, s)
 			elif s < CHARGE_S + SNAP_S + ZIP_S:
-				# THE RUN. Two ends on different curves: the head goes early and
-				# the tail follows late, so the beam leaves the ship and closes
-				# up as it arrives.
+				# Two ends on different curves: head early, tail late, so the beam closes up.
 				var f := (s - CHARGE_S - SNAP_S) / ZIP_S
 				var tail := lerpf(-hw, dest, pow(f, 1.9))
 				var head := maxf(lerpf(hw, dest, pow(f, 0.70)), tail + 1.0)
@@ -492,12 +383,8 @@ func _hline(x0: float, x1: float, y: float, thick: float, col: Color) -> void:
 		return
 	draw_rect(Rect2(roundf(x0), roundf(y - th * 0.5), w, th), col, true)
 
-## THE CHARGE. The bar is where this arrives, not where it starts.
-##
-## RESTRAINED ON PURPOSE; see MELTING for what came out and why. A hot line along
-## the hull's own centre lengthens to the ship's ends and never past them, and
-## brightens in a shimmer rather than a blink. Once it has filled out, single
-## points of light crackle on it -- on it, not flying at it.
+## Restrained on purpose: a hot line along the hull's centre, never past its ends.
+## Why: docs/why/JumpFx.md#hyperdrive-charge
 func _charge(s: float, cx: float, cy: float, hw: float) -> void:
 	var c := charge_at(s)
 	var p := pulse_at(s)
@@ -509,9 +396,7 @@ func _charge(s: float, cx: float, cy: float, hw: float) -> void:
 	_beam(cx - half, cx + half, cy, glow, c, s)
 	if s < HANDOFF_S:
 		return
-	# CRACKLE. Each point lives for under half a beat, somewhere new every time it
-	# comes back, and there are more of them as the surge builds -- none through
-	# the rumble, so the crackle arrives with boom.
+	# Each point lives under half a beat and moves each time. None in the rumble.
 	var n := int(round(float(CRACKLE) * surge_at(s)))
 	for i in n:
 		var beat := s * 11.0 + _hash(i, 5) * 7.0
@@ -525,11 +410,7 @@ func _charge(s: float, cx: float, cy: float, hw: float) -> void:
 		draw_rect(Rect2(roundf(x), roundf(y), 1.0, 1.0),
 			Color(CORE, glow * (1.0 - age / 0.45)), true)
 
-## THE SPARK, and it is not a ring any more. Twelve identical points on a perfect
-## circle was the other thing that read as a cartoon pop. Each of these has its
-## own heading -- biased forward, because the beam arrived moving right and what
-## it throws carries that -- its own speed and size, slows as it goes, and goes
-## out on its own time.
+## Not a ring: twelve identical points on a circle read as a cartoon pop. Each is its own throw.
 func _spark(s2: float, at: Vector2) -> void:
 	for i in SPARKS:
 		var ang := lerpf(-1.9, 1.9, _hash(i, 11)) + (_hash(i, 12) - 0.5) * 0.6
@@ -543,23 +424,9 @@ func _spark(s2: float, at: Vector2) -> void:
 		draw_rect(Rect2(roundf(pos.x), roundf(pos.y), px, px),
 			Color(CORE, pow(1.0 - k, 1.3)), true)
 
-## THE BAR. One function for every horizontal run of light in the hyperdrive,
-## wearing whichever of BARS is set.
-##
-## `k` is how bright (0..1). `g` is how grown into itself it is: 0 at the first
-## flicker of the charge, 1 from the snap on, so the looks that assemble -- the
-## twisting strands, the closing dashes, the compressing layers -- are finished
-## by the time the hull goes. `s` is the clock in seconds, for the ones that move.
-##
-## `run` is how far the beam has got through the run, 0 until it leaves the ship.
-## ONLY THE SPINDLE SHAPES READ IT. Jon, on spindle + ion: "i don't like how
-## spindle ion ends" -- the swell was worked out over whatever length the beam
-## still had, so a beam closing up to a point kept its full belly and flew off
-## as a fat coloured lozenge that stubbed into the glint. Now the swell
-## discharges as it runs and arrives as a fine line. It is not folded into `g`,
-## because the strands, the dashes and the stacked bars assemble on `g` and
-## would come apart again mid-run if it fell.
-## Nothing here draws outside x0..x1.
+## `run` is read only by the spindle shapes: else a closing beam flew off as a fat lozenge (Jon).
+## Not folded into `g`: strands and dashes assemble on `g` and would come apart mid-run.
+## Why: docs/why/JumpFx.md#hyperdrive-bar
 func _beam(x0: float, x1: float, y: float, k: float, g: float, s: float,
 		run: float = 0.0) -> void:
 	x0 = roundf(x0)
@@ -700,16 +567,8 @@ func _beam(x0: float, x1: float, y: float, k: float, g: float, s: float,
 				_px(x0, y - 1.0, 3.0, 3.0, Color(CORE, k * fl))
 				_px(x1 - 3.0, y - 1.0, 3.0, 3.0, Color(CORE, k * fl))
 
-## THE BLENDS, one pixel column at a time, out of four switches:
-##
-##   spindle   the core thickens toward the middle of the hull
-##   ion       a cyan row above the core and a violet row below it
-##   halo      a stepped glow outside all of that, fading over a few rows
-##   scan      every other row dimmed, core and halo both, like scanlines
-##   tint      the halo takes ion's colours instead of plain cold white
-##
-## Column by column because spindle changes the shape along the length, and the
-## edges and the halo have to follow the shape rather than sit on a straight line.
+## Column by column, as spindle changes shape along the length and the edges and halo must follow.
+## Why: docs/why/JumpFx.md#hyperdrive-bar
 func _blend(x0: float, x1: float, y: float, k: float, g: float,
 		spindle: bool, ion: bool, halo: bool, scan: bool, tint: bool,
 		run: float = 0.0) -> void:
@@ -749,11 +608,7 @@ func _blend(x0: float, x1: float, y: float, k: float, g: float,
 			_px(col, dn + float(d), 1.0, 1.0, Color(ION_LO if tint else COLD, ha))
 		col += 1.0
 
-## THE ENDINGS. See ENDINGS for why there are twenty.
-##
-## Whole pixels, cold light, nothing warm and nothing scaled -- the class rules.
-## `at` is where the beam closed up; `from_x` is where it left the hull, for the
-## endings that remember the path it took.
+## Whole pixels, cold light, nothing warm or scaled. `from_x` is for endings that remember the path.
 func _ending(s2: float, at: Vector2, from_x: float) -> void:
 	var x := roundf(at.x)
 	var y := roundf(at.y)

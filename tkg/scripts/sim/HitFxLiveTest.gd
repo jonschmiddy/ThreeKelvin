@@ -1,20 +1,7 @@
 extends Node
 
-## HITS, BLOCK AND BRACE IN A REAL FIGHT (Jon's picks, Oct 13: hits B, the
-## bubble, brace I).
-##   godot --headless --path . -- sheet=HitFxLiveTest
-## Through the real SectorScreen, a pack of three: every enemy and your ship
-## carry their `HitLayers`; and for each kind of landing, its visual --
-##   block gained: the bubble up with that block (an enemy's and yours);
-##   brace gained: the plated overlay's panels clamped on;
-##   a shot the block soaks: the bubble takes it, still up;
-##   a shot that empties the block: it fizzles;
-##   a shot into the brace: the overlay takes it, sheds panels in proportion;
-##   a shot into the hull: a mark (the marks' version moves);
-##   the turn's end: your leftover block fizzles;
-## then a kill: the dead slot's wreck is cut from the picture WITH the marks
-## (EnemyArt's marked wreck, keyed where it lies), and LOCAL's wreck slot at that
-## place draws the same picture. Headless, so every landing lands at once.
+## Checks each landing's visual in a real pack of three (Jon's picks, Oct 13).
+## Why: docs/why/HitFxLiveTest.md#hit-fx-test
 
 var h := Harness.new()
 var _tree: SceneTree
@@ -77,10 +64,7 @@ func _run() -> void:
 			sl.layers.moment.connect(func(k: StringName, _s: float, _l: float) -> void:
 				_moments[String(k)] = int(_moments.get(String(k), 0)) + 1)
 	_ok("every enemy carries its hits, bubble and armour (%d of 3)" % armed, armed == 3)
-	# BUILT ONCE, AT THE PACK'S SIZE (perf, Oct 27): a pack of three is drawn
-	# from half sheets, and each ship's layers wait for that size
-	# (`EnemySlot.layers_wait`) rather than being built at full size in the bind
-	# and thrown away (six builds, three of them the dearer full-size ones)
+	# Layers wait for the pack's half-sheet size, rather than six builds, three at full size.
 	var halves := 0
 	var kept := 0
 	for L0 in built:

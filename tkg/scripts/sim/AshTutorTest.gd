@@ -1,82 +1,8 @@
 extends Node
 
-## A.S.H. TEACHING (Jon picked how A for the tutorial, Oct 17: "A.S.H. replaces
-## the hint cards"), on the real screens, headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=AshTutorTest
-##
-## THE USED STATE, NOT THE FRESH ONE: a run already under way, a line of hers
-## already said, a settings file with hints seen, reset once and one seen
-## since, in the harness's settings file. The hints' clock is stepped by hand
-## (`Hints.poll`); hers runs on the game's.
-##
-## THE LINES are Jon's picks, character for character, their fields filled from
-## the live game (the hand, the heat cap, the dock and its jumps, the keys), and
-## every one fits her frame on every screen.
-##
-## EACH MOMENT, through the real screens in the order a first run meets them:
-## the goal steps on LOCAL, the chart and the map; the chart's list; the map's
-## events; LOCAL's wreck, loot and ship; the cutaway; the event band; a wreck's
-## window; a fight's hand, intent, END TURN, brace and heat (five lines, one
-## fight); the station's decks, each deck the first time it is open (the yard,
-## the Promenade, the Exchange, the Hiring Board, the Laboratory), its yard's
-## ship and its cutaway; fuel low with a
-## dock in reach, none, and here. Each is her line with the right words, in her
-## corner and not a card, the outline on the hint's own subject.
-##
-## THE DEEP TUTORIAL (Jon, Oct 22: "Tutorial: scope:all"), in the same walk: the
-## map's fuel on the first arrival and flying by hand; the chart's layer strip,
-## a JUMP that cannot go, a signed job's ring and a mark; LOCAL's hull; the
-## band's odds and a result with REWARD; the cutaway's mounts, its cards from a
-## fitted part and the ship's stats; a first fight taught over its turns (the
-## hand, energy and END TURN on turn 1, then a lesson at each turn's start: the
-## intent, a card's heat corner, heat, brace, underlined words; a discard asked
-## for mid-turn; a malfunction), a second (FLEE and HAIL, the hull at half) and a
-## third (the piles, turn 2); the yard's FAULTS, a ship for sale and UNDOCK; the
-## escape menu's SAVE & EXIT (said over the menu); the chassis select's card.
-##
-## NO CLICK DISMISSES HER (Jon, Oct 22, the first outside playtest: "Can we soft
-## lock the screen so A.S.H. can't be dismissed?"). Real clicks, through the
-## viewport, on her box (where Kevin clicked) and at seeded points in it, on
-## every line of that first run: each stays up and unspent until the player
-## DOES what it teaches (`HintActs`: the row, the card, END TURN, the deck's own
-## handler), and that spends it; an information line (`Hints.INFO`) goes by
-## itself after its reading time, spent; a goal step after its reading time.
-## Every hint is taught exactly once each time it is armed, and the run finishes
-## it. NEVER STUCK: a line said whole with another waiting gives way unspent and
-## comes back; a hand with nothing playable has no hand line, and END TURN's
-## comes instead. THE SOFT LOCK (option b, off): while she speaks, the gate takes
-## every click but where she points, and none after.
-##
-## THE BOX TEST on every screen she speaks on: her box inside the view and clear
-## of a list gathered HERE, apart from `Ash.tut_avoid_rects`, so she cannot pass
-## by agreeing with herself -- the HUD, the goal line, every button and word on
-## the screen, every control that takes the mouse (but the backdrops that hold
-## the whole view), what she points at, and in the pictures what a click picks
-## (the chart's systems, the map's worlds, beacons, star and belts, its orbits,
-## the yard's drones and its TAKE IT), each asked of the picture's own hit test
-## at every 2 px.
-##
-## A BARK NEVER INTERRUPTS A TEACHING LINE, and a teaching line due waits for a
-## bark already under way to end of itself (Jon, Oct 22: a quip "plays out").
-## HER INTRODUCTION (intro:A) is the exception: a fresh profile's first launch
-## says launch_04 first, the step waits for it and follows; never forced again.
-## HER VOICE: no take is silence and the words alone at her text pace; a take
-## types at its pace, and the shown words (numbers and names in them) end when
-## she stops; what she says has no field and no live number. OFF: her switch
-## off brings back today's cards, exactly, mid-lesson too; and in a party there
-## is no teaching at all. THE DECKS (Jon, Oct 20): each deck's line up until the
-## deck is used, or said whole and left (then spent: said once); left mid-line,
-## it comes back; queued behind the dock's (picking a deck is the dock's
-## action); off with TUTORIAL OFF, back with REPLAY TUTORIAL, a card with her
-## off, nothing in a party; her box clear on each deck.
-##
-## SAID ALOUD ONCE (Jeremy, a playtester, Oct 23; Jon's 0.4.1 log): over the
-## whole walk no take of hers plays twice, and a line set up again after she
-## said it whole is back as text only. At her real pace: heat across the turns
-## of one fight, the chart left and come back to, the hull's line cut off on
-## three visits, information spent as it shows (`_said_once`). COMMS (Jeremy's
-## ask): the log in order, PLAY, the tab and the table's fit, the save
-## (`_comms`).
+## Walks A.S.H.'s teaching on the real screens, headless, in the order a first run meets them.
+## Runs on the used state, not the fresh one, with the hints' clock stepped by hand.
+## Why: docs/why/AshTutorTest.md#test-overview
 
 const HintActs := preload("res://scripts/sim/HintActs.gd")
 
@@ -140,9 +66,7 @@ const JON := {
 	&"save": "SAVE AND EXIT keeps the run. CONTINUE on the title picks it back up.",
 }
 
-## THE DECKS' LINES, Jon's picks of two drafts each (Oct 20, "promenade:B
-## shipyard:B exchange:B hiring_board:A laboratory:A"), character for character;
-## text alone until a take is recorded.
+## Jon's picks of two drafts each (Oct 20), character for character; text alone until a take exists.
 const DECK_A := {
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
@@ -171,16 +95,9 @@ func _frames(n: int) -> void:
 		await _tree.process_frame
 
 
-## THE MAP_FLY LINE POINTS AT A WORLD (Jon, Nov 4: "Shouldn't a world be
-## highlighted here and not my ship?"): her subject holds a planet's or the
-## giant's place on screen and not the ship's, follows that world round its
-## star (the map's clock run on six minutes over two seconds, then put back),
-## and is on the ship in a system with no world (its worlds made belts for one
-## probe, put back at once: every system has one). The world is one a click at
-## its middle picks, and not one under another place's beacon (seed 4242's
-## LAMBDA ABYSSAL IX); with the ship on that world the outline is on another,
-## clear of the ship; and with the ship drifting (no star orbit, so a click
-## does not fly) it is on the ship. Each of those for one probe, put back.
+## The map_fly line points at a world, not the ship (Jon, Nov 4), and a click at its
+## middle must pick it. A system with no world gets a probe belt, put back at once.
+## Why: docs/why/AshTutorTest.md#map-fly-line
 func _map_fly_world(m: SystemMapScreen) -> void:
 	var g := m._box.get_global_transform()
 	var L: SystemLayout = m.view.layout
@@ -397,10 +314,8 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 			lid, _clicks - c0, held, need], held_from > 0.0 and held >= need - 0.1 and Hints.seen(id)
 			and Hints.lesson == &"" and Ash.lesson != lid)
 	else:
-		# AN ACTION'S LINE: clicked and left alone, a while, up and unspent.
-		# (`reopen`: in the cutaway a click on her box lands on its sky, which
-		# shuts it, Jon's ruling: the click's own job. She goes with it, unspent,
-		# and is said again the next time it opens.)
+		# An action's line stays up and unspent when clicked;
+		# in the cutaway the click shuts it, unspent.
 		var shut := false
 		if reopen.is_valid():
 			Hints.poll(0.3)
@@ -465,10 +380,8 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 	Hints.poll(Hints.GAP_S + 0.1)
 
 
-## REAL CLICKS, as a hand makes them: through the viewport (`push_input`, so the
-## game's every input handler sees them) on her box's middle, where a player
-## clicks to send her away, and at two seeded points in it. Her spot is clear of
-## everything pressable, so they land on the picture under her.
+## Real clicks through the viewport on her box and two
+## seeded points, so every input handler sees them.
 func _click_her() -> void:
 	var p := Ash.portrait
 	if p == null or not is_instance_valid(p) or not p.visible:
@@ -628,11 +541,7 @@ func _box(name: String) -> void:
 		"nothing under her" if hits.is_empty() else ", ".join(hits.slice(0, 4))], hits.is_empty())
 
 
-## THE STEP'S LINE under the goal (`GoalLine`, Jon, Oct 20), gathered here: as
-## drawn while a step is pending, and where it stands when one is (the longest
-## step's words under the goal), so a step coming up never lands on her. In a
-## fight no step shows (its tabs are locked), so it has no place there: held to
-## that here too.
+## The goal's step line is gathered as drawn or at its longest, so a coming step never lands on her.
 func _step_boxes(goal: Control, fight: bool = false) -> Array:
 	var out: Array = []
 	if goal == null or not goal.visible or goal.modulate.a <= 0.0:
@@ -765,17 +674,13 @@ func _handles_input(k: Control) -> bool:
 	return false
 
 
-## A backdrop: it holds most of the view she stands in (the sky a click on
-## LOCAL lands on, the cutaway's and a window's catch-all, the chart's and the
-## map's whole picture). What is IN those pictures is `_picture_hits`.
+## A backdrop holds most of the view she stands in; what is in those pictures is `_picture_hits`.
 func _backdrop(g: Rect2, v: Rect2) -> bool:
 	var i := g.intersection(v)
 	return v.size.x > 0.0 and i.get_area() >= 0.4 * v.get_area()
 
 
-## What a click picks under `r` in a picture, by the picture's own hit test at
-## every 2 px: the chart's systems, the map's worlds, beacons, star and belts
-## (and its orbits' lines), the yard's drones and TAKE IT.
+## What a click picks under `r` in a picture, by the picture's own hit test at every 2 px.
 func _picture_hits(cur: Control, r: Rect2) -> Array[String]:
 	var out: Array[String] = []
 	var pts: Array[Vector2] = []
@@ -892,9 +797,7 @@ func _lines() -> void:
 	_ok("the fuel hint picks its line by the dock: in reach, none, here",
 		AshTutorLines.line_id(&"fuel", {jumps = 2}) == &"fuel_dock" and AshTutorLines.line_id(&"fuel", {}) == &"fuel_none"
 		and AshTutorLines.line_id(&"fuel", {jumps = 0}) == &"fuel_here")
-	# THE DECKS' LINES: Jon's picks in the game, a hint each with a two-line card,
-	# spent as it shows. (The gate's vocabulary step reads AshTutorLines and
-	# Hints for the retired words, so this test does not spell them out.)
+	# Decks' lines are Jon's picks with a two-line card, spent as shown.
 	var deck_bad: Array[String] = []
 	for k: StringName in DECKS:
 		var words := String(AshTutorLines.LINES.get(k, ""))
@@ -914,9 +817,7 @@ func _lines() -> void:
 		Hints.DONE.size(), Hints.INFO.size(), "" if no_end.is_empty() else "; NOT " + ", ".join(no_end)],
 		no_end.is_empty() and Hints.DONE.size() + Hints.INFO.size() == Hints.ORDER.size())
 	_ok("the soft lock (option b) is built and off by default", not Hints.SOFT_LOCK and not Hints.soft_lock)
-	# THE DEEP TUTORIAL: every lesson has her line (but the card-only one), and
-	# a line whose words changed after its take plays its new take's name, never
-	# the old take under new words
+	# Every deep lesson has her line, and a changed line plays its new take, never the old one.
 	var no_line: Array[String] = []
 	for k in Hints.ORDER:
 		var lid := AshTutorLines.line_id(k, {jumps = 2})
@@ -1053,14 +954,9 @@ func _flow() -> void:
 	if mpf != null and is_instance_valid(mpf):
 		mpf._wasd["w"] = false
 
-	# LOCAL AT AN EVENT'S OWN PLACE, WITH A WRECK THAT HOLDS SOMETHING AND A PILE.
-	# LOCAL opens the event there as GO does (Jon, Oct 21: "Clicking GO or
-	# clicking LOCAL should have the same result"), so its band comes first and
-	# she teaches it; the scene's own lessons -- the wreck, the loot, your ship --
-	# wait behind the band and come, each once, as soon as it is down. The step
-	# ("click an event, then GO") is done by the event opening: never said over it.
-	# (an event the system already has, at a world: one planted now stands
-	# nowhere, `SystemLayout.place_of`, and LOCAL opens only the place's own)
+	# LOCAL opens an event as GO does (Jon, Oct 21), so the band comes first and the scene's
+	# lessons wait behind it, each once.
+	# Why: docs/why/AshTutorTest.md#local-event-flow
 	var oi := -1
 	var lay := SystemLayout.of(n)
 	for i in n.options.size():
@@ -1180,9 +1076,7 @@ func _flow() -> void:
 		_ok("the next turn comes up", await _settle_turn(fs))
 		# A LESSON AT EACH TURN'S START from turn 2, each ended by its action
 		var t2 := cb.turn
-		# (a card that adds heat on top of the deck: turn 3's hand draws it, and
-		# its corner is that turn's lesson; in a harness the enemy's turn plays
-		# at once, so the next turn's lesson can start as this one is spent)
+		# A heat card on the deck gives turn 3's lesson; the harness enemy plays at once.
 		cb.deck.append(_with(cb, {heat = 2, vent = 0, energy = 0}))
 		await _expect(&"intent")
 		_ok("the intent at the start of turn 2 (turn %d)" % t2, t2 == 2)
@@ -1391,11 +1285,7 @@ func _flow() -> void:
 		if not Hints.said(id):
 			steps_said.append(String(id))
 	_ok("and every goal step said (%s)" % ("all" if steps_said.is_empty() else "NOT " + ", ".join(steps_said)), steps_said.is_empty())
-	# SHE NEVER SAYS A LINE ALOUD TWICE (Jeremy, a playtester, Oct 23; Jon's 0.4.1
-	# log). The walk comes back to every screen, shuts the cutaway and the chart's
-	# pick with clicks on her box and sets the ship's and the cutaway's lines up
-	# again on purpose: each take of hers on the tape at most once, and a line
-	# shown again after she said it whole is back as text only
+	# She never says a line aloud twice (Jeremy, Oct 23): each take is on the tape at most once.
 	var takes := {}
 	for r: Array in Audio.tape:
 		var nm := String(r[0])
@@ -1419,11 +1309,8 @@ func _flow() -> void:
 		print("      %-16s %s" % [k, _screens[k]])
 
 
-## THE CHART'S DOCK SHE MUST NOT NAME (Jon, Oct 18: "hint:fix"). A heavy frame
-## reaches past its dish, so a dock you have visited can sit in reach, on the
-## chart, and out of sight, which `can_jump_to` refuses. Routed over the chart
-## the hint named it at one jump; she must name the dock the ship can fly to,
-## or say none is in reach.
+## She must name the dock the ship can fly to,
+## as a heavy frame can leave a visited dock out of reach.
 func _fuel_unflyable() -> void:
 	var mfr := Run.hull.manufacturer
 	var weight := Run.hull.weight
@@ -1469,11 +1356,7 @@ func _fuel_unflyable() -> void:
 	Run.chart_from(Run.node_at())
 
 
-## THE BAND'S DEEP LESSONS: an event with a choice that tests the ship (odds;
-## its action a choice), and then a result with a REWARD to open: events from
-## the table taken one choice at a time (no check, no fight, not walking away)
-## until one lands something on the system's pile, which is what shows REWARD
-## (`OptionResolve.shows_reward`, read off `out.loot`). Nothing stood in for.
+## Takes table events one choice at a time until one lands loot on the pile, which shows REWARD.
 func _band_deep(sc: SectorScreen, n: MapGen.MapNode) -> void:
 	var po := -1
 	for o in OptionTable.all():
@@ -1739,14 +1622,9 @@ func _settle_turn(sc: SectorScreen) -> bool:
 
 # ------------------------------------------------------------------ barks
 
-## NEVER STUCK: no line holds the goal or another hint for good. LOCAL with the
-## pile's line (SECTOR LOOT) and your ship's both due: the loot's, higher, is
-## said, clicked on and left; said whole and up YIELD_S with the ship's waiting,
-## it gives way unspent and rests; the ship's is said; when the loot's rest is
-## over the ship's gives way back and the loot's returns, still unspent. And a
-## line whose action cannot be done does not stand: a hand with nothing
-## playable has no hand line, END TURN's comes instead, and the next turn,
-## playable, the hand's.
+## No line holds the goal or another hint for good: a line said whole yields unspent after YIELD_S.
+## A line whose action cannot be done does not stand.
+## Why: docs/why/AshTutorTest.md#never-stuck
 func _never_stuck() -> void:
 	print("never stuck")
 	Rng.forced = 4242
@@ -1842,11 +1720,7 @@ func _never_stuck() -> void:
 	await _local()
 
 
-## THE SOFT LOCK, option (b) of Jon's "soft lock the screen" (Oct 22), built
-## behind `Hints.SOFT_LOCK` and off: off, no gate while she speaks; switched on,
-## while she is SPEAKING a hint's line the gate takes the mouse everywhere but
-## where she points (the GUI's own pick: `gui_get_hovered_control`), and once
-## her words are out it is down.
+## Soft lock, option b of Jon's Oct 22 ask, built behind `Hints.SOFT_LOCK` and off.
 func _soft_lock() -> void:
 	print("the soft lock (option b), off, and switched on to try")
 	Rng.forced = 4242
@@ -2030,9 +1904,7 @@ func _voice() -> void:
 	Hints.poll(0.3)
 	Hints.spend()
 	_ok("the line let go (its action done) stops her voice", Audio.voice_now == "")
-	# THE SHOWN WORDS, NUMBERS AND NAMES IN THEM, END WHEN SHE STOPS, whether her
-	# take (from the SPOKEN script) is shorter or longer than they are: a short
-	# take under the long dock line, a long one under the END TURN line
+	# The shown words end when she stops, whether her take is shorter or longer than they are.
 	var spans: Array[String] = []
 	var span_ok := true
 	for c: Array in [[&"fuel_dock", {jumps = 2, name = "GAMMA KESTREL REACH"}, "res://assets/audio/voice/ash/haul_03.ogg"],
@@ -2113,13 +1985,9 @@ func _switch() -> void:
 
 # ------------------------------------------------------------------ the cutaway, once
 
-## THE CUTAWAY'S LINE ONCE (Jon, Oct 20: "when I enter the ship editor, A.S.H.
-## keeps saying the tutorial line every time I enter. It should only be the
-## first time"): your ship opened up and shut while she is still saying it, so
-## it comes again; then opened three times, shut each time with no module moved
-## once she has said it whole, and she says it the first of those only; it is
-## kept seen in the hints file; REPLAY TUTORIAL brings it back once more; with
-## the tutorial off it does not come at all.
+## The cutaway line is said only the first time (Jon, Oct 20), kept seen in the hints file;
+## REPLAY TUTORIAL brings it back once more.
+## Why: docs/why/AshTutorTest.md#cutaway-line-once
 func _cutaway_once() -> void:
 	print("the cutaway's line, once")
 	var sc := await _local()
@@ -2221,11 +2089,7 @@ func _cutaway_once() -> void:
 
 # ------------------------------------------------------------------ the decks
 
-## A station with all five decks (work on its board, a laboratory), the ship at
-## it; null if the map has none. Every job on its board has a target, so the
-## SIGN the tour presses rings a place on the chart (`contract_track`): since
-## stations were halved (Nov 3, S3) the first station on seed 4242 is a dock
-## desk whose first note is a HEAT job, which has none.
+## A station whose jobs all have targets: the first on seed 4242 had a HEAT job with none.
 func _full_station() -> MapGen.MapNode:
 	for raw in Run.map:
 		var m: MapGen.MapNode = raw
@@ -2236,10 +2100,8 @@ func _full_station() -> MapGen.MapNode:
 	return null
 
 
-## Open the deck of hint `id` by its button on the rail, and wait (20 s of the
-## game's clock and of the wall's: the board's lamp strikes on the wall clock)
-## for its main thing to be up: the drones flown in, the lamp lit, the lab's
-## scan passed.
+## Open a deck by its rail button and wait up to 20 s
+## for its main thing; the lamp uses the wall clock.
 func _visit(st: StationScreen, id: StringName) -> bool:
 	var tab: StringName = Hints.DECK_HINTS[id]
 	(st._tabs[tab] as Button).pressed.emit()
@@ -2254,15 +2116,9 @@ func _visit(st: StationScreen, id: StringName) -> bool:
 	return false
 
 
-## THE DECKS' LINES (Jon, Oct 20: "There is no tutorial tip for the promenade,
-## exchange, shipyard, laboratory, or hiring board"), through the real station
-## and its deck buttons: each said the first time its deck is open, clicked on
-## and still up, unspent, until the deck is used (`HintActs`: a drone's job, the
-## till, the counter, SIGN, the fabricator), or until she has said it whole and
-## the deck is left by another deck's button (then spent: said once, Jon's Oct
-## 20 ruling); left while she is still saying it, it comes back. Picking a deck
-## is the dock's own action. TUTORIAL OFF: none, and REPLAY TUTORIAL brings each
-## back; her switch off: today's card; in a party: nothing.
+## Each deck's line is said the first time it is open and spent when the deck is used,
+## or said whole and left (Jon, Oct 20).
+## Why: docs/why/AshTutorTest.md#decks-lines
 func _decks() -> void:
 	print("the decks, each the first time it is open")
 	Hints.reset()
@@ -2444,11 +2300,8 @@ func _decks() -> void:
 
 # ------------------------------------------------------------------ TUTORIAL ON / OFF
 
-## SETTINGS' TUTORIAL (Jon, Oct 20: "Have a setting in the options for tutorial
-## on or tutorial off"): off mid-line, her teaching line goes at once, unspent,
-## with no card in its place; off, nothing of hers teaches and the goal line
-## has no step, but a new run still opens with her introduction; on again, the
-## lessons pick up where they were.
+## Tutorial off (Jon, Oct 20) drops her line at once,
+## but a new run still opens with her introduction.
 func _tutorial_switch() -> void:
 	print("the tutorial switch")
 	await _local()
@@ -2520,14 +2373,9 @@ func _tutorial_switch() -> void:
 
 # ------------------------------------------------------------------ her introduction
 
-## SHE INTRODUCES HERSELF EVERY NEW RUN (Jon, Oct 18, "intro:A"; Oct 20: "On the
-## first LOCAL section you load into on a new game, A.S.H. should introduce
-## herself. Short beat. THEN the first tutorial hint."), through real new runs
-## with her and the hints both on the game's clock, as in play: three new runs
-## in a row, one with an old settings file that still says `[hints] ash_intro`;
-## each opens with the intro, its take, then a beat of at least 1.4 s before the
-## goal's first step. A run picked up with CONTINUE does not hear it again.
-## Read through her log and the tape, so it fails on a game without it.
+## She introduces herself on every new run (Jon, intro:A), then a beat of at least
+## 1.4 s before the first step. A run picked up with CONTINUE does not hear it again.
+## Why: docs/why/AshTutorTest.md#introduction
 func _intro() -> void:
 	print("she introduces herself every new run")
 	var intro := String(AshLines.of(&"launch")[3])
@@ -2562,9 +2410,7 @@ func _intro() -> void:
 			and (taped.size() < 2 or taped[1][0] != &"ash/stop"))
 		_ok("%s: the step never cut it: it ended of itself (%s) before the step began" % [who, "of itself" if w.natural else "cut"],
 			w.natural and w.intro_end > 0.0 and w.step_at >= w.intro_end)
-		# A SHORT BEAT, THEN THE FIRST LESSON: from her last word, not her box
-		# going (Jon, Oct 20: "The delay between the intro and the first hint
-		# is WAY too long": it was 1.5 s after a 5 s reading hold)
+		# The beat counts from her last word, not her box going (Jon, Oct 20: it was far too long).
 		var beat: float = w.step_at - w.last_word
 		_ok("%s: a beat, then the goal's first step (%.2f s after her last word; wants 1.4 to 2.2; between them: %s)" % [who, beat,
 			", ".join(w.between) if not w.between.is_empty() else "nothing"],
@@ -2578,9 +2424,7 @@ func _intro() -> void:
 		Hints.reset()
 		await _frames(2)
 
-	# A RUN PICKED UP WITH CONTINUE does not hear it again: saved before its first
-	# jump and before she spoke, and loaded; its launch is the bag's (nothing
-	# taught, so the launch comes at once)
+	# A run picked up with CONTINUE does not hear the intro; its launch line comes at once.
 	var picks: Dictionary = {}
 	var all_pool := true
 	var said_after_load := true
@@ -2620,10 +2464,8 @@ func _intro() -> void:
 	Ash.waiting.clear()
 
 
-## Watch a launch frame by frame until her line `step` (or 40 s): the first
-## line she says, when the first launch line stops being said and whether of
-## itself, when the step starts, and what came between. A hint before the step
-## is clicked through, as a player would.
+## Watch a launch frame by frame until her step (or 40 s);
+## hints before the step are clicked through.
 func _watch_launch(n0: int, step: StringName) -> Dictionary:
 	var out := {first = {}, intro_end = -1.0, last_word = -1.0, natural = false, step_at = -1.0, between = []}
 	var watching := false
@@ -2660,20 +2502,13 @@ func _intro_flag_set(v: bool) -> void:
 
 # ------------------------------------------------------------------ a first launch, as seen
 
-## A RUN'S FIRST LAUNCH AS PLAYED (Jon, Oct 20: "A.S.H. introduces herself and
-## also reads the tutorial at the same time. The GOAL and the tutorial tip are
-## right under her box."), the screens animating as in play (the goal line
-## fades in, so it is not drawn on the frame the ship stops), her and the hints
-## on the game's clock. Both ways: a new run (the intro, then the step) and a
-## launch with no intro, as a run picked up has it (the step, then a launch line
-## from the bag). Every frame: one line of hers at a time, none cut by the next,
-## and her box clear of the goal, the step's line as drawn and the step's place.
+## Intro and tutorial read at once with the goal under her box (Jon, Oct 20), so every frame must
+## show one line at a time and her box clear.
+## Why: docs/why/AshTutorTest.md#first-launch
 func _first_launch() -> void:
 	print("a first launch, as seen")
-	# THE FRAME THE SHIP STOPS: the goal line is up from it but not drawn yet (it
-	# fades in, and its own frame may come after hers). The step is due all the
-	# same, so a launch line waits for it -- in play the line asked the drawn
-	# line, the launch started there and the step cut it 0.6 s later
+	# The step is due when the ship stops though the
+	# goal line is not drawn yet, so a launch line waits.
 	Hints.reset()
 	Ash.reload()
 	Rng.forced = 5150
@@ -2803,25 +2638,9 @@ func _coop() -> void:
 
 # ------------------------------------------------------------------ said aloud once
 
-## SHE NEVER SAYS THE SAME LINE ALOUD TWICE (Jeremy, a playtester, Oct 23: "it
-## doesn't need to repeat everything when I jump out of a menu after it has
-## already said it"; Jon's 0.4.1-alpha.1 log: the hull's line five times, heat's
-## four times in one fight against the Dreg Hulk). At her real pace (the words
-## typed over her take, so "said whole" is her last word), her voice on tape:
-##   - HEAT ACROSS THE TURNS OF ONE FIGHT: said whole at turn 1, it stays up
-##     through the heat vented to nothing (it used to go unspent and come back at
-##     the next turn's start in full), END TURN spends it and the later turns say
-##     nothing; set up again and cut off mid-line (something came into her box),
-##     it is back at the next turn's start of the same fight as text only, and
-##     END TURN spends it. One take of it each time;
-##   - A SCREEN LEFT AND COME BACK TO after a line was said whole: the chart's
-##     (a star picked spends it) is back quietly, the words out at once, no chirp
-##     and no take, and held until a star is picked;
-##   - CUT OFF, SAID ONCE MORE: the hull's, LOCAL left before her last word on
-##     three visits, is said aloud, aloud once more, then as text only, which
-##     leaving spends;
-##   - INFORMATION, ONCE EVER: the first arrival's fuel line, the map left while
-##     she says it, is spent and never comes again.
+## No take of hers plays twice (Jeremy, Jon's 0.4.1 log): a re-armed line comes back as text only.
+## Cases: heat across turns, a screen revisited, the hull cut off, and information lines.
+## Why: docs/why/AshTutorTest.md#said-aloud-once
 func _said_once() -> void:
 	print("said aloud once (Jeremy, Oct 23)")
 	Audio.taping = true
@@ -2861,9 +2680,7 @@ func _only(ids: Array) -> void:
 	Hints._quiet = 0.0
 
 
-## Hint `id` unseen again AND her line for it unheard, to be said aloud again
-## from the start (as REPLAY TUTORIAL does for all of them). Set unseen alone, a
-## line she has said whole comes back quietly (`Hints.may_say_aloud`).
+## Unseen again and unheard, to be said aloud again, as REPLAY TUTORIAL does for all of them.
 func _fresh(id: StringName) -> void:
 	Hints.mark_seen(id, false)
 	Hints.forget_heard(AshTutorLines.line_id(id))
@@ -3080,16 +2897,9 @@ func _info_once() -> void:
 
 # ------------------------------------------------------------------ comms
 
-## COMMS (Jeremy, a playtester, Oct 23: "Give me an option to revisit all
-## communications"), through the HUD's COMMS tab: a new run's log is empty; her
-## teaching lines and a quip go in it as she says them, a line back quietly does
-## not; the tab is the same rect and the same word before and after (no count,
-## ever), and the HUD's row fits with it, nothing over anything; the table lists
-## the lines newest first, each with its words, and PLAY on every line with her
-## voice; PLAY says the take again, and waits while she is speaking; COMMS and
-## QUESTS take turns over the picture; the table clear of the HUD, the goal line
-## and her; the run's save keeps the log, CONTINUE puts it back in order, and a
-## save from before it (VERSION 35, no `ash_comms`) loads with an empty one.
+## COMMS (Jeremy, Oct 23) revisits all communications: log in order, PLAY says the take again,
+## and the save keeps the log.
+## Why: docs/why/AshTutorTest.md#comms
 func _comms() -> void:
 	print("comms: what she said this run")
 	_new_run()

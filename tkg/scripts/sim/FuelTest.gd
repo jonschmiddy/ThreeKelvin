@@ -1,35 +1,8 @@
 extends Node
 
-## THE 45 TANK (Jon, Oct 17: "fuel:A warn:A events:A"), headless:
-##   godot --headless --path . -- sheet=FuelTest
-##
-## Four things, each read off the game rather than restated here:
-##
-## - THE CAP. A run starts full at 45 and no write can overfill it: the
-##   setter, a refuel, a grant. REFUEL at a full tank says TANK FULL and takes
-##   nothing; a top-up is the room left, charged by the unit.
-## - THE EVENT FLOOR (`Run.drain_fuel`). An event leaves the fuel to reach a dock
-##   in sight, or three of the cheapest jumps with none; it never adds fuel; and
-##   every event outcome in `OptionTable` drains through it, at the 45 scale.
-## - THE HINT. Not above a third of the tank, at it; its second line names the
-##   nearest dock the tank can reach and the jumps to it -- checked against a
-##   search written here, not the game's -- or says what to do with none.
-## - THE HUD READOUT. "FUEL [bar] 23/45" at full, a third and near empty: the
-##   figure, the bar's fill, the colour (ice, amber, red, with or without hints,
-##   so a party is warned too); and the box test -- every piece inside the bar,
-##   on screen, clear of every other thing on the row, of the goal line and of
-##   the band under it on the left, and every spot A.S.H. can stand in; with dev
-##   mode's two extra
-##   tabs too. Not pressable: no button, no focus, the arrow cursor.
-## - THE PRICE AND THE WAY OUT (Jon, Oct 18: "fuel:AB"), in a USED run -- a
-##   few hops flown, credits spent, a can bought, docks visited -- not a fresh
-##   one. A whole tank costs 55-60 at an outpost and follows the service
-##   ladder elsewhere. Docked, broke and short of every other dock, REFUEL
-##   sells exactly the fuel to reach the cheapest one (checked against a
-##   search written here, and then flown), for what that costs or every credit
-##   you have; buying again gets nothing more; and it is not offered when the
-##   ordinary can is affordable, when a dock is already in reach, or away from
-##   the dock.
+## The 45 tank (Jon, Oct 17): cap, event floor, hint and HUD readout, each read off the game.
+## Price and rescue run in a used run (Jon, Oct 18), as a fresh run never meets that rule.
+## Why: docs/why/FuelTest.md#fuel-tank-test
 
 var _tree: SceneTree
 var _fails := 0
@@ -119,10 +92,7 @@ func _hop(t: MapGen.MapNode) -> void:
 func _price_and_rescue() -> void:
 	Rng.forced = 4243
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	# A USED RUN: hops flown on the chart's own rules, a dock visited with a
-	# can bought and a repair's worth spent, the hull scratched, then on to a
-	# second dock. A fresh run has one dock charted and a full tank, which is
-	# the state this rule never meets.
+	# A used run: a fresh run has one dock charted and a full tank, which this rule never meets.
 	var docks := 0
 	var guard := 0
 	while docks < 2 and guard < 40:
@@ -277,9 +247,7 @@ func _price_and_rescue() -> void:
 		if not d.is_empty() and (far_d.is_empty() or int(d.fuel) > int(far_d.fuel)):
 			far = s
 			far_d = d
-	# Docks sit a hop apart in most galaxies, so take the nearest ones out of
-	# sight from here (as a dish too small for them would) until the way out is
-	# two hops or more: a dock you cannot see now, seen from the next star.
+	# Docks sit a hop apart, so the nearest are taken out of sight until the way out is two hops.
 	if far != null:
 		_stand(far)
 		var hid := 0
@@ -321,11 +289,7 @@ func _price_and_rescue() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 
 
-## This test's own search: the least fuel to any other dock, priced with the
-## jump formula restated here, through no core, within a tank, over hops the
-## ship can take when it gets there -- the first to a star seen from here, each
-## after it to one inside the dish of the star it leaves (sight is live: it is
-## what arriving shows). {node, fuel, path} (path excludes here), or {}.
+## This test's own search for the least fuel to another dock, restating the jump formula.
 func _my_cheapest_other_dock() -> Dictionary:
 	var here := Run.node_at()
 	var cost := {here.index: 0}
@@ -416,14 +380,9 @@ func _floor() -> void:
 	Run.fuel = 45
 
 
-## Every event outcome drains through the floor and none moves more than a few
-## units: the 109 drains and 47 grants were rescaled from a 279 tank to 45
-## (round(n * 45 / 279), at least 1), so the largest of either is 6. Counted
-## at least, not exactly, so a branch that adds an event (feat/fauna-events'
-## `in_the_wake`) passes once its drain goes through `drain_fuel` at the scale.
-## FLEE AND THE PULSAR ON THE 45 SCALE (Jon: "flee:A", "pulsar:C"). A flee burns
-## 1, and 2 more on a partial, through the floor; the pulsar pays 14 + danger,
-## about half a tank, held under the top.
+## Drains and grants were rescaled from a 279 tank to 45, so counted at least, not exactly.
+## Flee and the pulsar are on the 45 scale (Jon: flee:A, pulsar:C).
+## Why: docs/why/FuelTest.md#event-drains
 func _flee_and_pulsar() -> void:
 	var src := FileAccess.get_file_as_string("res://scripts/systems/Combat.gd")
 	var bare := RegEx.create_from_string("Run\\.fuel\\s*=\\s*maxi\\(0").search_all(src)
@@ -520,9 +479,7 @@ func _hint() -> void:
 	# A DOCK ONE JUMP OFF AND ONE FURTHER, wherever the map has them: the line
 	# names it, with the jumps, and agrees with this test's own search
 	var cases := {1: false, 2: false}
-	# Docks you have been to stay on the chart (`Run.charted`); one out of sight
-	# counts once a star on the way has it in its dish, two jumps through a star
-	# you can see.
+	# Visited docks stay charted; one out of sight counts once a star on the way sees it.
 	for raw in Run.map:
 		if (raw as MapGen.MapNode).type == MapGen.NodeType.STATION:
 			(raw as MapGen.MapNode).visited = true
@@ -570,12 +527,8 @@ func _hint() -> void:
 	Run.fuel = 45
 
 
-## A DOCK THE CHART DRAWS AND THE SHIP CANNOT FLY TO (Jon, Oct 18: "hint:fix").
-## A heavy frame reaches past its dish, so a dock you have visited can sit in
-## reach, on the chart, and out of sight -- `can_jump_to` refuses it. Routed
-## over the chart the hint named it, one jump; now it names the dock the ship
-## can fly to, as this test's own search finds it, or says none is in reach.
-## A.S.H. says the same line's name (`Hints.values`), so she is checked too.
+## Jon, Oct 18: a heavy frame reaches past its dish, so the chart showed unflyable docks.
+## Why: docs/why/FuelTest.md#unflyable-dock-hint
 func _hint_unflyable() -> void:
 	Run.fit_chassis(&"korvan", HullData.Weight.HEAVY)
 	var at0 := Run.at
@@ -620,9 +573,7 @@ func _hint_unflyable() -> void:
 	_stand(Run.map[at0])
 
 
-## Fly the nearest dock's route the way a pilot reading the hint would: each
-## hop to a star `can_jump_to` allows, choosing by the game's own search from
-## where the ship now is. "<names> dock", or where it stopped.
+## Flies the hint's route as a pilot would, each hop to a star `can_jump_to` allows.
 func _fly_to_dock(jumps: int) -> String:
 	var said: Array = []
 	for i in jumps:
@@ -668,13 +619,8 @@ func _poll(secs: float) -> void:
 		t += 1.0 / 30.0
 
 
-## Fewest jumps to a station, then least fuel, each hop priced as the game
-## prices a hop from where it starts, over hops the ship can take when it gets
-## there: the first to a star seen from here, each after it to one inside the
-## dish of the star it leaves (sight is live), through no core. Written apart
-## from `Run.nearest_dock` so the two can disagree. `by_chart` routes the old
-## way, over every system the chart draws -- the rule that named docks the ship
-## could not fly to (Jon, Oct 18: "hint:fix").
+## Written apart from `Run.nearest_dock` so the two can disagree. `by_chart` is the old buggy rule.
+## Why: docs/why/FuelTest.md#nearest-dock-search
 func _my_nearest_dock(by_chart := false) -> Dictionary:
 	var here := Run.node_at()
 	var cost := {here.index: 0}

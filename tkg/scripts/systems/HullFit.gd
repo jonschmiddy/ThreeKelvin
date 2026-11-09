@@ -1,34 +1,10 @@
 class_name HullFit
 extends RefCounted
 
-## What a CLASS bolts on. The other half of HullWear.
-##
-## HullWear takes a hull away — scoring, soot, holes. This puts things on it:
-## vents, sensor blisters, conduit runs, running lights, an antenna. Same
-## engine, opposite direction, and they compose in that order because a bolt-on
-## should be able to get shot.
-##
-## WHY IT EXISTS. DB.TIER_DELTA grants an A-class frame an extra weapon hardpoint
-## and an S-class one a system mount and the reactor to run it, and until now
-## none of that was visible: a C and an S were the same picture with different
-## numbers behind them. A ship carrying more should look like it is carrying
-## more.
-##
-## SIZED BY WHAT THE HULL CAN TAKE, not by what would be nice. Measured on the
-## medium: 1,226 places a 3x3 fits without covering something already drawn, 273
-## for a 6x4, and 3 for a 10x6. So everything here is small. That is also the
-## correct answer artistically — a bolt-on is a vent or a blister, and anything
-## slab-sized is not a fitting, it is a different ship.
-##
-## Reuses HullWear's Plate and Lcg rather than carrying its own, so the palette
-## guarantee holds identically: every pixel written here snaps to a colour the
-## sprite already contains.
+## Tier grants more hardpoints, so higher classes look it; fittings are small as fit allows.
+## Why: docs/why/HullFit.md#class-bolt-ons
 
-## Bolt-ons per class, worst to best. C adds NOTHING — it is the frame as drawn,
-## and everything above it is the same frame with more welded to it.
-##
-## The jump from A to S is deliberately the largest. A class is a specification
-## and the top of a range should look like somebody spent money.
+## C adds nothing, as the frame is drawn; A to S is the biggest jump, so the top looks expensive.
 const KIT := {
 	&"vent":    [0, 1, 2, 3],
 	&"blister": [0, 1, 2, 3],
@@ -49,12 +25,8 @@ static func clear_cache() -> void:
 	_cache.clear()
 
 
-## Somewhere this fitting can sit without covering anything already drawn.
-##
-## FLAT means every pixel under the footprint is the same colour — which is how
-## a hull says "this is bare plating" without anyone having to author anchors.
-## The alternative was HullData's weapon_anchors, empty on all 21 frames and
-## needing a human to place them; this reads the art instead.
+## A flat spot (one colour under the footprint) means bare plating, so no anchors are authored.
+## Why: docs/why/HullFit.md#flat-spots
 static func _room(p: HullWear.Plate, r: HullWear.Lcg, bw: int, bh: int) -> Vector2i:
 	for _try in 90:
 		var x := r.upto(p.w - bw)
@@ -161,9 +133,7 @@ static func _plate(p: HullWear.Plate, r: HullWear.Lcg, n: int) -> void:
 			p.put(x, at.y + bh - 2, rivet)
 
 
-## A running light. The brightest thing the palette owns, one pixel of it, with
-## a dimmer ring — and it has to stay COLD, because warm light in this game
-## means combustion and a navigation lamp is not on fire.
+## Lights stay cold: warm light in this game means combustion.
 static func _light(p: HullWear.Plate, r: HullWear.Lcg, n: int) -> void:
 	var cool := _coldest_bright(p)
 	for _i in n:
@@ -176,12 +146,8 @@ static func _light(p: HullWear.Plate, r: HullWear.Lcg, n: int) -> void:
 			p.put(at.x + 1 + d.x, at.y + 1 + d.y, p.scaled(base, 1.3))
 
 
-## An antenna, on the DORSAL EDGE rather than anywhere flat — a mast in the
-## middle of a hull is a pole stuck through a roof. Walks up from a flat spot
-## until it finds the outside of the ship, then stands proud of it.
-##
-## The only fitting that can change the silhouette, which is why S gets it and
-## nothing else does: the top of a range should read differently in outline.
+## The antenna stands on the dorsal edge, since a mast mid-hull looks stuck through a roof.
+## Why: docs/why/HullFit.md#antenna
 static func _mast(p: HullWear.Plate, r: HullWear.Lcg, n: int) -> void:
 	for _i in n:
 		var at := _room(p, r, 3, 3)
@@ -207,9 +173,7 @@ static func _mast(p: HullWear.Plate, r: HullWear.Lcg, n: int) -> void:
 					p.img.set_pixel(x + k, bar, p.scaled(base, 0.7))
 
 
-## The palest colour the sprite owns that is NOT warm. Running lights have to
-## come out of the existing palette like everything else, and the brightest
-## entry on a Korvan hull is amber — which would put a fire on the nose.
+## Takes the palest non-warm colour: a Korvan hull's brightest is amber, a fire on the nose.
 static func _coldest_bright(p: HullWear.Plate) -> Color:
 	var best := p.cols[0]
 	var score := -1.0

@@ -1,16 +1,8 @@
 extends Harness
 
-## The whole contract loop, flown headless:
-##   godot --headless --path . -- contracttest
-##
-## Signing, reaching, killing, docking hot, being paid, and the one thing that
-## can go quietly and expensively wrong — standing feeding back into `Market` and
-## reopening the buy-and-melt hole that file exists to close.
-##
-## That last check is the reason this test is not optional. `-- market` proves
-## the invariant at standing zero, which is the only standing it has ever been
-## able to reach; every price in the game is fine until a player delivers four
-## contracts to one manufacturer.
+## Guards standing feeding back into `Market` and reopening the buy-and-melt hole; `--
+## market` tests only zero.
+## Why: docs/why/ContractTest.md#contract-loop
 
 
 func run() -> void:
@@ -42,9 +34,7 @@ func _boards() -> void:
 	var a := Contracts.board(n)
 	var b := Contracts.board(n)
 	_ok("a station posts the same board twice", _same(a, b))
-	# Every station posts work now, its dock desk's where nobody berths (Jon, Nov 3;
-	# `_every_station_posts` counts them). What is never legal is a board with
-	# work on it that nobody is paying for.
+	# Every station posts work (Jon, Nov 3); a board with work nobody pays for is never legal.
 	var has_manufacturer := true
 	for c in a:
 		if (c as ContractData).manufacturer == &"" or (c as ContractData).pay <= 0:
@@ -60,12 +50,9 @@ func _boards() -> void:
 	print("  %d of %d systems are posting work" % [boards, Run.map.size()])
 
 
-## EVERY STATION POSTS WORK (Jon, Nov 3: all five decks at every station, the
-## HIRING BOARD among them). A station with no berth posts for its dock desk
-## (`Contracts.dock_desk`), every offer has a manufacturer and a price, and a desk
-## job is handed in at the desk that posted it. A bare board is legal only
-## where no ordinary system lies within reach and both offers wanted one, which
-## is rare: at most one station in a hundred.
+## Every station posts work (Jon, Nov 3). A bare board is legal only if no ordinary system
+## is within reach.
+## Why: docs/why/ContractTest.md#every-station-posts
 func _every_station_posts() -> void:
 	var stations := 0
 	var bare := 0
@@ -120,9 +107,7 @@ func _fetch() -> void:
 	Run.reach_contract_target(mine.at)
 	_ok("the pickup at the target recovers it",
 		mine.state == ContractData.State.READY)
-	# THE HOLD IS NOT TOUCHED. A recovered item is named and not carried — a
-	# contract that can be soft-locked by a full hold, or completed and then
-	# accidentally scrapped, is a bug wearing a decision's clothes.
+	# The hold is untouched: a full hold must not soft-lock a contract or let it be scrapped.
 	_ok("and does not put anything in the hold", Run.cargo.is_empty())
 
 	var berth := _berth(mine.manufacturer)
@@ -172,19 +157,15 @@ func _heat() -> void:
 	var before := Run.credits
 	Run.deliver_contract(mine)
 	_ok("and it is paid", Run.credits == before + mine.pay)
-	# THE HEAT IS SPENT. This is the only contract that costs the player
-	# something at the counter, and it is the whole reason the kind exists —
-	# arriving hot means having chosen not to cool down, which is the ambush
-	# layer being offered to the player rather than used against them.
+	# Heat is the one thing a contract costs at the counter: arriving hot is a chosen ambush
+	# layer.
 	_ok("and the heat is gone", Run.heat == 2)
 
 
 ## The check `-- market` cannot make, because standing is always zero there.
 func _standing() -> void:
-	# A station with a DOMINANT manufacturer, not just any station — standing is read
-	# off `n.manufacturer` and an unbranded desk gives no bonus to check. The
-	# first search bailed out silently on exactly that, which is a skipped test
-	# wearing a passing test's clothes.
+	# Needs a dominant manufacturer, as standing reads it. The first search bailed silently
+	# and skipped.
 	var n: MapGen.MapNode = null
 	var probe: ModuleData = null
 	for raw in Run.map:
@@ -220,18 +201,9 @@ func _standing() -> void:
 	print("  bid peaks at %.0f%% of ask" % (worst * 100.0))
 
 
-## The salvage rail's dismissal rule, which is pure logic on `Run` and has been
-## wrong twice.
-##
-## It lives in this file rather than its own because this is the gate's test of
-## RunState transitions and a second Godot boot to assert four booleans is not
-## worth twenty seconds on every commit. If a third RunState rule needs covering,
-## split them out then.
-##
-## First version put the flag on `SectorScreen`, which is REBUILT ON EVERY JUMP,
-## so stowing was forgotten the moment you left. Second version moved it to `Run`
-## and asked whether the state MATCHED the dismissal — so walking away from a bag
-## changed the state and re-opened the rail. The rule is "is anything new".
+## Dismissal rule, wrong twice: on `SectorScreen` it was lost each jump, and matching state
+## reopened it.
+## Why: docs/why/ContractTest.md#salvage-hush-rule
 func _salvage_hush() -> void:
 	Run.hauls = 5
 	Run.salvage_hushed_hauls = -1
@@ -244,10 +216,8 @@ func _salvage_hush() -> void:
 	_ok("dismissing shuts it", Run.salvage_hushed(-1))
 	_ok("and a bag somewhere new opens it", not Run.salvage_hushed(12))
 
-	# THE CASE THE SAVE USED TO BREAK. `hauls` is deliberately not persisted, so
-	# it comes back as 0; if the dismissal were persisted beside it the rail
-	# would stay shut for the next twelve hauls over loot already in the hold.
-	# The dismissal is not saved either, and this is the assertion that says so.
+	# `hauls` is not saved, so neither is the dismissal, or the rail stays shut for twelve
+	# hauls.
 	Run.hauls = 0
 	_ok("a haul count reset below the dismissal opens it",
 		not Run.salvage_hushed(-1))
@@ -275,28 +245,9 @@ func _salvage_hush() -> void:
 	Run.found_hull = null
 
 
-## THE WORK IS WHERE THE NOTE SAYS IT IS, flown end to end on many galaxies.
-##
-## Jon, Oct 22: "Quests don't show up in the sectors they say they are." Three
-## things were wrong and the checks above could see none of them, because they
-## called `reach_contract_target(mine.at)` on the index and never read the note:
-##
-## - THE NAME MEANT TWO PLACES. `MapGen.star_name` hashed the index and gave
-##   38% of systems a name another system also had, so a note naming "OMEGA
-##   THORN REACH" sent the reader to whichever one they found;
-## - THE LAYER WAS ONE SHORT. The note printed `layer` from zero; the chart and
-##   the sector count from one;
-## - NOTHING WAS THERE. No contract put anything on the named system's map: a
-##   fetch closed itself on arrival with one log line (a quarter of them at a
-##   station), and a hunt waited for a fight that was gone if you had won it
-##   before you signed.
-##
-## So for every kind, on every seed: sign at a station, read the note, find the
-## one system it names, fly there hop by hop through `Run.jump_to` and the
-## arrival door (`Router.settle_arrival`), see the work on that system's map,
-## do it, fly to a yard and DELIVER. A third of the targets are emptied before
-## signing and a third after (a cleared system refuses every event), and every
-## other hunt is fled and found again on the next arrival.
+## Jon, Oct 22: quests not where the note says. Fixes: duplicate names, layer off by one,
+## nothing placed.
+## Why: docs/why/ContractTest.md#work-at-the-named-place
 const JOB_SEEDS := [11, 23, 47, 101, 233, 512, 777, 1009, 2048, 4099, 31337, 65521]
 const JOBS_PER_KIND := 4
 

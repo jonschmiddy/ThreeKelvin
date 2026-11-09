@@ -1,37 +1,8 @@
 extends Node
 
-## THE ZOOM LADDER'S MOVES, filmed (`ZoomLadder`):
-##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LadderShot
-##       keepwindow flow=c out=<dir> [seed=N] [seams=1,2,3] [designs=A,B,C] [style=...]
-##       [side=<StationSides id>] [interior=<id>|none] [weight=light|medium|heavy] [fit=full]
-## For each design of each seam asked for, the move both ways through the
-## Router's own doors -- chart <-> map, map <-> LOCAL (in orbit of a world, so the
-## world handoff has its world), LOCAL <-> station (DOCK on LOCAL's bar, UNDOCK)
-## -- every frame of the game's 960x540 picture saved as
-## <dir>/<seam><design>_<in|out>/f_####.png, from a few frames before the call to
-## a few after the move. The ladder's clock steps 1/30 s a frame, and with
-## `--fixed-fps 30` so does the game's, so the frames play at true speed at
-## 30 fps however slowly the window drew. Prints, per clip, the frame the screens
-## changed hands on (`swap`). Needs a window.
-##
-## `designs=picks` films each seam's default (Jon's picks: 1A, 2C, 3B) instead of
-## every letter. `post=N` keeps filming N frames after the move ends (default 8),
-## so the UI that arrives after it is on the film. `go` films GO on an event from
-## the map (`2C_go`, the ship already in orbit where it stands). `dive` films the
-## moves two distances long that Tab makes: the chart to LOCAL (`dive_chart_local`),
-## and docked, the berth to the map (`dive_station_map`) and the chart back to the
-## berth (`dive_chart_station`). `timing` writes no pictures: it logs every real
-## frame's length (run it WITHOUT --fixed-fps).
-##
-## `first` (with `timing`): THE FIRST VISITS, as a player meets them on a launch:
-## the title held `title=S` seconds (6), NEW RUN, the hull pick held `pick=S`
-## (4), LAUNCH onto LOCAL, Tab to the map, on to the chart, then the same hops
-## again. Each step prints its longest real frame, how many went over 50 and
-## 100 ms, and what the ladder's probes said on the longest -- the one-off
-## stalls (a shader compiled on first use, the chart's galaxy built) that a
-## fixed-fps film hides. `buildcost` adds the chart's star field built cold.
-## `stills` (with --fixed-fps 60) saves each step's last frame, the sky's clock
-## held, for a before-and-after diff.
+## Films the ladder's moves through the Router's own doors at a fixed 30 fps for true speed.
+## `first` and `timing` catch one-off stalls that a fixed-fps film hides.
+## Why: docs/why/LadderShot.md#ladder-film
 
 const SVP := preload("res://scripts/ui/sysmap/SystemView.gd")
 var _tree: SceneTree
@@ -87,12 +58,8 @@ func _frames(n: int) -> void:
 		await _tree.process_frame
 
 
-## The next frame a player sees. `frame_post_draw` also fires for the draws a
-## screen forces while it finishes itself (LOCAL's sky primes in up to 48 of them,
-## never presented), so one picture per process frame.
-## (read at the top of the next frame: what the last frame finally drew, after
-## any draws it forced while building itself -- those are never shown, and the
-## first draw of a frame is often one of them)
+## One picture per process frame: forced draws are never presented and are often the first draw.
+## Why: docs/why/LadderShot.md#frame-capture
 func _shown() -> void:
 	await _tree.process_frame
 
@@ -156,9 +123,7 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 			# (the frame in three: its process up to the draw, the draw, and from
 			# the draw to this frame's start -- buffer swap, waits, deletions)
 			wn["proc_ms"] = (_pre_us - t_prev) / 1000.0
-			# (signal to first node: whatever runs on process_frame; first to last:
-			# the nodes' own _process; last to the draw: deferred calls, layout,
-			# timers, tweens, deletions)
+			# Splits a frame's time: signal to first node, first to last, last to the draw.
 			wn["sig_ms"] = (_first_us - t_prev) / 1000.0
 			wn["nodes_ms"] = (_last_us - _first_us) / 1000.0
 			wn["tail_ms"] = (_pre_us - _last_us) / 1000.0
@@ -218,16 +183,11 @@ func _fit_full() -> void:
 	print("  [ladder] fit=full: %s, %d parts fitted" % [Run.hull.name, Run.installed.size()])
 
 
-## THE WORLD YOU ORBIT, where it is on screen this frame: the live screen's own
-## (`ladder_world`), and while a move holds the old picture, the held one's (where
-## the held world has been carried, and how big), with how far the held picture
-## has gone (`t`).
+## The orbited world's screen position this frame, live or from the held picture mid-move.
 func _world_now(k: int) -> Dictionary:
 	var out := {"f": k}
 	var s := Router.current
-	# (3B's one motion: what carries it this frame -- your ship along the
-	# hallway on LOCAL, in plate px, with the zoom; the screen's pan offset; your
-	# ship in the yard)
+	# 3B's one motion: what carries the world this frame (hallway ship, pan offset, yard ship).
 	if s is SectorScreen and (s as SectorScreen)._face != null and is_instance_valid((s as SectorScreen)._face):
 		var sc := s as SectorScreen
 		var art := sc._view.ship_view()
@@ -319,9 +279,7 @@ func _run() -> void:
 	# (`weight=light|medium|heavy`: the hull flown)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
 	Run.start_new_run(&"korvan", int(wt.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)))
-	# (`fit=full`: every mount the hull has filled with its own manufacturer's
-	# parts, turrets and pods on -- `StationShot`'s rule: couplings first, then the
-	# smallest draw, different parts before repeats, only what the reactor runs)
+	# `fit=full` fills every mount with its manufacturer's parts, by `StationShot`'s rule.
 	if "fit=full" in _args:
 		_fit_full()
 	# (the chart's FIRST SURVEY card is the first chart's, not the ladder's)
@@ -363,9 +321,7 @@ func _run() -> void:
 				var mp0 := Router.current as SystemMapScreen
 				if mp0 != null and mp0._ladder_body() >= 0:
 					mw = mp0.view._views.get(mp0._ladder_body())
-				# (`twice`: the same moves again in the same session, to tell a
-				# first-time cost -- a shader compiled, a cache filled -- from one
-				# paid every time)
+				# `twice` repeats the moves to tell a first-time cost from one paid every time.
 				for rep in (2 if "twice" in _args else 1):
 					var sfx := "" if rep == 0 else "_again"
 					if rep > 0:
@@ -494,9 +450,7 @@ func _run() -> void:
 				Router.show_sector()
 				await _frames(90)
 				ZoomLadder.force = 1
-			# (`seatcheck`: the dock's last frame beside the yard as it stands your
-			# ship when docked with no move at all -- `seat_dock.png`, `seat_yard.png`
-			# -- and both hulls' rects printed against the yard's own seat)
+			# `seatcheck` compares the dock's last frame with the yard seating your ship.
 			if "seatcheck" in _args:
 				ZoomLadder.force_design = {}
 				ZoomLadder.force = 0
@@ -605,9 +559,7 @@ func _run() -> void:
 	_tree.quit()
 
 
-## `first`: every real frame of one step timed for `secs` from just before
-## `call` (the click's own frame counted). Prints the longest, the long ones and
-## the ladder's probes on the longest.
+## Times every real frame of one step; prints the longest, the long ones and the ladder's probes.
 func _timed(name: String, call: Callable, secs: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	var t_last := t0
@@ -661,9 +613,7 @@ func _timed(name: String, call: Callable, secs: float) -> void:
 
 func _run_first() -> void:
 	ZoomLadder.fixed_dt = (1.0 / 60.0) if "stills" in _args else -1.0
-	# (`stills`: the sky's clock held, as `ChartSheet` holds it, so the title's
-	# turning galaxy and the chart's gas are at the same moment in a before and
-	# an after; on the real clock they are wherever the launch's own time put them)
+	# `stills` holds the sky's clock as `ChartSheet` does, so before and after match.
 	if "stills" in _args:
 		StarchartScreen.MapChart.clock_override = 123.456
 	ZoomLadder.probe_on = true

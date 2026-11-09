@@ -9,27 +9,18 @@ extends Resource
 @export var heal: int = 0
 @export var dross: int = 0
 
-## WHICH malfunction this lodges, or empty to roll one against the fight's
-## danger. Named, because what a thing does to your ship is characterisation: a
-## spore should fuse something into the rack and a shattered hulk should score a
-## barrel, and "some junk, rolled" says neither. See DB.MALFUNCTIONS.
+## Named, because what a thing does to your ship is characterisation, and rolled junk says neither.
 @export var dross_id: StringName = &""
 @export var telegraph: bool = false   ## "winding up" turn, no effect
 @export var weight: int = 100         ## for fauna random pools
-## Acting on this intent takes the enemy OUT of the fight — the Hellbender's
-## escape burn. Resolved in Combat._act_one (solo) and NetSession._swing
-## (host), never by damage maths. See Combat.escape_intent().
+## Takes the enemy out of the fight, resolved in `Combat._act_one`
+## and `NetSession._swing`, never by damage maths.
 @export var escape: bool = false
 
 
-## WHAT THIS DOES, WRITTEN FROM ITS OWN NUMBERS.
-##
-## `text` is authored against the danger-1 numbers, and `Combat._spawn` scales
-## `damage`, `block` and `heal` per fight -- so at danger 5 a RAM printed "Deal
-## 14" and hit for 15, and a Barrage printed "5 x 3" and killed a ship at 5 hull
-## with 6 x 3 (combat polish audit, item 4). The screen reads this, never
-## `text`, for anything with a number in it. A wind-up or an escape has no
-## number and keeps its authored line.
+## Text is authored at danger 1 and scaled per fight, so the screen reads this for any number:
+## at danger 5 a RAM printed Deal 14 and hit for 15.
+## Why: docs/why/IntentData.md#describe
 func describe() -> String:
 	if telegraph or escape:
 		return text

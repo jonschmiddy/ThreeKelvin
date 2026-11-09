@@ -1,21 +1,8 @@
 class_name KeyBindings
 extends VBoxContainer
 
-## CONTROLS, the last section of Settings: every key a player can move, by the
-## screen it works on (`Keys`).
-##
-## A ROW IS AN ACTION: what the key does on the left, then two chips -- its
-## key, and a second key if it has one -- and RESET, shown only on a row that
-## has been changed, so a page of defaults is a quiet page and a moved key is
-## easy to find again.
-##
-## CLICK A CHIP AND PRESS A KEY. Escape backs out without changing anything,
-## and Backspace or Delete empties the slot. A key another action on the same
-## screen already uses is not taken silently: the row says which action has it
-## and offers SWAP (the two trade keys) or CANCEL.
-##
-## Built for the drawer's width, like the rest of Settings, and rebuilt only
-## itself when a key changes -- the rest of the page and its scroll stay put.
+## RESET shows only on a changed row; a clash offers SWAP or CANCEL, never a silent take.
+## Why: docs/why/KeyBindings.md#key-bindings-page
 
 const CHIP_W := 46.0
 const RESET_W := 40.0
@@ -277,11 +264,7 @@ func _settle() -> void:
 	_asking_reset = false
 
 
-## THE KEY, CAUGHT FIRST. `_input`, ahead of everything else in the game, so a
-## key pressed for a binding does not also open the menu, change the screen or
-## fly the ship. Every key event is eaten while a slot is waiting, the release
-## too. Escape also backs out of a clash or the RESET ALL question before it
-## can reach the menu.
+## Caught in `_input` first, so a binding key does not also open the menu or fly the ship.
 func _input(e: InputEvent) -> void:
 	var k := e as InputEventKey
 	if k == null:

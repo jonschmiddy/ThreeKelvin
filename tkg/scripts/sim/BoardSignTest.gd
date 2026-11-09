@@ -1,25 +1,7 @@
 extends Node
 
-## SIGN CHANGES ONE NOTE, headless:
-##   godot --headless --path . -- sheet=BoardSignTest
-## Jon, Oct 22: "When you pick a quest from the hiring board... the whole hiring
-## board resets." SIGN took the job down and put it on the SIGNED, ELSEWHERE
-## card at the front, rebuilding every note: each note slid along a slot, and
-## the board, laid out round its notes, laid itself out again -- the cork's and
-## the whiteboard's scatter (the WANTED poster, the manufacturers' notices,
-## every piece of paper) jumped to new places, and the screen's other people's
-## listings moved along their slots with new stamps and prices.
-##
-## On the outpost's cork, the settlement's whiteboard and the city's screen
-## (one tab picked, a popup open), through the station screen and its deck
-## button, with a DELIVER sticky and the SIGNED, ELSEWHERE card up: SIGN
-## clicked as a player clicks it signs that job, its note stays in its place
-## and size stamped SIGNED with no SIGN on it, and nothing else changes -- every
-## other note the same node in the same place, the tab, the board's scatter or
-## its listings, the ticker, the popup, the lamp's power-on, the offers
-## themselves (never rolled again). Then a refresh from elsewhere (credits
-## moving) changes nothing either. And a heat job signed with the heat already
-## on the hull is paid off its own note, in place, which then reads SIGN again.
+## SIGN must change one note only; it rebuilt the whole hiring board (Jon, Oct 22).
+## Why: docs/why/BoardSignTest.md#sign-test
 
 var _fails := 0
 var _tree: SceneTree
@@ -52,13 +34,8 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## NO BOARD PROMISES A BOUNTY FOR THE HELLBENDER (Jon, Oct 22: the bounty was
-## promised and never paid, so the posters just say WANTED). Every piece of
-## paper, ad, popup and ticker line that names the Hellbender, on every kind of
-## board, says nothing of a bounty, a reward, a sum or a claim. The two posters
-## drawn in code, the WANTED sheet and the screen's FEATURED listing, say
-## WANTED and nothing of the sort, and are stamped DESTROYED after the kill,
-## never CLAIMED: CLAIMED says somebody was paid.
+## No board promises a Hellbender bounty, as it was never paid (Jon, Oct 22).
+## Why: docs/why/BoardSignTest.md#no-bounty-promise
 const PROMISE := "BOUNTY|REWARD|WORTH|CLAIM|PAID|PAYS|\\d+ ?CR\\b|CREDITS"
 
 
@@ -96,9 +73,7 @@ func _no_bounty() -> void:
 	_ok("the stamp is DESTROYED, not CLAIMED", PostingBoard.DEAD_STAMP == "DESTROYED")
 
 
-## Every string in a board's table row, however deep, but its "k": that names
-## which drawing paints it (the whiteboard's Hellbender note is drawn by
-## `_p_bounty`) and is never written on the board.
+## Every string but `k`, which names the drawing and is never written on the board.
 func _words(v: Variant) -> Array[String]:
 	var out: Array[String] = []
 	if v is String or v is StringName:
@@ -122,11 +97,7 @@ func _body(src: String, f: String) -> String:
 	return src.substr(a, (b if b >= 0 else src.length()) - a)
 
 
-## The station you are at, set up as `-- stationshot` sets it: two
-## manufacturers posting (two offers), a delivery waiting here and a job open
-## elsewhere, so the board carries a DELIVER sticky and the SIGNED, ELSEWHERE
-## card in front of the offers. `heat`: the first offer a heat job, the heat on
-## the hull.
+## The station set up as `-- stationshot` sets it, with a DELIVER sticky and SIGNED card.
 func _station(dev: int, heat: bool) -> MapGen.MapNode:
 	for s in 40:
 		Rng.forced = 9100 + s
@@ -233,10 +204,7 @@ func _click(b: Control) -> void:
 	mv.global_position = at
 	target.push_input(mv)
 	await _tree.process_frame
-	# HEADLESS THE WINDOW NEVER HAS THE POINTER IN IT, so no control is ever
-	# hovered, and a button takes a press only while it is (BaseButton). The
-	# press and the release still go through the viewport, to whatever is on
-	# top at that point, so what covers the button takes the click instead.
+	# Headless, the window never holds the pointer, so a press goes to whatever is on top.
 	b.notification(Control.NOTIFICATION_MOUSE_ENTER)
 	for pressed in [true, false]:
 		var mb := InputEventMouseButton.new()

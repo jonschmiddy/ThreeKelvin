@@ -1,20 +1,9 @@
 class_name PanelSlide
 extends Node
 
-## A SCREEN'S OWN PANEL SLIDING, drawn as it is (Jon, Oct 18: "the panels should
-## be drawn in as they are coming into the frame, they come in blank now and
-## that's not good looking"). The calm move (`ZoomLadder`) carries the map's or
-## the chart's real side bar off to the right, or its toolbar row up, into
-## LOCAL, and on again out of it, with everything on them -- the title, the
-## text, the list, the buttons -- drawn the whole way: the control itself is
-## moved, never a picture of it nor an empty plate. Over the field (`NavField`)
-## it is glass sliding over the stars.
-##
-## The control stays in its container: its place at rest is the one the
-## container gives it, and the slide's offset is put back on top of that every
-## time the container lays its children out again, so a panel whose contents
-## change as it moves still slides from where it will rest. The screen it is on
-## clips it at its own edge while it moves.
+## The real control slides, drawn whole (Jon, Oct 18), never a picture or an empty plate.
+## It stays in its container; the slide offset is re-applied on every layout.
+## Why: docs/why/PanelSlide.md#panel-slide
 
 ## every slide under way (the harness reads them)
 static var live: Array = []
@@ -29,11 +18,8 @@ var off := Vector2.ZERO
 ## 1 at rest, 0 all the way off
 var k := 1.0
 var done := false
-## HEARD AS IT FIRST MOVES (`Audio.FX` chrome_on / chrome_off, Jon's picks:
-## menu_open coming on, menu_close going off, -6 dB): the side panel only --
-## the toolbar row's plate moves with it, under the same one sound -- once a
-## hop, on the first frame it stands a whole pixel from where it started, as
-## the column it took over from (`ChromeSlide`) was heard
+## Heard once as it first moves, for the side panel only;
+## the toolbar row moves under the same one sound.
 var _k0 := 1.0
 var _heard := false
 var _host: Control = null

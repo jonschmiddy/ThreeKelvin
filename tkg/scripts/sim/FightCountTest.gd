@@ -1,18 +1,7 @@
 extends Node
 
-## NOTHING JOINS A FIGHT, headless:
-##   godot --headless --path . -- sheet=FightCountTest [seeds=N]
-## Jon, Oct 13: "No reinforcements anywhere." A fight is the ships it was
-## planned with and only ever loses them. For every kind of enemy, alone and
-## (for the five that fly in packs) in a pack of two, over N seeded fights at a
-## lawless system of danger 5 or more (where the old wave was likeliest: 25% on
-## turn 3), the fight is played turn after turn -- your hull topped up so it
-## does not end early -- to turn 7 or its end, and the enemy count read after
-## every turn: it may never rise. The Custodian and the Hellbender are checked
-## to stand alone the whole way.
-##
-## Calls only what a fight has always had (`Router.start_combat`, `end_turn`),
-## so it runs on a build that still had the wave -- and failed there.
+## Nothing joins a fight (Jon, Oct 13): the enemy count may never rise. `-- sheet=FightCountTest`.
+## Why: docs/why/FightCountTest.md#no-reinforcements
 
 var _fails := 0
 var _shown := 0
@@ -47,31 +36,39 @@ func _run() -> void:
 	var turns := 0
 	var ids: Array = DB.enemies.keys()
 	ids.sort()
+	var packs: Array = []
 	for raw in ids:
 		var id: StringName = raw
 		var t: EnemyTemplate = DB.enemies[id]
-		var packs: Array = [[id]]
+		packs.append([id])
 		if not t.boss and not t.miniboss and not t.fauna:
 			packs.append([id, &"cutter"])
+	# One galaxy a seed, not one a fight: the system is forced lawless and danger 5 below,
+	# so the galaxy never changed what a fight saw. A sixth of the run's time (168 fights).
+	for sd in seeds:
+		var at := _lawless_system(9000 + sd * 31)
+		if at < 0:
+			continue
 		for pack: Array in packs:
-			for sd in seeds:
-				var r := await _fight(tree, pack, 9000 + sd * 31)
-				if r.is_empty():
-					continue
-				fights += 1
-				turns += int(r.turns)
-				if int(r.turns) > 3:
-					past3 += 1
-				_ok("%s seed %d: the count never rose (%s)" % ["+".join(pack), sd, r.counts], not bool(r.rose))
-				if t.boss or t.miniboss:
-					_ok("%s seed %d: fought alone the whole way (%s)" % [id, sd, r.counts], int(r.most) == 1)
+			var t: EnemyTemplate = DB.enemies[pack[0]]
+			var r := await _fight(tree, pack, at, 9000 + sd * 31)
+			if r.is_empty():
+				continue
+			fights += 1
+			turns += int(r.turns)
+			if int(r.turns) > 3:
+				past3 += 1
+			_ok("%s seed %d: the count never rose (%s)" % ["+".join(pack), sd, r.counts], not bool(r.rose))
+			if t.boss or t.miniboss:
+				_ok("%s seed %d: fought alone the whole way (%s)" % [pack[0], sd, r.counts], int(r.most) == 1)
 	_ok("enough fights ran past turn 3 to have met the old wave (%d of %d)" % [past3, fights], past3 * 2 >= fights)
 	print("fightcounttest: %d fights, %d past turn 3, %.1f turns a fight" % [fights, past3, float(turns) / maxf(1.0, fights)])
 	print("fightcounttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	tree.quit()
 
 
-func _fight(tree: SceneTree, pack: Array, sd: int) -> Dictionary:
+## The run's galaxy from the seed, and the index of its first lawless system (or any system), or -1.
+func _lawless_system(sd: int) -> int:
 	Rng.forced = sd
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var at := -1
@@ -80,8 +77,14 @@ func _fight(tree: SceneTree, pack: Array, sd: int) -> Dictionary:
 			at = m.index
 			if m.region == MapGen.Region.LAWLESS:
 				break
-	if at < 0:
-		return {}
+	return at
+
+
+func _fight(tree: SceneTree, pack: Array, at: int, sd: int) -> Dictionary:
+	# Each fight from the seed's fresh rolls, whatever fought before it.
+	Rng.reseed(sd, Net.seat())
+	Run.hp = Run.max_hp()
+	Run.dead = false
 	Run.at = at
 	var node := Run.node_at()
 	node.danger = maxi(node.danger, 5)

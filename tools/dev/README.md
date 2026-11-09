@@ -33,10 +33,11 @@ at the bottom says where the work stands.
 | `env.sh` | Sourced by the rest. Finds TK_REPO, TK_WT, TK_SCRATCH, GODOT, PY; gives `tk_timeout`, `tk_new_profile`, `tk_isolated`, `tk_guard`. |
 | `godot.sh [-t S] [-C DIR] args...` | Godot with a fresh throwaway profile, dummy audio and a time limit. Use this for every test and sim run. |
 | `render.sh [-t S] [-C DIR] args...` | The same, windowed, for stills and films; at most two at once. On a Mac the window shows on screen. |
-| `run_battery.sh [WORKTREE] [names...]` | The wide test battery (36 runs, PairLocalTest among them; about 9 minutes on the PC plus 1:30 for the timed ones; 17 before the split), JOBS at once (default 8), longest first: FlightTest and SolveTest split into shards, their totals after (`sheet=ShardSum`), the four timed runs alone at the end (`SOLO=0` skips them). Logs and `summary.txt` in `$OUT`. The wide set for a change to flight, save, clock or net; not the gate. |
+| `run_battery.sh [WORKTREE] [names...]` | The wide test battery (36 runs, PairLocalTest among them; about 9 minutes on the PC plus 1:30 for the timed ones; 17 before the split), JOBS at once (default 8), longest first: FlightTest and SolveTest split into shards (`FLIGHT_SHARDS` 4, `SOLVE_SHARDS` 8 as in the gate; FlightTest's hand phase its own row, `flighttest_hand`, as the gate's `flighthand`), their totals after (`sheet=ShardSum`), the four timed runs alone at the end (`SOLO=0` skips them). Logs and `summary.txt` in `$OUT`. The wide set for a change to flight, save, clock or net; not the gate. |
 | `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 12 minutes), fast-forward main and push on a pass. |
-| `release.sh WORKTREE BRANCH LABEL VERSION` | gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
-| `resolve_changelog.py CHANGELOG.md` | Keeps both sides of a CHANGELOG-only merge conflict. gate_land runs it. |
+| `release.sh WORKTREE BRANCH LABEL VERSION` | First rename NEW THINGS' `NEXT` entry (`tkg/scripts/data/NewThings.gd`) to VERSION and date it, in the commit that raises config/version; it refuses otherwise (`new_things_check.sh`, before the gate and again on the landed main). Then gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
+| `new_things_check.sh VERSION [NewThings.gd]` | Exit 0 only when NEW THINGS' newest entry is VERSION, dated, with no `NEXT` left. release.sh runs it. |
+| `cut_changelog.py VERSION [DATE]` | Folds `changes/*.md` into `CHANGELOG.md` as the new build's section; you write its opening paragraph. release.sh refuses while `changes/` still has a file. |
 | `encode_video.py IN.avi OUT.mp4 [START]` | A film the game wrote, as an MP4 a phone plays. |
 | `pages/make_pick_page.py SPEC OUT` | A pick page of pictures and films for Jon to choose from. |
 | `voice/record.py MANIFEST OUT plan/go/fx` | Record A.S.H. lines with ElevenLabs, several takes each, finished to the game's level. |
@@ -54,8 +55,9 @@ Python tools run through uv, for example:
   other Godot work while it runs (timing tests fail on a busy machine). Agents
   run only the tests for what they touch, never `validate.sh`.
 - **Branches live in worktrees** under `../tk-wt/<name>`. A fresh worktree needs
-  one `--import` before its tests. CHANGELOG lines go under `## [Unreleased]` in
-  the bold style (`- **Fixed** —`, `- **Changed** —`, `- **Added** —`).
+  one `--import` before its tests. A change's CHANGELOG line is its own file,
+  `changes/YYYY-MM-DD-what-changed.md`, in the bold style (`- **Fixed** —`,
+  `- **Changed** —`, `- **Added** —`), so branches never conflict over the one file.
 - **Never read or write Jon's real profile.** Every Godot run goes through
   `godot.sh` or `render.sh`. For his saves, ask for SAVE MY LOGS (a zip on his
   Desktop) and work from that copy.

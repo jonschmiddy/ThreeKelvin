@@ -1,101 +1,39 @@
 class_name CardView
 extends Control
 
-## One card, at one of exactly two scales.
-##
-## The layout is a fixed zone map in HAND-SCALE pixels, multiplied by _s. Inspect
-## is an exact 2x of hand, which is the whole reason the numbers below are the
-## numbers below: card furniture is drawn once on a true pixel grid and doubles
-## with no artifacts, while vector text re-renders at each scale and does not
-## care. Any size between the two would put the frame on half-pixels.
-##
-## 96x130 is not a preference either. The native resolution is 640x360, a hand
-## is five cards, and 5 x 96 + gaps fits across it. The previous 132 did not:
-## five of those is 660px on a 640px screen, so the hand was already wider than
-## the game before anything was drawn.
-##
-## CORNER GRAMMAR IS STRICT: one corner, one meaning. Energy top-left is what you
-## pay; heat top-right is what playing it leaves behind. Anything that triggers
-## on draw, in hand, or at end of turn lives in the TEXT BOX and never in a
-## corner. The mirrored corners are the tutorial — every card silently teaches
-## "this is the cost, this is the byproduct".
+## Inspect is an exact 2x of hand so the furniture stays on a true pixel grid.
+## One corner, one meaning: energy top-left is the cost, heat top-right the byproduct.
+## Why: docs/why/CardView.md#card-scale-and-corners
 
 signal chosen(view: CardView)
-## Pressed in a hand. What that TURNS INTO is not decided here and cannot be:
-## sideways is a reorder and up-and-out is a shot, and which one you meant is
-## only knowable once the pointer moves. The screen owns that decision.
-## WITH THE POINT IT HAPPENED AT, rather than leaving the screen to ask where
-## the mouse is. `get_global_mouse_position()` reports the OS cursor, which is
-## not necessarily where this event was: a pushed event does not move it at
-## all, and the gesture's whole decision is a delta from the press.
+## The press carries its own point: the OS cursor is not where a pushed event happened.
+## Why: docs/why/CardView.md#grab-gesture
 signal grabbed(view: CardView, at: Vector2)
 signal hovered(view: CardView, entered: bool)
 
-## Hand scale. Named CARD_W/CARD_H because the hand layout has always called
-## them that.
-## 112, and every pixel of the increase goes to the content column — the banner
-## is unchanged at 13. Five cards at 112 plus gaps is 580 of a 640 screen, so
-## the width that mattered when this was frozen at 96 still holds.
+## Hand width 112, with the gain going to the content column. Five cards still fit 640.
+## Why: docs/why/CardView.md#card-size
 const CARD_W := 112
-## 160, not 130. The art window was thirty pixels of a card whose whole selling
-## point is a pixel-art module sprite; doubling it to sixty gives the picture
-## room to be the reason you look at the card. The width is untouched, because
-## width is the constrained axis — five cards at 96 is 480 of a 640 screen, and
-## nothing about a taller card changes that. Height is the axis with slack.
+## Height 160 gives the art room; width is the constrained axis, height has the slack.
+## Why: docs/why/CardView.md#card-size
 const CARD_H := 160
 const INSPECT_W := CARD_W * 2
 const INSPECT_H := CARD_H * 2
 
-## The zone map, in hand-scale pixels. Everything below multiplies by _s.
-##
-## The name sits directly under the cost gems and above the art. Reading order
-## is then cost -> name -> picture, which is the order you actually use a hand
-## in: what it costs decides whether you read on at all. It also puts the two
-## things that survive at 96px — the number and the verb — in the top third,
-## which is the only part of a card you can sequence a turn from.
-## Thirteen wide, inset by one, and ODD on purpose.
-##
-## Odd is load-bearing: the marks must centre in it, so the leftover either side
-## has to split evenly. An even width has no middle pixel at all, which is the
-## half-pixel that made every emblem read off-centre when this started.
-##
-## Thirteen leaves a field of eleven inside the border, for a mark of nine — a
-## pixel of manufacturer colour showing either side of its own emblem. Seventeen was
-## about a fifth of the card given to one flat block of colour; eleven made the
-## marks so narrow they had to stretch vertically to stay legible, which is its
-## own kind of wrong. Nine across and nine tall is the size at which these
-## shapes are square.
+## Reading order is cost, name, picture. The banner is odd width so marks centre on a pixel.
+## Why: docs/why/CardView.md#zone-map
 const Z_BANNER := Rect2(2, 1, 13, 158)      ## the manufacturer, full height, left edge
 const Z_ENERGY := Rect2(16, 3, 13, 13)      ## what you pay
 const Z_HEAT := Rect2(96, 3, 13, 13)        ## what it leaves behind
-## Two lines. "Suppressing Fire" is sixteen characters and ran off the right
-## edge of the card on one — and a verb pool full of two-word names means that
-## is the common case, not the exception. Wrapping costs the art four pixels
-## and buys every name in the game room to be itself.
+## Two lines: Suppressing Fire ran off the card on one, and two-word verbs are common.
+## Why: docs/why/CardView.md#zone-map
 const Z_NAME := Rect2(16, 18, 93, 22)       ## the verb
 const Z_ART := Rect2(16, 42, 93, 60)        ## the granting module's sprite
-## Eleven, not nine. An 8px font is not 8px tall once Godot adds its leading,
-## so a nine-pixel zone let ATTACK render down into the first line of the text
-## box and the two printed on top of each other. Zones have to be sized for
-## what the font DOES, not for what its point size is called.
-## Tucked under the art, left-aligned, like a caption on a plate.
-##
-## It was centred in the gutter between the picture and the rules, on the idea
-## that it belonged to neither. It reads better belonging to the ART: the
-## picture and the word under it are one statement — here is the thing, here is
-## what kind of thing it is — and the effect text is a separate paragraph
-## below. Centred and floating, it looked like a heading for the rules, which
-## it is not.
-##
-## Placed from the INK, not from the box. Measured: Silkscreen at 8px is 11
-## tall with an ascent of 9 and a descent of 2, so a line of caps paints rows 2
-## through 9 of its box and leaves the bottom two empty. Every gap set by eye
-## came out lopsided because of those two pixels. Art ends at 102, type ink lands at
-## 108, text ink at 121 — six pixels of clearance either side, ink to ink.
+## Eleven tall: an 8px font plus leading overran nine and ATTACK printed over the text box.
+## Placed from the ink, not the box, as the font leaves its bottom two rows empty.
+## Why: docs/why/CardView.md#type-line-zone
 const Z_TYPE := Rect2(16, 106, 93, 11)       ## type + lane
-## The text box runs to the bottom of the card. There is no provenance footer:
-## the module lives in the readout now, so the row it used to occupy goes to the
-## thing that was actually short of space.
+## The text box runs to the card's bottom: no provenance footer, the module is in the readout.
 const Z_TEXT := Rect2(16, 119, 93, 39)
 
 var card: CardData
@@ -109,27 +47,17 @@ var _tint: Color = UITheme.CHILL
 ## The effect label, kept so the number on it can change without a rebuild.
 var _body: RichTextLabel = null
 
-## What this card throws per hit right now, or -1 for "print what it says".
-##
-## COMBAT ONLY, and it is a push rather than a lookup on purpose. `CardGallery`
-## and `ChassisSelect` build `CardView`s too and there is no fight behind them;
-## leaving the default at -1 means they cannot accidentally acquire live numbers
-## by existing. Nothing has to know about a mode flag -- the hand pushes a figure
-## in, and everywhere else simply never does.
+## Pushed by the hand, default -1, so gallery cards cannot pick up live numbers by accident.
+## Why: docs/why/CardView.md#live-output
 var live_output: int = -1
 
 ## Which of its own clauses are paying, by keyword -- see `Combat.card_hot`.
 var live_hot: PackedStringArray = PackedStringArray()
 
 
-## Tell the face what the card is currently worth. Cheap to call every refresh:
-## it returns immediately unless the number actually moved, because a hand is
-## five to seven of these and the body is a rich-text relayout.
+## Returns at once unless the number moved: a hand is five to seven rich-text relayouts.
 func set_live(n: int, hot: PackedStringArray = PackedStringArray()) -> void:
-	# BOTH, because they move independently. A salvo card's number is unchanged
-	# by the turn's first attack when a lock-on is already covering the same
-	# amount, while the clause doing the paying has swapped -- comparing only
-	# the number would leave the wrong clause lit.
+	# Compare both: the number can hold while the paying clause swaps, lighting the wrong one.
 	if n == live_output and hot == live_hot:
 		return
 	live_output = n
@@ -149,53 +77,24 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 
 	Widgets.clear(self)
 
-	# Name is on the card at BOTH scales. Effect text is not: it is unreadable
-	# at 96px and pretending otherwise costs the room the art needs. Cards have
-	# to be sortable from the top third alone; the text is confirmation you go
-	# looking for, not discovery.
-	# The NAME carries rarity.
-	#
-	# It is the one string on the card at both scales, so colouring it costs
-	# nothing and reaches everywhere — and it puts "how good is this" on the
-	# same glance as "what is it", which is the pair you sort a hand by.
+	# Name shows at both scales and carries rarity, as effect text is unreadable at 96px.
+	# Why: docs/why/CardView.md#name-and-rarity
 	var nm := UITheme.body(c.name, ModuleData.rarity_ink(c.source_rarity),
 		UITheme.FS_SMALL * _s)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nm.clip_text = true
-	# Two 8px lines do not fit in two 8px worth of plate: Godot adds its own
-	# line spacing on top, so "Suppressing Fire" wrapped correctly and then had
-	# "Fire" clipped off the bottom. Tighten the leading and give the plate the
-	# room the font actually asks for.
+	# Godot adds line spacing, so Fire clipped off the bottom. Tighten it and size the plate.
 	nm.add_theme_constant_override("line_spacing", 0)
-	# Centred in the plate rather than parked at its top. The plate is sized for
-	# the WORST case — two lines — and most verbs are one, so anchoring to the
-	# top left every short name floating above a band of empty plate. The zone
-	# is fixed; what sits in it should be centred in it.
+	# Centred in the plate: it is sized for two lines and most verbs are one.
 	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_place(nm, Z_NAME, 2)
 	var ty := UITheme.body(_type_line(), UITheme.COLD, UITheme.FS_SMALL * _s)
 	ty.add_theme_constant_override("line_spacing", 0)
 	_place(ty, Z_TYPE, 2)
 
-	# Effect text at BOTH scales.
-	#
-	# card-design says "effect text is unreadable at hand scale, full stop" and
-	# that turns out to be untrue for this game specifically: 8px Silkscreen is
-	# the body font of the entire UI — the HUD, every panel, the name and type
-	# line on this very card — so if it were unreadable at 96px the game would
-	# already be unreadable everywhere. The rule was written for a card that
-	# had no room; this zone map gave the text box the provenance row and it now
-	# holds about sixty characters, which covers every card in the catalog.
-	#
-	# It also removes a real inconsistency: the text plate was being DRAWN at
-	# both scales and filled at one, so a hand-scale card carried an empty
-	# recessed panel where its rules should be.
-	# Rich text, so the words that have rules behind them can say so.
-	#
-	# Underlined and lifted to ICE: two channels, because colour alone fails a
-	# colourblind reader and an underline alone is easy to miss at 8px. It marks
-	# exactly the terms this card's own keywords() can explain, so a word is
-	# only ever underlined where there is something to look up.
+	# Shown at both scales: 8px Silkscreen is the whole UI's body font, so it is readable.
+	# Keywords are underlined and lifted to ICE: two channels, so colourblind readers still see it.
+	# Why: docs/why/CardView.md#effect-text
 	var body := RichTextLabel.new()
 	body.bbcode_enabled = true
 	body.fit_content = true
@@ -220,34 +119,20 @@ func _place(l: Label, zone: Rect2, inset: int) -> void:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(l)
 
-## "Attack · Ballistics". The type is a structural fact and the lane is the
-## verb-pool key — set-bonus play needs the lane scannable, so it prints even
-## when the card is unbranded.
+## The lane is the verb-pool key, so it prints even on an unbranded card for set-bonus play.
 func _type_line() -> String:
 	var lane := String(card.lane)
 	if lane == "":
 		return card.type_name().to_upper()
 	return "%s · %s" % [card.type_name().to_upper(), lane.to_upper()]
 
-## The full readout, as a native tooltip.
-##
-## OPT-IN: Godot only asks for a tooltip when tooltip_text is non-empty, and
-## nothing sets that by default. The hand and the gallery build their own
-## readouts with their own timing and placement — a second one appearing under
-## the cursor would be two panels saying the same thing — so they leave it
-## alone and get no tooltip. Anywhere a card is just sitting there being looked
-## at, setting tooltip_text is enough.
-##
-## Same Widgets.card_readout() the other two use, so the three cannot drift.
+## Opt-in via tooltip_text: the hand and gallery build their own readouts and must not get two.
+## Why: docs/why/CardView.md#native-tooltip
 func _make_custom_tooltip(_for_text: String) -> Object:
 	if card == null:
 		return null
-	# Never in a hand, whatever anybody set on the card. The hand builds this
-	# same panel itself, on its own delay and above the fan where it cannot
-	# cover the board, and a native tooltip would be a second copy of it
-	# floating at the cursor. The rule above says the hand opts out by leaving
-	# tooltip_text empty; this is the rule enforced where it can be broken by
-	# accident rather than only stated where it can be read.
+	# Never in a hand: it builds this panel itself, and a native copy would float at the cursor.
+	# Why: docs/why/CardView.md#native-tooltip
 	if get_parent() is HandView:
 		return null
 	return Widgets.card_readout(card)
@@ -263,30 +148,15 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, w, h), Color("#1a1418") if dim else UITheme.PANEL2, true)
 	draw_rect(Rect2(0, 0, w, h), UITheme.LINE, false, s)
 
-	# The manufacturer banner. Manufacturer is colour, emblem and cut; TYPE is structure. The
-	# two channels never share an encoding, so a colourblind player reads type
-	# off the silhouettes and the manufacturer off the mark, and both survive a 96px
-	# thumbnail.
+	# Manufacturer is colour, emblem and cut; type is structure, so the two channels never share.
 	if dim:
-		# A MALFUNCTION GETS A BANNER TOO -- in its own ink, and with no mark on
-		# it. Leaving the left edge BARE was one of the four junk signals, and it
-		# was the one signal made of an ABSENCE: in a fan every other card had a
-		# coloured column down its side and this had a hole where one should be,
-		# which reads as a card that failed to finish drawing rather than as a
-		# card that belongs to nobody.
-		#
-		# The other three still carry the weight -- the #1a1418 frame, the grey
-		# MALFUNCTION type line, and a keyword underlined without being useful --
-		# and this now says the same thing in the positive: every card has a
-		# column, and the colour of yours is the colour this game paints damage.
+		# A bare edge was the one junk signal made of an absence and read as a card half drawn.
+		# Why: docs/why/CardView.md#malfunction-banner
 		_junk_banner()
 	else:
 		_banner()
 
-	# The real cost, malfunction or not. card-design dashes the corner only on
-	# the sub-states you cannot pay for — Inert and Active — and everything junk
-	# in this game so far is Patchable: you can always buy the fight by purging
-	# it. A dash on a card that has a price is the corner telling a lie.
+	# The real cost shows: junk is Patchable, so a dashed corner would tell a lie.
 	_gem(_z(Z_ENERGY), str(card.energy), UITheme.ICE)
 	_gem(_z(Z_HEAT), _heat_text(), UITheme.EMBER if card.net_heat() >= 0 else UITheme.GOOD)
 
@@ -294,91 +164,46 @@ func _draw() -> void:
 	var art := _z(Z_ART)
 	draw_rect(art, UITheme.VOID, true)
 	draw_rect(art, UITheme.LINE, false, 1.0 * s)
-	# NO HATCH OVER THE ART WINDOW. It used to draw INSTEAD of the picture, which
-	# was invisible while nothing had art and blanked all sixteen malfunctions
-	# the moment they had some; drawing it on top instead still ate them -- at
-	# half alpha Dross lost its stencils and Arc Fault was almost solid stripes.
-	#
-	# So the window is left alone and dead weight is carried by everything else
-	# the card already does: the frame goes to #1a1418, there is no manufacturer
-	# banner down the left edge, the type line reads MALFUNCTION in grey, and the
-	# rules text is the only place a keyword is underlined without being useful.
-	# That is enough to sort a fan of eight without reading, which was the job.
+	# No hatch over the art: it blanked or ate the art of all sixteen malfunctions.
+	# Why: docs/why/CardView.md#malfunction-art
 	if not _draw_art(art):
 		_type_glyph()
 
-	# Recessed plates at BOTH scales, including the ones that only hold text at
-	# inspect. The furniture is one layout drawn once and doubled — that is the
-	# whole reason the two sizes are an exact 2x — so hiding a plate at hand
-	# scale does not save anything, it just leaves a hole where a panel should
-	# be. An empty plate reads as a card with a quiet lower half; an empty
-	# rectangle of background reads as a card that failed to finish drawing.
+	# Plates draw at both scales: the furniture is one layout, so hiding one leaves a hole.
+	# Why: docs/why/CardView.md#recessed-plates
 	_plate(_z(Z_NAME))
 	_plate(_z(Z_TEXT))
 
-	# Charge pips: banked turns are STATE, and state is the one thing you
-	# sequence a whole turn around, so it gets structure rather than text.
-	# Along the bottom edge of the art, where the eye already is.
+	# Charge pips are state, so they get structure, not text, along the art's bottom edge.
 	if card.charge_turns > 0:
 		var px := (Z_ART.position.x + 2) * s
 		var py := (Z_ART.end.y - 4) * s
 		for i in card.charge_turns:
 			draw_rect(Rect2(px + i * 6.0 * s, py, 4.0 * s, 2.0 * s), UITheme.FLARE, true)
 
-	# No rarity swatch and no provenance row. Rarity is the colour of the name
-	# (see setup) and the module is named in the readout beside the card, which
-	# between them cost zero pixels and freed a whole row for effect text.
-	#
-	# The tradeoff worth knowing about: card-design calls the provenance footer
-	# load-bearing under the verb model, because the name bar carries the VERB
-	# and the footer was the only thing identifying the module — and mid-run
-	# scrap decisions get made while looking at a hand. The rarity colour keeps
-	# most of that answer on the card; the exact module now needs the readout.
+	# Rarity is the name's colour and the module is in the readout, freeing a row for effect text.
+	# Why: docs/why/CardView.md#rarity-and-provenance
 
-## The manufacturer banner: a field, a mark, and a cut.
-##
-## A 2px accent stripe carried the manufacturer colour and nothing else — manufacturer as a
-## legal requirement rather than as identity. A banner is the emblem's largest
-## habitat, and at 13px wide it still has room for the three things that
-## distinguish a manufacturer at a glance: the ground it flies on, the mark it carries,
-## and the shape of its own bottom edge.
-##
-## The cut is doing real work, not decoration. It is the one manufacturer channel that
-## survives with no colour at all — Korvan ends square because decoration is for
-## people whose guns jam; Redline ends torn because salvage does not finish
-## edges; Verity ends in a swallowtail because it can afford to.
-## The malfunction's own banner: a field and a cut, and no emblem.
-##
-## NO MARK, because there is nobody to mark it with. A malfunction is not built
-## by anyone -- it is what a fight did to your ship -- so a manufacturer emblem
-## would be inventing an allegiance for a thing that has none. The field and the
-## cut are enough to make it a column rather than a gap.
+## A banner is identity: ground, mark and hem. The hem survives with no colour at all.
+## A malfunction has no mark, as nobody built it and an emblem would invent an allegiance.
+## Why: docs/why/CardView.md#manufacturer-banner
 func _junk_banner() -> void:
 	var s := float(_s)
 	var b := _z(Z_BANNER)
 	var mark := UITheme.LEAVE
-	# Dark enough to sit behind the frame rather than shout from it: this is a
-	# card you would rather not be holding, and it must not out-draw the ones
-	# you chose.
+	# Dark enough to sit behind the frame: a card you would rather not hold must not shout.
 	draw_rect(b, mark.lerp(UITheme.VOID, 0.62), true)
 	_cut(b, mark)
 
-	# THE MARK: A BREAK, on the line the manufacturer emblems sit on.
-	#
-	# Two bars offset with a gap between them, which is the same figure the
-	# station's SYSTEM REPAIR row wears -- the thing that is wrong, and the thing
-	# that fixes it, drawn once. It goes at the emblem's own height so a fan of
-	# eight lines up along the top whatever is in it.
+	# The mark is a break, as in SYSTEM REPAIR, at emblem height so a fan lines up.
+	# Why: docs/why/CardView.md#malfunction-banner
 	var cx := b.position.x + b.size.x * 0.5
 	var cy := (Z_ENERGY.position.y + Z_ENERGY.size.y * 0.5) * s
 	draw_rect(Rect2(cx - 4.0 * s, cy - 4.0 * s, 4.0 * s, 2.0 * s), mark)
 	draw_rect(Rect2(cx, cy + 2.0 * s, 4.0 * s, 2.0 * s), mark)
 	draw_rect(Rect2(cx - 1.0 * s, cy - 1.0 * s, 2.0 * s, 3.0 * s), mark)
 
-	# AND THE SAME OUTLINE EVERY OTHER BANNER GETS, last and in four filled
-	# rects. `_banner` carries the full reasoning for both: an unfilled
-	# draw_rect straddles the boundary and rounds inward on one side, and a
-	# frame drawn before its contents is not a frame.
+	# Same outline as every banner, last, in four filled rects. See `_banner` for why.
 	var edge := mark.darkened(0.3)
 	draw_rect(Rect2(b.position.x, b.position.y, s, b.size.y), edge, true)
 	draw_rect(Rect2(b.end.x - s, b.position.y, s, b.size.y), edge, true)
@@ -394,43 +219,12 @@ func _banner() -> void:
 	var mark := manufacturer.colour if manufacturer != null else UITheme.COLD
 	draw_rect(b, field, true)
 	_cut(b, mark)
-	# Centred on the energy gem's row, not on the banner's own.
-	#
-	# Z_ENERGY runs y 3 to 16, so a centre of 9 puts the tallest marks — Solari's
-	# rays, Calyx's cross — at exactly 3 to 16 as well. The manufacturer and the cost
-	# then share one horizontal line across the top of the card, which is the
-	# line the eye starts on.
-	# Centre taken FROM the banner, not written next to it.
-	#
-	# It was a hardcoded 9 while the flag's real centre is 9.5 — measured, not
-	# guessed — so every mark sat half a pixel left, which at 1x rounds to a
-	# whole one. Two numbers that must agree should never be two numbers.
-	#
-	# Vertically it lines up with the energy gem rather than the flag: the manufacturer
-	# and the cost then share the top line of the card, which is where the eye
-	# starts.
+	# Centre comes from the banner: a hardcoded 9 against a real 9.5 left marks half a pixel off.
+	# Why: docs/why/CardView.md#emblem-centring
 	_emblem(Vector2(b.position.x + b.size.x * 0.5,
 		(Z_ENERGY.position.y + Z_ENERGY.size.y * 0.5) * s), mark, field)
-	# EVERY banner is outlined, and the outline goes on LAST.
-	#
-	# It started as a light-field rule — Verity and Calyx bleed into the card
-	# without one. But two manufacturers fly fields that are the card's own colour:
-	# Redline's charcoal is #1c2127 against a #161f2c panel, and Cygnet's
-	# #16202e is nearer still. Those banners had no edge at all, so their hems
-	# were carving shapes out of a flag whose outline you could not see, and the
-	# bottom of the flag simply merged into the card.
-	#
-	# In the manufacturer's own mark, dimmed: it reads on a dark field and stays quiet
-	# on a bright one. Last, because a frame drawn before its contents is not a
-	# frame — underneath the hem it lost exactly the edge this is for.
-	# Four filled rects, not draw_rect's outline mode.
-	#
-	# An unfilled draw_rect strokes the boundary rather than the pixels inside
-	# it, so at 1px the stroke straddles the edge and rounds inward on one side
-	# and outward on the other. That is a one-pixel asymmetry applied to the
-	# frame every emblem is judged against — measured, the mark sat dead centre
-	# and still read a pixel right, because the border had quietly eaten the
-	# right margin and not the left. Explicit rects land where they are told.
+	# Every banner is outlined last in four filled rects: some fields match the card colour.
+	# Why: docs/why/CardView.md#banner-outline
 	var edge := mark.darkened(0.3)
 	draw_rect(Rect2(b.position.x, b.position.y, s, b.size.y), edge, true)
 	draw_rect(Rect2(b.end.x - s, b.position.y, s, b.size.y), edge, true)
@@ -442,25 +236,13 @@ func _banner() -> void:
 func _cut(b: Rect2, mark: Color) -> void:
 	draw_cut(self, card.manufacturer, b, mark, UITheme.PANEL2, float(_s))
 
-## The seven hems, drawn onto any canvas at any scale.
-##
-## Static and free of the card for the same reason draw_emblem is: the chassis
-## select flies these banners too, at four times the size. The offsets are
-## hand-authored — a hem is the one part of this card designed by eye rather
-## than derived — so a second copy would be a second set of numbers to get
-## wrong.
-##
-## `back` is whatever the banner is sitting ON. Most of these shapes are CUT,
-## by painting the background back over the flag, so passing the wrong colour
-## does not misdraw the hem — it makes the hem invisible.
+## Static so chassis select can draw them at 4x. `back` must be the banner's ground.
+## Why: docs/why/CardView.md#banner-hems
 static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: Color,
 		back: Color, s: float) -> void:
 	var base := b.end.y
 
-	# Everything below draws through this, and it will not paint outside the
-	# flag. A shape that escapes its own banner reads as a rendering fault
-	# rather than as a design. Clipping makes "inside the banner" a property of
-	# the function instead of arithmetic somebody checked once.
+	# All hems draw through a clip, so staying inside the banner is a property of the function.
 	var hem := func(r: Rect2, col: Color) -> void:
 		var x0 := maxf(r.position.x, b.position.x)
 		var y0 := maxf(r.position.y, b.position.y)
@@ -485,9 +267,7 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 				hem.call(Rect2(b.position.x + (2 + i * 6) * s, base - 4 * s,
 					3.0 * s, 2.0 * s), mark)
 		&"verity":
-			# A hairline seam. Two bands with one dark line between them: a join
-			# you are not supposed to notice, executed so well it becomes the
-			# decoration.
+			# A hairline seam: two bands with one dark line between them.
 			hem.call(Rect2(b.position.x, base - 6 * s, b.size.x, 2.0 * s), mark)
 			hem.call(Rect2(b.position.x, base - 4 * s, b.size.x, s), back)
 			hem.call(Rect2(b.position.x, base - 3 * s, b.size.x, 2.0 * s), mark)
@@ -503,26 +283,15 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 			# thing grown in one piece rather than assembled.
 			hem.call(Rect2(b.position.x, base - 5 * s, b.size.x, 4.0 * s), mark)
 		&"redline":
-			# A torn hem, DRAWN rather than carved. Every other manufacturer cuts its
-			# shape by painting the card back over the flag, which relies on the
-			# field differing from the card — and Redline's #1c2127 against a
-			# #161f2c panel IS the card. A subtraction needs two colours to
-			# subtract between, so this one goes on as a positive.
-			#
-			# TWO THREADS PULLED LONG, and the rest of the edge holding. The
-			# first version ran its strips up to SIXTEEN units on a twenty-two
-			# unit flag, which put them at unit 11 -- where the emblem sits.
-			# Redline's mark is two bars in the mark colour, and two bars on a
-			# column of the mark colour are nothing: the hem ate the mark, on
-			# every card the manufacturer flies. Nothing here goes above eight.
+			# Redline's hem is drawn, not carved, as its field matches the card. Strips stay low.
+			# The first version at sixteen ate the emblem on every card the manufacturer flies.
+			# Why: docs/why/CardView.md#banner-hems
 			hem.call(Rect2(b.position.x, base - 2 * s, b.size.x, 2.0 * s), mark)
 			for i in 6:
 				var hh: float = [3, 1, 4, 1, 3, 1][i]
 				hem.call(Rect2(b.position.x + i * 2 * s, base - hh * s,
 					2.0 * s, hh * s), mark)
-			# The two that let go. One unit wide against the two-unit teeth, and
-			# at 3 and 9 rather than on the even pitch the rest of the hem sits
-			# on -- a snag is not on the grid the edge it came out of is on.
+			# The two that let go are one unit wide and off the even pitch, as a snag is.
 			hem.call(Rect2(b.position.x + 3 * s, base - 8 * s, s, 8.0 * s), mark)
 			hem.call(Rect2(b.position.x + 9 * s, base - 6 * s, s, 6.0 * s), mark)
 		&"korvan":
@@ -537,45 +306,27 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 			# to fly for, and a blank hem says that better than any shape would.
 			pass
 
-## `c` is the flag's true centre, and every offset below is measured from it as
-## a HALF — -6.5 with a width of 13, not -6 with a width of 13. That is what
-## straddling a centre actually looks like: an odd-width mark has to start half
-## its width to the left, and half of 13 is 6.5. Writing whole numbers there put
-## every emblem half a pixel off, in the same direction, on all seven manufacturers.
+## Offsets are halves (-6.5 for 13): whole numbers put all seven emblems half a pixel off.
+## Why: docs/why/CardView.md#emblem-centring
 func _emblem(c: Vector2, mark: Color, field: Color) -> void:
 	draw_emblem(self, card.manufacturer, c, float(_s), mark, field)
 
-## The seven marks, drawn onto any canvas at any scale.
-##
-## Static and free of the card because the ship tab flies these too: a hull is
-## built by a manufacturer now, and its header wears the same emblem as the
-## cards that manufacturer grants. Two copies of these offsets would be two
-## copies to fix the next time one is half a pixel out — which has already
-## happened once, to all seven at the same time.
+## Static so the ship tab wears the same emblems; two copies of the offsets would drift.
+## Why: docs/why/CardView.md#emblems
 static func draw_emblem(ci: CanvasItem, manufacturer: StringName, c: Vector2, s: float,
 		mark: Color, field: Color) -> void:
 	var r := func(off: Vector2, sz: Vector2, col: Color) -> void:
 		ci.draw_rect(Rect2(c + off * s, sz * s), col, true)
 	match manufacturer:
 		&"korvan":
-			# Three descending armour slabs. Armour as heraldry.
-			# Pitch 4: two of bar, two of gap, three times over. The bars were
-			# at -4.5, -1 and 2.5, which put 1.5 pixels between them — and half
-			# a pixel of gap does not exist, so one rendered as 1 and the other
-			# as 2. Whole numbers or the spacing is decided by the rasteriser.
+			# Pitch 4 on whole numbers: a half-pixel gap does not exist and the rasteriser chose.
+			# Why: docs/why/CardView.md#emblems
 			r.call(Vector2(-4.5, -5), Vector2(9, 2), mark)
 			r.call(Vector2(-3.5, -1), Vector2(7, 2), mark)
 			r.call(Vector2(-2.5, 3), Vector2(5, 2), mark)
 		&"solari":
-			# Sun disc, four cardinal rays.
-			#
-			# THREE RECTS, NOT FIVE, and not one pixel different. The rays were
-			# drawn as four stubs off the disc, which is how you would describe
-			# the mark -- but opposite stubs are collinear and touch it, so a bar
-			# straight through does the same job twice. Checked by painting both
-			# and comparing: identical. The build plan budgets four primitives an
-			# emblem and this was the only one over it that could come down
-			# without becoming a different mark.
+			# Three rects, not five: opposite rays are collinear, and a bar draws the same.
+			# Why: docs/why/CardView.md#emblems
 			r.call(Vector2(-0.5, -4.5), Vector2(1, 9), mark)
 			r.call(Vector2(-4.5, -0.5), Vector2(9, 1), mark)
 			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), mark)
@@ -611,18 +362,8 @@ static func draw_emblem(ci: CanvasItem, manufacturer: StringName, c: Vector2, s:
 			r.call(Vector2(-3.5, -3.5), Vector2(7, 7), mark)
 			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), field)
 
-## THE CARD'S OWN ILLUSTRATION, if one exists. False means there is none and the
-## drawn glyph should take the window instead.
-##
-## AT WHOLE MULTIPLES ONLY. The illustration is authored at the window's own
-## size, so hand scale draws it 1:1 and inspect draws it at exactly 2 — the same
-## reason the two card sizes are an exact 2x and not a comfortable 1.8. Anything
-## else resamples pixel art onto a grid it was not drawn for, which is the one
-## thing the art direction refuses outright.
-##
-## Centred rather than stretched when the file is not the size it should be. A
-## wrong-sized asset is a mistake to SEE, and `-- artcheck` names it; silently
-## scaling it to fit would hide exactly the mistake that check exists to catch.
+## Whole multiples only, as resampling pixel art is refused. A wrong-sized file centres to show it.
+## Why: docs/why/CardView.md#card-art
 func _draw_art(where: Rect2) -> bool:
 	var tex: Texture2D = card.sprite
 	if tex == null:
@@ -632,17 +373,8 @@ func _draw_art(where: Rect2) -> bool:
 		Vector2(tex.get_size()) * float(_s)), false)
 	return true
 
-## What the module looks like, until there is a module sprite to show.
-##
-## The art window is the largest thing on the card and every module currently
-## ships without a sprite, so it would otherwise be the largest thing on the
-## card showing nothing. The doc requires a card be sortable from its top third
-## alone, and a black rectangle sorts nothing.
-##
-## Shape rather than colour, because colour is the manufacturer channel and the
-## two must never share an encoding — these silhouettes work identically for a
-## colourblind player. Drawn from rects on the pixel grid so they double cleanly
-## into inspect.
+## Shape, not colour, as colour is the manufacturer channel. A blank art window sorts nothing.
+## Why: docs/why/CardView.md#type-glyphs
 func _type_glyph() -> void:
 	var s := float(_s)
 	var c := Vector2(62, 72) * s          ## centre of the art window, 93 x 60
@@ -655,23 +387,15 @@ func _type_glyph() -> void:
 			_round(c + Vector2(-4, 0) * s, 1.0, ink, dark)
 			_tracer(c + Vector2(-30, 0) * s, 3, dark)
 		&"burst":
-			# THE SAME ROUND, SEVERAL TIMES, and this is the split that does the
-			# most work in the whole set: "Deal 2 x 5" is a stream and "Deal 40"
-			# is a hammer, and until now they were one picture.
-			#
-			# Drawn to the ACTUAL hit count up to four, then smaller, so a player
-			# can count them off a 96px thumbnail. Past four it stops counting and
-			# starts meaning "a lot", which is the honest reading of Deal 2 x 5
-			# anyway — nobody counts five rounds, they see a stream.
+			# Deal 2 x 5 is a stream and Deal 40 a hammer. Rounds count to four, then mean a lot.
+			# Why: docs/why/CardView.md#type-glyphs
 			var n := clampi(card.hits, 2, 4)
 			var k := 1.0 - 0.16 * float(n - 2)
 			for i in n:
 				var x := -30.0 + float(i) * (26.0 - float(n) * 2.0)
 				_round(c + Vector2(x, 0) * s, k * 0.72, ink, dark)
 		&"pyre":
-			# An attack whose number IS your heat. A round with the reactor
-			# showing through it — the only attack glyph that is lit from inside,
-			# because it is the only one whose damage comes out of the ship.
+			# An attack whose number is your heat: the only glyph lit from inside.
 			_round(c + Vector2(-2, 0) * s, 1.0, ink, dark)
 			_r(c + Vector2(-6, -3) * s, Vector2(14, 6) * s, UITheme.FLARE)
 			_r(c + Vector2(-2, -2) * s, Vector2(7, 4) * s, UITheme.HOT)
@@ -699,21 +423,13 @@ func _type_glyph() -> void:
 			_r(c + Vector2(-11, -16) * s, Vector2(22, 32) * s, ink)
 			_r(c + Vector2(-6, -10) * s, Vector2(12, 20) * s, dark)
 		&"block":
-			# A screen that falls down at the end of the turn. Same footprint as
-			# Brace and deliberately SEGMENTED — gaps say temporary before a word
-			# is read, and the two are the most important pair on the card to be
-			# able to tell apart at a glance.
+			# Segmented like Brace: gaps say temporary, and the pair must tell apart at a glance.
 			for i in 3:
 				_r(c + Vector2(-13, -20 + i * 14) * s, Vector2(26, 10) * s,
 					ink if i == 1 else dark)
 		&"feedback":
-			# A wall that shoots back, drawn as a wall and THE ATTACK GLYPH'S OWN
-			# ROUND leaving it. Reusing the round rather than inventing a spark is
-			# the whole point: feedback is defence that deals damage, and the
-			# picture should be made of the two things it is made of.
-			#
-			# Leaving to the RIGHT, with the rest of the attack family, because
-			# right is where this card's damage goes.
+			# Feedback is a wall plus the attack glyph's round, leaving right as damage does.
+			# Why: docs/why/CardView.md#type-glyphs
 			_r(c + Vector2(-20, -19) * s, Vector2(13, 38) * s, ink)
 			_r(c + Vector2(-16, -13) * s, Vector2(5, 26) * s, dark)
 			_round(c + Vector2(8, 0) * s, 0.62, ink, dark)
@@ -738,11 +454,8 @@ func _type_glyph() -> void:
 			_r(c + Vector2(-4, -18) * s, Vector2(9, 36) * s, ink)
 			_r(c + Vector2(-16, -4) * s, Vector2(33, 9) * s, ink)
 		&"lock":
-			# A reticle closing on something. The only glyph that is about the
-			# NEXT card rather than this one.
-			# Written out, not looped. An L has a handedness and there are four
-			# of them — see ModuleIcon._glyph, where the derived version read as
-			# four unrelated ticks.
+			# Written out, not looped: an L has handedness, and a derived version read as ticks.
+			# Why: docs/why/CardView.md#type-glyphs
 			var arm := Vector2(11, 3)
 			var leg := Vector2(3, 11)
 			_r(c + Vector2(-20, -20) * s, arm * s, ink)   ## top left
@@ -772,9 +485,7 @@ func _type_glyph() -> void:
 				_r(c + Vector2(-16 + i * 3, -12 + i * 9) * s, Vector2(30, 7) * s,
 					ink if i == 2 else dark)
 		&"malfunction":
-			# BROKEN, and it used to draw a vent — a Dross card was showing the
-			# picture for "throw heat off", which is the single most misleading
-			# thing the old set did. Scattered, off-grid, going nowhere.
+			# Broken used to draw a vent, the most misleading picture of the old set.
 			_r(c + Vector2(-16, -4) * s, Vector2(13, 5) * s, dark)
 			_r(c + Vector2(1, -12) * s, Vector2(9, 5) * s, dark)
 			_r(c + Vector2(-7, 8) * s, Vector2(11, 4) * s, dark)
@@ -787,10 +498,7 @@ func _type_glyph() -> void:
 			_r(c + Vector2(-10, -7) * s, Vector2(20, 14) * s, ink)
 			_r(c + Vector2(15, -4) * s, Vector2(7, 8) * s, dark)
 
-## One round: a body and a nose, pointed right, at a fraction of full size.
-##
-## Shared by every attack glyph so that a burst is visibly the SAME projectile
-## repeated rather than a different drawing that happens to mean attack.
+## Shared by every attack glyph so a burst reads as one projectile repeated.
 func _round(at: Vector2, k: float, ink: Color, dark: Color) -> void:
 	var s := float(_s)
 	var bw := 20.0 * k
@@ -827,13 +535,8 @@ func _gem(r: Rect2, text: String, col: Color) -> void:
 	draw_string(f, r.position + Vector2((r.size.x - tw) * 0.5, r.size.y * 0.5 + fs * 0.42),
 		LowHull.scr(self, text, fs, f), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
-## ALWAYS printed, even at zero.
-##
-## A zero-heat attack is a chase property — the whole point of a cold build is
-## that it can keep swinging — and a stat you cannot see is a stat you cannot
-## chase. Vent cards print the same number running backwards, which teaches that
-## heat is bidirectional using the corner that already exists rather than a new
-## one.
+## Always printed, even at zero: a cold build's chase stat must be visible. Vent runs backwards.
+## Why: docs/why/CardView.md#heat-text
 func _heat_text() -> String:
 	if card.vent_all:
 		return "-A"
@@ -844,15 +547,8 @@ func set_playable(can_play: bool) -> void:
 	playable = can_play
 	modulate.a = 1.0 if can_play else 0.34
 
-## Where the hover lift returns to.
-##
-## `_ready` CANNOT KNOW THIS. It fires on `add_child`, and the hand sets the
-## card's position on the line after -- so the value captured there is always
-## zero, and every hovered card animated to the top of the hand rather than back
-## to where it was sitting. Invisible while the cards rested at zero anyway;
-## the moment they were centred, hovering one threw it eight pixels upward.
-##
-## The hand owns layout, so the hand owns this. See `HandView._layout`.
+## The hand sets it: `_ready` fires before position is set, so cards animated to the top.
+## Why: docs/why/CardView.md#hover-lift
 func set_base_y(y: float) -> void:
 	_base_y = y
 
@@ -868,10 +564,7 @@ func set_held(on: bool) -> void:
 		if _tween != null and _tween.is_running():
 			_tween.kill()
 		return
-	# PUT DOWN. An armed card was refused its lift while it was being carried --
-	# see `_animate_lift` -- so it takes it now, from wherever the hand has just
-	# finished setting it down. Without this an armed card lands in the fan at
-	# its resting height and never rises.
+	# Put down: an armed card was refused its lift while carried, so it takes it now.
 	if armed:
 		_animate_lift(-22.0)
 
@@ -882,23 +575,15 @@ func _ready() -> void:
 	mouse_exited.connect(_on_hover_out)
 	gui_input.connect(_on_input)
 
-## PICKING, not playing. A card is played by dragging it onto a target — your
-## hull for defence and utility, an enemy for anything that hits — and
-## click-to-play would quietly choose a target for you, which is the decision the
-## drag exists to make.
-##
-## A click means something only while a card has asked you to pick some of your
-## hand. There is no target to guess at then: the question is which card, and
-## pointing at it is the whole answer.
+## Click means something only when a card asks you to pick; click-to-play would choose targets.
+## Why: docs/why/CardView.md#picking
 var picking: bool = false
 
 func set_picking(on: bool) -> void:
 	if picking == on:
 		return
 	picking = on
-	# Full brightness while picking, whatever `playable` said. Nothing in the
-	# hand is playable mid-choice, and a hand greyed out end to end reads as
-	# "you cannot do anything" at the exact moment you must.
+	# Full brightness while picking: a hand greyed end to end reads as nothing can be done.
 	modulate.a = 1.0 if (on or playable) else 0.34
 	queue_redraw()
 
@@ -906,11 +591,7 @@ func _on_input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 		return
-	# THE PICKING GUARD, and it stays first. Godot's drag used to be refused in
-	# `_get_drag_data` while a discard or decommission choice was open, because
-	# aiming one card at an enemy while another waits to be picked resolves two
-	# cards in an order neither stated. Leaving the engine's drag behind means
-	# carrying that by hand, and this is where it lands.
+	# The picking guard stays first: aiming one card while another waits resolves two in no order.
 	if picking:
 		accept_event()
 		chosen.emit(self)
@@ -918,12 +599,8 @@ func _on_input(event: InputEvent) -> void:
 	if not playable or not (get_parent() is HandView):
 		return
 	accept_event()
-	# Picking it up ends the hover. Godot sends no `mouse_exited` when a press
-	# turns into a gesture -- the cursor never technically leaves -- and without
-	# this the keyword panel stayed open over the board for the whole drag,
-	# covering the enemy being aimed at. That bug is the one this whole section
-	# exists to fix, found once already; it must not come back through the door
-	# the fix opened.
+	# Picking up ends the hover: no mouse_exited fires, so the keyword panel covered the enemy.
+	# Why: docs/why/CardView.md#grab-gesture
 	hovered.emit(self, false)
 	grabbed.emit(self, get_global_transform() * mb.position)
 
@@ -941,24 +618,12 @@ func _on_hover_out() -> void:
 	queue_redraw()
 	_animate_lift(0.0)
 
-## Only in a hand.
-##
-## The lift is a claim about PLAYABILITY — "this one, now" — which is a fact
-## about a hand and meaningless in a catalog. It also cannot work anywhere else:
-## it animates position.y back to a rest value captured at _ready(), before any
-## container has laid the card out, so inside a flow container every hovered
-## card slid up to y=0 and the gallery stacked itself into its own first row.
-##
-## Gated on the parent rather than on a flag the caller has to remember, because
-## the rule is not "the gallery is special" — it is "position is the hand's to
-## own, and nothing else may fight its container for it".
+## Only in a hand: elsewhere it slid cards to y=0 and stacked the gallery into its first row.
+## Why: docs/why/CardView.md#hover-lift
 func _animate_lift(offset: float) -> void:
 	if not (get_parent() is HandView):
 		return
-	# A CARRIED CARD OWNS ITS POSITION OUTRIGHT. The hand drives it toward the
-	# cursor every frame, and picking a card up fires `hovered(false)` -- so
-	# without this the lift tweens `position:y` back to the baseline against that
-	# lerp and the card shakes in place instead of following the pointer.
+	# A carried card owns its position, or the lift fights the hand's lerp and the card shakes.
 	if held:
 		return
 	# An armed card owns its own height. Hovering off it mid-aim would otherwise
@@ -983,12 +648,8 @@ func play_flourish(target: Vector2) -> void:
 func emitted_hover(entered: bool) -> void:
 	hovered.emit(self, entered)
 
-## ARMED: lifted out of the hand and held there while a line does the aiming.
-##
-## `_animate_lift` is the hand's own hover lift and this borrows it, so an armed
-## card sits where a hovered one would and a little higher. It also has to WIN
-## against hover: the pointer leaves the card the instant you start aiming, and
-## an unguarded `_on_hover_out` would drop it back into the fan mid-gesture.
+## Armed borrows the hover lift and must win against hover, as the pointer leaves while aiming.
+## Why: docs/why/CardView.md#armed-card
 var armed: bool = false
 
 func set_armed(on: bool) -> void:
@@ -1000,17 +661,8 @@ func set_armed(on: bool) -> void:
 	_animate_lift(-22.0 if on else 0.0)
 
 
-## NO `_get_drag_data` ANY MORE. A card is never handed to Godot's drag.
-##
-## `set_drag_preview` pins its argument to the pointer every frame and offers no
-## way to get it back, which is the exact opposite of what aiming needs: the
-## card must STAY where it is while a line does the pointing. So the gesture is
-## hand-rolled -- press to grab (`grabbed`), the screen decides whether that
-## became a reorder or a shot, release resolves it.
-##
-## What went with it: a full-size ghost pinned to the cursor that covered the
-## enemy underneath at exactly the moment the damage figure appeared. See
-## `SectorScreen._on_card_grabbed`.
+## No `_get_drag_data`: `set_drag_preview` pins the card to the pointer, but aiming needs it still.
+## Why: docs/why/CardView.md#grab-gesture
 
 
 func _notification(what: int) -> void:
@@ -1018,9 +670,7 @@ func _notification(what: int) -> void:
 		modulate = Color.WHITE
 		mouse_filter = Control.MOUSE_FILTER_STOP
 
-## A card sits on top of the hand and would otherwise swallow the drop, so it
-## forwards: releasing over a card means "put it here", which is the whole point
-## of dropping on that card rather than beside it.
+## A card on top of the hand would swallow the drop, so it forwards: put it here.
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
 	if not (data is Dictionary and data.has("card")) or data["card"] == card:
 		return false

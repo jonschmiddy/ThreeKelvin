@@ -1,24 +1,9 @@
 class_name ChartPainted
 extends RefCounted
 
-## THE STAR CHART IN THE PAINTED STYLE: direction B of the Oct 5 showcase
-## (scratchpad `showcase/B/chart/`, "a pixel artist's hand"), drawn by `ChartSky`
-## when the rendering style is PAINTED. Every pixel looks placed on purpose:
-## cel-banded light from the core on curated hue-shifted ramps, 1-block checker
-## transitions between bands, outlines on the shadow side of big shapes and a
-## rim of light on their lit side, see-through gas as 25/50/75% patterns (never
-## alpha), sparkle sprites, and a band memory so band edges do not flicker.
-## It shares the simplified chart's view, anchoring and zoom hold (`ChartSky._push`),
-## its black hole (C's, `legacy_hole.gdshaderinc`) and its life -- the currents,
-## the knots, the supernova and its echo, the weather -- drawn here as hand
-## animation: held poses that step, slow, never a one-frame flash.
-##
-## Four passes a frame, each one block a pixel: the sparkles (`chart_b_stars`),
-## the G-buffer (`chart_b_place`: what every block is and how lit), the band
-## memory (`chart_b_state`) and the paint (`chart_b_paint`). Baked once a galaxy:
-## the billow puff table (`chart_b_bake`, two 120 x 120 float textures, read back)
-## and the stars as data. The palette is curated, the same table the painted
-## sector map uses (bible 4.2): nothing is cut.
+## Direction B of the Oct 5 showcase: every pixel placed on purpose, with a band memory.
+## Shares the simplified chart's view, hole and life, drawn as held poses.
+## Why: docs/why/ChartPainted.md#painted-style
 
 const BAKE_SH := preload("res://shaders/chart_b_bake.gdshader")
 const PLACE_SH := preload("res://shaders/chart_b_place.gdshader")
@@ -59,10 +44,7 @@ const NOTRANS := [13, 14, 15, 16, 18]
 static var _tables: Dictionary = {}
 
 
-## The palette and its lookups, built once: the palette texture, the ramp entry
-## -> palette index table, each material's start and length, its rim and
-## outline, whether it checkers, and the OKLab lightness of every ramp entry
-## (the place pass compares layers by it).
+## Palette and lookups built once, including the OKLab lightness the place pass compares layers by.
 static func tables() -> Dictionary:
 	if not _tables.is_empty():
 		return _tables
@@ -112,29 +94,21 @@ static func tables() -> Dictionary:
 	return _tables
 
 
-## Whether a chart draws in the painted style: the player's style, or a harness's
-## `style=painted` while PAINTED is not built yet (DisplaySettings will not take
-## a style it cannot draw everywhere; the chart can, so a shot can ask for it).
+## A harness `style=painted` is honoured while PAINTED is
+## unbuilt; the chart can draw it where settings cannot.
 static func wanted() -> bool:
 	return DisplaySettings.render_style == &"painted" or "style=painted" in OS.get_cmdline_user_args()
 
 
 # ------------------------------------------------------------------ the bake
 
-## The galaxy's constants as the painted pass reads them (the showcase's G0-G7,
-## and G8 for what every kind needs beyond its three).
-## A ball's story's light in this style's own (`ChartSky.ball_story`)
+## The galaxy's constants as the painted pass reads them (showcase G0 to G7, G8 for the rest).
 const STORY_GAIN_B := 0.5
 
 
-## A BALL AS ITS OWN KIND in this style (`chart_b_place`'s `u_ballK`, from `ChartSky.ball_of`'s
-## look): (look, how far out its old warm light holds in ball radii, its young gas and
-## star birth 0..1, how irregular its outline 0..1). An old elliptical warm through its
-## body; a blue compact dwarf young, blue, lumpy and full of knots round a small warm
-## heart; a dwarf spheroidal faint and warm; a merger's remnant warm, a little lopsided,
-## with a few knots of the star birth the merger lit. Only the two with gas (the blue
-## compact dwarf, the merger with its stream) have cool gas past their warm light: the
-## others fade straight out into the dark (Nov 5, the critique of prototype A).
+## A ball as its own kind (`chart_b_place`'s `u_ballK`): (look, how far out its old warm light
+## holds in ball radii, its young gas and star birth 0..1, how irregular its outline 0..1).
+## Why: docs/why/ChartPainted.md#ball-kinds
 static func ball_kind(ball: Vector4) -> Vector4:
 	match int(ball.w):
 		1:
@@ -146,15 +120,9 @@ static func ball_kind(ball: Vector4) -> Vector4:
 	return Vector4(0.0, 1.25, 0.0, 0.0)
 
 
-## A BALL'S BODY in this style (`chart_b_place`'s `u_ballF`): (its size against its ball
-## radius, how steeply its light falls (the power of its profile), where its light ends
-## (ball radii), its halo of globular clusters 0..1). The three ellipticals told apart by
-## more than their roundness (Nov 5): a round one the plain profile; a flattened one
-## squashed further (`ball_squash`) and falling off steeply, a lens of light; a giant
-## bigger, its light falling off slowly into a wide envelope, ringed by a swarm of
-## globular clusters far past its body. A dwarf spheroidal smaller (0.75: at 1.0 it reached
-## 0.67 gu to a round one's 0.54, a dwarf further than a full ball, Nov 5), its light
-## falling a little slower than a round one's, spread thin.
+## A ball's body in this style (`chart_b_place`'s `u_ballF`): (size against its ball radius, how
+## steeply its light falls, where it ends in ball radii, its globular-cluster halo 0..1).
+## Why: docs/why/ChartPainted.md#ball-body
 static func ball_form(kind: int) -> Vector4:
 	match GalaxyGen.type_name(kind):
 		"Flattened Elliptical":
@@ -214,9 +182,7 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	})
 
 
-## The named clouds as uniform arrays: plane centre and size, kind (NebulaField's
-## own order is the painted pass's), hollowness, shape, the lobe its cluster
-## sits in, and the lobes in the cloud's own round frame.
+## Named clouds as uniform arrays: plane centre and size, kind, hollowness, shape and lobes.
 static func cloud_uniforms(p: Dictionary) -> Dictionary:
 	var cl := PackedVector4Array()
 	var ck := PackedVector4Array()
@@ -246,9 +212,8 @@ static func cloud_uniforms(p: Dictionary) -> Dictionary:
 	return {"u_ncl": n, "u_cl": cl, "u_ck": ck, "u_lb": lb, "clouds": n}
 
 
-## The chart's star field as the painted sparkles read it: every point bright
-## enough to be drawn alone, its colour class and sprite tier (the showcase's
-## rule), dimmest first; then the globulars as knots and the pulsars.
+## The star field as sparkles read it: bright points
+## with colour class and sprite tier, dimmest first.
 static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 	var src: Dictionary = sky._src
 	var r_max: float = src.r_max
@@ -343,11 +308,7 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 	g["b_c"] = ChartSky._data_tex(c3, rows.size())
 
 
-## THE STARS' LIGHT KEPT AS YOU ZOOM (`ChartSky._star_debt`, the sparkles'):
-## each sparkle's light at each of a run of zooms as `chart_b_stars` draws it --
-## its level read as the gas's light (`1 + log2(light) / 7`), times its sprite's
-## blocks -- in a grid over the plane. What the sparkles no longer bring a patch
-## against the opening goes back into its gas as light (`chart_b_place`).
+## Star light kept across zoom: what the sparkles no longer bring a patch goes back into its gas.
 static func _star_debt(rows: Array, bulge_r: float) -> ImageTexture:
 	var zs := ChartSky.DEBT_Z
 	var nz := zs.size()
@@ -436,10 +397,8 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		m.set_shader_parameter("u_part", part)
 		m.set_shader_parameter("u_puffP", g.puffP)
 		out.append(sky._pass_vp(holder, Vector2i(PN, PN), ChartSky._rect(m), true))
-	# THE SOLID LOOK'S FIELDS (`chart_solid.gdshaderinc`): its puffs, its terrain and its
-	# edge read SIMPLIFIED's own bakes -- the noise (B the billows) and the structure (R
-	# the arm ridge, G the lane) -- at fixed scales in the disc's plane, so this style's
-	# relief and puffs stand where SIMPLIFIED's do; baked here as `ChartSky` bakes them
+	# Solid look fields read SIMPLIFIED's own bakes at
+	# fixed scales, so relief and puffs stand where its do.
 	for mode in 2:
 		var n := ChartSky.NOISE_N if mode == 0 else (ChartSky.STRUCT_N if (int(p.arms) > 0 or float(p.bar) > 0.0) else 16)
 		var mb := ShaderMaterial.new()
@@ -620,21 +579,17 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	var tear := ChartTorn.cloud_arrays(g._torn_cl[0], g._torn_cl[1], phi, ChartSky.MAX_CL)
 	mp.set_shader_parameter("u_tornCl", tear.u_tornCl)
 	mp.set_shader_parameter("u_tornClD", tear.u_tornClD)
-	# THE SOLID LOOK (`ChartSky.solid`; `ChartSky._push` has already moved the camera
-	# for this frame, `solid_frame`): its uniforms on the place pass, the camera on the
-	# sparkles, so they stand where the camera shows the disc they belong to
+	# Solid look uniforms go on the place pass and the
+	# camera on the sparkles, so they follow the disc.
 	var sol := ChartSky.solid() and sky._use_map
 	sky.push_solid(mp, sol)
 	sky.push_solid_stars(sky._m_stars, sol)
-	# (`solidtest` reads back the plane point each block shows, `ChartSky.diag` 4096:
-	# no 8-bit G-buffer can hold it, so for those frames the place pass draws in half
-	# floats; the paint pass then shows nothing meaningful, and nobody looks)
+	# `solidtest` reads back the plane point, which no
+	# 8-bit G-buffer holds, so those frames use half floats.
 	var probe := (ChartSky.diag & 4096) != 0
 	if sky._pvp.use_hdr_2d != probe:
 		sky._pvp.use_hdr_2d = probe
-	# (the centre this sky is drawn about this frame -- the galaxy's even pixel, or the
-	# exact centre while a zoom's hold lasts -- where `solidtest` measures the marks from,
-	# as it does SIMPLIFIED's)
+	# The centre drawn about this frame, where `solidtest` measures marks from, as for SIMPLIFIED.
 	sky._hold_c_now = ccon
 	var ms := sky._m_stars
 	ms.set_shader_parameter("vp_origin", origin)
@@ -649,9 +604,8 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mt.set_shader_parameter("block0", b0)
 	# a resized memory holds nothing of the old picture: start it afresh
 	mt.set_shader_parameter("reset", resized)
-	# THE MEMORY TURNS WITH THE GALAXY: the frame's turn, and the view to undo it in
-	# (last frame's turn, kept per frame like the view below: pushed twice in a
-	# frame, the second push read the first's turn as last frame's and undid none)
+	# The turn is kept per frame: pushed twice a frame,
+	# the second push read the first's turn as last frame's.
 	var fr := Engine.get_process_frames()
 	var cam_now := [ChartSky.solid_cam(), ChartSky.SOLID_T, sol]
 	if int(g.get("_view_fr", -1)) != fr:
@@ -661,11 +615,8 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 		g["_cam_prev"] = g.get("_cam_cur", cam_now)
 	g["_phi_cur"] = phi
 	g["_cam_cur"] = cam_now
-	# AND IT FOLLOWS THE CAMERA (`ChartSky.solid`): a drag carries and pitches the
-	# camera, so each block shows another piece of the disc every frame; the memory is
-	# read from where that piece was drawn last frame -- back through this frame's
-	# camera, out through last frame's (as `chart_c_comp`'s `cam_*` hold) -- or a held
-	# band would stay on the screen while the gas it belongs to moved on
+	# Memory follows the camera, read from where each piece was
+	# drawn last frame, or a held band stays while its gas moves on.
 	var cp: Array = g["_cam_prev"]
 	mt.set_shader_parameter("cam_on", sol and bool(cp[2]))
 	mt.set_shader_parameter("cam_cur", cam_now[0])
@@ -678,25 +629,17 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mt.set_shader_parameter("origin", origin)
 	mt.set_shader_parameter("cpix", ccon)
 	mt.set_shader_parameter("zoom", z)
-	# AND ZOOMS WITH IT: last frame's view, to find where each block's piece of
-	# the galaxy was drawn (`chart_b_state`) -- the view the memory was last
-	# DRAWN with, kept per frame: the chart can be pushed more than once a frame
-	# (a glide's late push), and a second push would take the first's view for
-	# last frame's and undo nothing
+	# Last frame's view is kept per frame, as a second
+	# push in a frame would take the first's for it.
 	g["_view_cur"] = [z, ccon, origin, b0]
 	var pv: Array = g["_view_prev"]
 	mt.set_shader_parameter("zoom0", float(pv[0]))
 	mt.set_shader_parameter("cpix0", pv[1])
 	mt.set_shader_parameter("origin0", pv[2])
 	mt.set_shader_parameter("block00", pv[3])
-	# AND WHAT A ZOOM CHANGES IS NOT HELD PAST IT: a zoom redraws the gas at a new
-	# scale (its finest octaves fade in and out), so some bands truly change;
-	# held through the zoom, they were let go in the second and a half after it
-	# stopped, the cloud changing with nothing moving. The hold is cut by how far
-	# the zoom moved the frame's edge this frame (blocks): a slow zoom -- the
-	# flicker the memory is for, a third of a block a frame -- keeps about 30
-	# frames of it, a turn of the wheel almost none, so what it changes changes
-	# while it moves.
+	# The band memory is cut by how far a zoom moved the edge: held through a zoom,
+	# bands let go in the second after. A slow zoom keeps about 30 frames, a wheel turn none.
+	# Why: docs/why/ChartPainted.md#zoom-hold
 	var zmove := absf(log(maxf(z, 1e-4) / maxf(float(pv[0]), 1e-4))) * vs.length() * 0.5
 	if not bool(g.get("_hold_fixed", false)):
 		mt.set_shader_parameter("hold", HOLD if zmove < 1e-4 else minf(HOLD, ZOOM_HOLD / zmove))
@@ -706,12 +649,9 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	sky._stars.queue_redraw()
 
 
-## THE EVENTS AS HELD POSES, pure functions of t (the simplified chart's clocks,
-## `ChartSky._supernova` and `_lightning`'s schedules, drawn by hand):
-##   the supernova in four drawn frames (a spark, the full four-point star, a
-##   shorter one, a fading plus) and its light echo as a ring stepping out every
-##   1.5 s, in three strengths; a cloud's lightning as a bolt held for 0.35 s and
-##   its afterglow for 0.6 s; the glimmers and shafts stepping a notch every 2 s.
+## Events are held poses, pure functions of t, drawn by hand: supernova in four frames,
+## echo ring every 1.5 s, lightning held 0.35 s.
+## Why: docs/why/ChartPainted.md#held-poses
 static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, calm: bool) -> void:
 	# what the last minutes' supernovae left, among this style's own supernova stars
 	var rm: Array = ChartSky.remnants(g.b_sn, t, calm)
@@ -749,9 +689,8 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, 
 	m.set_shader_parameter("u_shaft", floorf(t / 2.0) * 0.12)
 
 
-## A cloud's lightning, held: (pose 1 the bolt, 2 its afterglow, 0 none;
-## round-frame x, y; the bolt's seed). The legacy schedule: a flash in most
-## 10 s slots, at a point in one of the cloud's lobes.
+## Lightning held: pose, round-frame x and y, seed.
+## The legacy schedule is a flash in most 10 s slots.
 static func _bolt(c: NebulaField.Cloud, i: int, t: float) -> Vector4:
 	var s := i * 13
 	var n0 := floori(t / 10.0)
