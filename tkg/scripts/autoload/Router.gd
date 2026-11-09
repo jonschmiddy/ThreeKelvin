@@ -1180,7 +1180,9 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# `plan()` makes the hull numbers the host is told, so scaling stays in `Combat._spawn`.
 	combat.plan(template, node.danger, extras)
 	# The hellbender opens at its scarred hull, locally and in the party's copy.
-	if template.miniboss:
+	# Only a live one: with none in this run (below HELLBENDER_ASCENSION, or `-- fight foe=hellbender`)
+	# the hull is 0, and clamping opened the fight at 1; it opens at its template hull instead.
+	if template.miniboss and Run.hellbender_alive():
 		# (kept between fights in one ship's terms, built here for the game's players: `PartyScale`)
 		combat.enemies[0].hp = clampi(PartyScale.party_hull(Run.hellbender_hp, combat.party),
 			1, combat.enemies[0].max_hp)

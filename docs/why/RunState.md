@@ -2083,3 +2083,16 @@ than one that never said -- and that is answered rather than overruled,
 because nothing is lost now: the mark is never gained in the first place,
 so no refit and no departure can take it away.
 ```
+
+## Hellbender ascension
+
+Above `const HELLBENDER_ASCENSION := 7`:
+
+```text
+THE ASCENSION LEVEL THE HELLBENDER FIRST FLIES AT (Jon, Nov 8: "ONLY have
+the hellbender show up on Ascention 7+"). Below it the rival never spawns,
+so nothing that reads `hellbender_alive()` (the chart, the blockade, the
+log, the drawer, its fight, its music, the co-op pushes) has anything to
+show. The hiring boards still name it at every level, as a hint of what is
+coming (Jon's follow-up); they promise no bounty (`BoardSignTest`).
+```

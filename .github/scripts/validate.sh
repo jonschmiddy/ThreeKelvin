@@ -298,6 +298,25 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet boardsigntest 120 \
 	--headless --path "$PROJECT" -- sheet=BoardSignTest
 }
 
+unit_hellbendergatetest() {
+step "The Hellbender flies only at ascension 7 and up"
+# Jon, Nov 8: "ONLY have the hellbender show up on Ascention 7+", and the
+# hiring boards' signs stay as a hint. Level 0 over 60 seeds: none spawns, its
+# clock moves nothing, nothing eaten, no body, ENGAGE, drawer or log line names
+# it, no poster stamped DESTROYED; level 7 spawns it as before on the same
+# world; a VERSION 40 save loads at 0; a dev fight with none opens at full hull.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hellbendergatetest 240 --headless --path "$PROJECT" -- sheet=HellbenderGateTest; then
+	if grep -qE '^hellbendergatetest: PASS' "$LOG_DIR/hellbendergatetest.log"; then
+		ok "no Hellbender below ascension 7, and nothing names it but the boards"
+	else
+		bad "a Hellbender (or a word of it) below ascension 7, or none at 7"
+		grep -E 'FAIL|^hellbendergatetest' "$LOG_DIR/hellbendergatetest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "hellbendergatetest did not finish"
+fi
+}
+
 unit_stationdecktest() {
 step "Every station has all five decks, at every level"
 # Jon, Nov 3: the LABORATORY used to hide below a city and the HIRING BOARD

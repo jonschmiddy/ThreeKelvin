@@ -75,3 +75,16 @@ the top edge") and the edge's fade for a hard rim (RADIANT's fade 0.35-0.42). Th
 ball is judged on the chart as it stands without the field, its own sky behind it.
 (Subtracting the field instead took it off where the galaxy covers it too.)
 ```
+
+## Radiant at rest
+
+Above `ChartRadiant.drama_on = false`:
+
+```text
+RADIANT'S LIGHT THAT MOVES HELD OFF (Nov 7): its core's breath and flares and the
+young stars' flares (`ChartRadiant.drama_on`, the cost bench's switch) are moments
+on top of the ball's light; one lit at the test's clock had hidden the blue compact
+dwarf's hard rim (0.43 with a core flare at 600, 0.39 at rest). The ball is judged
+as it stands at rest, at any clock. `clock=T` (default 600) reads the chart at
+another clock, and every clock must pass.
+```

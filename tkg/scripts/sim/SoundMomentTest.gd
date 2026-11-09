@@ -692,7 +692,10 @@ func _creature(style: int) -> void:
 
 func _hellbender() -> void:
 	print("-- the Hellbender's furnace and its pops")
+	# (ascension 7, where the run has one to fight, Jon, Nov 8)
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	var sc := await _start(4242, &"hellbender")
+	Run.forced_ascension = -1
 	if not _ok("its fight opens", sc != null):
 		return
 	var m0 := _moments.size()

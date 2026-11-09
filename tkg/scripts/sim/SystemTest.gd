@@ -864,7 +864,10 @@ func _report() -> void:
 ## Its place: last, past every orbit, and nothing else moved by it.
 func _hellbender(label: String) -> void:
 	Rng.forced = SEEDS[0]
+	# (ascension 7: the Hellbender flies only there, Jon, Nov 8)
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.forced_ascension = -1
 	if not Run.hellbender_alive():
 		_fail("no Hellbender in this run to place")
 		return

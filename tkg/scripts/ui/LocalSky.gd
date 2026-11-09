@@ -80,8 +80,14 @@ const PLAY := Vector2(70.0, 140.0)
 ## PAINTED's paint toned again behind the play: the light above the mid-tone
 ## kept to this much of its distance (the sky's own tone keeps 0.55)
 const PAINTED_KEEP := 0.4
-## and RADIANT's lit volume, toned once
-const RADIANT_KEEP := 0.38
+## and RADIANT's lit volume, toned once; the dark below the mid-tone goes deeper (Nov 7).
+## Why: docs/why/LocalSky.md#radiant-chiaroscuro
+const RADIANT_KEEP := 0.55
+const RADIANT_KEEP_LO := 1.35
+## How far toward you a world's star light comes from; RADIANT's from a little behind, for a hard terminator.
+## Why: docs/why/LocalSky.md#radiant-chiaroscuro
+const LIGHT_Z := 140.0
+const RADIANT_LIGHT_Z := -0.25
 ## RADIANT's gas wash over a close world; band worlds keep the shader's own values.
 const NEAR_HAZE := Vector3(0.0, 0.1, 16.0)
 ## the cloud's sky pixel at the star: high in its bake, so the view below the
@@ -109,6 +115,14 @@ var _pt := {}
 var style: StringName = &"simplified"
 var painted := false
 var radiant := false
+## RADIANT's glow (`RadiantGlow`): the sky's picture wrapped
+var _glow: SubViewport = null
+## and its look here: the star's rays, a deep violet shade, the glow behind the
+## play kept to `play_k` (A+B+C: no `crush`, was 0.15 -- A's tone behind the play,
+## `RADIANT_KEEP_LO`, and its toe in `sky_nebula` are the one tone step)
+const GLOW_LOOK := {"wide_smooth": true, "thr": 0.5, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.8,
+	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7, "play_k": 0.6,
+	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.0, "vib": 0.0}
 ## the ship the camera follows (`EncounterView`), and the camera's travel now
 var cam_ship: Control = null
 var cam := Vector2.ZERO
@@ -162,6 +176,8 @@ var _turn := 0.0
 ## each sun's prominence's envelope this frame (`_step_star`; B's 0 with one sun)
 var _flare_a := 0.0
 var _flare_b := 0.0
+## RADIANT: the lit sun's burst alone (`ChartRadiant.sun_flare`), the light it throws on the cloud
+var _burst := 0.0
 ## The near things in their own picture: each [node, screen position, parallax, radius].
 var _near_vp: SubViewport = null
 var _near_mat: ShaderMaterial = null
@@ -381,6 +397,7 @@ func _build() -> void:
 	life = LocalLife.new(self)
 	if headless():
 		return
+	_glow = null
 	_box = SubViewportContainer.new()
 	_box.stretch = false
 	_box.size = Vector2(480, 270)
@@ -461,6 +478,7 @@ func _build() -> void:
 		# (RADIANT's lit volume fills the play evenly, near as bright as the
 		# band above: its light pressed in harder)
 		_grade_mat.set_shader_parameter("keep_hi", RADIANT_KEEP)
+		_grade_mat.set_shader_parameter("keep_lo", RADIANT_KEEP_LO)
 	grade.material = _grade_mat
 	_scene.add_child(grade)
 	far_group.append(grade)
@@ -549,6 +567,11 @@ func _build() -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
+	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the sky's picture wrapped, its
+	# light glowing in steps and its shade deep, the glow kept down behind the play
+	if radiant:
+		_glow = RadiantGlow.wrap(_scene, Vector2(960, 540), GLOW_LOOK)
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("play", PLAY / 540.0)
 	_build_near()
 	_apply_closed()
 	_wx_setup()
@@ -1043,6 +1066,10 @@ func _process(delta: float) -> void:
 	elif _scene.render_target_update_mode != SubViewport.UPDATE_ALWAYS:
 		_set_update(SubViewport.UPDATE_ALWAYS)
 	_live_frames += 1
+	if _glow != null:
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", (star.position / Vector2(960, 540)) if star != null else Vector2(-1, -1))
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("pulse", RadiantGlow.sun_pulse(star))
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("hole", RadiantGlow.hole_of(star))
 	if _fade >= 0.0 and _box != null:
 		_fade = minf(_fade + delta / FADE_IN, 1.0)
 		_box.modulate.a = _fade * _fade * (3.0 - 2.0 * _fade)
@@ -1053,6 +1080,8 @@ func _process(delta: float) -> void:
 ## band memory with it).
 func _set_update(m: SubViewport.UpdateMode) -> void:
 	_scene.render_target_update_mode = m
+	if _glow != null:
+		_glow.render_target_update_mode = m
 	if _near_vp != null:
 		_near_vp.render_target_update_mode = m
 	if not _pt.is_empty():
@@ -1213,6 +1242,80 @@ func _step_star(o: Vector2) -> void:
 		_flare_b = SystemViewS.prominence(pose(t + SystemViewS.STAR_B_PROM, 6.0)).z
 		if _lit == SystemLayout.STAR_B:
 			_flare = _flare_b
+	_radiant_flares()
+
+
+## LIGHT THAT MOVES (RADIANT, Nov 7, B): the sun's own flares light the cloud round it
+## (`local_grade`'s `r_sun`) and the worlds' day sides; reach (game px) and gain at full.
+## Why: docs/why/LocalSky.md#radiant-flares
+const LOCAL_FLARE_R := 170.0
+const LOCAL_FLARE_GAIN := 3.0
+func _radiant_flares() -> void:
+	if not radiant:
+		return
+	# (the flare's light on the cloud is the burst alone, B's quick ease, hold and let
+	# go: taken with the prominence's 19 s envelope by `max`, the cloud held one long
+	# crimson state across the screen; A+B+C review, Nov 7)
+	var burst := 0.0
+	if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE:
+		var ba := ChartRadiant.sun_flare(pose(t, 6.0))
+		var bb := ChartRadiant.sun_flare(pose(t + SystemViewS.STAR_B_PROM, 6.0), 7) if star2 != null else 0.0
+		_flare_a = maxf(_flare_a, ba)
+		if star2 != null:
+			_flare_b = maxf(_flare_b, bb)
+		var lit_b := star2 != null and _lit == SystemLayout.STAR_B
+		_flare = _flare_b if lit_b else _flare_a
+		burst = bb if lit_b else ba
+		if star != null:
+			var sm: ShaderMaterial = star.get("_mat")
+			if sm != null:
+				sm.set_shader_parameter("r_flare", _flare_a)
+		if star2 != null:
+			var sm2: ShaderMaterial = star2.get("_mat")
+			if sm2 != null:
+				sm2.set_shader_parameter("r_flare", _flare_b)
+	_burst = burst
+	if _sky_mat != null:
+		_sky_mat.set_shader_parameter("r_flare", burst)
+	if _grade_mat != null:
+		# (the flare's light on everything round the sun, falling off from it)
+		var so: Variant = _far_mat.get_shader_parameter("star_at") if _far_mat != null else null
+		if so is Vector2 and burst > 0.0:
+			_grade_mat.set_shader_parameter("r_sun", Vector4((so as Vector2).x, (so as Vector2).y, LOCAL_FLARE_R, LOCAL_FLARE_GAIN * burst))
+			var sl := star_light()
+			var mx := maxf(sl.x, maxf(sl.y, sl.z))
+			_grade_mat.set_shader_parameter("r_sun_c", (sl / maxf(mx, 1e-4)).lerp(Vector3.ONE, 0.35))
+		else:
+			_grade_mat.set_shader_parameter("r_sun", Vector4.ZERO)
+	_engine_light()
+
+
+## THE ENGINES' LIGHT ON THE GAS (RADIANT, Nov 7, direction B): the ship's flames
+## light the cloud behind it (`local_grade`'s `r_eng`), a pool a little way down the
+## flame, breathing with the burn on the game's clock -- a slow swell -- and steady
+## under reduced motion
+const ENGINE_R := 52.0
+const ENGINE_GAIN := 0.6
+func _engine_light() -> void:
+	if _grade_mat == null:
+		return
+	var sv := cam_ship as ShipView
+	var e: Dictionary = {}
+	if sv != null and is_instance_valid(sv) and sv.is_inside_tree() and _box != null:
+		e = sv.engine_glow()
+	if e.is_empty():
+		_grade_mat.set_shader_parameter("r_eng", Vector4.ZERO)
+		return
+	var at := (_box.get_global_transform().affine_inverse() * (e.at as Vector2)) * 2.0
+	at.x += float(e.dir) * 12.0
+	var fl := 1.0
+	if not DisplaySettings.reduced_motion:
+		# (A+B+C, Nov 7: the slow swell alone. The two quick beats, 2.1 and 3.3 a
+		# second, slid the plume's palette steps back and forth behind the flame faster
+		# than the eye takes as events: a shimmer by the ship)
+		fl += 0.12 * sin(t * TAU * 0.23)
+	_grade_mat.set_shader_parameter("r_eng", Vector4(at.x, at.y, ENGINE_R, ENGINE_GAIN * float(e.k) * fl))
+	_grade_mat.set_shader_parameter("r_eng_c", Vector3(1.0, 0.62, 0.32) if bool(e.warm) else Vector3(0.55, 0.75, 1.0))
 
 
 ## Pure so a headless test can see it: LOCAL's suns are not built headless and a flipped
@@ -1329,7 +1432,7 @@ func _step_worlds(o: Vector2) -> void:
 		_neb_mat.set_shader_parameter("r_bodies", bp)
 		_neb_mat.set_shader_parameter("r_rings", rg)
 		_neb_mat.set_shader_parameter("r_nb", n_cast)
-		_neb_mat.set_shader_parameter("r_flare", _flare)
+		_neb_mat.set_shader_parameter("r_flare", _burst)
 		if star2 != null:
 			from.resize(24)
 			_neb_mat.set_shader_parameter("r_from", from)
@@ -1347,7 +1450,7 @@ func _build_palette() -> void:
 		# only when showing, else it would be unpaletted.
 		if _box.modulate.a > 0.0:
 			freeze = TextureRect.new()
-			freeze.texture = ImageTexture.create_from_image(_scene.get_texture().get_image())
+			freeze.texture = ImageTexture.create_from_image((_glow if _glow != null else _scene).get_texture().get_image())
 			freeze.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			freeze.position = _box.position
@@ -1748,6 +1851,14 @@ func _build_near() -> void:
 	_scene.add_child(rect)
 
 
+func _light_vec(d: Vector2) -> Vector3:
+	if radiant:
+		# (by its way only: the near world's `d` is short, so any depth lit it from the front)
+		var u := d.normalized() if d.length() > 0.001 else Vector2(-1.0, -0.6).normalized()
+		return Vector3(u.x, u.y, RADIANT_LIGHT_Z).normalized()
+	return Vector3(d.x, d.y, LIGHT_Z).normalized()
+
+
 ## World and moons worked out without drawing, so a headless test sees where they are.
 func near_plan() -> Dictionary:
 	if layout == null or orbit_target < 0 or orbit_target >= layout.bodies.size():
@@ -2016,7 +2127,7 @@ func hand_own(at: Vector2) -> bool:
 	var v := _near_world as PlanetView
 	var d := origin() - at
 	var g := {"body": orbit_target, "world": v.spec.get("world", &"rock"), "seed": int(v.get("_seed")),
-		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": Vector3(d.x, d.y, 140.0).normalized(),
+		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": _light_vec(d),
 		"params": {"lift": 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
 	for k in ["ring", "storm", "right"]:
 		if v.spec.has(k):
@@ -2127,7 +2238,7 @@ func _step_hand() -> void:
 		hm.set_shader_parameter("tone_k", m)
 	# its light: the map's, eased to this sky's (from where the star is here)
 	var d := origin() - at
-	var L_here := Vector3(d.x, d.y, 140.0).normalized()
+	var L_here := _light_vec(d)
 	var L := (_hand.light as Vector3).normalized().lerp(L_here, m).normalized()
 	var f: Dictionary = _hand.from
 	var tt := t + near_t_off
@@ -2197,7 +2308,7 @@ func _step_near(_o: Vector2) -> void:
 			# lit from the star, across the view: from where the star is on screen
 			# to where this world is, under the zoom, in this layer's own px
 			var d := (origin() - at) / zl
-			var L := Vector3(d.x, d.y, 140.0).normalized()
+			var L := _light_vec(d)
 			wv.step(t + (near_t_off if n == _near_world else 0.0), L, 1.0)
 			if n == _near_world and not near_storm.is_empty():
 				_hold_storm(wv, t)
@@ -2291,4 +2402,9 @@ func gpu_ms() -> float:
 		return 0.0
 	var rid := _scene.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
-	return RenderingServer.viewport_get_measured_render_time_gpu(rid)
+	var ms := RenderingServer.viewport_get_measured_render_time_gpu(rid)
+	# (RADIANT's glow round it, measured with it)
+	if _glow != null:
+		RenderingServer.viewport_set_measure_render_time(_glow.get_viewport_rid(), true)
+		ms += RenderingServer.viewport_get_measured_render_time_gpu(_glow.get_viewport_rid())
+	return ms

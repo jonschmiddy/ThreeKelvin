@@ -233,7 +233,13 @@ func _party_test() -> void:
 	ok("the host sees everyone ready", all_ready)
 
 	ok("a client cannot start the dive", not clients[0].launch_dive())
+	# At ascension 7 (PROTOCOL 19): the host's level goes with the seed, so
+	# every ship's galaxy has the Hellbender or none does (Jon, Nov 8). Set only
+	# for the launch, which reads it once.
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	ok("the host can", host.launch_dive())
+	Run.forced_ascension = -1
+	check("the host dives at its ascension", host.dive_ascension, Run.HELLBENDER_ASCENSION)
 	# Wait on every client: the launch is a broadcast and the last peer to see it matters.
 	var launched := await _wait_until(func() -> bool:
 		for c in clients:
@@ -246,6 +252,7 @@ func _party_test() -> void:
 		# And on the host's unlocks (PROTOCOL 10): one world, one pool of parts.
 		check("client %d rolls from the host's unlocks" % i, str(clients[i].dive_unlocked),
 			str(host.dive_unlocked))
+		check("client %d dives at the host's ascension" % i, clients[i].dive_ascension, host.dive_ascension)
 	ok("the seed is not zero", host.dive_seed != 0)
 	ok("the host's unlocks went with it", host.dive_unlocked.has(&"korvan"))
 
@@ -1896,7 +1903,10 @@ func _late_join_test() -> void:
 	host.set_ready(true)
 	early.set_ready(true)
 	await _wait_until(func() -> bool: return host.everyone_ready(), 3.0)
+	# (at ascension 7, so the late ship below has a level to be told at the door)
+	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	ok("and the host launches", host.launch_dive())
+	Run.forced_ascension = -1
 	await _wait_until(func() -> bool: return early.state == NetSession.State.DIVING, 3.0)
 	# Something used up and a fight open before the late ship arrives.
 	host.claim(77, MapGen.OPTION_WHOLE)
@@ -2008,6 +2018,8 @@ func _late_join_test() -> void:
 	ok("a ship joining after launch is put in the dive", dived)
 	check("on the host's seed", late.dive_seed, host.dive_seed)
 	check("and the host's unlocks", str(late.dive_unlocked), str(host.dive_unlocked))
+	check("and the host's ascension (%d)" % host.dive_ascension, late.dive_ascension, host.dive_ascension)
+	check("which is the level it launched at", host.dive_ascension, Run.HELLBENDER_ASCENSION)
 	check("knowing what the party has used up", late.who_took(77), 1)
 	ok("and the fight open at the time", late.fight_open_at(88))
 	# The host seats the late ship, then pushes the roster; the guest's copy

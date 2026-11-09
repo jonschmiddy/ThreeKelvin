@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/net/NetSession.gd`, moved out of the code verb
 
 ## Session design
 
-Above `const PROTOCOL: int = 18`:
+Above `const PROTOCOL: int = 19`:
 
 ```text
 The party: who is in it, whether their builds agree, and what galaxy they
@@ -43,7 +43,7 @@ as a prerequisite rather than a nicety.
 
 ## Protocol versions
 
-Above `const PROTOCOL: int = 18`:
+Above `const PROTOCOL: int = 19`:
 
 ```text
 Bumped on any change to the messages below, or to the meaning of the fields
@@ -168,6 +168,11 @@ This is cheap to raise and very expensive to have forgotten.
    hand and wait on a turn that has moved on, and grow every fight it walked
    into.
    A version 17 partner (fast transfers, no stun) is turned away too.
+19: the dive carries the host's ASCENSION level (`_begin_dive`'s third
+   argument, `dive_ascension`), which decides whether the run has a
+   Hellbender at all (`RunState.HELLBENDER_ASCENSION`, Jon, Nov 8). A
+   version 18 partner would call `_begin_dive` one argument short and roll
+   a run at level 0 beside a host whose chart carries the rival.
 ```
 
 ## Take timeout

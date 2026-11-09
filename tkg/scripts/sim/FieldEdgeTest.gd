@@ -185,11 +185,16 @@ func _cloud_hop() -> void:
 	for pl: Control in [ZoomLadder.bar_of(cur), ZoomLadder.side_of(cur)]:
 		if pl != null:
 			skip.append(pl.get_global_rect().grow(2.0))
+	# (and the screens' words: the map's orange goal line set the box's corner, 10.0%)
+	skip.append_array(_ui_rects(cur))
+	skip.append(GoalLine.stack_rect(cur).grow(3.0))
 	var fimg := Router.field.picture().get_image()
 	fimg.convert(Image.FORMAT_RGB8)
 	fimg.resize(960, 540, Image.INTERPOLATE_NEAREST)
 	var c := Router.content.get_global_rect()
 	Router.show_starchart()
+	if Router.current != cur and Router.current != null:
+		skip.append_array(_ui_rects(Router.current))
 	var worst := 0.0
 	var seen := 0
 	var why := ""
@@ -253,7 +258,7 @@ func _cloud_hop() -> void:
 			var cf := float(on) / maxf(tot, 1)
 			if cf > corner_worst:
 				corner_worst = cf
-				corner_why = "corner at %s %.0f%% cloud, frame %d" % [cc, cf * 100.0, f]
+				corner_why = "corner at %s %.1f%% cloud (%d of %d), frame %d" % [cc, cf * 100.0, on, tot, f]
 	_ok("map -> chart in a cloud: the held cloud, made smaller, has no straight side -- the most of any side's line that is cloud %.0f%% (%s; %d frames read)" % [worst * 100.0, why, seen],
 		seen >= 3 and worst <= 0.40)
 	_ok("map -> chart in a cloud: and no corner -- the most of any corner that is cloud %.0f%% (%s)" % [corner_worst * 100.0, corner_why],
@@ -569,6 +574,9 @@ func _check(which: String) -> void:
 		if pl != null:
 			ui.append(pl.get_global_rect().grow(4.0))
 	var c := Router.content.get_global_rect()
+	if _out != "" and _cloud and which == "SECTOR":
+		# (the screen as read, whole: the cloud's edges below write no strips)
+		shot.save_png("%s/sector_full.png" % _out)
 	# Plates see-through (Jon, Oct 18): the screen follows the field by 1 minus `NavField.PLATE_A`.
 	# Why: docs/why/FieldEdgeTest.md#see-through-plates
 	var words := _ui_rects(cur)
@@ -672,9 +680,12 @@ func _check(which: String) -> void:
 					fmeds.append(_lum(fimg, x, y))
 			if meds.is_empty():
 				continue
+			var mean := 0.0
+			for d: float in meds:
+				mean += d / meds.size()
 			meds.sort()
 			fmeds.sort()
-			lines.append([k, meds[meds.size() / 2], fmeds[fmeds.size() / 2]])
+			lines.append([k, meds[meds.size() / 2], fmeds[fmeds.size() / 2], mean])
 		if lines.is_empty():
 			continue
 		# Screen less field, line by line: side means within STEP, no jump above the field's own.
@@ -702,10 +713,11 @@ func _check(which: String) -> void:
 		var step := absf(ins / maxf(ni, 1) - outs / maxf(no, 1))
 		if _cloud and which == "SECTOR":
 			# Where the cloud runs on past the picture, read its gas either side, not the field.
+			# Line means here: a median flips on a two-level gas. Why: docs/why/FieldEdgeTest.md#cloud-edge-means
 			var at_edge := 0.0
 			var others: Array = []
 			for i in range(1, lines.size()):
-				var d := absf(float(lines[i][1]) - float(lines[i - 1][1]))
+				var d := absf(float(lines[i][3]) - float(lines[i - 1][3]))
 				if int(lines[i][0]) == 0 or int(lines[i - 1][0]) == 0 or (nm == "bottom" and int(lines[i][0]) == -1):
 					at_edge = maxf(at_edge, d)
 				else:
@@ -714,6 +726,18 @@ func _check(which: String) -> void:
 			var typical: float = others[int(others.size() * 0.9)] if not others.is_empty() else 0.0
 			_ok("%s, the picture's %s edge in the cloud: no step across it (the line at the edge %.1f from the one before it, the cloud's own up to %.1f)" % [which, nm, at_edge, typical],
 				at_edge <= typical + 2.0)
+			# RADIANT: the gas runs on to the area's edge, no black strip down it (field near-black there).
+			var ka := int(c.position.x - at.x) if vertical else int(c.position.y - at.y)
+			if LocalSky.style_now() == &"radiant" and nm != "bottom" and ka > -BAND:
+				var near := 0.0
+				var pic_in := 0.0
+				for l: Array in lines:
+					if int(l[0]) >= ka + 4 and int(l[0]) < ka + 8:
+						near += float(l[3]) / 4.0
+					elif int(l[0]) >= 0 and int(l[0]) < 4:
+						pic_in += float(l[3]) / 4.0
+				_ok("%s in the cloud (radiant): the gas runs on to the area's %s edge -- 4-7 px in from it %.1f levels over the field, the picture's first lines %.1f" % [which, nm, near, pic_in],
+					near >= 0.6 * pic_in)
 			continue
 		# The map's picture runs on past its frame in clear sky, fading at the field's edge.
 		var runs_on: bool = which == "SECTOR" and cur is SystemMapScreen and (cur as SystemMapScreen)._gas_ext != null and (cur as SystemMapScreen)._gas_ext.visible

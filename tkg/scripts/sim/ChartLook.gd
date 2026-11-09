@@ -377,11 +377,22 @@ func _clip() -> void:
 	else:
 		var ct := Harness.arg("cliptime", "600:610:96").split(":")
 		var n2 := int(ct[2])
-		_view(z0, at)
-		for i in n2:
-			MapChart.clock_override = lerpf(float(ct[0]), float(ct[1]), float(i) / maxf(1.0, float(n2 - 1)))
-			_chart._repaint_sky()
-			await _frame_shot(dir, i)
+		# (`clipviews=name:Z:X:Y,...`: the same clock at several views, one after
+		# another, each into its own folder under the clip's, in one run)
+		var cvs: Array = [["", z0, at]]
+		if Harness.arg("clipviews") != "":
+			cvs.clear()
+			for s5 in Harness.arg("clipviews").split(","):
+				var f5 := (s5 as String).split(":")
+				cvs.append([f5[0], float(f5[1]), _pan_of(f5[2], f5[3] if f5.size() > 3 else "0", float(f5[1]))])
+		for vw: Array in cvs:
+			var d5: String = dir if String(vw[0]) == "" else dir.path_join(String(vw[0]))
+			DirAccess.make_dir_recursive_absolute(d5)
+			_view(float(vw[1]), vw[2])
+			for i in n2:
+				MapChart.clock_override = lerpf(float(ct[0]), float(ct[1]), float(i) / maxf(1.0, float(n2 - 1)))
+				_chart._repaint_sky()
+				await _frame_shot(d5, i)
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
 
 
@@ -479,7 +490,7 @@ func _cost_bench(names: String) -> void:
 	Engine.max_fps = 0
 	var sky := _chart._sky as ChartSky
 	var rids: Array[RID] = []
-	var vps: Array = [sky._svp, sky._pvp, sky._vp]
+	var vps: Array = [sky._svp, sky._pvp, sky._vp] + ([sky._gvp] if sky._gvp != null else [])
 	for vp: SubViewport in vps:
 		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 		rids.append(vp.get_viewport_rid())
@@ -501,6 +512,8 @@ func _cost_bench(names: String) -> void:
 				ChartSky._edge_on = on == 1 if nm == "edge" else true
 				ChartSky._terr_on = on == 1 if nm == "terrain" else true
 				ChartSky._neb_on = on == 1 if nm == "nebulae" else true
+				# (`drama`: RADIANT's light that moves, its core's clock and the stars' flares)
+				ChartRadiant.drama_on = on == 1 if nm == "drama" else true
 				for _w in 3:
 					t += 1.0 / 60.0
 					MapChart.clock_override = t
@@ -531,6 +544,7 @@ func _cost_bench(names: String) -> void:
 	ChartSky._edge_on = true
 	ChartSky._terr_on = true
 	ChartSky._neb_on = true
+	ChartRadiant.drama_on = true
 
 
 ## Sky shader against the chart's GDScript: two codes, one projection, within 2.25 px.

@@ -35,6 +35,10 @@ var off: bool = false
 func alive() -> bool:
 	return at >= 0 and hp > 0
 
+## Whether this run HAD a Hellbender and it is gone: below HELLBENDER_ASCENSION there never was one.
+func destroyed() -> bool:
+	return hull_max > 0 and not alive()
+
 ## Whether this machine is the one that moves it: the host, or nobody's client.
 func _authority() -> bool:
 	return not Net.is_networked() or Net.is_host()
@@ -44,9 +48,11 @@ func _authority() -> bool:
 func spawn() -> void:
 	at = -1
 	hp = 0
+	hull_max = 0
 	moves = 0
 	ticks = 0
-	if off:
+	# Ascension 7 and up only. `hull_max` stays 0 below it, which is how a board tells "never here" from "killed".
+	if off or not Run.hellbender_in_play():
 		return
 	var t: EnemyTemplate = DB.enemies.get(&"hellbender")
 	if t == null or Run.map.is_empty():

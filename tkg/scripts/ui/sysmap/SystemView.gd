@@ -59,6 +59,23 @@ const STYLE_RADIANT := &"radiant"
 ## how many bodies throw shadows at once: the worlds, then their moons
 const SHADOW_CASTERS := 24
 var radiant := false
+## RADIANT's key light on the map: the sun's light halves this far out on screen
+## (`sky_nebula`'s `r_key`)
+const SECTOR_KEY_PX := 100.0
+## RADIANT's glow (`RadiantGlow`): the place's picture wrapped
+var _glow: SubViewport = null
+## and its look here: the sun's rays through the gas, a deep violet shade;
+## the rays' reach 0.4 of the frame and no `crush`; `GLOW_CORE_RAYS` round the core.
+## Why: docs/why/SystemView.md#radiant-glow-look
+const GLOW_LOOK := {"wide_smooth": true, "thr": 0.55, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.4,
+	"halo_a": Vector3(1.0, 0.7, 0.45), "halo_b": Vector3(0.6, 0.45, 0.3), "wide_k": 0.7,
+	"shade_tint": Vector3(0.28, 0.16, 0.8), "shade": 0.5, "dark_hi": 0.06, "crush": 0.0, "vib": 0.0,
+	"keep_lo": 0.085}
+const GLOW_CORE_RAYS := 0.3
+## THE RED GIANT'S GLOW (Jon, Nov 7, RC:2B): only the star and its hottest gas glow,
+## about half as far out; LOCAL keeps its look.
+## Why: docs/why/SystemView.md#red-giant-glow
+const GLOW_GIANT := {"thr": 0.8, "halo_b": Vector3(0.75, 0.3, 0.0), "ray_len": 0.2}
 ## the painted pass's viewports and materials (`SectorPainted.build`)
 var _pt := {}
 ## the emission cloud's bubble round the sun, on the plane: a sphere in the
@@ -356,6 +373,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_ready_sky = false
 	_palette_built = false
 	_frame = 0
+	_glow = null
 	# THE PLACE'S OWN PICTURE, half the size, shown at twice
 	var box := SubViewportContainer.new()
 	box.stretch = false
@@ -559,6 +577,10 @@ func show_system(n: MapGen.MapNode) -> void:
 			# (a touch lower: the haze and the shafts' light added a tenth, and round the
 			# sun the gas went to a flat pale plate)
 			_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
+			# (CHIAROSCURO, proto/radiant-a: the sun's light falls off across the map's
+			# window, a quarter of LOCAL's frame narrower; at LOCAL's 160 px the map's gas
+			# still read lit edge to edge)
+			_neb_mat.set_shader_parameter("r_key", SECTOR_KEY_PX)
 	_scene.add_child(_shadows)
 	# Sun and pulsar draw under the palette; the black hole draws among the worlds its lens bends.
 	_star_layer = Node2D.new()
@@ -686,6 +708,13 @@ func show_system(n: MapGen.MapNode) -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
+	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the place's picture wrapped, its
+	# light glowing in steps, its shade deep; the instruments stay over it, unlit
+	if radiant:
+		_glow = RadiantGlow.wrap(_scene, Vector2(960, 540), GLOW_LOOK.merged(GLOW_GIANT, true) if layout.star == SystemLayout.StarKind.RED else GLOW_LOOK)
+		RadiantGlow.glow_mat(_glow).set_shader_parameter("light", Vector2(CX, CY) / Vector2(960, 540))
+		if layout.star == SystemLayout.StarKind.CORE:
+			RadiantGlow.glow_mat(_glow).set_shader_parameter("rays", GLOW_CORE_RAYS)
 	# THE INSTRUMENTS, single pixels over the place: the fabric, then the orbits
 	_fabric = _Fabric.new()
 	_fabric.view = self
@@ -1219,6 +1248,34 @@ static func _lin_top(c: Vector3) -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
+## RADIANT's sun flares on the map: glow, haze and the worlds' day sides swell (Nov 7, B).
+## Why: docs/why/SystemView.md#radiant-flares
+const SECTOR_FLARE_R := 200.0
+const SECTOR_FLARE_GAIN := 0.9
+func _radiant_flares() -> void:
+	if not radiant or layout.star == SystemLayout.StarKind.PULSAR or layout.star == SystemLayout.StarKind.CORE:
+		return
+	_flare = maxf(_flare, ChartRadiant.sun_flare(pose(t, 6.0)))
+	if star2 != null:
+		_flare2 = maxf(_flare2, ChartRadiant.sun_flare(pose(t + STAR_B_PROM, 6.0), 7))
+	if star != null:
+		var sm: ShaderMaterial = star.get("_mat")
+		if sm != null:
+			sm.set_shader_parameter("r_flare", _flare)
+	if star2 != null:
+		var sm2: ShaderMaterial = star2.get("_mat")
+		if sm2 != null:
+			sm2.set_shader_parameter("r_flare", _flare2)
+	if _sky_mat != null:
+		_sky_mat.set_shader_parameter("r_flare", _flare)
+	# (through the palette's pass every frame: the cloud's own `r_flare` updates too rarely)
+	if _palette_mat != null:
+		_palette_mat.set_shader_parameter("r_lift", Vector4(star_exact(-1).x, star_exact(-1).y, SECTOR_FLARE_R, SECTOR_FLARE_GAIN * _flare))
+		var sl := star_light()
+		var mx := maxf(sl.x, maxf(sl.y, sl.z))
+		_palette_mat.set_shader_parameter("r_lift_c", (sl / maxf(mx, 1e-4)).lerp(Vector3.ONE, 0.35))
+
+
 ## If this machine cannot hold RADIANT's GPU budget, later maps fall back to SIMPLIFIED.
 ## Why: docs/why/SystemView.md#radiant-safety
 var _rprobe := {}
@@ -1674,6 +1731,7 @@ func step() -> void:
 	_flare = prominence(pose(t, 6.0)).z if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE else 0.0
 	# (two suns: star B's own eruptions, on its clock, for the worlds it lights)
 	_flare2 = prominence(pose(t + STAR_B_PROM, 6.0)).z if star2 != null else 0.0
+	_radiant_flares()
 	if layout.star_r > 0.0 and layout.star != SystemLayout.StarKind.PULSAR:
 		var rk := _held(layout.star_r * _star_k_raw(), layout.star_r * _kq, 2.0) / layout.star_r
 		if layout.star == SystemLayout.StarKind.CORE:
@@ -1779,6 +1837,10 @@ func step() -> void:
 	_sky_mat.set_shader_parameter("sky_off", sky_off())
 	if star != null:
 		star.position = o
+		if _glow != null:
+			RadiantGlow.glow_mat(_glow).set_shader_parameter("light", o / Vector2(960, 540))
+			RadiantGlow.glow_mat(_glow).set_shader_parameter("pulse", RadiantGlow.sun_pulse(star))
+			RadiantGlow.glow_mat(_glow).set_shader_parameter("hole", RadiantGlow.hole_of(star))
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			star.set("sub", pc - o)
 		if star is SunViewS and _kcor > 0.0:

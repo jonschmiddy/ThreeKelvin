@@ -359,6 +359,7 @@ bare scripts/ui/ShipBreakup.gd::cut
 bare scripts/ui/ShipLoss.gd::picture
 bare scripts/ui/ShipLoss.gd::prebuild
 bare scripts/ui/ShipView.gd::_flame_frames
+bare scripts/ui/ShipView.gd::engine_glow
 bare scripts/ui/ShopScene.gd::banner_spots
 bare scripts/ui/ShopScene.gd::deck_room_for
 bare scripts/ui/ShopScene.gd::doc
@@ -524,9 +525,10 @@ file scripts/ui/LocalSubject.gd 3175
 file scripts/ui/SectorScreen.gd 4946
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/sysmap/ShipFlight.gd 4472
-file scripts/ui/sysmap/SystemView.gd 3178
+file scripts/ui/sysmap/SystemView.gd 3240
 length scripts/Main.gd::_ready 147
 length scripts/autoload/Database.gd::_seed_modules 453
+length scripts/autoload/Router.gd::start_combat 101
 length scripts/systems/CardResolver.gd::resolve 139
 length scripts/systems/FlightSolve.gd::_build_in 120
 length scripts/systems/FlightSolve.gd::_integrate 381
@@ -537,7 +539,7 @@ length scripts/systems/MapGen.gd::spread_positions 102
 length scripts/systems/MaterialTable.gd::all 212
 length scripts/systems/NebulaField.gd::_build 120
 length scripts/systems/SaveGame.gd::_node_from 110
-length scripts/systems/SaveGame.gd::load_into_run 176
+length scripts/systems/SaveGame.gd::load_into_run 182
 length scripts/systems/SystemLayout.gd::of 187
 length scripts/systems/options/OptionsPart01.gd::entries 437
 length scripts/systems/options/OptionsPart02.gd::entries 532
@@ -558,7 +560,7 @@ length scripts/ui/BreakupCuts.gd::_cut_creature 126
 length scripts/ui/BreakupCuts.gd::_cut_new 226
 length scripts/ui/CardGalleryScreen.gd::_fill 120
 length scripts/ui/CardView.gd::_type_glyph 122
-length scripts/ui/ChartSky.gd::_push 160
+length scripts/ui/ChartSky.gd::_push 171
 length scripts/ui/ChassisSelect.gd::_build_detail 171
 length scripts/ui/CutawayView.gd::_layout 221
 length scripts/ui/EncounterView.gd::_shoulders_at 103
@@ -575,7 +577,7 @@ length scripts/ui/JumpFx.gd::_draw 118
 length scripts/ui/JumpFx.gd::_ending 147
 length scripts/ui/LocalDust.gd::_process 136
 length scripts/ui/LocalEventDrawer.gd::_result 200
-length scripts/ui/LocalSky.gd::_build 240
+length scripts/ui/LocalSky.gd::_build 247
 length scripts/ui/LocalSubject.gd::_build 135
 length scripts/ui/LocalSubject.gd::_place 145
 length scripts/ui/LocalSubject.gd::plan 101
@@ -626,5 +628,5 @@ length scripts/ui/sysmap/SystemOverlay.gd::_draw_ship 224
 length scripts/ui/sysmap/SystemView.gd::_draw#7 105
 length scripts/ui/sysmap/SystemView.gd::_rocks 101
 length scripts/ui/sysmap/SystemView.gd::orbit_runs 118
-length scripts/ui/sysmap/SystemView.gd::show_system 420
-length scripts/ui/sysmap/SystemView.gd::step 358
+length scripts/ui/sysmap/SystemView.gd::show_system 432
+length scripts/ui/sysmap/SystemView.gd::step 363

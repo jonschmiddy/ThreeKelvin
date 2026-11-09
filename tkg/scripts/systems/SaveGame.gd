@@ -14,10 +14,13 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 static var restoring := false
 ## Bumped whenever the shape changes; an old file is discarded, never guessed at.
 ## Why: docs/why/SaveGame.md#version-history
-const VERSION := 40
+const VERSION := 41
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
+## Whether a pre-41 save keeps a live Hellbender below `RunState.HELLBENDER_ASCENSION` (Nov 8 default;
+## Jon's call pending). False pulls it from the old run on load. Why: docs/why/SaveGame.md#version-history
+const OLD_SAVE_KEEPS_HELLBENDER := true
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -112,6 +115,8 @@ static func _snapshot() -> Dictionary:
 		galaxy_kind = Run.galaxy_kind,
 		galaxy = Run.galaxy,
 		galaxy_seed = Run.galaxy_seed,
+		# How hard (VERSION 41).
+		ascension = Run.ascension,
 		# What the world may hold (VERSION 34).
 		unlocked = Array(Run.unlocked_manufacturers).map(
 			func(m: StringName) -> String: return String(m)),
@@ -213,6 +218,8 @@ static func load_into_run() -> bool:
 	Run.galaxy_kind = int(d.get("galaxy_kind", 0))
 	Run.galaxy = _galaxy_from(Run.galaxy_kind, d.get("galaxy", {}))
 	Run.galaxy_seed = int(d.get("galaxy_seed", 0))
+	# A 40 save has none: level 0, the game it was played as (VERSION 41).
+	Run.ascension = clampi(int(d.get("ascension", 0)), 0, Run.ASCENSION_MAX)
 	Rng.restore(d.get("rng", {"master": Run.galaxy_seed}))
 	Run.unlocked_manufacturers = _unlocked_from(d.get("unlocked", null))
 	Run.galaxy_spin = float(d.get("galaxy_spin", 0.0))
@@ -341,6 +348,10 @@ static func load_into_run() -> bool:
 	Run.hellbender_hp = clampi(int(d.get("hellbender_hp", 0)), 0, Run.hellbender_max)
 	Run.hellbender_moves = maxi(0, int(d.get("hellbender_moves", 0)))
 	Run.hellbender_ticks = maxi(0, int(d.get("hellbender_ticks", 0)))
+	if not OLD_SAVE_KEEPS_HELLBENDER and int(d.get("version", VERSION)) < 41 and not Run.hellbender_in_play():
+		Run.hellbender_at = -1
+		Run.hellbender_hp = 0
+		Run.hellbender_max = 0
 
 	# A run comes back unwon, except the one written at the core between the
 	# kill and its body (`save_core_won`): won already, recorded already.
