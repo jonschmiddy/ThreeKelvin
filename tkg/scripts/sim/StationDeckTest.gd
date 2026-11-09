@@ -1149,6 +1149,7 @@ func _every_ride(dev: int) -> void:
 		rides == 20 and bad.is_empty())
 	_ok("%s: the board's tubes stay dark riding in till the car is nearly in (level %.2f)" % [tag, lamp_max],
 		lamp_max == 0.0)
+	await _press_mid_ride(st, tag, span)
 	# THE FALLBACK: the dip through the dark
 	StationScreen.deck_move = &"dip"
 	(st._tabs[&"stock"] as Button).pressed.emit()
@@ -1158,6 +1159,40 @@ func _every_ride(dev: int) -> void:
 	_ok("%s: deck_move &\"dip\" dips through the dark instead (%s), and lands (tab %s)" % [tag, dipped, st._tab],
 		dipped and st._tab == &"stock" and (st._pages[&"stock"] as Control).visible and not st.deck_changing())
 	Router.animate_in_harness = was_anim
+
+
+## THE RAIL STAYS LIVE MID-RIDE (stripped-down UI A1, Nov 9): six frames into the
+## yard's ride up to the LABORATORY, the EXCHANGE's cell is clicked through the
+## viewport: it takes the click, the ride turns from where the shaft stands (no
+## jump), the moving decks took no click, and it lands on the EXCHANGE at rest.
+func _press_mid_ride(st: StationScreen, tag: String, span: float) -> void:
+	Router.animate_in_harness = false
+	st._show_tab(&"services")
+	await _tree.process_frame
+	Router.animate_in_harness = true
+	(st._tabs[&"bench"] as Button).pressed.emit()
+	await Harness.frames(_tree, 6)
+	var from := st._pages[&"services"] as Control
+	var y_mid := from.position.y
+	var moving: bool = st.deck_changing() and y_mid != 0.0 and st._deck_to == st._pages[&"bench"]
+	var dead := from.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_DISABLED \
+		and (st._pages[&"bench"] as Control).mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_DISABLED
+	await _click(st._tabs[&"hold"] as Button)
+	# (three frames pass in the click: the shaft may move three steps, no more)
+	var step_cap := span * PI / 2.0 * StationScreen.RIDE_STEP_S / StationScreen.DECK_MIN_S + 2.0
+	var y_now := from.position.y
+	var turned: bool = st._tab == &"hold" and st.deck_changing() and st._deck_from == from \
+		and st._deck_to == st._pages[&"hold"] and absf(y_now - y_mid) <= 3.0 * step_cap
+	await _until(func() -> bool: return not st.deck_changing(), 6000)
+	await _tree.process_frame
+	var shown := 0
+	for k in st._pages:
+		if (st._pages[k] as Control).visible:
+			shown += 1
+	_ok("%s: mid-ride the moving decks take no click and the rail does: the ride turns to the EXCHANGE from where the shaft stands (moving %s, dead %s, turned %s, y %.0f to %.0f) and lands there (tab %s, shown %d)" % [
+		tag, moving, dead, turned, y_mid, y_now, st._tab, shown],
+		moving and dead and turned and st._tab == &"hold" and shown == 1
+		and (st._pages[&"hold"] as Control).position.y == 0.0 and not st.deck_changing())
 
 
 ## AUGMENT AND STRIP (S9 part two): the page's box test on every part and
