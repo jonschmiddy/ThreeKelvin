@@ -4,6 +4,5 @@
 - **Changed** — PLOT NEXT JUMP shows up once every event in the system is done, lit orange. Until then, the STARCHART tab or Tab takes you to the chart.
 - **Changed** — docked, the map and the star chart say UNDOCK FIRST instead of showing greyed DOCKED buttons.
 - **Changed** — an event's REWARD button is now called SECTOR LOOT, the same name as the pile it opens, and it is orange so it stands out from CONTINUE.
-- **Changed** — NEW RUN goes straight to the hull pick. With a saved run it still asks first. The seed box moved to Settings, on the title screen.
 - **Changed** — the Shipyard sends one repair drone when 8 hull or less is missing, since PATCH and REPAIR would do the same job.
 - **Changed** — the ship view's close button says DONE, and the pause menu's "NO, KEEP PLAYING" says BACK. Esc still works.
