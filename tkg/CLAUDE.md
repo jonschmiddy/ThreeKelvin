@@ -135,8 +135,12 @@ threads (`maplagtest`, `gameclocktest`, `playerdeathtest`, `faunatest`,
 `threadstress`, `lowhulltest`, `ashteachcosttest`, `flightclicks`, the sim). Every unit gets its own user folder (`APPDATA` on Windows,
 `XDG_DATA_HOME`/`HOME` elsewhere), so user:// is never shared between steps and never
 the real profile; output prints whole per step in file order, then each step's time and
-every FAIL. A new gated harness is a new `unit_` function; if it times anything, it
-goes in `SOLO_UNITS`.
+every FAIL. A new gated harness is a new `unit_` function, and it must not depend on how
+fast the machine is. Step a fixed clock (`--fixed-fps`, `GameClock` or a fake clock), wait
+on a condition with a generous deadline, and count work done rather than time passed.
+Never sleep and then assert that nothing happened. A speed limit prints its numbers and
+runs on demand, not in the gate. `SOLO_UNITS` holds older steps that still time something:
+do not add to it.
 
 Which harness covers which code is in `docs/tests.md`: one row per harness, with what
 to run it after. Before you finish a change, grep it for the class, file or function you
