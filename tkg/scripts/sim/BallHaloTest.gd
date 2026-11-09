@@ -49,8 +49,12 @@ func _ready() -> void:
 
 func _run() -> void:
 	print("\n=== BALL HALO: a ball galaxy's light about its core ===")
-	StarchartScreen.MapChart.clock_override = 600.0
+	# the sky's clock (`clock=T`, default 600: any clock must pass)
+	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
 	DisplaySettings.reduced_motion = false
+	# RADIANT's moving light held off: a ball is judged at rest, at any clock (Nov 7).
+	# Why: docs/why/BallHaloTest.md#radiant-at-rest
+	ChartRadiant.drama_on = false
 	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
@@ -63,6 +67,7 @@ func _run() -> void:
 		DisplaySettings.render_style = DisplaySettings.valid_style(st)
 		for c in cases:
 			await _case(StringName(st), int(c[0]), int(c[1]))
+	ChartRadiant.drama_on = true
 	print("ballhalo: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
 	get_tree().quit(1 if _fails > 0 else 0)
 

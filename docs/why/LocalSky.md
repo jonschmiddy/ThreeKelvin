@@ -424,3 +424,49 @@ slid by fractions of a pixel -- instead of shrunk as a picture on the 2 px
 grid, which wobbled it a pixel back and forth. `near_hand` drives it the
 same way, played the other way round; `end_hand` puts it back.
 ```
+
+## Radiant flares
+
+Above `const LOCAL_FLARE_R := 170.0`:
+
+```text
+LIGHT THAT MOVES (RADIANT, Nov 7, direction B): the sun's own flares
+(`ChartRadiant.sun_flare`, the sector map's clock) -- its glow and haze swell, its
+light runs out through the cloud, shaded by the dust between (`local_grade`'s
+`r_sun`), and the worlds' day sides brighten. (The band behind the play once let
+more through in a flare too: the whole sky brightening read as an exposure, not
+the sun's light; review, Nov 7.)
+the flare's light round the sun in LOCAL: its reach (game px), its gain at full
+```
+
+## Radiant chiaroscuro
+
+Above `const RADIANT_KEEP := 0.55`:
+
+```text
+and RADIANT's lit volume, toned once (CHIAROSCURO, proto/radiant-a, Nov 7: was
+0.38, which pressed the sun's light out within a third of the screen; now its
+light keeps more of its fall and the dark below the mid-tone goes deeper,
+`RADIANT_KEEP_LO`, never lifted: the ships stand on darkness, not on a wash)
+```
+
+Above `const LIGHT_Z := 140.0`:
+
+```text
+How far toward you the star's light on a world comes from (`LIGHT_Z`, layer px
+against the star's offset on the screen). 140 lit a near world almost from the
+front, so a giant was lit edge to edge; RADIANT's chiaroscuro brings the light
+round to the side (`RADIANT_LIGHT_Z`, against a unit way across the screen): a
+hard terminator, a share of the disc in night, the limb caught by the gas behind.
+(Then from a little BEHIND, negative: the star is far off in the sky behind the
+world. At +0.3 the ringed giant's night fell mostly out of frame, so its visible
+face was all day; from behind, the terminator (hard now, planet.gdshader's
+`r_edge`) crosses the face you see.)
+```
+
+Above `func _light_vec(d: Vector2) -> Vector3:`:
+
+```text
+(by its way only: `d` is in the world's own layer px, under its zoom, and
+for the near world it is short, so any depth at all lit it from the front)
+```

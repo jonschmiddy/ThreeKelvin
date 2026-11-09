@@ -186,6 +186,8 @@ var _src: Dictionary = {}
 ## Runtime: the composite's viewport (what is drawn), the place pass's inside
 ## it and the stars' inside that, so each is rendered before the one reading it.
 var _vp: SubViewport = null
+## RADIANT's glow (`RadiantGlow`): the composite's viewport wrapped, drawn in its place
+var _gvp: SubViewport = null
 var _pvp: SubViewport = null
 var _svp: SubViewport = null
 var _place: ColorRect = null
@@ -352,6 +354,8 @@ func sky_viewports() -> Array[SubViewport]:
 		if v != null:
 			out.append(v)
 	out.append(_vp)
+	if _gvp != null:
+		out.append(_gvp)
 	return out
 
 
@@ -412,8 +416,7 @@ func _exit_tree() -> void:
 ## style's own renderer (`setup`, at the next draw).
 func _on_style() -> void:
 	if _vp != null:
-		_vp.queue_free()
-		_vp = null
+		_drop_vp()
 	# keyed afresh at the next draw: each style keeps a bake of its own
 	_key = ""
 	queue_redraw()
@@ -439,6 +442,16 @@ func _g_for() -> Dictionary:
 
 # ------------------------------------------------------------------ setup
 
+## The composite's viewport gone (and RADIANT's glow round it).
+func _drop_vp() -> void:
+	if _gvp != null:
+		_gvp.queue_free()
+		_gvp = null
+	elif _vp != null:
+		_vp.queue_free()
+	_vp = null
+
+
 ## Hand the chart over; bake its galaxy if nobody has.
 func setup(c: StarchartScreen.MapChart) -> void:
 	chart = c
@@ -451,8 +464,7 @@ func setup(c: StarchartScreen.MapChart) -> void:
 	if key != _key:
 		_key = key
 		if _vp != null:
-			_vp.queue_free()
-			_vp = null
+			_drop_vp()
 		if not _baked.has(key) and not _bake_due:
 			_bake_due = true
 			_request_bake.call_deferred()
@@ -1675,6 +1687,12 @@ func _runtime() -> void:
 	_radiant_probe = GpuProbe.new(probed, ChartRadiant.PROBE_FRAMES) if radiant else null
 	_comp = _rect(_m_comp)
 	_vp.add_child(_comp)
+	if radiant:
+		_gvp = RadiantGlow.wrap(_vp, Vector2(_vp.size), ChartRadiant.GLOW_LOOK)
+		# (the safety measures the glow too)
+		_radiant_probe.release()
+		var probed_g: Array[SubViewport] = [_svp, _pvp, _vp, _gvp]
+		_radiant_probe = GpuProbe.new(probed_g, ChartRadiant.PROBE_FRAMES)
 	push()
 
 
@@ -2081,6 +2099,8 @@ func _push() -> void:
 		_svp.size = vsz
 		_place.size = Vector2(vsz)
 		_comp.size = Vector2(vsz)
+		if _gvp != null:
+			RadiantGlow.resize(_gvp, vsz, Vector2(vsz))
 		if _tvp != null:
 			_tvp.size = vsz
 			_state.size = Vector2(vsz)
@@ -2107,6 +2127,15 @@ func _push() -> void:
 	m.set_shader_parameter("u_zopen", StarchartScreen.MapChart.ZOOM_MIN * k / K0 if _use_map else z)
 	_feed_sky(m)
 	m.set_shader_parameter("u_block0", b0)
+	if g.has("radiant") and int(g.p.form) == 1:
+		# (a ball's outskirts fall to black as the chart comes in: `ChartRadiant.ball_drama`)
+		m.set_shader_parameter("u_drama", ChartRadiant.ball_drama(z))
+	if _gvp != null:
+		# RADIANT's glow: its dither anchored as the composite's, its rays from the core
+		var gm := RadiantGlow.glow_mat(_gvp)
+		gm.set_shader_parameter("anchor", b0)
+		gm.set_shader_parameter("light", ((ccon - _vp_origin) * 0.5) / vs)
+		gm.set_shader_parameter("hole", hole_of(g.p) * K0 * z * 0.5 * ChartRadiant.GLOW_HOLE)
 	_feed_events(m, g, t, phi, z, true)
 	if g.has("radiant"):
 		ChartRadiant.feed_events(m, g, t, DisplaySettings.reduced_motion, true)
@@ -2246,6 +2275,7 @@ func _draw() -> void:
 	if _vp == null or _g_for().is_empty():
 		draw_rect(Rect2(Vector2.ZERO, chart.size), Color8(7, 10, 18), true)
 	else:
-		draw_texture_rect(_vp.get_texture(), Rect2(_vp_origin, Vector2(_vp.size) * 2.0), false)
+		var shown := _gvp if _gvp != null else _vp
+		draw_texture_rect(shown.get_texture(), Rect2(_vp_origin, Vector2(_vp.size) * 2.0), false)
 	if StarchartScreen.MapChart.prof:
 		StarchartScreen.MapChart.prof_add("sky", Time.get_ticks_usec() - t0)

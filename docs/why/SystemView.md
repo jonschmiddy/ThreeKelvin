@@ -779,3 +779,55 @@ strip the painted rings draw from (`Rings.build`, at the size the world is
 drawn), in world radii; the widest gaps first, then outside it all. Empty
 for a world without painted rings.
 ```
+
+## Red giant glow
+
+Above `const GLOW_GIANT := {"thr": 0.8, "halo_b": Vector3(0.75, 0.3, 0.0), "ray_len": 0.2}`:
+
+```text
+THE RED GIANT'S GLOW (Jon, Nov 7, RC:2B): only the star and its hottest gas glow,
+about half as far out. Its corona and the warm gas round it all passed `thr` 0.55,
+and the widest halo (level 6, 64 blocks) and the rays' reach laid a pink disc over
+the inner orbits, the ship and its IN ORBIT label. From a brighter light, the widest
+halo's share moved onto the next (each level half as wide), the rays half as long.
+The round read (`wide_smooth`) and the light's hue are kept. Measured on the map
+(Kappa Grist, frame 0 against the glow's gain at 0): lit (8+ levels) out to 44 px
+from 118, half its light inside 32 px from 70; the ship, its label and the inner
+orbits under 5% lit, from 57-88%. LOCAL keeps its look: there the giant is a small
+sun high in the sky, its glow nowhere near the ship.
+```
+
+## Radiant glow look
+
+Above `const GLOW_LOOK := {"wide_smooth": true, "thr": 0.55, "knee": 0.16, "gain": 2.2, "self_k": 0.9, "steps": 5.0, "band": 0.22, "rays": 1.1, "ray_len": 0.4,`:
+
+```text
+and its look here: the sun's rays through the gas, a deep violet shade
+(review, Nov 7: `wide_smooth`, the wide halos read round, not as a polygon)
+(A+B+C, Nov 7: the rays' reach 0.8 to 0.4 of the frame's height -- reaching far,
+they summed a bright cloud across the map into a flat tan patch with a dithered
+edge -- and the glow from a little brighter, `thr` 0.55. No `crush` (was 0.15):
+A's toe in `sky_nebula` is the one tone step. Round the core, whose light is the
+hole and a whole sky of hot haze, the rays are `GLOW_CORE_RAYS`: at full they laid
+one plate over the disc.)
+```
+
+## Radiant flares
+
+Above `func _radiant_flares() -> void:`:
+
+```text
+LIGHT THAT MOVES (RADIANT, Nov 7, direction B): the sun's own flares
+(`ChartRadiant.sun_flare`), far more often than the prominences, on top of them --
+its glow swells, the haze round it and its light through the cloud run out and fall
+back, the worlds' day sides brighten (`_flare` reaches the cloud and the worlds)
+the flare's light round the sun on the map: its reach (px of the 960x540 frame), its gain at full
+```
+
+Above `if _palette_mat != null:`:
+
+```text
+(the flare's light on everything round the sun, through the palette's pass, every
+frame: the cloud's own `r_flare` is fed only when the worlds' shadows are cast
+again, so a flare's few seconds come and go between two of those)
+```

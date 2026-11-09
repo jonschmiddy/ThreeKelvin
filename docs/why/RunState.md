@@ -2412,3 +2412,16 @@ each ship of a party has its own board and seat 0 is the solo board on that
 seed. `Rng.seat` rather than `Net.seat()`: the two agree at a new run, which
 reseeds from `Net.seat()`, and at a load only Rng has the saved seat back.
 ```
+
+## Hellbender ascension
+
+Above `const HELLBENDER_ASCENSION := 7`:
+
+```text
+THE ASCENSION LEVEL THE HELLBENDER FIRST FLIES AT (Jon, Nov 8: "ONLY have
+the hellbender show up on Ascention 7+"). Below it the rival never spawns,
+so nothing that reads `hellbender_alive()` (the chart, the blockade, the
+log, the drawer, its fight, its music, the co-op pushes) has anything to
+show. The hiring boards still name it at every level, as a hint of what is
+coming (Jon's follow-up); they promise no bounty (`BoardSignTest`).
+```

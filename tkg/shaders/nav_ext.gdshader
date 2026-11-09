@@ -15,6 +15,10 @@ shader_type canvas_item;
 uniform vec4 inner = vec4(0.0);
 uniform vec4 outer = vec4(0.0, 0.0, 960.0, 540.0);
 uniform float fade = 24.0;
+// the most it fades over at the area's own edges (RADIANT in a cloud: 4 px; its
+// field there is near-black, and the fade read as a black strip down the left;
+// docs/why/NavField.md#radiant-cloud-edge)
+uniform float area_fade = 24.0;
 // (the map going small into the chart, a cloud: `cloud_round.gdshaderinc`)
 uniform float round_k = 0.0;
 uniform vec2 round_c = vec2(480.0, 270.0);
@@ -62,10 +66,10 @@ void fragment() {
 	// (each side's fade no wider than the gap from the area's edge to the
 	// picture's: where the picture stands close to it -- its left, 12 px -- the
 	// sky reaches full there, as the picture does, not a step at its edge)
-	float fl = inner.z > 0.0 ? clamp(inner.x - outer.x, 4.0, fade) : fade;
-	float fr = inner.z > 0.0 ? clamp(outer.x + outer.z - inner.x - inner.z, 4.0, fade) : fade;
-	float ft = inner.z > 0.0 ? clamp(inner.y - outer.y, 4.0, fade) : fade;
-	float fb = inner.z > 0.0 ? clamp(outer.y + outer.w - inner.y - inner.w, 4.0, fade) : fade;
+	float fl = inner.z > 0.0 ? clamp(inner.x - outer.x, 4.0, area_fade) : area_fade;
+	float fr = inner.z > 0.0 ? clamp(outer.x + outer.z - inner.x - inner.z, 4.0, area_fade) : area_fade;
+	float ft = inner.z > 0.0 ? clamp(inner.y - outer.y, 4.0, area_fade) : area_fade;
+	float fb = inner.z > 0.0 ? clamp(outer.y + outer.w - inner.y - inner.w, 4.0, area_fade) : area_fade;
 	e *= smoothstep(0.0, fl, p.x - outer.x) * smoothstep(0.0, fr, outer.x + outer.z - p.x)
 		* smoothstep(0.0, ft, p.y - outer.y) * smoothstep(0.0, fb, outer.y + outer.w - p.y);
 	COLOR = vec4(c.rgb, clamp(e, 0.0, 1.0));

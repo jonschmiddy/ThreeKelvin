@@ -940,3 +940,15 @@ sits at. So the engines settle into the burn they keep. They used to go
 dark in the gaps and through the coast (1.8 s at the end of an arrival), and
 the idle came on with the park: off, then on again.
 ```
+
+## Engine glow
+
+Above `func engine_glow() -> Dictionary:`:
+
+```text
+THE ENGINES' LIGHT, for RADIANT's backdrop to catch (Nov 7, direction B,
+`LocalSky._engine_light`): where the flames start (the middle of the nozzles,
+global px), the way they burn (+1 or -1 along x), how hard (IDLE 0.55, CRUISE 1,
+FULL 1.4), the flame's own ramp (warm or cold) and the ship's scale on screen.
+Empty when no flame is drawn.
+```

@@ -324,8 +324,15 @@ co-op the Custodian grows on the most jumps any ship in the dive has made
 CONTINUE would otherwise meet a weaker boss than the badge showed. Read the
 way 39 reads 38: a 39 save has no `party_jumps`, and missing means 0, so its
 count is its own jumps, as a 39 build grew it. OLDEST_READ stays at 29.
-41: THE RUN'S ASCENSION LEVEL, the Hellbender's (`port/hellbender-asc7`, Jon,
-Nov 8), which lands before science. Its entry comes with it.
+41: THE RUN'S ASCENSION LEVEL (`ascension`: `Run.ascension`, Jon, Nov 8).
+The Hellbender flies only at `RunState.HELLBENDER_ASCENSION` and up, and a
+run is spawned at its level once, so CONTINUE has to bring the level back or
+the ladder could not say what a loaded run is. Read the way 40 reads 39: a
+40 save has no `ascension`, and missing means 0, the game a 40 build played.
+A 40 save that already has a live Hellbender KEEPS it (its five fields load
+as before): pulling a rival out mid-chase, or mid-fight, is worse than
+letting one old run finish with it (`SaveGame.OLD_SAVE_KEEPS_HELLBENDER`).
+OLDEST_READ stays at 29.
 42: SCIENCE (Phase 12, Jon's picks Nov 4). `data` (`Run.data`), the dealt
 `board` (as routine ids), `board_owned` (steps bought per branch),
 `black_box_spent`, and a module's `augmented`. The board is saved as ids and
