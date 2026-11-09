@@ -486,8 +486,8 @@ func _list() -> void:
 		jb.disabled = _join_shown == Router.JOIN_SHUT
 		jb.tooltip_text = Widgets.tip(Router.join_tip())
 	# Shown once the system is done, lit as the one thing to do; till then the
-	# STARCHART tab and Tab leave (Jon, Nov 9, stripped-down UI 4).
-	if system_done():
+	# STARCHART tab and Tab leave (Jon, Nov 9, stripped-down UI 4). Docked, UNDOCK is.
+	if system_done() and not Router.docked:
 		var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
 		plot.name = "PlotNextJump"
 		Widgets.commit(plot)

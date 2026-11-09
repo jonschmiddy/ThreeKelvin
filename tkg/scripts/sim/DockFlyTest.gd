@@ -519,6 +519,13 @@ func _berth_shut(p: int) -> void:
 			if (b as Button).is_visible_in_tree() and (b as Button).text in ["DOCKED", "FLY HERE", "CANNOT UNDOCK"]:
 				fly = b as Button
 		var ul := _undock_line(m.panel)
+		m.panel.show_system()
+		await Harness.frames(_tree, 2)
+		_ok("berth: no PLOT NEXT JUMP lit on the map, as UNDOCK is the one way out (%d)" % m.panel._foot.find_children("PlotNextJump", "Button", true, false).size(),
+			m.panel._foot.find_children("PlotNextJump", "Button", true, false).is_empty())
+		m.select_body(p)
+		await Harness.frames(_tree, 2)
+		ul = _undock_line(m.panel)
 		_ok("berth: the world's page offers no flight, no button: one line, UNDOCK FIRST (%s)" % _says(fly),
 			fly == null and ul != null)
 		_fits("the world page's UNDOCK FIRST", ul, m)
