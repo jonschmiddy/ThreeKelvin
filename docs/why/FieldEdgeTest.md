@@ -52,6 +52,10 @@ every frame the held cloud is drawn smaller and still half there, the cloud
 as drawn (brighter than the field by 12 levels, the plates and the HUD left
 out) found, and along its bounding box's four sides, 4 px in, how much of
 each line is cloud: a rect would fill them; a cloud thinning out does not.
+(Nov 8: the screens' words and the goal line, `GoalLine.stack_rect`, are left
+out too. The map's orange goal line read as cloud and set the box's top-left
+corner, 30 of 299 samples there, 10.0% against 10% allowed, in RADIANT on main
+and on the RADIANT branch alike; with it out, 2% and the box the cloud's own.)
 ```
 
 ## Galaxy past the picture
@@ -81,4 +85,25 @@ through like the other panels"): over the toolbar row's plate and the side
 panel's, clear of their words, the screen follows the field under it by
 about 1 - `NavField.PLATE_A` (fitted: the slope of the screen's luminance
 on the field's)
+```
+
+## Cloud edge means
+
+Inside `_check()`, above the in-cloud reading of an edge:
+
+```text
+In a cloud the edge is read on each line's MEAN of the screen less the field,
+not its median (Nov 8). RADIANT's far gas is two palette levels about half and
+half, one keyed through to the field and one over it, so a line's median is
+whichever of the two has the extra row: on seed 4242 it flipped from 0 to 27
+between the line before the picture's left edge and the edge's own (85 rows of
+one against 84), and the same flip turned up at the top (15) -- "a step" that
+was not in the picture, the scene or the cloud drawn on past it (each read
+alone), and stayed with the strip it was blamed for gone. The means run
+smoothly across both edges (0.7 at the left, 1.0 at the top, the cloud's own 2-5). The earlier note that
+"the left edge in a cloud ... swings with the gas's clock" was this flip.
+RADIANT also reads its area's left edge: 4-7 px in from it the gas stands over
+the field by at least 0.6 of what the picture's first lines do (0.43 with the
+12 px fade into its near-black field, the black strip; 0.86 at 4 px). Not
+in the other styles: they keep a 24 px fade there, into a navy field.
 ```

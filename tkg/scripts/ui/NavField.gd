@@ -12,6 +12,9 @@ const KEY := preload("res://shaders/nav_key.gdshader")
 const EXT := preload("res://shaders/nav_ext.gdshader")
 ## how far in from a picture's edge what it holds fades out (px), never cut
 const EDGE_FADE := 24.0
+## RADIANT in a cloud: the map's gas fades this little at the screens' area edges (px).
+## Why: docs/why/NavField.md#radiant-cloud-edge
+const RADIANT_AREA_FADE := 4.0
 
 
 ## THE SWITCH: `-- field=off` puts the map's and the chart's own skies back, in
@@ -384,8 +387,7 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 		return
 	var sc: SubViewport = v.get("_scene")
 	# (RADIANT's glow, `RadiantGlow`, wraps the scene: the picture shown is the glow's,
-	# so the cloud drawn on past it is too -- the bare scene against the glowed
-	# picture was a step at the picture's soft edge, 27 levels at its left in a cloud)
+	# so the cloud drawn on past it is too)
 	var gv: Variant = v.get("_glow")
 	if gv is SubViewport and is_instance_valid(gv):
 		sc = gv
@@ -403,6 +405,7 @@ func _gas_past(map: SystemMapScreen, frame: Rect2) -> void:
 	m.set_shader_parameter("inner", Vector4(frame.position.x, frame.position.y, frame.size.x, frame.size.y))
 	m.set_shader_parameter("outer", Vector4(o.position.x, o.position.y, o.size.x, o.size.y))
 	m.set_shader_parameter("span", sz / Vector2(960, 540))
+	m.set_shader_parameter("area_fade", RADIANT_AREA_FADE if cloud and bool(v.get("radiant")) else EDGE_FADE)
 	# (past the sky's end, the same cloud drawn on: `SystemView` `_past`)
 	var pv: Variant = v.get("_past")
 	var pon: bool = pv is SubViewport and is_instance_valid(pv)

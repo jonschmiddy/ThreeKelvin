@@ -77,3 +77,27 @@ how far its own pan has gone since it came up, from wherever it stood, so a
 hop never puts it back; and through a move it holds still (a move is not a
 pan: `ZoomLadder.busy`).
 ```
+
+## Radiant cloud edge
+
+Above `const RADIANT_AREA_FADE := 4.0`:
+
+```text
+RADIANT IN A CLOUD, THE GAS RUNS ON TO THE AREA'S EDGE (Nov 8, before RADIANT
+lands: "a flat dark strip down the picture's left edge"). `nav_ext` fades the
+map's cloud out over the screens' area edges, into the field, over as much of the
+gap to the picture as it has, up to `EDGE_FADE`: at the map's left that gap is
+12 px, so the whole of it was a fade. In the other styles the field under a cloud
+is a navy about the colour of the window's own margin, and the fade reads as a
+soft edge. RADIANT's chiaroscuro (A+B+C, Nov 7) put LOCAL's palette, and so the
+field's, down to a near-black (4,4,4), and the map's far gas to a dim navy
+(about 17 levels, half of it keyed through to the field): the fade became a black
+band 6-8 px wide between the margin (14) and the gas, down the whole left side.
+Measured on seed 4242's cloud: the screen less the field, 4-7 px in from the
+area's edge, 6.1 levels against the picture's first lines' 14.1 (a 12 px fade); 12.1
+against 14.1 at 4 px. The gas meets the margin at little contrast, so 4 px (the
+shortest any side takes) is enough. The top's fade lies under the toolbar plate
+and the right's under the side panel; the bottom's goes from 24 to 4 px too.
+Nothing else of RADIANT's look moves: the picture, its glow and its key are as
+they were. The other styles keep their 24.
+```
