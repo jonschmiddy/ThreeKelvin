@@ -22,7 +22,90 @@ func run() -> void:
 	_korvan_runs_cold()
 	_solari_runs_hot()
 	_solari_heat_not_waste()
+	# (last, and in the tree: it waits on frames, so the run waits on it)
+	await _pick_mode()
 	verdict("holdtest")
+
+
+## PICK MODE (science S9, the Lab): a hold shown to choose a part from never moves one.
+## Why: docs/why/HoldTest.md#pick-mode
+func _pick_mode() -> void:
+	seed_run(4250)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for i in 4:
+		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
+	var tree := Engine.get_main_loop() as SceneTree
+	var grid := HoldGrid.new()
+	tree.root.add_child.call_deferred(grid)
+	await tree.process_frame
+	await tree.process_frame
+	if not _ok("pick mode: the grid is in the tree", grid.is_inside_tree()):
+		return
+	grid.position = Vector2(40, 40)
+	grid.refresh()
+	await tree.process_frame
+	grid.pick_mode = true
+	var was := {}
+	for m in Run.cargo:
+		was[m] = m.hold_at
+	var got: Array = []
+	grid.picked.connect(func(m: HoldItem) -> void: got.append(m))
+	var icons: Array[ItemIcon] = []
+	for c in grid.get_children():
+		if c is ItemIcon:
+			icons.append(c)
+	_ok("pick mode, set with the icons up: %d icons, every one ignoring the mouse" % icons.size(),
+		icons.size() == Run.cargo.size() and icons.all(func(ic: ItemIcon) -> bool: return ic.mouse_filter == Control.MOUSE_FILTER_IGNORE))
+	var want: Array = []
+	var drags := 0
+	# (the viewport the grid is in: at the root here, under no screen)
+	var target := grid.get_viewport()
+	for ic in icons:
+		want.append(ic.held_item())
+		var at := ic.get_global_rect().get_center()
+		var mv := InputEventMouseMotion.new()
+		mv.position = at
+		mv.global_position = at
+		target.push_input(mv)
+		await tree.process_frame
+		for pressed in [true, false]:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = pressed
+			mb.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+			mb.position = at
+			mb.global_position = at
+			target.push_input(mb)
+			await tree.process_frame
+		# the gestures that stow or take a part, handed to the icon itself
+		for g in [[MOUSE_BUTTON_LEFT, true, false], [MOUSE_BUTTON_LEFT, false, true], [MOUSE_BUTTON_RIGHT, false, false]]:
+			var mb2 := InputEventMouseButton.new()
+			mb2.button_index = g[0]
+			mb2.pressed = true
+			mb2.shift_pressed = g[1]
+			mb2.double_click = g[2]
+			ic._gui_input(mb2)
+		await tree.process_frame
+		if ic._get_drag_data(Vector2.ZERO) != null:
+			drags += 1
+	_ok("pick mode: a click through the viewport on each icon picks its part (%d of %d)" % [got.size(), want.size()], got == want)
+	_ok("pick mode: no icon gives up drag data (%d did)" % drags, drags == 0 and icons.all(func(ic: ItemIcon) -> bool: return is_instance_valid(ic) and ic.visible))
+	var drop := {module = Run.cargo[0], origin = &"cargo"}
+	_ok("pick mode: the grid takes no drop", not grid._can_drop_data(Vector2(5, 5), drop))
+	var moved := 0
+	for m2 in Run.cargo:
+		if not was.has(m2) or was[m2] != m2.hold_at:
+			moved += 1
+	_ok("pick mode: no click, shift-click, double-click or right-click moved a part (%d of %d still where they were)" % [Run.cargo.size() - moved, Run.cargo.size()],
+		moved == 0 and Run.cargo.size() == was.size())
+	grid.pick_mode = false
+	var passing := 0
+	for c2 in grid.get_children():
+		if c2 is ItemIcon and (c2 as Control).mouse_filter == Control.MOUSE_FILTER_PASS:
+			passing += 1
+	_ok("out of pick mode the icons take the mouse again, at once (%d)" % passing, passing == Run.cargo.size())
+	grid.queue_free()
+	await tree.process_frame
 
 
 ## Checks authored card rarities, as the derived path

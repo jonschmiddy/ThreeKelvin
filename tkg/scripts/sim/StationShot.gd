@@ -77,6 +77,11 @@ func run(tree: SceneTree) -> void:
 			# The yard as painted, no light: set against Jon's pictures.
 			YardScene.fullbright = true
 
+	# `runseed=N`: the run's seed fixed, so two runs photograph the same galaxy
+	# and the same station (the Lab's savers come in an order dealt from it)
+	for a4 in OS.get_cmdline_user_args():
+		if (a4 as String).begins_with("runseed="):
+			Rng.forced = int((a4 as String).substr(8))
 	Run.start_new_run(&"korvan" if berths.is_empty() else berths[0], 1)
 
 	# Builds the same state as `-- station`, so the two flags photograph one screen.
@@ -687,11 +692,35 @@ func run(tree: SceneTree) -> void:
 	for i in 30:
 		await RenderingServer.frame_post_draw
 
+	# THE LAB'S SCREEN, ZOOMED (science S9): `labmode=room|board|augment|strip|recipes` with
+	# `deck=bench`, so each page can be photographed at every level.
+	# Why: docs/why/StationShot.md#the-labs-screen
+	await _lab_mode(tree)
+	if OS.get_cmdline_user_args().has("saverfilm"):
+		await _saver_film(tree)
+		tree.quit()
+		return
+	for a_sv in OS.get_cmdline_user_args():
+		if (a_sv as String).begins_with("saverstills="):
+			await _saver_stills(tree, (a_sv as String).substr(12))
+			tree.quit()
+			return
+	if OS.get_cmdline_user_args().has("saverturn"):
+		await _saver_turn(tree)
+		tree.quit()
+		return
+	if OS.get_cmdline_user_args().has("labzoomfilm"):
+		await _lab_zoom_film(tree)
+		tree.quit()
+		return
+
 	# Prints the bar's width: it was 983px in a 960 window, so additions spend a tiny margin.
 	# Why: docs/why/StationShot.md#bar-width
 	if Router.hud != null and Router.hud._row != null:
 		var need: float = Router.hud._row.get_combined_minimum_size().x
-		var have: float = Router.hud.size.x
+		# against the row's clip (932 at a 960 window), not the panel's 944:
+		# past the clip the row's end is cut off, padding or no
+		var have: float = (Router.hud._row.get_parent() as Control).size.x
 		print("  hud row wants %.0f of %.0f%s" % [need, have,
 			"  <-- CLIPPED by %.0f" % (need - have) if need > have else ""])
 
@@ -1352,6 +1381,14 @@ func run(tree: SceneTree) -> void:
 	var path := "user://station_%s.png" % berth
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
+	for a_s in OS.get_cmdline_user_args():
+		if (a_s as String).begins_with("stillto="):
+			var to := (a_s as String).substr(8)
+			DirAccess.make_dir_recursive_absolute(to.get_base_dir())
+			# the game's own 960x540, not the window's bent glass (`GameShell`)
+			var vp_s: Viewport = Router.current.get_viewport() if Router.current != null else tree.root
+			vp_s.get_texture().get_image().save_png(to)
+			print("wrote ", to)
 
 	# `layerhz` times redraws: captures a twelfth of a second apart miss uneven 30 Hz layers.
 	for a in OS.get_cmdline_user_args():
@@ -1404,3 +1441,469 @@ func run(tree: SceneTree) -> void:
 				tree.root.get_texture().get_image().save_png(fp)
 			print("wrote %d frames" % n)
 	tree.quit()
+
+
+## THE LAB'S SCREEN, ZOOMED, in the state the arguments ask for (see the list
+## where it is called). Nothing without `labmode=`.
+func _lab_mode(tree: SceneTree) -> void:
+	var mode := ""
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("labmode="):
+			mode = (a as String).substr(8)
+	if mode == "":
+		return
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("  labmode: no station on screen")
+		return
+	var zoom := scr.lab_zoom()
+	var pick := Vector2i(-1, -1)
+	var buy := -1
+	var hold := -1.0
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("data="):
+			Run.data = int(s.substr(5))
+		elif s.begins_with("credits="):
+			Run.credits = int(s.substr(8))
+		elif s.begins_with("owned="):
+			var o := s.substr(6).split(",")
+			for b in mini(3, o.size()):
+				Run.board_owned[b] = clampi(int(o[b]), 0, 3)
+		elif s.begins_with("board="):
+			var ids: Array[StringName] = []
+			for id in s.substr(6).split(","):
+				ids.append(StringName(id.strip_edges()))
+			if ids.size() == 9:
+				Run.board = ids
+		elif s.begins_with("labpick="):
+			var pk := s.substr(8).split(",")
+			pick = Vector2i(int(pk[0]), int(pk[1]))
+		elif s.begins_with("labbuy="):
+			buy = int(s.substr(7))
+		elif s.begins_with("labphase="):
+			zoom.board.hold_phase(float(s.substr(9)))
+		elif s.begins_with("labzoom="):
+			hold = clampf(float(s.substr(8)), 0.0, 1.0)
+	# (the pointer stays out of it: a shot is of the page, not of the desk's mouse)
+	scr.get_viewport().gui_disable_input = true
+	Sig.resources_changed.emit()
+	if mode == "room":
+		for i in 6:
+			await RenderingServer.frame_post_draw
+		print("  labmode: room, the sign-on on the glass: %s, %s" % [scr._login.state, scr._login.owner_name()])
+		return
+	var want_part := &""
+	var want_affix := -1
+	var press := false
+	for a2 in OS.get_cmdline_user_args():
+		var s2 := a2 as String
+		if s2.begins_with("labparts="):
+			var halves := s2.substr(9).split("/")
+			# (straight off the ship: a full hold would refuse an uninstall)
+			Run.installed.clear()
+			for h0 in Run.cargo.duplicate():
+				if h0 is ModuleData:
+					Run.cargo.erase(h0)
+			for id0 in halves[0].split(",", false):
+				if DB.modules.has(StringName(id0)):
+					Run.install_module((DB.modules[StringName(id0)] as ModuleData).duplicate(true) as ModuleData)
+			# (what the strip of a hull put in the hold goes too)
+			for h1 in Run.cargo.duplicate():
+				if h1 is ModuleData:
+					Run.cargo.erase(h1)
+			if halves.size() > 1:
+				for id1 in halves[1].split(",", false):
+					if DB.modules.has(StringName(id1)):
+						Run.stow((DB.modules[StringName(id1)] as ModuleData).duplicate(true) as ModuleData)
+		elif s2.begins_with("labaug="):
+			for pair in s2.substr(7).split(","):
+				var kv := pair.split(":")
+				for m1: ModuleData in Run.installed + _held_parts():
+					if String(m1.id) == kv[0]:
+						var list: Array[AffixData] = m1.affixes.duplicate()
+						list.append(Science._affix(StringName(kv[1])))
+						m1.affixes = list
+						m1.augmented = true
+		elif s2.begins_with("laboffer="):
+			LabAugment.forced_offer.clear()
+			for nm in s2.substr(9).split(","):
+				LabAugment.forced_offer.append(StringName(nm))
+		elif s2.begins_with("labpart="):
+			want_part = StringName(s2.substr(8))
+		elif s2.begins_with("labaffix="):
+			want_affix = int(s2.substr(9))
+		elif s2 == "labdo":
+			press = true
+		elif s2.begins_with("labfilm=") or s2.begins_with("labrelic="):
+			var mat := &"survey_film" if s2.begins_with("labfilm=") else &"relic"
+			# (exactly that many: the run's own seeded relic goes too)
+			Run.spend_material(mat, Run.material(mat))
+			for i0 in int(s2.split("=")[1]):
+				# (a part out of a full hold to make room, the shot's own stock)
+				var crate := MaterialData.of(MaterialTable.by_id(mat))
+				while not Run.place_in_hold(crate) and not _held_parts().is_empty():
+					Run.cargo.erase(_held_parts()[-1])
+	Run.hp = Run.max_hp()
+	Sig.ship_changed.emit()
+	var tab := &"research" if mode == "board" else (&"augment" if mode == "strip" else StringName(mode))
+	if hold >= 0.0:
+		LabZoom.hold_at = hold
+	zoom.open(tab)
+	zoom.finish()
+	if pick.x >= 0:
+		zoom.board.pick = pick
+		zoom.board.refresh()
+	if buy >= 0:
+		zoom._on_buy(buy)
+	if tab == &"augment":
+		var aug := zoom.augment
+		for m2: ModuleData in Run.installed + _held_parts():
+			if want_part != &"" and m2.id == want_part:
+				aug.pick_part(m2, &"strip" if mode == "strip" else &"augment")
+		if mode == "strip" and want_part == &"":
+			for m3: ModuleData in Run.installed + _held_parts():
+				if not m3.affixes.is_empty():
+					aug.pick_part(m3, &"strip")
+					break
+		if want_affix >= 0:
+			aug.pick_affix(want_affix)
+		if press:
+			aug._commit()
+		aug.hold_phase(0.35)
+	if tab == &"recipes":
+		# `labitem=relic` puts that on the bench, `labrecipe=i` picks its
+		# recipe i, `labdo` presses MAKE
+		var rec := zoom.recipes
+		for a3 in OS.get_cmdline_user_args():
+			var s3 := a3 as String
+			if s3.begins_with("labitem="):
+				rec.pick_item(StringName(s3.substr(8)))
+		for a4 in OS.get_cmdline_user_args():
+			var s4 := a4 as String
+			if s4.begins_with("labrecipe="):
+				rec.pick_recipe(int(s4.substr(10)))
+		if press:
+			rec._commit()
+		rec.hold_phase(0.35)
+	for i in 6:
+		await RenderingServer.frame_post_draw
+	var bad := zoom.check()
+	print("  labmode: %s on %s, DATA %d, owned %s, box test %s" % [mode, zoom._level, Run.data,
+		str(Run.board_owned), "clean" if bad.is_empty() else "; ".join(bad)])
+
+
+## The modules in the hold (not its crates).
+func _held_parts() -> Array[ModuleData]:
+	var out: Array[ModuleData] = []
+	for h in Run.cargo:
+		if h is ModuleData:
+			out.append(h)
+	return out
+
+
+
+## FILM HARNESS (review_lab zoom2, not committed): the room powering on, the
+## logo, the pointer onto the glass (the sign-in), a click, the zoom in, 1.5 s
+## on the board, LEAVE clicked, the zoom out, rest. Every wait counts frames:
+## the movie writer's frames are game time. `filmstills=DIR` writes the logo
+## and the sign-in there, the whole window and the glass.
+func _lab_zoom_film(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var zoom := scr.lab_zoom()
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var stills := ""
+	var settle := 600
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("filmstills="):
+			stills = s.substr(11)
+		elif s.begins_with("settle="):
+			settle = int(s.substr(7))
+	print("FILM LAB_ZOOM_S %.2f UI_OUT_S %.2f UI_IN_S %.2f level %s zoom %d" % [ZoomLadder.LAB_ZOOM_S, ZoomLadder.UI_OUT_S, ZoomLadder.UI_IN_S, lab._level, int(LabZoom.ZOOM.get(lab._level, 0))])
+	print("FILM mark harness %d boot_t %.3f" % [Engine.get_frames_drawn(), lab._lab_clock - lab._boot_at])
+	var target := GameShell.input_target(tree)
+	# (the pointer parked off the glass, on the room's floor)
+	_film_move(target, Vector2(40, 520))
+	var n0 := 0
+	while lab._lab_clock - lab._boot_at < 6.5 and n0 < settle:
+		await tree.process_frame
+		n0 += 1
+	print("FILM mark rest %d boot_t %.3f state %s" % [Engine.get_frames_drawn(), lab._lab_clock - lab._boot_at, scr._login.state])
+	for i in 90:
+		await tree.process_frame
+	if stills != "":
+		await _film_still(tree, scr, "%s/%s_logo" % [stills, lab._level])
+	var at := scr._glass_press.get_global_rect().get_center()
+	_film_move(target, at)
+	# (a pushed motion does not hover a control while the desk's own pointer is
+	# outside the window: the GUI is told, as StationDeckTest's clicks tell it)
+	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	print("FILM mark hover %d" % Engine.get_frames_drawn())
+	for i in 100:
+		await tree.process_frame
+	print("FILM hover state %s saver %s" % [scr._login.state, scr._login.code()])
+	if stills != "":
+		await _film_still(tree, scr, "%s/%s_login" % [stills, lab._level])
+	for i in 20:
+		await tree.process_frame
+	await _film_click(tree, target, at)
+	print("FILM mark press %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	var n := 0
+	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and n < 600:
+		await tree.process_frame
+		n += 1
+		print("FILM in %d at %.4f vis %.3f %s" % [Engine.get_frames_drawn(), zoom._at, zoom.view.modulate.a, _film_geo(zoom)])
+	print("FILM mark landed %d" % Engine.get_frames_drawn())
+	for i in 90:
+		await tree.process_frame
+	var lat := zoom.leave_button.get_global_rect().get_center()
+	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	zoom.leave_button.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _film_click(tree, target, lat)
+	print("FILM mark leave %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	n = 0
+	while zoom.visible and n < 600:
+		await tree.process_frame
+		n += 1
+		print("FILM out %d at %.4f vis %.3f %s" % [Engine.get_frames_drawn(), zoom._at, zoom.view.modulate.a, _film_geo(zoom)])
+	print("FILM mark out %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	for i in 60:
+		await tree.process_frame
+	print("FILM mark end %d" % Engine.get_frames_drawn())
+
+
+func _film_geo(zoom: LabZoom) -> String:
+	var r := zoom.room_rect()
+	return "geo s %.4f room %.2f %.2f %.2f %.2f ratio %.5f veil %s room_on %s" % [zoom.cam_scale(),
+		r.position.x, r.position.y, r.size.x, r.size.y, (r.size.x / LabScene.PANEL.x) / maxf(0.0001, r.size.y / LabScene.PANEL.y),
+		zoom._veil.visible, zoom._room.visible]
+
+
+func _film_still(tree: SceneTree, scr: StationScreen, base: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img := tree.root.get_texture().get_image()
+	img.save_png(base + ".png")
+	# the glass, 16 room px round it, at the window's own 2x
+	var k := float(img.get_width()) / 960.0
+	var g := scr._lab.glass_rect().grow(16.0)
+	var xf := scr._lab.get_global_transform()
+	var r := Rect2i(Rect2(xf * g.position * k, g.size * xf.get_scale().x * k))
+	img.get_region(r.intersection(Rect2i(Vector2i.ZERO, img.get_size()))).save_png(base + "_glass.png")
+	print("FILM still %s" % base)
+	print("FILM boxes %s %s" % [base, str(scr._login.check())])
+
+
+func _film_move(target: Viewport, at: Vector2) -> void:
+	var mv := InputEventMouseMotion.new()
+	mv.position = at
+	mv.global_position = at
+	target.push_input(mv)
+
+
+func _film_click(tree: SceneTree, target: Viewport, at: Vector2) -> void:
+	_film_move(target, at)
+	await tree.process_frame
+	for pressed in [true, false]:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = pressed
+		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		mb.position = at
+		mb.global_position = at
+		target.push_input(mb)
+		if pressed:
+			await tree.process_frame
+
+
+## A USED RUN FOR THE SAVERS (DATA, steps owned, a route flown, parts
+## augmented), from `data=N owned=a,b,c savertrail=N aug=N`.
+func _saver_run() -> void:
+	var trail_n := 0
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("data="):
+			Run.data = int(s.substr(5))
+		elif s.begins_with("owned="):
+			var o := s.substr(6).split(",")
+			for b in mini(3, o.size()):
+				Run.board_owned[b] = clampi(int(o[b]), 0, 3)
+		elif s.begins_with("savertrail="):
+			trail_n = int(s.substr(11))
+		elif s.begins_with("aug="):
+			var n_aug := int(s.substr(4))
+			for i in mini(n_aug, Run.installed.size()):
+				Run.installed[i].augmented = true
+	# A ROUTE FLOWN: back from here along the links, so the galaxy saver has one
+	if trail_n > 1 and Run.trail.size() < trail_n and not Run.map.is_empty():
+		var path: Array[int] = [Run.at]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 5
+		while path.size() < trail_n:
+			var nd: MapGen.MapNode = Run.map[path[-1]]
+			var opts: Array[int] = []
+			for l in nd.links:
+				if not path.has(l):
+					opts.append(l)
+			if opts.is_empty():
+				break
+			path.append(opts[rng.randi() % opts.size()])
+		path.reverse()
+		Run.trail = PackedInt32Array(path)
+		Run.jumps = path.size() - 1
+	Sig.resources_changed.emit()
+
+
+## SAVER FILM: a used run, the room powered on, the saver at rest (`restn`
+## frames), the pointer onto the glass (`hovern`), a click, the camera in,
+## landed. Every wait counts frames: the movie writer's frames are game time.
+## `filmstills=DIR` writes the rest and the hover there, the window and the glass.
+func _saver_film(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var zoom := scr.lab_zoom()
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var stills := ""
+	var rest_n := 200
+	var hover_n := 110
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("filmstills="):
+			stills = s.substr(11)
+		elif s.begins_with("restn="):
+			rest_n = int(s.substr(6))
+		elif s.begins_with("hovern="):
+			hover_n = int(s.substr(7))
+	_saver_run()
+	print("FILM saver %s level %s data %d owned %s trail %d installed %d hull %s" % [scr._login.code(), lab._level, Run.data, str(Run.board_owned), Run.trail.size(), Run.installed.size(), Run.hull.name if Run.hull != null else "-"])
+	var target := GameShell.input_target(tree)
+	_film_move(target, Vector2(40, 520))
+	var n0 := 0
+	while scr._login.since_on() < 0.8 and n0 < 900:
+		await tree.process_frame
+		n0 += 1
+	print("FILM mark rest %d" % Engine.get_frames_drawn())
+	for i in rest_n:
+		await tree.process_frame
+		if i == rest_n * 2 / 3 and stills != "":
+			await _film_still(tree, scr, "%s/%s_rest" % [stills, lab._level])
+	var at := scr._glass_press.get_global_rect().get_center()
+	_film_move(target, at)
+	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	print("FILM mark hover %d" % Engine.get_frames_drawn())
+	for i in hover_n:
+		await tree.process_frame
+		if i == hover_n * 3 / 4 and stills != "":
+			await _film_still(tree, scr, "%s/%s_hover" % [stills, lab._level])
+	print("FILM hover state %s" % scr._login.state)
+	await _film_click(tree, target, at)
+	print("FILM mark press %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
+	var n := 0
+	var shot_mid := false
+	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and n < 600:
+		await tree.process_frame
+		n += 1
+		if not shot_mid and zoom._at >= ZoomLadder.UI_OUT_S + ZoomLadder.LAB_ZOOM_S + ZoomLadder.UI_IN_S * 0.45 and stills != "":
+			shot_mid = true
+			await _film_still(tree, scr, "%s/%s_landing" % [stills, lab._level])
+	print("FILM mark landed %d" % Engine.get_frames_drawn())
+	for i in 30:
+		await tree.process_frame
+	print("FILM mark end %d" % Engine.get_frames_drawn())
+
+
+## SAVER STILLS: each of this lab's ten savers pinned in turn (`LabLogin.forced`),
+## `restn` frames at rest (default 3 s) and a still, then the pointer on the
+## glass for `hovern` frames and a still. Prints each saver's box test.
+func _saver_stills(tree: SceneTree, dir: String) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var rest_n := 180
+	var hover_n := 50
+	var codes: Array[String] = []
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("restn="):
+			rest_n = int(s.substr(6))
+		elif s.begins_with("hovern="):
+			hover_n = int(s.substr(7))
+		elif s.begins_with("savercodes="):
+			for c in s.substr(11).split(","):
+				codes.append(c.strip_edges().to_upper())
+	_saver_run()
+	if codes.is_empty():
+		codes = scr._login.savers()
+	print("FILM stills %s owner %s savers %s" % [lab._level, scr._login.owner_name(), ",".join(codes)])
+	var target := GameShell.input_target(tree)
+	_film_move(target, Vector2(40, 520))
+	var n0 := 0
+	while scr._login.since_on() < 0.8 and n0 < 900:
+		await tree.process_frame
+		n0 += 1
+	for code in codes:
+		LabLogin.forced = code
+		for i in rest_n:
+			await tree.process_frame
+		await _film_still(tree, scr, "%s/%s_%s_rest" % [dir, lab._level, code])
+		scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
+		for i in hover_n:
+			await tree.process_frame
+		await _film_still(tree, scr, "%s/%s_%s_hover" % [dir, lab._level, code])
+		scr._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		for i in 12:
+			await tree.process_frame
+	LabLogin.forced = ""
+
+
+## SAVER TURN: the lab's savers turning as they do in play, each up `turnhold`
+## seconds (the game's `LabLogin.HOLD_S` is 40) for `turns` savers, the pointer
+## off the glass. Prints the glass in the window's px and a mark at each turn.
+func _saver_turn(tree: SceneTree) -> void:
+	var scr := Router.current as StationScreen
+	if scr == null or scr.lab_zoom() == null:
+		print("FILM no lab")
+		return
+	var lab := scr._lab
+	Router.animate_in_harness = true
+	var turns := 10
+	for a in OS.get_cmdline_user_args():
+		var s := a as String
+		if s.begins_with("turnhold="):
+			LabLogin.hold_s = float(s.substr(9))
+		elif s.begins_with("turns="):
+			turns = int(s.substr(6))
+	_saver_run()
+	var target := GameShell.input_target(tree)
+	_film_move(target, Vector2(40, 520))
+	var k := float(tree.root.get_texture().get_size().x) / 960.0
+	var g := lab.glass_rect().grow(16.0)
+	var xf := lab.get_global_transform()
+	var r := Rect2(xf * g.position * k, g.size * xf.get_scale().x * k)
+	print("FILM turn %s owner %s hold %.2f order %s" % [lab._level, scr._login.owner_name(), LabLogin.hold_s, ",".join(scr._login.savers())])
+	print("FILM glass %d %d %d %d" % [int(r.position.x), int(r.position.y), int(r.size.x), int(r.size.y)])
+	print("FILM mark start %d" % Engine.get_frames_drawn())
+	var last := ""
+	var seen := 0
+	var n := 0
+	while n < 60 * 600:
+		await tree.process_frame
+		n += 1
+		var c := scr._login.code()
+		if c != last:
+			last = c
+			seen += 1
+			print("FILM mark saver %s %d at %.2f" % [c, Engine.get_frames_drawn(), scr._login.turn_t])
+			if seen > turns:
+				break
+	print("FILM mark end %d" % Engine.get_frames_drawn())

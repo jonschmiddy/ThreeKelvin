@@ -14,7 +14,7 @@ touched, so the simulator still measures the same game.
 `take(n, i, j)` runs choice j of option i at node n and returns what
 happened, for the screen to show:
   ok         false if nothing was done (see `why`)
-  why        "bounds", "credits", "material" or "too_late"
+  why        "bounds", "credits", "material", "fuel" or "too_late"
   who        on "too_late", the partner who got there first ("" if unknown)
   stay       walking away: nothing rolled, paid or spent
   checked    whether a skill check was rolled
@@ -22,7 +22,7 @@ happened, for the screen to show:
   odds       the odds line the choice showed
   res        the outcome's own dictionary (its `text`, its payload)
   bill       `EncounterDrawer.bill_rows` from before the choice to after `pay`
-  got        the THINGS it moved, which the bill's four numbers cannot say:
+  got        the THINGS it moved, which the bill's five numbers cannot say:
              a part or a material put on the system's pile (REWARD), a hull
              frame found, a place marked, an item taken out of your hold
              (`_things_after`)

@@ -38,6 +38,89 @@ var _seen := 0
 var _spread_out := 0
 
 
+## SCIENCE SITES (Phase 12): what `_science_sites` saw, by layout ("one",
+## "wide", "close") and site, and the stand-ins it laid out in their place.
+const SYSVIEW := preload("res://scripts/ui/sysmap/SystemView.gd")
+var _sci := {}
+var _sci_swaps := 0
+var _stand_in := {}
+
+
+## WHERE A SCIENCE READING SITS.
+## Why: docs/why/SystemTest.md#where-a-science-reading-sits
+func _science_sites(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
+	var kind := "close" if L.close else ("wide" if L.twin else "one")
+	for i in n.options.size():
+		var site := StringName(OptionTable.by_id(n.options[i]).get("site", &""))
+		if site != &"barren" and site != &"belt":
+			continue
+		var key := "%s %s" % [kind, site]
+		_sci[key] = int(_sci.get(key, 0)) + 1
+		var b: SystemLayout.Body = null
+		for bb in L.bodies:
+			if bb.beacons.any(func(bc): return bc.opt == i):
+				b = bb
+		if b == null:
+			continue   # (every option on one body has already failed it)
+		if site == &"belt":
+			if b.kind != &"belt":
+				_fail("%s: belt reading %s sits on a %s" % [at, n.options[i], b.kind])
+		else:
+			var dry: Array = SystemLayout.DRY_PULSAR if L.star == SystemLayout.StarKind.PULSAR else SystemLayout.DRY[b.zone]
+			var air := String(SYSVIEW.ATMOS.get(b.world, "?"))
+			if b.kind != &"planet" or not dry.has(b.world) or not air in ["NONE", "FROZEN OUT"]:
+				_fail("%s (%s): barren reading %s sits on %s %s, zone %d, air %s" % [at, kind, n.options[i],
+					b.kind, b.world, b.zone, air])
+		_swap(n, L, i, site, at)
+
+
+## The same system with an ordinary option in reading `i`'s place.
+func _swap(n: MapGen.MapNode, L: SystemLayout, i: int, site: StringName, at: String) -> void:
+	if not _stand_in.has(site):
+		for o in OptionTable.all():
+			var tags: Array = o.get("tags", [])
+			if o.has("site") or OptionTable.is_science(o) or bool(o.get("placed", false)) or bool(o.get("job", false)):
+				continue
+			var hazard_only := tags.has(&"hazard") and not tags.has(&"salvage") and not tags.has(&"fight")
+			var planet := not tags.has(&"hazard") and not tags.has(&"salvage") and not tags.has(&"fight")
+			if (site == &"belt" and hazard_only) or (site == &"barren" and planet):
+				_stand_in[site] = StringName(o.id)
+				break
+	var was := n.options[i]
+	n.options[i] = _stand_in[site]
+	var L2 := SystemLayout.of(n)
+	n.options[i] = was
+	_sci_swaps += 1
+	if site == &"belt":
+		if _print_of(L2) != _print_of(L):
+			_fail("%s: a belt reading lays out unlike the hazard in its place" % at)
+		return
+	var same := L2.bodies.size() == L.bodies.size()
+	var held := 0
+	for k in mini(L.bodies.size(), L2.bodies.size()):
+		var a := L.bodies[k]
+		var c := L2.bodies[k]
+		if a.beacons.any(func(bc): return bc.opt == i):
+			held += 1
+			same = same and a.kind == c.kind and a.zone == c.zone
+			continue
+		same = same and a.kind == c.kind and a.world == c.world and a.phase == c.phase
+	if not same or held != 1:
+		_fail("%s: a barren reading moves more than its own world (against %s in its place)" % [at, _stand_in[site]])
+
+
+func _science_report() -> void:
+	var line: Array[String] = []
+	for k in ["one barren", "wide barren", "close barren", "one belt", "wide belt", "close belt"]:
+		line.append("%s %d" % [k, int(_sci.get(k, 0))])
+	print("  science readings laid out: " + ", ".join(line))
+	_ok("every barren reading on a dry world with no air, every belt reading on the belt, in one-sun, wide and close systems",
+		int(_sci.get("one barren", 0)) > 0 and int(_sci.get("wide barren", 0)) > 0 and int(_sci.get("close barren", 0)) > 0
+		and int(_sci.get("one belt", 0)) > 0 and int(_sci.get("wide belt", 0)) > 0 and int(_sci.get("close belt", 0)) > 0)
+	_ok("each laid out again with an ordinary option in its place (%d): only the barren world moves (stand-ins %s)"
+		% [_sci_swaps, str(_stand_in)], _sci_swaps > 0 and _stand_in.size() == 2)
+
+
 func _least(k: String, v: float, at: String) -> void:
 	if not _st.has(k) or v < float(_st[k][0]):
 		_st[k] = [v, at]
@@ -101,6 +184,7 @@ func run() -> void:
 			for k in seen.keys():
 				if int(k) >= n.options.size():
 					_fail("system %d: a beacon for option %d, which it does not have" % [n.index, int(k)])
+			_science_sites(n, L, "seed %d system %d" % [s, n.index])
 			if n.type == MapGen.NodeType.STATION and not L.bodies.any(func(b): return b.beacons.any(func(bc): return bc.dock)):
 				_fail("station %d has no DOCK" % n.index)
 			# One station to a station system (Jon, Nov 3), after `_place_stations` thins them.
@@ -180,6 +264,7 @@ func run() -> void:
 	var cshare := float(closes) / float(maxi(twins, 1))
 	_ok("close pairs at %d of those %d binaries (%.0f%%; about one in three), the rest wide" % [closes, twins, cshare * 100.0],
 		closes > 0 and cshare > 0.22 and cshare < 0.45)
+	_science_report()
 	_hellbender("")
 	var cl: Array[String] = []
 	for k in range(1, 12):

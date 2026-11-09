@@ -538,9 +538,10 @@ func _words(n: Node) -> Array:
 
 
 ## The HUD's row: every piece inside the bar, none over another.
+## Why: docs/why/QuestLogTest.md#the-huds-row
 func _hud_fits(when: String) -> void:
 	var hud := Router.hud
-	var bar := hud.get_global_rect()
+	var bar := (hud._row.get_parent() as Control).get_global_rect()
 	var pieces: Array = []
 	for c in hud._row.get_children():
 		var k := c as Control
@@ -557,7 +558,7 @@ func _hud_fits(when: String) -> void:
 	var need := hud._row.get_combined_minimum_size().x
 	for b in bad:
 		print("    %s" % b)
-	_ok("%s: the HUD's row fits with QUESTS (needs %.0f of %.0f px), nothing over anything" % [when, need, bar.size.x],
+	_ok("%s: the HUD's row fits its clip with QUESTS (needs %.0f of %.0f px), nothing over anything" % [when, need, bar.size.x],
 		bad.is_empty() and need <= bar.size.x)
 
 

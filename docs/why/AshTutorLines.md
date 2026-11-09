@@ -58,3 +58,19 @@ their take was recorded. Each plays the take named here once it is installed
 `tutorial-deep-voice.json` is their script. Every other new line is
 `tut_<id>.ogg` as before, and silent until its take is installed.
 ```
+
+## The decks
+
+Above `&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",`:
+
+```text
+THE DECKS, the first time each is open (`Hints.DECK_HINTS`): Jon's picks of
+two drafts each (Oct 20, "promenade:B shipyard:B exchange:B hiring_board:A
+laboratory:A"), recorded Oct 21. Each says what the deck is for and the one
+thing to do there in the deck's own words; no number and no name. The
+lab's is new for science (Phase 12, Lab layout 1C, Nov 4), under a new id,
+`research`, so a player who spent the fabricator's `laboratory` line hears
+it all the same: the lab takes DATA, and its one thing to do is the
+screen pressed (the camera goes into the glass, where the pages say the
+rest). Text only until Jon OKs a take (`tut_research`, none recorded).
+```

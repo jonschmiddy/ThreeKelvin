@@ -62,6 +62,37 @@ static func toll(base: int) -> int:
 		* TOLL_SCALE[MapGen.tier(_here_danger())])))
 
 
+## THE DATA A CAREFUL READING PAYS, by `MapGen.tier` (science, pick 4B: about 70 a run); the
+## risky line pays two.
+## Why: docs/why/OptionTable.md#science-2
+const SCIENCE_PAY: Array[int] = [0, 5, 6, 8, 10, 14]
+## WHAT A READING BURNS: you flew down there. One fuel at tiers 1 and 2, two from
+## tier 3, about a jump's worth. Burned on every band of a DATA line, a botch
+## included; the credits line burns none. `OptionResolve.affordable` refuses a
+## DATA line that would take the tank under `Run.fuel_floor()`, so the drain
+## always takes the whole amount.
+const SCIENCE_FUEL: Array[int] = [0, 1, 1, 2, 2, 2]
+## HOW OFTEN: each rolled slot has this chance of being a science event, so a system of three
+## holds one about half the time (`roll_for`).
+## Why: docs/why/OptionTable.md#how-often
+const SCIENCE_SHARE := 1.0 / 6.0
+
+
+## The DATA a reading pays here: `mult` careful readings' worth.
+static func reading(mult := 1) -> int:
+	return SCIENCE_PAY[MapGen.tier(_here_danger())] * mult
+
+
+## The fuel a reading burns here.
+static func science_fuel() -> int:
+	return SCIENCE_FUEL[MapGen.tier(_here_danger())]
+
+
+## Whether option `o` is a science event (tag `science`).
+static func is_science(o: Dictionary) -> bool:
+	return (o.get("tags", []) as Array).has(&"science")
+
+
 ## Gating clauses are ANDed. Without them a whale fall could surface in the core and a
 ## cordon in unclaimed space.
 ## Why: docs/why/OptionTable.md#option-gating
@@ -345,6 +376,7 @@ static func quest_name(n: MapGen.MapNode) -> String:
 
 ## Positional off `Rng.derive`: what is at a place is the place's property, and four
 ## machines must agree.
+## Science is drawn apart, on its own stream, so the main draw is what it was before.
 ## Why: docs/why/OptionTable.md#positional-roll
 static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 	var out: Array[StringName] = []
@@ -352,9 +384,13 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 		return out
 	var r := Rng.derive(&"options", n.index)
 	var pool: Array[Dictionary] = []
+	var science: Array[Dictionary] = []
 	for o in all():
 		if admits(o, n):
-			pool.append(o)
+			if is_science(o):
+				science.append(o)
+			else:
+				pool.append(o)
 	if pool.is_empty():
 		return out
 
@@ -386,7 +422,29 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 				continue
 			groups_used[g] = true
 		out.append(StringName(got.id))
+	_science_pass(n, out, science)
 	return out
+
+
+## THE SCIENCE PASS (`roll_for`): one science event, at most, in place of one
+## slot. Its own stream, so nothing else any system rolls moves with it.
+static func _science_pass(n: MapGen.MapNode, out: Array[StringName], science: Array[Dictionary]) -> void:
+	if Run.science_off or out.is_empty() or science.is_empty():
+		return
+	var rs := Rng.derive(&"science", n.index)
+	if rs.randf() >= SCIENCE_SHARE * float(out.size()):
+		return
+	var total := 0
+	for o in science:
+		total += maxi(1, int(o.get("weight", 10)))
+	var pick := rs.randi() % maxi(1, total)
+	var got: Dictionary = science[science.size() - 1]
+	for o in science:
+		pick -= maxi(1, int(o.get("weight", 10)))
+		if pick < 0:
+			got = o
+			break
+	out[rs.randi() % out.size()] = StringName(got.id)
 
 
 ## One decision for both `Router._roll_here` and the headless sim, so they cannot drift.
@@ -449,4 +507,5 @@ static func _authored() -> Array[Dictionary]:
 	out.append_array(OptionsPart08.entries())
 	out.append_array(OptionsPart09.entries())
 	out.append_array(OptionsPart10.entries())
+	out.append_array(OptionsPart11.entries())
 	return out

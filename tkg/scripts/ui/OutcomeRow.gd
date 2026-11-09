@@ -2,7 +2,7 @@ class_name OutcomeRow
 extends RefCounted
 
 ## Jon, Oct 17: what you end up with was hard to read. `look` picks among A, B, C, D and E.
-## D is live: only the stats that moved, no totals, table beside REWARD (Jon, Oct 19).
+## D is live: only the stats that moved (DATA a fifth), no totals, table beside REWARD (Jon, Oct 19).
 ## Why: docs/why/OutcomeRow.md#outcome-looks
 
 ## The look up now: D, Jon's pick (Oct 18, "outcome:D"). `-- sheet=OutcomeShot` photographs them all.
@@ -16,9 +16,10 @@ const GROUP := &"outcome_entry"
 ## (`HudBar.refresh` reads this). Empty whenever nothing is flying.
 static var held: Dictionary = {}
 
-## The order a change matters in: what kills you, what strands you, money, heat.
-const ORDER: Array[String] = ["hp", "fuel", "credits", "heat"]
-const WORDS := {"hp": "HULL", "fuel": "FUEL", "credits": "CREDITS", "heat": "HEAT"}
+## The order a change matters in: what kills you, what strands you, money,
+## what a lab takes, heat.
+const ORDER: Array[String] = ["hp", "fuel", "credits", "data", "heat"]
+const WORDS := {"hp": "HULL", "fuel": "FUEL", "credits": "CREDITS", "data": "DATA", "heat": "HEAT"}
 ## The words a thing goes by, ahead of its name.
 const THING_WORDS := {&"part": "PART", &"frame": "HULL FRAME",
 	&"place": "MARKED", &"material": "", &"item": ""}
@@ -190,6 +191,7 @@ class Chip extends Control:
 # ------------------------------------------------------------------ the marks
 
 ## 7 px marks reuse the HUD's cells (`BoxGauge._cell`, `ChitIcon`) to look like the readout.
+## DATA's is a reading's trace in ICE, never the notes' brown: DATA is not money.
 const MARK := 7.0
 
 ## `px`: how many game px one of the mark's pixels is (2 beside text at
@@ -226,6 +228,13 @@ static func draw_mark(ci: CanvasItem, at: Vector2, e: Dictionary, px: int = 1) -
 			r.call(0, 2, 5, 5, note)
 			r.call(0, 2, 5, 1, note.lerp(Color.WHITE, 0.34))
 			r.call(1, 4, 3, 1, ink)
+		"data":
+			# a trace going up, ICE, over the baseline it is read off, COLD
+			# (the Lab sheet's e_a mockup, Nov 4, pixel for pixel)
+			for p: Vector2i in [Vector2i(5, 0), Vector2i(4, 1), Vector2i(6, 2),
+					Vector2i(0, 3), Vector2i(3, 3), Vector2i(1, 4), Vector2i(2, 4)]:
+				r.call(p.x, p.y, 1, 1, UITheme.ICE)
+			r.call(0, 6, 7, 1, UITheme.COLD)
 		"fuel":
 			r.call(2, 0, 3, 1, UITheme.CHILL)
 			r.call(1, 1, 5, 6, UITheme.CHILL)
@@ -437,7 +446,8 @@ const TABLE_MAX_W := 230.0
 ## Only multiples of 8 stay crisp on the 960x540 grid. Jon turned down 16 (Oct 19, 'size 8').
 const D_FS := UITheme.FS_SMALL
 
-## `without_big` leaves out what E draws big. `stats_only` is D's four moved stats, no totals (Jon).
+## `without_big` leaves out what E draws big. `stats_only` is D's moved stats (the four and
+## DATA), no totals (Jon).
 static func table(out: Dictionary, without_big := false, fs: int = UITheme.FS_SMALL, stats_only := false) -> Control:
 	var rows := changes(out)
 	if stats_only:
@@ -818,7 +828,7 @@ static func _hud_refresh() -> void:
 static func _targets(d: LocalEventDrawer, e: Dictionary) -> Array:
 	var hud: HudBar = Router.hud if Router.hud != null and is_instance_valid(Router.hud) and Router.hud.is_visible_in_tree() else null
 	match String(e.key):
-		"hp", "heat", "credits", "fuel":
+		"hp", "heat", "credits", "fuel", "data":
 			return hud.stat_nodes(String(e.key)) if hud != null else []
 		"part", "material":
 			if int(e.n) > 0:

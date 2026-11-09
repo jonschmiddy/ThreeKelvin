@@ -29,8 +29,10 @@ func fingerprint() -> Dictionary:
 			for a in m.affixes:
 				af.append(a.name)
 			# Position is fingerprinted too: a save that dropped every position used to pass.
-			out.append("%s|%d|%d|%s|m%d|h%d,%d" % [m.id, int(m.rarity),
-				m.scrap_value, ",".join(af), m.mount, m.hold_at.x, m.hold_at.y])
+			# (and the Lab's mark, VERSION 42: once per part, ever)
+			out.append("%s|%d|%d|%s|m%d|h%d,%d|a%d" % [m.id, int(m.rarity),
+				m.scrap_value, ",".join(af), m.mount, m.hold_at.x, m.hold_at.y,
+				int(m.augmented)])
 		return out
 	var nodes: Array = []
 	for e in Run.map:
@@ -97,7 +99,13 @@ func fingerprint() -> Dictionary:
 		old_hull = "%s|%d|%d|%s" % [Run.old_hull.name, Run.old_hull.tier,
 			Run.old_hull.max_hull, Run.old_hull.perk_id] if Run.old_hull != null else "",
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
-			Run.fuel, Run.dross_count(), Run.whale_boon],
+			Run.fuel, Run.dross_count(), Run.whale_boon, Run.data],
+		# SCIENCE (VERSION 42): the board as dealt, the steps bought on it and the
+		# black box. Fixtured below with a board the seed would NOT deal, so a
+		# save that dropped it and dealt again at the load shows here.
+		science = [",".join(Array(Run.board).map(func(x: StringName) -> String: return String(x))),
+			Array(Run.board_owned), Run.black_box_spent,
+			",".join(Array(Run.owned_routines()).map(func(x: StringName) -> String: return String(x)))],
 		# WHAT THE WORLD MAY HOLD (VERSION 34). Fixtured below to three, so a
 		# load that fell back to the profile's own (Korvan alone here) shows.
 		unlocked = ",".join(Array(Run.unlocked_manufacturers).map(
@@ -124,6 +132,56 @@ func fingerprint() -> Dictionary:
 		derived = ["%.9f" % Run.jump_range(), Run.max_hp(), Run.heat_cap(),
 			Run.reactor(), Run.hand_size(), Run.dissipation()],
 	}
+
+## A whole, valid board that is not `dealt`: in each branch, the routine after
+## the one the deal dropped is dropped instead, the three left in rank order.
+func _other_board(dealt: Array[StringName]) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for b in DB.BRANCHES.size():
+		var four := DB.routines_in(DB.BRANCHES[b])
+		var gone := 0
+		for k in four.size():
+			if not dealt.has(four[k]):
+				gone = k
+		for k in four.size():
+			if k != (gone + 1) % four.size():
+				out.append(four[k])
+	return out
+
+## A saved run's parts with no Lab mark, the shape a 40 build wrote them in.
+func _erase_marks(save: Dictionary) -> void:
+	for key in ["installed", "cargo", "pad"]:
+		for e in save.get(key, []):
+			if typeof(e) == TYPE_DICTIONARY:
+				(e as Dictionary).erase("augmented")
+
+## A saved run with none of VERSION 42's keys.
+func _erase_science(save: Dictionary) -> void:
+	for key in ["data", "board", "board_owned", "black_box_spent"]:
+		save.erase(key)
+	_erase_marks(save)
+
+func _write(save: Dictionary) -> void:
+	var w := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w != null:
+		w.store_string(JSON.stringify(save, "", true, true))
+		w.close()
+
+func _read_save() -> Dictionary:
+	var f := FileAccess.open(SaveGame.path, FileAccess.READ)
+	var out: Dictionary = JSON.parse_string(f.get_as_text()) if f != null else {}
+	if f != null:
+		f.close()
+	return out
+
+## How many parts, fitted, in the hold or on the pad, carry the Lab's mark.
+func _marked() -> int:
+	var n := 0
+	for list in [Run.installed, Run.cargo, Run.pad]:
+		for raw in list:
+			if raw is ModuleData and (raw as ModuleData).augmented:
+				n += 1
+	return n
 
 ## Every system's star, giant, pulsar neighbour and second sun, one string.
 func _sky() -> String:
@@ -338,6 +396,22 @@ func run() -> void:
 			break
 	if card_node < 0:
 		print("  FAIL: no system to hold the card fixture"); fails += 1
+	# AND A READING TAKEN IN ANOTHER, its line with DATA in it (science, Jon's
+	# 2A, Nov 4): DATA is the bill's fifth row, last, so the line reads
+	# "FUEL -2 · DATA +5" and the card above, which paid none, reads as it did.
+	var read_node := -1
+	for e in Run.map:
+		var nr: MapGen.MapNode = e
+		if nr.type == MapGen.NodeType.SYSTEM and not nr.cleared and nr.options.size() >= 1 \
+				and nr.index != card_node and nr.index != Run.at:
+			read_node = nr.index
+			nr.taken.append(MapGen.OPTION_SITE)
+			nr.results[0] = MapGen.R_SUCCESS
+			OptionResolve._remember(nr, 0, {"stay": false, "res": {"text": "You took the readings and climbed back out. The film can wait."},
+				"bill": EncounterDrawer.bill_rows({"fuel": 40, "data": 16}, {"fuel": 38, "data": 21})})
+			break
+	if read_node < 0:
+		print("  FAIL: no system to hold the reading's card fixture"); fails += 1
 
 	# Parked in orbit and in open space, written as `SystemMapScreen._keep_ship` writes them.
 	SystemMapScreen._parked.clear()
@@ -381,6 +455,37 @@ func run() -> void:
 		Run.map_clock[wide_node] = 1033.515625
 	Run.map_clock[card_node if card_node >= 0 else 0] = 0.25
 
+	# SCIENCE (VERSION 42): DATA in hand, FRAME two steps in and DRIVE one, the
+	# black box spent, and a board the seed would not deal (each branch drops a
+	# different routine), so a save that kept no board and dealt one again at the
+	# load cannot come back equal. And the Lab's mark on a part in each place a
+	# part can be: fitted, in the hold, on the pad.
+	Run.data = 37
+	var dealt := Run.board.duplicate()
+	Run.board = _other_board(dealt)
+	Run.board_owned = PackedInt32Array([2, 0, 1])
+	Run.black_box_spent = true
+	check("the fixture's board is not the one the seed deals", true, Run.board != dealt)
+	# (the hull swap above left everything on the pad, with nothing fitted and
+	# no part in the hold, so one goes onto the new hull and one into its hold:
+	# a mark the save dropped from either place would round-trip unseen)
+	var off_pad: Array[ModuleData] = []
+	for raw in Run.pad:
+		if raw is ModuleData:
+			off_pad.append(raw as ModuleData)
+	if off_pad.size() >= 3:
+		Run.install_module(off_pad[0])
+		Run.place_in_hold(off_pad[1])
+	var marked := 0
+	for list in [Run.installed, Run.cargo, Run.pad]:
+		for raw in list:
+			var mm := raw as ModuleData
+			if mm != null:
+				mm.augmented = true
+				marked += 1
+				break
+	check("an augmented part fitted, in the hold and on the pad", 3, marked)
+
 	var before := fingerprint()
 	var jumps_before := Run.jumps
 	# The streams' cursors are 64-bit and the file is JSON: they must come back exactly.
@@ -406,6 +511,10 @@ func run() -> void:
 	Run.fuel = 0
 	Run.dross = [] as Array[StringName]
 	Run.whale_boon = false
+	Run.data = 0
+	Run.board = [] as Array[StringName]
+	Run.board_owned = PackedInt32Array([0, 0, 0])
+	Run.black_box_spent = false
 	Run.unlocked_manufacturers = [&"calyx"] as Array[StringName]
 	Run.jumps = 0
 	Run.party_jumps = 0
@@ -486,6 +595,9 @@ func run() -> void:
 		nl.taken.append(MapGen.OPTION_SITE + 1)
 		check("card 1 once taken", "band", String(EncounterDrawer.option_state(nl, 1).kind))
 		check("card 1 no longer left alone", false, nl.left.has(1))
+	if read_node >= 0:
+		check("the reading's line after reload, DATA and all", "FUEL -2 · DATA +5|You took the readings and climbed back out.",
+			"|".join(Array((Run.map[read_node] as MapGen.MapNode).said.get(0, []))))
 
 	# Galaxy params must come back with their ORIGINAL TYPES, not as the floats
 	# JSON would hand back. `arms` is a loop count.
@@ -529,6 +641,7 @@ func run_version_test() -> void:
 	save38["version"] = 38
 	save38.erase("clocks")
 	save38.erase("party_jumps")
+	_erase_science(save38)
 	var w38 := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if w38 != null:
 		w38.store_string(JSON.stringify(save38, "", true, true))
@@ -550,7 +663,7 @@ func run_version_test() -> void:
 
 	# VERSION 40 (Jon, Nov 4) saves the lead ship's jumps; a 39 save grows on its own jumps.
 	# Why: docs/why/SaveTest.md#version-rules
-	# (this build writes 41; the lead ship's jumps came in at 40)
+	# (this build writes 42; the lead ship's jumps came in at 40)
 	Run.start_new_run(&"korvan", 1)
 	Run.jumps = 7
 	Run.party_jumps = 21
@@ -568,6 +681,7 @@ func run_version_test() -> void:
 		"7 21 21 21", "%d %d %d %d" % [Run.jumps, Run.party_jumps, Run.custodian_jumps(), Run.custodian_seen])
 	save39["version"] = 39
 	save39.erase("party_jumps")
+	_erase_science(save39)
 	var w39 := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if w39 != null:
 		w39.store_string(JSON.stringify(save39, "", true, true))
@@ -589,11 +703,10 @@ func run_version_test() -> void:
 	check("a new run clears the lead ship's jumps and the badge's seen count", "0 0",
 		"%d %d" % [Run.party_jumps, Run.custodian_seen])
 
-	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8): this build writes 41. The
+	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 42, science's). The
 	# Hellbender flies only at 7 and up, so the level is saved and comes back;
 	# a 40 save has none and loads at 0, the game a 40 build played, and keeps
 	# a live Hellbender it already had (pulling one mid-chase is worse).
-	check("this build writes VERSION 41", 41, SaveGame.VERSION)
 	Run.forced_ascension = 7
 	Run.start_new_run(&"korvan", 1)
 	Run.forced_ascension = -1
@@ -631,6 +744,7 @@ func run_version_test() -> void:
 	Run.start_new_run(&"korvan", 1)
 	check("a new run with nothing asked starts at 0, with no Hellbender", "0 false 0",
 		"%d %s %d" % [Run.ascension, Run.hellbender_alive(), Run.hellbender_max])
+	_science_versions()
 
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
@@ -646,6 +760,7 @@ func run_version_test() -> void:
 	old_save.erase("clocks")
 	old_save.erase("unlocked")
 	old_save.erase("party_jumps")
+	_erase_science(old_save)
 	old_save.erase("ascension")
 	# (and from before two suns, VERSION 38: no node says `twin`)
 	var twins_written := 0
@@ -699,6 +814,123 @@ func run_version_test() -> void:
 	print("=== %s (%d mismatches) ===
 "
 		% ["PASS" if fails == fails_before else "FAIL", fails - fails_before])
+
+## SCIENCE (VERSION 42, Phase 12): this build writes 42. A 41 save (the Hellbender's
+## build, its `ascension` key unread here) and a 40 one load with
+## no DATA, nothing bought, the black box unspent, no part augmented, and the
+## board its seed and seat deal; a malformed one is mended, not refused; and a
+## new run after a used one starts clean.
+func _science_versions() -> void:
+	check("this build writes VERSION 42", 42, SaveGame.VERSION)
+	Run.start_new_run(&"korvan", 1)
+	var dealt := Run.board.duplicate()
+	check("a new run is dealt a whole board", 9, dealt.size())
+	Run.data = 23
+	Run.board_owned = PackedInt32Array([1, 2, 0])
+	Run.black_box_spent = true
+	for m in Run.installed:
+		m.augmented = true
+		break
+	SaveGame.save()
+	var s42 := _read_save()
+	check("a 42 save carries DATA, the board's ids, the steps and the box",
+		"23 %s [1, 2, 0] true" % ",".join(Array(dealt).map(func(x: StringName) -> String: return String(x))),
+		"%d %s %s %s" % [int(s42.get("data", -1)), ",".join(Array(s42.get("board", []))),
+			str(Array(s42.get("board_owned", [])).map(func(x: Variant) -> int: return int(x))),
+			str(s42.get("black_box_spent", false))])
+	check("and the fitted part's mark", true,
+		Array(s42.get("installed", [])).any(func(e: Variant) -> bool: return bool((e as Dictionary).get("augmented", false))))
+
+	# A 41 SAVE AND A 40 ONE: this shape with none of 42's keys, the 41 one with
+	# the Hellbender's `ascension` (41 is its build's, landed first). Each loaded
+	# over a live run that has DATA, a different board, steps bought and a mark,
+	# so nothing can pass by being left over.
+	for v in [41, 40]:
+		var sv := s42.duplicate(true)
+		sv["version"] = v
+		_erase_science(sv)
+		if v == 41:
+			sv["ascension"] = 7
+		_write(sv)
+		Run.board = _other_board(dealt)
+		Run.board_owned = PackedInt32Array([3, 3, 3])
+		Run.data = 99
+		Run.ascension = 3
+		check("a save of version %d (no science) still loads" % v, true, SaveGame.load_into_run())
+		check("and with 0 DATA, nothing owned, the box unspent, nothing augmented (%d)" % v,
+			"0 [0, 0, 0] false 0 0", "%d %s %s %d %d" % [Run.data, str(Array(Run.board_owned)),
+				str(Run.black_box_spent), Run.owned_routines().size(), _marked()])
+		check("and its board the one its seed and seat deal (%d)" % v, str(dealt), str(Run.board))
+		# (the Hellbender's 41 keeps its ascension; a 40 save has none and reads 0)
+		check("and its ascension (%d)" % v, 7 if v == 41 else 0, Run.ascension)
+	Run.deal_board()
+	check("which is what dealing it again gives", str(dealt), str(Run.board))
+
+	# MALFORMED, MENDED: a board with an unknown id, one cut short and one in the
+	# wrong order are dealt again; owned [5, -1] reads [3, 0, 0]; data -12 reads 0
+	var bad := s42.duplicate(true)
+	var cases := {
+		"an unknown id": ["nope"] + Array(bad.board).slice(1),
+		"cut short": Array(bad.board).slice(0, 6),
+		"out of its branches": Array(bad.board).slice(3) + Array(bad.board).slice(0, 3),
+		"none at all": null,
+	}
+	for what in cases:
+		bad["board"] = cases[what]
+		bad["board_owned"] = [5, -1]
+		bad["data"] = -12
+		_write(bad)
+		Run.board = _other_board(dealt)
+		SaveGame.load_into_run()
+		check("a board %s is dealt again" % what, str(dealt), str(Run.board))
+	check("owned [5, -1] reads [3, 0, 0]", "[3, 0, 0]", str(Array(Run.board_owned)))
+	check("DATA -12 reads 0", 0, Run.data)
+	# (and a board in its shape that the seed would not deal is kept as saved)
+	bad["board"] = Array(_other_board(dealt)).map(func(x: StringName) -> String: return String(x))
+	_write(bad)
+	SaveGame.load_into_run()
+	check("a whole board the seed would not deal is kept as saved", str(_other_board(dealt)), str(Run.board))
+
+	# AN AFFIX BY ITS OLD NAME (Jon, Nov 5: "Stripped" is "Lightened" now): a
+	# save whose fitted part holds "Stripped" loads it as Lightened, +2 maneuver -1
+	# hull, not dropped; and Lightened is written and read back as itself
+	var old := s42.duplicate(true)
+	var fit: Array = old.get("installed", [])
+	if not fit.is_empty():
+		(fit[0] as Dictionary)["affixes"] = ["Stripped", "Reinforced"]
+	_write(old)
+	SaveGame.load_into_run()
+	var first: ModuleData = Run.installed[0] if not Run.installed.is_empty() else null
+	var got: Array = [] if first == null else first.affixes.map(func(a: AffixData) -> String: return "%s %+d %+d" % [a.name, a.maneuver, a.hull])
+	check("a save's \"Stripped\" loads as Lightened", "[\"Lightened +2 -1\", \"Reinforced +0 +1\"]", str(got))
+	SaveGame.save()
+	var again: Array = Array(_read_save().get("installed", []))
+	check("and is written back as Lightened", "[\"Lightened\", \"Reinforced\"]",
+		str((again[0] as Dictionary).get("affixes", [])) if not again.is_empty() else "none")
+
+	# A NEW RUN AFTER A USED ONE: no DATA, nothing owned, the box unspent, and
+	# full hull (fitted with nothing of the last run's on it)
+	Run.data = 50
+	Run.board_owned = PackedInt32Array([3, 3, 3])
+	Run.black_box_spent = true
+	Run.start_new_run(&"korvan", 1)
+	check("a new run after a used one: 0 DATA, nothing owned, the box unspent, a board",
+		"0 [0, 0, 0] false 0 9", "%d %s %s %d %d" % [Run.data, str(Array(Run.board_owned)),
+			str(Run.black_box_spent), Run.owned_routines().size(), Run.board.size()])
+	check("and its hull full at the bare frame's max", Run.max_hp(), Run.hp)
+	# AND THE CHASSIS SELECT KEEPS THE BOARD the new run dealt. It is the screen
+	# `Router.new_run` opens right after `start_new_run`, and LAUNCH deals
+	# nothing; it used to clear science on entry, so every real run flew with
+	# an empty board and the first autosave wrote `board: []`.
+	var fresh := Run.board.duplicate()
+	var pick := ChassisSelect.new()
+	# (out of the tree: the root is busy setting up this run's own children)
+	pick.setup()
+	check("the chassis select keeps the new run's board, nine dealt", "9 %s" % str(fresh),
+		"%d %s" % [Run.board.size(), str(Run.board)])
+	Run.deal_board()
+	check("and it is the board the run's seed and seat deal", str(fresh), str(Run.board))
+	pick.free()
 
 func run_history_test() -> void:
 	print("=== HISTORY ===")

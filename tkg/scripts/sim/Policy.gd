@@ -74,15 +74,31 @@ static func _worth(m: HoldItem) -> int:
 ## Policy outlives a run in the by-chassis sweep.
 func begin_run() -> void:
 	_farmed.clear()
-	spend = {fuel = 0, repair = 0, options = 0}
+	spend = {fuel = 0, repair = 0, options = 0, augment = 0}
+	sci = new_sci()
 	fuel_bought = 0
 	refuel_stops = 0
 	rescues = 0
 	limited = false
 
 
-## Counts the three places this pilot spends, for the fuel audit (balance/fuel, Oct 17).
-var spend: Dictionary = {fuel = 0, repair = 0, options = 0}
+## Counts the places this pilot spends, for the fuel audit (balance/fuel, Oct 17):
+## the desks, an option's price and (science) the Lab's AUGMENT.
+var spend: Dictionary = {fuel = 0, repair = 0, options = 0, augment = 0}
+
+## SCIENCE (Phase 12): false is a pilot that sells every reading and never spends DATA
+## (`science=off` and `science=ignore`). Every science rule here draws from no stream.
+## Why: docs/why/Policy.md#science
+var science: bool = true
+
+## What science did this run, for `HeadlessSim._report_science`.
+## Why: docs/why/Policy.md#what-science-did-this-run
+var sci: Dictionary = new_sci()
+
+static func new_sci() -> Dictionary:
+	return {met = 0, careful = 0, risky = 0, credits = 0, refused = 0,
+		data_careful = 0, data_risky = 0, data_film = 0, data_relic = 0, fuel = 0,
+		augments = 0, aug_data = 0, aug_credits = 0, affixes = {}}
 var fuel_bought := 0
 var refuel_stops := 0
 ## REFUELs that were the way out of a dock (`Run.dock_rescue`), a run.
@@ -175,10 +191,7 @@ func manage_cargo() -> void:
 			passed.append(item)
 			continue
 		var free := Run.slots_used(m.slot) < Run.slots_for(m.slot)
-		var worst: ModuleData = null
-		for x in Run.installed:
-			if x.slot == m.slot and (worst == null or x.scrap_value < worst.scrap_value):
-				worst = x
+		var worst := _worst_fitted(m.slot)
 		if free or (worst != null and m.scrap_value > worst.scrap_value * 1.15):
 			Run.install_module(m)
 		else:
@@ -195,6 +208,21 @@ func manage_cargo() -> void:
 			if _worth(it2) < _worth(cheapest):
 				cheapest = it2
 		_shed(cheapest)
+
+
+## The fitted part in `slot` a better find would replace: the cheapest.
+## Why: docs/why/Policy.md#the-fitted-part-in-slot-a
+static func _worst_fitted(slot: ModuleData.Slot) -> ModuleData:
+	var worst: ModuleData = null
+	var plain_worst: ModuleData = null
+	for x in Run.installed:
+		if x.slot != slot:
+			continue
+		if worst == null or x.scrap_value < worst.scrap_value:
+			worst = x
+		if not x.augmented and (plain_worst == null or x.scrap_value < plain_worst.scrap_value):
+			plain_worst = x
+	return plain_worst if plain_worst != null else worst
 
 
 ## A part melts; a material cannot, so it goes over the side and stays in the system.
@@ -214,10 +242,11 @@ func _shed(it: HoldItem) -> void:
 
 
 ## Sell first, then spend, so salvage can pay for repairs. Never buys stock to resell.
+## The Lab first (science); AUGMENT costs credits too, so it waits (`augment`, last).
 ## Why: docs/why/Policy.md#shopping
 func shop(n: MapGen.MapNode) -> void:
+	lab(n)
 	sell_hold(n)
-	bench(n)
 
 	var missing := Run.max_hp() - Run.hp
 	var repair := Market.repair_price(n, missing)
@@ -253,6 +282,7 @@ func shop(n: MapGen.MapNode) -> void:
 		bought = true
 	if bought:
 		refuel_stops += 1
+	augment(n)
 
 
 ## Whether the tank holds the cheapest jump on the chart from here.
@@ -307,30 +337,200 @@ func sell_hold(n: MapGen.MapNode) -> void:
 			Run.scrap_module(m)
 
 
-## Fabricate only what beats the service desk price: hull patches and fuel synthesis.
-func bench(n: MapGen.MapNode) -> void:
+# ------------------------------------------------------------------ science
+
+## THE LAB, at a dock (science, plan S12).
+## Why: docs/why/Policy.md#the-lab
+func lab(n: MapGen.MapNode) -> void:
+	if not science or not Science.lab_here(n):
+		return
 	for r in Fabricator.available(n):
+		if StringName(r.kind) != &"data":
+			continue
 		var guard := 0
-		while Fabricator.can_make(n, r) and guard < 6:
+		while wants_data() and Fabricator.can_make(n, r) and guard < 12:
 			guard += 1
-			match StringName(r.id):
-				&"patch":
-					if Run.max_hp() - Run.hp < int(r.amount):
-						break
-					if Fabricator.price(n, r) >= Market.repair_price(n, int(r.amount)):
-						break
-					spend.repair += Fabricator.price(n, r)
-				&"cracker":
-					if Run.fuel > 40:
-						break
-					if Fabricator.price(n, r) >= Market.refuel_price(n):
-						break
-					spend.fuel += Fabricator.price(n, r)
-					fuel_bought += int(r.amount)
-				_:
-					break
+			var d0 := Run.data
 			if Fabricator.make(n, r).is_empty():
 				break
+			var key := "data_relic" if StringName(r.id) == &"read" else "data_film"
+			sci[key] = int(sci[key]) + Run.data - d0
+	research(n)
+
+
+## Buy the board's steps: the cheapest next step DATA covers, again and again.
+## Ties go to the routine's rank (`DB.routines[id].rank`, weakest first), then
+## to branch order (FRAME, CORE, DRIVE). Returns the steps bought.
+func research(n: MapGen.MapNode) -> int:
+	if not science or not Science.lab_here(n):
+		return 0
+	var bought := 0
+	while bought < 9:
+		var b := cheapest_step()
+		if b < 0 or not Science.can_buy(b):
+			break
+		if Science.buy(b).is_empty():
+			break
+		bought += 1
+	return bought
+
+
+## The branch whose next step is cheapest, by the tie rules above, or -1 when
+## every branch is finished. Affordability is the caller's question.
+static func cheapest_step() -> int:
+	var best := -1
+	var best_cost := 0
+	var best_rank := 0
+	for b in DB.BRANCHES.size():
+		var id := Run.next_step(b)
+		if id == &"":
+			continue
+		var cost := Run.step_cost(b)
+		var rank := int(DB.routines[id].get("rank", 0))
+		# (branches are walked in order, so an equal cost and rank keeps the first)
+		if best < 0 or cost < best_cost or (cost == best_cost and rank < best_rank):
+			best = b
+			best_cost = cost
+			best_rank = rank
+	return best
+
+
+## The DATA the rest of the board costs.
+static func board_left() -> int:
+	var left := 0
+	for b in DB.BRANCHES.size():
+		var owned := clampi(Run.board_owned[b], 0, 3) if b < Run.board_owned.size() else 3
+		for k in range(owned, 3):
+			if b * 3 + k < Run.board.size():
+				left += DB.BOARD_PRICES[k]
+	return left
+
+
+## WHETHER MORE DATA WOULD BUY ANYTHING: the board's steps cost more than the
+## DATA held. A reading taken past that point would only be an augment's leftover,
+## and its credits line pays now; so a finished board (or one the DATA held
+## already covers) sells its readings.
+func wants_data() -> bool:
+	return science and not Run.science_off and Run.data < board_left()
+
+
+## Whether the DATA held buys a step of the board now, at any Lab.
+func data_covers_step() -> bool:
+	if not science or Run.science_off:
+		return false
+	var b := cheapest_step()
+	return b >= 0 and Run.data >= Run.step_cost(b)
+
+
+## AUGMENT, when no step of the board is affordable: one part a visit.
+## Why: docs/why/Policy.md#augment
+func augment(n: MapGen.MapNode) -> String:
+	if not science or not Science.lab_here(n):
+		return ""
+	var b := cheapest_step()
+	if b >= 0 and Science.can_buy(b):
+		return ""
+	var cost := Science.augment_cost(n)
+	if Run.data < int(cost.data) or Run.credits - int(cost.credits) < FUEL_RESERVE:
+		return ""
+	var parts: Array[ModuleData] = []
+	for raw in Run.installed:
+		var m := raw as ModuleData
+		if m != null and not m.augmented:
+			parts.append(m)
+	# Most valuable first; equal values keep the fitted order (a stable sort by
+	# hand, since `sort_custom` promises none).
+	var order: Array[int] = []
+	for i in parts.size():
+		var at := order.size()
+		for j in order.size():
+			if Market.base_value(parts[i]) > Market.base_value(parts[order[j]]):
+				at = j
+				break
+		order.insert(at, i)
+	var low := Run.hp < Run.max_hp() * 0.6
+	for i in order:
+		var m: ModuleData = parts[i]
+		if not Science.can_augment(m, n):
+			continue
+		var pick: AffixData = null
+		var rank := AUGMENT_ORDER.size()
+		for a in Science.augment_offer(m, n):
+			var r := AUGMENT_ORDER.find(StringName(a.name))
+			if r < 0 or (low and StringName(a.name) == &"Lightened"):
+				continue
+			if r < rank:
+				rank = r
+				pick = a
+		if pick == null:
+			continue
+		var d0 := Run.data
+		var c0 := Run.credits
+		var line := Science.augment(m, pick, n)
+		if line.is_empty():
+			continue
+		spend.augment += c0 - Run.credits
+		sci.augments += 1
+		sci.aug_data += d0 - Run.data
+		sci.aug_credits += c0 - Run.credits
+		sci.affixes[pick.name] = int(sci.affixes.get(pick.name, 0)) + 1
+		return line
+	return ""
+
+## The order this pilot wants the Lab's affixes in, best first.
+const AUGMENT_ORDER: Array[StringName] = [&"Double-Plated", &"Reinforced",
+	&"Gyro-Trimmed", &"Signature-Damped", &"Tuned Injectors", &"Wide-Banded",
+	&"Bus-Fed", &"Lightened"]
+
+
+## One science event taken: which line, the DATA it paid and the fuel it burned.
+func _count_reading(line: Dictionary, data: int, fuel: int) -> void:
+	sci.met += 1
+	if not bool(line.get("burns", false)):
+		sci.credits += 1
+		return
+	sci.fuel += maxi(0, fuel)
+	if line.has("check"):
+		sci.risky += 1
+		sci.data_risky += maxi(0, data)
+	else:
+		sci.careful += 1
+		sci.data_careful += maxi(0, data)
+
+
+## A SCIENCE EVENT'S LINE (plan S12): credits when science is off, no DATA is wanted or the
+## fuel gate is shut; else risky while the hull is above half, else careful.
+## Why: docs/why/Policy.md#a-science-events-line
+func _choose_science(opt: Dictionary) -> int:
+	var choices: Array = opt.get("choices", [])
+	var careful := -1
+	var risky := -1
+	var credits := -1
+	for i in choices.size():
+		var c: Dictionary = choices[i]
+		if bool(c.get("burns", false)):
+			if c.has("check"):
+				if risky < 0:
+					risky = i
+			elif careful < 0:
+				careful = i
+		elif credits < 0 and OptionResolve.affordable(c):
+			credits = i
+	if not wants_data():
+		return credits
+	var any := careful if careful >= 0 else risky
+	if any < 0:
+		return credits
+	if not OptionResolve.affordable(choices[any]):
+		sci.refused += 1
+		return credits
+	if risky >= 0 and Run.hp > Run.max_hp() * 0.5 and OptionResolve.affordable(choices[risky]):
+		if not risk_averse or SkillCheck.odds(choices[risky].check) >= RISK_FLOOR:
+			return risky
+		checks_avoided += 1
+	if careful >= 0:
+		return careful
+	return credits
 
 
 ## Farm only while the tank allows, then descend: the old coin wandered 117 jumps, a model artifact.
@@ -388,7 +588,11 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 		var line: Dictionary = (opt.choices as Array)[pick]
 		if line.has("cost_credits"):
 			spend.options += int(line.cost_credits)
+		var d0 := Run.data
+		var f0 := Run.fuel
 		var res := _resolve_line(n, line, n.options[i])
+		if OptionTable.is_science(opt):
+			_count_reading(line, Run.data - d0, f0 - Run.fuel)
 		n.taken.append(oid)
 		# Write the decision down as the game does, so a finished node stops offering forgone ones.
 		OptionTable.foreclose(n, i)
@@ -409,8 +613,11 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 
 
 ## Prefer a check the pilot will pass; falling back to the flat line is the policy split.
+## A science event goes to `_choose_science` first.
 ## Why: docs/why/Policy.md#option-taking
 func _choose_line(opt: Dictionary) -> int:
+	if OptionTable.is_science(opt):
+		return _choose_science(opt)
 	var choices: Array = opt.get("choices", [])
 	var fallback := -1
 	for i in choices.size():
@@ -588,6 +795,11 @@ func human_score(here: MapGen.MapNode, t: MapGen.MapNode) -> float:
 	if t.type == MapGen.NodeType.STATION:
 		var low := Run.fuel < human_fuel_want(here) / 2
 		s += 14.0 if (not healthy or low) else 3.0
+		# A LAB WITH DATA TO SPEND (science, open call 19): a person holding the
+		# DATA for the board's next step steers for a dock. The human pilot
+		# only; the gate's farmer stays put.
+		if data_covers_step():
+			s += 6.0
 	if t.type == MapGen.NodeType.PULSAR and not t.cleared and healthy:
 		s += 4.0
 	if not healthy:

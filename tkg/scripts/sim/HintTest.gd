@@ -419,7 +419,7 @@ func _step_until(id: StringName) -> bool:
 
 ## The decks' first-visit hints, in the rail's order from the deck the station
 ## opens on (`Hints.DECK_HINTS`).
-const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]
+const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"research"]
 
 
 ## A station with all five decks (work on its board, a laboratory), the ship at
@@ -465,10 +465,34 @@ func _decks() -> void:
 		_ok("%s: clicked %d times: it stays, unspent" % [id, made], Hints.card == c and not Hints.seen(id))
 		if i % 2 == 0:
 			# USED: its action spends it, the deck still open
+			var sig0 := Hints._deck_sig()
+			var data0 := Run.data
+			var owned0 := Run.owned_routines().size()
+			if id == &"research":
+				# THE SCREEN PRESSED ALONE SPENDS IT (Lab layout 1C): the line's
+				# one thing to do, before anything is bought in there; the card
+				# does not stay over the Lab's pages
+				st._glass_press.pressed.emit()
+				Hints.poll(0.05)
+				await _tree.process_frame
+				Hints.poll(0.05)
+				_ok("research: the lab's screen pressed, nothing bought yet (routines %d): spent, the card gone, the camera in (%s)" % [
+					Run.owned_routines().size(), st.lab_zoom().is_open()],
+					st.lab_zoom().is_open() and Run.owned_routines().size() == owned0 and Hints.seen(id)
+					and (Hints.card == null or Hints.card.id != id))
 			var did := HintActs.act(id)
 			Hints.poll(0.05)
 			_ok("%s: the deck used (%s): spent, the card gone" % [id, did if did != "" else "NOTHING TO USE IT WITH"],
 				did != "" and Hints.seen(id) and (Hints.card == null or Hints.card.id != id))
+			if id == &"research":
+				# IN THERE, A DATA-ONLY PURCHASE (science, Nov 4): a board step
+				# moves no credits, hull, fuel, hold or fit, so the decks' own
+				# signature stands still
+				_ok("research: a board step bought in the lab with DATA alone (DATA %d to %d, routines %d to %d, credits and the rest unmoved)" % [
+					data0, Run.data, owned0, Run.owned_routines().size()],
+					Run.data < data0 and Run.owned_routines().size() == owned0 + 1 and Hints._deck_sig() == sig0 and Hints.seen(id))
+				HintActs.leave_lab()
+				await _tree.process_frame
 		else:
 			# LEFT WITHOUT USING IT: the next deck's button (the last back to the yard)
 			var next: StringName = DECKS[(i + 1) % DECKS.size()]

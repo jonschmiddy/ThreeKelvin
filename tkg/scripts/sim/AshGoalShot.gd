@@ -329,7 +329,7 @@ func _decks() -> void:
 		Ash.set_on(ash_on)
 		for id in Hints.DECK_HINTS:
 			Hints.mark_seen(id, false)
-		for id: StringName in [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]:
+		for id: StringName in [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"research"]:
 			var tab: StringName = Hints.DECK_HINTS[id]
 			if not st._tabs_on.get(tab, true):
 				continue

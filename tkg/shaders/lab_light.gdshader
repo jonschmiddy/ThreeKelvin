@@ -43,17 +43,19 @@ float pool(ivec2 g, int i) {
 	return (floor(hl.x * 255.0 + 0.5) * 256.0 + floor(hl.y * 255.0 + 0.5)) / 65535.0 * scale;
 }
 
-void fragment() {
-	vec3 base = texture(TEXTURE, UV).rgb;
+// One room pixel lit. `base` is its painted colour (TEXTURE read in
+// fragment(): handed to a function as a sampler it raised a shader compiler
+// ERROR each load).
+vec4 shade(vec3 base, ivec2 p) {
+	vec4 col;
 	if (fullbright) {
-		COLOR = vec4(base, 1.0);
+		col = vec4(base, 1.0);
 	} else {
-		ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
 		int own = int(floor(texelFetch(own_map, p, 0).r * 255.0 + 0.5)) - 1;
 		if (own >= 0) {
 			// AN EMITTER IS NOT LIT, IT BURNS: its own colour at its own brightness.
 			float e = own_w[own];
-			COLOR = vec4(min(vec3(1.0), base * e + vec3(8.0, 10.0, 10.0) / 255.0 * e), 1.0);
+			col = vec4(min(vec3(1.0), base * e + vec3(8.0, 10.0, 10.0) / 255.0 * e), 1.0);
 		} else {
 			ivec2 g = p / 2;
 			vec3 l3 = vec3(0.0);
@@ -96,7 +98,13 @@ void fragment() {
 				vec3 tr = l3 / l;
 				m = amb * ambc * (1.0 - tq) + (vec3(1.0) - 0.45 * (vec3(1.0) - tr)) * tq;
 			}
-			COLOR = vec4(min(vec3(1.0), base * m + ov * 0.3 * m), 1.0);
+			col = vec4(min(vec3(1.0), base * m + ov * 0.3 * m), 1.0);
 		}
 	}
+	return col;
+}
+
+void fragment() {
+	ivec2 p = ivec2(floor(UV * vec2(textureSize(TEXTURE, 0))));
+	COLOR = shade(texelFetch(TEXTURE, p, 0).rgb, p);
 }

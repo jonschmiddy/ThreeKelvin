@@ -9,9 +9,24 @@ var _header: RichTextLabel
 ## The door. Held as a member because whether it opens is run state -- see
 ## `_refresh_undock` -- and the rail that builds it is built once.
 var _undock: Button
-var _bench: VBoxContainer
-## The recipes' holder on the lab's screen, which the power-on's scan opens.
+## The lab's glass in the room, which the power-on's scan opens: the owner's
+## sign-on on it (`LabLogin`), and the key that is the glass itself.
 var _bench_clip: Control
+## THE LAB'S SCREEN IN THE ROOM (Jon, Nov 5): the owner's logo, a sign-in
+## while you point at it, and the whole glass is the one key into it. Built
+## once and restyled (`_refresh_bench`).
+var _glass_press: Button
+## The pointer was on the glass at the last look (`_process`), so its hover is
+## heard once on arriving (`Audio.lab_hover`).
+var _glass_on := false
+## The sign-on, drawn into `_screen_vp` and shown on the glass by
+## `_screen_pic`; the camera into the glass carries the same texture.
+var _login: LabLogin
+var _screen_vp: SubViewport
+var _screen_pic: TextureRect
+## THE CAMERA INTO THE LAB'S SCREEN (Jon's 1C, Nov 4): the Lab's pages at the
+## board's own size, the glass filling the window (`LabZoom`).
+var _lab_zoom: LabZoom
 ## The Exchange: your hold, and the two places you can carry things to.
 var _hold_grid: HoldGrid
 var _sell_desk: TradeCounter
@@ -97,7 +112,7 @@ const TABS := [
 	[&"work", "WORK"],
 	[&"stock", "STOCK"],
 	[&"hold", "HOLD"],
-	[&"bench", "FABRICATOR"],
+	[&"bench", "LABORATORY"],
 ]
 
 ## Decks are ordered high to low with the berth last, so the rail ends at UNDOCK.
@@ -107,7 +122,7 @@ const DECKS := [
 	[&"services", "SHIPYARD", "REPAIRS"],
 	[&"hold", "EXCHANGE", "YOUR HOLD"],
 	[&"work", "HIRING BOARD", "WORK POSTED"],
-	[&"bench", "LABORATORY", "FABRICATOR"],
+	[&"bench", "LABORATORY", "RESEARCH"],
 ]
 ## How wide the section is. Wide enough for "HIRING BOARD" plus a count at
 ## FS_SMALL without either wrapping, which is what sets it -- not a round number.
@@ -221,6 +236,14 @@ func _build() -> void:
 		var page: Control = _pages[id]
 		page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		body.add_child(page)
+	# THE LAB'S SCREEN, ZOOMED: over everything, the HUD too, once pressed
+	_lab_zoom = LabZoom.new()
+	_lab_zoom.lab = _lab
+	_lab_zoom.screen = _screen_pic
+	_lab_zoom.on_glass = [_lab.fx_layer()]
+	_lab_zoom.station = self
+	_lab_zoom.leaving.connect(func() -> void: _login.set_state(LabLogin.LOGO))
+	add_child(_lab_zoom)
 	# `-- station tab=stock` opens on a named page. Four of the five are only
 	# reachable by clicking, and a screenshot cannot click.
 	for a in OS.get_cmdline_user_args():
@@ -654,8 +677,8 @@ func _on_counter(item: HoldItem) -> void:
 
 
 func _page_bench() -> Control:
-	# A painted lab per development level, with the
-	# recipes on its big screen (`LabScene.win_rect`).
+	# A painted lab per development level; its screen holds the owner's sign-on, and
+	# pressing the glass moves the camera onto it (`LabZoom`, Jon, Nov 4-5).
 	# Why: docs/why/StationScreen.md#laboratory
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -664,21 +687,221 @@ func _page_bench() -> Control:
 	_lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_lab)
 
-	# THE ROWS' HOLDER CLIPS, so the scan can bring them up a line at a time. It
-	# is placed at the screen once the station's level is known (`_refresh_bench`).
+	# THE GLASS CLIPS, so the scan can bring the screen up a line at a time. It
+	# is placed on the glass once the station's level is known (`_refresh_bench`).
 	_bench_clip = Control.new()
 	_bench_clip.clip_contents = true
 	_bench_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(_bench_clip)
-	_bench = VBoxContainer.new()
-	_bench.add_theme_constant_override("separation", 4)
-	_bench_clip.add_child(_bench)
+	# THE SIGN-ON, drawn into its own small viewport: the room shows it at 1:1,
+	# and the camera into the glass draws the same pixels.
+	_screen_vp = SubViewport.new()
+	_screen_vp.transparent_bg = true
+	_screen_vp.disable_3d = true
+	_screen_vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	_screen_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+	_screen_vp.size = Vector2i(206, 110)
+	_login = LabLogin.new()
+	_screen_vp.add_child(_login)
+	stack.add_child(_screen_vp)
+	_screen_pic = TextureRect.new()
+	_screen_pic.texture = _screen_vp.get_texture()
+	_screen_pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_screen_pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_screen_pic.stretch_mode = TextureRect.STRETCH_KEEP
+	# (a transparent viewport's colour comes out premultiplied)
+	var pm := CanvasItemMaterial.new()
+	pm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	_screen_pic.material = pm
+	_bench_clip.add_child(_screen_pic)
+	# THE WHOLE GLASS IS THE KEY, and the only one: pointed at, the screen
+	# turns to its sign-in; pressed anywhere on it, the camera goes onto it.
+	# It draws nothing of its own (only pressable things look pressable, and
+	# the sign-in is how it says so).
+	_glass_press = Button.new()
+	_glass_press.focus_mode = Control.FOCUS_NONE
+	_glass_press.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	for st in ["normal", "pressed", "disabled", "focus", "hover"]:
+		_glass_press.add_theme_stylebox_override(st, UITheme.empty())
+	_glass_press.pressed.connect(Audio.click)
+	_glass_press.pressed.connect(func() -> void: _open_lab(&"research"))
+	_bench_clip.add_child(_glass_press)
 	_lab.rows_clip = _bench_clip
 
 	var glass := _lab.fx_layer()
 	glass.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(glass)
 	return Widgets.panel_with(Widgets.pad(stack))
+
+
+## THE POINTER ON THE GLASS, or off it: the sign-in, or the logo. Read off the
+## key each frame (its hover, as the GUI has it), so the pointer already on the
+## glass when the camera comes back out shows the sign-in. Never while the
+## camera is away from the room (the screen says SIGNING IN on the way in, and
+## its logo on the way out).
+func _process(_delta: float) -> void:
+	_ride_step(_delta)
+	if _deck_swap != null:
+		_swap_decks()
+	if _login == null or _glass_press == null or _tab != &"bench":
+		_glass_on = false
+		return
+	if _lab_zoom != null and (_lab_zoom.is_open() or _lab_zoom.visible):
+		return
+	# (nor while the deck is still riding in: the glass is not where it will be)
+	var on := _glass_press.is_visible_in_tree() and _glass_press.is_hovered() and not deck_changing()
+	# THE HOVER IS HEARD ON THE EDGE, the frame the screen turns to its sign-in,
+	# once until the pointer leaves. Not on the camera's way back out with the
+	# pointer still on the glass: `_glass_on` is not touched while the camera is
+	# away, so it is still on from the press.
+	if on and not _glass_on:
+		Audio.lab_hover()
+	_glass_on = on
+	_login.set_state(LabLogin.LOGIN if on else LabLogin.LOGO)
+
+
+## THE KEY'S KEYBOARD AND PAD: Enter, Space or the pad's A on the lab's deck,
+## its screen up, presses the glass, as a click does. Esc or the pad's B takes
+## the camera back out (`LabZoom._input`).
+func _unhandled_input(e: InputEvent) -> void:
+	if _tab != &"bench" or _lab_zoom == null or _lab_zoom.is_open() or e.is_echo() or deck_changing():
+		return
+	# (the pad's A by name: the project's ui_accept has no pad button in it)
+	var pad := e as InputEventJoypadButton
+	var pad_a := pad != null and pad.pressed and pad.button_index == JOY_BUTTON_A
+	if not pad_a and not e.is_action_pressed(&"ui_accept"):
+		return
+	if not deck_subject(&"bench").has_area():
+		return
+	get_viewport().set_input_as_handled()
+	_glass_press.pressed.emit()
+
+
+## Into the Lab's screen, on page `id`.
+func _open_lab(id: StringName) -> void:
+	# NOT WHILE THE DECK CHANGES (the review, Nov 5): `_tab` is the Lab from the
+	# click on its floor, but the Lab is not in its place till the car stops, and
+	# a zoom started then would start from a room that is still moving
+	if _lab_zoom == null or _lab_zoom.is_open() or deck_changing():
+		return
+	# (heard only on the press that signs in, the same frame as its ui_click;
+	# a press refused above clicks alone)
+	Audio.lab_login()
+	_login.set_state(LabLogin.SIGNING)
+	_lab_zoom.open(id)
+
+
+## The camera into the lab's screen. Public for the harnesses.
+func lab_zoom() -> LabZoom:
+	return _lab_zoom
+
+
+## THE CAMERA INTO THE LAB CARRIES THE DECK'S PLATE (`LabZoom`, its `_frame`), so the deck's own
+## is hidden by its self_modulate while the camera is off the room, never faded.
+## Why: docs/why/StationScreen.md#the-camera-into-the-lab-carries
+var _lab_chrome_a := {}
+
+
+func lab_chrome(away: bool) -> void:
+	var c := _pages.get(&"bench") as CanvasItem
+	if c == null or not is_instance_valid(c):
+		return
+	var id := c.get_instance_id()
+	if not away:
+		if _lab_chrome_a.has(id):
+			c.self_modulate.a = float(_lab_chrome_a[id])
+			_lab_chrome_a.erase(id)
+		return
+	if not _lab_chrome_a.has(id):
+		_lab_chrome_a[id] = c.self_modulate.a
+	c.self_modulate.a = 0.0
+
+
+## The deck page whose plate frames the lab's room, which the camera into the
+## Lab draws with the room (`LabZoom._draw_frame`).
+func lab_frame() -> Control:
+	return _pages.get(&"bench") as Control
+
+
+## THE CAMERA CARRIES THE ELEVATOR AND THE HUD OUT (Jon, Nov 5, of the zoom: "can we have a
+## smoother transition with the elevator?").
+## Why: docs/why/StationScreen.md#the-camera-carries-the-elevator-and
+var _lab_carry := {}
+var _lab_lift := false
+## The rail's alpha while the camera has it: 0 once it is wholly out of the
+## window, so a row laid out again under it cannot put it back over the board.
+var _lab_rail_a := 1.0
+
+
+func lab_carry(d: Vector2, on: bool) -> void:
+	_lab_lift = on
+	_lab_rail_a = 1.0
+	for it: Array in [[_rail, Vector2(minf(0.0, d.x), 0.0)], [Router.hud, Vector2(0.0, minf(0.0, d.y))]]:
+		var c := it[0] as Control
+		if c == null or not is_instance_valid(c):
+			continue
+		var id := c.get_instance_id()
+		# (by its offsets, not its position: a window resized mid-zoom puts it
+		# back where its anchors say for the new size, not where it stood)
+		if not on:
+			if _lab_carry.has(id):
+				var was: Array = _lab_carry[id]
+				_set_offsets(c, was[0])
+				c.z_index = was[1]
+				c.modulate.a = was[2]
+				_lab_carry.erase(id)
+			continue
+		if not _lab_carry.has(id):
+			_lab_carry[id] = [Vector4(c.offset_left, c.offset_top, c.offset_right, c.offset_bottom), c.z_index, c.modulate.a]
+		var rest: Array = _lab_carry[id]
+		var off: Vector2 = it[1]
+		_set_offsets(c, rest[0])
+		c.position += off.round()
+		c.z_index = 2
+		var r := Rect2(c.get_global_rect().position, c.size)
+		var gone := r.end.x <= 0.0 or r.end.y <= 0.0
+		c.modulate.a = 0.0 if gone else float(rest[2])
+		if c == _rail:
+			_lab_rail_a = 0.0 if gone else 1.0
+
+
+## UNDOCK FROM A DECK ABOVE THE YARD RIDES DOWN TO IT FIRST (Jon, Nov 5: the slide for every
+## elevator choice).
+## Why: docs/why/StationScreen.md#undock-from-a-deck-above-the
+var _undock_wait := false
+
+
+func _undock_press() -> void:
+	if _undock_wait:
+		return
+	if _undock_rides():
+		if _tab != &"services":
+			_show_tab(&"services")
+		if deck_changing():
+			_undock_wait = true
+			_deck_fade.finished.connect(_undock_after_ride)
+			return
+	Router.show_sector()
+
+
+## Whether undocking from here plays the yard (`ladder_pre`), so must start on it.
+func _undock_rides() -> bool:
+	return _pages.has(&"services") and _tabs_on.get(&"services", true) 		and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"]
+
+
+func _undock_after_ride() -> void:
+	if not _undock_wait:
+		return
+	_undock_wait = false
+	if _tab == &"services" and is_inside_tree() and Router.current == self 			and _undock != null and not _undock.disabled:
+		Router.show_sector()
+
+
+static func _set_offsets(c: Control, o: Vector4) -> void:
+	c.offset_left = o.x
+	c.offset_top = o.y
+	c.offset_right = o.z
+	c.offset_bottom = o.w
 
 
 ## A Button with child Labels, as a Button draws one line in one colour; clicks fall through to it.
@@ -723,7 +946,7 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 func _undock_cell() -> Control:
 	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
 	# go and come back from; this is the door, so it wears the same ink BUY does.
-	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
+	var out := _commit_button("UNDOCK", _undock_press)
 	# (big enough to read as the door, not a footnote under the floors)
 	out.custom_minimum_size = Vector2(RAIL_W, UNDOCK_H)
 	out.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
@@ -772,10 +995,17 @@ func _power_deck(id: StringName) -> void:
 	var settled: bool = Router.powered.has(id)
 	if id == &"bench" and _lab != null:
 		_lab.power_on(settled)
+		# (riding in on a slide, the Lab comes in dark and its lamps strike as
+		# the car stops, as they did after the dip: not mid-ride)
+		if not settled and deck_changing() and deck_move == &"slide":
+			_boot_on_arrival(_lab.delay_boot.bind(3600.0), _lab.boot_now)
 	elif id == &"services" and _scene != null and is_instance_valid(_scene):
 		_scene.power_on(settled)
 	elif id == &"work" and _board_lamp != null:
 		_board_lamp.power_on(settled)
+		# (and the board's tubes strike as the car stops, as the Lab's lamps do)
+		if not settled and deck_changing() and deck_move == &"slide":
+			_boot_on_arrival(_board_lamp.hold_boot, _board_lamp.boot_now)
 	else:
 		return
 	Router.powered[id] = true
@@ -784,10 +1014,36 @@ func _power_deck(id: StringName) -> void:
 func _show_tab(id: StringName) -> void:
 	if not _pages.has(id) or not _tabs_on.get(id, true):
 		return
+	# (a floor picked on the way down to undock: the player changed their mind)
+	_undock_wait = false
+	# (a ride still going: the new one starts from what is on screen, under the
+	# dark as it is, not from the deck it was going to)
+	var from: Control = _deck_showing() if _tab != id or deck_changing() else null
+	var a0 := 0.0
+	if _deck_dark != null and is_instance_valid(_deck_dark):
+		a0 = _deck_dark.color.a
+	# (and on a slide, where the shaft stands, and the other deck in it)
+	var y0 := from.position.y if from != null else 0.0
+	var other: Control = null
+	if deck_changing() and deck_move == &"slide":
+		other = _deck_to if from == _deck_from else _deck_from
+	_end_deck_fade(true)
 	_tab = id
 	for key in _pages:
 		(_pages[key] as Control).visible = key == id
+	_ride_s = 0.0
 	_light_floor()
+	# (a deck left is always a ride, the car's or -- no car to time it -- the
+	# shortest one: never a cut)
+	if from != null and (from != _pages[id] or a0 > 0.0 or y0 != 0.0) and Router.animating():
+		var secs := maxf(_ride_s, DECK_MIN_S)
+		if deck_move == &"slide":
+			_slide_decks(from, _pages[id] as Control, secs, y0, other)
+		else:
+			_cross_decks(from, _pages[id] as Control, secs, a0)
+	if not deck_changing():
+		for key2 in _pages:
+			(_pages[key2] as Control).position.y = 0.0
 	# The lab and the yard's TV power on the first time you step onto the deck.
 	_power_deck(id)
 	for key in _tabs:
@@ -805,15 +1061,295 @@ func _show_tab(id: StringName) -> void:
 		if on:
 			if title != null:
 				title.add_theme_color_override("font_color", UITheme.HOT)
-			if _deck_note.has(key):
-				(_deck_note[key] as Label).add_theme_color_override(
-					"font_color", UITheme.EMBER)
+			_tint_note(key, true)
 		else:
 			if title != null:
 				title.add_theme_color_override("font_color", UITheme.CHILL)
-			if _deck_note.has(key):
-				(_deck_note[key] as Label).add_theme_color_override(
-					"font_color", UITheme.COLD)
+			_tint_note(key, false)
+
+
+## THE LAB'S REMINDER (Jon, Nov 8, S1A): at LAB_REMIND DATA or more the Laboratory's line on
+## the elevator reads "SPEND N DATA" in EMBER on every deck. One line, no panel.
+## Why: docs/why/StationScreen.md#the-labs-reminder
+const LAB_REMIND := 10
+
+func lab_reminds() -> bool:
+	return Run.data >= LAB_REMIND and not Run.science_off
+
+
+## A deck's line under its name: EMBER on the deck you are on, COLD elsewhere, but the Lab's
+## reminder is EMBER wherever you stand.
+func _tint_note(key: StringName, on: bool) -> void:
+	if not _deck_note.has(key):
+		return
+	var hot := on or (key == &"bench" and lab_reminds())
+	(_deck_note[key] as Label).add_theme_color_override("font_color", UITheme.EMBER if hot else UITheme.COLD)
+
+
+## THE DECKS CHANGE OVER THE RIDE, NOT AT THE CLICK (Jon, Nov 5: "a smoother transition with the
+## elevator").
+## Why: docs/why/StationScreen.md#the-decks-change-over-the-ride
+var _ride_s := 0.0
+var _deck_fade: Tween = null
+var _deck_from: Control = null
+var _deck_dark: ColorRect = null
+var _deck_swap: Control = null
+## How long the dark holds whole while the decks change hands (s).
+const DECK_HOLD_S := 0.034
+
+
+## The decks change hands under the dark (`_cross_decks`).
+func _swap_decks() -> void:
+	var to := _deck_swap
+	_deck_swap = null
+	if to == null or not is_instance_valid(to):
+		return
+	if _deck_from != null and is_instance_valid(_deck_from) and _pages.get(_tab) != _deck_from:
+		_deck_from.visible = false
+		_deck_from.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_INHERITED
+	to.visible = true
+
+
+## From the deck `from` shown under a dark of `a0` (0, or how dark a ride cut
+## short by this press had it) to the deck `to`. Pressed back to the deck still
+## showing, the dark only goes back down.
+func _cross_decks(from: Control, to: Control, secs: float, a0: float = 0.0) -> void:
+	var body := to.get_parent() as Control
+	if body == null:
+		return
+	_deck_dark = ColorRect.new()
+	_deck_dark.color = Color(0, 0, 0, a0)
+	_deck_dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_deck_dark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	body.add_child(_deck_dark)
+	_deck_fade = create_tween()
+	_deck_fade.finished.connect(_end_deck_fade)
+	if from == to:
+		_deck_fade.tween_property(_deck_dark, ^"color:a", 0.0, secs * 0.5 * a0) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		return
+	from.visible = true
+	to.visible = false
+	from.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_DISABLED
+	_deck_from = from
+	_deck_fade.tween_property(_deck_dark, ^"color:a", 1.0, secs * 0.5 * (1.0 - a0)) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	# (the hand-over on this screen's next `_process`, ahead of the decks' own:
+	# a tween runs after them, and the Lab shown from here drew one frame on
+	# its build's lit uniforms, its logo up, before its power-on had ticked)
+	_deck_fade.tween_callback(func() -> void: _deck_swap = to)
+	# (the dark held whole while the hand-over lands: two frames at 60)
+	_deck_fade.tween_interval(DECK_HOLD_S)
+	_deck_fade.tween_property(_deck_dark, ^"color:a", 0.0, secs * 0.5) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+## The deck on screen now: in a deck change before its hand-over, the deck
+## being left, else the deck you are on.
+func _deck_showing() -> Control:
+	if deck_changing() and deck_move == &"slide":
+		# (on a slide, whichever deck holds more of the panel)
+		var best: Control = null
+		for pg: Control in [_deck_from, _deck_to]:
+			if pg != null and is_instance_valid(pg) and pg.visible \
+					and (best == null or absf(pg.position.y) < absf(best.position.y)):
+				best = pg
+		if best != null:
+			return best
+	if deck_changing() and _deck_from != null and is_instance_valid(_deck_from) and _deck_from.visible:
+		return _deck_from
+	return _pages.get(_tab)
+
+
+## Whether a deck change is still going down or coming up.
+func deck_changing() -> bool:
+	return _deck_fade != null and _deck_fade.is_valid()
+
+
+## The deck change finished now: only the deck you are on shown, every deck in
+## its place and taking clicks again, and the dark and the slab gone. `keep`
+## (a new ride starting from this one) leaves the decks where they stand for it.
+func _end_deck_fade(keep: bool = false) -> void:
+	_boot_release()
+	if _deck_fade != null and _deck_fade.is_valid():
+		_deck_fade.kill()
+	_deck_fade = null
+	_deck_swap = null
+	if _deck_from != null and is_instance_valid(_deck_from):
+		_deck_from.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_INHERITED
+	if _deck_to != null and is_instance_valid(_deck_to):
+		_deck_to.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_INHERITED
+	_deck_from = null
+	_deck_to = null
+	if _deck_dark != null and is_instance_valid(_deck_dark):
+		_deck_dark.queue_free()
+	_deck_dark = null
+	if _deck_slab != null and is_instance_valid(_deck_slab):
+		_deck_slab.queue_free()
+	_deck_slab = null
+	if _deck_body != null and is_instance_valid(_deck_body):
+		_deck_body.clip_contents = _deck_clip
+	_deck_body = null
+	for pg: Control in _deck_page_clip:
+		if is_instance_valid(pg):
+			pg.clip_contents = bool(_deck_page_clip[pg][0])
+			pg.z_index = int(_deck_page_clip[pg][1])
+	_deck_page_clip.clear()
+	if keep:
+		return
+	for key in _pages:
+		var pg := _pages[key] as Control
+		pg.visible = key == _tab
+		pg.position.y = 0.0
+
+
+## THE DECKS RIDE WITH THE CAR (the review of the dip, Nov 5: a fade to black is still a cut,
+## and an elevator goes up and down).
+## Why: docs/why/StationScreen.md#the-decks-ride-with-the-car
+static var deck_move: StringName = &"slide"
+## The floor slab between two decks on a slide (px), and the shortest ride a
+## deck change takes (s): a one-floor hop at 0.24 s read as a blink.
+const DECK_SLAB := 12
+const DECK_MIN_S := 0.36
+var _deck_to: Control = null
+var _deck_secs := 0.0
+var _deck_slab: Control = null
+var _deck_clip := false
+var _deck_body: Control = null
+## Each riding deck's own clip and z as they were (`_slide_decks`).
+var _deck_page_clip: Dictionary = {}
+
+
+## THE RIDE NEVER JUMPS A LONG FRAME: the car and the slide step at most RIDE_STEP_S a frame,
+## so a frame that stalls building a deck holds the shaft where it was.
+## Why: docs/why/StationScreen.md#the-ride-never-jumps-a-long
+const RIDE_STEP_S := 1.0 / 30.0
+var _slide_tw: Tween = null
+
+
+func _ride_step(delta: float) -> void:
+	var dt := minf(delta, RIDE_STEP_S)
+	if _lift != null and _lift.is_valid():
+		_lift.custom_step(dt)
+	if _slide_tw != null and _slide_tw.is_valid() and _slide_tw == _deck_fade:
+		_slide_tw.custom_step(dt)
+	else:
+		_slide_tw = null
+
+
+## A DECK'S POWER-ON WAITS FOR THE CAR: riding in, the deck is dark (`hold`),
+## and its lights strike (`go`) a quarter second before the car stops, on the
+## ride's own clock (a stalled frame holds the ride, so a power-on timed on
+## any other clock struck early). A ride cut short by another press strikes it
+## then (`_end_deck_fade`), so no deck is left dark.
+var _boot_go: Array[Callable] = []
+
+
+func _boot_on_arrival(hold: Callable, go: Callable) -> void:
+	hold.call()
+	_boot_go.append(go)
+	_deck_fade.parallel().tween_callback(_boot_release).set_delay(maxf(0.0, _deck_secs - 0.25))
+
+
+func _boot_release() -> void:
+	var go := _boot_go
+	_boot_go = []
+	for g in go:
+		if g.is_valid():
+			g.call()
+
+
+## The page whose deck this is, by its id.
+func _page_id(page: Control) -> StringName:
+	for key in _pages:
+		if _pages[key] == page:
+			return key
+	return &""
+
+
+## From the deck `from` (where it stands now, `y0` off its place) to `to`, over
+## `secs`: the shaft moved, `from` out and `to` in.
+func _slide_decks(from: Control, to: Control, secs: float, y0: float, other: Control) -> void:
+	var body := to.get_parent() as Control
+	if body == null:
+		return
+	var span := body.size.y + float(DECK_SLAB)
+	# which way the shaft goes: by the floors, or (pressed back mid-ride) by
+	# where the deck you go back to already stands
+	var dir := 1.0
+	var a := _spine.floors.find(_page_id(from)) if _spine != null else -1
+	var b := _spine.floors.find(_page_id(to)) if _spine != null else -1
+	if a >= 0 and b >= 0 and a != b:
+		dir = 1.0 if b > a else -1.0
+	var mate := to
+	var y_end := -dir * span
+	if from == to:
+		# back to the deck still mostly showing: it rides back into its place,
+		# the deck it was leaving for goes back out the way it came
+		mate = other
+		if mate == null or not is_instance_valid(mate):
+			from.position.y = 0.0
+			return
+		dir = signf(mate.position.y - from.position.y)
+		if dir == 0.0:
+			dir = 1.0
+		y_end = 0.0
+	for key in _pages:
+		var pg := _pages[key] as Control
+		pg.visible = pg == from or pg == mate
+		pg.mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_DISABLED if pg.visible else Control.MOUSE_BEHAVIOR_INHERITED
+		if not pg.visible:
+			pg.position.y = 0.0
+	_deck_body = body
+	_deck_secs = secs
+	_deck_clip = body.clip_contents
+	body.clip_contents = true
+	# THE LOWER DECK OVER THE UPPER (the r5 film: from the yard up to the PROMENADE the yard
+	# went dark on the press).
+	# Why: docs/why/StationScreen.md#the-lower-deck-over-the-upper
+	var lower := mate if dir > 0.0 else from
+	for pg: Control in [from, mate]:
+		if not _deck_page_clip.has(pg):
+			_deck_page_clip[pg] = [pg.clip_contents, pg.z_index]
+		pg.clip_contents = true
+		pg.z_index = 1 if pg == lower else 0
+	_deck_from = from
+	_deck_to = mate
+	_deck_slab = _Slab.new()
+	_deck_slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_deck_slab.z_index = 2
+	_deck_slab.size = Vector2(body.size.x, DECK_SLAB)
+	body.add_child(_deck_slab)
+	var place := func(y: float) -> void:
+		if not is_instance_valid(from) or not is_instance_valid(mate):
+			return
+		from.position.y = roundf(y)
+		mate.position.y = roundf(y) + dir * span
+		var top := minf(from.position.y, mate.position.y)
+		_deck_slab.position = Vector2(0.0, top + body.size.y)
+	place.call(y0)
+	_deck_fade = create_tween()
+	_deck_fade.finished.connect(_end_deck_fade)
+	_deck_fade.tween_method(place, y0, y_end, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# (stepped by this screen with the car, a frame at most RIDE_STEP_S)
+	_deck_fade.pause()
+	_slide_tw = _deck_fade
+
+
+## The floor slab between two decks on a slide: the deck's dark, a lit edge
+## on each face and a row of rivets, so the shaft reads as one building.
+class _Slab extends Control:
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		draw_rect(Rect2(0, 0, w, h), Color("#0a0d12"))
+		draw_rect(Rect2(0, 0, w, 1), Color("#3a4654"))
+		draw_rect(Rect2(0, h - 1, w, 1), Color("#26303b"))
+		draw_rect(Rect2(0, 3, w, 1), Color("#141a22"))
+		var x := 6.0
+		while x < w:
+			draw_rect(Rect2(x, floorf(h / 2.0), 2, 2), Color("#222b35"))
+			x += 24.0
 
 
 ## Turn a tab on or off for this station, and get off it if you are standing on
@@ -931,11 +1467,15 @@ func _ride_to(index: int, ride: bool = true) -> void:
 	# Why: docs/why/StationScreen.md#ride-timing
 	var span := absf(float(index) - _spine.car)
 	var secs := clampf(0.21 + 0.13 * span, 0.24, 0.72)
+	# (and the decks change over it: `_cross_decks`)
+	_ride_s = secs
 	# Sound only when the car travels, throttled as clicking fast down the list restarts the ride.
 	Audio.play(&"station_lift", 0.05, 150)
 	_lift = create_tween()
 	_lift.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_lift.tween_method(_car_step, _spine.car, float(index), secs)
+	# (stepped by this screen, a frame at most RIDE_STEP_S: `_ride_step`)
+	_lift.pause()
 	# The sound lasts exactly the ride (Jon) and is
 	# faded on the stop frame; arrival has its own chunk.
 	# Why: docs/why/StationScreen.md#ride-sound
@@ -1405,54 +1945,50 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
 		"This market has bought a lot today, so it pays less than it did."
 		if n.trades >= 3 else "These are this market's usual prices."]
-## The recipes this place can support, on the lab's screen.
-
-
+## The entry on the lab's screen, restyled, and the Lab's pages behind it.
 func _refresh_bench(n: MapGen.MapNode) -> void:
 	_dress_room(_lab, n)
 	_lab.load_level()
-	# ON THE LAB'S SCREEN. The holder is the screen's window; the rows keep its
-	# full height whatever the scan has opened, so they do not re-flow as it goes.
+	# ON THE LAB'S GLASS. The holder is the glass, the key all of it; the
+	# sign-on stands in the screen's window, where the prototype drew its rows
+	# (clear of the capital's and the den's flasks in front of the glass).
+	var gr := _lab.glass_rect()
 	var win := _lab.win_rect()
-	_bench_clip.position = win.position
-	_bench_clip.size = win.size
-	_bench.position = Vector2.ZERO
-	_bench.custom_minimum_size = Vector2(win.size.x, 0.0)
-	_bench.size = Vector2(win.size.x, win.size.y)
-	Widgets.clear(_bench)
-	var recipes := Fabricator.available(n)
-	# Every station has its laboratory (Jon, Nov 3); RELIC ANALYSIS is dev 0, priced by the level.
-	# Why: docs/why/StationScreen.md#five-decks-everywhere
+	_bench_clip.position = gr.position
+	_bench_clip.size = gr.size
+	_glass_press.position = Vector2.ZERO
+	_glass_press.size = gr.size
+	_screen_pic.position = win.position - gr.position
+	_screen_pic.size = win.size
+	if _screen_vp.size != Vector2i(win.size):
+		_screen_vp.size = Vector2i(win.size)
+	_login.size = win.size
+	# THE SIGN-ON IS LAID OUT IN WHAT THE LANDED CAMERA KEEPS of the window
+	# (`LabZoom.landed_view`), whole px inside it: its header was cut off at four
+	# labs, where the landed glass is wider or taller than the screen
+	var seen := LabZoom.landed_view(_lab).intersection(win)
+	var sa := (seen.position - win.position).ceil()
+	var sb := (seen.end - win.position).floor()
+	_login.safe = Rect2i(Vector2i(sa), Vector2i(sb - sa))
+	# EVERY STATION HAS ITS LABORATORY (Jon, Nov 3: all five decks at every
+	# station, at every level).
 	_enable_tab(&"bench", true)
-	# A row, not a wide button: what a recipe makes is the reason to stand here, so it shows.
-	# Why: docs/why/StationScreen.md#recipe-rows
-	for r in recipes:
-		var can := Fabricator.can_make(n, r)
-		var row := VBoxContainer.new()
-		row.add_theme_constant_override("separation", 2)
-
-		# TWO LINES, NAME AND MAKE THEN THE COST: the settlement's screen is two
-		# hundred pixels wide, and one line of all three did not fit it.
-		var head := HBoxContainer.new()
-		head.add_theme_constant_override("separation", 8)
-		var name_l := UITheme.body(str(r.name).to_upper(),
-			UITheme.ICE if can else UITheme.COLD, UITheme.FS_BODY)
-		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		head.add_child(name_l)
-		var b := _commit_button("MAKE", _fabricate.bind(r))
-		b.disabled = not can
-		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		head.add_child(b)
-		row.add_child(head)
-		# THE COST IN AMBER WHEN YOU CAN PAY IT, grey when you cannot -- the same
-		# read as a BUY button greying out, said in the one place the answer is.
-		row.add_child(UITheme.body(Fabricator.cost_line(n, r).to_upper(),
-			UITheme.EMBER if can else UITheme.QUOTE, UITheme.FS_SMALL))
-
-		var what := UITheme.body(str(r.text), UITheme.COLD, UITheme.FS_SMALL)
-		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		row.add_child(what)
-		_bench.add_child(Widgets.panel_with(Widgets.pad(row, 8, 6)))
+	# RESTYLED, NEVER REBUILT: a key made again on every `resources_changed`
+	# could not be clicked.
+	var tn: Array = (_lab.lab.get("screen", {}) as Dictionary).get("tint", [190, 240, 235])
+	_login.tint = Color8(int(tn[0]), int(tn[1]), int(tn[2]))
+	_login.owner_id = n.manufacturer if n.manufacturer != &"" else (n.berths[0] if not n.berths.is_empty() else &"")
+	_login.pilot = Run.display_name()
+	_login.data = Run.data
+	_login.lab = _lab
+	# the order its savers come in is the station's own: the galaxy's seed and
+	# the system, so a partner docked here and a film see the same (`LabSavers.list_for`)
+	_login.station_key = hash("%d:%d" % [Run.galaxy_seed, n.index])
+	if _deck_note.has(&"bench"):
+		(_deck_note[&"bench"] as Label).text = ("SPEND %d DATA" if lab_reminds() else "DATA %d") % Run.data
+		_tint_note(&"bench", _tabs.has(&"bench") and (_tabs[&"bench"] as Button).disabled)
+	if _lab_zoom != null:
+		_lab_zoom.refresh()
 
 ## A drone was pointed at and clicked: do what it sells, and tell the yard it
 ## happened, so the drone can dip to the hull and do the work.
@@ -1523,12 +2059,15 @@ func _purge(which: StringName) -> void:
 	if _scene != null and is_instance_valid(_scene):
 		_scene.served(3, "FIXED")
 
-func _fabricate(r: Dictionary) -> void:
+## Make a recipe at the Lab (`LabZoom._make`, from RECIPES' MAKE): the log
+## line, or "" when it did not happen.
+func _fabricate(r: Dictionary) -> String:
 	var line := Fabricator.make(Run.node_at(), r)
 	if line.is_empty():
-		return
+		return ""
 	Audio.play(&"fabricate", 0.04)
 	Run.log_line(line, &"good")
+	return line
 
 ## True while a co-op client waits on the host for a claim, so a second click cannot pay twice.
 var _asking := false
@@ -2069,7 +2608,7 @@ func deck_subject(tab: StringName) -> Rect2:
 			if _bench_clip == null or not _bench_clip.is_visible_in_tree() or _lab == null:
 				return Rect2()
 			# (the scan opens the screen's holder a line at a time: whole once it has passed)
-			if _bench_clip.size.y < _lab.win_rect().size.y - 0.5 or _bench.get_child_count() == 0:
+			if _bench_clip.size.y < _lab.glass_rect().size.y - 0.5:
 				return Rect2()
 			return _bench_clip.get_global_rect()
 	return Rect2()
@@ -2163,8 +2702,8 @@ class _YardEdge extends Node:
 		if not screen._lad.is_empty() and not bool(screen._lad.get("out", false)):
 			gone = true
 		# (by its alpha, not `visible`: hidden, the row it stands in would close up)
-		r.modulate.a = 0.0 if gone else screen._rail_a
-		r.z_index = 1 if away and not gone and not _panning() else 0
+		r.modulate.a = 0.0 if gone else screen._rail_a * screen._lab_rail_a
+		r.z_index = 2 if screen._lab_lift else (1 if away and not gone and not _panning() else 0)
 		if away == _on:
 			return
 		_on = away

@@ -342,8 +342,11 @@ func _station() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.type != MapGen.NodeType.STATION:
 		return
+	# The Lab before the counter, as `Policy.shop` has it: film and relics the
+	# board wants are read for DATA and its steps bought before anything is
+	# sold. One entry, so the bot and the sim stay one pilot.
+	policy.lab(n)
 	policy.sell_hold(n)
-	policy.bench(n)
 	var guard := 0
 	while guard < 12:
 		guard += 1

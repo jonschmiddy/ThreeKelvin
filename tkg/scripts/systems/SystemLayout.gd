@@ -107,6 +107,18 @@ const GIANTS := [&"banded", &"icegiant", &"storm", &"violet"]
 const HOT_GIANTS := [&"hotjup", &"comet"]
 const CORE_WORLDS := [&"moon", &"rock", &"lava", &"crystal", &"shattered", &"cracked", &"scorched"]
 const PULSAR_WORLDS := [&"iron", &"rock", &"moon", &"scorched", &"shattered"]
+## THE DRY WORLDS, by zone: where a barren reading (science, `site = &"barren"`)
+## sits. Only worlds whose ATMOS reads NONE or FROZEN OUT (`SystemView.ATMOS`):
+## iron, cracked, crystal and ice have thin air and are left out, so the text's
+## airless world is airless where it stands. Europa is out too: it is an ice
+## shell over water, and the barren texts stand on dust and plain.
+const DRY := [
+	[&"rock", &"scorched", &"carbonA"],
+	[&"rock", &"carbonC"],
+	[&"moon", &"rock", &"carbonC", &"rogue"],
+]
+## Round a pulsar, from its own worlds: the dry ones that are not in pieces.
+const DRY_PULSAR := [&"rock", &"moon", &"scorched"]
 const BELT_KINDS := ["ROCK AND METAL", "ICE AND DUST", "CARBON, DARK", "NICKEL-IRON"]
 
 
@@ -476,6 +488,13 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			sb.opt = i
 			L.star_beacons.append(sb)
 			continue
+		# A BELT READING ON THE BELT (science, Phase 12): its text is about the
+		# rocks, so it sits on them in every system. Its planet twin, a barren
+		# reading, wants a planet as any untagged option does; `_worlds` makes
+		# that world a dry one
+		if site == &"belt":
+			want.append([i, &"belt"])
+			continue
 		var tags: Array = OptionTable.by_id(n.options[i]).get("tags", [])
 		var k := &"planet"
 		if tags.has(&"fight") and not tags.has(&"salvage"):
@@ -648,6 +667,11 @@ static func _worlds(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator
 			if L.star == StarKind.PULSAR:
 				w = PULSAR_WORLDS[int(R.randf() * PULSAR_WORLDS.size())]
 				b.scorched = true
+			# A BARREN READING'S WORLD IS DRY (science): one the map says has no
+			# air, after every draw above so R moves exactly as it did
+			if _holds_barren(b, n):
+				var dry: Array = DRY_PULSAR if L.star == StarKind.PULSAR else DRY[b.zone]
+				w = dry[Rng.derive(&"barren_world", n.index * 8 + b.index).randi() % dry.size()]
 			b.world = w
 			# a broken world is drawn bigger, so its pieces read
 			if w == &"shattered":
@@ -677,6 +701,15 @@ static func _worlds(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator
 			&"derelict":
 				b.mass = 0.8
 				b.well_w = 8.0
+
+
+## Whether body `b` holds a barren reading (`site = &"barren"`, science).
+static func _holds_barren(b: Body, n: MapGen.MapNode) -> bool:
+	for bc in b.beacons:
+		if bc.opt >= 0 and bc.opt < n.options.size() \
+				and StringName(OptionTable.by_id(n.options[bc.opt]).get("site", &"")) == &"barren":
+			return true
+	return false
 
 
 ## A signed job's place, before it is put on an orbit, drawn off its own stream

@@ -25,7 +25,11 @@ Four things, each read off the game rather than restated here:
   on screen, clear of every other thing on the row, of the goal line and of
   the band under it on the left, and every spot A.S.H. can stand in; with dev
   mode's two extra
-  tabs too. Not pressable: no button, no focus, the arrow cursor.
+  tabs too. Not pressable: no button, no focus, the arrow cursor. DATA
+  (science) after it: inside the bar's 932 px clip, clear of FUEL, reading
+  the run's DATA; and the worst case (a party's tab, over the heat cap,
+  9999 credits, 99 DATA) fitting the clip in player mode, its developer
+  mode figure printed.
 - THE PRICE AND THE WAY OUT (Jon, Oct 18: "fuel:AB"), in a USED run -- a
   few hops flown, credits spent, a can bought, docks visited -- not a fresh
   one. A whole tank costs 55-60 at an outpost and follows the service

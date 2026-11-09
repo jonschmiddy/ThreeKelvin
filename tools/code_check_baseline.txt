@@ -122,6 +122,9 @@ bare scripts/systems/SaveGame.gd::_read
 bare scripts/systems/SaveGame.gd::_snapshot
 bare scripts/systems/SaveGame.gd::_standing_to
 bare scripts/systems/SaveGame.gd::summary
+bare scripts/systems/Science.gd::augment_cost
+bare scripts/systems/Science.gd::board_state
+bare scripts/systems/Science.gd::strip_cost
 bare scripts/systems/Unlocks.gd::won_with
 bare scripts/ui/AreaView.gd::_under
 bare scripts/ui/Ash.gd::_item_ids
@@ -220,6 +223,7 @@ bare scripts/ui/Hints.gd::_dock_cached
 bare scripts/ui/Hints.gd::_fight_avoid
 bare scripts/ui/Hints.gd::_fight_probe
 bare scripts/ui/Hints.gd::_fit_sig
+bare scripts/ui/Hints.gd::_lab_sig
 bare scripts/ui/Hints.gd::_map_fly_probe
 bare scripts/ui/Hints.gd::_snapshot
 bare scripts/ui/Hints.gd::_station_probe
@@ -243,10 +247,51 @@ bare scripts/ui/HullScramble.gd::_rich_cell
 bare scripts/ui/HullScramble.gd::_signal_cell
 bare scripts/ui/HullScramble.gd::live
 bare scripts/ui/ItemIcon.gd::_get_drag_data
+bare scripts/ui/LabAugment.gd::_cut
+bare scripts/ui/LabAugment.gd::_gauges
+bare scripts/ui/LabAugment.gd::_node_ys
+bare scripts/ui/LabAugment.gd::_phosphor
+bare scripts/ui/LabAugment.gd::_read
+bare scripts/ui/LabAugment.gd::_schematic
+bare scripts/ui/LabAugment.gd::_stat_runs
+bare scripts/ui/LabAugment.gd::bill
+bare scripts/ui/LabAugment.gd::picture
+bare scripts/ui/LabBoard.gd::_states
+bare scripts/ui/LabRecipes.gd::_blank
+bare scripts/ui/LabRecipes.gd::_crate
+bare scripts/ui/LabRecipes.gd::_film
+bare scripts/ui/LabRecipes.gd::_item
+bare scripts/ui/LabRecipes.gd::_node_ys
+bare scripts/ui/LabRecipes.gd::_offers
+bare scripts/ui/LabRecipes.gd::_relic
+bare scripts/ui/LabRecipes.gd::_words
+bare scripts/ui/LabRecipes.gd::bench_tex
+bare scripts/ui/LabRecipes.gd::bill
+bare scripts/ui/LabRecipes.gd::picked
+bare scripts/ui/LabRecipes.gd::rail_tex
+bare scripts/ui/LabSaverDress.gd::of
+bare scripts/ui/LabSavers.gd::_cx_plate
+bare scripts/ui/LabSavers.gd::_hull_art
+bare scripts/ui/LabSavers.gd::_i1_segs
+bare scripts/ui/LabSavers.gd::_i2_piece
+bare scripts/ui/LabSavers.gd::_i3_loads
+bare scripts/ui/LabSavers.gd::_i_manufacturers
+bare scripts/ui/LabSavers.gd::_p1_ship
+bare scripts/ui/LabSavers.gd::_p3_lot
+bare scripts/ui/LabSavers.gd::_r1_job
+bare scripts/ui/LabSavers.gd::_relic
+bare scripts/ui/LabSavers.gd::_s3_item
+bare scripts/ui/LabSavers.gd::_s3_manufacturer
+bare scripts/ui/LabSavers.gd::_s5_cards
+bare scripts/ui/LabSavers.gd::_shape
+bare scripts/ui/LabSavers.gd::dress
+bare scripts/ui/LabSaversSolari.gd::_h_card
 bare scripts/ui/LabScene.gd::_anim
 bare scripts/ui/LabScene.gd::_weights
 bare scripts/ui/LabScene.gd::banner_spots
 bare scripts/ui/LabScene.gd::doc
+bare scripts/ui/LabZoom.gd::header_leaves
+bare scripts/ui/LabZoom.gd::leaves
 bare scripts/ui/LocalEventDrawer.gd::_avoid_rects
 bare scripts/ui/LocalEventDrawer.gd::_choice_cards
 bare scripts/ui/LocalEventDrawer.gd::_hulls
@@ -316,6 +361,8 @@ bare scripts/ui/MapChart.gd::nodes_near
 bare scripts/ui/MapChart.gd::party_marks
 bare scripts/ui/MapChart.gd::place_quest_tags
 bare scripts/ui/MapChart.gd::too_deep_set
+bare scripts/ui/ModuleIcon.gd::augment_mark
+bare scripts/ui/ModuleIcon.gd::plate_ink
 bare scripts/ui/MountPoints.gd::_get_drag_data
 bare scripts/ui/NavField.gd::screen_pan
 bare scripts/ui/OutcomeRow.gd::_targets
@@ -520,16 +567,20 @@ bare scripts/ui/sysmap/SystemView.gd::orbit_runs
 bare scripts/ui/sysmap/SystemView.gd::positions
 bare scripts/ui/sysmap/SystemView.gd::ring_slots
 bare scripts/ui/sysmap/SystemView.gd::star_facts_of
-file scripts/systems/FlightSolve.gd 4005
+file scripts/systems/FlightSolve.gd 4027
+file scripts/ui/LabSavers.gd 5410
 file scripts/ui/LocalSubject.gd 3175
-file scripts/ui/SectorScreen.gd 4946
+file scripts/ui/SectorScreen.gd 4956
 file scripts/ui/ShipBreakup.gd 3639
+file scripts/ui/StationScreen.gd 3294
+file scripts/ui/ZoomLadder.gd 3002
 file scripts/ui/sysmap/ShipFlight.gd 4472
 file scripts/ui/sysmap/SystemView.gd 3240
 length scripts/Main.gd::_ready 147
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/autoload/Router.gd::start_combat 101
 length scripts/systems/CardResolver.gd::resolve 139
+length scripts/systems/FlightSolve.gd::_arrival_cusps 103
 length scripts/systems/FlightSolve.gd::_build_in 120
 length scripts/systems/FlightSolve.gd::_integrate 381
 length scripts/systems/FlightSolve.gd::_price 179
@@ -539,8 +590,8 @@ length scripts/systems/MapGen.gd::spread_positions 102
 length scripts/systems/MaterialTable.gd::all 212
 length scripts/systems/NebulaField.gd::_build 120
 length scripts/systems/SaveGame.gd::_node_from 110
-length scripts/systems/SaveGame.gd::load_into_run 182
-length scripts/systems/SystemLayout.gd::of 187
+length scripts/systems/SaveGame.gd::load_into_run 197
+length scripts/systems/SystemLayout.gd::of 194
 length scripts/systems/options/OptionsPart01.gd::entries 437
 length scripts/systems/options/OptionsPart02.gd::entries 532
 length scripts/systems/options/OptionsPart03.gd::entries 485
@@ -551,6 +602,7 @@ length scripts/systems/options/OptionsPart07.gd::entries 382
 length scripts/systems/options/OptionsPart08.gd::entries 511
 length scripts/systems/options/OptionsPart09.gd::entries 440
 length scripts/systems/options/OptionsPart10.gd::entries 166
+length scripts/systems/options/OptionsPart11.gd::entries 329
 length scripts/ui/BoardWhite.gd::_size 180
 length scripts/ui/BoardWhite.gd::draw 118
 length scripts/ui/BraceFx.gd::_build 132
@@ -567,14 +619,36 @@ length scripts/ui/EncounterView.gd::_shoulders_at 103
 length scripts/ui/EnemySlot.gd::_init#2 106
 length scripts/ui/FaunaMotion.gd::_cut_creature 111
 length scripts/ui/FaunaMotion.gd::_cut_custodian 269
-length scripts/ui/Hints.gd::_done 122
+length scripts/ui/Hints.gd::_done 128
+length scripts/ui/Hints.gd::lines 101
 length scripts/ui/Hints.gd::probe 301
-length scripts/ui/HudBar.gd::_build 104
-length scripts/ui/HudBar.gd::refresh 109
+length scripts/ui/HudBar.gd::_build 111
+length scripts/ui/HudBar.gd::refresh 112
 length scripts/ui/HullHitFx.gd::_peel 103
 length scripts/ui/JumpFx.gd::_beam 139
 length scripts/ui/JumpFx.gd::_draw 118
 length scripts/ui/JumpFx.gd::_ending 147
+length scripts/ui/LabAugment.gd::paint 168
+length scripts/ui/LabRecipes.gd::paint 125
+length scripts/ui/LabSavers.gd::_b_chart 145
+length scripts/ui/LabSavers.gd::_paint_1 230
+length scripts/ui/LabSavers.gd::_paint_2 121
+length scripts/ui/LabSavers.gd::_paint_4 127
+length scripts/ui/LabSavers.gd::_paint_6 187
+length scripts/ui/LabSavers.gd::_paint_c1 131
+length scripts/ui/LabSavers.gd::_paint_c2 109
+length scripts/ui/LabSavers.gd::_paint_cx1 106
+length scripts/ui/LabSavers.gd::_paint_cx2 131
+length scripts/ui/LabSavers.gd::_paint_cx3 123
+length scripts/ui/LabSavers.gd::_paint_i1 113
+length scripts/ui/LabSavers.gd::_paint_i3 115
+length scripts/ui/LabSavers.gd::_paint_k1 119
+length scripts/ui/LabSavers.gd::_paint_k2 132
+length scripts/ui/LabSavers.gd::_paint_p1 106
+length scripts/ui/LabSavers.gd::_paint_p3 119
+length scripts/ui/LabSavers.gd::_paint_r3 110
+length scripts/ui/LabSavers.gd::_paint_ver2 105
+length scripts/ui/LabSavers.gd::_paint_ver3 145
 length scripts/ui/LocalDust.gd::_process 136
 length scripts/ui/LocalEventDrawer.gd::_result 200
 length scripts/ui/LocalSky.gd::_build 247
@@ -602,7 +676,7 @@ length scripts/ui/SideSwap.gd::_content 125
 length scripts/ui/SpaceBackdrop.gd::_bake_world 123
 length scripts/ui/StarchartScreen.gd::_build 178
 length scripts/ui/StarchartScreen.gd::_refresh 171
-length scripts/ui/StationScreen.gd::_build 111
+length scripts/ui/StationScreen.gd::_build 119
 length scripts/ui/ThrusterFx.gd::_stream 111
 length scripts/ui/ThrusterFx.gd::for_hull 268
 length scripts/ui/TradeCounter.gd::_draw 124

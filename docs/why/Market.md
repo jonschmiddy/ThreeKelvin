@@ -214,3 +214,19 @@ trade-in paid flat, the move would be to fly a hull into the ground, take the
 full price for the wreck, and repeat -- so what it pays tracks `hp/max_hp`,
 floored well above zero because even a burnt-out frame is worth its metal.
 ```
+
+## The labs two services on a
+
+Above `static func augment_price(n: MapGen.MapNode) -> int:`:
+
+```text
+THE LAB'S TWO SERVICES ON A PART (science, pick 3A), the credits half of the
+bill; `Science.AUGMENT_DATA` and `STRIP_DATA` are the DATA half. Work, not
+goods, so they read off the service index like REPAIR and PURGE: AUGMENT is
+22/20/18/16/15 from the rim to a capital, STRIP 11/10/9/8/7.
+
+NEITHER MOVES THE PART'S PRICE. `ask`, `bid` and `melt` read `scrap_value`,
+which is set once at the drop, so an augmented part sells for what the plain
+one does (`-- market` checks it). A part whose price rose with its affixes
+would turn DATA into credits, the one thing DATA must never be.
+```

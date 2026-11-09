@@ -233,14 +233,35 @@ static func act(id: StringName) -> String:
 				if (b as Button).text == "SIGN" and (b as Button).is_visible_in_tree():
 					(b as Button).pressed.emit()
 					return "pressed SIGN on a note"
-		&"laboratory":
-			var n := Run.node_at()
-			if st == null or n == null:
+		&"research":
+			# THE LAB'S SCREEN PRESSED, as a player presses it (science, Nov 4,
+			# Lab layout 1C): the camera goes into the glass (`LabZoom`), which
+			# is what spends the hint; then, in there, BUY on the first branch
+			# whose next step the DATA covers (DATA alone moves). The camera
+			# stays in until `leave_lab`. (Without a zoom, the service BUY calls.)
+			if st == null or not Science.lab_here(Run.node_at()):
 				return ""
-			for r in Fabricator.available(n):
-				if Fabricator.can_make(n, r):
-					st._fabricate(r)
-					return "made %s" % String(r.get("kind", "?"))
+			var z := st.lab_zoom()
+			var did := ""
+			if z != null:
+				st._glass_press.pressed.emit()
+				z.finish()
+				did = "pressed the lab's screen"
+			for b in 3:
+				if not Science.can_buy(b):
+					continue
+				var rid := Run.next_step(b)
+				var k0 := Run.board_owned[b]
+				if z != null:
+					z.board.pick = Vector2i(b, k0)
+					z.board.refresh()
+					z.board.buy_button.pressed.emit()
+				else:
+					Science.buy(b)
+				if Run.board_owned[b] > k0:
+					did = ("%s, researched %s" % [did, String(DB.routines[rid].name)]).trim_prefix(", ")
+					break
+			return did
 		&"ship":
 			if sc != null and sc.open_cutaway() != null:
 				return "opened the ship up"
@@ -249,9 +270,23 @@ static func act(id: StringName) -> String:
 	return ""
 
 
+## Out of the lab's screen, as a player leaves it: LEAVE pressed, the camera
+## back in the room (`act(&"research")` leaves it in). True if it was in.
+static func leave_lab() -> bool:
+	var st := Router.current as StationScreen
+	var z := st.lab_zoom() if st != null else null
+	if z == null or not z.is_open():
+		return false
+	z.leave_button.pressed.emit()
+	z.finish()
+	return true
+
+
 ## Done before a deck's line shows, or what it adds would read as the deck used.
+## The lab's board step needs DATA.
 static func stock_up() -> void:
 	Run.add_credits(4000)
+	Run.add_data(40)
 	var n := Run.node_at()
 	if n != null:
 		for r in Fabricator.available(n):

@@ -118,13 +118,51 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# The art is the rarity, not the manufacturer, which the field already says.
 	draw_body(ci, m, r, mark, f, mirror, scale)
 
-	# The edge is the ink: a contraband ground is darker than the screen, so only the edge shows.
+	# What goes OVER the art: the edge, and the AUGMENTED mark, from one list (`plate_ink`).
+	for q in plate_ink(m, r, scale):
+		ci.draw_rect(q[0], q[1], true)
+
+
+## Everything a plate inks over its art, as [Rect2, Color] in paint order: the edge (a
+## contraband ground is darker than the screen, so only the edge shows), then the AUGMENTED
+## mark, last, only when `m.augmented`. `-- attrtest` reads this list.
+static func plate_ink(m: ModuleData, r: Rect2, scale: float = HOLD_K) -> Array:
+	var out: Array = []
+	if m == null:
+		return out
 	var e := ModuleData.rarity_ink(m.rarity)
 	var p := r.position
 	var z := r.size
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
 			Rect2(p, Vector2(1, z.y)), Rect2(p + Vector2(z.x - 1, 0), Vector2(1, z.y))]:
-		ci.draw_rect(side, e, true)
+		out.append([side, e])
+	if m.augmented:
+		out.append_array(augment_mark(r, scale))
+	return out
+
+
+## The AUGMENTED mark's legs at 1x, in pixels. Scaled with the plate, never
+## under 3 so it still reads at 1x.
+const MARK := 2.5
+
+## THE AUGMENTED MARK: a small ICE wedge in the plate's top-right corner, cut from the corner
+## like a folded tab, with a one-pixel VOID rim on its long side.
+## Why: docs/why/ModuleIcon.md#the-augmented-mark
+static func augment_mark(r: Rect2, scale: float = HOLD_K) -> Array:
+	var n := maxi(3, int(roundf(MARK * scale)))
+	n = mini(n, int(minf(r.size.x, r.size.y) * 0.5))
+	var out: Array = []
+	if n < 1:
+		return out
+	var x1 := roundf(r.end.x)
+	var y0 := roundf(r.position.y)
+	for y in n + 1:
+		var w := float(n + 1 - y)
+		out.append([Rect2(x1 - w, y0 + y, w, 1), UITheme.VOID])
+	for y in n:
+		var w2 := float(n - y)
+		out.append([Rect2(x1 - w2, y0 + y, w2, 1), UITheme.ICE])
+	return out
 
 ## One door for hull and hold to choose sprite or silhouette, so the two cannot drift.
 ## Why: docs/why/ModuleIcon.md#part-drawing

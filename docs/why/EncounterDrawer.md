@@ -257,13 +257,18 @@ row it replaced clipped mid-word with no mark at all.
 Above `const BILL: Array[Array] = [`:
 
 ```text
-WHAT MOVED, as four fixed rows.
+WHAT MOVED, as fixed rows: four, and DATA a fifth since science (Phase 12).
 
 FIXED, and printing an em dash for the two that did not. The alternative is
 listing only what changed, which makes the rail a different height and a
 different shape on every outcome -- so CREDITS is on the second line
 sometimes and the fourth line other times, and you have to read it to find
-out. Four rows always means you learn where each number lives once.
+out. Fixed rows always means you learn where each number lives once.
+
+DATA IS LAST, after the four it joined, so the line a taken option keeps
+(`moved_line`, saved as `MapNode.said`) reads as it always did for every
+result that paid no DATA: "FUEL -16", never reordered round it. A reading
+that did reads "FUEL -2 · DATA +5". DATA going up is good, like credits.
 
 HEAT RISING IS NOT A LOSS, and gets `FLARE` rather than the red the other
 three use when they fall: nothing was taken off the ship. It is a bill that
@@ -383,6 +388,9 @@ QUEST OUTRANKS EVERYTHING, including a fight. The others describe what you
 are walking into; this one is the reason you came, and a thread you have been
 carrying for four jumps should not be filed under whatever else is true of
 the encounter that pays it off.
+SCIENCE AFTER SALVAGE. A reading is a place you take something from, as a
+wreck is, and it never shares an option with a fight or a hazard today; if it
+ever does, the fight or the star is still the thing to know first.
 ```
 
 ## Choice cards
@@ -447,4 +455,33 @@ effect sit over each enemy, each enemy's chips sit under it, and yours sit
 with your energy. A strip at the bottom of the screen naming which ship an
 intent belonged to was doing work that position does for free — and in a
 pack it had to name them all in one line.
+```
+
+## Science hue
+
+Above `const TAG_SCIENCE := Color("#e07ac8")`:
+
+```text
+Rose, for a reading (science, Phase 12): the last hue the six leave open.
+
+Green was the obvious one for an instrument and is taken twice over, by
+`GOOD` (the SUCCESS stamp) and by the hull bar. Cyan is SIGNAL's and violet
+CONTRACT's; this sits between violet and a fight's red, fifty to sixty
+degrees from both, light enough to read at two pixels on the dark map. The HUD's DATA
+readout has no hue of its own (ICE, like every figure on the bar), so there
+was nothing to match.
+```
+
+## A reading burns fuel
+
+Inside `choice_card()`, above `if bool(c.get("burns", false)):`:
+
+```text
+A READING BURNS FUEL (science, `burns`): what it costs goes on the card,
+after any odds, so the number you pay is inside what you press. When the
+tank cannot pay it and keep the way out (`OptionResolve.fuel_ok`, the hard
+gate), the card greys: the same price as the full card, then the way out
+the tank keeps back (`Run.fuel_floor()`), then what you have, as RULING 8
+has a price say. Folding the two into one number read as if the reading
+cost it. Only pressable things look pressable.
 ```

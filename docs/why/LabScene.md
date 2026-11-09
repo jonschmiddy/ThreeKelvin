@@ -20,8 +20,9 @@ THREE LAYERS, AND THE RECIPES BETWEEN THEM.
   this node   the picture, lit (`lab_light.gdshader`), and its life: the
               small monitors typing, bubbles in the capital's tanks, the
               flasks on its counter fizzing
-  (rows)      the recipe rows, `StationScreen`'s, standing in the picture's
-              own screen (`win_rect`), clipped so the power-on's scan can
+  (screen)    the station owner's sign-on (`LabLogin`, `StationScreen`'s),
+              standing in the picture's own screen (`win_rect`), and the
+              glass's key, clipped to the glass so the power-on's scan can
               bring them up
   fx_layer()  what the big screen does, over the rows: the city's sweep,
               the outpost's and settlement's bad signal, the unclaimed
@@ -30,7 +31,7 @@ THREE LAYERS, AND THE RECIPES BETWEEN THEM.
 ON A 30 HZ CLOCK, like the shop, because the prototype drew at 30 and every
 fault was shaped for that rate. Each lab powers on from black the first time
 you step onto the deck at a station: the lamps strike, the room fades up,
-the screen scans the recipes on -- each with its sound (`POWER_ON_SOUNDS`).
+the screen scans its sign-on in -- each with its sound (`POWER_ON_SOUNDS`).
 
 Drawn at 1:1 at the top-left, like the shop's rooms: every lab is the
 740x431 wall they were laid out on.
@@ -102,4 +103,17 @@ THE SAG: when the bulb fails (its own fault clock) the screen goes dark
 with it, then comes back with a flash and a jolt. `sagEvery` makes it only
 the bulb's first blink in each that many seconds -- Jon: "it just flashes
 too much" when it was every blink (2026-09-28).
+```
+
+## The press hushes the screen
+
+Above `func hush_screen(on: bool) -> void:`:
+
+```text
+THE PRESS HUSHES THE SCREEN (`LabZoom`, the camera into the glass): from
+the press until the camera is back, the lamps hold steady (`lamps_held`),
+nothing new starts on the big screen,
+and the bad signal's snow and slips stop at once (they flicker frame to frame
+anyway); a sweep, a sag or a rim light already running plays out, fading
+with the entry. `on` false lets it all run again.
 ```

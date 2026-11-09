@@ -138,7 +138,7 @@ ONE HINT A DECK, the first time it is open (Jon, Oct 20, playing the alpha:
 "There is no tutorial tip for the promenade, exchange, shipyard, laboratory,
 or hiring board"): hint id -> the station's page (`StationScreen.DECKS`). Each
 points at the deck's main thing (`StationScreen.deck_subject`): the yard's
-drones, the shelf, the sell counter, the notes on the board, the fabricator's
+drones, the shelf, the sell counter, the notes on the board, the lab's
 screen. After `dock`, which still comes first on arrival.
 ```
 

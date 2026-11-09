@@ -76,6 +76,8 @@ var _rows: Array[Button] = []
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# NO SCIENCE CLEARED HERE.
+	# Why: docs/why/ChassisSelect.md#no-science-cleared-here
 	_build()
 	_select(0)
 

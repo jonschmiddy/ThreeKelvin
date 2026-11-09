@@ -68,7 +68,7 @@ const EARLY: Array[Dictionary] = [
 	{flag = "rarity", script = "res://scripts/sim/RaritySheet.gd", how = "quit"},
 	# Every catalogue row becomes an item a real hold accepts.
 	{flag = "materialtest", script = "res://scripts/sim/MaterialTest.gd", how = "quit"},
-	{flag = "holdtest", script = "res://scripts/sim/HoldTest.gd", how = "quit"},
+	{flag = "holdtest", fn = "_holdtest"},
 	# Probes for start frames and reactor decks, the chart's known-only view, part gauges.
 	# Why: docs/why/DevFlags.md#test-flags
 	{flag = "attrtest", script = "res://scripts/sim/AttrTest.gd", how = "quit"},
@@ -242,9 +242,23 @@ func _run(row: Dictionary, arg: String) -> bool:
 
 
 func _sim() -> bool:
-	HeadlessSim.new().run_sim()
-	host.get_tree().quit()
+	var sim := HeadlessSim.new()
+	sim.run_sim()
+	host.get_tree().quit(sim.exit_code)
 	return true
+
+
+## Held and awaited: its pick-mode check runs in the tree, on frames.
+func _holdtest() -> bool:
+	var t: RefCounted = load("res://scripts/sim/HoldTest.gd").new()
+	held.append(t)
+	_run_then_quit(t)
+	return true
+
+
+func _run_then_quit(t: RefCounted) -> void:
+	await t.run()
+	host.get_tree().quit()
 
 
 func _savetest() -> bool:

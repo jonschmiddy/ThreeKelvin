@@ -233,3 +233,16 @@ QUESTS take turns over the picture; the table clear of the HUD, the goal line
 and her; the run's save keeps the log, CONTINUE puts it back in order, and a
 save from before it (VERSION 35, no `ash_comms`) loads with an empty one.
 ```
+
+## The huds row with comms
+
+Above `func _comms_row_fits(hud: HudBar) -> void:`:
+
+```text
+The HUD's row with COMMS: every piece inside the bar, none over another, and
+its minimum within the bar (`QuestLogTest._hud_fits`, the same test). The
+bar is the row's clip, 932 at a 960 window, not the panel's 944: a row up to
+twelve pixels wider than the clip had its right-hand end cut off and passed.
+WITH DATA AT TWO FIGURES (science, Nov 4): the readout is always on the row,
+reserved at "00", so it is held to the clip with 99 showing.
+```

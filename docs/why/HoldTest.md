@@ -251,3 +251,18 @@ Korvan gun that heats you up is a worse Solari gun.
 ARMOUR IS EXEMPT AND HOT BY THE SAME LINE. Bulwark and Bulkhead pay heat to
 hold a plate up, which is the other half of the sentence.
 ```
+
+## Pick mode
+
+Above `func _pick_mode() -> void:`:
+
+```text
+PICK MODE (science S9, the Lab): a hold shown to choose a part from never
+moves one. In the tree, on the next frame (a grid added while the root was
+still setting up its children was never added, and printed an ERROR the
+gate fails on), set AFTER the icons are up (it takes effect at once, not
+on the next refresh): every icon ignores the mouse; a click through the
+viewport on each says `picked` with that part; a shift-click, a
+double-click and a right-click handed to an icon do nothing; no icon gives
+up drag data; the grid takes no drop; and every part is in the cell it was.
+```

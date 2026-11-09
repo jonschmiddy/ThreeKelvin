@@ -5,7 +5,7 @@ extends RefCounted
 ## Shared by `-- localeventtest` and `-- sheet=OutcomeTest`; also checks the boxes do not overlap.
 ## Why: docs/why/OutcomeCheck.md#outcome-check
 
-const WORDS := {"credits": "CREDITS", "heat": "HEAT", "hp": "HULL", "fuel": "FUEL"}
+const WORDS := {"credits": "CREDITS", "heat": "HEAT", "hp": "HULL", "fuel": "FUEL", "data": "DATA"}
 const BUTTONS := ["Continue", "Reward", "ChooseAgain", "TheyAreFiring"]
 
 
@@ -83,7 +83,8 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				if not texts.has(t):
 					bad.append("today: no '%s' in [%s]" % [t, said])
 		&"D":
-			# Only the four stats that moved, change alone, no table when none (Jon, Oct 19).
+			# Only the four stats and DATA that moved, change alone, no table when none
+			# (Jon, Oct 19; DATA Nov 4, 2A).
 			# Why: docs/why/OutcomeCheck.md#outcome-table
 			var rows: Array = []
 			for k in OutcomeRow.ORDER:
@@ -94,7 +95,7 @@ static func check(d: LocalEventDrawer, look: StringName, want: Dictionary) -> Ar
 				bad.append("D: the table says [%s], not [%s]" % [said, ", ".join(rows)])
 			var tab := d.panel.find_child("OutcomeTable", true, false)
 			if rows.is_empty() and tab != null:
-				bad.append("D: none of the four stats moved and there is a table [%s]" % said)
+				bad.append("D: none of the stats moved and there is a table [%s]" % said)
 		&"A", &"C", &"B", &"E":
 			for k in WORDS:
 				var s: Array = want.stats[k]
@@ -342,6 +343,7 @@ static func reset(n: MapGen.MapNode, id: StringName, seed_v: int) -> void:
 	Run.heat = 2
 	Run.fuel = 120
 	Run.credits = 180
+	Run.data = 0
 	Rng.event.seed = seed_v
 	Rng.loot.seed = seed_v * 7 + 1
 	Rng.world.seed = seed_v * 13 + 5
@@ -393,6 +395,18 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 					found["nothing"] = rec
 				if not found.has("credits") and sg == ["credits+"] and not rec.stay and not fight:
 					found["credits"] = rec
+				# A READING (science, Nov 4): DATA up and the fuel it burned
+				# down, and nothing else when the table has one like it (the
+				# careful line), so look D reads "FUEL -N · DATA +N"
+				if moved.call("data") > 0 and moved.call("fuel") < 0 and not rec.stay and not fight \
+						and (not found.has("data") or (sg.size() == 2 and String(found["data"].sig).count(",") > 1)):
+					found["data"] = rec
+				# A READING WITH A TOLL: DATA up, fuel down and the hull or the
+				# heat paying too (a risky reading's partial), three stats or
+				# more, so look D draws three rows and A and C three chips
+				if not found.has("data_toll") and moved.call("data") > 0 and moved.call("fuel") < 0 \
+						and (moved.call("hp") < 0 or moved.call("heat") > 0) and not rec.stay and not fight:
+					found["data_toll"] = rec
 				# THE MOST LINES: every stat moved and every different thing named
 				var lines := (sg.size() - (1 if sg.has("part+") else 0) - (1 if sg.has("material+") else 0)
 					+ (want.gained as Dictionary).size())
@@ -418,7 +432,7 @@ static func find_cases(n: MapGen.MapNode, verbose: bool = false) -> Dictionary:
 ## The change kinds an outcome made: "hp-", "credits+", "part+", "frame+".
 static func sig(want: Dictionary) -> Array:
 	var outs: Array = []
-	for k in ["hp", "fuel", "credits", "heat"]:
+	for k in ["hp", "fuel", "credits", "data", "heat"]:
 		var d := int((want.stats[k] as Array)[0])
 		if d != 0:
 			outs.append("%s%s" % [k, "+" if d > 0 else "-"])

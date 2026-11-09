@@ -22,6 +22,9 @@ Ported from the approved system-map mockup (`layout()` in the scratchpad's
   salvage is a CONTACT in open space; salvage and hazard together, or hazard
   alone, is a BELT (one belt holds all of them); salvage alone is a DERELICT
   or a belt; anything else -- a contract, a signal, fauna -- is a PLANET;
+- a science reading by its `site` (Phase 12): a belt reading on the BELT, a
+  barren reading on a PLANET whose world is a DRY one, no air on it
+  (`_worlds`, off its own derived stream, so R draws as it always did);
 - a gas giant if and only if the node has one (never round a pulsar);
 - a station's station as a body of its own, with DOCK on it;
 - about a third of the systems with no belt get one anyway, as scenery, and

@@ -14,6 +14,8 @@ var hull_frames: Array[HullData] = []
 var enemies: Dictionary = {}            ## StringName -> EnemyTemplate
 var affixes: Array[AffixData] = []
 var hull_perks: Dictionary = {}         ## StringName -> {name, text}
+## The Lab's routines (Phase 12, science). See `_seed_routines`.
+var routines: Dictionary = {}           ## StringName -> {name, text, branch, rank, pips, raw}
 
 ## One branded weapon and a hull, the rest generic, so identity is assembled mid-run.
 ## The manufacturer picks the direction of a run, not its destination.
@@ -59,6 +61,7 @@ func _ready() -> void:
 	_seed_hulls()
 	_seed_enemies()
 	_seed_perks()
+	_seed_routines()
 
 # ---------------------------------------------------------------- manufacturers
 
@@ -191,6 +194,23 @@ func short_name(full: String) -> String:
 
 # ---------------------------------------------------------------------- affixes
 
+## AN AFFIX'S OLD NAME, AND ITS NAME NOW. A save stores an affix by its name
+## (`SaveGame._module_to`), and a name the table no longer has is dropped on
+## load, so a renamed affix is mapped here wherever a name is read back.
+## "Stripped" became "Lightened" (Jon, Nov 5).
+const AFFIX_RENAMED := {"Stripped": "Lightened"}
+
+
+## The affix the table holds under `nm` (or under the name it had before a
+## rename, `AFFIX_RENAMED`), or null.
+func affix_named(nm: String) -> AffixData:
+	var want := str(AFFIX_RENAMED.get(nm, nm))
+	for a in affixes:
+		if a.name == want:
+			return a
+	return null
+
+
 func _seed_affixes() -> void:
 	# Paid in ship attributes, not card numbers: a card whose face changes cannot be learned.
 	# No `text` field: it is generated from the pips so the panel cannot disagree with them.
@@ -204,7 +224,10 @@ func _seed_affixes() -> void:
 		{name = "Tuned Injectors", thrust = 1},
 		{name = "Double-Plated", hull = 2},
 		# The tradeoff pair: lighter and thinner, louder and hotter.
-		{name = "Stripped", maneuver = 2, hull = -1},
+		# LIGHTENED, once "Stripped" (Jon, Nov 5): lightening holes, the holes
+		# cut in brackets and ribs to take weight out. Old saves say "Stripped"
+		# (`AFFIX_RENAMED`).
+		{name = "Lightened", maneuver = 2, hull = -1},
 		{name = "Bus-Fed", reactor = 1, weight = 0.35},
 		{name = "Deregulated", reactor = 2, stealth = -1,
 			contraband = true, weight = 0.5},
@@ -1610,6 +1633,83 @@ func perk_text(id: StringName) -> String:
 		return "%s: %s" % [p.name, p.text]
 	return ""
 
+# --------------------------------------------------------------------- routines
+# Science: what the Lab writes into the flight computer for DATA, the run's, never the hull's.
+# Why: docs/why/Database.md#routines-science
+
+## What a board step costs, by its place in the branch (pick 2B). The whole
+## board is 3 x (4 + 10 + 15) = 87. The first was 6 until Jon's S1A, Nov 8.
+const BOARD_PRICES: Array[int] = [4, 10, 15]
+## The board's three branches, in the order the board is laid out and saved.
+const BRANCHES: Array[StringName] = [&"frame", &"core", &"drive"]
+
+## What the Lab's AUGMENT may add to a part (pick 3A). Every affix but two:
+## Cryo-Lined gives heat capacity on any part, which is a thermal module's job,
+## and Deregulated is contraband. Bus-Fed is drawn at its loot weight (0.35).
+const LAB_AFFIXES: Array[StringName] = [&"Reinforced", &"Double-Plated",
+	&"Gyro-Trimmed", &"Wide-Banded", &"Signature-Damped", &"Tuned Injectors",
+	&"Bus-Fed", &"Lightened"]
+
+func _seed_routines() -> void:
+	routines = {
+		# FRAME: what the hull takes and survives.
+		&"quiet_running": {name = "QUIET RUNNING", branch = &"frame", rank = 0,
+			pips = {&"stealth": 1}, raw = {},
+			text = "+1 stealth. Fewer ships see you coming."},
+		&"patch_crew": {name = "PATCH CREW", branch = &"frame", rank = 1,
+			pips = {}, raw = {},
+			text = "Mend 3 hull after every fight you win."},
+		&"black_box": {name = "BLACK BOX", branch = &"frame", rank = 2,
+			pips = {}, raw = {},
+			text = "Once a run, a hit in a fight that would kill you leaves you at 1 hull."},
+		&"damage_control": {name = "DAMAGE CONTROL", branch = &"frame", rank = 3,
+			pips = {&"hull": 1}, raw = {},
+			text = "+7 max hull on any frame."},
+		# CORE: the reactor and heat, and how a fight opens.
+		&"spare_cells": {name = "SPARE CELLS", branch = &"core", rank = 0,
+			pips = {}, raw = {&"cells": 3},
+			text = "+3 reactor cells. Power to fit more, but no more energy."},
+		&"vent_timing": {name = "VENT TIMING", branch = &"core", rank = 1,
+			pips = {}, raw = {&"dissipation": 1},
+			text = "+1 heat dissipation."},
+		&"cold_open": {name = "COLD OPEN", branch = &"core", rank = 2,
+			pips = {}, raw = {},
+			text = "Drop 4 heat when a fight starts."},
+		&"warm_start": {name = "WARM START", branch = &"core", rank = 3,
+			pips = {}, raw = {},
+			text = "+1 energy on the first turn of a fight only."},
+		# DRIVE: engines, nav and fire control.
+		&"wide_sweep": {name = "WIDE SWEEP", branch = &"drive", rank = 0,
+			pips = {&"sensors": 1}, raw = {},
+			text = "+1 sensors. You see farther on the chart."},
+		&"fuel_trim": {name = "FUEL TRIM", branch = &"drive", rank = 1,
+			pips = {}, raw = {},
+			text = "Every jump costs 10% less fuel. Stacks with Deep Tanks."},
+		&"evasion_tables": {name = "EVASION TABLES", branch = &"drive", rank = 2,
+			pips = {&"maneuver": 1}, raw = {},
+			text = "+1 maneuver. More enemy shots miss."},
+		&"first_look": {name = "FIRST LOOK", branch = &"drive", rank = 3,
+			pips = {}, raw = {},
+			text = "Draw 2 more cards on the first turn of a fight."},
+	}
+
+## A routine as the Lab and the ship tab print it: "NAME: what it does".
+func routine_text(id: StringName) -> String:
+	if routines.has(id):
+		var r: Dictionary = routines[id]
+		return "%s: %s" % [r.name, r.text]
+	return ""
+
+## A branch's four routines, weakest first: what the deal drops one of.
+func routines_in(branch: StringName) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for rank in 4:
+		for id in routines:
+			var r: Dictionary = routines[id]
+			if r.branch == branch and int(r.rank) == rank:
+				out.append(id)
+	return out
+
 # -------------------------------------------------------------------- materials
 # Credits stay the only currency, but a prerequisite must be a thing: materials are that.
 # `exotic` is the first row: same number and sources, one ledger.
@@ -1625,10 +1725,18 @@ func perk_text(id: StringName) -> String:
 # `dev` gate is 0 for relic analysis since every station has all decks (Jon, Nov 3).
 # Why: docs/why/Database.md#recipes
 
+# RELIC ANALYSIS'S TEXT SAYS WHAT THE CODE DOES (science spec, Nov 4).
+# Why: docs/why/Database.md#relic-analysiss-text-says-what-the
 const RECIPES: Array[Dictionary] = [
 	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 0,
 		credits = 40, mats = {&"relic": 1},
-		text = "Have the fragment read. Fabricates a precursor module into the hold."},
+		text = "Have the fragment read. It turns out to be a part."},
+	{id = &"develop", name = "DEVELOP FILM", kind = &"data", amount = 6, dev = 0,
+		credits = 0, mats = {&"survey_film": 1},
+		text = "Develop a roll of survey film. The readings on it are DATA."},
+	{id = &"read", name = "READ FOR DATA", kind = &"data", amount = 15, dev = 0,
+		credits = 0, mats = {&"relic": 1},
+		text = "Have the fragment read for DATA, which uses it up."},
 ]
 
 # ---------------------------------------------------------------------- enemies

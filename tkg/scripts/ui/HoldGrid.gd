@@ -22,6 +22,21 @@ const NUDGE := 2
 
 signal dropped(payload: Dictionary, at: Vector2i)
 
+## PICK MODE (science S9): the hold as a list to choose a part from, not a
+## place to pack. The icons ignore the mouse, so nothing can be lifted; a click
+## on one says `picked` with its part; and nothing can be dropped here. A pick
+## never moves a part.
+signal picked(m: HoldItem)
+## Set, it takes effect at once on the icons already up (not on the next
+## refresh: until then they still took the mouse, and a shift-click or a
+## double-click still moved a part).
+var pick_mode := false:
+	set(v):
+		pick_mode = v
+		for c in get_children():
+			if c is ItemIcon:
+				(c as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE if v else Control.MOUSE_FILTER_PASS
+
 var _cols: int = 4
 var _rows: int = 5
 ## Lit cells during a drag: where the thing being carried would actually fit.
@@ -46,7 +61,7 @@ func refresh() -> void:
 		# Why: docs/why/HoldGrid.md#mixed-grid
 		var icon := ItemIcon.make(m, &"cargo")
 		# PASS, not STOP: the icon is picked up, and the grid under it needs the hover.
-		icon.mouse_filter = Control.MOUSE_FILTER_PASS
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE if pick_mode else Control.MOUSE_FILTER_PASS
 		add_child(icon)
 		# Sized after `add_child`, minimum cleared: ModuleIcon's 44 floor hung a 1x1 past the grid.
 		# Only plates overlapped, so `-- holdtest` passes either way: it was never a packing bug.
@@ -139,7 +154,20 @@ func target_for(m: HoldItem, p: Vector2) -> Vector2i:
 				best = t
 	return best
 
+func _gui_input(e: InputEvent) -> void:
+	if not pick_mode:
+		return
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var icon := item_at(get_global_transform() * mb.position)
+	if icon != null and icon.held_item() != null:
+		accept_event()
+		picked.emit(icon.held_item())
+
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
+	if pick_mode:
+		return false
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
 		return false
 	var m: HoldItem = data.module

@@ -8,6 +8,22 @@ extends RefCounted
 ## Why: docs/why/Widgets.md#tooltips
 const TIP_W := 168
 
+## WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover popup
+## (`module_readout`) and the hull's tip (`module_tip_panel`).
+## Why: docs/why/Widgets.md#what-an-augmented-part-says
+const AUGMENTED_TEXT := "AUGMENTED. The Lab can't add to it again."
+
+
+## The AUGMENTED line, in ICE: the colour of the corner mark on the part's plate
+## (`ModuleIcon.augment_mark`), so the word and the mark read as one fact.
+## Wrapped at `width` when one is given, like the affix lines it sits under.
+static func augmented_label(width: float, font_size: int) -> Label:
+	var l := UITheme.body(AUGMENTED_TEXT, UITheme.ICE, font_size)
+	if width > 0.0:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(width, 0)
+	return l
+
 ## A Control tooltip, as Godot's plain text cannot keep grade, gauges and affixes apart.
 ## Why: docs/why/Widgets.md#tooltips
 static func module_tip_panel(m: ModuleData) -> Control:
@@ -56,7 +72,9 @@ static func module_tip_panel(m: ModuleData) -> Control:
 		box.add_child(UITheme.body(" · ".join(gauges), UITheme.ICE,
 			UITheme.FS_SMALL))
 
-	if not m.affixes.is_empty():
+	# AUGMENTED goes under the affixes, and stands alone when STRIP has taken
+	# every affix off: the mark outlives what the Lab added (ModuleData.augmented).
+	if not m.affixes.is_empty() or m.augmented:
 		box.add_child(UITheme.hsep())
 		for a in m.affixes:
 			var al := UITheme.body("%s — %s" % [a.name, a.text], UITheme.EMBER,
@@ -64,6 +82,8 @@ static func module_tip_panel(m: ModuleData) -> Control:
 			al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			al.custom_minimum_size = Vector2(TIP_W - 20, 0)
 			box.add_child(al)
+		if m.augmented:
+			box.add_child(augmented_label(TIP_W - 20, UITheme.FS_SMALL))
 
 	var cards: PackedStringArray = []
 	for c in m.resolved_cards():
@@ -536,6 +556,8 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		al.custom_minimum_size = Vector2(CardView.CARD_W - 14, 0)
 		box.add_child(al)
+	if m.augmented:
+		box.add_child(augmented_label(CardView.CARD_W - 14, UITheme.FS_SMALL))
 
 	if m.flavour != "":
 		box.add_child(UITheme.hsep())

@@ -628,6 +628,25 @@ static func fill_perks(box: Control, right: bool, inline: bool = false) -> void:
 	box.tooltip_text = Widgets.tip(Widgets.perk_tip(Run.hull))
 
 
+## THE RUN'S ROUTINES (science), into `box` (cleared first): one line, "ROUTINES · 4 OF 9", the
+## names and what each does on hover (`RoutineBox`).
+## Why: docs/why/ShipScreen.md#the-runs-routines
+static func fill_routines(box: Control) -> void:
+	Widgets.clear(box)
+	var owned := Run.owned_routines()
+	box.visible = not owned.is_empty()
+	if owned.is_empty():
+		box.tooltip_text = ""
+		return
+	var line := UITheme.body("ROUTINES · %d OF %d" % [owned.size(), Run.board.size()],
+		UITheme.EMBER, UITheme.FS_SMALL)
+	# IGNORE, so the hover falls through to the box and its one panel
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(line)
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	box.tooltip_text = Widgets.tip(RoutineBox.tip_text())
+
+
 func _place_perks() -> void:
 	if _perkbox == null or _panel == null:
 		return

@@ -48,6 +48,12 @@ THREE LOOKS, ONE SWITCH (`look`), today's until Jon picks one:
      right-aligned. And no totals ("you can remove the total credits and
      fuel part. just put what is added or lost"): "FUEL -3", not
      "FUEL -3 42".
+     AND DATA, A FIFTH (Jon, Nov 4, science pick 2A, amending the Oct 19
+     ruling's four): DATA is a stat like credits, spent at a lab and
+     nowhere else, so a reading's result lists it with the four, after
+     credits and before heat, by the same rule (only when it moved, its
+     change alone): "FUEL -2", "DATA +5". Its mark is drawn in ICE, the
+     HUD's DATA ink, never the credits note's brown: it is not money.
   E  D, AND WHAT YOU GOT, BIG (Jon, of D: "I like this, but there was a
      previous version of this where the things you get are big on the
      right side"). D's table over REWARD and CONTINUE stays where it is; a
@@ -60,14 +66,14 @@ THREE LOOKS, ONE SWITCH (`look`), today's until Jon picks one:
      band grows upward if the plates stand taller than the table.
   C  SHOW IT. Today's size, only what changed, each with its mark; once the
      text is in, each change flies from the band to the HUD readout it moves
-     (the hull gauge, credits, fuel, heat; a place to STARCHART) and that readout flickers as it lands -- and only then does
+     (the hull gauge, credits, fuel, DATA, heat; a place to STARCHART) and that readout flickers as it lands -- and only then does
      the HUD number change (`held`). A part or a crate makes REWARD flicker
      on its turn instead: it is on the band already, and a copy sliding
      along the row would cross the other entries. Nothing that takes a click
      moves: the readouts and buttons only flicker.
 
-WHAT AN EVENT CAN HAND YOU, all of it read off `OptionResolve.take`: the four
-ledger stats (`bill`), and the things (`got`) -- a part or a material put on
+WHAT AN EVENT CAN HAND YOU, all of it read off `OptionResolve.take`: the five
+ledger stats (`bill`: the four and DATA), and the things (`got`) -- a part or a material put on
 the system's pile, a hull frame found, a place marked on the chart, an item taken out of your hold. No event gives or takes a card
 or a malfunction directly (malfunctions come from fights); a part's cards are
 the only cards an event ever offers, so a part names them.
@@ -79,7 +85,7 @@ Above `static func changes(out: Dictionary) -> Array:`:
 
 ```text
 Every change one result made, in the order it matters, as entries:
-  key    "hp" "fuel" "credits" "heat", or the thing's kind
+  key    "hp" "fuel" "credits" "data" "heat", or the thing's kind
   kind   &"stat" or the thing's kind (part, material, frame, place, item)
   n      the move (a stat), or the count (a thing; negative when taken)
   was    now   a stat's totals either side

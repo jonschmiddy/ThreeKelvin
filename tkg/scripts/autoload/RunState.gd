@@ -51,6 +51,31 @@ var old_hull: HullData = null
 ## Why: docs/why/RunState.md#moving-ships
 var _undo_move: Dictionary = {}
 var credits: int = 40
+## DATA (science, Jon's pick 1A, Nov 4): the readings a run has taken and not yet
+## spent. Its own number, never a price in credits and never bought or sold:
+## it comes only from places (a science event's reading, a film developed, a
+## relic read) and only a Lab takes it, for board steps and augments. Never
+## below 0 (`add_data`). Saved (VERSION 42); cleared with a new run.
+var data: int = 0
+## THE RUN'S DEALT BOARD (pick 2B): nine routine ids, branch-major, FRAME 0-2,
+## CORE 3-5, DRIVE 6-8, each branch weakest first (`deal_board`). The same at
+## every Lab of the run. Saved AS IDS, never dealt again at a load: a retuned
+## pool would otherwise move a live run's board under steps already bought.
+var board: Array[StringName] = []
+## Steps bought per branch, in order (0 to 3). What you own is DERIVED from this
+## and `board` (`owned_routines`), so there is no list of owned routines that
+## could disagree with it.
+var board_owned: PackedInt32Array = PackedInt32Array([0, 0, 0])
+## BLACK BOX is once a run: set when it has saved the ship (plan S3).
+var black_box_spent: bool = false
+## Test seam: `-- sim science=off` measures the control cell. Never set from game
+## code, and `start_new_run` leaves it alone, as it does `hellbender_off`.
+var science_off: bool = false
+## Test seam: routines owned OFF the board, which holds nine of the twelve. For
+## `-- sim routines=a,b|all` (each routine ranked alone, plan S15) and
+## `-- sheet=RoutineTest` (all twelve through a hull swap). Never set from game
+## code and never saved; `clear_science` empties it, so a new run starts without.
+var routines_granted: Array[StringName] = []
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
 var fuel: int = FUEL_TANK:
 	set(v):
@@ -232,6 +257,12 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	Rng.reseed(galaxy_seed, Net.seat())
 	# What this run's world may hold. Before anything is rolled, and once.
 	unlocked_manufacturers = Unlocks.for_new_run()
+	# THE LAST RUN'S SCIENCE OFF FIRST, before `fit_chassis` fills the hull: its
+	# `hp = max_hp()` must not see last run's DAMAGE CONTROL. Then this run's
+	# board, off its own derived stream, so dealing it moves nothing the world,
+	# the loot or a fight draws from.
+	clear_science()
+	deal_board()
 	# And how hard it is: the ascension level, before the map and the
 	# Hellbender, which reads it. See `ascension_for_new_run`.
 	ascension = ascension_for_new_run()
@@ -304,6 +335,7 @@ func _roll_galaxy() -> void:
 	map = MapGen.generate(MAP_CANVAS)
 
 ## Developer-only reroll of the galaxy under the same ship; contracts drop and co-op refuses.
+## DATA, the board and its bought steps stay: the board is the ship's, not the galaxy's.
 ## Why: docs/why/RunState.md#regenerate-galaxy
 func dev_regenerate_galaxy() -> bool:
 	if Net.is_networked():
@@ -432,7 +464,9 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 ## Events are measured by snapshot and diff, so the record cannot disagree with the ledger.
 ## Why: docs/why/RunState.md#event-ledger
 func ledger() -> Dictionary:
-	return {credits = credits, fuel = fuel, heat = heat, hp = hp}
+	# `data` too (science): a reading that paid DATA and nothing else is a
+	# change, not "nothing happened"
+	return {credits = credits, fuel = fuel, heat = heat, hp = hp, data = data}
 
 
 ## The one disposal door, for cargo and the pad, so sell, scrap and jettison all cover both.
@@ -871,6 +905,9 @@ func max_hp(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.max_hull + m.affix_int(&"max_hull")
+		# DAMAGE CONTROL (science). The run's, not the frame's, so it is in the
+		# fitted reading and out of the bare one, like a plate.
+		n += routine_int(&"max_hull")
 	return maxi(1, n)
 
 func heat_cap(bare: bool = false) -> int:
@@ -888,6 +925,8 @@ func dissipation(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			d += m.dissipation + m.affix_int(&"dissipation")
+		# VENT TIMING (science): venting only, never capacity
+		d += routine_int(&"dissipation")
 	return maxi(0, d)
 
 ## Capped at 0.6: dodge is the enemy's miss chance, and an uncapped sum is a ship nothing can hit.
@@ -896,6 +935,8 @@ func dodge(bare: bool = false) -> float:
 	if not bare:
 		for m in installed:
 			v += m.dodge + m.affix_raw(&"dodge")
+		# EVASION TABLES (science), before the cap like everything else
+		v += routine_raw(&"dodge")
 	return clampf(v, 0.0, 0.6)
 
 func initiative(bare: bool = false) -> int:
@@ -915,6 +956,11 @@ func fuel_factor(bare: bool = false) -> float:
 	# After the modules: a discount on what the ship burns. Small and floored, because
 	# this prices every jump.
 	if hull.has_perk(&"deep_tanks"):
+		v *= 0.9
+	# FUEL TRIM (science), the same discount again and on top of Deep Tanks
+	# (0.81 with both), still above the floor. Every jump reads this; an event's
+	# fuel (`drain_fuel`) does not, so a science reading's burn is not trimmed.
+	if not bare and has_routine(&"fuel_trim"):
 		v *= 0.9
 	return maxf(0.3, v)
 
@@ -979,8 +1025,10 @@ func reactor() -> int:
 	return e
 
 
+## SPARE CELLS (science) adds its cells here and in `can_power`'s own cap, and
+## NOT to the reactor level: room to fit more, no more energy (`reactor`).
 func power_cap() -> int:
-	return reactor_level() * CELLS_PER_LEVEL
+	return reactor_level() * CELLS_PER_LEVEL + routine_int(&"cells")
 
 ## Draw in cells, the same unit the hold counts a part in, so the game's two halves agree.
 func power_draw() -> int:
@@ -1001,7 +1049,7 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 		draw -= replacing.cells()
 		# (its affix's share too, as `reactor_level` counts it)
 		level -= replacing.reactor + replacing.affix_int(&"reactor")
-	var cap := maxi(0, level) * CELLS_PER_LEVEL
+	var cap := maxi(0, level) * CELLS_PER_LEVEL + routine_int(&"cells")
 	return draw <= cap
 
 ## Dev override from `-- fight N`; 0 uses the real value. Lives here so Combat's
@@ -1105,6 +1153,8 @@ func attr_sensors(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.sensors + m.affix_int(&"sensors")
+		# WIDE SWEEP (science)
+		n += routine_int(&"sensors")
 	return maxi(0, int(round(n * SENSE_SCALE)))
 
 ## Heat takes up to 4 stealth at capacity, since heat is the one thing you cannot cover.
@@ -1116,6 +1166,8 @@ func attr_stealth(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.stealth + m.affix_int(&"stealth")
+		# QUIET RUNNING (science), before the heat comes off the top
+		n += routine_int(&"stealth")
 	# Heat applies to both readings: heat is not fitted, so the loss must not look like a module's.
 	var v := float(n) * SENSE_SCALE - signature() * HEAT_STEALTH_COST
 	return maxi(0, int(round(v)))
@@ -1136,7 +1188,8 @@ func hull_attributes(h: HullData) -> Array[Dictionary]:
 	hull = h
 	installed = []
 	# At full: a hull on the blocks has not been shot at, and your damage must not price it.
-	hp = h.max_hull
+	# `max_hp()`, not `h.max_hull`: bare, it is the frame plus the run's routines.
+	hp = max_hp()
 	var out := attributes()
 	hull = was_hull
 	installed = was_installed
@@ -1323,8 +1376,16 @@ func harvest_pulsar() -> void:
 	# Dying with the fuel aboard is the point of the trade.
 	take_hull_damage(burn, "A neutron star's beam killed the crew. The hull held.")
 
-func take_hull_damage(amount: int, reason: String) -> void:
+## `combat` is true only for a fight's own damage (enemy fire, overheat, junk
+## left in hand, from Combat): BLACK BOX (science) saves the ship from a killing
+## hit there, once a run. An event's toll, a neutron beam and an empty tank still
+## kill.
+func take_hull_damage(amount: int, reason: String, combat: bool = false) -> void:
 	hp -= amount
+	if hp <= 0 and combat and not black_box_spent and has_routine(&"black_box"):
+		hp = 1
+		black_box_spent = true
+		log_line("BLACK BOX. The flight computer kept the ship together at 1 hull. It can only do that once.", &"big")
 	Sig.resources_changed.emit()
 	if hp <= 0:
 		hp = 0
@@ -1340,6 +1401,119 @@ func heal(amount: int) -> int:
 func add_credits(n: int) -> void:
 	credits = maxi(0, credits + n)
 	Sig.resources_changed.emit()
+
+# ---------------------------------------------------------------------- science
+# DATA, the dealt board and the routines bought on it: all the run's, never the hull's.
+# Why: docs/why/RunState.md#science-data
+
+## DATA in or out, the way `add_credits` moves credits: never below 0.
+func add_data(n: int) -> void:
+	data = maxi(0, data + n)
+	Sig.resources_changed.emit()
+
+## Spends `n` DATA if there is that much. False, and nothing moves, if not.
+func spend_data(n: int) -> bool:
+	if n < 0 or data < n:
+		return false
+	add_data(-n)
+	return true
+
+## DEAL THIS RUN'S BOARD (pick 2B): each branch drops one of its four routines and keeps the
+## other three weakest first, off `Rng.derive(&"board", seat)` and no stream.
+## Why: docs/why/RunState.md#deal-this-runs-board
+func deal_board() -> void:
+	var r := Rng.derive(&"board", Rng.seat)
+	var out: Array[StringName] = []
+	for b in DB.BRANCHES:
+		var four := DB.routines_in(b)
+		var drop := r.randi() % four.size()
+		for k in four.size():
+			if k != drop:
+				out.append(four[k])
+	board = out
+
+## Whether this run has bought routine `id`.
+func has_routine(id: StringName) -> bool:
+	return owned_routines().has(id)
+
+## Every routine bought, branch by branch, in the order bought. Derived from
+## `board` and `board_owned`, never stored on its own.
+func owned_routines() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for b in DB.BRANCHES.size():
+		for k in _owned_in(b):
+			var i := b * 3 + k
+			if i < board.size():
+				out.append(board[i])
+	# (the test seam's, after the board's; never one twice)
+	for id in routines_granted:
+		if not out.has(id) and DB.routines.has(id):
+			out.append(id)
+	return out
+
+## Steps bought in branch `b`, 0 to 3.
+func _owned_in(b: int) -> int:
+	return clampi(board_owned[b], 0, 3) if b >= 0 and b < board_owned.size() else 0
+
+## The routine branch `b` sells next, or &"" when the branch is finished.
+func next_step(b: int) -> StringName:
+	var k := _owned_in(b)
+	if b < 0 or b >= DB.BRANCHES.size() or k >= 3 or b * 3 + k >= board.size():
+		return &""
+	return board[b * 3 + k]
+
+## What branch `b`'s next step costs in DATA; 0 when it is finished.
+func step_cost(b: int) -> int:
+	if next_step(b) == &"":
+		return 0
+	return DB.BOARD_PRICES[_owned_in(b)]
+
+## Buy branch `b`'s next step. False, with nothing spent, when the branch is
+## finished or the DATA is short.
+func buy_step(b: int) -> bool:
+	var id := next_step(b)
+	if id == &"":
+		return false
+	if not spend_data(step_cost(b)):
+		return false
+	var owned := board_owned.duplicate()
+	owned[b] = _owned_in(b) + 1
+	board_owned = owned
+	log_line("The Lab wrote %s into the flight computer." % DB.routines[id].name, &"big")
+	Sig.ship_changed.emit()
+	Sig.resources_changed.emit()
+	return true
+
+## What the owned routines add to one raw passive field: each one's `raw[field]`
+## plus `PER_PIP[gauge][field]` for each of its gauge pips. The same arithmetic
+## as `AffixData.raw_for`, so a routine written as +1 SEN is worth exactly what
+## an affix written as +1 SEN is.
+func routine_raw(field: StringName) -> float:
+	var total := 0.0
+	for id in owned_routines():
+		var r: Dictionary = DB.routines.get(id, {})
+		if r.is_empty():
+			continue
+		total += float((r.raw as Dictionary).get(field, 0.0))
+		var pips: Dictionary = r.pips
+		for g in pips:
+			var per: Dictionary = PER_PIP.get(g, {})
+			if per.has(field):
+				total += float(per[field]) * float(pips[g])
+	return total
+
+## `routine_raw`, for an int field.
+func routine_int(field: StringName) -> int:
+	return int(round(routine_raw(field)))
+
+## A new run's science, and the chassis select's: no DATA, no board, nothing
+## bought, the black box unspent. `science_off` is a test seam and stays.
+func clear_science() -> void:
+	data = 0
+	board = [] as Array[StringName]
+	board_owned = PackedInt32Array([0, 0, 0])
+	black_box_spent = false
+	routines_granted = [] as Array[StringName]
 
 ## Clears the rail's dismissal, and cuts up a frame still on offer so its pay is not lost.
 ## Why: docs/why/RunState.md#found-hulls
@@ -1623,7 +1797,9 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 		scrap = found_scrap.duplicate(),
 	}
 
-	# Before the modules come off: max_hp() sums them, and the plating counts in hp.
+	# THE SHARE OF THE SHIP YOU WERE FLYING, plates and all, read before they
+	# come off. Read after, it was over the bare frame: 40 of 50 with a +10
+	# plate landed as full, and a full one overshot and was clamped back.
 	var ratio := minf(1.0, float(hp) / float(max_hp()))
 	pad.clear()
 	pad.append_array(installed)
@@ -1632,7 +1808,10 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 	cargo.clear()
 
 	hull = h
-	hp = maxi(6, int(round(h.max_hull * ratio)))
+	# OF `max_hp()`, read on the new frame with nothing fitted: the frame plus
+	# the run's routines. `h.max_hull` left out DAMAGE CONTROL, so a full ship
+	# moved into a new hull 7 short of full.
+	hp = maxi(6, int(round(max_hp() * ratio)))
 	# Bought off a station's rack (the yard passes its node); a found hull is not.
 	if node != null:
 		hulls_bought += 1
@@ -1925,9 +2104,15 @@ func _hop_cost(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 ## Events never drain the fuel needed to reach a dock, or three cheapest jumps when none is seen.
 ## Why: docs/why/RunState.md#no-fuel-dead-ends
 func drain_fuel(n: int) -> void:
+	fuel = maxi(mini(fuel, fuel_floor()), fuel - n)
+
+## THE WAY OUT `drain_fuel` keeps: the fuel to reach a dock you can see, or with
+## none in sight three of the cheapest jumps from here; 0 with no map. Pulled out
+## of `drain_fuel` so the science gate (a reading that burns fuel is refused
+## below this), the card's note and the sim pilot read the one rule it drains by.
+func fuel_floor() -> int:
 	if map.is_empty() or node_at() == null:
-		fuel = maxi(0, fuel - n)
-		return
+		return 0
 	var limp := 0
 	var dock := 0
 	for raw in in_range():
@@ -1938,8 +2123,7 @@ func drain_fuel(n: int) -> void:
 		limp = c if limp == 0 else mini(limp, c)
 		if t.type == MapGen.NodeType.STATION:
 			dock = c if dock == 0 else mini(dock, c)
-	var keep := dock if dock > 0 else limp * 3
-	fuel = maxi(mini(fuel, keep), fuel - n)
+	return dock if dock > 0 else limp * 3
 
 ## Why REFUEL cannot sell here right now ("" when it can). Credits are the
 ## caller's business.

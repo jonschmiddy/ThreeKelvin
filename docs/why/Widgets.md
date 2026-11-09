@@ -420,3 +420,18 @@ and it still came out at 309. `tip()` above already carries this same
 finding for the plain tooltips -- "the wrap has to happen in the STRING"
 -- so this uses it, and the label then measures the same on-tree and off.
 ```
+
+## What an augmented part says
+
+Above `const AUGMENTED_TEXT := "AUGMENTED. The Lab can't add to it again."`:
+
+```text
+WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover
+popup (`module_readout`) and the hull's tip (`module_tip_panel`). One
+string, so the two cannot drift.
+
+It names the rule and not the affix. The mark is a bool (ModuleData.augmented),
+so which line the Lab wrote is not known, and the part reads it in the affix
+list above anyway. What the player cannot see anywhere else is that the Lab
+is done with this part. STRIP still works on it, so it says "add", not "change".
+```

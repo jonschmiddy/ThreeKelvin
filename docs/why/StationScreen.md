@@ -8,12 +8,13 @@ Above `var _header: RichTextLabel`:
 Stations are paid campfires. Every service costs credits, and credits are the same
 currency you would rather spend on modules — that tension IS the difficulty.
 
-A station is now four things rather than two: a shelf, a service desk, a
-BUYER for what is in your hold, and — where the place is developed enough to
-have a laboratory — a fabricator. Every price on the screen comes from
-`Market` or `Fabricator`, and none of them is stored: a price is a function of
-this place and that part, so there is nothing here to drift, to save, or to
-come back from a save as a discount.
+A station is five decks: a shelf, a service desk, a BUYER for what is in
+your hold, a hiring board, and a laboratory, where DATA buys the run's
+routines (`Science`) and the bench turns film and relics into DATA or a part
+(`Fabricator`). Every price on the screen comes from `Market`, `Fabricator`
+or `Science`, and none of them is stored: a price is a function of this place
+and that part, so there is nothing here to drift, to save, or to come back
+from a save as a discount.
 ```
 
 ## Five decks everywhere
@@ -544,14 +545,16 @@ exactly as the Promenade's is. Nothing here places anything by itself.
 Inside `_page_bench()`, above `var stack := Control.new()`:
 
 ```text
---- ONE OF JON'S FIVE LABS, WITH THE RECIPES ON ITS SCREEN.
+--- ONE OF JON'S FIVE LABS, ITS OWNER'S SIGN-ON ON ITS SCREEN.
 
-The deck was a room drawn in code with the fabricator standing in it as a
-fume hood, the recipes behind its glass. It is a painted lab per development
-level now (`LabScene`), and the recipes stand where the prototype drew them:
-on the lab's own big screen, in `LabScene.win_rect`. Three layers: the lab,
-lit and running; the rows, in a holder the power-on's scan opens; and what
-the big screen does, over the rows.
+A painted lab per development level (`LabScene`). Its big screen is too
+small for the Lab itself (Jon, Nov 4: "is the screen really big enough for
+a player to see all of it?"), so in the room it holds the station owner's
+logo, a sign-in while you point at it (Jon, Nov 5), and pressing the glass
+moves the camera onto it (`LabZoom`), where the pages are at their own
+size. Three layers: the lab, lit and running; the glass, which the
+power-on's scan opens, with the sign-on and the key on it; and what the big
+screen does, over the sign-on.
 ```
 
 ## Deck cells
@@ -1259,3 +1262,142 @@ would turn up; a cosmopolitan station gets a couple of visitors, picked off the
 station's own index so the same station always carries the same ones. Three at
 most -- the board has three places to put them.
 ```
+
+## The camera into the lab carries
+
+Above `var _lab_chrome_a := {}`:
+
+```text
+THE CAMERA INTO THE LAB CARRIES THE DECK'S PLATE (`LabZoom`, its
+`_frame`): the plate round the room is drawn through the camera with the
+room, so the deck's own is hidden (`away`) from the frame the camera leaves
+the room to the frame it lands back, and then put back exactly as it was.
+Never faded (Jon, Nov 5: "the fact that the frame pops in is kinda
+awkward, yeah?"). It goes by its self_modulate, so the room it holds stays.
+```
+
+## The camera carries the elevator and
+
+Above `var _lab_carry := {}`:
+
+```text
+THE CAMERA CARRIES THE ELEVATOR AND THE HUD OUT (Jon, Nov 5, of the zoom:
+"can we have a smoother transition with the elevator?"). They used to fade
+before the camera moved, and the room stood off to the right of an empty
+dark column where the elevator had been; on the way back the room landed
+beside that hole and the elevator faded in after it. Now they stay whole
+and ride the deck frame's edges as the camera closes in: the elevator goes
+out of the window's left with the frame's left edge, the HUD out of its top
+with the frame's top, and coming back out they ride in with the room and
+stand in their places on the frame it lands. They are moved, never scaled
+(the camera's scale would blur their words), and drawn over the zoom
+while it has them (`z_index`). `d` is how far the deck's frame has moved on
+screen from where it stands (the camera draws it with the room); `on`
+false puts both back exactly.
+The yard's edge sets the rail's alpha and height every frame where there
+is a berth (`_YardEdge`), so it reads `_lab_lift` and `_lab_rail_a` too.
+```
+
+## Undock from a deck above the
+
+Above `var _undock_wait := false`:
+
+```text
+UNDOCK FROM A DECK ABOVE THE YARD RIDES DOWN TO IT FIRST (Jon, Nov 5: the
+slide for every elevator choice). Undocking (3B) is the elevator out and
+your ship off its stands, and your ship is in the yard: pressed on the Lab
+it used to play over the Lab, the elevator going and the hull flying out
+unseen. Now the car takes you down to the SHIPYARD on the slide and the
+undock starts as it stops. A floor picked on the way cancels it; a second
+press waits for the same ride. Where the undock does not move the yard (the
+ladder off, another design, reduced motion, a harness) it leaves at once.
+```
+
+## The decks change over the ride
+
+Above `var _ride_s := 0.0`:
+
+```text
+THE DECKS CHANGE OVER THE RIDE, NOT AT THE CLICK (Jon, Nov 5: "a smoother
+transition with the elevator"). The deck you left used to vanish on the
+frame you pressed the floor, the car still standing at it: from the yard,
+lit, to the Lab, black before its power-on, in one frame. Now the deck you
+are leaving goes down into the dark over the first half of the car's ride
+(`_ride_to`, 0.24 to 0.72 s by distance), the decks change hands under the
+dark, and the deck you are going to comes up out of it as the car arrives.
+The Lab's power-on starts as it comes up, so its lights strike just after
+the car stops. A dip through a dark sheet over the deck's panel, not the
+pages' own alpha: the painted rooms are drawn by shaders that do not take a
+node's alpha (the Lab's went black at once over the fading yard). Nothing
+on either deck moves (don't move what can be clicked), and the deck you
+leave takes no clicks while it goes. Only on a ride: arriving, and in a
+harness, the deck is there at once.
+```
+
+## The decks ride with the car
+
+Above `static var deck_move: StringName = &"slide"`:
+
+```text
+THE DECKS RIDE WITH THE CAR (the review of the dip, Nov 5: a fade to black
+is still a cut, and an elevator goes up and down). On a ride the deck you
+leave and the deck you go to are one tall shaft, a floor slab between them,
+and the shaft moves past the panel in the car's direction on the car's own
+curve and time: going down a floor, the deck you leave rises out of the top
+and the new one comes up from below. It is a camera move: both decks are
+whole and drawn as they are, only moved, and neither takes clicks till the
+car stops. A press mid-ride starts from where the shaft is.
+
+EVERY DECK, BOTH WAYS (Jon, Nov 5, round three: "The slide can be the main
+transition for every elevator choice"): PROMENADE, SHIPYARD, EXCHANGE,
+HIRING BOARD and LABORATORY, up and down, at every level, and UNDOCK from a
+deck above the yard (`_undock_press`). `deck_move` &"dip" keeps the dark dip
+(`_cross_decks`) as the fallback; either way no deck change is a cut while
+the game animates (reduced motion and a harness change on the press).
+```
+
+## The ride never jumps a long
+
+Above `const RIDE_STEP_S := 1.0 / 30.0`:
+
+```text
+THE RIDE NEVER JUMPS A LONG FRAME (StationDeckTest, Nov 5: the first frame a
+deck is shown builds it, and at an outpost one took 0.13 to 0.17 s, so a
+first ride onto a deck landed whole on its first frame: a cut). The car and
+the slide are stepped here, together, by the frame's time but never more
+than RIDE_STEP_S (two frames at 60): a frame that stalls holds the shaft
+where it was, and the ride goes on from there.
+```
+
+## The lower deck over the upper
+
+Inside `_slide_decks()`, above `var lower := mate if dir > 0.0 else from`:
+
+```text
+THE LOWER DECK OVER THE UPPER (the r5 film: from the yard up to the
+PROMENADE the yard went dark on the press). A deck is taller than the
+panel: the PROMENADE's page is 1004 px for a 483 px panel and the
+EXCHANGE's 1200 (their till notes, autowrapped in a column, ask that
+much), and at rest the rest of it is off the bottom of the window. In the
+shaft that rest lies over the deck below, and the page's translucent
+plate darkened the whole yard. So the deck lower in the shaft is drawn
+over the one above it, and the slab over both; and each is clipped to
+itself, so nothing of a deck's inside runs on past its own plate.
+```
+
+## The labs reminder
+
+Above `const LAB_REMIND := 10`:
+
+```text
+THE LAB'S REMINDER (Jon, Nov 8, S1A: "Labs get a reminder to spend when the
+player holds 10 or more DATA", on his stripped-down UI push: no new panels or
+boxes, no second button for something already there). The sim had runs ending
+with 19 DATA unspent on average. So the Laboratory's line under its name on
+the elevator, which read "DATA 21", reads "SPEND 21 DATA" once DATA reaches
+LAB_REMIND, and it is EMBER on every deck, not only the deck you are on. It
+is the same label, the same size, in the same place: nothing new on screen.
+10 is the second step's price, so the line comes up when DATA would buy any
+row's next step but a last one (15). With science off it never shows.
+```
+

@@ -45,3 +45,16 @@ And EVENT QUESTS and COMPLETED (Jon, Oct 22), on the first galaxy:
   and where, and its delivered job under COMPLETED with its pay;
 - the QUESTS tab never changes size through any of it.
 ```
+
+## The huds row
+
+Above `func _hud_fits(when: String) -> void:`:
+
+```text
+The HUD's row: every piece inside the bar, none over another.
+
+THE BAR IS ITS CLIP, 932 at a 960 window, not the panel's 944: the panel's
+six-pixel padding each side is not row, and a row wider than the clip is cut
+off at its right-hand end (HudBar._ready), where DATA now sits. Against 944,
+a row up to twelve pixels too wide passed with its end not drawn.
+```

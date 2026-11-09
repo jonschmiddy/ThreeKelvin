@@ -1215,10 +1215,10 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	var t0 := Time.get_ticks_usec()
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
-	# A departure burn that swings round a point is not flown (`V_CUSP`), nor an eased one drawn as a hook
-	# (`_burn_tight`), nor one out of a ring on a flight's own clock that hooks tighter. Not alongside.
+	# A departure burn out of a ring or a second leg's is not flown if it swings round a point
+	# (`V_CUSP`) or hooks tighter than the map can draw (`_burn_tight`, eased or not).
 	# Why: docs/why/FlightSolve.md#departure-burns-turned-down
-	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not ((_ease or (_kp > 1.0 and _dk == 0)) and _burn_tight()):
+	if not ((_dk == 0 or _leg == 2) and (_departure_cusps() or _burn_tight())) and not (_ease and _burn_tight()):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -1274,7 +1274,7 @@ func _coast_tight() -> float:
 	return _tight_in(k, _cn - 1)
 
 
-## The eased departure burn was the one part with no draw check, so it flew sharp U-turns.
+## Every departure out of a ring or a second leg's, eased or not, is held to the draw check.
 ## Why: docs/why/FlightSolve.md#burn-turn-limit
 func _burn_tight() -> bool:
 	if _cn < 2:
@@ -1358,6 +1358,28 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 		elif sp < vmin:
 			vmin = sp
 			jmin = j
+	# The drawn curve is tightest where the tilted speed is least, often between two points.
+	# Why: docs/why/FlightSolve.md#arrival-cusps
+	for j in 16:
+		var wa := Vector2(vs[j].x, DRAW_TILT * vs[j].y)
+		var wg := Vector2(vs[j + 1].x, DRAW_TILT * vs[j + 1].y) - wa
+		var gw := wg.length_squared()
+		if gw < 1e-12:
+			continue
+		var uw := -wa.dot(wg) / gw
+		if uw <= 0.0 or uw >= 1.0 or (_tk == 1 and lerpf(lefts[j], lefts[j + 1], uw) <= 1.5):
+			continue
+		var tw := (float(j) + uw) / 16.0
+		var tqw := te - d + tw * d
+		var cw := _coast_at(tqw)
+		var wvx := cw[2] + (2.0 * Ax * tw + 3.0 * Bx * tw * tw) / d
+		var wvz := cw[3] + (2.0 * Az * tw + 3.0 * Bz * tw * tw) / d
+		_acc_at(cw[0] + Ax * tw * tw + Bx * tw * tw * tw, cw[1] + Az * tw * tw + Bz * tw * tw * tw, tqw)
+		var wax := _ax + (2.0 * Ax + 6.0 * Bx * tw) / (d * d)
+		var waz := _az + (2.0 * Az + 6.0 * Bz * tw) / (d * d)
+		var wdn := pow(wvx * wvx + DRAW_TILT * DRAW_TILT * wvz * wvz, 1.5)
+		if wdn > 1e-9 and DRAW_TILT * absf(wvx * waz - wvz * wax) / wdn > DRAW_K:
+			return true
 	var ja := jmin
 	var jb := jmin
 	# Not read in the last px and a half alongside: the ship falls in with the place's own crawl.

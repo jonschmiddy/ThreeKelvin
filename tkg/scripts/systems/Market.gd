@@ -148,6 +148,15 @@ static func refuel_price(n: MapGen.MapNode) -> int:
 static func purge_price(n: MapGen.MapNode) -> int:
 	return maxi(1, int(round(15.0 * service_index(n))))
 
+## THE LAB'S TWO SERVICES ON A PART (science, pick 3A), the credits half of the bill;
+## `Science.AUGMENT_DATA` and `STRIP_DATA` are the DATA half.
+## Why: docs/why/Market.md#the-labs-two-services-on-a
+static func augment_price(n: MapGen.MapNode) -> int:
+	return maxi(1, int(round(20.0 * service_index(n))))
+
+static func strip_price(n: MapGen.MapNode) -> int:
+	return maxi(1, int(round(10.0 * service_index(n))))
+
 ## A flyable hull on the pad. Goods, not work, so it reads off the goods index —
 ## and off the manufacturer who built it, exactly like a module does.
 static func hull_price(n: MapGen.MapNode, h: HullData) -> int:
