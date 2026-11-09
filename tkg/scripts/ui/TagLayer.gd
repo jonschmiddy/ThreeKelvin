@@ -169,7 +169,7 @@ func _spot(c: Control, sz: Vector2) -> Vector2:
 	var inv := get_global_transform().affine_inverse()
 	about = Rect2(inv * about.position, about.size)
 	if (about.size.x > WIDE.x or about.size.y > WIDE.y) and _pointer != Vector2.INF:
-		about = Rect2(_pointer - Vector2(12, 12), Vector2(24, 24))
+		about = Rect2(_pointer - Vector2(12, 22), Vector2(24, 44))
 	return TornTag.place(sz, about, Rect2(Vector2(2, 2), size - Vector2(4, 4)))
 
 

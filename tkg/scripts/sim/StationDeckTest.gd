@@ -315,7 +315,7 @@ func _bare(dev: int) -> void:
 			note.is_visible_in_tree() and board.encloses(note.get_global_rect()))
 
 
-## THE CHART at a dock desk station: OPERATORS reads NONE, <MANUFACTURER> DESK.
+## THE CHART at a dock desk station: the star's tag reads <MANUFACTURER> DESK.
 func _chart() -> void:
 	var here := _station(MapGen.Development.OUTPOST, false, 9100)
 	var desk := Contracts.dock_desk(here)
@@ -330,27 +330,22 @@ func _chart() -> void:
 		return
 	ch._on_node_picked(here.index)
 	await Harness.frames(_tree, 6)
-	var want := "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
-	var said := ""
-	var row_ok := false
-	for row in ch._rows.get_children():
-		var labels := _labels(row as Control)
-		if labels.size() >= 2 and labels[0].text == "OPERATORS":
-			said = labels[labels.size() - 1].text
-			var box := ch._rows.get_global_rect()
-			row_ok = box.grow(0.5).encloses(labels[labels.size() - 1].get_global_rect())
-	_ok("chart: OPERATORS reads %s (%s)" % [want, said], said == want)
-	_ok("chart: and its line sits inside the panel", row_ok)
-	# The dock desk blurb is the longest a station gives; JUMP must stay on screen and clear.
-	var blurb := ch._dest_blurb.text
+	# THE SURVEY IS ON THE STAR'S TAG (stripped-down UI C3, Nov 9): the desk reads there, and
+	# the panel keeps danger, fuel and warnings; the blurb hides once a star is picked.
+	var want := "%s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
+	var survey := MapChart.survey_lines(here, here)
+	var said := survey[2] if survey.size() > 2 else ""
+	_ok("chart: the star's tag says who runs it: %s (%s)" % [want, said], said == want)
+	var tag_w := TornTag.measure(TornTag.sentence(" ".join(survey), UITheme.COLD, 40)).x
+	_ok("chart: the tag's lines fit inside the chart (%.0f of %.0f)" % [tag_w, ch._chart.size.x], tag_w < ch._chart.size.x)
 	var rows_bottom := ch._rows.get_global_rect().end.y
 	# (docked, UNDOCK FIRST stands where JUMP would: stripped-down UI 5, Nov 9)
 	var slot: Control = ch._undock_first if Router.docked else ch._jump
 	var jump := slot.get_global_rect()
 	var screen_h: float = ch.get_viewport_rect().size.y
-	print("    chart blurb %d chars: rows end at %.0f, JUMP %.0f to %.0f of %.0f" 		% [blurb.length(), rows_bottom, jump.position.y, jump.end.y, screen_h])
-	_ok("chart: the blurb says salvage is thin and names the desk",
-		blurb.contains("Salvage is thin and random.") and blurb.contains("posts work from a desk"))
+	print("    chart rows end at %.0f, JUMP %.0f to %.0f of %.0f" % [rows_bottom, jump.position.y, jump.end.y, screen_h])
+	_ok("chart: the blurb is off with a star picked, the rows down to danger, fuel and warnings (%d)" % ch._rows.get_child_count(),
+		not ch._dest_blurb.visible and ch._rows.get_child_count() <= 2 + MapGen.hazards(here).size())
 	_ok("chart: JUMP (docked, UNDOCK FIRST in its place) is on screen and below the rows",
 		slot.is_visible_in_tree() and jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
 
