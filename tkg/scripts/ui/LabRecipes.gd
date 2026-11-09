@@ -1,8 +1,8 @@
 class_name LabRecipes
 extends Control
 
-## THE LAB'S RECIPES PAGE, in AUGMENT's layout (Jon, Nov 5: "Can't we make the recipes page like
-## the augment page in its layout?
+## THE LAB'S RECIPES PAGE, in AUGMENT's layout (Jon, Nov 5): what you hold on the left rail, the
+## one picked under the scanner, the recipes it goes into as rings, MAKE at the bottom.
 ## Why: docs/why/LabRecipes.md#the-labs-recipes-page
 
 ## Something that glows changed: whoever blooms it (`LabZoom`) redraws.
@@ -41,8 +41,8 @@ const WORDS_X := 736
 const ORDER := [&"survey_film", &"relic"]
 ## The rings' order (the old rows' order): DATA first, then the part.
 const RECIPE_ORDER := [&"develop", &"read", &"analysis"]
-## THE PICTURES ARE DRAWN HERE, IN CODE, as shaded images the size of a part's sprite, and go
-## through AUGMENT's own two hands: its phosphor on the rail, its schematic (outline ...
+## THE PICTURES ARE DRAWN HERE, IN CODE, as shaded images the size of a part's sprite, drawn
+## as AUGMENT draws a part: phosphor on the rail, schematic on the bench.
 ## Why: docs/why/LabRecipes.md#the-pictures-are-drawn-here
 static var _imgs := {}
 static var _texs := {}

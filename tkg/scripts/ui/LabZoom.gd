@@ -478,8 +478,8 @@ func _input(e: InputEvent) -> void:
 	var key := e as InputEventKey
 	var mb := e as InputEventMouseButton
 	var pad := e as InputEventJoypadButton
-	# NEXT SCREEN (Tab) WITH THE CAMERA IN THE GLASS: out to the room, the station's chrome
-	# back, and then the key for Main ...
+	# NEXT SCREEN (Tab) WITH THE CAMERA IN THE GLASS: out to the room at three times its pace,
+	# the station's chrome back, and then the key goes on to Main.
 	# Why: docs/why/LabZoom.md#next-screen
 	if key != null and key.pressed and not key.echo and key.is_action_pressed(&"next_screen"):
 		if _goal <= 0.0 and _then_key != null:
@@ -648,8 +648,8 @@ func _chrome(away: bool) -> void:
 		station.call(&"lab_chrome", away)
 
 
-## THE ELEVATOR AND THE HUD RIDE THE FRAME'S EDGES (`StationScreen.lab_carry`): moved as far as
-## the camera has moved the deck's frame from where it stands (the elevator by its left edge ...
+## THE ELEVATOR AND THE HUD RIDE THE FRAME'S EDGES (`StationScreen.lab_carry`), the elevator by
+## its left edge and the HUD by its top. `on` false puts them back as they were.
 ## Why: docs/why/LabZoom.md#the-elevator-and-the-hud-ride
 func _carry(on: bool) -> void:
 	if station == null or not is_instance_valid(station) or not station.has_method(&"lab_carry"):

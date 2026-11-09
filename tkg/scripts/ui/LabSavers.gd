@@ -2,7 +2,7 @@ class_name LabSavers
 extends RefCounted
 
 ## THE LAB'S SCREENSAVERS, for its glass at rest, each with its own hover cue and sign-in (Jon,
-## Nov 5: "I like the screensaver the best, but I want more options for what these can be" ...
+## Nov 5 and 7). `LabLogin` picks which is up; this draws it.
 ## Why: docs/why/LabSavers.md#the-labs-screensavers
 
 ## The seven every lab runs.

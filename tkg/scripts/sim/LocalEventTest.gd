@@ -174,7 +174,7 @@ func _fuel_gate(holder: Control, n: MapGen.MapNode) -> void:
 
 
 ## WHAT A READING BURNS IS ON ITS CARD (`EncounterDrawer.choice_card`), in all three layouts,
-## for every science event ...
+## for every science event, and a card short of fuel reads what it needs and cannot be pressed.
 ## Why: docs/why/LocalEventTest.md#what-a-reading-burns-is-on
 func _fuel_cards(holder: Control, n: MapGen.MapNode) -> void:
 	var looked_at := 0

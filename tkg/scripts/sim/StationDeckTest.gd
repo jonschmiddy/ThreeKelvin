@@ -536,8 +536,8 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 	await _frames(1)
 
 
-## THE LAB'S SCREEN AT REST (Jon, Nov 5; the savers, Nov 7): the station owner's savers, its own
-## three and the seven every lab runs, one up at a time ...
+## THE LAB'S SCREEN AT REST (Jon, Nov 5; the savers, Nov 7): each of the owner's savers, at rest
+## and signing in under the pointer, fits its window, the window its glass.
 ## Why: docs/why/StationDeckTest.md#the-labs-screen-at-rest
 func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 	var login := st._login
@@ -727,8 +727,8 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 		zoom.board_rect.is_equal_approx(gs) if not thin else zoom.board_rect.encloses(Rect2(-16, -16, LabZoom.W + 32, LabZoom.H + 32)))
 
 
-## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps to its end): the
-## camera carries the deck's frame with the room, one picture (Jon, Nov 5 ...
+## THE MOVE ITSELF, animated (`Router.animate_in_harness`): the camera carries the deck's frame,
+## the elevator and the HUD with the room, and a press, Esc or Tab mid-move does what it should.
 ## Why: docs/why/StationDeckTest.md#the-move-itself
 func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var hud: Control = Router.hud

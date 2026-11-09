@@ -178,7 +178,7 @@ func fx_layer() -> Control:
 
 
 ## THE PRESS HUSHES THE SCREEN (`LabZoom`, the camera into the glass): from the press until the
-## camera is back, the lamps hold steady (`lamps_held`) ...
+## camera is back, the lamps hold steady and nothing new starts. `on` false lets it run again.
 ## Why: docs/why/LabScene.md#the-press-hushes-the-screen
 func hush_screen(on: bool) -> void:
 	_glass.hush(on)

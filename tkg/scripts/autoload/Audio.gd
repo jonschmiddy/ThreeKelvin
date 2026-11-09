@@ -852,7 +852,8 @@ func back() -> void:    play(&"ui_back", 0.03)
 func confirm() -> void: play(&"ui_click", 0.02)
 func denied() -> void:  play(&"ui_denied", 0.03)
 
-## THE LAB'S GLASS (Jon's picks, Nov 7, the round-2 page: hover h2_03, login l2_05).
+## THE LAB'S GLASS (Jon's picks, Nov 7: hover h2_03, login l2_05), at 0 dB: the files carry
+## their level. `lab_hover`: the pointer arriving on the glass.
 ## Why: docs/why/Audio.md#the-labs-glass
 func lab_hover() -> void: play(&"lab_glass_hover", 0.02, 120)
 ## `lab_login`: the press that signs in (`StationScreen._open_lab`), from the

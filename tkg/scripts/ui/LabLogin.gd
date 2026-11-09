@@ -1,8 +1,8 @@
 class_name LabLogin
 extends Control
 
-## THE LAB'S SCREEN AT REST: the owner's screensavers (Jon, Nov 5: "you start the lab fully
-## zoomed out, the screen turns on like normal, has a corpo logo or something ...
+## THE LAB'S SCREEN AT REST (Jon, Nov 5 and 7): the owner's screensavers in turn, the one up
+## holding and showing its sign-in while pointed at, and the press that signs in.
 ## Why: docs/why/LabLogin.md#the-labs-screen-at-rest
 
 const LOGO := &"logo"

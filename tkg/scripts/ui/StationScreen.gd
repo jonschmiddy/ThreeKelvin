@@ -843,8 +843,8 @@ func lab_zoom() -> LabZoom:
 	return _lab_zoom
 
 
-## THE CAMERA INTO THE LAB CARRIES THE DECK'S PLATE (`LabZoom`, its `_frame`): the plate round
-## the room is drawn through the camera with the room ...
+## THE CAMERA INTO THE LAB CARRIES THE DECK'S PLATE (`LabZoom`, its `_frame`), so the deck's own
+## is hidden by its self_modulate while the camera is off the room, never faded.
 ## Why: docs/why/StationScreen.md#the-camera-into-the-lab-carries
 var _lab_chrome_a := {}
 
@@ -1253,8 +1253,8 @@ var _deck_body: Control = null
 var _deck_page_clip: Dictionary = {}
 
 
-## THE RIDE NEVER JUMPS A LONG FRAME (StationDeckTest, Nov 5: the first frame a deck is shown
-## builds it, and at an outpost one took 0.13 to 0.17 s ...
+## THE RIDE NEVER JUMPS A LONG FRAME: the car and the slide step at most RIDE_STEP_S a frame,
+## so a frame that stalls building a deck holds the shaft where it was.
 ## Why: docs/why/StationScreen.md#the-ride-never-jumps-a-long
 const RIDE_STEP_S := 1.0 / 30.0
 var _slide_tw: Tween = null

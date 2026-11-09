@@ -62,7 +62,8 @@ static func toll(base: int) -> int:
 		* TOLL_SCALE[MapGen.tier(_here_danger())])))
 
 
-## SCIENCE (Phase 12, Jon's picks Nov 4, "1A 2B 3A 4B", and "science costs fuel").
+## THE DATA A CAREFUL READING PAYS, by `MapGen.tier` (science, pick 4B: about 70 a run); the
+## risky line pays two.
 ## Why: docs/why/OptionTable.md#science-2
 const SCIENCE_PAY: Array[int] = [0, 5, 6, 8, 10, 14]
 ## WHAT A READING BURNS: you flew down there. One fuel at tiers 1 and 2, two from

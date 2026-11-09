@@ -1404,8 +1404,8 @@ func _scroll_check(first, key_fails := 0) -> void:
 	print("scrollcheck: %s" % ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 
 
-## THE KEY ALONG THE BOTTOM FITS (`SystemMapScreen.KEY`, science's SCIENCE the eighth beacon in
-## it): the screen where Main puts it, in the 960 x 540 window ...
+## THE KEY ALONG THE BOTTOM FITS (`SystemMapScreen.KEY`, SCIENCE its eighth beacon): every
+## entry inside the 960 x 540 screen, clear of the rest. Returns the failures.
 ## Why: docs/why/SystemShot.md#the-key-along-the-bottom-fits
 func _key_check(scr: Control) -> int:
 	for _f in 3:

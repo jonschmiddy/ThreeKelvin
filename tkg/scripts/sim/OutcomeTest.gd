@@ -133,8 +133,8 @@ func _looks(n: MapGen.MapNode, c: String, f: Dictionary, layout: StringName) -> 
 	await _tree.process_frame
 
 
-## THE LAB SHEET'S ROW (Jon's 2A, Nov 4: DATA a fifth stat in the result): the reading's result
-## on the real LOCAL, its bill made the sheet's own (fuel 40 to 38 ...
+## THE LAB SHEET'S ROW (Jon's 2A, Nov 4: DATA a fifth stat in the result): a reading's result
+## on the real LOCAL reads "FUEL -2 · DATA +5" and passes the box test.
 ## Why: docs/why/OutcomeTest.md#the-lab-sheets-row
 func _sheet_row(n: MapGen.MapNode, f: Dictionary, layout: StringName) -> void:
 	var got := await _take(n, f)

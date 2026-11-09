@@ -1,7 +1,8 @@
 class_name LabPlate
 extends Button
 
-## A KEY ON THE LAB'S SCREEN (science S9, Jon's 1C): the four the zoomed-in Lab presses ...
+## A KEY ON THE LAB'S SCREEN (science S9, Jon's 1C): plate, leave, commit (BUY, MAKE) or tab,
+## drawn as the mockup drew them, on a real Button.
 ## Why: docs/why/LabPlate.md#a-key-on-the-labs-screen
 
 const BG := Color("#0a0e15")

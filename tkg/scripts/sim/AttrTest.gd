@@ -76,8 +76,8 @@ func run() -> void:
 var _ends := 0
 
 
-## THE AUGMENTED LINE IN EVERY BOX THAT DESCRIBES A PART (science, S10): the hover popup the
-## hold, the hull and the gallery share (`ModuleIcon.tip_for`) ...
+## THE AUGMENTED LINE IN EVERY BOX THAT DESCRIBES A PART (science, S10), and those boxes
+## still fit at the Lab's worst case: three rolled affixes plus the augment.
 ## Why: docs/why/AttrTest.md#the-augmented-line-in-every-box
 func _augmented_shown() -> void:
 	Rng.forced = 4242
@@ -275,7 +275,7 @@ func _augment_mark() -> void:
 	_ends += 1
 
 
-## THE MARK ON A SPRITE.
+## THE MARK ON A SPRITE stays a corner: it may hide at most this share of the art drawn.
 ## Why: docs/why/AttrTest.md#the-mark-on-a-sprite
 const MARK_HIDES := 0.05
 

@@ -86,7 +86,8 @@ func begin_run() -> void:
 ## the desks, an option's price and (science) the Lab's AUGMENT.
 var spend: Dictionary = {fuel = 0, repair = 0, options = 0, augment = 0}
 
-## SCIENCE (Phase 12, Jon's picks 1A 2B 3A 4B, and "science costs fuel").
+## SCIENCE (Phase 12): false is a pilot that sells every reading and never spends DATA
+## (`science=off` and `science=ignore`). Every science rule here draws from no stream.
 ## Why: docs/why/Policy.md#science
 var science: bool = true
 
@@ -497,7 +498,8 @@ func _count_reading(line: Dictionary, data: int, fuel: int) -> void:
 		sci.data_careful += maxi(0, data)
 
 
-## A SCIENCE EVENT'S LINE (plan S12).
+## A SCIENCE EVENT'S LINE (plan S12): credits when science is off, no DATA is wanted or the
+## fuel gate is shut; else risky while the hull is above half, else careful.
 ## Why: docs/why/Policy.md#a-science-events-line
 func _choose_science(opt: Dictionary) -> int:
 	var choices: Array = opt.get("choices", [])
