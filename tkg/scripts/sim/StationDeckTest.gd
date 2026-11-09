@@ -1409,8 +1409,16 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s: BUY and the glass's key are the same objects after 30 refreshes" % tag,
 		is_instance_valid(buy) and board.buy_button == buy and buy.visible and buy.get_parent() == board
 		and is_instance_valid(key) and st._glass_press == key)
+	# BUY'S OWN SOUND (Jon's pick C15, Nov 9): lab_research_buy once on the press, never fabricate
+	var was_taping := Audio.taping
+	Audio.taping = true
+	Audio.tape.clear()
 	await _click(buy)
 	await _frames(2)
+	var heard: Array = Audio.tape.map(func(r: Array) -> String: return String(r[0]))
+	Audio.taping = was_taping
+	_ok("%s: BUY sounds lab_research_buy once and no fabricate (%s)" % [tag, heard],
+		heard.count("lab_research_buy") == 1 and heard.count("fabricate") == 0)
 	_ok("%s: BUY spends 4 DATA and runs CORE's first step (DATA %d, owned %s, the strip on %s)"
 		% [tag, Run.data, str(Run.board_owned), board.bought],
 		Run.data == 36 and Run.board_owned[1] == 1 and board.bought == Vector2i(1, 0) and zoom._note == "-4")
