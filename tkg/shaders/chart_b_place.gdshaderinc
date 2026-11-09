@@ -192,6 +192,7 @@ const float TERR_GAMMA = 1.5;
 #define M_STARP 16
 #define M_BALL 17
 #define M_BOLT 18
+#define M_GOLD 19
 
 #if LOW
 const int OCT = 1;
@@ -1211,6 +1212,17 @@ float ballS(vec2 gS, vec2 gq, float blkS) {
 // level against its body's middle, the power that light falls by, on (w). Off for every
 // other ball.
 uniform vec4 u_ballV = vec4(1.0, 0.0, 1.0, 0.0);
+// THE BIG DWARF SPHEROIDAL IN DIM GOLD (Jon, Nov 8: "dim gold", and "the same texture as
+// the blue one. The gold one looks flat"): its body drawn as the blue compact dwarf's is --
+// its clumps, grain, relief and puffs at a young ball's strength, its light and its
+// fade the blue one's -- but on the old-gold ramp (M_GOLD), never blue gas
+bool goldD() {
+	return abs(u_ballK.x - 2.0) < 0.5 && u_ballV.w > 0.5;
+}
+// a ball's texture's strength (`u_ballK.z`, its young gas): the dim-gold dwarf's a young one's
+float ballYoung() {
+	return goldD() ? 1.0 : u_ballK.z;
+}
 // where a point of the ball's round frame (gS, gu; gq the same turned, blkS a block
 // there) lies in the big dwarf's reach (0 at the core, 1 at its end), its outline
 // a little irregular at the body's own scale (the core's lumpy outline, `ballS`, at a
@@ -1239,13 +1251,13 @@ float ballEnv(float sE) {
 // slow, into a wide envelope; a flattened one's steep), gone by `u_ballF.z`; a dwarf
 // spheroidal's faint
 float ballBody(float s) {
-	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
-	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
+	float faint = abs(u_ballK.x - 2.0) < 0.5 && !goldD() ? 0.4 : 1.0;
+	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * ballYoung()) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
 }
 // and with the big dwarf's envelope (`ballEnv`) at sE
 float ballBodyE(float s, float sE) {
-	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
-	return ballBody(s) + u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * ballEnv(sE);
+	float faint = abs(u_ballK.x - 2.0) < 0.5 && !goldD() ? 0.4 : 1.0;
+	return ballBody(s) + u_g8.y * 0.4 * faint * (1.0 + 0.6 * ballYoung()) * ballEnv(sE);
 }
 // lit as a ball from the chart's key light (upper left, `ballForm`'s): its near side a
 // little up, its far side and limb down, as a multiplier of its light
@@ -1376,7 +1388,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		// never the blotched crust of a gas disc; a young ball's -- `u_ballK.z` -- as a
 		// disc's)
 		float env = ballBodyE(sB, sE);
-		float yg = u_ballK.z;
+		float yg = ballYoung();
 		float clump = fbmL(gq * 11.0 + vec2(5.0), blkS * 11.0, low ? 2 : (yg > 0.5 ? 6 : 4));
 		float fine = low ? 0.0 : fbmL(gq * 46.0 + vec2(9.0), blkS * 46.0, yg > 0.5 ? 5 : 2);
 		float clumpS = fbmL(gq * 11.0 + 5.0, blkS * 11.0, 2);
@@ -1385,7 +1397,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		EdS = env * (1.0 + cA * clumpS);
 		// warm where its old stars hold; past them, in a ball with gas, its cool gas, handed
 		// over across a wide band; an old ball is warm to its edge
-		warmD = ballGas() ? 1.0 - smoothstep(0.6 * u_ballK.y, 1.6 * u_ballK.y, sB) : 1.0;
+		// (the dim-gold dwarf as the blue one's, its old light handed to its gold gas there)
+		float wE = goldD() ? 0.3 : u_ballK.y;
+		warmD = ballGas() || goldD() ? 1.0 - smoothstep(0.6 * wE, 1.6 * wE, sB) : 1.0;
 		// a merger's tidal stream (`u_g8.w`, the disc's own above): what is left of the
 		// smaller galaxy, flung off one side and curling away, at the ball's own size
 		if (u_g8.w > 0.5) {
@@ -1447,7 +1461,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			terrS = terrShadeB(gq * tS, terrLo(blkS * tS));
 			// (an old ball's relief at BALL_RELIEF_OLD of the disc's: its body a smooth fall of old light,
 			// only a young one -- `u_ballK.z` -- as lumpy as a spiral's middle)
-			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk * (BALL_RELIEF_OLD + (1.0 - BALL_RELIEF_OLD) * u_ballK.z));
+			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk * (BALL_RELIEF_OLD + (1.0 - BALL_RELIEF_OLD) * ballYoung()));
 		}
 		// (the big dwarf's envelope, `u_ballV`, unlit by the key light: past its core's
 		// body the rim's shading carried on round it, its upper half a step over its lower)
@@ -1457,7 +1471,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// (an old ball's puffs at BALL_PUFF_OLD of a disc's: at full strength they were the
 			// blotched crust close in -- three of the ramp's steps across each puff at zoom 1)
 			vec3 fs = fluffShade(gq);
-			lit *= mix(1.0, fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff, BALL_PUFF_OLD + (1.0 - BALL_PUFF_OLD) * u_ballK.z);
+			lit *= mix(1.0, fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff, BALL_PUFF_OLD + (1.0 - BALL_PUFF_OLD) * ballYoung());
 		}
 		Ed = Ed * lit + tlB;
 		EdS = EdS * lit + tlB;
@@ -1716,20 +1730,18 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				float ELc2 = Ec + Ep + dbt;
 				float la2 = 1.08 + log2(max(ELc2, 1e-6)) / 6.2 - 0.12 * shade - 0.34 * bub;
 				// (an old ball has no cool gas behind its fade: it thins out into the sky)
-				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas()) ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
+				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas() && !goldD()) ? cand(goldD() ? M_GOLD : M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
 			}
-			// THE BIG OLD DWARF IS GOLD (a dwarf spheroidal's, `u_ballV`; Jon, Nov 8, pick B):
-			// the same soft filled disc, its fade dithered in `pat` above, but on the warm ramp's
-			// orange and gold steps (#d26a26, #f0a040) instead of maroon and rust; no grain.
-			// The ramp's top gold lifts the marks' sky past MARK_LUMA (TornTest)
-			if (ellip && u_ballV.w > 0.5 && !ballGas() && sc.m == M_BULGE && sc.lv < 3.0 / 7.0) {
-				sc = cand(M_BULGE, sc.lv < 2.0 / 7.0 ? 3.5 / 7.0 : 4.5 / 7.0, 0, 0.0);
+			// (the dim-gold dwarf's: its old light's bottom steps, maroon and rust, on its own
+			// gold ramp's upper steps instead: gold to its middle, never a red ring, `goldD`)
+			if (ellip && goldD() && sc.m == M_BULGE && sc.lv < 3.0 / 7.0) {
+				sc = cand(M_GOLD, sc.lv < 2.0 / 7.0 ? 3.5 / 6.0 : 4.5 / 6.0, 0, 0.0);
 			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
 			bool pink = Ep > 0.7 * Ec;
-			sc = cand(pink ? M_KNOT : M_ARM, pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
+			sc = cand(pink ? M_KNOT : (ellip && goldD() ? M_GOLD : M_ARM), pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
 			if (!pink && la < 1.0 / 6.0) {
 				sc = cand(M_SKY, 0.8, 0, 0.0);
 			}
