@@ -587,7 +587,9 @@ vec3 ellBall(vec2 v, out float gasOut) {
 	// a young ball's gas bunches into star clouds, as the arms' do
 	float blobs = yg * smoothstep(0.15, 0.45, clump);
 	// (fewer out in the big dwarf's envelope: thick through it they read as a blotched sheet)
-	blobs *= 1.0 - 0.75 * smoothstep(0.3, 0.6, sE);
+	if (u_ballV.w > 0.5) {
+		blobs *= 1.0 - 0.75 * smoothstep(0.3, 0.6, sE);
+	}
 	// THE HEART: the spiral's bulge, at the ball's size (a dwarf's small)
 	float bs = re / 0.30;
 	float sc = length(gr);
