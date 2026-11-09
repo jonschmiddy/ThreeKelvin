@@ -467,9 +467,12 @@ func _list() -> void:
 	for pair in all:
 		if _pair_open(pair):
 			open += 1
-	if all.is_empty():
+	# (a comet with no readings on it says nothing here: its page above says what it is)
+	if filter == SystemLayout.COMET and shown.is_empty():
+		pass
+	elif all.is_empty():
 		_eyebrow("NOTHING OUT HERE WANTS YOU")
-	elif narrowed and not (filter == SystemLayout.COMET and shown.is_empty()):
+	elif narrowed:
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
 		_eyebrow("EVENTS · %d OPEN OF %d" % [open, all.size()])
