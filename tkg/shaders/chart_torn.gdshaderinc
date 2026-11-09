@@ -26,7 +26,10 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 		float Eg = gi.x + gi.y;
 		if (Eg > 0.012) {
 			float a = smoothstep(0.012, 0.03, Eg);
-			if (pat(P, a)) {
+			// (its patterns ride with it as it slides, `ChartTorn.slide`: rigid, never a crawl)
+			Px PG = P;
+			PG.dq -= ivec2(int(u_tornH.w), int(u_tornS.w));
+			if (pat(PG, a)) {
 				// (its bulge and inner disc the bulge's ramp, gold and cream; its outer
 				// disc the halo's violet)
 				if (gi.x >= gi.y) {
@@ -45,7 +48,9 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 		// a dwarf spheroidal's old gold, `ballGas`)
 		// (a step under its light, and thinning out in the style's patterns well before it
 		// is gone: a stream of stars, never a solid flame of the ramp's brightest steps)
-		float lv = clamp(0.9 + log2(lR) / 6.0, 0.0, 0.999);
+		// (held below the arm ramp's top steps: the band runs past the rim's marks, and its
+		// brightest steps lifted their sky past MARK_LUMA, TornTest)
+		float lv = clamp(0.9 + log2(lR) / 6.0, 0.0, 0.5);
 		Cand rc = cand(M_ARM, lv, 0, 0.0);
 		if (!ballGas()) {
 			// (an old dwarf's: the halo's violet haze, its middle a few of the warm ramp's
@@ -64,10 +69,19 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 			res = rc;
 		}
 	}
-	if (st > 0) {
+	if (st == 1 || st == 2) {
 		Cand sc2 = cand(st == 1 ? M_STARW : M_STAR, st == 1 ? 0.6 : 0.5, 0, 0.0);
 		if (sc2.y > res.y) {
 			res = sc2;
+		}
+	} else if (st == 3) {
+		// (a speck of one of its pink clouds, torn off with it: the clouds' own pink)
+		res = cand(M_HA, 0.62, 0, 0.0);
+	} else if (st == 4) {
+		// (a puff of its gas: a step up its own ramp over what lies there)
+		Cand pc = ballGas() ? cand(M_ARM, 0.55, 0, 0.0) : cand(M_HALO, 0.75, 0, 0.0);
+		if (pc.y > res.y || res.m == M_SKY || res.sid == SID_FAR) {
+			res = pc;
 		}
 	}
 	return res;

@@ -22,9 +22,11 @@ const LIT_T := 8.0
 const MARK_RISE := 30.0
 const MARK_LUMA := 110.0
 const CREAM_RISE := 0.3
-## The giant's bulge on the screen, half its size (gu along its tilt, across): its
-## light past this is its disc's, under which a word still reads
-const GIANT_CORE := Vector2(0.11, 0.07)
+## The giant's bulge on the screen, half its size (a share of its half length, along
+## its tilt and across): its light past this is its disc's, under which a word still reads
+const GIANT_CORE := Vector2(0.12, 0.08)
+## The rings lost at which the hook is drawn and judged (Jon's mockup's frames)
+const HOOK_AT := [0, 3, 5, 10]
 
 var _fails := 0
 var _shots := ""
@@ -63,6 +65,7 @@ func _run() -> void:
 			_start(seed_v, k)
 			for e in [&"F", &"N"]:
 				_rule(seed_v, k, e)
+			_hook(seed_v, k)
 	if not "rulesonly" in OS.get_cmdline_user_args():
 		StarchartScreen.MapChart.clock_override = 600.0
 		DisplaySettings.reduced_motion = false
@@ -154,6 +157,44 @@ func _rule(seed_v: int, kind: int, ending: StringName) -> void:
 	ChartTorn.reset()
 
 
+## THE HOOK, headless: how far round the stream has come, the giant closing in and
+## growing, and its parallax (a share of a pan, in whole blocks).
+func _hook(seed_v: int, kind: int) -> void:
+	ChartTorn.reset()
+	ChartTorn.big = true
+	ChartTorn.ending = &"F"
+	ChartTorn.active = true
+	var tag := "%s seed %d, the hook:" % [GalaxyGen.type_name(kind), seed_v]
+	var ok := true
+	var notes: Array[String] = []
+	var prev_g := Vector2.INF
+	for l in HOOK_AT:
+		ChartTorn.lost = float(l)
+		var r := ChartTorn.reach()
+		var want_r := minf(1.0, 0.62 + float(l) / 10.0 * 1.3)
+		var p := ChartTorn.par()
+		var want_p := 0.4 + 0.04 * float(l)
+		var g := ChartTorn.giant_at()
+		# (a pan of 120 px at the opening's zoom, in blocks of 2 px)
+		ChartTorn.view_off = Vector2(-120.0, 48.0) / (ChartSky.K0 * ChartTorn.Z_OPEN)
+		ChartTorn.view_blk = 2.0 / (ChartSky.K0 * ChartTorn.Z_OPEN)
+		var sl := ChartTorn.slide(p)
+		var exact := (1.0 - p) * ChartTorn.view_off
+		var blocks := sl / ChartTorn.view_blk
+		var whole := blocks.is_equal_approx(blocks.round())
+		var rib := ChartTorn.ribbon()
+		var ends := rib[rib.size() - 1]
+		ok = ok and absf(r - want_r) < 1e-4 and absf(p - want_p) < 1e-4 and whole
+		ok = ok and (sl - exact).length() <= 0.75 * ChartTorn.view_blk and (l == 0 or g.x > prev_g.x and g.y > prev_g.y)
+		ok = ok and absf(ends.w - r) < 1e-4
+		notes.append("%d lost: round %.2f, parallax %.2f, giant at %s x%.2f" % [l, r, p, (g * ChartSky.K0 * ChartTorn.Z_OPEN).round(), ChartTorn.giant_s()])
+		prev_g = g
+	ChartTorn.view_off = Vector2.ZERO
+	ChartTorn.view_blk = 0.0
+	_ok("%s %s" % [tag, "; ".join(notes)], ok)
+	ChartTorn.reset()
+
+
 # ------------------------------------------------------------------ the drawing
 
 func _drawn(st: StringName, kind: int) -> void:
@@ -207,20 +248,41 @@ func _drawn(st: StringName, kind: int) -> void:
 	var lu := _lumas(big)
 	var lu0 := _lumas(small)
 	_ok("%s light: mean %.1f (was %.1f), its cream (over 200, stars aside) %.2f%% (was %.2f%%)" % [tag, lu.x, lu0.x, lu.y, lu0.y], lu.y - lu0.y <= CREAM_RISE)
-	# clear: the giant's middle against everything the chart prints and the controls
+	# TORN AWAY's opening: the dwarf down and to the right (`ChartTorn.open_pan`)
 	ChartTorn.active = true
-	ChartTorn.lost = 0.0
-	op = await _open(false)
-	chart = op.chart
-	_save(op.img, "%s_%d_t0" % [st, kind])
-	_clear(tag, chart)
+	var tpan := ChartTorn.open_pan(0.42)
+	# legible on: the sky under the marks with the hook drawn, against TORN AWAY off on
+	# the same view (the giant, the stream and its drift over the dwarf's rim)
+	ChartTorn.active = false
+	var plain: Image = (await _open(false, tpan)).img
+	ChartTorn.active = true
+	for l in HOOK_AT:
+		ChartTorn.lost = float(l)
+		op = await _open(false, tpan)
+		chart = op.chart
+		_save(op.img, "%s_%d_hook%d" % [st, kind, l])
+		# clear: the giant's middle against everything the chart prints and the controls,
+		# and the giant whole in the opening
+		_clear("%s %d lost:" % [tag, l], chart)
+		if l <= 3:
+			var hb := _mark_boxes(chart, true)
+			var hn := _box_lumas(op.img, hb)
+			var hw := _box_lumas(plain, hb)
+			var hworst := 0.0
+			var hi := -1
+			for i in hb.size():
+				if hn[i] - hw[i] > hworst:
+					hworst = hn[i] - hw[i]
+					hi = i
+			_ok("%s %d lost: marks %d, the sky under them up %.1f at most with the hook (to %.1f, at %s)" % [tag, l, hb.size(), hworst, hn[hi] if hi >= 0 else 0.0, hb[hi].get_center() if hi >= 0 else Vector2.ZERO],
+				not (hi >= 0 and hworst > MARK_RISE and hn[hi] > MARK_LUMA))
 	# stripped: each system standing on what is left, against every ring gone
 	ChartTorn.lost = float(ChartTorn.max_lost())
-	var gone_img: Image = (await _open(false)).img
+	var gone_img: Image = (await _open(false, tpan)).img
 	_save(gone_img, "%s_%d_t%d" % [st, kind, ChartTorn.max_lost()])
 	for l in [4, 8]:
 		ChartTorn.lost = float(l)
-		var img: Image = (await _open(false)).img
+		var img: Image = (await _open(false, tpan)).img
 		_save(img, "%s_%d_t%d" % [st, kind, l])
 		var bare: Array[String] = []
 		var n_on := 0
@@ -250,9 +312,16 @@ func _clear(tag: String, chart: StarchartScreen.MapChart) -> void:
 	if ChartSky.solid():
 		var w := ChartSky.SOLID_CAM
 		kc = w.x / (w.x + ChartSky.SOLID_T.y * w.z)
-	var gp := core_pt + ChartTorn.GIANT_S * ChartSky.K0 * ze * kc
-	var half := GIANT_CORE * ChartSky.K0 * ze * kc
+	var gp := core_pt + ChartTorn.giant_at() * ChartSky.K0 * ze * kc
+	var L := ChartTorn.giant_len() * ChartSky.K0 * ze * kc
+	var half := GIANT_CORE * L
 	var gbox := Rect2(gp - half, half * 2.0)
+	# (its disc, to its half length along its tilt and its breadth across)
+	var ca := cos(ChartTorn.GIANT_ANG)
+	var sa := sin(ChartTorn.GIANT_ANG)
+	var Lq := L * ChartTorn.GIANT_RY / ChartTorn.GIANT_RX
+	var dh := Vector2(sqrt(L * L * ca * ca + Lq * Lq * sa * sa), sqrt(L * L * sa * sa + Lq * Lq * ca * ca))
+	var disc := Rect2(gp - dh, dh * 2.0)
 	var hits: Array[String] = []
 	var boxes := _mark_boxes(chart)
 	for b in boxes:
@@ -291,6 +360,8 @@ func _clear(tag: String, chart: StarchartScreen.MapChart) -> void:
 	var inside := Rect2(Vector2.ZERO, chart.size).encloses(gbox)
 	_ok("%s the giant's middle at %s clear of %d marks and %d controls over the chart%s %s" % [tag, gp.round(), boxes.size(), ctl,
 		"" if inside else " (NOT inside the chart)", hits], hits.is_empty() and inside)
+	_ok("%s the giant whole in the opening (its disc %s in the chart %s)" % [tag, disc, chart.size],
+		Rect2(Vector2.ZERO, chart.size).encloses(disc))
 
 
 func _core_index() -> int:
@@ -336,12 +407,16 @@ func _save(img: Image, name: String) -> void:
 
 ## The boxes the chart's clickables stand in (BallHaloTest's): every system it shows,
 ## and YOU's mark and name.
-func _mark_boxes(chart: StarchartScreen.MapChart) -> Array[Rect2]:
+## `every`: every system still standing, charted or not (the hook runs past the rim's,
+## which a run charts later).
+func _mark_boxes(chart: StarchartScreen.MapChart, every := false) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var here := Run.node_at()
 	var visible: Dictionary = chart._visible_set(here, chart._in_range())
 	for raw in Run.map:
 		var nd: MapGen.MapNode = raw
+		if every and not ChartTorn.gone(nd):
+			visible[nd.index] = true
 		if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
 			continue
 		var sp: Vector2 = chart._screen_pos(nd)
@@ -417,7 +492,7 @@ func _void(img: Image) -> float:
 
 ## The chart opened on the run's galaxy at the opening zoom, the core in the middle, its
 ## sky alone (the chart's rect). `fresh`: baked afresh, the star field built again.
-func _open(fresh: bool) -> Dictionary:
+func _open(fresh: bool, pan := Vector2.ZERO) -> Dictionary:
 	if fresh:
 		ChartSky._baked.clear()
 		ChartSky._early.clear()
@@ -437,7 +512,7 @@ func _open(fresh: bool) -> Dictionary:
 	scp.dismiss_primer()
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var k: float = chart._radius() * StarchartScreen.MapChart.DISC
-	chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
+	chart._go_to(0.42 * ChartSky.K0 / k, pan, false)
 	chart._repaint_sky()
 	chart.show_icons = false
 	chart.queue_redraw()

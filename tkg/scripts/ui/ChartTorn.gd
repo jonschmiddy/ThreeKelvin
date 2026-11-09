@@ -31,26 +31,42 @@ const RINGS := MapGen.LAYERS - 1
 ## to fall (`edge_at`).
 const F_FOLLOW := 6
 
-## The giant on the screen (gu at zoom 1 about the dwarf's core), in the opening's upper left.
-## Fixed on the screen, so it never comes over the dwarf's core.
-## Why: docs/why/ChartTorn.md#giant-on-screen
-const GIANT_S := Vector2(-1.02, -0.56)
-## The giant on the screen: half its length (gu, wider than the dwarf's whole
-## body: it is the bigger galaxy) and its tilt.
-const GIANT_LEN := 0.95
-const GIANT_ANG := -0.32
-## THE STREAM'S ARC (`ribbon`, gu on the screen about the dwarf's core): from the
-## dwarf to just beside the giant's bulge (`ARC_END`, off the giant's middle, inside its
-## disc), bowed out below the straight line by `ARC_BOW` of its length, so it leaves
-## the dwarf heading left and a little up and comes up into the giant: a short arc,
-## the giant pulling it in.
-const ARC_END := Vector2(0.07, 0.04)
-const ARC_BOW := 0.13
-## Its points (the shader's TORN_N).
+## THE HOOK (Jon, Nov 8, "THIS IS EXACTLY RIGHT!!!"): the approved mockup's geometry, in
+## its own pixels about the dwarf's core, drawn at `HOOK_PX` opening px each.
+## Why: docs/why/ChartTorn.md#the-hook
+const HOOK_PX := 1.5
+## The opening's zoom (`MapChart.ZOOM_MIN`, as a harness's z): opening px per view px.
+const Z_OPEN := 0.42
+## The giant's middle at 0 lost, and how far it closes in by `HOOK_LOST` (mockup px).
+const GIANT_M := Vector2(-177.0, -88.0)
+const GIANT_IN := Vector2(42.0, 26.0)
+## Its half length and half breadth on the screen (mockup px; it grows by GIANT_GROW),
+## and its tilt (rad, its right end up).
+const GIANT_RX := 62.0
+const GIANT_RY := 30.0
+const GIANT_GROW := 0.3
+const GIANT_ANG := -0.25
+## The rings lost by which the giant is in closest and the stream's share is whole.
+const HOOK_LOST := 10.0
+## The stream's bend: from the root, its first control point this far on (down and left),
+## its second this far below the core and this far left of the giant; into the giant's
+## underside here, off its middle (mockup px, times the giant's growth).
+const HOOK_C1 := Vector2(-68.0, 48.0)
+const HOOK_C2Y := 64.0
+const HOOK_C2X := -78.0
+const HOOK_IN := Vector2(-43.0, 22.0)
+## The stream's root half width (mockup px at 0 lost, narrowing as the dwarf is
+## stripped) and the least it narrows to before its tip (`tornW`).
+const HOOK_W0 := 22.0
+const HOOK_WMIN := 1.5
+## PARALLAX: the share of a pan the giant moves with, at 0 lost and at `HOOK_LOST`.
+const PAR_FAR := 0.4
+const PAR_NEAR := 0.8
+## THE OPENING (TORN AWAY on): the dwarf's core this far right and down of the chart's
+## middle (gu at zoom 1), so the giant stands whole in the upper left.
+const OPEN_SHIFT := Vector2(0.25, 0.135)
+## The stream's points (the shader's TORN_N).
 const N := 48
-## The stream's root as wide as the dwarf's body (`root_w`), and at its far end, in
-## the giant, a thread this wide (gu, half widths).
-const TIP_W := 0.008
 ## THE BIG DWARF FAINTER UNDER THE GIANT: with TORN AWAY on, its envelope's light is
 ## this share of a normal run's (`ball_v`), so the giant reads as the bigger, brighter
 ## galaxy doing the eating; its size is unchanged.
@@ -283,42 +299,112 @@ static func stream_dir(pts: PackedVector4Array, phi: float) -> Vector4:
 	return Vector4(db.x, db.y, dp.x, dp.y)
 
 
-# ------------------------------------------------------------------ the arc
+# ------------------------------------------------------------------ the hook
 
-## The arc's far end (gu on the screen about the dwarf's core): beside the giant's
-## bulge, inside its disc.
-static func arc_end() -> Vector2:
-	return GIANT_S + ARC_END
-
-
-## The arc's bend: its control point, the chord's middle pushed out below the line.
-static func _arc_ctl() -> Vector2:
-	var e := arc_end()
-	var nrm := Vector2(-e.y, e.x).normalized()
-	# (the side below the chord: down the screen)
-	if nrm.y < 0.0:
-		nrm = -nrm
-	return e * 0.5 + nrm * ARC_BOW * e.length()
+## Mockup px to gu on the screen (zoom 1, about the dwarf's core).
+static func _m(v: Variant) -> Variant:
+	return v * HOOK_PX / (ChartSky.K0 * Z_OPEN)
 
 
-## A point of the arc at t (0 the dwarf's core, 1 its far end).
-static func _arc_at(t: float) -> Vector2:
-	var c := _arc_ctl()
-	var e := arc_end()
-	return 2.0 * (1.0 - t) * t * c + t * t * e
+## How far in the decay the hook is, 0 .. 1 (rings lost over `HOOK_LOST`).
+static func share() -> float:
+	return clampf(lost / HOOK_LOST, 0.0, 1.0)
+
+
+## How far round the stream has come (a share of its path): well on its way with none
+## lost, all the way in from about 3.
+static func reach() -> float:
+	return minf(1.0, 0.62 + share() * 1.3)
+
+
+## The giant's growth (its size against the opening's).
+static func giant_s() -> float:
+	return 1.0 + GIANT_GROW * share()
+
+
+## How much of a pan the giant moves with: further off than the chart's plane, nearer
+## as it closes in.
+static func par() -> float:
+	return lerpf(PAR_FAR, PAR_NEAR, share())
+
+
+## The giant's middle, still (gu on the screen about the dwarf's core): closer as it feeds.
+static func giant_at() -> Vector2:
+	return _m(GIANT_M + GIANT_IN * share())
+
+
+## Its half length (gu on the screen).
+static func giant_len() -> float:
+	return _m(GIANT_RX) * giant_s()
+
+
+## The chart's pan at the opening (px, the core off the chart's middle) at zoom `ze`
+## (px a view px): the dwarf down and to the right, the giant whole above it to the
+## left; none with TORN AWAY off.
+static func open_pan(ze: float) -> Vector2:
+	return OPEN_SHIFT * ChartSky.K0 * ze if on() else Vector2.ZERO
+
+
+## The view's pan away from the opening (gu at zoom 1, the view's centre against the
+## opening's), set every frame by the place pass (`push`).
+static var view_off := Vector2.ZERO
+## A block (gu at zoom 1) at the zoom drawn now.
+static var view_blk := 0.0
+
+
+## How far a layer that moves `k` of a pan has slid against the chart (gu at zoom 1):
+## in whole blocks, rigid, never a crawl.
+static func slide(k: float) -> Vector2:
+	var s := (1.0 - k) * view_off
+	if view_blk <= 0.0:
+		return s
+	return (s / view_blk).round() * view_blk
+
+
+## The dwarf's lit body on the screen now (gu, its half width and half height).
+static func _body() -> Vector2:
+	var lit := lit_r() if lost <= 1e-4 or edge() > 0.0 else 0.0
+	return Vector2(lit, lit * _bsq())
+
+
+## The stream's root: the dwarf's left side (gu on the screen about its core).
+static func root_at() -> Vector2:
+	var b := _body()
+	return Vector2(-0.85 * b.x, 0.15 * b.y)
+
+
+## The hook's four control points (gu on the screen about the dwarf's core), as drawn
+## now: each slid by its share of the parallax (the dwarf's end 1:1, the giant's end
+## with the giant).
+static func hook() -> PackedVector2Array:
+	var g := giant_at()
+	var s := giant_s()
+	var b0 := Vector2(LIT_K * cover(), LIT_K * cover() * _bsq()) if big_on() else _body()
+	var c1: Vector2 = Vector2(-0.85 * b0.x, 0.15 * b0.y) + _m(HOOK_C1)
+	var c2 := Vector2(g.x + _m(HOOK_C2X * s), maxf(_m(HOOK_C2Y), c1.y + _m(9.0)))
+	var c3: Vector2 = g + _m(HOOK_IN * s)
+	var p := par()
+	return PackedVector2Array([root_at(), c1 + slide(1.0 - (1.0 - p) / 3.0),
+		c2 + slide(1.0 - 2.0 * (1.0 - p) / 3.0), c3 + slide(p)])
+
+
+static func _bez(c: PackedVector2Array, t: float) -> Vector2:
+	var u := 1.0 - t
+	return u * u * u * c[0] + 3.0 * u * u * t * c[1] + 3.0 * u * t * t * c[2] + t * t * t * c[3]
 
 
 ## The stream as a polyline in view px (zoom 1, the core's own frame): x, y, its
-## length along from the dwarf (gu on the screen), and its age (0 at the dwarf's
-## core, 1 at its far end in the giant). Fixed on the screen: `phi` is kept for the
-## bench's log.
+## length along from the root (gu on the screen), and its age (0 at the root, 1 in
+## the giant; drawn only to `reach`). `phi` is kept for the bench's log.
 static func ribbon(_phi: float = 0.0) -> PackedVector4Array:
+	var c := hook()
+	var r := reach()
 	var out := PackedVector4Array()
 	var acc := 0.0
 	var prev := Vector2.ZERO
 	for i in N:
-		var f := float(i) / float(N - 1)
-		var vv := _arc_at(f) * ChartSky.K0
+		var f := r * float(i) / float(N - 1)
+		var vv := _bez(c, f) * ChartSky.K0
 		if i > 0:
 			acc += (vv - prev).length() / ChartSky.K0
 		prev = vv
@@ -326,15 +412,10 @@ static func ribbon(_phi: float = 0.0) -> PackedVector4Array:
 	return out
 
 
-## The stream's root half width (gu on the screen): the dwarf's lit body as it is
-## drawn now (`lit_r`, its ball's roundness `bsq` on the screen), across the way the
-## stream leaves it. Narrower with every ring lost; a thread once the body is gone.
+## The stream's root half width (gu on the screen): the mockup's band, as wide as the
+## dwarf there, narrowing as it is stripped (the mockup's dwarf, 46 px less 3.4 a ring).
 static func root_w() -> float:
-	var lit := lit_r() if lost <= 1e-4 or edge() > 0.0 else 0.0
-	var d := _arc_ctl().normalized()
-	var bsq := _bsq()
-	# (the ellipse's half width across d: its axes lit and lit * bsq)
-	return maxf(lit * Vector2(d.y, d.x * bsq).length(), TIP_W)
+	return _m(HOOK_W0) * (46.0 - 3.4 * share() * HOOK_LOST) / 46.0
 
 
 # ------------------------------------------------------------------ the dwarf's clouds
@@ -361,9 +442,11 @@ static func cloud_tear(xy: Vector2, reach: float, phi: float) -> Array:
 		eat = 1.0
 	var p := progress()
 	var tear := Vector4(smoothstep(0.45, 1.0, eat), 4.0 * eat, 1.5 * eat * (reach + 0.04), 0.35 * minf(p * 4.0, 1.0) * (1.0 - eat))
-	# the way to the giant from the cloud, on the screen
+	# the way it is drawn out, on the screen: sideways out from the core, as the mockup
+	# smears them, a little up. Toward the stream's bend it dragged a cloud across the core
+	# in a bar, and down the screen RADIANT's rays through it flickered (240 flips a second)
 	var v := ChartSky._to_view(xy, phi) / ChartSky.K0
-	var ds := arc_end() - v
+	var ds := Vector2(-1.0 if v.x <= 0.0 else 1.0, -0.3)
 	var wr := Vector2(ds.x, ds.y / CLOUD_FLAT).normalized()
 	# (back into the plane: the chart's projection turned back)
 	var w := Vector2(ds.x, ds.y / ChartSky.TILT)
@@ -415,8 +498,9 @@ static var _dir := Vector4(-1, 0, 1, 0)
 
 ## (`ms`: the chart's own stars' material, PAINTED's `chart_b_stars`: cut with the
 ## dwarf at its torn edge, set every frame, and set back to none when it is off; null
-## in the styles that cut their stars in the place pass)
-static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
+## in the styles that cut their stars in the place pass. `pan` the chart's pan (px) and
+## `z` its zoom (px a view px), for the giant's parallax; z 0 for none)
+static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float, pan := Vector2.ZERO, z := 0.0) -> void:
 	# (a new place pass has none of it yet)
 	if mp.get_instance_id() != _mp_id:
 		_mp_id = mp.get_instance_id()
@@ -429,20 +513,35 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 			ms.set_shader_parameter("torn", Vector4.ZERO)
 		return
 	last_phi = phi
+	# (the view's centre against the opening's, gu at zoom 1: the parallax's pan)
+	if z > 0.0:
+		view_off = -pan / (z * ChartSky.K0) + OPEN_SHIFT
+		view_blk = 2.0 / (z * ChartSky.K0)
+	else:
+		view_off = Vector2.ZERO
+		view_blk = 0.0
 	var sq := float(Run.galaxy.get("squash", 0.85))
 	var bsq := _bsq()
-	# (only when something moved: the turn is slow, the rings fall seldom)
-	var key := Vector4(1.0, snappedf(phi, 1e-5), lost, float(Run.galaxy_kind) + (0.5 if ending == &"N" else 0.0))
+	# (only when something moved: the turn is slow, the rings fall seldom, and the
+	# parallax steps a block at a time)
+	var gsl := slide(par())
+	var key := Vector4(1.0, snappedf(phi, 1e-5), lost + 17.0 * gsl.x + 131.0 * gsl.y + 0.37 * view_blk, float(Run.galaxy_kind) + (0.5 if ending == &"N" else 0.0))
 	if key != _pushed:
 		_pushed = key
 		var pts := ribbon(phi)
 		_dir = stream_dir(pts, phi)
 		var e0 := edge_at(0)
+		var g := (giant_at() + gsl) * ChartSky.K0
 		mp.set_shader_parameter("u_torn", Vector4(1.0, edge(), progress(), sq))
-		mp.set_shader_parameter("u_tornG", Vector4(GIANT_S.x * ChartSky.K0, GIANT_S.y * ChartSky.K0, GIANT_ANG, GIANT_LEN))
-		# (the stream's root half width, as wide as the dwarf is drawn: narrower as it is
-		# stripped; and its whole length, gu on the screen)
-		mp.set_shader_parameter("u_tornA", Vector4(root_w(), pts[pts.size() - 1].z, 1.0, clampf(lost, 0.0, float(max_lost()))))
+		mp.set_shader_parameter("u_tornG", Vector4(g.x, g.y, GIANT_ANG, giant_len()))
+		# (the stream's root half width, as wide as the dwarf: narrower as it is stripped;
+		# the length drawn, gu on the screen; how far round it has come)
+		mp.set_shader_parameter("u_tornA", Vector4(root_w(), pts[pts.size() - 1].z, reach(), clampf(lost, 0.0, float(max_lost()))))
+		# (the least half width before its tip, and the giant's breadth against its length)
+		# (and the giant's slide in whole blocks, x here and y in u_tornS.w: PAINTED's
+		# patterns ride with it, so it slides rigid)
+		var gb := (gsl / view_blk).round() if view_blk > 0.0 else Vector2.ZERO
+		mp.set_shader_parameter("u_tornH", Vector4(_m(HOOK_WMIN), GIANT_RY / GIANT_RX, share(), gb.x))
 		# (the rings' own flatness in the ball's frame, for the edge's floor; the cut's
 		# strength; where the lit body ends, in the ball's own frame, the stream rising out
 		# of it; the dwarf's edge against its whole)
@@ -451,7 +550,7 @@ static func push(mp: ShaderMaterial, ms: ShaderMaterial, phi: float) -> void:
 		mp.set_shader_parameter("u_tornP", pts)
 		# (the stars cut in the place pass, SIMPLIFIED's and RADIANT's: in the plane, as
 		# PAINTED's sparkles are)
-		mp.set_shader_parameter("u_tornS", Vector4(_dir.z, _dir.w, LOBE_MAX, 0.0))
+		mp.set_shader_parameter("u_tornS", Vector4(_dir.z, _dir.w, LOBE_MAX, gb.y))
 	if ms != null:
 		ms.set_shader_parameter("torn", Vector4(1.0, edge(), sq, clampf(lost, 0.0, 1.0)))
 		ms.set_shader_parameter("torn2", Vector4(_dir.z, _dir.w, lobe(), LOBE_MAX))

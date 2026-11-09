@@ -2146,7 +2146,7 @@ func _push() -> void:
 	_feed_events(m, g, t, phi, z, true)
 	# TORN AWAY (the dwarfs, when the run sets it; `ChartTorn`): the giant, the one stream,
 	# the dwarf stripped ring by ring (its stars cut in the place pass, `tornStarKeep`)
-	ChartTorn.push(m, null, phi)
+	ChartTorn.push(m, null, phi, chart.pan if _use_map and chart != null else Vector2.ZERO, z if _use_map and chart != null else 0.0)
 	if g.has("radiant"):
 		ChartRadiant.feed_events(m, g, t, DisplaySettings.reduced_motion, true)
 		_radiant_safety()

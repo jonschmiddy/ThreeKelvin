@@ -8,10 +8,9 @@ Above `static var active := false`:
 TORN AWAY, direction B (proto/dwarf-b): the stream. The hardest galaxies, the
 two dwarfs (GalaxyGen kinds 14 and 15), are being eaten by a giant neighbour.
 ONE stream of the dwarf's stars (Jon, Nov 7: "a single stream of the galaxy
-being pulled, rather than two") bends from the dwarf toward the giant in a short
-arc and runs into its disc: the giant feeding (Jon, Nov 8, "FRAME:C": the giant
-kept in the corner, no loop, nothing coming in from elsewhere, all of it in the
-opening view at zoom 0.42). The stream is a tidal tail: its root as wide as the
+being pulled, rather than two") runs from the dwarf into the giant: since Nov 8 the
+hook (below, `#the-hook`), which replaced "FRAME:C"'s short arc into a giant kept in
+the corner. The stream is a tidal tail: its root as wide as the
 dwarf is drawn now ("the stream coming from the dwarf galaxy can start the same
 width as the dwarf galaxy and get smaller towards the galaxy that is eating it"),
 so it narrows as the dwarf is stripped, tapering to a thread where it meets the
@@ -56,17 +55,60 @@ Proto: `lost` is set by hand (`sheet=ChartLook torn=N`); the mechanic that
 drives it is being designed elsewhere.
 ```
 
-## Giant on screen
+## The hook
 
-Above `const GIANT_S := Vector2(-1.02, -0.56)`:
+Above `const HOOK_PX := 1.5`:
 
 ```text
-The giant, on the screen (gu at zoom 1 about the dwarf's core, the core's own
-frame, `vb`): up and to the left, its middle in the opening view's upper left
-corner, clear of the dwarf's body, the rings' systems and the HUD's goal line, its
-disc running on behind the dwarf (drawn over the sky only). Fixed on the screen (the
-dwarf turns under it: it is stripped evenly all round, so nothing is lost by it),
-so it never comes over the dwarf's core.
+THE HOOK (Jon, Nov 8: "THIS IS EXACTLY RIGHT!!!", the approved mockup
+tk-scratch/dwarf-eaten/hook-mockup/index.html, from his sketch). It replaces direction
+B's short arc into a giant cut off in the corner.
+
+THE COMPOSITION: the giant (the eating galaxy) whole in the opening's upper left, the
+dwarf down and to its right. The stream leaves the dwarf's LEFT side as a wide band,
+heads left, swings down and round, then climbs up into the giant's UNDERSIDE: the
+mockup's cubic bezier (root on the dwarf's left side -> HOOK_C1 on from the root ->
+HOOK_C2X left of the giant at HOOK_C2Y below the core -> HOOK_IN off the giant's middle).
+It narrows toward the giant (`tornW`: the root's half width less 85% along it). The
+mockup's numbers are kept in its own pixels about the dwarf's core and drawn at
+HOOK_PX opening px each (the mockup drew 1 px for 2.5 window px; here 1.5).
+
+WHY NOT THE MOCKUP'S SCALE: the game's dwarf is drawn big (its body covers all 14
+rings, Jon's "SIZE: bigger"), about 2.5x the mockup's against the frame, and the opening
+zoom is the chart's least (ZOOM_MIN). At the mockup's own 2.5 the giant falls off the
+chart's left. At 1.5 the giant, the hook and the giant's growth all fit in the chart, so
+the giant and the stream match the mockup's camera and the dwarf is bigger than its.
+
+THE OPENING (TORN AWAY on): the core OPEN_SHIFT right and down of the chart's middle
+(0.25, 0.135 gu at zoom 1: 65, 35 px at the opening), where the run's first chart opens
+and where FRAME GALAXY (LOCAL REGION off) goes back to (`MapChart._open_pan`). The
+dwarf's systems still all fit the opening clear of the toggles and the scale. Without
+it the giant's disc ran past the chart's left edge at any size that still read as the
+bigger galaxy.
+
+THE DECAY (`share` = rings lost over HOOK_LOST, 10, ending F's whole fall): at 0 lost
+the stream is already 62% of the way round (`reach` = min(1, 0.62 + 1.3 share)), its
+leading tip narrowing to a point over its last third; from about 3 lost it reaches all
+the way in. The giant closes in (GIANT_IN mockup px) and grows (GIANT_GROW, 1.3x by 10
+lost); the stream's giant end follows it. The root narrows as the mockup's dwarf does
+(46 px less 3.4 a ring). The dwarf is still stripped ring by ring as before and its
+clouds smear toward the stream's first bend (`cloud_tear`).
+
+ITS MATTER DRIFTS (Jon's sketch, "stars, gas, nebulae slowly streaming"): stars (a block),
+puffs of its gas (2 x 2) and pink cloud specks (2 x 1) ride lanes along it toward the
+giant, each lane at its own calm pace, a block a step (`tornDrift`, the old lanes'
+clock): a frame moves a lane or two, nothing flips back. Its band of light is held where
+it lies; only the sprites move. Nothing clickable moves.
+
+PAINTED's band is held at its arm ramp's step 0.5 at most (`tornOver`): at the ramp's
+top steps the sky under the rim's marks rose to 136 (MARK_LUMA 110, TornTest).
+
+PARALLAX: the giant is further off than the chart's plane, so a pan moves it `par` of
+the way: 0.4 at 0 lost rising to 0.8 at 10 as it closes in. The chart (the dwarf, its
+systems, YOU) pans 1:1; the stream's control points blend from 1:1 at the root to the
+giant's share at its end. Each slides as one rigid layer in whole blocks (`slide`), as a
+galaxy's depth does (chart_depth's `depthSlide`): continuous parallax crawled there.
+The pan is read off the chart (`push`'s pan and zoom) against the opening's.
 ```
 
 ## Cloud tear

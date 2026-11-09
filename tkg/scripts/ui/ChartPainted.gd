@@ -560,7 +560,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_g4", gu4)
 	feed_events(mp, g, t, phi, calm)
 	# TORN AWAY (the dwarfs, when the run sets it; `ChartTorn`): the giant, the one stream, the dwarf drawn smaller
-	ChartTorn.push(mp, sky._m_stars, phi)
+	ChartTorn.push(mp, sky._m_stars, phi, sky.chart.pan if sky._use_map and sky.chart != null else Vector2.ZERO, z if sky._use_map and sky.chart != null else 0.0)
 	# (and the clouds over the dwarf torn with it, in this style's order: NebulaField's)
 	if not g.has("_torn_cl"):
 		var xs: Array = []

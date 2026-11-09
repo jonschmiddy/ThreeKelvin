@@ -2179,6 +2179,8 @@ class MapChart extends Control:
 		if StarchartScreen._view_zoom > 0.0 \
 				and StarchartScreen._view_map == Run.map.size():
 			_go_to(StarchartScreen._view_zoom, StarchartScreen._view_pan, false)
+		elif ChartTorn.on():
+			_go_to(ZOOM_MIN, _open_pan(), false)
 
 	## The event horizon's shadow at build time, in drawn pixels: nothing is
 	## placed inside it. (The hole the chart DRAWS is bigger: `ChartSky.hole_r`.)
@@ -2950,7 +2952,12 @@ class MapChart extends Control:
 
 	## The pair to `frame_region`: the same route back, so the second press undoes the first.
 	func frame_galaxy() -> void:
-		glide_to(ZOOM_MIN, Vector2.ZERO)
+		glide_to(ZOOM_MIN, _open_pan())
+
+	## Where the core sits at the opening: the middle, or TORN AWAY's dwarf down and right
+	## of it with the giant above to the left (`ChartTorn.open_pan`).
+	func _open_pan() -> Vector2:
+		return ChartTorn.open_pan(ZOOM_MIN * _radius() * DISC / ChartSky.K0)
 
 	## `animate` false snaps, for an arrival: a glide made the screen visibly zoom itself in.
 	## Why: docs/why/StarchartScreen.md#snap-on-arrival

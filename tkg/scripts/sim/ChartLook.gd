@@ -266,6 +266,9 @@ func _run() -> void:
 ## A view's pan from its spec: view px, or YOU, or a cloud.
 func _pan_of(x: String, y: String, z: float) -> Vector2:
 	var phi: float = _chart.turn()
+	# (`torn`: TORN AWAY's opening, the dwarf down and right, `ChartTorn.open_pan`)
+	if x == "torn":
+		return -ChartTorn.OPEN_SHIFT * ChartSky.K0 if ChartTorn.on() else Vector2.ZERO
 	if x == "ship":
 		var n: MapGen.MapNode = Run.node_at()
 		return ChartSky._to_view(Vector2(n.gal.x, n.gal.y / float(Run.galaxy.squash)), phi)
@@ -538,6 +541,11 @@ func _tour(dir: String) -> void:
 		"skypan":
 			_view(1.2, Vector2(-220, -200))
 			segs = [["hold", 6], ["ldrag", 180, Vector2(90, 0)], ["hold", 6]]
+		"tornpan":
+			# (TORN AWAY's opening dragged about: the giant's parallax against the dwarf)
+			_view(0.42, _pan_of("torn", "0", 0.42))
+			segs = [["hold", 15], ["drag", 75, Vector2(140, 0)], ["hold", 10], ["drag", 120, Vector2(-260, 0)],
+				["hold", 10], ["drag", 75, Vector2(120, -50)], ["drag", 45, Vector2(0, 50)], ["hold", 15]]
 		"openzoom":
 			_view(0.42, Vector2.ZERO)
 			segs = [["zoom", 180, 3.0, _chart.size * 0.5], ["hold", 30]]

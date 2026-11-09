@@ -42,9 +42,23 @@ for each style and dwarf, the sky alone at the opening:
   stripped TORN AWAY on, ending N: with 4 and 8 rings lost, every system still
            standing sits on what is left of the body (its box changed against the
            chart with every ring gone, where nothing of the body is left);
-  clear    the giant's middle (`ChartTorn.GIANT_S`, its bulge's box) stands clear of
-           every system's mark, YOU's mark and name, every word the chart prints
-           and every control over the chart (the goal line, the toggles, the scale),
-           inside the chart.
+THE HOOK (Jon, Nov 8, his approved mockup), headless: how far round the stream has
+come (0.62 at 0 lost, all the way from 3), the giant closing in and growing, its
+parallax (0.4 of a pan at 0 lost to 0.8 at 10) within a block of exact and in whole
+blocks, and the stream drawn only as far as it has come.
+At TORN AWAY's opening (`ChartTorn.open_pan`, the dwarf down and right), at 0, 3, 5
+and 10 lost:
+  clear    the giant's middle (`ChartTorn.giant_at`, its bulge's box, a share of its
+           length) stands clear of every system's mark, YOU's mark and name, every
+           word the chart prints and every control over the chart (the goal line, the
+           toggles, the scale), inside the chart;
+  whole    the giant's disc (its half length along its tilt, its breadth across)
+           inside the chart: whole in the frame, as the mockup has it;
+  hook     (0 and 3 lost) the sky under EVERY standing system's mark, charted or not
+           (the band runs past the rim's), and YOU's, may not rise more than
+           MARK_RISE to past MARK_LUMA against the same view with TORN AWAY off.
+`clear` used to judge the old giant in the corner (`GIANT_S`); it now judges the hook's
+giant at each count. The stripped check's views moved to the new opening. Every other
+check is as it was.
 Needs a window (it reads the drawn sky).
 ```
