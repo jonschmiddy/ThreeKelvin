@@ -52,7 +52,7 @@ Cand tornOver(Px P, vec2 vb, Cand sc) {
 		// brightest steps lifted their sky past MARK_LUMA, TornTest)
 		// (and its range pressed down under that, not cut at it: its smooth band (3A) steps
 		// down across its width, never one flat slab)
-		float lv = clamp((0.9 + log2(lR) / 6.0) * 0.6, 0.0, 0.5);
+		float lv = clamp((0.9 + log2(lR) / 6.0) * 0.7, 0.0, 0.5);
 		Cand rc = cand(M_ARM, lv, 0, 0.0);
 		if (goldD()) {
 			// (the dim-gold dwarf's: its own gold ramp, as its body, Jon's 2B)

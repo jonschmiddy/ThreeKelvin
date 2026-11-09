@@ -237,7 +237,7 @@ float tornStreamL(vec2 v, float bw, float holeR, bool gas, out int star) {
 	float bsq = KIT_TILT / max(u_tornB.x, 1e-3);
 	float rB = length(vec2(v.x, v.y / bsq)) / u_k;
 	float rise = max(0.1, 0.45 * er);
-	lA *= smoothstep(er - rise, er + 0.6 * rise, rB) * ahead;
+	lA *= smoothstep(er - rise, er + 0.2 * rise, rB) * ahead;
 	lA *= smoothstep(2.5 * holeR, 4.0 * holeR, length(v) / u_k);
 	// (and thins out at its far end, into the giant's disc)
 	lA *= u_tornA.z >= 0.999 ? smoothstep(1.0, 0.85, f) : 1.0;
