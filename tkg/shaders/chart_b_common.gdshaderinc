@@ -108,14 +108,22 @@ float cloudFree(vec2 g) {
 }
 
 // clouds in their own round frame (the chart draws a cloud flattened to 0.463)
+// (TORN AWAY, in the place pass: a cloud over the dwarf read where it lay as drawn
+// whole, drawn out toward the giant, `chart_torn_cloud`)
 vec2 cloudFrame(vec2 v, int i) {
 	vec2 cv = toView(u_cl[i].xy, 0.0);
 	vec2 d = (v - cv) / u_k;
 	d.y /= 0.46341;
+#ifdef TORN_CLOUDS
+	d = tornClWarp(i, d, u_tornClD[i].xy, u_cl[i].z);
+#endif
 	return kitRot(-u_phi) * d;
 }
 vec2 cloudToView(int i, vec2 d) {
 	vec2 e = kitRot(u_phi) * d;
+#ifdef TORN_CLOUDS
+	e = tornClFwd(i, e, u_tornClD[i].xy);
+#endif
 	e.y *= 0.46341;
 	return toView(u_cl[i].xy, 0.0) + e * u_k;
 }
