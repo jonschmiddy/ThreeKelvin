@@ -505,6 +505,16 @@ worst shards measured (FlightTest short clicks=0, 4 shards, Nov 7): CURVED
 (WIDE x12) 5.67 / 7.62 / 7.40, DIRECT (x4) 4.10 / 5.52 / 5.20.
 ```
 
+Above `const CLICK_P90_TWIN := 6.1`:
+
+```text
+Jon's ruling (Nov 9, "A"): the DIRECT twin-star 90th is 6.1 s, every other
+limit unchanged. Science adds places to a system, so the sweep flies a
+different set of trips: main measured 5.48 s (44 flights), the science
+branch 6.02 s (37), the same with the arrival-corner fix switched off. The
+flying is no slower; one long trip moved into the top tenth.
+```
+
 ## The harnesss starts the residual may
 
 Above `const PUT_LEFT_CASES := {`:

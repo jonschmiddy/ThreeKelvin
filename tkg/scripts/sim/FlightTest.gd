@@ -14,6 +14,8 @@ const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 const CLICK_MED := {&"direct": 4.5, &"curved": 6.5}
 const CLICK_P90 := {&"direct": 6.0, &"curved": 8.5}
 const CLICK_EDGE := {&"direct": 5.8, &"curved": 8.5}
+## DIRECT twin stars only: the 90th at 6.1 s (Jon, Nov 9, "A"). Why: docs/why/FlightTest.md#click-limits
+const CLICK_P90_TWIN := 6.1
 var _paths: Array[StringName] = [&"direct", &"curved"]
 ## this pass's sweep suffix ("" DIRECT, " curved" CURVED) and whether it is the
 ## pass that picks the worker plans, the clicks and the hand phase's systems
@@ -2056,6 +2058,8 @@ func _report(cap: Dictionary) -> void:
 			var p90: float = cg[mini(cg.size() - 1, int(cg.size() * 0.9))]
 			var lm: float = CLICK_MED[kq[2]]
 			var lp: float = CLICK_P90[kq[2]]
+			if kq[2] == &"direct" and sweep.begins_with("twin"):
+				lp = CLICK_P90_TWIN
 			var le: float = CLICK_EDGE[kq[2]]
 			h._ok("%s: click to settled at pace %.0f, median %.2f s (at most %.1f), 90th %.2f s (at most %.1f)" % [sweep, S.pace, med, lm, p90, lp], med <= lm and p90 <= lp)
 			if not (S.click_edge as Array).is_empty():
