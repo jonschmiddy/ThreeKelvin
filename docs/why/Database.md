@@ -383,7 +383,7 @@ Inside `_seed_modules()`, above `_module(&"scuttle", "Scuttle Chute", &"", U, C0
 
 ```text
 
-THE MALFUNCTION TABLE lives in `_seed_malfunctions` below, because a
+THE MALFUNCTION TABLE lives in `MALFUNCTIONS` (read by `malfunction()`) below, because a
 malfunction is not a module and never was. See the ruling.
 
 THERE IS NO DROSS MODULE. There was one, and it was unreachable: the loot

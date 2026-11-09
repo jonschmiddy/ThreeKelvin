@@ -933,7 +933,7 @@ func _mask_points(h: ShipHitFx, n: int) -> Array:
 	var w: int = h.get("_w")
 	var step := maxi(1, mask.size() / (n + 1))
 	for i in range(step / 2, mask.size()):
-		if mask[i] == 1 and (out.is_empty() or i - (out.back() as Vector2i).y * w > step / 2):
+		if mask[i] == 1 and (out.is_empty() or i - ((out.back() as Vector2i).y * w + (out.back() as Vector2i).x) > step / 2):
 			out.append(Vector2i(i % w, i / w))
 		if out.size() >= n:
 			break

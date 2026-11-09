@@ -3450,7 +3450,11 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 		on_go.call()
 		if not combat.finished:
 			_exit_cost = _cost_line(_exit_heat0, _exit_fuel0)
-		if combat.finished:
+		if combat.finished and not _queue.is_empty():
+			# A failed exit's turn ended the fight: it is shown first, then the ending.
+			_close_exit_ask()
+			_play_turn()
+		elif combat.finished:
 			# It worked: nothing swings, so nothing waits. A partial hail still
 			# costs heat, and the panel says so (audit item 11).
 			_end_hold()
@@ -4882,6 +4886,7 @@ func _escape(who: int) -> void:
 ## An ending nobody pressed a button for, said in the same panel the exits use,
 ## over the scene rather than instead of it.
 func _end_panel(title: String, ink: Color, edge: Color, text: String) -> void:
+	_close_exit_ask()
 	_ask_exit(title, ink, edge, text, "", "", Callable())
 	_exit_ask_result(title, ink, text, func() -> void:
 		_close_exit_ask()

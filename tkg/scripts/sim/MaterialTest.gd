@@ -309,4 +309,51 @@ func run() -> void:
 	_ok("without occupying a cell (%d items either side)" % Run.cargo.size(),
 		Run.cargo.size() == held and not Run.cargo.has(chit))
 
+	# --- a wide part must not burn its claim on one free cell ----------------
+	# take_from_bag asked for one cell, claimed the part, then failed to stow it.
+	Run.cargo.clear()
+	var site: MapGen.MapNode = Run.node_at()
+	site.bag.clear()
+	site.taken.clear()
+	_fill_hold()
+	Run.take_from_hold(Run.cargo[0])
+	var slab := MaterialData.new()
+	slab.size = Vector2i(2, 2)
+	site.bag.append(slab)
+	var took: bool = await Run.take_from_bag(site, 0)
+	_ok("a 2x2 part is refused with one cell free", not took)
+	_ok("and its claim is not spent", site.taken.is_empty() and Run.bag_left(site) == 1)
+
+	# --- RELIC ANALYSIS into a packed hold keeps the part ---------------------
+	# The roll came after the money and the relic were spent; a shape that did not fit vanished.
+	var recipe: Dictionary = DB.RECIPES[0]
+	var vanished := 0
+	var spilled := 0
+	for k in 12:
+		Run.cargo.clear()
+		site.jetsam.clear()
+		Run.credits = 9999
+		Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"relic")))
+		_fill_hold()
+		var said := Fabricator.make(site, recipe)
+		var mods := Run.cargo.filter(func(m: HoldItem) -> bool: return m is ModuleData).size()
+		var pile := Run.sector_jetsam(site, false)
+		var down := 0
+		if pile != null:
+			down = pile.items.filter(func(m: HoldItem) -> bool: return m is ModuleData).size()
+		spilled += down
+		if said.is_empty() or mods + down != 1:
+			vanished += 1
+	_ok("every analysis ends with its part somewhere (%d vanished, %d on the floor)"
+		% [vanished, spilled], vanished == 0)
+
 	verdict("materialtest")
+
+
+## Packs the hold with one-cell blanks until a cell is not free.
+func _fill_hold() -> void:
+	while not Run.hold_full():
+		var blank := MaterialData.new()
+		blank.size = Vector2i.ONE
+		if not Run.place_in_hold(blank):
+			break

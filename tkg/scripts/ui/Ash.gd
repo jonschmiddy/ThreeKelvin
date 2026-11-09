@@ -88,6 +88,8 @@ var _credits := 0
 var _items: Dictionary = {}
 var _wrecks_open: Dictionary = {}
 var _wrecks_since_dock := 0
+## Where `_wrecks_open` was read: a new place's already-opened wrecks are not the pilot's.
+var _wrecks_place := Vector2i(-1, -9)
 var _greed_at := 0
 var _jumps_since_doubt := 0
 var _bags: Dictionary = {}
@@ -224,6 +226,7 @@ func _on_run_started() -> void:
 	_credits = Run.credits
 	_items = _item_ids()
 	_wrecks_open = _opened_here()
+	_wrecks_place = Vector2i(Run.at, Run.site_here())
 	_wrecks_since_dock = 0
 	_greed_at = 0
 	_jumps_since_doubt = 0
@@ -338,13 +341,15 @@ func _watch() -> void:
 		_wrecks_since_dock = 0
 		_greed_at = 0
 	var open := _opened_here()
+	var place := Vector2i(Run.at, Run.site_here())
 	for id in open:
-		if not _wrecks_open.has(id):
+		if place == _wrecks_place and not _wrecks_open.has(id):
 			_wrecks_since_dock += 1
 			if _wrecks_since_dock >= GREED_EVERY and _wrecks_since_dock - _greed_at >= GREED_EVERY:
 				_greed_at = _wrecks_since_dock
 				arm(&"greed")
 	_wrecks_open = open
+	_wrecks_place = place
 	# the launch is a launch only before the first jump
 	if Run.jumps > 0:
 		waiting.erase(&"launch")
@@ -947,8 +952,8 @@ func comms_from(raw: Variant) -> void:
 		if line == "":
 			continue
 		var v := str(e.get("voice", ""))
-		# (a take this build does not have is said as text alone)
-		if v != "" and not ResourceLoader.exists(v):
+		# (a take this build does not have is said as text alone, and a save names no other folder)
+		if v != "" and not (v.begins_with(AshTutorLines.VOICE_DIR) and not v.contains("..") and ResourceLoader.exists(v)):
 			v = ""
 		comms.append({kind = StringName(str(e.get("kind", ""))), line = line, voice = v,
 			jump = int(e.get("jump", 0)), tutorial = bool(e.get("tutorial", false))})

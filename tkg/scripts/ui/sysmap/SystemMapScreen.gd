@@ -1148,7 +1148,8 @@ func _map_at(p: Vector2) -> Vector2:
 ## Why: docs/why/SystemMapScreen.md#go-in-flight
 func _on_map_input(e: InputEvent) -> void:
 	last_input_t = Time.get_ticks_msec() / 1000.0
-	if _transfer != null or _diving:
+	# No flight until the sky bake has made the ship: a tap before then has nothing to fly.
+	if _transfer != null or _diving or flight == null:
 		return
 	if e is InputEventMouseMotion:
 		var mm := e as InputEventMouseMotion
@@ -1200,6 +1201,10 @@ func _on_map_input(e: InputEvent) -> void:
 					_dragging = false
 			MOUSE_BUTTON_MIDDLE:
 				_dragging = mb.pressed
+				if mb.pressed:
+					_drag_from = mb.position
+					_press_at = mb.position
+					_drag_moved = false
 			MOUSE_BUTTON_RIGHT:
 				if mb.pressed:
 					right_click(overlay.hit(_map_at(mb.position)))

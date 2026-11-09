@@ -14,6 +14,10 @@ on:
         description: "How many runs the simulator plays"
         default: "40"
 
+# Nothing here writes to the repository or the pull request.
+permissions:
+  contents: read
+
 # A second push supersedes the first. Nothing here is worth finishing for a
 # commit that has already been replaced.
 concurrency:
@@ -48,7 +52,11 @@ jobs:
       LOG_DIR: ${{ github.workspace }}/ci-logs
 
     steps:
+      # Full history: the version guard diffs against origin/main and HEAD~1,
+      # and a one-commit checkout has neither.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Cache the Godot binary
         id: godot-cache

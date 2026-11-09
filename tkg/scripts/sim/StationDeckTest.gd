@@ -263,6 +263,8 @@ func _decks(dev: int, berth: bool) -> void:
 
 	# A JOB SIGNED HERE IS HANDED IN HERE: done, it is deliverable at this desk,
 	# the chart's search finds this desk, and the board puts up its DELIVER.
+	if offers.is_empty():
+		return
 	var job := Run.take_contract(offers[0])
 	if job.kind == ContractData.Kind.HEAT:
 		# (a heat job is handed in with the heat on the hull, still TAKEN)

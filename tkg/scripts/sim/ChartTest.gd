@@ -53,7 +53,7 @@ func run(tree: SceneTree) -> void:
 		% StarchartScreen.MapChart._sky_cache.size())
 	await _style_switch(tree, chart)
 	print("=== %s (%d mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
-	tree.quit()
+	tree.quit(1 if fails > 0 else 0)
 
 
 ## Style switch remakes the sky in each renderer and back, in memory only; the settings

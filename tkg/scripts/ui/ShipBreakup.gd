@@ -791,7 +791,8 @@ func _step_motes(delta: float) -> void:
 		if mo.age >= mo.life:
 			continue
 		mo.p += mo.v * delta
-		mo.v *= (0.86 if mo.kind == 0 else 0.97)
+		# Per second, not per frame: the 30 fps film and a 144 Hz screen drag alike.
+		mo.v *= pow(0.86 if mo.kind == 0 else 0.97, delta * 60.0)
 		kept.append(mo)
 	_motes = kept
 
@@ -2525,7 +2526,12 @@ func _style_tick(delta: float) -> void:
 				for i in a2.size():
 					if a2[i] == 1 and b2[i] == 0:
 						idxs.append(i)
-				idxs.shuffle()
+				# Shuffled from the seeded `_rng`, so the same seed drips from the same pixels.
+				for k in range(idxs.size() - 1, 0, -1):
+					var j := _rng.randi_range(0, k)
+					var tmp: Variant = idxs[k]
+					idxs[k] = idxs[j]
+					idxs[j] = tmp
 				for i in idxs:
 					if spawned >= 26:
 						break

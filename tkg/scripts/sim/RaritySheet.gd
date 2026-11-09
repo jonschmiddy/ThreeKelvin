@@ -17,13 +17,16 @@ const LADDER := [
 ]
 
 
+var _off_ladder := 0
+
+
 func run() -> void:
 	# Segmented by slot: pooled, COMMON out-damaged RARE because bands differ in mix, not balance.
 	# Why: docs/why/RaritySheet.md#rarity-sheet
 	_sheet("EVERY SLOT", -1)
 	_sheet("WEAPONS ONLY", ModuleData.Slot.WEAPON)
 	_sheet("SYSTEMS ONLY", ModuleData.Slot.SYSTEM)
-	_ok("every module in the catalogue has a rarity on the ladder", true)
+	_ok("every module in the catalogue has a rarity on the ladder (%d off it)" % _off_ladder, _off_ladder == 0)
 	verdict("rarity")
 
 
@@ -44,6 +47,7 @@ func _sheet(title: String, only: int) -> void:
 			continue
 		var b: Dictionary = bands.get(m.rarity)
 		if b == null:
+			_off_ladder += 1
 			continue
 		b.modules += 1
 		b.cards += m.cards.size()

@@ -2329,6 +2329,19 @@ class ConvoySlot extends Control:
 
 	var _seen_alive := false
 	var _wreck: ShipBreakup = null
+	var _pre: Dictionary = {}
+
+	## A slot freed mid-cut still waits for its task and frees the unplayed breakup.
+	func _exit_tree() -> void:
+		_drop_pre()
+
+	func _drop_pre() -> void:
+		if _pre.is_empty():
+			return
+		WorkerThreadPool.wait_for_task_completion(_pre.task)
+		if _pre.held.b != null:
+			(_pre.held.b as Node).free()
+		_pre = {}
 
 	func _break_up() -> void:
 		var pic := ShipLoss.picture(art)
@@ -2336,14 +2349,16 @@ class ConvoySlot extends Control:
 			return
 		var n := Run.node_at().index
 		var pre := ShipLoss.prebuild(pic, ShipLoss.style_for(n, peer), ShipLoss.seed_for(n, peer))
+		_pre = pre
 		# Cut off the main thread; the hull stays up until the cut is ready.
 		while not ShipLoss.is_cut(pre):
 			await get_tree().process_frame
+			if _pre.is_empty():
+				return
 		if not is_inside_tree() or _leaving:
-			WorkerThreadPool.wait_for_task_completion(pre.task)
-			if pre.held.b != null:
-				(pre.held.b as Node).free()
+			_drop_pre()
 			return
+		_pre = {}
 		var b := ShipLoss.play(pre, self, art)
 		if b == null:
 			return

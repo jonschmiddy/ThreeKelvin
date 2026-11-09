@@ -790,7 +790,7 @@ func take_from_bag(n: MapGen.MapNode, i: int) -> bool:
 		return false
 	# A HoldItem: jettison puts materials in the same bag a kill fills.
 	var m: HoldItem = n.bag[i]
-	if hold_full():
+	if not has_room_for(m):
 		log_line("The hold is full. %s stays where it is." % m.name, &"them")
 		return false
 	if not await take_option(n, option):
@@ -1715,13 +1715,14 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 		scrap = found_scrap.duplicate(),
 	}
 
+	# Before the modules come off: max_hp() sums them, and the plating counts in hp.
+	var ratio := minf(1.0, float(hp) / float(max_hp()))
 	pad.clear()
 	pad.append_array(installed)
 	pad.append_array(cargo)
 	installed.clear()
 	cargo.clear()
 
-	var ratio := float(hp) / float(max_hp())
 	hull = h
 	hp = maxi(6, int(round(h.max_hull * ratio)))
 	# Bought off a station's rack (the yard passes its node); a found hull is not.
@@ -2485,8 +2486,8 @@ func hellbender_defeated() -> void:
 ## Position, hull and counter arrive whole from the host, so a dropped push costs one
 ## update rather than a drift.
 func hellbender_adopt(to: int, hp: int, moves: int, feeding: bool) -> void:
-	hellbender_moves = moves
-	hellbender_hp = hp
+	hellbender_moves = maxi(0, moves)
+	hellbender_hp = maxi(0, hp)
 	if to < 0:
 		# Only a machine not in the fight gets here still thinking it alive, so this line
 		# tells it what it missed.

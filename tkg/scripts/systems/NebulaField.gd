@@ -135,7 +135,7 @@ static func _build() -> Array:
 	# A galaxy that stopped forming stars gets no clouds: absence makes a lenticular finished.
 	var count := clampi(int(round(gas * 4.0)), 0, 9)
 	var out: Array = []
-	# Whether a shell — remnant or planetary — has been rolled yet. See below.
+	# Whether a remnant has been rolled yet. See below.
 	var has_host := false
 	if count <= 0:
 		return out

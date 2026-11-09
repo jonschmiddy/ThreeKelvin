@@ -321,7 +321,7 @@ func _fit_check(fx: ThrusterFx, img: Image, entries: Array) -> Array:
 					n += 1
 			covered = mini(covered, n)
 		out.append({engine = i, opening_rows = [a, b], opening_h = rows, start_h = covered,
-			ok = covered >= int(ceil(0.9 * float(rows)))})
+			ok = rows > 0 and covered >= int(ceil(0.9 * float(rows)))})
 	return out
 
 

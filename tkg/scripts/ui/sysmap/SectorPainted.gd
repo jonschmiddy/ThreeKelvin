@@ -491,8 +491,13 @@ static func bake_puffs(v, field: Texture2D) -> void:
 	v.add_child(vp)
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
+	# The screen may have been freed while the bake waited, and its viewport with it.
+	if not is_instance_valid(vp):
+		return
 	var img := vp.get_texture().get_image()
 	vp.queue_free()
+	if img == null:
+		return
 	# (a harness's `puffdump=<png>`: the sheets saved, to see their shapes)
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("puffdump=") and img != null:

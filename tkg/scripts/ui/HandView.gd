@@ -214,6 +214,9 @@ func clear_preview() -> void:
 
 ## Played cards leave rather than vanish, so the eye can follow where they went.
 func _discard(v: CardView) -> void:
+	if _tweens.has(v) and is_instance_valid(_tweens[v]) and _tweens[v].is_valid():
+		_tweens[v].kill()
+	_tweens.erase(v)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Out of the stack on the way out, so it cannot come back over the top of
 	# the cards that are still being played.

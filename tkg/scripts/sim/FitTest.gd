@@ -33,7 +33,7 @@ func run(tree: SceneTree) -> void:
 	verdict("fittest")
 	# It runs across frames, so nothing quits it: it printed its verdict and hung in the gate.
 	# Why: docs/why/FitTest.md#self-ending
-	_tree.quit()
+	_tree.quit(code())
 
 
 ## Every check, on a new run of seed `s` and a new refit screen.
@@ -483,10 +483,11 @@ func _geometry() -> void:
 			var ext := ModuleIcon.part_rect(slot, box, sc, up).size
 			var ink := Rect2(o + off - ext * 0.5, ext)
 			# Uses WANT_PAD, not ModuleIcon.PAD: reading the code's own constant passed at zero.
+			# (1 px of rounding slack, so the clearance checked is 3 px, as the label says)
 			# Why: docs/why/FitTest.md#geometry
 			if not box.grow(-WANT_PAD + 1.0).encloses(ink):
 				out += " %s %dx%d" % [ModuleData.slot_name(slot), f.x, f.y]
-	_ok("every silhouette clears its plate by %dpx" % int(WANT_PAD)
+	_ok("every silhouette clears its plate by %dpx" % int(WANT_PAD - 1.0)
 		if out == "" else "art crowding the border:%s" % out, out == "")
 	_anchors()
 
@@ -559,13 +560,13 @@ func _shaped(slot: ModuleData.Slot, f: Vector2i) -> ModuleData:
 func _same_size(m: ModuleData) -> void:
 	var box := ModuleIcon.footprint_box(m)
 	var plate := _icon_for(_grid(), m)
-	_ok("the plate in the hold is the part's own footprint",
-		plate == null or plate.size == box)
+	if not _ok("the turned part still has a plate", plate != null):
+		return
+	_ok("the plate in the hold is the part's own footprint", plate.size == box)
 	# Scaled off the plate's own rect: comparing `part_scale` with itself cannot fail.
-	_ok("the hold and the hull scale the part identically",
-		plate == null or is_equal_approx(
-			ModuleIcon.part_scale(m.slot, m.footprint(), plate.size),
-			ModuleIcon.part_scale(m.slot, m.footprint(), box)))
+	_ok("the hold and the hull scale the part identically", is_equal_approx(
+		ModuleIcon.part_scale(m.slot, m.footprint(), plate.size),
+		ModuleIcon.part_scale(m.slot, m.footprint(), box)))
 
 
 func _grid() -> HoldGrid:
@@ -756,11 +757,11 @@ func _room_for(grid: HoldGrid, m: ModuleData) -> Vector2:
 	for c in Run.cargo:
 		if c.hold_at.x < 0:
 			continue
-		for dy in maxi(1, c.size.y):
-			for dx in maxi(1, c.size.x):
+		for dy in c.footprint().y:
+			for dx in c.footprint().x:
 				taken[c.hold_at + Vector2i(dx, dy)] = true
-	var w := maxi(1, m.size.x)
-	var h := maxi(1, m.size.y)
+	var w := m.footprint().x
+	var h := m.footprint().y
 	for y in maxi(0, g.y - h + 1):
 		for x in maxi(0, g.x - w + 1):
 			var fits := true

@@ -53,6 +53,8 @@ set -uo pipefail
 GODOT="${GODOT:-godot}"
 PROJECT="${PROJECT:-tkg}"
 SIM_RUNS="${SIM_RUNS:-40}"
+# Digits only: it goes into shell arithmetic below.
+case "$SIM_RUNS" in ''|*[!0-9]*) echo "SIM_RUNS must be a whole number, not '$SIM_RUNS'" >&2; exit 2 ;; esac
 # How many units FlightTest and SolveTest run split into: as many as there are
 # `unit_flighttest_<K>` and `unit_solvetest_<K>` functions (checked below).
 # SolveTest 8 since the x12 flights (Jon, Nov 8, "split: yes"): its 4 shards
@@ -245,7 +247,9 @@ if run_godot savetest 120 --headless --path "$PROJECT" -- savetest; then
 fi
 # The market test prints its verdict the same way and reports no error line of
 # its own, so the violations have to be read out of the log as well.
-if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
+if ! grep -qE '^=== (PASS|FAIL)' "$LOG_DIR/market.log" 2>/dev/null; then
+	bad "market never reached its verdict"
+elif grep -qE '^=== FAIL' "$LOG_DIR/market.log"; then
 	bad "market invariant violated — a part can be bought and melted for profit"
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
 fi
@@ -654,7 +658,7 @@ step "The catalogue export is a shape the manifest can read"
 # drifted apart in silence. PASSIVE_AXIS values became arrays while the exporter
 # still called String() on one; a gauge came out as the four characters
 # ["hull"], the JSON stayed valid, the page kept rendering, and every gauge chip
-# vanished. Nothing errored at either end â it was found by looking at a table
+# vanished. Nothing errored at either end — it was found by looking at a table
 # that had gone blank.
 #
 # Both ends check now and both run here. The exporter vets its own rows against
@@ -2020,7 +2024,7 @@ fi
 unit_reactor() {
 step "Every frame launches with a deck it can play"
 # The reactor cap decides how many modules a frame can RUN, and a cap set too
-# low does not produce a small ship â it produces a ship whose every turn is
+# low does not produce a small ship — it produces a ship whose every turn is
 # identical, because the deck is no bigger than the hand. That failure is
 # invisible in every other check: the save is valid, the numbers add up, the
 # simulator still finishes its runs. It only shows up as a game with nothing to
@@ -2401,6 +2405,10 @@ if [ -n "$VGPY" ]; then
 		printf '%s
 ' "$VG" | head -n 12 | sed 's/^/        /'
 	fi
+	# A base git cannot find must fail the guard, not read as an empty diff.
+	if "$PY" .github/scripts/version_guard.py no-such-rev-for-the-guard 2>&1 | grep -q 'version guard: PASS'; then
+		bad "the version guard passed a base that does not exist"
+	fi
 else
 	bad "no python for the version guard"
 fi
@@ -2430,7 +2438,7 @@ if [ -n "$PY" ]; then
 	fi
 	rm -f /tmp/enclint.$$
 else
-	warn "no python for the encounter linter"
+	bad "no python for the encounter linter"
 fi
 }
 
@@ -2463,7 +2471,7 @@ if [ -n "$PY" ]; then
 	fi
 	rm -f /tmp/prosegrade.$$ /tmp/prosetells.$$
 else
-	warn "no python for the prose checks"
+	bad "no python for the prose checks"
 fi
 }
 
@@ -2481,6 +2489,24 @@ if [ -n "$PY" ]; then
 	rm -f /tmp/commentcheck.$$
 else
 	bad "no python for the comment check"
+fi
+}
+
+unit_codecheck() {
+step "No new long functions, huge files or bare Dictionary/Array/Variant returns"
+# A ratchet: game code (not sim) may have no function over 100 lines, no file over
+# 3000, no new function returning a bare Dictionary, Array or Variant. What predates
+# it is in `tools/code_check_baseline.txt` and may not grow (docs/why/code_check.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/code_check.py >/tmp/codecheck.$$ 2>&1; then
+		ok "$(tail -n 1 /tmp/codecheck.$$)"
+	else
+		head -n 20 /tmp/codecheck.$$ | sed 's/^/        /'
+		bad "code check: new long functions, huge files or bare returns (python tools/code_check.py)"
+	fi
+	rm -f /tmp/codecheck.$$
+else
+	bad "no python for the code check"
 fi
 }
 
@@ -2552,7 +2578,7 @@ VOCAB=$(
 		# Pass A -- house/maker, everywhere, no prose exemption.
 		grep -rniE '(^|[^A-Za-z0-9])(house|houses|maker|makers|brand|brands|marque|marques)([^A-Za-z0-9]|$)' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 		# Pass B -- the short word, everywhere.
-		grep -rnwiE 'man|hull_man' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
+		grep -rniE '(^|[^A-Za-z0-9])(man|hull_man)([^A-Za-z0-9]|$)' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 	} | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'friends in the house' \

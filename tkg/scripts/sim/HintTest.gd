@@ -189,7 +189,7 @@ func run(tree: SceneTree) -> void:
 		await _expect(&"hand")
 		await _never(&"intent", "turn 1, a card played: still no intent")
 		# play out the hand: then END TURN
-		await _none("a card left to play: END TURN's hint waits", [], true)
+		await _none("a card left to play: END TURN's hint waits")
 		while await _play_one(cb):
 			pass
 		# brace up but not yet held over an end of turn: nothing
@@ -792,8 +792,8 @@ func _dismiss(id: StringName) -> void:
 
 
 ## Nothing shows over a few seconds of the hints' clock (bar the ones in
-## `allowed`, dismissed as they come). `quiet`: and nothing at all even of those.
-func _none(what: String, allowed: Array = [], _quiet: bool = false) -> void:
+## `allowed`, dismissed as they come).
+func _none(what: String, allowed: Array = []) -> void:
 	var shown := ""
 	for i in 30:
 		Hints.poll(0.1)

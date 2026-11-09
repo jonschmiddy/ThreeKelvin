@@ -54,9 +54,11 @@ func run(tree: SceneTree) -> void:
 					await RenderingServer.frame_post_draw
 		var shot := tree.root.get_texture().get_image()
 		var gpath := "res://../tools/out/cardshot/_gallery.png"
-		shot.save_png(gpath)
-		print("gallery -> ", ProjectSettings.globalize_path(gpath),
-			" (", shot.get_width(), "x", shot.get_height(), ")")
+		if shot.save_png(gpath) != OK:
+			print("gallery: could not write ", ProjectSettings.globalize_path(gpath))
+		else:
+			print("gallery -> ", ProjectSettings.globalize_path(gpath),
+				" (", shot.get_width(), "x", shot.get_height(), ")")
 		tree.quit()
 		return
 
@@ -83,8 +85,10 @@ func run(tree: SceneTree) -> void:
 		await RenderingServer.frame_post_draw
 		var hshot := tree.root.get_texture().get_image()
 		var hpath := "res://../tools/out/cardshot/_hand.png"
-		hshot.save_png(hpath)
-		print("hand -> ", ProjectSettings.globalize_path(hpath))
+		if hshot.save_png(hpath) != OK:
+			print("hand: could not write ", ProjectSettings.globalize_path(hpath))
+		else:
+			print("hand -> ", ProjectSettings.globalize_path(hpath))
 		tree.quit()
 		return
 
@@ -126,9 +130,11 @@ func run(tree: SceneTree) -> void:
 		var path := "res://../tools/out/cardshot/%s.png" % (by_name[n] as CardData).art_key()
 		DirAccess.make_dir_recursive_absolute(
 			ProjectSettings.globalize_path("res://../tools/out/cardshot"))
-		cut.save_png(path)
-		print("  ", n, " -> ", path)
-		wrote += 1
+		if cut.save_png(path) == OK:
+			print("  ", n, " -> ", path)
+			wrote += 1
+		else:
+			print("  ", n, ": could not write ", path)
 		view.queue_free()
 
 	print("cardshot: wrote ", wrote, " of ", want.size())

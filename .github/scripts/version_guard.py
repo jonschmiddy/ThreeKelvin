@@ -77,15 +77,23 @@ QUOTED_RE = re.compile(r'"([A-Za-z_]\w*)"')
 BUMP_RE = re.compile(r"^[+-]\s*const\s+(VERSION|PROTOCOL)\b")
 
 
-def run(*args):
+def run(*args, check=True):
     # ENCODING NAMED, NOT INHERITED. `text=True` alone decodes with the locale
     # default, which on Windows is cp1252 -- and every diff of this repo carries
     # em-dashes, so `git diff` output blew up in subprocess's reader thread and
     # the guard reported FAIL for a decode error rather than for a finding.
     # `errors="replace"` because a mangled character is a false negative on one
     # line; a crash is a false positive on the whole check.
-    return subprocess.run(args, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace").stdout
+    #
+    # A FAILED GIT CALL IS NOT AN EMPTY DIFF. On a shallow checkout the base
+    # does not exist, `git diff` exits 128 with nothing on stdout, and an empty
+    # diff passes. Stop instead; only `check=False` callers may see a failure.
+    r = subprocess.run(args, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    if check and r.returncode:
+        sys.exit("version guard: FAIL, %s exited %d: %s"
+                 % (" ".join(args), r.returncode, r.stderr.strip()))
+    return r.stdout
 
 
 def keys_in(line):
@@ -143,10 +151,11 @@ def check(diff, guards):
     """Guarded files in `diff` whose keys moved while their number did not."""
     moved, bumped, path = {}, set(), None
     for line in diff.splitlines():
-        if line.startswith("+++ b/"):
-            path = line[6:]
+        if line.startswith("+++ "):
+            # A deleted file is "+++ /dev/null": its body is not the last file's.
+            path = line[6:] if line.startswith("+++ b/") else None
             continue
-        if not path or line.startswith("+++") or line.startswith("---"):
+        if not path or line.startswith("---"):
             continue
         if not (line.startswith("+") or line.startswith("-")):
             continue
@@ -181,7 +190,7 @@ def main(argv):
         # Default to whatever this branch has added on top of main, and fall
         # back to the last commit when that is empty -- which is the case on
         # main itself, where the interesting diff is the commit just landed.
-        base = run("git", "merge-base", "origin/main", "HEAD").strip()
+        base = run("git", "merge-base", "origin/main", "HEAD", check=False).strip()
         if not base or base == run("git", "rev-parse", "HEAD").strip():
             base = run("git", "rev-parse", "HEAD~1").strip()
 

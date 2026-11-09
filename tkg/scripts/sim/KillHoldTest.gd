@@ -24,9 +24,10 @@ func _run() -> void:
 	await _case(tree, [[&"lancer", 0], [&"marauder", 0], [&"hulk", 0]], "pack of three (half)")
 	await _case(tree, [[&"lancer", 0], [&"marauder", 0]], "pair (full size)")
 	await _window(tree)
+	await _failed_exit(tree)
 	Router.animate_in_harness = false
 	print("killholdtest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+	tree.quit(1 if _fails > 0 else 0)
 
 
 func _rest(sl: EnemySlot) -> Vector2:
@@ -187,6 +188,49 @@ func _window(tree: SceneTree) -> void:
 	_ok("%s: the hand-off landed on LOCAL and stayed there (%s)" % [tag, Router.current], stayed and Router.current is SectorScreen)
 	Keys.reset(&"next_screen")
 	ZoomLadder.force = -1
+
+
+# ------------------------------------------------- a failed FLEE whose turn kills the last enemy
+
+## The enemy's turn after a botched flee is Feedback's kill: the fight must still hand over.
+func _failed_exit(tree: SceneTree) -> void:
+	var tag := "a failed flee that kills the last enemy"
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for m: MapGen.MapNode in Run.map:
+		if m.type == MapGen.NodeType.SYSTEM and not Router.no_fights_at(m):
+			Run.at = m.index
+			break
+	SectorScreen._approached_at = Run.at
+	Router.start_combat(DB.enemies[&"lancer"], [], false, false)
+	var cb = Router.combat
+	if not _ok("%s: a fight" % tag, cb != null):
+		return
+	await tree.create_timer(1.2).timeout
+	var sc := Router.current as SectorScreen
+	cb.feedback = 9999
+	cb.enemies[0].hp = 1
+	SkillCheck.forced = SkillCheck.Band.BOTCHED
+	sc._on_flee()
+	await tree.create_timer(0.5).timeout
+	var go: Button = null
+	for row in sc._exit_box.get_children():
+		if row is HBoxContainer and row.get_child_count() > 0 and row.get_child(row.get_child_count() - 1) is Button:
+			go = row.get_child(row.get_child_count() - 1)
+	if not _ok("%s: the panel has its GO" % tag, go != null):
+		SkillCheck.forced = -1
+		return
+	go.pressed.emit()
+	var landed := false
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 12000:
+		await tree.process_frame
+		if Router.combat != cb:
+			landed = true
+			break
+	SkillCheck.forced = -1
+	_ok("%s: the fight ended and handed over" % tag, landed)
+	_ok("%s: the exit panel is not left standing" % tag, Router.combat != cb or sc._exit_ask == null)
 
 
 func _key(code: Key) -> void:

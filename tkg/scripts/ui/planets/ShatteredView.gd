@@ -234,9 +234,12 @@ func _mem_sync() -> void:
 	var r := float(_mat.get_shader_parameter("r"))
 	var ov: Variant = _mat.get_shader_parameter("ctr_off")
 	var off: Vector2 = ov if ov is Vector2 else Vector2.ZERO
-	if r != _mem_r or off.distance_to(_mem_off) > float(maxi(_cell, 1)):
+	# Keep the memory until size moves a block: the smooth zoom restarted it each frame.
+	# Why: docs/why/PlanetView.md#memory-hysteresis
+	var cl := float(maxi(_cell, 1))
+	if _mem_r < 0.0 or absf(r - _mem_r) >= cl or off.distance_to(_mem_off) > cl:
 		_mem_fresh = maxi(_mem_fresh, 1)
-	_mem_r = r
+		_mem_r = r
 	_mem_off = off
 	for nm: String in MEM_LIVE:
 		_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))

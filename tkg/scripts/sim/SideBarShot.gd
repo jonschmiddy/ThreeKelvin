@@ -108,4 +108,4 @@ func _run() -> void:
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
 	print("  [sidebarshot] done, %d white frames%s" % [_white, "" if _white == 0 else " -- FAIL"])
-	_tree.quit()
+	_tree.quit(1 if _white > 0 else 0)

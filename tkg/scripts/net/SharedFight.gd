@@ -10,6 +10,10 @@ extends RefCounted
 ## Why: docs/why/SharedFight.md#party-size
 ## The highest count `grown` may say (a wire value is clamped to it).
 const MAX_GROWN: int = 9999
+## Bounds on one shot off the wire, far above play: `CardData.hits` tops out at 6, an evoke is
+## one hit a drone, and damage is a card's base plus heat.
+const MAX_HITS: int = 1000
+const MAX_SHOT: int = 100000
 
 ## An index into the identically scaled lists is a name the whole party agrees on.
 ## ESCAPE is in no template list, so it travels as a kind and `Combat.escape_intent()` rebuilds it.
@@ -132,7 +136,8 @@ func hurt(which: int, amount: int, hits: int, by: int) -> int:
 	if not e.alive():
 		return 0
 	var total := 0
-	for i in maxi(1, hits):
+	amount = clampi(amount, 0, MAX_SHOT)
+	for i in clampi(hits, 1, MAX_HITS):
 		var d := amount
 		if e.block > 0:
 			var a := mini(e.block, d)
@@ -176,12 +181,11 @@ func waiting_on() -> PackedInt32Array:
 	return out
 
 
-## The enemy has swung. Clear block, take the next intent, open a new turn.
+## The enemy has swung. Open a new turn. Block is not cleared here: it expires as the foe acts
+## again (`NetSession._foe_acts`).
 func advance() -> void:
 	if over:
 		return
-	for e in foes:
-		e.block = 0
 	ended = PackedInt32Array()
 	stunned = PackedInt32Array()
 	turn += 1

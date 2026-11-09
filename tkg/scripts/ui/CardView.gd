@@ -614,7 +614,7 @@ func _on_hover_in() -> void:
 
 func _on_hover_out() -> void:
 	emitted_hover(false)
-	_tint = DB.manufacturer_colour(card.manufacturer)
+	_tint = UITheme.FLARE if armed else DB.manufacturer_colour(card.manufacturer)
 	queue_redraw()
 	_animate_lift(0.0)
 
@@ -664,11 +664,6 @@ func set_armed(on: bool) -> void:
 ## No `_get_drag_data`: `set_drag_preview` pins the card to the pointer, but aiming needs it still.
 ## Why: docs/why/CardView.md#grab-gesture
 
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END:
-		modulate = Color.WHITE
-		mouse_filter = Control.MOUSE_FILTER_STOP
 
 ## A card on top of the hand would swallow the drop, so it forwards: put it here.
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:

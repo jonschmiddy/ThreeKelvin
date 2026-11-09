@@ -8,6 +8,7 @@ var fails: int = 0
 ## `RunHistory.path` points at a test file: clearing the real one wiped the player's record.
 ## Why: docs/why/SaveTest.md#history-file
 const HISTORY := "user://savetest_history.json"
+const SEED_SCRAMBLE := 99
 
 func check(what: String, a: Variant, b: Variant) -> void:
 	if str(a) != str(b):
@@ -375,6 +376,8 @@ func run() -> void:
 
 	var before := fingerprint()
 	var jumps_before := Run.jumps
+	# The streams' cursors are 64-bit and the file is JSON: they must come back exactly.
+	var rng_saved := str(Rng.state())
 
 	SaveGame.save()
 	if not SaveGame.has_save():
@@ -423,12 +426,15 @@ func run() -> void:
 	Run._range_cache.clear()
 	SystemMapScreen._parked = {3: {"at": 0, "p": Vector2.ONE, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
 	Run.map_clock = {3: 9.0, 5: 99.5}
+	Rng.reseed(SEED_SCRAMBLE)
+	Rng.loot.randi()
 
 	if not SaveGame.load_into_run():
 		print("  FAIL: load_into_run() returned false"); fails += 1; return
 	if SaveGame.has_save():
 		print("  FAIL: save survived the load — suspend model broken"); fails += 1
 
+	check("the streams' cursors read back exactly", rng_saved, str(Rng.state()))
 	var after := fingerprint()
 	for k in before.keys():
 		if k == "nodes":
@@ -668,6 +674,17 @@ func run_history_test() -> void:
 		int((recent[0] as Dictionary).outcome))
 	check("depth_text", true, RunHistory.depth_text(recent[1]).ends_with(
 		"/%d shells" % MapGen.LAYERS))
+	# A write that cannot finish leaves the old file whole: block the temp file with a folder.
+	var tmp := ProjectSettings.globalize_path(HISTORY + ".tmp")
+	DirAccess.make_dir_absolute(tmp)
+	Run.start_new_run()
+	RunHistory.record(RunHistory.Outcome.DIED, "Never lands.")
+	check("a failed write leaves the history whole", 3, RunHistory.load_all().size())
+	check("and says it failed", false, SafeFile.write_text(HISTORY, "{}"))
+	DirAccess.remove_absolute(tmp)
+	RunHistory.record(RunHistory.Outcome.DIED, "Lands.")
+	check("the next write lands", 4, RunHistory.load_all().size())
+	check("and leaves no temp file behind", false, FileAccess.file_exists(HISTORY + ".tmp"))
 	RunHistory.clear()
 	RunHistory.path = RunHistory.PATH
 	print("=== %s (%d total mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])

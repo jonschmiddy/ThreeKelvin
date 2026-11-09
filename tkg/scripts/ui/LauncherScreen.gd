@@ -109,11 +109,7 @@ func setup() -> void:
 
 	# White marks the one option you likely came for; hard-coding CONTINUE would show five greys.
 	menu.add_child(_option("NEW RUN", _confirm_new_run, save.is_empty()))
-	menu.add_child(_option("FLY TOGETHER", func() -> void:
-		var lob := LobbyScreen.new()
-		lob.on_leave = _close_popup
-		_open_popup(lob)
-		lob.setup()))
+	menu.add_child(_option("FLY TOGETHER", _open_lobby))
 	menu.add_child(_option("FLIGHT RECORD", func() -> void:
 		var hist := HistoryScreen.new()
 		_open_popup(hist)
@@ -286,7 +282,7 @@ func _confirm_continue() -> void:
 ## Why: docs/why/LauncherScreen.md#popups
 const POPUP_PROMPT_W := 356
 
-func _open_popup(inner: Control, compact: bool = false) -> void:
+func _open_popup(inner: Control, compact: bool = false, on_margin: Callable = Callable()) -> void:
 	if _popup != null or _settings != null:
 		return
 	# The dim covers the whole picture, as the galaxy past Main's margin showed through undimmed.
@@ -298,7 +294,10 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 	shade.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			_close_popup())
+			if on_margin.is_valid():
+				on_margin.call()
+			else:
+				_close_popup())
 	var dim := ColorRect.new()
 	dim.name = "Dim"
 	dim.color = NoteCard.DIM
@@ -336,6 +335,36 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 	var frame := Widgets.panel_with(scroll)
 	frame.mouse_filter = Control.MOUSE_FILTER_STOP
 	pad.add_child(frame)
+
+func _open_lobby() -> void:
+	var lob := LobbyScreen.new()
+	lob.on_leave = _close_popup
+	_open_popup(lob, false, _ask_leave_party.bind(lob))
+	lob.setup()
+
+## A party outlives this panel, so a click on the dim must not drop the lobby and keep the party.
+func _ask_leave_party(lob: LobbyScreen) -> void:
+	if Net.state == NetSession.State.OFFLINE or Net.state == NetSession.State.FAILED:
+		lob.leave()
+		return
+	var mid := CenterContainer.new()
+	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mid.mouse_filter = Control.MOUSE_FILTER_STOP
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.add_child(UITheme.body("LEAVE THE PARTY?", UITheme.ICE, UITheme.FS_HEAD))
+	col.add_child(UITheme.body("You will drop out and miss the launch.", UITheme.COLD, UITheme.FS_SMALL))
+	col.add_child(_gap(4))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(Widgets.button("LEAVE", lob.leave))
+	row.add_child(_leave_button("STAY", mid.queue_free))
+	col.add_child(row)
+	var card := Widgets.panel_with(col)
+	card.custom_minimum_size = Vector2(POPUP_PROMPT_W, 0)
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	mid.add_child(card)
+	_popup.add_child(mid)
 
 ## The corner switch, pressed. The only caller of DevMode.toggle in the game.
 func _on_dev_toggle() -> void:

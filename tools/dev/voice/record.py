@@ -122,7 +122,9 @@ def go(lines, out, takes, stop):
                 print("ERROR", i, take, r.status_code, r.text[:300])
                 spend_f.write_text(json.dumps(sp, indent=1))
                 return
-            f.write_bytes(r.content)
+            part = f.with_name(f.name + ".part")
+            part.write_bytes(r.content)
+            os.replace(part, f)
             cost = r.headers.get("character-cost") or r.headers.get("x-character-count")
             sp["calls"][f.name] = int(cost) if cost else round(len(text) * RATE)
             print(f.name, len(text), "chars, billed", cost)

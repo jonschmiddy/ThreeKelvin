@@ -1439,7 +1439,7 @@ func _one_motion(what: String, track: Array) -> void:
 			joined = false
 	_ok("%s: one smooth motion -- each piece (%s) never below %.1f px a frame mid-piece (lowest %.1f), %d spikes, peak %.1f; joins%s" % [
 		what, report.strip_edges(), ONE_MOTION_FLOOR, lo, spikes, top, joins if joins != "" else " (none on screen)"],
-		lo >= ONE_MOTION_FLOOR and spikes == 0 and joined)
+		lo < INF and lo >= ONE_MOTION_FLOOR and spikes == 0 and joined)
 
 
 const ONE_MOTION_FLOOR := 0.4

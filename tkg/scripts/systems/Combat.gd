@@ -301,17 +301,16 @@ func look_for(i: int) -> int:
 			wrecks += 1
 	return Rng.derive(&"look", (n.index * 64 + wrecks) * 8 + i).randi() & 0xffff
 
-## HP scales faster than damage. Bosses are hand-tuned; the Custodian's hull grows with
-## jumps.
-## Why: docs/why/Combat.md#enemy-spawn-scaling
-func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: bool = true) -> EnemyState:
-	var e := EnemyState.new()
-	# Halved when danger went from 5 to 10 tiers, so the ladder top is unchanged and HP climbs
-	# 2x damage.
-	var hand_tuned := template.boss or template.miniboss
-	var hp_mult := 1.0 if hand_tuned else 1.0 + (danger - 1) * 0.05
-	var dmg_mult := 1.0 if hand_tuned else 1.0 + (danger - 1) * 0.025
-	# Scale a private copy of the intents so the template stays pristine.
+## Halved when danger went from 5 to 10 tiers, so the ladder top is unchanged and HP climbs
+## 2x damage.
+static func hp_mult_for(template: EnemyTemplate, danger: int) -> float:
+	return 1.0 if template.boss or template.miniboss else 1.0 + (danger - 1) * 0.05
+
+## A private copy with the intents scaled, so the template stays pristine. The host builds the same
+## copy to grant a shared foe's block and heal (`NetSession._foe_acts`).
+static func scaled_for(template: EnemyTemplate, danger: int) -> EnemyTemplate:
+	var hp_mult := hp_mult_for(template, danger)
+	var dmg_mult := 1.0 if template.boss or template.miniboss else 1.0 + (danger - 1) * 0.025
 	var scaled: Array[IntentData] = []
 	for i in template.loop:
 		var c := i.duplicate(true) as IntentData
@@ -327,6 +326,16 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: b
 	var t := template.duplicate(true) as EnemyTemplate
 	t.loop = scaled
 	t.pool = scaled_pool
+	return t
+
+## HP scales faster than damage. Bosses are hand-tuned; the Custodian's hull grows with
+## jumps.
+## Why: docs/why/Combat.md#enemy-spawn-scaling
+func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: bool = true) -> EnemyState:
+	var e := EnemyState.new()
+	var hand_tuned := template.boss or template.miniboss
+	var hp_mult := hp_mult_for(template, danger)
+	var t := scaled_for(template, danger)
 	e.template = t
 	var base := template.hull_at(Run.custodian_jumps()) if hand_tuned else template.max_hull
 	# AND THE PARTY'S SIZE (Jon, Nov 5): every fight in an n-player game is
@@ -377,6 +386,9 @@ func begin_turn() -> void:
 		for i in times:
 			damage_enemy(d.damage, 1, "Drone")
 		d.fresh = false
+	# A drone can kill the last foe: the fight is over, so nothing below may run.
+	if finished:
+		return
 	if drone_brace > 0:
 		brace += drone_brace
 		_log("Shield wasps add %d brace." % drone_brace, &"good")
@@ -593,7 +605,7 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 func can_play(c: CardData) -> bool:
 	# Nothing is playable mid-choice, or two cards would resolve in an order neither stated.
 	return not finished and asking_at < 0 and not stunned and choosing <= 0 \
-		and energy >= c.energy
+		and energy >= c.energy and Run.credits >= c.credit_cost
 
 ## Choice takes a hand index so the sim and bot pick like the screen. Junk first, never
 ## random.

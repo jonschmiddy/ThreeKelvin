@@ -68,16 +68,10 @@ static func _write(core_won: bool) -> void:
 	# The map still up writes its ship's spot first, as it records it only when put away.
 	if Router.current is SystemMapScreen:
 		(Router.current as SystemMapScreen)._keep_ship()
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_warning("SaveGame: could not open %s for writing (%d)" % [
-			path, FileAccess.get_open_error()])
-		return
 	# `full_precision` on: the default rounds floats enough to move systems on the chart.
 	# Not bit-exact (worst error 9.3e-14) but unobservable. JSON stays readable in dev.
 	# Why: docs/why/SaveGame.md#json-precision
-	f.store_string(JSON.stringify(_snapshot(), "", true, true))
-	f.close()
+	SafeFile.write_text(path, JSON.stringify(_snapshot(), "", true, true))
 
 ## Mid-fight SAVE & EXIT keeps the old save and notes the fight to restart on CONTINUE.
 static func mark_fight(fight: Dictionary) -> void:
@@ -85,11 +79,7 @@ static func mark_fight(fight: Dictionary) -> void:
 	if d.is_empty() or fight.is_empty():
 		return
 	d["fight"] = fight
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		return
-	f.store_string(JSON.stringify(d, "", true, true))
-	f.close()
+	SafeFile.write_text(path, JSON.stringify(d, "", true, true))
 
 static func clear() -> void:
 	if FileAccess.file_exists(path):

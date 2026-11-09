@@ -171,6 +171,7 @@ func _light_all() -> void:
 	if want.keys() == _beam.keys():
 		return
 	_beam = want
+	set_process(true)
 	queue_redraw()
 
 
@@ -188,6 +189,9 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	var m: HoldItem = (data as Dictionary).module
 	var target := target_for(m, at)
 	_clear_beam()
+	# Money takes no cell, so a full hold still takes the drop it lit.
+	if m is CreditChit and target == -Vector2i.ONE:
+		target = Vector2i.ZERO
 	if target != -Vector2i.ONE:
 		dropped.emit(data as Dictionary, target)
 

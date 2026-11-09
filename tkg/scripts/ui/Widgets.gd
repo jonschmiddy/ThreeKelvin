@@ -105,8 +105,12 @@ static func module_tip_panel(m: ModuleData) -> Control:
 
 	var gauges: PackedStringArray = []
 	for g in AffixData.GAUGES:
-		var raw: Variant = m.get(g)
-		var v: int = int(raw) if raw != null else 0
+		# A gauge is a pip count; the part holds it as the fields `PER_PIP` names.
+		var per: Dictionary = Run.PER_PIP.get(g, {})
+		var v := 0
+		if not per.is_empty():
+			var field: StringName = per.keys()[0]
+			v = int(round(float(m.get(field)) / float(per[field])))
 		if v != 0:
 			gauges.append("%s%d %s" % ["+" if v > 0 else "", v,
 				String(g).to_upper()])

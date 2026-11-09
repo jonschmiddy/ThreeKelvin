@@ -98,13 +98,7 @@ static func _manufacturer_tally() -> Array:
 	return out
 
 static func _write(all: Array) -> void:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_warning("RunHistory: could not open %s for writing (%d)" % [
-			path, FileAccess.get_open_error()])
-		return
-	f.store_string(JSON.stringify({version = VERSION, runs = all}))
-	f.close()
+	SafeFile.write_text(path, JSON.stringify({version = VERSION, runs = all}))
 
 # ----------------------------------------------------------------------- read
 

@@ -18,6 +18,7 @@ func run() -> void:
 	# The table itself has to be sound before anything rolled off it means
 	# anything: a duplicate id would make `by_id` silently prefer one of two.
 	var ids: Dictionary = {}
+	var fails_before := _fails
 	for o in OptionTable.all():
 		var id := StringName(o.id)
 		if ids.has(id):
@@ -25,7 +26,8 @@ func run() -> void:
 		ids[id] = true
 		if not o.has("choices") or (o.choices as Array).is_empty():
 			_fail("option '%s' has no choices" % id)
-	_ok("every option has a unique id and at least one choice", true)
+	if _fails == fails_before:
+		_ok("every option has a unique id and at least one choice", true)
 
 	_gates_are_real()
 	Rng.forced = 4242

@@ -602,7 +602,7 @@ func _seed_modules() -> void:
 
 	# --- Junk
 	# No Dross module: it was unreachable. Dross is a count (`Run.dross`) `DeckBuilder` makes junk.
-	# Malfunctions live in `_seed_malfunctions`, not here.
+	# Malfunctions live in `MALFUNCTIONS` (see `malfunction()`), not here.
 	# Why: docs/why/Database.md#dross
 
 	# --- Clearing the deck.

@@ -283,6 +283,9 @@ func _finish() -> void:
 	var out := {events = _events, tape = tape, frames = _frame,
 		frame_ms = _frame_ms if _timing else []}
 	var fa := FileAccess.open(_dir + "/events.json", FileAccess.WRITE)
+	if fa == null:
+		print("combatclip: could not write %s/events.json" % _dir)
+		return
 	fa.store_string(JSON.stringify(out, "  "))
 	fa.close()
 	print("combatclip: %d frames, %d events, %d sounds -> %s" % [_frame, _events.size(), tape.size(), _dir])

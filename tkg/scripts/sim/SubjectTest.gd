@@ -729,7 +729,7 @@ func _bare_events() -> void:
 			await _frames(4)
 			gas_after = sky.closed
 		# a stage stood on the giant's face or its rings: on the view, off your ship
-		if &"beam" in want[0]:
+		if &"beam" in want[0] and fx != null:
 			bad.append_array(await _beam_wrong(oid, sub, fx))
 	LocalEventDrawer.quiet = false
 	Router.show_local()

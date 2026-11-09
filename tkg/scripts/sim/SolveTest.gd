@@ -1281,7 +1281,7 @@ func _worker() -> void:
 		serial += r.usec / 1000.0
 		if w != null and w.found == r.found and w.samp == r.samp and w.cost == r.cost and w.choice == r.choice:
 			same += 1
-		elif _widx.size() - same <= 3 + j - same:
+		elif j + 1 - same <= 3:
 			print("  (on a worker, not the same: %s)" % _cases[_widx[j]].label)
 	print("worker: %d plans on WorkerThreadPool in %d ms of wall clock (%.0f ms planned one after another on the main thread)" % [_widx.size(), wall, serial])
 	h._ok("a plan made on a worker is the same plan (%d of %d)" % [same, _widx.size()], same == _widx.size())

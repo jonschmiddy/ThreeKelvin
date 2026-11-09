@@ -352,6 +352,7 @@ func _late_leg() -> void:
 			await _tree.process_frame
 			if b != null and b.is_visible_in_tree():
 				steps.append(int(b.shown.get("step", -2)))
+		_ok("the lead ship's badge was on screen to be watched", not steps.is_empty())
 		_ok("the late ship has the lead ship's count (%d, own jumps %d), seen, with no arrival on its first frames (%s)" % [
 			CustodianBadge.count(), Run.jumps, "none" if not steps.any(func(s: int) -> bool: return s >= 0) else "one played"],
 			CustodianBadge.count() == Net.galaxy_jumps and Run.custodian_seen == CustodianBadge.count()
@@ -390,7 +391,10 @@ func _check_local_together(when: String) -> void:
 	var partner: EncounterView.ConvoySlot = slots[0]
 	_ok("and the partner's slot is on screen %s" % when, partner.is_inside_tree() and partner.is_visible_in_tree())
 	# Compares hull ink, not canvases: canvases carry exhaust and bob room and may touch.
-	var a: Rect2 = view.player_boxes()[0]
+	var boxes: Array = view.player_boxes()
+	if not _ok("LOCAL has your ship %s" % when, not boxes.is_empty()):
+		return
+	var a: Rect2 = boxes[0]
 	var b: Rect2 = partner.art.get_global_transform() * partner.art.ship_rect()
 	b = b.intersection(partner.get_global_rect())
 	print("  %s LOCAL: own hull %s, partner hull %s" % [_me, a, b])
@@ -582,8 +586,8 @@ func _shot(what: String) -> void:
 	var img := _tree.root.get_texture().get_image()
 	DirAccess.make_dir_recursive_absolute(_shots)
 	var path := _shots.path_join("%s_%s.png" % [what, _me.to_lower()])
-	img.save_png(path)
-	print("[cojoin] shot %s" % path)
+	var err := img.save_png(path)
+	print("[cojoin] shot %s" % path if err == OK else "[cojoin] could not save %s (error %d)" % [path, err])
 
 
 func _wait(s: float) -> void:
