@@ -75,7 +75,7 @@ var choice := 0
 var done: Dictionary = {}
 ## Makes a recipe and returns its log line ("" when it did not happen). Set by
 ## `LabZoom` (the station's `_fabricate`); the page alone uses `Fabricator`.
-var maker: Callable
+var make_fn: Callable
 
 var commit_button: LabPlate
 ## The bill under the key, as drawn ("1 RELIC + 30 CREDITS"): what a test reads.
@@ -266,8 +266,8 @@ func _commit() -> void:
 	if r.is_empty():
 		return
 	var line := ""
-	if maker.is_valid():
-		line = str(maker.call(r))
+	if make_fn.is_valid():
+		line = str(make_fn.call(r))
 	else:
 		line = Fabricator.make(Run.node_at(), r)
 		if not line.is_empty():

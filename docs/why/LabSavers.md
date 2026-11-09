@@ -113,7 +113,7 @@ Above `var _vr_said := false`:
 ```text
 ================================================================== Verity Ateliers' own three
 (review_lab r6, Nov 7: Jon kept all seven, per owner, "Want more per owner.")
-  VER1  THE HULL REGISTER: the signed hulls, one entry at a time, its maker's
+  VER1  THE HULL REGISTER: the signed hulls, one entry at a time, its manufacturer's
         signature drawn in under the number
   VER2  THE SEAM GAUGE: a probe runs along one hull seam, magnified, and
         plots how flush the two panels sit
@@ -131,8 +131,8 @@ so the people who live there keep it up with what drifts in and what power
 is left over.
 
   I1  THE PATCHED RING: the station's ring turning, every plate in the
-      colour of the maker whose wreck it was cut from; the plate in front is
-      named, and a row under it counts the plates from each maker
+      colour of the manufacturer whose wreck it was cut from; the plate in front is
+      named, and a row under it counts the plates from each manufacturer
   I2  SALVAGE WATCH: junk drifting past the station, one piece at a time
       tagged with what it is, who made it and what DATA it is worth
   I3  SPARE POWER: the station's draw against its supply over the last 30 s,

@@ -161,7 +161,7 @@ func _build_view() -> void:
 	view.add_child(augment)
 	_pages[&"augment"] = augment
 	recipes = LabRecipes.new()
-	recipes.maker = _make
+	recipes.make_fn = _make
 	recipes.lit_changed.connect(func() -> void: _light_dirty = true)
 	view.add_child(recipes)
 	_pages[&"recipes"] = recipes

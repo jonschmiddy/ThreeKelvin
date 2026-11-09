@@ -1241,7 +1241,7 @@ const S3_FINDS := [
 
 ## The feed's row `i`: [where it came from, what it found, whether it is the
 ## owner's own (in its voice, `LabSaverDress.s3_own`), whether it shows a
-## time]. A maker's rows read as that maker files them on every feed
+## time]. A manufacturer's rows read as that manufacturer files them on every feed
 ## (`s3_src`, `s3_stamp`): a Redline row is a shop, with no time, everywhere.
 func _s3_item(i: int) -> Array:
 	var dz := dress()
@@ -1260,10 +1260,10 @@ func _s3_item(i: int) -> Array:
 		var ms: Array = DB.manufacturers.keys()
 		var mid: StringName = g.owner_id if (h % 3 == 1 or ms.is_empty()) and g.owner_id != &"" else (ms[(h / 5) % ms.size()] as StringName)
 		if not DB.manufacturers.has(mid) and not ms.is_empty():
-			# an open lab has no labs of its own: the makers' traffic, overheard
+			# an open lab has no labs of its own: the manufacturers' traffic, overheard
 			mid = ms[(h / 5) % ms.size()] as StringName
 		var nm := DB.short_name(DB.manufacturer_name(mid)).to_upper() if DB.manufacturers.has(mid) else "INDEPENDENT"
-		var md := _s3_maker(mid)
+		var md := _s3_manufacturer(mid)
 		var sf := String(md.s3_src)
 		src = sf % [nm, 1 + (h / 11) % 9] if sf.contains("%") else sf
 		stamp = bool(md.s3_stamp)
@@ -1275,15 +1275,15 @@ func _s3_item(i: int) -> Array:
 	return [src, find, own, stamp]
 
 
-## A maker's dress, for how its rows read on another's feed (kept, not made
+## A manufacturer's dress, for how its rows read on another's feed (kept, not made
 ## again each row each frame).
-var _s3_makers := {}
+var _s3_manufacturers := {}
 
 
-func _s3_maker(mid: StringName) -> Dictionary:
-	if not _s3_makers.has(mid):
-		_s3_makers[mid] = LabSaverDress.of(mid if DB.manufacturers.has(mid) else &"")
-	return _s3_makers[mid]
+func _s3_manufacturer(mid: StringName) -> Dictionary:
+	if not _s3_manufacturers.has(mid):
+		_s3_manufacturers[mid] = LabSaverDress.of(mid if DB.manufacturers.has(mid) else &"")
+	return _s3_manufacturers[mid]
 
 
 func _paint_3() -> void:
@@ -3885,7 +3885,7 @@ func _vr_gold(a: float) -> Color:
 	return LabBoard.mixc(LabBoard.BG, LabBoard.mixc(mk, LabBoard.WHITE, 0.3), clampf(a, 0.0, 1.0))
 
 
-## The house rule: two gold rules and the hairline between them (its mark, laid flat).
+## The register's rule: two gold rules and the hairline between them (its mark, laid flat).
 func _vr_rules(x: int, y: int, w: int, dim: float) -> void:
 	for xx in range(x, x + w):
 		px(xx, y, _vr_gold(0.8 * dim))
@@ -3985,7 +3985,7 @@ func _paint_ver1() -> void:
 	var into := fposmod(ft, VR1_EVERY)
 	var n := VR1_BOOK.size()
 	var cur: Array = VR1_BOOK[posmod(k, n)]
-	# THE ENTRY: its number large, the maker's signature drawn in under it; its
+	# THE ENTRY: its number large, the manufacturer's signature drawn in under it; its
 	# name, when it was made, how often it came back, and where it is now
 	var cy := y0 + 27
 	var num := "NO. %04d" % int(cur[0])
@@ -4898,8 +4898,8 @@ var _i_ms: Array = []
 var _i1_seg: Array = []
 
 
-## The seven makers, in a fixed order.
-func _i_makers() -> Array:
+## The seven manufacturers, in a fixed order.
+func _i_manufacturers() -> Array:
 	if _i_ms.is_empty():
 		_i_ms = DB.manufacturers.keys()
 		_i_ms.sort_custom(func(p, q): return String(p) < String(q))
@@ -4909,7 +4909,7 @@ func _i_makers() -> Array:
 ## Who made each plate of the ring; &"" is the station's first plating.
 func _i1_segs() -> Array:
 	if _i1_seg.is_empty():
-		var ms := _i_makers()
+		var ms := _i_manufacturers()
 		for i in I1_SEGS:
 			var hh := absi(hash(i * 104729 + 31))
 			_i1_seg.append(&"" if (hh % 10 < 3 or ms.is_empty()) else (ms[(hh / 10) % ms.size()] as StringName))
@@ -4926,7 +4926,7 @@ func _i_short(m: StringName) -> String:
 	return DB.short_name(DB.manufacturer_name(m)).to_upper()
 
 
-## A maker's mark, 11 px, drawn straight on the glass: no ground and no frame
+## A manufacturer's mark, 11 px, drawn straight on the glass: no ground and no frame
 ## (critic pass, Nov 7: framed on their fields, the row read as a toolbar of
 ## buttons). The station's own is the bare square.
 func _i_badge(cx: int, cy: int, m: StringName) -> void:
@@ -4946,10 +4946,10 @@ func _paint_i1() -> void:
 	var dim := fade()
 	var hover := g.state != LabLogin.LOGO
 	var segs := _i1_segs()
-	var ms := _i_makers()
+	var ms := _i_manufacturers()
 	head(x0 + 4, y0 + 3, " STATION")
 	g._data_corner()
-	# THE FOOT: the plate in front named, and under it each maker's count
+	# THE FOOT: the plate in front named, and under it each manufacturer's count
 	var leg_y := a.end.y - 9
 	var cap_y := leg_y - 15
 	var top := y0 + 20
@@ -5028,7 +5028,7 @@ func _paint_i1() -> void:
 	if say_w(cs) > w - 12:
 		cs = "PLATE %d · %s" % [pick + 1, _i_short(m) if m != &"" else "FIRST"]
 	sayc(x0 + w / 2, cap_y, cs, ink(0.9))
-	# THE COUNT: each maker's plates (and the station's own), centred
+	# THE COUNT: each manufacturer's plates (and the station's own), centred
 	var counts := {}
 	for s: StringName in segs:
 		counts[s] = int(counts.get(s, 0)) + 1
@@ -5087,7 +5087,7 @@ func _i1_hub(c: Vector2, rx: float, ry: float, th: int, rot: float, tr: float, d
 
 const I2_GAP := 2.3
 const I2_TAG := 4.0
-## What drifts by: a name, its sprite (# edge, . body, o dark, m the maker's
+## What drifts by: a name, its sprite (# edge, . body, o dark, m the manufacturer's
 ## colour, space for nothing), and the DATA it is worth (0: none).
 const I2_KINDS := [
 	["HULL PLATE", ["######### ", "#o.....o##", "#mmmmmmmm#", "#........#", "#o.....o.#", " #########"], 2],
@@ -5101,9 +5101,9 @@ var _i2_t := 0.0
 var _i2_last := 1.0
 
 
-## Piece j: [kind, maker, scale, speed, y share, spin, phase].
+## Piece j: [kind, manufacturer, scale, speed, y share, spin, phase].
 func _i2_piece(j: int) -> Array:
-	var ms := _i_makers()
+	var ms := _i_manufacturers()
 	var hh := absi(hash(j * 31 + 7))
 	var kind := hh % I2_KINDS.size()
 	var mk: StringName = &""

@@ -277,7 +277,7 @@ func _turn() -> void:
 	if not _ok("the turn: the lab's screen is up", st != null):
 		return
 	var login := st._login
-	_ok("the turn: a lab with no maker set runs its first berth's savers (%s)" % login.owner_id, login.owner_id == &"cygnet"
+	_ok("the turn: a lab with no manufacturer set runs its first berth's savers (%s)" % login.owner_id, login.owner_id == &"cygnet"
 		and login.savers().has("C1"))
 	LabLogin.forced = ""
 	var hold_was := LabLogin.hold_s

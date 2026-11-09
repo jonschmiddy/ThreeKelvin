@@ -41,7 +41,7 @@ an independent lab shows):
       s3_stamp   whether the owner's rows carry a time
       s3_every   seconds between lines
       s3_units   a third of the rows from units, not pilots (Cygnet)
-      s3_open    no lab of its own: pilots and the seven makers only
+      s3_open    no lab of its own: pilots and the seven manufacturers only
   4   s4_title (after the name) or s4_full; s4_tag what each part's callout
       adds: "navy", "heat", "scrap", "heal", "serial", "appt" or ""
       s4_own     only the owner's own parts take the accent
