@@ -97,7 +97,11 @@ static func clock(s: float) -> String:
 
 ## The drawing's event: the weather comet's own fields, so one drawing serves both.
 func ev() -> Dictionary:
-	return {"q": q, "w": w, "K": K, "tp": tp, "end": T, "mode": &"comet", "age": -1.0, "real": true}
+	return {"q": q, "w": w, "K": K, "tp": tp, "end": T, "mode": &"comet", "age": -1.0, "real": true, "a_min": A_MIN}
+
+
+## Its brightness at least this far out (the drawing's A, 0 to 1): it must read as a thing to click.
+const A_MIN := 0.5
 
 
 ## Whether system n has a comet: one of its options is sited on one (Phase 13's readings),

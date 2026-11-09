@@ -1022,6 +1022,18 @@ func _ready() -> void:
 			scr.view.nova_now(nat)
 			print("  systemshot: nova at %s, the window %s" % [nat, scr.view.window])
 			await get_tree().create_timer(float((a6 as String).substr(5))).timeout
+	if scr.view.layout.comet != null:
+		print("  systemshot: the comet's head on screen at %s, %d px from the star" % [scr.view.comet_scr(),
+			int(scr.view.comet_scr().distance_to(scr.view.star_screen(-1))) if scr.view.comet_scr() != Vector2.INF else -1])
+	# `settle`: the map's sky built and its palette found first, and the screen Main
+	# opened (the launcher) hidden from behind the calm sky, as the game shows it
+	if "settle" in OS.get_cmdline_user_args():
+		if Router.current != null and is_instance_valid(Router.current):
+			Router.current.visible = false
+		while not scr.view._palette_built:
+			await get_tree().process_frame
+		for _j in 30:
+			await RenderingServer.frame_post_draw
 	for _i in 4:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw

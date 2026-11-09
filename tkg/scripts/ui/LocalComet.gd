@@ -10,6 +10,8 @@ var sky
 const ION_MIN := 10
 const ION := [Color("#c8f0ff"), Color("#8ad0f0"), Color("#4a8ad8"), Color("#2a5ab8")]
 const DUST := [Color("#ffdc96"), Color("#ffb054"), Color("#84280c")]
+## How hard the dust tail bends off the away line (px per block squared).
+const DUST_BEND := 0.08
 
 
 func _blk(p: Vector2, c: Color) -> void:
@@ -59,31 +61,30 @@ func _draw() -> void:
 		if behind and q.distance_to(so) < sr:
 			continue
 		_blk(q, Color(ION[si], 0.5 * fade * maxf(A, 0.35)))
-	# the dust tail: where the dust it shed is now, pushed off the light
+	# THE DUST TAIL: out along the away line, bending to the side it trails from.
+	# Why: docs/why/LocalComet.md#dust-on-the-band
+	var trail := _on_band(sky._rel(c.pos(L, tm - 1.0))) - hs
+	var side := ad.orthogonal()
+	if trail.dot(side) < 0.0:
+		side = -side
+	var n_dust := int(float(n_ion) * 0.8)
 	var last := Vector2.INF
-	var head_a := atan2(c.rel(a).y, c.rel(a).x)
-	for j in range(1, 13):
-		var tau := 0.5 * float(j)
-		if a - tau < 0.0:
-			break
-		var pj := c.rel(a - tau)
-		if absf(wrapf(atan2(pj.y, pj.x) - head_a, -PI, PI)) > 0.7:
-			break
-		pj += pj.normalized() * 1.3 * maxf(A, 0.35) / maxf(sky._s, 0.05) * tau * tau
-		pj += L.star_pos(-1, tm - tau) - sky._a0
-		var sj := _on_band(pj)
-		# (stretched to the ion tail's length: on the flat band it fell under the head)
-		sj = hs + (sj - hs) * 2.0
+	# (in half blocks, so it is a solid fan and not a string of dots)
+	for k in range(2, 2 * n_dust + 1):
+		var u := float(k) * 0.5
+		var sj := hs + ad * 2.0 * u * 0.9 + side * DUST_BEND * u * u
 		if sj.distance_to(last) < 2.0:
 			continue
 		last = sj
 		if behind and sj.distance_to(so) < sr:
 			continue
-		var col: Color = DUST[mini(2, (j - 1) / 4)]
-		var al := 0.5 * maxf(A, 0.35) * fade * (1.0 - float(j) / 14.0)
+		var f := u / float(n_dust)
+		var col: Color = DUST[mini(2, int(f * 3.0))]
+		var al := 0.7 * maxf(A, 0.4) * fade * (1.0 - f * 0.8)
 		_blk(sj, Color(col, al))
-		if j > 6:
-			_blk(sj + ad.orthogonal() * 2.0, Color(col, al * 0.7))
+		# (wider as it goes: a second block beside it past its first third)
+		if f > 0.33:
+			_blk(sj + side * 2.0, Color(col, al * 0.6))
 	if behind and hs.distance_to(so) < sr:
 		return
 	# the coma, a soft plus, and the head

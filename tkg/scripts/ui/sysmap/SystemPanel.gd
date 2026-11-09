@@ -469,7 +469,7 @@ func _list() -> void:
 			open += 1
 	if all.is_empty():
 		_eyebrow("NOTHING OUT HERE WANTS YOU")
-	elif narrowed:
+	elif narrowed and not (filter == SystemLayout.COMET and shown.is_empty()):
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
 		_eyebrow("EVENTS · %d OPEN OF %d" % [open, all.size()])
@@ -480,7 +480,7 @@ func _list() -> void:
 			goes = true
 		else:
 			_box.add_child(_card(pair[0], pair[1]))
-	if narrowed and shown.is_empty() and not all.is_empty():
+	if filter >= 0 and shown.is_empty() and not all.is_empty():
 		_eyebrow("NOTHING HERE WANTS YOU", DIM)
 	if not narrowed:
 		_satellites()

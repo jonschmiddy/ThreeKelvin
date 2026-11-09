@@ -18,9 +18,22 @@ crossing the system in about a minute would not.
 
 The band draws the whole system smaller than the map does (`_s`), and it is
 flat (TILT 0.07), so the map's tail lengths left specks. The ion tail is
-held to at least ION_MIN blocks, and the dust tail is stretched to match it.
+held to at least ION_MIN blocks.
 
 The comet up close (a nucleus with LocalFx's lit tails, as `the_comet` draws
 one) belongs to Phase 13's catch, when the ship waits on its path and it goes
 by. That is part 5 of the build.
+```
+
+## Dust on the band
+
+Above `var trail := ...` in `_draw`:
+
+```text
+The map draws the dust tail where the dust it shed is now (its past places,
+pushed off the light). On LOCAL's flat band the comet's past places lie behind
+its motion, which near the star is back toward the star, so that tail pointed
+at the sun (the first render, Nov 9). The band draws the classic shape instead:
+out along the away line, bending (DUST_BEND, px per block squared) to the side
+the comet trails from, warm, and widening past its first third.
 ```

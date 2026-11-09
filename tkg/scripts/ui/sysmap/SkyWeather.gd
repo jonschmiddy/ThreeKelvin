@@ -2128,6 +2128,8 @@ class Comet extends Node2D:
 		var r := p.length()
 		var q := float(ev.q)
 		var A := clampf(pow(2.5 * q / maxf(r, 1.0), 2.0), 0.0, 1.0)
+		# (a comet you can click never fades below `a_min`: the weather's has none)
+		A = maxf(A, float(ev.get("a_min", 0.0)))
 		if grazer:
 			A = clampf(pow(5.0 * R0 / maxf(r, 1.0), 1.5) * 0.6, 0.0, 1.0)
 		# the comet comes in and goes out over its first and last five seconds
@@ -2280,7 +2282,7 @@ class RealComet extends Comet:
 	func _glow() -> void:
 		var p: Vector2 = comet_pos(ev, float(ev.age)) + a_at(float(view.t))
 		var hs: Vector2 = view.block_round(view.screen(p.x, p.y))
-		var A := clampf(pow(2.5 * float(ev.q) / maxf(p.length(), 1.0), 2.0), 0.0, 1.0)
+		var A := maxf(clampf(pow(2.5 * float(ev.q) / maxf(p.length(), 1.0), 2.0), 0.0, 1.0), float(ev.get("a_min", 0.0)))
 		var fade := clampf(float(ev.age) / 5.0, 0.0, 1.0) * clampf((float(ev.end) - float(ev.age)) / 5.0, 0.0, 1.0)
 		for bx in range(-6, 7):
 			for by in range(-6, 7):
