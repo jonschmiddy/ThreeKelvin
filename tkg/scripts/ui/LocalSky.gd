@@ -1697,10 +1697,16 @@ func _pn_theta0(vc: Vector2) -> float:
 ## it (`SystemMapScreen._parked`), or at the warp-in edge.
 func _situate() -> void:
 	var d: Dictionary = SystemMapScreen._parked.get(node.index, {})
-	orbit_target = -9
+	orbit_target = int(d.get("at", -9)) if not d.is_empty() else -9
+	# THE EVENT'S OWN PLACE: with an event open here, LOCAL draws its body behind
+	# the band, parked there or not (Jon, Nov 9, S2B)
+	# Why: docs/why/LocalSky.md#event-place
+	var ev := LocalEventDrawer.open_here(node)
+	var ev_at := layout.place_of(ev) if ev >= 0 else -9
+	if SystemLayout.is_place(ev_at):
+		orbit_target = ev_at
 	var p := Vector2(layout.edge, -210.0)
-	if not d.is_empty():
-		orbit_target = int(d.get("at", -9))
+	if not d.is_empty() or orbit_target != -9:
 		# (star B's close orbit in a system laid out with one sun is the star's,
 		# as the map, the site and the wrecks read it: `Run.star_site`)
 		if orbit_target == SystemLayout.STAR_B and not layout.twin:
@@ -1783,7 +1789,8 @@ func _build_near() -> void:
 	if not wants.is_empty():
 		side = 1.0
 	near_storm = wants.get("storm", {})
-	if tgt.world != &"":
+	var what := near_what()
+	if what == &"world":
 		var plan := near_plan()
 		var R := float(plan.R)
 		var at: Vector2 = plan.at
@@ -1808,7 +1815,7 @@ func _build_near() -> void:
 			_near_vp.add_child(mv)
 			_dress(mv)
 			_near.append([mv, m.at, F_NEAR * 1.1, float(m.r), &"moon", int(m.seed), {}])
-	elif tgt.kind == &"belt":
+	elif what == &"belt":
 		# A BELT'S ROCKS, close by: a drifting band of them behind the fight, the
 		# nearer bigger
 		for k in 16:
@@ -1823,7 +1830,7 @@ func _build_near() -> void:
 			_near_vp.add_child(rv)
 			_dress(rv)
 			_near.append([rv, rp, 0.25 + 0.3 * hz, rr, &"rock" if hz < 0.6 else &"iron", node.index * 13 + k, {}])
-	elif tgt.kind == &"derelict":
+	elif what == &"wreck":
 		# A WRECK: the hulk close by, broken, its shards round it
 		var w := _Wreck.new()
 		w.seed = node.index * 31 + orbit_target
@@ -1857,6 +1864,28 @@ func _light_vec(d: Vector2) -> Vector3:
 		var u := d.normalized() if d.length() > 0.001 else Vector2(-1.0, -0.6).normalized()
 		return Vector3(u.x, u.y, RADIANT_LIGHT_Z).normalized()
 	return Vector3(d.x, d.y, LIGHT_Z).normalized()
+
+
+## What the near picture holds at the place LOCAL is at, said without drawing
+## (headless builds none): `world` (a planet or giant), `belt`, `wreck`, `star`
+## (a close orbit), `hole` (the core's), or nothing (a contact, open space).
+func near_what() -> StringName:
+	if layout == null:
+		return &""
+	if orbit_target == -1 or (layout.twin and orbit_target == SystemLayout.STAR_B):
+		return &"star"
+	if orbit_target < 0 or orbit_target >= layout.bodies.size():
+		return &""
+	if layout.star == SystemLayout.StarKind.CORE:
+		return &"hole"
+	var b: SystemLayout.Body = layout.bodies[orbit_target]
+	if b.world != &"":
+		return &"world"
+	if b.kind == &"belt":
+		return &"belt"
+	if b.kind == &"derelict":
+		return &"wreck"
+	return &""
 
 
 ## World and moons worked out without drawing, so a headless test sees where they are.
