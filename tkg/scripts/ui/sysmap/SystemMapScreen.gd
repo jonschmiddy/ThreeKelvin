@@ -1,33 +1,9 @@
 class_name SystemMapScreen
 extends Control
 
-## THE SECTOR MAP (Jon: "a system map like Starfield's"): the system's star and
-## the worlds going round it, a beacon on whatever holds an encounter, your ship
-## among them. The picture is `SystemView`; what is drawn over it -- beacons,
-## selection, ship, hover tip -- is `SystemOverlay`; the panel holds the sector,
-## a body, or an encounter (`SystemPanel`).
-##
-## LAID OUT LIKE THE STAR CHART (Jon: "style the system page like the starchart
-## page"): a strip along the top, the map framed on the left with the star in
-## the middle of it, the panel on the right with the way on at its foot, and a
-## KEY along the bottom.
-##
-## THE MAP DRAWS INTO ITS OWN 960x540 PICTURE, shown in the frame. Its shadows,
-## palette, lens and star masks all read pixels off the screen, and a screen
-## that is the map's own cannot sit anywhere but where the map thinks it is.
-## Drawn straight into the game's picture it sat ten pixels under where it
-## assumed, because the HUD had grown, and every planet's shadow came off it
-## crooked (Jon: "the shadow of the planet being delayed").
-##
-## FLOWN, NOT PARKED (Jon picked the arcade orbits, F, of six mocked): WASD flies
-## your ship (`ShipFlight`); a world's ring takes it into orbit when you let go
-## inside it slowly, and a place's events open only while you are in orbit of it
-## or alongside it. Click once to select a place (the panel shows it, the map
-## holds a reticle on it); click it again to fly there on a transfer orbit;
-## click empty space to go back to the sector's list (Jon: "click once on an
-## object to update the focus of the right panel. click again on an object ...
-## travels to that object"). A choice taken anywhere else flies you there first.
-## The arrows and a drag pan the view; [ and ] step the events.
+## The sector map: a Starfield-like system view laid out like the star chart (Jon).
+## Drawn into its own 960x540 picture, as its shaders read pixels at a fixed position.
+## Why: docs/why/SystemMapScreen.md#sector-map
 
 signal beacon_opened(body: int, beacon)
 signal selection_changed(body: int)
@@ -41,18 +17,13 @@ const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 ## The chart's scan: a blip every this many pixels the cursor travels.
 const SCAN_STEP := 26.0
 const SCAN_LIMIT_MS := 38
-## THE CAMERA (Jon: "maybe allow to zoom? and include the same type of distance
-## graph ... [ ] LOCATION which would zoom you onto the planet or location you
-## are at"). The wheel zooms in steps the chart's size about the cursor, eased;
-## a drag pans; LOCATION zooms onto your ship and keeps it in the middle.
+## Camera: the wheel zooms about the cursor, a drag pans, LOCATION holds on your ship.
 const ZOOM_STEP := 1.12
 const ZOOM_LOCATION := 2.0
 ## THE ARROWS PAN at this many screen pixels a second, eased, the same at every zoom.
 const PAN_SPEED := 360.0
 const LOCATION_LABEL := "LOCATION"
-## The scale bar, in AU (80 of the plane's pixels to one, kept when the system
-## grew three times wider: the worlds now read 2 to 12 AU, which is what a real
-## system's span is), sized like the chart's.
+## Scale bar: 80 plane pixels per AU, kept when systems grew three times wider.
 const BAR_STEPS := [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0]
 const BAR_MAX_PX := 140.0
 const BAR_PAD := 12.0
@@ -63,17 +34,9 @@ const MAP := Vector2i(960, 540)
 const KEY := [[&"fight", "FIGHT"], [&"hazard", "HAZARD"], [&"salvage", "SALVAGE"],
 	[&"signal", "SIGNAL"], [&"contract", "CONTRACT"], [&"quest", "QUEST"], [&"dock", "DOCK"]]
 
-## WHERE THE SHIP WAS LEFT, by system: coming back from a fight, a dock or the
-## ship screen puts it back -- in orbit where it was, or where it was flying.
-## Saved with the run (`SaveGame`, VERSION 30), so a reload puts you back in
-## orbit where you were, LOCAL included. Per player and local: it is not on the
-## wire, as nobody else's map draws your ship in a system.
+## Where the ship was left, by system. Saved with the run; per player, not on the wire.
 static var _parked := {}
-## WHERE THE MAP LAST FLEW THE SHIP, by system: {at: the body (-1 the star),
-## n: which flight}, written as the ship turns onto an orbit by its own flight
-## (FLY HERE, GO, the keys), never as a visit puts it back where it was or a
-## jump brings it in. LOCAL plays its own arrival once a flight
-## (`SectorScreen._flyin_due`, Jon, Oct 21: "station:BC").
+## Where the map last flew the ship; LOCAL plays its arrival once a flight (Jon, Oct 21).
 static var flown_to := {}
 ## the flights counted, this run (each flight's `n`)
 static var flights := 0
@@ -95,9 +58,7 @@ var _danger_cells: HBoxContainer
 var _tier_text: Label
 var _names_btn: Button
 var _orbits_btn: Button
-## HOW THE MAP IS BEING LOOKED AT, static like the chart's toggles: the screen
-## is built anew on every visit, and the player should not have to hide the
-## names again after every jump. A session's preference, not the run's.
+## Static view toggles: the screen is rebuilt every visit. A session preference.
 static var names_on := true
 static var orbits_on := true
 var _transfer: TransferView = null
@@ -126,10 +87,7 @@ var _could_fly := false
 ## LOCATION was let go of by its button or L: glide back out to the opening
 ## framing (`open_zoom`, `home_at`).
 var _homing := false
-## A CAMERA GLIDE (Jon: "You zoom in and then jolt to the player's location"):
-## the zoom and the point looked at, eased together on one curve from where they
-## are to where they are going -- {kind ("loc", "body", "home"), body, z0, z1,
-## f0 (the point looked at, in the map's zoom-1 pixels), t0, dur}; {} for none
+## Camera glide: zoom and look-at point ease together on one curve (Jon: no jolt).
 var _glide: Dictionary = {}
 ## THE PLACE A RIGHT-CLICK ZOOMED ONTO, held in the middle as it moves (-1 the
 ## star), or -9
@@ -152,11 +110,7 @@ var _follow_key := ""
 ## The zoom that shows the whole system, worked out for its edge and the frame:
 ## the furthest out the wheel goes.
 var zoom_min := 1.0
-## THE OPENING FRAMING, which the map opens at and goes home to (a second
-## right-click, LOCATION let go of): its zoom, and the point it centres on in
-## the map's zoom-1 pixels from star A (`_look_at`). The whole system for one
-## sun and a close pair (`zoom_min`, star A); a wide pair's two suns and their
-## own worlds (`open_view`; Jon, Nov 1, "gap:A").
+## The opening framing and home: the whole system, or a wide pair's own part (Jon, Nov 1).
 var open_zoom := 1.0
 var home_at := Vector2.ZERO
 ## How much of the frame a wide pair's own part fills as the map opens
@@ -171,19 +125,14 @@ const SHIP_IN := 24.0
 const SHIP_PAD := 60.0
 ## A harness holding keys has no keyboard to check them against.
 var harness_keys := false
-## WHEN THE PLAYER LAST DID ANYTHING, and last zoomed (the wall clock, s): the
-## weather holds still for a zoom, and an idle player gets the next event sooner
-## (`SkyWeather`)
+## Last input time, so weather holds for a zoom and an idle player gets events sooner.
 var last_input_t := 0.0
 var last_zoom_t := -100.0
 
 
 func _init() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	# THE CLOUD PAST THE PICTURE (Jon, Oct 18, cloud:A): in a system inside a
-	# gas cloud, the map's own sky drawn again round its picture, across the
-	# screens' area, behind everything here (`nav_ext.gdshader`; placed and fed
-	# each frame by `NavField`)
+	# The gas-cloud sky is drawn past the picture, behind everything (Jon, Oct 18).
 	if NavField.used():
 		_gas_ext = TextureRect.new()
 		_gas_ext.name = "GasPastPicture"
@@ -202,11 +151,7 @@ func _init() -> void:
 	root.add_theme_constant_override("separation", 4)
 	add_child(root)
 
-	# THE TOOLBAR, the chart's own row (Jon: "do the danger bar the same style
-	# as the layer bar and do hide names etc. It should be the same height as
-	# the button bar for the starchart"): DANGER n/10 and its pips where the
-	# chart has LAYER, the tier where it has CORE, and two toggles that change
-	# what the map draws. No reach: "fuel is infinite basically in the sector".
+	# The toolbar copies the chart's row (Jon): DANGER and tier plus two toggles, no reach.
 	_strip = StarchartScreen.toolbar_row()
 	# (DANGER at the row's own start: the goal is below the plate, at the
 	# picture's top left -- Jon, Oct 20 -- not in the row: `GoalLine.fixed_at`)
@@ -275,9 +220,7 @@ func _init() -> void:
 	overlay = SystemOverlayS.new()
 	overlay.view = view
 	_vp.add_child(overlay)
-	# THE EDGE ARROWS (`SystemOverlay.mark_rects`), over the picture in the
-	# frame, so the key shader's edge fade (`NavField.EDGE_FADE`) never touches
-	# them
+	# Edge arrows sit over the framed picture, out of the key shader's edge fade.
 	var marks := _Marks.new()
 	marks.screen = self
 	marks.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -341,12 +284,8 @@ static func key_colour(tag: StringName) -> Color:
 ## whatever size the frame is.
 func _place_map() -> void:
 	var at: Vector2 = (_frame.size / 2.0 - Vector2(view.CX, view.CY)).round()
-	# ON THE GAME'S GRID: the map's 2x2 blocks on the same pixels as LOCAL's
-	# (whose sky is drawn from the picture's corner), so a world handed from one to
-	# the other (`ZoomLadder`, 2C) is the same pixels -- a block off by one pixel
-	# was every pixel of it different
-	# -- and on the same 8-pixel step, so the dithers drawn in its blocks (4 x 4,
-	# a block a step) fall on the same pixels too
+	# Map blocks sit on LOCAL's pixel grid and 8-pixel step, so a handed-over world matches.
+	# Why: docs/why/SystemMapScreen.md#pixel-grid
 	var g := _frame.global_position + at
 	var sx := posmod(roundi(g.x), 8)
 	var sy := posmod(roundi(g.y), 8)
@@ -359,12 +298,9 @@ func _place_map() -> void:
 ## station's system, alongside the station: arrive:B).
 func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> void:
 	_keep_ship()
-	# A FLIGHT UNDER WAY, THE MAP DRAWN AGAIN ROUND IT (`_on_style`: another
-	# rendering style, GRAPHICS LOW): its errand goes on with the ship that
-	# replaces this one (`_carry_on`). Its callback belonged to this ship and
-	# never ran: a GO's event, DOCK or ENGAGE was lost, and `_taking`, cleared
-	# only there, kept the map shut (no click, hover, zoom, drag, WASD or FLY
-	# HERE) until the player left it (the recheck's probe, Oct 31)
+	# A flight under way when the map is redrawn hands its errand to the new ship.
+	# Else its callback is lost and `_taking` keeps the map shut (Oct 31).
+	# Why: docs/why/SystemMapScreen.md#restyle-during-flight
 	var going: Dictionary = {}
 	if flight != null and not arrived and view.node == n:
 		going = flight.hand_over()
@@ -372,9 +308,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	view.t = t0
 	overlay.selected = -2
 	overlay.hover = {}
-	# (and the flight drawn for the selection: it names a place of the layout
-	# being left by its index, and the overlay planned it for the new ship
-	# before a step set it again, off the end of a smaller system's bodies)
+	# The selection's flight names the old layout's index, so replan it for the new ship.
 	overlay.preview_to = -9
 	overlay.flight = null
 	flight = null
@@ -404,9 +338,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	# as the binary-gap sheet showed a wide pair opened nearer)
 	view.home_zoom = zoom_min
 	_zoom_to = open_zoom
-	# THE SHIP: at the frame's right edge as arrived (at the opening framing, as
-	# high on screen as it ever was), or back where it was left in this system.
-	# One sun and a close pair: as they always were.
+	# The ship starts at the frame's right edge on arrival, else where it was left.
 	flight = ShipFlightS.new()
 	var ex := minf(view.layout.edge, home_at.x + (view.window.end.x - view.CX - 26.0) / open_zoom)
 	flight.setup(view.layout, Vector2(ex, oc.y - 210.0 * (zoom_min / open_zoom)), t0)
@@ -419,16 +351,12 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		# (a jump into a station's system arrives alongside the station:
 		# arrive:B, `Router._on_jumped`)
 		flight.place_at(view.layout.dock_place(), t0)
-	# YOUR SHIP ON THE PICTURE: a wide pair's framing that would leave it off,
-	# put back out on something that circles both suns, takes it in too, so the
-	# move down from LOCAL ends on it (`calm_rest`) and you can see where you are
+	# A wide pair's framing that leaves the ship off is widened to take it in.
 	if view.layout.pair_box(t0).size != Vector2.ZERO:
 		var sp := _ship_plane(t0)
 		var fs := _frame.size if _frame.size.x > 10.0 else SystemLayout.FIT_FRAME
 		var on: Vector2 = Vector2(view.CX, view.CY) + view.pan + Vector2(sp.x, sp.y * view.TILT) * open_zoom
-		# (the picture; before the frame is laid out its window is empty, and
-		# shrunk by SHIP_IN it was a box of negative size: then the frame it is
-		# fitted to, round the map's centre as `_place_map` lays it)
+		# Before layout the window is empty and shrinking it went negative, so use the frame.
 		var win: Rect2 = view.window
 		if win.size.x <= SHIP_IN * 2.0 or win.size.y <= SHIP_IN * 2.0:
 			win = Rect2(Vector2(view.CX, view.CY) - fs * 0.5, fs)
@@ -461,12 +389,8 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		_carry_on(going, taking)
 
 
-## THE ERRAND OF A FLIGHT THE MAP WAS DRAWN AGAIN ROUND (`ShipFlight.hand_over`):
-## the ship has been put where it was going if it was on its way (`ship_place`),
-## and what was to happen there happens now, once; if it was still planning or
-## riding round to leave, it was put back where it was leaving and flies there
-## now, keeping its choice, the map shut again for a GO as it was. Clicking never
-## loses anything: fly, then orbit, then open.
+## A redrawn map finishes the flight's errand once, so clicking never loses anything.
+## Why: docs/why/SystemMapScreen.md#flight-errand-handover
 func _carry_on(going: Dictionary, taking: bool) -> void:
 	var to := int(going.to)
 	var done: Callable = going.done
@@ -492,10 +416,7 @@ func _ship_plane(t: float) -> Vector2:
 	return Vector2(p.x, p.z)
 
 
-## THE ZOOM THAT SHOWS IT ALL: the system's edge with a margin, in the frame.
-## Before the frame is laid out it is the zoom the layout was fitted to
-## (`SystemLayout.open_zoom`, on its own 655x420 frame), called rather than
-## copied, so the two cannot drift; laid out, the same formula on the real frame.
+## Before the frame is laid out use the layout's own `open_zoom`, so the two cannot drift.
 func _fit_zoom() -> float:
 	var L: SystemLayout = view.layout
 	if _frame.size.x <= 10.0:
@@ -503,28 +424,13 @@ func _fit_zoom() -> float:
 	return zoom_for(L, view.node, _frame.size)
 
 
-## The zoom system L (of node n) opens at in a frame of size `fs`: its edge
-## fitted in it, and for two suns no further out than their rings were fitted
-## to (`_twin_floor`).
+## Opening zoom: the edge fitted in the frame, two suns no further out than their rings.
 static func zoom_for(L: SystemLayout, n: MapGen.MapNode, fs: Vector2) -> float:
 	return _twin_floor(L, n, fs, fit_zoom_in(L.edge, fs))
 
 
-## WHERE SYSTEM L (of node n) OPENS in a frame of size `fs`: {at, the plane
-## point the frame centres on, star A at the origin; zoom}. One sun and
-## a close pair: star A and the whole system (`zoom_for`), as they always
-## opened. A WIDE PAIR (Jon, Nov 1, "gap:A"): its own part (`pair_box`, the two
-## suns and the worlds round one of them) filling PAIR_FILL of the frame, never
-## further out than the whole system. Fitted to the whole system, the things
-## that circle both suns far out made the pair so small that a world round one
-## sun was drawn as little as 5 px from its sun's disc; framed on the pair it is
-## 28 px from it at the least (the wide pairs of seeds 7, 4242 and 1999). The
-## wheel still goes out to the whole system, and what circles both suns is
-## marked at the frame's edge until then (`SystemOverlay._draw_edge_marks`). `ship`, the
-## plane point your ship is at when the map is shown with it put back off that
-## framing (`show_system`): taken in too, with SHIP_PAD round it. `_t`: the map
-## time it opens at (the system's kept clock, `Run.map_clock`), which changes
-## nothing: a turning pair opens the same at every clock (below).
+## A wide pair opens on its own part (Jon, Nov 1) so a world is not drawn tiny against a sun.
+## Why: docs/why/SystemMapScreen.md#opening-view
 static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, _t: float, ship := Vector2.INF) -> Dictionary:
 	# (the zoom a float, not a vector's single-precision part: one sun opens at
 	# exactly the zoom it always did)
@@ -540,18 +446,8 @@ static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, _t: float
 	var z := clampf(minf(fs.x / (2.0 * (half.x + 20.0)), fs.y / (2.0 * (half.y + 20.0) * SystemLayout.SLANT + 60.0)), 0.1, 1.0)
 	if L.pair_n == 0.0:
 		return {"at": box.get_center(), "zoom": maxf(z, whole)}
-	# A TURNING PAIR (ruling 23) opens on its balance point, at the zoom the pair
-	# as laid out opens at, or further out where the whole circle the pair sweeps
-	# (`pair_reach`, and the ship put back) would not fit the frame at it with
-	# the whole system's margins (`fit_zoom_in`). Framed on the pair as it stood
-	# at the kept clock, the zoom went with the angle (upright, a pair stands
-	# 0.38 as wide on screen, the map's slant, so it opened nearer) and
-	# the pair turned off the picture within the visit (70 to 95 degrees in five
-	# minutes); framed on the circle it sweeps, the worlds round one sun opened
-	# as near their suns as 22.8 px (TwinSiteTest's sweep, every system a
-	# binary) against the 24 the framing is for. The balance point never moves, so this framing,
-	# and home (a second right-click, LOCATION let go), hold the whole visit, at
-	# every clock.
+	# A turning pair opens on its balance point, so the framing holds for the whole visit.
+	# Why: docs/why/SystemMapScreen.md#turning-pair-framing
 	var reach := Vector2.ONE * pair_reach(L)
 	if ship.is_finite():
 		reach = reach.max((ship - L.bary).abs() + Vector2.ONE * SHIP_PAD)
@@ -559,10 +455,7 @@ static func open_view(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, _t: float
 	return {"at": L.bary, "zoom": maxf(z, whole)}
 
 
-## HOW FAR FROM THE BALANCE POINT A TURNING WIDE PAIR REACHES at any angle of its
-## turn (plane px): each sun's distance from it and its disc, each world round
-## one sun its sun's distance plus its orbit and reach, with `pair_box`'s own
-## room round them. The turn is rigid, so this is the same at every t.
+## Reach of a turning pair at any angle; the turn is rigid, so the same at every t.
 static func pair_reach(L: SystemLayout) -> float:
 	var r := 0.0
 	for p in L.stars():
@@ -573,19 +466,8 @@ static func pair_reach(L: SystemLayout) -> float:
 	return r + SystemLayout.PAIR_PAD
 
 
-## TWO SUNS OPEN NO FURTHER OUT THAN THEIR RINGS WERE FITTED TO while nothing is
-## posted past the edge (`SystemLayout.fit_zoom`: "the map opens there or
-## nearer"), and only where the whole edge is still in the frame at it.
-## Measured on seed 4242 (`-- sheet=TwinSiteTest`): the edge alone fitted
-## opened twins at down to 0.9924 of their `fit_zoom`, their suns' floor drawn
-## wider than the rings round them were fitted to -- from two causes. The
-## layout fits on a 655x420 frame, which the map's is until a panel row asks
-## for more than its text column with the scroll bar up and the panel widens
-## (650x420: an event card naming a long world you orbit); and some twins' edge
-## reaches a little past the farthest the fit allowed for. A job or the
-## Hellbender posted past the edge opens the map further out, as it must to show
-## them (the drawing keeps the suns to their fitted size there). One sun opens
-## exactly as it did.
+## Twins open no further out than their rings were fitted to (measured 0.9924 on seed 4242).
+## Why: docs/why/SystemMapScreen.md#two-suns-zoom-floor
 static func _twin_floor(L: SystemLayout, n: MapGen.MapNode, fs: Vector2, z: float) -> float:
 	if not L.twin or L.fit_zoom <= 0.0 or z >= L.fit_zoom or posted_past(L, n):
 		return z
@@ -606,24 +488,14 @@ static func posted_past(L: SystemLayout, n: MapGen.MapNode) -> bool:
 	return false
 
 
-## `SystemLayout.open_zoom`'s formula for a frame of size `fs` (the layout's is
-## this at SystemLayout.FIT_FRAME): the edge and a 20 px margin across, and up
-## and down at the map's slant with 60 px for the words.
+## `open_zoom` for a frame of size `fs`: edge, 20 px margin, 60 px for the words.
 static func fit_zoom_in(edge: float, fs: Vector2) -> float:
 	return clampf(minf(fs.x / (2.0 * (edge + 20.0)), fs.y / (2.0 * (edge + 20.0) * SystemLayout.SLANT + 60.0)), 0.1, 1.0)
 
 
 # ---------------------------------------------------------------- the party
-## Where this ship is in the system, told to the party (`Net.report_spot`,
-## throttled there), so a partner's map draws it flying (Oct 22 playtest: "we
-## could not see each other flying around on the sector map"). In orbit of or
-## alongside a world it is said as the offset from that world, and in either
-## star's close orbit or settled round one sun as the offset from that sun: a
-## world's place on its orbit, and a turning pair's suns (PROTOCOL 14), are each
-## machine's own clock. With this map's clock, which is the party's.
-## `held`: the map's clock is not running (put away, or held for a move of the
-## ladder, `clock_held`), so no partner runs it on (`NetSession.party_t`); sent
-## at once when that changes.
+# Spots are sent as offsets from a world or sun, as each machine runs its own clock.
+# Why: docs/why/SystemMapScreen.md#party-spot
 func _report_spot(held := false) -> void:
 	if flight == null or view.node == null or view.layout == null or not Net.is_networked():
 		return
@@ -641,17 +513,38 @@ func _report_spot(held := false) -> void:
 	Net.report_spot(Run.at, body, p, float(flight.ang), false, view.t, host, held)
 
 
-## WHERE A JUMP INTO THIS SYSTEM PUTS A SHIP (`ShipFlight.setup`'s arrival
-## orbit, for the edge point this map's own ship came in at), kept as the map
-## is shown: a partner who has just arrived is drawn there.
+## Your flight, said once as it starts (PROTOCOL 17, `NetSession.report_flight`): its whole path,
+## so a partner draws the arc it flies; let go of before it lands, said too.
+## Why: docs/why/SystemMapScreen.md#flight-said-once
+var _said_key := 0
+var _said_end := 0.0
+var _said_to := -9
+const FLIGHT_SAY_DT := 1.0 / 60.0
+func _report_flight() -> void:
+	if flight == null or view.node == null or view.layout == null or not Net.is_networked() or view.node.index != Run.at:
+		return
+	var pl = flight.plan
+	if pl != null and pl.get_instance_id() != _said_key:
+		var sp: Array = flight.said_path(view.t, FLIGHT_SAY_DT)
+		if sp.size() == 4:
+			var dep: Dictionary = pl.dep
+			_said_key = pl.get_instance_id()
+			_said_end = view.t + float(sp[3])
+			_said_to = int(pl.to)
+			var shape := PackedFloat64Array([float(dep.get("host", -9)), float(sp[2]), float(sp[3])])
+			Net.report_flight(Run.at, _said_key, int(dep.get("place", -9)), _said_to, view.t, FLIGHT_SAY_DT, sp[0], sp[1], view.t, shape)
+			return
+	if _said_key != 0 and (pl == null or pl.get_instance_id() != _said_key):
+		if view.t < _said_end - 0.05 and flight.heading_to() != _said_to and flight.orbit_body() != _said_to:
+			Net.report_flight_off(Run.at)
+		_said_key = 0
+
+
+## Where a jump arrival puts a ship, so a partner who just arrived is drawn there.
 var _arrival_p := Vector2.INF
 
 
-## Where each partner in this system is on the plane, at this machine's clock:
-## `[[peer id, Vector2 plane point, angle, name, place], ...]`, the place the
-## spot was sent off (a world, either star's close orbit, -9 open space): the
-## overlay draws a partner on an orbit at the orbit's drawn size, as it does
-## your own ship. What the overlay draws and what `-- cojoin` reads.
+## Partners on the plane at this machine's clock; what the overlay draws and `-- cojoin` reads.
 func partner_points() -> Array:
 	var out: Array = []
 	if view == null or view.node == null or view.layout == null or flight == null:
@@ -661,6 +554,14 @@ func partner_points() -> Array:
 		var id := int(s.id)
 		if Net.where_is(id) != at:
 			continue
+		# ON ITS WAY (PROTOCOL 17): on the path it said as it left, its ends
+		# moved with their places to this clock (`NetSession.flight_point`)
+		var fl := Net.flight_of(id, at)
+		if not fl.is_empty():
+			var fp := NetSession.flight_point(fl, view.layout, view.t, Time.get_ticks_msec(), Net.spot_of(id, at))
+			if not fp.is_empty():
+				out.append([id, fp[0], float(fp[1]), String(s.get("name", "")).to_upper(), -9, true])
+				continue
 		var sp := Net.spot_of(id, at)
 		var body := int(sp.get("body", -10))
 		var q: Vector2
@@ -672,17 +573,12 @@ func partner_points() -> Array:
 				var c0: Vector3 = flight.center(dp, view.t)
 				q = Vector2(c0.x, c0.z) + Vector2(14.0, 0.0)
 			elif _arrival_p != Vector2.INF:
-				# (on the arrival orbit, where this map put its own ship: in a twin
-				# round both suns' balance point, which the frame's edge point by
-				# star A was a median 108 px off on screen; one sun 20)
+				# On the arrival orbit use this map's own ship point; the edge point was off.
 				q = _arrival_p
 			else:
 				q = Vector2(view.layout.edge, -210.0)
 		else:
-			# (as `_report_spot` sends it: off a world, off either star for its
-			# close orbit or settled round it, else as it is -- each put back
-			# where it is at this machine's clock, so a partner on a sun's orbit
-			# is drawn on that sun here though the two clocks differ)
+			# Each spot is put back at this machine's clock, so a sun-orbit partner draws right.
 			q = Vector2(float(sp.x), float(sp.z)) \
 				+ NetSession.spot_anchor(view.layout, body, int(sp.get("host", -9)), view.t)
 		out.append([id, q, float(sp.get("ang", PI)), String(s.get("name", "")).to_upper(), body if not sp.is_empty() else -10])
@@ -714,18 +610,12 @@ func _keep_ship() -> void:
 	# nothing: its system is the last run's)
 	if view.node.index >= Run.map.size() or Run.map[view.node.index] != view.node:
 		return
-	# THE SYSTEM'S MAP CLOCK, kept with the ship (`Run.map_clock`): the map opens
-	# here again, its suns and worlds where they were left, and the ship's spot
-	# (an absolute plane point for a free ship) means what it meant. Never back:
-	# a clock taken on since (LOCAL's, a partner's) stands
+	# Keep the map clock with the ship; never move it back, as LOCAL's or a partner's stands.
 	Run.map_clock[view.node.index] = maxf(view.t, Run.map_t(view.node.index))
 	# (and the partners told it holds there: map time does not run off the map)
 	_report_spot(true)
 	var at := ship_place()
-	# A FLIGHT LEFT ON ITS WAY lands where it was going (`ship_place`), counted
-	# as a flight there as it would have been on arrival, so LOCAL plays its own
-	# arrival (`flown_to`); once, though the map is put away twice (hidden, then
-	# out of the tree) and steps the ship between
+	# A flight left on its way lands where it was going, once, though the map is put away twice.
 	if flight.mode == &"fly" and SystemLayout.is_place(at) and flight.plan != _left_on_way:
 		_left_on_way = flight.plan
 		flights += 1
@@ -740,33 +630,18 @@ func _keep_ship() -> void:
 	_parked[view.node.index] = e
 
 
-## WHERE THE SHIP IS, as LOCAL is told it: a body, -1 the star's close orbit
-## (star A's), `SystemLayout.STAR_B` star B's, -9 none. Also what
-## `Router.at_station` reads off the map while LOCAL is built
-## ahead of the swap: it read `reached` there, so LOCAL opened as the ship burned
-## onto the station's orbit drew the station's world (this) with no station's
-## side and a bar saying to fly to the station (that), and the hab ring's picture
-## once the swap had made the two agree.
+## Where the ship is as LOCAL is told; `Router.at_station` reads this while LOCAL is built ahead.
+## Why: docs/why/SystemMapScreen.md#ship-place
 func ship_place() -> int:
 	if flight == null:
 		return -9
 	var at: int = flight.reached()
-	# BURNING ONTO AN ORBIT IS BEING AT THE WORLD, and riding out of one to
-	# leave it is still being at the old one (Jon, Oct 21: "Does the local view
-	# show the planet you are orbiting the first time you go to a planet?"). Kept
-	# as `reached`, which is neither until the burn is over, LOCAL opened as
-	# the ship came in drew open space with the world right there on the map,
-	# and the map, back, dropped the ship off its orbit. Put back, it is on that
-	# orbit (`_restore_ship`); a flight it was waiting to start is let go.
+	# Burning onto an orbit counts as being at the world (Jon, Oct 21); riding out is the old one.
+	# Why: docs/why/SystemMapScreen.md#ship-place
 	if not SystemLayout.is_place(at) and (flight.mode == &"rail" or flight.mode == &"keep"):
 		at = flight.orbit_body()
-	# AND A FLIGHT UNDER WAY IS AT THE PLACE IT IS GOING TO, as its arrival burn
-	# already is: the map left on the way (Tab, the HUD's tabs, SAVE & EXIT, the
-	# window closed) puts the ship there, in orbit or alongside, and LOCAL opens
-	# its event. Clicking never loses anything: fly, then orbit, then open. It
-	# put the ship back at the system's edge with the flight gone, which ruling
-	# 20's flights, about 24 s where they took 4 to 12, made several times as
-	# likely (the reviews, Oct 31)
+	# A flight under way counts as at its destination, so leaving the map mid-flight loses nothing.
+	# Why: docs/why/SystemMapScreen.md#ship-place
 	elif not SystemLayout.is_place(at) and flight.mode == &"fly" and SystemLayout.is_place(flight.fly_to):
 		at = flight.fly_to
 	return at
@@ -776,20 +651,13 @@ func _restore_ship(d: Dictionary) -> void:
 	if d.is_empty():
 		flight.place_at(-3, view.t)
 		return
-	# (a body the layout no longer has -- a save from before a change to how
-	# systems are laid out -- is the edge, not an index error; star B's close
-	# orbit in a system laid out with one sun is the star's, as its wrecks are,
-	# `Run.star_site`)
+	# A body the layout no longer has is the edge, not an index error.
 	var at := int(d.at)
 	if at == SystemLayout.STAR_B and not view.layout.twin:
 		at = -1
 	if SystemLayout.is_place(at) and at < view.layout.bodies.size() and StringName(d.get("mode", &"")) == &"rail" \
 			and d.has("p") and (d.get("v", Vector2.ZERO) as Vector2) != Vector2.ZERO:
-		# (ON ITS RING, where it was round its place and riding the way it rode:
-		# the map opens on the clock it was kept at, so the place is where it
-		# was, and `p` and `v` mean what they meant -- carried with the place
-		# when a partner's clock was taken since, `NetSession.carry_parked`. A
-		# record with no motion in it, a harness's, goes to +x as it did)
+		# On its ring, the place is where it was at the kept clock, so `p` and `v` still hold.
 		var c3: Vector3 = flight.center(at, view.t)
 		var cv3: Vector3 = flight.center_vel(at, view.t)
 		var rel: Vector2 = (d.p as Vector2) - Vector2(c3.x, c3.z)
@@ -811,14 +679,8 @@ func _enter_tree() -> void:
 		Sig.render_style_changed.connect(_on_style)
 
 
-## WRITTEN AS THE MAP IS PUT AWAY, not only as it leaves the tree (Jon: "when
-## transitioning from one planet to another I have to go to the local and then
-## the system and then the local again for the local to update"). `Router._swap`
-## hides the outgoing screen, then builds the next one at once, and only frees
-## this one at the end of the frame: LOCAL composed its sky (`LocalSky._situate`)
-## and its event bar (`LocalEventDrawer.here_now`) from the record the last visit
-## left, the world the ship had just flown away from. Every door off the map --
-## the HUD's tab, a fight, the dock, Tab, GO -- goes through that hide.
+## Written as the map is put away: `Router._swap` builds LOCAL before this one is freed.
+## Why: docs/why/SystemMapScreen.md#writing-on-put-away
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and not visible:
 		_keep_ship()
@@ -893,6 +755,14 @@ func _process(delta: float) -> void:
 		_catch_up(delta)
 	_step_ship(delta, hold)
 	_report_spot(held)
+	_report_flight()
+	# A CLICK MADE WHILE THE SHIP SPUN DOWN onto its ring (`_after_spin`), now
+	# it is on it
+	if _after_spin.is_valid() and flight != null and not flight.spinning():
+		var c := _after_spin
+		_after_spin = Callable()
+		if flight.can_fly():
+			c.call()
 	_step_camera(delta)
 	overlay.mark_keep = mark_keep()
 	# THE BELT POINTED AT (or selected) brightens, eased in with the hover
@@ -908,42 +778,15 @@ func _process(delta: float) -> void:
 	view.belt_t = lt
 
 
-## THE MAP'S CLOCK HOLDS (ruling 23) for the length of a move of the zoom
-## ladder (`ZoomLadder.busy`, its camera `cam_held`, the calm move too: from the
-## click, where the clock is kept, `_keep_ship`) and while it waits built ahead
-## of one (`ZoomLadder.prebuilt`, at no opacity): a pair's suns turn on the map's time,
-## and LOCAL holds the angle it was handed (`Run.map_t`) for its visit, so the
-## pair stands where both pictures have it across the swap. Running on through
-## a move, the suns had moved by the time the map was seen (a map built ahead
-## ticked while it waited) or LOCAL's had not (a move down onto the ship), and
-## a map built ahead and dropped wrote its moved clock back (`_keep_ship`).
-## YOUR SHIP HOLDS WITH IT (Jon, Nov 2, "Pair calls: 4A"; one sun too): stepped
-## by no time (`ShipFlight.step`), its ride round its ring or orbit stops with
-## the suns and the worlds and goes on with them, from the very point, so
-## nothing moves against a still picture. Riding on by frame time it went round
-## its world held still for the second or so of a move: turning back on the
-## line a ladder move draws it on (CalmLadderTest, 6.8 px), and every preview
-## planned in the hold came back stale, the ship off where it was planned from,
-## so it was planned again every frame of the hold. Partners drawn here hold
-## too (`SystemOverlay._draw_partners`).
-## And hidden (put away, about to be freed): it wrote its clock as it went
-## (`_keep_ship`), and a frame more run on past the one LOCAL took was written
-## again on the way out.
+## The map clock holds during a ladder move so both pictures show the pair at one angle.
+## The ship holds with it (Jon, Nov 2), or it moves against a still picture.
+## Why: docs/why/SystemMapScreen.md#clock-hold
 func clock_held() -> bool:
 	return cam_held or ZoomLadder.busy() or ZoomLadder.prebuilt_screen() == self or not is_visible_in_tree()
 
 
-## CATCHING UP WITH THE PARTY (PROTOCOL 14): a map behind a partner's in the
-## same system runs faster until it is there, never past it and never back: by
-## the gap over CATCH_S, at least CATCH_K and at most CATCH_MAX faster than
-## time, so a gap closes in seconds and smoothly (from CATCH_CUT, the most a
-## map out of LOCAL opens behind, `NetSession.handed_clock`, in about 18 s). A
-## map handed its pair by LOCAL opens on LOCAL's clock, not the party's
-## (`Router.pair_handed`), so a peer that only goes map to LOCAL and back would
-## otherwise never come level; at CATCH_K alone it fell further behind on every
-## visit that was more than a quarter of its time on the map (review 2). Not
-## while the ship flies a plan (a flight is a plan on map time), so only the
-## suns, the worlds and what rides with them go faster for a while.
+## A map behind a partner runs faster until level, never past it and never back (PROTOCOL 14).
+## Why: docs/why/SystemMapScreen.md#catching-up-with-party
 const CATCH_K := 0.25
 const CATCH_S := 4.0
 const CATCH_MAX := 2.0
@@ -957,10 +800,7 @@ func _catch_up(delta: float) -> void:
 		view.t = minf(view.t + delta * clampf((pt - view.t) / CATCH_S, CATCH_K, CATCH_MAX), pt)
 
 
-## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the
-## dotted line is run forward, and the panel follows the ship into an orbit.
-## The ship is stepped by no time while the clock holds for a move (`hold`,
-## `clock_held`); a harness's `frozen` clock still steps it.
+## The ship is stepped by no time while the clock holds; a harness's `frozen` clock still steps it.
 func _step_ship(delta: float, hold := false) -> void:
 	# (flight plans let go of, a freed ship's among them, waited for once done:
 	# never in a frame before they are, `ShipFlight.reap`)
@@ -1010,9 +850,7 @@ func _step_ship(delta: float, hold := false) -> void:
 		var was := _was_at
 		_was_at = now
 		if SystemLayout.is_place(now) and not _taking:
-			# IN ORBIT: the panel opens that place, its events now open; heard
-			# even when it was already the one selected -- unless another place
-			# was picked on the way, which stays picked (its flight shows now)
+			# In orbit the panel opens that place, unless another place was picked on the way.
 			if overlay.selected == now:
 				_sound(&"chart_select", 0.04, 60)
 			if SystemLayout.is_place(overlay.selected) and overlay.selected != now:
@@ -1023,9 +861,7 @@ func _step_ship(delta: float, hold := false) -> void:
 			panel.show_body(panel.filter)
 
 
-## THE KEYS ARE BINDINGS (`Keys`): the four that fly the ship, by the w/a/s/d
-## names `ShipFlight` and `-- sheet=FlightClip` read, and the four that pan the
-## view. WASD and the arrows out of the box.
+## The keys are bindings (`Keys`): four fly the ship by the names `ShipFlight` reads.
 const FLY_KEYS := {&"ship_thrust": "w", &"ship_left": "a", &"ship_brake": "s", &"ship_right": "d"}
 const PAN_KEYS := {&"map_left": Vector2.LEFT, &"map_right": Vector2.RIGHT,
 	&"map_up": Vector2.UP, &"map_down": Vector2.DOWN}
@@ -1092,9 +928,7 @@ func _glide_to(kind: String, body: int, z1: float, dur: float = GLIDE_S) -> void
 	_locked = false
 
 
-## A glide a frame on: the zoom eased geometrically, the point looked at eased
-## toward where its target is now, both on the same curve; at the end, held.
-## Returns whether one is under way.
+## Zoom eases geometrically and the look-at point eases to its target on the same curve.
 func _step_glide() -> bool:
 	if _glide.is_empty():
 		return false
@@ -1121,12 +955,8 @@ func _step_glide() -> bool:
 	return true
 
 
-## RIGHT-CLICK (Jon: "If you right-click a planet that is selected, it should
-## zoom the camera onto that planet. A second right-click zooms all the way
-## out"): onto the selected place, held there as it moves; again, or on empty
-## space, back out to the opening framing: the whole sector, or a wide pair's
-## own part (`open_view`; the wheel goes out the rest). A fixed control (a
-## mouse button: the rebindable keys are keys), listed in Settings > CONTROLS.
+## Right-click zooms onto the selected place, again goes home (Jon). Fixed, not rebindable.
+## Why: docs/why/SystemMapScreen.md#right-click
 func right_click(h: Dictionary) -> void:
 	var b: int = int(h.get("body", -9)) if not h.is_empty() else -9
 	# (a star is the one under the pointer, -1 or STAR_B: `SystemOverlay.hit`)
@@ -1178,9 +1008,7 @@ func _step_camera(delta: float) -> void:
 			view.pan = a + (o - a) * (nz / z) - c
 		view.zoom = nz
 	if _location_on:
-		# THE SHIP, worked out from its orbit at this moment and at this zoom:
-		# eased onto at first, then held exactly, so it does not shake; in orbit of
-		# a world, the WORLD, so the camera does not circle with the ship
+		# Worked out for the ship at this zoom; in orbit the world, so the camera does not circle.
 		var on_world: int = int(flight.rail.body) if flight != null and flight.mode == &"rail" and int(flight.rail.body) >= 0 else -9
 		var key := "w%d" % on_world if on_world >= 0 else "ship"
 		if key != _follow_key:
@@ -1236,9 +1064,7 @@ func _clamp_pan() -> void:
 
 func _zoom_by(f: float, at: Vector2) -> void:
 	last_zoom_t = Time.get_ticks_msec() / 1000.0
-	# (the wheel stops at either end: LOCAL and the chart are Tab and the tabs,
-	# never the wheel -- `ZoomLadder`)
-	# a glide under way ends where it is, the wheel taking over
+	# The wheel stops at either end: LOCAL and the chart are Tab and the tabs (`ZoomLadder`).
 	if not _glide.is_empty():
 		_glide = {}
 		_zoom_to = view.zoom
@@ -1247,9 +1073,7 @@ func _zoom_by(f: float, at: Vector2) -> void:
 	_homing = false
 
 
-## LOCATION, by its button or L. On, it zooms onto your ship and holds it;
-## off, it glides back out to the opening framing (Jon: "unclicking location
-## should zoom you all the way out"; a wide pair's is its own part, `open_view`).
+## On, LOCATION zooms onto the ship; off, it glides back to the opening framing (Jon).
 func _on_location() -> void:
 	_location_on = not _location_on
 	_paint_location()
@@ -1262,9 +1086,7 @@ func _on_location() -> void:
 		_glide_to("home", -9, open_zoom)
 
 
-## L FOR LOCATION, as on the star chart (`StarchartScreen._unhandled_key_input`).
-## WASD and the arrows are HELD (a state, not a press: two keys move diagonally
-## and letting one go leaves the other running), as on the star chart.
+## Movement keys are held states, so two keys go diagonal and letting one go keeps the other.
 func _unhandled_key_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
 	if k == null or k.echo:
@@ -1322,13 +1144,8 @@ func _map_at(p: Vector2) -> Vector2:
 	return p - _box.position
 
 
-## A GO UNDER WAY (`_taking`, about 27 s of flight on map time) leaves the VIEW
-## the player's: the pointer hovers and its tip shows, the wheel zooms, a drag
-## pans (and lets go of LOCATION, as any drag does), a right-click zooms. What
-## would fly, select or open is refused until it lands -- a click (`tap`),
-## FLY HERE, GO and WASD -- so its errand is the one that runs, once (Nov 1: the
-## whole map was shut for the flight). The zoom down onto the ship after it
-## (`_diving`) keeps the camera to itself, as it did.
+## During a GO the view stays the player's, but what would fly, select or open is refused (Nov 1).
+## Why: docs/why/SystemMapScreen.md#go-in-flight
 func _on_map_input(e: InputEvent) -> void:
 	last_input_t = Time.get_ticks_msec() / 1000.0
 	if _transfer != null or _diving:
@@ -1355,6 +1172,11 @@ func _on_map_input(e: InputEvent) -> void:
 		if _scan_px >= SCAN_STEP:
 			_scan_px = fmod(_scan_px, SCAN_STEP)
 			_sound(&"chart_scan", 0.08, SCAN_LIMIT_MS)
+	elif e is InputEventGesture:
+		var f := StarchartScreen.MapChart.gesture_zoom(e, ZOOM_STEP)
+		if f != 1.0:
+			_zoom_by(f, _map_at((e as InputEventGesture).position))
+		_frame.accept_event()
 	elif e is InputEventMouseButton:
 		var mb := e as InputEventMouseButton
 		match mb.button_index:
@@ -1388,9 +1210,7 @@ func _on_map_input(e: InputEvent) -> void:
 
 
 # ---------------------------------------------------------------- panel calls
-## ONE CLICK SELECTS (the panel shows the place, the map holds a reticle on it);
-## A SECOND CLICK ON THE SELECTION FLIES THERE; empty space goes back to the list.
-## A beacon selects its world with its event open; clicked again, it flies.
+# One click selects, a second flies there, and empty space goes back to the list.
 func tap(h: Dictionary) -> void:
 	if h.is_empty():
 		panel_back()
@@ -1422,12 +1242,8 @@ func select_body(i: int) -> void:
 	panel.show_body(i)
 
 
-## Opens a beacon in the panel: an encounter's page, or for DOCK, HARVEST and
-## the custodian the list narrowed to where it is, its card holding the button.
-## The pulsar's own beacon (body -1) is on the star.
-## OPENS IT, AND ONLY THAT (Jon: "clicking on a beacon and immediately moving
-## there is kinda disorienting"): the encounter comes up in the panel and its
-## world is selected; the ship stays put until you choose something.
+## Opening a beacon only selects its world; the ship stays put until you choose (Jon).
+## Why: docs/why/SystemMapScreen.md#opening-a-beacon
 func open_beacon(body: int, bc) -> void:
 	_sound(&"chart_select", 0.04, 60)
 	overlay.selected = body
@@ -1435,15 +1251,16 @@ func open_beacon(body: int, bc) -> void:
 	panel.show_beacon(body, bc)
 
 
-## THE TRIP COMES WITH THE CHOICE: into orbit of `body` (or alongside it) and then
-## do `then`, or just do it if the ship is already there. The map takes no
-## clicks on the way.
+## The trip comes with the choice: into orbit, then do `then`. No clicks on the way.
 func _go_then(body: int, then: Callable) -> void:
 	if flight.reached() == body:
 		then.call()
 		return
 	# ONLY OUT OF AN ORBIT (Jon: "You have to be IN AN ORBIT ... AND THEN CLICK
 	# to go to another planet"): anywhere else the panel says so and nothing flies
+	# (spinning down onto it after a fast flight, it flies once that is over)
+	if _wait_spin(func() -> void: _go_then(body, then)):
+		return
 	if not flight.can_fly():
 		return
 	# (from the berth: refused, UNDOCK is the only way out, `Router.cast_off`)
@@ -1455,19 +1272,11 @@ func _go_then(body: int, then: Callable) -> void:
 		then.call())
 
 
-## A flight. Heard on the thrust loop, as every burn is (`ShipFlight.step`): the
-## station's arrival flameout used to play here, and its gated sputter was the
-## ticking Jon heard as each flight ended ("still getting a ticking noise when
-## the thruster is activated or ends").
+## Flights sound on the thrust loop; the old arrival flameout's sputter was the ticking Jon heard.
 func _fly(body: int, done: Callable) -> void:
-	# LANDING IS THE FLIGHT'S OWN BUSINESS: the callback decides what the panel
-	# shows (a choice's result, or the place), so the frame's own "arrived in
-	# orbit" must not open the place over it
-	# THE FLIGHT DRAWN BEFORE IT IS THE ONE FLOWN: the preview's own plan while
-	# its departure is still ahead, else one planned on a worker keeping the
-	# preview's choice (ruling 20's solved flights take a median of 40 ms in a
-	# twin, too long for the frame of a click), the ship riding on meanwhile;
-	# one that finds nothing puts the ship in orbit there (`ShipFlight.fly_bg`)
+	# The callback decides what the panel shows, so the frame's arrival must not open the place.
+	# The flight drawn is the flight flown: reuse the preview's plan or plan on a worker.
+	# Why: docs/why/SystemMapScreen.md#flying
 	var near: bool = overlay.preview_to == body
 	var prefer: Dictionary = overlay._pv_choice if near else {}
 	var ok: bool = flight.fly_bg(body, view.t, func() -> void:
@@ -1508,10 +1317,21 @@ func _body_of_beacon(bc) -> int:
 	return -1
 
 
-## Your ship into orbit of place `i` (-1 the star, star A of two suns;
-## `SystemLayout.STAR_B` (-4) star B), or alongside it; the panel stays on it
-## and opens it there.
+## A CLICK WHILE THE SHIP SPINS DOWN ONTO ITS RING after a fast flight (at most
+## `ShipFlight.SPIN_S`, when `can_fly` is false): kept and made once it is on
+## it, where it was dropped (the code review, Nov 5). The last one made wins.
+var _after_spin := Callable()
+func _wait_spin(c: Callable) -> bool:
+	if flight == null or not flight.spinning():
+		return false
+	_after_spin = c
+	return true
+
+
+## Your ship into orbit of place `i` or alongside; the panel stays on it and opens it.
 func fly_to_body(i: int) -> void:
+	if not _taking and _wait_spin(func() -> void: fly_to_body(i)):
+		return
 	if _taking or not flight.can_fly():
 		return
 	# (from the berth: refused, UNDOCK is the only way out, `Router.cast_off`)
@@ -1571,17 +1391,11 @@ func panel_back() -> void:
 	panel.show_system()
 
 
-## GO: an event is not taken here any more (Jon: events resolve on LOCAL,
-## `LocalEventDrawer`). The ship flies to where it stands, as a choice used to fly
-## it, then the view zooms down onto the ship and LOCAL comes up composed for
-## that place, the event lifting from the bottom of it.
+## GO flies to where the event stands, then zooms down to LOCAL, where it resolves (Jon).
 func go_event(i: int) -> void:
 	if _taking:
 		return
-	# DOCKED, GO IS A WAY OUT, AND UNDOCK IS THE ONLY ONE (Jon, Oct 27). An event
-	# at the station's own body needs no flight, so nothing refused it: GO went
-	# straight down to LOCAL and undocked there. Refused, and it says how to
-	# leave (`Router.cast_off`, the same words as the HUD and the panel).
+	# Docked, GO is refused and says how to leave: it used to undock via LOCAL (Jon, Oct 27).
 	if Router.docked:
 		Router.cast_off()
 		return
@@ -1625,9 +1439,7 @@ func _zoom_down(i: int) -> void:
 func take_action(bc) -> void:
 	if _taking:
 		return
-	# DOCK ONLY AT THE STATION (dock:A). It used to fly you there and dock on
-	# arrival from anywhere in the system; now its card is greyed until you are
-	# there, and this door refuses the same, whoever presses it.
+	# DOCK only at the station (dock:A): the card is greyed and this door refuses too.
 	if bc != null and bc.dock and not Router.docked and not ship_reached(_body_of_beacon(bc)):
 		Audio.denied()
 		return
@@ -1704,11 +1516,8 @@ func _close_transfer() -> void:
 
 
 # ------------------------------------------------------------ the zoom ladder
-## THE MAP AS ONE DISTANCE OF FOUR (`ZoomLadder`): its camera, moved by the
-## ladder for the length of a move; where your ship (your star, the world you
-## orbit) is on screen; the picture's frame. k is 0 at rest and 1 at the
-## distance toward the other screen: onto your ship at the closest zoom for
-## LOCAL and the station, back out past the whole sector for the chart.
+# The map as one distance of four: the ladder moves its camera for the length of a move.
+# Why: docs/why/SystemMapScreen.md#zoom-ladder
 var cam_held := false
 var _lad := {}
 
@@ -1725,23 +1534,13 @@ func ladder_scale() -> float:
 	return view.zoom
 
 
-## The plane's origin on screen, in the game's picture: what `ship_rel` and
-## `place_rel` are measured from. The one star is there; a pair's star A only
-## at t 0 (ruling 23: the pair turns), so what the ladder means by your star is
-## `_ladder_star`.
+## Plane origin on screen; a pair's star A is there only at t 0, hence `_ladder_star`.
 func _ladder_origin() -> Vector2:
 	return _frame.global_position + _box.position + Vector2(view.CX, view.CY) + view.pan
 
 
-## YOUR STAR ON SCREEN, in the game's picture: star A where the pair has it
-## now (`SystemOverlay.place_rel`), the one star at the origin. The chart's mark
-## for your system is a burst for star A with star B small at its lower right
-## (`StarchartScreen._TWIN`), so star A is what a move to and from the chart
-## carries onto that mark (1A: `ladder_anchor`, `sun0`), the sun its hole shows
-## (`ladder_sun`), and the star LOCAL's plane is laid onto (`ladder_plane`).
-## Anchored on the plane's origin, a pair's moves carried an empty point where
-## star A had been at t 0 onto the chart's star. The map's clock holds for the
-## move (`clock_held`), so star A stands still under it.
+## Star A where the pair has it now, or a move to the chart carried an empty point.
+## Why: docs/why/SystemMapScreen.md#ladder-star
 func _ladder_star() -> Vector2:
 	return _ladder_origin() + overlay.place_rel(-1)
 
@@ -1812,9 +1611,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 	if seam == 1 and design == "A":
 		z1 = zoom_min * 0.12
 		_lad_min_r = SystemViewS.min_r
-	# 2C: the world you orbit grown on the map itself, live, to most of the size
-	# LOCAL draws it at, and carried toward where LOCAL draws it -- so the held
-	# picture has little left to do, and both halves keep one speed
+	# 2C: the world grows on the map toward LOCAL's size, so the held picture has little to do.
 	var aim := {}
 	var b := _ladder_body()
 	if seam == 2 and design == "C" and b >= 0 and other > ZoomLadder.MAP:
@@ -1876,18 +1673,14 @@ func ladder_cam(k: float) -> void:
 	_zoom_to = z
 	if not (_lad.get("aim", {}) as Dictionary).is_empty():
 		overlay.visible = k < 0.75
-		# and the faint fabric of space and the orbits, drawn over the worlds in
-		# the map's own pixels, thinned away as the world comes close: LOCAL has
-		# neither, and the world handed over is the world without them
+		# Fabric and orbits thin away as the world nears, as LOCAL has neither.
 		var fa := clampf((0.8 - k) / 0.3, 0.0, 1.0)
 		for c: CanvasItem in [view._fabric, view._lines]:
 			if c != null:
 				c.modulate.a = fa
 
 
-## How far each half of a move travels, log scale: this screen's own zoom, and
-## then the held picture's growth into the next screen (2C: the world's size on
-## the map at the end of its zoom to its size on LOCAL).
+## Each half's travel on a log scale: this screen's zoom, then the held picture's growth.
 func ladder_spans() -> Vector2:
 	if _lad.is_empty():
 		return Vector2.ZERO
@@ -1928,10 +1721,7 @@ func ladder_cam_end() -> void:
 
 
 # ------------------------------------------------------------ the calm move
-## THE CALM MOVE (`ZoomLadder`, Jon's pick A, Oct 17): the map's camera placed
-## by where your ship is on screen and how far in it is against rest -- the
-## zoom about your ship, never about the sun or the world you orbit, so your
-## ship walks one straight line and nothing swings round it.
+# The calm move (Jon's pick A, Oct 17): zoom about your ship so it walks one straight line.
 
 ## The base of the map's picture: where the star is drawn with no pan.
 func _calm_base() -> Vector2:
@@ -1984,12 +1774,8 @@ func calm_end() -> void:
 	_zoom_to = zt
 
 
-## THE MAP'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
-## moves and comes back after it lands, never during): the key, the scale bar
-## and LOCATION, and the words over the worlds (a label magnified with the
-## picture is a smear of letter-sized blocks). NOT the panel nor the danger
-## strip: they stay through the move and swap in place for the next screen's
-## (`ladder_side`, `ladder_bar`, `SideSwap`; Jon, Oct 13).
+## The map's UI leaves before the camera moves and returns after; the panel and strip stay.
+## Why: docs/why/SystemMapScreen.md#ladder-ui
 var _key_row: Control = null
 var _scale_bar: Control = null
 
@@ -2022,14 +1808,8 @@ func ladder_chrome(k: float) -> void:
 
 ## THE WORLD YOU ORBIT, GIVEN AWAY (2C): the map's own picture of it -- the node,
 
-## its surface's memory and every value its shader was last given -- taken out of
-## the map as it goes, for LOCAL to draw on (`LocalSky.adopt_near`). {} when the
-## ship orbits nothing the map draws as a turning world.
-## THE WORLD AS THIS FRAME WILL DRAW IT, taken by the ladder after its own
-## camera step each frame of the way in: the map steps its worlds at the top of
-## a frame from the camera the frame before, so what is on screen is always a
-## frame behind what the map holds now -- and the picture held at the swap is the
-## last one drawn. What is handed over is that, not the map's next frame.
+## The world is taken as this frame will draw it, a frame behind what the map holds now.
+## Why: docs/why/SystemMapScreen.md#world-handover
 var _world_peek := {}
 
 
@@ -2084,9 +1864,7 @@ func ladder_give_world() -> Dictionary:
 	if not _world_peek.is_empty():
 		for k in ["screen", "params", "t", "light", "spec_r"]:
 			out[k] = _world_peek[k]
-	# ITS SURFACE'S MEMORY, as last drawn: a picture taken out of the tree loses
-	# what its viewports held, and a world that had to start its memory afresh
-	# came back a shade off in most of its pixels
+	# Keep its surface memory, or the world came back a shade off in most pixels.
 	var mvp: Variant = v.get("_mem_vp")
 	if mvp is SubViewport and (mvp as SubViewport).get_texture() != null and DisplayServer.get_name() != "headless":
 		var img := (mvp as SubViewport).get_texture().get_image()
@@ -2099,9 +1877,7 @@ func ladder_give_world() -> Dictionary:
 	return out
 
 
-## The plane as the map draws it: your star on screen (`_ladder_star`), plane
-## px to screen px, and the slant (for laying the map down into LOCAL's plane,
-## whose star is star A).
+## The plane as drawn: your star on screen, plane to screen scale and the slant.
 func ladder_plane() -> Dictionary:
 	if not ladder_ready():
 		return {}
@@ -2127,10 +1903,7 @@ func ladder_world() -> Dictionary:
 	return {"c": _ladder_origin() + overlay.place_rel(b), "r": view.draw_r(view.layout.bodies[b])}
 
 
-## WHAT THE EDGE MARKS KEEP OFF (`SystemOverlay._draw_edge_marks`) that the
-## overlay does not draw itself, in its space: the goal and its step's room at
-## the picture's top left (`GoalLine.stack_rect`), and the instrument at its
-## bottom right, LOCATION and the scale bar with its words.
+## What the edge marks keep off that the overlay does not draw itself.
 func mark_keep() -> Array:
 	var o := _frame.global_position + _box.position
 	var out: Array = []
@@ -2176,18 +1949,14 @@ class _Scale extends Control:
 			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, ink)
 
 
-## THE EDGE ARROWS (Jon, Nov 2, "Edge arrows: C"): the overlay's
-## (`SystemOverlay.mark_rects`, in the picture's own space), drawn over the
-## picture where it sits in the frame, out of the key shader's edge fade.
-## Redrawn when the overlay has drawn (`marks_drawn`), so never a frame behind
-## the picture, and each frame while it shows any (for the overlay hidden).
-## None while a move of the zoom ladder (or the calm move) runs: the key shader
-## dissolves the picture into its cloud then (`round_k`), and these stood crisp
-## over it. None under the hover tip, which covers an arrow.
+## Edge arrows (Jon, Nov 2) draw over the picture, out of the key shader's fade.
+## Why: docs/why/SystemMapScreen.md#edge-arrows
 class _Marks extends Control:
 	var screen
 	## how many rects it drew last (a harness's)
 	var drawn := 0
+	## and how many names
+	var named := 0
 
 	func _process(_d: float) -> void:
 		if drawn > 0:
@@ -2195,6 +1964,7 @@ class _Marks extends Control:
 
 	func _draw() -> void:
 		drawn = 0
+		named = 0
 		var ov = screen.overlay
 		if ov == null or not ov.is_visible_in_tree() or not screen._box.is_visible_in_tree():
 			return
@@ -2213,3 +1983,14 @@ class _Marks extends Control:
 				continue
 			draw_rect(Rect2(r.position + o, r.size), e[1])
 			drawn += 1
+		var f := UITheme.pixel_font()
+		for e: Array in ov.mark_words:
+			if tip.has_area() and tip.intersects(e[3]):
+				continue
+			var c: Color = e[2]
+			var s := LowHull.scr(self, String(e[1]), UITheme.FS_SMALL, f)
+			for d: Vector2 in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]:
+				draw_string(f, (e[0] as Vector2) + o + d, s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL,
+					Color(SystemOverlayS.MARK_DARK, 0.8 * c.a))
+			draw_string(f, (e[0] as Vector2) + o, s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, c)
+			named += 1

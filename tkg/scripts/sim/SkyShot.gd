@@ -1,22 +1,8 @@
 extends RefCounted
 
-## The screens that are not the sector, photographed against the sky.
-##
-##   godot --path . -- skyshot
-##
-## `SpaceLayer` gave a world to nine screens that had been panels on the clear
-## colour, and "the refit bay has a sky now" is not a claim anybody should make
-## from reading a diff. This opens each of them on a real run and saves a frame,
-## so the answer is a picture.
-##
-## It also photographs the two that must NOT change — the station, which is an
-## interior, and the starchart, which draws its own galaxy — because the way
-## this feature breaks is not by failing to appear. It is by appearing somewhere
-## it was ruled out of.
-##
-## NOT HEADLESS. The dummy display server never emits `frame_post_draw`, so a
-## headless run of this hangs and looks exactly like a crash. Same note as
-## StationShot, for the same reason.
+## Photographs the nine sky screens and the two that must not change: it breaks by appearing.
+## Not headless: the dummy display never emits `frame_post_draw`, so it hangs like a crash.
+## Why: docs/why/SkyShot.md#sky-shot
 
 ## Screen name -> the Router call that opens it. Ordered so the two controls
 ## come last and the eye ends on them.
@@ -47,9 +33,8 @@ func run(tree: SceneTree) -> void:
 		Rng.forced = 20260912
 	print("  [seed] %d" % Rng.forced)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	# A system with something in the sky to see. The backdrop rolls its subject
-	# off the node's own axes, so an empty rim system would photograph as stars
-	# and prove nothing about the planet path.
+	# A system with something in the sky, as an empty rim
+	# system would prove nothing about the planet path.
 	Router.show_sector()
 	await tree.process_frame
 

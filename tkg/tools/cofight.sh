@@ -9,6 +9,8 @@
 #   tools/cofight.sh          an ordinary contact at an ordinary system
 #   tools/cofight.sh boss     the core, which reaches Combat down its own branch
 #   tools/cofight.sh late     the guest arrives at a fight already in progress
+#   tools/cofight.sh race     two ships start different fights at one system,
+#                             both orders: one fight, the first one, on both
 #   tools/cofight.sh hellbender   the roamer: host-authoritative movement, the
 #                             blockade, a staggered two-ship engagement, and
 #                             whichever ending the dive seed deals
@@ -116,6 +118,17 @@ pair "and therefore draw loot from different streams" "lootseed"
 # hellbender leg has its own pair claims, and which apply depends on how the fight
 # ended — the fate line is read first for exactly that reason.
 case " $MODE " in
+*" race "*)
+	# THE SAME-SECOND RACE (Nov 5): each leg's second ship asked for another
+	# enemy and must be fighting the first ship's, hull for hull, intent for
+	# intent, down to the wrecks the kill left
+	for leg in 1 2; do
+		same "race leg $leg: one fight on both machines" "race${leg} ids"
+		same "and the same intent under each hull" "race${leg} intents"
+		same "and both machines agree how it ended" "race${leg} outcome"
+		same "and the kill left the same wrecks on both" "race${leg} wreck"
+	done
+;;
 *" boss "*)
 	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16): the ships at different jumps
 	# fight one boss, grown at the lead ship's count, and draw one badge

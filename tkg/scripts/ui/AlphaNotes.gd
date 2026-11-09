@@ -1,13 +1,8 @@
 class_name AlphaNotes
 extends RefCounted
 
-## JON'S TWO NOTES TO ALPHA PLAYERS, in his own words. Both are exempt from the
-## plain-voice rewrite and the reading-grade cap: leave them as written. A blank
-## line is a paragraph break; the signature is its own line.
-##
-## ALPHA_WELCOME: the welcome popup (`WelcomePopup`), shown once per profile at
-## the title screen and again from its MESSAGE FROM JON line.
-## ALPHA_THANKS: the win screen (`GameOverScreen`), when the core's boss is beaten.
+## Jon's own words: exempt from the plain-voice rewrite and the reading-grade cap, leave as written.
+## Why: docs/why/AlphaNotes.md#alpha-notes
 
 const ALPHA_WELCOME := """Welcome to the Three Kelvin Alpha!
 

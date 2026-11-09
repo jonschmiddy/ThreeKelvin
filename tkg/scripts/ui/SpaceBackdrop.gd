@@ -1,53 +1,17 @@
 class_name SpaceBackdrop
 extends Control
 
-## What is out there, behind the fight.
-##
-## The void is never flat black — but until this existed every sector WAS the
-## same black with a different wash over it, so a shipyard in a capital and a
-## beacon at the edge of nothing looked like the same place. This paints one
-## large body per system, and a starfield whose density and colour follow the
-## same seed.
-##
-## Two rules hold the whole file together.
-##
-## **It follows from the place.** A station orbits something, so a station
-## sector has a planet in it. A beacon is put where there is nothing to put it
-## near, so an event sector is empty sky. Derelicts drift where the rocks are,
-## fauna follow the gas giants, and a fleet is only ever in space somebody
-## holds. Nothing is rolled freely: the roll picks between the things that are
-## true of that node, and the node's own axes — development, security, berths —
-## decide which list it rolls on. That is what makes the sky readable. If you
-## have learned that lit cities mean a settled world, an unlit one means
-## something.
-##
-## **It is fixed for the run.** Everything derives from the node index, so a
-## system has the same sky every time you fly back to it and none of it is
-## saved. The planet texture is baked once into an Image on arrival; the rest is
-## a few hundred rectangles regenerated from the seed each redraw, which is why
-## nothing here is stored in an array.
-##
-## It draws between the wash and the nebula gas, never over the ship, and it is
-## deliberately dim — this is depth, not subject matter. A planet you notice
-## more than the thing shooting at you is a bug, so every surface colour is
-## pulled toward VOID before it is written.
+## The sky follows from the place and is fixed for the run; it stays dim as depth, not subject.
+## Why: docs/why/SpaceBackdrop.md#sky-rules
 
-## What the sky is built around. One per sector, and DEEP is a real answer
-## rather than a fallback: empty sky is what most of space looks like, and it is
-## what makes the sectors that do have something in them land.
+## One per sector; DEEP is a real answer, as empty sky is what most space looks like.
 enum Kind { DEEP, PLANET, GIANT, ASTEROIDS, STAR, FLEET, CORE }
 
-## How a world is surfaced. Class picks the palette AND the texture function
-## together, because the two are not independent — an ice cap on a gas giant or
-## bands on a cratered rock reads as a mistake, not as variety.
+## Class picks palette and texture together: an ice cap on a giant reads as a mistake.
 enum World { ROCK, DESERT, ICE, VERDANT, CINDER, BANDED }
 
-## Palette anchors, in hue-sat-val, one row per world class:
-## [hue, hue jitter, saturation, value]. Not UITheme constants, because a planet
-## is the one thing in the game that is supposed to have a colour nobody chose —
-## the theme's job is to keep the interface coherent, and this is sky. What
-## keeps it in the game's register is the last step of _surface(): everything is
-## mixed toward VOID and lit cold.
+## Not `UITheme` constants: a planet is meant to have a colour nobody chose, then mixed to VOID.
+## Why: docs/why/SpaceBackdrop.md#palette
 const HUES := {
 	World.ROCK:    [0.07, 0.05, 0.18, 0.52],
 	World.DESERT:  [0.09, 0.04, 0.42, 0.62],
@@ -57,10 +21,7 @@ const HUES := {
 	World.BANDED:  [0.00, 1.00, 0.34, 0.58],  ## hue rolled free; giants are anything
 }
 
-## One world's recipe, rolled once and then read for every pixel of the disc.
-## A held object rather than a sixteen-argument call: _surface() runs tens of
-## thousands of times per world, so the values have to be gathered once, and a
-## parameter list that long is unreadable and silently easy to mis-order.
+## A held object, as `_surface()` runs tens of thousands of times and a long arg list misorders.
 class Recipe extends RefCounted:
 	var cls: int = 0
 	## Five shades, dark to light.
@@ -85,14 +46,9 @@ class Recipe extends RefCounted:
 var _index: int = -1
 var _seed: int = 0
 var _kind: int = Kind.DEEP
-## Where the system's own star sits, as a unit vector. The planet's terminator,
-## the lit face of every asteroid and the far sun itself all read from this, so
-## the light in a sector comes from one place.
+## One unit vector for the star, so the light in a sector comes from one place.
 var _light: Vector2 = Vector2(-0.6, -0.5)
-## The system's star, in two colours: the core and the cooler edge of the
-## disc. Chosen on arrival rather than while drawing, because the planet's limb
-## light is baked from it and the near stars are tinted with it — the same
-## light cannot be decided twice.
+## Chosen on arrival, as the limb light is baked from it: one light, decided once.
 var _star_tint: Color = Color("#c8dcf0")
 var _star_edge: Color = Color("#6f9fc8")
 var _dust: Color = Color("#41505f")
@@ -100,35 +56,17 @@ var _accent: Color = Color("#8fa3ba")
 var _density: float = 1.0
 var _has_sun: bool = true
 
-# The baked world. Rings and moon are baked into the same image so the ring
-# passes behind the planet at the top and in front of it at the bottom without
-# any draw ordering at all.
+# Rings and moon bake into one image, so the ring passes behind then in front with no ordering.
 var _body: ImageTexture
 var _body_px: int = 3     ## integer upscale; pixel art is never scaled by a fraction
 var _body_at: Vector2 = Vector2(0.5, 0.5)   ## centre, as a fraction of the view
-## WHERE THE WORLD IS FRAMED, when something other than the sector draws this
-## sky. The Exchange hangs it behind a room whose counter and floor cover the
-## bottom third of the view, which is where most worlds sit: of 60 station
-## skies behind its five rooms, 8 showed any of their world through a window
-## (2026-09-27). Given a rect in view pixels, the world is drawn there instead:
-## whole and centred when it fits, its upper limb rising into the lower part of
-## the rect when it does not.
-##
-## THE LIMB, NOT THE PICTURE'S EDGE. The baked world carries a margin of halo,
-## ring and moon round its disc, a fifth of its height on a big one, so placing
-## the picture's top put the planet itself below a hangar door's sixty-pixel gap
-## entirely. What is placed is the disc: `_disc_top` down the picture, `_disc_r`
-## across.
+## `frame_in` places the disc, not the picture, for rooms covering the bottom third.
+## Why: docs/why/SpaceBackdrop.md#framing
 var frame_in: Rect2 = Rect2()
 var _disc_top := 0.0
 var _disc_r := 0.0
-## The system whose sky this is, and the view height its world was baked for.
-##
-## Both exist because of when setup() is called. The sector screen tells this
-## control where you are while it is still building itself, and a Control has no
-## size until the layout pass at the end of the frame — so a world baked inside
-## setup() is sized against a height of zero. The bake waits for a size instead,
-## and runs again if the view ever changes height enough to matter.
+## The bake waits for a size, as a Control has none inside setup(), and re-runs on height change.
+## Why: docs/why/SpaceBackdrop.md#bake-timing
 var _node: MapGen.MapNode = null
 var _baked_h: float = 0.0
 
@@ -136,9 +74,7 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
-## Called on every refresh, so the early-out is load-bearing: baking a world is
-## a few tens of thousands of pixels of noise and it must happen on arrival, not
-## on every card you play.
+## Called on every refresh, so the early-out is load-bearing: bake on arrival only.
 func setup(n: MapGen.MapNode) -> void:
 	if n == null or n.index == _index:
 		return
@@ -151,10 +87,7 @@ func setup(n: MapGen.MapNode) -> void:
 
 	_light = Vector2(-1.0, -0.55) if r.randf() < 0.5 else Vector2(1.0, -0.55)
 	_light = _light.normalized()
-	# THE NODE'S OWN STAR, the one the system map draws. This used to roll a
-	# colour of its own, so a red giant's system could show a white sun here and
-	# a red one on the map. The draw is kept so everything after it rolls as it
-	# always did.
+	# Uses the node's own star as the map draws it; the draw is kept so later rolls hold.
 	r.randf()
 	match n.star:
 		MapGen.Star.RED:
@@ -171,9 +104,7 @@ func setup(n: MapGen.MapNode) -> void:
 	if n.manufacturer != &"":
 		_accent = DB.manufacturer_colour(n.manufacturer)
 	_kind = _pick(n, r)
-	# AND ITS OWN GAS GIANT. The map has one if and only if the node does, so the
-	# side-on view agrees: a giant where the map has one, never where it has none.
-	# The places whose subject is something else keep it.
+	# Its own gas giant, present only where the map has one, so the two views agree.
 	if n.type != MapGen.NodeType.PULSAR and n.type != MapGen.NodeType.CORE and n.type != MapGen.NodeType.START:
 		if n.gas_giant and _kind != Kind.GIANT:
 			_kind = Kind.GIANT
@@ -196,9 +127,7 @@ func setup(n: MapGen.MapNode) -> void:
 	_bake_if_ready()
 	queue_redraw()
 
-## Bakes the world once there is a view to size it against, and re-bakes it if
-## the view has since changed height by more than a quarter. Cheap to call: it
-## is a comparison and a return in every case but the two that matter.
+## Bakes once a view exists, and again if its height changes by over a quarter.
 func _bake_if_ready() -> void:
 	if _node == null or (_kind != Kind.PLANET and _kind != Kind.GIANT):
 		return
@@ -214,21 +143,14 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_bake_if_ready()
 
-## What is in this sector, decided by what the sector IS.
-##
-## The node type answers first because it is the strongest statement the map
-## makes, and only the cases the type leaves open get rolled.
+## The node type answers first as the map's strongest statement; only open cases roll.
 func _pick(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 	match n.type:
 		MapGen.NodeType.STATION:
-			# A station is built where there is something to service, hold or
-			# mine. It never floats in nothing — that is the whole reason this
-			# case is not a roll.
+			# A station is built where there is something to service, hold or mine.
 			return Kind.GIANT if n.fauna or r.randf() < 0.18 else Kind.PLANET
 		MapGen.NodeType.SYSTEM:
-			# An ordinary system, and it gets the variety the three types it
-			# replaced used to supply between them: mostly rocks, because that is
-			# where the traffic goes, sometimes a world, sometimes empty sky.
+			# An ordinary system gets the variety of the three types it replaced: mostly rocks.
 			if r.randf() < 0.42:
 				return Kind.ASTEROIDS
 			return Kind.PLANET if r.randf() < 0.55 else Kind.DEEP
@@ -245,12 +167,8 @@ func _pick(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 		_:
 			return _pick_open(n, r)
 
-## FIGHT, and anything the map adds later: the axes decide.
-##
-## One roll per question, not one roll re-read. A single number tested against
-## 0.42 and then against 0.55 is not two independent chances — passing the first
-## test has already eaten most of the range the second one needed, and the
-## weights stop meaning what they say.
+## One roll per question: a single number tested twice is not two independent chances.
+## Why: docs/why/SpaceBackdrop.md#pick-rolls
 func _pick_open(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 	if n.fauna:
 		# Migration follows the giants. The whales are here because the gas is.
@@ -282,9 +200,7 @@ func _pick_open(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 
 # ------------------------------------------------------------------ the world
 
-## Which world hangs in this system. Development is the tell that matters: a
-## capital is a world somebody terraformed or an ore body somebody stripped, and
-## unclaimed space is rock and ice because nothing else pays to be there.
+## Development is the tell: a capital is terraformed or stripped, unclaimed space is rock and ice.
 func _world_class(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 	if _kind == Kind.GIANT:
 		return World.BANDED
@@ -309,39 +225,21 @@ func _world_class(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 		return World.DESERT
 	return World.CINDER
 
-## Bakes the planet, its rings and its moon into one texture.
-##
-## Baked rather than drawn, for two reasons that both matter. A lit sphere is
-## per-pixel work — normal, terminator, dithered ramp — and doing that in _draw
-## would redo it every time a card moves. And an Image lets the ring occlude the
-## planet at the top and the planet occlude the ring at the bottom by writing
-## pixels in order, which draw calls cannot do without splitting the ring in
-## half and hoping the seam lands somewhere invisible.
+## Baked not drawn: per-pixel lighting is costly in `_draw`, and an Image orders ring and planet.
+## Why: docs/why/SpaceBackdrop.md#world-bake
 func _bake_world(n: MapGen.MapNode) -> void:
-	# Its own stream, salted off the same seed. Rolling the world from the same
-	# generator setup() used would mean the world changed whenever anything
-	# above it drew one more number, and the bake no longer happens in that
-	# function anyway.
+	# Own stream salted off the seed, so the world does not change when setup() draws more.
 	var r := RandomNumberGenerator.new()
 	r.seed = _seed ^ 0x5bf03635
 	var cls := _world_class(n, r)
 
-	# Composition, in four shots, and `frac` is the RADIUS as a fraction of the
-	# view's height — so 0.6 is a body wider than the frame with its centre off
-	# the bottom edge, and 0.08 is a dot. Reading it as a diameter is how the
-	# first pass ended up with corner accents three hundred pixels across.
-	#
-	# A limb rising out of the bottom edge is the shot that reads as "in orbit",
-	# so stations get it most of the time and everything else is further away.
-	# The top-left is never used: the sector readout is written there, and text
-	# over a planet is text you cannot read.
+	# `frac` is a radius, not diameter (corners hit 300 px); top-left stays clear for text.
+	# Why: docs/why/SpaceBackdrop.md#composition
 	var shot := r.randf()
 	var big: bool = n.type == MapGen.NodeType.STATION
 	var frac: float
 	if big and shot < 0.62:
-		# Right of centre and low. The dock is drawn in the right half of the
-		# frame and your hull sits in the left, so a world under the station
-		# says the station orbits something AND stays off the ship.
+		# Right of centre and low: the dock is on the right, your hull on the left.
 		frac = r.randf_range(0.5, 0.72)
 		_body_at = Vector2(r.randf_range(0.42, 0.86), r.randf_range(1.16, 1.42))
 	elif shot < 0.42:
@@ -354,15 +252,8 @@ func _bake_world(n: MapGen.MapNode) -> void:
 		frac = r.randf_range(0.06, 0.11)
 		_body_at = Vector2(r.randf_range(0.52, 0.94), r.randf_range(0.16, 0.42))
 
-	# Source resolution follows the size it will be drawn at, so a world is
-	# about three screen pixels to the source pixel whether it fills the frame
-	# or sits in a corner. Fixing the source instead would make big worlds mush
-	# and small ones needlessly expensive.
-	#
-	# The ceiling is measured, not guessed. A lit sphere costs about five
-	# microseconds a pixel in GDScript, so radius 64 is roughly 95 ms of bake
-	# and radius 78 is 140 — one frame you do not notice on arrival against
-	# eight you do. Past that a world grows by drawing its pixels bigger.
+	# Source resolution follows draw size; the ceiling is measured: radius 64 is 95 ms, 78 is 140.
+	# Why: docs/why/SpaceBackdrop.md#world-bake
 	var want: float = maxf(40.0, frac * maxf(size.y, 240.0))
 	var rr := int(clampf(want / 3.0, 14.0, 64.0))
 	_body_px = clampi(int(round(want / float(rr))), 2, 4)
@@ -413,14 +304,9 @@ func _bake_world(n: MapGen.MapNode) -> void:
 	rec.storm_r = r.randf_range(0.16, 0.30)
 	rec.caps = cls == World.VERDANT or cls == World.ICE \
 		or (cls == World.DESERT and r.randf() < 0.4)
-	# Lit windows are the one warm thing allowed out here, and only where people
-	# are: a night side with cities on it is the difference between a world
-	# somebody lives on and a rock with the same albedo.
+	# Lit windows are the one warm thing allowed, and only where people live.
 	rec.lit = cls != World.BANDED and n.development >= MapGen.Development.SETTLEMENT
-	# Sparse. A window is one lit pixel among many dark ones — at anything like
-	# a realistic density the night side turns into a spray of orange sparks
-	# that reads as damage, which is the one thing the warm end of this palette
-	# is reserved for.
+	# Sparse: realistic density turns the night side into orange sparks that read as damage.
 	rec.lit_p = 0.018 + 0.014 * float(int(n.development) - int(MapGen.Development.SETTLEMENT))
 	# Slightly toward the viewer as well as to the side, so the terminator falls
 	# across the visible face instead of exactly down the limb.
@@ -483,9 +369,7 @@ func _ring_colour(u: float, a: float, b: float, rec: Recipe) -> Color:
 ## One pixel of sphere: surface value, then light, then the pull toward the void.
 func _surface(nx: float, ny: float, rec: Recipe, px: int, py: int) -> Color:
 	var nz := sqrt(maxf(0.0, 1.0 - nx * nx - ny * ny))
-	# Longitude and latitude of the point, so the texture wraps around a ball
-	# instead of being painted on a disc. It is what makes the detail crowd
-	# toward the limb, which is the only cue that says "sphere" for free.
+	# Longitude and latitude, so the texture wraps a ball and detail crowds the limb.
 	var lon := atan2(nx, maxf(0.001, nz))
 	var lat := asin(clampf(ny, -1.0, 1.0))
 	var v := 0.0
@@ -510,9 +394,7 @@ func _surface(nx: float, ny: float, rec: Recipe, px: int, py: int) -> Color:
 		World.CINDER:
 			var e2 := _fbm(lon * rec.relief * 1.6, lat * rec.relief * 1.6, rec.salt)
 			v = 0.10 + 0.25 * e2
-			# Cooling cracks. Kept dull and thin on purpose — the only real
-			# warmth in this game is combustion, and a lava world that glows
-			# competes with your own reactor.
+			# Cooling cracks stay dull: the only real warmth in this game is combustion.
 			if absf(e2 - 0.5) < 0.035:
 				v = 0.96
 		_:
@@ -532,9 +414,7 @@ func _surface(nx: float, ny: float, rec: Recipe, px: int, py: int) -> Color:
 	var lam := clampf(nx * rec.light.x + ny * rec.light.y + nz * rec.light.z, 0.0, 1.0)
 	var col := _quantise(base, lam, px, py)
 
-	# Windows, on the dark side only. They are hidden by daylight in reality and
-	# on screen, and putting them where the eye is not already busy is what
-	# makes them worth drawing.
+	# Windows on the dark side only, where the eye is not already busy.
 	if rec.lit and lam < 0.13 and v > 0.58 and _hash(px * 3, py * 7, rec.salt + 91) < rec.lit_p:
 		return UITheme.EMBER.lerp(UITheme.HOT, _hash(px, py, rec.salt + 92)).darkened(0.15)
 	# Limb light. A hard bright edge on the sun side is what stops a shaded
@@ -554,11 +434,7 @@ func _halo(nx: float, ny: float, rad: float, rec: Recipe) -> Color:
 	c.a = fall * fall * lam * 0.5
 	return c
 
-## Ordered dither over a 4x4 cell: true if this pixel survives at that strength.
-##
-## A smooth alpha ramp is the one thing that makes a pixel-art scene look like
-## it was resized from something else. Air has to thin out by losing pixels, not
-## by fading, and so does the haze around the galactic core.
+## Dither not alpha: a smooth ramp makes pixel art look resized, so air thins by losing pixels.
 func _sieve(px: int, py: int, keep: float) -> bool:
 	const CELL := [0.06, 0.56, 0.19, 0.69, 0.81, 0.31, 0.94, 0.44,
 		0.25, 0.75, 0.13, 0.63, 1.00, 0.50, 0.88, 0.38]
@@ -571,11 +447,7 @@ func _moon_px(mx: float, my: float, rec: Recipe) -> Color:
 	var lam := clampf(mx * rec.light.x + my * rec.light.y + mz * rec.light.z, 0.0, 1.0)
 	return _quantise(base, lam, int(mx * 40.0), int(my * 40.0))
 
-## The light ramp, in five steps with a 2x2 ordered dither across the joins.
-##
-## Quantised because pixel art shades in bands, and dithered because five hard
-## bands on a sphere the size of the frame is five visible rings. This is the
-## same trick ShipView.dither() uses for the hull.
+## Five bands with a 2x2 dither over the joins, as five hard bands read as rings.
 func _quantise(base: Color, lam: float, px: int, py: int) -> Color:
 	const BAYER := [0.0, 0.5, 0.75, 0.25]
 	var b: float = BAYER[(py & 1) * 2 + (px & 1)]
@@ -587,9 +459,7 @@ func _quantise(base: Color, lam: float, px: int, py: int) -> Color:
 		2: out = base.darkened(0.34)
 		3: out = base
 		_: out = base.lightened(0.16)
-	# Cold light, warm ship. Everything out here is lit by a star and mixed
-	# toward the void, which is what keeps the backdrop behind the subject
-	# without having to dim it with an alpha.
+	# Cold light, warm ship: mixing to the void keeps the backdrop behind without an alpha.
 	out = out.lerp(UITheme.VOID, 0.35 if step > 1 else 0.5)
 	return out
 
@@ -603,9 +473,7 @@ func _palette(cls: int, r: RandomNumberGenerator) -> Array:
 	var out: Array = []
 	for i in 5:
 		var t := float(i) / 4.0
-		# Shadows shift toward blue and highlights toward the hue's own side —
-		# the cheapest way to make a five-step ramp look mixed rather than
-		# computed from one colour and a brightness slider.
+		# Shadows shift blue and highlights toward the hue, so the ramp looks mixed, not computed.
 		out.append(Color.from_hsv(
 			fposmod(hue + (0.06 * (1.0 - t)) * (1.0 if hue < 0.5 else -1.0), 1.0),
 			clampf(sat * (1.25 - 0.45 * t), 0.0, 1.0),
@@ -620,9 +488,7 @@ func _ramp(pal: Array, v: float) -> Color:
 func _draw() -> void:
 	if size.x < 8.0 or size.y < 8.0:
 		return
-	# Reseeded every frame rather than cached in arrays. A few hundred hashed
-	# positions cost less than the memory churn of keeping them, and it means a
-	# resize reflows the sky instead of stretching it.
+	# Reseeded each frame: cheaper than caching a few hundred positions, and resize reflows.
 	var r := RandomNumberGenerator.new()
 	r.seed = _seed
 	_stars(r)
@@ -660,9 +526,7 @@ func _stars(r: RandomNumberGenerator) -> void:
 		elif t < 0.94:
 			c = Color("#4d5f73")
 		else:
-			# The near layer only. Colour lives here because a blue-white star
-			# among grey ones reads as a nearer star, and the same pixel spread
-			# across every star reads as a tinted screen.
+			# Near layer only: a blue-white star reads nearer, but tinting all tints the screen.
 			c = _star_tint if r.randf() < 0.5 else Color("#9fc0e0")
 			w = 2.0
 		draw_rect(Rect2(Vector2(x, y), Vector2(w, w)), c, true)
@@ -670,9 +534,8 @@ func _stars(r: RandomNumberGenerator) -> void:
 ## The system's own star, small and far, on the side the light comes from. It is
 ## the reason every shadow in the sector points the way it does.
 func _far_sun(r: RandomNumberGenerator) -> void:
-	# Plus, not minus: _light points at the star, so the star is that way. The
-	# sign matters more than it looks — with it wrong, every world in the game
-	# was lit from the opposite side of the frame to its own sun.
+	# Plus, not minus: `_light` points at the star, and wrong lit every world from the far side.
+	# Why: docs/why/SpaceBackdrop.md#light-direction
 	var at := size * 0.5 + _light * Vector2(size.x * 0.46, size.y * 0.44)
 	var glow := _star_tint
 	for i in range(7, 1, -1):
@@ -696,13 +559,8 @@ func _paint_body() -> void:
 			at.y = floorf(frame_in.position.y + frame_in.size.y * 0.4) - _disc_top
 	draw_texture_rect(_body, Rect2(at, dim), false)
 
-## Rock, in three depths, along a belt rather than scattered evenly. A field
-## with a direction reads as an orbit you are crossing; the same rocks spread
-## uniformly read as noise.
-##
-## The near rocks are pushed to the edges deliberately: a boulder across the
-## middle of the frame sits between you and what you are shooting at, and the
-## backdrop does not get to do that.
+## A belt has a direction that reads as an orbit; near rocks sit at the edges, off the middle.
+## Why: docs/why/SpaceBackdrop.md#asteroids
 func _asteroids(r: RandomNumberGenerator) -> void:
 	var lane := r.randf_range(0.25, 0.75)
 	var slope := r.randf_range(-0.5, 0.5)
@@ -724,16 +582,12 @@ func _asteroids(r: RandomNumberGenerator) -> void:
 		var edge: float = r.randf_range(-0.02, 0.14) if r.randf() < 0.5 else r.randf_range(0.86, 1.02)
 		_rock(Vector2(edge * size.x, r.randf() * size.y), r.randf_range(12.0, 26.0), 1.0, r)
 
-## A position on the belt: along it, and then off it by an amount that falls
-## away. A normal spread rather than a flat one, because a belt has a plane and
-## the rocks far off that plane are the rare ones.
+## A normal spread off the belt, as rocks far off the plane are the rare ones.
 func _belt(x: float, lane: float, slope: float, spread: float,
 		r: RandomNumberGenerator) -> float:
 	return size.y * (lane + (x / size.x - 0.5) * slope) + r.randfn(0.0, size.y * spread)
 
-## One rock: a stack of rows of different widths, none of them centred, because
-## a circle reads as a ball and a ball reads as a planet. Three tones, lit from
-## the same star as everything else in frame.
+## Rows of different widths, none centred: a circle reads as a ball and a planet.
 func _rock(at: Vector2, rad: float, near: float, r: RandomNumberGenerator) -> void:
 	var lit: Color = _dust.lerp(Color("#93a3b6"), 0.30 + 0.35 * near).lerp(UITheme.VOID, 0.30)
 	var mid := lit.darkened(0.34)
@@ -792,9 +646,7 @@ func _near_star(r: RandomNumberGenerator) -> void:
 			Vector2(half * 2.0, 1.0)), c, true)
 
 
-## Somebody else's ships, far enough away to be silhouettes. Running lights take
-## the holding manufacturer's mark colour, which is the only place its colour is
-## allowed to describe a whole sector.
+## Silhouettes far away; running lights take the holder's mark colour, its only sector-wide use.
 func _fleet(r: RandomNumberGenerator) -> void:
 	var lane := r.randf_range(0.16, 0.34) if r.randf() < 0.5 else r.randf_range(0.66, 0.86)
 	var n := r.randi_range(4, 8)
@@ -815,11 +667,7 @@ func _hull_silhouette(at: Vector2, w: float, depth: float, r: RandomNumberGenera
 	var plate: Color = Color("#1b2634").lerp(Color("#3a4a5e"), depth * 0.7)
 	draw_rect(Rect2(at.floor(), Vector2(floorf(w), floorf(h))), plate, true)
 	draw_rect(Rect2(at.floor(), Vector2(floorf(w), 1.0)), plate.lightened(0.22), true)
-	# Nose right, the same way your own ship faces. A formation pointing the
-	# other way looks like it is running out of frame.
-	#
-	# Tapered in two steps rather than squared off, because at this size the
-	# silhouette is the only thing carrying "ship" — a plain bar is a bar.
+	# Nose right like your own ship, tapered in two steps: a plain bar is a bar.
 	var nose := maxf(2.0, w * 0.22)
 	draw_rect(Rect2((at + Vector2(w, 0.0)).floor(),
 		Vector2(floorf(nose * 0.6), floorf(h))), plate, true)
@@ -838,14 +686,8 @@ func _hull_silhouette(at: Vector2, w: float, depth: float, r: RandomNumberGenera
 		Color("#5f8fb0"), true)
 
 
-## The core of the galaxy, from inside the disc: stars too dense to resolve,
-## the haze they add up to, and the dust that cuts across it. The one place in
-## the game where the sky is bright.
-##
-## Everything here follows one line — same centre, same slope — so the stars,
-## the glow and the lanes read as one object seen edge-on. The glow is dithered
-## rows rather than filled rectangles, because a rectangle of translucent
-## colour over a starfield is a user-interface panel whatever colour it is.
+## One line for stars, glow and lanes; dithered rows, as a translucent rect reads as a UI panel.
+## Why: docs/why/SpaceBackdrop.md#galactic-core
 func _core(r: RandomNumberGenerator) -> void:
 	var mid := size.y * r.randf_range(0.35, 0.6)
 	var slope := r.randf_range(-0.18, 0.18)
@@ -905,17 +747,13 @@ func _far_galaxy(r: RandomNumberGenerator) -> void:
 
 # ----------------------------------------------------------------------- noise
 
-## Hashed, not stored. Every texture in this file has to give the same answer
-## for the same pixel on every redraw, and a hash is how that happens without
-## keeping a single array alive between frames.
+## Hashed not stored: every texture must answer the same per pixel on each redraw.
 func _hash(x: int, y: int, salt: int) -> float:
 	var h := (x * 374761393 + y * 668265263 + salt * 1442695) & 0x7fffffff
 	h = ((h ^ (h >> 13)) * 1274126177) & 0x7fffffff
 	return float((h ^ (h >> 16)) & 0xffff) / 65535.0
 
-## Value noise: hashed lattice, smoothstepped between. Not gradient noise —
-## at the sizes a planet is drawn here the difference is invisible and this is
-## half the arithmetic.
+## Value noise, not gradient: at planet sizes the difference is invisible and it is half the maths.
 func _noise(x: float, y: float, salt: int) -> float:
 	var xi := int(floorf(x))
 	var yi := int(floorf(y))

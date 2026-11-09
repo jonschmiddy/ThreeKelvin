@@ -3,16 +3,11 @@ extends Control
 ## area to Router. Everything else is created in code by the screens.
 
 func _ready() -> void:
-	# A harness gets the window it always had, framed and 1920x1080, not the
-	# small borderless one the game launches in (`DisplaySettings`); a player's
-	# leaves it below, in `load_and_apply`.
+	# Harnesses get the framed 1920x1080 window; players keep the small borderless one.
 	if TestRun.active():
 		DisplaySettings.leave_launch_window()
 	_wear_cursor()
-	# The run seed, before anything can roll:  godot --path . -- seed 12345
-	# A run is one number. This is the flag that makes a bug report replayable,
-	# and it is read before every other branch below because HeadlessSim and the
-	# tests all start runs of their own.
+	# Read first: HeadlessSim and the tests start runs of their own, and the seed replays a bug.
 	var argv0 := OS.get_cmdline_user_args()
 	for i in argv0.size():
 		if argv0[i] == "seed" and i + 1 < argv0.size():
@@ -36,61 +31,36 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
-	# The whole price table, and the proof that it cannot be gamed:
-	#   godot --headless --path . -- market
-	# Same shape as savetest above it, and for the same reason: the thing it
-	# checks fails silently. A market whose melt price creeps above its ask price
-	# does not crash, it just quietly pays for the rest of the run.
+	# Silent-failure check: a melt price creeping above ask would quietly pay all run.
 	if "market" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/MarketTest.gd").new().run()
 		get_tree().quit()
 		return
 
-	# Every starting chassis and what it reads on the six attributes:
-	#   godot --headless --path . -- attrs
-	# Attribute constants are tuned by staring at this table, and the numbers are
-	# only meaningful against each other — a column at a time, not a ship at a
-	# time. Reading them off a UI one manufacturer per screen is how you convince
-	# yourself a spread exists that does not.
+	# Attribute tuning reads columns, not one ship a screen, or phantom spreads look real.
+	# Why: docs/why/Main.md#test-flags
 	if "attrs" in OS.get_cmdline_user_args():
 		_print_attribute_table()
 		get_tree().quit()
 		return
 
-	# Every event option, its badge, and 10,000 rolls of its ladder:
-	#   godot --headless --path . -- checks
-	# A skill check fails silently in both directions — an option nobody can
-	# ever pass and an option nobody can ever fail both look like working code
-	# and read like working prose. This prints what each one actually costs
-	# against a real ship, and proves the odds table matches the rolls.
+	# Skill checks fail silently both ways, so this prints real costs and proves the odds.
+	# Why: docs/why/Main.md#test-flags
 	if "checks" in OS.get_cmdline_user_args():
 		_print_check_table()
 		get_tree().quit()
 		return
 
-	# Every sector sky on one sheet, and again behind a real ship:
-	#   godot --path . -- sky
-	# Needs a window, not because it shows one but because SpaceBackdrop is
-	# drawn by the renderer — under --headless the viewports it grabs come back
-	# blank. Written to user:// and the path is printed.
-	#
-	# It exists because procedural art is tuned by comparing a dozen rolls at
-	# once. Reaching twelve different systems in a run to see twelve skies is
-	# not a way to find the one that is too bright.
+	# Needs a window: SpaceBackdrop is renderer-drawn, so headless viewports come back blank.
+	# Why: docs/why/Main.md#test-flags
 	if "sky" in OS.get_cmdline_user_args():
 		_sky_test = load("res://scripts/sim/SkyTest.gd").new()
 		_sky_test.run(get_tree())
 		return
 
-	# Seeded generation: the same seed twice, and streams that do not move each
-	# other:  godot --headless --path . -- rngtest
-	# RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR. Determinism fails silently
-	# by nature — a run that is 99% reproducible looks exactly like one that is
-	# reproducible, right up to the moment four players are in four galaxies.
+	# Run after touching `Rng` or any generator: broken determinism fails silently.
 
-	# Signing, reaching, killing, docking hot, being paid — and the market
-	# invariant under standing, which `-- market` cannot reach:
-	#   godot --headless --path . -- contracttest
+	# Covers the market invariant under standing, which `-- market` cannot reach.
 	if "contracttest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/ContractTest.gd").new().run()
 		get_tree().quit()
@@ -115,112 +85,65 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
-	# Four peers, one process, and the whole join handshake:
-	#   godot --headless --path . -- nettest
-	# RUN THIS AFTER TOUCHING ANYTHING IN scripts/net/. Held in a member for the
-	# same reason the sky test is: it runs across frames rather than inside one,
-	# and a RefCounted that only a local variable holds is freed the moment this
-	# function returns. It quits the tree itself when it is done.
+	# Held in a member: a RefCounted held only by a local is freed when `_ready` returns.
+	# Why: docs/why/Main.md#test-flags
 	if "nettest" in OS.get_cmdline_user_args():
 		_net_test = load("res://scripts/sim/NetTest.gd").new()
 		_net_test.run(get_tree())
 		return
 
-	# Every authored option opened and resolved through LOCAL's event band
-	# (`LocalEventDrawer`), the one place a choice is taken:
-	#   godot --headless --path . -- localeventtest
+	# Resolves every authored option through LOCAL's event band, the one place a choice is taken.
 	if "localeventtest" in OS.get_cmdline_user_args():
 		_co_fight = load("res://scripts/sim/LocalEventTest.gd").new()
 		_co_fight.run(get_tree())
 		return
 
-	# A ship in the party that nobody is sitting in front of:
-	#   godot --headless --path . -- bot join ABC-123
-	#   tools/bot.sh ABC-123
-	# It joins by lobby code like a person, rolls its own chassis and holds its
-	# own Run. Returns before the UI for the same reason cofight does — there is
-	# nobody to show it to — and registers Router a holder of its own, because a
-	# bot flies through the same Router the humans do. See scripts/net/BotPilot.
+	# The bot returns before the UI and registers Router as its own holder, like a human.
+	# Why: docs/why/Main.md#bot-flag
 	if "bot" in OS.get_cmdline_user_args():
 		_bot = load("res://scripts/net/BotPilot.gd").new()
 		_bot.run(get_tree())
 		return
 
-	# One PNG per ship, straight out of ShipView's own canvas:
-	#   godot --headless --path . -- shipsheet
-	# Each hull twice, bare and loaded, because the question is not whether a
-	# ship draws — it is whether the ship that draws is the one described. It
-	# needs no renderer at all: the view composites into an Image, and the
-	# Image is the file. See ConvoyTest.
-	# A PixelLab prompt, built from a manufacturer rather than from memory:
-	#   godot --headless --path . -- artprompt korvan structures
-	# RUN THIS BEFORE GENERATING ANY MANUFACTURER'S PARTS. It reads the fiction live from
-	# DB.manufacturers so a prompt cannot drift from the tooltip a player reads,
-	# and it carries the two settings that were learned expensively: force the
-	# palette, and send no init image or transparency is silently dropped.
+	# The prompt reads fiction live; force the palette and send no init image or alpha drops.
+	# Why: docs/why/Main.md#art-prompt
 	if "artprompt" in OS.get_cmdline_user_args():
 		_wear_sheet = load("res://scripts/sim/ArtPrompt.gd").new()
 		_wear_sheet.run(get_tree())
 		return
 
-	# Every specification class of a hull with real art:
-	#   godot --headless --path . -- fit
-	#   godot --headless --path . -- fit damage=3
-	# RUN THIS AFTER TOUCHING HullFit. The second form composes it with wear,
-	# which is the pairing that matters: fittings go on before damage, so a
-	# bolt-on can be shot off.
+	# Run after touching HullFit: fittings go on before damage so a bolt-on can be shot off.
+	# Why: docs/why/Main.md#test-flags
 	if "fit" in OS.get_cmdline_user_args():
 		_wear_sheet = load("res://scripts/sim/FitSheet.gd").new()
 		_wear_sheet.run(get_tree())
 		return
 
-	# Every enemy body at every damage band:
-	#   godot --headless --path . -- bestiary
-	# RUN THIS AFTER TOUCHING HullWear's organic operations. It is where the
-	# substance split gets looked at: a whale does not weld, a gunship does not
-	# scar, and the two op lists are how that is enforced.
+	# Run after touching HullWear's organic ops: the substance split keeps whales unwelded.
 	if "bestiary" in OS.get_cmdline_user_args():
 		_wear_sheet = load("res://scripts/sim/BestiarySheet.gd").new()
 		_wear_sheet.run(get_tree())
 		return
 
-	# Every condition grade of every hull with real art:
-	#   godot --headless --path . -- wear
-	# RUN THIS AFTER TOUCHING HullWear. It prints new-colour counts per grade,
-	# which is the claim the whole approach rests on: wear draws with the
-	# sprite's own palette and cannot introduce a colour. Anything but 0 is a bug.
+	# Wear must introduce no new colours; any count but 0 is a bug.
 	if "wear" in OS.get_cmdline_user_args():
 		_wear_sheet = load("res://scripts/sim/WearSheet.gd").new()
 		_wear_sheet.run(get_tree())
 		return
 
-	# Every hull's mounts against its own opaque pixels. The lines are measured
-	# per sprite, so the failure worth catching is a hull carrying ANOTHER
-	# hull's lines — which draws guns in mid-air and throws nothing.
-	# The hold's packing rule, against every hull's grid. The failure is invisible
-	# in the data — two parts sharing a cell still add up to a sensible "17 of
-	# 28" and still save and load — so it is only ever seen on screen.
-	# How much of the catalogue exists, against how much is meant to:
-	#   godot --headless --path . -- content
+	# Mounts are measured per sprite, so another hull's lines would draw guns in mid-air silently.
+	# Why: docs/why/Main.md#test-flags
 	if "content" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/ContentCount.gd").new().run()
 		get_tree().quit()
 		return
-	# What a rarity actually buys, in card numbers:
-	#   godot --headless --path . -- rarity
-	# Is the galaxy traversable, and how short is the short way:
-	#   godot --headless --path . -- maptest
-	# Does the option roller obey its own rules -- positional, gated, in plan:
-	#   godot --headless --path . -- optiontest
-	# Does the system map's layout keep its promises:
-	#   godot --headless --path . -- systemtest
+	# Each flag asks one question: rarity values, map traversal, option rules, system layout.
+	# Why: docs/why/Main.md#test-flags
 	if "systemtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/SystemTest.gd").new().run()
 		get_tree().quit()
 		return
-	# Does the sector map's weather keep its schedule (one at a time, showpieces
-	# rare, nothing with reduced motion, every event able to fire):
-	#   godot --headless --path . -- weathertest
+	# Checks the sector weather schedule: one at a time, rare showpieces, none if reduced.
 	if "weathertest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/WeatherTest.gd").new().run()
 		get_tree().quit()
@@ -249,13 +172,8 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
-	# What every frame launches with, and whether the reactor ladder leaves it
-	# a deck:
-	#   godot --headless --path . -- reactor
-	# What the chart's KNOWN ONLY view actually shows:
-	#   godot --headless --path . -- chartfilter
-	# Does a part move the gauge its grade promised:
-	#   godot --headless --path . -- attrtest
+	# Probes for start frames and reactor decks, the chart's known-only view, part gauges.
+	# Why: docs/why/Main.md#test-flags
 	if "attrtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/AttrTest.gd").new().run()
 		get_tree().quit()
@@ -295,9 +213,7 @@ func _ready() -> void:
 
 	DisplaySettings.load_and_apply()
 	DevMode.load_settings()
-	# `-- btn=N` draws every button in the game in one of the styles under
-	# review. Read before the theme is built, which is the only moment it can
-	# be read at.
+	# Read before the theme is built, the only moment it can be read.
 	for a_btn in OS.get_cmdline_user_args():
 		if (a_btn as String).begins_with("btn="):
 			UITheme.button_style = clampi(int((a_btn as String).substr(4)), 0, 5) as UITheme.ButtonStyle
@@ -319,10 +235,8 @@ func _ready() -> void:
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(content)
 
-	# THE FRAME COUNTER, over everything and part of no layout. Added to the
-	# window rather than to `root`, so it cannot take a pixel from the HUD row --
-	# which is exactly what got the last one deleted. Built whatever the setting
-	# says and hidden if it is off, so the toggle works without a relaunch.
+	# Added to the window, not `root`, so it cannot take a pixel from the HUD row.
+	# Why: docs/why/Main.md#frame-counter
 	add_child(FpsMeter.new())
 	# THE HULL FAILING (`LowHull`): a faint red at the edges and the odd glitch
 	# in the words, on a layer of its own over the game and under the menu.
@@ -332,39 +246,21 @@ func _ready() -> void:
 	add_child(PartyNotice.new())
 
 	Router.register(content, hud)
-	# THE VIEW KICKS WHEN YOUR HULL IS HIT. Connected here rather than in Audio
-	# because it is a picture, not a sound, and because it moves the whole
-	# viewport -- see `_kick`.
-	# ON THE LANDING, not the resolution: kicked when the maths ran, the view
-	# had stopped shaking ten frames before the shot it belonged to arrived
-	# (combat polish audit F2).
+	# Kicked on the landing, not the resolution, or the shake ended ten frames before the shot.
+	# Why: docs/why/Main.md#hit-kick
 	Sig.hit_landed.connect(func(amount: int, to_player: bool, _who: int, _ab: int) -> void:
 		if to_player and amount > 0:
 			_kick(amount))
 
-	# Two processes, one enemy:
-	#   godot --headless --path . -- cofight host
-	#   godot --headless --path . -- cofight join CODE
-	#   tools/cofight.sh                    (both, paired by the printed code)
-	# RUN THIS AFTER TOUCHING Combat's shared path. nettest cannot reach it:
-	# `Run` is a singleton, so one process holds one ship, and every line in
-	# Combat that talks to the party needs a second one. Held in a member for
-	# the same reason nettest is. AFTER `Router.register` (moved Oct 22): it
-	# starts runs and fights through Router, whose screens need a holder, and
-	# before it every swap threw ("Cannot call method 'add_child' on a null
-	# value", a hundred times a run) while the verdict still said PASS.
+	# Added after `Router.register`: before it every swap threw while the verdict said PASS.
+	# Why: docs/why/Main.md#co-fight-test
 	if "cofight" in OS.get_cmdline_user_args():
 		_co_fight = load("res://scripts/sim/CoFightTest.gd").new()
 		_co_fight.run(get_tree())
 		return
 
-	# Two processes flown the way two friends fly -- one system, one fight,
-	# apart and together again -- through the real screens:
-	#   godot --headless --path . -- cojoin host
-	#   godot --headless --path . -- cojoin join CODE
-	#   tools/cojoin.sh [relay] [late]
-	# AFTER `Router.register`, unlike cofight: LOCAL and the SECTOR map are
-	# what it checks. See scripts/sim/CoJoinTest.gd.
+	# Runs after `Router.register`, unlike cofight, since LOCAL and the SECTOR map are checked.
+	# Why: docs/why/Main.md#co-fight-test
 	if "cojoin" in OS.get_cmdline_user_args():
 		_co_fight = load("res://scripts/sim/CoJoinTest.gd").new()
 		_co_fight.run(get_tree())
@@ -391,47 +287,27 @@ func _ready() -> void:
 		_ship_drift.run(get_tree())
 		return
 
-	# The chart at a ladder of zooms, to SEE the boundary rather than argue
-	# about it:
-	#   godot --path . -- zoomshot
+	# Photographs the chart at a ladder of zooms to see the boundary.
 	if "zoomshot" in OS.get_cmdline_user_args():
 		_zoom_shot = load("res://scripts/sim/ZoomShot.gd").new()
 		_zoom_shot.run(get_tree())
 		return
 
-	# What the chart and the title screen cost:
-	#   godot --path . -- chartbench
-	# AFTER `Router.register`, unlike the headless harnesses above: this one
-	# needs the UI it is measuring to exist.
+	# Runs after `Router.register`: it needs the UI it measures to exist.
 	if "chartbench" in OS.get_cmdline_user_args():
 		_chart_bench = load("res://scripts/sim/ChartBench.gd").new()
 		_chart_bench.run(get_tree())
 		return
 
 
-	# Boot destination. The launcher is the default, and every development flag
-	# below skips it — an automated run must never stop at a screen waiting to
-	# be clicked, and a flag that drops you into a fight plainly means "not the
-	# title screen" without having to say so.
-	#
-	#   -- nolauncher   straight into a new run
-	#   -- resume       straight into the suspend save, if there is one
-	#   -- lobby        straight into the party screen, with no run rolled
-	#
-	# `ship` belongs in this list and its absence is not cosmetic: the refit
-	# screen reads Run.hull, which is null until a run starts, so booting to the
-	# launcher and then swapping the ship screen over it crashes on arrival.
-	# `salvage` is the same: it stows into a hold that a run has to exist for,
-	# and the sector it opens draws the ship's own reactor.
+	# Dev flags skip the launcher; `ship` and `salvage` need a run or the screen crashes.
+	# Why: docs/why/Main.md#boot-destination
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv \
 		or "salvage" in argv or "party" in argv \
 		or "quest" in argv or "parts" in argv or "gameover" in argv
-	# The party screen, before a dive:  godot --path . -- lobby
-	# Its own branch rather than a member of skip_launcher, because it must NOT
-	# start a run. A lobby's whole job is to agree on the seed the run is going
-	# to be made from, and new_run() would have rolled one already.
+	# Own branch, not in skip_launcher: a lobby must not start a run before the seed is agreed.
 	if "lobby" in argv:
 		Router.show_lobby()
 	elif "resume" in argv and SaveGame.has_save():
@@ -441,51 +317,8 @@ func _ready() -> void:
 	else:
 		Router.show_launcher()
 
-	# Dev shortcut: drop straight into a fight with a hand of cards.
-	#   godot --path . -- fight
-	# Card work is 90% of what gets iterated on and reaching a fight normally
-	# costs a jump, a sector screen and a loading pass every time you change a
-	# pixel. Deliberately not a menu item — it skips the run the balance depends
-	# on, so it stays a flag you have to type.
-	# Star chart cache test. Needs the real shell and a window, so unlike the
-	# sim and savetest it runs after boot rather than instead of it:
-	#   godot --path . -- charttest
-	# The sector with a party in it:  godot --path . -- convoy
-	# Needs a window, and runs after boot rather than instead of it, because it
-	# photographs the real screen — the arena, the salvage rail and the hand all
-	# competing for the same width, which is the whole question. The party is a
-	# fabricated ROSTER and no port is opened.
-	# `-- party 6` opens the party page against a fabricated roster.
-	#
-	# Same argument as `-- convoy`: the page's whole subject is other people, so
-	# without this the only way to look at it is to start six Godot processes and
-	# fly them to the same place. The roster is faked, not the screen — what is
-	# drawn is the real PartyScreen reading the real Net.roster.
-	# `-- cargo` starts a heavy run with a hold full of materials, and then hands
-	# the game back to you.
-	#
-	# Not a screenshot. `-- shipshot heavy cargo` photographs the same hold and
-	# quits, which answers "does it draw" and not "does it feel like anything to
-	# pack". Materials are a SPATIAL toy -- the whole ruling behind them is that
-	# they do not stack, so every one is a decision about room -- and that is not
-	# a thing a still image can be judged on.
-	#
-	# One of every shape first, then a spread of tiers, then whatever else fits.
-	# `-- questrun` places one and opens the chart on it, then hands the game
-	# back. NOT `quest`: every mode here matches on a bare word appearing
-	# anywhere in the arguments, so `-- chartshot quest` matched this first and
-	# quietly opened a playable game instead of taking the photograph.
-	#
-	# A PLACEMENT CANNOT BE POSED. It is the consequence of an option resolution
-	# several jumps back, so the only honest setup is to make the call the
-	# outcome makes and let it choose its own target the way it will in a real
-	# run. `-- chartshot quest` photographs the marker and quits, which answers
-	# "does it draw"; this answers "can you find it, and does the chart still
-	# read with it on".
-	#
-	# `flown` first, because a fresh chart shows every system as currently
-	# sensed and the marker is most interesting on a system you CANNOT see --
-	# which is the one rule it deliberately breaks.
+	# Flags match bare words anywhere, so `chartshot quest` once opened `quest` instead.
+	# Why: docs/why/Main.md#dev-shortcuts
 	if "questrun" in OS.get_cmdline_user_args():
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var seen := {Run.at: true}
@@ -512,10 +345,8 @@ func _ready() -> void:
 		Router.show_starchart()
 		return
 
-	# NOT WHEN IT IS A SHOT'S ARGUMENT. `-- shipshot heavy cargo` matched this
-	# first, the same way `chartshot quest` once matched `quest` above, and opened
-	# a playable game where the photograph should have been -- which from outside
-	# looks exactly like a shot that hangs.
+	# A shot's argument must not match the mode: `shipshot heavy cargo` opened a game.
+	# Why: docs/why/Main.md#dev-shortcuts
 	if "cargo" in OS.get_cmdline_user_args() \
 			and not "shipshot" in OS.get_cmdline_user_args():
 		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
@@ -547,11 +378,7 @@ func _ready() -> void:
 		print("%s -- hold %dx%d, %d items, %d of %d cells" % [Run.hull.name,
 			Run.hull.hold_grid.x, Run.hull.hold_grid.y, Run.cargo.size(),
 			used, Run.hull.hold_grid.x * Run.hull.hold_grid.y])
-		# And something on the floor of this system, so SECTOR has a container
-		# to open. Half the point of the flag is the reaching, not the packing.
-		# A CONTAINER WORTH LOOKING AT: a spread of shapes and tiers on the floor,
-		# a part among them so the two icon kinds are judged side by side, and
-		# one already claimed so the taken state is visible.
+		# Puts a container on the floor so SECTOR has one to open; reaching is half the point.
 		var n0: MapGen.MapNode = Run.node_at()
 		var tiers0: Array[StringName] = [&"legendary", &"contraband", &"rare",
 			&"exotic", &"common", &"artifact", &"epic"]
@@ -571,14 +398,8 @@ func _ready() -> void:
 		Router.show_ship()
 		return
 
-	# `-- quest` signs the first fetch and the first hunt it can find and opens
-	# the chart on them.
-	#
-	# The rings are the only part of the contract system living on a screen you
-	# cannot reach from a station, so without this the only way to look at them is
-	# to fly to a station, sign something and fly to the chart — three screens
-	# away from the thing being changed. Same argument as `-- party` and
-	# `-- salvage`: the contracts are faked, the chart is not.
+	# Quest rings sit on a screen unreachable from a station: contracts faked, chart real.
+	# Why: docs/why/Main.md#dev-shortcuts
 	if "quest" in OS.get_cmdline_user_args():
 		for kind in [ContractData.Kind.FETCH, ContractData.Kind.HUNT,
 				ContractData.Kind.HEAT]:
@@ -651,11 +472,7 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
-	# Every exhaust strip loaded and measured:  godot --headless --path . -- exhaust
-	# Headless on purpose: a plume that fails to load is invisible, not loud.
-	# Any contact sheet under scripts/sim/, by its file name:  -- sheet=<Name> [its own args]
-	# The renderer ports' comparison sheets use it, so a new one needs no edit here.
-	# Needs a window when the sheet draws a shader.
+	# Exhaust runs headless: a plume that fails to load is invisible, not loud.
 	for a_sh in OS.get_cmdline_user_args():
 		if (a_sh as String).begins_with("sheet="):
 			add_child(load("res://scripts/sim/%s.gd" % (a_sh as String).substr(6)).new())
@@ -683,13 +500,8 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
-	# The refit screen at a chosen weight:  godot --path . -- shipshot heavy
-	# Needs a window and runs after boot, same as convoy. The heavy is the
-	# default because its 6x5 hold is what any change to that panel has to clear.
-	# Every drawn part on one ship, live:  godot --path . -- artdemo
-	# AFTER BOOT, beside shipshot and not up with the headless checks: show_ship
-	# needs the Router to have been handed a content node, and the branches above
-	# run before that exists.
+	# Artdemo runs after boot: `show_ship` needs the Router to hold a content node first.
+	# Why: docs/why/Main.md#dev-shortcuts
 	if "artdemo" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ArtDemo.gd").new()
 		_convoy_test.run(get_tree())
@@ -700,26 +512,19 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
-	# One card as it draws today:  godot --path . -- cardshot "Ripple Fire"
-	# Beside stationshot for the same three reasons: it needs a window, it
-	# asserts nothing, and it exists so an art decision can be looked at rather
-	# than argued about.
+	# Beside stationshot: needs a window, asserts nothing, lets an art call be seen, not argued.
 	if "cardshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/CardShot.gd").new()
 		_convoy_test.run(get_tree())
 		return
 
-	# The station, photographed:  godot --path . -- stationshot [manufacturer=solari]
-	# Beside shipshot and chartshot because it needs a window and it needs the
-	# Router to have a content node, which the headless checks above run before.
+	# Needs a window and a Router content node, which the headless checks run before.
 	if "stationshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/StationShot.gd").new()
 		_convoy_test.run(get_tree())
 		return
 
-	# Beside stationshot for the same two reasons, and a third: it walks the
-	# Router, so it must run after `register` has given it a content node to
-	# swap screens into.
+	# Walks the Router, so it must run after `register` gives it a content node.
 	if "skyshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/SkyShot.gd").new()
 		_convoy_test.run(get_tree())
@@ -741,12 +546,8 @@ func _ready() -> void:
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
 		return
-	# The salvage rail, driven through the real screen and a real jump — the one
-	# thing unit assertions on the rule cannot see:
-	#   godot --headless --path . -- stowtest
-	# The container, checked on what it DRAWS. Beside stowtest and for the same
-	# reason: it builds a real screen and needs a live tree, but no pixels.
-	#   godot --headless --path . -- transfertest
+	# The salvage rail is driven through the real screen and a jump, which unit asserts miss.
+	# Why: docs/why/Main.md#test-flags
 	if "transfertest" in OS.get_cmdline_user_args():
 		_stow_test = load("res://scripts/sim/TransferTest.gd").new()
 		_stow_test.run(get_tree())
@@ -813,79 +614,45 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
-	# Parts crossing between the hold and the hull, dragged with real events:
-	#   godot --path . -- fittest
-	# NOT headless — it drives Viewport's own drag machine, and headless has no
-	# gui input to drive it with. Held in a member for the same reason ChartTest
-	# is: run() awaits, and a RefCounted nobody holds dies mid-coroutine.
+	# Not headless: it drives Viewport's drag machine. Held in a member so the coroutine lives.
 	if "fittest" in OS.get_cmdline_user_args():
 		_fit_test = load("res://scripts/sim/FitTest.gd").new()
 		_fit_test.run(get_tree())
 		return
 
-	# A click through the curved glass lands where the picture says it does:
-	#   godot --path . -- warptest
-	# Same shape as fittest and for the same two reasons: a real window, and a
-	# member to hold the coroutine alive.
+	# Needs a real window and a member holding the coroutine alive, like fittest.
 	if "warptest" in OS.get_cmdline_user_args():
 		_fit_test = load("res://scripts/sim/WarpTest.gd").new()
 		_fit_test.run(get_tree())
 		return
 
 	if "charttest" in OS.get_cmdline_user_args():
-		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
-		# and a RefCounted nothing holds a reference to is freed the moment the
-		# calling statement ends — the suspended coroutine goes with it and the
-		# test dies silently after its first print. SaveTest gets away with
-		# `load(...).new().run()` only because it never awaits.
+		# Held in a member: an unreferenced RefCounted is freed mid-await and the test dies.
+		# Why: docs/why/Main.md#coroutine-tests
 		_chart_test = load("res://scripts/sim/ChartTest.gd").new()
 		_chart_test.run(get_tree())
 	if "cards" in OS.get_cmdline_user_args():
 		Router.show_cards()
-	# Every module in the game, on one page:  godot --path . -- parts
-	#
-	# Same argument as `-- cards` one line up, one level out: a part is what you
-	# find and pack, and the only way to see one used to be to be handed it.
-	#
-	# An ELIF, in the chain, and not an `if` of its own beside it. Written as a
-	# separate `if` it silently re-parents the `elif` under it — `-- ship` would
-	# then be testing whether `parts` was absent rather than whether `cards`
-	# was. That has happened here before and cost an afternoon.
+	# Keep it an elif in the chain: a separate if re-parents the elif and tests the wrong flag.
+	# Why: docs/why/Main.md#dev-shortcuts
 	elif "parts" in OS.get_cmdline_user_args():
 		Router.show_modules()
 	elif "ship" in OS.get_cmdline_user_args():
-		# WHICH weight, for comparing the three hull sizes: `-- ship heavy`.
-		# Inside this branch rather than in front of the chain — put in front,
-		# the `elif` below binds to IT instead of to the flag above, and every
-		# other dev flag silently stops working.
+		# Inside the branch: in front of the chain the elif binds to it and other dev flags die.
+		# Why: docs/why/Main.md#dev-shortcuts
 		var flags := OS.get_cmdline_user_args()
 		if "light" in flags or "heavy" in flags:
 			var w: HullData.Weight = HullData.Weight.HEAVY
 			if "light" in flags:
 				w = HullData.Weight.LIGHT
 			Run.fit_chassis(&"korvan", w, 0)
-		# The refit screen normally sits two clicks and a chassis choice away,
-		# and it is where the attribute block lives — so the screen that most
-		# needs looking at was the most tedious to reach.
-		#
-		# Seeded with a hold, because the screen is a workbench now and an empty
-		# hold tests half of it. Eight parts across the rarity range: enough to
-		# fill the storage grid past one row, and enough that a swap has
-		# something worth swapping to.
+		# Refit is the screen most worth looking at and was the most tedious to reach.
+		# The hold is seeded because the screen is a workbench and an empty hold tests half.
+		# Why: docs/why/Main.md#ship-shot
 		for i in 8:
 			Run.stow(LootGen.roll_module(2 + i, &"", true))
-		# NAME A MODULE AND IT GOES ON THE HULL: `-- ship lattice`.
-		#
-		# The eight above are a random hold, which is right for exercising the
-		# workbench and wrong for looking at ONE part. Checking a sprite meant
-		# rolling until the part turned up, and a 2x2 unbranded system module
-		# does not turn up often. Any argument that matches a module id is now
-		# built and installed, so the thing you want to look at is bolted on
-		# when the screen opens.
-		#
-		# Duplicated, for the reason `fit_chassis` gives at the same call: the
-		# catalogue entry is shared, and a run that mutates it moves that part
-		# on every ship in the game.
+		# A module id as an argument is built and installed, duplicated to protect the entry.
+		# Why: docs/why/Main.md#ship-shot
 		for a in flags:
 			var mid := StringName(a)
 			if not DB.modules.has(mid):
@@ -893,11 +660,7 @@ func _ready() -> void:
 			var pick := (DB.modules[mid] as ModuleData).duplicate(true) as ModuleData
 			Run.install_module(pick)
 			print("[ship] installed %s (%s)" % [pick.name, mid])
-		# `sets=N` bolts on N of the hull manufacturer's own parts, `mixed` adds
-		# one each from three others, and `name=Bad Penny` names the ship. All
-		# three exist for the same reason: the masthead and the perk corner
-		# rearrange around state a default run does not have, so the screen this
-		# flag opens was the one state that could not show what was added to it.
+		# `sets`, `mixed` and `name` give the masthead and perk corner state a default run lacks.
 		var want := 0
 		for a2 in flags:
 			if (a2 as String).begins_with("sets="):
@@ -913,10 +676,8 @@ func _ready() -> void:
 				continue
 			Run.install_module(md.duplicate(true) as ModuleData)
 			fitted += 1
-		# TWO OTHERS, not three. Mounts are finite and these displace the parts
-		# fitted above, so three of them on a heavy left the hull manufacturer at
-		# four -- lit, but one short of the tier that breathes. Two leaves five,
-		# which is the only loadout that shows all three chip states at once.
+		# Two others, not three: three left the hull manufacturer at four, one short of top.
+		# Why: docs/why/Main.md#ship-shot
 		if "mixed" in flags:
 			var others := 0
 			for oid in DB.manufacturers:
@@ -938,23 +699,13 @@ func _ready() -> void:
 				"  ·  named '%s'" % Run.ship_name if Run.ship_name != "" else ""])
 		Router.show_ship()
 	elif "station" in OS.get_cmdline_user_args():
-		# The dock, immediately. Added when the station became four panels rather
-		# than two — a shelf, a service desk, a buyer for the hold and a
-		# fabricator — and reaching it normally costs a chassis choice, a jump
-		# and a sector screen every time one of those four moves a pixel.
-		#
-		# It also gives the merge gate something that CONSTRUCTS the screen. The
-		# boot check only ever built the launcher, so the busiest screen in the
-		# game was the one nothing automated had ever drawn.
+		# Goes straight to the dock, and gives the merge gate a screen that constructs the station.
+		# Why: docs/why/Main.md#station-shot
 		var here: MapGen.MapNode = Run.node_at()
 		here.type = MapGen.NodeType.STATION
 		here.development = MapGen.Development.CITY
 		here.security = 4
-		# CONTESTED BY DEFAULT, and `manufacturer=a,b,c` overrides it -- the same
-		# argument `-- stationshot` takes, so the screen you play and the screen
-		# that gets photographed are set up the same way. Up to three: MapGen
-		# wants that many on 35% of cities and 60% of capitals, and the rail sizes
-		# its flags to how many are flying.
+		# Contested by default, `manufacturer=a,b,c` overrides; up to three, as MapGen wants.
 		var berths: Array[StringName] = [&"solari", &"cygnet"]
 		for a4 in OS.get_cmdline_user_args():
 			if not (a4 as String).begins_with("manufacturer="):
@@ -975,40 +726,24 @@ func _ready() -> void:
 		here.berths = berths
 		here.manufacturer = berths[0] if not berths.is_empty() else &""
 		here.danger = 5
-		# Something in the hold to sell, something to scrap, and enough of every
-		# material to light up the fabricator and the material rows.
-		#
-		# `full` PACKS THE HOLD UNTIL NOTHING MORE FITS and guarantees a hull on
-		# the blocks. Every one of these five decks behaves differently when it is
-		# busy -- the Exchange scrolls, the Yard offers, the Promenade fills its
-		# list -- and the three-item hold this flag used to build showed none of
-		# that. `hold_full()` is the honest test: it asks whether ONE CELL is
-		# free, so the loop stops where the packer actually stops rather than at a
-		# count somebody guessed.
+		# `full` packs the hold until `hold_full()` says no cell is free, to exercise busy decks.
+		# Why: docs/why/Main.md#station-shot
 		var deep := "full" in OS.get_cmdline_user_args()
 		for i in 3:
 			Run.stow(LootGen.roll_module(4 + i, &"", true))
-		# STRAIGHT INTO THE HOLD, because this is the debug seed and its whole
-		# job is to put you in a state -- `add_material` would leave them
-		# floating in the sector for you to go and fetch.
+		# Straight into the hold: this debug seed puts you in a state, not a pickup to fetch.
 		for seeded in [&"exotic", &"exotic", &"relic"]:
 			Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
 		if deep:
-			# A BOUND ON THE LOOP AS WELL AS A TEST. `stow` can refuse a part that
-			# does not fit while a smaller one still would, so `hold_full` alone
-			# is not guaranteed to flip -- a 2x2 bouncing off a hold with four
-			# separate single cells left would spin here forever.
+			# Bound the loop: `stow` can refuse a big part while a smaller fits, so it could spin.
+			# Why: docs/why/Main.md#station-shot
 			for i in 40:
 				if Run.hold_full():
 					break
 				Run.stow(LootGen.roll_module(3 + (i % 5), &"", true))
 			Run.add_credits(900)
-		# FOUR OF THE BERTH'S OWN PARTS BOLTED ON.
-		#
-		# A fresh run counts two toward a set -- the hull and one starter module --
-		# and the HUD's set-bonus chip appears at three. So the state this flag
-		# built was the one state that could not show the chip, on the screen the
-		# chip was added to. `sets=N` asks for a different count.
+		# Four own parts bolted on: a fresh run counts two and the set-bonus chip shows at three.
+		# Why: docs/why/Main.md#station-shot
 		var want := 4
 		for a3 in OS.get_cmdline_user_args():
 			if (a3 as String).begins_with("sets="):
@@ -1029,10 +764,7 @@ func _ready() -> void:
 		Run.hp = maxi(1, Run.max_hp() - 12)
 		Run.add_dross(3)
 		if deep:
-			# The Yard's own roll is 75% at a city, so `-- station full` would
-			# still show an empty berth one visit in four. Forced here rather
-			# than by raising the odds, because the odds are balance and this is
-			# a debug seed.
+			# Forced here, not by raising odds: the Yard's 75% roll is balance, this a debug seed.
 			var here2: MapGen.MapNode = Run.node_at()
 			here2.stocked = true
 			for i in 5:
@@ -1044,20 +776,8 @@ func _ready() -> void:
 		Router.park_at_station()
 		Router.show_station()
 	elif "salvage" in OS.get_cmdline_user_args():
-		# `-- salvage 8` opens the sector with eight parts in the hold.
-		#
-		# The salvage rail is the one panel in the game whose layout only
-		# misbehaves at sizes a normal run reaches late — a lawless run pays two
-		# modules a fight — and it misbehaved by growing the PAGE rather than
-		# itself, which pushed the hand strip off the bottom of the screen. The
-		# only way to see that was to play until the hold was full, which is the
-		# same argument `-- fight 10` makes about the hand.
-		#
-		# `-- salvage 8 bag=4` also drops a four-part BAG at the node, which is
-		# what a shared kill leaves. That one cannot be reached at all without a
-		# second machine — `Combat._victory` only opens a bag when the fight was
-		# the party's — so without this the newest panel in the game is the one
-		# nothing can draw on its own.
+		# The rail breaks only at late-run sizes, by growing the page; bags need a second machine.
+		# Why: docs/why/Main.md#salvage-shot
 		var many := 8
 		for a in OS.get_cmdline_user_args():
 			if a.is_valid_int():
@@ -1071,9 +791,7 @@ func _ready() -> void:
 				Run.open_bag(here2, 1, clampi(int(a.split("=")[1]), 1, 8))
 		Router.show_sector()
 	elif "fight" in OS.get_cmdline_user_args():
-		# `-- fight 10` deals ten. The hand is the one layout that only
-		# misbehaves at sizes a normal run rarely reaches, so seeing it full
-		# should not require finding a Redline set bonus first.
+		# `fight 10` deals ten: the hand only misbehaves at sizes a normal run rarely reaches.
 		for a in OS.get_cmdline_user_args():
 			if a.is_valid_int():
 				Run.hand_size_override = clampi(int(a), 1, 12)
@@ -1085,9 +803,7 @@ func _ready() -> void:
 				named = DB.enemies.get(StringName(a.split("=")[1]))
 		if named != null:
 			Router.start_combat(named, [], false)
-			# `foehp=20` opens the named contact already hurt — the only way to
-			# photograph the states a fight normally has to earn: the wound
-			# bands, and the hellbender's escape-burn telegraph.
+			# `foehp` opens a contact already hurt, to photograph wound bands and burn telegraph.
 			for a2 in OS.get_cmdline_user_args():
 				if a2.begins_with("foehp="):
 					var e0 := Router.combat.enemies[0]
@@ -1098,18 +814,11 @@ func _ready() -> void:
 			var pool := DB.fight_pool(3, false)
 			Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
 
-	# `-- shot` writes what is on screen and quits. For looking at a layout from
-	# a place that cannot look at a window — a headless CI leg, an agent, a bug
-	# report from somebody who cannot run the project. Deliberately generic: it
-	# photographs whatever the flags above put up, so it never needs a case
-	# adding for a new screen.
-	# `-- menu` opens the escape menu over whatever the flags put up, so `-- ship
-	# menu shot` photographs it in place;
+	# `-- shot` is generic: it photographs whatever the flags put up, so no case per screen.
+	# Why: docs/why/Main.md#shot-flags
 	if "menu" in OS.get_cmdline_user_args():
 		toggle_menu()
-	# `-- look=crt` (flat, lines, crt, crt+, arcade) and `-- cvd=1..3` put a
-	# display option on for one run, for shots and for looking at it without
-	# clicking through the menu. They do not save.
+	# Display options for one run, for shots; they are not saved.
 	for a0 in OS.get_cmdline_user_args():
 		if (a0 as String).begins_with("look="):
 			var want := (a0 as String).substr(5).to_upper()
@@ -1136,9 +845,7 @@ func _ready() -> void:
 			DisplaySettings.colour_help = clampi(int((a0 as String).substr(4)), 0, 3)
 	GameShell.refresh()
 
-	# `-- keytest`: does the keyboard still reach the game now that it lives in
-	# a SubViewport? Sends ESC, then TAB, and says what happened. The one thing
-	# the shell restructure could break silently.
+	# Checks the keyboard still reaches the game now that it lives in a SubViewport.
 	if "keytest" in OS.get_cmdline_user_args():
 		_key_test.call_deferred()
 
@@ -1147,10 +854,7 @@ func _ready() -> void:
 		Run.death_reason = "Hull integrity lost. The cold gets in fast."
 		Router.show_game_over.call_deferred()
 
-	# `-- salvage`: a wreck at this system with one COMMON module in it, opened.
-	# For listening to the reveal -- the rarity ladder's quietest rung is the one
-	# that gets reported missing, and reaching one in play means fighting until
-	# a cutter drops one.
+	# A wreck with one COMMON module, opened, to hear the rarity ladder's quietest rung.
 	if "salvage" in OS.get_cmdline_user_args():
 		_open_test_salvage.call_deferred()
 
@@ -1158,9 +862,7 @@ func _ready() -> void:
 	# escape menu's "abandon this run?" step.
 	if "settings" in OS.get_cmdline_user_args():
 		_open_settings()
-	# `-- settings=controls` opens it scrolled to CONTROLS, the key bindings;
-	# `bindshot=listen|clash|reset` puts a row in the state worth photographing
-	# (waiting for a key, a clash with its SWAP, the RESET ALL question).
+	# Opens Settings at CONTROLS; `bindshot` poses a row in a state worth photographing.
 	for a_k in OS.get_cmdline_user_args():
 		if a_k == "settings=controls" or (a_k as String).begins_with("bindshot="):
 			_open_settings()
@@ -1185,34 +887,18 @@ func _wants_shot() -> bool:
 			return true
 	return false
 
-## Wait for the layout to settle, then save the frame.
-##
-## Several frames, not one. Containers size their children on the frame AFTER
-## they are added, and every screen here is built in code during _ready — a
-## grab on frame zero photographs a page whose panels are all still at their
-## minimum size, which is precisely the property under test.
+## Wait several frames: containers size children a frame after adding, so frame zero lies.
+## Why: docs/why/Main.md#shot-timing
 func _shoot() -> void:
-	# THE WINDOW IS RESIZED TO THE BASE VIEWPORT FIRST, and this is not tidiness.
-	#
-	# The window is resizable and the controls lay out to it in real pixels, while
-	# this grab returns the viewport's own render target at the project's base
-	# size. Those two are routinely different — a 999-wide window photographed as
-	# a 960-wide PNG — so the picture silently CROPS the interface, and a button
-	# perfectly placed in the game appears sliced by the right edge of the file.
-	#
-	# An afternoon went into chasing a margin bug that did not exist because of
-	# it. A screenshot that does not show what the game shows is worse than no
-	# screenshot: it is a confident wrong answer.
+	# Resize the window to the base viewport first, or the PNG silently crops the interface.
+	# Why: docs/why/Main.md#shot-timing
 	var base := Vector2i(
 		int(ProjectSettings.get_setting("display/window/size/viewport_width", 960)),
 		int(ProjectSettings.get_setting("display/window/size/viewport_height", 540)))
 	get_window().size = base
 	for i in 8:
 		await get_tree().process_frame
-	# `-- gfxprobe settings=look shot=<png>`: the still is of the MEASURED pick,
-	# not the hint's: the title's sky needs about a hundred frames to decide, and
-	# the shot was taken at eight. Up to 30 s for it, then the Settings drawer's
-	# redraw (`Sig.graphics_picked`) a few frames to lay out.
+	# Shoot the measured pick, not the hint: the title sky needs about a hundred frames.
 	if GpuProbe.asked() != "":
 		var until := Time.get_ticks_msec() + 30000
 		while DisplaySettings.graphics_by == DisplaySettings.GFX_NOBODY and Time.get_ticks_msec() < until:
@@ -1226,12 +912,8 @@ func _shoot() -> void:
 		if a.begins_with("shot="):
 			out = a.split("=")[1]
 	img.save_png(out)
-	# THE TEXTURE AND THE LAYOUT ARE NOT ALWAYS THE SAME WIDTH, and reading the
-	# picture as if they were costs an afternoon. The window is resizable, the
-	# controls lay out to it, and this grab is the viewport's own render target —
-	# so a screenshot can be NARROWER than the interface in it, and a button
-	# sliced by the right edge of the PNG can be perfectly placed in the game.
-	# Both numbers are printed so the next reader can tell those two apart.
+	# Print both texture and layout sizes: a PNG can be narrower than the interface in it.
+	# Why: docs/why/Main.md#shot-timing
 	print("[shot] %s  texture %dx%d  layout %dx%d" % [
 		ProjectSettings.globalize_path(out), img.get_width(), img.get_height(),
 		int(size.x), int(size.y)])
@@ -1259,12 +941,8 @@ var _bot: RefCounted = null
 var _wear_sheet: RefCounted = null
 var _convoy_test: RefCounted = null
 
-## Every checked option in the table, measured against three real ships.
-##
-## Prints the badge the player would see and then rolls the ladder ten thousand
-## times, so the four bands can be compared against what ODDS promises. A drift
-## between them means pick_outcome or the split is wrong, and neither would
-## crash.
+## Prints each badge and rolls its ladder 10,000 times to compare against ODDS.
+## Why: docs/why/Main.md#check-table
 func _print_check_table() -> void:
 	for probe in [[&"redline", HullData.Weight.LIGHT], [&"korvan", HullData.Weight.MEDIUM],
 			[&"probate", HullData.Weight.HEAVY]]:
@@ -1272,10 +950,7 @@ func _print_check_table() -> void:
 		print("\n=== %s ===" % Run.hull.name)
 		print("%-22s %-34s %6s %6s %6s %6s" % [
 			"event", "badge", "met", "clean", "part", "botch"])
-		# THE OPTIONS, because that is where checks live now. This probe read
-		# `EventTable` until that table was emptied by the batch-04 port; the
-		# ladder it verifies did not move, only the content carrying it, and
-		# there is now four times as much of it to verify against.
+		# Reads `OptionTable`, since the batch-04 port emptied `EventTable`.
 		for e in OptionTable.all():
 			for o in (e as Dictionary).choices:
 				var opt: Dictionary = o
@@ -1289,14 +964,10 @@ func _print_check_table() -> void:
 					counts[0] / 100.0, counts[1] / 100.0,
 					counts[2] / 100.0, counts[3] / 100.0])
 
-## Starts a run per manufacturer and prints the resulting attribute row, plus
-## the raw gauges each one is derived from so a surprising attribute can be
-## traced to the stat that caused it without opening Database.gd.
+## One run per manufacturer; prints raw gauges so a surprising attribute can be traced.
 func _print_attribute_table() -> void:
-	# RCT WAS MISSING and the row has always printed it: the loop below walks
-	# `Run.attributes()`, which is seven gauges, against six labels. Every
-	# column after HUL read as the one to its left, so a heavy's thrust of 8
-	# looked like a maneuverability of 8 on a frame that cannot turn at all.
+	# Seven gauges against six labels shifted every column, so thrust 8 read as maneuverability.
+	# Why: docs/why/Main.md#attribute-table
 	print("chassis            HUL RCT THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit deck hand set")
 	for manufacturer in DB.STARTABLE:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
@@ -1304,17 +975,11 @@ func _print_attribute_table() -> void:
 			var row := ""
 			for a in Run.attributes():
 				row += "%3d " % int(a.value)
-			# Deck size is the number that decides whether a starting hand is a
-			# DRAW or just your whole deck, and it is not obvious from the kit:
-			# modules grant 2 cards, utilities 1, and Verity one fewer than
-			# whatever it would have been.
+			# Deck size decides whether a start hand is a draw or the whole deck.
 			var deck := 0
 			for mod in Run.installed:
 				deck += mod.grant_count()
-			# slots_for(), not the raw hull numbers. No perk adds a mount any more --
-			# spare_bay was the only one that did and it is gone -- but the set
-			# bonuses and the hull perks still reach these numbers, and a table that
-			# disagrees with the ship sends you looking for a bug in the fitting code.
+			# Uses `slots_for()`, not raw hull numbers, or the table disagrees with the ship.
 			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d %4d %4d  %s %d" % [
 				Run.hull.name, row, Run.hp, Run.heat_cap(), Run.dissipation(),
 				Run.dodge(), Run.initiative(), Run.fuel_factor(),
@@ -1339,16 +1004,9 @@ func _print_attribute_table() -> void:
 
 var _menu: PauseMenu = null
 
-## The escape menu and Settings live on their own layer, above the game's. The
-## menu's backdrop is a screen shader, and it can only blur what is drawn BEFORE
-## it -- on the base layer, `top_level` controls (the ship screen's perk labels)
-## draw after everything else, so they stayed sharp through the pause. On a
-## higher layer the whole game is finished before the menu reads it. Settings
-## shares the layer so it still opens on top of the menu.
-##
-## A CanvasLayer is not a Control, so the theme set on this node does not reach
-## through it: whatever goes on the layer is handed `theme` by hand, or it draws
-## in Godot's default font.
+## Menu has its own layer so its blur sees the whole game, including `top_level` controls.
+## A CanvasLayer is not a Control, so hand it `theme` by hand or it uses the default font.
+## Why: docs/why/Main.md#overlay-layer
 var _overlay: CanvasLayer = null
 
 func _overlay_layer() -> CanvasLayer:
@@ -1359,35 +1017,9 @@ func _overlay_layer() -> CanvasLayer:
 	return _overlay
 var _settings: SettingsMenu = null
 
-## The game shipped with no way to exit — no quit action, no input map entries.
-## Escape now opens the menu; F11 toggles fullscreen so a screen-sized window
-## can never trap the player behind missing title-bar chrome again.
-## TAB IS THE SHIP, and it has to be caught in `_input` rather than in
-## `_unhandled_key_input`.
-##
-## Godot binds Tab to `ui_focus_next` and the GUI consumes it walking focus
-## between controls, so it never reaches the unhandled pass -- which is where I
-## put it first, and why it did nothing. Taking it here and marking it handled
-## costs the focus walk, which this game does not use: nothing is keyboard
-## navigable and every control is clicked.
-##
-## `show_ship` refuses during a fight on its own, so there is no guard here.
-## THE POINTER, AND THE POINTER CLOSING.
-##
-## Four corners and a dot -- see `art/tools/cursors.py` for why there is no
-## crosshair -- travelling from six pixels out to three when the thing under
-## them can be pressed.
-##
-## FRAMES, BECAUSE A CUSTOM CURSOR IS ONE STATIC TEXTURE PER SHAPE. Godot has
-## no animated form of it, so the animation is four images and the swapping is
-## here. The alternative -- hiding the system cursor and painting our own
-## Control at the mouse position -- can tween anything, and is a cursor one
-## frame behind the mouse forever. A pointer that lags is a worse pointer than
-## one that does not ease, so the frames win.
-##
-## IT COSTS FOUR OS CALLS PER HOVER, not four a second: `_process` only touches
-## the cursor when the rounded frame index actually changes, which is three
-## times on the way in and three on the way out.
+## Tab is caught in `_input`: the GUI eats it for focus walking, which this game never uses.
+## The cursor is four swapped frames: a painted Control cursor would lag the mouse.
+## Why: docs/why/Main.md#input-and-cursor
 const CURSOR_FRAMES := 4
 ## The pixel you are pointing with: the middle, for a shape that closes around
 ## it rather than an arrow that points from a corner.
@@ -1411,10 +1043,8 @@ var _cursor_shown: int = -1
 func _wear_cursor() -> void:
 	_cursor_tex.clear()
 	for i in CURSOR_FRAMES:
-		# THROUGH THE IMPORTED TEXTURE, not the PNG on disk. An export has no
-		# loose PNG -- only the imported texture in the pack -- so loading the
-		# file by its globalized path failed there, silently, and friends got the
-		# system arrow. The textures import lossless, so their image is exact.
+		# Load via the imported texture: an export has no loose PNG, so friends got the arrow.
+		# Why: docs/why/Main.md#cursor
 		var tex := load("res://art/cursors/reticle_%d_2x.png" % i) as Texture2D
 		if tex == null:
 			return
@@ -1426,35 +1056,17 @@ func _show_cursor(f: int) -> void:
 	if f == _cursor_shown or f < 0 or f >= _cursor_tex.size():
 		return
 	_cursor_shown = f
-	# BOTH SHAPES, THE SAME IMAGE. Godot swaps ARROW for POINTING_HAND by itself
-	# the instant the pointer crosses a control, which would jump the reticle to
-	# its end state and leave the animation running behind it. Holding both to
-	# the current frame means the swap is invisible and this is the only thing
-	# deciding what the cursor looks like.
-	#
-	# AND EVERY SHAPE A DRAG WEARS. Picking up a part hands the pointer to
-	# Godot's drag, which shows FORBIDDEN over whatever will not take it and
-	# CAN_DROP over whatever will -- the system's red X on the Promenade and
-	# its plain arrow over the hold, because neither had the reticle (Jon:
-	# "kinda bad"). Where a part can go is shown by the thing it would go
-	# into; the pointer stays ours, held shut for as long as you carry it.
+	# Both shapes and every drag shape wear the same frame, so Godot's swaps stay invisible.
+	# Why: docs/why/Main.md#cursor
 	for shape in CURSOR_SHAPES:
 		Input.set_custom_mouse_cursor(_cursor_tex[f],
 			shape as Input.CursorShape, CURSOR_HOT)
 
 
-## Is the thing under the pointer something you can press?
-##
-## Asked of the hovered control rather than of the cursor, because the cursor is
-## what we are deciding. `mouse_default_cursor_shape` is the declaration every
-## button makes through `Widgets._btn`, so this reads the same fact Godot would
-## have read to do the swap we are taking over.
+## Reads `mouse_default_cursor_shape`, the fact `Widgets._btn` declares and Godot would read.
+## Why: docs/why/Main.md#cursor
 func _cursor_wants_shut() -> bool:
-	# A HELD BUTTON IS A GRIP. Dragging the starchart, dragging a crate across
-	# the hold, holding a card -- the pointer has hold of something for the
-	# whole of it, and one rule covers all three without any of them knowing
-	# this exists. It is also what keeps a click scrunched for as long as the
-	# click lasts, rather than for one frame.
+	# A held button is a grip: one rule covers drags and holds, and keeps a click shut.
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return true
 	var h := get_viewport().gui_get_hovered_control()
@@ -1470,17 +1082,8 @@ func _process(delta: float) -> void:
 	_show_cursor(int(round(_cursor_at)))
 
 
-## SCREEN SHAKE, and it is the viewport that moves rather than any one node.
-##
-## `canvas_transform` shifts everything drawn in the base canvas together -- the
-## ship, the enemy, the drawer, the HUD -- so nothing can drift out of step with
-## anything else. The escape menu is on its own CanvasLayer and is deliberately
-## not shaken: a menu that wobbles while you read it is a different feeling
-## entirely.
-##
-## WHOLE PIXELS ONLY. Everything in this game is drawn on a 960x540 grid, and a
-## half-pixel offset resamples every sprite on screen -- the one thing the
-## integer window scaling exists to prevent.
+## The viewport moves, in whole pixels only, so a half-pixel never resamples every sprite.
+## Why: docs/why/Main.md#screen-shake
 const SHAKE_S := 0.22
 const SHAKE_HZ := 34.0
 const SHAKE_MAX := 4.0
@@ -1536,13 +1139,8 @@ func _shake_step(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# SNAP SHUT, EASE OPEN. A press jumps the reticle to closed rather than
-	# travelling there: the animation is a response to hovering, and a click is
-	# an impact. Easing INTO a click makes the pointer feel behind your hand;
-	# easing out of one reads as the thing recovering.
-	#
-	# NOT HANDLED, deliberately. This watches the click on the way past; the
-	# control under it still gets it.
+	# Snap shut, ease open: a press is an impact. The click is watched but not handled.
+	# Why: docs/why/Main.md#cursor
 	var mb := event as InputEventMouseButton
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		_cursor_at = float(CURSOR_FRAMES - 1)
@@ -1550,10 +1148,7 @@ func _input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
-	# NEXT SCREEN is a binding now (`Keys`), Tab out of the box. A bare Tab is
-	# still eaten when nothing else has it, for the focus walk above; and a
-	# letter bound here is left to a text field that has focus, or renaming
-	# the ship would change the page halfway through a word.
+	# A bare Tab is still eaten for focus; a letter binding yields to a focused text field.
 	if not k.is_action_pressed(&"next_screen"):
 		if k.keycode == KEY_TAB and Keys.clashes(&"next_screen", KEY_TAB).is_empty():
 			get_viewport().set_input_as_handled()
@@ -1561,39 +1156,19 @@ func _input(event: InputEvent) -> void:
 	if k.keycode != KEY_TAB and get_viewport().gui_get_focus_owner() is LineEdit:
 		return
 	get_viewport().set_input_as_handled()
-	# ONLY INSIDE A RUN. Tab on the hull pick walked into the ship screen with no
-	# ship ("LOL"), and the title and the lobby have no run either. Not under
-	# the escape menu either: the page behind it would change while you read it.
+	# Only inside a run: Tab on hull pick had no ship, and the menu freezes the page behind.
 	if Run.hull == null or Router.is_front_door(Router.current) or _menu != null:
 		return
-	# NOR OFF THE MOVE (`TransferScreen`). It has no off while anything is on the
-	# pad -- that is why it hides the HUD -- and Tab was the door it forgot: over
-	# the yard it swapped the station out and the move with it, and the pad it
-	# was showing was never shown again (Jon, Oct 23).
+	# Not off the move: Tab over the yard swapped the station out and lost the pad (Jon, Oct 23).
+	# Why: docs/why/Main.md#tab-round
 	if Router.move_open():
 		return
-	# Nor off the end of a run: the custodian's body, whose only way on is the
-	# win screen (`Router.final_loot`), and the run-end screen itself, which
-	# Tab would leave for LOCAL in a run that is already over.
+	# Not off the end of a run: Tab would reopen LOCAL in a run that is already over.
 	if Router.final_loot or Router.current is GameOverScreen:
 		return
-	# LOCAL, SECTOR, STARCHART, round. The screens a run is actually played on,
-	# in the order you move between them: where you are side on, the sector
-	# round you, where you are going (Jon: "include local in the tabbable pages
-	# list"). DOCKED, THE BERTH TAKES LOCAL'S PLACE: Tab from the berth goes to
-	# the map, and from the chart back into the station, never out to LOCAL,
-	# because UNDOCK is the only way out (Jon, Oct 27). The HUD's first tab
-	# agrees: STATION on the map or the chart, LOCAL greyed at the berth. SHIP
-	# is gone from the round with its tab: your ship opens from LOCAL or the
-	# Shipyard.
-	#
-	# Each `show_` refuses on its own terms -- the map and the chart during a
-	# fight (`Router.fight_up`: Tab there rebuilt the fight over itself), the
-	# chart with nothing to jump to -- so a refused step simply leaves you where
-	# you were rather than needing a guard here.
-	# FROM WHERE A MOVE UNDER WAY IS GOING (`ZoomLadder.lit_rank`, the tab lit):
-	# Tab twice quickly is two steps round, the second taken when the first
-	# lands (`ZoomLadder.hurry`), not the first one asked for again
+	# The round is LOCAL, SECTOR, STARCHART; docked, the berth takes LOCAL's place (Jon, Oct 27).
+	# A move under way steps from its target, so a quick double Tab is two steps.
+	# Why: docs/why/Main.md#tab-round
 	var at := ZoomLadder.lit_rank() if ZoomLadder.busy() else -1
 	if at == ZoomLadder.LOCAL or at == ZoomLadder.STATION:
 		Router.show_system()
@@ -1622,9 +1197,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		if _menu != null and _menu.in_settings():
 			_menu.hide_settings()
 		elif Router.final_loot and _menu == null:
-			# THE CUSTODIAN'S BODY: Escape is DONE, as it is the way out of any
-			# popup. The escape menu here would offer ABANDON on a run already
-			# recorded as won.
+			# Escape is DONE here, as on any popup: the menu would offer ABANDON on a won run.
 			Router.finish_core_loot()
 		elif Router.current is LauncherScreen:
 			# Nothing to pause: the launcher IS the menu. Its Settings drawer is
@@ -1641,11 +1214,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		# the way back from everything and is never moved.
 		DisplaySettings.toggle_fullscreen()
 
-## The drawer's own sounds. Guarded on the file, so the menu is simply silent
-## until one has been picked rather than warning "missing sfx" on every Esc.
-## `-- salvage`. ONE OF EVERY RUNG, in order, so the whole rarity ladder is
-## heard in a single sweep rather than waiting on the loot table to drop a
-## common. Materials fill the tiers no module in the pool carries.
+## Silent until a sound is picked, rather than warning on every Esc.
 func _open_test_salvage() -> void:
 	var sector := Router.current as SectorScreen
 	var n: MapGen.MapNode = Run.node_at()
@@ -1677,9 +1246,7 @@ func _menu_sound(id: StringName) -> void:
 	if ResourceLoader.exists(Audio.SFX_PATH % id):
 		Audio.play(id, 0.03, 120)
 
-## Opens the escape menu, or closes it if it is already up.
-## `animate` false when leaving the run: the drawer does not slide out over a
-## title screen that has already replaced the game behind it.
+## `animate` false when leaving the run, so the drawer does not slide over the title screen.
 func toggle_menu(animate: bool = true) -> void:
 	if _menu != null:
 		if animate:
@@ -1695,57 +1262,38 @@ func toggle_menu(animate: bool = true) -> void:
 	_overlay_layer().add_child(_menu)
 	_menu.setup()
 	_menu.resume_requested.connect(func() -> void: toggle_menu())
-	# Abandoning is an ENDING, so it goes into the record — the same one
-	# Router.new_run() writes when you start over on top of a live run. Recorded
-	# here rather than left for later because the run is over the moment this is
-	# pressed, and a player who abandons and then closes the game would otherwise
-	# have it vanish from the flight record entirely.
+	# Abandon is recorded now: the run is over at the press, and quitting would lose it.
+	# Why: docs/why/Main.md#abandon-and-quit
 	_menu.quit_requested.connect(func() -> void:
 		toggle_menu(false)
-		# Not a run that has already ended: from the win or death screen the
-		# record already says WON or DIED, and this would add an ABANDONED after
-		# it (the guard `Router.new_run` has always had).
+		# Skip if the run already ended, as `Router.new_run` does, or ABANDONED follows DIED.
 		if not Run.dead and not Run.won:
 			RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 		SaveGame.clear()
-		# No ship any more, which is the state the game boots in and the state
-		# the title screen expects. It also stops new_run() recording this same
-		# abandonment a second time, since its guard is a live hull.
+		# No hull is the boot state the title expects, and stops `new_run()` recording this twice.
 		Run.hull = null
+		# Out of a shared fight too, now: left for the next run to drop, it kept
+		# a ghost in the party's crew until then (review, Nov 5).
+		Router.drop_combat()
 		Router.show_launcher())
-	# The autosave has already written a screen swap, but state moves after one
-	# — a station's purchases and repairs all land on a screen that was saved
-	# when it opened — so the explicit write is what makes SAVE & QUIT mean it.
-	#
-	# Not mid-combat, though. Combat is outside the save by design and the format
-	# stores none of it, so writing there banked the hull and heat the fight had
-	# already spent against an enemy that comes back at full HP on a node still
-	# marked unfought: strictly worse than force-quitting, from the button that
-	# promises to be the safe way out. Mid-fight this now does what force-quitting
-	# does — the last save, from before the shooting started, stands.
+	# Save and quit skips mid-combat: combat is outside the save and would bank spent hull.
+	# Why: docs/why/Main.md#abandon-and-quit
 	_menu.save_and_quit_requested.connect(func() -> void:
-		# Combat is outside the save, so mid-fight the bookmark from arrival at
-		# this system is what stands — writing here would write a state the
-		# loader cannot reconstruct.
+		# Combat is outside the save, so the arrival bookmark stands; a write would be unloadable.
 		if not Router.in_combat():
 			SaveGame.save()
 		else:
 			SaveGame.mark_fight(Router.current_fight)
 		toggle_menu(false)
-		# The run is on disk now, so the copy in memory is finished with. Letting
-		# it stay live would be actively dangerous: the title screen rolls its
-		# own Run.galaxy for the backdrop, and any later autosave would then
-		# write this run's MAP against that galaxy — the systems are positioned
-		# from the galaxy, so every one of them would move.
+		# Drop the in-memory run once saved: the title's own galaxy would move this run's systems.
+		# Why: docs/why/Main.md#abandon-and-quit
 		Run.hull = null
-		Router.combat = null
+		# Drop the party's fight and signals too, or partners stay on WAIT and CONTINUE resumes it.
+		# Why: docs/why/Main.md#abandon-and-quit
+		Router.drop_combat()
 		Router.show_launcher())
 
-## `-- settings` for shots: Settings inside the escape drawer, as the player
-## reaches it. (The title screen opens its own; see LauncherScreen.)
-## For `-- settings=controls`: the open Settings, scrolled to its key bindings
-## and, with `bindshot=`, holding a state a shot can show. Waits for the drawer
-## to lay out, since the scroll is measured off where the rows landed.
+## For shots: Settings in the escape drawer, scrolled once the rows have laid out.
 func _show_keys() -> void:
 	for i in 3:
 		await get_tree().process_frame

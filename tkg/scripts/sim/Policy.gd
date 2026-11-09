@@ -1,109 +1,31 @@
 class_name Policy
 extends RefCounted
 
-## The competent-player model, as a thing rather than as a loop.
-##
-## This is `HeadlessSim`'s pilot, lifted out of it unchanged. It was extracted
-## for one reason: the party bot needed a brain, and a bot with its OWN brain
-## would be a second pilot model that nothing measures. The gate plays this one
-## two hundred times before every merge and reports its win rate; a second copy
-## in `BotPilot` would drift away from that number quietly, and the first sign
-## would be a bot that plays visibly worse than the simulator says the game
-## plays. One model, two callers.
-##
-## Frame-free on purpose. Nothing here awaits, and nothing here touches a
-## screen, so it runs identically inside `HeadlessSim`'s tight synchronous loop
-## and inside `BotPilot`'s frame-driven one. That is the whole reason the split
-## lands on this line and not somewhere more natural-looking: the SIM's loop and
-## the BOT's loop cannot be shared — one must not yield and the other must — but
-## every decision inside them can.
-##
-## It reads `Run` and a `Combat` and mutates them. That is not a layering
-## mistake, it is what a player does.
+## One pilot model for the gate and the bot, so the bot's skill cannot drift from the measured rate.
+## Frame-free: the sim loop must not yield and the bot's must, but decisions can be shared.
+## Why: docs/why/Policy.md#pilot-model
 
 ## Spend heat for tempo, or vent on sight. `-- sim hot` flips this, and it is
 ## most of the difference between the two policies the simulator reports.
 var hot: bool = false
 
-## When each model reaches for a vent card, as a fraction of heat capacity.
-##
-## THESE TWO NUMBERS ARE THE TWO POLICIES -- and they are UNCHANGED after being
-## swept on 2026-08-25, because the sweep says they do not matter.
-##
-## The suspicion was reasonable. They were chosen when a free point of heat came
-## off every turn, and deleting that shed should have made both models hold vent
-## cards too long. An unpaired sweep at 300 runs a cell appeared to confirm it,
-## with both old values landing worst in their own column.
-##
-## THAT SWEEP WAS MEASURING THE GALAXY, NOT THE THRESHOLD. Every run rolls a
-## different galaxy and the kind alone swings win rate 33 to 38 points, which
-## is an order of magnitude more than this dial. Re-run PAIRED -- `seed=1000`,
-## so both configs face the same 500 galaxies -- it collapses:
-##
-##     cold 0.50   win 27% (135)   cooked 52   fightsig 0.31   arrived hot 8.4%
-##     cold 0.70   win 26% (129)   cooked 53   fightsig 0.32   arrived hot 8.6%
-##     hot  1.00   win 26% (128)   cooked 65   fightsig 0.34   arrived hot 9.3%
-##     hot  1.15   win 26% (128)   cooked 62   fightsig 0.34   arrived hot 9.2%
-##
-## Six wins in five hundred between the cold pair, none at all between the hot
-## pair, and every heat number the same. So the values stay where they are: a
-## change with no measured effect is a diff somebody has to read later for
-## nothing.
-##
-## WHY THE DIAL IS INERT, and it is not a heat problem at all.
-##
-## THE HOT POLICY IS MODELLING SOLARI, ON A KORVAN SHIP. `design-doc.md` has
-## them as mirrored heat philosophies -- Korvan MANAGES heat, Solari SURFS it --
-## and Korvan is the starter kit and the only entry in ACTIVE_MANUFACTURERS. So
-## the model is asking the cold manufacturer to run hot, using the cold
-## manufacturer's loot. It loses because it should.
-##
-## The three cards that want heat high are all Solari: Plasma Lance
-## (`heat_scale`), Thermal Purge (`damage_equals_heat`), Heat Shroud
-## (`brace_from_heat`). Solari is SEVEN modules of a targeted forty and does not
-## drop, so those cards are unreachable in a normal run.
-##
-## This dial becomes meaningful when Solari is written and switched on -- that
-## is blocker B4, already tracked -- and not before. Tuning it against Korvan is
-## tuning the wrong ship.
-##
-## Sweepable from the command line -- `-- sim ventcold=0.5 venthot=1.0` --
-## and ALWAYS PAIRED with `seed=`, or the galaxy roll drowns the answer.
+## Unchanged after the 2026-08-25 sweep: paired at 500 galaxies, the dial moves nothing.
+## The hot policy models Solari on a Korvan ship; it matters once Solari is on (B4).
+## Why: docs/why/Policy.md#vent-thresholds
 var vent_cold: float = 0.7
 var vent_hot: float = 1.15
 
-## The pilot's own generator. One per run, seeded from the run's master seed, so
-## the model's choices replay with the run and drawing them does not move what
-## the world rolls next.
-##
-## Assigned by the caller — `Rng.derive(&"pilot", 0)` — rather than seeded here,
-## because a bot in a party must NOT share it with the sim's convention. See
-## `BotPilot._brain_up()`.
+## Assigned by the caller, not seeded here, since a party bot must not share the sim's stream.
+## Why: docs/why/Policy.md#pilot-rng
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 
 ## Lateral hops already spent in each ring this run. See FARM_LIMIT.
 var _farmed: Dictionary = {}
 
 
-## WHAT A PILOT TAKES OUT OF A CONTAINER, and it is a design statement rather
-## than plumbing.
-##
-## Until now nothing physical could fail to reach the sim: a kill called
-## `Run.stow` and the part was aboard. `MATERIALS_NOTE` 3.6 changed that -- every
-## payout is a place you reach into -- so without this the simulated pilot walks
-## past every wreck in the galaxy and every number the sim reports describes
-## somebody who picks nothing up.
-##
-## The rule: take the most valuable thing that fits, and keep going until
-## nothing does. Not "take everything", because a hold is finite and the whole
-## point of the change is that room is a decision; not "take the first thing",
-## because nobody plays that way. What it does NOT do is scrap to make space --
-## that is the player choosing to destroy something, and a model that does it
-## automatically would be measuring a game nobody is playing.
-##
-## The number this leaves behind is worth watching. It is the first time the sim
-## can fail to collect, and how much a competent pilot walks away from is now a
-## fact about the balance rather than zero by construction.
+## Take the most valuable thing that fits until nothing does; never scrap to make room.
+## Needed since `MATERIALS_NOTE` 3.6: payouts are now places the sim can fail to reach.
+## Why: docs/why/Policy.md#cargo-policy
 static func loot(n: MapGen.MapNode) -> int:
 	if n == null:
 		return 0
@@ -112,9 +34,7 @@ static func loot(n: MapGen.MapNode) -> int:
 		var best := -1
 		var best_worth := -1
 		var from: MapGen.Jetsam = null
-		# EVERY CONTAINER IN THE SYSTEM, weighed together. A pilot standing in a
-		# sector with three wrecks in it does not empty the nearest one first;
-		# they take the best thing they can carry, wherever it is.
+		# Weigh every container in the system together; a pilot takes the best they can carry.
 		for raw in n.jetsam:
 			var h: MapGen.Jetsam = raw
 			for i in h.items.size():
@@ -161,58 +81,34 @@ func begin_run() -> void:
 	limited = false
 
 
-## WHERE THE MONEY WENT, for the fuel audit (balance/fuel, Oct 17). Counted at
-## the three places this pilot spends: the refuel and repair desks (and the
-## bench's equivalents) and an option's price. It buys no parts and no hulls,
-## so those three are the whole of its spending.
+## Counts the three places this pilot spends, for the fuel audit (balance/fuel, Oct 17).
 var spend: Dictionary = {fuel = 0, repair = 0, options = 0}
 var fuel_bought := 0
 var refuel_stops := 0
 ## REFUELs that were the way out of a dock (`Run.dock_rescue`), a run.
 var rescues := 0
 
-## A PERSON HEADING FOR THE CORE, rather than the gate's farmer. `-- sim human`.
-##
-## The gate's model picks forward stars AT RANDOM and farms a ring on a coin.
-## A person reads the chart: they go deeper, they go somewhere new, they divert
-## to a dock when hurt or low, and they notice the fuel price a little. That is
-## the player Jon is describing, and it is the one whose choice of star fuel can
-## be said to LIMIT -- the random model has no best star to be denied.
+## A person heading for the core, unlike the gate's farmer, who picks stars at random.
+## Why: docs/why/Policy.md#human-pilot
 var human: bool = false
 ## Set by `choose_jump` in human mode: the star it scored best was in reach and
 ## seen but not affordable, so it flew its second choice.
 var limited: bool = false
 
-## What the model is willing to haul. A BEHAVIOUR, not a capacity — hulls hold
-## 8 / 12 / 16. A competent player does not carry twenty parts hoping for a
-## buyer; they keep the few worth a detour and scrap the rest where they stand.
-## It must stay at or under the smallest hull's capacity or the model would be
-## measuring a hold no ship in the game has.
+## A behaviour, not a capacity: keep it at or under the smallest hull's 8 slots.
 const HOLD_LIMIT := 4
 
-## Top up to a full tank at a station, and never below this many credits. It
-## was half, against a 279 tank with no top; against 45, half is ten jumps.
-##
-## The reserve exists because hull loss kills more runs than fuel does: a model
-## that spends its last credit on fuel arrives at the next fight unable to
-## repair, which is a worse death for the same money.
+## Top up to full but keep a credit reserve: hull loss kills more runs than fuel does.
+## Why: docs/why/Policy.md#fuel-policy
 const FUEL_TOPUP := 1.0
 
-## How many lateral hops the model will spend in one ring before descending.
-##
-## Unbounded farming is not a strategy, it is a loop: the old rule moved
-## laterally on every unhealthy turn, so a damaged ship circled its ring picking
-## up more damage until something killed it. Three is enough to visit a station
-## and a couple of sites and still be going somewhere.
+## Cap lateral hops per ring: the old rule circled a damaged ship until something killed it.
+## Why: docs/why/Policy.md#jump-policy
 const FARM_LIMIT := 3
 const FUEL_RESERVE := 40
 
 
-## The best card in hand to play right now, or -1 to stop playing.
-##
-## The heat ceiling is checked HERE rather than inside score(), because it is a
-## legality question and not a preference one: a card that cooks the ship is not
-## a bad play, it is a play the model has decided it is not making this turn.
+## The heat ceiling is checked here, not in `score()`: it is legality, not preference.
 func best_card(cb: Combat) -> int:
 	var best := -1
 	var best_score := 0.0
@@ -221,9 +117,7 @@ func best_card(cb: Combat) -> int:
 		if not cb.can_play(c):
 			continue
 		var projected := Run.heat + c.heat - Run.dissipation()
-		# The hot model tolerates sitting over capacity; the cold one only
-		# crosses it to close out a kill. Same ceiling either way, so neither is
-		# suicidal — the difference is how long it is willing to stay up there.
+		# Same ceiling for both models; the hot one is willing to stay over it longer.
 		var ceiling := Run.heat_cap() + (12 if hot else 3)
 		if projected > ceiling and c.heat > 0 and cb.enemy != null and cb.enemy.hp > 30:
 			continue
@@ -246,24 +140,13 @@ func score(c: CardData, cb: Combat) -> float:
 		return 95.0
 	if c.lock_on > 0:
 		return 90.0
-	# Venting is the first thing the cold model reaches for and nearly the last
-	# thing the hot one does. This single threshold is most of the difference
-	# between the two policies.
+	# The vent threshold is most of the difference between the cold and hot policies.
 	if c.vent > 0 and Run.heat > Run.heat_cap() * (vent_hot if hot else vent_cold):
 		return 85.0
 	if (c.brace > 0 or c.block > 0) and incoming > cb.brace + cb.block:
 		return 80.0
-	# Repair, and it RISES AS THE HULL FALLS rather than sitting at one number.
-	#
-	# The flat 75 modelled a player who repairs when convenient. It ranked below
-	# brace and venting at every level of damage, so at three hull the model
-	# braced against a hit it could not survive instead of buying the turn that
-	# would let it. That is not a competent player, and the repair cards are now
-	# scaled on hull missing — see CardData.heal_scale — so the card the model was
-	# declining is the biggest one in the deck exactly when it declined it.
-	#
-	# Below a fifth of your hull it outranks everything except a lock that is
-	# already paid for. Between a fifth and a half it sits where it used to.
+	# Repair rises as the hull falls: a flat 75 braced against hits the model could not survive.
+	# Why: docs/why/Policy.md#card-scoring
 	if (c.heal > 0 or c.heal_scale > 0) and Run.hp < Run.max_hp() * 0.5:
 		return 92.0 if Run.hp < Run.max_hp() * 0.2 else 75.0
 	if c.draw > 0 and c.damage == 0:
@@ -277,24 +160,15 @@ func score(c: CardData, cb: Combat) -> float:
 	return 5.0
 
 
-## Install what improves the ship; carry a few of the rest to the next market.
-##
-## The model used to melt everything it did not install, the instant it picked
-## it up. That was correct when melting was the only thing you could do with a
-## part and it is not any more — a hold that is always empty means the simulator
-## can never once exercise the thing this economy is built around, and would
-## report a win rate for a game with no market in it.
+## Carry a few to the next market: always melting meant the sim never used the economy.
+## Why: docs/why/Policy.md#cargo-policy
 func manage_cargo() -> void:
 	var guard := 0
 	var passed: Array[HoldItem] = []
 	while not Run.cargo.is_empty() and guard < 24:
 		guard += 1
 		var item: HoldItem = Run.cargo[0]
-		# A MATERIAL IS CARGO, NOT A FITTING. The hold used to be modules only,
-		# so this loop read `Run.cargo[0]` as a `ModuleData` and threw the
-		# moment materials became things you carry. It comes out of the queue so
-		# the loop still terminates, and goes back in the hold below with the
-		# parts that were passed over.
+		# A material is cargo, not a fitting: it leaves the queue, then returns to the hold below.
 		var m := item as ModuleData
 		if m == null:
 			Run.take_from_hold(item)
@@ -312,9 +186,7 @@ func manage_cargo() -> void:
 			Run.take_from_hold(m)
 			passed.append(m)
 	for it in passed:
-		# Back through the door so it is given a cell again. A bare append
-		# leaves it at (-1,-1) claiming none, and the model would then be
-		# measuring a hold that overlaps itself.
+		# Re-place through `place_in_hold` so it gets a cell; a bare append overlaps the hold.
 		if not Run.place_in_hold(it):
 			_shed(it)
 	while Run.cargo.size() > HOLD_LIMIT:
@@ -325,11 +197,7 @@ func manage_cargo() -> void:
 		_shed(cheapest)
 
 
-## Get rid of one thing, by whatever means it has.
-##
-## A part melts for scrap; a material cannot -- there is no furnace for a spool
-## of copper -- so it goes over the side and stays in the system, which is what
-## a player with a full hold and a better crate in front of them does.
+## A part melts; a material cannot, so it goes over the side and stays in the system.
 func _shed(it: HoldItem) -> void:
 	var m := it as ModuleData
 	if m != null:
@@ -345,12 +213,8 @@ func _shed(it: HoldItem) -> void:
 			Run.found_hull = null
 
 
-## Dock. Sell first, then spend — which is what a player does, and which is the
-## only order that lets a hold full of salvage pay for the repair.
-##
-## The model deliberately does NOT buy stock to resell. Trade routes are a
-## strategy the player can find; assuming a competent player already runs one
-## would report a win rate for a game nobody has played yet.
+## Sell first, then spend, so salvage can pay for repairs. Never buys stock to resell.
+## Why: docs/why/Policy.md#shopping
 func shop(n: MapGen.MapNode) -> void:
 	sell_hold(n)
 	bench(n)
@@ -361,21 +225,8 @@ func shop(n: MapGen.MapNode) -> void:
 		Run.add_credits(-repair)
 		Run.heal(missing)
 		spend.repair += repair
-	# A COMPETENT PILOT TOPS UP; they do not coast to empty and hope for a
-	# station. `Run.fuel < 8` was the old test, and it is a fault in the
-	# INSTRUMENT rather than a fact about the game -- see the note on
-	# RunState.FUEL_PER_DISC_RADIUS, which records the same lesson about the
-	# jump policy. With a tank that starts at 279 that test fires about once a
-	# run: the model sailed past twenty-one stations declining fuel and then
-	# stranded when it finally ran low somewhere without one.
-	#
-	# Measured before the change: 21.5 stations a run, 11 fuel bought across all
-	# of them, and 20% of runs ending blocked by fuel while sitting on 125
-	# credits of profit.
-	#
-	# Tops up, keeping a credit reserve so refuelling never eats the repair
-	# budget -- hull loss is the largest death cause and buying fuel instead of
-	# a hull is not competence.
+	# Always top up: `fuel < 8` fired once a run, and 20% of runs ended fuel blocked.
+	# Why: docs/why/Policy.md#fuel-policy
 	var want := int(float(Run.fuel_cap()) * FUEL_TOPUP)
 	if human:
 		want = human_fuel_want(n)
@@ -385,11 +236,8 @@ func shop(n: MapGen.MapNode) -> void:
 		guard += 1
 		var offer := Run.refuel_offer(n)
 		var refuel := int(offer.cost)
-		# NO RESERVE WHEN THE TANK CANNOT MAKE THE NEXT JUMP, or the dock is
-		# offering the way out (`Run.dock_rescue`). Keeping 40 back for repairs
-		# there is not competence, it is the end of the run: the balance check
-		# (Oct 18) replayed three strands that sat on docks with 23-46 credits
-		# and refused a can.
+		# No reserve when the tank cannot make the next jump: three strands refused a can (Oct 18).
+		# Why: docs/why/Policy.md#fuel-policy
 		var reserve := FUEL_RESERVE
 		if offer.get("rescue", false) or not _can_make_a_jump(n):
 			reserve = 0
@@ -416,10 +264,7 @@ static func _can_make_a_jump(n: MapGen.MapNode) -> bool:
 	return false
 
 
-## What a person wants in the tank leaving a dock: enough for the rest of the
-## way in at what jumps cost here, with half again for detours, up to the top
-## of the tank. With 279 aboard a person never bought fuel at all, which is what
-## Jon reported and the audit measured.
+## Enough for the way in with half again; with 279 aboard a person never bought fuel.
 func human_fuel_want(n: MapGen.MapNode) -> int:
 	var rings_left := maxi(1, MapGen.LAYERS - 1 - n.layer)
 	var typ := 0.0
@@ -435,25 +280,17 @@ func human_fuel_want(n: MapGen.MapNode) -> int:
 
 ## Hops a person spends per ring on the way in: one down and a look around.
 const HUMAN_HOPS_PER_RING := 1.6
-## What a fresh system in this ring is worth against one a ring in, while the
-## ring still has looking-round left in it. 12 makes it a near coin against a
-## ring in (10 + 6 for somewhere new), which is the person who explores.
+## 12 makes a fresh system a near coin against one a ring in, the exploring person.
 var HUMAN_LOOK_ROUND := 12.0
 
 
-## Anything left in the hold at a station was already destined for scrapping —
-## manage_cargo() ran on arrival and kept what was worth installing. So take
-## whichever of the two prices is higher, which is the one decision selling
-## actually adds.
+## Anything left at a station was already headed to scrap, so take the higher price.
 func sell_hold(n: MapGen.MapNode) -> void:
 	var guard := 0
 	while not Run.cargo.is_empty() and guard < 24:
 		guard += 1
 		var item: HoldItem = Run.cargo[0]
-		# A MATERIAL IS ONLY EVER SOLD. It has no scrap value to weigh a bid
-		# against and nothing to install it into: carrying it to a counter IS
-		# the whole of what it is for, which is the half of the economy the
-		# credits shim was standing in for until now.
+		# A material is only ever sold: it has no scrap value and nothing to install into.
 		var mat := item as MaterialData
 		if mat != null:
 			Run.take_from_hold(mat)
@@ -470,10 +307,7 @@ func sell_hold(n: MapGen.MapNode) -> void:
 			Run.scrap_module(m)
 
 
-## Fabricate whatever is both affordable and better value than buying the same
-## thing off the service desk. Hull patches and fuel synthesis are the two that
-## compete directly with a price on the same screen, so they are the two the
-## model can judge; the other recipes are build decisions it has no opinion on.
+## Fabricate only what beats the service desk price: hull patches and fuel synthesis.
 func bench(n: MapGen.MapNode) -> void:
 	for r in Fabricator.available(n):
 		var guard := 0
@@ -499,75 +333,32 @@ func bench(n: MapGen.MapNode) -> void:
 				break
 
 
-## Where to go from here, or -1 when there is nowhere legal to go.
-##
-## Farm laterally while the tank allows it, then descend.
-##
-## A COMPETENT PLAYER WATCHES THE TANK. This used to farm laterally on a 65%
-## coin whatever the fuel gauge said, and always when hurt — so the model
-## wandered until it ran dry, and the average run came out at 117 jumps. That is
-## not a fact about the game; it is a fact about this function. Tuning the fuel
-## economy to bring the number down would have been tuning the game against a
-## model artifact, and it would have made the real game punitive to fix a bug in
-## here.
-##
-## Farming is what you do when you can afford it. With the tank low, the only
-## move that ends well is onward — and a player who has decided to descend
-## descends whether or not they are healthy, because sitting still does not heal
-## you.
-## Whether the model commits to the hellbender when it lands on one. Health-gated
-## rather than build-gated: the model cannot read its own deck quality, but a
-## player at full hull who has found a set piece engages it and a player at
-## half does not. Damage banked from a previous engagement makes the fight
-## strictly better, so the bar drops with the hellbender's own hull.
+## Farm only while the tank allows, then descend: the old coin wandered 117 jumps, a model artifact.
+## Why: docs/why/Policy.md#jump-policy
 func engage_hellbender() -> bool:
 	var mine := float(Run.hp) / float(maxi(1, Run.max_hp()))
 	var its := float(Run.hellbender_hp) / float(maxi(1, Run.hellbender_max))
 	return mine >= 0.45 + its * 0.3
 
-## Whether this pilot declines long odds.
-##
-## The second policy `ENCOUNTER_REBUILD.md` §8 asks for. A greedy model takes
-## every check it is offered, which overstates income and makes the shortfall
-## ladder look free; a risk-averse one refuses below `RISK_FLOOR` and pays for
-## the caution in what it never collects. Running both is how the exclusivity
-## dial gets argued with rather than assumed.
+## A second policy (`ENCOUNTER_REBUILD.md` §8): the risk-averse one refuses below `RISK_FLOOR`.
+## Why: docs/why/Policy.md#risk-policy
 var risk_averse: bool = false
 
-## How often caution took the safe line instead of the check.
-##
-## `declined` counts walking away from an option ENTIRELY, and it measured
-## nothing: a cautious pilot almost never does that, it takes the unchecked
-## fallback instead. So the two policies differed by eight points of win rate
-## with an identical `declined` of 0.00, and the number that was supposed to
-## explain the gap could not see it.
-##
-## This is what caution actually costs, and what it buys.
+## `declined` measured nothing, as cautious pilots take the unchecked fallback instead.
+## Why: docs/why/Policy.md#risk-policy
 var checks_avoided := 0
 
-## The odds a cautious pilot will not go below.
-##
-## `SkillCheck.ODDS` is [1.0, 0.65, 0.40, 0.20, 0.05] by shortfall, so 0.45 sits
-## between one pip short and two: this pilot takes a check it is one under and
-## declines one it is two under. Not a ruling -- a starting point for the sweep
-## §8 asks for.
+## 0.45 sits between one pip short and two; a starting point, not a ruling.
+## Why: docs/why/Policy.md#risk-policy
 const RISK_FLOOR := 0.45
 
-## Runs a fight the way this harness runs fights, and reports whether we lived.
-##
-## Injected because a policy has no Combat of its own and should not: the sim
-## owns the loop, the postfight sampling and the turn cap. Left invalid, fights
-## are counted and not run -- which is a measurement of a different game, so any
-## harness that reports a win rate must set this.
+## Injected because a policy owns no Combat; unset, fights are counted, not run.
+## Why: docs/why/Policy.md#option-taking
 var fight_cb: Callable = Callable()
 
 
-## Take what this system offers, and report what was left behind.
-##
-## GROUPS ARE THE POINT. Taking an option marks its group spent and every other
-## option in that group becomes unavailable -- so a grouped system is a system
-## where arriving rich means choosing what to leave. `forgone` counts exactly
-## that, and it is the number §8 says the model must be able to report.
+## Groups are the point: taking one forecloses its siblings, and `forgone` counts that.
+## Why: docs/why/Policy.md#option-taking
 func take_options(n: MapGen.MapNode) -> Dictionary:
 	var out := {"taken": 0, "declined": 0, "forgone": 0, "fights": 0}
 	# `-- sim dash`: the beeline pilot that opens nothing on the way in.
@@ -581,10 +372,7 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 		if opt.is_empty():
 			continue
 		var oid := MapGen.OPTION_SITE + i
-		# THIS VISIT'S GROUP BEFORE THE NODE'S CLAIMS, and the order is the
-		# whole of the `forgone` metric. `foreclose` now marks a closed sibling
-		# in `taken` as well -- so testing `taken` first would skip it silently
-		# and report zero forgone forever, which is §8's number.
+		# Test this visit's group before the node's claims, or `forgone` reads zero forever.
 		var g := StringName(opt.get("group", &""))
 		if g != &"" and spent.has(g):
 			# Not declined -- FORGONE. The pilot never got to weigh it, because
@@ -602,23 +390,15 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 			spend.options += int(line.cost_credits)
 		var res := _resolve_line(n, line, n.options[i])
 		n.taken.append(oid)
-		# THE SAME RULE THE GAME PLAYS. This loop has always honoured exclusive
-		# sets through its own `spent` dictionary and never wrote the decision
-		# down, so a node the simulator had finished came out of it still
-		# offering the option it had forgone.
+		# Write the decision down as the game does, so a finished node stops offering forgone ones.
 		OptionTable.foreclose(n, i)
 		out.taken += 1
 		if g != &"":
 			spent[g] = true
 		if Run.dead:
 			break
-		# AND NOW THE FIGHT, if the outcome opened one. This used to be counted
-		# and skipped, which was defensible while FIGHT was still a node type and
-		# the sim fought there instead. It is not defensible now: fights exist
-		# ONLY as option outcomes, so skipping them meant simulating a game with
-		# no combat in it -- 0.2 kills a run, and a win rate measuring the wrong
-		# game. `fight_cb` is the sim's own `_fight`, handed in because Policy
-		# does not own a Combat.
+		# Run the fight an outcome opens: fights exist only as outcomes, so skipping hid combat.
+		# Why: docs/why/Policy.md#option-taking
 		if bool(res.get("fight", false)):
 			out.fights += 1
 			# What it brings is the event's tag, as on the screen: the
@@ -628,12 +408,8 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 	return out
 
 
-## Which line of an option to take, or -1 to walk away.
-##
-## Prefers a check this pilot will pass over a flat effect, because the checked
-## bands are where the payouts are -- but only when the odds clear the floor. A
-## cautious pilot falling back to the unchecked line is the whole difference
-## between the two policies.
+## Prefer a check the pilot will pass; falling back to the flat line is the policy split.
+## Why: docs/why/Policy.md#option-taking
 func _choose_line(opt: Dictionary) -> int:
 	var choices: Array = opt.get("choices", [])
 	var fallback := -1
@@ -657,11 +433,7 @@ func _choose_line(opt: Dictionary) -> int:
 	return fallback
 
 
-## Run one line and grant what it pays.
-##
-## The reward class is §5's: an option that says `module` pays one rolled at the
-## system's own danger, which is where `LootGen`'s rarity floors do the
-## high-risk half by themselves.
+## Reward class from §5: a `module` option pays one rolled at the system's own danger.
 func _resolve_line(n: MapGen.MapNode, line: Dictionary, src: StringName = &"") -> Dictionary:
 	var res: Dictionary = {}
 	if line.has("check"):
@@ -682,14 +454,8 @@ func _resolve_line(n: MapGen.MapNode, line: Dictionary, src: StringName = &"") -
 
 
 func choose_jump(node: MapGen.MapNode) -> int:
-	# IN RANGE, NOT LINKED. `links` is the graph the chart DRAWS; it is not the
-	# graph the ship flies. `can_jump_to` is `reachable_from` plus fuel, and
-	# `reachable_from` is a radius that never consults `links` -- the chart's own
-	# neighbour list is `in_range()`, which is what the player picks from.
-	#
-	# Routing on links made the simulator play a narrower game than the one that
-	# ships, and it showed: the policy running out of charted options was being
-	# counted as the run ending, and 46% of those ships could still fly.
+	# Route by `in_range()`, not `links`: links is the drawn graph; 46% of stuck ships could fly.
+	# Why: docs/why/Policy.md#jump-policy
 	limited = false
 	if beeline:
 		return _beeline_jump(node)
@@ -707,25 +473,17 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	for idx in options:
 		var t: MapGen.MapNode = Run.map[idx]
 		if t.layer == node.layer:
-			# `lateral` is somewhere worth STOPPING; `sideways` is anywhere in
-			# this ring at all, cleared or not. They used to be the same list,
-			# which was fine while every system had a way down and travelling
-			# was never necessary.
+			# `lateral` is a place worth stopping; `sideways` is anywhere in this ring.
 			sideways.append(idx)
 			if not t.cleared:
 				lateral.append(idx)
 		elif t.layer > node.layer:
 			forward.append(idx)
 	var healthy := Run.hp > Run.max_hp() * 0.6
-	# SCALED TO THE TANK, not a flat 45. That number meant "fuel to spare" when
-	# a run started with 150; at 279 it is true almost always and the gate never
-	# closes. Three tenths reproduces the old proportion.
+	# Scaled to the tank, not a flat 45, which meant spare fuel at 150 but is always true at 279.
 	var tank := float(Run.start_fuel())
 	var can_wander := float(Run.fuel) > tank * 0.3
-	# AND THE RING HAS TO HAVE SOMETHING LEFT. `not healthy` used to force a
-	# lateral hop, which meant a damaged ship could not descend at all -- it
-	# circled taking damage until it died. Being hurt still biases toward
-	# farming, it just no longer forbids leaving.
+	# The ring needs something left; forbidding descent when hurt made damaged ships circle.
 	var spent: int = int(_farmed.get(node.layer, 0))
 	var want_lateral := pilot.randf() < (0.65 if healthy else 0.85)
 	if not lateral.is_empty() and can_wander and want_lateral \
@@ -735,24 +493,11 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	if not forward.is_empty():
 		return Rng.pick(pilot, forward)
 
-	# NO WAY DOWN FROM HERE, so walk the ring until there is one. Since sparse
-	# coreward links landed, most systems have no door and this is the ordinary
-	# case rather than an edge one -- the old fallback picked at random from
-	# every link including BACKWARD ones, which on a sparse map is a random walk
-	# that ends when the fuel does. Measured before this: 70 jumps at an average
-	# danger of 1.8, which is seventy hops without leaving the rim.
-	#
-	# Prefers a neighbour that can itself descend, so the walk is toward
-	# something rather than merely away. These hops are travel, not farming, and
-	# deliberately do not count against FARM_LIMIT: a limit on how much you farm
-	# should not also be a limit on how far you may walk to leave.
+	# Walk the ring to find a way down: the old random link walk made 70 jumps at danger 1.8.
+	# Why: docs/why/Policy.md#jump-policy
 	if not sideways.is_empty():
-		# ALSO IN RANGE RATHER THAN LINKED, for the same reason: "can this
-		# neighbour get further in" is a question about what it can REACH.
-		#
-		# This is the expensive branch -- a map-wide pass per candidate -- but it
-		# now almost never runs. `forward` is only empty when nothing deeper is
-		# in radius at all, which a radius reaching several rings rarely manages.
+		# In range, not linked, for the same reason; the costly pass now almost never runs.
+		# Why: docs/why/Policy.md#jump-policy
 		var doors: Array[int] = []
 		for idx in sideways:
 			for t in Run.in_range_of(Run.map[idx]):
@@ -765,13 +510,8 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	return Rng.pick(pilot, options)
 
 
-## THE BEELINE PILOT (`-- sim beeline`, balance/run-length, Oct 22). Kevin, the
-## first outside playtester, reached the core in seven jumps; the gate's pilot
-## farms rings on a coin and never does. This one always flies the deepest star
-## it can see, reach and afford (the core above everything), the cheaper of two
-## equally deep. Its one concession to fuel: below a third of the tank it flies
-## to the deepest dock in reach instead, if one is, and tops up there (`shop`).
-## `dash` (with `-- sim dash`) also walks past every option on the way in.
+## Beeline flies the deepest star it can afford, as Kevin reached the core in seven jumps.
+## Why: docs/why/Policy.md#beeline-pilot
 var beeline: bool = false
 var dash: bool = false
 
@@ -799,9 +539,7 @@ func _beeline_jump(node: MapGen.MapNode) -> int:
 	return best
 
 
-## The human pilot's jump: score every star it can SEE and REACH, fuel aside,
-## and fly the best one it can afford. When the best is not affordable that is
-## a jump fuel limited, and `limited` says so.
+## Score every reachable star and fly the best affordable; otherwise it is fuel limited.
 func _human_jump(node: MapGen.MapNode) -> int:
 	var best := -1
 	var best_s := -INF
@@ -827,10 +565,7 @@ func _human_jump(node: MapGen.MapNode) -> int:
 	return best_ok
 
 
-## How much a person wants to fly to `t` from `here`. Depth first; somewhere
-## new over somewhere seen; a dock when hurt or low; a little for the price.
-## The noise is the pilot's own stream, so two equal stars split by taste and
-## the run still replays from its seed.
+## Depth first, then somewhere new, a dock when hurt; the noise comes from the pilot's own stream.
 func human_score(here: MapGen.MapNode, t: MapGen.MapNode) -> float:
 	if t.type == MapGen.NodeType.CORE:
 		return 1000.0

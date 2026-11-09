@@ -1,16 +1,7 @@
 extends Node
 
-## THE CORE'S WIN, PHOTOGRAPHED AND FILMED through the real router:
-##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=CoreWinShot
-##       out=<dir> [seed=N] [every=2] [style=...]
-## A run with a used hold parked at the core, ENGAGE pressed, the custodian's
-## hull cut to one, then the kill played; the body opens over LOCAL, two parts
-## are taken out of it a second apart, DONE is pressed, and the win screen
-## holds. Writes `loot.png` (the body, its scan finished), `win.png` (the win
-## screen) and `clip/f_####.png` every `every` frames from the last hit to the
-## popup. The clock is the game's: run with `--fixed-fps 30` and frames encoded
-## at 30/every fps play at true speed. Needs a window. Audio is the Dummy
-## driver, so the clip is silent; it prints the music each step asked for.
+## Audio is the Dummy driver, so the clip is silent; it prints each music ask.
+## Why: docs/why/CoreWinShot.md#core-win-shot
 
 var _args: PackedStringArray
 var _dir := ""
@@ -101,9 +92,7 @@ func _run() -> void:
 			cb.end_turn()
 		await _draw_frames(12)
 	print("corewinshot: fight %s after %d plays" % [cb.result, tries])
-	# the body opens once the screen has played the kill out -- the shot, the
-	# Custodian's death, the hand lowering (combat polish) -- then its scan
-	# sweep plays
+	# The body opens once the screen has played the kill out, then its scan sweeps.
 	var waited := 0
 	while not Router.final_loot and waited < 600:
 		await _draw_frames(1)

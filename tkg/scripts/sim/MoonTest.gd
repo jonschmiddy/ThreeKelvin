@@ -1,21 +1,7 @@
 extends Node
 
-## THE MOONS KEEP OUT OF WHAT IS STAGED, headless (`LocalLife`):
-##   godot --headless --path . -- sheet=MoonTest
-## Jon (Oct 11): a moon going round the world you orbit must never pass over an
-## event's subject, a station, or your ship during the dock. So:
-##  1. on every world with moons in a few runs' galaxies -- the station systems'
-##     among them, their side and the corridor your ship docks along standing
-##     there -- each moon's chosen orbit, run for ten minutes of quiet, never
-##     overlaps your ship, the station's side or the dock's corridor (a moon with
-##     no clear orbit hangs still where it always did); some moons go round;
-##  2. with an event's subject up, every moon holds still, and none is over any
-##     of the subject's pieces;
-##  3. in a fight, every moon holds still;
-##  4. through the dock (the ladder's move, the station waking, your ship going
-##     in), every moon holds still and none is over the station or your ship.
-## Places are the sky's plan's (`LocalSky.near_plan`), which is where the picture
-## puts them.
+## Moons never pass over staged things (Jon, Oct 11) and hold still in events, fights and docks.
+## Why: docs/why/MoonTest.md#moon-exclusion
 
 var _fails := 0
 var _tree: SceneTree
@@ -202,10 +188,7 @@ func _run() -> void:
 			await _frames(90)
 			_ok("in a fight every moon holds still", _phases(sky_f) == p1 and not sky_f.life.quiet())
 
-	# 4. THE DOCK IS ONLY AT THE STATION (Jon, Oct 18, "dock:A"), whose own place
-	# has no world and so no moons: a moon can never be over the station or your
-	# ship through a dock. From a world with moons in a station's system there
-	# is no station side, no DOCK, and the door refuses.
+	# The dock is only at the station (Jon, Oct 18), which has no moons, so no moon crosses a dock.
 	if _ok("a station system with a world with moons", not station_world.is_empty()):
 		Rng.forced = int(station_world[0])
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

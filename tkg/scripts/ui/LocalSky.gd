@@ -1,74 +1,9 @@
 class_name LocalSky
 extends Control
 
-## LOCAL'S SKY: what is out there behind the fight, the jump and the approach,
-## in the rendering style Jon picked (`DisplaySettings.render_style`) -- the
-## SAME system the sector map draws, seen side on.
-##
-## THE SECTOR MAP looks down on the system's plane at a slant (`SystemView`,
-## TILT 0.38); LOCAL is the same system from nearly in that plane, the camera a
-## little above it: the plane is a thin band across the top of the view, the
-## system's own star on it (its kind, its colour, breathing, now and then a
-## prominence; the pulsar and its beams; the core's black hole, the one every
-## style shares, `CoreLegacy` on `legacy_hole.gdshaderinc`), its own worlds
-## along it where their orbits have them (`PlanetView`, the map's painter, the
-## same worlds), and behind it all the nebula the system sits in, as the map's
-## sky draws it from inside (`sky_nebula.gdshader`, the same kind, shape,
-## colours and seed, its gas streaming on its currents and lit by that star),
-## and behind that the far sky every chart style keeps -- distant galaxies and
-## three depths of stars (`local_far.gdshader` on `chart_bg.gdshaderinc`).
-##
-## THE STYLES, as the map draws them:
-##   * SIMPLIFIED: the cloud lit by the sun, set to the system's own short
-##     palette (`map_palette`, found from its first picture) in 2x2 blocks;
-##   * PAINTED: the far picture painted on B's curated ramps with its band
-##     memory (`SectorPainted`), the sun and the worlds painting themselves, the
-##     life of it in held poses;
-##   * RADIANT: the cloud as a volume the sun shines through, the worlds'
-##     shadows as shafts in the lit gas;
-##   * LEGACY: LOCAL as it was before the port -- the view's wash, tinted by
-##     the system's star toward the right, its plain grey starfield, and the
-##     gas blowing through (`NebulaWeather`, the view's) -- with the map's old
-##     cloud (`sky_nebula_legacy`) and the system's band, set to its palette
-##     as the map's LEGACY is.
-##
-## WHERE THE SHIP IS (Jon: "have LOCAL change depending on what you are orbiting
-## and how far from the star you are"), read from the sector map's own record of
-## it (`SystemMapScreen._parked`: what it is in orbit of, where it is on the
-## plane), or, with none, at the edge where a ship warps in:
-##   * ORBITING A WORLD: that world close and huge, rising from below behind the
-##     fight, its rings across it and its moons above, lit from the star; the
-##     star smaller beyond, at the world's own distance (how big: `near_size`);
-##   * ORBITING THE STAR: the star large and blazing, cut by the top of the
-##     view, the worlds small along the band;
-##   * HOW FAR OUT: the star's size, and how far its light reaches into the gas,
-##     go with its nearness -- big and blazing close in, a small bright point at
-##     the edge -- and so do the hole's and the pulsar's;
-##   * ALONGSIDE A BELT OR A WRECK: its rocks, or the hulk and its shards, close by.
-## The near things are drawn in a picture of their own (`local_near`), in front
-## of the band: solid bodies, their light pressed as the gas's is, their dark
-## never lifted.
-##
-## THE CAMERA moves when the ship leaves: it follows the hull's departure a
-## little over half way (`CAM_FOLLOW`; never its arrival, `_follow`), and every
-## layer slides by its own depth -- the far stars and galaxies least, the system's star all but
-## still, then the cloud, the band's worlds, and the world it orbits most -- in
-## whole 2x2 blocks. Otherwise it holds still: the motion is the gas, the
-## star and the weather.
-##
-## READABILITY FIRST. The fight is played across the middle of the view, so the
-## sky there is made a soft backdrop -- its range pressed in toward a mid-tone,
-## its light and colour kept (`local_grade.gdshader`, PLAY), whatever the
-## system -- and nothing is drawn behind the ships or their words (shadows
-## round them were tried: Jon, "they're odd", "the text doesn't need a
-## shadow"); the bright things -- the star, the hole, the lit heart of the
-## cloud -- sit in the band above it.
-## The weather is the map's own events, rarer (`WX_SLOW`), placed above the
-## fight and never one that flashes; none at all with reduced motion.
-##
-## Cheap: one 480x270 picture of 2x2 blocks for the whole screen (the view is
-## a window onto it, so the map's shaders work in their own 960x540 frame),
-## its cloud baked once a system (`SkyBake.field`, kept for the next visit).
+## LOCAL is the map's system seen side on, in the chosen rendering style.
+## Readability first: the fight sits on a soft backdrop and nothing is drawn behind ships' words.
+## Why: docs/why/LocalSky.md#sky-design
 
 const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
@@ -80,15 +15,12 @@ const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
 const SkyGalaxiesS := preload("res://scripts/ui/sysmap/SkyGalaxies.gd")
 const SystemPaletteS := preload("res://scripts/ui/sysmap/SystemPalette.gd")
 const NEB_SKY := preload("res://shaders/sky_nebula.gdshader")
-const NEB_SKY_LEGACY := preload("res://shaders/sky_nebula_legacy.gdshader")
 const FAR := preload("res://shaders/local_far.gdshader")
 const GRADE := preload("res://shaders/local_grade.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
 const KIND_NAMES := ["ORDINARY", "RED", "BLUE", "PULSAR", "CORE"]
 
-## THE SYSTEM'S BAND, in the 960x540 game frame: the plane's line (y), how far
-## the star may sit either side of the middle, and how far the system's
-## outermost orbit reaches either side of the star.
+## The system's band in the 960x540 frame: plane line, star range and outermost orbit's reach.
 const HORIZON := 76.0
 const SUN_X := Vector2(410.0, 550.0)
 const SPAN := 470.0
@@ -98,25 +30,9 @@ const TILT := 0.07
 const SUN_K := {"ORDINARY": 0.62, "RED": 0.44, "BLUE": 0.52}
 const PULSAR_K := 0.42
 const HOLE_K := 0.30
-## THE CORE'S HOLE IS THE BACKDROP (Jon, Oct 13: "shouldn't the black hole be
-## bigger in the background though?", then "can this be more large and
-## centered in the middle back? i'm just worried that the custodian is going to
-## sit right on the black hole and be weird"). At the core the system's star --
-## the shared hole (`CoreLegacy`, its photon table traced once a process) --
-## is drawn big behind everything, in the scene with the cloud so its lens
-## bends it, on the far star's depth (all but still as the camera moves). Where
-## and how big is `core_look`, Jon's pick "a" (Oct 13; `CORE_LOOKS`: its
-## centre in the game frame and its disc's outer edge in px):
-##   a  centred, large: the middle of the play, the edge 250 px out;
-##   b  centred, huge: the edge 330 px out, its glow off the play's top and
-##      bottom, the shadow whole;
-##   c  centred, set back high: as a, raised so the shadow is in the upper
-##      middle and the ships stand on its lower glow.
-## Measured in the Custodian's fight (`-- sheet=CoreFightFilm`): its picture
-## stands on the black in none of them (tetra 0 px in each; take 1, laid on
-## the same place, 0 / 698 / 52 px, 0 / 3.4 / 0.3 %) -- the shadow is between
-## the two ships, the Custodian on the disc's right glow.
-## There is no hole on the band and no world drawn near at the core.
+## At the core the hole is the backdrop, big behind everything (Jon's pick a, Oct 13).
+## Measured in the Custodian's fight: its picture stands on the black in none of the looks.
+## Why: docs/why/LocalSky.md#core-hole
 static var core_look := &"a"
 const CORE_LOOKS := {
 	&"a": [Vector2(480.0, 272.0), 250.0],
@@ -124,39 +40,19 @@ const CORE_LOOKS := {
 	&"c": [Vector2(480.0, 176.0), 250.0],
 }
 const MIN_WORLD_R := 3.0
-## HOW FAR OUT THE SHIP IS: at REF_K of the way to the system's edge the star is
-## drawn at SUN_K; nearer bigger, further smaller, as (that distance over the
-## ship's)^SIZE_POW, held between these
+## At REF_K of the way to the edge the star is drawn at SUN_K; nearer bigger, further smaller.
 const REF_K := 0.45
 const SIZE_POW := 0.85
 const SIZE_LO := 0.4
 const SIZE_HI := 4.0
-## TWO SUNS ON THE BAND, A CLOSE PAIR'S TOO (Jon, Nov 1, "Binary kinds:
-## close:B"). A close pair's suns are 150 to 170 px apart, so from either sun's
-## close orbit both are near and held at or close to SIZE_HI, and laid out by
-## their places alone the two discs ran into each other on the band (by up to 7
-## px, TwinDrawTest, 10 of 73 close pairs) and the far sun came out bigger than
-## the near one (1). So the far sun is drawn at most FAR_MOST of the near one's
-## size, and star B stands at least SUNS_APART px clear of star A, out along the
-## way its place puts it (the block grid can take a px of it back). A CLOSE
-## PAIR'S ALONE: a wide pair's band is drawn as it was before the ruling. Held
-## to it too, the cap redrew a wide pair's far sun at 654 of 1,008 places
-## round both suns (seeds 7, 4242 and 1999), to 0.73 to 1.0 of its size; its
-## suns are 46 px or more apart there and never meet.
+## A close pair's discs ran into each other and the far sun came out bigger (Jon, Nov 1),
+## so the far sun is capped at FAR_MOST of the near one and star B stands SUNS_APART clear.
+## Why: docs/why/LocalSky.md#two-suns
 const FAR_MOST := 0.75
 const SUNS_APART := 12.0
-## THE WORLD IT ORBITS, CLOSE (Jon, Oct 21: "I want the planet you are orbiting
-## to be large in the background (you are close to it)"). Its radius on screen
-## (a giant's, a planet's, before its own size nudges it, x0.8 to x1.25 by the
-## body's map radius) and where its middle sits under the band (y0 + dy * R),
-## by look -- `near_size`, one line to switch:
-##   before  as it was to Oct 21: a planet 100 px, a giant 140-148, its middle
-##           at y 360, wholly inside the view (6% / 13% of the frame);
-##   medium  a planet 160, a giant ~210, its lower limb at the bottom bar;
-##   large   a planet 220, a giant ~280, its lower limb off the bottom: close;
-##   huge    a planet 300, a giant ~380, a wall of it, off the bottom and a side.
-## Each is the world's own painter drawing it at that radius on the 2x2 block
-## grid (never a picture scaled), lit from the star, behind your ship.
+## The orbited world is drawn large in the background (Jon, Oct 21), sized by `near_size`.
+## It is the world's own painter at that radius on the 2x2 grid, never a scaled picture.
+## Why: docs/why/LocalSky.md#near-world
 static var near_size := &"large"
 const NEAR_SIZES := {
 	&"before": {"planet": 125.0, "giant": 175.0, "y0": 339.0, "dy": 0.2},
@@ -170,56 +66,34 @@ const MOON_TOP := 56.0
 const F_NEAR := 0.3
 const NEAR := preload("res://shaders/local_near.gdshader")
 const HAND := preload("res://shaders/ladder_world.gdshader")
-## THE CAMERA: how much of the ship's travel it follows, and how far each layer
-## slides for a pixel of the camera's (the far sky's own depths are in
-## `chart_bg`: stars 0.04, 0.10, 0.20, galaxies 0.05)
+## How much of the ship's travel the camera follows and how far each layer slides.
 const CAM_FOLLOW := 0.6
 const F_CLOUD := 0.05
 const F_BAND := 0.12
-## THE LAYERS BY DISTANCE (Jon: "the sun moves a ton in the parallax ...
-## shouldn't it be more still since it's so distant?"): the far sky least -- its
-## galaxies and three depths of stars at SKY_K of `chart_bg`'s own depths, all
-## under 0.012 of the camera's travel -- then the system's star (the black hole,
-## the pulsar) all but still, then the cloud, the band's worlds, and the world
-## the ship orbits most of all. Each in whole 2x2 blocks; the camera eases in
-## and out, so a step never goes back.
+## Layers slide by distance, the far sky least, as the sun moved too much in the parallax (Jon).
+## Whole 2x2 blocks, and the camera eases so a step never goes back.
+## Why: docs/why/LocalSky.md#camera-layers
 const SKY_K := 0.06
 const F_STAR := 0.015
-## THE PLAY: the game frame below its top band is where the fight is played,
-## and the sky there is a soft backdrop (`local_grade`): its range pressed in
-## from PLAY.x down, wholly by PLAY.y (game px), its light kept
+## The fight is played below the top band, so the sky there is pressed into a soft backdrop.
 const PLAY := Vector2(70.0, 140.0)
 ## PAINTED's paint toned again behind the play: the light above the mid-tone
 ## kept to this much of its distance (the sky's own tone keeps 0.55)
 const PAINTED_KEEP := 0.4
-## and RADIANT's lit volume, toned once (CHIAROSCURO, proto/radiant-a, Nov 7: was
-## 0.38, which pressed the sun's light out within a third of the screen; now its
-## light keeps more of its fall and the dark below the mid-tone goes deeper,
-## `RADIANT_KEEP_LO`, never lifted: the ships stand on darkness, not on a wash)
+## and RADIANT's lit volume, toned once; the dark below the mid-tone goes deeper (Nov 7).
+## Why: docs/why/LocalSky.md#radiant-chiaroscuro
 const RADIANT_KEEP := 0.55
 const RADIANT_KEEP_LO := 1.35
-## How far toward you the star's light on a world comes from (`LIGHT_Z`, layer px
-## against the star's offset on the screen). 140 lit a near world almost from the
-## front, so a giant was lit edge to edge; RADIANT's chiaroscuro brings the light
-## round to the side (`RADIANT_LIGHT_Z`, against a unit way across the screen): a
-## hard terminator, a share of the disc in night, the limb caught by the gas behind.
-## (Then from a little BEHIND, negative: the star is far off in the sky behind the
-## world. At +0.3 the ringed giant's night fell mostly out of frame, so its visible
-## face was all day; from behind, the terminator (hard now, planet.gdshader's
-## `r_edge`) crosses the face you see.)
+## How far toward you a world's star light comes from; RADIANT's from a little behind, for a hard terminator.
+## Why: docs/why/LocalSky.md#radiant-chiaroscuro
 const LIGHT_Z := 140.0
 const RADIANT_LIGHT_Z := -0.25
-## RADIANT's wash of the gas over a world close by (planet.gdshader's r_haze:
-## all over, more at the limb, the gas's brightness); the band's worlds keep the
-## shader's 0.22 / 0.45
+## RADIANT's gas wash over a close world; band worlds keep the shader's own values.
 const NEAR_HAZE := Vector3(0.0, 0.1, 16.0)
 ## the cloud's sky pixel at the star: high in its bake, so the view below the
 ## star stays inside the baked field
 const CC := Vector2(480.0, 150.0)
-## how many more colours LOCAL's cut of a cloud keeps than the map's: seen side on,
-## the lit rims of the masses facing the star and the glow's long fall into the
-## gas are much of the picture, and with the map's count they shared too few
-## steps (Jon: the masses "more backlit" on one arrival than another)
+## LOCAL keeps more colours than the map: side on, lit rims and the glow shared too few steps.
 const PAL_MORE := 6
 ## THE WEATHER: the map's medium events, this many times rarer
 const WX_SLOW := 2.5
@@ -239,7 +113,6 @@ var _pt := {}
 
 ## the style this sky is drawn in
 var style: StringName = &"simplified"
-var legacy := false
 var painted := false
 var radiant := false
 ## RADIANT's glow (`RadiantGlow`): the sky's picture wrapped
@@ -275,9 +148,7 @@ var _ready_sky := false
 var _palette_built := false
 var _frame := 0
 var _sun := Vector2(480.0, HORIZON)
-## where the cloud is laid round: the star, but at the core where the band's
-## star would be (it is baked round that point; slid down with the hole its
-## edge came into view)
+## Where the cloud is laid round: the star, but at the core where the band's star would be.
 var _cloud_sun := Vector2(480.0, HORIZON)
 var _s := 0.5
 var _sd := 0.0
@@ -289,28 +160,16 @@ var _low_skip := false
 var orbit_target := -9
 var orbit_d := 0.0
 var _dk := 1.0
-## TWO SUNS (ruling 20, Oct 30). `star2`: star B's SunView on the band beside
-## star A, null with one sun -- placed where the band puts its place on the
-## plane, each sun sized by the ship's own distance from it (`_dk_a`, `_dk_b`),
-## so the far one is the smaller. `_lit`: the sun that lights where the ship is
-## (-1 star A, STAR_B star B), the one giving it more light (`SystemView.share_b`);
-## `origin`, `star_light`, `star_px` and `star_k` are its, and so is everything
-## that asks them -- the far glow, the cloud's light, the near world's light, the
-## dust (`LocalDust`), the subjects (`LocalSubject`) and the life (`LocalLife`).
-## Star A keeps the band: it is laid out round A's place (`_sun`), as always.
+## Star B has its own sun beside star A; the sun lighting the ship's place (`_lit`) owns every
+## light lookup. Star A keeps the band layout.
+## Why: docs/why/LocalSky.md#two-suns
 var star2: Node2D = null
 var _lit := -1
 var _dk_a := 1.0
 var _dk_b := 1.0
-## THE PAIR AS THE MAP LEFT IT (ruling 23, Jon, Nov 1: "Orbiting pair"): a
-## binary's suns turn round their balance point on the map's clock, and map
-## time does not run off the map, so LOCAL holds the pair still for the visit
-## at the system's kept map clock (`Run.map_t`, the party's in co-op:
-## `NetSession.adopt_clock`), and the map opens on that very angle again. `_tm`
-## is that clock; `_a0` star A's place on the plane then, which the band is
-## laid round (every plane point LOCAL draws is taken from it, `_rel`); `_turn`
-## how far the pair has turned from the way it was laid out (0 alone or held
-## still, where all of this is exactly what it was). Read once, in `_build`.
+## Map time does not run off the map, so LOCAL holds the pair at the kept clock for the visit.
+## The map then opens on that very angle again.
+## Why: docs/why/LocalSky.md#pair-clock
 var _tm := 0.0
 var _a0 := Vector2.ZERO
 var _turn := 0.0
@@ -319,26 +178,16 @@ var _flare_a := 0.0
 var _flare_b := 0.0
 ## RADIANT: the lit sun's burst alone (`ChartRadiant.sun_flare`), the light it throws on the cloud
 var _burst := 0.0
-## the near things: their own picture, the world the ship orbits and its moons,
-## a belt's rocks, a wreck (each [node, screen position before parallax,
-## parallax, radius])
+## The near things in their own picture: each [node, screen position, parallax, radius].
 var _near_vp: SubViewport = null
 var _near_mat: ShaderMaterial = null
 var _near: Array = []
 ## the picture the near layer is drawn onto (for the cutaway's zoom)
 var _near_rect: ColorRect = null
-## THE FIELD'S OWN (`NavField`, PAINTED: styles:now, the handoff matching): this
-## sky's far picture alone -- no cloud, no star, no worlds, no near one, no
-## life -- through the style's own whole pass, so the field under the map and
-## the chart is LOCAL's far sky as LOCAL paints it. `cam_hold`: LOCAL's camera,
-## held (where its far stars slid to), not this one's.
+## The field's own sky: this far picture alone through the style's whole pass, LOCAL's camera held.
 var field_only := false
 var cam_hold := Vector2.INF
-## THE FIELD'S DRIFT CARRIED (`NavField.pan`): the field's own sky (`field_only`)
-## slides to `sky_pan_hold` alone; LOCAL's, while it is not the screen at rest,
-## lies where the field has slid to (`_sky_on`, what its camera's slide is moved
-## by), so the stars it shows on a move in and at rest are the field's -- and at
-## rest its camera slides it on from there, the field copying it
+## Carries the field's drift so the stars shown on a move and at rest are the field's.
 var sky_pan_hold := Vector2.INF
 var _sky_on := Vector2.ZERO
 ## whether its camera has taken the field over (up at rest, laid where the
@@ -350,12 +199,9 @@ var _near_world: Node2D = null
 var near_storm: Dictionary = {}
 var closed := 0.0
 
-## THE CUTAWAY'S ZOOM (`CutawayView`, Jon: "LOCAL should zoom the real scene
-## too"): the camera pushed in `zoom` times on the point `_zoom_fixed` (this
-## view's px), which it carries to `_zoom_to`. Each layer goes by its depth --
-## the world you orbit all the way with the ship, the band's worlds a little,
-## the star all but still; the far stars and the cloud are drawn on the screen's
-## own grid and hold. 1 is no zoom, which is all play outside the cutaway sees.
+## Each layer zooms by its depth; far stars and cloud sit on the screen's own grid and hold.
+## 1 is no zoom, all that play outside the cutaway sees.
+## Why: docs/why/LocalSky.md#cutaway-zoom
 var zoom := 1.0
 var _zoom_fixed := Vector2.ZERO
 var _zoom_to := Vector2.ZERO
@@ -444,7 +290,7 @@ func _ready() -> void:
 
 ## The style the sky is drawn in: the setting, or a harness's `style=`.
 static func style_now() -> StringName:
-	for s: StringName in [&"legacy", &"painted", &"radiant", &"simplified"]:
+	for s: StringName in [&"painted", &"radiant", &"simplified"]:
 		if ("style=%s" % s) in OS.get_cmdline_user_args():
 			return s
 	return DisplaySettings.render_style
@@ -457,9 +303,8 @@ func setup(n: MapGen.MapNode) -> void:
 	var key := "%d|%s|%s" % [n.index, style_now(), DisplaySettings.graphics_low]
 	if key == _key:
 		return
-	# (RADIANT's safety gave up on it while this sky was up, `fall_back_style`:
-	# the same system's sky keeps its look -- a picture never changes under a
-	# still view -- and the next one built is SIMPLIFIED)
+	# After a RADIANT fall back this sky keeps its look,
+	# as a picture never changes under a still view.
 	if node == n and radiant and ChartRadiant.fell_back and key == "%d|%s|%s" % [n.index, DisplaySettings.render_style, DisplaySettings.graphics_low] \
 			and _key == "%d|radiant|%s" % [n.index, DisplaySettings.graphics_low]:
 		return
@@ -473,27 +318,19 @@ func _restyle() -> void:
 		setup(node)
 
 
-## LOCAL'S FAR SKY OVER SYSTEM `n` as `_build` sets it up, before its camera or
-## its cloud has moved it: what `NavField` draws until a LOCAL sky over the
-## system is up to copy (the uniforms of `local_far.gdshader`).
+## LOCAL's far sky as `_build` sets it, for `NavField` to draw until a LOCAL sky is up to copy.
 static func far_defaults(n: MapGen.MapNode) -> Dictionary:
 	var lay := SystemLayout.of(n)
 	var knd: String = KIND_NAMES[lay.star]
-	var leg := style_now() == &"legacy"
 	var c: Vector3 = SkyBakeS.STARCOL.get(knd, SkyBakeS.STARCOL.ORDINARY)
 	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
 	var tint := l / maxf(l.x, maxf(l.y, l.z))
 	var look: Dictionary = SkyBakeS.look_for(n, knd)
 	var clear: bool = not bool(look.get("nebula", true)) and lay.star < SystemLayout.StarKind.PULSAR
-	var wt := MapGen.star_colour(n).darkened(0.72)
-	var st: Color = Color("#ffc29a") if lay.star == SystemLayout.StarKind.RED else (Color("#eaf4ff") if lay.star == SystemLayout.StarKind.BLUE else Color("#f6f2e4"))
 	var ba := float(n.index) * 0.731 * 2.7
 	return {
-		"legacy": leg,
 		"u_skySeed": float(n.index % 97) * 0.37,
 		"star_light": tint,
-		"wash_tint": Vector3(wt.r, wt.g, wt.b),
-		"old_tint": Vector3(st.r, st.g, st.b),
 		"glow_k": 1.0 if clear else 0.0,
 		"band_n": Vector2(-sin(ba), cos(ba)),
 		"band_off": (SkyBakeS.hash2(n.index, 403) - 0.5) * 300.0,
@@ -533,7 +370,6 @@ func _build() -> void:
 	_wa = {}
 	_wb = {}
 	style = style_now()
-	legacy = style == &"legacy"
 	painted = style == &"painted"
 	radiant = style == &"radiant"
 	layout = SystemLayout.of(node)
@@ -547,14 +383,13 @@ func _build() -> void:
 	# THE SKY AS THE MAP SEES IT (`SystemView.show_system`): the cloud the system
 	# sits in, by its kind; SIMPLIFIED's core a cloud of warm gas round the hole
 	_sky_look = SkyBakeS.look_for(node, kind)
-	if layout.star == SystemLayout.StarKind.CORE and not legacy:
+	if layout.star == SystemLayout.StarKind.CORE:
 		_sky_look.neb = 5
 		_sky_look.shape = 0
 		_sky_look.hue = Vector3(0.62, 0.32, 0.2)
 	if layout.star == SystemLayout.StarKind.PULSAR:
-		# A PULSAR'S SHELL: the remnant of the star that made it, in its own blues
-		# (the map lays it in its baked sky; seen side on it is the cloud round
-		# the system, a remnant's tangled filaments lit near the pulsar)
+		# A pulsar's shell: the remnant of its star in its own blues,
+		# seen side on as the cloud round the system.
 		_sky_look.neb = NebulaField.Kind.REMNANT
 		_sky_look.shape = 0
 		_sky_look.hue = Vector3(0.3, 0.45, 0.95)
@@ -585,14 +420,8 @@ func _build() -> void:
 	_far = _rect()
 	_far_mat = ShaderMaterial.new()
 	_far_mat.shader = FAR
-	_far_mat.set_shader_parameter("legacy", legacy)
 	_far_mat.set_shader_parameter("u_skySeed", float(node.index % 97) * 0.37)
 	_far_mat.set_shader_parameter("star_light", _tint)
-	# (LEGACY: the view's own wash, its star's tint toward the right)
-	var wt := MapGen.star_colour(node).darkened(0.72)
-	_far_mat.set_shader_parameter("wash_tint", Vector3(wt.r, wt.g, wt.b))
-	var st: Color = Color("#ffc29a") if layout.star == SystemLayout.StarKind.RED else (Color("#eaf4ff") if layout.star == SystemLayout.StarKind.BLUE else Color("#f6f2e4"))
-	_far_mat.set_shader_parameter("old_tint", Vector3(st.r, st.g, st.b))
 	var clear: bool = not bool(_sky_look.get("nebula", true)) and layout.star < SystemLayout.StarKind.PULSAR
 	_far_mat.set_shader_parameter("glow_k", 1.0 if clear else 0.0)
 	_glow_r = 70.0 * (1.5 if layout.star == SystemLayout.StarKind.RED else 1.0)
@@ -608,19 +437,18 @@ func _build() -> void:
 	if neb_on:
 		_neb = _rect()
 		_neb_mat = ShaderMaterial.new()
-		_neb_mat.shader = NEB_SKY_LEGACY if legacy else NEB_SKY
+		_neb_mat.shader = NEB_SKY
 		_neb_mat.set_shader_parameter("kind", int(_sky_look.neb))
 		_neb_mat.set_shader_parameter("shape", int(_sky_look.shape))
 		_neb_mat.set_shader_parameter("hue", _sky_look.hue)
 		_neb_mat.set_shader_parameter("sd", _sd)
-		if not legacy:
-			_neb_mat.set_shader_parameter("exposure", {NebulaField.Kind.REFLECTION: 0.8, NebulaField.Kind.EMISSION: 0.88}.get(int(_sky_look.neb), 1.0))
-			_neb_mat.set_shader_parameter("cc_em", CC)
-			_neb_mat.set_shader_parameter("bubble_r", _bubble_r())
-			_neb_mat.set_shader_parameter("star_light", _tint)
-			if radiant:
-				_neb_mat.set_shader_parameter("radiant", true)
-				_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
+		_neb_mat.set_shader_parameter("exposure", {NebulaField.Kind.REFLECTION: 0.8, NebulaField.Kind.EMISSION: 0.88}.get(int(_sky_look.neb), 1.0))
+		_neb_mat.set_shader_parameter("cc_em", CC)
+		_neb_mat.set_shader_parameter("bubble_r", _bubble_r())
+		_neb_mat.set_shader_parameter("star_light", _tint)
+		if radiant:
+			_neb_mat.set_shader_parameter("radiant", true)
+			_neb_mat.set_shader_parameter("exposure", float(_neb_mat.get_shader_parameter("exposure")) * 0.86)
 		_neb.material = _neb_mat
 		_neb.visible = false
 		_scene.add_child(_neb)
@@ -632,7 +460,7 @@ func _build() -> void:
 		_scene.add_child(star)
 		star.call("setup", node.index, Rect2(0, 0, 960, 540))
 		star.call("set_zoom", star_k())
-		(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", legacy)
+		(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", false)
 		far_group.append(star)
 	# THE BUDGET over all of it
 	var copy := BackBufferCopy.new()
@@ -654,7 +482,7 @@ func _build() -> void:
 	grade.material = _grade_mat
 	_scene.add_child(grade)
 	far_group.append(grade)
-	# THE SYSTEM'S OWN PALETTE (SIMPLIFIED, RADIANT, LEGACY), from its first picture
+	# THE SYSTEM'S OWN PALETTE (SIMPLIFIED, RADIANT), from its first picture
 	if not painted:
 		var copy2 := BackBufferCopy.new()
 		copy2.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
@@ -674,10 +502,8 @@ func _build() -> void:
 			ch.reparent(svp, false)
 		_scene.move_child(_pt.tvp, 0)
 		_scene.move_child(_pt.rect, 1)
-		# (and its paint toned again after: B's curated ramps pick a step by
-		# where a block falls on them, so its puffed masses come out as vivid as
-		# ever whatever went in -- the same play tone, pressed harder, eased in
-		# smoothly, as nothing cuts it after)
+		# Toned again after, as B's ramps pick a step by
+		# where a block falls, so puffed masses stay vivid.
 		var pcopy := BackBufferCopy.new()
 		pcopy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 		_scene.add_child(pcopy)
@@ -753,15 +579,9 @@ func _build() -> void:
 		_field_hide()
 	_place_box()
 	_step(0.0)
-	# THE FIRST FRAME ANYBODY SEES IS THE FINISHED ONE (Jon, of the arrival:
-	# frames 0-2 smooth and unpaletted, then the cut; then of a hold that
-	# showed the dark wash first, "the black starfield AND THEN the nebula loads
-	# in looks bad"; and every later rebuild -- a new screen over the same
-	# system, a style or LOW change -- blinked the same way). So the sky is
-	# finished before it is shown: held clear while `_prime` drives the cloud's
-	# bake and the palette's cut through forced, unpresented draws, in this
-	# same frame, then shown. The palette is kept per system and style
-	# (`_pal_cache`), so a system already seen this session is cut once.
+	# The sky is finished before it is shown, or Jon saw the dark wash and then the nebula load in.
+	# The palette is cached per system and style, so a seen system is cut once.
+	# Why: docs/why/LocalSky.md#first-frame
 	_box.modulate.a = 0.0
 	var cached: Array = _pal_cache.get(_key, [])
 	if _palette_mat != null and not cached.is_empty():
@@ -779,11 +599,8 @@ func _build() -> void:
 	_reveal()
 
 
-## Finish the sky before it is first shown: forced draws (never presented)
-## until the cloud is baked and the palette cut, the coroutines that await a
-## drawn frame (`SkyBake.field`, `_build_palette`) running on each. A hitch of
-## a few renders on a system's first arrival -- behind the jump's flare -- and
-## none on a revisit, when both are cached. Not headless (nothing renders).
+## Forced draws until the cloud is baked and the palette cut:
+## a hitch on first arrival, none on revisit.
 func _prime() -> void:
 	if headless() or _scene == null:
 		_box.modulate.a = 1.0
@@ -800,9 +617,9 @@ func _prime() -> void:
 	for i in PRIME_MAX:
 		if _ready_sky and (_palette_mat == null or _palette_built):
 			break
-		# (the cloud's bake waits on real frames now, and the palette is cut from
-		# the cloud: forcing more draws only made the open hitch, 48 of them,
-		# ~200 ms, for nothing)
+		# The cloud's bake waits on real frames, so forcing more draws only cost a hitch
+		# (48 draws, about 200 ms) for nothing.
+		# Why: docs/why/LocalSky.md#first-frame
 		if _bake_on_real:
 			break
 		_step(0.0)
@@ -853,16 +670,15 @@ func _field_hide() -> void:
 
 ## The cloud's density, baked once a system and kept (`SkyBake.field`).
 func _bake_cloud(gen: int) -> void:
-	var key := "%d|%s|%s" % [node.index, "L" if legacy else "C", int(_sky_look.neb)]
+	var key := "%d|%s|%s" % [node.index, "C", int(_sky_look.neb)]
 	var f: Array = _baked.get(key, [])
 	if f.is_empty():
 		var bake := SkyBakeS.new()
-		# BAKED UNTIL IT HOLDS GAS (PAINTED's LOCAL showed bare stars on every
-		# arrival: built PAINTED, the bake ran inside the sky's priming draws and
-		# read its three pictures back empty -- no cloud, and no sheets for its
-		# masses). An empty bake is done again on the next real frames.
+		# Bake until it holds gas: built PAINTED, the bake ran in the priming draws and read its
+		# pictures back empty, so LOCAL showed bare stars.
+		# Why: docs/why/LocalSky.md#empty-bake
 		for attempt in 4:
-			await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC, legacy)
+			await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC)
 			if gen != _gen or not is_inside_tree():
 				return
 			if not _blank(bake.field_img0):
@@ -880,8 +696,7 @@ func _bake_cloud(gen: int) -> void:
 		_baked[key] = f
 	_neb_mat.set_shader_parameter("t0", f[0])
 	_neb_mat.set_shader_parameter("t1", f[1])
-	if not legacy:
-		_neb_mat.set_shader_parameter("t2", f[2])
+	_neb_mat.set_shader_parameter("t2", f[2])
 	_neb_mat.set_shader_parameter("ftex", Vector2(SkyBakeS.FIELD_W, SkyBakeS.FIELD_H))
 	_neb_mat.set_shader_parameter("fmb", float(SkyBakeS.FIELD_MB))
 	if painted:
@@ -891,10 +706,9 @@ func _bake_cloud(gen: int) -> void:
 			_neb_mat.set_shader_parameter("p_sheets", f[3])
 			_neb_mat.set_shader_parameter("p_sheets_on", true)
 		else:
-			# (THE SHEETS CAME OUT EMPTY on LOCAL, every time: baked inside the sky's
-			# priming draws, the bake's picture was read back blank, and PAINTED's
-			# LOCAL had no cloud at all -- emission, reflection and the core showed
-			# bare stars. Baked again on the next real frames until it holds gas.)
+			# The sheets came out empty when baked inside
+			# the priming draws; baked again on real frames.
+			# Why: docs/why/LocalSky.md#empty-bake
 			for attempt in 4:
 				await SectorPaintedS.bake_puffs(self, f[0])
 				if gen != _gen or not is_inside_tree():
@@ -913,15 +727,9 @@ func _bake_cloud(gen: int) -> void:
 	_reveal()
 
 
-## THE SKY SHOWN ONLY WHOLE (Jon: a pop is a failure). LOCAL opened straight --
-## not through the map's zoom, which builds it ahead -- showed its first eight
-## or so frames with no cloud and then the cloud arrived (the whole frame 24 to
-## 47): the cloud's bake cannot finish inside `_prime`'s forced draws (they read
-## its pictures back empty; it bakes again on the next real frames), and the
-## prime ended by showing the sky whatever it held. Now the sky stays clear
-## until the cloud is in and the palette cut, then comes up whole: at once if
-## nobody has seen a frame of it yet, else eased in over FADE_IN seconds, so the
-## held frames end in a fade rather than a jump.
+## The sky stays clear until the cloud is in and the palette cut (Jon: a pop is a failure).
+## Then it fades in over FADE_IN, or shows at once if nobody has seen a frame yet.
+## Why: docs/why/LocalSky.md#first-frame
 const FADE_IN := 0.25
 var _fade := -1.0
 ## real frames drawn since this sky was built
@@ -961,12 +769,9 @@ func _bubble_r() -> float:
 	var E := layout.edge
 	var want := 0.8 * (E + 20.0)
 	if layout.twin:
-		# (two suns: the bubble is round the cloud's sun here, the one that lights
-		# the ship's place (`_lit`, the neb's `star_at`), so its gap is between the
-		# bands of distance from that sun each body sweeps, `SystemView.bubble_gap`;
-		# measured from star A while drawn round B, its wall could run through
-		# the band's worlds)
-		# (at t 0, as `bubble_gap` measures the bodies: the pair turns rigidly)
+		# The bubble is round the lit sun: measured from star A while drawn round B, its wall
+		# could run through the band's worlds.
+		# Why: docs/why/LocalSky.md#two-suns
 		return SystemViewS.bubble_gap(layout, want, layout.star_pos(_lit, 0.0)) * _s
 	var rs: Array[float] = [0.0]
 	for b in layout.bodies:
@@ -998,10 +803,7 @@ func _world_r(b: SystemLayout.Body) -> float:
 	return maxf(roundf(r), MIN_WORLD_R)
 
 
-## A WORLD DRAWN AT RADIUS `r` (its own `base_r` at rest), grown the way the
-## map grows one under its zoom: drawn again at a new size once it has moved two
-## pixels of radius on, and live (any fraction) between, its surface on the
-## block grid. Returns the radius it is held at (its box's, `half_size`).
+## Grown as the map grows a world under zoom: redrawn once two pixels of radius on, live between.
 func _grow(v: Node2D, world: StringName, seed: int, base_r: float, r: float, over: Dictionary) -> float:
 	if not (v is PlanetView or v is ShatteredView):
 		return base_r
@@ -1029,22 +831,16 @@ static func _set_deep(n: Node, key: String, value: Variant) -> void:
 
 # ------------------------------------------------------------------ the pair as the map left it
 
-## Takes the system's kept map clock and holds the pair there for the visit
-## (`_tm`, `_a0`, `_turn`). Handed the pair by its map (`Router.pair_handed`:
-## the zoom down, GO, Tab), the very clock that map kept, so the pair stands
-## where it stood. For the system the ship is in opened any other way (a
-## fight's end, the dock), the party's: a partner's map further on is taken,
-## as the map takes it (`NetSession.adopt_clock`). Another system's sky (a
-## field under the chart) reads its clock as kept.
+## A pair handed by its map keeps that map's clock; otherwise the party's clock is adopted,
+## as the map takes it.
+## Why: docs/why/LocalSky.md#pair-clock
 func _hold_pair() -> void:
 	_tm = Net.adopt_clock(node.index) if node.index == Run.at and not Router.pair_handed(node.index) else Run.map_t(node.index)
 	_a0 = layout.star_pos(-1, _tm)
 	_turn = layout.pair_n * _tm if layout.twin else 0.0
 
 
-## The map clock LOCAL holds the pair at (`_hold_pair`), and the pair's angle
-## there (`SystemLayout.pair_angle`: the way from the balance point to star B):
-## what the map opens on again, and what a harness checks LOCAL against.
+## The clock LOCAL holds the pair at and its angle, for the map to reopen on and a harness to check.
 func held_t() -> float:
 	return _tm
 
@@ -1072,21 +868,15 @@ func suns_depth() -> float:
 	return _star_rel(SystemLayout.STAR_B).y
 
 
-## Body b on the band at LOCAL's own clock `t` on from the held one: round its
-## circle from where the map left it, its centre held with the pair (a world
-## round one sun stays round the sun as drawn), from star A (`_rel`). One sun
-## at a clock of 0: exactly `pos(t)`, as before ruling 23.
+## Body on the band at LOCAL's clock from the held one; one sun at clock 0 is exactly `pos(t)`.
 func _band_pos(b: SystemLayout.Body) -> Vector2:
 	var p3 := b.orbit_point(b.phase + (_tm + t) / b.period * TAU, _tm)
 	return _rel(Vector2(p3.x, p3.z))
 
 
-## A band point (from star A) turned back to the pair as it was laid out (star
-## A at the origin, star B at `star2_at0`), where the map's static light
-## helpers measure the two suns from (`SystemView.share_b_of`, `light_here_of`,
-## `toward_light_of`). The pair turns rigidly, so each sun's distance -- all the
-## light's share and strength ask -- is the same either way; a way to the light
-## is turned on again by `_turn`.
+## Band points are turned back to the layout for the map's light helpers; the pair turns
+## rigidly, so each sun's distance is the same either way.
+## Why: docs/why/LocalSky.md#pair-clock
 func _laid(q: Vector2) -> Vector2:
 	return q if _turn == 0.0 else q.rotated(-_turn)
 
@@ -1131,9 +921,8 @@ func _unlit() -> int:
 	return -1 if _lit == SystemLayout.STAR_B else SystemLayout.STAR_B
 
 
-## The lit sun's breath (`SystemView.breath`), on its own clock: star B's runs
-## `SystemView.STAR_B_PROM` behind A's, as its disc's does. The far glow and the
-## cloud's light are round the lit sun, so they breathe with it.
+## The lit sun's breath on its own clock, star B's
+## behind A's; the far glow and cloud light follow it.
 func _breath_lit() -> float:
 	return SystemViewS.breath(pose(t, 4.0) + (SystemViewS.STAR_B_PROM if star2 != null and _lit == SystemLayout.STAR_B else 0.0))
 
@@ -1171,14 +960,9 @@ func star_light() -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
-## THE STAR ON SCREEN this frame, on the block grid (its own, near-still layer),
-## and under the cutaway's zoom where its depth (Z_STAR) carries it. Everything
-## that belongs to the star asks this one point: its disc, the far sky's glow,
-## its light on the cloud (and PAINTED's), the worlds' shafts and shadows, the
-## near world's light, the dust (`LocalDust`) and the subjects (`LocalSubject`).
-## Jon: "When zooming into the ship, the light of the star moves?" -- the disc
-## sat inside the band's layer and took its zoom on top of its own, while the
-## glow held still, so the two came apart.
+## Everything belonging to the star asks this one point. The disc once took the band's zoom
+## on top of its own while the glow held still, so the light moved (Jon).
+## Why: docs/why/LocalSky.md#star-on-screen
 func origin() -> Vector2:
 	return _zp(rest_origin(), Z_STAR)
 
@@ -1194,15 +978,9 @@ func _star_rest(p: int) -> Vector2:
 	return _block_round(_sun_at(p) - cam * F_STAR)
 
 
-## Where star p hangs on the band at rest: star A at `_sun`, star B where the
-## band puts its place on the plane from star A, as the pair was left (`_tm`:
-## across by its x, a little lower the nearer it is, at the band's scale), on
-## the block grid -- on the side the map shows it, held for the visit. A close
-## pair's out that way to SUNS_APART clear of star A's disc while the pair lies
-## as a layout lays one (within TWIN_TURN of level); turned on toward end on
-## (stacked:A, Jon, Nov 1), less and less, till end on the suns stand where the
-## band has them, one in front of the other, the nearer drawn over the farther
-## (`_step_worlds`).
+## Star B is pushed SUNS_APART clear only while the pair lies level, less as it turns end on
+## (stacked:A, Jon, Nov 1), then one sun stands in front of the other.
+## Why: docs/why/LocalSky.md#two-suns
 func _sun_at(p: int) -> Vector2:
 	if p != SystemLayout.STAR_B or layout == null or not layout.twin:
 		return _sun
@@ -1217,10 +995,7 @@ func _sun_at(p: int) -> Vector2:
 	return _block_round(_sun + off)
 
 
-## How much of SUNS_APART's push a close pair's star B gets on the band with the
-## pair's line `b` (star A to star B on the plane): all of it within TWIN_TURN of
-## level (as every layout lays a pair, so a pair not yet turned is drawn as it
-## always was), falling to none end on (`_sun_at`).
+## How much of SUNS_APART's push star B gets: all within TWIN_TURN of level, none end on.
 static func apart_k(b: Vector2) -> float:
 	var lv := absf(b.x) / maxf(b.length(), 1e-6)
 	var c := cos(SystemLayout.TWIN_TURN)
@@ -1248,10 +1023,7 @@ func core_shadow_r() -> float:
 	return 116.0 * star_k() / 3.0
 
 
-## WHERE THE CORE'S HOLE IS DRAWN, in the game frame's pixels (the sky's
-## picture is laid in the frame, `_place_box`), generously: its
-## disc's outer edge (116 px a unit of `star_k`) across, the lensed arcs above
-## and below it. For the box checks (`-- sheet=OneHoleTest`).
+## Where the core's hole is drawn, generously, for the box checks of OneHoleTest.
 func hole_box() -> Rect2:
 	var R := 116.0 * star_k()
 	return Rect2(origin() - Vector2(R, R * 0.75), Vector2(R * 2.0, R * 1.5))
@@ -1284,10 +1056,7 @@ func _process(delta: float) -> void:
 			life.step(delta)
 		_follow()
 		return
-	# GRAPHICS LOW: the cloud reads its field once (`sky_nebula`'s `low`), and
-	# the whole sky is drawn every other frame -- its gas steps a block every
-	# few seconds and the star redraws at 30 a second anyway (`SunView`), so
-	# nothing in it moves faster than that
+	# GRAPHICS LOW draws the sky every other frame, as nothing in it moves faster than that.
 	if gfx_low():
 		_low_skip = not _low_skip
 		_set_update(SubViewport.UPDATE_ONCE if not _low_skip else SubViewport.UPDATE_DISABLED)
@@ -1330,15 +1099,9 @@ func _place_box() -> void:
 		_box.position = p
 
 
-## THE CAMERA follows the ship's own travel as it leaves (`CAM_FOLLOW` of it),
-## and holds still while it arrives (Jon, Oct 21, for 0.3.0, as docking has
-## since Oct 20: "The dust move too much"): an arrival takes the hull off the
-## view's left edge and flies it back to its mooring, and following that moved
-## the dust about 209 px on its first frame and slid it back over the approach.
-## Held where it was instead, so the sky and the dust keep their own drift and
-## the ship alone moves; at rest the hull is at its mooring (`position` 0), so
-## the camera the arrival hands back is the one it held. `cam_hold` (the dock)
-## over both.
+## The camera holds still while a ship arrives (Jon, Oct 21): following moved the dust about
+## 209 px on the first frame. Held, the sky and dust keep their own drift.
+## Why: docs/why/LocalSky.md#camera
 func _follow() -> void:
 	var cx := 0.0
 	if cam_ship != null and is_instance_valid(cam_ship) and cam_ship.is_inside_tree():
@@ -1353,9 +1116,8 @@ func _follow() -> void:
 func _step(delta: float) -> void:
 	_frame += 1
 	_place_box()
-	# REDUCED MOTION: the sky holds still -- its gas, its star, the hole's disc,
-	# the pulsar's beams -- and the weather never comes
-	# (the field's own holds still: it is the ground every move stands on)
+	# Reduced motion holds the sky still; the field's own
+	# always holds still as the ground moves stand on.
 	var still := DisplaySettings.reduced_motion or field_only
 	if not still:
 		t += delta
@@ -1370,8 +1132,6 @@ func _step(delta: float) -> void:
 		cam = Vector2.ZERO
 	var o := rest_origin()
 	var so := origin()
-	var vr := get_global_rect()
-	_far_mat.set_shader_parameter("wash", Vector2(vr.position.x, vr.size.x))
 	# (`chart_bg` slides a layer with its pan: the sky's pan is the world's
 	# travel on screen, against the camera's)
 	var own := -cam * SKY_K
@@ -1392,22 +1152,21 @@ func _step(delta: float) -> void:
 		_neb_mat.set_shader_parameter("off", neb_off())
 		_neb_mat.set_shader_parameter("time", 0.0 if still else pose(t, 4.0))
 		_neb_mat.set_shader_parameter("low", gfx_low())
-		if not legacy:
-			_neb_mat.set_shader_parameter("star_at", Vector2(so))
-			# (the star's light reaches as far into the gas as it is near: the map's
-			# zoom, which opens the light out, stands in for nearness)
-			var lz := clampf(pow(_dk, 0.8), 0.45, 2.4)
-			_neb_mat.set_shader_parameter("zoom", lz)
-			_neb_mat.set_shader_parameter("lzoom", lz)
-			_neb_mat.set_shader_parameter("home_zoom", 1.0)
-			_neb_mat.set_shader_parameter("lscale", 1.35)
-			_neb_mat.set_shader_parameter("breath", _breath_lit())
-			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
-			# THE OTHER SUN'S LIGHT ON THE GAS (two suns): beside the lit one's, by its
-			# brightness and nearness against it (0 with one sun: nothing added)
-			_neb_mat.set_shader_parameter("star2_k", _star2_k())
-			if star2 != null:
-				_neb_mat.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
+		_neb_mat.set_shader_parameter("star_at", Vector2(so))
+		# (the star's light reaches as far into the gas as it is near: the map's
+		# zoom, which opens the light out, stands in for nearness)
+		var lz := clampf(pow(_dk, 0.8), 0.45, 2.4)
+		_neb_mat.set_shader_parameter("zoom", lz)
+		_neb_mat.set_shader_parameter("lzoom", lz)
+		_neb_mat.set_shader_parameter("home_zoom", 1.0)
+		_neb_mat.set_shader_parameter("lscale", 1.35)
+		_neb_mat.set_shader_parameter("breath", _breath_lit())
+		_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
+		# THE OTHER SUN'S LIGHT ON THE GAS (two suns): beside the lit one's, by its
+		# brightness and nearness against it (0 with one sun: nothing added)
+		_neb_mat.set_shader_parameter("star2_k", _star2_k())
+		if star2 != null:
+			_neb_mat.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
 	if painted:
 		SectorPaintedS.push(self)
 		if star2 != null and not field_only and not _pt.is_empty():
@@ -1417,9 +1176,7 @@ func _step(delta: float) -> void:
 				ms.set_shader_parameter("sun_r", star_px())
 				ms.set_shader_parameter("star2_px", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
 				ms.set_shader_parameter("sun2_r", float(layout.star_radius(_unlit())) * star_k_of(_unlit()) * _zl(Z_STAR))
-			# (and its silhouettes facing both suns' light on the cloud, as the
-			# cloud has it above: the other sun where its disc is, its brightness
-			# against the lit one's, the light's reach; `sector_b_paint`)
+			# Silhouettes face both suns' light on the cloud, as the cloud has it above.
 			var mp: ShaderMaterial = _pt.get("paint")
 			if mp != null:
 				mp.set_shader_parameter("star2_at", Vector2(_zp(_star_rest(_unlit()), Z_STAR)))
@@ -1428,13 +1185,9 @@ func _step(delta: float) -> void:
 	_step_star(o)
 	_step_worlds(o)
 	_step_near(o)
-	# UNDER THE ZOOM NOTHING HERE IS A PICTURE SCALED UP (Jon: "zooming in causes
-	# artifacts like pixels missing, lines being drawn weird"): the band's worlds,
-	# the star and the near things are each drawn again where the zoom puts them
-	# and at the size it gives them, on the sky's own 2 px grid -- so a push-in
-	# only ever adds detail. (Their layers were scaled as pictures: the band's by
-	# 1.15 drew every seventh block twice, the near world's by 2 drew it in 4 px
-	# blocks, and the zoom ladder's pull back to 0.3 dropped most of its pixels.)
+	# Under the zoom nothing is a scaled picture (Jon: artifacts): layers are redrawn at the zoom's
+	# size on the 2 px grid. Scaled, they drew every seventh block twice or 4 px blocks.
+	# Why: docs/why/LocalSky.md#zoom-redraw
 	_zlayer(_worlds, 0.0)
 	if _near_rect != null:
 		_near_rect.position = Vector2.ZERO
@@ -1451,11 +1204,8 @@ func _step(delta: float) -> void:
 func _step_star(o: Vector2) -> void:
 	if star == null:
 		return
-	# AT ITS OWN DEPTH, wherever it hangs (the pulsar on the far sky, the sun and
-	# the core in the band's layer, for the worlds that pass in front of it):
-	# placed where the zoom puts it and drawn at the size it gives it by its own
-	# painter's zoom, never scaled as a picture (a 1.04 scale of the disc drew a
-	# row of its blocks twice)
+	# Drawn at the size its own depth gives it,
+	# never scaled: a 1.04 scale drew a row of blocks twice.
 	var k := _zl(Z_STAR)
 	# (star A at its own place: with two suns `o` is the lit one's)
 	star.position = _zp(_star_rest(-1) if star2 != null else o, Z_STAR)
@@ -1465,16 +1215,14 @@ func _step_star(o: Vector2) -> void:
 	else:
 		star.call("set_zoom", star_k_of(-1) * k)
 	if star2 != null:
-		# STAR B at its place on the band, its size by the ship's distance from it,
-		# on its own clock (`SystemView.STAR_B_PROM` behind A's: never at their
-		# height together)
+		# Star B at its band place, sized by the ship's distance, on its own clock behind A's.
 		star2.position = _zp(_star_rest(SystemLayout.STAR_B), Z_STAR)
 		star2.call("set_zoom", star_k_of(SystemLayout.STAR_B) * k)
 		star2.call("step", pose(t, 4.0))
 		var sm2: ShaderMaterial = star2.get("_mat")
 		sm2.set_shader_parameter("c_breath", SystemViewS.breath(pose(t, 4.0) + SystemViewS.STAR_B_PROM))
 		sm2.set_shader_parameter("c_prom", SystemViewS.prominence(pose(t + SystemViewS.STAR_B_PROM, 6.0)))
-		sm2.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
+		sm2.set_shader_parameter("halo_cut", 72.0)
 	_flare = 0.0
 	match layout.star:
 		SystemLayout.StarKind.PULSAR:
@@ -1487,10 +1235,9 @@ func _step_star(o: Vector2) -> void:
 			var sm: ShaderMaterial = star.get("_mat")
 			sm.set_shader_parameter("c_breath", SystemViewS.breath(pose(t, 4.0)))
 			sm.set_shader_parameter("c_prom", SystemViewS.prominence(pose(t, 6.0)))
-			sm.set_shader_parameter("halo_cut", 36.0 if legacy else 72.0)
-	# TWO SUNS' FLARES: each sun's on its own clock; `_flare` is the lit one's (the
-	# near world, the cloud, the subjects), a band world's its own sun's by its
-	# share of the light (`_step_worlds`)
+			sm.set_shader_parameter("halo_cut", 72.0)
+	# Each sun's flare is on its own clock; `_flare`
+	# is the lit one's, a band world's its own sun's.
 	_flare_a = _flare
 	_flare_b = 0.0
 	if star2 != null and layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE:
@@ -1500,13 +1247,9 @@ func _step_star(o: Vector2) -> void:
 	_radiant_flares()
 
 
-## LIGHT THAT MOVES (RADIANT, Nov 7, direction B): the sun's own flares
-## (`ChartRadiant.sun_flare`, the sector map's clock) -- its glow and haze swell, its
-## light runs out through the cloud, shaded by the dust between (`local_grade`'s
-## `r_sun`), and the worlds' day sides brighten. (The band behind the play once let
-## more through in a flare too: the whole sky brightening read as an exposure, not
-## the sun's light; review, Nov 7.)
-## the flare's light round the sun in LOCAL: its reach (game px), its gain at full
+## LIGHT THAT MOVES (RADIANT, Nov 7, B): the sun's own flares light the cloud round it
+## (`local_grade`'s `r_sun`) and the worlds' day sides; reach (game px) and gain at full.
+## Why: docs/why/LocalSky.md#radiant-flares
 const LOCAL_FLARE_R := 170.0
 const LOCAL_FLARE_GAIN := 3.0
 func _radiant_flares() -> void:
@@ -1577,13 +1320,9 @@ func _engine_light() -> void:
 	_grade_mat.set_shader_parameter("r_eng_c", Vector3(1.0, 0.62, 0.32) if bool(e.warm) else Vector3(0.55, 0.75, 1.0))
 
 
-## THE BAND'S DRAWING ORDER, farthest first: the worlds at depths `ys` (sorted,
-## nearest last; the band is from star A, so A is at 0) with star A among them
-## (`with_a`) and star B at its depth `d2` (`with_b`, `suns_depth`). Each entry
-## is an index into `ys`, -1 for star A or `SystemLayout.STAR_B`. The nearer
-## sun goes in after the farther, so a pair turned end on draws its near sun
-## over the far (stacked:A). Pure, so a headless test can see it: LOCAL's suns
-## are not built headless, and a flipped order passed every sheet (review 2).
+## Pure so a headless test can see it: LOCAL's suns are not built headless and a flipped
+## order passed every sheet.
+## Why: docs/why/LocalSky.md#band-order
 static func band_order(d2: float, ys: Array, with_a := true, with_b := true) -> Array:
 	var out: Array = []
 	var a_placed := not with_a
@@ -1610,9 +1349,8 @@ static func band_order(d2: float, ys: Array, with_a := true, with_b := true) -> 
 	return out
 
 
-## Each world where its orbit has it now, seen from just above the plane: across
-## by its x, a little lower the nearer it is; the ones behind the star drawn
-## before it and hidden by its disc.
+## Each world where its orbit has it, from just above the plane;
+## those behind the star are hidden by its disc.
 func _step_worlds(o: Vector2) -> void:
 	if _views.is_empty():
 		return
@@ -1622,10 +1360,7 @@ func _step_worlds(o: Vector2) -> void:
 		pos[i] = _band_pos(layout.bodies[i])
 	order.sort_custom(func(a: int, b: int) -> bool: return (pos[a] as Vector2).y < (pos[b] as Vector2).y)
 	var star_placed := star == null or layout.star == SystemLayout.StarKind.PULSAR
-	# (star B at its own depth, as the map slots it: `SystemView.step`.) EACH SUN
-	# AT ITS DEPTH as the pair was left, star A's 0 here (the band is from it),
-	# B's from the pair's angle then: the nearer sun goes in after the farther,
-	# so a pair turned end on draws its near sun over the far (stacked:A)
+	# Each sun at its depth as the pair was left; the nearer goes in after the farther (stacked:A).
 	var d2: float = suns_depth()
 	var ys: Array = []
 	for i: int in order:
@@ -1676,22 +1411,19 @@ func _step_worlds(o: Vector2) -> void:
 		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
 		if vm != null:
-			if not legacy:
-				vm.set_shader_parameter("star_tint", _tint_at(p))
-				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
+			vm.set_shader_parameter("star_tint", _tint_at(p))
+			vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 			# (two suns: its own sun's flare, by its share of the light here)
 			vm.set_shader_parameter("flare", lerpf(_flare_a, _flare_b, _share_b(p)) if star2 != null else _flare)
-			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+			vm.set_shader_parameter("lift", 1.0)
 		# (the shafts are cast on the cloud, which does not zoom: each world where
 		# the band's zoom shows it, at the size it is drawn)
 		if bp.size() < 24:
 			var wr := _world_r(b) * _zl(Z_BAND)
 			bp.append(Vector4(v.position.x, v.position.y, wr, wr))
 			if star2 != null:
-				# (two suns: each shaft away from its own world's light, a point
-				# toward it on this screen -- as the map casts them,
-				# `SystemView.light_screen` -- not from the lit sun, which threw a
-				# world round the other sun's shaft back across its own sun)
+				# Each shaft points away from its own world's light,
+				# as the map casts them, not from the lit sun.
 				var lu := _toward(p)
 				from.append(v.position + Vector2(lu.x, lu.y * TILT).normalized() * 400.0)
 	if radiant and _neb_mat != null:
@@ -1709,26 +1441,15 @@ func _step_worlds(o: Vector2) -> void:
 			_neb_mat.set_shader_parameter("r_per", true)
 
 
-## The palette from the system's own first picture (`SystemView`'s, with the
-## same reserved steps), once the cloud is in.
-##
-## FOUND FROM THE SKY AT REST (Jon, of an arrival: "the nebula on the left are more
-## backlit by the sun than the ones on the right" -- one arrival's sky set flatter
-## than another's): a palette cut from a frame early in the approach, with the
-## camera still out where the ship flies in from, was a palette of that frame --
-## other gas, the star elsewhere on it -- and the lit rims and the glow's reach
-## at rest fell between its colours (and a palette cut a second later was cut
-## from other gas). So for the two frames it takes, the sky is laid out at rest
-## and at its clock's start, behind a still of what was on screen, and the
-## palette is cut from that: the same palette however and whenever the ship
-## arrives.
+## The palette is cut from the sky at rest at its clock's start, so every arrival gets the same
+## palette however the ship arrives (Jon: nebulae more backlit on one arrival).
+## Why: docs/why/LocalSky.md#palette
 func _build_palette() -> void:
 	_palette_built = true
 	var freeze: TextureRect = null
 	if _box != null:
-		# (a still over the sky while it is laid out at rest -- only when the sky
-		# is already showing; held clear, there is nothing to cover, and the still
-		# would be the unpaletted picture)
+		# A still covers the sky while it is laid at rest,
+		# only when showing, else it would be unpaletted.
 		if _box.modulate.a > 0.0:
 			freeze = TextureRect.new()
 			freeze.texture = ImageTexture.create_from_image((_glow if _glow != null else _scene).get_texture().get_image())
@@ -1755,12 +1476,7 @@ func _build_palette() -> void:
 	if not cloud:
 		for gt: Vector3 in SkyGalaxiesS.TONES:
 			extra.append(gt)
-	if legacy:
-		# (LEGACY: the old starfield's own greys, which a cut alone would lose)
-		for h: String in ["#070a10", "#232d39", "#4d5f73", "#9fc0e0"]:
-			var cl := Color(h)
-			extra.append(Vector3(cl.r, cl.g, cl.b))
-	elif cloud:
+	if cloud:
 		for h: String in SystemViewS.C_RESERVED.get(int(_sky_look.neb), []):
 			var cr := Color(h)
 			extra.append(Vector3(cr.r, cr.g, cr.b))
@@ -1772,9 +1488,8 @@ func _build_palette() -> void:
 			var cr := Color(h)
 			extra.append(Vector3(cr.r, cr.g, cr.b))
 	elif layout.star != SystemLayout.StarKind.CORE:
-		# (two suns: the lit one's hue here, the other's below -- with star B lit,
-		# star A's steps went in twice and B's, whose orange the far glow wears,
-		# never)
+		# The lit sun's hue here, the other's below:
+		# with B lit, A's steps went in twice and B's never.
 		var sc: Vector3 = SystemViewS.STAR_B_COL if star2 != null and _lit == SystemLayout.STAR_B \
 			else SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
 		var deep := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
@@ -1784,23 +1499,21 @@ func _build_palette() -> void:
 	var pal: PackedVector3Array
 	if star2 == null:
 		pal = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
-			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
+			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, not cloud,
+			cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, true)
 	else:
-		# TWO SUNS: the lit one's light first, then the other's -- a cut round its
-		# disc and, in a clear sky, its glow's dark end in its own hue -- as many of
-		# the other's as fit the pass's 72 (`SystemView.pal_from`)
+		# The lit sun's light first, then as many of the other's as fit the pass's 72.
 		var u := _unlit()
 		var cols := PackedVector3Array()
-		if not cloud and not legacy and layout.star != SystemLayout.StarKind.PULSAR:
+		if not cloud and layout.star != SystemLayout.StarKind.PULSAR:
 			var sc: Vector3 = SystemViewS.STAR_B_COL if u == SystemLayout.STAR_B else SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
 			var dp := Vector3(pow(sc.x, 3.0), pow(sc.y, 3.0), pow(sc.z, 3.0))
 			dp /= maxf(dp.x, maxf(dp.y, dp.z))
 			for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
 				cols.append(dp * kq)
 		pal = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_radius(_lit)) * star_k() / 2.0, kind, 0,
-			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
-			not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy,
+			SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, not cloud,
+			cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, true,
 			Vector2(_star_rest(u)) / 2.0, float(layout.star_radius(u)) * star_k_of(u) / 2.0, cols, SystemViewS.PAL_N)
 	var arr := PackedVector3Array(pal)
 	arr.resize(72)
@@ -1901,7 +1614,7 @@ func _wx_place(ev: Dictionary) -> bool:
 	var top := Rect2(Vector2(60.0, 50.0), Vector2(840.0, PLAY.x - 70.0))
 	match StringName(ev.name):
 		&"tide", &"glints":
-			ev.at = CC if not legacy else _nspot(1.0, Vector2(-160, -120), Vector2(1120, 660))
+			ev.at = CC
 			return top.grow(80.0).has_point(Vector2(ev.at) + off)
 		&"jet":
 			var tips := SkyBakeS.em_pillars(_sd, CC)
@@ -2020,12 +1733,9 @@ func _situate() -> void:
 	_dk_a = _dk
 	_lit = -1
 	if layout.twin:
-		# EACH SUN BY ITS OWN DISTANCE (ruling 20): a world round star B is some
-		# 350 px from star A but 65 to 100 from its own sun, which lights it and is
-		# drawn the bigger; `orbit_d` is the distance from the sun that lights the
-		# ship's place (`_lit`, the one giving it more light). Each distance as the
-		# pair was left (star A at zero here), and `_lit` chosen once, here, for
-		# the visit: the cloud's sun never swaps under a held view.
+		# Each sun by its own distance: a world round star B is 350 px from A, 65 to 100 from B.
+		# `_lit` is chosen once per visit, so the cloud's sun never swaps.
+		# Why: docs/why/LocalSky.md#two-suns
 		var d_b := maxf(p.distance_to(_star_rel(SystemLayout.STAR_B)), float(layout.star2_r) + 20.0)
 		_dk_b = REF_K * (layout.edge + 20.0) / d_b
 		_lit = SystemLayout.STAR_B if _share_b(p) > 0.5 else -1
@@ -2070,9 +1780,7 @@ func _build_near() -> void:
 	_scene.add_child(_near_vp)
 	# opposite the star, across the view from it (the world's own place: `near_plan`)
 	var side := 1.0 if _sun.x < 480.0 else -1.0
-	# AN EVENT ON THIS WORLD (`site`, `OptionTable`: the giant fills the sky):
-	# drawn on the event's side, right of your ship, where its subject stands --
-	# and with what the event's text gives it (`near`: rings, a great storm)
+	# An event on this world is drawn on its side, right of the ship, with what its text gives it.
 	var wants := _near_wants()
 	if not wants.is_empty():
 		side = 1.0
@@ -2147,17 +1855,13 @@ func _build_near() -> void:
 
 func _light_vec(d: Vector2) -> Vector3:
 	if radiant:
-		# (by its way only: `d` is in the world's own layer px, under its zoom, and
-		# for the near world it is short, so any depth at all lit it from the front)
+		# (by its way only: the near world's `d` is short, so any depth lit it from the front)
 		var u := d.normalized() if d.length() > 0.001 else Vector2(-1.0, -0.6).normalized()
 		return Vector3(u.x, u.y, RADIANT_LIGHT_Z).normalized()
 	return Vector3(d.x, d.y, LIGHT_Z).normalized()
 
 
-## THE WORLD YOU ORBIT AND ITS MOONS, WORKED OUT WITHOUT DRAWING ANYTHING (so a
-## headless test sees where they are, `-- moontest`): {} for no world, else
-## {world, seed, R, at (its middle at rest, this sky's 960x540 px), over (what an
-## event gives it), moons: [{at, r, seed}]} -- where `_build_near` puts them.
+## World and moons worked out without drawing, so a headless test sees where they are.
 func near_plan() -> Dictionary:
 	if layout == null or orbit_target < 0 or orbit_target >= layout.bodies.size():
 		return {}
@@ -2189,10 +1893,8 @@ func near_plan() -> Dictionary:
 	return {"world": tgt.world, "seed": tgt.seed, "R": R, "at": at, "over": over, "moons": moons, "spec": spec}
 
 
-## WHERE AND HOW BIG THE WORLD YOU ORBIT IS DRAWN AT REST, from the system and the
-## body alone (`near_plan` draws it there; the map's 2C aims at it before LOCAL
-## is first seen, `ZoomLadder.rest_world`): {R (its radius, this sky's 960x540
-## px), at (its middle)}, on `side` of the view (1 right, -1 left).
+## Where and how big the orbited world is at rest,
+## from system and body alone; the map's 2C aims at it.
 static func near_place(n: MapGen.MapNode, b: SystemLayout.Body, side: float) -> Dictionary:
 	var h := SkyBakeS.hash2(n.index, 811 + b.index)
 	var R := near_r(b)
@@ -2213,12 +1915,9 @@ static func near_r(b: SystemLayout.Body) -> float:
 	return roundf(float(look.giant if giant else look.planet) * clampf(b.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
 
 
-## THE WORLD YOU ORBIT, SLID ALONG AS YOUR SHIP LEAVES: the camera follows the
-## ship out (`CAM_FOLLOW` of its travel, at most the view's width and
-## `ShipView.DEPART_OVER` past it) and the world slides `F_NEAR` of that to the
-## left, bringing in what lay past the picture's right edge. In its 2 px blocks,
-## how far past that edge its surface's memory is worked out all along
-## (`PlanetView.mem_clip_lead`), so what comes in was never left out.
+## The world slides `F_NEAR` of the camera's travel as the ship leaves; its surface memory is
+## worked out past the right edge all along, so what comes in was never left out.
+## Why: docs/why/LocalSky.md#near-world
 static func near_lead() -> int:
 	return ceili(F_NEAR * CAM_FOLLOW * (960.0 + ShipView.DEPART_OVER) / 2.0) + 1
 
@@ -2229,11 +1928,7 @@ static func near_r_min(kind: StringName) -> float:
 	return roundf(float(look.giant if kind == &"giant" else look.planet) * 0.8 / 2.0) * 2.0
 
 
-## WHAT AN EVENT ON THE WORLD YOU ORBIT ASKS OF IT: only an event sited there by
-## its text (`site`, `OptionTable`: "the giant fills the sky"), open here or
-## about to open (`LocalEventDrawer.open_here`) -- its `near` (rings, a storm),
-## and the world drawn on its side. {} for anything else: every other world is
-## drawn as it always was.
+## Only an event sited there by its text asks anything of the world; every other world is as before.
 func _near_wants() -> Dictionary:
 	if node == null or orbit_target < 0:
 		return {}
@@ -2248,9 +1943,7 @@ func _near_wants() -> Dictionary:
 	return w
 
 
-## THE WORLD YOU ORBIT, where it is drawn now: {at (global px), r (px), ring_in,
-## ring_out (in its radii; 0 with no rings), open (the rings' squash), view}, or
-## {} when there is none (`LocalSubject` stands things on it and in its rings).
+## Where the orbited world is drawn now, for `LocalSubject` to stand things on it and in its rings.
 func near_info() -> Dictionary:
 	if _near_world == null or not is_instance_valid(_near_world) or _near.is_empty() or _box == null:
 		return {}
@@ -2292,9 +1985,7 @@ func star_px() -> float:
 	return float(layout.star_radius(_lit)) * star_k() * _zl(Z_STAR)
 
 
-## THE GAS CLOSED IN (`no_stars`: "The gas has closed in. ... No stars"): the
-## far stars and galaxies faded out and the cloud thickened, by `k` (0 as it
-## always is). Kept, so a sky built after it is asked is built closed in.
+## Gas closed in: far stars fade and the cloud thickens; kept so a later sky is built closed in.
 func set_closed(k: float) -> void:
 	closed = clampf(k, 0.0, 1.0)
 	_apply_closed()
@@ -2307,11 +1998,8 @@ func _apply_closed() -> void:
 		_neb_mat.set_shader_parameter("strength", 1.0 + 0.9 * closed)
 
 
-## A GREAT STORM HELD ON THE FACE OF THE WORLD YOU ORBIT (`near_storm`: `sv`, the
-## point of its face it stands on -- x, y in its radii from its centre, y down --
-## and its size, `z` across and `w` tall in radians): the planet painter's own
-## first great storm, put back there every frame against the world's turn and its
-## winds, so it stays where the event's ship is while the bands stream past it.
+## The first great storm is put back every frame against
+## the world's turn, so it stays under the event's ship.
 func _hold_storm(pv: Node2D, t_now: float) -> void:
 	var spec: Dictionary = pv.get("spec")
 	var mat := pv.get("_mat") as ShaderMaterial
@@ -2342,11 +2030,8 @@ func _hold_storm(pv: Node2D, t_now: float) -> void:
 		(mm as ShaderMaterial).set_shader_parameter("storms", sp)
 
 
-## A near world dressed for the style, as the band's are -- but in RADIANT
-## with next to none of the gas's wash over it (`NEAR_HAZE`): a band world
-## sits deep in the glowing cloud, whose light veils it, most at its limb; the
-## world the ship orbits is close, with little gas between, and veiled as the
-## band's are it read see-through.
+## Near worlds get almost none of RADIANT's gas wash:
+## veiled like band worlds, the close one read see-through.
 func _dress(v: Node) -> void:
 	if painted:
 		SectorPaintedS.paint_world(self, v)
@@ -2356,14 +2041,9 @@ func _dress(v: Node) -> void:
 
 
 # ------------------------------------------------------------ the zoom ladder
-## THE MAP'S OWN WORLD, HANDED OVER (`ZoomLadder`, 2C; Jon: "it's SO CLOSE, but i
-## want it pixel perfect"). The sector map's picture of the world you orbit -- the
-## very node, its surface's memory and all -- is taken into this sky's near
-## picture in place of the one this sky built, at the map's size, place, light,
-## time and tone, and eased from there to this sky's own; at the end it IS the
-## near world. So the world never changes identity: the frame the map drew is the
-## frame drawn here. {view, own, from (the map's shader values), light, world,
-## seed, held, at (this sky's px), r, mix (0 the map's look, 1 this sky's)}.
+# The map's own world node is handed over and eased to LOCAL's, so the frame the map drew
+# is the frame drawn here (Jon: pixel perfect).
+# Why: docs/why/LocalSky.md#zoom-ladder
 var _hand := {}
 ## The near world's clock, behind or ahead of the sky's by this much: the map's,
 ## kept for the world it handed over.
@@ -2376,9 +2056,8 @@ func adopt_near(v: Node2D, at: Vector2, g: Dictionary) -> bool:
 		return false
 	if v.get_parent() != null:
 		v.get_parent().remove_child(v)
-	# A PICTURE OF ITS OWN WHILE IT MOVES (`ladder_world.gdshader`): the near
-	# layer's size and grid, laid over the sky at any fraction of a pixel, so the
-	# world slides; into the near picture itself once it has come to rest
+	# Its own picture while it moves, so the world slides
+	# by fractions of a pixel; near picture at rest.
 	var hvp := SubViewport.new()
 	hvp.size = Vector2i(480, 270)
 	hvp.size_2d_override = Vector2i(960, 540)
@@ -2440,12 +2119,9 @@ func adopt_near(v: Node2D, at: Vector2, g: Dictionary) -> bool:
 	return true
 
 
-## THE WORLD YOU ORBIT, CARRIED OUT IN ITS OWN PICTURE (2C, LOCAL to the map;
-## Jon: "a small jitter of the planet"): the near world itself moved as
-## `adopt_near` moves the map's in -- drawn again at every size, its picture
-## slid by fractions of a pixel -- instead of shrunk as a picture on the 2 px
-## grid, which wobbled it a pixel back and forth. `near_hand` drives it the
-## same way, played the other way round; `end_hand` puts it back.
+## The world is carried out in its own picture (Jon: a small jitter), as shrinking it on the
+## 2 px grid wobbled it a pixel back and forth.
+## Why: docs/why/LocalSky.md#zoom-ladder
 func hand_own(at: Vector2) -> bool:
 	if _near.is_empty() or not (_near_world is PlanetView) or not _hand.is_empty() \
 			or float(_near[0][3]) <= 0.0:
@@ -2454,7 +2130,7 @@ func hand_own(at: Vector2) -> bool:
 	var d := origin() - at
 	var g := {"body": orbit_target, "world": v.spec.get("world", &"rock"), "seed": int(v.get("_seed")),
 		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": _light_vec(d),
-		"params": {"lift": 0.0 if legacy else 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
+		"params": {"lift": 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
 	for k in ["ring", "storm", "right"]:
 		if v.spec.has(k):
 			g.ov[k] = v.spec[k]
@@ -2548,9 +2224,7 @@ func _step_hand() -> void:
 		v.set_world(StringName(_hand.world), int(_hand.seed), float(_hand.held), _hand.get("ov", {}))
 		v.call("set_cell", 2)
 	var hs := Worlds.half_size(StringName(_hand.world), float(_hand.held))
-	# IN ITS OWN PICTURE IT HOLDS STILL: its middle where the map left it, eased
-	# over the last stretch onto its own grid as LOCAL will draw it (the snap,
-	# eased); THE PICTURE is what moves, by any fraction of a pixel
+	# In its own picture it holds still and the picture moves, eased onto LOCAL's grid at the end.
 	var e := clampf((m - 0.8) / 0.2, 0.0, 1.0)
 	var snap := e * e * (3.0 - 2.0 * e)
 	var grid: Vector2 = _hand.grid
@@ -2576,11 +2250,10 @@ func _step_hand() -> void:
 	var vm: ShaderMaterial = v.get("_mat")
 	if vm != null:
 		var nf_here := Vector3(0.02, 0.02, 0.03)
-		if not legacy:
-			vm.set_shader_parameter("star_tint", (f.get("star_tint", _tint) as Vector3).lerp(_tint, m))
-			vm.set_shader_parameter("night_fill", (f.get("night_fill", nf_here) as Vector3).lerp(nf_here, m))
+		vm.set_shader_parameter("star_tint", (f.get("star_tint", _tint) as Vector3).lerp(_tint, m))
+		vm.set_shader_parameter("night_fill", (f.get("night_fill", nf_here) as Vector3).lerp(nf_here, m))
 		vm.set_shader_parameter("flare", lerpf(float(f.get("flare", _flare)), _flare, m))
-		vm.set_shader_parameter("lift", lerpf(float(f.get("lift", 1.0)), 0.0 if legacy else 1.0, m))
+		vm.set_shader_parameter("lift", lerpf(float(f.get("lift", 1.0)), 1.0, m))
 		# the map's moons' shadows on its face, until it is this sky's
 		for nm in f:
 			if String(nm).begins_with("moon") and m < 0.5:
@@ -2589,9 +2262,8 @@ func _step_hand() -> void:
 		_near_mat.set_shader_parameter("tone_k", m)
 
 
-## Where the world is drawn: where the move has it, with what is left between
-## the move's end and where LOCAL truly draws it at rest taken up over the last
-## stretch (so the settle onto LOCAL's own grid is eased, never a snap).
+## Where the move has it, with the leftover to LOCAL's
+## rest spot taken up late, so the settle is eased.
 func _hand_target(at: Vector2, m: float) -> Vector2:
 	var rest := _near_rest()
 	var endp: Vector2 = _hand.get("end", Vector2.INF)
@@ -2643,11 +2315,10 @@ func _step_near(o: Vector2) -> void:
 				_hold_storm(n, t)
 			var vm: ShaderMaterial = n.get("_mat")
 			if vm != null:
-				if not legacy:
-					vm.set_shader_parameter("star_tint", _tint)
-					vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
+				vm.set_shader_parameter("star_tint", _tint)
+				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 				vm.set_shader_parameter("flare", _flare)
-				vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+				vm.set_shader_parameter("lift", 1.0)
 		elif n.position != at or (n is _Wreck and absf((n as _Wreck).zoom - zl) > 0.001):
 			n.position = at
 			if n is _Wreck:
@@ -2655,9 +2326,7 @@ func _step_near(o: Vector2) -> void:
 			n.queue_redraw()
 
 
-## A WRECK, close: a long broken hull in a few tones, lit along the edge that
-## faces the star, a crack through it and its shards adrift round it, every
-## piece in whole 2x2 blocks.
+## A close wreck: a broken hull in few tones, lit on the star side, shards adrift, in 2x2 blocks.
 class _Wreck extends Node2D:
 	var seed := 0
 	var light_from := Vector2(-1.0, -0.6)
@@ -2715,9 +2384,7 @@ class _Wreck extends Node2D:
 
 # ------------------------------------------------------------------ its life
 
-## The world you orbit's air and city lights, its moons going round, the far
-## traffic of a settled system (`LocalLife`), built with the sky and stepped with
-## it.
+## The orbited world's air, city lights, moons and far traffic, built and stepped with the sky.
 var life: LocalLife = null
 
 

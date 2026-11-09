@@ -1,41 +1,7 @@
 extends Node
 
-## The system map as the game shows it, photographed:
-##   godot --path . -- sheet=SystemShot out=<png> [seed=N] [node=I] [at=S] [hover=b|w|s] [select=I]
-## `hover=b` points at the first beacon, `w` at the first world, `s` at the star;
-## `select=I` selects body I (-1 the star) and shows it in the panel; `open=K`
-## opens the K-th beacon in the panel; `take=J` then takes its choice J (through
-## `OptionResolve`, as LOCAL's band does: the map no longer takes choices) and
-## shows its page stamped. Needs a window.
-## The panel's states (the event list Jon picked, B with the stamp):
-##   `takes=i:j,i:j`  takes option i's choice j, in order, before anything is
-##                    shown -- walk-aways included -- so the list wears its stamps
-##   `partner=i`      a partner, VEGA, claimed option i (and closed its set)
-##   `hovercard=K`    points at the K-th card in the list
-##   `hoverbeacon=K`  points at the K-th beacon on the map
-##   `hoverchoice=J`  with `open=`, points at choice J on the event page
-## `take=J` parks the ship at the event's world first, so the clock need not run.
-## `job=fetch|hunt` signs the first such contract and shows its target, with
-## the work on the map.
-## THE WEATHER (`SkyWeather`), filmed with `wclip=<dir>` (see `_wclip`):
-##   `sky=<key>`      the first system whose sky is emission, reflection,
-##                    planetary, remnant, dark, calm, pulsar or core; `shape=0..3`
-##                    narrows a planetary one, `star=RED|BLUE|ORDINARY` a calm one
-##   `wlist`          the sky, its temperament, its favourite and its events
-##   `wprobe`         a mark at every point the weather's ported noise finds
-## TWO SUNS AND HEAVY GIANTS (ruling 20, Oct 30):
-##   `twin`           the run's first two-sun system, the busiest (most bodies, a
-##                    giant first); with `-- twin=all` every ordinary system is one
-##   `twinnth=K`      with `twin`, the K-th such system instead of the busiest
-##   `giantsys`       the first one-sun system with a giant (every giant now
-##                    weighs 1/10 to 1/4 of its star; prints its weight)
-##   `park=I`         the ship in orbit of body I (default 0; `noship` at the edge);
-##                    `park=wa` / `park=wb` the world round star A / star B
-##   `focus=wa|wb`    the camera held on the world round star A / star B
-##   `look=a|b`       the camera held on star A or star B at the zoom given
-## and prints the pair (star B's place, radius, share, each body's centre).
-## `at=S` is the map's clock the still is taken at (30 s if not given): a pair
-## turns on it (ruling 23), so it is the pair's angle too, printed with it.
+## Photographs the system map as the game shows it. Needs a window: `-- sheet=SystemShot`.
+## Why: docs/why/SystemShot.md#shot-options
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
@@ -52,9 +18,7 @@ func _ready() -> void:
 	var take := -1
 	## `off=shadows|rays|dust`: one layer switched off, to see what it does
 	var off := ""
-	## `zoom=Z` holds the map at that zoom (the opening zoom if not given: the
-	## whole system, a wide pair's own part), on the opening framing's middle;
-	## `loc` holds LOCATION on your ship
+	## `zoom=Z` holds the map at that zoom; `loc` holds LOCATION on your ship.
 	var zoom := -1.0
 	var sky_key := ""
 	var sky_shape := -1
@@ -231,13 +195,9 @@ func _ready() -> void:
 			if m.type == MapGen.NodeType.SYSTEM and m.options.size() >= 3:
 				n = m
 				break
-	# THE SHIP IS HERE, as it is whenever the game shows a system: resolving an
-	# option records it on `Run.node_at()`, so photographing a system the run is
-	# not at would stamp the wrong one
+	# Set `Run.at` as the game does, or an option resolved here would stamp the wrong system.
 	Run.at = n.index
-	# `nebkind=K`: the cloud this system sits in made kind K for the shot (no
-	# emission cloud rolls on seed 4242; the showcase re-kinded ESO 101, round
-	# BETA BRINE-4, node 142, the same way)
+	# `nebkind=K` forces the cloud kind, as seed 4242 rolls no emission cloud.
 	for a22 in OS.get_cmdline_user_args():
 		if (a22 as String).begins_with("nebkind="):
 			var cl22 = NebulaField.at(n.gal) if n.in_nebula else null
@@ -247,9 +207,7 @@ func _ready() -> void:
 	# so two builds can be compared without their clocks)
 	if "rmotion" in OS.get_cmdline_user_args():
 		DisplaySettings.reduced_motion = true
-	# `bodies`: each body's index, kind, world and orbit, to aim `focus=` at
-	# `scanmoons`: every system's worlds with moons, ringed or not, and quit (to
-	# find a moon's eclipse to film)
+	# `bodies` and `scanmoons` are debug aids for aiming `focus=` and finding eclipses.
 	if "scanmoons" in OS.get_cmdline_user_args():
 		for raw in Run.map:
 			var mn: MapGen.MapNode = raw
@@ -306,10 +264,7 @@ func _ready() -> void:
 	var scr: Control = ScreenS.new()
 	content.add_child(scr)
 	scr.frozen = true
-	# FILMING THE WEATHER: the wall clocks the gas and the supernova read held
-	# from the start, so the palette (found from the first picture) and every
-	# frame after are the same run to run, and a clip differs from its baseline
-	# by the event alone
+	# Wall clocks held from the start, so a clip differs from its baseline by the event alone.
 	for a0 in OS.get_cmdline_user_args():
 		if (a0 as String).begins_with("wclip=") or (a0 as String).begins_with("wrun="):
 			scr.view.hclock = 1000.0
@@ -351,9 +306,7 @@ func _ready() -> void:
 	scr.panel.show_system()
 	if zoom < 0.0:
 		zoom = scr.open_zoom
-	# FILMING THE WEATHER: the palette found at the opening zoom first, as the game
-	# finds it (set to another zoom straight away, the palette raced the zoom and
-	# was found at one or the other, so a clip and its baseline differed everywhere)
+	# Find the palette at the opening zoom first, as the game does, or clip and baseline differ.
 	for a0 in OS.get_cmdline_user_args():
 		if (a0 as String).begins_with("wclip=") or (a0 as String).begins_with("wrun="):
 			while not scr.view._palette_built:
@@ -393,9 +346,7 @@ func _ready() -> void:
 				var ij := (pair as String).split(":")
 				var r: Dictionary = await OptionResolve.take(n, int(ij[0]), int(ij[1]))
 				print("  systemshot: took %s:%s ok %s stay %s" % [ij[0], ij[1], r.get("ok"), r.get("stay")])
-	# `reload`: the run saved and loaded again before the shot, so the cards are
-	# read back off the file (Jon: "left alone should survive a reload"). Any
-	# save already on disk is put back afterwards.
+	# `reload` saves and loads before the shot so cards read back from file (Jon).
 	if "reload" in OS.get_cmdline_user_args():
 		var keep := FileAccess.get_file_as_bytes(SaveGame.path) if FileAccess.file_exists(SaveGame.path) else PackedByteArray()
 		SaveGame.save()
@@ -564,12 +515,8 @@ func _ready() -> void:
 		var lo := Router.current as SectorScreen
 		var ev = lo.get("_events") if lo != null else null
 		print("  systemshot: after %.1f s: on LOCAL %s, event band up %s on option %d (body %d)" % [(Time.get_ticks_msec() - t0) / 1000.0, lo != null, ev != null and ev.page == &"event", ev.opt if ev != null else -1, fb])
-	# THE FLOWN SHIP. `shipfree=x,z,vx,vz` puts it free on the plane, moving, so its
-	# dotted line shows; `keys=w,d` holds those keys and `run=S` runs the clock S
-	# seconds (with them held); `again=I` selects place I and clicks it again, and
-	# the clock runs until the ship is in orbit there; `selectonly=I` selects it
-	# and stops, so the flight a second click would fly is drawn; `hoverbelt`
-	# points at the first belt's band.
+	# Options that drive the flown ship: free spot, held keys, run seconds and a second click.
+	# Why: docs/why/SystemShot.md#flown-ship-options
 	for a5 in OS.get_cmdline_user_args():
 		var s5 := a5 as String
 		if s5.begins_with("shipfree="):
@@ -597,10 +544,7 @@ func _ready() -> void:
 			# (on its way while it rides round to leave, or while its plan is made
 			# on a worker, as much as when it flies)
 			print("  systemshot: again: on its way to %d" % scr.flight.heading_to())
-			# (a flight on map time takes up to 30 s and its ride 4.4 s first,
-			# ruling 20, 40 when only the wider search finds it; the time-scaled
-			# conics took 12 at most. On the map's own clock, and a frame cap: a
-			# render slower than real time ran the wall clock out first)
+			# Wait on the map's clock with a frame cap: a slow render ran the wall clock out first.
 			while scr.flight.reached() != ai and scr.view.t - t1 < 60.0 and Engine.get_process_frames() - f1 < 60 * 120:
 				await get_tree().process_frame
 			for _w2 in 20:
@@ -635,11 +579,7 @@ func _ready() -> void:
 					scr.overlay.hover = scr.overlay.hit(sp5)
 					print("  systemshot: hoverbelt %s" % [scr.overlay.hover.get("kind", "")])
 					break
-	# `beatlog=<file>` (`blframes=N`): THE PULSAR'S BEAT CLOCK, live -- the map's
-	# clock running and its sound playing (`--audio-driver Dummy` to hear none of
-	# it) -- each frame's wall time, map clock, beat offset, the sound's clock
-	# and the beam's angle, to see whether the beat time the pulsar is drawn at
-	# runs as smoothly as the frames
+	# `beatlog` logs the pulsar's beat clock live to see if it runs as smooth as the frames.
 	for a27 in OS.get_cmdline_user_args():
 		if not (a27 as String).begins_with("beatlog="):
 			continue
@@ -661,11 +601,7 @@ func _ready() -> void:
 		f27.store_string(JSON.stringify(rows27))
 		f27.close()
 		print("  systemshot: beatlog %d frames" % bn27)
-	# `zoomclip=<dir>` (`zfrom=` `zto=` `zframes=` `zworld`): A SLOW ZOOM, filmed
-	# frame by frame on a stopped clock (so only the zoom changes anything), the
-	# map window saved each frame with where the star and each world are drawn
-	# and how big (`frames.json`) -- to count what shimmers. About the star at
-	# the middle, or with `zworld` held on the first world (as LOCATION holds it).
+	# `zoomclip` films a slow zoom on a stopped clock to count what shimmers.
 	for a8 in OS.get_cmdline_user_args():
 		if not (a8 as String).begins_with("zoomclip="):
 			continue
@@ -708,9 +644,7 @@ func _ready() -> void:
 				scr.view._weather.auto = false
 			if scr.view._nova != null:
 				scr.view._nova.auto = false
-		# `tstep=S`: the clock run on S seconds a frame (a moon sliding into its world's
-		# shadow, its shadow crossing the face), from the time the shot opened at
-		# (`tstart=S`: S seconds after it)
+		# `tstep` runs the clock per frame for eclipses; `tstart` offsets the opening time.
 		var tstep := 0.0
 		var tstart := 0.0
 		for a25 in OS.get_cmdline_user_args():
@@ -728,11 +662,7 @@ func _ready() -> void:
 					var node10: CanvasItem = scr.overlay if nm10 == "overlay" else (scr.view.star if nm10 == "star" else scr.view.get("_" + nm10))
 					if node10 != null:
 						node10.visible = false
-		# `zat=DX,DY`: A WHEEL ZOOM, pivoted on the point DX,DY from the map's middle
-		# as the wheel pivots on the cursor (the pan moved as `_step_camera` moves
-		# it), so the star travels across the screen as it grows; `zease`: the zoom
-		# eased toward `zto` at the game's own rate (14/s at 60 fps), as a wheel
-		# notch eases, instead of evenly
+		# `zat` pivots a wheel zoom like the cursor; `zease` eases at the game's own rate.
 		var piv9 := Vector2.INF
 		for a26 in OS.get_cmdline_user_args():
 			if (a26 as String).begins_with("zat="):
@@ -763,11 +693,7 @@ func _ready() -> void:
 				scr.view.pan = piv9 * (1.0 - z / z0)
 			if tstep > 0.0:
 				scr.view.t = t_open + tstep * float(k9)
-			# `beatfeed=<beatlog.json>`: the clock run as a live session ran it, frame
-			# by frame, and the pulsar's beat set from the sound's clock as that session
-			# read it (`beatlog`), so a clip shows the beat as play draws it -- followed
-			# as the map follows it (`SystemView.beat_follow`), or taken raw each frame
-			# where there is no such thing (the code before it) or with `beatraw`
+			# `beatfeed` replays a live session's clock and beat, so clips show the beat as played.
 			if not feed9.is_empty():
 				var fr9: Array = feed9[mini(k9 + 30, feed9.size() - 1)]
 				var f09: Array = feed9[30]
@@ -816,9 +742,7 @@ func _ready() -> void:
 		fz.store_string(JSON.stringify(rows9))
 		fz.close()
 		print("  systemshot: zoomclip %d frames, %.2f to %.2f, world %d" % [nz + 1, z0, z1, wi])
-	# `panclip=<dir>` (`pzoom=Z`, `pframes=N`, `pdist=D`): A SLOW PAN across the
-	# map at zoom Z, frame by frame on a stopped clock (only the camera moves),
-	# the map window saved each frame -- to see the sky's depths slide
+	# `panclip` films a slow pan on a stopped clock to see the sky's depths slide.
 	for a13 in OS.get_cmdline_user_args():
 		if not (a13 as String).begins_with("panclip="):
 			continue
@@ -845,10 +769,7 @@ func _ready() -> void:
 			if scr.view._nova != null:
 				scr.view._nova.auto = false
 		var origin13: Vector2 = scr._box.get_global_transform_with_canvas().origin
-		# THE PLANETS AGAINST THEIR RINGS (Jon: "the planets seem to lag behind"):
-		# each world's picture against its place on the grid, where its ring, label
-		# and beacons are drawn, every frame (`SystemView.world_lag`), and the frame
-		# time; the worst printed, every frame in `pan.json`
+		# Measures each world's picture against its grid place every frame (Jon: planets lag).
 		var rows13: Array = []
 		var worst13 := 0.0
 		var t13 := Time.get_ticks_usec()
@@ -879,13 +800,8 @@ func _ready() -> void:
 		fp13.close()
 		print("  systemshot: panclip %d frames at zoom %.2f, %.1f px a frame: worst world lag %.2f px, slowest frame %.1f ms" % [
 			pn + 1, pz, 2.0 * pd / float(pn), worst13, slow13])
-	# `zoompan=<dir>` (`zpz=Z`, `zpv=PX`): THE MAGNIFICATION CHANGED, THEN A PAN
-	# (Jon: "If I change the magnification on painted and then pan left or right I
-	# get some lag in the nebula"): the wheel's target set to Z and eased by the
-	# screen as play eases it, 40 frames, then at once a pan of PX a frame for 90,
-	# on a stopped clock. Every frame saved, with its time, the zoom, the pan and
-	# the cloud's slide (`SystemView.neb_off`) in `zoompan.json`. `zpback`: no
-	# pan, the zoom sent back out at frame 65 instead (in, still, out, still).
+	# `zoompan` films a magnification change then a pan, to measure the nebula lag Jon saw.
+	# Why: docs/why/SystemShot.md#zoom-then-pan
 	for a17 in OS.get_cmdline_user_args():
 		if not (a17 as String).begins_with("zoompan="):
 			continue
@@ -906,10 +822,7 @@ func _ready() -> void:
 			scr.view._weather.auto = false
 		if scr.view._nova != null:
 			scr.view._nova.auto = false
-		# `nebonly`: the far sky alone -- the sky and the cloud (and the palette or
-		# the painted passes that finish them) -- every star field, veil, sheet,
-		# world, belt, the fabric and the overlay hidden, so a frame differs from the last by
-		# the cloud's own slide and nothing else
+		# `nebonly` hides all but the far sky so frames differ by the cloud's slide alone.
 		if "nebonly" in OS.get_cmdline_user_args():
 			var keep17: Array = [scr.view._sky, scr.view._palette]
 			if not scr.view._pt.is_empty():
@@ -960,10 +873,7 @@ func _ready() -> void:
 		fj17.store_string(JSON.stringify(rows17))
 		fj17.close()
 		print("  systemshot: zoompan 130 frames, zoom to %.2f then %.1f px a frame" % [zt17, pv17])
-	# `camclip=<dir>` (`cam=loc|unloc|focus|home`, `cframes=N`): THE CAMERA'S
-	# MOVE as the game makes it -- LOCATION pressed, pressed again, a right-click
-	# on the selected world, a right-click out -- the window saved each frame with
-	# the zoom and where the ship and the world are on screen (`cam.json`)
+	# `camclip` films the camera moves as the game makes them, saving zoom and positions.
 	for a16 in OS.get_cmdline_user_args():
 		if not (a16 as String).begins_with("camclip="):
 			continue
@@ -1004,10 +914,7 @@ func _ready() -> void:
 		f16.close()
 		scr.frozen = true
 		print("  systemshot: camclip %d frames" % fr)
-	# `steady=S`: THE PLAN DRAWN BEFORE A FLIGHT, watched S seconds on a running
-	# clock with the ship going round its orbit: how far the drawn path moves
-	# from one frame to the next (its points, in map pixels), and how often it
-	# jumps (a frame where some point moves more than 3 px)
+	# `steady` watches the drawn flight plan for jumps over a running clock.
 	for a11 in OS.get_cmdline_user_args():
 		if not (a11 as String).begins_with("steady="):
 			continue
@@ -1122,23 +1029,8 @@ func _ready() -> void:
 	get_tree().quit()
 
 
-## `wclip=<dir>`: THE WEATHER, FILMED. The map window saved each frame, the
-## weather stepped a 30th of a second a frame (`wfps=60`: a 60th), and with it
-## every clock that moves the picture -- the map's (the worlds, the stars'
-## twinkle, the pulsar's beat with its sound stopped), the gas's churn and the
-## supernova's -- so a clip and its baseline differ by the event alone.
-##   `wev=<name>`   that event, forced ten frames in, once the palette is a
-##                  second old; `wev=none` films the baseline; no `wev`, the
-##                  system's original weather (today's `wclip`)
-##   `wframes=N`    how many frames (for a named event: all of it and a second)
-##   `wat=x,y`      where, in from the map window's top left
-##   `wfreeze`      the clocks held still, only the event moves
-##   `wup=0`        today's version of an upgraded event
-##   `wreduce=N`    reduced motion switched on at frame N (the event should be
-##                  gone the frame after)
-## Writes `f_NNNN.png`, `peak.png` (the frame at the event's height) and
-## `meta.json`: for each frame the event's age and where the ship, the labels,
-## the worlds and the star are, in the saved picture's pixels.
+## `wclip` films the weather with every clock stepped, so clip and baseline differ by the event.
+## Why: docs/why/SystemShot.md#weather-filming
 func _wclip(scr: Control, wdir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(wdir)
 	var view = scr.view
@@ -1193,9 +1085,7 @@ func _wclip(scr: Control, wdir: String) -> void:
 	W.step_s = stp
 	scr.frozen = true
 	Audio.room(&"", 0.01)
-	# THE SCREEN ON THE HARNESS'S CLOCK TOO: no mouse or keys reach the map (the
-	# window is off to the side, where a pointer may pass), the camera held where
-	# it is, and the ship flown a fixed step a frame instead of the frame's own
+	# The screen is on the harness's clock too: no input reaches the map, camera held.
 	scr.set_process(false)
 	scr.set_process_unhandled_key_input(false)
 	scr._frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1285,14 +1175,8 @@ func _wclip(scr: Control, wdir: String) -> void:
 	print("  systemshot: wclip %d frames, sky %s" % [k, W.sky])
 
 
-## `wrun=S`: THE SCHEDULER AT WORK, as the game runs it -- its own picks, its own
-## placement against the real map, the supernova on its own clock too -- for S
-## seconds on a fixed step (`wfps=`, default 10 a second, so minutes take
-## seconds), the ship parked and no input (no idle pull unless `widle`). Prints
-## every start, the rate per tier a minute, how much of the time something is
-## live, and any moment two things overlap that should not: a showpiece with a
-## supernova or with a small event, or a supernova over a far-sky event.
-## `wrunshots=<dir>` saves the window every `wrunevery=` frames (default 10).
+## `wrun` runs the weather scheduler on a fixed step and reports overlaps that should not happen.
+## Why: docs/why/SystemShot.md#weather-scheduler
 func _wrun(scr: Control, secs: float) -> void:
 	var view = scr.view
 	var W = view._weather
@@ -1383,19 +1267,8 @@ func _wrun(scr: Control, secs: float) -> void:
 	print("  systemshot: wrun overlaps %d frames" % bad.size())
 
 
-## THE SCROLL BAR COVERS NOTHING (`scrollcheck`, headless, in the gate). Jon,
-## Oct 20, on the WORLD card: "the scroll bar covers up text" -- "3.54 G",
-## "FROZEN", "H2 HE" and "NONE" ran under the bar, because the page's own
-## pieces asked for more width than the panel has once the bar takes its share,
-## and a ScrollContainer that cannot scroll sideways lays its content out at
-## that width anyway and clips it under the bar.
-##
-## Over the run's first `scrollsystems=` systems (40), the sector's list and
-## every world's page, each unscrolled and scrolled to the end: no text and
-## nothing that takes the mouse, where it shows in the panel, may meet the
-## bar's rect. Prints the world with the widest row of facts (label and value,
-## in the panel's type), which is among them. A pass that never saw a bar has
-## measured nothing, so pages must scroll.
+## The scroll bar must cover nothing: text ran under it on the WORLD card (Jon, Oct 20).
+## Why: docs/why/SystemShot.md#scroll-bar-check
 func _scroll_check(first) -> void:
 	var content: Control = first.get_parent()
 	first.queue_free()
@@ -1467,9 +1340,7 @@ func _scroll_check(first) -> void:
 				if mw > widest_page:
 					widest_page = mw
 					widest_what = page
-				# NO PAGE ASKS FOR MORE THAN THE TEXT COLUMN (`SystemPanel.TEXT_W`):
-				# one that does widens the panel under its bar and narrows the map's
-				# frame (an event card asked for 231 px of the 226, Nov 1)
+				# No page may ask more than `TEXT_W`: it widened the panel (Nov 1).
 				if mw > float(scr.panel.TEXT_W) + 0.5:
 					fails += 1
 					if fails <= 20:
@@ -1533,13 +1404,8 @@ func _scroll_check(first) -> void:
 	print("scrollcheck: %s" % ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 
 
-## Every text and every mouse-taking control under `root` that is showing, as
-## [control, the rect it puts its words or itself in].
-##
-## A one-line label's words are only as wide as they are, set by its alignment
-## (an eyebrow's rect runs the panel's width with its words at the left); a
-## wrapped label or a rich one can reach its whole width, and so can a button or
-## a card that answers the pointer.
+## Collects showing text and mouse-taking controls with the rect they really occupy.
+## Why: docs/why/SystemShot.md#scroll-bar-check
 func _scroll_leaves(root: Node, out: Array) -> Array:
 	for c in root.get_children():
 		if not c is Control or not (c as Control).is_visible_in_tree():

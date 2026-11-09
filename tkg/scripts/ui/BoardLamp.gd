@@ -1,33 +1,9 @@
 class_name BoardLamp
 extends Control
 
-## THE LIGHT ON THE HIRING BOARD, and the room it leaves dim.
-##
-## Jon, 2026-10-01, after 80 generated boards lost to the coded one ("the
-## aesthetic of the computed placeholder is kinda the vibe i liked"): keep the
-## board, light it, dust in the light, and a power-on once a docking like the
-## Shipyard and the Laboratory. Then, of a hanging lamp: "why dont we just use
-## the lighting from the labs or something like that. flourescent bars"; and
-## of the bars on the rail, "no light bar and just have it lit from behind?
-## same flicker and all". So the board is lit by tubes nobody sees, over the
-## viewer's shoulder: one at an unclaimed station, two at an outpost or a
-## settlement, three in a city or a capital, in the level's colour.
-##
-## THE TUBES BEHAVE LIKE THE LAB'S. On the power-on they strike one after
-## another, the fluorescent ping; after that each stutters now and then on its
-## own clock (`YardLight.stutter`, the lab's tubes), and an unclaimed station's
-## one tube is the tiredest.
-##
-## A LAYER OVER EVERYTHING ON THE BOARD, notices included, because a light
-## lights the paper pinned to the board as much as the board. It takes no
-## clicks.
-##
-## THE LIGHT IS A MAP, NOT A HAZE: banded, dithered at each band's edge, worked
-## out once for the board's size and level and kept as two textures -- the
-## room's dark and the tubes' light, added -- that the tubes only scale.
-##
-## THE NOTICES HAVE TO STAY READABLE. They are the deck. So the room never goes
-## more than DARK away from the light, and dead tubes take only OFF more.
+## Lit by unseen tubes over the viewer's shoulder, not a fixture (Jon, 2026-10-01).
+## A layer over everything on the board, notices included. They must stay readable.
+## Why: docs/why/BoardLamp.md#board-lamp
 
 ## The station's development level (MapGen.Development).
 var dev := 2:
@@ -65,16 +41,9 @@ const STRIKE := 0.55
 const GAP := 0.32
 const BAYER := [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
-## THE TUBES, HEARD, with the sounds Jon passed for the same level's lab (Lab
-## Sounds, 2026-09-28) -- AND HEARD AS THEY ARE SEEN (Jon: "Cant we just have
-## the sounds match how the lights look for the hiring board?"). The sound
-## follows the board's light, not a timetable: every flash you see as the tubes
-## strike, and every stutter after, is a flicker; the lamp's clunk-and-hum
-## plays once, on the frame the board settles fully lit. Two tubes striking in
-## turn used to be two clunks 0.3 s apart over a board that just looked
-## flickery. A screen has no tubes: its backlight catches with the lab's monitor
-## pop and the level's display swelling up. Every level is baked into its file,
-## so each plays at 0 dB.
+## Sound follows the board's light, not a timetable (Jon): a flicker per flash, a clunk when lit.
+## Two tubes in turn had been two clunks 0.3 s apart over a merely flickery board.
+## Why: docs/why/BoardLamp.md#board-sounds
 const STRIKE_SOUND := [&"lab_unclaimed_bulb", &"lab_outpost_lamp", &"lab_settlement_lamp"]
 const FLICKER_SOUND := [[&"lab_unclaimed_flicker"], [&"lab_outpost_flicker"], [&"lab_settlement_flicker"]]
 const SCREEN_SOUND := [[], [], [], [&"lab_monitor_pop", &"lab_city_screen"], [&"lab_monitor_pop", &"lab_capital_glass"]]
@@ -109,6 +78,8 @@ func _init() -> void:
 ## Strike the tubes, or -- `settled`, back on a deck already powered this
 ## docking -- have them already lit.
 func power_on(settled: bool = false) -> void:
+	if DisplaySettings.reduced_motion:
+		settled = true
 	_boot_at = _now() - (60.0 if settled else 0.0)
 	# the clock starts on the first frame the board is SEEN: the deck is built
 	# a few frames before it shows, and a strike heard before then lands late
@@ -125,9 +96,7 @@ func power_on(settled: bool = false) -> void:
 	queue_redraw()
 
 
-## The sounds the light makes this frame. A screen's are on its timetable,
-## which its backlight's flash keeps; a board's follow its light: a flicker on
-## each flash, the clunk once when it holds steady.
+## A screen's sounds are on its timetable, a board's follow its light.
 func _sound() -> void:
 	var u := _now() - _boot_at
 	while _heard < _plan.size() and float(_plan[_heard][0]) <= u:
@@ -186,11 +155,7 @@ func _bars() -> Dictionary:
 	return BARS[clampi(dev, 0, BARS.size() - 1)]
 
 
-## How lit a point is, 0 to 1. THE LIGHTS ARE BEHIND YOU (Jon: "cant we have
-## like no light bar and just have it lit from behind? same flicker and all"):
-## no fixture on the board, a broad pool on its face from lights over the
-## viewer's shoulder, brightest a little above the middle and falling away to
-## the frame.
+## The lights are behind you (Jon): no fixture, a broad pool on the face.
 func light_at(x: float, y: float) -> float:
 	var dx := (x - size.x * 0.5) / (size.x * 0.66)
 	var dy := (y - size.y * 0.42) / (size.y * 0.78)
@@ -205,8 +170,22 @@ func tube(k: int) -> float:
 	if u < from:
 		return 0.0
 	if u < from + STRIKE:
-		return YardLight.strikes(u, from, STRIKE, 3.1 + float(k) * 1.7)
+		return catch((u - from) / STRIKE, 3.1 + float(k) * 1.7)
 	return YardLight.stutter(_now(), 0.7 + float(k) * 2.3, float(_bars()["per"]))
+
+
+## A tube catching, f of the way through its strike: two shallow dips placed by
+## its seed. The lab's `YardLight.strikes` flashes near-black every 33 ms, which
+## lights the whole deck here and strobed it.
+const CATCH_LOW := 0.45
+
+
+static func catch(f: float, seed: float) -> float:
+	var a := 0.12 + 0.12 * YardLight.hash1(seed)
+	var b := 0.58 + 0.12 * YardLight.hash1(seed * 1.9 + 0.3)
+	if (f >= a and f < a + 0.17) or (f >= b and f < b + 0.17):
+		return CATCH_LOW
+	return 1.0
 
 
 ## The power-on is over: every tube has struck (it may still stutter after).
@@ -270,10 +249,7 @@ func _draw() -> void:
 	_motes(v, lc)
 
 
-## A SCREEN LIGHTS ITSELF: in a city or a capital the board is a panel, so
-## there is no room light on it and no dust in front of it. Its power-on is the
-## panel coming on -- black, a flash of its backlight, the picture -- and the
-## tubes' stutters are its backlight dipping, a bright line rolling through.
+## A screen lights itself: no room light or dust. Its stutters are the backlight dipping.
 func _draw_screen() -> void:
 	var u := _now() - _boot_at
 	var v := level()
@@ -309,9 +285,7 @@ func _draw_add() -> void:
 	_add.draw_texture(_glow, Vector2.ZERO, Color(lc.r, lc.g, lc.b, level() * k))
 
 
-## DUST IN THE LIGHT, the shop rooms' way (`ShopScene._draw_glow`): each mote
-## drifts on the clock and shows only where the light reaches, a pixel of its
-## light, fainter or stronger by its seed.
+## Dust drifts on the clock and shows only where the light reaches, as in the shop rooms.
 func _motes(v: float, lc: Color) -> void:
 	if v <= 0.05:
 		return

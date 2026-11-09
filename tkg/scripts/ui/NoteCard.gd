@@ -1,21 +1,8 @@
 class_name NoteCard
 extends Control
 
-## JON'S NOTES AS A LETTER: the welcome note over the title (`WelcomePopup`) and
-## the thank-you note on the win screen (`GameOverScreen`), one look for both.
-##
-## THE CLEAN LOOK, Jon's pick of three (Oct 13; a riveted pixel bezel and the
-## same bezel with a glow round it were the others): the salvage popup's
-## chamfered case and its readout heading -- a hazard mark, the title, a
-## scanline -- so the notes read as part of the same interface as the wreck you
-## just stripped.
-##
-## Full-rect: a dim behind, then the panel centred on it. The panel is the
-## heading, the note (its sign-off split off and set apart: a pixel heart for
-## "<3", then the name, right-aligned like a letter's), whatever the caller adds
-## under it (`add_section`), a row of buttons (`add_buttons`) and a footer
-## (`add_footer`). The note scrolls only if the window is too short for the
-## whole panel (`_fit`). It fades in when it opens.
+## The clean look was Jon's pick of three (Oct 13), matching the salvage popup's chamfered case.
+## Why: docs/why/NoteCard.md#note-card
 
 const WIDTH := 420
 ## What the panel leaves clear of the window's edges when it is tall.
@@ -38,6 +25,9 @@ var heart := false
 
 var _col: VBoxContainer
 var _scroll: ScrollContainer
+## What the note's width is read from before `_fit` measures it: the body, or
+## the list `set_note` put in its place.
+var _measure: Control
 var _foot: VBoxContainer
 var _buttons: HBoxContainer
 
@@ -51,9 +41,7 @@ func build(title: String, text: String, dim: float = 1.0) -> void:
 	full_text = text
 	_split(text)
 
-	# OVER THE WHOLE PICTURE, not this card's rect: a screen stops short of the
-	# glass by Main's margin, and the title's galaxy showed through it undimmed
-	# as a frame round the note (`Widgets.cover_picture`)
+	# Dim the whole picture, not this card's rect: the title's galaxy showed through as a frame.
 	var shade := ColorRect.new()
 	Widgets.cover_picture(shade)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -82,11 +70,10 @@ func build(title: String, text: String, dim: float = 1.0) -> void:
 	body.name = "NoteBody"
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(WIDTH, 0)
-	# Room between the lines. Silkscreen is the only face and is crisp only at 8
-	# and 16, so the type cannot go a size up without doubling the panel; the
-	# spacing is what makes paragraphs of eight-pixel capitals readable.
+	# Silkscreen is crisp only at 8 and 16, so spacing, not size, makes capitals readable.
 	body.add_theme_constant_override("line_spacing", 4)
 	letter.add_child(body)
+	_measure = body
 	if signed != "":
 		letter.add_child(_sign_off())
 	_scroll = ScrollContainer.new()
@@ -118,6 +105,15 @@ func _ready() -> void:
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
+## A note that is not a letter: `c` takes the body's place in the same scroll and measure.
+func set_note(c: Control) -> void:
+	body.visible = false
+	c.custom_minimum_size.x = WIDTH
+	body.get_parent().add_child(c)
+	_measure = c
+	c.resized.connect(_fit)
+
+
 ## Something under the note -- the win screen's numbers -- behind a scanline.
 func add_section(c: Control) -> void:
 	var sc := TransferView.Scan.new()
@@ -136,18 +132,14 @@ func add_footer(c: Control) -> void:
 	_col.add_child(_full_width(c))
 
 
-## A wrapping label measured before it has a width is one letter wide and
-## hundreds of pixels tall, which threw `_fit` into scrolling a note that fits;
-## so it is given the column's width from the start.
+## A wrapping label measured before it has a width is one letter wide, so `_fit` scrolled.
 func _full_width(c: Control) -> Control:
 	if c is Label and (c as Label).autowrap_mode != TextServer.AUTOWRAP_OFF:
 		c.custom_minimum_size.x = WIDTH
 	return c
 
 
-## THE BUTTON THAT MOVES YOU ON, and the most button-like thing on screen: an
-## authored amber plate (`art/tools/note_frame.py`) at the heading's size, lit
-## on hover, pressed in. Every other button beside it is the game's own.
+## The primary button is an authored amber plate; every other button is the game's own.
 static func primary(text: String, action: Callable) -> Button:
 	var b := Widgets.button(text, action)
 	b.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
@@ -241,16 +233,12 @@ func _case() -> StyleBoxFlat:
 	return b
 
 
-## THE NOTE SCROLLS ONLY IF THE PANEL WOULD NOT FIT. At the game's 960x540 the
-## whole letter shows; a shorter window (or a longer letter) caps the note's
-## height so the heading, whatever is under it and the buttons stay on screen.
-## Not before the note has its width: an autowrapped label measured narrower
-## than it will be is many times taller than it will be.
+## Scroll only if the panel would not fit, and not before the note has its width.
 func _fit() -> void:
 	if _scroll == null or panel == null or not is_inside_tree() or size.y <= 0.0:
 		return
 	# (a scrolling note is narrower by its bar, and is measured anyway)
-	if body.size.x < WIDTH - 1.0 and not note_scrolls():
+	if _measure.size.x < WIDTH - 1.0 and not note_scrolls():
 		return
 	var note := _scroll.get_child(0) as Control
 	var want := note.get_combined_minimum_size().y
@@ -262,6 +250,11 @@ func _fit() -> void:
 	else:
 		_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 		_scroll.custom_minimum_size.y = maxf(48.0, room)
+
+
+## The note's scroll, for a page that moves it by key (`NewThingsPopup`).
+func note_scroll() -> ScrollContainer:
+	return _scroll
 
 
 func note_scrolls() -> bool:

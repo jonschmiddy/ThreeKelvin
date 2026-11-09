@@ -1,43 +1,12 @@
 class_name ExchangeScene
 extends ShopScene
 
-## The Exchange: one of Jon's five rooms, with your hold standing in it.
-##
-## THE SHOP'S ROOM, FACING THE OTHER WAY. Jon laid out one room per development
-## level on the Exchange's own bench (`room_bench.py --deck exchange`), and
-## `tools/room_install.py` installed them beside the shop's, under
-## `decks.exchange` in rooms.json. Everything `ShopScene` does -- the plate, the
-## openings, the lamps, the light, the dust, the counter's lit marks -- this does
-## the same way, from the same code. What differs is three things.
-##
-## THE HOLD STANDS WHERE THE RACK DID. It is three frames, one per hull size,
-## fitted round a 4x3, 5x4 and 6x5 grid of 40px cells (`tools/cage_fit.py`). The
-## room was laid out round the heavy frame; a lighter hull's stands on the same
-## spot, centred, its feet on the same floor, as the bench previews it. The frame
-## is drawn here, between what stands behind the furniture and what stands in
-## front of it, and the hold itself -- `HoldGrid`, live, packable, draggable --
-## stands in its opening (`hold_opening`).
-##
-## THE WALL IS THE STATION'S. An Exchange stands in its own station's shop
-## plate: the shop picks one of its level's three plates off the seed and so does
-## this, so two decks of one station are built of the same stuff. Jon laid each
-## Exchange out on one wall and chose this over keeping it (2026-09-27, "A"):
-## a station's shop and Exchange match, and each of his rooms stands on all
-## three of its level's walls. The wall in his layout is only the fallback.
-##
-## SPACE OUTSIDE, AND IT IS THIS STATION'S. The view is `SpaceBackdrop` -- the
-## sky the sector shows when you are here -- drawn once into a picture the size of
-## the room, with its world framed in the room's biggest clear window
-## (`sky_frame`, worked out by the installer). A station arm was generated to
-## stand across it and Jon cut all five: "a disembodied space station arm
-## doesn't make sense" (2026-09-27). Nobody walks past; now and then a ship does.
+## The shop's room facing the other way: same code as `ShopScene`; the hold replaces the rack.
+## The wall follows the station's shop plate (Jon, 2026-09-27 'A'); space outside is its own.
+## Why: docs/why/ExchangeScene.md#exchange-room
 
-## THE VIEW IS NOT THE ROOM'S TO LIGHT. The shop hands a window over to the
-## room across a few pixels; on black space that band came out as a grey ring
-## round the door's edges and round everything standing in front of it (Jon,
-## 2026-09-27: "why is there a weird outline ?"). So the room carries its view
-## pixel for pixel, one channel per hold size (`room_install.view_masks`), and
-## the light leaves exactly those pixels alone.
+## The view is not the room's to light: the hand-over band made a grey ring (Jon, 2026-09-27).
+## Why: docs/why/ExchangeScene.md#view-not-lit
 const VIEW_SIZES := ["s", "m", "l"]
 
 ## The ships that pass, at two distances. See `tools/flyby_ships.py`.
@@ -182,10 +151,7 @@ func _draw_furniture() -> void:
 		_hang(fr, float(f.get("hook_y", 0)))
 
 
-## THE HOLD HANGS FROM A WIRE (Jon, 2026-09-27: "a box that is suspended by a
-## wire (like the original generated design)"): a crane hook over the frame's
-## top middle, caught on it by `into` pixels, and the hook picture's own top
-## rows of rope repeated up to the ceiling -- `hangHold` in the bench.
+## The hold hangs from a wire (Jon, 2026-09-27): a crane hook, rope repeated to the ceiling.
 func _hang(fr: Rect2, catch_y: float) -> void:
 	var hk: Dictionary = (room.get("hold", {}) as Dictionary).get("hook", {})
 	var im: Texture2D = _tex.get(String(hk.get("art", "")), null)
@@ -270,9 +236,7 @@ func _build_cast(_bd: StringName) -> void:
 	_cast.clear()
 
 
-## Where the passing ships are at the room's clock. A pass is chosen off its
-## number and the station's seed -- which ship, how far off, how fast, how high
-## -- so a pass is where the clock says without anything being kept.
+## A pass is chosen off its number and the station's seed, so nothing has to be kept.
 func _pose_cast() -> void:
 	_posed_at = _clock
 	_posed.clear()

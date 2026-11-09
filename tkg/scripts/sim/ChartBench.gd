@@ -1,33 +1,13 @@
 extends RefCounted
 
-## What the star chart costs, still, dragged and zoomed:
-##   godot --path . -- chartbench [style=legacy] [graphics=low] [calm] [kind=N]
-##
-## NEEDS A WINDOW, like every other measurement of drawing in this project:
-## under `--headless` the dummy display server never emits `frame_post_draw` and
-## the numbers are of a renderer that is not running.
-##
-## IT EXISTS BECAUSE "IT FEELS LAGGY" IS NOT A NUMBER. The chart holds 60fps
-## standing still and drops while the galaxy is dragged, which points at
-## `_repaint_galaxy` — the one thing a drag does that resting does not. This
-## times the states against each other so a fix can be shown to have worked
-## rather than argued to have.
-##
-## Measured in FRAME TIME rather than fps, because fps is a rate and the thing
-## being fixed is a cost: 60fps to 40fps sounds like a third gone and is
-## actually 8ms of work added to a 16ms budget.
-##
-## FRAME TIME ALONE CAN HIDE THE COST. When the driver holds the swap to the
-## display, a frame that costs 3ms and one that costs 15ms both read 16.67, so
-## each sample also prints what the chart's layers spent in GDScript drawing
-## (`MapChart.prof`) and what the GPU spent on the game's frame.
+## Needs a window: under `--headless` the dummy display server never emits `frame_post_draw`.
+## Measured in frame time, not fps: fps is a rate and the thing being fixed is a cost.
+## Why: docs/why/ChartBench.md#chart-bench
 
 const FRAMES := 240
 
 var _gpu_rid := RID()
-## THE WINDOW'S OWN PASS (`tree.root`: the shell's glass, at the window's size),
-## read beside the game's frame since Oct 27: `_gpu_rid` is the game view only,
-## and on a Retina Mac the window is 3x the game's pixels.
+## The window's own pass beside the game's frame (Oct 27): on Retina it is 3x the game's pixels.
 var _root_rid := RID()
 var _measuring := false
 
@@ -37,18 +17,11 @@ func run(tree: SceneTree) -> void:
 	# reduced motion on in memory (the events off)
 	DisplaySettings.reduced_motion = "calm" in OS.get_cmdline_user_args()
 	await tree.process_frame
-	# VSYNC OFF, or every reading is 16.67ms and the bench measures the monitor.
-	# The first version did exactly that: still and dragging both came back at
-	# precisely 60fps and the difference was -0.00ms.
+	# VSYNC off, or every reading is 16.67 ms and the bench measures the monitor.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
-	# NOTHING FROM THE KEYBOARD OR THE MOUSE, while it measures. The window takes
-	# focus when it opens, and this bench holds one chart for some five hundred
-	# frames: a Tab from whoever is at the machine cycles to the ship screen, a
-	# click on a HUD tab swaps the screen, and either frees the chart under the
-	# next nudge -- the "previously freed" crash at the drag sample. Nothing in
-	# the chart or the router frees it on its own; one Tab sent to a bench-like
-	# run did it every time, and with input off here it did not.
+	# Input off while measuring: a Tab or HUD click freed the chart (the 'previously freed' crash).
+	# Why: docs/why/ChartBench.md#bench-input
 	tree.root.gui_disable_input = true
 	StarchartScreen.MapChart.prof = true
 	if GameShell.instance != null:
@@ -56,12 +29,8 @@ func run(tree: SceneTree) -> void:
 		RenderingServer.viewport_set_measure_render_time(_gpu_rid, true)
 	_root_rid = tree.root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(_root_rid, true)
-	# Rng.forced, NOT Rng.reseed -- see ChartFilter, which already learned this.
-	# start_new_run rolls its own master seed, so a reseed before it changes
-	# nothing and every run of this bench drew a DIFFERENT galaxy: 157, 244, 332
-	# and 356 systems across four runs, with the title screen swinging from 5.6
-	# to 36.1 ms. Comparing an optimisation against numbers like that is
-	# measuring the galaxy, not the change.
+	# `Rng.forced`, not `Rng.reseed`: `start_new_run` rolls its own seed, so galaxies differed.
+	# Why: docs/why/ChartBench.md#bench-seed
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", 1)
 	# `kind=N`: the run's galaxy made that kind (as ChartLook's), to time one kind
@@ -78,29 +47,16 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		await RenderingServer.frame_post_draw
 
-	# THE TITLE SCREEN FIRST, because it draws the same galaxy and is where the
-	# worst frame rate was reported. It is also the screen a player sees before
-	# anything else, so a slow one is the game's first impression.
-	#
-	# Its galaxy is rolled off the global generator, once a process, so it is
-	# seeded here or the title would be a different galaxy -- and a different
-	# number -- every run of the bench.
-	#
-	# AND THE RUN'S GALAXY IS PUT BACK AFTER. The launcher writes its own into
-	# `Run.galaxy` (it expects no run to be live), so every chart sample after
-	# it used to measure the TITLE's galaxy at the chart's size: 70k primitives
-	# one run, 100k the next, from the same seed.
+	# Title first and seeded: it draws the same galaxy and had the worst reported frame rate.
+	# The run's galaxy is put back after: the launcher overwrote `Run.galaxy` and skewed samples.
+	# Why: docs/why/ChartBench.md#bench-title-screen
 	var run_galaxy: Dictionary = Run.galaxy.duplicate(true)
 	var run_kind: int = Run.galaxy_kind
 	var run_seed: int = Run.galaxy_seed
 	LauncherScreen._sky_kind = -1
 	seed(4242)
 	Router.show_launcher()
-	# WARMED BY THE CLOCK, NOT BY A FRAME COUNT. `_build_stars()` costs 350-420ms
-	# for a galaxy it has not seen, and the launcher builds its own; sixty frames
-	# is a quarter-second at the rate this screen runs, so the build landed
-	# inside the sample on some runs and not others. That is what made the title
-	# read 4.3ms on one run and 38.8ms on the next FROM THE SAME SEED.
+	# Warmed by the clock, not a frame count: `_build_stars()` costs 350 to 420 ms.
 	var warm := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - warm < 2000:
 		await RenderingServer.frame_post_draw
@@ -133,9 +89,7 @@ func run(tree: SceneTree) -> void:
 	var still := await _sample(tree, chart, "", "still", sky)
 	var dragged := await _sample(tree, chart, "drag", "drag", sky)
 	var zoomed := await _sample(tree, chart, "zoom", "zoom", sky)
-	# AND STILL AT EVERY DEPTH. The sky works every block out afresh each
-	# frame (`ChartSky`), and deep in it does more: finer gas, the climb
-	# toward the hole drawn twice, the swirl, the extra stars.
+	# Still at every depth: the sky works every block afresh each frame, and does more deep in it.
 	var depths := []
 	for z: float in [1.0, 2.9, 6.0]:
 		chart._go_to(z, Vector2.ZERO, false)
@@ -152,10 +106,7 @@ func run(tree: SceneTree) -> void:
 	for d in depths:
 		print("  still at zoom %.1f: %.2f ms/frame" % [d[0], d[1]])
 
-	# AND A LOOK AT IT, because a frame time is not a picture. The two things
-	# that can go wrong while the view moves are invisible to a stopwatch: the
-	# sky landing at the wrong offset, and the trailing edge running out of stars
-	# mid-drag. `-- sheet=ChartSheet` is the pixel-exact version of this.
+	# A look as well: a stopwatch cannot see a misplaced sky or a trailing edge out of stars.
 	Router.show_launcher()
 	for i in 30:
 		await RenderingServer.frame_post_draw
@@ -179,10 +130,7 @@ func run(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## Says out loud if the measured chart leaves the tree while it is being
-## measured, and what took its place. A chart freed under the bench is a
-## use-after-free at the next nudge, and the screen that replaced it is the
-## whole of the diagnosis.
+## Reports if the chart leaves the tree mid-measure: a freed chart is a use-after-free.
 func _watch(chart: Node) -> void:
 	chart.tree_exiting.connect(func() -> void:
 		if _measuring:
@@ -194,16 +142,8 @@ func _save(tree: SceneTree, path: String) -> void:
 	tree.root.get_texture().get_image().save_png(path)
 
 
-## Mean frame time over FRAMES, optionally moving the view every frame.
-##
-## The first frames of either state are discarded: the first drag frame pays for
-## whatever the still state had cached, and counting it measures the transition
-## rather than the state.
-## The chart's sky draws into a viewport of its own (`ChartSky`), whose GPU
-## time the game's viewport does not include: measured beside it.
-## (The simplified sky is three viewports -- stars, place, composite -- and
-## all three are counted; the painted sky a fourth, its band memory; the legacy
-## sky one, every pass inside it.)
+## The sky draws into its own viewports, whose GPU time the game's view excludes.
+## Why: docs/why/ChartBench.md#bench-sampling
 func _sky_rid(chart: Node) -> Array[RID]:
 	var out: Array[RID] = []
 	if chart == null or not is_instance_valid(chart):
@@ -212,11 +152,7 @@ func _sky_rid(chart: Node) -> Array[RID]:
 	if sky == null:
 		return out
 	var vps: Array = []
-	if sky._legacy != null:
-		if sky._legacy._vp == null:
-			return out
-		vps = [sky._legacy._vp]
-	elif sky._vp == null:
+	if sky._vp == null:
 		return out
 	else:
 		vps = [sky._svp, sky._pvp, sky._vp] + ([sky._tvp] if sky._tvp != null else [])
@@ -245,11 +181,7 @@ func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: A
 		for r in sky_rid:
 			gpu_sky += RenderingServer.viewport_get_measured_render_time_gpu(r)
 	var t1 := Time.get_ticks_usec()
-	# WHAT THE FRAME SUBMITTED, not just how long it took. The star field was
-	# ~48,000 individual `draw_rect` calls, and a canvas item's command list is
-	# re-submitted EVERY frame whether or not `_draw` rebuilt it -- so skipping
-	# the repaint removes the GDScript loop and leaves the submission. Drawing
-	# the field as one mesh is what took that away.
+	# Counts what the frame submitted: commands resubmit every frame, even if repaint is skipped.
 	print("      [%s] %d draw calls, %.0fk primitives a frame, GPU game view %.2f ms (the sky's own viewport %.2f ms, the window's %.2f ms)" % [
 		label,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),

@@ -1,83 +1,43 @@
 class_name LauncherScreen
 extends Control
 
-## Title screen. The first thing the game shows, and the only screen that exists
-## before a run does.
-##
-## It has to work with NO run loaded — Run.hull is null until something starts
-## one — so nothing here may read ship state. Router hides the HUD while this is
-## up for the same reason: a bar showing 0/0 hull above a title screen is a bug
-## that looks like a design.
-##
-## CONTINUE is offered only when a suspend save is on disk, and it names the
-## system and the hull so the button is a decision rather than a guess. Loading
-## consumes the file — see SaveGame.
+## Works with no run loaded, so nothing may read ship state; the HUD is hidden for it.
+## Why: docs/why/LauncherScreen.md#title-screen
 
-## Frames to let the sky settle before it starts turning.
-##
-## Belt and braces next to warm_sky(), which already moves the expensive galaxy
-## build off the first painted frame. This covers what it cannot: the first
-## paint of forty-eight thousand rects is still the longest frame on this
-## screen, and a long frame that is also a MOVING one is a frame the display can
-## show partway through.
+## Belt and braces: the first paint of 48k rects is the longest frame here and must not move.
+## Why: docs/why/LauncherScreen.md#sky-warmup
 const WARMUP_FRAMES := 4
 
-## THE TITLE'S GALAXY TURNS FASTER than the chart's (once in 12 hours there):
-## once every five minutes, so the arms are seen to wheel behind the menu
-## (Jon, Oct 6). A multiple of `ChartSky.OMEGA`, as `MapChart.turn_speed`.
+## Turns once every five minutes so the arms visibly wheel behind the menu (Jon, Oct 6).
+## Why: docs/why/LauncherScreen.md#galaxy-turn
 const TITLE_TURN := ChartSky.TURN_MINUTES / 5.0
 
-## The galaxy's edge, as a fraction of half the screen's short side. Just over
-## one, so the outer arms run off the top and bottom rather than sitting in the
-## middle of a lot of empty space — there is no route to plan here, so the
-## framing can be composed instead of useful.
+## Just over one, so outer arms run off the edges; no route to plan, so compose it.
 const SKY_FILL := 1.12
-## Six times the 8px face. Silkscreen is drawn on an 8px grid, so it only stays
-## crisp at integer multiples — 8, 16, 24, 32, 48. 48 is a size, not a number
-## picked for how it looked; 44 would render soft.
+## Silkscreen is an 8px grid, so only integer multiples stay crisp; 44 would render soft.
 const TITLE_SIZE := 48
 ## One size for everything that is not the title, so the corner reads as two
 ## things rather than four.
 const MENU_SIZE := UITheme.FS_HEAD
 
-## Left side bearing, in pixels, for text at MENU_SIZE against text at
-## TITLE_SIZE.
-##
-## Silkscreen leaves one blank column to the left of a glyph at its native 8px,
-## so that gap scales with the type: six pixels at 48, two at 16. Setting both
-## flush left therefore puts the SMALL text four pixels further left than the
-## title, which is the gap visible under THREE KELVIN. Derived from the grid
-## rather than nudged by eye, so it stays right if either size changes.
+## Left bearing scales with type size, so small text sits 4 px left of the title; derived.
+## Why: docs/why/LauncherScreen.md#bearing-fix
 const BEARING_FIX := (TITLE_SIZE - MENU_SIZE) / 8
 
 var _settings: SettingsMenu = null
 ## The dim + panel that FLY TOGETHER, FLIGHT RECORD and CONTINUE open into.
 ## One at a time, and never at the same time as the settings menu.
 var _popup: Control = null
-## How far the popup frame sits inside the screen. TWO numbers, one shared by all
-## three popups — the lobby, the flight record and the continue prompt are the
-## same kind of object and should not be three different rectangles.
-##
-## Wider inset than tall on purpose. On a 960x540 viewport this leaves about
-## 620x348, which is portrait-ish rather than a letterbox. Every one of these
-## panels is a COLUMN of things — a list of runs, a stack of party fields, a
-## question and two buttons — and a column reads badly stretched across a wide
-## frame: the eye has to travel the full width to find the next short line.
-## Vertical space is the cheap axis here, because the content scrolls.
+## One shared inset for all popups; wider than tall because every panel is a column.
+## Why: docs/why/LauncherScreen.md#popup-inset
 const POPUP_INSET_H := 170
 const POPUP_INSET_V := 96
 ## The corner checkbox, kept so it can repaint itself when flipped.
 var _dev_box: Button = null
 var _seed_field: LineEdit = null
 var _sky: StarchartScreen.MapChart = null
-## Whether the sky has been given its real size yet.
-##
-## setup() runs before the layout pass has assigned this screen a size, so the
-## first _fit_sky() bails and the real one arrives with NOTIFICATION_RESIZED a
-## frame or two later. Rotating in between spun a square that was still at its
-## default size, sweeping its axis-aligned edges straight across the view — a
-## vertical and a horizontal tear for the first few frames, and then correct
-## forever, which is exactly the shape of a race.
+## Real size arrives after setup(); rotating before it swept a default-size square across the view.
+## Why: docs/why/LauncherScreen.md#sky-fit
 var _fitted: bool = false
 var _warmup: int = WARMUP_FRAMES
 ## Frames waited for the sky before the shaders' warm starts (-1: started).
@@ -87,18 +47,15 @@ const WARM_AFTER := 180
 ## the boot can fade up everything but the wordmark (`fade_up_around_title`).
 var _holder: Control = null
 var _menu_box: Control = null
+## The menu's NEW THINGS, kept so its unseen mark can go when the page opens.
+var _news: Button = null
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_make_sky()
 
-	# Title in the top corner, options in the bottom one, galaxy through the
-	# middle. No panel, no boxes, no centring.
-	#
-	# The galaxy is the picture; a menu is a thing you use once and then never
-	# look at again, so it gets the corner and the title gets the scale. One
-	# column pinned left does both — the spacer between them is what pushes the
-	# options to the floor.
+	# Title top corner, options bottom, galaxy through the middle; the spacer pushes options down.
+	# Why: docs/why/LauncherScreen.md#menu-layout
 	var holder := MarginContainer.new()
 	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	holder.add_theme_constant_override("margin_left", 22)
@@ -147,16 +104,10 @@ func setup() -> void:
 
 	var save := SaveGame.summary()
 	if not save.is_empty():
-		# What the save holds, and what continuing costs, on the hover rather
-		# than under the word. Two lines of grey explaining one menu item is the
-		# kind of thing a title screen accumulates — you read it once, ever, and
-		# then it sits there being the busiest part of the corner.
+		# Save details on hover, as two lines of grey under a menu item crowd the corner.
 		menu.add_child(_option("CONTINUE", _confirm_continue, true))
 
-	# White marks the option you most likely came here for, and there is exactly
-	# one: the run you were already flying, or — with nothing to return to — a
-	# new one. Everything else is grey. Hard-coding CONTINUE as the white one
-	# would leave a first-time player looking at five identical grey lines.
+	# White marks the one option you likely came for; hard-coding CONTINUE would show five greys.
 	menu.add_child(_option("NEW RUN", _confirm_new_run, save.is_empty()))
 	menu.add_child(_option("FLY TOGETHER", func() -> void:
 		var lob := LobbyScreen.new()
@@ -167,17 +118,19 @@ func setup() -> void:
 		var hist := HistoryScreen.new()
 		_open_popup(hist)
 		hist.setup(_close_popup)))
-	# (THE ARCHIVE stood here, a reading room of recovered documents. Jon, Oct
-	# 22: "It was a cool idea, but not for a procedural game." Gone from the
-	# HUD as well.)
+	# The archive was removed: 'cool idea, but not for a procedural game' (Jon, Oct 22).
+	# Why: docs/why/LauncherScreen.md#removed-archive
 	menu.add_child(_option("SETTINGS", _open_settings))
+	# NEW THINGS sits above MESSAGE FROM JON, which stays the line above QUIT (Jon, Nov 5).
+	# Why: docs/why/LauncherScreen.md#menu-order
+	_news = _option("NEW THINGS", open_new_things)
+	_news.add_child(_new_mark())
+	menu.add_child(_news)
 	# JON'S WELCOME NOTE, again, whenever it is wanted (Jon, Oct 13): the line
 	# above QUIT. It opens by itself the first time this screen does (`WelcomePopup`).
 	menu.add_child(_option("MESSAGE FROM JON", open_welcome))
 
-	# Red on hover, alone among the five. Everything else on this screen leads
-	# somewhere you can come back from.
-	# THE SET GOES OFF BEFORE THE WINDOW DOES. See GameShell.shut_down.
+	# Red on hover alone: everything else leads somewhere you can come back from.
 	var quit := _option("QUIT", func() -> void: GameShell.shut_down(get_tree()))
 	quit.add_theme_color_override("font_hover_color", UITheme.LEAVE)
 	quit.add_theme_color_override("font_pressed_color", Color("#f08872"))
@@ -188,9 +141,7 @@ func setup() -> void:
 		open_welcome(true)
 
 
-## Out of the boot splash (`Router.show_launcher`): the wordmark is already on
-## the screen, so it stays put and the galaxy, the menu, the corner stamps and a
-## first-time welcome note fade up around it, at the screen fade's length.
+## The wordmark is already on screen, so the rest fades up around it.
 func fade_up_around_title() -> void:
 	if not Router.animating():
 		return
@@ -205,9 +156,7 @@ func fade_up_around_title() -> void:
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
-## Jon's welcome note over the title, in the popup slot so nothing else opens
-## over it; its button or Escape shuts it (`WelcomePopup`). `first` when it
-## opened by itself: its button then says START YOUR JOURNEY, not CLOSE.
+## In the popup slot so nothing opens over it; first-time wording is START YOUR JOURNEY.
 func open_welcome(first: bool = false) -> void:
 	if _popup != null or _settings != null:
 		return
@@ -219,34 +168,48 @@ func open_welcome(first: bool = false) -> void:
 		if _popup == w:
 			_popup = null)
 
-## The developer switch, small, in the corner where a build stamp goes.
-##
-## Only where DevMode.available: from the editor, never in an exported game.
-## Nothing else is anchored to that corner, so a build without it leaves the
-## corner empty and moves nothing.
-##
-## Not in the menu column: that column is the five things a player came here to
-## do, and this is not one of them. A corner checkbox reads as a property OF the
-## build rather than as a destination, which is what it is.
-##
-## Anchored to the bottom-right of the screen rather than laid out in a
-## container, so it stays pinned to the corner at every window size and cannot
-## push the title or the menu around.
-##
-## Repaints ITSELF and nothing else.
-##
-## It used to rebuild the whole launcher, on the reasoning that everything this
-## flag gates is built-or-not-built rather than hidden. That was true and still
-## is — but the only thing ON THIS SCREEN the flag changes is this checkbox, and
-## rebuilding took the galaxy backdrop with it, restarting its rotation from zero
-## every time the switch was touched.
-##
-## Every other screen rebuilds off Sig.dev_mode_changed instead, which is where
-## that responsibility belongs: the HUD outlives screen swaps and had to listen
-## anyway, and a screen built AFTER the toggle reads the flag correctly for free.
-## THE ARROW KEYS DO NOTHING HERE (Jon: "WASD and the Arrows should not work in
-## the title menu"). Left alone, Godot walks the keyboard focus round the menu's
-## buttons with them; the menu is clicked. A typed seed keeps its caret.
+## The NEW THINGS page (`NewThingsPopup`) in the popup slot, as the welcome
+## note. Opening it marks the newest notes seen, so the menu's mark goes.
+func open_new_things() -> void:
+	if _popup != null or _settings != null:
+		return
+	var p := NewThingsPopup.new()
+	p.setup()
+	add_child(p)
+	_popup = p
+	_paint_new_mark()
+	p.closed.connect(func() -> void:
+		if _popup == p:
+			_popup = null)
+
+
+## A small unseen square, still, a child of the button so it takes no click.
+func _new_mark() -> Control:
+	var m := ColorRect.new()
+	m.name = "NewMark"
+	m.color = UITheme.FLARE
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	m.anchor_left = 1.0
+	m.anchor_right = 1.0
+	m.anchor_top = 0.5
+	m.anchor_bottom = 0.5
+	m.offset_left = 4.0
+	m.offset_right = 8.0
+	m.offset_top = -2.0
+	m.offset_bottom = 2.0
+	m.visible = NewThings.unseen()
+	return m
+
+
+func _paint_new_mark() -> void:
+	if _news != null and is_instance_valid(_news):
+		var m := _news.get_node_or_null("NewMark") as Control
+		if m != null:
+			m.visible = NewThings.unseen()
+
+
+## Corner checkbox, not in the menu; it repaints itself only so the galaxy keeps turning.
+## Why: docs/why/LauncherScreen.md#dev-toggle
 func _input(e: InputEvent) -> void:
 	# (every input, from the title's first frame: the shaders' warm keeps clear
 	# of a hand that is moving, `ShaderWarm.note_input`)
@@ -261,10 +224,7 @@ func _input(e: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
-## WHICH BUILD THIS IS, small in the corner where a build stamp goes
-## (`BuildInfo`): "0.1.0-alpha.1 · a1b2c3d" in an export, "dev" from source --
-## so a screenshot or a report says what was played. Above the developer switch
-## where that exists, which is only from source.
+## Shows which build this is, so a screenshot or report says what was played.
 func _add_build_stamp() -> void:
 	var l := UITheme.body(BuildInfo.stamp(), UITheme.COLD, UITheme.FS_SMALL)
 	l.name = "BuildStamp"
@@ -279,11 +239,8 @@ func _add_build_stamp() -> void:
 
 
 func _add_dev_toggle() -> void:
-	# Built through Widgets.button so it gets the click and hover sounds, which
-	# means the action has to be supplied at construction — it connects `pressed`
-	# immediately and a null Callable is an error. A named method rather than a
-	# lambda, so `-- devtest` can find what is wired to the switch: it reaches
-	# the button through the member, since the button does not exist yet.
+	# A named method, not a lambda, so `-- devtest` can find what the switch wires to.
+	# Why: docs/why/LauncherScreen.md#dev-toggle
 	_dev_box = Widgets.button("", _on_dev_toggle)
 	var box := _dev_box
 	box.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
@@ -301,13 +258,8 @@ func _add_dev_toggle() -> void:
 	box.offset_bottom = -10
 	add_child(box)
 
-## CONTINUE, with the thing it consumes shown first.
-##
-## The only one of the three that is not a screen — it loads and flies. It gets
-## a panel anyway because it is the single irreversible button on this screen:
-## loading DELETES the save, by design, so that quitting stays a bookmark
-## rather than a checkpoint. A menu item that quietly eats your only save on
-## one click was relying on a tooltip nobody has to read.
+## CONTINUE gets a panel as the only irreversible button: loading deletes the save.
+## Why: docs/why/LauncherScreen.md#continue-prompt
 func _confirm_continue() -> void:
 	var save := SaveGame.summary()
 	if save.is_empty():
@@ -330,32 +282,15 @@ func _confirm_continue() -> void:
 
 	_open_popup(col, true)
 
-## Open a screen OVER the title rather than instead of it.
-##
-## The lobby, the flight record and the continue prompt are all things you do
-## BEFORE a run, from the title screen, and swapping the whole view for them
-## threw away the galaxy behind it and made coming back a rebuild. As overlays
-## they read as what they are: a panel you opened and will close again.
-##
-## The shade eats input, so the menu underneath cannot be clicked through, and
-## a click on the dim margin closes — the same dismissal the deck popup uses.
-## How wide a PROMPT is. The lobby and the flight record are lists and want the
-## full frame; a question and two buttons wants a card.
-##
-## Width is fixed and height is not, which is the whole trick. The complaint that
-## started the popups was that they were three different rectangles — and what
-## read as ragged was the WIDTH, because that is the edge your eye lines up
-## against. Height following content is not raggedness, it is a panel that is as
-## tall as what is in it.
+## Popups open over the title, keeping the galaxy; prompt width is fixed, height follows content.
+## Why: docs/why/LauncherScreen.md#popups
 const POPUP_PROMPT_W := 356
 
 func _open_popup(inner: Control, compact: bool = false) -> void:
 	if _popup != null or _settings != null:
 		return
-	# The shade lays the popup out and takes the clicks, over this screen's rect
-	# as it always has; the dim it draws is its first child, over the whole
-	# picture (`Widgets.cover_picture`): this screen stops short of the glass by
-	# Main's margin, and the galaxy, which does not, showed through it undimmed
+	# The dim covers the whole picture, as the galaxy past Main's margin showed through undimmed.
+	# Why: docs/why/LauncherScreen.md#popups
 	var shade := ColorRect.new()
 	shade.color = Color(0, 0, 0, 0)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -373,10 +308,7 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 	add_child(shade)
 	_popup = shade
 
-	# A prompt is centred at its own size, with no scroll around it. The scroll
-	# below exists to force long content to the frame's width; a prompt has no
-	# long content, and wrapping a short column in a ScrollContainer is what was
-	# stretching these to the full 620x348 whatever they held.
+	# A prompt is centred at its size: a ScrollContainer stretched it to the full frame.
 	if compact:
 		var mid := CenterContainer.new()
 		mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -391,11 +323,7 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.add_child(pad)
 
-	# Scrolled, and horizontal scrolling DISABLED on purpose. That is what forces
-	# the content to the panel's width, which is what makes wrapping labels
-	# actually wrap — these screens were written to fill a viewport, and given a
-	# free horizontal axis a long line simply widens the column and runs off the
-	# frame instead of folding.
+	# Horizontal scroll is disabled on purpose, so wrapping labels actually wrap.
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -423,10 +351,8 @@ func _close_popup() -> void:
 		return
 	_popup.queue_free()
 	_popup = null
-	# The seed field lived inside that popup and is now on its way out. A freed
-	# Node is NOT null in GDScript — it is an invalid instance, which sails
-	# straight past `== null` and fails on the next property read. Dropping the
-	# reference here is what makes _typed_seed()'s guard mean anything.
+	# A freed Node is not null in GDScript, so the reference is dropped for the guard to work.
+	# Why: docs/why/LauncherScreen.md#freed-seed-field
 	_seed_field = null
 
 ## Nudge a control right by the side-bearing difference. See BEARING_FIX.
@@ -438,44 +364,16 @@ func _indent(c: Control) -> MarginContainer:
 	m.add_child(c)
 	return m
 
-## A left-aligned line of text.
-##
-## Explicit about both alignment and sizing rather than trusting defaults: these
-## labels sit in a column as wide as THREE KELVIN at 48px, so a label that
-## stretches has six hundred pixels to drift in, and only its alignment decides
-## where the words land. SHRINK_BEGIN makes each label its own width instead,
-## which takes the question away entirely.
+## Explicit alignment and SHRINK_BEGIN: in a wide column a stretched label drifts.
+## Why: docs/why/LauncherScreen.md#menu-lines
 func _line(text: String, colour: Color, size: int) -> Label:
 	var l := UITheme.body(text, colour, size)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	return l
 
-## A menu line: text, and nothing else.
-##
-## Still built through Widgets.button, because that is where every click, hover
-## and refusal sound in the game is wired — a hand-rolled Button here would be
-## the one silent control in the interface. Only the look is overridden.
-##
-## SHRINK_BEGIN matters: without it a VBox child fills the column, and since the
-## column is as wide as THREE KELVIN at 32px, the clickable area of QUIT would
-## reach a third of the way across the screen with nothing drawn in it.
-## What NEW RUN opens now, rather than a field parked on the title screen.
-##
-## MOVED, and for two reasons rather than one. The seed belongs to the moment
-## you start a run, not to the screen you start it from — a title screen with a
-## number field on it reads like a debug build. And NEW RUN was already the one
-## destructive item in this menu with no confirmation on it: Router.new_run()
-## records an ABANDONED run and clears the save when one is live, which is
-## exactly the thing CONTINUE gets a panel for.
-##
-## So this panel does both jobs. With a save it warns; without one it is simply
-## where you decide whether this run is a fresh galaxy or a named one.
-##
-## NOT ON A FRESH PROFILE (tutorial direction B, Oct 17): no save and no run on
-## the flight record means a first launch, and asking somebody about seeds
-## before they know what a run is was one click spent on a question they could
-## not answer. Straight to the hull pick; the panel is there from the second run.
+## NEW RUN asks first, as it abandons a live run; skipped on a fresh profile (Oct 17).
+## Why: docs/why/LauncherScreen.md#new-run-prompt
 func _confirm_new_run() -> void:
 	var save := SaveGame.summary()
 	if fresh_profile():
@@ -568,12 +466,8 @@ func _typed_seed() -> int:
 	return int(_seed_field.text.strip_edges())
 
 
-## A button that LEAVES. Both prompts have one and the menu has QUIT, and they
-## are the same idea: the control that puts you back where you were.
-##
-## Coloured rather than styled, so it still reads as one of a pair with the
-## button beside it. A red BOX next to a normal one says the two do opposite
-## things; red text on the same box says one of them is the way out.
+## Red text on the same box says one of a pair is the way out, not the opposite action.
+## Why: docs/why/LauncherScreen.md#leave-button
 func _leave_button(text: String, action: Callable) -> Button:
 	var b := Widgets.button(text, action)
 	b.add_theme_color_override("font_color", UITheme.LEAVE)
@@ -594,9 +488,7 @@ func _option(text: String, action: Callable, primary: bool = false) -> Button:
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	b.add_theme_font_size_override("font_size", MENU_SIZE)
-	# Grey at rest, white for the primary, warm on hover. Three states doing
-	# three jobs: what you can do, what you probably want, and what you are
-	# pointing at.
+	# Grey at rest, white for the primary, warm on hover: three states, three jobs.
 	var rest := UITheme.ICE if primary else UITheme.COLD
 	b.add_theme_color_override("font_color", rest)
 	b.add_theme_color_override("font_hover_color", UITheme.HOT)
@@ -608,18 +500,8 @@ func _option(text: String, action: Callable, primary: bool = false) -> Button:
 
 # ------------------------------------------------------------------------- sky
 
-## The galaxy behind the title, turning.
-##
-## It is the chart's own MapChart with show_icons off — the mode the chart
-## already has for "the galaxy alone: no routes, no trail, no glyphs, nothing
-## that answers the cursor". Reusing it rather than writing a second galaxy
-## renderer matters more here than it looks: the sky is forty-eight thousand
-## precomputed points, nine kinds of structure and a static cache, and a
-## simplified copy for the title screen would be a second answer to "what does a
-## galaxy look like" that nobody would remember to update.
-##
-## Added before everything else so it sits behind the panel; siblings paint in
-## child order.
+## Reuses the chart's `MapChart` with icons off, not a second galaxy renderer to maintain.
+## Why: docs/why/LauncherScreen.md#title-galaxy
 func _make_sky() -> void:
 	_roll_sky_galaxy()
 	_sky = StarchartScreen.MapChart.new()
@@ -627,43 +509,26 @@ func _make_sky() -> void:
 	_sky.turn_speed = TITLE_TURN
 	_sky.run_galaxy = false
 	_sky.keys = false
-	# THE TEAR. MapChart clips to its own rect so the galaxy cannot spill out of
-	# the chart panel, and that clip is AXIS-ALIGNED — so a rotating child gets
-	# cut along a vertical and a horizontal line. On the chart the clip is the
-	# panel edge and that is exactly right; here the sky is deliberately larger
-	# than the screen and there is nothing to protect, so clipping only supplies
-	# two straight edges for the rotation to drag across the view.
+	# The clip is axis-aligned and tears a rotating child; the sky is oversized, so none is needed.
+	# Why: docs/why/LauncherScreen.md#title-galaxy
 	_sky.clip_contents = false
-	# The live core at 30 rather than 60. Nothing here drags, so the reason the
-	# chart runs it every frame does not apply, and halving it halves the only
-	# per-frame cost this screen has.
+	# The live core runs at 30: nothing drags here, so halving it halves the only cost.
 	_sky.set_anim_interval(1.0 / 30.0)
 	# The buttons are in front and get the click first, but a full-screen Control
 	# with STOP would eat every press that lands beside them.
 	_sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Hidden until it has been sized and framed. A wrongly-sized galaxy drawn for
-	# one frame and then corrected is a visible pop, and there is nothing behind
-	# it to show through — the screen is black either way.
+	# Hidden until sized and framed, as a wrong-size galaxy for a frame is a visible pop.
 	_sky.visible = false
 	add_child(_sky)
 	_fit_sky()
 
-## Square, and as wide as the screen's DIAGONAL.
-##
-## A rotating rectangle sweeps its corners through the frame, so a screen-sized
-## sky would show two wedges of nothing at every angle but zero. A square whose
-## side matches the diagonal has an inscribed circle that reaches every corner of
-## the screen, so no rotation can ever expose an edge. It costs about two and a
-## half times the area in stars — paid once, because rotating a Control moves its
-## retained draw list rather than repainting it.
+## A square of the screen's diagonal side means no rotation can expose an edge.
+## Why: docs/why/LauncherScreen.md#sky-fit
 func _fit_sky() -> void:
 	if _sky == null or size.x <= 0.0 or size.y <= 0.0:
 		return
-	# +24 rather than +8. The square's inscribed circle has to REACH the screen's
-	# corners, and at +8 it cleared them by four pixels — close enough that a
-	# rounding difference anywhere in the transform put the square's own edge
-	# through a corner. The margin costs nothing: star counts are fixed, so a
-	# bigger square spreads the same field rather than drawing more of it.
+	# The margin is +24: at +8 the circle cleared the corners by 4 px and rounding exposed an edge.
+	# Why: docs/why/LauncherScreen.md#sky-fit
 	var side := ceilf(sqrt(size.x * size.x + size.y * size.y)) + 24.0
 	var sq := Vector2(side, side)
 	_sky.size = sq
@@ -685,37 +550,22 @@ func _process(_delta: float) -> void:
 	if _sky == null or not _fitted:
 		return
 	if not _sky.visible:
-		# Shown a frame AFTER fitting, never in _fit_sky itself. The sky's four
-		# layers are anchored to it, so their rects are resolved by the layout
-		# pass that follows — painting in the same frame the size changed means
-		# painting layers that are still the old size.
+		# Shown a frame after fitting, as the layers' rects resolve in the next layout pass.
 		_sky.visible = true
 		return
 	if _warmup > 0:
 		_warmup -= 1
 		return
-	# THE SECTOR MAP'S SHADERS, compiled behind the menu (`ShaderWarm`):
-	# once this sky is up, palette and all, so they never hold it back -- or
-	# after WARM_AFTER frames whatever it is doing
+	# Warm the sector map's shaders once this sky is up, or after `WARM_AFTER` frames.
 	if _warm_wait >= 0:
 		_warm_wait += 1
 		if _sky.sky_drawn() or _warm_wait > WARM_AFTER:
 			_warm_wait = -1
 			ShaderWarm.start()
-	# (The galaxy turns by itself, as the chart's does (`MapChart.turn`), at
-	# TITLE_TURN times the chart's speed: once every five minutes. Nothing to
-	# do for it here.)
+	# The galaxy turns by itself at `TITLE_TURN` times the chart's speed; nothing to do here.
 
-## A galaxy for the title screen, rolled once per process and kept.
-##
-## Written into Run, which is legitimate rather than a shortcut: RunState seeds
-## Run.galaxy at _ready specifically so screens can draw before a run exists, and
-## both ways out of this screen overwrite it — NEW RUN through start_new_run(),
-## CONTINUE through SaveGame. Run.map and Run.hull stay untouched, so no save is
-## written and the HUD stays hidden.
-##
-## Static so that coming back to the title screen does not roll a different
-## galaxy and throw away the sky cache to build the same thing again.
+## Written into Run legitimately, and static so returning does not roll a new galaxy.
+## Why: docs/why/LauncherScreen.md#title-galaxy
 static var _sky_kind: int = -1
 static var _sky_seed: int = 0
 static var _sky_params: Dictionary = {}
@@ -725,22 +575,14 @@ func _roll_sky_galaxy() -> void:
 	if _sky_kind < 0:
 		_sky_kind = randi() % GalaxyGen.count()
 		_sky_seed = randi()
-		# Its own generator, off the global one. The title screen is decoration:
-		# it must not draw from a run's streams — a galaxy drawn behind a menu
-		# would otherwise move the galaxy the player is about to fly into.
-		# Run.galaxy_seed is written below for the same reason it always was,
-		# and start_new_run() overwrites it before anything reads it as a seed.
+		# Own generator, so the title's galaxy never moves the one the player flies into.
 		var r := RandomNumberGenerator.new()
 		r.seed = _sky_seed
 		_sky_params = GalaxyGen.roll(_sky_kind, r)
-		# its own arm angle too: the sky's bake reads `Run.galaxy_spin`, and a
-		# title galaxy that kept the last run's spin drew its arms where that
-		# run's were while its stars sat on its own
+		# Own arm angle too, or arms were drawn where the last run's were.
 		_sky_spin = r.randf() * TAU
 	Run.galaxy_kind = _sky_kind
-	# Duplicated on the way out: the chart reads Run.galaxy freely and a shared
-	# reference would let it edit the copy every later launcher visit rebuilds
-	# from.
+	# Duplicated on the way out, so the chart cannot edit the copy rebuilt from.
 	Run.galaxy = _sky_params.duplicate(true)
 	Run.galaxy_seed = _sky_seed
 	Run.galaxy_spin = _sky_spin
@@ -752,9 +594,7 @@ func _save_line(s: Dictionary) -> String:
 		str(s.galaxy), str(s.system), int(s.danger),
 		int(s.hp), int(s.max_hp), int(s.jumps)]
 
-## Settings open as a child of this screen rather than of Main. Main's copy is
-## reached through the escape menu, which needs a run behind it; this one has to
-## work when there is nothing behind it at all.
+## Opens as a child of this screen, as Main's copy needs a run behind it.
 func _open_settings() -> void:
 	if _settings != null:
 		return

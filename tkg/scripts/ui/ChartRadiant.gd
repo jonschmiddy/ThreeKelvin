@@ -1,32 +1,8 @@
 class_name ChartRadiant
 extends RefCounted
 
-## THE STAR CHART'S SKY IN THE RADIANT STYLE (`DisplaySettings.render_style`
-## `&"radiant"`, or a harness's `style=radiant`): direction A of the Oct 5
-## showcase, "Light through gas" (scratchpad `showcase/A/chart/`). The galaxy as
-## a true density volume lit by single scattering from the core, the arms' young
-## stars and the clouds' lamps; dust that reddens and stops light; god rays cut
-## through the haze by the billows; billows lit on the side facing the core and
-## in their own shade on the other; the near dust lane in silhouette over the
-## bulge. SIMPLIFIED's black hole (`legacy_hole`), lit as this style lights
-## things, and SIMPLIFIED's animations as light: the gas streaming through the
-## arms, knots that breathe as lamps, a supernova that lights the gas round it
-## and an echo of it sweeping through the dust, lightning that scatters through
-## its cloud. Jon: RADIANT is "for photos probably" -- it is the HEAVY style.
-##
-## It runs on `ChartSky`'s own pipeline (its stars, its palette cut from hero
-## views, its composite and zoom hold), with its own bakes and place pass:
-##   * the BAKES, once a galaxy (once a session for the noise): a periodic 3D
-##     noise volume (`chart_r_bake_noise`), the face-on disc as two half-float
-##     maps (`chart_r_bake_disc`: star light, young light, H-alpha, dust; arm gas,
-##     billow height, blockers, core swirl), read back and mip-mapped, then the
-##     core's horizon map from them (`chart_r_bake_hor`, the god rays' shadows);
-##   * the PLACE pass (`chart_r_place`), a march down each block's view ray.
-## LOW (GRAPHICS LOW) marches no billows (one lit sheet), fewer steps, one phase.
-##
-## THE SAFETY: if the sky's own GPU time over its first seconds says this
-## machine cannot hold it, the chart falls back to SIMPLIFIED with one line in
-## the log (`ChartSky._radiant_probe`).
+## The heavy RADIANT sky; it falls back to SIMPLIFIED if the GPU cannot hold it.
+## Why: docs/why/ChartRadiant.md#radiant-style
 
 const NOISE_SH := preload("res://shaders/chart_r_bake_noise.gdshader")
 const DISC_SH := preload("res://shaders/chart_r_bake_disc.gdshader")
@@ -43,37 +19,18 @@ const RMAX := 1.3
 const EXPOSURE := 1.0
 const BURN := 3.0
 const VIB := 0.5
-## CHIAROSCURO (proto/radiant-a, Nov 7; Jon: "redo radiant to be super dramatic
-## with the lighting effects"): one dominant light, the core, and what it does
-## not reach falling to black. VIB was 0.35. (A soft wash before: no render had
-## more than 2.2% of its pixels over 200; now the light's gain after the toe takes
-## the hot gas past BURN, so it burns to white, the hole's disc kept exact.)
-## (A+B+C: C's burn 2.0 and exposure 1.1 not taken -- over this gain they burnt the
-## core to one white plate; C's glow is the bloom, B's flares the moments of white.)
-## `u_drama`: (the toe, light under it crushed toward black; the core's light gain;
-## the arms' own young light, a share; the god-ray haze's gain, was 0.35).
-## `u_dramaR`: (the core light's reach, a factor on its falloff's scale; the
-## billows' lit side, a gain; the light's gain after the toe; the billows' shade
-## fill, a share). The god rays' shadows at full strength (`u_gr`, was 0.45), no
-## ambient (`u_amb`, was a navy 0.02).
+## CHIAROSCURO (Nov 7, Jon: "super dramatic"): one dominant light, the core; the rest to black.
+## `u_drama`: (toe, core gain, arms' young light, god-ray haze gain);
+## `u_dramaR`: (core light's reach, billows' lit side, gain after the toe, billows' shade fill).
+## Why: docs/why/ChartRadiant.md#chiaroscuro
 const DRAMA := Vector4(0.18, 2.0, 0.25, 2.2)
 const DRAMA_R := Vector4(1.5, 1.25, 2.8, 0.3)
-## A BALL's (toe, gain): a ball is all starlight, one smooth hill of it with no gas
-## for a lamp to light, so its drama is the hill made steep -- the nucleus burning
-## white round the hole, the body falling off fast into black
-## (A+B+C: toe 0.15 -> 0.004 and gain 2.4 -> 2.1. At 0.15 the faint outskirts went as
-## the square of their light and four ball kinds ended in a hard rim (BallHaloTest's
-## fade under 0.42; the blue compact dwarf at 0.28). Near no toe the ball's drama is
-## its nucleus burning white and its body still falling into black; 2.1 keeps a
-## merger's story within the test's cream budget.)
+## A BALL's (toe, gain): its drama is the hill made steep; near no toe so it fades, no rim.
+## Why: docs/why/ChartRadiant.md#ball-drama
 const DRAMA_BALL := Vector2(0.004, 2.1)
-## ...AND COMING IN (A+B+C review, Nov 7): from the opening to LOCAL REGION's zoom the
-## toe rises to A's own (`BALL_TOE_NEAR`), over `BALL_TOE_Z` (the chart's zoom against
-## its opening's 0.42). Seen whole, a ball must fade softly into space (BallHaloTest,
-## at the opening); come in close, it fills the frame, and at the opening's toe its
-## outskirts lay one amber-violet haze over every corner -- 2% of the frame under 15
-## against A's 28%, the far galaxies and the field stars gone. At A's toe they fall
-## to black and the sky behind shows through again.
+## ...AND COMING IN: from the opening to LOCAL REGION's zoom the toe rises to A's own,
+## so a close ball's outskirts fall to black instead of one haze.
+## Why: docs/why/ChartRadiant.md#ball-toe-near
 const BALL_TOE_NEAR := 0.15
 const BALL_TOE_Z := Vector2(0.5, 1.0)
 
@@ -85,39 +42,25 @@ static func ball_drama(z: float) -> Vector4:
 const GOD_RAYS := 1.0
 ## A lobe's dy is in the chart's flattened frame; this takes it to the plane.
 const FLAT := 0.46341 / 0.38
-## THE SAFETY'S BUDGET: the sky's own GPU time, ms a frame, averaged over its
-## first seconds of drawing; past it the chart falls back to SIMPLIFIED. An RTX
-## 3070 measures 0.6-1.6 here; a machine at four times that is not one to show
-## photos on.
+## Fall back past the budget: an RTX 3070 measures 0.6 to 1.6 ms, so four times is too slow.
+## Why: docs/why/ChartRadiant.md#safety-budget
 const FALLBACK_MS := 6.0
-## The slab's march: steps through it (halved near the plane), HIGH. The
-## showcase's 22 cost 2.5 ms a frame on a full-screen chart at zoom 1 on an RTX
-## 3070; 16, with the start jittered, reads the same.
+## 16 steps with jitter read the same as the showcase's 22, which cost 2.5 ms on an RTX 3070.
+## Why: docs/why/ChartRadiant.md#march-steps
 const STEPS := 11.0
-## How near (OKLab) a colour the palette's cut may add to one already kept;
-## SIMPLIFIED's is 0.06 (`ChartSky.pal_merge`). Measured on the nebula's slow
-## zoom: 0.06 left a fan of rose twins across the remnant's shell that flickered.
+## 0.02, not SIMPLIFIED's 0.06: that left a fan of rose twins that flickered on slow zoom.
+## Why: docs/why/ChartRadiant.md#palette-merge
 static var PAL_MERGE := 0.02
-## The composite's dither gates, against SIMPLIFIED's (`ChartSky.dith_gs`,
-## `dith_coh`). 1: the same; the colour hold (`ChartSky.hyst`) keeps the dither
-## from flickering, so it can carry the soft gradients light through gas makes
-## (2 and 1.25 had flattened them into plates).
+## Gates of 1: the colour hold stops flicker, and 2 and 1.25 had flattened gradients to plates.
+## Why: docs/why/ChartRadiant.md#dither-gates
 const DITH_GS := 0.5
 const DITH_COH := 0.8
 ## How many colours the palette's cut adds to the reserved ones (the showcase's
 ## A spent 56 colours in all; a cut of 12 drew the haze in grey plates).
 const PAL_FREE := 40
-## THE GLOW AND COLOUR (direction C, Nov 7, `RadiantGlow`): the chart's look of
-## it. Layered halos round everything bright, the core's rays through the dust,
-## deep violet shade.
-## (A+B+C, Nov 7: over A's hard light the glow blooms only the hottest gas -- `thr`
-## 0.42 to 0.6, `gain` 1.6 to 1.2 -- and draws no rays: A's core is big and hot, so
-## the bright buffer summed along the line to it was near even over the whole inner
-## disc and its steps laid one flat tan plate, dithered at its edge, over the core
-## (and a hard-rimmed orb round every ball). A's god rays, in the volume and shadowed
-## by the billows, are the rays here. No `crush` (was 0.6): A's grade is the one tone
-## step, and the two stacked sank the arms' faint gas twice.)
-## the hole's shadow as the glow spares it, in its radii
+## THE GLOW AND COLOUR (direction C, Nov 7, `RadiantGlow`): halos, deep violet shade;
+## over A's hard light it blooms only the hottest gas and draws no rays.
+## Why: docs/why/ChartRadiant.md#glow-and-colour
 const GLOW_HOLE := 1.35
 const GLOW_LOOK := {"thr": 0.6, "knee": 0.16, "gain": 1.2, "steps": 4.0, "band": 0.2, "rays": 0.0, "ray_len": 0.7,
 	"halo_a": Vector3(0.4, 0.6, 0.8), "halo_b": Vector3(0.9, 0.7, 0.5), "wide_k": 0.7,
@@ -133,10 +76,7 @@ static var _noise: ImageTexture = null
 static var fell_back := false
 
 
-## The colours every radiant palette keeps (the showcase's A): the void and the
-## navy steps above it, the hole's bands, and the key hues as the tone maps them
-## at several lights -- H-alpha, OIII, the remnant's red, the reflection's blue --
-## so small vivid things are never starved by the cut.
+## Colours every radiant palette keeps, so small vivid things are never starved by the cut.
 static func fixed_palette() -> PackedColorArray:
 	var out := PackedColorArray()
 	for h in ["#070a12", "#0b1020", "#0f1529", "#141b33"]:
@@ -168,9 +108,7 @@ static func fixed_palette() -> PackedColorArray:
 	return out
 
 
-## Whether a chart draws in the radiant style: the player's style, or a
-## harness's `style=radiant` while RADIANT is not built (DisplaySettings will not
-## take a style it cannot draw everywhere; the chart can, so a shot can ask).
+## A harness's `style=radiant` is honoured though unbuilt, as the chart can draw it.
 static func wanted() -> bool:
 	if fell_back:
 		return false
@@ -193,13 +131,8 @@ static func probe_forced() -> bool:
 	return false
 
 
-## The galaxy's look: the showcase's per-kind numbers (set by eye for the
-## grand design, the barred spiral and the elliptical), generalised by shape and
-## by the galaxy's own bulge, gas and arms.
-## A BALL'S BODY AND HALO (Jon, Oct 18, "radiant:yes": the balls bloomed into a big orb
-## with a hard edge): the outer component's peak, and the halo's light, a ball is
-## lit by. The showcase's were 0.95 and 0.03.
-## A ball's story's light in this style's own (`ChartSky.ball_story`)
+## Per-kind showcase numbers generalised by shape; balls use a lower peak and halo (Jon, Oct 18).
+## Why: docs/why/ChartRadiant.md#galaxy-look
 const STORY_GAIN_R := 1.0
 ## (A+B+C: the base's 0.8 / 0.06 and nucleus 1.5 again; C's 0.55 / 0.03 / 2.6 were
 ## set against C's own tone, and over A's ball grade (`DRAMA_BALL`) the nucleus
@@ -210,16 +143,10 @@ const BALL_HALO := 0.06
 ## ending (in its scales), and how much harder it dithers out at its edge
 const HALO_FALL := Vector4(1.7, 0.8, 2.8, 0.0)
 
-## A BALL AS ITS OWN KIND in this style (Nov 5, Jon's direction A for PAINTED, "This
-## could also be applied for the other art styles"): each ball drawn as this style
-## draws a spiral -- smooth light from the middle, the gas lit by it -- shaped to its
-## kind. `u_ballK` (`chart_r_place`, `chart_r_bake_disc`): (its kind as `ChartSky.ball_of`
-## numbers it -- 0 an elliptical, 1 a blue compact dwarf, 2 a dwarf spheroidal, 3 a
-## merger's remnant; its young gas and star birth 0..1; how lopsided it is 0..1; its
-## halo of globular clusters 0..1). An elliptical old, warm and smooth; a blue compact
-## dwarf young, blue and lumpy with the spirals' pink knots; a dwarf spheroidal faint
-## and grey; a merger's remnant warm, a little lopsided, its tidal stream of gas
-## curling off one side with a few knots in it; a giant ringed by globular clusters.
+## A ball as its own kind in this style (`u_ballK`, `chart_r_place`, `chart_r_bake_disc`): (its
+## kind as `ChartSky.ball_of` numbers it, its young gas and star birth 0..1, how lopsided 0..1,
+## its globular-cluster halo 0..1).
+## Why: docs/why/ChartRadiant.md#ball-kinds
 static func ball_kind(p: Dictionary) -> Vector4:
 	var ball: Vector4 = p.ball
 	match int(ball.w):
@@ -232,12 +159,9 @@ static func ball_kind(p: Dictionary) -> Vector4:
 	return Vector4(0.0, 0.0, 0.0, 1.0 if GalaxyGen.type_name(int(p.kind)) == "Giant Elliptical" else 0.0)
 
 
-## A BALL'S BODY in this style: (its size against its ball radius; where its light
-## starts to fade out and where it is gone, in its outer scale; its roundness, the
-## bulge's c/R). The three ellipticals told apart by more than their colour: a round
-## one the plain profile; a flattened one a lens, squashed and ending sooner; a giant
-## bigger, its light running out slowly into a wide envelope. A dwarf spheroidal
-## small and thin, a blue compact dwarf's light ending soon past its gas.
+## A ball's body in this style: (size against its ball radius; where its light starts to fade
+## and where it is gone, in its outer scale; its roundness, the bulge's c/R).
+## Why: docs/why/ChartRadiant.md#ball-body
 static func ball_form(p: Dictionary) -> Vector4:
 	match GalaxyGen.type_name(int(p.kind)):
 		"Flattened Elliptical":
@@ -286,12 +210,32 @@ static func stream_at(f: float, re: float) -> Vector2:
 	return Vector2(cos(a), sin(a)) * r
 
 
+## The gas's two colours from the galaxy's gas and its kinds of cloud (moved
+## here from the LEGACY chart's renderer when that style went, Nov 7).
+static func _gas_palette(gas: float) -> Array:
+	var kinds := {}
+	for raw in NebulaField.clouds():
+		kinds[(raw as NebulaField.Cloud).kind] = true
+	var a := Vector3(0.36, 0.52, 0.95)
+	var b := Vector3(0.95, 0.36, 0.55)
+	if gas > 1.6:
+		a = Vector3(0.30, 0.70, 0.92)
+		b = Vector3(0.98, 0.34, 0.62)
+	elif kinds.has(NebulaField.Kind.REMNANT) and not kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(0.86, 0.42, 0.62)
+	if kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(1.0, 0.38, 0.5)
+	if gas < 0.4:
+		a = Vector3(0.55, 0.62, 0.85)
+		b = Vector3(0.85, 0.58, 0.5)
+	return [a, b]
+
 static func look(p: Dictionary) -> Dictionary:
 	var form: int = p.form
 	var br: float = p.bulge_r
 	var ell := form == 1
 	var ball: Vector4 = p.ball
-	var pals: Array = ChartLegacy._gas_palette(float(p.gas))
+	var pals: Array = _gas_palette(float(p.gas))
 	var blue: Vector3 = pals[0]
 	var arms := int(p.arms)
 	var chaos: float = p.chaos
@@ -318,9 +262,7 @@ static func look(p: Dictionary) -> Dictionary:
 		L.oldIn = Vector3(1.0, 0.8, 0.56)
 		L.oldOut = Vector3(0.95, 0.78, 0.6)
 	else:
-		# (the showcase's two spirals: 0.04 / 0.13 / 0.02 gu at bulge 0.128 and
-		# 0.045 / 0.155 / 0.022 at 0.187: the bulge's light grows slower than its
-		# radius, or a big bulge washed over the billows round it)
+		# The bulge's light grows slower than its radius, or a big bulge washes over the billows.
 		var bk := br / 0.128
 		L.bulge = Vector4(0.04 * pow(bk, 0.4), 0.13 * pow(bk, 0.5), 0.83, 0.02 * pow(bk, 0.3))
 		L.peaks = Vector4(1.5, 1.0, 0.3, 1.6)
@@ -344,12 +286,8 @@ static func look(p: Dictionary) -> Dictionary:
 		L.bCore = Vector3(0.95, 0.9, 1.0)
 		L.bInner = Vector3(0.75, 0.82, 1.0)
 		L.bOuter = Vector3(0.45, 0.58, 1.0)
-		# (its halo a light that falls off, Nov 7: the dwarf is small and dim, and over
-		# A's ball grade its body's fall met the palette's darkest step at 0.34 gu and
-		# stopped there, a rim -- BallHaloTest's fade 0.39 at rest. A halo 1.6x bright
-		# carried the fall out but sat as a flat navy disc. Its halo's fall is longer
-		# (1.3, not 1.7), ends from half its scale out, and dithers twice as hard across
-		# the palette's last steps, so it thins into space: B: 1.3x bright, fade 0.49 at rest)
+		# (its halo falls off and dithers out, Jon's DH:B: 1.3x bright, fade 0.49 at rest)
+		# Why: docs/why/ChartRadiant.md#dwarf-halo
 		L.halo = Vector4(L.halo.x * 1.3, L.halo.y, L.halo.z, 0.0)
 		L.haloFall = Vector4(1.3, 0.5, 3.0, 1.0)
 		L.young = blue * 0.6 + Vector3(0.42, 0.58, 1.0) * 0.4
@@ -422,9 +360,7 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		var mn := ShaderMaterial.new()
 		mn.shader = NOISE_SH
 		out.append(sky._pass_vp(holder, Vector2i(528, 528), ChartSky._rect(mn), true))
-	# THE SOLID LOOK's height fields read SIMPLIFIED's two bakes (`chart_solid`'s
-	# contract: the noise's billows, the structure's ridges and lanes), so RADIANT's
-	# puffs, terrain and edge stand where SIMPLIFIED's do; baked beside its own
+	# Height fields read SIMPLIFIED's two bakes, so puffs and terrain stand where its do.
 	g["_s_at"] = out.size()
 	for mode in 2:
 		var n := ChartSky.NOISE_N if mode == 0 else (ChartSky.STRUCT_N if (int(p.arms) > 0 or float(p.bar) > 0.0) else 16)
@@ -544,10 +480,7 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 		m.set_shader_parameter(k, cl[k])
 
 
-## The named clouds as the place pass marches them (the showcase's format): the
-## plane centre, a bounding radius and the kind; a half height, a shell radius,
-## the hollowness and a seed; the main lobe (the emission's ionising cluster,
-## the reflection's lamp), the shape and a size; the lobes in the plane.
+## Named clouds as the place pass marches them: centre, radius, kind, lobes and a seed.
 static func cloud_uniforms(clouds: Array) -> Dictionary:
 	var A := PackedVector4Array()
 	var B := PackedVector4Array()
@@ -582,10 +515,8 @@ static func cloud_uniforms(clouds: Array) -> Dictionary:
 		var xy: Vector2 = c.xy
 		A.append(Vector4(xy.x, xy.y, rb, float(kind)))
 		B.append(Vector4(cz, shell, float(c.hollow), fmod(float(c.seed), 10.0)))
-		# (an emission cloud's cluster at its biggest lobe, as the showcase's A had it.
-		# It was moved 0.6 of the way in when the teal heart barely showed on the
-		# Starburst Spiral, but the cause was the lobes: `feed_events` puts this
-		# style's own back, which SIMPLIFIED's had been overwriting)
+		# Cluster stays at the biggest lobe; the faint teal heart was the lobes, not this.
+		# Why: docs/why/ChartRadiant.md#cloud-lobes
 		var cl0 := Vector2(main.x, main.y * FLAT)
 		C.append(Vector4(cl0.x, cl0.y, float(c.shape), shell if (kind == 2 or kind == 3) else float(c.radius)))
 		for j in 3:
@@ -606,9 +537,7 @@ static func cloud_uniforms(clouds: Array) -> Dictionary:
 	return {"u_nCl": n, "u_clA": A, "u_clB": B, "u_clC": C, "u_lobe": Lb}
 
 
-## The events at time t (after `ChartSky._feed_events` has fed the shared ones):
-## the knots' breathing, a supernova and its echo in the plane, lightning in the
-## emission and dark clouds -- all as light the volume scatters.
+## Events at time t, all as light the volume scatters: knots, supernova, echo, lightning.
 static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, live: bool) -> void:
 	var knots: Array = g.knots
 	var kn := PackedVector4Array()
@@ -635,14 +564,8 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 		n += 1
 	lt.resize(8)
 	m.set_shader_parameter("u_lt", lt)
-	# THE CLOUDS' OWN LOBES AGAIN. `ChartSky._feed_events` runs first, every frame
-	# and for every palette probe, and sets the same `u_lobe` to SIMPLIFIED's: its
-	# clouds sorted by where they sit on screen and their lobes turned into each
-	# cloud's round frame. Read here, cloud k took another cloud's lobes, turned
-	# -- so an emission cloud's gas lay off its own cluster and its teal heart
-	# (the cavity round the cluster) sat at the thin edge of the wrong gas, or
-	# outside it (the Starburst's ESO 101 shown as emission: a flat rose band
-	# with a sliver of teal, where the showcase's A has a teal heart).
+	# `feed_events` restores this style's lobes after SIMPLIFIED's overwrote them per frame.
+	# Why: docs/why/ChartRadiant.md#cloud-lobes
 	if not g.has("r_lobe"):
 		g["r_lobe"] = cloud_uniforms(g.clouds).u_lobe
 	m.set_shader_parameter("u_lobe", g.r_lobe)
@@ -651,16 +574,9 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 
 # ------------------------------------------------------------------ light that moves
 
-## LIGHT THAT MOVES (Nov 7, direction B of Jon's "redo radiant to be super dramatic
-## with the lighting effects"): the drama is in time, and each light is a thing's. The
-## core's disc breathes, now and then flares (eased in, held, let go) and its light
-## reaches far further out through the gas; it throws its light two ways, turning,
-## so two bright sectors sweep round the core over the billows and the haze; young
-## stars in the arms flare for a breath and light the gas round them. (The turning
-## beams were cut in review the same day: they were the "light beams from the core"
-## Jon cut on Oct 11, and most of the frame's crawl.) Pure functions
-## of the clock (`GameClock` through the chart's own), so films run true. `drama_on`
-## false (a cost bench's turn) or `still` (reduced motion, a palette probe): all off.
+## LIGHT THAT MOVES (Nov 7, B): the core breathes and flares, young stars flare;
+## pure functions of the clock; `drama_on` false or `still`: all off.
+## Why: docs/why/ChartRadiant.md#light-that-moves
 static var drama_on := true
 ## The core: its breath's period (s), the slot a flare may fall in (s) and how often
 ## one does, a flare's rise, hold and fall (s). (Jon, Nov 7: "the core could also
@@ -772,10 +688,7 @@ static func feed_drama(m: ShaderMaterial, g: Dictionary, t: float, still: bool) 
 	m.set_shader_parameter("u_rbStar", st)
 
 
-## Distant lightning in an emission or dark cloud (SIMPLIFIED's schedule): a
-## flash in most ten-second slots, two or three pulses (80 ms rise, 250 ms
-## decay, 120 ms apart), at a point of one of its lobes. (envelope, plane offset
-## x, y from the cloud's centre, the light's reach) or none.
+## Lightning follows SIMPLIFIED's schedule: a flash in most ten-second slots, 2 or 3 pulses.
 static func _flash(c: Dictionary, t: float) -> Vector4:
 	var kind: int = c.kind
 	if kind != 0 and kind != 4:

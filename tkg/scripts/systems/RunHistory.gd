@@ -1,17 +1,8 @@
 class_name RunHistory
 extends RefCounted
 
-## Every run that has ended, oldest first, in user://history.json.
-##
-## Deliberately a separate file from the save. The save is the present tense and
-## gets deleted the moment it is read; the history is the past tense and is only
-## ever appended to. Putting them in one file would mean one bad write could
-## take both.
-##
-## This is a record, not meta-progression. Nothing here feeds back into a run —
-## no unlocks, no carried-over currency. The design ruling is that identity is
-## assembled mid-run from what you find, and a history that handed you a
-## starting bonus would be the first crack in that.
+## A separate file from the save, so one bad write cannot take both. A record, not progression.
+## Why: docs/why/RunHistory.md#run-history
 
 const PATH := "user://history.json"
 ## Where the record is read and written. A harness points this at a scratch
@@ -35,9 +26,7 @@ static func outcome_name(o: int) -> String:
 
 # ---------------------------------------------------------------------- write
 
-## Snapshot the run that just ended. Reads RunState directly rather than taking
-## arguments, because the caller that knows a run is over is never the same one
-## that knows what was in the hold.
+## Reads RunState directly: the caller that knows the run is over does not know the hold.
 static func record(outcome: Outcome, reason: String) -> void:
 	if Run.hull == null or Run.map.is_empty():
 		return
@@ -56,35 +45,19 @@ static func record(outcome: Outcome, reason: String) -> void:
 		credits = Run.credits,
 		exotic = Run.exotic,
 		danger = Run.node_at().danger,
-		# How far in you actually got. Shells run rim (0) to core, so the
-		# deepest shell touched is the honest measure of a run's reach —
-		# jump count rewards farming the rim, which is the opposite reading.
+		# Deepest shell touched measures reach; jump count would reward farming the rim.
 		depth = _deepest_shell(),
 		shells = MapGen.LAYERS,
 		hull = Run.hull.display_name(),
-		# WHO YOU LAUNCHED AS, by id. `hull` is a display string and `manufacturers` is a
-		# tally of the parts you ended up carrying; neither answers "which manufacturer
-		# did this player fly", which is the question the unlock chain asks. See
-		# Unlocks.
-		# The manufacturer LAUNCHED AS (`Run.launched_as`), not the hull flown at
-		# the end, which a swap can make another manufacturer's or none (Geno,
-		# Oct 23). No new key for the end hull: a new key here needs
-		# RunHistory.VERSION, and moving it discards the whole record.
+		# Record the manufacturer launched as; a new key needs VERSION and drops the record.
+		# Why: docs/why/RunHistory.md#run-history
 		chassis_manufacturer = String(Run.launched_as if Run.launched_as != &"" else Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),
-		# THE GRADE'S PERKS TOO. `perk` alone answers "which manufacturer", which the
-		# line above already answers; what a record of a flight wants is what the
-		# ship could actually DO.
+		# The grade's perks too: `perk` alone says which manufacturer, not what the ship could do.
 		tier_perks = ",".join(Array(Run.hull.tier_perks).map(
 			func(x: StringName) -> String: return String(x))),
-		# THE RUN, AS ONE NUMBER. Everything a run is — the galaxy, the map, the
-		# loot, who was waiting at every node — derives from this, so recording
-		# it turns the flight record from a list of things that happened into a
-		# list of things that can happen AGAIN. It is what makes "that was a
-		# great run" actionable rather than nostalgic.
-		#
-		# Run.galaxy_seed rather than Rng.master: the master is reseeded per
-		# seat in co-op, and what identifies a run is the galaxy everyone shares.
+		# Record `Run.galaxy_seed`, not `Rng.master`, which is reseeded per seat in co-op.
+		# Why: docs/why/RunHistory.md#run-history
 		seed = Run.galaxy_seed,
 		galaxy = Run.galaxy_name,
 		galaxy_title = Run.galaxy_title,
@@ -109,9 +82,7 @@ static func _deepest_shell() -> int:
 			deepest = maxi(deepest, (Run.map[i] as MapGen.MapNode).layer)
 	return deepest
 
-## Installed modules by manufacturer, biggest first — the thing a run is actually
-## remembered by. Cargo is excluded: what you were flying is what you committed
-## to, and set bonuses only count what is installed.
+## Installed modules only: cargo is not committed to, and set bonuses count installed parts.
 static func _manufacturer_tally() -> Array:
 	var counts: Dictionary = {}
 	for m in Run.installed:

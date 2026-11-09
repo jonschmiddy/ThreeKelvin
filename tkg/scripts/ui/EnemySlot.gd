@@ -1,13 +1,9 @@
 class_name EnemySlot
 extends Control
 
-## Brace as countable cells, sitting on the hull bar.
-##
-## Brace was a small bar with "2 ARMOR" written under it, which is a bar doing
-## a number's job and a number doing a bar's. Brace values are small and every
-## point is one hit's worth of nothing happening — so what matters is HOW MANY,
-## exactly, the same reason heat and energy are cells rather than bars. Read
-## them and the label is redundant; the label goes.
+## Brace is shown as countable cells: values are small and the exact count matters, so no
+## label.
+## Why: docs/why/EnemySlot.md#brace-pips
 class BracePips extends Control:
 	const CELL := Vector2(6, 4)
 	const GAP := 1
@@ -32,17 +28,14 @@ class BracePips extends Control:
 		var x: float = (size.x - w) * 0.5
 		for i in n:
 			draw_rect(Rect2(Vector2(x + i * (CELL.x + GAP), 0), CELL),
-				EnemySlot.ARMOR_COL, true)
+				UITheme.BRACE, true)
 		# More than the strip can hold says so rather than lying about the count.
 		if value > n:
 			draw_rect(Rect2(Vector2(x + w + 2, 1), Vector2(2, CELL.y - 2)),
-				EnemySlot.ARMOR_COL, true)
+				UITheme.BRACE, true)
 
-## One enemy in the encounter, and the thing you drop a card onto to target it.
-##
-## The slot owns the art, the name and the health bar together so a target is a
-## single object on screen rather than a sprite here and a readout somewhere
-## else. Dropping a card here aims it; hovering shows what it would land.
+## One enemy and its drop target: the slot owns art, name and bar so a target is a single
+## object.
 
 signal card_dropped(index: int, view: CardView)
 signal hovered(index: int, entered: bool)
@@ -62,8 +55,6 @@ var _bar: ProgressBar
 var _brace_bar: BracePips
 ## Gives `art` a position of its own that the column does not overwrite.
 var _art_holder: Control
-## Steel, so it never reads as a second kind of hull.
-const ARMOR_COL := Color("#9fb0c4")
 var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable
@@ -82,9 +73,8 @@ var layers: HitLayers = null
 var _bound_e = null
 var _bound_tel := false
 var _baked := -1
-## Where the art sits at rest inside its holder. The holder is the ship's own
-## box (`_fit_holder`), not the canvas, so the canvas, drawn centred, sits at a
-## negative offset inside it.
+## Rest position inside the holder, which is the ship's own box, so the canvas sits at a
+## negative offset.
 var _art_base: Vector2 = Vector2.ZERO
 ## The entrance in flight, and when it lands: a holder that resizes mid-flight
 ## (the ship's picture arriving after `enter`) sends it to the new resting place.
@@ -96,17 +86,12 @@ var _enter_end: int = 0
 ## no longer used: packs are placed by `EncounterView._layout_pack`.
 var _lift_top: Control
 var _lift_bot: Control
-## THE SAME ROOM UNDER EVERY HULL (Jon: "The hellbender is a bit close to its
-## text box"). Between the ship's own ink and the top of its name there is
-## always UNDER_GAP: the holder's margin under the ink varies by a pixel with
-## the picture's size, and this spacer makes up the rest.
+## Same room under every hull (Jon: hellbender too close to its text); `UNDER_GAP` makes up
+## the margin.
 const UNDER_GAP := 6
 var _under: Control
-## THE SHIELD'S ROOM (Jon, "shield:A"). A ship in a fight keeps room above and
-## below its hull for the bubble its block raises (`ShieldFx.fit`'s own oval for
-## this picture at this size), and RIM_GAP from the oval's rim to its words
-## above and to its name below -- shield up or not, so nothing moves when one
-## comes or goes. `_over` is the spacer between the words and the hull.
+## Room for the shield bubble above and below the hull, whether or not it is up, so nothing
+## moves.
 const RIM_GAP := 6
 var _over: Control
 ## The column everything hangs in, the bars' box, and -- in a column pack (layout
@@ -117,48 +102,27 @@ var _side_row: HBoxContainer
 var _side_box: VBoxContainer
 var side: bool = false
 
-## The idle drift: whole pixels, up and down, so a contact reads as floating
-## rather than pinned to the panel.
-##
-## Done by MOVING THE ART, which `ShipView` explicitly cannot do -- its note says
-## animating the Control's position "would fight the containers every screen puts
-## this inside", so it bobs inside its own canvas instead. This one can, because
-## the entrance already gave the art a plain holder to move in, and moving a
-## Control is far cheaper than regenerating an image eight times a second.
-##
-## Slower and shallower than your ship's `bob(2)`: they are further away, and a
-## pack drifting in step reads as one object rather than three ships. The phase
-## comes off the slot index for the same reason. The clock is `GameClock`: one
-## clock the whole pack reads, so the phases hold, and game time, so a film
-## made with the movie writer bobs at 4.76 s a cycle like play does.
+## Bobs by moving the art, which `ShipView` cannot do. Phase comes off slot index; clock is
+## `GameClock`.
+## Why: docs/why/EnemySlot.md#idle-bob
 const BOB_AMP := 2.0
 const BOB_HZ := 0.21
 var _bob_phase: float = 0.0
 
-## How far off to starboard a contact starts when it engages.
-##
-## Past the edge of the SCREEN rather than the edge of the slot: it should look
-## like it came from somewhere, and a ship that slides in from half a slot away
-## reads as a rendering fault rather than as an approach.
+## Starts past the screen edge, not the slot's: a half-slot slide-in reads as a rendering
+## fault.
 const ENTER_FROM := 520.0
 const ENTER_SECS := 0.5
 
 
-## Fly in, as the fight opens.
-##
-## Your own approach is `ShipView.arrive()` and is deliberately NOT played when
-## a fight starts -- you were already here, parked. The contact was not: it is
-## the thing that just turned up, so it is the thing that moves.
-## Where the brackets go, in screen space. For `-- sectorshot entrance`, which
-## checks it against the art's own rect -- the two are the same box, and the
-## reticle is wrong the moment they stop being.
+## The contact flies in, not your ship: you were already parked here when the fight opens.
+## Why: docs/why/EnemySlot.md#fly-in
 func holder_rect() -> Rect2:
 	return Rect2(_art_holder.global_position, _art_holder.size)
 
 
-## The picture's holder and the words under it that show (name, bar, number or
-## SALVAGE / STRIPPED), global: all of this ship a thing standing beside it has
-## to keep off (`LocalSubject._wrecks`). A name is often wider than its hull.
+## Global box of the holder and its words, which a neighbouring wreck must keep off
+## (`LocalSubject._wrecks`).
 func drawn_box() -> Rect2:
 	var out := holder_rect()
 	for l: Label in [_name, _hp]:
@@ -208,10 +172,8 @@ func enter(delay: float = 0.0) -> void:
 	if _art_holder == null:
 		return
 	art.position.x = _art_base.x + ENTER_FROM
-	# THE READOUT ARRIVES WITH THE SHIP. The name and the hull bar belong to the
-	# slot rather than to the art, so they do not move -- and a bar sitting at
-	# full for a ship that is still off-screen reads as a rendering fault. Fading
-	# the whole slot up over the same window keeps the two halves one event.
+	# Readout fades in with the ship: a full bar for an off-screen ship reads as a rendering
+	# fault.
 	modulate.a = 0.0
 	if _fade_tw != null and _fade_tw.is_valid():
 		_fade_tw.kill()
@@ -246,14 +208,10 @@ func _init() -> void:
 	set_process(true)
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# One pixel. Everything in this column belongs to the ship in the middle of
-	# it — intent above, name and bars below — and a gap wide enough to notice is
-	# a gap that makes them look like separate readouts that happen to line up.
+	# One pixel: a noticeable gap makes the intent and bars look like separate readouts.
 	col.add_theme_constant_override("separation", 1)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Behind this slot's own _draw. A Control paints itself first and its
-	# children after, so the damage number was being drawn and then buried under
-	# the ship, the name and the health bar it was meant to sit over.
+	# Behind the slot's own `_draw`: children paint after it, which buried the damage number.
 	col.show_behind_parent = true
 	add_child(col)
 	_col = col
@@ -262,15 +220,9 @@ func _init() -> void:
 	_lift_top.visible = false
 	col.add_child(_lift_top)
 
-	# What THIS one is about to do, over its own hull. One strip at the bottom
-	# of the screen could only ever name a turn's worth of intent for the whole
-	# pack — with two enemies it printed "Lancer: Strafe   Hulk: Ram", which is
-	# a sentence you parse rather than a thing you see. Above each ship it is
-	# just a label on the thing it describes.
-	# The move, then what the move does. The name alone tells you a Lancer is
-	# about to Strafe, which is only useful if you already know what a Strafe
-	# costs you — and the number underneath is the half you actually plan
-	# against.
+	# Intent sits over its own hull: one bottom strip for a pack was a sentence to parse, not
+	# a thing seen. Shows the move then its effect, as the number is what you plan against.
+	# Why: docs/why/EnemySlot.md#per-ship-intent
 	_intent = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_intent.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_intent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -286,42 +238,28 @@ func _init() -> void:
 	col.add_child(_over)
 	col.move_child(_over, 2)
 
-	# The column centres itself and the art stops expanding, so name and bars
-	# sit directly under the ship instead of being shoved to the floor of a slot
-	# that happens to be tall. A health bar half a screen below its ship is a
-	# health bar you have to go looking for.
-	# TOP-ALIGNED, with the intent's lines reserved (`reserve_readout`), so the
-	# ship stands at the same height whatever its readout says -- a kill or a
-	# new intent changes the words, never where the hull is.
+	# Top-aligned with intent lines reserved, so the hull stays put whatever the readout says.
+	# Why: docs/why/EnemySlot.md#column-alignment
 	col.alignment = BoxContainer.ALIGNMENT_BEGIN
 	art = EnemyArt.new()
-	# No custom_minimum_size here. EnemyArt already declares its own native
-	# W x H and draws the ship at 1:1 inside it — overriding that with a width
-	# of zero let the Control stretch to whatever share of the arena the slot
-	# had, which is what the reticle was then framing. Shrink on both axes and
-	# the Control is the ship's own box.
+	# No `custom_minimum_size`: zero width stretched the art to the slot, and the reticle
+	# framed that.
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# A PLAIN CONTROL BETWEEN THE ART AND THE COLUMN, so the art has a position
-	# of its own to animate. A container child's position belongs to the
-	# container -- it is rewritten on the next sort -- so `enter()` tweening it
-	# directly would hold until the next layout pass and then snap back.
-	# `ShipView` needs none of this because its slot is not a container.
-	#
-	# The holder is what the column measures, so the size flags move onto it and
-	# the art fills it.
+	# A plain Control holder gives the art a position to animate; a container rewrites its
+	# child's position.
+	# Why: docs/why/EnemySlot.md#art-holder
 	_art_holder = Control.new()
 	_art_holder.custom_minimum_size = Vector2(EnemyArt.W, EnemyArt.H)
 	_art_holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_art_holder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_art_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_art_holder.clip_contents = false
-	# SIZED, NOT ANCHORED. A full-rect preset would tie the art's position to
-	# the holder's edges, and Godot recomputes an anchored control's position
-	# whenever its parent resizes -- which the holder does on the first layout
-	# pass, a frame after `enter()` has already put the ship off-screen. Free
-	# position, fixed size: the same shape `ShipView` gets for free.
+	# Sized not anchored: anchors get recomputed on the first layout and moved the ship after
+	# `enter()`.
 	art.size = Vector2(EnemyArt.W, EnemyArt.H)
 	_art_holder.add_child(art)
+	# The flame beside the art here, not top level, so the piles' panel covers it (#56).
+	art.host_flame(_art_holder)
 	col.add_child(_art_holder)
 	_under = Control.new()
 	_under.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -330,13 +268,9 @@ func _init() -> void:
 	_name = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_name)
-	# Bars sized to the SHIP, not to the slot.
-	#
-	# The slot expands to share the arena, so a lone enemy owned the full width
-	# and its health bar with it — a seven-hundred-pixel readout for one
-	# freighter. A health bar belongs to the thing it measures: read at a
-	# glance, its length should say how much is left, not how much room the
-	# layout had. Centred in a fixed BAR_W so two enemies read the same as one.
+	# Bars sized to the ship, not the slot: a lone enemy got a 700px health bar. Centred in a
+	# fixed `BAR_W`.
+	# Why: docs/why/EnemySlot.md#bar-width
 	var bars := VBoxContainer.new()
 	bars.add_theme_constant_override("separation", 1)
 	bars.custom_minimum_size = Vector2(BAR_W, 0)
@@ -345,10 +279,8 @@ func _init() -> void:
 	col.add_child(bars)
 	_bars = bars
 
-	# Brace ON TOP, hull beneath — the order damage goes through them. Brace is
-	# a second pool that has to be chewed away before the first one moves, so it
-	# gets a bar rather than a chip: that is what a second bar says and what a
-	# word and a number do not.
+	# Brace on top, hull beneath, the order damage goes through them; a second pool gets a
+	# bar.
 	_brace_bar = BracePips.new()
 	_brace_bar.custom_minimum_size = Vector2(BAR_W, BracePips.CELL.y)
 	_brace_bar.visible = false
@@ -364,9 +296,7 @@ func _init() -> void:
 	_hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_hp)
 
-	# Whatever this one is carrying — block, a charge, a debuff — under its own
-	# hull. In a pack, a chip row at the bottom of the screen has to name which
-	# ship it belongs to before it can say anything; here the position says it.
+	# Chips sit under their own hull, so position names the ship in a pack.
 	chips = HBoxContainer.new()
 	chips.add_theme_constant_override("separation", 3)
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -386,9 +316,8 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	index = i
 	var hull: int = e.hp if shown_hp < 0 else shown_hp
 	_dead = hull <= 0
-	# A LIVE SHIP IN A FIGHT carries its damage, block and brace on its picture
-	# (`HitLayers`); armed the first time it is bound alive with a place to lie
-	# (in a pack of three or more, once the layout has set its size: `layers_wait`).
+	# Layers are armed on first live bind; in a pack of three or more, once layout sets the
+	# size.
 	if layers == null and not _dead and wreck_id >= 0 and not layers_wait:
 		_arm(e)
 	art.wreck_id = wreck_id
@@ -416,12 +345,8 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	_bar.value = hull
 	_brace_bar.visible = not _dead and e.brace > 0
 	_brace_bar.set_value(e.brace)
-	# SALVAGE, not WRECKED, once there is a reason to touch it.
-	#
-	# "WRECKED" is a state and states are not affordances -- it told you the
-	# thing was dead and said nothing about it being the way into what it was
-	# carrying. The word only changes when the slot can actually be opened, so
-	# a hull with nothing left in it goes back to being a fact.
+	# SALVAGE not WRECKED once openable: a state is not an affordance.
+	# Why: docs/why/EnemySlot.md#salvage-label
 	_hp.text = ("SALVAGE" if opened.is_valid() else "WRECKED") if _dead \
 		else "%d / %d" % [hull, e.max_hp]
 	if _dead and opened.is_valid():
@@ -429,32 +354,17 @@ func bind(i: int, e, telegraphed: bool) -> void:
 		tooltip_text = Widgets.tip(
 			"%s\n\nDisabled, with cargo still aboard. Open it." % e.template.name.to_upper())
 	else:
-		# ONLY HERE. This override used to run unconditionally after the branch
-		# above, which repainted the SALVAGE word in corpse-grey the instant it
-		# had been lit — so the one clickable thing in the sector wore the same
-		# ink as a fact you could not touch, and read as disabled.
+		# Only here: running always repainted SALVAGE corpse-grey, so the clickable thing read as
+		# disabled.
 		tooltip_text = ""
 		_hp.add_theme_color_override("font_color",
 			Color("#4a5c72") if _dead else UITheme.GOOD)
 	queue_redraw()
 
 
-## THE COUNT CAME OFF THE HULL, 2026-09-03, by Jonathan: a wreck says
-## "SALVAGE" and nothing more.
-##
-## IT WAS PUT THERE ON PURPOSE and the reasoning still reads: "SALVAGE" alone
-## said the door existed and nothing about whether walking through it was worth
-## it — a stripped wreck and a loaded one wore the same word, and a fight's
-## whole payout could sit behind a label indistinguishable from scenery. That is
-## why the tooltip still carries the number: the wreck stops advertising, but
-## the answer is one hover away rather than gone.
-##
-## A wreck with nothing left is still told apart, by STRIPPED and by colour, so
-## the case the count was added for is the one case it was never needed in.
-##
-## Asked after `bind`, by the view that knows the container — the slot only
-## knows the ghost. A wreck with nothing left goes back to being a fact:
-## grey, still openable, no longer advertising.
+## The count came off the hull (Jonathan, 2026-09-03): wrecks say SALVAGE only. The tooltip
+## keeps the number.
+## Why: docs/why/EnemySlot.md#salvage-count
 func set_salvage(left: int) -> void:
 	if not _dead:
 		return
@@ -471,28 +381,21 @@ func set_salvage(left: int) -> void:
 			"%s\n\nPicked clean. The hull stays, but its cargo is gone." % _name.text)
 	queue_redraw()
 
-## What this card would do here, asked at drop-test time.
-##
-## Returns the string to paint over the target. Set by EncounterView, which gets
-## it from the screen that owns the Combat — the slot knows the card and the
-## target, and nothing else, which is exactly as much as it should.
+## Set by EncounterView from the screen owning Combat: the slot knows only the card and the
+## target.
 var preview: Callable
 var _drag_text: String = ""
 
 ## Godot asks this continuously while a drag hovers, which doubles as the
 ## "is this a legal target" highlight without any extra plumbing.
 
-## Told when a WRECK is clicked. Set by the screen that owns the slot.
-##
-## Only when dead: a live ship is a target you drop cards on, and a hull with
-## nothing left in it is a container you open. Same object, and which one it is
-## depends entirely on whether it is still shooting.
+## Called only when dead: a live ship is a drop target, a hull with nothing left is a
+## container.
 var opened: Callable
 
 
-## THE HULL, NOT THE SLOT. A slot expands to share the arena, so it is most of
-## a screen -- and answering a click anywhere in it made a wreck something you
-## opened by aiming near it. The art is where the ship is.
+## Hit-test the hull, not the slot: the slot spans most of the arena and opened wrecks near
+## it.
 func _on_hull(p: Vector2) -> bool:
 	if _art_holder == null:
 		return false
@@ -510,13 +413,9 @@ func _gui_input(e: InputEvent) -> void:
 		opened.call()
 
 
-## THE HOLDER IS THE SHIP'S BOX, NOT THE CANVAS (pack clipping, Oct 13).
-##
-## Every slot reserved the whole canvas whatever was painted in it, so two
-## contacts asked for more than the arena's half and the second was cut off at
-## the screen's edge. The art measures its own ship (`custom_minimum_size`,
-## symmetric about the canvas middle); the holder takes that, and the canvas
-## sits centred inside it at a negative offset, which is `_art_base`.
+## Holder is the ship's box, not the canvas (pack clipping, Oct 13): whole canvases cut off
+## the second contact.
+## Why: docs/why/EnemySlot.md#holder-fit
 func _fit_holder() -> void:
 	if _art_holder == null or art == null:
 		return
@@ -525,16 +424,14 @@ func _fit_holder() -> void:
 	want.y = minf(want.y, float(EnemyArt.H))
 	if not _art_holder.custom_minimum_size.is_equal_approx(want):
 		_art_holder.custom_minimum_size = want
-	# And the slot asks the row for that width. It is a plain Control, so its
-	# column's size never reached the row: two slots were laid out narrower than
-	# their ships and the column spilled off the right edge.
+	# The slot asks the row for that width: a plain Control's column size never reached the
+	# row.
 	if custom_minimum_size.x != want.x:
 		custom_minimum_size.x = want.x
 	var base := ((want - Vector2(EnemyArt.W, EnemyArt.H)) * 0.5).round()
 	if not base.is_equal_approx(_art_base):
-		# Moved by the difference, and an entrance still in flight sent on to the
-		# new resting place in the time it had left -- its tween was flying to
-		# the old one, and would have parked the ship off its holder.
+		# Moved by the difference so an entrance in flight lands on the new rest place, not the
+		# old one.
 		art.position += base - _art_base
 		_art_base = base
 		if _enter_tw != null and _enter_tw.is_valid() and _enter_tw.is_running():
@@ -557,10 +454,8 @@ func _fit_under() -> void:
 	if _under.custom_minimum_size.y != sp.y:
 		_under.custom_minimum_size.y = sp.y
 
-## The two spacers at size `s`: over the hull (between its words and the
-## shield's top) and under it (between the shield's bottom, or a wreck's ink,
-## and its name). Each makes up what the holder's own margin, the shield's
-## reach and the column's 1 px separations leave of the gap.
+## Spacers make up the gap left by the holder margin, the shield reach and the 1px
+## separations.
 func _spacers(s: float) -> Vector2:
 	var top_m := 3.0
 	var bot_m := 3.0
@@ -578,9 +473,7 @@ func _spacers(s: float) -> Vector2:
 func _under_h() -> float:
 	return (_under.custom_minimum_size.y + 1.0) if _under != null and _under.visible else 0.0
 
-## How far the shield's oval reaches past a picture's ink: up, down, left,
-## right, in its pixels. Measured once per picture with `ShieldFx.fit`, the fit
-## the shield itself is drawn with.
+## Measured once per picture with `ShieldFx.fit`, the same fit the shield is drawn with.
 static var _reach_cache: Dictionary = {}
 
 static func shield_reach(tex: Texture2D) -> Vector4:
@@ -621,14 +514,9 @@ func _reach(s: float) -> Vector4:
 static var _reach_by_pic: Dictionary = {}
 
 
-## THE ROOM THE SHIP KEEPS, IN ITS PARTS, for packing a rank behind into the
-## shoulders of the rank in front (Jon's formation, "shield:A"): its words'
-## lines (as wide as the widest it can say), its shield's oval (`ShieldFx.fit`,
-## the shield's own), and its plate (name, brace and hull bars, number, one row
-## of chips). In the slot's own coordinates, the slot `unit(s)` in size; drawn
-## at `s` already (the layout sets the size first). Each is [kind, Rect2]:
-## &"box", or &"oval" for the ellipse inside the rect. Empty for a wreck row,
-## a side readout, or a slot not drawn at `s`.
+## Parts of the slot's room (words, shield oval, plate) so a rank behind packs into the
+## shoulders in front.
+## Why: docs/why/EnemySlot.md#pack-formation-rooms
 static var _fit_cache: Dictionary = {}
 
 func rooms(s: float) -> Array:
@@ -688,17 +576,9 @@ func apply_scale(s: float) -> void:
 	_fit_holder()
 
 
-## THE HIT LAYERS WAIT FOR THE PACK'S SIZE (perf, Oct 27). A pack of three or
-## more is drawn from half sheets, a size its layout sets after the bind
-## (`EncounterView._layout_pack`, through `apply_scale`). The layers are built
-## from the picture at the size it is drawn, so they were built at full size in
-## the bind and thrown away a moment later for the half sheet's: the full build
-## is the dearer of the two (on Jon's Mac 160-410 ms a ship, against 45-155 at
-## half), and a pack of three paid it three times as its fight opened. Set by
-## the view on a new slot before its first bind; the size changing builds them,
-## where the rebuild was, so everything after reads the same layers it did; or
-## `layers_sized`, if the layout leaves the size as it was.
-## `-- sheet=PackArmProf` times it.
+## Hit layers wait for the pack's size (perf, Oct 27): building at full size cost 160-410
+## ms a ship, then discarded.
+## Why: docs/why/EnemySlot.md#hit-layers-wait
 var layers_wait := false
 
 ## Build the layers that waited, as the bind would have.
@@ -720,13 +600,9 @@ func layers_sized() -> void:
 		_fit_holder()
 
 
-## THE READOUT'S ROOM IS RESERVED FOR THE FIGHT. Whatever this kind can say --
-## every move in its loop and its pool, and a set piece's escape -- has its
-## lines kept above the hull, and the rows under it (name, brace and hull bars,
-## number, one row of chips) are counted whether showing or not. So the slot is
-## one size from the opening to the wreck: a kill or an intent changes words,
-## never the formation (Jon: "the enemy dips down and then pops up"). LOCAL's
-## wreck rows say no intent and reserve none (`reserve_intent` false).
+## Readout room is reserved for the fight so the formation never changes (Jon: the enemy
+## dips and pops up).
+## Why: docs/why/EnemySlot.md#reserved-readout
 var reserve_intent := true
 var _res_names: PackedStringArray = PackedStringArray()
 var _res_texts: PackedStringArray = PackedStringArray()
@@ -779,10 +655,8 @@ func _reserved(w: float) -> Dictionary:
 		widest = maxf(widest, chips.get_combined_minimum_size().x)
 	return {widest = widest, text = texts}
 
-## THE SLOT'S SIZE AT A SCALE AND A MODE, worked out rather than read off the
-## column, so the layout can try a size before drawing at it: the ship's box at
-## `s` (its own picture's size, plus the holder's 6), and the readout's reserved
-## room, under the ship or (`beside`) to its near side.
+## Computed rather than read off the column so the layout can try a size before drawing at
+## it.
 func unit(s: float, beside: bool) -> Vector2:
 	# drawn at `s` already: the holder it really has; else what it will have
 	var ship := art.custom_minimum_size if art.full_ink == Vector2i.ZERO \
@@ -792,9 +666,8 @@ func unit(s: float, beside: bool) -> Vector2:
 	var r := _reserved(0.0)
 	var widest: float = r.widest
 	var it_w: float = r.text
-	# under the hull: name, brace and hull bars, number, a row of chips
-	# (a wreck on LOCAL has no brace and carries nothing: just its name, its
-	# empty bar and its word)
+	# Under the hull: name, bars, number, chips. A LOCAL wreck carries just name, empty bar
+	# and word.
 	var under := _spacers(s).y + 1.0
 	var below := under + lh + 1.0 + float(EnemySlot.BracePips.CELL.y) + 1.0 + 6.0 + 1.0 + lh + 1.0 + _chip_row_h() \
 		if reserve_intent else under + lh + 1.0 + 6.0 + 1.0 + lh
@@ -819,9 +692,7 @@ func unit(s: float, beside: bool) -> Vector2:
 static func _lines(tw: float, w: float) -> int:
 	return maxi(1, int(ceil(tw * 1.15 / maxf(1.0, w))))
 
-## Hold the readout to the room `unit` reserved, for a slot `u`: the intent's
-## lines take their full height whatever they say, so the hull below them
-## never moves.
+## Intent lines take full height whatever they say, so the hull below never moves.
 func reserve_readout(u: Vector2) -> void:
 	var lh := _name.get_minimum_size().y
 	if reserve_intent:
@@ -837,10 +708,7 @@ func reserve_readout(u: Vector2) -> void:
 		_intent_text.visible = _intent_text.text != ""
 
 
-## THE BLOCK inside the slot at `s` (readout under the ship): the ship's own ink
-## and the readout's reserved room, without the holder's 3 px of margin round
-## the ink. What the formation spaces evenly (Jon: "evenly spaced around each
-## other"); every line it can show lies inside it.
+## The ship's ink plus reserved readout room; what the formation spaces evenly (Jon).
 func block(s: float) -> Rect2:
 	var u := unit(s, false)
 	var ink := art.custom_minimum_size - Vector2(6, 6) if art.full_ink == Vector2i.ZERO \
@@ -854,9 +722,7 @@ func block(s: float) -> Rect2:
 	return Rect2(floorf((u.x - w) * 0.5), top, w, u.y - top)
 
 
-## THE WORDS UNDER THE SHIP inside the slot at `s`: its name, its bars, its
-## number or SALVAGE / STRIPPED (and its chips in a fight), the block's width.
-## What must stay readable where the picture may not (`EncounterView._clear_of_body`).
+## Must stay readable where the picture may not (`EncounterView._clear_of_body`).
 func words(s: float) -> Rect2:
 	var b := block(s)
 	var lh := _name.get_minimum_size().y
@@ -865,11 +731,8 @@ func words(s: float) -> Rect2:
 	return Rect2(b.position.x, b.end.y - h, b.size.x, h)
 
 
-## THE READOUT BESIDE THE SHIP, or under it (the default). Layout C stacks a
-## pack top to bottom, and a readout under each ship would stack three readouts
-## between them; beside, each ship's row is only as tall as the taller of the
-## two. The readout sits on the ship's near side (toward you), right-aligned to
-## it, intent first, the way it reads under the ship.
+## Beside-readout mode: under each ship, a stacked pack (layout C) gets three readouts
+## between hulls.
 func set_side(on: bool) -> void:
 	if on == side or _col == null:
 		return
@@ -916,9 +779,7 @@ func set_side(on: bool) -> void:
 			_col.move_child(after[k], _art_holder.get_index() + 1 + k)
 		_col.move_child(_under, _art_holder.get_index() + 1)
 		_under.visible = true
-		# just above the hull (`move_child` takes the final index, so one less
-		# when the spacer comes from above it: a column, then a row, had put it
-		# under the hull, and the shield's room with it)
+		# `move_child` takes the final index; a column then a row put the spacer under the hull.
 		var hi := _art_holder.get_index()
 		_col.move_child(_over, hi - 1 if _over.get_index() < hi else hi)
 		_over.visible = reserve_intent
@@ -931,10 +792,8 @@ func set_side(on: bool) -> void:
 		chips.alignment = BoxContainer.ALIGNMENT_CENTER
 
 
-## WHAT THIS SLOT NEEDS, for the pack layout: the width its widest part asks
-## for (the ship, the bars, a name, an intent up to WRAP_W before it wraps)
-## and, at that width, the height of the whole column. Read off the column
-## itself once it has been laid out at that width, so a wrapped intent counts.
+## Read off the laid-out column at that width, so a wrapped intent counts toward the
+## height.
 const WRAP_W := 170.0
 
 func need() -> Vector2:
@@ -957,10 +816,8 @@ static func _text_w(l: Label) -> float:
 	return f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, l.get_theme_font_size("font_size")).x
 
 
-## Every box this slot draws, in global coordinates, with what it is: the ship
-## (its own ink, at rest), and each readout's own text or bar -- not the
-## label's full width. What the pack layout keeps apart, and what the test
-## checks.
+## Each readout's own text or bar, not the label's full width: what the pack layout keeps
+## apart.
 func boxes() -> Array:
 	var out: Array = []
 	if art != null:
@@ -1002,9 +859,8 @@ func ship_width() -> float:
 	return _art_holder.custom_minimum_size.x if _art_holder != null else float(EnemyArt.W)
 
 
-## Off the row's middle by `dy`, down positive: the column grows a spacer on
-## the far side and stays centred, so the ship, its intent and its bars all move
-## together.
+## The column grows a spacer on the far side and stays centred, so ship, intent and bars
+## move together.
 func set_lift(dy: float) -> void:
 	if _lift_top == null:
 		return
@@ -1028,46 +884,36 @@ func hide_art(on: bool) -> void:
 		layers.visible = not on and not _dead
 
 
-## AND SO DOES THE CURSOR. `mouse_default_cursor_shape` is a property of the
-## whole control, and the control is most of the arena -- so a pointing hand
-## appeared halfway across the screen from the only thing it could point at.
-## Godot asks this per position, which is the shape the question actually has.
+## The cursor shape is per position: a control-wide pointing hand appeared far from the
+## hull.
 func _get_cursor_shape(at: Vector2) -> CursorShape:
 	if _dead and opened.is_valid() and _on_hull(at):
 		return Control.CURSOR_POINTING_HAND
 	return Control.CURSOR_ARROW
 
 
-## And the tooltip only exists over the hull, for the same reason. Godot asks
-## per position, which is exactly the hook this needs -- an empty string is no
-## tooltip rather than an empty one.
+## Tooltip only over the hull, via the per-position hook, as with the cursor.
 func _get_tooltip(at: Vector2) -> String:
 	if not _dead or not opened.is_valid() or not _on_hull(at):
 		return ""
 	return tooltip_text
 
 
-## NO `_can_drop_data`. Nothing is dropped on an enemy any more -- see `aim`
-## directly above, which is the same rule driven by the screen instead of by the
-## engine, and `CardView`'s note on why the drag had to go.
+## No `_can_drop_data`: `aim` drives the same rule from the screen, and `CardView` says why
+## the drag went.
 
 
-## CAN THIS CARD BE AIMED HERE. The rule the drop path used to hold, kept when
-## the drop path went: brace does nothing to a Rustjaw, and a dead slot is not a
-## target at all.
+## Rule kept from the drop path: brace does nothing to a Rustjaw, and a dead slot is no
+## target.
 func aimable(c: CardData) -> bool:
 	if c == null:
 		return false
 	return (c.damage > 0 or c.damage_equals_heat or c.evoke > 0) and not _dead
 
 
-## Light up under an aimed line, with what the card would do written on it.
-##
-## The same `_hot` and `_drag_text` the drop path set, driven by the screen
-## instead of by the engine. `set_drag_preview` pinned the card over the target,
-## so the figure appeared at the exact moment the thing it applied to went
-## behind a 112x160 card; the line leaves the board visible and this puts the
-## number back on it.
+## `set_drag_preview` hid the target under a 112x160 card; the aimed line keeps the board
+## visible.
+## Why: docs/why/EnemySlot.md#aim-preview
 func aim(on: bool, text: String = "") -> void:
 	set_hot(on)
 	var t := text if on else ""
@@ -1082,10 +928,8 @@ func set_hot(v: bool) -> void:
 	_hot = v
 	queue_redraw()
 
-## AND NO `_drop_data`. Kept as a comment because leaving the body in place was
-## a live hazard rather than dead weight: it emits `card_dropped`, which is
-## still wired to `SectorScreen._on_card_dropped`, so any Godot drop that ever
-## reached a slot would play a card straight past the aiming gesture.
+## No `_drop_data`: its body emits `card_dropped`, still wired to `SectorScreen`, and would
+## play past aiming.
 
 
 func _notification(what: int) -> void:
@@ -1100,19 +944,9 @@ func _draw() -> void:
 	# you are aiming at, which is the one thing you need to still see.
 	var c := UITheme.FLARE
 	var n := 7.0
-	# THE HOLDER'S POSITION, THE ART'S EXTENT.
-	#
-	# The holder is a fixed 240x120 -- EnemyArt.W by .H -- whatever is painted in
-	# it, so bracketing the holder framed the same big empty box around a cutter
-	# as around a hulk. `used_rect()` is the bounds EnemyArt tracks as it paints,
-	# which is the ship and nothing else; it keeps its own rather than asking the
-	# image, because a starfield goes down first and would swallow the answer.
-	#
-	# The holder still supplies the ORIGIN. The art's own position is measured
-	# inside it and is zero at rest, so using that would put the brackets in the
-	# slot's top corner -- and the holder is the one that does not move, which is
-	# what lets a reticle frame where the ship is going to be rather than chase
-	# it in from off-screen.
+	# Brackets use the holder's origin with the art's extent: the holder is a fixed 240x120
+	# box. The holder does not move, so the reticle frames where the ship is going to be.
+	# Why: docs/why/EnemySlot.md#reticle-bounds
 	var pad := 3.0
 	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
 	var r := Rect2(_art_holder.position + _art_base + Vector2(u.position) - Vector2(pad, pad),
@@ -1131,22 +965,15 @@ func _draw() -> void:
 		draw_rect(Rect2(o + Vector2(0, -1 if d.y < 0 else 0), Vector2(n * d.x, 1)), c, true)
 		draw_rect(Rect2(o + Vector2(-1 if d.x < 0 else 0, 0), Vector2(1, n * d.y)), c, true)
 
-	# The number, over the target, while a card is held above it.
-	#
-	# It used to live as a small label under the health bar and it read as part
-	# of the enemy's own readout — a permanent stat that happened to change.
-	# Painted across the target only while you are holding a card over it, it is
-	# obviously a QUESTION being answered: this card, this enemy, this much.
-	# The same letters the shot will pop when it lands (`HitText`).
+	# The number paints over the target only while a card is held, so it reads as a question.
+	# Why: docs/why/EnemySlot.md#damage-preview-number
 	if _hot and _drag_text != "":
 		# On the hull's ink, both ways, not the slot's middle: in a pack the
 		# slot runs down past the hull and the number sat on the name.
 		HitText.draw_centred(self, ink_rect().get_center(), _drag_text, HitText.colour(&"damage"))
 
 
-## A CREATURE'S BLOCK, BRACE AND DAMAGE KEEP OFF ITS WORDS (`FaunaGuard`): the
-## intent words and the readout, in the layers' own pixels, a pixel round, and
-## the art's flash for a look that covers its hide.
+## A creature's block, brace and damage keep off its words (`FaunaGuard`), a pixel round.
 func _guard_keep() -> void:
 	var inv := layers.get_global_transform().affine_inverse()
 	var ks: Array = []
@@ -1158,10 +985,8 @@ func _guard_keep() -> void:
 	layers.skin_mod = art.self_modulate
 
 
-## THE HULL'S INK in this slot's coordinates: the picture's own box
-## (`EnemyArt.ink_rect`, without the light a wind-up throws), placed where the
-## holder puts it -- wherever the column has the holder, readout above or
-## beside it (the brackets above are this, padded).
+## The hull's ink where the holder puts it, minus the light a wind-up throws; reticle
+## brackets are this padded.
 func ink_rect() -> Rect2:
 	var u: Rect2i = art.ink_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
 	var at := _art_holder.global_position - global_position + _art_base
@@ -1174,10 +999,7 @@ func preview_rect(text: String) -> Rect2:
 	return HitText.ink_rect(HitText.centred_at(ink_rect().get_center(), text), text)
 
 
-## THE WORDS OVER THIS SHIP (its intent: STRAFE / DEAL 5), in global px: the
-## lines' own text, centred as they are drawn, not their full-width labels.
-## Empty when nothing is written there. A landed number goes above these
-## (Jon, Oct 13, "C": it sat on them and read "ST-8E").
+## Intent text as drawn, in global px. A landed number goes above it (Jon, Oct 13, "C").
 func intent_rect_global() -> Rect2:
 	return _text_rect([_intent, _intent_text])
 
@@ -1232,19 +1054,9 @@ func _text_rect(labels: Array) -> Rect2:
 
 # --- Its own movement --------------------------------------------------------
 
-## THE CUSTODIAN AND THE MEGAFAUNA MOVE ON THEIR OWN (`FaunaMotion`, Jon's
-## picks of Oct 13). The motion draws in the art's place, as a child of it, so
-## the fly-in, the bob and the hit's flash (said to the art's `self_modulate`,
-## which the motion copies) all still reach it; the art keeps drawing every
-## picture as it always has, only its texture is off while the motion shows.
-##
-## The motion is cut from the picture the art would show WITHOUT a wind-up (its
-## own charge is the motion's to light) and WITH the fight's hit marks
-## (`art.marks`, `HitLayers`), drawn here and cut on a worker thread, once per
-## picture: a new mark, a new wound band or the pack's half sheet cuts again
-## (one cut at a time; the newest picture is cut next), and the old cut moves
-## on until the new one is in. Without motion (reduced motion, headless,
-## `FaunaMotion.enabled` off) none of this exists.
+## Custodian and megafauna move on their own (`FaunaMotion`, Jon, Oct 13) as a child of the
+## art. Cut on a worker thread once per picture, so a new mark or sheet cuts again.
+## Why: docs/why/EnemySlot.md#fauna-motion
 var _fauna: FaunaMotion
 var _fauna_key := ""
 var _fauna_job := -1
@@ -1306,11 +1118,8 @@ func _fauna_scale() -> float:
 	return float(s) if s != null else 1.0
 
 
-## Wired from `_process`: the cut taken in when it is done, the motion kept
-## over the art and stepped HERE, then the bob taken from that same step -- a
-## motion stepped in its own `_process` could land a frame apart from the bob
-## read here, and a part's step and the bob's on neighbouring frames put
-## pixels back where they were (flip-backs 0.1-0.4 x1e-4 a frame, 0.011 still).
+## Stepped here with the bob in one pass: separate `_process` steps landed frames apart and
+## flipped pixels back.
 func _fauna_step(dt: float) -> void:
 	if _fauna_job >= 0 and WorkerThreadPool.is_task_completed(_fauna_job):
 		WorkerThreadPool.wait_for_task_completion(_fauna_job)

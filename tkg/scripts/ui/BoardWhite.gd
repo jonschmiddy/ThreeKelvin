@@ -1,21 +1,8 @@
 class_name BoardWhite
 extends RefCounted
-## WHAT IS DRAWN ON A SETTLEMENT'S WHITEBOARD, in marker, by hand. A pool to pick
-## from (Jon: "Not 20X on the board, just a big pool to pick from for
-## diversity"): `PostingBoard` takes a few of these per station, by the
-## station's number, and puts them where it likes around the work.
-##
-## Every drawing is drawn in its own box, `size_of(i)` from (0, 0), with
-## `PostingBoard`'s marker helpers -- `_hand` for words, `_wobble_line`,
-## `_wobble_rect` and `_wobble_circle` for strokes -- so the lines bow and
-## overshoot the way the rest of the board's do. Nothing here may shimmer: the
-## wobble is seeded by the drawing's own number.
-##
-## The first eight are drawn one by one, below. The rest are rows of `MORE`:
-## each names a kind of scribble (a list, a tally, a hangman game, a pie chart)
-## and what is written in it, and `_paint` draws it. The handwriting knows
-## A-Z, 0-9 and ! : - + Q ? . , ' / = # ( ) and nothing else, so every word in
-## the table is upper case and keeps to those.
+## A pool for diversity (Jon), drawn with the board's wobbly marker helpers and seeded so
+## nothing shimmers.
+## Why: docs/why/BoardWhite.md#whiteboard-pool
 
 const BLACK := Color("#2a2a30")
 const RED := Color("#b0302a")
@@ -167,11 +154,8 @@ static func draw(b: PostingBoard, i: int) -> void:
 
 
 # ---------------------------------------------------------------------------
-# THE REST OF THE POOL, as rows: who scribbles on a hiring hall's board is
-# crew, dock hands, haulers and the people who live there, so it is lists and
-# games and grudges and doodles, not notices. `k` is the kind; the other keys
-# are what that kind needs. A row with no `s` sizes itself from its words.
-# ---------------------------------------------------------------------------
+# The rest of the pool as rows: crew and dock hands scribble lists and games, not notices.
+# Why: docs/why/BoardWhite.md#whiteboard-pool
 
 const MORE := [
 	# -- lists: a title, the items, which are done, and how they are marked
@@ -1136,9 +1120,8 @@ static func _p_sum(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_say(b, String(d["fix"]), 10, yb + 18.0, RED, s + 10.0)
 
 
-## A COUNT KEPT BY HAND: each number struck out where it was written and the
-## next one written after it, so they read in order up to the one ringed now
-## (Jon: "why are these crossed out OUTSIDE of the circled letter").
+## A hand count: earlier numbers struck out up to the one ringed (Jon: not crossed outside
+## the circle).
 static func _p_count(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_say(b, String(d["t"]), 4, 12, BLACK, s)
 	var x := 4.0

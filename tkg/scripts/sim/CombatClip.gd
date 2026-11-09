@@ -1,37 +1,7 @@
 extends Node
 
-## A FIGHT, PLAYED THE WAY A PLAYER PLAYS IT, AND FILMED (combat polish audit,
-## Oct 13). Every card goes through the real gesture -- a pointer rests on it,
-## presses, carries it up out of the drawer, holds over the target long enough
-## to read the preview, lets go -- pushed into the game's own viewport, so the
-## aim line, the lift, the readout and the targeting brackets are all the ones a
-## person gets. END TURN, FLEE, HAIL and the confirm panels are clicked the same
-## way. Nothing calls `Combat.play` behind the screen's back.
-##
-##   godot --path . --fixed-fps 30 --windowed --position 3840,0 -- sheet=CombatClip
-##       out=<dir> fight=<id>[,<id>...] [end=win|lose|flee|hail] [seed=N]
-##       [manufacturer=korvan] [weight=light|medium|heavy] [danger=N] [hp=N] [heat=N]
-##       [after=150] [maxframes=N] [nofilm] [timing] [hints] [rest]
-##       [prefer=defence] [youblock=N] [at=core]
-##
-## `out=<dir>` gets `f_####.png` (the window as seen: 1920x1080, the game at
-## 2x), `events.json` (every signal that matters, by frame: card released, shot
-## landed, damage resolved, bar moved, turn, the end) and `tape.json` (every
-## sound `Audio` actually played, by frame). `nofilm` saves no pictures;
-## `timing` (run WITHOUT --fixed-fps) records each real frame's length, so a
-## stall on a card play shows up as a number rather than a hunch.
-##
-## A software pointer is drawn over the game (an arrow, hidden while the aim's
-## reticle is the pointer, as the game hides the real one), because a pushed
-## event moves no hardware cursor and a film without one shows cards moving by
-## themselves.
-##
-## `end=win` plays `Policy`'s best card every time it has one, else END TURN.
-## `end=lose` plays nothing and ends turns until the hull goes (start it low
-## with `hp=`). `end=flee` / `end=hail` open the exit on turn one and take it.
-## `rest` holds the pointer still on the first card for 1.4 s, so its keyword
-## panel opens. `hints` lets the first-run hints show (they are reset first, in
-## the harness's own settings file).
+## Plays and films a fight through real pointer gestures, never `Combat.play` behind the screen.
+## Why: docs/why/CombatClip.md#combat-clip
 
 var _args: PackedStringArray
 var _dir := ""
@@ -462,13 +432,8 @@ func _click(c: Control) -> void:
 	_log("click", {what = (c as Button).text if c is Button else c.get_class(),
 		disabled = (c as Button).disabled if c is Button else false,
 		at = [at.x, at.y], under = str(hov.get_path()) if hov != null else "none"})
-	# PUSHED EVENTS DO NOT PRESS A BUTTON. A card takes its press through its own
-	# `gui_input` and the screen's `_input`, and those work from a pushed event;
-	# `BaseButton` decides "released inside" from the viewport's pointer, which a
-	# pushed event into the game's SubViewport does not move (SectorShot calls the
-	# handlers directly for the same reason). So the press is pushed -- the button
-	# shows its pressed face -- and if it did not fire, the release is delivered
-	# the one way that reaches it. Logged either way.
+	# A pushed event does not move the viewport pointer, so `BaseButton` never sees a release.
+	# Why: docs/why/CombatClip.md#pushed-events
 	var fired := [false]
 	var b := c as Button
 	var mark := func() -> void: fired[0] = true
@@ -518,10 +483,7 @@ func _play(pick: int, rest: bool) -> void:
 	var r := v.get_global_rect()
 	var on := Vector2(r.get_center().x, r.position.y + r.size.y * 0.55).round()
 	await _glide(on, 16)
-	# THE HOVER, BY HAND. A pushed event does not move the viewport's own idea of
-	# where the pointer is, so Godot never sends `mouse_entered`; the card is told
-	# directly, the way `SectorShot` points at things. That is what lifts it and
-	# starts the keyword panel's clock.
+	# Hover is sent by hand, as a pushed event never makes Godot send `mouse_entered`.
 	v.notification(Control.NOTIFICATION_MOUSE_ENTER)
 	await _wait(42 if rest else 12)
 	# A card still being dealt has moved since the pointer set off for it.

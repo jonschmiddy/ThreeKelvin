@@ -1,16 +1,8 @@
 class_name HistoryScreen
 extends Control
 
-## Every run you have finished. Career totals across the top, then the runs
-## themselves newest first.
-##
-## Reachable from two places with one class: the HUD during a run, and the
-## launcher before one. `setup()` takes the way back rather than deciding it,
-## because the screen genuinely does not know which door it came through.
-##
-## A run is summarised by where it ENDED and how deep it got, not by how long it
-## lasted. Depth in shells is the honest measure — jump count rewards farming
-## the rim, which is the reading this game least wants to encourage.
+## `setup()` takes the way back, and runs show depth in shells, as jump count rewards rim farming.
+## Why: docs/why/HistoryScreen.md#flight-record
 
 var _back: Callable
 
@@ -49,9 +41,7 @@ func setup(back: Callable) -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(scroll)
 
-## Career totals. Win rate is against FINISHED runs, and the line says so —
-## a rate that silently counted abandoned openings would improve every time you
-## restarted a bad one.
+## Win rate is against finished runs only, or abandoned openings would inflate it.
 func _totals() -> Control:
 	var s := RunHistory.stats()
 	var row := HBoxContainer.new()
@@ -114,22 +104,15 @@ func _row(e: Dictionary) -> Control:
 	col.add_child(top)
 
 	var where := "%s · %s" % [str(e.get("galaxy_title", "")), str(e.get("hull", ""))]
-	# `makers` is the pre-rename spelling. Same reasoning as Unlocks: the
-	# record is append-only, so a row written before the vocabulary pass keeps
-	# its old key forever and reading only the new one blanks the tally for
-	# every run in the history.
+	# `makers` is the pre-rename key: the record is append-only, so old rows keep it (see Unlocks).
 	var manufacturers := _manufacturers_text(
 		e.get("manufacturers", e.get("makers", [])))
 	if manufacturers != "":
 		where += " · " + manufacturers
 	col.add_child(UITheme.body(where, UITheme.CHILL, UITheme.FS_SMALL))
 
-	# The seed, on its own line and in the dimmest colour on the screen. It is
-	# not a stat — nobody is comparing seeds — it is a thing you copy down when a
-	# run was worth flying twice, so it wants to be findable and not loud.
-	#
-	# Runs recorded before this existed have no seed and get no line, rather than
-	# a zero pretending to be one.
+	# The seed is dim and on its own line, for copying down; old runs with no seed get no line.
+	# Why: docs/why/HistoryScreen.md#seed-line
 	var run_seed := int(e.get("seed", 0))
 	if run_seed != 0:
 		col.add_child(UITheme.body("seed %d" % run_seed, UITheme.QUOTE, UITheme.FS_SMALL))

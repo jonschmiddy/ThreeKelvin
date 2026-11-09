@@ -1,26 +1,9 @@
 extends RefCounted
 
-## YOUR OWN SHIP ON THE SECTOR MAP (Jeremy, friends' alpha: the map flew a
-## generic arrow, not the ship he had built). The hull's own picture, the one
-## LOCAL draws (`ShipView.hull_art`: its art at its grade, paint and markings
-## and all), shrunk to the map's scale and turned the way the game turns a
-## sprite (`PixelTurn`, SOFT): never rotated on screen, each turn its own
-## picture, every pixel of it averaged from SS x SS points in linear light with
-## its edge partly clear. The map's other rules stay the overlay's: what hides
-## the ship, the flash it catches, the flame (`SystemOverlay._draw_ship`).
-##
-## NO PARTS ON IT. At this scale a gun is a pixel or two; the hull's outline is
-## what says whose ship it is, and the pictures that do draw parts draw the
-## weapons only (`MountPoints.weapons_only`).
-##
-## Cached for the session: a picture per hull picture, a turn per angle step,
-## each made the first time it is drawn (one a frame at most, since a frame
-## draws one ship), so a hull swap costs one shrink and nothing else changes.
+## The map draws the player's own hull art, shrunk and turned by `PixelTurn`, with no parts.
+## Why: docs/why/MapHull.md#map-ship
 
-## THE HULL'S LENGTH ON THE MAP, its ink alone, by weight (LIGHT, MEDIUM,
-## HEAVY). The old arrow was 10 px; the weights' own pictures differ in
-## proportion from one manufacturer to the next, so the length is set here and
-## the height follows the picture.
+## Map hull length by weight; heights follow the picture, as manufacturers differ.
 const LEN: Array[int] = [14, 17, 20]
 ## A block of the picture is ink on the map when this much of it is.
 const INK := 0.4
@@ -30,21 +13,11 @@ const BINS := 256
 ## Points a side sampled across each pixel of a turned picture (PixelTurn's
 ## SOFT takes 16).
 const SS := 4
-## THE DARK RIM ROUND THE HULL, dark enough to be drawn at all. The map's
-## picture is keyed onto the field (`nav_key.gdshader`, `NavField`): a pixel
-## between the key's `dark` and `lo` is taken for empty sky and let through, so
-## the old arrow's #05070b (luma 0.027) was never seen -- the field's navy and
-## its stars showed where the rim was drawn. Under `dark - dark_w` (0.008) a
-## pixel is kept as the hole's black is, so the rim is black.
-## -- sheet=MapShipTest judges it after the key.
+## The rim must be darker than the key's `dark` less `dark_w`, or `nav_key` lets it through as sky.
+## Why: docs/why/MapHull.md#dark-rim
 const OUTLINE := Color("#000000")
-## A DARK HULL STILL READS ON THE MAP: shrunk to a few pixels, Korvan's grey
-## averaged to about the brightness of the galaxy's band behind it (the first
-## still: a grey sliver you had to hunt for, where the old arrow was the
-## brightest thing on the map). A hull whose mean brightness (linear) is under
-## LIFT_TO is lifted to it, by at most LIFT_MAX, its own shading and hues kept:
-## Korvan's medium 1.74x and its heavy at the cap, Solari's tan not at all. 0
-## draws the art as it is.
+## A dark hull is lifted to a minimum brightness so it still reads against the galaxy band.
+## Why: docs/why/MapHull.md#dark-hull-lift
 const LIFT_TO := 0.2
 const LIFT_MAX := 2.0
 
@@ -60,20 +33,8 @@ static func _lut() -> PackedFloat32Array:
 	return _lin
 
 
-## THE HULL AT THE MAP'S SCALE, from `src` (`ShipView.hull_art`): {} when it has
-## no picture to shrink.
-##   W, H      the picture's size, its outline in, both odd so its middle is a
-##             pixel's middle (an unturned ship lands pixel for pixel)
-##   pm        per pixel: red, green, blue (linear, premultiplied), alpha, and
-##             1 where it is hull and not the outline
-##   img       the same, as an image (sRGB), to look at
-##   ev        the engines' row, from the middle row (the hull's own thrusters,
-##             else the middle)
-##   stern     per row from the middle (`ev` - 1 to + 1): the first column
-##             drawn, from the middle column
-##   nose      per row (-1 to +1 from the middle): the last column drawn
-##   R         the farthest a turned picture's pixel can be from its middle
-##   gain      how much it was lifted (`LIFT_TO`), 1 for none
+## Returns the shrunk picture and its lookup data, or an empty dictionary when there is no art.
+## Why: docs/why/MapHull.md#hull-picture
 static func picture(h: HullData, src: Texture2D) -> Dictionary:
 	if h == null or src == null:
 		return {}
@@ -93,10 +54,7 @@ static func picture(h: HullData, src: Texture2D) -> Dictionary:
 		return {}
 	var w: int = LEN[clampi(int(h.weight), 0, LEN.size() - 1)]
 	var hh := maxi(3, roundi(float(used.size.y) * float(w) / float(used.size.x)))
-	# THE INK ALONE, AT THE ART'S OWN PIXEL: hull art is drawn at 2x (every pixel
-	# a 2x2 block, `HullData.sprite_half`), so halving it by nearest loses
-	# nothing and leaves a quarter of the pixels to add up (a Korvan light took
-	# 192 ms on Jon's Mac at the full size)
+	# Art is drawn at 2x, so halving by nearest loses nothing; full size took 192 ms on Jon's Mac.
 	var ink := img.get_region(used)
 	if ink.get_width() >= 8 * w:
 		ink.resize(ink.get_width() / 2, ink.get_height() / 2, Image.INTERPOLATE_NEAREST)
@@ -238,10 +196,7 @@ static func bin_angle(b: int) -> float:
 	return TAU * float(b) / float(BINS)
 
 
-## THE PICTURE TURNED to angle step `b`, as pixels round its middle: `o` each
-## pixel's offset (screen px), `c` its colour (alpha: how much of it the hull
-## covers), `hull` how much of it is hull and not the outline, `n` the way its
-## edge faces where it does (for the flash it catches), `box` all of it.
+## The picture turned to angle step `b`, as pixels round its middle with colour and edge.
 static func turned(pic: Dictionary, b: int) -> Dictionary:
 	var turns: Dictionary = pic.turns
 	if turns.has(b):

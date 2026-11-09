@@ -1,40 +1,9 @@
 class_name LocalEventDrawer
 extends Control
 
-## EVENTS RESOLVE ON LOCAL (Jon picked drawer A, the low full-width band: "THIS
-## IS NIIIICE. I like A low band."; scratchpad `local_role/notes.md` section 5).
-##
-## The sector map lists a system's events as cards and says one sentence of
-## each; GO flies the ship there and the view zooms down into LOCAL, composed
-## for that body (`SystemMapScreen._parked` -> `LocalSky`'s situation). Then
-## this comes up with the event's whole text and its choices -- the same choice
-## cards, odds, costs and readings the map's panel showed
-## (`EncounterDrawer.choice_card`). Choosing resolves through `OptionResolve`,
-## the one rule; the result comes up in the same place: the band word, YOU
-## CHOSE, what happened, what you end up with (`OutcomeRow`, in the look Jon
-## picks), REWARD (the system's pile in
-## `TransferView`) and CONTINUE. A fight it starts is THEY ARE FIRING, and then
-## the fight itself, whose hand takes the band's place. NOT NOW drops it and the
-## bar under the view says OPEN IT.
-##
-## THE ONLY PLACE A CHOICE IS TAKEN: the map's panel no longer resolves events.
-## Co-op is unchanged -- `OptionResolve.take` asks the party first, as it did.
-##
-## THREE LAYOUTS, ONE SWITCH (`layout`), so Jon can pick from stills:
-##   row     the low band, as tall as what it says (Jon: "almost too much empty
-##           space in the drawer"), capped at the fight hand's height; the
-##           choices a row of compact cards under the text
-##   column  the same band, the choices a narrow column on the right
-##   card    a small card that pops up in the middle of the play area (Jon: "What
-##           about a small card pop in the middle?"), nudged off your ship and
-##           the encounter's subject so the scene is still what you look at
-## Everything else -- the flow, the rule, the words -- is the same in all three.
-##
-## THE TEXT ARRIVES LIKE A SIGNAL (`SignalText`); any click or key finishes it
-## (and is spent doing so), and the choices fade in only once it has.
-##
-## The bar's half lives here too (`bar_line`, `can_reopen`), so `SectorScreen`
-## only asks what to print and whether to offer OPEN IT.
+## Jon picked the low band, A. Events resolve here through `OptionResolve`, the one rule.
+## Three layouts on one switch so Jon can pick from stills; the flow and words are identical.
+## Why: docs/why/LocalEventDrawer.md#event-drawer
 
 ## Up or down: the bar under the view redraws (OPEN IT only while it is down).
 signal changed
@@ -52,9 +21,7 @@ const CHOICES_S := 0.15
 const FADE_S := 0.22
 ## The choices' column width, in the column layout.
 const COL_W := 300.0
-## D's buttons at the band's top right stand this far under its top edge, game
-## px: measured on the stills, it puts CONTINUE's words (8 px) on the title's
-## baseline and the button's middle on the 16 px band word's (`_result`).
+## D's buttons sit this far down, measured on stills, to line up with the title's baseline.
 const D_BUTTONS_DROP := 3
 
 ## Jon picked the column ("Yeah, I like the column").
@@ -163,15 +130,8 @@ static func can_reopen(n: MapGen.MapNode) -> bool:
 
 # --------------------------------------------------------------- the screen's half
 
-## Put a drawer on LOCAL's screen, and open the event the map asked for. Not
-## during a fight (the hand has the band), and not for another system.
-##
-## LOCAL IS GO (Jon, Oct 21: "I want to see the actual event of that
-## planet/POI... Clicking GO or clicking LOCAL should have the same result"):
-## with nothing asked for, `auto` (LOCAL's own doors: the HUD's tab, Tab, the
-## fly-in's landing) opens the event at the place the ship is as GO would
-## (`auto_open`). `held`: LOCAL's own arrival is under way, and the band waits
-## for it to settle (`open_held`), as GO's waits for the move down to land.
+## LOCAL is GO (Jon, Oct 21): its own doors open the event at the ship's place as GO would.
+## Why: docs/why/LocalEventDrawer.md#attach-and-auto-open
 static func attach(on: Control, fighting: bool, auto: bool = false, held: bool = false) -> LocalEventDrawer:
 	var d := LocalEventDrawer.new()
 	d.screen = on
@@ -191,9 +151,7 @@ static func attach(on: Control, fighting: bool, auto: bool = false, held: bool =
 			want = [d.node.index, i]
 	if not want.is_empty():
 		if not fighting and d.node != null and int(want[0]) == d.node.index:
-			# ON THE ONE CAMERA THE BAND IS UI: it lifts once the move down to
-			# LOCAL has landed, never while the camera is still moving (and with
-			# no dip to black: the move itself was the arrival)
+			# On the one camera the band lifts after the move down lands, with no dip to black.
 			d.deferred = want.duplicate()
 			# (what LOCAL composes its scene for -- the event's subject, its sky -- is
 			# this event from the first frame, as it was when the band opened at once)
@@ -232,11 +190,7 @@ static func visit_key(n: MapGen.MapNode) -> String:
 	return "%d:%d" % [Run.site_here(n), SectorScreen._visit(n)]
 
 
-## THE EVENT AT THE PLACE THE SHIP IS, as GO would open it: the first still open
-## (never taken, or walked away from) in the map's list order there
-## (`SystemLayout.beacons_at`, `SystemPanel._events`), once a visit -- NOT NOW
-## leaves it closed until the ship flies away and back (or a jump, a run). An
-## event over, or none here: nothing. Opening it is GO's own door, `attach`.
+## The first still-open event at the ship's place, as GO opens it. NOT NOW keeps it closed.
 static func auto_open(n: MapGen.MapNode) -> int:
 	if n == null:
 		return -1
@@ -346,11 +300,7 @@ func _drop() -> void:
 	_tw.tween_callback(gone)
 
 
-## THE BAR UNDER THE VIEW WAITS FOR THE BAND (Jon, Oct 14: "let's have the
-## smaller bar on the bottom ease up after the event band is gone"). It is
-## parked below the floor as the band lifts over it, and eases up once the drop
-## has finished (`SectorScreen._shut_drawer` / `_open_drawer`, the arrival's own
-## rise); at once when nothing animates, so it can never be left parked.
+## The bar waits for the band, then eases up after the drop (Jon, Oct 14).
 func _bar(up: bool) -> void:
 	if screen == null or not is_instance_valid(screen):
 		return
@@ -361,11 +311,9 @@ func _bar(up: bool) -> void:
 		screen.call(&"_open_drawer", not _moving())
 
 
-## THE DROP NEVER JUMPS. It was a cubic ease-in, which ends at three times its
-## average speed: up to 29 px a frame on a middle-length band. It slides down
-## eased at both ends instead, over as long as its height needs to stay under
-## DROP_MAX_PX a frame at 60 fps (Jon, Oct 14: "Slide, eased"; a dissolve and a
-## shutter were the other two, and git has them). `-- sheet=BandDropTest`.
+## Eased both ends, staying under DROP_MAX_PX a frame: the cubic ease-in hit 29 px a frame.
+## Dissolve and shutter were the other options (Jon, Oct 14) and are in git.
+## Why: docs/why/LocalEventDrawer.md#drop-easing
 const DROP_MAX_PX := 10.0
 
 ## A sine in-out's fastest frame is PI/2 times its average, so the time a
@@ -432,6 +380,7 @@ func _text_box(words: String, ink: Color) -> ScrollContainer:
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text = SignalText.new()
+	text.by_word = true
 	text.ink = ink
 	text.text = words
 	text.name = "Text"
@@ -498,9 +447,7 @@ func _text_done() -> void:
 	tw.tween_property(_choices, "modulate:a", 1.0, CHOICES_S)
 
 
-## The card in the middle of the play area, nudged off your ship, any other hull
-## and the encounter's subject (the reason the event came to LOCAL is to see it):
-## the nearest place to the middle that covers none of them, or covers least.
+## The card sits nearest the middle that covers least of the ships and the event's subject.
 func _seat_card() -> void:
 	var area := Rect2(Vector2.ZERO, size)
 	area.size.y -= 40.0
@@ -739,19 +686,15 @@ func _result() -> void:
 	cl.name = "Chose"
 	cl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_box.add_child(cl)
-	# WHAT YOU END UP WITH, in the look Jon picks (`OutcomeRow.look`): today's
-	# four fixed pairs, A only what changed and big, B a GAINED | LOST receipt
-	# beside the text, C only what changed flying to the HUD, D a little table
-	# over the buttons, E that table and the things that came aboard drawn big
+	# Looks A to E are Jon's pick of how the outcome shows: changes, receipt, flyer, table.
+	# Why: docs/why/LocalEventDrawer.md#outcome-looks
 	var look := OutcomeRow.look
 	var said := _text_box(String(res.get("text", "")), UITheme.CHILL if ink == UITheme.COLD else ink)
 	var receipt: Control = null
 	if look == &"B":
 		receipt = OutcomeRow.ledger(out, RECEIPT_W if layout != &"card" else CARD_W - 20.0)
-	# D: a table on the right, the text wrapping clear of it; the buttons go
-	# in that column, at its top (below). E: D as it was, the table over the
-	# buttons on the band's floor, and what came aboard drawn big beside that
-	# column, to its left (the table then leaves out what the plates say)
+	# D puts a table on the right with buttons at its top; E adds drawn-big arrivals to its left.
+	# Why: docs/why/LocalEventDrawer.md#outcome-looks
 	var right: VBoxContainer = null
 	var prizes: Control = null
 	if look == &"E":
@@ -759,10 +702,8 @@ func _result() -> void:
 	var tab: Control = null
 	if look == &"D" or look == &"E":
 		tab = OutcomeRow.table(out, prizes != null, OutcomeRow.D_FS if look == &"D" else UITheme.FS_SMALL, look == &"D")
-	# D's BUTTONS AT THE TOP RIGHT, level with the title (Jon, Oct 19: "can we
-	# also have the buttons at the top right?"), its table -- the four stats
-	# that moved, none when none did -- centred in the right column under
-	# them (`OutcomeRow`'s D)
+	# D's buttons are at the top right level with the title (Jon, Oct 19), the table centred under.
+	# Why: docs/why/LocalEventDrawer.md#outcome-looks
 	var d_top := look == &"D"
 	if receipt != null and layout != &"card":
 		var lane := HBoxContainer.new()
@@ -775,9 +716,7 @@ func _result() -> void:
 		lane2.name = "ResultLane"
 		lane2.add_theme_constant_override("separation", 16)
 		if d_top:
-			# the title, YOU CHOSE and the text one column on the left, so the
-			# right column runs from the band's top and its buttons stand level
-			# with the title; the text wraps clear of it
+			# Title and text in one left column, so the right column starts at the band's top.
 			var left := VBoxContainer.new()
 			left.name = "ResultLeft"
 			left.add_theme_constant_override("separation", 4)
@@ -799,9 +738,7 @@ func _result() -> void:
 		var push := Control.new()
 		push.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		if d_top:
-			# no gaps of the column's own, so the two pushes are the whole
-			# room over and under the table and it is exactly centred; at
-			# least 6 under the buttons when the table is what sets the height
+			# No gaps of its own, so the two pushes centre the table exactly.
 			right.add_theme_constant_override("separation", 0)
 			push.custom_minimum_size.y = 6.0
 		right.add_child(push)
@@ -925,9 +862,7 @@ static func _dropped(buttons: Control) -> MarginContainer:
 	return drop
 
 
-## D on the card: the buttons on the title's line, against the card's right
-## edge; on a line of their own over the title when the title leaves them no
-## room (a long name, LEFT ALONE · STILL OPEN), so the card never widens.
+## D on the card: buttons on the title line, or their own line for a long name, so it never widens.
 func _card_top(head: Control, buttons: Control) -> void:
 	var top := HBoxContainer.new()
 	top.name = "ResultTop"
@@ -957,13 +892,8 @@ func _card_top(head: Control, buttons: Control) -> void:
 	_box.move_child(head, at + 1)
 
 
-## The fight the event started: the existing one, whose hand takes the band.
-##
-## ONCE THE BAND IS DOWN. It used to start on the press, which threw the band
-## away in the middle of its drop and swapped the fight in over it; now LOCAL
-## is whole again when the fight's screen takes its picture, and the hand comes
-## up from there (`SectorScreen._raise_band`). Once: a second press on the
-## button sliding away is nothing.
+## Starts once the band is down: on the press it threw the band away mid-drop.
+## Why: docs/why/LocalEventDrawer.md#fight-start
 func _fight() -> void:
 	if fought:
 		return
@@ -1016,9 +946,7 @@ func _place_line(i: int) -> String:
 	var b := body_of(node, i)
 	var L := SystemLayout.of(node)
 	if b < 0 or b >= L.bodies.size():
-		# ON A STAR, named as the map names it: the system's name for one star,
-		# "<system> A" or "<system> B" for one of two (ruling 20); an option on
-		# no place reads as on star A, the star, as it always did
+		# On a star, named as the map names it. An option on no place reads as star A, as ever.
 		return L.star_title(node, SystemLayout.STAR_B if b == SystemLayout.STAR_B else -1) + " · YOU ARE IN A CLOSE ORBIT"
 	var body: SystemLayout.Body = L.bodies[b]
 	var kind := Worlds.display_name(body.world) if body.world != &"" else \

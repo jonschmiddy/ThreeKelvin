@@ -1,60 +1,36 @@
 class_name MaterialIcon
 extends ItemIcon
 
-## A material sitting in the hold.
-##
-## The counterpart to `ModuleIcon`, and deliberately NOT a variant of it. A
-## module icon draws the part -- a barrel, an array, a bay -- because the whole
-## reason it shares a silhouette with the thing on the hull is so you recognise
-## the gun you are about to bolt on. A material has no hull form to echo. It is
-## cargo: a crate, a spool, a drum, and what you actually need to read off it is
-## how much room it takes and how good it is.
-##
-## So this draws a CONTAINER, sized to its footprint, coloured by its tier. Same
-## flat rectangles and same 40-pixel cell as the module icons beside it, so a
-## packed hold reads as one surface with two kinds of thing in it rather than as
-## two art styles sharing a grid.
+## Not a variant of ModuleIcon: a material has no hull form to echo, so it draws a container.
+## Same flat rectangles and 40px cell as module icons, so a packed hold reads as one surface.
+## Why: docs/why/MaterialIcon.md#material-icon
 
 var item: MaterialData = null
 
-## How big the picture inside is drawn. THE SAME NUMBER THE BOX WAS SIZED WITH,
-## which is not a free choice: the crate path below takes its dimensions from
-## `size` and would follow a rescaled icon while a hardcoded sprite scale did
-## not. That exact mismatch is what put a 3x box around a 2x sprite on the
-## module gallery -- see `ModuleIcon.plate_scale`, which carries the same field
-## for the same reason.
+## The same number the box was sized with: a mismatch put a 3x box around a 2x sprite
+## on the module gallery.
+## Why: docs/why/MaterialIcon.md#plate-scale
 var plate_scale: float = ModuleIcon.HOLD_K
 
 func setup(m: MaterialData, from: StringName) -> void:
 	item = m
 	origin = from
-	# THE SAME SHAPE EVERY OTHER TOOLTIP USES: a name, a line of hard facts,
-	# then the prose, wrapped by
-	# `Widgets.tip` because Godot does not wrap tooltips at all -- a tooltip is
-	# as wide as the longest line it was handed, so a paragraph given raw becomes
-	# a banner across the screen.
-	#
-	# The facts line carries what the crate cannot say by looking. Its tier is in
-	# the colour and its footprint is in the shape, but what a station will PAY is
-	# nowhere on the icon, and that is the number a packing decision turns on.
+	# `Widgets.tip` wraps, as Godot does not and a raw paragraph becomes a banner.
+	# The facts line carries what the crate cannot show: what a station will pay.
+	# Why: docs/why/MaterialIcon.md#tooltip
 	tooltip_text = tip_text(m)
 	queue_redraw()
 
 
-## The tooltip's words, wrapped. One place for them, because LOCAL's cutaway
-## shows what is pointed at as a card of its own rather than as Godot's tooltip
-## (`tip_for`), and the two must say the same thing.
+## One place for the tooltip words, as the cutaway's card must say the same thing.
 static func tip_text(m: MaterialData) -> String:
 	var shape := "%d x %d" % [m.size.x, m.size.y]
 	return Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s" % [
 		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text])
 
 
-## A HOLD ITEM THAT IS NOT A MODULE, AS A CONTROL, for the cutaway's card
-## (`CutawayView._show`), which already stands on the theme's tooltip plate: the
-## icon's own tooltip words in Godot's own tooltip label. A material or a credit
-## chit; tagged with the item (`get_meta(&"item")`), as `ModuleIcon.tip_for`
-## tags its module.
+## A non-module hold item as a control for the cutaway's card,
+## tagged with the item as `ModuleIcon.tip_for` does.
 static func tip_for(m: HoldItem) -> Control:
 	var l := Label.new()
 	l.theme_type_variation = &"TooltipLabel"
@@ -80,36 +56,17 @@ func _ghost() -> Control:
 func _draw() -> void:
 	if item == null:
 		return
-	# ART WHEN THERE IS ART, the crate underneath forever. The same door
-	# `ModuleIcon.draw_body` opens and `ShipView` proved on hulls, and it is
-	# deliberately the ONLY place that decides -- two places asking "does this
-	# have a picture yet" drift the moment one of them is fixed.
-	#
-	# The note above still stands for the forty rows of deck plate: cargo reads
-	# as cargo, and a spool of wire does not need a portrait. What it did not
-	# cover is the ARTIFACT tier, where the object IS the reason it is aboard.
-	# Those get a picture; everything else keeps the container.
-	# STOOD ON END WHEN IT IS TURNED, as a module's art is (`sprite_turn`), or
-	# a turned 2x1 would draw its picture lying across the 1x2 box it occupies.
-	# Both pictures tonight are 2x2, so this is for the next one.
+	# Art when there is art, the crate underneath, decided in this one place or two would drift.
+	# Only the ARTIFACT tier gets a picture, stood on end when turned.
+	# Why: docs/why/MaterialIcon.md#art-or-crate
 	if item.sprite != null:
 		ModuleIcon.draw_sprite(self, item.sprite,
 			Rect2(Vector2.ZERO, size), false, plate_scale,
 			ModuleIcon.sprite_turn(item.sprite, item.footprint()))
 		return
-	# THE TIER IS AN ACCENT HERE, NOT THE WALL.
-	#
-	# `rarity_colour` is the game's one grade ladder and it is a saturated set --
-	# correctly, because everywhere it existed before it was an INK: a card's
-	# name, a plate's edge, four readouts. A crate is not an ink, it is forty
-	# pixels square of fill, and eight of those in the game's saturations turned
-	# the container into the brightest object on a screen made of cold steel.
-	#
-	# So the same colour is used twice at two strengths, which is the split
-	# `rarity_ink` already admits exists. The BODY is the tier pulled most of the
-	# way toward the ground -- enough to tell two crates apart, not enough to
-	# shout -- and the EDGE and the pip stay full strength, because that is where
-	# identity is read from down a row of them.
+	# The tier is an accent: full saturation made crates the brightest thing on a cold-steel
+	# screen. The body is pulled toward the ground; edge and pip stay full, where identity is read.
+	# Why: docs/why/MaterialIcon.md#tier-colour
 	var tier := UITheme.tier_colour(item.tier)
 	var tint := Color.from_hsv(tier.h, tier.s * 0.42, tier.v * 0.62)
 	var lit := tint.lerp(Color.WHITE, 0.22)
@@ -123,10 +80,7 @@ func _draw() -> void:
 	draw_rect(Rect2(box.position, Vector2(box.size.x, 2)), lit, true)
 	draw_rect(box, tier, false, 1.0)
 
-	# BANDING ACROSS THE SHORT AXIS, which is what makes it read as a crate
-	# rather than as a coloured rectangle. Spaced off the cell rather than off
-	# the box, so a 2x1 gets twice the bands of a 1x1 instead of the same two
-	# stretched -- the strapping belongs to the object's length, not to its icon.
+	# Bands across the short axis, spaced off the cell so a 2x1 gets twice the bands of a 1x1.
 	var along := box.size.x >= box.size.y
 	var run := box.size.x if along else box.size.y
 	var bands := maxi(2, int(run / 14.0))
@@ -141,7 +95,5 @@ func _draw() -> void:
 			draw_rect(Rect2(box.position.x + 3.0, y - 1.0,
 				box.size.x - 6.0, 2.0), ink, true)
 
-	# A corner pip in the tier's own colour. The band colour is already the tier,
-	# but a crate seen against a lit neighbour loses it -- the pip sits on ink and
-	# does not.
+	# A corner pip in the tier colour, as the band colour is lost against a lit neighbour.
 	draw_rect(Rect2(box.position + Vector2(2, 2), Vector2(4, 4)), tier, true)

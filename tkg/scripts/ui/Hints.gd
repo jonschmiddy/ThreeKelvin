@@ -1,127 +1,8 @@
 extends Node
 
-## FIRST-RUN HINTS, so a friend playing alone is not lost (alpha; scratchpad
-## `alpha/onboarding.md`). There is NO TOUR (tutorial direction B, "learn by
-## doing", Jon Oct 17): the controls are yours when the ship stops, the goal and
-## the next step sit under the HUD (`GoalLine`), and each of these teaches one
-## thing at the moment it first matters, never as a wall:
-##
-##   chart    the chart's in-range list, and its two bars (danger, fuel)
-##   events   the sector map's events: click one to read it, GO flies you there
-##   drawer   the event band's choices, and the odds printed on them
-##   hand     a fight's hand: drag a card onto an enemy; the cost corner
-##   intent   after your first card: the words over an enemy are its next move
-##   endturn  nothing left to play: END TURN, and what it does
-##   brace    brace held over an end of turn: it stays up, and costs heat
-##   heat     heat has risen: the cap, and the hull it burns past it
-##   salvage  a wreck's window: drag a part into your hold, or double-click it
-##   cutaway  inside your ship: drag parts onto rings, R turns, F flips
-##   wreck    a wreck is clicked to loot it
-##   loot     SECTOR LOOT, beside SCAN SECTOR
-##   dock     the first station: what it does, and its decks
-##   shipyard, promenade, exchange, hiring_board, laboratory
-##            the first time each deck is open: what it is for and the one
-##            thing to do there, on its main thing (`DECK_HINTS`)
-##   fuel     a third of the tank left: running dry ends the run, and the
-##            nearest dock in reach by name (or what to do with none)
-##   ship     click your ship (LOCAL or the shipyard) to open it up
-##
-## THE DEEP TUTORIAL (Jon, Oct 22: "Tutorial: scope:all voice:record bugs:fix",
-## after Kevin's playtest: he clicked the tutorial away and did not know the
-## energy meter or when to loot a dead ship). The audit's 35 rows, each a
-## lesson with its trigger, subject, end and pacing (`docs/ash.md`):
-##
-##   in a fight   energy (after the first card), heat_corner, keywords,
-##                discard_pick, malfunction, flee_hail, piles; intent moved to
-##                the start of turn 2; heat, brace and intent end on their
-##                action (a card or END TURN), not on a reading time
-##   the band     odds (a choice with a check), result (REWARD, CONTINUE)
-##   LOCAL        hull; the wreck, salvage and loot lines say more
-##   the map      fuel_first (the first arrival), map_fly (a world to fly to, or by hand)
-##   the chart    layers, contract_track, quest, jump_blocked
-##   the cutaway  mounts, cards_from_parts, attributes (the flip key dropped)
-##   the station  faults, hull_sale, undock
-##   the menu     save (over the escape menu: the one lesson said there)
-##   the title    chassis_card (a card only: she has not introduced herself)
-##
-## PACING (the audit's, binding). One lesson at a time; each starts only when its
-## screen has held still (SETTLE_S) and ends when the player does what it
-## teaches. IN A FIGHT (`_pace_ok`) a lesson starts only while the hand is
-## settled and no card is held; only the hand's, energy, discard_pick and END
-## TURN's start after a card this turn (`MID_TURN`), the rest at a turn's start.
-## Turn 1 of the first fight teaches the hand, energy and END TURN alone
-## (`TURN_ONE`); flee_hail, malfunction and piles are one a fight
-## (`ONE_A_FIGHT`), piles not in the first. OUTSIDE A FIGHT the gap after a
-## lesson is GAP_S (3 s; 1.2 in a fight, `GAP_FIGHT_S`), and a screen as it
-## stands (`_front`: the screen, its station deck, an open cutaway, window or
-## event) teaches one new lesson, but for the chains (`CHAINS`). The goal
-## steps still yield to lessons.
-##
-## ONE AT A TIME, a `HintCard` beside its subject. Its subject has to hold still
-## for SETTLE_S first, so nothing shows mid-transition.
-##
-## A CLICK NEVER DISMISSES ONE (Jon, Oct 22, after the first outside playtest:
-## "Kevin also clicked away the tutorial and subsequently had no idea what he
-## was doing. Can we soft lock the screen so A.S.H. can't be dismissed?"). It
-## used to go on any click (his earlier "let's have them advance with a click").
-## Now each stays until the player has DONE what it teaches (`_done`, the table
-## at `DONE`): the chart's until a star is picked or a jump made, the hand's
-## until a card is played, END TURN's until it is pressed, and so on. The few
-## that only tell you something (`INFO`: the intent, brace, heat, fuel) stay for
-## their reading time after her voice ends and go by themselves, spent. If its
-## subject goes first, it hides unspent and shows again the next time (but the
-## six Jon ruled are said once, `SPENT_ONCE_HEARD`). NEVER STUCK: one that has
-## been said whole and stood YIELD_S while another line is waiting here (a hint,
-## or a goal step) gives way unspent and rests REST_S, so no line holds the goal
-## or another hint for good; a line whose action cannot be done here has no
-## subject (`probe`) and hides. Seen is per hint in
-## settings.cfg `[hints] <id>` (`DisplaySettings.hints_path`), beside the welcome
-## note's and the goal line's steps. Under a harness that is the harness
-## settings file, never the player's. Settings' REPLAY TUTORIAL (`reset`) brings
-## all of them back, and the goal line's steps.
-##
-## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
-## on or tutorial off"): Settings' TUTORIAL row, `[hints] tutorial` in the
-## settings file, on by default (`set_tutorial`). Off: no hint, no goal step and
-## nothing of A.S.H.'s teaching; the goal line's GOAL stays, and her introduction
-## and her other lines are hers, not the tutorial's. Turned off mid-run, what is
-## up goes at once, unspent; turned on, the hints pick up where the player is
-## (what was seen stays seen; REPLAY TUTORIAL works either way).
-##
-## OFF UNDER HARNESSES (`TestRun.active`) unless the run asks with `-- hints`;
-## `-- hinttest` turns it on by hand (`forced`). OFF IN A PARTY too (Jon, Oct 17:
-## "coop:B"): a networked run shows no hints and no goal-line steps. They still
-## show on a seeded solo run. Not off under reduced motion: those players need
-## hints too; only the fade goes.
-##
-## It finds its subjects by looking at the screens as they are each frame, so no
-## screen has to call it.
-##
-## A.S.H. SAYS THEM (Jon picked how A for the tutorial, Oct 17: "A.S.H. replaces
-## the hint cards"). While she is on (`Ash.teaches`), a hint that is due is said
-## in her corner in her words (`AshTutorLines`) with its subject outlined,
-## instead of a card: the same trigger, the same order, the same subject, the
-## same action to spend it, the same hiding unspent when the subject goes. Where
-## she has nowhere clear to stand it is the card after all, so a lesson never
-## waits for room. With her off, the cards, exactly as before. She also says
-## each goal step (`GoalLine`) once as it starts (`said_<step>`), after any hint
-## due on that screen; the goal line itself does not change. All of it is off in
-## a party with the hints (`enabled`).
-##
-## SHE NEVER SAYS THE SAME LINE ALOUD TWICE (Jeremy, a playtester, Oct 23: "it
-## doesn't need to repeat everything when I jump out of a menu after it has
-## already said it"; Jon's log of 0.4.1-alpha.1 had the hull's line five times,
-## heat's four times in one fight, the ship for sale's and SAVE & EXIT's twice).
-## The come-back rules above (a line left unspent shows again, a line that gave
-## way returns) said the whole line again each time, in her voice. Now a line
-## she has said whole is HEARD (`heard_<line>` beside `seen`, cleared by REPLAY
-## TUTORIAL), and if it is still unspent because its action has not been done it
-## comes back QUIETLY: her box with the words already out, no chirp, no voice
-## (`AshPortrait`'s quiet), held as before until its action. A line cut off while
-## she was saying it may be said aloud once more, on a later visit or fight
-## (`_visit`), never on the one it was cut on; after that it is text only too. An
-## information line (`INFO`) is spent as it shows: said once, ever. The lines
-## stay undismissable: a quiet line still ends only by its action.
+## Each hint teaches one thing at the moment it first matters; there is no tour (Jon, Oct 17).
+## Subjects are found by looking at the screens each frame, so no screen has to call it.
+## Why: docs/why/Hints.md#hints-overview
 
 const SECTION := "hints"
 ## Highest first: when two could show, this one does.
@@ -155,12 +36,8 @@ const DEEP: Array[StringName] = [&"energy", &"discard_pick", &"heat_corner", &"k
 	&"malfunction", &"flee_hail", &"piles", &"odds", &"result", &"fuel_first", &"map_fly", &"layers",
 	&"contract_track", &"quest", &"jump_blocked", &"mounts", &"cards_from_parts", &"attributes",
 	&"hull", &"faults", &"hull_sale", &"undock", &"save", &"chassis_card"]
-## ONE HINT A DECK, the first time it is open (Jon, Oct 20, playing the alpha:
-## "There is no tutorial tip for the promenade, exchange, shipyard, laboratory,
-## or hiring board"): hint id -> the station's page (`StationScreen.DECKS`). Each
-## points at the deck's main thing (`StationScreen.deck_subject`): the yard's
-## drones, the shelf, the sell counter, the notes on the board, the fabricator's
-## screen. After `dock`, which still comes first on arrival.
+## One hint per deck the first time it is open (Jon, Oct 20); each points at `deck_subject`.
+## Why: docs/why/Hints.md#deck-hints
 const DECK_HINTS := {&"shipyard": &"services", &"promenade": &"stock", &"exchange": &"hold",
 	&"hiring_board": &"work", &"laboratory": &"bench"}
 ## The goal line's steps (`GoalLine`), done once: kept beside the hints, and
@@ -169,22 +46,16 @@ const STEPS: Array[StringName] = [&"step_jump", &"step_event"]
 ## The lines A.S.H. says as a goal step starts, each once (`said_<id>`), cleared
 ## with the hints.
 const STEP_LINES: Array[StringName] = [&"step_jump", &"step_jump_chart", &"step_event", &"step_event_map"]
-## SAID ONCE, HEARD WHOLE (Jon, Oct 20: "when I enter the ship editor, A.S.H.
-## keeps saying the tutorial line every time I enter. It should only be the
-## first time"; the decks' the same day: people leave a deck by clicking another).
-## Each still stays up until its action (`DONE`), but leaving its screen after
-## she has said it whole spends it too, so it is said once however the player
-## goes. Left while she is still saying it, it is unspent and comes again. (They
-## were spent as they showed while a click was what spent the rest.) A card is
-## read whole as it shows. SHOW HINTS AGAIN brings them back.
+## Leaving after she said it whole spends it, so it
+## is said once however the player goes (Jon, Oct 20).
+## Why: docs/why/Hints.md#said-once
 const SPENT_ONCE_HEARD: Array[StringName] = [&"cutaway", &"shipyard", &"promenade", &"exchange",
 	&"hiring_board", &"laboratory", &"energy", &"hull", &"map_fly", &"layers", &"contract_track", &"mounts",
 	&"quest", &"jump_blocked", &"cards_from_parts", &"attributes", &"faults", &"hull_sale", &"undock",
 	&"chassis_card"]
-## THE LINES THAT ONLY TELL YOU SOMETHING: no action to wait for, so each stays
-## its reading time after her voice ends (`AshPortrait`'s own hold) and goes by
-## itself; as a card, `info_s`. Spent as it shows (Oct 23): said once, ever,
-## however it goes.
+## No action to wait for: each stays its reading time,
+## then goes. Spent as shown, said once ever (Oct 23).
+## Why: docs/why/Hints.md#info-lines
 const INFO: Array[StringName] = [&"fuel", &"fuel_first"]
 ## EVERY OTHER HINT'S ACTION, what spends it (`_done`; `-- sheet=AshTutorTest`
 ## holds every hint in ORDER to being in one of these two lists):
@@ -238,16 +109,11 @@ const SETTLE_S := 0.6
 ## 1.2 by the deep tutorial's pacing), and in one.
 const GAP_S := 3.0
 const GAP_FIGHT_S := 1.2
-## NEVER STUCK: a line said whole and up this long while another line is waiting
-## here gives way to it, unspent, s; and rests this long before it may come
-## again, so the one waiting goes first, s (the hints' own clock).
+## Never stuck: a line up this long while another waits gives way unspent, then rests.
 const YIELD_S := 20.0
 const REST_S := 45.0
-## SOFT LOCK, option (b) of Jon's "soft lock the screen" (Oct 22): while she is
-## SPEAKING a hint's line (not after), a click anywhere but the thing she points
-## at does nothing (`ClickGate`). Off: blocking the game reads as a bug, and the
-## player must be free to do the step; on to try it. `soft_lock` is the live
-## switch (a harness flips it).
+## Off: blocking clicks while she speaks reads as a bug (Jon's option b, Oct 22). On to try it.
+## Why: docs/why/Hints.md#soft-lock
 const SOFT_LOCK := false
 var soft_lock := SOFT_LOCK
 
@@ -278,10 +144,7 @@ var _step_cand: StringName = &""
 var _step_t := 0.0
 ## The hints' own clock (the deltas `poll` is given), s.
 var _clock := 0.0
-## WHAT IS UP: the line id she says for it (`AshTutorLines.line_id`), the state
-## its action is measured from (`_snapshot`), whether it has been said whole and
-## when (her words all out; a card as it shows), and the last look at whether
-## another line is waiting (`_waiting_other`).
+## What is up: its line id, the state its action is measured from, and when it was said whole.
 var _lesson_lid: StringName = &""
 var _base := {}
 var _said := false
@@ -291,10 +154,8 @@ var _wait_look := 0.0
 var _rest := {}
 ## Counted off the game's own signal, for the hand's action: cards played.
 var _cards_played := 0
-## FIGHT PACING: the fight and turn the count below is for, cards played this
-## turn, fights seen since launch, the fight the hand was taught in (its turn 1
-## is the hand's, energy's and END TURN's), and the fight one of `ONE_A_FIGHT`
-## was taught in.
+## Fight pacing state: cards this turn, fights seen,
+## and where the hand and a one-a-fight were taught.
 var _turn_of: Array = []
 var _turn_cards := 0
 var _fights_seen := 0
@@ -312,9 +173,7 @@ var _cut_seen := 0
 var _cut_fit: Array = []
 ## The soft lock's gate, while one is up (`soft_lock`).
 var _gate: ClickGate = null
-## SAID ALOUD ONCE: line id -> the times she started saying it aloud and was cut
-## off before the end, and the visit (`_visit_n`) of the last of those. Heard
-## whole is `heard()`, kept in the hints file.
+## Line id to the times she was cut off aloud and the last visit; heard whole is in the hints file.
 var _tries := {}
 var _tried_in := {}
 ## A VISIT, for "never again on the same one": the screen as it stands
@@ -335,10 +194,9 @@ func _ready() -> void:
 		_turn_cards += 1)
 
 
-## The two lines of each hint. Graded with `tools/prose_grade.py` (grade 7.0 or
-## under, ruled 2026-10-13; the ones added Oct 17 are held to 5.2). The
-## cutaway's names the keys as bound; the heat and END TURN ones read the live
-## cap and hand size, never a number written here.
+## Graded with `tools/prose_grade.py`: grade 7.0 or
+## under (ruled 2026-10-13), 5.2 for Oct 17 additions.
+## Why: docs/why/Hints.md#hint-prose
 func lines(id: StringName) -> Array:
 	match id:
 		&"chart":
@@ -453,9 +311,7 @@ func _dock_cached() -> Dictionary:
 	return _dock
 
 
-## WHERE TO GET FUEL, named (Jon: "warn:A"): the nearest dock the tank can
-## still reach, by its name on the chart and the jumps to it; with none in
-## reach, what to do instead. Read when the card shows, never a stale name.
+## Names the nearest dock the tank can reach, read when the card shows, never a stale name.
 func fuel_dock_line() -> String:
 	var d := _dock_cached()
 	if d.is_empty():
@@ -604,9 +460,8 @@ func _heard_key(lid: StringName) -> StringName:
 	return StringName("heard_" + String(lid))
 
 
-## Whether line `lid` may be said in her voice now: never once heard whole; once
-## more after she was cut off saying it, but not on the visit (or fight) it was
-## cut on; never after two.
+## Aloud never once heard whole; once more after a
+## cut-off, but not on the same visit; never after two.
 func may_say_aloud(lid: StringName) -> bool:
 	if heard(lid):
 		return false
@@ -720,9 +575,8 @@ func poll(delta: float) -> void:
 			_cand = id
 			_cand_t = 0.0
 		_cand_t += delta
-		# A LINE OF HERS PLAYS OUT (Jon, Oct 22: "a click doesn't cut a quip
-		# short. It plays out and ends on its own"): a hint that comes due while
-		# she is saying one waits for it to end, settled, rather than cutting it
+		# A hint due while she is saying a line waits for
+		# it to end rather than cutting it (Jon, Oct 22).
 		if _cand_t >= SETTLE_S and not Ash.bark_up():
 			_show(id, p)
 		return
@@ -730,11 +584,8 @@ func poll(delta: float) -> void:
 	_poll_step(delta)
 
 
-## HER LESSON, one step: spent the moment its action is done; an information
-## line spent when she has said it to its end; gone unspent when she went for
-## anything else (her switch, the screen changed, something came into her box),
-## or its subject did, but spent if it is one said once and she had said it
-## whole; or given way to a line waiting here (`_yield`).
+## Her lesson, one step: spent when its action is
+## done, unspent if she or the subject goes elsewhere.
 func _poll_lesson(delta: float) -> void:
 	if _done(lesson):
 		_close_lesson(true)
@@ -793,9 +644,8 @@ func info_s(id: StringName) -> float:
 	return AshPortrait.HOLD_MIN_S + AshPortrait.HOLD_PER_CHAR_S * float(" ".join(lines(id)).length())
 
 
-## The line up was left (its subject or its screen gone) after it was said whole,
-## and it is one of those said once (`SPENT_ONCE_HEARD`); or it is information
-## (`INFO`), said once, ever, however it went.
+## The line up was left after being said whole and is
+## said-once; information lines are said once ever.
 func _left_heard(id: StringName = &"") -> bool:
 	if id == &"":
 		id = lesson
@@ -884,12 +734,9 @@ func _taught(id: StringName) -> void:
 		_cut_fit = _fit_sig()
 
 
-## THE AUDIT'S PACING: whether lesson `id` may START now (not whether it may
-## stay: that is its subject's). In a fight: no card held; after a card this
-## turn only `MID_TURN`; turn 1 of the first fight only `TURN_ONE`; one of
-## `ONE_A_FIGHT` a fight, and piles not in the first fight nor on turn 1.
-## Outside one: a screen as it stands teaches one new lesson, or the next of a
-## chain.
+## The audit's pacing decides whether a lesson may start,
+## not stay: fights have turn rules, screens one lesson.
+## Why: docs/why/Hints.md#pacing
 func _pace_ok(id: StringName) -> bool:
 	if FIGHT.has(id):
 		var sc := Router.current as SectorScreen
@@ -917,9 +764,7 @@ func _pace_ok(id: StringName) -> bool:
 	return false
 
 
-## A SCREEN AS IT STANDS: the screen, the fights seen, and what is open on it
-## (the station's deck, the cutaway, a window, an event in the band, the menu).
-## A new one is a new visit.
+## A screen as it stands: the screen, fights seen and what is open on it. A new one is a new visit.
 func _front(for_voice: bool = false) -> String:
 	var cur = Router.current
 	if cur == null or not is_instance_valid(cur):
@@ -951,10 +796,7 @@ func _front(for_voice: bool = false) -> String:
 	return k
 
 
-## A VISIT, for her voice (`may_say_aloud`): the screen as it stands (`_front`)
-## less the escape menu, so a line the menu took her off is not said aloud again
-## when it shuts, and the fight up, so a fight is one visit from its first turn
-## to its last.
+## A visit leaves out the escape menu so it does not repeat a line, and a fight is one visit.
 func _visit() -> String:
 	return _front(true)
 
@@ -1028,10 +870,7 @@ func _snapshot(id: StringName) -> Dictionary:
 	return {}
 
 
-## WHETHER THE PLAYER HAS DONE WHAT HINT `id` TEACHES since it showed (`DONE`).
-## Read off the screens and the run as they are, like the subjects: no screen
-## calls it. Asked before the subject, since doing it often takes the subject
-## away (an event opened is no longer in the list).
+## Read off the screens and asked before the subject, since doing it often takes the subject away.
 func _done(id: StringName) -> bool:
 	var cur = Router.current
 	if cur == null or not is_instance_valid(cur):
@@ -1096,9 +935,9 @@ func _done(id: StringName) -> bool:
 			var su := cur as StationScreen
 			return not Router.docked or (su != null and su._tab != StringName(_base.get("tab", &"")))
 		&"save":
-			# THE MENU SHUT, OR A WAY OUT PRESSED: its question ("SAVE AND LEAVE?")
-			# takes the plates' place, so the line's subject went with it and it
-			# came back in full at the next menu (Jon's 0.4.1 log, twice)
+			# A way-out question takes the plates' place and the
+			# line's subject, so it returned in full (0.4.1 log).
+			# Why: docs/why/Hints.md#menu-hint
 			return not menu_up() or _exit_asked()
 		&"chassis_card":
 			return not (cur is ChassisSelect)
@@ -1185,9 +1024,7 @@ func _cut_of(cur) -> CutawayView:
 	return cut
 
 
-## What is fitted and where: each module on the ship, its mount and its flip, in
-## no order (a part put back goes to the end of the list). A module installed,
-## removed, moved to another mount or flipped changes it.
+## What is fitted and where, in no order: any install, removal, move or flip changes it.
 func _fit_sig() -> Array:
 	var out: Array = []
 	# (not its flip: drawing only, `ModuleData.flipped`, and not what the
@@ -1217,9 +1054,7 @@ func _opened_here() -> int:
 	return k
 
 
-## THE GOAL STEPS IN HER VOICE: once a step is up on the goal line and has held
-## SETTLE_S, and no hint is due, she says its line, once ever (until SHOW HINTS
-## AGAIN). No outline of her own: the goal line outlines the tab it names.
+## Goal steps in her voice: once up and settled with no hint due, she says its line once ever.
 func _poll_step(delta: float) -> void:
 	if menu_up():
 		_step_cand = &""
@@ -1248,9 +1083,9 @@ func _poll_step(delta: float) -> void:
 func _step_now() -> StringName:
 	if not by_ash() or Router.hud == null or not is_instance_valid(Router.hud):
 		return &""
-	# (whether the goal line is up this frame, not whether it has drawn yet: a
-	# bark asked first on the frame the ship stopped, the line not yet faded in,
-	# so the launch bark started and the step cut it 0.6 s later)
+	# Test whether the goal line is up, not drawn: else
+	# the launch bark was cut by the step 0.6 s later.
+	# Why: docs/why/Hints.md#goal-step-bark
 	if not GoalLine.shows_on(Router.current):
 		return &""
 	var st := GoalLine.step()
@@ -1275,11 +1110,7 @@ func _end_step() -> void:
 	step_up = &""
 
 
-## NO CLICK DISMISSES ANYTHING HERE (Jon, Oct 22): there is no `_input`. A
-## goal step's line goes after its reading time, a hint when its action is done
-## (`_done`). For the harnesses that walk a run without doing every step (the
-## films and shots), `spend` stands in for the player having done it: what is up
-## is spent and goes. Nothing in the game calls it. True if something was up.
+## No click dismisses anything (Jon, Oct 22); `spend` stands in for the player in films and shots.
 func spend() -> bool:
 	if lesson != &"":
 		_close_lesson(true)
@@ -1305,9 +1136,8 @@ func _show(id: StringName, p: Dictionary) -> void:
 		var lid := AshTutorLines.line_id(id, _dock_cached() if id == &"fuel" else {})
 		var vals := values(id)
 		var text := AshTutorLines.fill(lid, vals)
-		# (an information line goes by itself after its reading time: not held)
-		# SAID ALOUD ONCE: heard already, or cut off once already on this visit or
-		# twice ever, it comes back quietly, text only
+		# An information line goes by itself. A line heard
+		# or cut off enough returns quietly, text only.
 		var aloud := may_say_aloud(lid)
 		var opts := {voice = AshTutorLines.voice_path(lid), spoken = AshTutorLines.spoken(lid),
 			held = not INFO.has(id), quiet = not aloud}
@@ -1359,9 +1189,7 @@ func _show(id: StringName, p: Dictionary) -> void:
 		mark_seen(id)
 
 
-## A card keeps off the goal line too (`GoalLine`), and the step's line under
-## it, so the one thing that is always on screen is never covered by the thing
-## that comes and goes.
+## A card keeps off the goal line and its step, so the always-on-screen thing is never covered.
 func _with_goal(avoid: Array) -> Array:
 	var g := goal_rect()
 	if g.size == Vector2.ZERO:
@@ -1518,10 +1346,8 @@ func menu_up() -> bool:
 
 # ------------------------------------------------------------------ subjects
 
-## Where hint `id`'s subject is now, if it is on screen and ready:
-## {subject: Rect2, avoid: Array of Rect2}, global in the game's picture; or {}.
-## `staying`: asked of the line already up, not of one about to start (heat's
-## stays through the heat vented to nothing, below).
+## Where hint `id`'s subject is now, as {subject,
+## avoid} or {}; `staying` asks of the line already up.
 func probe(id: StringName, staying: bool = false) -> Dictionary:
 	var cur = Router.current
 	if cur == null or not is_instance_valid(cur) or not (cur as Node).is_inside_tree():
@@ -1573,9 +1399,7 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 		&"hand":
 			if not _hand_settled(sc):
 				return {}
-			# A CARD YOU CAN PLAY: its action is playing one, so with none it
-			# would stand there until the turn ends (and END TURN's line, the one
-			# that applies, behind it)
+			# A card you can play: with none the line would stand there until the turn ends.
 			var hcb: Combat = Router.combat
 			if hcb == null or not hcb.hand.any(func(c: CardData) -> bool: return hcb.can_play(c)):
 				return {}
@@ -1587,9 +1411,8 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 				return {}
 			return {subject = r, avoid = _fight_avoid(sc, hud)}
 		&"intent":
-			# THE WORDS OVER AN ENEMY, what it does when you end the turn: at the
-			# start of turn 2 (the deep tutorial's pacing, `_pace_ok`; it came
-			# after the first card, in the hand's turn)
+			# The words over an enemy come at the start of turn
+			# 2 (deep tutorial pacing), not after the first card.
 			if not _hand_settled(sc):
 				return {}
 			for i in 8:
@@ -1618,21 +1441,20 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 			var cb: Combat = Router.combat
 			if not _hand_settled(sc) or cb == null or cb.brace_held <= 0 or cb.brace <= 0:
 				return {}
-			if sc._player_chips == null or sc._player_chips.get_child_count() == 0:
-				return {}
-			var chip := sc._player_chips.get_child(0) as Control
-			if chip == null or not chip.is_visible_in_tree() or chip.size.x < 2.0:
+			# the brace on your hull bar, and its "+N"
+			var bar: HullBar = sc._self_bar
+			var num: Label = sc._self_brace
+			if bar == null or num == null or not bar.is_visible_in_tree() \
+					or not num.is_visible_in_tree() or bar.brace <= 0 or num.size.x < 2.0:
 				return {}
 			# and off the hand under it: the card went over the first two cards' costs
 			var bav := _fight_avoid(sc, hud)
 			bav.append(sc._hand.get_global_rect())
-			return {subject = chip.get_global_rect(), avoid = bav}
+			return {subject = bar.drawn_rect().merge(num.get_global_rect()), avoid = bav}
 		&"heat":
-			# HEAT HAS RISEN, in a fight: the gauge, the cap and its price. Up,
-			# it stays when the heat is vented to nothing (Bleed Heat is in every
-			# starting deck): the gauge is still there and its action is END TURN.
-			# It went, unspent, and came back at the next turn's start in full,
-			# four times in one fight in Jon's 0.4.1 log.
+			# It stays when heat is vented to nothing: it went
+			# and came back four times in one fight (0.4.1 log).
+			# Why: docs/why/Hints.md#heat-hint
 			if not _hand_settled(sc) or (Run.heat <= 0 and not staying) or Router.hud == null:
 				return {}
 			var hr: Rect2 = Router.hud.heat_rect()
@@ -1679,9 +1501,8 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 			var n := Run.node_at()
 			if n == null:
 				return {}
-			# A REAL WRECK, ONE A CLICK OPENS: the slot's own hull ink (its
-			# picture's canvas is far taller than the hull), and the card kept off
-			# an event's subject drawn here, which is scenery and opens nothing
+			# A real wreck, one a click opens: the slot's
+			# hull ink, keeping the card off scenery events.
 			var avoid: Array = [hud]
 			var subj := LocalSubject.of(sc._view)
 			if subj != null:
@@ -1716,20 +1537,16 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 				return {}
 			return {subject = r, avoid = [hud]}
 		&"fuel":
-			# A THIRD OF THE TANK LEFT (`Run.fuel_low`), out of a fight on a screen
-			# that is still. It waited for "under two of the dearest jump" (about
-			# 12 of 279) and in every stranded run the sim flew, that was one to
-			# three jumps from the end.
+			# A third of the tank: the old two-of-the-dearest-jump
+			# trigger came only 1 to 3 jumps from the end.
+			# Why: docs/why/Hints.md#fuel-hint
 			if Router.hud == null or ZoomLadder.busy() or not _fuel_low():
 				return {}
 			if not (cur is StarchartScreen or cur is SystemMapScreen or _local_idle(sc)):
 				return {}
-			# ON THE CHART IT POINTS AT THE DOCK IT NAMES, in the in-range list, or
-			# at the list when the dock is further: the readout is in the bar's
-			# corner and on the chart the only room near it is the bar itself (the
-			# side bar under it, the toolbar and the picture's frame beside it), so
-			# the card stood on the HUD. Kept off the HUD and the side bar, as the
-			# chart's own hint is, which puts it on the picture beside the list.
+			# On the chart it points at the dock in the list:
+			# the only room near the readout is the bar itself.
+			# Why: docs/why/Hints.md#chart-dock-hint
 			if cur is StarchartScreen:
 				var ch := cur as StarchartScreen
 				if ch._neigh == null or not ch._neigh.is_visible_in_tree():
@@ -1937,28 +1754,9 @@ func _band_probe(sc: SectorScreen, id: StringName, hud: Rect2) -> Dictionary:
 	return {subject = _union(parts), avoid = [hud]}
 
 
-## THE MAP, the ship on no place's orbit (circling the star as it arrived, or
-## free): "Click a world twice and we fly there. Or fly us by hand." Shown while
-## `reached()` is -9, as it is on the wide orbit round the star every arriving
-## ship is put on (`ShipFlight.setup`: free, `star_orbiting`): no place's events
-## are open there, and a world clicked twice flies from it (`can_fly`).
-##
-## THE OUTLINE IS ON A WORLD A CLICK FLIES TO (Jon, Nov 4: "Shouldn't a world be
-## highlighted here and not my ship?"). It was on the ship, from when the line
-## taught flying by hand alone. The world (`_fly_world`): a planet or the giant
-## (not a belt, a station, a derelict or a contact), not the place the ship is
-## on, one a click at its middle picks (`SystemOverlay.hit`: not behind a sun,
-## not under another place's beacon), its box whole on the picture and clear of
-## the HUD and the side bar; of those, one whose box is clear of the ship if
-## there is one, so the outline is not round the ship and the world together;
-## the one nearest the ship on screen, kept while it still qualifies so the
-## outline does not hop from world to world as they go round. Only while a
-## world clicked twice flies (`can_fly`: a ship drifting under its own thrust
-## flies by hand). Its box is the map's own reticle round
-## it (`SystemOverlay._reticle` at `_reach`, which holds the click's circle),
-## read where the world is drawn each frame the probe runs, so it goes round
-## with the world. With no such world it is on the ship, as it was: the line's
-## second half is flying it by hand.
+## The outline is on a world a click flies to, not the ship (Jon, Nov 4); the ship if none
+## qualifies. Shown while `reached()` is -9, on the wide star orbit every arriving ship is put on.
+## Why: docs/why/Hints.md#map-fly-hint
 func _map_fly_probe(map: SystemMapScreen, hud: Rect2) -> Dictionary:
 	if map == null or ZoomLadder.busy() or map.flight == null or map.overlay == null or map._box == null:
 		return {}
@@ -2030,9 +1828,9 @@ func _fly_ok(map: SystemMapScreen, i: int, avoid: Array) -> bool:
 		return false
 	if i == int(map.flight.orbit_body()):
 		return false
-	# a click at its middle picks it, as `SystemMapScreen.tap` reads it: not
-	# behind a sun, not under another place's beacon (seed 4242's LAMBDA
-	# ABYSSAL IX: a fight's beacon over its first world opened the fight)
+	# Check the click as `SystemMapScreen.tap` reads it: a
+	# fight's beacon over a first world once opened the fight.
+	# Why: docs/why/Hints.md#map-fly-hint
 	var h: Dictionary = map.overlay.hit(map.view.at[i])
 	if StringName(h.get("kind", &"")) != &"body" or int(h.get("body", -99)) != i:
 		return false
@@ -2130,9 +1928,8 @@ func _cut_probe(cut: CutawayView, id: StringName, hud: Rect2) -> Dictionary:
 				r = box if r.size == Vector2.ZERO else r.merge(box)
 			return {} if r.size == Vector2.ZERO else {subject = r, avoid = [hud]}
 		&"cards_from_parts":
-			# A PART FITTED (after the mounts' line) since the cutaway's own line
-			# showed, or since your ship was first seen opened up this launch:
-			# its fit changed since then
+			# A part fitted since the cutaway's own line showed,
+			# or since the ship was first seen opened this launch.
 			if _cut_seen == 0:
 				_cut_seen = cut.get_instance_id()
 				_cut_fit = _fit_sig()
@@ -2202,11 +1999,7 @@ func _station_probe(st: StationScreen, id: StringName, hud: Rect2) -> Dictionary
 	return {}
 
 
-## A DECK'S FIRST-VISIT HINT: its deck the one open, the dock landed, nothing
-## over it (your ship opened up, the faults picker), and its main thing up and
-## still (`StationScreen.deck_subject`: the drones home, the lamp lit, the scan
-## passed). A card keeps off everything she keeps off (`Ash.tut_avoid_rects`:
-## the decks, UNDOCK, every button and word), so it never covers what you press.
+## A deck's first-visit hint: its deck open, the dock landed, nothing over it, its main thing still.
 func _deck_probe(st: StationScreen, id: StringName) -> Dictionary:
 	if st == null or ZoomLadder.busy() or st._cutaway != null or st._purge_prompt != null:
 		return {}
@@ -2224,10 +2017,8 @@ func _ship_box(v: ShipView) -> Rect2:
 	return v.get_global_transform() * v.ship_rect()
 
 
-## LOCAL out of a fight, nothing over it, and nothing on its way: no camera
-## move, no event band up, going down, or waiting to come up (`deferred`,
-## `LocalEventDrawer.pending`). The ship hint used to show in the 0.6 s between
-## GO's landing and the band rising, and hide unread (tutorial audit, 0.44 s).
+## LOCAL must be idle: the hint showed in the 0.6 s between GO landing and the band rising, unread.
+## Why: docs/why/Hints.md#ship-hint
 func _local_idle(sc: SectorScreen) -> bool:
 	if sc == null or not sc.cutaway_ready() or ZoomLadder.busy():
 		return false

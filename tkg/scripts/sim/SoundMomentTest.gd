@@ -1,31 +1,8 @@
 extends Node
 
-## THE EFFECTS' MOMENTS ARE HEARD, ONCE, ON THE FRAME THE PICTURE ACTS (the free
-## half of the sound plan, Oct 17: `Audio.FX`), headless:
-##   godot --headless --fixed-fps 60 --path . -- sheet=SoundMomentTest
-## Audio makes no sound headless, but while it tapes it runs every decision --
-## rate limits, suppression, the pick, the caps -- and writes down what would
-## have played (`Audio.tape`, `Audio.fx_heard`). Through the real screens with
-## the animation on, each picture's own `moment` written down as it is emitted:
-##   * the table: every row's files exist, and a row can be set back, silenced
-##     or given a file of its own;
-##   * a hulk's fight: the band rising (hold_lift), its plates going on and
-##     yours (module_install on the wave's start, and no shield_block from the
-##     card or the clamp), plates shed (jettison), a hit partly taken
-##     (shield_block -8 under the impact), its shield up and a hit taken whole
-##     (shield_block as before), three vents opened at once (one hiss) and ten
-##     seconds of their sputters (never closer than 0.4 s);
-##   * a cutter dying in G (its jets and sputters, the vent's);
-##   * the calf dying in N, O and P (fauna_falls on the first beat, -4 dB);
-##   * the Hellbender's furnace (in on the heat, out on the burst) and its pops,
-##     and the Custodian's C1c pops and split;
-##   * your ship lost: power_off as the handoff starts, the score ducked through
-##     the gap, and no page click on the swap into RUN ENDED;
-##   * the ladder: the chrome sliding (menu_open / menu_close as the column
-##     first moves) and the side bar's decode (a text_blip as each line starts,
-##     never more than two in the air).
-## Written to run on main too (it reaches the new parts by name): there it runs
-## in a window, where Audio is on and tapes what it plays, and fails.
+## Audio is silent headless but tapes every decision, so moments are asserted heard once.
+## Runs on main too by name; there it runs in a window and fails.
+## Why: docs/why/SoundMomentTest.md#sound-moments
 
 var _tree: SceneTree
 var _fails := 0
@@ -854,9 +831,7 @@ func _custodian(style: int) -> void:
 	Router.final_loot = false
 
 
-## A ship dying in `style`: each [moment, row, file, db, ends-on moment] heard
-## once a moment on its frame at its level (and, where one is named, run out
-## as that later moment lands); `quiet`: moments that are no longer booms.
+## A ship dying in a style: each moment heard once on its frame, and quiet moments are not booms.
 func _ship_death(style: int, rows: Array, quiet: Array = []) -> void:
 	var nm := String(ShipBreakup.NAMES.get(style, str(style)))
 	print("-- a ship dying in %s" % nm)
@@ -892,10 +867,8 @@ func _ship_death(style: int, rows: Array, quiet: Array = []) -> void:
 	await _leave()
 
 
-## Jon, Oct 19: "the ship exploding ... is weak". A death's MAIN BREAK is one
-## layered boom (`Audio.kill_beat`): a heavy take at its own level, a sub thump
-## and buckling metal, all three on the frame of a boom the picture shows, each
-## once; and no break left to the old pool's luck.
+## Jon, Oct 19: a death was weak. Its main break is one layered boom, none left to pool luck.
+## Why: docs/why/SoundMomentTest.md#kill-boom
 const KILL_POOL := {&"explosion_small_3": -0.9, &"explosion_small_4": 2.1, &"explosion_small_5": -0.2}
 
 
@@ -1053,9 +1026,7 @@ func _ladder() -> void:
 	SectorScreen._approached_at = sys
 	Router.show_local()
 	await _frames(40)
-	# (out of LOCAL the side panel slides on drawn, its words on it the whole way
-	# -- Jon, Oct 18, "they come in blank now" -- so nothing decodes there
-	# either: the slide's sound, no blips)
+	# Out of LOCAL the panel slides on drawn (Jon, Oct 18): the slide sound, no blips.
 	await _hop("LOCAL -> map", Router.show_system, &"chrome_on", &"menu_open", false)
 	await _hop("map -> chart", Router.show_starchart, &"", &"", true)
 	await _hop("chart -> map", Router.show_system, &"", &"", true)

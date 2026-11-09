@@ -1,0 +1,4 @@
+- **Fixed** — in the Shipyard, a ship's stats card now shows above A.S.H.'s outline.
+- **Fixed** — the Hiring Board no longer strobes when it first opens.
+- **Changed** — UNDOCK is bigger, and blinks when you try to leave the station any other way.
+- **Changed** — undocking no longer plays the docking film backwards. Your ship eases out of the bay.

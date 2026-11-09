@@ -35,7 +35,8 @@ uniform float rays_k = 1.0;
 uniform float light_k = 1.0;
 // SIMPLIFIED's clear sky (C): the star's glow gathered close and falling off fast, a
 // long faint reach, its shafts faint -- clean black beyond, never a smog
-uniform bool simplified = false;
+// (always, since LEGACY went on Nov 7: its sky was the other side of this)
+const bool simplified = true;
 // SIMPLIFIED round a pulsar: the shell's glimmer -- bright bands travelling along its
 // filaments, brighter on each beat (`beat` 0..0.5) -- and its strength (0 with
 // reduced motion)
@@ -96,7 +97,7 @@ uniform vec4 g_ship = vec4(-9999.0, -9999.0, 30.0, 90.0);
 // faint glow opens out in light px, as the clouds' light does (SIMPLIFIED), and
 // past the opening zoom the glow's steps are dithered in the place's 2x2 blocks,
 // more the closer you are, so a broad falloff reads as light, not as plates
-// (SIMPLIFIED and RADIANT; LEGACY keeps its plates, the look as it was). At the
+// (every style). At the
 // opening zoom both are as they were.
 uniform float zk = 1.0;
 // the pulsar's remnant as fields (SIMPLIFIED, RADIANT), and the seed it was baked with

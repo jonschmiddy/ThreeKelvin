@@ -1,19 +1,8 @@
 class_name NebulaWeather
 extends Control
 
-## Gas blowing through the sector, when the sector is inside a nebula.
-##
-## The chart says a system sits in a cloud; this is what that looks like from
-## the inside. Drawn behind the ship and the subject so it reads as weather they
-## are flying through rather than as an overlay on top of them.
-##
-## Two layers at different speeds and depths, because one layer of drifting
-## pixels reads as static on a moving object and two read as a medium. The near
-## layer is sparse, brighter and quick; the far layer is dense, dim and slow.
-##
-## Deliberately cheap: about six hundred pixels a frame, no allocation, and it
-## tiles rather than tracking particles, so it costs the same whether you look
-## at it for a second or ten minutes.
+## Two layers at different speeds read as a medium. Cheap and tiled, so constant cost.
+## Why: docs/why/NebulaWeather.md#nebula-weather
 
 const NEAR := 46      ## tile size, near layer
 const FAR := 27
@@ -62,9 +51,7 @@ func _layer(cell: int, speed: float, dim: Color, lit: Color, salt: int) -> void:
 	for i in cols:
 		for j in rows:
 			var h := _hash(i, j, salt)
-			# Most cells are empty. Gas is thin; drawing something in every cell
-			# gives a uniform fog, and a uniform fog is a colour wash rather
-			# than weather.
+			# Most cells are empty: gas is thin, and a full grid would be a fog wash, not weather.
 			if (h % 100) < 58:
 				continue
 			var ox := float((h >> 7) % cell)

@@ -135,7 +135,7 @@ uniform vec3 r_haze = vec3(0.05, 0.3, 16.0);
 // toward you) and its drawn radius, for the eclipse they cast on its face
 uniform vec4 moon_sh[4];
 uniform int n_moon_sh = 0;
-// how far the lit side's middle tones are carried up (every style but LEGACY: 1)
+// how far the lit side's middle tones are carried up (LOCAL and the map set 1)
 uniform float lift = 0.0;
 uniform vec3 p_amb = vec3(0.07, 0.10, 0.19);
 uniform vec3 p_out = vec3(0.02, 0.03, 0.05);

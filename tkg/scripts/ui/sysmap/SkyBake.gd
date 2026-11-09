@@ -1,29 +1,14 @@
 extends RefCounted
 
-## THE SYSTEM'S SKY, worked out once per system: its own nebula, thousands of
-## stars, the star's light on the space round it, the shafts through the dust.
-## A port of the approved mockup's `bakeLook` (scratchpad `sysmap/template.html`)
-## for the look Jon picked: Sky C "its own nebula", Light B "shafts and shadows,
-## gentle", the nebula's detail as it was ("the detail is perfect now"), drawn
-## in 2x2 blocks for the chunky pixel palette.
-##
-## Two pictures come out of it, both made by `sky_bake.gdshader` in one pass
-## each through a SubViewport:
-##   * `base`: the sky WITHOUT the gas -- void, stars, the star's glow and
-##     shafts, darkened where dust lies in front;
-##   * `gas`: what the gas adds to each pixel (RGB), so `sky.gdshader` can roll
-##     slow waves of brightness through it every frame (the gas drifting), and,
-##     round a pulsar, how much gas there is (A), for the beam to light.
-## The stars are placed here, from the mockup's own generator in its order of
-## draws, so a system's sky is its sky in the mockup.
+## Ported from the mockup's `bakeLook` for Jon's picks (Sky C, Light B), in two pictures.
+## The gas is separate so `sky.gdshader` can roll waves of brightness through it every frame.
+## Why: docs/why/SkyBake.md#system-sky
 
 const BAKE := preload("res://shaders/sky_bake.gdshader")
 
 const W := 960
 const H := 540
-## THE SKY IS BAKED BIGGER THAN THE MAP by M on every side, so it has room to
-## slide behind the orbits when the map pans (`SystemView.sky_off`). Map
-## coordinates run from -M; the bake's own pixels from 0.
+## Baked M bigger on every side, so the sky can slide behind the orbits when the map pans.
 const M := 128
 const BW := W + 2 * M
 const BH := H + 2 * M
@@ -31,12 +16,8 @@ const BH := H + 2 * M
 const MORE := float(BW * BH) / (704.0 * 540.0)
 ## Harness switches (SystemShot `off=`): the sun's rays and the dust, off.
 static var no_rays := false
-## THE STARS LAID OUT ONCE A SYSTEM (Jon on 2C: "still has a small delay/hitch"):
-## the few thousand stars are placed by noise worked out a star at a time, about
-## a tenth of a second of one frame, and a map is built new every visit -- the
-## way back out of LOCAL built it again for the system it had just shown. The
-## same system always places the same stars, so they are kept for the session
-## (key -> [stars texture, twinkle list]), the last few systems.
+## Stars cost about a tenth of a second and a system places the same ones, so keep them.
+## Why: docs/why/SkyBake.md#star-cache
 static var _stars_kept := {}
 const STARS_KEPT_MAX := 6
 static var no_dust := false
@@ -54,12 +35,8 @@ const PALS := [
 const PULSAR_PAL := [Vector3(0.22, 0.42, 1.0), Vector3(0.56, 0.3, 0.95)]
 
 
-## THE SKY BY WHERE THE SYSTEM IS (Jon: "Maybe we can have the sectors that are
-## in a nebula have all the clouds, and the sectors that aren't in a nebula have
-## something more simple"). Inside a cloud the gas is the cloud's own, in its
-## kind's colours, as the star chart paints it; outside one the sky is clear --
-## stars, a faint distant band of the galaxy, a little thin dust. A pulsar and
-## the core keep their own skies.
+## Inside a nebula the gas is the cloud's own, outside the sky is clear (Jon).
+## Why: docs/why/SkyBake.md#sky-by-location
 static func look_for(n: MapGen.MapNode, kind: String) -> Dictionary:
 	if kind == "PULSAR":
 		return {"pal": PULSAR_PAL, "thick": 1.6 if n.in_nebula else 1.0, "band": 0.0, "dust": 1.0, "nebula": true}
@@ -100,14 +77,8 @@ var bake_sd := 0.0
 ## Stars that twinkle each frame instead of being baked: [x, y, strength, colour, phase].
 var twinkle: Array = []
 
-## THE CLOUD SEEN FROM INSIDE, BAKED (SIMPLIFIED, direction C: `field`): its
-## density, its billows and far gas, and their gradients, one texel a 2x2 block
-## of the sky with FIELD_MB blocks of margin for the slide and the flow, for
-## `sky_nebula.gdshader` to light and stream every frame -- and on the right
-## FIELD_MR, for the map's cloud drawn on past its picture's end (`SystemView`
-## `_past`, to sky px 1120). (Every reader takes FIELD_MB as the margin on the
-## left and the top, and the width as FIELD_W: the extra on the right only
-## adds sky there.)
+## Baked once for `sky_nebula.gdshader` to light and stream, with margin for the slide and the flow.
+## Why: docs/why/SkyBake.md#cloud-field
 const FIELD := preload("res://shaders/sky_field.gdshader")
 const FIELD_MB := 48
 const FIELD_MR := 88
@@ -121,12 +92,8 @@ var field_img0: Image
 var field_img1: Image
 
 
-## THE PILLARS of an emission (or reflection) cloud, rising toward its sun
-## (C: dark columns with shoulders and knotted heads, their star-facing rims
-## lit): four to six, most from the dust bank below the star, each [base, tip,
-## width at the base, width at the head, its own seed], in sky pixels. Worked
-## out here and handed to the bake, so the weather knows where the tips are
-## (a jet leaves one) without guessing from the picture.
+## Worked out here and handed to the bake, so the weather knows where the tips are.
+## Why: docs/why/SkyBake.md#cloud-pillars
 static func em_pillars(sd: float, cc: Vector2) -> Array:
 	var s := int(sd * 1000.0)
 	var out: Array = []
@@ -151,11 +118,8 @@ static func em_pillars(sd: float, cc: Vector2) -> Array:
 	return out
 
 
-## Bake the cloud of `kind` (`NebulaField.Kind`), `shape`, seed `sd` (the
-## nebula shader's own), its emission cluster at sky pixel `cc`; `parent` hosts
-## the one-shot viewport. Six frames on the GPU, once a system.
-## `legacy`: LEGACY's noises instead, for `sky_nebula_legacy.gdshader` to stream.
-func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2, legacy: bool = false) -> void:
+## Six frames on the GPU, once a system.
+func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2) -> void:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(FIELD_W, FIELD_H)
 	vp.transparent_bg = true
@@ -171,7 +135,6 @@ func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2, legacy: 
 	m.set_shader_parameter("tex", Vector2(FIELD_W, FIELD_H))
 	m.set_shader_parameter("mb", float(FIELD_MB))
 	m.set_shader_parameter("cc", cc)
-	m.set_shader_parameter("legacy", legacy)
 	var pa := PackedVector4Array()
 	var pb := PackedVector4Array()
 	for p: Array in em_pillars(sd, cc):
@@ -241,10 +204,7 @@ static func smooth_k(a: float, b: float, x: float) -> float:
 	return u * u * (3.0 - 2.0 * u)
 
 
-## Bake the sky of system `index` (its seed), with a star of `kind` at
-## (`cx`, `cy`) and its outermost orbit at `edge`. `parent` hosts the
-## one-shot viewport. Two frames, then both pictures are ready.
-## the sky baked with no stars of its own (the sector map on `NavField`)
+## Two frames, then both pictures are ready. `no_stars` bakes the sector map's sky.
 var no_stars := false
 
 
@@ -329,13 +289,9 @@ func _lay_stars(R: Worlds.XRng, sd: float, look: Dictionary) -> ImageTexture:
 		add.call(x + 1, y, I * 0.32, c)
 		add.call(x, y - 1, I * 0.32, c)
 		add.call(x, y + 1, I * 0.32, c)
-		# NO SPIKES on the brightest any more (Jon: "these stars in the sector
-		# view are weird"): a spiked star is a distant supernova now, and comes and
-		# goes (`SystemView._Nova`). Nothing here drew from R, so every other star
-		# is where it was.
-	# THE GALAXY'S BAND IN A CLEAR SKY (SIMPLIFIED): a crowd of faint stars along
-	# it, thickest on its line, instead of a glow (drawn after every other star,
-	# so those are where they were)
+		# No spikes on the brightest (Jon): a spiked star is a distant supernova now.
+		# The galaxy band is a crowd of faint stars drawn last, so the others stay put.
+		# Why: docs/why/SkyBake.md#sky-stars
 	if float(look.get("band", 0.0)) > 0.0 and float(look.get("band_glow", 0.06)) <= 0.0:
 		var ang := sd * 2.7
 		var along := Vector2(cos(ang), sin(ang))
@@ -387,7 +343,7 @@ func _bake_rest(parent: Node, index: int, kind: String, in_nebula: bool, edge: f
 	m.set_shader_parameter("band_lump", float(look.get("band_lump", 0.0)))
 	m.set_shader_parameter("pulsar", kind == "PULSAR")
 	# SIMPLIFIED: round a pulsar, the remnant's shell as fields for the sky to
-	# colour (LEGACY keeps the old shell: its look's `c_remnant` false)
+	# colour (unless its look's `c_remnant` says false)
 	m.set_shader_parameter("c_remnant", kind == "PULSAR" and bool(look.get("c_remnant", true)))
 	m.set_shader_parameter("edge", edge)
 	m.set_shader_parameter("tilt", tilt)

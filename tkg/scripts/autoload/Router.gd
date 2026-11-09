@@ -6,43 +6,28 @@ var content: Control
 var hud: HudBar
 var current: Control
 var combat: Combat
-## The sky, behind whatever screen is open. See SpaceLayer: it lives here rather
-## than in a screen so that swapping screens changes what is in front of the
-## world instead of replacing the world.
+## The sky lives here, not in a screen, so swapping screens leaves the world alone.
 var sky: SpaceLayer
 ## THE SPACE LOCAL, THE MAP AND THE CHART ARE BUILT ON (`NavField`): one field
 ## of stars under all three, kept through every move between them.
 var field: NavField
-## Whether the ship is tied up at a station rather than flying the system.
-##
-## Not on Run and not a Sig signal: it is a fact about which side of the airlock
-## you are on, and the two functions below are the only ways through it in
-## either direction -- every arrival, every UNDOCK and every resume goes through
-## show_sector(). The HUD reads it to decide what its first tab says: LOCAL
-## greyed at the berth (UNDOCK is the only way out, Jon, Oct 27), STATION on a
-## page looked at from it (the map, the chart), so that looking round and coming
-## back does not make you re-dock to return.
-##
-## Leaving the berth ends the docking, and with it every deck's power-on.
+## Not on Run and not a Sig signal: it is which side of the airlock you are on.
+## Why: docs/why/Router.md#docked-state
 var docked: bool = false:
 	set(v):
 		if not v:
 			powered.clear()
+			undock_nudge = false
 		docked = v
 
-## THE DECKS THAT HAVE POWERED ON THIS DOCKING, by deck id. Jon: once a station's
-## or a lab's power-on has played, it should not play again because you went to
-## the star chart and came back. Coming back builds a new StationScreen, so the
-## scenes cannot remember it themselves; undocking clears it, and the next
-## docking powers them on again.
+## Powered-on decks are remembered per docking, so a chart round trip does not replay them.
+## Why: docs/why/Router.md#docked-state
 var powered := {}
 
 func register(content_holder: Control, hud_bar: HudBar) -> void:
 	content = content_holder
 	hud = hud_bar
-	# FIRST CHILD, so every screen added after it draws in front. `_swap` frees
-	# `current` and never this, so the sky outlives the screens the way the
-	# place outlives the thing you happen to be looking at.
+	# First child, so every screen draws in front. `_swap` never frees the sky.
 	sky = SpaceLayer.new()
 	content.add_child(sky)
 	field = NavField.new()
@@ -57,11 +42,9 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 		crumb("[fight] end: %s, hull %d/%d" % [result, Run.hp, Run.max_hp()]))
 
 
-## BREADCRUMBS IN godot.log, one short line each: every screen change, a
-## resume, a jump, a fight's start and end. A friend's log used to hold the
-## build, the run's seed and A.S.H.'s lines and nothing else, so a report
-## could not say where they were when it went wrong (release check, Oct 18).
-## Not under the balance sim, which plays hundreds of runs.
+## Screen changes are logged to godot.log so a bug report can say where the player was.
+## Off under the balance sim, which plays hundreds of runs.
+## Why: docs/why/Router.md#breadcrumbs
 var _crumbs := not "sim" in OS.get_cmdline_user_args()
 
 func crumb(line: String) -> void:
@@ -69,17 +52,9 @@ func crumb(line: String) -> void:
 		print(line)
 
 
-## CLOSING THE WINDOW SAVES, as SAVE & EXIT does (release check, Oct 18). The
-## autosave only writes on a screen change, so a wreck looted, a part fitted or
-## a trade made since then was lost to the window's X. Mid-fight it does what
-## SAVE & EXIT does there: the save from before the fight stands and the fight
-## is noted so it starts again. The title, the hull pick and a finished run
-## save nothing (`_autosave`'s own rules). A harness's `quit()` never comes here.
-##
-## A FLIGHT PLAN STILL BEING MADE ON A WORKER is waited for before the engine
-## shuts down (`ShipFlight.drain`): here as the window closes, and as this
-## autoload goes, after every screen (a harness's `quit()` comes that way). Left
-## out, a plan the map asked for crashed the quit (signal 11), Oct 31.
+## Closing the window saves like SAVE & EXIT, as the autosave only runs on a screen change.
+## Waits for a worker flight plan before quit, or the quit crashes (signal 11).
+## Why: docs/why/Router.md#closing-the-window
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		save_on_close()
@@ -104,10 +79,7 @@ func save_on_close() -> void:
 	if SaveGame.has_save():
 		crumb("[run] window closed, run saved")
 
-## WHOSE PAIR THE SCREEN JUST LEFT SHOWED (a system's map, or LOCAL's sky), and
-## on which frame: `pair_handed`. -1 for any other screen. (LOCAL by the system
-## its sky was built for, not `Run.at`: a jump has moved that on by the time
-## the next system's map opens.)
+## Whose pair the screen just left showed, and on which frame. -1 for any other screen.
 var _left_pair := -1
 var _left_frame := -100
 
@@ -125,43 +97,20 @@ static func _pair_of_screen(sc: Control) -> int:
 	return -1
 
 
-## WHETHER A MAP OR LOCAL OPENING SYSTEM `at` IS HANDED ITS PAIR by the picture
-## before it (ruling 23, PROTOCOL 14): that system's map is the screen up (LOCAL
-## built ahead of a move, `ZoomLadder.preroll`), or the screen swapped out this
-## very frame showed it (its map or LOCAL). Then it opens on the kept clock, the
-## angle that picture had (`Run.map_t`), and never takes the party's: taken at
-## the handover, a partner's clock ahead jumped the pair forward map to LOCAL
-## and back LOCAL to map (the map put away wrote its own clock again, review 1).
-## The map catches up with the party while it is up (`SystemMapScreen._catch_up`),
-## and takes it at once out of LOCAL when it is too far on to
-## (`NetSession.handed_clock`).
-## Opened after anything else -- a fight, the dock, the chart, a jump -- it takes
-## the party's clock at once (`NetSession.adopt_clock`): nothing shown before
-## had the pair in it.
+## A map or LOCAL is handed its pair by the picture before it, else it takes the party clock.
+## Why: docs/why/Router.md#pair-handover
 func pair_handed(at: int) -> bool:
 	if current is SystemMapScreen and _pair_of_screen(current) == at:
 		return true
 	return _left_pair == at and _left_frame == Engine.get_process_frames()
 
 
-## `chrome` is whether the HUD belongs above this screen. The launcher and the
-## record reached from it run before any run exists, and the HUD reads ship
-## state — it bails on a null hull, but an empty bar above a title screen is a
-## bug that looks like a decision.
-##
-## THE SCREEN BEING LEFT IS HIDDEN, not just queued. `queue_free` leaves it in
-## the tree for the rest of the frame, and whatever redraws it there -- hiding
-## the HUD for the title screen grows the content area and resizes it -- draws
-## it against state that has already moved on. QUIT and SAVE & QUIT clear the
-## hull before this runs, so the starchart drew once more with no ship and
-## logged hundreds of errors for a frame no one ever saw. A hidden control is
-## never drawn. `-- quittest` guards it.
+## `chrome` says whether the HUD sits above the screen; the title has no ship to read.
+## The outgoing screen is hidden, not just queued: a late redraw on moved-on state logs errors.
+## Why: docs/why/Router.md#screen-swap
 func _swap(screen: Control, chrome: bool = true) -> void:
-	# THE PAGE SOUND IS FOR MOVING BETWEEN PAGES, not for arriving in the game.
-	# Jon: no click "when starting the game", nor "when launching the ship for
-	# the first time". So booting, and every swap to or from the title or the
-	# lobby, is silent; `screen_changed` below still fires for everything else
-	# that listens to it.
+	# The page sound is for moving between pages: boot and swaps to or from the title are silent.
+	# Why: docs/why/Router.md#page-sound
 	if current == null or is_front_door(current) or is_front_door(screen):
 		Audio.suppress(&"ui_tab", 100)
 	# ONE CAMERA, FOUR DISTANCES (`ZoomLadder`): the picture being left is held
@@ -190,10 +139,7 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	_refresh_sky()
 	_fade_in(screen)
 	Sig.screen_changed.emit()
-	# LEAVING THE CORE'S BODY BY ANY OTHER DOOR STILL ENDS ON THE WIN SCREEN.
-	# Every door off it is shut (see `final_loot`); this is the backstop for one
-	# nobody thought of, deferred so the screen that came in finishes its setup.
-	# The title or the lobby is the run left behind, so the step is over.
+	# Leaving the core's body by any other door still ends on the win screen (backstop).
 	if final_loot and (screen is GameOverScreen or is_front_door(screen)):
 		final_loot = false
 	elif final_loot:
@@ -210,33 +156,11 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 func is_front_door(s: Control) -> bool:
 	return s is LauncherScreen or s is LobbyScreen or s is ChassisSelect
 
-## How long a screen takes to arrive. Short enough that nobody waiting to click
-## something is made to wait for it, long enough to read as a change of place
-## rather than as a repaint.
+## Short enough that nobody waits on it, long enough to read as a change of place.
 const FADE_S := 0.13
 
-## The incoming screen arrives; it does not appear.
-##
-## THE OUTGOING SCREEN IS NOT CROSSFADED, and that is deliberate rather than
-## lazy. It is hidden and freed on the same frame it always was, because the
-## reason it is hidden is that drawing it again draws a run that has already
-## moved on -- QUIT clears the hull before this runs, and the starchart drew
-## once more with no ship and logged hundreds of errors for a frame nobody saw.
-## Holding it on screen to fade it out would put those frames back. `-- quittest`
-## is the test that found that and it still has to pass.
-##
-## So only the arriving half animates, and it works because of what is now
-## BEHIND it: the sky belongs to the Router, so it does not blink between
-## screens. The content fades up over a world that was already there, which is
-## the whole reason this reads as continuity rather than as a dissolve.
-##
-## Modulate rather than a colour rect over the top: a rect would need to be
-## above the HUD to cover it and below the cursor to not, and the ordering
-## problem is not worth a fade.
-## The next screen arrives without the fade, once: set when the screen leaving
-## has already made itself look exactly like the one coming (a won fight lowers
-## its hand into LOCAL's band first), so fading the new one in over the sky
-## would blink every ship for a few frames to show nothing new.
+## Only the arriving screen fades; the outgoing one is freed at once, as `-- quittest` requires.
+## Why: docs/why/Router.md#screen-fade
 var seamless_next := false
 
 func _fade_in(screen: Control) -> void:
@@ -251,25 +175,10 @@ func _fade_in(screen: Control) -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
-## Whether anything should animate at all.
-##
-## Three cases, and the third is the one that is easy to miss. The SIM boots the
-## whole project and swaps hundreds of screens with nobody watching, so a tween
-## per swap is pure cost. HEADLESS has no frames to show it in.
-##
-## And every `-- ...shot` TOOL runs windowed, on purpose -- the dummy display
-## server never emits `frame_post_draw` -- so without this line the fade caught
-## all of them: they wait a fixed handful of frames and then photograph, which
-## after this change means photographing a screen at whatever opacity it had got
-## to. Every picture the project judges its own layout from would have come out
-## dim, and the tools predate the fade so none of them knows to wait.
-##
-## Matched by suffix rather than by a list, because the list is nine long today
-## and the next one would be added without anybody thinking about this.
+## No fade for the sim, headless or `-- ...shot` tools, which would photograph a dim screen.
+## Why: docs/why/Router.md#animation-gating
 func animating() -> bool:
-	# REDUCED MOTION IS ANSWERED HERE, once, for the whole game: every screen
-	# already asks this before it moves anything, so the setting needs no new
-	# check anywhere else.
+	# Reduced motion is answered here once, so no other screen needs its own check.
 	if DisplaySettings.reduced_motion:
 		return false
 	# `-- menutest` turns the animations ON headless: the menu hang it guards
@@ -287,29 +196,8 @@ func animating() -> bool:
 var animate_in_harness := false
 
 
-## Which screens the sky belongs behind.
-##
-## Every exclusion here is for its own reason, so this is a list and not a rule.
-##
-## The STATION is an interior and its cutaway says so: a starfield on a deck
-## would contradict the one conceit that screen is built on.
-##
-## The LAUNCHER and the STARCHART are not excluded for being wrong — they
-## already draw a galaxy of their own, and two skies is one more than anywhere
-## has.
-##
-## THE SECTOR is the interesting one, because it is the screen this layer was
-## lifted out of. `EncounterView` paints a region-tinted wash in its own `_draw`
-## and its backdrop draws ON TOP of that wash, so the two are one composition
-## rather than two layers that happen to be stacked. Moving half of it up here
-## would put the wash over the sky and lose the thing it was built to do. It
-## keeps its own pair, this one stands down behind it, and nothing bakes twice.
-## Unifying them means moving the wash as well, which is a change to the best
-## screen in the game and does not belong in the same step as giving nine bare
-## screens a sky for the first time.
-##
-## Everything else is somewhere in space, which is the entire point of the layer.
-## LOCAL, the sector map or the star chart: the screens built on `field`.
+## Each screen without the sky is excluded for its own reason, so this is a list, not a rule.
+## Why: docs/why/Router.md#sky-exclusions
 static func nav_screen(s: Control) -> bool:
 	return s is SectorScreen or s is SystemMapScreen or s is StarchartScreen
 
@@ -328,25 +216,9 @@ func _refresh_sky() -> void:
 		if Run.map.size() > 0:
 			field.setup(Run.node_at())
 
-## The one place the run is written to disk.
-##
-## Every safe point is a screen swap and every screen swap comes through here,
-## so this is a chokepoint rather than a list of call sites that someone has to
-## remember to extend. Combat is excluded by in_combat() — `combat` is assigned
-## before start_combat() swaps its screen, so the fight's own swap saves nothing
-## and the state on disk stays the one from just before the shooting started.
-## Choosing a chassis is excluded for the same reason combat is: the state is
-## not one you should be able to come back to. start_new_run() has already
-## rolled a world and a random hull by the time the select screen opens, so
-## without this, quitting at the select and pressing CONTINUE would resume into
-## the sector flying a ship you never picked — the one choice the screen exists
-## to ask, answered silently by a dice roll.
-##
-## The empty map is not a paranoid check either. `_snapshot()` reads
-## `Run.node_at()`, which is `map[at]` with nothing in front of it, so a run that
-## has a hull but no map takes this chokepoint down with an index error — and
-## that is exactly the state a save file with a valid version and a truncated map
-## used to leave behind on its way to the launcher.
+## Every safe point is a screen swap, so this one chokepoint writes the run.
+## Skipped in combat, at the chassis pick and with an empty map (index error).
+## Why: docs/why/Router.md#autosave
 func _autosave() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won or in_combat():
 		return
@@ -358,18 +230,8 @@ func _autosave() -> void:
 		return
 	SaveGame.save()
 
-## The party, before a dive. Runs with no run loaded, like the launcher, so it
-## takes no HUD — the bar reads ship state and there is no ship yet.
-## THE ROOM YOU ARE IN, decided here because this is the one place every
-## screen change passes. It used to be the station's own business -- on in
-## `setup`, off in `_exit_tree` -- and that could not survive a second room:
-## `_exit_tree` runs at the end of the frame, AFTER the next screen has
-## started, so leaving a station for the sector would have switched open space
-## on and then straight back off.
-##
-## null means NO CHANGE, and it is what the panels return. The ship, the
-## cards, the chart and the rest are opened from wherever you are, so they
-## keep that place's room -- the same rule `music_state` applies to the score.
+## The room is decided here because every screen change passes through. Null means no change.
+## Why: docs/why/Router.md#room-you-are-in
 func _room_for(screen: Control) -> Variant:
 	if screen is StationScreen:
 		return &"amb_station"
@@ -386,19 +248,9 @@ func _room_for(screen: Control) -> Variant:
 	return &""
 
 
-## OPEN SPACE, OR THE STAR OUTSIDE. Pulsars, red and blue hypergiants each have
-## a room of their own -- Jon's picks from the sound pass, layered -- and every
-## other system is plain open space. Read off the same fields `star_kind` reads,
-## so what you hear and what the chart calls the star cannot disagree.
-## AND PLAIN SPACE IS THE REACTOR. Its first room was space tone -- the noise
-## outside the hull -- and Jon cut it for being distracting. What replaced it
-## points the other way: "just like a reactor hum", the ship's own plant, which
-## is the one sound that should be there in a system with nothing in it.
-##
-## THIS LINE HAS BEEN LOST ONCE ALREADY. I reverted this whole file to strip
-## some timing prints out of it and took the room with them, and the symptom
-## was Jon asking why open space had gone quiet again. Revert a hunk, never a
-## file, when the file has other work in it.
+## Open space plays the reactor hum (Jon cut the space tone as distracting).
+## Revert a hunk, never a file: this line was lost once in a whole-file revert.
+## Why: docs/why/Router.md#star-room
 func _star_room() -> StringName:
 	var n: MapGen.MapNode = Run.here()
 	if n == null:
@@ -418,17 +270,10 @@ func show_lobby() -> void:
 
 ## Title screen. Boots here unless a development flag says otherwise.
 func show_launcher() -> void:
-	# &"menu", not &"sector" — the launcher runs with no run loaded, so the
-	# sector arrangement was both the wrong music and the only state in the
-	# table nothing ever asked for.
+	# `&"menu"`, not `&"sector"`: the launcher has no run and nothing asked for the sector state.
 	Audio.music_state(&"menu")
-	# THE FIRST TITLE OF THE PROCESS COMES OUT OF THE BOOT SPLASH, and the
-	# splash is this screen's own first frame: the wordmark where the title draws
-	# it (`assets/splash/`, project.godot's boot_splash). The usual screen fade
-	# would take the wordmark down to nothing and back up in the first eighth of
-	# a second, a blink right at the handover. So the screen arrives as it is and
-	# everything the splash did not hold fades up around the wordmark
-	# (`LauncherScreen.fade_up_around_title`). Later visits fade as before.
+	# The first title comes out of the boot splash, so it arrives unfaded to avoid a blink.
+	# Why: docs/why/Router.md#boot-splash-handover
 	var boot := current == null
 	if boot:
 		seamless_next = true
@@ -437,56 +282,32 @@ func show_launcher() -> void:
 	if boot:
 		(current as LauncherScreen).fade_up_around_title()
 
-## A run beginning — started fresh or restored from the suspend save — cannot
-## inherit the last one's fight. Nothing in RunState touches `combat`, so
-## ABANDON RUN from the pause menu mid-fight used to leave in_combat() true
-## forever: the new run's sector wired itself to the dead run's enemy, the
-## autosave bailed on every screen swap so the run was never written, and the
-## HUD kept SHIP and STARCHART greyed for the rest of it.
-##
-## Hung on the signal rather than written into new_run(), because the other
-## boundary — load_into_run() — needs exactly the same reset and emits exactly
-## the same signal. Two call sites, one chokepoint, same reason _swap() is the
-## only place that saves.
+## A new or restored run must drop the last run's fight, or `in_combat()` stays true forever.
+## Hung on the signal, as `new_run()` and `load_into_run()` both emit it.
+## Why: docs/why/Router.md#run-start-reset
 func _on_run_started() -> void:
-	# Let go of the signal bus first. A shared fight listens for the host on
-	# `Sig`, and a connection outlives the reference that made it — an abandoned
-	# fight dropped on the floor here would keep reacting to the party's next
-	# one for the rest of the session.
-	if combat != null:
-		combat.release()
-	combat = null
+	# Let go of the `Sig` bus first: a dropped fight's connections would outlive it.
+	drop_combat()
 	final_loot = false
-	# WHERE THE SHIP WAS LEFT is this run's: kept by system index, so a new run
-	# (or a load) would otherwise open LOCAL in orbit of whatever world the last
-	# run parked at in the system of the same number
+	# Parked ship spots are kept by system index, so a new run must not inherit them.
 	SystemMapScreen._parked.clear()
-	# ...and so is the event last opened on LOCAL (`LocalEventDrawer.last`, kept
-	# by system index too): the last run's drew its subject at the edge of this
-	# run's system of the same number, an option of another event entirely
+	# Same for the event last opened on LOCAL, also kept by system index.
 	LocalEventDrawer.last = []
 	# (and where the map flew it, which LOCAL arrived at and which station is
 	# lit: the last run's, by the same numbers)
 	SectorScreen.forget_places()
 
-## A run starts by choosing a chassis, then opens on the sector rather than the
-## chart: your ship in open space, not a graph of places you have not been yet.
-##
-## start_new_run() still runs FIRST and rolls the world plus a random chassis,
-## so every screen has a valid hull to draw before anything is chosen. The
-## select screen then refits that ship as you browse and hands control on.
-##
-## A run that was live when this is called was abandoned, not finished, and goes
-## into the record as such — restarting a bad opening is a real outcome and
-## pretending otherwise would quietly inflate the win rate.
-## `seed_value` is the host's, and zero means roll one. A party dive is an
-## ordinary run that happens to have been handed its seed — which is why it
-## comes through here and lands on the chassis select like any other. Each
-## player picks their own ship on the same galaxy, and that IS the party
-## composition rule in `docs/coop-design.md` §6.
-##
-## The previous forced seed is put back rather than cleared, so `-- seed N` on
-## the command line survives a run started from the lobby.
+## Dropping a fight must leave the party, or the partners sit on WAIT <name> (review, Nov 5).
+## Why: docs/why/Router.md#dropping-a-fight
+func drop_combat() -> void:
+	if combat != null:
+		combat.abandon()
+	combat = null
+
+
+## `start_new_run()` rolls a world and hull first so every screen has a valid hull to draw.
+## A run abandoned here goes to the record as such, so restarts do not inflate the win rate.
+## Why: docs/why/Router.md#new-run
 func new_run(seed_value: int = 0) -> void:
 	if Run.hull != null and not Run.dead and not Run.won:
 		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
@@ -508,17 +329,11 @@ func show_chassis_select() -> void:
 	var s := ChassisSelect.new()
 	_swap(s)
 	s.setup()
-	# A NEW RUN OPENS ON LOCAL, your ship side on (Jon: "when you start the game,
-	# you start in the local view"); the sector map is a tab away.
-	# NO TOUR (tutorial direction B, Oct 17): the controls are yours the moment
-	# the ship stops. What to do next is the goal line under the HUD (`GoalLine`),
-	# and each thing is taught by a hint the first time it matters (`Hints`).
+	# A new run opens on LOCAL (Jon). No tour: hints teach each thing when it first matters.
+	# Why: docs/why/Router.md#new-run-opening
 	s.launched.connect(func() -> void: show_local())
 
-## Resume the suspend save. Falls back to the launcher rather than to a new run:
-## a player who pressed CONTINUE did not ask to start over, and silently rolling
-## a fresh galaxy would be the worst possible answer to a save that failed to
-## read.
+## Falls back to the launcher, not a new run: CONTINUE never asked to start over.
 func continue_run() -> void:
 	if not SaveGame.load_into_run():
 		Run.log_line("The save could not be read.", &"them")
@@ -533,14 +348,8 @@ func continue_run() -> void:
 		return
 	resume_here()
 
-## Where a restored run picks up. Always the sector — every arrival lands there
-## anyway, and it is the one screen that reads correctly for every node type.
-##
-## The fight at an uncleared combat node is NOT restarted here. It is offered:
-## the sector's action button says ENGAGE and starts it when pressed. Restarting
-## it automatically would drop a returning player straight into a turn they did
-## not ask for, and the node stays uncleared either way, so nothing is skipped
-## for free — flying on forfeits the loot.
+## Resume lands on the sector and offers the pending fight (ENGAGE) rather than starting it.
+## Why: docs/why/Router.md#resuming-a-run
 func resume_here() -> void:
 	var f := fight_on_resume
 	fight_on_resume = {}
@@ -550,11 +359,12 @@ func resume_here() -> void:
 	if not Run.pad.is_empty() and not docked:
 		show_transfer()
 		return
-	# EXCEPT A FIGHT YOU SAVED OUT OF. SAVE & EXIT mid-fight leaves the save from
-	# before it on disk and notes which fight it was (SaveGame.mark_fight); that
-	# one starts again from its first turn, same enemies, as you went in.
+	# A fight saved out of restarts from its first turn with the same enemies.
 	var ids: Array = f.get("ids", [])
 	if ids.is_empty() or not DB.enemies.has(StringName(ids[0])):
+		return
+	if _saved_fight_over(f):
+		Run.log_line("The fight ended while you were away.", &"them")
 		return
 	var extras: Array = []
 	for i in range(1, ids.size()):
@@ -563,9 +373,26 @@ func resume_here() -> void:
 	start_combat(DB.enemies[StringName(ids[0])], extras,
 		bool(f.get("clears", true)), bool(f.get("share", true)))
 
-## Everybody you are flying with, with the numbers the convoy strip has no room
-## for. `back` is where LEAVE returns to, so the HUD can be reached from three
-## screens without all three landing on the sector. See PartyScreen.
+## A saved-out fight the party has since finished must not restart as a second fight.
+## Why: docs/why/Router.md#saved-fight-over
+func _saved_fight_over(saved: Dictionary) -> bool:
+	if not Net.is_networked() or not bool(saved.get("share", true)):
+		return false
+	var ids: Array = saved.get("ids", [])
+	var f := Net.fight_at(Run.at)
+	if f != null and f.over and (f.paid > 0 or f.broke):
+		var theirs: Array = []
+		for id in f.foe_ids:
+			theirs.append(String(id))
+		if theirs == ids:
+			return true
+	var n: MapGen.MapNode = Run.node_at()
+	if bool(saved.get("clears", true)) and n != null and n.cleared:
+		return true
+	return String(ids[0]) == "hellbender" and 		(not Run.hellbender_alive() or Run.hellbender_at != Run.at)
+
+
+## `back` is where LEAVE returns to, so three screens can reach the HUD.
 func show_party() -> void:
 	if in_combat():
 		return
@@ -575,21 +402,8 @@ func show_party() -> void:
 	s.setup((show_station if docked else show_local) if here is ShipScreen else (
 		show_starchart if here is StarchartScreen else show_sector))
 
-## Re-scan before drawing, because SIGHT IS A SNAPSHOT AND REACH IS LIVE.
-##
-## `chart_from` runs on arrival and `sensed` keeps that answer until the next
-## one. `reachable` is computed from the ship's CURRENT thrust every time it is
-## asked. Fit a thruster at a station and reach grows while the sight marks do
-## not -- so a system becomes reachable, is drawn, prices its fuel, and cannot be
-## jumped to, because `can_jump_to` wants `sensed` as well.
-##
-## Reported as a system inside both rings whose button read NOT ENOUGH FUEL, on a
-## ship carrying 279 fuel against a 6-unit cap. The message was the screen's
-## if-chain treating anything left over as an affordability problem; the cause
-## was two answers to "how far can I see" taken at different times.
-##
-## Cheap enough to just do: one pass over the map, once per opening, against a
-## draw that walks every node anyway.
+## Rescan before drawing: sight is a snapshot but reach is live, so they can disagree.
+## Why: docs/why/Router.md#starchart-rescan
 func show_starchart() -> void:
 	# (no chart in a fight: back to it, or nothing if it is up -- `fight_up`)
 	if in_combat() or fight_up():
@@ -619,28 +433,12 @@ func _show_starchart() -> void:
 	_swap(s)
 	s.setup()
 
-## WHERE YOU ARE: the system map (Jon: "a system map like Starfield's"), or the
-## side-on view while a fight is on or a jump is leaving. The callers that mean
-## "back to the place" come through here -- UNDOCK, the galleries' and PARTY's
-## BACK or LEAVE, the end of a fight -- and land where the place is: the map;
-## LOCAL in a fight, or as UNDOCK's one distance out on the ladder; and the
-## station from a page looked at from the berth (`over_berth`). The HUD's first
-## tab does not come through here: it goes to `show_station` or `show_local`
-## itself (`HudBar._go_here`).
+## The callers that mean back to the place come through here and land where the place is.
+## Why: docs/why/Router.md#show-sector
 func show_sector() -> void:
-	# A HELLBENDER AT ANCHOR DOES NOT SHUT THE MAP. It did (Oct 2: "the map would
-	# let you walk round it"), from when it was fought from anywhere in the
-	# system. Since it has a place of its own on the map (Jon, Oct 15: one place,
-	# one fight) the map is the only way TO it -- LOCAL elsewhere says "Fly out
-	# to it" and its button is this door -- so with the old hold kept, SECTOR,
-	# that button, Tab and the end of a fight it was still here after (fled, or
-	# its escape burn hopping back) all came back to LOCAL, and only STARCHART
-	# left (Jon, Oct 22: "Fighting the Hellbender totally breaks the sector and
-	# local buttons. You are able to click starchart.").
-	# DOCKED, "BACK TO THE PLACE" IS THE BERTH (Jon, Oct 27: UNDOCK is the only
-	# way out). From a page looked at from it -- the map, the chart, PARTY's or a
-	# catalogue's LEAVE -- this went to the map and undocked on the way, so
-	# leaving a co-op party page walked you out of the station unasked.
+	# A Hellbender at anchor no longer shuts the map; docked, back to the place is the berth.
+	# Jon's Oct 22 and Oct 27 rulings.
+	# Why: docs/why/Router.md#show-sector
 	if over_berth():
 		show_station()
 		return
@@ -656,10 +454,7 @@ func show_sector() -> void:
 		show_system()
 
 
-## The system map. The ship warps in at the edge on arrival; coming back to a
-## system you are already in, it is where you left it. A VIEW, NOT A MOVE: from
-## the berth it shows the system without undocking, and LOCAL (reading
-## STATION) goes back.
+## A view, not a move: from the berth it shows the system without undocking.
 func show_system() -> void:
 	if Run.dead:
 		show_game_over()
@@ -683,18 +478,13 @@ func show_system() -> void:
 		_swap(pre)
 		return
 	var s := SystemMapScreen.new()
-	# A JUMP'S ARRIVAL IS NOT A MOVE BETWEEN DISTANCES: the departure's LOCAL is
-	# another system. Taken as one, the zoom out of it carried the old system's
-	# planet and station into the new system's map for half a second as its name
-	# decoded beside them (nav audit, Oct 17). The map plays its own arrival.
+	# A jump's arrival is not a move between distances: the departure's LOCAL is another system.
+	# Why: docs/why/Router.md#system-map-arrival
 	if arrived:
 		ZoomLadder.hold_off = true
 	_swap(s)
 	ZoomLadder.hold_off = false
-	# (at the system's own map clock, where its map was put away: a turning
-	# pair goes on from there, `Run.map_clock`; in co-op the party's, PROTOCOL 14,
-	# unless LOCAL just showed the pair at the kept one, `pair_handed`, and the
-	# party is not too far on from it, `NetSession.handed_clock`)
+	# Kept map clock, or the party's in co-op unless LOCAL just handed over the pair.
 	s.show_system(Run.node_at(), Net.handed_clock(Run.at) if pair_handed(Run.at) and not arrived else Net.adopt_clock(Run.at), arrived)
 
 
@@ -708,27 +498,16 @@ func _undock() -> void:
 	docked = false
 
 
-## UNDOCK IS THE ONLY WAY OUT (Jon, Oct 27, on Jeremy's "LOCAL lets you leave a
-## station too easily"). The map and the chart are a VIEW from the berth
-## (`show_system`), so you can look round the system and plan the next jump while
-## tied up -- but flying the map's ship, GO on an event, or the chart's JUMP is a
-## move, and a move from the berth is refused and says how to leave. It used to
-## cast off on the spot (the clamps, the decks' power-ons spent, no undock seen),
-## which is how a player left a station without meaning to.
-##
-## The words are the HUD's: LOCAL greyed at the berth says the same
-## (`DOCKED_LINE`), and so do the map's FLY HERE and GO and the chart's JUMP.
-## True when the ship is free to go (it is not docked, and nothing is on the pad).
-##
-## THE PAD HOLDS THE SHIP IN SPACE TOO. A derelict's frame (TRANSFER on the rail)
-## moves you aboard where it was found, with no berth to refuse the jump -- and
-## 0.4.1 let the ship fly on with its whole kit on a pad no screen showed, to be
-## refused by the next station's UNDOCK for good (Jon, Oct 23). The move is up
-## while the pad is loaded (`show_transfer`), so this is the backstop.
+## UNDOCK is the only way out (Jon, Oct 27): a move from the berth is refused and says how.
+## A loaded pad also holds the ship in space, so this is the backstop.
+## Why: docs/why/Router.md#undock-only-way-out
 func cast_off() -> bool:
 	if docked:
 		Audio.denied()
 		Run.log_line(DOCKED_LINE, &"them")
+		# (UNDOCK blinks, now or when the station is next up)
+		undock_nudge = true
+		Sig.undock_wanted.emit()
 		return false
 	if Run.pad.is_empty():
 		return true
@@ -747,32 +526,19 @@ func may_cast_off() -> bool:
 ## What every way off the berth but UNDOCK says (Jon, Oct 27): the HUD's LOCAL
 ## greyed at the station, the map's FLY HERE and GO, the chart's JUMP.
 const DOCKED_LINE := "Docked. Press UNDOCK to leave."
+## A way out was refused while the station was not up: it blinks UNDOCK when
+## it is. Cleared by leaving the berth (`docked`).
+var undock_nudge := false
 
 
-## A PAGE LOOKED AT FROM THE BERTH: docked, and the screen up is not the station
-## itself (the map, the chart, PARTY, a catalogue). "Back to the place" from one
-## of these is the station. Not the title, the lobby or the hull pick, which a
-## run left docked can still be on (`docked` is not saved, and quitting from the
-## berth does not clear it).
+## A page looked at from the berth: docked, with a screen up that is not the station.
 func over_berth() -> bool:
 	return docked and current != null and is_instance_valid(current) \
 		and not (current is StationScreen) and not is_front_door(current)
 
 
-## WHETHER THE SHIP IS AT THE STATION ITSELF, the one place DOCK is offered
-## (Jon, Oct 18, "dock:A": "only at the station", not anywhere in a system that
-## has one). The other half of `cast_off`: a move off the berth undocks, and a
-## dock only happens where the berth is. It was offered from anywhere in the
-## system -- LOCAL's bar at a world drew the station's side beside it and DOCK
-## played the whole dock into a station that was not there -- the same picture
-## that undocking without leaving made (8d653b27).
-##
-## At the station's own body as the map left the ship (`Run.site_here`), or
-## where the map's ship is right now while the map is up on that system, or
-## docked. Every DOCK asks this: LOCAL's bar and the station's side on it
-## (`SectorScreen`), the map's DOCK card (`SystemPanel`) and its beacon
-## (`SystemMapScreen.take_action`), the fuel hint's "Refuel here", and
-## `show_station` itself.
+## DOCK is offered only at the station itself (Jon, Oct 18), the other half of `cast_off`.
+## Why: docs/why/Router.md#docking-place
 func at_station(n: MapGen.MapNode = null) -> bool:
 	if n == null:
 		n = Run.node_at()
@@ -796,10 +562,7 @@ func at_station(n: MapGen.MapNode = null) -> bool:
 const DOCK_AWAY := "Fly to the station to dock."
 
 
-## PARKS THE SHIP AT THE STATION'S BODY, as the map leaves it after flying
-## there: for the doors that start a run or a harness docked (`-- station`, the
-## sheets), never for a player, who flies there. Nothing if the system has no
-## station.
+## Parks the ship at the station body, for harness and run-start doors, never a player.
 func park_at_station(n: MapGen.MapNode = null) -> void:
 	if n == null:
 		n = Run.node_at()
@@ -810,50 +573,29 @@ func park_at_station(n: MapGen.MapNode = null) -> void:
 		SystemMapScreen._parked[n.index] = {"at": place, "mode": &"rail"}
 
 
-## LOCAL: the side-on view of the system, where the jump leaves from and every
-## fight is fought.
-## Where you are. Always available, including after the run ends.
-## No combat guard here. after_combat() routes here from inside the fight, so a
-## "are we in combat" check would swallow the very transition that ends it — the
-## HUD disables the SECTOR tab during a fight, which is where that belongs.
-## (after_combat clears `combat` first, so `fight_up` never swallows it: it
-## stops only a rebuild of the fight's own screen while that is the one up.)
-## DOCKED, ONLY UNDOCK COMES HERE (`show_sector` from the berth; Jon, Oct 27).
-## The player's other doors stop short of it: the HUD's tab is greyed at the
-## berth and goes back to it from the map or the chart, Tab goes round by the
-## berth, and the map's GO refuses. A harness may still call it to leave by hand.
+## No combat guard: `after_combat()` routes here from inside the fight.
+## Docked, only UNDOCK comes here (Jon, Oct 27).
+## Why: docs/why/Router.md#show-local
 func show_local() -> void:
 	if fight_up():
 		return
-	# WHERE THE MAP LEFT THE SHIP, written before LOCAL is built from it. The
-	# ladder builds LOCAL at the click (`ZoomLadder.preroll`, 2C), before the swap
-	# that hides the map and writes it (`SystemMapScreen._notification`): by the
-	# HUD's tab, LOCAL composed its sky for the place the ship had flown AWAY from
-	# (GO wrote it itself, `_zoom_down`; Tab went by the chart and missed it).
+	# Write where the map left the ship before LOCAL is built from it, or its sky is stale.
 	if current is SystemMapScreen and is_instance_valid(current):
 		(current as SystemMapScreen)._keep_ship()
 	if ZoomLadder.preroll(ZoomLadder.LOCAL, show_local):
 		return
 	# (undocking: the station left lit on the LOCAL it lands on, `station_awake`)
 	var undocking := docked
-	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
-	# this flag inside the refresh that signal triggers.
-	# UNDOCKING IS NOT A PAGE CHANGE either: leaving the berth is the ship
-	# moving, and the thrusters say so.
+	# Set before the swap: `_swap` emits `screen_changed` and the HUD reads this flag in it.
+	# Undocking is the ship moving, not a page change, so the thrusters sound.
 	if docked:
 		Audio.suppress(&"ui_tab", 200)
 		# The clamps letting go, the other half of `play_dock`. Guarded on the
 		# file: silent until a take is picked.
 		if ResourceLoader.exists(Audio.SFX_PATH % &"station_undock"):
 			Audio.play(&"station_undock", 0.03)
-		# AND YOU DO NOT FLY IN TO A SYSTEM YOU ARE ALREADY IN.
-		#
-		# The approach plays once per node, latched on `_approached_at`, and a
-		# station node never sets that latch: arriving at one docks you straight
-		# away, so the sector screen is not built until you leave. Undocking was
-		# therefore its FIRST sight of the node and flew the ship in from off
-		# screen -- Jon: "You are already in the sector." Setting the latch here
-		# says what is true, that this system has been arrived at.
+		# Undocking latches `_approached_at`: you do not fly in to a system you are already in.
+		# Why: docs/why/Router.md#show-local
 		SectorScreen._approached_at = Run.at
 		# (and not at the station either: LOCAL's fly-in is for a place flown
 		# to on the map, and the undock is this one's arrival)
@@ -869,11 +611,8 @@ func show_local() -> void:
 		return
 	var s := SectorScreen.new()
 	_swap(s)
-	# Hand the live fight back if there is one. A SectorScreen built with no
-	# Combat shows no fight, and the tabs that stay lit during one — CARDS, and
-	# now HISTORY — swap this screen out and back. Without this, looking at the
-	# card catalog mid-fight and pressing SECTOR returned you to an empty sector
-	# with `combat` still running behind it, which is unwinnable and unloseable.
+	# Hand the live fight back, or SECTOR after the card catalog shows an unwinnable empty sector.
+	# Why: docs/why/Router.md#show-local
 	s.setup(combat if in_combat() else null)
 	# (a working station: lit as your ship leaves it, Jon, Oct 21)
 	if undocking:
@@ -887,25 +626,15 @@ func show_cards() -> void:
 	_swap(s)
 	s.setup(back_to(here))
 
-## Development only: every module in the game on one page. See
-## ModuleGalleryScreen — the sibling of show_cards, and dev-only for the same
-## reason: a catalogue is the answer to a game about finding out what things do.
+## Dev only, as a catalogue answers a game about finding out what things do.
 func show_modules() -> void:
 	var here := current
 	var s := ModuleGalleryScreen.new()
 	_swap(s)
 	s.setup(back_to(here))
 
-## Where LEAVE goes from a page you opened OVER the run.
-##
-## The catalogues sit on the HUD, so they can be opened from any screen and
-## "back" cannot be a constant -- this is the same question PartyScreen answers
-## inline, asked once so the two galleries do not each answer it differently.
-##
-## A GALLERY IS NOT A PLACE TO BE SENT BACK TO. Opening MODULES from CARDS and
-## pressing LEAVE should put you back in the game, not bounce you between two
-## catalogues; anything not named here falls to the sector, which is the one
-## screen that always exists mid-run.
+## A gallery is not a place to go back to: anything unnamed falls to the sector.
+## Why: docs/why/Router.md#back-from-galleries
 func back_to(here: Control) -> Callable:
 	if here is ShipScreen:
 		# (the refit page has no tab now: back to where your ship is)
@@ -924,19 +653,9 @@ func show_ship() -> void:
 	_swap(s)
 	s.setup()
 
-## Moving day, after a hull swap that left something on the dock.
-##
-## NO HUD, and that is deliberate: the bar's SECTOR and STARCHART tabs are ways
-## off this screen, and there is no off it -- the ship cannot leave with crates
-## on the ground, so offering the exits and then refusing them is worse than not
-## offering them. `chrome = false` is the same argument the chassis select makes.
-##
-## OVER THE STATION, NOT INSTEAD OF IT. The dock swapped the station out, and
-## with the station gone the sky came back: you moved aboard in open space, the
-## system's moon behind you, as if you had undocked. It opens over the Shipyard
-## now, dimmed behind it, and closing it leaves you standing in the same yard
-## (Jon: yes). Anything else that opens it -- a tool, a screen that is not the
-## station -- still gets the page of its own.
+## No HUD: its tabs lead off a screen the ship cannot leave with crates on the ground.
+## Opens over the Shipyard, so closing it leaves you in the same yard (Jon).
+## Why: docs/why/Router.md#moving-day
 func show_transfer() -> void:
 	if move_open():
 		return
@@ -957,10 +676,7 @@ func move_open() -> bool:
 	return current is TransferScreen and is_instance_valid(current)
 
 
-## OFF THE MOVE, back where you were standing: the yard it opened over, the
-## berth, or LOCAL after a hull found in space. It used to be `show_station`
-## from everywhere, which from open space docked you at whatever station the
-## system had, or at none.
+## Back to where you stood: the yard, the berth, or LOCAL, not `show_station` everywhere.
 func leave_transfer() -> void:
 	if dock != null and is_instance_valid(dock):
 		_close_dock()
@@ -970,13 +686,8 @@ func leave_transfer() -> void:
 		show_local()
 
 
-## AT THE BERTH WITH THE PAD LOADED, the move is what you see. The pad is what
-## holds UNDOCK shut, and the move is the one screen that shows it -- so a berth
-## with a loaded pad and no move open was a station that refused to let you go
-## and could not say why (Jon, Oct 23: a hull found in space flew its kit here on
-## the pad; and Tab, or any door off the station, freed the yard's move with the
-## station, and docking again never brought it back). Deferred, so the station is
-## in the tree and set up first.
+## A loaded pad at the berth must show the move, or UNDOCK refuses with no explanation.
+## Why: docs/why/Router.md#moving-day
 func _reopen_move() -> void:
 	if Run.pad.is_empty() or move_open() or not docked:
 		return
@@ -1030,9 +741,7 @@ func _close_dock() -> void:
 func show_game_over() -> void:
 	Audio.music_state(&"gameover")
 	var s := GameOverScreen.new()
-	# THE PICTURE THE RUN ENDED ON (`DeathHandoff`): RUN ENDED is drawn over it,
-	# not over a fresh sky, with no fade of its own and no HUD (it is in the
-	# picture, dimmed with everything else). Read once.
+	# RUN ENDED draws over the picture the run ended on, with no fade and no HUD.
 	var still := death_still
 	var look := death_look
 	death_still = null
@@ -1050,22 +759,9 @@ func jump_to(index: int) -> void:
 	Run.jump_to(index)
 
 # ---------------- the jump, as a journey ----------------
-## A MAILBOX, NOT A MODE, and the distinction is the whole safety of this.
-##
-## A jump used to be one frame: press the button, the fuel is gone and you are
-## there. It is a sequence now — the ship revs and leaves the OLD system, and
-## only then does anything get spent — so something has to carry "you committed
-## to a jump" across a screen swap.
-##
-## These are written once and READ ONCE. The screen that takes a message owns
-## it from then on, and if that screen dies before it commits, the jump is
-## simply cancelled with nothing spent. A persistent flag would be a mode, and a
-## mode is a thing that can be left switched on.
-##
-## NOT ON `Run`, for the same reason `docked` is not: it is a fact about which
-## side of a transition you are on, it must not be saved, and a departure that
-## has not committed is indistinguishable from being parked where you already
-## were. That is what makes a quit mid-departure safe without a save version.
+# A mailbox, not a mode: read once, so a screen that dies before commit cancels the jump.
+# Not on `Run` and not saved, so a quit mid-departure is safe without a save version.
+# Why: docs/why/Router.md#jump-mailbox
 var _post_depart: int = -1
 var _post_arrive: bool = false
 var _post_skipped: bool = false
@@ -1074,9 +770,7 @@ var _post_skipped: bool = false
 func begin_jump(index: int) -> void:
 	if index < 0 or index >= Run.map.size():
 		return
-	# The chart's button is already disabled on this, but state can move between
-	# the paint and the press — and a departure played over a jump that then
-	# silently no-ops leaves a screen with no ship in it and no drawer.
+	# Guard anyway: a departure over a jump that no-ops leaves a screen with no ship.
 	if not Run.can_jump_to(Run.map[index]):
 		return
 	# FROM THE BERTH (the chart is a view from it): refused, and says to press
@@ -1089,10 +783,7 @@ func begin_jump(index: int) -> void:
 		jump_to(index)
 		return
 	_post_depart = index
-	# NOT A PAGE CHANGE. Leaving the chart here is the first frame of the jump --
-	# the ship revs and goes -- and the tab click on top of it reads as a
-	# misfire (Jon). SectorScreen suppresses the same sound again at the commit,
-	# for the swap on the far side.
+	# Not a page change: a tab click on the jump's first frame reads as a misfire (Jon).
 	Audio.suppress(&"ui_tab", 200)
 	show_local()
 
@@ -1111,20 +802,14 @@ func take_arrival() -> Array:
 
 ## The ship is gone. Everything past here is the path that already worked.
 func commit_jump(index: int, skipped: bool = false) -> void:
-	# THE SAME THREE CONDITIONS `_autosave` REFUSES ON, and for the same reason.
-	# `_swap` hides and queue_frees the outgoing screen, and queue_free leaves it
-	# in the tree for the rest of the frame — so a flare that peaks after QUIT
-	# has cleared the hull would run a jump against a run that has ended. That is
-	# the quittest bug wearing new clothes.
+	# Same three refusals as `_autosave`: a flare peaking after QUIT would jump an ended run.
 	if Run.hull == null or Run.map.is_empty() or Run.dead:
 		return
 	var before := Run.jumps
 	_post_arrive = true
 	_post_skipped = skipped
 	Run.jump_to(index)
-	# `Run.jump_to` returns in silence on a target it will not take. If it did,
-	# nothing swapped the screen and the departing sector is still up with its
-	# ship hidden behind a flare that has already finished.
+	# `Run.jump_to` no-ops silently on a refused target, leaving the sector up with a hidden ship.
 	if Run.jumps == before:
 		_post_arrive = false
 		_post_skipped = false
@@ -1132,23 +817,16 @@ func commit_jump(index: int, skipped: bool = false) -> void:
 
 func _on_jumped(_index: int) -> void:
 	crumb("[jump] #%d to %s, fuel %d" % [Run.jumps, MapGen.star_name(Run.node_at()), Run.fuel])
-	# IN AT THE EDGE. A jump arrives where every arrival does, whatever orbit
-	# the ship was left in on the last visit, so an arrival's ambush is at the
-	# edge and leaves its wrecks there -- not on a world whose own fight's hulls
-	# are already lying round it (Jon, Oct 15: one place, one fight).
+	# A jump arrives at the edge, so an ambush leaves wrecks there, not at a fought world.
+	# Why: docs/why/Router.md#jump-arrival
 	SystemMapScreen._parked.erase(_index)
-	# (and the event last opened on LOCAL is left behind with the place it stands
-	# at: kept, the edge of a system flown back into drew its subject, as no
-	# record of where the ship is reads as being at every event, `here_now`)
+	# The event last opened on LOCAL is dropped with the place it stood at.
 	LocalEventDrawer.last = []
 	# (a jump in is not a flight on the map, and the station it finds is asleep:
 	# LOCAL's fly-in and the station's wake are a visit's, `SectorScreen`)
 	SectorScreen.forget_places(_index)
-	# ...BUT AT A STATION, AT THE STATION (Jon, Oct 18, "arrive:B"): a jump into
-	# a system with a station brings the ship in alongside it, so DOCK is there
-	# on arrival and LOCAL has the station's side; a jump anywhere else arrives
-	# at the edge as above. (No fight is ever rolled at a station, so nothing
-	# arrives there to leave its wrecks.)
+	# A jump into a station system arrives at the station (Jon, Oct 18), so DOCK is there.
+	# Why: docs/why/Router.md#jump-arrival
 	park_at_station(Run.node_at())
 	resolve_current_node()
 
@@ -1157,74 +835,45 @@ func resolve_current_node() -> void:
 	Run.log_line("Jumped to %s. %s. Danger %d." % [
 		MapGen.star_name(n), MapGen.place_line(n).capitalize(), n.danger], &"you")
 
-	# Roll what this system is offering before the save below, not at the moment
-	# it is shown. Arriving is the safe point; everything past it is a thing you
-	# chose to do here, and a suspend save is a bookmark rather than a way to
-	# reject a draw. See _roll_here().
+	# Roll before the save: arriving is the safe point, so a suspend save cannot reject a draw.
 	settle_arrival(n)
-	# The save the SaveGame header promises: on the sector, at the node you flew
-	# to, with the contact still there. Until this line the last write predated
-	# the JUMP — start_combat() assigns `combat` before it swaps, so the fight's
-	# own swap saved nothing and the star chart's was the newest state on disk.
-	# Force-quitting a fight therefore refunded the fuel, put you back at the
-	# system you left, and let you pick a different route entirely.
+	# Saves on the sector at the flown-to node, or a force-quit fight refunded the fuel.
+	# Why: docs/why/Router.md#arrival-save
 	_autosave()
 
-	# Every arrival lands on the sector. You should see the place before you are
-	# asked to do anything with it — a station is a lit hab ring turning in the
-	# dark, not a menu that appears. Fights are the exception only in that they
-	# start immediately, and combat happens on the sector screen anyway.
-	# Something followed you in. This is a fight on the way to the door rather
-	# than instead of it: the system still holds whatever it held, so the node
-	# is NOT consumed by winning here — see start_combat's `clears_node`.
-	# (never at a station: a save from before the rule may still carry the flag)
+	# Every arrival lands on the sector; an ambush fights on the way to the door, not instead.
+	# Why: docs/why/Router.md#arrival
 	if n.ambush_pending and no_fights_at(n):
 		n.ambush_pending = false
 	if n.ambush_pending:
-		Run.log_line("Contact. They saw your heat on the approach.", &"heat")
-		# Asked for HERE rather than stored at arrival. Positional, so it is the
-		# same pack however often it is asked and on whichever machine -- which
-		# is what lets the flag be a boolean instead of a list.
+		# Asked for here, not stored: positional, so the same pack on any machine.
 		var pack := ambush_pack(n)
 		if pack.is_empty():
 			n.ambush_pending = false
 		else:
+			# A partner already fighting here: the pack folds into their fight (Nov 5).
+			var theirs := party_fight_here()
+			if theirs.is_empty():
+				Run.log_line("Contact. They saw your heat on the approach.", &"heat")
+			else:
+				Run.log_line("%s is already fighting here. You join their fight."
+					% opener_name(Net.fight_at(n.index)), &"good")
 			# SHARED, like every fight at a place (Oct 22): a partner landing
 			# here while you are still in it can JOIN rather than watch.
-			start_combat(pack[0], pack.slice(1), false, true)
+			start_combat(pack[0], pack.slice(1), false, true, not theirs.is_empty())
 			return
 
-	# The hellbender holds this system. Nothing here is reachable past it — not the
-	# dock, not anything the system was offering — so arrival lands on the sector
-	# and the one button says what there is to do. NOT auto-engaged, for the
-	# same reason the core stopped being: two people never arrive at a system on
-	# the same second, and a set piece a party cannot gather at is fought alone
-	# by design. See the CORE note below.
+	# Not auto-engaged: a party cannot arrive in the same second, so the set piece would be solo.
+	# Why: docs/why/Router.md#hellbender-arrival
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		Run.log_line("The Hellbender is anchored here, its holds glowing with what it has taken. It blocks the rest of this system.", &"big")
 		show_local()
 		return
 
 	match n.type:
-		# THE CORE DOES NOT OPEN ON ARRIVAL, and it used to.
-		#
-		# Dropping straight into the custodian is right for one ship and wrong
-		# for a party, because two people never arrive at a system on the same
-		# second. Whoever landed first was in the boss fight before the other had
-		# finished their jump — so the run's one set piece was fought alone by
-		# design, and the party had no way to be at it together. A latecomer
-		# joining mid-fight works and always did; there was simply nothing to
-		# join by the time they got there.
-		#
-		# It also fixes a second core: winning consumed the node, and this branch
-		# never checked `cleared`, so the next ship to arrive rolled a fresh
-		# custodian and killed the galaxy's boss again. FIGHT has checked that
-		# since it was written; CORE never did.
-		#
-		# So the core is a place you arrive at now. The sector says what is out
-		# there and the button says ENGAGE, which is the wiring a resumed run has
-		# always used — `_on_action` and `_quiet_lines` both already had the
-		# case, and this makes it the ordinary path instead of the restored one.
+		# The core does not open on arrival: two ships never land together, so the boss was solo.
+		# It also stops a cleared core rolling a fresh custodian for the next arrival.
+		# Why: docs/why/Router.md#core-arrival
 		MapGen.NodeType.CORE:
 			if n.cleared:
 				Run.log_line("The core is open. Its guard is gone.", &"good")
@@ -1234,81 +883,41 @@ func resolve_current_node() -> void:
 		_:
 			show_sector()
 
-## WHAT ARRIVING CHANGES ABOUT THE PLACE, before anything is shown or saved:
-## what the system holds is rolled, and the work you signed for here is put
-## on its map (`Contracts.post_goals_at`). Its own function so `-- contracttest`
-## arrives through the same door the game does.
+## Its own function so `-- contracttest` arrives through the same door the game does.
 func settle_arrival(n: MapGen.MapNode) -> void:
 	_roll_here(n)
-	# THE WORK IS AN EVENT HERE, NOT A THING THAT HAPPENS ON ARRIVAL: a fetch's
-	# pickup and a hunt's target are on the map to fly to (`Contracts.post_goal`),
-	# posted at signing and again here in case the place was emptied since.
+	# Contract work is an event on the map: posted at signing, and again here if emptied.
 	Contracts.post_goals_at(n)
-	# A fetch signed before the work was put on a map can still name a place that
-	# holds no events (a station): there, as before, arriving is the pickup.
-	# Before the autosave, so a force-quit on arrival does not lose the trip.
+	# A fetch with no event to hold it still counts arrival as the pickup. Runs before autosave.
 	if not Contracts.holds_goal(n):
 		Run.reach_contract_target(n.index)
 
 
-## Decide what is waiting at a system, once, and leave it on the node so the
-## save carries it. Cleared nodes are left alone — whatever was here is resolved
-## and re-rolling it would put it back.
-##
-## Both of these used to be rolled at the moment the screen opened, which meant
-## quitting and resuming rolled them again: a bad enemy draw or a hail with two
-## bad options cost nothing to refuse. That is save-scumming through the front
-## door, and it defeats "every death is self-authored" without touching a
-## number. Idempotent by design — it is also the lazy path for saves written
-## before the node carried these.
+## Rolled once and saved on the node, so quit and resume cannot re-roll a bad draw.
+## Why: docs/why/Router.md#rolling-a-system
 func _roll_here(n: MapGen.MapNode) -> void:
 	if n.cleared:
 		return
-	# WHAT THERE IS TO DO HERE, decided once and written onto the node.
-	#
-	# Same contract as `foes` and `event_key` above and for the same reason: this
-	# runs before the autosave, so quitting and coming back cannot re-roll it.
-	# Save-scumming through the front door is what that rule exists to stop.
-	#
-	# Stations are excluded because a station IS its option list -- the shelf,
-	# the hull on the rack, repair and fuel -- and it is the one node the chart
-	# telegraphs. The core is excluded because it is a hand-authored boss.
+	# Options are decided once on the node, before the autosave, so quitting cannot re-roll them.
+	# Not for stations (the option list is the station) nor the hand-authored core.
+	# Why: docs/why/Router.md#rolling-a-system
 	OptionTable.ensure(n)
 	_roll_ambush(n)
 
-## Whether anything followed your heat trail in.
-##
-## Rolled here with the rest of what a system holds, and for the same reason:
-## arriving is the safe point, so a hostile your own throttle attracted cannot
-## be refused by quitting and coming back cold.
-##
-## NO NODE INHERENTLY HOLDS A FIGHT ANY MORE, so the old exclusion went with the
-## types: "being ambushed on the way to a fight is the fight" was true of a FIGHT
-## node and is false of a system that merely OFFERS one. The ambush is a separate
-## interrupt and the option is still sitting there when it is over. Only the core
-## is excluded, because it is a hand-authored boss.
+## Rolled on arrival, the safe point, so quitting cannot refuse a hostile your heat drew.
+## No node inherently holds a fight now; only the core is excluded.
+## Why: docs/why/Router.md#ambush-roll
 func _roll_ambush(n: MapGen.MapNode) -> void:
 	if n.ambush_rolled or n.type == MapGen.NodeType.CORE or no_fights_at(n):
 		return
 	n.ambush_rolled = true
-	# The ambush roll itself is a stream draw, not a positional one, and that is
-	# deliberate: whether something notices you depends on YOUR signature, so
-	# four ships arriving at one system do not all get jumped or all slip past.
-	# What is waiting IF you are jumped is positional, like everything else that
-	# lives at a node.
+	# The roll is a stream draw, not positional, so four arriving ships are not all jumped.
 	if Rng.foe.randf() < Run.ambush_chance(n):
-		# THE FLAG, not the pack. Rolled off `Rng.foe` and therefore salted per
-		# seat -- whether something notices you depends on YOUR signature, so
-		# four ships arriving together do not all get jumped. What is waiting is
-		# positional and is asked for at fight time.
+		# The flag is rolled per seat off `Rng.foe`; the pack is positional, asked at fight time.
 		n.ambush_pending = true
 
-## The contact and its pack. Packs appear deeper in, and more often in lawless
-## space where nobody is flying alone. They split health rather than doubling it
-## — see Combat.start.
-## Positional. What is flying at a system is a property of the system, and
-## `n.foes` is already saved per node — so this was ALREADY meant to be decided
-## once and stay decided. It just had no way to say so across two machines.
+## Positional: what flies at a system is a property of the system, saved once per node.
+## Why: docs/why/Router.md#foes
 func _roll_foes(n: MapGen.MapNode) -> Array[StringName]:
 	var r := Rng.derive(&"foes", n.index)
 	var out: Array[StringName] = []
@@ -1330,26 +939,15 @@ func show_station() -> void:
 		if Run.pad.is_empty():
 			_close_dock()
 		return
-	# ONLY AT THE STATION (dock:A): every DOCK is offered only there, and this is
-	# the door they all go through, so a dock from anywhere else in a station's
-	# system is refused here too, whoever asks. A run or a harness that starts
-	# docked parks the ship at the station first (`park_at_station`). (A system
-	# with no station never offers one; the harnesses that dock there anyway,
-	# to see the berth, still can.)
+	# DOCK is offered only at the station, and this door refuses a dock from anywhere else.
+	# Why: docs/why/Router.md#station-docking
 	var here: MapGen.MapNode = Run.node_at()
 	if not docked and here != null and here.type == MapGen.NodeType.STATION and not at_station(here):
 		Audio.denied()
 		return
-	# ARRIVING, OR JUST COMING BACK TO THE DESK? Docking is a thing the ship
-	# does once; walking back to the station from the chart or the ship screen
-	# is a page change. Only the first plays the clamps, and only the first
-	# swallows the page sound -- the rest are ordinary tabs (Jon).
-	# THE MAP'S DOCK, ON THE LADDER (3B, 3D): down to LOCAL first, beside the
-	# station's side, and on into its hangar from there (`ZoomLadder.chain`).
-	# NOT FROM THE MAP LOOKED AT FROM THE BERTH: there the ship never left, and
-	# going by LOCAL undocked it, played the dock again and powered every deck on
-	# again (Jon, Oct 27: UNDOCK is the only way out). The HUD's STATION and the
-	# map's DOCK go straight back in, as Tab from the chart does.
+	# Only a real arrival plays the clamps; coming back to the desk is an ordinary tab.
+	# From the map looked at from the berth, go straight in: LOCAL would undock (Jon, Oct 27).
+	# Why: docs/why/Router.md#station-docking
 	if not docked and current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
 			and Run.node_at() != null and Run.node_at().type == MapGen.NodeType.STATION:
 		ZoomLadder.chain = &"station"
@@ -1364,11 +962,8 @@ func show_station() -> void:
 	Audio.music_state(&"station")
 	if arriving:
 		Audio.suppress(&"ui_tab", 200)
-		# THE CLAMPS AS IT LANDS (Jon, Oct 21: the roar, "then putter out to
-		# nothing before it lands"): a dock that flies your ship into the yard
-		# (3B, 3D) owes them until it is on its stands
-		# (`StationScreen.ladder_yard_t`, or the move's end); any other plays
-		# them now, as the berth opens
+		# A dock that flies the ship into the yard owes the clamps sound until it lands (Jon).
+		# Why: docs/why/Router.md#station-docking
 		if animating() and ZoomLadder.busy() and not ZoomLadder.active._cut 				and ZoomLadder.active.r_new == ZoomLadder.STATION and ZoomLadder.active.seam == 3 				and ZoomLadder.active.design in ["B", "D"]:
 			dock_clamps_owed = true
 		else:
@@ -1384,37 +979,14 @@ func show_station() -> void:
 	s.setup()
 	_reopen_move.call_deferred()
 
-## Open the hail. The node is NOT consumed here — event_resolved() does that
-## when the outcome actually lands. Marking it on open meant the swap below
-## autosaved a cleared node while the picked event existed only inside
-## EventScreen, so a force-quit at the hail resumed onto a system whose signal
-## had stopped and which gave nothing.
-##
-## The pick lives on the node, decided on arrival by _roll_here(). Two reasons,
-## and only the first is about quitting. HudBar.refresh() only greys tabs while
-## in_combat(), which an event is not, so all five stay lit and the screen can be
-## swapped out from under a live hail; rolling a fresh event on the way back
-## would make leaving and returning a re-roll until the options pay. Holding it
-## in Router covered that but not a force-quit, because Router is not saved and
-## the node is.
-## Which option of the current system is open, or -1.
-##
-## Held here rather than on the node because it is a screen's business, not a
-## place's -- the node records which options are SPENT, in `taken`, and that is
-## the part a save has to carry.
+## The node is consumed when the outcome lands, not on open, or a force-quit loses the hail.
+## The pick lives on the node, rolled on arrival, so leaving and returning cannot re-roll it.
+## Why: docs/why/Router.md#opening-a-hail
 var _open_option := -1
 
 
-## Open one named option as the detail view.
-##
-## RULING 2. The sector renders the list; this is the screen an option gets when
-## it has earned one -- both a `body` and a check, so there is prose worth reading
-## and a number worth weighing. Everything simpler resolves in its own row and
-## never comes here, because two to four options across twenty-five systems is a
-## great deal of reading and prose that is unavoidable stops being read.
-##
-## `EventScreen` is reused rather than replaced: an option is
-## `{title, body, choices}` and it renders `{title, body, options}`. One key.
+## Only an option with both a body and a check earns this screen (ruling 2).
+## Why: docs/why/Router.md#option-detail
 func show_option_at(index: int) -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or n.cleared:
@@ -1438,23 +1010,15 @@ func show_option_at(index: int) -> void:
 		options = opt.get("choices", []), foe = opt.get("foe", &"")})
 
 
-## Mark one option spent without opening anything.
-##
-## What the sector calls when a row resolved IN PLACE. The bookkeeping is the
-## same as `event_resolved`'s and lives in one function so the two paths cannot
-## drift: an option spends itself, and the system is finished only when nothing
-## is left in it.
+## Shares `event_resolved`'s bookkeeping in one function so the two paths cannot drift.
+## Why: docs/why/Router.md#option-bookkeeping
 func option_resolved(index: int, result: StringName = &"done") -> void:
 	_open_option = index
 	event_resolved(result)
 
 
-## Ask the party for the option this event screen is standing in, BEFORE the
-## screen rolls or pays anything. The other half of the seam `event_resolved`
-## records: consumption is arbitrated here through `Run.take_option`, because
-## an option two ships can race for must be asked for, not assumed -- roll
-## first and apologise afterwards, and the loser has already pocketed the
-## payout. See `_resolve_derelict` for the shape.
+## Ask the party for the option before rolling or paying, or the race loser keeps the loot.
+## Why: docs/why/Router.md#claiming-options
 func claim_open_option() -> bool:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or _open_option < 0:
@@ -1468,22 +1032,14 @@ func claim_open_option() -> bool:
 
 func event_resolved(result: StringName = &"done") -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	# ONE OPTION IS SPENT, NOT THE SYSTEM. A system holds several things to do
-	# and taking one must not consume the rest -- which is what `taken` has
-	# always been for, and what `OPTION_WHOLE`'s comment apologises for not
-	# using. The node is only finished when nothing is left in it.
+	# One option is spent, not the system: the node is finished when nothing is left in it.
 	if _open_option >= 0:
 		var oid := MapGen.OPTION_SITE + _open_option
 		if not n.taken.has(oid):
 			n.taken.append(oid)
 		n.results[_open_option] = result
-		# ONE ONLY, ENFORCED. The list has promised this since exclusive sets
-		# existed -- first as a bracket captioned ONE ONLY, now as the rival
-		# greying under the cursor -- and nothing has ever made it true: taking
-		# the auction left the queue sitting there, takeable. The SIMULATOR has
-		# been playing the rule correctly all along (`Policy.take_options`
-		# counts what it forwent), so the model the balance numbers come from
-		# and the game you actually play have disagreed about it.
+		# ONE ONLY is now enforced: the sim already played the rule, the game never did.
+		# Why: docs/why/Router.md#one-only
 		OptionTable.foreclose(n, _open_option)
 		_open_option = -1
 		for i in n.options.size():
@@ -1491,13 +1047,8 @@ func event_resolved(result: StringName = &"done") -> void:
 				return
 	Run.consume_node(n)
 
-## Fly the beam.
-##
-## The one node type that is a deliberate trade rather than a fight or a shop:
-## a neutron star's wind is the densest fuel source in the galaxy and its
-## radiation is the most reliable way to lose a hull. You come away with a full
-## tank and exotic matter worth studying, and you pay for it in the only
-## currency the ship cannot buy back cheaply.
+## A deliberate trade: the densest fuel and exotic matter, paid for in hull from radiation.
+## Why: docs/why/Router.md#pulsar-harvest
 func harvest_pulsar() -> void:
 	Run.harvest_pulsar()
 	if Run.dead:
@@ -1505,23 +1056,15 @@ func harvest_pulsar() -> void:
 		return
 	show_sector()
 
-## Strip the wreck, then stay where you are: the salvage rail on the sector
-## screen already shows what came aboard, so a separate loot screen was one
-## transition too many.
+## Stay put after stripping: the salvage rail already shows the haul, so no loot screen.
 func salvage_here() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.cleared:
 		return
 	await _resolve_derelict(n)
 
-## A wreck is the one thing in the game today that two ships can genuinely race
-## for, so this is the one place that ASKS the party rather than assuming.
-##
-## Everything else that finishes a system — the fight you won, the hail you were
-## inside — cannot be taken out from under you, and `Run.take_whole()` tells the
-## party without waiting. Here the answer decides whether any loot is rolled at
-## all, and rolling it first and apologising afterwards does not take the module
-## back out of the loser's hold.
+## A wreck is the one thing ships race for, so ask the party before rolling any loot.
+## Why: docs/why/Router.md#derelict-race
 func _resolve_derelict(n: MapGen.MapNode) -> void:
 	if not await Run.take_option(n, MapGen.OPTION_WHOLE):
 		var who := Net.taker_name(n.index, MapGen.OPTION_WHOLE)
@@ -1533,14 +1076,13 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 	# whatever order. See Rng.derive().
 	var r := Rng.derive(&"salvage", n.index)
 	var count := 2 if n.region == MapGen.Region.LAWLESS else 1
+	# and the party's share of it (`PartyScale`, Jon, Nov 5)
+	count = PartyScale.pay(count)
 	for i in count:
 		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 		Run.stow(LootGen.roll_module(n.danger, force,
 			n.region == MapGen.Region.DEEP or n.region == MapGen.Region.FAUNA, r))
-	# Precursor fragments come off deep wrecks and nowhere else in normal space.
-	# They are the one material with no manufactured source, which is what makes
-	# RELIC ANALYSIS a reason to have flown coreward rather than a recipe you
-	# grind toward at the rim.
+	# Precursor fragments come only off deep wrecks, so relic analysis needs flying coreward.
 	if MapGen.tier(n.danger) >= 4 and r.randf() < 0.30:
 		Run.add_material(&"relic", 1)
 		Run.log_line("Part of the wreck is older than the ship. Precursor fragment recovered.", &"good")
@@ -1551,34 +1093,9 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		count, "" if count == 1 else "s"], &"good")
 	show_sector()
 
-## `extras` is what the node already rolled. It is a parameter rather than
-## something rolled in here so that the fight a node offers is decided once, at
-## arrival, and survives a save — see _roll_here().
-## `share` is whether the party can be in this one.
-##
-## True for the fight a SYSTEM holds — that is a fact about a place, so every
-## machine derived the same enemies from the same node index and a second ship
-## arriving is arriving at the same frigate.
-##
-## FALSE for an ambush, and the reason is in `_roll_ambush`: whether something
-## noticed you is rolled off `Rng.foe`, a stream, precisely so that four ships
-## at one system do not all get jumped. Two players' ambushes at the same node
-## are two different events that happen to share an address, and joining one to
-## the other would be joining a fight that is not there.
-## NO FIGHTS AT A STATION (Jon: "Why would there be a fight at a station? There
-## should never be fights at stations."). A station is a harbour: nothing is
-## rolled to jump you there (`_roll_ambush`), the Hellbender never stops at one
-## (`RunState._spawn_hellbender`, `_hellbender_step`), it holds no options to
-## take a fight from (`OptionTable.ensure`), and `start_combat` refuses one there
-## whoever asks -- an event's bait, a partner's shared fight, a save left
-## mid-fight, a debug key -- so no wreck is ever left at one either.
-## WHETHER YOU ARE AT THE HELLBENDER, or at the core's Custodian: each has a
-## place of its own on the map (`SystemLayout`), and it is fought there and
-## nowhere else (Jon, Oct 15), so its wrecks are its own place's.
-## ONLY A BODY IS EITHER PLACE: each returns -2 for "none", which no ship is ever
-## at, but the two were compared unguarded, so any site that came to equal -2
-## would have read as at a Hellbender that is not there. Two suns made the site
-## values a set to be careful with (star B is -4, `SystemLayout.STAR_B`).
+## A node's fight is positional and shared; an ambush is a stream draw, so it is not.
+## No fights at stations (Jon). A site of -2 means none, so compare guarded.
+## Why: docs/why/Router.md#fight-sharing
 static func at_hellbender(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
@@ -1597,56 +1114,50 @@ static func no_fights_at(n: MapGen.MapNode) -> bool:
 	return n != null and n.type == MapGen.NodeType.STATION
 
 
+## Test seam: skips the partner-fight lookup to force the same-second race. Never game code.
+var forced_race: bool = false
+## Counts asks to the party, so "Waiting for the host." is said only for the
+## one still waiting.
+var _ask_serial: int = 0
+
+
+## `told`: the caller has already said whose fight this is (an arrival ambush
+## folded into a partner's), so the "Fighting alongside" line is not said too.
 func start_combat(template: EnemyTemplate, extras: Array = [],
-		clears_node: bool = true, share: bool = true) -> void:
+		clears_node: bool = true, share: bool = true, told: bool = false) -> void:
 	if no_fights_at(Run.node_at()):
 		return
-	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
-	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The hellbender is
-	# one of those in everything but what winning pays, so it gets the cue too.
-	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
-	# A FIGHT IS NOT SOMETHING YOU HAVE WHILE TIED UP. This builds its own
-	# SectorScreen rather than going through show_sector(), so it has to clear
-	# the flag itself -- otherwise the HUD's second tab still said STATION on the
-	# far side of the fight and offered to walk you back into a berth you had
-	# already left.
+	# A fight clears `docked` itself, as it skips `show_sector()`, or the HUD shows STATION.
 	docked = false
 	Run.node_at().fled = false
-	# SOMEBODY IS ALREADY SHOOTING HERE: you are in THEIR fight, whatever brought
-	# you to it -- the JOIN button, an option's hostiles, an ambush on arrival.
-	# The party keeps one fight per system (`NetSession.fights`, keyed by the
-	# node) and the host joins whoever asks into the one that is open, so a ship
-	# that planned a different enemy here would hold the party's numbers on the
-	# wrong hulls. Built from the fight's own ids instead, the same on every
-	# machine (Oct 22 playtest: "couldn't join his fight").
-	if share:
+	# Starting a fight where a partner is shooting joins theirs, built from the fight's own ids.
+	# Why: docs/why/Router.md#joining-fights
+	var blind := forced_race
+	forced_race = false
+	var folded := false
+	if share and not blind:
 		var open := party_fight_here()
 		if not open.is_empty():
 			template = open[0]
 			extras = open.slice(1)
+			folded = true
+	# Bosses and the hellbender get the dread cue, not the full-intensity theme.
+	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
 	combat = Combat.new()
 	combat.clears_node = clears_node
 	var s := SectorScreen.new()
-	# FROM LOCAL, NOT A FADE. The fight's screen is built as the LOCAL it
-	# replaces and raises its own hand (`SectorScreen._raise_band`); faded in, its
-	# first frame was a fifth of the picture over black (Jon: "the ships pop up
-	# and the drawer pops into view").
+	# From LOCAL, not a fade: the fight raises its own hand, and a fade popped ships in (Jon).
 	var wrecks: Array = []
 	if animating() and current is SectorScreen and (current as SectorScreen).settled_local():
 		seamless_next = true
 		# the wrecks LOCAL drew go with the picture, not with the screen
 		wrecks = (current as SectorScreen).hand_wrecks()
 	_swap(s)
-	# Connect before starting. Turn one resolves inside start() — charges, opening
-	# log lines, even an instant win — and a screen wired up afterwards misses all
-	# of it.
+	# Connect before starting: turn one resolves inside `start()`, even an instant win.
 	s.setup(combat)
 	s.wrecks_out(wrecks)
 	var node: MapGen.MapNode = Run.node_at()
-	# Development: `-- fight foes=3` forces a pack. Multi-enemy layout only
-	# exists at danger 2+ behind a 22% roll, so seeing two on screen was a
-	# matter of waiting rather than looking. It overrides the node's own roll,
-	# which is the point of the flag.
+	# Dev flag `-- fight foes=3` overrides the node's roll, as packs are rare to wait for.
 	var forced := 0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("foes="):
@@ -1661,44 +1172,107 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	for e in extras:
 		ids.append(String((e as EnemyTemplate).id))
 	current_fight = {ids = ids, clears = clears_node, share = share}
-	# Built, then offered to the party, then opened. `plan()` produces the hull
-	# numbers the host is told, so danger scaling and the pack split stay in
-	# `Combat._spawn` rather than being worked out a second time in the session
-	# layer — see Combat.plan().
+	# `plan()` makes the hull numbers the host is told, so scaling stays in `Combat._spawn`.
 	combat.plan(template, node.danger, extras)
-	# The hellbender opens at the hull it actually has. Damage from a previous
-	# engagement is the whole point of the chase — see RunState.hellbender_scarred
-	# — and both the local fight and the party's copy have to start from it.
+	# The hellbender opens at its scarred hull, locally and in the party's copy.
 	if template.miniboss:
-		combat.enemies[0].hp = clampi(Run.hellbender_hp, 1, combat.enemies[0].max_hp)
-		# And its intent re-read at that hull. _spawn picked one at full health,
-		# so a hellbender caught already on the ropes would otherwise open with an
-		# attack it is past making — the escape has to be on the table from
-		# turn one, exactly as the host's _pick_intent would put it there.
+		# (kept between fights in one ship's terms, built here for the game's players: `PartyScale`)
+		combat.enemies[0].hp = clampi(PartyScale.party_hull(Run.hellbender_hp, combat.party),
+			1, combat.enemies[0].max_hp)
+		# Re-read the intent at that hull so a hellbender on the ropes can escape from turn one.
 		combat.enemies[0].pick_intent()
 	var f: SharedFight = null
 	if share:
-		# One round trip on a client, none on the host, and null in the solo
-		# game. Null means "fight it alone", which is what every one of those
-		# three wants when there is nobody else here.
-		f = await Net.open_fight(node.index, combat.foe_ids(),
-			combat.foe_hp(), combat.foe_brace(), combat.foe_hp_now(), combat.grown)
-		if f != null and f.crew.size() > 1:
-			var names := Net.fight_crew_names(node.index)
-			Run.log_line("Fighting alongside %s." % ", ".join(names).to_upper(), &"good")
+		# Null means fight alone; a guest waits as long as the host takes (Nov 5).
+		var cb := combat
+		_ask_serial += 1
+		var ask := _ask_serial
+		if Net.is_networked() and not Net.is_host():
+			get_tree().create_timer(NetSession.TAKE_TIMEOUT).timeout.connect(func() -> void:
+				if _ask_serial == ask and combat == cb:
+					Run.log_line("Waiting for the host.", &"them"))
+		# (planned, not begun: nothing in it can be pressed until the answer)
+		cb.asking_at = node.index
+		# A START THAT FOUND A PARTNER'S FIGHT HERE ONLY JOINS (PROTOCOL 18):
+		# the JOIN doors, ENGAGE and an arrival folded into it. If the fight
+		# ends before the host hears the ask, the host opens nothing (it once
+		# opened a fresh, full-hull copy of the enemy that had just died).
+		f = await Net.open_fight(node.index, cb.foe_ids(),
+			cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), cb.grown, folded)
+		cb.asking_at = -1
+		_ask_serial += 1
+		# If the fight was dropped or ended while asking, leave again or the party waits.
+		if combat != cb or cb.finished:
+			var kept := combat != null and combat != cb and 				(combat.shared_at == node.index or combat.asking_at == node.index)
+			if f != null and not kept:
+				Net.leave_fight(node.index)
+			Net.take_held_swings(node.index)
+			return
+		# THE FIGHT ENDED BEFORE THE ASK GOT THERE (a JOIN on the kill): the
+		# answer is the fight that ended, without this ship in it. Nothing
+		# was spent, and the ship goes back to where it was.
+		if f != null and f.over and not f.crew.has(Net.local_id()):
+			cb.release()
+			combat = null
+			Net.take_held_swings(node.index)
+			Run.log_line("The fight ended before you got there.", &"them")
+			show_sector()
+			return
+		if f != null:
+			_take_answer(f, folded, told)
 	combat.begin(f)
 
-## Start the fight waiting at this system.
-##
-## Only reachable after a resume: arriving at a combat node normally begins the
-## fight inside resolve_current_node(), so the sector never draws with an
-## unfought contact in it. A restored run does exactly that, and the action
-## button that says ENGAGE has to mean it.
+
+## A host can answer with a partner's fight, not the one asked for: take that one whole.
+## Its own contact is spent, and `fight_door` records it for SAVE & EXIT.
+## Why: docs/why/Router.md#host-answer
+func _take_answer(f: SharedFight, folded: bool, told: bool) -> void:
+	var theirs := f.crew.size() > 1 and f.crew[0] != Net.local_id()
+	var other := f.foe_ids != combat.foe_ids()
+	if other or (theirs and not folded):
+		var door := fight_door(f)
+		combat.clears_node = door.clears
+		current_fight = {ids = door.ids, clears = door.clears, share = true}
+		if other:
+			Audio.music_state(door.cue)
+	if theirs and not folded:
+		Run.log_line("%s got here first. You join their fight." % opener_name(f), &"good")
+	elif f.crew.size() > 1 and not told:
+		var names := Net.fight_crew_names(f.at)
+		Run.log_line("Fighting alongside %s." % ", ".join(names).to_upper(), &"good")
+
+
+## Who is first in a fight's crew, by name, as the log says names, or "A
+## PARTNER" for a ship the roster does not know.
+func opener_name(f: SharedFight) -> String:
+	var who := Net.name_of(f.crew[0]) if f != null and not f.crew.is_empty() else ""
+	return who.to_upper() if who != "" else "A PARTNER"
+
+
+## A party's fight as a door: one answer for JOIN FIGHT and host-answered starts, so no drift.
+func fight_door(f: SharedFight) -> Dictionary:
+	var templates := Combat.templates_of(f.foe_ids) if f != null else []
+	var lead: EnemyTemplate = templates[0] if not templates.is_empty() else null
+	var n: MapGen.MapNode = Run.node_at()
+	var kind := &"contact"
+	if lead != null and lead.miniboss:
+		kind = &"hellbender"
+	elif n != null and n.type == MapGen.NodeType.CORE and not n.cleared:
+		kind = &"core"
+	var ids: Array = []
+	if f != null:
+		for id in f.foe_ids:
+			ids.append(String(id))
+	return {templates = templates, ids = ids, kind = kind,
+		# Only the core clears its node on a win; the hellbender is a visitor.
+		clears = kind == &"core",
+		cue = &"boss" if lead != null and (lead.boss or lead.miniboss) else &"combat"}
+
+## Only reachable after a resume, as arrival normally starts the fight itself.
+## Why: docs/why/Router.md#engaging
 func engage_here() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	# The hellbender before anything the node itself holds — while it is here it IS
-	# the engagement, and this reroute is what keeps every caller (the sector's
-	# button, a bot joining an open fight) pointed at one fight per system.
+	# The hellbender comes first: it is the engagement, keeping one fight per system.
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		engage_hellbender()
 		return
@@ -1707,20 +1281,14 @@ func engage_here() -> void:
 	if n.type == MapGen.NodeType.CORE:
 		start_combat(DB.core_boss())
 		return
-	# Whatever this system rolled when you arrived, including on a run restored
-	# from disk. _roll_here() is idempotent, so this also covers a save written
-	# before the node carried its foes.
+	# Idempotent roll, so a restored or older save still has its foes.
 	_roll_here(n)
 	var extras: Array = []
 	for i in range(1, n.foes.size()):
 		extras.append(DB.enemies[n.foes[i]])
 	start_combat(DB.enemies[n.foes[0]], extras)
 
-## Commit to the galaxy's other harvester, wherever it was caught. The node is
-## NOT consumed by winning — the hellbender is a visitor here, and whatever the
-## system itself holds is still in it after the wreckage cools. Shared, like
-## any fight at a place: its position is a host-owned fact every machine
-## agrees on, so two ships engaging it are engaging one ship.
+## The node is not consumed by winning: the hellbender is a visitor. Shared like any fight.
 func engage_hellbender() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if in_combat() or not Run.hellbender_alive() or Run.hellbender_at != n.index:
@@ -1728,35 +1296,9 @@ func engage_hellbender() -> void:
 	start_combat(DB.enemies[&"hellbender"], [], false, true)
 
 
-## Events can drop you straight into a fight (distress-beacon bait).
-##
-## Not shared, and not because of the enemy: the fight is drawn from `Rng.foe`
-## rather than from the node, so two players who took the same bait are not
-## looking at the same ship. The event that produced it was a private
-## conversation and so is what came out of it.
-## A fight an option's outcome opened.
-##
-## WINNING DOES NOT CONSUME THE SYSTEM, and that changed with the type collapse.
-## An EVENT node held one event, so consuming on victory was harmless -- by the
-## time this ran, `event_resolved` had already consumed it. A SYSTEM holds about
-## three options, and clearing it here would delete the two the player had not
-## reached yet: engage the hostile, win, and the wreck and the beacon that shared
-## the system quietly stop existing.
-##
-## The option consumes ITSELF, through `taken`. The system is finished when
-## nothing is left in it, which is `event_resolved`'s rule.
-##
-## `foe` is the event's tag (`OptionTable.fight_foe`): the creature its text set
-## up, or `&""` for a ship.
-##
-## SHARED SINCE OCT 22. It was private ("the event that produced it was a
-## private conversation"), which was harmless while a system HELD its fight and
-## arriving at it was the shared door. The type collapse moved every ordinary
-## fight behind an option, so every ordinary fight became private and nobody in
-## a party could ever join anybody's: Jon flew into Kevin's system and could
-## only watch. Which enemy the opener fields is still theirs (`Rng.foe`); a
-## partner joining is handed the opener's ids (`join_fight`), so the two
-## machines agree without the roll being positional.
+## Winning an option's fight does not consume the system; the option spends itself.
+## Shared since Oct 22: private fights meant nobody in a party could join another's.
+## Why: docs/why/Router.md#option-fights
 func start_ambush(foe: StringName = &"") -> void:
 	start_combat(option_foe(Run.node_at(), foe), [], false, true)
 
@@ -1780,9 +1322,36 @@ func party_fight_here() -> Array:
 
 ## Whether there is a partner's fight HERE to join, now.
 func can_join_fight() -> bool:
+	return join_state() == JOIN_OPEN
+
+
+## THE JOIN DOORS' STATE HERE: JOIN_NONE (no partner's fight to join),
+## JOIN_OPEN, or JOIN_SHUT, a fight whose Hellbender is spooling its escape
+## (the design's edge: a joiner past turn one is stunned, so it could only add
+## a ship for the enemy to shoot as it leaves). The bars show JOIN FIGHT greyed
+## then, with `JOIN_SHUT_WHY`.
+const JOIN_NONE := 0
+const JOIN_OPEN := 1
+const JOIN_SHUT := 2
+const JOIN_SHUT_WHY := "It is about to jump away."
+func join_state() -> int:
 	if Run.dead or in_combat() or fight_up() or no_fights_at(Run.node_at()):
-		return false
-	return not party_fight_here().is_empty()
+		return JOIN_NONE
+	if party_fight_here().is_empty():
+		return JOIN_NONE
+	var f := Net.fight_at(Run.at)
+	for e in f.foes:
+		if e.alive() and e.kind == SharedFight.Pick.ESCAPE:
+			return JOIN_SHUT
+	return JOIN_OPEN
+
+
+## JOIN FIGHT's tooltip, the same on both bars (the SECTOR bar's and the map's
+## system panel's).
+func join_tip() -> String:
+	if join_state() == JOIN_SHUT:
+		return JOIN_SHUT_WHY
+	return "%s is fighting here. After their first turn you arrive stunned. You can't act or flee until the enemy's turn is over, and it can shoot you." % join_fight_names()
 
 
 ## Who is in the fight here, by name, for the button's line.
@@ -1790,34 +1359,24 @@ func join_fight_names() -> String:
 	return ", ".join(Net.fight_crew_names(Run.at)).to_upper()
 
 
-## JOIN: into the fight a partner opened at this system.
-##
-## The set pieces go through their own doors, which already join an open fight
-## (the core clears its node on a win, the hellbender writes its hull back);
-## anything else is a contact that does not consume the system, as every fight
-## opened by an option or an arrival is.
+## JOIN enters a partner's fight; the set pieces use their own doors, which already join.
+## Why: docs/why/Router.md#joining-fights
 func join_fight() -> void:
 	if not can_join_fight():
 		return
-	var open := party_fight_here()
-	var lead: EnemyTemplate = open[0]
-	var n: MapGen.MapNode = Run.node_at()
-	if lead.miniboss:
-		engage_hellbender()
-	elif n.type == MapGen.NodeType.CORE and not n.cleared:
-		engage_here()
-	else:
-		start_combat(lead, open.slice(1), false, true)
+	var door := fight_door(Net.fight_at(Run.at))
+	if door.templates.is_empty():
+		return
+	match door.kind:
+		&"hellbender":
+			engage_hellbender()
+		&"core":
+			engage_here()
+		_:
+			start_combat(door.templates[0], door.templates.slice(1), door.clears, true)
 
-## What an option's fight brings at `n`. With no `foe`, a ship: one, off
-## `Rng.foe`, from the ordinary pool -- never fauna, even in a fauna region,
-## because the event's text set up a ship. With `foe` (the event's tag,
-## `OptionTable.fight_foe`), that creature and nothing else: the text named it
-## (Jon, Oct 17: the text leading up to the fight "should mention the megafauna
-## or whales"). A tag naming anything that is not a creature is refused loudly
-## and fields a ship, so a typo cannot put a pirate behind a whale's text.
-## One function so the headless sim (`HeadlessSim._option_fight`) fields what
-## this does.
+## No `foe` fields one ship; with a tag, that creature only. A bad tag is refused loudly.
+## Why: docs/why/Router.md#option-foes
 func option_foe(n: MapGen.MapNode, foe: StringName = &"") -> EnemyTemplate:
 	if foe != &"":
 		var t: EnemyTemplate = DB.enemies.get(foe)
@@ -1843,40 +1402,20 @@ func in_combat() -> bool:
 	return combat != null and not combat.finished
 
 
-## THE FIGHT HOLDS THE CAMERA: its own screen is up. While it is, every way
-## between distances does nothing -- Tab or whatever key NEXT SCREEN is bound
-## to, the HUD's tabs, anything else that calls a door -- the same as the
-## SECTOR and STARCHART tabs the HUD greys for `in_combat`. The doors to the map
-## and the chart lead back to the fight, and `show_local` stops there. It did not: Tab in a fight went `show_system` -> `show_local` and
-## built the fight's screen again over itself, so the picture dimmed and came
-## back, the hand was dealt again and the enemy flew in a second time (nav
-## audit, Oct 17). From a page opened OVER the fight (CARDS) the
-## same doors are still the way back to it.
-##
-## AND UNTIL THE FIGHT HAS HANDED OVER. From the last kill to `after_combat` --
-## the breakup played out, the hand lowered -- the fight is `finished`, so
-## `in_combat` is false, but its screen is still the one up and `combat` still
-## set: Tab, a rebound key or a HUD tab there started a ladder move that raced
-## the hand-off to LOCAL (Oct 17). `after_combat` clears `combat` before it
-## swaps, so this never stops the hand-off itself.
+## While the fight's screen is up every door does nothing, or Tab builds a second fight screen.
+## Also from the last kill to `after_combat`, when `in_combat` is already false.
+## Why: docs/why/Router.md#fight-holds-camera
 func fight_up() -> bool:
 	return combat != null and current is SectorScreen and (current as SectorScreen).combat == combat
 
 func after_combat(_c: Combat) -> void:
-	# WON: STAY BY THE WRECKS (alpha blocker 4). The pay is in them, and the map
-	# would take you away from it the moment the last shot landed; LOCAL draws
-	# every wreck in the system, open to strip. Any other ending (fled, calmed,
-	# stood down) goes back to the map as before.
+	# A win stays by the wrecks, where the pay is; other endings go back to the map.
 	var won_here := _c != null and _c.result == &"victory"
 	combat = null
 	current_fight = {}
-	# An ambush is spent whatever happened to it — killed, pacified or shaken
-	# off. Left on the node it would fire again the next time you flew in here,
-	# and the heat that attracted it is not the heat you are carrying now.
+	# An ambush is spent however it ended, or it fires again on the next arrival.
 	Run.node_at().ambush_pending = false
-	# THE CORE'S BOSS: its body first, then the win screen. Only the fight that
-	# won the run ends `won` (`Combat._victory`'s boss branch), so no other
-	# fight can come through here.
+	# Only the fight that won the run ends `won`, so only the core's boss comes through here.
 	if Run.won and not Run.dead and _c != null and _c.result == &"won":
 		var body := core_body_here()
 		if body != null and Run.jetsam_left(Run.node_at(), body) > 0:
@@ -1891,12 +1430,8 @@ func after_combat(_c: Combat) -> void:
 	show_loot_or_map()
 
 
-## THE LAST LOOT OF THE RUN IS OPEN: the custodian's body, over LOCAL, with the
-## win screen behind its DONE. While this is true the only way on is the win
-## screen -- the HUD is hidden, Tab does nothing (`Main._input`), Escape is DONE
-## (`Main._unhandled_key_input`) and any screen swapped in anyway is followed by
-## the win screen (`_swap`). The run is already recorded as won by then, so
-## this guards the moment, not the record.
+## While open, the win screen is the only way on; any screen swapped in is followed by it.
+## Why: docs/why/Router.md#final-loot
 var final_loot: bool = false
 
 
@@ -1912,14 +1447,8 @@ func core_body_here() -> MapGen.Jetsam:
 	return null
 
 
-## THE BODY WAITS TO BE CLICKED (Jon: "Does the custodian death immediately open
-## the salvage box or do you have to click the dead custodian? I would want to
-## have to click the dead custodian."). LOCAL, with the body lying there as a
-## wreck and SALVAGE THE CUSTODIAN said under it; clicking it opens the popup
-## (`SectorScreen._open_jetsam`), and DONE brings the win screen. Every door is
-## shut meanwhile (`final_loot`: no HUD, no Tab, and any screen swapped in is
-## followed by the win screen), and the one save a won run may have is written
-## (`SaveGame.save_core_won`), so quitting here comes back to the body.
+## The body waits to be clicked (Jon); the one allowed save returns a quit game to the body.
+## Why: docs/why/Router.md#final-loot
 func await_core_body() -> void:
 	final_loot = false
 	show_local()
@@ -1977,9 +1506,7 @@ func after_event() -> void:
 func show_loot_or_map() -> void:
 	show_sector()
 
-## Recorded and the save dropped the moment the run ends, not when the summary
-## screen appears — a player who alt-F4s on the death screen has still died, and
-## a suspend save that outlived the run would resurrect them.
+## Record and drop the save at run end: a surviving suspend save would resurrect them.
 func _on_run_ended(won: bool, reason: String) -> void:
 	SaveGame.clear()
 	RunHistory.record(

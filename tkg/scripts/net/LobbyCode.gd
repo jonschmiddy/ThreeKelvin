@@ -1,29 +1,9 @@
 class_name LobbyCode
 extends RefCounted
 
-## The short string one player reads out and three others type in.
-##
-## A lobby code is not a nicety. It is the only part of joining that a player
-## touches, and every transport below it has to produce one, so it is defined
-## here once and independently of how the packets actually travel.
-##
-## Two kinds exist, told apart by the first character:
-##
-##   D  DIRECT  — the code carries the host's address. 12 characters.
-##                Needs no service of any kind. Needs a reachable host.
-##   R  ROOM    — the code carries a random room number. 7 characters.
-##                Needs a rendezvous service. Needs nothing of the host.
-##
-## The alphabet is Crockford base 32: no I, no L, no O, no U. Those four are
-## the characters people mis-read and mis-type, and a lobby code is read aloud
-## over voice chat more often than it is pasted. Parsing is case-insensitive,
-## ignores dashes and spaces, and maps the four excluded letters onto the
-## digits they look like, so a player who types ILO gets 110 and joins anyway.
-##
-## Every code ends in a check character. Without it a mistyped code produces a
-## valid-looking address that times out thirty seconds later, and the player
-## has no way to tell a typo from a firewall. With it the typo is refused
-## immediately and by name.
+## Defined once apart from transport: DIRECT carries the host address, ROOM a room number.
+## Crockford base 32 with a check character, so a typo is refused at once, by name.
+## Why: docs/why/LobbyCode.md#lobby-code
 
 const ALPHABET: String = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -34,10 +14,7 @@ const CONFUSABLES: Dictionary = {
 
 enum Kind { INVALID, DIRECT, ROOM }
 
-## Room numbers are 25 bits: 33.5 million of them, which is five base-32
-## characters and far more than any plausible number of parties in flight at
-## one moment. Collisions are the rendezvous service's problem to reject, not
-## a reason to make the code longer than a phone number.
+## 25 bits is 33.5 million rooms; collisions are the rendezvous service's problem.
 const ROOM_BITS: int = 25
 const ROOM_MAX: int = 1 << ROOM_BITS
 
@@ -123,10 +100,7 @@ static func parse(code: String) -> Dictionary:
 	return out
 
 
-## Upper case, no separators, confusable letters folded onto what they look
-## like. Exposed because the join field should do this as the player types —
-## seeing the code correct itself is how they learn that o and 0 are the same
-## key here, instead of finding out from a failure.
+## Exposed so the join field corrects as the player types, teaching that o and 0 match.
 static func normalise(code: String) -> String:
 	var out := ""
 	for c in code.to_upper():
@@ -136,9 +110,7 @@ static func normalise(code: String) -> String:
 	return out
 
 
-## Grouped for reading aloud. Never fed back into parse() — parse() strips the
-## dashes anyway, but pretty() is for eyes and normalise() is for machines, and
-## keeping them apart stops one from being tuned for the other.
+## Grouped for reading aloud. `pretty()` is for eyes, `normalise()` for machines: keep apart.
 static func pretty(code: String) -> String:
 	var clean := normalise(code)
 	if clean.length() <= 4:
@@ -152,11 +124,8 @@ static func pretty(code: String) -> String:
 
 
 # --- bit plumbing ---------------------------------------------------------
-#
-# Base 32 packs five bits per character, and neither payload is a multiple of
-# five: DIRECT is 48 bits into 10 characters (50), ROOM is 25 into 5 (25). The
-# spare bits are zeros on the end and are read back as zeros, which is why
-# _unpack pads rather than trims.
+# Payloads are not multiples of five bits, so spare zeros pad the end and `_unpack` pads.
+# Why: docs/why/LobbyCode.md#bit-plumbing
 
 static func _push(bits: Array[int], value: int, count: int) -> void:
 	for i in range(count - 1, -1, -1):
@@ -193,9 +162,7 @@ static func _finish(kind: Kind, bits: Array[int]) -> String:
 	return head + body + _check_char(head, values)
 
 
-## The kind character is folded into the checksum on purpose. Without it, a D
-## code and an R code of the same length could not exist without one being able
-## to pass as the other after a single mistyped first character.
+## The kind is folded into the checksum, or a D and R code could pass as each other.
 static func _check_char(head: String, values: Array[int]) -> String:
 	var sum := ALPHABET.find(head) if ALPHABET.find(head) >= 0 else 7
 	for i in values.size():

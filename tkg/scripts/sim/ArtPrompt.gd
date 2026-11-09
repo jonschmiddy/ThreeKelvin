@@ -1,30 +1,12 @@
 extends RefCounted
 
-## Build a PixelLab prompt from a manufacturer, rather than from memory.
-##
-##     godot --headless --path . -- artprompt korvan structures
-##     godot --headless --path . -- artprompt verity fittings
-##     godot --headless --path . -- artprompt      (every manufacturer, every batch)
-##
-## WHY THIS EXISTS. Every prompt sent this session said "spaceship hull
-## fittings" and nothing else, so the generator produced generic parts that
-## belong to nobody. The game already knows who Korvan are in four separate
-## fields and none of it was reaching the model.
-##
-## `art/ART_CONTRACT.md` states the rule — "silhouette reads chassis, modules
-## read faction" — and then never says what any faction LOOKS like. That gap is
-## SHAPE below. The rest is read live from DB.manufacturers, so the fiction has
-## exactly one home and a prompt cannot quietly drift from the tooltip a player
-## reads on the same manufacturer.
+## Built from the manufacturer: a generic 'hull fittings' prompt gave parts belonging to nobody.
+## ART_CONTRACT never says what a faction looks like; SHAPE does, the rest is read from the DB.
+## Why: docs/why/ArtPrompt.md#prompt-purpose
 
-## What each manufacturer's parts are SHAPED like. The one thing here that is not
-## already in the game, because the game had no reason to know it.
-##
-## Written to be CONTRASTIVE. The point is not that Korvan looks industrial —
-## it is that Korvan looks nothing like Verity, so a part is placeable by
-## silhouette before the palette is read. Each line was derived from that
-## manufacturer's own backstory rather than invented: Korvan "inherited the jigs",
-## Probate is "everything is salvage", Verity signs each hull.
+## Contrastive: Korvan must look nothing like Verity, so a part is placeable by silhouette.
+## Each line is derived from the manufacturer's backstory, not invented.
+## Why: docs/why/ArtPrompt.md#shape-lines
 const SHAPE := {
 	&"korvan": "Heavy stamped plate, blunt right angles, exposed bolt heads and "
 		+ "stencilled navy part numbers. Overbuilt and interchangeable, tooled to a "
@@ -50,12 +32,8 @@ const SHAPE := {
 		+ "faintly alive.",
 }
 
-## What the surface is made of, and how it is held together.
-##
-## Both used to be hardcoded into the tail of the prompt, which told Calyx to
-## have "steel blue plating" and "rivets and panel seam lines" two sentences
-## after telling it that it is grown rather than built. A prompt that argues
-## with itself gets to pick which half to believe.
+## Hardcoded steel plating contradicted Calyx being grown: a prompt that argues picks a half.
+## Why: docs/why/ArtPrompt.md#surface
 const BASE := {
 	&"calyx": "pale chitinous shell",
 	&"cygnet": "light alloy panelling",
@@ -71,39 +49,19 @@ const FINISH := {
 const FINISH_DEFAULT := "rivets and panel seam lines"
 
 
-## The camera, spelled out.
-##
-## "side view" is not enough on its own — a run came back as cylinders seen
-## slightly off-axis, circular end caps facing the viewer, which satisfies "side"
-## and violates the contract. A part drawn round cannot sit on a hull drawn flat,
-## so this says FLAT four different ways and names the specific failure.
+## Says FLAT four ways and names the failure: 'side view' alone gave off-axis cylinders.
+## Why: docs/why/ArtPrompt.md#camera
 const CAMERA := "FLAT SIDE ELEVATION, drawn perfectly side-on. No perspective, "  	+ "no foreshortening, no three-quarter angle. No circular end caps or round "  	+ "openings facing the viewer — every opening is seen edge-on as a straight "  	+ "line. Each part is a flat profile seen from directly beside it, as in a "  	+ "technical elevation drawing."
 
 
-## The part lists worth asking for, and roughly how big each one is.
-##
-## STRUCTURES are the tier ladder: a C-class is the bare frame and every grade
-## above bolts one of these on, so they are half the length of a hull and they
-## change its outline. FITTINGS are the small stuff that fills a bay.
+## Structures are the tier ladder, half a hull long, and change its outline; fittings fill a bay.
 const BATCH := {
 	&"structures": {
 		noun = "large spaceship components lying separately",
 		size = Vector2i(280, 72),
-		# TWO OR THREE CLAUSES EACH, and deliberately different shapes.
-		#
-		# One clause apiece produced four variations on a cylinder: given room to
-		# settle, the generator finds one comfortable form and repeats it. Naming
-		# a proportion and a distinguishing feature per part is what stops that.
-		# COLOUR NAMED PER PART, not once at the end.
-		#
-		# Measured: a forced palette constrains which colours are LEGAL and says
-		# nothing about proportion — a reference that was half amber produced 0.1%
-		# amber. And a single colour sentence trailing after five sentences of
-		# camera instruction got ignored: the run that finally got shape and camera
-		# right came back with 7 colours and zero amber.
-		#
-		# So the accent is attached to the objects instead. "%s" is the manufacturer
-		# colour, filled in by _prompt() from the manufacturer record.
+		# Two or three clauses each: one clause gave four cylinders.
+		# Colour named per part: a forced palette gave 0.1% amber from a half-amber reference.
+		# Why: docs/why/ArtPrompt.md#part-clauses
 		parts = ["a long flat-topped rectangular cargo block, twice as wide as it "
 				+ "is tall, its flank faced with %s ribbed panels set in steel "
 				+ "framing, and a square hatch at one end",
@@ -177,9 +135,7 @@ func _emit(id: StringName, batch: StringName) -> void:
 	print(_prompt(m, spec))
 
 
-## The prompt itself. Order matters: the OBJECT first, then who made it, then
-## how it is lit. A prompt that opens by describing a surface produces a
-## surface — a create_image_pro run burned 25 generations proving that.
+## Object, then manufacturer, then light: opening on a surface makes a surface (25 runs).
 func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	# Fill the accent into any part that asked for it.
 	var accent := _accent_word(m.colour)
@@ -196,18 +152,8 @@ func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	out += "transparent background, evenly spaced in a row with clear empty gaps "
 	out += "between them: %s. " % listed
 	out += String(spec.scale) + " " + CAMERA + " "
-	# SHAPE ONLY. The backstory does NOT go in.
-	#
-	# It used to, on the reasoning that the parts should agree with the fiction a
-	# player reads. What came back was three naval surface ships — masts,
-	# superstructures, waterlines. Korvan's backstory contains "navy
-	# specification", "vessel" and "hull", which are words chosen to make a
-	# person feel something and which a generator reads as an instruction to
-	# draw a warship. The lore paragraph overrode every other line in the prompt.
-	#
-	# So the backstory's job is to tell whoever writes SHAPE what this manufacturer is.
-	# SHAPE is the translation, and only the translation is sent. Prose written
-	# for players is not a prompt and pasting it in is not free.
+	# Shape only, no backstory: Korvan's 'navy', 'vessel' and 'hull' made three naval warships.
+	# Why: docs/why/ArtPrompt.md#shape-only
 	out += String(SHAPE.get(m.id, ""))
 	# Not capitalize(): GDScript's title-cases EVERY word, and "Steel Blue Armour
 	# Plating" mid-sentence reads like a product listing.
@@ -219,10 +165,7 @@ func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	return out
 
 
-## The manufacturer colour as a word, because a hex in a prompt reads as noise. The
-## forced palette does the real work; this only nudges which of its entries the
-## generator reaches for, which is the gap the fittings exposed — every colour
-## was legal and the parts still came back greyer than the ship.
+## The manufacturer colour as a word, as a hex reads as noise; it nudges which entry is reached for.
 func _accent_word(c: Color) -> String:
 	var h := c.h * 360.0
 	if c.s < 0.2:

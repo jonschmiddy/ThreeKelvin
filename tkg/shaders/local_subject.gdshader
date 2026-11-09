@@ -5,7 +5,7 @@ render_mode unshaded;
 // lit from the system's star side and shaded on the far side, in steps (pixel
 // light, not a smooth wash), its star-facing edge caught by the star's own
 // colour; a far one dimmed toward the sky; and its colours set to the system's
-// own palette where LOCAL has one (SIMPLIFIED, RADIANT, LEGACY), as the sky's
+// own palette where LOCAL has one (SIMPLIFIED, RADIANT), as the sky's
 // are. PAINTED has no palette: its light is stepped harder instead.
 //
 // `to_star` is in the sprite's own pixels (its rotation taken out by the caller).

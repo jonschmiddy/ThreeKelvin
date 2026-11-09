@@ -1,23 +1,10 @@
 extends RefCounted
 
-## Which picture every card in the game draws:
-##   godot --headless --path . -- glyphs
-##
-## The card gallery shows one manufacturer at a time and the glyph problem is a
-## DISTRIBUTION problem — "they all look the same" is a claim about the whole set
-## that cannot be checked by looking at eight cards from one manufacturer. This
-## counts every card, prints the split, and names the cards behind each picture
-## so a glyph that has quietly become a catch-all is obvious in one screen.
-##
-## It caught the thing it was written for: under the old five-kind scheme
-## `attack` drew 40% of the card set and `defend` another 20%, so three cards in
-## five were one of two pictures.
+## Glyph spread is a distribution problem, checked over the whole set, not eight cards.
+## It caught the old scheme: attack drew 40% and defend 20%.
+## Why: docs/why/GlyphSheet.md#glyph-sheet
 
-## No picture may be more than this share of the set.
-##
-## Not a law of nature — a smoke alarm. A glyph over a third means the ladder in
-## `CardData.glyph_kind()` has a rung that is catching everything below it, which
-## is exactly how the old scheme got to where it was.
+## A smoke alarm, not a law: over a third means a `CardData.glyph_kind()` rung catches all.
 const CROWDED := 0.34
 
 
@@ -51,9 +38,7 @@ func run() -> void:
 			", ".join(PackedStringArray(names.slice(0, 6)))
 			+ ("..." if names.size() > 6 else "")])
 
-	# Every kind the ladder can return should be reachable. One that nothing
-	# draws is a rung that is dead — either the fields moved under it or it was
-	# written for a card that does not exist yet, and both are worth knowing.
+	# A kind nothing draws is a dead rung: the fields moved, or it awaits a missing card.
 	print("")
 	for k in ["slug", "burst", "pyre", "charge", "drone", "brace", "block",
 			"feedback", "slip", "vent", "repair", "lock", "draw", "power",

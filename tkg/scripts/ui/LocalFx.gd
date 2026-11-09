@@ -1,45 +1,8 @@
 class_name LocalFx
 extends Node2D
 
-## WHAT AN EVENT'S SKY DOES THAT NO PICTURE CAN (`LocalSubject`'s `fx` stages;
-## Jon's "Forty-three bare events" plan, every one said yes to): things with no
-## outline -- a pulsar's beam, a blue star's glare, a front, a bank of dust, a
-## stream of ice -- which no generation has drawn well, drawn here in code in
-## the scene's own light, behind the subject's pieces and in front of the sky.
-##
-## AS LIGHT ("draw light as light", "pixel-art lighting is a light map"):
-## gathered, smooth inside, its edge dithered over a few pixels on a fixed
-## pattern (`local_fx_light.gdshader`), eased in and out and never flashing. A
-## moving edge crosses a pixel once (a beam's flat core lasts frames, so its
-## peak never goes A, B, A). Nothing is drawn on your ship or within a margin of
-## it, or under the event's band. With reduced motion nothing here moves: the
-## beam, the wind and the drifting specks are not drawn at all, the rest hold
-## still.
-##
-## An `fx` stage is `{stage = &"fx", fx = <kind>, ...}`:
-##   beam    a pulsar's beam sweeping the sky every `period` s (`faint`: weaker).
-##           FROM THE PULSAR, AS IT TURNS: the nearest pulsar on the chart, on
-##           LOCAL's horizon at its bearing, its beam the lower lobe of
-##           `PulsarView`'s own spin (the map's tilt, the map's sense of turn:
-##           right, down, left, then away toward you) -- one turn a `period` --
-##           fading as it turns toward you instead of flashing
-##   glare   a blue star's glare spread over a quarter of the sky, washing it white
-##   wind    a star shedding itself: thin streaks racing outward from the star,
-##           each on its own ray, above the fight only
-##   dust    a bank of dust (`at` from the box's middle, `radii`, `tilt`, `warm`,
-##           `dens`) in 2x2 blocks, lit toward the star (`local_fx_dust`)
-##   front   a curved shell coming in from the right edge, grit glinting in it
-##   stream  a band of ice grit from `from` to `to` (from the box's middle),
-##           thick in the middle, a few fast pieces out in front
-##   drift   light things blowing out from the star past the pieces, as specks
-##   gas     the gas closed in: the sky's far stars faded, its cloud thickened
-##           (`LocalSky.set_closed`)
-##   buoy    LOCAL's own coded beacon, dead (its rings and lamp out), at `at`,
-##           a tether from its mast to the piece `tether` (a piece id)
-##   marks   `marks` big painted marks on the piece `on` that cannot be read
-##           (never letters)
-##   moor    a slack line from piece `from` (its point `from_at`) to `to` (`to_at`)
-## And on a piece: `tail` -- a comet's tails off it, away from the star.
+## Outline-less sky things are drawn in code as light, never flashing; reduced motion holds still.
+## Why: docs/why/LocalFx.md#event-sky-effects
 
 const LIGHT := preload("res://shaders/local_fx_light.gdshader")
 const DUST := preload("res://shaders/local_fx_dust.gdshader")
@@ -238,10 +201,7 @@ func step(t: float) -> void:
 
 # ------------------------------------------------------------------ the beam
 
-## Where the nearest pulsar on the chart lies from this system: LOCAL looks
-## across the system with the chart's east on its right, so the pulsar stands
-## on the horizon toward its bearing (off the view's edge when it lies well to
-## one side). In the sky's own 960x540 frame.
+## LOCAL looks across the system with chart east on its right, so the pulsar is on the horizon.
 func _pulsar_at() -> Vector2:
 	var x := 700.0
 	if sub.node_index >= 0 and sub.node_index < Run.map.size():
@@ -270,9 +230,7 @@ func _step_beam(st: Dictionary, t: float) -> void:
 	var src_scene := _pulsar_at()
 	var g := sub.sky.scene_to_global(src_scene) if sub.sky != null and is_instance_valid(sub.sky) else src_scene
 	beam_src = inv * g
-	# THE PULSAR'S OWN TURN, one a period: `PulsarView.frame`'s magnetic axis at
-	# that beat (the map's tilt, its sense of turn), its lower lobe -- the end
-	# that reaches down across the sky
+	# The beam is the pulsar's own turn, one a period, using the lower lobe that reaches down.
 	var ph := float(_rng_seed % 1000) / 1000.0
 	var G: Dictionary = PulsarViewS.frame({"wobble": 0.0, "quake": false}, t / period + ph + PulsarViewS.PEAK_S + PulsarViewS.OFF_S)
 	var mv: Vector3 = G.m
@@ -392,10 +350,7 @@ func _draw_light() -> void:
 		_draw_stream(t, still)
 
 
-## THE WIND, out from the star: each streak a line of whole pixels along its own
-## ray from the star's centre, its head bright and its tail fading, moving out a
-## pixel step at a time; only above the fight (over your ship's top, less a
-## margin), easing out toward that line and in from the star's edge.
+## Wind streaks move in whole-pixel steps and only above the fight, easing out toward that line.
 func _draw_wind(t: float) -> void:
 	var c := sub.star_l
 	var lim := minf(sub.ship_l.position.y - 26.0 if sub.ship_l.size.x > 0.0 else 150.0, sub.band_y - 30.0)
@@ -441,9 +396,7 @@ func _draw_drift(t: float) -> void:
 		_glow(q, 2, Color(1.0, 0.92, 0.78), 0.55 * e)
 
 
-## THE STREAM'S GRIT: specks across the band from `from` to `to`, thick in its
-## middle and thin at its ends, drifting along it; the first few fast, out in
-## front of it.
+## Grit is thick in the middle and thin at the ends, with the first few fast out in front.
 func _draw_stream(t: float, still: bool) -> void:
 	var st: Dictionary = {}
 	for s: Dictionary in stages:
@@ -605,10 +558,7 @@ func _piece_pos(id: StringName) -> Vector2:
 	return Vector2(-9999.0, -9999.0)
 
 
-## Paint over the pieces: big marks on a rock nobody can read. Each a few blocky
-## strokes on a 3 px grid from the event's own seed -- bars and hooks, never a
-## letter's shape -- in a row across the rock's face, weathered (a stroke
-## broken here and there), turning with nothing: they drift with the rock.
+## Unreadable marks are blocky strokes, never a letter's shape, and drift with the rock.
 func _draw_over_paint() -> void:
 	for st: Dictionary in stages:
 		if StringName(st.get("fx", &"")) != &"marks":

@@ -1,31 +1,11 @@
 class_name QuestLog
 extends RefCounted
 
-## THE QUESTS YOU HOLD (Jon, Oct 22, design A of the quest log, after Kevin's
-## playtest: "I needed a quest menu or some type of quest [log]"). The HUD's
-## QUESTS tab opens them as a table (`QuestPanel`), and a row's SHOW ON STARCHART
-## and PLOT ROUTE open the chart on the quest's place, tagged with its number
-## (`StarchartScreen.MapChart.place_quest_tags`), with its route from YOU.
-##
-## A QUEST IS A SIGNED CONTRACT, `Run.contracts` less the closed ones, in the
-## order you signed them; AND AN EVENT QUEST (Jon, Oct 22: an event that plants
-## a follow-up "is essentially a quest"), an option an event put on a system
-## ahead (`OptionTable.place`) and not taken yet, in the order placed. Nothing
-## here is saved: every line is read off the contract, the map and the run's
-## record of who placed what (`Run.event_quests`) when asked. Only this ship's
-## own -- `Run` is one ship, so a co-op partner's quests are on their machine
-## and never on yours.
-##
-## FINISHED ONES STAY (Jon, Oct 22: "quests shouldn't vanish when they're
-## done"): `done_entries`, a contract delivered and an event quest taken,
-## newest first, with what each paid, for the table's COMPLETED rows.
-##
-## The words are the chart's: QUEST, as its tags and the sector map's key say,
-## while the board and its notes keep their own (SIGN, DELIVER).
+## Nothing is saved: every line is read off the contract, the map and `Run.event_quests` when asked.
+## Why: docs/why/QuestLog.md#quest-log
 
-## The kind's mark, 5x5, each pixel drawn 2x2: a fetch wears the sector map's
-## QUEST cross (the pickup it puts there carries it), a hunt the map's FIGHT
-## mark, a heat job a little stack of heat.
+## The kind's 5x5 mark drawn 2x2: fetch wears the
+## QUEST cross, hunt the FIGHT mark, heat a heat stack.
 const MARK := {
 	# an event quest wears the chart's own mark for one, the gold box
 	EVENT: ["#####", "#...#", "#...#", "#...#", "#####"],
@@ -77,9 +57,8 @@ static func draw_mark(ci: CanvasItem, kind: int, at: Vector2) -> void:
 
 # --- how far, by jumps -------------------------------------------------------
 
-## JUMPS FROM YOU, by the chart's own reach rule (`RunState.reachable_from`),
-## found once per place and ship and kept: the walk asks the rule of every pair
-## it meets, and the panel asks on every refresh.
+## Jump counts by the chart's reach rule, found once
+## per place and ship, as the panel asks every refresh.
 static var _key := ""
 static var _dist: Dictionary = {}
 static var _back: Dictionary = {}
@@ -161,18 +140,9 @@ static func nearest_yard(manufacturer: StringName) -> int:
 
 # --- the list ----------------------------------------------------------------
 
-## Every open quest, numbered from 1: the signed contracts in the order you
-## signed them, then the event quests in the order placed. As the table's rows
-## and the chart's tags read them:
-##   n, id (the contract's id, or EVENT_ID + the system's index), job (the
-##   ContractData; null for an event quest), event, done, kind, what, where,
-##   jumps (words), pay, pay2 (a second line under it, or ""), state,
-##   state_colour, place (the system its tag stands on: the target, or for a
-##   heat quest and a READY one the nearest yard that pays it; -1 if none), tag,
-##   tip, note (the poster's or the event's own words), who (the poster's short
-##   name, or the event's title), manufacturer (&"" for an event), yard
-##   (whether `place` is the nearest of any of its yards), place_name, layer
-##   ("LAYER 7", from 1), paid (what a finished one paid; "" for an open one).
+## Open quests numbered from 1: signed contracts first,
+## then event quests, as table rows and chart tags.
+## Why: docs/why/QuestLog.md#quest-entries
 static func entries() -> Array:
 	var out: Array = []
 	var n := 0
@@ -188,9 +158,7 @@ static func entries() -> Array:
 	return out
 
 
-## Every finished quest, newest first: a contract delivered and an event quest
-## taken, in the order `Run.quests_done` wrote them; then any finished under a
-## save from before it kept that order, contracts first, last signed first.
+## Finished quests newest first, in the order `Run.quests_done` wrote them; older saves come after.
 static func done_entries() -> Array:
 	var by_key := {}
 	for raw in Run.contracts:
@@ -222,12 +190,9 @@ static func find(id: int) -> Dictionary:
 	return {}
 
 
-## The event quests on the map, open (`done` false) or finished: an option only
-## ever placed (`OptionTable.placed_ids`) on its system, and either not taken,
-## or taken with an outcome (`MapNode.results`, and not `R_GONE`). READ OFF THE
-## MAP, so a save from before `Run.event_quests` still has them; the record adds
-## who gave it and what it paid. In the order placed, then by system.
-##   {at, slot, id, done, rec (the record, or {})}
+## Read off the map, so a save from before `Run.event_quests`
+## still has them; the record adds who gave it.
+## Why: docs/why/QuestLog.md#event-quests
 static func _events(done: bool) -> Array:
 	var out: Array = []
 	var set := OptionTable.placed_ids()
@@ -323,9 +288,8 @@ static func _task(job: ContractData, who: String, item: String) -> String:
 	return "Destroy the contact"
 
 
-## An event quest's row: what the placed option says of itself (`quest`), who
-## gave it (the record's `from`, or for a save from before the record the
-## option's own `quest.from`), and once taken what it paid.
+## An event quest's row: what the option says, who gave
+## it (older saves use the option's own), and its pay.
 static func _event_entry(q: Dictionary, n: int) -> Dictionary:
 	var opt := OptionTable.by_id(StringName(q.id))
 	var words: Dictionary = opt.get("quest", {})

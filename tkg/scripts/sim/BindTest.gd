@@ -1,21 +1,8 @@
 extends Harness
 
-## Key bindings, driven with real key events through the real screens:
-##   godot --headless --path . -- bindtest
-##
-## Four claims, and each fails silently in play. THE DEFAULTS ARE THE KEYS THE
-## GAME ALWAYS HAD: every screen used to read a keycode off the event, and a
-## binding with the wrong default moves a key without anyone deciding to.
-## A REBOUND KEY WORKS AND THE OLD ONE STOPS, set through Settings' own capture
-## with the pause menu open over it -- the path where a stray Escape or Tab
-## would close the menu or change the page instead. A BINDING SURVIVES A
-## RELOAD of the settings file without taking the display and audio sections
-## with it. A CLASH IS CAUGHT on the screens that share keys and not on the
-## screens that never meet.
-##
-## THE PLAYER'S FILE IS NEVER TOUCHED. `Keys.path` points at a scratch file for
-## the whole run and the file is deleted at the end. F11 is checked as a binding
-## and never pressed: it would flip the real window and save the mode.
+## Four claims, each failing silently in play. The player's
+## file is never touched; F11 is checked, not pressed.
+## Why: docs/why/BindTest.md#key-bindings-test
 
 const SCRATCH := "user://bindtest.cfg"
 
@@ -245,9 +232,8 @@ func _star_chart() -> void:
 	_ok("L toggles LOCAL REGION (the default)", StarchartScreen._region_on != was)
 	await _press(KEY_L)
 
-	# AND THE VIEW GOES THERE (Jon, Oct 20: "L doesn't work to bring you to the
-	# local region"): the toggle lit was never the claim; the chart framed on
-	# where you are is
+	# The view goes there too (Jon, Oct 20: L did not reach
+	# the local region): the lit toggle was never the claim.
 	StarchartScreen._region_on = false
 	await _region_key(scr, KEY_L, "L")
 	# REBOUND: the new key frames it, L no longer does

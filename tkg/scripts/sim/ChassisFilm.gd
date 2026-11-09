@@ -1,14 +1,7 @@
 extends Node
 
-## THE CHASSIS SELECT, FILMED (the coded engine flame going live, Oct 13):
-##   godot --path . --fixed-fps 30 --windowed --position 3840,0 -- sheet=ChassisFilm
-##       out=<dir> [frames=150]
-## Opens the chassis select the way the title does (`Router.show_chassis_select`),
-## lets its showroom hull burn (CRUISE) and the rest idle, and saves the window every
-## frame as f_####.png. Every hull's bob and flame run on `ShipView.shot_clock`,
-## stepped 1/30 s a frame, so the frames at 30 fps are true speed however
-## slowly the window drew. Waits for the flames' pictures (built off the main
-## thread) before the first frame.
+## Bob and flame run on `ShipView.shot_clock`, stepped per frame, so 30 fps is true speed.
+## Why: docs/why/ChassisFilm.md#chassis-film
 
 var _args: PackedStringArray
 

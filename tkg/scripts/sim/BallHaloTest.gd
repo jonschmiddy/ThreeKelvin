@@ -1,63 +1,15 @@
 extends Node
 
-## A BALL GALAXY ENDS AS FAR BELOW ITS CORE AS ABOVE IT, in every style that
-## draws one as a ball:
-##   godot --path . -- sheet=BallHaloTest [styles=simplified,painted,...] [shots=<dir>] [clock=T]
-##
-## Jon, Oct 18 (STARCHART, PGC 6236 "The Drowned Coil", a giant elliptical):
-## "Galaxies like giant elliptical seem to have an issue where they extend
-## forever downward in painted and simplified rendering modes." The solid
-## galaxy's camera (`ChartSky.solid`) sees the disc's plane in perspective, its
-## near half nearer and bigger; SIMPLIFIED's `ellBall` and PAINTED's ball read
-## their light on that plane, so the camera stretched the ball's near half down
-## past the chart's bottom edge (the plane below the core runs out to the
-## camera's horizon, 2.38 gu out, before the ball's light does) and crushed its
-## far half up against the horizon: 0.47 gu of light above the core, the whole
-## chart below it. A ball is drawn about the core in the core's own frame now,
-## as the bulge is, round on the screen as the flat chart drew it.
-##
-## For each style and each ball kind (Jon's own galaxy, seed 884043030 as rolled,
-## then the six ball kinds forced on that seed: its far sky is clear round the
-## core, where seed 4242's has a far cloud below it that a measure down the line
-## reads as the ball), the sky alone at the chart's opening zoom with the core in
-## the middle; down a vertical line through the core (each row the median of 81
-## px, so stars are ignored), the light over the void's own level:
-##   reach  how far out from the core the light stands REACH_T over the void
-##          without a break, above and below, out to the nearer frame edge
-##          ("edge": it was still lit there);
-##   asym   (below - above) / (below + above) of that light, summed out to the
-##          farther reach: 0 for a ball lit evenly round its core.
-## FAILS a ball whose reach below is more than REACH_MAX times its reach above
-## (or the other way) or whose |asym| is over ASYM_MAX. The old shader: SIMPLIFIED
-## 1.72x and PAINTED 1.88x on Jon's galaxy, both still lit at the frame's bottom.
-## A spiral and a lenticular are printed for comparison and never fail: they are
-## discs, and a disc's near half IS bigger through the camera.
-## LEGACY too (Jon, Oct 18, "legacy:A"): its balls were read on the disc's plane
-## like the others' (0.27 gu above the core, 0.46 below on PGC 6236) and are
-## drawn round their core now (`chart_l_field`'s `ball_core`); judged by reach.
-## AND THE FRAME: LOCAL REGION's frame (`MapChart.frame_region`) of every galaxy, a
-## ball's as a spiral's, is the systems near you (Jon, Oct 21, for 0.3.0; his
-## "frame:A" of Oct 18 framed a ball whole, its core and lit radius, so L went from
-## 0.42 to about 0.55 and read as doing nothing): from YOU and from the rim, every
-## system within the region's span and YOU in view, the zoom at least REGION_ZOOM.
-## A ball's depth (`ChartSky.ball_depth`): the game's look C unless `balllook=0|A|B`:
-## lit as a ball it is brighter on its upper left, but it must still END as far out
-## on its shaded side as on its lit one, so every look passes this as today's does.
-## Needs a window (it reads the drawn sky).
+## Jon, Oct 18: ball galaxies stretched down forever; fails if reach below far exceeds above.
+## Why: docs/why/BallHaloTest.md#ball-halo
 
 const REACH_T := 6.0
 const REACH_MAX := 1.3
 const ASYM_MAX := 0.2
-## A BALL FADES INTO SPACE (Jon, Oct 18, "radiant:yes": RADIANT's balls bloomed into a
-## big orb with a hard edge). `fade`: the share of the ball's reach its light takes to
-## go from 0.4 of its light at 0.1 gu out to nothing -- a hard-rimmed orb holds its
-## light and drops it at once. RADIANT's before: 0.24 to 0.40 (PGC 6236 0.26); after,
-## 0.45 to 0.54; SIMPLIFIED's 0.49 to 0.67, PAINTED's 0.42 to 0.59. Judged in RADIANT
-## (its balls alone: every RADIANT ball before failed it), printed for every style.
+## Balls fade into space (Jon, Oct 18): `fade` fails RADIANT's hard-rimmed orb.
+## Why: docs/why/BallHaloTest.md#ball-fade
 const FADE_MIN := 0.42
-## THE CLICKABLES (Jon, Oct 19, the ball's story): a mark's sky may not rise more than
-## MARK_RISE (0..255) under the story to past MARK_LUMA -- a bright mark on a dim sky
-## that the story lit up behind it
+## Clickables (Jon, Oct 19): the story may not lift a mark's sky past `MARK_LUMA`.
 const MARK_RISE := 30.0
 const MARK_LUMA := 110.0
 ## and the story's light: the chart's mean luma up at most this, its cream (over 200, % of
@@ -86,13 +38,8 @@ func _arg(name: String, fallback: String = "") -> String:
 
 func _ready() -> void:
 	get_viewport().gui_disable_input = true
-	# THE CHART'S OWN SKY, NOT THE FIELD THROUGH IT (Oct 18): since the chart's empty
-	# sky lets the shared field through (`NavField`: its stars, far galaxies and the
-	# system's own cloud) and fades what it holds out over its last 24 px, a ball's
-	# light read off the screen took the field's cloud for the ball (PAINTED "lit to
-	# the top edge") and the edge's fade for a hard rim (RADIANT's fade 0.35-0.42). The
-	# ball is judged on the chart as it stands without the field, its own sky behind it.
-	# (Subtracting the field instead took it off where the galaxy covers it too.)
+	# Judged without the shared field: its cloud and edge fade were read as the ball.
+	# Why: docs/why/BallHaloTest.md#chart-sky
 	NavField.harness_off = true
 	_shots = _arg("shots")
 	if _shots != "":
@@ -105,13 +52,10 @@ func _run() -> void:
 	# the sky's clock (`clock=T`, default 600: any clock must pass)
 	StarchartScreen.MapChart.clock_override = float(_arg("clock", "600"))
 	DisplaySettings.reduced_motion = false
-	# RADIANT'S LIGHT THAT MOVES HELD OFF (Nov 7): its core's breath and flares and the
-	# young stars' flares (`ChartRadiant.drama_on`, the cost bench's switch) are moments
-	# on top of the ball's light; one lit at the test's clock had hidden the blue compact
-	# dwarf's hard rim (0.43 with a core flare at 600, 0.39 at rest). The ball is judged
-	# as it stands at rest, at any clock.
+	# RADIANT's moving light held off: a ball is judged at rest, at any clock (Nov 7).
+	# Why: docs/why/BallHaloTest.md#radiant-at-rest
 	ChartRadiant.drama_on = false
-	var styles := _arg("styles", "simplified,painted,radiant,legacy").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
 	for k in BALL_KINDS + DISC_KINDS:
@@ -144,10 +88,7 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	var chart: StarchartScreen.MapChart = op.chart
 	var img: Image = op.img
 	var k: float = op.k
-	# WITH A BALL'S STORY ON (`balllook2=`) the ball's own light is judged on the chart
-	# without it, drawn in this run: the story is lopsided on purpose (shells on the far
-	# side, a jet, its victims round it). The story itself is judged by what it does to
-	# the chart's clickables and to the light (below).
+	# With a story on, the ball's light is judged without it, as the story is lopsided on purpose.
 	var story_on := ChartSky.form_of(Run.galaxy_kind) == 1 and ChartSky.ball_look2_now() > 0
 	var img0: Image = img
 	if story_on:
@@ -163,21 +104,15 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	var m := _measure(img0, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
-	# (LEGACY by its reach alone: its own dust lies where its seed puts it, and on Jon's
-	# galaxy it lies under the core -- 0.22 of the light lopsided upward in the flat chart,
-	# no camera at all, `chartflat`; the camera's stretch is what the reach measures)
 	var hard: bool = ball and st == &"radiant" and m.fade < FADE_MIN
-	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or (absf(m.asym) > ASYM_MAX and st != &"legacy") or hard)
+	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or absf(m.asym) > ASYM_MAX or hard)
 	if bad:
 		_fails += 1
 	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  fade %.2f%s  %s" % [
 		String(st).to_upper(), name, m.up, " edge" if m.up_edge else "", m.down, " edge" if m.down_edge else "",
 		ratio, m.asym, m.fade, " (a hard rim)" if hard else "", ("FAIL" if bad else "ok") if ball else "(a disc: not judged)"])
 	if st == _first:
-		# THE REGION'S FRAME (the marks', the same in every style: measured in the first),
-		# from YOU and from the system farthest out: the systems near you, a ball's as a
-		# spiral's (Jon, Oct 21, for 0.3.0: frame:A framed the whole ball and L barely
-		# zoomed), every one of them and YOU in view, zoomed in past REGION_ZOOM
+		# The region frame: systems near you, a ball's as a spiral's (Jon, Oct 21).
 		var far := Run.node_at()
 		for raw in Run.map:
 			if (raw as MapGen.MapNode).gal.length() > far.gal.length():
@@ -210,9 +145,7 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 				String(st).to_upper(), name, "YOU" if here == Run.node_at() else "the rim", z0, chart.zoom,
 				near, out, "in view" if you_in else "OUT OF VIEW", "ok" if good else "FAIL"])
 		chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
-	# THE CHART'S CLICKABLES STAY LEGIBLE under a ball's story (`ChartSky.ball_story`,
-	# `balllook2=`): the sky under every system's mark and under YOU's, against the same
-	# chart without the story, drawn in this run (its palette is the first's)
+	# Clickables must stay legible: the sky under each mark is compared with and without the story.
 	if story_on:
 		var boxes := _mark_boxes(chart)
 		var now := _box_lumas(img, boxes)
@@ -313,10 +246,7 @@ func _row(img: Image, y: int, x0: int, x1: int) -> float:
 	return v[v.size() / 2] if not v.is_empty() else 0.0
 
 
-## The chart opened on the run's galaxy at the opening zoom, the core in the middle, and
-## its sky alone (the chart's rect). `fresh`: baked afresh, palette and all (a style
-## keeps its galaxy's bake, and the bake holds what was drawn for it the first time).
-## The whole window as it is drawn now, at 2x (nearest), into `shots=`.
+## The chart's sky alone at the opening zoom; `fresh` rebakes, as a style keeps its first bake.
 func _window_shot(name: String) -> void:
 	for _i in 8:
 		await RenderingServer.frame_post_draw
@@ -329,7 +259,6 @@ func _open(fresh: bool = false) -> Dictionary:
 	if fresh:
 		ChartSky._baked.clear()
 		ChartSky._early.clear()
-		ChartLegacy._baked.clear()
 	var old := Router.current
 	Router.show_starchart()
 	var t0 := Time.get_ticks_msec()

@@ -1,40 +1,7 @@
 extends Node
 
-## The star chart photographed at chosen views, whole and with its systems
-## hidden, at the chart's own size (1x) and doubled (2x, game scale, for
-## judging):
-##   godot --path . -- sheet=ChartLook out=<dir> [kind=N] [views=name:Z:X:Y,...] [clock=T]
-##     [nebkind=F:T] [allsys] [calm] [style=legacy] [graphics=low] [runseed=N] [corekeep=0]
-##     [at=N|darkF] (YOU at system N, or beside the first dark cloud, F of its radius out)
-##     [boltclock] (the clock on the first emission cloud's next held lightning bolt)
-## A view is a zoom and a pan in VIEW PX at zoom 1 (the showcase's units, 622.25
-## a galaxy unit, the chart's own projection), the frame's centre: `core:1.5:0:0`.
-## X may be `ship` (centred on YOU) or `neb` / `nebK` (centred on a cloud that
-## shines, or one of NebulaField.Kind K; `nebK.N` the Nth of that kind). The
-## default views are the showcase's heroes: opening 0.42, core 1.5, a nebula at
-## 4 and the hole at 6. `clock=T` holds the sky's clock at T seconds
-## (`MapChart.clock_override`, default 600, the showcase's stills); `calm` turns
-## reduced motion on in memory; `nebkind=F:T` makes the first cloud of kind F
-## kind T for the shot; `style=` and `graphics=low` are read by DisplaySettings.
-## THE SOLID LOOK in any style (`ChartSky.SOLID_STYLES`): `solidstyle=<style>[,...]`
-## draws those styles through the camera before their line in the table is on (with
-## `style=` the same stills, tours and costbench film any style the same way);
-## `chartflat` draws every style flat, as before the solid look (a "before").
-##
-## CLIPS, for measuring motion (sky only, chart rect at 1x, `f_NNNN.png`, for the
-## showcase's `tools/frames.py`):
-##   zoomclip=<dir> clipview=Z:X:Y [clipzoom=1.1] [clipframes=61]
-##     a slow zoom: the zoom times `clipzoom` over the frames, the clock frozen
-##   panclip=<dir> clipview=Z:X:Y [clipframes=61]
-##     a slow pan, 12 view px over the frames, the clock frozen
-##   liveclip=<dir> clipview=Z:X:Y cliptime=T0:T1:N [turn=title] [clipwait=1]
-##     [clipviews=name:Z:X:Y,...] (each view in turn, into <dir>/<name>)
-##     the sky's own motion at one view, the clock stepped from T0 to T1
-##     (`turn=title` at the title's turning speed; `clipwait=1` a frame drawn a
-##     step, so a 20 s clip at 60 steps a second is the game's own frames)
-##
-## Writes <view>_full.png and <view>_sky.png (1x) and <view>_2x.png (sky, 2x).
-## Prints the bake's time. Needs a window; leave it alone while it runs.
+## A photograph harness for the chart at chosen views; it needs a window, so leave it alone.
+## Why: docs/why/ChartLook.md#chart-look
 
 var out := "user://chartlook"
 var _chart: Control = null
@@ -68,9 +35,7 @@ func _run() -> void:
 		Run.trail = PackedInt32Array([0])
 		Run._range_cache.clear()
 		Run.chart_from(Run.node_at())
-	# `at=N` puts YOU at system N; `at=dark` / `at=darkF` at the system nearest
-	# the first dark cloud, F of its radius out from its middle toward the rim
-	# (a system with a nebula beside it, its jump lines drawn, for `ship` views)
+	# `at=dark` puts YOU beside the first dark cloud, so `ship` views show a nebula and jump lines.
 	var at_s := _arg("at")
 	if at_s != "":
 		var want_i := -1
@@ -164,7 +129,6 @@ func _run() -> void:
 		ChartSky.dith_coh = float(_arg("dithcoh"))
 	if _arg("diag") != "":
 		ChartSky.diag = int(_arg("diag"))
-		ChartLegacy.diag = int(_arg("diag"))
 	if _arg("quant") == "0":
 		ChartSky.quant = false
 	if _arg("dith") != "":
@@ -369,10 +333,7 @@ func _clip() -> void:
 				await _frame_shot(dir, fi)
 				fi += 1
 	elif _arg("wheelclip") != "":
-		# `wheelclip=<dir>`: as a hand plays it -- turns of the wheel at a cursor
-		# (`wheelat=fx:fy`, shares of the chart), in to the closest zoom and back out,
-		# a notch every `wheelgap=N` frames, with drags between; the clock runs at the
-		# game's rate and the galaxy turns (`turn=title` for the title's speed)
+		# `wheelclip` plays as a hand does: wheel turns at a cursor, in and out, with drags.
 		_view(z0, at)
 		for _i in 6:
 			await RenderingServer.frame_post_draw
@@ -442,30 +403,8 @@ func _clip() -> void:
 	print("  chartlook: clip in %s" % ProjectSettings.globalize_path(dir))
 
 
-## THE TOUR: a player's first look, the same every run, for a before and an
-## after at the same state (`tourclip=<dir> tour=dive|core|pan|open [icons]
-## [tourat=fx:fy|ship]`). 30 frames a second of the game's clock, one frame
-## drawn a step, the moves made through the chart's own wheel and drag code (so
-## the far sky's parallax is the game's):
-##   dive  1 s at the opening, 5 s of wheel in toward `tourat` (5.7x), 2 s of
-##         drag, 1 s still
-##   core  the core at 1.2, 5 s in to 3.6 about the middle, 2 s still
-##   pan   the arms at zoom 1, 8 s of drag across them, eased
-##   open  3 s still at the opening, then the dive
-##   sn        the next supernova at zoom 1.4 on its star, from 1.5 s before, 12 s
-##             (FORCED into the clip: the clock is set to it)
-##   remlapse  the opening as the clock runs 20 minutes at 120 times (a time-lapse:
-##             the supernovae's remnants coming and fading)
-##   remhold   the inner disc at 1.4, 10 s at the game's speed (the last ten
-##             minutes' remnants standing in the gas)
-##   zoomin    the arms at 0.6, 6 s of wheel in about the middle (5x), 1 s still
-##   soliddrag at `tourzoom` (the opening's 0.42 if not given), a slow drag: 4 s
-##             sideways, 4 s down, 5 s on a diagonal back up, each with a breath
-##             after it
-##   soliddraglong  the same, then four seconds' hold (the second after release)
-##   openzoom  the opening, 6 s of wheel in about the middle (3x), 1 s still
-##   skypan    Jon's void framing (1.2 at -220,-200), a slow steady drag: 90 px
-##             sideways over 6 s, no easing (the far stars' slide, frame by frame)
+## A fixed tour for a before and after at the same state, via the chart's own wheel and drag.
+## Why: docs/why/ChartLook.md#chart-tour
 func _tour(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var tour := _arg("tour", "dive")
@@ -551,26 +490,14 @@ func _tour(dir: String) -> void:
 	print("  chartlook: tour %s, %d frames in %s" % [tour, fi, ProjectSettings.globalize_path(dir)])
 
 
-## WHAT A PART OF THE SKY COSTS (`costbench=remnants,solid,fluff,edge,terrain,nebulae,drama|none`): one process,
-## one galaxy, the part switched off and on in turns at each view (the opening, the
-## arms at 1.2, the arms at 2.5, the hole at 6), eighty turns of eight frames,
-## vsync off; every frame's own GPU time of the sky's viewports, and the whole
-## frame's, compared at the 20th percentile (the frame with the least of the rest
-## of the machine's load on it) and the median. Interleaved because this machine is
-## shared: two separate runs of `chartbench` differed by half a millisecond with
-## nothing changed. `none` switches nothing, to show the noise. Remnants are
-## switched by `ChartSky.diag` 2048; the solid galaxy by `ChartSky.solid`; the gas's
-## puffs by `ChartSky.fluff` (as the command line asks for them, against none); the
-## dissolving edge by `ChartSky._edge_on`; the middle's relief by `ChartSky._terr_on`; the
-## nebulae's bodies by `ChartSky._neb_on`.
+## Interleaved because the machine is shared: two runs differed by half a ms unchanged.
+## Why: docs/why/ChartLook.md#cost-bench
 func _cost_bench(names: String) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	var sky := _chart._sky as ChartSky
 	var rids: Array[RID] = []
-	# (LEGACY draws in its own node, `ChartLegacy`: its picture and the copy its
-	# palette's hold reads)
-	var vps: Array = [sky._legacy._vp, sky._legacy._hvp] if sky._legacy != null else [sky._svp, sky._pvp, sky._vp] + ([sky._gvp] if sky._gvp != null else [])
+	var vps: Array = [sky._svp, sky._pvp, sky._vp] + ([sky._gvp] if sky._gvp != null else [])
 	for vp: SubViewport in vps:
 		RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 		rids.append(vp.get_viewport_rid())
@@ -627,19 +554,8 @@ func _cost_bench(names: String) -> void:
 	ChartRadiant.drama_on = true
 
 
-## THE SOLID GALAXY'S MARKS ARE WHERE ITS SKY IS (`solidtest`, with
-## SIMPLIFIED): after a slow drag (a slide) and a zoom, the place pass is
-## made to write, in each block, the point of the disc's plane it shows
-## (`ChartSky.diag` 4096) and read back; at every system the chart draws, that point
-## is put through the chart's own projection, and must land within 1.5 px of the
-## system's mark: within 2.25 px, which is the flat chart's own agreement -- a block
-## is 2 px (its middle at most 1.41 px from anything in it), the marks are redrawn
-## for the galaxy's turn only when it has moved half a pixel, and the read-back is
-## half floats (measured with the camera off: 2.09 px at worst over 638 marks). And
-## a click on each mark with no other within twice the chart's pick radius must
-## pick that system (`_node_at` takes the first within it). Prints the
-## worst and FAILs past it. The sky shader against the chart's GDScript: two codes,
-## one projection.
+## Sky shader against the chart's GDScript: two codes, one projection, within 2.25 px.
+## Why: docs/why/ChartLook.md#solid-test
 func _solid_test() -> void:
 	_chart.show_icons = true
 	var sky := _chart._sky as ChartSky
@@ -668,10 +584,8 @@ func _solid_test() -> void:
 		for _i in 4:
 			_chart._repaint_sky()
 			await RenderingServer.frame_post_draw
-		# (LEGACY draws in its own node, `ChartLegacy`, with the same names for its
-		# picture's origin and its hold's centre)
-		var src: Object = sky._legacy if sky._legacy != null else sky
-		var img: Image = (sky._legacy._vp if sky._legacy != null else sky._pvp).get_texture().get_image()
+		var src: Object = sky
+		var img: Image = sky._pvp.get_texture().get_image()
 		ChartSky.diag = 0
 		var sq := float(Run.galaxy.get("squash", 0.62))
 		var here := Run.node_at()
@@ -686,10 +600,7 @@ func _solid_test() -> void:
 			if b.x < 0 or b.y < 0 or b.x >= img.get_width() or b.y >= img.get_height():
 				continue
 			var c := img.get_pixel(int(b.x), int(b.y))
-			# the plane point the sky shows there, through the chart's projection, from the
-			# sky's own centre (while a zoom's hold lasts the sky is drawn about the exact
-			# centre and the marks about its whole pixel: up to a pixel apart with or
-			# without the camera, so that is left out of what this measures)
+			# Read through the chart's projection from the sky's centre; zoom holds are left out.
 			var shown: Vector2 = (src._hold_c_now as Vector2) + _chart._proj(Vector2(c.r, c.g * sq), _chart._drawn_turn)
 			var err := shown.distance_to(sp - _chart.centre_px() + (src._hold_c_now as Vector2))
 			stage_worst = maxf(stage_worst, err)

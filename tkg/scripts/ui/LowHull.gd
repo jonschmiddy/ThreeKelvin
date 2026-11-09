@@ -1,48 +1,9 @@
 class_name LowHull
 extends Node
 
-## THE HULL IS FAILING, AND THE SCREEN KNOWS (Jon, Oct 20: "When you are low
-## health, can you have all the text kinda glitch a bit? Maybe with the screen
-## turning red? I don't want it to be too overt. Just kinda like a gentle
-## warning state." And then: "Maybe even A.S.H.'s voice could glitch a bit?").
-##
-## WHEN: the hull at or under TIER1_AT of its max (a second, slightly stronger
-## step of the red at TIER2_AT), read as the HUD reads it -- the figure the fight
-## has SHOWN, not the one the click already decided (`SectorScreen.shown_hull`,
-## `OutcomeRow.held`) -- so the warning arrives with the number that says so.
-## Only inside a run: never on the title, the lobby, the hull pick, RUN ENDED or
-## the records room from the title, and never once the hull is at 0 (the
-## ship's loss has its own picture, `DeathHandoff`). It eases in and out over
-## EASE_S as the hull crosses the line either way; a repair clears it.
-##
-## WHAT:
-##   * THE RED, drawn over the finished frame (`low_hull.gdshader`, on a
-##     CanvasLayer of its own at LAYER: above the screens and the HUD, under the
-##     escape menu): a faint red at the picture's edges, breathing (BREATH_S a
-##     cycle), never reaching the middle of the screen. Its two steps are the
-##     preset's `red`.
-##   * THE WORDS DECODING BADLY (`HullScramble`; Jon: "I think the text should
-##     glitch more like the decoding. It should be ALL of the text on the
-##     screen. With it getting worse as the health lowers."): letters all over
-##     the screen flip to `SignalText`'s noise for a moment and resolve back.
-##     NOT IN STEPS: `depth` runs from 0 at TIER1_AT to 1 at no hull, eased over
-##     EASE_S, and the scramble's rate, run and hold follow it; the preset's
-##     `scr.most` and `scr.share` are its ceilings, so it stays readable at 5%.
-##     The hull readout scrambles too (Jon: ALL the text); the escape menu never.
-##   * HER VOICE: A.S.H.'s lines while it is on stutter, drop out, chop and
-##     crackle (`voice_plan`, rendered by `VoiceGlitch`), more and longer as the
-##     hull falls, by the same `depth`; her portrait slips in step (`AshPortrait`).
-##
-## NO SOUND OF ITS OWN. The game has no low-hull sound and this adds none: the
-## heat warning (`heat_warn`) is the only alarm the ship has.
-##
-## REDUCED MOTION (`Router.animating()` false): no scramble and no breathing --
-## the red stands still at REDUCED_RED of its strength -- and her voice glitches
-## at the SUBTLE preset whatever PRESET is (a sound does not move on screen, so
-## it stays, at its quietest).
-##
-## THE STRENGTH IS ONE CONSTANT: PRESET, from LOOKS. `-- lowhull=subtle|medium|
-## strong` overrides it for a film.
+## A gentle warning (Jon, Oct 20): edge red, words decoding badly, A.S.H.'s voice glitching.
+## No sound of its own: the heat warning is the only alarm. Reduced motion stills it.
+## Why: docs/why/LowHull.md#low-hull-warning
 
 enum Preset { SUBTLE, MEDIUM, STRONG }
 ## Jon's pick of LOOKS: STRONG (Oct 20, "strength:strong", after subtle, medium
@@ -61,21 +22,8 @@ const REDUCED_RED := 0.6
 ## Above the screens (layer 0), under the escape menu and Settings (10).
 const LAYER := 5
 
-## Per preset.
-##   red     the red at the very edge, (tier 1, tier 2) (`low_hull.gdshader`)
-##   breath  how far a breath takes it down, as a share of itself
-##   scr     the words (`HullScramble`), each pair (at TIER1_AT, at no hull):
-##             rate   letters' runs started a second, across a screen of
-##                    `HullScramble.REF_LETTERS` letters (more on a fuller one,
-##                    fewer on a bare one), followed as depth^1.5: rare near the line
-##             run    the longest run, letters (1 at the line, this near 0)
-##             hold   how long a letter stays noise, s
-##             most   the ceiling: letters scrambled at once on the whole screen
-##             share  the ceiling for one text: of its letters, at once
-##   voice   her lines (`plan_for`), each pair (at TIER1_AT, at no hull):
-##             rate   glitches a second of her words
-##             len    each window's length, times its kind's (KIND_LEN)
-##             amt    how hard each bites (`VoiceGlitch.apply`)
+## Per-preset strengths for the red, the scramble and the voice, each from the line to no hull.
+## Why: docs/why/LowHull.md#presets
 const LOOKS := {
 	Preset.SUBTLE: {
 		red = [0.30, 0.42], breath = 0.4,
@@ -201,11 +149,7 @@ static func moving() -> bool:
 	return Router.animating()
 
 
-## The string to draw for `s` (hand-drawn text: `draw_string` in a screen's
-## `_draw`): `s` itself, or `s` with a scrambled letter or two swapped for noise
-## glyphs of exactly the same advance, so the string is the same width to the
-## pixel and nothing after it moves. Only ever for drawing: the screen's own
-## data keeps `s`.
+## Scrambled letters swap to noise glyphs of the same advance, so width never changes.
 static func scr(owner: CanvasItem, s: String, size: int = UITheme.FS_BODY, font: Font = null) -> String:
 	if instance == null or instance.scramble == null or not instance.scramble._active:
 		return s
@@ -261,17 +205,8 @@ static func voice_on() -> bool:
 	return in_run() and tier_for(h.x, h.y) > 0
 
 
-## WHERE HER LINE GLITCHES (Jon, Oct 20, on the first take of this: "I don't
-## hear A.S.H.'s voice glitch that much"). Heard at the line already -- a
-## stutter or a chop first in every line -- and more of them, longer, with the
-## crush, the ring and the wobble joining, as `depth` goes to 1.
-##
-## SHE STAYS UNDERSTOOD: a dropout or a stutter replaces what she said, so it
-## is never longer than KIND_MOST (110 ms: under a short word); the chop, the
-## crackle, the crush, the ring and the wobble keep her words under them. At
-## least MIN_APART between two, and never more than MOST_SHARE of a line.
-## Inside her words only: after the take's 30 ms lead-in (and a little) and
-## before its trailing silence.
+## Her line must stay understood: dropouts and stutters stay under 110 ms (Jon, Oct 20).
+## Why: docs/why/LowHull.md#voice-glitches
 const MIN_APART := 0.14
 const MOST_SHARE := 0.45
 ## Each kind's window at the line, s (times the preset's `voice.len`)...
@@ -285,9 +220,7 @@ const KIND_MOST := {
 	&"gap": 0.09, &"repeat": 0.11, &"chop": 0.2, &"crackle": 0.22,
 	&"crush": 0.14, &"ring": 0.12, &"wobble": 0.22,
 }
-## Heard from the line down (a stutter, a chop, a crackle: each plainly a
-## fault, Jon having not heard the first take's), a dropout now and then
-## (GAP_P, more as the hull falls), and the rest joining as it falls (LATE_P).
+## Plain faults from the line down, a dropout now and then, the rest as the hull falls.
 const VOICE_EARLY: Array[StringName] = [&"repeat", &"chop", &"crackle"]
 const VOICE_LATE: Array[StringName] = [&"crush", &"ring", &"wobble"]
 const GAP_P := [0.15, 0.3]
@@ -300,9 +233,7 @@ static func voice_plan(secs: float, rng: RandomNumberGenerator = null) -> Array:
 	return plan_for(secs, float(h.x) / float(h.y), voice_look(), rng)
 
 
-## The plan without asking the hull: `share` the hull's share of its max, `lk`
-## the look. [{at, len, kind, amt, rep, hz, seed}], at and len in s from the
-## take's start.
+## The plan without asking the hull: `share` of max and the look `lk`.
 static func plan_for(secs: float, share: float, lk: Dictionary, rng: RandomNumberGenerator = null) -> Array:
 	var out: Array = []
 	if share <= 0.0 or share > TIER1_AT + 0.00001:

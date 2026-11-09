@@ -1,33 +1,12 @@
 class_name QuestPanel
 extends PanelContainer
 
-## THE QUESTS TABLE, opened by the HUD's QUESTS tab (Jon, Oct 22, design A:
-## "I chose A, the JOBS tab", named QUESTS as the chart names them, and no count
-## on the tab "so it doesn't change size"). Every quest you hold (`QuestLog`), a
-## row each: its mark, its state, what to do, where (the system and its layer,
-## or any of the poster's yards and the nearest), the jumps from you, the pay
-## and the poster's flag and name. A row picked opens under itself: the note in
-## the poster's own words, SHOW ON STARCHART and PLOT ROUTE.
-##
-## OVER WHATEVER IS UP -- LOCAL, the sector map, the chart, a station -- in the
-## HUD's own column after the screens (where the goal line and A.S.H. stand),
-## right of the goal line and of A.S.H.'s first place and under the HUD, so it
-## covers neither. Closed by its tab, by CLOSE, by any change of screen, and by
-## the escape menu opening over it.
-##
-## Only this ship's quests: `Run` is one ship, and a partner's are on theirs.
-##
-## AN EVENT QUEST IS A ROW TOO (Jon, Oct 22): what an event planted ahead of
-## you (`OptionTable.place`), MARKED, its pay ON ARRIVAL, from the event that
-## gave it. And FINISHED QUESTS STAY, under a plain COMPLETED heading below the
-## open ones, newest first, greyed a little, each with what it paid; a finished
-## row still opens its note and SHOW ON STARCHART, and has no PLOT ROUTE. No
-## heading when nothing is finished.
+## Opened by the QUESTS tab (Jon, Oct 22, design A) over any screen, after the goal line.
+## Finished quests stay under COMPLETED, newest first; only this ship's quests show.
+## Why: docs/why/QuestPanel.md#quests-table
 
 static var _open: QuestPanel = null
-## The quest whose row is open, by its id (`QuestLog.entries`: a contract's id,
-## or an event quest's); -1 for none. Kept while the table is shut, so opening
-## it again opens the same row.
+## The open row's id, kept while the table is shut so reopening opens the same row.
 static var picked: int = -1
 
 ## The table's columns, px: mark, state, quest, where, jumps, pay, from. PAY
@@ -37,9 +16,7 @@ const GAP := 8
 ## A finished row's words, greyed a little so it reads as done.
 const DONE_TINT := Color(0.66, 0.68, 0.72, 0.85)
 
-## One quest's row: laid out by its own container (a Button lays nothing out,
-## and its words piled on each other), pressed like a button, lit under the
-## pointer as a button is.
+## A container lays out its own words, since a Button lays nothing out and piled them on each other.
 class Row extends PanelContainer:
 	signal pressed
 	var open_row := false

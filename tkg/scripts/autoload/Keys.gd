@@ -1,36 +1,8 @@
 extends Node
 
-## THE KEYS, BY NAME. Every key the game listens for that a player may move,
-## held as a Godot InputMap action with a label a player reads in Settings.
-##
-## Jon: "We need a way to bind keys and such." Before this every screen read a
-## keycode straight off the event (`k.keycode == KEY_R`), so a key was wherever
-## the line that read it said it was. Now a screen asks for the ACTION
-## (`event.is_action_pressed(&"hold_turn")`) and this file is the one place that
-## says which key that is.
-##
-## TWO SLOTS AN ACTION, a primary and an optional second key, which is what a
-## player who wants the arrows AND WASD on the ship needs and no more. The
-## defaults fill only the primary, so with nothing rebound the game reacts to
-## exactly the keys it reacted to before.
-##
-## A CLASH IS ONLY A CLASH WHERE BOTH KEYS COULD BE PRESSED. W thrusts on the
-## sector map and pans the star chart; those two screens are never up together,
-## so the same key doing both is fine and is how it shipped. GENERAL is live
-## on every screen, so it clashes with everything; and the hold's keys clash
-## with the sector map's because the salvage drawer opens over that map
-## (`TOGETHER`).
-##
-## WHAT IS NOT HERE, ON PURPOSE. Escape opens the menu and backs out of
-## everything, including this screen's own "press a key", so it cannot be
-## moved -- a player who bound it to something else could lock themselves out
-## of the menu. Backspace and Delete are how Settings clears a key. The "any
-## key" moments (the chart's first-visit card, skipping a jump) take any key by
-## design. Mouse clicks, drags and the wheel are not keys. See `FIXED`.
-##
-## SAVED BESIDE THE OTHER SETTINGS, in `user://settings.cfg` under [keys], and
-## only the actions a player has moved: an action left alone keeps following
-## the default, so a default changed in a later build reaches them.
+## Jon asked for rebinding: screens ask for an action and this is the one place naming its key.
+## Clashes count only where both keys can be pressed. Escape and 'any key' moments stay fixed.
+## Why: docs/why/Keys.md#key-bindings
 
 signal changed
 
@@ -49,9 +21,7 @@ const GROUPS := [
 	{"id": CHART, "name": "STAR CHART"},
 ]
 
-## Groups that can be on screen at the same time, besides GENERAL (which is
-## with everything). The salvage drawer -- a hold you turn parts in -- opens
-## over the sector map.
+## Groups that can be up together besides GENERAL: the salvage drawer opens over the sector map.
 const TOGETHER := [[HOLD, SECTOR]]
 
 ## Every action a player can move: its name, the screen it works on, what
@@ -88,9 +58,7 @@ const ACTIONS := [
 ## "press a key"; Backspace and Delete clear a key in Settings.
 const FIXED := [KEY_ESCAPE, KEY_BACKSPACE, KEY_DELETE]
 
-## Where the bindings are kept. A var so `-- bindtest` can point it at a file
-## of its own and never touch the player's settings; under any harness the
-## harness's scratch file (`DisplaySettings.path`).
+## A var so `-- bindtest` can use its own file and never touch the player's settings.
 var path: String = DisplaySettings.path
 
 ## action -> [primary, secondary] keycodes, 0 for an empty slot.
@@ -157,11 +125,7 @@ func is_default(action: StringName) -> bool:
 	return slots(action) == defaults(action)
 
 
-## True while any key bound to `action` is down on the keyboard.
-##
-## For letting go of a held key whose release went missing (alt-tab, a snip
-## shortcut, a lost window): it can only ever say a key is UP, so a screen that
-## asks it can stop something, never start it.
+## For a held key whose release went missing: it can only say a key is up, never start anything.
 func held(action: StringName) -> bool:
 	for code: int in _bound.get(action, []):
 		if code != 0 and Input.is_key_pressed(code as Key):
@@ -243,12 +207,8 @@ func clashes(action: StringName, code: int) -> Array[StringName]:
 
 # ------------------------------------------------------------------ changing
 
-## Put `code` in `action`'s slot (0 primary, 1 second key). Refuses a fixed key.
-## Does NOT look for clashes: Settings asks `clashes` first and either calls
-## `swap_in` or does not call this at all.
-##
-## The same key already in the action's other slot swaps the two, rather than
-## binding one key twice.
+## Does not look for clashes: Settings asks `clashes` first. The same key in the other slot swaps.
+## Why: docs/why/Keys.md#set-key
 func set_key(action: StringName, slot: int, code: int) -> bool:
 	if not _bound.has(action) or slot < 0 or slot > 1 or fixed(code):
 		return false
@@ -321,11 +281,7 @@ func _tidy(s: Array) -> void:
 		s[1] = 0
 
 
-## Into Godot's InputMap, which is what every screen actually asks.
-##
-## By KEYCODE, the letter the layout types, which is what every screen read
-## before this (`k.keycode == KEY_W`). No modifiers: shift-R still turns a part,
-## as it always did.
+## By keycode with no modifiers, as every screen read before: shift-R still turns a part.
 func _apply(action: StringName) -> void:
 	InputMap.action_erase_events(action)
 	for code: int in _bound[action]:
@@ -338,9 +294,7 @@ func _apply(action: StringName) -> void:
 
 # ------------------------------------------------------------------ the file
 
-## Into settings.cfg's [keys], loaded first so display, audio and dev survive
-## -- the same rule DisplaySettings.save learned the hard way. Only what a
-## player has moved is written.
+## Loads settings.cfg first so display, audio and dev survive, as `DisplaySettings.save` does.
 func save_keys() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load(path)

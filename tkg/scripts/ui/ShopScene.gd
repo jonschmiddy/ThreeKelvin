@@ -1,41 +1,9 @@
 class_name ShopScene
 extends StationRoom
 
-## The room the Promenade's shop stands in: one of Jon's fifteen.
-##
-## THE ROOM IS HIS AND IT IS DATA. Jon laid out three rooms per development
-## level on the room bench, and `tools/room_install.py` put them in
-## `art/sprites/station/rooms/` -- every plate, prop, lamp and door at the size
-## it is drawn, and each room's light worked out ahead of time. A station picks
-## one of its level's three off its seed, the way it picks its backdrop, and
-## this draws it the way the bench draws it: the same passes in the same order,
-## the same pixels. Nothing about where a thing stands is decided here.
-##
-## THE BENCH IS THE REFERENCE. Where this file and `tools/room_bench.tmpl.html`
-## disagree, this file is wrong. Each function below names the bench function
-## it ports.
-##
-## FIVE LAYERS, BECAUSE THE RACK AND THE COUNTER ARE LIVE. The stock on the
-## rack can be picked up and the counter takes it, so both are nodes of their
-## own and the room is drawn around them:
-##
-##   this node   the plate, the openings and the concourse through them, and
-##               whatever the bench draws before the furniture or clear of it
-##   (furniture) the rack and its stock, the counter -- `StationScreen`'s
-##   front       what the bench draws after the furniture and over it: the
-##               haze, a prop Jon stood in front, the lamps
-##   light       the room's light, over all of the above (`ShopLight.Overlay`)
-##   glow        dust, lamp glass, lit panels, and the shop's own marks
-##
-## `StationScreen` stacks them in that order; the three above the furniture
-## come from `front_layer`, `light_layer` and `glow_layer`. Which side of the
-## furniture a thing goes is `room_install.py`'s call, made from the bench's
-## draw order: Jon keeps his racks and counters in the WALL band, where they
-## neither cast a shadow nor sit in one, so the haze comes in front of them.
-##
-## NO LIVERY. The old room tinted its trim in the manufacturer's colour and hung
-## cables in front; the bench has neither, so neither does this (the port
-## plan's option 2A). Other decks keep theirs.
+## The room is Jon's data from the room bench, which is the reference: where this file disagrees,
+## it is wrong. No livery: the bench has none, so the port plan's option 2A drops it here.
+## Why: docs/why/ShopScene.md#shop-room
 
 const ROOMS_DIR := "res://art/sprites/station/rooms/"
 const ROOMS_JSON := ROOMS_DIR + "rooms.json"
@@ -52,15 +20,11 @@ static var fullbright := false
 ## THE SHOP'S OWN MARKS OVER THE LIGHT: prices, rarity lights, the counter's
 ## quote. See `ShopLight.Glow`. False lights them with the room, as the bench does.
 static var lit_marks := true
-## Nobody behind the glass, no dust and no failing lamps, for `stationshot
-## people=0 motes=0 steady`: a room that holds still to be compared with the
-## bench pixel for pixel.
+## No people, dust or failing lamps, so a still room can be compared with the bench pixel for pixel.
 static var no_people := false
 static var no_motes := false
 static var steady := false
-## The room's clock held at this many milliseconds, for `stationshot clock=`:
-## a failing lamp caught at a known moment, to set beside the bench's render
-## of the same moment. Below zero the clock runs.
+## Clock held at a given time to catch a failing lamp at a known moment against the bench.
 static var pin_clock_ms := -1.0
 
 static var _doc: Dictionary = {}
@@ -268,9 +232,8 @@ func _load_room() -> void:
 	_load_light()
 
 
-## The room's light, off disk: a PNG decoded straight to bytes, NOT imported --
-## an import is free to touch the colour of a transparent pixel, and here the
-## colour is data.
+## Light PNG decoded straight to bytes, not imported: an import
+## may alter a transparent pixel's colour, which is data here.
 func _load_light() -> void:
 	_light_bytes = PackedByteArray()
 	_light_tex = null
@@ -371,9 +334,7 @@ func _draw_list(c: CanvasItem, list: Array) -> void:
 			c.draw_texture(t, Vector2(float(d.x), float(d.y)))
 
 
-## The haze between the wall and the deck: fourteen bands from ninety above the
-## floor to the foot of the room, each a row taller than its slot as the bench
-## has them.
+## Fourteen haze bands, each a row taller than its slot, as the bench has them.
 func _draw_bench_haze(c: CanvasItem) -> void:
 	var fl := float(doc().get("floor_y", 353))
 	var top := fl - 90.0
@@ -435,9 +396,7 @@ func _open_hole(d: Dictionary) -> void:
 func _door_hole(d: Dictionary) -> void:
 	var r := Rect2(float(d.x), float(d.y), float(d.w), float(d.h))
 	_view_span(r)
-	# THE BANDS ARE FILLED THE WAY A CANVAS FILLS THEM: an edge that falls part
-	# way through a row covers that row by the share it covers. Each band is
-	# 1/16 of the door and a door is 190 tall, so most rows are shared.
+	# Bands fill as a canvas does: an edge part way through a row covers it by its share.
 	var bh := r.size.y * 0.5 / 8.0
 	var y := r.position.y
 	var y_end := r.position.y + r.size.y * 0.5
@@ -510,9 +469,8 @@ func _nine(im: Texture2D, m: int, x: float, y: float, w: float, h: float, bottom
 
 # -------------------------------------------------------------- the concourse
 
-## THE BENCH'S CROWD (`stepWalkers`), the port plan's option 1A: two to five
-## people to a walk line, each with a pause between passes, and no drones. The
-## game's other rooms keep their own rule.
+## The bench's crowd (port plan option 1A): two to five
+## people to a line and no drones; other rooms keep their own.
 func _build_cast(bd: StringName) -> void:
 	_cast.clear()
 	_read_walk()
@@ -567,9 +525,7 @@ func _build_cast(bd: StringName) -> void:
 			_cast.append(w)
 
 
-## Where everyone is at the room's clock: `stepWalkers`' positions, then
-## `sprite`'s and `figure`'s. Distance is a function of the clock here, which
-## is the bench's accumulated distance for a speed that never changes.
+## Positions at the room's clock: distance is a function of it, as the bench's speed never changes.
 func _pose_cast() -> void:
 	_posed_at = _clock
 	_posed.clear()

@@ -1,12 +1,8 @@
 class_name SettingsMenu
 extends Control
 
-## Settings in a drawer of its own, for the title screen.
-##
-## In a run, Settings is not this: it swaps into the escape drawer in place of
-## the menu (PauseMenu.show_settings). The title screen has no escape drawer to
-## borrow, so this is the same drawer -- same width, same edge, same backdrop,
-## same motion -- holding the same SettingsPanel.
+## The title screen has no escape drawer to borrow, so this is the same one.
+## Why: docs/why/SettingsMenu.md#title-screen-settings
 
 signal closed
 
@@ -18,9 +14,7 @@ func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	# over the whole picture, as the escape menu's is (it sits on Main's overlay
-	# layer; this drawer is on the title screen, which stops short of the glass
-	# by Main's margin: `Widgets.cover_picture`)
+	# Covers the whole picture as the escape menu's does, past Main's margin.
 	var scrim := ColorRect.new()
 	Widgets.cover_picture(scrim)
 	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE

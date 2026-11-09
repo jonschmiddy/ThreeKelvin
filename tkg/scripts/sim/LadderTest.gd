@@ -1,21 +1,7 @@
 extends Node
 
-## THE ZOOM LADDER'S DOORS, headless (`ZoomLadder`):
-##   godot --headless --path . -- sheet=LadderTest
-## Every move between the four distances, through the Router's own doors with the
-## animation on (`Router.animate_in_harness`) and the ladder's clock stepped
-## 1/30 s a frame: each one lands on the screen it was going to; nothing is left
-## half-built behind it (no ladder in the tree, the map's camera handed back,
-## LOCAL's scene and sky at their own size, the bar back, the hull shown); a key
-## pressed mid-move ends it at once and the screen takes input after; the wheel
-## past either end of the map, the chart's closest zoom and LOCAL stays put (Tab
-## and the tabs are the way between distances, never the wheel); LOCAL's DOCK at a station docks, UNDOCK lands on LOCAL; the
-## defaults are Jon's picks (1A, 2C, 3B), and 3B's dock flies the yard's hull in
-## from the left with the elevator out of the picture until it has settled, its
-## undock the elevator out first and the hull away to the left, then on LOCAL
-## the dock played backwards with the camera still; a fight
-## opened from the map arrives on LOCAL and its end goes back; every design of
-## every seam; and the switch off is today's flow, a plain swap.
+## Covers every move between the four distances through the Router's own doors; Jon's picks.
+## Why: docs/why/LadderTest.md#test-coverage
 
 var _fails := 0
 var _tree: SceneTree
@@ -92,12 +78,8 @@ func _go(label: String, call: Callable, want: Script) -> void:
 	_clean(label)
 
 
-## 3B, DOCKING (the Drum): on LOCAL your ship sets off from where it sits and
-## only ever moves right, the station's lights come on as it goes, and it is all
-## in behind the lips before the camera pans; the pan carries the yard in from
-## the right; in the yard the hull comes in from the left and only moves right,
-## the elevator out of the picture the whole way, the hull ends on its stands,
-## and only then does the elevator slide back in.
+## 3B docking: the ship only moves right, and the elevator slides in only after it has landed.
+## Why: docs/why/LadderTest.md#docking-choreography
 func _hull_flies_in(dock_b: Button) -> void:
 	var loc0 := Router.current as SectorScreen
 	# (into a SLEEPING station, as the map's DOCK finds one: LOCAL wakes it as
@@ -116,17 +98,11 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var power := 0.0
 	var shown := 0.0
 	var layer_bad := 0
-	# THROUGH THE LIPS, ONE MOUTH FOR EVERY SHIP (Jon: "We need to have the ship
-	# door opening always be the same size, no matter what ship you are in"):
-	# while any of your ship is between the mouth and the recess's end, all of
-	# it -- its hull and every part bolted on -- is inside the recess, `LIP_ROOM`
-	# px or more from both lips
+	# One mouth for every ship (Jon): all of it stays `LIP_ROOM` px inside the recess.
 	var lip_room := INF
 	var lip_at := Rect2()
 	var whole := Rect2()
-	# THE DOCK IN FIVE STEPS (Jon, Oct 20: "I want the ship to enter the screen
-	# like it does for the first sector"): the steps as they came, your ship on
-	# the plate and its engines through each, the lights through each
+	# The dock in five steps (Jon, Oct 20): it should enter like the first sector.
 	var beats: Array[StringName] = []
 	var wait_x: Array[float] = []
 	var power_end_wake := 0.0
@@ -136,14 +112,10 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var lit_early := 0.0
 	var cut_black := 0.0
 	var warn_seen := {}
-	# THE ARRIVAL'S OWN ENTRANCE: every ARRIVE frame your ship's place and flame
-	# against the arrival's own formula on its own row (`ShipView._tick_arrival`,
-	# `_flame_window`, `arrive_thrust`) at the arrival's time; off the left edge
-	# on its first frame; the thrusts seen; and its clip
+	# Each ARRIVE frame is held to the arrival's own formula on its own row.
 	var arr_frames := 0
 	var arr_first_off := false
 	_dock_rec = []
-	_enter_rec = {}
 	var arr_thr := {}
 	var arr_end := Rect2()
 	var arr_frame0 := -1
@@ -152,14 +124,8 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var thr_enter := {}
 	var moor := Rect2()
 	var idle_bed := false
-	# THE CAMERA STILL (Jon, Oct 20: "Why is there so much parallax? The dust
-	# shouldn't move as the ship comes in. The station is stationary."): from
-	# the dock's first frame to the dip to black, everything LOCAL draws but your
-	# ship -- the station's plate and front and their layers, the wreck row, the
-	# dust, the effects, the subject, the sky -- where it was, each frame
-	# THE DUST AT ITS IDLE (Jon, Oct 20: "The dust move too much"): every mote,
-	# through its place as drawn (`LocalDust._rest_at`), each frame of the dock
-	# up to the dip, moving by its own drift and bob and nothing more
+	# The camera stays still while docking (Jon, Oct 20): the background and dust must not move.
+	# Why: docs/why/LadderTest.md#camera-still
 	var dust_prev := {}
 	var dust_frames := 0
 	var dust_over := 0
@@ -257,12 +223,6 @@ func _hull_flies_in(dock_b: Button) -> void:
 					art_d.fitted_rect_global(), th, art_d._flameout, art_d.is_visible_in_tree(), art_d._arrive_at >= 0])
 				arr_thr[th] = true
 				arr_end = last
-			# (and every ENTER frame, by its time into the ENTER, for the undock to
-			# be laid over backwards: `_hull_flies_out`)
-			if beat == &"enter" and art_d != null:
-				var gxe := art_d.get_global_transform()
-				_enter_rec[roundi((float(hd.get("t", 0.0)) - ZoomLadder.dock_step_from(4)) * 30.0)] = [
-					art_d.position, art_d.scale, gxe.origin, gxe.get_scale()]
 			if loc0._face.power > 0.0 and (beat == &"cut" or beat == &"arrive" or beat == &"beat"):
 				lit_early = maxf(lit_early, loc0._face.power)
 			if beat == &"beat" or beat == &"power":
@@ -280,10 +240,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 			if beat != &"":
 				warn_seen[int(floorf(loc0._face.warn))] = true
 			if ZoomLadder.busy() and last.size.x > 0.0:
-				# (the arrival, the wait and the way in: three pieces, the wait
-				# no motion at all)
-				# (the arrival's own motion -- whole pixels, eased out to a drift --
-				# is held to the arrival's formula above, not to this)
+				# The arrival's own motion is held to the arrival's formula above, not to this.
 				var tag := "L" if beat == &"enter" else "H"
 				if beat != &"cut" and beat != &"arrive" and beat != &"":
 					track.append([tag, last.get_center().x, loc0._lad_zs])
@@ -374,20 +331,14 @@ func _hull_flies_in(dock_b: Button) -> void:
 			power_end_wake, power_first_move, warn_end_wake], power_end_wake >= 0.999 and power_first_move >= 0.999 and warn_end_wake >= 2.0)
 		_ok("3B: the warning lights flash while your ship waits and go green before it goes in (%s)" % [warn_seen.keys()],
 			warn_seen.has(1) and warn_seen.has(2))
-		# THE SOUND FOLLOWS THE PICTURE: the arrival's clip, the one `arrive`
-		# handed back for its row at this hull's weight, from its start on the
-		# ARRIVE's first frame (its lead is the drive before the ship moves), and
-		# no other thruster sound
-		# (on LOCAL: the yard's landing has its own, `_yard_heard`)
+		# The sound follows the picture: the arrival's clip only, and no other thruster sound.
 		var clips: Array = []
 		for tp: Array in Audio.tape:
 			if String(tp[6]).begins_with("thruster_") and (station_frame < 0 or int(tp[5]) < station_frame):
 				clips.append([tp[6], int(tp[5]) - arr_frame0, float(tp[7])])
 		_ok("3B: the arrival's clip (%s) is heard once on LOCAL, from its start, as the arrival begins (%s)" % [arr_clip, clips],
 			arr_clip != &"" and clips.size() == 1 and StringName(clips[0][0]) == arr_clip and absi(int(clips[0][1])) <= 1 and float(clips[0][2]) == 0.0)
-		# (seen only in the recess: wholly past its end, inside the hull's rows --
-		# the lips' outer rows, solid on every side, `_front_is_plate_less_recess`
-		# -- all of it, parts and all, is 0 pixels seen)
+		# Seen only in the recess: past its end the parts are 0 pixels seen.
 		var hull := HULL_ROWS
 		_ok("3B: your ship is all the way into the hull, none of it seen, before the hand-off (on the plate %s; hull past the recess from x %.0f)" % [whole, hull.position.x],
 			whole.size.x > 1.0 and hull.encloses(whole))
@@ -429,10 +380,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the yard's hall runs on where the elevator will come in (%d frames without it)" % edge_off, edge_off == 0)
 	_ok("3B: the hull ends on its stands", xs.is_empty() or absf(xs[-1] - berth) < 1.0)
 	await _rail_comes_in(st, rail_s)
-	# SEATED WHERE THE YARD SEATS IT (Jon: "DOCKING IS PERFECT!!!! But the ship
-	# sits too high on the stands"): the landed hull exactly where the yard's own
-	# stand-up (`YardScene._stand`) puts it -- its picture's rect and its ink's
-	# underside on the stand tops -- not where it stood before it was seated
+	# Seated where the yard's `_stand` puts it, not where it stood before (Jon: sat too high).
 	await _frames(4)
 	var seat := _yard_seat(st)
 	var landed := st._mine_view.get_rect() if st._mine_view != null else Rect2()
@@ -441,9 +389,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_clean("3B dock")
 
 
-## What LOCAL draws besides your ship, where it is: the station's plate and
-## front (their place, size and layers' parallax), the wreck row, the dust, the
-## effects, the subject (place and size), the sky's zoom and the scene's.
+## What LOCAL draws besides your ship, and where it is.
 func _bg_state(lc: SectorScreen) -> Array:
 	var out: Array = []
 	for c: Control in [lc._face, lc._face_front, lc._view._row, lc._view.dust, lc._view.fx, LocalSubject.of(lc._view)]:
@@ -482,25 +428,13 @@ func _bg_off(a: Array, b: Array) -> float:
 	return worst
 
 
-## THE DOCK'S ARRIVAL, frame by frame as `_hull_flies_in` saw it: [its time,
-## position, scale, rect, everything bolted on, flame, flameout row, shown,
-## still arriving].
+## Record of the dock's arrival as `_hull_flies_in` saw it, frame by frame.
 var _dock_rec: Array = []
-## THE DOCK'S ENTER, frame by frame as `_hull_flies_in` saw it, by its frame
-## into the ENTER (1/30 s): [position, scale, its place on screen, its scale on
-## screen]. Undocking lays itself over it backwards (`_hull_flies_out`).
-var _enter_rec := {}
-## THE FIRST LOCAL'S ARRIVAL on the same LOCAL, by frame (`_first_locals`):
-## [position, scale, rect, everything bolted on, shown, still arriving, the
-## flame on each flameout row].
+## Record of the first LOCAL's arrival by frame, for the dock's to be laid over.
 var _first_rec: Array = []
 
 
-## THE FIRST LOCAL'S ARRIVAL, recorded where the dock will start (Jon, Oct 20:
-## "Why doesn't the ship enter like the first local?"): on LOCAL at the
-## station, the arrival a run's first system plays (`SectorScreen._begin_arrive`,
-## name card and all), stepped (`arrive_step`) to every 1/30 s after its card,
-## the flame read on every flameout row; then put away, the ship at rest.
+## Recorded where the dock will start (Jon, Oct 20): the arrival a run's first system plays.
 func _first_locals() -> void:
 	_first_rec = []
 	var loc := Router.current as SectorScreen
@@ -539,10 +473,7 @@ func _first_locals() -> void:
 	await _frames(3)
 
 
-## THE DOCK'S ARRIVAL IS THE FIRST LOCAL'S: laid over it frame by frame -- your
-## ship in the same place, at the same size, with the same flame on its row,
-## shown alike, on every one of the dock's arrival frames (once it rests, its
-## idle bob runs on the game's clock: its place and size then, the phase aside).
+## The dock's arrival must match the first LOCAL's, frame by frame.
 func _arrival_is_first_locals() -> void:
 	if not _ok("first LOCAL's arrival recorded (%d frames) and the dock's (%d)" % [_first_rec.size(), _dock_rec.size()],
 			not _first_rec.is_empty() and not _dock_rec.is_empty()):
@@ -568,9 +499,7 @@ func _arrival_is_first_locals() -> void:
 		_dock_rec.size(), bad, "; first " + at if at != "" else ""], bad == 0)
 
 
-## A PRESS MID-DOCK, the plain version (`ZoomLadder.finish_now`): a key mid-
-## arrival lands in the berth at once -- the elevator already in its place, no
-## slide, the arrival parked -- and UNDOCK goes back.
+## A key mid-arrival lands in the berth at once, with the arrival parked.
 func _dock_skipped(dock_b: Button) -> void:
 	var loc := Router.current as SectorScreen
 	var art := loc._view.ship_view() if loc != null else null
@@ -604,11 +533,7 @@ func _dock_skipped(dock_b: Button) -> void:
 	_ok("3B: UNDOCK after the skipped dock lands on LOCAL", Router.current is SectorScreen and not Router.docked)
 
 
-## THE LANDING, HEARD (Jon, Oct 21: "the roar of the thruster and then putter
-## out to nothing before it lands"): one frame of the yard's flight in, into
-## `yr` -- its clock (`StationScreen.ladder_yard_t`'s `t`, INF once landed),
-## your ship's place, its flame as drawn, the thrust loop's level as it would
-## be heard (`Audio._ship_level`), and the flameout row picked.
+## One frame of the yard's flight in: clock, ship, flame, thrust loop level and flameout row.
 func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
 	if st == null or not is_instance_valid(st) or st._mine_view == null or not is_instance_valid(st._mine_view):
 		return
@@ -630,14 +555,8 @@ func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
 		"th": v._thrust_now(), "level": Audio._ship_level, "want": Audio.ship_want, "sputter": v.sputtering()})
 
 
-## The landing as `_yard_sample` saw it, and the tape under it: THE ROAR (the
-## cruise flame drawn and the thrust loop at the dock's burn level while your
-## ship flies in, nothing before `YARD_ROAR_FROM_S`); THE PUTTER (the clip for
-## the row picked, at this hull's weight, once, from the flame's first cough,
-## at the burn's level, the flame drawn on that row's coughs frame for frame);
-## NOTHING before touchdown (the loop out from the first cough, the last cough
-## `YARD_QUIET_S` or more before it, the flame at the idle); THE CLAMPS as it
-## touches down, once.
+## The landing is checked as roar, putter, silence at touchdown, then the clamps once.
+## Why: docs/why/LadderTest.md#landing-sound
 func _yard_heard(label: String, yr: Dictionary) -> void:
 	var fr: Array = yr.get("f", [])
 	var row := int(yr.get("row", -1))
@@ -678,9 +597,7 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 			continue
 		if t < cough_at:
 			roar_n += 1
-			# (asked for at the burn's level, and coming up toward it: how fast is
-			# the loop's own fade, on the frame's real length, which headless is
-			# whatever the machine makes it)
+			# Headless frame length varies by machine, so the fade is judged on the real frame.
 			if int(e.th) != ThrusterFx.Thrust.CRUISE or not is_equal_approx(float(e.want), SectorScreen.DOCK_BURN_LEVEL) 					or float(e.level) <= 0.0:
 				roar_bad += 1
 				if roar_at == "":
@@ -741,11 +658,7 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 			and touch_pos.is_equal_approx(yr.get("berth", Vector2.INF)) and not Router.dock_clamps_owed)
 
 
-## A KEY MID-LANDING HUSHES IT (`ZoomLadder.finish_now`): DOCK on LOCAL, and in
-## the yard `at` s into your ship's flight in (mid-roar, or mid-coughs) a key:
-## the berth at once, your ship on its stands with its engines at the idle, the
-## loop out, the coughs (if begun) hushed, nothing of the landing heard after
-## the press, the clamps once.
+## A key mid-landing hushes it: berth at once, idle engines, nothing of the landing heard after.
 func _yard_skipped(dock_b: Button, at: float) -> void:
 	dock_b.pressed.emit()
 	Audio.taping = true
@@ -800,13 +713,8 @@ func _yard_skipped(dock_b: Button, at: float) -> void:
 	await _idle()
 
 
-## THE ELEVATOR, AFTER YOUR SHIP IS IN, LIKE THE GAME'S OTHER PANELS (Jon, Oct
-## 20: "The left panel coming into the station doesn't come in correctly"):
-## it starts only once the yard's flight is done (the yard's `_lad` empty on its first
-## frame), slides as a `PanelSlide` on the panels' curve, in whole pixels, only
-## ever right, carrying its ground (`_RailBack`) with it so the yard's hall is
-## never seen through it nor gone from under it at once; nothing on it takes a
-## click while it moves; and it lands in its place, the hall gone.
+## The elevator slides in only after the ship is in (Jon, Oct 20), whole pixels, only rightward.
+## Why: docs/why/LadderTest.md#elevator-slide
 func _rail_comes_in(st: StationScreen, rs: Dictionary) -> void:
 	if st._rail == null:
 		return
@@ -837,9 +745,7 @@ func _rail_comes_in(st: StationScreen, rs: Dictionary) -> void:
 			and absf(st._rail.position.x - roundf(st._rail.position.x)) < 0.001 and st._tab == tab0)
 
 
-## One frame of the elevator's slide, if it is sliding, into `rs`: where it is,
-## and whether it is on a whole pixel, only going right, its ground moved with
-## it just under it, and nothing on it clickable.
+## One frame of the elevator's slide: pixel, direction, ground and clickability.
 func _rail_sample(st: StationScreen, rs: Dictionary) -> void:
 	if st == null or st._rail == null or st._rail_slide == null:
 		return
@@ -863,10 +769,7 @@ func _rail_sample(st: StationScreen, rs: Dictionary) -> void:
 		rs.blocked = false
 
 
-## One frame of LOCAL's dust as drawn on screen (`LocalDust._rest_at` through
-## its transform, as `DockFilm` logs it): each mote against the frame before,
-## less its own drift and the most its bob can move it, a wrap round its strip
-## taken back by the strip's width (so a camera's step cannot hide as a wrap).
+## Dust is judged less its drift and bob, with a wrap taken back so a camera step cannot hide.
 func _dust_seen(c: SectorScreen, d: Dictionary) -> void:
 	if c == null or c._view == null or c._view.dust == null:
 		return
@@ -900,10 +803,7 @@ func _dust_seen(c: SectorScreen, d: Dictionary) -> void:
 			d.over += 1
 
 
-## One frame of LOCAL undocking for the camera-still checks, into `s`: what it
-## draws besides your ship against its first frame (`_bg_state`, the dock's
-## check), the ladder's camera (the scene's zoom, the screen's place, the sky's
-## zoom), the dust as drawn, the station's lights.
+## One frame of LOCAL undocking for the camera-still checks.
 func _still_frame(c: SectorScreen, s: Dictionary) -> void:
 	var bg := _bg_state(c)
 	if (s.bg0 as Array).is_empty():
@@ -927,18 +827,8 @@ func _still_frame(c: SectorScreen, s: Dictionary) -> void:
 	_dust_seen(c, s.dust)
 
 
-## 3B, UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background
-## stays put as your ship flies out, matching docking"). In the yard as before:
-## the elevator out first, the hull off its stands to the left, the empty yard
-## down to black. Then on LOCAL, every frame from its first to a second after
-## the move lands: THE CAMERA STILL -- everything LOCAL draws but your ship where
-## it was, 0 px (`_bg_state`, the dock's check), the ladder's camera never zoomed
-## nor panned, every dust mote as drawn moving by its own drift and bob alone;
-## your ship on the dock's ENTER run back (`_enter_rec`), in the same place at
-## the same size frame for frame, out of the hull through the lips and never
-## back in; its engines lit at the cruise burn and then the arrival's flameout,
-## its clip heard once from its first cough, down to the idle; the station lit
-## the whole way and after; your ship parked at its mooring at its own size.
+## Undocking holds the background as docking does (Jon, Oct 21): eased out down the ENTER's path.
+## Why: docs/why/LadderTest.md#undocking
 func _hull_flies_out() -> void:
 	var st := Router.current as StationScreen
 	if st == null:
@@ -965,6 +855,7 @@ func _hull_flies_out() -> void:
 	var matched := 0
 	var path_bad := 0
 	var path_at := ""
+	var out_x: Array[float] = []
 	var moor := Vector2.INF
 	var moor_s := Vector2.ZERO
 	var thr_seq: Array[int] = []
@@ -1005,18 +896,20 @@ func _hull_flies_out() -> void:
 					up_s = c.ladder_up_s()
 				var tau := float(hall.get("t", 0.0))
 				out_frames += 1
-				# (the ENTER's frame as far from its end as this one is from the start)
-				var key := roundi((ZoomLadder.DOCK_ENTER_S - tau) * 30.0)
-				if _enter_rec.has(key):
-					var e: Array = _enter_rec[key]
-					var gx := art.get_global_transform()
-					if art.position.distance_to(e[0]) < 0.01 and art.scale.distance_to(e[1]) < 0.0001 \
-							and gx.origin.distance_to(e[2]) < 0.01 and gx.get_scale().distance_to(e[3]) < 0.0001:
-						matched += 1
-					else:
-						path_bad += 1
-						if path_at == "":
-							path_at = "%.3f s out: %s %s (the ENTER's %s %s)" % [tau, art.position, art.scale, e[0], e[1]]
+				# (the ENTER's path, berth to mooring, eased from rest to rest)
+				var slot := art.get_parent() as Control
+				var p1: Vector2 = slot.get_global_transform().affine_inverse() * c._face.plate_g(hall.berth) \
+					- ((c._lad.ship as Dictionary).mid as Vector2)
+				var g := ZoomLadder._ease(1.0 - tau / ZoomLadder.DOCK_ENTER_S)
+				var want_p := moor.lerp(p1, g)
+				var want_s := moor_s * lerpf(1.0, float(hall.s_end), g)
+				if art.position.distance_to(want_p) < 0.01 and art.scale.distance_to(want_s) < 0.0001:
+					matched += 1
+				else:
+					path_bad += 1
+					if path_at == "":
+						path_at = "%.3f s out: %s %s (the path's %s %s)" % [tau, art.position, art.scale, want_p, want_s]
+				out_x.append(art.position.x)
 				# (its engines, from the moment any of it can be seen)
 				if tau >= up_s:
 					thr_seq.append(art._thrust_now())
@@ -1073,9 +966,20 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: THE DUST AT ITS IDLE -- every mote as drawn moves by its own drift and bob alone through the undock and after it (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera in one place (%d, %s)" % [
 		du.frames, du.worst, du.over, cams.size(), str(cams) if cams.size() <= 3 else "%.0f to %.0f" % [cams[0], cams[-1]]],
 		int(du.frames) > 100 and int(du.over) == 0 and cams.size() == 1)
-	_ok("3B UNDOCK IS THE DOCK'S ENTER BACKWARDS: your ship in the same place at the same size as the ENTER had it as far from its end, on %d of the undock's %d frames there (%d differ%s; the ENTER recorded %d)" % [
-		matched, out_frames, path_bad, "; first " + path_at if path_at != "" else "", _enter_rec.size()],
+	_ok("3B UNDOCK: your ship down the ENTER's path at the size it gives, eased, on %d of the undock's %d frames there (%d differ%s)" % [
+		matched, out_frames, path_bad, "; first " + path_at if path_at != "" else ""],
 		out_frames > 100 and path_bad == 0 and matched >= out_frames - 2)
+	# FROM REST AND TO REST, fastest in the middle (the ENTER run back was
+	# fastest on its first frame out)
+	var sp: Array[float] = []
+	for i in range(1, out_x.size()):
+		sp.append(absf(out_x[i] - out_x[i - 1]))
+	var peak: float = sp.max() if not sp.is_empty() else 0.0
+	var peak_at := sp.find(peak)
+	var eased := sp.size() > 10 and peak > 0.5 and sp[0] < 0.2 * peak and sp[-1] < 0.2 * peak \
+		and float(peak_at) > float(sp.size()) * 0.25 and float(peak_at) < float(sp.size()) * 0.75
+	_ok("3B UNDOCK: it backs out from rest and slows to rest, fastest mid-way (first %.2f, peak %.2f at frame %d of %d, last %.2f px a frame)" % [
+		sp[0] if not sp.is_empty() else -1.0, peak, peak_at, sp.size(), sp[-1] if not sp.is_empty() else -1.0], eased)
 	var art2 := lc2._view.ship_view() if lc2 != null else null
 	_ok("3B UNDOCK: it ends parked at its mooring at its own size (%s, %s; its mooring %s, %s), its engines at the idle" % [
 		art2.position if art2 != null else Vector2.INF, art2.scale if art2 != null else Vector2.ZERO, moor, moor_s],
@@ -1084,13 +988,14 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: the station stays lit, a working station -- on every frame of LOCAL and after (power at least %.2f; at rest %.2f)" % [
 		still.lit, lc2._face.power if lc2 != null and lc2._face != null else -1.0],
 		lc2 != null and lc2._face != null and float(still.lit) >= 0.999 and lc2._face.power >= 0.999)
-	# ITS ENGINES: the cruise burn coming out, then the coughs (the flameout's
-	# FULL flashes over the idle), ending on the idle
+	# ITS ENGINES: the idle as it backs out, then the coughs (the flameout's FULL
+	# flashes over the idle), ending on the idle
 	var first_full := thr_seq.find(ThrusterFx.Thrust.FULL)
-	var burned := first_full > 0 and thr_seq.slice(0, first_full).has(ThrusterFx.Thrust.CRUISE)
-	_ok("3B UNDOCK: its engines lit at the cruise burn as it comes out, then the arrival's flameout sputtering down to the idle (%d frames: CRUISE first %s, coughs from frame %d, last %s)" % [
-		thr_seq.size(), burned, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
-		burned and thr_seq.has(ThrusterFx.Thrust.IDLE) and not thr_seq.is_empty() and thr_seq[-1] == ThrusterFx.Thrust.IDLE)
+	var idled := first_full > 0 and not thr_seq.slice(0, first_full).has(ThrusterFx.Thrust.CRUISE) \
+		and thr_seq[0] == ThrusterFx.Thrust.IDLE
+	_ok("3B UNDOCK: its engines at the idle as it backs out, no cruise burn, then the arrival's coughs down to the idle (%d frames: idle first and no CRUISE before the coughs %s, coughs from frame %d, last %s)" % [
+		thr_seq.size(), idled, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
+		idled and not thr_seq.is_empty() and thr_seq[-1] == ThrusterFx.Thrust.IDLE)
 	# AND HEARD: the flameout's clip for its row, once, from its first cough
 	var clips: Array = []
 	for tp: Array in Audio.tape:
@@ -1115,10 +1020,7 @@ func _station_settled() -> StationScreen:
 	return Router.current as StationScreen
 
 
-## THE STATION'S LAYOUT, by part: the column (its header, the shaft, every
-## deck's cell, title and note, UNDOCK), the yard, every page, and the figures
-## that float over each ship in the yard -- each part's rect on screen and its
-## minimum size, and each deck title's font size.
+## Station layout by part: rects, minimum sizes and deck title font sizes.
 func _station_layout(st: StationScreen) -> Dictionary:
 	var d := {}
 	if st == null:
@@ -1148,11 +1050,8 @@ func _station_layout(st: StationScreen) -> Dictionary:
 var _station_rects := {}
 
 
-## DOCKED BY A MOVE OR OPENED AT ONCE, THE SAME STATION (Oct 21: built ahead at
-## DOCK under the ladder, in the engine's theme, it kept that theme's sizes --
-## your ship's figures in the yard 153 px tall for 144 and hung 9 px high):
-## every part of `route`'s layout exactly where the station opened at once has
-## it, at the same size and minimum size.
+## A station built ahead under the ladder kept the engine theme's sizes: 153 px for 144.
+## Why: docs/why/LadderTest.md#station-layout-parity
 func _station_same(route: String, at_once: Dictionary) -> void:
 	var docked: Dictionary = _station_rects.get(route, {})
 	var off: Array[String] = []
@@ -1164,12 +1063,8 @@ func _station_same(route: String, at_once: Dictionary) -> void:
 		at_once.size() > 15 and docked.size() == at_once.size() and off.is_empty())
 
 
-## A PRESS MID-UNDOCK (`ZoomLadder.finish_now`): docked, UNDOCK, and a key once
-## your ship is out of the hull and burning -- the move ends within a frame or
-## two, your ship parked at its mooring at its own size, its engines at the
-## idle (the burn out, no flameout begun or heard), the station lit. And under
-## reduced motion UNDOCK never animates: LOCAL at once, your ship at its
-## mooring, the station lit.
+## A key mid-undock ends within a frame or two; under reduced motion UNDOCK never animates.
+## Why: docs/why/LadderTest.md#skip-mid-undock
 func _undock_skipped() -> void:
 	var loc := Router.current as SectorScreen
 	var dk: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
@@ -1184,7 +1079,7 @@ func _undock_skipped() -> void:
 	Audio.tape.clear()
 	Router.show_sector()
 	var c: SectorScreen = null
-	var burning := false
+	var backing := false
 	var moor := Vector2.INF
 	var moor_s := Vector2.ZERO
 	for i in 600:
@@ -1195,7 +1090,9 @@ func _undock_skipped() -> void:
 			if hall.get("beat", &"") == &"out" and float(hall.get("t", 0.0)) > 1.5:
 				moor = (c._lad.ship as Dictionary).get("pos", Vector2.INF)
 				moor_s = (c._lad.ship as Dictionary).get("scale", Vector2.ZERO)
-				burning = bool(hall.get("burning", false))
+				# (backing out, its coughs not begun)
+				var a0 := c._view.ship_view()
+				backing = a0 != null and not a0.sputtering() and not a0.position.is_equal_approx(moor)
 				break
 	var k := InputEventKey.new()
 	k.keycode = KEY_SHIFT
@@ -1214,9 +1111,9 @@ func _undock_skipped() -> void:
 		if String(tp[6]).begins_with("thruster_"):
 			heard += 1
 	Audio.taping = false
-	_ok("3B: a key mid-undock (its engines burning: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [
-		burning, n, art.position if art != null else Vector2.INF, art.scale if art != null else Vector2.ZERO, moor, moor_s, heard],
-		burning and n >= 0 and n <= 3 and Router.current == c and art != null and art.position.is_equal_approx(moor) and art.scale.is_equal_approx(moor_s)
+	_ok("3B: a key mid-undock (backing out, before its coughs: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [
+		backing, n, art.position if art != null else Vector2.INF, art.scale if art != null else Vector2.ZERO, moor, moor_s, heard],
+		backing and n >= 0 and n <= 3 and Router.current == c and art != null and art.position.is_equal_approx(moor) and art.scale.is_equal_approx(moor_s)
 			and not art._burning and not art.sputtering() and art._thrust_now() == ThrusterFx.Thrust.IDLE and heard == 0
 			and c._face != null and c._face.power >= 0.999)
 	_clean("3B undock, skipped")
@@ -1240,9 +1137,7 @@ func _undock_skipped() -> void:
 	_clean("reduced-motion undock")
 
 
-## NO FIGHTS AT A STATION (Jon: "There should never be fights at stations."):
-## nothing can start one there, nothing is rolled to jump you there, the
-## Hellbender never stops at one, and so no wreck is left at one.
+## No fights at a station (Jon): none can start, be rolled, or leave a wreck there.
 func _no_fights_at_stations(st: int) -> void:
 	var was := Run.at
 	Run.at = st
@@ -1278,15 +1173,9 @@ func _no_fights_at_stations(st: int) -> void:
 	Run.at = was
 
 
-## EVERY SIDE JON KEPT (`StationSides`), docked into and undocked from, each
-## with an interior (Drum take 1 with its own bay): the hallway, the
-## mask, the seat and the elevator checks above for every one, and the far
-## layers' parallax in whole pixels that only ever grow as the camera comes in
-## (no A, B, A), back to none at rest.
+## Every side Jon kept, docked and undocked, with far-layer parallax that only grows.
 func _every_side() -> void:
-	# EVERY WEIGHT (Jon: "how do large ships look going into the station?"): the
-	# light, the medium and the heavy, every mount filled (turrets and pods on,
-	# the tallest each can be), at every side
+	# Every weight (Jon: how do large ships look going in?), with every mount filled.
 	for w in [HullData.Weight.MEDIUM, HullData.Weight.LIGHT, HullData.Weight.HEAVY]:
 		Run.fit_chassis(&"korvan", w)
 		_fit_full()
@@ -1295,9 +1184,7 @@ func _every_side() -> void:
 	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM)
 
 
-## Every mount filled with the hull's own manufacturer's parts (`StationShot`'s
-## `fit=full` rule): couplings first, then the smallest draw, different parts
-## before repeats, only what the reactor runs.
+## Mirrors `StationShot`'s `fit=full` rule so the filled ship matches the shots.
 func _fit_full() -> void:
 	var own: Array[ModuleData] = []
 	for mid in DB.modules:
@@ -1363,9 +1250,7 @@ func _every_side_once() -> void:
 			if int(e[0]) == dock_face:
 				for p in far:
 					dock_top = maxi(dock_top, absi(int((e[1] as Dictionary).get(p, 0))))
-		# (each face on its own, over its moving frames: the undock's, the camera
-		# still too now -- Jon, Oct 21, the dock played backwards -- so none;
-		# at rest none either, checked below)
+		# Each face is checked on its own; the undock keeps the camera still too (Jon, Oct 21).
 		var undock_frames := 0
 		for p in far:
 			var last := 0
@@ -1409,10 +1294,7 @@ func _every_side_once() -> void:
 	await _go("back to LOCAL (every side)", Router.show_local, SectorScreen)
 
 
-## WHICH SIDE A STATION GETS: from the station alone. Asked twice it answers the
-## same; it rolls nothing (the run's random streams where they were); every
-## station gets a kept side and interior; and the map's stations do not all
-## look alike.
+## A station's side comes from the station alone, rolls nothing and varies across the map.
 func _station_picks() -> void:
 	var stations: Array = []
 	for raw in Run.map:
@@ -1448,12 +1330,8 @@ func _station_picks() -> void:
 	_ok("stations: all %d sides and %d interiors load" % [StationSides.IDS.size(), StationSides.INTERIORS.size()], loads)
 
 
-## THE STATION'S FRONT IS ITS PLATE LESS THE RECESS: on every side the crevice
-## layer under the front is solid wherever any layer is
-## drawn, nothing of the front (layers, lamps) is in the recess, and the
-## lips' rows (`HULL_ROWS`) are solid hull from the recess's end to the plate's cut and
-## across the window tiled past it -- so your ship, flying on into the hull, is
-## never seen through it.
+## The front is the plate less the recess, so the ship flying into the hull is never seen through.
+## Why: docs/why/LadderTest.md#station-front
 func _front_is_plate_less_recess() -> void:
 	for id in StationSides.IDS:
 		var s := StationSides.side(id)
@@ -1485,9 +1363,7 @@ func _front_is_plate_less_recess() -> void:
 			id, open, inside, holes], open == 0 and inside == 0 and holes == 0)
 
 
-## THE HULL PAST THE RECESS that hides your ship once it is in: from the upper
-## lip's outer edge to the lower lip's (rows 196..341), from the recess's end on;
-## solid on every side (`_front_is_plate_less_recess`).
+## The hull past the recess hides your ship once it is in; solid on every side.
 const HULL_ROWS := Rect2(212, 196, 2000, 146)
 ## ONE MOUTH FOR EVERY SHIP: how close, at the least, any ship (hull and parts)
 ## may come to the lips as it passes them (px).
@@ -1507,14 +1383,8 @@ func _fitted_on_plate(lc: SectorScreen) -> Rect2:
 	return Rect2(a, b - a).abs()
 
 
-## ONE SMOOTH MOTION (Jon: "can we make the movement one smooth motion"): what
-## carries the move, frame by frame -- your ship along the hallway (LOCAL, its
-## plate px times the zoom), the pan (P), your ship in the yard -- in screen px
-## a frame. Each piece, from its first movement to its last, never drops below a
-## floor (no stop mid-piece) and never jumps against its neighbours (no spike);
-## a piece starting where the last ended on screen (the hallway into the pan)
-## starts at the speed it ended on. (F's black between the hallway and the yard
-## is no piece: your ship is out of sight through it.)
+## The move is one smooth motion (Jon): no piece stops midway or spikes against its neighbours.
+## Why: docs/why/LadderTest.md#one-smooth-motion
 func _one_motion(what: String, track: Array) -> void:
 	var pieces: Array = []
 	var tags: Array = []
@@ -1539,9 +1409,7 @@ func _one_motion(what: String, track: Array) -> void:
 		var v: Array = pieces[pi]
 		var first := -1
 		var last := -1
-		# (a piece from rest is allowed its frames gathering speed up to the
-		# floor, and one to rest its frames below it at the end: mid-piece is
-		# between the first and last frames above the floor)
+		# A piece from rest may gather speed; mid-piece is the frames above the floor.
 		for i in v.size():
 			if float(v[i]) > ONE_MOTION_FLOOR:
 				if first < 0:
@@ -1577,9 +1445,7 @@ func _one_motion(what: String, track: Array) -> void:
 const ONE_MOTION_FLOOR := 0.4
 
 
-## The ladder's black over the screens now (F's dip), 0 when there is none.
-## Where the yard seats your hull: the rect `YardScene._stand` gives its view
-## (the picture's corner from the ink's place, the stands' top), Rect2() if none.
+## Where the yard seats the hull, from `YardScene._stand`; also the ladder's dip to black.
 func _yard_seat(st: StationScreen) -> Rect2:
 	if st == null or st._scene == null or st._scene.placed.is_empty():
 		return Rect2()
@@ -1628,12 +1494,8 @@ func _ship_on_plate(lc: SectorScreen) -> Rect2:
 	return Rect2(a, b - a).abs()
 
 
-## LOCAL'S OWN ARRIVAL IS THE FIRST LOCAL'S (Jon, Oct 21, "station:BC"): on
-## LOCAL at the station, the fly-in (`SectorScreen._begin_flyin`) stepped to
-## every 1/30 s from its start, laid over the first LOCAL's arrival after its
-## name card: your ship in the same place, at the same size, shown alike, with
-## the same flame on every flameout row, on every frame it is arriving -- and
-## no name card.
+## LOCAL's own fly-in is laid over the first LOCAL's arrival (Jon, Oct 21), with no name card.
+## Why: docs/why/LadderTest.md#first-local-parity
 func _flyin_is_first_locals() -> void:
 	var loc := Router.current as SectorScreen
 	if not _ok("fly-in: on LOCAL, the first LOCAL's arrival recorded (%d frames)" % _first_rec.size(),
@@ -1718,13 +1580,8 @@ func _sorted(a: Array) -> Array:
 	return b
 
 
-## THE STATION WAKES ON LOCAL, HEARD (Jon, Oct 21: "Can we also get some sounds
-## for when the station turns on?"): asleep, then woken as LOCAL wakes it
-## (`SectorScreen._wake`), each frame's lights as set and the tape under them --
-## a clunk and a buzz on the frame each bank's first lamp lights, the chime on
-## the frame the warning lights go green, and lit and green-then-gone at the
-## end, lit for this visit. `press`: a key mid-wake lights it all at once, hushes
-## what was in the air, and nothing more is heard.
+## The wake is checked with its sound (Jon, Oct 21); a key mid-wake lights it all at once.
+## Why: docs/why/LadderTest.md#station-wake-sound
 func _wake_heard(press: bool) -> void:
 	var what := "wake%s" % (", a key mid-wake" if press else "")
 	var loc := Router.current as SectorScreen
@@ -1782,9 +1639,7 @@ func _wake_heard(press: bool) -> void:
 			pressed >= 0 and lit and hushed and late == 0)
 
 
-## THE DOCK'S POWER-ON, HEARD: LOCAL's DOCK into a sleeping station, its POWER
-## step frame by frame, the tape under it: a clunk and a buzz on the frame each
-## bank comes on, the chime on the green.
+## Power-on step by step with its sound: a clunk and buzz per bank, the chime on green.
 func _dock_heard() -> void:
 	var loc := Router.current as SectorScreen
 	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
@@ -1820,10 +1675,7 @@ func _dock_heard() -> void:
 	await _frames(4)
 
 
-## LOCAL'S DOCK INTO A STATION ALREADY AWAKE (woken on LOCAL, or left lit by an
-## undock): lit on every frame of the dock, its power-on not played again and
-## nothing of it heard; docked. Then UNDOCK, and the station's place counted as
-## flown to: no fly-in on the LOCAL it lands on (the undock is its arrival).
+## Docking into an awake station does not replay the power-on; undock then skips the fly-in.
 func _dock_lit() -> void:
 	var loc := Router.current as SectorScreen
 	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
@@ -1861,12 +1713,8 @@ func _dock_lit() -> void:
 	SystemMapScreen.flown_to.erase(st.index)
 
 
-## NO STAND-IN PLACE PICTURE ON LOCAL (Jon, Oct 21: "I don't want the beacon to
-## show up at all. I want to see the actual event of that planet/POI"): at every
-## place of every system of the run -- each world, the star, the edge -- LOCAL's
-## place picture (`EncounterView.AreaView`, `site` as LOCAL sets it) is none; a
-## station's is the station itself, and only where it is. The sheets (`ANY`)
-## still draw each picture.
+## LOCAL shows no stand-in place picture (Jon, Oct 21): the actual event, or the station itself.
+## Why: docs/why/LadderTest.md#no-stand-in-picture
 func _no_stand_ins() -> void:
 	var area := EncounterView.AreaView.new()
 	var bad: Array = []
@@ -1908,9 +1756,7 @@ func _run() -> void:
 	_ok("a run opens on LOCAL", Router.current is SectorScreen)
 	SectorScreen._approached_at = Run.at
 
-	# 1. the four distances, out and back in: THE CALM MOVE (Jon's pick, Oct 17,
-	# `-- sheet=CalmLadderTest` watches it frame by frame), then, behind the
-	# switch (`calm_force`, a player's `-- calm=off`), every design of every seam as it was
+	# The calm move is Jon's pick (Oct 17); behind the switch each seam design is checked.
 	await _go("calm LOCAL -> map", Router.show_system, SystemMapScreen)
 	await _go("calm map -> chart", Router.show_starchart, StarchartScreen)
 	await _go("calm chart -> map", Router.show_system, SystemMapScreen)
@@ -1949,9 +1795,7 @@ func _run() -> void:
 		await _go("calm back to the map", Router.show_system, SystemMapScreen)
 	await _go("calm back to LOCAL", Router.show_local, SectorScreen)
 
-	# 1a. 2C BUILDS LOCAL AT THE CLICK (Jon: "2C still has a small delay/hitch"):
-	# the screen that arrives is the one built ahead, before anything moved, and
-	# the run is written when the move lands, not in the middle of it
+	# 2C builds LOCAL at the click (Jon): the screen is built ahead and the run saved on landing.
 	ZoomLadder.calm_force = 0
 	ZoomLadder.force_design = {2: "C"}
 	await _go("2C LOCAL -> map, for the way back", Router.show_system, SystemMapScreen)
@@ -2063,10 +1907,7 @@ func _run() -> void:
 		await _frames(2)
 	ZoomLadder.calm_force = -1
 
-	# 3. THE WHEEL STOPS AT EACH SCREEN'S END (Jon, Oct 10: the wheel between
-	# distances "isn't intuitive ... and is kinda disruptive"): notch after notch
-	# past either end of the map, the chart's closest zoom and LOCAL, and the
-	# screen stays where it is; Tab and the tabs are the way between them
+	# The wheel stops at each screen's end (Jon, Oct 10); Tab and the tabs go between distances.
 	if m != null:
 		m._zoom_to = m.zoom_min
 		for i in 4:
@@ -2109,10 +1950,7 @@ func _run() -> void:
 		_ok("the wheel on LOCAL stays on LOCAL", Router.current == loc and not ZoomLadder.busy())
 	await _go("back to the map", Router.show_system, SystemMapScreen)
 
-	# 3b. THREE BEATS, NEVER OVERLAPPING (Jon, Oct 10: "fast and rushed and
-	# chaotic"; and A, Oct 17: the chrome outside the move): the map's UI leaves
-	# with its camera still, the camera moves with no UI on either screen, and
-	# the chart's UI comes up once it has landed
+	# Three beats never overlap (Jon, Oct 10 and 17): UI leaves, camera moves, then UI comes up.
 	var cmm := Router.current as SystemMapScreen
 	if cmm != null:
 		var cz0: float = cmm.view.zoom
@@ -2203,9 +2041,7 @@ func _run() -> void:
 		_ok("%s lands" % way[2], Router.current != null and Router.current.get_script() == way[1])
 		_clean(String(way[2]))
 	ZoomLadder.calm_force = 0
-	# 3c. THE CHART AND LOCAL ARE A FADE (Jon, Oct 10: "just do a fade. No
-	# transition"): through black both ways, no camera move on either screen,
-	# LOCAL built in the black
+	# Chart and LOCAL are a fade (Jon, Oct 10): through black, no camera move, built in black.
 	await _go("the chart (for the fade)", Router.show_starchart, StarchartScreen)
 	for way in [[Router.show_local, SectorScreen, "chart to LOCAL"], [Router.show_starchart, StarchartScreen, "LOCAL to chart"]]:
 		(way[0] as Callable).call()
@@ -2237,9 +2073,7 @@ func _run() -> void:
 	_ok("the move lengths are Jon's (seam 1 %.2f s, UI out %.2f s, the calm camera %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S],
 		is_equal_approx(ZoomLadder.SEAM1_S, 1.7) and is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)
 		and is_equal_approx(ZoomLadder.LIGHT_ON, 1.35))
-	# (the dock on LOCAL, its five steps: the cut, the arrival's own length --
-	# Jon, Oct 20, "like it does for the first sector" -- and the beat, power-on
-	# and way in)
+	# The dock on LOCAL has five steps: cut, arrival length (Jon, Oct 20), beat, power-on, way in.
 	var dock_want := ZoomLadder.FADE_OUT_S + ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 		+ ZoomLadder.DOCK_BEAT_S + ZoomLadder.DOCK_POWER_S + ZoomLadder.DOCK_ENTER_S
 	_ok("the dock's five steps on LOCAL take %.2f s: the cut, the arrival's own %.1f s, then %.1f + %.1f + %.1f" % [
 		ZoomLadder.dock_approach_s(), ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0, ZoomLadder.DOCK_BEAT_S, ZoomLadder.DOCK_POWER_S, ZoomLadder.DOCK_ENTER_S],
@@ -2332,9 +2166,7 @@ func _run() -> void:
 			Router.show_station()
 			await _idle()
 			await _go("the map from the berth (two distances)", Router.show_system, SystemMapScreen)
-			# DOCKED, THE MAP IS A VIEW (Jon, Oct 27: UNDOCK is the only way out):
-			# back in by the berth's own two-distance move, never by LOCAL, and
-			# docked throughout. It went down to LOCAL, undocking, and docked again
+			# Docked, the map is a view (Jon, Oct 27): back by the berth's move, never via LOCAL.
 			var by_local := false
 			Router.show_station()
 			for i in 900:
@@ -2356,9 +2188,7 @@ func _run() -> void:
 			Audio.tape.clear()
 			var myr := {}
 			var saw_local := false
-			# (Jon, Oct 20: "there is a frame where the ship is there? then it
-			# goes away? and then it comes back in?": LOCAL is never drawn with
-			# your ship on it before the dock's arrival brings it in)
+			# LOCAL is never drawn with your ship on it before the dock's arrival (Jon, Oct 20).
 			var arrived := false
 			var shown_early := 0
 			var calm_seen := false

@@ -1,14 +1,7 @@
 extends Node
 
-## LOCAL AT THE CORE, filmed (its hole as the world you orbit, `LocalSky`):
-##   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
-##       -- sheet=CoreLookFilm [secs=4]
-## Opens LOCAL at the core the way the sector map does (`Router.show_local`),
-## waits two seconds for the sky to come up whole, prints the frame the film
-## proper starts on, holds `secs` seconds and quits. Every clock in the picture
-## is the game's (the sky's `t`, the hole's `step`), and the hull's bob is put
-## on it too (`ShipView.shot_clock`), so the movie writer's frames are true
-## speed however slowly they were drawn.
+## Every clock is the game's and the hull bob is put on it too, so movie frames are true speed.
+## Why: docs/why/CoreLookFilm.md#core-look-film
 
 func _ready() -> void:
 	_run.call_deferred()

@@ -1,32 +1,9 @@
 class_name BotBoard
 extends RefCounted
 
-## What the bot can see, in words rather than in pointers.
-##
-## This is the whole API surface of the ninth seat. Everything on the far end of
-## the mailbox — a model, a script, a person with a text editor — knows the game
-## only through what this file chooses to say, so the shape here is the shape of
-## what a remote brain is able to think about.
-##
-## Two rules held it to this size:
-##
-## LEGAL MOVES ARE LISTED, NOT INFERRED. Every board carries a `moves` array of
-## strings that are actually playable right now — the cards with the energy for
-## them, the systems in fuel range, the shelf slots nobody has bought. A brain
-## that has to work out legality from raw state gets it wrong, and gets it wrong
-## in the direction of trying illegal moves, which is a stall. Handing it the
-## list makes the wrong answer impossible to spell.
-##
-## IT DESCRIBES, IT DOES NOT ADVISE. There is no "recommended" field and no
-## score. `Policy` already holds an opinion and it is one keystroke away when
-## the brain wants it (`pass` takes it); mixing the two would produce a bot that
-## is really the autopilot with a model rubber-stamping it, which is not the
-## thing that sounded fun.
-##
-## Everything here is JSON-safe: dictionaries, arrays, ints, floats, strings,
-## bools. No StringName, no objects. `JSON.stringify` silently renders an object
-## as a pointer, so a leaked EnemyState reaches the far end as `<Object#-92233>`
-## and reads as data right up until somebody tries to use it.
+## Legal moves are listed, not inferred, and the board describes without advising.
+## Everything is JSON-safe: `JSON.stringify` renders an object as a pointer.
+## Why: docs/why/BotBoard.md#bot-board
 
 const SCHEMA := 1
 
@@ -42,9 +19,7 @@ static func of(kind: String, seq: int) -> Dictionary:
 	}
 
 
-## Who this ship is and how it is doing. The numbers a player reads off the HUD
-## without thinking about it, which is exactly the set a brain has no other way
-## to get.
+## The HUD numbers a player reads without thinking, which a brain has no other way to get.
 static func _me() -> Dictionary:
 	if Run.hull == null:
 		return {}
@@ -60,18 +35,14 @@ static func _me() -> Dictionary:
 		"credits": Run.credits,
 		"kills": Run.kills,
 		"jumps": Run.jumps,
-		# The heat you are radiating, which is what decides whether something
-		# follows you in. A brain that cannot see this cannot understand why it
-		# keeps getting ambushed.
+		# Heat radiated decides what follows you in; without it, ambushes make no sense.
 		"signature": snappedf(Run.signature(), 0.01),
 		"hold": _modules(Run.cargo),
 		"installed": _modules(Run.installed),
 	}
 
 
-## The other ships, and — the part that matters — WHERE they are. A party member
-## in the same system is somebody you can fight alongside; one four systems away
-## is a name on a list.
+## Where party members are matters: the same system means fighting alongside.
 static func _party() -> Array:
 	var out: Array = []
 	if not Net.is_networked():
@@ -108,10 +79,7 @@ static func fight(cb: Combat, seq: int) -> Dictionary:
 			"block": e.block,
 			"brace": e.brace,
 			"alive": e.hp > 0,
-			# What it has telegraphed for the end of the turn. This is the
-			# single most decision-relevant fact on the board — the whole
-			# grammar of the combat is "you can see it coming" — so it is spelt
-			# out rather than left as an id to look up.
+			# The telegraphed intent is the most decision-relevant fact, so it is spelt out.
 			"intent": _intent(e),
 		})
 	d["hand"] = []
@@ -124,17 +92,13 @@ static func fight(cb: Combat, seq: int) -> Dictionary:
 			"heat": c.heat,
 			"text": c.describe(),
 			"playable": cb.can_play(c),
-			# What it would actually do to the current target, after lock-on,
-			# salvo, heat scaling and the target's brace. The card text is the
-			# rule; this is the number.
+			# Real damage after lock-on, salvo, heat and brace: card text is the rule.
 			"damage_now": cb.preview_damage(c) if c.damage > 0 else 0,
 		})
 	d["deck"] = cb.deck.size()
 	d["discard"] = cb.discard.size()
 
-	# The party's copy of the enemy, and the barrier. `waiting` means this ship
-	# has ended its turn and the fight has not moved yet, which is the one state
-	# where the honest answer to "what should I do" is "nothing".
+	# `waiting` means turn ended and the fight has not moved: the one time to do nothing.
 	d["waiting"] = cb.waiting
 	if cb.is_shared():
 		var f := Net.fight_at(cb.shared_at)
@@ -218,9 +182,7 @@ static func map(seq: int) -> Dictionary:
 		})
 		if can:
 			moves.append("jump %d" % idx)
-	# Staying put is a move, and on a map board it is often the right one. A
-	# party member is somewhere on this list of systems or on their way to one,
-	# and a ship that must jump every time it is asked cannot ever be waited for.
+	# Staying put is a move, or a ship that must always jump can never wait for a partner.
 	if Net.is_networked():
 		moves.append("hold")
 	d["moves"] = moves
@@ -237,9 +199,7 @@ static func station(seq: int) -> Dictionary:
 	var moves: Array = []
 	for i in n.shop.size():
 		var m: ModuleData = n.shop[i]
-		# The gap in the shelf where somebody else got there first. Shown rather
-		# than skipped, because "sold" is information — it tells a brain another
-		# ship is docked here and shopping.
+		# A sold gap is shown, not skipped: it tells a brain another ship is shopping here.
 		var gone := n.taken.has(MapGen.OPTION_SHOP + i)
 		var price := Market.ask(n, m)
 		d["shelf"].append({

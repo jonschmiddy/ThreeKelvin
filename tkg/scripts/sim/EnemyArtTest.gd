@@ -1,26 +1,8 @@
 extends Node
 
-## THE ENEMIES' PICTURES, headless:
-##   godot --headless --path . -- sheet=EnemyArtTest
-## Jon kept PixelLab ships for every enemy (Oct 13): three per ordinary kind,
-## one chosen per fight; one each for the Hellbender, the Custodian, the calf
-## and the Leviathan. This checks:
-##   - EVERY KIND HAS A PICTURE: each enemy id names at least one file
-##     (`art/sprites/enemies/index.json`), every file loads, fits the canvas
-##     (`EnemyArt.W` x `H`), is hard-edged (alpha 0 or 255), and is what
-##     `EnemyArt` draws -- the sprite, not the coded fallback, and nothing else
-##     on the canvas (no stars: a breakup cuts the canvas by its alpha);
-##   - THE PICTURE IS THE FIGHT'S, NOT A ROLL: `Combat.look_for` gives the same
-##     ships for the same fight asked twice and in a second run of the same
-##     galaxy, different ships across systems (each three-picture kind shows all
-##     three somewhere), and the look survives into the wrecks the win leaves
-##     (in fight order) and through the save;
-##   - PACKS FIT: the real fight opened on every pair of kinds a fight can
-##     roll at their widest pictures, every picture beside the widest ship, a
-##     the dev flag's three: once the entrance
-##     has landed, every ship where its art actually IS -- inside the view, clear
-##     of your ship, your ship not moved -- and a lone ship in the middle of the
-##     enemy half.
+## Every kind has a picture, and the look is the fight's, not a roll (PixelLab ships kept, Oct 13).
+## Packs fit: ships stay inside the view and clear of yours once the entrance has landed.
+## Why: docs/why/EnemyArtTest.md#enemy-art-test
 
 var _fails := 0
 
@@ -94,9 +76,7 @@ func _pictures() -> void:
 					if canvas.get_pixel(x, y).a > 0.0 and not u.has_point(Vector2i(x, y)):
 						stray += 1
 			_ok("%s %s: nothing on the canvas outside the ship (%d px)" % [id, f, stray], stray == 0)
-			# THE FLAME STARTS ON ITS OWN SHIP at both sizes: read off the full
-			# picture and drawn over the half one, every nozzle sat twice as far from
-			# the corner as its engine, off the ship in every pack of three (Jon, Oct 14)
+			# The flame starts on its own ship at both sizes: nozzles sat twice too far out (Jon).
 			for sc in [1.0, 0.5]:
 				art.set_draw_scale(sc)
 				art.set_enemy(e, false)
@@ -264,9 +244,7 @@ func _packs(tree: SceneTree) -> void:
 var _you_x := 0.0
 var _clear := 0.0
 
-## Opens the fight; answers how far the furthest ship's box runs past the view's
-## right edge (positive is off screen) -- or, `centred`, how far a lone ship is
-## from the middle of the enemy half.
+## Answers how far the furthest ship runs past the view's right edge, or a lone ship's offset.
 func _fight(tree: SceneTree, p: Array, centred: bool = false) -> float:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

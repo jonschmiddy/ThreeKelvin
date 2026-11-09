@@ -1,26 +1,8 @@
 class_name ShipSprite
 extends Node2D
 
-## Composites the ship from real sprites: hull + one Sprite2D per installed module,
-## placed at the hull's deck anchors. This is what keeps the design pillar alive —
-## the ship on screen is always the build you assembled.
-##
-## Falls back to the procedural ShipView when the hull has no sprite yet, so the
-## game stays playable through a partial art migration. You will not generate all
-## ~90 assets in one sitting.
-##
-## STILL NOT INSTANTIATED, and now one step further behind. `ShipView` draws
-## from a `ShipBuild` — a hull, a list of hardpoints and two gauges — so it can
-## draw a ship being flown on somebody else's machine; this class reads `Run`
-## and can therefore only ever draw yours. Anything that revives it has to take
-## the same subject.
-##
-## That matters because this is the file that closes the one gap the party
-## display still has: a hull WITH real art is blitted whole and its modules are
-## not drawn on it, which today means a medium chassis shows no fitted weapons
-## for anybody. The fix is module sprites plus populated
-## `HullData.weapon_anchors`, which is exactly what the loop below already
-## expects — see `docs/art/ART_CONTRACT.md` for the order the assets arrive in.
+## Not instantiated: it reads `Run`, so it can only draw your ship, unlike `ShipView`.
+## Why: docs/why/ShipSprite.md#ship-sprite
 
 const HEAT_SHADER := "res://shaders/heat.gdshader"
 
@@ -57,10 +39,7 @@ func rebuild() -> void:
 	# Far row first, near row second — child order gives correct occlusion.
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		var anchors := Run.hull.anchors_for(slot)
-		# An anchor is picked by the module's OWN mount, not by its place in the
-		# list. Which anchor a part hangs on is a decision the refit screen
-		# records; reading it off the array order made the ship rearrange itself
-		# whenever something was taken off ahead of it.
+		# Anchor by the module's own mount, not list position, or parts shuffle on removal.
 		for i in Run.slots_for(slot):
 			if i >= anchors.size():
 				break  # more hardpoints than the hull has visible mounts

@@ -1,17 +1,7 @@
 extends Node
 
-## THE SIDE BAR'S SWAP, filmed (`SideSwap`):
-##   godot --path . --windowed --position 3840,0 --fixed-fps 60 --quit-after 20000
-##       -- sheet=SideBarShot out=<dir> [looks=A,B,C,D,E,F] [seed=N]
-## For each look, one film of LOCAL -> map -> chart -> map -> LOCAL, then the
-## dives LOCAL -> chart -> LOCAL (Tab, through black), through the
-## Router's own doors on the default seams (1A, 2C), every frame of the game's
-## 960x540 picture as <dir>/<look>/f_####.png. The ladder's clock and the
-## swap's step 1/60 s a frame, and with `--fixed-fps 60` so does the game's,
-## so the frames play at true speed at 60 fps however slowly the window drew.
-## <dir>/<look>/meta.json: the frame each hop was asked on, and the side bar's
-## rect. Runs on main too (no look there: `looks=-`), for the before. Needs a
-## window.
+## Frames step 1/60 s with `--fixed-fps 60`, so they play at true speed.
+## Why: docs/why/SideBarShot.md#side-bar-film
 
 var _tree: SceneTree
 var _zl: Script = load("res://scripts/ui/ZoomLadder.gd")
@@ -43,9 +33,7 @@ func _set_look(l: String) -> void:
 			_zl.call(&"force_side_look", l)
 
 
-## A SWAP THAT DID NOT DRAW (a shader that failed to compile draws its rect
-## plain white, and nothing headless can see it): the side bar's rect mostly
-## near-white on any frame is printed as a failure.
+## A shader that failed to compile draws plain white, unseen headless: near-white is a failure.
 var _white := 0
 
 
