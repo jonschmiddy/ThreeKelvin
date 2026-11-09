@@ -68,13 +68,6 @@ func _ready() -> void:
 	get_tree().quit()
 
 
-func _arg(name: String, fallback: String) -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(name + "="):
-			return (a as String).substr(name.length() + 1)
-	return fallback
-
-
 ## The map window as it is on screen now, in game pixels.
 func _grab(scr: Control) -> Image:
 	await RenderingServer.frame_post_draw
@@ -125,11 +118,11 @@ func _cost(scr: Control, n: int) -> Dictionary:
 
 
 func _sweep(want: Dictionary, dir: String, t: float) -> void:
-	var kinds := _arg("kinds", "red,ordinary,blue,station,nebula,pulsar,core").split(",")
-	var zf := int(_arg("zframes", "120"))
-	var of := int(_arg("oframes", "90"))
-	var pf := int(_arg("pframes", "60"))
-	var only := _arg("only", "stills,zoom,zoomw,slow,orbit,pan").split(",")
+	var kinds := Harness.arg("kinds", "red,ordinary,blue,station,nebula,pulsar,core").split(",")
+	var zf := int(Harness.arg("zframes", "120"))
+	var of := int(Harness.arg("oframes", "90"))
+	var pf := int(Harness.arg("pframes", "60"))
+	var only := Harness.arg("only", "stills,zoom,zoomw,slow,orbit,pan").split(",")
 	get_viewport().gui_disable_input = true
 	# where Main puts the map, in Main's theme (as SystemShot does)
 	var content := Control.new()
@@ -247,7 +240,7 @@ func _sweep(want: Dictionary, dir: String, t: float) -> void:
 		if "wheel" in only:
 			var wd := kd.path_join("wheel")
 			DirAccess.make_dir_recursive_absolute(wd)
-			var notch := int(_arg("notch", "4"))
+			var notch := int(Harness.arg("notch", "4"))
 			_aim(scr, zmin, -9)
 			await _settle(20)
 			var zt := zmin
@@ -333,7 +326,7 @@ func _busy(n: MapGen.MapNode) -> bool:
 
 ## `hide=` switches layers off to find which one draws a fault.
 func _hide(scr: Control) -> void:
-	var names := _arg("hide", "")
+	var names := Harness.arg("hide", "")
 	if names == "":
 		return
 	var v = scr.view

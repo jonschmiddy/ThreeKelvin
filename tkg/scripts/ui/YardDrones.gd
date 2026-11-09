@@ -10,8 +10,8 @@ const PH := [0.0, 1.3, 0.6, 2.1]
 const FLYERS := ["d8", "d5", "d9", "d12"]
 ## Text on glass is the station's own ink; on paper it is written in dark ink
 ## and a rust red.
-const INK_SCREEN := {"l": Color("#c3d2e2"), "p": Color("#f0a030"), "poor": Color("#5a6470"), "flash": Color("#ffd28a"),
-	"done": Color("#6b7d94"), "shadow": true}
+const INK_SCREEN := {"l": UITheme.ICE, "p": Color("#f0a030"), "poor": UITheme.QUOTE, "flash": UITheme.HOT,
+	"done": UITheme.COLD, "shadow": true}
 const INK_PAPER := {"l": Color("#2a2118"), "p": Color("#8a2a10"), "poor": Color("#8a7f62"), "flash": Color("#2d5a1e"),
 	"done": Color("#6a5a40"), "shadow": false}
 const AMBER := Color("#f0a030")
@@ -240,7 +240,8 @@ func offers_changed(t: float) -> void:
 		# spent once the offers it was taken against have come in
 		var any_new := false
 		for e2: Dictionary in D:
-			if String(offer(int(e2["i"])).get("done", "")) != String((_before[int(e2["i"])] as Dictionary).get("done", "")) 					or String(offer(int(e2["i"])).get("label", "")) != String((_before[int(e2["i"])] as Dictionary).get("label", "")):
+			if String(offer(int(e2["i"])).get("done", "")) != String((_before[int(e2["i"])] as Dictionary).get("done", "")) \
+					or String(offer(int(e2["i"])).get("label", "")) != String((_before[int(e2["i"])] as Dictionary).get("label", "")):
 				any_new = true
 		if any_new:
 			_served_i = -1
@@ -649,3 +650,18 @@ func draw_marks(P: YardPaint, t: float, dt: float) -> void:
 		var sz := 2.0 if a2 < 0.4 else 1.0
 		P.px(float(p["x"]), float(p["y"]), sz, sz, YardScene.lit(Color("#c3c9d0") if a2 < 0.5 else Color("#8a9199"), M))
 	puffs = live
+
+
+## The PATCH and REPAIR drones' offers. With 8 or less missing they are the same
+## job, so PATCH stays away and REPAIR comes alone (Jon, Nov 9, stripped-down UI 7).
+static func repair_offers(n: MapGen.MapNode) -> Array[Dictionary]:
+	var missing := Run.max_hp() - Run.hp
+	var eight := mini(8, maxi(1, missing))
+	var patch_done := "HULL FULL" if missing <= 0 else ("USE REPAIR" if missing <= 8 else "")
+	var out: Array[Dictionary] = [
+		{"label": "PATCH +%d" % eight, "cost": Market.repair_price(n, eight), "done": patch_done,
+			"tip": "%.1f credits a point here. Repairs cost more on the frontier than in a capital." % Market.repair_rate(n)},
+		{"label": "REPAIR +%d" % missing, "cost": Market.repair_price(n, missing), "done": "" if missing > 0 else "HULL FULL",
+			"tip": "Repairs the whole hull at once."},
+	]
+	return out

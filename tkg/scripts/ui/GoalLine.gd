@@ -315,11 +315,6 @@ func step_rect() -> Rect2:
 	return Rect2(position + _step_panel.position, _step_panel.size) if visible and _step_panel.visible else Rect2()
 
 
-## The step's line is coming back (fading in) this frame.
-func step_appearing() -> bool:
-	return _appear_t0 >= 0.0
-
-
 ## Static, so `Hints.step_due` can ask before the line's own `_process` has come up.
 static func shows_on(cur: Control) -> bool:
 	if Run.hull == null or Run.dead or cur == null or not is_instance_valid(cur):

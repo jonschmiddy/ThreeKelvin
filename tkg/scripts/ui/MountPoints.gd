@@ -207,7 +207,8 @@ var _placed_scale := 0.0
 
 ## Whether the hull has moved, or changed scale, since the mounts were placed.
 func _stale() -> bool:
-	return _view != null and (_view.canvas_to_local(Vector2.ZERO) != _placed_at 		or not is_equal_approx(_view.art_scale(), _placed_scale))
+	return _view != null and (_view.canvas_to_local(Vector2.ZERO) != _placed_at \
+		or not is_equal_approx(_view.art_scale(), _placed_scale))
 
 
 func _process(delta: float) -> void:

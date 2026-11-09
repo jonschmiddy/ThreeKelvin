@@ -102,9 +102,11 @@ func run(tree: SceneTree) -> void:
 	for k in _view._loose._at:
 		where[k] = _view._loose._at[k]
 	var tall := _view._loose._rows
-	var first: HoldItem = wreck.items[0]
-	var i := wreck.items.find(first)
-	if i >= 0 and Run.has_room_for(first):
+	# (not the first: the shift-click above claimed it, and a claimed item cannot be taken again)
+	var i := wreck.items.size() - 1
+	while i >= 0 and _node.taken.has(wreck.option(i)):
+		i -= 1
+	if _ok("an item is still unclaimed and has room in the hold", i >= 0 and Run.has_room_for(wreck.items[i])):
 		await Run.take_from_jetsam(_node, wreck, i)
 		await tree.process_frame
 		var moved := 0

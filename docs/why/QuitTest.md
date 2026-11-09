@@ -23,7 +23,7 @@ test has no business putting runs in a player's history.
 
 ## Quit test waits
 
-Inside `run()`, above `var chart: StarchartScreen.MapChart = null`:
+Inside `run()`, above `var chart: MapChart = null`:
 
 ```text
 WAIT FOR THE CHART, DO NOT COUNT FRAMES AT IT. This was `for i in 3`, and

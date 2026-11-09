@@ -18,7 +18,7 @@ func run(tree: SceneTree) -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var map := Router.current as SystemMapScreen
 	if not _ok("the sector map is up", map != null and map.view.layout != null):
 		_finish()
@@ -31,7 +31,7 @@ func run(tree: SceneTree) -> void:
 		return
 	# zoomed in by the wheel's own ease, and left to settle
 	map._zoom_to = minf(view.ZOOM_MAX, map.zoom_min * 2.5)
-	await _frames(300)
+	await Harness.frames(_tree, 300)
 	_ok("the zoom has settled (zoom %.2f)" % view.zoom, not view.zooming())
 	var worst := 0.0
 	var worst_at := ""
@@ -47,11 +47,6 @@ func run(tree: SceneTree) -> void:
 	_ok("every world's picture on its place through a %.0f px a frame pan, both ways (worst %.2f px%s)" % [
 		PAN_PX, worst, "" if worst_at == "" else " at " + worst_at], worst <= MAX_LAG)
 	_finish()
-
-
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
 
 
 func _finish() -> void:

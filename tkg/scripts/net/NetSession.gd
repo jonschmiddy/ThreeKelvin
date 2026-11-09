@@ -77,6 +77,8 @@ var _no_fight_at: int = -1
 ## Arrival order, as peer ids are random and sorting by them shuffles the lobby list.
 var _join_serial: int = 0
 var _said_hello: bool = false
+## True while `_swing` runs, so a host leaving mid-swing cannot start a second one inside it.
+var _swinging: bool = false
 
 ## Fingerprinted so an unchanged ship returns as the same object and is not repainted.
 ## Why: docs/why/NetSession.md#build-cache
@@ -126,6 +128,20 @@ const SPOT_EVERY_MS := 150
 ## A spot is re-said while a map is up, so a lost packet costs only a few seconds.
 const SPOT_BEAT_MS := 1000
 const RUN_ON_MAX := 3.0
+## Bounds on what a peer may say, each far above play. The lobby's name field holds 14 characters.
+const NAME_MAX := 24
+## At most this many foes in a fight (`Combat.plan`: a lead and three more).
+const FIGHT_FOES_MAX := 4
+## Hull and brace a peer may open a fight with: the largest `max_hull` is a few hundred.
+const FOE_STAT_MAX := 10000
+## About 60 points a second, so nearly half an hour of flight; a real plan is minutes.
+const FLIGHT_POINTS_MAX := 100000
+## Claims one system may hold: its shelf, hull rack, bag, sites and every wreck's contents.
+const CLAIMS_PER_NODE := 2048
+## The last option id a claim may name: 1000 wrecks of `JETSAM_STRIDE` items.
+const OPTION_MAX := MapGen.OPTION_JETSAM + MapGen.JETSAM_STRIDE * 1000
+## A map clock is seconds of play; this is eleven weeks of it.
+const MAP_CLOCK_MAX := 1.0e7
 
 
 func _ready() -> void:
@@ -472,7 +488,7 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 		_turn_away(who, "The party is full.")
 		return
 	_join_serial += 1
-	roster[who] = _slot(who, player_name, hull_id, _join_serial)
+	roster[who] = _slot(who, player_name.substr(0, NAME_MAX), hull_id, _join_serial)
 	_accept.rpc_id(who)
 	_push_roster()
 	Sig.party_changed.emit()
@@ -514,7 +530,8 @@ func _push_roster_to(rows: Array) -> void:
 	roster.clear()
 	# Not `_builds.clear()`: `build_of()` hands back the old object for an unchanged ship.
 	for row in rows:
-		roster[int(row.id)] = row
+		if typeof(row) == TYPE_DICTIONARY and row.has("id") and typeof(row.id) == TYPE_INT:
+			roster[int(row.id)] = row
 	# A leaver's spot goes here too, or a guest keeps its clock as the party's for good.
 	for id in spots.keys():
 		if not roster.has(int(id)):
@@ -523,6 +540,16 @@ func _push_roster_to(rows: Array) -> void:
 	if state == State.JOINING:
 		_set_state(State.IN_PARTY)
 	Sig.party_changed.emit()
+
+
+## The sender of a message bound for the host, or 0 when this is not the host or the sender never
+## said hello: a refused or silent peer may still be connected and can send anything.
+## Why: docs/why/NetSession.md#handshake
+func _member_sender() -> int:
+	if not is_host():
+		return 0
+	var who := multiplayer.get_remote_sender_id()
+	return who if roster.has(who) else 0
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -549,8 +576,9 @@ func _report_presence_at_host(wire: Dictionary, at: int, jumps: int) -> void:
 ## Why: docs/why/NetSession.md#claims
 @rpc("any_peer", "call_remote", "reliable")
 func _claim_at_host(index: int, option: int) -> void:
-	if is_host():
-		_apply_claim(index, option, multiplayer.get_remote_sender_id())
+	var who := _member_sender()
+	if who != 0:
+		_apply_claim(index, option, who)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -565,9 +593,9 @@ func _push_claims_to(all: Dictionary) -> void:
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, players: int,
 		join_only: bool) -> void:
-	if not is_host():
+	var by := _member_sender()
+	if by == 0:
 		return
-	var by := multiplayer.get_remote_sender_id()
 	if hold_asks:
 		_held_asks.append([index, ids, hp, brace, cur, grown, by, players, join_only])
 		return
@@ -592,20 +620,23 @@ func _no_fight_to(index: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _hurt_at_host(index: int, which: int, amount: int, hits: int) -> void:
-	if is_host():
-		_apply_hurt(index, which, amount, hits, multiplayer.get_remote_sender_id())
+	var who := _member_sender()
+	if who != 0:
+		_apply_hurt(index, which, amount, hits, who)
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func _end_turn_at_host(index: int) -> void:
-	if is_host():
-		_apply_end_turn(index, multiplayer.get_remote_sender_id())
+	var who := _member_sender()
+	if who != 0:
+		_apply_end_turn(index, who)
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func _leave_fight_at_host(index: int) -> void:
-	if is_host():
-		_apply_leave(index, multiplayer.get_remote_sender_id())
+	var who := _member_sender()
+	if who != 0:
+		_apply_leave(index, who)
 
 
 ## One fight per push: fights change several times a turn, claims a few times an hour.
@@ -668,8 +699,9 @@ func take_held_swings(at: int) -> Array:
 ## Unreliable: the next one replaces a lost one, and a stale queued one is worse than none.
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _spot_at_host(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
-	if is_host():
-		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang, mt, host, held)
+	var who := _member_sender()
+	if who != 0:
+		_apply_spot(who, at, body, x, z, ang, mt, host, held)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
@@ -681,8 +713,9 @@ func _spot_to(id: int, at: int, body: int, x: float, z: float, ang: float, mt: f
 ## Reliable twin for a changed `held`: a lost put-away ran every partner's clock on.
 @rpc("any_peer", "call_remote", "reliable")
 func _spot_at_host_sure(at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool) -> void:
-	if is_host():
-		_apply_spot(multiplayer.get_remote_sender_id(), at, body, x, z, ang, mt, host, held, true)
+	var who := _member_sender()
+	if who != 0:
+		_apply_spot(who, at, body, x, z, ang, mt, host, held, true)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -803,7 +836,7 @@ func _on_dive_galaxy() -> bool:
 
 
 func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> void:
-	if not roster.has(id):
+	if not roster.has(id) or not _is_place(at, true):
 		return
 	# A moved `at` is a jump for others only: the host's own jumps tick in `RunState.jump_to()`.
 	var was := int(roster[id].get("at", -1))
@@ -911,9 +944,9 @@ func report_galaxy(seed_value: int, systems: int, fp: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _galaxy_at_host(seed_value: int, systems: int, fp: int) -> void:
-	if not is_host():
+	var who := _member_sender()
+	if who == 0:
 		return
-	var who := multiplayer.get_remote_sender_id()
 	_galaxy_theirs[who] = [seed_value, systems, fp]
 	print("[party] %s built galaxy seed %d: %d systems, fingerprint %d" % [
 		name_of(who), seed_value, systems, fp])
@@ -1022,8 +1055,9 @@ func report_flight_off(at: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _flight_at_host(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> void:
-	if is_host():
-		_apply_flight(multiplayer.get_remote_sender_id(), at, from, to, t0, dt, pts, burns, said, shape)
+	var who := _member_sender()
+	if who != 0 and pts.size() <= FLIGHT_POINTS_MAX and burns.size() <= FLIGHT_POINTS_MAX:
+		_apply_flight(who, at, from, to, t0, dt, pts, burns, said, shape)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1120,6 +1154,10 @@ static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int,
 
 
 func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false, sure: bool = false) -> void:
+	# A non-finite float reaches `party_t` and from there the map clock.
+	if not (is_finite(x) and is_finite(z) and is_finite(ang) and is_finite(mt)):
+		return
+	mt = minf(mt, MAP_CLOCK_MAX)
 	if id != 1:
 		spots[id] = _spot_row(at, body, x, z, ang, mt, host, held)
 	if not multiplayer.get_peers().is_empty():
@@ -1398,11 +1436,21 @@ func taker_name(index: int, option: int = MapGen.OPTION_WHOLE) -> String:
 	return String(roster[who].get("name", ""))
 
 
+## Whether `index` names a system of the dive's galaxy. Before this machine has built it there is
+## nothing to check against, so only a negative index fails. `none` also allows -1, no place yet.
+func _is_place(index: int, none: bool = false) -> bool:
+	if none and index == -1:
+		return true
+	return index >= 0 and (not _on_dive_galaxy() or index < Run.map.size())
+
+
 func _apply_claim(index: int, option: int, by: int) -> void:
+	if not _is_place(index) or option < 0 or option > OPTION_MAX:
+		return
 	var here: Dictionary = claims.get(index, {})
 	# First message wins. Every later one is a no-op, which is the whole of the
 	# race resolution — there is nothing to compare and no clock to trust.
-	if here.has(option):
+	if here.has(option) or here.size() >= CLAIMS_PER_NODE:
 		return
 	here[option] = by
 	claims[index] = here
@@ -1418,10 +1466,29 @@ func _push_claims() -> void:
 
 # --- fights, on the host --------------------------------------------------
 
+func _fight_ask_ok(ids: PackedStringArray, hp: PackedInt32Array, brace: PackedInt32Array,
+		cur: PackedInt32Array) -> bool:
+	var n := ids.size()
+	if n < 1 or n > FIGHT_FOES_MAX or hp.size() != n or brace.size() > n or cur.size() > n:
+		return false
+	for id in ids:
+		if not DB.enemies.has(StringName(id)):
+			return false
+	for list in [hp, brace, cur]:
+		for v: int in list:
+			if v < 0 or v > FOE_STAT_MAX:
+				return false
+	return true
+
+
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int,
 		players: int = 1, join_only: bool = false) -> void:
 	var f: SharedFight = fights.get(index, null)
+	# A peer's ask is not trusted: one that would open a fight must be a real `Combat.plan`. A join reads none of it.
+	var opens := not join_only and (f == null or f.over)
+	if not _is_place(index) or (opens and not _fight_ask_ok(ids, hp, brace, cur)):
+		return
 	if f != null and not f.over:
 		# A second ship in is help, not a second frigate (stunned past turn one): its `grown`, hp and ids are ignored.
 		# Why: docs/why/NetSession.md#shared-fights
@@ -1496,8 +1563,9 @@ func _apply_leave(index: int, by: int) -> void:
 		# in one ship's terms, whoever fought it (`PartyScale.solo_hull`)
 		Run.hellbender_scarred(PartyScale.solo_hull(f.foes[0].hp, f.party))
 	# Somebody leaving can be the thing that closes the barrier — three ships
-	# waiting on a fourth who just died is a fight that would otherwise stop.
-	if not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
+	# waiting on a fourth who just died is a fight that would otherwise stop. Not mid-swing:
+	# the host's own death leaves from inside it, and that swing closes the barrier itself.
+	if not _swinging and not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
 		_swing(f)
 		return
 	_push_fight(f)
@@ -1515,22 +1583,45 @@ func _swing(f: SharedFight) -> void:
 			Run.hellbender_breaks_off(PartyScale.solo_hull(e0.hp, f.party))
 			_push_fight(f)
 			return
+	_swinging = true
 	for i in f.alive():
 		var target := _who_gets_hit(f)
 		if target == 0:
 			break
 		var e := f.foes[i]
+		_foe_acts(f, i)
 		if target == 1:
 			Sig.party_fight_swing.emit(f.at, i, e.kind, e.pick)
 		elif multiplayer.get_peers().has(target):
 			_enemy_swings.rpc_id(target, f.at, i, e.kind, e.pick)
 		# A target no longer connected gets no message, or Godot logs an RPC error (Nov 5 gate).
+	_swinging = false
 	f.advance()
 	for i in f.foes.size():
 		_pick_intent(f, i)
 	# The turn number IS the "everybody go again" message. A separate one would
 	# be a second thing to keep in step with the first.
 	_push_fight(f)
+
+
+## The enemy's own half of an intent, which only the host may keep: last turn's block expires as it
+## acts again, then the intent's block and heal land, scaled as `Combat._spawn` scaled them.
+## Why: docs/why/NetSession.md#foe-block-and-heal
+func _foe_acts(f: SharedFight, i: int) -> void:
+	var e := f.foes[i]
+	e.block = 0
+	if i >= f.foe_ids.size() or e.kind == SharedFight.Pick.ESCAPE:
+		return
+	var t: EnemyTemplate = DB.enemies.get(StringName(f.foe_ids[i]))
+	if t == null:
+		return
+	var danger: int = Run.map[f.at].danger if f.at >= 0 and f.at < Run.map.size() else 1
+	var scaled := Combat.scaled_for(t, danger)
+	var list: Array[IntentData] = scaled.pool if e.kind == SharedFight.Pick.POOL else scaled.loop
+	if e.pick < 0 or e.pick >= list.size():
+		return
+	e.block += list[e.pick].block
+	e.hp = mini(e.max_hp, e.hp + list[e.pick].heal)
 
 
 ## Weighted by heat with a floor, so a cold ship is never safe and a party cannot elect a victim.

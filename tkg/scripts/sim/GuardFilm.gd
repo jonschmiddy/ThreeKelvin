@@ -6,7 +6,6 @@ extends Node
 
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 
-var _args: PackedStringArray
 var _box := false
 var _box_bad := 0
 var _box_n := 0
@@ -16,15 +15,7 @@ var _next_shot := 0.0
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _wait(s: float) -> void:
@@ -34,17 +25,17 @@ func _wait(s: float) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var id := StringName(_arg("id", "leviathan"))
-	var def := _arg("def", "block")
-	var look := _arg("look", "0")
-	_box = _arg("boxtest", "0") == "1"
-	_shots = _arg("shots", "")
+	var id := StringName(Harness.arg("id", "leviathan"))
+	var def := Harness.arg("def", "block")
+	var look := Harness.arg("look", "0")
+	_box = Harness.arg("boxtest", "0") == "1"
+	_shots = Harness.arg("shots", "")
 	if _shots != "":
 		DirAccess.make_dir_recursive_absolute(_shots)
 	if look == "ship":
 		FaunaGuard.enabled = false
-	FaunaHitFx.force_kind = int(_arg("kind", "-1"))
-	Rng.forced = int(_arg("seed", "4242"))
+	FaunaHitFx.force_kind = int(Harness.arg("kind", "-1"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for n: MapGen.MapNode in Run.map:
 		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.START \
@@ -60,7 +51,7 @@ func _run() -> void:
 	e.brace = 0
 	Sig.enemy_changed.emit()
 	var sc := Router.current as SectorScreen
-	await _wait(float(_arg("settle", "3.4")))
+	await _wait(float(Harness.arg("settle", "3.4")))
 	var sl: EnemySlot = sc._view.slot(0)
 	var L: HitLayers = sl.layers
 	var k := float(get_window().size.x) / get_viewport().get_visible_rect().size.x

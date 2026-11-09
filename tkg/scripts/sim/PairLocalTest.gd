@@ -6,24 +6,16 @@ extends Node
 
 const TILT := 0.07
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 ## A system of the run with a turning pair of this kind, or -1.
@@ -76,8 +68,8 @@ func _run() -> void:
 
 func _end() -> void:
 	SaveGame.clear()
-	print("pairlocaltest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("pairlocaltest")
+	_tree.quit(h.code())
 
 
 ## 1. The sweep: 8 angles round a lap.
@@ -211,7 +203,7 @@ func _through_the_map() -> void:
 	Run.map_clock[idx] = t0
 	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_system()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var m := Router.current as SystemMapScreen
 	if not _ok("the map is up over the close pair", m != null and m.view.node == node):
 		return
@@ -219,7 +211,7 @@ func _through_the_map() -> void:
 	var left := float(m.view.t)
 	var off_left := _ship_off(m, SystemLayout.STAR_B)
 	Router.show_local()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var sky := _local_sky()
 	if not _ok("LOCAL is up", sky != null):
 		return
@@ -230,11 +222,11 @@ func _through_the_map() -> void:
 	var kept := Run.map_t(idx)
 	_ok("the clock kept as the map went is LOCAL's (%.6f, LOCAL %.6f)" % [kept, sky.held_t()],
 		kept == left and kept == sky.held_t())
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	_ok("held while LOCAL is up: the clock not run on (%.6f) and star B not moved on the band" % Run.map_t(idx),
 		Run.map_t(idx) == kept and sky._sun_at(SystemLayout.STAR_B) == b_before and absf(sky.held_t() - left) < 1e-9)
 	Router.show_system()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	m = Router.current as SystemMapScreen
 	if _ok("the map is up again", m != null):
 		# (and the ship where it rode round star B, a frame on: put back at +x
@@ -242,10 +234,10 @@ func _through_the_map() -> void:
 		_ok("and the ship back on star B's close orbit where it was, two frames of ride on (%.3f px off; at +x it would be %.1f)" % [
 			_ship_off(m, SystemLayout.STAR_B).distance_to(off_left), off_left.distance_to(Vector2(off_left.length(), 0.0))],
 			_ship_off(m, SystemLayout.STAR_B).distance_to(off_left) <= RIDE_FRAME)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("and opened on the angle LOCAL held (%.3f, LOCAL %.3f)" % [m.view.t, left], m.view.t >= left and m.view.t - left < 1.0)
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 ## Past CATCH_CUT the map takes the party's clock at once: CATCH_K alone took 40 minutes for 10.
@@ -298,7 +290,7 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 		return
 	_ok("co-op, %s: LOCAL holds the map's clock, not the party's (%.6f, the map left at %.6f; the party %.3f)" % [how, sky.held_t(), left, Net.party_t(idx)],
 		sky.held_t() == left)
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	_ok("co-op, %s: and the clock kept is LOCAL's (%.6f)" % [how, Run.map_t(idx)], Run.map_t(idx) == sky.held_t())
 	var held := sky.held_t()
 	# LOCAL -> MAP
@@ -378,7 +370,7 @@ func _coop_rounds() -> void:
 	Run.map_clock[idx] = 0.2 * TAU / L.pair_n
 	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_system()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var m := Router.current as SystemMapScreen
 	if not _ok("co-op rounds: the map is up over the close pair", m != null and m.view.node == node):
 		return
@@ -412,9 +404,9 @@ func _coop_rounds() -> void:
 		said.append("%.2f" % g)
 	_ok("co-op rounds: the gap after each 4 s on the map shrinks round by round (%s s), and never reaches CATCH_CUT (at most %.2f s)" % [
 		", ".join(said), most], shrank and most < NetSession.CATCH_CUT)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Net.state = kept_state
 	_no_partner()
 
@@ -450,7 +442,7 @@ func _coop_opened_cold() -> void:
 	var m := Router.current as SystemMapScreen
 	_ok("co-op, cold: the map opened out of the chart takes the party's clock at once (%.6f; its own %.3f, the party %.6f)" % [
 		m.view.t if m != null else -1.0, own, pt], m != null and m.view.node == node and absf(m.view.t - pt) < 1e-6 and Run.map_t(idx) == pt)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	# LOCAL, out of the chart, a ship parked settled round star B
 	Router.show_starchart()
 	for i in 120:

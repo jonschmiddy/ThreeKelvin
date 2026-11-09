@@ -125,7 +125,8 @@ func _page_playtest() -> void:
 				PlaytestLogs.show_in_folder(String(_last_logs.path))
 			_refresh()))
 	if not _last_logs.is_empty():
-		var said := ("Saved to your %s: %s. Drag it into the chat." % [_last_logs.where, String(_last_logs.path).get_file()]) 			if _last_logs.get("ok", false) else String(_last_logs.error)
+		var said := ("Saved to your %s: %s. Drag it into the chat." % [_last_logs.where, String(_last_logs.path).get_file()]) \
+			if _last_logs.get("ok", false) else String(_last_logs.error)
 		var l := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_body.add_child(l)

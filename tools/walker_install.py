@@ -201,7 +201,7 @@ def foot_report(path, fw, adv):
     return n, bad, [b for _, b in rear], skate
 
 
-def build(name, paths):
+def build(name, paths, out_dir=STATION):
     fr = []
     for p in paths:
         w, h, r = pixeltools.decode(p)
@@ -236,7 +236,7 @@ def build(name, paths):
                     strip[y][o + c] = src[sx * 4 + c]
 
     was, now = lock_palette(strip, cw, ch, n)
-    out = os.path.join(STATION, "walker_%s.png" % name)
+    out = os.path.join(out_dir, "walker_%s.png" % name)
     pixeltools.encode(out, cw * n, ch, strip)
 
     # THE FEET MUST BE LEVEL, and saying so is cheaper than finding out later.

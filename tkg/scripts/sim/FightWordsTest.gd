@@ -3,24 +3,16 @@ extends Node
 ## The tutorial audit (Oct 22): chips name the card's keyword, the discard says what goes there.
 ## Why: docs/why/FightWordsTest.md#fight-words
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 ## Whether `s` holds a dash between words: a spaced hyphen, an en or an em dash.
@@ -83,7 +75,7 @@ func _run() -> void:
 	_ok("no place's bar line holds a dash (%d places, %d with one%s)" % [Run.map.size(), dashed.size(),
 		": " + dashed[0] if not dashed.is_empty() else ""], dashed.is_empty())
 	Router.show_local()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var sc := Router.current as SectorScreen
 	if not _ok("LOCAL is up", sc != null):
 		_end()
@@ -101,7 +93,7 @@ func _run() -> void:
 
 	# A FIGHT on LOCAL
 	Router.start_combat(DB.enemies[&"hulk"], [], false, false)
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	sc = Router.current as SectorScreen
 	var cb: Combat = Router.combat
 	if not _ok("a fight opens on LOCAL", sc != null and sc.fighting() and cb != null):
@@ -137,7 +129,7 @@ func _run() -> void:
 			played = cb.hand[i]
 			cb.play(i, 0)
 			break
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var left: Array[CardData] = []
 	for c in cb.hand:
 		if not c.fused:
@@ -145,7 +137,7 @@ func _run() -> void:
 	_ok("a card was played and %d stay in the hand unplayed" % left.size(), played != null and not left.is_empty())
 	if not cb.finished:
 		cb.end_turn()
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var all_in := cb.discard.has(played)
 	for c in left:
 		all_in = all_in and cb.discard.has(c)
@@ -173,5 +165,5 @@ func _run() -> void:
 
 
 func _end() -> void:
-	print("fightwordstest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("fightwordstest")
+	_tree.quit(h.code())

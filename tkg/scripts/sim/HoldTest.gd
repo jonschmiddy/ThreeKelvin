@@ -11,7 +11,9 @@ func run() -> void:
 	_shapes()
 	_swaps()
 	_turn_materials()
+	_chit_drop()
 	_moving_day()
+	_moving_hurt()
 	_changed_your_mind()
 	_legible()
 	_card_law()
@@ -222,8 +224,8 @@ func _no_overlap(name: String, _g: Vector2i) -> void:
 	var seen := {}
 	var clashes := 0
 	for m in Run.cargo:
-		for dy in maxi(1, m.size.y):
-			for dx in maxi(1, m.size.x):
+		for dy in m.footprint().y:
+			for dx in m.footprint().x:
 				var c := m.hold_at + Vector2i(dx, dy)
 				if seen.has(c):
 					clashes += 1
@@ -238,22 +240,22 @@ func _in_bounds(name: String, g: Vector2i) -> void:
 		if m.hold_at.x < 0 or m.hold_at.y < 0:
 			out += 1
 			continue
-		if m.hold_at.x + maxi(1, m.size.x) > g.x:
+		if m.hold_at.x + m.footprint().x > g.x:
 			out += 1
-		elif m.hold_at.y + maxi(1, m.size.y) > g.y:
+		elif m.hold_at.y + m.footprint().y > g.y:
 			out += 1
 	_ok("%s: every part is inside the grid" % name, out == 0)
 
 
-## A 5-wide part in a 4-wide grid can never be picked up by a light and is silently left behind.
+## A part that fits the light's hold in neither turn can never be picked up and is silently left behind.
 func _shapes() -> void:
-	var worst := Vector2i(4, 5)
+	var worst := DB.hull_for(&"korvan", HullData.Weight.LIGHT).hold_grid
 	var bad: Array[String] = []
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
 		if m.size.x < 1 or m.size.y < 1:
 			bad.append("%s has no size" % id)
-		elif m.size.x > worst.x or m.size.y > worst.y:
+		elif not (m.size.x <= worst.x and m.size.y <= worst.y or m.size.x <= worst.y and m.size.y <= worst.x):
 			bad.append("%s is %dx%d" % [id, m.size.x, m.size.y])
 	_ok("all %d parts fit the smallest hold" % DB.modules.size(), bad.is_empty())
 	for b in bad:
@@ -335,6 +337,27 @@ func _turn_materials() -> void:
 	ShipScreen.turn_in_hold(grid, _middle(grid, block))
 	_ok("turn: a 2x2 material is left as it is", not block.turned and block.hold_at == Vector2i.ZERO)
 
+	grid.free()
+	Run.cargo.clear()
+
+
+## Money takes no cell: a chit dropped on a full hold is still handed on, or it is lost in the wreck.
+func _chit_drop() -> void:
+	seed_run(78)
+	Run.start_new_run(&"korvan", int(HullData.Weight.LIGHT))
+	Run.cargo.clear()
+	var g := Run.hold_grid()
+	for y in g.y:
+		for x in g.x:
+			Run.place_in_hold(_material_shaped(Vector2i.ONE), Vector2i(x, y))
+	var grid := HoldGrid.new()
+	grid.refresh()
+	var got: Array[Vector2i] = []
+	grid.dropped.connect(func(_d: Dictionary, at: Vector2i) -> void: got.append(at))
+	var data := {module = CreditChit.of(20), origin = &"bag"}
+	_ok("chit: a full hold still lights for money", grid._can_drop_data(Vector2(10, 10), data))
+	grid._drop_data(Vector2(10, 10), data)
+	_ok("chit: and the drop is handed on (%d)" % got.size(), got.size() == 1)
 	grid.free()
 	Run.cargo.clear()
 
@@ -458,6 +481,28 @@ func _moving_day() -> void:
 	var g := Run.hold_grid()
 	_in_bounds("moving day", g)
 	_no_overlap("moving day", g)
+
+
+## A hurt ship moves hurt: the ratio is taken with its plating still on, not against the bare frame.
+func _moving_hurt() -> void:
+	seed_run(1234)
+	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+	var plate := ModuleData.new()
+	plate.max_hull = 10
+	Run.installed.append(plate)
+	var full := Run.max_hp()
+	Run.hp = full - 10
+	var light: HullData = null
+	for f in DB.hull_frames:
+		if (f as HullData).weight == HullData.Weight.LIGHT:
+			light = f
+			break
+	if not _ok("moving hurt: a light frame exists", light != null):
+		return
+	var want := maxi(6, int(round(light.max_hull * float(full - 10) / float(full))))
+	Run.transfer_to_hull(light)
+	_ok("moving hurt: the hull keeps its condition (%d of %d, wanted %d)"
+		% [Run.hp, light.max_hull, want], Run.hp == want and Run.hp < light.max_hull)
 
 
 ## A swap moves nothing, so undo is an exact snapshot; checked after carrying something across.

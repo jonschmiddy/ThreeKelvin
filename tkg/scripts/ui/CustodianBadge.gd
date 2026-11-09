@@ -44,7 +44,6 @@ const TIP_AT_NAV := 162.0
 const TIP_AT_SECTOR := 210.0
 
 ## THE PALETTE (core.js COL and IC), 0xRRGGBB. The ones the HUD has come from UITheme.
-const C_ICE := 0xc3d2e2
 const C_SILVER := 0xc3d2e2
 const C_CHILL := 0x8fa3ba
 const C_COLD := 0x6b7d94

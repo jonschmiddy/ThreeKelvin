@@ -4,7 +4,7 @@ extends Node
 ## The sweep also runs two broken builds, which must be caught.
 ## Why: docs/why/FoeTagTest.md#foe-tag-checks
 
-var _fails := 0
+var h := Harness.new()
 var _shown := 0
 var _tree: SceneTree
 
@@ -16,26 +16,14 @@ const NAMES := {&"whale": "calf", &"leviathan": "leviathan"}
 
 
 func _ok(what: String, c: bool) -> bool:
-	if c:
-		print("  ok   %s" % what)
-	else:
-		_fails += 1
-		print("  FAIL %s" % what)
-	return c
+	return h._ok(what, c)
 
 
 func _quiet_fail(what: String) -> void:
-	_fails += 1
+	h._fails += 1
 	if _shown < 25:
 		print("  FAIL %s" % what)
 		_shown += 1
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
@@ -51,11 +39,11 @@ func _run() -> void:
 	print("=== the table ===")
 	_table(fights)
 	print("=== the sweep ===")
-	_sweep(fights, int(_arg("seeds", "24")))
+	_sweep(fights, int(Harness.arg("seeds", "24")))
 	print("=== the doors ===")
 	await _doors()
-	print("foetagtest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit()
+	h.verdict("foetagtest")
+	_tree.quit(h.code())
 
 
 ## Find fight choices by running every outcome, so a fight hidden in a botched branch counts.
@@ -86,13 +74,10 @@ func _fight_choices() -> Dictionary:
 	return out
 
 
-func _tag(o: Dictionary) -> StringName:
-	return OptionTable.fight_foe(o)
-
-
 func _table(fights: Dictionary) -> void:
 	var tagged := 0
 	var ship := 0
+	var ship_bad := 0
 	for o in OptionTable.all():
 		var id := StringName(o.id)
 		var body := String(o.get("body", "")).to_lower()
@@ -107,6 +92,7 @@ func _table(fights: Dictionary) -> void:
 				ship += 1
 				var m := _creature_words.search(body)
 				if m != null:
+					ship_bad += 1
 					_quiet_fail("%s starts a fight with a ship, but its text is about a creature (\"%s\"): tag it or rewrite it" % [id, m.get_string()])
 			continue
 		tagged += 1
@@ -121,9 +107,8 @@ func _table(fights: Dictionary) -> void:
 			_quiet_fail("%s is tagged for a creature and is not fauna-gated" % id)
 		if not fights.has(id):
 			_quiet_fail("%s is tagged for a creature and nothing in it starts a fight" % id)
-	_ok("every tag is a creature, on a fauna-gated event that fights, whose text names it (%d tagged)" % tagged, _fails == 0)
-	var before := _fails
-	_ok("no ship fight follows text about a creature (%d ship events)" % ship, _fails == before)
+	_ok("every tag is a creature, on a fauna-gated event that fights, whose text names it (%d tagged)" % tagged, h._fails == 0)
+	_ok("no ship fight follows text about a creature (%d ship events)" % ship, ship_bad == 0)
 
 
 ## `how` picks the build: the game's door, a dropped tag, or the old region rule.

@@ -230,11 +230,6 @@ func plate_g(p: Vector2) -> Vector2:
 	return get_global_transform() * plate_local(p)
 
 
-## The hull's left edge (this control's px).
-func hull_x() -> float:
-	return origin().x + EDGE_X
-
-
 ## Where this side's hull tiles start past the plate (plate px, a seam).
 func hull_x0() -> float:
 	return side.hull_x0

@@ -3,17 +3,14 @@ extends Node
 ## Jon, Oct 13: two black holes at the core, as the place picture redrew the sky's star.
 ## Why: docs/why/OneHoleTest.md#one-hole
 
-var _fails := 0
+var h := Harness.new()
 ## how many of the core's looks were opened and measured (a run that errored
 ## out of them must not pass by checking nothing)
 var _looked := 0
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -26,7 +23,7 @@ func _run() -> void:
 	for seed in [4242, 31337, 7, 99]:
 		Rng.forced = seed
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-		var area := EncounterView.AreaView.new()
+		var area := AreaView.new()
 		for n: MapGen.MapNode in Run.map:
 			area.node = n
 			var what := area._place_name()
@@ -74,8 +71,8 @@ func _run() -> void:
 	_ok("a pulsar was seen", int(seen.get(&"pulsar", 0)) > 0)
 	_ok("stations and systems still have their pictures",
 		int(seen.get(&"station", 0)) > 0 and int(seen.get(&"beacon", 0)) + int(seen.get(&"battlefield", 0)) > 0)
-	print("oneholetest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	get_tree().quit(1 if _fails > 0 else 0)
+	h.verdict("oneholetest")
+	get_tree().quit(h.code())
 
 
 func _local_core(seed: int, look: StringName) -> void:

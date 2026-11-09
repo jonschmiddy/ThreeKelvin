@@ -3,24 +3,16 @@ extends Node
 ## Covers every move between the four distances through the Router's own doors; Jon's picks.
 ## Why: docs/why/LadderTest.md#test-coverage
 
-var _fails := 0
+var harness := Harness.new()
 var _tree: SceneTree
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 ## Until no move is under way (or 600 frames: the dock is eight seconds).
@@ -381,7 +373,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the hull ends on its stands", xs.is_empty() or absf(xs[-1] - berth) < 1.0)
 	await _rail_comes_in(st, rail_s)
 	# Seated where the yard's `_stand` puts it, not where it stood before (Jon: sat too high).
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var seat := _yard_seat(st)
 	var landed := st._mine_view.get_rect() if st._mine_view != null else Rect2()
 	_ok("3B: the landed hull's rect is the yard's own seat (%s, the yard %s)" % [landed, seat],
@@ -470,7 +462,7 @@ func _first_locals() -> void:
 	loc._open_drawer(true)
 	art.park()
 	art.refresh()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 
 ## The dock's arrival must match the first LOCAL's, frame by frame.
@@ -515,12 +507,12 @@ func _dock_skipped(dock_b: Button) -> void:
 	k.physical_keycode = KEY_SHIFT
 	k.pressed = true
 	Input.parse_input_event(k)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var u := k.duplicate() as InputEventKey
 	u.pressed = false
 	Input.parse_input_event(u)
 	var n := await _idle()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var st := Router.current as StationScreen
 	_ok("3B: a key mid-arrival (%s) lands in the berth at once (%d frames), the elevator in its place with no slide" % [in_fly, n],
 		in_fly and n >= 0 and n <= 3 and st != null and Router.docked and st._rail_slide == null and st._rail_back == null
@@ -681,13 +673,13 @@ func _yard_skipped(dock_b: Button, at: float) -> void:
 	k.pressed = true
 	Input.parse_input_event(k)
 	var press := Engine.get_process_frames()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var u := k.duplicate() as InputEventKey
 	u.pressed = false
 	Input.parse_input_event(u)
 	var n := await _idle()
 	var level := maxf(Audio._ship_level, Audio.ship_want)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	st = Router.current as StationScreen
 	var v := st._mine_view if st != null else null
 	var after: Array = []
@@ -1016,7 +1008,7 @@ func _station_settled() -> StationScreen:
 		if st != null and st._rail_slide == null and not ZoomLadder.busy():
 			break
 		await _tree.process_frame
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	return Router.current as StationScreen
 
 
@@ -1074,7 +1066,7 @@ func _undock_skipped() -> void:
 	await _idle()
 	if not _ok("3B undock, skipped: docked first", Router.current is StationScreen and Router.docked):
 		return
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	Audio.taping = true
 	Audio.tape.clear()
 	Router.show_sector()
@@ -1099,12 +1091,12 @@ func _undock_skipped() -> void:
 	k.physical_keycode = KEY_SHIFT
 	k.pressed = true
 	Input.parse_input_event(k)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var u := k.duplicate() as InputEventKey
 	u.pressed = false
 	Input.parse_input_event(u)
 	var n := await _idle()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var art := c._view.ship_view() if c != null and is_instance_valid(c) else null
 	var heard := 0
 	for tp: Array in Audio.tape:
@@ -1120,13 +1112,13 @@ func _undock_skipped() -> void:
 	# REDUCED MOTION: never animated
 	DisplaySettings.reduced_motion = true
 	Router.show_station()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var docked := Router.current is StationScreen and Router.docked and not ZoomLadder.busy()
 	# (and the berth LOCAL's DOCK left, `_hull_flies_in`, laid out as this one)
 	if docked:
 		_station_same("LOCAL's DOCK", _station_layout(await _station_settled()))
 	Router.show_sector()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var lr := Router.current as SectorScreen
 	var ar := lr._view.ship_view() if lr != null else null
 	_ok("reduced motion: DOCK and UNDOCK never animate (docked at once %s); LOCAL at once, your ship at its mooring at its own size, the station lit (%.2f)" % [
@@ -1446,7 +1438,7 @@ func _one_motion(what: String, track: Array) -> void:
 			joined = false
 	_ok("%s: one smooth motion -- each piece (%s) never below %.1f px a frame mid-piece (lowest %.1f), %d spikes, peak %.1f; joins%s" % [
 		what, report.strip_edges(), ONE_MOTION_FLOOR, lo, spikes, top, joins if joins != "" else " (none on screen)"],
-		lo >= ONE_MOTION_FLOOR and spikes == 0 and joined)
+		lo < INF and lo >= ONE_MOTION_FLOOR and spikes == 0 and joined)
 
 
 const ONE_MOTION_FLOOR := 0.4
@@ -1549,7 +1541,7 @@ func _flyin_is_first_locals() -> void:
 	loc._open_drawer(true)
 	art.park()
 	art.refresh()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 
 ## The power-on's sounds on the tape since frame `f0`: name -> [frames].
@@ -1595,7 +1587,7 @@ func _wake_heard(press: bool) -> void:
 	if not _ok("%s: on LOCAL by the station's side" % what, loc != null and loc._face != null):
 		return
 	loc.station_asleep()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Audio.taping = true
 	Audio.tape.clear()
 	Audio.hushed.clear()
@@ -1617,7 +1609,7 @@ func _wake_heard(press: bool) -> void:
 			pressed = Engine.get_process_frames()
 		if loc._wake_t < 0.0:
 			break
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Audio.taping = false
 	var heard := _power_tape(f0)
 	var lit := loc._face.power >= 0.999 and loc._face_front.power >= 0.999 and loc._face.warn == 0.0
@@ -1653,7 +1645,7 @@ func _dock_heard() -> void:
 	if not _ok("dock heard: DOCK on LOCAL at the station", dock_b != null and loc._face != null):
 		return
 	loc.station_asleep()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Audio.taping = true
 	Audio.tape.clear()
 	var f0 := Engine.get_process_frames()
@@ -1679,7 +1671,7 @@ func _dock_heard() -> void:
 	_ok("dock heard: docked", Router.current is StationScreen and Router.docked)
 	Router.show_sector()
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 ## Docking into an awake station does not replay the power-on; undock then skips the fly-in.
@@ -1689,7 +1681,7 @@ func _dock_lit() -> void:
 	if not _ok("dock lit: DOCK on LOCAL at the station", dock_b != null and loc._face != null):
 		return
 	loc.station_awake()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Audio.taping = true
 	Audio.tape.clear()
 	var f0 := Engine.get_process_frames()
@@ -1713,7 +1705,7 @@ func _dock_lit() -> void:
 	var n0 := SectorScreen.flyins
 	Router.show_sector()
 	await _idle()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var lu := Router.current as SectorScreen
 	_ok("undock: no fly-in on the LOCAL it lands on (%d), the station lit" % (SectorScreen.flyins - n0),
 		lu != null and SectorScreen.flyins == n0 and not lu._flyin and lu._face != null and lu._face.power >= 0.999)
@@ -1723,7 +1715,7 @@ func _dock_lit() -> void:
 ## LOCAL shows no stand-in place picture (Jon, Oct 21): the actual event, or the station itself.
 ## Why: docs/why/LadderTest.md#no-stand-in-picture
 func _no_stand_ins() -> void:
-	var area := EncounterView.AreaView.new()
+	var area := AreaView.new()
 	var bad: Array = []
 	var seen := 0
 	for raw in Run.map:
@@ -1739,7 +1731,7 @@ func _no_stand_ins() -> void:
 			var ok := what == &"" or (what == &"station" and n.type == MapGen.NodeType.STATION)
 			if not ok:
 				bad.append("%d@%d %s" % [n.index, site, what])
-	area.site = EncounterView.AreaView.ANY
+	area.site = AreaView.ANY
 	var any_beacon := false
 	for raw in Run.map:
 		area.node = raw
@@ -1759,7 +1751,7 @@ func _run() -> void:
 	Rng.forced = 7
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	_ok("a run opens on LOCAL", Router.current is SectorScreen)
 	SectorScreen._approached_at = Run.at
 
@@ -1866,7 +1858,7 @@ func _run() -> void:
 		if ZoomLadder.busy() and String(ZoomLadder.Phase.keys()[ZoomLadder.active.phase]) == "C_CAM":
 			break
 		await _tree.process_frame
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var ck := InputEventKey.new()
 	ck.keycode = KEY_SHIFT
 	ck.pressed = true
@@ -1894,12 +1886,12 @@ func _run() -> void:
 			break
 		await _tree.process_frame
 	_ok("then the move is under way on the map", Router.current is SystemMapScreen and ZoomLadder.busy())
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var key := InputEventKey.new()
 	key.keycode = KEY_SHIFT
 	key.pressed = true
 	Input.parse_input_event(key)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("a key mid-move ends it", not ZoomLadder.busy())
 	var m := Router.current as SystemMapScreen
 	_clean("after the key")
@@ -1911,7 +1903,7 @@ func _run() -> void:
 		_ok("and takes the wheel after it", m._zoom_to > z0)
 		m._zoom_to = m.zoom_min
 		m.view.zoom = m.zoom_min
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	ZoomLadder.calm_force = -1
 
 	# The wheel stops at each screen's end (Jon, Oct 10); Tab and the tabs go between distances.
@@ -1919,29 +1911,29 @@ func _run() -> void:
 		m._zoom_to = m.zoom_min
 		for i in 4:
 			m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("the wheel out past the whole sector stays on the map", Router.current == m and not ZoomLadder.busy())
 		_ok("and the map's zoom stops at the whole system", absf(m._zoom_to - m.zoom_min) < 0.001)
 		m._zoom_to = m.view.ZOOM_MAX
 		for i in 4:
 			m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("the wheel in past the map's closest zoom stays on the map", Router.current == m and not ZoomLadder.busy())
 		_ok("and the map's zoom stops at its closest", absf(m._zoom_to - m.view.ZOOM_MAX) < 0.001)
 		m._zoom_to = m.zoom_min
 		m.view.zoom = m.zoom_min
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	await _go("the chart (for the wheel)", Router.show_starchart, StarchartScreen)
 	var ch := Router.current as StarchartScreen
 	if ch != null:
-		ch._chart.zoom = StarchartScreen.MapChart.ZOOM_MAX
+		ch._chart.zoom = MapChart.ZOOM_MAX
 		var wheel := InputEventMouseButton.new()
 		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 		wheel.pressed = true
 		wheel.position = ch._chart.size * 0.5
 		for i in 4:
 			ch._chart._gui_input(wheel)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("the wheel in past the chart's closest zoom stays on the chart", Router.current == ch and not ZoomLadder.busy())
 	await _go("LOCAL (for the wheel)", Router.show_local, SectorScreen)
 	var loc := Router.current as SectorScreen
@@ -1953,7 +1945,7 @@ func _run() -> void:
 			ev.position = loc._view.size * 0.5
 			for i in 4:
 				loc._view.gui_input.emit(ev)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("the wheel on LOCAL stays on LOCAL", Router.current == loc and not ZoomLadder.busy())
 	await _go("back to the map", Router.show_system, SystemMapScreen)
 
@@ -1985,7 +1977,7 @@ func _run() -> void:
 		_ok("calm: the map's UI leaves before its camera moves (%s, %d frames moved early)" % [c_out, c_early], c_out and c_early == 0)
 		_ok("calm: no UI on the chart while the camera moves (%d frames with it)" % c_ui_cam, c_ui_cam == 0)
 		var cc3 := Router.current as StarchartScreen
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		_ok("calm: and the chart's UI comes up after it lands, all of it", c_in and cc3 != null
 			and cc3._ladder_side.modulate.a > 0.99 and cc3._chart.ui_a > 0.99 and cc3._key_row.modulate.a > 0.99)
 		_clean("calm UI beats")
@@ -2164,7 +2156,7 @@ func _run() -> void:
 				var n2 := await _idle()
 				_ok("%s DOCK lands in the station (%d frames)" % [d, n2], Router.current is StationScreen and Router.docked)
 				_clean("%s dock" % d)
-				await _frames(10)
+				await Harness.frames(_tree, 10)
 				Router.show_sector()
 				await _idle()
 				_ok("%s UNDOCK lands on LOCAL, undocked" % d, Router.current is SectorScreen and not Router.docked)
@@ -2226,7 +2218,7 @@ func _run() -> void:
 			_station_rects["the map's DOCK"] = _station_layout(await _station_settled())
 			DisplaySettings.reduced_motion = true
 			Router.show_sector()
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			Audio.taping = true
 			Audio.tape.clear()
 			var rm_level := 0.0
@@ -2256,10 +2248,10 @@ func _run() -> void:
 	_ok("off: the map at once, no move", Router.current is SystemMapScreen and not ZoomLadder.busy())
 	Router.show_local()
 	_ok("off: LOCAL at once", Router.current is SectorScreen and not ZoomLadder.busy())
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_clean("off")
 	ZoomLadder.force = -1
 	ZoomLadder.calm_force = -1
 	ZoomLadder.fixed_dt = -1.0
-	print("laddertest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("laddertest")
+	_tree.quit(harness.code())

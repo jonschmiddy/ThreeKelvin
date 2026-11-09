@@ -64,8 +64,6 @@ const HEAD_H := 145
 ## The widest row is MANEUVERABILITY's at about 217px, so 264 keeps 45px of headroom.
 ## Why: docs/why/ChassisSelect.md#layout-spacing
 const SIDE_W := 264
-## Inset so a selected fill has a margin before its text. The heading uses it to share the edge.
-const ROW_INSET := 5
 
 var _sel: int = 0
 var _weight: HullData.Weight = HullData.Weight.MEDIUM
@@ -296,7 +294,7 @@ func _build_detail() -> void:
 	ngap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	namerow.add_child(ngap)
 	for w in WEIGHTS:
-		namerow.add_child(_weight_button(manufacturer, w, m))
+		namerow.add_child(_weight_button(w, m))
 	shipcol.add_child(namerow)
 	shipcol.add_child(_gap(PICKER_ROWS_GAP))
 	shipcol.add_child(_tier_row(manufacturer, m))
@@ -467,23 +465,9 @@ func _show_deck() -> void:
 	if _deck_pop != null:
 		return
 	# Popup sized to the cards: a full-screen sheet reads as leaving the screen.
-	var shade := ColorRect.new()
-	shade.color = Color(0.02, 0.03, 0.05, 0.72)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.mouse_filter = Control.MOUSE_FILTER_STOP
-	# Anywhere outside the panel dismisses it. The panel sits on top and stops
-	# the press, so this only ever fires on the dimmed margin.
-	shade.gui_input.connect(func(e: InputEvent) -> void:
-		var mb := e as InputEventMouseButton
-		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			_close_deck())
-	add_child(shade)
-	_deck_pop = shade
-
-	var centre := CenterContainer.new()
-	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	centre.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	shade.add_child(centre)
+	# Anywhere outside the panel dismisses it.
+	var centre := Widgets.prompt(self, _close_deck, 0.72)
+	_deck_pop = centre.get_parent() as Control
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)
@@ -563,35 +547,30 @@ func _tier_row(manufacturer: StringName, m: ManufacturerData) -> Control:
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(gap)
 	for t in HullData.TIER_NAMES.size():
-		row.add_child(_tier_button(manufacturer, t, m))
+		row.add_child(_tier_button(t, m))
 	return row
 
 ## Same 22x20 face as a weight button: the same kind of control, and two sizes would deny it.
-func _tier_button(manufacturer: StringName, t: int, m: ManufacturerData) -> Button:
-	var chosen := t == _tier
-	var btn := Widgets.button(String(HullData.TIER_NAMES[t]), _pick_tier.bind(t))
-	btn.custom_minimum_size = Vector2(22, 20)
-	var face := m.colour if chosen else UITheme.LINE
-	var bg := m.field if chosen else UITheme.PANEL
-	btn.add_theme_stylebox_override("normal", UITheme.flat(bg, face, 0, 3, 6))
-	btn.add_theme_stylebox_override("hover", UITheme.flat(m.field, m.colour, 0, 3, 6))
-	btn.add_theme_stylebox_override("pressed", UITheme.flat(m.field, m.colour, 0, 3, 6))
-	btn.add_theme_stylebox_override("focus", UITheme.empty())
-	btn.add_theme_color_override("font_color", m.colour if chosen else UITheme.COLD)
-	btn.add_theme_color_override("font_hover_color", UITheme.ICE)
-	btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+func _tier_button(t: int, m: ManufacturerData) -> Button:
+	var btn := _livery_button(String(HullData.TIER_NAMES[t]), _pick_tier.bind(t), t == _tier, m)
 	btn.tooltip_text = Widgets.tip("%s tier\n%s" % [
 		HullData.TIER_NAMES[t], TIER_BLURB[t]])
 	return btn
 
 
-func _weight_button(manufacturer: StringName, w: HullData.Weight, m: ManufacturerData) -> Button:
-	var h := DB.hull_for(manufacturer, w)
-	var chosen := w == _weight
-
+func _weight_button(w: HullData.Weight, m: ManufacturerData) -> Button:
 	# One letter, as three sit beside the hull name. The word is one hover away.
-	var btn := Widgets.button(HullData.weight_name(w).to_upper().substr(0, 1),
-		_pick_weight.bind(w))
+	var btn := _livery_button(HullData.weight_name(w).to_upper().substr(0, 1),
+		_pick_weight.bind(w), w == _weight, m)
+	# The word and one sentence of cost only: every stat is on screen for the selected chassis.
+	btn.tooltip_text = Widgets.tip("%s\n%s" % [
+		HullData.weight_name(w), WEIGHT_BLURB[int(w)]])
+	return btn
+
+
+## The small chip a tier or weight picker is made of, in the manufacturer's livery when chosen.
+func _livery_button(label: String, on_press: Callable, chosen: bool, m: ManufacturerData) -> Button:
+	var btn := Widgets.button(label, on_press)
 	btn.custom_minimum_size = Vector2(22, 20)
 	var face := m.colour if chosen else UITheme.LINE
 	var bg := m.field if chosen else UITheme.PANEL
@@ -602,9 +581,6 @@ func _weight_button(manufacturer: StringName, w: HullData.Weight, m: Manufacture
 	btn.add_theme_color_override("font_color", m.colour if chosen else UITheme.COLD)
 	btn.add_theme_color_override("font_hover_color", UITheme.ICE)
 	btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
-	# The word and one sentence of cost only: every stat is on screen for the selected chassis.
-	btn.tooltip_text = Widgets.tip("%s\n%s" % [
-		HullData.weight_name(w), WEIGHT_BLURB[int(w)]])
 	return btn
 
 

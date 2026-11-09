@@ -671,7 +671,7 @@ static func lit(baked: Image, grade: int, hull: String, t: float = -1.0) -> Imag
 ## Grades only remove detail (Jon, Oct 14): S as drawn,
 ## A loses a third of thin things, B two thirds, C all.
 ## Why: docs/why/HullGrade.md#kit
-static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
+static func _kit(img: Image, _r: _Ramps, grade: int, _seed_in: int, _at: Dictionary) -> void:
 	if grade >= 3:
 		return
 	var src := img.duplicate() as Image

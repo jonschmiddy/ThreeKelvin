@@ -18,11 +18,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(k: int) -> void:
-	for i in k:
-		await get_tree().process_frame
-
-
 func _idle() -> void:
 	for i in 900:
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"":
@@ -36,7 +31,7 @@ func _map() -> SystemMapScreen:
 	for i in 240:
 		var m := Router.current as SystemMapScreen
 		if m != null and m.flight != null and m.view.layout != null:
-			await _frames(4)
+			await Harness.frames(get_tree(), 4)
 			return m
 		await get_tree().process_frame
 	return null
@@ -62,7 +57,7 @@ func _run() -> void:
 	for s: int in SEEDS:
 		h.seed_run(s)
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		var looked := 0
 		for raw in Run.map:
 			var n: MapGen.MapNode = raw
@@ -90,7 +85,7 @@ func _system(m: SystemMapScreen, s: int) -> void:
 		if m.ship_reached(bi) or not P._has_open_event(bi):
 			continue
 		m.select_body(bi)
-		await _frames(3)
+		await Harness.frames(get_tree(), 3)
 		_pages += 1
 		var where := "seed %d, %s" % [s, L.bodies[bi].name]
 		var gos: Array = P._box.find_children("Go", "Button", true, false)
@@ -117,7 +112,7 @@ func _system(m: SystemMapScreen, s: int) -> void:
 		for bc in L.bodies[bi].beacons:
 			if bc.opt >= 0 and P._is_open(bc.opt):
 				m.open_beacon(bi, bc)
-				await _frames(3)
+				await Harness.frames(get_tree(), 3)
 				var pg := P._foot.find_child("Go", true, false) as Button
 				var back := _buttons(P._foot, "ALL EVENTS")
 				var top := _buttons(P._box, "< ALL EVENTS")
@@ -126,7 +121,7 @@ func _system(m: SystemMapScreen, s: int) -> void:
 					and absf(pg.size.x - P._foot.size.x) < 0.5)
 				break
 		m.panel_back()
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 	# THE SYSTEM DONE: PLOT NEXT JUMP comes, lit as the one thing to do
 	var n: MapGen.MapNode = m.view.node
 	var taken := n.taken.duplicate()
@@ -136,11 +131,11 @@ func _system(m: SystemMapScreen, s: int) -> void:
 			n.taken.append(MapGen.OPTION_SITE + i)
 			n.results[i] = MapGen.R_DONE
 	P.show_system()
-	await _frames(3)
+	await Harness.frames(get_tree(), 3)
 	var lit := _buttons(P._foot, "PLOT NEXT JUMP")
 	h._ok("seed %d, system %d done: PLOT NEXT JUMP shows, in ember (%d)" % [s, n.index, lit.size()],
 		P.system_done() and lit.size() == 1 and _ember(lit[0], "normal") and not (lit[0] as Button).disabled)
 	n.taken = taken
 	n.results = results
 	P.show_system()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)

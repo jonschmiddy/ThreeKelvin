@@ -37,19 +37,13 @@ var _glint_t := -9.0
 var _glint_px: Array = []    ## [screen point, k] armour pixels for the glint sweep
 
 
-class Layer extends Control:
-	var paint: Callable
-	func _draw() -> void:
-		paint.call(self)
-
-
 func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	facing = the_facing
 	_origin = origin.round()
 	_rng.seed = seed * 389 + 22
-	_H = ShipBreakup._hull_pic(img, used, 3)
+	_H = BreakupCuts._hull_pic(img, used, 3)
 	_r = _H.r
 	_w = _H.w
 	_h = _H.h
@@ -58,19 +52,8 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	_cx = _H.cx
 	_cy = _H.cy
 	_build()
-	for k in 2:
-		var l := Layer.new()
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		if k == 1:
-			var mat := CanvasItemMaterial.new()
-			mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-			l.material = mat
-			l.paint = _paint_light
-		else:
-			l.paint = _paint_body
-		add_child(l)
+	PaintLayer.add_to(self, _paint_body)
+	PaintLayer.add_to(self, _paint_light, true)
 
 
 func _screen(p: Vector2i) -> Vector2:
@@ -376,9 +359,7 @@ func _paint_body(ci: CanvasItem) -> void:
 		var al := 1.0 if age < 0.4 else (0.6 if age < 0.55 else (0.3 if age < 0.68 else 0.12))
 		var sz: Vector2 = c.size
 		var rot := posmod(int(floor(age * float(c.spin))), 4)
-		ci.draw_set_transform(pp + sz * 0.5, float(rot) * PI * 0.5, Vector2.ONE)
-		ci.draw_texture(c.tex, -sz * 0.5, Color(1, 1, 1, al))
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		FxKit.draw_chip(ci, c.tex, pp, sz, rot, al)
 
 
 func _paint_light(ci: CanvasItem) -> void:
@@ -402,14 +383,10 @@ func _paint_light(ci: CanvasItem) -> void:
 			continue
 		var age := t - float(f.t0)
 		var x := age / float(f.life)
-		var l := (1.0 if x < 0.25 else (0.6 if x < 0.5 else (0.32 if x < 0.75 else 0.14))) * float(f.s)
+		var l := FxKit.flash_level(x) * float(f.s)
 		var tex := ShipBreakup._white(int(f.r))
 		ci.draw_texture(tex, (Vector2(f.p) - Vector2(tex.get_size()) * 0.5).round(), Color(l, l, l * 0.95, 1))
 	for mo in _motes:
 		var f2: float = mo.age / mo.life
 		var c := Color(1, 1, 0.95) if f2 < 0.4 else (Color(1.0, 0.8, 0.45) if f2 < 0.75 else Color(0.55, 0.35, 0.2))
-		var p2: Vector2 = (mo.p as Vector2).round()
-		ci.draw_rect(Rect2(p2, Vector2.ONE), c)
-		var tail: Vector2 = ((mo.p as Vector2) - (mo.v as Vector2).normalized() * 2.0).round()
-		if tail != p2:
-			ci.draw_rect(Rect2(tail, Vector2.ONE), c * Color(0.5, 0.5, 0.5, 1))
+		FxKit.draw_spark(ci, mo.p, mo.v, c)

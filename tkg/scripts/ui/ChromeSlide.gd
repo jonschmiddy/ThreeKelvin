@@ -30,13 +30,6 @@ static func finish_all() -> void:
 	live.clear()
 
 
-static func of_kind(kd: StringName) -> ChromeSlide:
-	for p: Variant in live:
-		if is_instance_valid(p) and not (p as ChromeSlide).done and (p as ChromeSlide).kind == kd:
-			return p as ChromeSlide
-	return null
-
-
 func setup(kind_: StringName, rest_: Rect2, off_: Vector2, clip_: Rect2, k0: float) -> void:
 	kind = kind_
 	rest = rest_

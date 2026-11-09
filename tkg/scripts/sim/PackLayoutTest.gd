@@ -3,25 +3,18 @@ extends Node
 ## Jon, Oct 13: no ship, wreck, name, bar, chip or intent may overlap another enemy or yours.
 ## Why: docs/why/PackLayoutTest.md#pack-layout
 
-var _fails := 0
+var h := Harness.new()
 var _shown := 0
 var _fits: Dictionary = {}
 
 
 func _ok(what: String, c: bool) -> bool:
 	if not c:
-		_fails += 1
+		h._fails += 1
 		if _shown < 25:
 			print("  FAIL %s" % what)
 			_shown += 1
 	return c
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
@@ -31,8 +24,8 @@ func _ready() -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var scr: Script = load("res://scripts/ui/EncounterView.gd")
-	var modes: Array = [&"B", &"C"] if _arg("packlayout", "all") == "all" else [StringName(_arg("packlayout"))]
+	var scr: Script = _encounter_view()
+	var modes: Array = [&"B", &"C"] if Harness.arg("packlayout", "all") == "all" else [StringName(Harness.arg("packlayout"))]
 	if scr.get("pack_layout") == null:
 		modes = [&"-"]
 		print("packlayouttest: this build has no pack layouts; testing the one it has")
@@ -44,7 +37,7 @@ func _run() -> void:
 	for mode in modes:
 		if mode != &"-":
 			scr.set("pack_layout", mode)
-		var before := _fails
+		var before := h._fails
 		var cases := 0
 		var home := await _home(tree)
 		# every picture alone, the calf and the Leviathan too (their gap under
@@ -90,9 +83,9 @@ func _run() -> void:
 				await _check(tree, "%s pile of %d, every other a wreck" % [mode, n], pile, home, false, true)
 			cases += 1
 			await _wrecks(tree, "%s LOCAL's row of %d wrecks" % [mode, n], pile, home)
-		print("packlayouttest: layout %s, %d packs, %d failures" % [mode, cases, _fails - before])
-	print("packlayouttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+		print("packlayouttest: layout %s, %d packs, %d failures" % [mode, cases, h._fails - before])
+	h.verdict("packlayouttest")
+	tree.quit(h.code())
 
 
 func _n(p: Array) -> String:
@@ -274,7 +267,7 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 	if home != Vector2.INF:
 		_ok("%s: your ship stays where it stood (%s, was %s)" % [tag, you[0].position, home], you[0].position.distance_to(home) <= 1.0)
 	# Evenly spaced with room (Jon): equal gaps across a rank and between ranks, at least GAP_MIN.
-	var scr: Script = load("res://scripts/ui/EncounterView.gd")
+	var scr: Script = _encounter_view()
 	if scr.get("pack_layout") == &"B" and n >= 2:
 		var blocks: Array[Rect2] = []
 		for k in n:
@@ -325,12 +318,13 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 				for a in ranks[int(rk) + 1]:
 					up_bottom = maxf(up_bottom, blocks[a].end.y)
 				between.append(low_top - up_bottom)
-		for gaps: Array[float] in [across, between]:
+		for pair: Array in [["across a rank", across], ["between ranks", between]]:
+			var gaps: Array[float] = pair[1]
 			if gaps.is_empty():
 				continue
 			var lo: float = gaps.min()
 			var hi: float = gaps.max()
-			var which := "across a rank" if gaps == across else "between ranks"
+			var which: String = pair[0]
 			_ok("%s: the gaps %s at least %d px (closest %.0f)" % [tag, which, int(GAP_MIN), lo], lo >= GAP_MIN)
 			_ok("%s: the gaps %s even (%.0f to %.0f)" % [tag, which, lo, hi], hi - lo <= GAP_SPREAD)
 		if not across.is_empty() and not between.is_empty():
@@ -387,13 +381,6 @@ func _measure(view: EncounterView, tag: String, home: Vector2) -> void:
 ## In game pixels (the screen doubles them): 24 and 4 px at 1080p.
 const GAP_MIN := 12.0
 const GAP_SPREAD := 2.0
-
-## How far apart two boxes are: across where they share rows, down where they
-## share columns, the larger of the two where they share neither.
-static func _sep(a: Rect2, b: Rect2) -> float:
-	var dx := maxf(0.0, maxf(b.position.x - a.end.x, a.position.x - b.end.x))
-	var dy := maxf(0.0, maxf(b.position.y - a.end.y, a.position.y - b.end.y))
-	return maxf(dx, dy)
 
 
 func _who(i: int) -> String:
@@ -560,3 +547,7 @@ func _part_dist(p: Array, q: Array) -> float:
 		for w in rim2:
 			d2 = minf(d2, v.distance_to(w))
 	return d2
+
+
+func _encounter_view() -> Script:
+	return load("res://scripts/ui/EncounterView.gd")

@@ -84,7 +84,11 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			# Precursor tech is unbranded, rolled like a fauna drop and biased up by danger.
 			var m := LootGen.roll_module(n.danger, &"", true)
 			# Same again: `stow()` emits `ship_changed` itself.
-			Run.stow(m)
+			if not Run.stow(m):
+				# A part that does not fit goes on the sector pile, never into nothing.
+				Run.sector_jetsam(n).items.append(m)
+				Sig.map_changed.emit()
+				return "The fragment reads out as %s. The hold is full, so it is on the floor." % m.name
 			return "The fragment reads out as %s. It is in the hold." % m.name
 		&"data":
 			# DEVELOP FILM and READ FOR DATA (science, pick 1A): what went in is

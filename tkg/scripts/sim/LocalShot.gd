@@ -9,13 +9,6 @@ const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 var _args: PackedStringArray
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
@@ -24,15 +17,15 @@ func _ready() -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	if "reduced" in _args:
 		DisplaySettings.reduced_motion = true
 	if "nodust" in _args:
 		LocalDust.off = true
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	var want := _arg("sky", "calm")
-	var orbit := _arg("orbit")
-	var idx := int(_arg("node", "-1"))
+	var want := Harness.arg("sky", "calm")
+	var orbit := Harness.arg("orbit")
+	var idx := int(Harness.arg("node", "-1"))
 	if idx < 0:
 		for pass_i in 2:
 			for n: MapGen.MapNode in Run.map:
@@ -88,7 +81,7 @@ func _run() -> void:
 		Router.start_combat(DB.enemies[&"cutter"], [], false)
 	else:
 		Router.show_local()
-	var wait := int(_arg("wait", "90"))
+	var wait := int(Harness.arg("wait", "90"))
 	for i in wait:
 		await RenderingServer.frame_post_draw
 	# A FIGHT IN PROGRESS: the first cards that can be played, played at the
@@ -116,12 +109,12 @@ func _run() -> void:
 		print("  view %s  ship %s" % [r, view.ship_view().get_global_rect()])
 	if "dustcheck" in _args and view != null and view.get("dust") != null:
 		await _dustcheck(tree, view)
-	var outp := _arg("out")
+	var outp := Harness.arg("out")
 	if outp != "":
 		tree.root.get_texture().get_image().save_png(outp)
 		print("wrote ", outp)
 	if sky != null:
-		var skyp := _arg("skyout")
+		var skyp := Harness.arg("skyout")
 		if skyp != "" and sky.has_method("picture"):
 			var img: Image = sky.call("picture")
 			if img != null:
@@ -166,9 +159,9 @@ func _run() -> void:
 			print("  near world gpu %.3f ms, its memory gpu %.3f ms" % [gnear / 60.0, gmem / 60.0])
 	# THE SKY BARE: the ships, their labels and the shots hidden, the game's own
 	# 960x540 picture (before the screen filter) read back
-	var statp := _arg("stats")
-	var clip := _arg("clip")
-	var barep := _arg("bare")
+	var statp := Harness.arg("stats")
+	var clip := Harness.arg("clip")
+	var barep := Harness.arg("bare")
 	if view != null and (statp != "" or clip != "" or barep != ""):
 		# (for the readability measure: the whole picture first, and where every
 		# ship and label is in it)
@@ -187,7 +180,7 @@ func _run() -> void:
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var vr := view.get_global_rect()
-		var arena := Rect2i(int(vr.position.x), int(vr.position.y), int(vr.size.x), mini(int(_arg("cliph", "297")), int(vr.size.y)))
+		var arena := Rect2i(int(vr.position.x), int(vr.position.y), int(vr.size.x), mini(int(Harness.arg("cliph", "297")), int(vr.size.y)))
 		var gv := GameShell.input_target(tree)
 		if barep != "":
 			gv.get_texture().get_image().save_png(barep)
@@ -203,8 +196,8 @@ func _run() -> void:
 			print("  stats ", JSON.stringify(st))
 		if clip != "":
 			DirAccess.make_dir_recursive_absolute(clip)
-			var nf := int(_arg("clipframes", "61"))
-			var ms := int(_arg("clipms", "0"))
+			var nf := int(Harness.arg("clipframes", "61"))
+			var ms := int(Harness.arg("clipms", "0"))
 			for k in nf:
 				if ms > 0:
 					var t0 := Time.get_ticks_msec()
@@ -214,7 +207,7 @@ func _run() -> void:
 					await RenderingServer.frame_post_draw
 				# (`fightat=N`: a fight opens on the Nth frame, so the clip films the
 				# screen change from LOCAL into it -- a new view, a new sky)
-				if k == int(_arg("fightat", "-1")):
+				if k == int(Harness.arg("fightat", "-1")):
 					Router.start_combat(DB.enemies[&"cutter"], [], false)
 				gv.get_texture().get_image().get_region(arena).save_png("%s/f_%04d.png" % [clip, k])
 			print("wrote ", nf, " frames to ", clip)
@@ -224,7 +217,7 @@ func _run() -> void:
 
 
 ## Each mote's whole box against every ship, label and gauge, and how fast motes faded.
-func _dustcheck(tree: SceneTree, view: EncounterView) -> void:
+func _dustcheck(_tree: SceneTree, view: EncounterView) -> void:
 	var dust: LocalDust = view.get("dust")
 	var worst_ship := 0.0
 	var worst_label := 0.0

@@ -991,7 +991,7 @@ the taller of the two and the row sized to it: the hand sat at y=690 with no
 chips and y=654 with one, either way.
 ```
 
-Inside `_dead_strip_note()`, above `func _card_x(shown: int) -> float:`:
+Inside `PileView`, above `func _card_x(shown: int) -> float:`:
 
 ```text
 Where the BACK card starts, so the whole leaning stack is centred.
@@ -1002,7 +1002,7 @@ as it filled, which is a pile that moves while you play. The lean is known
 the group stays put.
 ```
 
-Inside `_dead_strip_note()`, above `var o := Vector2(_card_x(shown) + float(i) * 2.0, float(shown - 1 - i) * 2.0)`:
+Inside `PileView`, above `var o := Vector2(_card_x(shown) + float(i) * 2.0, float(shown - 1 - i) * 2.0)`:
 
 ```text
 INSIDE ITS OWN BOX. This was `-i * 2`, which drew the cards behind
@@ -1017,7 +1017,7 @@ zero instead of the front one.
 
 ## Rail sizing
 
-Inside `_dead_strip_note()`, above `const W := 68`:
+Inside `PileView`, above `const W := 68`:
 
 ```text
 Big enough to read as a card rather than as an icon of one.
@@ -1042,7 +1042,7 @@ and a wide rail makes a landscape pile. At 68 a full stack is 64 across
 against 66 tall; at 100 it was 96 against 66.
 ```
 
-Inside `_dead_strip_note()`, above `const H := 88`:
+Inside `PileView`, above `const H := 88`:
 
 ```text
 52 IS THE CEILING, swept rather than guessed: the band is a fixed 170 shared
@@ -1058,7 +1058,7 @@ the column, because there is none here.
 pixels; the hand holding its own height is what ended the argument.
 ```
 
-Inside `_dead_strip_note()`, above `const CARD_W := W - 4`:
+Inside `PileView`, above `const CARD_W := W - 4`:
 
 ```text
 The card inside the column, which is NARROWER than the column.

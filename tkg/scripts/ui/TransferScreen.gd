@@ -514,6 +514,10 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 	elif Run.installed.has(m):
 		if Run.module_at(slot, index) == null:
 			m.mount = index
+	elif m == _lifted:
+		# The part is in the hand, not on the ship: the same rule ShipScreen uses.
+		if Run.fit_at_mount(m, slot, index, _lifted_mount) != Run.Refit.REFUSED:
+			_lifted = null
 	elif Run.cargo.has(m):
 		Run.take_from_hold(m)
 		if Run.module_at(slot, index) == null and Run.can_power(m):

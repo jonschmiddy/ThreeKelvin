@@ -4590,7 +4590,7 @@ func _paint_cx2() -> void:
 	var foot := a.end.y - 19
 	var tb := foot - 21
 	var ty := y0 + 24
-	var man_y := y0 + 19
+	var manifold_y := y0 + 19
 	var sw := (w - 8) / 4
 	var tw_ := clampi(sw - 22, 18, 40)
 	# the sign-in, or the notice, along the foot
@@ -4607,9 +4607,9 @@ func _paint_cx2() -> void:
 	# the feed line along the top, capped short of the fourth tank
 	var cap_x := x0 + 4 + sw * 3 - 4
 	var lx0 := x0 + 4 + sw / 2 - 4
-	g.draw_rect(Rect2(lx0, man_y, cap_x - lx0, 1), ink(0.35 * dim))
-	g.draw_rect(Rect2(cap_x, man_y - 2, 1, 5), ink(0.6 * dim))
-	g.draw_rect(Rect2(cap_x + 1, man_y - 2, 1, 5), ink(0.35 * dim))
+	g.draw_rect(Rect2(lx0, manifold_y, cap_x - lx0, 1), ink(0.35 * dim))
+	g.draw_rect(Rect2(cap_x, manifold_y - 2, 1, 5), ink(0.6 * dim))
+	g.draw_rect(Rect2(cap_x + 1, manifold_y - 2, 1, 5), ink(0.35 * dim))
 	for i in 4:
 		var cx := x0 + 4 + sw * i + sw / 2
 		var tx := cx - tw_ / 2
@@ -4637,7 +4637,7 @@ func _paint_cx2() -> void:
 			px(p.x, p.y, gl)
 		g.draw_rect(Rect2(tx - 2, tb + 2, tw_ + 4, 2), ink(0.4 * dim))
 		if not sealed:
-			g.draw_rect(Rect2(cx, man_y, 1, ty - man_y), ink(0.35 * dim))
+			g.draw_rect(Rect2(cx, manifold_y, 1, ty - manifold_y), ink(0.35 * dim))
 		# THE CULTURE: the liquid, its top moving a little, bubbles
 		g.draw_rect(Rect2(tx + 1, ly + 1, tw_ - 2, tb - ly - 1), tissue((0.07 if sealed else 0.11) * dim))
 		for xx in range(tx + 1, tx + tw_ - 1):

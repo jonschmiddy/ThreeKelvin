@@ -114,17 +114,6 @@ still looks like a shop with two parts in it because the empty boards are
 still there. Three of them, which is a shelf; nine was a wall.
 ```
 
-Above `static func boards_for(rows: Array) -> int:`:
-
-```text
-Two boards, or three when two will not hold this stock.
-
-TWO OR THREE SHELVES TALL. Twelve cells hold an ordinary station's three
-parts nearly always; a hub's five can need eighteen, so a hub gets the tall
-rack. Asked of `_pack`, the same packing `stock` lays out with, so the rack
-and what stands on it cannot disagree.
-```
-
 Inside `stock()`, above `var usable := h - float(CAP_H + 6 + PLINTH_H)`:
 
 ```text

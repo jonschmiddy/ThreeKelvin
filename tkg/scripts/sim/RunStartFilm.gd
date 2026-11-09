@@ -6,13 +6,6 @@ extends Node
 var _t := 0.0
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(k + "="):
-			return (a as String).substr(k.length() + 1)
-	return d
-
-
 func _process(delta: float) -> void:
 	_t += delta
 
@@ -44,9 +37,9 @@ func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	Router.animate_in_harness = true
-	var mk := StringName(_arg("manufacturer", "solari"))
+	var mk := StringName(Harness.arg("manufacturer", "solari"))
 	var wt: HullData.Weight = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
-		"heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)
+		"heavy": HullData.Weight.HEAVY}.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)
 	# the win that unlocks it, in the scratch record
 	var need := Unlocks.prereq(mk)
 	if need != &"":
@@ -54,7 +47,7 @@ func _run() -> void:
 		f.store_string(JSON.stringify({"version": RunHistory.VERSION, "runs": [
 			{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": String(need)}]}))
 		f.close()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(wt))
 	Router.show_chassis_select()
 	var cs := Router.current as ChassisSelect

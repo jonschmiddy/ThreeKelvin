@@ -137,9 +137,9 @@ func _run() -> void:
 		var tag := m.stun_tag_rect()
 		var slot_r := Rect2(Vector2.ZERO, m.size)
 		var fs := UITheme.FS_SMALL
-		var bars_bottom := float(fs) + 3.0 + EncounterView.ConvoySlot.BAR_H * 2.0 + 1.0
-		_ok("the tag is inside the label's %d px and the slot (%s in %s)" % [int(EncounterView.ConvoySlot.BAR_W), str(tag), str(slot_r)],
-			tag.end.x <= EncounterView.ConvoySlot.BAR_W and slot_r.encloses(tag))
+		var bars_bottom := float(fs) + 3.0 + ConvoySlot.BAR_H * 2.0 + 1.0
+		_ok("the tag is inside the label's %d px and the slot (%s in %s)" % [int(ConvoySlot.BAR_W), str(tag), str(slot_r)],
+			tag.end.x <= ConvoySlot.BAR_W and slot_r.encloses(tag))
 		_ok("and under the name and the bars (top %.0f, bars end %.0f)" % [tag.position.y, bars_bottom],
 			tag.position.y >= bars_bottom)
 	_box_test(v, "two in the column")
@@ -376,7 +376,7 @@ func _box_test(v: EncounterView, tag: String) -> void:
 	var mine: Array[Rect2] = v.player_boxes()
 	var col: Array[Rect2] = []
 	for s in v._made_convoy:
-		if is_instance_valid(s) and not (s as EncounterView.ConvoySlot).leaving():
+		if is_instance_valid(s) and not (s as ConvoySlot).leaving():
 			col.append((s as Control).get_global_rect())
 	var foes: Array = []
 	for s in v._made:
@@ -445,9 +445,9 @@ func _here(id: int, on: bool, at: int = -1) -> void:
 	Sig.party_changed.emit()
 
 
-func _slot_of(v: EncounterView, id: int) -> EncounterView.ConvoySlot:
+func _slot_of(v: EncounterView, id: int) -> ConvoySlot:
 	for s in v._made_convoy:
-		if is_instance_valid(s) and (s as EncounterView.ConvoySlot).peer == id:
+		if is_instance_valid(s) and (s as ConvoySlot).peer == id:
 			return s
 	return null
 

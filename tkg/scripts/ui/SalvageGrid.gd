@@ -103,7 +103,7 @@ func _apply_scan() -> void:
 			continue
 		if _scan < 0.0:
 			ic.visible = true
-			ic.modulate = Color.WHITE
+			ic.modulate = _rest_tint(ic)
 			continue
 		var found := ic.position.y < _scan
 		ic.visible = found
@@ -154,10 +154,16 @@ func _materialise(ic: ItemIcon, seed_at: int) -> void:
 	# AND THEN IT IS SIMPLY THERE. Snapping home rather than easing to it: the
 	# last thing a glitch should do is look like it was always going to land.
 	t.tween_callback(func() -> void:
-		ic.modulate = Color.WHITE
+		ic.modulate = _rest_tint(ic)
 		ic.position = home)
 ## A claimed bag row still takes space: a hole is information, a silently reflowed grid is not.
 var _spent: Dictionary = {}
+const SPENT_TINT := Color(0.42, 0.42, 0.48, 0.7)
+
+
+## Where an item's colour comes to rest: grey if somebody already took it, else white.
+func _rest_tint(ic: ItemIcon) -> Color:
+	return SPENT_TINT if _spent.has(_items.find(ic.held_item())) else Color.WHITE
 
 
 func _init() -> void:
@@ -262,7 +268,7 @@ func _rebuild() -> void:
 				icon.modulate = Color.WHITE
 		if _spent.has(i):
 			# Still drawn, still in its cell, plainly not yours. See `_spent`.
-			icon.modulate = Color(0.42, 0.42, 0.48, 0.7)
+			icon.modulate = SPENT_TINT
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			icon.tooltip_text = Widgets.tip("Already taken.")
 	queue_redraw()
@@ -305,12 +311,6 @@ func _draw() -> void:
 		Vector2(_beam.size) * float(CELL))
 	draw_rect(r, Color(c.r, c.g, c.b, 0.14), true)
 	draw_rect(r, Color(c.r, c.g, c.b, 0.7), false, 1.0)
-
-
-## Which entry an item is, so a claim can name it. Identity, not equality --
-## `n.bag` holds the very objects the icons were built from.
-func index_of(m: HoldItem) -> int:
-	return _items.find(m)
 
 
 ## Your things dropped here are jettison; ones already

@@ -13,10 +13,7 @@ func run(tree: SceneTree) -> void:
 	view.magnify(1, 0)
 	await tree.process_frame
 
-	var build := ShipBuild.local()
-	var fitted: Array = []
-	for p in build.parts:
-		fitted.append(p)
+	var fitted: Array = Run.installed.duplicate()
 	if fitted.is_empty():
 		print("shipdrift: SKIP -- the starter ship has no fitted modules")
 		tree.quit()
@@ -27,14 +24,15 @@ func run(tree: SceneTree) -> void:
 	var full: float = view.ship_offset_x()
 
 	# Take one module off and ask again. Nothing about the hull changed.
+	# From the run's own list and with the signal, as the view caches its build until told.
 	var removed: Variant = fitted[fitted.size() - 1]
-	build.parts.erase(removed)
-	view.refresh()
+	Run.installed.erase(removed)
+	Sig.ship_changed.emit()
 	await tree.process_frame
 	var stripped: float = view.ship_offset_x()
 
-	build.parts.append(removed)
-	view.refresh()
+	Run.installed.append(removed)
+	Sig.ship_changed.emit()
 	await tree.process_frame
 	var restored: float = view.ship_offset_x()
 	view.queue_free()
@@ -50,9 +48,8 @@ func run(tree: SceneTree) -> void:
 	var x0: float = screen._view.position.x
 	var p0: float = screen._pan.x
 
-	var b2 := ShipBuild.local()
-	var take: Variant = b2.parts[b2.parts.size() - 1]
-	b2.parts.erase(take)
+	Run.installed.erase(removed)
+	Sig.ship_changed.emit()
 	screen._sync_clip()
 	await tree.process_frame
 	var x1: float = screen._view.position.x

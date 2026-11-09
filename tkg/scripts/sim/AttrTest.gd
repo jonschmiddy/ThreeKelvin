@@ -111,12 +111,9 @@ func _augmented_shown() -> void:
 	print("  worst case: %s with %s" % [m.name, ", ".join(four.map(
 		func(a: AffixData) -> String: return a.name))])
 
-	var noop := func(_what: String, _m: ModuleData) -> void: pass
 	var boxes := {
 		"the hover popup": func(x: ModuleData) -> Control: return ModuleIcon.tip_for(x),
 		"the hull's tip": func(x: ModuleData) -> Control: return Widgets.module_tip_panel(x),
-		"the list row": func(x: ModuleData) -> Control: return Widgets.module_row(
-			x, Widgets.ModuleContext.HOLD, 10, noop, "", 20),
 	}
 	for what in boxes:
 		var make: Callable = boxes[what]

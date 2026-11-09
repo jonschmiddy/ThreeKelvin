@@ -1059,14 +1059,12 @@ static func things_here(n: MapGen.MapNode) -> Array:
 ## fight push rebuilds it only when that changes.
 var _join_shown := Router.JOIN_NONE
 
-## Parts are joined with a dot, as a player-facing line has no dash (audit, Oct 22).
+## Parts joined by a dot, never a dash (Oct 22); no "· SEE SECTOR", SCAN SECTOR is beside it (Nov 9).
 static func here_line(n: MapGen.MapNode) -> String:
 	var left := things_here(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
-	# No "· SEE SECTOR" tail: SCAN SECTOR sits beside it (Jon, Nov 9, stripped-down UI 1A).
 	var line := "NOTHING ELSE HERE"
 	if n.type == MapGen.NodeType.STATION:
-		# (the berth is at the station's own body: anywhere else in its system
-		# the way to it is the map -- dock:A)
+		# (the berth is at the station's own body; elsewhere the map leads to it -- dock:A)
 		line = "A STATION HERE" if Router.at_station(n) else "FLY TO THE STATION TO DOCK"
 	elif left > 0:
 		line = "%d THING%s HERE" % [left, "" if left == 1 else "S"]
@@ -1190,11 +1188,6 @@ func _open_loose() -> void:
 	else:
 		_open_sector_loot()
 
-
-## Reads the place, not the node type: "a hab ring, lights on" tells you where
-## you are in a way that "STATION" never will.
-func _dead_strip_note() -> void:
-	pass
 
 ## 18 is the measured chip height, not 16, and the row reserves it with or without chips.
 ## Why: docs/why/SectorScreen.md#pile-view
@@ -1661,7 +1654,7 @@ func _bag_here() -> int:
 
 func _refresh_salvage() -> void:
 	Widgets.clear(_salvage)
-	# One deck build for the whole list, handed to every row — see Widgets.module_row.
+	# One deck build for the whole list.
 	var deck := DeckBuilder.build().size()
 
 	var n: MapGen.MapNode = Run.node_at()
@@ -2266,7 +2259,7 @@ func ladder_anchor(other: int, seam: int, design: String) -> Vector2:
 	return _ladder_ship()
 
 
-func ladder_pre(target: int, seam: int, design: String) -> float:
+func ladder_pre(_target: int, seam: int, design: String) -> float:
 	if not ladder_ready():
 		return 0.0
 	if seam == 3 and design == "D":
@@ -3452,7 +3445,11 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 		on_go.call()
 		if not combat.finished:
 			_exit_cost = _cost_line(_exit_heat0, _exit_fuel0)
-		if combat.finished:
+		if combat.finished and not _queue.is_empty():
+			# A failed exit's turn ended the fight: it is shown first, then the ending.
+			_close_exit_ask()
+			_play_turn()
+		elif combat.finished:
 			# It worked: nothing swings, so nothing waits. A partial hail still
 			# costs heat, and the panel says so (audit item 11).
 			_end_hold()
@@ -3716,10 +3713,9 @@ func _on_fight_opened(_name: String) -> void:
 	_raise_band()
 
 
-## An ambush waits for the arrival to finish, then contacts fly in and the hand comes up.
-## Why: docs/why/SectorScreen.md#hand-raising
-func _hold_for_arrival() -> void:
-	_ambushed = true
+## The band's opening state, shared by the two ways it comes up: flags, shield, the quiet
+## drawer showing, the hand hidden and its buttons locked.
+func _band_shut_down() -> void:
 	_opening = true
 	_raising = true
 	_shield(true)
@@ -3729,9 +3725,21 @@ func _hold_for_arrival() -> void:
 	if _self_plate != null:
 		_self_plate.visible = true
 		_self_plate.modulate.a = 0.0
+	_lock_end_buttons()
+
+
+## END TURN off, and FLEE and HAIL refreshed to match.
+func _lock_end_buttons() -> void:
 	_end_button.disabled = true
 	_refresh_flee()
 	_refresh_hail()
+
+
+## An ambush waits for the arrival to finish, then contacts fly in and the hand comes up.
+## Why: docs/why/SectorScreen.md#hand-raising
+func _hold_for_arrival() -> void:
+	_ambushed = true
+	_band_shut_down()
 	# your ship is off screen until the approach brings it to the fight's place
 	_view.open_row()
 	_view.hold_entrances()
@@ -3745,20 +3753,9 @@ const LADDER_WAIT_FRAMES := 600
 func _raise_band() -> void:
 	if _hand_holder == null or _quiet_holder == null:
 		return
-	_opening = true
-	_raising = true
-	_shield(true)
 	# LOCAL's picture, as the frame it is swapped in on
-	_quiet_holder.visible = true
 	_quiet_wrap.modulate.a = 1.0
-	_hand_holder.visible = false
-	_hand_wrap.modulate.a = 0.0
-	if _self_plate != null:
-		_self_plate.visible = true
-		_self_plate.modulate.a = 0.0
-	_end_button.disabled = true
-	_refresh_flee()
-	_refresh_hail()
+	_band_shut_down()
 	# One frame laid out as LOCAL, so the band's height is measured rather than
 	# guessed (a wrapping line has no width to wrap to before then).
 	await get_tree().process_frame
@@ -3928,9 +3925,7 @@ func _begin_hold() -> void:
 	# The hand goes to the pile now; the next one is dealt when the turn has
 	# been shown.
 	_hand.sync([], func(_c): return false)
-	_end_button.disabled = true
-	_refresh_flee()
-	_refresh_hail()
+	_lock_end_buttons()
 
 
 func _end_hold() -> void:
@@ -4428,7 +4423,7 @@ func _fx_drop_player() -> void:
 	_ship_fx = null
 
 ## Effect moments are heard on the frame each picture acts; unsounded ones stay quiet.
-func _on_fx_moment(kind: StringName, s: float, len: float, mine: bool, creature: bool, from: HitLayers) -> void:
+func _on_fx_moment(kind: StringName, _s: float, _len: float, mine: bool, creature: bool, from: HitLayers) -> void:
 	# Nothing seen, nothing heard: open vents kept sputtering over a wreck.
 	# Why: docs/why/SectorScreen.md#hit-layers
 	if from != null and is_instance_valid(from) and not from.is_visible_in_tree():
@@ -4491,7 +4486,7 @@ func _on_death_moment(kind: StringName, _s: float, len: float, who: int, style: 
 		# your ship's breakup, the bursts before its style: a whine up into it
 		Audio.fx(&"charge_prelude", kind)
 		return
-	if style >= S.GLOWOUT and style <= S.PART:
+	if ShipBreakup.is_creature(style):
 		if kind == &"flare" or kind == &"pulse":
 			Audio.play_kill(who)
 		return
@@ -4894,6 +4889,7 @@ func _escape(who: int) -> void:
 ## An ending nobody pressed a button for, said in the same panel the exits use,
 ## over the scene rather than instead of it.
 func _end_panel(title: String, ink: Color, edge: Color, text: String) -> void:
+	_close_exit_ask()
 	_ask_exit(title, ink, edge, text, "", "", Callable())
 	_exit_ask_result(title, ink, text, func() -> void:
 		_close_exit_ask()

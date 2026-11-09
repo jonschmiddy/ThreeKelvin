@@ -5,29 +5,21 @@ extends Node
 ## Why: docs/why/PlayerDeathTest.md#player-death-test
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 const SEED := 6061
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 	Router.animate_in_harness = true
 	var a := await _die(true)
@@ -125,7 +117,7 @@ func _die(animated: bool) -> Dictionary:
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
 	var cb: Combat = null
 	for i in 240:
@@ -198,5 +190,5 @@ func _die(animated: bool) -> Dictionary:
 
 
 func _finish() -> void:
-	print("playerdeathtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("playerdeathtest")
+	_tree.quit(h.code())

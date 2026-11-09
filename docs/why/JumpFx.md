@@ -7,7 +7,7 @@ Above `const LIFE := 0.40`:
 ```text
 Twenty-one ways for a ship to not be here any more.
 
-The original was one: `EncounterView.JumpFlare`, a vertical column of light
+The original was one: `JumpFlare`, a vertical column of light
 that opens, flashes and shuts. It is still the first entry here and still the
 default. The rest exist because a jump is the most-repeated moment in the
 game after a card play, and the one worth being sure about.

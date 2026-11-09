@@ -13,6 +13,7 @@ set -u
 out="$1"; mkdir -p "$out"
 while read -r id name; do
   [ -z "${id:-}" ] && continue
+  name="${name##*/}"
   ok=""
   for _ in $(seq 1 40); do
     curl -sS -L -o "$out/$name.png" "https://api.pixellab.ai/mcp/images/$id/download"

@@ -4,7 +4,7 @@ extends Node
 ## Why: docs/why/ChartDeepTest.md#chart-deep-test
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 
 const SEEDS := [4242, 11, 777]
 ## Zoomed out (dots, under `0.78`) and zoomed in (glyphs).
@@ -12,24 +12,16 @@ const ZOOMS := [0.5, 1.6]
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("depthcap="):
 			Run.depth_step = int((a as String).substr(9))
@@ -38,8 +30,8 @@ func _run() -> void:
 		print("  [seed] %d" % sd)
 		await _galaxy(sd)
 	Run.depth_step = Run.DEPTH_STEP
-	print("chartdeeptest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("chartdeeptest")
+	_tree.quit(h.code())
 
 
 ## Park where the chart shows both too-deep stars and jumpable ones.
@@ -104,7 +96,7 @@ func _galaxy(sd: int) -> void:
 	_ok("too-deep stars and reachable stars charted", not deep.is_empty() and not reach.is_empty())
 
 	Router.show_starchart()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var ch := Router.current as StarchartScreen
 	if not _ok("the star chart is up", ch != null and ch._chart != null):
 		return
@@ -114,7 +106,7 @@ func _galaxy(sd: int) -> void:
 		mc.hovered = -1
 		mc.center_on_ship(z)
 		mc.queue_redraw()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		var tag := "zoomed out" if mc.zoom < 0.78 else "zoomed in"
 		_look(mc, tag, deep, reach, other)
 
@@ -123,11 +115,11 @@ func _galaxy(sd: int) -> void:
 		mc.hovered = d0
 		mc._hover_t = 1.0
 		mc.queue_redraw()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("%s: the too-deep star under the cursor is still dimmed" % tag, _dimmed(mc, d0))
 		ch._on_node_picked(d0)
 		mc.queue_redraw()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("%s: picked, still dimmed" % tag, _dimmed(mc, d0))
 	mc.hovered = -1
 
@@ -140,17 +132,17 @@ func _galaxy(sd: int) -> void:
 		tip_d[3].ends_with("TOO DEEP"))
 	_ok("a reachable star's does not (\"%s\")" % tip_r[3], not tip_r[3].contains("TOO DEEP"))
 	ch._on_node_picked(deep[0])
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("picked, JUMP reads TOO DEEP and is off (\"%s\")" % ch._jump.text,
 		ch._jump.text == "TOO DEEP" and ch._jump.disabled)
 	ch._on_node_picked(reach[0])
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("a reachable star picked, JUMP does not (\"%s\")" % ch._jump.text,
 		ch._jump.text != "TOO DEEP")
 
 
 ## What the chart drew, star by star, against the rule.
-func _look(mc: StarchartScreen.MapChart, tag: String, deep: Array[int], reach: Array[int],
+func _look(mc: MapChart, tag: String, deep: Array[int], reach: Array[int],
 		other: Array[int]) -> void:
 	var bad: Array[String] = []
 	for i in deep:
@@ -189,7 +181,7 @@ func _look(mc: StarchartScreen.MapChart, tag: String, deep: Array[int], reach: A
 
 ## Drawn dimmed: grey, and half its own star's value or less; zoomed in, every
 ## ink of its glyph grey too (the lights and the glass included).
-func _dimmed(mc: StarchartScreen.MapChart, i: int) -> bool:
+func _dimmed(mc: MapChart, i: int) -> bool:
 	if not mc.drawn_ink.has(i) or not mc.drawn_dim.has(i):
 		return false
 	var ink: Color = mc.drawn_ink[i]

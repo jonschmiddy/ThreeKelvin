@@ -1,0 +1,1 @@
+- **Changed** — internal only, nothing in the game: the test tools share one verdict, one command-line reader and one set of node finders in `Harness`, and the dead helpers in them are gone.

@@ -256,6 +256,21 @@ static func flat(bg: Color, border: Color, radius: int = 0,
 	sb.content_margin_right = pad_h
 	return sb
 
+## The game's chamfered plate: top-left and bottom-right corners cut, square on the others.
+static func chamfer(bg: Color, border: Color, pad_v: int, pad_h: int, radius: int = 10) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(1)
+	sb.corner_radius_top_left = radius
+	sb.corner_radius_bottom_right = radius
+	sb.corner_detail = 1
+	sb.content_margin_top = pad_v
+	sb.content_margin_bottom = pad_v
+	sb.content_margin_left = pad_h
+	sb.content_margin_right = pad_h
+	return sb
+
 ## The vertical scroll bar's drawn width (a 3 px pad either side of nothing) and
 ## the clear gutter on its left; a ScrollContainer reserves both.
 const BAR_PAD := 3

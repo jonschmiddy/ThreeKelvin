@@ -3,20 +3,11 @@ extends Node
 ## Every clock is the game's, so the movie writer's frames are true speed.
 ## Why: docs/why/AshFilm.md#ash-film
 
-var _args: PackedStringArray
 var _tree: SceneTree
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _wait(s: float) -> void:
@@ -65,7 +56,7 @@ func _run() -> void:
 	Ash.forced = true
 	Ash.reload()
 	Ash.set_on(true)
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.hand_size_override = 5
 	# HER VOICE ON EVERY LINE: the lines with no take yet (`AshLines.VOICE`)
@@ -88,7 +79,7 @@ func _run() -> void:
 	await _wait(1.5)
 
 	# A FIGHT, the hull already worn
-	Run.hp = int(round(Run.max_hp() * float(_arg("hull", "0.32"))))
+	Run.hp = int(round(Run.max_hp() * float(Harness.arg("hull", "0.32"))))
 	Sig.resources_changed.emit()
 	Run.node_at().danger = maxi(Run.node_at().danger, 3)
 	_mark("fight")

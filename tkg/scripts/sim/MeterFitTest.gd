@@ -8,13 +8,12 @@ const MORE := ["ship", "cards", "modules"]
 ## The glyph cache pads every glyph's rect by a pixel, so the ink is the rect less this.
 const GLYPH_MARGIN := 1.0
 
-var _fails := 0
+var harness := Harness.new()
 
 
 func _ok(what: String, good: bool) -> void:
 	if not good:
-		_fails += 1
-		print("  FAIL %s" % what)
+		harness._fail(what)
 
 
 func _run() -> void:
@@ -23,10 +22,10 @@ func _run() -> void:
 	tree.root.gui_disable_input = true
 	if GameShell.instance != null:
 		GameShell.instance.view.gui_disable_input = true
-	var outd := _arg("out")
+	var outd := Harness.arg("out")
 	if outd != "":
 		DirAccess.make_dir_recursive_absolute(outd)
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_pick_places()
 	DisplaySettings.set_fps_meter(true)
@@ -40,7 +39,7 @@ func _run() -> void:
 	var all: Array = ALL_SCREENS.duplicate()
 	all.erase("map2")
 	all.append_array(MORE)
-	var screens := _arg("screens", ",".join(all)).split(",", false)
+	var screens := Harness.arg("screens", ",".join(all)).split(",", false)
 	var seen := 0
 	for sc in screens:
 		if not await _go(sc):
@@ -59,8 +58,8 @@ func _run() -> void:
 	_ok("every screen checked (%d of %d)" % [seen, screens.size()], seen == screens.size())
 	_leave()
 	_restore_galaxy()
-	print("meterfittest: %s" % ("PASS" if _fails == 0 else "FAIL (%d)" % _fails))
-	tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("meterfittest")
+	tree.quit(harness.code())
 
 
 func _go(sc: String) -> bool:

@@ -16,13 +16,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 class StarSky extends Control:
 	var stars: Array = []
 	func _ready() -> void:
@@ -78,16 +71,16 @@ func _player_image() -> Array:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	_dir = _arg("out")
+	_dir = Harness.arg("out")
 	DirAccess.make_dir_recursive_absolute(_dir)
 	var layer := CanvasLayer.new()
 	layer.layer = 120
 	GameShell.input_target(tree).add_child(layer)
-	var cust := _boss_image(_arg("custodian", "res://art/sprites/enemies/custodian_tetra.png"))
-	var hell := _boss_image(_arg("hellbender", "res://art/sprites/enemies/hellbender_helix.png"))
+	var cust := _boss_image(Harness.arg("custodian", "res://art/sprites/enemies/custodian_t1_grown.png"))
+	var hell := _boss_image(Harness.arg("hellbender", "res://art/sprites/enemies/hellbender_helix.png"))
 	var player: Array = await _player_image()
 	var list: Array[int] = []
-	var arg := _arg("styles", "")
+	var arg := Harness.arg("styles", "")
 	if arg == "":
 		for s in range(ShipBreakup.Style.CUST_CASCADE, ShipBreakup.Style.CUST_SPLIT + 1):
 			list.append(s)

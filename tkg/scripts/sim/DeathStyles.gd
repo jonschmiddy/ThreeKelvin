@@ -15,13 +15,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 class StarSky extends Control:
 	var stars: Array = []
 	func _ready() -> void:
@@ -38,7 +31,7 @@ class StarSky extends Control:
 
 func _ship_image(kind: String) -> Array:
 	if kind == "sprite":
-		var tex: Texture2D = load("res://art/subjects/ships/%s.png" % _arg("sprite", "ship_armedtrader"))
+		var tex: Texture2D = load("res://art/subjects/ships/%s.png" % Harness.arg("sprite", "ship_armedtrader"))
 		var src := tex.get_image()
 		if src.is_compressed():
 			src.decompress()
@@ -69,7 +62,7 @@ func _label(text: String, at: Vector2) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	_dir = _arg("out")
+	_dir = Harness.arg("out")
 	DirAccess.make_dir_recursive_absolute(_dir)
 	var layer := CanvasLayer.new()
 	layer.layer = 120
@@ -83,20 +76,20 @@ func _run() -> void:
 	_stage.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.add_child(_stage)
 	var boss := "boss" in _args
-	var frames := int(_arg("frames", "120" if boss else "84"))
+	var frames := int(Harness.arg("frames", "120" if boss else "84"))
 	if boss:
-		var pic := _ship_image(_arg("ship", "custodian"))
+		var pic := _ship_image(Harness.arg("ship", "custodian"))
 		var b := ShipBreakup.new()
 		b.size = Vector2(960, 540)
 		b.auto = false
-		b.setup(pic[0], pic[1], Vector2(360, 200), int(_arg("style", "0")), 4242, true)
+		b.setup(pic[0], pic[1], Vector2(360, 200), int(Harness.arg("style", "0")), 4242, true)
 		_stage.add_child(b)
 		_breaks.append(b)
-		_label("THE CUSTODIAN - %s, boss version" % ShipBreakup.NAMES[int(_arg("style", "0"))], Vector2(24, 20))
+		_label("THE CUSTODIAN - %s, boss version" % ShipBreakup.NAMES[int(Harness.arg("style", "0"))], Vector2(24, 20))
 		frames = int(ceil((b.duration + 0.9) * 30.0)) + 15
 	else:
 		var names := ["A  SNAP (fast break-apart)", "B  BURN (slower burning tumble)", "C  IMPLODE (cracked light)"]
-		var ships := _arg("ships", "cutter,sprite").split(",")
+		var ships := Harness.arg("ships", "cutter,sprite").split(",")
 		for col in 3:
 			_label(names[col], Vector2(col * 320 + 18, 14))
 		for row in ships.size():
@@ -162,7 +155,7 @@ static func style_id(st: int) -> String:
 func _run_each(layer: CanvasLayer) -> void:
 	var tree := get_tree()
 	var list: Array[int] = []
-	var arg := _arg("styles", "")
+	var arg := Harness.arg("styles", "")
 	if arg == "":
 		for i in ShipBreakup.Style.size():
 			list.append(i)
@@ -171,7 +164,7 @@ func _run_each(layer: CanvasLayer) -> void:
 			list.append(int(s))
 	# `eachships=a,b`: the two ship rows (default the Cutter and a pool ship)
 	var ships := []
-	for k in _arg("eachships", "cutter,sprite").split(","):
+	for k in Harness.arg("eachships", "cutter,sprite").split(","):
 		ships.append(_ship_image(k))
 	var beasts := [_creature_image("fan", 0.7), _creature_image("lev_spine", 1.0)]
 	for st in list:

@@ -192,6 +192,9 @@ func _ready() -> void:
 		_cards_played += 1
 		_sync_turn(Router.combat)
 		_turn_cards += 1)
+	# A new run, a refit or a scan changes what the dock search sees at the same place and tank.
+	for s: Signal in [Sig.run_started, Sig.ship_changed, Sig.map_changed]:
+		s.connect(func() -> void: _dock_key = Vector2i(-1, -1))
 
 
 ## Graded with `tools/prose_grade.py`: grade 7.0 or

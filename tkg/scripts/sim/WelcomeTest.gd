@@ -4,38 +4,30 @@ extends Node
 ## Why: docs/why/WelcomeTest.md#welcome-test
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	print("  [settings] %s" % DisplaySettings.hints_path())
 	_ok("a fresh profile has not seen the note", not WelcomePopup.seen())
 
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var w := _welcome()
 	if not _ok("the title opens the welcome note", w != null and w.is_visible_in_tree()):
 		return _finish()
 	_check_letter(w)
-	var start := _button(w, WelcomePopup.FIRST_BUTTON)
+	var start := Harness.button_with_text(w, WelcomePopup.FIRST_BUTTON)
 	_ok("its one button reads START YOUR JOURNEY on a first launch",
 		start != null and _count_buttons(w) == 1)
 	if start != null:
@@ -48,26 +40,26 @@ func _run() -> void:
 
 	# quit with it still up: the next title shows it again
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	w = _welcome()
 	_ok("a title opened again before it was closed shows it again", w != null)
 	if w == null:
 		return _finish()
-	_button(w, WelcomePopup.FIRST_BUTTON).pressed.emit()
-	await _frames(3)
+	Harness.button_with_text(w, WelcomePopup.FIRST_BUTTON).pressed.emit()
+	await Harness.frames(_tree, 3)
 	_ok("START YOUR JOURNEY shuts it", _welcome() == null)
 	_ok("and marks it seen", WelcomePopup.seen())
 
 	# the second launch
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("the second launch does not open it", _welcome() == null)
 
 	# MESSAGE FROM JON, above QUIT
 	var ls := Router.current as LauncherScreen
-	var mfj := _button(ls, "MESSAGE FROM JON")
-	var quit := _button(ls, "QUIT")
-	var settings := _button(ls, "SETTINGS")
+	var mfj := Harness.button_with_text(ls, "MESSAGE FROM JON")
+	var quit := Harness.button_with_text(ls, "QUIT")
+	var settings := Harness.button_with_text(ls, "SETTINGS")
 	if _ok("the title menu has MESSAGE FROM JON", mfj != null and quit != null):
 		_ok("directly above QUIT", mfj.get_parent() == quit.get_parent()
 			and mfj.get_index() == quit.get_index() - 1
@@ -79,23 +71,23 @@ func _run() -> void:
 		_ok("pressable and in the focus walk", not mfj.disabled
 			and mfj.focus_mode != Control.FOCUS_NONE and mfj.mouse_filter == Control.MOUSE_FILTER_STOP)
 		mfj.pressed.emit()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		w = _welcome()
 		_ok("pressing it opens the note again", w != null and w.is_visible_in_tree())
 		if w != null:
 			_check_letter(w)
-			_ok("its button reads CLOSE from the menu", _button(w, WelcomePopup.AGAIN_BUTTON) != null
-				and _button(w, WelcomePopup.FIRST_BUTTON) == null and _count_buttons(w) == 1)
+			_ok("its button reads CLOSE from the menu", Harness.button_with_text(w, WelcomePopup.AGAIN_BUTTON) != null
+				and Harness.button_with_text(w, WelcomePopup.FIRST_BUTTON) == null and _count_buttons(w) == 1)
 		await _press(KEY_ESCAPE)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("Escape shuts it", _welcome() == null)
 		ls.open_welcome()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		w = _welcome()
 		var reopened := w != null
 		if reopened:
-			_button(w, WelcomePopup.AGAIN_BUTTON).pressed.emit()
-			await _frames(3)
+			Harness.button_with_text(w, WelcomePopup.AGAIN_BUTTON).pressed.emit()
+			await Harness.frames(_tree, 3)
 		_ok("and so does CLOSE", reopened and _welcome() == null)
 		_ok("and the title is still up", Router.current is LauncherScreen)
 
@@ -106,27 +98,27 @@ func _run() -> void:
 	SaveGame.clear()
 	RunHistory.clear()
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var w2 := _welcome()
 	if w2 != null:
-		_button(w2, WelcomePopup.FIRST_BUTTON).pressed.emit()
-		await _frames(3)
+		Harness.button_with_text(w2, WelcomePopup.FIRST_BUTTON).pressed.emit()
+		await Harness.frames(_tree, 3)
 	_ok("a fresh profile: no save, no flight record", LauncherScreen.fresh_profile())
-	var nr := _button(Router.current, "NEW RUN")
+	var nr := Harness.button_with_text(Router.current, "NEW RUN")
 	if _ok("the title has NEW RUN", nr != null):
 		nr.pressed.emit()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("NEW RUN on a fresh profile opens the hull pick, with no seed panel",
-			Router.current is ChassisSelect and _find(_tree.root, func(n: Node) -> bool:
+			Router.current is ChassisSelect and Harness.first(_tree.root, func(n: Node) -> bool:
 				return n is Label and (n as Label).text == "LAUNCH A RUN" and (n as Label).is_visible_in_tree()) == null)
 		# LAUNCH: LOCAL, no tour, no note
-		var go := _button(Router.current, "LAUNCH")
+		var go := Harness.button_with_text(Router.current, "LAUNCH")
 		if _ok("the hull pick has LAUNCH", go != null):
 			go.pressed.emit()
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			_ok("LAUNCH puts you on LOCAL", Router.current is SectorScreen)
 			_ok("with no tour and no note over it: nothing at the root of the picture but the screens",
-				_find(_tree.root, func(n: Node) -> bool:
+				Harness.first(_tree.root, func(n: Node) -> bool:
 					return n is WelcomePopup or (n.get_script() != null
 						and String((n.get_script() as Script).get_global_name()) == "FirstRunIntro")) == null)
 			var g: GoalLine = Router.hud.goal if Router.hud != null else null
@@ -136,31 +128,31 @@ func _run() -> void:
 	SaveGame.clear()
 	RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("a flight record, no save: not fresh", not LauncherScreen.fresh_profile() and not SaveGame.has_save())
 	LauncherScreen.next_seed = 4242
-	nr = _button(Router.current, "NEW RUN")
+	nr = Harness.button_with_text(Router.current, "NEW RUN")
 	if nr != null:
 		nr.pressed.emit()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("NEW RUN with no save opens the hull pick at once, no LAUNCH A RUN panel",
-			Router.current is ChassisSelect and _find(_tree.root, func(n: Node) -> bool:
+			Router.current is ChassisSelect and Harness.first(_tree.root, func(n: Node) -> bool:
 				return n is Label and ((n as Label).text == "LAUNCH A RUN" or (n as Label).text == "START OVER?") and (n as Label).is_visible_in_tree()) == null)
 		_ok("and flies the seed from Settings (%d), once (left %d)" % [Run.galaxy_seed, LauncherScreen.next_seed],
 			Run.galaxy_seed == 4242 and LauncherScreen.next_seed == 0)
 	# with a save: a short confirm stays, as starting over abandons that run
 	SaveGame.save()
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("a save exists: not a fresh profile", SaveGame.has_save() and not LauncherScreen.fresh_profile())
-	nr = _button(Router.current, "NEW RUN")
+	nr = Harness.button_with_text(Router.current, "NEW RUN")
 	if nr != null:
 		nr.pressed.emit()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("NEW RUN with a save asks START OVER?, with no seed field", Router.current is LauncherScreen
-			and _find(Router.current, func(n: Node) -> bool:
+			and Harness.first(Router.current, func(n: Node) -> bool:
 				return n is Label and (n as Label).text == "START OVER?" and (n as Label).is_visible_in_tree()) != null
-			and _find(Router.current, func(n: Node) -> bool: return n is LineEdit and (n as LineEdit).is_visible_in_tree()) == null)
+			and Harness.first(Router.current, func(n: Node) -> bool: return n is LineEdit and (n as LineEdit).is_visible_in_tree()) == null)
 	SaveGame.clear()
 	_finish()
 
@@ -203,11 +195,11 @@ func _check_new_things() -> void:
 	# THE BUTTON, with its mark on a profile that never opened the page
 	NewThings.forget()
 	Router.show_launcher()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var ls := Router.current as LauncherScreen
-	var nt := _button(ls, "NEW THINGS")
-	var mfj := _button(ls, "MESSAGE FROM JON")
-	var settings := _button(ls, "SETTINGS")
+	var nt := Harness.button_with_text(ls, "NEW THINGS")
+	var mfj := Harness.button_with_text(ls, "MESSAGE FROM JON")
+	var settings := Harness.button_with_text(ls, "SETTINGS")
 	if not _ok("the title menu has NEW THINGS", nt != null and mfj != null):
 		return
 	_ok("  between SETTINGS and MESSAGE FROM JON", nt.get_parent() == mfj.get_parent()
@@ -240,8 +232,8 @@ func _check_new_things() -> void:
 	# an older version seen still marks the newest
 	NewThings.mark_seen("0.4.0-alpha.1")
 	Router.show_launcher()
-	await _frames(4)
-	nt = _button(Router.current, "NEW THINGS")
+	await Harness.frames(_tree, 4)
+	nt = Harness.button_with_text(Router.current, "NEW THINGS")
 	_ok("  a profile that saw an older build's notes sees the mark", nt != null
 		and _mark(nt) != null and _mark(nt).is_visible_in_tree())
 	# NEXT's key carries its count of lines, so a line added marks it again
@@ -256,7 +248,7 @@ func _check_new_things() -> void:
 
 	# THE PAGE
 	nt.pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var pop := _new_things()
 	if not _ok("pressing NEW THINGS opens its page", pop != null and pop.is_visible_in_tree()):
 		return
@@ -267,14 +259,14 @@ func _check_new_things() -> void:
 		loaded == OK and str(cfg.get_value("news", "seen", "")) == NewThings.latest_key()
 		and not NewThings.unseen())
 	var card: NoteCard = pop.get("card")
-	var title := _find(pop, func(n: Node) -> bool: return n.name == &"NoteTitle") as Label
+	var title := Harness.first(pop, func(n: Node) -> bool: return n.name == &"NoteTitle") as Label
 	_ok("  headed NEW THINGS in the note's own case", card != null and title != null
 		and title.text == "NEW THINGS")
 	var screen := (Router.current as Control).get_global_rect()
 	var panel := card.panel_rect()
 	print("    screen %s, panel %s, scrolls %s" % [screen, panel, card.note_scrolls()])
 	_ok("  the panel is inside the screen", screen.grow(0.5).encloses(panel))
-	var close := _button(pop, "CLOSE")
+	var close := Harness.button_with_text(pop, "CLOSE")
 	_ok("  one button, CLOSE, on the amber plate", close != null and _count_buttons(pop) == 1
 		and close.get_theme_stylebox("normal") is StyleBoxTexture)
 
@@ -334,34 +326,34 @@ func _check_new_things() -> void:
 	var shown := true
 	for c in boxes:
 		sc.ensure_control_visible(c as Control)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var r := (c as Control).get_global_rect()
 		shown = shown and sc.get_global_rect().grow(0.5).encloses(r) and panel.grow(0.5).encloses(r)
 	_ok("  scrolled to, every heading and line shows whole inside the page", shown)
 	sc.scroll_vertical = 0
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("  the page and CLOSE do not overlap the list", close != null
 		and not sc.get_global_rect().intersects(close.get_global_rect())
 		and panel.encloses(close.get_global_rect()))
 	await _press(KEY_DOWN)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var after_down := sc.scroll_vertical
 	await _press(KEY_PAGEDOWN)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var after_page := sc.scroll_vertical
 	# from the middle: Up, then Page Up (after_page is past one Down step, so
 	# Up leaves it above 0 and Page Up still has room to move)
 	await _press(KEY_UP)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var after_up := sc.scroll_vertical
 	await _press(KEY_PAGEUP)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var after_pgup := sc.scroll_vertical
 	await _press(KEY_END)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var at_end := sc.scroll_vertical
 	await _press(KEY_HOME)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var most := int(sc.get_v_scroll_bar().max_value - sc.get_v_scroll_bar().page)
 	print("    keys: down %d, page down %d, up %d, page up %d, end %d (of %d), home %d" % [
 		after_down, after_page, after_up, after_pgup, at_end, most, sc.scroll_vertical])
@@ -375,28 +367,28 @@ func _check_new_things() -> void:
 	wheel.position = sc.get_global_rect().get_center()
 	wheel.global_position = wheel.position
 	sc.scroll_vertical = 0
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	get_viewport().push_input(wheel, true)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("  the mouse wheel scrolls it (%d)" % sc.scroll_vertical, sc.scroll_vertical > 0)
 
 	await _press(KEY_ESCAPE)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("  Escape shuts it", _new_things() == null and Router.current is LauncherScreen)
 	# read back: the next title has no mark
 	Router.show_launcher()
-	await _frames(4)
-	nt = _button(Router.current, "NEW THINGS")
+	await Harness.frames(_tree, 4)
+	nt = Harness.button_with_text(Router.current, "NEW THINGS")
 	_ok("  the next title, read from the file: no mark", nt != null and _mark(nt) != null
 		and not _mark(nt).is_visible_in_tree())
 	nt.pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	pop = _new_things()
-	var cl := _button(pop, "CLOSE") if pop != null else null
+	var cl := Harness.button_with_text(pop, "CLOSE") if pop != null else null
 	var had := cl != null
 	if had:
 		cl.pressed.emit()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 	_ok("  CLOSE shuts it too", had and _new_things() == null)
 
 
@@ -425,7 +417,7 @@ func _menu_buttons(menu: Node) -> Array:
 
 
 func _new_things() -> Control:
-	return _find(Router.current, func(n: Node) -> bool:
+	return Harness.first(Router.current, func(n: Node) -> bool:
 		return n.name == &"NewThingsPopup" and not n.is_queued_for_deletion()) as Control
 
 
@@ -442,12 +434,12 @@ func _all(root: Node, matches: Callable) -> Array:
 ## the "<3" a pixel heart before JON, the heading, and all of it on screen.
 func _check_letter(w: WelcomePopup) -> void:
 	var card := w.card
-	var title := _find(w, func(n: Node) -> bool: return n.name == &"NoteTitle") as Label
+	var title := Harness.first(w, func(n: Node) -> bool: return n.name == &"NoteTitle") as Label
 	_ok("  headed %s" % WelcomePopup.TITLE, title != null and title.text == WelcomePopup.TITLE)
 	_ok("  Jon's note, word for word", card.full_text == AlphaNotes.ALPHA_WELCOME
 		and card.body.text + "\n\n<3\n\nJon" == AlphaNotes.ALPHA_WELCOME)
-	var heart := _find(w, func(n: Node) -> bool: return n.name == &"Heart") as TextureRect
-	var sig := _find(w, func(n: Node) -> bool: return n.name == &"Signature") as Label
+	var heart := Harness.first(w, func(n: Node) -> bool: return n.name == &"Heart") as TextureRect
+	var sig := Harness.first(w, func(n: Node) -> bool: return n.name == &"Signature") as Label
 	_ok("  signed with a pixel heart, then JON, right-aligned", heart != null and sig != null
 		and sig.text == "JON" and heart.get_global_rect().end.x <= sig.get_global_rect().position.x
 		and sig.get_global_rect().end.x >= card.body.get_global_rect().end.x - 2.0)
@@ -465,13 +457,8 @@ func _check_letter(w: WelcomePopup) -> void:
 
 
 func _welcome() -> WelcomePopup:
-	return _find(Router.current, func(n: Node) -> bool:
+	return Harness.first(Router.current, func(n: Node) -> bool:
 		return n is WelcomePopup and not n.is_queued_for_deletion()) as WelcomePopup
-
-
-func _button(root: Node, text: String) -> Button:
-	return _find(root, func(n: Node) -> bool:
-		return n is Button and (n as Button).text == text and (n as Button).is_visible_in_tree()) as Button
 
 
 func _count_buttons(root: Node) -> int:
@@ -481,18 +468,6 @@ func _count_buttons(root: Node) -> int:
 	return n
 
 
-func _find(root: Node, matches: Callable) -> Node:
-	if root == null:
-		return null
-	if matches.call(root):
-		return root
-	for c in root.get_children():
-		var f := _find(c, matches)
-		if f != null:
-			return f
-	return null
-
-
 func _press(code: Key) -> void:
 	for down in [true, false]:
 		var e := InputEventKey.new()
@@ -500,9 +475,9 @@ func _press(code: Key) -> void:
 		e.physical_keycode = code
 		e.pressed = down
 		Input.parse_input_event(e)
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 
 
 func _finish() -> void:
-	print("welcometest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("welcometest")
+	_tree.quit(h.code())

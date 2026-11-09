@@ -1,41 +1,5 @@
 The reasoning behind `tkg/scripts/ui/Widgets.gd`, moved out of the code verbatim; each heading is referenced from the code by a `Why:` line.
 
-## Row builders
-
-Above `static func item_row(thing: Variant, ctx: ModuleContext, price: int,`:
-
-```text
-A module entry: name, rarity, manufacturer, rolled affixes, and its cards.
-
-`note` is for a row whose action has already been taken by somebody else. It
-replaces the button rather than removing it, because a row that loses its
-button changes height and the list reflows under the cursor — and because
-"MERCER TOOK THIS" is the single most interesting thing the bag has to say.
-Empty for every other context, which is all of them but BAG.
-A row for whatever is in the hold, whichever kind it is.
-
-THE ONE PLACE THIS IS DECIDED. Three screens iterate `Run.cargo` and build a
-row per entry, and every one of them called `module_row` directly -- which was
-correct right up until cargo held two kinds of thing, and then failed at the
-parameter type on the first crate. A private branch on each screen would be
-the same bug waiting on the fourth.
-```
-
-Above `static func material_row(m: MaterialData, ctx: ModuleContext, price: int,`:
-
-```text
-One material, as a row.
-
-NOT a branch inside `module_row`. That function reads a rarity, a
-manufacturer, a slot, an affix list and a card count -- five things a crate of
-ore does not have and never will -- so folding materials into it would be
-threading nulls through every one of them to save a panel.
-
-What it shares is the SHAPE: same stylebox, same name-and-grade top line, same
-button strip on the right, so a bag holding a gun and a crate reads as one
-list rather than as two.
-```
-
 ## Tooltips
 
 Above `const TIP_W := 168`:
@@ -95,39 +59,6 @@ anything else in the air. The one shape for this refusal: a typed assignment
 straight off the dictionary RAISES for a non-module payload -- `as` is the
 cast that answers null -- and the drop targets had grown two different
 idioms for the same question, one of them the raising kind.
-```
-
-## Module row
-
-Inside `module_row()`, above `var counts: Dictionary = {}`:
-
-```text
-COUNTED, NOT REPEATED. `resolved_cards()` hands back one entry per copy the
-Grant Count Law awards, and this printed a hardcoded "×1" for each of them
--- so a module granting two of one card listed that card twice, identically,
-directly under a header already saying "grants 2". Three statements of the
-same fact, and the only one that was wrong was the ×1.
-
-Grouped on what the row actually SHOWS rather than on card identity: two
-cards that print the same line are the same line, and a player counting
-copies on a shelf cannot see any difference the display does not draw.
-```
-
-Inside `module_row()`, above `var here := deck_size if deck_size >= 0 else DeckBuilder.build().size()`:
-
-```text
-Install-time deck delta, at the point of choice.
-
-Deck size is a managed resource and this is the only moment the player can
-act on it, so the number moves where they can see it move — the same
-philosophy as printing the odds on an event option before they commit.
-Without it the Grant Count Law is invisible: you would feel a thickening
-deck three fights later and never know which pickup did it.
-Passed in, not rebuilt. DeckBuilder.build() deep-duplicates every card on
-every installed module and allocates two Snap Shots plus one per Dross —
-and this ran ONCE PER ROW, so a station with twenty rows on screen did
-twenty full deck builds to answer the same question twenty times. The
-callers below already loop, so they compute it once and hand it down.
 ```
 
 ## Layout helpers
@@ -496,8 +427,8 @@ Above `const AUGMENTED_TEXT := "AUGMENTED. The Lab can't add to it again."`:
 
 ```text
 WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover
-popup (`module_readout`), the hull's tip (`module_tip_panel`) and the old
-list row (`module_row`). One string, so the three cannot drift.
+popup (`module_readout`) and the hull's tip (`module_tip_panel`). One
+string, so the two cannot drift.
 
 It names the rule and not the affix. The mark is a bool (ModuleData.augmented),
 so which line the Lab wrote is not known, and the part reads it in the affix

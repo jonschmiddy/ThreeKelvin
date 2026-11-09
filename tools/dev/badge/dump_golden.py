@@ -8,7 +8,7 @@
         (the same names and manifest), for tools/dev/badge/diff_frames.py
 
 The source is badge 9b, "The eye opens, loud" (eye-1b), approved by Jon on Nov 4: core.js and
-fin_eye.js, copied here verbatim from tk-scratch/custodian-badge/web. dump.html draws it on a
+fin_eye.js, which live in this folder now. dump.html draws it on a
 transparent 40 x 15 canvas at x 0, cy 7 with the game's own Silkscreen file.
 
 Chrome draws canvas text with antialiasing; Silkscreen sits on a 125-unit grid (1 px at 8 px), so

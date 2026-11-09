@@ -42,18 +42,21 @@
 # summary lists every FAIL and the time each unit took.
 #
 # ADDING A STEP: write a `unit_<name>() { ... }` function anywhere among the
-# others; it runs in the pool, in its file position for output. The function's
-# name is all the scheduler needs. A step must not depend on how fast the
-# machine is (tkg/CLAUDE.md), so do not add to SOLO_UNITS, which holds older
-# steps that still time something. If it is long, give it a weight in
-# `gate_weight` so it starts early. A unit sees only its own variables: anything two units both need is
-# set once at the top of the file, before the units.
+# others (a sheet is one `gate_sheet` call); it runs in the pool, in its file
+# position for output. The function's name is all the scheduler needs. A step
+# must not depend on how fast the machine is (tkg/CLAUDE.md), so do not add to
+# SOLO_UNITS, which holds older steps that still time something. If it is long,
+# give it a weight in `gate_weight` so it starts early. A unit sees only its own
+# variables: anything two units both need is set once at the top of the file,
+# before the units.
 
 set -uo pipefail
 
 GODOT="${GODOT:-godot}"
 PROJECT="${PROJECT:-tkg}"
 SIM_RUNS="${SIM_RUNS:-40}"
+# Digits only: it goes into shell arithmetic below.
+case "$SIM_RUNS" in ''|*[!0-9]*) echo "SIM_RUNS must be a whole number, not '$SIM_RUNS'" >&2; exit 2 ;; esac
 # How many units FlightTest and SolveTest run split into: as many as there are
 # `unit_flighttest_<K>` and `unit_solvetest_<K>` functions (checked below).
 # SolveTest 8 since the x12 flights (Jon, Nov 8, "split: yes"): its 4 shards
@@ -97,7 +100,7 @@ ERROR_PATTERNS='SCRIPT ERROR|Parse Error|Compile Error|^ERROR:|^USER ERROR:'
 ALLOW='^$'
 # PER-STEP, NOT GLOBAL. Set `ALLOW_EXTRA` on the run_godot line that needs it:
 #
-#   ALLOW_EXTRA='...' run_godot stowtest 120 ...
+#   ALLOW_EXTRA="$GATE_LEAKS" gate_sheet stowtest 120 ...
 #
 # The first version of this put the exit-time leak messages straight into ALLOW,
 # which is global — so a genuine leak introduced in `boot`, `savetest` or the
@@ -167,6 +170,35 @@ run_godot() {
 	ok "$name"
 	return 0
 }
+
+# The exit-time reports Godot prints after a headless run that built a Control
+# tree. Passed per call, as `ALLOW_EXTRA="$GATE_LEAKS" gate_sheet ...`, so it ends there.
+GATE_LEAKS='resources still in use at exit|RID allocations of type .* were leaked at exit'
+
+# One harness: run it, then need its `LABEL: PASS` line. A failed run is already
+# reported by run_godot. GATE_LABEL, GATE_FAIL_RE and GATE_TAIL override the label
+# (default NAME), the failure grep and the lines shown.
+#   gate_sheet NAME LIMIT OK-MESSAGE FAIL-MESSAGE GODOT-ARGS...   (FAIL|^LABEL, 12 lines)
+#   gate_check NAME LIMIT OK-MESSAGE FAIL-MESSAGE GODOT-ARGS...   (^  FAIL|^LABEL, 20 lines)
+gate_run() {
+	local failre="$1" tail_n="$2" name="$3" limit="$4" okmsg="$5" badmsg="$6"
+	shift 6
+	local label="${GATE_LABEL:-$name}"
+	if run_godot "$name" "$limit" "$@"; then
+		if grep -qE "^$label: PASS" "$LOG_DIR/$name.log"; then
+			ok "$okmsg"
+		else
+			bad "$badmsg"
+			grep -E "${GATE_FAIL_RE:-$failre|^$label}" "$LOG_DIR/$name.log" \
+				| head -n "${GATE_TAIL:-$tail_n}" | sed 's/^/        /'
+		fi
+	fi
+}
+gate_sheet() { gate_run 'FAIL' 12 "$@"; }
+gate_check() { gate_run '^  FAIL' 20 "$@"; }
+
+# No interpreter: a check that cannot run has not passed.
+gate_no_python() { bad "no python for $1"; }
 
 unit_tabs() {
 step "Indentation is tabs (Godot requires it)"
@@ -246,7 +278,9 @@ if run_godot savetest 120 --headless --path "$PROJECT" -- savetest; then
 fi
 # The market test prints its verdict the same way and reports no error line of
 # its own, so the violations have to be read out of the log as well.
-if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
+if ! grep -qE '^=== (PASS|FAIL)' "$LOG_DIR/market.log" 2>/dev/null; then
+	bad "market never reached its verdict"
+elif grep -qE '^=== FAIL' "$LOG_DIR/market.log"; then
 	bad "market invariant violated — a part can be bought and melted for profit"
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
 fi
@@ -258,16 +292,10 @@ step "SIGN on the Hiring Board changes its one note"
 # board resets." On the cork, the whiteboard and the screen: the signed note
 # stays in place stamped SIGNED, every other note, the tab, the scatter, the
 # listings, the popup and the lamp stay as they were, and no offer re-rolls.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot boardsigntest 120 --headless --path "$PROJECT" -- sheet=BoardSignTest; then
-	if grep -qE '^boardsigntest: PASS' "$LOG_DIR/boardsigntest.log"; then
-		ok "SIGN stamps its note in place and nothing else on the board moves"
-	else
-		bad "SIGN moved the Hiring Board's other notes or its scatter, or did not sign"
-		grep -E 'FAIL|^boardsigntest' "$LOG_DIR/boardsigntest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "boardsigntest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet boardsigntest 120 \
+	"SIGN stamps its note in place and nothing else on the board moves" \
+	"SIGN moved the Hiring Board's other notes or its scatter, or did not sign" \
+	--headless --path "$PROJECT" -- sheet=BoardSignTest
 }
 
 unit_hellbendergatetest() {
@@ -296,16 +324,10 @@ step "Every station has all five decks, at every level"
 # levels, with and without a berth: five tabs and five floors, RELIC ANALYSIS
 # at the level's price inside the lab's screen, a dock desk's work posted and
 # handed in where nobody berths, and NO WORK POSTED. on a bare board.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot stationdecktest 240 --headless --path "$PROJECT" -- sheet=StationDeckTest; then
-	if grep -qE '^stationdecktest: PASS' "$LOG_DIR/stationdecktest.log"; then
-		ok "all five decks at every station, the lab priced by level, a dock desk where nobody berths"
-	else
-		bad "a station is missing a deck, the lab or a dock desk is wrong, or a bare board says nothing"
-		grep -E 'FAIL|^stationdecktest' "$LOG_DIR/stationdecktest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "stationdecktest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet stationdecktest 240 \
+	"all five decks at every station, the lab priced by level, a dock desk where nobody berths" \
+	"a station is missing a deck, the lab or a dock desk is wrong, or a bare board says nothing" \
+	--headless --path "$PROJECT" -- sheet=StationDeckTest
 }
 
 unit_contracttest() {
@@ -316,38 +338,20 @@ step "Contracts, standing, and the salvage rail's dismissal rule"
 # to one house and their berths start paying over the odds for parts. The last
 # one is the salvage rail's dismissal rule, which is pure logic on `Run` and has
 # been got wrong twice.
-if run_godot contracttest 120 --headless --path "$PROJECT" -- contracttest; then
-	if grep -qE '^contracttest: PASS' "$LOG_DIR/contracttest.log"; then
-		ok "contracts"
-	else
-		bad "contract test failed"
-		grep -E '^  FAIL|^contracttest' "$LOG_DIR/contracttest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
+gate_check contracttest 120 \
+	"contracts" \
+	"contract test failed" \
+	--headless --path "$PROJECT" -- contracttest
 }
 
 unit_stowtest() {
 step "The salvage rail survives a jump"
-# Driven through the REAL screen, because the rule has been wrong three times
-# and the first of those was not about the rule at all — the flag lived on
-# `SectorScreen`, which Router rebuilds on every jump. No assertion on the
-# predicate can see that. This one presses the button, jumps, and checks the
-# rail on the screen Router built afterwards.
-# The two exit-time reports Godot emits when a headless run has had a Control
-# tree in it: the process ends holding the theme's font. A statement about
-# teardown, printed after the test's own verdict — and scoped to this line, so
-# no other step stops failing on a real leak.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-		run_godot stowtest 120 --headless --path "$PROJECT" -- stowtest; then
-	if grep -qE '^stowtest: PASS' "$LOG_DIR/stowtest.log"; then
-		ok "stow"
-	else
-		bad "salvage rail test failed"
-		grep -E '^  FAIL|^stowtest' "$LOG_DIR/stowtest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
+# Drives the real screen through a jump: the rail's flag once lived on a screen Router rebuilds.
+# Why: docs/why/validate.md#unit_stowtest
+ALLOW_EXTRA="$GATE_LEAKS" gate_check stowtest 120 \
+	"stow" \
+	"salvage rail test failed" \
+	--headless --path "$PROJECT" -- stowtest
 }
 
 unit_quittest() {
@@ -357,16 +361,10 @@ step "Leaving a run draws nothing without a ship"
 # starchart redrew there once with no ship and logged hundreds of errors that no
 # player ever saw, because the frame is never shown. The same leak allowance as
 # stowtest, for the same reason: it builds real screens.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-		run_godot quittest 120 --headless --path "$PROJECT" -- quittest; then
-	if grep -qE '^quittest: PASS' "$LOG_DIR/quittest.log"; then
-		ok "quit"
-	else
-		bad "a screen drew after the run it belonged to was gone"
-		grep -E '^  FAIL|^quittest' "$LOG_DIR/quittest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_check quittest 120 \
+	"quit" \
+	"a screen drew after the run it belonged to was gone" \
+	--headless --path "$PROJECT" -- quittest
 }
 
 unit_bindtest() {
@@ -377,16 +375,10 @@ step "Key bindings rebind, fire, persist and clash"
 # reloads the settings file, and checks the clash rules. In a scratch file, so
 # the player's own settings are never touched. The same leak allowance as
 # quittest: it builds real screens.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-		run_godot bindtest 120 --headless --path "$PROJECT" -- bindtest; then
-	if grep -qE '^bindtest: PASS' "$LOG_DIR/bindtest.log"; then
-		ok "keys"
-	else
-		bad "a key binding did not do what it said"
-		grep -E '^  FAIL|^bindtest' "$LOG_DIR/bindtest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_check bindtest 120 \
+	"keys" \
+	"a key binding did not do what it said" \
+	--headless --path "$PROJECT" -- bindtest
 }
 
 unit_menutest() {
@@ -395,16 +387,10 @@ step "The escape menu still answers after the motion settings change"
 # on the animated way out and stayed up, swallowing every click. Headless never
 # animates, so this harness turns the animations on (`Router.animate_in_harness`)
 # and walks the menu through each change. Same leak allowance as quittest.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-		run_godot menutest 120 --headless --path "$PROJECT" -- menutest; then
-	if grep -qE '^menutest: PASS' "$LOG_DIR/menutest.log"; then
-		ok "menu"
-	else
-		bad "the escape menu stopped answering"
-		grep -E '^  FAIL|^menutest' "$LOG_DIR/menutest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_check menutest 120 \
+	"menu" \
+	"the escape menu stopped answering" \
+	--headless --path "$PROJECT" -- menutest
 }
 
 unit_devtest() {
@@ -437,14 +423,10 @@ step "The hold never overlaps itself"
 # a cell still add up to a sensible "17 of 28", still save and load, still sell
 # for the right price — the only symptom is one plate drawn over another. Run
 # against all three hulls because the grid is a property of the hull.
-if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
-	if grep -qE '^holdtest: PASS' "$LOG_DIR/holdtest.log"; then
-		ok "hold"
-	else
-		bad "the hold packing rule is broken"
-		grep -E '^  FAIL|^holdtest' "$LOG_DIR/holdtest.log" | head -n 20 			| sed 's/^/        /'
-	fi
-fi
+gate_check holdtest 120 \
+	"hold" \
+	"the hold packing rule is broken" \
+	--headless --path "$PROJECT" -- holdtest
 }
 
 unit_transfertest() {
@@ -454,14 +436,10 @@ step "The container draws what the ship actually holds"
 # the model was already correct and the SCREEN had not been told. Every probe
 # written to chase it asserted on `Run.cargo` and `n.bag`, which is the half that
 # was never broken. This one counts icons, because an icon is what a player sees.
-if run_godot transfertest 120 --headless --path "$PROJECT" -- transfertest; then
-	if grep -qE '^transfertest: PASS' "$LOG_DIR/transfertest.log"; then
-		ok "the container"
-	else
-		bad "the container and the hold disagree about what you are carrying"
-		grep -E '^  FAIL|^transfertest' "$LOG_DIR/transfertest.log" | head -n 20 | sed 's/^/        /'
-	fi
-fi
+gate_check transfertest 120 \
+	"the container" \
+	"the container and the hold disagree about what you are carrying" \
+	--headless --path "$PROJECT" -- transfertest
 }
 
 unit_cutawaytest() {
@@ -473,14 +451,10 @@ step "The cutaway moves parts by the refit rule"
 # handlers and counts what it draws, like the container check above. It ends
 # on the real LOCAL (a wreck clicked through the cutaway, a fight), so it ends
 # with the same exit-time teardown reports as stowtest, allowed the same way.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot cutawaytest 240 --headless --path "$PROJECT" -- cutawaytest; then
-	if grep -qE '^cutawaytest: PASS' "$LOG_DIR/cutawaytest.log"; then
-		ok "the cutaway"
-	else
-		bad "the cutaway moves parts or claims loot outside the refit rule"
-		grep -E '^  FAIL|^cutawaytest' "$LOG_DIR/cutawaytest.log" | head -n 20 | sed 's/^/        /'
-	fi
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_check cutawaytest 240 \
+	"the cutaway" \
+	"the cutaway moves parts or claims loot outside the refit rule" \
+	--headless --path "$PROJECT" -- cutawaytest
 }
 
 unit_subjecttest() {
@@ -491,14 +465,10 @@ step "Every encounter's subject is real art and fits LOCAL"
 # resolves every piece against art/subjects/index.json and fits every staging to
 # LOCAL's own view. It ends on the real LOCAL, so it ends with the same exit-time
 # teardown reports as stowtest, allowed the same way.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot subjecttest 240 --headless --path "$PROJECT" -- subjecttest; then
-	if grep -qE '^subjecttest: PASS' "$LOG_DIR/subjecttest.log"; then
-		ok "the subjects"
-	else
-		bad "an encounter's subject names art that is not there, or does not fit"
-		grep -E '^  FAIL|^subjecttest' "$LOG_DIR/subjecttest.log" | head -n 20 | sed 's/^/        /'
-	fi
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_check subjecttest 240 \
+	"the subjects" \
+	"an encounter's subject names art that is not there, or does not fit" \
+	--headless --path "$PROJECT" -- subjecttest
 }
 
 unit_moontest() {
@@ -510,39 +480,20 @@ step "LOCAL's moons keep out of what is staged"
 # station's side and the dock's corridor; with a subject up, in a fight and
 # through the dock every moon holds still. Ends on the real LOCAL and the
 # station, so the same exit-time teardown reports as subjecttest are allowed.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot moontest 300 --headless --path "$PROJECT" -- sheet=MoonTest; then
-	if grep -qE '^moontest: PASS' "$LOG_DIR/moontest.log"; then
-		ok "the moons keep clear"
-	else
-		bad "a moon crosses a subject, a station or your ship, or moves while something is staged"
-		grep -E '^  FAIL|^moontest' "$LOG_DIR/moontest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "moontest did not finish"
-fi
+GATE_TAIL=12 ALLOW_EXTRA="$GATE_LEAKS" gate_check moontest 300 \
+	"the moons keep clear" \
+	"a moon crosses a subject, a station or your ship, or moves while something is staged" \
+	--headless --path "$PROJECT" -- sheet=MoonTest
 }
 
 unit_dockflytest() {
 step "UNDOCK is the only way out of a station"
-# DOCK only at the station itself (Jon, Oct 18, "dock:A"): at the system's edge
-# and at a world, no DOCK on LOCAL or the map, no station side, and the door
-# refuses; flown to the station, DOCK is offered and docks.
-# Docked (Jon, Oct 27): LOCAL greyed on the HUD with "Docked. Press UNDOCK to
-# leave."; Tab never lands on LOCAL; the map's FLY HERE, WASD and GO and the
-# chart's JUMP refused and reading DOCKED; STATION, the map's DOCK and PARTY's
-# LEAVE go straight back in, never by LOCAL. Each old way off the berth is
-# refused, and made after UNDOCK leaves nothing of the berth behind.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot dockflytest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DockFlyTest; then
-	if grep -qE '^dockflytest: PASS' "$LOG_DIR/dockflytest.log"; then
-		ok "only UNDOCK leaves the berth, and leaves nothing of it behind"
-	else
-		bad "a way off the berth bypassed UNDOCK, or left the station behind"
-		grep -E 'FAIL|^dockflytest' "$LOG_DIR/dockflytest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "dockflytest did not finish"
-fi
+# Only UNDOCK leaves a station; every older way off the berth is refused and leaves nothing of it.
+# Why: docs/why/validate.md#unit_dockflytest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet dockflytest 300 \
+	"only UNDOCK leaves the berth, and leaves nothing of it behind" \
+	"a way off the berth bypassed UNDOCK, or left the station behind" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=DockFlyTest
 }
 
 unit_swaptest() {
@@ -554,65 +505,30 @@ step "A hull swap never strands the pad or shuts the station door"
 # they are aboard. Then the yard's TAKE IT through Tab, another door and back,
 # and SAVE AND EXIT/CONTINUE in one process; then a hull found in space, which
 # opens the move, refuses Tab and the jump, and BACKs OUT onto the rail.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot swaptest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=SwapTest; then
-	if grep -qE '^swaptest: PASS' "$LOG_DIR/swaptest.log"; then
-		ok "the pad is always shown, and the ship always leaves once it is empty"
-	else
-		bad "a hull swap can strand the pad or hold the ship"
-		grep -E 'FAIL|^swaptest' "$LOG_DIR/swaptest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "swaptest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet swaptest 180 \
+	"the pad is always shown, and the ship always leaves once it is empty" \
+	"a hull swap can strand the pad or hold the ship" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=SwapTest
 }
 
 unit_derelicttest() {
 step "The derelict hauler names its frame, and claiming it never costs the strip"
-# Jeremy, friends' alpha: a heavy pilot claimed the hull blind, got a light frame,
-# and had given up "Strip it for scrap" for it. On the real LOCAL at a light, a
-# medium and a heavy frame, in all three layouts: the claim's card names the
-# weight, the page passes the box test, YOU CHOSE names it, and the hull found is
-# that one, the same with the loot stream moved and another seat. Then the
-# frame's SCRAP on the rail (where LEAVE IT was) pays the strip's credits and
-# crate, once, after a backed-out TRANSFER and a save and load; and on the map.
-# A frame still on offer is paid, not lost, when a second claim or the yard's
-# TAKE IT replaces it, and the log says its crate is in SECTOR LOOT. SCRAP +105
-# fits the rail and the map; a VERSION 36 save's found hull keeps LEAVE IT.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot derelicttest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=DerelictTest; then
-	if grep -qE '^derelicttest: PASS' "$LOG_DIR/derelicttest.log"; then
-		ok "the claim names its frame, and a frame not flown pays the strip"
-	else
-		bad "the derelict hauler hides its frame, or declining it loses the strip"
-		grep -E 'FAIL|^derelicttest' "$LOG_DIR/derelicttest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "derelicttest did not finish"
-fi
+# A derelict's frame is named before it is claimed, and a frame not flown still pays the strip.
+# Why: docs/why/validate.md#unit_derelicttest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet derelicttest 240 \
+	"the claim names its frame, and a frame not flown pays the strip" \
+	"the derelict hauler hides its frame, or declining it loses the strip" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=DerelictTest
 }
 
 unit_orbitworldtest() {
 step "LOCAL draws the world you orbit, close, from its first frame"
-# Jon, Oct 21: "I want the planet you are orbiting to be large in the
-# background (you are close to it)." Four seeds through the real doors with the
-# ladder on: launch, every world of the start system, a jump on and a station's
-# system flown to for the first time (FLY HERE, GO), LOCAL by the HUD's tab, by
-# Tab and by GO, and CONTINUE: the sky's world on LOCAL's first frame is the one
-# the ship orbits, at least the look's size, under your ship and clear of the
-# HUD and the goal line; LOCAL pressed mid-arrival draws that world too.
-# 600 s: its tour flies every leg on map time since ruling 20 (about 24 s a
-# flight, where they took 4 to 12): 310 s alone on the Mac (Oct 31), past the
-# 300 it had (137 s on Oct 30).
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot orbitworldtest 840 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest; then
-	if grep -qE '^orbitworldtest: PASS' "$LOG_DIR/orbitworldtest.log"; then
-		ok "LOCAL draws the world you orbit, close"
-	else
-		bad "LOCAL drew the wrong world, none, or too small"
-		grep -E 'FAIL|^orbitworldtest' "$LOG_DIR/orbitworldtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "orbitworldtest did not finish"
-fi
+# LOCAL's first frame draws the world you orbit. The limit is high: its tour flies every leg on map time.
+# Why: docs/why/validate.md#unit_orbitworldtest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet orbitworldtest 840 \
+	"LOCAL draws the world you orbit, close" \
+	"LOCAL drew the wrong world, none, or too small" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=OrbitWorldTest
 }
 
 unit_fightlogtest() {
@@ -621,16 +537,10 @@ step "The fight log is hidden until LOG is pressed, and records all the same"
 # recording while hidden, LOG clicked shows every line and moves nothing that can
 # be clicked, the choice kept in the settings file; and the box test, LOG and the
 # open log against everything on the fight's screen in every hull and pack.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightlogtest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightLogTest; then
-	if grep -qE '^fightlogtest: PASS' "$LOG_DIR/fightlogtest.log"; then
-		ok "the fight log hides, records, opens, and covers nothing"
-	else
-		bad "the fight log shows by default, loses lines, moves a control or covers something"
-		grep -E 'FAIL|^fightlogtest' "$LOG_DIR/fightlogtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "fightlogtest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet fightlogtest 300 \
+	"the fight log hides, records, opens, and covers nothing" \
+	"the fight log shows by default, loses lines, moves a control or covers something" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightLogTest
 }
 
 unit_fightwordstest() {
@@ -638,16 +548,10 @@ step "The fight's and LOCAL's words say what the rules do"
 # The tutorial audit, Oct 22: the status chips named by the card's keyword
 # (NEGATE, GROWS, not SLIP and ADAPT), the DISCARD's tooltip naming the hand
 # swept in at END TURN, and no dash in LOCAL's bar line anywhere in the galaxy.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot fightwordstest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightWordsTest; then
-	if grep -qE '^fightwordstest: PASS' "$LOG_DIR/fightwordstest.log"; then
-		ok "the chips, the discard and the bar line say what the rules do"
-	else
-		bad "a chip, the discard's tooltip or the bar line says something the rules do not"
-		grep -E 'FAIL|^fightwordstest' "$LOG_DIR/fightwordstest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "fightwordstest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet fightwordstest 180 \
+	"the chips, the discard and the bar line say what the rules do" \
+	"a chip, the discard's tooltip or the bar line says something the rules do not" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightWordsTest
 }
 
 unit_materialtest() {
@@ -658,28 +562,16 @@ step "Every material is a thing the hold can actually hold"
 # never be placed -- and nothing would say why. Checked against the LIGHTEST
 # hull, because an item that fits a heavy and not a light vanishes for half the
 # roster, quietly.
-if run_godot materialtest 120 --headless --path "$PROJECT" -- materialtest; then
-	if grep -qE '^materialtest: PASS' "$LOG_DIR/materialtest.log"; then
-		ok "materials"
-	else
-		bad "a material cannot be carried"
-		grep -E '^  FAIL|^ +refused|^materialtest' "$LOG_DIR/materialtest.log" | head -n 20 | sed 's/^/        /'
-	fi
-fi
+GATE_FAIL_RE='^  FAIL|^ +refused|^materialtest' gate_check materialtest 120 \
+	"materials" \
+	"a material cannot be carried" \
+	--headless --path "$PROJECT" -- materialtest
 }
 
 unit_content() {
 step "The catalogue export is a shape the manifest can read"
-# NEITHER OF THESE WAS IN THE GATE AT ALL, which is how the export and the page
-# drifted apart in silence. PASSIVE_AXIS values became arrays while the exporter
-# still called String() on one; a gauge came out as the four characters
-# ["hull"], the JSON stayed valid, the page kept rendering, and every gauge chip
-# vanished. Nothing errored at either end â it was found by looking at a table
-# that had gone blank.
-#
-# Both ends check now and both run here. The exporter vets its own rows against
-# the vocabulary the GAME defines, and the page throws on a gauge it does not
-# recognise rather than rendering an empty cell.
+# The catalogue export and the manifest page each vet every row, so the two cannot drift apart unseen.
+# Why: docs/why/validate.md#unit_content
 if run_godot content 120 --headless --path "$PROJECT" -- content json; then
 	if grep -qE '^content: PASS' "$LOG_DIR/content.log"; then
 		if command -v node >/dev/null 2>&1; then
@@ -710,15 +602,10 @@ step "A part moves the gauge its grade promised"
 # trip breaks and neither throws: an int field rounding a fractional pip into
 # two, and a retuned attr_ formula that PER_PIP was not told about. Either one
 # silently puts a whole axis off the ladder on every hull in the game.
-if run_godot attrtest 180 --headless --path "$PROJECT" -- attrtest; then
-	if grep -qE '^attrtest: PASS' "$LOG_DIR/attrtest.log"; then
-		ok "attribute ladder"
-	else
-		bad "a part does not move its gauge by what its grade promised"
-		grep -E '^  FAIL|OFF' "$LOG_DIR/attrtest.log" \
-			| head -n 20 | sed 's/^/        /'
-	fi
-fi
+GATE_FAIL_RE='^  FAIL|OFF' gate_check attrtest 180 \
+	"attribute ladder" \
+	"a part does not move its gauge by what its grade promised" \
+	--headless --path "$PROJECT" -- attrtest
 }
 
 unit_maptest() {
@@ -730,15 +617,10 @@ step "Every galaxy can be crossed, and every enum still has its labels"
 # plus that no label array has drifted from its enum. Since Oct 22 also the
 # depth rule (`RunState.DEPTH_STEP`, two rings since Oct 27) and a sweep of 255
 # galaxies, 15 of every kind, flown by the slowest ship: ~130s alone, so 300.
-if run_godot maptest 480 --headless --path "$PROJECT" -- maptest; then
-	if grep -qE '^maptest: PASS' "$LOG_DIR/maptest.log"; then
-		ok "every galaxy is crossable"
-	else
-		bad "a galaxy cannot be crossed, or a label array has drifted"
-		grep -E '^  FAIL|^maptest' "$LOG_DIR/maptest.log" \
-			| head -n 10 | sed 's/^/        /'
-	fi
-fi
+GATE_TAIL=10 gate_check maptest 480 \
+	"every galaxy is crossable" \
+	"a galaxy cannot be crossed, or a label array has drifted" \
+	--headless --path "$PROJECT" -- maptest
 }
 
 unit_hinttest() {
@@ -750,16 +632,10 @@ step "Each first-run hint shows once, where it belongs"
 # risen, fuel short -- are held to not firing before it; the wreck's points at
 # a wreck a click opens, never an event's derelict; the ship's waits for an
 # idle LOCAL. Same exit-time leak allowance as stowtest.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hinttest 300 --headless --path "$PROJECT" -- hinttest; then
-	if grep -qE '^hinttest: PASS' "$LOG_DIR/hinttest.log"; then
-		ok "hints show once, in place"
-	else
-		bad "a first-run hint misbehaved"
-		grep -E 'FAIL|^hinttest' "$LOG_DIR/hinttest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "hinttest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet hinttest 300 \
+	"hints show once, in place" \
+	"a first-run hint misbehaved" \
+	--headless --path "$PROJECT" -- hinttest
 }
 
 unit_goaltest() {
@@ -769,17 +645,10 @@ step "The goal line: always the goal, the next step, never over anything"
 # through a new run on LOCAL, the chart, the map, an event's band and a fight:
 # box-tested against the HUD, the side bar, the toolbar row, the event band, the
 # hand and every hull and its words; done steps never come back; not pressable.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot goaltest 180 --headless --path "$PROJECT" -- sheet=GoalTest; then
-	if grep -qE '^goaltest: PASS' "$LOG_DIR/goaltest.log"; then
-		ok "the goal line says the goal and the next step, clear of everything"
-	else
-		bad "the goal line is wrong or covers something"
-		grep -E 'FAIL|^goaltest' "$LOG_DIR/goaltest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "goaltest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet goaltest 180 \
+	"the goal line says the goal and the next step, clear of everything" \
+	"the goal line is wrong or covers something" \
+	--headless --path "$PROJECT" -- sheet=GoalTest
 }
 
 unit_badgetest() {
@@ -790,16 +659,10 @@ step "The Custodian's badge: the approved eye, on every screen, once a jump"
 # to 40, clear of everything the goal line keeps off; the arrival once a jump,
 # never on the chart a jump left from or after a load; the tooltip's words, no
 # hull figure; it takes no click.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot badgetest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=BadgeTest; then
-	if grep -qE '^badgetest: PASS' "$LOG_DIR/badgetest.log"; then
-		ok "the badge is the approved eye, where it belongs, once a jump"
-	else
-		bad "the badge differs from the approved page, covers something, or replays"
-		grep -E 'FAIL|^badgetest' "$LOG_DIR/badgetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "badgetest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet badgetest 240 \
+	"the badge is the approved eye, where it belongs, once a jump" \
+	"the badge differs from the approved page, covers something, or replays" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=BadgeTest
 }
 
 unit_questlogtest() {
@@ -810,16 +673,10 @@ step "The QUESTS tab: its table, SHOW ON STARCHART, PLOT ROUTE, nothing covered"
 # rect the same with 0, 1 and 5 held, the HUD row fitting with and without
 # ARCHIVE, a row per quest with its fields, the chart's destination, tag and
 # legal route, and the table and the tag box-tested.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot questlogtest 180 --headless --path "$PROJECT" -- sheet=QuestLogTest; then
-	if grep -qE '^questlogtest: PASS' "$LOG_DIR/questlogtest.log"; then
-		ok "the quests table: every quest, shown and routed on the chart, nothing covered"
-	else
-		bad "the quests table or its chart tag is wrong or covers something"
-		grep -E 'FAIL|^questlogtest|^    ' "$LOG_DIR/questlogtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "questlogtest did not finish"
-fi
+GATE_FAIL_RE='FAIL|^questlogtest|^    ' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet questlogtest 180 \
+	"the quests table: every quest, shown and routed on the chart, nothing covered" \
+	"the quests table or its chart tag is wrong or covers something" \
+	--headless --path "$PROJECT" -- sheet=QuestLogTest
 }
 
 unit_fueltest() {
@@ -844,25 +701,12 @@ fi
 
 unit_ashtest() {
 step "A.S.H. speaks at her moments, within her limits, and never over anything"
-# The ship's AI (Jon and Ashlee, Oct 17; docs/ash.md). Her thirty approved
-# lines, character for character against docs/ash_lines.json; each moment fires
-# its own (launch, a new hull, the hull failing, over the heat cap, a big haul,
-# one more wreck, doubt); the quiet after a line, one line a fight, never during
-# a drag or the enemy's turn; nothing after the ship is lost; hints win; her face
-# 8 to 12 changes a second while she talks; and the box test on 65 screens, LOCAL
-# and fights of one to three ships in every weight, against the HUD, the goal
-# line, the hand, both ships and their words, plates, ovals and numbers.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot ashtest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTest; then
-	if grep -qE '^ashtest: PASS' "$LOG_DIR/ashtest.log"; then
-		ok "A.S.H. at her moments, within her limits, clear of everything"
-	else
-		bad "A.S.H. spoke out of turn, or over something"
-		grep -E 'FAIL|^ashtest' "$LOG_DIR/ashtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "ashtest did not finish"
-fi
+# A.S.H.'s approved lines fire at their moments, within her limits, and clear of everything on screen.
+# Why: docs/why/validate.md#unit_ashtest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet ashtest 600 \
+	"A.S.H. at her moments, within her limits, clear of everything" \
+	"A.S.H. spoke out of turn, or over something" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTest
 }
 
 unit_ashtutortest() {
@@ -873,17 +717,10 @@ step "A.S.H. teaches: the hints in her corner, clear of everything, and the card
 # wreck's window; held until a click; a bark never over one; the box test on
 # every screen against a list gathered by the test and the pictures' own hit
 # tests; her switch off brings today's cards back; nothing in a party.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot ashtutortest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTutorTest; then
-	if grep -qE '^ashtutortest: PASS' "$LOG_DIR/ashtutortest.log"; then
-		ok "A.S.H. teaches every hint and step, clear of everything"
-	else
-		bad "A.S.H.'s teaching failed"
-		grep -E 'FAIL|^ashtutortest' "$LOG_DIR/ashtutortest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "ashtutortest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet ashtutortest 600 \
+	"A.S.H. teaches every hint and step, clear of everything" \
+	"A.S.H.'s teaching failed" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTutorTest
 }
 
 unit_ashteachcosttest() {
@@ -893,63 +730,30 @@ step "A.S.H. teaching the chart costs a frame nothing"
 # Every frame timed while she says the list's line and the step's on a
 # 410-system chart, against the chart with her silent; and her check finds what
 # the old point-by-point scan found. Times frames: one of SOLO_UNITS.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot ashteachcosttest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTeachCostTest; then
-	if grep -qE '^AshTeachCostTest: PASS' "$LOG_DIR/ashteachcosttest.log"; then
-		ok "her teaching on the chart costs a frame nothing"
-	else
-		bad "her teaching on the chart lags the game"
-		grep -E 'FAIL|^AshTeachCostTest' "$LOG_DIR/ashteachcosttest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "ashteachcosttest did not finish"
-fi
+GATE_LABEL=AshTeachCostTest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet ashteachcosttest 300 \
+	"her teaching on the chart costs a frame nothing" \
+	"her teaching on the chart lags the game" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=AshTeachCostTest
 }
 
 unit_maplagtest() {
 step "The sector map's worlds keep up with a pan"
 # Each world's picture sits on its place (its ring, label and beacons) on every
 # frame of a pan; an ease that chased the place left it trailing by frames.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot maplagtest 180 --headless --path "$PROJECT" -- maplagtest; then
-	if grep -qE '^maplagtest: PASS' "$LOG_DIR/maplagtest.log"; then
-		ok "worlds keep up with the camera"
-	else
-		bad "a world's picture trails the camera"
-		grep -E 'FAIL|^maplagtest' "$LOG_DIR/maplagtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "maplagtest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet maplagtest 180 \
+	"worlds keep up with the camera" \
+	"a world's picture trails the camera" \
+	--headless --path "$PROJECT" -- maplagtest
 }
 
 unit_twinsitetest() {
 step "Star B is a place, as the one star is"
-# Ruling 20 (Oct 30), two suns on the real map: star B hit where its sun is
-# drawn, named, its FLY HERE flown and its close orbit ridden; the map leaves
-# the ship there and puts it back; a partner there drawn where it said, and on
-# an orbit at the orbit's drawn size. Oct 31: a ship settled round star B, both
-# suns or one star comes back on that orbit, by LOCAL and by the save's rows;
-# the map left on a flight's coast puts the ship where it was going; no words
-# across the other sun; a capture at star B drawn as it is flown; LEAVING while
-# held alongside to go; it quits with a flight plan still on a worker (that
-# crashed the quit, signal 11); and the map drawn again round a flight (a style
-# or GRAPHICS change) carries its errand on: a GO's event once, the map open
-# again (a GO cut short kept the map shut until it was left). Nov 1: each
-# star's facts as it is drawn (star B the K5 orange dwarf, masses as the
-# pulls), AROUND (never ROUND), no event card wider than the column, and a GO
-# that leaves the view open (hover, wheel, drag) and still runs its event once.
-# Nov 2 (ruling 23, the pair turning): about 140 s alone with its lap sweeps;
-# 289 s on the CI runner, which killed it at 180 and nearly at 300.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot twinsitetest 600 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest; then
-	if grep -qE '^twinsitetest: PASS' "$LOG_DIR/twinsitetest.log"; then
-		ok "star B is a place everywhere the star is"
-	else
-		bad "star B is not a place somewhere the star is, or a ship is put back wrong"
-		grep -E 'FAIL|^twinsitetest' "$LOG_DIR/twinsitetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "twinsitetest did not finish"
-fi
+# Star B is a place wherever the one star is (rulings 20 and 23). Long: 289 s on the CI runner.
+# Why: docs/why/validate.md#unit_twinsitetest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet twinsitetest 600 \
+	"star B is a place everywhere the star is" \
+	"star B is not a place somewhere the star is, or a ship is put back wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=TwinSiteTest
 }
 
 unit_twindrawtest() {
@@ -959,16 +763,10 @@ step "Two suns and heavy giants are drawn as they are"
 # behind it on the far, every orbit round its own centre, each world lit from
 # its own sun, the floor read off the map's own SunViews, and LOCAL's two suns
 # as far as headless reaches. Shaders are not compiled headless.
-if run_godot twindrawtest 420 --headless --path "$PROJECT" -- sheet=TwinDrawTest; then
-	if grep -qE '^twindrawtest: PASS' "$LOG_DIR/twindrawtest.log"; then
-		ok "two suns and heavy giants are drawn as they are"
-	else
-		bad "a twin or a heavy giant is drawn wrong"
-		grep -E 'FAIL|^twindrawtest' "$LOG_DIR/twindrawtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "twindrawtest did not finish"
-fi
+gate_sheet twindrawtest 420 \
+	"two suns and heavy giants are drawn as they are" \
+	"a twin or a heavy giant is drawn wrong" \
+	--headless --path "$PROJECT" -- sheet=TwinDrawTest
 }
 
 unit_pairlocaltest() {
@@ -980,17 +778,10 @@ step "LOCAL holds a turning pair where the map left it"
 # map keeps one clock, in co-op too with a partner's clock ahead, the zoom
 # ladder off and on, the map then catching up with no jump; a save keeps the
 # angle; one sun is untouched.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot pairlocaltest 120 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=PairLocalTest; then
-	if grep -qE '^pairlocaltest: PASS' "$LOG_DIR/pairlocaltest.log"; then
-		ok "LOCAL holds the pair where the map left it"
-	else
-		bad "LOCAL shows the pair at another angle than the map, or a handover moved its clock"
-		grep -E 'FAIL|^pairlocaltest' "$LOG_DIR/pairlocaltest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "pairlocaltest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet pairlocaltest 120 \
+	"LOCAL holds the pair where the map left it" \
+	"LOCAL shows the pair at another angle than the map, or a handover moved its clock" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=PairLocalTest
 }
 
 # FlightTest and SolveTest run SPLIT, GATE_FLIGHT_SHARDS and GATE_SOLVE_SHARDS
@@ -1099,16 +890,10 @@ step "A click on the map flies the flight drawn, planned on a worker"
 # letting go of one still planned, no step over 20 ms (nothing planned on the
 # main thread), every flight on the line drawn for it, no engine error. It
 # times frames: one of SOLO_UNITS.
-if run_godot flightclicks 180 --headless --path "$PROJECT" -- sheet=FlightTest clicks; then
-	if grep -qE '^flighttest: PASS' "$LOG_DIR/flightclicks.log"; then
-		ok "every click flew the flight drawn, planned off the main thread"
-	else
-		bad "a click flew another flight, waited on the main thread, or lost its callback"
-		grep -E 'FAIL|^flighttest' "$LOG_DIR/flightclicks.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "flightclicks did not finish"
-fi
+GATE_LABEL=flighttest gate_sheet flightclicks 180 \
+	"every click flew the flight drawn, planned off the main thread" \
+	"a click flew another flight, waited on the main thread, or lost its callback" \
+	--headless --path "$PROJECT" -- sheet=FlightTest clicks
 }
 
 gate_solve_shard() {
@@ -1183,33 +968,20 @@ step "The sector map's trims draw what they replaced"
 # and the ship's forecast lines their own faster way. Held here to the old loop
 # (which calls `screen` and `orbit_point`) point for point, so a change to
 # either that the trimmed copy misses fails here, not as a line off its world.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot mapperftest 300 --headless --path "$PROJECT" -- sheet=MapPerfTest; then
-	if grep -qE '^mapperftest: PASS' "$LOG_DIR/mapperftest.log"; then
-		ok "the map's orbits, dust and forecast lines are as they were"
-	else
-		bad "a map trim draws something else"
-		grep -E 'FAIL|^mapperftest' "$LOG_DIR/mapperftest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "mapperftest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet mapperftest 300 \
+	"the map's orbits, dust and forecast lines are as they were" \
+	"a map trim draws something else" \
+	--headless --path "$PROJECT" -- sheet=MapPerfTest
 }
 
 unit_laddertest() {
 step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
 # fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot laddertest 540 --headless --path "$PROJECT" -- sheet=LadderTest; then
-	if grep -qE '^laddertest: PASS' "$LOG_DIR/laddertest.log"; then
-		ok "every move lands where it should"
-	else
-		bad "a move between distances failed"
-		grep -E 'FAIL|^laddertest' "$LOG_DIR/laddertest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "laddertest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet laddertest 540 \
+	"every move lands where it should" \
+	"a move between distances failed" \
+	--headless --path "$PROJECT" -- sheet=LadderTest
 }
 
 unit_lowhulltest() {
@@ -1218,16 +990,10 @@ step "Low hull: the edges, every text decoding worse as the hull falls, her voic
 # every scrambled letter read back as itself, the escape menu clean, reduced
 # motion still; her voice's glitches inside her words and baked on a worker.
 # SOLO: it times frames and the worker's bake.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot lowhulltest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=LowHullTest; then
-	if grep -qE '^LowHullTest: PASS' "$LOG_DIR/lowhulltest.log"; then
-		ok "the low-hull warning rises as the hull falls and moves nothing"
-	else
-		bad "the low-hull warning failed a check"
-		grep -E 'FAIL|^LowHullTest' "$LOG_DIR/lowhulltest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "lowhulltest did not finish"
-fi
+GATE_LABEL=LowHullTest ALLOW_EXTRA="$GATE_LEAKS" gate_sheet lowhulltest 300 \
+	"the low-hull warning rises as the hull falls and moves nothing" \
+	"the low-hull warning failed a check" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=LowHullTest
 }
 
 unit_calmladdertest() {
@@ -1237,16 +1003,10 @@ step "One motion: every hop between LOCAL, the map and the chart is the calm mov
 # straight line, no cut or one-frame swap, the side bar and toolbar still while
 # the camera moves, the hop within 10% of its length, a press mid-move hurried
 # and not lost, the goal line away for the move and back after it.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot calmladdertest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=CalmLadderTest; then
-	if grep -qE '^calmladdertest: PASS' "$LOG_DIR/calmladdertest.log"; then
-		ok "every hop is one calm move about your ship"
-	else
-		bad "a hop between distances was not the calm move"
-		grep -E 'FAIL|^calmladdertest' "$LOG_DIR/calmladdertest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "calmladdertest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet calmladdertest 300 \
+	"every hop is one calm move about your ship" \
+	"a hop between distances was not the calm move" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=CalmLadderTest
 }
 
 unit_sidebartest() {
@@ -1255,16 +1015,10 @@ step "The side bar never goes blank between distances"
 # 60 fps for every look of the swap: no frame with the side bar empty, a click
 # on content not yet resolved eaten, and an instant swap headless and under
 # reduced motion (Jon, Oct 13).
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot sidebartest 300 --headless --path "$PROJECT" -- sheet=SideBarTest; then
-	if grep -qE '^sidebartest: PASS' "$LOG_DIR/sidebartest.log"; then
-		ok "the side bar swaps in place, never blank"
-	else
-		bad "the side bar went blank or took a click it should not"
-		grep -E 'FAIL|^sidebartest' "$LOG_DIR/sidebartest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "sidebartest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet sidebartest 300 \
+	"the side bar swaps in place, never blank" \
+	"the side bar went blank or took a click it should not" \
+	--headless --path "$PROJECT" -- sheet=SideBarTest
 }
 
 unit_deathpooltest() {
@@ -1272,17 +1026,10 @@ step "Ships and creatures die the ways Jon kept"
 # Every kept death style reachable, the cut ones (E CHAIN, H SLICE) never
 # played, ships and creatures never crossing, and a won fight's wrecks dying
 # the way the fight chose, so LOCAL's wreck is the one the animation left.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot deathpooltest 120 --headless --path "$PROJECT" -- sheet=DeathPoolTest; then
-	if grep -qE '^deathpooltest: PASS' "$LOG_DIR/deathpooltest.log"; then
-		ok "every kept style is reachable and nothing crosses"
-	else
-		bad "a death style rolled where it should not"
-		grep -E 'FAIL|^deathpooltest' "$LOG_DIR/deathpooltest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "deathpooltest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet deathpooltest 120 \
+	"every kept style is reachable and nothing crosses" \
+	"a death style rolled where it should not" \
+	--headless --path "$PROJECT" -- sheet=DeathPoolTest
 }
 
 unit_popplacetest() {
@@ -1290,17 +1037,10 @@ step "Fight numbers sit on the hull's ink, and land above it"
 # Jon, Oct 13 ("Pops: B"): a held card's number centred on the ship's ink both
 # ways; a landing's pops centred across on the ink and wholly above its top.
 # Every enemy picture and every player hull (manufacturer x weight), in a fight.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot popplacetest 240 --headless --path "$PROJECT" -- sheet=PopPlaceTest; then
-	if grep -qE '^popplacetest: PASS' "$LOG_DIR/popplacetest.log"; then
-		ok "previews on the ink, pops above it, on every hull"
-	else
-		bad "a fight number is off its hull"
-		grep -E 'FAIL|^popplacetest' "$LOG_DIR/popplacetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "popplacetest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet popplacetest 240 \
+	"previews on the ink, pops above it, on every hull" \
+	"a fight number is off its hull" \
+	--headless --path "$PROJECT" -- sheet=PopPlaceTest
 }
 
 unit_hitfxlivetest() {
@@ -1309,38 +1049,20 @@ step "Hits, block and brace drawn on every ship in a fight"
 # bubble for block and the plated overlay for brace; every kind of landing
 # makes its visual (soak, fizzle, armour taking it and shedding, a mark); a
 # kill's wreck keeps its marks, in the slot and on LOCAL.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hitfxlivetest 120 --headless --path "$PROJECT" -- sheet=HitFxLiveTest; then
-	if grep -qE '^hitfxlivetest: PASS' "$LOG_DIR/hitfxlivetest.log"; then
-		ok "every landing draws, and the wreck keeps its marks"
-	else
-		bad "a hit, the bubble or the armour did not draw"
-		grep -E 'FAIL|^hitfxlivetest' "$LOG_DIR/hitfxlivetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "hitfxlivetest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet hitfxlivetest 120 \
+	"every landing draws, and the wreck keeps its marks" \
+	"a hit, the bubble or the armour did not draw" \
+	--headless --path "$PROJECT" -- sheet=HitFxLiveTest
 }
 
 unit_hulldamagetest() {
 step "Hull damage looks leave no holes"
-# James, a playtester (Oct 17): ships get big holes in them, and ships can't
-# have holes. Jon picked D (A+B+C mixed per hit, `HullHitFx`), the game's; A, B
-# and C are its parts. Each on a light, a dark and a white hull at both sheet
-# sizes: no near-black blob, every mark on the hull's own pixels in its own
-# colours (or burnt metal), every glow the heat ramp's and changing shape 8-12
-# times a second, the same seed the same marks, more marks as the hull goes, D
-# quieter than the older marks; then the real fight, D the default on every
-# ship but the Custodian (the older marks).
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hulldamagetest 300 --headless --path "$PROJECT" -- sheet=HullDamageTest; then
-	if grep -qE '^hulldamagetest: PASS' "$LOG_DIR/hulldamagetest.log"; then
-		ok "no holes, on the hull, in its colours, glows that move"
-	else
-		bad "a hull damage look broke one of its rules"
-		grep -E 'FAIL|^hulldamagetest' "$LOG_DIR/hulldamagetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "hulldamagetest did not finish"
-fi
+# Hull damage marks leave no holes: on the hull's own pixels, in its colours, glows that move.
+# Why: docs/why/validate.md#unit_hulldamagetest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet hulldamagetest 300 \
+	"no holes, on the hull, in its colours, glows that move" \
+	"a hull damage look broke one of its rules" \
+	--headless --path "$PROJECT" -- sheet=HullDamageTest
 }
 
 unit_gameclocktest() {
@@ -1351,41 +1073,20 @@ step "The bobs run on game time, not the wall's"
 # real fight of three: time stopped with the wall running, no bob moves; time
 # at 20x, every bob goes top to bottom; a slot made later bobs in step with the
 # first; `ShipView.shot_clock` still drives your ship.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot gameclocktest 120 --headless --path "$PROJECT" -- sheet=GameClockTest; then
-	if grep -qE '^gameclocktest: PASS' "$LOG_DIR/gameclocktest.log"; then
-		ok "the bobs keep game time, in step"
-	else
-		bad "a bob ran on the wall's clock, or out of step"
-		grep -E 'FAIL|^gameclocktest' "$LOG_DIR/gameclocktest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "gameclocktest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet gameclocktest 120 \
+	"the bobs keep game time, in step" \
+	"a bob ran on the wall's clock, or out of step" \
+	--headless --path "$PROJECT" -- sheet=GameClockTest
 }
 
 unit_fightopentest() {
 step "A fight opens by easing up out of LOCAL, not with a pop"
-# Jon, Oct 13: "When the enemy ship enters.... the ships pop up and the drawer
-# pops into view.... can we have the opposite of the fight ending screen".
-# Animated headless at 60 fps, through the real screens: the core's ENGAGE, an
-# event's THEY ARE FIRING, a pack of three started on LOCAL, and an ambush met
-# on arrival. Every frame: nothing (your ship, plate, bands, rails, each
-# contact's box, readout and intent) jumps over 10 px or pops in or out, no
-# frame is faded dark, nothing overlaps the rising band, no card / END TURN /
-# FLEE / HAIL / pile takes a click before the band settles (and they do after);
-# an ambush keeps its contacts and hand until your ship has arrived.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot fightopentest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightOpenTest; then
-	if grep -qE '^fightopentest: PASS' "$LOG_DIR/fightopentest.log"; then
-		ok "the fight's hand comes up out of LOCAL, eased, and takes no early click"
-	else
-		bad "a fight's opening jumped, popped, went dark or took an early click"
-		grep -E 'FAIL|^fightopentest' "$LOG_DIR/fightopentest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "fightopentest did not finish"
-fi
+# A fight opens by easing up out of LOCAL: nothing jumps over 10 px, no click lands before the band settles.
+# Why: docs/why/validate.md#unit_fightopentest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet fightopentest 180 \
+	"the fight's hand comes up out of LOCAL, eased, and takes no early click" \
+	"a fight's opening jumped, popped, went dark or took an early click" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=FightOpenTest
 }
 
 unit_playerdeathtest() {
@@ -1396,17 +1097,10 @@ step "Dying: your ship breaks up, a beat on the wreck, then the run's screen"
 # apart (a ship style, boss length, mirrored for a right-facing ship, over the
 # hull, the explosion after the break) and RUN ENDED waits for it and the hold;
 # without motion, RUN ENDED at once; the run left behind identical both ways.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot playerdeathtest 180 --headless --path "$PROJECT" -- sheet=PlayerDeathTest; then
-	if grep -qE '^playerdeathtest: PASS' "$LOG_DIR/playerdeathtest.log"; then
-		ok "your ship breaks up before the run ends, and the run is the same"
-	else
-		bad "the death's breakup or its timing failed"
-		grep -E 'FAIL|^playerdeathtest' "$LOG_DIR/playerdeathtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "playerdeathtest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet playerdeathtest 180 \
+	"your ship breaks up before the run ends, and the run is the same" \
+	"the death's breakup or its timing failed" \
+	--headless --path "$PROJECT" -- sheet=PlayerDeathTest
 }
 
 unit_corewintest() {
@@ -1416,39 +1110,20 @@ step "Beating the core's boss: its body looted, then the win screen"
 # fight: the body open with its loot and no win screen yet, the run recorded as
 # won, DONE / Escape / any other door ending on the win screen (Jon's note whole,
 # the stats, TITLE, &"gameover"); an ordinary fight won never comes near it.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot corewintest 180 --headless --path "$PROJECT" -- sheet=CoreWinTest; then
-	if grep -qE '^corewintest: PASS' "$LOG_DIR/corewintest.log"; then
-		ok "the core's win loots the body, then ends the run"
-	else
-		bad "the core's win flow failed"
-		grep -E 'FAIL|^corewintest' "$LOG_DIR/corewintest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "corewintest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet corewintest 180 \
+	"the core's win loots the body, then ends the run" \
+	"the core's win flow failed" \
+	--headless --path "$PROJECT" -- sheet=CoreWinTest
 }
 
 unit_midjointest() {
 step "Co-op: starting and leaving a shared fight through Router, Combat and the menu"
-# Nov 5, the same-second mismatch and the review's holes: a ship that asked for
-# its own enemy and was seated in a partner's fights the partner's (hulls,
-# intents, what SAVE & EXIT restarts, "VELA got here first."), on the host and
-# as a guest of a host in this process; SAVE & EXIT and ABANDON leave the
-# party's crew (nothing here runs a turn with no hull), CONTINUE joins again,
-# grown once; a join answered on the kill goes to the win; an ambush at a
-# partner's fight says so; a slow host is waited for, not fought around, and
-# an answer that lands after SAVE & EXIT is left again.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot midjointest 180 --headless --path "$PROJECT" -- sheet=MidJoinTest; then
-	if grep -qE '^midjointest: PASS' "$LOG_DIR/midjointest.log"; then
-		ok "a shared fight is the host's fight on every ship, and leaving it leaves"
-	else
-		bad "starting or leaving a shared fight failed"
-		grep -E 'FAIL|^midjointest' "$LOG_DIR/midjointest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "midjointest did not finish"
-fi
+# A shared fight is the host's fight on every ship, and leaving or rejoining it is clean.
+# Why: docs/why/validate.md#unit_midjointest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet midjointest 180 \
+	"a shared fight is the host's fight on every ship, and leaving it leaves" \
+	"starting or leaving a shared fight failed" \
+	--headless --path "$PROJECT" -- sheet=MidJoinTest
 }
 
 unit_wreckloottest() {
@@ -1458,17 +1133,10 @@ step "Each wreck holds its own ship's loot"
 # credit chance and amount stay in bounds over thousands of wrecks; a two-ship
 # fight pays about the sum of its ships; three seats with their streams apart
 # roll identical wrecks, sized for the crew; a save keeps every wreck.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot wreckloottest 240 --headless --path "$PROJECT" -- sheet=WreckLootTest; then
-	if grep -qE '^wreckloottest: PASS' "$LOG_DIR/wreckloottest.log"; then
-		ok "every wreck pays its own ship, the same on every machine"
-	else
-		bad "a wreck's loot is not its own ship's, or not the same everywhere"
-		grep -E 'FAIL|^wreckloottest' "$LOG_DIR/wreckloottest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "wreckloottest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet wreckloottest 240 \
+	"every wreck pays its own ship, the same on every machine" \
+	"a wreck's loot is not its own ship's, or not the same everywhere" \
+	--headless --path "$PROJECT" -- sheet=WreckLootTest
 }
 
 unit_lockedpooltest() {
@@ -1479,16 +1147,10 @@ step "A locked manufacturer appears nowhere"
 # and the custodian's body: a fresh profile finds Korvan and unbranded only and
 # every roll still rolls something; a Korvan win finds Solari too; developer
 # mode finds it; a save keeps its pool across CONTINUE; a party rolls the host's.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot lockedpooltest 240 --headless --path "$PROJECT" -- sheet=LockedPoolTest; then
-	if grep -qE '^lockedpooltest: PASS' "$LOG_DIR/lockedpooltest.log"; then
-		ok "a manufacturer appears only once it is unlocked"
-	else
-		bad "a locked manufacturer's part or hull reached a player, or a pool ran dry"
-		grep -E 'FAIL|^lockedpooltest' "$LOG_DIR/lockedpooltest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "lockedpooltest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet lockedpooltest 240 \
+	"a manufacturer appears only once it is unlocked" \
+	"a locked manufacturer's part or hull reached a player, or a pool ran dry" \
+	--headless --path "$PROJECT" -- sheet=LockedPoolTest
 }
 
 unit_deeploottest() {
@@ -1499,43 +1161,20 @@ step "Going deep pays: material gates are module gates, no commons past halfway"
 # tier 3 no source rolls a COMMON module or material -- wrecks, bags, derelicts,
 # event parts, relic analysis, shelves, the custodian, every material table --
 # while a pool the rule would empty falls back to its own commons.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot deeploottest 240 --headless --path "$PROJECT" -- sheet=DeepLootTest; then
-	if grep -qE '^deeploottest: PASS' "$LOG_DIR/deeploottest.log"; then
-		ok "materials gate like modules, and nothing common rolls deep"
-	else
-		bad "a material opens shallower than its module, or a common rolled deep"
-		grep -E 'FAIL|^deeploottest' "$LOG_DIR/deeploottest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "deeploottest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet deeploottest 240 \
+	"materials gate like modules, and nothing common rolls deep" \
+	"a material opens shallower than its module, or a common rolled deep" \
+	--headless --path "$PROJECT" -- sheet=DeepLootTest
 }
 
 unit_wrecksitetest() {
 step "Each place in a system keeps its own wrecks"
-# Jon, Oct 14: "each planet or POI you can visit should contain its own
-# wrecks/fights." A wreck lies where your ship was when it died (Jetsam.site);
-# LOCAL draws that place's wrecks and no other's, each with its own death and
-# marks; a save keeps the place, and an older save's wrecks show everywhere.
-# Jon, Oct 15: what is left in a wreck you have opened is under SECTOR LOOT too,
-# from anywhere in the system, claimed as the wreck's own.
-# Jon, Oct 17: "fix destroyed ships from going on top of you when you edit your
-# ship after a fight" -- every door off LOCAL and back (the cutaway with a part
-# moved in it was the one) leaves the wrecks where they lay, off your hull; and
-# "destroyed ships still show up in other systems" -- a real jump draws none.
-# Fit means nothing overlaps: no wreck's words on the world you orbit, and no
-# wreck's picture on it while the pile is a fight's worth.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit|were leaked at exit' \
-	run_godot wrecksitetest 420 --headless --path "$PROJECT" -- sheet=WreckSiteTest; then
-	if grep -qE '^wrecksitetest: PASS' "$LOG_DIR/wrecksitetest.log"; then
-		ok "a world keeps its wrecks, the next one and the next system have none, and they stay off your hull"
-	else
-		bad "a wreck shows at a place it did not die at, or on your hull"
-		grep -E 'FAIL|^wrecksitetest' "$LOG_DIR/wrecksitetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "wrecksitetest did not finish"
-fi
+# Each place keeps its own wrecks, off your hull, and a real jump draws none.
+# Why: docs/why/validate.md#unit_wrecksitetest
+ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet wrecksitetest 420 \
+	"a world keeps its wrecks, the next one and the next system have none, and they stay off your hull" \
+	"a wreck shows at a place it did not die at, or on your hull" \
+	--headless --path "$PROJECT" -- sheet=WreckSiteTest
 }
 
 unit_arriveidletest() {
@@ -1545,16 +1184,10 @@ step "A new run's arrival: the engines sputter to the idle, no highlight"
 # it, stepped a frame at a time: the flame never fully off from the clean burn
 # to the idle, the cutaway outline never lit by the ship coming to rest, and a
 # pointer left where it parked does not light it.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot arriveidletest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest; then
-	if grep -qE '^arriveidletest: PASS' "$LOG_DIR/arriveidletest.log"; then
-		ok "the arrival sputters to the idle, never off, no highlight"
-	else
-		bad "the arrival's engines or highlight are wrong"
-		grep -E 'FAIL|^arriveidletest' "$LOG_DIR/arriveidletest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "arriveidletest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arriveidletest 180 \
+	"the arrival sputters to the idle, never off, no highlight" \
+	"the arrival's engines or highlight are wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest
 }
 
 unit_banddroptest() {
@@ -1575,22 +1208,12 @@ fi
 
 unit_outcometest() {
 step "An event's result says what you end up with"
-# OutcomeRow's six looks (today, A big, B a ledger, C flown to the HUD, D a
-# table over the buttons, E that table and the things you got drawn big) on the
-# real LOCAL with the HUD: the real outcomes OutcomeCheck finds (Jon's lifepod,
-# credits and a part, credits and fuel, a part alone, nothing, credits alone,
-# the most changes), the numbers the run moved said in every look and layout, every
-# entry box-tested against the band, the buttons and the text, CONTINUE where
-# today's look has it; then C animated and under reduced motion: the HUD holds
-# its old number until the flight lands, flickers, and nothing pressable moves.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot outcometest 240 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=OutcomeTest; then
-	if grep -qE '^outcometest: PASS' "$LOG_DIR/outcometest.log"; then
-		ok "every look says what moved, fits, and C flies without moving a button"
-	else
-		bad "an event's result misstates or overlaps what you end up with"
-		grep -E 'FAIL' "$LOG_DIR/outcometest.log" | head -n 12 | sed 's/^/        /'
-	fi
-fi
+# An event's result says what moved, in every look and layout, and nothing pressable moves.
+# Why: docs/why/validate.md#unit_outcometest
+GATE_FAIL_RE='FAIL' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet outcometest 240 \
+	"every look says what moved, fits, and C flies without moving a button" \
+	"an event's result misstates or overlaps what you end up with" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=OutcomeTest
 }
 
 unit_rewardshowntest() {
@@ -1601,14 +1224,10 @@ step "A result that gave you something to take shows REWARD"
 # skips its result; CONTINUE past an unopened REWARD leaves it under SECTOR
 # LOOT; the quest events are in the sweep. REWARD was keyed on `module` alone
 # and 160 material outcomes said CONTINUE (Jon, Oct 22).
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot rewardshowntest 300 --headless --path "$PROJECT" -- sheet=RewardShownTest; then
-	if grep -qE '^rewardshowntest: PASS' "$LOG_DIR/rewardshowntest.log"; then
-		ok "every outcome that put something on the pile shows REWARD"
-	else
-		bad "an event paid into SECTOR LOOT with no REWARD on its result"
-		grep -E 'FAIL' "$LOG_DIR/rewardshowntest.log" | head -n 12 | sed 's/^/        /'
-	fi
-fi
+GATE_FAIL_RE='FAIL' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet rewardshowntest 300 \
+	"every outcome that put something on the pile shows REWARD" \
+	"an event paid into SECTOR LOOT with no REWARD on its result" \
+	--headless --path "$PROJECT" -- sheet=RewardShownTest
 }
 
 unit_gradesheet() {
@@ -1638,38 +1257,20 @@ step "Your idle engines are heard exactly while the idle flame is seen"
 # down in a hyperdrive's dark, a departure, hidden or off screen; heard in a
 # fight, on the refit and on the transfer's new hull; silent on the chart; one
 # view only, yours.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot idlesoundtest 180 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=IdleSoundTest; then
-	if grep -qE '^idlesoundtest: PASS' "$LOG_DIR/idlesoundtest.log"; then
-		ok "the idle bed follows the idle flame"
-	else
-		bad "the idle bed does not follow the idle flame"
-		grep -E 'FAIL|^idlesoundtest' "$LOG_DIR/idlesoundtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "idlesoundtest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet idlesoundtest 180 \
+	"the idle bed follows the idle flame" \
+	"the idle bed does not follow the idle flame" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=IdleSoundTest
 }
 
 unit_soundmomenttest() {
 step "October's effects are heard, once, on the frame each picture acts"
-# The free half of the Oct 17 sound plan (`Audio.FX`, one switchable row a
-# moment). Audio is off headless, but while it tapes it makes every decision
-# (limits, suppression, the pick, the caps) and writes it down: through the real
-# fights, deaths, your ship's loss and the ladder, each picture's own `moment`
-# against what was heard -- the band, plates on and off, a hit partly taken,
-# vents and their sputters, deaths G, N, O, P, the Hellbender's furnace and pops,
-# C1c's split, power_off and no page click into RUN ENDED, the chrome sliding
-# and the side bar's decode.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot soundmomenttest 300 --headless --fixed-fps 60 --path "$PROJECT" -- sheet=SoundMomentTest; then
-	if grep -qE '^soundmomenttest: PASS' "$LOG_DIR/soundmomenttest.log"; then
-		ok "every moment's sound plays once, on its frame, at its level"
-	else
-		bad "a moment's sound is missing, doubled, early or late"
-		grep -E 'FAIL|^soundmomenttest' "$LOG_DIR/soundmomenttest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "soundmomenttest did not finish"
-fi
+# Each picture's sound is heard once, on its frame, read from the audio tape (audio is off headless).
+# Why: docs/why/validate.md#unit_soundmomenttest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet soundmomenttest 300 \
+	"every moment's sound plays once, on its frame, at its level" \
+	"a moment's sound is missing, doubled, early or late" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=SoundMomentTest
 }
 
 unit_welcometest() {
@@ -1680,17 +1281,10 @@ step "Jon's welcome note: once per profile, and on the title menu"
 # profile goes straight to the hull pick, no seed panel (it stays with a save),
 # and LAUNCH lands on LOCAL with no tour. `welcome` lets it run under the
 # harness, in its own scratch settings.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot welcometest 120 --headless --path "$PROJECT" -- sheet=WelcomeTest welcome; then
-	if grep -qE '^welcometest: PASS' "$LOG_DIR/welcometest.log"; then
-		ok "the welcome note shows once and comes back from the menu"
-	else
-		bad "the welcome note failed"
-		grep -E 'FAIL|^welcometest' "$LOG_DIR/welcometest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "welcometest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet welcometest 120 \
+	"the welcome note shows once and comes back from the menu" \
+	"the welcome note failed" \
+	--headless --path "$PROJECT" -- sheet=WelcomeTest welcome
 }
 
 unit_scrollcheck() {
@@ -1701,16 +1295,10 @@ step "No scroll bar on the sector map's panel covers a word"
 # UITheme.BAR_GAP of the bar as drawn, and no page asking for more than the
 # text column (Nov 1: an event card asked for 231 px of the 226, widening the
 # panel under its bar). It fails if no page scrolled at all.
-if run_godot scrollcheck 240 --headless --path "$PROJECT" -- sheet=SystemShot scrollcheck; then
-	if grep -qE '^scrollcheck: PASS' "$LOG_DIR/scrollcheck.log"; then
-		ok "the sector panel's words stay clear of its scroll bar"
-	else
-		bad "something on the sector panel sits under its scroll bar"
-		grep -E 'FAIL|^scrollcheck|  scrollcheck' "$LOG_DIR/scrollcheck.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "scrollcheck did not finish"
-fi
+GATE_FAIL_RE='FAIL|^scrollcheck|  scrollcheck' gate_sheet scrollcheck 240 \
+	"the sector panel's words stay clear of its scroll bar" \
+	"something on the sector panel sits under its scroll bar" \
+	--headless --path "$PROJECT" -- sheet=SystemShot scrollcheck
 }
 
 unit_yardseattest() {
@@ -1719,16 +1307,10 @@ step "Every hull sits on its yard stands, centred"
 # on them." Every hull frame at every grade on every level's stands, measured
 # off the pictures: no floor between belly and cap, resting on the cap's seat
 # row, the stands' middle within 1 px of the hull's mass middle, one height.
-if run_godot yardseattest 120 --headless --path "$PROJECT" -- sheet=YardSeatTest; then
-	if grep -qE '^yardseattest: PASS' "$LOG_DIR/yardseattest.log"; then
-		ok "every hull on its stands"
-	else
-		bad "a hull floats over, or stands off the middle of, its yard stands"
-		grep -E 'FAIL|^yardseattest' "$LOG_DIR/yardseattest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "yardseattest did not finish"
-fi
+gate_sheet yardseattest 120 \
+	"every hull on its stands" \
+	"a hull floats over, or stands off the middle of, its yard stands" \
+	--headless --path "$PROJECT" -- sheet=YardSeatTest
 }
 
 unit_enemyarttest() {
@@ -1778,29 +1360,16 @@ step "A kill moves nothing"
 # with the animations on: no slot or resting place moves from the kill to a
 # second after the breakup, the breakup stands where the ship rests, and its
 # last frame is the wreck the slot draws, pixel for pixel.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot killholdtest 180 --headless --path "$PROJECT" -- sheet=KillHoldTest; then
-	if grep -qE '^killholdtest: PASS' "$LOG_DIR/killholdtest.log"; then
-		ok "a kill leaves the pack where it stood"
-	else
-		bad "a kill moved the pack, or the breakup and its wreck disagree"
-		grep -E 'FAIL|^killholdtest' "$LOG_DIR/killholdtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "killholdtest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet killholdtest 180 \
+	"a kill leaves the pack where it stood" \
+	"a kill moved the pack, or the breakup and its wreck disagree" \
+	--headless --path "$PROJECT" -- sheet=KillHoldTest
 }
 
 unit_packlayouttest() {
 step "Nothing in a fight sits on anything else"
-# Jon, on three enemies piled on each other: no ship, wreck, name, hull bar,
-# chips or intent may overlap another enemy's, or yours. Every pair and triple
-# of the pictures a fight can bring, every triple with a wreck in it, and
-# LOCAL's rows of up to twelve wrecks, in the formation (B, the game's) and the
-# column (C): three or more blocks drawn from their half sheets, every box
-# apart, inside the view, your ship where it stood; each fighting ship's shield
-# oval clear of its words, name, bars and chips and of every other block (Jon,
-# "shield:A"); in B the gaps across a rank even (within 4 px at 1080p), the
-# gaps between ranks even, every gap at least 24 px.
+# Nothing in a fight overlaps another ship, wreck, name, bar, chip or intent, in the formation and the column.
+# Why: docs/why/validate.md#unit_packlayouttest
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
 	run_godot packlayouttest 660 --headless --path "$PROJECT" -- sheet=PackLayoutTest; then
 	if grep -qE '^packlayouttest: PASS' "$LOG_DIR/packlayouttest.log"; then
@@ -1819,16 +1388,10 @@ step "One black hole at the core, one pulsar at a pulsar"
 # LOCAL's sky draws the system's own star; the encounter's place picture must
 # not draw the core's hole or a pulsar a second time (Jon, Oct 13: "why are
 # there two black holes"). Every other system keeps its place picture.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot oneholetest 120 --headless --path "$PROJECT" -- sheet=OneHoleTest; then
-	if grep -qE '^oneholetest: PASS' "$LOG_DIR/oneholetest.log"; then
-		ok "the core and the pulsars are drawn once, every other place keeps its picture"
-	else
-		bad "a star is drawn twice on LOCAL, or a place lost its picture"
-		grep -E 'FAIL|^oneholetest' "$LOG_DIR/oneholetest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "oneholetest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet oneholetest 120 \
+	"the core and the pulsars are drawn once, every other place keeps its picture" \
+	"a star is drawn twice on LOCAL, or a place lost its picture" \
+	--headless --path "$PROJECT" -- sheet=OneHoleTest
 }
 
 unit_faunatest() {
@@ -1839,16 +1402,10 @@ step "The Custodian and the megafauna move, and are still for their deaths"
 # picture to the motion, the bob is the motion's, Charging and a creature's
 # strike wind it up, a kill is at rest when the breakup is cut, and the dead
 # slot is the art's wreck again. Reduced motion has none of it.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot faunatest 300 --headless --path "$PROJECT" -- sheet=FaunaTest; then
-	if grep -qE '^faunatest: PASS' "$LOG_DIR/faunatest.log"; then
-		ok "the three move, wind up and come to rest for their deaths"
-	else
-		bad "a creature's or the Custodian's motion is wrong"
-		grep -E 'FAIL|^faunatest' "$LOG_DIR/faunatest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "faunatest did not finish"
-fi
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet faunatest 300 \
+	"the three move, wind up and come to rest for their deaths" \
+	"a creature's or the Custodian's motion is wrong" \
+	--headless --path "$PROJECT" -- sheet=FaunaTest
 }
 
 unit_threadstress() {
@@ -1858,54 +1415,30 @@ step "Worker threads make no textures, nodes or materials"
 # thread loads card art and makes textures: no engine error at all. Before
 # Oct 14 the cuts made their textures on the worker and raced the main
 # thread's (26 errors in 20 s here; faunatest's rare "wrong RID").
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot threadstress 120 --headless --path "$PROJECT" -- sheet=ThreadStress secs=20; then
-	if grep -qE '^threadstress: PASS' "$LOG_DIR/threadstress.log"; then
-		ok "the cuts run on workers beside the main thread's textures without a race"
-	else
-		bad "an off-thread cut raced the main thread's textures"
-		grep -E 'error:|^threadstress' "$LOG_DIR/threadstress.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "threadstress did not finish"
-fi
+GATE_FAIL_RE='error:|^threadstress' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet threadstress 120 \
+	"the cuts run on workers beside the main thread's textures without a race" \
+	"an off-thread cut raced the main thread's textures" \
+	--headless --path "$PROJECT" -- sheet=ThreadStress secs=20
 }
 
 unit_chartaheadtest() {
 step "The run's star chart is built ahead, star for star"
-# A new run builds its chart's star field on a worker while the hull is
-# picked (`MapChart.build_ahead`): the first STARCHART or Tab used to stand
-# still for the build (350-420 ms on the PC, 300-560 ms on Jon's Mac).
-# Headless, three galaxies, the real doors: the chart stands at the size the
-# field is built for, opening it builds nothing, and the field is the one the
-# chart builds itself, list for list; built while other galaxies are written
-# over Run, it is still the run's. And the title's shader warm (`ShaderWarm`)
-# draws the shaders the map draws with.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' run_godot chartaheadtest 180 --headless --path "$PROJECT" -- sheet=ChartAheadTest; then
-	if grep -qE '^chartaheadtest: PASS' "$LOG_DIR/chartaheadtest.log"; then
-		ok "the first chart of a run is built ahead, the same field it would build"
-	else
-		bad "the chart's field built ahead is wrong, unused, or read what it should not"
-		grep -E 'FAIL|error:|^chartaheadtest' "$LOG_DIR/chartaheadtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "chartaheadtest did not finish"
-fi
+# The run's star chart is built ahead on a worker, star for star the field the chart builds itself.
+# Why: docs/why/validate.md#unit_chartaheadtest
+GATE_FAIL_RE='FAIL|error:|^chartaheadtest' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet chartaheadtest 180 \
+	"the first chart of a run is built ahead, the same field it would build" \
+	"the chart's field built ahead is wrong, unused, or read what it should not" \
+	--headless --path "$PROJECT" -- sheet=ChartAheadTest
 }
 
 unit_localeventtest() {
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.
-if run_godot localeventtest 300 --headless --path "$PROJECT" -- localeventtest; then
-	if grep -qE '^localeventtest: PASS' "$LOG_DIR/localeventtest.log"; then
-		ok "every event resolves on LOCAL"
-	else
-		bad "an event failed to open or resolve on LOCAL"
-		grep -E 'FAIL|^localeventtest' "$LOG_DIR/localeventtest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "localeventtest did not finish"
-fi
+gate_sheet localeventtest 300 \
+	"every event resolves on LOCAL" \
+	"an event failed to open or resolve on LOCAL" \
+	--headless --path "$PROJECT" -- localeventtest
 }
 
 unit_optiontest() {
@@ -1913,15 +1446,10 @@ step "The option table rolls a legal system every time"
 # Also never gated, and it is the only thing checking the content that landed
 # tonight: 42 options, unique ids, every rolled option admitted by its own gate,
 # counts and groups inside the tier plan, and no system left with nothing to do.
-if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
-	if grep -qE '^optiontest: PASS' "$LOG_DIR/optiontest.log"; then
-		ok "options roll legally"
-	else
-		bad "the option table rolled something illegal"
-		grep -E '^  FAIL|^optiontest' "$LOG_DIR/optiontest.log" \
-			| head -n 12 | sed 's/^/        /'
-	fi
-fi
+GATE_TAIL=12 gate_check optiontest 180 \
+	"options roll legally" \
+	"the option table rolled something illegal" \
+	--headless --path "$PROJECT" -- optiontest
 }
 
 unit_routinetest() {
@@ -1987,15 +1515,10 @@ step "Every system lays out its map with every option on a body"
 # silently: an option with no body is an encounter nobody can click, an
 # unstable layout moves a planet between a save and a load, and an orbit run
 # through a body draws one world on top of another.
-if run_godot systemtest 180 --headless --path "$PROJECT" -- systemtest; then
-	if grep -qE '^systemtest: PASS' "$LOG_DIR/systemtest.log"; then
-		ok "every system lays out cleanly"
-	else
-		bad "a system laid out wrong"
-		grep -E '^  FAIL|^systemtest' "$LOG_DIR/systemtest.log" \
-			| head -n 12 | sed 's/^/        /'
-	fi
-fi
+GATE_TAIL=12 gate_check systemtest 180 \
+	"every system lays out cleanly" \
+	"a system laid out wrong" \
+	--headless --path "$PROJECT" -- systemtest
 }
 
 unit_weathertest() {
@@ -2005,15 +1528,10 @@ step "The sector map's weather keeps its schedule"
 # under a busy hold or with reduced motion, and every event in the table able
 # to fire -- a dead entry is weather nobody will ever see, and nothing else
 # would notice.
-if run_godot weathertest 180 --headless --path "$PROJECT" -- weathertest; then
-	if grep -qE '^weathertest: PASS' "$LOG_DIR/weathertest.log"; then
-		ok "the weather keeps its schedule"
-	else
-		bad "the weather's scheduler broke a rule"
-		grep -E '^  FAIL|^weathertest' "$LOG_DIR/weathertest.log" \
-			| head -n 12 | sed 's/^/        /'
-	fi
-fi
+GATE_TAIL=12 gate_check weathertest 180 \
+	"the weather keeps its schedule" \
+	"the weather's scheduler broke a rule" \
+	--headless --path "$PROJECT" -- weathertest
 }
 
 unit_namefit() {
@@ -2022,15 +1540,10 @@ step "A destination name fits the height the panel reserves for it"
 # it, so a name that wraps one line further than the panel reserves moves the
 # whole screen -- reported as the chart changing size when a particular system
 # was selected. The reserve is two lines; this says two is still enough.
-if run_godot namefit 120 --headless --path "$PROJECT" -- namefit; then
-	if grep -qE '^namefit: PASS' "$LOG_DIR/namefit.log"; then
-		ok "every destination name fits two lines"
-	else
-		bad "a system name needs more lines than the panel reserves"
-		grep -E '^  FAIL|^  worst|^namefit' "$LOG_DIR/namefit.log" \
-			| head -n 10 | sed 's/^/        /'
-	fi
-fi
+GATE_FAIL_RE='^  FAIL|^  worst|^namefit' GATE_TAIL=10 gate_check namefit 120 \
+	"every destination name fits two lines" \
+	"a system name needs more lines than the panel reserves" \
+	--headless --path "$PROJECT" -- namefit
 }
 
 unit_chartfilter() {
@@ -2042,15 +1555,10 @@ step "The chart's filtered view is mostly filtered"
 # flown anywhere. Nothing errored; the view simply stopped answering the
 # question it exists for, and the only symptom was a screen that looked wrong
 # to somebody who opened it.
-if run_godot chartfilter 120 --headless --path "$PROJECT" -- chartfilter; then
-	if grep -qE '^chartfilter: PASS' "$LOG_DIR/chartfilter.log"; then
-		ok "chart filter"
-	else
-		bad "the chart's KNOWN ONLY view reveals too much of the galaxy"
-		grep -E '^  FAIL|^chartfilter' "$LOG_DIR/chartfilter.log" \
-			| head -n 20 | sed 's/^/        /'
-	fi
-fi
+gate_check chartfilter 120 \
+	"chart filter" \
+	"the chart's KNOWN ONLY view reveals too much of the galaxy" \
+	--headless --path "$PROJECT" -- chartfilter
 }
 
 unit_chartdeeptest() {
@@ -2061,36 +1569,25 @@ step "The chart dims stars in reach that are too deep to jump to"
 # every such star drawn dimmed, read off its ink as drawn, under the cursor and
 # picked too; every reachable star in its own colour; nothing else dimmed; the
 # readout and JUMP saying TOO DEEP.
-if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
-	run_godot chartdeeptest 180 --headless --path "$PROJECT" -- sheet=ChartDeepTest; then
-	if grep -qE '^chartdeeptest: PASS' "$LOG_DIR/chartdeeptest.log"; then
-		ok "too-deep stars in reach drawn dimmed, reachable ones not"
-	else
-		bad "the chart draws a too-deep star in reach like a reachable one, or says it wrong"
-		grep -E 'FAIL|^chartdeeptest|^    ' "$LOG_DIR/chartdeeptest.log" | head -n 12 | sed 's/^/        /'
-	fi
-else
-	bad "chartdeeptest did not finish"
-fi
+GATE_FAIL_RE='FAIL|^chartdeeptest|^    ' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet chartdeeptest 180 \
+	"too-deep stars in reach drawn dimmed, reachable ones not" \
+	"the chart draws a too-deep star in reach like a reachable one, or says it wrong" \
+	--headless --path "$PROJECT" -- sheet=ChartDeepTest
 }
 
 unit_reactor() {
 step "Every frame launches with a deck it can play"
 # The reactor cap decides how many modules a frame can RUN, and a cap set too
-# low does not produce a small ship â it produces a ship whose every turn is
+# low does not produce a small ship — it produces a ship whose every turn is
 # identical, because the deck is no bigger than the hand. That failure is
 # invisible in every other check: the save is valid, the numbers add up, the
 # simulator still finishes its runs. It only shows up as a game with nothing to
 # decide, and the medium's second utility mount exists because it happened once
 # already.
-if run_godot reactor 120 --headless --path "$PROJECT" -- reactor; then
-	if grep -qE '^reactor: PASS' "$LOG_DIR/reactor.log"; then
-		ok "reactor"
-	else
-		bad "a frame cannot launch with a playable deck"
-		grep -E '^  FAIL|THIN|^reactor' "$LOG_DIR/reactor.log" | head -n 20 			| sed 's/^/        /'
-	fi
-fi
+GATE_FAIL_RE='^  FAIL|THIN|^reactor' gate_check reactor 120 \
+	"reactor" \
+	"a frame cannot launch with a playable deck" \
+	--headless --path "$PROJECT" -- reactor
 }
 
 unit_mounts() {
@@ -2101,37 +1598,20 @@ step "Every hull's mounts land on the hull"
 # describing art that no longer exists — the ship draws its guns in clear space
 # beside itself, nothing throws, and the only way to see it is to open that hull
 # at that class. It caught exactly that on the swap of Korvan's heavy B.
-if run_godot mounts 120 --headless --path "$PROJECT" -- mounts; then
-	if grep -qE '^mounts: PASS' "$LOG_DIR/mounts.log"; then
-		ok "mounts"
-	else
-		bad "a hardpoint is not on its hull"
-		grep -E '^  FAIL|^mounts' "$LOG_DIR/mounts.log" | head -n 20 			| sed 's/^/        /'
-	fi
-fi
+gate_check mounts 120 \
+	"mounts" \
+	"a hardpoint is not on its hull" \
+	--headless --path "$PROJECT" -- mounts
 }
 
 unit_artcheck() {
 step "No sprite is the wrong size for the box it sits in"
-# THE SIZE MISTAKE IS THE INVISIBLE ONE. Everything else about a sprite is
-# visible the moment you look at it; a module eight pixels too wide, or a card
-# illustration that is 92x61, is not — it draws, it reads, and it is quietly
-# wrong on one screen nobody opened. This check has existed since the module
-# batch and was never in the gate, which meant 119 assets were vouched for by a
-# command somebody had to remember to type.
-#
-# IT PASSES WITH ART MISSING, on purpose. Enemies and sector places are still
-# drawn procedurally and that is the designed fallback, so what is counted is
-# coverage and what FAILS is a file that exists and does not fit.
-if run_godot artcheck 120 --headless --path "$PROJECT" -- artcheck; then
-	if grep -qE '^artcheck: PASS' "$LOG_DIR/artcheck.log"; then
-		ok "artcheck"
-	else
-		bad "a sprite does not fit the box it is drawn in"
-		grep -E '^  FAIL|OVERHANGS|UNDERSIZED|TOO BIG|^artcheck' "$LOG_DIR/artcheck.log" \
-			| head -n 20 | sed 's/^/        /'
-	fi
-fi
+# A wrong-sized sprite draws fine and is quietly wrong. Passes with art missing; fails a file that does not fit.
+# Why: docs/why/validate.md#unit_artcheck
+GATE_FAIL_RE='^  FAIL|OVERHANGS|UNDERSIZED|TOO BIG|^artcheck' gate_check artcheck 120 \
+	"artcheck" \
+	"a sprite does not fit the box it is drawn in" \
+	--headless --path "$PROJECT" -- artcheck
 }
 
 unit_rooms() {
@@ -2157,7 +1637,7 @@ if [ -n "$RIPY" ]; then
 		sed 's/^/        /' "$LOG_DIR/rooms.log" | head -n 6
 	fi
 else
-	ok "python absent, skipped"
+	gate_no_python "the shop-room check"
 fi
 }
 
@@ -2177,7 +1657,7 @@ if [ -n "$RIPY" ]; then
 		sed 's/^/        /' "$LOG_DIR/labs.log" | head -n 6
 	fi
 else
-	ok "python absent, skipped"
+	gate_no_python "the lab check"
 fi
 }
 
@@ -2197,7 +1677,7 @@ if [ -n "$RIPY" ]; then
 		sed 's/^/        /' "$LOG_DIR/yard.log" | head -n 6
 	fi
 else
-	ok "python absent, skipped"
+	gate_no_python "the yard check"
 fi
 }
 
@@ -2216,7 +1696,7 @@ if [ -n "$RIPY" ]; then
 		sed 's/^/        /' "$LOG_DIR/enemies.log" | head -n 6
 	fi
 else
-	ok "python absent, skipped"
+	gate_no_python "the enemy-picture check"
 fi
 }
 
@@ -2233,45 +1713,24 @@ if [ -n "$RIPY" ]; then
 		sed 's/^/        /' "$LOG_DIR/rail.log" | head -n 6
 	fi
 else
-	ok "python absent, skipped"
+	gate_no_python "the rail check"
 fi
 }
 
 unit_fittest() {
 step "A part can be moved between the hold and the hull"
-# THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
-# here, so it went eight failures deep without anybody hearing -- six of them a
-# real break: a module could not be picked up off the hull at all, because an
-# overlay had been added to a PanelContainer, which lays out every child it has
-# and ignores their anchors, so an invisible box the size of the panel sat in
-# front of the ship eating the drag. Nothing looked wrong.
-#
-# It was left out for a while as "flaky, about one run in six". It was not
-# flaky. It picked the first EMPTY cell in the hold to drop onto without asking
-# whether the part fit there, and a Widowmaker is four cells wide in a five-wide
-# hold -- so when the mount order happened to put the big gun first, the hold
-# correctly refused the drop and the assertion failed. Calling that flakiness
-# and reaching for a timing fix is why it took two tries: a bounded wait cannot
-# make a fact true that was never going to be.
-#
-# Six seconds, and fourteen consecutive passes.
-if run_godot fittest 120 --headless --path "$PROJECT" -- fittest; then
-	if grep -qE '^fittest: PASS' "$LOG_DIR/fittest.log"; then
-		ok "fittest"
-	else
-		bad "a part cannot be moved between the hold and the hull"
-		grep -E '^  FAIL|^fittest' "$LOG_DIR/fittest.log" | head -n 20 			| sed 's/^/        /'
-	fi
-fi
+# A part moves between the hold and the hull. Once written off as flaky; it was a real drop-target bug.
+# Why: docs/why/validate.md#unit_fittest
+gate_check fittest 120 \
+	"fittest" \
+	"a part cannot be moved between the hold and the hull" \
+	--headless --path "$PROJECT" -- fittest
 }
 
 unit_parseall() {
 step "Every script in the project parses"
-# `--check-only` DOES NOT SEE EVERY FILE. CoFightTest.gd sat un-parseable for
-# five days while it reported zero errors, because it only reaches scripts the
-# scene tree pulls in -- and the out-of-band harnesses are loaded by hand, at
-# the moment somebody runs them, which is never in CI. This loads every .gd in
-# the project and reports the ones that will not.
+# `--check-only` misses scripts loaded by hand, so this loads every .gd and reports the ones that fail.
+# Why: docs/why/validate.md#unit_parseall
 if run_godot parseall 180 --headless --path "$PROJECT" -- parseall; then
 	# THE LOG, NOT THE VERDICT. The harness only guarantees every file was
 	# LOADED; Godot is the thing that knows whether one parsed, and it says so
@@ -2291,25 +1750,12 @@ fi
 
 unit_rngtest() {
 step "Seeded RNG replays, and four machines agree"
-# Neither of these was in the gate, and both guard a rule the codebase leans on
-# hard. `-- rngtest` is what enforces the named-stream rule: draw from the
-# global generator for anything that decides something and a run stops replaying
-# from its seed, which in co-op means four machines quietly disagreeing about
-# the galaxy. `-- nettest` stands four — now eight — peers up in one process.
-#
-# The cost of their absence was not hypothetical. MAX_PLAYERS went from four to
-# eight and NetTest went on asserting four in nine places; it had been failing
-# ever since and nothing said so, because nothing ran it. That is the whole
-# argument for these two steps being here.
-if run_godot rngtest 120 --headless --path "$PROJECT" -- rngtest; then
-	if grep -qE '^rngtest: PASS' "$LOG_DIR/rngtest.log"; then
-		ok "rng replays from its seed"
-	else
-		bad "seeded RNG test failed"
-		grep -E '^  FAIL|^rngtest' "$LOG_DIR/rngtest.log" | head -n 20 \
-			| sed 's/^/        /'
-	fi
-fi
+# rngtest enforces the named-stream rule: a run must replay from its seed, or co-op peers disagree about the galaxy.
+# Why: docs/why/validate.md#unit_rngtest
+gate_check rngtest 120 \
+	"rng replays from its seed" \
+	"seeded RNG test failed" \
+	--headless --path "$PROJECT" -- rngtest
 }
 
 unit_nettest() {
@@ -2349,21 +1795,8 @@ fi
 
 unit_sim() {
 step "Simulator plays $SIM_RUNS complete runs"
-# The repo's actual regression test. It has already caught an infinite draw
-# loop and a structural map flaw; a balance change that crashes a run shows up
-# here and nowhere else.
-#
-# READ `errors`, NOT `wins`. This is a smoke test, not a measurement. The run is
-# unseeded and 40 runs is far too few to say anything about balance: three
-# consecutive runs at one unchanged commit gave 23%, 30% and 35%, and across one
-# day of pure UI work the same gate printed 45%, 40%, 25% and 8%. Nothing in
-# those numbers was a change to the game.
-#
-# So a win rate here is worth roughly +/-15 points and cannot detect a real
-# economy shift. `ROADMAP.md` records the honest figures: 200 runs is +/-4, and
-# 500 is what a conclusion costs. Quoting this line as a result -- which is easy
-# to do, because it is the number the gate prints -- says something the gate did
-# not measure.
+# A smoke test, not a measurement: read `errors`, never `wins` (unseeded, about +/-15 points at 40 runs).
+# Why: docs/why/validate.md#unit_sim
 if run_godot sim $((90 + SIM_RUNS * 9)) --headless --path "$PROJECT" -- sim "runs=$SIM_RUNS"; then
 	if grep -qE '^runs [0-9]+ · wins' "$LOG_DIR/sim.log"; then
 		ok "simulator reached its report"
@@ -2387,14 +1820,8 @@ fi
 
 unit_pysyntax() {
 step "Audio generators are valid Python"
-# Syntax only. Rendering needs numpy, scipy and soundfile and writes ~850 MB,
-# which is not what a pull request check is for.
-#
-# The interpreter is found by RUNNING it, not by `command -v`. On Windows,
-# `python3` is a Microsoft Store alias stub that exists on PATH, satisfies
-# `command -v`, and then refuses to run — so the absent-and-skipped branch never
-# fired and this step failed on every laptop in the project for a reason that
-# had nothing to do with the code. Windows installs the real one as `python`.
+# Syntax only: rendering needs numpy and 850 MB. The interpreter is found by running it, not `command -v`.
+# Why: docs/why/validate.md#unit_pysyntax
 PY=""
 for candidate in python3 python; do
 	if "$candidate" -c "" >/dev/null 2>&1; then
@@ -2410,29 +1837,14 @@ if [ -n "$PY" ]; then
 		sed 's/^/        /' "$LOG_DIR/py.log"
 	fi
 else
-	ok "python absent, skipped"
+	gate_no_python "the audio syntax check"
 fi
 }
 
 unit_musiclab() {
 step "The music lab still holds together"
-# THE LAB IS THE SOURCE OF THE MUSIC, so it gets checked like source.
-#
-# `music/lab/tk_music_lab.html` is the one file every cue lives in -- the notes,
-# the instruments, the effects, the arrangement. The oggs under
-# `assets/audio/music/` are RENDERED from it and the JSON under `music/songs/`
-# is DUMPED from it, so neither is worth checking: they cannot be wrong on their
-# own, only stale.
-#
-# `check_cue.mjs` fails on exactly two things, a held note grinding against its
-# chord and a cue playing a pitch it has sworn off, and prints everything else
-# as a note -- off-chord strong beats and repeated notes are usually deliberate.
-# `check_lab.mjs` drives the page headless: tabs, transport, scrubbing,
-# settings lines, and no errors on the console.
-#
-# SKIPPED RATHER THAN FAILED when node or the dependencies are absent, the same
-# bargain the Python check above makes. The tools need `npm install` in
-# `music/tools` once per machine, and a fresh clone has not done it.
+# The lab HTML is the music's source, so check_cue.mjs and check_lab.mjs gate it. Skipped without node or its deps.
+# Why: docs/why/validate.md#unit_musiclab
 if command -v node >/dev/null 2>&1 && [ -d music/tools/node_modules ]; then
 	if (cd music/tools && node check_cue.mjs) >"$LOG_DIR/cues.log" 2>&1; then
 		ok "every cue follows its own musical rules ($(grep -c 'BPM,' "$LOG_DIR/cues.log") cues)"
@@ -2453,24 +1865,8 @@ fi
 
 unit_versionguard() {
 step "A shape that changed took its version with it"
-# THE GUARD THE VOCABULARY PASS NEEDED AND DID NOT HAVE. That pass renamed keys
-# in three persistence surfaces and raised none of the numbers guarding them.
-# Nothing failed: a save stamped with the current version was read with keys
-# that were not in it and came back as a galaxy with no contracts, two co-op
-# builds shook hands and drew every partner unbranded, and every run ever flown
-# stopped unlocking its manufacturer.
-#
-# The vocabulary check below could not have caught it and neither could any word
-# grep, because BOTH SPELLINGS ARE LEGAL. What changed was the shape.
-#
-# Run against this branch's diff from main, or against the last commit when
-# there is none. It found all four surfaces of the August break when pointed at
-# it after the fact, and a fifth nobody knew about -- five save keys renamed
-# stoker_* to hellbender_* at a version that did not move.
-# FOUND BY RUNNING IT, for the reason the audio step below already gives: on
-# Windows `python3` is a Store alias stub that satisfies `command -v` and then
-# refuses to run. This step was written with `command -v` first and failed on
-# this machine immediately, which is the comment down there doing its job.
+# A changed save, wire or persistence shape must take its version with it; run against the diff from main.
+# Why: docs/why/validate.md#unit_versionguard
 VGPY=""
 for candidate in python3 python; do
 	if "$candidate" -c "" >/dev/null 2>&1; then
@@ -2488,69 +1884,52 @@ if [ -n "$VGPY" ]; then
 		printf '%s
 ' "$VG" | head -n 12 | sed 's/^/        /'
 	fi
+	# A base git cannot find must fail the guard, not read as an empty diff.
+	if "$PY" .github/scripts/version_guard.py no-such-rev-for-the-guard 2>&1 | grep -q 'version guard: PASS'; then
+		bad "the version guard passed a base that does not exist"
+	fi
 else
-	bad "no python for the version guard"
+	gate_no_python "the version guard"
 fi
 }
 
 unit_enclint() {
 step "Encounters follow their own rulings"
 
-# WHY THIS IS A GATE AND NOT A HABIT. Every fault it finds was found by hand
-# first, one encounter at a time, by a person reading prose -- a dominated
-# choice, a walk-away that spent the encounter, credits paid to an empty sky, an
-# encounter reaching into the hold. All of them are patterns. Only "this reads
-# weird" needs eyes, and eyes are wasted on the rest.
-#
-# BASELINED, so it could be switched on the day it was written. The table had 35
-# findings the moment the linter existed; a gate that failed on all of them
-# could only ever be turned on after a cleanup nobody had time for, and eighty
-# new encounters were about to arrive. `--strict` fails on what is NOT in
-# `tools/encounter_lint_baseline.txt`, so old debt stays visible and stops
-# blocking new work.
+# Encounter rules found by hand are patterns, baselined so the gate could be switched on: --strict fails on new findings only.
+# Why: docs/why/validate.md#unit_enclint
 if [ -n "$PY" ]; then
-	if "$PY" tools/encounter_lint.py --strict >/tmp/enclint.$$ 2>&1; then
+	if "$PY" tools/encounter_lint.py --strict >"$GATE_UNIT_DIR/enclint.out" 2>&1; then
 		ok "encounters: no new findings"
 	else
-		sed -n '/^ERRORS/,$p' /tmp/enclint.$$ | grep "NEW" | head -20
+		sed -n '/^ERRORS/,$p' "$GATE_UNIT_DIR/enclint.out" | grep "NEW" | head -20
 		bad "encounters: new lint findings (see above)"
 	fi
-	rm -f /tmp/enclint.$$
 else
-	warn "no python for the encounter linter"
+	gate_no_python "the encounter linter"
 fi
 }
 
 unit_prose() {
 step "The prose reads plainly, and does not explain itself"
 
-# Two tools, one question each. `prose_grade.py` holds the encounters to the
-# reading level: grade 7 or under, 17 words a sentence on average, no sentence
-# over 22 words (re-ruled 2026-10-13 for all player-facing text; it was grade 5
-# from 2026-09-12). Every encounter meets it, so it needs no baseline. The rest
-# of the text is reported by `prose_grade.py --all`, not gated. The grade is a
-# ceiling, not a goal: prose_tells' "fragments" flag is the floor.
-# `prose_tells.py` reads EVERY player-facing string for the tells the
-# encounter-prose skill lists -- "It is not X. It is Y." past one an encounter,
-# "which is the point", a summing-up closer, a dash, "round", hands in an
-# encounter -- and is BASELINED like the linter above: what predates it is a
-# ruling for Jon, not a lint failure. Its REVIEW list never fails the gate.
+# prose_grade holds encounters to the reading level; prose_tells reads every player-facing string, baselined like the linter.
+# Why: docs/why/validate.md#unit_prose
 if [ -n "$PY" ]; then
-	if "$PY" tools/prose_grade.py >/tmp/prosegrade.$$ 2>&1; then
-		ok "prose grade: $(tail -n 1 /tmp/prosegrade.$$)"
+	if "$PY" tools/prose_grade.py >"$GATE_UNIT_DIR/prosegrade.out" 2>&1; then
+		ok "prose grade: $(tail -n 1 "$GATE_UNIT_DIR/prosegrade.out")"
 	else
-		tail -n 1 /tmp/prosegrade.$$ | sed 's/^/        /'
+		tail -n 1 "$GATE_UNIT_DIR/prosegrade.out" | sed 's/^/        /'
 		bad "prose grade: encounters over the reading-level target (python tools/prose_grade.py)"
 	fi
-	if "$PY" tools/prose_tells.py --strict --quiet >/tmp/prosetells.$$ 2>&1; then
+	if "$PY" tools/prose_tells.py --strict --quiet >"$GATE_UNIT_DIR/prosetells.out" 2>&1; then
 		ok "prose tells: no new findings"
 	else
-		grep -A1 "NEW " /tmp/prosetells.$$ | head -20 | sed 's/^/      /'
+		grep -A1 "NEW " "$GATE_UNIT_DIR/prosetells.out" | head -20 | sed 's/^/      /'
 		bad "prose tells: new findings (see above; python tools/prose_tells.py)"
 	fi
-	rm -f /tmp/prosegrade.$$ /tmp/prosetells.$$
 else
-	warn "no python for the prose checks"
+	gate_no_python "the prose checks"
 fi
 }
 
@@ -2559,87 +1938,62 @@ step "Long reasoning lives in docs/why/, and every pointer to it resolves"
 # No .gd file holds a comment run over five lines, and every
 # `docs/why/<file>.md#<anchor>` in the code names a real heading.
 if [ -n "$PY" ]; then
-	if "$PY" tools/comment_check.py >/tmp/commentcheck.$$ 2>&1; then
-		ok "$(tail -n 1 /tmp/commentcheck.$$)"
+	if "$PY" tools/comment_check.py >"$GATE_UNIT_DIR/commentcheck.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/commentcheck.out")"
 	else
-		head -n 20 /tmp/commentcheck.$$ | sed 's/^/        /'
+		head -n 20 "$GATE_UNIT_DIR/commentcheck.out" | sed 's/^/        /'
 		bad "comment check: broken why-pointers or long comment runs (python tools/comment_check.py)"
 	fi
-	rm -f /tmp/commentcheck.$$
 else
-	bad "no python for the comment check"
+	gate_no_python "the comment check"
+fi
+}
+
+unit_codecheck() {
+step "No new long functions, huge files or bare Dictionary/Array/Variant returns"
+# A ratchet: game code (not sim) may have no function over 100 lines, no file over
+# 3000, no new function returning a bare Dictionary, Array or Variant. What predates
+# it is in `tools/code_check_baseline.txt` and may not grow (docs/why/code_check.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/code_check.py >"$GATE_UNIT_DIR/codecheck.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/codecheck.out")"
+	else
+		head -n 20 "$GATE_UNIT_DIR/codecheck.out" | sed 's/^/        /'
+		bad "code check: new long functions, huge files or bare returns (python tools/code_check.py)"
+	fi
+else
+	gate_no_python "the code check"
+fi
+}
+
+unit_codecheck() {
+step "No new long functions, huge files or bare Dictionary/Array/Variant returns"
+# A ratchet: game code (not sim) may have no function over 100 lines, no file over
+# 3000, no new function returning a bare Dictionary, Array or Variant. What predates
+# it is in `tools/code_check_baseline.txt` and may not grow (docs/why/code_check.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/code_check.py >/tmp/codecheck.$$ 2>&1; then
+		ok "$(tail -n 1 /tmp/codecheck.$$)"
+	else
+		head -n 20 /tmp/codecheck.$$ | sed 's/^/        /'
+		bad "code check: new long functions, huge files or bare returns (python tools/code_check.py)"
+	fi
+	rm -f /tmp/codecheck.$$
+else
+	bad "no python for the code check"
 fi
 }
 
 unit_vocab() {
 step "One word for the thing: manufacturer"
-# A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
-# months with four words for one concept -- house, maker, man, manufacturer --
-# spread across 42 code files, a save key, a network wire key and eleven
-# documents. Ruled 2026-08-24: the word is `manufacturer`. They manufacture
-# parts for spaceships; they are corporations, not families, and `house`
-# imported a dynastic register the setting does not have.
-#
-# THE MATCH IS CASE-INSENSITIVE. It was not, at first, and `GROUPED BY HOUSE`,
-# `THE HOUSE PERK IS REROLLED` and eleven more upper-case comments walked
-# straight past a guard whose whole job was to catch them. A vocabulary check
-# that only sees one casing is a vocabulary check that lies.
-#
-# Three exemptions, all deliberate, all narrow:
-#
-#   1. The LAN idiom -- "friends in the house", "outside the house" -- is
-#      English about people under your roof, describing local-network play.
-#      Renaming it produces nonsense.
-#   2. "maker's mark" -- the stamp a craftsman leaves on the work. A real
-#      English term, used in an art prompt and in an insurance document.
-#   3. "Widowmaker" (a gun) and "gatehouse" (a building) are words that merely
-#      contain the string.
-#
-#   4. A retired word in BACKTICKS or as a QUOTED KEY is being NAMED, not used.
-#      `"chassis_maker"` and `"makers"` are keys sitting in files on players'
-#      disks. The readers that still honour them are the fix for a rename that
-#      shipped without raising the numbers guarding it, and a version ladder
-#      saying a key moved from `makers` to `berths` is doing the same job.
-#      Banning the old spelling from the code that has to READ the old spelling
-#      would force a choice between a green gate and a working load.
-#
-#      Deliberately narrow: the quotes or the backticks have to be there.
-#      `var maker := ...` is still caught, which is the vocabulary this rule was
-#      written for -- checked by dropping such a file in and watching it fail.
-#
-# BRAND AND MARQUE were added after they were used to route AROUND this check:
-# a rename hit the guard on `maker`, and a synonym went in instead -- first as a
-# local called `brand`, then as `marque` in a comment. Neither was on the list,
-# so neither failed, and the vocabulary the list exists to protect drifted
-# anyway. A guard that only knows two of a word's synonyms teaches people the
-# third.
-#
-# BRANDED AND UNBRANDED ARE DELIBERATELY NOT HERE, and this is the line: the
-# banned usage is the NOUN standing in for `manufacturer`. `unbranded` means
-# "carries no manufacturer", which is a real state a part can be in -- it is on
-# screen as UNBRANDED SALVAGE and there is no one-word replacement -- and
-# retiring `branded` while keeping its antonym would leave the pair incoherent.
-# `-w` treats both as their own words, so they pass by construction.
-#
-# NOT `-w`, AND THAT IS THE POINT. To grep, an underscore is a word character,
-# so `-w house` does not match inside `delivery_houses` -- and every compound
-# identifier in the codebase was invisible to this check. It was found the
-# expensive way: `RunState.delivery_houses()` was renamed, `StarchartScreen`
-# was not, and opening the chart printed "Nonexistent function" while the
-# guard stayed green. The boundary below treats an underscore as a separator
-# and still ignores `widowmaker` and `gatehouse`, where the preceding letter
-# is alphanumeric and there is no boundary to match.
-#
-# If you are adding a sixth, the bar is: would a person say this out loud?
-# Two passes once, while the archive's prose needed a skip for the short
-# word. That prose went with the ARCHIVE (Oct 22), and both passes now run
-# everywhere.
+# One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.
+# Why: docs/why/validate.md#unit_vocab
 VOCAB=$(
 	{
 		# Pass A -- house/maker, everywhere, no prose exemption.
 		grep -rniE '(^|[^A-Za-z0-9])(house|houses|maker|makers|brand|brands|marque|marques)([^A-Za-z0-9]|$)' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 		# Pass B -- the short word, everywhere.
-		grep -rnwiE 'man|hull_man' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
+		grep -rniE '(^|[^A-Za-z0-9])(man|hull_man)([^A-Za-z0-9]|$)' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 	} | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'friends in the house' \
@@ -2651,15 +2005,12 @@ VOCAB=$(
 	  | grep -v '`chassis_maker`'
 )
 
-# The same check for prose. docs/archive/ is out of scope on purpose -- those
-# files describe a moment and are kept stale deliberately.
-#
-# Two exemptions here that the code does not need: "house style", the
-# publishing idiom for a publication's own conventions, and the line in
-# docs/README.md that states the rule, which has to name the words it bans.
+# The same check on prose; docs/archive/ and this rule's own explanation are out of scope.
+# Why: docs/why/validate.md#unit_vocab
 VOCAB_DOCS=$(
 	grep -rniE '(^|[^A-Za-z0-9])(house|houses|maker|makers|brand|brands|marque|marques)([^A-Za-z0-9]|$)' docs tkg/*.md 2>/dev/null \
 	  | grep -v '^docs/archive/' \
+	  | grep -v '^docs/why/validate.md:' \
 	  | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'house style' \

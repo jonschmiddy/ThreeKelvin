@@ -10,13 +10,6 @@ var _out := ""
 var _args: PackedStringArray
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 var _pre_us := 0
 ## (stamped by two nodes that process first and last of all: what part of a
 ## frame's process is the nodes' own, and what comes after them)
@@ -53,11 +46,6 @@ func _img() -> Image:
 	return GameShell.input_target(_tree).get_texture().get_image()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 ## One picture per process frame: forced draws are never presented and are often the first draw.
 ## Why: docs/why/LadderShot.md#frame-capture
 func _shown() -> void:
@@ -68,7 +56,7 @@ func _shown() -> void:
 ## then `post` more.
 func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 	if post < 0:
-		post = int(_arg("post", "8"))
+		post = int(Harness.arg("post", "8"))
 	var d := "%s/%s" % [_out, name]
 	DirAccess.make_dir_recursive_absolute(d)
 	var k := 0
@@ -259,7 +247,7 @@ func _film_seq(name: String, calls: Array, gap: int = 24) -> void:
 func _run() -> void:
 	_tree = get_tree()
 	await _tree.process_frame
-	_out = _arg("out", "user://laddershot")
+	_out = Harness.arg("out", "user://laddershot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
@@ -272,20 +260,20 @@ func _run() -> void:
 		SVP.prof_on = true
 	# the frame after the swap held still, to diff it against the frame before
 	ZoomLadder.measure_hold = "measure" in _args
-	Rng.forced = int(_arg("seed", "1"))
+	Rng.forced = Harness.seed_arg(1)
 	if "first" in _args:
 		await _run_first()
 		return
 	# (`weight=light|medium|heavy`: the hull flown)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
-	Run.start_new_run(&"korvan", int(wt.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)))
+	Run.start_new_run(&"korvan", int(wt.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)))
 	# `fit=full` fills every mount with its manufacturer's parts, by `StationShot`'s rule.
 	if "fit=full" in _args:
 		_fit_full()
 	# (the chart's FIRST SURVEY card is the first chart's, not the ladder's)
 	StarchartScreen._primed_for = Run.galaxy_seed
-	var seams := _arg("seams", "1,2,3").split(",")
-	var designs := _arg("designs", "A,B,C").split(",")
+	var seams := Harness.arg("seams", "1,2,3").split(",")
+	var designs := Harness.arg("designs", "A,B,C").split(",")
 	# a system with a world to orbit, the ship in orbit of it
 	var sys := Run.at
 	var world := -1
@@ -298,7 +286,7 @@ func _run() -> void:
 		SystemMapScreen._parked[sys] = {"at": world, "mode": &"rail"}
 	SectorScreen._approached_at = sys
 	Router.show_system()
-	await _frames(90)
+	await Harness.frames(_tree, 90)
 	for s in ["1", "2"]:
 		if not s in seams:
 			continue
@@ -308,15 +296,15 @@ func _run() -> void:
 			if s == "1":
 				if not Router.current is SystemMapScreen:
 					Router.show_system()
-					await _frames(60)
+					await Harness.frames(_tree, 60)
 				await _film("1%s_out" % d, Router.show_starchart)
-				await _frames(40)
+				await Harness.frames(_tree, 40)
 				await _film("1%s_in" % d, Router.show_system)
-				await _frames(40)
+				await Harness.frames(_tree, 40)
 			else:
 				if not Router.current is SystemMapScreen:
 					Router.show_system()
-					await _frames(60)
+					await Harness.frames(_tree, 60)
 				var mw: Node = null
 				var mp0 := Router.current as SystemMapScreen
 				if mp0 != null and mp0._ladder_body() >= 0:
@@ -331,9 +319,9 @@ func _run() -> void:
 					var lc := Router.current as SectorScreen
 					if lc != null and lc._view.backdrop != null:
 						print("  [ladder] 2%s: LOCAL's world is the map's own node: %s" % [d, lc._view.backdrop._near_world == mw and mw != null])
-					await _frames(50)
+					await Harness.frames(_tree, 50)
 					await _film("2%s_out%s" % [d, sfx], Router.show_system)
-					await _frames(40)
+					await Harness.frames(_tree, 40)
 	# GO ON AN EVENT (the map's GO): the ship in orbit where the event stands,
 	# so the move is the zoom down alone, and the event's band after it
 	if "go" in _args:
@@ -363,18 +351,18 @@ func _run() -> void:
 			ZoomLadder.force = 0
 			if Router.current is SystemMapScreen:
 				Router.show_local()
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 			Run.at = gsys
 			Run.map[gsys].visited = true
 			SectorScreen._approached_at = gsys
 			SystemMapScreen._parked[gsys] = {"at": pb, "mode": &"rail"}
 			Router.show_system()
-			await _frames(120)
+			await Harness.frames(_tree, 120)
 			ZoomLadder.force = 1
 			var mp := Router.current as SystemMapScreen
 			if mp != null:
 				await _film("2C_go", func() -> void: mp.go_event(pick))
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 				LocalEventDrawer.pending.clear()
 		else:
 			print("  [ladder] go: no event on a world here")
@@ -384,15 +372,15 @@ func _run() -> void:
 		ZoomLadder.force = 0
 		if not Router.current is SystemMapScreen:
 			Router.show_system()
-			await _frames(60)
+			await Harness.frames(_tree, 60)
 		Router.show_starchart()
-		await _frames(90)
+		await Harness.frames(_tree, 90)
 		ZoomLadder.force = 1
 		await _film("dive_chart_local", Router.show_local)
-		await _frames(60)
+		await Harness.frames(_tree, 60)
 		# (and back: LOCAL to the chart, the HUD's STARCHART tab)
 		await _film("dive_local_chart", Router.show_starchart)
-		await _frames(60)
+		await Harness.frames(_tree, 60)
 	if "3" in seams:
 		var st := -1
 		for raw in Run.map:
@@ -408,14 +396,14 @@ func _run() -> void:
 			Router.park_at_station()
 			# (`side=<id>` / `interior=<id>`: the station's side and its bay's
 			# interior, instead of the station's own pick -- `StationSides`)
-			StationSides.force_side = StringName(_arg("side", ""))
-			StationSides.force_interior = StringName(_arg("interior", ""))
+			StationSides.force_side = StringName(Harness.arg("side", ""))
+			StationSides.force_interior = StringName(Harness.arg("interior", ""))
 			# (on the ladder, so LOCAL draws the station's side, but not filmed)
 			ZoomLadder.force = 1
 			Router.show_local()
-			await _frames(120)
+			await Harness.frames(_tree, 120)
 			# (`fades=P,F,PF`: 3B's hand-off into the yard, each; named 3B_F_in etc.)
-			var fades := _arg("fades", "").split(",", false)
+			var fades := Harness.arg("fades", "").split(",", false)
 			for d0 in designs:
 				var d := String(ZoomLadder.DEFAULTS[3]) if d0 == "picks" else d0
 				ZoomLadder.force_design = {3: d}
@@ -423,9 +411,9 @@ func _run() -> void:
 					ZoomLadder.force_fade = f
 					var tag := "" if f == "" or f == "F" else "_" + f
 					await _film("3%s%s_in" % [d, tag], func() -> void: Router.show_station(), 6, 30)
-					await _frames(90)
+					await Harness.frames(_tree, 90)
 					await _film("3%s%s_out" % [d, tag], func() -> void: Router.show_sector())
-					await _frames(60)
+					await Harness.frames(_tree, 60)
 				ZoomLadder.force_fade = ""
 			# (`dive`: docked, Tab from the berth to the map, and from the chart
 			# back to the berth -- two and three distances in one go)
@@ -434,21 +422,21 @@ func _run() -> void:
 				ZoomLadder.force = 0
 				if not Router.current is StationScreen:
 					Router.show_station()
-					await _frames(150)
+					await Harness.frames(_tree, 150)
 				ZoomLadder.force = 1
 				await _film("dive_station_map", Router.show_system)
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 				ZoomLadder.force = 0
 				Router.show_starchart()
-				await _frames(90)
+				await Harness.frames(_tree, 90)
 				ZoomLadder.force = 1
 				await _film("dive_chart_station", Router.show_station)
-				await _frames(90)
+				await Harness.frames(_tree, 90)
 				await _film("dive_station_chart", Router.show_starchart)
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 				ZoomLadder.force = 0
 				Router.show_sector()
-				await _frames(90)
+				await Harness.frames(_tree, 90)
 				ZoomLadder.force = 1
 			# `seatcheck` compares the dock's last frame with the yard seating your ship.
 			if "seatcheck" in _args:
@@ -456,25 +444,25 @@ func _run() -> void:
 				ZoomLadder.force = 0
 				if not Router.current is SectorScreen:
 					Router.show_sector()
-					await _frames(90)
+					await Harness.frames(_tree, 90)
 				Router.show_local()
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 				ZoomLadder.force = 1
 				Router.show_station()
 				for i in 900:
 					await _tree.process_frame
 					if not ZoomLadder.busy():
 						break
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 				await _shown()
 				_img().save_png("%s/seat_dock.png" % _out)
 				var s1 := Router.current as StationScreen
 				var r1 := s1._mine_view.get_rect() if s1 != null and s1._mine_view != null else Rect2()
 				ZoomLadder.force = 0
 				Router.show_sector()
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 				Router.show_station()
-				await _frames(180)
+				await Harness.frames(_tree, 180)
 				await _shown()
 				_img().save_png("%s/seat_yard.png" % _out)
 				var s2 := Router.current as StationScreen
@@ -484,7 +472,7 @@ func _run() -> void:
 				if not P.is_empty():
 					var ink: Rect2i = P["ink"]
 					seat = Rect2(Vector2(float(P["x0"]) - ink.position.x, float(P["top"]) - ink.position.y), Vector2((P["img"] as Image).get_size()))
-				print("  [ladder] seat %s: docked %s, docked with no move %s, the yard's seat %s" % [_arg("weight", "medium"), r1, r2, seat])
+				print("  [ladder] seat %s: docked %s, docked with no move %s, the yard's seat %s" % [Harness.arg("weight", "medium"), r1, r2, seat])
 				ZoomLadder.force = 1
 			# (`wrecks`: LOCAL at the station with a fight's wrecks in it, and your
 
@@ -492,25 +480,25 @@ func _run() -> void:
 			if "wrecks" in _args:
 				if not Router.current is SectorScreen:
 					Router.show_sector()
-					await _frames(90)
+					await Harness.frames(_tree, 90)
 				Run.new_wreck(Run.map[st], DB.enemies[&"cutter"])
 				Run.new_wreck(Run.map[st], DB.enemies[&"cutter"])
 				Router.show_local()
-				await _frames(90)
+				await Harness.frames(_tree, 90)
 				await _shown()
 				_img().save_png("%s/station_wrecks.png" % _out)
 				var sc := Router.current as SectorScreen
 				if sc != null:
 					var cut := sc.open_cutaway()
-					await _frames(90)
+					await Harness.frames(_tree, 90)
 					await _shown()
 					_img().save_png("%s/station_cutaway.png" % _out)
 					if cut != null and is_instance_valid(cut) and cut.has_method(&"close"):
 						cut.call(&"close")
-					await _frames(60)
+					await Harness.frames(_tree, 60)
 				Run.map[st].jetsam.clear()
 				Router.show_sector()
-				await _frames(60)
+				await Harness.frames(_tree, 60)
 			# (`levels`: 3B's dock at the same station at every development level --
 			# the yard behind the inner door is the level's own)
 			if "levels" in _args:
@@ -519,19 +507,19 @@ func _run() -> void:
 					Run.map[st].development = dev
 					if not Router.current is SectorScreen:
 						Router.show_sector()
-						await _frames(90)
+						await Harness.frames(_tree, 90)
 					Router.show_local()
-					await _frames(60)
+					await Harness.frames(_tree, 60)
 					await _film("3B_in_L%d" % dev, func() -> void: Router.show_station())
-					await _frames(60)
+					await Harness.frames(_tree, 60)
 					Router.show_sector()
-					await _frames(90)
+					await Harness.frames(_tree, 90)
 			# THE MAP'S DOCK, the two distances in one go (down to LOCAL, into the
 			# hangar), on the default
 			if "mapdock" in _args:
 				ZoomLadder.force_design = {}
 				Router.show_system()
-				await _frames(120)
+				await Harness.frames(_tree, 120)
 				await _film_seq("3B_map", [func() -> void: Router.show_station()], 40)
 	# THE WHOLE LADDER at a station system, the defaults, down and back up
 	if "tour" in _args:
@@ -549,7 +537,7 @@ func _run() -> void:
 			Router.park_at_station()
 			ZoomLadder.force = 0
 			Router.show_starchart()
-			await _frames(90)
+			await Harness.frames(_tree, 90)
 			ZoomLadder.force = 1
 			await _film_seq("tour", [Router.show_system, Router.show_local, Router.show_station,
 				Router.show_sector, Router.show_system, Router.show_starchart])
@@ -615,7 +603,7 @@ func _run_first() -> void:
 	ZoomLadder.fixed_dt = (1.0 / 60.0) if "stills" in _args else -1.0
 	# `stills` holds the sky's clock as `ChartSheet` does, so before and after match.
 	if "stills" in _args:
-		StarchartScreen.MapChart.clock_override = 123.456
+		MapChart.clock_override = 123.456
 	ZoomLadder.probe_on = true
 	SVP.prof_on = true
 	ZoomLadder.force = -1
@@ -628,10 +616,10 @@ func _run_first() -> void:
 	Router.show_launcher()
 	await _timed("title_shown", Callable(), 2.0)
 	# the title, as a player reads it
-	await _timed("title", Callable(), float(_arg("title", "6")))
+	await _timed("title", Callable(), float(Harness.arg("title", "6")))
 	# NEW RUN: the run rolled, the hull pick up
 	await _timed("new_run", func() -> void: Router.new_run(), 1.0)
-	await _timed("pick", Callable(), float(_arg("pick", "4")))
+	await _timed("pick", Callable(), float(Harness.arg("pick", "4")))
 	var cs := Router.current as ChassisSelect
 	if cs == null:
 		print("  [first] no hull pick: %s" % Router.current)
@@ -653,8 +641,8 @@ func _run_first() -> void:
 	await _timed("map_to_chart2", Router.show_starchart, 4.0)
 	if "buildcost" in _args:
 		var size := (Router.current as StarchartScreen)._chart.size if Router.current is StarchartScreen else Vector2.ZERO
-		StarchartScreen.MapChart._sky_cache.clear()
-		var mc := StarchartScreen.MapChart.new()
+		MapChart._sky_cache.clear()
+		var mc := MapChart.new()
 		mc.size = size
 		var t0 := Time.get_ticks_usec()
 		mc._build_stars()

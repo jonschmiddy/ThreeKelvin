@@ -10,11 +10,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _out() -> String:
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("out="):
@@ -30,11 +25,11 @@ func _run() -> void:
 		_tree.quit(2)
 		return
 	DirAccess.make_dir_recursive_absolute(out)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var g: GoalLine = Router.hud.goal
 	var b := g.badge()
 	var list: Array = []

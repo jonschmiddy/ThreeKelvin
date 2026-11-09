@@ -61,6 +61,8 @@ func run(tree: SceneTree) -> void:
 			await _dev_motion_case()
 			print("RUN ENDED: TITLE")
 			await _run_ended_case()
+			print("a click outside the lobby")
+			await _lobby_margin_case()
 			print("Esc on the hull pick")
 			await _chassis_case()
 			print("graphics picked on the real title, end to end")
@@ -97,6 +99,11 @@ func _pause_case(c: Dictionary) -> void:
 	_plate(menu._settings, "BACK").pressed.emit()
 	await _secs(0.3)
 	_ok("  BACK leaves Settings too", not menu.in_settings())
+	if Router.animating():
+		menu.show_settings()
+		menu.hide_settings()
+		await _secs(0.4)
+		_ok("  and BACK in a blink still shows the menu", menu._main.visible and menu._main.modulate.a > 0.99)
 
 	# THE CONFIRM'S WAY BACK IS "BACK" (Jon, Nov 9, stripped-down UI 7): it read
 	# NO, KEEP PLAYING under a RESUME that already says so
@@ -1198,6 +1205,44 @@ func _run_ended_case() -> void:
 	_ok("  TITLE goes back to the title with no ship", await _wait_for(func() -> bool:
 		return Router.current is LauncherScreen) and Run.hull == null)
 	Run.dead = false
+
+
+## A stray click on the dim must not close the lobby and keep the party.
+func _lobby_margin_case() -> void:
+	var title := Router.current as LauncherScreen
+	if not _ok("  the title is up", title != null):
+		return
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	title._open_lobby()
+	title._popup.gui_input.emit(click)
+	_ok("  with no party, it just closes", title._popup == null)
+	title._open_lobby()
+	var shade: Control = title._popup
+	Net.state = NetSession.State.HOSTING
+	shade.gui_input.emit(click)
+	var stay := _text_button(shade, "STAY")
+	_ok("  in a party, it asks first", title._popup == shade and stay != null
+			and _text_button(shade, "LEAVE") != null and Net.state == NetSession.State.HOSTING)
+	if stay != null:
+		stay.pressed.emit()
+	await _secs(0.1)
+	_ok("  STAY keeps the lobby and the party", title._popup == shade
+			and _text_button(shade, "STAY") == null and Net.state == NetSession.State.HOSTING)
+	shade.gui_input.emit(click)
+	var leave := _text_button(shade, "LEAVE")
+	if leave != null:
+		leave.pressed.emit()
+	_ok("  LEAVE drops the lobby and the party", title._popup == null
+			and Net.state == NetSession.State.OFFLINE)
+	Net.state = NetSession.State.OFFLINE
+	await _secs(0.1)
+
+
+func _text_button(root: Node, text: String) -> Button:
+	return first(root, func(n: Node) -> bool:
+		return n is Button and (n as Button).text == text) as Button
 
 
 ## Esc on the hull pick leaves no ABANDON record, as no run ever started (audit, Oct 22).

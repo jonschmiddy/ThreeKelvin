@@ -6,28 +6,20 @@ extends Node
 ## Why: docs/why/FuelTest.md#fuel-tank-test
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_cap()
@@ -421,6 +413,9 @@ func _flee_and_pulsar() -> void:
 
 func _events_scaled() -> void:
 	var src := FileAccess.get_file_as_string("res://scripts/systems/OptionTable.gd")
+	for f in DirAccess.get_files_at("res://scripts/systems/options"):
+		if f.ends_with(".gd"):
+			src += FileAccess.get_file_as_string("res://scripts/systems/options/" + f)
 	var raw := RegEx.create_from_string("Run\\.fuel\\s*=\\s*maxi\\(0,\\s*Run\\.fuel\\s*-").search_all(src)
 	_ok("no event outcome takes fuel past the floor (%d bare drains)" % raw.size(), raw.is_empty())
 	var drains := RegEx.create_from_string("Run\\.drain_fuel\\((\\d+)\\)").search_all(src)
@@ -447,7 +442,7 @@ func _hint() -> void:
 	_ok("low is a third of the tank: %d of %d" % [Run.fuel_low_at(), Run.fuel_cap()],
 		Run.fuel_low_at() == 15)
 	Router.show_starchart()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	Run.fuel = 16
 	await _poll(1.5)
 	_ok("16 of 45: no fuel hint", Hints.card == null and Hints.probe(&"fuel").is_empty())
@@ -476,7 +471,7 @@ func _hint() -> void:
 			and (game.node as MapGen.MapNode).type == MapGen.NodeType.STATION
 			and line == "Nearest dock: %s, %d jump%s." % [MapGen.star_name(game.node),
 				int(game.jumps), "" if int(game.jumps) == 1 else "s"]
-			and (line == want or int(game.jumps) == int(mine.jumps)))
+			and line == want)
 	# A DOCK ONE JUMP OFF AND ONE FURTHER, wherever the map has them: the line
 	# names it, with the jumps, and agrees with this test's own search
 	var cases := {1: false, 2: false}
@@ -493,8 +488,8 @@ func _hint() -> void:
 		var m := _my_nearest_dock()
 		if m.is_empty():
 			continue
-		var k := 1 if int(m.jumps) == 1 else 2
-		if cases[k]:
+		var k := int(m.jumps)
+		if k != 1 and k != 2 or cases[k]:
 			continue
 		cases[k] = true
 		var g := Run.nearest_dock()
@@ -662,36 +657,36 @@ func _my_nearest_dock(by_chart := false) -> Dictionary:
 func _hud() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var hud: HudBar = Router.hud
 	if not _ok("the HUD is up", hud != null and hud.is_visible_in_tree()):
 		return
 	for dev in [false, true]:
 		DevMode.enabled = dev
 		Sig.dev_mode_changed.emit()
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		var tag := "dev mode %s" % ("on" if dev else "off")
 		for screen in [&"local", &"chart"]:
 			if screen == &"chart":
 				Router.show_starchart()
 			else:
 				Router.show_local()
-			await _frames(40)
+			await Harness.frames(_tree, 40)
 			for f in [45, 15, 1]:
 				Run.fuel = f
 				hud.refresh()
-				await _frames(2)
+				await Harness.frames(_tree, 2)
 				_readout(hud, f, "%s, %s, %d/45" % [tag, screen, f])
 	DevMode.enabled = false
 	Sig.dev_mode_changed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	# with hints off, as in a party, the readout still warns
 	Hints.forced = false
 	_ok("hints are off here, as in a party", not Hints.enabled())
 	for pair in [[15, 1], [1, 2]]:
 		Run.fuel = pair[0]
 		hud.refresh()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var v := hud._fuel.get_node("Value") as Label
 		_ok("hints off, %d/45: the figure still turns %s" % [pair[0], ["", "amber", "red"][pair[1]]],
 			v.get_theme_color("font_color") == HudBar.FUEL_INK[pair[1]] and HudBar.fuel_state() == pair[1])
@@ -811,11 +806,11 @@ func _worst(hud: HudBar) -> void:
 	for dev in [false, true]:
 		DevMode.enabled = dev
 		Sig.dev_mode_changed.emit()
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		Router.show_local()
-		await _frames(40)
+		await Harness.frames(_tree, 40)
 		hud.refresh()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var tag := "the worst case, dev mode %s" % ("on" if dev else "off")
 		var clip := hud._row.get_parent() as Control
 		var need := int(hud._row.get_combined_minimum_size().x)
@@ -838,7 +833,7 @@ func _worst(hud: HudBar) -> void:
 		for d in [0, 14, 99, 199, 999]:
 			Run.data = d
 			hud.refresh()
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 			if d <= 99:
 				at[d] = [hud.fuel_rect().position.x, hud._scrap.get_global_rect().position.x]
 			else:
@@ -853,7 +848,7 @@ func _worst(hud: HudBar) -> void:
 	Run.heat = was[2]
 	DevMode.enabled = false
 	Sig.dev_mode_changed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	hud.refresh()
 
 
@@ -872,5 +867,5 @@ func _a_station() -> MapGen.MapNode:
 
 
 func _finish() -> void:
-	print("fueltest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(0 if _fails == 0 else 1)
+	h.verdict("fueltest")
+	_tree.quit(h.code())

@@ -470,14 +470,14 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 	ms.set_shader_parameter("st_a", g.b_a)
 	ms.set_shader_parameter("st_b", g.b_b)
 	ms.set_shader_parameter("st_c", g.b_c)
-	ms.set_shader_parameter("tex_w", StarchartScreen.MapChart.SKY_TEX_W)
+	ms.set_shader_parameter("tex_w", MapChart.SKY_TEX_W)
 	ms.set_shader_parameter("n_star", int(g.b_n))
 	ms.set_shader_parameter("k", ChartSky.K0)
 	ms.set_shader_parameter("bulge_r", float(g.p.bulge_r))
 	sky._m_stars = ms
 	sky._stars = ChartSky.MeshDraw.new()
 	sky._stars.material = ms
-	sky._stars.mesh = StarchartScreen.MapChart._quads(int(g.b_n))
+	sky._stars.mesh = MapChart._quads(int(g.b_n))
 	sky._svp.add_child(sky._stars)
 	var mp := ShaderMaterial.new()
 	mp.shader = PLACE_LOW_SH if sky._low_now else PLACE_SH
@@ -550,7 +550,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_res", res)
 	mp.set_shader_parameter("u_zoom", z)
 	mp.set_shader_parameter("u_diag", ChartSky.diag)
-	mp.set_shader_parameter("u_zopen", z * StarchartScreen.MapChart.ZOOM_MIN / maxf(sky.chart.zoom, 1e-4) if sky._use_map else z)
+	mp.set_shader_parameter("u_zopen", z * MapChart.ZOOM_MIN / maxf(sky.chart.zoom, 1e-4) if sky._use_map else z)
 	mp.set_shader_parameter("u_time", t)
 	mp.set_shader_parameter("u_phi", phi)
 	mp.set_shader_parameter("u_block0", b0)

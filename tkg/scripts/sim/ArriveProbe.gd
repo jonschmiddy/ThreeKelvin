@@ -3,37 +3,28 @@ extends Node
 ## Run without --fixed-fps: a fixed step hides the frames that stall. Needs a window.
 ## Why: docs/why/ArriveProbe.md#arrive-probe
 
-var _args: PackedStringArray
 var _events: Array[String] = []
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
 	Router.animate_in_harness = true
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	var mouse := _arg("mouse")
+	var mouse := Harness.arg("mouse")
 	if mouse != "":
 		var xy := mouse.split(",")
 		get_viewport().warp_mouse(Vector2(float(xy[0]), float(xy[1])))
 		await tree.process_frame
 	Router.show_local()
-	var out := FileAccess.open(_arg("out", "user://arrive_probe.tsv"), FileAccess.WRITE)
+	var out := FileAccess.open(Harness.arg("out", "user://arrive_probe.tsv"), FileAccess.WRITE)
 	out.store_line("frame\twall_ms\tgame_s\tthrust\twindow\tarriving\toutline\tphase\tevents")
-	var frames := int(float(_arg("secs", "11")) * 60.0)
+	var frames := int(float(Harness.arg("secs", "11")) * 60.0)
 	var hooked: Control = null
 	var last := Time.get_ticks_usec()
 	var worst := 0.0
@@ -50,7 +41,7 @@ func _run() -> void:
 			hooked.gui_input.connect(func(e: InputEvent) -> void:
 				var mm := e as InputEventMouseMotion
 				_events.append("%s%s" % [e.get_class(), (" rel=%s" % mm.relative) if mm != null else ""]))
-		if i == int(_arg("hover", "-1")) and sc != null and sc._ship_outline != null:
+		if i == int(Harness.arg("hover", "-1")) and sc != null and sc._ship_outline != null:
 			sc._ship_outline.visible = true
 		var th := art._thrust_now() if art != null else -2
 		var win := art._arrive_window if art != null else -2

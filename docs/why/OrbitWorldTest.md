@@ -64,7 +64,7 @@ Above `func _scene_check(what: String, sc: SectorScreen) -> void:`:
 WHAT STANDS BESIDE YOUR SHIP IS WHAT IS AT THAT PLACE (Jon, Oct 21: "This
 planet has no events here, but when I orbit the planet and click LOCAL, it
 has this weird signal model... Every planet in this sector has this signal"):
- - the place picture (`EncounterView.AreaView`: the beacon, the derelict, the
+ - the place picture (`AreaView`: the beacon, the derelict, the
    battlefield) only where one of the system's events stands, and none at a
    world, the star or the edge with none;
  - the event's subject (`LocalSubject`) only at that event's own place, and

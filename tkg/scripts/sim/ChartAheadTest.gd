@@ -5,7 +5,7 @@ extends Node
 
 const SEEDS := [4242, 11, 777]
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 var _log := ThreadStressCounter.new()
 
@@ -28,10 +28,7 @@ class ThreadStressCounter extends Logger:
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -39,14 +36,9 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 ## Every list a chart's field is, the same in both.
-func _same_field(a: StarchartScreen.MapChart, b: Variant) -> bool:
-	for f: String in StarchartScreen.MapChart.SKY_FIELDS:
+func _same_field(a: MapChart, b: Variant) -> bool:
+	for f: String in MapChart.SKY_FIELDS:
 		var va: Variant = a.get(f)
 		var vb: Variant = (b as Dictionary)[f] if b is Dictionary else (b as Object).get(f)
 		if va != vb:
@@ -57,15 +49,15 @@ func _same_field(a: StarchartScreen.MapChart, b: Variant) -> bool:
 
 ## The field built here and now, on the main thread, off Run: what a chart of
 ## this size has always built for itself.
-func _reference(size: Vector2) -> StarchartScreen.MapChart:
-	var ref := StarchartScreen.MapChart.new()
+func _reference(size: Vector2) -> MapChart:
+	var ref := MapChart.new()
 	ref.size = size
 	ref._build_field()
 	return ref
 
 
 func _wait_ahead() -> void:
-	var a := StarchartScreen.MapChart._ahead
+	var a := MapChart._ahead
 	for i in 600:
 		if a == null or not is_instance_valid(a) or a.task < 0 or WorkerThreadPool.is_task_completed(a.task):
 			return
@@ -75,7 +67,7 @@ func _wait_ahead() -> void:
 func _run() -> void:
 	await _tree.process_frame
 	OS.add_logger(_log)
-	StarchartScreen.MapChart.ahead_always = true
+	MapChart.ahead_always = true
 	for sd in SEEDS:
 		print("  [seed] %d" % sd)
 		await _through_the_doors(sd)
@@ -83,48 +75,48 @@ func _run() -> void:
 	await _isolation(31337)
 	_warm_list()
 	_warm_quiet()
-	StarchartScreen.MapChart.ahead_always = false
+	MapChart.ahead_always = false
 	OS.remove_logger(_log)
 	for l in _log.first:
 		print("  error: " + l)
 	_ok("no engine errors (%d)" % _log.n, _log.n == 0)
-	print("chartaheadtest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("chartaheadtest")
+	_tree.quit(h.code())
 
 
 func _through_the_doors(sd: int) -> void:
 	Router.new_run(sd)
-	var ahead := StarchartScreen.MapChart._ahead
+	var ahead := MapChart._ahead
 	_ok("NEW RUN starts the chart's field on a worker", ahead != null and ahead.task >= 0)
 	await _wait_ahead()
-	await _frames(2)
-	var before := StarchartScreen.MapChart.built_here
+	await Harness.frames(_tree, 2)
+	var before := MapChart.built_here
 	Router.show_starchart()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var sc := Router.current as StarchartScreen
 	if not _ok("the chart is up", sc != null and sc._chart != null):
 		return
 	var chart := sc._chart
 	chart._build_stars()
-	_ok("the chart stands at CHART_AT %s (it is %s)" % [StarchartScreen.MapChart.CHART_AT, chart.size],
-		chart.size == StarchartScreen.MapChart.CHART_AT)
-	_ok("opening it built no field on the main thread", StarchartScreen.MapChart.built_here == before)
-	_ok("the field built ahead was taken", StarchartScreen.MapChart._ahead == null)
+	_ok("the chart stands at CHART_AT %s (it is %s)" % [MapChart.CHART_AT, chart.size],
+		chart.size == MapChart.CHART_AT)
+	_ok("opening it built no field on the main thread", MapChart.built_here == before)
+	_ok("the field built ahead was taken", MapChart._ahead == null)
 	var ref := _reference(chart.size)
 	_ok("and it is the field the chart builds itself, list for list", _same_field(ref, chart))
 	ref.free()
 	Router.show_system()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 func _isolation(sd: int) -> void:
 	Rng.forced = sd
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	var sz := StarchartScreen.MapChart.CHART_AT
+	var sz := MapChart.CHART_AT
 	var ref := _reference(sz)
 	var mine := [Run.galaxy_kind, Run.galaxy.duplicate(true), Run.galaxy_seed, Run.galaxy_spin]
-	StarchartScreen.MapChart.build_ahead(sz)
-	var a := StarchartScreen.MapChart._ahead
+	MapChart.build_ahead(sz)
+	var a := MapChart._ahead
 	if not _ok("a field started for the run's galaxy", a != null and a.task >= 0):
 		ref.free()
 		return
@@ -143,15 +135,15 @@ func _isolation(sd: int) -> void:
 		n += 1
 	print("    %d other galaxies written over Run while it built" % n)
 	# (a chart of another galaxy does not take it)
-	StarchartScreen.MapChart._take_ahead()
-	_ok("a chart of another galaxy leaves it be", StarchartScreen.MapChart._ahead == a and is_instance_valid(a))
+	MapChart._take_ahead()
+	_ok("a chart of another galaxy leaves it be", MapChart._ahead == a and is_instance_valid(a))
 	a.finish()
 	Run.galaxy_kind = mine[0]
 	Run.galaxy = mine[1]
 	Run.galaxy_seed = mine[2]
 	Run.galaxy_spin = mine[3]
 	_ok("built from its copy, it is the run's galaxy exactly", _same_field(ref, a.snap))
-	StarchartScreen.MapChart._drop_ahead()
+	MapChart._drop_ahead()
 	ref.free()
 
 

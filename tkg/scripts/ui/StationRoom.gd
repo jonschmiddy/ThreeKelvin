@@ -18,10 +18,10 @@ const WALL := Color("#0d141d")
 const PLATE := Color("#151e2a")
 const EDGE := Color("#202d3d")
 const DEEP := Color("#080c12")
-const LAMP := Color("#d97b29")
+const LAMP := UITheme.EMBER
 const FLOOR := Color("#121a24")
 const FLOOR_LINE := Color("#1c2836")
-const STAR := Color("#c3d2e2")
+const STAR := UITheme.ICE
 ## A crate, and the lit edge that makes it a box rather than a swatch.
 const CRATE := Color("#1e2836")
 const CRATE_LIP := Color("#33445c")
@@ -55,7 +55,7 @@ func _tint(c: Color) -> Color:
 
 ## A repeatable scatter, or stars and bubbles twinkle each redraw, as GDScript's RNG is a stream.
 func _scatter(i: int, span: float) -> float:
-	return fmod(float(i) * 2654435761.0 / 65536.0, span)
+	return UIHash.scatter(i, span)
 
 
 ## Keyed on the deck, not development, since the plate is a backdrop with no lamps.
@@ -141,7 +141,7 @@ func _lamp_rects(w: float, _floor_y: float) -> void:
 		var lx := w * (float(i) + 0.5) / float(n)
 		draw_rect(Rect2(lx - 1.0, 0.0, 2.0, 9.0), _tint(EDGE))
 		draw_rect(Rect2(lx - 7.0, 9.0, 14.0, 4.0), _tint(EDGE))
-		draw_rect(Rect2(lx - 5.0, 12.0, 10.0, 2.0), Color(glow.r, glow.g, glow.b, 0.85))
+		draw_rect(Rect2(lx - 5.0, 12.0, 10.0, 2.0), Color(glow, 0.85))
 
 
 func _draw_lamp_art(w: float, floor_y: float) -> bool:
@@ -159,13 +159,13 @@ func _draw_lamp_art(w: float, floor_y: float) -> bool:
 			var cw := maxf(46.0, w / float(n) * 0.72)
 			draw_texture_rect(_lamp_cone,
 				Rect2(lx - cw * 0.5, drop, cw, maxf(1.0, floor_y - drop)),
-				false, Color(glow.r, glow.g, glow.b, 0.62))
+				false, Color(glow, 0.62))
 		draw_texture(_lamp_hood, Vector2(lx - hood.x * 0.5, 0.0).round())
 		if _lamp_pool != null:
 			var pw := maxf(60.0, w / float(n) * 0.92)
 			draw_texture_rect(_lamp_pool,
 				Rect2(lx - pw * 0.5, floor_y, pw, floor_h()),
-				false, Color(glow.r, glow.g, glow.b, 0.75))
+				false, Color(glow, 0.75))
 	return true
 
 
@@ -223,7 +223,7 @@ func _draw() -> void:
 	var jy := 30.0
 	while jy < floor_y - 8.0:
 		draw_rect(Rect2(0.0, jy, w, 1.0), _tint(EDGE))
-		draw_rect(Rect2(0.0, jy + 1.0, w, 1.0), Color(DEEP.r, DEEP.g, DEEP.b, 0.45))
+		draw_rect(Rect2(0.0, jy + 1.0, w, 1.0), Color(DEEP, 0.45))
 		jy += 46.0
 	var jx := 62.0
 	while jx < w - 20.0:
@@ -239,7 +239,7 @@ func _draw() -> void:
 	# The junction, lit along the top edge: the one line that stops the wall and
 	# the deck being the same surface.
 	draw_rect(Rect2(0.0, floor_y, w, 2.0), _tint(FLOOR_LINE))
-	draw_rect(Rect2(0.0, floor_y + 2.0, w, 3.0), Color(DEEP.r, DEEP.g, DEEP.b, 0.55))
+	draw_rect(Rect2(0.0, floor_y + 2.0, w, 3.0), Color(DEEP, 0.55))
 	# Plating, in courses that get taller as they come toward you. Even courses
 	# read as a grid seen flat on; uneven ones read as a floor going away.
 	var fy := floor_y + 16.0
@@ -255,7 +255,7 @@ func _draw() -> void:
 		var sxx := 40.0 + float((course % 2) * 60)
 		while sxx < w - 10.0:
 			draw_rect(Rect2(sxx, fy, 1.0, 10.0),
-				Color(DEEP.r, DEEP.g, DEEP.b, 0.35))
+				Color(DEEP, 0.35))
 			sxx += 120.0
 		course += 1
 		fy += 26.0
@@ -544,16 +544,6 @@ static func _hole_runs_keys() -> Array:
 	return out
 
 
-## The size a shaped opening wants, so a layout can place it without hardcoding
-## numbers that would silently disagree with the art.
-static func opening_size(skin: StringName) -> Vector2:
-	_hole_runs(skin)
-	var entry: Variant = _holes.get(String(skin), null)
-	if entry is Dictionary:
-		return Vector2(float(entry.get("w", 0)), float(entry.get("h", 0)))
-	return Vector2.ZERO
-
-
 ## Three portholes in one plate over one view. The view is drawn across the
 ## whole opening and the plate covers everything but the holes, glass and all.
 func _porthole_plate(r: Rect2, tex: Texture2D) -> void:
@@ -634,7 +624,7 @@ func _door(r: Rect2, tex: Texture2D, _i: int) -> void:
 	for b in bands:
 		var bh := r.size.y * 0.5 / float(bands)
 		draw_rect(Rect2(r.position.x, r.position.y + bh * float(b), r.size.x, bh),
-			Color(DEEP.r, DEEP.g, DEEP.b, 0.45 * (1.0 - float(b) / float(bands))))
+			Color(DEEP, 0.45 * (1.0 - float(b) / float(bands))))
 	# THE BLAST DOORS, OPEN: a leaf slid back into each jamb. A hole in a wall is
 	# a hole; a hole with its doors pulled aside is a door someone can close.
 	for side in [r.position.x, r.end.x - 6.0]:
@@ -643,13 +633,13 @@ func _door(r: Rect2, tex: Texture2D, _i: int) -> void:
 		draw_rect(Rect2(sxf + (5.0 if sxf > r.position.x else 0.0), r.position.y,
 			1.0, r.size.y), DEEP)
 		draw_rect(Rect2(sxf + 2.0, r.position.y, 1.0, r.size.y),
-			Color(STAR.r, STAR.g, STAR.b, 0.10))
+			Color(STAR, 0.10))
 		draw_rect(Rect2(sxf + 2.0, r.position.y + roundf(r.size.y * 0.45), 2.0, 2.0),
 			Color(0.44, 0.83, 0.88, 0.85))
 	_frame(r, false)
 	var sx := r.position.x
 	while sx < r.end.x:
-		draw_rect(Rect2(sx, r.end.y - 3.0, 4.0, 3.0), Color(LAMP.r, LAMP.g, LAMP.b, 0.55))
+		draw_rect(Rect2(sx, r.end.y - 3.0, 4.0, 3.0), Color(LAMP, 0.55))
 		sx += 8.0
 
 
@@ -667,7 +657,7 @@ func _frame(r: Rect2, sill: bool) -> void:
 		var badge: Color = m.colour if m != null else LAMP
 		var bw := roundf(minf(48.0, r.size.x * 0.34) * 0.5) * 2.0
 		draw_rect(Rect2(roundf(r.get_center().x - bw * 0.5), r.position.y - 8.0, bw, 2.0),
-			Color(badge.r, badge.g, badge.b, 0.85))
+			Color(badge, 0.85))
 		return
 	var t := 5.0
 	var outer2 := r.grow(t)
@@ -677,14 +667,14 @@ func _frame(r: Rect2, sill: bool) -> void:
 	draw_rect(Rect2(outer2.position.x, r.position.y, t, r.size.y), PLATE)
 	draw_rect(Rect2(r.end.x, r.position.y, t, r.size.y), PLATE)
 	draw_rect(Rect2(outer2.position.x, outer2.position.y, outer2.size.x, 1.0),
-		Color(STAR.r, STAR.g, STAR.b, 0.16))
+		Color(STAR, 0.16))
 	draw_rect(r.grow(1.0), _tint(EDGE), false, 1.0)
 	if sill:
 		draw_rect(Rect2(outer2.position.x, r.end.y, outer2.size.x, t), PLATE)
 		draw_rect(Rect2(outer2.position.x, r.end.y, outer2.size.x, 1.0),
-			Color(LAMP.r, LAMP.g, LAMP.b, 0.30))
+			Color(LAMP, 0.30))
 		draw_rect(Rect2(outer2.position.x, r.end.y + t, outer2.size.x, 2.0),
-			Color(DEEP.r, DEEP.g, DEEP.b, 0.6))
+			Color(DEEP, 0.6))
 
 
 ## A bezel sprite as a nine-slice, or null with no art. Built at load rather than
@@ -946,7 +936,7 @@ func _blit_reflection(w: Dictionary, x: float, y: float, f: int, clip: Rect2) ->
 	var row0 := feet + fh - cut.end.y
 	var k: float = w.get("k", 1.0)
 	var src := Rect2(Vector2(float(f) * fw / k + off / k, row0 / k), cut.size / k)
-	var tint := Color(_view_tint.r, _view_tint.g, _view_tint.b, _view_tint.a * REFLECT_ALPHA)
+	var tint := Color(_view_tint, _view_tint.a * REFLECT_ALPHA)
 	var ox := cut.end.x if flip else 0.0
 	var lx := 0.0 if flip else cut.position.x
 	draw_set_transform(Vector2(ox, feet + fh), 0.0, Vector2(-1.0 if flip else 1.0, -1.0))
@@ -1019,7 +1009,7 @@ func _figure(at: Vector2, tall: float, s: int, run: float, ink: Color, clip: Rec
 	else:
 		_clip(Rect2(cx - lw, ly, lw * 2.0, legs), clip, ink)
 	# A lamplight rim keeps a walker readable against dark reflective floors.
-	var rim := Color(LAMP.r, LAMP.g, LAMP.b, 0.55 * (1.0 - ink.b))
+	var rim := Color(LAMP, 0.55 * (1.0 - ink.b))
 	var edge := sx + chest - 1.0 if (s >> 5) % 2 == 0 else sx
 	_clip(Rect2(hx + 1.0, top, head - 2.0, 1.0), clip, rim)
 	_clip(Rect2(edge, ty, 1.0, ceilf(torso * 0.5)), clip, rim)
@@ -1079,7 +1069,7 @@ func _draw_fore(c: Control) -> void:
 	if w < 120.0:
 		return
 	var dark := Color(0.016, 0.02, 0.03)
-	var rim := Color(LAMP.r, LAMP.g, LAMP.b, 0.22)
+	var rim := Color(LAMP, 0.22)
 	var n := 2 + absi(hash([place_seed, &"cables"])) % 2
 	for k in n:
 		var s := absi(hash([place_seed, &"cable", k]))
@@ -1105,9 +1095,9 @@ func _crate(r: Rect2) -> void:
 	draw_rect(r, CRATE)
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.0), CRATE_LIP)
 	draw_rect(Rect2(r.position.x, r.position.y, 1.0, r.size.y),
-		Color(CRATE_LIP.r, CRATE_LIP.g, CRATE_LIP.b, 0.45))
+		Color(CRATE_LIP, 0.45))
 	draw_rect(Rect2(r.position.x, r.position.y + r.size.y * 0.42,
-		r.size.x, 2.0), Color(DEEP.r, DEEP.g, DEEP.b, 0.55))
+		r.size.x, 2.0), Color(DEEP, 0.55))
 
 
 ## The hull arc says you are on something, so it is drawn
@@ -1125,9 +1115,9 @@ func _window(sky: Rect2) -> void:
 			tone = Color(0.98, 0.80, 0.60)
 		elif i % 13 == 5:
 			tone = Color(0.62, 0.78, 1.0)
-		draw_rect(Rect2(sx, sy, 1.0, 1.0), Color(tone.r, tone.g, tone.b, mag))
+		draw_rect(Rect2(sx, sy, 1.0, 1.0), Color(tone, mag))
 		if i % 9 == 4:
-			var arm := Color(tone.r, tone.g, tone.b, 0.35)
+			var arm := Color(tone, 0.35)
 			draw_rect(Rect2(sx - 1.0, sy, 1.0, 1.0), arm)
 			draw_rect(Rect2(sx + 1.0, sy, 1.0, 1.0), arm)
 			draw_rect(Rect2(sx, sy - 1.0, 1.0, 1.0), arm)
@@ -1140,11 +1130,11 @@ func _window(sky: Rect2) -> void:
 			var top := sky.end.y - bow
 			draw_rect(Rect2(sky.position.x + arc, top, 2.0, bow), hull)
 			draw_rect(Rect2(sky.position.x + arc, top, 2.0, 1.0),
-				Color(STAR.r, STAR.g, STAR.b, 0.30))
+				Color(STAR, 0.30))
 			# Ports: lit windows in a row just under the rim, some dark.
 			if int(arc) % 10 == 4 and bow > 6.0 and _scatter(int(arc), 5.0) > 1.2:
 				draw_rect(Rect2(sky.position.x + arc, top + 3.0, 2.0, 1.0),
-					Color(LAMP.r, LAMP.g, LAMP.b, 0.75))
+					Color(LAMP, 0.75))
 		arc += 2.0
 	if _box_window != null:
 		# Mullions as posts of the same steel as the bezel, bevelled like it.
@@ -1160,21 +1150,11 @@ func _window(sky: Rect2) -> void:
 		return
 	draw_rect(sky, _tint(EDGE), false, 2.0)
 	draw_rect(Rect2(sky.position.x, sky.end.y - 1.0, sky.size.x, 3.0),
-		Color(LAMP.r, LAMP.g, LAMP.b, 0.22))
+		Color(LAMP, 0.22))
 	var mx2 := sky.position.x + 116.0
 	while mx2 < sky.end.x - 20.0:
 		draw_rect(Rect2(mx2, sky.position.y, 3.0, sky.size.y), _tint(PLATE))
 		draw_rect(Rect2(mx2, sky.position.y, 1.0, sky.size.y),
-			Color(EDGE.r, EDGE.g, EDGE.b, 0.6))
+			Color(EDGE, 0.6))
 		mx2 += 116.0
 
-
-## A run of conduit across the whole wall on brackets, because a station is
-## plumbing with rooms in it and one pipe says so faster than any panelling.
-func _conduit(y: float, w: float) -> void:
-	draw_rect(Rect2(0.0, y, w, 3.0), _tint(EDGE))
-	draw_rect(Rect2(0.0, y, w, 1.0), Color(STAR.r, STAR.g, STAR.b, 0.10))
-	var bx := 34.0
-	while bx < w - 10.0:
-		draw_rect(Rect2(bx, y - 2.0, 4.0, 7.0), _tint(PLATE))
-		bx += 78.0

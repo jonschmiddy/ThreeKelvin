@@ -45,16 +45,10 @@ var _next_idle := 1e9
 var _idle: Dictionary = {}
 
 
-class Layer extends Control:
-	var paint: Callable
-	func _draw() -> void:
-		paint.call(self)
-
-
 ## The oval for a picture: centred on its ink, `MARGIN` px out, then grown
 ## until every hull pixel sits inside the rim band. Canvas coordinates.
 static func fit(img: Image, used: Rect2i) -> Dictionary:
-	var H := ShipBreakup._hull_pic(img, used, 0)
+	var H := BreakupCuts._hull_pic(img, used, 0)
 	var r: Rect2i = H.r
 	if int(H.n) == 0:
 		return {cc = Vector2(r.get_center()), rx = 8.0, ry = 8.0}
@@ -86,7 +80,7 @@ static func fit(img: Image, used: Rect2i) -> Dictionary:
 ## rim (y). Both must be 0.
 static func outside(img: Image, used: Rect2i) -> Vector2i:
 	var f := fit(img, used)
-	var H := ShipBreakup._hull_pic(img, used, 0)
+	var H := BreakupCuts._hull_pic(img, used, 0)
 	if int(H.n) == 0:
 		return Vector2i.ZERO
 	var r: Rect2i = H.r
@@ -118,15 +112,7 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	_rx = f.rx
 	_ry = f.ry
 	_build_cells()
-	var light := Layer.new()
-	light.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	light.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	light.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	light.material = mat
-	light.paint = _paint
-	add_child(light)
+	PaintLayer.add_to(self, _paint, true)
 
 
 ## Hexagon outlines over the oval, brightest toward the rim; each cell its own
@@ -465,16 +451,16 @@ func _paint(ci: CanvasItem) -> void:
 		var st := _cell(c)
 		var l: float = st[0]
 		if l > 0.0:
-			ci.draw_texture(c.tex, (_origin + (st[1] as Vector2)).round(), ShipBreakup._lv(COL, l))
+			ci.draw_texture(c.tex, (_origin + (st[1] as Vector2)).round(), FxKit.lv(COL, l))
 	for f in _flashes:
 		var age := t - float(f.t0)
 		var x := age / float(f.life)
-		var l2 := (1.0 if x < 0.25 else (0.6 if x < 0.5 else (0.32 if x < 0.75 else 0.14))) * float(f.s)
+		var l2 := FxKit.flash_level(x) * float(f.s)
 		var tex := ShipBreakup._white(int(f.r))
-		ci.draw_texture(tex, (Vector2(f.p) - Vector2(tex.get_size()) * 0.5).round(), ShipBreakup._lv(COL, l2))
+		ci.draw_texture(tex, (Vector2(f.p) - Vector2(tex.get_size()) * 0.5).round(), FxKit.lv(COL, l2))
 	for mo in _motes:
 		if mo.age < 0.0:
 			continue
 		var f2: float = mo.age / mo.life
 		var l3 := 1.0 if f2 < 0.4 else (0.6 if f2 < 0.75 else 0.3)
-		ci.draw_rect(Rect2((mo.p as Vector2).round(), Vector2.ONE), ShipBreakup._lv(COL.lerp(Color.WHITE, 0.4), l3))
+		ci.draw_rect(Rect2((mo.p as Vector2).round(), Vector2.ONE), FxKit.lv(COL.lerp(Color.WHITE, 0.4), l3))
