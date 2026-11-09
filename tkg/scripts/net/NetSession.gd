@@ -7,7 +7,7 @@ extends Node
 ## Bump on any change to the messages or the meaning of their fields.
 ## Cheap to raise, very expensive to forget: a mismatch is refused at the door.
 ## Why: docs/why/NetSession.md#protocol-versions
-const PROTOCOL: int = 18
+const PROTOCOL: int = 19
 
 ## Generous: giving up early costs a wreck, assuming costs the party's economy.
 ## Why: docs/why/NetSession.md#take-timeout
@@ -36,6 +36,9 @@ var roster: Dictionary = {}
 var dive_seed: int = 0
 ## The host's unlocked manufacturers, sent with the seed. Empty until launch.
 var dive_unlocked: Array[StringName] = []
+## The host's ascension level for this dive, sent with the seed (PROTOCOL 19):
+## one galaxy, one difficulty, one rival or none (`RunState.ascension_for_new_run`). Zero until launch.
+var dive_ascension: int = 0
 ## A max, so reports in any order or twice agree; the Custodian grows on it.
 ## Why: docs/why/NetSession.md#lead-ship-jumps
 var galaxy_jumps: int = 0
@@ -255,6 +258,7 @@ func leave_party() -> void:
 	transport = null
 	dive_seed = 0
 	dive_unlocked.clear()
+	dive_ascension = 0
 	galaxy_jumps = 0
 	_jumps_said.clear()
 	_set_state(State.OFFLINE)
@@ -292,8 +296,11 @@ func launch_dive() -> bool:
 	# reason the seed is. Strings on the wire, the way a build's ids travel.
 	var open: Array = Array(Unlocks.open_now()).map(
 		func(m: StringName) -> String: return String(m))
-	_begin_dive.rpc(seed_value, open)
-	_apply_dive(seed_value, open)
+	# And how hard: the host's ascension level (PROTOCOL 19). Read before the
+	# state turns DIVING, so it is this machine's own setting.
+	var asc := Run.ascension_for_new_run()
+	_begin_dive.rpc(seed_value, open, asc)
+	_apply_dive(seed_value, open, asc)
 	return true
 
 
@@ -474,7 +481,7 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 	if state == State.DIVING and dive_seed != 0:
 		var open: Array = Array(dive_unlocked).map(
 			func(m: StringName) -> String: return String(m))
-		_begin_dive.rpc_id(who, dive_seed, open)
+		_begin_dive.rpc_id(who, dive_seed, open, dive_ascension)
 		# Sent after `_begin_dive` on the same reliable channel, and quiet so no arrival shows.
 		_push_growth_to.rpc_id(who, galaxy_jumps, true)
 		_push_claims_to.rpc_id(who, claims)
@@ -685,8 +692,8 @@ func _spot_to_sure(id: int, at: int, body: int, x: float, z: float, ang: float, 
 
 
 @rpc("authority", "call_remote", "reliable")
-func _begin_dive(seed_value: int, unlocked: Array) -> void:
-	_apply_dive(seed_value, unlocked)
+func _begin_dive(seed_value: int, unlocked: Array, asc: int) -> void:
+	_apply_dive(seed_value, unlocked, asc)
 
 
 # --- plumbing -------------------------------------------------------------
@@ -1612,8 +1619,9 @@ func _apply_hull(id: int, hull_id: StringName) -> void:
 	Sig.party_changed.emit()
 
 
-func _apply_dive(seed_value: int, unlocked: Array = []) -> void:
+func _apply_dive(seed_value: int, unlocked: Array = [], asc: int = 0) -> void:
 	dive_seed = seed_value
+	dive_ascension = clampi(asc, 0, Run.ASCENSION_MAX)
 	galaxy_jumps = 0
 	_jumps_said.clear()
 	dive_unlocked.clear()

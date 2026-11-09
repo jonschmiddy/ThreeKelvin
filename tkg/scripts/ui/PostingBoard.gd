@@ -777,7 +777,7 @@ func _featured(sz: Vector2) -> void:
 	_text("THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, Color("#c8f0ff"))
 	_text("RIVAL HARVESTER", 6.0, 121.0, UITheme.FS_SMALL, Color("#6fa8c4"))
 	_text("FOR STOLEN HEAT", 6.0, 132.0, UITheme.FS_SMALL, Color("#6fa8c4"))
-	if not Run.hellbender_alive():
+	if Run.hellbender_destroyed():
 		_stamp(DEAD_STAMP, 18.0, sz.x, Color("#ff7a66"))
 	draw_rect(Rect2(Vector2.ZERO, sz), Color("#f0c040"), false, 1.0)
 
@@ -1437,7 +1437,7 @@ func _wanted(sz: Vector2) -> void:
 	_centre("THE HELLBENDER", 102.0, sz.x, UITheme.FS_SMALL, _pal(INK))
 	_centre("RIVAL HARVESTER", 113.0, sz.x, UITheme.FS_SMALL, _pal(INK_SOFT))
 	_centre("FOR STOLEN HEAT", 124.0, sz.x, UITheme.FS_SMALL, _pal(INK_SOFT))
-	if not Run.hellbender_alive():
+	if Run.hellbender_destroyed():
 		_stamp(DEAD_STAMP, 48.0, sz.x, _pal(RED))
 
 

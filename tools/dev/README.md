@@ -52,7 +52,8 @@ Python tools run through uv, for example:
 ## How we work (rulings that hold)
 
 - **Nothing reaches main without the full gate.** One gate at a time; pause
-  other Godot work while it runs (timing tests fail on a busy machine). Agents
+  other Godot work while it runs (the older timing tests fail on a busy machine;
+  a new test must not depend on speed, see `tkg/CLAUDE.md`). Agents
   run only the tests for what they touch, never `validate.sh`.
 - **Branches live in worktrees** under `../tk-wt/<name>`. A fresh worktree needs
   one `--import` before its tests. A change's CHANGELOG line is its own file,

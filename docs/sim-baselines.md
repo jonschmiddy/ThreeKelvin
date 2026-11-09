@@ -12,6 +12,10 @@ Run it the same way every time or the numbers are not comparable:
 godot --headless --path tkg -- sim runs=500
 ```
 
+**Since Nov 8 the Hellbender flies only at ascension 7 and up** (`RunState.HELLBENDER_ASCENSION`),
+and the sim starts at 0, so its `hellbender:` line reads all zeros. To compare with a reading
+from before Nov 8, add `asc=7`: the same seeds lay out the same world, with the Hellbender in it.
+
 ---
 
 ## Phase 0 — baseline, 2026-08-25
