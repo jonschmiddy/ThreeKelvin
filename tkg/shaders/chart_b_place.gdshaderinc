@@ -16,6 +16,10 @@
 // shafts that step round a reflection cloud's star. Nothing changes for a single
 // frame. The poses are worked out on the CPU (`ChartSky._feed_b_events`).
 
+// TORN AWAY: the dwarf's clouds torn with it (`chart_torn_cloud`), read where each
+// cloud's own frame is (`cloudFrame`)
+#define TORN_CLOUDS
+#include "res://shaders/chart_torn_cloud.gdshaderinc"
 #include "res://shaders/chart_b_common.gdshaderinc"
 #include "res://shaders/legacy_hole.gdshaderinc"
 #include "res://shaders/chart_bg.gdshaderinc"
@@ -188,6 +192,7 @@ const float TERR_GAMMA = 1.5;
 #define M_STARP 16
 #define M_BALL 17
 #define M_BOLT 18
+#define M_GOLD 19
 
 #if LOW
 const int OCT = 1;
@@ -433,6 +438,15 @@ float seedOf(int i) { return float(i) * 13.17 + u_g3.w; }
 vec2 warpOf(vec2 q, float bq, float seed) { return vec2(fbmL(q + seed, bq, 2), fbmL(q + seed + 5.3, bq, 2)); }
 float wxGate() { return u_wxOn * smoothstep(2.4, 3.2, u_zoom); }
 
+// TORN AWAY: how much of cloud i is left at v (`tornClKeep`, 1 for a whole one)
+float tornClKeepV(vec2 v, int i) {
+	return tornClOn(i) ? tornClKeep(i, cloudFrame(v, i), u_cl[i].z) : 1.0;
+}
+// and whether this block shows it, in the style's patterns: it crumbles in steps
+bool tornClShow(Px P, vec2 v, int i) {
+	return !tornClOn(i) || pat(P, tornClKeepV(v, i));
+}
+
 // the way to the galaxy's core from cloud i, in its own round frame
 vec2 cloudToCore(int i) {
 	vec2 vc = (toView(vec2(0.0), 0.0) - toView(u_cl[i].xy, 0.0)) / u_k;
@@ -454,7 +468,7 @@ float bubbleAt(vec2 v, out float flo) {
 		}
 		vec2 d = cloudFrame(v, i);
 		float rr = length(d) / u_cl[i].w;
-		bb = max(bb, smoothstep(0.93, 0.86, rr));
+		bb = max(bb, smoothstep(0.93, 0.86, rr) * tornClKeepV(v, i));
 		if (u_neb > 0.0 && rr < 1.0) {
 			flo = min(flo, nebShell(d / max(length(d), 1e-6), rr - 0.95, cloudToCore(i)).y);
 		}
@@ -465,7 +479,7 @@ float cloudLight(vec2 v, int i) {
 	vec2 d = cloudFrame(v, i);
 	float R = u_cl[i].z;
 	float rr = length(d - clusterOf(i) * 0.5) / R;
-	return smoothstep(2.0, 0.9, rr + 0.25 * kitSnoise2(d / R * 2.0 + seedOf(i))) / (1.0 + sq(rr / 0.8));
+	return smoothstep(2.0, 0.9, rr + 0.25 * kitSnoise2(d / R * 2.0 + seedOf(i))) / (1.0 + sq(rr / 0.8)) * tornClKeepV(v, i);
 }
 
 // THE BOLT AS A PIXEL ARTIST DRAWS IT (Jon: a crisp zigzag, not a smooth
@@ -1193,14 +1207,57 @@ float ballS(vec2 gS, vec2 gq, float blkS) {
 	}
 	return s;
 }
+// THE BIG DWARF (`ChartTorn.ball_v`, Jon, Nov 8: "I basically want the dwarf to be drawn
+// large"): its reach (gu, the ball's own frame, past its outermost ring), its envelope's
+// level against its body's middle, the power that light falls by, on (w). Off for every
+// other ball.
+uniform vec4 u_ballV = vec4(1.0, 0.0, 1.0, 0.0);
+// THE BIG DWARF SPHEROIDAL IN DIM GOLD (Jon, Nov 8: "dim gold", and "the same texture as
+// the blue one. The gold one looks flat"): its body drawn as the blue compact dwarf's is --
+// its clumps, grain, relief and puffs at a young ball's strength, its light and its
+// fade the blue one's -- but on the old-gold ramp (M_GOLD), never blue gas
+bool goldD() {
+	return abs(u_ballK.x - 2.0) < 0.5 && u_ballV.w > 0.5;
+}
+// a ball's texture's strength (`u_ballK.z`, its young gas): the dim-gold dwarf's a young one's
+float ballYoung() {
+	return goldD() ? 1.0 : u_ballK.z;
+}
+// where a point of the ball's round frame (gS, gu; gq the same turned, blkS a block
+// there) lies in the big dwarf's reach (0 at the core, 1 at its end), its outline
+// a little irregular at the body's own scale (the core's lumpy outline, `ballS`, at a
+// third: at full it pushed the envelope's end in past the rim's systems)
+float ballSE(vec2 gS, vec2 gq, float blkS) {
+	float s = length(gS) / u_ballV.x;
+	float RB = u_g8.x * u_ballF.x;
+	return s * (1.0 + 0.12 * fbmL(gq * (2.4 / RB) + vec2(3.7 + 13.0 * u_ballD.w, 1.1), blkS * (2.4 / RB), 3));
+}
+// the big dwarf's envelope at sE (`ballSE`): the body round its real-sized core,
+// redrawn at the dwarf's new size -- its light, read in the same clumps and grain at
+// the same scales as the body's, so a bigger dwarf has more of them, never bigger
+// ones -- falling slowly from the core and fading out over the last of its reach,
+// on the bottom steps of the dwarf's ramps (Oct 18's "painted is TOO BRIGHT")
+float ballEnv(float sE) {
+	if (u_ballV.w < 0.5) {
+		return 0.0;
+	}
+	// (none in the middle: the core and its body are drawn as they always were, the
+	// envelope coming in round them)
+	return u_ballV.y * pow(1.0 + sq(sE / 0.45), -u_ballV.z) * smoothstep(1.0, 0.86, sE) * smoothstep(0.08, 0.35, sE);
+}
 // the body's light at s (ball radii): a steady fall from a bright middle, about four
 // doublings out to where its warm light ends (so its light runs down the warm ramp's
 // steps one by one, never lying on one), at the kind's own pace (`u_ballF.y`: a giant's
 // slow, into a wide envelope; a flattened one's steep), gone by `u_ballF.z`; a dwarf
 // spheroidal's faint
 float ballBody(float s) {
-	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
-	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
+	float faint = abs(u_ballK.x - 2.0) < 0.5 && !goldD() ? 0.4 : 1.0;
+	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * ballYoung()) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
+}
+// and with the big dwarf's envelope (`ballEnv`) at sE
+float ballBodyE(float s, float sE) {
+	float faint = abs(u_ballK.x - 2.0) < 0.5 && !goldD() ? 0.4 : 1.0;
+	return ballBody(s) + u_g8.y * 0.4 * faint * (1.0 + 0.6 * ballYoung()) * ballEnv(sE);
 }
 // lit as a ball from the chart's key light (upper left, `ballForm`'s): its near side a
 // little up, its far side and limb down, as a multiplier of its light
@@ -1218,6 +1275,8 @@ float ballLit(vec2 gS) {
 // bulge is drawn there, round, at the camera's one scale at the core, never
 // stretched by the perspective round it; v itself with the camera off); tk: how much
 // of the middle's relief is drawn here (0 through the hole's lens)
+#include "res://shaders/chart_torn.gdshaderinc"
+
 Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float k = u_k;
 	// (THE PATTERNS STAY ON THE SCREEN'S BLOCKS, anchored to the galaxy's centre as the
@@ -1258,6 +1317,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	vec2 gq = kitRot(-u_phi) * gS;
 	float blkS = blockView() / k / solidCoreK();
 	float sB = ellip ? ballS(gS, gq, blkS) : 0.0;
+	// (the big dwarf's reach, `ballSE`: past it, nothing of its envelope)
+	float sE = ellip && u_ballV.w > 0.5 ? ballSE(gS, gq, blkS) : 9.0;
+	// (TORN AWAY: what is left of the dwarf, at its real size, `tornShape`)
+	float tK = ellip && tornOn() ? tornShape(gS, gq, blkS) : 1.0;
 	float tt = u_time * (u_g4.z > 0.5 ? 0.5 : 1.0);
 
 	float ar = 0.0, dp = 0.0, wp = 1.0, al = 0.0, prof = 0.0;
@@ -1324,8 +1387,8 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		// finest octaves left out, so zooming in on old stars resolves a few soft lumps,
 		// never the blotched crust of a gas disc; a young ball's -- `u_ballK.z` -- as a
 		// disc's)
-		float env = ballBody(sB);
-		float yg = u_ballK.z;
+		float env = ballBodyE(sB, sE);
+		float yg = ballYoung();
 		float clump = fbmL(gq * 11.0 + vec2(5.0), blkS * 11.0, low ? 2 : (yg > 0.5 ? 6 : 4));
 		float fine = low ? 0.0 : fbmL(gq * 46.0 + vec2(9.0), blkS * 46.0, yg > 0.5 ? 5 : 2);
 		float clumpS = fbmL(gq * 11.0 + 5.0, blkS * 11.0, 2);
@@ -1334,7 +1397,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		EdS = env * (1.0 + cA * clumpS);
 		// warm where its old stars hold; past them, in a ball with gas, its cool gas, handed
 		// over across a wide band; an old ball is warm to its edge
-		warmD = ballGas() ? 1.0 - smoothstep(0.6 * u_ballK.y, 1.6 * u_ballK.y, sB) : 1.0;
+		// (the dim-gold dwarf as the blue one's, its old light handed to its gold gas there)
+		float wE = goldD() ? 0.3 : u_ballK.y;
+		warmD = ballGas() || goldD() ? 1.0 - smoothstep(0.6 * wE, 1.6 * wE, sB) : 1.0;
 		// a merger's tidal stream (`u_g8.w`, the disc's own above): what is left of the
 		// smaller galaxy, flung off one side and curling away, at the ball's own size
 		if (u_g8.w > 0.5) {
@@ -1396,14 +1461,17 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			terrS = terrShadeB(gq * tS, terrLo(blkS * tS));
 			// (an old ball's relief at BALL_RELIEF_OLD of the disc's: its body a smooth fall of old light,
 			// only a young one -- `u_ballK.z` -- as lumpy as a spiral's middle)
-			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk * (BALL_RELIEF_OLD + (1.0 - BALL_RELIEF_OLD) * u_ballK.z));
+			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk * (BALL_RELIEF_OLD + (1.0 - BALL_RELIEF_OLD) * ballYoung()));
 		}
-		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * ballLit(gS);
+		// (the big dwarf's envelope, `u_ballV`, unlit by the key light: past its core's
+		// body the rim's shading carried on round it, its upper half a step over its lower)
+		float bl = u_ballV.w > 0.5 ? mix(ballLit(gS), 1.0, smoothstep(0.2, 0.5, sE)) : ballLit(gS);
+		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * bl;
 		if (u_fluff > 0.0 && (u_diag & 16384) == 0) {
 			// (an old ball's puffs at BALL_PUFF_OLD of a disc's: at full strength they were the
 			// blotched crust close in -- three of the ramp's steps across each puff at zoom 1)
 			vec3 fs = fluffShade(gq);
-			lit *= mix(1.0, fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff, BALL_PUFF_OLD + (1.0 - BALL_PUFF_OLD) * u_ballK.z);
+			lit *= mix(1.0, fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff, BALL_PUFF_OLD + (1.0 - BALL_PUFF_OLD) * ballYoung());
 		}
 		Ed = Ed * lit + tlB;
 		EdS = EdS * lit + tlB;
@@ -1492,6 +1560,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		storyLight(vB / k, u_phi, u_time, blkB, stW, stC);
 		Ib += stW;
 	}
+	// (TORN AWAY: what lay past the drawn edge has gone into the stream)
+	Ib *= tK;
+	Ed *= tK;
+	EdS *= tK;
 	float hR = u_g3.z;
 	float rp = length(vec2(vb.x, vb.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
@@ -1586,8 +1658,11 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	if (ellip) {
 		// (a ball's halo the disc's, at the ball's own size, and ending with its body as the
 		// disc's ends with the disc: no violet ring a fixed 0.26 gu wide round every ball)
-		float hT = smoothstep(1.7, 2.9, sB);
+		float hT = u_ballV.w > 0.5 ? smoothstep(0.95, 1.2, sE) : smoothstep(1.7, 2.9, sB);
 		Ehalo = 0.0068 * (1.0 - hT) * (1.0 - hT) * (1.0 + 0.4 * fbmL(gq * 3.0, blkS * 3.0, low ? 2 : 5));
+		if (tornOn()) {
+			Ehalo = Ehalo * tK + tornGlow(vb);
+		}
 	}
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
 	// stepped out round the galaxy as rings of navy -- a plate's rim, then a halo oval
@@ -1646,7 +1721,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			// (a ball's thins out by its body's smooth light, so only at its edge: a valley of
 			// its relief inside it stays its own dark steps, never a hole to the sky)
 			// (and over a wide band, `BALL_FADE_HI` to `_LO`: no rim, no ring)
-			float lvT = ellip ? clamp(1.0 + log2(max(ballBody(sB) * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
+			float lvT = ellip ? clamp(1.0 + log2(max(ballBodyE(sB, sE) * tK * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
 			// (a faint ball's band as far below its own light: a dwarf spheroidal's, 0.4 of an
 			// elliptical's, would lie in the band to its middle, a stippled plate)
 			float fSh = ellip && abs(u_ballK.x - 2.0) < 0.5 ? log2(0.4) / 7.0 : 0.0;
@@ -1655,13 +1730,18 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				float ELc2 = Ec + Ep + dbt;
 				float la2 = 1.08 + log2(max(ELc2, 1e-6)) / 6.2 - 0.12 * shade - 0.34 * bub;
 				// (an old ball has no cool gas behind its fade: it thins out into the sky)
-				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas()) ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
+				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas() && !goldD()) ? cand(goldD() ? M_GOLD : M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
+			}
+			// (the dim-gold dwarf's: its old light's bottom steps, maroon and rust, on its own
+			// gold ramp's upper steps instead: gold to its middle, never a red ring, `goldD`)
+			if (ellip && goldD() && sc.m == M_BULGE && sc.lv < 3.0 / 7.0) {
+				sc = cand(M_GOLD, sc.lv < 2.0 / 7.0 ? 3.5 / 6.0 : 4.5 / 6.0, 0, 0.0);
 			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
 			bool pink = Ep > 0.7 * Ec;
-			sc = cand(pink ? M_KNOT : M_ARM, pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
+			sc = cand(pink ? M_KNOT : (ellip && goldD() ? M_GOLD : M_ARM), pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
 			if (!pink && la < 1.0 / 6.0) {
 				sc = cand(M_SKY, 0.8, 0, 0.0);
 			}
@@ -1848,7 +1928,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				vec3 h = kitHash3(c + ivec2(5113 + int(u_ballD.w * 97.0), 1907));
 				vec2 ctr = (vec2(c) + 0.15 + 0.7 * h.xy) * ks;
 				float sk = length(ctr) / u_g8.x;
-				float A = u_ballK.z * smoothstep(1.4, 0.3, sk) * smoothstep(0.08, 0.25, sk);
+				// (and a few through the big dwarf's envelope, `u_ballV`: a fifth as thick, so
+				// they never read as a field of the chart's marks)
+				float skE = u_ballV.w > 0.5 ? length(ctr) / (0.62 * u_ballV.x) : 9.0;
+				float A = u_ballK.z * min(smoothstep(1.4, 0.3, sk) + 0.2 * smoothstep(1.4, 0.3, skE), 1.0) * smoothstep(0.08, 0.25, sk);
 				if (h.z > 0.3 * A) {
 					continue;
 				}
@@ -1932,6 +2015,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 			int kd = int(u_ck[i].x + 0.5);
 			Cand cc;
+			// (TORN AWAY: a cloud over the dwarf crumbling as it goes, `tornClShow`)
+			if (!tornClShow(P, v, i)) {
+				continue;
+			}
 			if (kd == 0 && emissionAt(P, v, i, blk, bub, cc)) {
 				sc = cc;
 				solid = solid || cc.m == M_PILLAR;
@@ -1946,6 +2033,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 			int kd = int(u_ck[i].x + 0.5);
 			Cand cc;
+			if (!tornClShow(P, v, i)) {
+				continue;
+			}
 			if (kd == 3 && remnantAt(P, v, i, blk, sc, cc)) {
 				sc = cc;
 			}
@@ -1977,6 +2067,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				billowFront = true;
 			}
 		}
+	}
+	// TORN AWAY: the giant and the stream (`chart_torn`)
+	if (ellip && tornOn()) {
+		sc = tornOver(P, vb, sc);
 	}
 	// stars: the sparkle sprites, unless something solid stands in front
 	if (u_stars_on && sblk.x >= 0 && sblk.y >= 0 && sblk.x < int(u_vp_size.x) && sblk.y < int(u_vp_size.y)) {

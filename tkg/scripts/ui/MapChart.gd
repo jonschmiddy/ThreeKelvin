@@ -533,6 +533,8 @@ func _arrive() -> void:
 	if StarchartScreen._view_zoom > 0.0 \
 			and StarchartScreen._view_map == Run.map.size():
 		_go_to(StarchartScreen._view_zoom, StarchartScreen._view_pan, false)
+	elif ChartTorn.on():
+		_go_to(ZOOM_MIN, _open_pan(), false)
 
 ## The event horizon's shadow at build time, in drawn pixels: nothing is
 ## placed inside it. (The hole the chart DRAWS is bigger: `ChartSky.hole_r`.)
@@ -576,6 +578,7 @@ func _visible_set(here: MapGen.MapNode, _reach: Array) -> Dictionary:
 	if show_all:
 		for i in Run.map.size():
 			out[i] = true
+		_drop_torn(out, here)
 		return out
 	# `Run.charted` is the rule and lives on the run, not here -- two test
 	# harnesses need to measure it and both used to carry their own copy.
@@ -590,7 +593,19 @@ func _visible_set(here: MapGen.MapNode, _reach: Array) -> Dictionary:
 		out[selected] = true
 	if hovered >= 0 and hovered < Run.map.size():
 		out[hovered] = true
+	_drop_torn(out, here)
 	return out
+
+## TORN AWAY (`ChartTorn`, proto): the systems on the rings the giant has
+## taken are gone with them, off the chart (never drawn, pointed at or
+## routed to). Where you stand stays: the mechanic decides what happens to
+## a ship on a falling ring.
+static func _drop_torn(out: Dictionary, here: MapGen.MapNode) -> void:
+	if not ChartTorn.on():
+		return
+	for i: int in out.keys():
+		if i != here.index and ChartTorn.gone(Run.map[i]):
+			out.erase(i)
 
 ## One projection for everything drawn; a click returns through `_to_galaxy`.
 ## Why: docs/why/MapChart.md#projection
@@ -1092,7 +1107,7 @@ func _draw_chart() -> void:
 		# Why: docs/why/MapChart.md#route-lines
 		reach = []
 		for cand in _in_range():
-			if Run.charted(cand):
+			if Run.charted(cand) and not ChartTorn.gone(cand):
 				reach.append(cand)
 		for r in reach:
 			var rn2: MapGen.MapNode = r
@@ -1291,7 +1306,12 @@ func glide_to(z: float, p: Vector2, secs: float = 0.55) -> void:
 
 ## The pair to `frame_region`: the same route back, so the second press undoes the first.
 func frame_galaxy() -> void:
-	glide_to(ZOOM_MIN, Vector2.ZERO)
+	glide_to(ZOOM_MIN, _open_pan())
+
+## Where the core sits at the opening: the middle, or TORN AWAY's dwarf down and right
+## of it with the giant above to the left (`ChartTorn.open_pan`).
+func _open_pan() -> Vector2:
+	return ChartTorn.open_pan(ZOOM_MIN * _radius() * DISC / ChartSky.K0)
 
 ## `animate` false snaps, for an arrival: a glide made the screen visibly zoom itself in.
 ## Why: docs/why/MapChart.md#snap-on-arrival
@@ -1968,6 +1988,10 @@ func _build_field() -> void:
 	_build_nebulae(r_max)
 
 	# --- the arms themselves
+	# (A BIG DWARF, `ChartTorn.field_reach`: its thick inner stars spread over its big
+	# body as its light is, out to where that light ends, a share of r_max; 0 for any
+	# other galaxy, which keeps its own falloff)
+	var big_f := ChartTorn.field_reach(g)
 	seed = (_gseed() * 2654435761 + 1337) & 0x7fffffff
 	for i in 30000:
 		seed = (seed * 1103515245 + 12345) & 0x7fffffff
@@ -1984,6 +2008,8 @@ func _build_field() -> void:
 		# be both dense at the core and present at the rim.
 		var inner: bool = float(i % 100) < float(g.core_share) * 100.0
 		var u: float = pow(t, float(g.core_pow) if inner else float(g.halo_pow))
+		if inner and big_f > 0.0:
+			u = big_f * pow(t, 1.4)
 		var hole: float = g.ring
 		if hole > 0.0:
 			u = hole + u * (1.0 - hole)

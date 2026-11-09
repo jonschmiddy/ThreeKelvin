@@ -30,6 +30,17 @@ uniform float phi = 0.0;
 uniform float t = 0.0;
 uniform float calm = 0.0;
 uniform float bulge_r = 0.128;
+// TORN AWAY (`ChartTorn`, redraw A): the dwarf's stars where they always are, those
+// past its rings' torn edge gone with their rings (the place pass's `tornStarKeep`,
+// as its body is cut, `tornShapeN`). torn: on, the edge (gu, the plane: the rings' own),
+// the plane's squash, the cut's strength; torn2: the way the stream leaves the dwarf in
+// the plane, how far the edge is drawn out that way (a share of it), and at most (gu);
+// torn3: the same way in the ball's frame, its roundness, the outermost ring standing
+// (gu, the plane; 0 once the picture is inside it: the edge's floor). Off (torn.x 0):
+// every star as it always is
+uniform vec4 torn = vec4(0.0);
+uniform vec4 torn2 = vec4(1.0, 0.0, 0.0, 0.12);
+uniform vec4 torn3 = vec4(1.0, 0.0, 1.0, 0.0);
 // THE SOLID GALAXY (`ChartSky.solid`): the sparkles where the camera shows the disc
 // (`chart_solid`'s solidFwdN, as `chart_c_stars` puts its stars): on, and the camera's
 // distance, elevation's sine and cosine, 0; and where it looks on the disc's plane
@@ -61,6 +72,25 @@ void vertex() {
 		int kind = int(a.w + 0.5);
 		float lz = log(zoom);
 		float cs = cos(phi), sn = sin(phi);
+		bool tgone = false;
+		if (torn.x > 0.5 && torn.w > 0.0) {
+			// (past the edge, as the place pass cuts the body, `tornShapeN`: torn on the
+			// star's own hash, drawn out toward the stream, its last band thinning out,
+			// never inside the outermost ring standing; all of it once the edge is gone)
+			float re = length(vec3(a.xy, b.w));
+			float pull = re > 1e-5 ? pow(max(dot(a.xy / max(length(a.xy), 1e-5), torn2.xy), 0.0), 3.0) : 0.0;
+			float sz = clamp(torn.y / 0.14, 0.2, 1.0);
+			float Ee = torn.y + min(torn2.z * torn.y, torn2.w) * pull + 0.03 * sz * (2.0 * fract(b.z * 91.7 + c.x * 13.1) - 1.0);
+			if (torn3.w > 0.0) {
+				Ee = max(Ee, torn3.w + 0.018);
+			}
+			float band = 0.065 * sz * (1.0 + 1.4 * pull);
+			float x = (re - Ee) / max(band, 1e-4);
+			float keepP = (1.0 - x) * (0.4 + 0.5 * pull);
+			if (torn.w > 0.5 && (torn.y < 0.004 || x >= 1.0 || (x > 0.0 && fract(b.z * 37.3 + c.y * 5.9) >= keepP))) {
+				tgone = true;
+			}
+		}
 		vec2 v = vec2((a.x * cs + a.y * sn), (a.y * cs - a.x * sn) * 0.38 - b.w * 0.92499) * k;
 		if (solid) {
 			vec2 d = vec2(v.x, v.y / 0.38) / k - solidT;
@@ -113,7 +143,7 @@ void vertex() {
 			tier = 3.0;
 			sprite = on ? 3.0 : 1.0;
 		}
-		if (lv > 0.05 && (diag & 18) == 0) {
+		if (lv > 0.05 && (diag & 18) == 0 && !tgone) {
 			blk = floor((scr - vp_origin) * 0.5);
 			s = vec4(lv, cls / 4.0, tier / 3.0, sprite);
 		}

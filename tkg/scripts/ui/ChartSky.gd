@@ -647,6 +647,12 @@ static func ball_story(gain: float) -> Dictionary:
 		cs.append(Vector4(cos(ang) * rad, sin(ang) * rad, size, float(k)))
 		ds.append(Vector4(r.randf() * TAU, r.randf_range(1.6, 2.6), 1.0 if i == torn and not dwarf else 0.0,
 			r.randf_range(0.14, 0.2)))
+	# (a big dwarf has no small companion: its body is out past where the companion stood,
+	# under the rim's systems, and the giant eating it is its story, `ChartTorn`)
+	if dwarf and ChartTorn.big:
+		for i in 3:
+			cs[i] = Vector4.ZERO
+			ds[i] = Vector4.ZERO
 	var jet_a := r.randf() * TAU
 	var jet_l := r.randf_range(0.25, 0.7)
 	return {
@@ -694,6 +700,17 @@ static func ball_form(kind: int) -> Vector4:
 		"Dwarf Spheroidal":
 			return Vector4(0.8, 1.1, 2.4, 0.0)
 	return Vector4(1.0, 1.3, 2.4, 0.0)
+
+
+## THE BIG DWARF's envelope in this style (`ChartTorn.ball_v`, `ellBall`'s): its level
+## against the body's middle and the power its light falls by, by kind. Measured off the
+## chart: lit to about `ChartTorn.LIT_K` of its reach, on its colours' bottom steps.
+const BIG_ENV := {14: Vector2(0.09, 1.2), 15: Vector2(0.32, 0.9)}
+
+
+static func ball_env(kind: int) -> Vector4:
+	var e: Vector2 = BIG_ENV.get(kind, Vector2(0.3, 1.2))
+	return ChartTorn.ball_v(e.x, e.y)
 
 
 ## The ball as this style draws it: `ball_of`'s, a flattened elliptical's squashed further,
@@ -1703,6 +1720,7 @@ func _feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_ball", ball_drawn(Run.galaxy_kind, p.ball) if int(p.form) == 1 else p.ball)
 	m.set_shader_parameter("u_ballK", ball_kind(p.ball))
 	m.set_shader_parameter("u_ballF", ball_form(Run.galaxy_kind))
+	m.set_shader_parameter("u_ballV", ball_env(Run.galaxy_kind))
 	var bd := ball_depth(Run.galaxy_kind)
 	m.set_shader_parameter("u_ballD", bd[0])
 	m.set_shader_parameter("u_ballE", bd[1])
@@ -1906,6 +1924,17 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: fl
 	m.set_shader_parameter("u_cdir", cdir)
 	m.set_shader_parameter("u_lt", lt)
 	m.set_shader_parameter("u_lobe", lobe)
+	# TORN AWAY: the clouds over the dwarf torn with it, in this order (`ChartTorn.cloud_tear`;
+	# all zero, whole, otherwise)
+	var txy: Array = []
+	var trc: Array = []
+	for i in ncl:
+		txy.append((order[i][0] as Dictionary).xy)
+		trc.append(float((order[i][0] as Dictionary).reach))
+	var tear := ChartTorn.cloud_arrays(txy, trc, phi, MAX_CL)
+	m.set_shader_parameter("u_tornCl", tear.u_tornCl)
+	m.set_shader_parameter("u_tornClD", tear.u_tornClD)
+	g["_tear"] = tear
 	var knots: Array = g.knots
 	var kn := PackedVector4Array()
 	var amps := PackedFloat32Array()
@@ -1974,12 +2003,19 @@ func _cloud_stars(g: Dictionary, t: float, phi: float, cpix: Vector2, z: float, 
 					if pos.size() < MAX_EXTRA:
 						pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))
 						col.append(Vector4(0.55 * beat, 0.8 * beat, 1.3 * beat, 0.0))
+		# (TORN AWAY: a torn cloud's own stars go with its gas and fade with it)
+		var tr := Vector4.ZERO
+		var tw := Vector4.ZERO
+		if g.has("_tear") and ci < (g._tear.u_tornCl as PackedVector4Array).size():
+			tr = g._tear.u_tornCl[ci]
+			tw = g._tear.u_tornClD[ci]
 		for q in range(0, puts.size(), 2):
 			if pos.size() >= MAX_EXTRA:
 				break
-			var s := cpix + _solid_view(v + Vector2(puts[q].x * K0, puts[q].y * 0.46341 * K0)) * z
+			var off := ChartTorn.cloud_fwd(tr, Vector2(tw.x, tw.y), Vector2(puts[q].x, puts[q].y))
+			var s := cpix + _solid_view(v + Vector2(off.x * K0, off.y * 0.46341 * K0)) * z
 			pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))
-			col.append(Vector4(puts[q + 1].x, puts[q + 1].y, puts[q + 1].z, 0.0))
+			col.append(Vector4(puts[q + 1].x, puts[q + 1].y, puts[q + 1].z, 0.0) * (1.0 - tr.x))
 	return [pos, col]
 
 
@@ -2132,6 +2168,9 @@ func _push() -> void:
 		gm.set_shader_parameter("light", ((ccon - _vp_origin) * 0.5) / vs)
 		gm.set_shader_parameter("hole", hole_of(g.p) * K0 * z * 0.5 * ChartRadiant.GLOW_HOLE)
 	_feed_events(m, g, t, phi, z, true)
+	# TORN AWAY (the dwarfs, when the run sets it; `ChartTorn`): the giant, the one stream,
+	# the dwarf stripped ring by ring (its stars cut in the place pass, `tornStarKeep`)
+	ChartTorn.push(m, null, phi, chart.pan if _use_map and chart != null else Vector2.ZERO, z if _use_map and chart != null else 0.0)
 	if g.has("radiant"):
 		ChartRadiant.feed_events(m, g, t, DisplaySettings.reduced_motion, true)
 		_radiant_safety()

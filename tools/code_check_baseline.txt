@@ -170,6 +170,9 @@ bare scripts/ui/ChartSky.gd::ball_story
 bare scripts/ui/ChartSky.gd::next_supernova
 bare scripts/ui/ChartSky.gd::params
 bare scripts/ui/ChartSky.gd::remnants
+bare scripts/ui/ChartTorn.gd::_m
+bare scripts/ui/ChartTorn.gd::cloud_arrays
+bare scripts/ui/ChartTorn.gd::cloud_tear
 bare scripts/ui/CommsPanel.gd::_newest
 bare scripts/ui/CustodianBadge.gd::clock
 bare scripts/ui/CustodianBadge.gd::idle_of
@@ -612,7 +615,8 @@ length scripts/ui/BreakupCuts.gd::_cut_creature 126
 length scripts/ui/BreakupCuts.gd::_cut_new 226
 length scripts/ui/CardGalleryScreen.gd::_fill 120
 length scripts/ui/CardView.gd::_type_glyph 122
-length scripts/ui/ChartSky.gd::_push 171
+length scripts/ui/ChartPainted.gd::push 109
+length scripts/ui/ChartSky.gd::_push 174
 length scripts/ui/ChassisSelect.gd::_build_detail 171
 length scripts/ui/CutawayView.gd::_layout 221
 length scripts/ui/EncounterView.gd::_shoulders_at 103
@@ -655,7 +659,7 @@ length scripts/ui/LocalSky.gd::_build 247
 length scripts/ui/LocalSubject.gd::_build 135
 length scripts/ui/LocalSubject.gd::_place 145
 length scripts/ui/LocalSubject.gd::plan 101
-length scripts/ui/MapChart.gd::_build_field 225
+length scripts/ui/MapChart.gd::_build_field 231
 length scripts/ui/MapChart.gd::_build_nebulae 218
 length scripts/ui/MapChart.gd::_draw_chart 151
 length scripts/ui/ModuleGalleryScreen.gd::_fill 101
