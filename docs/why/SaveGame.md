@@ -43,7 +43,7 @@ load each other's runs.
 
 ## Version history
 
-Above `const VERSION := 40`:
+Above `const VERSION := 42`:
 
 ```text
 Bumped whenever the shape below changes. An old file is discarded rather than
@@ -324,14 +324,19 @@ co-op the Custodian grows on the most jumps any ship in the dive has made
 CONTINUE would otherwise meet a weaker boss than the badge showed. Read the
 way 39 reads 38: a 39 save has no `party_jumps`, and missing means 0, so its
 count is its own jumps, as a 39 build grew it. OLDEST_READ stays at 29.
-41: SCIENCE (Phase 12, Jon's picks Nov 4). `data` (`Run.data`), the dealt
+41: THE RUN'S ASCENSION LEVEL, the Hellbender's (`port/hellbender-asc7`, Jon,
+Nov 8), which lands before science. Its entry comes with it.
+42: SCIENCE (Phase 12, Jon's picks Nov 4). `data` (`Run.data`), the dealt
 `board` (as routine ids), `board_owned` (steps bought per branch),
 `black_box_spent`, and a module's `augmented`. The board is saved as ids and
 never dealt again at a load: a retuned pool would otherwise move a live run's
-board under steps already bought. Read the way 40 reads 39: a 40 save loads
-with 0 DATA, nothing owned, nothing augmented, and its board dealt from its
-seed and seat (`_board_from`), the board a 41 build would have dealt it.
-OLDEST_READ stays at 29.
+board under steps already bought. It was 41 on its own branch; the
+Hellbender took 41 by landing first, so science is 42 (Nov 8). Read the way
+41 reads 40: a 41 save (the Hellbender's build, or a 40 one) has none of
+these keys and loads with 0 DATA, nothing owned, nothing augmented, and its
+board dealt from its seed and seat (`_board_from`), the board a 42 build
+would have dealt it. Nothing in science reads `ascension`, so a 41 save's
+key is the Hellbender's to read. OLDEST_READ stays at 29.
 ```
 
 ## Saving
@@ -528,9 +533,9 @@ refuse a save.
 Above `static func _board_from(raw: Variant) -> Array[StringName]:`:
 
 ```text
-THE RUN'S BOARD, as saved (VERSION 41): nine routine ids, three a branch,
+THE RUN'S BOARD, as saved (VERSION 42): nine routine ids, three a branch,
 FRAME then CORE then DRIVE, each branch weakest first. An id this build does
-not know is dropped, and anything short of a whole board in that shape (a 40
+not know is dropped, and anything short of a whole board in that shape (a 41
 save has none, a hand-edited one may have anything) is dealt again from the
 restored seed and seat (`RunState.deal_board`), the board the run would have
 been dealt. Its bought steps stay as saved; the deal is the one it had unless

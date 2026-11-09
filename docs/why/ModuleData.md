@@ -367,6 +367,6 @@ something only on the copy you own. A BOOL, not the affix's name. STRIP can
 take any affix off afterwards, the Lab's included, and the mark stays, so the
 part can never be augmented twice; a stored name would go stale the moment
 that affix came off. It moves no number and no price (`scrap_value` is set
-once, at the drop). Saved with the part (`SaveGame._module_to`, VERSION 41),
+once, at the drop). Saved with the part (`SaveGame._module_to`, VERSION 42),
 so it goes everywhere a part can go: fitted, hold, pad, jetsam.
 ```

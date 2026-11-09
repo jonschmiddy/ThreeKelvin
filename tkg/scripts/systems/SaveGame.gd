@@ -13,9 +13,9 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## tell CONTINUE from a new run (A.S.H.'s introduction is a new run's only).
 static var restoring := false
 ## Bumped whenever the shape changes; an old file is discarded, never guessed at.
-## 41: science (DATA, the board as ids, its steps, the black box, a part's mark).
+## 42: science (DATA, the board as ids, its steps, the black box, a part's mark); 41 is the Hellbender's.
 ## Why: docs/why/SaveGame.md#version-history
-const VERSION := 41
+const VERSION := 42
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -151,7 +151,7 @@ static func _snapshot() -> Dictionary:
 		heat = Run.heat,
 		heat_cap_bonus = Run.heat_cap_bonus,
 		credits = Run.credits,
-		# Science (VERSION 41): DATA, the board as dealt (ids, never re-dealt at a
+		# Science (VERSION 42): DATA, the board as dealt (ids, never re-dealt at a
 		# load), the steps bought on it and the once-a-run black box.
 		data = Run.data,
 		board = Array(Run.board).map(func(x: StringName) -> String: return String(x)),
@@ -237,10 +237,10 @@ static func load_into_run() -> bool:
 	Run.galaxy_name = str(d.get("galaxy_name", ""))
 	Run.galaxy_title = str(d.get("galaxy_title", ""))
 
-	# SCIENCE (VERSION 41), AFTER THE SEED AND BEFORE THE HULL. After, because a
+	# SCIENCE (VERSION 42), AFTER THE SEED AND BEFORE THE HULL. After, because a
 	# board that has to be dealt again is dealt from the restored seed and seat;
 	# before, because the hull and `hp` below go through `_clamp_hp`, which must
-	# already see an owned DAMAGE CONTROL's +7. A 40 save has none of these keys:
+	# already see an owned DAMAGE CONTROL's +7. A 41 save or older has none of these keys:
 	# 0 DATA, nothing owned, the box unspent, and a board dealt from its seed.
 	Run.data = maxi(0, int(d.get("data", 0)))
 	Run.board = _board_from(d.get("board", null))
@@ -484,7 +484,7 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		mount = m.mount,
 		turned = m.turned,
 		hold_at = [m.hold_at.x, m.hold_at.y],
-		# A Lab has added an affix to it (VERSION 41): once per part, ever.
+		# A Lab has added an affix to it (VERSION 42): once per part, ever.
 		augmented = m.augmented,
 	}
 
@@ -503,7 +503,7 @@ static func _module_from(e: Variant) -> ModuleData:
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
 	m.mount = int(d.get("mount", -1))
 	m.turned = bool(d.get("turned", false))
-	# VERSION 41; a 40 save's parts were never augmented
+	# VERSION 42; a 41 save's parts were never augmented
 	m.augmented = bool(d.get("augmented", false))
 	# Version 6: a pre-grid save has no position, so those parts are re-packed.
 	var at: Array = d.get("hold_at", [-1, -1])
@@ -640,7 +640,7 @@ static func _unlocked_from(raw: Variant) -> Array[StringName]:
 		out.append(Unlocks.CHAIN[0])
 	return out
 
-## THE RUN'S BOARD, as saved (VERSION 41): nine routine ids, three a branch, FRAME then CORE
+## THE RUN'S BOARD, as saved (VERSION 42): nine routine ids, three a branch, FRAME then CORE
 ## then DRIVE, each branch weakest first.
 ## Why: docs/why/SaveGame.md#the-runs-board
 static func _board_from(raw: Variant) -> Array[StringName]:

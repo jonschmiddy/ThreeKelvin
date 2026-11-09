@@ -55,7 +55,7 @@ var credits: int = 40
 ## spent. Its own number, never a price in credits and never bought or sold:
 ## it comes only from places (a science event's reading, a film developed, a
 ## relic read) and only a Lab takes it, for board steps and augments. Never
-## below 0 (`add_data`). Saved (VERSION 41); cleared with a new run.
+## below 0 (`add_data`). Saved (VERSION 42); cleared with a new run.
 var data: int = 0
 ## THE RUN'S DEALT BOARD (pick 2B): nine routine ids, branch-major, FRAME 0-2,
 ## CORE 3-5, DRIVE 6-8, each branch weakest first (`deal_board`). The same at
@@ -1510,8 +1510,8 @@ func spend_data(n: int) -> bool:
 	add_data(-n)
 	return true
 
-## DEAL THIS RUN'S BOARD (pick 2B): per branch, one of its four routines is dropped and the
-## three left keep their order, weakest first, so the prices (6, 10 ...
+## DEAL THIS RUN'S BOARD (pick 2B): each branch drops one of its four routines and keeps the
+## other three weakest first, off `Rng.derive(&"board", seat)` and no stream.
 ## Why: docs/why/RunState.md#deal-this-runs-board
 func deal_board() -> void:
 	var r := Rng.derive(&"board", Rng.seat)

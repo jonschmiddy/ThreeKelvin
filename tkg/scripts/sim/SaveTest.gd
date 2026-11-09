@@ -28,7 +28,7 @@ func fingerprint() -> Dictionary:
 			for a in m.affixes:
 				af.append(a.name)
 			# Position is fingerprinted too: a save that dropped every position used to pass.
-			# (and the Lab's mark, VERSION 41: once per part, ever)
+			# (and the Lab's mark, VERSION 42: once per part, ever)
 			out.append("%s|%d|%d|%s|m%d|h%d,%d|a%d" % [m.id, int(m.rarity),
 				m.scrap_value, ",".join(af), m.mount, m.hold_at.x, m.hold_at.y,
 				int(m.augmented)])
@@ -99,7 +99,7 @@ func fingerprint() -> Dictionary:
 			Run.old_hull.max_hull, Run.old_hull.perk_id] if Run.old_hull != null else "",
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
 			Run.fuel, Run.dross_count(), Run.whale_boon, Run.data],
-		# SCIENCE (VERSION 41): the board as dealt, the steps bought on it and the
+		# SCIENCE (VERSION 42): the board as dealt, the steps bought on it and the
 		# black box. Fixtured below with a board the seed would NOT deal, so a
 		# save that dropped it and dealt again at the load shows here.
 		science = [",".join(Array(Run.board).map(func(x: StringName) -> String: return String(x))),
@@ -152,7 +152,7 @@ func _erase_marks(save: Dictionary) -> void:
 			if typeof(e) == TYPE_DICTIONARY:
 				(e as Dictionary).erase("augmented")
 
-## A saved run with none of VERSION 41's keys.
+## A saved run with none of VERSION 42's keys.
 func _erase_science(save: Dictionary) -> void:
 	for key in ["data", "board", "board_owned", "black_box_spent"]:
 		save.erase(key)
@@ -447,7 +447,7 @@ func run() -> void:
 		Run.map_clock[wide_node] = 1033.515625
 	Run.map_clock[card_node if card_node >= 0 else 0] = 0.25
 
-	# SCIENCE (VERSION 41): DATA in hand, FRAME two steps in and DRIVE one, the
+	# SCIENCE (VERSION 42): DATA in hand, FRAME two steps in and DRIVE one, the
 	# black box spent, and a board the seed would not deal (each branch drops a
 	# different routine), so a save that kept no board and dealt one again at the
 	# load cannot come back equal. And the Lab's mark on a part in each place a
@@ -758,12 +758,13 @@ func run_version_test() -> void:
 "
 		% ["PASS" if fails == fails_before else "FAIL", fails - fails_before])
 
-## SCIENCE (VERSION 41, Phase 12): this build writes 41. A 40 save loads with
+## SCIENCE (VERSION 42, Phase 12): this build writes 42. A 41 save (the Hellbender's
+## build, its `ascension` key unread here) and a 40 one load with
 ## no DATA, nothing bought, the black box unspent, no part augmented, and the
 ## board its seed and seat deal; a malformed one is mended, not refused; and a
 ## new run after a used one starts clean.
 func _science_versions() -> void:
-	check("this build writes VERSION 41", 41, SaveGame.VERSION)
+	check("this build writes VERSION 42", 42, SaveGame.VERSION)
 	Run.start_new_run(&"korvan", 1)
 	var dealt := Run.board.duplicate()
 	check("a new run is dealt a whole board", 9, dealt.size())
@@ -774,36 +775,40 @@ func _science_versions() -> void:
 		m.augmented = true
 		break
 	SaveGame.save()
-	var s41 := _read_save()
-	check("a 41 save carries DATA, the board's ids, the steps and the box",
+	var s42 := _read_save()
+	check("a 42 save carries DATA, the board's ids, the steps and the box",
 		"23 %s [1, 2, 0] true" % ",".join(Array(dealt).map(func(x: StringName) -> String: return String(x))),
-		"%d %s %s %s" % [int(s41.get("data", -1)), ",".join(Array(s41.get("board", []))),
-			str(Array(s41.get("board_owned", [])).map(func(x: Variant) -> int: return int(x))),
-			str(s41.get("black_box_spent", false))])
+		"%d %s %s %s" % [int(s42.get("data", -1)), ",".join(Array(s42.get("board", []))),
+			str(Array(s42.get("board_owned", [])).map(func(x: Variant) -> int: return int(x))),
+			str(s42.get("black_box_spent", false))])
 	check("and the fitted part's mark", true,
-		Array(s41.get("installed", [])).any(func(e: Variant) -> bool: return bool((e as Dictionary).get("augmented", false))))
+		Array(s42.get("installed", [])).any(func(e: Variant) -> bool: return bool((e as Dictionary).get("augmented", false))))
 
-	# A 40 SAVE: this shape with none of 41's keys. Loaded over a live run that
-	# has DATA, a different board, steps bought and a mark, so nothing can pass
-	# by being left over.
-	var s40 := s41.duplicate(true)
-	s40["version"] = 40
-	_erase_science(s40)
-	_write(s40)
-	Run.board = _other_board(dealt)
-	Run.board_owned = PackedInt32Array([3, 3, 3])
-	Run.data = 99
-	check("a save of version 40 (no science) still loads", true, SaveGame.load_into_run())
-	check("and with 0 DATA, nothing owned, the box unspent, nothing augmented",
-		"0 [0, 0, 0] false 0 0", "%d %s %s %d %d" % [Run.data, str(Array(Run.board_owned)),
-			str(Run.black_box_spent), Run.owned_routines().size(), _marked()])
-	check("and its board the one its seed and seat deal", str(dealt), str(Run.board))
+	# A 41 SAVE AND A 40 ONE: this shape with none of 42's keys, the 41 one with
+	# the Hellbender's `ascension` (41 is its build's, landed first). Each loaded
+	# over a live run that has DATA, a different board, steps bought and a mark,
+	# so nothing can pass by being left over.
+	for v in [41, 40]:
+		var sv := s42.duplicate(true)
+		sv["version"] = v
+		_erase_science(sv)
+		if v == 41:
+			sv["ascension"] = 7
+		_write(sv)
+		Run.board = _other_board(dealt)
+		Run.board_owned = PackedInt32Array([3, 3, 3])
+		Run.data = 99
+		check("a save of version %d (no science) still loads" % v, true, SaveGame.load_into_run())
+		check("and with 0 DATA, nothing owned, the box unspent, nothing augmented (%d)" % v,
+			"0 [0, 0, 0] false 0 0", "%d %s %s %d %d" % [Run.data, str(Array(Run.board_owned)),
+				str(Run.black_box_spent), Run.owned_routines().size(), _marked()])
+		check("and its board the one its seed and seat deal (%d)" % v, str(dealt), str(Run.board))
 	Run.deal_board()
 	check("which is what dealing it again gives", str(dealt), str(Run.board))
 
 	# MALFORMED, MENDED: a board with an unknown id, one cut short and one in the
 	# wrong order are dealt again; owned [5, -1] reads [3, 0, 0]; data -12 reads 0
-	var bad := s41.duplicate(true)
+	var bad := s42.duplicate(true)
 	var cases := {
 		"an unknown id": ["nope"] + Array(bad.board).slice(1),
 		"cut short": Array(bad.board).slice(0, 6),
@@ -829,7 +834,7 @@ func _science_versions() -> void:
 	# AN AFFIX BY ITS OLD NAME (Jon, Nov 5: "Stripped" is "Lightened" now): a
 	# save whose fitted part holds "Stripped" loads it as Lightened, +2 MAN -1
 	# HUL, not dropped; and Lightened is written and read back as itself
-	var old := s41.duplicate(true)
+	var old := s42.duplicate(true)
 	var fit: Array = old.get("installed", [])
 	if not fit.is_empty():
 		(fit[0] as Dictionary)["affixes"] = ["Stripped", "Reinforced"]
