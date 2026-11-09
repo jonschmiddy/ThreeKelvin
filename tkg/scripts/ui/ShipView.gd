@@ -1377,6 +1377,30 @@ func _draw_flame(ci: CanvasItem) -> void:
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## The engines' light for RADIANT's backdrop (`LocalSky._engine_light`); {} when no flame is drawn.
+## Why: docs/why/ShipView.md#engine-glow
+func engine_glow() -> Dictionary:
+	var th := _thrust_now()
+	if th < 0 or not is_visible_in_tree():
+		return {}
+	var fx := ThrusterFx.for_view(_hull(), _half and _hull().sprite_half != null)
+	if fx == null or fx.nozzles.is_empty():
+		return {}
+	var s := Vector2.ZERO
+	var n := 0
+	var dir := -1.0
+	for nz: Dictionary in fx.nozzles:
+		for p: Vector2 in (nz.pts as PackedVector2Array):
+			s += p
+			n += 1
+		dir = float(nz.get("dir", -1))
+	if n == 0:
+		return {}
+	var g := get_global_transform()
+	return {"at": g * (canvas_to_local(Vector2.ZERO) + s / float(n) * float(_k)), "dir": dir,
+		"k": [0.55, 1.0, 1.4][clampi(th, 0, 2)], "warm": fx.warm, "scale": g.get_scale().x * float(_k)}
+
+
 ## Hull lights use the game clock, added like the flame; none at zero hull (Jon, Oct 14).
 func _draw_lights(ci: CanvasItem) -> void:
 	var h := _hull()

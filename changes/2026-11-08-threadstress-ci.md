@@ -1,0 +1,1 @@
+- **Fixed** — ThreadStress gives a clicked flight up to 30 more seconds on a slow CI runner, so it no longer fails with no engine errors.

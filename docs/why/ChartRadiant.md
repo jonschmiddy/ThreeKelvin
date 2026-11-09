@@ -142,3 +142,100 @@ one the plain profile; a flattened one a lens, squashed and ending sooner; a gia
 bigger, its light running out slowly into a wide envelope. A dwarf spheroidal
 small and thin, a blue compact dwarf's light ending soon past its gas.
 ```
+
+## Light that moves
+
+Above `static var drama_on := true`:
+
+```text
+LIGHT THAT MOVES (Nov 7, direction B of Jon's "redo radiant to be super dramatic
+with the lighting effects"): the drama is in time, and each light is a thing's. The
+core's disc breathes, now and then flares (eased in, held, let go) and its light
+reaches far further out through the gas; it throws its light two ways, turning,
+so two bright sectors sweep round the core over the billows and the haze; young
+stars in the arms flare for a breath and light the gas round them. (The turning
+beams were cut in review the same day: they were the "light beams from the core"
+Jon cut on Oct 11, and most of the frame's crawl.) Pure functions
+of the clock (`GameClock` through the chart's own), so films run true. `drama_on`
+false (a cost bench's turn) or `still` (reduced motion, a palette probe): all off.
+```
+
+## Dwarf halo
+
+Above `L.halo = Vector4(L.halo.x * 1.3, L.halo.y, L.halo.z, 0.0)`:
+
+```text
+(its halo a light that falls off, Nov 7: the dwarf is small and dim, and over
+A's ball grade its body's fall met the palette's darkest step at 0.34 gu and
+stopped there, a rim -- BallHaloTest's fade 0.39 at rest. A halo 1.6x bright
+carried the fall out but sat as a flat navy disc. Its halo's fall is longer
+(1.3, not 1.7), ends from half its scale out, and dithers twice as hard across
+the palette's last steps, so it thins into space: B: 1.3x bright, fade 0.49 at rest)
+```
+
+## Glow and colour
+
+Above `const GLOW_HOLE := 1.35`:
+
+```text
+THE GLOW AND COLOUR (direction C, Nov 7, `RadiantGlow`): the chart's look of
+it. Layered halos round everything bright, the core's rays through the dust,
+deep violet shade.
+(A+B+C, Nov 7: over A's hard light the glow blooms only the hottest gas -- `thr`
+0.42 to 0.6, `gain` 1.6 to 1.2 -- and draws no rays: A's core is big and hot, so
+the bright buffer summed along the line to it was near even over the whole inner
+disc and its steps laid one flat tan plate, dithered at its edge, over the core
+(and a hard-rimmed orb round every ball). A's god rays, in the volume and shadowed
+by the billows, are the rays here. No `crush` (was 0.6): A's grade is the one tone
+step, and the two stacked sank the arms' faint gas twice.)
+the hole's shadow as the glow spares it, in its radii
+```
+
+## Ball toe near
+
+Above `const BALL_TOE_NEAR := 0.15`:
+
+```text
+...AND COMING IN (A+B+C review, Nov 7): from the opening to LOCAL REGION's zoom the
+toe rises to A's own (`BALL_TOE_NEAR`), over `BALL_TOE_Z` (the chart's zoom against
+its opening's 0.42). Seen whole, a ball must fade softly into space (BallHaloTest,
+at the opening); come in close, it fills the frame, and at the opening's toe its
+outskirts lay one amber-violet haze over every corner -- 2% of the frame under 15
+against A's 28%, the far galaxies and the field stars gone. At A's toe they fall
+to black and the sky behind shows through again.
+```
+
+## Ball drama
+
+Above `const DRAMA_BALL := Vector2(0.004, 2.1)`:
+
+```text
+A BALL's (toe, gain): a ball is all starlight, one smooth hill of it with no gas
+for a lamp to light, so its drama is the hill made steep -- the nucleus burning
+white round the hole, the body falling off fast into black
+(A+B+C: toe 0.15 -> 0.004 and gain 2.4 -> 2.1. At 0.15 the faint outskirts went as
+the square of their light and four ball kinds ended in a hard rim (BallHaloTest's
+fade under 0.42; the blue compact dwarf at 0.28). Near no toe the ball's drama is
+its nucleus burning white and its body still falling into black; 2.1 keeps a
+merger's story within the test's cream budget.)
+```
+
+## Chiaroscuro
+
+Above `const DRAMA := Vector4(0.18, 2.0, 0.25, 2.2)`:
+
+```text
+CHIAROSCURO (proto/radiant-a, Nov 7; Jon: "redo radiant to be super dramatic
+with the lighting effects"): one dominant light, the core, and what it does
+not reach falling to black. VIB was 0.35. (A soft wash before: no render had
+more than 2.2% of its pixels over 200; now the light's gain after the toe takes
+the hot gas past BURN, so it burns to white, the hole's disc kept exact.)
+(A+B+C: C's burn 2.0 and exposure 1.1 not taken -- over this gain they burnt the
+core to one white plate; C's glow is the bloom, B's flares the moments of white.)
+`u_drama`: (the toe, light under it crushed toward black; the core's light gain;
+the arms' own young light, a share; the god-ray haze's gain, was 0.35).
+`u_dramaR`: (the core light's reach, a factor on its falloff's scale; the
+billows' lit side, a gain; the light's gain after the toe; the billows' shade
+fill, a share). The god rays' shadows at full strength (`u_gr`, was 0.45), no
+ambient (`u_amb`, was a navy 0.02).
+```

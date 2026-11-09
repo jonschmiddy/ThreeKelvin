@@ -19,6 +19,11 @@ vec3 play_tone(vec3 c, float w) {
 	}
 	float L = dot(c, vec3(0.299, 0.587, 0.114));
 	float Lt = mid + (L - mid) * (L > mid ? keep_hi : keep_lo);
+	if (keep_lo > 1.0) {
+		// (RADIANT's chiaroscuro deepens the dark, keep_lo over 1: never below a
+		// third of its own light, so a faint star stays a faint star)
+		Lt = max(Lt, L * 0.35);
+	}
 	if (Lt > cap) {
 		Lt = cap + (Lt - cap) * soft;
 	}

@@ -104,16 +104,26 @@ uniform vec3 u_youngCol = vec3(0.38, 0.53, 0.96);
 uniform vec3 u_oldIn = vec3(1.0, 0.82, 0.6);
 uniform vec3 u_oldOut = vec3(0.45, 0.56, 1.0);
 uniform vec3 u_amb = vec3(0.02, 0.016, 0.04);
+// CHIAROSCURO (proto/radiant-a, Nov 7; Jon: RADIANT "super dramatic with the lighting
+// effects"): one dominant light, the core, and everything it does not reach falling
+// to black. (toe: light under it crushed toward black, m*m/(m+toe); the core's
+// light gain; the arms' own young light, a share; the god-ray haze's gain.) The
+// defaults are RADIANT as it was.
+uniform vec4 u_drama = vec4(0.0, 1.0, 1.0, 0.35);
+// (the core light's reach, a factor on its falloff's scale; the billows' lit-side
+// gain; the light's gain after the toe; the billows' shade-side fill, a share)
+uniform vec4 u_dramaR = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 u_bulge = vec4(0.04, 0.13, 0.83, 0.02);   // inner scale, outer scale, c/R, cavity scale (gu)
 uniform vec4 u_bulgeI = vec4(1.5, 1.0, 0.3, 1.6);      // inner peak, outer peak, cavity peak, core light on the gas
 uniform vec4 u_halo = vec4(0.026, 0.5, 0.62, 0.0);     // intensity, scale (gu), screen roundness, warmth
+uniform vec4 u_haloFall = vec4(1.7, 0.8, 2.8, 0.0);    // power, a ball's end from..to (scales), edge dither +
 uniform vec4 u_discK = vec4(0.5, 1.35, 1.2, 1.0);      // old gain, young gain, H-alpha gain, dust gain
 uniform vec4 u_gasK = vec4(34.0, 0.18, 0.6, 0.2);      // billow sigma, haze density, arm light gain, billow H-alpha glow
 uniform vec4 u_nebK = vec4(13.0, 15.0, 7.0, 16.0);     // emission gain, reflection gain, remnant gain, dark sigma
 uniform float u_steps = 22.0;
 uniform float u_jitAmp = 0.5;
 uniform float u_bdet = 0.35;
-uniform float u_gr = 0.45;
+uniform float u_gr = 1.0;
 uniform float u_kb = 0.985;
 // the hole: its shadow's radius (gu) and its disc's light on the gas
 uniform float u_holeR = 0.0186;
@@ -133,6 +143,41 @@ uniform vec4 u_echo = vec4(0.0);   // light echo: plane x, y, ring radius (gu), 
 uniform int u_nrem = 0;
 uniform vec4 u_rem[16];
 uniform vec4 u_lt[8];      // lightning per cloud: envelope, plane offset x, y from the cloud (gu), radius (gu)
+// LIGHT THAT MOVES (Nov 7, Jon: "redo radiant to be super dramatic with the lighting
+// effects"; direction B, `ChartRadiant.feed_drama`): the drama is in time, and every
+// light belongs to a thing. The core's clock (its breath -1..1; a flare 0..1, eased in,
+// held and let go; z, w unused): in a flare the core's own light (`coreLight`) reaches
+// far out through the gas, so it lands where the core's light already lands -- on the
+// billows' faces toward the core, through the haze between their shadows -- and the
+// creases and the shafts' shade stay dark; the hottest of it burns toward white
+// (the palette keeps those whites, `ChartRadiant.fixed_palette`). Young stars flaring
+// in the arms (plane x, y; envelope 0..1; reach gu): a hot point, and the gas round
+// it lit by it, for a breath. All zero under reduced motion and in the palette's
+// probes (the cut is the scene at rest). (Review, Nov 7: the turning beams were the
+// "light beams from the core" Jon cut on Oct 11, and most of the frame's crawl; the
+// flare's unshadowed wash pinned the inner gas to the cut's top tans in a flat plate.)
+uniform vec4 u_rbCore = vec4(0.0);
+uniform vec4 u_rbStar[6];
+const vec3 BEAMC = vec3(1.0, 0.66, 0.36);
+const vec3 STARF = vec3(0.62, 0.78, 1.0);
+// (the hole's disc as a lamp, with its breath and flare)
+float rbCoreK() { return 1.0 + 0.3 * u_rbCore.x + 3.0 * u_rbCore.y; }
+// (the core's light out through the gas in a flare: gain at full, and its reach, gu^2)
+const float RB_FLARE_GAIN = 0.6;
+const float RB_FLARE_R2 = 0.1;
+// the young stars' flares, as lamps
+vec3 rbStars(vec3 pg) {
+	vec3 L = vec3(0.0);
+	for (int i = 0; i < 6; i++) {
+		vec4 s = u_rbStar[i];
+		if (s.z <= 0.0) {
+			continue;
+		}
+		vec3 d = pg - vec3(s.xy, 0.0);
+		L += STARF * s.z * 5.0 / (1.0 + dot(d, d) / (s.w * s.w));
+	}
+	return L;
+}
 
 // THE SOLID LOOK (`chart_solid.gdshaderinc`): its height fields read SIMPLIFIED's two
 // bakes (`ChartRadiant.begin_bake` makes them beside RADIANT's own), bound under the
@@ -148,7 +193,7 @@ const float TORN_GAIN_R = 1.3;
 // bulge's outer scale (`u_bulge.y`, the ball's re), and where its halo does, in the
 // halo's own scale -- both long and soft, so a ball fades into space
 const vec2 BALL_FADE_R = vec2(0.5, 1.8);
-const vec2 BALL_HALO_END = vec2(0.8, 2.8);
+// (a ball's halo ends from 0.8 to 2.8 of its scale: `u_haloFall.yz`)
 // A BALL AS ITS OWN KIND (Nov 5, direction A, `ChartRadiant.ball_kind` / `ball_form`):
 // (kind: 0 an elliptical, 1 a blue compact dwarf, 2 a dwarf spheroidal, 3 a merger's
 // remnant; young gas 0..1; lopsided 0..1; globular clusters 0..1) and (where its light
@@ -271,12 +316,14 @@ vec3 coreLight(vec3 pg, out float vis) {
 		vis = smoothstep(hs - soft, hs + 0.5 * soft, sl);
 	}
 	vec3 c = mix(u_bInner, u_bOuter, smoothstep(0.05, 0.35, d3));
-	return c * u_bulgeI.w / (1.0 + d3 * d3 / 0.012);
+	// (A+B: the one key light, A's gain and reach, breathing; and B's flare reaching
+	// far further out, shadowed as the steady light is, by whoever reads `vis`)
+	return c * u_bulgeI.w * u_drama.y * ((1.0 + 0.12 * u_rbCore.x) / (1.0 + d3 * d3 / (0.012 * u_dramaR.x)) + u_rbCore.y * RB_FLARE_GAIN / (1.0 + d3 * d3 / RB_FLARE_R2));
 }
 // the arms' own young stars (a broad blur of the disc map)
 vec3 armLight(vec3 pg) {
 	vec4 a = textureLod(u_discA, kitMapUV(pg.xy, u_ext), 4.5);
-	return (a.r * u_oldOut * 0.35 + a.g * 1.6 * u_youngCol) * u_gasK.z / (1.0 + abs(pg.z) / 0.03);
+	return (a.r * u_oldOut * 0.35 + a.g * 1.6 * u_youngCol) * u_gasK.z * u_drama.z / (1.0 + abs(pg.z) / 0.03);
 }
 // the clouds' own lamps, the hole's disc, the knots on the arms, a supernova,
 // a stroke of lightning: every light that moves or comes and goes
@@ -301,8 +348,10 @@ vec3 lampLight(vec3 pg) {
 		}
 		L += col / (1.0 + dot(dd, dd) / (R * R * 0.5));
 	}
-	// the hole's disc, a lamp at the centre
-	L += u_holeLight / (1.0 + dot(pg, pg) / 0.0014);
+	// the hole's disc, a lamp at the centre (breathing, flaring; a flare's reach out
+	// through the gas is the core's own light, `coreLight`, shadowed)
+	L += u_holeLight * rbCoreK() / (1.0 + dot(pg, pg) / 0.0014);
+	L += rbStars(pg);
 	// a supernova lights the gas and dust round it, fading with its flare
 	if (u_sn.z > 0.0) {
 		vec3 ds = pg - vec3(u_sn.xy, 0.0);
@@ -794,6 +843,9 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	C += T * Ed * 0.5 * (1.0 + att);
 	// dust edges catch the light: warm lanes, and the lamps' light (a supernova's)
 	C += T * (1.0 - att) * DUSTA * (Lc * 0.18 + La * 0.2 + Lx * 0.25) * tsC;
+	// (LIGHT THAT MOVES: the young stars' flares on the disc's gas and the dust's lit faces)
+	vec3 Ld = rbStars(vec3(pP, 0.0));
+	C += T * Ld * (0.5 * (1.0 - att.g) + 1.0 * dA.g + 0.25 * dA.r + 0.4 * dA.b) * tsC;
 	// the supernova's light echo: a ring of its light sweeping out through the dust and gas
 	// (never on a ball, Nov 5: rings of light across its smooth body read as marks)
 	if (u_echo.w > 0.0 && !u_isBall) {
@@ -832,7 +884,7 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	vec4 dBp = discB(pP);
 	if (dBp.a > 0.003) {
 		float cg = dBp.a;
-		vec3 gl = (u_holeLight / (1.0 + rP * rP / 0.0014) * 3.5 + Lc * 0.15) * DUSTA * cg;
+		vec3 gl = (u_holeLight * (rbCoreK() / (1.0 + rP * rP / 0.0014) + u_rbCore.y * 0.8 / (1.0 + rP * rP / 0.02)) * 3.5 + Lc * 0.15) * DUSTA * cg;
 		C += T * gl;
 		att *= exp(-cg * 0.9 * RED);
 	}
@@ -949,6 +1001,22 @@ vec3 ballExtras(vec2 g, float blk) {
 		C += storySwarm(g, blk, u_time) * u_ballK.w * u_storyK.z;
 	}
 	return C;
+}
+
+// CHIAROSCURO's grade (`u_drama.x`): what the light leaves dim is crushed toward
+// black (m*m/(m+toe), hue kept), what it lights strongly is left as it was, and
+// the whole raised (`u_dramaR.z`) so the hot cores burn through to white. The
+// galaxy's own light only (`radiance`, before the sky behind is added): graded with
+// it, the far galaxies and the faint stars fell under the toe and the sky went empty.
+vec3 dramaGrade(vec3 C) {
+	if (u_drama.x <= 0.0) {
+		return C;
+	}
+	float m = max(C.r, max(C.g, C.b));
+	if (m < 1e-6) {
+		return C;
+	}
+	return C * (m / (m + u_drama.x)) * u_dramaR.z;
 }
 
 // ------------------------------------------------------------------ the volume
@@ -1135,8 +1203,8 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		vec2 b1 = bulgeComp(qb, u_bulge.x, u_bulge.z, 0.0) * u_bulgeI.x;
 		vec2 b2 = bulgeComp(qo, u_bulge.y, u_bulge.z, 0.0) * u_bulgeI.y;
 		vec2 bc = bulgeComp(qb, u_bulge.w, u_bulge.z, 0.0) * u_bulgeI.z;
-		vec2 in1 = max(b1 - bc, 0.0);
-		vec2 out2 = max(b2 - max(bc - b1, 0.0), 0.0);
+		vec2 in1 = max(b1 - bc, 0.0) * (1.0 + 0.2 * u_rbCore.x + 0.6 * u_rbCore.y);
+		vec2 out2 = max(b2 - max(bc - b1, 0.0), 0.0) * (1.0 + 0.2 * u_rbCore.y);
 		float rr = length(qb * vec2(1.0, 0.8));
 		vec3 ci = mix(u_bCore, u_bInner, smoothstep(0.012, 0.045, rr));
 		vec3 co = mix(u_bInner, u_bOuter, smoothstep(0.03, 0.2, rr));
@@ -1197,10 +1265,11 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	bool planeDone = false;
 	float h = H0;
 	// the arms' and the lamps' light at the plane under this ray, for the haze
-	vec3 LaP = vec3(0.0), LxP = vec3(0.0);
+	vec3 LaP = vec3(0.0), LxP = vec3(0.0), LdP = vec3(0.0);
 	if (vol || hits > 0) {
 		LaP = armLight(vec3(pP, 0.0));
 		LxP = lampLight(vec3(pP, 0.0));
+		LdP = rbStars(vec3(pP, 0.0));
 	}
 	for (int i = 0; i < 120; i++) {
 		if (h <= -H0 + 1e-6) {
@@ -1333,13 +1402,13 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 					float rb2 = 2.0 * billowDens(R, pg + toC * 0.018, dB, 0.0);
 					float self = exp(-u_gasK.x * rb2 * 0.016);
 					float reachB = (1.0 + d3 * d3 / 0.012) / (1.0 + d3 * d3 / 0.05);
-					vec3 Lb = Lc * reachB * vis * self * hgN(cosT, 0.35) * 2.4 + La * (0.08 + 0.4 * self) + Lx * 0.6 + u_amb * 0.6;
+					vec3 Lb = Lc * reachB * vis * self * hgN(cosT, 0.35) * 2.4 * u_dramaR.y + La * (0.08 + 0.4 * self) * mix(1.0, self, 1.0 - u_dramaR.w) + Lx * 0.6 + LdP * 0.9 * self + u_amb * 0.6;
 					float haG = textureLod(u_discA, kitMapUV(pg.xy, u_ext), 2.0).b;
 					Em += rb * u_gasK.x * (vec3(0.78, 0.84, 1.0) * Lb * 0.9) + rb * HA * haG * u_gasK.w;
 					sig += vec3(rb * u_gasK.x * 1.35) * mix(vec3(1.0), RED, 0.35);
 				}
 				// the god-ray haze: thin gas above and below the disc lit by the core, cut by billow shadows
-				Em += hz * Lc * mix(1.0, vis, u_gr) * hgN(cosT, 0.6) * 0.35 + hz * (La + Lx) * 0.08;
+				Em += hz * Lc * mix(1.0, vis, u_gr) * hgN(cosT, 0.6) * u_drama.w + hz * (La + Lx) * 0.08 + hz * LdP * 2.5;
 			}
 		}
 		if (inCl) {
@@ -1419,12 +1488,12 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	if (u_isBall) {
 		wisp = mix(1.0, wisp, 0.25);
 		float hg = nz(vec3(hv * 4.6 + (hw.rg - 0.5) * 0.6, 0.61)).r;
-		wisp *= (1.0 + BALL_BILLOW * 0.7 * (hg - 0.5)) * (1.0 + BALL_DITHER * mix(1.0, 2.6, smoothstep(0.1, 0.6, sqrt(hr2))) * (kitBayer4(dq) - 0.5));
+		wisp *= (1.0 + BALL_BILLOW * 0.7 * (hg - 0.5)) * (1.0 + BALL_DITHER * mix(1.0, 2.6 * (1.0 + u_haloFall.w), smoothstep(0.1, 0.6, sqrt(hr2))) * (kitBayer4(dq) - 0.5));
 	}
 	// (the solid look: the halo ends with the disc's own fade, so the galaxy fades
 	// into true black space)
-	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(BALL_HALO_END.x, BALL_HALO_END.y, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
-	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7) * hE;
+	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(u_haloFall.y, u_haloFall.z, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
+	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, u_haloFall.x) * hE;
 	// THE BIG DWARF'S ENVELOPE (`u_ballV`): the body round its real-sized core, at the
 	// dwarf's new size, in the halo's own grain and dither (so its steps break up as the
 	// halo's do), falling slowly from the core and fading out over the last of its reach,
@@ -1466,7 +1535,11 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		C = C * dT3 + dE;
 	}
 	float seen = bgSeen(C, u_exp);
-	C += T * (sky(vsky, u_solid ? seen : bgNebSeen(C, u_exp)) * seen + vec3(0.0021, 0.0030, 0.0062));
+	float nebSeen = u_solid ? seen : bgNebSeen(C, u_exp);
+	// (the gates read the galaxy's light as it was, so the sky goes behind it where
+	// it always did; then the chiaroscuro's grade on the galaxy alone)
+	C = dramaGrade(C);
+	C += T * (sky(vsky, nebSeen) * seen + vec3(0.0021, 0.0030, 0.0062));
 	return C;
 }
 
@@ -1491,6 +1564,33 @@ vec3 supernova(vec2 v, ivec2 blk) {
 	}
 	float dd = length((v - sv) * u_zoom);
 	c += FLARE * g * (0.34 * exp(-dd / 3.0) + 0.05 * exp(-dd / 9.0) + 0.008 * exp(-dd / 24.0));
+	return c;
+}
+
+// a young star's flare: a hot block, a short cross while it peaks, a glow
+vec3 rbStarPts(vec2 v, ivec2 blk) {
+	vec3 c = vec3(0.0);
+	float cs = cos(u_phi), sn = sin(u_phi);
+	for (int i = 0; i < 6; i++) {
+		vec4 s = u_rbStar[i];
+		if (s.z <= 0.0) {
+			continue;
+		}
+		vec2 sv = solidV(vec2(s.x * cs + s.y * sn, (s.y * cs - s.x * sn) * KIT_TILT) * u_k);
+		ivec2 d = blk - blockOf(scr(sv));
+		if (abs(d.x) > 14 || abs(d.y) > 14) {
+			continue;
+		}
+		float g = s.z;
+		if (d.x == 0 && d.y == 0) {
+			c += mix(STARF, vec3(1.0), 0.5) * 10.0 * g;
+		} else if ((d.x == 0 || d.y == 0) && g > 0.55) {
+			float a = float(abs(d.x) + abs(d.y));
+			c += STARF * 1.6 * step(a, 1.0 + 2.0 * smoothstep(0.7, 1.0, g)) * g;
+		}
+		float dd = length((v - sv) * u_zoom);
+		c += STARF * g * (0.22 * exp(-dd / 2.5) + 0.03 * exp(-dd / 8.0));
+	}
 	return c;
 }
 
@@ -1522,7 +1622,11 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	float la = lens ? log2(max(lensSqueeze(S), 1.0)) : 0.0;
 	// (the middle's relief never over the hole's own disc or where its lens bends hard)
 	float tk = lens ? smoothstep(6.5, 9.5, length(S)) : 1.0;
-	vec3 C = radiance(vbg, vbh, sb, dq, la, tk, lens ? vbs : vsc) + supernova(lens ? vbs : vsc, blk);
+	vec3 C = radiance(vbg, vbh, sb, dq, la, tk, lens ? vbs : vsc) + supernova(lens ? vbs : vsc, blk) + rbStarPts(lens ? vbs : vsc, blk);
+	// (the chiaroscuro's grade is on the galaxy's light inside `radiance`, before the
+	// hole's disc is laid over: its bands land exactly on their palette colours. It is
+	// the one tone step: B's own S on the light here, RB_CRUSH, went with A+B+C --
+	// stacked on A's toe it crushed the dim arms twice)
 	// the near side's dust lane across the core, before the hole is laid over
 	if (u_solid && !u_isBall) {
 		C *= solidLane(v);
@@ -1537,7 +1641,8 @@ vec3 place(vec2 v, vec2 vsc, ivec2 blk, ivec2 dq) {
 	// more of the hole's dim surroundings, so it is dimmed as it is squeezed
 	// (unlit, the bulge's bands repeated under the hole as bright rings)
 	C /= 1.0 + 0.6 * max(lensSqueeze(S) - 1.0, 0.0);
-	C += u_holeLight * 0.4 * lh_glow(S);
+	// (a flare's heart: the disc's glow burns toward white, the one place it may)
+	C += u_holeLight * 0.4 * lh_glow(S) * (rbCoreK() + 6.0 * u_rbCore.y);
 	float cap;
 	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom * kc), u_time, smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), lh_hot(u_time, u_wxOn), cap);
 	C *= 1.0 - cap;

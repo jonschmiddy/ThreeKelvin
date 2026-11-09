@@ -545,6 +545,10 @@ What this adds to `NetSession.gd`, for the merge with fast-flight's 17: the PROT
 
 A version 16 partner reads no stun, deals itself a hand and waits on a turn that has moved on, and grows every fight it walks into, so it is refused at the door. `-- nettest` (`_stun_rules_test`, `_stun_net_test`, `_party_scale_rules_test`, `_party_scale_net_test`), `-- sheet=MidJoinTest` (slice 2) and `tools/cofight.sh late` (the guest walks in on turn 2) hold it.
 
+### Protocol 19: the dive carries the host's ascension level (Nov 8)
+
+Jon, Nov 8: *"ONLY have the hellbender show up on Ascention 7+."* A run now has an ascension level (`Run.ascension`, 0 until the ladder is built), and the Hellbender spawns only at `RunState.HELLBENDER_ASCENSION` (7) and up. Whether the galaxy has a rival is a fact of the galaxy, so the level is the host's to say, like the seed and the unlocks: `launch_dive` reads `Run.ascension_for_new_run()` and sends it as `_begin_dive`'s third argument; `_apply_dive` keeps it as `dive_ascension`, the late-join door sends it too, and `ascension_for_new_run` returns it on every machine while DIVING. A version 18 partner would call `_begin_dive` one argument short, so it is refused at the door. The host starts a level-7 dive with `-- asc=7` (no picker yet). `-- nettest` checks every client and the late joiner get the host's level; `tools/cofight.sh hellbender` runs its host at 7 and checks the guest's rival came with it.
+
 ### Eight seats, flown before the number was raised
 
 `NetTransport.MAX_PLAYERS` is eight. It was four, and the way it was raised is
