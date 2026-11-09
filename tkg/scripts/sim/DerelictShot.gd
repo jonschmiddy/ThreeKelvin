@@ -7,24 +7,11 @@ const ID := &"derelict_hauler"
 
 var h := Harness.new()
 var _tree: SceneTree
-var _args: PackedStringArray
 var _out := ""
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
 
 
 func _img() -> Image:
@@ -49,13 +36,12 @@ func _shot(name: String, crop: Rect2 = Rect2()) -> void:
 
 func _run() -> void:
 	_tree = get_tree()
-	_args = OS.get_cmdline_user_args()
-	_out = _arg("out", "user://derelictshot")
+	_out = Harness.arg("out", "user://derelictshot")
 	DirAccess.make_dir_recursive_absolute(_out)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	LocalEventDrawer.quiet = true
 	Router.animate_in_harness = false
-	h.seed_run(int(_arg("seed", "4242")))
+	h.seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
 	var n: MapGen.MapNode = await _light_derelict()
 	if n == null:
@@ -80,7 +66,7 @@ func _run() -> void:
 		if d.text != null and not d.text.done:
 			d.text.skip()
 		await _tree.process_frame
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_shot("2_result", d.panel.get_global_rect())
 	print("  derelictshot: claimed %s, ok %s" % [Run.found_hull.name if Run.found_hull else "nothing", r.get("ok", false)])
 
@@ -91,15 +77,15 @@ func _run() -> void:
 		print("  derelictshot: FAIL no rail")
 		_tree.quit(1)
 		return
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_shot("3_rail_A", wrap.get_global_rect())
-	var scrap := _button(wrap, "SCRAP")
+	var scrap := Harness.button_with_text(wrap, "SCRAP", true)
 	print("  derelictshot: the rail's buttons: %s" % ", ".join(_buttons(wrap)))
 	print("  derelictshot: SCRAP pays %d credits (the strip's own pay)" % Run.found_scrap_credits())
 	if scrap != null:
 		var leave := Widgets._btn("LEAVE IT", func() -> void: pass)
 		scrap.get_parent().add_child(leave)
-		await _frames(10)
+		await Harness.frames(_tree, 10)
 		_shot("4_rail_B", wrap.get_global_rect())
 		print("  derelictshot: B's buttons: %s" % ", ".join(_buttons(wrap)))
 	LocalEventDrawer.quiet = false
@@ -173,15 +159,9 @@ func _rail() -> SectorScreen:
 		if lo != null and not ZoomLadder.busy() and (lo.get("_events") == null
 				or (lo.get("_events") as LocalEventDrawer).page == &""):
 			lo._refresh_salvage()
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			return lo
 	return Router.current as SectorScreen
-
-
-func _button(root: Node, head: String) -> Button:
-	return h.first(root, func(x: Node) -> bool:
-		return x is Button and (x as Button).is_visible_in_tree() \
-			and (x as Button).text.begins_with(head)) as Button
 
 
 func _buttons(root: Node) -> PackedStringArray:

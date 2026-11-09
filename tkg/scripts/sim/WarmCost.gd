@@ -4,21 +4,12 @@ extends Node
 ## Why: docs/why/WarmCost.md#warm-cost
 
 var _tree: SceneTree
-var _args: PackedStringArray
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	# `ShaderWarm` is off, or shaders would compile before they are timed; loaded by path.
 	if ResourceLoader.exists("res://scripts/ui/ShaderWarm.gd"):
-		(load("res://scripts/ui/ShaderWarm.gd") as GDScript).set("off", true)
+		(_shader_warm() as GDScript).set("off", true)
 	_run.call_deferred()
 
 
@@ -62,10 +53,10 @@ func _run() -> void:
 	for i in 30:
 		await _tree.process_frame
 	if ResourceLoader.exists("res://scripts/ui/ShaderWarm.gd") \
-			and not ((load("res://scripts/ui/ShaderWarm.gd") as GDScript).get("costs") as Array).is_empty():
+			and not ((_shader_warm() as GDScript).get("costs") as Array).is_empty():
 		print("[warmcost] ShaderWarm compiled ahead before this ran: its shaders read as free")
-	var only := _arg("only", "").split(",", false)
-	var meshes := _arg("mesh", "map_fabric").split(",", false)
+	var only := Harness.arg("only", "").split(",", false)
+	var meshes := Harness.arg("mesh", "map_fabric").split(",", false)
 	var names: Array[String] = []
 	var da := DirAccess.open("res://shaders")
 	for f in da.get_files():
@@ -111,3 +102,7 @@ func _run() -> void:
 	for r: Array in rows:
 		print("[warmcost] %7.1f ms  %s" % [float(r[0]), r[1]])
 	_tree.quit()
+
+
+func _shader_warm() -> Variant:
+	return load("res://scripts/ui/ShaderWarm.gd")

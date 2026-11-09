@@ -692,6 +692,9 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 		n.fauna = false
 		# (and a neutron star is one star, whatever the system had before)
 		n.twin = false
+		# No red or blue sky and no giant, or its events and chart row would offer them.
+		n.star = Star.ORDINARY
+		n.gas_giant = false
 		return
 	if n.type == NodeType.START:
 		n.development = Development.OUTPOST

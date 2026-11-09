@@ -6,23 +6,15 @@ extends Node
 
 var _tree: SceneTree
 const TIP := preload("res://scripts/sim/LowHullFilm.gd")
-var _fails := 0
+var h := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _secs(s: float) -> void:
@@ -78,7 +70,8 @@ func _words() -> Dictionary:
 
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	HullScramble.logging = true
+	await Harness.frames(_tree, 2)
 	Router.animate_in_harness = true
 	DisplaySettings.reduced_motion = false
 	var lh := LowHull.instance
@@ -330,7 +323,7 @@ func _run() -> void:
 	places["a fight"] = LowHull.tier == 1 and LowHull.on > 0.9 and Router.current is SectorScreen and Router.combat != null
 	# the fight's own count: a hit lands as it is shown
 	SectorScreen.shown_hull = int(top * 0.1)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	places["a fight, its shown hull at 10%"] = LowHull.tier == 2
 	await _secs(LowHull.EASE_S)
 	var fight_base := _rects()
@@ -367,13 +360,13 @@ func _run() -> void:
 	for k in places:
 		_ok("on, and scrambling, at %s" % k, places[k])
 	_set_share(0.0)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("off at 0 hull (the ship's loss has its own picture)", LowHull.tier == 0)
 	_set_share(0.2)
 	Router.show_launcher()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("off on the title", LowHull.tier == 0 and not LowHull.in_run())
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("and nothing held there", hs.held() == 0 and HullScramble.cells_now == 0)
 
 	# REDUCED MOTION
@@ -400,8 +393,8 @@ func _run() -> void:
 	await _voice()
 	await _portrait()
 	DisplaySettings.reduced_motion = false
-	print("LowHullTest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("LowHullTest")
+	_tree.quit(h.code())
 
 
 func _peak(x: PackedVector2Array, s: int, n: int) -> float:
@@ -491,7 +484,7 @@ func _drawn_check() -> void:
 		diff, dr.drawn.size(), bad], diff > 0 and bad == 0)
 	_ok("and the screen's own string is still the real one", dr.said == real)
 	dr.queue_free()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 func _tooltip_check(top: int) -> void:
@@ -521,7 +514,7 @@ func _tooltip_check(top: int) -> void:
 	_ok("a tooltip at 10%% (the HUD hull's, in Godot's own TooltipPanel and TooltipLabel): up (%d texts in it), and its words scramble (%d)" % [tip_nodes, tip_hits], tip_nodes > 0 and tip_hits > 0)
 	if tip != null:
 		tip.queue_free()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 func _in_tooltip(c: Node) -> bool:
@@ -719,7 +712,7 @@ func _portrait() -> void:
 			_ok("her voice glitches (%d) and the portrait slips once for each (%d)" % [plan, p.glitch_slips],
 				plan > 0 and p.glitch_slips == plan)
 		p.queue_free()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	DisplaySettings.reduced_motion = false
 
 	# Baked on a worker during her power-on; the main thread only makes the stream from bytes.
@@ -753,7 +746,7 @@ func _portrait() -> void:
 	_ok("her line's start costs the main thread %.2f ms (the old way, all of it on the main thread: %.1f ms)" % [start_ms, old_ms],
 		start_ms < 2.0)
 	p2.queue_free()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	# NOT READY IN TIME: the clean take, nothing planned, no slips, no wait
 	Audio.bake_hold = true
 	var p3 := AshPortrait.new()
@@ -770,8 +763,8 @@ func _portrait() -> void:
 	p3.queue_free()
 	Audio.bake_hold = false
 	Audio.bake_headless = false
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	_ok("its worker reaped once done", Audio._reap.is_empty())
 	_set_share(0.9)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("the hull sound: no glitches planned", LowHull.voice_plan(3.0).is_empty())

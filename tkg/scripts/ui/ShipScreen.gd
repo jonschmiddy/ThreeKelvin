@@ -161,13 +161,10 @@ func _build() -> void:
 	clsrow.add_child(_class)
 	# Beside the class line rather than over the ship: anything drawn on the
 	# hull is a hardpoint, and a button there would read as one.
-	_zoombtn = Button.new()
-	Widgets.wear_pointer(_zoombtn)
-	_zoombtn.text = "ZOOM"
+	_zoombtn = Widgets.button("ZOOM", func(): _set_zoom(not _zoomed))
 	_zoombtn.focus_mode = Control.FOCUS_NONE
 	_zoombtn.tooltip_text = Widgets.tip(
 		"Shows the ship at double size, so you can drag it around. Z does the same.")
-	_zoombtn.pressed.connect(func(): _set_zoom(not _zoomed))
 	clsrow.add_child(_zoombtn)
 	names.add_child(clsrow)
 	header.add_child(names)

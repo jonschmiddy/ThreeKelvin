@@ -15,19 +15,12 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String) -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(k + "="):
-			return (a as String).substr(k.length() + 1)
-	return d
-
-
 func _run() -> void:
-	_seeds = int(_arg("seeds", "12"))
-	_dump = _arg("dump", "")
-	Run.depth_step = int(_arg("depthcap", str(Run.DEPTH_STEP)))
-	Run.study_radius_rim = float(_arg("radrim", "1.0"))
-	Run.study_radius_deep = float(_arg("raddeep", "1.0"))
+	_seeds = int(Harness.arg("seeds", "12"))
+	_dump = Harness.arg("dump", "")
+	Run.depth_step = int(Harness.arg("depthcap", str(Run.DEPTH_STEP)))
+	Run.study_radius_rim = float(Harness.arg("radrim", "1.0"))
+	Run.study_radius_deep = float(Harness.arg("raddeep", "1.0"))
 	print("RunLengthStudy: %d galaxies a kind, %d kinds · depth cap %d · radius x%.2f rim, x%.2f last ring" % [
 		_seeds, GalaxyGen.count(), Run.depth_step, Run.study_radius_rim, Run.study_radius_deep])
 	var weights := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]

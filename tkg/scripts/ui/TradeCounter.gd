@@ -23,7 +23,7 @@ const EDGE := Color("#4a6180")
 const LIP := Color("#647e9d")
 const GLASS := Color("#0d1a20")
 const SHADE := Color("#070a10")
-const LIVE := Color("#7fb89a")
+const LIVE := UITheme.GOOD
 ## Darker than the counter's face, so the counter reads as standing in front of something.
 const WALL := Color("#111925")
 const WALL_LINE := Color("#202c3c")
@@ -177,13 +177,13 @@ func _draw() -> void:
 		while jy < dy - 6.0:
 			draw_rect(Rect2(0.0, jy, w, 1.0), WALL_LINE)
 			draw_rect(Rect2(0.0, jy + 1.0, w, 1.0),
-				Color(SHADE.r, SHADE.g, SHADE.b, 0.4))
+				Color(SHADE, 0.4))
 			jy += 34.0
 		var jx := 46.0
 		while jx < w - 20.0:
 			draw_rect(Rect2(jx, 0.0, 2.0, dy), WALL_LINE)
 			jx += 92.0
-		draw_rect(Rect2(0.0, 0.0, w, 1.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.6))
+		draw_rect(Rect2(0.0, 0.0, w, 1.0), Color(SHADE, 0.6))
 
 		# Taken stock stacks behind the desk, so it reads as in front and the station keeps things.
 		# Why: docs/why/TradeCounter.md#drawn-counter
@@ -196,22 +196,22 @@ func _draw() -> void:
 			draw_rect(box, CRATE)
 			draw_rect(Rect2(box.position.x, box.position.y, box.size.x, 1.0), CRATE_LIP)
 			draw_rect(Rect2(box.position.x, box.position.y, 1.0, box.size.y),
-				Color(CRATE_LIP.r, CRATE_LIP.g, CRATE_LIP.b, 0.5))
+				Color(CRATE_LIP, 0.5))
 			# A band round the middle, so a crate is a crate and not a swatch.
 			draw_rect(Rect2(box.position.x, box.position.y + box.size.y * 0.45,
-				box.size.x, 2.0), Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+				box.size.x, 2.0), Color(SHADE, 0.5))
 
 	# A lit top lip makes a slab a surface, the same trick as the shelf's boards.
 	draw_rect(Rect2(0.0, dy + TOP_H, w, h - dy - TOP_H), FACE)
 	draw_rect(Rect2(0.0, dy, w, TOP_H), TOP)
 	draw_rect(Rect2(0.0, dy, w, 1.0), LIP)
 	draw_rect(Rect2(0.0, dy + TOP_H - 1.0, w, 1.0),
-		Color(SHADE.r, SHADE.g, SHADE.b, 0.75))
+		Color(SHADE, 0.75))
 	# Panel seams down the front, so the counter has a width you can read.
 	var sx := 22.0
 	while sx < w - 12.0:
 		draw_rect(Rect2(sx, dy + TOP_H + 4.0, 1.0, h - dy - TOP_H - 8.0),
-			Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
+			Color(SHADE, 0.5))
 		sx += 34.0
 
 	# The display sits on the desk and shows a number: a glow gives you nothing to decline.
@@ -222,10 +222,10 @@ func _draw() -> void:
 		draw_rect(win, GLASS)
 		draw_rect(win, EDGE, false, 1.0)
 		draw_rect(Rect2(win.position.x, win.position.y, win.size.x, 1.0),
-			Color(SHADE.r, SHADE.g, SHADE.b, 0.7))
+			Color(SHADE, 0.7))
 		var f := UITheme.pixel_font()
 		var text := "- - -"
-		var ink := Color(EDGE.r, EDGE.g, EDGE.b, 0.55)
+		var ink := Color(EDGE, 0.55)
 		if carrying:
 			text = "%d CR" % offer(_over, side) if ok else _why
 			ink = LIVE if ok else UITheme.LEAVE
@@ -247,7 +247,7 @@ func _draw() -> void:
 				for col in 3:
 					draw_rect(Rect2(kx + 5.0 + float(col) * 9.0,
 						win.position.y + 4.0 + float(row) * 7.0, 5.0, 4.0),
-						Color(EDGE.r, EDGE.g, EDGE.b, 0.55))
+						Color(EDGE, 0.55))
 		# And the slot the chit comes out of, with a lip under it.
 		var rx := win.end.x + 10.0
 		if rx + 34.0 < w - 6.0:

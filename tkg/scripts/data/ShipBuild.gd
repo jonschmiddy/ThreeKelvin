@@ -6,6 +6,9 @@ extends RefCounted
 ## It carries what is drawn, not played, so any field the renderer reads must arrive here.
 ## Why: docs/why/ShipBuild.md#wire-format
 
+## More parts than any hull has slots for (`HullData.weapon_slots` and the rest are single digits).
+const MAX_PARTS: int = 64
+
 ## Who is flying it. Empty for your own ship, which needs no label.
 var pilot: String = ""
 var hull: HullData = null
@@ -126,8 +129,12 @@ static func from_wire(d: Dictionary) -> ShipBuild:
 	b.tier = clampi(int(d.get("tier", 0)), 0, HullData.TIER_NAMES.size() - 1)
 	if b.hull != null:
 		b.hull = DB.at_tier(b.hull, b.tier)
+	# Only plain dictionaries, and few: the renderer reads each part with `get`. A hull has a handful of slots.
 	var sent: Variant = d.get("parts", [])
-	b.parts = sent if sent is Array else []
+	if sent is Array:
+		for part in sent:
+			if part is Dictionary and b.parts.size() < MAX_PARTS:
+				b.parts.append(part)
 	b.hp = int(d.get("hp", 1))
 	b.max_hp = maxi(1, int(d.get("max_hp", 1)))
 	b.heat = int(d.get("heat", 0))

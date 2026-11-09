@@ -4,13 +4,12 @@ extends Node
 ## Packs fit: ships stay inside the view and clear of yours once the entrance has landed.
 ## Why: docs/why/EnemyArtTest.md#enemy-art-test
 
-var _fails := 0
+var harness := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
 	if not c:
-		print("  FAIL %s" % what)
-		_fails += 1
+		harness._fail(what)
 	return c
 
 
@@ -25,8 +24,8 @@ func _run() -> void:
 	_looks()
 	await _wrecks(tree)
 	await _packs(tree)
-	print("enemyarttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+	harness.verdict("enemyarttest")
+	tree.quit(harness.code())
 
 
 func _pictures() -> void:

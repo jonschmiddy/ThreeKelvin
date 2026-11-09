@@ -30,7 +30,7 @@ view would start afresh there, as every block of a new world does.)
 
 ## Memory hysteresis
 
-Inside `_mem_sync()`, above `var cl := float(maxi(_cell, 1))`:
+Inside `_mem_sync()` (now in `WorldView.gd`), above `var cl := float(maxi(_cell, 1))`:
 
 ```text
 (a drift of the centre is held through; a jump starts afresh, and so does a

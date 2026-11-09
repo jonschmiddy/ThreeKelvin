@@ -5,24 +5,10 @@ extends Node
 ## Why: docs/why/StationSideShot.md#station-side-shot
 
 var _tree: SceneTree
-var _args: PackedStringArray
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _img() -> Image:
@@ -32,12 +18,12 @@ func _img() -> Image:
 func _run() -> void:
 	_tree = get_tree()
 	await _tree.process_frame
-	var out := _arg("out", "user://sideshot")
+	var out := Harness.arg("out", "user://sideshot")
 	DirAccess.make_dir_recursive_absolute(out)
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 30.0
-	Rng.forced = int(_arg("seed", "1"))
+	Rng.forced = Harness.seed_arg(1)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var st := -1
@@ -51,8 +37,8 @@ func _run() -> void:
 	SectorScreen._approached_at = st
 	Router.park_at_station()
 	Router.show_local()
-	await _frames(120)
-	for pr in _arg("pairs", "drum1:none").split(",", false):
+	await Harness.frames(_tree, 120)
+	for pr in Harness.arg("pairs", "drum1:none").split(",", false):
 		var bits := (pr as String).split(":")
 		StationSides.force_side = StringName(bits[0])
 		StationSides.force_interior = StringName(bits[1] if bits.size() > 1 else "none")
@@ -60,11 +46,11 @@ func _run() -> void:
 		Router.show_system()
 		while ZoomLadder.busy():
 			await _tree.process_frame
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 		Router.show_local()
 		while ZoomLadder.busy():
 			await _tree.process_frame
-		await _frames(90)
+		await Harness.frames(_tree, 90)
 		var loc := Router.current as SectorScreen
 		if loc == null or loc._face == null:
 			print("  [sideshot] %s: no station face" % pr)
@@ -74,7 +60,7 @@ func _run() -> void:
 		_img().save_png("%s/%s__rest.png" % [out, tag])
 		for f: StationFace in [loc._face, loc._face_front]:
 			f.power = 1.0
-		await _frames(12)
+		await Harness.frames(_tree, 12)
 		await RenderingServer.frame_post_draw
 		_img().save_png("%s/%s__on.png" % [out, tag])
 		for f: StationFace in [loc._face, loc._face_front]:

@@ -4,24 +4,10 @@ extends Node
 ## Why: docs/why/FlyinFilm.md#flyin-film
 
 var _tree: SceneTree
-var _args: PackedStringArray
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _idle() -> void:
@@ -52,7 +38,7 @@ func _fly(b: int) -> bool:
 		if not is_instance_valid(m):
 			return false
 		if m.flight.reached() == b and m.flight.can_fly():
-			await _frames(15)
+			await Harness.frames(_tree, 15)
 			return true
 	return false
 
@@ -62,7 +48,7 @@ func _fly(b: int) -> bool:
 func _local(what: String, hold: int) -> void:
 	_mark("LOCAL pressed (%s)" % what)
 	Router.hud._tab_sector.pressed.emit()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	await _idle()
 	var sc := Router.current as SectorScreen
 	for i in 600:
@@ -75,7 +61,7 @@ func _local(what: String, hold: int) -> void:
 			break
 	_mark("%s settled (fly-ins so far %d, station lit %s)" % [what, SectorScreen.flyins,
 		sc._face.power if sc != null and is_instance_valid(sc) and sc._face != null else -1.0])
-	await _frames(hold)
+	await Harness.frames(_tree, hold)
 
 
 func _run() -> void:
@@ -84,7 +70,7 @@ func _run() -> void:
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 30.0
-	Rng.forced = int(_arg("seed", "11"))
+	Rng.forced = Harness.seed_arg(11)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var st := -1
@@ -113,14 +99,14 @@ func _run() -> void:
 		print("no world beside the station")
 		_tree.quit(1)
 		return
-	var route := _arg("route", "world")
+	var route := Harness.arg("route", "world")
 	if route == "world":
 		Router.park_at_station()
 	else:
 		SystemMapScreen._parked[st] = {"at": world, "mode": &"rail"}
 	Router.show_system()
 	await _idle()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	_mark("map")
 	if route == "world":
 		if await _fly(world):
@@ -131,7 +117,7 @@ func _run() -> void:
 			_mark("to the map, no flight")
 			Router.show_system()
 			await _idle()
-			await _frames(30)
+			await Harness.frames(_tree, 30)
 			await _local("the station again", 60)
 	_mark("end")
 	_tree.quit(0)

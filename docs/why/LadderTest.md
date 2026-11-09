@@ -187,7 +187,7 @@ Above `func _no_stand_ins() -> void:`:
 NO STAND-IN PLACE PICTURE ON LOCAL (Jon, Oct 21: "I don't want the beacon to
 show up at all. I want to see the actual event of that planet/POI"): at every
 place of every system of the run -- each world, the star, the edge -- LOCAL's
-place picture (`EncounterView.AreaView`, `site` as LOCAL sets it) is none; a
+place picture (`AreaView`, `site` as LOCAL sets it) is none; a
 station's is the station itself, and only where it is. The sheets (`ANY`)
 still draw each picture.
 ```

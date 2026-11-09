@@ -383,7 +383,7 @@ Inside `_seed_modules()`, above `_module(&"scuttle", "Scuttle Chute", &"", U, C0
 
 ```text
 
-THE MALFUNCTION TABLE lives in `_seed_malfunctions` below, because a
+THE MALFUNCTION TABLE lives in `MALFUNCTIONS` (read by `malfunction()`) below, because a
 malfunction is not a module and never was. See the ruling.
 
 THERE IS NO DROSS MODULE. There was one, and it was unreachable: the loot
@@ -568,7 +568,7 @@ Solari's Heliostat.
 
 ## Attribute ladder
 
-Above `const RUNSTATE := preload("res://scripts/autoload/RunState.gd")`:
+Above `const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]`:
 
 ```text
 THE ATTRIBUTE LADDER. What a grade is worth, in PIPS on the one gauge a part
@@ -594,10 +594,6 @@ in the system hears it. ARTIFACT is the top of the found ladder and there are
 two of them. CONTRABAND sits at Epic on purpose: it is not a quality grade at
 all, it is a fact about who sold it to you, so it performs like an epic and
 carries risk instead of power.
-The script, not the singleton. RunState carries no class_name and Database
-is the autoload BEFORE it, so `Run.PER_PIP` is a null dereference at the
-moment the catalogue is built. A preload reaches the constants without
-needing the node to exist.
 ```
 
 Above `const PASSIVE_AXIS := {`:
@@ -926,7 +922,7 @@ A SECTOR PLACE'S PICTURE, or null while it has none.
 Keyed on a name rather than on `MapGen.NodeType`, because the picture does not
 follow the type: a SYSTEM draws a battlefield, a derelict or a beacon
 depending on its option tags, and a battlefield draws two ways depending on
-whether it is cleared. `EncounterView.AreaView` decides which name it wants
+whether it is cleared. `AreaView` decides which name it wants
 and asks for it; the enum never reaches this function.
 ```
 

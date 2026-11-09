@@ -26,11 +26,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(k: int) -> void:
-	for i in k:
-		await get_tree().process_frame
-
-
 func _saw(part: String, k: int = 1) -> void:
 	_seen[part] = int(_seen.get(part, 0)) + k
 
@@ -50,7 +45,7 @@ func _map() -> SystemMapScreen:
 	for i in 240:
 		var m := Router.current as SystemMapScreen
 		if m != null and m.flight != null and m.view.layout != null:
-			await _frames(4)
+			await Harness.frames(get_tree(), 4)
 			return m
 		await get_tree().process_frame
 	return null
@@ -242,15 +237,16 @@ func _wheel_and_home(m: SystemMapScreen) -> void:
 		await get_tree().process_frame
 		if absf(v.zoom - m._zoom_to) < 1e-4:
 			break
-	await _frames(2)
-	h._ok("zoomed in past the opening (%.3f), no arrows at the edge (%d)" % [v.zoom, (ov.edge_marks as Array).size()], (ov.edge_marks as Array).is_empty())
+	await Harness.frames(get_tree(), 2)
+	h._ok("zoomed in past the opening (%.3f), no arrows at the edge (%d)" % [v.zoom, (ov.edge_marks as Array).size()],
+		v.zoom > m.open_zoom * 1.5 and (ov.edge_marks as Array).is_empty())
 	for i in 40:
 		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(v.CX, v.CY))
 	for i in 600:
 		await get_tree().process_frame
 		if absf(v.zoom - m.zoom_min) < 1e-4:
 			break
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	var off := 0
 	for e in ov.beacons_at:
 		if not OverlayS.beacon_box(e[0]).intersects(v.window):
@@ -263,7 +259,7 @@ func _wheel_and_home(m: SystemMapScreen) -> void:
 		await get_tree().process_frame
 		if m._glide.is_empty():
 			break
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	h._ok("a right-click on empty space glides back to the opening framing (zoom %.4f of %.4f, looking at %s, home %s)" % [v.zoom, m.open_zoom, m._look_at(), m.home_at],
 		absf(v.zoom - m.open_zoom) < 1e-3 and m._look_at().distance_to(m.home_at) < 1.0)
 	_saw("wide pairs wheeled out and home")
@@ -274,7 +270,7 @@ func _wheel_and_home(m: SystemMapScreen) -> void:
 func _put_back_framed() -> void:
 	Router.show_local()
 	await _idle()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# (the first wide pair with a world round both suns, its farthest)
@@ -609,7 +605,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	h._ok("star B's tip says a click selects it (%s)" % tb[tb.size() - 1][0], tb[tb.size() - 1][0] == "CLICK: SELECT")
 	# ONE CLICK SELECTS: the panel's sector page with both suns
 	m.tap(hb)
-	await _frames(3)
+	await Harness.frames(get_tree(), 3)
 	h._ok("one click selects star B (%d), the panel on it (%d)" % [ov.selected, m.panel.filter], ov.selected == B and m.panel.filter == B)
 	var tb2: Array = ov.tip_lines(hb)[0]
 	h._ok("its tip now says a second click flies there (%s)" % tb2[tb2.size() - 1][0], tb2[tb2.size() - 1][0] == "CLICK AGAIN: FLY HERE")
@@ -628,7 +624,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	m.panel_back()
 	await _fit(m, "the sector page, nothing selected")
 	m.tap(hb)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	# ON THE MAP: star B where it holds still, and a right-click holds it there
 	var pr: Vector2 = ov.place_rel(B)
 	var want_r: Vector2 = Vector2(L.star_pos(SystemLayout.STAR_B, m.view.t).x, L.star_pos(SystemLayout.STAR_B, m.view.t).y * m.view.TILT) * m.view.zoom
@@ -658,7 +654,7 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 		await get_tree().process_frame
 		if m._glide.is_empty() and m._focus_body == -9:
 			break
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	h._ok("and a second one back out to the opening framing, the pair's own part (zoom %.3f of %.3f, the whole system %.3f; looking at %s, home %s)" % [
 		m.view.zoom, m.open_zoom, m.zoom_min, m._look_at(), m.home_at],
 		absf(m.view.zoom - m.open_zoom) < 0.002 and m._look_at().distance_to(m.home_at) < 1.0)
@@ -847,7 +843,7 @@ func _words(root: Node) -> PackedStringArray:
 # Fit means nothing overlaps at the panel's real size, or the panel widens and the map narrows.
 # Why: docs/why/TwinSiteTest.md#fit
 func _fit(m: SystemMapScreen, tag: String) -> void:
-	await _frames(3)
+	await Harness.frames(get_tree(), 3)
 	var box: VBoxContainer = m.panel._box
 	var col := box.get_global_rect()
 	# A card naming your orbited world asked for 231 px of 226; that row now wraps (Nov 1).
@@ -960,7 +956,7 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	h._ok("on the way the status line says where (%s)" % going, said.has(going) or said.has("LEAVING ORBIT · " + going))
 	if not h._ok("the ship arrives in star B's close orbit (%d)" % m.flight.reached(), landed):
 		return
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	var st: String = ov.ship_status()[0]
 	h._ok("the status line says CLOSE ORBIT · %s (%s)" % [nm_b, st], st == "CLOSE ORBIT · " + nm_b)
 	_round_b(m, "it rides")
@@ -983,7 +979,7 @@ func _back_at_b(n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	Router.show_local()
 	await _idle()
-	await _frames(6)
+	await Harness.frames(get_tree(), 6)
 	h._ok("the map left the ship at star B (site %d)" % Run.site_here(n), Run.site_here(n) == B)
 	h._ok("nothing there to take (star B holds no event): %d, auto-open %d" % [SectorScreen.things_here(n).size(), LocalEventDrawer.auto_open(n)],
 		SectorScreen.things_here(n).is_empty() and LocalEventDrawer.auto_open(n) == -1)
@@ -1041,7 +1037,7 @@ func _partner_at_b(n: MapGen.MapNode) -> void:
 		and (got[ids[1]] as Vector2).distance_to(Vector2(c3.x, c3.z) + Vector2(6.0, -2.0)) < 0.01)
 	# DRAWN ON THAT ORBIT AS IT IS DRAWN (`SystemOverlay._orbit_k`), as your own
 	# ship is: at its true offset it sat on the world's disc (the seams review)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	var ov = m.overlay
 	var drawn := Vector2.INF
 	for e2: Array in ov.partner_at:
@@ -1078,7 +1074,7 @@ func _partner_marked() -> void:
 	m._zoom_to = m.open_zoom
 	m.view.zoom = m.open_zoom
 	m.view.pan = -m.home_at * m.open_zoom
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	var ov = m.overlay
 	var win: Rect2 = m.view.window
 	var drawn := Vector2.INF
@@ -1097,7 +1093,7 @@ func _partner_marked() -> void:
 			not mark.is_empty() and win.encloses(mb) and StringName(mark.get("glyph", &"")) == &"" and String(mark.get("name", "")) == "GENO")
 	Net.roster.erase(id)
 	Net.spots.erase(id)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	_saw("partners marked off the picture")
 
 
@@ -1137,7 +1133,7 @@ func _settle_round(n: MapGen.MapNode) -> void:
 		var cid := int(c[2])
 		m.flight.call(&"settle_at", m.view.t, c[0], 1.0)
 		var from: float = (c[0] as Vector2).distance_to(L.bary if cid == -9 else L.star_pos(cid, m.view.t))
-		await _frames(12)
+		await Harness.frames(get_tree(), 12)
 		var st: String = ov.ship_status()[0]
 		var sc: Vector2 = ov._star_c
 		var want: Vector2 = L.bary if cid == -9 else L.star_pos(cid, m.view.t)
@@ -1156,7 +1152,7 @@ func _settled_as_b_moves(m: SystemMapScreen, p: Vector2, nm_b: String) -> void:
 	var L: SystemLayout = m.view.layout
 	var B := SystemLayout.STAR_B
 	m.flight.call(&"settle_at", m.view.t, p, 1.0)
-	await _frames(6)
+	await Harness.frames(get_tree(), 6)
 	if not h._ok("let go round star B to watch it move, the flight settles round it (%d, the flight build's)" % int(m.flight.f.cen_id),
 			m.flight.star_orbiting() and int(m.flight.f.cen_id) == B):
 		return
@@ -1227,7 +1223,7 @@ func _restore_round(n: MapGen.MapNode) -> void:
 
 
 ## One put-back (`_restore_round`): settled at p (round `want`), away and back.
-func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: bool) -> void:
+func _put_back(_n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: bool) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
 		m = await _map()
@@ -1235,7 +1231,7 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 		h._fail("no map for %s" % what)
 		return
 	m.flight.settle_at(m.view.t, p, -1.0)
-	await _frames(6)
+	await Harness.frames(get_tree(), 6)
 	var f0 = m.flight.f
 	var cen0 := int(f0.cen_id)
 	var r0: float = f0.orbit_r
@@ -1248,7 +1244,7 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	var rel0: Vector2 = (f0.p as Vector2) - (f0.cen as Vector2)
 	Router.show_local()
 	await _idle()
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	if rows:
 		var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
 		SystemMapScreen._parked = SaveGame._parked_from(raw, Run.map.size())
@@ -1271,7 +1267,7 @@ func _put_back(n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: boo
 	var rode := absf(wrapf(rel1.angle() - rel0.angle(), -PI, PI))
 	var rode_max := float(m.flight.star_pace(r0, float(f1.cen_share))) / maxf(r0, 1.0) * 0.5 + 1e-3
 	var st: String = m.overlay.ship_status()[0]
-	await _frames(60)
+	await Harness.frames(get_tree(), 60)
 	var f2 = m.flight.f
 	var off1: float = absf(((f2.p as Vector2) - (f2.cen as Vector2)).length() - float(f2.orbit_r))
 	var dep: Dictionary = m.flight._dep_of(m.view.t)
@@ -1295,7 +1291,7 @@ func _labels_off_suns(n: MapGen.MapNode) -> void:
 		# (the map up put away, and out of the tree, before its record is set)
 		Router.show_local()
 		await _idle()
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 		SystemMapScreen._parked[n.index] = {"at": at, "mode": &"rail"}
 		var m := await _map()
 		if m == null:
@@ -1303,7 +1299,7 @@ func _labels_off_suns(n: MapGen.MapNode) -> void:
 			return
 		var ov = m.overlay
 		var other := -1 if at == B else B
-		await _frames(4)
+		await Harness.frames(get_tree(), 4)
 		var words: String = "CLOSE ORBIT · " + ov.star_name_of(at)
 		var box := _said_box(ov, words)
 		h._ok("in %s's close orbit the words by the ship are drawn (%s) clear of %s's disc (%s, r %.1f)%s" % [
@@ -1311,7 +1307,7 @@ func _labels_off_suns(n: MapGen.MapNode) -> void:
 			"" if box.size.x > 0.0 else " -- placed: %s, the ship at %d" % [ov.label_says, m.flight.reached()]],
 			box.size.x > 0.0 and not _box_on_disc(box, ov.star_scr(other), ov.star_disc(other)))
 		ov.selected = other
-		await _frames(3)
+		await Harness.frames(get_tree(), 3)
 		var nm: String = ov.star_name_of(other)
 		var nb := _said_box(ov, nm)
 		# (not drawn at all is a name a higher label took the place of: no overlap)
@@ -1459,7 +1455,7 @@ func _said_on_beacon(ov, s: String, st: Dictionary, key: String) -> void:
 
 ## Drawn against star A's keep-out the curl was up to 58 px off the one flown (seams review).
 ## Why: docs/why/TwinSiteTest.md#capture-curl
-func _capture_curl_b(n: MapGen.MapNode) -> void:
+func _capture_curl_b(_n: MapGen.MapNode) -> void:
 	var m := Router.current as SystemMapScreen
 	if m == null:
 		m = await _map()
@@ -1583,7 +1579,7 @@ func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
 	var n0 := SystemMapScreen.flights
 	Router.show_local()
 	await _idle()
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	var ft: Dictionary = SystemMapScreen.flown_to.get(n.index, {})
 	h._ok("%s: left on the way, the ship is at %s as LOCAL is told (site %d), the flight counted (%d, flown to %s)" % [
 		what, L.bodies[to].name, Run.site_here(), SystemMapScreen.flights - n0, ft],
@@ -1596,7 +1592,7 @@ func _mid_flight_tab(n: MapGen.MapNode, what: String) -> void:
 
 ## A restyle lost the errand: the GO never opened its event and the map took no input.
 ## Why: docs/why/TwinSiteTest.md#style-change-mid-flight
-func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
+func _restyle_mid_flight(_n: MapGen.MapNode, what: String) -> void:
 	var m := await _map()
 	if m == null:
 		h._fail("%s: no map to draw again" % what)
@@ -1634,9 +1630,9 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	h._ok("%s: drawn again on its coast, the GO is in orbit of %s (%d, %s), its errand run once (%d), the map open (_taking %s), the flight counted once (%d)" % [
 		what, L.bodies[b].name, m.flight.reached(), m.flight.mode, ran[0], m._taking, SystemMapScreen.flights - n0],
 		m.flight.reached() == b and ran[0] == 1 and not m._taking and SystemMapScreen.flights == n0 + 1)
-	await _frames(30)
+	await Harness.frames(get_tree(), 30)
 	m.fly_to_body(a)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	h._ok("%s: the errand not run again (%d), and FLY HERE flies (heading to %d)" % [what, ran[0], m.flight.heading_to()],
 		ran[0] == 1 and m.flight.heading_to() == a)
 
@@ -1658,7 +1654,7 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 		if ran[0] > 0:
 			land = float(i) / 60.0
 			break
-	await _frames(30)
+	await Harness.frames(get_tree(), 30)
 	h._ok("%s: drawn again before it left, the GO flies on to %s (heading there, map shut: %s) and its errand runs on arrival, once (%d, %.1f s on; in orbit %d, _taking %s, counted %d)" % [
 		what, L.bodies[b].name, on, ran[0], land, m.flight.reached(), m._taking, SystemMapScreen.flights - n0],
 		on and ran[0] == 1 and m.flight.reached() == b and not m._taking and SystemMapScreen.flights == n0 + 1)
@@ -1670,7 +1666,7 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	if not h._ok("%s: FLY HERE is on its coast to %s, 2 s (or 40%%) in (mode %s)" % [what, L.bodies[b].name, m.flight.mode], coasting):
 		return
 	m = await _restyle(m)
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	h._ok("%s: drawn again on its coast, FLY HERE is in orbit of %s (%d) with it opened (selected %d, panel %s %d)" % [
 		what, L.bodies[b].name, m.flight.reached(), m.overlay.selected, m.panel.mode, m.panel.filter],
 		m.flight.reached() == b and m.overlay.selected == b and m.panel.mode == &"list" and m.panel.filter == b)
@@ -1681,12 +1677,12 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 	m.fly_to_body(b)
 	m.harness_keys = true
 	m._wasd.w = true
-	await _frames(1)
+	await Harness.frames(get_tree(), 1)
 	m._wasd.w = false
-	await _frames(1)
+	await Harness.frames(get_tree(), 1)
 	m.harness_keys = false
 	if m.flight.heading_to() != -9:
-		print("  --   %s: the flight left before W could let go of it (mode %s): that case not seen" % [what, m.flight.mode])
+		h._fail("%s: the flight left before W could let go of it (mode %s): that case not seen" % [what, m.flight.mode])
 	else:
 		m = await _restyle(m)
 		# (coasting off the ring it may be caught by one close by, as any coast
@@ -1706,7 +1702,7 @@ func _restyle_mid_flight(n: MapGen.MapNode, what: String) -> void:
 
 ## Kept finding 11: the whole map was shut for a 27 s flight. Now only clicks are refused.
 ## Why: docs/why/TwinSiteTest.md#go-leaves-view-open
-func _go_view_open(n: MapGen.MapNode, what: String) -> void:
+func _go_view_open(_n: MapGen.MapNode, what: String) -> void:
 	var m := await _map()
 	if m == null:
 		h._fail("%s: no map for a GO" % what)
@@ -1795,7 +1791,7 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	var want_mv: Vector2 = (pan0 + Vector2(40.0, 6.0)).clamp(-lim, lim) - pan0
 	h._ok("%s: mid-GO a drag pans the view (%s px for a 40, 6 px drag, %s as far as it may go), selecting nothing (%d)" % [what, moved, want_mv, m.overlay.selected],
 		moved.length() > 1.0 and moved.distance_to(want_mv) < 0.5 and m.overlay.selected == sel0)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	# A CLICK AND A DOUBLE CLICK ON ANOTHER WORLD, A RIGHT-CLICK, FLY HERE AND
 	# WASD: none selects, opens or flies; the GO goes on
 	q = _place_q(m, c)
@@ -1810,7 +1806,7 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 	m.fly_to_body(c)
 	m.harness_keys = true
 	m._wasd.w = true
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	m._wasd.w = false
 	m.harness_keys = false
 	var page1 := "%s %d %d" % [m.panel.mode, m.panel.filter, m.panel.open_opt]
@@ -1828,7 +1824,7 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 		if ran[0] > 0:
 			land = float(i) / 60.0
 			break
-	await _frames(30)
+	await Harness.frames(get_tree(), 30)
 	h._ok("%s: the GO lands in orbit of %s (%d) with its errand run once (%d, %.1f s on), the map open (_taking %s, the tip's clicks %s), counted once (%d)" % [
 		what, L.bodies[b].name, m.flight.reached(), ran[0], land, m._taking, "held" if m.overlay.clicks_held else "offered", SystemMapScreen.flights - n0],
 		m.flight.reached() == b and ran[0] == 1 and not m._taking and not m.overlay.clicks_held and SystemMapScreen.flights == n0 + 1)
@@ -1839,7 +1835,7 @@ func _go_view_open(n: MapGen.MapNode, what: String) -> void:
 		_push_motion(_win_at(m, q))
 		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, true)
 		_push_button(_win_at(m, q), MOUSE_BUTTON_LEFT, false)
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 		h._ok("%s: after it, a click selects again (%d, want %d)" % [what, m.overlay.selected, int(hit_c.get("body", -99))],
 			m.overlay.selected == int(hit_c.get("body", -98)))
 	h._ok("%s: every pointer event reached the map's frame through the game's viewport (%d of %d)" % [what, _took, _sent], _sent > 15 and _took == _sent)
@@ -1934,7 +1930,7 @@ func _sit(m: SystemMapScreen, i: int) -> void:
 		await get_tree().process_frame
 		if m.flight.can_fly() and m.flight.reached() == i:
 			break
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 
 
 ## Until the flight has coasted `secs` (true), or it never does.
@@ -2037,7 +2033,7 @@ func _ladder_holds_the_pair() -> void:
 	var lap: float = TAU / L0.pair_n if L0.pair_n > 0.0 else 0.0
 	Router.show_local()
 	await _idle()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	Run.map_clock[n.index] = lap * 0.25 + 3.0
 	var m := await _map()
 	if not h._ok("the map up again at a kept clock a quarter of the pair's lap round (%.1f)" % (m.view.t if m != null else -1.0), m != null and m.view.node == n):
@@ -2047,7 +2043,7 @@ func _ladder_holds_the_pair() -> void:
 	ZoomLadder.fixed_dt = 1.0 / 30.0
 	ZoomLadder.force = 1
 	# DOWN TO LOCAL
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	var t_click: float = m.view.t
 	Router.show_local()
 	var moved := 0.0
@@ -2063,7 +2059,7 @@ func _ladder_holds_the_pair() -> void:
 		frames, t_click, moved, Run.map_t(n.index)], Router.current is SectorScreen and moved == 0.0 and Run.map_t(n.index) == t_click)
 	# BACK UP TO THE MAP, built ahead at that clock
 	var t_kept := Run.map_t(n.index)
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	Router.show_system()
 	var pm: Control = ZoomLadder.prebuilt_screen()
 	var off := 0.0
@@ -2077,7 +2073,7 @@ func _ladder_holds_the_pair() -> void:
 		if not ZoomLadder.busy():
 			break
 	var up := Router.current as SystemMapScreen
-	await _frames(20)
+	await Harness.frames(get_tree(), 20)
 	h._ok("up to the map: built ahead (%s) at the clock LOCAL held (%.3f), held through the move (%d frames, %.4f s off), running on once it lands (%.3f)" % [
 		pm != null, t_kept, seen, off, up.view.t if up != null else -1.0],
 		up != null and pm == up and seen > 0 and off == 0.0 and float(up.view.t) > t_kept)
@@ -2172,7 +2168,7 @@ func _giant_page(n: MapGen.MapNode) -> void:
 			g.twin = was
 			continue
 		m.select_body(gi)
-		await _frames(3)
+		await Harness.frames(get_tree(), 3)
 		var gb: SystemLayout.Body = m.view.layout.bodies[gi]
 		var want := PanelS.mass_line(gb.gm_frac, two)
 		var words := _words(m.panel._box)
@@ -2208,7 +2204,7 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 	# written: it may be this one)
 	Router.show_local()
 	await _idle()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	Run.at = one.index
 	one.visited = true
 	SystemMapScreen._parked[one.index] = {"at": SystemLayout.STAR_B, "mode": &"rail"}
@@ -2217,7 +2213,7 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 	# orbit, not open space at the edge)
 	Router.show_local()
 	await _idle()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	var sc := Router.current as SectorScreen
 	var sky: LocalSky = sc._view.backdrop if sc != null and sc._view != null else null
 	h._ok("LOCAL's sky has the ship at the star too (%d)" % (sky.orbit_target if sky != null else -99), sky != null and sky.orbit_target == -1)
@@ -2645,7 +2641,7 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 	for b in L.bodies:
 		if wb < 0 and b.host_id == SystemLayout.STAR_B and b.world != &"":
 			wb = b.index
-	if wb < 0 or m.flight.reached() != wa:
+	if not h._ok("a world round star B to fly to, the ship in orbit of the one round star A", wb >= 0 and m.flight.reached() == wa):
 		return
 	ov.selected = wb
 	var got := false
@@ -2683,9 +2679,9 @@ func _preview_end_gap(m: SystemMapScreen, wa: int) -> void:
 				could += 1
 		h._ok("the ring round where %s will be is cut behind its disc as drawn now: %d far-side pixels on it (%d of the ring's points lie there, %.1f px off its centre)" % [L.bodies[wb].name, on, could, gap], on == 0)
 	else:
-		print("  --   no flight drawn to the world round star B in 10 s, its end not measured")
+		h._fail("no flight drawn to the world round star B in 10 s, its end not measured")
 	ov.selected = -2
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 
 
 ## Stepped off a sun and beacon, the words hopped 6 to 10 px about twice an orbit.
@@ -2696,7 +2692,7 @@ const RIDE_FRAMES := 400
 func _ring_words_ride() -> void:
 	Router.show_local()
 	await _idle()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	Rng.forced = 7
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n: MapGen.MapNode = Run.map[284] if Run.map.size() > 284 else null
@@ -2719,7 +2715,7 @@ func _ring_words_ride() -> void:
 	m.view.t = 40.0
 	m.flight.place_at(wa, m.view.t)
 	ov.selected = wa
-	await _frames(40)
+	await Harness.frames(get_tree(), 40)
 	var full: String = "IN ORBIT · " + String(ov._place_nm(wa))
 	var ang0 := float(m.flight.rail.get("ang", 0.0))
 	var seen := 0
@@ -2768,7 +2764,7 @@ func _close_b_words_ride() -> void:
 		return
 	Router.show_local()
 	await _idle()
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	Run.at = n.index
 	n.visited = true
 	n.ambush_pending = false
@@ -2786,7 +2782,9 @@ func _close_b_words_ride() -> void:
 	var seen := 0
 	var spots: Array[Vector2] = []
 	var last := Rect2()
-	while m.view.t < 107.0:
+	var frames := 0
+	while m.view.t < 107.0 and frames < 2000:
+		frames += 1
 		await get_tree().process_frame
 		var box := _said_box(ov, full)
 		if box.size.x <= 0.0:
@@ -2804,7 +2802,7 @@ func _close_b_words_ride() -> void:
 			spots.append(last.position)
 		last = box
 	h._ok("in star B's close orbit of %s, map time 97 to 107, the words by the ship step at most once and never back (%d moves over 3 px, %d back; seen %d frames)" % [
-		MapGen.star_name(n), hops, back, seen], seen > 0 and hops <= 1 and back == 0)
+		MapGen.star_name(n), hops, back, seen], m.view.t >= 107.0 and seen > 0 and hops <= 1 and back == 0)
 
 
 ## Jon, Nov 5: icon as tall as the arrow, arrow hollow, 2 px line, and a name box inward.
@@ -3056,7 +3054,7 @@ func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		m._zoom_to = zoom0
 		v.zoom = zoom0
 		v.pan = pan0
-		await _frames(4)
+		await Harness.frames(get_tree(), 4)
 		win = v.window
 		var drawn := _drawn_under_marks(m)
 		var boxes: Array = []
@@ -3152,7 +3150,7 @@ func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 		Net.spots.erase(id)
 	v.zoom = zoom0
 	v.pan = pan0
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 
 
 ## Everything no edge arrow may sit on: words, status line, goal, beacons, suns, worlds, hulls.
@@ -3213,7 +3211,7 @@ func _nearer_hit(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 			st.near_none += 1
 			continue
 		v.t = float(best[front][1])
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 		var a: Vector2 = ov.star_scr(-1)
 		var b: Vector2 = ov.star_scr(B)
 		var da: float = ov.star_disc(-1)
@@ -3228,7 +3226,7 @@ func _nearer_hit(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 				sd, MapGen.star_name(n), v.t, front, float(best[front][0]), q, hh.get("kind", &""), int(hh.get("body", -99))])
 	v.t = t0
 	m.frozen = false
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 
 
 ## Each frame's nearest clear spot made the words hop a step; a held spot hops no more often.
@@ -3251,7 +3249,7 @@ func _words_as_suns_turn(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dic
 	var t0: float = v.t
 	m.frozen = true
 	m.flight.place_at(-1, t0)
-	await _frames(20)
+	await Harness.frames(get_tree(), 20)
 	st.turn_runs += 1
 	for afresh: bool in [false, true]:
 		var last := Vector2.INF
@@ -3289,7 +3287,7 @@ func _words_as_suns_turn(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dic
 	v.t = t0
 	m.frozen = false
 	m.flight.place_at(-1, t0)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 
 
 ## Over seeded binaries, no word across a sun and the ship outlined on small ring worlds.
@@ -3329,7 +3327,7 @@ func _ring_sweep() -> void:
 	for sd: int in seeds:
 		Router.show_local()
 		await _idle()
-		await _frames(2)
+		await Harness.frames(get_tree(), 2)
 		Rng.forced = sd
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var m: SystemMapScreen = null
@@ -3387,7 +3385,7 @@ func _ring_sweep() -> void:
 				m.overlay._ok = 1.0
 				m.overlay._ok_v = 0.0
 				m.overlay._trail = []
-				await _frames(2)
+				await Harness.frames(get_tree(), 2)
 			if m == null or m.view.node != n:
 				h._fail("seed %d: no map at %s" % [sd, MapGen.star_name(n)])
 				continue
@@ -3511,10 +3509,10 @@ func _ring_sweep() -> void:
 				var ts: float = 37.0 + lap * float((ti + j * 3 + 1) % LAP_CLOCKS) / float(LAP_CLOCKS) 					+ (L.bodies[wr].period * float(j) / 3.0 if wr >= 0 else float(j) * 20.0)
 				m.view.t = ts
 				m.flight.place_at(w0, ts)
-				await _frames(2)
+				await Harness.frames(get_tree(), 2)
 				for q: int in sel_at:
 					ov.selected = q
-					await _frames(2)
+					await Harness.frames(get_tree(), 2)
 					var nm_q: String = ov.star_name_of(q) if SystemLayout.is_star(q) else L.bodies[q].name
 					st.sel += 1
 					if (ov.label_says as Array).has(nm_q):
@@ -3569,7 +3567,7 @@ func _ring_sweep() -> void:
 					_said_on_beacon(ov, "WILL BE ALONGSIDE " + nm_w, st, "fc_bc")
 			m.frozen = false
 			m.flight.place_at(w0, m.view.t)
-			await _frames(2)
+			await Harness.frames(get_tree(), 2)
 	print("  --   the ring sweep: %d binaries (%d close pairs) over seeds %s in %.1f s; the ship at %d places, %d moments; %d words placed; its own words whole %d, shortened %d, held back %d, off the picture with the ship %d" % [
 		st.twins, st.close, seeds, float(Time.get_ticks_msec() - t0) / 1000.0, st.places, st.moments, st.words, st.whole, st.short, st.held, st.off_pic])
 	print("  --   and %d places selected (%d names shown, %d held back off a sun, %d under a higher label), %d coasts let go (%d into the ring aimed at, its forecast shown in %d, held back off a sun in %d)" % [

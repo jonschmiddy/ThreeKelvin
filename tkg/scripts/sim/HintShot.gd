@@ -1,25 +1,16 @@
 extends Node
 
-## One still per hint on the real screens, taken `HINT_S` after it shows, then dismissed by a click.
+## One still per hint on the real screens, taken `HINT_S` after it shows, then dismissed.
 ## A hint that never shows prints MISSING.
 ## Why: docs/why/HintShot.md#hint-shot
 
 const HINT_S := 0.5
 
-var _args: PackedStringArray
 var _out := ""
 var _k := 0
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
 
 
@@ -57,9 +48,6 @@ func _hint(id: StringName, wait: float = 8.0) -> void:
 
 
 func _click() -> void:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
 	Hints.spend()
 	# Spent without being done, so each still counts as its own
 	# visit or the one-lesson-a-visit pacing holds the next.
@@ -97,11 +85,11 @@ func _play_one(cb: Combat) -> bool:
 
 func _run() -> void:
 	var tree := get_tree()
-	_out = _arg("out", "user://hintshot")
+	_out = Harness.arg("out", "user://hintshot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	await tree.process_frame
 	Hints.reset()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# LOCAL as a new run hands it over: the goal and its first step
 	Router.show_local()

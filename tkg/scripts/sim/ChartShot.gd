@@ -170,7 +170,7 @@ func run(tree: SceneTree) -> void:
 		# measuring a light's reach about the core off the picture)
 		var ch := sc._chart
 		print("chart core %s gu_px %.3f" % [ch.get_global_rect().position + ch.centre_px(),
-			ch._radius() * StarchartScreen.MapChart.DISC * ch.zoom])
+			ch._radius() * MapChart.DISC * ch.zoom])
 		if ChartSky.form_of(Run.galaxy_kind) == 1:
 			print("chart ball depth %s" % [ChartSky.ball_depth(Run.galaxy_kind)])
 	var deep_at := -1

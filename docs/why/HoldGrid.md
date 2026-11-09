@@ -13,8 +13,8 @@ cell, and half the catalogue is wider or taller than one. A part is placed at
 a fixed cell rather than something a container decides.
 
 Everything here reads Run and writes nothing. Drops are reported upward and
-the screen owns the state change, which is the same split ModuleCell already
-uses — one place to read when a part ends up somewhere it should not.
+the screen owns the state change — one place to read when a part ends up
+somewhere it should not.
 ```
 
 ## Cell size

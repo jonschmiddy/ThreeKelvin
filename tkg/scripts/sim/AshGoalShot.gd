@@ -3,32 +3,18 @@ extends Node
 ## Photographs A.S.H. beside the goal line in several modes. Needs a window: `-- sheet=AshGoalShot`.
 ## Why: docs/why/AshGoalShot.md#shot-modes
 
-var _args: PackedStringArray
 var _out := ""
 var _tree: SceneTree
 var _n := 0
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
 
 
 func _secs(s: float) -> void:
 	var t0 := GameClock.now()
 	while GameClock.now() - t0 < s:
-		await _tree.process_frame
-
-
-func _frames(n: int) -> void:
-	for i in n:
 		await _tree.process_frame
 
 
@@ -61,13 +47,6 @@ func _film_secs(s: float) -> void:
 	var t0 := GameClock.now()
 	while GameClock.now() - t0 < s:
 		await _frame()
-
-
-func _press() -> InputEventMouseButton:
-	var ev := InputEventMouseButton.new()
-	ev.button_index = MOUSE_BUTTON_LEFT
-	ev.pressed = true
-	return ev
 
 
 ## A real click on the HUD's tab for LOCAL (`local`) or the sector map, as a
@@ -104,7 +83,7 @@ func _start(intro_heard: bool) -> void:
 	Hints.forced = true
 	Hints.reset()
 	Ash.reload()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# (every new run has her introduction: `intro=0` takes it off, for a launch
 	# line from the bag)
@@ -114,10 +93,10 @@ func _start(intro_heard: bool) -> void:
 
 func _run() -> void:
 	_tree = get_tree()
-	_out = _arg("out", "user://ashgoalshot")
+	_out = Harness.arg("out", "user://ashgoalshot")
 	DirAccess.make_dir_recursive_absolute(_out)
 	await _tree.process_frame
-	match _arg("mode", "stills"):
+	match Harness.arg("mode", "stills"):
 		"fight":
 			await _fight()
 		"film":
@@ -140,7 +119,7 @@ func _run() -> void:
 
 
 func _stills() -> void:
-	await _start(_arg("intro", "1") != "1")
+	await _start(Harness.arg("intro", "1") != "1")
 	Router.show_local()
 	# her lines as they come, each photographed once it holds
 	var n0 := Ash.said_log.size()
@@ -328,7 +307,7 @@ func _decks() -> void:
 		Hints.mark_seen(StringName("said_" + String(id)))
 	# (`pick=low`: a station under a city instead, its board a board and its
 	# lab a lower level's; every station has all five decks since Nov 3)
-	var low := _arg("pick", "") == "low"
+	var low := Harness.arg("pick", "") == "low"
 	for raw in Run.map:
 		var m: MapGen.MapNode = raw
 		if m.type == MapGen.NodeType.STATION and not Contracts.board(m).is_empty() 				and (Fabricator.has_bench(m) if not low else int(m.development) < 3):

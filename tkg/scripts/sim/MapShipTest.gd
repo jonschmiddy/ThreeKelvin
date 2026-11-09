@@ -5,24 +5,16 @@ extends Node
 ## Why: docs/why/MapShipTest.md#map-ship-test
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 const LEN := [14, 17, 20]
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
 
 
 ## The picture LOCAL draws a hull from, worked out here (ShipView's own rule).
@@ -88,21 +80,21 @@ func _run() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_system()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	var map := Router.current as SystemMapScreen
 	if not _ok("the sector map is up", map != null and map.view.layout != null and map.flight != null):
 		_finish()
 		return
 	var ov = map.overlay
 	ov.set("record_px", true)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	await _check_hull(map, "a new run's Korvan medium")
 	# THE SWAP, as a yard makes it: a Solari heavy
 	var heavy := DB.hull_for(&"solari", HullData.Weight.HEAVY)
 	var was: Variant = ov.get("hull_src")
 	if _ok("there is a Solari heavy to swap to", heavy != null):
 		Run.transfer_to_hull(heavy)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 		_ok("the map is still up after the swap", Router.current == map)
 		_ok("the swap changed the picture the map's ship is drawn from", ov.get("hull_src") != was)
 		await _check_hull(map, "after a swap to a Solari heavy")
@@ -157,16 +149,17 @@ func _check_hull(map: SystemMapScreen, when: String) -> void:
 	var gain: float = pic.get("gain", 1.0)
 	var m := _mean(img, pic.pm)
 	var dc := maxf(absf(a.r - m.r / gain), maxf(absf(a.g - m.g / gain), absf(a.b - m.b / gain)))
+	var lift_to: float = load("res://scripts/ui/sysmap/MapHull.gd").LIFT_TO
 	print("  %s: the art's mean %s, the map picture's %s, lifted %.2fx" % [when, a, m, gain])
 	_ok("its colours are that art's, shrunk (mean off by %.3f)" % dc, dc < 0.03)
 	_ok("lifted only if dark, and to the floor (%.2fx to brightness %.3f)" % [gain, m.get_luminance()],
-		gain >= 1.0 and gain <= 2.0 and (gain == 1.0 or m.get_luminance() > 0.18 or gain == 2.0))
+		gain >= 1.0 and gain <= 2.0 and (gain == 1.0 or (a.get_luminance() < lift_to + 0.02 and (m.get_luminance() > 0.18 or gain == 2.0))))
 	# POINTING STRAIGHT ALONG THE MAP: the picture lands pixel for pixel
 	map.set_process(false)
 	map.flight.ang = 0.0
 	var burn: bool = map.flight.burn
 	map.flight.burn = false
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var px: Variant = ov.get("ship_px")
 	var at: Vector2 = ov._ship_at
 	var mx := (img.get_width() - 1) / 2
@@ -218,7 +211,7 @@ func _check_hull(map: SystemMapScreen, when: String) -> void:
 		body[0] > 0 and body[1] == body[0])
 	map.flight.burn = burn
 	map.set_process(true)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 
 
 ## THE ION DRIVE: W held through the real step, the flame lit, all of it blue.
@@ -267,12 +260,12 @@ func _check_fit(map: SystemMapScreen) -> void:
 	var pid := 77
 	Net.roster[pid] = {"id": pid, "name": "Vega", "order": 9, "at": Run.at}
 	Net.spots[pid] = {"at": Run.at, "body": -9, "x": f.f.p.x, "z": f.f.p.y, "ang": PI}
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	map.set_process(false)
 	f.ang = -PI / 2.0
 	f.burn = false
 	Net.spots[pid] = {"at": Run.at, "body": -9, "x": f.f.p.x, "z": f.f.p.y, "ang": PI}
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var hull := Rect2()
 	var any := false
 	var px: Variant = ov.get("ship_px")
@@ -298,9 +291,9 @@ func _check_fit(map: SystemMapScreen) -> void:
 	Net.roster.erase(pid)
 	Net.spots.erase(pid)
 	map.set_process(true)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 
 
 func _finish() -> void:
-	print("mapshiptest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(0 if _fails == 0 else 1)
+	harness.verdict("mapshiptest")
+	_tree.quit(harness.code())

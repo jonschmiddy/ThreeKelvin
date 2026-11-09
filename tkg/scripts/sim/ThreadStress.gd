@@ -35,7 +35,7 @@ var _secs := 20.0
 ## Real time a plan let go of gets to finish (Jon, Nov 8: seconds, not frames;
 ## headless frames run uncapped, so 600 of them ran out on a busy gate).
 const DRAIN_MS := 10000
-## Extra real time if no clicked flight has flown yet: the planner is slow on a two-core runner (2 clicks in 20 s).
+## Real time for a clicked flight to fly once the workers are free, when the stress window had none.
 const CLICK_GRACE_MS := 30000
 
 
@@ -152,7 +152,7 @@ func _run() -> void:
 	var ci := 0
 	var di := 0
 	var t_end := Time.get_ticks_msec() + int(_secs * 1000.0)
-	while Time.get_ticks_msec() < t_end or (n_click_flown == 0 and Time.get_ticks_msec() < t_end + CLICK_GRACE_MS):
+	while Time.get_ticks_msec() < t_end:
 		# take in what finished, the way the game does, and start more
 		for j in range(fauna.size() - 1, -1, -1):
 			if WorkerThreadPool.is_task_completed(fauna[j].task):
@@ -263,6 +263,21 @@ func _run() -> void:
 			bb.free()
 	for v in voices:
 		_take_voice(v)
+	# A two-core runner can fill the window planning (2 clicks in 20 s). With no new work the plan lands.
+	var fly_until := Time.get_ticks_msec() + CLICK_GRACE_MS
+	while n_click_flown == 0 and Time.get_ticks_msec() < fly_until:
+		plan_t += 1.0 / 60.0
+		clicker.step(1.0 / 60.0, plan_t, {"w": false, "a": false, "s": false, "d": false})
+		if clicker.can_fly() and (clicker._pend as Dictionary).is_empty():
+			var to3: int = places[ck_next % places.size()]
+			ck_next += 1
+			if to3 != clicker.orbit_body():
+				clicker.plan_bg(to3, plan_t, {}, &"preview", 1600)
+				if clicker.fly_bg(to3, plan_t, func() -> void: pass):
+					n_click += 1
+		elif clicker.mode == &"fly" or clicker.rail.has("phase") and not clicker.rail.phase.get("wait", false):
+			n_click_flown += 1
+		await _tree.process_frame
 	# Take the last plans in a frame at a time; waiting
 	# first hands `take_bg` a task the pool let go.
 	for sh2: Dictionary in ships:

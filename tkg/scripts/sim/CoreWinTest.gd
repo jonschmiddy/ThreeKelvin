@@ -5,28 +5,20 @@ extends Node
 ## Why: docs/why/CoreWinTest.md#core-win
 
 var _tree: SceneTree
-var _fails := 0
+var harness := Harness.new()
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 	_custodian_growth()
 	_custodian_party()
@@ -42,16 +34,16 @@ func _run() -> void:
 	_ok("the router leaves you on LOCAL", sc != null)
 	_ok("with the loot step on (Router.final_loot)", Router.final_loot)
 	_ok("the body's popup does NOT open by itself", sc != null and not sc.has_open_container())
-	_ok("LOCAL says SALVAGE THE CUSTODIAN", sc != null and _find(sc, func(n: Node) -> bool:
+	_ok("LOCAL says SALVAGE THE CUSTODIAN", sc != null and Harness.first(sc, func(n: Node) -> bool:
 		return n is Button and (n as Button).text == "SALVAGE THE CUSTODIAN") != null)
 	# QUIT HERE, AND COME BACK: the body, still to click
 	_ok("a save is left on disk: the core with its body", FileAccess.file_exists(SaveGame.path))
 	var records_mid := RunHistory.load_all().size()
 	Router.final_loot = false
 	Router.show_launcher()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Router.continue_run()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	sc = Router.current as SectorScreen
 	_ok("CONTINUE comes back to the core's LOCAL, the body waiting",
 		sc != null and Router.final_loot and Run.won and Router.core_body_here() != null
@@ -61,7 +53,7 @@ func _run() -> void:
 	var slot := _body_slot(sc)
 	if _ok("the body is a wreck on LOCAL you can click", slot != null and slot.opened.is_valid()):
 		slot.opened.call()
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 	_ok("clicking the body opens its popup", sc != null and sc.has_open_container())
 	_ok("the win screen is NOT up yet", _win_screen() == null)
 	_ok("the HUD is hidden while the body is open",
@@ -87,7 +79,7 @@ func _run() -> void:
 
 	# Tab is the one key that changes screens; it must not leave the body.
 	await _press(KEY_TAB)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("Tab leaves the body open", Router.current == sc and sc.has_open_container()
 		and Router.final_loot and _win_screen() == null)
 
@@ -101,25 +93,25 @@ func _run() -> void:
 				break
 	_ok("a part comes out of the body into the hold",
 		took and Run.cargo.size() + Run.pad.size() == cargo_before + 1)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("and the popup is still open after it", sc.has_open_container() and _win_screen() == null)
 
-	var done := _button(tv, "DONE")
+	var done := Harness.button_with_text(tv, "DONE")
 	if not _ok("the popup has DONE", done != null):
 		return _finish()
 	done.pressed.emit()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_check_win_screen("after DONE")
 	_ok("and the save is gone", not FileAccess.file_exists(SaveGame.path))
 	_ok("the run is recorded once, not twice", RunHistory.load_all().size() == records_before + 1)
 	# Escape on the win screen is the escape menu, and its ABANDON used to
 	# write an ABANDONED record after the WON.
 	await _press(KEY_ESCAPE)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var pm := _pause_menu() as PauseMenu
 	if _ok("Escape on the win screen opens the escape menu", pm != null):
 		pm.quit_requested.emit()
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		var after := RunHistory.load_all()
 		_ok("and leaving by ABANDON adds nothing to the record",
 			after.size() == records_before + 1
@@ -131,7 +123,7 @@ func _run() -> void:
 	if await _beat_core():
 		_ok("(second kill) the body waits", Router.final_loot and _win_screen() == null)
 		await _press(KEY_ESCAPE)
-		await _frames(4)
+		await Harness.frames(_tree, 4)
 		_check_win_screen("after Escape")
 		_ok("and no escape menu came up instead", _pause_menu() == null)
 
@@ -140,7 +132,7 @@ func _run() -> void:
 	if await _beat_core():
 		_ok("(third kill) the body waits", Router.final_loot)
 		Router.show_system()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_check_win_screen("after leaving by another door")
 
 	# ------------------------------------------------ an ordinary fight
@@ -151,18 +143,18 @@ func _run() -> void:
 
 	# ----------------------------------------------- the death screen's cue
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Audio.music_asked = &""
 	Run.die("Hull integrity lost.")
 	Router.show_game_over()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("the death screen asks for &\"gameover\" too", Audio.music_asked == &"gameover")
 	var go := Router.current as GameOverScreen
 	# A TITLE button since Oct 22 (the audit: RUN ENDED's only way back was Esc,
 	# then ABANDON); still no note
 	_ok("and has no note, and a TITLE button", go != null
-		and go.card == null and _find(go, func(n: Node) -> bool: return n is NoteCard) == null
-		and _button(go, "TITLE") != null)
+		and go.card == null and Harness.first(go, func(n: Node) -> bool: return n is NoteCard) == null
+		and Harness.button_with_text(go, "TITLE") != null)
 	_ok("the cue both screens ask for is Lights Out, played once",
 		Audio.DEATH_CUE == &"lightsout" and Audio.DEATH_CUE in Audio.ONE_SHOT)
 	_finish()
@@ -352,7 +344,7 @@ func _custodian_party() -> void:
 func _body_slot(sc: SectorScreen) -> EnemySlot:
 	if sc == null:
 		return null
-	return _find(sc, func(n: Node) -> bool:
+	return Harness.first(sc, func(n: Node) -> bool:
 		return n is EnemySlot and (n as EnemySlot)._dead and (n as EnemySlot).opened.is_valid()) as EnemySlot
 
 
@@ -377,7 +369,7 @@ func _to_core(s: int) -> int:
 	SectorScreen._approached_at = idx
 	SaveGame.save()
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	return idx
 
 
@@ -388,7 +380,7 @@ func _beat_core() -> bool:
 	for i in 30:
 		if Router.combat != null and not Router.combat.enemies.is_empty():
 			break
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 	var cb: Combat = Router.combat
 	if not _ok("ENGAGE at the core opens a fight", cb != null and not cb.enemies.is_empty()):
 		return false
@@ -414,8 +406,8 @@ func _beat_core() -> bool:
 				break
 		if not played and not cb.finished:
 			cb.end_turn()
-		await _frames(2)
-	await _frames(4)
+		await Harness.frames(_tree, 2)
+	await Harness.frames(_tree, 4)
 	return _ok("the custodian dies (%s after %d plays)" % [cb.result, tries],
 		cb.finished and cb.result == &"won")
 
@@ -467,7 +459,7 @@ func _check_win_screen(when: String) -> void:
 		return
 	_ok("  the loot step is over", not Router.final_loot)
 	_ok("  it asks for the death screen's music (&\"gameover\")", Audio.music_asked == &"gameover")
-	_ok("  it says YOU WON", _find(go, func(n: Node) -> bool:
+	_ok("  it says YOU WON", Harness.first(go, func(n: Node) -> bool:
 		return n is Label and (n as Label).text == "YOU WON") != null)
 	var card := go.card
 	var tail := "\n\n<3\n\nJon"
@@ -475,15 +467,15 @@ func _check_win_screen(when: String) -> void:
 		and card.full_text == GameOverScreen.ALPHA_THANKS and card.full_text == AlphaNotes.ALPHA_THANKS
 		and card.full_text.ends_with("the game of my dreams." + tail)
 		and card.body.text + tail == AlphaNotes.ALPHA_THANKS)
-	var heart := _find(go, func(n: Node) -> bool: return n.name == &"Heart")
-	var sig := _find(go, func(n: Node) -> bool: return n.name == &"Signature") as Label
+	var heart := Harness.first(go, func(n: Node) -> bool: return n.name == &"Heart")
+	var sig := Harness.first(go, func(n: Node) -> bool: return n.name == &"Signature") as Label
 	_ok("  signed with the pixel heart, then JON", heart != null and sig != null and sig.text == "JON")
 	var note: Control = card.body.get_parent_control() if card != null else null
-	_ok("  the stats are on it", _find(go, func(n: Node) -> bool:
+	_ok("  the stats are on it", Harness.first(go, func(n: Node) -> bool:
 		return n is Label and (n as Label).text.contains("jumps ·")) != null)
-	_ok("  with TITLE, NEW RUN and SAVE MY LOGS", _button(go, "TITLE") != null
-		and _button(go, "NEW RUN") != null and _button(go, "SAVE MY LOGS") != null)
-	var title_b := _button(go, "TITLE")
+	_ok("  with TITLE, NEW RUN and SAVE MY LOGS", Harness.button_with_text(go, "TITLE") != null
+		and Harness.button_with_text(go, "NEW RUN") != null and Harness.button_with_text(go, "SAVE MY LOGS") != null)
+	var title_b := Harness.button_with_text(go, "TITLE")
 	_ok("  TITLE is the primary, on the amber plate", title_b != null
 		and title_b.get_theme_font_size("font_size") == UITheme.FS_HEAD
 		and title_b.get_theme_stylebox("normal") is StyleBoxTexture)
@@ -493,7 +485,7 @@ func _check_win_screen(when: String) -> void:
 	print("    screen %s, panel %s, note scrolls: %s" % [screen, panel, go.note_scrolls()])
 	_ok("  the panel is inside the screen", screen.grow(0.5).encloses(panel) and panel.size.y > 0.0)
 	if note != null:
-		var stats := _find(go, func(n: Node) -> bool:
+		var stats := Harness.first(go, func(n: Node) -> bool:
 			return n is Label and (n as Label).text.contains("jumps ·")) as Control
 		var nr := note.get_parent_control().get_global_rect()
 		_ok("  the note clears the stats and the buttons",
@@ -519,9 +511,9 @@ func _ordinary_fight() -> void:
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var cb: Combat = Router.combat
 	if not _ok("(ordinary) a cutter fight opens", cb != null):
 		return
@@ -539,8 +531,8 @@ func _ordinary_fight() -> void:
 				break
 		if not played and not cb.finished:
 			cb.end_turn()
-		await _frames(2)
-	await _frames(6)
+		await Harness.frames(_tree, 2)
+	await Harness.frames(_tree, 6)
 	_ok("(ordinary) the cutter dies", cb.result == &"victory")
 	var sc := Router.current as SectorScreen
 	_ok("(ordinary) you are left on LOCAL by its wreck", sc != null)
@@ -627,7 +619,7 @@ func _party_router_fight() -> void:
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var t := DirectTransport.new()
 	t.port = DirectTransport.DEFAULT_PORT + 19
 	t.advertise = "127.0.0.1"
@@ -643,7 +635,7 @@ func _party_router_fight() -> void:
 	Run.jumps = 5
 	Run.party_jumps = 20
 	Router.start_combat(DB.core_boss(), [], false, true)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var cb: Combat = Router.combat
 	var f := Net.fight_at(idx)
 	var want := Run.custodian_jumps()
@@ -666,7 +658,7 @@ func _party_router_fight() -> void:
 	Net.leave_fight(idx)
 	Net.roster[778] = Net._slot(778, "Vela", &"korvan", 2)
 	Router.start_combat(DB.core_boss(), [], false, true)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var f3 := Net.fight_at(idx)
 	_ok("(party) with a third player the next Custodian is built for three (%d, want %d), the badge still %d" % [
 		f3.foes[0].max_hp if f3 != null else -1, PartyScale.party_hull(h20, 3), CustodianBadge.count()],
@@ -680,7 +672,7 @@ func _party_router_fight() -> void:
 	Net.dive_seed = 0
 	Run.jumps = 0
 	Run.party_jumps = 0
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 func _win_screen() -> GameOverScreen:
@@ -689,24 +681,7 @@ func _win_screen() -> GameOverScreen:
 
 
 func _pause_menu() -> Node:
-	return _find(_tree.root, func(n: Node) -> bool: return n is PauseMenu)
-
-
-func _button(root: Node, text: String) -> Button:
-	return _find(root, func(n: Node) -> bool:
-		return n is Button and (n as Button).text == text and (n as Button).is_visible_in_tree()) as Button
-
-
-func _find(root: Node, matches: Callable) -> Node:
-	if root == null:
-		return null
-	if matches.call(root):
-		return root
-	for c in root.get_children():
-		var f := _find(c, matches)
-		if f != null:
-			return f
-	return null
+	return Harness.first(_tree.root, func(n: Node) -> bool: return n is PauseMenu)
 
 
 func _press(code: Key) -> void:
@@ -716,14 +691,13 @@ func _press(code: Key) -> void:
 		e.physical_keycode = code
 		e.pressed = down
 		Input.parse_input_event(e)
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 
 
 func _fail(why: String) -> void:
-	print("  FAIL %s" % why)
-	_fails += 1
+	harness._fail(why)
 
 
 func _finish() -> void:
-	print("corewintest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("corewintest")
+	_tree.quit(harness.code())

@@ -12,19 +12,12 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var dir := _arg("out", "user://subjects")
+	var dir := Harness.arg("out", "user://subjects")
 	DirAccess.make_dir_recursive_absolute(dir)
-	var want := _arg("subject", "all")
+	var want := Harness.arg("subject", "all")
 	var ids: Array[StringName] = []
 	for o: Dictionary in OptionTable.all():
 		if o.has("subject") and (want == "all" or String(o.id) in want.split(",")):
@@ -33,11 +26,11 @@ func _run() -> void:
 		print("subjectshot: no encounter %s carries a subject" % want)
 		tree.quit()
 		return
-	var wait := int(_arg("wait", "90"))
-	LocalSubject.force_pick = int(_arg("take", "-1"))
+	var wait := int(Harness.arg("wait", "90"))
+	LocalSubject.force_pick = int(Harness.arg("take", "-1"))
 	LocalEventDrawer.quiet = true
 	for oid in ids:
-		Rng.forced = int(_arg("seed", "4242"))
+		Rng.forced = Harness.seed_arg(4242)
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var idx := -1
 		for n: MapGen.MapNode in Run.map:
@@ -51,7 +44,7 @@ func _run() -> void:
 		node.options.append(oid)
 		var foes: Array = DB.enemies.keys()
 		foes.sort()
-		for w in int(_arg("wrecks", "0")):
+		for w in int(Harness.arg("wrecks", "0")):
 			Run.new_wreck(node, DB.enemies[foes[(w * 7 + 3) % foes.size()]])
 		SectorScreen._approached_at = idx
 		SystemMapScreen._parked.erase(idx)
@@ -79,8 +72,8 @@ func _run() -> void:
 				await RenderingServer.frame_post_draw
 		var sub := LocalSubject.of(sc._view)
 		tree.root.get_texture().get_image().save_png("%s/%s.png" % [dir, oid])
-		if _arg("clip") != "" and sub != null:
-			await _clip(sc, sub, "%s/%s" % [_arg("clip"), oid])
+		if Harness.arg("clip") != "" and sub != null:
+			await _clip(sc, sub, "%s/%s" % [Harness.arg("clip"), oid])
 		# YOUR SHIP'S PARTS ON ITS HULL, not floating where the hull used to be
 		for c in sc._view.ship_view().get_children():
 			if c is MountPoints:
@@ -122,8 +115,8 @@ func _clip(sc: SectorScreen, sub: LocalSubject, out: String) -> void:
 	f.store_string(JSON.stringify({x = int(box.position.x), y = int(box.position.y), w = int(box.size.x), h = int(box.size.y)}))
 	f.close()
 	var gv := GameShell.input_target(get_tree())
-	var t0 := float(_arg("clipstart", "20"))
-	var nf := int(_arg("clipframes", "300"))
+	var t0 := float(Harness.arg("clipstart", "20"))
+	var nf := int(Harness.arg("clipframes", "300"))
 	for k in nf:
 		ShipView.shot_clock = t0 + float(k) / 30.0
 		await RenderingServer.frame_post_draw

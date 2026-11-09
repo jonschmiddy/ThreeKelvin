@@ -4,75 +4,12 @@ extends RefCounted
 ## Shared UI building blocks. Everything is built in code so there is one
 ## source of truth for how a module row or a stat readout looks.
 
-## HOLD is the hold with a buyer; merged, SCRAP would quote or hide a sale price wrongly.
-enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD, BAG }
-
-## `note` replaces the button, not removes it: a row losing its button reflows the list.
-## One place decides the row kind, since cargo holds two kinds and `module_row` failed on crates.
-## Why: docs/why/Widgets.md#row-builders
-static func item_row(thing: Variant, ctx: ModuleContext, price: int,
-		on_action: Callable, note: String = "",
-		deck_size: int = -1) -> PanelContainer:
-	if thing is MaterialData:
-		return material_row(thing as MaterialData, ctx, price, on_action, note)
-	return module_row(thing as ModuleData, ctx, price, on_action, note,
-		deck_size)
-
-
-## Not a branch in `module_row`: share the row shape, not five fields ore lacks.
-## Why: docs/why/Widgets.md#row-builders
-static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
-		on_action: Callable, note: String = "") -> PanelContainer:
-	var panel := PanelContainer.new()
-	var sb := UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10)
-	sb.border_width_left = 3
-	# The tier, on the edge, where the manufacturer's colour sits on a module.
-	# Both answer "what sort of thing is this" at a glance down a list.
-	sb.border_color = UITheme.tier_colour(m.tier)
-	panel.add_theme_stylebox_override("panel", sb)
-
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	panel.add_child(box)
-
-	var top := HBoxContainer.new()
-	box.add_child(top)
-	top.add_child(UITheme.body(m.name, UITheme.ICE, UITheme.FS_BODY))
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(sp)
-	top.add_child(UITheme.body(String(m.tier).to_upper(),
-		UITheme.tier_colour(m.tier), UITheme.FS_SMALL))
-
-	# The two facts a decision turns on: what it costs you in room, and what it
-	# is worth when you find somewhere to sell it.
-	box.add_child(UITheme.body("%d x %d · sells for %d"
-		% [m.size.x, m.size.y, m.value], UITheme.COLD, UITheme.FS_SMALL))
-	var blurb := UITheme.body(m.text, UITheme.CHILL, UITheme.FS_SMALL)
-	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(blurb)
-
-	var buttons := HBoxContainer.new()
-	buttons.alignment = BoxContainer.ALIGNMENT_END
-	box.add_child(buttons)
-	if ctx == ModuleContext.BAG:
-		if note != "":
-			var gone := _btn(note, on_action.bind("noop", m))
-			gone.disabled = true
-			buttons.add_child(gone)
-		else:
-			var take := _btn("TAKE", on_action.bind("take", m))
-			take.tooltip_text = tip("Into your hold, if there is room for it.")
-			buttons.add_child(take)
-	return panel
-
-
 ## Fixed tooltip width, so tooltips along a row of mounts read as one panel, not four.
 ## Why: docs/why/Widgets.md#tooltips
 const TIP_W := 168
 
 ## WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover popup
-## (`module_readout`), the hull's tip (`module_tip_panel`) and the old list row (`module_row`).
+## (`module_readout`) and the hull's tip (`module_tip_panel`).
 ## Why: docs/why/Widgets.md#what-an-augmented-part-says
 const AUGMENTED_TEXT := "AUGMENTED. The Lab can't add to it again."
 
@@ -121,8 +58,12 @@ static func module_tip_panel(m: ModuleData) -> Control:
 
 	var gauges: PackedStringArray = []
 	for g in AffixData.GAUGES:
-		var raw: Variant = m.get(g)
-		var v: int = int(raw) if raw != null else 0
+		# A gauge is a pip count; the part holds it as the fields `PER_PIP` names.
+		var per: Dictionary = Run.PER_PIP.get(g, {})
+		var v := 0
+		if not per.is_empty():
+			var field: StringName = per.keys()[0]
+			v = int(round(float(m.get(field)) / float(per[field])))
 		if v != 0:
 			gauges.append("%s%d %s" % ["+" if v > 0 else "", v,
 				String(g).to_upper()])
@@ -175,132 +116,6 @@ static func paint_toggle(b: Button, label: String, on: bool,
 	b.add_theme_color_override("font_color", tint)
 	b.add_theme_color_override("font_focus_color", tint)
 
-
-static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
-		on_action: Callable, note: String = "", deck_size: int = -1) -> PanelContainer:
-	var panel := PanelContainer.new()
-	var sb := UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10)
-	sb.border_width_left = 3
-	sb.border_color = DB.manufacturer_colour(m.manufacturer)
-	if m.contraband:
-		sb.border_color = Color("#d4614f")
-	panel.add_theme_stylebox_override("panel", sb)
-
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	panel.add_child(box)
-
-	var top := HBoxContainer.new()
-	box.add_child(top)
-	top.add_child(UITheme.body(m.name, UITheme.ICE, UITheme.FS_BODY))
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(sp)
-	top.add_child(UITheme.body(ModuleData.rarity_name(m.rarity),
-		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
-
-	# Grants is printed as a stat: the Grant Count Law only works if the count is visible.
-	var meta := "%s · %s · grants %d" % [DB.manufacturer_name(m.manufacturer),
-		ModuleData.slot_name(m.slot), m.grant_count()]
-	if m.contraband:
-		meta += " · CONTRABAND"
-	box.add_child(UITheme.body(meta, UITheme.COLD, 10))
-
-	for a in m.affixes:
-		box.add_child(UITheme.body("%s: %s" % [a.name, a.text], Color("#d4b98f"), 10))
-	if m.augmented:
-		box.add_child(augmented_label(0.0, 10))
-
-	# Cards are counted, not repeated: a module granting two of a card listed it twice with x1.
-	# Why: docs/why/Widgets.md#module-row
-	var counts: Dictionary = {}
-	var order: Array[String] = []
-	for c in m.resolved_cards():
-		var line := "%s · %dnrg%s · %s" % [
-			c.name, c.energy,
-			"" if c.heat == 0 else " · %dheat" % c.heat,
-			c.describe(),
-		]
-		if not counts.has(line):
-			counts[line] = 0
-			order.append(line)
-		counts[line] = int(counts[line]) + 1
-	for line in order:
-		box.add_child(UITheme.body("×%d  %s" % [int(counts[line]), line],
-			UITheme.CHILL, 10))
-
-	# Show the install-time deck delta at the point of choice, so the Grant Count Law is visible.
-	# The caller computes it once: building it per row did twenty full deck builds.
-	# Why: docs/why/Widgets.md#module-row
-	var here := deck_size if deck_size >= 0 else DeckBuilder.build().size()
-	var delta := 0
-	if ctx == ModuleContext.INSTALLED:
-		delta = -m.grant_count()
-	else:
-		# Every other context ends with the part fitted: cargo, shop stock and
-		# the hold at a station all read the deck AFTER installing it.
-		delta = m.grant_count()
-		# A swap into a full rack takes the displaced module's cards with it.
-		if Run.slots_used(m.slot) >= Run.slots_for(m.slot):
-			for inst in Run.installed:
-				var im: ModuleData = inst
-				if im.slot == m.slot:
-					delta -= im.grant_count()
-					break
-	if delta != 0:
-		var arrow := "deck %d → %d" % [here, here + delta]
-		box.add_child(UITheme.body(arrow,
-			UITheme.THEM if delta > 0 else UITheme.GOOD, 10))
-
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 5)
-	box.add_child(buttons)
-	match ctx:
-		ModuleContext.CARGO:
-			var full := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
-			buttons.add_child(_btn("SWAP IN" if full else "INSTALL",
-				on_action.bind("install", m)))
-			buttons.add_child(_scrap_button(m, on_action))
-		ModuleContext.HOLD:
-			var full2 := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
-			buttons.add_child(_btn("SWAP IN" if full2 else "INSTALL",
-				on_action.bind("install", m)))
-			# A zero bid means the station will not buy: say why instead of hiding the button.
-			if price > 0:
-				var sell := _btn("SELL +%d" % price, on_action.bind("sell", m))
-				sell.tooltip_text = tip("What this market pays. A manufacturer's own yard has plenty of its own parts, and a rival's yard is short of them.")
-				buttons.add_child(sell)
-			else:
-				var refused := _btn("WILL NOT BUY", on_action.bind("noop", m))
-				refused.disabled = true
-				refused.tooltip_text = tip("It is illegal here. Dealers in lawless space pay extra for it.")
-				buttons.add_child(refused)
-			buttons.add_child(_scrap_button(m, on_action))
-		ModuleContext.INSTALLED:
-			buttons.add_child(_btn("REMOVE", on_action.bind("uninstall", m)))
-		ModuleContext.SHOP:
-			var b := _btn("BUY %d" % price, on_action.bind("buy", m))
-			b.disabled = Run.credits < price
-			buttons.add_child(b)
-		ModuleContext.BAG:
-			if note != "":
-				var gone := _btn(note, on_action.bind("noop", m))
-				gone.disabled = true
-				gone.tooltip_text = tip("Someone else got to this bag first.")
-				buttons.add_child(gone)
-			else:
-				var take := _btn("TAKE", on_action.bind("take", m))
-				# Said out loud, because the cost of pressing it is that nobody
-				# else can. A race is only fair if both players know it is one.
-				take.tooltip_text = tip("Puts it in your hold. The first pilot to take it keeps it.")
-				buttons.add_child(take)
-	return panel
-
-## No materials on SCRAP any more; scrapping no longer yields any.
-static func _scrap_button(m: ModuleData, on_action: Callable) -> Button:
-	var b := _btn("SCRAP +%d" % Run.scrap_value_of(m), on_action.bind("scrap", m))
-	b.tooltip_text = tip("Breaks it down for credits, right here. It pays the least, but needs no station.")
-	return b
 
 static func hull_row(h: HullData, label: String, price: int,
 		on_action: Callable) -> PanelContainer:
@@ -386,7 +201,7 @@ static func commit(b: Button, pad_v: int = 5, pad_h: int = 14) -> Button:
 	b.add_theme_stylebox_override("focus",
 		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, pad_v, pad_h))
 	b.add_theme_stylebox_override("disabled",
-		UITheme.flat(Color("#0a0e15"), UITheme.LINE, 0, pad_v, pad_h))
+		UITheme.flat(UITheme.VOID, UITheme.LINE, 0, pad_v, pad_h))
 	b.add_theme_color_override("font_color", UITheme.EMBER)
 	b.add_theme_color_override("font_hover_color", UITheme.HOT)
 	b.add_theme_color_override("font_focus_color", UITheme.EMBER)
@@ -474,6 +289,24 @@ static func panel_with(child: Control) -> PanelContainer:
 		UITheme.flat(Color(UITheme.PANEL, UITheme.PANEL_A), UITheme.LINE, 0, 12, 12))
 	p.add_child(child)
 	return p
+
+## A dimmed prompt over `host`: the shade eats input and a left click on its margin calls
+## `on_dismiss`. Put the card (mouse STOP, so only the margin dismisses) in the returned centre.
+static func prompt(host: Control, on_dismiss: Callable, alpha: float = 0.80) -> CenterContainer:
+	var shade := ColorRect.new()
+	shade.color = Color(NoteCard.DIM, alpha)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	shade.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			on_dismiss.call())
+	host.add_child(shade)
+	var mid := CenterContainer.new()
+	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.add_child(mid)
+	return mid
 
 ## Pin to the viewport rect, not the screen's: Main's margin left a lighter frame (Jon, Oct 20).
 ## Why: docs/why/Widgets.md#layout-helpers
@@ -743,7 +576,8 @@ static func set_tip(id: StringName, have: int, fitted: int) -> String:
 		return ""
 	var head := "%s · %d toward the set" % [DB.short_name(m.name).to_upper(), have]
 	if have > fitted:
-		head += " (the hull alone)" if fitted == 0 			else " (%d fitted, +1 hull)" % fitted
+		head += " (the hull alone)" if fitted == 0 \
+			else " (%d fitted, +1 hull)" % fitted
 	var out: PackedStringArray = [head, ""]
 	for tier in [3, 5]:
 		var nm := m.set3_name if tier == 3 else m.set5_name

@@ -8,28 +8,21 @@ const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 var _args: PackedStringArray
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
-	if _arg("packlayout") != "":
-		EncounterView.pack_layout = StringName(_arg("packlayout"))
+	if Harness.arg("packlayout") != "":
+		EncounterView.pack_layout = StringName(Harness.arg("packlayout"))
 	_run.call_deferred()
 
 
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var out := _arg("out", "user://enemyshot")
+	var out := Harness.arg("out", "user://enemyshot")
 	DirAccess.make_dir_recursive_absolute(out)
 	var shots: Array = []
-	var ids := _arg("ids")
-	var packs := _arg("packs")
+	var ids := Harness.arg("ids")
+	var packs := Harness.arg("packs")
 	if ids != "":
 		for s in ids.split(","):
 			shots.append([s])
@@ -52,10 +45,10 @@ func _run() -> void:
 
 
 func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.hand_size_override = 5
-	var want := _arg("sky", "calm")
+	var want := Harness.arg("sky", "calm")
 	var idx := -1
 	for n: MapGen.MapNode in Run.map:
 		if n.type == MapGen.NodeType.STATION or n.type == MapGen.NodeType.START:
@@ -79,20 +72,20 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 	var extras: Array = []
 	for i in range(1, kinds.size()):
 		extras.append(DB.enemies[kinds[i]])
-	var name := "+".join(ids).replace(":", "-") + _arg("tag")
+	var name := "+".join(ids).replace(":", "-") + Harness.arg("tag")
 	# `local` (a pack of one shot's ids): no fight -- each is left at the
 	# system as a wreck, and LOCAL is opened on them, as after a fight
 	if "local" in _args:
 		for i in kinds.size():
 			Run.new_wreck(Run.node_at(), DB.enemies[kinds[i]], maxi(0, int(looks[i])))
 		Router.show_local()
-		for i in int(_arg("wait", "150")):
+		for i in int(Harness.arg("wait", "150")):
 			await RenderingServer.frame_post_draw
 		tree.root.get_texture().get_image().save_png("%s/%s.png" % [out, name])
 		GameShell.input_target(tree).get_texture().get_image().save_png("%s/%s_1x.png" % [out, name])
 		return {"name": name, "ids": ids, "local": true}
 	Router.start_combat(DB.enemies[kinds[0]], extras, false, false)
-	var hp := float(_arg("hp", "1"))
+	var hp := float(Harness.arg("hp", "1"))
 	if Router.combat != null:
 		for k in Router.combat.enemies.size():
 			var e: Combat.EnemyState = Router.combat.enemies[k]
@@ -101,11 +94,11 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 			if hp < 1.0:
 				e.hp = clampi(int(round(float(e.max_hp) * hp)), 1, e.max_hp)
 			# `dead=0,2`: those ships are already wrecks when the picture is taken
-			if str(k) in _arg("dead").split(","):
+			if str(k) in Harness.arg("dead").split(","):
 				e.hp = 0
 			# `block=N`: every ship holding N block (its shield up)
-			if _arg("block") != "":
-				e.block = int(_arg("block"))
+			if Harness.arg("block") != "":
+				e.block = int(Harness.arg("block"))
 			if "tele" in _args:
 				var t: IntentData = null
 				for it in e.template.loop:
@@ -114,12 +107,12 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 				e.intent = t if t != null else Combat.escape_intent()
 		Sig.enemy_changed.emit()
 	var gv := GameShell.input_target(tree)
-	var film := int(_arg("film", "0"))
+	var film := int(Harness.arg("film", "0"))
 	if film > 0:
 		var dir := "%s/%s_clip" % [out, name]
 		DirAccess.make_dir_recursive_absolute(dir)
 		var cb = Router.combat
-		var kill_at := int(_arg("killat", "-1"))
+		var kill_at := int(Harness.arg("killat", "-1"))
 		for f in film:
 			# `killat=F`: the first ship still flying is killed outright on frame F
 			# (its breakup plays)
@@ -160,7 +153,7 @@ func _shoot(tree: SceneTree, ids: Array, out: String) -> Dictionary:
 				tf.store_line(JSON.stringify(row))
 				tf.close()
 		return {"name": name, "ids": ids, "film": film}
-	for i in int(_arg("wait", "150")):
+	for i in int(Harness.arg("wait", "150")):
 		await RenderingServer.frame_post_draw
 	var view: EncounterView = null
 	var sc = Router.current

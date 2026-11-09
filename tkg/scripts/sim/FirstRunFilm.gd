@@ -5,7 +5,6 @@ extends Node
 
 const READ_WPS := 4.0   # 240 words a minute, a quick adult reader
 
-var _args: PackedStringArray
 var _dir := ""
 var _t := 0.0
 var _frame := 0
@@ -42,15 +41,7 @@ class Ptr extends Control:
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _process(delta: float) -> void:
@@ -197,18 +188,6 @@ func _read_hint() -> void:
 		await _read(words)
 
 
-func _find_button(root: Node, text: String) -> Button:
-	if root == null:
-		return null
-	if root is Button and (root as Button).text == text and (root as Button).is_visible_in_tree():
-		return root
-	for c in root.get_children():
-		var b := _find_button(c, text)
-		if b != null:
-			return b
-	return null
-
-
 func _overlay() -> void:
 	var vp := GameShell.input_target(get_tree())
 	var layer := CanvasLayer.new()
@@ -239,7 +218,7 @@ func _finish(code: int = 0) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	_dir = _arg("out")
+	_dir = Harness.arg("out")
 	if _dir != "":
 		DirAccess.make_dir_recursive_absolute(_dir)
 	Router.animate_in_harness = true
@@ -253,7 +232,7 @@ func _run() -> void:
 	# harness's own scratch files)
 	SaveGame.clear()
 	RunHistory.clear()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	_overlay()
 	Sig.screen_changed.connect(func() -> void: _mark("screen", {screen = _screen_name()}))
 	_mark("title")
@@ -267,13 +246,13 @@ func _flow() -> void:
 	var wp := Router.current.find_child("WelcomePopup", true, false) as WelcomePopup
 	_mark("welcome_note", {words = AlphaNotes.ALPHA_WELCOME.split(" ").size()})
 	# a new player skims Jon's letter: 15 s (a full read at 240 wpm is ~40 s)
-	await _wait(float(_arg("note_s", "15")))
+	await _wait(float(Harness.arg("note_s", "15")))
 	if wp != null:
 		await _click(wp.button, "close the welcome note", true)
 	await _wait(1.2)
 	# ---- 2. NEW RUN, then the hull pick (a fresh profile has no seed panel;
 	# a profile with a save or a flight record does, and it is read and passed)
-	var nr := _find_button(Router.current, "NEW RUN")
+	var nr := Harness.button_with_text(Router.current, "NEW RUN")
 	_mark("new_game")
 	var t_new := _t
 	await _click(nr, "NEW RUN")
@@ -281,12 +260,12 @@ func _flow() -> void:
 	if not (Router.current is ChassisSelect):
 		_mark("seed_popup", {text = "LAUNCH A RUN / Leave the seed empty for a new, random galaxy."})
 		await _read(13)
-		await _click(_find_button(Router.current, "LAUNCH"), "LAUNCH (seed popup)", true)
+		await _click(Harness.button_with_text(Router.current, "LAUNCH"), "LAUNCH (seed popup)", true)
 	await _until(func() -> bool: return Router.current is ChassisSelect, 10.0)
 	_mark("chassis_select")
 	# looking the hull over, as a new player does
-	await _wait(float(_arg("chassis_s", "8")))
-	await _click(_find_button(Router.current, "LAUNCH"), "LAUNCH (hull pick)")
+	await _wait(float(Harness.arg("chassis_s", "8")))
+	await _click(Harness.button_with_text(Router.current, "LAUNCH"), "LAUNCH (hull pick)")
 	_mark("launched")
 	# ---- 3. the arrival; no tour: the controls are yours when the ship stops
 	await _until(func() -> bool:
@@ -351,7 +330,7 @@ func _flow() -> void:
 		var sc := Router.current as SectorScreen
 		if sc != null:
 			await _wait(1.5)
-			var scan := _find_button(sc, "SCAN SECTOR")
+			var scan := Harness.button_with_text(sc, "SCAN SECTOR")
 			_mark("drawer_line")
 			await _read(5)
 			await _click(scan, "SCAN SECTOR")
@@ -559,7 +538,7 @@ func _after_fight() -> void:
 	await _until(func() -> bool: return Router.combat == null and Router.current is SectorScreen, 30.0)
 	var sc := Router.current as SectorScreen
 	await _wait(2.0)
-	var cont := _find_button(sc, "CONTINUE")
+	var cont := Harness.button_with_text(sc, "CONTINUE")
 	if cont != null:
 		_mark("victory_panel")
 		await _read(20)
@@ -580,7 +559,7 @@ func _after_fight() -> void:
 			await _drag_loot(sc._transfer)
 			await _wait(1.5)
 			if sc._transfer != null:
-				await _click(_find_button(sc._transfer, "DONE"), "DONE (wreck)")
+				await _click(Harness.button_with_text(sc._transfer, "DONE"), "DONE (wreck)")
 	await _wait(1.0)
 	# whatever hint comes next (SECTOR LOOT, your ship)
 	for k in 3:

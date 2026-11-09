@@ -905,6 +905,8 @@ func _halve(small: Image) -> void:
 			_solid[y * _w + x] = 0
 	for nz in nozzles:
 		nz.pts = _half_pts(nz.pts)
+		if nz.has("over_span"):
+			nz.over_span = int(nz.over_span) / 2
 		if nz.has("bell"):
 			var b: Dictionary = nz.bell
 			b.cells = _half_pts(b.cells)

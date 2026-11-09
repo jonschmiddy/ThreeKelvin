@@ -39,14 +39,14 @@ parts move, in whole pixels, on held steps (8 or 12 a second):
     read as nearer), and each piece is filled in behind its neighbours from
     its own nearest pixels, so a piece that moves a pixel or two uncovers
     more of the piece behind it, never a hole. Its pinpoints are the warm
-    pixels sitting in dark glass (too pale for `ShipBreakup._is_glow`), cut
+    pixels sitting in dark glass (too pale for `BreakupCuts._is_glow`), cut
     into their little star clusters, each riding its piece.
   - THE CREATURES in one small shader: a medial line per column (a swell
     parts the body there, the belly half dropping, the back half rising),
     their spines (the calf's are its thin lines, what a 3x3 opening of the
     silhouette loses; the Leviathan's are the pale crystal blobs along its
     back), the Leviathan's two hanging flippers (below a belly line drawn
-    between them), and their lights (`ShipBreakup._is_glow`'s, the pixels its
+    between them), and their lights (`BreakupCuts._is_glow`'s, the pixels its
     creature deaths dim).
 
 LIGHT IS DRAWN AS LIGHT (memory draw-light-as-light): every glowing pixel is

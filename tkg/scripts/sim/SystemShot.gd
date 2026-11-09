@@ -55,7 +55,7 @@ func _ready() -> void:
 		elif s.begins_with("star="):
 			sky_star = s.substr(5)
 		elif s == "wramp=0":
-			load("res://scripts/ui/sysmap/SystemView.gd").no_ramp = true
+			_system_view().no_ramp = true
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# `kinds`: the systems in each kind of nebula (`NebulaField.Kind`), with
 	# their star's kind, and quit -- to find one of each to photograph
@@ -195,6 +195,10 @@ func _ready() -> void:
 			if m.type == MapGen.NodeType.SYSTEM and m.options.size() >= 3:
 				n = m
 				break
+	if n == null:
+		print("  systemshot: no system matches those flags in this run")
+		get_tree().quit()
+		return
 	# Set `Run.at` as the game does, or an option resolved here would stamp the wrong system.
 	Run.at = n.index
 	# `nebkind=K` forces the cloud kind, as seed 4242 rolls no emission cloud.
@@ -260,7 +264,7 @@ func _ready() -> void:
 	# `ring=A|B|C`: the painted rings Jon is choosing between, not the dots
 	PlanetView.ring_style = Rings.look_from_args()
 	# `small`: worlds at their laid-out size, not the 10 px minimum; `noship`: the ship left at the edge
-	load("res://scripts/ui/sysmap/SystemView.gd").min_r = 0.0 if "small" in OS.get_cmdline_user_args() else 10.0
+	_system_view().min_r = 0.0 if "small" in OS.get_cmdline_user_args() else 10.0
 	var scr: Control = ScreenS.new()
 	content.add_child(scr)
 	scr.frozen = true
@@ -1563,3 +1567,7 @@ static func _body_arg(L: SystemLayout, v: String) -> int:
 				return b.index
 		return -9
 	return int(v)
+
+
+func _system_view() -> Variant:
+	return load("res://scripts/ui/sysmap/SystemView.gd")

@@ -7,9 +7,6 @@ extends RefCounted
 const LW := 766
 const LH := 482
 const DIR := "res://art/sprites/station/yard/"
-## The page's stepped light: sixths, smooth under the first one and a half.
-const LSTEP := 1.0 / 6.0
-const LSOFT := 1.5 / 6.0
 ## E4: a ceiling lamp flickers out and pops back on; E7's short knock is the
 ## other shape (unused since Jon cut the flyer that clipped a lamp).
 const FLICK_LONG := [[0.0, 1.0], [0.1, 0.15], [0.2, 1.0], [0.32, 0.1], [0.45, 0.85], [0.52, 0.05],
@@ -228,8 +225,7 @@ func set_fullbright(on: bool) -> void:
 # ------------------------------------------------------------------ the clocks
 
 static func hash1(v: float) -> float:
-	var x := sin(v * 127.1) * 43758.5453
-	return x - floorf(x)
+	return UIHash.hash1(v)
 
 
 static func vnoise(v: float) -> float:

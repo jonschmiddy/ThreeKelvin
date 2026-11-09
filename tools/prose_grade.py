@@ -49,7 +49,9 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "tkg", "scripts", "systems", "OptionTable.gd")
+# The encounters are authored in OptionsPart01..NN.gd, joined in number order by
+# OptionTable._authored, so sorted names are the table's order.
+SRC = os.path.join(ROOT, "tkg", "scripts", "systems", "options")
 GRADE_MAX = 7.0     # RULED 2026-10-13 (was 5.0)
 WORDS_MAX = 17.0    # follows the grade (was 13.0)
 SENTENCE_MAX = 22
@@ -88,13 +90,19 @@ def grade(text: str):
 		max(len(s.split()) for s in ss))
 
 
+def sources():
+	"""(file name, text) for each authored file, in table order."""
+	return [(n, io.open(os.path.join(SRC, n), encoding="utf-8").read())
+		for n in sorted(os.listdir(SRC)) if n.endswith(".gd")]
+
+
 def blocks() -> dict:
-	t = io.open(SRC, encoding="utf-8").read()
 	out = {}
-	for blk in re.split(r"\n(?=\t\t\{\n)", t):
-		m = re.search(r'id = &"([a-z_0-9]+)"', blk)
-		if m:
-			out[m.group(1)] = blk
+	for _name, t in sources():
+		for blk in re.split(r"\n(?=\t\t\{\n)", t):
+			m = re.search(r'id = &"([a-z_0-9]+)"', blk)
+			if m:
+				out[m.group(1)] = blk
 	return out
 
 

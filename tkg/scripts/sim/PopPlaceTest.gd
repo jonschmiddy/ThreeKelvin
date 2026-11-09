@@ -4,7 +4,7 @@ extends Node
 ## Why: docs/why/PopPlaceTest.md#pop-placement
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 var _checked := 0
 const TOL := 1.0
 
@@ -12,8 +12,7 @@ const TOL := 1.0
 func _ok(what: String, c: bool) -> bool:
 	_checked += 1
 	if not c:
-		print("  FAIL %s" % what)
-		_fails += 1
+		h._fail(what)
 	return c
 
 
@@ -21,14 +20,9 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var hulls := 0
 	for m in DB.manufacturers.keys():
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
@@ -61,8 +55,8 @@ func _run() -> void:
 			_check_enemy(sc3, i2, "%s (%d of pack %s)" % [Router.combat.enemies[i2].template.id, i2, ",".join(PackedStringArray(pk))])
 	print("  %d player hulls, %d enemy pictures, %d ships in packs, %d checks" % [hulls, foes, packed, _checked])
 	_ok("some of each were checked", hulls > 0 and foes > 0)
-	print("popplacetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("popplacetest")
+	_tree.quit(h.code())
 
 
 func _fight(m: StringName, w: int, foe: StringName, more: Array = []) -> SectorScreen:
@@ -79,7 +73,7 @@ func _fight(m: StringName, w: int, foe: StringName, more: Array = []) -> SectorS
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	if not DB.enemies.has(foe):
 		return null
 	var extras: Array = []
@@ -87,7 +81,7 @@ func _fight(m: StringName, w: int, foe: StringName, more: Array = []) -> SectorS
 		extras.append(DB.enemies[x])
 	Run.node_at().danger = maxi(Run.node_at().danger, 4)
 	Router.start_combat(DB.enemies[foe], extras, false, false)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var sc := Router.current as SectorScreen
 	if sc == null or Router.combat == null or sc._view == null:
 		print("  (no fight for %s against %s)" % [m, foe])
@@ -122,7 +116,7 @@ func _check_pops(pops: Array, ink: Rect2, what: String) -> void:
 
 
 func _check_player(sc: SectorScreen, what: String) -> void:
-	var ss: EncounterView.ShipSlot = sc._view._ship_slot
+	var ss: ShipSlot = sc._view._ship_slot
 	if not _ok("%s: your ship has a slot" % what, ss != null and ss.art != null):
 		return
 	var ink := ss.ink_rect()

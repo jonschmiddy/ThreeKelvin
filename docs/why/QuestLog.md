@@ -9,7 +9,7 @@ THE QUESTS YOU HOLD (Jon, Oct 22, design A of the quest log, after Kevin's
 playtest: "I needed a quest menu or some type of quest [log]"). The HUD's
 QUESTS tab opens them as a table (`QuestPanel`), and a row's SHOW ON STARCHART
 and PLOT ROUTE open the chart on the quest's place, tagged with its number
-(`StarchartScreen.MapChart.place_quest_tags`), with its route from YOU.
+(`MapChart.place_quest_tags`), with its route from YOU.
 
 A QUEST IS A SIGNED CONTRACT, `Run.contracts` less the closed ones, in the
 order you signed them; AND AN EVENT QUEST (Jon, Oct 22: an event that plants

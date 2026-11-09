@@ -224,8 +224,8 @@ The historical note below is why the names read the way they do.
 Originally empty on every hull and superseded by the three LINES below. They were
 authored for the 3/4 camera — a far row and a near row is a statement about a
 visible deck, and an edge-on elevation has one plane. Kept because
-`ShipSprite.gd` still reads them and that file is the module-compositing path
-nobody has retired yet; anything new should ask `mounts_along()`.
+`ShipSprite.gd` read them; that module-compositing path was never instantiated
+and is deleted; anything new should ask `mounts_along()`.
 ```
 
 ## Mount lines

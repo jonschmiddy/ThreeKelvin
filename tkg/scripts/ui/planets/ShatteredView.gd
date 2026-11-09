@@ -1,5 +1,5 @@
 class_name ShatteredView
-extends Node2D
+extends WorldView
 
 ## A world in pieces (Jon's pick, Shards): the seed makes it break the same way each time.
 
@@ -10,23 +10,11 @@ const SCALE := 0.64
 const CORE := 0.24
 const RUBBLE := 60
 
-var spec: Dictionary = {}
-var _disc: ColorRect
-var _mat: ShaderMaterial
 var _back: _Rubble
 var _front: _Rubble
 var _rub: Array = []
 var _t: float = 0.0
 var _light: Vector3 = Vector3(-0.83, -0.31, 0.47)
-var _cell := 1
-## The surface remembers last frame so grain and edges do not go A, B, A across the pixel grid.
-## Why: docs/why/ShatteredView.md#surface-memory
-var _mem_vp: SubViewport
-var _mem_copy: SubViewport
-var _mem_mat: ShaderMaterial
-var _mem_fresh := 0
-var _mem_r := -1.0
-var _mem_off := Vector2.INF
 ## what the memory's pass must see each frame as the pieces on screen see it
 const MEM_LIVE := ["time", "light", "k_light", "r", "ctr_off", "cell", "painted"]
 
@@ -165,94 +153,5 @@ func step(t: float, light: Vector3, k_light: float = 1.0, star_at: Vector2 = Vec
 	_front.queue_redraw()
 
 
-## Memory built or rebuilt for the world's current size, as `PlanetView._mem_setup`.
-func _mem_setup() -> void:
-	if PixelTurn.world_mode != PixelTurn.Mode.BLENDED or spec.is_empty():
-		return
-	var cl := maxi(_cell, 1)
-	var hs := int(_mat.get_shader_parameter("half_size"))
-	var half := ceili(float(hs) / float(cl))
-	var n := 2 * half + 1
-	if _mem_vp == null:
-		_mem_vp = SubViewport.new()
-		_mem_vp.transparent_bg = true
-		_mem_vp.disable_3d = true
-		_mem_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
-		var rect := ColorRect.new()
-		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_mem_mat = ShaderMaterial.new()
-		_mem_mat.shader = SHADER
-		rect.material = _mem_mat
-		_mem_vp.add_child(rect)
-		# last frame's memory, copied exactly (its alpha is a count, not a coverage)
-		_mem_copy = SubViewport.new()
-		_mem_copy.transparent_bg = true
-		_mem_copy.disable_3d = true
-		_mem_copy.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		var last := TextureRect.new()
-		last.texture = _mem_vp.get_texture()
-		last.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		last.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		last.stretch_mode = TextureRect.STRETCH_SCALE
-		var cm := CanvasItemMaterial.new()
-		cm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
-		last.material = cm
-		_mem_copy.add_child(last)
-		_mem_vp.add_child(_mem_copy)
-		add_child(_mem_vp)
-		RenderingServer.frame_pre_draw.connect(_mem_sync)
-		PixelTurn.timed(_mem_vp)
-		PixelTurn.timed(_mem_copy)
-	_mem_vp.size = Vector2i(n, n)
-	_mem_copy.size = Vector2i(n, n)
-	(_mem_vp.get_child(0) as ColorRect).size = Vector2(n, n)
-	(_mem_copy.get_child(0) as TextureRect).size = Vector2(n, n)
-	# everything the pieces on screen were given, then the memory's own
-	for u: Dictionary in _mat.shader.get_shader_uniform_list():
-		var nm := String(u.name)
-		if not nm.begins_with("mem_"):
-			_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))
-	for m: ShaderMaterial in [_mat, _mem_mat]:
-		m.set_shader_parameter("mem_n", n)
-		m.set_shader_parameter("mem_half", half)
-		m.set_shader_parameter("mem_ease", PixelTurn.EASE)
-		m.set_shader_parameter("mem_hyst", PixelTurn.HYST)
-		m.set_shader_parameter("mem_release", PixelTurn.RELEASE)
-	_mem_mat.set_shader_parameter("mem_mode", 1)
-	_mem_mat.set_shader_parameter("mem_prev", _mem_copy.get_texture())
-	_mat.set_shader_parameter("mem_mode", 2)
-	_mat.set_shader_parameter("mem_now", _mem_vp.get_texture())
-	_mem_fresh = 2
-
-
-## Each frame before anything is drawn: the memory's pass handed what changed
-## this frame; nothing held on a new size or centre (the map's smooth zoom).
-func _mem_sync() -> void:
-	if _mem_mat == null or not is_inside_tree():
-		return
-	var t0 := Time.get_ticks_usec() if PixelTurn.cost_on else 0
-	var r := float(_mat.get_shader_parameter("r"))
-	var ov: Variant = _mat.get_shader_parameter("ctr_off")
-	var off: Vector2 = ov if ov is Vector2 else Vector2.ZERO
-	if r != _mem_r or off.distance_to(_mem_off) > float(maxi(_cell, 1)):
-		_mem_fresh = maxi(_mem_fresh, 1)
-	_mem_r = r
-	_mem_off = off
-	for nm: String in MEM_LIVE:
-		_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))
-	_mem_mat.set_shader_parameter("mem_fresh", _mem_fresh > 0)
-	if _mem_fresh > 0:
-		_mem_fresh -= 1
-	if PixelTurn.cost_on:
-		PixelTurn.cpu_us += Time.get_ticks_usec() - t0
-
-
-func _exit_tree() -> void:
-	if RenderingServer.frame_pre_draw.is_connected(_mem_sync):
-		RenderingServer.frame_pre_draw.disconnect(_mem_sync)
-
-
-func _enter_tree() -> void:
-	if _mem_mat != null and not RenderingServer.frame_pre_draw.is_connected(_mem_sync):
-		RenderingServer.frame_pre_draw.connect(_mem_sync)
-		_mem_fresh = 2
+func _mem_live() -> Array:
+	return MEM_LIVE

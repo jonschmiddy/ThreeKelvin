@@ -414,7 +414,7 @@ func _cut_creature() -> void:
 			var c := _img.get_pixel(x, y)
 			if c.a > 0.5:
 				ink[y * W + x] = 1
-				if ShipBreakup._is_glow(c):
+				if BreakupCuts._is_glow(c):
 					glow[y * W + x] = 1
 	var spine := PackedByteArray()
 	spine.resize(n)
@@ -819,11 +819,6 @@ func spine_off_at(x: int) -> int:
 	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or x < 0 or x >= _W:
 		return 0
 	return _cur[x * 4 + 1]
-
-
-## The held step's time: what is drawn now was worked out for this moment.
-func step_t() -> float:
-	return floorf(t * fps() + 1e-3) / fps()
 
 
 ## What a shader needs to show a rest-space picture where this motion shows the

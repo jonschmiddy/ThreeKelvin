@@ -8,7 +8,7 @@ const PORT_HOSTING := DirectTransport.DEFAULT_PORT + 29
 const PORT_GUEST := DirectTransport.DEFAULT_PORT + 31
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 var _said: PackedStringArray = PackedStringArray()
 var _systems: Array[int] = []
 var _branch: Node = null
@@ -45,10 +45,7 @@ class ErrCount extends Logger:
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
@@ -57,7 +54,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Sig.log_line.connect(func(t: String, _k: StringName) -> void: _said.append(t))
 	OS.add_logger(_errs)
 	await _host_side()
@@ -85,7 +82,7 @@ func _host_side() -> void:
 	_said.clear()
 	Router.forced_race = true
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"hulk"]], true, true)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var cb: Combat = Router.combat
 	var f := Net.fight_at(at)
 	if _ok("(host) the fight started, and it is the party's", cb != null and cb.is_shared() and f != null):
@@ -102,7 +99,7 @@ func _host_side() -> void:
 	Router.combat = null
 	await _host_save_exit_closes_the_barrier()
 	Net.leave_party()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## A host's leave closes the barrier at once, so `abandon` lets go of the signal bus first.
@@ -113,7 +110,7 @@ func _host_save_exit_closes_the_barrier() -> void:
 	await _go(at)
 	SaveGame.save()
 	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var cb: Combat = Router.combat
 	if not _ok("(host-exit) the host's own fight is open, and shared",
 			cb != null and cb.is_shared() and Net.fight_at(at) != null):
@@ -121,12 +118,12 @@ func _host_save_exit_closes_the_barrier() -> void:
 	var v := _plan(&"cutter", [])
 	Net._open_or_join(at, v.foe_ids(), v.foe_hp(), v.foe_brace(), v.foe_hp_now(), v.grown, 777)
 	Net._apply_end_turn(at, 777)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("(host-exit) VELA is in it and has ended her turn",
 		Net.fight_at(at).crew.has(777) and Net.fight_at(at).ended.has(777) and Net.fight_at(at).turn == 1)
 	var errs := _errs.scripts
 	await _menu(&"save")
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	var f := Net.fight_at(at)
 	_ok("(host-exit) the leave closes the barrier: the host is out, the turn moves (crew %s, turn %d)" % [
 		str(f.crew), f.turn], not f.crew.has(Net.local_id()) and f.turn == 2)
@@ -234,13 +231,13 @@ func _save_exit_and_continue() -> void:
 	_ok("(save) this ship ended its turn and is waiting on VELA", cb.waiting)
 	var errs := _errs.n
 	await _menu(&"save")
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("(save) SAVE & EXIT leaves the fight: the host's crew drops this ship", await _until(func() -> bool:
 		return not _host.fight_at(at).crew.has(me), 3.0))
 	_host.report_end_turn(at)
 	_ok("(save) VELA's END TURN moves the turn", await _until(func() -> bool:
 		return _host.fight_at(at).turn == 2, 3.0))
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_ok("(save) and nothing here breaks when it does (%d errors%s)" % [_errs.n - errs,
 		(": " + " | ".join(_errs.first)) if _errs.n > errs else ""], _errs.n == errs)
 
@@ -251,7 +248,7 @@ func _save_exit_and_continue() -> void:
 	var back := await _until(func() -> bool:
 		return Router.combat != null and Router.combat.is_shared(), 5.0)
 	_ok("(save) CONTINUE comes back into the party's fight", back)
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_ok("(save) as a join: the enemy grows by nothing (%d -> %d)" % [before,
 		_host.fight_at(at).foes[0].max_hp], _host.fight_at(at).foes[0].max_hp == before)
 	_ok("(save) seated once, on the party's turn (%d, the fight's %d)" % [
@@ -268,7 +265,7 @@ func _save_exit_and_continue() -> void:
 	_ok("(save-stunned) SAVE & EXIT while stunned leaves the crew, the ended and the stunned", await _until(func() -> bool:
 		var f := _host.fight_at(at)
 		return not f.crew.has(me) and not f.ended.has(me) and not f.stunned.has(me), 3.0))
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	_ok("(save-stunned) and nothing breaks (%d errors)" % (_errs.n - errs), _errs.n == errs)
 	Router.continue_run()
 	_ok("(save-stunned) CONTINUE joins again, stunned", await _until(func() -> bool:
@@ -278,18 +275,18 @@ func _save_exit_and_continue() -> void:
 	errs = _errs.n
 	var turn := _host.fight_at(at).turn
 	await _menu(&"abandon")
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("(abandon) ABANDON leaves the fight: the host's crew drops this ship", await _until(func() -> bool:
 		return not _host.fight_at(at).crew.has(me), 3.0))
 	_host.report_end_turn(at)
 	_ok("(abandon) VELA's END TURN moves the turn, with nobody to wait on", await _until(func() -> bool:
 		return _host.fight_at(at).turn == turn + 1, 3.0))
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	_ok("(abandon) and nothing here breaks (%d errors%s)" % [_errs.n - errs,
 		(": " + " | ".join(_errs.first)) if _errs.n > errs else ""], _errs.n == errs)
 	# a ship again, for what follows
 	_new_run()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## JOIN, answered on the kill: the host seats this ship and the last hull dies
@@ -382,7 +379,7 @@ func _slow_answer() -> void:
 		Net.leave_fight(at)
 		cb.release()
 	Router.combat = null
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## SAVE & EXIT while the host is still answering: the answer, when it comes,
@@ -396,16 +393,16 @@ func _left_while_asking() -> void:
 	var me := Net.local_id()
 	_host.hold_asks = true
 	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	var errs := _errs.n
 	await _menu(&"save")
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_host.release_asks()
 	_host.hold_asks = false
 	var answered := await _until(func() -> bool: return _host.fight_at(at) != null, 3.0)
 	_ok("(asking) the answer that comes after SAVE & EXIT is left again: the host's crew lets the ship go",
 		answered and await _until(func() -> bool: return not _host.fight_at(at).crew.has(me), 3.0))
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	_ok("(asking) and nothing here breaks (%d errors%s)" % [_errs.n - errs,
 		(": " + " | ".join(_errs.first)) if _errs.n > errs else ""], _errs.n == errs)
 
@@ -415,7 +412,7 @@ func _left_while_asking() -> void:
 func _continue_after_the_kill() -> void:
 	print("\n--- CONTINUE after the party killed the fight this ship saved out of")
 	_new_run()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var at := _systems[7]
 	await _go(at)
 	SaveGame.save()
@@ -437,7 +434,7 @@ func _continue_after_the_kill() -> void:
 		return Net.fight_at(at) != null and Net.fight_at(at).over, 3.0) and killed.over and killed.paid == 1)
 	_said.clear()
 	Router.continue_run()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	_ok("(after-kill) CONTINUE opens no fight here: none on screen, the host's still the one she won (%s)" % [
 		"none" if Router.combat == null else ("shared" if Router.combat.is_shared() else "own")],
 		not Router.in_combat() and _host.fight_at(at) == killed and killed.over)
@@ -465,7 +462,7 @@ func _continue_after_the_kill() -> void:
 			and _host.fight_at(at).crew.has(me)), 5.0))
 	if Router.combat != null:
 		Router.drop_combat()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 
 ## While the host holds the ask, END TURN ran a private turn; FLEE and HAIL were open.
@@ -473,13 +470,13 @@ func _continue_after_the_kill() -> void:
 func _pressed_while_asking() -> void:
 	print("\n--- END TURN, FLEE and HAIL while the host holds the ask")
 	_new_run()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var at := _systems[9]
 	await _go(at)
 	var me := Net.local_id()
 	_host.hold_asks = true
 	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	var cb: Combat = Router.combat
 	if not _ok("(press) asking", cb != null and not cb.is_shared()):
 		_host.release_asks()
@@ -487,7 +484,7 @@ func _pressed_while_asking() -> void:
 		return
 	var hp := Run.hp
 	cb.end_turn()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("(press) END TURN does nothing yet: turn %d, hand %d, hull %d -> %d" % [cb.turn, cb.hand.size(), hp, Run.hp],
 		cb.turn == 1 and cb.hand.is_empty() and Run.hp == hp and not cb.waiting)
 	_ok("(press) FLEE and HAIL are shut (flee %s, hail %s)" % [str(cb.can_flee()), str(cb.can_hail())],
@@ -499,14 +496,14 @@ func _pressed_while_asking() -> void:
 	_ok("(press) the answer begins it: the party's, turn 1, a hand dealt", await _until(func() -> bool:
 		return cb.is_shared() and cb.turn == 1 and not cb.hand.is_empty(), 5.0))
 	Router.drop_combat()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 	# ENDED UNBEGUN: the late answer must not attach it
 	at = _systems[10]
 	await _go(at)
 	_host.hold_asks = true
 	Router.start_combat(DB.enemies[&"cutter"], [], false, true)
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	cb = Router.combat
 	if cb == null:
 		_fail("(press) no fight to end while asking")
@@ -536,7 +533,7 @@ func _join_answered_with_another() -> void:
 		return
 	_host.hold_asks = true
 	Router.join_fight()
-	await _frames(5)
+	await Harness.frames(_tree, 5)
 	for i in _host.fight_at(at).foes.size():
 		_host.hurt_foe(at, i, 9999, 1)
 	var y := _plan(&"lancer", [&"hulk"])
@@ -594,7 +591,7 @@ func _stunned_join() -> void:
 	cb = Router.combat
 	if not _ok("(stun) joined", joined):
 		return
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("(stun) stunned: no hand, no energy (hand %d, energy %d)" % [cb.hand.size(), cb.energy],
 		cb.stunned and cb.hand.is_empty() and cb.energy == 0)
 	var card: CardData = cb.deck[0] if not cb.deck.is_empty() else null
@@ -603,7 +600,7 @@ func _stunned_join() -> void:
 		not cb.can_flee() and not cb.can_hail() and cb.flee_cause() == &"stunned" and cb.hail_cause() == &"stunned")
 	var turn := cb.turn
 	cb.end_turn()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("(stun) END TURN does nothing (turn %d, waiting %s)" % [cb.turn, str(cb.waiting)],
 		cb.turn == turn and not cb.waiting and cb.stunned)
 	var sc := _screen()
@@ -634,7 +631,7 @@ func _stunned_join() -> void:
 	_host.report_end_turn(at)
 	_host.forced_target = 0
 	var moved := await _until(func() -> bool: return not cb.stunned and cb.turn == 3, 4.0)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Sig.combat_hit.disconnect(on_hit)
 	_ok("(stun) it can be shot: the enemy's swing landed on it (%d)" % hits.size(), hits.size() >= 1)
 	_ok("(stun) the turn moves, the stun clears, and the hand comes (turn %d, hand %d)" % [cb.turn, cb.hand.size()],
@@ -644,7 +641,7 @@ func _stunned_join() -> void:
 		Array(_said).filter(func(s: String) -> bool: return s.contains("OVERHEAT")).size() == 1 and Run.hp <= hp0 - 3)
 	Run.heat = 0
 	if sc != null:
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		_ok("(stun) END TURN reads END TURN again, live", sc._end_button.text == "END TURN" and not sc._end_button.disabled
 			and not sc._stun_note.visible)
 	# A THIRD PILOT walks in now (turn 3, after this ship's turn began): said
@@ -700,7 +697,7 @@ func _turn_one_acts() -> void:
 	var cb: Combat = null
 	await _until(func() -> bool: return Router.combat != null and Router.combat.is_shared(), 5.0)
 	cb = Router.combat
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("(turn1) not stunned: a hand, energy, END TURN live (hand %d)" % (cb.hand.size() if cb != null else -1),
 		cb != null and not cb.stunned and not cb.hand.is_empty() and cb.energy > 0
 		and not _host.fight_at(at).stunned.has(Net.local_id()))
@@ -723,7 +720,7 @@ func _hit_as_it_arrives() -> void:
 	await _until(func() -> bool: return Router.can_join_fight(), 4.0)
 	_host.hold_asks = true
 	Router.join_fight()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var hits: Array = []
 	var on_hit := func(on_you: bool, _w: int, _t: int, _a: int, _m: int, _h: int) -> void:
 		if on_you:
@@ -763,14 +760,14 @@ func _join_after_the_kill() -> void:
 	_host.hold_asks = true
 	_said.clear()
 	Router.join_fight()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	for i in dead_one.foes.size():
 		_host.hurt_foe(at, i, 9999, 1)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_host.release_asks()
 	_host.hold_asks = false
 	var back := await _until(func() -> bool: return Router.combat == null, 5.0)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("(late) no fight here: back where it was", back and not Router.in_combat())
 	_said_once("(late)", "The fight ended before you got there.")
 	_ok("(late) and the host opened nothing: the fight there is the one that ended, without this ship",
@@ -793,12 +790,12 @@ func _party_lost_while_stunned() -> void:
 		return
 	var turn := cb.turn
 	cb._on_party_lost("gone")
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	_ok("(lost) the enemy's turn is taken here and the hand comes (turn %d -> %d, hand %d, shared %s)" % [
 		turn, cb.turn, cb.hand.size(), str(cb.is_shared())],
 		not cb.stunned and cb.turn == turn + 1 and not cb.hand.is_empty() and not cb.is_shared())
 	Router.drop_combat()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 
 func _guest_done() -> void:
@@ -809,7 +806,7 @@ func _guest_done() -> void:
 		_tree.root.remove_child(_branch)
 		_branch.queue_free()
 		_branch = null
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 # --- checks -------------------------------------------------------------------
@@ -866,7 +863,7 @@ func _go(at: int) -> void:
 	Run.map[at].visited = true
 	SectorScreen._approached_at = at
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 
 
 ## Numbers for a fight, as a ship plans it here.
@@ -901,8 +898,8 @@ func _menu(which: StringName) -> void:
 		_fail("no Main to open the escape menu on")
 		return
 	main.call(&"toggle_menu", false)
-	await _frames(1)
-	var pm := _find(_tree.root, func(n: Node) -> bool: return n is PauseMenu) as PauseMenu
+	await Harness.frames(_tree, 1)
+	var pm := Harness.first(_tree.root, func(n: Node) -> bool: return n is PauseMenu) as PauseMenu
 	if pm == null:
 		_fail("the escape menu did not open")
 		return
@@ -914,27 +911,10 @@ func _menu(which: StringName) -> void:
 
 ## Whatever the fight's end handed over to, played out.
 func _settle() -> void:
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	if Router.combat != null and Router.combat.finished:
 		Router.after_combat(Router.combat)
-		await _frames(3)
-
-
-func _find(root: Node, matches: Callable) -> Node:
-	if root == null:
-		return null
-	if matches.call(root):
-		return root
-	for c in root.get_children():
-		var f := _find(c, matches)
-		if f != null:
-			return f
-	return null
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
+		await Harness.frames(_tree, 3)
 
 
 func _until(condition: Callable, timeout: float) -> bool:
@@ -947,10 +927,9 @@ func _until(condition: Callable, timeout: float) -> bool:
 
 
 func _fail(why: String) -> void:
-	print("  FAIL %s" % why)
-	_fails += 1
+	h._fail(why)
 
 
 func _finish() -> void:
-	print("midjointest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("midjointest")
+	_tree.quit(h.code())

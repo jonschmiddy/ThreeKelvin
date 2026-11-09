@@ -17,14 +17,9 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	LocalEventDrawer.quiet = true
 	Router.animate_in_harness = false
 	h.seed_run(4242)
@@ -151,7 +146,7 @@ func _open(n: MapGen.MapNode, keep_hull := false) -> LocalEventDrawer:
 
 
 func _first_label(root: Node) -> Label:
-	return h.first(root, func(x: Node) -> bool: return x is Label) as Label
+	return Harness.first(root, func(x: Node) -> bool: return x is Label) as Label
 
 
 ## The box test for the event's page, as drawn.
@@ -160,7 +155,7 @@ func _page_faults(d: LocalEventDrawer) -> Array:
 	var pr := d.panel.get_global_rect()
 	if not VIEW.encloses(pr):
 		bad.append("the band %s is off the screen" % pr)
-	var hud := h.first(_tree.root, func(x: Node) -> bool:
+	var hud := Harness.first(_tree.root, func(x: Node) -> bool:
 		return x is HudBar and (x as Control).is_visible_in_tree()) as Control
 	if hud != null and hud.get_global_rect().intersects(pr):
 		bad.append("the band %s is over the HUD %s" % [pr, hud.get_global_rect()])
@@ -205,17 +200,10 @@ func _button_faults(b: Button, box: Control) -> Array:
 	return bad
 
 
-## The visible button under `root` whose text starts `head`, or null.
-func _button(root: Node, head: String) -> Button:
-	return h.first(root, func(x: Node) -> bool:
-		return x is Button and (x as Button).is_visible_in_tree() \
-			and (x as Button).text.begins_with(head)) as Button
-
-
 ## The rail's button whose text starts `head`, or null.
 func _rail_button(sc: SectorScreen, head: String) -> Button:
 	var wrap: Control = sc.get("_salvage_wrap") if sc != null else null
-	return _button(wrap, head) if wrap != null else null
+	return Harness.button_with_text(wrap, head, true) if wrap != null else null
 
 
 func _pile_ids(n: MapGen.MapNode) -> Array:
@@ -238,7 +226,7 @@ func _rail() -> SectorScreen:
 		if lo != null and not ZoomLadder.busy() and (lo.get("_events") == null
 				or (lo.get("_events") as LocalEventDrawer).page == &""):
 			lo._refresh_salvage()
-			await _frames(3)
+			await Harness.frames(_tree, 3)
 			return lo
 	return Router.current as SectorScreen
 
@@ -261,7 +249,7 @@ func _names_the_frame(n: MapGen.MapNode, w: String) -> void:
 		h._ok("%s (%s): the page fits, nothing over anything%s" % [w, layout,
 			"" if faults.is_empty() else ": " + "; ".join(faults)], faults.is_empty())
 		var r: Dictionary = await d.choose(0)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		h._ok("%s (%s): the claim resolves" % [w, layout], r.get("ok", false) and Run.found_hull != null)
 		h._ok("%s (%s): the hull found is the weight the card named (%s)" % [w, layout, _weight(Run.found_hull)],
 			_weight(Run.found_hull) == w)
@@ -274,7 +262,7 @@ func _names_the_frame(n: MapGen.MapNode, w: String) -> void:
 			h._ok("%s (%s): the same frame as the first visit (%s / %s)" % [w, layout,
 				_sig(Run.found_hull), _sig(first)], _sig(Run.found_hull) == _sig(first))
 		d.continue_on()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	LocalEventDrawer.layout = &"column"
 
 
@@ -318,9 +306,9 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 	Run.find_hull(LootGen.roll_hull(n.danger))
 	var sc := await _rail()
 	var wrap: Control = sc.get("_salvage_wrap") if sc != null else null
-	var leave := _button(wrap, "LEAVE IT") if wrap != null else null
+	var leave := Harness.button_with_text(wrap, "LEAVE IT", true) if wrap != null else null
 	h._ok("a wreck's hull: LEAVE IT, and no SCRAP",
-		leave != null and _button(wrap, "SCRAP") == null)
+		leave != null and Harness.button_with_text(wrap, "SCRAP", true) == null)
 	var leave_w := wrap.size.x if wrap != null else 0.0
 
 	# The claim, then SCRAP where LEAVE IT was.
@@ -346,12 +334,12 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 
 	# Backed out of TRANSFER, the frame comes back with its SCRAP.
 	sc._on_salvage("take_hull", found)
-	await _frames(4)
-	var t := h.first(_tree.root, func(x: Node) -> bool:
+	await Harness.frames(_tree, 4)
+	var t := Harness.first(_tree.root, func(x: Node) -> bool:
 		return x is TransferScreen and (x as Control).is_visible_in_tree()) as TransferScreen
 	if h._ok("TRANSFER opens the move", t != null):
 		t._back_out()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		sc = await _rail()
 		scrap = _rail_button(sc, "SCRAP")
 		h._ok("BACK OUT puts it back with SCRAP +%d" % pay, Run.found_hull == found
@@ -373,7 +361,7 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 	var before := Run.credits
 	var pile_was := _pile_ids(n)
 	scrap.pressed.emit()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var got := _pile_ids(n)
 	for id in pile_was:
 		got.erase(id)
@@ -385,7 +373,7 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 	sc = await _rail()
 	before = Run.credits
 	sc._on_salvage("scrap_hull", found)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	h._ok("once: no SCRAP after, and pressing it again pays nothing",
 		_rail_button(sc, "SCRAP") == null and Run.credits == before)
 
@@ -396,16 +384,16 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 		return
 	await d2.choose(0)
 	d2.continue_on()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	Router.show_system()
 	var map: SystemMapScreen = null
 	for i in 240:
 		await _tree.process_frame
 		map = Router.current as SystemMapScreen
 		if map != null and not ZoomLadder.busy() and map.get("panel") != null \
-				and _button(map.get("panel"), "SCRAP") != null:
+				and Harness.button_with_text(map.get("panel"), "SCRAP", true) != null:
 			break
-	var ms := _button(map.get("panel"), "SCRAP") if map != null and map.get("panel") != null else null
+	var ms := Harness.button_with_text(map.get("panel"), "SCRAP", true) if map != null and map.get("panel") != null else null
 	if not h._ok("the system map's hull row has SCRAP: %s" % (ms.text if ms != null else "none"), ms != null):
 		return
 	var panel: Control = map.get("panel")
@@ -414,7 +402,7 @@ func _pays_the_strip(n: MapGen.MapNode) -> void:
 		pf.is_empty())
 	before = Run.credits
 	ms.pressed.emit()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	h._ok("SCRAP on the map pays the strip's credits too (%d of %d)" % [Run.credits - before, pay],
 		Run.credits - before == pay and Run.found_hull == null)
 
@@ -474,12 +462,12 @@ func _dock() -> bool:
 		if Router.current is SectorScreen and not ZoomLadder.busy():
 			break
 	Router.show_station()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	return Router.current is StationScreen and Router.docked
 
 
 func _transfer() -> TransferScreen:
-	return h.first(_tree.root, func(x: Node) -> bool:
+	return Harness.first(_tree.root, func(x: Node) -> bool:
 		return x is TransferScreen and (x as Control).is_visible_in_tree()) as TransferScreen
 
 
@@ -496,7 +484,7 @@ func _second_claim(a: MapGen.MapNode, b: MapGen.MapNode) -> void:
 	var c0 := Run.credits
 	_said.clear()
 	var r: Dictionary = await d.choose(0)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	h._ok("the second claim resolves on its page", r.get("ok", false))
 	var got := _pile_ids(b)
 	h._ok("claiming the second frame pays the first's strip credits (%d of %d)" % [
@@ -507,7 +495,7 @@ func _second_claim(a: MapGen.MapNode, b: MapGen.MapNode) -> void:
 		Run.found_hull != null and Run.found_hull != first)
 	_says_scrapped("the second claim", first, int(strip.pay), strip.crate)
 	d.continue_on()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## TAKE IT used to throw the offered frame away; backing out must not bring it back to pay twice.
@@ -520,7 +508,7 @@ func _yard_hull(a: MapGen.MapNode) -> void:
 	h._ok("the claim resolves on its page", r.get("ok", false))
 	var first := Run.found_hull
 	d.continue_on()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var st := _station()
 	if not h._ok("a station with a yard", st != null and first != null):
 		return
@@ -540,7 +528,7 @@ func _yard_hull(a: MapGen.MapNode) -> void:
 	var c0 := Run.credits
 	_said.clear()
 	await (Router.current as StationScreen)._on_action("take_hull", st.shop_hull)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var paid := int(Run._undo_move.get("paid", 0))
 	var got := _pile_ids(st)
 	h._ok("TAKE IT on the yard's hull pays the frame's strip credits (%d of %d, %d paid for the hull)" % [
@@ -552,7 +540,7 @@ func _yard_hull(a: MapGen.MapNode) -> void:
 	if not h._ok("TAKE IT opens the move", t != null):
 		return
 	t._back_out()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	h._ok("backed out: the yard refunded, the strip's pay kept (%d of %d)" % [
 		Run.credits - c0, strip.pay], Run.credits - c0 == int(strip.pay))
 	h._ok("and the paid frame is not back to pay twice", Run.found_hull == null
@@ -560,7 +548,7 @@ func _yard_hull(a: MapGen.MapNode) -> void:
 	var sb := Router.current as StationScreen
 	if sb != null and sb._undock != null:
 		sb._undock.pressed.emit()
-		await _frames(20)
+		await Harness.frames(_tree, 20)
 	h._ok("and the ship undocks", not Router.docked)
 
 
@@ -580,7 +568,7 @@ func _text_faults(b: Button) -> Array:
 
 ## `box` against the HUD along the top.
 func _hud_faults(box: Control) -> Array:
-	var hud := h.first(_tree.root, func(x: Node) -> bool:
+	var hud := Harness.first(_tree.root, func(x: Node) -> bool:
 		return x is HudBar and (x as Control).is_visible_in_tree()) as Control
 	if hud != null and hud.get_global_rect().intersects(box.get_global_rect()):
 		return ["%s %s is over the HUD %s" % [box.name, box.get_global_rect(), hud.get_global_rect()]]
@@ -628,10 +616,10 @@ func _three_digits() -> void:
 		await _tree.process_frame
 		map = Router.current as SystemMapScreen
 		if map != null and not ZoomLadder.busy() and map.get("panel") != null \
-				and _button(map.get("panel"), "SCRAP") != null:
+				and Harness.button_with_text(map.get("panel"), "SCRAP", true) != null:
 			break
 	var panel: Control = map.get("panel") if map != null else null
-	var ms := _button(panel, "SCRAP") if panel != null else null
+	var ms := Harness.button_with_text(panel, "SCRAP", true) if panel != null else null
 	if not h._ok("the system map's row has it too: %s" % (ms.text if ms != null else "none"),
 			ms != null and ms.text == said):
 		return
@@ -650,7 +638,7 @@ func _old_save(n: MapGen.MapNode) -> void:
 		return
 	var r: Dictionary = await d.choose(0)
 	d.continue_on()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var claimed := _sig(Run.found_hull)
 	if not h._ok("the claim resolves on its page (%s)" % claimed, r.get("ok", false) and Run.found_hull != null):
 		return

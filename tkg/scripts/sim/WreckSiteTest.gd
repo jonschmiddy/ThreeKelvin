@@ -261,18 +261,18 @@ func _hellbender_doors() -> void:
 		SectorScreen._approached_at = n.index
 		SystemMapScreen._parked[n.index] = {"at": SystemLayout.of(n).hellbender_place(), "mode": &"rail"}
 		Router.show_local()
-		await _frames(4)
+		await Harness.frames(get_tree(), 4)
 		var sc := Router.current as SectorScreen
 		if sc == null:
 			h._fail("%s: LOCAL at the Hellbender's place did not come up" % ending)
 			continue
 		sc._on_action()
-		await _frames(4)
+		await Harness.frames(get_tree(), 4)
 		var cb: Combat = Router.combat
 		if not h._ok("%s: ENGAGE THE HELLBENDER opens its fight" % ending,
 				cb != null and not cb.enemies.is_empty() and cb.enemies[0].template.id == &"hellbender"):
 			continue
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		for tries in 12:
 			if cb.finished:
 				break
@@ -303,19 +303,19 @@ func _hellbender_doors() -> void:
 					var s := Router.current as SectorScreen
 					s._close_exit_ask()
 					s._on_flee()
-					await _frames(2)
+					await Harness.frames(get_tree(), 2)
 					var go := _named_button(s, "BREAK CONTACT")
 					if go != null:
 						go.pressed.emit()
-			await _frames(4)
+			await Harness.frames(get_tree(), 4)
 		var ended: StringName = {&"won": &"victory", &"escaped": &"broke_off", &"fled": &"fled"}[ending]
 		h._ok("%s: the fight ends %s (%s)" % [ending, ended, cb.result], cb.finished and cb.result == ended)
-		await _frames(4)
+		await Harness.frames(get_tree(), 4)
 		# IT GOT AWAY / DISENGAGED: the panel's CONTINUE, as the player presses it
 		var cont := _named_button(Router.current, "CONTINUE")
 		if cont != null:
 			cont.pressed.emit()
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		h._ok("%s: the fight has handed over (no fight up)" % ending,
 			Router.combat == null and not Router.fight_up())
 		match ending:
@@ -343,14 +343,14 @@ func _hellbender_doors() -> void:
 			var open := b != null and not b.disabled
 			if open:
 				b.pressed.emit()
-				await _frames(6)
+				await Harness.frames(get_tree(), 6)
 			h._ok("%s: from %s the HUD's %s opens %s (%s%s)" % [ending, was, d[0], d[2], _kind(Router.current),
 				"" if open else ", the tab greyed"], open and _kind(Router.current) == String(d[2]))
 		# Tab from LOCAL: LOCAL, the map, the chart, round
 		for want in [&"SystemMapScreen", &"StarchartScreen", &"SectorScreen"]:
 			var was := _kind(Router.current)
 			_press(KEY_TAB)
-			await _frames(6)
+			await Harness.frames(get_tree(), 6)
 			h._ok("%s: Tab from %s opens %s (%s)" % [ending, was, want, _kind(Router.current)],
 				_kind(Router.current) == String(want))
 
@@ -420,16 +420,16 @@ func _round_trips() -> void:
 	SectorScreen._approached_at = n.index
 	SystemMapScreen._parked[n.index] = {"at": 0}
 	Router.show_local()
-	await _frames(8)
+	await Harness.frames(get_tree(), 8)
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"]], false, false)
-	await _frames(8)
+	await Harness.frames(get_tree(), 8)
 	var cb: Combat = Router.combat
 	if cb == null:
 		h._fail("no fight opened on LOCAL")
 		return
 	for e in cb.enemies:
 		cb.damage_enemy(9999, 1, "test", e)
-	await _frames(20)
+	await Harness.frames(get_tree(), 20)
 	if not h._ok("the fight is won and LOCAL is up", not Router.in_combat() and Router.current is SectorScreen):
 		return
 	await _clear_of_you("after the win", 2)
@@ -456,7 +456,7 @@ func _round_trips() -> void:
 			h._ok("  a weapon came off the hull into the hold", lifted >= 0)
 		elif what == "a wreck emptied":
 			await _empty(n, Run.wrecks_here(n)[0])
-		await _frames(12)
+		await Harness.frames(get_tree(), 12)
 		var still := true
 		for i in held.size():
 			still = still and (sc._view._made[i] as EnemySlot).position.distance_to(held[i]) <= 1.0
@@ -470,7 +470,7 @@ func _round_trips() -> void:
 	var sc2 := Router.current as SectorScreen
 	var w2: MapGen.Jetsam = Run.wrecks_here(n)[1]
 	sc2._open_jetsam(w2)
-	await _frames(2)
+	await Harness.frames(get_tree(), 2)
 	await _empty(n, w2)
 	sc2._close_transfer()
 	await _clear_of_you("a wreck opened and picked clean", 2)
@@ -480,7 +480,7 @@ func _round_trips() -> void:
 		match door:
 			"the ship screen":
 				Router.show_ship()
-				await _frames(4)
+				await Harness.frames(get_tree(), 4)
 				# a part moved on the refit screen too
 				for m in Run.installed:
 					if (m as ModuleData).slot == ModuleData.Slot.WEAPON:
@@ -498,9 +498,9 @@ func _round_trips() -> void:
 				SaveGame.save()
 				Run.start_new_run(&"korvan", int(HullData.Weight.LIGHT))
 				SaveGame.load_into_run()
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		Router.show_local()
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		await _clear_of_you("back from " + door, 2)
 
 
@@ -523,7 +523,7 @@ var _rest: Array = []
 
 ## Every wreck's drawn boxes on the real LOCAL against your ship's; `want` of them.
 func _clear_of_you(tag: String, want: int) -> void:
-	await _frames(6)
+	await Harness.frames(get_tree(), 6)
 	var sc := Router.current as SectorScreen
 	if sc == null:
 		h._fail("%s: LOCAL is not up (%s)" % [tag, Router.current])
@@ -616,7 +616,7 @@ func _other_systems() -> void:
 	b.ambush_rolled = true
 	b.ambush_pending = false
 	Router.commit_jump(b.index)
-	await _frames(10)
+	await Harness.frames(get_tree(), 10)
 	h._ok("the jump lands in B", Run.at == b.index)
 	var held := 0
 	for raw in b.jetsam:
@@ -635,14 +635,14 @@ func _each_place(n: MapGen.MapNode, sites: Dictionary, tag: String) -> void:
 	# (LOCAL up before any place is set by hand: a won fight's door may have
 	# left the map up, and a map keeps where ITS ship is as it goes)
 	Router.show_local()
-	await _frames(4)
+	await Harness.frames(get_tree(), 4)
 	for site in places:
 		if site == -9:
 			SystemMapScreen._parked.erase(n.index)
 		else:
 			SystemMapScreen._parked[n.index] = {"at": site}
 		Router.show_local()
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		var sc := Router.current as SectorScreen
 		var ev: EncounterView = sc._view if sc != null else null
 		var drawn: int = ev._made.size() if ev != null and ev._slots_mode == &"wrecks" and ev._slots.visible else 0
@@ -653,11 +653,6 @@ func _each_place(n: MapGen.MapNode, sites: Dictionary, tag: String) -> void:
 		h._ok("%s at %d: LOCAL draws %d wrecks (%d %s; here %d, at %s)" % [tag, site, want, drawn, names, Run.wrecks_here(n).size(), Run.node_at().index],
 			ev != null and drawn == want and Run.wrecks_here(n).size() == want)
 	SystemMapScreen._parked[n.index] = {"at": 0}
-
-
-func _frames(k: int) -> void:
-	for i in k:
-		await get_tree().process_frame
 
 
 ## Until the cutaway is fully open (3 s at most).
@@ -722,7 +717,7 @@ func _off_the_world() -> void:
 					for j in k:
 						Run.new_wreck(n, DB.enemies[kinds[(j + b) % kinds.size()]], j)
 					Router.show_local()
-					await _frames(4)
+					await Harness.frames(get_tree(), 4)
 					var sc := Router.current as SectorScreen
 					var ev: EncounterView = sc._view if sc != null else null
 					if ev == null:
@@ -733,7 +728,7 @@ func _off_the_world() -> void:
 					if big and ev.backdrop.layout != null:
 						ev.backdrop.layout.bodies[b].r *= 3.0
 						ev._queue_pack()
-						await _frames(3)
+						await Harness.frames(get_tree(), 3)
 					var p := ev.backdrop.near_plan()
 					if p.is_empty():
 						continue
@@ -817,7 +812,7 @@ func _twin_sites() -> void:
 	for site: int in [B, -1]:
 		parked[n.index] = {"at": site}
 		Router.show_local()
-		await _frames(6)
+		await Harness.frames(get_tree(), 6)
 		var sc := Router.current as SectorScreen
 		var ev: EncounterView = sc._view if sc != null else null
 		var want := Run.wrecks_here(n)

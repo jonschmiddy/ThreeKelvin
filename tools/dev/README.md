@@ -30,11 +30,11 @@ at the bottom says where the work stands.
 
 | Script | What it does |
 |---|---|
-| `env.sh` | Sourced by the rest. Finds TK_REPO, TK_WT, TK_SCRATCH, GODOT, PY; gives `tk_timeout`, `tk_new_profile`, `tk_isolated`, `tk_guard`. |
+| `env.sh` | Sourced by the rest. Finds TK_REPO, TK_WT, TK_SCRATCH, GODOT, PY; gives `tk_timeout`, `tk_new_profile`, `tk_isolated`, `tk_guard`, `tk_parse_run_args` (the -t and -C of godot.sh and render.sh) and `tk_import_project`. |
 | `godot.sh [-t S] [-C DIR] args...` | Godot with a fresh throwaway profile, dummy audio and a time limit. Use this for every test and sim run. |
 | `render.sh [-t S] [-C DIR] args...` | The same, windowed, for stills and films; at most two at once. On a Mac the window shows on screen. |
 | `run_battery.sh [WORKTREE] [names...]` | The wide test battery (36 runs, PairLocalTest among them; about 9 minutes on the PC plus 1:30 for the timed ones; 17 before the split), JOBS at once (default 8), longest first: FlightTest and SolveTest split into shards (`FLIGHT_SHARDS` 4, `SOLVE_SHARDS` 8 as in the gate; FlightTest's hand phase its own row, `flighttest_hand`, as the gate's `flighthand`), their totals after (`sheet=ShardSum`), the four timed runs alone at the end (`SOLO=0` skips them). Logs and `summary.txt` in `$OUT`. The wide set for a change to flight, save, clock or net; not the gate. |
-| `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 12 minutes), fast-forward main and push on a pass. |
+| `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 10 minutes), fast-forward main and push on a pass. |
 | `release.sh WORKTREE BRANCH LABEL VERSION` | First rename NEW THINGS' `NEXT` entry (`tkg/scripts/data/NewThings.gd`) to VERSION and date it, in the commit that raises config/version; it refuses otherwise (`new_things_check.sh`, before the gate and again on the landed main). Then gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
 | `new_things_check.sh VERSION [NewThings.gd]` | Exit 0 only when NEW THINGS' newest entry is VERSION, dated, with no `NEXT` left. release.sh runs it. |
 | `cut_changelog.py VERSION [DATE]` | Folds `changes/*.md` into `CHANGELOG.md` as the new build's section; you write its opening paragraph. release.sh refuses while `changes/` still has a file. |
@@ -45,6 +45,7 @@ at the bottom says where the work stands.
 | `voice/install.py OUT "id:take ..."` | Copy the picked takes into the game. |
 | `badge/dump_golden.py golden\|frames DIR` | The Custodian's badge (9b) drawn by the approved page's own code (`badge/core.js`, `badge/fin_eye.js`, `badge/dump.html`): `golden` writes `tkg/scripts/sim/badge_golden.json` for `BadgeTest`, `frames` the page's PNGs of the frames `-- sheet=BadgeFrames` writes. Uses the installed Chrome. |
 | `badge/diff_frames.py GAME WEB [SHEET.png]` | Those two frame folders compared file by file, and a 4x contact sheet. |
+| `golden_diff.py A B` | On demand, never in the gate: two `-- sheet=GoldenFrames out=<dir>` capture folders (temp, before and after a drawing refactor) compared file by file: prints each file that differs with its changed pixel count, each missing or extra file, and exits 1 on any. `uv run --with pillow tools/dev/golden_diff.py A B`. `docs/tests.md` has the capture command. |
 
 Python tools run through uv, for example:
 `uv run --with pillow python ...` for images, or the `--with` list in `voice/record.py`'s header.
@@ -79,28 +80,17 @@ Python tools run through uv, for example:
   raise `RunHistory.VERSION`: it discards the whole flight record, unlocks
   included.
 
-## Handoff, Nov 1 (Mac to PC)
+## Handoff, Nov 8
 
-- **Twin stars (ruling 20) are built** on `feat/twin-fix` (= `feat/twin-stars`),
-  pushed, not landed. Full notes, next steps and the files the next steps need:
-  `docs/handoffs/2026-11-01-twin-stars/HANDOFF.md`.
-- **Flight length: C** (ruling 21, Nov 1): TIME_W 16, T_CAP 16, with the study's
-  fallback. Not built yet; it is the next job.
-- **Then:** the twin looks sheet (stills; ask before windowed runs), the battery,
-  CHANGELOG, one gate_land.
-
-## Handoff, Oct 23
-
-- **Released:** 0.4.2-alpha.1 (2a0ee950) is with the friends' alpha (Cody, Geno,
-  Jeremy, Kevin). Jon is on vacation from Oct 24. No updates mid-alpha unless
-  something strands players, as the hull-swap softlock did.
-- **Plan:** `docs/DEVELOPMENT_PLAN.md`. Phases 1 to 9 are the build order as
-  done; phases 10 to 15 are the post-alpha roadmap from the testers' notes (updated Oct 27).
-- **Waiting on Jon:**
-  - chassis hull numbers against pips (A Korvan only, B every chassis exact, C show the number);
-  - the star chart marking stars in reach but too deep (parked);
-  - the combat health study (phase 11, step 1).
-- **Collect during the alpha:** lines that "read as AI" (phase 14), and every
-  SAVE MY LOGS zip with what the player was doing.
-- **Not ported:** the Windows hidden desktop (`hiddesk.exe`) stays on the PC;
-  set TK_HIDDESK to it there.
+- **Landed on main since the Nov 1 handoff:** twin stars (ruling 20), flight length C
+  (ruling 21) and the twin looks picks; NEW THINGS on the title menu and the edge
+  arrows (Nov 5); the co-op shared-fight fixes (Nov 5 to 6); then the Nov 7 to 8 work:
+  the gate in four parts on four runners, long comments moved into `docs/why/`,
+  `tkg/CLAUDE.md` as an index, and `changes/`. `feat/twin-fix` and `feat/twin-stars`
+  are both ancestors of main.
+- **Version:** still 0.4.2-alpha.1. What is unreleased is one file per change in
+  `changes/` (`CHANGELOG.md`'s [Unreleased] is only a pointer to it).
+- **To release:** `tools/dev/cut_changelog.py <version>`, rename and date NEW THINGS'
+  NEXT entry, then `release.sh` (it refuses without both).
+- **Plan:** `docs/DEVELOPMENT_PLAN.md` (phases 10 to 15 are the post-alpha roadmap).
+  Older handoffs: `docs/handoffs/`.

@@ -126,7 +126,7 @@ func _flare_shot(tree: SceneTree) -> void:
 	# Across the whole life, including 0.0 (nothing) and past the peak, so a
 	# flare that never closes is visible in the sheet rather than only in play.
 	for at in [0.08, 0.22, 0.42, 0.62, 0.80, 0.96]:
-		slot.art.visible = at >= EncounterView.JumpFlare.PEAK
+		slot.art.visible = at >= JumpFlare.PEAK
 		slot.flare.visible = true
 		slot.flare.set("_t", at)
 		slot.flare.set("_delay", 0.0)
@@ -155,8 +155,8 @@ func _flare_shot(tree: SceneTree) -> void:
 	print("wrote ", ProjectSettings.globalize_path("user://jump_flare.png"))
 
 
-func _find_slot(n: Node) -> EncounterView.ConvoySlot:
-	if n is EncounterView.ConvoySlot:
+func _find_slot(n: Node) -> ConvoySlot:
+	if n is ConvoySlot:
 		return n
 	for c in n.get_children():
 		var found := _find_slot(c)
@@ -238,7 +238,7 @@ static func fake_party(count: int) -> void:
 		b.pilot = who[0]
 		# Each one visibly worse off than the last, so the gauges are testable
 		# from the picture rather than only from the code.
-		b.hp = int(b.max_hp * (1.0 - 0.3 * float(i)))
+		b.hp = int(b.max_hp * (1.0 - 0.14 * float(i)))
 		b.heat = int(b.heat_cap * (0.2 + 0.45 * float(i)))
 		Net.roster[2 + i] = {"id": 2 + i, "name": who[0], "hull": who[1],
 			"ready": true, "order": 1 + i, "build": b.to_wire(), "at": here}

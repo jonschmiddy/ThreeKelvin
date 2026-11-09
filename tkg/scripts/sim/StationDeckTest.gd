@@ -4,7 +4,7 @@ extends Node
 ## The lab's glass, its zoom (`LabZoom`) and its pages pass the box test at every level.
 ## Why: docs/why/StationDeckTest.md#test-purpose
 
-var _fails := 0
+var harness := Harness.new()
 var _tree: SceneTree
 
 ## RELIC ANALYSIS's bill at each level: 40 credits by `Market.service_index`.
@@ -17,20 +17,12 @@ const PANEL_W := 228.0
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_tree = get_tree()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _run() -> void:
@@ -46,8 +38,8 @@ func _run() -> void:
 		await _bare(dev)
 	await _second_station()
 	await _chart()
-	print("stationdecktest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("stationdecktest")
+	_tree.quit(harness.code())
 
 
 ## The dock desk from the map alone: none with a berth, stable, one per berthless station.
@@ -179,7 +171,7 @@ func _dock(here: MapGen.MapNode) -> StationScreen:
 	Router.powered.clear()
 	Router.park_at_station(here)
 	Router.show_station()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	return Router.current as StationScreen
 
 
@@ -189,11 +181,11 @@ func _open(st: StationScreen, id: StringName) -> bool:
 	(st._tabs[id] as Button).pressed.emit()
 	# (a few frames first: the deck's power-on shuts the lab's holder and then
 	# scans it open, so it is whole for a moment before it starts)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 20000 and not st.deck_subject(id).has_area():
 		await _tree.process_frame
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	if not st.deck_subject(id).has_area():
 		print("    %s not up after %d ms: tab %s, page shown %s, clip %s of glass %s, the screen %s" % [id,
 			Time.get_ticks_msec() - t0, st._tab, (st._pages[id] as Control).is_visible_in_tree(),
@@ -248,11 +240,13 @@ func _decks(dev: int, berth: bool) -> void:
 	var posts: Array[StringName] = st._board.posts
 	var lead: StringName = &"korvan" if berth else desk
 	_ok("%s: %s's notice hangs first (%s)" % [tag, lead, str(posts)], not posts.is_empty() and posts[0] == lead)
-	_ok("%s: an offer's SIGN is on the board" % tag, _find_button(st._work, "SIGN") != null)
+	_ok("%s: an offer's SIGN is on the board" % tag, Harness.button_with_text(st._work, "SIGN") != null)
 	_ok("%s: no NO WORK POSTED. note on a board with work" % tag, _find_label(st._work, StationScreen.NO_WORK) == null)
 
 	# A JOB SIGNED HERE IS HANDED IN HERE: done, it is deliverable at this desk,
 	# the chart's search finds this desk, and the board puts up its DELIVER.
+	if offers.is_empty():
+		return
 	var job := Run.take_contract(offers[0])
 	if job.kind == ContractData.Kind.HEAT:
 		# (a heat job is handed in with the heat on the hull, still TAKEN)
@@ -260,17 +254,17 @@ func _decks(dev: int, berth: bool) -> void:
 	else:
 		job.state = ContractData.State.READY
 	Sig.resources_changed.emit()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var at_desk := Run.deliverable_at(here).has(job) or Run.heat_deliverable_at(here).has(job)
 	_ok("%s: a %s job signed here can be handed in here" % [tag, String(ContractData.Kind.keys()[job.kind]).to_lower()], at_desk)
 	_ok("%s: and the chart counts this desk as its berth" % tag, ContractData.berth_of(here, job.manufacturer))
-	var hand_in := _find_button(st._work, "DELIVER") if job.kind != ContractData.Kind.HEAT \
-		else _find_button(st._work, "OFFLOAD %d HEAT" % job.amount)
+	var hand_in := Harness.button_with_text(st._work, "DELIVER") if job.kind != ContractData.Kind.HEAT \
+		else Harness.button_with_text(st._work, "OFFLOAD %d HEAT" % job.amount)
 	_ok("%s: the board shows it a button to hand it in" % tag, hand_in != null)
 	if hand_in != null:
 		var cash := Run.credits
 		hand_in.pressed.emit()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("%s: and pressed, it pays (%d -> %d)" % [tag, cash, Run.credits], Run.credits > cash)
 
 
@@ -298,7 +292,7 @@ func _bare(dev: int) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 20000 and not st.deck_subject(&"work").has_area():
 		await _tree.process_frame
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	var kids := st._work.get_child_count()
 	var note := _find_label(st._work, StationScreen.NO_WORK)
 	_ok("%s: one note says %s (%d on the board)" % [tag, StationScreen.NO_WORK, kids], note != null and kids == 1)
@@ -317,12 +311,12 @@ func _chart() -> void:
 		_ok("chart: the station is up", false)
 		return
 	Router.show_starchart()
-	await _frames(20)
+	await Harness.frames(_tree, 20)
 	var ch := Router.current as StarchartScreen
 	if not _ok("chart: the star chart is up", ch != null):
 		return
 	ch._on_node_picked(here.index)
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var want := "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
 	var said := ""
 	var row_ok := false
@@ -362,7 +356,7 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	await _click(st._glass_press)
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	if not _ok("%s: the glass moves the camera onto it and lands on RESEARCH (open %s, landed %s, tab %s, the screen %s)"
 			% [tag, zoom.is_open(), zoom.landed(), zoom.tab, login.state],
 			zoom.is_open() and zoom.landed() and zoom.tab == &"research" and login.state == LabLogin.SIGNING):
@@ -372,7 +366,7 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 
 	# RESEARCH: the board, with no step, some and all of them bought
 	await _click(zoom.tab_buttons[&"research"])
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: RESEARCH is on show" % tag, zoom.tab == &"research" and zoom.board.is_visible_in_tree())
 	var was_data := Run.data
 	var was_owned := Run.board_owned.duplicate()
@@ -387,7 +381,7 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 			for k in 3:
 				zoom.board.pick = Vector2i(b2, k)
 				zoom.board.refresh()
-				await _frames(2)
+				await Harness.frames(_tree, 2)
 				for f in zoom.check():
 					fails.append("%d,%d %s" % [b2, k, f])
 		_ok("%s: the board owned %s with %d DATA passes the box test on all nine steps (%s)" % [tag, str(o), int(case[1]),
@@ -404,16 +398,16 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 
 	# BACK OUT: LEAVE, and Esc, each to the logo
 	await _click(zoom.leave_button)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: LEAVE takes the camera back out to the logo (open %s, shown %s, the screen %s)" % [tag, zoom.is_open(), zoom.visible, login.state],
 		not zoom.is_open() and not zoom.visible and login.state == LabLogin.LOGO and st._screen_pic.is_visible_in_tree())
 	st._glass_press.pressed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var esc := InputEventKey.new()
 	esc.keycode = KEY_ESCAPE
 	esc.pressed = true
 	st.get_viewport().push_input(esc)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: the glass goes in, and Esc comes back out to the logo (open %s, the screen %s)" % [tag, zoom.is_open(), login.state],
 		not zoom.is_open() and not zoom.visible and login.state == LabLogin.LOGO)
 	# (and at the capital with a berth: the yard's edge sets the rail's alpha
@@ -436,7 +430,7 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 		Run.spend_material(id, Run.material(id))
 	Sig.resources_changed.emit()
 	await _click(zoom.tab_buttons[&"recipes"])
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	if not _ok("%s: RECIPES is on show" % tag, zoom.tab == &"recipes" and rec.is_visible_in_tree()):
 		return
 	var words := func() -> Array:
@@ -458,7 +452,7 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 	# and the row does not look pressable
 	var row0 := rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[0].cy))
 	await _click_at(row0)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: with nothing aboard a click on a faded row leaves the page empty, with no key and no hand cursor (%s)" % [tag, rec.hand],
 		rec.hand == &"" and not rec.commit_button.visible and rec.row_at(Vector2(LabRecipes.RAIL_X + 120, int(rec._items[0].cy))) == -1
 		and rec.leaves.any(func(l: Array) -> bool: return str(l[0]) == "NOTHING TO MAKE"))
@@ -469,7 +463,7 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 		Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"survey_film")))
 	Run.place_in_hold(MaterialData.of(MaterialTable.by_id(&"relic")))
 	Sig.resources_changed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var film_line := "2 ROLLS  ·  SELLS FOR %d" % Market.material_price(here, &"survey_film")
 	var w1: Array = words.call()
 	var bad1 := zoom.check()
@@ -480,31 +474,31 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 		and rec.bill_words == "1 ROLL" and w1.has(film_line) and bad1.is_empty())
 	# A CLICK ON THE RELIC'S ROW, then on each of its rings
 	await _click_at(rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[1].cy)))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var rids: Array = rec._rings.map(func(g: Dictionary) -> StringName: return StringName(g.r.id))
 	_ok("%s: a click on the relic's row puts it on the bench, READ FOR DATA and RELIC ANALYSIS off it (%s)" % [tag, rids],
 		rec.hand == &"relic" and rids == [&"read", &"analysis"])
 	var bills := ["1 RELIC", "1 RELIC + %d CREDITS" % PRICES[dev]]
 	for i2 in 2:
 		await _click_at(rec.get_global_transform() * Vector2(rec._rings[i2].at))
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var bad2 := zoom.check()
 		_ok("%s: a click on ring %d picks %s, its bill %s (%s)" % [tag, i2, rids[i2], rec.bill_words, "clean" if bad2.is_empty() else "; ".join(bad2)],
 			rec.choice == i2 and rec._rings[i2].st == &"next" and rec.bill_words == bills[i2] and bad2.is_empty())
 	# MAKE THROUGH THIRTY REFRESHES, then clicked: a roll developed
 	await _click_at(rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[0].cy)))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var key := rec.commit_button
 	for i3 in 30:
 		Sig.resources_changed.emit()
 		if i3 % 10 == 0:
-			await _frames(1)
-	await _frames(2)
+			await Harness.frames(_tree, 1)
+	await Harness.frames(_tree, 2)
 	_ok("%s: MAKE is the same object after 30 refreshes, the film still in hand" % tag,
 		is_instance_valid(key) and rec.commit_button == key and key.visible and not key.disabled and rec.hand == &"survey_film")
 	var d0 := Run.data
 	await _click(key)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var w3: Array = words.call()
 	var one_line := "1 ROLL  ·  SELLS FOR %d" % Market.material_price(here, &"survey_film")
 	var bad3 := zoom.check()
@@ -515,12 +509,12 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 		and bad3.is_empty())
 	# RELIC ANALYSIS clicked: the relic read out as a part
 	await _click_at(rec.get_global_transform() * Vector2(LabRecipes.RAIL_X + 120, int(rec._items[1].cy)))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	await _click_at(rec.get_global_transform() * Vector2(rec._rings[1].at))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var c0 := Run.credits
 	await _click(key)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var w4: Array = words.call()
 	var bad4 := zoom.check()
 	var made := str(rec.done.get("line", ""))
@@ -533,7 +527,7 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 	Run.data = data_was
 	Run.credits = cr_was
 	Sig.resources_changed.emit()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 
 
 ## THE LAB'S SCREEN AT REST (Jon, Nov 5; the savers, Nov 7): each of the owner's savers, at rest
@@ -552,7 +546,7 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		and login.get_child_count() == 0)
 	# AT REST: the owner's savers, the one up drawn whole
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var owner := "INDEPENDENT" if deep else "KORVAN"
 	var list := login.savers()
 	var own: Array = LabSavers.OWN[LabSavers.owner_key(login.owner_id)]
@@ -568,10 +562,10 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		"all in" if cut.is_empty() else "; ".join(cut)], cut.is_empty() and login.safe.has_area())
 	# POINTED AT: the saver's own sign-in
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var was := login.state
 	await _until(func() -> bool: return login._t >= 0.7, 4000)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	bad = login.check()
 	words = login.leaves.map(func(l: Array) -> String: return str(l[0]))
 	var cue := words.any(func(w: String) -> bool: return w.contains("SIGN IN"))
@@ -591,7 +585,7 @@ func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 		inks.min() >= LabLogin.PULSE_LO - 0.001 and inks.max() >= 0.97 and inks.max() <= 1.0)
 	# and away again: the same saver at rest
 	st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	bad = login.check()
 	_ok("%s: pointed away, %s at rest again (%s), the same one (%s), the box test %s" % [tag, login.code(), login.state, up, "clean" if bad.is_empty() else "; ".join(bad)],
 		login.state == LabLogin.LOGO and login.code() == up and bad.is_empty())
@@ -611,22 +605,22 @@ func _glass_only(st: StationScreen, tag: String) -> void:
 			Vector2(g.get_center().x, g.position.y - 3), Vector2(g.get_center().x, g.end.y + 3)]:
 		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
 		await _click_at(at)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		if zoom.is_open():
 			opened_off.append(str(at))
 			zoom.close()
-			await _frames(2)
+			await Harness.frames(_tree, 2)
 	_ok("%s: a click 3 px off the glass on each side opens nothing (%s)" % [tag, "none did" if opened_off.is_empty() else ", ".join(opened_off)], opened_off.is_empty())
 	var missed: Array[String] = []
 	for at2: Vector2 in [g.position + Vector2(2, 2), Vector2(g.end.x - 3, g.position.y + 2), Vector2(g.position.x + 2, g.end.y - 3), g.end - Vector2(3, 3)]:
 		st._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
 		await _click_at(at2)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		if not zoom.is_open():
 			missed.append(str(at2))
 		zoom.close()
 		st._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	_ok("%s: a click 2 px inside each corner of the glass opens the Lab (%s)" % [tag, "every one did" if missed.is_empty() else "missed " + ", ".join(missed)], missed.is_empty())
 	var target := GameShell.input_target(_tree)
 	var by: Array[String] = []
@@ -639,25 +633,25 @@ func _glass_only(st: StationScreen, tag: String) -> void:
 	pad.pressed = true
 	for ev: InputEvent in [enter, pad]:
 		target.push_input(ev)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		if zoom.is_open():
 			by.append("Enter" if ev == enter else "pad A")
 		zoom.close()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	_ok("%s: Enter and the pad's A press the glass (%s)" % [tag, ", ".join(by)], by.size() == 2)
 	# and the pad's B takes the camera back out, as Esc does
 	target.push_input(pad)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var in_by_a := zoom.is_open()
 	var b_ev := InputEventJoypadButton.new()
 	b_ev.button_index = JOY_BUTTON_B
 	b_ev.pressed = true
 	target.push_input(b_ev)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: the pad's B takes the camera back out (in by A %s, open after B %s)" % [tag, in_by_a, zoom.is_open()],
 		in_by_a and not zoom.is_open())
 	zoom.close()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 
 
 ## Every button showing under `n`.
@@ -860,7 +854,7 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		not zoom.is_open() and is_equal_approx(hud.modulate.a, 1.0) and is_equal_approx(st._rail.modulate.a, 1.0)
 		and over <= 0.5 and home_at >= 0.0 and st._rail.position == rail0 and hud.position == hud0
 		and hud.z_index == 0 and st._rail.z_index == 0 and not st._lab_lift)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s, animated: out again, the screen's effects back on its logo, the lamps free (screen %.2f, hushed %s, lamps held %s, the screen %s)" % [tag,
 		st._lab.fx_layer().modulate.a, st._lab._glass.hushed, st._lab.lamps_held, st._login.state],
 		is_equal_approx(st._lab.fx_layer().modulate.a, 1.0) and not st._lab._glass.hushed and not st._lab.lamps_held
@@ -880,14 +874,14 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and Time.get_ticks_msec() - t0 < 8000:
 		both = maxf(both, minf(zoom.signon_alpha(), zoom.view.modulate.a))
 		await _tree.process_frame
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s, animated: a click mid-move is eaten and the camera goes on, no jump (at %.2f, landed the next frame %s), landing by itself on RESEARCH (landed %s, the page %s, not AUGMENT)" % [tag,
 		at_click, jumped, zoom.landed(), zoom.tab],
 		not jumped and zoom.landed() and zoom.tab == &"research")
 	_ok("%s, animated: the sign-on is gone before the pages come up (both showing at once, at most %.3f)" % [tag, both], both < 0.1)
 	# LANDED, the chrome stays gone (frames on: where there is a berth the
 	# yard's edge sets the rail's alpha every frame, and put it back whole)
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("%s, animated: landed, frames on, the HUD and the rail stay gone (HUD %.2f, rail %.2f)" % [tag, hud.modulate.a, st._rail.modulate.a],
 		zoom.landed() and hud.modulate.a < 0.02 and st._rail.modulate.a < 0.02)
 	# nothing drawn for nothing under the pages: the sign-on is hidden, and
@@ -920,19 +914,19 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	_ok("%s, animated: out, the deck's plate whole on the frame the camera rests (%s), and a click on the elevator two frames on is taken (%s: on %s)" % [tag,
 		plate_out, deck, st._tab], plate_out and took)
 	await _until(func() -> bool: return not st.deck_changing())
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s, animated: a click on the glass on the way out is eaten, the camera goes on out (no jump: %s) and opens nothing (open %s, shown %s, HUD %.2f)" % [tag,
 		not cut_out, zoom.is_open(), zoom.visible, hud.modulate.a],
 		not cut_out and not zoom.is_open() and not zoom.visible and is_equal_approx(hud.modulate.a, 1.0))
 	(st._tabs[&"bench"] as Button).pressed.emit()
 	await _until(func() -> bool: return not st.deck_changing())
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	# TAB, ANIMATED, with the camera in: it goes out at three times the pace (it
 	# moves, never cuts) and holds the key for Main till it is out (taken back
 	# here, or the test would leave the station)
 	zoom.open(&"research")
 	zoom.finish()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var tab_a := InputEventKey.new()
 	tab_a.keycode = KEY_TAB
 	tab_a.physical_keycode = KEY_TAB
@@ -949,7 +943,7 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	# TAB with the camera in: out at once, the chrome back, the key left for Main
 	Router.animate_in_harness = false
 	zoom.open(&"research")
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var tab := InputEventKey.new()
 	tab.keycode = KEY_TAB
 	tab.physical_keycode = KEY_TAB
@@ -998,7 +992,7 @@ func _deck_ride(st: StationScreen, tag: String) -> void:
 			scaled = true
 		frames += 1
 		await _tree.process_frame
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	_ok("%s, animated: going up, the shaft moves down as one (rigid %s, one way %s, scaled %s, %d frames), and at the car's arrival only the yard shows, in its place, taking clicks, the clip as it was (Lab %s, yard y %.0f)" % [tag,
 		rigid, down_only, scaled, frames, lab_page.visible, yard.position.y],
 		rigid and down_only and not scaled and frames >= 3 and not lab_page.visible and yard.visible
@@ -1021,7 +1015,7 @@ func _deck_ride(st: StationScreen, tag: String) -> void:
 	# A SECOND PRESS MID-RIDE takes over from where the shaft stands: the yard,
 	# still on screen, does not jump
 	(st._tabs[&"bench"] as Button).pressed.emit()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var y_was := yard.position.y
 	# (and the glass cannot be pressed while the Lab rides in)
 	st._open_lab(&"research")
@@ -1047,7 +1041,7 @@ func _deck_ride(st: StationScreen, tag: String) -> void:
 			at_rest = false
 	_ok("%s: unanimated, the deck changes on the press (Lab %s, every deck in its place %s)" % [tag, lab_page.visible, at_rest],
 		lab_page.visible and not hold.visible and at_rest and not st.deck_changing())
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Router.animate_in_harness = was_anim
 
 
@@ -1178,7 +1172,7 @@ func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: 
 	Run.credits = 500
 	Sig.resources_changed.emit()
 	await _click(zoom.tab_buttons[&"augment"])
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	if not _ok("%s: AUGMENT is on show" % tag, zoom.tab == &"augment" and aug.is_visible_in_tree()):
 		return
 	# THE PRICE: 5 DATA and this level's credits, on the key's bill
@@ -1189,7 +1183,7 @@ func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: 
 			break
 	if plain != null:
 		aug.pick_part(plain)
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 	var b := aug.bill()
 	_ok("%s: AUGMENT costs 5 DATA and %d credits (bill %s, the key's %s)" % [tag, AUGMENT[dev], b, aug.bill_words],
 		int(b.data) == 5 and int(b.credits) == AUGMENT[dev] and Market.augment_price(here) == AUGMENT[dev]
@@ -1210,7 +1204,7 @@ func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: 
 			for k in maxi(1, aug._affs.size()):
 				if k < aug._affs.size():
 					aug.pick_affix(k)
-				await _frames(1)
+				await Harness.frames(_tree, 1)
 				for f in zoom.check():
 					fails.append("%s %s %d: %s" % [(r.m as ModuleData).name, aug.mode, k, f])
 	_ok("%s: AUGMENT passes the box test on all %d parts and every affix, a click picking each (%s)" % [tag, rows_seen,
@@ -1222,7 +1216,7 @@ func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: 
 	Sig.resources_changed.emit()
 	if plain != null:
 		aug.pick_part(plain)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var bad := zoom.check()
 	_ok("%s: DATA short, AUGMENT can't be pressed and the page passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)],
 		plain == null or (aug.commit_button.visible and aug.commit_button.disabled and bad.is_empty()))
@@ -1236,13 +1230,13 @@ func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: 
 		guard += 1
 		Run.place_in_hold(LootGen.roll_module(1 + guard % 3, &"", true))
 	Sig.resources_changed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var pages := aug._pages.size()
 	var fails2: Array[String] = []
 	for pg2 in pages:
 		if pg2 > 0:
 			await _click(aug.more_button)
-			await _frames(1)
+			await Harness.frames(_tree, 1)
 		for f2 in zoom.check():
 			fails2.append("page %d: %s" % [aug.page + 1, f2])
 	_ok("%s: %d parts run onto %d pages, MORE turns them, and each passes the box test (%s)" % [tag, Run.installed.size() + _held().size(),
@@ -1253,11 +1247,11 @@ func _augment_page(st: StationScreen, zoom: LabZoom, here: MapGen.MapNode, tag: 
 ## test, the key reads STRIP, and the bill is 2 DATA and this level's credits.
 func _strip_view(aug: LabAugment, m: ModuleData, dev: int) -> bool:
 	aug.pick_part(m)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var ok := aug.mode == &"strip" and aug._affs.size() == m.affixes.size()
 	for k in aug._affs.size():
 		aug.pick_affix(k)
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		var bad := (aug.get_parent().get_parent() as LabZoom).check()
 		if not bad.is_empty():
 			print("    strip %d: %s" % [k, "; ".join(bad)])
@@ -1280,13 +1274,13 @@ func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String
 	var rolled_name := m.affixes[0].name
 	aug.pick_part(m)
 	aug.pick_affix(0)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var key := aug.commit_button
 	for i in 30:
 		Sig.resources_changed.emit()
 		if i % 10 == 0:
-			await _frames(1)
-	await _frames(2)
+			await Harness.frames(_tree, 1)
+	await Harness.frames(_tree, 2)
 	_ok("%s: AUGMENT is the same object after 30 refreshes, the part still in hand" % tag,
 		is_instance_valid(key) and aug.commit_button == key and key.visible and not key.disabled and aug.part == m)
 	var a: AffixData = aug._affs[0]
@@ -1302,7 +1296,7 @@ func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String
 	Sig.ship_changed.connect(probe)
 	await _click(key)
 	Sig.ship_changed.disconnect(probe)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: AUGMENT puts %s on %s for 5 DATA and %d credits (DATA %d to %d, credits %d to %d, the header %s)" % [tag, a.name, m.name,
 		AUGMENT[dev], data0, Run.data, cr0, Run.credits, zoom._note],
 		m.augmented and m.affixes.size() == n_aff + 1 and m.affixes[-1].name == a.name
@@ -1320,7 +1314,7 @@ func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String
 		_ok("%s: and the ship's max hull went %d to %d" % [tag, hp0, Run.max_hp()], Run.max_hp() == hp0 + 7 * a.hull)
 	# a second augment is refused: the row opens on STRIP
 	await _click_at(aug.get_global_transform() * Vector2(aug.RAIL_X + 120, _row_y(aug, m)))
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: picked again, it opens on STRIP, never a second augment" % tag, aug.mode == &"strip" and aug.commit_button.label == "STRIP")
 	# the Lab's own affix picked, and it last on the part: the rolled one first
 	var at_lab := -1
@@ -1328,11 +1322,11 @@ func _augment_press(st: StationScreen, zoom: LabZoom, m: ModuleData, tag: String
 		if aug._affs[i].name == a.name:
 			at_lab = i
 	aug.pick_affix(at_lab)
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	var data1 := Run.data
 	var cr1 := Run.credits
 	await _click(aug.commit_button)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var left: Array = m.affixes.map(func(x: AffixData) -> String: return x.name)
 	_ok("%s: STRIP takes the picked %s off and leaves %s on (%s) for 2 DATA and %d credits, and the mark stays (DATA %d to %d, credits %d to %d)" % [tag, a.name,
 		rolled_name, left, STRIP[dev], data1, Run.data, cr1, Run.credits],
@@ -1374,7 +1368,7 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		Run.board_owned[b] = 0
 	Run.data = 40
 	Sig.resources_changed.emit()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var none_behind := true
 	var on_next := true
 	for b2 in 3:
@@ -1395,7 +1389,7 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	# CORE's first step picked as a player picks it, by its ring
 	board.pick = Vector2i(0, 2)
 	board.refresh()
-	await _frames(1)
+	await Harness.frames(_tree, 1)
 	await _click_at(board.get_global_transform() * Vector2(board._nodes[Vector2i(1, 0)]))
 	_ok("%s: a click on CORE's first step puts it on the strip, with BUY" % tag,
 		board.pick == Vector2i(1, 0) and board.buy_button.visible)
@@ -1404,8 +1398,8 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	for i in 30:
 		Sig.resources_changed.emit()
 		if i % 10 == 0:
-			await _frames(1)
-	await _frames(2)
+			await Harness.frames(_tree, 1)
+	await Harness.frames(_tree, 2)
 	_ok("%s: BUY and the glass's key are the same objects after 30 refreshes" % tag,
 		is_instance_valid(buy) and board.buy_button == buy and buy.visible and buy.get_parent() == board
 		and is_instance_valid(key) and st._glass_press == key)
@@ -1414,7 +1408,7 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	Audio.taping = true
 	Audio.tape.clear()
 	await _click(buy)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var heard: Array = Audio.tape.map(func(r: Array) -> String: return String(r[0]))
 	Audio.taping = was_taping
 	_ok("%s: BUY sounds lab_research_buy once and no fabricate (%s)" % [tag, heard],
@@ -1434,9 +1428,9 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	board.pick = Vector2i(0, 0)
 	board.bought = Vector2i(-1, -1)
 	board.refresh()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	await _click(board.buy_button)
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var bad2 := zoom.check()
 	_ok("%s: DATA short, BUY is there and dead, the strip says YOU HAVE 3 DATA, a click buys nothing, and it fits (%s)" % [tag,
 		"clean" if bad2.is_empty() else "; ".join(bad2)],
@@ -1451,17 +1445,17 @@ func _reminder(st: StationScreen, tag: String) -> void:
 	var note := st._deck_note.get(&"bench") as Label
 	var was := Run.data
 	st._show_tab(&"services")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var seen: Array = []
 	for d in [StationScreen.LAB_REMIND - 1, StationScreen.LAB_REMIND]:
 		Run.data = d
 		Sig.resources_changed.emit()
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		seen.append([note.text if note != null else "", note != null and note.get_theme_color(&"font_color") == UITheme.EMBER])
 	Run.data = was
 	Sig.resources_changed.emit()
 	st._show_tab(&"bench")
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s: the Lab's line from the Shipyard reads %s" % [tag, seen],
 		seen == [["DATA 9", false], ["SPEND 10 DATA", true]])
 
@@ -1480,7 +1474,7 @@ func _second_station() -> void:
 	st.lab_zoom().open(&"research")
 	st.lab_zoom().board.pick = Vector2i(1, 0)
 	st.lab_zoom().board.refresh()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var first := _board_print(st.lab_zoom().board)
 	var other: MapGen.MapNode = null
 	for raw in Run.map:
@@ -1497,7 +1491,7 @@ func _second_station() -> void:
 	st2.lab_zoom().open(&"research")
 	st2.lab_zoom().board.pick = Vector2i(1, 0)
 	st2.lab_zoom().board.refresh()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var there := _board_print(st2.lab_zoom().board)
 	_ok("the board is the same at a second station: every step and word where it was (%d)" % there.size(),
 		there == first and there.size() >= 20)
@@ -1596,13 +1590,3 @@ func _find_label_containing(n: Node, text: String) -> Label:
 			return got
 	return null
 
-
-func _find_button(n: Node, text: String) -> Button:
-	var b := n as Button
-	if b != null and b.text == text and b.is_visible_in_tree():
-		return b
-	for c in n.get_children():
-		var got := _find_button(c, text)
-		if got != null:
-			return got
-	return null

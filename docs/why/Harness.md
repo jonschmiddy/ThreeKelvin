@@ -7,16 +7,23 @@ Above `var _fails: int = 0`:
 ```text
 What every pass/fail harness in `scripts/sim/` counts and prints.
 
-Four of them carried a byte-identical `_ok()` and a verdict line that differed
-only in the name it printed. Harmless right up until the format changes, at
-which point the merge gate's ERROR_PATTERNS have to match four spellings of
-the same sentence.
+Four of them once carried a byte-identical `_ok()` and a verdict line that
+differed only in the name it printed, and about 49 Node tests came to carry one
+(they hold a `Harness` now).
+Harmless right up until the format changes, at which point the merge gate's
+ERROR_PATTERNS have to match as many spellings of the same sentence.
 
-NOT every harness extends this, deliberately. `HeadlessSim`, `MarketSim`,
-`SaveTest`, `GlyphSheet` and `RepairSheet` report a MEASUREMENT rather than a
-pass count — a win rate, a price sweep, a distribution — and folding those
-into a failure counter would be imposing a shape on them rather than sharing
-one they already had.
+A RefCounted test extends this. A Node test cannot, so it holds one
+(`var h := Harness.new()`, or `harness` where a local `h` is in the way) and
+calls `h._ok`, `h.verdict("label")` and `quit(h.code())`. The command line
+reads the same way everywhere: `Harness.arg("key", "default")`,
+`Harness.seed_arg(4242)` and `await Harness.frames(_tree, n)`.
+
+`HeadlessSim`, `MarketTest`, `SaveTest`, `GlyphSheet` and `RepairSheet` do not
+use it, deliberately. They report a MEASUREMENT rather than a pass count (a win
+rate, a price sweep, a distribution) or count their own violations
+(`MarketTest` and `SaveTest` print the `=== PASS ===` line the gate greps), and
+folding those into a failure counter would impose a shape on them.
 ```
 
 ## Seed run
@@ -33,13 +40,14 @@ random galaxy, ship and hold every time it ran -- and a check that depended
 on any of them came and went between gate runs (maptest, fittest and
 subjecttest all did, Oct 11-12). This sets `Rng.forced`, which sticks.
 
-`-- <harness> seed N` on the command line wins over `n`, so a failure's seed
-(printed here and by `verdict`) replays it.
+`-- <harness> seed N` or `seed=N` on the command line wins over `n` (the last
+one given), so a failure's seed (printed here and by `verdict`) replays it. The
+tools that force the seed by hand read it through `Harness.seed_arg`.
 ```
 
 ## Finding nodes
 
-Above `func first(root: Node, matches: Callable) -> Node:`:
+Above `static func first(root: Node, matches: Callable) -> Node:`:
 
 ```text
 The first node under `root` that `matches` accepts, depth-first, or null.

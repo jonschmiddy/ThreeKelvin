@@ -46,6 +46,8 @@ SOLVE_SHARDS="${SOLVE_SHARDS:-8}"
 mkdir -p "$OUT"; : >"$OUT/summary.txt"
 # (the logs' folder as Godot reads it: C:/... under Git Bash)
 OUT_G="$(cygpath -m "$OUT" 2>/dev/null || printf '%s' "$OUT")"
+# The rows below are word-split, so a space in the logs' folder would cut a logs= argument.
+case "$OUT_G" in *" "*) echo "run_battery: OUT has a space ($OUT_G): set OUT to a folder without one"; exit 2 ;; esac
 ONLY=" $* "
 T_ALL=$(date +%s)
 

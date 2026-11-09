@@ -402,20 +402,6 @@ slot is all there is to go on.
 Square either way asks for nothing -- a 1x1 and a 2x2 look the same turned.
 ```
 
-## Reticle glyph
-
-Inside `_glyph()`, above `var arm := Vector2(6, 2)`:
-
-```text
-A reticle, and the only glyph in the set with a hole in the middle.
-
-The four corners are written out rather than derived from a loop.
-The clever version put every vertical arm at the corner's top edge,
-so the two lower brackets pointed the wrong way and the whole thing
-read as four unrelated ticks — which at 44px is indistinguishable
-from damage. An L has a handedness and there are four of them.
-```
-
 ## The augmented mark
 
 Above `static func augment_mark(r: Rect2, scale: float = HOLD_K) -> Array:`:

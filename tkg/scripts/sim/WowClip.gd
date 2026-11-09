@@ -24,24 +24,17 @@ func _switch(on: bool) -> void:
 		SunViewS.k_max = 9.0 if on else 4.0
 
 
-func _arg(name: String, fallback: String) -> String:
-	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with(name + "="):
-			return (a as String).substr(name.length() + 1)
-	return fallback
-
-
 func _ready() -> void:
-	Rng.forced = int(_arg("seed", "4242"))
-	var out := _arg("out", "user://wow")
-	var kind := _arg("kind", "ordinary")
-	var z0 := float(_arg("zoom", "1.0"))
-	var z1 := float(_arg("zoomto", str(z0)))
-	var t0 := float(_arg("t0", "30"))
-	var secs := float(_arg("secs", "8"))
+	Rng.forced = Harness.seed_arg(4242)
+	var out := Harness.arg("out", "user://wow")
+	var kind := Harness.arg("kind", "ordinary")
+	var z0 := float(Harness.arg("zoom", "1.0"))
+	var z1 := float(Harness.arg("zoomto", str(z0)))
+	var t0 := float(Harness.arg("t0", "30"))
+	var secs := float(Harness.arg("secs", "8"))
 	var ab := "ab" in OS.get_cmdline_user_args()
-	var ncost := int(_arg("cost", "0"))
-	_want = _arg("wow", "").split(",", false)
+	var ncost := int(Harness.arg("cost", "0"))
+	_want = Harness.arg("wow", "").split(",", false)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	if "list" in OS.get_cmdline_user_args():
 		# every system: its star, sky, and what its bodies are (belts, worlds)
@@ -88,13 +81,13 @@ func _ready() -> void:
 	for _i in 4:
 		await get_tree().process_frame
 	# (`zoom=open`, `zoomto=open`: the zoom the map opens at)
-	if _arg("zoom", "") == "open":
+	if Harness.arg("zoom", "") == "open":
 		z0 = _scr.open_zoom
-	if _arg("zoomto", "") == "open":
+	if Harness.arg("zoomto", "") == "open":
 		z1 = _scr.open_zoom
-	elif _arg("zoomto", "") == "":
+	elif Harness.arg("zoomto", "") == "":
 		z1 = z0
-	_pick_aim(_arg("aim", "star"))
+	_pick_aim(Harness.arg("aim", "star"))
 	print("  wowclip: %s system %d, %d bodies, zoom %.2f..%.2f, aim %s (%d)" % [kind, n.index, _scr.view.layout.bodies.size(), z0, z1, _aim_kind, _aim_i])
 	var frames := int(secs * 30.0)
 	if ab:
