@@ -86,23 +86,12 @@ func begin_run() -> void:
 ## the desks, an option's price and (science) the Lab's AUGMENT.
 var spend: Dictionary = {fuel = 0, repair = 0, options = 0, augment = 0}
 
-## SCIENCE (Phase 12, Jon's picks 1A 2B 3A 4B, and "science costs fuel"). False
-## is a pilot that takes every reading's credits line and never spends DATA:
-## `-- sim science=off` (with `Run.science_off`, the world main rolls) and
-## `-- sim science=ignore` (the world keeps its readings; this pilot sells them).
-##
-## EVERY SCIENCE RULE BELOW DRAWS FROM NO STREAM, `pilot` included. A reading is
-## taken or sold on what the ship holds, and the Lab is a list in a fixed order,
-## so a run with science off flies exactly the run main flew.
+## SCIENCE (Phase 12, Jon's picks 1A 2B 3A 4B, and "science costs fuel").
+## Why: docs/why/Policy.md#science
 var science: bool = true
 
-## What science did this run, for `HeadlessSim._report_science`. Reset by
-## `begin_run`. `met` readings come to, and which line was taken (`careful`,
-## `risky`, `credits`); `refused` a reading's DATA lines the fuel gate shut;
-## DATA by where it came from (`data_careful`, `data_risky` out of the events,
-## `data_film`, `data_relic` out of the Lab's bench); `fuel` burned on readings;
-## `augments` and what they cost (`aug_data`, `aug_credits`) and put on
-## (`affixes`, name to count).
+## What science did this run, for `HeadlessSim._report_science`.
+## Why: docs/why/Policy.md#what-science-did-this-run
 var sci: Dictionary = new_sci()
 
 static func new_sci() -> Dictionary:
@@ -221,12 +210,7 @@ func manage_cargo() -> void:
 
 
 ## The fitted part in `slot` a better find would replace: the cheapest.
-##
-## AN AUGMENTED PART IS NEVER THE ONE, unless it is the only part in its slot.
-## The Lab's work on it (DATA and credits, once per part ever) is not in its
-## scrap value, which AUGMENT leaves alone, so measured by price alone the pilot
-## would melt what it just paid for. With science off no part is augmented and
-## this is the old cheapest-in-the-slot.
+## Why: docs/why/Policy.md#the-fitted-part-in-slot-a
 static func _worst_fitted(slot: ModuleData.Slot) -> ModuleData:
 	var worst: ModuleData = null
 	var plain_worst: ModuleData = null
@@ -354,14 +338,8 @@ func sell_hold(n: MapGen.MapNode) -> void:
 
 # ------------------------------------------------------------------ science
 
-## THE LAB, at a dock (science, plan S12). The one entry the bot and the sim both
-## call, so they stay one pilot: DEVELOP FILM and READ FOR DATA while the board
-## still wants DATA, then the board's steps (`research`). Both cost only DATA and
-## materials, never credits, so nothing here competes with a repair or the tank.
-##
-## The bench's old matches (a hull patch, fuel cracking) went with their
-## recipes; RELIC ANALYSIS (40 credits for a part) is a build decision this
-## pilot has no opinion on, so a relic the board has no use for is sold.
+## THE LAB, at a dock (science, plan S12).
+## Why: docs/why/Policy.md#the-lab
 func lab(n: MapGen.MapNode) -> void:
 	if not science or not Science.lab_here(n):
 		return
@@ -443,14 +421,8 @@ func data_covers_step() -> bool:
 	return b >= 0 and Run.data >= Run.step_cost(b)
 
 
-## AUGMENT, when no step of the board is affordable: one part a visit. The most
-## valuable fitted part not yet augmented (`Market.base_value`), and of the three
-## the Lab offers it the first in `AUGMENT_ORDER`. Never Lightened (-1 HUL) under
-## 60% hull. Never below FUEL_RESERVE credits, the reserve the tank keeps. Returns
-## the line, or "" when nothing was done.
-##
-## THE PART'S PRICE DOES NOT MOVE (pick 3A): `Science.augment` leaves
-## `scrap_value` alone, so this buys strength and never resale.
+## AUGMENT, when no step of the board is affordable: one part a visit.
+## Why: docs/why/Policy.md#augment
 func augment(n: MapGen.MapNode) -> String:
 	if not science or not Science.lab_here(n):
 		return ""
@@ -525,14 +497,8 @@ func _count_reading(line: Dictionary, data: int, fuel: int) -> void:
 		sci.data_careful += maxi(0, data)
 
 
-## A SCIENCE EVENT'S LINE (plan S12). Three lines: careful (`burns`, no check),
-## risky (`burns` and a check), and the buyer's credits (no `burns`).
-##
-## Credits when this pilot has science off, when the board wants no more DATA
-## (`wants_data`), or when the fuel gate is shut (`OptionResolve.fuel_ok`, the
-## same gate the card greys: a reading never takes the tank under the way out).
-## Otherwise risky while the hull is above half (and, for the cautious pilot,
-## only at odds of RISK_FLOOR or better), else careful. Draws from no stream.
+## A SCIENCE EVENT'S LINE (plan S12).
+## Why: docs/why/Policy.md#a-science-events-line
 func _choose_science(opt: Dictionary) -> int:
 	var choices: Array = opt.get("choices", [])
 	var careful := -1

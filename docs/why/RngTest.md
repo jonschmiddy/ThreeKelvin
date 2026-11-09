@@ -53,3 +53,16 @@ world stream makes after it is the one it made before the pass existed.
 Run again on a map that has had it once, so it has work to do: stations
 to halve and, after `_pick_type`'s count, some too close to move.
 ```
+
+## The science board deal
+
+Above `func _board() -> void:`:
+
+```text
+--- 8. the science board -------------------------------------------------
+
+THE DEAL DRAWS NOTHING (science, pick 2B). A run's board comes off
+`Rng.derive(&"board", seat)` alone, so dealing it moves no stream: a run with
+science rolls the world, the loot, every event and every fight exactly as a
+run without it, which is what makes `-- sim science=off` a control cell.
+```

@@ -690,34 +690,9 @@ func run(tree: SceneTree) -> void:
 	for i in 30:
 		await RenderingServer.frame_post_draw
 
-	# THE LAB'S SCREEN, ZOOMED (science S9): `labmode=room|board|augment|strip|recipes`
-	# with `deck=bench`, so each page can be photographed at every level.
-	#   labparts=a,b/c,d  your parts: these fitted, those in the hold (module ids)
-	#   labaug=id:Affix   that part augmented with that affix (a comma list)
-	#   laboffer=A,B,C    the Lab's offer shown, whatever this station draws
-	#   labpart=id        the part in hand on AUGMENT (STRIP's, with labmode=strip)
-	#   labaffix=i        the affix on the right in hand
-	#   labdo             its AUGMENT (or STRIP) pressed, as a click does
-	#   labfilm=N labrelic=N  survey film and relics in the hold, for RECIPES
-	#   data=N            DATA held (`credits=N` the credits)
-	#   owned=a,b,c       steps bought on FRAME, CORE and DRIVE
-	#   board=id,...      the nine routines dealt (to set beside the mockup's)
-	#   labpick=b,k       the step the strip is about
-	#   labbuy=b          BUY pressed on branch b's next step, as a click does
-	#   labphase=p        the board's loop held at p (0..1)
-	#   labzoom=k         the camera held k of the way into the glass (0..1)
-	#   stillto=<png>     the shot written there too (the profile is thrown away)
-	#
-	# THE LAB'S SAVERS (`LabLogin`, `LabSavers`), all with `deck=bench` and a used
-	# run (`data=N owned=a,b,c savertrail=N aug=N`); `saver=<code>` pins one:
-	#   saverfilm         the saver at rest (`restn` frames), the pointer on the
-	#                     glass (`hovern`), a click, the camera in, landed
-	#   saverstills=<dir> each of this lab's ten savers pinned in turn, a still at
-	#                     rest and one pointed at (`<level>_<code>_rest|hover`,
-	#                     the window and the glass at the window's own scale)
-	#   saverturn         the turn as it runs, `turnhold=S` a saver (the game's
-	#                     is `LabLogin.HOLD_S`), `turns=N` savers; prints the glass
-	#                     so a film can be cut to it
+	# THE LAB'S SCREEN, ZOOMED (science S9): `labmode=room|board|augment|strip|recipes` with
+	# `deck=bench`, so each page can be photographed at every level.
+	# Why: docs/why/StationShot.md#the-labs-screen
 	await _lab_mode(tree)
 	if OS.get_cmdline_user_args().has("saverfilm"):
 		await _saver_film(tree)

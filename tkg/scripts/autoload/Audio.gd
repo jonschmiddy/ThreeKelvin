@@ -852,16 +852,8 @@ func back() -> void:    play(&"ui_back", 0.03)
 func confirm() -> void: play(&"ui_click", 0.02)
 func denied() -> void:  play(&"ui_denied", 0.03)
 
-## THE LAB'S GLASS (Jon's picks, Nov 7, the round-2 page: hover h2_03, login
-## l2_05). Both play at 0 dB, as `click` and `hover` do: the files carry their
-## level, fitted on the page against their peers by one meter (loudest second):
-## the hover -37 LUFS, between ui_hover (-44.6) and card_hover (-35.4); the
-## login -28, over the ui_click it plays with (-34.4) and under the lab's own
-## screen power-on (lab_settlement_screen, -24.6). A boost here would undo the
-## fit he picked by ear.
-## `lab_hover`: the pointer arriving on the glass (`StationScreen._process`, on
-## the edge alone). A small pitch spread, since the take is a tone; the limit is
-## only for a pointer jittering on the glass's edge.
+## THE LAB'S GLASS (Jon's picks, Nov 7, the round-2 page: hover h2_03, login l2_05).
+## Why: docs/why/Audio.md#the-labs-glass
 func lab_hover() -> void: play(&"lab_glass_hover", 0.02, 120)
 ## `lab_login`: the press that signs in (`StationScreen._open_lab`), from the
 ## file's start (Jon's offset 0), its swell peaking ~0.55 s into the camera's

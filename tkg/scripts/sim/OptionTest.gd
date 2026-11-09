@@ -226,14 +226,8 @@ func _science_table() -> void:
 		% ("" if shape_bad.is_empty() else ": " + "; ".join(shape_bad)), shape_bad.is_empty())
 
 
-## HOW OFTEN, ONE AT MOST, AND NOTHING ELSE MOVES. Over the twelve seeds: the
-## science share of every option rolled sits near `SCIENCE_SHARE` (1 in 6), no
-## system holds two, and every system's list is the list the table WITHOUT
-## science rolls (main's), except a system the pass hit, which differs from it
-## in exactly one slot, the science event's. `science=off` rolls main's list
-## everywhere. The seeds are fixed, so the share is too: 0.166 at 1 in 6, 0.143
-## at 1 in 7 and 0.199 at 1 in 5 (Nov 4), and the band (0.155 to 0.18) passes
-## only the first. Move it with the share.
+## HOW OFTEN, ONE AT MOST, AND NOTHING ELSE MOVES.
+## Why: docs/why/OptionTest.md#how-often
 func _science_rolls() -> void:
 	var main_all: Array[Dictionary] = []
 	for o in OptionTable.all():

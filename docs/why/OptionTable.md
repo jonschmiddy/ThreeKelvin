@@ -547,3 +547,50 @@ it brings (`foe`, read by `fight_foe`), is fauna-gated, and pays what
 animals pay: hide and fauna rolls on the quiet branches, the body's
 exotic in its wreck after the fight, credits only from people.
 ```
+
+## Science 2
+
+Above `const SCIENCE_PAY: Array[int] = [0, 5, 6, 8, 10, 14]`:
+
+```text
+SCIENCE (Phase 12, Jon's picks Nov 4, "1A 2B 3A 4B", and "science costs
+fuel"). A science event is a reading taken at a dry world or a belt (its
+`site`, `SystemLayout`): the careful line pays a reading, the risky line two
+behind a check, and the third line pays a named buyer credits, so DATA always
+competes with money. Each DATA line carries two plain keys the screen, the
+gate, the lint and the pilot read without running it: `burns = true` (it
+burns `science_fuel()`) and `reads` (how many readings it pays when it lands).
+
+THE CAREFUL READING BY TIER (pick 4B, about 70 DATA a full run), indexed by
+`MapGen.tier` as `PAY_SCALE` is; the risky line pays `reading(2)`.
+```
+
+## How often
+
+Above `const SCIENCE_SHARE := 1.0 / 6.0`:
+
+```text
+HOW OFTEN: each rolled slot has this chance of being a science event, so a
+system of three holds one about half the time (`roll_for`). 1 in 6 is the
+science study's pick (Nov 4): the sim's `human` pilot, in the runs that
+reach the core (its `STUDY reached core` count), has taken in about 70 DATA
+by then and met about six science events. That pilot takes the risky line on
+nine readings in ten; a player careful half the time gets nearer 60. The
+sim's `science: DATA N a run` line is not this number: it averages every run,
+the short ones too, and reads far lower (about 30 for the default pilot the
+gate flies). This is the first dial to turn if the human pilot reaches the
+core with under 60; Jon's pay stays put.
+```
+
+## Science
+
+Inside `_authored()`, above `{`:
+
+```text
+SCIENCE (Phase 12, Jon's picks Nov 4): readings at a dry world or a belt.
+Never in the main draw: `roll_for`'s science pass puts one in place of a
+slot, and `SystemLayout` sets each on its `site`. Every DATA line burns
+`science_fuel()` on every band and carries `burns` and `reads`; the third
+line pays the named buyer and burns nothing (`encounter_lint` check 10).
+One barren and one belt event in each band, 1-4, 3-6, 5-8 and 7-10.
+```

@@ -180,14 +180,7 @@ func _one_price() -> void:
 
 
 ## AN AUGMENT NEVER MOVES A PRICE (science, pick 3A).
-##
-## The Lab adds an affix for DATA and credits. If the part then sold for more,
-## DATA would be money with a step in between, and DATA must never be money. So
-## a part is augmented through `Science.augment`, the Lab's own door, with each
-## of the three affixes it is offered, and priced against the same part plain at
-## every kind of place: the ask, the bid and the melt must all be the plain
-## part's. `scrap_value` is set at the drop and nothing in the Lab writes it;
-## this is the check that it stays that way.
+## Why: docs/why/MarketTest.md#an-augment-never-moves-a-price
 func _augmented_price() -> void:
 	var lab := _place(2, 3, [&"korvan"] as Array[StringName], 5)
 	lab.index = 7

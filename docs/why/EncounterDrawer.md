@@ -471,3 +471,17 @@ degrees from both, light enough to read at two pixels on the dark map. The HUD's
 readout has no hue of its own (ICE, like every figure on the bar), so there
 was nothing to match.
 ```
+
+## A reading burns fuel
+
+Inside `choice_card()`, above `if bool(c.get("burns", false)):`:
+
+```text
+A READING BURNS FUEL (science, `burns`): what it costs goes on the card,
+after any odds, so the number you pay is inside what you press. When the
+tank cannot pay it and keep the way out (`OptionResolve.fuel_ok`, the hard
+gate), the card greys: the same price as the full card, then the way out
+the tank keeps back (`Run.fuel_floor()`), then what you have, as RULING 8
+has a price say. Folding the two into one number read as if the reading
+cost it. Only pressable things look pressable.
+```

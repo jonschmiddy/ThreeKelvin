@@ -52,18 +52,9 @@ const PUT_LEFT := 6
 ## Close-pair residuals measured Nov 1 to 3: all from harness starts, every game start found.
 ## Why: docs/why/FlightTest.md#measured-residual
 const PUT_LEFT_CLOSE := 6
-## the harness's starts the residual may come from, "seed:system:start" a sweep
-## (any other start put there fails, whatever the count). SCIENCE (Phase 12,
-## Nov 4) put a reading in place of one option in about three systems in eight,
-## and those systems alone lay out anew (checked system by system against the
-## layouts before): two of them, seed 1999 system 258's near start (THE RACE
-## COURSE on its belt) and seed 7 system 328's free start (THE TARGET RANGE on
-## its dry world), each to one place, now leave a twin's residual, the best burn
-## from each keeping clear for 30 s, so again the arrivals miss. At the study's
-## 1 in 6 (Nov 4) about half of all systems hold one, and one more does: seed
-## 1999 system 74's near start (THE FIRST LOOK on its dry world, a reading it
-## does not hold at 1 in 8; its list is main's but for that slot), to one place,
-## the best burn keeping clear for 30 s again
+## The harness's starts the residual may come from, "seed:system:start" a sweep. Science's
+## readings lay a few systems out anew, and three more starts leave one.
+## Why: docs/why/FlightTest.md#the-harnesss-starts-the-residual-may
 const PUT_LEFT_CASES := {
 	"twin": ["1999:177:free", "7:209:free", "1999:258:near", "7:328:free", "1999:74:near"],
 	"close": ["1999:257:free", "4242:24:near", "4242:297:free"],

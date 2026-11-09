@@ -17,13 +17,7 @@ var pin_unlocked: Array[StringName] = []
 ## filled to the new max. Empty grants nothing, the run the game flies.
 var grant_routines: Array[StringName] = []
 ## `-- sim science=on|off|ignore` (Phase 12, plan §6), `on` by default.
-##   - `off`, THE CONTROL CELL: `Run.science_off` and a pilot with science off.
-##     No science event is rolled, the barren world override never fires, the
-##     Lab sells nothing science; the run is the run main flies, draw for draw.
-##   - `ignore`: the world keeps its readings, and the pilot takes every
-##     reading's credits line and never spends DATA. Against `off` it says what
-##     the readings cost in credit slots; against `on`, what the routines and
-##     augments bought.
+## Why: docs/why/HeadlessSim.md#sim-scienceonoffignore
 var science_mode: StringName = &"on"
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Every decision this file used to make itself. Extracted so the party bot can
@@ -156,20 +150,8 @@ var _trace_path := ""
 var _trace_file: FileAccess = null
 var _tr: Dictionary = {}
 
-## SCIENCE, one entry a run (`_report_science`). Read-only like `_tally`: every
-## number comes off `Run`, `policy.sci` or `Sig.resources_changed`, and nothing
-## here draws from any stream.
-##   `sc_data`: DATA a run took in, from anywhere (`_data_in`, off the signal);
-##   `sc_careful`, `sc_risky`, `sc_film`, `sc_relic`: where it came from;
-##   `sc_unspent`: DATA held when the run ended; `sc_met`, `sc_data_line`,
-##   `sc_credits_line`: readings come to and the line taken; `sc_fuel`: fuel
-##   burned on readings; `sc_refused`: readings the fuel gate shut;
-##   `sc_steps`: board steps owned at the end; `sc_names`: routine id to runs
-##   that ended owning it; `sc_aug`, `sc_aug_data`, `sc_aug_credits`,
-##   `sc_affixes`: AUGMENT; `sc_credits_in`: credits gained a run (all
-##   sources); `sc_event_credits`: what event lines paid net, fights' loot left
-##   out; `sc_trim`, `sc_no_trim`: [dry-tank strands, runs] with FUEL TRIM
-##   owned at the end and without.
+## SCIENCE, one entry a run (`_report_science`).
+## Why: docs/why/HeadlessSim.md#science
 var sc_data: Array = []
 var sc_careful: Array = []
 var sc_risky: Array = []

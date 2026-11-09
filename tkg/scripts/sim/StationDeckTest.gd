@@ -424,14 +424,9 @@ func _lab(st: StationScreen, here: MapGen.MapNode, tag: String, dev: int, deep: 
 		await _deck_ride(st, tag)
 
 
-## RECIPES IN AUGMENT'S LAYOUT (Jon, Nov 5: "Can't we make the recipes page
-## like the augment page in its layout?"; `LabRecipes`). With nothing held: no
-## key, every recipe greyed with what it needs, RELIC ANALYSIS at this level's
-## price. With film and a relic: the film on the bench and DEVELOP FILM picked;
-## a click on a row and on a ring through the viewport picks; MAKE is the same
-## object after thirty `resources_changed` and, clicked through the viewport,
-## develops a roll (the counts, DATA and the header move) and reads a relic out
-## as a part. The box test passes in every state.
+## RECIPES IN AUGMENT'S LAYOUT (Jon, Nov 5: "Can't we make the recipes page like the augment
+## page in its layout?"; `LabRecipes`).
+## Why: docs/why/StationDeckTest.md#recipes-in-augments-layout
 func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -> void:
 	var rec := zoom.recipes
 	var data_was := Run.data
@@ -541,12 +536,9 @@ func _recipes_page(zoom: LabZoom, here: MapGen.MapNode, tag: String, dev: int) -
 	await _frames(1)
 
 
-## THE LAB'S SCREEN AT REST (Jon, Nov 5; the savers, Nov 7): the station
-## owner's savers, its own three and the seven every lab runs, one up at a time;
-## the saver's own sign-in while the pointer is on the glass, and the same saver
-## at rest again off it (pointing never turns it). Each look passes the box test
-## inside the screen's window (`LabLogin.check`), the window inside the glass,
-## and the glass whole in the room. `LabSaverTest` draws every saver.
+## THE LAB'S SCREEN AT REST (Jon, Nov 5; the savers, Nov 7): the station owner's savers, its own
+## three and the seven every lab runs, one up at a time ...
+## Why: docs/why/StationDeckTest.md#the-labs-screen-at-rest
 func _sign_on(st: StationScreen, tag: String, dev: int, deep: bool) -> void:
 	var login := st._login
 	var lab := st._lab
@@ -735,24 +727,9 @@ func _landed(st: StationScreen, zoom: LabZoom, tag: String, _dev: int) -> void:
 		zoom.board_rect.is_equal_approx(gs) if not thin else zoom.board_rect.encloses(Rect2(-16, -16, LabZoom.W + 32, LabZoom.H + 32)))
 
 
-## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps
-## to its end): the camera carries the deck's frame with the room, one
-## picture (Jon, Nov 5: "the fact that the frame pops in is kinda awkward"),
-## the deck's own plate hidden only while it does and whole again on the
-## frame the camera rests; the camera off within two frames of the press, and
-## at rest out, a click on the elevator two frames after is taken (the review
-## of aebd46f6: a still beat of 13 frames each way, the input eaten in the
-## second); and the
-## elevator and the HUD out with the frame's edges (Jon, Nov 5: "a smoother
-## transition with the elevator"), the gap between each and the frame what it
-## was at rest, never over it, gone once landed, and back in their places on
-## the frame it is out; Esc on the way
-## in turns it round and opens no pause menu; a click during the move lands
-## it and is eaten (it reaches no page key, and on the way out it does not
-## open the Lab again); Tab with the camera in takes it out at once, the
-## chrome back. Mid-move the room is one picture at one scale, the sign-on
-## riding in on its glass. The HUD's alpha and the rail's are read off the
-## nodes the player sees.
+## THE MOVE ITSELF, animated (`Router.animate_in_harness`; headless it jumps to its end): the
+## camera carries the deck's frame with the room, one picture (Jon, Nov 5 ...
+## Why: docs/why/StationDeckTest.md#the-move-itself
 func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	var hud: Control = Router.hud
 	var was_anim := Router.animate_in_harness
@@ -985,16 +962,9 @@ func _camera_move(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 	Router.animate_in_harness = was_anim
 
 
-## THE ELEVATOR'S RIDE BETWEEN DECKS, animated (Jon, Nov 5: "a smoother
-## transition with the elevator"; the review: a dip to black is still a cut).
-## Pressing a floor no longer swaps the decks on the press. The deck you leave
-## and the deck you go to ride past the panel as one shaft, a floor slab
-## between them, in the car's direction, neither taking clicks, nothing
-## scaled; at the end only the new deck shows, in its place, taking clicks.
-## One floor takes at least `DECK_MIN_S`. A press mid-ride starts from where
-## the shaft stands (the deck on screen does not jump). The glass cannot be
-## pressed while the Lab rides in. Unanimated (a harness) the decks change on
-## the press, as before.
+## THE ELEVATOR'S RIDE BETWEEN DECKS, animated (Jon, Nov 5: "a smoother transition with the
+## elevator"; the review: a dip to black is still a cut).
+## Why: docs/why/StationDeckTest.md#the-elevators-ride-between-decks
 func _deck_ride(st: StationScreen, tag: String) -> void:
 	var was_anim := Router.animate_in_harness
 	Router.animate_in_harness = true
@@ -1081,20 +1051,9 @@ func _deck_ride(st: StationScreen, tag: String) -> void:
 	Router.animate_in_harness = was_anim
 
 
-## EVERY ELEVATOR CHOICE IS THE SLIDE (Jon, Nov 5, round three: "The slide can
-## be the main transition for every elevator choice"). On a fresh docking at
-## each level, animated, from each of the five decks to each of the other four
-## (twenty rides, up and down): the press starts a slide, never a cut or the
-## dip: both decks shown, the slab between them, the deck you go to below the
-## one you leave going down and above it going up; on every frame of the ride
-## the two decks one rigid shaft moving one way, each clipped to itself and
-## the lower drawn over the upper (a deck runs on past the panel); at the
-## car's stop only the new deck, in its place, taking clicks, its clip and z
-## as they were, the slab gone; and no frame moves the
-## shaft further than one `RIDE_STEP_S` at the shortest ride's top speed (a
-## deck's first frame, built as it shows, used to jump the whole ride). The
-## first ride onto the HIRING BOARD keeps its tubes dark till the car is
-## nearly in. Then `deck_move` &"dip" (the fallback) dips through the dark.
+## EVERY ELEVATOR CHOICE IS THE SLIDE (Jon, Nov 5, round three: "The slide can be the main
+## transition for every elevator choice").
+## Why: docs/why/StationDeckTest.md#every-elevator-choice-is-the-slide
 func _every_ride(dev: int) -> void:
 	var tag := "%s, every ride" % String(MapGen.Development.keys()[dev]).to_lower()
 	var st := await _dock(_station(dev, false, 9100 + dev))

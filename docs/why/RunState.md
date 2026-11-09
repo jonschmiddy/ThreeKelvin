@@ -2382,3 +2382,33 @@ than one that never said -- and that is answered rather than overruled,
 because nothing is lost now: the mark is never gained in the first place,
 so no refit and no departure can take it away.
 ```
+
+## Science data
+
+Above `func add_data(n: int) -> void:`:
+
+```text
+---------------------------------------------------------------------- science
+
+DATA, the dealt board and the routines bought on it (Phase 12, Jon's picks
+1A and 2B, Nov 4). The catalogue is `DB.routines`; what each routine does is
+read where it happens (plan S3). All of it is the RUN's, never the hull's: the
+Lab writes into the flight computer and the computer goes to any hull.
+```
+
+## Deal this runs board
+
+Above `func deal_board() -> void:`:
+
+```text
+DEAL THIS RUN'S BOARD (pick 2B): per branch, one of its four routines is
+dropped and the three left keep their order, weakest first, so the prices
+(6, 10, 15) always climb with the power. 4 boards a branch, 64 in all.
+
+Off `Rng.derive(&"board", seat)` and NOTHING ELSE: dealing it draws from no
+stream, so a run with science moves no world, loot, event, foe or fight roll
+(`-- rngtest`), and `science=off` stays the run main would fly. By SEAT, so
+each ship of a party has its own board and seat 0 is the solo board on that
+seed. `Rng.seat` rather than `Net.seat()`: the two agree at a new run, which
+reseeds from `Net.seat()`, and at a load only Rng has the saved seat back.
+```

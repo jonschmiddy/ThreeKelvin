@@ -47,12 +47,8 @@ static func _useful(r: Dictionary) -> bool:
 		_:
 			return true
 
-## What the bill reads, as one line. Materials first: they are the part you
-## cannot go and earn in the next ten minutes.
-##
-## A DATA RECIPE READS AS THE TRADE, "1 survey film → 6 DATA": it costs no
-## credits, so "0 credits" would be a price that is not one, and what you get
-## is the number that decides whether to press it.
+## What the bill reads, as one line.
+## Why: docs/why/Fabricator.md#what-the-bill-reads
 static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:
 	var bits: PackedStringArray = []
 	for id in (r.mats as Dictionary).keys():

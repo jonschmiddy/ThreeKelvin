@@ -504,3 +504,22 @@ just over what it flies, where one set of 3.6 / 4.5 / 5.0 failed both. The
 worst shards measured (FlightTest short clicks=0, 4 shards, Nov 7): CURVED
 (WIDE x12) 5.67 / 7.62 / 7.40, DIRECT (x4) 4.10 / 5.52 / 5.20.
 ```
+
+## The harnesss starts the residual may
+
+Above `const PUT_LEFT_CASES := {`:
+
+```text
+the harness's starts the residual may come from, "seed:system:start" a sweep
+(any other start put there fails, whatever the count). SCIENCE (Phase 12,
+Nov 4) put a reading in place of one option in about three systems in eight,
+and those systems alone lay out anew (checked system by system against the
+layouts before): two of them, seed 1999 system 258's near start (THE RACE
+COURSE on its belt) and seed 7 system 328's free start (THE TARGET RANGE on
+its dry world), each to one place, now leave a twin's residual, the best burn
+from each keeping clear for 30 s, so again the arrivals miss. At the study's
+1 in 6 (Nov 4) about half of all systems hold one, and one more does: seed
+1999 system 74's near start (THE FIRST LOOK on its dry world, a reading it
+does not hold at 1 in 8; its list is main's but for that slot), to one place,
+the best burn keeping clear for 30 s again
+```

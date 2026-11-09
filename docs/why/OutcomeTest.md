@@ -39,3 +39,16 @@ Then C's flight, animated (the game's clock stepped 1/60 s):
   Reduced motion: nothing flies, the numbers change at once, it still
   flickers.
 ```
+
+## The lab sheets row
+
+Above `func _sheet_row(n: MapGen.MapNode, f: Dictionary, layout: StringName) -> void:`:
+
+```text
+THE LAB SHEET'S ROW (Jon's 2A, Nov 4: DATA a fifth stat in the result):
+the reading's result on the real LOCAL, its bill made the sheet's own
+(fuel 40 to 38, DATA 16 to 21) and drawn in D. The table reads
+"FUEL -2 · DATA +5", the box test and D's placing pass, and the line the
+map's card keeps for it says the same. No reading pays exactly this (fuel
+2 is tier 3, which pays 8), so the real case's own row is `_looks`'s.
+```

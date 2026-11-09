@@ -1495,11 +1495,8 @@ func add_credits(n: int) -> void:
 	Sig.resources_changed.emit()
 
 # ---------------------------------------------------------------------- science
-#
-# DATA, the dealt board and the routines bought on it (Phase 12, Jon's picks
-# 1A and 2B, Nov 4). The catalogue is `DB.routines`; what each routine does is
-# read where it happens (plan S3). All of it is the RUN's, never the hull's: the
-# Lab writes into the flight computer and the computer goes to any hull.
+# DATA, the dealt board and the routines bought on it: all the run's, never the hull's.
+# Why: docs/why/RunState.md#science-data
 
 ## DATA in or out, the way `add_credits` moves credits: never below 0.
 func add_data(n: int) -> void:
@@ -1513,16 +1510,9 @@ func spend_data(n: int) -> bool:
 	add_data(-n)
 	return true
 
-## DEAL THIS RUN'S BOARD (pick 2B): per branch, one of its four routines is
-## dropped and the three left keep their order, weakest first, so the prices
-## (6, 10, 15) always climb with the power. 4 boards a branch, 64 in all.
-##
-## Off `Rng.derive(&"board", seat)` and NOTHING ELSE: dealing it draws from no
-## stream, so a run with science moves no world, loot, event, foe or fight roll
-## (`-- rngtest`), and `science=off` stays the run main would fly. By SEAT, so
-## each ship of a party has its own board and seat 0 is the solo board on that
-## seed. `Rng.seat` rather than `Net.seat()`: the two agree at a new run, which
-## reseeds from `Net.seat()`, and at a load only Rng has the saved seat back.
+## DEAL THIS RUN'S BOARD (pick 2B): per branch, one of its four routines is dropped and the
+## three left keep their order, weakest first, so the prices (6, 10 ...
+## Why: docs/why/RunState.md#deal-this-runs-board
 func deal_board() -> void:
 	var r := Rng.derive(&"board", Rng.seat)
 	var out: Array[StringName] = []

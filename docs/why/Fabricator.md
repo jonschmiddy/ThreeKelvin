@@ -38,3 +38,16 @@ COOLANT BRAID and the yard's coolant service both came out. The handlers stay
 because a recipe is meant to be a dictionary entry against an effect the game
 already applies — deleting the effect is what would make the next one code.
 ```
+
+## What the bill reads
+
+Above `static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:`:
+
+```text
+What the bill reads, as one line. Materials first: they are the part you
+cannot go and earn in the next ten minutes.
+
+A DATA RECIPE READS AS THE TRADE, "1 survey film → 6 DATA": it costs no
+credits, so "0 credits" would be a price that is not one, and what you get
+is the number that decides whether to press it.
+```

@@ -25,14 +25,8 @@ func run() -> void:
 	verdict("holdtest")
 
 
-## PICK MODE (science S9, the Lab): a hold shown to choose a part from never
-## moves one. In the tree, on the next frame (a grid added while the root was
-## still setting up its children was never added, and printed an ERROR the
-## gate fails on), set AFTER the icons are up (it takes effect at once, not
-## on the next refresh): every icon ignores the mouse; a click through the
-## viewport on each says `picked` with that part; a shift-click, a
-## double-click and a right-click handed to an icon do nothing; no icon gives
-## up drag data; the grid takes no drop; and every part is in the cell it was.
+## PICK MODE (science S9, the Lab): a hold shown to choose a part from never moves one.
+## Why: docs/why/HoldTest.md#pick-mode
 func _pick_mode() -> void:
 	seed_run(4250)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

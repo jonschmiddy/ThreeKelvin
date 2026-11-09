@@ -184,17 +184,8 @@ func _build() -> void:
 	_fuel.move_child(_fuel_bar, 1)
 	_reserve(_fuel.get_node("Value") as Label, "%d/%d" % [Run.FUEL_TANK, Run.FUEL_TANK])
 	econ.add_child(_hintable(_fuel))
-	# DATA LAST, after the clock. Credits and fuel are bought and spent
-	# everywhere; DATA only comes from readings and only a lab takes it, so it
-	# sits at the end of the group rather than between the two that trade. Held
-	# at two figures, so the first reading (0 to 5) and the tenth (9 to 14) move
-	# nothing. Past 99 the third figure shoves CREDITS and FUEL left and comes
-	# out of the bar's slack. In the worst case FuelTest builds that slack is
-	# 5 px: "100" to "199" (17 px) fit it exactly, and from 200 (18 px) DATA's
-	# last pixel is cut, which takes a party over the heat cap with four-figure
-	# credits sitting on far more DATA than a run usually collects. Not held at
-	# "000": that would spend 6 px on every run for a case almost none reach.
-	# FuelTest prints what 199 and 999 want.
+	# DATA LAST, after the clock.
+	# Why: docs/why/HudBar.md#data-last
 	_data = Widgets.stat("data", "")
 	_data.add_theme_constant_override("separation", STAT_GAP)
 	_reserve(_data.get_node("Value") as Label, "00")

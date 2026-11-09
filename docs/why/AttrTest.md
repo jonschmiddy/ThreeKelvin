@@ -92,3 +92,62 @@ remembered string, because the expected answer is "whatever this card says
 when nothing has touched it" and hard-coding that would need updating every
 time a card is retuned.
 ```
+
+## The augmented line in every box
+
+Above `func _augmented_shown() -> void:`:
+
+```text
+THE AUGMENTED LINE IN EVERY BOX THAT DESCRIBES A PART (science, S10): the
+hover popup the hold, the hull and the gallery share (`ModuleIcon.tip_for`),
+the hull's own tip (`Widgets.module_tip_panel`) and the old list row
+(`Widgets.module_row`). A plain copy of the same part says nothing of it,
+and a part STRIP has emptied still says it (the mark outlives the affix).
+
+Then a BOX TEST at the worst case the Lab allows: three rolled affixes plus
+the augment, the longest texts in the table, on the part with the longest
+flavour. Laid out for real (in the tree, the containers sorted until the
+wrapped lines settle) and read off the boxes: the tip stays TIP_W wide and the
+popup's part panel a card wide, every line inside its panel, no two lines on
+top of each other, and both shorter than the 540 px screen.
+```
+
+## Laid out for real
+
+Above `func _lay_out(c: Control) -> void:`:
+
+```text
+LAID OUT FOR REAL, without waiting for a frame (attrtest runs inside
+Main._ready and quits after it). In the tree under an autoload, since the
+root is busy readying the main scene, so the labels have the game's font.
+Then sized to what it asks for and every container sorted, top down, a few
+times over: a wrapped Label's height comes from the width its container just
+gave it, so the first pass is never the last.
+```
+
+## The corner mark
+
+Above `func _augment_mark() -> void:`:
+
+```text
+THE CORNER MARK, drawn only on an augmented part. `ModuleIcon.plate_ink` is
+the list `draw_plate` paints over the art (the edge, then the mark), so it is
+read here instead of pixels: a plain part inks its four edges and no ICE; an
+augmented one adds the wedge, every pixel inside the plate and in its
+top-right corner. And for every slot at every footprint up to 3x3, at 1x and
+at the hold's 2x, the wedge sits clear of the drawn silhouette.
+```
+
+## The mark on a sprite
+
+Above `const MARK_HIDES := 0.05`:
+
+```text
+THE MARK ON A SPRITE. A sprite is centred in its box with no PAD margin, and
+a few run to the plate's edge (ejector, board, braceframe), so on those the
+wedge is painted over the art's corner. That is kept on purpose: the mark is
+ink over the art, as the edge is, and its VOID rim is what lets it read there.
+What is checked is that it stays a corner: every sprite part, packed either
+way, flipped or not, at 1x, 2x and 3x, mapped through `draw_sprite`'s own
+placement, and the wedge hides no more than MARK_HIDES of the art drawn.
+```

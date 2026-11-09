@@ -256,12 +256,8 @@ func _state_round_trip() -> void:
 	check("and remembers its seed", Rng.master, SEED_A)
 
 
-# --- 8. the science board -------------------------------------------------
-#
-# THE DEAL DRAWS NOTHING (science, pick 2B). A run's board comes off
-# `Rng.derive(&"board", seat)` alone, so dealing it moves no stream: a run with
-# science rolls the world, the loot, every event and every fight exactly as a
-# run without it, which is what makes `-- sim science=off` a control cell.
+# --- 8. the science board: the deal draws from no stream.
+# Why: docs/why/RngTest.md#the-science-board-deal
 
 func _board() -> void:
 	build_world(SEED_A)

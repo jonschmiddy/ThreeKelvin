@@ -354,3 +354,19 @@ all with the same rules line. `source_module`/`source_id` still point
 back at the part, because "where did this come from" is a real question
 -- it is the LOOK that has to stay common and unbranded.
 ```
+
+## A lab has added an affix
+
+Above `@export var augmented: bool = false`:
+
+```text
+A LAB HAS ADDED AN AFFIX TO THIS PART (science, pick 3A: once per part, ever).
+
+Runtime state like `mount`: every template carries false, and the value means
+something only on the copy you own. A BOOL, not the affix's name. STRIP can
+take any affix off afterwards, the Lab's included, and the mark stays, so the
+part can never be augmented twice; a stored name would go stale the moment
+that affix came off. It moves no number and no price (`scrap_value` is set
+once, at the drop). Saved with the part (`SaveGame._module_to`, VERSION 41),
+so it goes everywhere a part can go: fitted, hold, pad, jetsam.
+```

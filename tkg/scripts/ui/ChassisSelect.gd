@@ -78,12 +78,8 @@ var _rows: Array[Button] = []
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# NO SCIENCE CLEARED HERE. The one game door in is `Router.new_run`, whose
-	# `Run.start_new_run` has already cleared the dead run's science (so no old
-	# DAMAGE CONTROL shows as +7 hull, nor SPARE CELLS as +3 cells in
-	# `power_cap()`, below) AND dealt this run's board. Clearing again here
-	# wiped that board, and LAUNCH deals none: every run flew with an empty
-	# board, and the first autosave wrote it (`-- savetest`).
+	# NO SCIENCE CLEARED HERE.
+	# Why: docs/why/ChassisSelect.md#no-science-cleared-here
 	_build()
 	_select(0)
 

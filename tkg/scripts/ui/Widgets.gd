@@ -71,14 +71,9 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 ## Why: docs/why/Widgets.md#tooltips
 const TIP_W := 168
 
-## WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover
-## popup (`module_readout`), the hull's tip (`module_tip_panel`) and the old
-## list row (`module_row`). One string, so the three cannot drift.
-##
-## It names the rule and not the affix. The mark is a bool (ModuleData.augmented),
-## so which line the Lab wrote is not known, and the part reads it in the affix
-## list above anyway. What the player cannot see anywhere else is that the Lab
-## is done with this part. STRIP still works on it, so it says "add", not "change".
+## WHAT AN AUGMENTED PART SAYS, in every box that describes a part: the hover popup
+## (`module_readout`), the hull's tip (`module_tip_panel`) and the old list row (`module_row`).
+## Why: docs/why/Widgets.md#what-an-augmented-part-says
 const AUGMENTED_TEXT := "AUGMENTED. The Lab can't add to it again."
 
 

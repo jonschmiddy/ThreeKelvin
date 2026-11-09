@@ -1404,14 +1404,9 @@ func _scroll_check(first, key_fails := 0) -> void:
 	print("scrollcheck: %s" % ("PASS" if fails == 0 else "FAIL (%d)" % fails))
 
 
-## THE KEY ALONG THE BOTTOM FITS (`SystemMapScreen.KEY`, science's SCIENCE the
-## eighth beacon in it): the screen where Main puts it, in the 960 x 540 window,
-## and every entry of the row (a glyph and its word) inside the screen's content
-## area, clear of every other entry, its word as wide as its words need and its
-## glyph drawn where it stands; every tag a beacon can wear in it, each with a
-## glyph and a colour no other entry has. The row asking for more than the area would
-## widen the whole screen past the window's edge, so its minimum width is
-## measured too. Returns the failures; prints the row's width and the room left.
+## THE KEY ALONG THE BOTTOM FITS (`SystemMapScreen.KEY`, science's SCIENCE the eighth beacon in
+## it): the screen where Main puts it, in the 960 x 540 window ...
+## Why: docs/why/SystemShot.md#the-key-along-the-bottom-fits
 func _key_check(scr: Control) -> int:
 	for _f in 3:
 		await get_tree().process_frame

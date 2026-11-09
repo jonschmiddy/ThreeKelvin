@@ -104,3 +104,16 @@ with it, then comes back with a flash and a jolt. `sagEvery` makes it only
 the bulb's first blink in each that many seconds -- Jon: "it just flashes
 too much" when it was every blink (2026-09-28).
 ```
+
+## The press hushes the screen
+
+Above `func hush_screen(on: bool) -> void:`:
+
+```text
+THE PRESS HUSHES THE SCREEN (`LabZoom`, the camera into the glass): from
+the press until the camera is back, the lamps hold steady (`lamps_held`),
+nothing new starts on the big screen,
+and the bad signal's snow and slips stop at once (they flicker frame to frame
+anyway); a sweep, a sag or a rim light already running plays out, fading
+with the entry. `on` false lets it all run again.
+```

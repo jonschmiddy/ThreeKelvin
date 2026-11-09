@@ -1637,31 +1637,8 @@ func perk_text(id: StringName) -> String:
 	return ""
 
 # --------------------------------------------------------------------- routines
-#
-# SCIENCE (Phase 12, Jon's picks Nov 4, "1A 2B 3A 4B"). A routine is what the Lab
-# writes into the flight computer for DATA: a boost for the rest of the run that
-# goes with you to any hull, because the computer does. It is the run's, never
-# the hull's, so a yard swap leaves it alone and it stacks with a hull perk that
-# does the same thing (Deep Tanks and FUEL TRIM, Baffled Vents and VENT TIMING).
-#
-# THE BOARD (pick 2B). Each run deals three branches of three, FRAME, CORE and
-# DRIVE, from these twelve: four a branch, one dropped by the deal. Steps in a
-# branch are bought in order at BOARD_PRICES, so a branch's `rank` is its order,
-# weakest first, and the price always climbs with the power. The order is the
-# routine sims' (plan S15, Nov 4: a human pilot, 400 paired runs a routine over
-# two seeds): DAMAGE CONTROL tops FRAME on jumps survived, and CORE and DRIVE
-# keep the plan's order, WARM START at the top for its boss-fight wins.
-#
-# `pips` are gauge pips, through `RunState.PER_PIP` exactly as an affix's are
-# (`AffixData.raw_for`), so a routine that says +1 SEN moves SENSORS by exactly
-# one. `raw` is a field added straight, for the two a pip would get wrong: a
-# THERMAL pip is heat capacity AND venting (VENT TIMING is venting only), and a
-# REACTOR pip is three cells AND energy (SPARE CELLS is the cells only). The
-# other six are flags with no numbers: what they do is read by name where it
-# happens (plan S3).
-#
-# NOTHING HERE PAYS CREDITS, MATERIALS OR DATA, or makes the shop cheaper. Each
-# of those turns DATA into money, which is the one thing DATA must never be.
+# Science: what the Lab writes into the flight computer for DATA, the run's, never the hull's.
+# Why: docs/why/Database.md#routines-science
 
 ## What a board step costs, by its place in the branch (pick 2B). The whole
 ## board is 3 x (6 + 10 + 15) = 93.
@@ -1751,16 +1728,8 @@ func routines_in(branch: StringName) -> Array[StringName]:
 # `dev` gate is 0 for relic analysis since every station has all decks (Jon, Nov 3).
 # Why: docs/why/Database.md#recipes
 
-#
-# RELIC ANALYSIS'S TEXT SAYS WHAT THE CODE DOES (science spec, Nov 4). It said
-# "Fabricates a precursor module", and `Fabricator._apply` rolls any part for the
-# danger, branded ones included. Rolling only the six precursor parts would be a
-# big power jump and a separate call, so the words moved and the roll did not.
-#
-# DEVELOP FILM AND READ FOR DATA (science, pick 1A) turn a survey film and a
-# relic into DATA, at no credits: a lab takes them, and nothing buys DATA.
-# `Fabricator._apply`'s `&"data"` arm pays it, and every station's Lab has both
-# (dev 0); a run with science off sees neither (`Fabricator.available`).
+# RELIC ANALYSIS'S TEXT SAYS WHAT THE CODE DOES (science spec, Nov 4).
+# Why: docs/why/Database.md#relic-analysiss-text-says-what-the
 const RECIPES: Array[Dictionary] = [
 	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 0,
 		credits = 40, mats = {&"relic": 1},

@@ -631,12 +631,9 @@ static func fill_perks(box: Control, right: bool, inline: bool = false) -> void:
 	box.tooltip_text = Widgets.tip(Widgets.perk_tip(Run.hull))
 
 
-## THE RUN'S ROUTINES (science), into `box` (cleared first): one line, "ROUTINES
-## · 4 OF 9", the names and what each does on hover (`RoutineBox`). Hidden with
-## none bought, so a run that never reaches a Lab shows the panel it always had.
-## Kept OUT of `fill_perks`: the perks are the hull's and change at a yard, the
-## routines are the flight computer's and do not, and one block for both would
-## hide which is which.
+## THE RUN'S ROUTINES (science), into `box` (cleared first): one line, "ROUTINES · 4 OF 9", the
+## names and what each does on hover (`RoutineBox`).
+## Why: docs/why/ShipScreen.md#the-runs-routines
 static func fill_routines(box: Control) -> void:
 	Widgets.clear(box)
 	var owned := Run.owned_routines()

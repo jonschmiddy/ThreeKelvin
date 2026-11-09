@@ -145,23 +145,9 @@ static func plate_ink(m: ModuleData, r: Rect2, scale: float = HOLD_K) -> Array:
 ## under 3 so it still reads at 1x.
 const MARK := 2.5
 
-## THE AUGMENTED MARK: a small ICE wedge in the plate's top-right corner, cut
-## from the corner like a folded tab, with a one-pixel VOID rim on its long side.
-##
-## ICE because it is the DATA colour and the colour of the AUGMENTED line in the
-## part's tooltip (`Widgets.augmented_label`). The rim is what makes it read on
-## any ground, the pale Common and the near-black contraband alike, and on a
-## sprite that stands proud of its box into the corner.
-##
-## TOP-RIGHT. A drawn silhouette sits PAD clear of every edge, so there the
-## corner is empty. A SPRITE is centred with no margin, and a few run to the
-## plate's edge (ejector, board, braceframe), so on those the wedge is painted
-## OVER the art's corner. That is on purpose: the mark is ink over the art, as
-## the edge is, and the VOID rim is what lets it read on art. Rows of whole
-## pixels, never a polygon, so the stair edge stays crisp at any whole
-## magnification. `-- attrtest` checks it sits clear of every drawn silhouette
-## at 1x and at the hold's 2x, and that on any sprite, at 1x to 3x, it hides no
-## more than a twentieth of the art.
+## THE AUGMENTED MARK: a small ICE wedge in the plate's top-right corner, cut from the corner
+## like a folded tab, with a one-pixel VOID rim on its long side.
+## Why: docs/why/ModuleIcon.md#the-augmented-mark
 static func augment_mark(r: Rect2, scale: float = HOLD_K) -> Array:
 	var n := maxi(3, int(roundf(MARK * scale)))
 	n = mini(n, int(minf(r.size.x, r.size.y) * 0.5))

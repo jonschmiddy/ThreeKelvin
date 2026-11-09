@@ -46,13 +46,8 @@ var _sci_swaps := 0
 var _stand_in := {}
 
 
-## WHERE A SCIENCE READING SITS. A barren reading's text says the world has no
-## air, so its planet's world is one of `SystemLayout.DRY` for its zone (round a
-## pulsar, `DRY_PULSAR`) and the map's ATMOS for it reads NONE or FROZEN OUT. A
-## belt reading sits on the belt. And the override is all it does: the same
-## system laid out with an ordinary option in the reading's place (one that
-## wants a planet for a barren reading, a hazard for a belt one) is the same
-## layout, but for the barren world itself, so R drew exactly what it drew.
+## WHERE A SCIENCE READING SITS.
+## Why: docs/why/SystemTest.md#where-a-science-reading-sits
 func _science_sites(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var kind := "close" if L.close else ("wide" if L.twin else "one")
 	for i in n.options.size():

@@ -640,13 +640,9 @@ static func _unlocked_from(raw: Variant) -> Array[StringName]:
 		out.append(Unlocks.CHAIN[0])
 	return out
 
-## THE RUN'S BOARD, as saved (VERSION 41): nine routine ids, three a branch,
-## FRAME then CORE then DRIVE, each branch weakest first. An id this build does
-## not know is dropped, and anything short of a whole board in that shape (a 40
-## save has none, a hand-edited one may have anything) is dealt again from the
-## restored seed and seat (`RunState.deal_board`), the board the run would have
-## been dealt. Its bought steps stay as saved; the deal is the one it had unless
-## the pool changed under it.
+## THE RUN'S BOARD, as saved (VERSION 41): nine routine ids, three a branch, FRAME then CORE
+## then DRIVE, each branch weakest first.
+## Why: docs/why/SaveGame.md#the-runs-board
 static func _board_from(raw: Variant) -> Array[StringName]:
 	var out: Array[StringName] = []
 	if typeof(raw) == TYPE_ARRAY:

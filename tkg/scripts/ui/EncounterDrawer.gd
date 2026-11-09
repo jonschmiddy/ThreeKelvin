@@ -539,13 +539,9 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	elif bool(c.get("fight", false)) or opens_fight(c):
 		note = contact_reading(n)
 		tone = UITheme.THEM
-	# A READING BURNS FUEL (science, `burns`): what it costs goes on the card,
-	# after any odds, so the number you pay is inside what you press. When the
-	# tank cannot pay it and keep the way out (`OptionResolve.fuel_ok`, the hard
-	# gate), the card greys: the same price as the full card, then the way out
-	# the tank keeps back (`Run.fuel_floor()`), then what you have, as RULING 8
-	# has a price say. Folding the two into one number read as if the reading
-	# cost it. Only pressable things look pressable.
+	# A READING BURNS FUEL (science, `burns`): what it costs goes on the card, after any odds,
+	# so the number you pay is inside what you press.
+	# Why: docs/why/EncounterDrawer.md#a-reading-burns-fuel
 	if bool(c.get("burns", false)):
 		var burn := OptionTable.science_fuel()
 		if not OptionResolve.fuel_ok(c):
