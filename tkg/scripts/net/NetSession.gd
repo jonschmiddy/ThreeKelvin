@@ -1481,7 +1481,6 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 	# A join opens nothing, so its foes are never read.
 	if not _is_place(index) or not (join_only or _fight_ask_ok(ids, hp, brace, cur)):
 		return
-	players = clampi(players, 1, MAX_PLAYERS)
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
 		# A second ship in is help, not a second frigate (stunned past turn one): its `grown`, hp and ids are ignored.

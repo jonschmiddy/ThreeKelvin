@@ -1739,19 +1739,19 @@ func _party_scale_net_test() -> void:
 	check("(size-net) and so does the guest, off the host's roster", g.party_count(), 2)
 	var base := 40
 	var for2 := PartyScale.party_hull(base, 2)
-	var asked: SharedFight = await g.open_fight(520, PackedStringArray(["cutter"]), PackedInt32Array([for2]),
+	var asked: SharedFight = await g.open_fight(20, PackedStringArray(["cutter"]), PackedInt32Array([for2]),
 		PackedInt32Array([0]), PackedInt32Array([for2]))
 	ok("(size-net) a guest's fight built for two is opened for two: hull %d, party %d" % [
 		asked.foes[0].max_hp if asked != null else -1, asked.party if asked != null else -1],
-		asked != null and asked.foes[0].max_hp == for2 and asked.party == 2 and host.fight_at(520).party == 2)
+		asked != null and asked.foes[0].max_hp == for2 and asked.party == 2 and host.fight_at(20).party == 2)
 	# A STALE COUNT: an ask built for three reaches a host that counts two
 	var for3 := PartyScale.party_hull(base, 3)
-	host._open_or_join(521, PackedStringArray(["cutter"]), PackedInt32Array([for3]),
+	host._open_or_join(21, PackedStringArray(["cutter"]), PackedInt32Array([for3]),
 		PackedInt32Array([0]), PackedInt32Array([for3]), -1, g.local_id(), 3)
 	var k := PartyScale.hull(2) / PartyScale.hull(3)
 	check("(size-net) an ask built for three is scaled to the host's two",
-		host.fight_at(521).foes[0].max_hp, maxi(1, int(round(for3 * k))))
-	check("(size-net) and says two", host.fight_at(521).party, 2)
+		host.fight_at(21).foes[0].max_hp, maxi(1, int(round(for3 * k))))
+	check("(size-net) and says two", host.fight_at(21).party, 2)
 	# A THIRD PLAYER ARRIVES: the count is three everywhere; the open fight
 	# keeps its numbers, and the next is built for three
 	var third := _make_peer("pg1")
@@ -1762,10 +1762,10 @@ func _party_scale_net_test() -> void:
 	third._set_state(NetSession.State.DIVING)
 	ok("(size-net) a third player: the host counts %d, the guest %d" % [host.party_count(), g.party_count()],
 		three and host.party_count() == 3 and g.party_count() == 3)
-	check("(size-net) the fight already open keeps its count", host.fight_at(520).party, 2)
-	check("(size-net) and its hull", host.fight_at(520).foes[0].max_hp, for2)
+	check("(size-net) the fight already open keeps its count", host.fight_at(20).party, 2)
+	check("(size-net) and its hull", host.fight_at(20).foes[0].max_hp, for2)
 	var for3b := PartyScale.party_hull(base, g.party_count())
-	var next: SharedFight = await g.open_fight(522, PackedStringArray(["cutter"]), PackedInt32Array([for3b]),
+	var next: SharedFight = await g.open_fight(22, PackedStringArray(["cutter"]), PackedInt32Array([for3b]),
 		PackedInt32Array([0]), PackedInt32Array([for3b]))
 	ok("(size-net) the next fight is built for three (%d, party %d)" % [
 		next.foes[0].max_hp if next != null else -1, next.party if next != null else -1],
@@ -1774,7 +1774,7 @@ func _party_scale_net_test() -> void:
 	third.leave_party()
 	var two := await _wait_until(func() -> bool: return host.party_count() == 2 and g.party_count() == 2, 5.0)
 	ok("(size-net) the third player leaves: two again on both", two)
-	check("(size-net) the fight built for three keeps its numbers", host.fight_at(522).foes[0].max_hp, for3)
+	check("(size-net) the fight built for three keeps its numbers", host.fight_at(22).foes[0].max_hp, for3)
 	# A DEAD PILOT IS NOT A PLAYER IN THE FIGHTS TO COME (review, Nov 5): the
 	# ship left meets one ship's hulls, on both machines, not two ships' alone
 	var gid := g.local_id()
