@@ -527,10 +527,10 @@ func _affixes() -> void:
 	for b in bad:
 		_fail(b)
 	# LIGHTENED, once "Stripped" (Jon, Nov 5): the table holds the new name
-	# only, +2 MAN -1 HUL, and the old name a save may hold finds it
+	# only, +2 maneuver -1 hull, and the old name a save may hold finds it
 	var names: Array = DB.affixes.map(func(x: AffixData) -> String: return x.name)
 	var lt := DB.affix_named("Lightened")
-	_ok("Lightened is +2 MAN -1 HUL, \"Stripped\" is gone from the table and an old save's \"Stripped\" reads as Lightened",
+	_ok("Lightened is +2 maneuver -1 hull, \"Stripped\" is gone from the table and an old save's \"Stripped\" reads as Lightened",
 		lt != null and lt.maneuver == 2 and lt.hull == -1 and not names.has("Stripped")
 		and DB.affix_named("Stripped") == lt and DB.LAB_AFFIXES.has(&"Lightened") and not DB.LAB_AFFIXES.has(&"Stripped"))
 	_faces()

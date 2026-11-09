@@ -886,8 +886,8 @@ func _science_versions() -> void:
 	check("a whole board the seed would not deal is kept as saved", str(_other_board(dealt)), str(Run.board))
 
 	# AN AFFIX BY ITS OLD NAME (Jon, Nov 5: "Stripped" is "Lightened" now): a
-	# save whose fitted part holds "Stripped" loads it as Lightened, +2 MAN -1
-	# HUL, not dropped; and Lightened is written and read back as itself
+	# save whose fitted part holds "Stripped" loads it as Lightened, +2 maneuver -1
+	# hull, not dropped; and Lightened is written and read back as itself
 	var old := s42.duplicate(true)
 	var fit: Array = old.get("installed", [])
 	if not fit.is_empty():

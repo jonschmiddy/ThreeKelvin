@@ -4977,7 +4977,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_spare_probe",
 			title = "The spare probe",
-			body = "The belt is thin here, with long gaps between the rocks. A one-man ship sits at the edge of it. Hollis Brandt has worked this belt from it for most of his life. He lost his last probe earlier this shift to a rock he says moved when it should not have. He asks if you carry a spare. He will pay you for it now, and more than it cost you. The rocks nearest you turn slowly, and none of them carries a claim beacon.",
+			body = "The belt is thin here, with long gaps between the rocks. A one-seat ship sits at the edge of it. Hollis Brandt has worked this belt from it for most of his life. He lost his last probe earlier this shift to a rock he says moved when it should not have. He asks if you carry a spare. He will pay you for it now, and more than it cost you. The rocks nearest you turn slowly, and none of them carries a claim beacon.",
 			tags = [&"science"],
 			site = &"belt",
 			group = &"",
