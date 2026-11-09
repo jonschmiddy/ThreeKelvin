@@ -150,6 +150,7 @@ static func build(L: SystemLayout, n: MapGen.MapNode) -> CometPath:
 		c.w = R.randf() * TAU
 		if c.clear_of_suns(L) >= CLEAR:
 			break
+	c.room = maxf(L.star_ring_of(-1) + SPOT_ROOM, sqrt(SystemLayout.GM_SHIP / SPOT_PULL))
 	var sysname := MapGen.star_name(n)
 	c.name = "%s COMET" % " ".join(sysname.split(" ").slice(0, 2))
 	return c
@@ -186,9 +187,31 @@ const SPOT_HULL: Array[int] = [0, 2, 3]
 const SPOT_HEAT: Array[int] = [0, 0, 8]
 
 
-## The age it reaches spot k (s into the pass).
+## A spot stays this far outside the star's close orbit, so a flight has room to arrive.
+## Why: docs/why/CometPath.md#room-at-the-star
+const SPOT_ROOM := 16.0
+## ...and where the star pulls no harder than this (px/s^2): the arrival stops dead on the spot,
+## and the engine's THRUST is 40.
+const SPOT_PULL := 12.0
+## the nearest a spot may be to star A (plane px), set as it is laid out
+var room := 0.0
+
+
+## The age it reaches spot k (s into the pass): at its share of the way in, or back along
+## the path to where it is `room` out, if it is nearer the star than that there.
 func spot_age(k: int) -> float:
-	return tp * SPOT_AGE[k]
+	var a := tp * SPOT_AGE[k]
+	if rel(a).length() >= room:
+		return a
+	var lo := 0.0
+	var hi := a
+	for _i in 32:
+		var m := (lo + hi) * 0.5
+		if rel(m).length() >= room:
+			lo = m
+		else:
+			hi = m
+	return lo
 
 
 ## The map time it reaches spot k.

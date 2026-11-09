@@ -86,3 +86,24 @@ for the visit. It is not saved: the reading is taken in the same LOCAL the pass
 opens. A run resumed from a suspend save in the middle of that reading pays the
 far spot.
 ```
+
+## Room at the star
+
+Above `const SPOT_ROOM := 16.0`:
+
+```text
+A spot is a still point the ship must stop dead on, and the arrival burn has to
+hold the ship against the star's pull while it stops. The engine's THRUST is 40
+px/s^2. A comet's nearest point can be 61 px from the star, where the pull is
+about 47: CometFlightTest found no flight to the spot at the star in 13 of 191
+cases, all at 61 to 84 px. Moved out past the star's close orbit plus 16 or 50
+px, 11 and then 6 still failed, all binaries, where star A's share of the mass
+had set a smaller floor.
+
+So no spot is nearer star A than the farther of its close orbit
+(`star_ring_of`) plus SPOT_ROOM, or where all the system's mass (`GM_SHIP`)
+pulls SPOT_PULL (12 px/s^2): about 132 px. Where the comet's nearest point is
+nearer than that, the "at the star" spot moves back along its path to where it
+first comes that close. It is still the nearest spot and the hottest. Measured
+with it: 570 of 573 found and clean; the three left are one binary's star spot.
+```

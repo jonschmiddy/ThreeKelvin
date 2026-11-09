@@ -82,7 +82,7 @@ func _run() -> void:
 					var r := FlightSolve.solve(fl._grav_at(float(o.pace)), dep, CatchS.target(L, c, k), t0, {}, o)
 					ms.append(float(r.usec) / 1000.0)
 					if not (r.found and r.clean):
-						bad.append("seed %d system %d world %d spot %d: found %s clean %s" % [sd, n.index, b, k, r.found, r.clean])
+						bad.append("seed %d system %d world %d spot %d: found %s clean %s; %s" % [sd, n.index, b, k, r.found, r.clean, _where(L, c, k)])
 						continue
 					found += 1
 					var y := float(r.end.t) - t0
@@ -122,6 +122,22 @@ func _run() -> void:
 	h._ok("no flown spot flight comes inside a sun's keep-out (nearest %.1f px outside)" % least_clear, least_clear >= -FlightSolve.BURN_PAD)
 	h.verdict("cometflighttest")
 	get_tree().quit(h.code())
+
+
+## Where spot k sits: off the star, and off the nearest world's ring at the moment the comet is there.
+static func _where(L: SystemLayout, c: CometPath, k: int) -> String:
+	var p := c.spot_at(L, k)
+	var t := c.spot_t(k)
+	var near := INF
+	var at := -1
+	for b in L.bodies:
+		if b.world == &"":
+			continue
+		var d := p.distance_to(b.pos(t)) - b.soi
+		if d < near:
+			near = d
+			at = b.index
+	return "%.0f px from star A (keep-out %.0f), %.0f px outside world %d's ring" % [p.distance_to(L.star_pos(-1, t)), L.keep_clear_of(-1), near, at]
 
 
 ## Fly plan r to spot k on the ship's own clock; then hold HOLD_S, and meet the comet there.
