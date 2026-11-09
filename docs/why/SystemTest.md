@@ -173,3 +173,22 @@ system laid out with an ordinary option in the reading's place (one that
 wants a planet for a barren reading, a hazard for a belt one) is the same
 layout, but for the barren world itself, so R drew exactly what it drew.
 ```
+
+## Comet path
+
+Above `func _comet_path() -> void:`:
+
+```text
+THE COMET YOU CAN FLY TO (`CometPath`, Phase 13). With `CometPath._force` on,
+every system that may hold a comet gets one. Then, in every system of the last
+seed:
+
+- the layout prints exactly as without the comet (`_print_of`, and the edge):
+  it is drawn off its own stream and moves nothing;
+- a comet only where one may be (never a station, the core or a pulsar);
+- the same comet on a second build of the same system;
+- its pass starts and ends at the edge and is nearest the star at q;
+- it stays outside every sun's keep-out over the whole pass;
+- its path is the weather comet's own (`comet_pos` calls `CometPath.barker`);
+- one pass: in 5 to 15 s after the map opens, 60 to 80 s across, then gone.
+```

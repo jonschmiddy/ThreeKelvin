@@ -279,6 +279,7 @@ func run() -> void:
 	_report()
 	_turn_report()
 	_comet_pace()
+	_comet_path()
 	var keys := worlds.keys()
 	keys.sort_custom(func(a, b): return int(worlds[a]) > int(worlds[b]))
 	var line: Array[String] = []
@@ -1012,3 +1013,57 @@ func _comet_pace() -> void:
 			faster = false
 	SystemLayout.world_k = was
 	_ok("comets keep today's speed at every WORLD_PACE: %d systems' comets at the same place round their sun at every age, at 1 and 4 (worst %.6f px), while the worlds go 4 times as fast" % [n_sys, worst], n_sys > 0 and worst == 0.0 and faster)
+
+
+## THE COMET YOU CAN FLY TO (`CometPath`, Phase 13): forced into every system that may hold one,
+## nothing else in any layout moves; it is the same on every build, comes in from the edge,
+## swings past the star clear of it, goes out at the edge, and is gone for good after.
+## Why: docs/why/SystemTest.md#comet-path
+func _comet_path() -> void:
+	var SW := preload("res://scripts/ui/sysmap/SkyWeather.gd")
+	var was := CometPath._force
+	var moved := 0
+	var held := 0
+	var wrong_place := 0
+	var unsteady := 0
+	var edge_off := 0.0
+	var peri_off := 0.0
+	var tight := INF
+	var same_as_weather := true
+	var timing := true
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		CometPath._force = 0
+		var plain := SystemLayout.of(n)
+		CometPath._force = 1
+		var L := SystemLayout.of(n)
+		var L2 := SystemLayout.of(n)
+		if _print_of(L) != _print_of(plain) or L.edge != plain.edge:
+			moved += 1
+		var may := n.type != MapGen.NodeType.STATION and L.star != SystemLayout.StarKind.CORE and L.star != SystemLayout.StarKind.PULSAR
+		if may != (L.comet != null):
+			wrong_place += 1
+		if L.comet == null:
+			continue
+		held += 1
+		var c := L.comet
+		var c2 := L2.comet
+		if c.q != c2.q or c.w != c2.w or c.K != c2.K or c.t_in != c2.t_in or c.T != c2.T:
+			unsteady += 1
+		edge_off = maxf(edge_off, absf(c.rel(0.0).length() / L.edge - 1.0))
+		edge_off = maxf(edge_off, absf(c.rel(c.T).length() / L.edge - 1.0))
+		peri_off = maxf(peri_off, absf(c.rel(c.tp).length() - c.q))
+		tight = minf(tight, c.clear_of_suns(L))
+		var ev := c.ev()
+		for k in 9:
+			var a := c.T * float(k) / 8.0
+			same_as_weather = same_as_weather and SW.Comet.comet_pos(ev, a) == c.rel(a)
+		timing = timing and not c.here(c.t_in - 0.01) and c.here(c.t_in) and c.here(c.t_in + c.T) 			and not c.here(c.t_in + c.T + 0.01) and c.gone(c.t_in + c.T + 0.01) and not c.gone(0.0) 			and c.t_in >= CometPath.IN_LO and c.t_in <= CometPath.IN_HI and c.T >= CometPath.PASS_LO and c.T <= CometPath.PASS_HI
+	CometPath._force = was
+	_ok("a comet forced into %d systems moves nothing: every layout as without it (%d differ)" % [held, moved], held > 0 and moved == 0)
+	_ok("a comet only where one may be: never a station, the core or a pulsar (%d wrong)" % wrong_place, wrong_place == 0)
+	_ok("the same comet on every build of a system: its own stream (%d differ)" % unsteady, unsteady == 0)
+	_ok("it comes in and goes out at the system's edge (worst %.4f of the edge off) and is nearest the star at q (worst %.4f px)" % [edge_off, peri_off], edge_off < 0.01 and peri_off < 0.01)
+	_ok("it passes every sun clear of its keep-out (closest %.1f px outside one)" % tight, tight > 0.0)
+	_ok("its path is the weather comet's own (`comet_pos` is `CometPath.barker`)", same_as_weather)
+	_ok("one pass: it comes in 5 to 15 s after the map opens, crosses in 60 to 80 s, and is gone for good after", timing)

@@ -56,6 +56,13 @@ func _run() -> void:
 		return
 	Run.at = idx
 	var node: MapGen.MapNode = Run.node_at()
+	# `mapt=S`: the system's map clock left at S, as if its map had run that long (a comet's place)
+	if _arg("mapt") != "":
+		Run.map_clock[idx] = float(_arg("mapt"))
+	var Lc := SystemLayout.of(node)
+	if Lc.comet != null:
+		print("  comet %s: in at %.1f s, crosses in %.1f s, nearest the star at %.1f s; at %.1f s: %s" % [Lc.comet.name,
+			Lc.comet.t_in, Lc.comet.T, Lc.comet.t_in + Lc.comet.tp, Run.map_t(idx), Lc.comet.status(Run.map_t(idx))])
 	if orbit != "":
 		var Lo := SystemLayout.of(node)
 		var at := -9

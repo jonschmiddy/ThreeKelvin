@@ -142,6 +142,9 @@ var _palette_mat: ShaderMaterial
 var star: Node2D = null
 var _worlds: Node2D
 var _views := {}
+## the comet on the band (`LocalComet`), while one is passing
+var _comet: Node2D = null
+const LocalCometS := preload("res://scripts/ui/LocalComet.gd")
 var _key := ""
 var _gen := 0
 var _ready_sky := false
@@ -355,6 +358,7 @@ func _build() -> void:
 	for c in get_children():
 		c.queue_free()
 	_views.clear()
+	_comet = null
 	_pt = {}
 	_neb_mat = null
 	_neb = null
@@ -567,6 +571,11 @@ func _build() -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
+	# THE COMET passing through, over the band's worlds, where the map has it
+	if layout.comet != null:
+		_comet = LocalCometS.new()
+		_comet.sky = self
+		_scene.add_child(_comet)
 	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the sky's picture wrapped, its
 	# light glowing in steps and its shade deep, the glow kept down behind the play
 	if radiant:
@@ -1184,6 +1193,8 @@ func _step(delta: float) -> void:
 				mp.set_shader_parameter("light_lz", pow(clampf(pow(_dk, 0.8), 0.45, 2.4), 0.42) * 1.35)
 	_step_star(o)
 	_step_worlds(o)
+	if _comet != null:
+		_comet.queue_redraw()
 	_step_near(o)
 	# Under the zoom nothing is a scaled picture (Jon: artifacts): layers are redrawn at the zoom's
 	# size on the 2 px grid. Scaled, they drew every seventh block twice or 4 px blocks.

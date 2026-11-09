@@ -1216,6 +1216,11 @@ func tap(h: Dictionary) -> void:
 		panel_back()
 		return
 	var body: int = h.body
+	# The comet is only selected: a flight to something moving waits for its spots.
+	if h.kind == &"comet":
+		if overlay.selected != body:
+			select_body(body)
+		return
 	var again: bool = overlay.selected == body and (h.kind != &"beacon" or panel.mode != &"list")
 	if again:
 		# A FLIGHT STARTS ONLY FROM AN ORBIT: on the way, or under thrust, a click

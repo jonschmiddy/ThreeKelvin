@@ -108,6 +108,8 @@ const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 ## the in-system pictures some of it draws in: a comet, a dust puff in a belt,
 ## a far star drifting behind the black hole
 var _comet
+## The comet you can fly to (`layout.comet`), drawn as the weather's is.
+var _real_comet
 var _puff
 var _drift
 ## Hot points of cloud events draw over the depth sheets, or dust dims a white star to a grey speck.
@@ -557,6 +559,9 @@ func show_system(n: MapGen.MapNode) -> void:
 	_comet = SkyWeatherS.Comet.new()
 	_comet.view = self
 	_scene.add_child(_comet)
+	_real_comet = SkyWeatherS.RealComet.new()
+	_real_comet.view = self
+	_scene.add_child(_real_comet)
 	_puff = SkyWeatherS.Puff.new()
 	_puff.view = self
 	_scene.add_child(_puff)
@@ -1520,6 +1525,31 @@ func _process(_delta: float) -> void:
 	step()
 
 
+## The comet at the view's clock; PAINTED holds its age in poses, as the weather's.
+func _step_comet() -> void:
+	if _real_comet == null:
+		return
+	var c: CometPath = layout.comet
+	if c == null:
+		if not (_real_comet.ev as Dictionary).is_empty():
+			_real_comet.ev = {}
+			_real_comet.queue_redraw()
+		return
+	if (_real_comet.ev as Dictionary).is_empty():
+		_real_comet.ev = c.ev()
+	_real_comet.ev.age = pose(c.age(t))
+	_real_comet.queue_redraw()
+
+
+## Where the comet's head is drawn, or INF while it is not in the system.
+func comet_scr() -> Vector2:
+	var c: CometPath = layout.comet if layout != null else null
+	if c == null or not c.here(t):
+		return Vector2.INF
+	var p := c.pos(layout, t)
+	return block_round(screen(p.x, p.y))
+
+
 ## The star's clock, and what the pulsar's beam does to the sky.
 func _step_star() -> void:
 	if star == null:
@@ -1726,6 +1756,7 @@ func step() -> void:
 	var t_step := Time.get_ticks_usec()
 	_frame += 1
 	_step_bodies()
+	_step_comet()
 	# Star A is where the pair has it (ruling 23); a pulsar and the core are never a twin.
 	var o := star_screen(-1)
 	_flare = prominence(pose(t, 6.0)).z if layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE else 0.0

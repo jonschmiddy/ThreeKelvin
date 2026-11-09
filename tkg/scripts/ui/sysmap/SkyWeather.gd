@@ -1477,6 +1477,9 @@ func _p_microlens(ev: Dictionary) -> bool:
 
 func _p_comet(ev: Dictionary) -> bool:
 	var L: SystemLayout = view.layout
+	# (a real comet passing here takes the sky: never two at once)
+	if L.comet != null:
+		return false
 	var inner := INF
 	# Perihelion uses the inner orbit round A; a close pair
 	# uses one round both, so it passes outside the pair.
@@ -2090,12 +2093,7 @@ class Comet extends Node2D:
 	## A parabola about star A (Barker's equation); with
 	## two suns it rides the balance point (ruling 23).
 	static func comet_pos(e: Dictionary, age: float) -> Vector2:
-		var B := 3.0 * (age - float(e.tp)) / float(e.K)
-		var y := pow(B + sqrt(B * B + 1.0), 1.0 / 3.0)
-		var D := y - 1.0 / y
-		var r := float(e.q) * (1.0 + D * D)
-		var a := 2.0 * atan(D) + float(e.w)
-		return Vector2(cos(a), sin(a)) * r
+		return CometPath.barker(float(e.q), float(e.w), float(e.K), float(e.tp), age)
 
 	## Star A at map time: the origin with one sun, so a lone sun's comet is drawn as it always was.
 	func a_at(tt: float) -> Vector2:
@@ -2238,6 +2236,105 @@ class Comet extends Node2D:
 						continue
 					_blk(hs + Vector2(bx, by) * 2.0, Color(Color("#e6f6ff"), (0.55 if dd < 1.2 else 0.3) * A * fade))
 		_blk(hs, Color(Color("#fff6e2") if A > 0.3 else Color("#c9d8ea"), 0.9 * fade))
+
+
+## The comet you can fly to (`CometPath`): the weather comet's drawing, its path
+## ahead dotted on the plane, and in RADIANT its coma lit as light.
+## Why: docs/why/SkyWeather.md#real-comet
+class RealComet extends Comet:
+	## Path dots every this many screen px, in blocks, so it reads as no world's ring.
+	const DOT_PX := 7.0
+	const PATH_C := Color("#8ad0f0")
+	const PATH_A := 0.3
+
+	func _draw() -> void:
+		if ev.is_empty() or view == null:
+			return
+		var a := float(ev.age)
+		if a > float(ev.end):
+			return
+		_path(maxf(a, 0.0))
+		if a < 0.0:
+			return
+		super._draw()
+		if bool(view.get("radiant")):
+			_glow()
+
+	## Where it is going, from now to the edge: dots on the screen's block grid.
+	func _path(from: float) -> void:
+		var sa: Vector2 = a_at(float(view.t))
+		var end := float(ev.end)
+		var last := Vector2.INF
+		var age := from
+		while age <= end:
+			var p: Vector2 = comet_pos(ev, age) + sa
+			var sp: Vector2 = view.screen(p.x, p.y)
+			if last == Vector2.INF or sp.distance_to(last) >= DOT_PX:
+				# (the first few dots under the head are skipped: the coma is there)
+				if age - from > 0.6 or from == 0.0:
+					_blk(sp, Color(PATH_C, PATH_A))
+				last = sp
+			age += 0.1
+
+	## RADIANT: the coma as light, a dithered falloff round the head in whole blocks.
+	func _glow() -> void:
+		var p: Vector2 = comet_pos(ev, float(ev.age)) + a_at(float(view.t))
+		var hs: Vector2 = view.block_round(view.screen(p.x, p.y))
+		var A := clampf(pow(2.5 * float(ev.q) / maxf(p.length(), 1.0), 2.0), 0.0, 1.0)
+		var fade := clampf(float(ev.age) / 5.0, 0.0, 1.0) * clampf((float(ev.end) - float(ev.age)) / 5.0, 0.0, 1.0)
+		for bx in range(-6, 7):
+			for by in range(-6, 7):
+				var d := Vector2(bx, by).length() / 6.0
+				if d >= 1.0 or d < 0.35:
+					continue
+				var k := (1.0 - d) * (1.0 - d)
+				var q := hs + Vector2(bx, by) * 2.0
+				# (dithered steps: the outer ring on the checker only)
+				if k < 0.18 and not _on_checker(q):
+					continue
+				_blk(q, Color(Color("#bfe6ff"), 0.22 * k * A * fade + 0.04 * fade))
+
+
+## The comet page's picture: the map's comet at the panel's size, in its 2x2 blocks,
+## the head left and both tails streaming right, the dust tail bending down.
+class CometPortrait extends Node2D:
+	const HEAD := Vector2(-56, -12)
+	const ION := [Color("#c8f0ff"), Color("#8ad0f0"), Color("#4a8ad8"), Color("#2a5ab8")]
+	const DUST := [Color("#ffdc96"), Color("#ffb054"), Color("#84280c")]
+
+	func step(_t: float) -> void:
+		pass
+
+	func _blk(p: Vector2, c: Color) -> void:
+		draw_rect(Rect2((p / 2.0).floor() * 2.0, Vector2(2, 2)), c)
+
+	func _draw() -> void:
+		# the ion tail: straight and thin, in four steps of blue
+		for k in range(1, 56):
+			var si := mini(3, (k - 1) / 14)
+			_blk(HEAD + Vector2(2.0 * k, 0.12 * 2.0 * k), Color(ION[si], 0.6 * (1.0 - float(k) / 70.0)))
+		# the dust tail: wider, bending down, the checker thinning it out
+		for k in range(2, 50):
+			var u := float(k) * 2.2
+			var c := HEAD + Vector2(u, 0.18 * u + 0.0016 * u * u * 2.0)
+			var w := 1 + k / 12
+			var col: Color = DUST[mini(2, k / 18)]
+			for j in range(-w, w + 1):
+				var q := c + Vector2(0.0, 2.0 * j)
+				if absi(j) == w and not Comet._on_checker(q):
+					continue
+				_blk(q, Color(col, 0.55 * (1.0 - float(k) / 52.0) * (1.0 - 0.3 * absf(j) / float(w + 1))))
+		# the coma and the head
+		for bx in range(-3, 4):
+			for by in range(-3, 4):
+				var d := Vector2(bx, by).length()
+				if d < 0.5 or d > 3.2:
+					continue
+				var q2 := HEAD + Vector2(bx, by) * 2.0
+				if d > 1.6 and not Comet._on_checker(q2):
+					continue
+				_blk(q2, Color(Color("#e6f6ff"), 0.6 if d < 1.6 else 0.3))
+		_blk(HEAD, Color("#fff6e2"))
 
 
 ## A belt collision: a warm flash, then dust that grows and smears into an arc over half a minute.

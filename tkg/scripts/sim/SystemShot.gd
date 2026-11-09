@@ -224,6 +224,10 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 	var Lt := SystemLayout.of(n)
+	# (`cometpass`: where the comet is, to pick `at=` for it)
+	if Lt.comet != null:
+		print("  systemshot: comet %s at node %d: in at %.1f s, crosses in %.1f s, nearest the star at %.1f s; at %.1f s: %s" % [Lt.comet.name,
+			n.index, Lt.comet.t_in, Lt.comet.T, Lt.comet.t_in + Lt.comet.tp, at, Lt.comet.status(at)])
 	if Lt.twin:
 		print("  systemshot: two suns at node %d: star B at (%.0f, %.0f), %.0f px apart, r %.1f against 16, star A's share %.3f, fit zoom %.3f" % [n.index,
 			Lt.star2_at0.x, Lt.star2_at0.y, Lt.sep, Lt.star2_r, Lt.star_share, Lt.fit_zoom])
@@ -368,7 +372,7 @@ func _ready() -> void:
 		await _scroll_check(scr, await _key_check(scr))
 		get_tree().quit()
 		return
-	if select >= -1:
+	if select >= -1 or select == SystemLayout.COMET:
 		scr.select_body(select)
 	if open >= 0:
 		var k := 0
@@ -438,6 +442,8 @@ func _ready() -> void:
 			p = scr.view.at[0]
 		elif hover == "s":
 			p = Vector2(scr.view.CX, scr.view.CY)
+		elif hover == "c":
+			p = scr.view.comet_scr()
 		scr.overlay.hover = scr.overlay.hit(p)
 	# `wheel`: six notches in over the first world, then a drag to the left, as
 	# a player's mouse would send them, and where the world ends up on screen

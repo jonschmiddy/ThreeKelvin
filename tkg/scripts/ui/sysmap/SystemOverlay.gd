@@ -573,8 +573,23 @@ func _draw() -> void:
 				_name_label(at, nm, UITheme.ICE, 2, false)
 			elif names_on:
 				_held_q.append(nm)
+	# THE COMET selected: the same reticle on its head and its name, while it passes
+	if selected == SystemLayout.COMET:
+		var cs: Vector2 = view.comet_scr()
+		if cs != Vector2.INF:
+			_reticle(cs, COMET_R, 1.0, 0.95)
+			var cn: String = L.comet.name
+			var cw := _font().get_string_size(cn, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+			var cx := cs.x + COMET_R + 4.0
+			if cx + cw > view.window.end.x - 4.0:
+				cx = cs.x - COMET_R - 4.0 - cw
+			_name_label(Vector2(cx, cs.y + 3.0), cn, UITheme.ICE, 2, false)
 	# THE HOVER: the same reticle, closing in from 13 px to 7 px as it eases in
 	var hk: StringName = hover.get("kind", &"")
+	if hk == &"comet" and selected != SystemLayout.COMET and _hover_t > 0.0:
+		var hc: Vector2 = view.comet_scr()
+		if hc != Vector2.INF:
+			_reticle(hc, COMET_R + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
 	if (hk == &"body" or hk == &"star") and int(hover.body) != selected and _hover_t > 0.0:
 		var hs: Vector2 = _place_scr(int(hover.body))
 		_reticle(hs, _reach(int(hover.body)) + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
@@ -994,6 +1009,9 @@ static func _round_s(r: Rect2, p: Vector2) -> float:
 
 # ---------------------------------------------------------------- the reticle
 ## The drawn edge of a place, and the reticle's reach out from it.
+## The comet's reticle radius (px): its head and coma.
+const COMET_R := 7.0
+
 func _reach(body: int) -> float:
 	var L: SystemLayout = view.layout
 	if SystemLayout.is_star(body):
@@ -2493,6 +2511,12 @@ func tip_lines(h: Dictionary) -> Array:
 			var here: bool = flight != null and flight.reached() == int(h.body)
 			lines.append(["%d %s · %s" % [b.beacons.size(), "EVENT" if b.beacons.size() == 1 else "EVENTS", "OPEN" if here else ("OPEN ALONGSIDE" if b.kind == &"belt" or b.kind == &"station" else "OPEN IN ORBIT")], UITheme.EMBER])
 		lines.append_array(_click_line(int(h.body)))
+	elif h.kind == &"comet" and L.comet != null:
+		lines.append([L.comet.name, UITheme.ICE])
+		lines.append([CometPath.KIND, UITheme.COLD])
+		lines.append([L.comet.status(float(view.t)), UITheme.QUOTE])
+		if selected != SystemLayout.COMET:
+			lines.append(["CLICK: SELECT", UITheme.QUOTE])
 	else:
 		if h.body >= 0:
 			var b := L.bodies[h.body]
@@ -2616,12 +2640,19 @@ func _suns_near_first() -> Array[int]:
 	return out
 
 
+## How near the comet's head a click must land (px): its coma is about this wide.
+const COMET_HIT := 8.0
+
 func hit(p: Vector2) -> Dictionary:
 	for e in beacons_at:
 		var at: Vector2 = e[0]
 		if absf(p.x - at.x) <= 9.0 and absf(p.y - at.y) <= 9.0:
 			return {"kind": &"beacon", "body": e[1], "beacon": e[2], "at": at}
 	var L: SystemLayout = view.layout
+	# the comet's head, while it is passing (`CometPath`)
+	var cs: Vector2 = view.comet_scr()
+	if cs != Vector2.INF and p.distance_to(cs) <= COMET_HIT:
+		return {"kind": &"comet", "body": SystemLayout.COMET, "beacon": null, "at": cs}
 	for i in L.bodies.size():
 		var b := L.bodies[i]
 		if b.kind == &"belt" or b.kind == &"contact":

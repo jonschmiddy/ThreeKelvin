@@ -6,6 +6,7 @@ extends VBoxContainer
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const KeyGlyphS := preload("res://scripts/ui/sysmap/KeyGlyph.gd")
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
+const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 ## A locked choice: dimmed this far, and still clickable.
 const LOCKED_A := 0.55
 
@@ -71,6 +72,7 @@ func _clear() -> void:
 	Widgets.clear(_foot)
 	_portrait = null
 	_portraits = []
+	_comet_now = null
 	_cards = {}
 	_conseq = null
 	_scroll.scroll_vertical = 0
@@ -247,6 +249,8 @@ func _body_of_opt(i: int) -> int:
 ## A star uses its own title; any other negative reads as the star, as before.
 func _place_name(body: int) -> String:
 	var v = screen.view
+	if body == SystemLayout.COMET and v.layout.comet != null:
+		return v.layout.comet.name
 	if body < 0:
 		return screen.overlay.star_name_of(SystemLayout.STAR_B if body == SystemLayout.STAR_B else -1)
 	return v.layout.bodies[body].name
@@ -436,8 +440,12 @@ func show_body(i: int) -> void:
 func _list() -> void:
 	_clear()
 	mode = &"list"
+	# (narrowed to one place: a body, or the comet passing through)
+	var narrowed := filter >= 0 or filter == SystemLayout.COMET
 	if filter >= 0:
 		_place_head(filter)
+	elif filter == SystemLayout.COMET:
+		_comet_head()
 	else:
 		# ONE PAGE FOR THE SECTOR AND ITS STAR (Jon: "why are there two pages
 		# here?"): the star or empty space clicked, it is the same page
@@ -454,27 +462,27 @@ func _list() -> void:
 	# THE STAR HOLDS THE WHOLE SECTOR (Jon: "this panel should also have all
 	# the BEACONS HERE for the sector"), so it narrows nothing.
 	var all := _events()
-	var shown: Array = all if filter < 0 else all.filter(func(p: Array) -> bool: return p[0] == filter)
+	var shown: Array = all if not narrowed else all.filter(func(p: Array) -> bool: return p[0] == filter)
 	var open := 0
 	for pair in all:
 		if _pair_open(pair):
 			open += 1
 	if all.is_empty():
 		_eyebrow("NOTHING OUT HERE WANTS YOU")
-	elif filter >= 0:
+	elif narrowed:
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
 		_eyebrow("EVENTS · %d OPEN OF %d" % [open, all.size()])
 	var goes := false
 	for pair in shown:
-		if filter >= 0 and _open_event(pair):
+		if narrowed and _open_event(pair):
 			_place_event(pair[0], pair[1].opt)
 			goes = true
 		else:
 			_box.add_child(_card(pair[0], pair[1]))
-	if filter >= 0 and shown.is_empty() and not all.is_empty():
+	if narrowed and shown.is_empty() and not all.is_empty():
 		_eyebrow("NOTHING HERE WANTS YOU", DIM)
-	if filter < 0:
+	if not narrowed:
 		_satellites()
 	# No SECTOR LOOT button with nothing on the floor (Jon): only pressable things look pressable.
 	var n_loot: MapGen.MapNode = screen.view.node
@@ -659,6 +667,15 @@ func _satellites() -> void:
 		row.add_child(_spacer())
 		row.add_child(UITheme.body(v.body_kind(bd), UITheme.COLD, UITheme.FS_SMALL))
 		_box.add_child(row)
+	# the comet, while it is still to come or passing: the way to its page
+	var c: CometPath = L.comet
+	if c != null and not c.gone(float(v.t)):
+		var cr := HBoxContainer.new()
+		cr.name = "CometRow"
+		cr.add_child(_link(c.name, func() -> void: screen.select_body(SystemLayout.COMET)))
+		cr.add_child(_spacer())
+		cr.add_child(UITheme.body("COMET", UITheme.COLD, UITheme.FS_SMALL))
+		_box.add_child(cr)
 
 
 ## The name of place i's way-there row (`_way_there`).
@@ -775,7 +792,47 @@ func _place_head(i: int) -> void:
 	_rule()
 
 
+## The comet's page (`CometPath`): its picture, name, what it is, and where it is in its pass.
+func _comet_head() -> void:
+	var c: CometPath = screen.view.layout.comet
+	var top := HBoxContainer.new()
+	top.add_child(UITheme.body("COMET", UITheme.COLD, UITheme.FS_SMALL))
+	top.add_child(_spacer())
+	top.add_child(_link("SHOW ALL ×", func() -> void: screen.panel_back(), "Every event in the sector"))
+	_box.add_child(top)
+	if c == null:
+		return
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(TEXT_W, 84)
+	holder.clip_contents = true
+	holder.name = "CometPicture"
+	_box.add_child(holder)
+	var pv: Node2D = SkyWeatherS.CometPortrait.new()
+	pv.position = Vector2(TEXT_W / 2, 42)
+	holder.add_child(pv)
+	_portrait = pv
+	_name(c.name)
+	_class(CometPath.KIND)
+	_row("ORBIT", "ONE PASS, THEN GONE")
+	var row := HBoxContainer.new()
+	row.name = "CometNow"
+	row.add_child(UITheme.body("NOW", UITheme.COLD, UITheme.FS_SMALL))
+	row.add_child(_spacer())
+	_comet_now = UITheme.body(c.status(float(screen.view.t)), UITheme.QUOTE, UITheme.FS_SMALL)
+	row.add_child(_comet_now)
+	_box.add_child(row)
+	_rule()
+
+
+## The comet page's NOW, kept up to the second as the pass goes on.
+var _comet_now: Label = null
+
+
 func _process(_d: float) -> void:
+	if _comet_now != null and is_instance_valid(_comet_now) and screen.view.layout != null and screen.view.layout.comet != null:
+		var st: String = screen.view.layout.comet.status(float(screen.view.t))
+		if _comet_now.text != st:
+			_comet_now.text = st
 	if _portrait != null and is_instance_valid(_portrait):
 		if _portrait.has_method("set_world"):
 			_portrait.call("step", screen.view.t, Vector3(-0.83, -0.31, 0.47))

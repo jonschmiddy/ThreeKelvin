@@ -174,3 +174,22 @@ twinkling stars are, a 2x2 block each (and a dim plus for the new star), in
 the place's own picture before the palette. Each is [screen point, colour
 (its alpha the strength), the plus's share].
 ```
+
+## Real comet
+
+Above `class RealComet extends Comet:`:
+
+```text
+The comet you can fly to (`CometPath`, Phase 13) is drawn by the weather
+comet's own drawing, so it looks the same in every style and at every zoom.
+What it adds:
+
+- Its path ahead, dotted on the plane in blocks every DOT_PX, from its head to
+  where it leaves. A dotted line is no world's ring (those are solid), and it
+  shows where the comet will be before it gets there, which is the whole idea
+  of option C. Before it comes in, the whole path shows.
+- In RADIANT, its coma as light: a falloff round the head in whole blocks with
+  a dithered outer ring (the "draw light as light" rule).
+
+PAINTED needs nothing new: `SystemView._step_comet` holds its age in poses (8 a
+second), as `_apply` holds the weather's.

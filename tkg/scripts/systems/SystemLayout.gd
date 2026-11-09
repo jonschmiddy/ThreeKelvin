@@ -29,6 +29,8 @@ const GIANT_MIN := 0.10
 const GIANT_MAX := 0.25
 ## Star B takes -4, which no other place id uses. Test with `is_star`/`is_place`, never `>= -1`.
 const STAR_B := -4
+## The comet's place id (`CometPath`): not a body, so nothing that walks `bodies` meets it.
+const COMET := -6
 
 ## Star A's mass share is capped: a higher share shrinks star B's steady zone.
 ## Measured on 1,633 twins (Oct 30): a 0.58 cap left none past 380 px, 0.60 left 5%.
@@ -224,6 +226,8 @@ var star_mass: float = 46.0
 var bodies: Array[Body] = []
 ## Events on the star itself (red or blue star): open from a close orbit, as body -1.
 var star_beacons: Array[Beacon] = []
+## A comet passing through on this visit (`CometPath`), or null.
+var comet: CometPath = null
 ## How far out the outermost orbit reaches, plus a margin: from star A, round
 ## whatever centre each body circles.
 var edge: float = HI + 30.0
@@ -577,6 +581,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			_twin(L, n, R, jobs)
 		_weigh_giant(L, n)
 		spin_pair(L)
+		_comet(L, n)
 		return L
 
 	# where each body falls, out from the star: which pool its world comes from
@@ -647,7 +652,14 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		if b.world != &"":
 			b.soi = soi_of(b)
 	_weigh_giant(L, n)
+	_comet(L, n)
 	return L
+
+
+## The comet last, once the edge is known, and off its own stream (`CometPath.build`).
+static func _comet(L: SystemLayout, n: MapGen.MapNode) -> void:
+	if CometPath.wanted(n, L.star):
+		L.comet = CometPath.build(L, n)
 
 
 ## Zone is set first: by index round one star, by distance from the light round two.
