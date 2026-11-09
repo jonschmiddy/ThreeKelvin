@@ -106,6 +106,8 @@ def choices_of(blk):
 OUTCOME = re.compile(r"\b(effect|met|clean|partial|botched) = func\(")
 DRAIN = "Run.drain_fuel(OptionTable.science_fuel())"
 READ = "Run.add_data(OptionTable.reading("
+# A comet's reading pays by the spot the ship met it at (Phase 13, CometPath).
+READ_COMET = "Run.add_data(CometPath.pay_here())"
 
 
 def science_faults(blk, tags, chs):
@@ -118,8 +120,8 @@ def science_faults(blk, tags, chs):
 			out.append("pays DATA or burns fuel for a reading, and is not tagged science")
 		return out
 	site = re.search(r'\n\t+site = &"([a-z_]+)"', blk)
-	if not site or site.group(1) not in ("barren", "belt"):
-		out.append("a science event sits on site barren or belt (%s)"
+	if not site or site.group(1) not in ("barren", "belt", "comet"):
+		out.append("a science event sits on site barren, belt or comet (%s)"
 			% (site.group(1) if site else "no site"))
 	for k in ("min_danger", "max_danger"):
 		if not re.search(r"\n\t+%s = \d+" % k, blk):
@@ -134,7 +136,7 @@ def science_faults(blk, tags, chs):
 			if chunk.count(DRAIN) != calls:
 				out.append('"%s" burns fuel, and %d of its %d outcomes call %s'
 					% (label, chunk.count(DRAIN), calls, DRAIN))
-			if READ not in chunk:
+			if READ not in chunk and READ_COMET not in chunk:
 				out.append('"%s" burns fuel and never calls %s...)' % (label, READ))
 			if 2 in mults and "check = {" not in chunk:
 				out.append('"%s" pays reading(2) with no check in front of it' % label)

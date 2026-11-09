@@ -510,3 +510,18 @@ the short ones too, and reads far lower (about 30 for the default pilot the
 gate flies). This is the first dial to turn if the human pilot reaches the
 core with under 60; Jon's pay stays put.
 ```
+
+## Comet pass
+
+Above `static func _comet_pass(...)`:
+
+```text
+A comet's reading is rolled after the science pass, off its own stream
+(`Rng.derive(&"comet_event", n.index)`), in COMET_SHARE (0.1) of the systems
+that may hold a comet and have no science event already. It is added at the
+end of the list, not put in a slot, so every other option in every system
+stays where it was, and so does every layout (SystemLayout skips a comet's
+reading before it draws anything). About 1.5 a run. This differs from the
+science design, where a reading replaces a slot: a comet's reading is extra.
+Never at a pulsar or the core; never at a station, as nothing is rolled there.
+```

@@ -1734,9 +1734,9 @@ func _situate() -> void:
 		elif orbit_target == SystemLayout.STAR_B and layout.twin:
 			# STAR B (-4): the ship at B's close orbit is AT a star, as at -1
 			p = layout.star_pos(SystemLayout.STAR_B, _tm) + Vector2(layout.star_rail_of(SystemLayout.STAR_B), 0.0)
-		elif StringName(d.get("mode", &"")) == &"free":
-			# (a free ship's place is a plane point at the map's clock, the one kept
-			# with it: `SystemMapScreen._keep_ship`)
+		elif StringName(d.get("mode", &"")) in [&"free", &"keep"]:
+			# (a free ship's place, or one held on a comet's path, is a plane point at the
+			# map's clock, the one kept with it: `SystemMapScreen._keep_ship`)
 			p = d.get("p", p)
 	if (orbit_target < -1 and not (layout.twin and orbit_target == SystemLayout.STAR_B)) or orbit_target >= layout.bodies.size():
 		orbit_target = -9

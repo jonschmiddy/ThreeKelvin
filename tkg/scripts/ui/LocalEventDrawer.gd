@@ -86,10 +86,13 @@ static func open_here(n: MapGen.MapNode) -> int:
 ## Whether the ship is parked where option i stands (the map leaves it there).
 ## (an option placed nowhere, -2, is at no place a ship can be: `is_place`)
 static func here_now(n: MapGen.MapNode, i: int) -> bool:
+	var b := body_of(n, i)
+	# a comet's reading: here once the ship has met the comet on a spot (`CometCatch`)
+	if b == SystemLayout.COMET:
+		return CometPath.caught_at(n) >= 0
 	var d: Dictionary = SystemMapScreen._parked.get(n.index, {})
 	if d.is_empty():
 		return true
-	var b := body_of(n, i)
 	return SystemLayout.is_place(b) and int(d.get("at", -9)) == b
 
 
@@ -945,6 +948,8 @@ func _tags(o: Dictionary) -> String:
 func _place_line(i: int) -> String:
 	var b := body_of(node, i)
 	var L := SystemLayout.of(node)
+	if b == SystemLayout.COMET and L.comet != null:
+		return "%s · YOU ARE ON ITS PATH" % L.comet.name
 	if b < 0 or b >= L.bodies.size():
 		# On a star, named as the map names it. An option on no place reads as star A, as ever.
 		return L.star_title(node, SystemLayout.STAR_B if b == SystemLayout.STAR_B else -1) + " · YOU ARE IN A CLOSE ORBIT"

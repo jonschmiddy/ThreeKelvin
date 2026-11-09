@@ -73,6 +73,7 @@ func _clear() -> void:
 	_portrait = null
 	_portraits = []
 	_comet_now = null
+	_spot_btns = []
 	_cards = {}
 	_conseq = null
 	_scroll.scroll_vertical = 0
@@ -216,6 +217,11 @@ func _events() -> Array:
 		out.append([-1, bc])
 	if screen.view.node.type == MapGen.NodeType.PULSAR:
 		out.append([-1, null])
+	# a comet's readings, while it is still to come or passing
+	var c: CometPath = L.comet
+	if c != null and not c.gone(float(screen.view.t)):
+		for bc in c.beacons:
+			out.append([SystemLayout.COMET, bc])
 	return out
 
 
@@ -243,7 +249,7 @@ func _key(bc) -> Variant:
 func _body_of_opt(i: int) -> int:
 	# (-1 the star, for an event sited on it; and where nothing holds it)
 	var at: int = screen.view.layout.place_of(i)
-	return at if SystemLayout.is_place(at) else -1
+	return at if SystemLayout.is_place(at) or at == SystemLayout.COMET else -1
 
 
 ## A star uses its own title; any other negative reads as the star, as before.
@@ -258,6 +264,8 @@ func _place_name(body: int) -> String:
 
 func _place_kind(body: int) -> String:
 	var v = screen.view
+	if body == SystemLayout.COMET:
+		return "COMET"
 	if body < 0:
 		return screen.overlay.star_class_of(SystemLayout.STAR_B if body == SystemLayout.STAR_B else -1)
 	return v.body_kind(v.layout.bodies[body])
@@ -536,6 +544,9 @@ const GO_H := 20
 
 func _go_button(i: int) -> void:
 	_gap(2)
+	if _body_of_opt(i) == SystemLayout.COMET:
+		_spots(i)
+		return
 	var go := _dress_go(_small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go())), i)
 	go.custom_minimum_size = Vector2(TEXT_W, GO_H)
 	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -829,9 +840,66 @@ func _comet_head() -> void:
 
 ## The comet page's NOW, kept up to the second as the pass goes on.
 var _comet_now: Label = null
+## THE THREE SPOTS for a comet's reading, in place of GO (`CometCatch`): each a race shown as
+## IT and YOU, greyed TOO LATE once it cannot be made. Why: docs/why/SystemPanel.md#comet-spots
+var _spot_btns: Array[Button] = []
+var _spot_opt := -1
+const SPOT_COL: Array[Color] = [UITheme.ICE, UITheme.FLARE, UITheme.BAD]
+const SPOT_PAY: Array[String] = ["1X", "2X", "2.5X"]
+const SPOT_SHORT: Array[String] = ["FAR", "NEAR", "STAR"]
+const SPOT_TIP: Array[String] = [
+	"Far out on its path. A plain reading. Nothing hits the ship.",
+	"Nearer the star. Twice the reading. Rock in the tail hits the hull.",
+	"At the star. Two and a half times the reading. Rock hits the hull, and the heat comes in.",
+]
+
+
+func _spots(i: int) -> void:
+	_spot_btns = []
+	_spot_opt = i
+	_eyebrow("WAIT ON ITS PATH: PICK A SPOT", UITheme.HOT)
+	for k in 3:
+		var b := Button.new()
+		b.name = "Spot%d" % k
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(TEXT_W, GO_H)
+		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		b.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+		b.add_theme_color_override("font_color", SPOT_COL[k])
+		b.add_theme_color_override("font_disabled_color", DIM)
+		b.tooltip_text = Widgets.tip(SPOT_TIP[k])
+		var kk := k
+		b.pressed.connect(func() -> void: screen.comet_catch().go_spot(kk, i))
+		b.clip_text = true
+		_box.add_child(b)
+		_spot_btns.append(b)
+	_box.add_child(_rich(_c("NEAR COSTS HULL. ", UITheme.FLARE) + _c("AT THE STAR, HULL AND HEAT.", UITheme.BAD)))
+	_spot_words()
+
+
+## Each spot's words this frame: "2 NEAR 2X · HULL   IT 0:13  YOU 0:05", or TOO LATE.
+func _spot_words() -> void:
+	if _spot_btns.is_empty() or not is_instance_valid(_spot_btns[0]):
+		return
+	var cc = screen.comet_catch()
+	for k in 3:
+		var b := _spot_btns[k]
+		var head := "%d %s %s" % [k + 1, SPOT_SHORT[k], SPOT_PAY[k]]
+		if int(cc.waiting) == k or int(cc.going) == k:
+			b.text = "%d %s · %s  IT %s" % [k + 1, SPOT_SHORT[k], "WAITING" if int(cc.waiting) == k else "ON YOUR WAY", CometPath.clock(cc.it_in(k))]
+			b.disabled = true
+			continue
+		if cc.too_late(k):
+			b.text = "%d %s · TOO LATE" % [k + 1, SPOT_SHORT[k]]
+			b.disabled = true
+			continue
+		var yt: String = "--" if float(cc.you[k]) == INF else CometPath.clock(float(cc.you[k]))
+		b.text = "%s   IT %s  YOU %s" % [head, CometPath.clock(cc.it_in(k)), yt]
+		b.disabled = not _can_go() or int(cc.going) >= 0 or int(cc.waiting) >= 0
 
 
 func _process(_d: float) -> void:
+	_spot_words()
 	if _comet_now != null and is_instance_valid(_comet_now) and screen.view.layout != null and screen.view.layout.comet != null:
 		var st: String = screen.view.layout.comet.status(float(screen.view.t))
 		if _comet_now.text != st:
@@ -984,7 +1052,9 @@ func _event_page(out: Dictionary) -> void:
 		_rule()
 		_blurb(String(o.get("body", "")), DIM)
 	# GO, the page's one action, at the foot where the panel's buttons are
-	var has_go: bool = st.kind == &"open" or st.kind == &"left"
+	var has_go: bool = (st.kind == &"open" or st.kind == &"left") and body != SystemLayout.COMET
+	if body == SystemLayout.COMET and (st.kind == &"open" or st.kind == &"left"):
+		_spots(i)
 	if has_go:
 		var go := _act("GO", func() -> void: screen.go_event(i))
 		go.disabled = not (_ship_at(body) or _can_go())

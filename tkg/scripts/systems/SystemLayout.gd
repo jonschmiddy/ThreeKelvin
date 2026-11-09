@@ -479,7 +479,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	# A SIGNED JOB'S EVENT (`OptionTable.is_job`) is laid out after everything
 	# else, past the last orbit, so posting it moves nothing already there
 	var jobs: Array[int] = []
-	for i in n.options.size():
+	for i in _sited(n):
 		if OptionTable.is_job(n.options[i]):
 			jobs.append(i)
 			continue
@@ -658,6 +658,26 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 static func _comet(L: SystemLayout, n: MapGen.MapNode) -> void:
 	if CometPath.wanted(n, L.star):
 		L.comet = CometPath.build(L, n)
+		# its readings ride it, not a body
+		for i in n.options.size():
+			if _on_comet(n, i):
+				var b := Beacon.new()
+				b.opt = i
+				L.comet.beacons.append(b)
+
+
+## Option i of n is a comet's reading (`site = &"comet"`).
+static func _on_comet(n: MapGen.MapNode, i: int) -> bool:
+	return StringName(OptionTable.by_id(n.options[i]).get("site", &"")) == &"comet"
+
+
+## The options laid out on bodies: all but a comet's readings, which draw nothing from R.
+static func _sited(n: MapGen.MapNode) -> Array[int]:
+	var out: Array[int] = []
+	for i in n.options.size():
+		if not _on_comet(n, i):
+			out.append(i)
+	return out
 
 
 ## A pair's last steps: it turns, then the comet, which rides star A where the pair has it.
@@ -1335,6 +1355,10 @@ func place_of(i: int) -> int:
 	for bc in star_beacons:
 		if bc.opt == i:
 			return -1
+	if comet != null:
+		for bc in comet.beacons:
+			if bc.opt == i:
+				return COMET
 	return -2
 
 

@@ -39,3 +39,28 @@ It is drawn over the band's worlds and suns. When it passes behind the star on
 the band it is not hidden by the disc: the band is nearly edge on (TILT 0.07),
 so that lasts a moment of a pass that LOCAL holds still anyway.
 ```
+
+## The close pass
+
+Above `const PASS_D: Array[float] = ...`:
+
+```text
+Jon (Nov 9): "Shouldn't we have the ship like right next to the comet... like
+it's approaching close to do science?" Met on its path, the comet comes in from
+the right over ARRIVE_S, holds beside the ship while its reading is open, and
+goes out to the left over LEAVE_S once the reading is taken.
+
+It holds off the ship's nose toward the star (PASS_D), so its tails, which
+point away from the star, stream back over the ship, and the nose sits inside
+the edge of its coma. Nearer spots are closer, bigger and rougher: the coma
+92, 118 and 142 px, the nucleus 18, 22 and 28 px, and grit in the tail at the
+near spot (36 grains) and at the star (80). At the star the heat shows round
+the star's side of the view.
+
+The coma and both tails are light in dithered steps, and the nucleus is dirty
+ice lit from the star with a dithered edge. They are painted once per pass into
+a picture at the sky's own half size, so each pixel is one of its 2x2 blocks.
+Drawn block by block every frame they were tens of thousands of rects. The
+tails' way is taken from where the head holds, not where it first shows: taken
+mid-arrival they pointed away from the ship.
+```

@@ -76,6 +76,8 @@ const SCIENCE_FUEL: Array[int] = [0, 1, 1, 2, 2, 2]
 ## holds one about half the time (`roll_for`).
 ## Why: docs/why/OptionTable.md#how-often
 const SCIENCE_SHARE := 1.0 / 6.0
+## A comet's reading in this share of the systems without one: about 1.5 a run.
+const COMET_SHARE := 0.1
 
 
 ## The DATA a reading pays here: `mult` careful readings' worth.
@@ -385,9 +387,12 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 	var r := Rng.derive(&"options", n.index)
 	var pool: Array[Dictionary] = []
 	var science: Array[Dictionary] = []
+	var comets: Array[Dictionary] = []
 	for o in all():
 		if admits(o, n):
-			if is_science(o):
+			if StringName(o.get("site", &"")) == &"comet":
+				comets.append(o)
+			elif is_science(o):
 				science.append(o)
 			else:
 				pool.append(o)
@@ -423,7 +428,26 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 			groups_used[g] = true
 		out.append(StringName(got.id))
 	_science_pass(n, out, science)
+	_comet_pass(n, out, comets)
 	return out
+
+
+## THE COMET PASS (Phase 13): a comet's reading, added after everything, off its own stream,
+## where no science event already is. Added, not in a slot, so no other event moves.
+## Why: docs/why/OptionTable.md#comet-pass
+static func _comet_pass(n: MapGen.MapNode, out: Array[StringName], comets: Array[Dictionary]) -> void:
+	if Run.science_off or out.is_empty() or comets.is_empty():
+		return
+	var sk := SystemLayout.star_kind(n)
+	if sk == SystemLayout.StarKind.PULSAR or sk == SystemLayout.StarKind.CORE:
+		return
+	for id in out:
+		if is_science(by_id(id)):
+			return
+	var rc := Rng.derive(&"comet_event", n.index)
+	if rc.randf() >= COMET_SHARE:
+		return
+	out.append(StringName(comets[rc.randi() % comets.size()].id))
 
 
 ## THE SCIENCE PASS (`roll_for`): one science event, at most, in place of one
@@ -508,4 +532,5 @@ static func _authored() -> Array[Dictionary]:
 	out.append_array(OptionsPart09.entries())
 	out.append_array(OptionsPart10.entries())
 	out.append_array(OptionsPart11.entries())
+	out.append_array(OptionsPart12.entries())
 	return out

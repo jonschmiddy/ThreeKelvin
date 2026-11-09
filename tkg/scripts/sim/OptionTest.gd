@@ -74,9 +74,11 @@ func run() -> void:
 
 		var tier := MapGen.tier(node.danger)
 		var plan: Dictionary = OptionTable.TIER_PLAN[tier]
-		if got.size() > int(plan.hi):
+		# (a comet's reading is added past the plan, `OptionTable._comet_pass`)
+		var planned := _without_comet(got).size()
+		if planned > int(plan.hi):
 			bad_count.append("node %d tier %d holds %d options, plan allows %d"
-				% [node.index, tier, got.size(), int(plan.hi)])
+				% [node.index, tier, planned, int(plan.hi)])
 		if groups.size() > int(plan.groups):
 			bad_count.append("node %d tier %d opened %d groups, plan allows %d"
 				% [node.index, tier, groups.size(), int(plan.groups)])
@@ -189,6 +191,7 @@ func run() -> void:
 	_science_rolls()
 	_science_pay()
 	_science_gate()
+	_comet_readings()
 	verdict("optiontest")
 
 
@@ -206,6 +209,9 @@ func _science_table() -> void:
 		if not OptionTable.is_science(o):
 			continue
 		var site := StringName(o.get("site", &""))
+		# (a comet's three readings are their own shape: `_comet_readings`)
+		if site == &"comet":
+			continue
 		if not bands.has(site):
 			shape_bad.append("%s sits on '%s'" % [o.id, site])
 			continue
@@ -252,7 +258,7 @@ func _science_rolls() -> void:
 					or n.type == MapGen.NodeType.START:
 				continue
 			var rs_before := JSON.stringify(Rng.state())
-			var got := OptionTable.roll_for(n)
+			var got := _without_comet(OptionTable.roll_for(n))
 			if JSON.stringify(Rng.state()) != rs_before:
 				rs_moved += 1
 			Run.science_off = true
@@ -326,7 +332,7 @@ func _science_pay() -> void:
 	var bad: Array[String] = []
 	var ran := 0
 	for o in OptionTable.all():
-		if not OptionTable.is_science(o):
+		if not OptionTable.is_science(o) or StringName(o.get("site", &"")) == &"comet":
 			continue
 		var d := int(o.min_danger)
 		if not by_danger.has(d):
@@ -437,3 +443,96 @@ func _gates_are_real() -> void:
 				bad.append("%s.%s" % [String((o as Dictionary).id), String(k)])
 	_ok("every option field is one the table reads%s"
 		% ("" if bad.is_empty() else " -- " + ", ".join(bad)), bad.is_empty())
+
+
+## A rolled list without the comet's reading added at its end (`OptionTable._comet_pass`).
+static func _without_comet(ids: Array[StringName]) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id in ids:
+		if StringName(OptionTable.by_id(id).get("site", &"")) != &"comet":
+			out.append(id)
+	return out
+
+
+## THE COMET'S READINGS (Phase 13): three, on the comet, a reading and a credits line each,
+## every band; rolled in about 1 system in 10 that may hold one and has no science event,
+## added last and never twice; and each pays 1x, 2x and 2.5x the careful reading by the spot,
+## with hull at the near two and heat at the star. Why: docs/why/OptionTest.md#comet-readings
+func _comet_readings() -> void:
+	print("
+=== COMET ===")
+	var shape_bad: Array[String] = []
+	var ids: Array[StringName] = []
+	for o in OptionTable.all():
+		if StringName(o.get("site", &"")) != &"comet":
+			continue
+		ids.append(StringName(o.id))
+		var burns := 0
+		var credits := 0
+		for c: Dictionary in o.choices:
+			if bool(c.get("burns", false)):
+				burns += 1
+			else:
+				credits += 1
+		if not OptionTable.is_science(o) or burns != 1 or credits != 1 or int(o.get("min_danger", 0)) != 1 or int(o.get("max_danger", 0)) != 10:
+			shape_bad.append("%s: science %s, %d readings, %d others, band %d-%d" % [o.id, OptionTable.is_science(o), burns, credits, int(o.get("min_danger", 0)), int(o.get("max_danger", 0))])
+	_ok("three comet readings, a reading and a credits line each, every band%s" % ("" if shape_bad.is_empty() else ": " + "; ".join(shape_bad)),
+		ids.size() == 3 and shape_bad.is_empty())
+	var may := 0
+	var got_c := 0
+	var bad_roll: Array[String] = []
+	for seed in SCIENCE_SEEDS:
+		Rng.forced = seed
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if n.type != MapGen.NodeType.SYSTEM:
+				continue
+			var list := OptionTable.roll_for(n)
+			var sci := 0
+			var com := 0
+			for k in list.size():
+				var o2 := OptionTable.by_id(list[k])
+				if StringName(o2.get("site", &"")) == &"comet":
+					com += 1
+					if k != list.size() - 1:
+						bad_roll.append("system %d: a comet reading not last" % n.index)
+				elif OptionTable.is_science(o2):
+					sci += 1
+			if sci == 0:
+				may += 1
+			got_c += com
+			if com > 1 or (com > 0 and sci > 0):
+				bad_roll.append("system %d: %d comet readings beside %d science" % [n.index, com, sci])
+			if com > 0 and SystemLayout.of(n).comet == null:
+				bad_roll.append("system %d: a comet reading and no comet" % n.index)
+	var share := float(got_c) / float(maxi(may, 1))
+	print("  %d comet readings in %d systems without a science event (%.3f)" % [got_c, may, share])
+	_ok("a comet reading in about 1 system in 10 that may hold one (%.3f), one at most, last, with its comet%s"
+		% [share, "" if bad_roll.is_empty() else ": " + bad_roll[0]], share >= 0.07 and share <= 0.13 and bad_roll.is_empty())
+	var pay_bad: Array[String] = []
+	Rng.forced = 4242
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.SYSTEM and n.danger == 5:
+			Run.at = n.index
+			break
+	var one := OptionTable.reading(1)
+	for id in ids:
+		var c0: Dictionary = OptionTable.by_id(id).choices[0]
+		for k in 3:
+			CometPath.set_caught(Run.node_at(), k)
+			Run.fuel = Run.FUEL_TANK
+			Run.hp = Run.max_hp()
+			Run.heat = 0
+			Run.data = 0
+			var res: Variant = (c0.effect as Callable).call()
+			var want_data := int(round(float(one) * float(CometPath.SPOT_PAY_HALVES[k]) / 2.0))
+			var hurt := Run.hp < Run.max_hp()
+			if Run.data != want_data or hurt != (CometPath.SPOT_HULL[k] > 0) or Run.heat != CometPath.SPOT_HEAT[k] 					or Run.fuel != Run.FUEL_TANK - OptionTable.science_fuel() or String((res as Dictionary).get("text", "")) == "":
+				pay_bad.append("%s at spot %d: DATA %d (want %d), hull lost %s, heat %d" % [id, k, Run.data, want_data, hurt, Run.heat])
+	Run.node_at().remove_meta(&"comet_spot")
+	_ok("a comet reading pays 1x, 2x and 2.5x by the spot, hull near and at the star, heat at the star, the science fuel%s"
+		% ("" if pay_bad.is_empty() else ": " + "; ".join(pay_bad.slice(0, 3))), pay_bad.is_empty())
+

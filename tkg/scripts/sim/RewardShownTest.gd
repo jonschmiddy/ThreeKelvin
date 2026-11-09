@@ -130,7 +130,8 @@ func _run() -> void:
 	_ok("every outcome that put something on the pile showed REWARD (%d of %d)" % [shown, paid], paid > 0 and shown == paid)
 	_ok("a material paid with no `module` key was among them (%d)" % missed_before.size(), missed_before.size() > 0)
 	_ok("CONTINUE past REWARD was tried", left_ok)
-	_ok("every science outcome (%d) shows its result with no REWARD and no fight" % science, science == 8 * 6)
+	# (eight science events of six outcomes, and the comet's three readings of two lines each)
+	_ok("every science outcome (%d) shows its result with no REWARD and no fight" % science, science == 8 * 6 + 3 * 2)
 	for q in [&"job_pickup", &"job_target", &"paid_in_full"]:
 		_ok("the quest event %s was resolved (%d)" % [q, int(quests.get(q, 0))], int(quests.get(q, 0)) > 0)
 	_end()

@@ -608,3 +608,15 @@ just behind its middle, and on its own turn where it is behind (2 and 3 of 48
 on LAMBDA CALLOUS SECUNDUS), and every click is the sun's. One sun's
 innermost world never comes that near.
 ```
+
+## Comet spots
+
+Above `func _draw_spots() -> void:`:
+
+```text
+While a comet's reading is open, its three spots are drawn on its path: a ring
+in the spot's colour (far ice, near flare, the star red, as the panel's), its
+number and name, and IT, the time until the comet gets there. A spot that can
+no longer be made is greyed and says TOO LATE. The spot the ship waits at has a
+larger ring.
+```

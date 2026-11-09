@@ -172,3 +172,71 @@ func clear_of_suns(L: SystemLayout) -> float:
 		for s: int in L.stars():
 			least = minf(least, p.distance_to(L.star_pos(s, t_in + a)) - L.keep_clear_of(s))
 	return least
+
+
+# ---------------------------------------------------------------- the catch (Jon's C)
+## THE THREE SPOTS on its path, as fractions of the way from coming in to nearest the star:
+## far, near, and at the star. Why: docs/why/CometPath.md#the-spots
+const SPOT_AGE: Array[float] = [0.45, 0.75, 1.0]
+const SPOT_NAMES: Array[String] = ["FAR", "NEAR", "AT THE STAR"]
+## A reading's pay against the careful one, at each spot (ECONOMY: 1x, 2x, 2.5x), in halves.
+const SPOT_PAY_HALVES: Array[int] = [2, 4, 5]
+## What each spot costs: hull at the near two, heat at the star.
+const SPOT_HULL: Array[int] = [0, 2, 3]
+const SPOT_HEAT: Array[int] = [0, 0, 8]
+
+
+## The age it reaches spot k (s into the pass).
+func spot_age(k: int) -> float:
+	return tp * SPOT_AGE[k]
+
+
+## The map time it reaches spot k.
+func spot_t(k: int) -> float:
+	return t_in + spot_age(k)
+
+
+## Spot k on the plane: where the comet will be when it gets there (star A where it is then).
+func spot_at(L: SystemLayout, k: int) -> Vector2:
+	return pos(L, spot_t(k))
+
+
+## Seconds until it reaches spot k at map time t (below 0: it has gone by).
+func spot_in(k: int, t: float) -> float:
+	return spot_t(k) - t
+
+
+## The spot the ship met the comet at in system n (the reading's spot), or -1. Kept on the node
+## for the visit: never saved, as the reading is taken in the same LOCAL.
+static func caught_at(n: MapGen.MapNode) -> int:
+	return int(n.get_meta(&"comet_spot", -1)) if n != null else -1
+
+
+static func set_caught(n: MapGen.MapNode, k: int) -> void:
+	n.set_meta(&"comet_spot", k)
+
+
+## Where the reading is taken now: this system's caught spot (FAR when none, as a harness has it).
+static func spot_here() -> int:
+	var k := caught_at(Run.node_at() if not Run.map.is_empty() else null)
+	return clampi(k, 0, 2)
+
+
+## A comet reading's DATA at the spot here: the careful reading times 1, 2 or 2.5.
+static func pay_here() -> int:
+	return int(round(float(OptionTable.reading(1)) * float(SPOT_PAY_HALVES[spot_here()]) / 2.0))
+
+
+## The spot's toll on the ship (hull at the near two, heat at the star), and its words.
+static func toll_here(why: String) -> void:
+	var k := spot_here()
+	if SPOT_HULL[k] > 0:
+		Run.take_hull_damage(OptionTable.toll(SPOT_HULL[k]), why)
+	if SPOT_HEAT[k] > 0:
+		Run.heat += SPOT_HEAT[k]
+
+
+## One of three lines by the spot here: far, near, at the star.
+static func by_spot(lines: Array) -> String:
+	return lines[spot_here()]
+

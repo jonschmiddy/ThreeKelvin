@@ -754,6 +754,7 @@ func _process(delta: float) -> void:
 		view.t += delta
 		_catch_up(delta)
 	_step_ship(delta, hold)
+	comet_catch().step()
 	_report_spot(held)
 	_report_flight()
 	# A CLICK MADE WHILE THE SHIP SPUN DOWN onto its ring (`_after_spin`), now
@@ -776,6 +777,17 @@ func _process(delta: float) -> void:
 		lt = 0.7
 	view.belt_lit = lit
 	view.belt_t = lt
+
+
+## The comet's catch (`CometCatch`): its spots, the race to them and the pass. Made once.
+var _catch: Node = null
+const CometCatchS := preload("res://scripts/ui/sysmap/CometCatch.gd")
+func comet_catch() -> Node:
+	if _catch == null:
+		_catch = CometCatchS.new()
+		_catch.screen = self
+		add_child(_catch)
+	return _catch
 
 
 ## The map clock holds during a ladder move so both pictures show the pair at one angle.
@@ -1411,6 +1423,9 @@ func go_event(i: int) -> void:
 		return
 	var body := LocalEventDrawer.body_of(view.node, i)
 	overlay.link_on = false
+	# (a comet's reading is reached by its spots, `CometCatch`, never straight down)
+	if body == SystemLayout.COMET:
+		return
 	if not SystemLayout.is_place(body):
 		_zoom_down(i)
 		return

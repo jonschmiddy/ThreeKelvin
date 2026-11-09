@@ -170,6 +170,10 @@ func run() -> void:
 				seen[bc.opt] = int(seen.get(bc.opt, 0)) + 1
 				if L.star != SystemLayout.StarKind.RED and L.star != SystemLayout.StarKind.BLUE:
 					_fail("system %d: option %d on a star that is not red or blue" % [n.index, bc.opt])
+			# (or on the comet: its readings ride it, `CometPath`)
+			if L.comet != null:
+				for bc in L.comet.beacons:
+					seen[bc.opt] = int(seen.get(bc.opt, 0)) + 1
 			for i in n.options.size():
 				if int(seen.get(i, 0)) != 1:
 					_fail("system %d: option %d is on %d bodies" % [n.index, i, int(seen.get(i, 0))])

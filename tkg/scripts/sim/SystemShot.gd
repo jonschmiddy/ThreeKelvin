@@ -227,6 +227,10 @@ func _ready() -> void:
 					print("  systemshot: moons node %d body %d %s %s r %.1f moons %d ring %s" % [mn.index, bi, bm.kind, bm.world, bm.r, int(spm.moons), str(spm.get("ring", false))])
 		get_tree().quit()
 		return
+	# `cometread=<id>`: that comet reading added here, so the catch's spots are offered
+	for a27 in OS.get_cmdline_user_args():
+		if (a27 as String).begins_with("cometread=") and not n.options.has(StringName((a27 as String).substr(10))):
+			n.options.append(StringName((a27 as String).substr(10)))
 	var Lt := SystemLayout.of(n)
 	# (`cometpass`: where the comet is, to pick `at=` for it)
 	if Lt.comet != null:

@@ -92,3 +92,22 @@ everywhere. The seeds are fixed, so the share is too: 0.166 at 1 in 6, 0.143
 at 1 in 7 and 0.199 at 1 in 5 (Nov 4), and the band (0.155 to 0.18) passes
 only the first. Move it with the share.
 ```
+
+## Comet readings
+
+Above `func _comet_readings() -> void:`:
+
+```text
+THE COMET'S READINGS (Phase 13, `OptionsPart12`). Three, sited on the comet,
+each a reading that burns the science fuel and a credits line, in every band.
+Rolled by `OptionTable._comet_pass`: in about 1 system in 10 of those with no
+science event (0.07 to 0.13 over the twelve seeds), one at most, always last
+in the list, and only where the layout then has a comet. Paid through each
+reading's own callable at a danger-5 system with the spot set by hand: 1x, 2x
+and 2.5x the careful reading, hull lost at the near spot and the star, 8 heat
+at the star, the science fuel burned at every spot.
+
+The other science checks leave comet readings out: the tier plan's count, the
+eight barren and belt events, main's list rolled the same, and the pay table.
+A comet's reading is added past the plan on purpose, so none of those move.
+```

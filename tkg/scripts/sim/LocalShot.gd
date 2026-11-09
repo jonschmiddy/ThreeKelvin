@@ -52,7 +52,19 @@ func _run() -> void:
 	# `mapt=S`: the system's map clock left at S, as if its map had run that long (a comet's place)
 	if Harness.arg("mapt") != "":
 		Run.map_clock[idx] = float(Harness.arg("mapt"))
+	# `cometread=<id>` puts a comet's reading here; `cometspot=K` has the ship met the comet at
+	# spot K, held there, its reading open on LOCAL (the close pass, `LocalComet`)
+	if Harness.arg("cometread") != "" and not node.options.has(StringName(Harness.arg("cometread"))):
+		node.options.append(StringName(Harness.arg("cometread")))
 	var Lc := SystemLayout.of(node)
+	if Harness.arg("cometspot") != "" and Lc.comet != null and not Lc.comet.beacons.is_empty():
+		var ks := int(Harness.arg("cometspot"))
+		CometPath.set_caught(node, ks)
+		var spot := Lc.comet.spot_at(Lc, ks)
+		SystemMapScreen._parked[idx] = {"at": -9, "p": spot, "v": Vector2.ZERO, "head": PI, "mode": &"keep"}
+		Run.map_clock[idx] = Lc.comet.spot_t(ks)
+		LocalEventDrawer.request(idx, int(Lc.comet.beacons[0].opt))
+		print("  comet spot %d at %s, map time %.1f, reading %s" % [ks, spot, Lc.comet.spot_t(ks), node.options[int(Lc.comet.beacons[0].opt)]])
 	if Lc.comet != null:
 		print("  comet %s: in at %.1f s, crosses in %.1f s, nearest the star at %.1f s; at %.1f s: %s" % [Lc.comet.name,
 			Lc.comet.t_in, Lc.comet.T, Lc.comet.t_in + Lc.comet.tp, Run.map_t(idx), Lc.comet.status(Run.map_t(idx))])

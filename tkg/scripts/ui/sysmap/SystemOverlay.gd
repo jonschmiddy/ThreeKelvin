@@ -1075,6 +1075,9 @@ func capture_ins(body: int, rel: Vector2, rv: Vector2) -> Dictionary:
 
 ## A place's name: a star's, or a body's.
 func _place_nm(p: int) -> String:
+	# (a spot on the comet's path is held at -9: no body, `CometCatch`)
+	if p < 0 and not SystemLayout.is_star(p):
+		return "THE COMET'S PATH"
 	return star_name_of(p) if SystemLayout.is_star(p) else view.layout.bodies[p].name
 
 
@@ -2632,6 +2635,7 @@ const COMET_HIT := 8.0
 ## the hover's reticle closing in.
 func _draw_partners_and_comet(t: float) -> void:
 	_draw_partners(t)
+	_draw_spots()
 	var L: SystemLayout = view.layout
 	var hk: StringName = hover.get("kind", &"")
 	# THE COMET selected: the same reticle on its head and its name, while it passes
@@ -2649,6 +2653,34 @@ func _draw_partners_and_comet(t: float) -> void:
 		var hc: Vector2 = comet_scr()
 		if hc != Vector2.INF:
 			_reticle(hc, COMET_R + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
+
+
+## THE SPOTS on the comet's path while its reading is open: a ring and its words each,
+## greyed TOO LATE once it cannot be made (`CometCatch`). Why: docs/why/SystemOverlay.md#comet-spots
+func _draw_spots() -> void:
+	var c: CometPath = view.layout.comet
+	var sc = view.get_parent()
+	while sc != null and not sc.has_method(&"comet_catch"):
+		sc = sc.get_parent()
+	if c == null or sc == null or c.gone(float(view.t)):
+		return
+	var cc = sc.comet_catch()
+	if cc._open_reading(view.node) < 0:
+		return
+	for k in 3:
+		var p: Vector2 = c.spot_at(view.layout, k)
+		var s: Vector2 = view.block_round(view.screen(p.x, p.y))
+		var late: bool = cc.too_late(k)
+		var col: Color = UITheme.COLD if late else SPOT_MARK[k]
+		var al := 0.5 if late else 1.0
+		var r := 5.0 + (2.0 if int(cc.waiting) == k else 0.0)
+		draw_arc(s, r, 0.0, TAU, 20, Color(col, al), 1.0)
+		draw_rect(Rect2(s - Vector2(1, 1), Vector2(2, 2)), Color(col, al))
+		var words := "%d %s" % [k + 1, "TOO LATE" if late else CometPath.SPOT_NAMES[k]]
+		_text(s + Vector2(r + 3.0, -2.0), words, Color(col, al))
+		if not late:
+			_text(s + Vector2(r + 3.0, 9.0), "IT %s" % CometPath.clock(cc.it_in(k)), Color(UITheme.CHILL, 0.9))
+const SPOT_MARK: Array[Color] = [UITheme.ICE, UITheme.FLARE, UITheme.BAD]
 
 
 ## Where the comet's head is drawn, or INF while it is not in the system (`CometPath`).

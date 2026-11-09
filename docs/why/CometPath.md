@@ -62,3 +62,27 @@ keep-out, and a path that comes within CLEAR of any sun's keep-out at any of
 160 points of its pass (star B where the pair has it then) is drawn again off
 the same stream, up to 8 times. SystemTest reports the closest any comet comes.
 ```
+
+## The spots
+
+Above `const SPOT_AGE: Array[float] = [0.45, 0.75, 1.0]`:
+
+```text
+Jon's C (Nov 9): pick one of three spots on the comet's path and get there
+first. The spots are where the comet will be at 45%, 75% and 100% of the way
+from coming in to nearest the star: far, near, and at the star. Each is a
+fixed point on the plane, the comet's place at that moment with star A where
+the pair has it then, so the ship waiting there is exactly on the comet's way
+in a binary too.
+
+What each pays and costs (the science design's 1x / 2x / 2.5x, ECONOMY_RISK):
+- far: the careful reading, nothing hits the ship;
+- near: twice the reading, rock in the tail costs hull (toll 2);
+- at the star: two and a half times, hull (toll 3) and 8 heat.
+The pay is in halves so 2.5x rounds once (`pay_here`).
+
+The spot the ship met it at is kept on the map node as metadata (`caught_at`)
+for the visit. It is not saved: the reading is taken in the same LOCAL the pass
+opens. A run resumed from a suspend save in the middle of that reading pays the
+far spot.
+```

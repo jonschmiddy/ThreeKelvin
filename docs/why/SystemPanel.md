@@ -94,3 +94,17 @@ that asks for more than the column widens the panel under its scroll
 bar. The place goes down whole, YOU with it; on one line it is laid out
 as it was.
 ```
+
+## Comet spots
+
+Above `var _spot_btns: Array[Button] = []`:
+
+```text
+A comet's reading has no GO: it is reached by its spots (`CometCatch`). Its
+page shows three buttons, one a spot: "2 NEAR 2X   IT 0:13  YOU 0:05", IT the
+comet's time to the spot and YOU the ship's. A spot greys out "TOO LATE" once it
+cannot be made, and reads WAITING or ON YOUR WAY while the ship is going to it
+or is there. The costs are one plain line under them, in the danger colours:
+near costs hull, at the star hull and heat. The buttons clip their words, as
+long ones widened the panel.
+```
