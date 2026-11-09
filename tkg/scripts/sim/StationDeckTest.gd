@@ -1411,9 +1411,9 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		and is_instance_valid(key) and st._glass_press == key)
 	await _click(buy)
 	await _frames(2)
-	_ok("%s: BUY spends 6 DATA and runs CORE's first step (DATA %d, owned %s, the strip on %s)"
+	_ok("%s: BUY spends 4 DATA and runs CORE's first step (DATA %d, owned %s, the strip on %s)"
 		% [tag, Run.data, str(Run.board_owned), board.bought],
-		Run.data == 34 and Run.board_owned[1] == 1 and board.bought == Vector2i(1, 0) and zoom._note == "-6")
+		Run.data == 36 and Run.board_owned[1] == 1 and board.bought == Vector2i(1, 0) and zoom._note == "-4")
 	_ok("%s: and the strip says it runs from the next fight" % tag, board.leaves.any(func(l: Array) -> bool: return l[0] == "RUNNING FROM YOUR NEXT FIGHT."))
 	var bad := zoom.check()
 	_ok("%s: the board just bought passes the box test (%s)" % [tag, "clean" if bad.is_empty() else "; ".join(bad)], bad.is_empty())
@@ -1437,6 +1437,27 @@ func _buy_rules(st: StationScreen, zoom: LabZoom, tag: String) -> void:
 		and Run.data == 3 and Run.board_owned[0] == 0 and bad2.is_empty())
 
 
+## THE LAB'S REMINDER (Jon's S1A, Nov 8): seen from another deck, the Laboratory's line reads
+## "DATA 9" in COLD under LAB_REMIND and "SPEND 10 DATA" in EMBER at it.
+func _reminder(st: StationScreen, tag: String) -> void:
+	var note := st._deck_note.get(&"bench") as Label
+	var was := Run.data
+	st._show_tab(&"services")
+	await _frames(2)
+	var seen: Array = []
+	for d in [StationScreen.LAB_REMIND - 1, StationScreen.LAB_REMIND]:
+		Run.data = d
+		Sig.resources_changed.emit()
+		await _frames(1)
+		seen.append([note.text if note != null else "", note != null and note.get_theme_color(&"font_color") == UITheme.EMBER])
+	Run.data = was
+	Sig.resources_changed.emit()
+	st._show_tab(&"bench")
+	await _frames(2)
+	_ok("%s: the Lab's line from the Shipyard reads %s" % [tag, seen],
+		seen == [["DATA 9", false], ["SPEND 10 DATA", true]])
+
+
 ## THE SAME BOARD AT A SECOND STATION of the run: the same steps where they
 ## were and every word where it was, a station two levels up.
 func _second_station() -> void:
@@ -1444,6 +1465,7 @@ func _second_station() -> void:
 	var st := await _dock(here)
 	if not _ok("second station: the first is up", st != null and await _open(st, &"bench")):
 		return
+	await _reminder(st, "second station")
 	Run.board_owned[0] = 1
 	Run.board_owned[2] = 2
 	Run.data = 16

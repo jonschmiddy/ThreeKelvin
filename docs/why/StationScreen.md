@@ -1411,3 +1411,20 @@ plate darkened the whole yard. So the deck lower in the shaft is drawn
 over the one above it, and the slab over both; and each is clipped to
 itself, so nothing of a deck's inside runs on past its own plate.
 ```
+
+## The labs reminder
+
+Above `const LAB_REMIND := 10`:
+
+```text
+THE LAB'S REMINDER (Jon, Nov 8, S1A: "Labs get a reminder to spend when the
+player holds 10 or more DATA", on his stripped-down UI push: no new panels or
+boxes, no second button for something already there). The sim had runs ending
+with 19 DATA unspent on average. So the Laboratory's line under its name on
+the elevator, which read "DATA 21", reads "SPEND 21 DATA" once DATA reaches
+LAB_REMIND, and it is EMBER on every deck, not only the deck you are on. It
+is the same label, the same size, in the same place: nothing new on screen.
+10 is the second step's price, so the line comes up when DATA would buy any
+row's next step but a last one (15). With science off it never shows.
+```
+

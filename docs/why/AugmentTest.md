@@ -18,7 +18,7 @@ a full ship takes it 7 up on both sides (40/40 to 47/47); in the hold it
 moves nothing. STRIP takes Deregulated off and the part is clean; Reinforced
 off a fitted part lands back where it was, with the mark kept.
 
-THE BOARD (pick 2B): steps in order at 6, 10, 15, refused when short, and
+THE BOARD (pick 2B): steps in order at 4, 10, 15, refused when short, and
 DATA never below 0. THE BENCH: DEVELOP FILM and READ FOR DATA cost no credits
 and pay 6 and 15. THE CONTROL CELL: with `Run.science_off` every service
 refuses and the bench has no DATA recipe.

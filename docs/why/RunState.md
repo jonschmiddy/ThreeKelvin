@@ -2403,7 +2403,7 @@ Above `func deal_board() -> void:`:
 ```text
 DEAL THIS RUN'S BOARD (pick 2B): per branch, one of its four routines is
 dropped and the three left keep their order, weakest first, so the prices
-(6, 10, 15) always climb with the power. 4 boards a branch, 64 in all.
+(4, 10, 15) always climb with the power. 4 boards a branch, 64 in all.
 
 Off `Rng.derive(&"board", seat)` and NOTHING ELSE: dealing it draws from no
 stream, so a run with science moves no world, loot, event, foe or fight roll

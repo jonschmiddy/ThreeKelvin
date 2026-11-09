@@ -1355,7 +1355,7 @@ measured again under growth.
 
 ## Routines science
 
-Above `const BOARD_PRICES: Array[int] = [6, 10, 15]`:
+Above `const BOARD_PRICES: Array[int] = [4, 10, 15]`:
 
 ```text
 --------------------------------------------------------------------- routines
@@ -1373,6 +1373,12 @@ weakest first, and the price always climbs with the power. The order is the
 routine sims' (plan S15, Nov 4: a human pilot, 400 paired runs a routine over
 two seeds): DAMAGE CONTROL tops FRAME on jumps survived, and CORE and DRIVE
 keep the plan's order, WARM START at the top for its boss-fight wins.
+
+THE FIRST STEP COSTS 4, NOT 6 (Jon's S1A, Nov 8, reviewing the science branch).
+At 400 sim runs (seed 777) a run took 29.2 DATA and ended with 19.1 of it
+unspent and 1.3 steps owned: the runs end at about ten jumps, short of the
+~70-DATA full run pick 4B was sized for. A cheaper first step puts one routine
+in reach after the first reading or two. The rest of each row stays 10 and 15.
 
 `pips` are gauge pips, through `RunState.PER_PIP` exactly as an affix's are
 (`AffixData.raw_for`), so a routine that says +1 SEN moves SENSORS by exactly

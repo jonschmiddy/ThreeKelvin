@@ -1641,8 +1641,8 @@ func perk_text(id: StringName) -> String:
 # Why: docs/why/Database.md#routines-science
 
 ## What a board step costs, by its place in the branch (pick 2B). The whole
-## board is 3 x (6 + 10 + 15) = 93.
-const BOARD_PRICES: Array[int] = [6, 10, 15]
+## board is 3 x (4 + 10 + 15) = 87. The first was 6 until Jon's S1A, Nov 8.
+const BOARD_PRICES: Array[int] = [4, 10, 15]
 ## The board's three branches, in the order the board is laid out and saved.
 const BRANCHES: Array[StringName] = [&"frame", &"core", &"drive"]
 

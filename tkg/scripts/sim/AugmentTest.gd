@@ -352,12 +352,12 @@ func _board() -> void:
 	for b in st.size():
 		shape = shape and (st[b] as Array).size() == 3 and st[b][0].state == &"next" \
 			and st[b][1].state == &"locked" and st[b][2].state == &"locked" \
-			and st[b][0].id == Run.board[b * 3] and [st[b][0].price, st[b][1].price, st[b][2].price] == [6, 10, 15]
-	_ok("a fresh board: each branch next, locked, locked at 6, 10, 15", shape)
-	_purse(5, 1000)
-	_ok("5 DATA: FRAME's first step is refused, nothing spent",
-		not Science.can_buy(0) and Science.buy(0) == "" and Run.data == 5 and Run.board_owned[0] == 0)
-	_purse(31, 0)
+			and st[b][0].id == Run.board[b * 3] and [st[b][0].price, st[b][1].price, st[b][2].price] == [4, 10, 15]
+	_ok("a fresh board: each branch next, locked, locked at 4, 10, 15", shape)
+	_purse(3, 1000)
+	_ok("3 DATA: FRAME's first step is refused, nothing spent",
+		not Science.can_buy(0) and Science.buy(0) == "" and Run.data == 3 and Run.board_owned[0] == 0)
+	_purse(29, 0)
 	var paid: Array[int] = []
 	for k in 3:
 		var was := Run.data
@@ -367,15 +367,15 @@ func _board() -> void:
 		paid.append(was - Run.data)
 		_ok("  FRAME step %d: %s for %d DATA ('%s', logged once)" % [k + 1, DB.routines[want].name, was - Run.data, line],
 			line != "" and _lines.count(line) == 1 and Run.has_routine(want) and Run.board_owned[0] == k + 1)
-	_ok("FRAME bought in order at %s, 0 DATA left" % [paid], paid == [6, 10, 15] and Run.data == 0)
+	_ok("FRAME bought in order at %s, 0 DATA left" % [paid], paid == [4, 10, 15] and Run.data == 0)
 	_ok("a finished branch sells nothing", not Science.can_buy(0) and Science.buy(0) == "" and Run.data == 0)
 	st = Science.board_state()
 	_ok("the board reads FRAME owned x3, CORE next",
 		st[0].all(func(c: Dictionary) -> bool: return c.state == &"owned") and st[1][0].state == &"next")
 	_purse(9, 0)
 	Science.buy(1)
-	_ok("CORE at 9 DATA: one step, 3 left; the 10 is refused and DATA is still 3",
-		Run.board_owned[1] == 1 and Run.data == 3 and Science.buy(1) == "" and Run.data == 3)
+	_ok("CORE at 9 DATA: one step, 5 left; the 10 is refused and DATA is still 5",
+		Run.board_owned[1] == 1 and Run.data == 5 and Science.buy(1) == "" and Run.data == 5)
 	_ok("DRIVE's 2nd step cannot be bought before its 1st (owned %s)" % [Run.board_owned],
 		Run.next_step(2) == Run.board[6] and Run.board_owned[2] == 0)
 	Run.board_owned = PackedInt32Array([0, 0, 0])

@@ -242,8 +242,9 @@ func _dock() -> void:
 			% [Run.material(&"survey_film"), Run.material(&"relic"), int(p.sci.data_film), int(p.sci.data_relic)],
 		Run.material(&"survey_film") == 0 and Run.material(&"relic") == 0
 		and int(p.sci.data_film) == 12 and int(p.sci.data_relic) == 15)
-	h._ok("27 DATA buys each branch's first step at 6 (owned %s), 9 left over" % [Array(Run.board_owned)],
-		Array(Run.board_owned) == [1, 1, 1])
+	h._ok("27 DATA buys each branch's first step at 4 and one second at 10 (owned %s)" % [Array(Run.board_owned)],
+		Run.board_owned[0] >= 1 and Run.board_owned[1] >= 1 and Run.board_owned[2] >= 1
+		and Run.board_owned[0] + Run.board_owned[1] + Run.board_owned[2] == 4)
 	var price := Market.augment_price(n)
 	var moved := []
 	for m in Run.installed:
@@ -252,7 +253,7 @@ func _dock() -> void:
 			moved.append(m.name)
 	h._ok("with no step affordable the leftover goes on one part (augmented %d, DATA %d, credits %d = 200 - %d), and no part's price moved %s"
 			% [_augmented(), Run.data, Run.credits, price, moved],
-		_augmented() == 1 and Run.data == 4 and Run.credits == 200 - price and moved.is_empty()
+		_augmented() == 1 and Run.data == 0 and Run.credits == 200 - price and moved.is_empty()
 		and int(p.sci.augments) == 1 and int(p.spend.augment) == price)
 
 	# The reserve: one credit short of it, nothing; exactly at it, the augment.
@@ -266,14 +267,14 @@ func _dock() -> void:
 			% [short, _augmented(), Run.credits],
 		short == 1 and _augmented() == 2 and Run.credits == Policy.FUEL_RESERVE)
 
-	# The cheapest step first: FRAME's next is 10, the others' 6.
+	# The cheapest step first: FRAME's next is 10, the others' 4.
 	Run.board_owned = PackedInt32Array([1, 0, 0])
 	Run.data = 10
 	var want := Policy.cheapest_step()
 	p.research(n)
-	h._ok("with 10 DATA it buys a 6 (branch %d) over FRAME's 10 (owned %s, DATA %d)"
+	h._ok("with 10 DATA it buys both 4s (the first branch %d) over FRAME's 10 (owned %s, DATA %d)"
 			% [want, Array(Run.board_owned), Run.data],
-		want != 0 and Run.board_owned[0] == 1 and Run.board_owned[want] == 1 and Run.data == 4)
+		want != 0 and Array(Run.board_owned) == [1, 1, 1] and Run.data == 2)
 
 	# A finished board: the film goes to the counter, and one augment a visit.
 	Run.board_owned = PackedInt32Array([3, 3, 3])

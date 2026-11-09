@@ -1108,15 +1108,29 @@ func _show_tab(id: StringName) -> void:
 		if on:
 			if title != null:
 				title.add_theme_color_override("font_color", UITheme.HOT)
-			if _deck_note.has(key):
-				(_deck_note[key] as Label).add_theme_color_override(
-					"font_color", UITheme.EMBER)
+			_tint_note(key, true)
 		else:
 			if title != null:
 				title.add_theme_color_override("font_color", UITheme.CHILL)
-			if _deck_note.has(key):
-				(_deck_note[key] as Label).add_theme_color_override(
-					"font_color", UITheme.COLD)
+			_tint_note(key, false)
+
+
+## THE LAB'S REMINDER (Jon, Nov 8, S1A): at LAB_REMIND DATA or more the Laboratory's line on
+## the elevator reads "SPEND N DATA" in EMBER on every deck. One line, no panel.
+## Why: docs/why/StationScreen.md#the-labs-reminder
+const LAB_REMIND := 10
+
+func lab_reminds() -> bool:
+	return Run.data >= LAB_REMIND and not Run.science_off
+
+
+## A deck's line under its name: EMBER on the deck you are on, COLD elsewhere, but the Lab's
+## reminder is EMBER wherever you stand.
+func _tint_note(key: StringName, on: bool) -> void:
+	if not _deck_note.has(key):
+		return
+	var hot := on or (key == &"bench" and lab_reminds())
+	(_deck_note[key] as Label).add_theme_color_override("font_color", UITheme.EMBER if hot else UITheme.COLD)
 
 
 ## THE DECKS CHANGE OVER THE RIDE, NOT AT THE CLICK (Jon, Nov 5: "a smoother transition with the
@@ -2027,7 +2041,8 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	# the system, so a partner docked here and a film see the same (`LabSavers.list_for`)
 	_login.station_key = hash("%d:%d" % [Run.galaxy_seed, n.index])
 	if _deck_note.has(&"bench"):
-		(_deck_note[&"bench"] as Label).text = "DATA %d" % Run.data
+		(_deck_note[&"bench"] as Label).text = ("SPEND %d DATA" if lab_reminds() else "DATA %d") % Run.data
+		_tint_note(&"bench", _tabs.has(&"bench") and (_tabs[&"bench"] as Button).disabled)
 	if _lab_zoom != null:
 		_lab_zoom.refresh()
 
