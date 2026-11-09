@@ -35,6 +35,8 @@ var _secs := 20.0
 ## Real time a plan let go of gets to finish (Jon, Nov 8: seconds, not frames;
 ## headless frames run uncapped, so 600 of them ran out on a busy gate).
 const DRAIN_MS := 10000
+## Extra real time if no clicked flight has flown yet: the planner is slow on a two-core runner (2 clicks in 20 s).
+const CLICK_GRACE_MS := 30000
 
 
 func _ready() -> void:
@@ -150,7 +152,7 @@ func _run() -> void:
 	var ci := 0
 	var di := 0
 	var t_end := Time.get_ticks_msec() + int(_secs * 1000.0)
-	while Time.get_ticks_msec() < t_end:
+	while Time.get_ticks_msec() < t_end or (n_click_flown == 0 and Time.get_ticks_msec() < t_end + CLICK_GRACE_MS):
 		# take in what finished, the way the game does, and start more
 		for j in range(fauna.size() - 1, -1, -1):
 			if WorkerThreadPool.is_task_completed(fauna[j].task):
