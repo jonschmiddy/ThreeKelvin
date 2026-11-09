@@ -1,0 +1,1 @@
+- **Fixed** — ThreadStress lets a clicked flight fly after its stress window, with no new work on the workers, so a slow CI runner no longer fails it.
