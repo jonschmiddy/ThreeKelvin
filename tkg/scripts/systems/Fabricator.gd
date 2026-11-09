@@ -5,11 +5,14 @@ extends RefCounted
 ## Why: docs/why/Fabricator.md#bench-rules
 
 ## Shows what you cannot afford too: a visible recipe is a reason to find one more exotic.
+## The data recipes are science's: a run with `Run.science_off` does not see them.
 static func available(n: MapGen.MapNode) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if n.type == MapGen.NodeType.CORE:
 		return out
 	for r in DB.RECIPES:
+		if Run.science_off and StringName(r.kind) == &"data":
+			continue
 		if int(n.development) >= int(r.dev):
 			out.append(r)
 	return out
@@ -18,7 +21,10 @@ static func has_bench(n: MapGen.MapNode) -> bool:
 	return not available(n).is_empty()
 
 ## Scrap is priced by the local labour index; materials are not, or the recipe seems to change.
+## A recipe at 0 credits (DEVELOP FILM, READ FOR DATA) costs 0 anywhere: no floor of 1.
 static func price(n: MapGen.MapNode, r: Dictionary) -> int:
+	if int(r.credits) == 0:
+		return 0
 	return maxi(1, int(round(float(r.credits) * Market.service_index(n))))
 
 static func can_make(n: MapGen.MapNode, r: Dictionary) -> bool:
@@ -35,18 +41,26 @@ static func _useful(r: Dictionary) -> bool:
 	match StringName(r.kind):
 		&"repair":
 			return Run.hp < Run.max_hp()
+		&"data":
+			# (the control cell's bench has none; see `available`)
+			return not Run.science_off
 		_:
 			return true
 
-## What the bill reads, as one line. Materials first: they are the part you
-## cannot go and earn in the next ten minutes.
+## What the bill reads, as one line.
+## Why: docs/why/Fabricator.md#what-the-bill-reads
 static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:
 	var bits: PackedStringArray = []
 	for id in (r.mats as Dictionary).keys():
 		bits.append("%d %s" % [int(r.mats[id]),
 			str(MaterialTable.by_id(id).get("name", id)).to_lower()])
-	bits.append("%d credits" % price(n, r))
-	return " · ".join(bits)
+	var cost := price(n, r)
+	if cost > 0:
+		bits.append("%d credits" % cost)
+	var line := " · ".join(bits)
+	if StringName(r.kind) == &"data":
+		line += " → %d DATA" % int(r.amount)
+	return line
 
 ## Returns an empty string when nothing happened, or a silent bench gets pressed twice.
 static func make(n: MapGen.MapNode, r: Dictionary) -> String:
@@ -72,4 +86,10 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			# Same again: `stow()` emits `ship_changed` itself.
 			Run.stow(m)
 			return "The fragment reads out as %s. It is in the hold." % m.name
+		&"data":
+			# DEVELOP FILM and READ FOR DATA (science, pick 1A): what went in is
+			# gone and the readings are DATA. `add_data` emits
+			# `resources_changed`, so the header's DATA moves with the press.
+			Run.add_data(int(r.amount))
+			return "The Lab got %d DATA out of it." % int(r.amount)
 	return ""

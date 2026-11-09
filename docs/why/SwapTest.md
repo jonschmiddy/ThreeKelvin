@@ -36,4 +36,10 @@ Three runs, each checked on what is DRAWN as well as what is true:
  3. A found hull in space: TRANSFER opens the move, Tab and the jump are
     refused while the pad is loaded, BACK OUT puts the found hull back on the
     rail, and CAST OFF returns to LOCAL, not to a station.
+
+SCIENCE GOES WITH THE SHIP (Phase 12, plan S3). DATA, the dealt board and the
+steps bought on it are the flight computer's, so 2 and 3 check they survive
+TAKE IT, SAVE AND EXIT / CONTINUE mid-move, BACK OUT and CAST OFF; and a part
+a Lab augmented keeps its affix and its mark from the pad to a mount and
+through the save.
 ```

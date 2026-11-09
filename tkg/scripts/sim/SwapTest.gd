@@ -1,6 +1,7 @@
 extends Node
 
 ## Regression for Jon's 0.4.1 save (Oct 23): pad items must stay visible and UNDOCK must work.
+## Science (DATA, the board, an augmented part) goes with the ship through every door.
 ## Why: docs/why/SwapTest.md#hull-swap-softlock
 
 const FIXTURE := "res://tools/fixtures/swap_softlock_0.4.1.save"
@@ -122,6 +123,37 @@ func _mounts_valid() -> bool:
 	return true
 
 
+## A part as a Lab leaves it: Reinforced added, the mark set (`ModuleData.augmented`).
+func _augment(m: ModuleData) -> void:
+	for a in DB.affixes:
+		if (a as AffixData).name == "Reinforced":
+			var added := m.affixes.duplicate()
+			added.append(a)
+			m.affixes = added
+	m.augmented = true
+
+
+func _is_augmented(m: ModuleData) -> bool:
+	return m != null and m.augmented and m.affixes.any(
+		func(a: AffixData) -> bool: return a.name == "Reinforced")
+
+
+## DATA 23, FRAME 2 and CORE 1 bought: the science a move must not touch.
+func _give_science() -> Array[StringName]:
+	Run.data = 23
+	Run.board_owned = PackedInt32Array([2, 1, 0])
+	return Run.board.duplicate()
+
+
+func _science_same(board: Array[StringName]) -> bool:
+	return Run.data == 23 and Run.board == board and board.size() == 9 \
+		and Run.board_owned == PackedInt32Array([2, 1, 0])
+
+
+func _science_said() -> String:
+	return "DATA %d, owned %s, board %d" % [Run.data, str(Array(Run.board_owned)), Run.board.size()]
+
+
 func _owned_ids() -> Array:
 	var ids: Array = []
 	for m in Run.installed:
@@ -219,6 +251,9 @@ func _yard_swap() -> void:
 		return
 	var st := Router.current as StationScreen
 	var old_name := Run.hull.name
+	var board := _give_science()
+	var marked := Run.installed[0]
+	_augment(marked)
 	var was := _owned_ids()
 	var fitted := Run.installed.size()
 	await st._on_action("take_hull", n.shop_hull)
@@ -228,6 +263,8 @@ func _yard_swap() -> void:
 		return
 	_ok("everything is on the pad (%d)" % Run.pad.size(), Run.pad.size() == was.size())
 	_ok("all of it drawn (%d)" % _drawn_on_left(t), _drawn_on_left(t) == Run.pad.size())
+	_ok("DATA, the board and the steps bought survive TAKE IT (%s)" % _science_said(),
+		_science_same(board))
 
 	# One part across, so the mid-move state has a part on each ship.
 	var first: ModuleData = null
@@ -236,6 +273,8 @@ func _yard_swap() -> void:
 			first = raw
 			break
 	_ok("one part bolts across", first != null and Run.pad_to_mount(first, first.slot, 0))
+	_ok("it is the augmented one, and on its new mount it keeps its affix and mark",
+		first == marked and Run.installed.has(first) and _is_augmented(first))
 
 	# Tab, the key that dropped it: refused, the move stays up.
 	await _key(KEY_TAB)
@@ -272,6 +311,10 @@ func _yard_swap() -> void:
 	_ok("and nothing stale can be backed out of", not Run.can_abandon_move())
 	_ok("nothing lost across the save", _owned_ids() == was)
 	_ok("the bolted part is still bolted on", Run.installed.size() == 1)
+	_ok("and still augmented, its affix with it",
+		Run.installed.size() == 1 and _is_augmented(Run.installed[0]))
+	_ok("DATA, the board and the steps bought survive SAVE AND EXIT mid-move (%s)" % _science_said(),
+		_science_same(board))
 	if not _ok("docked again", await _dock()):
 		return
 	t = _transfer()
@@ -293,6 +336,7 @@ func _yard_swap() -> void:
 		and Run.old_hull == null)
 	_ok("%d fitted to start, the new ship can fly (%s)" % [fitted, "; ".join(Run.ready_to_fly())],
 		Run.ready_to_fly().is_empty())
+	_ok("and the science is still the ship's after CAST OFF (%s)" % _science_said(), _science_same(board))
 
 
 # ------------------------------------------------------------------ 3. found
@@ -306,6 +350,7 @@ func _found_swap() -> void:
 	if not _ok("in space, on LOCAL", sc != null and not Router.docked):
 		return
 	var mine := Run.hull
+	var board := _give_science()
 	var was := _owned_ids()
 	var fitted := Run.installed.size()
 	var found := LootGen.roll_hull(2)
@@ -327,6 +372,8 @@ func _found_swap() -> void:
 	_ok("BACK OUT puts the old ship back", Run.hull == mine and Run.installed.size() == fitted
 		and Run.pad.is_empty() and _owned_ids() == was)
 	_ok("and the found hull back on the rail", Run.found_hull == found)
+	_ok("DATA, the board and the steps bought survive BACK OUT (%s)" % _science_said(),
+		_science_same(board))
 	_ok("and lands on LOCAL, not a station", Router.current is SectorScreen and not Router.docked)
 
 	# Again, and this time through.
@@ -344,4 +391,5 @@ func _found_swap() -> void:
 	await _frames(6)
 	_ok("CAST OFF lands on LOCAL, not a station", Router.current is SectorScreen and not Router.docked)
 	_ok("flying the found hull", Run.hull == found and Run.found_hull == null)
+	_ok("and the science came with it (%s)" % _science_said(), _science_same(board))
 	_ok("and free to jump", Router.may_cast_off())

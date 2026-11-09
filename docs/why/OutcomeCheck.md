@@ -20,7 +20,9 @@ for every change and nothing else ("-5 HULL", "+1 PART: ...", no dash
 anywhere); B a row for every change with its totals ("HULL -5 35 > 30");
 E a row for every change with its new total ("HULL -5 31"); NOTHING GAINED
 OR LOST when nothing moved. D only the four stats that moved, each its
-change alone ("HULL -5"), and no table when none did (Jon, Oct 19).
+change alone ("HULL -5"), and no table when none did (Jon, Oct 19); and
+DATA a fifth by the same rule (Jon, Nov 4, science pick 2A): a reading's
+table reads "FUEL -2", "DATA +5".
 
 THE BOXES (fit means nothing overlaps): every entry inside the band, apart
 from every other entry, off every button (CONTINUE, REWARD, CHOOSE AGAIN,
@@ -33,11 +35,12 @@ inside their own column; and CONTINUE where today's look puts it.
 Inside `check()`, above `var rows: Array = []`:
 
 ```text
-THE FOUR STATS AND NOTHING ELSE (Jon, Oct 19: "let's only show
-CREDITS, FUEL, HULL, HEAT on the right"): a row for each that
-moved, its change and no total ("just put what is added or
-lost"), in hull, fuel, credits, heat order, no thing ever (those
-are REWARD's), and no table at all when none of the four moved
+THE FOUR STATS AND DATA, NOTHING ELSE (Jon, Oct 19: "let's only
+show CREDITS, FUEL, HULL, HEAT on the right"; Nov 4, 2A: DATA
+too): a row for each that moved, its change and no total ("just
+put what is added or lost"), in hull, fuel, credits, DATA, heat
+order, no thing ever (those are REWARD's), and no table at all
+when none of them moved
 ```
 
 Above `static func d_place(d: LocalEventDrawer) -> Array:`:

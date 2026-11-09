@@ -69,6 +69,10 @@ func _gui_input(e: InputEvent) -> void:
 	var m := held_item()
 	if m == null:
 		return
+	# (a hold shown to pick from moves nothing, by any gesture: `HoldGrid.pick_mode`)
+	var g := get_parent() as HoldGrid
+	if g != null and g.pick_mode:
+		return
 	# Shift-click or double-click takes; right-click throws. Origin decides, never both.
 	# Why: docs/why/ItemIcon.md#take-and-throw-gestures
 	if mb.button_index == MOUSE_BUTTON_LEFT \
@@ -120,6 +124,10 @@ func spin() -> void:
 func _get_drag_data(_at: Vector2) -> Variant:
 	var m := held_item()
 	if m == null:
+		return null
+	# (a hold shown to pick from lifts nothing: `HoldGrid.pick_mode`)
+	var g := get_parent() as HoldGrid
+	if g != null and g.pick_mode:
 		return null
 	set_drag_preview(_ghost())
 	# Hidden, not removed, so a cancelled drag can restore it. Nothing commits until it lands.

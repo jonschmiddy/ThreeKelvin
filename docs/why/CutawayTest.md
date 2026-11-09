@@ -113,3 +113,25 @@ screen refuses it (`pad_to_mount`, its hold drop), and the mount is not lit
 for it while it is carried. It used to be bolted on past the cap. A part the
 reactor can carry, on the same mount, still lands; a fitted part still moves.
 ```
+
+## The runs routines on the left
+
+Above `func _check_routines() -> void:`:
+
+```text
+THE RUN'S ROUTINES ON THE LEFT PANEL (science, plan S8): one line, "ROUTINES
+· N OF 9", under the hull's perks, the names on hover (`RoutineBox`). On
+Korvan's light, medium and heavy in `_check_layouts`' used state (a part and a
+crate in the hold, two malfunctions in the deck), with 0, 1 and all 9 bought,
+and the heavy once more with all 9 and twelve malfunctions:
+ - with none there is no row (nothing drawn, no hover);
+ - with 1 and with 9 the row is inside the panel and on screen, below the
+   perks and beside or above the malfunctions, crossing none of the panel's
+   other pieces, the panel's contents still fit, and the gaps keep at least
+   GAP_MIN + 2 (the heavy with twelve malfunctions and nine routines is the
+   fullest panel there is: both lines two digits wide, side by side);
+ - its hover names every routine bought and no perk, and the cutaway's own
+   card shows nothing over it (one hover).
+Then a hull swap (`Run.transfer_to_hull`, Korvan's medium for Solari's
+heavy): the same routines listed, the perks changed.
+```

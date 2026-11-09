@@ -23,6 +23,7 @@ takes the first that does what it asks:
   nothing  a choice taken that moved nothing
   credits  credits and nothing else
   big      the outcome that moved the most
+  data     a science reading: DATA up, the fuel it burned down
 Then each is played on the real LOCAL: the event asked for as the map's GO
 asks (`LocalEventDrawer.request`), the band up, the choice taken, and the
 result drawn in every look, stills of the whole 1920x1080 window

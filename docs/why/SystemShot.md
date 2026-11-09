@@ -140,3 +140,18 @@ A one-line label's words are only as wide as they are, set by its alignment
 wrapped label or a rich one can reach its whole width, and so can a button or
 a card that answers the pointer.
 ```
+
+## The key along the bottom fits
+
+Above `func _key_check(scr: Control) -> int:`:
+
+```text
+THE KEY ALONG THE BOTTOM FITS (`SystemMapScreen.KEY`, science's SCIENCE the
+eighth beacon in it): the screen where Main puts it, in the 960 x 540 window,
+and every entry of the row (a glyph and its word) inside the screen's content
+area, clear of every other entry, its word as wide as its words need and its
+glyph drawn where it stands; every tag a beacon can wear in it, each with a
+glyph and a colour no other entry has. The row asking for more than the area would
+widen the whole screen past the window's edge, so its minimum width is
+measured too. Returns the failures; prints the row's width and the room left.
+```

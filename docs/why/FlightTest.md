@@ -504,3 +504,53 @@ just over what it flies, where one set of 3.6 / 4.5 / 5.0 failed both. The
 worst shards measured (FlightTest short clicks=0, 4 shards, Nov 7): CURVED
 (WIDE x12) 5.67 / 7.62 / 7.40, DIRECT (x4) 4.10 / 5.52 / 5.20.
 ```
+
+Above `const CLICK_P90_TWIN := 6.1`:
+
+```text
+Jon's ruling (Nov 9, "A"): the DIRECT twin-star 90th is 6.1 s, every other
+limit unchanged. Science adds places to a system, so the sweep flies a
+different set of trips: main measured 5.48 s (44 flights), the science
+branch 6.02 s (37), the same with the arrival-corner fix switched off. The
+flying is no slower; one long trip moved into the top tenth.
+```
+
+## The harnesss starts the residual may
+
+Above `const PUT_LEFT_CASES := {`:
+
+```text
+the harness's starts the residual may come from, "seed:system:start" a sweep
+(any other start put there fails, whatever the count). SCIENCE (Phase 12,
+Nov 4) put a reading in place of one option in about three systems in eight,
+and those systems alone lay out anew (checked system by system against the
+layouts before): two of them, seed 1999 system 258's near start (THE RACE
+COURSE on its belt) and seed 7 system 328's free start (THE TARGET RANGE on
+its dry world), each to one place, now leave a twin's residual, the best burn
+from each keeping clear for 30 s, so again the arrivals miss. At the study's
+1 in 6 (Nov 4) about half of all systems hold one, and one more does: seed
+1999 system 74's near start (THE FIRST LOOK on its dry world, a reading it
+does not hold at 1 in 8; its list is main's but for that slot), to one place,
+the best burn keeping clear for 30 s again
+```
+
+## Star starts clear of rings
+
+Above `for _k in 36:` in `_start()`'s "star":
+
+```text
+A STAR START A WORLD'S RING SWEEPS OVER (Nov 8). The start puts the ship
+clear of every world's disc at t, but not of a ring that reaches it during
+the click's wait. In seed 1999 system 206 (OMEGA WICK WATCH, a giant) star
+0's start sat on its star orbit 347 px out, near a world's track; 0.4 s on
+the world's ring took it (relative speed under CAPTURE), so the ship was on
+a rail, its preview no longer takeable and the redraw today's planner. The
+click then planned its own, and four clicks (to -1, 0, 1 and 2) failed
+"every click flew the drawn flight". The game does this, and it is right: a
+taken ship is drawn a new line. It is not a settled star orbit, though,
+which is what the start is for. It failed on main ca3c517d too, in the
+battery's full FlightTest; the gate's `short clicks=0` never clicks there.
+So the start is turned on round the centre, 0.17 rad at a time, until no
+world's ring (soi x 1.05) comes over the orbit in CLICK_S + PREVIEW_AHEAD +
+0.5 s.
+```

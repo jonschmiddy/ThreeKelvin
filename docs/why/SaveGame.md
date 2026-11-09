@@ -43,7 +43,7 @@ load each other's runs.
 
 ## Version history
 
-Above `const VERSION := 41`:
+Above `const VERSION := 42`:
 
 ```text
 Bumped whenever the shape below changes. An old file is discarded rather than
@@ -333,6 +333,17 @@ A 40 save that already has a live Hellbender KEEPS it (its five fields load
 as before): pulling a rival out mid-chase, or mid-fight, is worse than
 letting one old run finish with it (`SaveGame.OLD_SAVE_KEEPS_HELLBENDER`).
 OLDEST_READ stays at 29.
+42: SCIENCE (Phase 12, Jon's picks Nov 4). `data` (`Run.data`), the dealt
+`board` (as routine ids), `board_owned` (steps bought per branch),
+`black_box_spent`, and a module's `augmented`. The board is saved as ids and
+never dealt again at a load: a retuned pool would otherwise move a live run's
+board under steps already bought. It was 41 on its own branch; the
+Hellbender took 41 by landing first, so science is 42 (Nov 8). Read the way
+41 reads 40: a 41 save (the Hellbender's build, or a 40 one) has none of
+these keys and loads with 0 DATA, nothing owned, nothing augmented, and its
+board dealt from its seed and seat (`_board_from`), the board a 42 build
+would have dealt it. Nothing in science reads `ascension`, so a 41 save's
+key is the Hellbender's to read. OLDEST_READ stays at 29.
 ```
 
 ## Saving
@@ -522,4 +533,18 @@ Ids rather than definitions, so a save can be rebuilt after the table has
 changed underneath it. Resolution is lazy -- `OptionTable.by_id` answers
 empty for an id this build does not have; a missing option must never
 refuse a save.
+```
+
+## The runs board
+
+Above `static func _board_from(raw: Variant) -> Array[StringName]:`:
+
+```text
+THE RUN'S BOARD, as saved (VERSION 42): nine routine ids, three a branch,
+FRAME then CORE then DRIVE, each branch weakest first. An id this build does
+not know is dropped, and anything short of a whole board in that shape (a 41
+save has none, a hand-edited one may have anything) is dealt again from the
+restored seed and seat (`RunState.deal_board`), the board the run would have
+been dealt. Its bought steps stay as saved; the deal is the one it had unless
+the pool changed under it.
 ```

@@ -114,6 +114,12 @@ func _frames(n: int) -> void:
 		await _tree.process_frame
 
 
+func _until_ms(cond: Callable, ms: int) -> void:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < ms and not bool(cond.call()):
+		await _tree.process_frame
+
+
 func _idle() -> int:
 	for i in 900:
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"":
@@ -611,10 +617,25 @@ func _berth_shut(p: int) -> void:
 		_ok("berth: PARTY's LEAVE goes back to the berth, docked throughout (seen: %s; on %s)" % [", ".join(seen), _name_of(Router.current)],
 			seen.is_empty() and Router.current is StationScreen and Router.docked)
 	_watching = false
-	# AND UNDOCK STILL LEAVES: the station's own button
+	# AND UNDOCK STILL LEAVES: the station's own button. Pressed on the
+	# LABORATORY (Jon, Nov 5: the slide for every elevator choice), the car
+	# first slides down to the SHIPYARD, where your ship is, and the undock
+	# starts as it stops; a second press on the way changes nothing.
 	st = Router.current as StationScreen
 	if _ok("berth: on the station, UNDOCK on its rail", st != null and st._undock != null and not st._undock.disabled):
+		(st._tabs[&"bench"] as Button).pressed.emit()
+		await _until_ms(func() -> bool: return not st.deck_changing(), 4000)
 		st._undock.pressed.emit()
+		await _tree.process_frame
+		st._undock.pressed.emit()
+		var riding := Router.current == st and Router.docked and st._tab == &"services" and st.deck_changing() 			and (st._pages[&"bench"] as Control).visible and (st._pages[&"services"] as Control).visible
+		_ok("berth: UNDOCK on the Lab rides down to the SHIPYARD first, on the slide, still docked (tab %s, changing %s, on %s)" % [st._tab, st.deck_changing(), _name_of(Router.current)],
+			riding)
+		await _until_ms(func() -> bool: return not is_instance_valid(st) or not st.deck_changing(), 4000)
+		var yard_alone := is_instance_valid(st) and st._tab == &"services" 			and (st._pages[&"services"] as Control).visible and not (st._pages[&"bench"] as Control).visible
+		_ok("berth: and the undock starts as the car stops, on the SHIPYARD alone (%s; the ladder moving %s, on %s)" % [yard_alone,
+			ZoomLadder.busy(), _name_of(Router.current)],
+			yard_alone and (ZoomLadder.busy() or Router.current != st))
 		await _idle()
 		await _frames(10)
 		Router.hud.refresh()

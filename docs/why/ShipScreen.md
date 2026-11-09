@@ -903,3 +903,16 @@ Three rows of air above, three below, one between: the pair sits as a
 BLOCK of text on the plate rather than as two marks that happen to be
 in the same box.
 ```
+
+## The runs routines
+
+Above `static func fill_routines(box: Control) -> void:`:
+
+```text
+THE RUN'S ROUTINES (science), into `box` (cleared first): one line, "ROUTINES
+· 4 OF 9", the names and what each does on hover (`RoutineBox`). Hidden with
+none bought, so a run that never reaches a Lab shows the panel it always had.
+Kept OUT of `fill_perks`: the perks are the hull's and change at a yard, the
+routines are the flight computer's and do not, and one block for both would
+hide which is which.
+```

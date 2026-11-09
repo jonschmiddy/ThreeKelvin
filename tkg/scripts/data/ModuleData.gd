@@ -65,6 +65,10 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 @export var affixes: Array[AffixData] = []
 @export var scrap_value: int = 8
 
+## A LAB HAS ADDED AN AFFIX TO THIS PART (science, pick 3A: once per part, ever).
+## Why: docs/why/ModuleData.md#a-lab-has-added-an-affix
+@export var augmented: bool = false
+
 @export_group("Art")
 ## Transparent, trimmed to bounding box, same 3/4 angle and light direction as hulls.
 @export var sprite: Texture2D

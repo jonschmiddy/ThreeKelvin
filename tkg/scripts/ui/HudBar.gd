@@ -27,6 +27,7 @@ var _tab_party: Button
 ## QUESTS (Jon, Oct 22, design A) never shows a count, so it never changes size.
 var _tab_quests: Button
 ## COMMS was asked for by playtester Jeremy (Oct 23); the row measured 702 of 932 px with it.
+## With DATA (Nov 4) it reads 750 (880 dev); the worst case wants 927, five pixels to spare.
 ## Why: docs/why/HudBar.md#nav-tabs
 var _tab_comms: Button
 
@@ -38,6 +39,10 @@ var _heat: BoxGauge
 var _heat_text: Label
 var _scrap: HBoxContainer
 var _fuel: HBoxContainer
+## DATA (science, pick 1A): what your readings are worth, spent only at a lab.
+## Last in the money group, after FUEL, shown from launch at 0 (plan call 9) so
+## the bar never changes shape the first time a reading pays.
+var _data: HBoxContainer
 ## The tank as a bar between FUEL and "23/45" (Jon: "warn:A"). Drawn, flat and
 ## not a control anyone presses; see `FuelBar`.
 var _fuel_bar: FuelBar
@@ -169,6 +174,7 @@ func _build() -> void:
 	_scrap.add_theme_constant_override("separation", STAT_GAP)
 	econ.add_child(_hintable(_scrap))
 	# No cargo here, and fuel sits inside `econ`, or readouts bind to the wrong pair.
+	# DATA is the one other pool: it only comes from places, takes no hold room, never sells.
 	# Why: docs/why/HudBar.md#economy-readouts
 	_fuel = Widgets.stat("fuel", "")
 	_fuel.add_theme_constant_override("separation", STAT_GAP)
@@ -178,6 +184,12 @@ func _build() -> void:
 	_fuel.move_child(_fuel_bar, 1)
 	_reserve(_fuel.get_node("Value") as Label, "%d/%d" % [Run.FUEL_TANK, Run.FUEL_TANK])
 	econ.add_child(_hintable(_fuel))
+	# DATA LAST, after the clock.
+	# Why: docs/why/HudBar.md#data-last
+	_data = Widgets.stat("data", "")
+	_data.add_theme_constant_override("separation", STAT_GAP)
+	_reserve(_data.get_node("Value") as Label, "00")
+	econ.add_child(_hintable(_data))
 	_row.add_child(econ)
 
 	# The run history and frame counter are gone: the counter was cut first when the row ran out.
@@ -281,8 +293,11 @@ func refresh() -> void:
 	_hint(_heat_text, heat_note)
 
 	_value(_scrap, str(int(OutcomeRow.held.get("credits", Run.credits))))
-	# One sentence, in one place. See `CreditChit.WHAT_MONEY_IS`.
-	_hint(_scrap, CreditChit.WHAT_MONEY_IS)
+	# One sentence each, in one place (`CreditChit`). CREDITS says both: the two never trade.
+	_hint(_scrap, "%s\n%s" % [CreditChit.WHAT_MONEY_IS, CreditChit.WHAT_DATA_IS])
+	# (a reading counting up holds the figure back: `OutcomeRow.held`)
+	_value(_data, str(int(OutcomeRow.held.get("data", Run.data))))
+	_hint(_data, CreditChit.WHAT_DATA_IS)
 	# Amber at a third of the tank (where the hint fires); red if the dearest jumps would empty it.
 	var state := fuel_state()
 	# (an outcome counting up holds the figure back: `OutcomeRow.held`)
@@ -362,6 +377,11 @@ func fuel_rect() -> Rect2:
 	return _merged([_fuel])
 
 
+## The DATA readout, its word and figure.
+func data_rect() -> Rect2:
+	return _merged([_data])
+
+
 ## The hull gauge with its word and number (the hull lesson's subject).
 func hull_rect() -> Rect2:
 	return _merged([_hull_label, _hull, _hull_text])
@@ -383,7 +403,9 @@ func tab_rect(which: StringName) -> Rect2:
 	return Rect2()
 
 
-## Where an event's result flies its change to; none of these takes a click.
+## THE READOUT A STAT LIVES IN, for an event's result to fly its change to
+## (`OutcomeRow`, look C): "hp" "heat" "credits" "fuel" "data". Not one of them
+## takes a click, and the result only flickers them.
 func stat_nodes(key: String) -> Array:
 	match key:
 		"hp":
@@ -394,6 +416,8 @@ func stat_nodes(key: String) -> Array:
 			return [_scrap]
 		"fuel":
 			return [_fuel]
+		"data":
+			return [_data]
 	return []
 
 

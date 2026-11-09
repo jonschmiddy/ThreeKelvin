@@ -67,15 +67,16 @@ const JON := {
 }
 
 ## Jon's picks of two drafts each (Oct 20), character for character; text alone until a take exists.
+## The lab's is science's, under its own id `research`; its take `tut_research` is unrecorded.
 const DECK_A := {
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
 	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
 	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
-	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
+	&"research": "The lab takes DATA. Click the screen to spend it on a routine or a part.",
 }
 ## The decks' hints, in the rail's order from the deck the station opens on.
-const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"laboratory"]
+const DECKS: Array[StringName] = [&"shipyard", &"promenade", &"exchange", &"hiring_board", &"research"]
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -417,6 +418,7 @@ func _do(id: StringName) -> String:
 	for i in 6:
 		Hints.poll(1.0 / 60.0)
 		await _tree.process_frame
+	HintActs.leave_lab()
 	var sc := Router.current as SectorScreen
 	if sc != null:
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
@@ -805,8 +807,22 @@ func _lines() -> void:
 		if words != String(DECK_A[k]) or card.size() != 2 or not Hints.ORDER.has(k) or not Hints.SPENT_ONCE_HEARD.has(k) \
 				or AshTutorLines.SPOKEN.has(k):
 			deck_bad.append(String(k))
-	_ok("the decks' lines are Jon's picks (B, B, B, A, A), each a hint with a two-line card, said once (%s)" % [
+	_ok("the decks' lines are Jon's picks (B, B, B, A) and the lab's science line, each a hint with a two-line card, said once (%s)" % [
 		"all %d" % DECKS.size() if deck_bad.is_empty() else "NOT " + ", ".join(deck_bad)], deck_bad.is_empty())
+	# THE LAB'S NEW WORDS (science, Nov 4): a new id, so the fabricator's
+	# `laboratory`, spent and heard by every alpha player who saw a lab, holds
+	# nothing back; no take installed, so text alone, never the fabricator's
+	# old take; its card names DATA and the screen; and it ends on the screen
+	# pressed, the line's one thing to do
+	var lab_card := " ".join(Hints.lines(&"research"))
+	_ok("the lab's line: its own id (laboratory gone from the hints: %s), take %s, the card names DATA and the screen, its action \"%s\"" % [
+		not Hints.ORDER.has(&"laboratory") and not Hints.DECK_HINTS.has(&"laboratory") and not AshTutorLines.LINES.has(&"laboratory"),
+		"none installed" if AshTutorLines.voice_path(&"research") == "" else AshTutorLines.voice_path(&"research"),
+		Hints.DONE.get(&"research", "")],
+		not Hints.ORDER.has(&"laboratory") and not Hints.DECK_HINTS.has(&"laboratory") and not AshTutorLines.LINES.has(&"laboratory")
+		and AshTutorLines.voice_path(&"research") == ""
+		and lab_card.contains("DATA") and lab_card.contains("screen")
+		and Hints.DONE.get(&"research") == "the lab's screen pressed")
 	# EVERY HINT ENDS ON ITS OWN ACTION, or is an information line that goes after
 	# its reading time: one or the other, never neither, never both
 	var no_end: Array[String] = []
@@ -2171,6 +2187,7 @@ func _decks() -> void:
 				await _tree.process_frame
 			_ok("%s: the deck used (%s): spent with the deck still open, and she goes" % [id, did if did != "" else "NOTHING TO USE IT WITH"],
 				did != "" and Hints.seen(id) and Hints.lesson != id and Ash.lesson != id)
+			HintActs.leave_lab()
 		else:
 			var t0 := GameClock.now()
 			while not Hints._said and Hints.lesson == id and GameClock.now() - t0 < 14.0:
@@ -2958,7 +2975,7 @@ func _comms() -> void:
 	# THE TAB: no count, ever, and the row fits with it
 	_ok("comms: the tab is the same rect and the same word with three lines said (%s, \"%s\")" % [hud.comms_tab_rect(),
 		hud._tab_comms.text], hud.comms_tab_rect() == tab0 and hud._tab_comms.text == "COMMS" and tab0.size.x > 0.0)
-	_comms_row_fits(hud)
+	await _comms_row_fits(hud)
 	# THE TABLE, newest first
 	hud._tab_comms.pressed.emit()
 	await _frames(4)
@@ -3030,10 +3047,25 @@ func _comms() -> void:
 	Hints.reset()
 
 
-## The HUD's row with COMMS: every piece inside the bar, none over another, and
-## its minimum within the bar (`QuestLogTest._hud_fits`, the same test).
+## The HUD's row with COMMS: every piece inside the bar, none over another, and its minimum
+## within the bar (`QuestLogTest._hud_fits`, the same test).
+## Why: docs/why/AshTutorTest.md#the-huds-row-with-comms
 func _comms_row_fits(hud: HudBar) -> void:
-	var bar := hud.get_global_rect()
+	var data0 := Run.data
+	Run.add_data(99 - Run.data)
+	await _frames(2)
+	var dv := hud._data.get_node("Value") as Label if hud._data != null else null
+	var clip := (hud._row.get_parent() as Control).get_global_rect()
+	_ok("comms: DATA on the row beside COMMS, \"%s\" inside the %.0f px clip" % [dv.text if dv != null else "?", clip.size.x],
+		dv != null and dv.text == "99" and hud._data.is_visible_in_tree() and clip.encloses(hud.data_rect())
+		and is_equal_approx(clip.size.x, 932.0))
+	_comms_row_check(hud)
+	Run.add_data(data0 - Run.data)
+	await _frames(2)
+
+
+func _comms_row_check(hud: HudBar) -> void:
+	var bar := (hud._row.get_parent() as Control).get_global_rect()
 	var pieces: Array = []
 	for c in hud._row.get_children():
 		var k := c as Control

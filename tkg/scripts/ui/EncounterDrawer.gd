@@ -329,11 +329,13 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 
 
 
-## Four fixed rows so each number lives in one place; rising heat uses `FLARE`, not loss red.
+## Fixed rows (four, and DATA a fifth, last) so each number lives in one place; rising heat
+## uses `FLARE`, not loss red.
 ## Why: docs/why/EncounterDrawer.md#bill-rows
 const BILL: Array[Array] = [
 	["CREDITS", "credits", 1], ["HEAT", "heat", -1],
 	["HULL", "hp", 1], ["FUEL", "fuel", 1],
+	["DATA", "data", 1],
 ]
 
 static func bill_rows(before: Dictionary, after: Dictionary) -> Array:
@@ -476,10 +478,15 @@ const TAG_SALVAGE := Color("#b3a488")
 ## Why: docs/why/EncounterDrawer.md#tag-colours
 const TAG_QUEST := Color("#e0b83c")
 
+## Rose, for a reading (science): the last hue the six leave open, light enough at 2 px.
+## Why: docs/why/EncounterDrawer.md#science-hue
+const TAG_SCIENCE := Color("#e07ac8")
+
 ## Priority, not authoring order, so tag order cannot recolour an option; quest outranks all.
+## Science comes after salvage.
 ## Why: docs/why/EncounterDrawer.md#tag-priority
 const TAG_ORDER: Array[StringName] = [&"quest", &"fight", &"hazard", &"salvage",
-	&"signal", &"contract"]
+	&"science", &"signal", &"contract"]
 
 ## One resolution feeds colour and word, as two priority lists would go stale.
 static func lead_tag(opt: Dictionary) -> StringName:
@@ -497,6 +504,7 @@ static func tag_colour(opt: Dictionary) -> Color:
 		&"fight": return UITheme.LEAVE
 		&"hazard": return TAG_HAZARD
 		&"salvage": return TAG_SALVAGE
+		&"science": return TAG_SCIENCE
 		&"signal": return Color("#8ec8e6")
 		&"contract": return TAG_CONTRACT
 	return UITheme.LINE
@@ -531,6 +539,19 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	elif bool(c.get("fight", false)) or opens_fight(c):
 		note = contact_reading(n)
 		tone = UITheme.THEM
+	# A READING BURNS FUEL (science, `burns`): what it costs goes on the card, after any odds,
+	# so the number you pay is inside what you press.
+	# Why: docs/why/EncounterDrawer.md#a-reading-burns-fuel
+	if bool(c.get("burns", false)):
+		var burn := OptionTable.science_fuel()
+		if not OptionResolve.fuel_ok(c):
+			var keep := Run.fuel_floor()
+			note = "needs %d fuel%s · you have %d" % [burn,
+				" + %d to leave" % keep if keep > 0 else "", Run.fuel]
+			open = false
+			tone = UITheme.FLARE
+		else:
+			note = "%d fuel" % burn if note == "" else "%s · %d fuel" % [note, burn]
 	var made := plate(tone, on_take.bind(i, j))
 	var card: OptionCard = made[0]
 	var col: VBoxContainer = made[1]
@@ -548,6 +569,7 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	col.add_child(lb)
 	if note != "":
 		var nl := UITheme.body(note, tone, UITheme.FS_SMALL)
+		nl.name = "Note"
 		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		nl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		col.add_child(nl)

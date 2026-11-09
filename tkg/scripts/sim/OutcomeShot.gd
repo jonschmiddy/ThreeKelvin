@@ -57,7 +57,7 @@ func _run() -> void:
 	if "survey" in _args:
 		tree.quit()
 		return
-	var cases: Array = _arg("cases", "jon,gain,mix,card,nothing,credits,big").split(",")
+	var cases: Array = _arg("cases", "jon,gain,mix,card,nothing,credits,big,data").split(",")
 	if _film:
 		cases = [_arg("case", "mix")]
 	var looks: Array = _arg("looks", "today,A,B,C,D,E").split(",")

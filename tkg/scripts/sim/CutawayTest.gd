@@ -23,6 +23,11 @@ func run(tree: SceneTree) -> void:
 	if "power" in OS.get_cmdline_user_args():
 		await _check_power()
 		return _finish()
+	# `-- cutawaytest routines`: the ROUTINES row and the game over line alone (10a)
+	if "routines" in OS.get_cmdline_user_args():
+		await _check_routines()
+		_check_game_over()
+		return _finish()
 	# `-- cutawaytest local`: the real LOCAL and its fight alone (11)
 	if "local" in OS.get_cmdline_user_args():
 		await _check_local()
@@ -260,6 +265,9 @@ func run(tree: SceneTree) -> void:
 	await _check_power()
 	# 10. the picture itself, on every hull
 	await _check_layouts()
+	# 10a. the run's ROUTINES on the left panel (science), and the game over line
+	await _check_routines()
+	_check_game_over()
 	# 10b. every empty mount's words, on every startable hull
 	await _check_empty_words()
 	# 10c. what a carried part can go on: every mount marked is a drop that lands
@@ -516,6 +524,207 @@ func _check_layouts() -> void:
 		await _settle()
 	_ok("the heavy is drawn at least as big as the medium (%d px wide against %d)" % [int(widths.heavy), int(widths.medium)],
 		widths.heavy >= widths.medium)
+
+
+## THE RUN'S ROUTINES ON THE LEFT PANEL (science, plan S8): one line, "ROUTINES · N OF 9", under
+## the hull's perks, the names on hover (`RoutineBox`).
+## Why: docs/why/CutawayTest.md#the-runs-routines-on-the-left
+func _check_routines() -> void:
+	# (each case: the hull's weight, routines bought, malfunctions; the last is
+	# the heavy's widest pair, both lines two digits wide, 24 px of its row to
+	# spare when the two went side by side)
+	var cases := []
+	for pair in [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]:
+		for bought in [0, 1, 9]:
+			cases.append([pair, bought, 2])
+	cases.append([["heavy", HullData.Weight.HEAVY], 9, 12])
+	for cs in cases:
+		var pair: Array = cs[0]
+		var bought: int = cs[1]
+		var ndross: int = cs[2]
+		var wname := "%s, %d routine%s%s" % [pair[0], bought, "" if bought == 1 else "s",
+			"" if ndross == 2 else ", %d malfunctions" % ndross]
+		seed_run(4242)
+		Run.start_new_run(&"korvan", int(pair[1]))
+		var node := Run.node_at()
+		node.jetsam.clear()
+		node.taken.clear()
+		Run.cargo.clear()
+		Run.place_in_hold(_module_of(ModuleData.Slot.SYSTEM))
+		Run.place_in_hold(MaterialData.of(MaterialTable.all()[0]))
+		var junk: Array[StringName] = []
+		for i in ndross:
+			junk.append(DB.MALFUNCTIONS[0][0])
+		Run.dross = junk
+		Run.board_owned = PackedInt32Array([3, 3, 3] if bought == 9 else ([1, 0, 0] if bought == 1 else [0, 0, 0]))
+		if not _ok("%s: the board is dealt and %d bought on it" % [wname, bought],
+				Run.board.size() == 9 and Run.owned_routines().size() == bought):
+			continue
+		var host := Control.new()
+		host.size = Vector2(960, 459)
+		_tree.root.add_child(host)
+		var cut := CutawayView.open_over(host, null)
+		for i in 4:
+			await _tree.process_frame
+		var row := cut._routines
+		if bought == 0:
+			_ok("%s: no ROUTINES row (shown %s, %d pieces, hover \"%s\")" % [wname, row.is_visible_in_tree(), row.get_child_count(), row.tooltip_text.left(20)],
+				not row.is_visible_in_tree() and row.get_child_count() == 0 and row.tooltip_text == ""
+				and row._make_custom_tooltip("") == null)
+		else:
+			await _routine_row_on(cut, wname, bought)
+		cut.queue_free()
+		host.queue_free()
+		await _settle()
+	await _routines_after_swap()
+
+
+## The row as drawn on one cutaway with `bought` routines: inside, clear, air
+## kept, and its hover the routines' alone.
+func _routine_row_on(cut: CutawayView, wname: String, bought: int) -> void:
+	var view := cut.get_global_rect()
+	var left := cut._hold_panel.get_global_rect()
+	var row := cut._routines
+	var rr := row.get_global_rect()
+	var line := row.get_child(0) as Label if row.get_child_count() > 0 else null
+	var want := "ROUTINES · %d OF 9" % bought
+	_ok("%s: one line, \"%s\" (%s)" % [wname, want, line.text if line != null else "none"],
+		row.is_visible_in_tree() and row.get_child_count() == 1 and line != null and line.text == want)
+	_ok("%s: the row is inside the left panel and on screen (%s in %s)" % [wname, rr, left],
+		rr.has_area() and left.encloses(rr) and view.encloses(rr))
+	# (one row with the malfunctions, wrapping: beside them where the panel is
+	# wide enough, over them where it is not)
+	var dr := cut._dross.get_global_rect()
+	var beside := rr.end.x <= dr.position.x and is_equal_approx(rr.position.y, dr.position.y)
+	_ok("%s: under the perks, and %s the malfunctions (%d and %d px wide, in %d)" % [wname, "beside" if beside else "over",
+		rr.size.x, dr.size.x, cut._tail.size.x],
+		rr.position.y >= cut._perks.get_global_rect().end.y and (beside or rr.end.y <= dr.position.y))
+	var crossed: PackedStringArray = []
+	var pieces := {"name": cut._name, "class": cut._class, "hold count": cut._hold_label,
+		"hold": cut._hold, "attributes": cut._attrs, "mounts": cut._mount_line, "perks": cut._perks,
+		"malfunctions": cut._dross, "keys": cut._keys, "DONE": cut._done}
+	for nm in pieces:
+		var c: Control = pieces[nm]
+		if c.is_visible_in_tree() and c.get_global_rect().intersects(rr):
+			crossed.append(nm)
+	_ok("%s: the row crosses none of the panel's other pieces (%s)" % [wname, ", ".join(crossed) if not crossed.is_empty() else "clear"],
+		crossed.is_empty())
+	_ok("%s: the panel's contents still fit it (%d of %d tall)" % [wname, cut._hold_panel.get_combined_minimum_size().y, left.size.y],
+		cut._hold_panel.get_combined_minimum_size().y <= left.size.y + 0.5)
+	var air_a := cut._attrs.get_global_rect().position.y - cut._hold.get_global_rect().end.y
+	var air_b := cut._perks.get_global_rect().position.y - cut._mount_line.get_global_rect().end.y
+	_ok("%s: the hold, the attributes and the perks keep their air (%d, %d px; at least %d)" % [
+		wname, air_a, air_b, CutawayView.GAP_MIN + 2], air_a >= CutawayView.GAP_MIN + 2 and air_b >= CutawayView.GAP_MIN + 2)
+	_ok("%s: DONE is still on the panel" % wname, left.encloses(cut._done.get_global_rect()))
+	# THE HOVER: every routine bought by name, no perk; the box takes the pointer
+	# and its line lets it through; the cutaway's card shows nothing over it
+	var miss := _routine_hover_misses(row)
+	_ok("%s: the hover names every routine bought and no perk (%s)" % [wname, miss if miss != "" else "%d named" % bought],
+		miss == "" and row.mouse_filter == Control.MOUSE_FILTER_STOP and line.mouse_filter == Control.MOUSE_FILTER_IGNORE)
+	cut._point(rr.get_center())
+	await _tree.process_frame
+	_ok("%s: pointing at it opens no card of the cutaway's own (one hover)" % wname, not cut._panel.visible)
+	cut._show(null)
+
+
+## What the routine box's hover gets wrong, "" when nothing: the panel Godot
+## shows (`_make_custom_tooltip`) and the plain text behind it must each name
+## every owned routine and no perk of the hull flown now.
+func _routine_hover_misses(row: RoutineBox) -> String:
+	var panel := row._make_custom_tooltip(row.tooltip_text) as Control
+	if panel == null:
+		return "no panel"
+	var said: PackedStringArray = []
+	for l in panel.find_children("*", "Label", true, false):
+		said.append((l as Label).text)
+	panel.free()
+	var shown := "\n".join(said)
+	var plain := row.tooltip_text
+	var bad: PackedStringArray = []
+	for id in Run.owned_routines():
+		var nm := str(DB.routines[id].name)
+		if not said.has(nm):
+			bad.append("panel lacks %s" % nm)
+		if not plain.contains(nm):
+			bad.append("text lacks %s" % nm)
+	for pid in Run.hull.perks():
+		var pd: Dictionary = DB.hull_perks.get(pid, {})
+		if pd.is_empty():
+			continue
+		var pn := str(pd.name)
+		if shown.containsn(pn) or plain.containsn(pn):
+			bad.append("names the perk %s" % pn)
+	return ", ".join(bad)
+
+
+## A HULL SWAP KEEPS THE ROUTINES (they are the flight computer's) and changes
+## the perks (they are the hull's): the cutaway open on Korvan's medium with
+## four bought, the ship moved into Solari's heavy, and the panel refreshed by
+## the swap's own signal.
+func _routines_after_swap() -> void:
+	seed_run(4242)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.cargo.clear()
+	Run.board_owned = PackedInt32Array([2, 1, 1])
+	var host := Control.new()
+	host.size = Vector2(960, 459)
+	_tree.root.add_child(host)
+	var cut := CutawayView.open_over(host, null)
+	for i in 4:
+		await _tree.process_frame
+	var names_before := Run.owned_routines().map(func(id): return str(DB.routines[id].name))
+	var tip_before := cut._routines.tooltip_text
+	var perks_before := cut._perks.tooltip_text
+	var line_before := (cut._routines.get_child(0) as Label).text if cut._routines.get_child_count() > 0 else ""
+	var other := DB.hull_for(&"solari", HullData.Weight.HEAVY)
+	if not _ok("a Solari heavy to swap into", other != null):
+		cut.queue_free()
+		host.queue_free()
+		return
+	Run.transfer_to_hull(other.duplicate() as HullData)
+	Sig.ship_changed.emit()
+	await _settle()
+	var line_after := (cut._routines.get_child(0) as Label).text if cut._routines.get_child_count() > 0 else ""
+	var names_after := Run.owned_routines().map(func(id): return str(DB.routines[id].name))
+	var miss := _routine_hover_misses(cut._routines)
+	_ok("after a hull swap the same %d routines are listed (%s; %s to %s)" % [names_before.size(),
+		", ".join(names_after), line_before, line_after],
+		names_before.size() == 4 and names_after == names_before and line_after == line_before
+		and line_after == "ROUTINES · 4 OF 9" and cut._routines.tooltip_text == tip_before and miss == "")
+	_ok("and the perks changed with the hull (%s)" % Run.hull.manufacturer,
+		Run.hull.manufacturer == &"solari" and cut._perks.tooltip_text != perks_before)
+	cut.queue_free()
+	host.queue_free()
+	await _settle()
+
+
+## THE GAME OVER LINE (science): the routines bought on the jumps line, "N
+## routines" (one "routine"), and "N DATA unspent" after the credits; neither
+## with none, so a run with no science reads as it did.
+func _check_game_over() -> void:
+	seed_run(4242)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.death_reason = "The hull gave out."
+	var go := GameOverScreen.new()
+	var texts: Array[String] = []
+	for state in [[[0, 0, 0], 0], [[2, 1, 1], 17], [[1, 0, 0], 0]]:
+		Run.board_owned = PackedInt32Array(state[0])
+		Run.data = int(state[1])
+		var l := go._stats()
+		texts.append(l.text)
+		l.free()
+	go.free()
+	var none := texts[0].split("\n")
+	var four := texts[1].split("\n")
+	var one := texts[2].split("\n")
+	_ok("game over, nothing bought and no DATA: no routines and no DATA said (%s / %s)" % [none[1], none[2]],
+		none.size() >= 3 and not texts[0].containsn("routine") and not texts[0].contains("DATA")
+		and none[1].begins_with("%d jumps · %d kills · danger " % [Run.jumps, Run.kills]))
+	_ok("game over, four bought and 17 DATA: \"4 routines\" on the jumps line, \"17 DATA unspent\" after the credits (%s / %s)" % [four[1], four[2]],
+		four.size() >= 3 and four[1].contains(" · 4 routines · danger ")
+		and four[2].begins_with("%d credits unspent · 17 DATA unspent" % Run.credits))
+	_ok("game over, one bought: \"1 routine\" (%s)" % one[1],
+		one.size() >= 3 and one[1].contains(" · 1 routine · ") and not texts[2].contains("DATA"))
 
 
 ## Every empty mount gets its words: EMPTY UTILITY was dropped for lack of room (Jon).

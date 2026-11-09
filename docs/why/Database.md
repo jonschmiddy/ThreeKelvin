@@ -1352,3 +1352,58 @@ median of 253 at the core (200 to 600; the cap now stops it at 400) and win
 deck, which the game's sim pilots do not, so the 61.4% above is not yet
 measured again under growth.
 ```
+
+## Routines science
+
+Above `const BOARD_PRICES: Array[int] = [4, 10, 15]`:
+
+```text
+--------------------------------------------------------------------- routines
+
+SCIENCE (Phase 12, Jon's picks Nov 4, "1A 2B 3A 4B"). A routine is what the Lab
+writes into the flight computer for DATA: a boost for the rest of the run that
+goes with you to any hull, because the computer does. It is the run's, never
+the hull's, so a yard swap leaves it alone and it stacks with a hull perk that
+does the same thing (Deep Tanks and FUEL TRIM, Baffled Vents and VENT TIMING).
+
+THE BOARD (pick 2B). Each run deals three branches of three, FRAME, CORE and
+DRIVE, from these twelve: four a branch, one dropped by the deal. Steps in a
+branch are bought in order at BOARD_PRICES, so a branch's `rank` is its order,
+weakest first, and the price always climbs with the power. The order is the
+routine sims' (plan S15, Nov 4: a human pilot, 400 paired runs a routine over
+two seeds): DAMAGE CONTROL tops FRAME on jumps survived, and CORE and DRIVE
+keep the plan's order, WARM START at the top for its boss-fight wins.
+
+THE FIRST STEP COSTS 4, NOT 6 (Jon's S1A, Nov 8, reviewing the science branch).
+At 400 sim runs (seed 777) a run took 29.2 DATA and ended with 19.1 of it
+unspent and 1.3 steps owned: the runs end at about ten jumps, short of the
+~70-DATA full run pick 4B was sized for. A cheaper first step puts one routine
+in reach after the first reading or two. The rest of each row stays 10 and 15.
+
+`pips` are gauge pips, through `RunState.PER_PIP` exactly as an affix's are
+(`AffixData.raw_for`), so a routine that says +1 SEN moves SENSORS by exactly
+one. `raw` is a field added straight, for the two a pip would get wrong: a
+THERMAL pip is heat capacity AND venting (VENT TIMING is venting only), and a
+REACTOR pip is three cells AND energy (SPARE CELLS is the cells only). The
+other six are flags with no numbers: what they do is read by name where it
+happens (plan S3).
+
+NOTHING HERE PAYS CREDITS, MATERIALS OR DATA, or makes the shop cheaper. Each
+of those turns DATA into money, which is the one thing DATA must never be.
+```
+
+## Relic analysiss text says what the
+
+Above `const RECIPES: Array[Dictionary] = [`:
+
+```text
+RELIC ANALYSIS'S TEXT SAYS WHAT THE CODE DOES (science spec, Nov 4). It said
+"Fabricates a precursor module", and `Fabricator._apply` rolls any part for the
+danger, branded ones included. Rolling only the six precursor parts would be a
+big power jump and a separate call, so the words moved and the roll did not.
+
+DEVELOP FILM AND READ FOR DATA (science, pick 1A) turn a survey film and a
+relic into DATA, at no credits: a lab takes them, and nothing buys DATA.
+`Fabricator._apply`'s `&"data"` arm pays it, and every station's Lab has both
+(dev 0); a run with science off sees neither (`Fabricator.available`).
+```

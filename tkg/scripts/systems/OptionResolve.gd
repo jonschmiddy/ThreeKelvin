@@ -37,13 +37,26 @@ static func pile_gained(n: MapGen.MapNode, was: Array) -> int:
 	return k
 
 
-## Whether choice `c` can be attempted right now: its price and its material.
+## Whether choice `c` can be attempted right now: its price, its material and
+## the fuel it burns.
 static func affordable(c: Dictionary) -> bool:
 	if c.has("cost_credits") and Run.credits < int(c.cost_credits):
 		return false
 	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 		return false
+	if not fuel_ok(c):
+		return false
 	return true
+
+
+## A READING THAT BURNS FUEL (science, `burns = true`) IS REFUSED when paying it
+## would take the tank under the way out `Run.drain_fuel` keeps
+## (`Run.fuel_floor`). A hard gate, so the card's fuel is what it costs: the
+## drain then always takes the whole amount, and science never strands a ship.
+static func fuel_ok(c: Dictionary) -> bool:
+	if not bool(c.get("burns", false)):
+		return true
+	return Run.fuel - OptionTable.science_fuel() >= Run.fuel_floor()
 
 
 static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
@@ -56,6 +69,8 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 		return {"ok": false, "why": "credits"}
 	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 		return {"ok": false, "why": "material"}
+	if not fuel_ok(c):
+		return {"ok": false, "why": "fuel"}
 	var out := {"ok": true, "checked": c.has("check"), "stay": bool(c.get("stay", false)),
 		"foe": OptionTable.fight_foe(opt, c)}
 	# Ask the party before rolling or paying, or both players pocket the payout.

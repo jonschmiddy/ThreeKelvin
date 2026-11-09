@@ -62,6 +62,13 @@ COMMS (Jeremy, a playtester, Oct 23: "Give me an option to revisit all
 communications"): everything A.S.H. has said this run, newest first, her
 voice to play again (`CommsPanel`). After QUESTS, and like it no count ever.
 Measured: the row wants 702 of 932 px with it (832 in developer mode).
+
+RE-MEASURED WITH DATA (science, Nov 4), against the clip's 932, not the
+panel's 944: `-- stationshot` through render.sh reads 750 (880 in developer
+mode), so DATA costs 47. The worst case FuelTest builds (a party's tab, over
+the heat cap, 9999 credits, 99 DATA) wants 927, five pixels to spare, and
+1057 in developer mode, which clips its right end. The next thing on this
+bar has those five pixels, so it takes room from something else.
 ```
 
 Inside `_build()`, above `_tab_sector = _tab("STATION", _go_here)`:
@@ -260,8 +267,9 @@ Inside `_build()`, above `var econ := HBoxContainer.new()`:
 dividers.
 
 Every readout on this bar explains itself on hover. The bar is where the
-whole economy is stated and none of it is self-evident: credits are one
-currency competing with itself, fuel is priced by chart distance, and heat
+whole economy is stated and none of it is self-evident: credits buy
+everything and compete with themselves, DATA buys only what a lab sells
+and never trades for credits, fuel is priced by chart distance, and heat
 is a second health bar you are allowed to spend.
 
 The gap inside a readout was SIX and the gap between two readouts was the
@@ -277,8 +285,11 @@ Inside `_build()`, above `_fuel = Widgets.stat("fuel", "")`:
 NO CARGO UP HERE. Materials had a readout each, by name, and three pickups
 of common salvage pushed FUEL off the end of the bar -- to say what the
 storage grid already shows crate by crate. Sat beside CREDITS they also read
-as a second currency, and there is only one: materials are cargo, sold for
-credits at the Exchange.
+as a second currency, and they are not one: materials are cargo, sold for
+credits at the Exchange. DATA is the one other pool on this bar (science,
+Jon's pick 1A, Nov 4), and it earns the place because, like exotic and
+relic, it only comes from places, yet unlike them it takes no hold room and
+nothing sells it.
 Fuel joins the group rather than sitting behind a rule of its own. It IS a
 different kind of thing -- credits are money, fuel is the
 clock -- but ECON_GAP already says "separate readout", and a vertical bar
@@ -455,4 +466,22 @@ readout's tooltip works across it, as every readout on this bar does.
 Continuous rather than cells: hull and heat are ten cells beside it, and a
 third row of cells read as one long gauge. A thin bar is a different kind
 of thing at a glance, which is what fuel is -- the clock, not the ship.
+```
+
+## Data last
+
+Inside `_build()`, above `_data = Widgets.stat("data", "")`:
+
+```text
+DATA LAST, after the clock. Credits and fuel are bought and spent
+everywhere; DATA only comes from readings and only a lab takes it, so it
+sits at the end of the group rather than between the two that trade. Held
+at two figures, so the first reading (0 to 5) and the tenth (9 to 14) move
+nothing. Past 99 the third figure shoves CREDITS and FUEL left and comes
+out of the bar's slack. In the worst case FuelTest builds that slack is
+5 px: "100" to "199" (17 px) fit it exactly, and from 200 (18 px) DATA's
+last pixel is cut, which takes a party over the heat cap with four-figure
+credits sitting on far more DATA than a run usually collects. Not held at
+"000": that would spend 6 px on every run for a case almost none reach.
+FuelTest prints what 199 and 999 want.
 ```

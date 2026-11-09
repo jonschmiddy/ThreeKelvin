@@ -41,11 +41,13 @@ const LINES: Dictionary = {
 	&"jump_blocked": "We can't jump there yet. The button says why.",
 	&"dock": "Stations repair, refuel and trade. Pick a deck on the left.",
 	# The decks' lines are Jon's picks of two drafts each (Oct 20), recorded Oct 21.
+	# The lab's is science's, under its own id `research`; text only (`tut_research` unrecorded).
+	# Why: docs/why/AshTutorLines.md#the-decks
 	&"shipyard": "Repairs and fuel are here. Click a drone over the ship to pay for its job.",
 	&"promenade": "The shelf sells parts. Drag one down to the till to buy it. It goes in the hold.",
 	&"exchange": "Spare parts turn into credits here. Drag one to the counter to sell it.",
 	&"hiring_board": "Manufacturers post paid work here. Press SIGN on a note to take the job.",
-	&"laboratory": "The fabricator turns a relic into a part. Press MAKE when you can pay for it.",
+	&"research": "The lab takes DATA. Click the screen to spend it on a routine or a part.",
 	&"faults": "FAULTS clears a malfunction out of the deck, for a price.",
 	&"hull_sale": "That ship is for sale. TAKE IT trades ours in. It comes empty, so we move everything over.",
 	&"undock": "UNDOCK takes us back out when we're done here.",

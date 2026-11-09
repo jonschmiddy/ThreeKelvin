@@ -82,9 +82,14 @@ static func doc() -> Dictionary:
 
 ## This station's lab, as the installer wrote it.
 var lab: Dictionary = {}
-## The recipe rows' holder, which the screen places at `win_rect` and this
-## opens as the power-on's scan passes.
+## The glass's holder (the sign-on and the key), which the screen places at
+## `glass_rect` and this opens as the power-on's scan passes.
 var rows_clip: Control = null
+## THE LAMPS HELD STEADY while the camera goes into the glass and back
+## (`hush_screen`): their faults (a loose bulb's blink, a starter's burst) do
+## not fire. The den's bulb blinked off screen just before landing and the whole
+## frame went 20, 9, 18, 9, 18 grey over six frames, as if the screen failed.
+var lamps_held := false
 
 var _level := ""
 var _pic: TextureRect
@@ -167,13 +172,30 @@ func banner_spots() -> Array:
 	return []
 
 
-## What the big screen does, over the recipe rows. The screen stacks it last.
+## What the big screen does, over the sign-on. The screen stacks it last.
 func fx_layer() -> Control:
 	return _glass
 
 
-## Where the recipe rows stand: inside the picture's screen, where the
-## prototype drew them.
+## THE PRESS HUSHES THE SCREEN (`LabZoom`, the camera into the glass): from the press until the
+## camera is back, the lamps hold steady and nothing new starts. `on` false lets it run again.
+## Why: docs/why/LabScene.md#the-press-hushes-the-screen
+func hush_screen(on: bool) -> void:
+	_glass.hush(on)
+	lamps_held = on
+
+
+## The screen's glass in the picture (labs.json `screen.glass`, its end
+## inclusive there): the key into the Lab, and what the camera goes onto.
+func glass_rect() -> Rect2:
+	var g: Array = (lab.get("screen", {}) as Dictionary).get("glass", [])
+	if g.size() < 4:
+		return win_rect()
+	return Rect2(float(g[0]), float(g[1]), float(g[2]) - float(g[0]) + 1.0, float(g[3]) - float(g[1]) + 1.0)
+
+
+## Where the screen's own picture stands: inside the glass, where the
+## prototype drew its rows (the owner's sign-on now, `LabLogin`).
 func win_rect() -> Rect2:
 	var w: Array = lab.get("win", [])
 	if w.size() < 4:
@@ -244,6 +266,18 @@ func power_on(settled: bool = false) -> void:
 	_tick_n = -1
 	_heard = 0
 	_boot_heard = settled
+
+
+## The power-on just started, put off by `s` (the deck still riding in on
+## the elevator: `StationScreen._slide_decks`). Before it the room is dark.
+func delay_boot(s: float) -> void:
+	_boot_at += s
+
+
+## The power-on from now (the car nearly in: `StationScreen._boot_on_arrival`).
+func boot_now() -> void:
+	_boot_at = floorf(_lab_clock * HZ) / HZ
+	_tick_n = -1
 
 
 func _process(delta: float) -> void:
@@ -459,8 +493,9 @@ func _tick(t: float) -> void:
 	_glass.frame(t, tb)
 
 
-## THE SCAN BRINGS THE RECIPES ON. Nothing on the screen until the scan
-## starts, then everything above it; the whole screen once it has passed.
+## THE SCAN BRINGS THE SCREEN ON. Nothing on the glass until the scan starts,
+## then everything above it; the whole glass once it has passed (the holder is
+## the glass, `glass_rect`; the scan runs down the screen's window).
 func _reveal(tb: float) -> void:
 	if rows_clip == null:
 		return
@@ -468,7 +503,7 @@ func _reveal(tb: float) -> void:
 	var rv: Array = boot.get("reveal", [2.3, 2.9])
 	var r0 := float(rv[0])
 	var r1 := float(rv[1])
-	var wr := win_rect()
+	var wr := glass_rect()
 	var shown := wr.size.y
 	if tb < r0:
 		shown = 0.0
@@ -490,14 +525,14 @@ func _weights(t: float, tb: float) -> Dictionary:
 			# Why: docs/why/LabScene.md#light-rhythms
 			var n := roundi(tb * HZ)
 			var on := 1.0 if n >= 36 else (1.0 if n in [9, 10, 18, 19, 30, 31, 33, 34] else (0.04 if n >= 9 else 0.0))
-			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 else 1.0) * _flutter(t, 0.4)],
+			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 and not lamps_held else 1.0) * _flutter(t, 0.4)],
 				"screen": _smooth(1.9, 2.4, tb)}
 		"outpost":
 			# WORK LAMPS THAT CLUNK ON, and an amber status light blinking.
 			var st := 0.0 if tb < 1.0 else ((1.0 if int(floorf((tb - 1.0) / 0.12)) % 2 == 1 else 0.1) if tb < 1.7 else 1.0)
 			var sm := 1.0 if tb < 1.7 else 0.75 + 0.25 * sin(t * 6.283 / 2.6)
 			return {"lampL": [_clunk(tb, 0.35), _flutter(t, 1.1)],
-				"lampR": [_clunk(tb, 0.8), _starter(t, 2.2) if tb > 5.0 else 1.0],
+				"lampR": [_clunk(tb, 0.8), _starter(t, 2.2) if tb > 5.0 and not lamps_held else 1.0],
 				"status": [st, sm],
 				# its screen waits for the status light (Jon: "a bit more breathing
 				# room"): the light holds at 1.7, the glass glows from 2.4 s
@@ -506,7 +541,7 @@ func _weights(t: float, tb: float) -> Dictionary:
 			# THREE LAMPS WARMING UP, swaying as they come on.
 			return {"l1": [_warm(tb, 0.3), _sway(t, tb, 0.3, 3.1)],
 				"l2": [_warm(tb, 0.75), _sway(t, tb, 0.75, 5.3)],
-				"l3": [_warm(tb, 1.2), _sway(t, tb, 1.2, 8.7) * (_loose(t, 4.4) if tb > 5.0 else 1.0)]}
+				"l3": [_warm(tb, 1.2), _sway(t, tb, 1.2, 8.7) * (_loose(t, 4.4) if tb > 5.0 and not lamps_held else 1.0)]}
 		"city":
 			# The city's sounds are spaced out (Jon): tubes at 1.0 and 1.6 s, helix monitor at 2.3.
 			# Why: docs/why/LabScene.md#light-rhythms
@@ -514,7 +549,7 @@ func _weights(t: float, tb: float) -> Dictionary:
 			var br := 0.9 + 0.1 * sin(t * 6.283 / 4.5)
 			return {"strip": [hood, br], "floor": [hood, br], "hood": [hood, br],
 				"tubeL": _strikes(tb, 1.0, 0.45, 2.7),
-				"tubeR": [_strikes(tb, 1.6, 0.6, 4.1), _starter(t, 2.0) if tb > 5.0 else 1.0],
+				"tubeR": [_strikes(tb, 1.6, 0.6, 4.1), _starter(t, 2.0) if tb > 5.0 and not lamps_held else 1.0],
 				"monL": [_pop_on(tb, 2.15), 0.8 + 0.2 * sin(t * 5.0)],
 				"monR": [_pop_on(tb, 2.3), 0.95 + 0.05 * sin(t * 3.3)],
 				"meter": _pop_on(tb, 2.2),
@@ -639,12 +674,22 @@ func _put(ci: CanvasItem, ax: int, ay: int, col: Color, bit: int) -> void:
 			if not _may(rx + xx, ry + yy, bit):
 				all = false
 	if all:
-		ci.draw_rect(Rect2(rx, ry, 2, 2), col)
+		_rect(ci, Rect2(rx, ry, 2, 2), col)
 		return
 	for yy in 2:
 		for xx in 2:
 			if _may(rx + xx, ry + yy, bit):
-				ci.draw_rect(Rect2(rx + xx, ry + yy, 1, 1), col)
+				_rect(ci, Rect2(rx + xx, ry + yy, 1, 1), col)
+
+
+## A rect of the room's life: drawn where it is, or -- for the camera onto the
+## glass (`LabZoom`), which draws the room at its own scale -- handed to the
+## drawer to put where the camera has that part of the room.
+func _rect(ci: CanvasItem, r: Rect2, col: Color) -> void:
+	if ci.has_method(&"life_rect"):
+		ci.call(&"life_rect", r, col)
+	else:
+		ci.draw_rect(r, col)
 
 
 ## The light at one cell, as the shader works it out: for the fizz, which is
@@ -835,6 +880,18 @@ class _Glass extends Control:
 	var _jolt := 0.0
 	var _sag := 1.0
 	var _flash := Vector3.ZERO
+	## `LabScene.hush_screen`: nothing new starts; what ran at the hush, if it
+	## was not the bad signal, plays out (`_kept`).
+	var hushed := false
+	var _kept := false
+
+	func hush(on: bool) -> void:
+		if on == hushed:
+			return
+		hushed = on
+		_kept = on and visible and _snow.is_empty() and _bands.is_empty()
+		if on and not _kept:
+			visible = false
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -900,12 +957,18 @@ class _Glass extends Control:
 		if fx != "sweep" and tb >= r1 + 0.5:
 			match fx:
 				"signal":
-					active = _signal(t, s) or active
+					if not hushed:
+						active = _signal(t, s) or active
 				"failing":
 					# THE DEN'S SCREEN FAILS WITH ITS BULB first, then loses its signal.
-					active = (_sag_with_bulb(t, s) or _signal(t, s)) or active
+					active = (_sag_with_bulb(t, s) or (not hushed and _signal(t, s))) or active
 				"rim":
 					active = _rim_light(t, s) or active
+		if hushed:
+			if not _kept:
+				active = false
+			elif not active:
+				_kept = false
 		visible = active
 		if not active:
 			return

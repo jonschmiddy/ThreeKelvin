@@ -670,9 +670,16 @@ each step's straight change of velocity, at its slowest.
 Above `func _burn_tight() -> bool:`:
 
 ```text
-WHETHER THE EASED DEPARTURE BURN JUST FLOWN TURNS TIGHTER THAN THE MAP CAN
-DRAW (DRAW_K at zoom 1, as the coast and the arrival are held to): the one
-part of a flight with no such check. Out of a settled orbit round a close
+WHETHER THE DEPARTURE BURN JUST FLOWN OUT OF A RING TURNS TIGHTER THAN THE
+MAP CAN DRAW (DRAW_K at zoom 1, as the coast and the arrival are held to):
+the one part of a flight with no such check. Held to every departure out of
+a ring (a world's, a star's close orbit, a settled star orbit) or a second
+leg's, eased or not, since science (Phase 12, Nov 4) laid systems out anew:
+out of a world's ring at 35 px/s a burn at THRUST slowed the ship to 13.5
+and turned it, 28 deg a px at zoom 1 (FlightTest, seed 1999 system 234,
+orbit 2 to 3: 10.68 s became 8.89), and to 10.5, 35 deg a px (seed 4242
+system 297, orbit 2 to star B: 23.86 s became 12.71). Found and clean the
+same in every sweep of both tests' full runs. Out of a settled orbit round a close
 pair's balance point to star A's close orbit, a burn that dipped to 5.8 px/s,
 over the cusp test's 5.5, bent round 4 px and drew 20 deg a px (FlightTest,
 seed 4242 system 208, Nov 2); found without it, 14.55 s against 8.16, bent
@@ -727,6 +734,21 @@ step started in that last px and a half, the last step (from 1.5 to
 4.5 px out, to the end) still read the crawl and turned down 9 giant
 plans of 4,656 and 4 of FlightTest's 3,832 flights that are no cusp,
 Nov 1)
+```
+
+Inside `_arrival_cusps()`, above `for j in 16:` (the first one, the tilted speed's least):
+
+```text
+THE TILTED CURVE BETWEEN TWO POINTS (Nov 8). Seen tilted, a burn's curve is
+tightest where its speed across the screen is least: where the ship moves
+up or down the screen, the plane's tilt squeezing that motion to 0.38. That
+can fall between two of the 17 points. From world 2 to world 3 of seed 1999
+system 103 (KAPPA BRINE-2, a giant, a game's start), at main's x12 pace with
+science's layout, a 2.33 s arrival burn turned the ship 116 deg in 0.3 s at
+54 px/s, drawn 28 deg a px at zoom 1. Over DRAW_K for 0.06 s, between points
+0.146 s apart that read 0.14 and 0.10. So each step's least tilted speed,
+on the straight change of velocity across it, is read too when it falls
+inside the step, alongside's last px and a half left out as above.
 ```
 
 ## Coast integration
@@ -1067,7 +1089,7 @@ Nov 5, ran 38 px past it for the bend).
 
 ## Departure burns turned down
 
-Inside `_fly()`, above `if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not ((_ease or (_kp > 1.0 and _dk == 0)) and _burn_tight()):`:
+Inside `_fly()`, above `if not ((_dk == 0 or _leg == 2) and (_departure_cusps() or _burn_tight())) and not (_ease and _burn_tight()):`:
 
 ```text
 (a departure burn that swings the ship round a point is not flown: `V_CUSP`;
@@ -1077,6 +1099,11 @@ ring's motion hooked round about 6 px, three game starts' corners at pace
 4 and 8 that main never flew (the code review, Nov 5: seed 4242 systems
 50 and 231). Not alongside: a burn from rest beside a slow station reads
 as tight and every flight from there was put there)
+
+Merged with science (Nov 8): science holds every departure out of a ring
+or a second leg's to `_burn_tight`, eased or not, which covers main's
+ring-on-the-flight's-clock case; the eased check stays as main had it.
+A second leg's burn alongside is held to it too, as science had it.
 ```
 
 ## Solve

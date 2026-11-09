@@ -17,8 +17,9 @@ func _ready() -> void:
 	# Balance sim runs through the normal boot so the autoloads exist, then quits
 	# before any UI is built:  godot --headless --path . -- sim runs=200
 	if "sim" in OS.get_cmdline_user_args():
-		HeadlessSim.new().run_sim()
-		get_tree().quit()
+		var sim := HeadlessSim.new()
+		sim.run_sim()
+		get_tree().quit(sim.exit_code)
 		return
 
 	# Save/load round-trip test, same shape as the balance sim above it:
@@ -168,7 +169,8 @@ func _ready() -> void:
 		return
 
 	if "holdtest" in OS.get_cmdline_user_args():
-		load("res://scripts/sim/HoldTest.gd").new().run()
+		# (awaited: its pick-mode check runs in the tree, on frames)
+		await load("res://scripts/sim/HoldTest.gd").new().run()
 		get_tree().quit()
 		return
 
