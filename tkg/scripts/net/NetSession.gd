@@ -1477,11 +1477,11 @@ func _fight_ask_ok(ids: PackedStringArray, hp: PackedInt32Array, brace: PackedIn
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		brace: PackedInt32Array, cur: PackedInt32Array, grown: int, by: int,
 		players: int = 1, join_only: bool = false) -> void:
-	# A peer's ask is not trusted: a bad one is dropped, as a real `Combat.plan` is never out of range.
-	# A join opens nothing, so its foes are never read.
-	if not _is_place(index) or not (join_only or _fight_ask_ok(ids, hp, brace, cur)):
-		return
 	var f: SharedFight = fights.get(index, null)
+	# A peer's ask is not trusted: one that would open a fight must be a real `Combat.plan`. A join reads none of it.
+	var opens := not join_only and (f == null or f.over)
+	if not _is_place(index) or (opens and not _fight_ask_ok(ids, hp, brace, cur)):
+		return
 	if f != null and not f.over:
 		# A second ship in is help, not a second frigate (stunned past turn one): its `grown`, hp and ids are ignored.
 		# Why: docs/why/NetSession.md#shared-fights
