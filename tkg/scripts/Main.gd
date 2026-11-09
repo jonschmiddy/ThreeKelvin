@@ -95,8 +95,6 @@ func _ready() -> void:
 			var want := (a0 as String).substr(5).to_upper()
 			var names := ["FLAT", "LINES", "CRT", "CRT+", "ARCADE"]
 			DisplaySettings.screen_look = maxi(names.find(want), 0) as DisplaySettings.Look
-		if (a0 as String).begins_with("phase="):
-			TransferView.Arrow.freeze = float((a0 as String).substr(6))
 		# `-- off=0.5` freezes the set halfway through switching off, for
 		# photographing a moment nobody can pause in play.
 		if (a0 as String).begins_with("off="):

@@ -1230,6 +1230,21 @@ GATE_FAIL_RE='FAIL' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet rewardshowntest 300 \
 	--headless --path "$PROJECT" -- sheet=RewardShownTest
 }
 
+unit_lootopentest() {
+step "Loot opens where it is"
+# Jon, Nov 9 (stripped-down UI A2): a wreck's loot is no window. Through the
+# real LOCAL, animated: a click on the wreck pushes the camera in on it, its
+# things float out on a plate, the hold slides in, nothing takes a click till
+# it rests, the box test at rest, a take and a put-back through the view's
+# handlers, a partner's claim greyed, DONE eases out and the scene is back to
+# the pixel; SECTOR LOOT and REWARD open the pile at your ship; reduced motion
+# at rest at once; no camera off LOCAL.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet lootopentest 180 \
+	"a wreck's loot opens where it lies and shuts back to the pixel" \
+	"the loot view's camera, hold or plate is off, or the scene did not come back" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=LootOpenTest
+}
+
 unit_gradesheet() {
 step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
