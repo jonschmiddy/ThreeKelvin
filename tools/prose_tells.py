@@ -220,8 +220,9 @@ def player_strings():
 # its value (`["ROUND", "<system> B"]`, a twin's world page, Oct 31). The rules
 # above read prose only, strings of MIN_CHARS or more with five words, so a
 # one-word label walked past the "round" rule; this reads the short strings for
-# that label alone. ("ROUND-TRIP" and "ROUNDED" are other words.)
-ROUND_LABEL = re.compile(r"^ROUND(?![-A-Z])")
+# that label alone. ("ROUND-TRIP" and "ROUNDED" are other words, and so is a
+# round counted, "ROUND %s" or "ROUND 71,204": a gun's, on Korvan's PROOF RANGE saver.)
+ROUND_LABEL = re.compile(r"^ROUND(?![-A-Z])(?!\s*(?:%|\d))")
 
 
 def short_labels():
