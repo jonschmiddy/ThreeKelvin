@@ -2,9 +2,9 @@ extends Node
 
 ## GO IS THE OBVIOUS BUTTON ON THE SYSTEM MAP'S PANEL (issue #35), headless:
 ##   -- sheet=SystemGoTest
-## On every world page with an open event the ship is not at: GO is the text
-## column wide, in the commit ink; FLY HERE and PLOT NEXT JUMP are quiet; on
-## the event's own page GO is in the ink and wider than a quiet ALL EVENTS.
+## World pages with an open event the ship is not at: GO column-wide, in ember.
+## One way each (stripped-down UI, Nov 9): no FLY HERE or CLICK AGAIN beside a
+## GO, PLOT NEXT JUMP only once the system is done, and the event page's foot GO alone.
 
 const SEEDS := [4242, 7, 1999]
 ## systems with events looked at, a seed
@@ -102,11 +102,12 @@ func _system(m: SystemMapScreen, s: int) -> void:
 				h._ok("%s: a GO that cannot go is not ember" % where,
 					sb != null and not sb.border_color.is_equal_approx(UITheme.EMBER))
 		var fly := _buttons(P._box, "FLY HERE")
-		if not fly.is_empty():
-			h._ok("%s: FLY HERE is quiet and still pressable" % where,
-				_quiet(fly[0]) and not (fly[0] as Button).disabled)
+		h._ok("%s: no FLY HERE beside the GO (%d)" % [where, fly.size()], fly.is_empty())
+		var tip: Array = m.overlay._click_line(bi)
+		h._ok("%s: the selected world's tip has no CLICK AGAIN line (%s)" % [where, tip],
+			not tip.any(func(l: Array) -> bool: return String(l[0]).contains("CLICK AGAIN")))
 		var plot := _buttons(P._foot, "PLOT NEXT JUMP")
-		h._ok("%s: PLOT NEXT JUMP is there and quiet" % where, plot.size() == 1 and _quiet(plot[0]))
+		h._ok("%s: no PLOT NEXT JUMP while events are open (%d)" % [where, plot.size()], plot.is_empty())
 		# the event's own page, from the first open one here
 		for bc in L.bodies[bi].beacons:
 			if bc.opt >= 0 and P._is_open(bc.opt):
@@ -114,9 +115,27 @@ func _system(m: SystemMapScreen, s: int) -> void:
 				await Harness.frames(get_tree(), 3)
 				var pg := P._foot.find_child("Go", true, false) as Button
 				var back := _buttons(P._foot, "ALL EVENTS")
-				h._ok("%s: the event page's GO wears the ink and is wider than ALL EVENTS" % where,
-					pg != null and back.size() == 1 and (_ember(pg, "normal") or pg.disabled)
-					and pg.size.x > (back[0] as Button).size.x and _quiet(back[0]))
+				var top := _buttons(P._box, "< ALL EVENTS")
+				h._ok("%s: the event page's foot is GO alone, in the ink, the foot's width; \"< ALL EVENTS\" up top (%d foot backs, %d top)" % [where, back.size(), top.size()],
+					pg != null and back.is_empty() and top.size() == 1 and (_ember(pg, "normal") or pg.disabled)
+					and absf(pg.size.x - P._foot.size.x) < 0.5)
 				break
 		m.panel_back()
 		await Harness.frames(get_tree(), 2)
+	# THE SYSTEM DONE: PLOT NEXT JUMP comes, lit as the one thing to do
+	var n: MapGen.MapNode = m.view.node
+	var taken := n.taken.duplicate()
+	var results := n.results.duplicate()
+	for i in n.options.size():
+		if not n.taken.has(MapGen.OPTION_SITE + i):
+			n.taken.append(MapGen.OPTION_SITE + i)
+			n.results[i] = MapGen.R_DONE
+	P.show_system()
+	await Harness.frames(get_tree(), 3)
+	var lit := _buttons(P._foot, "PLOT NEXT JUMP")
+	h._ok("seed %d, system %d done: PLOT NEXT JUMP shows, in ember (%d)" % [s, n.index, lit.size()],
+		P.system_done() and lit.size() == 1 and _ember(lit[0], "normal") and not (lit[0] as Button).disabled)
+	n.taken = taken
+	n.results = results
+	P.show_system()
+	await Harness.frames(get_tree(), 2)

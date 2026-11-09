@@ -1679,25 +1679,18 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	# Four drone services at the old machines' prices;
 	# a drone with nothing left says why and flies off.
 	# Why: docs/why/StationScreen.md#yard-services
-	var missing := Run.max_hp() - Run.hp
-	var eight := mini(8, maxi(1, missing))
-	var eight_cost := Market.repair_price(n, eight)
-	var full_cost := Market.repair_price(n, missing)
 	var refuel := Run.refuel_offer(n)
 	var refuel_cost := int(refuel.cost)
 	var dross_n := Run.dross_count()
 	var purge_cost := Market.purge_price(n)
-	var offers: Array = [
-		{"label": "PATCH +%d" % eight, "cost": eight_cost, "done": "" if missing > 0 else "HULL FULL",
-			"tip": "%.1f credits a point here. Repairs cost more on the frontier than in a capital." % Market.repair_rate(n)},
-		{"label": "REPAIR +%d" % missing, "cost": full_cost, "done": "" if missing > 0 else "HULL FULL",
-			"tip": "Repairs the whole hull at once."},
+	var offers: Array = YardDrones.repair_offers(n)
+	offers.append_array([
 		{"label": "REFUEL +%d" % maxi(1, int(refuel.units)), "cost": refuel_cost, "done": Run.refuel_blocked(n),
 			"tip": Run.rescue_line(refuel) if refuel.get("rescue", false)
 				else "Fuel costs more on the frontier than in a capital. Each jump costs fuel (see the starchart's reach ring)."},
 		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
 			"tip": "Choose which one comes out. Each costs the same and clears exactly one."},
-	]
+	])
 	for o: Dictionary in offers:
 		o["ok"] = Run.credits >= int(o["cost"])
 	_scene.set_offers(offers)

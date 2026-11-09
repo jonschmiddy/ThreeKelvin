@@ -166,19 +166,17 @@ func _small(text: String, on: Callable, off := false) -> Button:
 	return b
 
 
-## Docked, a way off the berth is greyed (Jon, Oct 27: UNDOCK is the only way out).
-func _docked_small(text: String) -> Button:
-	var b := _small(text, func() -> void: pass, true)
-	b.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
-	return b
+## Docked, no flight is drawn as a greyed button: one plain line says how to leave
+## (Jon, Oct 27: UNDOCK is the only way out; Nov 9, stripped-down UI 5).
+const UNDOCK_FIRST := "UNDOCK FIRST"
 
-
-func _docked_go(go: Button) -> void:
-	if not Router.docked:
-		return
-	go.text = "DOCKED"
-	go.disabled = true
-	go.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
+func _undock_line() -> Label:
+	var l := UITheme.body(UNDOCK_FIRST, UITheme.COLD, UITheme.FS_SMALL)
+	l.name = "UndockFirst"
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_STOP
+	l.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
+	return l
 
 
 ## A flat link in the eyebrow's type: < ALL EVENTS, SHOW ALL, < and >.
@@ -484,11 +482,9 @@ func _list() -> void:
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
 		_eyebrow("EVENTS · %d OPEN OF %d" % [open, all.size()])
-	var goes := false
 	for pair in shown:
 		if narrowed and _open_event(pair):
 			_place_event(pair[0], pair[1].opt)
-			goes = true
 		else:
 			_box.add_child(_card(pair[0], pair[1]))
 	if filter >= 0 and shown.is_empty() and not all.is_empty():
@@ -508,10 +504,17 @@ func _list() -> void:
 		# greyed while the Hellbender spools its escape, and saying why
 		jb.disabled = _join_shown == Router.JOIN_SHUT
 		jb.tooltip_text = Widgets.tip(Router.join_tip())
-	var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
-	# beside a GO it is the way out, not the way on
-	if goes:
-		Widgets.quiet(plot)
+	# Shown once the system is done, lit as the one thing to do; till then the
+	# STARCHART tab and Tab leave (Jon, Nov 9, stripped-down UI 4). Docked, UNDOCK is.
+	if system_done() and not Router.docked:
+		var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
+		plot.name = "PlotNextJump"
+		Widgets.commit(plot)
+
+
+## No event in the system is still open to take: nothing left but to leave.
+func system_done() -> bool:
+	return not _encounters().any(func(i: int) -> bool: return _is_open(i))
 
 
 func _pair_open(pair: Array) -> bool:
@@ -547,18 +550,20 @@ func _go_button(i: int) -> void:
 	if _body_of_opt(i) == SystemLayout.COMET:
 		_spots(i)
 		return
+	if Router.docked:
+		_box.add_child(_undock_line())
+		return
 	var go := _dress_go(_small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go())), i)
 	go.custom_minimum_size = Vector2(TEXT_W, GO_H)
 	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_box.add_child(go)
 
 
-## Either GO (a world's page, an event's): the ink, DOCKED, and pointed at, what
+## Either GO (a world's page, an event's): the ink, and pointed at, what
 ## taking event i would close.
 func _dress_go(go: Button, i: int) -> Button:
 	Widgets.commit(go, 4, 8)
 	go.name = "Go"
-	_docked_go(go)
 	var rivals := _rivals(i)
 	if not rivals.is_empty():
 		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
@@ -728,19 +733,18 @@ func _way_there(i: int) -> void:
 		go.add_child(_small(_there_word(i), func() -> void: pass, true))
 	else:
 		go.add_child(_spacer())
+		# A world with an open event flies by its GO alone (Jon, Nov 9, stripped-down UI 3).
+		var by_go := i >= 0 and _has_open_event(i)
 		if Router.docked:
-			go.add_child(_docked_small("DOCKED"))
+			go.add_child(_undock_line())
 		elif _held():
 			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
 		elif _can_go():
-			var fly := _small("FLY HERE", func() -> void: screen.fly_to_body(i))
-			# quiet above a GO, which flies you here too (the star's page has none)
-			if i >= 0 and _has_open_event(i):
-				Widgets.quiet(fly)
-			go.add_child(fly)
+			if not by_go:
+				go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
 		elif _heading_to(i):
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
-		else:
+		elif not by_go:
 			go.add_child(_small("FLY HERE ONCE IN ORBIT", func() -> void: pass, true))
 	# (no line under it: the button already says whether GO can fly you there,
 	# Jon, Nov 5: "it's not needed there"; an event's own page keeps its line)
@@ -1031,9 +1035,9 @@ func _event_page(out: Dictionary) -> void:
 		# THE TRIP COMES WITH THE CHOICE, and says so before you make it
 		if _ship_at(body):
 			_eyebrow("YOU ARE " + _there_word(body), UITheme.FLARE)
-		elif not _can_go():
+		elif not _can_go() and not Router.docked:
 			# only why GO can't fly you yet; when it can, GO says so itself
-			# (Jon, Nov 5: "You can remove that here too")
+			# (Jon, Nov 5: "You can remove that here too"); docked, the foot says it
 			_blurb(_locked_line(body), UITheme.COLD)
 		if st.kind == &"left":
 			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
@@ -1051,19 +1055,24 @@ func _event_page(out: Dictionary) -> void:
 		_box.add_child(_rich(_card_line(i, st, o)))
 		_rule()
 		_blurb(String(o.get("body", "")), DIM)
-	# GO, the page's one action, at the foot where the panel's buttons are
-	var has_go: bool = (st.kind == &"open" or st.kind == &"left") and body != SystemLayout.COMET
-	if body == SystemLayout.COMET and (st.kind == &"open" or st.kind == &"left"):
+	# GO, the page's one action, the foot's full width. No ALL EVENTS beside it:
+	# "< ALL EVENTS" up top and a click on the map go back (Jon, Nov 9, stripped-down UI 2).
+	var has_go: bool = st.kind == &"open" or st.kind == &"left"
+	# (a comet's reading: its spots in place of GO, `_spots`)
+	if has_go and body == SystemLayout.COMET:
 		_spots(i)
-	if has_go:
+		has_go = false
+	if has_go and Router.docked:
+		var ul := _undock_line()
+		ul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ul.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ul.custom_minimum_size = Vector2(0, 24)
+		ul.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_foot.add_child(ul)
+	elif has_go:
 		var go := _act("GO", func() -> void: screen.go_event(i))
 		go.disabled = not (_ship_at(body) or _can_go())
 		_dress_go(go, i)
-		# two thirds of the foot
-		go.size_flags_stretch_ratio = 2.0
-	var back := _act("ALL EVENTS", func() -> void: screen.panel_back())
-	if has_go:
-		Widgets.quiet(back)
 
 
 ## The line under the choices: "WILL MAKE THE QUEUE UNAVAILABLE", or nothing.

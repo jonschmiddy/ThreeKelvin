@@ -105,6 +105,18 @@ func _pause_case(c: Dictionary) -> void:
 		await _secs(0.4)
 		_ok("  and BACK in a blink still shows the menu", menu._main.visible and menu._main.modulate.a > 0.99)
 
+	# THE CONFIRM'S WAY BACK IS "BACK" (Jon, Nov 9, stripped-down UI 7): it read
+	# NO, KEEP PLAYING under a RESUME that already says so
+	menu.confirm(true)
+	await _secs(0.2)
+	var cb := menu.find_child("ConfirmBack", true, false) as DrawerPlate
+	_ok("  ABANDON's confirm backs out with BACK, and no NO, KEEP PLAYING (%s)" % (cb.title if cb != null else "none"),
+		cb != null and cb.title == "BACK" and _plate(menu, "NO, KEEP PLAYING") == null)
+	if cb != null:
+		cb.pressed.emit()
+		await _secs(0.2)
+	_ok("  and BACK puts the exits back", _plate(menu, "SAVE & EXIT TO TITLE") != null and _plate(menu, "YES, ABANDON") == null)
+
 	await _press(KEY_ESCAPE)
 	await _secs(0.5)
 	_ok("  Escape shuts the menu", _main.get("_menu") == null)

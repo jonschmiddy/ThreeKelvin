@@ -787,7 +787,7 @@ func _result() -> void:
 	# WHEN ANYTHING LANDED ON THE PILE, read off the pile (`shows_reward`): a
 	# crate of material said CONTINUE here and was left under SECTOR LOOT
 	if OptionResolve.shows_reward(out) and not Run.dead:
-		var claim := Widgets.button("REWARD", open_reward)
+		var claim := Widgets.commit(Widgets.button(LOOT_WORD, open_reward), 5, 10)
 		claim.name = "Reward"
 		claim.disabled = Run.jetsam_left(node, Run.sector_jetsam(node, false)) <= 0
 		buttons.add_child(claim)
@@ -918,7 +918,11 @@ func continue_on() -> void:
 	_drop()
 
 
-## REWARD: the system's pile, your hold beside it (`TransferView`).
+## The pile's one name, here and on LOCAL's bar and the map (it was REWARD here),
+## in the ember ink over CONTINUE (Jon, Nov 9, stripped-down UI 6).
+const LOOT_WORD := "SECTOR LOOT"
+
+## SECTOR LOOT: the system's pile, your hold beside it (`TransferView`).
 func open_reward() -> void:
 	if _transfer != null or node == null:
 		return
@@ -932,7 +936,7 @@ func open_reward() -> void:
 		_transfer.queue_free()
 		_transfer = null
 		if page == &"result":
-			_result(), true, "REWARD")
+			_result(), true, LOOT_WORD)
 
 
 # --------------------------------------------------------------- words

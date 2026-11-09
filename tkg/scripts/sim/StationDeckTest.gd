@@ -29,6 +29,7 @@ func _run() -> void:
 	await _tree.process_frame
 	_dock_desk_rule()
 	_operators_fit()
+	_one_repair_drone()
 	for dev in 5:
 		for berth: bool in [false, true]:
 			await _decks(dev, berth)
@@ -147,6 +148,18 @@ func _operators_fit() -> void:
 
 ## The station you are at, built as BoardSignTest builds it: `berth` gives it
 ## Korvan, otherwise nobody holds it.
+## PATCH and REPAIR are one job with 8 or less missing: PATCH stays away then
+## (Jon, Nov 9, stripped-down UI 7), and both come with more missing.
+func _one_repair_drone() -> void:
+	var here := _station(MapGen.Development.CITY, true, 9190)
+	for row: Array in [[5, "USE REPAIR", ""], [8, "USE REPAIR", ""], [9, "", ""], [20, "", ""], [0, "HULL FULL", "HULL FULL"]]:
+		Run.hp = Run.max_hp() - int(row[0])
+		var o := YardDrones.repair_offers(here)
+		_ok("%d missing: PATCH \"%s\" (%s), REPAIR \"%s\" (%s)" % [row[0], o[0].done, o[0].label, o[1].done, o[1].label],
+			String(o[0].done) == String(row[1]) and String(o[1].done) == String(row[2]))
+	Run.hp = Run.max_hp()
+
+
 func _station(dev: int, berth: bool, seed0: int) -> MapGen.MapNode:
 	Rng.forced = seed0
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -331,13 +344,15 @@ func _chart() -> void:
 	# The dock desk blurb is the longest a station gives; JUMP must stay on screen and clear.
 	var blurb := ch._dest_blurb.text
 	var rows_bottom := ch._rows.get_global_rect().end.y
-	var jump := ch._jump.get_global_rect()
+	# (docked, UNDOCK FIRST stands where JUMP would: stripped-down UI 5, Nov 9)
+	var slot: Control = ch._undock_first if Router.docked else ch._jump
+	var jump := slot.get_global_rect()
 	var screen_h: float = ch.get_viewport_rect().size.y
 	print("    chart blurb %d chars: rows end at %.0f, JUMP %.0f to %.0f of %.0f" 		% [blurb.length(), rows_bottom, jump.position.y, jump.end.y, screen_h])
 	_ok("chart: the blurb says salvage is thin and names the desk",
 		blurb.contains("Salvage is thin and random.") and blurb.contains("posts work from a desk"))
-	_ok("chart: JUMP is on screen and below the rows",
-		jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
+	_ok("chart: JUMP (docked, UNDOCK FIRST in its place) is on screen and below the rows",
+		slot.is_visible_in_tree() and jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
 
 
 ## THE LABORATORY'S SCREEN AND THE CAMERA INTO IT (science S9, Jon's 1C, Nov 4:

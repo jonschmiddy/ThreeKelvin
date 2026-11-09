@@ -586,6 +586,12 @@ FROM THE BERTH, the station's own rule (`Router.cast_off`): docked, a jump the
 chart would offer reads DOCKED and says how to leave (Jon, Oct 27: UNDOCK is
 the only way out; it used to cast off and go, no undock seen); with crates
 still on the pad, CANNOT UNDOCK.
+
+NOV 9 (stripped-down UI, item 5): docked, JUMP is not drawn at all, whatever
+the star picked. A greyed DOCKED button looked like a way out that did
+nothing, one of four on the berth. One plain line, UNDOCK FIRST, stands
+where JUMP was and says the DOCKED line on hover. The HUD's greyed LOCAL tab
+stays as it was (Jon kept it).
 ```
 
 ## Neighbour sorting

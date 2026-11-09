@@ -2583,7 +2583,8 @@ func _click_line(body: int) -> Array:
 	if selected == body:
 		if flight != null and flight.mode == &"fly" and flight.fly_to == body:
 			return [["ON YOUR WAY", UITheme.HOT]]
-		return [["CLICK AGAIN: FLY HERE", UITheme.HOT]]
+		# (a second click still flies; the tip stops saying so: Jon, Nov 9, stripped-down UI 3)
+		return []
 	return [["CLICK: SELECT", UITheme.QUOTE]]
 
 

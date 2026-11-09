@@ -54,18 +54,38 @@ func _says(b: Button) -> String:
 
 
 ## The width a button's word takes, and the room its plate leaves for it.
-func _word_w(b: Button) -> float:
-	return b.get_theme_font(&"font").get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+func _word_w(b: Control) -> float:
+	return b.get_theme_font(&"font").get_string_size(String(b.get("text")), HORIZONTAL_ALIGNMENT_LEFT, -1,
 		b.get_theme_font_size(&"font_size")).x
 
 
-func _room(b: Button) -> float:
-	var sb := b.get_theme_stylebox(&"disabled" if b.disabled else &"normal")
+func _room(b: Control) -> float:
+	if not (b is Button):
+		return b.size.x
+	var sb := b.get_theme_stylebox(&"disabled" if (b as Button).disabled else &"normal")
 	return b.size.x - sb.get_margin(SIDE_LEFT) - sb.get_margin(SIDE_RIGHT)
 
 
+## Docked, a flight is one plain line, never a greyed button (stripped-down UI 5, Nov 9).
+const UNDOCK_FIRST := "UNDOCK FIRST"
+
+## The UNDOCK FIRST line under `root`, shown, saying the DOCKED line on hover.
+func _undock_line(root: Node) -> Label:
+	for c in root.find_children("UndockFirst", "Label", true, false):
+		var l := c as Label
+		if l.is_visible_in_tree() and l.text == UNDOCK_FIRST and l.tooltip_text.replace("\n", " ").contains(DOCKED_LINE):
+			return l
+	return null
+
+
+## No greyed DOCKED button anywhere under `root`.
+func _no_docked_button(root: Node) -> bool:
+	return root.find_children("*", "Button", true, false).all(func(b: Node) -> bool:
+		return not ((b as Button).is_visible_in_tree() and (b as Button).text == "DOCKED"))
+
+
 ## Fit means nothing overlaps: inside the panel and screen, unclipped, clear of other words.
-func _fits(what: String, b: Button, m: SystemMapScreen) -> void:
+func _fits(what: String, b: Control, m: SystemMapScreen) -> void:
 	if not _ok("berth: %s is up" % what, b != null and b.is_visible_in_tree()):
 		return
 	var p := m.panel as Control
@@ -393,8 +413,8 @@ func _jump_trip(go_event: bool) -> Callable:
 			if ch != null:
 				ch._on_node_picked(to)
 				await Harness.frames(_tree, 2)
-				_ok("  from the berth JUMP reads DOCKED, greyed, and says \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
-					ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
+				_ok("  from the berth no JUMP, one line: UNDOCK FIRST (JUMP shown %s)" % ch._jump.visible,
+					not ch._jump.is_visible_in_tree() and _undock_line(ch) != null)
 			Router.begin_jump(to)
 			await Harness.frames(_tree, 30)
 			_ok("  the jump refused: still at the station, docked, on the chart (at %d, on %s)" % [Run.at, _name_of(Router.current)],
@@ -498,10 +518,17 @@ func _berth_shut(p: int) -> void:
 		for b in m.panel.find_children("*", "Button", true, false):
 			if (b as Button).is_visible_in_tree() and (b as Button).text in ["DOCKED", "FLY HERE", "CANNOT UNDOCK"]:
 				fly = b as Button
-		_ok("berth: the world's page offers no flight: DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE,
-			"none" if fly == null else "%s, disabled %s, %s" % [fly.text, fly.disabled, fly.tooltip_text.replace("\n", " ")]],
-			fly != null and fly.text == "DOCKED" and fly.disabled and fly.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
-		_fits("the world page's DOCKED", fly, m)
+		var ul := _undock_line(m.panel)
+		m.panel.show_system()
+		await Harness.frames(_tree, 2)
+		_ok("berth: no PLOT NEXT JUMP lit on the map, as UNDOCK is the one way out (%d)" % m.panel._foot.find_children("PlotNextJump", "Button", true, false).size(),
+			m.panel._foot.find_children("PlotNextJump", "Button", true, false).is_empty())
+		m.select_body(p)
+		await Harness.frames(_tree, 2)
+		ul = _undock_line(m.panel)
+		_ok("berth: the world's page offers no flight, no button: one line, UNDOCK FIRST (%s)" % _says(fly),
+			fly == null and ul != null)
+		_fits("the world page's UNDOCK FIRST", ul, m)
 		m.fly_to_body(p)
 		await Harness.frames(_tree, 30)
 		_ok("berth: FLY HERE refused, still docked, the ship where it was (%d)" % m.flight.reached(),
@@ -525,16 +552,16 @@ func _berth_shut(p: int) -> void:
 			m.panel.open_page(k)
 			await Harness.frames(_tree, 3)
 			var pg := m.panel.find_child("Go", true, false) as Button
-			_ok("berth: the event's page: GO reads DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE, _says(pg)],
-				pg != null and pg.text == "DOCKED" and pg.disabled and pg.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
-			_fits("the event page's DOCKED", pg, m)
+			var pl := _undock_line(m.panel._foot)
+			_ok("berth: the event's page: no GO, the foot says UNDOCK FIRST (%s)" % _says(pg),
+				pg == null and pl != null and _no_docked_button(m.panel))
+			_fits("the event page's UNDOCK FIRST", pl, m)
 			m.panel.show_body(_station_body())
 			m.panel._place_event(_station_body(), k)
 			await Harness.frames(_tree, 3)
 			var rg := m.panel.find_child("Go", true, false) as Button
-			_ok("berth: the event's row on the station's page: GO reads DOCKED, greyed, saying \"%s\" (%s)" % [DOCKED_LINE, _says(rg)],
-				rg != null and rg.text == "DOCKED" and rg.disabled and rg.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
-			_fits("the station page's DOCKED", rg, m)
+			_ok("berth: the event's row on the station's page: no GO, UNDOCK FIRST (%s)" % _says(rg),
+				rg == null and _undock_line(m.panel._box) != null and _no_docked_button(m.panel))
 			m.panel.show_system()
 			await Harness.frames(_tree, 2)
 			m.go_event(k)
@@ -549,10 +576,12 @@ func _berth_shut(p: int) -> void:
 	if _ok("berth: Tab goes on to the chart, still docked", ch != null and Router.docked) and to >= 0:
 		ch._on_node_picked(to)
 		await Harness.frames(_tree, 2)
-		_ok("berth: JUMP reads DOCKED, greyed, saying \"%s\" (%s, %s)" % [DOCKED_LINE, ch._jump.text, ch._jump.tooltip_text.replace("\n", " ")],
-			ch._jump.disabled and ch._jump.text == "DOCKED" and ch._jump.tooltip_text.replace("\n", " ").contains(DOCKED_LINE))
-		_ok("berth: the chart's DOCKED button whole on screen, its word whole (%s, %.0f of %.0f px)" % [ch._jump.get_global_rect(), _word_w(ch._jump), _room(ch._jump)],
-			get_viewport().get_visible_rect().encloses(ch._jump.get_global_rect()) and _word_w(ch._jump) <= _room(ch._jump) + 0.5)
+		var cl := _undock_line(ch)
+		_ok("berth: no JUMP on the chart, one line: UNDOCK FIRST, saying \"%s\" on hover (JUMP shown %s)" % [DOCKED_LINE, ch._jump.visible],
+			not ch._jump.is_visible_in_tree() and cl != null)
+		if cl != null:
+			_ok("berth: the chart's UNDOCK FIRST whole on screen, its word whole (%s, %.0f of %.0f px)" % [cl.get_global_rect(), _word_w(cl), _room(cl)],
+				get_viewport().get_visible_rect().encloses(cl.get_global_rect()) and _word_w(cl) <= _room(cl) + 0.5)
 		Router.begin_jump(to)
 		await Harness.frames(_tree, 30)
 		_ok("berth: the chart's JUMP refused (at %d, still docked, on %s)" % [Run.at, _name_of(Router.current)],

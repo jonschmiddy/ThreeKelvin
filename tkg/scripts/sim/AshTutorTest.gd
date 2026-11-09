@@ -49,7 +49,8 @@ const JON := {
 	&"flee_hail": "FLEE and HAIL end a fight early. Each one is a check, and a miss costs us.",
 	&"piles": "Played cards go to the discard. When the draw pile runs out, they shuffle back in at the next turn.",
 	&"odds": "This one tests the ship. It shows the stat, what we have, and the odds. Meet it and it can't fail.",
-	&"result": "Here's what it cost and what we got. REWARD opens anything we found. Then press CONTINUE.",
+	# (Nov 9: the pile's one name, stripped-down UI 6; text only until a retake)
+	&"result": "Here's what it cost and what we got. SECTOR LOOT opens anything we found. Then press CONTINUE.",
 	&"fuel_first": "Each jump burns fuel. Run dry between stars and the run ends. Stations sell more.",
 	&"hull": "That's our hull. At zero, the ship is lost. A shipyard can patch it.",
 	&"map_fly": "Click a world twice and we fly there. Or fly us by hand.\n{thrust} pushes. {left} and {right} turn.",
@@ -833,6 +834,9 @@ func _lines() -> void:
 			stale.append(String(k))
 	_ok("the %d rewritten lines never play their old take (%s)" % [AshTutorLines.RETAKE.size(), "none do" if stale.is_empty() else "NOT " + ", ".join(stale)],
 		stale.is_empty())
+	_ok("the result line says SECTOR LOOT, the pile's one name, and plays no take till a retake (%s)" % AshTutorLines.voice_path(&"result"),
+		AshTutorLines.voice_path(&"result") == "" and String(AshTutorLines.LINES[&"result"]).contains("SECTOR LOOT")
+		and not String(AshTutorLines.LINES[&"result"]).contains("REWARD"))
 	print("    (each hint's action:)")
 	for k in Hints.ORDER:
 		print("      %-13s %s" % [k, Hints.DONE.get(k, "information: its reading time after her voice, then by itself")])

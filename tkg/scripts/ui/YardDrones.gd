@@ -650,3 +650,18 @@ func draw_marks(P: YardPaint, t: float, dt: float) -> void:
 		var sz := 2.0 if a2 < 0.4 else 1.0
 		P.px(float(p["x"]), float(p["y"]), sz, sz, YardScene.lit(Color("#c3c9d0") if a2 < 0.5 else Color("#8a9199"), M))
 	puffs = live
+
+
+## The PATCH and REPAIR drones' offers. With 8 or less missing they are the same
+## job, so PATCH stays away and REPAIR comes alone (Jon, Nov 9, stripped-down UI 7).
+static func repair_offers(n: MapGen.MapNode) -> Array[Dictionary]:
+	var missing := Run.max_hp() - Run.hp
+	var eight := mini(8, maxi(1, missing))
+	var patch_done := "HULL FULL" if missing <= 0 else ("USE REPAIR" if missing <= 8 else "")
+	var out: Array[Dictionary] = [
+		{"label": "PATCH +%d" % eight, "cost": Market.repair_price(n, eight), "done": patch_done,
+			"tip": "%.1f credits a point here. Repairs cost more on the frontier than in a capital." % Market.repair_rate(n)},
+		{"label": "REPAIR +%d" % missing, "cost": Market.repair_price(n, missing), "done": "" if missing > 0 else "HULL FULL",
+			"tip": "Repairs the whole hull at once."},
+	]
+	return out

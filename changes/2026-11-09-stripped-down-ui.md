@@ -1,0 +1,8 @@
+- **Changed** — fewer buttons that do the same thing. LOCAL's bottom bar no longer says "SEE SECTOR" next to the SCAN SECTOR button.
+- **Changed** — on the sector map, an event's page has one way back: "< ALL EVENTS" at the top, or a click on the map. GO takes the whole foot.
+- **Changed** — a world with an event shows only the event's GO, not FLY HERE as well. Clicking the world twice still flies there.
+- **Changed** — PLOT NEXT JUMP shows up once every event in the system is done, lit orange. Until then, the STARCHART tab or Tab takes you to the chart.
+- **Changed** — docked, the map and the star chart say UNDOCK FIRST instead of showing greyed DOCKED buttons.
+- **Changed** — an event's REWARD button is now called SECTOR LOOT, the same name as the pile it opens, and it is orange so it stands out from CONTINUE.
+- **Changed** — the Shipyard sends one repair drone when 8 hull or less is missing, since PATCH and REPAIR would do the same job.
+- **Changed** — the ship view's close button says DONE, and the pause menu's "NO, KEEP PLAYING" says BACK. Esc still works.

@@ -41,6 +41,7 @@ func _run() -> void:
 	var missed_before: Array = []
 	var quests := {}
 	var left_ok := false
+	var named_seen := false
 	var science := 0
 	for o in OptionTable.all():
 		var id := StringName(o.id)
@@ -112,6 +113,17 @@ func _run() -> void:
 						_fail("%s put %d on the pile and REWARD is greyed" % [tag, gained])
 					else:
 						shown += 1
+						# ONE NAME FOR THE PILE, and the louder button (stripped-down UI 6, Nov 9)
+						var cont := d.find_child("Continue", true, false) as Button
+						if cont == null:
+							cont = d.find_child("TheyAreFiring", true, false) as Button
+						var sb := reward.get_theme_stylebox(&"normal") as StyleBoxFlat
+						if not named_seen:
+							named_seen = true
+							var csb: StyleBoxFlat = (cont.get_theme_stylebox(&"normal") as StyleBoxFlat) if cont != null else null
+							_ok("the pile's button says SECTOR LOOT, in ember over the plain button beside it (%s, %s)" % [reward.text, cont.text if cont != null else "none"],
+								reward.text == "SECTOR LOOT" and sb != null and sb.border_color.is_equal_approx(UITheme.EMBER)
+								and cont != null and (csb == null or not csb.border_color.is_equal_approx(UITheme.EMBER)))
 					# CONTINUE with REWARD unopened: the things stay in SECTOR LOOT
 					if reward != null and not left_ok:
 						d.continue_on()
@@ -123,6 +135,7 @@ func _run() -> void:
 				elif reward != null:
 					_fail("%s put nothing on the pile and the result has REWARD" % tag)
 				d.queue_free()
+	_ok("a result with loot was checked for its button's name and ink", named_seen)
 	print("  %d outcomes resolved, %d put something on the pile, %d showed REWARD" % [outcomes, paid, shown])
 	print("  the old rule (`module` only) showed no REWARD on %d of them:" % missed_before.size())
 	for t in missed_before:
