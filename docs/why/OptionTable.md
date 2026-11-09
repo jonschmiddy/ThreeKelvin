@@ -141,6 +141,10 @@ NOT `pay`. That name was already taken by the function that turns a resolved
 outcome into the REWARD line -- a different job entirely, and the collision
 was a parse error rather than a silent shadow only because GDScript refuses
 two functions of one name.
+
+AND FOR THE PARTY (Jon, Nov 5: "loot pools are increased as the playercount
+increases"): an n-player game pays `PartyScale.loot(n)` of it, so a party
+that splits the galaxy's events evenly is each paid what a lone pilot is.
 ```
 
 ## Option gating
@@ -284,6 +288,8 @@ entire payout. An option cannot be taken twice anyway; `n.taken` is
 what stops that.
 THE FLOOR, not a wreck: nothing died to produce this, so it lands in
 the system's own pile beside anything you have put down here.
+One more for each player past the first (`PartyScale`, Jon, Nov 5),
+as the event's money is.
 ```
 
 ## Material consumption ruling

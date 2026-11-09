@@ -9,7 +9,7 @@ LOCAL IN EVERY STYLE AND STATE, in one window (`LocalShot` and `CutawayShot`
 take one state a run; this walks the whole matrix in one process, for the
 polish audit and its before/after):
   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LocalAudit
-      out=<dir> [styles=simplified,legacy,painted,radiant] [cases=<name>,...]
+      out=<dir> [styles=simplified,painted,radiant] [cases=<name>,...]
       [clipframes=45] [cut] [nocut] [noblur]
 Each case: a new run (its seed), the ship parked as the sector map leaves it,
 LOCAL shown, then <dir>/<style>/<case>.png (the game's own 960x540 frame),

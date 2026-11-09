@@ -262,6 +262,17 @@ against the fallback's flight with the warm slack, a wider flight of
 of SolveTest's fallback flights from a ring or alongside planned
 again 15 times as the overlay does, 1,790 of the 5,745 kept warm
 were kept where a fresh plan arrived sooner; none now)
+BOTH SIDES AS BUILT (Nov 7): a choice's J is its flight's cost as
+built, on the sample grid, and the kept flight and a fresh search's
+are weighed on that too. The search prices a flight at its exact
+arrival, and an arrival burn alongside can cost a few px/s more or
+less there than a sample on: within a few percent of the least pull
+it is the short burn, just past it one about three times as long
+(`_cubic_burn`). Priced, at seed 7 node 199's close pair (CURVED,
+ring 1 to keep 5, line-up 2, planned again 3 s on) the fresh flight
+cost -162.5 against the kept one's -155.8, inside the slack; built,
+-166.1, its burn 0.37 s and not 1.10 s, and the kept flight stood
+0.3 past the slack (SolveTest short shard 3, every run at x12).
 ```
 
 Inside `_solve()`, above `_fresh()`:
@@ -955,4 +966,228 @@ made for another radius, spot or sense was rebuilt as it was (the planner
 review, Oct 30). A settled orbit round a sun of a turning pair is a -9
 circle whose centre moves: it is the same flight by its sun (`dhs`), its
 centre at t = 0 being that sun's, not by where the ship saw the sun.
+```
+
+## Fast transfers
+
+Above `const HOLD_MAP := 0.4`:
+
+```text
+THE FAST TRANSFERS (Jon, Nov 4-5: "almost 4 times slower than feels good",
+"Why is transferring between planets a straight line?"): every flight is
+solved on its own clock, tau = pace x map time, through a copy of the system
+whose bodies move pace times slower (`MapGravity.paced`), at today's THRUST,
+gravity and every other dial, then played back pace times faster (`solve`'s
+`pace`, `Result.to_map`): the same path, its pulls pace^2 stronger on the
+map, and the place met where it really is. The ring speeds the ship leaves
+and arrives at stay the map's own (RAIL_V 35 on the map, RAIL_V / pace in
+tau). Two paths (`DisplaySettings.autopilot`, AUTOPILOT: DIRECT . CURVED):
+DIRECT is ruling 21's C search (TIME_W 16 to T_CAP 16) at pace 4, about 11 s
+of tau played in about 2.8 s; CURVED is the as-built search (ruling 20's
+TIME_W_BACK 0.5 to T_CAP_BACK 30, its conic times and FAR_T_BACK) as the
+first look with its arc (`CURVED_ARC`, WIDE: Jon, Nov 7, "1C") at pace 8
+(Nov 5 "Lets do 4X for both", then Nov 7 "double the speed for the wide"):
+slow, cheap flights that bend round the stars, about 48 s of tau played in
+about 6 s. Both keep the wider search and the flight in two legs behind them.
+ALONGSIDE, the hold before leaving (KEEP_HOLD in tau) is at least HOLD_MAP
+of map time: KEEP_HOLD 1 s of tau is an eighth of a second at pace 8.
+```
+
+## Ring speeds on the flight's clock
+
+Above `const RING_TAU := 60.0`:
+
+```text
+THE RING SPEEDS ON THE FLIGHT'S CLOCK. A ring's speed divided by the pace
+left the ship all but at rest in tau (a star's close orbit, 45 px/s on the
+map, 5.6 at pace 8, deep in a well whose gravity the flight's clock leaves
+as it is), and from a star's close orbit or to one the solver found a
+third of the flights or none (SolveTest, Nov 5: twins 50%, close pairs
+62%, at a floor of 20 px/s; 100% at 60). So a ring is left and arrived on
+in tau at its speed / pace but never under RING_TAU px/s, nor over its own
+speed: every ring the game has (worlds' 35 px/s, stars' 45, settled star
+orbits' 13 to 50) at its own speed. On the map the ship spins up round its
+ring to pace times that before it leaves (`ShipFlight._ride_shape`: it
+rides at the ring's own speed, spins up over SPIN_UP s and whirls round at
+the departure's for the ride's last part) and spins down onto the ring's
+own speed as it arrives (`ShipFlight.start_rail`'s spin, SPIN_S).
+`-- ringtau=X` sets it for a harness (0: speed / pace, as first built).
+```
+
+## Spin-up
+
+Above `const SPIN_UP := 0.3`:
+
+```text
+THE SPIN-UP's length on the map (s): the ship's rate eased from its ring's
+own to the departure's (`ShipFlight._ride_shape`). The ride on the flight's
+clock starts with it (`dep.w0`, the ring's own rate there, and `dep.spin`,
+SPIN_UP x pace tau-s: a smoothstep from w0 to w), so it lasts at least the
+spin and goes (w - w0) spin / 2 less far round: a flight left at once, as
+the solver first had it, could not be flown on the map, where the ship is
+still at its ring's own rate (IOTA TALLOW GATE V to IV, DIRECT: every plan
+made for a moment just ahead untakeable, and the ship put there). The spin
+is the clock's hand-off, not engine work, and is not priced. 0.3 (Jon,
+Nov 7, "2B", the softer spin, filmed beside 0.15). It was 0.15 from the
+code review, Nov 5: 0.3 is the shortest ride before a departure and most
+of the forced near offset in `_aligned` (its push at 0.15 about 2450
+px/s^2 against the 7680 `ShipFlight.SPIN_PUSH_K` allows). Its measured
+cost at 0.3: DIRECT's retarget move 23.9 px (17.4 at 0.15; limit 16).
+`-- spinup=S` sets it for a harness.
+```
+
+## Eased last look
+
+Inside `_fresh()`, above `if _b_J == INF and _kp > 1.0 and _dk == 0 and _leg == 0 and not _ease:`:
+
+```text
+EASED, AS A LAST LOOK, out of a ring on a flight's own clock: every
+departure burn that hooks tighter than the map draws is turned down
+(`_burn_tight`), and at one moment of seed 4242 system 50's giant ring 2
+to world 0 nothing else was found, by CURVED with a spin-up of 0.15 s and
+by DIRECT with 0.3 (FlightTest, Nov 5: 95 of 96, today's planner flying
+it at today's speed). Then the burn eases while the ship is slow (R_BURN,
+as out of a settled star orbit), so it bends round 14 px at the least, and
+the choice says so (`ez`) for it to be rebuilt the same. Not first: eased,
+a burn deep in a star's well was too weak to climb out (`R_BURN`).
+```
+
+## Arc reward
+
+Above `func _arc_of(on: bool, k: int) -> float:`:
+
+```text
+The arc reward for arriving at node k (`_sweeps` read first): `_arcw` px/s
+a radian swept (to `_aimsw`) and `_arcb` a unit of bend (to `_aim`), none
+where the coast dips nearer the star than `_dip` of the nearer of its two
+ends (a fall past the star, not an arc round it), nor where it swings out
+past the map's edge (`_arc_out`: FlightTest's flights from the far side,
+Nov 5, ran 38 px past it for the bend).
+```
+
+## Departure burns turned down
+
+Inside `_fly()`, above `if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not ((_ease or (_kp > 1.0 and _dk == 0)) and _burn_tight()):`:
+
+```text
+(a departure burn that swings the ship round a point is not flown: `V_CUSP`;
+nor an eased one the map would draw as a hook, `_burn_tight`, nor one out
+of a ring on a flight's own clock: a burn 127 to 150 deg against the
+ring's motion hooked round about 6 px, three game starts' corners at pace
+4 and 8 that main never flew (the code review, Nov 5: seed 4242 systems
+50 and 231). Not alongside: a burn from rest beside a slow station reads
+as tight and every flight from there was put there)
+```
+
+## Solve
+
+Above `static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}, opts: Dictionary = {}) -> Result:`:
+
+```text
+THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
+In a twin, where nothing is found, a flight in two legs (`_chain`).
+THE FLIGHT, on the map: dep and tgt in map units, t map time, `opts`
+{path: &"direct" | &"curved", pace: k} (`ShipFlight.flight_opts`); none is
+today's flight, DIRECT at pace 1, to the last digit. `grav` the system's
+MapGravity (at any pace: `paced(k)` is taken, a copy held already at k is
+used as it is). The search runs on the flight's own clock (tau = k t, from
+0, so a choice made at one moment is read at the next): the ring's and a
+free start's speed / k, the target's ring speed / k. The Result comes back
+on the map's clock (`Result.to_map`) unless opts.tau. A `prefer` made on
+another path or pace is not read.
+```
+
+## Solve pace and cusp
+
+Above `var _kp := 1.0`:
+
+```text
+THE PACE A FLIGHT IS SOLVED AT (`solve`), and the eased burn's least pull
+on its clock (P_MIN over the pace). THE CUSP'S SPEEDS (V_CUSP, V_SLOW,
+CUSP_PAD, CUSP_IN) ARE NOT SCALED: a cusp is the burn's turn radius, v^2 / a,
+which the flight's clock leaves as it is (speeds / k, pulls / k^2), so the
+limits that turn one down at pace 1 turn the same drawn hook down at any
+pace. Divided by the pace (as first built, when the rings in tau were their
+speed / pace and a settled orbit's 13 px/s at the edge was 1.6), the
+smallest radius turned down was 64 times tighter at pace 8 (the code
+review, Nov 5); RING_TAU put the rings back at their own speeds.
+```
+
+## Curved arc
+
+Above `const CURVED_ARC := {`:
+
+```text
+CURVED'S ARC (Jon, Nov 5: "I was kinda expecting the curved to have more
+of a bend... it still looks more like a direct path"): CURVED's first look
+is the as-built search with these dials in place of T_CAP_BACK and
+TIME_W_BACK: `cap` its time cap (tau-s), `tw` its time weight, and a reward
+that takes off the cost `bend` px/s for each unit of the coast's bend
+(`_bend_to`: the farthest it strays from the straight line between where it
+leaves and where it arrives, over that line) up to `aim`, so the cheapest
+flight that bends that much is taken, and none past it (a loop is not
+worth more than an arc). None where the coast dips nearer the star than
+`dip` of the nearer of its ends (`_arc_reward`): rewarded alone, the cheap
+bent flight was a fall past the star and back out, a hairpin, not an arc
+round it. (`arc` would pay a radian of sweep round the star instead, to
+`aimsw`: the sweep the short way is the line-up's, so it bought only those
+falls and loops the long way round. Neither TIME_W nor the cap alone bent
+a flight: at TIME_W_BACK the cheapest flight is already near the least
+work.) Its conic guesses run on past CONIC_TS_BACK to the cap (`_arc_ts`),
+and each guess is priced with the reward on its two-body coast
+(`_conic_arc`). THE ARC LOOK after it (`_arc_look`, Nov 7): that search
+refines only its cheapest guess and keeps the first flight it finds, and
+with the reward on, its cheapest guesses were long coasts that fall into a
+keep-out the two-body conic does not see (out of a giant's well, into the
+star), so a level's flight bent less than the level below's (seed 1999
+ALPHA TALLOW III to I: mild 0.346, strong and wide 0.085). So `keep` guesses
+ranked by plain cost and priced with the reward from where the ship really
+leaves, the first `ref` of them refined on a budget of their own (a guess
+that fails does so on its first flight), and the cheaper flight of the two
+looks kept, the look's only where it bends ARC_GAIN more. No reward for a
+coast that turns more than `tmax` degrees (a loop: the look found flights
+of 430 deg). `bend` 800 (was 400): at 400 the steeper bend did not pay its
+work and strong flew mild's flight. CaseScan, six seeds' world-to-world
+flights, 504 a level: flights bent under 0.1 were 20 to 24% of each level,
+now 5 to 6%. One dial picks the level
+(`CURVED_ARC_LEVEL`; `-- arc=mild|strong|wide` for a harness, `arc_cap=`
+`arc_tw=` `arc_b=` `arc_aim=` `arc_dip=` `arc_w=` `arc_sw=` `arc_ref=`
+(0: no arc look) `arc_keep=` `arc_tmax=` `arc_s=` `arc_hook=` `arc_loop=`
+`arc_wob=` to try others). A flight in two
+legs keeps the as-built dials. A bend takes time (it grows with the flight's
+own seconds squared), so each level flies longer on the map than the
+as-built search.
+THE SHAPE'S RULES (Nov 7, the review of the arc look): the bend rewarded is
+the farther side's less `s` times the nearer side's (an S) and `hook` times
+how far the coast runs on past either end (a hook: p75's flights passed the
+target and turned back), and a coast that turns more than `tmax` costs
+`loop` px/s more (with only its reward taken away, 48 of 690 FlightTest
+flights still turned past 240 deg and 3 past 360). The look's flight is kept
+by its bend as rewarded, uncapped (`_arc_look`; a capped reward kept any
+mild first look already bent 0.13). CaseScan, six seeds, 504
+world-to-world flights a level (mild / strong / wide): bend median 0.233 /
+0.297 / 0.396, hooks over 0.05 2.2 / 2.2 / 7.5% (strong was 11.1%), none
+turning past 300 deg (was 0.6%), seconds median 9.7 / 10.7 / 12.2. The
+sweep round the star is the worlds' own line-up (median 83 deg at every
+level); wide takes the long way round, a half orbit, where the target is
+far enough ahead (a third of its flights sweep 120 deg or more, the 90th
+percentile 221). Not kept: wide's aim at a half ellipse's own bend, 0.5
+(sqrt(r1 r2) / (r1 + r2)): 0.409 median, but on the headline case it bought
+a long coast past the target and an arrival burn that drags back (a hump
+the coast's own shape does not see); `wob` (px/s a radian the coast turns
+back on itself) at 100 and 200 left that flight as it was and made 3 to 5%
+more flights flat (under 0.1).
+```
+
+## Warm slack curved
+
+Above `const WARM_K_CURVED := 0.25`:
+
+```text
+CURVED's (`_slack`): its search prices a second at TIME_W_BACK, so flights
+of near one cost bend round the stars very differently, and a preview
+planned again as the ship rode its ring jumped between them (the code
+review, Nov 5: the drawn line's biggest move in half a second, a median
+41.9 px against DIRECT's 16.8 and today's 8.1). `-- warmk=X` sets it for a
+harness.
 ```

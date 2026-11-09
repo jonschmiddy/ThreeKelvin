@@ -130,9 +130,9 @@ Above `func _growth_rules_test() -> void:`:
 ```text
 THE BOSS GROWS MID-FIGHT (Jon, Nov 4, decision 2), with no wire under it:
 a Custodian opened at 20 jumps, joined and hurt, grown to 33. Its hull is the
-joined hull times hull_at(33) / hull_at(20), the damage done stays done, a
-later joiner adds 0.6 of the new hull, and a pilot who left first changes
-nothing (join growth never shrinks back).
+opened hull times hull_at(33) / hull_at(20), the damage done stays done, a
+later joiner adds nothing (Nov 5: the hull is built for the game's
+players), and a pilot who left first changes nothing.
 ```
 
 ## Targeting
@@ -250,4 +250,18 @@ the balance point holds still, where turning it with the pair (the design's
 first rule) would have swung it by the angle between the clocks. A world's
 offset off the world, the world round star B carried with it. And one sun:
 a star's spot is the plane point it always was, to the bit.
+```
+
+## Flight said test
+
+Above `func _flight_said_test(host: NetSession, early: NetSession, late: NetSession, id: int) -> void:`:
+
+```text
+A FLIGHT, SAID ONCE AS IT LEAVES (PROTOCOL 17): `early` says a 3 s flight
+from world 0 to world 1 of system 12 (an arc of 181 points at 60 a second,
+its first and last burning), and the host and `late` keep it whole; said
+again with the same key, nothing goes; let go of, it is gone on both. Drawn
+(`NetSession.flight_point`): at the sender's own clock, on its path within 1
+px at five moments; at a clock 10 s behind, it leaves from where world 0 is
+at that clock and lands where world 1 is, each end moved with its place.
 ```

@@ -419,8 +419,8 @@ func _fight(cb: Combat) -> void:
 				said = true
 				print("[bot] in this one alongside %s." % ", ".join(crew))
 		# Waiting on the barrier is not a decision, so it is not offered as one.
-		# Nor is waiting for the host's answer: nothing is dealt yet.
-		if cb.waiting or cb.asking_at >= 0:
+		# Nor is waiting for the host's answer, or a stun: nothing is dealt yet.
+		if cb.waiting or cb.asking_at >= 0 or cb.stunned:
 			continue
 		turns += 1
 		var acting := true

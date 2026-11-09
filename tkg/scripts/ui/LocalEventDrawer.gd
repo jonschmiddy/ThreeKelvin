@@ -380,6 +380,7 @@ func _text_box(words: String, ink: Color) -> ScrollContainer:
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text = SignalText.new()
+	text.by_word = true
 	text.ink = ink
 	text.text = words
 	text.name = "Text"

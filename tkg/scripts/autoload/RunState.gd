@@ -773,6 +773,7 @@ func open_bag(n: MapGen.MapNode, drops: int, hands: int) -> void:
 	var r := Rng.derive(&"bag", n.index)
 	var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 	# Scaled by the crew, so bringing a friend does not halve the fight's worth to you.
+	# The enemy was built for the party (`PartyScale`); this is the other side of that bargain.
 	for i in drops * maxi(1, hands):
 		n.bag.append(LootGen.roll_module(n.danger, force,
 			n.region == MapGen.Region.DEEP, r))
@@ -1316,12 +1317,14 @@ func material(id: StringName) -> int:
 
 
 ## Grants go into the system as a container, so a full hold can refuse a reward without losing it.
+## Every material is paid: an n-player game puts `PartyScale.pay(n)` of them in the system.
 ## Why: docs/why/RunState.md#materials
 func add_material(id: StringName, n: int) -> Array[MaterialData]:
 	var made: Array[MaterialData] = []
 	var row := MaterialTable.by_id(id)
 	if row.is_empty() or n <= 0:
 		return made
+	n = PartyScale.pay(n)
 	for i in n:
 		made.append(MaterialData.of(row))
 	var here := node_at()
@@ -1398,12 +1401,13 @@ func harvest_pulsar() -> void:
 	fuel += gain_fuel
 	# The drop lands in the system and has a real name, not the placeholder Exotic.
 	# Why: docs/why/RunState.md#pulsar-harvest
-	add_material(PULSAR_DROP, gain_exotic)
+	# (in a party's game more is made, `PartyScale`: the line says what was)
+	var adrift := add_material(PULSAR_DROP, gain_exotic).size()
 	heat += gain_heat
 	log_line("Beam sweep. Fuel pours into the tank for eleven seconds.", &"good")
 	# The name comes off the table rather than being written here twice.
 	var silt: Dictionary = MaterialTable.by_id(PULSAR_DROP)
-	log_line("+%d fuel, and %d %s adrift alongside." % [gain_fuel, gain_exotic,
+	log_line("+%d fuel, and %d %s adrift alongside." % [gain_fuel, adrift,
 		String(silt.get("name", "exotic")).to_lower()], &"good")
 	log_line("Hard radiation through the hull. +%d heat." % gain_heat, &"them")
 	Sig.resources_changed.emit()
@@ -1461,8 +1465,11 @@ func scrap_found_hull() -> bool:
 	var mat := StringName(pay.get("material", &""))
 	if mat != &"":
 		var made := add_material(mat, 1)
-		if not made.is_empty() and node_at() != null:
+		if made.size() == 1 and node_at() != null:
 			said += " A crate of %s is in SECTOR LOOT." % made[0].name
+		elif made.size() > 1 and node_at() != null:
+			# (a party's game makes one a player, `PartyScale`)
+			said += " %d crates of %s are in SECTOR LOOT." % [made.size(), made[0].name]
 	log_line(said, &"good")
 	return true
 

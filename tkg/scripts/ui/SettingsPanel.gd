@@ -253,7 +253,6 @@ func _page_look() -> void:
 					DisplaySettings.set_render_style(st)
 					_refresh())
 			sb.tooltip_text = Widgets.tip({
-				&"legacy": "The look from before: the star chart and sector map as they were, with the new black hole and animations.",
 				&"simplified": "A clean star chart and sector map, with gas streaming along the arms, pulsing knots and weather in the nebulae.",
 				&"painted": "A hand-painted look, with banded light, hue-shifted shadows and dithered gas.",
 				&"radiant": "The galaxy and its nebulae drawn as lit gas. It is heavy on the graphics card and made for screenshots. It falls back to SIMPLIFIED if the machine can't keep up.",
@@ -367,6 +366,16 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_skip_jump(i == 1)
 			_refresh()))
+	# THE AUTOPILOT'S FLIGHT (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): the
+	# map's flights for a world clicked twice. A flight under way flies on; the
+	# line drawn is planned again (`SystemOverlay`'s preview key holds the path)
+	_body.add_child(_row_chips("AUTOPILOT", ["DIRECT", "CURVED"],
+		0 if DisplaySettings.autopilot == &"direct" else 1,
+		func(i: int) -> void:
+			DisplaySettings.set_autopilot(&"direct" if i == 0 else &"curved")
+			_refresh(),
+		["Points the nose at the world and flies straight there.",
+			"Swings wide round the star, bent by its pull."]))
 	_body.add_child(_row_chips("SCREEN SHAKE", ["ON", "OFF"],
 		0 if DisplaySettings.screen_shake else 1,
 		func(i: int) -> void:

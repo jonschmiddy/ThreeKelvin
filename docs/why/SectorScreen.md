@@ -1570,34 +1570,29 @@ here moves or sizes it until the ENTER.
 Inside `ladder_cam()`, above `kc = 0.0`:
 
 ```text
-UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background
-stays put as your ship flies out, matching docking"). k runs from 1 to
-0 over the dock's own ENTER (`ZoomLadder.DOCK_ENTER_S`), and on every
-frame your ship is where the ENTER had it as far from its end: in the
-hull at its berth while LOCAL comes up from the yard's black (the dock's
-dip backwards, `ladder_up_s`), then out through the mouth, growing back
-to its own size, fastest first and slowing all the way to rest at its
-mooring (fly = k squared, the ENTER's ue squared run back). Its engines
-burn as the ENTER's did and sputter out as it settles
-(`_undock_engines`). THE CAMERA DOES NOT MOVE -- no pan, no zoom out of
+UNDOCKING HOLDS THE BACKGROUND AS DOCKING DOES (Jon, Oct 21: "the
+background stays put as your ship flies out, matching docking"). k runs
+from 1 to 0 over the dock's own ENTER's length
+(`ZoomLadder.DOCK_ENTER_S`): your ship in the hull at its berth while
+LOCAL comes up from the yard's black (`ladder_up_s`), then out through
+the mouth down the ENTER's path, growing back to its own size, to rest
+at its mooring. THE CAMERA DOES NOT MOVE -- no pan, no zoom out of
 the mouth: the station, its layers, the wrecks, the dust, the sky and
 its worlds stand where they are, as they do docking (4e6d1fcc) -- and
 the station stays lit, a working station (Jon).
+Eased from rest to rest, not the ENTER's curve run back, which left
+the bay at full speed and read as the film reversed.
 ```
 
 Above `func _undock_engines(art: ShipView, hall: Dictionary) -> void:`:
 
 ```text
-UNDOCKING'S ENGINES, the ENTER's backwards: lit at the cruise burn (the
-dock's entry burn, `_dock_burn`, seen and heard) from the moment any of your
-ship can be seen coming out -- `dip_s` after LOCAL comes up, where the dock's
-burn went out -- until the arrival's own flameout takes over
-(`ShipView.sputter`), timed so that its last cough comes `UNDOCK_COAST_S`
-before your ship comes to rest at its mooring -- the last of the way coasted
-at the idle, as an arrival's is -- then the idle it keeps. The flameout's clip from its
-first cough, at the burn's level so the two are one engine, from where the
-coughs are -- and never on a press that ended the move at once
-(`ZoomLadder.finish_now`): your ship is parked then, and nothing is heard.
+UNDOCKING'S ENGINES: the idle as your ship backs out (no cruise burn), then
+the arrival's own coughs (`ShipView.sputter`) as it slows, timed so that the
+last comes `UNDOCK_COAST_S` before it comes to rest at its mooring, then the
+idle it keeps. The coughs' clip from the first, at the dock burn's level --
+and never on a press that ended the move at once (`ZoomLadder.finish_now`):
+your ship is parked then, and nothing is heard.
 ```
 
 ## Calm move
@@ -2012,4 +2007,17 @@ it always did; then your hull comes apart (`ShipLoss`, the boss-length cut of
 a ship style), the wreck holds for WRECK_HOLD_S, and RUN ENDED follows by the
 same door as before (`_leave_combat`). Nothing about the run changes: it was
 over in the maths on the frame the fight resolved.
+```
+
+## Shot landed
+
+Above `func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:`:
+
+```text
+The shot arrived. Now the target moves.
+
+ABOUT ITS PLACE AT REST, a second hit too. Two shots landing a frame apart
+took the place mid-shake, a part of a pixel off, and left the hull there
+for good: 0.8 px off the grid and the pack laid out round it (found sliding
+the convoy column out, `-- sheet=ConvoySlideTest`).
 ```

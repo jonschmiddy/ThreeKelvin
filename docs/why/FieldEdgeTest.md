@@ -18,7 +18,7 @@ no line, no step in the ground's tone or colour, nothing the picture adds at
 its edge -- to within the field's own line-to-line variation, and the lines
 either side of the edge never differ by more than the field's own step
 there. `out=`: each strip written beside the screen, as PNGs, for a look.
-In every style (`style=legacy|simplified|painted|radiant`, the game's own
+In every style (`style=simplified|painted|radiant`, the game's own
 switch) and in a system inside a cloud (`at=nebula`: the map's cloud runs
 past its picture, cloud:A -- the edge is then read against the gas either
 side of it, not the field). And LOCAL's stars ARE the field's (styles:now):
@@ -36,7 +36,7 @@ drawn on (`SystemView._past`, the cloud's own material, read by `nav_ext`
 with `past_on`), not a mirror or a copy of gas from elsewhere. Where the
 strip starts over the picture's last 32 px it is the same gas, drawn the
 same way: its light follows the picture's there (correlation 1.00 in
-SIMPLIFIED and LEGACY on seed 4242's cloud; the picture's own gas mirrored
+SIMPLIFIED (and LEGACY, while it was a style) on seed 4242's cloud; the picture's own gas mirrored
 there 0.25, moved 16 px 0.19-0.34; the cloud alone without the sky and dust
 sheets under it 0.24-0.57) at its level (within 2).
 ```

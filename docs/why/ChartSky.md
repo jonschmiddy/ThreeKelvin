@@ -8,9 +8,8 @@ Above `const TILT := 0.38`:
 THE STAR CHART'S SKY IN THE SIMPLIFIED STYLE: direction C, "Alive", from the
 Oct 5 showcase (scratchpad `showcase/C/chart/`), THE DEFAULT of the rendering
 styles (`DisplaySettings.render_style`). PAINTED draws with `ChartPainted`'s
-passes on this node; LEGACY with a node of its own, `ChartLegacy`, which this
-one hands the chart to and draws nothing. The
-chart's own layered look refined and set in slow motion: an arm-model disc
+passes on this node, RADIANT with `ChartRadiant`'s. The chart's own layered
+look refined and set in slow motion: an arm-model disc
 and a cored bulge as gathered light, crisp dust lanes, sparse stars, four
 depth sheets you wade through as you zoom, gas streaming along the arms,
 knots that breathe and bloom, a rare supernova and its light echo, nebulae
@@ -70,9 +69,9 @@ Above `static var diag := 0`:
 WHAT A ZOOM CHANGES, switched off one cause at a time (tuning, `diag=N` in
 ChartLook; 0 as made): 1 the core's glare control, 2 every star (the chart's
 and those the disc resolves into), 4 the detail the zoom adds (octaves, fine
-grain, the bakes' mip held at zoom 1's), 8 LEGACY's palette a zoom level as
-before Oct 11, 16 the chart's own stars only, 32 the resolved stars only, 64
-LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
+grain, the bakes' mip held at zoom 1's), (8 was the gone LEGACY style's
+palette), 16 the chart's own stars only, 32 the resolved stars only, (64 was
+LEGACY's dust sheets), 128 the hole's own
 zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
 stars adding their light on top as before, 512 no stars' light laid back
 (`_star_debt`), 1024 the hole's cooling as far out as before, 2048 no supernova
@@ -118,7 +117,7 @@ A harness's `chartflat` draws SIMPLIFIED flat, as before all this (a "before" to
 film against).
 ```
 
-Above `const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true, &"legacy": true}`:
+Above `const SOLID_STYLES := {&"simplified": true, &"radiant": true, &"painted": true}`:
 
 ```text
 WHICH STYLES DRAW THE SOLID LOOK. Each style's port turns its own line on in its
@@ -308,4 +307,52 @@ turned LOW on, so the player lost RADIANT that LOW may have held. So the title
 waits while the pick is to come, and no picture judges a pass it is only
 holding (`DisplaySettings.low_held`): RADIANT is judged on the pass it will
 be drawn with, at the next chart built.
+```
+
+## Ball kinds
+
+Above `static func ball_kind(ball: Vector4) -> Vector4:`:
+
+```text
+A BALL IN THE SPIRAL'S HAND, in this style (Jon, Nov 5: "Galaxy kinds in Painted: A.
+This could also be applied for the other art styles. It looks good."): PAINTED's
+direction A in SIMPLIFIED's own hand (`chart_c_place`'s `ellBall`). A ball was one
+smooth light on a gradient of its own, cut by the palette into flat concentric plates
+with a violet-blue rim, a supernova's rings on it: none of what makes this style's
+spirals -- a compact gold heart, light gathered in clumps whose edges the palette's
+steps fall on, gas in the arms' blue and pink, an edge that dissolves in a dither.
+Now its body is that light. Each kind as itself: (look, how far out its old warm
+light holds in ball radii, its young gas and star birth 0..1, how irregular its
+outline 0..1) -- an old elliptical warm to its edge; a blue compact dwarf young, blue,
+lumpy and knotted round a small warm heart; a dwarf spheroidal faint, grey and warm
+only round its middle; a merger's remnant warm, lopsided, a few knots, its stream.
+Only the two with gas (the blue compact dwarf, the merger) have cool gas past their
+warm light.
+```
+
+## Ball body
+
+Above `static func ball_form(kind: int) -> Vector4:`:
+
+```text
+A ball's body in this style (`ellBall`'s `u_ballF`): (its size against `ball_of`'s
+radius, the power its light falls by, where its light ends in those radii, its halo
+of globular clusters 0..1). The three ellipticals told apart by more than their
+roundness: a round one the plain fall; a flattened one squashed further
+(`ball_drawn`) and falling steeply, a lens of light; a giant bigger, falling slowly
+into a wide envelope, a swarm of globular clusters far past its body. The dwarfs
+smaller (a blue compact dwarf's light is its gas, a dwarf spheroidal's spread thin).
+```
+
+## Dwarf hole
+
+Above `const DWARF_HOLE := 0.08`:
+
+```text
+A DWARF'S HOLE at its own size (Nov 5): a dwarf's hole is rolled off its bulge as any
+galaxy's is, and a dwarf's ball is small, so its hole and lit ring filled its middle (a
+blue compact dwarf read as a hole with a ring round it). At most this much of its ball's
+radius (a round elliptical's is about 0.11, a giant's 0.11), in every style: SIMPLIFIED,
+PAINTED and RADIANT draw `hole_of`. Only the
+drawing: the chart still keeps its marks clear of the hole rolled (`hole_px`).
 ```

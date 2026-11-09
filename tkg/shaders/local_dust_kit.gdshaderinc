@@ -26,9 +26,6 @@ float dust_steps(float v, float th, int style) {
 	if (style == 1) {
 		return floor(v * 3.0 + 0.35) / 3.0;
 	}
-	if (style == 3) {
-		return floor(v * 3.0 + th) / 3.0;
-	}
 	return floor(v * 4.0 + th) / 4.0;
 }
 

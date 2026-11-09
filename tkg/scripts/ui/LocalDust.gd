@@ -144,7 +144,7 @@ func _process(delta: float) -> void:
 			kind = 0
 		# ITS GLINT: a slow turn catching the light, eased; held a step
 		var gl := 0.0
-		if float(m.gw) > 0.0 and _style != 3:
+		if float(m.gw) > 0.0:
 			gl = pow(maxf(0.0, sin(tt * float(m.gw) + float(m.gph))), 14.0)
 		if absf(gl - float(m.gl_shown)) > HOLD_G or (gl == 0.0 and float(m.gl_shown) < HOLD_G):
 			m.gl_shown = gl
@@ -243,12 +243,7 @@ static func _ext(kind: int, R: float, H: float, gl: float) -> Vector2:
 
 
 func _scatter_k() -> float:
-	match _style:
-		2:
-			return 1.8
-		3:
-			return 0.5
-	return 1.0
+	return 1.8 if _style == 2 else 1.0
 
 
 func _h(a: int, b: int) -> float:
@@ -258,7 +253,7 @@ func _h(a: int, b: int) -> float:
 ## The dust of this system, layer by layer, and its colours.
 func _seed_motes() -> void:
 	_motes.clear()
-	_style = {&"painted": 1, &"radiant": 2, &"legacy": 3}.get(sky.style, 0)
+	_style = {&"painted": 1, &"radiant": 2}.get(sky.style, 0)
 	var idx: int = sky.node.index
 	var low := DisplaySettings.graphics_low
 	var wind := 1.0 if _h(idx, 9) < 0.5 else -1.0
@@ -297,18 +292,15 @@ func _seed_motes() -> void:
 func _colours() -> void:
 	var look: Dictionary = sky._sky_look
 	_mat.set_shader_parameter("style", _style)
-	# its body: the cloud's own colour lifted, a warm grey in a clear sky, the old
-	# starfield's blue-grey in LEGACY; its core: the star's light
+	# its body: the cloud's own colour lifted, a warm grey in a clear sky; its
+	# core: the star's light
 	var g := Color("#c8bcb0")
 	if sky._neb_mat != null and look.has("hue"):
 		var hh: Vector3 = look.hue
 		g = Color(hh.x, hh.y, hh.z).lerp(Color("#d8d0c8"), 0.45)
 	var sl: Vector3 = sky.star_light()
 	var core := Color(sl.x, sl.y, sl.z).lerp(Color(1, 1, 1), 0.55)
-	if _style == 3:
-		g = Color("#9fb0c8")
-		core = Color("#c8d4e4")
-	elif _style == 2:
+	if _style == 2:
 		g = Color(sl.x, sl.y, sl.z).lerp(g, 0.4)
 		core = Color(sl.x, sl.y, sl.z).lerp(Color(1, 1, 1), 0.35)
 	_mat.set_shader_parameter("glow", Vector3(g.r, g.g, g.b))

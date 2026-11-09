@@ -1118,6 +1118,9 @@ float ballForm(vec2 v, float k, float bs, float blk, bool lit) {
 	return (0.2 * sh + 0.1 * lob) * smoothstep(1.25, 0.3, re) * smoothstep(0.02, 0.12, re);
 }
 
+// A BALL'S BODY (`ChartPainted.ball_form`): its size against its ball radius, the power its
+// light falls by, where its light ends (ball radii), its halo of globular clusters 0..1
+uniform vec4 u_ballF = vec4(1.0, 1.3, 2.4, 0.0);
 // B: a ball's globular clusters, as SIMPLIFIED's `globulars` (the same cells, so the
 // same clusters in both styles), in the ball's own frame (gu about the core):
 // 2 on a cluster's bright knot, 1 in its fuzz, 0 elsewhere. Never under a block.
@@ -1135,6 +1138,8 @@ float globularsB(vec2 g, float Rs, float blk) {
 			vec2 ctr = (vec2(cc) + 0.15 + 0.7 * h.xy) * CELL;
 			float rc = length(vec2(ctr.x, ctr.y / u_g2.z)) / Rs;
 			float prob = 0.07 * u_ballE.y * exp(-rc * 1.4) * smoothstep(0.18, 0.4, rc) * (1.0 - smoothstep(1.4, 1.9, rc));
+			// (a giant's halo of them, `u_ballF.w`: a swarm far past its body, thinning outward)
+			prob += 0.05 * u_ballF.w * smoothstep(0.5, 1.0, rc) * (1.0 - smoothstep(1.9, 2.7, rc));
 			if (h.z > prob) {
 				continue;
 			}
@@ -1143,6 +1148,68 @@ float globularsB(vec2 g, float Rs, float blk) {
 		}
 	}
 	return best;
+}
+
+// ------------------------------------------------------------------ a ball in the spiral's hand
+// THE BALL DRAWN AS THE SPIRALS ARE (Jon, Nov 5, of the merger remnant, the ellipticals
+// and the blue compact dwarf: "all look.. idk broken? bad? like why are they SO
+// different from all the other types of galaxies?"). A ball was one smooth light on one
+// ramp of its own, banded into a salmon plateau with violet rings: none of the gas, the
+// puffs, the relief or the patterns that make a spiral. Now its light is GAS, as a
+// disc's is: a body of light falling off steadily from the core (`ballBody`), clumped
+// and grained by the disc's own two noises at the disc's own scales, lit by the disc's
+// relief and puffs from the core and as a ball from the key light, and painted on the
+// disc's two ramps -- the bulge's warm steps where its old stars hold (`u_ballK.y`), the
+// arms' cool ones past them -- one step a doubling of the light, its dim edge thinning
+// out in the style's patterns into the sky. Each kind shaped as itself (`u_ballK`).
+// A BALL'S OWN KIND (`ChartSky.ball_of`'s look, `ChartPainted.galaxy_uniforms`): its look
+// (0 an old elliptical, 1 a blue compact dwarf, 2 a dwarf spheroidal, 3 a merger's
+// remnant), how far out its old warm light holds (ball radii), how much young gas and
+// star birth it has (0..1), how irregular its outline (0..1)
+uniform vec4 u_ballK = vec4(0.0, 1.25, 0.0, 0.0);
+// how much of the disc's relief an old ball has (its young gas, `u_ballK.z`, has it all):
+// little, so close in an old ball's light is a calm fall of old stars, never a crust
+const float BALL_RELIEF_OLD = 0.25;
+// and of its puffs
+const float BALL_PUFF_OLD = 0.4;
+// whether a ball has gas past its warm light (a blue compact dwarf, a merger and its
+// stream): the others are old stars to their edge, and fade straight into the dark
+bool ballGas() {
+	return abs(u_ballK.x - 1.0) < 0.5 || abs(u_ballK.x - 3.0) < 0.5;
+}
+// THE WARM BODY'S FADE, as the ball's smooth light's level (`lvT`, the bulge's banding):
+// from BALL_FADE_HI down to BALL_FADE_LO its blocks thin out in the style's ordered
+// patterns into what lies behind, a wide dithered band (three or four of the ramp's
+// steps), so a ball has no rim -- not the hard edge and dark ring of a fried egg
+const float BALL_FADE_HI = 0.5;
+const float BALL_FADE_LO = 0.04;
+// where the ball's body is, in ball radii (`u_g8.x`), its outline made irregular: gS the
+// ball's round frame (gu), gq the same turned with the galaxy, blkS a block there (gu)
+float ballS(vec2 gS, vec2 gq, float blkS) {
+	float RB = u_g8.x * u_ballF.x;
+	float s = length(gS) / RB;
+	if (u_ballK.w > 0.0) {
+		s *= 1.0 + 0.5 * u_ballK.w * fbmL(gq * (2.4 / RB) + vec2(3.7 + 13.0 * u_ballD.w, 1.1), blkS * (2.4 / RB), 2);
+	}
+	return s;
+}
+// the body's light at s (ball radii): a steady fall from a bright middle, about four
+// doublings out to where its warm light ends (so its light runs down the warm ramp's
+// steps one by one, never lying on one), at the kind's own pace (`u_ballF.y`: a giant's
+// slow, into a wide envelope; a flattened one's steep), gone by `u_ballF.z`; a dwarf
+// spheroidal's faint
+float ballBody(float s) {
+	float faint = abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0;
+	return u_g8.y * 0.4 * faint * (1.0 + 0.6 * u_ballK.z) * pow(1.0 + sq(s / 0.5), -u_ballF.y) * smoothstep(u_ballF.z, 0.5 * u_ballF.z, s);
+}
+// lit as a ball from the chart's key light (upper left, `ballForm`'s): its near side a
+// little up, its far side and limb down, as a multiplier of its light
+float ballLit(vec2 gS) {
+	vec2 e = gS / (1.9 * u_g8.x);
+	e /= max(length(e), 1.0);
+	float nz = sqrt(max(1.0 - dot(e, e), 0.0));
+	float sh = dot(vec3(e, nz), vec3(-0.5735, -0.6257, 0.5292));
+	return exp2(0.8 * (sh - 0.5292) - 0.6 * (1.0 - sqrt(nz)));
 }
 
 // ------------------------------------------------------------------ the scene behind the hole
@@ -1185,6 +1252,12 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 #else
 	bool low = false;
 #endif
+	// (a ball's own frames, `ballS`: drawn about the core in the core's own frame, round
+	// on the screen, as its light always was)
+	vec2 gS = vec2(vb.x, vb.y / u_g2.z) / k;
+	vec2 gq = kitRot(-u_phi) * gS;
+	float blkS = blockView() / k / solidCoreK();
+	float sB = ellip ? ballS(gS, gq, blkS) : 0.0;
 	float tt = u_time * (u_g4.z > 0.5 ? 0.5 : 1.0);
 
 	float ar = 0.0, dp = 0.0, wp = 1.0, al = 0.0, prof = 0.0;
@@ -1213,6 +1286,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// dimmed (`T`, `TS`) left as it is, so nothing marks where they were.
 	float lane = 0.0, laneS = 0.0, lip = 0.0;
 	float Ed, EdS, warmD;
+	float tlB = 0.0;
 	if (!ellip) {
 		float env = 0.42 * exp(-rd / 0.28) + 0.022 * exp(-rd / 0.75);
 		float taper = smoothstep(1.2, 0.78, rd + 0.10 * fbmL(gd * 4.0, blk * 4.0, low ? 2 : 5) - 0.12 * prof);
@@ -1243,9 +1317,36 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		}
 		warmD = smoothstep(max(u_g4.w, u_g0.z * 0.7), 0.04, rd);
 	} else {
-		Ed = 0.0;
-		EdS = 0.0;
-		warmD = 1.0;
+		// A BALL'S GAS (`ballBody`): the disc's light's own recipe -- the clumps (scale 11)
+		// and the fine grain (46) at its own strengths, so no band edge moves by half a step
+		// -- on a body falling off steadily; warm where its old stars hold, cool past
+		// (CALM CLOSE IN: an old ball's clumps and grain at about half a disc's, and its
+		// finest octaves left out, so zooming in on old stars resolves a few soft lumps,
+		// never the blotched crust of a gas disc; a young ball's -- `u_ballK.z` -- as a
+		// disc's)
+		float env = ballBody(sB);
+		float yg = u_ballK.z;
+		float clump = fbmL(gq * 11.0 + vec2(5.0), blkS * 11.0, low ? 2 : (yg > 0.5 ? 6 : 4));
+		float fine = low ? 0.0 : fbmL(gq * 46.0 + vec2(9.0), blkS * 46.0, yg > 0.5 ? 5 : 2);
+		float clumpS = fbmL(gq * 11.0 + 5.0, blkS * 11.0, 2);
+		float cA = mix(0.16, 0.3, yg), fA = mix(0.08, 0.22, yg);
+		Ed = env * (1.0 + cA * clump + fA * fine);
+		EdS = env * (1.0 + cA * clumpS);
+		// warm where its old stars hold; past them, in a ball with gas, its cool gas, handed
+		// over across a wide band; an old ball is warm to its edge
+		warmD = ballGas() ? 1.0 - smoothstep(0.6 * u_ballK.y, 1.6 * u_ballK.y, sB) : 1.0;
+		// a merger's tidal stream (`u_g8.w`, the disc's own above): what is left of the
+		// smaller galaxy, flung off one side and curling away, at the ball's own size
+		if (u_g8.w > 0.5) {
+			float sr = length(gq) / u_g8.x;
+			float t = clamp((sr - 1.1) / 2.4, 0.0, 1.0);
+			float dth = (mod(atan(gq.y, gq.x) - (-0.9 + t * 1.9) + PI_B, TAU_B) - PI_B) / (0.5 * (0.16 + t * 0.30));
+			float tl = 0.05 * exp(-dth * dth * 1.6) * smoothstep(0.9, 1.3, sr) * smoothstep(3.8, 2.9, sr) * (1.0 - 0.6 * t)
+				* (1.0 + 0.4 * fbmL(gq * 6.0, blkS * 6.0, 2));
+			// (in the gas's own clumps and grain, as the arms are: never a smooth tube)
+			tl *= max(1.0 + 0.9 * clump + 0.35 * fine, 0.0);
+			tlB = tl;   // (added past the ball's lighting below: it lies outside the ball)
+		}
 	}
 	// THE SOLID LOOK'S LIGHT ON THE GAS, as this style lights: what the disc's light is
 	// multiplied by before it is banded, so each field moves a block up or down its
@@ -1284,6 +1385,28 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		float dL = kitLum(dE);
 		Ed = Ed * dT3.x + dL;
 		EdS = EdS * dT3.x + dL;
+	} else {
+		// A BALL'S GAS LIT AS THE DISC'S: the middle's relief round its core (the slopes
+		// toward the core lit, ridges casting their shadows outward) and its puffs, both lit
+		// from the core, in the ball's turning frame; and the whole lit as a ball (`ballLit`)
+		// (the relief reaches TERR_R1 from the core: read at the ball's size, so it lies
+		// over the ball's inner body as it lies over a spiral's middle)
+		float tS = clamp(0.45 / u_g8.x, 0.75, 1.6);
+		if (u_terr > 0.0 && tk > 0.0 && (u_diag & 8192) == 0) {
+			terrS = terrShadeB(gq * tS, terrLo(blkS * tS));
+			// (an old ball's relief at BALL_RELIEF_OLD of the disc's: its body a smooth fall of old light,
+			// only a young one -- `u_ballK.z` -- as lumpy as a spiral's middle)
+			terrS.xy = mix(vec2(1.0, 0.0), terrS.xy, tk * (BALL_RELIEF_OLD + (1.0 - BALL_RELIEF_OLD) * u_ballK.z));
+		}
+		float lit = pow(terrS.x + TERR_LIFT * terrS.y, TERR_GAMMA) * ballLit(gS);
+		if (u_fluff > 0.0 && (u_diag & 16384) == 0) {
+			// (an old ball's puffs at BALL_PUFF_OLD of a disc's: at full strength they were the
+			// blotched crust close in -- three of the ramp's steps across each puff at zoom 1)
+			vec3 fs = fluffShade(gq);
+			lit *= mix(1.0, fs.x * (1.0 + 0.9 * fs.y) + FLUFF_BODY * fs.z * u_fluff, BALL_PUFF_OLD + (1.0 - BALL_PUFF_OLD) * u_ballK.z);
+		}
+		Ed = Ed * lit + tlB;
+		EdS = EdS * lit + tlB;
 	}
 
 	float R = u_g2.y;
@@ -1312,7 +1435,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// and its cream heart 5.5%, against SIMPLIFIED's 17% and 0.2%)
 	float bs = u_g8.x / 0.30 * (ellip ? BALL_SIZE_B : 1.0);
 	float rb = rho / bs;
-	float Ib = ellip ? u_g8.y * (0.6 * pow(1.0 + sq(rb / 0.13), -1.2) * smoothstep(1.3, 0.75, rb) + 0.45 * exp(-sq(rb / 0.012))) * (1.0 + 0.16 * fbmL(gB * 26.0 + 3.0, blkB * 26.0, 4))
+	// (a ball's body is its gas now, `ballBody`: what is left here is its glowing core, compact
+	// as a spiral's bulge, and the cusp at its heart)
+	float Ib = ellip ? u_g8.y * (0.3 * pow(1.0 + sq(rb / 0.05), -1.2) + 0.45 * exp(-sq(rb / 0.012)))
 		: u_g5.y * pow(1.0 + sq(rho / (u_g5.z * Rb)), -1.05) * exp(-sq(rho / (u_g5.w * Rb)));
 	if (solidB) {
 		Ib *= solidBulgeEnd(rho, Rb / 0.128);
@@ -1325,8 +1450,8 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	float laneBall = 0.0;
 	float RsB = 2.2 * u_g8.x;
 	if (depthB) {
-		vec2 gS = vB / k;                                   // the ball's own frame, gu
-		float srB = length(vec2(gS.x, gS.y / u_g2.z)) / u_g8.x;
+		vec2 gSb = vB / k;                                  // the ball's own frame, gu
+		float srB = length(vec2(gSb.x, gSb.y / u_g2.z)) / u_g8.x;
 		// lumpier star clouds through the body (as SIMPLIFIED's)
 		float lump = smoothstep(0.3, 0.7, 0.5 + 0.5 * fbmL(gB * 7.0 + vec2(5.3 + 17.0 * u_ballD.w, 2.9), blkB * 7.0, 3));
 		float lump2 = 0.5 + 0.5 * fbmL(gB * 31.0 + vec2(1.7, 9.4 + 11.0 * u_ballD.w), blkB * 31.0, 2);
@@ -1334,7 +1459,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		Ib *= mix(1.0, 0.76 + 0.45 * lump + 0.25 * (lump2 - 0.5), body * u_ballE.z);
 		// the shells of the galaxies it swallowed: arcs each on a side of its own
 		if (u_ballE.x > 0.0) {
-			float anB = atan(gS.y / u_g2.z, gS.x);
+			float anB = atan(gSb.y / u_g2.z, gSb.x);
 			float shB = 0.0;
 			for (int kk = 0; kk < 4; kk++) {
 				float rk = 1.15 + 0.42 * float(kk);
@@ -1343,14 +1468,20 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				shB += (dk < 0.0 ? exp(dk / 0.22) : exp(-sq(dk / 0.035))) * side * (1.0 - 0.15 * float(kk));
 			}
 			Ib *= 1.0 + 1.3 * u_ballE.x * shB;
+			// (and a light of their own, so an arc reads past the body's edge, where there
+			// is little light left to multiply)
+			Ed = Ed * (1.0 + 1.3 * u_ballE.x * shB) + 0.02 * u_ballE.x * shB;
+			EdS = EdS * (1.0 + 1.3 * u_ballE.x * shB) + 0.02 * u_ballE.x * shB;
 		}
 		// a dust lane across the middle (seeded: some balls only), wavering, in filaments
 		if (u_ballD.y > 0.0) {
-			vec2 lr = kitRot(u_ballD.z) * gS;
+			vec2 lr = kitRot(u_ballD.z) * gSb;
 			float wv = 0.010 * kitSnoise2(vec2(lr.x * 7.0, 4.1 + 9.0 * u_ballD.w)) + 0.004 * kitSnoise2(vec2(lr.x * 23.0, 2.3));
 			float filB = smoothstep(0.3, 0.8, 0.5 + 0.5 * fbmL(gB * 40.0 + 3.1, blkB * 40.0, 2));
 			laneBall = u_ballD.y * exp(-sq((lr.y - wv) / (0.075 * u_g8.x))) * (1.0 - smoothstep(0.45 * RsB, 0.95 * RsB, abs(lr.x))) * (0.6 + 0.4 * filB);
 			Ib *= exp(-2.6 * laneBall);
+			Ed *= exp(-2.6 * laneBall);
+			EdS *= exp(-2.6 * laneBall);
 		}
 	}
 	// A BALL'S STORY (`chart_story`): its light in the ball's own bands -- the warm (its
@@ -1424,6 +1555,10 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	Ec *= flo;
 	EwS *= flo;
 	EcS *= flo;
+	// (an old ball -- no gas, `ballGas` -- takes the chart's clouds only as far as it has
+	// young gas, `u_ballK.z`: their light read off its warm body painted it the arms' blue
+	// round its middle wherever a cloud was loaded, so only once zoomed in, Nov 5's review)
+	float clK = ellip && !ballGas() ? u_ballK.z : 1.0;
 	for (int i = 0; i < 12; i++) {
 		if (i >= u_ncl) {
 			break;
@@ -1432,7 +1567,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 		if (kd > 1) {
 			continue;
 		}
-		float cl = cloudLight(v, i);
+		float cl = cloudLight(v, i) * clK;
 		if (kd == 0) {
 			Ep = max(Ep, cl * Ed * 2.4 * (1.0 - 0.75 * bub));
 		} else {
@@ -1448,6 +1583,12 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 
 	Cand sc;
 	float Ehalo = (ellip ? 0.0085 * u_g8.y * bs : 0.0068) * exp(-max(length(gB) - (ellip ? 0.55 * bs : 0.74), 0.0) / 0.26) * (1.0 + 0.4 * fbmL(gB * 3.0, blkB * 3.0, low ? 2 : 5));
+	if (ellip) {
+		// (a ball's halo the disc's, at the ball's own size, and ending with its body as the
+		// disc's ends with the disc: no violet ring a fixed 0.26 gu wide round every ball)
+		float hT = smoothstep(1.7, 2.9, sB);
+		Ehalo = 0.0068 * (1.0 - hT) * (1.0 - hT) * (1.0 + 0.4 * fbmL(gq * 3.0, blkS * 3.0, low ? 2 : 5));
+	}
 	// THE HALO ENDS WITH THE DISC (the solid look's edge, `solidHaloEnd`): its tints
 	// stepped out round the galaxy as rings of navy -- a plate's rim, then a halo oval
 	// -- so past the disc's fade the sky is the sky, the same as far away
@@ -1459,20 +1600,23 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	bool galaxy = Et > 0.0062;
 	float EwA = Ew;
 	float EL = Et / (1.0 + EwA * adapt) + streams;
-	float dbt = galaxy ? starDebtB(g) : 0.0;
+	// (a dwarf spheroidal's light is 0.4 of a ball's, `ballBody`, but the stars the chart
+	// hands back to it as it zooms in are a full ball's: they lifted its body a whole step,
+	// maroon to orange, at zoom 2 (11% orange to 34%, Nov 5's review), so it takes them
+	// back at its own faintness)
+	float dbt = galaxy ? starDebtB(g) * (ellip && abs(u_ballK.x - 2.0) < 0.5 ? 0.4 : 1.0) : 0.0;
 	bool warmSide = false;
 	if (!galaxy) {
 		sc = skyAt(P, Ehalo + Et * 0.5, g);
 		// AN ELLIPTICAL'S SOFT HALO, as a pixel artist paints one: the ball's
 		// outermost violet stepped out into the sky in an ordered dither, thick
 		// at its edge and thinning to nothing, never a hard rim
-		if (ellip && sc.m == M_SKY && pat(P, 0.75 * smoothstep(0.0012, 0.0062, Et))) {
-			sc = cand(M_BALL, 0.2, 0, 0.0);
-		}
+		// (no longer: a ball's dim edge thins out in the gas's own patterns, below, as a
+		// disc's does)
 	} else {
 		float wf = (EwS + streams) / max(EwS + streams + EcS + Ep, 1e-6);
 		warmSide = wf > 0.5;
-		if (warmSide && !ellip) {
+		if (warmSide) {
 			// a dim warm fringe goes over to the cool side: the bulge's bottom band
 			// never lies as a flat maroon plate with a hard rim (a barred kind's
 			// whole bar zone is warm and dim)
@@ -1480,23 +1624,38 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			float lv0 = clamp(1.0 + log2(ELw0) / 7.0, 0.0, 0.999);
 			warmSide = wf > 0.5 + 0.38 * smoothstep(0.42, 0.2, lv0);
 		}
+		if (ellip) {
+			// (a ball's warm body goes over to its cool gas across a band in the style's
+			// patterns, as the bulge's checker meets the arms', never on one hard line round it)
+			float ELw0 = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams, 1e-5);
+			float thr = 0.5 + 0.38 * smoothstep(0.42, 0.2, clamp(1.0 + log2(ELw0) / 7.0, 0.0, 0.999));
+			warmSide = pat(P, smoothstep(thr - 0.3, thr + 0.3, wf));
+		}
 		if (warmSide) {
-			int m = (ellip && Et < BALL_HEART_B) ? M_BALL : M_BULGE;
+			// (a ball's warm light is the bulge's, banded as the bulge's is: a step a doubling
+			// of its light, every step reachable; its lighting as a ball is in its light)
+			int m = M_BULGE;
 			float ELw = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adaptW) + streams + dbt, 1e-5);
-			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6 - BALL_DIM_B, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
-			if (ellip) {
-				lvb = clamp(lvb + ballForm(vB, k, bs, blkB, depthA), 0.0, m == M_BALL ? 0.83 : 0.999);
-			}
+			float lvb = clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
 			// THE BULGE'S TOP FADES INTO THE DARK (the solid look's compact bulge: "a soft
 			// round top fading to black"): through the camera it rises above the far disc,
 			// where no cool light is left to take its dim fringe, and its two darkest
 			// bands lay there as a maroon cap with a hard rim; they thin out in the style's
 			// patterns over what lies behind instead -- the gas there, or the sky
-			if (solidB && lvb < 0.29 && !pat(P, smoothstep(0.04, 0.29, lvb))) {
+			// (a ball's thins out by its body's smooth light, so only at its edge: a valley of
+			// its relief inside it stays its own dark steps, never a hole to the sky)
+			// (and over a wide band, `BALL_FADE_HI` to `_LO`: no rim, no ring)
+			float lvT = ellip ? clamp(1.0 + log2(max(ballBody(sB) * warmD + Ib, 1e-5)) / 7.0, 0.0, 0.999) : lvb;
+			// (a faint ball's band as far below its own light: a dwarf spheroidal's, 0.4 of an
+			// elliptical's, would lie in the band to its middle, a stippled plate)
+			float fSh = ellip && abs(u_ballK.x - 2.0) < 0.5 ? log2(0.4) / 7.0 : 0.0;
+			float fHi = ellip ? BALL_FADE_HI + fSh : 0.29, fLo = ellip ? max(BALL_FADE_LO + fSh, 0.01) : 0.04;
+			if ((solidB || ellip) && lvT < fHi && !pat(P, smoothstep(fLo, fHi, lvT))) {
 				float ELc2 = Ec + Ep + dbt;
 				float la2 = 1.08 + log2(max(ELc2, 1e-6)) / 6.2 - 0.12 * shade - 0.34 * bub;
-				sc = la2 >= 1.0 / 6.0 ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
+				// (an old ball has no cool gas behind its fade: it thins out into the sky)
+				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas()) ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
 			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;
@@ -1517,7 +1676,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				sc = cand(M_BILLOW, ld, 0, 0.0);
 			}
 		}
-		if (!ellip && Et < 0.012 && !warmSide) {
+		if (Et < 0.012 && !warmSide) {
 			float a = smoothstep(0.0062, 0.012, Et);
 			if (!pat(P, a * 0.9 + 0.1)) {
 				sc = skyAt(P, Ehalo + Et * 0.5, g);
@@ -1551,7 +1710,9 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	}
 	// the supernova's light echo: a ring stepping out through the gas and dust,
 	// one block wide, lit in the flare's colours a step at a time
-	if (u_echo.w > 0.5 && galaxy) {
+	// (never over a ball, as B and C keep them: on its smooth old light a ring of gas
+	// read as a hole punched in it)
+	if (u_echo.w > 0.5 && galaxy && !ellip) {
 		float de = abs(length(g - u_echo.xy) - u_echo.z);
 		if (de < blk * 0.9 && (sc.m == M_ARM || sc.m == M_DUST || sc.m == M_HALO || sc.m == M_BILLOW || sc.m == M_KNOT)) {
 			sc = cand(M_BILLOW, 0.5 + 0.16 * u_echo.w, 0, 0.0);
@@ -1561,7 +1722,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 	// outside and teal inside as the remnant clouds are painted, that grows in held
 	// steps (a new pose every 4 s, larger steps first) and fades in three bands of
 	// its ramp over ten minutes; broken where the noise says, never a full circle
-	if (galaxy && u_nrem > 0) {
+	if (galaxy && u_nrem > 0 && !ellip) {
 		for (int i = 0; i < 16; i++) {
 			if (i >= u_nrem) {
 				break;
@@ -1673,8 +1834,59 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 		}
 	}
+	// A BALL'S STAR BIRTH (`u_ballK.z`: a blue compact dwarf's, a little of a merger's): the
+	// spirals' knots, pink star-forming clumps and blue young clusters, scattered through
+	// its gas where it is dense, breathing in the same three held poses and blooming
+	if (ellip && galaxy && u_ballK.z > 0.0) {
+		float ks = 0.11 * u_g8.x;
+		float kcK = solidCoreK();
+		ivec2 kc0 = low ? ivec2(floor(gq / ks - 0.5)) : ivec2(floor(gq / ks));
+		int k0 = low ? 0 : -1;
+		for (int j = k0; j <= 1; j++) {
+			for (int i = k0; i <= 1; i++) {
+				ivec2 c = kc0 + ivec2(i, j);
+				vec3 h = kitHash3(c + ivec2(5113 + int(u_ballD.w * 97.0), 1907));
+				vec2 ctr = (vec2(c) + 0.15 + 0.7 * h.xy) * ks;
+				float sk = length(ctr) / u_g8.x;
+				float A = u_ballK.z * smoothstep(1.4, 0.3, sk) * smoothstep(0.08, 0.25, sk);
+				if (h.z > 0.3 * A) {
+					continue;
+				}
+				float typ = fract(h.z * 37.0), sz = fract(h.z * 91.0);
+				bool blue = typ < 0.4;
+				vec2 cS = kitRot(u_phi) * ctr;
+				vec2 kvb = vec2(cS.x, cS.y * u_g2.z) * k;
+				float per = 20.0 + 40.0 * fract(h.x * 13.0);
+				float br = 0.5 + 0.5 * sin(TAU_B * u_time / per + h.y * 40.0);
+				float pose = floor(br * 2.999) - 1.0;
+				float bloom = 0.0;
+				if (u_wxOn > 0.5) {
+					float n0 = floor(u_time / 8.0);
+					for (int s = 0; s < 3; s++) {
+						float n = n0 - float(s);
+						if (kitHash1(c + ivec2(int(n) * 7 + 17, 3307)) < 0.03) {
+							float tau = u_time - 8.0 * n;
+							bloom = max(bloom, tau < 3.0 ? 1.0 : (tau < 7.0 ? 2.0 : (tau < 17.0 ? 1.0 : 0.0)));
+						}
+					}
+				}
+				// (its size and where it is in screen px: the core's frame at the camera's scale there)
+				float rk = clamp((0.0018 + 0.0048 * sz * sz) * k * u_zoom * kcK * (1.0 + 0.12 * pose + 0.3 * bloom), 1.0, 7.0);
+				float dd = length(vB - kvb) * u_zoom * kcK / rk;
+				if (dd < 1.0) {
+					float core = 1.0 - dd;
+					float lift = 0.08 * pose + 0.12 * bloom;
+					Cand kn = cand(blue ? M_STAR : M_KNOT, (blue ? 0.2 + 0.55 * core : 0.3 + 0.75 * pow(core, 0.8)) + lift, 0, 0.0);
+					if (kn.y > sc.y - 0.1) {
+						sc = kn;
+					}
+				}
+			}
+		}
+	}
 	if (clearZ > 0.02 && warmSide && !laneShown) {
-		vec4 cs = planeStar(g, v, 0.0032, clamp(Ib * 1.6, 0.0, 0.85) * clearZ * KIT_TILT, 21);
+		// (a ball's stars resolve through its whole warm body, not its core alone)
+		vec4 cs = planeStar(g, v, 0.0032, clamp((ellip ? Ib + Ed * warmD : Ib) * 1.6, 0.0, 0.85) * clearZ * KIT_TILT, 21);
 		if (cs.x > 0.5) {
 			Cand st = cand(cs.y < 0.7 ? M_STARW : M_STAR + 2, 0.3 + 0.55 * cs.w, 0, 0.0);
 			if (st.y > sc.y + 0.04) {
@@ -1705,7 +1917,7 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 			}
 		}
 	}
-	if (!ellip && sc.m == M_SKY && u_zoom > 1.4) {
+	if (sc.m == M_SKY && u_zoom > 1.4) {
 		float dh = clamp((Ehalo + Et) * 5.0, 0.0, 0.05) * smoothstep(1.4, 3.2, u_zoom);
 		vec4 h4 = planeStar(g, v, 0.0045, dh, 57);
 		if (h4.x > 0.5) {

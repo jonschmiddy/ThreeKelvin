@@ -25,4 +25,7 @@ THE SOUND is Jon's pick from the audition page: "cps 40 · A blip_5 every 3,
 most two in the air (`Audio.play_capped`). Only a settling letter makes a
 blip. So `skip()` finishes silently and also fades any tail still ringing,
 and reduced motion, which has no reveal, has no blips.
+
+`by_word` (the event band, issue #38) settles whole words, one blip each, so a
+long body never shows half a word; no dropouts, which would cut one again.
 ```

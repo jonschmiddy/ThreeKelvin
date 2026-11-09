@@ -106,6 +106,41 @@ static func wanted() -> bool:
 const STORY_GAIN_B := 0.5
 
 
+## A ball as its own kind (`chart_b_place`'s `u_ballK`): (look, how far out its old warm light
+## holds in ball radii, its young gas and star birth 0..1, how irregular its outline 0..1).
+## Why: docs/why/ChartPainted.md#ball-kinds
+static func ball_kind(ball: Vector4) -> Vector4:
+	match int(ball.w):
+		1:
+			return Vector4(1.0, 0.3, 1.0, 0.6)
+		2:
+			return Vector4(2.0, 0.6, 0.0, 0.15)
+		3:
+			return Vector4(3.0, 1.1, 0.3, 0.25)
+	return Vector4(0.0, 1.25, 0.0, 0.0)
+
+
+## A ball's body in this style (`chart_b_place`'s `u_ballF`): (size against its ball radius, how
+## steeply its light falls, where it ends in ball radii, its globular-cluster halo 0..1).
+## Why: docs/why/ChartPainted.md#ball-body
+static func ball_form(kind: int) -> Vector4:
+	match GalaxyGen.type_name(kind):
+		"Flattened Elliptical":
+			return Vector4(1.1, 1.55, 2.4, 0.0)
+		"Giant Elliptical":
+			return Vector4(1.15, 0.95, 3.0, 1.0)
+		"Dwarf Spheroidal":
+			return Vector4(0.75, 1.2, 2.4, 0.0)
+	return Vector4(1.0, 1.3, 2.4, 0.0)
+
+
+## How round a ball is drawn in this style: `ChartSky.ball_of`'s, a flattened elliptical's
+## squashed further, so it is a lens beside a round one's ball (0.55 against 0.74 read
+## as the same ball turned a little).
+static func ball_squash(kind: int, ball: Vector4) -> float:
+	return ball.y * (0.8 if GalaxyGen.type_name(kind) == "Flattened Elliptical" else 1.0)
+
+
 static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	var g: Dictionary = Run.galaxy
 	var form: int = p.form
@@ -120,10 +155,12 @@ static func galaxy_uniforms(p: Dictionary) -> Dictionary:
 	return story.merged({
 		"u_ballD": bd[0],
 		"u_ballE": bd[1],
+		"u_ballK": ball_kind(ball),
+		"u_ballF": ball_form(Run.galaxy_kind),
 		"u_g0": Vector4(float(maxi(arms, 1)), float(p.twist), float(p.bar), float(p.spread)),
 		"u_g1": Vector4(float(p.spin), arm_k, float(p.lane), float(p.gas)),
-		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball.y if form == 1 else 0.86, float(p.hole_r)),
-		"u_g3": Vector4(1.0 if form == 1 else 0.0, ball.y, float(p.hole_r) * ChartSky.DISC_K, float(Run.galaxy_kind) * 0.137),
+		"u_g2": Vector4(float(g.get("dust", 1.6)), float(p.bulge_r), ball_squash(Run.galaxy_kind, ball) if form == 1 else 0.86, ChartSky.hole_of(p)),
+		"u_g3": Vector4(1.0 if form == 1 else 0.0, ball.y, ChartSky.hole_of(p) * ChartSky.DISC_K, float(Run.galaxy_kind) * 0.137),
 		"u_g4": Vector4(0.102, 0.0, 0.0, 0.18),
 		"u_g5": Vector4(0.5 if float(p.bar) > 0.0 else 0.6, 0.4, 0.35, 1.6),
 		"u_g6": Vector4(0.12, 0.06, 1.25, 0.8),
@@ -169,6 +206,8 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 	var r_max: float = src.r_max
 	var sq: float = p.squash
 	var ball := int(p.form) == 1
+	# (a blue compact dwarf's stars are young: mostly blue-white, as its gas is)
+	var young := ball and int((p.ball as Vector4).w) == 1
 	var rows: Array = []
 	var pos: PackedVector2Array = src.pos
 	var col: PackedColorArray = src.col
@@ -186,7 +225,7 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 		var h3 := LegacyHole.hash01(i, 12)
 		var cls := 1
 		if ball:
-			cls = 0 if h3 < 0.12 else 1
+			cls = 0 if h3 < (0.7 if young else 0.12) else 1
 		elif c.b > c.r * 1.04:
 			cls = 0
 		elif c.g > c.r * 0.72:

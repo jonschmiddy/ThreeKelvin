@@ -116,7 +116,6 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var arr_frames := 0
 	var arr_first_off := false
 	_dock_rec = []
-	_enter_rec = {}
 	var arr_thr := {}
 	var arr_end := Rect2()
 	var arr_frame0 := -1
@@ -224,12 +223,6 @@ func _hull_flies_in(dock_b: Button) -> void:
 					art_d.fitted_rect_global(), th, art_d._flameout, art_d.is_visible_in_tree(), art_d._arrive_at >= 0])
 				arr_thr[th] = true
 				arr_end = last
-			# (and every ENTER frame, by its time into the ENTER, for the undock to
-			# be laid over backwards: `_hull_flies_out`)
-			if beat == &"enter" and art_d != null:
-				var gxe := art_d.get_global_transform()
-				_enter_rec[roundi((float(hd.get("t", 0.0)) - ZoomLadder.dock_step_from(4)) * 30.0)] = [
-					art_d.position, art_d.scale, gxe.origin, gxe.get_scale()]
 			if loc0._face.power > 0.0 and (beat == &"cut" or beat == &"arrive" or beat == &"beat"):
 				lit_early = maxf(lit_early, loc0._face.power)
 			if beat == &"beat" or beat == &"power":
@@ -437,8 +430,6 @@ func _bg_off(a: Array, b: Array) -> float:
 
 ## Record of the dock's arrival as `_hull_flies_in` saw it, frame by frame.
 var _dock_rec: Array = []
-## Record of the dock's enter by frame; undocking lays itself over it backwards.
-var _enter_rec := {}
 ## Record of the first LOCAL's arrival by frame, for the dock's to be laid over.
 var _first_rec: Array = []
 
@@ -836,7 +827,7 @@ func _still_frame(c: SectorScreen, s: Dictionary) -> void:
 	_dust_seen(c, s.dust)
 
 
-## Undocking is the dock played backwards (Jon, Oct 21): the background stays put.
+## Undocking holds the background as docking does (Jon, Oct 21): eased out down the ENTER's path.
 ## Why: docs/why/LadderTest.md#undocking
 func _hull_flies_out() -> void:
 	var st := Router.current as StationScreen
@@ -864,6 +855,7 @@ func _hull_flies_out() -> void:
 	var matched := 0
 	var path_bad := 0
 	var path_at := ""
+	var out_x: Array[float] = []
 	var moor := Vector2.INF
 	var moor_s := Vector2.ZERO
 	var thr_seq: Array[int] = []
@@ -904,18 +896,20 @@ func _hull_flies_out() -> void:
 					up_s = c.ladder_up_s()
 				var tau := float(hall.get("t", 0.0))
 				out_frames += 1
-				# (the ENTER's frame as far from its end as this one is from the start)
-				var key := roundi((ZoomLadder.DOCK_ENTER_S - tau) * 30.0)
-				if _enter_rec.has(key):
-					var e: Array = _enter_rec[key]
-					var gx := art.get_global_transform()
-					if art.position.distance_to(e[0]) < 0.01 and art.scale.distance_to(e[1]) < 0.0001 \
-							and gx.origin.distance_to(e[2]) < 0.01 and gx.get_scale().distance_to(e[3]) < 0.0001:
-						matched += 1
-					else:
-						path_bad += 1
-						if path_at == "":
-							path_at = "%.3f s out: %s %s (the ENTER's %s %s)" % [tau, art.position, art.scale, e[0], e[1]]
+				# (the ENTER's path, berth to mooring, eased from rest to rest)
+				var slot := art.get_parent() as Control
+				var p1: Vector2 = slot.get_global_transform().affine_inverse() * c._face.plate_g(hall.berth) \
+					- ((c._lad.ship as Dictionary).mid as Vector2)
+				var g := ZoomLadder._ease(1.0 - tau / ZoomLadder.DOCK_ENTER_S)
+				var want_p := moor.lerp(p1, g)
+				var want_s := moor_s * lerpf(1.0, float(hall.s_end), g)
+				if art.position.distance_to(want_p) < 0.01 and art.scale.distance_to(want_s) < 0.0001:
+					matched += 1
+				else:
+					path_bad += 1
+					if path_at == "":
+						path_at = "%.3f s out: %s %s (the path's %s %s)" % [tau, art.position, art.scale, want_p, want_s]
+				out_x.append(art.position.x)
 				# (its engines, from the moment any of it can be seen)
 				if tau >= up_s:
 					thr_seq.append(art._thrust_now())
@@ -972,9 +966,20 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: THE DUST AT ITS IDLE -- every mote as drawn moves by its own drift and bob alone through the undock and after it (%d frames; beyond them at most %.3f px, %d frames over), the sky's camera in one place (%d, %s)" % [
 		du.frames, du.worst, du.over, cams.size(), str(cams) if cams.size() <= 3 else "%.0f to %.0f" % [cams[0], cams[-1]]],
 		int(du.frames) > 100 and int(du.over) == 0 and cams.size() == 1)
-	_ok("3B UNDOCK IS THE DOCK'S ENTER BACKWARDS: your ship in the same place at the same size as the ENTER had it as far from its end, on %d of the undock's %d frames there (%d differ%s; the ENTER recorded %d)" % [
-		matched, out_frames, path_bad, "; first " + path_at if path_at != "" else "", _enter_rec.size()],
+	_ok("3B UNDOCK: your ship down the ENTER's path at the size it gives, eased, on %d of the undock's %d frames there (%d differ%s)" % [
+		matched, out_frames, path_bad, "; first " + path_at if path_at != "" else ""],
 		out_frames > 100 and path_bad == 0 and matched >= out_frames - 2)
+	# FROM REST AND TO REST, fastest in the middle (the ENTER run back was
+	# fastest on its first frame out)
+	var sp: Array[float] = []
+	for i in range(1, out_x.size()):
+		sp.append(absf(out_x[i] - out_x[i - 1]))
+	var peak: float = sp.max() if not sp.is_empty() else 0.0
+	var peak_at := sp.find(peak)
+	var eased := sp.size() > 10 and peak > 0.5 and sp[0] < 0.2 * peak and sp[-1] < 0.2 * peak \
+		and float(peak_at) > float(sp.size()) * 0.25 and float(peak_at) < float(sp.size()) * 0.75
+	_ok("3B UNDOCK: it backs out from rest and slows to rest, fastest mid-way (first %.2f, peak %.2f at frame %d of %d, last %.2f px a frame)" % [
+		sp[0] if not sp.is_empty() else -1.0, peak, peak_at, sp.size(), sp[-1] if not sp.is_empty() else -1.0], eased)
 	var art2 := lc2._view.ship_view() if lc2 != null else null
 	_ok("3B UNDOCK: it ends parked at its mooring at its own size (%s, %s; its mooring %s, %s), its engines at the idle" % [
 		art2.position if art2 != null else Vector2.INF, art2.scale if art2 != null else Vector2.ZERO, moor, moor_s],
@@ -983,13 +988,14 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: the station stays lit, a working station -- on every frame of LOCAL and after (power at least %.2f; at rest %.2f)" % [
 		still.lit, lc2._face.power if lc2 != null and lc2._face != null else -1.0],
 		lc2 != null and lc2._face != null and float(still.lit) >= 0.999 and lc2._face.power >= 0.999)
-	# ITS ENGINES: the cruise burn coming out, then the coughs (the flameout's
-	# FULL flashes over the idle), ending on the idle
+	# ITS ENGINES: the idle as it backs out, then the coughs (the flameout's FULL
+	# flashes over the idle), ending on the idle
 	var first_full := thr_seq.find(ThrusterFx.Thrust.FULL)
-	var burned := first_full > 0 and thr_seq.slice(0, first_full).has(ThrusterFx.Thrust.CRUISE)
-	_ok("3B UNDOCK: its engines lit at the cruise burn as it comes out, then the arrival's flameout sputtering down to the idle (%d frames: CRUISE first %s, coughs from frame %d, last %s)" % [
-		thr_seq.size(), burned, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
-		burned and thr_seq.has(ThrusterFx.Thrust.IDLE) and not thr_seq.is_empty() and thr_seq[-1] == ThrusterFx.Thrust.IDLE)
+	var idled := first_full > 0 and not thr_seq.slice(0, first_full).has(ThrusterFx.Thrust.CRUISE) \
+		and thr_seq[0] == ThrusterFx.Thrust.IDLE
+	_ok("3B UNDOCK: its engines at the idle as it backs out, no cruise burn, then the arrival's coughs down to the idle (%d frames: idle first and no CRUISE before the coughs %s, coughs from frame %d, last %s)" % [
+		thr_seq.size(), idled, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
+		idled and not thr_seq.is_empty() and thr_seq[-1] == ThrusterFx.Thrust.IDLE)
 	# AND HEARD: the flameout's clip for its row, once, from its first cough
 	var clips: Array = []
 	for tp: Array in Audio.tape:
@@ -1073,7 +1079,7 @@ func _undock_skipped() -> void:
 	Audio.tape.clear()
 	Router.show_sector()
 	var c: SectorScreen = null
-	var burning := false
+	var backing := false
 	var moor := Vector2.INF
 	var moor_s := Vector2.ZERO
 	for i in 600:
@@ -1084,7 +1090,9 @@ func _undock_skipped() -> void:
 			if hall.get("beat", &"") == &"out" and float(hall.get("t", 0.0)) > 1.5:
 				moor = (c._lad.ship as Dictionary).get("pos", Vector2.INF)
 				moor_s = (c._lad.ship as Dictionary).get("scale", Vector2.ZERO)
-				burning = bool(hall.get("burning", false))
+				# (backing out, its coughs not begun)
+				var a0 := c._view.ship_view()
+				backing = a0 != null and not a0.sputtering() and not a0.position.is_equal_approx(moor)
 				break
 	var k := InputEventKey.new()
 	k.keycode = KEY_SHIFT
@@ -1103,9 +1111,9 @@ func _undock_skipped() -> void:
 		if String(tp[6]).begins_with("thruster_"):
 			heard += 1
 	Audio.taping = false
-	_ok("3B: a key mid-undock (its engines burning: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [
-		burning, n, art.position if art != null else Vector2.INF, art.scale if art != null else Vector2.ZERO, moor, moor_s, heard],
-		burning and n >= 0 and n <= 3 and Router.current == c and art != null and art.position.is_equal_approx(moor) and art.scale.is_equal_approx(moor_s)
+	_ok("3B: a key mid-undock (backing out, before its coughs: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [
+		backing, n, art.position if art != null else Vector2.INF, art.scale if art != null else Vector2.ZERO, moor, moor_s, heard],
+		backing and n >= 0 and n <= 3 and Router.current == c and art != null and art.position.is_equal_approx(moor) and art.scale.is_equal_approx(moor_s)
 			and not art._burning and not art.sputtering() and art._thrust_now() == ThrusterFx.Thrust.IDLE and heard == 0
 			and c._face != null and c._face.power >= 0.999)
 	_clean("3B undock, skipped")

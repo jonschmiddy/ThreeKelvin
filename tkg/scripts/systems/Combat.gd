@@ -117,6 +117,21 @@ var asking_at: int = -1
 ## Hull growth count for the log to say when the boss grows; followed from the host in
 ## `_adopt`.
 var grown: int = -1
+## THE PLAYERS THIS FIGHT WAS BUILT FOR (`PartyScale`, Jon, Nov 5): the game's
+## count as it was planned, then the party's fight's own (`SharedFight.party`,
+## the host's) once it is attached. Its hull is `PartyScale.hull` of it and its
+## wrecks pay `PartyScale.loot` of it. 1 alone.
+var party: int = 1
+## STUNNED: joined the party's fight after its first turn (Jon, Nov 5), and
+## sitting out the rest of that turn and the enemy's. No hand and no energy;
+## END TURN, HAIL, FLEE and every card are shut; it can still be shot. The hand
+## comes when the turn moves (`_on_fight_changed`). The fight says who is
+## (`SharedFight.stunned`); this is this ship's copy.
+var stunned: bool = false
+## Who was in the party's fight at the last push this ship saw, so a partner
+## joining is said once, and nobody already here when this ship arrived is
+## announced (`_on_fight_changed`).
+var _last_crew: PackedInt32Array = PackedInt32Array()
 
 var turn: int = 1
 var attacks_this_turn: int = 0
@@ -154,10 +169,12 @@ func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 ## Split from `start()` so a shared fight opens with the host's numbers; scaling stays in
 ## `_spawn`.
 ## Why: docs/why/Combat.md#plan-then-begin
-func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
+## `players`: the game's count to build for (`PartyScale`); -1 asks the session, 1 alone.
+func plan(template: EnemyTemplate, danger: int, extras: Array = [], players: int = -1) -> void:
 	self.danger = danger
 	enemies.clear()
 	grown = -1
+	party = clampi(PartyScale.players() if players < 0 else players, 1, NetTransport.MAX_PLAYERS)
 	for t in [template] + extras:
 		if (t as EnemyTemplate).grow_after >= 0:
 			grown = Run.custodian_jumps()
@@ -181,6 +198,7 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 
 ## The party's answer is the fight: a mismatched id rebuilds the foes (`replan_foes`)
 ## before any deal.
+## Joined late: held hits play first, and a stunned ship is dealt nothing (PROTOCOL 18).
 ## Why: docs/why/Combat.md#party-answer-wins
 func begin(f: SharedFight) -> void:
 	if f != null:
@@ -191,6 +209,22 @@ func begin(f: SharedFight) -> void:
 	if f != null and f.over:
 		_settle_over(f)
 		if finished:
+			return
+	if f != null:
+		for row: Array in Net.take_held_swings(f.at):
+			var which := int(row[1])
+			if which >= 0 and which < enemies.size():
+				_log("%s hit you as you arrived." % enemies[which].template.name, &"them")
+			_on_swing(int(row[0]), which, int(row[2]), int(row[3]))
+			if finished:
+				return
+		if f.stunned.has(Net.local_id()):
+			stunned = true
+			energy = 0
+			_log("Stunned. You act after the enemy's turn.", &"them")
+			Sig.turn_started.emit(turn)
+			Sig.hand_changed.emit()
+			Sig.player_combat_state_changed.emit()
 			return
 	begin_turn()
 
@@ -304,7 +338,9 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0, pick: b
 	var t := scaled_for(template, danger)
 	e.template = t
 	var base := template.hull_at(Run.custodian_jumps()) if hand_tuned else template.max_hull
-	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share)))
+	# AND THE PARTY'S SIZE (Jon, Nov 5): every fight in an n-player game is
+	# built for n, bosses too. 1 alone, so the solo numbers are untouched.
+	e.max_hp = maxi(1, int(round(base * hp_mult * hp_share * PartyScale.hull(party))))
 	e.hp = e.max_hp
 	e.brace = int(round(template.brace * hp_mult))
 	if pick:
@@ -369,7 +405,7 @@ func begin_turn() -> void:
 	Sig.player_combat_state_changed.emit()
 
 func end_turn() -> void:
-	if finished or asking_at >= 0:
+	if finished or asking_at >= 0 or stunned:
 		return
 	# A choice cannot outlive its turn: `can_play` refuses all while one is pending, locking
 	# the next turn.
@@ -411,17 +447,8 @@ func end_turn() -> void:
 	# Why: docs/why/Combat.md#no-end-of-turn-heat-shed
 
 	# Overheat: predictable self-damage. Heat is a second health bar you spend.
-	if Run.heat > Run.heat_cap():
-		var burn := Run.heat - Run.heat_cap()
-		if Run.has_set(&"solari", 5):
-			burn = int(ceil(burn / 2.0))
-		_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
-		Sig.overheated.emit(burn)
-		Sig.hull_burned.emit(burn, &"overheat")
-		Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.")
-		if Run.dead:
-			_finish(&"dead", Run.death_reason)
-			return
+	if _overheat():
+		return
 
 	if attacks_this_turn == 0:
 		peaceful_turns += 1
@@ -455,6 +482,23 @@ func end_turn() -> void:
 	turn += 1
 	begin_turn()
 
+## The end of a turn's overheat burn. True when it killed the ship (the fight
+## is finished). Also run once when a stun clears, for the turn sat out.
+func _overheat() -> bool:
+	if Run.heat <= Run.heat_cap():
+		return false
+	var burn := Run.heat - Run.heat_cap()
+	if Run.has_set(&"solari", 5):
+		burn = int(ceil(burn / 2.0))
+	_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
+	Sig.overheated.emit(burn)
+	Sig.hull_burned.emit(burn, &"overheat")
+	Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.")
+	if Run.dead:
+		_finish(&"dead", Run.death_reason)
+		return true
+	return false
+
 func _enemy_act() -> void:
 	# Everything still standing acts, in order. A downed enemy is skipped rather
 	# than removed, so indexes stay stable for targeting and for the UI.
@@ -477,7 +521,8 @@ func _act_one(e: EnemyState) -> void:
 	# swing.
 	if I.escape and not is_shared():
 		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
-		Run.hellbender_breaks_off(e.hp)
+		# its hull between fights is one ship's worth (`PartyScale.solo_hull`)
+		Run.hellbender_breaks_off(PartyScale.solo_hull(e.hp, party))
 		_finish(&"broke_off",
 			"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
 		return
@@ -556,7 +601,8 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 
 func can_play(c: CardData) -> bool:
 	# Nothing is playable mid-choice, or two cards would resolve in an order neither stated.
-	return not finished and asking_at < 0 and choosing <= 0 and energy >= c.energy
+	return not finished and asking_at < 0 and not stunned and choosing <= 0 \
+		and energy >= c.energy
 
 ## Choice takes a hand index so the sim and bot pick like the screen. Junk first, never
 ## random.
@@ -801,7 +847,7 @@ func salvo_live(c: CardData) -> bool:
 
 
 func can_hail() -> bool:
-	if finished or waiting or asking_at >= 0 or enemies.is_empty():
+	if finished or waiting or stunned or asking_at >= 0 or enemies.is_empty():
 		return false
 	if struck or hail_failed:
 		return false
@@ -816,6 +862,8 @@ func can_hail() -> bool:
 func hail_cause() -> StringName:
 	if enemies.is_empty():
 		return &""
+	if stunned:
+		return &"stunned"
 	if hail_failed:
 		return &"failed"
 	if struck:
@@ -837,7 +885,12 @@ func hail_reason() -> String:
 	# One label (NO REPLY) for every shut door so it reads as one mechanic and fits the 68px
 	# rail.
 	# Why: docs/why/Combat.md#hail-button-label
-	return "" if hail_cause() == &"" else "NO REPLY"
+	var why := hail_cause()
+	# STUNNED keeps the button's name, greyed: the reason is in the tooltip,
+	# and END TURN already says STUNNED (one word on three buttons is noise)
+	if why == &"stunned":
+		return "HAIL"
+	return "" if why == &"" else "NO REPLY"
 
 
 ## Same exit as `flee` bought with words, without fuel. Failure is loud rather than
@@ -877,7 +930,7 @@ var flee_failed := false
 ## did.
 ## Why: docs/why/Combat.md#flee-eligibility
 func can_flee() -> bool:
-	if finished or waiting or asking_at >= 0 or flee_failed:
+	if finished or waiting or stunned or asking_at >= 0 or flee_failed:
 		return false
 	for e in enemies:
 		if (e as EnemyState).template.boss:
@@ -887,6 +940,8 @@ func can_flee() -> bool:
 
 ## What the button says when it cannot. Empty when it can.
 func flee_reason() -> String:
+	if stunned and not finished:
+		return "FLEE"
 	return "" if can_flee() else "NO ESCAPE"
 
 
@@ -894,6 +949,8 @@ func flee_reason() -> String:
 func flee_cause() -> StringName:
 	if can_flee():
 		return &""
+	if stunned:
+		return &"stunned"
 	if flee_failed:
 		return &"failed"
 	return &"boss"
@@ -947,7 +1004,7 @@ func flee() -> void:
 	# The hellbender heals per move, so fleeing banks damage. Solo; the host writes it back in
 	# a party.
 	if not is_shared() and not enemies.is_empty() and enemies[0].template.miniboss:
-		Run.hellbender_scarred(enemies[0].hp)
+		Run.hellbender_scarred(PartyScale.solo_hull(enemies[0].hp, party))
 	Sig.resources_changed.emit()
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % burned)
 
@@ -990,8 +1047,8 @@ static func core_body(node: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Jetsam:
 		h.items.append(MaterialData.of(row))
 	return h
 
-## Each wreck is rolled on its own (Jon, Oct 13), positionally by place; money does not
-## multiply by hands.
+## Each wreck is rolled on its own (Jon, Oct 13), positionally by place. In a party its purse,
+## parts and exotic are multiplied by `PartyScale.loot` of the fight's players (Nov 5).
 ## Why: docs/why/Combat.md#wreck-contents
 const WRECK_CREDIT_CHANCE := 0.75
 const WRECK_CREDIT_SPREAD := 0.20
@@ -1036,8 +1093,9 @@ static func wreck_parts(t: EnemyTemplate, region: MapGen.Region) -> float:
 	return per * WRECK_LAWLESS if region == MapGen.Region.LAWLESS else per
 
 ## Pure: the same node, kind, index and hands give the same items on every machine.
+## `loot` is the party's pay multiplier (`PartyScale.loot`); 1 alone, the roll it always was.
 static func roll_wreck(node: MapGen.MapNode, t: EnemyTemplate, index: int,
-		hands: int = 1, probate: bool = false, calyx: bool = false) -> Array[HoldItem]:
+		loot: float = 1.0, probate: bool = false, calyx: bool = false) -> Array[HoldItem]:
 	var r := Rng.derive(&"wreck", node.index * 64 + index)
 	var out: Array[HoldItem] = []
 	# Both drawn every time, so the parts below sit at the same place in the
@@ -1048,25 +1106,26 @@ static func roll_wreck(node: MapGen.MapNode, t: EnemyTemplate, index: int,
 		var purse := wreck_purse(t, node.danger, probate)
 		if not (t.boss or t.miniboss):
 			purse *= 1.0 + swing
-		out.append(CreditChit.of(maxi(1, int(round(purse)))))
-	var per := wreck_parts(t, node.region)
+		out.append(CreditChit.of(maxi(1, int(round(purse * maxf(1.0, loot))))))
+	# ONE ROLL OF THE PARTY'S PARTS, not one per hand: the expected count is the
+	# kind's times the multiplier, and a single ship's roll is the old one
+	var per := wreck_parts(t, node.region) * maxf(1.0, loot)
 	var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
 	var deep := node.region == MapGen.Region.DEEP
-	for hand in maxi(1, hands):
-		var n := int(per)
-		if r.randf() < per - n:
-			n += 1
-		for i in n:
-			out.append(LootGen.roll_module(node.danger, force, deep, r))
+	var n := int(per)
+	if r.randf() < per - n:
+		n += 1
+	for i in n:
+		out.append(LootGen.roll_module(node.danger, force, deep, r))
 	if t.fauna:
 		var row := MaterialTable.by_id(&"exotic")
 		if not row.is_empty():
-			for i in FAUNA_EXOTIC + (1 if calyx else 0):
+			for i in int(round((FAUNA_EXOTIC + (1 if calyx else 0)) * maxf(1.0, loot))):
 				out.append(MaterialData.of(row))
 	return out
 
-## How many ships the last won fight paid its wrecks for. Read by the co-op
-## harness, which cannot see `shared` once the fight has let go of it.
+## How many players the last won fight paid its wrecks for (`party`). Read by
+## the co-op harness, which cannot see `shared` once the fight has let go of it.
 var wreck_hands: int = 1
 
 func _victory() -> void:
@@ -1112,7 +1171,8 @@ func _victory() -> void:
 	# One way to be paid: wrecks. Solo `Run.stow` lost rewards on a full hold. Rolled
 	# positionally, not by seat.
 	# Why: docs/why/Combat.md#wreck-payout
-	var hands := maxi(1, shared.paid if (is_shared() and shared != null) else 1)
+	# Paid for the players in the game, the count the fight was built for, not the ships in it.
+	var hands := maxi(1, party)
 	wreck_hands = hands
 	var calyx := Run.has_set(&"calyx", 5)
 	var wrecks_before := 0
@@ -1126,7 +1186,7 @@ func _victory() -> void:
 	for i in enemies.size():
 		var e: EnemyState = enemies[i]
 		var h := Run.new_wreck(node, e.template, e.look)
-		var got := roll_wreck(node, e.template, wrecks_before + i, hands, probate, calyx)
+		var got := roll_wreck(node, e.template, wrecks_before + i, PartyScale.loot(hands), probate, calyx)
 		h.items.append_array(got)
 		if got.is_empty():
 			empty += 1
@@ -1205,6 +1265,10 @@ func _attach(f: SharedFight) -> void:
 	# before anybody saw it (`NetSession._open_or_join`), which is no news
 	if f.grown >= 0:
 		grown = f.grown
+	# and the players its hull was built for, which its wrecks pay
+	party = f.party
+	# nobody already here is announced (`_say_joins`)
+	_last_crew = f.crew.duplicate()
 	Sig.party_fight_changed.connect(_on_fight_changed)
 	Sig.party_fight_swing.connect(_on_swing)
 	# Losing the host mid-fight must not be a softlock. See _on_party_lost().
@@ -1224,6 +1288,7 @@ func release() -> void:
 	shared = null
 	shared_at = -1
 	waiting = false
+	stunned = false
 
 
 ## Menu exits (review, Nov 5) must leave the crew and the signal bus, or partners wait on a
@@ -1301,6 +1366,7 @@ func _on_fight_changed(at: int) -> void:
 	if f == null:
 		return
 	shared = f
+	_say_joins(f)
 	_adopt(f)
 	if f.over:
 		_settle_over(f)
@@ -1312,7 +1378,33 @@ func _on_fight_changed(at: int) -> void:
 		block = 0
 		turn = f.turn
 		waiting = false
+		# THE STUN ENDS WITH THE ENEMY'S TURN: the hand comes now, and the
+		# overheat check runs once for the turn sat out (no cards, so only heat
+		# carried in can burn)
+		if stunned:
+			stunned = false
+			_log("Your turn.", &"good")
+			if _overheat():
+				return
 		begin_turn()
+
+
+## A partner walked into this fight: said once, on this machine, from the
+## crew this ship last saw (`_last_crew`, set as it attached, so the ships
+## already here when it arrived are not announced) and the fight's stun list.
+## Nothing extra on the wire.
+func _say_joins(f: SharedFight) -> void:
+	var me := Net.local_id()
+	for p in f.crew:
+		if p == me or _last_crew.has(p):
+			continue
+		var who := Net.name_of(p)
+		who = who.to_upper() if who != "" else "A PARTNER"
+		if f.stunned.has(p):
+			_log("%s joins the fight, stunned until the enemy's turn is over." % who, &"good")
+		else:
+			_log("%s joins the fight." % who, &"good")
+	_last_crew = f.crew.duplicate()
 
 
 ## The party's fight is over: end this one the way it ended. From a push, or
@@ -1336,7 +1428,8 @@ func _on_party_lost(_reason: String) -> void:
 	if finished or not is_shared():
 		return
 	_log("The convoy channel is gone. You are on your own.", &"them")
-	var was_waiting := waiting
+	# stunned is waiting too: the enemy's turn it was sitting out is taken here
+	var was_waiting := waiting or stunned
 	release()
 	if was_waiting:
 		# Mid-barrier drop: take the enemy turn it was waiting for, so the fight does not stall.

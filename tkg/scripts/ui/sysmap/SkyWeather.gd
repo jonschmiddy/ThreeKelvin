@@ -775,50 +775,25 @@ func _bil(sp: Vector2) -> float:
 
 
 ## In SIMPLIFIED the cluster is the system's sun (two
-## suns: their balance point); LEGACY keeps its old spot.
+## suns: their balance point).
 ## Why: docs/why/SkyWeather.md#emission-cluster
 func em_cc() -> Vector2:
-	if _legacy():
-		return nspot(1.0, Vector2(-160, -120), Vector2(1120, 660))
 	if view != null and view.has_method(&"sky_c"):
 		return view.sky_c()
 	return Vector2(480, 270)
 
 
-## A lit pillar tip's strength at sp; in LEGACY the
-## old cloud's fingers, lit in to 0.27 of its radius.
+## A lit pillar tip's strength at sp: near the head of a pillar the bake raised.
 func em_tip(sp: Vector2) -> float:
-	if _legacy():
-		var cc := em_cc()
-		var dc := sp - cc
-		var r := dc.length() / 720.0
-		var dir := dc / maxf(dc.length(), 1.0)
-		var fing := ridge(nfbm(dir * 2.8 + Vector2(r * 0.9 + _sd, _sd * 2.0), 3), 7.0)
-		return fing * exp(-pow((r - 0.27) / 0.06, 2.0)) * sm(0.32, 0.6, _bil(sp))
 	var best := 0.0
 	for p: Array in em_tips():
 		best = maxf(best, exp(-(sp - Vector2(p[1])).length_squared() / (24.0 * 24.0)))
 	return best
 
 
-## The cloud's pillars as [base, tip, w0, w1, seed] in sky pixels; in LEGACY its lit finger tips.
+## The cloud's pillars as [base, tip, w0, w1, seed] in sky pixels.
 func em_tips() -> Array:
-	if _legacy():
-		var out: Array = []
-		var cc := em_cc()
-		for k in 24:
-			var a := float(k) / 24.0 * TAU
-			var sp := cc + Vector2(cos(a), sin(a)) * 194.0
-			var s := em_tip(sp)
-			if s > 0.05:
-				out.append([cc, sp, s])
-		return out
 	return SkyBakeS.em_pillars(_sd, em_cc())
-
-
-## the system is drawn in LEGACY
-func _legacy() -> bool:
-	return view != null and bool(view.get("legacy"))
 
 
 func em_lane(sp: Vector2) -> float:
@@ -1236,15 +1211,6 @@ func _p_jet(ev: Dictionary) -> bool:
 	var cc := em_cc()
 	var at := Vector2.INF
 	var tips := em_tips()
-	if _legacy():
-		# LEGACY: the brightest lit tip in view, as before
-		var best := 0.04
-		for p: Array in tips:
-			var q := _neb_scr(Vector2(p[1]))
-			if _in_view(q, 30.0) and clear_at(q, SHIP_R[M]) and float(p[2]) > best:
-				best = float(p[2])
-				at = p[1]
-		tips = []
 	var k0 := _rng.randi() % maxi(1, tips.size())
 	for j in tips.size():
 		var sp: Vector2 = tips[(k0 + j) % tips.size()][1]
