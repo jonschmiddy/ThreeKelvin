@@ -16,6 +16,15 @@ const HOT := Color("#ffd28a")
 const HULL_GREEN := Color("#4d7a63")
 const THEM := Color("#c98d7a")
 
+## THE ONE HIGHLIGHT (stripped-down UI C1, Jon, Nov 9): a pale mint no art uses, a 2 px
+## outline on what you point at and on what it will hit, and nowhere at rest.
+## Why: docs/why/UITheme.md#one-outline
+const MARK := Color("#b8f5d8")
+const MARK_PX := 2
+## How far everything else steps back when one move is the only one (C2), and a card you
+## cannot pay for.
+const DIM := 0.4
+
 ## A lookup on `ModuleData.rarity_colour`, not a second palette. `rarity_ink` as contraband
 ## is near black.
 ## Why: docs/why/UITheme.md#material-tier-colour
@@ -108,7 +117,8 @@ static func build() -> Theme:
 
 	# Buttons. See `button_style`: the shape of every button in the game.
 	var normal: StyleBox = bevel(PANEL2, 3, 5)
-	var hover: StyleBox = bevel(Color("#243244"), 3, 5)
+	# Hover is the one outline, not a lighter box with warm text (C1).
+	var hover: StyleBox = mark_box(PANEL2, 3, 5)
 	var pressed: StyleBox = bevel_in(Color("#4a2a0c"), 3, 5)
 	var disabled: StyleBox = bevel_in(PANEL, 3, 5)
 	match button_style:
@@ -142,7 +152,7 @@ static func build() -> Theme:
 	t.set_stylebox("disabled", "Button", disabled)
 	t.set_stylebox("focus", "Button", normal)
 	t.set_color("font_color", "Button", ICE)
-	t.set_color("font_hover_color", "Button", FLARE)
+	t.set_color("font_hover_color", "Button", ICE)
 	t.set_color("font_pressed_color", "Button", HOT)
 	t.set_color("font_disabled_color", "Button", Color(COLD.r, COLD.g, COLD.b, 0.35))
 	t.set_font_size("font_size", "Button", FS_SMALL)
@@ -170,7 +180,8 @@ static func build() -> Theme:
 	# Tooltips get a minimum width and a `TOOLTIP_WRAP` ceiling; with only one half they
 	# sprawl or sliver.
 	# Why: docs/why/UITheme.md#tooltip-shape
-	var tip := bevel(PANEL2, TOOLTIP_PAD_V, TOOLTIP_PAD_H)
+	# The plate is the torn tag's (T1): black, a 1 px grey torn edge, no bevel.
+	var tip := torn_box()
 	tip.set_content_margin(SIDE_LEFT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_RIGHT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_TOP, TOOLTIP_PAD_V)
@@ -211,6 +222,32 @@ static func bevel(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 static func bevel_in(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 	return _bevel_box(bg, BEVEL_LO, Color("#2a3644"), pad_v, pad_h)
 
+## THE TORN TAG AS A STYLEBOX (T1), for the plates that wrap a rich tooltip body (a part's
+## readout, the badge's lines): `TornTag.FILL` under a 1 px edge that steps in a pixel here and
+## there, tiled, so the edge reads as torn at any size. Margins of 2 keep the jag whole.
+static func torn_box() -> StyleBoxTexture:
+	var n := 24
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	img.fill(TornTag.FILL)
+	for i in n:
+		for side in 4:
+			var j := TornTag._jag(i, side + 1)
+			var px := Vector2i(i, j) if side == 0 else (Vector2i(i, n - 1 - j) if side == 1
+				else (Vector2i(j, i) if side == 2 else Vector2i(n - 1 - j, i)))
+			# the step in leaves the outer pixel clear, as the hand-drawn tag does
+			if j == 1:
+				var outer := Vector2i(i, 0) if side == 0 else (Vector2i(i, n - 1) if side == 1
+					else (Vector2i(0, i) if side == 2 else Vector2i(n - 1, i)))
+				img.set_pixel(outer.x, outer.y, Color(0, 0, 0, 0))
+			img.set_pixel(px.x, px.y, TornTag.EDGE)
+	var sb := StyleBoxTexture.new()
+	sb.texture = ImageTexture.create_from_image(img)
+	sb.set_texture_margin_all(2)
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	return sb
+
+
 static func _bevel_box(bg: Color, hi: Color, lo: Color,
 		pad_v: int, pad_h: int) -> StyleBoxTexture:
 	var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
@@ -234,11 +271,19 @@ static func _bevel_box(bg: Color, hi: Color, lo: Color,
 	sb.content_margin_right = pad_h
 	return sb
 
+## The hover box every button shares: its own fill under a `MARK_PX` outline in MARK.
+## Content margins stay the caller's, so a hovered button is the size it was at rest.
+static func mark_box(bg: Color, pad_v: int, pad_h: int) -> StyleBoxFlat:
+	var sb := flat(bg, MARK, 0, pad_v, pad_h)
+	sb.set_border_width_all(MARK_PX)
+	return sb
+
+
 ## The OUTLINE button style's boxes, by state; also `Widgets.quiet`'s.
 static func outline_boxes() -> Dictionary:
 	return {
 		"normal": flat(Color(0, 0, 0, 0), LINE, 0, 3, 5),
-		"hover": flat(Color(PANEL2, 0.9), CHILL, 0, 3, 5),
+		"hover": mark_box(Color(PANEL2, 0.9), 3, 5),
 		"pressed": flat(Color("#4a2a0c"), EMBER, 0, 3, 5),
 		"disabled": flat(Color(0, 0, 0, 0), Color(LINE, 0.5), 0, 3, 5),
 	}

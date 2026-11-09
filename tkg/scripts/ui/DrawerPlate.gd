@@ -112,7 +112,8 @@ func _draw() -> void:
 				ink = UITheme.BAD
 				text = Color("#e08a76")
 			_:
-				edge = UITheme.CHILL
+				# The one highlight colour on the edge (C1); GOOD and BAD keep their meaning.
+				edge = UITheme.MARK
 				fill = Color("#16202c")
 				ink = UITheme.CHILL
 				text = UITheme.ICE

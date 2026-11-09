@@ -485,3 +485,8 @@ credits sitting on far more DATA than a run usually collects. Not held at
 "000": that would spend 6 px on every run for a case almost none reach.
 FuelTest prints what 199 and 999 want.
 ```
+
+ONE SENTENCE (Nov 9, stripped-down UI T1): the tag that replaced the tooltip
+has no title and one sentence, so each gauge's words are now the one
+consequence that matters, the live number kept where it decides something
+(the heat cap, how far over you are). The gauge itself is the title.

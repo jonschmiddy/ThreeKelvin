@@ -232,6 +232,8 @@ var _cursor_shown: int = -1
 
 
 func _wear_cursor() -> void:
+	# The game's tooltips are one torn tag at the thing (T1), over everything but the menu.
+	_overlay_layer().add_child(TagLayer.new())
 	_cursor_tex.clear()
 	for i in CURSOR_FRAMES:
 		# Load via the imported texture: an export has no loose PNG, so friends got the arrow.

@@ -1339,71 +1339,8 @@ static func on_hull(v: ShipView, p: Vector2) -> bool:
 	return false
 
 
-## The outline runs on the GPU from the ship's texture; tracing in script stalled 40 ms (Oct 13).
+## The hull's outline is the game's one outline (`MarkOutline`, C1): kept under this name
+## for the screens and harnesses that build it here.
 ## Why: docs/why/CutawayView.md#hull-outline
-class Outline extends Control:
-	var view: ShipView
-	var _key := Vector4(-1, -1, -1, -1)
-	static var _shader: Shader = null
-
-	func _init() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		if _shader == null:
-			_shader = Shader.new()
-			_shader.code = OUTLINE_SHADER
-		var m := ShaderMaterial.new()
-		m.shader = _shader
-		m.set_shader_parameter("col", Color(UITheme.HOT, 0.85))
-		material = m
-
-	## Redrawn only when the canvas's size or place changes: the texture's
-	## contents (the bob, the heat, the damage) reach the shader by themselves.
-	func _process(_d: float) -> void:
-		if view == null or not visible:
-			return
-		var img := view.canvas()
-		if img == null:
-			return
-		var k := Vector4(img.get_width(), img.get_height(), view.art_scale(), view.size.x * 4096.0 + view.size.y)
-		if k != _key:
-			_key = k
-			queue_redraw()
-
-	func _draw() -> void:
-		if view == null or view.texture == null:
-			return
-		var img := view.canvas()
-		if img == null:
-			return
-		var kk := view.art_scale()
-		var origin := ((view.size - Vector2(view.canvas_width(), view.canvas_height())) * 0.5).floor()
-		var wh := Vector2(img.get_width(), img.get_height())
-		(material as ShaderMaterial).set_shader_parameter("canvas", wh)
-		# one canvas pixel of margin all round: the outline's pixels are clear
-		# ones, so the ring round the edge of the canvas is part of it
-		draw_texture_rect(view.texture, Rect2(origin - Vector2(kk, kk), (wh + Vector2(2, 2)) * kk), false)
-
-
-const OUTLINE_SHADER := """
-shader_type canvas_item;
-render_mode unshaded;
-uniform vec2 canvas;
-uniform vec4 col : source_color;
-
-// a macro, not a function: the canvas's TEXTURE cannot be handed to one
-#define SOLID(q) (all(greaterThanEqual(q, vec2(0.0))) && all(lessThan(q, canvas)) && textureLod(TEXTURE, ((q) + 0.5) / canvas, 0.0).a > 0.1)
-
-void fragment() {
-	vec2 p = floor(UV * (canvas + 2.0)) - 1.0;
-	if (SOLID(p)) {
-		COLOR = vec4(0.0);
-	} else if (SOLID(p + vec2(1.0, 0.0)) || SOLID(p - vec2(1.0, 0.0))
-			|| SOLID(p + vec2(0.0, 1.0)) || SOLID(p - vec2(0.0, 1.0))) {
-		COLOR = col;
-	} else {
-		COLOR = vec4(0.0);
-	}
-}
-"""
+class Outline extends MarkOutline:
+	pass

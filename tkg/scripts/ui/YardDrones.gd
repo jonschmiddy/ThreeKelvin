@@ -14,7 +14,6 @@ const INK_SCREEN := {"l": UITheme.ICE, "p": Color("#f0a030"), "poor": UITheme.QU
 	"done": UITheme.COLD, "shadow": true}
 const INK_PAPER := {"l": Color("#2a2118"), "p": Color("#8a2a10"), "poor": Color("#8a7f62"), "flash": Color("#2d5a1e"),
 	"done": Color("#6a5a40"), "shadow": false}
-const AMBER := Color("#f0a030")
 const PEN := [Color("#d8412f"), Color("#c42b1f"), Color("#c42b1f"), Color("#8e1c14")]
 const JOKES := ["BACK IN 5", "LUNCH", "NO", "BRB", "ON BREAK", "ASK LATER", "404", "HMM"]
 
@@ -486,13 +485,15 @@ func carry(P: YardPaint, i: int, cx: float, cy: float, t: float, lines: Array, h
 	var gh := float(g[3]) - float(g[1]) + 1.0
 	var mx := floorf(sx + (float(g[0]) + float(g[2]) + 1.0) / 2.0 + 0.5)
 	if hot:
+		# Pointed at: the one outline round the screen it carries (C1), where it was amber.
 		var gx0 := sx + float(g[0])
 		var gy0 := sy + float(g[1])
 		var gw := float(g[2]) - float(g[0]) + 1.0
-		P.rect(Rect2(gx0, gy0, gw, 1), AMBER)
-		P.rect(Rect2(gx0, gy0 + gh - 1.0, gw, 1), AMBER)
-		P.rect(Rect2(gx0, gy0, 1, gh), AMBER)
-		P.rect(Rect2(gx0 + gw - 1.0, gy0, 1, gh), AMBER)
+		var m := float(UITheme.MARK_PX)
+		P.rect(Rect2(gx0, gy0, gw, m), UITheme.MARK)
+		P.rect(Rect2(gx0, gy0 + gh - m, gw, m), UITheme.MARK)
+		P.rect(Rect2(gx0, gy0, m, gh), UITheme.MARK)
+		P.rect(Rect2(gx0 + gw - m, gy0, m, gh), UITheme.MARK)
 	if lines.size() == 1:
 		_put(P, String(lines[0][0]), mx, sy + float(g[1]) + floorf((gh - 5.0) / 2.0) + 5.0, lines[0][1], ink, M)
 	else:

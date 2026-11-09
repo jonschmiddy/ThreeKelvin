@@ -976,3 +976,29 @@ to the button's text each time it draws
 REACH's orange readable by its shadow alone over a giant's gold, so the black words
 lie a pixel each way and down-right, a ring the words sit in)
 ```
+
+## Jump plate
+
+Above `const JUMP_H := 56`:
+
+```text
+STRIPPED-DOWN UI C3, "size is importance" (Jon, Nov 9, his pick from the
+page; the mockup is tk-scratch/ui-audit/mockups/C3_size_is_importance.png):
+each screen's one action is its biggest thing. On the chart that is JUMP,
+which was a plain 24 px button under a 60-100 word panel, quieter than the
+map's GO. It is now a 56 px ember plate, JUMP in the heading size with the
+star's name under it in a child Label (`_jump_to`), the refusal word (TOO
+DEEP, NOT ENOUGH FUEL, ...) on a dark plate of the same size so the reason
+stays readable and nothing moves between the two states. `_jump.text` keeps
+the word alone, as the harnesses read it.
+
+The panel shrinks to what decides the jump: the name, DANGER, FUEL and the
+WARNING lines, plus a contract-only system's CIRCLED BY and PAYS. The blurb
+shows only for the galaxy at rest (`_blurb`); the survey rows went to the
+star's hover tag (`MapChart.survey_lines`).
+
+ONE CALL, for Jon: the mockup also dropped the IN RANGE list for a count.
+The list stays here, because it is the one place the reachable stars' danger
+and fuel sit side by side, and the tutorial's chart and fuel lessons point at
+its rows (`Hints`, `HintActs`). Dropping it is a tutorial change (B1-B3).
+```

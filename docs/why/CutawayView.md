@@ -163,3 +163,9 @@ his ship came to rest under the pointer (Oct 13). The shader asks the same
 question of the texture the hull is drawn from, so it follows every repaint
 for nothing.
 ```
+
+The class is now a name for `MarkOutline` (Nov 9, stripped-down UI C1): the
+same GPU outline in the game's one highlight colour, 2 px, shared with the
+aim targets and the wrecks. Kept under this name because `SectorScreen`,
+`StationScreen` and six harnesses build it here. The reasoning above still
+holds; the amber is gone.

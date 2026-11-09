@@ -195,7 +195,7 @@ static func commit(b: Button, pad_v: int = 5, pad_h: int = 14) -> Button:
 	b.add_theme_stylebox_override("normal",
 		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, pad_v, pad_h))
 	b.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#1d1409"), UITheme.FLARE, 0, pad_v, pad_h))
+		UITheme.mark_box(Color("#1d1409"), pad_v, pad_h))
 	b.add_theme_stylebox_override("pressed",
 		UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, pad_v, pad_h))
 	b.add_theme_stylebox_override("focus",
@@ -203,7 +203,7 @@ static func commit(b: Button, pad_v: int = 5, pad_h: int = 14) -> Button:
 	b.add_theme_stylebox_override("disabled",
 		UITheme.flat(UITheme.VOID, UITheme.LINE, 0, pad_v, pad_h))
 	b.add_theme_color_override("font_color", UITheme.EMBER)
-	b.add_theme_color_override("font_hover_color", UITheme.HOT)
+	b.add_theme_color_override("font_hover_color", UITheme.EMBER)
 	b.add_theme_color_override("font_focus_color", UITheme.EMBER)
 	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
 	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))

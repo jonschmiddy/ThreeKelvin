@@ -1,0 +1,6 @@
+- **Changed** — one highlight for the whole game: a pale mint outline on what you point at and on what a card will hit, with a dashed line between them, and nothing outlined at rest. It replaces the orange brackets, the amber ship outline, the warm card tint, the corner ticks on the maps and the lighter button boxes.
+- **Changed** — a wreck you can open shows the outline when you point at it, as your ship does.
+- **Changed** — in a fight, when nothing in your hand can be played, the screen dims and END TURN lights orange. Nothing moves.
+- **Changed** — on the star chart, JUMP is a big orange plate with the star's name on it. The panel keeps danger, fuel and warnings; the rest of the survey is on the star when you point at it.
+- **Changed** — tooltips are one sentence on a small torn black tag right above the thing you point at. No frame, no title.
+- **Changed** — point at an underlined word on a card and the word lights, with its one-sentence meaning on the card's picture, at once. The card's old readout panel is gone from the hand.

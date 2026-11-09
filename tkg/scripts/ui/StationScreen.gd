@@ -912,11 +912,11 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	b.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func() -> void: _show_tab(id))
-	# No plate in any state: `StationSpine` lights the floor you are on. Hover gets a faint wash.
+	# No plate in any state: `StationSpine` lights the floor you are on. Hover gets the one
+	# outline (C1), where it got a faint wash.
 	for st in ["normal", "pressed", "disabled", "focus"]:
 		b.add_theme_stylebox_override(st, UITheme.empty())
-	b.add_theme_stylebox_override("hover",
-		UITheme.flat(Color(0.85, 0.90, 1.0, 0.05), Color(0, 0, 0, 0), 0, 0, 0))
+	b.add_theme_stylebox_override("hover", UITheme.mark_box(Color(0, 0, 0, 0), 0, 0))
 
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1687,9 +1687,9 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	offers.append_array([
 		{"label": "REFUEL +%d" % maxi(1, int(refuel.units)), "cost": refuel_cost, "done": Run.refuel_blocked(n),
 			"tip": Run.rescue_line(refuel) if refuel.get("rescue", false)
-				else "Fuel costs more on the frontier than in a capital. Each jump costs fuel (see the starchart's reach ring)."},
+				else "Fuel costs more out on the frontier than in a capital."},
 		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
-			"tip": "Choose which one comes out. Each costs the same and clears exactly one."},
+			"tip": "Choose which fault comes out; each costs the same and clears one."},
 	])
 	for o: Dictionary in offers:
 		o["ok"] = Run.credits >= int(o["cost"])
@@ -2457,7 +2457,7 @@ func _sign_button(c: ContractData) -> Button:
 		# in place round it (`_sync_notes`)
 		_signed_here[_offer_key(c)] = true
 		_refresh())
-	take.tooltip_text = Widgets.tip("Nothing here expires. You can sign it now, later or never.")
+	take.tooltip_text = Widgets.tip("Nothing here expires; sign it now, later or never.")
 	take.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
 	take.custom_minimum_size = Vector2(72, 26)
 	take.size_flags_horizontal = Control.SIZE_SHRINK_END

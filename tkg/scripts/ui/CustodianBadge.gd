@@ -776,7 +776,8 @@ func _hover(j: int) -> void:
 	var now := GameClock.now()
 	if _hover_t0 < 0.0:
 		_hover_t0 = now
-	var delay := float(ProjectSettings.get_setting("gui/timers/tooltip_delay_sec", 0.5))
+	# the one tooltip delay (`TagLayer.DELAY`): the layer turns Godot's own timer off
+	var delay := TagLayer.DELAY
 	if now - _hover_t0 < delay:
 		return
 	_show_tip(j)

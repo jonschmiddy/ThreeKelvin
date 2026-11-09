@@ -280,8 +280,8 @@ func _draw() -> void:
 				draw_rect(r.grow(2.0), UITheme.ICE, false, 1.0)
 			if m == lit_part:
 				var pl := 0.5 + 0.5 * sin(_phase * 3.0)
-				draw_rect(r, Color(UITheme.HOT, 0.18 + 0.15 * pl))
-				draw_rect(r.grow(2.0), UITheme.HOT, false, 1.0)
+				draw_rect(r, Color(UITheme.MARK, 0.14 + 0.12 * pl))
+				MarkOutline.draw_rect_mark(self, r.grow(3.0))
 			# Trade partners get a still teal frame, never dimmed: greyed reads as gone (Jon).
 			# Why: docs/why/MountPoints.md#swap-marks
 			if ok:

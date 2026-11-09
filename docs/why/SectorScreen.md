@@ -2021,3 +2021,50 @@ took the place mid-shake, a part of a pixel off, and left the hull there
 for good: 0.8 px off the grid and the pack laid out round it (found sliding
 the convoy column out, `-- sheet=ConvoySlideTest`).
 ```
+
+THE DASHED LINE (Nov 9, stripped-down UI C1, Jon's pick). The waves, the bow
+and the three-mark lock above were replaced by a straight dashed line in the
+one highlight colour, from the armed card's top edge to the pointer, with a
+3 px square at the tip where the hidden pointer is. The target it will hit
+wears the same outline as the card (`MarkOutline`), so the line only has to
+join them; a lock at the tip said the same thing twice. The dashes crawl
+toward the target at 18 px a second so the line reads as live; everything is
+plotted on whole pixels (`AimLine.dash_points`, pure, for `MarkTest`).
+
+## Dim the rest
+
+Above `var _dim: DimScrim = null`:
+
+```text
+STRIPPED-DOWN UI C2 (Jon, Nov 9, from Shroom and Gloom): when one move is
+the only one that makes sense, everything else steps back and that one
+lights. In a fight the case is the end of your turn: nothing in the hand you
+can pay for, no card held, nothing being asked. Then the whole screen, HUD
+and goal line included, dims to UITheme.DIM round END TURN, which goes to
+the ember plate every commit button wears, dark text on it. A move coming
+back (a new turn, a drawn card you can play) lifts it.
+
+HOW IT IS DRAWN. A CanvasLayer at 5 (under the pause menu's 10, over the
+HUD) holds one Control that ignores the mouse and paints VOID at alpha 0.6
+in four rects round END TURN's global box: the hole IS the button, so a
+click there is a click on it and nothing was moved or re-parented
+(dont-move-what-can-be-clicked). The box is read every frame, since the
+band breathes and the button with it. It fades over 0.25 s (reduced motion:
+at once), and the state is read every frame in _process rather than hooked
+at the dozen places it changes, which is cheap (a hand) and cannot miss one.
+
+The old A.S.H. line for this moment (the endturn lesson) still plays; the
+dim is the in-world cue the tutorial pass (B1-B3) can later lean on.
+```
+
+THE READOUT IS GONE FROM THE HAND (Nov 9, stripped-down UI T2, Jon's pick):
+resting on a card for a second opened a framed panel listing the card's
+name, type, rarity, manufacturer, module, every keyword's meaning and the
+flavour. Now each keyword on the card is its own hover target
+(`CardData.keyword_markup`, a `[url]` round the word): the word lights in
+the highlight colour and its one sentence shows at once on the card's
+picture, in the torn tag (`TornTag`), through `_on_word_hovered`. The
+coroutine, its generation counter and the delay above went with the panel;
+`_readout` and `_readout_for` now name the tag and its card, which the
+keywords lesson reads. The gallery and the deck popups keep the full
+readout as their tooltip (`CardView._make_custom_tooltip`).

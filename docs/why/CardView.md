@@ -609,3 +609,20 @@ card sits where a hovered one would and a little higher. It also has to WIN
 against hover: the pointer leaves the card the instant you start aiming, and
 an unguarded `_on_hover_out` would drop it back into the fan mid-gesture.
 ```
+
+## Word under the pointer
+
+Above `func word_at(p: Vector2) -> String:`:
+
+```text
+STRIPPED-DOWN UI T2 (Jon, Nov 9): each keyword on the card is its own
+hover target. The first build wrapped each term in [url] and listened to
+RichTextLabel's meta_hover_started; a pointer pushed over the hand in a
+window reached the label (its gui_input saw every motion) and the signal
+never fired, and headless the label keeps no hover at all. So the body's
+motions are measured here instead: a TextParagraph shaped as the body is
+(the same face, size and width, no line separation) answers which character
+is under the point, and the keyword whose span holds that character is the
+word. The [url] markup stays, as the harness and the hints read it as "a
+word that can be pointed at".
+```

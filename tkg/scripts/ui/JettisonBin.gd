@@ -21,7 +21,7 @@ var _armed: bool = false
 func _init() -> void:
 	custom_minimum_size = Vector2(W, H)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to put it down in this system. It stays there for the rest of the run. Fly back and take it from SECTOR LOOT whenever you want it.")
+	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to leave it in this system, under SECTOR LOOT, for the rest of the run.")
 
 
 ## The HoldItem inside a drag payload, or null for anything else. All three

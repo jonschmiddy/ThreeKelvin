@@ -1427,15 +1427,8 @@ func _draw_neb_tip() -> void:
 	o = o.round()
 
 	var edge := Color("#a98ab8") if _neb_hot_emit else Color("#6fa5b0")
-	draw_rect(Rect2(o, box), Color(0.043, 0.067, 0.106, 0.94), true)
-	draw_rect(Rect2(o, Vector2(box.x, 1)), edge, true)
-	draw_rect(Rect2(o + Vector2(0, box.y - 1), Vector2(box.x, 1)), edge, true)
-	draw_rect(Rect2(o, Vector2(1, box.y)), edge, true)
-	draw_rect(Rect2(o + Vector2(box.x - 1, 0), Vector2(1, box.y)), edge, true)
-	draw_string(f, o + Vector2(6, 11), _neb_hot,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UITheme.ICE)
-	draw_string(f, o + Vector2(6, 22), l2,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 8, edge)
+	# the torn tag (T1), the cloud's kind in its own colour
+	TornTag.draw_tag(self, Rect2(o, box), [[_neb_hot, UITheme.ICE], [l2, edge]])
 
 ## An ellipse, not a circle: `hop_distance` divides out squash, so reach is round in the galaxy.
 ## Whole pixels and a radius-tied step count, or dashes land on fractions and shimmer on pan.
@@ -1542,63 +1535,70 @@ func tip_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
 			l4 += "   TOO DEEP"
 		elif here.links.has(n.index):
 			l4 += "   %d FUEL" % Run.fuel_cost_to(n)
-	return PackedStringArray([l1, l2, l3, l4])
+		return PackedStringArray([l1, l2, l3, l4])
+	# THE SURVEY, after those four (C3, Jon, Nov 9): the rows the DESTINATION panel used to
+	# carry. The first four lines keep their places for the harnesses that read them.
+	# Why: docs/why/MapChart.md#survey-tag
+	return PackedStringArray([l1, l2, l3, l4]) + survey_lines(n, here)
+
+
+## What the place is, who runs it and what it sells, one short line each (the chart panel's
+## old CONTAINS, STAR, BODIES, NEARBY, DEVELOPMENT, SECURITY, OPERATORS, MARKET and HEADING).
+static func survey_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
+	var out := PackedStringArray()
+	var star := MapGen.BINARY if n.twin and MapGen.twin_ok(n) else MapGen.star_kind(n)
+	var sky := "%s STAR" % star
+	if n.gas_giant:
+		sky += " · GAS GIANT"
+	if n.near_pulsar and n.type != MapGen.NodeType.PULSAR:
+		sky += " · PULSAR NEARBY"
+	out.append(sky)
+	if n.type == MapGen.NodeType.CORE:
+		out.append("PRECURSOR RUINS · NOTHING LIVING")
+	else:
+		out.append("%s · %s SECURITY" % [MapGen.development_name(n.development).to_upper(),
+			MapGen.security_name(n.security).to_upper()])
+		var who := "NO OPERATOR"
+		var desk := Contracts.dock_desk(n)
+		if desk != &"":
+			who = "%s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
+		if not n.berths.is_empty():
+			var names: Array[String] = []
+			for m in n.berths:
+				names.append(DB.short_name(DB.manufacturer_name(m)).to_upper())
+			who = " / ".join(names)
+		out.append(who)
+		var trade := Market.trade_line(n)
+		if not trade.is_empty():
+			out.append(trade if trade.begins_with("NO ") else "MARKET  %s" % trade)
+	if n.index != here.index:
+		out.append("LATERAL" if n.layer == here.layer
+			else ("COREWARD  L%d" if n.layer > here.layer else "OUTWARD  L%d") % (n.layer + 1))
+	return out
 
 ## Zoomed out every system is a two-pixel dot, so the tooltip is what makes places readable.
 func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	var f := UITheme.pixel_font()
 	var at := _screen_pos(n)
 
-	# The reticle closes onto the system as the panel arrives, which points
-	# the eye at which dot the panel is describing.
-	var reach: float = lerpf(13.0, 7.0, _hover_t)
-	var tick := 3.0
-	for raw in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-		var corner: Vector2 = raw
-		var k: Vector2 = (at + corner * reach).round()
-		draw_rect(Rect2(k - Vector2(0.0 if corner.x > 0 else tick - 1.0, 0),
-			Vector2(tick, 1)), Color(1, 1, 1, 0.55 * _hover_t), true)
-		draw_rect(Rect2(k - Vector2(0, 0.0 if corner.y > 0 else tick - 1.0),
-			Vector2(1, tick)), Color(1, 1, 1, 0.55 * _hover_t), true)
+	# The one outline closes onto the system as the panel arrives (C1), which points the eye
+	# at which dot the panel is describing. It was four white corner ticks.
+	var reach: float = lerpf(13.0, 8.0, _hover_t)
+	MarkOutline.draw_ring_mark(self, at, reach, float(UITheme.MARK_PX), Color(UITheme.MARK, _hover_t))
 
 	var lines := tip_lines(n, here)
-	var l1 := lines[0]
-	var l2 := lines[1]
-	var l3 := lines[2]
-	var l4 := lines[3]
-
-	var w := 0.0
-	for line in [l1, l2, l3, l4]:
-		w = maxf(w, f.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x)
-	var box := Vector2(ceil(w) + 11.0, 51.0)
-
-	# Flip to the other side rather than hang off the edge, and slide in.
-	var o := at + Vector2(14.0 - (1.0 - _hover_t) * 5.0, -box.y * 0.5)
-	if o.x + box.x > size.x - 2.0:
-		o.x = at.x - box.x - 14.0
-	o.x = clampf(o.x, 2.0, maxf(2.0, size.x - box.x - 2.0))
-	o.y = clampf(o.y, 2.0, maxf(2.0, size.y - box.y - 2.0))
-	o = o.round()
-
-	var a := _hover_t
-	draw_rect(Rect2(o, box), Color(0.043, 0.067, 0.106, 0.94 * a), true)
-	draw_rect(Rect2(o, Vector2(box.x, 1)), Color(0.235, 0.298, 0.376, a), true)
-	draw_rect(Rect2(o + Vector2(0, box.y - 1), Vector2(box.x, 1)), Color(0.235, 0.298, 0.376, a), true)
-	draw_rect(Rect2(o, Vector2(1, box.y)), Color(0.235, 0.298, 0.376, a), true)
-	draw_rect(Rect2(o + Vector2(box.x - 1, 0), Vector2(1, box.y)), Color(0.235, 0.298, 0.376, a), true)
-	# A colour chip: region identity is already carried by the dot's tint, so
-	# repeating it here ties the panel to the point you are pointing at.
-	draw_rect(Rect2(o + Vector2(1, 1), Vector2(2, box.y - 2)),
-		Color(MapGen.star_colour(n), a), true)
-
-	var tx := o + Vector2(7, 12)
-	draw_string(f, tx, l1, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(UITheme.ICE, a))
-	draw_string(f, tx + Vector2(0, 12), l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
-		Color(UITheme.COLD, a))
-	draw_string(f, tx + Vector2(0, 24), l3, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
-		Color(UITheme.THEM, a))
-	draw_string(f, tx + Vector2(0, 36), l4, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
-		Color(0.541, 0.416, 0.227, a))
+	# THE TORN TAG above the star (T1, C3): the name, what it is, where, danger and fuel, then
+	# the survey in the quiet colour. No frame, no chip; the star's own colour is the dot.
+	var inks: Array[Color] = [UITheme.ICE, UITheme.COLD, UITheme.THEM, Color(0.541, 0.416, 0.227)]
+	var ls: Array = []
+	for i in lines.size():
+		ls.append([lines[i], inks[i] if i < inks.size() else UITheme.COLD])
+	var box := TornTag.measure(ls)
+	var o := TornTag.place(box, Rect2(at - Vector2(reach, reach), Vector2(reach, reach) * 2.0),
+		Rect2(Vector2(2, 2), size - Vector2(4, 4)))
+	# slides the last few pixels in as it fades up
+	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
+	TornTag.draw_tag(self, Rect2(o, box), ls, _hover_t)
 
 ## A stable hash from position, not a running sequence: `ChartSheet` finds its burst times with it.
 func _hash2(i: int, j: int, salt: int) -> int:

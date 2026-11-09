@@ -234,3 +234,27 @@ RECESSED, because a field is a hole you type into rather than a plate. The
 caret is EMBER for the same reason every other live thing in this interface
 is: it is the one part of the control that is moving.
 ```
+
+## One outline
+
+Above `const MARK := Color("#b8f5d8")`:
+
+```text
+THE STRIPPED-DOWN UI, PART 2 (Jon, Nov 9, after Shroom and Gloom): the game
+used about seventeen kinds of highlight (the audit, tk-scratch/ui-audit,
+section 2.3). Shroom and Gloom uses one, a crisp outline on whatever you
+point at, and nothing at rest. Jon picked C1: one reserved colour, a pale
+mint no art uses, as a 2 px outline round the shape of the thing you point
+at and the thing it will hit, joined by a dashed line, and nowhere at rest.
+
+#b8f5d8 was checked against the UI palette and the art: nothing else is
+mint, so the colour means "this one" and nothing else. MARK_PX is 2 so the
+outline reads at the game's 2x without being a bezel. DIM is C2's 40%: the
+step back everything else takes when one move is the only one, and the fade
+a card you cannot pay for always had (it was 0.34).
+
+`mark_box` is every button's hover: its own fill under the outline, the
+content margins unchanged, so a hovered button is the size it was at rest.
+The warm hover text (FLARE) went with it: colour says what kind of thing it
+is, the outline says it is the one under the pointer.
+```

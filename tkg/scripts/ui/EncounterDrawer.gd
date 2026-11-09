@@ -166,7 +166,7 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 		var loot := Widgets.button("SECTOR LOOT", on_loot)
 		loot.custom_minimum_size = BTN
 		loot.disabled = loose <= 0
-		loot.tooltip_text = Widgets.tip("Things loose in this system: event rewards and anything you put down here. They stay for the rest of the run."
+		loot.tooltip_text = Widgets.tip("What is loose in this system; it stays here for the rest of the run."
 			if loose > 0 else "Nothing is loose in this system.")
 		row.add_child(loot)
 	# NO CLICK: the page turn is this button's sound. See

@@ -523,10 +523,8 @@ func _draw() -> void:
 	if from_card:
 		var c0: Vector2 = hv.at
 		_drawn_marks.append(Rect2(c0 - Vector2(10, 9), Vector2(21, 19)).grow(MARK_CLEAR))
-		for d in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-			var c := c0 + Vector2(d.x * 10.0, d.y * 9.0)
-			draw_rect(Rect2(c + Vector2(-3 if d.x > 0 else 0, 0), Vector2(4, 1)).abs(), UITheme.ICE)
-			draw_rect(Rect2(c + Vector2(0, -3 if d.y > 0 else 0), Vector2(1, 4)).abs(), UITheme.ICE)
+		# the one outline round the beacon's box (C1), where ICE corner brackets stood
+		MarkOutline.draw_rect_mark(self, beacon_box(c0).grow(3.0))
 	# THE SELECTION: the chart's reticle, closed and held, brighter than a hover,
 	# and the name beside it (on the left near the frame's right edge)
 	if SystemLayout.is_place(selected):
@@ -1123,15 +1121,12 @@ func _star_occ(q: Vector2) -> Array:
 	return out
 
 
-## StarchartScreen's reticle: four corner ticks, 3 px, in white.
+## The one outline round a body (C1): a ring of whole pixels at `reach`, in MARK. It was four
+## white corner ticks.
 func _reticle(at: Vector2, reach: float, k: float, alpha: float) -> void:
-	var c := Color(1, 1, 1, alpha * k)
+	var c := Color(UITheme.MARK, alpha * k)
 	_drawn_marks.append(Rect2(at - Vector2.ONE * (reach + 2.0), Vector2.ONE * (reach + 2.0) * 2.0 + Vector2.ONE).grow(MARK_CLEAR))
-	for raw in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-		var corner: Vector2 = raw
-		var kp: Vector2 = (at + corner * reach).round()
-		draw_rect(Rect2(kp - Vector2(0.0 if corner.x > 0 else 2.0, 0), Vector2(3, 1)), c)
-		draw_rect(Rect2(kp - Vector2(0, 0.0 if corner.y > 0 else 2.0), Vector2(1, 3)), c)
+	MarkOutline.draw_ring_mark(self, at, reach, float(UITheme.MARK_PX), c)
 
 
 # ---------------------------------------------------------------- rings
@@ -2534,32 +2529,23 @@ func _draw_tip() -> void:
 	var h := hover
 	var tl := tip_lines(h)
 	var lines: Array = tl[0]
-	var chip: Color = tl[1]
-	var f := _font()
-	var w := 0.0
+	var ls: Array = []
 	for l in lines:
-		w = maxf(w, f.get_string_size(l[0], HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
-	w = ceilf(w) + 14.0
-	var hgt := lines.size() * 11.0 + 8.0
+		ls.append([String((l as Array)[0]), (l as Array)[1]])
+	var box := TornTag.measure(ls)
 	var at: Vector2 = h.at
-	# sliding in and fading up with the hover, as the chart's tip does
-	var slide := roundf((1.0 - _hover_t) * 5.0)
-	var x := roundf(at.x + 12.0) + slide
-	var y := roundf(at.y - 6.0)
+	# THE TORN TAG above the thing (T1), clear of its outline, inside the frame; it slides
+	# the last few pixels in and fades up with the hover, as the chart's does.
+	var kind: StringName = h.get("kind", &"")
+	var r := 9.0
+	if kind == &"body" or kind == &"star":
+		r = _reach(int(h.body))
 	var win: Rect2 = view.window
-	if x + w > win.end.x - 6:
-		x = roundf(at.x - w - 12.0) - slide
-	if y + hgt > win.end.y - 6:
-		y = win.end.y - 6 - hgt
-	y = maxf(y, win.position.y + 6)
+	var o := TornTag.place(box, Rect2(at - Vector2(r, r), Vector2(r, r) * 2.0), win.grow(-6.0))
+	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
 	var al := maxf(0.15, _hover_t)
-	tip_rect = Rect2(x, y, w, hgt)
-	draw_rect(Rect2(x, y, w, hgt), Color(11 / 255.0, 17 / 255.0, 27 / 255.0, 0.94 * al))
-	draw_rect(Rect2(x + 0.5, y + 0.5, w - 1.0, hgt - 1.0), Color(Color("#3c4c60"), al), false, 1.0)
-	draw_rect(Rect2(x, y, 2, hgt), Color(chip, al))
-	for k in lines.size():
-		var lc: Color = lines[k][1]
-		_text(Vector2(x + 8, y + 12 + k * 11), lines[k][0], Color(lc, lc.a * al))
+	tip_rect = Rect2(o, box)
+	TornTag.draw_tag(self, tip_rect, ls, al)
 
 
 ## While a GO flies a click does nothing, so no line offers one.
