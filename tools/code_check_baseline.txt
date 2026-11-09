@@ -43,11 +43,15 @@ bare scripts/net/BotBoard.gd::map
 bare scripts/net/BotBoard.gd::of
 bare scripts/net/BotBoard.gd::station
 bare scripts/net/LobbyCode.gd::parse
+bare scripts/net/NetSession.gd::_flight_row
 bare scripts/net/NetSession.gd::_slot
 bare scripts/net/NetSession.gd::_spot_row
+bare scripts/net/NetSession.gd::flight_of
+bare scripts/net/NetSession.gd::flight_point
 bare scripts/net/NetSession.gd::partners
 bare scripts/net/NetSession.gd::slots
 bare scripts/net/NetSession.gd::spot_of
+bare scripts/net/NetSession.gd::take_held_swings
 bare scripts/net/NetSession.gd::taken_at
 bare scripts/net/SharedFight.gd::to_wire
 bare scripts/systems/BuildInfo.gd::info
@@ -57,7 +61,11 @@ bare scripts/systems/Combat.gd::templates_of
 bare scripts/systems/Contracts.gd::_manufacturers
 bare scripts/systems/Contracts.gd::board
 bare scripts/systems/DeckBuilder.gd::summarise
+bare scripts/systems/FlightSolve.gd::_arc_ts
 bare scripts/systems/FlightSolve.gd::_wp_target
+bare scripts/systems/FlightSolve.gd::curved_arc
+bare scripts/systems/FlightSolve.gd::dep_tau
+bare scripts/systems/FlightSolve.gd::tgt_tau
 bare scripts/systems/GalaxyGen.gd::params
 bare scripts/systems/GalaxyGen.gd::roll
 bare scripts/systems/HullGrade.gd::_spots
@@ -122,13 +130,11 @@ bare scripts/ui/Ash.gd::tut_avoid_rects
 bare scripts/ui/Ash.gd::tut_spot
 bare scripts/ui/Ash.gd::tut_spot_boxes
 bare scripts/ui/BoardLamp.gd::_bars
-bare scripts/ui/ChartLegacy.gd::_gas_palette
-bare scripts/ui/ChartLegacy.gd::_point_textures
-bare scripts/ui/ChartLegacy.gd::_star_hist
-bare scripts/ui/ChartLegacy.gd::params
 bare scripts/ui/ChartPainted.gd::cloud_uniforms
 bare scripts/ui/ChartPainted.gd::galaxy_uniforms
 bare scripts/ui/ChartPainted.gd::tables
+bare scripts/ui/ChartRadiant.gd::_gas_palette
+bare scripts/ui/ChartRadiant.gd::ball_knots
 bare scripts/ui/ChartRadiant.gd::cloud_uniforms
 bare scripts/ui/ChartRadiant.gd::look
 bare scripts/ui/ChartSky.gd::_cloud_stars
@@ -204,6 +210,7 @@ bare scripts/ui/Hints.gd::values
 bare scripts/ui/HudBar.gd::fuel_parts
 bare scripts/ui/HudBar.gd::stat_nodes
 bare scripts/ui/HudBar.gd::tab_nodes
+bare scripts/ui/HullBar.gd::brace_span
 bare scripts/ui/HullHitFx.gd::_seam_run
 bare scripts/ui/HullScramble.gd::_button_cell
 bare scripts/ui/HullScramble.gd::_button_layout
@@ -433,16 +440,19 @@ bare scripts/ui/sysmap/ShipFlight.gd::_hohmann
 bare scripts/ui/sysmap/ShipFlight.gd::_lam
 bare scripts/ui/sysmap/ShipFlight.gd::_lead
 bare scripts/ui/sysmap/ShipFlight.gd::_polar_ins
+bare scripts/ui/sysmap/ShipFlight.gd::_ride_shape
 bare scripts/ui/sysmap/ShipFlight.gd::_run_line
 bare scripts/ui/sysmap/ShipFlight.gd::_spiral
 bare scripts/ui/sysmap/ShipFlight.gd::_takeable
 bare scripts/ui/sysmap/ShipFlight.gd::_tgt_of
 bare scripts/ui/sysmap/ShipFlight.gd::_turnaround
+bare scripts/ui/sysmap/ShipFlight.gd::flight_opts
 bare scripts/ui/sysmap/ShipFlight.gd::free_step
 bare scripts/ui/sysmap/ShipFlight.gd::hand_over
 bare scripts/ui/sysmap/ShipFlight.gd::insert_plan
 bare scripts/ui/sysmap/ShipFlight.gd::lambert
 bare scripts/ui/sysmap/ShipFlight.gd::lay_out
+bare scripts/ui/sysmap/ShipFlight.gd::said_path
 bare scripts/ui/sysmap/ShipFlight.gd::take_bg
 bare scripts/ui/sysmap/SkyBake.gd::em_pillars
 bare scripts/ui/sysmap/SkyBake.gd::look_for
@@ -500,21 +510,22 @@ bare scripts/ui/sysmap/SystemView.gd::orbit_runs
 bare scripts/ui/sysmap/SystemView.gd::positions
 bare scripts/ui/sysmap/SystemView.gd::ring_slots
 bare scripts/ui/sysmap/SystemView.gd::star_facts_of
-file scripts/systems/FlightSolve.gd 3313
-file scripts/systems/OptionTable.gd 4753
-file scripts/ui/LocalSubject.gd 3165
-file scripts/ui/SectorScreen.gd 4865
+file scripts/systems/FlightSolve.gd 4005
+file scripts/systems/OptionTable.gd 4756
+file scripts/ui/LocalSubject.gd 3175
+file scripts/ui/SectorScreen.gd 4948
 file scripts/ui/ShipBreakup.gd 5498
-file scripts/ui/StarchartScreen.gd 4353
-file scripts/ui/sysmap/ShipFlight.gd 4092
-file scripts/ui/sysmap/SystemView.gd 3248
+file scripts/ui/StarchartScreen.gd 4384
+file scripts/ui/sysmap/ShipFlight.gd 4472
+file scripts/ui/sysmap/SystemView.gd 3178
 length scripts/Main.gd::_ready 876
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/systems/CardResolver.gd::resolve 139
-length scripts/systems/FlightSolve.gd::_build_in 116
+length scripts/systems/FlightSolve.gd::_build_in 120
 length scripts/systems/FlightSolve.gd::_integrate 381
-length scripts/systems/FlightSolve.gd::_price 175
-length scripts/systems/FlightSolve.gd::_seeds 164
+length scripts/systems/FlightSolve.gd::_price 179
+length scripts/systems/FlightSolve.gd::_seeds 168
+length scripts/systems/FlightSolve.gd::_solve 137
 length scripts/systems/MapGen.gd::spread_positions 102
 length scripts/systems/MaterialTable.gd::all 212
 length scripts/systems/NebulaField.gd::_build 120
@@ -527,16 +538,16 @@ length scripts/ui/BoardWhite.gd::draw 118
 length scripts/ui/BraceFx.gd::_build 132
 length scripts/ui/CardGalleryScreen.gd::_fill 120
 length scripts/ui/CardView.gd::_type_glyph 122
-length scripts/ui/ChartLegacy.gd::_push 240
 length scripts/ui/ChartSky.gd::_push 160
 length scripts/ui/ChassisSelect.gd::_build_detail 171
 length scripts/ui/CutawayView.gd::_layout 221
 length scripts/ui/EncounterView.gd::_shoulders_at 103
-length scripts/ui/EnemySlot.gd::_init#2 104
+length scripts/ui/EnemySlot.gd::_init#2 106
 length scripts/ui/FaunaMotion.gd::_cut_creature 111
 length scripts/ui/FaunaMotion.gd::_cut_custodian 269
 length scripts/ui/Hints.gd::_done 122
-length scripts/ui/Hints.gd::probe 300
+length scripts/ui/Hints.gd::probe 301
+length scripts/ui/HudBar.gd::_build 104
 length scripts/ui/HudBar.gd::refresh 109
 length scripts/ui/HullHitFx.gd::_peel 103
 length scripts/ui/JumpFx.gd::_beam 139
@@ -544,17 +555,17 @@ length scripts/ui/JumpFx.gd::_draw 118
 length scripts/ui/JumpFx.gd::_ending 147
 length scripts/ui/LocalDust.gd::_process 136
 length scripts/ui/LocalEventDrawer.gd::_result 200
-length scripts/ui/LocalSky.gd::_build 248
+length scripts/ui/LocalSky.gd::_build 240
 length scripts/ui/LocalSubject.gd::_build 135
 length scripts/ui/LocalSubject.gd::_place 145
 length scripts/ui/LocalSubject.gd::plan 101
 length scripts/ui/ModuleGalleryScreen.gd::_fill 101
 length scripts/ui/ModuleIcon.gd::_glyph 104
 length scripts/ui/QuestPanel.gd::_row 115
-length scripts/ui/SectorScreen.gd::_build_hand 162
-length scripts/ui/SectorScreen.gd::ladder_cam 162
+length scripts/ui/SectorScreen.gd::_build_hand 173
+length scripts/ui/SectorScreen.gd::ladder_cam 163
 length scripts/ui/SectorScreen.gd::ladder_cam_begin 108
-length scripts/ui/SettingsPanel.gd::_page_look 117
+length scripts/ui/SettingsPanel.gd::_page_look 116
 length scripts/ui/ShipBreakup.gd::_cut_boss 222
 length scripts/ui/ShipBreakup.gd::_cut_classic 234
 length scripts/ui/ShipBreakup.gd::_cut_creature 126
@@ -596,10 +607,10 @@ length scripts/ui/sysmap/SunView.gd::_flare 103
 length scripts/ui/sysmap/SystemMapScreen.gd::_init 141
 length scripts/ui/sysmap/SystemOverlay.gd::_draw 224
 length scripts/ui/sysmap/SystemOverlay.gd::_draw_edge_marks 122
-length scripts/ui/sysmap/SystemOverlay.gd::_draw_paths 113
+length scripts/ui/sysmap/SystemOverlay.gd::_draw_paths 114
 length scripts/ui/sysmap/SystemOverlay.gd::_draw_ship 224
 length scripts/ui/sysmap/SystemView.gd::_draw#7 105
-length scripts/ui/sysmap/SystemView.gd::_rocks 129
+length scripts/ui/sysmap/SystemView.gd::_rocks 101
 length scripts/ui/sysmap/SystemView.gd::orbit_runs 118
-length scripts/ui/sysmap/SystemView.gd::show_system 437
-length scripts/ui/sysmap/SystemView.gd::step 359
+length scripts/ui/sysmap/SystemView.gd::show_system 420
+length scripts/ui/sysmap/SystemView.gd::step 358
