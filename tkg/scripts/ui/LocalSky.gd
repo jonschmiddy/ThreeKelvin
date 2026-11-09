@@ -358,7 +358,6 @@ func _build() -> void:
 	for c in get_children():
 		c.queue_free()
 	_views.clear()
-	_comet = null
 	_pt = {}
 	_neb_mat = null
 	_neb = null
@@ -571,11 +570,6 @@ func _build() -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
-	# THE COMET passing through, over the band's worlds, where the map has it
-	if layout.comet != null:
-		_comet = LocalCometS.new()
-		_comet.sky = self
-		_scene.add_child(_comet)
 	# RADIANT'S GLOW AND COLOUR (`RadiantGlow`): the sky's picture wrapped, its
 	# light glowing in steps and its shade deep, the glow kept down behind the play
 	if radiant:
@@ -1191,8 +1185,7 @@ func _step(delta: float) -> void:
 				mp.set_shader_parameter("light_lz", pow(clampf(pow(_dk, 0.8), 0.45, 2.4), 0.42) * 1.35)
 	_step_star(o)
 	_step_worlds(o)
-	if _comet != null:
-		_comet.queue_redraw()
+	_step_comet()
 	_step_near(o)
 	# Under the zoom nothing is a scaled picture (Jon: artifacts): layers are redrawn at the zoom's
 	# size on the 2 px grid. Scaled, they drew every seventh block twice or 4 px blocks.
@@ -1360,6 +1353,18 @@ static func band_order(d2: float, ys: Array, with_a := true, with_b := true) -> 
 
 ## Each world where its orbit has it, from just above the plane;
 ## those behind the star are hidden by its disc.
+## The comet passing through (`LocalComet`), over the band's worlds where the map has it:
+## made the first frame it is wanted, and again after a rebuild freed it.
+func _step_comet() -> void:
+	if layout == null or layout.comet == null or _scene == null:
+		return
+	if _comet == null or not is_instance_valid(_comet) or _comet.get_parent() != _scene:
+		_comet = LocalCometS.new()
+		_comet.sky = self
+		_scene.add_child(_comet)
+	_comet.queue_redraw()
+
+
 func _step_worlds(o: Vector2) -> void:
 	if _views.is_empty():
 		return

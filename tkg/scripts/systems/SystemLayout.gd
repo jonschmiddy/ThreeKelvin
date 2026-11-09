@@ -580,8 +580,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		else:
 			_twin(L, n, R, jobs)
 		_weigh_giant(L, n)
-		spin_pair(L)
-		_comet(L, n)
+		_spin_then_comet(L, n)
 		return L
 
 	# where each body falls, out from the star: which pool its world comes from
@@ -651,8 +650,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	for b in L.bodies:
 		if b.world != &"":
 			b.soi = soi_of(b)
-	_weigh_giant(L, n)
-	_comet(L, n)
+	_weigh_then_comet(L, n)
 	return L
 
 
@@ -660,6 +658,18 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 static func _comet(L: SystemLayout, n: MapGen.MapNode) -> void:
 	if CometPath.wanted(n, L.star):
 		L.comet = CometPath.build(L, n)
+
+
+## A pair's last steps: it turns, then the comet, which rides star A where the pair has it.
+static func _spin_then_comet(L: SystemLayout, n: MapGen.MapNode) -> void:
+	spin_pair(L)
+	_comet(L, n)
+
+
+## One sun's last steps: the giant weighed, then the comet.
+static func _weigh_then_comet(L: SystemLayout, n: MapGen.MapNode) -> void:
+	_weigh_giant(L, n)
+	_comet(L, n)
 
 
 ## Zone is set first: by index round one star, by distance from the light round two.

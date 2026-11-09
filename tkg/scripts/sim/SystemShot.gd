@@ -447,7 +447,7 @@ func _ready() -> void:
 		elif hover == "s":
 			p = Vector2(scr.view.CX, scr.view.CY)
 		elif hover == "c":
-			p = scr.view.comet_scr()
+			p = scr.overlay.comet_scr()
 		scr.overlay.hover = scr.overlay.hit(p)
 	# `wheel`: six notches in over the first world, then a drag to the left, as
 	# a player's mouse would send them, and where the world ends up on screen
@@ -1027,8 +1027,8 @@ func _ready() -> void:
 			print("  systemshot: nova at %s, the window %s" % [nat, scr.view.window])
 			await get_tree().create_timer(float((a6 as String).substr(5))).timeout
 	if scr.view.layout.comet != null:
-		print("  systemshot: the comet's head on screen at %s, %d px from the star" % [scr.view.comet_scr(),
-			int(scr.view.comet_scr().distance_to(scr.view.star_screen(-1))) if scr.view.comet_scr() != Vector2.INF else -1])
+		print("  systemshot: the comet's head on screen at %s, %d px from the star" % [scr.overlay.comet_scr(),
+			int(scr.overlay.comet_scr().distance_to(scr.view.star_screen(-1))) if scr.overlay.comet_scr() != Vector2.INF else -1])
 	# `settle`: the map's sky built and its palette found first, and the screen Main
 	# opened (the launcher) hidden from behind the calm sky, as the game shows it
 	if "settle" in OS.get_cmdline_user_args():

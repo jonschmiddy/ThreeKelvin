@@ -573,23 +573,8 @@ func _draw() -> void:
 				_name_label(at, nm, UITheme.ICE, 2, false)
 			elif names_on:
 				_held_q.append(nm)
-	# THE COMET selected: the same reticle on its head and its name, while it passes
-	if selected == SystemLayout.COMET:
-		var cs: Vector2 = view.comet_scr()
-		if cs != Vector2.INF:
-			_reticle(cs, COMET_R, 1.0, 0.95)
-			var cn: String = L.comet.name
-			var cw := _font().get_string_size(cn, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-			var cx := cs.x + COMET_R + 4.0
-			if cx + cw > view.window.end.x - 4.0:
-				cx = cs.x - COMET_R - 4.0 - cw
-			_name_label(Vector2(cx, cs.y + 3.0), cn, UITheme.ICE, 2, false)
 	# THE HOVER: the same reticle, closing in from 13 px to 7 px as it eases in
 	var hk: StringName = hover.get("kind", &"")
-	if hk == &"comet" and selected != SystemLayout.COMET and _hover_t > 0.0:
-		var hc: Vector2 = view.comet_scr()
-		if hc != Vector2.INF:
-			_reticle(hc, COMET_R + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
 	if (hk == &"body" or hk == &"star") and int(hover.body) != selected and _hover_t > 0.0:
 		var hs: Vector2 = _place_scr(int(hover.body))
 		_reticle(hs, _reach(int(hover.body)) + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
@@ -598,7 +583,7 @@ func _draw() -> void:
 	view.tick("overlay paths", t_paths)
 	var t_ship := Time.get_ticks_usec()
 	_draw_ship(t)
-	_draw_partners(t)
+	_draw_partners_and_comet(t)
 	view.tick("overlay ship", t_ship)
 	_place_labels()
 	# WHAT THE SHIP IS DOING, top left of the frame, under the goal and its step
@@ -2643,6 +2628,38 @@ func _suns_near_first() -> Array[int]:
 ## How near the comet's head a click must land (px): its coma is about this wide.
 const COMET_HIT := 8.0
 
+## The partners' ships, then the comet's marks: its reticle and name when selected, or
+## the hover's reticle closing in.
+func _draw_partners_and_comet(t: float) -> void:
+	_draw_partners(t)
+	var L: SystemLayout = view.layout
+	var hk: StringName = hover.get("kind", &"")
+	# THE COMET selected: the same reticle on its head and its name, while it passes
+	if selected == SystemLayout.COMET:
+		var cs: Vector2 = comet_scr()
+		if cs != Vector2.INF:
+			_reticle(cs, COMET_R, 1.0, 0.95)
+			var cn: String = L.comet.name
+			var cw := _font().get_string_size(cn, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+			var cx := cs.x + COMET_R + 4.0
+			if cx + cw > view.window.end.x - 4.0:
+				cx = cs.x - COMET_R - 4.0 - cw
+			_name_label(Vector2(cx, cs.y + 3.0), cn, UITheme.ICE, 2, false)
+	if hk == &"comet" and selected != SystemLayout.COMET and _hover_t > 0.0:
+		var hc: Vector2 = comet_scr()
+		if hc != Vector2.INF:
+			_reticle(hc, COMET_R + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
+
+
+## Where the comet's head is drawn, or INF while it is not in the system (`CometPath`).
+func comet_scr() -> Vector2:
+	var c: CometPath = view.layout.comet if view.layout != null else null
+	if c == null or not c.here(float(view.t)):
+		return Vector2.INF
+	var p := c.pos(view.layout, float(view.t))
+	return view.block_round(view.screen(p.x, p.y))
+
+
 func hit(p: Vector2) -> Dictionary:
 	for e in beacons_at:
 		var at: Vector2 = e[0]
@@ -2650,7 +2667,7 @@ func hit(p: Vector2) -> Dictionary:
 			return {"kind": &"beacon", "body": e[1], "beacon": e[2], "at": at}
 	var L: SystemLayout = view.layout
 	# the comet's head, while it is passing (`CometPath`)
-	var cs: Vector2 = view.comet_scr()
+	var cs: Vector2 = comet_scr()
 	if cs != Vector2.INF and p.distance_to(cs) <= COMET_HIT:
 		return {"kind": &"comet", "body": SystemLayout.COMET, "beacon": null, "at": cs}
 	for i in L.bodies.size():

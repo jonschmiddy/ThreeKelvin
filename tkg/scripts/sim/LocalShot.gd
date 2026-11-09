@@ -50,8 +50,8 @@ func _run() -> void:
 	Run.at = idx
 	var node: MapGen.MapNode = Run.node_at()
 	# `mapt=S`: the system's map clock left at S, as if its map had run that long (a comet's place)
-	if _arg("mapt") != "":
-		Run.map_clock[idx] = float(_arg("mapt"))
+	if Harness.arg("mapt") != "":
+		Run.map_clock[idx] = float(Harness.arg("mapt"))
 	var Lc := SystemLayout.of(node)
 	if Lc.comet != null:
 		print("  comet %s: in at %.1f s, crosses in %.1f s, nearest the star at %.1f s; at %.1f s: %s" % [Lc.comet.name,

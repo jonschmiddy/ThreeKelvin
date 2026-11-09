@@ -191,5 +191,8 @@ What it adds:
 - In RADIANT, its coma as light: a falloff round the head in whole blocks with
   a dithered outer ring (the "draw light as light" rule).
 
-PAINTED needs nothing new: `SystemView._step_comet` holds its age in poses (8 a
-second), as `_apply` holds the weather's.
+It is made in `setup` and steps itself (`_process`) from the view's clock.
+PAINTED needs nothing new: its age is held in poses (8 a second), as `_apply`
+holds the weather's. Reduced motion does not clear it as it clears the weather:
+it is a place, not weather. Its head never draws fainter than `a_min`
+(`CometPath.A_MIN`), so a thing to click always reads; the weather's has none.

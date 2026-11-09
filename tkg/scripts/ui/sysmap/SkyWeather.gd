@@ -72,6 +72,8 @@ const LC_EMISSION := Color(1.0, 0.82, 0.9)
 const LC_DARK := Color(0.82, 0.78, 1.0)
 
 var view
+## The comet you can fly to (`CometPath`), drawn in the system as the weather comet is.
+var real_comet: Node2D = null
 ## the map's screen (`SystemMapScreen`), for the ship, the labels, the panel and
 ## the input clock; null for a harness without one
 var screen
@@ -169,6 +171,10 @@ static func ramp(key: StringName) -> PackedVector3Array:
 
 func setup(v, idx: int) -> void:
 	view = v
+	# the comet you can fly to, at the weather comet's depth (`RealComet`)
+	real_comet = RealComet.new()
+	real_comet.view = v
+	v._scene.add_child(real_comet)
 	var nk := -1
 	if v._neb_mat != null:
 		nk = int(v._sky_look.neb)
@@ -2127,9 +2133,7 @@ class Comet extends Node2D:
 		var hs: Vector2 = view.block_round(view.screen(pw.x, pw.y))
 		var r := p.length()
 		var q := float(ev.q)
-		var A := clampf(pow(2.5 * q / maxf(r, 1.0), 2.0), 0.0, 1.0)
-		# (a comet you can click never fades below `a_min`: the weather's has none)
-		A = maxf(A, float(ev.get("a_min", 0.0)))
+		var A := maxf(clampf(pow(2.5 * q / maxf(r, 1.0), 2.0), 0.0, 1.0), float(ev.get("a_min", 0.0)))
 		if grazer:
 			A = clampf(pow(5.0 * R0 / maxf(r, 1.0), 1.5) * 0.6, 0.0, 1.0)
 		# the comet comes in and goes out over its first and last five seconds
@@ -2248,6 +2252,20 @@ class RealComet extends Comet:
 	const DOT_PX := 7.0
 	const PATH_C := Color("#8ad0f0")
 	const PATH_A := 0.3
+
+	## At the view's clock; PAINTED holds its age in poses, as the weather's. Reduced motion
+	## keeps it: it is a place, not weather.
+	func _process(_d: float) -> void:
+		var c: CometPath = view.layout.comet if view != null and view.layout != null else null
+		if c == null:
+			if not ev.is_empty():
+				ev = {}
+				queue_redraw()
+			return
+		if ev.is_empty():
+			ev = c.ev()
+		ev.age = view.pose(c.age(float(view.t)))
+		queue_redraw()
 
 	func _draw() -> void:
 		if ev.is_empty() or view == null:

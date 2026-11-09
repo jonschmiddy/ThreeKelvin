@@ -96,7 +96,7 @@ static func clock(s: float) -> String:
 
 
 ## The drawing's event: the weather comet's own fields, so one drawing serves both.
-func ev() -> Dictionary:
+func ev() -> Dictionary[String, Variant]:
 	return {"q": q, "w": w, "K": K, "tp": tp, "end": T, "mode": &"comet", "age": -1.0, "real": true, "a_min": A_MIN}
 
 
