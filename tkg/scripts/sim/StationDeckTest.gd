@@ -350,13 +350,15 @@ func _chart() -> void:
 	# The dock desk blurb is the longest a station gives; JUMP must stay on screen and clear.
 	var blurb := ch._dest_blurb.text
 	var rows_bottom := ch._rows.get_global_rect().end.y
-	var jump := ch._jump.get_global_rect()
+	# (docked, UNDOCK FIRST stands where JUMP would: stripped-down UI 5, Nov 9)
+	var slot: Control = ch._undock_first if Router.docked else ch._jump
+	var jump := slot.get_global_rect()
 	var screen_h: float = ch.get_viewport_rect().size.y
 	print("    chart blurb %d chars: rows end at %.0f, JUMP %.0f to %.0f of %.0f" 		% [blurb.length(), rows_bottom, jump.position.y, jump.end.y, screen_h])
 	_ok("chart: the blurb says salvage is thin and names the desk",
 		blurb.contains("Salvage is thin and random.") and blurb.contains("posts work from a desk"))
-	_ok("chart: JUMP is on screen and below the rows",
-		jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
+	_ok("chart: JUMP (docked, UNDOCK FIRST in its place) is on screen and below the rows",
+		slot.is_visible_in_tree() and jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
 
 
 ## THE LABORATORY'S SCREEN AND THE CAMERA INTO IT (science S9, Jon's 1C, Nov 4:

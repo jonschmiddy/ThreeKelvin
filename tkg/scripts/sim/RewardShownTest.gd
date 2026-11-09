@@ -124,11 +124,13 @@ func _run() -> void:
 						shown += 1
 						# ONE NAME FOR THE PILE, and the louder button (stripped-down UI 6, Nov 9)
 						var cont := d.find_child("Continue", true, false) as Button
+						if cont == null:
+							cont = d.find_child("TheyAreFiring", true, false) as Button
 						var sb := reward.get_theme_stylebox(&"normal") as StyleBoxFlat
 						if not named_seen:
 							named_seen = true
 							var csb: StyleBoxFlat = (cont.get_theme_stylebox(&"normal") as StyleBoxFlat) if cont != null else null
-							_ok("the pile's button says SECTOR LOOT, in ember over a plain CONTINUE (%s, %s)" % [reward.text, cont.text if cont != null else "none"],
+							_ok("the pile's button says SECTOR LOOT, in ember over the plain button beside it (%s, %s)" % [reward.text, cont.text if cont != null else "none"],
 								reward.text == "SECTOR LOOT" and sb != null and sb.border_color.is_equal_approx(UITheme.EMBER)
 								and cont != null and (csb == null or not csb.border_color.is_equal_approx(UITheme.EMBER)))
 					# CONTINUE with REWARD unopened: the things stay in SECTOR LOOT
