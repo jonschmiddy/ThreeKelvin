@@ -1,0 +1,1 @@
+- **Changed** — the instructions now say a gated test must not depend on how fast the machine is, in place of telling new timing tests where to go. Internal only.

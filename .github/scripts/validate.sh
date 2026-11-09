@@ -43,9 +43,10 @@
 #
 # ADDING A STEP: write a `unit_<name>() { ... }` function anywhere among the
 # others; it runs in the pool, in its file position for output. The function's
-# name is all the scheduler needs. If the step times anything, add it to
-# SOLO_UNITS; if it is long, give it a weight in `gate_weight` so it starts
-# early. A unit sees only its own variables: anything two units both need is
+# name is all the scheduler needs. A step must not depend on how fast the
+# machine is (tkg/CLAUDE.md), so do not add to SOLO_UNITS, which holds older
+# steps that still time something. If it is long, give it a weight in
+# `gate_weight` so it starts early. A unit sees only its own variables: anything two units both need is
 # set once at the top of the file, before the units.
 
 set -uo pipefail
