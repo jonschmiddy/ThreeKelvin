@@ -66,11 +66,54 @@ func _refresh() -> void:
 	_body.add_child(_gap(8))
 	_page_sound()
 	_body.add_child(_gap(8))
+	if Router.current is LauncherScreen:
+		_page_run()
+		_body.add_child(_gap(8))
 	_page_playtest()
 	_body.add_child(_gap(8))
 	_page_hints()
 	_body.add_child(_gap(8))
 	_page_keys()
+
+## NEW RUN, on the title only: the seed the next NEW RUN flies, once (Jon, Nov 9,
+## stripped-down UI 7: it was the second of three presses to start).
+var seed_field: LineEdit = null
+func _page_run() -> void:
+	_body.add_child(Section.new(&"resume", "NEW RUN"))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var lab := UITheme.body("SEED", UITheme.COLD, UITheme.FS_SMALL)
+	lab.mouse_filter = Control.MOUSE_FILTER_STOP
+	lab.tooltip_text = Widgets.tip("Seeded run
+Fly the same number again for the same galaxy, map and loot. Old ones are on the flight record.")
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lab)
+	seed_field = LineEdit.new()
+	seed_field.name = "SeedField"
+	seed_field.custom_minimum_size = Vector2(96, 0)
+	seed_field.placeholder_text = "random"
+	seed_field.max_length = 10
+	seed_field.text = str(LauncherScreen.next_seed) if LauncherScreen.next_seed != 0 else ""
+	seed_field.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	seed_field.add_theme_color_override("font_color", UITheme.CHILL)
+	seed_field.add_theme_color_override("font_placeholder_color", UITheme.LINE)
+	seed_field.add_theme_stylebox_override("normal", UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 6))
+	seed_field.add_theme_stylebox_override("focus", UITheme.flat(UITheme.PANEL2, UITheme.COLD, 0, 3, 6))
+	# Digits only, filtered on the way in: a field that takes letters and drops them has lied.
+	seed_field.text_changed.connect(func(t: String) -> void:
+		var clean := ""
+		for c in t:
+			if c >= "0" and c <= "9":
+				clean += c
+		if clean != t:
+			seed_field.text = clean
+			seed_field.caret_column = clean.length()
+		LauncherScreen.next_seed = int(clean))
+	row.add_child(seed_field)
+	_body.add_child(row)
+	var note := UITheme.body("The next new run only. Empty is a random galaxy.", UITheme.QUOTE, UITheme.FS_SMALL)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_body.add_child(note)
 
 ## PLAYTEST: one zip of logs, settings and flight record to the Desktop. Nothing is sent anywhere.
 func _page_playtest() -> void:

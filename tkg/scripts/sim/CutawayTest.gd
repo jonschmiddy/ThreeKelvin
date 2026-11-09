@@ -450,8 +450,8 @@ func _check_layouts() -> void:
 		_ok("%s: the R and F keys are named at the foot (%s)" % [wname, cut._keys.text],
 			cut._keys.is_visible_in_tree() and left.encloses(cut._keys.get_global_rect()))
 		var dr := cut._done.get_global_rect()
-		_ok("%s: DONE · ESC is on screen at the foot of the left panel" % wname,
-			cut._done.is_visible_in_tree() and view.encloses(dr) and left.encloses(dr) and dr.end.y >= left.end.y - 40.0)
+		_ok("%s: DONE (\"%s\", no ESC on it) is on screen at the foot of the left panel" % [wname, cut._done.text],
+			cut._done.text == "DONE" and cut._done.is_visible_in_tree() and view.encloses(dr) and left.encloses(dr) and dr.end.y >= left.end.y - 40.0)
 
 		# POINTING: the hold and the hull, no popup open
 		await _point_at(cut, wname, "hold", in_hold, _icon_for(cut._hold, in_hold))

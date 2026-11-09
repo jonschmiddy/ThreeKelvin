@@ -51,6 +51,8 @@ var _plot := false
 ## One row plus its separation, for sizing the box to the list.
 const NEIGH_ROW := 16.0
 var _jump: Button
+## Docked, the line that stands where JUMP would (`_berth_lock`).
+var _undock_first: Label
 
 ## -1 is no selection, which is how the chart opens: the galaxy first, and a
 ## destination only once you have chosen to look at one.
@@ -291,6 +293,15 @@ func _build() -> void:
 	_jump = Widgets.button("JUMP", _on_jump)
 	_jump.custom_minimum_size = Vector2(0, 24)
 	right.add_child(_jump)
+	_undock_first = UITheme.body("UNDOCK FIRST", UITheme.COLD, UITheme.FS_SMALL)
+	_undock_first.name = "UndockFirst"
+	_undock_first.custom_minimum_size = Vector2(0, 24)
+	_undock_first.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_undock_first.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_undock_first.mouse_filter = Control.MOUSE_FILTER_STOP
+	_undock_first.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
+	_undock_first.visible = false
+	right.add_child(_undock_first)
 
 	_ladder_side = Widgets.panel_with(right)
 	if NavField.used():
@@ -573,6 +584,7 @@ func _refresh() -> void:
 			# Not repeated here, as the header already said it: the same sentence twice.
 			_hint.text = ""
 		_jump.disabled = true
+		_berth_lock()
 		return
 
 	var t: MapGen.MapNode = Run.map[_selected]
@@ -711,19 +723,17 @@ func _refresh() -> void:
 	_berth_lock()
 
 
-## Docked, a jump reads DOCKED and says how to leave; UNDOCK is the only way (Jon, Oct 27).
-## With crates still on the pad it reads CANNOT UNDOCK.
+## Docked, no JUMP: one plain line, UNDOCK FIRST, as UNDOCK is the only way (Jon,
+## Oct 27; Nov 9, stripped-down UI 5). With crates still on the pad it reads CANNOT UNDOCK.
 ## Why: docs/why/StarchartScreen.md#berth-lock
 func _berth_lock() -> void:
 	_jump.tooltip_text = ""
-	if _jump.disabled or Router.may_cast_off():
+	_jump.visible = not Router.docked
+	_undock_first.visible = Router.docked
+	if Router.docked or _jump.disabled or Router.may_cast_off():
 		return
 	_jump.disabled = true
-	if Router.docked:
-		_jump.text = "DOCKED"
-		_jump.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
-	else:
-		_jump.text = "CANNOT UNDOCK"
+	_jump.text = "CANNOT UNDOCK"
 
 
 ## Cleared systems stay listed: knowing the ground is stripped decides farm on or dive.

@@ -131,7 +131,24 @@ func _run() -> void:
 						and String((n.get_script() as Script).get_global_name()) == "FirstRunIntro")) == null)
 			var g: GoalLine = Router.hud.goal if Router.hud != null else null
 			_ok("and the goal under the HUD", g != null and g._goal.text == GoalLine.GOAL)
-	# with a save: the panel stays (it warns that launching abandons the run)
+	# NOT FRESH, NO SAVE (a flight record only): straight to the hull pick too,
+	# and the seed typed in Settings is flown once (Jon, Nov 9, stripped-down UI 7)
+	SaveGame.clear()
+	RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
+	Router.show_launcher()
+	await _frames(4)
+	_ok("a flight record, no save: not fresh", not LauncherScreen.fresh_profile() and not SaveGame.has_save())
+	LauncherScreen.next_seed = 4242
+	nr = _button(Router.current, "NEW RUN")
+	if nr != null:
+		nr.pressed.emit()
+		await _frames(6)
+		_ok("NEW RUN with no save opens the hull pick at once, no LAUNCH A RUN panel",
+			Router.current is ChassisSelect and _find(_tree.root, func(n: Node) -> bool:
+				return n is Label and ((n as Label).text == "LAUNCH A RUN" or (n as Label).text == "START OVER?") and (n as Label).is_visible_in_tree()) == null)
+		_ok("and flies the seed from Settings (%d), once (left %d)" % [Run.galaxy_seed, LauncherScreen.next_seed],
+			Run.galaxy_seed == 4242 and LauncherScreen.next_seed == 0)
+	# with a save: a short confirm stays, as starting over abandons that run
 	SaveGame.save()
 	Router.show_launcher()
 	await _frames(4)
@@ -140,9 +157,10 @@ func _run() -> void:
 	if nr != null:
 		nr.pressed.emit()
 		await _frames(6)
-		_ok("NEW RUN with a save opens the seed panel", Router.current is LauncherScreen
+		_ok("NEW RUN with a save asks START OVER?, with no seed field", Router.current is LauncherScreen
 			and _find(Router.current, func(n: Node) -> bool:
-				return n is Label and (n as Label).text == "LAUNCH A RUN" and (n as Label).is_visible_in_tree()) != null)
+				return n is Label and (n as Label).text == "START OVER?" and (n as Label).is_visible_in_tree()) != null
+			and _find(Router.current, func(n: Node) -> bool: return n is LineEdit and (n as LineEdit).is_visible_in_tree()) == null)
 	SaveGame.clear()
 	_finish()
 

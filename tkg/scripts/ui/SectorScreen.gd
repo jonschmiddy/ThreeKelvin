@@ -1062,13 +1062,14 @@ var _join_shown := Router.JOIN_NONE
 ## Parts are joined with a dot, as a player-facing line has no dash (audit, Oct 22).
 static func here_line(n: MapGen.MapNode) -> String:
 	var left := things_here(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
-	var line := "NOTHING ELSE HERE · SEE SECTOR"
+	# No "· SEE SECTOR" tail: SCAN SECTOR sits beside it (Jon, Nov 9, stripped-down UI 1A).
+	var line := "NOTHING ELSE HERE"
 	if n.type == MapGen.NodeType.STATION:
 		# (the berth is at the station's own body: anywhere else in its system
 		# the way to it is the map -- dock:A)
-		line = "A STATION HERE · SEE SECTOR" if Router.at_station(n) else "FLY TO THE STATION TO DOCK · SEE SECTOR"
+		line = "A STATION HERE" if Router.at_station(n) else "FLY TO THE STATION TO DOCK"
 	elif left > 0:
-		line = "%d THING%s HERE · SEE SECTOR" % [left, "" if left == 1 else "S"]
+		line = "%d THING%s HERE" % [left, "" if left == 1 else "S"]
 	# THE EVENT YOU CAME FOR, how it went and what is left (`LocalEventDrawer`)
 	var ev := LocalEventDrawer.bar_line(n)
 	if ev != "":
@@ -1087,6 +1088,7 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var t := UITheme.body(line, UITheme.COLD, UITheme.FS_SMALL)
+	t.name = "HereLine"
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(t)

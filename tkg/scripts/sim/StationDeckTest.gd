@@ -37,6 +37,7 @@ func _run() -> void:
 	await _tree.process_frame
 	_dock_desk_rule()
 	_operators_fit()
+	_one_repair_drone()
 	for dev in 5:
 		for berth: bool in [false, true]:
 			await _decks(dev, berth)
@@ -155,6 +156,18 @@ func _operators_fit() -> void:
 
 ## The station you are at, built as BoardSignTest builds it: `berth` gives it
 ## Korvan, otherwise nobody holds it.
+## PATCH and REPAIR are one job with 8 or less missing: PATCH stays away then
+## (Jon, Nov 9, stripped-down UI 7), and both come with more missing.
+func _one_repair_drone() -> void:
+	var here := _station(MapGen.Development.CITY, true, 9190)
+	for row: Array in [[5, "USE REPAIR", ""], [8, "USE REPAIR", ""], [9, "", ""], [20, "", ""], [0, "HULL FULL", "HULL FULL"]]:
+		Run.hp = Run.max_hp() - int(row[0])
+		var o := StationScreen.repair_offers(here)
+		_ok("%d missing: PATCH \"%s\" (%s), REPAIR \"%s\" (%s)" % [row[0], o[0].done, o[0].label, o[1].done, o[1].label],
+			String(o[0].done) == String(row[1]) and String(o[1].done) == String(row[2]))
+	Run.hp = Run.max_hp()
+
+
 func _station(dev: int, berth: bool, seed0: int) -> MapGen.MapNode:
 	Rng.forced = seed0
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

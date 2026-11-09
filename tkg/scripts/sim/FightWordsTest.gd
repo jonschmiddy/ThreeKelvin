@@ -89,9 +89,9 @@ func _run() -> void:
 		_end()
 		return
 	var bar := ""
-	for x in sc.find_children("*", "Label", true, false):
-		if (x as Label).is_visible_in_tree() and (x as Label).text.contains("SEE SECTOR"):
-			bar = (x as Label).text
+	var hl := sc.find_child("HereLine", true, false) as Label
+	if hl != null and hl.is_visible_in_tree():
+		bar = hl.text
 	if bar == "":
 		# (an event's band up instead of the bar: the line above covers it)
 		print("  --   LOCAL opened on an event, so its bar line is not drawn")

@@ -890,7 +890,8 @@ func _build_left() -> void:
 	_keys.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_keys.custom_minimum_size.x = 1
 	said.add_child(_keys)
-	_done = Widgets.button("DONE · ESC", close)
+	# DONE alone; Esc still closes (Jon, Nov 9, stripped-down UI 7).
+	_done = Widgets.button("DONE", close)
 	_done.custom_minimum_size = Vector2(0, 22)
 	foot.add_child(_done)
 

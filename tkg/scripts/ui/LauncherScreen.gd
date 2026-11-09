@@ -34,7 +34,6 @@ const POPUP_INSET_H := 170
 const POPUP_INSET_V := 96
 ## The corner checkbox, kept so it can repaint itself when flipped.
 var _dev_box: Button = null
-var _seed_field: LineEdit = null
 var _sky: StarchartScreen.MapChart = null
 ## Real size arrives after setup(); rotating before it swept a default-size square across the view.
 ## Why: docs/why/LauncherScreen.md#sky-fit
@@ -351,9 +350,6 @@ func _close_popup() -> void:
 		return
 	_popup.queue_free()
 	_popup = null
-	# A freed Node is not null in GDScript, so the reference is dropped for the guard to work.
-	# Why: docs/why/LauncherScreen.md#freed-seed-field
-	_seed_field = null
 
 ## Nudge a control right by the side-bearing difference. See BEARING_FIX.
 func _indent(c: Control) -> MarginContainer:
@@ -372,98 +368,45 @@ func _line(text: String, colour: Color, size: int) -> Label:
 	l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	return l
 
-## NEW RUN asks first, as it abandons a live run; skipped on a fresh profile (Oct 17).
+## NEW RUN goes straight to the hull pick; only a live run asks first, as starting
+## over abandons it (Jon, Nov 9, stripped-down UI 7). The seed is in Settings.
 ## Why: docs/why/LauncherScreen.md#new-run-prompt
 func _confirm_new_run() -> void:
 	var save := SaveGame.summary()
-	if fresh_profile():
-		Router.new_run(0)
+	if save.is_empty():
+		_start_new_run()
 		return
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)
 	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	col.add_child(UITheme.body("LAUNCH A RUN", UITheme.ICE, UITheme.FS_HEAD))
-	if save.is_empty():
-		col.add_child(UITheme.body(
-			"Leave the seed empty for a new, random galaxy.",
-			UITheme.COLD, UITheme.FS_SMALL))
-	else:
-		# The abandoned run still goes on the flight record, so this is a cost
-		# rather than a deletion — worth saying which.
-		col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
-		col.add_child(UITheme.body(
-			"Launching abandons that run. It keeps its place on the flight record.",
-			UITheme.COLD, UITheme.FS_SMALL))
-	col.add_child(_gap(4))
-	col.add_child(_seed_row())
-
+	col.add_child(UITheme.body("START OVER?", UITheme.ICE, UITheme.FS_HEAD))
+	# The abandoned run still goes on the flight record, so this is a cost
+	# rather than a deletion: worth saying which.
+	col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
+	col.add_child(UITheme.body(
+		"A new run abandons that one. It keeps its place on the flight record.",
+		UITheme.COLD, UITheme.FS_SMALL))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	# Silent, like the hull pick's LAUNCH: starting the game is not a UI click.
-	row.add_child(Widgets.button("LAUNCH", _launch, false))
+	row.add_child(Widgets.button("NEW RUN", _start_new_run, false))
 	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
-
 	_open_popup(col, true)
-	# Typing is the whole reason this panel exists, so the caret starts in the
-	# field. Everything else here is one keystroke away either way.
-	if _seed_field != null:
-		_seed_field.grab_focus()
 
 ## No run to abandon and none ever flown: a first launch.
 static func fresh_profile() -> bool:
 	return SaveGame.summary().is_empty() and RunHistory.load_all().is_empty()
 
-func _launch() -> void:
-	var n := _typed_seed()
+## The seed for the next new run, typed in Settings on the title; 0 rolls one.
+## Used once and cleared, so it never sticks to the run after.
+static var next_seed := 0
+
+func _start_new_run() -> void:
+	var n := next_seed
+	next_seed = 0
 	_close_popup()
 	Router.new_run(n)
-
-## SEED, and a box to put one in.
-func _seed_row() -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	# On the label, not on a "?" beside it. The panel already states the common
-	# case in a full sentence; this only has to cover what it leaves out.
-	var lab := UITheme.body("SEED", UITheme.COLD, UITheme.FS_SMALL)
-	lab.mouse_filter = Control.MOUSE_FILTER_STOP
-	lab.tooltip_text = Widgets.tip("Seeded run\nFly the same number again for the same galaxy, map and loot. Old ones are on the flight record.")
-	row.add_child(lab)
-
-	_seed_field = LineEdit.new()
-	_seed_field.custom_minimum_size = Vector2(96, 0)
-	_seed_field.placeholder_text = "random"
-	_seed_field.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_seed_field.max_length = 10
-	_seed_field.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
-	_seed_field.add_theme_color_override("font_color", UITheme.CHILL)
-	_seed_field.add_theme_color_override("font_placeholder_color", UITheme.LINE)
-	_seed_field.add_theme_stylebox_override("normal",
-		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 6))
-	_seed_field.add_theme_stylebox_override("focus",
-		UITheme.flat(UITheme.PANEL2, UITheme.COLD, 0, 3, 6))
-	# Digits only, and filtered on the way in rather than validated on the way
-	# out: a field that accepts letters and then silently ignores them has lied.
-	_seed_field.text_changed.connect(func(t: String) -> void:
-		var clean := ""
-		for c in t:
-			if c >= "0" and c <= "9":
-				clean += c
-		if clean != t:
-			_seed_field.text = clean
-			_seed_field.caret_column = clean.length())
-	# Enter is LAUNCH. Somebody typing a seed has both hands on the keyboard and
-	# reaching for the mouse to press the button beside the field is silly.
-	_seed_field.text_submitted.connect(func(_t: String) -> void: _launch())
-	row.add_child(_seed_field)
-	return row
-
-## What is in the field, or 0 for "roll one". Router.new_run() reads 0 as random,
-## so an empty field needs no special case anywhere else.
-func _typed_seed() -> int:
-	if _seed_field == null:
-		return 0
-	return int(_seed_field.text.strip_edges())
 
 
 ## Red text on the same box says one of a pair is the way out, not the opposite action.

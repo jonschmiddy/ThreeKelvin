@@ -64,7 +64,7 @@ const DONE := {
 	&"events": "an event opened from the map's list (its page, or GO)",
 	&"drawer": "a choice taken in the event band, or NOT NOW",
 	&"odds": "a choice taken in the event band, or NOT NOW",
-	&"result": "REWARD opened, or CONTINUE pressed",
+	&"result": "SECTOR LOOT opened, or CONTINUE pressed",
 	&"hand": "a card played",
 	&"energy": "the next card played, or END TURN pressed",
 	&"discard_pick": "a card picked from the hand",
@@ -224,7 +224,7 @@ func lines(id: StringName) -> Array:
 		&"odds":
 			return ["This choice tests your ship.", "Meet the number and it cannot fail."]
 		&"result":
-			return ["What it cost and what you got.", "REWARD opens what you found. Then CONTINUE."]
+			return ["What it cost and what you got.", "SECTOR LOOT opens what you found. Then CONTINUE."]
 		&"fuel_first":
 			return ["Each jump burns fuel. Run dry and the run ends.", "Stations sell more."]
 		&"hull":

@@ -12,7 +12,7 @@ const LINES: Dictionary = {
 	# Why: docs/why/AshTutorLines.md#ash-teaching
 	&"drawer": "Pick a choice. Some show the odds. The rest are a surprise. NOT NOW saves it for later.",
 	&"odds": "This one tests the ship. It shows the stat, what we have, and the odds. Meet it and it can't fail.",
-	&"result": "Here's what it cost and what we got. REWARD opens anything we found. Then press CONTINUE.",
+	&"result": "Here's what it cost and what we got. SECTOR LOOT opens anything we found. Then press CONTINUE.",
 	&"hand": "Drag a card onto an enemy to fire it. Cards that help us go on our own ship.",
 	&"energy": "That card cost energy. This box is what's left. It fills back up every turn.",
 	&"intent": "That's what it will do when you press END TURN.",
@@ -80,7 +80,8 @@ const SPOKEN: Dictionary = {
 }
 
 ## Takes recorded for words since changed are text only until a new take is approved.
-const SILENT: Array[StringName] = []
+## `result` said REWARD on its take; the button is SECTOR LOOT now (Nov 9).
+const SILENT: Array[StringName] = [&"result"]
 
 ## Changed lines play the named retake, never the old take under the new words.
 ## Why: docs/why/AshTutorLines.md#ash-teaching

@@ -240,6 +240,7 @@ Main's margin, and the galaxy, which does not, showed through it undimmed
 
 ## Freed seed field
 
+(Gone Nov 9 with the seed field, which moved to Settings. Kept for the record.)
 Inside `_close_popup()`, above `_seed_field = null`:
 
 ```text
@@ -293,6 +294,15 @@ NOT ON A FRESH PROFILE (tutorial direction B, Oct 17): no save and no run on
 the flight record means a first launch, and asking somebody about seeds
 before they know what a run is was one click spent on a question they could
 not answer. Straight to the hull pick; the panel is there from the second run.
+
+NOV 9 (stripped-down UI, item 7, after Shroom and Gloom and Chris's "three
+buttons doing the same thing"): starting a run was NEW RUN, then this
+panel's LAUNCH, then the hull pick's LAUNCH. The panel held two things. The
+seed moved to Settings (a NEW RUN section shown on the title only), used
+by the next NEW RUN once and then cleared (`next_seed`), as the audit Jon
+approved said. The warning stays, and only it: with a live save NEW RUN
+still asks START OVER?, as it records an ABANDONED run and clears the save.
+With no save, NEW RUN goes straight to the hull pick.
 ```
 
 ## Leave button

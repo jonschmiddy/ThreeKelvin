@@ -612,7 +612,9 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	await _frames(3)
 	h._ok("one click selects star B (%d), the panel on it (%d)" % [ov.selected, m.panel.filter], ov.selected == B and m.panel.filter == B)
 	var tb2: Array = ov.tip_lines(hb)[0]
-	h._ok("its tip now says a second click flies there (%s)" % tb2[tb2.size() - 1][0], tb2[tb2.size() - 1][0] == "CLICK AGAIN: FLY HERE")
+	# (a second click still flies; the tip no longer says so: stripped-down UI 3, Nov 9)
+	h._ok("its tip drops CLICK: SELECT and says no CLICK AGAIN (%s)" % tb2[tb2.size() - 1][0],
+		not tb2.any(func(l: Array) -> bool: return String(l[0]).begins_with("CLICK")))
 	var words := _words(m.panel._box)
 	h._ok("the panel says BINARY (never TWO SUNS), and names %s and %s" % [nm_a, nm_b],
 		words.has("BINARY") and not words.has("TWO SUNS") and words.has(nm_a) and words.has(nm_b))

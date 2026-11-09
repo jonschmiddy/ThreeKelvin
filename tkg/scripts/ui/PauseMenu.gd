@@ -164,7 +164,10 @@ func confirm(destroys: bool) -> void:
 	_exits.add_child(yes)
 	# Grey, not green: backing out is not a choice, it is the absence of one.
 	# Colour here would make the two answers compete (Jon).
-	_exits.add_child(DrawerPlate.plate(&"resume", "NO, KEEP PLAYING", "", _show_exits))
+	# BACK: RESUME above already says "keep playing" (Jon, Nov 9, stripped-down UI 7).
+	var back := DrawerPlate.plate(&"resume", "BACK", "", _show_exits)
+	back.name = "ConfirmBack"
+	_exits.add_child(back)
 
 
 ## Settings share the drawer: children of one MarginContainer, only one visible.

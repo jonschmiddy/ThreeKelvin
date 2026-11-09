@@ -363,7 +363,7 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 		_ok("%s: the station's side %s, its ring %s (the ship at %d, the station %d)" % [what,
 			"drawn" if face else "none", pic if pic != &"" else "none", site, L.dock_place()],
 			face == at and Router.at_station(n) == at and (pic == &"station") == at)
-		if bar.contains("SEE SECTOR"):
+		if bar != "" and LocalEventDrawer.bar_line(n) == "":
 			_ok("%s: the bar says \"%s\"" % [what, bar], bar.begins_with("A STATION HERE") == at)
 	# THE BAR COUNTS THIS PLACE (Jon, Oct 21, "bar:here"): the events not yet
 	# taken where the ship is, or nothing here; never the whole system's
@@ -373,10 +373,10 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 			if not OptionTable.by_id(n.options[i]).is_empty() and not n.taken.has(MapGen.OPTION_SITE + i):
 				left += 1
 		var line := _bar_line(sc)
-		if line.contains("SEE SECTOR"):
+		if line != "" and LocalEventDrawer.bar_line(n) == "":
 			var want := ("%d THING%s HERE" % [left, "" if left == 1 else "S"]) if left > 0 else "NOTHING ELSE HERE"
-			_ok("%s: the bar counts this place: \"%s\" (%d here, %d in the system)" % [what, line, left, EncounterDrawer.untaken(n).size()],
-				line.begins_with(want))
+			_ok("%s: the bar counts this place: \"%s\" (%d here, %d in the system), and says no SEE SECTOR" % [what, line, left, EncounterDrawer.untaken(n).size()],
+				line.begins_with(want) and not line.contains("SEE SECTOR"))
 
 
 ## A key parks the ship at once, and the fly-in is not played again after the map and back.
@@ -666,7 +666,7 @@ func _bar_line(sc: SectorScreen) -> String:
 	var stack: Array[Node] = [sc]
 	while not stack.is_empty():
 		var x: Node = stack.pop_back()
-		if x is Label and (x as Label).is_visible_in_tree() and (x as Label).text.contains("SEE SECTOR"):
+		if x is Label and x.name == &"HereLine" and (x as Label).is_visible_in_tree():
 			return (x as Label).text
 		stack.append_array(x.get_children())
 	return ""
