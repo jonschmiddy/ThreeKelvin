@@ -1718,30 +1718,12 @@ Cand scene(Px P, vec2 v, vec2 vb, ivec2 sblk, bool lensed, float tk) {
 				// (an old ball has no cool gas behind its fade: it thins out into the sky)
 				sc = la2 >= 1.0 / 6.0 && !(ellip && !ballGas()) ? cand(M_ARM, la2, 0, 0.0) : skyAt(P, Ehalo + Et * 0.5, g);
 			}
-			// THE BIG OLD DWARF IS GOLD (a dwarf spheroidal's, `u_ballV`; Jon, Nov 8: no red
-			// ring, its palette is gold): its faint light on the warm ramp's bottom steps lay
-			// as a big maroon-red disc. It is drawn as a grain of the ramp's orange and gold
-			// over the sky instead, as thick as its light (a step down, half the grain), held
-			// on the galaxy as it turns
+			// THE BIG OLD DWARF IS GOLD (a dwarf spheroidal's, `u_ballV`; Jon, Nov 8, pick B):
+			// the same soft filled disc, its fade dithered in `pat` above, but on the warm ramp's
+			// orange and gold steps (#d26a26, #f0a040) instead of maroon and rust; no grain.
+			// The ramp's top gold lifts the marks' sky past MARK_LUMA (TornTest)
 			if (ellip && u_ballV.w > 0.5 && !ballGas() && sc.m == M_BULGE && sc.lv < 3.0 / 7.0) {
-				float eB = ballBody(sB);
-				float eAll = ballBodyE(sB, sE);
-				float envS = (eAll - eB) / max(eAll, 1e-6);
-				// (and round its core, the ramp's maroon and rust steps under the same grain, the
-				// rust broken half and half with the orange: no red disc at its middle either)
-				if (envS <= 0.35 && sc.lv >= 2.0 / 7.0) {
-					if (pat(P, 0.5)) {
-						sc = cand(M_BULGE, 3.5 / 7.0, 0, 0.0);
-					}
-				} else {
-					float cov = clamp(exp2((sc.lv - 3.0 / 7.0) * 7.0), 0.0, 1.0) * 0.6;
-					float gn = kitHash3(ivec2(floor(gq / max(blkS, 1e-5))) + ivec2(4111, 77)).x;
-					if (gn < cov) {
-						sc = cand(M_BULGE, gn < 0.3 * cov ? 4.5 / 7.0 : 3.5 / 7.0, 0, 0.0);
-					} else if (envS <= 0.35 || pat(P, smoothstep(0.35, 0.6, envS))) {
-						sc = skyAt(P, Ehalo + Et * 0.5, g);
-					}
-				}
+				sc = cand(M_BULGE, sc.lv < 2.0 / 7.0 ? 3.5 / 7.0 : 4.5 / 7.0, 0, 0.0);
 			}
 		} else {
 			float ELc = Ec + Ep + 0.35 * Ew + dbt;
