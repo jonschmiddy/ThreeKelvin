@@ -180,19 +180,47 @@ the place's own picture before the palette. Each is [screen point, colour
 Above `class RealComet extends Comet:`:
 
 ```text
-The comet you can fly to (`CometPath`, Phase 13) is drawn by the weather
-comet's own drawing, so it looks the same in every style and at every zoom.
-What it adds:
+The comet you can fly to (`CometPath`, Phase 13). It moves on the weather
+comet's own path (`comet_pos`), and since Jon's "K3" (Nov 9) it has a bigger,
+brighter look of its own (see Real comet look). What it adds:
 
 - Its path ahead, dotted on the plane in blocks every DOT_PX, from its head to
   where it leaves. A dotted line is no world's ring (those are solid), and it
   shows where the comet will be before it gets there, which is the whole idea
   of option C. Before it comes in, the whole path shows.
-- In RADIANT, its coma as light: a falloff round the head in whole blocks with
-  a dithered outer ring (the "draw light as light" rule).
+- In RADIANT, a wider coma: the halo is 1.6 times the radius, in the same
+  dithered steps (the "draw light as light" rule).
 
 It is made in `setup` and steps itself (`_process`) from the view's clock.
 PAINTED needs nothing new: its age is held in poses (8 a second), as `_apply`
 holds the weather's. Reduced motion does not clear it as it clears the weather:
-it is a place, not weather. Its head never draws fainter than `a_min`
-(`CometPath.A_MIN`), so a thing to click always reads; the weather's has none.
+it is a place, not weather. It never draws smaller than its size at
+`a_min` (`CometPath.A_MIN`), so a thing to click always reads.
+```
+
+## Real comet look
+
+Above `const ION := ...` in `class RealComet`:
+
+```text
+Jon, Nov 9 ("K3"): drawn as the weather comet, the comet you chase was too
+small, and its dust tail short and faint. It needs to read at a first glance as
+the thing to go after (danger and goals must be obvious). Its own look, still
+pixel art in 2x2 blocks with dithered steps and no smooth gradients:
+
+- a 4 px white head inside a coma of about 4 blocks' radius, white to pale
+  cyan to blue in three steps, the faint outer rings on the checker;
+- a long gold dust tail (DUST_N, about 36 blocks), widening to about three
+  blocks a side, leaving about 14 degrees off the away line (DUST_OFF) and
+  bending further (BEND) to the side it trails from, fading from cream through
+  gold to rust, its edges dithered. Leaving along the away line, it hid the
+  blue tail under it (the first K3 render);
+- a straight blue ion tail (ION_N, about 28 blocks) pointing away from the
+  light, its last 40% dithered.
+
+Size k is 0.75 to 1.0 by nearness to the star (never below the `a_min`
+floor's), times the map zoom held to 0.9 to 1.5. Each block is laid once
+(`_lay`), the ion tail first, so overlapping parts never double their alpha
+into a white smear and the blue is never painted over. The
+weather comet keeps its own drawing, unchanged.
+```

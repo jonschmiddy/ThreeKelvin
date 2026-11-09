@@ -2133,7 +2133,7 @@ class Comet extends Node2D:
 		var hs: Vector2 = view.block_round(view.screen(pw.x, pw.y))
 		var r := p.length()
 		var q := float(ev.q)
-		var A := maxf(clampf(pow(2.5 * q / maxf(r, 1.0), 2.0), 0.0, 1.0), float(ev.get("a_min", 0.0)))
+		var A := clampf(pow(2.5 * q / maxf(r, 1.0), 2.0), 0.0, 1.0)
 		if grazer:
 			A = clampf(pow(5.0 * R0 / maxf(r, 1.0), 1.5) * 0.6, 0.0, 1.0)
 		# the comet comes in and goes out over its first and last five seconds
@@ -2252,6 +2252,18 @@ class RealComet extends Comet:
 	const DOT_PX := 7.0
 	const PATH_C := Color("#8ad0f0")
 	const PATH_A := 0.3
+	## Bigger and brighter than the weather's (Jon, Nov 9, "K3"): a thing to go after.
+	## Why: docs/why/SkyWeather.md#real-comet-look
+	const ION := [Color("#e6f8ff"), Color("#a8e0ff"), Color("#5aa8f0"), Color("#2c64c8")]
+	const DUST := [Color("#fff0c0"), Color("#ffd070"), Color("#f0a030"), Color("#b86018"), Color("#6a2c0c")]
+	## Its parts at size k = 1, in 2x2 blocks: the ion tail's length, the dust tail's, the coma's radius.
+	const ION_N := 28.0
+	const DUST_N := 36.0
+	const COMA_R := 4.0
+	## How hard the dust tail bends off the away line (blocks per block squared).
+	const BEND := 0.012
+	## How far off the away line the dust tail leaves (about 14 degrees toward its trailing side).
+	const DUST_OFF := 0.25
 
 	## At the view's clock; PAINTED holds its age in poses, as the weather's. Reduced motion
 	## keeps it: it is a place, not weather.
@@ -2276,9 +2288,79 @@ class RealComet extends Comet:
 		_path(maxf(a, 0.0))
 		if a < 0.0:
 			return
-		super._draw()
-		if bool(view.get("radiant")):
-			_glow()
+		var sa: Vector2 = a_at(float(view.t))
+		var p := comet_pos(ev, a)
+		var pw := p + sa
+		var hs: Vector2 = view.block_round(view.screen(pw.x, pw.y))
+		# away from the light: star A with one sun, both suns' with two
+		var away: Vector2 = view.screen(pw.x, pw.y) - view.screen(sa.x, sa.y)
+		if view.layout.twin:
+			var lu: Vector2 = view.toward_light(pw)
+			away = -Vector2(lu.x, lu.y * float(view.TILT))
+		var ad := away.normalized() if away.length() > 1e-3 else Vector2.RIGHT
+		# the dust trails behind its motion
+		var pn := comet_pos(ev, a + 0.5) + sa
+		var side := trailing_side(ad, view.screen(pn.x, pn.y) - view.screen(pw.x, pw.y))
+		var A := clampf(pow(2.5 * float(ev.q) / maxf(p.length(), 1.0), 2.0), 0.0, 1.0)
+		var fade := clampf(a / 5.0, 0.0, 1.0) * clampf((float(ev.end) - a) / 5.0, 0.0, 1.0)
+		# (bigger near the star and when zoomed in, never below its floor's size)
+		var k := lerpf(0.75, 1.0, maxf(A, float(ev.get("a_min", 0.0)))) * clampf(float(view.zoom), 0.9, 1.5)
+		paint(self, hs, ad, side, k, fade, bool(view.get("radiant")))
+
+	## The side of the away line the dust lies on: away from where the head is going.
+	static func trailing_side(ad: Vector2, going: Vector2) -> Vector2:
+		var side := ad.orthogonal()
+		return -side if side.dot(going) > 0.0 else side
+
+	## THE LOOK, shared with LOCAL's band (`LocalComet`): a long gold dust tail bending off
+	## the away line, a straight blue ion tail, a dithered coma and a white head, in 2x2 blocks.
+	## RADIANT adds a wider halo. Each block is laid once, so nothing doubles up.
+	static func paint(ci: CanvasItem, hs: Vector2, ad: Vector2, side: Vector2, k: float, fade: float, radiant: bool) -> void:
+		var laid := {}
+		var n_ion := int(round(ION_N * k))
+		for i in range(1, n_ion + 1):
+			var f2 := float(i) / float(n_ion)
+			var q2 := hs + ad * 2.0 * float(i)
+			if f2 > 0.6 and not _on_checker(q2):
+				continue
+			_lay(ci, laid, q2, Color(ION[mini(3, int(f2 * 4.0))], 0.9 * (1.0 - f2 * 0.6) * fade))
+		# (the dust leaves a little off the away line, so the blue tail shows beside it)
+		var dd := (ad + side * DUST_OFF).normalized()
+		var n_dust := int(round(DUST_N * k))
+		for i in range(2, 2 * n_dust + 1):
+			var u := float(i) * 0.5
+			var f := u / float(n_dust)
+			var c := hs + dd * 2.0 * u * 0.85 + side * 2.0 * BEND * u * u
+			var w := int(f * 3.0 * k)
+			for j in range(-w, w + 1):
+				var q := c + side * 2.0 * float(j)
+				if w > 0 and absi(j) == w and not _on_checker(q):
+					continue
+				var al := 0.85 * (1.0 - f * 0.75) * fade * (1.0 - 0.35 * absf(float(j)) / float(w + 1))
+				_lay(ci, laid, q, Color(DUST[mini(4, int(f * 5.0))], al))
+		var R := COMA_R * k * (1.6 if radiant else 1.0)
+		var r := int(ceil(R))
+		for bx in range(-r, r + 1):
+			for by in range(-r, r + 1):
+				var d := Vector2(bx, by).length() / R
+				if d > 1.0:
+					continue
+				var q3 := hs + Vector2(bx, by) * 2.0
+				var I := pow(1.0 - d, 1.5)
+				# (dithered steps: the faint outer rings on the checker only)
+				if I < 0.3 and not _on_checker(q3):
+					continue
+				var col := Color("#ffffff") if d < 0.3 else (Color("#d8f4ff") if d < 0.6 else Color("#8ccaf0"))
+				ci.draw_rect(Rect2((q3 / 2.0).floor() * 2.0, Vector2(2, 2)), Color(col, (0.3 + 0.65 * I) * fade))
+		# the head, 4 px, white
+		ci.draw_rect(Rect2((hs / 2.0).floor() * 2.0 - Vector2(2, 2), Vector2(4, 4)), Color(Color("#fffaf0"), fade))
+
+	static func _lay(ci: CanvasItem, laid: Dictionary, p: Vector2, c: Color) -> void:
+		var b := Vector2i((p / 2.0).floor())
+		if laid.has(b):
+			return
+		laid[b] = true
+		ci.draw_rect(Rect2(Vector2(b) * 2.0, Vector2(2, 2)), c)
 
 	## Where it is going, from now to the edge: dots on the screen's block grid.
 	func _path(from: float) -> void:
@@ -2290,71 +2372,24 @@ class RealComet extends Comet:
 			var p: Vector2 = comet_pos(ev, age) + sa
 			var sp: Vector2 = view.screen(p.x, p.y)
 			if last == Vector2.INF or sp.distance_to(last) >= DOT_PX:
-				# (the first few dots under the head are skipped: the coma is there)
-				if age - from > 0.6 or from == 0.0:
+				# (the first dots under the head are skipped: the coma is there)
+				if age - from > 1.2 or from == 0.0:
 					_blk(sp, Color(PATH_C, PATH_A))
 				last = sp
 			age += 0.1
-
-	## RADIANT: the coma as light, a dithered falloff round the head in whole blocks.
-	func _glow() -> void:
-		var p: Vector2 = comet_pos(ev, float(ev.age)) + a_at(float(view.t))
-		var hs: Vector2 = view.block_round(view.screen(p.x, p.y))
-		var A := maxf(clampf(pow(2.5 * float(ev.q) / maxf(p.length(), 1.0), 2.0), 0.0, 1.0), float(ev.get("a_min", 0.0)))
-		var fade := clampf(float(ev.age) / 5.0, 0.0, 1.0) * clampf((float(ev.end) - float(ev.age)) / 5.0, 0.0, 1.0)
-		for bx in range(-6, 7):
-			for by in range(-6, 7):
-				var d := Vector2(bx, by).length() / 6.0
-				if d >= 1.0 or d < 0.35:
-					continue
-				var k := (1.0 - d) * (1.0 - d)
-				var q := hs + Vector2(bx, by) * 2.0
-				# (dithered steps: the outer ring on the checker only)
-				if k < 0.18 and not _on_checker(q):
-					continue
-				_blk(q, Color(Color("#bfe6ff"), 0.22 * k * A * fade + 0.04 * fade))
 
 
 ## The comet page's picture: the map's comet at the panel's size, in its 2x2 blocks,
 ## the head left and both tails streaming right, the dust tail bending down.
 class CometPortrait extends Node2D:
-	const HEAD := Vector2(-56, -12)
-	const ION := [Color("#c8f0ff"), Color("#8ad0f0"), Color("#4a8ad8"), Color("#2a5ab8")]
-	const DUST := [Color("#ffdc96"), Color("#ffb054"), Color("#84280c")]
+	const HEAD := Vector2(-64, -16)
 
 	func step(_t: float) -> void:
 		pass
 
-	func _blk(p: Vector2, c: Color) -> void:
-		draw_rect(Rect2((p / 2.0).floor() * 2.0, Vector2(2, 2)), c)
-
 	func _draw() -> void:
-		# the ion tail: straight and thin, in four steps of blue
-		for k in range(1, 56):
-			var si := mini(3, (k - 1) / 14)
-			_blk(HEAD + Vector2(2.0 * k, 0.12 * 2.0 * k), Color(ION[si], 0.6 * (1.0 - float(k) / 70.0)))
-		# the dust tail: wider, bending down, the checker thinning it out
-		for k in range(2, 50):
-			var u := float(k) * 2.2
-			var c := HEAD + Vector2(u, 0.18 * u + 0.0016 * u * u * 2.0)
-			var w := 1 + k / 12
-			var col: Color = DUST[mini(2, k / 18)]
-			for j in range(-w, w + 1):
-				var q := c + Vector2(0.0, 2.0 * j)
-				if absi(j) == w and not Comet._on_checker(q):
-					continue
-				_blk(q, Color(col, 0.55 * (1.0 - float(k) / 52.0) * (1.0 - 0.3 * absf(j) / float(w + 1))))
-		# the coma and the head
-		for bx in range(-3, 4):
-			for by in range(-3, 4):
-				var d := Vector2(bx, by).length()
-				if d < 0.5 or d > 3.2:
-					continue
-				var q2 := HEAD + Vector2(bx, by) * 2.0
-				if d > 1.6 and not Comet._on_checker(q2):
-					continue
-				_blk(q2, Color(Color("#e6f6ff"), 0.6 if d < 1.6 else 0.3))
-		_blk(HEAD, Color("#fff6e2"))
+		var ad := Vector2(1.0, 0.25).normalized()
+		RealComet.paint(self, HEAD, ad, -ad.orthogonal(), 0.95, 1.0, false)
 
 
 ## A belt collision: a warm flash, then dust that grows and smears into an arc over half a minute.

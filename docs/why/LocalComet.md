@@ -16,24 +16,26 @@ run while LOCAL is up (PairLocalTest), so a comet that moved on in LOCAL would
 jump back on the map. The worlds' slow drift on the band hides that; a comet
 crossing the system in about a minute would not.
 
-The band draws the whole system smaller than the map does (`_s`), and it is
-flat (TILT 0.07), so the map's tail lengths left specks. The ion tail is
-held to at least ION_MIN blocks.
+It is drawn by the map's own painter (`SkyWeather.RealComet.paint`), so the
+two always look alike.
 
 The comet up close (a nucleus with LocalFx's lit tails, as `the_comet` draws
 one) belongs to Phase 13's catch, when the ship waits on its path and it goes
 by. That is part 5 of the build.
 ```
 
-## Dust on the band
+## Size
 
-Above `var trail := ...` in `_draw`:
+Above `const K_NEAR := 1.25`:
 
 ```text
-The map draws the dust tail where the dust it shed is now (its past places,
-pushed off the light). On LOCAL's flat band the comet's past places lie behind
-its motion, which near the star is back toward the star, so that tail pointed
-at the sun (the first render, Nov 9). The band draws the classic shape instead:
-out along the away line, bending (DUST_BEND, px per block squared) to the side
-the comet trails from, warm, and widening past its first third.
+Jon, Nov 9 ("K3"): the first band comet, about 20 px, was too small for
+something you chase. It is now the map's look at 1.0 to 1.25 times its size
+(K_FAR far from the star, K_NEAR at it): an ion tail of about 60 to 70 px and a
+gold dust tail of about 60 to 80 px. That is a real presence in the sky and
+still a quarter of the ship's length.
+
+It is drawn over the band's worlds and suns. When it passes behind the star on
+the band it is not hidden by the disc: the band is nearly edge on (TILT 0.07),
+so that lasts a moment of a pass that LOCAL holds still anyway.
 ```
