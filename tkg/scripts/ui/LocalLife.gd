@@ -14,7 +14,7 @@ static var hide := {}
 static var cpu_us := 0
 
 var sky: LocalSky
-## 0 SIMPLIFIED, 1 PAINTED, 2 RADIANT, 3 LEGACY (`LocalDust`'s numbers)
+## 0 SIMPLIFIED, 1 PAINTED, 2 RADIANT (`LocalDust`'s numbers)
 var style := 0
 ## 1 while nothing is staged in LOCAL's sky, eased to 0 while something is
 ## (the traffic's)
@@ -39,7 +39,7 @@ var _plan_made := false
 
 func _init(s: LocalSky) -> void:
 	sky = s
-	style = {&"painted": 1, &"radiant": 2, &"legacy": 3}.get(s.style, 0)
+	style = {&"painted": 1, &"radiant": 2}.get(s.style, 0)
 
 
 func step(delta: float) -> void:
@@ -476,9 +476,6 @@ func _step_traffic() -> void:
 		_traffic.style = style
 		var sc: Vector3 = LocalSky.SkyBakeS.STARCOL.get(sky.kind, LocalSky.SkyBakeS.STARCOL.ORDINARY)
 		_traffic.lit = Color(sc.x, sc.y, sc.z).lerp(Color("#8a96a8"), 0.45)
-		if style == 3:
-			_traffic.hull = Color("#232d39")
-			_traffic.lit = Color("#4d5f73")
 		sky.add_child(_traffic)
 	# Traffic is never part of an encounter, and pulls back toward the map's scale like the
 	# dust.
@@ -514,7 +511,6 @@ class _Traffic extends Node2D:
 	var zs := 1.0
 	var za := Vector2.ZERO
 	const DRIVES := [Color(1.0, 0.72, 0.36), Color(0.62, 0.82, 1.0), Color(1.0, 0.9, 0.7)]
-	const LEGACY_DRIVE := Color("#9fc0e0")
 
 	func _h(j: int, k: int) -> float:
 		return LocalSky.SkyBakeS.hash2(seed * 131 + j, 900 + k)
@@ -546,15 +542,13 @@ class _Traffic extends Node2D:
 			x = pz.x
 			var y := pz.y
 			var n := (2 + int(2.0 * _h(j, 6))) if far else (7 + int(5.0 * _h(j, 6)))
-			var drive: Color = LEGACY_DRIVE if style == 3 else DRIVES[int(_h(j, 7) * 3.0) % 3]
+			var drive: Color = DRIVES[int(_h(j, 7) * 3.0) % 3]
 			var a := 0.7 if far else 1.0
 			# the wake: behind the drive, fading (PAINTED: two flat tones; RADIANT
-			# longer and softer; LEGACY short)
+			# longer and softer)
 			var wl := (3 if far else 6) + int(4.0 * _h(j, 8))
 			if style == 2:
 				wl += 3
-			elif style == 3:
-				wl = maxi(2, wl / 2)
 			for i in wl:
 				var f := 1.0 - float(i) / float(wl)
 				var wa := 0.45 * f
@@ -570,8 +564,7 @@ class _Traffic extends Node2D:
 					_px(x - dir * float(i), y - 1.0, Color(lit, 0.8 * a))
 				if not far and i > 1 and i < n - 2:
 					_px(x - dir * float(i), y + 1.0, Color(hull.darkened(0.3), a))
-			# the drive: a point of light and its glow (PAINTED and LEGACY: the
-			# point alone)
+			# the drive: a point of light and its glow (PAINTED: the point alone)
 			var dx := x - dir * float(n)
 			_px(dx, y, Color(drive, a))
 			if style == 0 or style == 2:

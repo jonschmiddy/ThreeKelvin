@@ -38,7 +38,8 @@ THE CUSTODIAN GROWS WITH THE RUN (Jon, Nov 3, rule G3 with cap B): 200
 through jump 15, then x1.04 a jump, capped at 400 from jump 33. Checked first
 (`_custodian_growth`): the template's `hull_at`, the hull a fight fields
 through `Combat.plan` at each count, the template left at 200 across fights,
-only the Custodian growing, and a co-op joiner adding 0.6 of the grown hull.
+only the Custodian growing, and in co-op the hull built for the players in
+the game (`PartyScale`, Jon, Nov 5) with nothing added for a joiner.
 ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4): in co-op it grows on the lead
 ship's jumps (`Run.custodian_jumps()`), so a ship at jump 5 behind a lead at
 33 fields 400, and a fight opened at 20 grows to 33 mid-fight with its damage

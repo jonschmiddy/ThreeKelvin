@@ -35,6 +35,25 @@ const OWN_GAP := 2.0
 ## Why: docs/why/FlightSolve.md#warm-start
 const WARM_K := 0.25
 const WARM_ADD := 10.0
+## CURVED's warm slack (`_slack`): flights of near one cost bend very differently, and a preview
+## planned again jumped between them (Nov 5). `-- warmk=X` sets it for a harness.
+## Why: docs/why/FlightSolve.md#warm-slack-curved
+const WARM_K_CURVED := 0.25
+static var warm_k_c := -1.0
+
+
+static func warm_k_curved() -> float:
+	if warm_k_c < 0.0:
+		warm_k_c = WARM_K_CURVED
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("warmk="):
+				warm_k_c = maxf(float((a as String).substr(6)), 0.0)
+	return warm_k_c
+
+
+## The warm slack for this search's path: WARM_K, or CURVED's WARM_K_CURVED.
+func _slack(j: float) -> float:
+	return maxf(WARM_ADD, (warm_k_curved() if _curved else WARM_K) * j)
 ## a flight arrives within this of now: 16 s (ruling 21, Nov 1, "Flight length:
 ## C"), where ruling 20 built it to 30 (T_CAP_BACK, the fallback's)
 const T_CAP := 16.0
@@ -64,6 +83,92 @@ const T_CAP_BACK := 30.0
 const TIME_W_BACK := 0.5
 const CONIC_TS_BACK := [6.0, 9.0, 13.0, 18.0, 24.0, 29.0]
 const FAR_T_BACK := 18.0
+## CURVED'S ARC (Jon, Nov 5: "more of a bend"): the as-built search with a time cap, a time weight and a
+## reward per unit of the coast's bend up to `aim`. `_arc_look` then refines `keep` guesses on their own budget.
+## Level by `CURVED_ARC_LEVEL`; `-- arc=mild|strong|wide` and `arc_*=` for a harness. Two legs keep the as-built dials.
+## Why: docs/why/FlightSolve.md#curved-arc
+const CURVED_ARC := {
+	&"mild": {"cap": 60.0, "tw": 0.5, "bend": 800.0, "aim": 0.22, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+	&"strong": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.28, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+	&"wide": {"cap": 90.0, "tw": 0.5, "bend": 800.0, "aim": 0.40, "dip": 0.7, "ref": 12, "keep": 12, "tmax": 240.0, "s": 2.0, "hook": 2.0, "loop": 300.0},
+}
+const CURVED_ARC_LEVEL := &"wide"
+## the least more bend the arc look's flight must have over the first look's
+## to be kept (`_arc_look`; 0.1 gave back half of what the look bent: flights
+## under 0.1 were 7 to 12% of each level)
+const ARC_GAIN := 0.05
+static var _arc_dials: Dictionary = {}
+
+
+## CURVED's first look's dials: {cap, tw, bend, aim, dip, ref, keep, tmax
+## (deg), level, and arc and aimsw where set} (`CURVED_ARC`), as a
+## harness's command line may set them.
+static func curved_arc() -> Dictionary:
+	if _arc_dials.is_empty():
+		var lv: StringName = CURVED_ARC_LEVEL
+		var over := {}
+		for a in OS.get_cmdline_user_args():
+			var t := a as String
+			if t.begins_with("arc=") and CURVED_ARC.has(StringName(t.substr(4))):
+				lv = StringName(t.substr(4))
+			elif t.begins_with("arc_cap="):
+				over["cap"] = maxf(float(t.substr(8)), 6.0)
+			elif t.begins_with("arc_tw="):
+				over["tw"] = maxf(float(t.substr(7)), 0.0)
+			elif t.begins_with("arc_w="):
+				over["arc"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_b="):
+				over["bend"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_aim="):
+				over["aim"] = maxf(float(t.substr(8)), 0.0)
+			elif t.begins_with("arc_sw="):
+				over["aimsw"] = deg_to_rad(maxf(float(t.substr(7)), 0.0))
+			elif t.begins_with("arc_dip="):
+				over["dip"] = maxf(float(t.substr(8)), 0.0)
+			elif t.begins_with("arc_ref="):
+				over["ref"] = maxi(int(t.substr(8)), 0)
+			elif t.begins_with("arc_keep="):
+				over["keep"] = maxi(int(t.substr(9)), 1)
+			elif t.begins_with("arc_tmax="):
+				over["tmax"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_s="):
+				over["s"] = maxf(float(t.substr(6)), 0.0)
+			elif t.begins_with("arc_hook="):
+				over["hook"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_loop="):
+				over["loop"] = maxf(float(t.substr(9)), 0.0)
+			elif t.begins_with("arc_wob="):
+				over["wob"] = maxf(float(t.substr(8)), 0.0)
+		var d: Dictionary = (CURVED_ARC[lv] as Dictionary).duplicate()
+		d.merge(over, true)
+		d["level"] = lv
+		_arc_dials = d
+	return _arc_dials
+
+
+## The cap and weight of a path's first look: DIRECT's T_CAP and TIME_W,
+## CURVED's arc's (`curved_arc`); past the cap, the fallback's.
+static func first_cap(path: StringName) -> float:
+	return float(curved_arc().get("cap", T_CAP_BACK)) if path == &"curved" else T_CAP
+
+
+static func first_tw(path: StringName) -> float:
+	return float(curved_arc().get("tw", TIME_W_BACK)) if path == &"curved" else TIME_W
+
+
+## CURVED's conic guesses' flight times to its cap: CONIC_TS_BACK, and on
+## past 29 s about every 6 s to just under the cap.
+static func _arc_ts(cap: float) -> Array:
+	var ts: Array = CONIC_TS_BACK.duplicate()
+	var t := 35.0
+	while t < cap - 0.5:
+		ts.append(t)
+		t += 6.0
+	if cap > 30.0 + 1e-6:
+		ts.append(cap - 1.0)
+	return ts
+
+
 const SAMPLE := 1.0 / 240.0
 ## Step is ETA of the nearest pull's dynamical time: measured as accurate in half the steps.
 ## Why: docs/why/FlightSolve.md#coast-step
@@ -122,7 +227,72 @@ const V_SLOW := 2.0 * V_CUSP
 const DRAW_TILT := 0.38
 const DRAW_K := 0.6
 ## Version of `choice` this file writes, so a preview planned under the old meaning is not rebuilt.
-const CHOICE_V := 2
+const CHOICE_V := 3
+## THE FAST TRANSFERS (Jon, Nov 4-5): every flight solved on its own clock, tau = pace x map time,
+## and played back pace times faster. DIRECT is ruling 21's C search, CURVED the as-built one with its arc.
+## ALONGSIDE, the hold before leaving is at least HOLD_MAP of map time.
+## Why: docs/why/FlightSolve.md#fast-transfers
+const HOLD_MAP := 0.4
+## A ring is left and arrived on in tau at its speed / pace, never under RING_TAU px/s nor over its own.
+## `-- ringtau=X` sets it for a harness (0: speed / pace, as first built).
+## Why: docs/why/FlightSolve.md#ring-speeds-on-the-flights-clock
+const RING_TAU := 60.0
+## The spin-up's length on the map (s): the ship's rate eased from its ring's own to the departure's.
+## 0.3 (Jon, Nov 7, "2B"); it was 0.15. `-- spinup=S` sets it for a harness.
+## Why: docs/why/FlightSolve.md#spin-up
+const SPIN_UP := 0.3
+static var ring_tau := -1.0
+static var spin_up_s := -1.0
+
+
+static func spin_up() -> float:
+	if spin_up_s < 0.0:
+		spin_up_s = SPIN_UP
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("spinup="):
+				spin_up_s = maxf(float((a as String).substr(7)), 0.0)
+	return spin_up_s
+
+
+static func ring_floor() -> float:
+	if ring_tau < 0.0:
+		ring_tau = RING_TAU
+		for a in OS.get_cmdline_user_args():
+			if (a as String).begins_with("ringtau="):
+				ring_tau = maxf(float((a as String).substr(8)), 0.0)
+	return ring_tau
+
+
+## A ring's speed v (px/s, signed) on a flight's clock at pace k (`RING_TAU`).
+static func tau_speed(v: float, k: float) -> float:
+	if k == 1.0:
+		return v
+	var a := absf(v)
+	return signf(v) * minf(a, maxf(a / k, ring_floor()))
+
+
+## A departure or a target on the flight's clock at pace k: a ring's or a
+## target ring's speed by `tau_speed`, a free start's motion / k.
+static func dep_tau(dep: Dictionary, k: float) -> Dictionary:
+	var d := dep.duplicate()
+	match StringName(d.get("kind", &"")):
+		&"ring":
+			var rt := float(d.rt)
+			var w0 := float(d.w) / k
+			d.w = tau_speed(float(d.w) * rt, k) / rt
+			if absf(float(d.w) - w0) > 1e-12:
+				d.w0 = w0
+				d.spin = spin_up() * k
+		&"free":
+			d.v = (d.v as Vector2) / k
+	return d
+
+
+static func tgt_tau(tgt: Dictionary, k: float) -> Dictionary:
+	var g := tgt.duplicate()
+	if StringName(g.get("kind", &"")) == &"ring":
+		g.V = tau_speed(float(g.V), k)
+	return g
 
 
 class Result:
@@ -178,6 +348,36 @@ class Result:
 	var wp := Vector2.ZERO
 	var k_cut := 0
 	var t_cut := 0.0
+	## THE CLOCK IT WAS SOLVED ON (`solve`'s pace) and the search (&"direct",
+	## &"curved"); `tau` true while its times are still the flight's own clock
+	## (`to_map` makes them map time)
+	var pace := 1.0
+	var path: StringName = &"direct"
+	var tau := false
+
+	## ITS TIMES ON THE MAP'S CLOCK: every time and length / pace, every speed
+	## x pace, every pull x pace^2; positions as they are. Its choice stays in
+	## tau, as `solve` reads it back (`prefer`).
+	func to_map(k: float) -> void:
+		if k == 1.0 or not tau:
+			tau = false
+			return
+		tau = false
+		t0 /= k
+		lead /= k
+		sdt /= k
+		dur /= k
+		esc_t /= k
+		T /= k
+		d2 /= k
+		t_cut /= k
+		amax *= k * k
+		if not end.is_empty():
+			end = end.duplicate()
+			end.t = float(end.t) / k
+			end.v = (end.v as Vector3) * k
+			end.rv = (end.rv as Vector2) * k
+			end.a = (end.a as Vector2) * (k * k)
 
 
 # ---------------------------------------------------------------- the problem
@@ -193,6 +393,15 @@ var _dph := 0.0
 var _drt := 0.0
 var _dang := 0.0
 var _dw := 0.0
+## (a ring ridden at its own rate until a fast flight's ride spins up to _dw
+## over _spin tau-s: `SPIN_UP`)
+var _dw0 := 0.0
+var _spin := 0.0
+## the longest ride: LEAD_MAX, and never shorter than a fast flight's spin-up.
+## (Held to 0.55 s on the map for DIRECT, LEAD_MAX's 4.4 tau-s at pace 8, the
+## click to settled went from a median 4.1 s to 3.9 and twins lost flights and
+## grew corners: FlightTest, Nov 5. Not kept.)
+var _lmax := LEAD_MAX
 var _doffx := 0.0
 var _doffz := 0.0
 var _dpx := 0.0
@@ -222,6 +431,8 @@ var _twin := false
 ## (a departure out of a settled star orbit, round a fixed point or riding with
 ## one sun of a turning pair: its burn eased while slow, R_BURN)
 var _ease := false
+## (eased only as `_fresh`'s last look, or rebuilding a choice that was: `ez`)
+var _ease_forced := false
 ## the ride's top phasing (`_kmax`)
 var _kmax := 1.0
 ## the keep-outs this flight holds: MapGravity's, its own departure and
@@ -236,6 +447,56 @@ var _wide := false
 ## The time weight this search prices with, and whether it uses the as-built search's times.
 var _tw := TIME_W
 var _back := false
+## CURVED (`solve`'s path): the as-built search is the first look, its cap
+## `_cap0` (T_CAP_BACK; DIRECT's T_CAP), its weight TIME_W_BACK; and the hold
+## alongside before leaving, in tau (`HOLD_MAP`)
+var _curved := false
+var _cap0 := T_CAP
+## the as-built search's dials for this flight (`_search_back`): its cap,
+## weight, conic times and FAR_T, and the reward for the coast's sweep round
+## the star (`CURVED_ARC`: CURVED's own; DIRECT's fallback and a flight's legs
+## the as-built consts and none); and the wider search's cap and conic times,
+## past the as-built cap where CURVED's is
+var _bcap := T_CAP_BACK
+var _btw := TIME_W_BACK
+var _bts: Array = CONIC_TS_BACK
+var _arcw := 0.0
+var _arcb := 0.0
+var _aim := INF
+var _aimsw := INF
+var _dip := 0.0
+## the arc look's (`_arc_look`): guesses refined, guesses kept, and the most a
+## rewarded coast turns (rad)
+var _aref := 0
+var _akeep := CONIC_KEEP
+var _tnmax := INF
+var _in_look := false
+## CURVED's shape dials (`CURVED_ARC` s, hook, loop): the bend rewarded is the
+## farther side's less `_sw_s` times the nearer side's (an S) and `_sw_h` times
+## how far the coast runs past either end (a hook); a coast that turns more
+## than `_tnmax` costs `_loop_pen` px/s more (a loop)
+var _sw_s := 0.0
+var _sw_h := 0.0
+var _loop_pen := 0.0
+## and `_wob_w` px/s for each radian the coast turns back on itself (its turn
+## less its net turn: a wobble, an S, a hump)
+var _wob_w := 0.0
+## the bend as rewarded, uncapped, at the node `_arc_of` last read, and in the
+## flight just priced (`_arc_look` compares the looks by it)
+var _ab_raw := 0.0
+var _e_bnd := 0.0
+var _wcap := T_CAP_WIDE
+var _wts: Array = CONIC_TS_WIDE
+var _hold := KEEP_HOLD
+## The pace a flight is solved at, and the eased burn's least pull on its clock (P_MIN / pace).
+## The cusp speeds are not scaled: a cusp is v^2 / a, which the flight's clock leaves as it is.
+## Why: docs/why/FlightSolve.md#solve-pace-and-cusp
+var _kp := 1.0
+var _vc := V_CUSP
+var _vsl := V_SLOW
+var _cpad := CUSP_PAD
+var _cin := CUSP_IN
+var _pmin := P_MIN
 ## whether the flight kept was found by the search to T_CAP itself, not the
 ## fallback (`_build_fresh`)
 var _own := false
@@ -294,6 +555,8 @@ var _e_d2 := 0.0
 var _e_w2 := 0.0
 ## the arrival cubic's own top pull (THRUST, or less where gravity adds to it)
 var _e_pk := THRUST
+## the arc reward in the flight just priced (`_arc_of`; none but CURVED's)
+var _e_arc := 0.0
 var _e_ux := 0.0
 var _e_uz := 0.0
 var _e_fix := false
@@ -304,9 +567,73 @@ var _b_J := INF
 var _b := {}
 
 
-## THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
-## In a twin, where nothing is found, a flight in two legs (`_chain`).
-static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
+## The flight from `dep` to `tgt` at map time t; in a twin, where nothing is found, two legs (`_chain`).
+## `opts` {path, pace} (`ShipFlight.flight_opts`); none is DIRECT at pace 1. The search runs on the flight's
+## own clock; the Result comes back on the map's (`Result.to_map`) unless opts.tau.
+## Why: docs/why/FlightSolve.md#solve
+static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}, opts: Dictionary = {}) -> Result:
+	var k := float(opts.get("pace", 1.0))
+	var path := StringName(opts.get("path", &"direct"))
+	var curved := path == &"curved"
+	var pf := prefer
+	if not pf.is_empty() and (StringName(pf.get("path", &"direct")) != path or float(pf.get("pace", 1.0)) != k):
+		pf = {}
+	var r: Result
+	if k == 1.0 and not curved:
+		r = _solve_tau(grav, dep, tgt, t, pf)
+	else:
+		var d := dep_tau(dep, k)
+		if curved:
+			d["_curved"] = true
+		if not d.has("_hold"):
+			d["_hold"] = maxf(KEEP_HOLD, HOLD_MAP * k)
+		if not d.has("_pace"):
+			d["_pace"] = k
+		var g := tgt_tau(tgt, k)
+		# (at pace 1 -- CURVED at today's speed, or a harness already in tau -- the
+		# system as it is given)
+		r = _solve_tau(grav if k == 1.0 else grav.paced(k), d, g, t * k, pf)
+	r.pace = k
+	r.path = path
+	r.tau = true
+	if r.found:
+		r.choice = r.choice.duplicate()
+		r.choice["path"] = path
+		r.choice["pace"] = k
+	if not bool(opts.get("tau", false)):
+		r.to_map(k)
+	return r
+
+
+## THE SHAPE OF A FLIGHT from its samples: [bend, turn] -- the farthest a
+## sample strays from the straight line between its two ends over that line's
+## length, and how far its motion turns in all (deg), read every 8th sample.
+static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
+	var n := samp.size()
+	if n < 3:
+		return PackedFloat64Array([0.0, 0.0])
+	var a := Vector2(samp[0].x, samp[0].z)
+	var b := Vector2(samp[n - 1].x, samp[n - 1].z)
+	var ch := (b - a).length()
+	var far := 0.0
+	var turn := 0.0
+	var pv := Vector2.ZERO
+	var step := maxi(1, n / 400)
+	for j in range(0, n, step):
+		var q := Vector2(samp[j].x, samp[j].z)
+		if ch > 1e-6:
+			far = maxf(far, absf((b - a).cross(q - a)) / ch)
+		if j + step < n:
+			var v := Vector2(samp[j + step].x - samp[j].x, samp[j + step].z - samp[j].z)
+			if pv != Vector2.ZERO and v.length() > 1e-6:
+				turn += absf(pv.angle_to(v))
+			if v.length() > 1e-6:
+				pv = v
+	return PackedFloat64Array([far / maxf(ch, 1e-6), rad_to_deg(turn)])
+
+
+## (the search on the flight's own clock: dep, tgt and t already in tau)
+static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
 	if grav.star_x0.size() > 1:
 		var held := StringName(dep.get("kind", &"")) != &"free"
 		if prefer.has("chain"):
@@ -384,17 +711,55 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	G = grav
 	t_now = t
 	_twin = G.star_x0.size() > 1
+	_curved = bool(dep.get("_curved", false))
+	if _curved and _leg == 0:
+		var ad := curved_arc()
+		_bcap = float(ad.get("cap", T_CAP_BACK))
+		_btw = float(ad.get("tw", TIME_W_BACK))
+		_arcw = float(ad.get("arc", 0.0))
+		_arcb = float(ad.get("bend", 0.0))
+		_aim = float(ad.get("aim", INF))
+		_aimsw = float(ad.get("aimsw", INF))
+		_dip = float(ad.get("dip", 0.0))
+		_aref = int(ad.get("ref", 0))
+		_akeep = int(ad.get("keep", CONIC_KEEP))
+		_tnmax = deg_to_rad(float(ad.get("tmax", INF)))
+		_sw_s = float(ad.get("s", 0.0))
+		_sw_h = float(ad.get("hook", 0.0))
+		_loop_pen = float(ad.get("loop", 0.0))
+		_wob_w = float(ad.get("wob", 0.0))
+		_bts = _arc_ts(_bcap)
+		if _bcap + 10.0 > T_CAP_WIDE:
+			_wcap = _bcap + 10.0
+			_wts = CONIC_TS_WIDE.duplicate()
+			var tw2 := 45.0
+			while tw2 < _wcap - 0.5:
+				_wts.append(tw2)
+				tw2 += 6.0
+	_cap0 = _bcap if _curved else T_CAP
+	_hold = float(dep.get("_hold", KEEP_HOLD))
+	_kp = float(dep.get("_pace", 1.0))
+	_vc = V_CUSP
+	_vsl = V_SLOW
+	_cpad = CUSP_PAD
+	_cin = CUSP_IN
+	_pmin = P_MIN / _kp
 	if not _setup(dep, tgt):
 		var bad := Result.new()
 		bad.usec = Time.get_ticks_usec() - t_us
 		return bad
 	_set = true
-	_tw = TIME_W
+	# (a choice found eased, `_fresh`'s last look: rebuilt and warmed eased)
+	_ease_forced = false
+	if _dk == 0 and _kp > 1.0 and bool(prefer.get("ez", false)) and int(prefer.get("v", 0)) == CHOICE_V:
+		_ease = true
+		_ease_forced = true
+	_tw = _btw if _curved else TIME_W
 	var res: Result = null
 	if not prefer.is_empty() and int(prefer.get("v", 0)) == CHOICE_V:
 		_warm_tier(prefer)
 		res = _replay(prefer)
-		if res != null and _leg == 0 and _tcap > T_CAP + 1e-6:
+		if res != null and _leg == 0 and _tcap > _cap0 + 1e-6:
 			# A rebuilt fallback flight is kept only while a fresh plan finds none arriving sooner.
 			# Why: docs/why/FlightSolve.md#fallback-flight-rebuild
 			_b_J = INF
@@ -409,15 +774,22 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 			# A fallback flight is kept only against a fresh search, or it held every replan.
 			# Why: docs/why/FlightSolve.md#warm-start
 			var j_old := float(prefer.get("J", INF))
-			var fell := _leg == 0 and _tcap > T_CAP + 1e-6
-			if not fell and _b_J <= j_old + _warm_slack(j_old):
-				res = _build(&"warm")
-			else:
+			var fell := _leg == 0 and _tcap > _cap0 + 1e-6
+			var rk: Result = null
+			if not fell:
+				rk = _build(&"warm")
+				if rk.found and rk.cost <= j_old + _slack(j_old):
+					res = rk
+			if res == null:
 				var wj := _b_J
 				var wb := _b.duplicate()
 				var wcap := _tcap
 				var wtw := _tw
 				var wback := _back
+				# (and its easing: a fresh search that found nothing else eases,
+				# `_fresh`'s last look, and the kept flight is flown as it was)
+				var wease := _ease
+				var wezf := _ease_forced
 				_b_J = INF
 				_b = {}
 				# (a budget of its own, so it finds what a fresh search would)
@@ -426,23 +798,33 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				# Why: docs/why/FlightSolve.md#warm-start
 				_fresh()
 				var keep := _b_J == INF
+				var rf: Result = null
 				if not keep and fell:
 					keep = float(wb.te) <= float(_b.te) + 1e-6
 				elif not keep:
+					rf = _build_fresh()
 					# Both priced at one weight, as at TIME_W_BACK a second costs 32 times less.
-					var fj := _b_J
-					var kj := wj
-					if absf(_tw - wtw) > 1e-9:
-						fj = _at_time_w(_b_J, _b, _tw)
-						kj = _at_time_w(wj, wb, wtw)
-					keep = fj + _warm_slack(fj) >= kj
+					var fj := rf.cost
+					var kj := rk.cost
+					var ftw := float(rf.choice.get("tw", wtw))
+					if absf(ftw - wtw) > 1e-9:
+						fj += (TIME_W - ftw) * rf.T
+						kj += (TIME_W - wtw) * rk.T
+					keep = rk.found and (not rf.found or fj + _slack(fj) >= kj)
 				if keep:
+					# (built again, not rk: the fresh search flew over the coast
+					# rk was built on, and a leg's second leaves from it,
+					# `_leg_two` reading `_coast_at` of the first's solver)
 					_b_J = wj
 					_b = wb
 					_tcap = wcap
 					_tw = wtw
 					_back = wback
+					_ease = wease
+					_ease_forced = wezf
 					res = _build(&"warm")
+				elif rf != null:
+					res = rf
 				else:
 					res = _build_fresh()
 	if res == null:
@@ -475,6 +857,11 @@ func _at_time_w(j: float, b: Dictionary, tw: float) -> float:
 
 ## A choice is warmed as the search that found it priced it, to judge it fairly.
 func _warm_tier(c: Dictionary) -> void:
+	if _curved:
+		_tcap = clampf(float(c.get("cap", _bcap)), _bcap, maxf(_wcap, _bcap))
+		_tw = _btw
+		_back = true
+		return
 	_tcap = clampf(float(c.get("cap", T_CAP)), T_CAP, maxf(T_CAP_WIDE, T_CAP_BACK))
 	_tw = TIME_W
 	_back = false
@@ -492,7 +879,7 @@ func _setup(dep: Dictionary, tgt: Dictionary) -> bool:
 	_kmax = 1.0
 	if _dk == 0:
 		var vr := absf(_dw) * _drt
-		_kmax = clampf(minf(1.0 + THRUST * LEAD_MAX / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
+		_kmax = clampf(minf(1.0 + THRUST * _lmax / (PI * vr), VMAX / vr), 1.0, PHASE_K_MAX)
 	# ITS OWN WORLDS keep out to their rings, not past them
 	_wkeep = PackedFloat64Array()
 	_wkeep.resize(G.wo_keep.size())
@@ -524,6 +911,9 @@ func _own_r(i: int) -> float:
 
 
 func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
+	_dw0 = 0.0
+	_spin = 0.0
+	_lmax = LEAD_MAX
 	match StringName(dep.get("kind", &"")):
 		&"ring":
 			_dk = 0
@@ -532,6 +922,9 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 			_drt = float(dep.rt)
 			_dang = float(dep.ang)
 			_dw = float(dep.w)
+			_dw0 = float(dep.get("w0", _dw))
+			_spin = float(dep.get("spin", 0.0)) if absf(_dw - _dw0) > 1e-12 else 0.0
+			_lmax = maxf(LEAD_MAX, _spin)
 			if absf(_dw) < 1e-6 or _drt <= 0.0:
 				return false
 		&"keep":
@@ -664,7 +1057,31 @@ func _tgt_at(t: float) -> void:
 # ---------------------------------------------------------------- the ride and the departure
 ## How far round its ring the ride reaches within LEAD_MAX (rad).
 func _reach() -> float:
-	return absf(_dw) * LEAD_MAX * (_kmax + 1.0) * 0.5 - 1e-6
+	return absf(_dw) * _lmax * (_kmax + 1.0) * 0.5 - _spin_short() - 1e-6
+
+
+## How much less far round the spin-up takes a ride (rad): (w - w0) spin / 2.
+func _spin_short() -> float:
+	return absf(_dw - _dw0) * _spin * 0.5
+
+
+## THE RIDE dang radians round, the spin-up first: [lead, phasing k] (at least
+## the spin long: under it, slowed, and a k under RIDE_K_MIN cannot be flown).
+func _ride_lead(dang: float) -> PackedFloat64Array:
+	if _spin <= 0.0:
+		return _lead_of(dang, absf(_dw))
+	var w := absf(_dw)
+	var d2 := dang + _spin_short()
+	var nat := d2 / w
+	if nat < _spin:
+		return PackedFloat64Array([_spin, 1.0 + 2.0 * (d2 / (w * _spin) - 1.0)])
+	if nat <= _lmax:
+		return PackedFloat64Array([nat, 1.0])
+	return PackedFloat64Array([_lmax, 1.0 + 2.0 * (d2 / (w * _lmax) - 1.0)])
+
+
+## the least phasing a ride is flown at (`ShipFlight._takeable`'s)
+const RIDE_K_MIN := 0.2
 
 
 ## The ride's phasing work at k (px/s): its push along the ring, up by
@@ -690,6 +1107,13 @@ func _aligned(ux: float, uz: float) -> float:
 	var reach := _reach()
 	if dang > reach:
 		a = _dang + dr * (reach if dang - reach < TAU - dang else 0.0)
+		dang = fposmod(dr * (a - _dang), TAU)
+	# (a fast flight's ride spins up first: it leaves no nearer than the spin
+	# takes it, (w + w0) spin / 2 on; a point nearer, as leaving at once was,
+	# is that point)
+	var near := (absf(_dw) + absf(_dw0)) * _spin * 0.5
+	if _spin > 0.0 and dang < near:
+		a = _dang + dr * near
 	return a
 
 
@@ -698,8 +1122,11 @@ func _aligned(ux: float, uz: float) -> float:
 func _ride_to(a: float) -> bool:
 	var dr := 1.0 if _dw >= 0.0 else -1.0
 	var dang := fposmod(dr * (a - _dang), TAU)
-	var lk := _lead_of(dang, absf(_dw))
-	if lk[1] > _kmax + 1e-6:
+	var lk := _ride_lead(dang)
+	if lk[1] > _kmax + 1e-6 or lk[1] < RIDE_K_MIN:
+		return false
+	# (a ride slowed to hold its spin-up, its push held to THRUST as a sped one's)
+	if lk[1] < 1.0 and (1.0 - lk[1]) * PI * absf(_dw) * _drt > THRUST * lk[0] + 1e-9:
 		return false
 	_e_lead = lk[0]
 	_e_k = lk[1]
@@ -738,8 +1165,8 @@ func _depart(ux: float, uz: float, has_fix: bool, a_fix: float) -> bool:
 		return true
 	if _dk == 1:
 		# (holding alongside for KEEP_HOLD first)
-		_e_td = t_now + KEEP_HOLD
-		_e_lead = KEEP_HOLD
+		_e_td = t_now + _hold
+		_e_lead = _hold
 		_e_k = 1.0
 		_e_ad = 0.0
 		_dep_at(_e_td)
@@ -788,9 +1215,10 @@ func _fly(ux: float, uz: float, has_fix: bool, a_fix: float) -> float:
 	var t0 := Time.get_ticks_usec()
 	_integrate(_e_td, _e_x0, _e_z0, _e_vx0, _e_vz0, _e_dvx, _e_dvz, t_now + _tcap)
 	var t1 := Time.get_ticks_usec()
-	# (a departure burn that swings the ship round a point is not flown: `V_CUSP`;
-	# nor an eased one the map would draw as a hook, `_burn_tight`)
-	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not (_ease and _burn_tight()):
+	# A departure burn that swings round a point is not flown (`V_CUSP`), nor an eased one drawn as a hook
+	# (`_burn_tight`), nor one out of a ring on a flight's own clock that hooks tighter. Not alongside.
+	# Why: docs/why/FlightSolve.md#departure-burns-turned-down
+	if not ((_dk == 0 or _leg == 2) and _departure_cusps()) and not ((_ease or (_kp > 1.0 and _dk == 0)) and _burn_tight()):
 		_tight_t = _coast_tight()
 		_price()
 	_us_int += t1 - t0
@@ -823,16 +1251,16 @@ func _departure_cusps() -> bool:
 			kmin = k
 		k += 1
 		v1 = sqrt(_cVX[k] * _cVX[k] + _cVZ[k] * _cVZ[k])
-	return vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN and _turn_round(kmin, k) > CUSP_TURN
+	return vmin < _vc + _cpad and vmin < minf(v0, v1) - _cin and _turn_round(kmin, k) > CUSP_TURN
 
 
 ## The motion's turn around the burn's least speed, between the slow nodes either side.
 func _turn_round(kmin: int, kend: int) -> float:
 	var ka := kmin
-	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < V_SLOW * V_SLOW:
+	while ka > 0 and _cVX[ka] * _cVX[ka] + _cVZ[ka] * _cVZ[ka] < _vsl * _vsl:
 		ka -= 1
 	var kb := mini(kmin + 1, kend)
-	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < V_SLOW * V_SLOW:
+	while kb < kend and _cVX[kb] * _cVX[kb] + _cVZ[kb] * _cVZ[kb] < _vsl * _vsl:
 		kb += 1
 	return absf(Vector2(_cVX[ka], _cVZ[ka]).angle_to(Vector2(_cVX[kb], _cVZ[kb])))
 
@@ -951,12 +1379,12 @@ func _arrival_cusps(te: float, ar: PackedFloat64Array) -> bool:
 				vmin = su
 				ja = j
 				jb = j + 1
-	if not (vmin < V_CUSP + CUSP_PAD and vmin < minf(v0, v1) - CUSP_IN):
+	if not (vmin < _vc + _cpad and vmin < minf(v0, v1) - _cin):
 		return false
 	# (the turn round it while slower than V_SLOW, as `_turn_round` reads a departure)
-	while ja > 0 and vs[ja].length() < V_SLOW:
+	while ja > 0 and vs[ja].length() < _vsl:
 		ja -= 1
-	while jb < 16 and vs[jb].length() < V_SLOW:
+	while jb < 16 and vs[jb].length() < _vsl:
 		jb += 1
 	return absf(vs[ja].angle_to(vs[jb])) > CUSP_TURN
 
@@ -965,7 +1393,7 @@ func _keep_best() -> void:
 	_b_J = _e_J
 	_b = {"ux": _e_ux, "uz": _e_uz, "fix": _e_fix, "afix": _e_afix, "a0": _e_a0, "td": _e_td, "ad": _e_ad,
 		"x0": _e_x0, "z0": _e_z0, "vx0": _e_vx0, "vz0": _e_vz0, "dvx": _e_dvx, "dvz": _e_dvz,
-		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk}
+		"te": _e_te, "s": _e_s, "phi": _e_phi, "d2": _e_d2, "w2": _e_w2, "lead": _e_lead, "k": _e_k, "ph": _e_ph, "pk": _e_pk, "arc": _e_arc, "bnd": _e_bnd}
 
 
 # ---------------------------------------------------------------- the coast
@@ -1062,7 +1490,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			var pull := THRUST
 			if _ease:
 				var sp0 := sqrt(vx * vx + vz * vz)
-				pull = clampf(sp0 * sp0 / R_BURN, P_MIN, THRUST)
+				pull = clampf(sp0 * sp0 / R_BURN, _pmin, THRUST)
 			h = minf(H_BURN, rem / pull)
 			ax_t = bux * pull
 			az_t = buz * pull
@@ -1899,6 +2327,7 @@ func _price() -> void:
 	for j in ns:
 		k1[j] = -1
 	var cands := PackedFloat64Array()
+	var sw := _sweeps(t_lim) if _arcw > 0.0 or _arcb > 0.0 else false
 	for k in _cn:
 		var tk := _cT[k]
 		if tk > t_lim:
@@ -1991,7 +2420,7 @@ func _price() -> void:
 				continue
 			var dux0 := -sin(_vphi) * s * _tV - ux0
 			var duz0 := cos(_vphi) * s * _tV - uz0
-			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + _tw * (te0 - t_now), c, te0])
+			priced.append([sqrt(dux0 * dux0 + duz0 * duz0) + _tw * (te0 - t_now) - _arc_of(sw, kk), c, te0])
 			continue
 		var te := _te_near(kk, s)
 		if te > t_now + _tcap or te < _tc0:
@@ -2000,13 +2429,14 @@ func _price() -> void:
 		var ar := _arrival(te, st[0], st[1], st[2], st[3], s)
 		if ar.is_empty() or te - ar[2] < _tc0 + TB_PAD:
 			continue
-		priced.append([ar[0] + _tw * (te - t_now), c, te])
+		priced.append([ar[0] + _tw * (te - t_now) - _arc_of(sw, kk), c, te])
 	priced.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]) or (float(a[0]) == float(b[0]) and int(a[1]) < int(b[1])))
 	var best := INF
 	for pc in priced:
 		if float(pc[0]) >= best:
 			break
 		var c: int = pc[1]
+		var c_k := int(cands[c])
 		var s2 := cands[c + 2]
 		var crossing := cands[c + 3] > 0.5
 		var te: float = pc[2]
@@ -2027,7 +2457,7 @@ func _price() -> void:
 			var tb := te - ar[2]
 			if tb < _tc0 + TB_PAD or tb > _tight_t:
 				break
-			cost = ar[0] + _tw * (te - t_now)
+			cost = ar[0] + _tw * (te - t_now) - _arc_of(sw, c_k)
 			if cost >= best:
 				break
 			# the coast clean up to the burn, and the burn's own path
@@ -2053,8 +2483,190 @@ func _price() -> void:
 		_e_d2 = ar[2]
 		_e_w2 = ar[0]
 		_e_pk = pk
+		_e_arc = _arc_of(sw, c_k)
+		_e_bnd = _ab_raw
 	if best < INF:
 		_e_J = sqrt(_e_dvx * _e_dvx + _e_dvz * _e_dvz) + _e_ph + best
+
+
+## THE COAST'S SWEEP ROUND THE STAR (CURVED's arc reward, `CURVED_ARC`): at
+## each node up to t_lim, how far round the star (the pair's balance point in
+## a twin) the coast has gone since it left, in radians, unwrapped, the
+## nearest it has come to it, and the farthest from the map's centre
+## (`_aw_sw`, `_aw_rm`, `_aw_out`).
+var _aw_sw := PackedFloat64Array()
+var _aw_rm := PackedFloat64Array()
+var _aw_out := PackedFloat64Array()
+var _aw_tn := PackedFloat64Array()
+var _aw_tns := PackedFloat64Array()
+
+
+## whether this search prices CURVED's arc
+func _arc_on() -> bool:
+	return _arcw > 0.0 or _arcb > 0.0
+
+
+func _arc_cen() -> Vector2:
+	return G.bary if _twin else Vector2(G.star_x0[0], G.star_z0[0])
+
+
+func _sweeps(t_lim: float) -> bool:
+	_aw_sw.resize(_cn)
+	_aw_rm.resize(_cn)
+	_aw_out.resize(_cn)
+	_aw_tn.resize(_cn)
+	_aw_tns.resize(_cn)
+	var c := _arc_cen()
+	var a0 := 0.0
+	var acc := 0.0
+	var tn := 0.0
+	var tns := 0.0
+	var rm := INF
+	var ro := 0.0
+	for k in _cn:
+		var dx := _cX[k] - c.x
+		var dz := _cZ[k] - c.y
+		var a := atan2(dz, dx)
+		if k > 0:
+			acc += wrapf(a - a0, -PI, PI)
+			var dh := wrapf(atan2(_cVZ[k], _cVX[k]) - atan2(_cVZ[k - 1], _cVX[k - 1]), -PI, PI)
+			tn += absf(dh)
+			tns += dh
+		a0 = a
+		rm = minf(rm, sqrt(dx * dx + dz * dz))
+		ro = maxf(ro, sqrt(_cX[k] * _cX[k] + _cZ[k] * _cZ[k]))
+		_aw_tn[k] = tn
+		_aw_tns[k] = tns
+		_aw_sw[k] = acc
+		_aw_rm[k] = rm
+		_aw_out[k] = ro
+		if _cT[k] > t_lim:
+			break
+	return true
+
+
+## The arc reward for arriving at node k: px/s a unit of bend (to `_aim`), none where the coast
+## dips nearer the star than `_dip` of its nearer end, nor where it swings past the map's edge.
+## Why: docs/why/FlightSolve.md#arc-reward
+func _arc_of(on: bool, k: int) -> float:
+	_ab_raw = 0.0
+	if not on or k < 0 or k >= _aw_sw.size():
+		return 0.0
+	if _aw_out[k] > _arc_out(_cX[0], _cZ[0]):
+		return 0.0
+	var c := _arc_cen()
+	var r0 := Vector2(_cX[0] - c.x, _cZ[0] - c.y).length()
+	var rk := Vector2(_cX[k] - c.x, _cZ[k] - c.y).length()
+	var bd := _bend_to(k) if _arcb > 0.0 else 0.0
+	var rw := _arc_reward(absf(_aw_sw[k]), bd, _aw_rm[k], minf(r0, rk), _aw_tn[k], _aw_tn[k] - absf(_aw_tns[k]))
+	_ab_raw = bd if rw > 0.0 else 0.0
+	return rw
+
+
+## How far from the map's centre a rewarded coast may go: the map's edge, or
+## where it left if that is farther out.
+func _arc_out(x0: float, z0: float) -> float:
+	return maxf(G.edge, sqrt(x0 * x0 + z0 * z0)) + 0.5
+
+
+func _arc_reward(sweep: float, bend: float, rmin: float, rends: float, turn: float, wob: float) -> float:
+	if _dip > 0.0 and rmin < _dip * rends:
+		return 0.0
+	if turn > _tnmax:
+		return -_loop_pen
+	return _arcw * minf(sweep, _aimsw) + _arcb * minf(bend, _aim) - _wob_w * wob
+
+
+## The coast's bend from where it left to node k as rewarded (`_bend3`).
+func _bend_to(k: int) -> float:
+	return _bend3(_cX, _cZ, k)
+
+
+## The bend of points 0..k as rewarded: the farthest a point strays from the
+## straight line between the ends on one side, less `_sw_s` times the farthest
+## on the other (an S) and `_sw_h` times the farthest past either end along it
+## (a hook), each over that line's length.
+func _bend3(xs: PackedFloat64Array, zs: PackedFloat64Array, k: int) -> float:
+	var ax := xs[0]
+	var az := zs[0]
+	var bx := xs[k] - ax
+	var bz := zs[k] - az
+	var ch2 := bx * bx + bz * bz
+	if ch2 < 1.0:
+		return 0.0
+	var hi := 0.0
+	var lo := 0.0
+	var ov := 0.0
+	for j in range(1, k):
+		var d := bx * (zs[j] - az) - bz * (xs[j] - ax)
+		hi = maxf(hi, d)
+		lo = minf(lo, d)
+		if _sw_h > 0.0:
+			var u := bx * (xs[j] - ax) + bz * (zs[j] - az)
+			ov = maxf(ov, maxf(-u, u - ch2))
+	return (maxf(hi, -lo) - _sw_s * minf(hi, -lo) - _sw_h * ov) / ch2
+
+
+## The arc reward on a conic guess: its two-body coast about (cx, cz) from p1
+## at v1 for T, 32 steps of RK4, read as `_arc_of` reads a coast.
+func _conic_arc(cx: float, cz: float, gm: float, p1x: float, p1z: float, v1x: float, v1z: float, T: float) -> float:
+	var n := 32
+	var h := T / float(n)
+	var x := p1x - cx
+	var z := p1z - cz
+	var vx := v1x
+	var vz := v1z
+	var xs := PackedFloat64Array([x])
+	var zs := PackedFloat64Array([z])
+	var rm := sqrt(x * x + z * z)
+	var lim := _arc_out(p1x, p1z)
+	var sw := 0.0
+	var tn := 0.0
+	var tns := 0.0
+	var a0 := atan2(z, x)
+	for _i in n:
+		var r3 := pow(x * x + z * z, 1.5)
+		var ax1 := -gm * x / r3
+		var az1 := -gm * z / r3
+		var x2 := x + 0.5 * h * vx
+		var z2 := z + 0.5 * h * vz
+		var r32 := pow(x2 * x2 + z2 * z2, 1.5)
+		var ax2 := -gm * x2 / r32
+		var az2 := -gm * z2 / r32
+		var vx2 := vx + 0.5 * h * ax1
+		var vz2 := vz + 0.5 * h * az1
+		var x3 := x + 0.5 * h * vx2
+		var z3 := z + 0.5 * h * vz2
+		var r33 := pow(x3 * x3 + z3 * z3, 1.5)
+		var ax3 := -gm * x3 / r33
+		var az3 := -gm * z3 / r33
+		var vx3 := vx + 0.5 * h * ax2
+		var vz3 := vz + 0.5 * h * az2
+		var x4 := x + h * vx3
+		var z4 := z + h * vz3
+		var r34 := pow(x4 * x4 + z4 * z4, 1.5)
+		var ax4 := -gm * x4 / r34
+		var az4 := -gm * z4 / r34
+		var vx4 := vx + h * ax3
+		var vz4 := vz + h * az3
+		x += h / 6.0 * (vx + 2.0 * vx2 + 2.0 * vx3 + vx4)
+		z += h / 6.0 * (vz + 2.0 * vz2 + 2.0 * vz3 + vz4)
+		var hv0 := atan2(vz, vx)
+		vx += h / 6.0 * (ax1 + 2.0 * ax2 + 2.0 * ax3 + ax4)
+		vz += h / 6.0 * (az1 + 2.0 * az2 + 2.0 * az3 + az4)
+		var dh := wrapf(atan2(vz, vx) - hv0, -PI, PI)
+		tn += absf(dh)
+		tns += dh
+		xs.append(x)
+		zs.append(z)
+		if Vector2(x + cx, z + cz).length() > lim:
+			return 0.0
+		rm = minf(rm, sqrt(x * x + z * z))
+		var a := atan2(z, x)
+		sw += wrapf(a - a0, -PI, PI)
+		a0 = a
+	var far := _bend3(xs, zs, n)
+	return _arc_reward(absf(sw), far, rm, minf(sqrt(xs[0] * xs[0] + zs[0] * zs[0]), sqrt(xs[n] * xs[n] + zs[n] * zs[n])), tn, tn - absf(tns))
 
 
 # ---------------------------------------------------------------- refining
@@ -2303,6 +2915,21 @@ func _scan_passes() -> bool:
 
 ## Fresh search, then the fallback. Two-leg legs use the as-built search to keep its length.
 func _fresh() -> void:
+	_fresh_in()
+	# Eased, as a last look, out of a ring on a flight's own clock, where every tight departure burn
+	# was turned down and nothing else found (seed 4242 system 50). The choice says so (`ez`).
+	# Why: docs/why/FlightSolve.md#eased-last-look
+	if _b_J == INF and _kp > 1.0 and _dk == 0 and _leg == 0 and not _ease:
+		_ease = true
+		_ease_forced = true
+		_budget = _n_integ + BUDGET
+		_fresh_in()
+		if _b_J == INF:
+			_ease = false
+			_ease_forced = false
+
+
+func _fresh_in() -> void:
 	_own = false
 	_back = false
 	if _leg > 0:
@@ -2311,6 +2938,14 @@ func _fresh() -> void:
 		_back = true
 		_search()
 		_back = false
+		return
+	if _curved:
+		# CURVED: the as-built search first (its own budget, `_search_back`)
+		_search_back()
+		if _b_J < INF:
+			_own = true
+			return
+		_fallback()
 		return
 	_tcap = T_CAP
 	_tw = TIME_W
@@ -2324,6 +2959,15 @@ func _fresh() -> void:
 ## Both searches look and the sooner is kept: either one alone left slow flights standing.
 ## Why: docs/why/FlightSolve.md#fallback-search
 func _fallback() -> void:
+	if _curved:
+		# (CURVED's own look was the as-built search: the wider one behind it,
+		# at its weight, as the as-built fallback had it)
+		if not _wide_ok:
+			return
+		_back = true
+		_search_wide(_btw)
+		_back = false
+		return
 	_search_back()
 	if not _wide_ok:
 		return
@@ -2348,15 +2992,41 @@ func _fallback() -> void:
 ## THE AS-BUILT SEARCH (ruling 20's), to T_CAP_BACK at TIME_W_BACK with its own
 ## conic guesses and FAR_T_BACK, a budget of its own.
 func _search_back() -> void:
-	_tcap = T_CAP_BACK
-	_tw = TIME_W_BACK
+	_tcap = _bcap
+	_tw = _btw
 	_budget = _n_integ + BUDGET
 	_back = true
 	_search()
+	if _aref > 0 and _arc_on():
+		_arc_look()
 	_back = false
 	if _b_J == INF:
 		_tcap = T_CAP
 		_tw = TIME_W
+
+
+## CURVED'S ARC LOOK, after its first look (`CURVED_ARC`): `keep` conic guesses
+## ranked by plain cost, each priced with the arc reward from where the ship
+## really leaves, the first `ref` of those refined on a budget of their own;
+## `_fly` keeps whichever flight of both looks costs least.
+func _arc_look() -> void:
+	var kj := _b_J
+	var kb := _b.duplicate()
+	_budget = _n_integ + BUDGET
+	_in_look = true
+	var seeds := _seeds()
+	_in_look = false
+	for i in mini(_aref, floori(seeds.size() / 9.0)):
+		if _n_integ >= _budget:
+			break
+		_refine_at(seeds[i * 9 + 1], seeds[i * 9 + 2], seeds[i * 9 + 6] > 0.5, seeds[i * 9 + 7], seeds[i * 9 + 8], seeds[i * 9 + 5])
+	# (kept only where it bends more by ARC_GAIN: a cheaper flight that bent
+	# about as little took an arrival burn the first look did not, a corner
+	# from a game's start, FlightTest Nov 7: seed 4242 system 231's close pair,
+	# star A's close orbit to world 0, 0.07 against 0.03)
+	if kj < INF and _b_J < kj and float(_b.get("bnd", 0.0)) < float(kb.get("bnd", 0.0)) + ARC_GAIN:
+		_b_J = kj
+		_b = kb
 
 
 ## A found flight whose samples cut a keep-out gets the fallback's look, or it stays unclean.
@@ -2376,7 +3046,7 @@ func _build_fresh() -> Result:
 
 ## The wider scan priced at tw, its departures at least as fast as crossing in WIDE_T.
 func _search_wide(tw: float) -> void:
-	_tcap = T_CAP_WIDE
+	_tcap = _wcap
 	_tw = tw
 	_budget = _n_integ + BUDGET_WIDE
 	_wide = true
@@ -2585,7 +3255,7 @@ func _seeds() -> PackedFloat64Array:
 		var oz := _doffz if _dk == 1 else 0.0
 		p1s.append_array(PackedFloat64Array([_cx + ox, _cz + oz, _cvx, _cvz]))
 	var rough: Array = []
-	for T: float in (CONIC_TS_WIDE if _wide else (CONIC_TS_BACK if _back else CONIC_TS)):
+	for T: float in (_wts if _wide else (_bts if _back else CONIC_TS)):
 		for pi in range(0, p1s.size(), 4):
 			for ci in range(0, centres.size(), 4):
 				var ck0 := int(centres[ci + 3])
@@ -2596,10 +3266,12 @@ func _seeds() -> PackedFloat64Array:
 						if sol.is_empty():
 							continue
 						var pr := _price_conic(t_now + T, sol[0] - p1s[pi + 2], sol[1] - p1s[pi + 3], sol[0], sol[1], sol[2], sol[3], false, 0.0, 0.0)
+						if _arc_on() and not _in_look:
+							pr -= _conic_arc(centres[ci], centres[ci + 1], centres[ci + 2], p1s[pi], p1s[pi + 1], sol[0], sol[1], T)
 						rough.append([pr + _tw * T, T, ci, way, pi, ai, sol[2], sol[3]])
 	rough.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	var out: Array = []
-	for r in rough.slice(0, CONIC_KEEP):
+	for r in rough.slice(0, _akeep if _in_look else CONIC_KEEP):
 		var T: float = r[1]
 		var ci: int = r[2]
 		var way: float = r[3]
@@ -2648,7 +3320,7 @@ func _seeds() -> PackedFloat64Array:
 			vx = _e_vx0
 			vz = _e_vz0
 		elif _dk == 1:
-			td = t_now + KEEP_HOLD
+			td = t_now + _hold
 			_dep_at(td)
 			px = _cx + _doffx
 			pz = _cz + _doffz
@@ -2693,6 +3365,8 @@ func _seeds() -> PackedFloat64Array:
 			if sol.is_empty():
 				continue
 			var pr := _price_conic(te, sol[0] - cvdx, sol[1] - cvdz, sol[0], sol[1], sol[2], sol[3], true, vx, vz)
+			if _arcw > 0.0 or _arcb > 0.0:
+				pr -= _conic_arc(cx, cz, gm, px, pz, sol[0], sol[1], Te)
 			out.append([pr + _tw * T, sol[0] - (cvdx if _dk != 2 else 0.0), sol[1] - (cvdz if _dk != 2 else 0.0), T, way, s, 0.0, 0.0, te])
 	out.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
 	var flat := PackedFloat64Array()
@@ -2923,12 +3597,26 @@ func _replay(c: Dictionary) -> Result:
 		var dr := 1.0 if _dw >= 0.0 else -1.0
 		var dang := fposmod(dr * (ad - _dang), TAU)
 		if lead < 1e-6:
-			if dang > 1e-4 and dang < TAU - 1e-4:
+			# (nor one that must still spin up, `_spin`)
+			if (dang > 1e-4 and dang < TAU - 1e-4) or _spin > 0.0:
 				return null
 		else:
 			# the ride's phasing over the lead that is left, its push at most
-			# THRUST and its speed under VMAX
+			# THRUST and its speed under VMAX (its spin-up first, over what is
+			# left of the ride if that is shorter, as `ShipFlight._ride_shape`
+			# flies it)
 			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
+			if _spin > 0.0:
+				# (the ship rides at its ring's own rate until its spin-up, which
+				# may start any time the ride allows: from where it reaches the
+				# departure at the ride's own pace, as `ShipFlight._ride_shape`
+				# flies it, a phasing k only for what that cannot make up)
+				var w := absf(_dw)
+				var w0 := absf(_dw0)
+				var sp := minf(_spin, lead)
+				var lf := clampf((dang - w0 * lead + (w - w0) * sp * 0.5) / (w - w0), sp, lead)
+				var plain := w0 * (lead - lf) + w * lf - (w - w0) * sp * 0.5
+				k = 1.0 + 2.0 * (dang - plain) / (w * lead)
 			var vr := absf(_dw) * _drt
 			if absf(k - 1.0) > THRUST * lead / (PI * vr) + 1e-9 or k * vr > VMAX + 1e-6 or k < 0.2:
 				return null
@@ -3106,7 +3794,9 @@ func _build_in(kind: StringName) -> Result:
 	res.work = res.dvp + res.dv1 + res.dv2
 	res.d2 = d2
 	res.T = te - t_now
-	res.cost = res.work + _tw * res.T
+	# (less CURVED's arc reward as the search priced it, so a choice's J and a
+	# kept flight's cost are on the search's own terms)
+	res.cost = res.work + _tw * res.T - float(b.get("arc", 0.0))
 	res.priced = _b_J
 	_tgt_at(te)
 	var keepd := _tk == 1
@@ -3125,6 +3815,8 @@ func _build_in(kind: StringName) -> Result:
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),
 		"w2": float(b.w2), "pk": float(b.pk), "J": res.cost, "cap": _tcap, "tw": _tw}
+	if _ease_forced:
+		res.choice["ez"] = true
 	return res
 
 
@@ -3194,7 +3886,7 @@ static func _leg_two(G: MapGravity, l1: FlightSolve, r1: Result, tgt: Dictionary
 	var l2 := FlightSolve.new()
 	l2._leg = 2
 	l2._wide_ok = false
-	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3])}
+	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3]), "_pace": l1._kp}
 	var r2 := l2._solve(G, d2, tgt, tc, c2)
 	if not r2.found or not r2.clean:
 		return null

@@ -244,7 +244,12 @@ func _fight_leg(at: int, other: int) -> void:
 	var f0 := Net.fight_at(at)
 	_ok("against the same enemy on both machines (%s)" % f0.foe_ids[0],
 		String(cb.enemies[0].template.id) == f0.foe_ids[0])
-	_ok("grown for two ships", f0.foes[0].max_hp > f0.foes[0].base)
+	# BUILT FOR THE GAME'S TWO PLAYERS (`PartyScale`, Jon, Nov 5), not grown
+	# by the join
+	var two := Combat.new()
+	two.plan(cb.enemies[0].template, Run.node_at().danger, [], 2)
+	_ok("built for the game's two players (%d hull, party %d; planned for two %d, this ship's %d, danger %d), the same on both" % [f0.foes[0].max_hp, f0.party, two.enemies[0].max_hp, cb.enemies[0].max_hp, Run.node_at().danger],
+		f0.party == 2 and f0.foes[0].max_hp == two.enemies[0].max_hp and cb.enemies[0].max_hp == f0.foes[0].max_hp)
 	await _play(cb)
 	var f1 := Net.fight_at(at)
 	print("[cojoin] outcome %s %s paid%d" % [cb.result, f0.foe_ids[0], f1.paid if f1 != null else -1])
@@ -476,7 +481,7 @@ func _play(cb: Combat) -> void:
 	var turns := 0
 	while not cb.finished and turns < TURN_CEILING:
 		await _tree.process_frame
-		if cb.waiting:
+		if cb.waiting or cb.stunned or cb.asking_at >= 0:
 			continue
 		turns += 1
 		var acted := true

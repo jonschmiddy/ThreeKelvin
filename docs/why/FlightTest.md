@@ -87,6 +87,13 @@ make the worker plans, the clicks or the hand phase pick their flights from
 every system as an unsplit run does (`_pick_only`), so those are the same
 flights however the run is split; a sweep's found-and-clean share and its
 flights put there are summed across the shards by `ShardSum`.
+`phase=hand`: ONLY the hand phase (and the turning pair's with it), its
+systems picked from every system as a shard without the sweeps' systems
+picks them (`_pick_only`: nothing else flown, judged or reported; any
+`shard=` ignored); `phase=rest`: everything but it (`hand=0`). The gate
+and the battery run the hand phase this way, as its own row beside the
+shards run with `phase=rest`: about 205 s at x12, where it held its shard
+past the gate's 300 s (Jon, Nov 8, "split: yes").
 ```
 
 ## Flight time cap
@@ -357,12 +364,15 @@ beside it settles at the ring's STAR_ORBIT_GAP (`_settle_centre`)
 Above `static func _gave_way(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:`:
 
 ```text
-A FLIGHT THE FALLBACK FOUND (its choice's cap past T_CAP) GIVING WAY, rebuilt
-from its choice, to a fresh one in one leg arriving sooner: kept only while
-none does (ruling 21's reviews, `FlightSolve._solve`), so not the same
-flight, and right. This is the one-leg half of SolveTest's `_fell_sooner`;
-that one also lets a two-leg flight give way, as `FlightSolve._sooner_of`
-does, and this one does not yet.
+A FLIGHT THE FALLBACK FOUND (its choice's cap past its path's own first
+look's: T_CAP for DIRECT, T_CAP_BACK for CURVED, `SolveTest._cap0`) GIVING
+WAY, rebuilt from its choice, to a fresh one in one leg arriving sooner:
+kept only while none does (ruling 21's reviews, `FlightSolve._solve`), so not
+the same flight, and right. This is the one-leg half of SolveTest's
+`_fell_sooner`; that one also lets a two-leg flight give way, as
+`FlightSolve._sooner_of` does, and this one does not yet. (Against T_CAP for
+both, every CURVED flight read as the fallback's, cap 30, and every one
+that gave way was forgiven: the code review, Nov 5.)
 ```
 
 ## Judged flights
@@ -434,4 +444,63 @@ ring, where that ring is drawn so small its own ends turn faster than CORNER
 zoom px, 2.5 px for a twin's world round one star (R 17.6) at zoom 1, 22 deg
 a px. The ring is the world's, drawn as such; the flight on and off it is
 still measured, and corners there are counted apart (`ring corners`).
+```
+
+## Two paths
+
+Above `const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")`:
+
+```text
+THE TWO PATHS (the fast transfers, Nov 5: AUTOPILOT DIRECT . CURVED): both
+unless `autopilot=direct|curved` names one, each at its own pace
+(`ShipFlight.FLIGHT_PACE`, or `flight_pace=K`). The sweeps and the far places
+run once a path, each sweep judged on its own (its name with " curved" after
+it for CURVED); the worker plans, the clicks and the hand and pair phases
+run on the last path asked for (CURVED, the game's default, unless only
+DIRECT is). `autopilot=direct flight_pace=1 worldpace=1` is the run of
+before the fast transfers. Each sweep prints how long from the click to
+settled in real seconds (map time is real time), from the edge as arrived
+(a jump's first flight) apart, each flight's bend and turn
+(`FlightSolve.shape_of`), and how many went to today's planner; at the
+path's own pace the times are judged (`CLICK_MED`, `CLICK_P90`,
+`CLICK_EDGE`).
+```
+
+## Drawn line held
+
+Above `const MOVE_MED := 16.0`:
+
+```text
+THE DRAWN LINE HELD while the ship rides its orbit, judged (the code review,
+Nov 5): the median of each flight's biggest move in half a second at most
+twice today's (`autopilot=direct flight_pace=1 worldpace=1`: 8.11 px). Nov
+5: DIRECT 11.7, CURVED 29.0 (its search prices a second at TIME_W_BACK, so
+flights of near one cost bend round the stars very differently; a warm slack
+of 0.5 or 1 for it, `-- warmk=`, made 26.1 and 23.9). Left failing for Jon.
+```
+
+## Near line
+
+Above `static func _near_line(p: Vector2, line: PackedVector3Array, j0: int) -> Array:`:
+
+```text
+How far p is from a laid-out line (plane px), looking on from point j0:
+[distance, the segment it is nearest]. It looks 64 points on, and on again
+while the nearest is at the end of what it looked at: CURVED at x12 in a
+30 fps frame moves about 65 of the line's 1600 points, so a fixed 64 lost
+the ship and read it 9.05 px off a line it was on to 0.00 (seed 4242 system
+50's twin, close -1 to 0; Nov 7).
+```
+
+## Click limits
+
+Above `const CLICK_MED := {&"direct": 4.5, &"curved": 6.5}`:
+
+```text
+from the click to settled at the path's own pace, s, each path its own: the
+median and 90th of the game's starts, and the median from the edge as
+arrived (a jump's first). Jon's ruling (Nov 7, "5A"): each path's limits
+just over what it flies, where one set of 3.6 / 4.5 / 5.0 failed both. The
+worst shards measured (FlightTest short clicks=0, 4 shards, Nov 7): CURVED
+(WIDE x12) 5.67 / 7.62 / 7.40, DIRECT (x4) 4.10 / 5.52 / 5.20.
 ```

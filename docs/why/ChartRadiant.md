@@ -112,3 +112,33 @@ cloud's round frame. Read here, cloud k took another cloud's lobes, turned
 outside it (the Starburst's ESO 101 shown as emission: a flat rose band
 with a sliver of teal, where the showcase's A has a teal heart).
 ```
+
+## Ball kinds
+
+Above `static func ball_kind(p: Dictionary) -> Vector4:`:
+
+```text
+A BALL AS ITS OWN KIND in this style (Nov 5, Jon's direction A for PAINTED, "This
+could also be applied for the other art styles"): each ball drawn as this style
+draws a spiral -- smooth light from the middle, the gas lit by it -- shaped to its
+kind. `u_ballK` (`chart_r_place`, `chart_r_bake_disc`): (its kind as `ChartSky.ball_of`
+numbers it -- 0 an elliptical, 1 a blue compact dwarf, 2 a dwarf spheroidal, 3 a
+merger's remnant; its young gas and star birth 0..1; how lopsided it is 0..1; its
+halo of globular clusters 0..1). An elliptical old, warm and smooth; a blue compact
+dwarf young, blue and lumpy with the spirals' pink knots; a dwarf spheroidal faint
+and grey; a merger's remnant warm, a little lopsided, its tidal stream of gas
+curling off one side with a few knots in it; a giant ringed by globular clusters.
+```
+
+## Ball body
+
+Above `static func ball_form(p: Dictionary) -> Vector4:`:
+
+```text
+A BALL'S BODY in this style: (its size against its ball radius; where its light
+starts to fade out and where it is gone, in its outer scale; its roundness, the
+bulge's c/R). The three ellipticals told apart by more than their colour: a round
+one the plain profile; a flattened one a lens, squashed and ending sooner; a giant
+bigger, its light running out slowly into a wide envelope. A dwarf spheroidal
+small and thin, a blue compact dwarf's light ending soon past its gas.
+```

@@ -37,6 +37,15 @@ const TWO_PINS := [
 	["seed 31337 node 28 ", "ring 1", "keep 5", 10],
 ]
 
+const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
+## CURVED's median bend against DIRECT's, at the least (both run)
+const BEND_MARGIN := 2.0
+## a flight that strays more than this share of its own chord is a loop (counted)
+const LOOP_BEND := 0.5
+## the paths asked for, and the pace each flies at (`_ready`)
+var _paths: Array[StringName] = [&"direct", &"curved"]
+var _pace := {}
+
 var h := Harness.new()
 var _per_seed := 4
 var _lineups := 12
@@ -46,6 +55,10 @@ var _worker_n := 400
 var _only := ""
 ## the gate's run (`short`)
 var _short := false
+## where each found, clean flight's shape is written, one JSON line a flight
+## (`shapes=path`: its sweep, path, bend, turn, flight seconds in tau and the
+## pace), so a run's shards can be pooled
+var _shapes_out := ""
 ## every case: {sweep, L, G, dep, tgt, t, label, kind, hand}
 var _cases: Array = []
 var _res: Array = []
@@ -69,6 +82,14 @@ func _ready() -> void:
 			_worker_n = int(s.substr(7))
 		elif s.begins_with("only="):
 			_only = s.substr(5)
+		elif s.begins_with("path="):
+			var pv := s.substr(5)
+			if pv == "direct" or pv == "curved":
+				_paths = [StringName(pv)]
+		elif s.begins_with("pace="):
+			_pace["all"] = float(s.substr(5))
+		elif s.begins_with("shapes="):
+			_shapes_out = s.substr(7)
 		elif s == "short":
 			_short = true
 			_per_seed = 1
@@ -83,6 +104,20 @@ func _wants(sweep: String) -> bool:
 	return _only == "" or _only == sweep
 
 
+## The pace path p's flights are planned at in this run.
+func _pace_of(p: StringName) -> float:
+	return float(_pace.get("all", ShipFlightS.FLIGHT_PACE[p]))
+
+
+## A sweep's name for path p: as it was for DIRECT, " curved" after it for CURVED.
+static func sw_name(sweep: String, p: StringName) -> String:
+	return sweep if p == &"direct" else sweep + " curved"
+
+
+## (`FlightSolve.shape_of`)
+static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
+	return FlightSolve.shape_of(samp)
+
 func _run() -> void:
 	await get_tree().process_frame
 	var t_all := Time.get_ticks_msec()
@@ -96,6 +131,15 @@ func _run() -> void:
 		_twin_cases()
 	if _wants("phase"):
 		_phase_cases()
+	# (the paths' cases one after the other, each path's in its own order: made
+	# path by path for each line-up, a shard of 2 or 4 took every DIRECT case or
+	# every CURVED one, and the shards' sums and the bend's comparison lost a
+	# path each)
+	if _paths.size() > 1:
+		var by_path: Array = []
+		for p0 in _paths:
+			by_path.append_array(_cases.filter(func(c: Dictionary) -> bool: return StringName(c.path) == p0))
+		_cases = by_path
 	print("solvetest: %d cases" % _cases.size())
 	# every case, on the main thread (this shard's: the others' are null)
 	var n_mine := 0
@@ -105,11 +149,13 @@ func _run() -> void:
 			continue
 		n_mine += 1
 		var c: Dictionary = _cases[i]
-		var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))
+		var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t), {}, c.opts)
 		_res.append(r)
-	for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
-		_report(sw)
-	_report("phase")
+	for p in _paths:
+		for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
+			_report(sw_name(sw, p))
+		_report(sw_name("phase", p))
+	_shapes()
 	if (_wants("phase") or _wants("twin")) and h.mine(0):
 		_aim_check()
 	if _wants("rtwin"):
@@ -244,6 +290,7 @@ static func twin_layout(sep: float, pha: float = 4.584536085992015, phb: float =
 		b.host0 = sp[1]
 		b.host_id = sp[2]
 		b.orbit = sp[3]
+		# (the prototype's own geometry at the old pace of 1: built by hand, as it was flown)
 		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(float(sp[4]))
 		b.r = sp[5]
 		b.mass = sp[6]
@@ -483,14 +530,41 @@ func _add_system(sweep: String, L: SystemLayout, G: MapGravity, label: String, h
 						tgt = {"kind": &"ring", "place": int(tg[1]), "R": FlightSolve.star_orbit_r(L, int(tg[1])), "V": STAR_RAIL_V, "sense": 0}
 					_:
 						tgt = {"kind": &"keep", "place": int(tg[1]), "off": KEEP_OFF}
-				(_cases if lu < lineups else _pin_cases).append({"sweep": sweep, "L": L, "G": G, "dep": dep, "tgt": tgt, "t": t, "hand": hand,
-					"label": "%s: %s %d to %s %d, line-up %d" % [label, st[0], st[1], tg[0], tg[1], lu],
-					"kind": "%s>%s" % [tag, ttag]})
+				for pth in _paths:
+					var k := _pace_of(pth)
+					(_cases if lu < lineups else _pin_cases).append(_on_tau({"sweep": sw_name(sweep, pth), "base": sweep, "L": L, "G": G, "dep": dep, "tgt": tgt, "t": t, "hand": hand,
+						"label": "%s%s: %s %d to %s %d, line-up %d" % [label, "" if pth == &"direct" else " (curved)", st[0], st[1], tg[0], tg[1], lu],
+						"kind": "%s>%s" % [tag, ttag], "path": pth}, k))
+
+
+## A CASE ON THE FLIGHT'S OWN CLOCK at pace k (`FlightSolve.solve` does this
+## to a map case; done here so every check reads the flight in tau): its
+## ring's or free start's speed / k, the target's ring speed / k, t x k, the
+## system paced, the hold alongside as the game's (`FlightSolve.HOLD_MAP`);
+## planned with opts {path} at pace 1 (it is in tau already).
+func _on_tau(c: Dictionary, k: float) -> Dictionary:
+	c.k = k
+	c.opts = {"path": c.path}
+	if k == 1.0:
+		return c
+	var d: Dictionary = FlightSolve.dep_tau(c.dep, k)
+	d["_hold"] = maxf(FlightSolve.KEEP_HOLD, FlightSolve.HOLD_MAP * k)
+	d["_pace"] = k
+	var g: Dictionary = FlightSolve.tgt_tau(c.tgt, k)
+	c.dep = d
+	c.tgt = g
+	c.t = float(c.t) * k
+	c.G = (c.G as MapGravity).paced(k)
+	return c
 
 
 # ---------------------------------------------------------------- the checks
 # From the layout's own Body, not MapGravity's copy. A belt's place is the point its beacon rides.
-static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
+## On a flight's own clock (k, `_on_tau`): read at map time t / k, its motion / k.
+static func centre(L: SystemLayout, p: int, t: float, k := 1.0) -> PackedFloat64Array:
+	if k != 1.0:
+		var m := centre(L, p, t / k)
+		return PackedFloat64Array([m[0], m[1], m[2] / k, m[3] / k])
 	if p >= 0:
 		var b := L.bodies[p]
 		var at := b.point3(t)
@@ -508,11 +582,11 @@ static func centre(L: SystemLayout, p: int, t: float) -> PackedFloat64Array:
 static func dep_centre(c: Dictionary, t: float) -> PackedFloat64Array:
 	var dep: Dictionary = c.dep
 	if int(dep.get("place", -9)) == -9 and dep.has("host"):
-		return centre(c.L, int(dep.host), t)
+		return centre(c.L, int(dep.host), t, float(c.get("k", 1.0)))
 	if int(dep.get("place", -9)) == -9:
 		var c9: Vector2 = dep.get("c", Vector2.ZERO)
 		return PackedFloat64Array([c9.x, c9.y, 0.0, 0.0])
-	return centre(c.L, int(dep.place), t)
+	return centre(c.L, int(dep.place), t, float(c.get("k", 1.0)))
 
 
 ## Start offset against the ship's ring, end offset against the target's ring at its speed.
@@ -535,7 +609,7 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 			e0 = Vector2(s[0].x - (cc[0] + rt * cos(a)), s[0].z - (cc[1] + rt * sin(a))).length()
 			ev0 = Vector2(v0.x - (cc[2] - w * rt * sin(a)), v0.z - (cc[3] + w * rt * cos(a))).length()
 		&"keep":
-			var ck := centre(L, int(dep.place), r.t0)
+			var ck := centre(L, int(dep.place), r.t0, float(c.get("k", 1.0)))
 			var o: Vector2 = dep.off
 			e0 = Vector2(s[0].x - ck[0] - o.x, s[0].z - ck[1] - o.y).length()
 			ev0 = Vector2(v0.x - ck[2], v0.z - ck[3]).length()
@@ -545,7 +619,7 @@ static func ends(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Array:
 			e0 = Vector2(s[0].x - p.x, s[0].z - p.y).length()
 			ev0 = Vector2(v0.x - v.x, v0.z - v.y).length()
 	var te: float = r.end.t
-	var ct := centre(L, int(tgt.place), te)
+	var ct := centre(L, int(tgt.place), te, float(c.get("k", 1.0)))
 	var vn := (3.0 * s[n] - 4.0 * s[n - 1] + s[n - 2]) / (2.0 * dt)
 	var rel := Vector2(s[n].x - ct[0], s[n].z - ct[1])
 	var e1 := 0.0
@@ -610,6 +684,8 @@ static func cusp(r: FlightSolve.Result) -> PackedFloat64Array:
 			k += 1
 		var va := ((s[mini(k0 + 1, n - 1)] - s[maxi(k0 - 1, 0)]) / (2.0 * dt)).length()
 		var vb := ((s[mini(k, n - 1)] - s[maxi(k - 2, 0)]) / (2.0 * dt)).length()
+		# (on a flight's own clock as on the map: a cusp is its turn radius,
+		# v^2 / a, which the clock leaves as it is, `FlightSolve._vc`)
 		if vmin < FlightSolve.V_CUSP and vmin < minf(va, vb) - 2.0:
 			worst = minf(worst, vmin)
 	return PackedFloat64Array([1.0 if worst < INF else 0.0, worst])
@@ -777,7 +853,7 @@ func _report(sweep: String) -> void:
 	print("  ride s %s" % _dist(leads))
 	print("  ride: phasing k %s; push along the ring px/s2 %s; top speed px/s %s" % [_dist(ks), _dist(push), _dist(top_v)])
 	print("  worst start %.3f of its tolerance; worst landing %.4f px, %.4f px/s" % [worst_start, worst_land, worst_land_v])
-	var bar := FOUND_MIN_HAND if sweep == "twin" else FOUND_MIN
+	var bar := FOUND_MIN_HAND if sweep.begins_with("twin") else FOUND_MIN
 	h.total("%s: found and clean" % sweep, "%s: found and clean in at least %.0f%% (%.2f%%)" % [sweep, 100.0 * bar, 100.0 * clean / n], "clean >= BAR * n", {"clean": clean, "n": n, "BAR": bar})
 	h._ok("%s: every found plan starts on the ship's ring (%d of %d)" % [sweep, started, found], started == found)
 	h._ok("%s: every clean plan clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, inside, worst_in], inside == 0)
@@ -820,23 +896,29 @@ func _replays() -> void:
 	var kept := 0
 	var kept_same := 0
 	var later_fell := 0
+	var spun := 0
 	for i in range(0, _cases.size(), 5):
 		var r: FlightSolve.Result = _res[i]
 		if r == null or not r.found:
 			continue
 		var c: Dictionary = _cases[i]
 		n += 1
-		var r2 := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t), r.choice)
+		var r2 := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t), r.choice, c.opts)
 		if r2.kind == &"replay" and r2.samp == r.samp and r2.end.t == r.end.t and r2.burns == r.burns:
 			same += 1
 		elif n - same <= 3:
 			print("  (replay %s: %s)" % [r2.kind, c.label])
 		var dep: Dictionary = c.dep
-		if StringName(dep.kind) == &"ring" and r.lead >= 0.6 and r.lead_k <= 1.0:
+		# Not on a flight's own clock (`dep.spin`): a plan made for now spins up from now. The game never
+		# asks it, as its plans are made a moment ahead.
+		# Why: docs/why/SolveTest.md#spin-not-replayed
+		if StringName(dep.kind) == &"ring" and float(dep.get("spin", 0.0)) > 0.0:
+			spun += 1
+		elif StringName(dep.kind) == &"ring" and r.lead >= 0.6 and r.lead_k <= 1.0:
 			later += 1
 			var d2 := dep.duplicate()
-			d2.ang = float(dep.ang) + float(dep.w) * 0.5
-			var r3 := FlightSolve.solve(c.G, d2, c.tgt, float(c.t) + 0.5, r.choice)
+			d2.ang = float(dep.ang) + float(dep.get("w0", dep.w)) * 0.5
+			var r3 := FlightSolve.solve(c.G, d2, c.tgt, float(c.t) + 0.5, r.choice, c.opts)
 			if r3.kind == &"replay" and r3.samp == r.samp:
 				later_same += 1
 			elif _fell_sooner(r, r3):
@@ -846,7 +928,7 @@ func _replays() -> void:
 				print("  (replay half a second on %s: %s)" % [r3.kind, c.label])
 		if StringName(dep.kind) == &"keep":
 			kept += 1
-			var r4 := FlightSolve.solve(c.G, dep, c.tgt, float(c.t) + 0.5, r.choice)
+			var r4 := FlightSolve.solve(c.G, dep, c.tgt, float(c.t) + 0.5, r.choice, c.opts)
 			if r4.kind == &"replay" and r4.samp == r.samp and r4.t0 == r.t0:
 				kept_same += 1
 			elif _fell_sooner(r, r4):
@@ -856,7 +938,7 @@ func _replays() -> void:
 				print("  (alongside, half a second on %s: %s)" % [r4.kind, c.label])
 	h._ok("a plan rebuilt from its choice is the same flight (%d of %d)" % [same, n], same == n)
 	print("replays: half a second on, %d flights the fallback found or in two legs gave way to a fresh plan arriving sooner" % later_fell)
-	h._ok("and half a second on, the ship ridden round (%d of %d)" % [later_same, later], later_same == later)
+	h._ok("and half a second on, the ship ridden round (%d of %d; %d on a flight's own clock not asked)" % [later_same, later, spun], later_same == later)
 	h._ok("and half a second on alongside, the ship holding there (%d of %d)" % [kept_same, kept], kept_same == kept)
 
 
@@ -868,7 +950,24 @@ static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -> bool:
 		return false
 	if r.legs == 2:
 		return true
-	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6 and r2.legs == 1
+	return r.legs == 1 and float(r.choice.get("cap", 0.0)) > _cap0(r) + 1e-6 and r2.legs == 1
+
+
+## The cap of the first look of r's path: T_CAP for DIRECT, CURVED's arc's
+## (`FlightSolve.first_cap`, its first look the as-built search to that cap);
+## past it, the fallback's.
+static func _cap0(r: FlightSolve.Result) -> float:
+	return FlightSolve.first_cap(r.path)
+
+
+## A dep as `FlightSolve.solve` hands it on for case c's path (`_chain_again`
+## called straight, past `solve`).
+static func _dep_opts(d: Dictionary, c: Dictionary) -> Dictionary:
+	if StringName(c.get("path", &"direct")) != &"curved":
+		return d
+	var d2 := d.duplicate()
+	d2["_curved"] = true
+	return d2
 
 
 ## The overlay replans the preview every 3 s from the old choice: found, and no costlier than fresh.
@@ -889,10 +988,10 @@ func _replans() -> void:
 		if r == null or not r.found or StringName(c.dep.kind) != &"ring":
 			continue
 		var d2: Dictionary = c.dep.duplicate()
-		d2.ang = float(c.dep.ang) + float(c.dep.w) * 3.0
+		d2.ang = float(c.dep.ang) + float(c.dep.get("w0", c.dep.w)) * 3.0
 		var t2 := float(c.t) + 3.0
-		var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, r.choice)
-		var rf := FlightSolve.solve(c.G, d2, c.tgt, t2)
+		var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, r.choice, c.opts)
+		var rf := FlightSolve.solve(c.G, d2, c.tgt, t2, {}, c.opts)
 		n += 1
 		kinds[rw.kind] = int(kinds.get(rw.kind, 0)) + 1
 		if rf.found:
@@ -901,7 +1000,7 @@ func _replans() -> void:
 				ok += 1
 		# (a flight the fallback found, kept warm, or rebuilt as drawn where a
 		# fresh plan beside it is clean)
-		var fb := rw.found and rf.found and float(rw.choice.get("cap", 0.0)) > FlightSolve.T_CAP + 1e-6
+		var fb := rw.found and rf.found and float(rw.choice.get("cap", 0.0)) > _cap0(rw) + 1e-6
 		if fb and (rw.kind == &"warm" or (rw.kind == &"replay" and rw.legs == 1)):
 			fell += 1
 			if rf.T < rw.T - 1e-3 and (rf.clean or rw.kind == &"warm"):
@@ -934,7 +1033,7 @@ func _replans() -> void:
 	for j in _pin_cases.size():
 		var c: Dictionary = _pin_cases[j]
 		if h.mine(_cases.size() + j):
-			two_cases.append([c, FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))])
+			two_cases.append([c, FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t), {}, c.opts)])
 	for cr: Array in two_cases:
 		var c: Dictionary = cr[0]
 		var r: FlightSolve.Result = cr[1]
@@ -948,14 +1047,14 @@ func _replans() -> void:
 		for k in range(1, TWO_STEPS + 1):
 			var d2: Dictionary = c.dep.duplicate()
 			if dk == &"ring":
-				d2.ang = float(c.dep.ang) + float(c.dep.w) * dt * float(k)
+				d2.ang = float(c.dep.ang) + float(c.dep.get("w0", c.dep.w)) * dt * float(k)
 			var t2 := float(c.t) + dt * float(k)
-			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice)
+			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice, c.opts)
 			# (the last legs kept, flown again here as `FlightSolve._chain_again`
 			# flies them: none kept arrives later)
 			var ra: FlightSolve.Result = null
 			if not legs.is_empty():
-				ra = FlightSolve._chain_again(c.G, d2, c.tgt, t2, legs)
+				ra = FlightSolve._chain_again(c.G, _dep_opts(d2, c), c.tgt, t2, legs)
 			if ra != null:
 				two_old += 1
 				if not rw.found or float(rw.end.t) > float(ra.end.t) + 1e-3:
@@ -972,7 +1071,7 @@ func _replans() -> void:
 			legs = rw.choice
 			two_kept += 1
 			# (a fresh plan as a first plan's: one leg, else two)
-			var rf2 := FlightSolve.solve(c.G, d2, c.tgt, t2)
+			var rf2 := FlightSolve.solve(c.G, d2, c.tgt, t2, {}, c.opts)
 			if rf2.found and rf2.clean and rf2.T < rw.T - 1e-3:
 				if rf2.legs == 1:
 					two_held += 1
@@ -991,7 +1090,38 @@ func _replans() -> void:
 ## A plan's cost at TIME_W: an as-built flight's (its choice's tw
 ## TIME_W_BACK) with its seconds at C's weight.
 static func _at_time_w(r: FlightSolve.Result) -> float:
-	return r.cost + (FlightSolve.TIME_W - float(r.choice.get("tw", FlightSolve.TIME_W))) * r.T
+	var tw0 := FlightSolve.first_tw(r.path)
+	return r.cost + (tw0 - float(r.choice.get("tw", tw0))) * r.T
+
+
+## EACH PATH'S SHAPES (printed per sweep and path): every found, clean flight's
+## bend and whole turn (`shape_of`), how many are loops (bend over LOOP_BEND),
+## and CURVED's median bend against DIRECT's where both ran in this shard.
+func _shapes() -> void:
+	var med := {}
+	var fo: FileAccess = FileAccess.open(_shapes_out, FileAccess.WRITE) if _shapes_out != "" else null
+	for p in _paths:
+		var bends: Array = []
+		var turns: Array = []
+		var loops := 0
+		for i in _cases.size():
+			var c: Dictionary = _cases[i]
+			var r: FlightSolve.Result = _res[i]
+			if r == null or not r.found or not r.clean or StringName(c.path) != p:
+				continue
+			var sh := shape_of(r.samp)
+			if fo != null:
+				fo.store_line(JSON.stringify({"sweep": c.sweep, "path": String(p), "bend": sh[0], "turn": sh[1], "T_tau": r.T, "pace": _pace_of(p), "legs": r.legs, "kind": String(r.kind)}))
+			bends.append(sh[0])
+			turns.append(sh[1])
+			if sh[0] > LOOP_BEND:
+				loops += 1
+		print("shape %s (pace %.1f): bend %s; turn deg %s; loops (bend over %.1f) %d of %d" % [p, _pace_of(p), _dist(bends), _dist(turns), LOOP_BEND, loops, bends.size()])
+		if not bends.is_empty():
+			bends.sort()
+			med[p] = float(bends[bends.size() / 2])
+	if med.has(&"direct") and med.has(&"curved"):
+		h._ok("CURVED's flights bend more than DIRECT's: median %.3f against %.3f (at least %.1f times)" % [med[&"curved"], med[&"direct"], BEND_MARGIN], float(med[&"curved"]) >= BEND_MARGIN * float(med[&"direct"]))
 
 
 ## A sample of plans flown again by plain RK4 through `MapGravity.acc`, measuring the stray.
@@ -1048,7 +1178,7 @@ func _physics() -> void:
 					if t >= t_step - 1e-12:
 						pull = FlightSolve.THRUST
 						if ease:
-							pull = clampf((vx * vx + vz * vz) / FlightSolve.R_BURN, FlightSolve.P_MIN, FlightSolve.THRUST)
+							pull = clampf((vx * vx + vz * vz) / FlightSolve.R_BURN, FlightSolve.P_MIN / float(c.get("k", 1.0)), FlightSolve.THRUST)
 						var hb := minf(FlightSolve.H_BURN, rem / pull)
 						rem -= pull * hb
 						if rem <= 1e-9:
@@ -1111,7 +1241,7 @@ static func start_state(c: Dictionary, r: FlightSolve.Result) -> PackedFloat64Ar
 			var a := r.a_dep
 			return PackedFloat64Array([cc[0] + rt * cos(a), cc[1] + rt * sin(a), cc[2] - w * rt * sin(a), cc[3] + w * rt * cos(a)])
 		&"keep":
-			var ck := centre(L, int(dep.place), r.t0)
+			var ck := centre(L, int(dep.place), r.t0, float(c.get("k", 1.0)))
 			var o: Vector2 = dep.off
 			return PackedFloat64Array([ck[0] + o.x, ck[1] + o.y, ck[2], ck[3]])
 	var p: Vector2 = dep.p
@@ -1159,7 +1289,7 @@ func _worker() -> void:
 
 func _solve_on_worker(j: int) -> void:
 	var c: Dictionary = _cases[_widx[j]]
-	var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t))
+	var r := FlightSolve.solve(c.G, c.dep, c.tgt, float(c.t), {}, c.opts)
 	_wlock.lock()
 	_wres[j] = r
 	_wlock.unlock()

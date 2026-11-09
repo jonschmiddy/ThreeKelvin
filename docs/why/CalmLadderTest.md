@@ -133,3 +133,16 @@ its curve, in whole pixels, a few a frame at most and one way only; never on
 the plate or the HUD; still between the map and the chart; and at rest where
 the screen arrived at has it.
 ```
+
+## Fast flight holds
+
+Above `func _flight_holds(path: StringName) -> void:`:
+
+```text
+A FAST FLIGHT HOLDS WITH THE MAP'S CLOCK (the fast transfers, Nov 5): on
+the map, your ship flying to another place on `path` at its pace
+(`ShipFlight.FLIGHT_PACE`: DIRECT x4, CURVED x4),
+then map -> chart by its tab mid-flight. Through the hold the ship stands
+where it was (the map's clock and the flight held, not run on at x4 under
+the still picture), and back on the map it is at that place.
+```

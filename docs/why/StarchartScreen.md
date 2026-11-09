@@ -1210,7 +1210,7 @@ Inside `_on_jump()`, above `_flash = null`:
 ```text
 THE FLASHES ARE THE SKY'S NOW. Every rendering style draws the pulsars'
 beat and the supernovae in the sky itself, as gathered light with an
-envelope (`ChartSky`, the legacy style's events), so the old pixel
+envelope (`ChartSky`), so the old pixel
 strobes and gamma-ray bursts over it would be a second pulsar on every
 pulsar. The class stays, unused, for the harnesses that time it.
 ```
@@ -2459,4 +2459,20 @@ screen, with a cross of light around it, gone in under a second.
 Rare on purpose. The whole effect is that you mostly do not see one, and
 the one you do catch out of the corner of your eye makes the sky feel
 like somewhere things are still happening.
+```
+
+## Corner word shadow
+
+Above `var shs: Array[Label] = []`:
+
+```text
+A SHADOW UNDER THE WORDS, as the chart's own labels have (THE HELLBENDER's): with no
+plate, ember words on a galaxy's warm light close in -- a giant elliptical at zoom 2
+fills the corner with its own orange -- were lost in it (Nov 5). A Button draws no
+shadow (and an outline on this 8 px face filled the letters in), so a Label behind it
+(`show_behind_parent`) says the same words a pixel down and right, in black, kept
+to the button's text each time it draws
+(all the way round, Nov 5's review: a shadow down and right only left THRUSTER
+REACH's orange readable by its shadow alone over a giant's gold, so the black words
+lie a pixel each way and down-right, a ring the words sit in)
 ```

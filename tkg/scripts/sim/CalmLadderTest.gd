@@ -4,6 +4,7 @@ extends Node
 ## Run headless with `--fixed-fps 60`, so the goal line's tween steps with the ladder.
 ## Why: docs/why/CalmLadderTest.md#calm-ladder-checks
 
+const SF := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 var _fails := 0
 var _tree: SceneTree
 var _zl: GDScript = load("res://scripts/ui/ZoomLadder.gd")
@@ -679,6 +680,9 @@ func _run() -> void:
 	await _hop("Tab mid-move, LOCAL -> map, on to the chart", func() -> void: _key(KEY_TAB), C, ["tab", 0.3])
 	await _rest()
 	await _preview_holds()
+	# (a fast flight on each path, held by a move and landed after)
+	await _flight_holds(&"curved")
+	await _flight_holds(&"direct")
 	# (while your ship is still on its ring)
 	await _keys_let_go(&"d")
 	# AT THE SYSTEM'S EDGE (just jumped in, out of orbit): the audit's ship slid
@@ -836,6 +840,78 @@ func _preview_holds() -> void:
 	_ok("the map's clock held through the move (%d frames)" % held_n, held_n > 20)
 	_ok("and the flight drawn kept through it, at most one more plan taken in (%d)" % taken, kept and taken <= 1)
 	print("  [calm] a preview through map -> chart: held %d frames, %d plans taken in, the drawn flight kept %s" % [held_n, taken, kept])
+	await _rest()
+
+
+## A fast flight holds with the map's clock: mid-flight map -> chart, the ship stands still
+## through the hold and is at its place back on the map.
+## Why: docs/why/CalmLadderTest.md#fast-flight-holds
+func _flight_holds(path: StringName) -> void:
+	await _at(ZoomLadder.MAP)
+	await _rest()
+	var m := Router.current as SystemMapScreen
+	if not _ok("a %s flight's hold: the map up" % path, m != null and m.flight != null):
+		return
+	for i in 600:
+		if m.flight.can_fly():
+			break
+		await _tree.process_frame
+	var at: int = m.flight.orbit_body()
+	var to := -1
+	for b in m.view.layout.bodies:
+		if b.index != at and SystemLayout.is_place(b.index) and b.kind != &"belt":
+			to = b.index
+			break
+	# (else the sun's close orbit, as `_preview_holds` takes)
+	if not _ok("a %s flight's hold: your ship on a ring and a place to fly to (on %d, to %d)" % [path, at, to], to != at and m.flight.can_fly()):
+		return
+	var was: StringName = SF.path_k
+	SF.path_k = path
+	m.select_body(-9)
+	m.fly_to_body(to)
+	for i in 600:
+		await _tree.process_frame
+		if m.flight.mode == &"fly":
+			break
+	if not _ok("the %s flight leaves (%s)" % [path, m.flight.mode], m.flight.mode == &"fly"):
+		SF.path_k = was
+		return
+	await _frames(15)
+	var pace := float(m.flight.plan.pace) if m.flight.plan != null else 0.0
+	_click(_tab_at(ZoomLadder.CHART), _tab_button(ZoomLadder.CHART))
+	var held_n := 0
+	var moved := 0.0
+	var ran := 0.0
+	var p0 := Vector3.INF
+	var t0 := 0.0
+	for i in 300:
+		await _tree.process_frame
+		if not is_instance_valid(m) or not m.is_inside_tree():
+			break
+		if not m.clock_held():
+			if held_n > 0 or i > 30:
+				break
+			continue
+		if held_n == 0:
+			p0 = m.flight.where3()
+			t0 = float(m.view.t)
+		held_n += 1
+		moved = maxf(moved, (m.flight.where3() - p0).length())
+		ran = maxf(ran, absf(float(m.view.t) - t0))
+	_ok("a %s flight at pace %.0f: the map's clock held through the move (%d frames), the ship stood still in it (%.4f px, the clock %.4f s)" % [path, pace, held_n, moved, ran],
+		held_n > 20 and moved < 0.01 and ran < 1e-6 and pace == float(SF.FLIGHT_PACE[path]))
+	await _rest()
+	await _at(ZoomLadder.MAP)
+	await _rest()
+	var landed := false
+	for i in 900:
+		var m2 := Router.current as SystemMapScreen
+		if m2 != null and m2.flight != null and m2.flight.reached() == to and m2.flight.can_fly():
+			landed = true
+			break
+		await _tree.process_frame
+	_ok("and back on the map the %s flight is at place %d" % [path, to], landed)
+	SF.path_k = was
 	await _rest()
 
 

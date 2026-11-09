@@ -22,7 +22,8 @@ or both at once, which is how it is actually run:
   tools/cofight.sh
 
 What it proves: two machines open ONE fight at one system; the enemy is
-scaled for two and both see the same hull; each ship's cards land on the
+built for the game's two players (`PartyScale`, Jon, Nov 5) and both see
+the same hull; each ship's cards land on the
 other's copy of it; the enemy does not swing until both have ended their
 turn; it swings at exactly one of them; and when it dies BOTH ships are paid.
 

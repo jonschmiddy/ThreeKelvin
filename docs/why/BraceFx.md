@@ -10,7 +10,7 @@ lasting armour that soaks after block. Jon wanted "the whole ship to have some
 type of armor on top... like that is visually like OK i have brace": a
 see-through steel layer over the whole hull, a pixel proud of its outline,
 panel lines and rivets solid on it and a sheen band across it, the ship
-dimmed beneath, in steel with the brace chip's teal so it never reads as the
+dimmed beneath, in a teal steel so it never reads as the
 hull. Windows and engine glow show through.
 Gain: the panels clamp on in a quick wave from the side facing the enemy,
 each landing with a glint. A hit it takes: a clang flash, sparks, and a dent

@@ -57,8 +57,9 @@ Above `const GM_KEPLER := 61.685`:
 ```text
 THE PULL A SHIP FEELS, on map time (Phase 13, ruled Oct 29 "clock:map", and
 ruling 20, Oct 30): a system's whole star mass pulls a ship with this GM
-(px^3/s^2), whatever its kind. It is KAPPA times the Kepler GM that turns the
-worlds (GM_KEPLER: a world 100 px out laps in 800 s), because on map time a
+(px^3/s^2), whatever its kind. It is KAPPA times the Kepler GM that turned the
+worlds at a pace of 1 (GM_KEPLER: a world 100 px out lapped in 800 s; at
+`WORLD_PACE` they go round faster, in `kepler_s`), because on map time a
 ship flies about a hundred times faster than the worlds move. A ship riding
 170 px out at RAIL_V 35 px/s is on a circular orbit under it. Only autopilot
 flights feel it; flying by hand has no gravity (Jon, Oct 3).
@@ -372,7 +373,8 @@ move in a visit. The worlds round one sun go four times faster too, so each
 still laps its sun 5.4 to 7.6 times a lap of the pair, as a steady world
 round one sun of a real binary does (any speed-up of the pair alone past
 about x1.1 breaks that rule). Worlds round both, giants and map time itself
-keep their speed.
+keep their speed. (Those lap times are at a `WORLD_PACE` of 1: the pair and
+every world go WORLD_PACE times faster again, so the ratios hold.)
 ```
 
 ## Pair turning
@@ -491,4 +493,22 @@ there moves. In a binary they are named out from the suns (star A's world,
 star B's world, then those round both, `_twin`), not in the order they were
 made: SIGMA KESTREL PRIME on seed 7 read III, IV, I, V, II, VI. By the numeral
 each name ends in; a tie (past X, which `ROMAN` stops at) by index.
+```
+
+## World pace
+
+Above `const WORLD_PACE := 4.0`:
+
+```text
+THE WORLDS' PACE (Jon, Nov 4: "orbits could be faster"; the fast-transfers
+design, Nov 5): every body's period and the pair's turn go WORLD_PACE times
+the game's old Kepler rate (`kepler_s`: 800 / WORLD_PACE s a lap at 100 px),
+so a world 100 px out laps in 200 s at 4, where it took 800. Applied where
+each period is set. NOT the map's clock: the sun's breath, pulsars, the
+sky's events and the comets keep their own time (Jon, Nov 5: "I think the
+comet speed is perfect though"; SkyWeather ages them by the frame's dt);
+nor the ship's parked orbit (`ShipFlight.STAR_PACE` keeps its own 800: "my
+ships orbit is fine actually"). A game constant, not a setting: every peer
+must turn the worlds alike (`NetSession.PROTOCOL` 17). 4: Jon's pick from
+the films (Nov 5, "3D"), the binary pair with them.
 ```

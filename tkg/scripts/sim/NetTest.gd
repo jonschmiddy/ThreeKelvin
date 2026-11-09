@@ -5,6 +5,7 @@ extends RefCounted
 ## Why: docs/why/NetTest.md#test-scope
 
 const PORT_BASE: int = 34210
+const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 
 var fails: int = 0
 var _tree: SceneTree
@@ -52,6 +53,12 @@ func run(tree: SceneTree) -> void:
 	await _fight_net_test()
 	print("\n=== two ships start different fights at one system in the same second ===")
 	await _race_test()
+	print("\n=== joining a fight after its first turn: stunned (PROTOCOL 18) ===")
+	_stun_rules_test()
+	await _stun_net_test()
+	print("\n=== the party's size sets the enemy and the pay (PROTOCOL 18) ===")
+	_party_scale_rules_test()
+	await _party_scale_net_test()
 	print("\n=== one Custodian for the galaxy ===")
 	await _growth_fold_test()
 	print("\n=== joining a dive under way, and where a ship is in its system ===")
@@ -242,6 +249,124 @@ func _party_test() -> void:
 	await _teardown()
 
 
+# --- a flight said ----------------------------------------------------------
+
+## A plan with no tail (none, or one point), said a sample past its end: that sample is the end.
+## It read `tail[-1]` (2 cojoin runs in 7, Nov 8).
+func _said_no_tail(L: SystemLayout, t0: float) -> void:
+	var a := L.bodies[0].pos(t0)
+	var b := L.bodies[1].pos(t0 + 1.0)
+	for tail: PackedVector3Array in [PackedVector3Array(), PackedVector3Array([Vector3(b.x, 0.0, b.y)])]:
+		var sf = ShipFlightS.new()
+		sf.setup(L, Vector2(-L.edge * 0.95, 0.0), t0)
+		var pl = ShipFlightS.FlightPlan.new()
+		pl.samp = PackedVector3Array([Vector3(a.x, 0.0, a.y), Vector3(b.x, 0.0, b.y)])
+		pl.burns = PackedByteArray([0, 0])
+		pl.dur = 1.0
+		pl.tail = tail
+		sf.plan = pl
+		sf.mode = &"fly"
+		sf.fly_t0 = t0
+		# (0.3 s apart from t0: the fifth sample is 0.2 s past the end)
+		var sp = sf.said_path(t0, 0.3)
+		var pts: PackedVector2Array = sp[0] if sp is Array and sp.size() == 4 else PackedVector2Array()
+		ok("a flight with %d tail points said 0.2 s past its end: 5 points, the last its end (%s)" % [tail.size(), pts],
+			pts.size() == 5 and pts[4].distance_to(b) < 1e-3)
+
+
+## A flight, said once as it leaves (PROTOCOL 17): kept whole by host and late joiner, not said twice,
+## gone when let go of; drawn on its path at the sender's clock and moved with its places 10 s behind.
+## Why: docs/why/NetTest.md#flight-said-test
+func _flight_said_test(host: NetSession, early: NetSession, late: NetSession, id: int) -> void:
+	var n12: MapGen.MapNode = Run.map[12] if Run.map.size() > 12 else null
+	ok("system 12 is on the map for the flight", n12 != null)
+	if n12 == null:
+		return
+	var L := SystemLayout.of(n12)
+	ok("system 12 has two places for it", L.bodies.size() >= 2)
+	if L.bodies.size() < 2:
+		return
+	var t0 := 100.0
+	var dur := 3.0
+	_said_no_tail(L, t0)
+	var pts := PackedVector2Array()
+	var lit := PackedByteArray()
+	var a := L.bodies[0].pos(t0)
+	var b := L.bodies[1].pos(t0 + dur)
+	for j in 181:
+		var u := float(j) / 180.0
+		var bow := Vector2(-(b - a).y, (b - a).x) * 0.2 * sin(PI * u)
+		pts.append(a.lerp(b, u) + bow)
+		lit.append(1 if (u < 0.05 or u > 0.95) else 0)
+	early.report_flight(12, 4242, 0, 1, t0, dur / 180.0, pts, lit, t0)
+	var heard := await _wait_until(func() -> bool:
+		return late.flights.has(id) and host.flights.has(id), 3.0)
+	ok("a flight said reaches the host and the other guest", heard)
+	if not heard:
+		return
+	var fl: Dictionary = late.flights[id]
+	ok("whole: its 181 points and burns, from world 0 to world 1, at its clock", (fl.pts as PackedVector2Array) == pts
+		and (fl.burns as PackedByteArray) == lit and int(fl.from) == 0 and int(fl.to) == 1 and float(fl.t0) == t0)
+	# (the same flight again: nothing goes)
+	var got0 := int(fl.got)
+	early.report_flight(12, 4242, 0, 1, t0, dur / 180.0, PackedVector2Array([Vector2.ZERO, Vector2.ONE]), lit, t0)
+	await _wait_frames(10)
+	ok("said again with the same key, nothing goes", int((late.flights[id] as Dictionary).got) == got0)
+	var worst := 0.0
+	for s: float in [0.0, 0.7, 1.5, 2.2, 3.0]:
+		# (this machine's clock the sender's: `now_ms` as the sender's clock at t0 + s)
+		var now_ms := int(fl.got) + roundi((t0 + s - float(fl.said)) * 1000.0)
+		var fp := NetSession.flight_point(fl, L, t0 + s, now_ms)
+		if fp.is_empty():
+			worst = INF
+			continue
+		var j := s / dur * 180.0
+		var want := pts[mini(int(j), 179)].lerp(pts[mini(int(j), 179) + 1], j - float(mini(int(j), 179)))
+		worst = maxf(worst, ((fp[0] as Vector2) - want).length())
+	ok("at the sender's own clock, drawn on its path (worst %.4f px over 5 moments)" % worst, worst < 1.0)
+	# ITS CLOCK HELD (a zoom move, LOCAL: a spot since saying so, its clock at
+	# t0 + 1): drawn where its clock stopped, not flown on by the wall clock 1.5
+	# s more; let go, by its spot's clock, not the wall clock's (the code
+	# review, Nov 5)
+	var held_ms := int(fl.got) + roundi((t0 + 2.5 - float(fl.said)) * 1000.0)
+	var sp_h := {"t": t0 + 1.0, "held": true, "got": int(fl.got) + 1}
+	var fh := NetSession.flight_point(fl, L, t0 + 1.0, held_ms, sp_h)
+	var off_h := INF if fh.is_empty() else ((fh[0] as Vector2) - pts[60]).length()
+	ok("its clock held at 1 s in, drawn there 2.5 s on by the wall clock (%.4f px)" % off_h, off_h < 1.0)
+	var sp_r := {"t": t0 + 1.2, "held": false, "got": held_ms}
+	var fr := NetSession.flight_point(fl, L, t0 + 1.5, held_ms + 300, sp_r)
+	var off_r := INF if fr.is_empty() else ((fr[0] as Vector2) - pts[90]).length()
+	ok("let go, by its spot's clock (1.2 s, 0.3 s on: at 1.5 s in, %.4f px)" % off_r, off_r < 1.0)
+	# THE RIDE BEFORE AND THE SPIN-DOWN AFTER (`shape`: it leaves 1 s in and
+	# arrives 2 s in): at a clock 10 s behind, riding it goes with world 0 and
+	# spinning down with world 1, wholly
+	var fl2 := fl.duplicate()
+	fl2.dep_s = 1.0
+	fl2.arr_s = 2.0
+	var ms_at := func(s0: float) -> int: return int(fl.got) + roundi((t0 + s0 - float(fl.said)) * 1000.0)
+	var rid := NetSession.flight_point(fl2, L, t0 + 0.5 - 10.0, ms_at.call(0.5))
+	var spn := NetSession.flight_point(fl2, L, t0 + 2.5 - 10.0, ms_at.call(2.5))
+	var off_rid := INF
+	var off_spn := INF
+	if not rid.is_empty() and not spn.is_empty():
+		off_rid = ((rid[0] as Vector2) - (pts[30] + L.bodies[0].pos(t0 + 0.5 - 10.0) - L.bodies[0].pos(t0 + 0.5))).length()
+		off_spn = ((spn[0] as Vector2) - (pts[150] + L.bodies[1].pos(t0 + 2.5 - 10.0) - L.bodies[1].pos(t0 + 2.5))).length()
+	ok("a clock 10 s behind: riding round to leave it goes with world 0 (%.4f px), spinning down with world 1 (%.4f px)" % [off_rid, off_spn],
+		off_rid < 0.01 and off_spn < 0.01)
+	var at_start := NetSession.flight_point(fl, L, t0 - 10.0, int(fl.got) + roundi((t0 - float(fl.said)) * 1000.0))
+	var at_end := NetSession.flight_point(fl, L, t0 + dur - 10.0, int(fl.got) + roundi((t0 + dur - float(fl.said)) * 1000.0))
+	var off0 := INF
+	var off1 := INF
+	if not at_start.is_empty() and not at_end.is_empty():
+		off0 = ((at_start[0] as Vector2) - L.bodies[0].pos(t0 - 10.0) - (pts[0] - a)).length()
+		off1 = ((at_end[0] as Vector2) - L.bodies[1].pos(t0 + dur - 10.0) - (pts[180] - b)).length()
+	ok("a clock 10 s behind: it leaves from world 0 where it is there (%.4f px) and lands on world 1 where it is there (%.4f px)" % [off0, off1], off0 < 0.01 and off1 < 0.01)
+	early.report_flight_off(12)
+	var gone := await _wait_until(func() -> bool:
+		return not late.flights.has(id) and not host.flights.has(id), 3.0)
+	ok("let go of, the flight is gone on the others", gone)
+
+
 # --- refusals -------------------------------------------------------------
 
 func _refusal_tests() -> void:
@@ -260,6 +385,16 @@ func _refusal_tests() -> void:
 	await _one_refusal("a version 15 peer", PORT_BASE + 33, 15, 0,
 		"Different game version. Host is protocol %d, you are 15." % NetSession.PROTOCOL)
 	ok("PROTOCOL is past 15, when each ship grew its own Custodian", NetSession.PROTOCOL >= 16)
+	# JOINING LATE, STUNNED, AND THE PARTY'S SIZE (PROTOCOL 18, Jon, Nov 5): a
+	# 16 peer reads no stun and grows every fight it walks into; its worlds also
+	# turn at the old pace and it never says a flight (17's reasons): turned away
+	await _one_refusal("a version 16 peer", PORT_BASE + 35, 16, 0,
+		"Different game version. Host is protocol %d, you are 16." % NetSession.PROTOCOL)
+	# FAST TRANSFERS AND FASTER WORLDS (PROTOCOL 17, Nov 4-5) landed with 18: a
+	# 17 peer has the fast worlds and says its flights, but has no stun
+	await _one_refusal("a version 17 peer", PORT_BASE + 36, 17, 0,
+		"Different game version. Host is protocol %d, you are 17." % NetSession.PROTOCOL)
+	ok("PROTOCOL is past 17, when a late ship was dealt a hand at once and the worlds turned at the old pace", NetSession.PROTOCOL >= 18)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
 	# Two exported builds from different commits, refused by name, and the
@@ -662,12 +797,12 @@ func _fight_rules_test() -> void:
 		PackedInt32Array([100]), PackedInt32Array([3]), PackedInt32Array([100]), 11)
 	check("one ship, one ship's frigate", f.foes[0].max_hp, 100)
 
-	# 0.6 each, not 1.0. Three hands of cards against one intent is already an
-	# advantage; a linearly scaled enemy would make the party fight EASIER.
+	# NOTHING GROWS WHEN A SHIP WALKS IN (Jon, Nov 5): the hull was built for
+	# the players in the game (`PartyScale`, `party`), wherever they are.
 	f.join(22)
 	f.join(33)
-	check("three ships, a frigate scaled for three", f.foes[0].max_hp, 220)
-	check("and it is at full health, not two thirds of it", f.foes[0].hp, 220)
+	check("three ships walk in, and the frigate is what it was built as", f.foes[0].max_hp, 100)
+	check("and at full health", f.foes[0].hp, 100)
 	check("three in the crew", f.crew.size(), 3)
 	ok("joining twice is joining once", not f.join(22))
 
@@ -676,7 +811,7 @@ func _fight_rules_test() -> void:
 	var landed := f.hurt(0, 10, 2, 22)
 	# Mitigation is per fight, not per hit, which makes multi-hit cards good into brace.
 	check("block and brace come off the first hit only", landed, 12)
-	check("hull took exactly that", f.foes[0].hp, 208)
+	check("hull took exactly that", f.foes[0].hp, 88)
 	check("the shot is stamped with who fired it", f.last_hit[0], 22)
 	check("and with a serial, so it is drawn once", f.hit_serial, 1)
 
@@ -695,7 +830,7 @@ func _fight_rules_test() -> void:
 	f.end_turn(22)
 	f.leave(33)
 	ok("a ship that leaves is not waited for", f.waiting_on().is_empty())
-	check("and the enemy does not shrink back", f.foes[0].max_hp, 220)
+	check("and the enemy does not shrink", f.foes[0].max_hp, 100)
 
 	# Killing it ends it, once, for everyone.
 	f.hurt(0, 999, 1, 11)
@@ -751,7 +886,7 @@ func _growth_rules_test() -> void:
 	ok("and it does not grow again at the same count", not f.regrow(33, NetSession.growth_ratios(f, 33)))
 	var before_join := f.foes[0].max_hp
 	f.join(3)
-	check("a later joiner adds 0.6 of the new hull", f.foes[0].max_hp - before_join, int(round(h33 * SharedFight.CREW_SHARE)))
+	check("a later joiner adds nothing", f.foes[0].max_hp - before_join, 0)
 	# a pilot leaving before the growth: the ratio is the same
 	var g := SharedFight.open(8, PackedStringArray(["custodian"]), PackedInt32Array([h20]),
 		PackedInt32Array([0]), PackedInt32Array([h20]), 1, 20)
@@ -898,15 +1033,15 @@ func _fight_net_test() -> void:
 		var f: SharedFight = others[0].fight_at(214)
 		return f != null and f.crew.size() == 3, 4.0)
 	ok("everybody who arrives joins the one fight", all_in)
-	check("and it is one frigate, scaled", host.fight_at(214).foes[0].max_hp, 220)
-	print("  three ships walked into one fight; the frigate went 100 -> %d"
+	check("and it is one frigate, as built", host.fight_at(214).foes[0].max_hp, 100)
+	print("  three ships walked into one fight; the frigate stayed %d"
 		% host.fight_at(214).foes[0].max_hp)
 
 	# A client's gun reaches the host AND the other client, which is the half a
 	# host-only check would miss.
 	others[1].hurt_foe(214, 0, 20, 1)
 	var hit := await _wait_until(func() -> bool:
-		return others[0].fight_at(214).foes[0].hp == 200, 4.0)
+		return others[0].fight_at(214).foes[0].hp == 80, 4.0)
 	ok("one ship's shot lands on everybody's copy of the enemy", hit)
 	check("stamped with who fired it",
 		others[0].fight_at(214).last_hit[0], others[1].local_id())
@@ -1066,7 +1201,6 @@ func _race_test() -> void:
 	if not heard:
 		g[0].fights[401] = SharedFight.from_wire(host.fight_at(401).to_wire())
 	check("(race) and grows nothing for it", host.fight_at(401).foes[0].max_hp, before)
-	var share := maxi(1, int(round(host.fight_at(401).foes[0].base * SharedFight.CREW_SHARE)))
 	g[0].leave_fight(401)
 	# At once, before the host has heard: on a real link the host's push of the
 	# leave is a round trip away, and the ask below checks this copy first
@@ -1074,8 +1208,9 @@ func _race_test() -> void:
 		not g[0].fight_at(401).crew.has(g[0].local_id()))
 	var back: Array = await _ask_race(g[0], 401, cutter, [lancer])
 	var fb: SharedFight = back[1]
-	check("(race) a ship that left and asks again is answered grown once (%d -> %d)" % [before, before + share],
-		fb.foes[0].max_hp if fb != null else -1, before + share)
+	check("(race) a ship that left and asks again is answered, grown by nothing (%d)" % before,
+		fb.foes[0].max_hp if fb != null else -1, before)
+	ok("(race) and on turn 1 it is not stunned", fb != null and not fb.stunned.has(g[0].local_id()))
 	var in_once := await _wait_until(func() -> bool:
 		return Array(host.fight_at(401).crew).count(g[0].local_id()) == 1, 3.0)
 	ok("(race) and is in the host's crew once", in_once)
@@ -1117,6 +1252,313 @@ func _race_test() -> void:
 	await _teardown()
 
 
+# --- joining late, stunned (PROTOCOL 18) -----------------------------------
+
+## THE STUN'S RULES, with no wire (Jon, Nov 5): "They would enter the fight
+## with a stunned condition until the enemy's turn is over (even if they join
+## right at the end of the enemy's turn)." and "If other players in co op join
+## on the FIRST player's turn of a fight they are not stunned."
+func _stun_rules_test() -> void:
+	var f := SharedFight.open(60, PackedStringArray(["cutter"]), PackedInt32Array([100]),
+		PackedInt32Array([0]), PackedInt32Array([100]), 1)
+	f.join(2)
+	ok("(stun) a ship that walks in on turn 1 is not stunned", not f.stunned.has(2) and not f.ended.has(2))
+	f.hurt(0, 10, 1, 1)
+	f.end_turn(1)
+	f.join(3)
+	ok("(stun) nor one that walks in on turn 1 after a partner fired and ended: the first turn never stuns",
+		not f.stunned.has(3) and f.waiting_on().has(3))
+	check("(stun) and nothing grows for either", f.foes[0].max_hp, 100)
+	f.end_turn(2)
+	ok("(stun) turn 1 closes on the last ship", f.end_turn(3))
+	f.advance()
+	# turn 2, before anyone has acted: "even if they join right at the end of
+	# the enemy's turn", which on the host is the start of the next
+	f.join(4)
+	ok("(stun) a ship that walks in on turn 2, before anyone acts, is stunned", f.stunned.has(4))
+	ok("(stun) and counted as ended", f.ended.has(4))
+	ok("(stun) and the turn never waits on it (%s)" % str(f.waiting_on()), not f.waiting_on().has(4))
+	ok("(stun) its own END TURN does nothing", not f.end_turn(4))
+	f.end_turn(1)
+	f.end_turn(2)
+	ok("(stun) the last unstunned END TURN closes the turn", f.end_turn(3))
+	f.advance()
+	ok("(stun) the enemy's turn over, every stun clears (%s)" % str(f.stunned), f.stunned.is_empty())
+	ok("(stun) and turn 3 waits on it like anyone", f.waiting_on().has(4))
+	# mid-turn, after a hit: stunned; then it leaves
+	f.hurt(0, 5, 1, 2)
+	f.join(5)
+	ok("(stun) a ship that walks in mid-turn after a hit is stunned", f.stunned.has(5))
+	f.leave(5)
+	ok("(stun) and leaving takes it out of the crew, the ended and the stunned",
+		not f.crew.has(5) and not f.ended.has(5) and not f.stunned.has(5))
+	# a third and fourth stunned together clear together
+	f.join(6)
+	f.join(7)
+	ok("(stun) two late ships, both stunned", f.stunned.has(6) and f.stunned.has(7))
+	f.advance()
+	ok("(stun) and both clear at the same advance", f.stunned.is_empty())
+	# only stunned ships left: nobody to wait on
+	var g := SharedFight.open(61, PackedStringArray(["cutter"]), PackedInt32Array([40]),
+		PackedInt32Array([0]), PackedInt32Array([40]), 1)
+	g.end_turn(1)
+	g.advance()
+	g.join(9)
+	g.leave(1)
+	ok("(stun) with only a stunned ship left, nobody is waited on", g.waiting_on().is_empty() and not g.over)
+	# the wire
+	var w := SharedFight.from_wire(f.to_wire())
+	f.join(8)
+	var w8 := SharedFight.from_wire(f.to_wire())
+	check("(stun) the stun round-trips", str(w8.stunned), str(f.stunned))
+	ok("(stun) an empty stun reads empty", w.stunned.is_empty())
+	check("(stun) a fight with no stun on the wire reads none", SharedFight.from_wire({"at": 3, "crew": [1, 2]}).stunned.size(), 0)
+	var stranger := SharedFight.from_wire({"at": 3, "crew": PackedInt32Array([1, 2]), "stun": PackedInt32Array([2, 99])})
+	check("(stun) a stunned ship not in the crew is dropped", str(stranger.stunned), str(PackedInt32Array([2])))
+	# it can be shot: the only ship in the room is stunned, and it is the target
+	var s := _make_peer("stunhit")
+	var h := SharedFight.open(62, PackedStringArray(["cutter"]), PackedInt32Array([40]),
+		PackedInt32Array([0]), PackedInt32Array([40]), 1)
+	h.advance()
+	h.join(9)
+	h.leave(1)
+	check("(stun) a stunned ship can be shot: the host's pick lands on it", s._who_gets_hit(h), 9)
+	s.forced_target = 9
+	var k := SharedFight.open(63, PackedStringArray(["cutter"]), PackedInt32Array([40]),
+		PackedInt32Array([0]), PackedInt32Array([40]), 1)
+	k.advance()
+	k.join(9)
+	check("(stun) and the test's forced target picks it among others", s._who_gets_hit(k), 9)
+	s.forced_target = 0
+
+
+## THE STUN ACROSS THREE MACHINES (PROTOCOL 18).
+func _stun_net_test() -> void:
+	var host := _make_peer("shost")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 41
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var g: Array = []
+	for i in 2:
+		var c := _make_peer("sg%d" % i)
+		c.join_party(code, "Late%d" % i, &"korvan", DirectTransport.new())
+		g.append(c)
+	var seated := await _wait_until(func() -> bool:
+		return host.party_size() == 3 and g[0].party_size() == 3 and g[1].party_size() == 3, 5.0)
+	ok("(stun-net) three ships in the party", seated)
+	if not seated:
+		await _teardown()
+		return
+	var id0: int = g[0].local_id()
+	var id1: int = g[1].local_id()
+	var swings: Array = []
+	var hear := func(at: int, which: int, _k: int, _p: int) -> void: swings.append([at, which])
+	Sig.party_fight_swing.connect(hear)
+	var cutter: EnemyTemplate = DB.enemies[&"cutter"]
+
+	# Late0 opens with the host on turn 1; the host fires; Late0 walks in: not
+	# stunned. The turn moves on two END TURNs; then Late1 walks in on turn 2.
+	host.forced_target = 1
+	await _ask_race(host, 310, cutter, [])
+	host.hurt_foe(310, 0, 5, 1)
+	var a: Array = await _ask_race(g[0], 310, cutter, [])
+	ok("(stun-net) a ship walking in on turn 1 after a shot is seated, not stunned",
+		a[1] != null and (a[1] as SharedFight).crew.has(id0) and not (a[1] as SharedFight).stunned.has(id0))
+	host.report_end_turn(310)
+	g[0].report_end_turn(310)
+	ok("(stun-net) the turn moves", await _wait_until(func() -> bool: return g[1].fight_at(310) != null and g[1].fight_at(310).turn == 2, 4.0))
+	var b: Array = await _ask_race(g[1], 310, cutter, [])
+	var all_see := await _wait_until(func() -> bool:
+		for s: NetSession in [host, g[0], g[1]]:
+			var f: SharedFight = s.fight_at(310)
+			if f == null or not f.stunned.has(id1) or not f.ended.has(id1):
+				return false
+		return true, 4.0)
+	ok("(stun-net) a ship walking in on turn 2 is stunned on every copy", b[1] != null and all_see)
+	ok("(stun-net) and the host does not wait on it (%s)" % str(host.fight_at(310).waiting_on()),
+		not host.fight_at(310).waiting_on().has(id1))
+	g[1].report_end_turn(310)
+	await _wait_frames(8)
+	ok("(stun-net) its END TURN is ignored: still turn 2, and it is still stunned",
+		host.fight_at(310).turn == 2 and host.fight_at(310).stunned.has(id1))
+	host.report_end_turn(310)
+	g[0].report_end_turn(310)
+	var moved := await _wait_until(func() -> bool:
+		for s: NetSession in [host, g[0], g[1]]:
+			var f: SharedFight = s.fight_at(310)
+			if f == null or f.turn != 3 or not f.stunned.is_empty():
+				return false
+		return true, 4.0)
+	ok("(stun-net) the turn moves without it, and its stun clears everywhere", moved)
+	ok("(stun-net) turn 3 waits on it", host.fight_at(310).waiting_on().has(id1))
+
+	# ONLY A STUNNED SHIP LEFT: the opener leaves, the barrier closes at once,
+	# and the swing goes to the stunned ship (forced), which takes that enemy
+	# turn; the turn moves and it acts
+	await _ask_race(host, 311, cutter, [])
+	host.report_end_turn(311)
+	await _ask_race(g[0], 311, cutter, [])
+	ok("(stun-net) a second fight: Late0 walks in on turn 2, stunned", host.fight_at(311).stunned.has(id0))
+	host.forced_target = id0
+	swings.clear()
+	host.leave_fight(311)
+	var alone := await _wait_until(func() -> bool:
+		var f: SharedFight = g[0].fight_at(311)
+		return f != null and f.turn == 3 and f.stunned.is_empty(), 4.0)
+	ok("(stun-net) with only the stunned ship left the enemy swings at once and the turn moves", alone)
+	ok("(stun-net) and the swing went to it (%s)" % str(swings), swings.any(func(r: Array) -> bool: return int(r[0]) == 311))
+
+	# THE ASK AND A PARTNER'S END TURN IN ONE HOST FRAME, the swing forced to
+	# the joiner: its copy is not seated yet when the swing arrives, so its
+	# session holds it for the Combat to play as it begins
+	await _ask_race(host, 312, cutter, [])
+	host.forced_target = 1
+	host.report_end_turn(312)
+	host.hold_asks = true
+	var late: Array = [null, null, -1.0]
+	_ask_race_into(g[1], 312, cutter, [], late)
+	await _wait_frames(10)
+	host.forced_target = id1
+	swings.clear()
+	host.release_asks()
+	host.report_end_turn(312)
+	host.hold_asks = false
+	var got := await _wait_until(func() -> bool: return late[1] != null, 4.0)
+	var held: Array = g[1].take_held_swings(312) if got else []
+	ok("(stun-net) the swing that came while it was asking is held, not lost (%d held, %d heard)" % [held.size(), swings.size()],
+		got and held.size() == 1 and swings.filter(func(r: Array) -> bool: return int(r[0]) == 312).is_empty())
+	ok("(stun-net) and taken once", g[1].take_held_swings(312).is_empty())
+
+	# A JOIN AFTER THE KILL gets the ended fight, not a new one
+	await _ask_race(host, 313, cutter, [])
+	var dead_one: SharedFight = host.fight_at(313)
+	host.hold_asks = true
+	var ask: Array = [null, null, -1.0]
+	_ask_race_into(g[0], 313, cutter, [], ask, true)
+	await _wait_frames(10)
+	host.hurt_foe(313, 0, 9999, 1)
+	host.release_asks()
+	host.hold_asks = false
+	var told := await _wait_until(func() -> bool: return ask[1] != null, 4.0)
+	ok("(stun-net) a JOIN after the kill is answered with the ended fight, this ship not in it",
+		told and (ask[1] as SharedFight).over and not (ask[1] as SharedFight).crew.has(id0))
+	ok("(stun-net) and the host opened nothing new", host.fight_at(313) == dead_one and dead_one.over)
+	# while a plain start after the kill opens a new fight, as it always has
+	var fresh: Array = await _ask_race(g[0], 313, cutter, [])
+	ok("(stun-net) a plain start there after the kill opens a new one",
+		fresh[1] != null and not (fresh[1] as SharedFight).over and host.fight_at(313) != dead_one)
+	Sig.party_fight_swing.disconnect(hear)
+	host.forced_target = 0
+	await _teardown()
+
+
+# --- the party's size (PROTOCOL 18) ------------------------------------------
+
+## `PartyScale` alone: 1 is the solo game exactly, and the numbers grow by the
+## measured shares.
+func _party_scale_rules_test() -> void:
+	check("(size) one player: the hull is the solo hull", PartyScale.hull(1), 1.0)
+	check("(size) and the pay the solo pay", PartyScale.loot(1), 1.0)
+	check("(size) two players: hull x%.2f" % PartyScale.hull(2), PartyScale.hull(2), 1.0 + PartyScale.HULL_PER)
+	check("(size) four players: hull", PartyScale.hull(4), 1.0 + 3.0 * PartyScale.HULL_PER)
+	check("(size) a wild count is held to the party's ceiling", PartyScale.hull(99), PartyScale.hull(NetTransport.MAX_PLAYERS))
+	check("(size) pay of 40 credits for two", PartyScale.pay(40, 2), int(round(40 * PartyScale.loot(2))))
+	check("(size) pay alone is untouched", PartyScale.pay(40, 1), 40)
+	check("(size) a pay of 1 is never cut", PartyScale.pay(1, 2) >= 1, true)
+	check("(size) the Hellbender's hull goes out for two and back for one",
+		PartyScale.solo_hull(PartyScale.party_hull(150, 2), 2), 150)
+	# the wire
+	var f := SharedFight.open(70, PackedStringArray(["cutter"]), PackedInt32Array([80]),
+		PackedInt32Array([0]), PackedInt32Array([80]), 1, -1, 2)
+	check("(size) a fight's count round-trips", SharedFight.from_wire(f.to_wire()).party, 2)
+	check("(size) missing reads one", SharedFight.from_wire({"at": 70}).party, 1)
+	check("(size) a wild one is held to the ceiling", SharedFight.from_wire({"at": 70, "party": 999}).party, NetTransport.MAX_PLAYERS)
+	check("(size) and low to one", SharedFight.from_wire({"at": 70, "party": -3}).party, 1)
+
+
+## THE HOST OWNS THE COUNT: two then three then two players in a dive, the
+## fights built for each, a guest's stale count scaled to the host's, and a
+## fight already open keeping its numbers when a player comes or goes.
+func _party_scale_net_test() -> void:
+	var host := _make_peer("phost")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 42
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var g := _make_peer("pg0")
+	g.join_party(code, "Pair", &"korvan", DirectTransport.new())
+	var seated := await _wait_until(func() -> bool: return host.party_size() == 2 and g.party_size() == 2, 5.0)
+	ok("(size-net) two in the party", seated)
+	if not seated:
+		await _teardown()
+		return
+	# in the dive, on this galaxy (the peers share one Run)
+	for s: NetSession in [host, g]:
+		s.dive_seed = Run.galaxy_seed
+		s._set_state(NetSession.State.DIVING)
+	check("(size-net) the host counts two", host.party_count(), 2)
+	check("(size-net) and so does the guest, off the host's roster", g.party_count(), 2)
+	var base := 40
+	var for2 := PartyScale.party_hull(base, 2)
+	var asked: SharedFight = await g.open_fight(520, PackedStringArray(["cutter"]), PackedInt32Array([for2]),
+		PackedInt32Array([0]), PackedInt32Array([for2]))
+	ok("(size-net) a guest's fight built for two is opened for two: hull %d, party %d" % [
+		asked.foes[0].max_hp if asked != null else -1, asked.party if asked != null else -1],
+		asked != null and asked.foes[0].max_hp == for2 and asked.party == 2 and host.fight_at(520).party == 2)
+	# A STALE COUNT: an ask built for three reaches a host that counts two
+	var for3 := PartyScale.party_hull(base, 3)
+	host._open_or_join(521, PackedStringArray(["cutter"]), PackedInt32Array([for3]),
+		PackedInt32Array([0]), PackedInt32Array([for3]), -1, g.local_id(), 3)
+	var k := PartyScale.hull(2) / PartyScale.hull(3)
+	check("(size-net) an ask built for three is scaled to the host's two",
+		host.fight_at(521).foes[0].max_hp, maxi(1, int(round(for3 * k))))
+	check("(size-net) and says two", host.fight_at(521).party, 2)
+	# A THIRD PLAYER ARRIVES: the count is three everywhere; the open fight
+	# keeps its numbers, and the next is built for three
+	var third := _make_peer("pg1")
+	third.join_party(code, "Third", &"korvan", DirectTransport.new())
+	var three := await _wait_until(func() -> bool:
+		return host.party_size() == 3 and g.party_size() == 3, 5.0)
+	third.dive_seed = Run.galaxy_seed
+	third._set_state(NetSession.State.DIVING)
+	ok("(size-net) a third player: the host counts %d, the guest %d" % [host.party_count(), g.party_count()],
+		three and host.party_count() == 3 and g.party_count() == 3)
+	check("(size-net) the fight already open keeps its count", host.fight_at(520).party, 2)
+	check("(size-net) and its hull", host.fight_at(520).foes[0].max_hp, for2)
+	var for3b := PartyScale.party_hull(base, g.party_count())
+	var next: SharedFight = await g.open_fight(522, PackedStringArray(["cutter"]), PackedInt32Array([for3b]),
+		PackedInt32Array([0]), PackedInt32Array([for3b]))
+	ok("(size-net) the next fight is built for three (%d, party %d)" % [
+		next.foes[0].max_hp if next != null else -1, next.party if next != null else -1],
+		next != null and next.party == 3 and next.foes[0].max_hp == for3)
+	# AND LEAVES: back to two, the fight built for three keeps its three
+	third.leave_party()
+	var two := await _wait_until(func() -> bool: return host.party_count() == 2 and g.party_count() == 2, 5.0)
+	ok("(size-net) the third player leaves: two again on both", two)
+	check("(size-net) the fight built for three keeps its numbers", host.fight_at(522).foes[0].max_hp, for3)
+	# A DEAD PILOT IS NOT A PLAYER IN THE FIGHTS TO COME (review, Nov 5): the
+	# ship left meets one ship's hulls, on both machines, not two ships' alone
+	var gid := g.local_id()
+	var wire: Dictionary = (host.roster[gid].get("build", {}) as Dictionary).duplicate()
+	if wire.is_empty():
+		wire = ShipBuild.local().to_wire()
+	var at_g := host.where_is(gid)
+	wire["dead"] = true
+	host._apply_presence(gid, wire, at_g, 0)
+	var one := await _wait_until(func() -> bool: return host.party_count() == 1 and g.party_count() == 1, 5.0)
+	ok("(size-net) a pilot who died is not counted: the host counts %d, the guest %d" % [host.party_count(), g.party_count()], one)
+	wire["dead"] = false
+	host._apply_presence(gid, wire, at_g, 0)
+	two = await _wait_until(func() -> bool: return host.party_count() == 2 and g.party_count() == 2, 5.0)
+	ok("(size-net) and a ship alive on the dive's galaxy counts again: %d, %d" % [host.party_count(), g.party_count()], two)
+	# GONE TO A NEW RUN'S GALAXY: its presence has no jumps here to say
+	host._apply_presence(gid, wire, at_g, -1)
+	one = await _wait_until(func() -> bool: return host.party_count() == 1 and g.party_count() == 1, 5.0)
+	ok("(size-net) a pilot gone to a NEW RUN's galaxy is not counted: the host counts %d, the guest %d" % [host.party_count(), g.party_count()], one)
+	await _teardown()
+
+
 ## One ship's own plan, as `Router.start_combat` makes it at danger 3.
 func _plan_race(lead: EnemyTemplate, extras: Array) -> Combat:
 	var cb := Combat.new()
@@ -1125,20 +1567,22 @@ func _plan_race(lead: EnemyTemplate, extras: Array) -> Combat:
 
 
 ## Plan, ask, and hand back `[the Combat, the answer]`.
-func _ask_race(session: NetSession, at: int, lead: EnemyTemplate, extras: Array) -> Array:
+func _ask_race(session: NetSession, at: int, lead: EnemyTemplate, extras: Array,
+		join_only: bool = false) -> Array:
 	var cb := _plan_race(lead, extras)
 	var f: SharedFight = await session.open_fight(at, cb.foe_ids(), cb.foe_hp(),
-		cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+		cb.foe_brace(), cb.foe_hp_now(), cb.grown, join_only)
 	return [cb, f]
 
 
 ## Fire and forget into `out`, for asks a test watches while they wait.
-func _ask_race_into(session: NetSession, at: int, lead: EnemyTemplate, extras: Array, out: Array) -> void:
+func _ask_race_into(session: NetSession, at: int, lead: EnemyTemplate, extras: Array, out: Array,
+		join_only: bool = false) -> void:
 	var t0 := Time.get_ticks_msec()
 	var cb := _plan_race(lead, extras)
 	out[0] = cb
 	var f: SharedFight = await session.open_fight(at, cb.foe_ids(), cb.foe_hp(),
-		cb.foe_brace(), cb.foe_hp_now(), cb.grown)
+		cb.foe_brace(), cb.foe_hp_now(), cb.grown, join_only)
 	if out.size() > 2 and f == null:
 		out[2] = float(Time.get_ticks_msec() - t0)
 	out[1] = f
@@ -1286,9 +1730,36 @@ func _late_join_test() -> void:
 	Run.hellbender_ticks = int(kept_hb[2])
 	Run.custodian_seen = 0
 
+	# TWO FLIGHTS UNDER WAY AS A SHIP JOINS (PROTOCOL 17): each was said once,
+	# to the peers there then; the host tells a late joiner the guest's it keeps
+	# and its own, the sender's clock run on (the code review, Nov 5: a late
+	# joiner never heard a flight already under way)
+	var lj_pts := PackedVector2Array([Vector2(0, 0), Vector2(50, 0), Vector2(100, 0)])
+	var lj_lit := PackedByteArray([0, 1, 0])
+	var eid0 := early.local_id()
+	early.report_flight(12, 777001, 0, 1, 500.0, 10.0, lj_pts, lj_lit, 500.0, PackedFloat64Array([-9.0, 2.0, 18.0]))
+	host.report_flight(12, 777002, 1, 0, 600.0, 10.0, lj_pts, lj_lit, 600.0)
+	var kept0 := await _wait_until(func() -> bool: return host.flights.has(eid0), 3.0)
+	ok("the host keeps a guest's flight under way", kept0)
+
 	var late := _make_peer("late")
 	late.join_party(code, "Jon", &"", DirectTransport.new())
 	var dived := await _wait_until(func() -> bool: return late.state == NetSession.State.DIVING, 5.0)
+	var told_fl := await _wait_until(func() -> bool: return late.flights.has(eid0) and late.flights.has(1), 3.0)
+	ok("a ship joining while two fly is told both flights, the guest's and the host's", told_fl)
+	if told_fl:
+		var lg: Dictionary = late.flights[eid0]
+		var lh: Dictionary = late.flights[1]
+		ok("whole, as said (from 0 to 1 at 500, its ride 2 s and its arrival 18 s in; the host's from 1 to 0 at 600)",
+			(lg.pts as PackedVector2Array) == lj_pts and (lg.burns as PackedByteArray) == lj_lit and int(lg.from) == 0 and int(lg.to) == 1
+			and float(lg.t0) == 500.0 and absf(float(lg.dep_s) - 2.0) < 1e-9 and absf(float(lg.arr_s) - 18.0) < 1e-9
+			and int(lh.from) == 1 and int(lh.to) == 0 and float(lh.t0) == 600.0)
+		ok("the sender's clock run on to when it was told (%.3f, %.3f)" % [float(lg.said), float(lh.said)],
+			float(lg.said) >= 500.0 and float(lg.said) < 520.0 and float(lh.said) >= 600.0 and float(lh.said) < 620.0)
+	early.report_flight_off(12)
+	host.report_flight_off(12)
+	var lj_gone := await _wait_until(func() -> bool: return not late.flights.has(eid0) and not late.flights.has(1), 3.0)
+	ok("and let go of, both gone on the late ship", lj_gone)
 	ok("a ship joining after launch is put in the dive", dived)
 	check("on the host's seed", late.dive_seed, host.dive_seed)
 	check("and the host's unlocks", str(late.dive_unlocked), str(host.dive_unlocked))
@@ -1330,6 +1801,7 @@ func _late_join_test() -> void:
 	check("and where, off that world", Vector2(float(sp.get("x", 0.0)), float(sp.get("z", 0.0))), Vector2(10.5, -4.0))
 	ok("and it is not said about any other system", late.spot_of(id, 13).is_empty())
 	ok("nor about yourself", early.spot_of(id, 12).is_empty())
+	await _flight_said_test(host, early, late, id)
 	# Throttled: an unchanged place is not sent again, a changed one is.
 	early.report_spot(12, 3, Vector2(10.5, -4.0), 1.25)
 	early.report_spot(12, -9, Vector2(200.0, 0.0), 0.0, true)

@@ -12,8 +12,7 @@ render_mode unshaded, blend_add;
 //
 // By style: SIMPLIFIED four dithered steps; PAINTED a crisp line, two flat
 // tones, no dither (a pixel artist's rim); RADIANT through an exposure, finer
-// steps, gentler (its painter already wraps the world in a lit shell);
-// LEGACY its old blue-greys, three steps.
+// steps, gentler (its painter already wraps the world in a lit shell).
 
 // the world's centre and radius, frame px (the sky's 960x540)
 uniform vec2 ctr = vec2(700.0, 380.0);
@@ -71,9 +70,6 @@ void fragment() {
 		vec3 x = col * I * 1.6;
 		o = vec3(1.0) - exp(-x);
 		o = floor(o * 12.0 + th) / 12.0;
-	} else if (style == 3) {
-		// LEGACY: its blue-greys
-		o = mix(col, vec3(0.62, 0.69, 0.78), 0.55) * (floor(I * 3.0 + th) / 3.0);
 	} else {
 		o = col * (floor(I * 4.0 + th) / 4.0);
 	}

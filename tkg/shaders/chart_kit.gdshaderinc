@@ -1,5 +1,6 @@
-// THE LEGACY CHART'S ARITHMETIC: the showcase kit's GLSL helpers (scratchpad
-// `showcase/kit.js`), ported for every pass of the legacy star chart
+// THE CHART'S ARITHMETIC (named for the old LEGACY chart, gone Nov 7, that it
+// was first ported for): the showcase kit's GLSL helpers (scratchpad
+// `showcase/kit.js`), ported for every pass of the star chart
 // (`ChartSky.gd`): the bakes, the place pass, the stars and the composite.
 // Integer hashes (lowbias32, the same on every GPU), value and simplex noise,
 // fbm, ridged fbm, domain warp, the two-phase flow map, OKLab, the hue-keeping

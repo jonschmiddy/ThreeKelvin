@@ -51,7 +51,7 @@ func _run() -> void:
 	print("\n=== BALL HALO: a ball galaxy's light about its core ===")
 	StarchartScreen.MapChart.clock_override = 600.0
 	DisplaySettings.reduced_motion = false
-	var styles := _arg("styles", "simplified,painted,radiant,legacy").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	# (Jon's galaxy as rolled; then every ball kind and two discs on its seed)
 	var cases: Array = [[SEED, -1]]
 	for k in BALL_KINDS + DISC_KINDS:
@@ -99,9 +99,8 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 	var m := _measure(img0, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
-	# LEGACY is judged by reach alone: its dust lies under the core even in the flat chart.
 	var hard: bool = ball and st == &"radiant" and m.fade < FADE_MIN
-	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or (absf(m.asym) > ASYM_MAX and st != &"legacy") or hard)
+	var bad := ball and (ratio > REACH_MAX or ratio < 1.0 / REACH_MAX or absf(m.asym) > ASYM_MAX or hard)
 	if bad:
 		_fails += 1
 	print("  %-10s %-34s reach above %.2f%s below %.2f%s gu (x%.2f)  asym %+.2f  fade %.2f%s  %s" % [
@@ -255,7 +254,6 @@ func _open(fresh: bool = false) -> Dictionary:
 	if fresh:
 		ChartSky._baked.clear()
 		ChartSky._early.clear()
-		ChartLegacy._baked.clear()
 	var old := Router.current
 	Router.show_starchart()
 	var t0 := Time.get_ticks_msec()

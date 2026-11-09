@@ -51,8 +51,7 @@ fades; `dustonly` films it alone.
 
 BY STYLE: SIMPLIFIED light in dithered steps; PAINTED flat hand-picked steps,
 a held highlight at each mote's middle, the motes moved in held poses (eight a
-second); RADIANT the star's light spilling softly round each mote; LEGACY the
-old starfield's blue-greys, no glints.
+second); RADIANT the star's light spilling softly round each mote.
 ```
 
 Inside `_process()`, above `var sx: float = m.sx`:

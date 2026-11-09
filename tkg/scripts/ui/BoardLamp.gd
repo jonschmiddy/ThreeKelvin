@@ -78,6 +78,8 @@ func _init() -> void:
 ## Strike the tubes, or -- `settled`, back on a deck already powered this
 ## docking -- have them already lit.
 func power_on(settled: bool = false) -> void:
+	if DisplaySettings.reduced_motion:
+		settled = true
 	_boot_at = _now() - (60.0 if settled else 0.0)
 	# the clock starts on the first frame the board is SEEN: the deck is built
 	# a few frames before it shows, and a strike heard before then lands late
@@ -168,8 +170,22 @@ func tube(k: int) -> float:
 	if u < from:
 		return 0.0
 	if u < from + STRIKE:
-		return YardLight.strikes(u, from, STRIKE, 3.1 + float(k) * 1.7)
+		return catch((u - from) / STRIKE, 3.1 + float(k) * 1.7)
 	return YardLight.stutter(_now(), 0.7 + float(k) * 2.3, float(_bars()["per"]))
+
+
+## A tube catching, f of the way through its strike: two shallow dips placed by
+## its seed. The lab's `YardLight.strikes` flashes near-black every 33 ms, which
+## lights the whole deck here and strobed it.
+const CATCH_LOW := 0.45
+
+
+static func catch(f: float, seed: float) -> float:
+	var a := 0.12 + 0.12 * YardLight.hash1(seed)
+	var b := 0.58 + 0.12 * YardLight.hash1(seed * 1.9 + 0.3)
+	if (f >= a and f < a + 0.17) or (f >= b and f < b + 0.17):
+		return CATCH_LOW
+	return 1.0
 
 
 ## The power-on is over: every tube has struck (it may still stutter after).

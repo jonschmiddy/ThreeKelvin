@@ -24,6 +24,12 @@
 # `sheet=ShardSum` judges what needs every case (a sweep's found-and-clean
 # share, the flights left put there) from the shards' logs: `<name>_total`. A
 # worktree from before the split (no ShardSum.gd) runs them whole, as before.
+# SOLVE_SHARDS is 8, as in the gate (Jon, Nov 8, "split: yes": at x12 the 4
+# shards ran past the gate's 300 s). FlightTest's hand phase (`_hand_phase`
+# and the turning pair's) runs as its own row, `flighttest_hand`
+# (`phase=hand`), and its shards without it (`phase=rest`), as the gate does,
+# where a worktree's FlightTest knows `phase=` (the shards then judge it in
+# their 4th, as before).
 #
 # HOW LONG (the PC, Nov 2, SOLO=0, one other Godot running): 9:00, where the
 # runs whole took 16:43 back to back on the same tree; the four timed runs add
@@ -36,7 +42,7 @@ W="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"; shift || true
 JOBS="${JOBS:-8}"
 OUT="${OUT:-$TK_SCRATCH/battery}"
 FLIGHT_SHARDS="${FLIGHT_SHARDS:-4}"
-SOLVE_SHARDS="${SOLVE_SHARDS:-4}"
+SOLVE_SHARDS="${SOLVE_SHARDS:-8}"
 mkdir -p "$OUT"; : >"$OUT/summary.txt"
 # (the logs' folder as Godot reads it: C:/... under Git Bash)
 OUT_G="$(cygpath -m "$OUT" 2>/dev/null || printf '%s' "$OUT")"
@@ -64,7 +70,12 @@ split_rows() {  # split_rows NAME SHARDS LIMIT godot args (before the shard)...
 }
 if [ -f "$W/tkg/scripts/sim/ShardSum.gd" ]; then
 	split_rows solvetest "$SOLVE_SHARDS" 900 --headless --path tkg -- sheet=SolveTest
-	split_rows flighttest "$FLIGHT_SHARDS" 900 --headless --path tkg -- sheet=FlightTest
+	if grep -q '"phase=hand"' "$W/tkg/scripts/sim/FlightTest.gd"; then
+		split_rows flighttest "$FLIGHT_SHARDS" 900 --headless --path tkg -- sheet=FlightTest phase=rest
+		LIST+=("flighttest_hand flighttest 600 0 --headless --path tkg -- sheet=FlightTest phase=hand")
+	else
+		split_rows flighttest "$FLIGHT_SHARDS" 900 --headless --path tkg -- sheet=FlightTest
+	fi
 else
 	LIST+=("solvetest solvetest 900 0 --headless --path tkg -- sheet=SolveTest")
 	LIST+=("flighttest flighttest 900 0 --headless --path tkg -- sheet=FlightTest")
@@ -125,7 +136,7 @@ wanted() {
 	[ "$ONLY" = "  " ] || [[ "$ONLY" == *" $1 "* ]] && return 0
 	case "$1" in
 		*_total) [[ "$ONLY" == *" ${1%_total} "* ]] ;;
-		*_[0-9]*) [[ "$ONLY" == *" ${1%_*} "* ]] && [ "${1%_*}" = "$2" ] ;;
+		*_[0-9]*|*_hand) [[ "$ONLY" == *" ${1%_*} "* ]] && [ "${1%_*}" = "$2" ] ;;
 		*) return 1 ;;
 	esac
 }

@@ -1,4 +1,4 @@
-// THE SKY BEHIND THE GALAXY, every chart style's (`ChartSky`, `ChartLegacy`):
+// THE SKY BEHIND THE GALAXY, every chart style's (`ChartSky`):
 // the background with depth the showcase's protos had and Jon missed in the
 // game ("no distant stars or galaxies parallax in the background"). It is at
 // infinity, so it never zooms with the galaxy; it slides on a pan, each layer by
@@ -10,8 +10,7 @@
 //     blue arms, and small warm ellipticals, a few blocks across;
 //   * three depths of stars (0.04, 0.10 and 0.20), dim and many to fewer and
 //     brighter, the nearest now and then a little cross.
-// Each style shades these its own way (linear light, painted materials, the
-// legacy chart's 0-255 points); this file only says where they are.
+// Each style shades these its own way (linear light, painted materials); this file only says where they are.
 // Needs `chart_kit.gdshaderinc`.
 
 uniform vec2 u_skyPan = vec2(0.0);
@@ -159,7 +158,7 @@ vec3 bgLight(vec2 sp, float starsSeen) {
 	return mix(vec3(0.004, 0.0012, 0.004), vec3(0.0008, 0.0026, 0.0045), nb.y) * nb.x + bgLightRest(sp, starsSeen);
 }
 
-// the star chart's (SIMPLIFIED, RADIANT, LEGACY): its far nebulae its own, by
+// the star chart's (SIMPLIFIED, RADIANT): its far nebulae its own, by
 // `nebSeen` (`bgNebSeen`) of the galaxy in front, `strength` times as bright as
 // `bgNebChart` (each style's own: Jon, of the first faint haze, "make it a bit
 // stronger", Oct 11 -- RADIANT's brighter exposure clips its dark end, so it

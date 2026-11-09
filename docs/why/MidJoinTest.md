@@ -52,6 +52,28 @@ And the review of slice 1 (Nov 5):
     leaves the seat the late answer gives it;
   - a JOIN answered with a newer fight (the one it meant ended, a partner
     opened another) writes down the newer one for SAVE & EXIT.
+
+And slice 2, JOINING LATE, STUNNED (Jon, Nov 5; PROTOCOL 18), as a guest in
+a dive of two (so every fight is built for two, `PartyScale`):
+  - a JOIN on turn 2 is stunned: no hand, no energy, END TURN reads STUNNED
+    and is greyed, HAIL and FLEE are shut ("You are stunned."), no card can
+    be played, END TURN does nothing; the log says "Fighting alongside
+    VELA." then "Stunned. You act after the enemy's turn."; the host counts
+    it as ended and waits only on VELA;
+  - VELA's END TURN with the swing forced to it: it is shot, the turn moves,
+    "Your turn.", the overheat check runs once for the turn sat out, and the
+    hand comes; a third pilot walking in then is said "MERCER joins the
+    fight, stunned until the enemy's turn is over.";
+  - the kill while stunned is paid (the wrecks for the party's two);
+  - a JOIN on turn 1, after VELA has fired, acts at once;
+  - the ask and VELA's END TURN in one host frame, the swing forced to this
+    ship: the hit is not lost ("... hit you as you arrived."), and it acts;
+  - a JOIN that lands after the kill: "The fight ended before you got
+    there.", no fight here, and the host opened none;
+  - SAVE & EXIT while stunned leaves the crew; CONTINUE rejoins, stunned,
+    the enemy grown by nothing;
+  - the party dropping while stunned: the enemy's turn is taken here, then
+    the hand.
 ```
 
 ## Host save and exit
