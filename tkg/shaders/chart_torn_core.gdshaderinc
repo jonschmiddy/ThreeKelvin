@@ -155,7 +155,9 @@ void tornNear(vec2 v, out float sd, out float al, out float f, out float W) {
 		}
 	}
 	// (its width wandering a little along it, Jon's "too squared off": never straight sides)
-	W = tornW(f) * (1.0 + 0.16 * kitSnoise2(vec2(al * 2.4, 5.3)));
+	// (and more so near the dwarf, Jon's H2: swelling and pinching there, never a pipe)
+	float nr = 1.0 - smoothstep(0.1, 0.55, f);
+	W = tornW(f) * max(1.0 + (0.16 + 0.3 * nr) * kitSnoise2(vec2(al * 1.6, 5.3)), 0.45);
 }
 
 // the flow's held clock for one lane of the stream's matter: it steps one block
@@ -202,7 +204,12 @@ float tornStreamL(vec2 v, float bw, float holeR, bool gas, out int star) {
 	// its strands, clumps, knots and torn edge come in further along)
 	float tx = smoothstep(0.12, 0.5, f);
 	// (its edges still wander slowly there, each side its own: only the fine rag waits)
-	float rag = mix(0.4, 1.0, tx) * (0.3 - 0.15 * smoothstep(0.08, 0.3, W)) * kitSnoise2(vec2(al * 5.0, 2.0 + 3.0 * sdS)) + tx * 0.12 * TORN_FBM(vec2(al * 22.0, 7.0 + 5.0 * sdS), bw * 22.0, 2);
+	// (near the dwarf its middle sways across it and each side wanders on its own, slow
+	// and deep, so its two sides never run parallel: Jon's H2)
+	float nr2 = 1.0 - tx;
+	sd += nr2 * 0.35 * W * kitSnoise2(vec2(al * 1.3, 9.1));
+	sdS = sd >= 0.0 ? 1.0 : -1.0;
+	float rag = nr2 * 0.32 * kitSnoise2(vec2(al * 2.2, 13.0 + 4.0 * sdS)) + mix(0.4, 1.0, tx) * (0.3 - 0.15 * smoothstep(0.08, 0.3, W)) * kitSnoise2(vec2(al * 5.0, 2.0 + 3.0 * sdS)) + tx * 0.12 * TORN_FBM(vec2(al * 22.0, 7.0 + 5.0 * sdS), bw * 22.0, 2);
 	float x = (sd + rag * W * sdS) / W;
 	if (abs(x) > 3.2) {
 		return 0.0;
@@ -211,7 +218,7 @@ float tornStreamL(vec2 v, float bw, float holeR, bool gas, out int star) {
 	// brightest as the most of the dwarf pours in, densest near the dwarf and thinning
 	// toward the giant, about as bright all along by the end
 	float endK = smoothstep(0.85, 1.0, sh);
-	float B = mix(1.0, mix(0.45, 0.8, endK), smoothstep(0.0, 1.0, f)) * (0.3 + 0.4 * sh);
+	float B = mix(1.0, mix(0.45, 0.8, endK), smoothstep(0.0, 1.0, f)) * (0.5 + 0.25 * sh);
 	// (the broad root in many strands that run together as it narrows: a tidal tail's
 	// streamers, never a flat cone)
 	float ns = clamp(W / 0.05, 1.0, 4.0);
@@ -237,14 +244,19 @@ float tornStreamL(vec2 v, float bw, float holeR, bool gas, out int star) {
 	float bsq = KIT_TILT / max(u_tornB.x, 1e-3);
 	float rB = length(vec2(v.x, v.y / bsq)) / u_k;
 	float rise = max(0.1, 0.45 * er);
-	lA *= smoothstep(er - rise, er + 0.2 * rise, rB) * ahead;
+	// (Jon's H3: it rises from well inside the dwarf's light, so it reads as joined to it)
+	lA *= smoothstep(er - 1.8 * rise, er, rB) * ahead;
 	lA *= smoothstep(2.5 * holeR, 4.0 * holeR, length(v) / u_k);
 	// (and thins out at its far end, into the giant's disc)
 	lA *= u_tornA.z >= 0.999 ? smoothstep(1.0, 0.85, f) : 1.0;
 	// ITS DRIFTING MATTER (Jon's sketch: "stars, gas, nebulae slowly streaming"): stars
 	// one block, puffs of gas two by two, pink cloud specks two by one, each in lanes
 	// across it at its own calm pace, toward the giant, a block at a time
-	float inside = smoothstep(1.15, 0.6, abs(x)) * step(er - rise, rB) * ahead;
+	// (none in the round cap behind its root: lanes measured from the root's point bend
+	// into rings round it, and drew pale crescents there)
+	vec2 d0 = normalize(u_tornP[1].xy - u_tornP[0].xy + 1e-6);
+	float fore = step(0.0, dot(v - u_tornP[0].xy, d0));
+	float inside = smoothstep(1.15, 0.6, abs(x)) * step(er - rise, rB) * ahead * fore;
 	if (inside > 0.0) {
 		bool hit;
 		vec3 h = tornDrift(al, sd, bw, 3.0 * bw, 0.022, 0.0, 1.0, 1.0, hit);
