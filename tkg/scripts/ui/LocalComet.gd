@@ -27,6 +27,18 @@ func head() -> Vector2:
 
 
 ## The map's look (`SkyWeather.RealComet.paint`) at the band's place, held at LOCAL's clock.
+## Frames since LOCAL's palette was cut: as the map's comet, it shows only after
+## (`SkyWeather.RealComet._since_pal`).
+var _since_pal := 0
+
+
+func _process(_d: float) -> void:
+	# (a sky with no palette to cut has nothing to wait for)
+	var cut: bool = sky != null and (bool(sky._palette_built) or (sky._palette_mat == null and bool(sky._ready_sky)))
+	_since_pal = _since_pal + 1 if cut else 0
+	visible = _since_pal > SkyWeatherS.RealComet.PAL_WAIT
+
+
 func _draw() -> void:
 	var hs := head()
 	if hs == Vector2.INF:

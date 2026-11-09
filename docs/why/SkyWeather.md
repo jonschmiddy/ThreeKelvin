@@ -224,3 +224,17 @@ floor's), times the map zoom held to 0.9 to 1.5. Each block is laid once
 into a white smear and the blue is never painted over. The
 weather comet keeps its own drawing, unchanged.
 ```
+
+## Real comet and the palette
+
+Above `var _since_pal := 0` in `class RealComet`:
+
+```text
+The map cuts its palette from the system's own first full picture of `_scene`
+(SIMPLIFIED and RADIANT; `_pal_cache` keeps it for later visits). The weather
+never draws before that (`SkyWeather._process` waits for `_palette_built`). The
+real comet did: after K3 its big gold dust tail went into the cut and pulled an
+olive step into RADIANT's star glow (Nov 9, the coordinator's check: there with
+the comet, gone with it hidden, the same in two runs). It now shows only
+PAL_WAIT frames after the cut, as LOCAL's band comet does after LOCAL's.
+```

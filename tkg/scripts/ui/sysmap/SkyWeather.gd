@@ -2267,7 +2267,14 @@ class RealComet extends Comet:
 
 	## At the view's clock; PAINTED holds its age in poses, as the weather's. Reduced motion
 	## keeps it: it is a place, not weather.
+	## Frames since the palette was cut: it shows only after, so its gold never enters the cut.
+	## Why: docs/why/SkyWeather.md#real-comet-and-the-palette
+	var _since_pal := 0
+	const PAL_WAIT := 4
+
 	func _process(_d: float) -> void:
+		_since_pal = _since_pal + 1 if view != null and bool(view._palette_built) else 0
+		visible = _since_pal > PAL_WAIT
 		var c: CometPath = view.layout.comet if view != null and view.layout != null else null
 		if c == null:
 			if not ev.is_empty():
