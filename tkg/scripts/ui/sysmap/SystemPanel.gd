@@ -708,13 +708,12 @@ func _way_there(i: int) -> void:
 			go.add_child(_undock_line())
 		elif _held():
 			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
+		elif _can_go():
+			if not by_go:
+				go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
 		elif _heading_to(i):
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
-		elif by_go:
-			pass
-		elif _can_go():
-			go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
-		else:
+		elif not by_go:
 			go.add_child(_small("FLY HERE ONCE IN ORBIT", func() -> void: pass, true))
 	# (no line under it: the button already says whether GO can fly you there,
 	# Jon, Nov 5: "it's not needed there"; an event's own page keeps its line)
