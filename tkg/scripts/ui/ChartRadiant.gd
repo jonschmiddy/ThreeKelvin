@@ -97,12 +97,99 @@ const STORY_GAIN_R := 1.0
 const BALL_BODY := 0.8
 const BALL_HALO := 0.06
 
+## A ball as its own kind in this style (`u_ballK`, `chart_r_place`, `chart_r_bake_disc`): (its
+## kind as `ChartSky.ball_of` numbers it, its young gas and star birth 0..1, how lopsided 0..1,
+## its globular-cluster halo 0..1).
+## Why: docs/why/ChartRadiant.md#ball-kinds
+static func ball_kind(p: Dictionary) -> Vector4:
+	var ball: Vector4 = p.ball
+	match int(ball.w):
+		1:
+			return Vector4(1.0, 1.0, 0.0, 0.0)
+		2:
+			return Vector4(2.0, 0.0, 0.0, 0.0)
+		3:
+			return Vector4(3.0, 0.35, 0.6, 0.0)
+	return Vector4(0.0, 0.0, 0.0, 1.0 if GalaxyGen.type_name(int(p.kind)) == "Giant Elliptical" else 0.0)
+
+
+## A ball's body in this style: (size against its ball radius; where its light starts to fade
+## and where it is gone, in its outer scale; its roundness, the bulge's c/R).
+## Why: docs/why/ChartRadiant.md#ball-body
+static func ball_form(p: Dictionary) -> Vector4:
+	match GalaxyGen.type_name(int(p.kind)):
+		"Flattened Elliptical":
+			return Vector4(1.05, 0.4, 1.6, 0.54)
+		"Giant Elliptical":
+			return Vector4(1.15, 0.45, 2.3, 0.72)
+		"Dwarf Spheroidal":
+			return Vector4(0.75, 0.3, 2.4, 0.8)
+		"Blue Compact Dwarf":
+			return Vector4(1.0, 0.45, 1.8, 0.72)
+	return Vector4(1.0, 0.5, 1.9, 0.72)
+
+
+## THE KNOTS OF A BALL THAT MAKES STARS (Nov 5): a blue compact dwarf full of them,
+## a merger's remnant a few along its stream -- the spirals' own knots (`ChartSky`'s
+## format: they breathe and bloom as a spiral's do, and the knot map draws them), in
+## the plane, where this style's bake lays the young gas (`chart_r_bake_disc`'s ball).
+## None for the others.
+static func ball_knots(p: Dictionary) -> Array:
+	var out: Array = []
+	if int(p.form) != 1:
+		return out
+	var bk := ball_kind(p)
+	var re: float = (p.ball as Vector4).x
+	var n := 14 if int(bk.x) == 1 else (5 if int(bk.x) == 3 else 0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([Run.galaxy_seed, int(p.kind), 4471])
+	for i in n:
+		var xy: Vector2
+		if int(bk.x) == 1:
+			var a := rng.randf() * TAU
+			var r := re * 0.85 * sqrt(rng.randf())
+			xy = Vector2(cos(a), sin(a)) * r
+		else:
+			xy = stream_at(0.15 + 0.75 * rng.randf(), re) + Vector2(rng.randf() - 0.5, rng.randf() - 0.5) * 0.04 * re
+		out.append({"xy": xy, "size": 0.004 + 0.006 * rng.randf(), "T": 20.0 + 40.0 * rng.randf(),
+			"ph": rng.randf() * TAU, "st": []})
+	return out
+
+
+## A point a share f (0..1) along a merger's tidal stream on the plane (gu): out from
+## the body's edge, curling round one side (`chart_r_bake_disc`'s `streamD`, the same arc).
+static func stream_at(f: float, re: float) -> Vector2:
+	var a := 0.3 + 2.4 * f
+	var r := re * (0.95 + 1.2 * f)
+	return Vector2(cos(a), sin(a)) * r
+
+
+## The gas's two colours from the galaxy's gas and its kinds of cloud (moved
+## here from the LEGACY chart's renderer when that style went, Nov 7).
+static func _gas_palette(gas: float) -> Array:
+	var kinds := {}
+	for raw in NebulaField.clouds():
+		kinds[(raw as NebulaField.Cloud).kind] = true
+	var a := Vector3(0.36, 0.52, 0.95)
+	var b := Vector3(0.95, 0.36, 0.55)
+	if gas > 1.6:
+		a = Vector3(0.30, 0.70, 0.92)
+		b = Vector3(0.98, 0.34, 0.62)
+	elif kinds.has(NebulaField.Kind.REMNANT) and not kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(0.86, 0.42, 0.62)
+	if kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(1.0, 0.38, 0.5)
+	if gas < 0.4:
+		a = Vector3(0.55, 0.62, 0.85)
+		b = Vector3(0.85, 0.58, 0.5)
+	return [a, b]
+
 static func look(p: Dictionary) -> Dictionary:
 	var form: int = p.form
 	var br: float = p.bulge_r
 	var ell := form == 1
 	var ball: Vector4 = p.ball
-	var pals: Array = ChartLegacy._gas_palette(float(p.gas))
+	var pals: Array = _gas_palette(float(p.gas))
 	var blue: Vector3 = pals[0]
 	var arms := int(p.arms)
 	var chaos: float = p.chaos
@@ -111,13 +198,18 @@ static func look(p: Dictionary) -> Dictionary:
 		arm_k = clampf(1.0 - chaos * 1.8, 0.35, 1.0) * (0.75 if arms >= 5 else 1.0)
 	var L := {}
 	if ell:
-		var re: float = ball.x
-		L.bulge = Vector4(0.23 * re, 1.0 * re, 0.72, 0.08 * re)
-		L.peaks = Vector4(1.5, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
-		L.halo = Vector4(BALL_HALO, maxf(0.3, 1.4 * re), 0.72, 1.0)
+		var bk := ball_kind(p)
+		var bf := ball_form(p)
+		var re: float = ball.x * bf.x
+		L.bulge = Vector4(0.23 * re, 1.0 * re, bf.w, 0.08 * re)
+		# (a dwarf spheroidal has no bright nucleus: its light is spread thin)
+		L.peaks = Vector4(0.7 if int(bk.x) == 2 else 1.5, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
+		L.halo = Vector4(BALL_HALO, maxf(0.3, 1.4 * re), bf.w, 1.0)
 		# (no disc under a ball: the showcase's faint one drew a flat plate with a
-		# hard rim round the small ones)
-		L.discK = Vector4(0.0, 0.0, 0.0, 0.0)
+		# hard rim round the small ones. Only a ball with young gas has one: its gas
+		# and young light, baked about its middle (`chart_r_bake_disc`), lit and
+		# billowing as a spiral's arms are)
+		L.discK = Vector4(0.0, 1.35, 1.8, 0.6) * bk.y
 		L.gasK = Vector4(34.0, 0.0, 0.6, 0.2)
 		L.rd = 0.3
 		L.young = Vector3(0.8, 0.85, 1.0)
@@ -149,8 +241,17 @@ static func look(p: Dictionary) -> Dictionary:
 		L.bInner = Vector3(0.75, 0.82, 1.0)
 		L.bOuter = Vector3(0.45, 0.58, 1.0)
 		L.halo = Vector4(L.halo.x, L.halo.y, L.halo.z, 0.0)
+		L.young = blue * 0.6 + Vector3(0.42, 0.58, 1.0) * 0.4
+	elif ell and int(ball.w) == 2:
+		# a dwarf spheroidal grey: old, faint starlight, barely warm
+		L.bCore = Vector3(0.92, 0.86, 0.78)
+		L.bInner = Vector3(0.8, 0.77, 0.74)
+		L.bOuter = Vector3(0.6, 0.6, 0.62)
+		L.halo = Vector4(L.halo.x * 0.6, L.halo.y, L.halo.z, 0.45)
+	elif ell and int(ball.w) == 3:
+		L.young = blue * 0.75 + Vector3(0.42, 0.58, 1.0) * 0.25
 	L.arm_k = arm_k
-	L.gas = 0.0 if ell else float(p.gas)
+	L.gas = (float(ball_kind(p).y) * maxf(float(p.gas), 0.8)) if ell else float(p.gas)
 	L.ell = ell
 	return L
 
@@ -185,7 +286,13 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		m.set_shader_parameter("u_ext", EXT)
 		m.set_shader_parameter("u_pass", pass_i)
 		m.set_shader_parameter("u_isEll", 1.0 if L.ell else 0.0)
+		m.set_shader_parameter("u_ballK", ball_kind(p) if L.ell else Vector4.ZERO)
+		m.set_shader_parameter("u_ballR", float((p.ball as Vector4).x) if L.ell else 0.3)
 		out.append(sky._pass_vp(holder, Vector2i(DISC_N, DISC_N), ChartSky._rect(m), true))
+	# (a ball that makes stars has knots of its own: none came from `ChartSky._make_knots`,
+	# which lays them on arms)
+	if L.ell and (g.knots as Array).is_empty():
+		g["knots"] = ball_knots(p)
 	# the knot map: the nearest knot to each texel (8-bit, 512 square)
 	var mk := ShaderMaterial.new()
 	mk.shader = DISC_SH
@@ -281,6 +388,11 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_sStruct", g.get("struct"))
 	m.set_shader_parameter("u_sExt", ChartSky.EXT)
 	m.set_shader_parameter("u_isBall", bool(L.ell))
+	# (set for every galaxy, a disc's to the defaults: a material that drew a ball before
+	# must not lean a spiral's bulge or squash its outline)
+	var bf := ball_form(p)
+	m.set_shader_parameter("u_ballK", ball_kind(p) if L.ell else Vector4.ZERO)
+	m.set_shader_parameter("u_ballF", Vector4(bf.y, bf.z, float((p.ball as Vector4).x) * bf.x, 0.72 / bf.w) if L.ell else Vector4(0.5, 1.8, 0.3, 1.0))
 	ChartSky.push_story(m, STORY_GAIN_R)
 	m.set_shader_parameter("u_discA", g.discA)
 	m.set_shader_parameter("u_discB", g.discB)
@@ -305,7 +417,7 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_gasK", L.gasK)
 	m.set_shader_parameter("u_nebK", Vector4(13.0, 15.0, 7.0, 16.0))
 	m.set_shader_parameter("u_steps", 8.0 if DisplaySettings.graphics_low else STEPS)
-	m.set_shader_parameter("u_holeR", float(p.hole_r))
+	m.set_shader_parameter("u_holeR", ChartSky.hole_of(p))
 	m.set_shader_parameter("u_holeLight", Vector3(0.9, 0.42, 0.14))
 	var cl := cloud_uniforms(g.clouds)
 	for k in cl:

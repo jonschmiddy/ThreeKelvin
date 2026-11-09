@@ -8,7 +8,7 @@ extends RefCounted
 enum Kind { DIRECT, ROOM, PLATFORM }
 
 ## Eight, raised from four after `tools/coplay.sh 6` flew six clean. The relay's copy must agree.
-## Still argued, not played: `SharedFight.CREW_SHARE` is linear with no ceiling and flown at two.
+## Still argued, not played: `PartyScale` is linear with no ceiling, measured at two to four.
 ## Why: docs/why/NetTransport.md#max-players
 const MAX_PLAYERS: int = 8
 

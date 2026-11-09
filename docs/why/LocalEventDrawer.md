@@ -34,7 +34,7 @@ THREE LAYOUTS, ONE SWITCH (`layout`), so Jon can pick from stills:
           the encounter's subject so the scene is still what you look at
 Everything else -- the flow, the rule, the words -- is the same in all three.
 
-THE TEXT ARRIVES LIKE A SIGNAL (`SignalText`); any click or key finishes it
+THE TEXT ARRIVES LIKE A SIGNAL (`SignalText`), a word at a time; any click or key finishes it
 (and is spent doing so), and the choices fade in only once it has.
 
 The bar's half lives here too (`bar_line`, `can_reopen`), so `SectorScreen`

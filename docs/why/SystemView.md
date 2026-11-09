@@ -99,17 +99,12 @@ The style setting itself is `DisplaySettings.render_style` (`style()`); the
 screen draws the system again when it changes (`Sig.render_style_changed`).
 ```
 
-Above `const STYLE_LEGACY := &"legacy"`:
+Formerly above `const STYLE_LEGACY := &"legacy"`, gone Nov 7:
 
 ```text
-LEGACY (`legacy`, `is_legacy()`): the sector map as it was before SIMPLIFIED
--- the old cloud (`sky_nebula_legacy.gdshader`, its gas now streaming on
-SIMPLIFIED's current), the old gas and dust of the bake kept faint under it
-(NEB_GAS_K, NEB_DUST_K), the sky's own glow round the star, the old dust
-sheets, palette, belts and pulsar web -- with what SIMPLIFIED brought that
-every style shares: direction C's black hole (`CoreLegacy`), the sun's breath
-and prominences, a flare brightening the worlds, the pulsar's beam lighting
-the worlds and the belt, and the weather.
+(LEGACY, the sector map as it was before SIMPLIFIED, was a style of its own
+until Nov 7: its old cloud, faint baked gas, the sky's glow round the star,
+old dust sheets, grey belts and the pulsar's web all went with it.)
 ```
 
 Above `const STYLE_RADIANT := &"radiant"`:
@@ -275,14 +270,13 @@ so the fluff's clouds stay where they were.
 
 ## Pulsar web
 
-Inside `show_system()`, above `(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", legacy)`:
+Inside `show_system()`, above `(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", false)`:
 
 ```text
 SIMPLIFIED: the remnant round it is the sky's own shell now, filaments and all
 (C), so the old web of fine threads over it goes: its threads, a sixteenth
 power of noise read at whole pixels of zoom 1, shimmered through every zoom
 (half the pulsar's flicker on a slow zoom)
-(LEGACY keeps its web)
 ```
 
 ## Pulsar palette hold
@@ -580,11 +574,11 @@ Inside `_pal_key()`, above `func _rocks() -> void:`:
 ```text
 THE SAME ROCKS FOR LESS (the Mac's map, Oct 27): up to 1,200 rocks a belt
 a frame, each with seven calls on the generator, two on an untyped view and
-the star's tone that only LEGACY reads. Now its draws come from the table
+the star's tone that only LEGACY read. Now its draws come from the table
 (`_rock_draws`), its place is worked out in place (as `screen` and `block`
 work it, to the bit), a rock whose drawing (a glint's arms reach 4 px left
 and 6 right, a big rock 2 up) falls wholly off the place's 960 x 540 is not
-drawn, and the tone is worked out for LEGACY alone.
+drawn. (The tone was worked out for LEGACY alone, gone Nov 7.)
 ```
 
 ## Belt glints
@@ -606,8 +600,8 @@ Inside `_pal_key()`, above `func _glint(s: Vector2, e0: float, phase: float, sc3
 
 ```text
 The glint drawn over the rock at `s`, in 2x2 blocks:
-  SIMPLIFIED and LEGACY: gathered light, eased, the star's white (LEGACY's a
-    plainer white, its rubble being grey), the palette pass setting its steps;
+  SIMPLIFIED: gathered light, eased, the star's white, the palette pass
+    setting its steps;
   RADIANT: the same light through A's own exposure (`_Moons._tone`), so its
     core rolls off soft instead of clipping;
   PAINTED: B's hand -- held poses (8 a second) in the rock's own ramp `rk`

@@ -30,7 +30,7 @@ render_mode unshaded, blend_premul_alpha;
 
 #include "res://shaders/local_dust_kit.gdshaderinc"
 
-uniform int style = 0; // 0 simplified, 1 painted, 2 radiant, 3 legacy
+uniform int style = 0; // 0 simplified, 1 painted, 2 radiant
 // the light a mote gathers: its body's colour, and its core's (the star's)
 uniform vec3 glow = vec3(0.3, 0.27, 0.24);
 uniform vec3 core_col = vec3(0.42, 0.40, 0.36);

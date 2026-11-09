@@ -52,6 +52,11 @@ static var reduced_motion: bool = false
 ## after JUMP skips it by accident and never sees it.
 ## Why: docs/why/DisplaySettings.md#skip-jump
 static var skip_jump: bool = false
+## THE AUTOPILOT'S FLIGHT (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): CURVED,
+## the default, swings wide round the stars as an orbit falls ("the curved
+## maneuvers are AESTHETIC"); DIRECT flies ruling 21's straighter line. Each
+## ship flies its own pilot's setting (`ShipFlight.flight_opts`).
+static var autopilot: StringName = &"curved"
 ## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
 static var frame_cap: int = 0
 ## 30, 60 and 120 joined NONE on Jon's call (Oct 27, perf C3): on a slow machine V-Sync gives
@@ -68,14 +73,16 @@ static var vsync: bool = true
 ## own VSYNC_DISABLED still hold under a harness.
 static var applied_vsync: int = -1
 
-## Four styles in Settings' order (Jon, 2026-10-05); SIMPLIFIED is the default for now.
-## All share SIMPLIFIED's animations and its black hole (`LegacyHole`).
+## Three styles in Settings' order (Jon, 2026-10-05); SIMPLIFIED is the default for now.
+## All share SIMPLIFIED's animations and its black hole (`LegacyHole`). LEGACY went Nov 7.
 ## Why: docs/why/DisplaySettings.md#render-styles
-const STYLES: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+const STYLES: Array[StringName] = [&"simplified", &"painted", &"radiant"]
+## The order while LEGACY was a style, for a value saved as its place (`valid_style`).
+const OLD_ORDER: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
 ## The default, and what anything unknown or not built falls back to.
 const DEFAULT_STYLE := &"simplified"
 ## Only styles with a renderer; the STYLE row appears once there are two. Add a style here only.
-const BUILT: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+const BUILT: Array[StringName] = [&"simplified", &"painted", &"radiant"]
 static var render_style: StringName = DEFAULT_STYLE
 ## GRAPHICS LOW: the cheaper path every style's renderer keeps.
 static var graphics_low: bool = false
@@ -103,7 +110,6 @@ static func style_built(s: StringName) -> bool:
 
 static func style_name(s: StringName) -> String:
 	match s:
-		&"legacy": return "LEGACY"
 		&"painted": return "PAINTED"
 		&"radiant": return "RADIANT"
 		_: return "SIMPLIFIED"
@@ -116,9 +122,11 @@ static func built_styles() -> Array[StringName]:
 			out.append(s)
 	return out
 
-## Unknown or unbuilt values fall to the default;
-## an old file saying legacy meant what is now SIMPLIFIED.
+## Unknown or unbuilt values fall to the default. "legacy" (dropped Nov 7, or SIMPLIFIED's
+## name before Oct 5) loads as SIMPLIFIED; a number is a place in `OLD_ORDER`.
 static func valid_style(v: Variant) -> StringName:
+	if v is int:
+		v = OLD_ORDER[v] if v >= 0 and v < OLD_ORDER.size() else DEFAULT_STYLE
 	var s := StringName(str(v))
 	return s if style_built(s) else DEFAULT_STYLE
 
@@ -267,6 +275,11 @@ static func set_look(l: Look) -> void:
 
 static func set_skip_jump(on: bool) -> void:
 	skip_jump = on
+	save()
+
+
+static func set_autopilot(p: StringName) -> void:
+	autopilot = &"direct" if p == &"direct" else &"curved"
 	save()
 
 
@@ -439,6 +452,7 @@ static func save() -> void:
 	cfg.set_value("display", "screen_look", int(screen_look))
 	cfg.set_value("display", "reduced_motion", reduced_motion)
 	cfg.set_value("display", "skip_jump", skip_jump)
+	cfg.set_value("display", "autopilot", String(autopilot))
 	cfg.set_value("display", "frame_cap", frame_cap)
 	cfg.set_value("display", "vsync", vsync)
 	cfg.set_value("display", "render_style", String(_file_style if _harness_style else render_style))
@@ -481,6 +495,7 @@ static func load_and_apply() -> void:
 	screen_look = cfg.get_value("display", "screen_look", int(Look.CRT_GENTLE)) as Look
 	reduced_motion = bool(cfg.get_value("display", "reduced_motion", false))
 	skip_jump = bool(cfg.get_value("display", "skip_jump", false))
+	autopilot = &"direct" if String(cfg.get_value("display", "autopilot", "curved")) == "direct" else &"curved"
 	frame_cap = maxi(int(cfg.get_value("display", "frame_cap", 0)), 0)
 	# A file from before VSYNC has no key: ON, as it always was. OFF with no
 	# cap is never kept: V-Sync comes back on.
@@ -497,7 +512,7 @@ static func load_and_apply() -> void:
 	if not vsync or applied_vsync == DisplayServer.VSYNC_DISABLED:
 		_apply_vsync()
 	# Harness `style=` and `graphics=` apply in memory only;
-	# an unbuilt style draws as LEGACY and says so.
+	# an unbuilt style draws as SIMPLIFIED and says so.
 	for a in (harness_args if not harness_args.is_empty() else OS.get_cmdline_user_args()):
 		var arg := a as String
 		if arg.begins_with("style="):

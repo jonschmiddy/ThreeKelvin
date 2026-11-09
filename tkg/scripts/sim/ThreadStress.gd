@@ -32,6 +32,9 @@ class Counter extends Logger:
 var _tree: SceneTree
 var _log := Counter.new()
 var _secs := 20.0
+## Real time a plan let go of gets to finish (Jon, Nov 8: seconds, not frames;
+## headless frames run uncapped, so 600 of them ran out on a busy gate).
+const DRAIN_MS := 10000
 
 
 func _ready() -> void:
@@ -262,21 +265,19 @@ func _run() -> void:
 	# first hands `take_bg` a task the pool let go.
 	for sh2: Dictionary in ships:
 		var fl2 = sh2.fl
-		var fr := 0
-		while fl2.planning(&"preview") and fr < 600:
+		var until := Time.get_ticks_msec() + DRAIN_MS
+		while fl2.planning(&"preview") and Time.get_ticks_msec() < until:
 			if fl2.take_bg(&"preview", plan_t).get("plan") != null:
 				n_plan += 1
-			fr += 1
 			await _tree.process_frame
 		if fl2.planning(&"preview"):
-			print("threadstress: a flight plan still being made after 600 frames")
+			print("threadstress: a flight plan still being made after %.0f s" % (DRAIN_MS / 1000.0))
 			_log.n += 1
 	# (and every task let go of reaped, waited for as each finishes, no sooner)
-	var fr2 := 0
+	var until2 := Time.get_ticks_msec() + DRAIN_MS
 	clicker._cancel_flight()
-	while not ShipFlightS._reap.is_empty() and fr2 < 600:
+	while not ShipFlightS._reap.is_empty() and Time.get_ticks_msec() < until2:
 		ShipFlightS.reap()
-		fr2 += 1
 		await _tree.process_frame
 	if not ShipFlightS._reap.is_empty():
 		print("threadstress: %d flight plans let go of never finished" % ShipFlightS._reap.size())

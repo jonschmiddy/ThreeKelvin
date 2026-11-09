@@ -201,6 +201,7 @@ func run() -> void:
 	_all_twins()
 	_report()
 	_turn_report()
+	_comet_pace()
 	var keys := worlds.keys()
 	keys.sort_custom(func(a, b): return int(worlds[a]) > int(worlds[b]))
 	var line: Array[String] = []
@@ -248,7 +249,7 @@ func _turn(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var k := SystemLayout.pair_speed()
 	var kind := "close" if L.close else "wide"
 	# THE RATE: Kepler round the pair's whole mass, times the ruling's speed
-	var lap := 800.0 * pow(L.sep / 100.0, 1.5)
+	var lap := SystemLayout.kepler_s() * pow(L.sep / 100.0, 1.5)
 	if k <= 0.0:
 		if L.pair_n != 0.0:
 			_fail("%s: the pair held still (pair=0) and turns" % at)
@@ -343,18 +344,24 @@ func _turn_report() -> void:
 	# Pins the ruled speed itself: a changed or zeroed `PAIR_K` otherwise passed every rate check.
 	# Why: docs/why/SystemTest.md#pair-speed
 	var asked := false
+	var wasked := false
 	for a in OS.get_cmdline_user_args():
 		asked = asked or (a as String).begins_with("pair=")
+		wasked = wasked or (a as String).begins_with("worldpace=")
+	var W := SystemLayout.world_pace()
+	if not wasked:
+		_ok("the worlds' pace is the ruled WORLD_PACE (%.2f)" % W, W == SystemLayout.WORLD_PACE)
 	if not asked:
 		var wide: Array = _turn_st.get("wide pair: a lap, minutes", [])
 		var close: Array = _turn_st.get("close pair: a lap, minutes", [])
-		_ok("the ruled speed: PAIR_K 4 (%.2f), wide pairs lap in 19 to 25 min (%s), close pairs in 6 to 7.5 (%s)" % [
-			SystemLayout.PAIR_K,
+		_ok("the ruled speed: PAIR_K 4 (%.2f) at the worlds' pace %.2f, wide pairs lap in %.1f to %.1f min (%s), close pairs in %.1f to %.2f (%s)" % [
+			SystemLayout.PAIR_K, W, 19.0 / W, 25.0 / W,
 			"none seen" if wide.is_empty() else "%.2f to %.2f" % [float(wide[0]), float(wide[1])],
+			6.0 / W, 7.5 / W,
 			"none seen" if close.is_empty() else "%.2f to %.2f" % [float(close[0]), float(close[1])]],
 			SystemLayout.PAIR_K == 4.0 and SystemLayout.pair_speed() == 4.0
-				and not wide.is_empty() and float(wide[0]) >= 19.0 and float(wide[1]) <= 25.0
-				and not close.is_empty() and float(close[0]) >= 6.0 and float(close[1]) <= 7.5)
+				and not wide.is_empty() and float(wide[0]) >= 19.0 / W - 1e-9 and float(wide[1]) <= 25.0 / W + 1e-9
+				and not close.is_empty() and float(close[0]) >= 6.0 / W - 1e-9 and float(close[1]) <= 7.5 / W + 1e-9)
 
 
 ## Least / median / most of a list, for a line.
@@ -579,7 +586,7 @@ func _twin_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var kk := maxf(SystemLayout.pair_speed(), 1.0)
 	for b in L.bodies:
 		var m := 1.0 if b.host_id == -9 else (share if b.host_id == -1 else 1.0 - share)
-		var kep := 800.0 * pow(b.orbit / 100.0, 1.5) / sqrt(m)
+		var kep := SystemLayout.kepler_s() * pow(b.orbit / 100.0, 1.5) / sqrt(m)
 		if b.host_id != -9:
 			kep /= kk
 		var k := b.period / kep
@@ -704,7 +711,7 @@ func _close_checks(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 		if b.orbit < lo - 1e-6:
 			_fail("%s: %s %s round both at %.1f px, inside the first steady orbit %.1f" % [at, b.kind, b.name, b.orbit, lo])
 		_least("close pair: orbit past its steady limit (share)", b.orbit / (lo / SystemLayout.P_MARGIN), at)
-		var k := b.period / (800.0 * pow(b.orbit / 100.0, 1.5))
+		var k := b.period / (SystemLayout.kepler_s() * pow(b.orbit / 100.0, 1.5))
 		if k < 0.95 - 1e-6 or k > 1.05 + 1e-6:
 			_fail("%s: %s's period is %.3f of Kepler's round both" % [at, b.name, k])
 	var g: Array = L.bodies.duplicate()
@@ -884,3 +891,44 @@ func _hellbender(label: String) -> void:
 		for b in without.bodies:
 			past = past and hb.orbit - SystemLayout.reach_of(hb) > b.host0.distance_to(hb.host0) + b.orbit + SystemLayout.reach_of(b)
 	_ok("%spast every orbit" % label, past)
+
+
+## Comets keep today's speed (Jon, Nov 5): WORLD_PACE turns the worlds and the pair faster, nothing else.
+## At WORLD_PACE 1 and 4 a comet planned off the radii is at the same place at every age.
+## Why: docs/why/SystemTest.md#comet-pace
+func _comet_pace() -> void:
+	var SW := preload("res://scripts/ui/sysmap/SkyWeather.gd")
+	var was := SystemLayout.world_k
+	var worst := 0.0
+	var n_sys := 0
+	var faster := true
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type != MapGen.NodeType.SYSTEM:
+			continue
+		n_sys += 1
+		var paths: Array = []
+		var periods: Array = []
+		for k: float in [1.0, 4.0]:
+			SystemLayout.world_k = k
+			var L := SystemLayout.of(n)
+			var inner := INF
+			for b in L.bodies:
+				if b.kind != &"belt" and (b.host_id == -1 or L.close):
+					inner = minf(inner, b.orbit)
+			if inner == INF:
+				inner = L.star_r * 6.0
+			var q := inner * 0.9
+			var De := sqrt(maxf(L.edge / q - 1.0, 0.1))
+			var ev := {"q": q, "w": 0.7, "K": 70.0 / (De + De * De * De / 3.0), "tp": 35.0}
+			var pts: Array = []
+			for age in 81:
+				pts.append(SW.Comet.comet_pos(ev, float(age)))
+			paths.append(pts)
+			periods.append(L.bodies[0].period if not L.bodies.is_empty() else 0.0)
+		for j in (paths[0] as Array).size():
+			worst = maxf(worst, ((paths[0][j] as Vector2) - (paths[1][j] as Vector2)).length())
+		if float(periods[0]) > 0.0 and absf(float(periods[0]) / float(periods[1]) - 4.0) > 1e-6:
+			faster = false
+	SystemLayout.world_k = was
+	_ok("comets keep today's speed at every WORLD_PACE: %d systems' comets at the same place round their sun at every age, at 1 and 4 (worst %.6f px), while the worlds go 4 times as fast" % [n_sys, worst], n_sys > 0 and worst == 0.0 and faster)

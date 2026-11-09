@@ -33,6 +33,16 @@ func run(tree: SceneTree) -> void:
 	# Why: docs/why/ChartBench.md#bench-seed
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", 1)
+	# `kind=N`: the run's galaxy made that kind (as ChartLook's), to time one kind
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("kind="):
+			Run.galaxy_kind = clampi(int((a as String).substr(5)), 0, GalaxyGen.count() - 1)
+			Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
+			Run.map = MapGen.generate(Run.MAP_CANVAS)
+			Run.at = 0
+			Run.trail = PackedInt32Array([0])
+			Run._range_cache.clear()
+			Run.chart_from(Run.node_at())
 	Router.show_starchart()
 	for i in 90:
 		await RenderingServer.frame_post_draw
@@ -142,11 +152,7 @@ func _sky_rid(chart: Node) -> Array[RID]:
 	if sky == null:
 		return out
 	var vps: Array = []
-	if sky._legacy != null:
-		if sky._legacy._vp == null:
-			return out
-		vps = [sky._legacy._vp]
-	elif sky._vp == null:
+	if sky._vp == null:
 		return out
 	else:
 		vps = [sky._svp, sky._pvp, sky._vp] + ([sky._tvp] if sky._tvp != null else [])

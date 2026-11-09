@@ -147,6 +147,20 @@ uniform bool u_isBall = false;
 // halo's own scale -- both long and soft, so a ball fades into space
 const vec2 BALL_FADE_R = vec2(0.5, 1.8);
 const vec2 BALL_HALO_END = vec2(0.8, 2.8);
+// A BALL AS ITS OWN KIND (Nov 5, direction A, `ChartRadiant.ball_kind` / `ball_form`):
+// (kind: 0 an elliptical, 1 a blue compact dwarf, 2 a dwarf spheroidal, 3 a merger's
+// remnant; young gas 0..1; lopsided 0..1; globular clusters 0..1) and (where its light
+// starts to fade and where it is gone, in its outer scale; its drawn radius, gu; how
+// much flatter its outline is drawn than a round one's, 1 for round)
+uniform vec4 u_ballK = vec4(0.0);
+uniform vec4 u_ballF = vec4(0.5, 1.8, 0.3, 1.0);
+// (a ball's gas texture and the dither across its steps, Nov 5's review: shares of its light)
+const float BALL_BILLOW = 0.32;
+const float BALL_GRAIN = 0.16;
+const float BALL_DITHER = 0.14;
+// (how far a merger's outer light sits off its core, in its outer scale, down and
+// to one side so the shot's up and down halves differ too)
+const float BALL_LOPSIDE = 0.8;
 vec2 bakeUV(vec2 p) { return (p + u_sExt) / (2.0 * u_sExt); }
 #define u_noise u_sNoise
 #define u_struct u_sStruct
@@ -717,7 +731,9 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 		Ed *= fs.x;
 		Ed += DUSTA * vec3(1.0, 0.9, 0.8) * fs.y * gasP * (0.012 + 0.05 * irrP);
 		vec3 gc = mix(u_youngCol * 0.05 * exp(-rP / 0.5), DUSTA * 0.12, 1.0 / (1.0 + pow(rP / 0.12, 2.0)));
-		Ed += gc * fs.z * u_fluff * 2.5;
+		// (a ball's puffs only where it has gas: over an old one's plane, where there is
+		// none, their own light scattered grey-blue plates through its body, Nov 5)
+		Ed += gc * fs.z * u_fluff * 2.5 * (u_isBall ? clamp(dA.g * 3.0, 0.0, 1.0) : 1.0);
 	}
 	if (u_neb > 0.0) {
 		for (int k = 0; k < 8; k++) {
@@ -755,7 +771,8 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	// dust edges catch the light: warm lanes, and the lamps' light (a supernova's)
 	C += T * (1.0 - att) * DUSTA * (Lc * 0.18 + La * 0.2 + Lx * 0.25) * tsC;
 	// the supernova's light echo: a ring of its light sweeping out through the dust and gas
-	if (u_echo.w > 0.0) {
+	// (never on a ball, Nov 5: rings of light across its smooth body read as marks)
+	if (u_echo.w > 0.0 && !u_isBall) {
 		float de = (length(pP - u_echo.xy) - u_echo.z) / max(0.0025, 1.5 * px);
 		float ring = exp(-de * de);
 		C += T * FLARE * u_echo.w * ring * (0.04 + 1.6 * (1.0 - att.b) + 0.6 * dA.g);
@@ -764,7 +781,7 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	// outside and teal inside, brightest where it has dust and gas to light, a soft
 	// glow round it; growing fast and then slowly, gone in ten minutes
 	for (int i = 0; i < 16; i++) {
-		if (i >= u_nrem) {
+		if (i >= u_nrem || u_isBall) {
 			break;
 		}
 		vec4 rm = u_rem[i];
@@ -814,6 +831,12 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 		st += texelFetch(u_stars, sb, 0).rgb;
 	}
 	st += starDebt(pP);
+	// (AN OLD BALL'S STARS ARE OLD, Nov 5: the chart's stars are SIMPLIFIED's, a
+	// spiral's mix, and strewed blue points over a warm elliptical; there they take its
+	// own warm white at the light they had. A blue compact dwarf's stay young and blue)
+	if (u_isBall && u_ballK.y < 0.5) {
+		st = mix(st, vec3(dot(st, vec3(0.3, 0.5, 0.2))) * vec3(1.12, 0.96, 0.78), 0.8);
+	}
 	// deep in, the nucleus resolves into stars, and the arms into their own stars
 	// as you zoom (the showcase's A): fixed in the plane, as many as the arm's own
 	// light, each keeping its place so nothing pops
@@ -870,6 +893,36 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, vec3 ts, float si
 	C += T * bB * tsC;
 }
 
+// A BALL'S STORY IN THIS STYLE'S LIGHT (Nov 5): the far-side shells and the halo's
+// two stray streams (`storyShells`) are faint light cut sharp -- shells with a hard
+// outer edge, streams broken by a noise's threshold -- and in this style a ball's light
+// runs out past them, so the palette cut them into dark-brown plates with ragged edges
+// round its body. Here they are taken back out, and the shells put in again as light
+// through gas ends, over a soft fall (the stray streams left out: soft, they were a
+// smudge). And a giant's halo of globular clusters (`storySwarm`, the busy core's
+// swarm), far out past its body.
+vec3 ballExtras(vec2 g, float blk) {
+	vec3 C = vec3(0.0);
+	if (storyA() && u_storyK.w < 0.5) {
+		float re = u_storyK.x;
+		vec2 e = vec2(g.x, g.y / u_storyK.y);
+		float s = length(e);
+		float an = atan(e.y, e.x);
+		float soft = 0.0;
+		for (int k = 0; k < 3; k++) {
+			float rk = (1.35 + 0.45 * float(k)) * re;
+			float side = pow(max(0.0, 0.5 + 0.5 * cos(an + 1.5708 + 0.5 * (float(k) - 1.0) + 0.6 * (u_story.y - 0.5))), 4.0);
+			float dk = s - rk;
+			soft += (dk < 0.0 ? exp(dk / (0.24 * re)) : exp(-pow(dk / (0.16 * re), 2.0))) * side * (1.0 - 0.18 * float(k));
+		}
+		C += (STORY_STAR * soft * 0.03 - storyShells(g, blk)) * u_storyK.z;
+	}
+	if (u_ballK.w > 0.0) {
+		C += storySwarm(g, blk, u_time) * u_ballK.w * u_storyK.z;
+	}
+	return C;
+}
+
 // ------------------------------------------------------------------ the volume
 // (`vb`: the point about the core the bulge is drawn at, in the core's own frame
 // through the camera (`place`); `tk`: how much of the middle's relief is drawn here)
@@ -917,10 +970,13 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	float silh = 0.0, em = 1.0;
 	// (only over the disc: past it there is no gas to heap or light, and the puffs'
 	// cells cost a frame's worth of fetches over the empty sky at the opening)
+	// (A BALL HAS NO RELIEF, Nov 5: the middle's hills are a disc's dust, and over a
+	// ball's smooth light they drew a mottle of brown plates)
+	float tkD = u_isBall ? 0.0 : tk;
 	if (u_solid && length(pP) < 1.25) {
-		vec2 pPt = tk > 0.0 ? mix(pP, terrSeen(pP), tk) : pP;
+		vec2 pPt = tkD > 0.0 ? mix(pP, terrSeen(pP), tkD) : pP;
 		pPs = fluffSeen(pPt);
-		if (u_terr > 0.0 && tk > 0.0) {
+		if (u_terr > 0.0 && tkD > 0.0) {
 			ts = terrShade(pPt);
 			ts.xy = mix(vec2(1.0, 0.0), ts.xy, tk);
 			silh = terrSilh(pPt) * tk;
@@ -1022,8 +1078,11 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 		// (through the camera the bulge is drawn about the core in its own frame, at
 		// the camera's elevation, so it stays round however the disc is turned)
 		vec2 qb = u_solid ? vec2(vb.x, vb.y / u_solidW.y) / u_k : q0;
+		// (A MERGER'S REMNANT LOPSIDED, Nov 5: its outer light, the swallowed galaxy's,
+		// still off to one side of the core, along the screen so it stays level)
+		vec2 qo = qb - vec2(0.85, -0.5) * (BALL_LOPSIDE * u_ballK.z * u_bulge.y);
 		vec2 b1 = bulgeComp(qb, u_bulge.x, u_bulge.z, 0.0) * u_bulgeI.x;
-		vec2 b2 = bulgeComp(qb, u_bulge.y, u_bulge.z, 0.0) * u_bulgeI.y;
+		vec2 b2 = bulgeComp(qo, u_bulge.y, u_bulge.z, 0.0) * u_bulgeI.y;
 		vec2 bc = bulgeComp(qb, u_bulge.w, u_bulge.z, 0.0) * u_bulgeI.z;
 		vec2 in1 = max(b1 - bc, 0.0);
 		vec2 out2 = max(b2 - max(bc - b1, 0.0), 0.0);
@@ -1053,13 +1112,31 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 			// on PGC 6236 its light held 113 of 255 out at 0.2 gu and was gone by 0.5. A
 			// ball's own envelope, `BALL_FADE_R`, in its outer scale's units)
 			// (its edge broken by the halo's own wisps, so it ends in soft clouds, never a circle)
-			float eb = u_isBall ? 1.0 - smoothstep(BALL_FADE_R.x, BALL_FADE_R.y, length(qb * vec2(1.0, KIT_TILT / 1.08)) / u_bulge.y * (0.82 + 0.36 * nz(vec3(qb * 2.1, 0.71)).r))
+			// (A BALL IN THE SPIRAL'S HAND, Nov 5, direction A: its light falls smoothly from
+			// the middle as a spiral's bulge does, over a span its kind sets (`u_ballF`), to
+			// nothing -- no noise pushing its edge in and out, which drew dark wedges into
+			// its outline, and no mottle over its body, which the palette cut into brown
+			// plates. A merger's about its lopsided outer light)
+			float sB = length((u_isBall ? qo : qb) * vec2(1.0, KIT_TILT / 1.08 * (u_isBall ? u_ballF.w : 1.0))) / u_bulge.y;
+			float eb = u_isBall ? 1.0 - smoothstep(u_ballF.x, u_ballF.y, sB)
 				: solidBulgeEnd(length(qb * vec2(1.0, KIT_TILT / 1.08)), 0.6 * u_bulge.y / 0.13);
-			// (and its body mottled in broad patches of unresolved stars, past the heart: smooth
-			// to the rim, the palette's rust step lay round it as a ring)
+			// (A BALL'S BODY IN THIS STYLE'S HAND, Nov 5's review: smooth, the palette cut its
+			// fall into concentric rings, flat runs up to 38 px, and the three ellipticals read
+			// alike. The spiral's gas grain and billow put back at a low amplitude (the old
+			// mottle at 0.28 made brown plates), at fixed world scales so a patch keeps its
+			// size at every zoom, past the heart; and dithered a step either way on the
+			// anchored Bayer, as the edge is, so the palette's steps break up)
 			if (u_isBall) {
-				float sM = length(qb * vec2(1.0, KIT_TILT / 1.08)) / u_bulge.y;
-				eb *= mix(1.0, 0.72 + 0.56 * nz(vec3(qb * 3.3, 0.37)).r, smoothstep(0.15, 0.55, sM));
+				vec4 wB = nz(vec3(qb * 1.9, 0.29));
+				float bil = nz(vec3(qb * 4.6 + (wB.rg - 0.5) * 0.6, 0.61)).r;
+				float grn = nz(vec3(qb * 12.5 + (wB.ba - 0.5) * 0.2, 0.13)).r;
+				// (a dwarf spheroidal's at half: it is a thin smooth spread of old stars, and its
+				// faint light read the grain as a rim)
+				float txA = abs(u_ballK.x - 2.0) < 0.5 ? 0.5 : 1.0;
+				float tx = 1.0 + txA * (BALL_BILLOW * (bil - 0.5) + BALL_GRAIN * (grn - 0.5));
+				tx = mix(1.0, tx, smoothstep(0.06, 0.3, sB));
+				// (the dim outskirts' steps lie further apart, so the dither widens there)
+				eb *= tx * (1.0 + BALL_DITHER * mix(1.0, 2.6, smoothstep(0.4, 1.2, sB)) * (kitBayer4(dq) - 0.5));
 			}
 			bF *= eb;
 			bB *= eb;
@@ -1263,6 +1340,15 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	float hr2 = dot(hv, hv) / (u_halo.y * u_halo.y);
 	vec4 hw = nz(vec3(hv * 0.32, 0.53));
 	float wisp = max(0.25 + 0.8 * hw.r + 0.45 * nz(vec3(hv * 1.3 + hw.ag * 0.3, 0.21)).r, 0.0);
+	// (a ball's halo smooth, its wisps a breath: broken into clouds it drew blotches
+	// round a body that is now smooth, Nov 5)
+	// (and its halo carries the body's grain and the same dither across the palette's
+	// steps, Nov 5's review: smooth, it banded into rings round the body at the opening)
+	if (u_isBall) {
+		wisp = mix(1.0, wisp, 0.25);
+		float hg = nz(vec3(hv * 4.6 + (hw.rg - 0.5) * 0.6, 0.61)).r;
+		wisp *= (1.0 + BALL_BILLOW * 0.7 * (hg - 0.5)) * (1.0 + BALL_DITHER * mix(1.0, 2.6, smoothstep(0.1, 0.6, sqrt(hr2))) * (kitBayer4(dq) - 0.5));
+	}
 	// (the solid look: the halo ends with the disc's own fade, so the galaxy fades
 	// into true black space)
 	float hE = u_edge.w > 0.0 ? (u_isBall ? 1.0 - smoothstep(BALL_HALO_END.x, BALL_HALO_END.y, length(hv) / u_halo.y) : solidHaloEnd(length(q0))) : 1.0;
@@ -1278,6 +1364,7 @@ vec3 radiance(vec2 v, vec2 vb, ivec2 sb, ivec2 dq, float la, float tk, vec2 vsky
 	if (u_isBall) {
 		float swl, scl;
 		C += T * storyLight(vb / u_k, u_phi, u_time, 2.0 / (u_zoom * u_k), swl, scl);
+		C += T * ballExtras(vb / u_k, 2.0 / (u_zoom * u_k));
 	} else {
 		// clouds of its gas over and under the plane (`chart_depth`, `galdepth=`)
 		vec3 dE = vec3(0.0), dT3 = vec3(1.0);
