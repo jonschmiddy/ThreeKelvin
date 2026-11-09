@@ -1,31 +1,8 @@
 extends Node2D
 
-## THE PULSAR on the system map, as Jon picked it: beams turning once a
-## second, a flash 0.55 s into each second (on the beat of its sound), a cloud
-## of gas turning faster near the star; the cloud, its pattern and its one or
-## two motions rolled from the system's seed, and laid at the map's own angle.
-## The mockup's renderer (`PS`, from "Six Pulsars", with the map's settings
-## from `pulsarDraw`) is `pulsar.gdshader`; this node works out each moment's
-## frame -- where the beams point, how hard the star flashes, the sprinkler's
-## spray -- and hands it over.
-##
-## Put it at the pulsar's centre, in whole map pixels. Call `setup` once per
-## system and `step` every frame with the BEAT time: the time the pulsar's
-## ambience is at, so a flash lands on what is heard (the mockup ran both off
-## one clock, `syncT(t) = t`).
-##
-## ZOOM (`set_zoom`): the map zooms by having the pulsar REDRAWN bigger by its
-## own shaders, never stretched: at zoom k every length -- the star's glow, the
-## cloud and its pattern, the beams, jets, starquake ring, the sprinkler's
-## paths, the web's ring and its threads -- is k times as long about the
-## pulsar's centre, worked out over k times the game pixels. Zoom 1 is the
-## look Jon picked, pixel for pixel. The map pans by moving this node: the box
-## and the web follow `position` (drawn at it rounded to a whole pixel).
-##
-## Also here, because they are keyed to the beam: the WEB of filaments round
-## the pulsar (`web`, a rect over the whole map; add it under the orbits, it
-## is placed and kept up to date from here), the remnant gas lit by the beam
-## (`set_gas`), and the map-wide sky flash (`sky_flash`, read by the screen).
+## Zoom redraws the pulsar bigger with its own shaders, never stretched.
+## Beat time syncs each flash to what is heard.
+## Why: docs/why/PulsarView.md#pulsar-view
 
 const SHADER := preload("res://shaders/pulsar.gdshader")
 const WEB_SHADER := preload("res://shaders/pulsar_web.gdshader")
@@ -61,20 +38,12 @@ var zoom: float = 1.0
 ## where the pulsar stood when it was set up: its web is cut there, and carried
 ## wherever it goes since
 var web_anchor := Vector2.ZERO
-## THE WEATHER (`SkyWeather`), on beats its sound already plays:
-##   `giant_n`, a GIANT PULSE on beat n (two beats building to it, then the
-##   flash doubled and the beams reaching further); -999999 for none;
-##   `mag_t0`, a MAGNETAR's flare on the beat at that time (beat time), its
-##   beats ringing down for twenty seconds after; `mag_k` 0 for none.
+## Weather rides on beats its sound already plays: a giant pulse and a magnetar flare.
 var giant_n := -999999
 var mag_t0 := -1.0e9
 var mag_k := 0.0
 
-## WHERE ITS CENTRE TRULY IS against this node's whole-pixel position, a pixel or
-## less (the map's `_pulsar_at`): the box stays on the pixel grid and everything
-## in it, and the web, is drawn about the true centre, so a zoom carrying the
-## pulsar across the screen moves it with the map instead of a block at a time.
-## 0 at rest and wherever nothing sets it.
+## True centre against the whole-pixel position, so a zoom moves the pulsar smoothly.
 var sub := Vector2.ZERO
 
 var _box: ColorRect
@@ -101,10 +70,7 @@ func _init() -> void:
 	web.visible = false
 
 
-## The system's pulsar, from its index (the mockup's `sys.index`). `map_rect`
-## is the map's area in this node's parent's pixels, which should be the map's
-## own pixels: the web is cut from noise at those coordinates, as the page cut it,
-## round where this node stands now (place it before calling this).
+## `map_rect` is the map's area in parent pixels: the web is cut from noise at those coordinates.
 func setup(system_index: int, map_rect: Rect2 = Rect2(264, 0, 696, 540)) -> void:
 	spec = roll(system_index)
 	_map_rect = map_rect
@@ -143,31 +109,19 @@ func setup(system_index: int, map_rect: Rect2 = Rect2(264, 0, 696, 540)) -> void
 	web.visible = true
 
 
-## The remnant gas the beam lights, from the sky's bake: an image the size of
-## the map whose red channel is how bright the pulsar's gas is at each map
-## pixel (the `I` the mockup's sky bake kept for every pulsar gas pixel over
-## 0.03), as a float texture (Image.FORMAT_RF). null takes it away.
+## Remnant gas the beam lights, a float texture from the sky's bake; null removes it.
 func set_gas(tex: Texture2D) -> void:
 	_web_mat.set_shader_parameter("gas_tex", tex)
 	_web_mat.set_shader_parameter("has_gas", tex != null)
 
 
-## The map's zoom, 1 or more (1 to 4 on the map): the pulsar and its web drawn
-## k times as large about its centre. Only sizes and uniforms change, nothing
-## is rolled again, so it can be called every frame while a zoom eases.
+## Only sizes and uniforms change, so it can be called every frame of a zoom.
 func set_zoom(k: float) -> void:
 	zoom = maxf(k, 0.05)
-	# the box grows with the beams, centred on a whole pixel (the 1e-4 keeps
-	# zoom 1's own 480 x 320 from rounding up), and an even number of pixels
-	# each side: the map draws it in 2x2 blocks, and now that it grows with
-	# every frame of a zoom, a side an odd pixel long would set every block of
-	# it half a block over on alternate frames
+	# Box centred on a whole pixel with an even side, or 2x2 blocks sit half a block over.
 	var need := Vector2i(ceili(BOX.x * 0.25 * zoom - 1e-4) * 2, ceili(BOX.y * 0.25 * zoom - 1e-4) * 2)
-	# HELD, GROWN IN STEPS OF 32 PX WITH ROOM TO SPARE (SIMPLIFIED's flicker pass):
-	# every time the box changed size the pulsar was drawn a frame off its own
-	# grid, the cloud round the beams flashing for one frame (7% of the map's
-	# pixels at once, twice in a slow 10% zoom). Only a few more pixels are drawn
-	# for it; the picture is the same, its pixels where they were.
+	# The box grows in 32 px steps with room to spare: each resize flashed 7% of the map once.
+	# Why: docs/why/PulsarView.md#box-growth
 	if need.x > _half.x or need.x < _half.x - 72:
 		_half.x = ceili((need.x + 8) / 32.0) * 32
 	if need.y > _half.y or need.y < _half.y - 72:
@@ -219,9 +173,8 @@ func step(t: float) -> void:
 		elif k == -1:
 			bi = 1.5 * (1.0 + 0.3 * wb)
 		elif k == 0:
-			# (twice the beam and twice the flash, as first built, clipped a
-			# band of the beam's glow to flat white, ~1,300 blocks, every
-			# minute or so; half again keeps the beat landing harder)
+			# Beam and flash at 1.5x, not 2x: twice clipped about 1,300 blocks to white a minute.
+			# Why: docs/why/PulsarView.md#beam-brightness
 			bi = 1.5 * (1.0 + 0.55 * wb)
 			bl = 200.0 + 80.0 * wb
 			sf = maxf(sf, 0.08 * fl)
@@ -277,10 +230,7 @@ static func hash2(x: int, y: int) -> float:
 	return float(h ^ (h >> 16)) / 4294967296.0
 
 
-## What a system's pulsar rolled (`PS.roll` with the map's settings). Jon:
-## "change up the cloud of the pulsar a bit, just to give it some variety.
-## Still spinning but maybe more or less dense randomly." Thin clouds are
-## sparse and broken into wisps; thick ones full, bright, hazy to the middle.
+## A system's pulsar rolls its cloud density at random for variety (Jon).
 static func roll(seed: int) -> Dictionary:
 	var d := hash2(seed, 11)
 	var size := hash2(seed, 12)
@@ -313,10 +263,7 @@ static func roll(seed: int) -> Dictionary:
 
 
 # ---------------------------------------------------------------- the spin
-# x right, y down, z toward you. The spin axis leans by ax (none, on the map)
-# and tips toward you by the orbits' tilt; the magnetic axis m sits off it and
-# turns round it once a second, timed so one end points at you 0.55 s into
-# each second: that is the flash.
+# x right, y down, z toward you. The magnetic axis turns once a second, flashing at 0.55 s.
 
 static func _mag_at(s: Vector3, e1: Vector3, e2: Vector3, al: float, phi: float) -> Vector3:
 	return s * cos(al) + (e1 * cos(phi) + e2 * sin(phi)) * sin(al)
@@ -356,11 +303,7 @@ static func frame(s: Dictionary, t: float) -> Dictionary:
 	return {"s": sa, "e1": e1, "e2": e2, "bs": bs, "b1": b1, "b2": b2, "m": m, "al": al, "phi": phi, "flash": fl, "glitch_k": gk}
 
 
-## THE SPRINKLER: particles thrown out along each beam as it turns, a lawn
-## sprinkler's spiral. Each is (x, y) in the box's pixels, its light, and 1 for
-## white (the newest fifty) or 0 for ice. Sorted by row, for the shader to search.
-## At zoom `k` the paths are k times as long, in a box `half` x 2 (BOX x k),
-## thrown from `off` away from the box's centre (the true centre, `sub`).
+## Sprinkler: particles thrown along each beam as it turns, sorted by row for the shader.
 static func spray(G: Dictionary, t: float, k: float = 1.0, half: Vector2i = BOX / 2, off := Vector2.ZERO) -> PackedVector4Array:
 	var pts: Array[Vector4] = []
 	var V := 34.0

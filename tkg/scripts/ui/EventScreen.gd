@@ -17,9 +17,7 @@ var _then_fight: bool = false
 var _then_foe: StringName = &""
 ## The prize popup, while it is up. One at a time, like the sector's.
 var _transfer: TransferView = null
-## CONTINUE, held while a crate sits unopened. See `SectorScreen._res_seen` --
-## this screen builds its result once rather than on refresh, so the button is
-## kept rather than re-derived.
+## CONTINUE is held while a crate sits unopened; kept, since the result is built once.
 var _go: Button = null
 
 func setup(event: Dictionary) -> void:
@@ -62,10 +60,7 @@ func _refresh() -> void:
 		b.custom_minimum_size = Vector2(0, 36)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		_options.add_child(b)
-		# The badge goes UNDER its option, not inside the label. It is a
-		# different kind of statement — the label is what you would be doing, the
-		# badge is what it would take — and running them together made options
-		# read as sentences with numbers stuck on the end.
+		# The badge goes under its option: the label is what you do, the badge is what it takes.
 		if opt.has("check"):
 			var chk: Dictionary = opt.check
 			var badge := UITheme.body(SkillCheck.badge(chk),
@@ -80,10 +75,7 @@ func _refresh() -> void:
 func _choose(index: int) -> void:
 	if _resolved or _claiming:
 		return
-	# ASK THE PARTY FIRST -- same door as `SectorScreen._take`. This screen is
-	# the prose view of the same raceable option, and the claim lands when a
-	# choice COMMITS, so reading the event and walking away still costs
-	# nothing. Losing the race reads as the thing being gone, not as a roll.
+	# Ask the party first, as `SectorScreen._take` does; the claim lands when a choice commits.
 	_claiming = true
 	var won_it: bool = await Router.claim_open_option()
 	_claiming = false
@@ -93,9 +85,7 @@ func _choose(index: int) -> void:
 		Router.after_event()
 		return
 	var opt: Dictionary = _event.options[index]
-	# Checked options carry four callables and no `effect`; plain ones are
-	# unchanged. Both shapes are legal so the existing events did not have to be
-	# rewritten to add checks to new ones.
+	# Checked options carry four callables and no `effect`; both shapes stay legal.
 	var band := SkillCheck.Band.MET
 	var call: Callable = opt.get("effect", Callable())
 	if opt.has("check"):
@@ -106,24 +96,12 @@ func _choose(index: int) -> void:
 	var ledger_was := Run.ledger()
 	var slot := Router._open_option
 	var outcome: Dictionary = call.call() if call.is_valid() else {}
-	# The node is consumed here rather than when the hail opened, so that
-	# quitting at the options costs nothing and cannot be quit into a cleared
-	# node that gives nothing. Router holds the pick until this call.
+	# Consume the node here, not on hail, so quitting at the options costs nothing.
 	Router.event_resolved(SkillCheck.band_result(band) if opt.has("check") \
 		else MapGen.R_DONE)
 	_resolved = true
-	# THE REWARD AN OPTION PAYS, which this screen never had to handle before.
-	#
-	# `module = true` in the returned dictionary means "one rolled at this
-	# system's danger", and both other resolution paths honour it -- `Policy` for
-	# the sim and `SectorScreen` for a row that resolves in place. This screen
-	# predates the option model and only read `fight`, so when RULING 2 made it
-	# the detail view it became the one path that silently dropped the pay: it is
-	# reached by exactly the options with prose AND a check, and those are the
-	# ones that pay in parts. `salvage_rights` pays a module in two of its bands
-	# and paid nothing through here.
-	#
-	# No EventTable event grants one, which is why nothing caught it earlier.
+	# This screen silently dropped `module = true` pay; `salvage_rights` paid nothing through here.
+	# Why: docs/why/EventScreen.md#option-rewards
 	OptionTable.pay(outcome, Run.node_at(), StringName(_event.get("id", &"")))
 	# an event quest taken: what it paid, for the QUESTS table (`OptionResolve.take`)
 	var here := Run.node_at()
@@ -143,16 +121,11 @@ func _choose(index: int) -> void:
 	panel.add_theme_stylebox_override("panel", sb)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 3)
-	# Name the band above the prose. The outcome text is written in fiction and
-	# deliberately does not say "you failed" — so without this, a Partial and a
-	# Botched are two paragraphs you cannot tell apart, and the ladder the player
-	# just gambled against never resolves visibly.
+	# Name the band above the prose: the fiction never says failed, so bands look alike.
 	if opt.has("check"):
 		col.add_child(UITheme.body(SkillCheck.band_name(band), edge, UITheme.FS_SMALL))
 	var said := String(outcome.get("text", ""))
-	# NOT THE NAME OF WHAT IT PAID. Same as the drawer: the thing is in REWARD
-	# below, and a bracketed name in the prose is a second copy of it that
-	# cannot be picked up.
+	# Do not name what it paid: REWARD below shows it, and a bracketed name cannot be picked up.
 	var text := UITheme.body(said, UITheme.HOT, UITheme.FS_BODY)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(text)
@@ -161,15 +134,8 @@ func _choose(index: int) -> void:
 	if Run.dead:
 		_result.add_child(Widgets.button("…", func(): Router.show_game_over()))
 		return
-	# THE DOOR, WHICH THIS SCREEN NEVER HAD.
-	#
-	# `pay` has always put a module on the system's floor from here, and this
-	# screen has always said nothing about it -- the prose named the thing and
-	# then the thing was somewhere else, two screens away, behind a button in a
-	# sector you had to walk back to. `salvage_rights` pays a module in two of
-	# its bands and is reached by exactly this path.
-	#
-	# Same word and same pile as the drawer's: see `SectorScreen._open_prize`.
+	# Say where the paid module went: it used to land on the system's floor with no word.
+	# Why: docs/why/EventScreen.md#prize-door
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
 	# One count drives both buttons: REWARD greys on it, CONTINUE holds on it.
@@ -182,9 +148,7 @@ func _choose(index: int) -> void:
 	if pays:
 		var claim := Widgets.button("REWARD", _open_prize)
 		claim.custom_minimum_size = Vector2(120, 22)
-		# See `SectorScreen`: it stays put and greys rather than vanishing,
-		# because a button that disappears moves CONTINUE out from under your
-		# hand at the moment you reach for it.
+		# Stays put and greys, as a vanishing button moves CONTINUE from under your hand.
 		claim.disabled = left <= 0
 		claim.tooltip_text = Widgets.tip("Shows your hold beside what this left you. Anything you do not take stays in this system, under SECTOR LOOT."
 			if left > 0 else "You have taken everything this left you.")
@@ -198,9 +162,7 @@ func _choose(index: int) -> void:
 	_result.add_child(row)
 
 
-## What this event just paid, on the system's floor. See
-## `SectorScreen._open_prize` -- one pile per system, and it is jetsam the
-## moment you stop standing in the result.
+## What this event paid, on the system's floor: one pile per system, jetsam once you leave.
 func _open_prize() -> void:
 	if _transfer != null:
 		return

@@ -1,28 +1,7 @@
 extends Node
 
-## UNDOCK IS THE ONLY WAY OUT OF A STATION (Jon, Oct 27, on Jeremy's "LOCAL
-## lets you leave a station too easily"):
-##   godot --headless --fixed-fps 60 --path . -- sheet=DockFlyTest
-## Headless, the ladder on and its clock stepped 1/30 s (`LadderTest`'s rig).
-## Docked in the berth (`route=berth`): the HUD's first tab reads LOCAL, greyed,
-## and says "Docked. Press UNDOCK to leave."; pressed anyway it goes nowhere.
-## Tab goes round the berth, the map and the chart and never lands on LOCAL; the
-## map and the chart are views: FLY HERE and GO read DOCKED with the same words,
-## and FLY HERE, WASD, GO and the chart's JUMP are refused; the HUD's STATION,
-## the map's DOCK and PARTY's LEAVE (co-op) go straight back in, docked
-## throughout and never by LOCAL. UNDOCK still leaves.
-## Then every route that used to leave without UNDOCK -- the map to another
-## world, the star, a belt or open space, then the HUD's tab or Tab round the
-## chart; the chart's JUMP; a jump on and GO -- is tried from the berth and
-## refused, back in the berth and never on LOCAL, and made again after UNDOCK:
-## LOCAL arrived on with nothing of the station left (`Router.docked`, its
-## powered decks, no StationScreen in the tree, the ladder idle with nothing
-## built ahead and no chain), the sky composed for where the ship is. The rule:
-## `Router.cast_off` refuses every move from the berth.
-##
-## `shots=<dir>` (windowed) writes a still of each LOCAL arrived on.
-## `route=<name>` runs one route (with `--write-movie` and `--fixed-fps 30`: a
-## film of it at true speed; `proper` films its UNDOCK-first half alone).
+## UNDOCK is the only way out of a station (Jon, Oct 27); `Router.cast_off` refuses all else.
+## Why: docs/why/DockFlyTest.md#berth-rule
 
 var _fails := 0
 var _tree: SceneTree
@@ -85,10 +64,7 @@ func _room(b: Button) -> float:
 	return b.size.x - sb.get_margin(SIDE_LEFT) - sb.get_margin(SIDE_RIGHT)
 
 
-## FIT MEANS NOTHING OVERLAPS, for a DOCKED this change put on the map's panel:
-## whole inside the panel and the 960x540 screen, its word not clipped, and
-## clear of every other word and button on the panel (what the panel's scroll
-## hides of its page left out, as it is not drawn).
+## Fit means nothing overlaps: inside the panel and screen, unclipped, clear of other words.
 func _fits(what: String, b: Button, m: SystemMapScreen) -> void:
 	if not _ok("berth: %s is up" % what, b != null and b.is_visible_in_tree()):
 		return
@@ -343,9 +319,7 @@ func _clean(what: String, d: Dictionary) -> void:
 		_ok("%s: the station's lights on standby (%.2f)" % [what, d.face_power], d.face_power <= 0.001)
 
 
-## One trip, both ways: `go` tried from the berth as it stands (docked), where
-## it is refused and ends back in the berth, never on LOCAL; and made again from
-## LOCAL after UNDOCK, where it lands with nothing of the station left.
+## One trip both ways: refused from the berth, then made again after UNDOCK.
 func _route(name: String, go: Callable) -> void:
 	if _only != "" and _only != name:
 		return
@@ -377,9 +351,7 @@ func _route(name: String, go: Callable) -> void:
 	_ok("%s: the ship where the map left it (site %d)" % [name, b.site], b.site == int(_want.get(name, b.site)))
 
 
-## Tab to the map (from the berth or LOCAL), fly to `p`, then back by `back`
-## ("hud": the HUD's first tab; "tab": Tab round the chart). From the berth the
-## flight is refused, and `back` goes back in: STATION, or the chart and on.
+## From the berth the flight is refused and `back` returns in; from LOCAL it completes.
 func _map_trip(p: int, back: String) -> Callable:
 	return func(proper: bool) -> void:
 		await _tab()
@@ -469,11 +441,7 @@ func _jump_trip(go_event: bool) -> Callable:
 		await _frames(60)
 
 
-## UNDOCK IS THE ONLY WAY OUT (Jon, Oct 27, on Jeremy's "LOCAL lets you leave a
-## station too easily"). Docked, every other door is shut and says how to leave,
-## or goes back in without leaving: the HUD's first tab, Tab round the screens,
-## the map's FLY HERE, WASD and GO, the chart's JUMP, the HUD's STATION and the
-## map's DOCK from the map, and PARTY's LEAVE (co-op). Then UNDOCK, which leaves.
+## Docked, every other door is shut or goes back in without leaving (Jon, Oct 27).
 func _berth_shut(p: int) -> void:
 	if _only != "" and _only != "berth":
 		return
@@ -505,6 +473,20 @@ func _berth_shut(p: int) -> void:
 	var seen := _watch_off()
 	_ok("berth: LOCAL pressed anyway goes nowhere: the station still up, docked, never LOCAL (seen: %s)" % ", ".join(seen),
 		seen.is_empty() and Router.current == st and Router.docked)
+	# THE REFUSAL BLINKS UNDOCK, and so does a click on the greyed tab (which a
+	# disabled button never presses)
+	var blinked := st._nudge_tween != null and st._nudge_tween.is_valid()
+	if blinked:
+		st._nudge_tween.kill()
+	st._undock.modulate = Color.WHITE
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	tab.gui_input.emit(click)
+	await _frames(2)
+	var clicked := st._nudge_tween != null and st._nudge_tween.is_valid() and not Router.undock_nudge
+	_ok("berth: the refused press blinks UNDOCK (%s), and so does a click on the greyed tab (%s)" % [blinked, clicked],
+		blinked and clicked and Router.current == st and Router.docked)
 	# THE KEYBOARD: Tab round the berth, the map and the chart, never LOCAL
 	_watch_on()
 	await _tab()
@@ -547,9 +529,7 @@ func _berth_shut(p: int) -> void:
 		if _ok("berth: an event to plant for GO (%s)" % ev, ev != &""):
 			n.options.append(ev)
 			var k := n.options.size() - 1
-			# ITS PAGE AND ITS ROW ON THE STATION'S PAGE (`SystemPanel._event_page`,
-			# `_place_event`): GO reads DOCKED with the words, and the longer word
-			# fits where two letters stood
+			# GO reads DOCKED in the same words; the longer word must fit where two letters stood.
 			m.panel.open_page(k)
 			await _frames(3)
 			var pg := m.panel.find_child("Go", true, false) as Button
@@ -588,6 +568,10 @@ func _berth_shut(p: int) -> void:
 	await _tab()
 	seen = _watch_off()
 	_ok("berth: Tab from the chart goes back to the berth", Router.current is StationScreen and Router.docked)
+	# (refused on the map and the chart, the blink is owed to the station)
+	var back := Router.current as StationScreen
+	_ok("berth: back in after the refusals, the station blinks UNDOCK (owed %s, blinked %s)" % [Router.undock_nudge, back != null and back._nudge_tween != null],
+		back != null and back._nudge_tween != null and not Router.undock_nudge)
 	_ok("berth: round the berth, the map and the chart by Tab: docked throughout, never LOCAL (seen: %s)" % ", ".join(seen), seen.is_empty())
 	# BACK IN FROM THE MAP: the HUD's STATION, then the map's DOCK. Both went
 	# down to LOCAL first (undocking) and played the dock again
@@ -660,16 +644,8 @@ func _berth_shut(p: int) -> void:
 				and tab.has_theme_stylebox_override("disabled"))
 
 
-## DOCK ONLY AT THE STATION (Jon, Oct 18, "dock:A"), AND A JUMP IN ARRIVES AT
-## IT ("arrive:B"): in a used run (docked and undocked here once, off to a
-## neighbour by the chart and back), the ship arrives alongside the station:
-## the map's DOCK card live and LOCAL with the station's side and DOCK. Flown
-## to a world of the system, nothing offers DOCK -- LOCAL's bar, the station's
-## side on LOCAL, the map's DOCK card (greyed, with the way to it on it) and its
-## beacon, the fuel hint, `show_station` itself. Flown back to the station, DOCK
-## again, and pressed it docks; from the berth the map's FLY HERE to the world
-## is refused (UNDOCK is the only way out, Jon, Oct 27), and after UNDOCK the
-## flight there leaves LOCAL with no berth and no DOCK.
+## DOCK is offered only at the station (Jon, Oct 18), and a jump in arrives at it.
+## Why: docs/why/DockFlyTest.md#dock-only-at-station
 func _only_at_station() -> void:
 	if _only != "" and _only != "dockplace":
 		return

@@ -1,60 +1,12 @@
 class_name LocalDust
 extends Control
 
-## LOCAL'S FOREGROUND DUST (Jon: "can we add some dust to the local? something
-## in the more frontal layer?"; of the first take, "it kinda pops in and out and
-## looks low res"; and of the second, with the chart and the map, "dust
-## disappearing, dust looking flat and not visually interesting"): dust drifting
-## between the camera and the fight, the nearest layers of all, in front of the
-## ships -- and held to one rule above the look of it: it never covers a ship, a
-## shot's line, a damage number, an intent or a name.
-##
-## DEPTH: five kinds of dust at their own distances, each with its own size,
-## speed and slide with the camera (`LAYERS`) -- far specks a pixel across,
-## crawling and sliding least; motes of gathered light; near motes, bigger and
-## softer, faster; a few out-of-focus discs right in front of the lens, faint
-## and quick; and now and then a thread of dust (a filament) or a knot of grains
-## (a clump) drifting through at middle distance. The nearer, the faster it
-## drifts and the further it slides when the camera moves.
-##
-## LIGHT: each is gathered light added over the sky (`local_dust.gdshader`), lit
-## from the system's own star -- brighter on its side toward the star, brighter
-## the nearer it hangs in front of the star in the picture (dust scatters the
-## light that comes past it toward you), its core the star's colour. Now and then
-## a mote turns and GLINTS: its core flares and a short cross of light grows from
-## it, over most of a second, eased, never a flash.
-##
-## ZOOM ONLY ADDS DETAIL (Jon: "zooming in causes artifacts like pixels missing
-## ... dust disappearing, dust looking flat"): the dust is drawn per GAME PIXEL
-## whatever its own scale. Under the cutaway's push-in and the zoom ladder the
-## scene scales this control; the dust takes that scale out and draws each mote
-## again where the zoom puts it and at the size it puts it -- the nearer, the
-## more it grows (`s^(1 + DEPTH_ZOOM * z)`), so the dust parts round the camera as
-## it pushes in -- a speck growing a falloff, a mote a soft rim. Pulled back
-## below LOCAL's own scale (the map's zoom, 2C) it fades out, as the map has no
-## dust.
-##
-## NOTHING POPS: a mote's visibility (`vis`) eases toward what its place allows
-## -- fading out over a ship's margin, the shots' band or the view's top edge,
-## in over the clear sky -- a step of its dither at a time (`FADE_IN`,
-## `FADE_OUT` a second), worked out every frame; the motes wrap round a strip
-## wider than the view, so they come and go off screen; and a mote's place, its
-## light and its glint each move on only once they have moved a whole step past
-## where they were shown (hysteresis), so none of them goes A, B, A. Inside a
-## ship's picture, a label or a gauge no pixel of dust is ever drawn (`keep`, a
-## last guard). `LocalShot dustcheck` measures what it covers and how fast it
-## fades; `dustonly` films it alone.
-##
-## BY STYLE: SIMPLIFIED light in dithered steps; PAINTED flat hand-picked steps,
-## a held highlight at each mote's middle, the motes moved in held poses (eight a
-## second); RADIANT the star's light spilling softly round each mote; LEGACY the
-## old starfield's blue-greys, no glints.
+## Foreground dust that never covers a ship, shot line, number, intent or name.
+## Zoom only adds detail and nothing pops: holds and fades avoid A, B, A flicker.
+## Why: docs/why/LocalDust.md#local-dust
 
 const SH := preload("res://shaders/local_dust.gdshader")
-## THE LAYERS, far to near: [count, count on GRAPHICS LOW, kind (0 mote, 1
-## out-of-focus disc, 2 speck, 3 filament, 4 clump), depth z (lo, hi), radius
-## px (lo, hi; a filament's half length), light (lo, hi), drift px/s (lo, hi),
-## slide with the camera (lo, hi), share that glint]
+## Layer table, far to near: counts, kind, depth, radius, light, drift, slide, glint share.
 const LAYERS := [
 	[72, 34, 2, 0.0, 0.3, 0.6, 1.0, 0.4, 0.8, 1.5, 3.5, 0.5, 0.65, 0.0],
 	[40, 18, 0, 0.3, 0.7, 1.4, 2.6, 0.6, 1.0, 4.0, 8.0, 0.72, 0.92, 0.4],
@@ -192,7 +144,7 @@ func _process(delta: float) -> void:
 			kind = 0
 		# ITS GLINT: a slow turn catching the light, eased; held a step
 		var gl := 0.0
-		if float(m.gw) > 0.0 and _style != 3:
+		if float(m.gw) > 0.0:
 			gl = pow(maxf(0.0, sin(tt * float(m.gw) + float(m.gph))), 14.0)
 		if absf(gl - float(m.gl_shown)) > HOLD_G or (gl == 0.0 and float(m.gl_shown) < HOLD_G):
 			m.gl_shown = gl
@@ -202,12 +154,8 @@ func _process(delta: float) -> void:
 		var nv := v + clampf(want - v, -FADE_OUT * dt, FADE_IN * dt)
 		step = maxf(step, absf(nv - v))
 		m.vis = nv
-		# ITS PLACE, held until it has moved a whole step on (whole px, centres),
-		# and held at least two frames once moved: a mote with any texture (a
-		# disc's lit rim, a clump's grains) that stepped a pixel EVERY frame showed
-		# each pixel under it a different part of it each frame, A, B, A -- read
-		# as shimmer. A near mote faster than that steps two px at once instead.
-		# (Not under a zoom or a fast camera: then it goes where it is carried.)
+		# Place is held until it moves a whole step, and two frames, or it reads as shimmer.
+		# Why: docs/why/LocalDust.md#local-dust
 		var sx: float = m.sx
 		var sy: float = m.sy
 		var lag := maxf(absf(g.x - sx), absf(g.y - sy))
@@ -225,9 +173,7 @@ func _process(delta: float) -> void:
 		var li := float(m.inten) * (1.0 + SCATTER.x * _scatter_k() * exp(-sd / SCATTER.y))
 		if absf(li - float(m.l_shown)) > HOLD_L:
 			m.l_shown = snappedf(li, HOLD_L * 0.5)
-		# ITS VISIBILITY AND THE SIDE IT IS LIT FROM, as drawn: held until they move
-		# a step on, like its place -- a mote whose light sat on a dither step's
-		# edge tipped a pixel on and off as the fade crept (A, B, A)
+		# Visibility and lit side are held like the place, or a dither edge flickers a pixel.
 		var show := nv * zv
 		if show <= 0.002:
 			m.v_shown = 0.0
@@ -297,12 +243,7 @@ static func _ext(kind: int, R: float, H: float, gl: float) -> Vector2:
 
 
 func _scatter_k() -> float:
-	match _style:
-		2:
-			return 1.8
-		3:
-			return 0.5
-	return 1.0
+	return 1.8 if _style == 2 else 1.0
 
 
 func _h(a: int, b: int) -> float:
@@ -312,7 +253,7 @@ func _h(a: int, b: int) -> float:
 ## The dust of this system, layer by layer, and its colours.
 func _seed_motes() -> void:
 	_motes.clear()
-	_style = {&"painted": 1, &"radiant": 2, &"legacy": 3}.get(sky.style, 0)
+	_style = {&"painted": 1, &"radiant": 2}.get(sky.style, 0)
 	var idx: int = sky.node.index
 	var low := DisplaySettings.graphics_low
 	var wind := 1.0 if _h(idx, 9) < 0.5 else -1.0
@@ -351,27 +292,22 @@ func _seed_motes() -> void:
 func _colours() -> void:
 	var look: Dictionary = sky._sky_look
 	_mat.set_shader_parameter("style", _style)
-	# its body: the cloud's own colour lifted, a warm grey in a clear sky, the old
-	# starfield's blue-grey in LEGACY; its core: the star's light
+	# its body: the cloud's own colour lifted, a warm grey in a clear sky; its
+	# core: the star's light
 	var g := Color("#c8bcb0")
 	if sky._neb_mat != null and look.has("hue"):
 		var hh: Vector3 = look.hue
 		g = Color(hh.x, hh.y, hh.z).lerp(Color("#d8d0c8"), 0.45)
 	var sl: Vector3 = sky.star_light()
 	var core := Color(sl.x, sl.y, sl.z).lerp(Color(1, 1, 1), 0.55)
-	if _style == 3:
-		g = Color("#9fb0c8")
-		core = Color("#c8d4e4")
-	elif _style == 2:
+	if _style == 2:
 		g = Color(sl.x, sl.y, sl.z).lerp(g, 0.4)
 		core = Color(sl.x, sl.y, sl.z).lerp(Color(1, 1, 1), 0.35)
 	_mat.set_shader_parameter("glow", Vector3(g.r, g.g, g.b))
 	_mat.set_shader_parameter("core_col", Vector3(core.r, core.g, core.b))
 
 
-## Where a mote is at rest (this control's own px, unzoomed): its own drift,
-## wrapped round a strip wider than the view (so it comes and goes off screen),
-## the camera's real travel at its depth, a slow bob.
+## Where a mote is at rest: drift wrapped round a strip wider than the view, plus a bob.
 func _rest_at(m: Dictionary, tt: float) -> Vector2:
 	var w := size.x + WRAP * 2.0
 	var x := fposmod(float(m.x) + float(m.vx) * tt - sky.cam_follow.x * float(m.f), w) - WRAP
@@ -424,10 +360,7 @@ func _collect(n: Node, out: Array[Rect2]) -> void:
 		_collect(c, out)
 
 
-## How visible a mote may be: 1 in the clear, 0 within KEEP of anything it must
-## not cover (its whole box, `g` +- `ext`, in the game's px), easing between;
-## easing out into the shots' band and at the view's top edge (its place at rest,
-## `p`, reaching `ry` up and down).
+## How visible a mote may be: 0 within KEEP of anything it must not cover, easing between.
 func _allow(p: Vector2, ry: float, g: Vector2, ext: Vector2, rects: Array[Rect2]) -> float:
 	var y := p.y
 	var w := 1.0

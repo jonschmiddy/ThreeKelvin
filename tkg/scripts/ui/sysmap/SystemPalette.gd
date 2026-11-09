@@ -1,23 +1,10 @@
 extends RefCounted
 
-## A SYSTEM'S OWN SHORT PALETTE, for `map_palette.gdshader` (Jon picked the
-## strongest take, then "even more pixelated"). Found once per system from its
-## own first picture, so its colours stay true:
-##   * about sixteen colours, split again and again where the picture's
-##     colours spread widest (a median cut, weighted by how much of the
-##     picture each colour covers);
-##   * a few more from round the star, so a small bright star is not averaged
-##     away into the sky;
-##   * every other colour of the star painter's own palette, so a sun keeps
-##     the colours it was painted in (a cut alone turned the sun cream);
-##   * the void.
-## A fixed palette was tried first: it turned the sun green and filled dark
-## sky with grids of dots.
+## Found once per system from its own picture so colours stay true; a fixed one greened the sun.
+## Why: docs/why/SystemPalette.md#system-palette
 
 const K := 16
-## and for a system inside a nebula, whose sky is the cloud seen from inside
-## (`sky_nebula.gdshader`): at sixteen its teals and roses fell between too few
-## colours and dithered into blue checks
+## For a system inside a nebula: at sixteen colours teals and roses dithered into blue checks.
 const K_NEBULA := 24
 
 ## The star painters' own colours (the mockup's `PALHEX`s).
@@ -123,19 +110,8 @@ static func oklab(c: Vector3) -> Vector3:
 	return Vector3(0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
 
 
-## The palette for one system's picture `img`, its star at `star_at` with
-## radius `star_r`, of `kind` ("ORDINARY", "RED", "BLUE", "PULSAR", "CORE").
-## `y0`: the first row the map shows; above it is the HUD, not the system.
-## `extra`: colours of the system's weather (`SkyWeather.RAMP`), put in before
-## the void, so its brightest moments have steps of their own.
-## `merge`: twins closer than this (OKLab) are one colour (0: none).
-## TWO SUNS (ruling 20): `star2_r` > 0 adds star B's light -- a cut of its own
-## round `star2_at` and its own steps `star2_cols` -- straight after star A's, so
-## the merge keeps them before the painter's and the weather's. Only as many of
-## them as leave the whole within `most` colours (the palette pass holds 72, and
-## the caller cuts the rest off without a sound): star B's are what give way,
-## never the sky's, the weather's or the void. Left out (every one-sun call),
-## the palette is the one this always made.
+## Two suns (ruling 20): star B's colours give way first past the 72 the palette pass holds.
+## Why: docs/why/SystemPalette.md#palette-build
 static func build(img: Image, x0: int, star_at: Vector2, star_r: float, kind: String, y0: int = 0, k: int = K, extra: PackedVector3Array = PackedVector3Array(), own_pal: bool = true, no_grey: bool = false, merge: float = MERGE, void_first: bool = false,
 		star2_at: Vector2 = Vector2.ZERO, star2_r: float = 0.0, star2_cols: PackedVector3Array = PackedVector3Array(), most: int = 0) -> PackedVector3Array:
 	if img.get_format() != Image.FORMAT_RGBA8 and img.get_format() != Image.FORMAT_RGB8:
@@ -163,9 +139,7 @@ static func build(img: Image, x0: int, star_at: Vector2, star_r: float, kind: St
 ## The cut's colours `pal` (the whole picture's, round the star) made a palette:
 ## its greys dropped in a cloud, the painter's own, the extras, the void, merged.
 static func _finish(pal: PackedVector3Array, kind: String, extra: PackedVector3Array, own_pal: bool, no_grey: bool, void_first: bool, merge: float) -> PackedVector3Array:
-	# A CLOUD SEEN FROM INSIDE HAS NO GREYS (SIMPLIFIED, C): where teal meets rose,
-	# or a flash meets the cloud, the cut finds a few dull mid-greys, and those
-	# blocks turn dirty; dropped, they fall to the nearest hue instead
+	# A cloud seen from inside has no greys: the cut's dull greys dirtied blocks, so they go.
 	if no_grey:
 		var kept := PackedVector3Array()
 		for c in pal:
@@ -174,10 +148,7 @@ static func _finish(pal: PackedVector3Array, kind: String, extra: PackedVector3A
 				continue
 			kept.append(c)
 		pal = kept
-	# the star painter's own colours: for the sky's glow round the sun -- not
-	# when the cloud is lit by it instead (`own_pal` false): the sun draws itself
-	# after this pass, in its own palette, and its greys and pale blues caught the
-	# teal of the bubble round it
+	# The painter's colours are only for the sun's glow; a lit cloud caught the bubble's teal.
 	var own: Array = PULSAR_PALETTE if kind == "PULSAR" else ([] if kind == "CORE" or not own_pal else SUN_PALETTE)
 	for i in own.size():
 		if i % 2 == 1:
@@ -185,9 +156,7 @@ static func _finish(pal: PackedVector3Array, kind: String, extra: PackedVector3A
 		var c := Color(own[i])
 		pal.append(Vector3(c.r, c.g, c.b))
 	pal.append_array(extra)
-	# THE VOID: last, or (`void_first`) first, so the merge keeps it and drops the
-	# cut's own near-black twin (a greenish average of the dark sky and its stars,
-	# which set the whole clear sky a murky teal-black instead of the void)
+	# The void goes first or last so the merge keeps it and drops the cut's murky near-black twin.
 	if void_first:
 		pal.insert(0, Vector3(7, 10, 18) / 255.0)
 	else:
@@ -195,13 +164,8 @@ static func _finish(pal: PackedVector3Array, kind: String, extra: PackedVector3A
 	return merged(pal, merge) if merge > 0.0 else pal
 
 
-## TWINS ARE ONE COLOUR. The cut of a dark sky finds runs of near-identical
-## dark violets, a step or two apart; a block whose colour sat between two of
-## them took one or the other as the map zoomed, frame by frame, and the sky
-## shimmered with a flicker nobody could see as a colour change (the dark
-## cloud's zoom: half of every pixel that changed went back the next frame).
-## A colour within MERGE (OKLab) of one already kept is dropped; the earlier
-## one -- the cut's, the star's, the painter's -- stays.
+## Twins are one colour: near-identical dark violets flickered as the map zoomed.
+## Why: docs/why/SystemPalette.md#twins-merge
 const MERGE := 0.03
 
 

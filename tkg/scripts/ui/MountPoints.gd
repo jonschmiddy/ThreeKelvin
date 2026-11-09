@@ -3,48 +3,26 @@ extends Control
 
 ## The ship's hardpoints, ON the ship.
 
-## Replaces the rack of squares beside it. A rack answers "how many mounts of
-## each kind are there" — which is a real question, and is now answered by the
-## HARDPOINTS tally under the attributes, where it costs three rows instead of a
-## column. What a rack cannot answer is WHERE, and where is the thing a mount
-## actually is: `HullData.dorsal` and its two siblings are measured off the
-## hull's own silhouette precisely so a gun can hang off the spine it is bolted
-## to rather than off a square in a list.
-##
-## Sits over a ShipView and asks it to place things, so the sprite's bob, its
-## magnification and its centring stay in one place. See ShipView.canvas_to_local.
+## Draws mounts off the hull's own silhouette, so a gun hangs off the spine it is bolted to.
+## Why: docs/why/MountPoints.md#purpose
 
-## Radius of the ring drawn at a mount, in CONTROL pixels.
-##
-## The hull is no longer magnified, so a ring is now the same size relative to
-## the ship as it is on screen. 4 rather than 5: the deepest hull is 114 rows and
-## the shallowest 43, and a 5px ring on the 43 was a quarter of the hull's depth
-## — a mount should mark a place on the ship, not be a feature of it.
-## The empty-mount ring, in ART pixels. Multiplied by the view's magnification
-## everywhere it is used, same as everything else drawn on the hull.
+## Ring radius 4, not 5: on the shallowest hull (43 rows) a 5px ring was a quarter of its depth.
+## Why: docs/why/MountPoints.md#mount-sizes
 const R := 4.0
 
 ## How many rings the tractor ping keeps in the air at once. Three reads as a
 ## repeating pulse; one reads as a thing that blinks.
 const RINGS := 3
 
-## How far from an empty hardpoint a drop still counts, in art pixels.
-##
-## THE SAME NUMBER THE PING IS DRAWN AT, which is the whole point of it being a
-## constant: the outermost ring reached 3.4R and the drop was accepted within
-## 2.75R, so there was a visible ring of "looks like a target, is not one" all
-## the way round every mount. A target you can see and cannot hit is worse than
-## a smaller target.
+## Drop reach equals the ping's drawn reach, so no ring looks hittable but is not.
+## Why: docs/why/MountPoints.md#mount-sizes
 const REACH := R * 3.4
 
 signal dropped(payload: Dictionary, slot: ModuleData.Slot, index: int)
 
-## A part has been picked UP off the hull, and a drag has ended.
-##
-## Two signals rather than one because they are two different facts and the
-## screen does different things with them: lifting takes a part off the ship
-## immediately, and the end of a drag is the only moment anyone can tell that a
-## lifted part never landed anywhere and has to go back.
+## Two signals for two facts: lifting takes the part off the ship, and drag end is when a
+## part that never landed has to go back.
+## Why: docs/why/MountPoints.md#drag-signals
 signal lifted(m: ModuleData)
 signal released()
 
@@ -52,61 +30,32 @@ var _view: ShipView = null
 var _spots: Array[Dictionary] = []
 var _phase: float = 0.0
 var _lit: ModuleData = null
-## Where `_lit` was picked up from: the drag's own `origin` (`&"cargo"` the
-## hold, `&"hull"` lifted off this ship, `&"bag"` a loot pile, `&"pad"` the
-## dock), or `&""` when a harness lights a part by hand. It decides the answer:
-## see `takes`.
+## Where `_lit` was picked up from (`cargo`, `hull`, `bag`, `pad`); it decides `takes`.
 var _lit_origin: StringName = &""
 
-## THE PART BEING POINTED AT FROM SOMEWHERE ELSE.
-##
-## `_lit` answers "which mounts would take the thing I am carrying"; this
-## answers "where on the ship is the part I am reading about". They are
-## different questions and a drag is not involved in the second one, so the
-## refit screen's installed list can point at the hull without pretending to
-## carry anything.
+## Which part is pointed at from a list: no drag is involved, unlike `_lit`.
+## Why: docs/why/MountPoints.md#pointed-part
 var _focus: ModuleData = null
 var _passive: bool = false
 
-## THE SHIP THIS IS DRAWING MOUNTS FOR, when it is not the one you are flying.
-##
-## Null means `Run.hull`, which is every use of this widget but one. The
-## transfer screen draws the frame you are LEAVING with its guns still on it --
-## and by then `Run.hull` is the new ship and `Run.installed` is empty, so a
-## widget that can only ask `Run` cannot draw it.
-##
-## Six references were all it took. `refresh` needed a hull, a mount count and
-## an occupant; `_can_drop_data` needed a resident and a hold. Everything else
-## in this file already works off `_spots`, which is why generalising it was
-## worth doing here and was not worth doing to `HoldGrid`.
+## Null means `Run.hull`; the transfer screen draws the frame being left, which `Run` cannot supply.
+## Why: docs/why/MountPoints.md#foreign-hull
 var ship: HullData = null
 ## What is bolted to `ship`. Read instead of `Run.installed` in foreign mode.
 var fitted: Array = []
 
-## How many fitted parts the last redraw actually put on the hull.
-##
-## Written by `_draw` and read by `-- fittest`. The bug it exists for was the
-## draw loop skipping past a fitted part to paint a highlight in its place, and
-## no assertion on the DATA can see that: `spots()` reported every part
-## correctly the whole time the hull was coming back bare. A count of what was
-## DRAWN is the smallest thing that can tell the difference.
+## Counts what `_draw` painted: the bare-hull bug was invisible to any assertion on the data.
+## Why: docs/why/MountPoints.md#draw-counters
 var drawn: int = 0
 
 ## How many tractor pings the last redraw put up. Same reason as `drawn`: the
 ## rule is that only an EMPTY hardpoint pings, and nothing in the data says so.
 var pinged: int = 0
 
-## How many empty mounts the last redraw HINTED at -- the hover answer, not the
-## drag answer. Counted for the same reason the other two are: the rule is that
-## a hint and a ping are never both on screen, and only a count of what was
-## drawn can tell.
+## Counts hover hints drawn, as a hint and a ping must never both show.
 var hinted: int = 0
 
-## How many FITTED parts the last redraw marked as ones the carried part would
-## trade with (`_swap_mark`), and every mount it marked either way -- a fitted
-## part framed or an empty mount pinged -- as `spot_key`s. Counted for the same
-## reason as `pinged`: what the hull SAYS a drop does is only checkable off what
-## was drawn, and `-- cutawaytest` holds it to what the drop really does.
+## Counts swap marks and marked mounts drawn; `-- cutawaytest` holds them to what a drop does.
 var swapped: int = 0
 var marked: Array[String] = []
 
@@ -117,14 +66,8 @@ static var swap_look := 0
 ## Where the pointer is over the hull, or INF. Drives the hover highlight.
 var _hover: Vector2 = Vector2.INF
 
-## THE CUTAWAY (`CutawayView`): every fitted part lifted off its mount along a
-## dotted leader line to a labelled tag, and the empty mounts drawn as rings.
-## `lift` is each part's offset from its mount ("slot:index" -> art px, worked
-## out by the cutaway from the hull's silhouette), `explode` how far along it is
-## (0 on its mount: everywhere else this widget is used, nothing changes), and
-## `tag_side` which side of the part its name goes ("L", "R", "T", "B"). The part is
-## drawn, hit and picked up where it is lifted to, so a drag starts on what you
-## see.
+## The part is drawn, hit and picked up where it is lifted to, so a drag starts on what you see.
+## Why: docs/why/MountPoints.md#cutaway
 var lift: Dictionary = {}
 var tag_side: Dictionary = {}
 var explode: float = 0.0
@@ -152,35 +95,21 @@ func attach(v: ShipView) -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	set_process(true)
-	# Its own subscription, so a host only has to add it. The refit screen calls
-	# refresh() itself as well, which costs a redraw and is worth not having a
-	# second rule about who is responsible for this.
+	# Its own subscription so a host need only add it, at the cost of one extra redraw.
 	Sig.ship_changed.connect(refresh)
 
-## Display only. No drops, no empty hardpoints, no beams.
-##
-## What the sector wants is the PICTURE: a ship with its guns on it. A ring
-## marking a mount you have not filled is an invitation to do something that
-## screen cannot do, and a tractor beam has nothing to reach for.
+## Display only: the sector wants the picture, and a ring or beam would invite what it cannot do.
 func passive() -> void:
 	_passive = true
 	weapons_only = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	queue_redraw()
 
-## ONLY THE GUNS ON A PICTURE OF THE SHIP (Jon, Oct 23, from Geno's playtest):
-## LOCAL, the fight, the station hall and the yard draw the WEAPON parts and
-## leave the systems and utilities off, which keeps the hull from reading as a
-## pile of boxes. Every part still shows wherever parts are fitted or moved --
-## the cutaway, the refit screen, moving day -- since those are not `passive`.
-##
-## The hull under a hidden part is the hull's own art: the parts are drawn over
-## the canvas, never cut out of it, so there is no hole to fill.
+## Pictures show weapons only (Jon, Oct 23); fitting screens still show every part.
+## Why: docs/why/MountPoints.md#weapons-only
 var weapons_only: bool = false
 
-## Whether a fitted part is drawn on this hull (see `weapons_only`). Everything
-## that reads the parts AS DRAWN asks this: the drawing, the stands, the
-## breakup's picture, the ship's whole rect, the stray test.
+## Whether a fitted part is drawn; everything reading parts as drawn asks this.
 func shows(m: ModuleData) -> bool:
 	return m != null and (not weapons_only or m.slot == ModuleData.Slot.WEAPON)
 
@@ -200,9 +129,7 @@ func _place() -> void:
 	_placed_scale = _view.art_scale()
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
 			ModuleData.Slot.UTILITY]:
-		# THE HULL'S OWN COUNT IN FOREIGN MODE. `Run.slots_for` adds whatever
-		# the ship you are FLYING has earned; asked about a frame you are
-		# walking away from it would answer for the wrong one.
+		# Use the hull's own slot count in foreign mode; `Run.slots_for` is for the flown ship.
 		var n: int = h.slots_for(slot) if ship != null else Run.slots_for(slot)
 		var pts := h.mounts_along(slot, n)
 		for i in pts.size():
@@ -214,11 +141,7 @@ func _place() -> void:
 			})
 
 
-## FITTED PARTS DRAWN OFF THE HULL, for the tests: with nothing exploded, each
-## fitted part's drawn rect must cover some of the hull's own opaque pixels where
-## the hull is drawn NOW -- a part left where the hull used to be (the view laid
-## out again, the hull recentred in it, these mounts not told) is a part floating
-## in space beside the ship. The names of any that are not.
+## For tests: a part left where the hull used to be would float beside the ship.
 func strays() -> Array[String]:
 	var out: Array[String] = []
 	if _view == null or explode > 0.0:
@@ -248,10 +171,7 @@ func strays() -> Array[String]:
 	return out
 
 
-## EVERY FITTED PART'S DRAWN RECT IN THE HULL'S OWN CANVAS PIXELS, placed from
-## where the hull is drawn now: for the yard's stands (`YardScene._stand`), which
-## keep out from under a part hung below the belly -- a gun drawn across a
-## stand's cap reads as the gun standing on it.
+## For the yard's stands, which keep out from under a part hung below the belly.
 func part_rects_canvas() -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	if _view == null:
@@ -293,59 +213,22 @@ func _stale() -> bool:
 func _process(delta: float) -> void:
 	if _view == null:
 		return
-	# The mounts ride the hull, so they move with it: with the idle bob, and
-	# with the hull's place in its view. Recomputed only when the hull has
-	# actually moved -- the bob steps in whole pixels a few times a second, and
-	# repainting every frame regardless would be the same picture drawn sixty
-	# times.
-	#
-	# THE HULL'S PLACE, NOT ONLY THE BOB (Jon: "why are the modules off the
-	# ship?"). The hull is drawn centred in its view, so when the view is laid
-	# out again -- LOCAL's event band folding away, the ship's slot growing --
-	# the hull moves and nothing about the ship changed. Watching the bob alone
-	# left every part where the hull had been until the next bob step, and for
-	# good on a hull that does not bob.
-	#
-	# Measured against where the mounts were PLACED, not where the hull was last
-	# frame: LOCAL's ship slot is laid out twice in some frames (the hull's view
-	# at its minimum width, 324, then the row's 642 at the end of the frame), and
-	# a placing done in between is wrong by the difference, 158 px of the hull's
-	# own length. `_draw` checks again, after the layout has settled.
+	# Watch the hull's place, not only the bob: a relayout moved the hull and left parts behind.
+	# Why: docs/why/MountPoints.md#hull-movement
 	if _stale():
 		refresh()
-	# THE PHASE ADVANCES FOR EITHER ANIMATION, and it used to advance for only
-	# one. `_lit` was the sole condition here for as long as the tractor ping
-	# was the sole animated thing on the hull, so the hover hints added beside
-	# it were drawn ONCE and then held -- repainted only when the idle bob
-	# stepped, a few times a second, always at whatever phase the last drag had
-	# left behind. They were not faint. They were STOPPED, which is a thing a
-	# lower alpha looks exactly like and no amount of brightening would fix.
+	# The phase must advance for either animation: the hover hints were stopped, not faint.
+	# Why: docs/why/MountPoints.md#animation-phase
 	if _animating():
 		_phase = fmod(_phase + delta * 2.4, TAU)
 		queue_redraw()
 
-## Is anything on the hull moving right now? A part in hand puts pings up; a
-## pointer on the hull with empty hands puts hints up. One condition, so a third
-## animation cannot be added and quietly not run.
+## One condition for any animation, so a third cannot be added and quietly not run.
 func _animating() -> bool:
 	return _lit != null or lit_part != null or (not _passive and _hover.x < INF)
 
-## One art pixel, in screen pixels. See ShipView.art_scale.
-##
-## PARTS ARE HALF THE SIZE ON THE SHIP THAT THEY ARE IN THE HOLD, deliberately.
-## The two surfaces are doing different jobs: the hold is a thing you grab from,
-## so its cells are 30px and easy to hit, and the ship is a picture, so a part on
-## it has to be in proportion to the hull it is bolted to.
-##
-## The proportion is not a preference — it is forced. A heavy carries FIVE weapon
-## hardpoints. At hold size a two-cell gun is 61px against a 248px hull, so five
-## of them come to 125% of the ship and cannot be drawn at all. At this size the
-## same gun is 31px and five of them take 62% of the dorsal line, which is a ship
-## with guns on it.
-##
-## art_scale, not zoom_level: a mount is drawn ON the hull, so it has to follow
-## the hull onto the half sheet. zoom_level reports magnification alone and would
-## draw full-size parts over a half-size ship.
+## Parts are half hold size on the ship by force: five heavy guns at hold size are 125% of the hull.
+## Why: docs/why/MountPoints.md#part-scale
 func _mag() -> float:
 	return _view.art_scale() if _view != null else 1.0
 
@@ -360,13 +243,9 @@ func _draw() -> void:
 	swapped = 0
 	marked.clear()
 	var pulse := 0.62 + 0.38 * sin(_phase)
-	# EVERY size below is in art pixels times this. The hull is magnified and
-	# the things bolted to it were not, so a gun came out a sixth of the length
-	# it is drawn at in the hold — the same asset, two scales, on one screen.
+	# Sizes are art pixels times this: the hull is magnified and bolted parts were not.
 	var k := _mag()
-	# HOVERING THE SHIP SHOWS YOU WHAT IS ON IT. Only while your hands are
-	# empty: with a part in hand the pings are already saying where it can go,
-	# and two answers at once is one too many.
+	# Hover hints only with empty hands: with a part in hand the pings already answer.
 	var over := not _passive and _lit == null and _hover.x < INF
 	for spot in _spots:
 		var at: Vector2 = _part_at(spot)
@@ -380,16 +259,10 @@ func _draw() -> void:
 		var ok := _takes_spot(spot)
 		if m != null and explode > 0.0 and at != (spot.at as Vector2):
 			_leader(spot.at, at, m, spot.slot as ModuleData.Slot, k)
-		# IN THE CUTAWAY AN EMPTY MOUNT SHOWS ONLY WHILE A PART THAT FITS IT IS
-		# CARRIED (Jon: "Why is there a circle for a missing module? Shouldn't
-		# that only be when I have a module in my hand?"): its words then, beside
-		# the ping below. At rest the left panel's MOUNTS x OF y says it.
+		# In the cutaway an empty mount shows only while a fitting part is carried (Jon).
 		if m == null and _shows_empty(spot):
 			_empty_words(spot, k)
-		# WHAT IS THERE, FIRST AND ALWAYS. This used to draw the highlight
-		# INSTEAD of the part and skip to the next mount, so picking up any
-		# weapon blanked every other weapon on the ship for as long as you
-		# carried it — which is exactly the moment you are looking at the hull.
+		# Draw what is there first: skipping ahead to the highlight blanked every other weapon.
 		if m != null:
 			var r := part_rect(m, spot.slot, at, k)
 			var under := over and r.grow(2.0).has_point(_hover)
@@ -400,32 +273,16 @@ func _draw() -> void:
 				# "what have I got on here" for all of them at once.
 				draw_rect(r.grow(1.0),
 					ModuleData.rarity_ink(m.rarity), false, 1.0)
-			# POINTED AT FROM THE LIST. ONE ring, and this used to be two.
-			#
-			# The pair was reasoned from findability -- a single hairline on a
-			# busy hull is easy to miss -- and it bought that by fencing the
-			# part off: two strokes and the gap between them put four pixels of
-			# white around a gun fifteen pixels tall, so what your eye landed on
-			# was the frame rather than the thing inside it. On a part that
-			# small the border IS the highlight, and it was most of it.
-			#
-			# Still ICE, which is the brightest ink on the screen and is doing
-			# the finding now. One pixel of air so the stroke does not sit on
-			# the silhouette and read as part of it.
+			# One ring, not two: the pair fenced a 15px gun in four pixels of white.
+			# Why: docs/why/MountPoints.md#focus-ring
 			if m == _focus:
 				draw_rect(r.grow(2.0), UITheme.ICE, false, 1.0)
 			if m == lit_part:
 				var pl := 0.5 + 0.5 * sin(_phase * 3.0)
 				draw_rect(r, Color(UITheme.HOT, 0.18 + 0.15 * pl))
 				draw_rect(r.grow(2.0), UITheme.HOT, false, 1.0)
-			# WHAT THE CARRIED PART WOULD TRADE PLACES WITH (Jon: "can the
-			# swappable modules already installed get highlighted? Just so you
-			# know what can or cannot be swapped with that part"): the ping's
-			# teal, as a still frame round the part rather than rings at a point
-			# -- the same "your part goes here", told apart by its shape. A part
-			# it would NOT trade with is left as it is, never dimmed: you are
-			# looking at the hull while you carry, and a part greyed out reads as
-			# one gone (see "WHAT IS THERE, FIRST AND ALWAYS" above).
+			# Trade partners get a still teal frame, never dimmed: greyed reads as gone (Jon).
+			# Why: docs/why/MountPoints.md#swap-marks
 			if ok:
 				_swap_mark(r, k)
 				swapped += 1
@@ -433,54 +290,15 @@ func _draw() -> void:
 			if tags and explode > 0.85:
 				_tag(m, r, spot)
 			continue
-		# AN EMPTY HARDPOINT IS NOT DRAWN AT ALL. A ring on every unfilled
-		# mount put a row of orange circles across a ship that was finished —
-		# saying "something is missing here" about a hull with nothing missing,
-		# and louder than anything else on the screen. Showing them on hover was
-		# the same complaint one gesture later. The only time a bare mount is
-		# worth pointing at is when you are holding something that fits it, and
-		# that is what the ping below is.
+		# An empty hardpoint is not drawn: rings on a finished ship say something is missing.
+		# Why: docs/why/MountPoints.md#empty-mounts
 
-		# A PING, and ONLY on a mount with nothing in it. Drawn over an
-		# installed part it swamped the thing it was pointing at — 27px of
-		# rings over a gun 30px tall — which is what made a whole slot look
-		# like it had emptied the moment you picked something up. An occupied
-		# mount that will take a swap says so with a still frame round its part
-		# instead (`_swap_mark`, above), which leaves the part in plain view.
-		# HOVERING WITH EMPTY HANDS ANSWERS "WHERE ARE THE GAPS" TOO.
-		#
-		# The note above rules out drawing empty mounts UNPROMPTED, and that
-		# still holds -- a permanent row of rings on a finished ship complains
-		# about a hull with nothing wrong with it. What is different here is
-		# that the hover IS the question. Fitted parts already answer "what
-		# have I got on this thing" with their outlines the moment you point at
-		# the ship; this is the other half of the same answer, and without it
-		# the hover tells you what is there and stays silent about what is not.
-		#
-		# COLD AND FAINT, NEVER THE TRACTOR TEAL. A ping means "the part in
-		# your hand goes here", which is an instruction; a hint means "a mount
-		# is here", which is a fact. Same motion, so it reads as the same
-		# animation -- a third of the alpha, a shorter reach, and the dimmest
-		# ink on the screen, so an empty hull cannot out-shout the guns already
-		# bolted to it. That loudness is what got the first version cut.
-		#
-		# The two can never appear together: `over` requires empty hands and
-		# the ping requires a part in one.
-		# (not in the cutaway: there an empty mount waits for a part in hand)
+		# Pings only on empty mounts; hover hints are cold and faint so a bare hull is not loud.
+		# Why: docs/why/MountPoints.md#pings-and-hints
 		if over and not tags:
 			hinted += 1
-			# CHILL FOR THE TRAVELLING RINGS, ICE FOR THE ONE THAT STAYS.
-			#
-			# The first pass used COLD at a third of the ping's alpha, reasoning
-			# from the note above that a bare hull must not out-shout the guns
-			# on it. That reasoning was sound and the number was still wrong:
-			# COLD is the dimmest ink in the theme and a third of it against a
-			# hull is nothing. A hint has to be SEEN to be a hint.
-			#
-			# Full reach and near the ping's alpha, but a cold blue-grey where
-			# the ping is teal -- the separation that matters is HUE, not
-			# loudness. Two things that mean different things should look
-			# different, not one of them look absent.
+			# Hints use CHILL at near ping alpha: the separation that matters is hue, not loudness.
+			# Why: docs/why/MountPoints.md#pings-and-hints
 			var g := UITheme.CHILL
 			for i in RINGS:
 				var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
@@ -500,11 +318,7 @@ func _draw() -> void:
 				Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
 		_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
 
-## THE SWAP MARK round a fitted part drawn at `r`: one art pixel thick (whole
-## px of this control, so it keeps the hull's own pixel at any push-in), one px
-## of air off the part, in the ping's TRACTOR, held still -- filled rects, not a
-## stroked outline, so no edge is ever half a pixel. Drawn only: nothing is hit
-## by it, and no rect anything is hit by changes.
+## Swap mark: one art pixel thick, one px off the part, filled rects so no edge is half a pixel.
 func _swap_mark(r: Rect2, k: float) -> void:
 	var t := maxf(1.0, roundf(k))
 	var g := 1.0 + t
@@ -525,27 +339,17 @@ func _swap_mark(r: Rect2, k: float) -> void:
 	draw_rect(Rect2(f.end.x - t, f.position.y + t, t, f.size.y - t * 2.0), c)
 
 
-## WHERE A PART IS DRAWN, as a rectangle. One function, because three things
-## need it: the drawing, the hover test, and picking one up. A gun you can only
-## grab by the dot it is bolted through is a gun you have to aim at.
+## One function for drawing, hover and pick-up; a gun grabbable only by its dot is hard to aim at.
 func part_rect(m: ModuleData, slot: ModuleData.Slot, at: Vector2,
 		k: float) -> Rect2:
-	# THE AUTHORED SIZE, not the packed one. `footprint()` swaps the axes
-	# when a part is turned, and turning is a fact about how it fits in the
-	# HOLD -- rotating a rail to slot it into a gap should not stand the gun
-	# on its end once it is bolted to the hull.
+	# Authored size, not packed: turning a part to fit the hold must not stand it on end.
 	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
-	# THE CELLS COME WITH THE SHIP. The hold is authored at 2x and so is the
-	# refit screen's hull, which is what makes a part the same size in both. The
-	# sector drops to 1x with a party on screen, and a box that stayed 30px
-	# would put a full-size gun on a half-size ship.
+	# The cells scale with the ship: a fixed 30px box would put a full gun on a half ship.
 	var q := k / ModuleIcon.HOLD_K
 	var cell := float(HoldGrid.CELL) * q
 	var gap := float(HoldGrid.GAP) * q
 	var box := Vector2(f) * (cell + gap) - Vector2(gap, gap)
-	# THE HARDPOINT IS A POINT INSIDE THE PART, and which point depends on what
-	# the part is — see ModuleIcon.mount_anchor. So the footprint hangs off the
-	# mount by that offset rather than being centred on it.
+	# The hardpoint is a point inside the part; see `ModuleIcon.mount_anchor`.
 	var up := ModuleIcon.part_turn(slot, f)
 	var anchor := ModuleIcon.mount_anchor(slot, box, up, cell)
 	return Rect2((Vector2(roundf(at.x), roundf(at.y)) - anchor).round(), box)
@@ -558,39 +362,17 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	var r := part_rect(m, slot, at, k)
 
-	# THE PART ITSELF, and normally nothing around it. A ship is not an
-	# inventory: what is bolted to it is the object, not a plate with the object
-	# on it. Hovering is the exception — see `_draw`.
-	# FLIPPED, if this one is, and standing the way the HULL decided rather
-	# than the way the hold packed it. Both travel as arguments: a transform
-	# set out here does not survive, because the silhouette sets the canvas
-	# transform absolutely when it draws itself.
+	# The part alone, no plate (hover aside). Flip goes as arguments: the transform resets.
+	# Why: docs/why/MountPoints.md#fitted-part-drawing
 	if full:
 		ModuleIcon.draw_plate(self, m, r, f, m.flipped, k)
 	else:
 		ModuleIcon.draw_body(self, m, r, col, f, m.flipped, k)
 
-	# NO RARITY BAR ON THE HULL, and this is where one used to be.
-	#
-	# It was a coloured bar drawn across the hardpoint whenever the part was not
-	# hovered -- the same rarity split the plate uses, applied out here on the
-	# assumption that "what is under the art says how good it is" would read the
-	# same way on a ship as it does in the hold. It does not. In the hold the
-	# rarity is the GROUND behind a plate and the eye takes it as a background;
-	# on the hull there is no plate, so the bar landed on top of the part itself
-	# and read as a stripe painted down the middle of the object. Every fitted
-	# module wore one, and it vanished on hover -- which is exactly backwards,
-	# since hovering is when you are asking about the part.
-	#
-	# Rarity on a fitted part is now answered by hovering it, which draws the
-	# full plate, and by the module list on the right. That is a real loss of
-	# an at-a-glance read and it is the trade that was chosen knowingly: a
-	# ship is not an inventory, and the line cost more than it told.
+	# No rarity bar on the hull: it read as a stripe through the part. Hover shows the plate.
+	# Why: docs/why/MountPoints.md#rarity-bar
 
-## Where every mount is and what is in it, in this control's own coordinates.
-## Read-only, and it exists for `-- fittest`: a test that has to drop something
-## on a hardpoint needs to know where one IS, and guessing that off the sprite
-## is the thing anchors.py was written to stop anybody doing.
+## Read-only, for `-- fittest`: tests need where a hardpoint is, not a guess off the sprite.
 func spots() -> Array[Dictionary]:
 	return _spots
 
@@ -618,11 +400,7 @@ func _tag(m: ModuleData, r: Rect2, s: Dictionary) -> void:
 	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), LowHull.scr(self, txt, UITheme.FS_SMALL, f), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.ICE, a))
 
 
-## WHERE A TAG'S WORDS ARE, for a part drawn at `r` (this widget's px) and a
-## name `w` px wide: beside it ("L", "R") or centred over or under it ("T",
-## "B"). The one place this is worked out -- the cutaway lays its parts out
-## with it and `-- cutawaytest` checks what it returns -- so the layout, the
-## drawing and the test cannot disagree about where the words are.
+## One place the tag box is worked out, so layout, drawing and test cannot disagree.
 static func tag_box(r: Rect2, side: String, w: float) -> Rect2:
 	var f := UITheme.pixel_font()
 	var asc := f.get_ascent(UITheme.FS_SMALL)
@@ -653,12 +431,8 @@ static func empty_text(slot: int) -> String:
 	return "EMPTY " + ModuleData.slot_name(slot).to_upper()
 
 
-## THE LEADER FROM A RING TO ITS WORDS, when the cutaway had to set them away
-## from it: whole pixels (this widget's px), one wide, from just outside the
-## ring at `at` to one pixel short of the words' box `box`, straight. None when
-## the words are beside the ring anyway. The one place it is worked out: the
-## cutaway keeps it clear with this, the drawing draws it and `-- cutawaytest`
-## checks it.
+## One place the leader is worked out, shared by layout, drawing and `-- cutawaytest`.
+## Why: docs/why/MountPoints.md#cutaway-layout
 static func label_leader(at: Vector2, box: Rect2, k: float) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	var g := box.grow(2.0)
@@ -692,12 +466,8 @@ static func label_leader(at: Vector2, box: Rect2, k: float) -> PackedVector2Arra
 	return out
 
 
-## EVERY WORD THE CUTAWAY HAS PUT ON SCREEN, and every part it lifted, as this
-## widget draws them: [{kind = "tag"|"label"|"part", rect, text}]. For
-## `-- cutawaytest`, which checks none of them sits on another or on the hull.
-## Every part bolted on, where it is drawn at rest (this control's px): their
-## footprints' union, Rect2() with none. With `ShipView.fitted_rect_global`,
-## how big a fitted ship is -- what the station's mouth is sized for.
+## Every word and lifted part as drawn, for `-- cutawaytest` overlap checks.
+## Why: docs/why/MountPoints.md#cutaway-layout
 func parts_rect() -> Rect2:
 	var out := Rect2()
 	var k := _mag()
@@ -734,9 +504,7 @@ func drawn_rects() -> Array[Dictionary]:
 	return out
 
 
-## The leaders drawn now, to words set away from their rings: [{at, rect,
-## points, text}], `rect` the words' box as `drawn_rects` gives it. For
-## `-- cutawaytest`.
+## The leaders drawn now, for `-- cutawaytest`.
 func empty_leaders() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if explode <= 0.85:
@@ -777,18 +545,8 @@ func _shows_empty(s: Dictionary) -> bool:
 	return tags and explode > 0.5 and _takes_spot(s)
 
 
-## WHETHER A DROP OF `m` ON MOUNT `index` OF `slot` WOULD LAND -- fit it, or
-## trade it with what is there -- for a part picked up from `origin`. THE ONE
-## ANSWER: `_can_drop_data` gives it to the cursor, `_draw` marks the mounts
-## with it, and it is `RunState.refit_allowed`, the gate `fit_at_mount` itself
-## goes through, with what the screens do before that call:
-##  - off this ship (`&"hull"`), the part is in the hand (`lift_part`), so it
-##    trades with any part of its kind;
-##  - off a loot pile (`&"bag"`), the cutaway claims it into the hold first
-##    (`Run.take_item`), so the hold has to have room for it -- on an empty
-##    mount too -- and then the resident goes in the cells it leaves;
-##  - anything else, from the hold or the dock: the resident goes to the hold.
-## Never on a ship you are leaving (`ship`), nor on a picture (`passive`).
+## The one answer to whether a drop lands; cursor, marks and `RunState.refit_allowed` all agree.
+## Why: docs/why/MountPoints.md#drop-rule
 func takes(m: ModuleData, origin: StringName, slot: ModuleData.Slot, index: int) -> bool:
 	if m == null or ship != null or _passive:
 		return false
@@ -802,10 +560,7 @@ func _takes_spot(s: Dictionary) -> bool:
 	return _lit != null and takes(_lit, _lit_origin, s.slot as ModuleData.Slot, int(s.index))
 
 
-## THE CUTAWAY LIFTS PARTS OUT PAST THIS WIDGET'S OWN RECT (it is the hull's
-## canvas, and a part lifted clear of a heavy can stand beyond it), so a point
-## on anything it drew counts as inside: that is what lets the part be pressed
-## and dragged where it is drawn.
+## Cutaway parts stand past the widget's rect, so any point on a drawn thing counts as inside.
 func _has_point(p: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, size).has_point(p) or hit_drawn(p)
 
@@ -836,25 +591,15 @@ func _empty_words(s: Dictionary, k: float) -> void:
 func _ring(at: Vector2, r: float, col: Color) -> void:
 	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
 
-## A PART ON THE HULL IS A THING YOU CAN PRESS, and the hull is one Control.
-##
-## Every mounted module is drawn by this node rather than being a node of its
-## own, so there is nothing for `mouse_default_cursor_shape` to sit on and the
-## reticle stayed open across a ship covered in things you can pick up, flip and
-## pull off. Position-keyed, like `_get_tooltip` beside it -- the answer depends
-## on WHERE in this Control you are, which is exactly what the hook is for.
-##
-## `_passive` is the display-only hull -- the convoy column, the shot harness --
-## where nothing answers a click and the pointer should not promise one.
+## Parts are drawn by this node, not nodes of their own, so the cursor must be position-keyed.
+## Why: docs/why/MountPoints.md#cursor-shape
 func _get_cursor_shape(at: Vector2) -> CursorShape:
 	if _passive or part_under(at) == null:
 		return Control.CURSOR_ARROW
 	return Control.CURSOR_POINTING_HAND
 
 
-## The INSTALLED PART under a point, or null. Same hit test the mount lookup
-## uses, answering with the thing rather than the place -- a caller that wants
-## to flip what it is pointing at does not care which hardpoint holds it.
+## The installed part under a point; a caller that flips it does not care which hardpoint.
 func part_under(p: Vector2) -> ModuleData:
 	var k := _mag()
 	for i in _spots.size():
@@ -865,27 +610,14 @@ func part_under(p: Vector2) -> ModuleData:
 			return m
 	return null
 
-## Which mount is under a point, or -1.
-##
-## AN INSTALLED PART IS GRABBED ANYWHERE ON IT. It used to be a radius round the
-## hardpoint for everything, so a three-cell rail could only be picked up by the
-## dot at its breech — the rest of it was scenery you could click through. An
-## EMPTY mount is genuinely just a point, so that keeps its radius.
-## WHAT IS BOLTED HERE, if the cursor is over anything.
-##
-## Position-keyed, which is the only shape that works: the mounts are drawn onto
-## one control rather than being controls themselves, so there is nothing per
-## part to hang a `tooltip_text` on. Godot asks this per position and an empty
-## string means no tooltip at all, which is exactly right over bare hull.
+## An installed part is grabbed anywhere on it; an empty mount is a point with a radius.
+## Why: docs/why/MountPoints.md#hit-testing
 func _get_tooltip(at: Vector2) -> String:
 	if not tooltips:
 		return ""
 	var i := spot_at(at)
 	_tip_for = _spots[i].held if i >= 0 else null
-	# THE NAME, NOT THE DESCRIPTION. Godot needs a non-empty string here to
-	# decide there IS a tooltip, and then hands that string to
-	# `_make_custom_tooltip` -- which ignores it and builds from `_tip_for`,
-	# because a panel cannot be encoded in a string and back.
+	# Return the name: Godot needs a non-empty string, and `_make_custom_tooltip` builds the panel.
 	return String(_tip_for.name) if _tip_for != null else ""
 
 
@@ -922,15 +654,8 @@ func spot_at(p: Vector2) -> int:
 			best = i
 	return best
 
-## Taking a part back OFF the ship.
-##
-## This did not exist for a long time, and its absence was invisible because
-## everything it needs already did: `_on_hold_drop` has always had a branch for
-## a part arriving off the hull, and the hold has always accepted a drop. There
-## was simply nothing anywhere that could start the drag.
-##
-## `origin` is what tells the far end which journey this is. The hold uses it to
-## decide between moving a part between two cells and taking one off the ship.
+## `origin` tells the far end which journey this is: cell to cell, or off the ship.
+## Why: docs/why/MountPoints.md#taking-parts-off
 func _get_drag_data(at: Vector2) -> Variant:
 	var i := spot_at(at)
 	if i < 0:
@@ -938,21 +663,12 @@ func _get_drag_data(at: Vector2) -> Variant:
 	var m: ModuleData = _spots[i].held
 	if m == null:
 		return null
-	# The same ghost the hold hands over, at the same size, because what you are
-	# carrying does not change shape depending on where you picked it up. It is
-	# handed the part's CURRENT place on the hull so the plate starts over the
-	# gun you just grabbed rather than appearing centred on the pointer.
+	# Same ghost as the hold, at the part's current place, so the plate starts over the gun.
 	set_drag_preview(ModuleIcon.ghost_for(m, &"hull",
 		get_global_rect().position
 		+ part_rect(m, _spots[i].slot, _part_at(_spots[i]), _mag()).position))
-	# OFF THE SHIP THE MOMENT IT IS IN YOUR HAND. Carrying a part while the
-	# ship still wore it meant the mount you were dragging OUT of stayed full,
-	# so it did not ping, and moving a gun one hardpoint along was a fight with
-	# a slot that already looked occupied — by the thing you were holding.
-	# `lifted` IS LIVE-SHIP BOOKKEEPING. It takes the part out of `Run.installed`
-	# so the mount stops reading as full while the thing that filled it is in
-	# your hand -- which is meaningless for a foreign hull, where the part is
-	# not in `Run.installed` to begin with.
+	# Off the ship once in hand, or its origin mount stays full and will not ping.
+	# Why: docs/why/MountPoints.md#lifting-a-part
 	if ship != null:
 		# The live hull's lift plays in the screen's `_on_lift`; a foreign hull
 		# has no such handler, so its lift sounds here.
@@ -967,10 +683,7 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	var m := Widgets.dragged_module(data)
 	if m == null:
 		return false
-	# NOTHING GETS BOLTED TO A SHIP YOU ARE ABANDONING. The old frame on the
-	# transfer screen is a source: you strip it, you do not rearrange it, and a
-	# hardpoint that accepted a drop there would be offering to fit a gun to a
-	# hull that is about to stop being yours.
+	# Nothing is fitted to a ship you are abandoning: its old frame is a source only.
 	if ship != null:
 		return false
 	var origin := StringName((data as Dictionary).get("origin", &""))
@@ -981,21 +694,8 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	var i := spot_at(at)
 	if i < 0 or (_spots[i].slot as ModuleData.Slot) != m.slot:
 		return false
-	# AND THE RESIDENT HAS TO HAVE SOMEWHERE TO GO.
-	#
-	# `ShipScreen._on_mount_drop` already refuses this -- it will not take a part
-	# off the hull with no room in the hold for it -- but it refused SILENTLY,
-	# after accepting the drag, with only a line in the log to say why. On a
-	# packed hold that reads as "I cannot replace a mounted weapon", because the
-	# gesture completes and nothing happens.
-	#
-	# Answering it here instead means the cursor says no while you are still
-	# holding the thing, which is where a refusal belongs.
-	#
-	# `takes`, which is the refit rule's own gate: this used to ask the hold for
-	# the resident's room whenever the part was not on the ship, which a part
-	# lifted OFF the ship never is -- so on a full hold the cursor refused two
-	# fitted parts trading, a move `fit_at_mount` makes without the hold at all.
+	# Refuse here, while still holding the part: a silent refusal after accepting reads as broken.
+	# Why: docs/why/MountPoints.md#drop-rule
 	return takes(m, origin, _spots[i].slot as ModuleData.Slot, int(_spots[i].index))
 
 func _drop_data(at: Vector2, data: Variant) -> void:
@@ -1016,29 +716,14 @@ func _unlight() -> void:
 	queue_redraw()
 
 func _notification(what: int) -> void:
-	# Godot offers no "the drag left me", so the beams are put out when the
-	# mouse leaves and again when any drag anywhere ends — without the second,
-	# the hull stays lit after a drop that landed in the hold.
+	# Godot has no drag-left signal: clear on mouse exit and any drag end, or the hull stays lit.
 	if what == NOTIFICATION_MOUSE_EXIT or what == NOTIFICATION_DRAG_END:
 		_hover = Vector2.INF
-		# THE MARKS LAST THE WHOLE DRAG, from its start to its drop or cancel,
-		# not only while the pointer is over the hull: carried across the hold,
-		# the hull still says where the part goes. Out on the drag's end alone.
+		# Marks last the whole drag, so the hull still says where the part goes over the hold.
 		if what == NOTIFICATION_DRAG_END or not (is_inside_tree() and get_viewport().gui_is_dragging()):
 			_unlight()
-		# AND REPAINT WHETHER OR NOT ANYTHING WAS LIT. `_unlight` returns early
-		# when `_lit` is null, which is exactly the case here: pointing at a hull
-		# with empty hands raises the hover HINTS, and those are drawn off
-		# `_hover` rather than off `_lit`. So the clear above happened and
-		# nothing asked for a frame -- and `_process` only queues one while
-		# `_animating()`, which the clear had just made false.
-		#
-		# It went unseen for as long as every ship wearing this widget was a
-		# LIVE one: the idle bob steps a few times a second and `_process`
-		# refreshes on it, so the stale hints were wiped within a frame or two by
-		# an animation that had nothing to do with them. The transfer screen
-		# draws two FIXED builds, neither of which bobs, and the hardpoints
-		# stayed up until something else happened to touch the screen.
+		# Repaint even if nothing was lit: hover hints draw off `_hover`, queuing no frame.
+		# Why: docs/why/MountPoints.md#stale-hints
 		queue_redraw()
 	if what == NOTIFICATION_DRAG_END:
 		# After any drop has been processed, which is what makes this the place
@@ -1050,11 +735,7 @@ func _notification(what: int) -> void:
 		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).get("module") is ModuleData:
 			light((data as Dictionary).module, StringName((data as Dictionary).get("origin", &"")))
 
-## Follow the pointer over the hull, so `_draw` can say what is bolted on.
-##
-## `_gui_input` and not `_process`: a Control is told where the mouse is when it
-## is over IT, which is the question being asked. Reading the global mouse every
-## frame would light the ship up while the cursor was somewhere else entirely.
+## `_gui_input`, not `_process`: the global mouse would light the ship with the cursor elsewhere.
 func _gui_input(event: InputEvent) -> void:
 	var mm := event as InputEventMouseMotion
 	if mm == null:
@@ -1069,11 +750,7 @@ func hover(p: Vector2) -> void:
 	queue_redraw()
 
 
-## Show which mounts would take `m`. Public so `-- fittest` can put the hull in
-## the state a live drag puts it in — a drag is driven by the OS cursor and
-## pushed events do not move that.
-## Point at one INSTALLED part, from a list somewhere else on the screen.
-## Null clears it. Idempotent, because a hover fires on every motion event.
+## Public so `-- fittest` can put the hull in a live drag's state; idempotent, as hover fires often.
 func focus(m: ModuleData) -> void:
 	if _focus == m:
 		return

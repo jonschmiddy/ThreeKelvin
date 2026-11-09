@@ -1,28 +1,13 @@
 class_name ItemIcon
 extends Control
 
-## Anything in the hold, as something you can pick up and carry.
-##
-## The view-side twin of `HoldItem`, and it exists for the same reason and by the
-## same test. Everything about DRAGGING is identical whether the thing in your
-## hand is a gun or a crate of ore: it lifts out of a cell, it eases toward the
-## cursor, it turns a quarter when you ask, and it lands somewhere or it does
-## not. None of that is about being a module.
-##
-## What each kind draws is entirely its own business, and stays on the subclass.
-##
-## `MaterialIcon` did not have any of this at first and the symptom was exactly
-## what you would expect: the crates rendered perfectly and could not be picked
-## up. A material was a thing the hold could hold and not a thing a hand could
-## reach, because the reaching lived on `ModuleIcon`.
+## Dragging is the same for any held thing, so it lives here and not on `ModuleIcon`.
+## Without it, materials rendered but could not be picked up.
+## Why: docs/why/ItemIcon.md#shared-hold-icon
 
 signal picked_up(icon: ItemIcon)
 
-## The preview currently under the cursor, or null.
-##
-## STATIC because Godot takes ownership of whatever `set_drag_preview` is handed
-## and offers no way to ask for it back — and turning a thing while you are
-## carrying it has to resize what you are looking at, not just the record.
+## Static: Godot owns the drag preview, and turning mid-carry must resize what you see.
 static var carried: ItemIcon = null
 
 ## Where it was picked up from. The drop reads it to tell a move inside the hold
@@ -30,28 +15,14 @@ static var carried: ItemIcon = null
 var origin: StringName = &"cargo"
 
 
-## WHAT YOU ARE CARRYING, and how it behaves while you carry it.
-##
-## Godot pins whatever `set_drag_preview` is given to the pointer, exactly, on
-## every frame. That is correct and it feels dead: grab a three-cell rail by its
-## far end and it stays gripped at that corner for the whole drag, and a fast
-## flick moves it as though it were welded to the mouse.
-##
-## So the thing the engine pins is a WRAPPER, and the plate inside it is eased
-## toward the cursor in SCREEN space. One easing buys both halves of what people
-## mean when they say a drag feels good: whatever corner you grabbed drifts to
-## the middle over a few frames, and a fast flick leaves the plate trailing until
-## the mouse stops, at which point it catches up and centres.
+## Godot pins the preview to the pointer, which feels dead: pin a wrapper, ease the plate.
+## Why: docs/why/ItemIcon.md#carried-ghost
 class Ghost extends Control:
-	## How fast the plate closes on the cursor, in e-folds per second. Higher is
-	## tighter. At 16 a flick leaves a plainly visible trail and a stop settles
-	## in about a fifth of a second, which is long enough to see and short
-	## enough not to fight.
+	## E-folds per second the plate closes on the cursor: 16 leaves a visible flick trail.
 	const FOLLOW := 16.0
 
-	## How see-through. The point is the GRID under the plate: packing is a game
-	## of seeing what a part would displace, and at 0.78 the plate in hand hid
-	## the two cells the decision was about.
+	## See-through so the grid shows: at 0.78 the plate hid the two cells being decided.
+	## Why: docs/why/ItemIcon.md#ghost-alpha
 	const ALPHA := 0.55
 
 	var plate: ItemIcon
@@ -64,9 +35,7 @@ class Ghost extends Control:
 		modulate.a = ALPHA
 		set_process(true)
 
-	## `from` is where the thing is on screen at the moment it is picked up, so
-	## the plate starts exactly over what it came out of rather than appearing
-	## already centred somewhere else.
+	## Starts exactly over what it came out of, not already centred elsewhere.
 	func start(p: ItemIcon, from: Vector2) -> void:
 		plate = p
 		_spawn = from
@@ -81,29 +50,14 @@ class Ghost extends Control:
 			_live = true
 			_at = _spawn
 		var want := get_global_mouse_position() - plate.size * 0.5
-		# Frame-rate independent. What is fixed is the fraction closed per
-		# SECOND; lerping by a constant per frame makes the whole feel depend on
-		# how busy the machine is, which is the one thing it must not do.
+		# Frame-rate independent: a fixed fraction per second, not per frame.
 		_at = _at.lerp(want, 1.0 - exp(-FOLLOW * delta))
 		plate.global_position = _at
 
 
-## RIGHT-CLICK THROWS IT OVERBOARD, wherever the hold is being shown.
-##
-## On the base rather than on either icon, because §3.5 rules that jettison
-## applies to everything -- a crate of ore and a gun leave the same way.
-##
-## No confirmation, deliberately. The ruling made this the FORGIVING option:
-## what you drop lands in the bag at the system you are in, the sector lists it,
-## and you can pick it straight back up. A dialog guarding an action you can undo
-## by clicking the thing you just dropped would be asking permission to change
-## your mind. The log line says where it went.
-## A THING YOU CAN PICK UP IS A THING YOU CAN PRESS.
-##
-## The reticle closes on `CURSOR_POINTING_HAND` -- see `Main._cursor_wants_shut`
-## -- and a crate you can drag, turn, shift-click and jettison is the most
-## interactive object on the screen. It was pointing with the same open shape as
-## the empty sky behind it.
+## Jettison is on the base, as 3.5 applies it to all. No confirmation, as it is undoable.
+## A thing you can pick up is a thing you can press, so the reticle closes on it.
+## Why: docs/why/ItemIcon.md#press-and-jettison
 func _init() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
@@ -119,25 +73,11 @@ func _gui_input(e: InputEvent) -> void:
 	var g := get_parent() as HoldGrid
 	if g != null and g.pick_mode:
 		return
-	# SHIFT-CLICK BRINGS IT ABOARD, right-click puts it down. One gesture each
-	# way, for anyone who would rather not drag six things across a screen.
-	#
-	# Which one applies is decided by WHERE THE THING IS rather than by which
-	# button you pressed: `origin` is set when the icon is built, so a crate out
-	# here can only be taken and one in your hold can only be thrown. No state
-	# offers both, and none offers neither.
-	#
-	# DOUBLE-CLICK IS THE SAME TAKE. Shift is the gesture nobody finds on their
-	# own; double-clicking the thing you want is the one everybody tries first.
-	# Same guard, same path — a second click on something already claimed just
-	# finds the entry gone and does nothing.
+	# Shift-click or double-click takes; right-click throws. Origin decides, never both.
+	# Why: docs/why/ItemIcon.md#take-and-throw-gestures
 	if mb.button_index == MOUSE_BUTTON_LEFT \
 			and (mb.shift_pressed or mb.double_click):
-		# THE PAD ANSWERS THE SAME GESTURE, and has to: it is a list of things
-		# that must ALL be stowed or sold before the ship can leave, so it is the
-		# one place in the game where you will be moving six objects in a row.
-		# Making that six drags, when the bag beside it takes clicks, would be the
-		# same job done worse on the screen that needs it most.
+		# The pad takes the same gesture: six objects in a row must not need six drags.
 		if origin == &"pad":
 			accept_event()
 			Run.pad_to_hold(m)
@@ -147,16 +87,8 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 		await Run.take_item(m)
 		return
-	# AND RIGHT-CLICK NO LONGER THROWS IT OVERBOARD.
-	#
-	# It was the fast way to empty a hold, and it was also the only destructive
-	# gesture in the game with no confirmation, no travel and no target: one
-	# twitch over the wrong cell and a rare part was in the sector behind you.
-	# The bin does the same job and cannot be hit by accident, because you have
-	# to carry the thing to it.
-	#
-	# The whole branch goes rather than just the call. A right-click that is
-	# bound and does nothing is an invitation to give it a job.
+	# Right-click no longer throws: the only destructive gesture with no confirmation.
+	# Why: docs/why/ItemIcon.md#right-click-removed
 
 
 ## What this icon is showing. Overridden by each kind; the drag machinery and
@@ -177,11 +109,7 @@ func fit_footprint() -> void:
 	queue_redraw()
 
 
-## A quarter turn, played backwards from where it just was.
-##
-## Short on purpose — 0.14s. This is an answer, not a flourish: the whole job is
-## to say WHICH WAY it turned, because a 1x3 becoming a 3x1 in one frame reads as
-## the thing having been swapped for a different one.
+## A 0.14 s quarter turn that shows which way it turned, so 1x3 to 3x1 is not read as a swap.
 func spin() -> void:
 	pivot_offset = size * 0.5
 	rotation = -PI * 0.5
@@ -191,15 +119,8 @@ func spin() -> void:
 	step.set_ease(Tween.EASE_OUT)
 
 
-## Picking one up. The preview is a COPY rather than the icon itself: Godot
-## reparents whatever you return, so handing over the live control would tear it
-## out of the grid it is sitting in and leave a hole that only closes on the next
-## refresh.
-##
-## The ghost carries the thing's SHAPE, not a square. What you are dragging has
-## to look like what will land: the hold is a grid you pack, and a 1x3 gun
-## previewed as a 1x1 tile tells you nothing about whether it fits the row you
-## are aiming at.
+## The preview is a copy, as Godot reparents what is returned and would leave a hole in the grid.
+## Why: docs/why/ItemIcon.md#drag-preview-copy
 func _get_drag_data(_at: Vector2) -> Variant:
 	var m := held_item()
 	if m == null:
@@ -209,67 +130,33 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	if g != null and g.pick_mode:
 		return null
 	set_drag_preview(_ghost())
-	# IT LEAVES THE CELL THE MOMENT YOU LIFT IT.
-	#
-	# Godot's default is to leave the source control exactly where it was and
-	# follow the cursor with a copy, so a dragged part is on screen twice -- in
-	# your hand and still in the hold. That reads as previewing a move rather
-	# than making one, and it hides the thing you most need to see, which is the
-	# hole it came out of.
-	#
-	# Hidden rather than removed. A drag that is cancelled has to put it back,
-	# and the item is still legitimately in `Run.cargo` the whole time it is in
-	# the air -- nothing is committed until it lands. `can_place` already skips
-	# the item being placed, so the cells it is vacating light as free.
+	# Hidden, not removed, so a cancelled drag can restore it. Nothing commits until it lands.
+	# Why: docs/why/ItemIcon.md#lift-leaves-cell
 	visible = false
 	# Out of the hold and into the hand, the same lift a part makes coming
 	# off the hull. Every screen with a hold picks up through here.
 	Audio.play(&"hold_lift", 0.08)
 	picked_up.emit(self)
-	# `module` is the payload key, and it is the wrong word now that cargo is two
-	# kinds of thing. It is kept because every drop site in the game reads it,
-	# and renaming a key across four screens to improve a noun is a change with
-	# no upside and a long tail of silent misses.
+	# `module` stays the payload key: renaming it across four screens risks silent misses.
+	# Why: docs/why/ItemIcon.md#payload-key
 	return {module = m, origin = origin}
 
 
-## Put back whatever the drag did not consume.
-##
-## `NOTIFICATION_DRAG_END` reaches every control, dropped on or not, which is
-## exactly what is wanted: the icon has to come back whether the drop landed
-## somewhere else, was refused, or was let go over nothing. A successful drop
-## rebuilds the grid and this icon is freed anyway, so the restore is only ever
-## seen in the cases where nothing happened.
+## `NOTIFICATION_DRAG_END` reaches every control, so the icon returns when the drop did not land.
+## Why: docs/why/ItemIcon.md#drag-end-restore
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_DRAG_END:
 		return
 	visible = true
-	# AND THE SHAPE IT CAME BACK AS HAS TO FIT WHERE IT CAME FROM.
-	#
-	# Turning mid-drag flips `turned` on the item itself while it is still in
-	# the hold at its old cell, so a drag that does not land leaves a part in a
-	# cell its new footprint does not fit. `Run.settle` is the one line that
-	# puts that right, and it lives here so every screen with a hold in it gets
-	# the same answer -- there are three now and none of them should have to
-	# know this happened.
+	# Turning mid-drag flips `turned` in the hold, so `Run.settle` fixes it here for every screen.
+	# Why: docs/why/ItemIcon.md#drag-end-restore
 	var m := held_item()
 	if m != null:
 		Run.settle(m)
 
 
-## AN ICON ANSWERS FOR THE GRID UNDER IT.
-##
-## Godot offers a drop to the control it finds at the cursor. The icons sitting
-## in a grid are controls, they are on top of it, and they have no opinion about
-## drops -- so whether the grid beneath ever gets asked depends on whether the
-## engine walks up the tree from a control that declined. It may; I could not
-## establish it, and three rounds of "the logic is right and unreachable" is
-## enough of that.
-##
-## So the icon stops being an obstacle and becomes a pass-through: it answers
-## exactly what its parent would answer, at the same point in the parent's own
-## coordinates. Dropping onto a crate that is sitting in a container is dropping
-## into the container, which is what it looks like.
+## An icon answers as its parent would: it was unproven that Godot asks the grid beneath.
+## Why: docs/why/ItemIcon.md#pass-through-drops
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	var g := get_parent() as Control
 	if g == null or not g.has_method("_can_drop_data"):
@@ -289,9 +176,7 @@ func _ghost() -> Control:
 	return null
 
 
-## The right icon for a thing, wherever a hold is drawn. The kind-to-icon
-## decision is made HERE and only here -- both grids call this, so a new kind of
-## `HoldItem` gets wired in once instead of once per screen.
+## The kind-to-icon choice is made only here, so a new `HoldItem` kind is wired once.
 static func make(m: HoldItem, from: StringName) -> ItemIcon:
 	if m is CreditChit:
 		var ci := ChitIcon.new()
@@ -306,9 +191,7 @@ static func make(m: HoldItem, from: StringName) -> ItemIcon:
 	return gi
 
 
-## The shared tail of picking something up: every kind's ghost is a copy of
-## itself inside the same following wrapper. Subclasses build the copy and this
-## does the rest, so how a ghost is built is decided in one place.
+## The shared tail of pick-up: every ghost is a copy in the same following wrapper.
 static func wrap_ghost(g: ItemIcon, at: Vector2) -> Control:
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	g.fit_footprint()

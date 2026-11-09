@@ -1,16 +1,7 @@
 extends Harness
 
-## Every hull's mounts against its own pixels:
-##   godot --headless --path . -- mounts
-##
-## The dorsal, ventral and flank lines are measured off ONE specific image each
-## by `art/tools/anchors.py`. So the failure this exists for is a hull sprite
-## replaced without the tool being re-run: the new art has a different
-## silhouette, the old line still describes the old one, and the ship draws its
-## guns in clear space beside itself. Nothing throws, nothing logs, and the only
-## way to notice is to look at that exact hull at that exact class.
-##
-## It has already caught it once, on the swap of Korvan's heavy B.
+## Catches a hull sprite replaced without re-running `anchors.py`, which fails silently.
+## Why: docs/why/MountCheck.md#mount-check
 
 
 func run() -> void:
@@ -53,11 +44,7 @@ func run() -> void:
 	verdict("mounts")
 
 
-## Is there hull within a few pixels of this point?
-##
-## A radius rather than the exact pixel, because the dorsal line sits ON the top
-## edge: a mount is meant to be at the boundary, so demanding an opaque pixel
-## under it would fail every correctly placed one.
+## A radius, not the exact pixel: the dorsal line sits on the top edge.
 func _on_hull(img: Image, p: Vector2) -> bool:
 	for dy in range(-3, 4):
 		for dx in range(-3, 4):

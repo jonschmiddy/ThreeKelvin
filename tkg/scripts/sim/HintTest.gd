@@ -1,30 +1,8 @@
 extends Harness
 
-## The first-run hints (`Hints`), on the real screens, headless:
-##   godot --headless --path . -- hinttest
-##
-## Each hint fires once at its trigger, as a `HintCard` in the game's picture,
-## never over what it points at; NO CLICK DISMISSES IT (Jon, Oct 22: real clicks
-## through the viewport on the card leave it up and unspent), and it is spent
-## when the player does what it teaches (`HintActs`), or, for the ones that only
-## tell you something (`Hints.INFO`), after its reading time; never again after;
-## the ones a moment decides (the intent after the first card, END TURN when
-## nothing is playable, brace once held over an end of turn, heat once it rises,
-## fuel at a third of the tank) are also shown NOT to fire before it. SHOW HINTS
-## AGAIN (`Hints.reset`) brings them back, and the goal line's steps.
-##
-## THE USED STATE, NOT THE FRESH ONE: the run starts from a settings file that
-## already has hints seen, has been reset once, and has one hint (the map's
-## events) seen again since. The flags go to the harness settings file, never
-## the player's. What is checked is the card in the tree, not only the flag, so
-## this cannot pass while nothing draws. The clock is stepped by hand
-## (`Hints.poll`).
-##
-## THE FIRST SET, NOT THE DEEP TUTORIAL'S: the lessons added Oct 22
-## (`Hints.DEEP`) are parked (marked seen) after every reset here, so this holds
-## the first set's triggers and order as they were; `-- sheet=AshTutorTest`
-## walks every lesson, the deep ones too, through a first run. The intent's line
-## now comes at the start of turn 2, and brace's and heat's end on END TURN.
+## Runs on the used state and checks the card in the tree, so it cannot pass while nothing draws.
+## Deep-tutorial lessons are parked after every reset, so this holds the first set as it was.
+## Why: docs/why/HintTest.md#test-overview
 
 const HintActs := preload("res://scripts/sim/HintActs.gd")
 
@@ -84,17 +62,11 @@ func run(tree: SceneTree) -> void:
 		map = await _map_list(n)
 		await _none("the map again: its hint does not come back")
 
-	# LOCAL, WITH AN EVENT'S DERELICT DRAWN, A WRECK THAT STILL HOLDS SOMETHING
-	# AND A PILE ON THE FLOOR. The wreck's hint points at the wreck a click
-	# opens, never at the derelict, which is scenery (tutorial audit: it stood on
-	# "First on the wreck"'s freighter).
+	# The wreck's hint points at the wreck a click opens, never the derelict, which is scenery.
 	var oi := n.options.size()
 	n.options.append(&"first_on_the_wreck")
 	LocalEventDrawer.last = [n.index, oi]
-	# (LOCAL opens the event at the place the ship is, as GO does, Jon Oct 21;
-	# here, as after NOT NOW, it has been put off this visit, so the scene's own
-	# hints are what is seen: the band's own hint has its own check below, and
-	# AshTutorTest teaches them in the auto-opened order)
+	# The event is put off this visit, as after NOT NOW, so the scene's own hints are what is seen.
 	_put_off(n)
 	var sc := await _local()
 	# parked at the event's own place, as GO leaves the ship (`here_now`): the
@@ -303,15 +275,11 @@ func run(tree: SceneTree) -> void:
 	await _none("the tank still short: its hint does not come back")
 	Run.fuel = was_fuel
 
-	# THE CHART'S DOCK THE SHIP CANNOT FLY TO (Jon, Oct 18: "hint:fix"): on a
-	# heavy frame, which reaches past its dish, a visited dock can be in reach,
-	# on the chart and out of sight. The card's dock line names the one the
-	# ship can fly to, or says none is in reach -- never that one.
+	# The card names the dock the ship can fly to,
+	# as a heavy frame reaches past its dish (Jon, Oct 18).
 	await _fuel_unflyable()
 
-	# NO CLICK ADVANCES IT: a hint clicked on and left alone stays, however long
-	# (nothing else waiting here, so it gives way to nothing); its subject
-	# leaving hides it unspent
+	# A clicked hint stays however long; its subject leaving hides it unspent.
 	Hints.reset()
 	_park_deep()
 	for id in Hints.ORDER:
@@ -354,10 +322,8 @@ func run(tree: SceneTree) -> void:
 	if sc != null:
 		await _expect(&"ship")
 
-	# TUTORIAL OFF (Settings' TUTORIAL, Jon, Oct 20): a card up goes at once,
-	# unspent; nothing shows and the goal line has no step, GOAL alone; the
-	# switch is kept in the settings file; ON again, the hints pick up where the
-	# player is (what was seen stays seen)
+	# Tutorial off (Jon, Oct 20) drops a card at once,
+	# unspent; on again, hints pick up where the player is.
 	Hints.reset()
 	_park_deep()
 	Hints.mark_seen(&"events")
@@ -473,16 +439,9 @@ func _full_station() -> MapGen.MapNode:
 	return null
 
 
-## THE DECKS' FIRST-VISIT HINTS (Jon, Oct 20, playing the alpha: "There is no
-## tutorial tip for the promenade, exchange, shipyard, laboratory, or hiring
-## board"), through the real station screen and its deck buttons, from the dock
-## just spent: each deck's hint shows the first time it is open, on its main
-## thing, clear of the decks, UNDOCK and everything on the deck; clicked on, it
-## stays unspent; the deck used spends it (every other one), or it is left by
-## the next deck's button (a card is read as it shows, so that spends it too:
-## said once, Jon's Oct 20 ruling); again, none comes back. The dock's, with a
-## deck picked under it, is spent by that (its action); off with TUTORIAL OFF,
-## back with REPLAY TUTORIAL; off in a party.
+## Each deck's hint shows the first time it is open and is spent by using the deck or leaving
+## for another (Jon, Oct 20: said once).
+## Why: docs/why/HintTest.md#decks-hints
 func _decks() -> void:
 	var st := Router.current as StationScreen
 	if not _ok("decks: the station is up, its five decks on (%s)" % (st._tabs_on if st != null else {}),
@@ -571,9 +530,7 @@ func _decks() -> void:
 		Hints.poll(0.05)
 		Hints.poll(Hints.GAP_S + 0.1)
 
-	# TUTORIAL OFF: none on any deck; REPLAY TUTORIAL (pressed while off) and ON
-	# again: each comes back, once
-	# (the other hints as they were, after: the rest of this file meets them)
+	# Tutorial off shows none; REPLAY TUTORIAL and ON bring each back once.
 	var was_seen := {}
 	for id in Hints.ORDER + Hints.STEPS:
 		was_seen[id] = Hints.seen(id)
@@ -611,9 +568,7 @@ func _decks() -> void:
 	await _visit(st, &"shipyard")
 
 
-## Open the deck of hint `id` by its button on the rail, and wait (on the
-## game's clocks, up to 20 s) for its main thing to be up: the drones flown in,
-## the lamp lit, the lab's scan passed.
+## Open a deck by its rail button and wait up to 20 s for its main thing to be up.
 func _visit(st: StationScreen, id: StringName) -> bool:
 	var tab: StringName = Hints.DECK_HINTS[id]
 	(st._tabs[tab] as Button).pressed.emit()
@@ -626,11 +581,8 @@ func _visit(st: StationScreen, id: StringName) -> bool:
 	return false
 
 
-## THE BOX TEST for a deck's card (or her box, `r`): on screen and clear of the
-## HUD, the goal line, the decks and UNDOCK, every button and word on the
-## station, the deck's pieces (the yard's ships and drones, the shelf, the
-## till, the hold, the counter, the notes, the fabricator's screen) but the one
-## it points at, and what it points at. Gathered here, not from `Ash`.
+## Box test for a deck's card: on screen and clear of the HUD,
+## decks and every button, gathered here, not from `Ash`.
 func _deck_box(st: StationScreen, id: StringName, r: Rect2, subject: Rect2) -> void:
 	var hits: Array[String] = []
 	if not st.get_viewport_rect().encloses(r):
@@ -644,10 +596,8 @@ func _deck_box(st: StationScreen, id: StringName, r: Rect2, subject: Rect2) -> v
 		hits.is_empty())
 
 
-## Everything on the station a card or her box must keep off, [what, global
-## rect]: the HUD and the goal line, the rail (its decks, UNDOCK, the header),
-## every button and word, and the decks' pieces. `subject` (the thing pointed
-## at) is left to the caller.
+## Everything on the station a card or her box must
+## keep off; the pointed-at subject is the caller's.
 static func deck_things(st: StationScreen, subject: Rect2) -> Array:
 	var out: Array = []
 	out.append(["the HUD", Router.hud.get_global_rect()])
@@ -792,11 +742,8 @@ func _put_away() -> void:
 	await _frames(10)
 
 
-## REAL CLICKS on `r` (a card), as a hand makes them: through the viewport
-## (`push_input`), at its middle and two seeded points in it. The card ignores
-## the mouse, so a click lands on what is under it; one that would land on a
-## button is not made (the card is kept clear of its subject, not of every
-## button, and what a button does is not the card's business).
+## Real clicks at the card's middle and two seeded points;
+## none is made where it would land on a button.
 func _click_on(r: Rect2) -> int:
 	var made := 0
 	var pts: Array[Vector2] = [r.get_center()]
@@ -857,10 +804,7 @@ func _dismiss(id: StringName) -> void:
 			await _tree.process_frame
 		_ok("%s: its action done (%s): spent, and the card goes" % [id, did if did != "" else "NOTHING TO DO IT WITH"],
 			did != "" and Hints.seen(id) and (Hints.card == null or Hints.card.id != id))
-		# (what its action opened -- a wreck's window, the pile's, your ship on
-		# LOCAL -- put away again, as a player does, before the next card can
-		# come; the dock's picked a deck: back to the yard, where the decks are
-		# walked from)
+		# Put away what an action opened, as a player does, before the next card can come.
 		if id in [&"wreck", &"loot"] or (id == &"ship" and Router.current is SectorScreen):
 			await _put_away()
 		var st := Router.current as StationScreen
@@ -942,9 +886,7 @@ func _system() -> MapGen.MapNode:
 	return null
 
 
-## An event with choices planted here; its option index.
-## The event at the place the ship is put off for this visit, as after NOT NOW:
-## LOCAL opens none of its own (`LocalEventDrawer.auto_open`).
+## An event planted here, put off for this visit as after NOT NOW; LOCAL opens none of its own.
 func _put_off(n: MapGen.MapNode) -> void:
 	LocalEventDrawer._auto[n.index] = LocalEventDrawer.visit_key(n)
 
@@ -966,9 +908,7 @@ func _map_list(n: MapGen.MapNode) -> SystemMapScreen:
 	return Router.current as SystemMapScreen
 
 
-## A hint's lines: two, but the cutaway's three (A.S.H.'s words on the card, and
-## the turn and flip keys under them: Jon, merge:A, Oct 20).
-## The deep tutorial's lessons, marked seen (see the header).
+## A hint is two lines, the cutaway's three (Jon, merge:A, Oct 20); deep lessons are marked seen.
 func _park_deep() -> void:
 	for id in Hints.DEEP:
 		Hints.mark_seen(id)

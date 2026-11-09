@@ -1,38 +1,16 @@
 class_name ShipView
 extends TextureRect
 
-## The ship sprite is a UI element: it shows your build, your heat, and your
-## damage at a glance. Hull shape reads weight class; bolted-on modules read
-## manufacturer via shape and palette.
-##
-## TWO RENDERERS, one control. When the hull carries a `sprite` it is blitted
-## whole; when it does not, draw_ship() draws it procedurally exactly as it
-## always has. That fallback is the point — real art arrives one asset at a time
-## and the game has to stay playable through a migration that will take a while.
-##
-## Every screen goes through this class rather than through ShipSprite, which was
-## written for real art and never instantiated. Five call sites already use this
-## one, and it already owns magnification, showroom preview, heat and damage.
-##
-## ONE SUBJECT, NOT ONE SHIP. Every read used to go straight to `Run` — the
-## hull, the fitted modules, the hull points, the heat — which is exactly right
-## for the only ship a solo game has. A party has four, and three of them are
-## being flown on other machines, so the drawing code now takes a `ShipBuild`
-## and the question "whose ship is this" is answered once, in `_b()`, rather
-## than at every point of use. See ShipBuild.
+## One control draws real hull sprites whole or falls back to the procedural drawing.
+## It takes a `ShipBuild`, not `Run`, so a party's ships can be drawn too.
+## Why: docs/why/ShipView.md#two-renderers
 
-## The PROCEDURAL canvas. Real hull sprites are authored at 220x128, 260x156 and
-## 300x188, none of which is this size, so the canvas cannot be a constant any
-## more — see _w/_h below.
+## Procedural canvas only: real hull sprites come in other sizes, so see `_w` and `_h`.
 const W := 240
 const H := 120
 
-## The canvas actually in use. Equal to W/H while drawing procedurally, and equal
-## to the hull sprite's own dimensions when there is one.
-##
-## Variables rather than constants because the alternative is scaling the sprite
-## to fit 240x120, and scaling pixel art by a non-integer factor is the one thing
-## the art direction forbids outright.
+## Canvas size is a variable: scaling pixel art by a non-integer factor is forbidden.
+## Why: docs/why/ShipView.md#canvas-size
 var _w: int = W
 var _h: int = H
 
@@ -41,61 +19,28 @@ var _img: Image
 var _fit_h: int = 0
 ## Draw from the hull's HALF sheet rather than its full one. See use_half().
 var _half: bool = false
-## A caller has set `custom_minimum_size` itself and owns it — crop(), or
-## setup_preview() with a view height. `_resize_canvas` leaves those alone.
-##
-## Needed because a crop deliberately clears `_fit_h` ("a width the caller
-## means"), which used to be enough to protect it only because the canvas branch
-## was unreachable at the magnifications every screen used.
+## A caller that set `custom_minimum_size` owns it, and `_resize_canvas` leaves it alone.
+## Why: docs/why/ShipView.md#canvas-size
 var _sized: bool = false
 var _tex: ImageTexture
 
-## Idle bob: the ship drifts a couple of pixels up and down so it reads as
-## floating rather than pinned to the panel.
-##
-## Moved in WHOLE PIXELS, inside the image, and only redrawn on the frames the
-## offset actually changes — which at these settings is about eight times a
-## second, not sixty. Both halves matter. A sub-pixel offset would resample the
-## sprite and undo the nearest-neighbour crispness the whole art direction rests
-## on; and animating the Control's `position` instead would fight the containers
-## every screen puts this inside.
+## Bob moves whole pixels in the image: sub-pixel blurs, and `position` fights containers.
+## Why: docs/why/ShipView.md#idle-bob
 var _bob_amp: int = 0
 var _bob_hz: float = 0.3
 var _bob_off: int = 0
 
-## Exhaust playback. The plume is a strip of authored frames that change SHAPE
-## as they burn, so nothing here has to fake motion — it just picks a frame.
-##
-## This replaced a palette cycle that stepped every pixel up and down the
-## flame's own brightness ramp. That animated all of it, but only ever in
-## brightness; a flame gutters and swells, and shape is most of what sells it.
+## Authored frames change shape as they burn, which a brightness palette cycle could not.
+## Why: docs/why/ShipView.md#exhaust
 const FLAME_HZ := 10.0
 var _flame_step: int = 0
 
-## OFF unless a screen asks for it.
-##
-## The engines only burn on the chassis select, where the ship is a showroom
-## piece being sold to you. Everywhere else it is parked — the refit screen is a
-## workbench, the sector is a place you have arrived at, the dock is a dock — and
-## a permanently firing engine on a stationary ship reads as a loop nobody
-## switched off rather than as motion.
-##
-## REVERSED BY JON, Oct 13, on the coded-thruster mockup (ThrusterFx): "Yes, a
-## gentle idle burn, in fights and anywhere a ship sits." The paragraph above
-## is kept as the reasoning that held until then. So this flag now means the
-## engines are UP -- the chassis select's showroom burn (CRUISE), the arrival
-## and the departure (FULL) -- and a ship with it off idles (`_thrust_now`).
+## Reversed by Jon, Oct 13: ships idle with a gentle burn, so this flag now means engines up.
+## Why: docs/why/ShipView.md#idle-burn
 var _burning: bool = false
 
-## THE ENGINE FLAME IS CODE NOW (Jon picked look A, dynamic with sparks, Oct
-## 13): `ThrusterFx`, drawn by `_flame_layer`, an INTERNAL child in front of the
-## others, so it is drawn after the hull and BEFORE every child -- the mount
-## points and their parts are painted over it, never under it. It reads the
-## same canvas transform the hull does (`canvas_to_local`: centring, bob, zoom,
-## the half sheet), so it moves, scales and crops with the ship and nothing
-## repaints the hull for it. The PixelLab strips are no longer drawn: the rig
-## (`HullData.thrusters`) is where each flame starts, and `-- exhaust` still
-## checks it.
+## The flame is code (`ThrusterFx`, Jon's look A) on an internal layer, drawn before every child.
+## Why: docs/why/ShipView.md#engine-flame
 var _flame_layer: Control
 ## What the engines are doing when they are up: CRUISE for the showroom burn,
 ## FULL for the arrival and the departure.
@@ -110,41 +55,15 @@ class FlameLayer extends Control:
 	func _draw() -> void:
 		view._draw_flame(self)
 
-## ARRIVAL. The ship flies in from the left, cuts its engines, and drifts to a
-## halt at its resting position, then settles into the idle bob.
-##
-## Eased out rather than linear, because the DRIFT is the whole point: constant
-## speed reads as a slide. The engines cut at ARRIVE_CUT, before the stop, so the
-## last third is visibly unpowered coasting.
-## Slow, and slower than feels right when you read the number. The approach is
-## the only unhurried thing in the game and it is doing scene-setting work: four
-## and a half seconds of coasting says "you have got somewhere" in a way that a
-## second and a half does not. Most of it is the unpowered drift, which is the
-## part worth having.
+## Arrival is deliberately slow at 4.5 s, mostly unpowered drift, to say you have got somewhere.
+## Why: docs/why/ShipView.md#arrival
 const ARRIVE_MS := 4500.0
-## THE DRIVE IS HEARD BEFORE THE SHIP IS SEEN. Jon: "reverse warp... pause ..
-## thruster sound ... ship enters". Every arrival clip opens with this long a
-## swell of the drive before the approach starts, and every caller that plays one
-## holds the ship this long first, so the flame and the sound still share a clock.
-## `audio/flameout.py` reads this line.
+## The drive is heard 0.8 s before the ship is seen; `audio/flameout.py` reads this line.
+## Why: docs/why/ShipView.md#arrival
 const ARRIVE_LEAD_S := 0.80
-## The engines do not snap off. They burn clean, then STUTTER — flashes that
-## shrink at intervals that grow — and the ship coasts the rest dark. A hard cut
-## read as a switch being thrown.
-##
-## It used to be one fixed pattern, which was good the first time and a
-## metronome by the tenth. Now it is five, picked per arrival, and the sound is
-## cut from the same table so the two cannot come apart. See audio/flameout.py.
 ## GENERATED BY audio/flameout.py -- do not hand-edit; run it instead.
-##
-## Each row is one way for the drive to starve: the lit windows of
-## the flame, in arrival progress. The first window is the clean
-## burn, so the rule is just 'lit if e falls inside a span'.
-##
-## THE SOUND IS CUT FROM THESE SAME ROWS -- sfx/thruster_arrive_a
-## is row 0 gated by row 0 -- so editing a number here without
-## re-running flameout.py slides the picture off the sound, which
-## is the one thing this must never do.
+## The sound is cut from these same rows, so a number edited here slides the picture off it.
+## Why: docs/why/ShipView.md#flameout-table
 const FLAMEOUTS := [
 	[Vector2(0.0000, 0.4121), Vector2(0.4121, 0.4503), Vector2(0.4584, 0.4853), Vector2(0.4926, 0.5504), Vector2(0.5649, 0.5989)],
 	[Vector2(0.0000, 0.3749), Vector2(0.3749, 0.4130), Vector2(0.4203, 0.4608), Vector2(0.4725, 0.5134), Vector2(0.5262, 0.5601), Vector2(0.5747, 0.5966), Vector2(0.6189, 0.6438)],
@@ -155,15 +74,8 @@ const FLAMEOUTS := [
 	[Vector2(0.0000, 0.3952), Vector2(0.3952, 0.4194), Vector2(0.4374, 0.4522), Vector2(0.4693, 0.4996), Vector2(0.5339, 0.5573)],
 	[Vector2(0.0000, 0.4628), Vector2(0.4628, 0.5016), Vector2(0.5157, 0.5506), Vector2(0.5727, 0.5991), Vector2(0.6274, 0.6423)],
 ]
-## The clips cut from those rows: one ROW of this per hull
-## weight, indexed by HullData.Weight, and one COLUMN per
-## pattern above. Same flame timing at every weight -- what
-## changes across a row is how big the engine making it is.
-##
-## Not named `thruster_arrive_2`: Audio.play() reads that
-## spelling as a round-robin take and would pick one at
-## random, which is exactly the desynchronisation this table
-## exists to prevent.
+## Clip names avoid `thruster_arrive_2`, which `Audio.play()` would read as a round-robin take.
+## Why: docs/why/ShipView.md#flameout-table
 const FLAMEOUT_SFX := [
 	[&"thruster_arrive_light_a", &"thruster_arrive_light_b", &"thruster_arrive_light_c", &"thruster_arrive_light_d", &"thruster_arrive_light_e", &"thruster_arrive_light_f", &"thruster_arrive_light_g", &"thruster_arrive_light_h"],  ## LIGHT
 	[&"thruster_arrive_medium_a", &"thruster_arrive_medium_b", &"thruster_arrive_medium_c", &"thruster_arrive_medium_d", &"thruster_arrive_medium_e", &"thruster_arrive_medium_f", &"thruster_arrive_medium_g", &"thruster_arrive_medium_h"],  ## MEDIUM
@@ -178,58 +90,23 @@ var _arrive_at: int = -1
 ## back to the caller, because the sound has to be the clip for THIS row.
 var _flameout: int = 0
 
-## LEAVING. The engines come up, the hull leans into them, and the flare takes
-## it — the vanish is not here, it belongs to `ShipSlot.pulse()` the same way
-## `ConvoySlot.jump_out()`'s does.
-##
-## HOW FAR IT GETS, and it is measured rather than chosen.
-##
-## The first version was a twenty-pixel lean, on the reasoning that a hull
-## driven any real distance would draw across the AreaView on the far side of
-## the arena -- true, and the wrong conclusion. `ShipSlot` biases this control
-## to 68% of its slot precisely so there is empty space on the ship's right,
-## and the run is the whole of that space: measured on the first tick, from the
-## hull's nose to the slot's edge, less a margin. Nothing to collide with,
-## because the room was already there and empty.
-##
-## `hull_rect()` is what makes it measurable. This control is most of half the
-## arena and the ship is centred inside it, so "where does the nose end" is not
-## `size.x` and never was.
+## The run is measured from the nose to the slot's edge, as `ShipSlot` leaves that space empty.
+## Why: docs/why/ShipView.md#departure
 const DEPART_EDGE := 12.0
-## AND THEN SOME. The room inside the slot is about ninety pixels, which on a
-## four-hundred-pixel hull is a nudge rather than a departure. The overrun is
-## the rest, and it is affordable because of WHEN it happens: ease-in cubic
-## puts most of the travel in the last fifth of the run, which is the fifth the
-## flare is already firing over and the frame before the hull is taken. The
-## nose crosses into the neighbouring space for about a sixth of a second,
-## under a column of light, and then there is no ship to overlap anything.
+## The overrun past the slot happens in the last fifth, under the flare, so nothing overlaps.
+## Why: docs/why/ShipView.md#departure
 const DEPART_OVER := 150.0
-## AND IT IS STILL ACCELERATING WHEN IT GOES. This runs past the rev and into
-## the flare: `SectorScreen` fires the column at REV_S and the hull hides at
-## that column's peak, which lands about here. A ship that stops dead and then
-## flashes has parked and been deleted; one still gaining speed has left.
+## It is still accelerating at the flare: a ship that stops dead and flashes reads as deleted.
 const DEPART_MS := 1080.0
 var _depart_at: int = -1
 var _depart_span: float = -1.0
 
-## HYPERDRIVE. The one departure that touches the hull instead of drawing over
-## it: the ship holds station, shudders under a charge, and is eaten from the
-## outside in until nothing is left but a line of light along its own centre.
-##
-## THIS CLASS KEEPS NO CLOCK FOR IT. It did -- a melt driven off its own timer
-## here, while `JumpFx` ran the beam off its own life -- and two clocks that
-## have to agree are two clocks that eventually will not, which is the lesson
-## the flameout table was built on. The choreography lives in `JumpFx` alone;
-## `ShipSlot` pushes the melt and the shake in every frame, and this renders
-## what it is told.
-##
-## The light the ship turns into. Same cold white the columns are drawn in.
+## This class keeps no clock for the melt: `JumpFx` alone choreographs it, as two clocks drift.
+## Why: docs/why/ShipView.md#hyperdrive
 const HYPER_CORE := Color("#e4f2ff")
 ## 0 is a ship, 1 is a line where a ship was, -1 is not melting at all.
 var _melt: float = -1.0
-## Whole pixels of shudder, pushed in by `set_shake`. Moved on the Control, not
-## inside the canvas: once a departure has taken the bob's headroom away the
-## canvas is exactly as tall as the sprite, so shaking inside it clips the hull.
+## The shudder moves the Control, not the canvas, since inside the canvas it would clip the hull.
 const SHAKE_HZ := 30.0
 var _shake: float = 0.0
 var _shake_step: int = -1
@@ -237,15 +114,10 @@ var _shake_step: int = -1
 var _spool_look: StringName = &"none"
 var _spool: float = 0.0
 var _spool_t: float = 0.0
-## THE HULL'S OWN EXTENT, in canvas pixels: where the sprite is actually opaque.
-## The canvas is wider than the ship -- it carries empty columns at the stern for
-## the exhaust art to sit in -- so anything sized to the canvas reaches past the
-## tail. Jon, on the first hyperdrive: "the horizontal bar shouldn't be longer
-## than the ship". It was, by exactly that padding.
+## Hull extent is the opaque part, as the canvas has empty stern columns and a bar ran too long.
+## Why: docs/why/ShipView.md#hull-extent
 var _body_px := Rect2i()
-## Cached per source texture: bounds do not move with wear, and a pass over every
-## pixel of the sprite on each bob step would be the waste `worn_cached` exists
-## to avoid.
+## Cached per source texture: bounds do not move with wear, and a pass per bob step is waste.
 static var _body_cache: Dictionary = {}
 ## The middle of the hull's body in image rows, from `_body_middle`; -1 until a
 ## sprite has been drawn. Cached per source texture for the same reason.
@@ -256,28 +128,15 @@ var _arrive_bob: int = 2
 ## How far left of its resting place the ship starts, in screen pixels. Measured
 ## on the first tick, once layout has actually happened.
 var _arrive_span: int = 0
-## When the approach was asked for (ms), and it and its start in seconds: the
-## approach is timed in seconds, not whole ms, so an arrival is the same
-## pictures whatever moment of the game's clock it starts on (the dock's lays
-## over a system's frame for frame, `LadderTest`).
+## Approach timing is in seconds, so an arrival is the same pictures at any clock moment.
 var _arrive_from: int = 0
 var _arrive_from_s := 0.0
 var _arrive_at_s := 0.0
-## THE APPROACH STEPPED BY ITS OWNER (the dock, on the ladder's clock: a film or
-## a harness steps that clock, and the two must not drift apart): `_process`
-## leaves it alone, and `arrive_step` runs the very same tick.
+## The owner steps the approach on its own clock (a film or harness), so the two cannot drift.
 var arrive_driven := false
 
-## Fly in, then idle. Safe on a view that is already parked.
-##
-## `delay` holds the ship off screen before it starts. A convoy is the reason it
-## exists: four hulls beginning the same eased approach on the same frame arrive
-## as one object with four parts, and a fraction of a second between them is the
-## whole difference between a formation and a sprite sheet.
-## Returns the CLIP for the approach it just drew, so a caller that also plays
-## the drive plays the one cut from this row at this hull's weight. A caller
-## with no sound to play ignores it — and a convoy still gets four different
-## patterns, which is the one place the variation is free.
+## `delay` staggers a convoy, and the returned clip lets callers play the matching drive sound.
+## Why: docs/why/ShipView.md#arrival
 func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	_flameout = randi() % FLAMEOUTS.size()
 	_arrive_bob = maxi(0, bob_amp)
@@ -290,10 +149,7 @@ func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	_bob_amp = 0
 	_bob_off = 0
 	_burning = true
-	# UNSEEN UNTIL IT IS OFF SCREEN. The span is taken on the first tick with a
-	# layout (`_tick_arrival`), and a screen built this frame has none, so the
-	# ship stood at its mooring for one frame and then vanished to fly in (the
-	# arrival into an ambush, filmed: `-- sheet=FightOpenFilm entry=ambush`).
+	# Unseen until off screen: the span waits for layout, so the ship flashed at its mooring.
 	if _arrive_span <= 0 and visible:
 		_arrive_hid = true
 		visible = false
@@ -305,25 +161,15 @@ func arrive(bob_amp: int = 2, delay: float = 0.0) -> StringName:
 	return _flameout_clip()
 
 
-## The clip cut from this view's flameout row (`_flameout`), at its hull's weight.
-## THE WEIGHT IS THE HULL'S, NOT THE SCREEN'S. A convoy is four ships of
-## whatever their pilots are flying, and a showroom view has no hull at all
-## until one is picked — so it is read here, per view, and falls back to
-## MEDIUM, which is the enum's own default and the unshifted recording.
+## The clip follows the hull's weight, read per view, falling back to MEDIUM with no hull.
 func _flameout_clip() -> StringName:
 	var hull := _hull()
 	var w := int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM)
 	return (FLAMEOUT_SFX[w] as Array)[_flameout]
 
 
-## THE FLAMEOUT ON ITS OWN (Jon, Oct 21, undocking: "its flame sputters down to
-## idle"): the arrival's own flameout from its first cough on -- the end of its
-## clean burn -- on a ship that is not arriving: the coughs of a FLAMEOUTS row
-## (`arrive_thrust` of its windows, over the idle), then the idle it keeps. Its
-## owner steps it (`sputter_step`, seconds since the first cough) and hears the
-## same row's clip from the same place (`sputter_from_s`), so the coughs seen
-## are the coughs heard, as on an arrival. The arrival's flameout as a progress
-## through its row, or -1 when not sputtering.
+## Undocking sputters down to idle (Jon, Oct 21): seen coughs and heard clip share one row.
+## Why: docs/why/ShipView.md#standalone-flameout
 var _sputter_e := -1.0
 
 
@@ -381,12 +227,8 @@ func burn(on: bool = true) -> void:
 ## screen. Slicing is done once per texture, not once per view.
 static var _flame_cache: Dictionary = {}
 
-## FOR THE HARNESSES' FILMS: when set (>= 0), the clock every hull's bob, flame
-## and shudder run on, in seconds, advanced by the film one step a saved frame
-## -- so a window that drew at 8 a second still films a bob at its real rate.
-## -1 is the game's clock (`GameClock`), which is all play ever uses: game
-## time, not the wall's, so the movie writer's films and the hit-stop's slow
-## motion reach it too.
+## Harness films step a shot clock one step a saved frame; play uses `GameClock`.
+## Why: docs/why/ShipView.md#film-clock
 static var shot_clock := -1.0
 
 ## Opt in. `amp` is in source pixels, so it is multiplied by the magnification
@@ -410,9 +252,7 @@ func _process(_delta: float) -> void:
 		dirty = true
 	if _depart_at >= 0 and _tick_departure():
 		dirty = true
-	# THE SHUDDER. Stepped at SHAKE_HZ rather than every frame -- a hull moving
-	# sixty times a second smears, one moving thirty times trembles -- and in
-	# whole pixels, like everything else this draws.
+	# Shudder steps at `SHAKE_HZ`: sixty times a second smears, thirty trembles.
 	if _shake > 0.0:
 		var step := int(t * SHAKE_HZ)
 		if step != _shake_step:
@@ -431,32 +271,14 @@ func _process(_delta: float) -> void:
 	# at 8 a second; the sparks move every frame), never a repaint of the hull.
 	if _hull().has_exhaust() or HullGrade.key_for(_hull()) != "":
 		_flame_layer.queue_redraw()
-	# One repaint per CHANGE, not per frame. Between them the texture is simply
-	# left alone, which is why an animated ship costs about twenty redraws a
-	# second rather than sixty.
+	# One repaint per change, so an animated ship costs about twenty redraws a second, not sixty.
 	if dirty:
 		refresh()
 
 func _init() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	# Draw at native size, centred. KEEP_ASPECT_CENTERED rescales the texture to
-	# whatever rect it is handed, so the ship changed size whenever a side rail
-	# opened — and scaled pixel art by arbitrary fractions while doing it.
-	#
-	# CENTRED MEANS HALF-PIXELS, and that is why the project turns on
-	# `rendering/2d/snap/snap_2d_transforms_to_pixel`. KEEP_CENTERED puts the
-	# texture at (size - tex) * 0.5 from the control's origin, so whenever those
-	# two differ by an ODD number the sprite is drawn on a half pixel. In the
-	# sector slot the control is 455 tall against a 144-row heavy: (455-144)/2 is
-	# 155.5, and the ship rendered at y=197.50.
-	#
-	# Half a pixel is invisible while the ship is still. It is NOT invisible while
-	# it bobs: with NEAREST filtering every row's sample sits exactly on a texel
-	# boundary, so the tie-break flips as the content moves and about 1100 pixels
-	# of a heavy changed colour on every bob step — the hull appearing to crawl
-	# without moving. The canvas itself was never at fault; it is a pure
-	# translation at all five bob offsets, which is what made this hard to find.
-	# Snapping took that to six pixels. Do not turn the snap settings off.
+	# Odd centring puts the sprite on a half pixel and crawls it; keep the snap settings on.
+	# Why: docs/why/ShipView.md#half-pixel-snap
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	custom_minimum_size = Vector2(_w, _h)
 	_flame_layer = FlameLayer.new()
@@ -470,30 +292,18 @@ func _init() -> void:
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
 
-## WHOSE SHIP. Set by setup_preview() or follow_peer(); both left alone means
-## the ship you are flying, which is what every existing call site wants and
-## why none of them changed.
-##
-## Two fields rather than one because the two cases refresh differently. A fixed
-## build is a snapshot and never moves on its own; a partner's build is replaced
-## wholesale every time the host pushes a roster, so it has to be looked up
-## again rather than held.
+## A fixed build is a snapshot, but a partner's is replaced on each roster push, so it is looked up.
+## Why: docs/why/ShipView.md#whose-ship
 var _fixed: ShipBuild = null
 var _peer: int = 0
 
-## Your own build, rebuilt on demand and dropped whenever the ship or its gauges
-## change. Not held for speed — `ShipBuild.local()` walks six modules — but so
-## that the ~20 repaints a second the bob and the exhaust cost do not each
-## rebuild it.
+## Your own build is rebuilt on demand, so the ~20 repaints a second do not each rebuild it.
 var _mine: ShipBuild = null
 
 ## The partner's build as it was at the last repaint. See _repaint_partner().
 var _seen: ShipBuild = null
 
-## A ship nobody is flying: no hull, nothing on it. Shared, and nothing writes
-## to it. It exists so that `_b()` is never null and the drawing code below can
-## read it without asking — a hull of null already stops refresh(), so one guard
-## covers what would otherwise be a check at every point of use.
+## Shared empty build so `_b()` is never null; one guard covers every use.
 static var _NOBODY := ShipBuild.new()
 
 ## The ship this view draws. The one place that asks whose it is.
@@ -501,49 +311,32 @@ func _b() -> ShipBuild:
 	if _fixed != null:
 		return _fixed
 	if _peer != 0:
-		# Null until that player has left their chassis select. They are in the
-		# party and they have no ship, which is a state the convoy slot says out
-		# loud rather than one this has to invent a hull for.
+		# Null until that player leaves chassis select: a state the convoy slot says out loud.
 		var theirs := Net.build_of(_peer)
 		return theirs if theirs != null else _NOBODY
 	if _mine == null:
 		_mine = ShipBuild.local()
 	return _mine
 
-## The composed pixels, for anything that wants them without a renderer.
-##
-## `texture.get_image()` reads back through the RenderingServer, which under
-## --headless is a dummy that hands back nothing — so the contact sheet came out
-## eight transparent rectangles. This is the image the view actually painted.
+## Headless `texture.get_image()` returns nothing, so the contact sheet used this image.
+## Why: docs/why/ShipView.md#canvas-readback
 func canvas() -> Image:
 	return _img
 
-## Draw a build handed in from outside — a hull nobody owns, a partner's ship
-## captured for a contact sheet, anything that is not the live local ship.
-##
-## A snapshot: nothing repaints it but a caller. setup_preview() and the
-## `-- shipsheet` harness are both this with different framing.
+## A snapshot of an outside build; nothing repaints it but a caller.
 func show_build(b: ShipBuild) -> void:
 	_fixed = b
 	refresh()
 
-## Draw a party member's ship instead of your own.
-##
-## The build is looked up rather than stored: `_push_roster_to` replaces every
-## slot on arrival, so a held reference would be last second's ship — and the
-## whole point of this view is that a partner's new gun appears on it.
+## Looked up, not stored: a held reference would be last second's ship after a roster push.
 func follow_peer(id: int) -> void:
 	_peer = id
 	if not Sig.party_changed.is_connected(_repaint_partner):
 		Sig.party_changed.connect(_repaint_partner)
 	_repaint_partner()
 
-## Repaint only when THAT partner's ship changed.
-##
-## `party_changed` fires for anything the roster says, including somebody else
-## venting a point of heat, and a procedural hull is fifteen thousand pixels of
-## GDScript to redraw. `NetSession.build_of()` hands back the same object while
-## the wire is unchanged, so object identity is the test.
+## Repaint only when that partner's build changed: a procedural hull is 15,000 pixels of GDScript.
+## Why: docs/why/ShipView.md#partner-repaint
 func _repaint_partner() -> void:
 	var b := Net.build_of(_peer)
 	if b == _seen:
@@ -551,40 +344,17 @@ func _repaint_partner() -> void:
 	_seen = b
 	refresh()
 
-## Whole-number magnification for the preview. The sprite is drawn once at 240
-## by 120 and then resized with INTERPOLATE_NEAREST, which is what keeps a
-## doubled pixel exactly four pixels rather than a blurred one — the same reason
-## the project only ever scales its window by integers.
-##
-## Done to the IMAGE rather than by stretching the TextureRect because the two
-## stretch modes that could do it are both wrong here: KEEP_CENTERED never
-## scales at all, and KEEP_ASPECT_CENTERED fits the whole texture into the
-## control, so cropping the empty rows above and below the hull would shrink the
-## ship instead of magnifying it.
+## Magnify the image with NEAREST, as neither stretch mode scales the ship correctly when cropped.
+## Why: docs/why/ShipView.md#magnification
 var _k: int = 1
 
-## Where a pixel of the HULL SPRITE lands inside this control.
-##
-## Three transforms, and every one of them is a thing that has moved at least
-## once: the sprite is pasted into a canvas with `_bob_amp` rows of headroom and
-## then shifted by `_bob_off` as it idles, the canvas is magnified by `_k`, and
-## STRETCH_KEEP_CENTERED centres the result in whatever rect the layout gave us.
-##
-## Exists so that anything drawn ON the ship — a hardpoint, a mount marker — can
-## be positioned from the hull's own measured coordinates rather than from a
-## second set of numbers that would have to be kept in step with them.
+## Mounts use the hull's measured coordinates through this one transform, not a second set.
+## Why: docs/why/ShipView.md#canvas-to-local
 func canvas_to_local(p: Vector2) -> Vector2:
 	var tex := Vector2(float(_w), float(_h)) * float(_k)
 	var origin := ((size - tex) * 0.5).floor()
-	# FOUR transforms once the half sheet exists. A caller measures against the
-	# full sprite — HullData's lines are one set of numbers per hull, not one per
-	# sheet — so a point has to come down to the canvas actually being drawn
-	# before anything else is done to it. Without this the mounts on a convoy
-	# ship sit at twice their offset and scatter off the hull, which is what it
-	# looks like: markers in space beside the ship rather than on it.
-	#
-	# The bob is NOT halved. It is already in canvas pixels, because it is a
-	# property of the canvas rather than of the sprite that went into it.
+	# Points drop to the half sheet first, or convoy mounts sit at twice their offset.
+	# Why: docs/why/ShipView.md#canvas-to-local
 	var q := p * 0.5 if _half else p
 	return origin + Vector2(q.x, q.y + float(_bob_amp + _bob_off)) * float(_k)
 
@@ -593,46 +363,20 @@ func canvas_to_local(p: Vector2) -> Vector2:
 func bob_offset() -> int:
 	return _bob_off
 
-## How many screen pixels one art pixel of this ship currently occupies.
-##
-## Anything drawn ON the hull has to multiply by this or it is authored in a
-## different unit from the thing it is bolted to — which is exactly what made
-## the mounted modules look like specks on a doubled ship.
+## Anything drawn on the hull multiplies by this, or mounted modules looked like specks.
 func zoom_level() -> int:
 	return _k
 
-## The same thing as a float, and the one to ask when the answer has to be right
-## on the half sheet.
-##
-## `zoom_level()` returns the magnification and nothing else, so on a half-drawn
-## ship it is out by a factor of two — an art pixel there is half a screen pixel
-## per unit of _k. Anything sizing itself against the HULL wants this; anything
-## that genuinely means "how many times is the canvas magnified" still wants
-## zoom_level().
+## `art_scale()` is right on the half sheet; `zoom_level()` is out by two there.
+## Why: docs/why/ShipView.md#art-scale
 func art_scale() -> float:
 	return float(_k) * (0.5 if _half else 1.0)
 
-## A note on the OTHER unit, because it is the one that causes mistakes.
-##
-## A hull sprite is authored at TWICE its box (art/tools/boxes.py, ART_CONTRACT
-## §4), so a sprite pixel is half a box pixel. Anything that has to agree with a
-## number measured off the box rather than off the image has to know that.
-##
-## Nothing in the UI currently does, and the reasoning is worth keeping: a fitted
-## part is sized in SPRITE pixels on purpose, which makes it half the size it is
-## in the hold. Matching the hold instead would put five weapon hardpoints' worth
-## of gun on 125% of a heavy hull. See MountPoints._mag.
+## A fitted part is sized in sprite pixels on purpose: matching the hold would oversize guns.
+## Why: docs/why/ShipView.md#art-scale
 
-## Draw this ship from the half sheet, for the views that hold several at once.
-##
-## A SHEET, not a scale. `zoom()` cannot go below 1 and the art is authored at 2x
-## its box, so the size the convoy column wants only exists as a second file —
-## see HullData.sprite_half. The canvas follows whatever is blitted into it, so
-## nothing else here has to know: `_resize_canvas` picks up the smaller image and
-## `custom_minimum_size` comes down with it.
-##
-## Idempotent, and it refreshes only on a real change, because callers set it
-## from party state that repaints far more often than it changes.
+## The half sheet is a second file, since `zoom()` cannot go below 1; set only on real change.
+## Why: docs/why/ShipView.md#half-sheet
 func use_half(on: bool) -> void:
 	if _half == on:
 		return
@@ -643,19 +387,8 @@ func use_half(on: bool) -> void:
 func is_half() -> bool:
 	return _half
 
-## How far the SHIP's centre sits from the middle of its own canvas, in screen
-## pixels. Positive means right of centre.
-##
-## Not zero, and not a constant. A hull canvas carries the clearance its exhaust
-## plume needs, which is on one side only — 38 art pixels against 5 at the nose
-## on the box spec — so a canvas centred in a panel draws a ship that is plainly
-## right of the middle. Measured off the opaque pixels rather than off the spec,
-## because the spec is a fact about the placeholders and this has to keep being
-## true of whatever art replaces them.
-## How wide this view's canvas draws, in screen pixels. The control's own width
-## is the same number once a layout pass has run; this is available before one
-## has, which is what lets a screen place the ship on the FIRST frame instead of
-## converging onto it over several visible ones.
+## The ship is off-centre in its canvas by the exhaust clearance, measured from opaque pixels.
+## Why: docs/why/ShipView.md#ship-offset
 func canvas_width() -> float:
 	return float(_w * _k)
 
@@ -664,20 +397,8 @@ func canvas_width() -> float:
 func canvas_height() -> float:
 	return float(_h * _k)
 
-## THE SHIP'S OWN RECT, in this control's coordinates.
-##
-## For anything that wants to draw AROUND the hull rather than around the panel
-## holding it. A slot is usually far bigger than the ship in it -- ShipSlot's is
-## half the screen -- so a box at the control's own edges says nothing about
-## what is being pointed at.
-##
-## The opaque pixels, in CANVAS coordinates and with the bob taken out.
-##
-## `ship_rect` answers the same question in the CONTROL's coordinates, which is
-## what anything drawing a box over the ship wants. A caller that is deciding
-## how to scale and place the canvas itself needs the other frame of reference:
-## a hull occupies about a third of its sheet, so "how big is this ship" and
-## "how big is this sheet" differ by a factor that changes per hull.
+## Ink rect is in canvas coordinates; screens that scale and place the canvas need that frame.
+## Why: docs/why/ShipView.md#ship-rect
 func ink_rect() -> Rect2i:
 	if _img == null:
 		return Rect2i(0, 0, _w, _h)
@@ -703,9 +424,7 @@ func fitted_rect_global() -> Rect2:
 	return r
 
 
-## Measured off the opaque pixels, so it follows whatever art is loaded and
-## whatever is bolted to it, and the bob is taken back out so a box drawn here
-## does not twitch several times a second.
+## Measured off the opaque pixels, with the bob taken out so a box does not twitch.
 func ship_rect() -> Rect2:
 	var whole := Rect2(Vector2.ZERO, size)
 	if _img == null:
@@ -719,16 +438,8 @@ func ship_rect() -> Rect2:
 	at.y -= float(_bob_off) * float(_k)
 	return Rect2(at, Vector2(r.size) * float(_k))
 
-## How far BELOW the canvas's middle the hull's last opaque row falls.
-##
-## The vertical twin of `ship_offset_x`, and it exists for the same reason: a
-## hull occupies about a third of its canvas, so anything placed a fixed
-## distance from the middle is placed a fixed distance from nothing. A light
-## hull and a heavy one want the same air under them, not the same number.
-##
-## The bob is subtracted. It moves the drawn rows a couple of pixels either way
-## several times a second, and a readout that recomputed its place from a bobbing
-## sprite would twitch every time the screen refreshed.
+## Bottom is measured from the hull, with the bob subtracted so readouts do not twitch.
+## Why: docs/why/ShipView.md#ship-bottom
 func ship_bottom_y() -> float:
 	if _img == null:
 		return 0.0
@@ -747,69 +458,32 @@ func ship_offset_x() -> float:
 	return (float(r.position.x) + float(r.size.x) * 0.5
 		- float(_w) * 0.5) * float(_k)
 
-## Magnify and crop WITHOUT going into showroom mode.
-##
-## The refit screen wants the live ship — its heat glow, its battle damage, the
-## modules actually bolted to it — just bigger. setup_preview() would give it
-## the size and take all three away, because preview means "a hull you do not
-## own yet". Same geometry, different question.
+## Magnifies without showroom mode, which would drop the live heat, damage and modules.
+## Why: docs/why/ShipView.md#magnify-and-crop
 func magnify(k: int, view_height: int) -> void:
 	_k = maxi(1, k)
-	# REMEMBERED, so the width can be re-fitted when the canvas turns out to be
-	# a different size than it was at this call. It usually is: _w is still the
-	# procedural 240 until a sprite is composited, so a 168-wide hull was
-	# reserving 480px of panel for 336px of ship and drawing it centred in the
-	# difference. Only magnify() sets this — crop()'s other caller, the convoy
-	# strip, passes a width it means and must keep it.
+	# Remembered so the width re-fits when the canvas differs from the procedural 240.
+	# Why: docs/why/ShipView.md#magnify-and-crop
 	crop(_w * _k, view_height)
-	# NOT CLIPPED, when the box already covers the canvas. `crop` turns clipping
-	# on because cropping IS clipping — but magnify shows the whole canvas, so
-	# the only thing the clip can remove is a CHILD, and the child here is the
-	# hardpoint layer. A gun bolted to the last mount on the spine reaches past
-	# the hull it is mounted on, and it was losing its muzzle to a rectangle
-	# with nothing else to cut.
+	# No clip when the box covers the canvas, or guns bolted to the last mount lose their muzzle.
+	# Why: docs/why/ShipView.md#magnify-and-crop
 	clip_contents = self_clip and view_height < _h * _k
-	# AFTER crop, which clears it. StationScreen calls magnify and then crop
-	# with a width it means, and setting this first let the canvas re-fit undo
-	# that deliberate crop the next time the sprite changed size.
+	# After crop, which clears it, or the re-fit undoes `StationScreen`'s deliberate crop.
 	_fit_h = view_height
 
-## WHETHER THIS VIEW MAY CLIP ITSELF.
-##
-## True everywhere by default, and FALSE on the refit screen, which wraps the
-## view in a window of its own and does the clipping there.
-##
-## It matters because the hardpoint layer is a CHILD of this control, so a clip
-## meant to keep a magnified hull inside a short row also cuts every gun that
-## reaches past the hull it is bolted to. `magnify` already refuses to clip
-## when the box covers the canvas, for exactly that reason — but the moment the
-## zoom makes the canvas taller than the box, the clip comes back on and takes
-## the muzzles with it. Two owners of one decision; this is the one that wins.
+## False on the refit screen, which clips in its own window so muzzles are not cut.
+## Why: docs/why/ShipView.md#self-clip
 var self_clip: bool = true
 
-## Magnify WITHOUT taking a position on how big the control should be.
-##
-## magnify() also sets custom_minimum_size, which is right where the view owns
-## its own box — the refit screen, the chassis select, the dock — and wrong
-## where a layout has already decided the box. The sector strip anchors its hull
-## to a fraction of the encounter slot, so a minimum size fights the anchors and
-## the ship shoves the enemy panel sideways.
-##
-## Whatever rect it is given, this changes only how big the ship is drawn inside
-## it. STRETCH_KEEP_CENTERED does the centring; the caller does the clipping.
+## `zoom()` sets no minimum size, which would fight the sector strip's anchors.
+## Why: docs/why/ShipView.md#zoom-only
 func zoom(k: int) -> void:
 	_k = maxi(1, k)
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	refresh()
 
-## Show only the middle of the canvas, at whatever magnification is set.
-##
-## The convoy strip is the reason this is separate from magnify(): three
-## partners have to fit beside your ship in an arena that is already full, and
-## a hull sits in the middle of a canvas with empty rows above and below it. So
-## the way to make a partner small is to show less of the canvas, never to scale
-## the ship — the art direction allows integer magnification and nothing else,
-## and half a pixel is not a pixel.
+## Crop shows less of the canvas rather than scaling, as only integer magnification is allowed.
+## Why: docs/why/ShipView.md#crop
 func crop(view_width: int, view_height: int) -> void:
 	# An explicit crop is a width the caller means. Only magnify() re-fits.
 	_fit_h = 0
@@ -819,12 +493,8 @@ func crop(view_width: int, view_height: int) -> void:
 	clip_contents = self_clip
 	refresh()
 
-## A view of a SPECIFIC build, rather than of a hull or of the run.
-##
-## `setup_preview` shows a hull bare and `local()` shows the ship you are
-## flying. Between them sits the one case the transfer screen needs: a hull that
-## is nobody's current ship but is still wearing its parts -- the frame you have
-## just traded in. `ShipBuild.fitted_out` composes it; this is how it gets here.
+## The transfer screen needs a traded-in hull still wearing its parts, so a view of one build.
+## Why: docs/why/ShipView.md#build-view
 func setup_build(b: ShipBuild, k: int = 1) -> void:
 	_fixed = b
 	_k = maxi(1, k)
@@ -837,15 +507,8 @@ func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 	# A showroom sprite is never the thing you click — the card around it is.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if view_height > 0:
-		# A hull occupies about a third of the canvas vertically and is centred
-		# in it, so cropping symmetrically trims empty space without moving the
-		# ship. Horizontally it is NOT centred, so the width stays full.
-		#
-		# EXPAND_IGNORE_SIZE is load-bearing and its absence is silent: a
-		# TextureRect derives its minimum size from its TEXTURE, so without this
-		# the control kept claiming the full 120 rows whatever custom_minimum_size
-		# said. The card's own labels were pushed out of the button and drew on
-		# top of the attribute block underneath it.
+		# `EXPAND_IGNORE_SIZE` is needed, or the control claimed 120 rows and pushed labels out.
+		# Why: docs/why/ShipView.md#preview-crop
 		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		custom_minimum_size = Vector2(_w * _k, view_height)
 		clip_contents = self_clip
@@ -857,9 +520,7 @@ func _hull() -> HullData:
 
 func _ready() -> void:
 	_ready_anim()
-	# Only a view of YOUR ship listens to your ship's signals. A showroom hull
-	# never changes, and a partner's changes when the roster says so — see
-	# follow_peer().
+	# Only a view of your ship listens to its signals; other views change by other means.
 	if _fixed == null and _peer == 0:
 		Sig.ship_changed.connect(_restate)
 		Sig.resources_changed.connect(_restate)
@@ -888,19 +549,13 @@ func refresh() -> void:
 	up.resize(_w * _k, _h * _k, Image.INTERPOLATE_NEAREST)
 	_tex.set_image(up)
 
-## Real art. The hull sprite goes down whole; everything the procedural path
-## layers on top of it — heat glow, battle damage, module shapes — is not drawn
-## here, because that is the shader's job now and the modules are their own
-## sprites. See shaders/heat.gdshader.
-## Flying in (`arrive` called and not yet parked: held off screen, or on its
-## approach). LOCAL's sky camera holds still for it (`LocalSky._follow`).
+## Real art goes down whole; heat, damage and modules come from the shader and own sprites.
+## Why: docs/why/ShipView.md#real-art
 func arriving() -> bool:
 	return _arrive_at >= 0
 
 
-## One step of the fly-in. Returns whether the canvas needs repainting.
-## The approach `t` s after `arrive` was called, on the caller's clock (with
-## `arrive_driven`): the same tick as every arrival's.
+## The approach `t` seconds after `arrive`, on the caller's clock, as every arrival ticks.
 func arrive_step(t: float) -> void:
 	if _arrive_at >= 0 and _tick_arrival(_arrive_from_s + maxf(0.0, t)):
 		refresh()
@@ -909,10 +564,7 @@ func arrive_step(t: float) -> void:
 func _tick_arrival(now: float = -1.0) -> bool:
 	if now < 0.0:
 		now = GameClock.now()
-	# The span is taken once, on the first tick that has a real layout: far
-	# enough left that the ship's trailing edge starts off the SCREEN, not off
-	# its own texture. Sliding inside the canvas was the bug — the canvas is only
-	# as wide as the ship, so it popped into being at the panel edge.
+	# The span starts off the screen: sliding inside the canvas made it pop in at the panel edge.
 	if _arrive_span <= 0:
 		if size.x <= 0.0:
 			return false
@@ -920,9 +572,7 @@ func _tick_arrival(now: float = -1.0) -> bool:
 		position.x = -float(_arrive_span)
 		_unhide_arrival()
 
-	# Still waiting its turn. Held off screen rather than parked at rest, so a
-	# staggered convoy does not show three ships standing still while the first
-	# one flies in.
+	# Held off screen while waiting, so a staggered convoy does not show ships standing still.
 	if now < _arrive_at_s:
 		return false
 
@@ -946,17 +596,12 @@ func _tick_arrival(now: float = -1.0) -> bool:
 		dirty = true
 	return dirty
 
-## Engines up, and lean. Returns the clip for this hull's weight, on the same
-## contract `arrive()` uses: the view knows which drive it is, the caller knows
-## whether a sound belongs here, and four hulls leaving must not be four
-## thrusters.
+## Returns the clip for this hull's weight, so four hulls leaving are not four thrusters.
 func depart(hyper: bool = false) -> StringName:
 	park()                      ## whatever the approach still owns, it stops owning
 	_bob_amp = 0                ## rigid under power. A ship bobbing as it revs is idling.
 	_bob_off = 0
-	# NO PLUMES UNDER A HYPERDRIVE. A jump drive is not a thruster, and a ship
-	# holding station with its engines lit reads as idling rather than charging.
-	# The ordinary departures still burn: they are thrusters, and they move.
+	# No plumes under a hyperdrive: a charging jump drive with lit engines reads as idling.
 	_burning = not hyper
 	_burn_thrust = ThrusterFx.Thrust.FULL
 	_engines_off = hyper
@@ -971,16 +616,10 @@ func depart(hyper: bool = false) -> StringName:
 	var w := int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM)
 	return DEPART_SFX[w]
 
-## Ease-IN cubic, the exact mirror of the approach's ease-out. The approach
-## arrives with speed and gives it all up to the drift; this gives up nothing
-## and takes it all.
-##
-## Driven from `_process` rather than from a Tween for the reason `position.x`
-## is commented as reserved: it is owned here, in one place, under one rule.
+## Ease-in cubic mirrors the approach, driven from `_process` so one place owns the position.
+## Why: docs/why/ShipView.md#departure
 func _tick_departure() -> bool:
-	# Measured on the first tick that has a real layout, the same way the
-	# approach measures its own span and for the same reason: when `depart()`
-	# is called the containers have not sorted yet.
+	# Measured on the first real layout tick, as the containers have not sorted at `depart()`.
 	if _depart_span < 0.0:
 		if size.x <= 0.0:
 			return false
@@ -1007,13 +646,9 @@ func set_melt(v: float) -> void:
 	if is_equal_approx(_melt, m):
 		return
 	_melt = m
-	# AND WHAT IS BOLTED TO IT. `MountPoints` is a child node, drawn after this
-	# canvas and not through it, so a hull collapsing to a line once left its
-	# modules hanging in the air at full size. They leave with the ship.
+	# The mounts leave with the ship: they are a child node, so they once hung in the air.
 	_hide_fittings(m > 0.0)
-	# AND WHEN THERE IS NOTHING LEFT, THERE IS NOTHING LEFT. The line this
-	# canvas draws is the hull's last pixel row, and it once outlived the ship
-	# by half a second while the real beam ran off.
+	# Nothing left means nothing drawn: the last row once outlived the ship by half a second.
 	visible = m < 1.0
 	refresh()
 
@@ -1022,12 +657,8 @@ func set_shake(px: float) -> void:
 	_shake = maxf(px, 0.0)
 	set_process(true)
 
-## THE HULL AS THE SPOOL STARTS: one look of `JumpFx.SPOOLS`, at `amount`, pushed
-## in every frame from the flare's clock by `ShipSlot`, the way the melt is.
-##
-## On the hull's own pixels and nowhere else, in whole pixels and cold light --
-## the rules the melt and the beam keep. Nothing is scaled, and nothing warm is
-## drawn: EMBER, FLARE and HOT mean heat.
+## The spool look draws on the hull's own pixels, whole pixels and cold light, like the melt.
+## Why: docs/why/ShipView.md#spool
 func set_spool(look: StringName, amount: float, secs: float) -> void:
 	var a := clampf(amount, 0.0, 1.0)
 	if look == &"none" or a <= 0.0:
@@ -1044,11 +675,8 @@ func set_spool(look: StringName, amount: float, secs: float) -> void:
 	_spool_t = secs
 	refresh()
 
-## INTERLACE IS A SHADER, NOT A PASS OVER THE HULL IMAGE, because Jon wants the
-## modules to slip with the hull and the modules are not in that image --
-## `MountPoints` draws them in its own `_draw()`. The material goes on this view
-## and the children draw through it, so one set of rows moves the whole ship.
-## See shaders/interlace.gdshader.
+## Interlace is a shader so the modules, drawn by `MountPoints`, slip with the hull.
+## Why: docs/why/ShipView.md#interlace
 const INTERLACE_SHADER := preload("res://shaders/interlace.gdshader")
 ## Which rows slip is picked afresh this many times a second.
 const INTERLACE_HZ := 12.0
@@ -1172,13 +800,8 @@ func _spooled(img: Image) -> Image:
 	# `interlace` is not here: it is the shader, so the modules slip too. See _lace_on.
 	return out
 
-## Children are the fitted modules, added by whichever slot built this view.
-##
-## PUT BACK ONLY WHAT IT TOOK AWAY. A child that was hidden for its own reasons
-## stays hidden: the cutaway's hover outline (`CutawayView.Outline`) is a child
-## too, and `park()` -- which every arrival ends with -- used to switch it on,
-## so your ship lit up amber the moment it came to rest with nobody pointing at
-## it (Jon, Oct 13: "the ship is highlighted... No highlight").
+## Put back only what was taken: `park()` once lit the hover outline amber (Jon, Oct 13).
+## Why: docs/why/ShipView.md#hidden-fittings
 var _fittings_hidden: Array[Control] = []
 
 func _hide_fittings(gone: bool) -> void:
@@ -1200,27 +823,14 @@ func _shift(dx: int) -> bool:
 	position.x = float(dx)
 	return true
 
-## Where the hull actually is inside this control, in local coordinates.
-##
-## The control is as big as the layout gave it -- most of half the arena on the
-## sector screen -- and `STRETCH_KEEP_CENTERED` puts the canvas in the middle of
-## that at its native size. So anything that wants to aim at the SHIP rather
-## than at the box it lives in has to ask, and the first thing that did aimed at
-## the box: a jump flare sized to the slot drew a ring with a radius bigger than
-## the hull is long.
+## The control is bigger than the ship, so aim at this, not the box (a flare ring was too big).
+## Why: docs/why/ShipView.md#hull-rect
 func hull_rect() -> Rect2:
 	var t := Vector2(float(_w * _k), float(_h * _k))
 	return Rect2((size - t) * 0.5, t)
 
-## The part of `hull_rect()` that is actually ship: the same box, narrowed to the
-## sprite's opaque columns, and MOVED so its middle is the middle of the HULL.
-##
-## It used to keep the canvas's own centre row, and the line sat there -- which is
-## the middle of the picture, not of the ship. A heavy's masts and spires stretch
-## the picture upward, so the beam ran along its top rail, 28 px above the body
-## it was meant to split ("It sits slightly above the middle of the hull"). The
-## middle is now `_body_mid`, and the melt collapses onto the same row, so the
-## beam still comes out of the line the hull goes to.
+## The middle is the body's, not the picture's: masts put the beam 28 px above the hull.
+## Why: docs/why/ShipView.md#hull-body
 func hull_body() -> Rect2:
 	var r := hull_rect()
 	if _body_px.size.x <= 0:
@@ -1231,11 +841,7 @@ func hull_body() -> Rect2:
 	return Rect2(r.position.x + float(_body_px.position.x), r.position.y + shift,
 		float(_body_px.size.x), r.size.y)
 
-## THE MIDDLE OF THE HULL, NOT OF ITS PICTURE: the centre of the rows that span at
-## least half the widest row, in image rows. Masts, antennae and thin fins are
-## narrow, so they fall out; the body is what is left. Measured on the Korvan set,
-## it put the line 28 px lower on the heavy and 6 px lower on the medium, which is
-## where the recorded frames said each was off.
+## Body middle: rows at least half the widest, measured on the Korvan set to fix 28 px and 6 px.
 func _body_middle(img: Image) -> float:
 	var used := img.get_used_rect()
 	var spans := PackedInt32Array()
@@ -1276,15 +882,8 @@ func _unhide_arrival() -> void:
 		visible = true
 
 
-## At rest, wherever that was decided.
-##
-## ONE END STATE, THREE CALLERS: the approach finishing, a departure beginning,
-## and the player clicking through the whole thing. It was the tail of
-## `_tick_arrival` and only the first of those could reach it, so a skip had to
-## reproduce six assignments from memory and a departure had to undo them.
-##
-## Safe on a view that never left. `_arrive_bob` is 2 unless somebody asked for
-## less, and everything else here is already where this puts it.
+## Parking is one end state for three callers, so a skip need not repeat six assignments.
+## Why: docs/why/ShipView.md#park
 func park() -> void:
 	_unhide_arrival()
 	_arrive_at = -1
@@ -1305,16 +904,11 @@ func park() -> void:
 	_engines_off = false
 	_bob_amp = _arrive_bob
 
-## Engines guttering out rather than switching off. The whole answer is in the
-## row: the flame is lit while the approach is inside one of its spans, and the
-## first span is the clean burn. No formula, because the sound was cut from
-## these spans and a formula is a second place for the answer to live.
+## The flame follows the row's spans, with no formula: the sound was cut from those spans.
 func _flame_lit(e: float) -> bool:
 	return _flame_window(e) >= 0
 
-## Which lit window of this approach's row `e` is in, or -1. The coded flame
-## steps DOWN through them: the clean burn at FULL, the first two stutters at
-## CRUISE, the rest at IDLE -- shrinking flashes, as the drive starves.
+## The flame steps down through the lit windows: FULL, then CRUISE, then IDLE, as the drive starves.
 func _flame_window(e: float) -> int:
 	var spans: Array = FLAMEOUTS[_flameout]
 	for i in spans.size():
@@ -1323,14 +917,8 @@ func _flame_window(e: float) -> int:
 			return i
 	return -1
 
-## The hull, or what is left of it.
-##
-## ROWS DROPPED, NEVER SCALED. Only the rows within `half` of the sprite's own
-## centre line survive, and `half` falls to one -- so the ship is eaten from the
-## outside in and every surviving pixel is still exactly where it was authored.
-## Squashing the sprite instead would resample a pixel face, which the art
-## direction forbids outright and which would look like a bug rather than an
-## effect.
+## Rows are dropped, never scaled: squashing the sprite would resample a pixel face.
+## Why: docs/why/ShipView.md#melt
 func _paste_hull(img: Image, dy: int, blend: bool) -> void:
 	if _melt <= 0.0:
 		_paste(_spooled(img) if _spool > 0.0 else img, 0, dy, blend)
@@ -1353,18 +941,10 @@ func _paste_hull(img: Image, dy: int, blend: bool) -> void:
 				_img.blend_rect(img, r, at)
 			else:
 				_img.blit_rect(img, r, at)
-	# NO LINE OF ITS OWN HERE ANY MORE. This canvas used to paint a solid white
-	# row along the centre as the hull thinned -- which is the same line that
-	# once outlived the ship by half a second, and which stamped a flat white bar
-	# under whatever look `JumpFx.bar` gives the beam. The beam is drawn over the
-	# whole body through the snap, so it carries the handover on its own.
+	# No line of its own: it outlived the ship and stamped a white bar under the beam's look.
 
-## Copy `img` at (dx, dy), clipping whatever falls off the left edge.
-##
-## The canvas is only as wide as the ship, so a fly-in has nowhere to start
-## from — the ship enters from behind its own panel edge. A negative destination
-## is not allowed, so the offset comes out of the SOURCE rect instead. Nose
-## first, which is correct: the nose points right.
+## Clip at the left edge by trimming the source rect: a negative destination is not allowed.
+## Why: docs/why/ShipView.md#left-edge-clip
 func _paste(img: Image, dx: int, dy: int, blend: bool) -> void:
 	var sx := maxi(0, -dx)
 	var iw := img.get_width() - sx
@@ -1377,19 +957,8 @@ func _paste(img: Image, dx: int, dy: int, blend: bool) -> void:
 	else:
 		_img.blit_rect(img, src, at)
 
-## THE PICTURE A HULL IS DRAWN FROM, before a fight marks it. One question
-## asked in one place, so the sector map's ship (`MapHull`) is always the hull
-## LOCAL draws.
-##
-## The half sheet when it is asked for and the hull has one. Falls through to
-## full art rather than refusing to draw, so a hull that has not been reduced
-## yet still appears — at the wrong size, which is visible, and not at all,
-## which is not.
-##
-## THE GRADE FIRST, THE FIGHTS ON TOP OF IT: a graded weight's one hull baked at
-## this ship's grade (HullGrade: wear, paint, markings, lights, kit), and its
-## registry the ship's own; `_blit_sprite` lays HullWear's damage over that, so
-## a beaten S still reads as a good ship that got shot.
+## One place chooses the picture so the sector map's ship is the hull LOCAL draws.
+## Why: docs/why/ShipView.md#hull-art
 static func hull_art(h: HullData, pilot: String, half: bool) -> Texture2D:
 	if h == null:
 		return null
@@ -1402,26 +971,12 @@ static func hull_art(h: HullData, pilot: String, half: bool) -> Texture2D:
 
 
 func _blit_sprite() -> void:
-	# The hull BEATEN UP IN PROPORTION TO ITS HULL POINTS. This is the line that
-	# closes an old gap: everything the procedural path layers on — heat glow,
-	# battle damage, module shapes — was skipped for real art on the grounds that
-	# the shader would take it over, and the shader never did. A hull with a
-	# sprite looked showroom fresh at one hull point.
-	#
-	# A showroom hull is undamaged because ShipBuild.showroom() hands it full
-	# hull points, not because this branch knows what a showroom is — the same
-	# reason the flag went from the procedural path.
-	#
-	# worn_cached and band_for, never worn(): this runs every time the idle bob
-	# changes offset, several times a second, and wear is a pass over every pixel
-	# in the sprite. Band 0 returns it untouched, so an intact ship costs what it
-	# always did.
+	# Real art is worn by hull points, closing a gap: a sprite hull looked fresh at one hull point.
+	# Why: docs/why/ShipView.md#hull-wear
 	var h := _hull()
 	var b := _b()
 	var band := HullWear.band_for(b.damage() if b != null else 0.0)
-	# Scarred by ship, pilot and run. A peer's hull is drawn from their build on
-	# this machine, and every one of those three is agreed between us, so their
-	# ship wears the same damage on both screens.
+	# Wear seeds from ship, pilot and run, which both screens agree on, so a peer's damage matches.
 	var wseed := HullWear.seed_for(h, b.pilot if b != null else "", Rng.master)
 	var src := hull_art(h, b.pilot if b != null else "", _half)
 	var img: Image = HullWear.worn_cached(src, band, wseed)
@@ -1436,37 +991,15 @@ func _blit_sprite() -> void:
 	if not _mid_cache.has(src):
 		_mid_cache[src] = _body_middle(img)
 	_body_mid = _mid_cache[src]
-	# Headroom above and below so the bob has somewhere to travel without the
-	# sprite being clipped at the extremes of its own canvas.
-	# ONE ROW OF PADDING WHEN THE PARITY IS WRONG, and this is the whole reason
-	# the ship stopped crawling as it bobs.
-	#
-	# STRETCH_KEEP_CENTERED puts the texture at (size - tex) * 0.5 from the
-	# control's origin. When those two differ by an ODD number that is a HALF
-	# pixel -- the sector slot is 455 tall against a 144-row heavy, so the ship
-	# drew at y=197.50 -- and with NEAREST filtering every row's sample then sits
-	# exactly on a texel boundary. Standing still that is invisible. Bobbing, the
-	# tie-break flips as the content moves and about 1100 pixels of a heavy
-	# changed colour on every step, which reads as the hull crawling.
-	#
-	# A transparent row costs nothing and makes the difference even, so the
-	# texture lands on a whole pixel. This was briefly fixed with the project's
-	# `snap_2d_transforms_to_pixel` instead; that works here and quantises the
-	# launcher's rotating galaxy into a visible judder, because a global snap
-	# cannot tell a bobbing sprite from a turning starfield. Fix the sprite.
+	# Pad a row when parity is odd: the half pixel crawled the hull; a global snap judders.
+	# Why: docs/why/ShipView.md#half-pixel-snap
 	var ch := img.get_height() + _bob_amp * 2
 	if size.y > 0.0 and (int(size.y) - ch) % 2 != 0:
 		ch += 1
 	_resize_canvas(img.get_width(), ch)
 	var dy := _bob_amp + _bob_off
-	# BEHIND FIRST, THEN THE HULL OVER IT, THEN THE REST. A thruster buried in
-	# the ship's own body has to be occluded by the plating or its flame paints
-	# across the hull it is supposed to be firing out of.
-	#
-	# The hull is BLENDED rather than blitted when anything is under it: blit
-	# copies alpha, so the hull's transparent pixels would punch a hole straight
-	# through the flame behind it. Onto an empty canvas the two are the same and
-	# blit is cheaper, so the unlayered case keeps it.
+	# The hull is blended over buried thrusters, as blit copies alpha and holes the flame.
+	# Why: docs/why/ShipView.md#exhaust-layering
 	var behind := _blit_exhaust(dy, true)
 	_paste_hull(img, dy, behind > 0)
 	_blit_exhaust(dy, false)
@@ -1480,41 +1013,24 @@ func _resize_canvas(w: int, h: int) -> void:
 	_w = w
 	_h = h
 	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
-	# A HEIGHT THE CALLER ASKED FOR WINS AT ANY MAGNIFICATION, and the order of
-	# these two branches is the whole fix. This read `if _k <= 1` first, which
-	# was harmless while every screen magnified by 2 and became silent breakage
-	# the moment they stopped: at 1x the canvas size overwrote the box three
-	# screens had set for themselves — ShipScreen's HULL_VIEW_H, StationScreen's
-	# crop, ChassisSelect's HERO_H — and the ship went on drawing correctly
-	# inside a panel that had quietly resized itself. Nothing threw.
+	# A caller's height wins at any zoom: at 1x the canvas silently overwrote three boxes.
+	# Why: docs/why/ShipView.md#resize-order
 	if _fit_h > 0:
 		custom_minimum_size = Vector2(_w * _k, _fit_h)
 		clip_contents = self_clip and _fit_h < _h * _k
 	elif _k <= 1 and not _sized:
 		custom_minimum_size = Vector2(_w, _h)
 
-## The plume, over the hull, at this step of the cycle.
-##
-## blend_rect and not blit_rect: blit COPIES alpha, so it would punch the flame
-## frame's empty pixels straight through the hull underneath it.
-## Every plume on this layer, and how many were drawn.
-##
-## Called twice per repaint — once for the thrusters flagged `back` and once for
-## the rest — so a ship with engines at different depths composites in the right
-## order. Returns the count so the caller knows whether anything is underneath
-## the hull, which decides how the hull itself is pasted.
+## Uses `blend_rect`, since blit copies alpha and punches the flame through the hull; called twice.
+## Why: docs/why/ShipView.md#exhaust-layering
 func _blit_exhaust(dy: int, back: bool) -> int:
-	# THE STRIPS ARE NOT DRAWN (Oct 13): the coded flame (`_draw_flame`) burns
-	# where they did. Kept, unreached, so the rig and its draw order stay
-	# readable beside the code that replaced them.
+	# Strips are not drawn since Oct 13: the coded flame replaced them; kept to show the rig.
 	if not draw_strips:
 		return 0
 	var hull := _hull()
 	if not _burning:
 		return 0
-	# The drive is the last thing to go, but it does go: a plume at full size
-	# hanging off a line of light is the one part of the ship that refused to
-	# dematerialise.
+	# A full plume hanging off a line of light refused to dematerialise, so the drive goes late.
 	if _melt > 0.45:
 		return 0
 	var n := 0
@@ -1596,14 +1112,8 @@ func draw_ship() -> void:
 	var metal := lerp(Color("#42505f"), Color("#5e4632"), t) as Color
 	var outline := Color("#0a0e13")
 
-	# Manufacturer livery: a pigment shift on the plating, not a light.
-	#
-	# Hulls are built by somebody now, and two chassis in the same weight class
-	# draw the same silhouette here — so colour is currently the only channel
-	# saying whose ship this is. Kept deliberately weak (0.16) and kept OFF the
-	# glow and core tones, because those are the heat channel and the art
-	# direction allows exactly one source of warmth in frame: the reactor.
-	# Paint is a property of the object; light is not.
+	# Livery is a weak pigment shift kept off the glow, as the reactor is the only warmth source.
+	# Why: docs/why/ShipView.md#manufacturer-livery
 	var m: ManufacturerData = DB.manufacturers.get(hull.manufacturer)
 	var livery: Color = m.colour if m != null else Color("#5a6a7a")
 	if m != null:
@@ -1657,9 +1167,7 @@ func draw_ship() -> void:
 	px(hx, hy, hw, hh, b)
 	px(hx, hy, hw, 4, c)
 	px(hx, hy, hw, 1, hi)
-	# A painted stripe where the top face turns down. One pixel of the
-	# manufacturer's actual colour, so the livery is legible even at the tint
-	# strength above.
+	# A one-pixel stripe in the manufacturer's actual colour keeps the livery legible.
 	if m != null:
 		px(hx, hy + 4, hw, 1, livery.darkened(0.25))
 	dither(hx, hy + 5, hw, 4, c, 0.5)
@@ -1712,9 +1220,7 @@ func draw_ship() -> void:
 	if ratio > 1.0:
 		dither(hx, hy, hw, hh, core, (ratio - 1.0) * 0.5)
 
-	# Battle damage. A showroom hull is undamaged because ShipBuild.showroom()
-	# hands it full hull points, not because this branch knows what a showroom
-	# is — which is the whole reason the flag went.
+	# A showroom hull is undamaged because `ShipBuild.showroom()` gives it full hull points.
 	var dmg := ship.damage()
 	if dmg > 0.3:
 		px(hx + int(hw * 0.4), hy + 6, 7, 6, Color("#1a1010"))
@@ -1722,14 +1228,8 @@ func draw_ship() -> void:
 		px(hx + int(hw * 0.65), hy + hh - 12, 9, 7, Color("#1a1010"))
 		px(hx + int(hw * 0.2), hy + 2, 6, 4, Color("#3a1a10"))
 
-## Installed modules are bolted onto hardpoints in their manufacturer's colours.
-##
-## Position comes from `m.mount`, never from the order of `installed`. These
-## have always been fixed places on the hull — weapon 0 is the dorsal ordnance,
-## 1 the ventral barrels — but the index used to be read off the array, so
-## taking the dorsal gun off slid the ventral one up onto the spine and the ship
-## rebuilt itself under a change the player had not made. The mount is now a
-## choice the refit screen records and this view reports.
+## Position comes from `m.mount`, not array order, or removing a gun slid the others.
+## Why: docs/why/ShipView.md#mount-positions
 func _draw_modules(hx: int, hy: int, hw: int, hh: int, metal: Color, outline: Color) -> void:
 	for part in _b().parts:
 		var at := maxi(int(part.get("mount", 0)), 0)
@@ -1828,14 +1328,8 @@ func _thrust_now() -> int:
 	return ThrusterFx.Thrust.IDLE
 
 
-## YOUR ENGINES AT IDLE, HEARD (Jon, Oct 13: "Let's have a low burn sound for
-## the idle engines"). Set on the view that is YOUR ship: on LOCAL and in
-## fights (`SectorScreen`), on the refit (`ShipScreen`) and on the transfer's
-## new hull (`TransferScreen`), because the sound follows the picture and each
-## of those draws your idle flame. Every other ship idles in silence -- a pack
-## of enemies, a convoy and you each with a bed would be mud. `Audio` keeps the view
-## and asks `idle_heard()` every frame; the sound follows the picture, so
-## nothing here starts or stops it.
+## Only your own ships hum at idle (Jon, Oct 13): a bed under every ship would be mud.
+## Why: docs/why/ShipView.md#idle-hum
 var hums := false:
 	set(v):
 		hums = v
@@ -1843,13 +1337,8 @@ var hums := false:
 			Audio.idle_from(self)
 
 
-## Whether the idle bed should be sounding for this view right now: it hums,
-## it is drawn, the hull is on screen, and its flame is the IDLE. An arrival's
-## coughs after its clean burn count as idle too: the drive is settling into
-## the idle there and the coughs are flashes over it, so the bed comes up in
-## the first gap and stays up rather than pumping with each flash (its fade is
-## longer than a cough). The clean burn, a departure's FULL and a hyperdrive's
-## dark (`_engines_off`) are not.
+## Arrival coughs count as idle, so the bed stays up and does not pump with each flash.
+## Why: docs/why/ShipView.md#idle-hum
 func idle_heard() -> bool:
 	if not hums or not is_inside_tree() or not is_visible_in_tree():
 		return false
@@ -1863,15 +1352,8 @@ func idle_heard() -> bool:
 	return r.intersects(get_viewport_rect())
 
 
-## THE ARRIVAL SPUTTERS DOWN TO THE IDLE; IT NEVER GOES OUT (Jon, Oct 13: "I
-## don't want the engines to turn off... I just want them to sputter to an
-## idle"). `window` is the FLAMEOUTS window the approach is in, or -1 between
-## them and after the last. The clean burn and the first two coughs are FULL,
-## the later coughs CRUISE (shrinking flashes as the drive starves), and every
-## gap between them, and the coast after the last, is the IDLE the ship then
-## sits at. So the engines settle into the burn they keep. They used to go
-## dark in the gaps and through the coast (1.8 s at the end of an arrival), and
-## the idle came on with the park: off, then on again.
+## The arrival sputters down to idle and never goes out (Jon, Oct 13), to avoid off then on.
+## Why: docs/why/ShipView.md#arrival-sputter
 static func arrive_thrust(window: int) -> int:
 	if window < 0:
 		return ThrusterFx.Thrust.IDLE
@@ -1880,10 +1362,7 @@ static func arrive_thrust(window: int) -> int:
 	return ThrusterFx.Thrust.CRUISE
 
 
-## The coded flame, onto `_flame_layer` (ADD), in canvas pixels: the same
-## transform the hull is drawn with, so it follows the centring, the bob, the
-## zoom and the half sheet exactly. Nothing until the flame's pictures have
-## been built (`ThrusterFx.for_view` builds them off the main thread).
+## The coded flame uses the hull's canvas transform, so it follows bob, zoom and the half sheet.
 func _draw_flame(ci: CanvasItem) -> void:
 	_draw_lights(ci)
 	var th := _thrust_now()
@@ -1898,10 +1377,7 @@ func _draw_flame(ci: CanvasItem) -> void:
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## THE HULL'S LIGHTS (HullGrade), live on the game clock and added like the
-## flame: the hull's own glass, its nav lights and an aircraft's surface
-## markers, strobing and dipping (Jon, Oct 14). Out with the ship: none on a
-## hull at no hull points, or in a hyperdrive's dark.
+## Hull lights use the game clock, added like the flame; none at zero hull (Jon, Oct 14).
 func _draw_lights(ci: CanvasItem) -> void:
 	var h := _hull()
 	if HullGrade.key_for(h) == "" or _engines_off:

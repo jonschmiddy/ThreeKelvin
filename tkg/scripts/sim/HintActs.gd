@@ -1,18 +1,7 @@
 extends RefCounted
 
-## THE PLAYER DOING WHAT A HINT TEACHES (`Hints.DONE`), for `-- hinttest` and
-## `-- sheet=AshTutorTest`: through the screen that is up, the way a hand does
-## it -- the chart's row pressed, an event's row in the map's list, a choice in
-## the band, a card played, END TURN, a part out of a wreck's window, a module
-## off your ship and back on, a wreck's own click, SECTOR LOOT, a deck's button,
-## a drone's job, the till, the counter, SIGN, a board step at the lab; and the deep
-## tutorial's (Oct 22): a discard picked, the pointer rested on a card, a
-## malfunction purged, FLEE pressed, CONTINUE, THRUST held, a part put down or
-## pointed at in the cutaway, the FAULTS drone, TAKE IT, another deck, the escape
-## menu shut, LAUNCH. Not `Hints`: what the game does when the player does it,
-## and `Hints` has to notice.
-##
-## `act(id)` returns what it did, or "" if the screen had nothing to do it with.
+## Drives what a hint teaches through the screen that is up, as a hand would.
+## Why: docs/why/HintActs.md#hint-acts
 
 
 static func act(id: StringName) -> String:
@@ -178,9 +167,7 @@ static func act(id: StringName) -> String:
 			tv.refresh()
 			return "took a part from the window into the hold"
 		&"cutaway":
-			# off the ship into the hold, and back on at the end of the frame (the
-			# fight after this wants its cards); `Hints` reads the fit as it is
-			# when it next looks, which is before then
+			# Off the ship and back at frame end, but `Hints` reads the fit before then.
 			for m: ModuleData in Run.installed.duplicate():
 				if Run.uninstall_module(m):
 					Run.install_module.call_deferred(m)
@@ -295,10 +282,8 @@ static func leave_lab() -> bool:
 	return true
 
 
-## What a station's decks need to be used by `act`: credits for a drone, the
-## till and the fabricator; a part in the hold for the counter; the fabricator's
-## materials; DATA for a board step at the lab. Done before a deck's line shows
-## (what it adds would read as the deck used).
+## Done before a deck's line shows, or what it adds would read as the deck used.
+## The lab's board step needs DATA.
 static func stock_up() -> void:
 	Run.add_credits(4000)
 	Run.add_data(40)

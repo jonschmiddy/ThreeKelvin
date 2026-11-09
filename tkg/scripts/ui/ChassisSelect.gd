@@ -1,38 +1,16 @@
 class_name ChassisSelect
 extends Control
 
-## Which ship you fly out in: a manufacturer, then a weight class.
-##
-## The first screen of a run, and the first time the game asks you for anything.
-## It exists because hulls now have manufacturers: a chassis sets four of your six
-## attributes, decides which cards your starting modules grant, and counts as
-## one toward its own set bonus.
-##
-## TWO AXES, and they are genuinely different questions. The manufacturer is
-## who you are — which cards, which set bonus, which attribute signature. The
-## weight class is how much ship — hull, hardpoints, hand size, evasion. Every
-## manufacturer builds all three, so picking Redline does not force you into a paper
-## hull; it means a Redline heavy is still the fastest heavy in the game.
-##
-## Selecting REALLY REFITS THE SHIP rather than previewing it — Run.fit_chassis()
-## runs on every click — so the attribute block is reading the live ship, not a
-## parallel calculation of what the ship would be. There is no second
-## implementation to drift.
+## Two axes: manufacturer is who you are, weight class is how much ship.
+## Selecting really refits (`Run.fit_chassis()`), so there is no second calculation to drift.
+## Why: docs/why/ChassisSelect.md#chassis-select
 
 signal launched
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## What each weight class IS, in one line, for the L/M/H tooltips. The buttons
-## are single letters, so this is where the word and the trade-off live.
-## One line each, in the same register as WEIGHT_BLURB: what the class buys you,
-## not its numbers. The numbers are already on screen in the attribute block and
-## the hardpoint rows, and clicking is how you compare them.
-##
-## SPECIFICATION, NOT CONDITION. These used to read "kept up", "well kept",
-## "somebody loved this ship" — and that was wrong, because a class grows
-## HARDPOINTS. A well-maintained ship does not sprout a weapon mount. How beaten
-## up a hull is now lives on its hull points and is drawn by HullWear, which
-## leaves these letters free to mean the thing they actually change.
+## One line on what a class buys, not its numbers, which are already on screen.
+## Specification, not condition: a class grows hardpoints, and wear lives in `HullWear`.
+## Why: docs/why/ChassisSelect.md#tier-blurbs
 const TIER_BLURB: Array[String] = [
 	"The base specification that every run starts on.",
 	"An uprated frame with more hull and heat capacity, on the same hardpoints.",
@@ -45,52 +23,26 @@ const WEIGHT_BLURB: Array[String] = [
 	"In the middle on every stat, with no big strength and no big weakness.",
 	"The most plate and the biggest hold, but it cannot dodge at all.",
 ]
-## The one ship on the screen, and the only one drawn at all.
-##
-## Cropped to roughly the band the hull occupies, so the window throws away the
-## empty rows above and below rather than the ship.
-##
-## 1x, not 2x. Integer scaling is the pixel-art rule, so a hull is either its own
-## size or exactly double it and there is nothing in between — and double filled
-## most of the panel once real art replaced the procedural drawing. ShipScreen
-## carries the same note for the same reason.
-## 1x. The doubling moved into the ART: hulls are authored at 2x their box
-## (a heavy is 248x100 for a 125x50 box), so drawing them at 2x applies it
-## twice and puts a 496px ship on a 960px viewport. See boxes.py.
+## 1x, not 2x: hulls are authored at 2x their box, so drawing at 2x applies it twice (boxes.py).
+## Integer scaling is the pixel-art rule. ShipScreen carries the same note.
+## Why: docs/why/ChassisSelect.md#hero-scale
 const HERO_SCALE := 1
-## Tall enough to hold the whole hull at HERO_SCALE, measured off the DEEPEST
-## one rather than the only one: 140 rows of heavy hull, the bob's four, and a
-## little air. The heavy was 100 rows until the hull art was redrawn; this is
-## derived from that depth, so it has to move with it or the hero is clipped.
+## Derived from the deepest hull (140 rows) plus the bob, so it must move with the art.
 const HERO_H := 160
-## The gap between the banner and the identity column, reused as the indent for
-## everything below that has to line up with it.
-## The air between ATTRIBUTES, HARDPOINTS and STARTING MODULES. One constant so
-## the three read as evenly spaced blocks rather than as a list that happens to
-## have gaps in it.
-##
-## Four, and it is measured against the WORST chassis rather than a typical one.
-## Cygnet's light frame has four utility mounts, so it launches with seven
-## modules where most launch with five — two extra rows in the list below. At a
-## 12px gap that build came to 470px against a 448px viewport, and the 22px the
-## ScrollContainer quietly absorbed read as the module list being cut off.
+## Gap of four, measured against the worst chassis: Cygnet's light launches with seven modules.
+## At a 12px gap it came to 470px against 448, and the scroll hid the module list.
+## Why: docs/why/ChassisSelect.md#layout-spacing
 const BLOCK_GAP := 4
 
 ## Between the buttons in the weight row and the grade row, and it has to be the
 ## SAME number for both or the two rows stop lining up. See _tier_row.
 const PICKER_GAP := 6
 
-## Between those two rows. shipcol runs at separation 1 because the hull below it
-## needs every pixel it can get, and two rows of buttons one pixel apart read as
-## one crowded block rather than as two questions.
-##
-## PAID FOR, not added: the gap under the pair drops by the same amount, so the
-## column is exactly as tall as it was. This screen was measured to 448 against a
-## 448 viewport and has no slack to spend.
+## Two button rows need a gap or they read as one block. Paid for from the gap under the pair.
+## The screen is measured to 448 of 448, so there is no slack.
+## Why: docs/why/ChassisSelect.md#layout-spacing
 const PICKER_ROWS_GAP := 4
-## What each row of the hardpoints block IS. Same shape as every other tooltip
-## on this screen: the name, then one sentence. None of them restates the number
-## sitting an inch to the left.
+## The name, then one sentence, never restating the number beside it.
 const MOUNT_TIP := {
 	"weapon": "Weapon mounts
 Where guns, launchers and charged ordnance bolt on. Each one grants two cards to your deck.",
@@ -106,29 +58,13 @@ Loose parts you can carry between fights. A full hold means leaving the next wre
 Total cells of hardware this frame can RUN. The hold is what you can haul; this is what you can power, and a part has to satisfy both.",
 }
 const HEAD_GAP := 12
-## The identity header's height, held equal across all seven. Measured, not
-## chosen. Was 169, then 155, now 145 — each drop bought vertical room the panel
-## below needed. The cost is real: this is a MINIMUM, so manufacturers whose backstory
-## wraps past it grow their own header and the page shifts by that much when you
-## click between them. See _build_detail.
+## A measured minimum (169, 155, now 145): long backstories grow their header and shift the page.
 const HEAD_H := 145
-## The right-hand column, shared by the attribute block above and the loadout
-## below so the two line up.
-##
-## The column is pinned to the right edge and its rows are left-aligned inside
-## it, so this width is also what sets how far LEFT the block starts: narrowing
-## it moves ATTRIBUTES, HARDPOINTS and STARTING MODULES rightward together,
-## which is the only lever that moves all three without breaking the shared left
-## edge they were given in the first place. The margin on `rwrap` cannot do it —
-## that sits outside the column and pushes the column left, not its contents
-## right.
-##
-## The widest row is MANEUVERABILITY's: its label, ten cells and a value, about
-## 217px. 264 keeps roughly 45px of headroom over that.
+## Column width also sets how far left the block starts. The `rwrap` margin cannot move contents.
+## The widest row is MANEUVERABILITY's at about 217px, so 264 keeps 45px of headroom.
+## Why: docs/why/ChassisSelect.md#layout-spacing
 const SIDE_W := 264
-## How far the rows in the chassis list are inset inside their buttons, so a
-## selected row's fill has a margin before its text. The list's heading uses it
-## too, or the two do not share a left edge.
+## Inset so a selected fill has a margin before its text. The heading uses it to share the edge.
 const ROW_INSET := 5
 
 var _sel: int = 0
@@ -158,13 +94,8 @@ func _build() -> void:
 	root.add_theme_constant_override("separation", 5)
 	add_child(root)
 
-	# Title left, LAUNCH right, on one line above everything.
-	#
-	# It used to be a full-width bar under the detail panel, which gave the least
-	# interesting control on the screen the most weight — and put it below a
-	# scroll, so the answer to "how do I start" depended on where you had
-	# scrolled to. Up here it is always visible, always in the same place, and
-	# small enough to read as the end of the process rather than the point of it.
+	# Title left, LAUNCH right: always visible and in one place, not below a scroll.
+	# Why: docs/why/ChassisSelect.md#launch-button
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 10)
 	top.add_child(UITheme.header("CHOOSE A CHASSIS"))
@@ -195,14 +126,9 @@ func _build() -> void:
 	split.add_child(Widgets.panel_with(_list))
 
 	# --- right: how much of it
-	#
-	# Scrolled. Measured, the detail needs about 457px against 445 available —
-	# and that was KORVAN, which does not have the longest backstory. Trimming
-	# twelve pixels would fit one manufacturer and cut off another, so the height
-	# is not something this screen gets to assume.
-	#
-	# LAUNCH is not in here for the same reason: it lives in the title row above,
-	# where it cannot be scrolled away from.
+	# Scrolled: detail needs about 457px of 445, and that was Korvan, not the longest backstory.
+	# LAUNCH stays in the title row so it cannot scroll away.
+	# Why: docs/why/ChassisSelect.md#detail-scroll
 	var col2 := VBoxContainer.new()
 	col2.add_theme_constant_override("separation", 4)
 
@@ -220,39 +146,27 @@ func _build() -> void:
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.add_child(wrap)
 
-## One manufacturer. Emblem and name only — the hull's name belongs beside the
-## hull it names, and there are three of those now, so printing one here would
-## have been printing whichever weight happened to be selected.
+## Emblem and name only: the hull name belongs beside its hull, and there are three.
 func _manufacturer_row(i: int) -> Button:
 	var manufacturer: StringName = DB.STARTABLE[i]
 	var m: ManufacturerData = DB.manufacturers[manufacturer]
 
-	# Widgets.button, not Button.new(). That is where every click and hover sound
-	# in the game is wired, so building the Button directly made the chassis
-	# select the one screen in the interface that answered silently.
+	# Use `Widgets.button`: it wires every click and hover sound, which `Button.new()` skipped.
 	var open := Unlocks.unlocked(manufacturer)
 	var btn := Widgets.button("", _select.bind(i))
 	btn.flat = true
 	btn.custom_minimum_size = Vector2(0, 34)
-	# A locked manufacturer still says WHAT IT IS. The identity line is the pitch, and it
-	# is what makes a locked row a thing you want rather than a row you cannot
-	# press. Only the NAME is withheld, and the line under it says what it costs.
+	# A locked row still says what it is, as the pitch makes it wanted. Only the name is withheld.
 	btn.tooltip_text = Widgets.tip("%s\n%s" % [m.name if open else "????", m.identity])
 	if not open:
 		btn.tooltip_text += Widgets.tip("\n\n%s" % Unlocks.lock_line(manufacturer))
 		btn.disabled = true
-	# Hover fills with the manufacturer's SECONDARY colour — the field the emblem is
-	# stamped on, not the accent. Seven rows that highlight identically make you
-	# read the label to know what you are pointing at; seven that light up in
-	# their own livery do not.
+	# Hover fills with the secondary colour, so seven rows light up in their own livery.
 	btn.add_theme_stylebox_override("normal", UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 0, 4))
 	btn.add_theme_stylebox_override("hover", UITheme.flat(m.field, m.colour, 0, 0, 4))
 	btn.add_theme_stylebox_override("pressed", UITheme.flat(m.field, m.colour, 0, 0, 4))
 	btn.add_theme_stylebox_override("focus", UITheme.empty())
-	# The stylebox alone was not enough and could not have been: unselected rows
-	# sit at DIM opacity, and Redline's field is #1c2127 against a #111823 panel
-	# — a highlight worth two per cent of brightness, then dimmed by half. The
-	# opacity is what actually reads, so hovering restores it.
+	# The stylebox alone was invisible on dimmed rows (Redline), so hover restores opacity.
 	btn.mouse_entered.connect(func() -> void: _hover(i, true))
 	btn.mouse_exited.connect(func() -> void: _hover(i, false))
 
@@ -282,13 +196,8 @@ func _manufacturer_row(i: int) -> Button:
 	btn.add_child(row)
 	return btn
 
-## An unpicked manufacturer, and a picked one.
-##
-## Alpha alone was not enough of a difference. modulate multiplies, so pulling
-## the colour channels down as well takes the saturation out of the emblem and
-## the name — a dimmed Redline was still unmistakably red, which made seven rows
-## of livery compete with the one you had actually chosen. Cooled and darkened,
-## they read as a list; the selected one reads as the subject.
+## Cooled and darkened, not just alpha: modulate multiplies, so a dimmed Redline still read red.
+## Why: docs/why/ChassisSelect.md#dim-colour
 const DIM := Color(0.62, 0.66, 0.74, 0.42)
 const LIT := Color(1, 1, 1, 1)
 
@@ -297,9 +206,7 @@ func _select(i: int) -> void:
 	# to that braces, because _select is also called from setup() with a literal 0.
 	if not Unlocks.unlocked(DB.STARTABLE[i]):
 		return
-	# Or it hangs over the new ship showing the last one's cards. The popup is a
-	# child of this screen, not of the detail panel, so rebuilding the detail
-	# does not take it with it.
+	# The popup is a child of this screen, so rebuilding the detail does not close it.
 	_close_deck()
 	_sel = i
 	_refit()
@@ -354,70 +261,38 @@ func _build_detail() -> void:
 	ident.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	idc.add_child(ident)
 	idc.add_child(_gap(4))
-	# The set bonuses are the strategy this manufacturer is FOR, so they belong beside
-	# its name rather than buried under the loadout — you are picking a way to
-	# play, and these two lines are what it turns into. Given a heading because
-	# unlabelled they read as trivia; they are the abilities.
+	# Set bonuses are this manufacturer's strategy, so they sit under its name.
 	idc.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
-	# The hull perk belongs here on THIS screen. Every chassis a yard builds
-	# carries the same authored perk — all three Korvan frames vent baffled — so
-	# at the point of choosing a manufacturer it is one of their abilities, and
-	# it is the only one you get without collecting anything.
-	#
-	# It is a HULL property, not a manufacturer property, and the two come apart later:
-	# LootGen rerolls the perk on a wreck, so a salvaged Korvan frame can carry
-	# anything. That is why the tag reads HULL rather than 1+.
+	# The perk is a hull property: `LootGen` rerolls it on wrecks, so the tag reads HULL, not 1+.
+	# Why: docs/why/ChassisSelect.md#hull-perk
 	for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):
 		idc.add_child(row)
-	# What the two rows above are actually counting, and where this ship starts
-	# on that count. The old wording explained the arithmetic — "modules from
-	# this yard, plus the hull" — which is the rule, not the situation. You want
-	# to know how close you are.
-	# No running count here. The rows above already say what each ability needs,
-	# and at the point of choosing a chassis the count is always two — a line
-	# reporting it says nothing that changes between manufacturers. It belongs
-	# on the ship screen, where it moves as you fit things.
+	# The rows state where this ship starts on the count, not the arithmetic: how close you are.
+	# No running count: at chassis choice it is always two. It belongs on the ship screen.
+	# Why: docs/why/ChassisSelect.md#ability-rows
 	head.add_child(idc)
-	# One height for every manufacturer. MEASURED: the identity column comes out
-	# at 155 for four of the seven and 169 for the other three, the difference
-	# being a single wrapped line of backstory. Left free, clicking down the list
-	# shifted the ship, the attributes and the yard list up and down by fourteen
-	# pixels — the page twitching while you compare things is the opposite of
-	# what a comparison screen is for.
-	#
-	# A minimum rather than a fixed size, so prose that grows past this still
-	# gets its line: it pushes into the scroll instead of being clipped.
+	# One height for every manufacturer: clicking down the list shifted the page 14px (155 vs 169).
+	# A minimum, so longer prose pushes into the scroll instead of being clipped.
+	# Why: docs/why/ChassisSelect.md#header-height
 	head.custom_minimum_size.y = HEAD_H
 	_detail.add_child(head)
 
 	_detail.add_child(UITheme.hsep())
 
 	# --- what you are flying, and what it comes to on the six axes.
-	#
-	# Indented to clear the banner, so the hull's name starts on the same column
-	# as the manufacturer's above it. Two names at two different left edges read
-	# as two unrelated panels rather than as a heading and its subject.
+	# Indented to clear the banner, so the hull name shares the manufacturer name's column.
 	var mid := HBoxContainer.new()
 	mid.add_theme_constant_override("separation", 14)
 	mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	# Name and class above, ship below. This is the only place the ship is drawn
-	# now — the picker under it is a list, because two pictures of one hull was
-	# the same information twice and the second one was smaller.
+	# The only place the ship is drawn: the picker below is a list, as two pictures were one fact.
 	var shipcol := VBoxContainer.new()
 	shipcol.add_theme_constant_override("separation", 1)
 	shipcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shipcol.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# The name and the weight picker share one line: the picker CHANGES the name
-	# beside it, so putting them on the same baseline makes the cause and the
-	# effect one glance apart. It also buys the hull below them three whole rows,
-	# which is what lets the sprite run at 2x.
+	# Picker beside the name it changes, so cause and effect are one glance apart. Buys three rows.
 	var namerow := HBoxContainer.new()
-	# PICKER_GAP, not 10. The weight row and the grade row below it are both
-	# right-aligned rows of 22px buttons, so an IDENTICAL separation is what makes
-	# them a grid: L lands over B, M over A, H over S, and the ragged left edge is
-	# just the row that has one fewer choice. At two different separations they
-	# were two rows of buttons that happened to be near each other.
+	# Same `PICKER_GAP` as the grade row below, so L/B, M/A, H/S line up as a grid.
 	namerow.add_theme_constant_override("separation", PICKER_GAP)
 	namerow.add_child(UITheme.body(Run.hull.name.to_upper(), UITheme.ICE, UITheme.FS_HEAD))
 	var ngap := Control.new()
@@ -434,24 +309,12 @@ func _build_detail() -> void:
 	chosen.bob(2)
 	# The only screen that lights the engines. See ShipView._burning.
 	chosen.burn()
-	# The ship asks for NO width and takes what is left.
-	#
-	# At 2x the sprite is 480 wide, and 480 plus the 300 column plus the banner
-	# indent came to more than the panel has. That does not clip — the detail
-	# lives in a ScrollContainer, so the container simply sized itself to the
-	# content, and every wrapping Label above then wrapped at that oversized
-	# width and ran off the visible edge. The manufacturer backstory losing its
-	# last word was this, not a text problem.
-	#
-	# Expanding instead of demanding means the arithmetic cannot go wrong again
-	# at some other panel size: the hull is centred in whatever remains and
-	# clipped by its own clip_contents, which is already how the height works.
+	# The ship asks for no width and takes what is left: at 2x, 480px overflowed the panel.
+	# The backstory losing its last word was this, not a text problem.
+	# Why: docs/why/ChassisSelect.md#hull-sizing
 	chosen.custom_minimum_size.x = 0
 	chosen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Vertically too. The right-hand column is the taller of the two now, so the
-	# ship was sitting at the top of a row with sixty-odd pixels of nothing under
-	# it. Expanding hands that slack to the view, and STRETCH_KEEP_CENTERED then
-	# centres the sprite in it on both axes.
+	# Expands vertically too: the right column is taller, so the slack goes to the view, centred.
 	chosen.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	# Dropped clear of the name and class above it. The hull is the subject of
 	# this half of the screen and it was riding up against its own caption.
@@ -459,40 +322,26 @@ func _build_detail() -> void:
 	shipcol.add_child(chosen)
 	mid.add_child(shipcol)
 
-	# Fixed width, and the same width the kit column below uses. Both sit at the
-	# right of an HBox whose other child expands, so equal widths put ATTRIBUTES,
-	# HARDPOINTS and YOU LAUNCH WITH on one column — they were three headings at
-	# three different left edges before.
+	# Same fixed width as the kit column, so ATTRIBUTES, HARDPOINTS and YOU LAUNCH WITH align.
 	var right := VBoxContainer.new()
-	# 2, not 3. This column carries about eleven rows, so a pixel of separation
-	# is ten pixels of height — which is exactly what the tallest chassis was
-	# over by. Cheaper to take it from the spacing between rows than from the
-	# header, which is shared by all seven and shifts the page when it moves.
+	# Separation 2, not 3: about eleven rows make a pixel ten of height.
 	right.add_theme_constant_override("separation", 2)
 	right.custom_minimum_size = Vector2(SIDE_W, 0)
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
 	var block := AttrBlock.new()
-	# WITH THE REAL HULL after HULL's pips, "4 29 hull" (ruling 12 C): the
-	# HUD's HULL 29/29 is at the top of the screen, too far from the pips to
-	# say what they were rounded from. See AttrBlock.setup.
+	# Shows the real hull after HULL's pips (ruling 12 C), as the HUD's HULL is too far away.
 	block.setup(Run.attributes(), m.colour, true)
 	right.add_child(block)
 
-	# Hardpoints, in the same cells the refit screen uses. Slot pressure is the
-	# whole install-or-scrap decision later, so it should be countable here —
-	# before you commit — rather than discovered on the first drop.
+	# Slot pressure drives the later install-or-scrap choice, so it is countable before committing.
 	right.add_child(_gap(BLOCK_GAP))
 	right.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		right.add_child(_mount_row(s))
-	# Directly under the mounts because it is the OTHER thing that can refuse a
-	# part, and the one a player has no way to guess: three mount rows read as
-	# the whole install budget until something says otherwise.
-	#
-	# `hull.power_cap` and not `power_cap()`, matching HOLD below — this screen
-	# describes a FRAME, not the loadout currently bolted to it, and a number
-	# that moved when the starter kit changed would be describing the kit.
+	# Under the mounts: the other thing that can refuse a part, which a player cannot guess.
+	# `hull.power_cap`, not `power_cap()`: this screen describes a frame, not the loadout on it.
+	# Why: docs/why/ChassisSelect.md#power-cap
 	var rct := HBoxContainer.new()
 	rct.add_theme_constant_override("separation", 6)
 	var rl := UITheme.body("REACTOR", UITheme.COLD, UITheme.FS_SMALL)
@@ -501,9 +350,7 @@ func _build_detail() -> void:
 	rct.add_child(UITheme.body("%d cells" % Run.power_cap(),
 		UITheme.CHILL, UITheme.FS_SMALL))
 	right.add_child(_tipped(rct, str(MOUNT_TIP["reactor"])))
-	# Hand size sits with the hardpoints because it is the same kind of fact:
-	# how much ship you get to use at once. It is not an attribute — nothing
-	# checks against it — so it has no business in the block above.
+	# Hand size sits with the hardpoints: not an attribute, as nothing checks against it.
 	var hand := HBoxContainer.new()
 	hand.add_theme_constant_override("separation", 6)
 	var hl := UITheme.body("HAND", UITheme.COLD, UITheme.FS_SMALL)
@@ -519,29 +366,19 @@ func _build_detail() -> void:
 	var hol := UITheme.body("HOLD", UITheme.COLD, UITheme.FS_SMALL)
 	hol.custom_minimum_size = Vector2(46, 0)
 	hold.add_child(hol)
-	# Slots, not modules. A slot is a place in the hold and a module is one of the
-	# things that can sit in it — valuables are coming and will sit in the same
-	# ones, so counting the hold in modules would name it after only half of what
-	# it carries.
+	# Slots, not modules: valuables are coming and will sit in the same slots.
 	hold.add_child(UITheme.body("%d slots" % Run.hull.cargo_slots,
 		UITheme.CHILL, UITheme.FS_SMALL))
 	right.add_child(_tipped(hold, str(MOUNT_TIP["hold"])))
 
-	# The starting kit joins the other two blocks in this column rather than
-	# sitting in a row of its own below. It was already landing at the same left
-	# edge, so it read as the third block already — it just had the hero sprite's
-	# full height of dead space above it. One column, one rhythm: BLOCK_GAP
-	# between each heading and the block before it.
+	# The kit joins the column, not its own row: one column, one rhythm of `BLOCK_GAP`.
 	right.add_child(_gap(BLOCK_GAP))
 	var kit := VBoxContainer.new()
 	kit.add_theme_constant_override("separation", 1)
 	var kit_head := HBoxContainer.new()
 	kit_head.add_theme_constant_override("separation", 8)
 	kit_head.add_child(UITheme.body("STARTING MODULES", UITheme.COLD, UITheme.FS_SMALL))
-	# The modules are the fiction; the DECK is what you actually play. Nine cards
-	# is small enough to read in one look and is the only thing on this screen
-	# that answers "what will my turns feel like" — which is the question a
-	# chassis is really being chosen on.
+	# The modules are fiction, the deck is what you play: nine cards answer how turns will feel.
 	var deck_btn := Widgets.button("SEE DECK (%d)" % Run.deck_size(), _show_deck)
 	deck_btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
 	kit_head.add_child(deck_btn)
@@ -553,17 +390,13 @@ func _build_detail() -> void:
 			ModuleData.slot_name(mod.slot).to_upper(), UITheme.COLD, UITheme.FS_SMALL)
 		st.custom_minimum_size = Vector2(46, 0)
 		line.add_child(st)
-		# Named in its rarity's colour, the same ladder the cards use. Almost
-		# everything you launch with is Common steel; the one branded weapon is
-		# the odd colour in the list, which is exactly what it is.
+		# Named in rarity colour, so the one branded weapon stands out among Common steel.
 		line.add_child(UITheme.body(mod.name,
 			ModuleData.rarity_ink(mod.rarity), UITheme.FS_SMALL))
 		kit.add_child(line)
 	right.add_child(kit)
 
-	# Indented off the ship. The column is right-aligned, so the margin pushes its
-	# contents rightward inside their own 300px and opens a gap between the hull
-	# and the numbers describing it.
+	# Indented off the ship: the margin opens a gap between the hull and its numbers.
 	var rwrap := MarginContainer.new()
 	rwrap.add_theme_constant_override("margin_left", 14)
 	rwrap.size_flags_horizontal = Control.SIZE_SHRINK_END
@@ -572,13 +405,10 @@ func _build_detail() -> void:
 	_detail.add_child(_align(mid))
 
 	# --- the three it builds, and what this one launches carrying. Side by side
-	# because both are short lists and the panel is wide — stacked, they were
-	# what pushed LAUNCH off the bottom of the screen.
+	# Side by side: stacked, the two lists pushed LAUNCH off the bottom of the screen.
 
 
-## Indent to the manufacturer-name column: past the banner and the gap after it.
-## Derived from the banner rather than typed, so widening the flag moves
-## everything that lines up with it.
+## Derived from the banner, not typed, so widening the flag moves everything lined up with it.
 func _align(c: Control) -> MarginContainer:
 	var m := MarginContainer.new()
 	m.add_theme_constant_override("margin_left", int(Banner.UNITS_W * Banner.S) + HEAD_GAP)
@@ -586,12 +416,9 @@ func _align(c: Control) -> MarginContainer:
 	m.add_child(c)
 	return m
 
-## Give a row a tooltip whose HOVER TARGET is the row, not the column.
-##
-## A row in a VBox stretches to the full column width, so a bare tooltip on it
-## fires from empty space well to the right of anything readable. The inner box
-## shrinks to its content and owns the hover; the outer one is inert and holds
-## the slack. Same two-box shape AttrBlock uses, and for the same reason.
+## A bare tooltip on a full-width row fires from empty space. The inner box owns the hover.
+## Same two-box shape as AttrBlock, for the same reason.
+## Why: docs/why/ChassisSelect.md#row-tooltips
 static func _tipped(inner: Control, tip: String) -> Control:
 	inner.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	inner.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -605,15 +432,9 @@ static func _tipped(inner: Control, tip: String) -> Control:
 	outer.add_child(slack)
 	return outer
 
-## The most mounts of one kind any chassis in the game can reach.
-##
-## DERIVED, not typed. A heavy carries four weapon mounts and `DB.TIER_DELTA`
-## grants an A-class frame a fifth and an S-class one a system mount on top —
-## two tables that have both moved this month, and a literal here would go stale
-## the first time either moves again and quietly re-ragged the column.
-##
-## Cached because it is asked once per hardpoint row per chassis and the answer
-## cannot change inside a session.
+## Derived, not typed: `DB.TIER_DELTA` and heavy mounts moved this month, so a literal goes stale.
+## Cached: asked once per row per chassis and it cannot change in a session.
+## Why: docs/why/ChassisSelect.md#mount-ceiling
 static var _ceiling: int = 0
 
 static func _mount_ceiling() -> int:
@@ -644,18 +465,12 @@ func _mount_row(slot: ModuleData.Slot) -> Control:
 	row.add_child(UITheme.body("%d/%d" % [used, total], UITheme.CHILL, UITheme.FS_SMALL))
 	return _tipped(row, str(MOUNT_TIP[ModuleData.slot_name(slot)]))
 
-## Every card this chassis would deal you, laid out over the screen.
-##
-## Built from Run.installed rather than from a table of what the kit ought to
-## grant, so it cannot disagree with the deck you actually launch with — the
-## grant count is a rule with three inputs (slot, manufacturer, affixes) and a
-## second implementation of it here would be a second place to get it wrong.
+## Built from `Run.installed`, so it cannot disagree with the deck you actually launch with.
+## Why: docs/why/ChassisSelect.md#deck-popup
 func _show_deck() -> void:
 	if _deck_pop != null:
 		return
-	# Dimmed behind, but the popup itself is only as big as the cards need. A
-	# full-screen sheet for ten cards reads as leaving the screen you were on;
-	# this is meant to be a glance you take mid-comparison and dismiss.
+	# Popup sized to the cards: a full-screen sheet reads as leaving the screen.
 	var shade := ColorRect.new()
 	shade.color = Color(0.02, 0.03, 0.05, 0.72)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -698,10 +513,7 @@ func _show_deck() -> void:
 		for c in mod.resolved_cards():
 			var v := CardView.new()
 			v.setup(c, true, 1)
-			# STOP so it can be hovered, and a non-empty tooltip_text so Godot
-			# asks CardView for one — which hands back the same readout the hand
-			# and the gallery show. Nine cards you cannot read the small print of
-			# are nine pictures.
+			# STOP plus a non-empty `tooltip_text` makes Godot ask CardView for the hand's readout.
 			v.mouse_filter = Control.MOUSE_FILTER_STOP
 			v.tooltip_text = Widgets.tip(c.name)
 			flow.add_child(v)
@@ -720,11 +532,9 @@ func _close_deck() -> void:
 	_deck_pop = null
 
 
-## ESC HERE (Main): the opening deck's popup first, then back to the title. Not
-## the escape menu (the tutorial audit, Oct 22): nothing has launched, and its
-## ABANDON put a run that never started on the record. Left the way the menu's
-## quit leaves, with no ship, the state the title expects; the save was cleared
-## by NEW RUN already, and a cold arrival here is left its save.
+## Esc goes back to the title, not the escape menu (tutorial audit, Oct 22).
+## Its ABANDON put a run that never started on the record.
+## Why: docs/why/ChassisSelect.md#escape-handling
 func escape() -> void:
 	if _deck_pop != null:
 		_close_deck()
@@ -740,19 +550,9 @@ func _gap(h: int) -> Control:
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return c
 
-## The chassis line, and in Developer Mode the four grade buttons on the end of
-## it. Same shape as the weight picker one line above: the buttons CHANGE the
-## text beside them, so cause and effect stay one glance apart.
-##
-## They sit here rather than in the name row because that row already carries
-## three buttons and the ship name at head size, and this screen has 448 pixels
-## of height to spend and no slack — a fourth control there pushed the sprite
-## below the fold. This line was a bare label with the whole width spare.
-##
-## NOT BUILT when Developer Mode is off, rather than hidden: a hidden Control
-## still takes layout and focus order. The line then reads exactly as it always
-## has, which is the point — a player has no grade to choose, because a run
-## starts at C and every better frame is something you found.
+## Developer Mode only, on the chassis line: the name row had no height left for a fourth control.
+## Not built when off, rather than hidden: a hidden Control still takes layout and focus.
+## Why: docs/why/ChassisSelect.md#grade-buttons
 func _tier_row(manufacturer: StringName, m: ManufacturerData) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", PICKER_GAP)
@@ -770,9 +570,7 @@ func _tier_row(manufacturer: StringName, m: ManufacturerData) -> Control:
 		row.add_child(_tier_button(manufacturer, t, m))
 	return row
 
-## One grade button. Deliberately the same 22x20 face as a weight button — they
-## are the same KIND of control (pick one of a short list, the ship changes
-## under you), and two sizes would say they were not.
+## Same 22x20 face as a weight button: the same kind of control, and two sizes would deny it.
 func _tier_button(manufacturer: StringName, t: int, m: ManufacturerData) -> Button:
 	var chosen := t == _tier
 	var btn := Widgets.button(String(HullData.TIER_NAMES[t]), _pick_tier.bind(t))
@@ -795,11 +593,7 @@ func _weight_button(manufacturer: StringName, w: HullData.Weight, m: Manufacture
 	var h := DB.hull_for(manufacturer, w)
 	var chosen := w == _weight
 
-	# Widgets.button for the sounds, as everywhere else.
-	# One letter. Three of these sit beside the hull's name, where a full word
-	# each would crowd the only line on the screen that has to stay readable —
-	# and the word is one hover away on the tooltip, together with what the class
-	# actually costs you.
+	# One letter, as three sit beside the hull name. The word is one hover away.
 	var btn := Widgets.button(HullData.weight_name(w).to_upper().substr(0, 1),
 		_pick_weight.bind(w))
 	btn.custom_minimum_size = Vector2(22, 20)
@@ -812,58 +606,30 @@ func _weight_button(manufacturer: StringName, w: HullData.Weight, m: Manufacture
 	btn.add_theme_color_override("font_color", m.colour if chosen else UITheme.COLD)
 	btn.add_theme_color_override("font_hover_color", UITheme.ICE)
 	btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
-	# The word the button had to give up, and one sentence on what it costs you.
-	# Nothing else: every stat that used to be here is already on screen for the
-	# selected chassis, in the attribute block and the hardpoint rows, and
-	# clicking is how you compare them.
+	# The word and one sentence of cost only: every stat is on screen for the selected chassis.
 	btn.tooltip_text = Widgets.tip("%s\n%s" % [
 		HullData.weight_name(w), WEIGHT_BLURB[int(w)]])
 	return btn
 
 
-## The manufacturer's banner, flown large.
-##
-## The same flag the cards carry down their left edge, at four times the scale
-## and drawn by the same two functions — CardView.draw_cut for the hem and
-## draw_emblem for the mark. Not a picture OF the card's banner; literally the
-## card's banner, so a manufacturer whose hem gets redesigned is redesigned here too.
-##
-## Thirteen units wide because that is what the hems are authored against: the
-## shapes use absolute offsets across the flag (Redline's tear is six two-unit
-## strips), so a wider banner would leave them bunched at the left edge. Only
-## the HEIGHT is free — the hem hangs off the bottom and the emblem sits near
-## the top, and the plain field between them can be any length.
+## The card's own flag at four times scale, via `CardView.draw_cut` and `draw_emblem`.
+## Thirteen units wide: hems use absolute offsets across the flag. Only the height is free.
+## Why: docs/why/ChassisSelect.md#banner
 class Banner extends Control:
 	const UNITS_W := 13
 
-	## How deep the flag is AUTHORED, in the same units as the width. Measured
-	## off what the two draw calls actually put on it rather than picked: the
-	## emblem occupies units 6.5 to 14.5 (it is centred at 11), and the deepest
-	## hem in `CardView.draw_cut` is cut 6 units up from the bottom edge. 22 is
-	## those two plus a unit of air, and anything shorter cuts the hem off — a
-	## flag stopping mid-emblem is what 40px was doing on the refit screen.
-	##
-	## Only a MINIMUM. On the chassis cards the flag still hangs the full depth
-	## of the header, which is what `SIZE_FILL` in `_init` is for.
+	## Depth measured off what the draws put on it, plus a unit of air.
+	## Only a minimum: on chassis cards the flag hangs the header's full depth.
+	## Why: docs/why/ChassisSelect.md#banner
 	const UNITS_H := 22
 	const S := 3.0
 
-	## PIXELS PER UNIT FOR THIS ONE. `S` stays the default and the only size the
-	## chassis cards use; the station flies its berths larger, because there the
-	## flag IS the heading rather than a mark in the corner of a card.
-	##
-	## An instance member rather than a second const, so every offset in `_draw`
-	## scales together -- the hems are authored in units and a flag drawn at one
-	## size with a hem cut at another is a flag with a hole in it. Set it before
-	## the banner is added, and set `custom_minimum_size` to match: `_init` cannot
-	## see it, so the default minimum is still built from `S`.
+	## Pixels per unit per instance, so every offset scales together and a hem gets no hole.
+	## Set it before adding the banner, with `custom_minimum_size`: `_init` cannot see it.
+	## Why: docs/why/ChassisSelect.md#banner
 	var s: float = S
 
-	## SETTING THE MANUFACTURER ARMS THE TOOLTIP, because every caller sets this
-	## and none of them should have to remember three more lines to make a flag
-	## explain itself. Godot only ASKS for a tooltip when `tooltip_text` is
-	## non-empty, so the name goes in as the trigger -- and as the fallback if
-	## `manufacturer_readout` ever fails to build.
+	## Setting the manufacturer arms the tooltip: Godot asks only if `tooltip_text` is non-empty.
 	var manufacturer: StringName = &"":
 		set(value):
 			manufacturer = value
@@ -871,18 +637,12 @@ class Banner extends Control:
 			if m == null:
 				return
 			tooltip_text = m.name.to_upper()
-			# PASS, NOT STOP. A banner sits inside a clickable chassis card and
-			# on the shelf rows, and a child that STOPS the pointer eats the
-			# click on the thing it is drawn on. PASS still gets the hover that
-			# raises a tooltip, and hands the press on to the parent.
+			# PASS, not STOP: a banner in a clickable card must hand the press on and still hover.
 			mouse_filter = Control.MOUSE_FILTER_PASS
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
 
-	## Fixed across, free down. Thirteen units is what the hems are authored
-	## against and cannot change; the height is whatever the header is, so the
-	## flag hangs the full depth of the panel rather than stopping short of it
-	## with a strip of background under the hem.
+	## Fixed across (13 units), free down, so the flag hangs the panel's full depth.
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		custom_minimum_size = Vector2(UNITS_W * S, 0)
@@ -899,15 +659,10 @@ class Banner extends Control:
 	func _draw() -> void:
 		var b := Rect2(Vector2.ZERO, size)
 		draw_rect(b, field, true)
-		# UITheme.PANEL because that is what Widgets.panel_with paints behind
-		# this. Most of the hems are CUT — carved by painting the background back
-		# over the flag — so the wrong colour here does not misdraw a hem, it
-		# makes it invisible.
+		# `UITheme.PANEL`: most hems are cut by painting the background back over the flag.
 		CardView.draw_cut(self, manufacturer, b, mark, UITheme.PANEL, s)
 		CardView.draw_emblem(self, manufacturer, Vector2(b.size.x * 0.5, 11.0 * s), s, mark, field)
-		# Outlined last, in the manufacturer's own mark dimmed. Two manufacturers fly fields
-		# that are nearly the panel's own colour — Redline's charcoal, Cygnet's
-		# midnight — and without this their banners have no edge at all.
+		# Outlined in the dimmed mark: Redline's and Cygnet's fields are nearly the panel colour.
 		var e := mark.darkened(0.35)
 		var w := s
 		draw_rect(Rect2(b.position, Vector2(b.size.x, w)), e, true)
@@ -916,25 +671,16 @@ class Banner extends Control:
 		draw_rect(Rect2(Vector2(b.end.x - w, b.position.y), Vector2(w, b.size.y)), e, true)
 
 
-## Hardpoint cells: filled steel is occupied, an ember outline is a free pad.
-##
-## Lives here now rather than on ShipScreen. The refit screen used to draw its
-## mounts this way and became a drag-and-drop grid, so this is the only place
-## left that wants a countable summary of the slots rather than the slots
-## themselves — which is right, because this screen is choosing a chassis and
-## that one is filling it.
+## Lives here now: the refit screen became drag and drop, so only this screen wants a slot summary.
+## Why: docs/why/ChassisSelect.md#slot-pads
 class SlotPads extends Control:
 	const CELL := Vector2(9, 11)
 	const GAP := 2
 	var used := 0
 	var total := 0
 
-	## `reserve` is width held for pads this row does not have.
-	##
-	## Without it the control is exactly as wide as the mounts it draws, so the
-	## "2/4" beside it sat at a different left edge on every row — weapon four
-	## pads out, utility one. The three figures are meant to be read down the
-	## column against each other, which they cannot be while the column is ragged.
+	## `reserve` is width for pads this row lacks, so the figures share a left edge.
+	## Why: docs/why/ChassisSelect.md#slot-pads
 	func setup(u: int, t: int, reserve: int = 0) -> void:
 		used = u
 		total = t
@@ -952,10 +698,7 @@ class SlotPads extends Control:
 				draw_rect(Rect2(pos, Vector2(CELL.x, 1)), UITheme.CHILL, true)
 				draw_rect(Rect2(pos, Vector2(1, CELL.y)), UITheme.CHILL, true)
 			else:
-				# Four filled rects, not draw_rect's outline mode. An unfilled
-				# draw_rect strokes the BOUNDARY, so a 1px line straddles it and
-				# rounds outward on some edges only — empty pads came out
-				# visibly larger than the filled ones beside them.
+				# Four filled rects, not outline mode: a 1px stroke drew empty pads larger.
 				draw_rect(Rect2(pos, CELL), Color("#10161f"), true)
 				var e := UITheme.EMBER
 				draw_rect(Rect2(pos, Vector2(CELL.x, 1)), e, true)
@@ -971,9 +714,7 @@ class Badge extends Control:
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
 	var scale_px: float = 1.0
-	## Draw a question mark instead of the manufacturer's emblem. An emblem IS the
-	## identity, so showing one on a manufacturer you have not earned would give the
-	## answer away in the one place the name is being withheld.
+	## A question mark instead of the emblem: an emblem is the identity and would give it away.
 	var locked: bool = false
 
 	func _init() -> void:
@@ -993,10 +734,7 @@ class Badge extends Control:
 			return
 		CardView.draw_emblem(self, manufacturer, Vector2(s, s) * 0.5, scale_px, mark, field)
 
-	## A question mark in rects, at the emblem's own scale. Drawn rather than
-	## typed because every mark beside it is drawn, and a font glyph at this size
-	## sits on a different baseline and reads as a different KIND of thing than
-	## the emblems it is standing in for.
+	## Drawn in rects like the emblems: a font glyph sits on another baseline.
 	func _question(s: float) -> void:
 		var u := scale_px
 		var x := s * 0.5 - u * 1.5

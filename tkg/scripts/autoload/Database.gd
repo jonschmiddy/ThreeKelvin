@@ -1,48 +1,11 @@
 extends Node
-## Content database.
-##
-## Content is authored here as plain dictionaries and seeded into typed
-## Resources at boot. Two reasons: it diffs cleanly in git, and tools/
-## export_resources.gd can dump it to .tres files once you want to edit
-## modules in the Godot inspector instead. Either way the rest of the
-## codebase only ever sees ModuleData / HullData / EnemyTemplate.
+## Content is plain dictionaries seeded into typed Resources at boot, so it diffs cleanly.
+## The rest of the code only sees `ModuleData`, `HullData` and `EnemyTemplate`.
+## Why: docs/why/Database.md#content-database
 
-## Loot-pool gate. While this is non-empty, only these manufacturers can drop;
-## an empty array means every manufacturer is live. Nothing is deleted — all 33 modules
-## stay authored and seeded, so flipping a manufacturer back on is a one-word edit and
-## the sim can A/B a narrow pool against the full one.
-##
-## Manufacturer-agnostic modules are never gated: Exotic is harvested and Artifact is
-## precursor tech, so they have no manufacturer to gate on.
-##
-## NARROWED TO KORVAN, deliberately, and this is the second time. It was opened
-## to all seven when manufacturer hulls landed, because a chassis select offering
-## seven manufacturers over a Korvan-only loot pool would have made six choices
-## unplayable. STARTABLE has now been cut to match, so that objection is answered
-## rather than ignored: there is one manufacturer, and it is the only one you can fly.
-##
-## The reason is depth over breadth. Seven manufacturers at three modules each is seven
-## shallow loot streams; one manufacturer with a full ladder is a run where the next
-## wreck can plausibly hold something you want. Korvan is the one to do first —
-## ballistics and charged ordnance, no gimmick, the tutorial manufacturer.
-##
-## Restoring the others means putting this back to [] and STARTABLE back to all
-## seven. Nothing else is gated on it.
-##
-## SOLARI JOINS (Oct 17), the second manufacturer with a full ladder: 25 parts,
-## 40 cards, its own three hulls and their mounts and engines. A Solari run can
-## now find its second and third Solari part, so its 3+ and 5+ sets are
-## reachable, and a Solari Territory rolls Solari rather than falling back to
-## unbranded. The cost is Korvan's: a Korvan run's branded drops are now split
-## two ways. `-- sim runs=200 seed=777` before and after is in the commit.
-##
-## AND ONLY ONCE UNLOCKED (Jon, Oct 20: "Solari things should NOT show up in the
-## game until Solari is unlocked (win the game once)"). This list says what MAY
-## drop; the run's `Run.unlocked_manufacturers` says what this profile has
-## earned, and a part or hull appears only where both agree
-## (`LootGen.can_appear`). A fresh profile's world is Korvan plus unbranded;
-## a Korvan win adds Solari. Putting Probate on this list later works the same
-## way: it appears once a Solari win has unlocked it.
+## Only these manufacturers can drop, empty means all. Narrowed for depth over breadth.
+## A part also needs the profile to have unlocked its manufacturer (`LootGen.can_appear`).
+## Why: docs/why/Database.md#loot-pool-gate
 const ACTIVE_MANUFACTURERS: Array[StringName] = [&"korvan", &"solari"]
 
 var manufacturers: Dictionary = {}      ## StringName -> ManufacturerData
@@ -54,57 +17,20 @@ var hull_perks: Dictionary = {}         ## StringName -> {name, text}
 ## The Lab's routines (Phase 12, science). See `_seed_routines`.
 var routines: Dictionary = {}           ## StringName -> {name, text, branch, rank, pips, raw}
 
-## ONE branded weapon, and yard stock for the rest.
-##
-## This used to hand you a manufacturer's whole catalogue — five Korvan modules,
-## four Redline — which meant the run opened with its set bonus already earned
-## and its identity already finished. Nothing you found afterwards could change
-## what you were; the best it could do was be a slightly better version of it.
-##
-## Now the manufacturer gives you a gun and a hull, which is two of the three a set
-## needs. Everything else is generic. The third piece is out there in a wreck or
-## behind a station's counter, and until you go and get it you are flying a
-## chassis with a good weapon bolted to it — which is a much better description
-## of the start of a run than "a finished Korvan build".
-##
-## It also puts CLAUDE.md's ruling back the right way up. Identity is assembled
-## mid-run again; choosing a manufacturer picks the direction, not the
-## destination.
-## What every ship is issued, in the order it goes on. Seven cards between them
-## — two attacks, two brace, two draws, one vent — against the two the branded
-## weapon grants. Nine to open with, which is the shape a starting deck wants:
-## enough that a hand of five is a draw rather than your whole hand, and thin
-## enough that one good find changes it.
+## One branded weapon and a hull, the rest generic, so identity is assembled mid-run.
+## The manufacturer picks the direction of a run, not its destination.
+## Why: docs/why/Database.md#starting-kit
 const GENERIC_KIT: Array[StringName] = [&"beam", &"plating", &"board", &"coolline"]
 
-## Everything in the yard, three per slot. RunState._top_up_deck walks this to
-## fill spare mounts on frames the kit above cannot fill on its own, and walking
-## a list of DISTINCT parts is why a Cygnet light no longer launches carrying two
-## of the same plate. Order matters: it is the order they get bolted on.
+## Walked by `RunState._top_up_deck` in order, over distinct parts, so no doubled plates.
 const GENERIC_STOCK: Array[StringName] = [
 	&"beam", &"slug", &"torch",
 	&"plating", &"board", &"bracing",
 	&"coolline", &"scope", &"patchkit",
 ]
 
-## The one module each yard sends you off with. Common or Uncommon — never Rare,
-## which it used to be for three of them.
-##
-## The rule was "each manufacturer's cheapest weapon", which sounded even and was not:
-## Probate, Verity and Calyx had no common weapon at all, so their floor was C2.
-## That leaked somewhere invisible. Market.melt() reads scrap_value, which is a
-## table indexed by RARITY, so a Probate player could scrap their free gun for
-## roughly four times what a Korvan player got before anything had happened —
-## with salvage_rack multiplying exactly that. An economic head start nothing on
-## screen accounted for, in a game whose difficulty lives in the economy.
-##
-## Breaker Cannon, Verity Mark I and Calyx Barb were written to close it, and
-## they also even out a common tier of the drop pool that was six-sevenths
-## Korvan.
-##
-## STILL UNEVEN, deliberately for now: Redline and Cygnet start on Uncommons,
-## which melt for 16 against Korvan's 8. Solari did too, until its common Ember
-## Lance was written (Jon, Oct 15); the Plasma Lance is now its first upgrade.
+## Common or Uncommon, never Rare: melt value is indexed by rarity, so a rare gun was free money.
+## Why: docs/why/Database.md#starter-weapon
 const STARTER_WEAPON: Dictionary = {
 	&"korvan": &"kh20",
 	&"solari": &"emberlance",
@@ -115,26 +41,14 @@ const STARTER_WEAPON: Dictionary = {
 	&"calyx": &"barb",
 }
 
-## The manufacturers you can start as, in the order the chassis select shows them.
-## Korvan first because it is the tutorial ship: no gimmick, all three slots
-## filled, nothing that needs explaining before the first fight.
-##
-## ALL SEVEN, even though only Korvan and Solari parts drop — see ACTIVE_MANUFACTURERS. The focus
-## is on what gets BUILT, not on what you may fly, and the run-start choice is
-## the one place the other six manufacturers still pay for themselves: seven attribute
-## signatures, seven hulls, seven palettes, all authored and all reachable.
-##
-## THE COST, on the record. A loot pool gated to Korvan and Solari means a
-## Probate ship finds no second Probate part, so the 3+ and 5+ set bonuses of the
-## other five are unreachable for as long as ACTIVE_MANUFACTURERS is narrowed. You
-## can fly them; you cannot complete them.
+## All seven stay flyable so the other six still pay for themselves at run start.
+## Their 3+ and 5+ set bonuses are unreachable while the loot pool is narrowed.
+## Why: docs/why/Database.md#startable-manufacturers
 const STARTABLE: Array[StringName] = [
 	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
 ]
 
-## Branded weapon first, so that when a light frame runs out of hardpoints it is
-## the generic parts that fall off the end rather than the one module that says
-## who you fly for.
+## Branded weapon first, so a light frame drops generic parts before the one that names you.
 func starter_kit(manufacturer: StringName) -> Array:
 	var out: Array = [STARTER_WEAPON.get(manufacturer, &"kh20")]
 	out.append_array(GENERIC_KIT)
@@ -157,9 +71,7 @@ func _seed_manufacturers() -> void:
 			"Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot.",
 			"Standard Issue", "Charge cards charge 1 turn faster.",
 			"Full Broadside", "Salvo applies to your first attack too."],
-		# Field: white heat-shield, was #3a2408 dark bronze (Jon, Oct 15: "change the
-		# manufacturer colors ... of solari to these new colors? orange and white"),
-		# to match the hulls' pale ceramic tile. The amber mark stays.
+		# Field is a white heat-shield to match the hulls' pale ceramic tile (Jon, Oct 15).
 		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#f2eee6",
 			"Weapons that hit harder the hotter you run.",
 			"Sunward", "Plasma weapons gain +2 damage.",
@@ -200,17 +112,9 @@ func _seed_manufacturers() -> void:
 		m.backstory = BACKSTORY.get(m.id, "")
 		manufacturers[m.id] = m
 
-## Who each manufacturer is, as opposed to what flying it does.
-##
-## Kept out of the table above because that table is already ten columns wide
-## and these are paragraphs; a wall of prose wedged into positional array
-## indices is unreadable and unmergeable. Keyed by id so a missing one is blank
-## rather than a shifted column.
-##
-## The rule for writing these: company, not mechanics. `identity` already says
-## what the set bonuses do. A player picking a chassis at run start is choosing
-## an allegiance before they can evaluate a single number, and this is what they
-## are actually choosing between.
+## Kept out of the table above: paragraphs in positional array indices are unmergeable.
+## Keyed by id so a missing entry is blank, not a shifted column.
+## Why: docs/why/Database.md#manufacturer-backstory
 const BACKSTORY := {
 	&"korvan": "Korvan stamps parts to an old navy specification. The navy is gone, and its war ended two hundred years ago, but Korvan kept the jigs. It never designed a weapon of its own. The parts are not clever, and they still work.",
 	&"solari": "Solari is a guild of thermal engineers. They lost an argument about safety margins and left to prove they were right. Their hulls take more heat than their crews can. The company line is that heat is only waste if you fail to aim it.",
@@ -221,25 +125,9 @@ const BACKSTORY := {
 	&"calyx": "Calyx is a clinical, corporate biotech firm. Its hulls are grown to a specification, then trimmed, and they heal and adapt. Every contract has a clause about feeding a hull something it was not rated for. No customer has seen what happens.",
 }
 
-## SIXTEEN MALFUNCTIONS, out of three keywords.
-##
-## Written as combinations rather than as sixteen sentences. Sixteen sentences is
-## what this was first drafted as and it came out as three behaviours with
-## different numbers on them; three keywords and a number each is sixteen cards a
-## player can read at a glance, which is how Brace, Salvo and Charge already work.
-##
-##   CORRODE n   damage at the end of your turn while it is in your hand
-##   SMOULDER n  heat, the same way
-##   FUSED       not discarded at end of turn — it stays until you deal with it
-##
-## FUSED IS THE ONLY ONE THAT COMPOUNDS. The others charge you once and go with
-## the hand. A fused card charges you again every turn and holds a hand slot the
-## whole time, which is what makes it worth spending a Discard on — and a
-## Decommission if you would rather it did not come back at all.
-##
-## Eight of these are severities of the same two verbs, and that is deliberate:
-## Corrode 1/2/3 and Smoulder 2/3/4 are a ladder you learn to read, not eight
-## separate rules to remember.
+## Sixteen cards from three keywords, readable at a glance, not sixteen written sentences.
+## Fused is the only one that compounds, and the only one worth spending a Discard on.
+## Why: docs/why/Database.md#malfunctions
 const MALFUNCTIONS: Array = [
 	# id, name, corrode, smoulder, fused
 	[&"dross",     "Dross",           0, 0, false],
@@ -274,22 +162,15 @@ func malfunction(id: StringName) -> CardData:
 		c.hand_heat = row[3]
 		c.fused = row[4]
 		c.source_module = "spore residue"
-		# KEYED ON THE ID, not left to the name slug. A malfunction has no module
-		# to inherit a picture from, and its id is the one thing here that is
-		# already promised to be stable — the names are display text and the
-		# ladder they describe (Corrode 1/2/3) is exactly the sort that gets
-		# reworded.
+		# Keyed on the id, not the name slug: ids are stable, display names get reworded.
 		c.art = row[0]
 		c.sprite = card_art(c.art_key())
 		return c
 	return malfunction(&"dross")
 
-## Which malfunction lodges in you, weighted so the mild ones are common.
-##
-## Rolled from `Rng.foe` rather than the global generator, because what an enemy
-## does to you is part of the fight and has to replay from the seed. The weights
-## are the row's own position: the table is written mildest-first, so the front
-## of it is common and the compounding ones at the back are rare.
+## Rolled from `Rng.foe` so what an enemy does to you replays from the seed.
+## Weights are table position, mildest first, so the front is common.
+## Why: docs/why/Database.md#malfunctions
 func roll_malfunction(danger: int, r: RandomNumberGenerator = Rng.foe) -> StringName:
 	var reach := clampi(4 + danger, 4, MALFUNCTIONS.size())
 	return MALFUNCTIONS[r.randi() % reach][0]
@@ -304,9 +185,7 @@ func manufacturer_name(id: StringName) -> String:
 		return "unbranded"
 	return (manufacturers[id] as ManufacturerData).name
 
-## One-word display name for chips and map labels. Taking the first word works
-## for six of the seven manufacturers but turns "The Probate Combine" into "The", so the
-## article goes first.
+## Taking the first word turns 'The Probate Combine' into 'The', so the article goes first.
 func short_name(full: String) -> String:
 	var n := full
 	if n.begins_with("The "):
@@ -333,25 +212,9 @@ func affix_named(nm: String) -> AffixData:
 
 
 func _seed_affixes() -> void:
-	# TEN, PAID IN SHIP ATTRIBUTES. See AffixData for why they stopped paying in
-	# card numbers: a card whose face changes with the module that granted it is
-	# a card nobody can learn, and three affixes grew the text out of the bottom
-	# of a 93-pixel box.
-	#
-	# All seven gauges are reachable, so no attribute is a dead end for loot.
-	# Three names survive the change — Reinforced, Cryo-Lined and Deregulated —
-	# because they still mean what they say; the other seven meant card verbs
-	# and had nothing to be renamed to.
-	#
-	# `weight` prices the two reactor entries. A reactor pip is three cells of
-	# capacity AND half a point of energy a turn; every other gauge pays in one
-	# currency, so these are made SCARCE rather than weakened.
-	#
-	# NO `text` FIELD HERE. It is generated from the pips by
-	# `AffixData.gauge_text()` below, so the sentence on the panel cannot say
-	# something the numbers do not -- and the gauge names come from
-	# `RunState.ATTR_SHORT`, which is the same table the attributes panel labels
-	# its rows from.
+	# Paid in ship attributes, not card numbers: a card whose face changes cannot be learned.
+	# No `text` field: it is generated from the pips so the panel cannot disagree with them.
+	# Why: docs/why/Database.md#affixes
 	var raw := [
 		{name = "Reinforced", hull = 1},
 		{name = "Cryo-Lined", thermal = 1},
@@ -378,43 +241,18 @@ func _seed_affixes() -> void:
 
 # ---------------------------------------------------------------------- modules
 
-## THE SHARED VOCABULARY. Cards more than one module is allowed to grant.
-##
-## Every card used to be a literal written inside the one module that granted
-## it, which meant nothing could be shared even when it plainly should be: a
-## Korvan plate and an unbranded plate both Brace, and writing that twice makes
-## two cards that have to be kept in step by somebody remembering to.
-##
-## So a module's card list takes either a Dictionary — a card only it has — or a
-## StringName naming one of these. That is what lets the catalogue have three
-## shapes rather than one:
-##
-##   two shared      yard stock. Honest, dull, and the thing better parts beat
-##   one and one     the common case: a headline card and a plain one beside it
-##   two special     a part that is entirely itself, and rare because of it
-##
-## EVERY ONE OF THESE IS COMMON, and that is what makes them shareable: a card a
-## legendary bay and a starter plate both grant cannot be worth more on one than
-## the other. It is also why they slot into the second half of the rarity law
-## without ever breaking it.
-##
-## Deliberately NOT a card for every verb. These are the ones a dozen parts
-## could plausibly grant; anything with a manufacturer's fingerprints on it stays
-## written where it is granted, because that is what makes it that part's card.
+## Cards more than one module may grant, written once so copies cannot drift apart.
+## All common, so a shared card is never worth more on one part than another.
+## Why: docs/why/Database.md#shared-cards
 const SHARED := {
-	# "Bolt On" and not "Brace". Brace is the KEYWORD — the card face already
-	# reads "Brace 5" — so a card called Brace is the rule wearing its own name,
-	# and every other card in the game is a thing rather than a rule.
+	# Named Bolt On, not Brace: Brace is the keyword, and no other card is named after a rule.
 	&"brace":    {name = "Bolt On", energy = 1, rarity = 0, brace = 5},
 	&"block":    {name = "Hold Fast", energy = 1, rarity = 0, block = 7},
 	&"vent":     {name = "Bleed Heat", energy = 1, rarity = 0, vent = 3},
 	&"reroute":  {name = "Reroute", energy = 1, rarity = 0, draw = 1},
-	# +2 AND NOT +3, so that Korvan's own Lock On has a reason to cost energy.
-	# At +3 the shared card was 0 energy for one point less than a 1-energy
-	# manufacturer card, which is a full energy for one point of mark — nobody would
-	# ever pay it, and the Targeting Servo was a worse Ranging Optics. Surfaced
-	# by holdtest's single-verb report, which exists to put exactly this kind of
-	# near-twin next to itself.
+	# +2 and not +3, so Korvan's own Lock On has a reason to cost energy.
+	# At +3 the free shared card made the Targeting Servo a worse Ranging Optics.
+	# Why: docs/why/Database.md#shared-cards
 	&"range":    {name = "Range", energy = 0, rarity = 0, lock_on = 2},
 	&"slug":     {name = "Slug", energy = 1, rarity = 0, damage = 4, hits = 2},
 	&"cut":      {name = "Cutting Beam", energy = 1, rarity = 0, damage = 6},
@@ -472,9 +310,7 @@ func _seed_modules() -> void:
 	const C6 := ModuleData.Rarity.ARTIFACT
 
 	# --- Korvan: ballistics (cold, cheap, multi-hit) and ordnance (hot, charged)
-	# ONE AND ONE, which is the common shape: a card that is this part's own,
-	# and a plain one beside it out of the shared vocabulary. It is what stops a
-	# starter weapon being two copies of the same verb.
+	# One and one: an own card plus a plain shared one, so a starter is not two copies of a verb.
 	_module(&"kh20", "KH-20 Chatterbox", &"korvan", W, C0,
 		"Autocannon. Cheap rounds, and a lot of them.",
 		[{name = "Suppressing Fire", energy = 1, heat = 0, damage = 3, hits = 2, salvo = 2},
@@ -482,9 +318,7 @@ func _seed_modules() -> void:
 	_module(&"km4", "KM-4 Mass Driver", &"korvan", W, C0,
 		"Charges for a turn, then hits hard.",
 		[{name = "Charged Slug", energy = 2, heat = 3, damage = 16, charge_turns = 1, copies = 1}])
-	# ONE AND ONE. It granted two copies of a card called "Brace", which is the
-	# keyword wearing its own name twice — it is the shared Bolt On plus a card
-	# that is actually this welder's.
+	# One and one: it granted the keyword card Brace twice, now shared Bolt On plus its own.
 	_module(&"plate", "Ablative Plate Welder", &"korvan", S, C0,
 		"Lasting armor that costs heat to hold.",
 		[&"brace", {name = "Weld On", energy = 1, brace = 3, vent = 2}])
@@ -493,10 +327,7 @@ func _seed_modules() -> void:
 		[{name = "Emergency Vent", energy = 0, vent = 4, draw = 1}, &"vent"])
 	_module(&"servo", "Targeting Servo", &"korvan", U, C0,
 		"Paints the target for whatever fires next.",
-		## BORE SIGHT and not "Lock On". Lock on is the KEYWORD — the card face
-		## already reads "Lock on +4" — so a card called Lock On is the rule
-		## wearing its own name, exactly as Brace was before it became Bolt On.
-		## Bore sighting is what you do to a gun this size before you fire it.
+		## Bore Sight and not Lock On: Lock on is the keyword, as with Brace and Bolt On.
 		[{name = "Bore Sight", energy = 1, lock_on = 4, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
 		"Rotary cannon. It fires many small rounds.",
@@ -509,53 +340,26 @@ func _seed_modules() -> void:
 		[{name = "Bulwark", energy = 2, heat = 1, brace = 8, feedback = 4},
 			{name = "Overwatch", energy = 2, brace = 4, feedback = 6, draw = 1}])
 
-	## The nine rungs Korvan was missing, and the shape they were authored to.
-	##
-	## RARITY BUYS A VERB, NOT A NUMBER. A Legendary is not a bigger lump of a
-	## Common, it is a cleverer one. Where a rung below already says the thing, the
-	## rung above says a different thing rather than the same thing louder.
-	##
-	## The spine of the weapon line is SALVO, and that is not a preference. Korvan's
-	## five-piece set makes salvo fire on the FIRST attack of the turn
-	## (CardResolver, `has_set(&"korvan", 5)`), so every point of it is worth double
-	## to a committed Korvan build and nothing at all to a tourist. It is the one
-	## number in this catalog that measures how far in you are.
-	##
-	## Utility is built on LOCK-ON for the mirror reason: lock-on adds per HIT, so
-	## it multiplies by the thing Korvan's guns already do. Servo into Jackhammer
-	## was the manufacturer's best combo and its only one; there are now four rungs of it.
-	##
-	## What Korvan does NOT get, however well it would fit: heat_scale and
-	## damage_equals_heat (Solari IS weaponised heat), credit_gain (Probate),
-	## drones and evoke (Cygnet), negate_next (Redline), adapt and heal (Calyx).
-	## A manufacturer that borrows another's verb at a higher rarity does not read as
-	## stronger, it reads as the other manufacturer.
+	## Rarity buys a verb, not a number. The weapon spine is salvo, which Korvan's 5-set doubles.
+	## Other manufacturers' verbs stay out: borrowing one reads as that manufacturer.
+	## Why: docs/why/Database.md#korvan-ladder
 
 	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
 	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
 	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
 		"Three barrels on one trigger.",
 		[{name = "Ripple Fire", energy = 1, damage = 3, hits = 3, salvo = 2}, &"feed"])
-	# The top of the KH line, and the payoff for the whole salvo spine: 20 cold,
-	# 40 once anything has already fired. Three energy and one copy, so it is a
-	# HEAVY's card by construction — a reactor of four plays a Ripsaw into this and
-	# a reactor of three does not. That is the Korvan hull signature (slow, tough,
-	# patient) written as a weapon, and at five set pieces the enabler is free.
+	# Top of the salvo spine: 3 energy, one copy, so it is a heavy's card by construction.
 	_module(&"kh500", "KH-500 Drumfire", &"korvan", W, C4,
 		"A heavy drum-fed gun. Best fired after the others.",
 		[{name = "Drumfire", energy = 3, damage = 4, hits = 5, salvo = 4},
 			{name = "Walking Fire", energy = 2, damage = 3, hits = 6, salvo = 2}])
 
-	# Systems climb ARMOUR, and the verb arrives at the top rather than along the
-	# way: C1 marries the two Commons, C2 buys a different defence entirely, C3
-	# buys scale, and the Legendary above is where armour starts hitting back.
+	# Systems climb armour, and the verb (armour hitting back) only arrives at the top rung.
 	_module(&"sinkplate", "Heat Sink Plating", &"korvan", S, C1,
 		"Plate that also sheds heat.",
 		[{name = "Sink Plate", energy = 1, brace = 6, vent = 3}, &"brace"])
-	# BLOCK, which Korvan has never had. Armour persists and costs heat to hold;
-	# block decays and costs nothing. So this is the card for the turn a Mass
-	# Driver is charging and there is nothing to do but be hit — the one turn in
-	# the manufacturer's whole design where a decaying shield is exactly right.
+	# Block decays and costs nothing, unlike armour: right for the turn a Mass Driver charges.
 	_module(&"braceframe", "Brace Frame", &"korvan", S, C2,
 		"For the turn you have nothing to shoot with.",
 		[{name = "Dig In", energy = 1, block = 8, brace = 2},
@@ -565,26 +369,18 @@ func _seed_modules() -> void:
 		[{name = "Bulkhead", energy = 1, heat = 1, brace = 7},
 			{name = "Compartment", energy = 2, brace = 9, block = 6}])
 
-	# Four rungs of lock-on, which is the column Korvan had one card in.
-	# Deliberately CHEAP rather than large: Solari's Flare Rack is lock-on 6 for a
-	# Common-adjacent price and pays 2 heat for it, and Korvan undercutting that on
-	# heat instead of beating it on size is the difference between the two manufacturers.
+	# Cheap lock-on rungs: Korvan undercuts Solari's Flare Rack on heat, not on size.
 	_module(&"optics", "Ranging Optics", &"korvan", U, C1,
 		"Cheap lenses that still give a correct range.",
 		[{name = "Cold Read", energy = 0, lock_on = 4, vent = 1}, &"range"])
 	_module(&"coldsights", "Cold Sights", &"korvan", U, C2,
 		"Cools the barrel and steadies the aim.",
 		[{name = "Cold Sights", energy = 1, vent = 3, lock_on = 4}, &"vent"])
-	# The other half of the charged-weapon problem: a free card for the turn you
-	# cannot attack, which vents the ordnance heat you are still carrying from the
-	# last one. Pairs with Brace Frame by design — one blocks, one cools.
+	# A free card for a turn you cannot attack, venting ordnance heat. Pairs with Brace Frame.
 	_module(&"standfast", "Standfast Rig", &"korvan", U, C3,
 		"Holds and cools the ship while a gun charges.",
 		[{name = "Standfast", energy = 0, brace = 6, vent = 4}, &"block"])
-	# The capstone, and it is an ENGINE rather than a hammer — the hammer is the
-	# Drumfire. Free to play, returns the energy, marks the target: the card that
-	# turns a hand of Korvan guns into one enormous turn. Three heat a play is the
-	# brake, and the only reason it is not degenerate.
+	# An engine, not a hammer: free, returns the energy, marks. Three heat a play is the brake.
 	_module(&"director", "KX-9 Fire Director", &"korvan", U, C4,
 		"It aims for you. You only pull the trigger.",
 		[{name = "Fire Director", energy = 0, heat = 3, lock_on = 5, energy_gain = 1}, &"range"])
@@ -607,21 +403,14 @@ func _seed_modules() -> void:
 		# ONE AND ONE. A plain Solari plate would be Bolt On in Solari colours, so
 		# it is Bolt On (catalogue §6, Jon, Oct 15).
 		[{name = "Shroud", energy = 1, brace_from_heat = true}, &"brace"])
-	## Solari was the one manufacturer with no utility at all, which made a Solari
-	## starting kit impossible. Deliberately Korvan's Targeting Servo read hot:
-	## a better mark, paid for in heat — the whole manufacturer in one card.
+	## Solari had no utility, so no kit. Korvan's servo read hot: a better mark paid in heat.
 	_module(&"flare", "Solari Flare Rack", &"solari", U, C1,
 		"A flare that lights the target for your guns.",
 		[{name = "Flare", energy = 1, heat = 2, lock_on = 6}, &"range"])
 
-	# --- Solari, the rest of the line (Jon, Oct 15: "Let's make the modules and
-	# cards now", from the manufacturer plan's Solari tab). Two checks hold it to
-	# the motto (HoldTest `_solari_runs_hot`, `_solari_heat_not_waste`): every
-	# Solari attack costs heat or reads it, and every Solari vent buys something.
-	#
-	# The issued gun, and a COMMON, so Solari launches on a common like Korvan.
-	# Glowshot is weak cold and fair at eight heat; Kindle is free and exists to
-	# start the gauge climbing.
+	# Rest of the Solari line (Jon, Oct 15): every attack costs or reads heat, every vent buys.
+	# Held by HoldTest `_solari_runs_hot` and `_solari_heat_not_waste`.
+	# Why: docs/why/Database.md#solari-line
 	_module(&"emberlance", "Ember Lance", &"solari", W, C0,
 		"Issued to every new hand on the floor.",
 		[{name = "Glowshot", energy = 1, heat = 2, damage = 4, heat_scale = 4},
@@ -644,9 +433,7 @@ func _seed_modules() -> void:
 		"Rated for the pressure. The crew was not.",
 		[{name = "Overpressure", energy = 2, heat = 5, damage = 9, hits = 2, flashpoint = 5},
 			{name = "Flashover", energy = 1, heat = 6, damage = 8, flashpoint = 8}])
-	# The capstone, four across, a full row of a light hull's hold. Sunburst is
-	# the once-a-fight peak: three hits that each read half your heat, then it
-	# strikes itself off the books. (Not "Nova": that is the heavy hull's name.)
+	# Capstone, four across. Sunburst is the once-a-fight peak, not 'Nova' (the heavy hull).
 	_module(&"heliostat", "Heliostat Lance", &"solari", W, C4,
 		"Ground for a sun the Foundry no longer has.",
 		[{name = "Noon Lance", energy = 3, heat = 6, damage = 10, heat_scale = 1},
@@ -759,10 +546,7 @@ func _seed_modules() -> void:
 		[{name = "Rouse", energy = 1, evoke = 7, copies = 1}])
 
 	# --- Verity: precision
-	## Issued weapon. Hits harder per card than the other two starters on
-	## purpose: Verity grants one fewer card than anybody, so this is the only
-	## copy of it in the deck and a merely-average Common would have left the
-	## manufacturer opening a fight with a single mediocre attack.
+	# Issued weapon hits harder per card: Verity grants one fewer card, so it is the only copy.
 	_module(&"markone", "Verity Mark I", &"verity", W, C0,
 		"Verity's cheapest gun, still numbered and signed.",
 		[{name = "Sidearm", energy = 1, damage = 7, copies = 2}])
@@ -771,11 +555,8 @@ func _seed_modules() -> void:
 		[{name = "Precise Shot", energy = 1, heat = 1, damage = 9, draw = 1, copies = 2}])
 	_module(&"auspex", "Auspex Array", &"verity", U, C1,
 		"Draws deep so you find the card you need.",
-		## DRAW THREE AND THROW ONE, not draw two — which is what this said until
-		## the twin check put it next to Redline's Jury-Rig and they were the same
-		## card. Both manufacturers want cards; only one of them wants THE RIGHT card,
-		## and that is a filter, not a bigger number. Verity grants one card where
-		## everyone else grants two, so the one is allowed to be the better one.
+		## Draw three, throw one: a filter, so it is not the same card as Redline's Jury-Rig.
+		## Why: docs/why/Database.md#verity-cards
 		[{name = "Foresight", energy = 0, draw = 3, discard = 1, copies = 2}])
 	_module(&"verity", "Verity Deflector", &"verity", S, C3,
 		"A fine deflector. It blocks well.",
@@ -785,24 +566,9 @@ func _seed_modules() -> void:
 	_module(&"weave", "Vital Weave", &"calyx", S, C1,
 		"The hull slowly knits itself back.",
 		[{name = "Knit", energy = 1, heal = 5, copies = 2}])
-	## Issued weapon. Bites and knits at once, which is the manufacturer in miniature.
-	##
-	## Trimmed from 5/heal 2. Calyx measured strongest of the seven at every
-	## weight, and sustain is why: a weapon that repairs while it fires is worth
-	## more than one that hits harder, and two points of healing on two copies of
-	## a card in a nine-card deck was quietly the best starter in the game.
-	##
-	## THE FIGURE THAT USED TO BE HERE IS OUT OF DATE, and it is left corrected
-	## rather than deleted because the decision it justified still stands. It said
-	## hull loss causes half the deaths, and its first correction said 56% were
-	## running the tank dry, which was the old sim counting its own pilot's dead
-	## ends. Re-measured 2026-10-17 (seed 777, 200 runs, the corrected sim): of 192
-	## deaths, events 45%, fights 28%, heat 27%, a dry tank none (1% once the tank
-	## became 45, Oct 17).
-	##
-	## The trim was still right — Calyx was strongest and this is why — but
-	## anybody reaching for "sustain decides the game" as a reason to refuse
-	## something should reach for the current number instead.
+	## Trimmed from 5/heal 2: sustain made Calyx the strongest of seven at every weight.
+	## The old death figures were re-measured 2026-10-17: use the current ones.
+	## Why: docs/why/Database.md#calyx-balance
 	_module(&"barb", "Calyx Barb", &"calyx", W, C0,
 		"A grown spike that heals you as it cuts.",
 		[{name = "Barb", energy = 1, damage = 4, heal = 1, copies = 2}])
@@ -814,83 +580,32 @@ func _seed_modules() -> void:
 		[{name = "Bloom", energy = 0, vent = 6, heal = 3, copies = 1}])
 
 	# --- Repair, one way per manufacturer
-	#
-	# Healing used to be Calyx's and nobody else's — Knit, Barb and Bloom, plus
-	# the yard's Patch Kit and the Voidwhale Ganglion. Every other manufacturer had to
-	# buy its hull back at a station, which is correct as an economy and wrong as
-	# a deck: a build with no answer to being hurt has one answer to being hurt,
-	# and it is "leave".
-	#
-	# So all seven can repair now, and NOT ONE OF THEM DOES IT THE SAME WAY. A
-	# heal card handed identically to seven manufacturers is seven manufacturers minus their
-	# differences, and the differences are the class system. Each of these pays
-	# for its hull points in the currency its manufacturer already trades in: Korvan in
-	# tempo, Solari in heat, Probate in credits, Redline in nothing much and not
-	# much back, Verity in energy, Cygnet in time.
-	#
-	# THEY ARE ALL LIFELINES, AND THAT IS THE SECOND REWRITE OF THIS BLOCK.
-	#
-	# The first pass priced them as economy cards — flat heals, two and three
-	# energy — and priced them for a HEALTHY turn, which is the one turn that does
-	# not need them. At three hull and one energy left, a card that costs two is
-	# not a card. Every one of these now costs at most one energy (Verity's costs
-	# two, and one under Bespoke, which is that manufacturer answering the question its
-	# own way) and every one of them scales on hull MISSING rather than paying a
-	# flat number. See CardData.heal_scale.
-	#
-	# The shape that buys: nearly dead weight at full hull, the biggest card in
-	# the deck at three. Worth exactly as much as the trouble you are in.
-	#
-	# CALYX IS FLAT AND STAYS FLAT, which is now a real distinction rather than an
-	# omission: Calyx heals you all fight and the other six save you at the end of
-	# one. Knit for 5 twice over is better than any of these on a turn you are
-	# winning and worse than all of them on a turn you are not. That is the manufacturer
-	# that grows hulls versus the manufacturers that patch them.
-	#
-	# CALYX GETS NOTHING HERE, deliberately. It already has three, it is the
-	# sustain manufacturer, and `barb` above records what happened last time sustain was
-	# handed out freely: Calyx measured strongest of the seven at every weight.
-	# Widening the thing that made it strongest is not how the other six catch up.
-	# Every rate below is deliberately worse than Knit's 10 hull for 2 energy.
+	# All seven can repair, each paid in its own currency, as lifelines scaled on hull missing.
+	# Calyx stays flat and gets nothing here: it is already the sustain manufacturer.
+	# Why: docs/why/Database.md#repair-cards
 	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
 		"A surplus kit for one weld, and the weld holds.",
 		[{name = "Field Weld", energy = 1, heal = 3, heal_scale = 3}, &"patch"])
-	## Heat as the welding torch, which is the manufacturer's whole argument. Costs four
-	## heat to buy seven hull, so it is a good trade on a cold turn and a way to
-	## kill yourself on a hot one — and Ignition (5-set, overheat halved) is what
-	## turns the second case back into the first.
+	## Heat as the torch: good on a cold turn, deadly on a hot one. Ignition (5-set) fixes that.
 	_module(&"cautery", "Cauterising Torch", &"solari", S, C2,
 		"Seals hull breaches with heat, and runs hot doing it.",
 		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3}, &"patch"])
-	## Repairs out of the hold, at Combine rates. The credit cost is the point:
-	## it is the only card in the game that spends the run's currency to buy hull
-	## back mid-fight, and Company Rates (3-set, +50% from wrecks) is what pays
-	## for it. A fight you cannot afford is a fight you have to win cheaply.
+	## Spends credits for hull mid-fight, the only card that does. Company Rates pays for it.
 	_module(&"reclaim", "Hull Reclamation Rig", &"probate", S, C1,
 		"Rebuilds the frame from salvage, for a price.",
 		[{name = "Reclaim", energy = 1, heal = 2, heal_scale = 3, credit_cost = 8, copies = 1}])
-	## Cheap, fast, and not very good — which is Redline. Free to play and it
-	## replaces itself, so it costs a card slot rather than a turn, and Chop Shop
-	## (3-set, draw 1 extra) is a manufacturer that can afford to run thin cards.
+	## Cheap and free and replaces itself, so it costs a card slot, not a turn. Fits Chop Shop.
 	_module(&"bodge", "Bodge Kit", &"redline", U, C0,
 		"Foam and tape, with no paperwork. It keeps you flying.",
 		[{name = "Bodge", energy = 0, heal = 1, heal_scale = 5, draw = 1, copies = 2}])
-	## The warranty, as a card. Twenty hull in one go for three energy — two
-	## under Bespoke (3-set, Verity cards cost 1 less), which is the difference
-	## between unplayable and a turn you plan a fight around. See `docs/lore.md`
-	## §3: the word in the rider is perpetuity, and the Company does not define it.
+	## The warranty as a card: 3 energy, 2 under Bespoke. See `docs/lore.md` section 3.
 	_module(&"perpetuity", "Perpetuity Clause", &"verity", S, C3,
 		"The Company will maintain this hull, but does not say for how long.",
 		[{name = "Perpetuity", energy = 2, heal = 4, heal_scale = 3, copies = 1}])
-	## Two small welds rather than one big one, which is how a swarm does
-	## anything. Worse per card than Knit and worse per energy, and it arrives
-	## twice — Cygnet repairs the way Cygnet fights.
+	## Two small welds, worse than Knit per card and per energy: Cygnet repairs as it fights.
 	_module(&"menders", "Mender Swarm", &"cygnet", S, C2,
 		"Repair drones that find a breach before you do.",
-		## A SWARM THAT STAYS. This was the yard's Patch to the decimal — same
-		## energy, same 1, same scale of 5 — on a rare part of a manufacturer that does
-		## not repair by hand. Cygnet sends things, so the repair leaves the things
-		## behind: it patches the hole and screens what it patched.
+		## A swarm that stays: it patches and screens, so it is not the yard's Patch to the decimal.
 		[{name = "Mend", energy = 1, heal = 2, heal_scale = 6, drone_brace = 2,
 			copies = 2}])
 
@@ -909,32 +624,14 @@ func _seed_modules() -> void:
 			{name = "Sympathetic Burst", energy = 2, heat = 4, damage = 7, hits = 3}])
 
 	# --- Junk
-	#
-	# THE MALFUNCTION TABLE lives in `_seed_malfunctions` below, because a
-	# malfunction is not a module and never was. See the ruling.
-	#
-	# THERE IS NO DROSS MODULE. There was one, and it was unreachable: the loot
-	# pool skipped it by id, and the only thing that could hand it over was
-	# `LootGen.make_dross()`, which nothing called. It still showed up in the
-	# module gallery and still counted toward the unbranded catalogue, so the
-	# yard looked like it stocked a part nobody could ever be given.
-	#
-	# Dross is a COUNT, not a part. `Run.dross` goes up when a spore enemy
-	# breathes on you and `DeckBuilder` turns it into unplayable cards at
-	# deck-build time — junk in the deck without a hold cell or a hardpoint,
-	# which is what junk arriving unasked should be. Two mechanisms for one idea
-	# is one too many, and this was the dead one.
+	# No Dross module: it was unreachable. Dross is a count (`Run.dross`) `DeckBuilder` makes junk.
+	# Malfunctions live in `_seed_malfunctions`, not here.
+	# Why: docs/why/Database.md#dross
 
 	# --- Clearing the deck.
-	#
-	# There has to be an ANSWER to junk or it is only arithmetic. A malfunction
-	# now charges you at the end of the turn if you are still holding it, which
-	# makes it a question — and these are what you answer it with. Spread across
-	# manufacturers rather than sold by one, because every ship gets junk and a mechanic
-	# only one manufacturer can address is a mechanic six of them play around.
-	# COMMON, not uncommon. It grants two shared cards and nothing of its own,
-	# which is the definition of yard stock — and the rarity law is what caught
-	# it: an uncommon part has to bring one uncommon card and this brings none.
+	# Junk needs an answer or it is arithmetic: spread across manufacturers, not sold by one.
+	# Common, as it grants two shared cards and nothing of its own.
+	# Why: docs/why/Database.md#clearing-the-deck
 	_module(&"scuttle", "Scuttle Chute", &"", U, C0,
 		"A hatch that only opens outward. What goes down it is gone for this fight.",
 		[&"scuttle", &"sort"])
@@ -946,20 +643,9 @@ func _seed_modules() -> void:
 		[{name = "Blow Out", energy = 1, discard_hand = true, draw = 3}, &"sort"])
 
 	# --- yard stock: what every ship leaves the dock with, whoever built it.
-	#
-	# Deliberately dull. These are the colourless commons of the game: a beam, a
-	# plate, a coolant line. They do one obvious thing at a fair price and none
-	# of them is a reason to do anything — which is the point, because the
-	# branded module you find in the next wreck has to be visibly better than
-	# something.
-	#
-	# Unbranded, so they count toward no set. A ship launches with its hull and
-	# ONE weapon from its manufacturer, which is two of the three you need — the third
-	# is out there.
-	# Three of each slot, so a frame of any shape can fill itself from stock.
-	# The kit is one shape and the frames are not — four manufacturers drop a weapon
-	# mount, three add a utility — so without a spread here the top-up ran out
-	# of things that fit and fell back on bolting on a second identical plate.
+	# Deliberately dull and unbranded, so the branded find in the next wreck is visibly better.
+	# Three per slot so any frame can fill itself without a second identical plate.
+	# Why: docs/why/Database.md#yard-stock
 	_module(&"beam", "Mining Laser", &"", W, C0,
 		"Cuts rock, and ships too.",
 		[&"cut", &"slug"])
@@ -970,9 +656,7 @@ func _seed_modules() -> void:
 		"Meant for hulls that are already dead.",
 		[{name = "Torch", energy = 0, heat = 3, damage = 5, copies = 2}])
 
-	# TWO SHARED CARDS. Yard stock grants the common vocabulary and nothing of
-	# its own, which is the point of it: the branded plate in the next wreck has
-	# to be visibly better than something.
+	# Two shared cards and nothing of its own, so a branded plate in a wreck is visibly better.
 	_module(&"plating", "Hull Plating", &"", S, C0,
 		"Plain steel plate, bolted on.",
 		[&"brace"])
@@ -989,28 +673,17 @@ func _seed_modules() -> void:
 	_module(&"scope", "Ranging Scope", &"", U, C0,
 		"Tells the guns where the target is, and nothing more.",
 		[&"range"])
-	## YARD STOCK, AND THE FIRST LIFELINE ANYBODY HOLDS. Scaled like the branded
-	## repairs below it rather than left flat, because the turn this card exists
-	## for is the same turn theirs do — and a run whose only repair is a flat 4 is
-	## a run that learns repair does not save you before it ever finds one that
-	## does.
-	## THE SHARED CARD, not a literal copy of it. This authored its own Patch --
-	## same energy, same heal, same scale as `&"patch"` in SHARED above, written
-	## out a second time -- which is exactly the duplication the shared
-	## vocabulary exists to stop. holdtest found it as "Patch is 2 different
-	## cards", and the only thing that actually differed between them was the
-	## `shared` flag.
+	## Scaled like the branded repairs: a flat 4 teaches that repair never saves you.
+	## Grants the shared Patch, not a copy: holdtest found two different Patch cards.
+	## Why: docs/why/Database.md#patch-kit
 	_module(&"patchkit", "Patch Kit", &"", U, C0,
 		"Foam and tape for small holes in the hull.",
 		[&"patch"])
 
 
 	# --- Korvan: the top of the thermal and sensor ladders, and brass on the deck
-	#
-	# THE LADDER HAD HOLES IN IT. Every gauge is supposed to be reachable at +1,
-	# +2, +3 and +4, and thermal stopped at +2 while sensors skipped +2 entirely.
-	# A rung nobody can buy is a rung that does not exist, and a player building
-	# for an attribute finds that out by not finding the part.
+	# The ladder had holes: thermal stopped at +2, sensors skipped it. No part, no rung.
+	# Why: docs/why/Database.md#attribute-ladder-gaps
 	_module(&"cryobat", "Cryogenic Battery", &"korvan", S, C4,
 		"A cold store that keeps the guns cool from the start.",
 		[{name = "Cold Store", energy = 1, vent = 6, brace = 8},
@@ -1019,9 +692,7 @@ func _seed_modules() -> void:
 		"Firing solutions worked out before the fight.",
 		[{name = "Fire Solution", energy = 0, lock_on = 8, draw = 1},
 			{name = "Range Card", energy = 1, damage = 7, lock_on = 3}])
-	# DISCARD, and three parts of it, because the verb had four cards in the whole
-	# catalogue and two of those were Redline's. A deck that cannot throw anything
-	# away is a deck that draws its malfunctions forever.
+	# Three discard parts: the verb had four cards in the catalogue, two of them Redline's.
 	_module(&"brass", "Brass Catcher", &"korvan", U, C1,
 		"Spent casings go in the bin. The bin is on the manifest.",
 		[{name = "Clear the Breech", energy = 0, discard = 2, damage = 6}, &"sort"])
@@ -1035,10 +706,7 @@ func _seed_modules() -> void:
 		[{name = "Chain Feed", energy = 1, salvo = 3, draw = 1}, &"feed"])
 
 	# --- Unbranded: the artifact rungs, which are the only place a +4 can live
-	#
-	# Exotic and Artifact are unbranded by definition, so the top of every ladder
-	# is the yard's problem and nobody else's. Three of the five gauges had no +4
-	# at all.
+	# Exotic and Artifact are unbranded, so the yard owns the top rungs. Three gauges had no +4.
 	_module(&"keel", "Precursor Keel", &"", S, C6,
 		"The hull hangs from this keel.",
 		[{name = "Keelbound", energy = 1, brace = 14},
@@ -1056,40 +724,9 @@ func _seed_modules() -> void:
 		[{name = "Overside", energy = 0, discard = 2, heal = 2}, &"scuttle"])
 
 	# --- Reactor capacity: the parts that let you run the other parts
-	#
-	# A hull's REACTOR LEVEL decides the cells of hardware it can carry, and these
-	# are how a build buys more of it without finding a better frame. THEY ARE
-	# SELF-LIMITING BY CONSTRUCTION — a part that grants capacity also occupies
-	# it, and it occupies a mount that could have held a gun. The most any of
-	# them nets is +2, which `-- reactor` enforces: two cells is one small part's
-	# worth, so a ship that gives half its mounts to couplings has bought itself
-	# about one extra weapon and has nowhere left to put it.
-	#
-	# THE ATTRIBUTE LADDER DOES NOT GOVERN THESE, and that is a ruling. Every
-	# other passive in the game takes its size from the part grade; capacity does
-	# not, and the nets are nearly flat across all five — +1, +2, +2, +2, +2.
-	#
-	# Capacity is a BUDGET rather than power. A legendary plate giving three times
-	# a common one gives you more hull; a legendary coupling giving three times a
-	# common one changes how much SHIP you can hold, which compounds through every
-	# part you fit afterwards. Same number, much bigger swing, so the ladder stops
-	# at the reactor door.
-	#
-	# ALWAYS READ THE NET. The grant alone means nothing: a 4-cell armature
-	# granting 6 leaves room for 2, which is exactly what a 1-cell cable granting
-	# 3 leaves. Printing the grant made the armature look like three times the
-	# cable, and somebody asked why, which is how the display got fixed.
-	#
-	# CAPACITY ONLY, NEVER OUTPUT. None of them hands out energy per turn. Energy
-	# is the axis every card is priced against — three of it plays two cards and
-	# five plays four — so it stays with the hull, the `overspec_reactor` perk and
-	# the Verity five-set, where there are exactly three of it and it can be
-	# reasoned about. What these sell is ROOM.
-	#
-	# Four manufacturers and the yard, and not the other three, because a power bus is a
-	# thing a manufacturer has an opinion about: Solari runs the reactor, the Combine
-	# pulls one out of something else, Redline adds cable, and Korvan overbuilds
-	# the armature. Cygnet, Verity and Calyx have nothing to say about it.
+	# Self-limiting: a part that grants capacity also occupies it, so it nets at most +2.
+	# Capacity only, never energy per turn, and off the grade ladder: it is a budget.
+	# Why: docs/why/Database.md#reactor-capacity
 	_module(&"buscoupling", "Bus Coupling", &"", S, C0,
 		"A second line to the same reactor. Every ship from a yard has one.",
 		[{name = "Shunt", energy = 1, vent = 2, draw = 1}, &"reroute"])
@@ -1114,37 +751,12 @@ func _seed_modules() -> void:
 	_seed_module_passives()
 	_seed_module_sizes()
 
-## Sensors and Stealth, laid on modules that already exist.
-##
-## Adding six attribute-bearing modules would have been the obvious move and the
-## wrong one — CLAUDE.md's fifth priority is to resist adding content until the
-## loop feels good. Every one of these already reads as the thing it now does:
-## an Auspex Array is a sensor, a Ghost Drive hides you, a flare rack does the
-## exact opposite. The attribute was latent in the catalog; this names it.
-##
-## Kept in one table rather than as two more arguments on _module() because it
-## is a property of six modules out of thirty-four, and thirty-four call sites
-## carrying `0, 0` would bury the six that matter.
-## How much hold each part takes. See ModuleData.size for what a shape MEANS.
-##
-## A default per slot and a list of exceptions, rather than 55 sizes written out
-## one at a time. The default is the honest claim — a system is a compact unit, a
-## utility is a fitting — and every entry below is a part whose NAME already says
-## it is not: a Lance is long, a Bay is bulky, a Scope is neither.
-##
-## The test applied to each was "would you be surprised to see this shape in the
-## hold". A Precursor Lattice at 2x2 is not surprising; a Coolant Line at
-## anything but 1x1 would be.
+## Sensors and stealth are named on existing parts, not new content (CLAUDE.md priority five).
+## Size is a default per slot plus exceptions, only for parts whose name says otherwise.
+## Why: docs/why/Database.md#module-sizes
 func _seed_module_sizes() -> void:
-	# FOUR ACROSS, and the only shape a light hull cannot rotate. A light hold is
-	# 4x3, so a spinal gun fills an entire row of the twelve cells a skiff has and
-	# stood on end does not fit at all — the grid refuses it, because 1x4 runs off
-	# the bottom. That is a real decision rather than a side effect: it makes hull
-	# weight bite in the HOLD, where until now it only bit in the mount count.
-	#
-	# Four parts carry it: the three guns whose names already said so (a siege
-	# driver, a drumfire and a rail are things a frame is built around) and
-	# Solari's Heliostat.
+	# 4x1 is the one shape a light hold (4x3) cannot rotate, so hull weight bites in the hold.
+	# Why: docs/why/Database.md#module-sizes
 	const SPINE := Vector2i(4, 1)
 	const LONG := Vector2i(3, 1)
 	const BULK := Vector2i(2, 2)
@@ -1175,18 +787,9 @@ func _seed_module_sizes() -> void:
 		&"radiatorsail", &"annealer", &"mirrorarray",
 	]
 
-	# WHAT THE REACTOR CAN CARRY, granted by a part. Here rather than in the
-	# `_module` call because `_module` takes what a part IS and the passives are
-	# seeded in a pass of their own, the same as sensors and stealth.
-	# EVERY COUPLING RAISES REACTOR BY THE SAME +2 LEVELS, which the table turns
-	# into six cells and, where the step falls, a point of energy. The part's
-	# number and the number on the bar are now the same number — somebody asked
-	# why the armature granted six, and the honest answer used to be that six was
-	# picked to make its net come out at two.
-	#
-	# FLAT ACROSS ALL FIVE. Capacity is a budget and does not climb with grade;
-	# what differs is what each part COSTS to run, so a 1-cell cable keeps more of
-	# its own six than a 2x2 armature does.
+	# Every coupling raises reactor by the same +2 levels, flat across grades.
+	# Seeded in its own pass because `_module` takes what a part is, not what it carries.
+	# Why: docs/why/Database.md#reactor-capacity
 	for id in [&"buscoupling", &"foundrybus", &"trunkline", &"jumper", &"mainbus"]:
 		(modules[id] as ModuleData).reactor = REACTOR_BUMP
 
@@ -1205,33 +808,9 @@ func _seed_module_sizes() -> void:
 		else:
 			m.size = UNIT
 
-## THE ATTRIBUTE LADDER. What a grade is worth, in PIPS on the one gauge a part
-## moves. Indexed by ModuleData.Rarity.
-##
-##     COMMON 0   UNCOMMON 0   RARE 1   EPIC 2   LEGENDARY 3
-##     EXOTIC 3   ARTIFACT 4   CONTRABAND 2
-##
-## COMMON AND UNCOMMON GIVE NOTHING, which is a statement and not an oversight:
-## yard stock is CARDS. Hull Plating used to carry +3 hull while a Brace Frame,
-## which is two grades rarer, carried +2 — the table was authored one part at a
-## time and had drifted into saying a common was better than a rare at the thing
-## the rare is named for. A ladder cannot drift.
-##
-## The cost of that is real and worth knowing: a run now opens with no passive
-## stats at all, because the entire starting kit is common. The first rare part
-## you bolt on is the first pip you have ever had.
-##
-## EXOTIC MATCHES LEGENDARY AND PAYS FOR IT somewhere else. Grown things are
-## alive and inconvenient, and the trade is the identity rather than a bigger
-## number — a Voidwhale Ganglion hears everything in the system, and everything
-## in the system hears it. ARTIFACT is the top of the found ladder and there are
-## two of them. CONTRABAND sits at Epic on purpose: it is not a quality grade at
-## all, it is a fact about who sold it to you, so it performs like an epic and
-## carries risk instead of power.
-## The script, not the singleton. RunState carries no class_name and Database
-## is the autoload BEFORE it, so `Run.PER_PIP` is a null dereference at the
-## moment the catalogue is built. A preload reaches the constants without
-## needing the node to exist.
+## Common and uncommon give no pips: yard stock is cards, so a common cannot out-plate a rare.
+## Preload the script: `Run` is a later autoload, so `Run.PER_PIP` is null here.
+## Why: docs/why/Database.md#attribute-ladder
 const RUNSTATE := preload("res://scripts/autoload/RunState.gd")
 
 const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
@@ -1240,19 +819,9 @@ const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
 ## ladder above — the ruling is written beside the parts themselves.
 const REACTOR_BUMP := 2
 
-## WHICH GAUGE A PART MOVES. The size is not here — it comes from the grade,
-## through ATTR_BUMP and RunState.PER_PIP. This table only answers "which one".
-##
-## ONE GAUGE FOR MOST PARTS, AND TWO FOR A FEW. Cold Sights used to carry vent AND
-## sensors, Ghost Drive dodge AND stealth, the Fire Director initiative AND
-## sensors — so "a rare part is worth one pip" could not be true of any of them,
-## and a part quietly moving two gauges was worth double its grade with nothing
-## on the screen saying so. The axis is the one the NAME picks: sights see, a
-## drive is how you are not there, a director decides.
-##
-## A part with no entry moves nothing, and most of the catalogue has none. That
-## is deliberate as well: the axis has to be latent in what the part IS, and a
-## gun is not a claim about any of the six.
+## Names the one gauge a part moves, picked by what its name implies. Size comes from the grade.
+## A part moving two gauges silently was worth double its grade.
+## Why: docs/why/Database.md#attribute-ladder
 const PASSIVE_AXIS := {
 	# Plate, bracing, armour.
 	&"plating": [&"hull"], &"bracing": [&"hull"], &"plate": [&"hull"],
@@ -1272,11 +841,7 @@ const PASSIVE_AXIS := {
 	&"evoke": [&"sensors"], &"organ": [&"sensors"],
 	# Not being seen.
 	&"ghost": [&"stealth"], &"lattice": [&"stealth"],
-	# TWO GAUGES, AND THE FULL BUMP ON BOTH. A part that does two things gets
-	# paid for two things — Pillar 5, and the reason a build that comes together
-	# should feel absurd. The Standfast Rig grants Standfast (armour AND vent) and
-	# Hold Fast; it plants you and it sheds what planting costs, and it was
-	# reading as neither.
+	# Two gauges, full bump on both: a part that does two things is paid for two (Pillar 5).
 	&"standfast": [&"hull", &"thermal"],
 	# The rungs that had nobody on them.
 	&"cryobat": [&"thermal"], &"gunnery": [&"sensors"],
@@ -1288,13 +853,8 @@ const PASSIVE_AXIS := {
 }
 
 
-## WHAT A PART COSTS YOU, in pips, on a gauge that is not its own.
-##
-## Not a grade bump and not on the ladder — these are prices, authored per part,
-## and they are what lets the ladder stay flat at the top. A Solari flare rack
-## lights you up. A Voidwhale Ganglion is a living antenna and transmits as well
-## as it listens. Both were true in the flavour before they were true in the
-## numbers.
+## Prices in pips on a gauge not the part's own, authored per part, so the ladder stays flat.
+## Why: docs/why/Database.md#attribute-ladder
 const PASSIVE_COST := {
 	&"flare": [&"stealth", 1],
 	# The brightest thing on the hull, by design.
@@ -1303,18 +863,9 @@ const PASSIVE_COST := {
 }
 
 
-## Every passive in the catalogue, derived rather than authored.
-##
-## This replaces two hand-written tables of raw numbers — one for sensors and
-## stealth, one for the four gauges under them — and the point of replacing them
-## is that a hand-written number cannot be checked against a rule. It is now
-## impossible to author a common that out-plates a rare, because nobody authors
-## the plating: the grade does.
-##
-## Rounded into the field it lands in. `dodge` is a float and keeps its
-## fraction; everything else is an int, so a pip of venting is 2 rather than
-## 1.5. That rounding is exactly why `-- attrtest` measures the gauge instead of
-## trusting this.
+## Derived from the grade, so a common cannot be authored to out-plate a rare.
+## Rounded into each field, so `-- attrtest` measures the gauge instead of trusting this.
+## Why: docs/why/Database.md#attribute-ladder
 func _seed_module_passives() -> void:
 	for id in PASSIVE_AXIS:
 		var m: ModuleData = modules[id]
@@ -1325,14 +876,9 @@ func _seed_module_passives() -> void:
 		_lay_pips(modules[id] as ModuleData, row[0], -int(row[1]))
 
 
-## A PART'S GRADE AND ITS PIPS MOVE TOGETHER. Every copy of a part starts as
-## a duplicate of its catalogue entry, whose pips were laid for the catalogue
-## grade (`_seed_module_passives`). Loot can roll a part a grade up
-## (`LootGen.roll_module`), and a save rebuilds a part from its entry plus the
-## grade it was saved at (`SaveGame._module_from`). Both used to set `rarity`
-## alone: the readout prints pips from the grade, the gauge reads the fields,
-## and an Uncommon Ranging Optics rolled Rare showed SENSORS +1 and moved
-## nothing (Geno, Oct 22). This lays the difference between the two grades.
+## Grade and pips move together: loot and saves set `rarity` alone, so readout and gauge split.
+## Lays the difference between the two grades (Geno, Oct 22).
+## Why: docs/why/Database.md#regrading
 func regrade(m: ModuleData, rarity: int) -> void:
 	var was := int(m.rarity)
 	m.rarity = rarity as ModuleData.Rarity
@@ -1343,16 +889,9 @@ func regrade(m: ModuleData, rarity: int) -> void:
 		_lay_pips(m, axis, delta)
 
 
-## Move one gauge by `pips`, through every field that gauge is made of.
-##
-## THERMAL and MANEUVER each have two, and BOTH move. That is the whole point
-## of a gauge being one entry: a part says +1 MANEUVER and gets faster and
-## harder to hit, because those are not two things a player weighs separately
-## while reading one bar.
-##
-## `+=` and not `=`, so a part can take a bump on one axis and a price on
-## another without the second overwriting the first. The Voidwhale Ganglion is
-## the part that needs it, and it would have silently lost its bump.
+## A gauge moves every field it is made of, so +1 maneuver is faster and harder to hit.
+## `+=` and not `=`, so a bump and a price on different axes do not overwrite each other.
+## Why: docs/why/Database.md#attribute-ladder
 func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 	if pips == 0:
 		return
@@ -1373,47 +912,20 @@ func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 
 # ------------------------------------------------------------------------ hulls
 
-## Twenty-four hulls: each of seven manufacturers in all three weight classes,
-## plus the three unbranded salvage frames.
-##
-## AUTHORED AS BASELINE + SIGNATURE, not as twenty-four stat blocks. Weight class
-## decides the shape of a ship — a light frame is fast and thin whoever welded
-## it — and the manufacturer decides how that shape is bent. Writing all
-## twenty-four out by hand would scatter each manufacturer's identity across three
-## rows, so "what IS Solari" would only be answerable by diffing three tables,
-## and a signature could drift between weights without anyone noticing.
-##
-## Here it is one line per manufacturer. Solari is +8 heat capacity, -1 dissipation and
-## -2 stealth, on every frame it builds. That is the whole manufacturer.
-##
-## DISSIPATION IS SMALL ON PURPOSE — one or two a turn, four at the very top.
-## It used to run to eight, which vented a full combat's worth of heat for free
-## and made the cooling cards decorative: you could fire the hot weapon every
-## turn and the hull paid it off behind you. Passive venting is now a trickle,
-## so getting heat off is something you spend a card on, and capacity is what
-## decides how long you can put that off.
+## Baseline per weight plus one signature per manufacturer, so one line says what a manufacturer is.
+## Dissipation is a trickle on purpose, so heat comes off with cards, not for free.
+## Why: docs/why/Database.md#hull-baselines
 const WEIGHT_BASE := {
-	# Two system mounts, not one. A light frame has the BIGGEST hand and the
-	# FEWEST mounts, and those compound the wrong way: fewer mounts is fewer
-	# modules is fewer cards, so the ship that draws six was the ship with a
-	# five-card deck. Measured, an Atelier Yacht opened with four cards against
-	# a hand of five — every turn identical, nothing to sequence, no deck at all.
-	# The extra system slot is where the floor comes from.
+	# Light gets two system mounts: with the fewest mounts it had a five-card deck (measured).
+	# Why: docs/why/Database.md#hull-baselines
 	HullData.Weight.LIGHT: {
 		hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
 		dodge = 0.18, initiative = 2, fuel_factor = 0.8, thrust = 4,
 			cargo_slots = 12,
 		hold_grid = Vector2i(4, 3),
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
-	# A second utility mount, because the middle had nothing of its own.
-	#
-	# Measured across 250 runs on each of twenty-one chassis, mediums averaged
-	# 15.2% against 20.2% for lights and 21.7% for heavies — and Switchback, the
-	# worst ship in the game, was the worst case of that rather than its own
-	# problem. A medium had six mounts like a light and a hand of five like
-	# nothing else: strictly between the two, with no compensating advantage.
-	# Seven mounts is the compensation, and versatility is a coherent thing for
-	# the middle of a range to be.
+	# Medium gets a second utility mount: over 250 runs it won 15.2% against 20.2% and 21.7%.
+	# Why: docs/why/Database.md#hull-baselines
 	HullData.Weight.MEDIUM: {
 		hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
 		dodge = 0.05, initiative = 0, fuel_factor = 1.2, thrust = 6,
@@ -1428,59 +940,9 @@ const WEIGHT_BASE := {
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
 
-## The four specification classes a frame comes in, worst to best. A hull is a
-## SHAPE and a CLASS: an S-class Ironside is the same yard's answer to the same
-## job, built to a better standard — not a C-class that somebody looked after.
-##
-## That distinction is load-bearing and was got wrong once. This table grows
-## HARDPOINTS at A and S, which no amount of maintenance does; condition is a
-## separate axis entirely, lives on hull points, and is drawn by HullWear onto
-## the sprite. One letter cannot mean both.
-##
-## Tier has existed on HullData since the beginning and was never authored — it
-## was a bag of random bumps inside LootGen.roll_hull, applied to whatever frame
-## came out of the pick. That had two problems worth naming. It was NOT
-## REPRODUCIBLE as a description: "an A-class Bastion" named a distribution
-## rather than a ship, and two of them could differ by a hardpoint, because a
-## weapon mount was granted on a coin flip at B. And it was invisible — nothing
-## in the interface has ever shown the player a letter.
-##
-## SCALE rather than flat bonuses, so a grade is the same PROPORTIONAL upgrade on
-## every frame it is applied to. A flat +21 hull is 87% of a light and 40% of a
-## heavy; +52% is +52% of both. The numbers below compound to roughly half again
-## the hull from C to S, which is about what the random bumps averaged out to —
-## the one thing here chosen to match the old behaviour rather than improve on it.
-##
-## MOUNTS ARE THE REWARD, and only at the top two grades. A is where a frame
-## grows a weapon hardpoint; S adds a system one and the reactor to run it. That
-## is deliberately a bigger jump than more hull, because a mount is a card, and a
-## card is the thing this game is actually made of.
-##
-## Applied ONLY to a tier-0 frame. `at_tier` SCALES, so handing it a hull that
-## already carries a grade compounds it silently. Everything in `hull_frames` is
-## tier 0 by construction; nothing else should be passed.
-## Named in HullData, which owns what a grade IS. This table owns what it DOES,
-## and the two are indexed the same — keep them the same length.
-## THE REACTOR LEVEL IS SET, NOT ADDED. Every other field here is a delta on
-## the frame; this one is absolute, because the grade letter is the only thing
-## that decides it. It used to be the weight class with a delta on top — heavy
-## carried a reactor of 4 and S added one — which meant C and B were the same
-## ship twice and the letter told a player almost nothing.
-##
-## 4 / 5 / 7 / 8, which RunState.REACTOR_TABLE turns into:
-##
-##     C   12 cells, 3 energy       A   21 cells, 4 energy
-##     B   15 cells, 3 energy       S   24 cells, 5 energy
-##
-## A AND S SKIP A RUNG EACH, which is where the energy steps are. The gap from
-## B to A is the largest on the ladder and it is meant to be: it is the one
-## that buys a fourth point of energy, and energy is the axis every card is
-## priced against.
-##
-## 24 AT THE TOP STILL BITES. A fully mounted S heavy is five weapons, three
-## systems and a utility, and the catalogue averages 2.80 / 2.55 / 1.57 cells
-## for those — 23.2 to fill it, against 24 with nothing spare for a big gun.
-## The best hull in the game still cannot run everything it can bolt on.
+## A grade is a class of the same ship, not condition: mounts grow only at A and S.
+## Scales a tier-0 frame only, as `at_tier` compounds. Reactor level is set, not added.
+## Why: docs/why/Database.md#hull-grades
 const TIER_DELTA := [
 	{scale = 1.00, weapon = 0, system = 0, reactor = 4, dissipation = 0},
 	{scale = 1.15, weapon = 0, system = 0, reactor = 5, dissipation = 0},
@@ -1488,20 +950,14 @@ const TIER_DELTA := [
 	{scale = 1.52, weapon = 1, system = 1, reactor = 8, dissipation = 1},
 ]
 
-## Per-manufacturer deltas applied on top, and the three names. `names` runs
-## light, medium, heavy. One word each, with no class word after it (Jon, Oct 15:
-## "get rid of the second word for each ship").
+## Per-manufacturer deltas and three names, one word each (Jon, Oct 15).
 const MANUFACTURER_HULLS := {
 	&"korvan": {
 		# Jon's pick, Oct 15 (the name page, group G: "The works floor" with
 		# Hammer for Rivet -- "rivet is weird")
 		names = ["Hammer", "Anvil", "Foundry"],
-		# ONE NAME PER WEIGHT, the same C through S (Jon, Oct 15: "I just want
-		# them to have their own unique names. One for each weight. C>S for each
-		# weight would have the same name"). The four Korvan names a weight had
-		# (Picket, Warden, Halberd, Sabre Cutter) are retired with the other
-		# per-grade art: a grade is one ship graded in code now, so it is one
-		# ship by name too, and the letter says the grade.
+		# One name per weight across grades C to S (Jon, Oct 15): a grade is graded in code.
+		# Why: docs/why/Database.md#hull-names
 		perk_id = &"baffled_vents",
 		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
 	&"solari": {
@@ -1515,18 +971,9 @@ const MANUFACTURER_HULLS := {
 		perk_id = &"salvage_rack",
 		d = {max_hull = 8, heat_cap = 2, dissipation = -1, initiative = -1,
 			fuel_factor = 0.2, stealth = -1, utility_slots = 1, weapon_slots = -1}},
-	# Measured worst in the game by a wide margin — a Switchback won 8.6% where a
-	# Greatvine won 31.8% — and the trade is why: -6 hull off a 35-point medium
-	# is seventeen per cent of the ship, bought with three per cent of dodge.
-	# That was never going to pay.
-	#
-	# It also had the one perk we PROVED does nothing. cheap_parts halves repair
-	# prices, and cutting repair prices by 40% across the whole game moved the
-	# win rate inside its own noise band — so Redline was effectively flying
-	# without a perk. It takes salvage_rack instead: a chop shop that registers
-	# no serials is a salvage yard with a shopfront. It had spare_bay for a
-	# while, which suited the refit business and asked for a hardpoint no hull
-	# was rigged to carry -- see the note in _seed_perks.
+	# Redline was the worst in the game (8.6% vs 31.8%): -6 hull goes. It takes `salvage_rack`.
+	# `cheap_parts` was measured to do nothing, and `spare_bay` needs a hardpoint no hull carries.
+	# Why: docs/why/Database.md#redline-balance
 	&"redline": {
 		# Jon's pick, Oct 15 (the name page, group B "Lights out")
 		names = ["Ghostlight", "Moonrunner", "Blackout"],
@@ -1538,9 +985,7 @@ const MANUFACTURER_HULLS := {
 	&"cygnet": {
 		# Jon's pick, Oct 15 (the name page, group I "Crows")
 		names = ["Raven", "Murder", "Nightfall"],
-		# Was spare_bay. Drones are cards, and a drone manufacturer wants more of
-		# them in hand -- which is also why this one is NOT Redline's, whose
-		# 3-set already draws an extra card and would have stacked with it.
+		# Drones are cards, so draw suits Cygnet. Not Redline's, whose 3-set draw would stack.
 		perk_id = &"quick_hands",
 		d = {max_hull = -3, dissipation = 1, dodge = 0.03, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
@@ -1550,11 +995,7 @@ const MANUFACTURER_HULLS := {
 		perk_id = &"overspec_reactor",
 		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, stealth = 1, weapon_slots = -1}},
-	# Strongest manufacturer at every weight, measured twice. The hull bonus is the part
-	# that had no business being there: Calyx is regeneration and adaptation, not
-	# armour, and +2 max hull on top of the extra system mount and the best
-	# dissipation in the game made its heavy the best chassis by six points.
-	# It keeps everything that is actually its identity.
+	# Calyx was strongest at every weight, measured twice. The hull bonus did not fit its identity.
 	&"calyx": {
 		# Jon's pick, Oct 15, in chat: a tree, a small group of trees, then
 		# the grown room that keeps them
@@ -1565,10 +1006,7 @@ const MANUFACTURER_HULLS := {
 }
 
 func _seed_hulls() -> void:
-	# The unbranded three, kept exactly as this game shipped them. A derelict has
-	# to be able to offer a chassis that carries no allegiance — it is what keeps
-	# "identity is assembled mid-run" true after choosing a manufacturer at the start,
-	# because taking a salvage frame COSTS you a set piece.
+	# Unbranded frames let a derelict offer a chassis with no allegiance, at a set piece's cost.
 	var salvage := [
 		{name = "Skiff Frame", weight = HullData.Weight.LIGHT},
 		{name = "Medium Frame", weight = HullData.Weight.MEDIUM},
@@ -1606,18 +1044,14 @@ func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dict
 	var d: Dictionary = spec.d
 	for k in d.keys():
 		h.set(k, h.get(k) + d[k])
-	# Floors, because a delta table cannot see what it collides with: Verity's
-	# -1 weapon slot on a light frame would otherwise build a warship with one
-	# gun and Calyx's would build one with none.
+	# Floors, as a delta table cannot see collisions: Verity or Calyx would build a gunless light.
 	h.weapon_slots = maxi(1, h.weapon_slots)
 	h.system_slots = maxi(1, h.system_slots)
 	h.utility_slots = maxi(1, h.utility_slots)
 	h.dissipation = maxi(1, h.dissipation)
 	h.dodge = maxf(0.0, h.dodge)
 	h.fuel_factor = maxf(0.5, h.fuel_factor)
-	# WEIGHT_BASE holds stats, not identity, so the weight itself is not among
-	# the keys copied above. Without this every manufacturer hull stayed at HullData's
-	# default MEDIUM and hull_for(manufacturer, LIGHT) matched nothing.
+	# `WEIGHT_BASE` holds stats, not identity, so weight is set here or every hull stays MEDIUM.
 	h.weight = w
 	h.manufacturer = manufacturer
 	h.name = manufacturer_hull_name(manufacturer, w, 0)
@@ -1628,34 +1062,9 @@ func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dict
 	set_exhaust(h, DEFAULT_EXHAUST)
 	return h
 
-## The art for a weight class at a specification class, or null to fall back to
-## ShipView's procedural drawing.
-##
-## ONE FOLDER PER MANUFACTURER THAT HAS ART (`HULL_ART`), and Korvan's for
-## everyone else. Solari got its own three (Jon, Oct 15) and flies them; the
-## five without pictures, and the unbranded salvage frames, still wear Korvan's.
-## That last part is knowingly wrong -- a Calyx hull in Korvan amber -- and it
-## stands until each manufacturer's three are drawn: a picture in the wrong
-## livery is a better placeholder than a procedural box.
-##
-## KEYED ON CLASS AS WELL AS WEIGHT, which is what finally makes C through S
-## something a player can SEE. TIER_DELTA has granted an A-class frame an extra
-## weapon hardpoint and an S-class one a system mount since it was written, and
-## none of it was visible — a C and an S were the same picture with different
-## numbers behind them.
-##
-## Four sprites per weight rather than a base plus composited fittings. That was
-## the other plan and it lost: bays measured off the medium, a fitting engine to
-## bolt things into them, a template pipeline to force the profile. Every part
-## worked and the sum was worse than picking four hulls out of thirty. The
-## fitting engine survives in HullFit for whenever a hull has room for it.
-##
-## ALL THREE WEIGHTS, twelve sprites, so the procedural path no longer draws any
-## player hull. `hull_medium_cold.png` stays on disk and stays the canonical
-## style reference every generation is seeded from — it is simply no longer the
-## thing rendered.
-## `half` asks for the reduced set the convoy column draws from. Same filenames
-## one folder down, so the two can never describe different hulls.
+## Folder per manufacturer with art, others wear Korvan's: better than a procedural box.
+## Keyed on class and weight so a grade is visible. Four sprites per weight beat a fitting engine.
+## Why: docs/why/Database.md#hull-art
 func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false,
 		manufacturer: StringName = &"") -> Texture2D:
 	var n := hull_art_name(w, cls, manufacturer)
@@ -1666,10 +1075,7 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false,
 	var sub := "half/" if half else ""
 	return load("res://art/sprites/hulls/%s/%s%s.png" % [hull_art_dir(manufacturer), sub, n]) as Texture2D
 
-## The manufacturers with hull pictures of their own, and which picture each
-## weight's grades are baked from (`HullGrade`). Korvan's light is today's C and
-## its medium and heavy today's A (Jon, Oct 14: "L1 H3"); Solari has one
-## picture a weight, Jon's picks of Oct 15, all filed as A.
+## Manufacturers with their own hull art, and each weight's base picture (Jon, Oct 14, 15).
 const HULL_ART := {
 	&"korvan": {"light": "c", "medium": "a", "heavy": "a"},
 	&"solari": {"light": "a", "medium": "a", "heavy": "a"},
@@ -1680,11 +1086,7 @@ const HULL_ART := {
 func hull_art_dir(manufacturer: StringName) -> String:
 	return String(manufacturer) if HULL_ART.has(manufacturer) else "korvan"
 
-## THE KEY a hull's measured tables are filed under: `HULL_MOUNTS`,
-## `HULL_EXHAUST`, `HULL_LINES`. Korvan's are the bare file name, as they always
-## were; another manufacturer's carry its folder ("solari/hull_light_a"),
-## because the file names repeat in every folder and a Solari light reading
-## Korvan's light's mounts would hang its guns in the air.
+## Key for measured tables. Other folders carry a prefix as file names repeat across them.
 func hull_art_key(w: HullData.Weight, cls: int = 0, manufacturer: StringName = &"") -> String:
 	var n := hull_art_name(w, cls, manufacturer)
 	if n == "":
@@ -1692,17 +1094,9 @@ func hull_art_key(w: HullData.Weight, cls: int = 0, manufacturer: StringName = &
 	var dir := hull_art_dir(manufacturer)
 	return n if dir == "korvan" else "%s/%s" % [dir, n]
 
-## THE SPRITE BOLTED TO A HULL for a module, or null while it has none.
-##
-## Guarded on `ResourceLoader.exists` rather than handed straight to `load()`,
-## and that is not politeness. A missing path makes `load()` log an error every
-## call, and on the day this lands every one of forty-three modules is missing —
-## which is not a warning, it is a wall of them, hiding whatever real error
-## arrives next. Null is the honest answer and every drawing site already has a
-## procedural fallback for it.
-##
-## One folder, keyed on the module's own id, for the same reason the hulls are:
-## the filename cannot then describe a different part than the data does.
+## Guarded on `ResourceLoader.exists`: a missing path makes `load()` log an error every call.
+## Null is the honest answer, and every drawing site has a procedural fallback.
+## Why: docs/why/Database.md#sprite-lookups
 func module_sprite(id: StringName) -> Texture2D:
 	if id == &"":
 		return null
@@ -1711,12 +1105,8 @@ func module_sprite(id: StringName) -> Texture2D:
 		return null
 	return load(path) as Texture2D
 
-## A MATERIAL'S PICTURE, or null while it has none.
-##
-## Same convention as `module_sprite`, one directory over. Materials had no art
-## at all until two artifacts earned some, and the forty rows of deck plate and
-## coil stock are expected to keep the drawn container forever -- see
-## `MaterialIcon`, which argues cargo should read as cargo.
+## Same convention as `module_sprite`. Cargo keeps the drawn container (`MaterialIcon`).
+## Why: docs/why/Database.md#sprite-lookups
 func material_sprite(id: StringName) -> Texture2D:
 	if id == &"":
 		return null
@@ -1725,9 +1115,7 @@ func material_sprite(id: StringName) -> Texture2D:
 		return null
 	return load(path) as Texture2D
 
-## A CARD'S ILLUSTRATION, or null while it has none. See `CardData.art_key()`
-## for where the key comes from — it is the card's name slugged, unless the card
-## names a file itself.
+## Null while a card has no art. The key is the card name slug unless the card names a file.
 func card_art(key: StringName) -> Texture2D:
 	if key == &"":
 		return null
@@ -1737,43 +1125,13 @@ func card_art(key: StringName) -> Texture2D:
 	return load(path) as Texture2D
 
 ## ---------------- the three families that are still drawn ----------------
-##
-## Sector places, the station and every enemy are painted procedurally, and that
-## was a decision rather than a gap: the compositions were settled in rectangles
-## so that a prompt could describe a picture already checked. `StationSpine`:
-## "If art lands it replaces the body of `_draw`; if it never does, this is the
-## rail."
-##
-## These three are the door that art comes through. Same shape as
-## `module_sprite` and for the same reasons -- guarded, null on miss, one folder
-## keyed on the id the data already uses. Every caller keeps its procedural body
-## underneath, so a family can land one file at a time and a missing file is a
-## drawn picture rather than a hole.
+## Places, station and enemies are painted procedurally by decision, and art comes through here.
+## Callers keep their procedural body so a family can land one file at a time.
+## Why: docs/why/Database.md#sprite-lookups
 
-## AN ENEMY'S PICTURE, or null while it has none.
-##
-## KEYED ON `id`, NOT ON `art`, AND THE DIFFERENCE IS THE WHOLE POINT. Nine
-## enemy kinds share four drawings today: `art` names the procedural BRANCH, so
-## the Corsair Lancer and the Vex Marauder both draw as `cutter`, and the game's
-## boss draws as a salvage barge. `id` is already unique per kind.
-##
-## Keying the sprite on `id` therefore opens nine slots without touching the
-## data, and -- this is the part that matters -- WITHOUT CHANGING WHAT IS DRAWN
-## TODAY. Had `art` been split instead, five enemies would have got a new key
-## the moment the data changed, `EnemyArt`'s match would have missed on all five,
-## and its `_:` fallback would have quietly turned the boss into a fauna before
-## a single sprite existed. The fallback has to keep drawing exactly what it
-## draws now, or the seam is a regression wearing a plan's clothes.
-##
-## SEVERAL PICTURES PER KIND, ONE PER FIGHT (Jon, 2026-10-13). An enemy id can
-## own a list of kept pool ships (`art/sprites/enemies/index.json`, written by
-## `tools/enemy_sprites.py`) and `look` picks one, wrapping: the fight stores it
-## on the `EnemyState` (`Combat.look_for`, positional, so every machine and the
-## wreck it leaves agree). An id with no list falls back to `<id>.png`.
-##
-## `half` takes the picture's HALF SHEET instead (a fight with three or more
-## ships draws them all from it, the way the convoy draws hulls; see
-## `EncounterView._layout_pack`).
+## Keyed on `id`, not `art`: splitting `art` would break `EnemyArt`'s fallback and redraw the boss.
+## Several pictures per kind, one per fight, `look` picks one (Jon, 2026-10-13).
+## Why: docs/why/Database.md#enemy-sprites
 func enemy_sprite(id: StringName, look: int = 0, half: bool = false) -> Texture2D:
 	if id == &"":
 		return null
@@ -1806,13 +1164,8 @@ func enemy_sprite_files(id: StringName, half: bool = false) -> Array:
 var _enemy_art_index: Dictionary = {}
 var _enemy_half_index: Dictionary = {}
 
-## A SECTOR PLACE'S PICTURE, or null while it has none.
-##
-## Keyed on a name rather than on `MapGen.NodeType`, because the picture does not
-## follow the type: a SYSTEM draws a battlefield, a derelict or a beacon
-## depending on its option tags, and a battlefield draws two ways depending on
-## whether it is cleared. `EncounterView.AreaView` decides which name it wants
-## and asks for it; the enum never reaches this function.
+## Keyed on a name, not `MapGen.NodeType`: the picture varies with option tags and cleared state.
+## Why: docs/why/Database.md#sprite-lookups
 func place_sprite(name: StringName) -> Texture2D:
 	if name == &"":
 		return null
@@ -1821,15 +1174,8 @@ func place_sprite(name: StringName) -> Texture2D:
 		return null
 	return load(path) as Texture2D
 
-## A STATION PLATE, or null while it has none.
-##
-## TWO LAYERS PER PLATE, WHICH IS WHY THIS TAKES A LAYER ARGUMENT. Livery tints
-## the TRIM and never the walls -- `StationRoom._tint` records why: out of a
-## colour as dark as `#0d141d` a lerp does not tint a wall, it desaturates it,
-## and the shop's wall came out a neutral warm grey at every weight tried. So a
-## plate ships as `<id>_wall.png` and `<id>_trim.png`, the wall is drawn flat and
-## only the trim is tinted. A baked one-layer room would lose the livery
-## entirely, which is the one thing the station has that says whose it is.
+## Two layers per plate: livery tints only the trim, as a lerp on a dark wall desaturates it.
+## Why: docs/why/Database.md#station-plates
 func station_sprite(id: StringName, layer: StringName = &"wall") -> Texture2D:
 	if id == &"" or layer == &"":
 		return null
@@ -1838,9 +1184,7 @@ func station_sprite(id: StringName, layer: StringName = &"wall") -> Texture2D:
 		return null
 	return load(path) as Texture2D
 
-## The art file for a weight and class, without the extension. One place the
-## naming convention is written, so the sprite and its measured lines cannot
-## disagree about which hull they describe.
+## The one place the art naming convention is written, so sprite and lines cannot disagree.
 func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = &"") -> String:
 	var stem := ""
 	match w:
@@ -1848,9 +1192,7 @@ func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = 
 		HullData.Weight.MEDIUM: stem = "medium"
 		HullData.Weight.HEAVY: stem = "heavy"
 		_: return ""
-	# ONE HULL PER WEIGHT where the manufacturer's row of HULL_ART names it:
-	# every grade draws, mounts and burns from that one picture, and HullGrade
-	# bakes the grade onto it.
+	# One hull per weight where HULL_ART names it: every grade draws from it, `HullGrade` bakes it.
 	var base: Dictionary = HULL_ART[StringName(hull_art_dir(manufacturer))]
 	if base.has(stem):
 		return "hull_%s_%s" % [stem, base[stem]]
@@ -1860,11 +1202,7 @@ func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = 
 	return "hull_%s_%s" % [stem, letter.to_lower()]
 
 
-## ONE HULL PER WEIGHT, FOUR GRADES BAKED FROM IT (Jon, Oct 14: "Instead of
-## generating 12 ships per manufacturer. We just do Three"; picked wear + paint +
-## markings + lights + kit, "AB+DEF"). Korvan's row of HULL_ART, which is what
-## this constant always held; a weight missing from a manufacturer's row would
-## still have a picture per grade.
+## One hull per weight, four grades baked from it, not twelve ships a manufacturer (Jon, Oct 14).
 const GRADE_BASE: Dictionary = HULL_ART[&"korvan"]
 
 ## Whether this weight's grades are baked from one hull (HullGrade) rather than
@@ -1877,13 +1215,8 @@ func graded(w: HullData.Weight, manufacturer: StringName = &"") -> bool:
 		HullData.Weight.HEAVY: return base.has("heavy")
 	return false
 
-## Copy the measured dorsal, ventral and flank lines onto a hull.
-##
-## Called wherever the SPRITE is set, and for the same reason `exhaust_offset`
-## is: the lines are measured against one specific image, so a hull carrying
-## another hull's lines mounts its guns in mid-air. Keeping the two assignments
-## adjacent is what stops them drifting apart.
-## Copy the placed mounts AND the fallback lines onto a hull.
+## Lines belong to one sprite, so set them wherever the sprite is set or guns hang in mid-air.
+## Why: docs/why/Database.md#hull-mounts
 func apply_hull_lines(h: HullData) -> void:
 	var key := hull_art_key(h.weight, h.tier, h.manufacturer)
 	if not HULL_LINES.has(key):
@@ -1898,23 +1231,9 @@ func apply_hull_lines(h: HullData) -> void:
 		h.system_anchors.assign(m.system)
 		h.utility_anchors.assign(m.utility)
 
-## Where things bolt on, PLACED BY HAND in the rigging bench
-## (`art/tools/rig_bench.py korvan`) rather than measured off the
-## silhouette. Sprite pixel coordinates on the padded hulls.
-##
-## GENERATED. Re-run the bench after replacing a hull sprite: a point
-## placed against art that has since changed puts a gun in mid-air,
-## and nothing about that fails loudly. `-- mounts` is what makes it
-## fail loudly.
-##
-## These SUPERSEDE HULL_LINES where they exist; the lines remain the
-## fallback for a manufacturer whose slot count this rigging does not cover.
-## See HullData.mounts_along().
-## RE-RIGGED against the redrawn hulls. The previous 89 were placed on the
-## sprites that shipped before the Korvan redraw and `-- mounts` failed 18 of
-## them outright; these were placed in the bench on the art that is actually
-## here. The measured lines in HULL_LINES remain the fallback for a manufacturer
-## whose slot count this rigging does not cover.
+## Hand-placed in the rig bench (`art/tools/rig_bench.py korvan`): re-run after replacing a sprite.
+## A stale point fails silently, so `-- mounts` is what makes it fail loudly.
+## Why: docs/why/Database.md#hull-mounts
 const HULL_MOUNTS := {
 	"hull_light_c": {
 		weapon = [Vector2(220, 27), Vector2(220, 67), Vector2(144, 79)],
@@ -1976,13 +1295,8 @@ const HULL_MOUNTS := {
 		system = [Vector2(135, 84), Vector2(196, 84), Vector2(262, 84)],
 		utility = [Vector2(176, 50)],
 	},
-	# SOLARI (Oct 17), placed against Jon's three picks the way Korvan's were:
-	# the guns on the hull's top and bottom edge ahead of the brass rings,
-	# pointing forward, a third down the nose's spine; the systems on the ring
-	# section, where the hull is deepest; utilities on the centre line and the
-	# radiator crest. Clear of the stern bells, which the flame comes out of.
-	# Listed in the order the grades open them (C first, then A's gun, then S's
-	# system), so a C-grade ship is never missing its front pair.
+	# Solari mounts listed in the order grades open them, so a C-grade ship keeps its front pair.
+	# Why: docs/why/Database.md#hull-mounts
 	"solari/hull_light_a": {
 		weapon = [Vector2(166, 32), Vector2(166, 72), Vector2(251, 50)],
 		system = [Vector2(156, 52), Vector2(209, 52), Vector2(116, 53)],
@@ -2000,11 +1314,7 @@ const HULL_MOUNTS := {
 	},
 }
 
-## The plume each hull flies, and where it sits, from the same bench.
-##
-## A hull picks its own strip: nothing is derived from weight class, so a
-## light and a heavy can share one engine or carry different ones. The
-## offset is the strip frame's top-left corner on the hull canvas.
+## Each hull picks its own plume strip, not derived from weight. Offset is the frame's top-left.
 const HULL_EXHAUST := {
 	"hull_light_c": [
 		{id = 0, at = Vector2i(64, 33), back = false},
@@ -2052,10 +1362,7 @@ const HULL_EXHAUST := {
 	"hull_heavy_s": [
 		{id = 24, at = Vector2i(44, 64), back = false},
 	],
-	# SOLARI'S ENGINE BELLS are on the stern face (hull_template.py's spec): the
-	# light's one flat plate, the medium's two stacked bells, the heavy's one
-	# big bell. Each strip sits behind its bell, so its flame shows where the
-	# bell ends and ThrusterFx reads the mouth off the bell's own pixels.
+	# Solari strips sit behind its bells, so the flame shows where the bell ends.
 	"solari/hull_light_a": [
 		{id = 8, at = Vector2i(39, 32), back = true},
 	],
@@ -2068,18 +1375,9 @@ const HULL_EXHAUST := {
 	],
 }
 
-## Measured off each hull's own silhouette by `art/tools/anchors.py`.
-##
-## GENERATED. Re-run the tool after replacing a hull sprite; a line measured
-## against art that has since changed puts mounts in mid-air, and nothing about
-## that fails loudly. `-- mounts` is what makes it fail loudly.
-##
-## Lines rather than points, because a hull carries one to five mounts of a kind
-## depending on weight, class and manufacturer — a fixed list of five used two at a time
-## clusters both at one end of the ship. See HullData.mounts_along().
-##
-## Plain Vector2 arrays, not PackedVector2Array: the packed constructor is a CALL
-## and a `const` needs an expression the compiler can fold. Converted on assignment.
+## Generated: re-run `art/tools/anchors.py` after a sprite change, and `-- mounts` will check.
+## Plain Vector2 arrays: a `const` cannot fold the packed constructor call.
+## Why: docs/why/Database.md#hull-mounts
 const HULL_LINES := {
 	"hull_heavy_a": {
 		dorsal = [Vector2(158, 65), Vector2(172, 58), Vector2(186, 49), Vector2(200, 49), Vector2(214, 49), Vector2(228, 49), Vector2(242, 49), Vector2(256, 59), Vector2(270, 67)],
@@ -2158,24 +1456,10 @@ const HULL_LINES := {
 	},
 }
 
-## The widest canvas any player hull draws into, measured rather than typed.
-##
-## Anything that CROPS a hull has to know this, and the one place that does —
-## the convoy strip — had it as a literal. That literal was correct against the
-## procedural drawing it was written for and quietly wrong the moment real art
-## landed: the sprites are cropped tight to their ships and run from 152 to 237
-## across, so a constant sized for the old canvas took the nose off every heavy
-## in the party. The strip's own comment said "nothing is ever cropped
-## nose-first, which reads as a mistake rather than as distance", which is
-## exactly what it then did.
-##
-## So it is asked rather than remembered. Twelve `load()` calls behind Godot's
-## resource cache, once, on the first ask — the same twelve textures the hulls
-## are already built from.
+## Measured, not typed: a literal sized for the old canvas took the nose off every heavy.
+## Why: docs/why/Database.md#widest-hull
 static var _widest: int = 0
-## Cached separately rather than derived as `_widest / 2`. The halves are files,
-## and a file that is not exactly half its source — one odd dimension, one hull
-## regenerated on its own — would make the derived number quietly wrong.
+## Cached apart from `_widest`: half-size files may not be exactly half their source.
 static var _widest_half: int = 0
 func widest_hull(half: bool = false) -> int:
 	if half and _widest_half > 0:
@@ -2191,9 +1475,7 @@ func widest_hull(half: bool = false) -> int:
 					found = maxi(found, tex.get_width())
 	if half:
 		_widest_half = found
-		# Half the procedural fallback, so a build with no art at all still
-		# gives the column a narrower ship than the solo view rather than the
-		# same one.
+		# Half the procedural fallback, so the column stays narrower than the solo view.
 		return maxi(found, ShipView.W / 2)
 	_widest = found
 	# A build with no hull art at all falls back to the procedural canvas rather
@@ -2203,44 +1485,12 @@ func widest_hull(half: bool = false) -> int:
 ## The engine plume: a 9-frame strip, cropped tight, which is why it carries an
 ## offset. See HullData.exhaust.
 const EXHAUST_FRAMES := 9
-## The hull canvas is cropped tight around the ship so STRETCH_KEEP_CENTERED
-## actually centres it. With 70px of dead space on the right the content sat
-## left of centre, and at 2x the view clipped the flames off first.
-##
-## Kept as the fallback for a hull with no sprite to measure.
+## Cropped tight so STRETCH_KEEP_CENTERED centres it: dead space clipped the flames at 2x.
 const EXHAUST_AT := Vector2i(0, 27)
 
-## How many strips live in art/sprites/exhaust/, named exhaust_0 .. exhaust_N-1.
-##
-## A LIBRARY, not a mapping. Any ship can fly any of them; nothing here consults
-## weight class. 0 is the plume the game shipped with and stays the default so
-## this change is invisible until something picks another.
-##
-## They differ in every dimension a plume can: frame 28x13 to 76x42, four
-## colours to thirty-one, heat through plasma, violet and viridian. That is why
-## the frame height below is READ rather than declared — it used to be a
-## constant 32, which was true of the one strip that existed and would silently
-## mis-centre almost every one now here.
-##
-## 0 IS HALF OF WHAT IT USED TO BE. The shipped plume was a TWIN — two flames
-## stacked in one 48x32 frame, with an empty two-pixel gap between them, which
-## only reads as two once it sits beside a single. It is cut at that gap and the
-## twin is gone: one engine per strip, and a hull that wants two draws two.
-##
-## THE IDS ARE CONTIGUOUS AND MUST STAY THAT WAY. exhaust_art() indexes straight
-## into the filename, so a deleted file in the middle is a null texture and an
-## engine that silently stops burning. Removing one means renumbering the tail
-## down — that is what `-- exhaust` checks on every run.
-## 24 was every plume PixelLab generated. 25 is those plus exhaust_24, which is
-## exhaust_3 masked to heavy_s's stern by `tools/crop_flame.py`. Only the part
-## inside the recess is touched -- it narrows from the cavity mouth to the apex
-## so the fire PLUGS INTO the wedge instead of painting over the stern. Outboard
-## of the mouth the plume is left exactly as drawn: that is open space, and every
-## profile imposed on it only cost the flare that makes it read as thrust. A new
-## id rather than an edit in place: hull_light_s flies on exhaust_3 too, and its
-## stern is a different shape.
-## The plume an unrigged hull falls back to. Only reachable by a hull with art
-## that nobody has taken through the bench; all twelve Korvan frames are rigged.
+## A library, any ship may fly any. Ids must stay contiguous or an engine stops burning.
+## Frame height is read, not declared, as strips vary from 28x13 to 76x42.
+## Why: docs/why/Database.md#exhaust-plumes
 const DEFAULT_EXHAUST := 0
 const EXHAUST_COUNT := 25
 
@@ -2249,15 +1499,8 @@ func exhaust_art(id: int) -> Texture2D:
 		return null
 	return load("res://art/sprites/exhaust/exhaust_%d.png" % id) as Texture2D
 
-## Where the plume attaches, DERIVED from the hull it attaches to.
-##
-## It used to be one constant, which was correct while there was one medium
-## sprite and silently wrong the moment there were four: each is cropped tight to
-## its own ship, so they are 54 to 81 pixels tall and a fixed offset would hang
-## the flame off the bottom of the shortest. Every medium is composed with 38px
-## of clearance to the left of its engines — the geometry the one hull already
-## had — so the plume centres on the hull's own canvas and nothing needs a table
-## that a new sprite could fall out of step with.
+## Derived from the hull's own canvas: sprites are 54 to 81 px tall, so a fixed offset misses.
+## Why: docs/why/Database.md#exhaust-plumes
 func hull_exhaust_at(w: HullData.Weight, cls: int = 0, id: int = 0,
 		manufacturer: StringName = &"") -> Vector2i:
 	var tex := hull_sprite(w, cls, false, manufacturer)
@@ -2266,11 +1509,7 @@ func hull_exhaust_at(w: HullData.Weight, cls: int = 0, id: int = 0,
 		return EXHAUST_AT
 	return Vector2i(0, tex.get_height() / 2 - plume.get_height() / 2)
 
-## Set the plume and everything that has to agree with it, in one call.
-##
-## The three fields are not independent — a texture with the wrong offset hangs
-## the flame off the hull, and the offset cannot be computed without the texture.
-## Every place that changes one has to change all three, so there is one place.
+## One call sets texture, offset and id together, as the three fields must agree.
 func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
 	# A hull rigged in the bench carries its own strips, offsets and draw order;
 	# the computed centring is only for one that has not been rigged yet.
@@ -2296,36 +1535,9 @@ func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
 		back = false,
 	})
 
-## What each manufacturer CALLS its three weight classes.
-##
-## AUTHORED BUT NOT DISPLAYED, anywhere now: the party screen and the fight's
-## party strip printed them too until Jon, Oct 15, "change to light medium
-## heavy". The screens print plain LIGHT / MEDIUM / HEAVY,
-## because that is what reads for a player: weight class is the fact you compare
-## ACROSS manufacturers, and this turns one shared word into twenty-one to learn. Kept
-## because the names are content rather than code, and the moment there is
-## somewhere flavour costs nothing — a tooltip, a shipyard, a flight record —
-## hull_class() is already here.
-##
-## Real vessel types, one coherent family per manufacturer, escalating in size. This is
-## free identity: a Probate heavy called a Barge and a Verity heavy called a
-## Barque tell you who built them before you have read the manufacturer name, and the
-## hull names were already doing this work while the line underneath them said a
-## flat "HEAVY CHASSIS".
-##
-## Korvan and Solari are the two warship lines because they are the two manufacturers
-## that mirror each other mechanically. Probate gets working boats: nobody names a
-## barge to impress you. Redline gets fast rigs and a smuggling term. Cygnet gets
-## the three real vessel types that exist to carry OTHER vessels, which is the
-## manufacturer motto stated as a hull class. Verity gets sailing rigs, where the rig
-## itself is the craftsmanship. Calyx gets the three real hulls with no cut
-## timber and no metal in them at all: a coracle is woven willow under a stretched
-## hide, a pirogue is one hollowed tree, and an umiak is driftwood ribs under
-## sewn skin, big enough to carry a whole crew. Grown, not built, literally.
-##
-## The MECHANICAL word is not replaced by these, only fronted. Weight class is
-## what a player compares across manufacturers, and this turns one shared word into
-## twenty-one — so `HullData.weight_name()` stays, and the screens print both.
+## Authored but not displayed (Jon, Oct 15): screens print LIGHT, MEDIUM, HEAVY for comparison.
+## Kept as content for a tooltip or shipyard, where `hull_class()` is ready.
+## Why: docs/why/Database.md#hull-class-names
 const CLASS_NAMES := {
 	&"korvan":  ["Cutter", "Frigate", "Monitor"],
 	&"solari":  ["Skiff", "Corvette", "Dreadnought"],
@@ -2336,17 +1548,13 @@ const CLASS_NAMES := {
 	&"calyx":   ["Coracle", "Pirogue", "Umiak"],
 }
 
-## The manufacturer's name for a weight class, or the plain word for an unbranded frame.
-##
-## Not called class_name() — that is a GDScript keyword.
+## Not called `class_name()`: that is a GDScript keyword.
 func hull_class(manufacturer: StringName, w: HullData.Weight) -> String:
 	if CLASS_NAMES.has(manufacturer):
 		return CLASS_NAMES[manufacturer][int(w)]
 	return HullData.weight_name(w)
 
-## The hull a manufacturer builds in a given weight class. Lookup by value
-## rather than by index: an index would work today and break the moment anyone
-## reorders the tables above, which is exactly the edit those tables invite.
+## Looked up by value, not index, so reordering the tables above cannot break it.
 func hull_for(manufacturer: StringName, w: HullData.Weight = HullData.Weight.MEDIUM) -> HullData:
 	for h in hull_frames:
 		if h.manufacturer == manufacturer and h.weight == w:
@@ -2371,18 +1579,8 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# reactor owns the cells and the energy.
 	h.reactor = int(d.reactor)
 	h.dissipation += int(d.dissipation)
-	# AND THE ART. A class grants hardpoints and a reactor, and now it grants a
-	# different hull — which is the whole point of the letter and was invisible
-	# until there were four sprites to choose between.
-	#
-	# The plume has to move with it. Each sprite is cropped tight to its own
-	# ship, so the four mediums are 54 to 81 pixels tall; swapping the texture
-	# and keeping the frame's offset would hang the flame off the bottom of the
-	# short ones.
-	# THE GRADE'S PERKS, alongside the reactor and the hardpoints it already
-	# grants. Cumulative and authored — see TIER_PERKS.
-	#
-	# See TIER_PERKS on why every manufacturer ends up with the same four at S.
+	# A class also swaps the hull art and adds perks. The plume must move with the new texture.
+	# Why: docs/why/Database.md#hull-grades
 	h.tier_perks = tier_perks_for(h.manufacturer, t)
 	h.sprite = hull_sprite(h.weight, t, false, h.manufacturer)
 	h.sprite_half = hull_sprite(h.weight, t, true, h.manufacturer)
@@ -2395,50 +1593,9 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 		h.name = named
 	return h
 
-## WHAT EACH GRADE ADDS, per manufacturer, in order. C takes none, B the first, A the
-## first two, S all three — cumulative, so upgrading a hull only ever adds.
-##
-## Authored rather than rolled. A hull is a thing you recognise: two Bastions
-## have to be the same ship, and a perk that came out of the RNG would make the
-## grade letter a lottery ticket instead of a promise.
-##
-## WEAKEST FIRST, STRONGEST LAST, so a grade is worth what it costs. The pool
-## is not flat: +1 energy a turn is a fifth of a whole turn's budget forever,
-## +1 utility mount is a permanent extra part, and +40% on scrap is money you
-## still have to go and earn. The strongest one a manufacturer can get is its S.
-##
-## `spare_bay` IS GONE FROM THE GAME, and for a harder reason than balance:
-## it granted a utility HARDPOINT, and a hardpoint is a place on a hull that
-## somebody put there by hand. `HullData.mounts_along` prefers the anchors
-## authored for a sprite and falls back to a derived line when asked for more
-## mounts than there are anchors -- so the perk did not add a mount where a
-## mount belongs, it added one wherever the arithmetic landed. A perk that
-## moves geometry needs the geometry rigged first, and none of these hulls
-## are. Three perks that move only numbers replaced it.
-##
-## `cheap_parts` IS IN NO LADDER, and that is not an oversight — this file
-## already records that halving repair prices across a whole game moved the
-## win rate inside its own noise band. It is the one perk measured to do
-## nothing, and a grade whose reward is a proven no-op is a grade that lies.
-## Which leaves four working perks and a manufacturer owning one: every ladder is
-## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT MAKES NOW
-## CARRY THE SAME FOUR PERKS. The grades separate; the manufacturers stop separating
-## at the top. Widening the pool with perks that work is the fix, and until
-## there are some, this is the honest arrangement rather than a varied one
-## built out of a perk that does nothing.
-##
-## NO `heat_sink`, AND THE FOUR LADDERS IT WAS IN GOT A SUBSTITUTE RATHER THAN A
-## GAP. Heat capacity is what a thermal module is for; a frame that hands you
-## two points of it for free is competing with the parts you bolt to it. The
-## replacement sits at the SAME INDEX the old perk did, because the index is the
-## grade -- 0 is B, 1 is A, 2 is S -- and dropping an entry would have made an
-## S-tier solari, probate, verity or calyx confer nothing over an A.
-##
-## Each pick is the one that reads as the manufacturer rather than the one that
-## balances flattest: an overspec reactor for the foundry whose tagline is that
-## the line between reactor and weapon is philosophy, a salvage rack for the
-## combine that invoices other people's disasters, baffled vents for the atelier
-## that makes things properly, deep tanks for the company that grows them.
+## Authored and cumulative, not rolled: C none, B first, A two, S all, weakest first.
+## No `spare_bay` or `cheap_parts`: one moves unrigged geometry, one is a measured no-op.
+## Why: docs/why/Database.md#tier-perks
 const TIER_PERKS := {
 	&"korvan":  [&"salvage_rack", &"deep_tanks", &"overspec_reactor"],
 	&"solari":  [&"salvage_rack", &"overspec_reactor", &"baffled_vents"],
@@ -2461,22 +1618,13 @@ func tier_perks_for(manufacturer: StringName, tier: int) -> Array[StringName]:
 
 func _seed_perks() -> void:
 	hull_perks = {
-		# +40%, which is what MELT_PERK actually is. The text said 50 and the code
-		# said 1.4 since both were written; it is about to be printed up to four
-		# times on one ship, so the lie stops here.
+		# +40% is what `MELT_PERK` is: the text said 50 while the code used 1.4.
 		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +40%."},
 		&"baffled_vents": {name = "Baffled Vents", text = "+1 heat dissipation."},
 		&"overspec_reactor": {name = "Overspec Reactor", text = "+1 energy per turn."},
-		# NO `spare_bay`. It granted a utility HARDPOINT, and a hardpoint is a
-		# place on a hull that somebody put there by hand -- `mounts_along` falls
-		# back to a derived line when asked for more mounts than a sprite has
-		# anchors, so the perk did not add a mount where a mount belongs, it
-		# added one wherever the arithmetic landed. A perk that moves geometry
-		# needs the geometry rigged first, and none of these hulls are.
-		#
-		# The three below ask nothing of any sprite. Every one of them moves a
-		# number that already exists and is already consumed somewhere, which is
-		# the property `cheap_parts` turned out not to have.
+		# No `spare_bay`: a hardpoint lands where arithmetic puts it, not on a rigged anchor.
+		# The three perks below only move numbers already consumed elsewhere.
+		# Why: docs/why/Database.md#tier-perks
 		&"deep_tanks": {name = "Deep Tanks", text = "Every jump costs 10% less fuel."},
 		&"quick_hands": {name = "Quick Hands", text = "+1 card a turn."},
 		&"cheap_parts": {name = "Cheap Parts", text = "Station repairs cost half."},
@@ -2589,46 +1737,19 @@ func routines_in(branch: StringName) -> Array[StringName]:
 	return out
 
 # -------------------------------------------------------------------- materials
-#
-# The second half of the economy: things you take OFF a wreck rather than out of
-# it. Credits are the currency and stay the only one — the ruling has not moved,
-# only the name has — but a currency cannot be a prerequisite. A recipe that costs
-# "40 credits" is a purchase; a recipe that costs "one precursor fragment" is a
-# reason to have gone somewhere. Materials are what crafting is made of, and
-# credits are what it costs.
-#
-# `exotic` is not new. It has existed since megafauna did, as a bare int on
-# RunState, and it is now simply the first row of this table — same number, same
-# sources, one ledger. Everything that said `Run.exotic` still does.
+# Credits stay the only currency, but a prerequisite must be a thing: materials are that.
+# `exotic` is the first row: same number and sources, one ledger.
+# Why: docs/why/Database.md#materials
 
-# THE TABLE LIVES IN `MaterialTable`, not here. This file briefly carried a
-# two-row shadow of it (exotic and relic, with their own accessors), and the two
-# catalogues immediately diverged: every material authored only over there sold
-# for the 1-credit fallback and never appeared in a stock list, because half the
-# game was still reading this one. One catalogue, one `by_id`.
+# The table lives in `MaterialTable`: a shadow copy here diverged and sold at 1 credit.
+# Why: docs/why/Database.md#materials
 
-## RETIRED with alloy. Kept as a comment rather than a constant so the shape is
-## on record if parts ever break down into materials again: it was flat at the
-## top on purpose, because rarity buys better verbs, not more metal — a Legendary is not
-## a bigger lump of a Common, it is a cleverer one.
+## Retired with alloy. It was flat at the top as rarity buys verbs, not metal.
 
 # -------------------------------------------------------------------- recipes
-#
-# The fabricator, as data. Every recipe is {what it costs} -> {one effect the
-# game already knows how to apply}, so adding one is a dictionary entry and
-# never a new branch — the same law modules and cards are held to.
-#
-# `dev` is the minimum Development the place needs. RELIC ANALYSIS was dev 3 (a
-# laboratory needed a city) until Jon's Nov 3 ruling that every station has all
-# five decks at every level, so it is dev 0 now and a lab at an outpost reads a
-# relic too. What a developed system still buys is the price: the bill is scaled
-# by the place's service index, 45 credits on unclaimed ground down to 30 at a
-# capital. The `dev` gate stays for a recipe that ever needs more than a dock.
-#
-# Deliberately few: one today, and there were four before alloy was retired. This is the stage crafting is built on, not crafting: the
-# ledger, the recipe shape, the resolver and the place it happens. Recipes that
-# reach into a specific module in the hold need a picker and a target, which is
-# the next piece of work and not this one.
+# A recipe is data, a cost and one known effect, so adding one is an entry, never a branch.
+# `dev` gate is 0 for relic analysis since every station has all decks (Jon, Nov 3).
+# Why: docs/why/Database.md#recipes
 
 #
 # RELIC ANALYSIS'S TEXT SAYS WHAT THE CODE DOES (science spec, Nov 4). It said
@@ -2685,19 +1806,9 @@ func _enemy(id: StringName, name: String, tag: String, hp: int, brace: int,
 	enemies[id] = e
 
 func _seed_enemies() -> void:
-	# HULL x4 FOR EVERY ORDINARY ENEMY, ships and creatures alike: twice the x2 of
-	# ruling 14 (Oct 29). Jon, Nov 3, "Enemy hull: D", after he turned down a
-	# second combat resource: "Enemies should have more health and the fights
-	# should last longer. That's all." The study (tk-scratch/hull-study/STUDY.md,
-	# 400 runs a level, a fresh Korvan profile, the human pilot) had x4 take a
-	# fight from 6.4 turns to 10.8, fights lost from 23% to 28%, and run wins
-	# from 33 to 23 of 400. Fewer ships reach the core; the built ship that does
-	# beats the Custodian 61% of the time (55% at x2). Each number below is four
-	# times the original (cutter 26, lancer 34, hulk 52, marauder 46, sentinel
-	# 58, calf 40, leviathan 88). Danger scaling still applies on top
-	# (`Combat._spawn`). Enemy damage did not change. The Hellbender (90) and the
-	# Custodian (200) are tuned by hand and keep their own.
-	# Ships run fixed loops — machines are predictable.
+	# Hull x4 for ordinary enemies (Jon, Nov 3) so fights last longer. Damage is unchanged.
+	# Study of 400 runs: fights 6.4 to 10.8 turns, run wins 33 to 23.
+	# Why: docs/why/Database.md#enemy-hull-scaling
 	_enemy(&"cutter", "Rustjaw Cutter", "pirate skirmisher", 104, 0, 15, &"cutter", [
 		{name = "Strafe", text = "Deal 5", damage = 5},
 		{name = "Twin Guns", text = "Deal 3 × 2", damage = 3, hits = 2},
@@ -2736,62 +1847,18 @@ func _seed_enemies() -> void:
 		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2,
 			dross_id = &"slag", weight = 35},
 	], true)
-	# THE HELLBENDER: the galaxy's other harvester crew, and the only enemy with a
-	# position instead of an address. Hand-tuned like the custodian — it is a
-	# set piece wherever you catch it, so danger scaling would make WHERE you
-	# fight it matter more than WHETHER you are ready to. Its guns sit between
-	# the sentinel and the custodian: a party kills it comfortably, one ship
-	# kills it with a good build and a reason. Few do: the Nov 3 study killed it
-	# 19 times in 156 fights, over all four hull levels; it mostly breaks off
-	# first. Its hull does not sit between them: it keeps 90 under enemy hull x4
-	# (Nov 3), so every ordinary enemy flying alone, the cutter (104) too, now
-	# carries more. A pack's cutter (0.6 share, Combat.plan) can carry less: 62
-	# at danger 1. Below 35% hull it spools an
-	# escape burn and leaves — see Combat.escape_intent() — so the loop below
-	# is what it does while it still thinks it is winning.
-	#
-	# The name is a real salamander, and the crew is in on the joke: the hull
-	# flies the heraldic salamander — the beast drawn sitting unharmed in
-	# flames — which is what a ship built to drink heat would paint on itself.
-	# The device lives in the tag, described and never explained. Nobody
-	# explains anything in this galaxy; see docs/lore.md.
+	# Hand-tuned like the custodian, so danger scaling cannot make where you meet it matter.
+	# Below 35% hull it leaves (`Combat.escape_intent()`), so the loop is what it does till then.
+	# Why: docs/why/Database.md#the-hellbender
 	_enemy(&"hellbender", "The Hellbender", "rival harvester · a salamander device on the hull", 90, 6, 90, &"hellbender", [
 		{name = "Heat Lance", text = "Deal 11", damage = 11},
 		{name = "Slag Guns", text = "Deal 4 × 3", damage = 4, hits = 3},
 		{name = "Ashplate", text = "Gain 5 block", block = 5},
 		{name = "Furnace Bleed", text = "Deal 7, +1 Dross", damage = 7, dross = 1},
 	], [], false, false, true)
-	# Boss: unscaled, tuned by hand. HULL 200, up from 120 (Jon, Oct 22: "custodian
-	# health at 200. I want this to be a hard game"): a bare starter heavy beat
-	# the 120 one 49% of the time, and a built ship 86-100%. Hull alone stopped
-	# starters (0%) but a built ship with deep loot still won 81%, so (Jon, Oct
-	# 22, "Option 1") the loop lost Plated Up and Annihilate went 22 -> 40: it
-	# lands every third turn, and a built ship wins 56% of arrivals (sim, seeds
-	# 777 and 977), a human-like pilot 39%. Those sims flew one ring deeper a
-	# jump at most. RE-RUN AT TWO RINGS UNDER ENEMY HULL x2 (Oct 29, the same
-	# flags: Korvan only, `sturdy` for the built ship, `human`, seeds 777 and 977,
-	# 200 runs each): a built ship wins 55% of arrivals and the human pilot wins
-	# 8.25% of its runs, against Oct 22's 56% and 8%. At 150 hull those were 68%
-	# and 9.5%; at 120, 73% and 11.25%. Jon kept 200 (Oct 30, "Custodian: A").
-	# CHECKED AGAIN UNDER ENEMY HULL x4 (Nov 3, the same flags, 400 runs): a
-	# built ship wins 61.4% of arrivals (59% and 65% by seed) and the human pilot
-	# 5.75% of its runs. Fewer ships arrive, and the ones that do are stronger.
-	# It keeps 200, so a deep Hulk (291) or Sentinel (325) now carries more hull
-	# than it does; Jon left that as it is.
-	#
-	# IT GROWS WITH THE RUN (Jon, Nov 3: rule G3 with cap B). 200 through jump
-	# 15, then 200 x 1.04 for every jump past it, compounding, rounded, capped at
-	# twice its hull: 208 at jump 16, 243 at 20, 390 at 32, 400 from 33 on. Hull
-	# only; its attacks do not change. Read off `Run.custodian_jumps()` (your
-	# jumps alone, the lead ship's in co-op, Jon, Nov 4) when its fight is
-	# built (`Combat._spawn`, `EnemyTemplate.hull_at`), so the template below
-	# stays 200 and nothing adds up across runs. `bossonly` flies in at 0 jumps
-	# and meets 200. The station study (tk-scratch/station-study/STUDY.md, Nov 3,
-	# S3 stations, `custgrow=G3` with no cap, 400 runs) had the built ship meet a
-	# median of 253 at the core (200 to 600; the cap now stops it at 400) and win
-	# 68.9% of arrivals, against 75.5% with no growth. Its pilots shopped at every
-	# deck, which the game's sim pilots do not, so the 61.4% above is not yet
-	# measured again under growth.
+	# Hull 200 (Jon, Oct 22, Oct 30), growing 4% a jump past 15 and capped at 400 (Jon, Nov 3).
+	# Read from `Run.custodian_jumps()` at fight build, so the template stays 200.
+	# Why: docs/why/Database.md#the-custodian
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 200, 8, 120, &"hulk", [
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Charging a heavy attack", telegraph = true},
@@ -2802,10 +1869,7 @@ func _seed_enemies() -> void:
 	cust.grow_rate = 1.04
 	cust.grow_cap = 2.0
 
-## THE BOSS AT THE CORE: the one fight the run ends on (`Router.engage_here`),
-## and the one the goal line's badge watches grow (`CustodianBadge`, which
-## takes its name, its free jumps and its cap from here, so another end boss
-## needs only this id changed).
+## The fight the run ends on. `CustodianBadge` reads its name, free jumps and cap from here.
 const CORE_BOSS := &"custodian"
 
 

@@ -1,32 +1,8 @@
 class_name ChartRadiant
 extends RefCounted
 
-## THE STAR CHART'S SKY IN THE RADIANT STYLE (`DisplaySettings.render_style`
-## `&"radiant"`, or a harness's `style=radiant`): direction A of the Oct 5
-## showcase, "Light through gas" (scratchpad `showcase/A/chart/`). The galaxy as
-## a true density volume lit by single scattering from the core, the arms' young
-## stars and the clouds' lamps; dust that reddens and stops light; god rays cut
-## through the haze by the billows; billows lit on the side facing the core and
-## in their own shade on the other; the near dust lane in silhouette over the
-## bulge. SIMPLIFIED's black hole (`legacy_hole`), lit as this style lights
-## things, and SIMPLIFIED's animations as light: the gas streaming through the
-## arms, knots that breathe as lamps, a supernova that lights the gas round it
-## and an echo of it sweeping through the dust, lightning that scatters through
-## its cloud. Jon: RADIANT is "for photos probably" -- it is the HEAVY style.
-##
-## It runs on `ChartSky`'s own pipeline (its stars, its palette cut from hero
-## views, its composite and zoom hold), with its own bakes and place pass:
-##   * the BAKES, once a galaxy (once a session for the noise): a periodic 3D
-##     noise volume (`chart_r_bake_noise`), the face-on disc as two half-float
-##     maps (`chart_r_bake_disc`: star light, young light, H-alpha, dust; arm gas,
-##     billow height, blockers, core swirl), read back and mip-mapped, then the
-##     core's horizon map from them (`chart_r_bake_hor`, the god rays' shadows);
-##   * the PLACE pass (`chart_r_place`), a march down each block's view ray.
-## LOW (GRAPHICS LOW) marches no billows (one lit sheet), fewer steps, one phase.
-##
-## THE SAFETY: if the sky's own GPU time over its first seconds says this
-## machine cannot hold it, the chart falls back to SIMPLIFIED with one line in
-## the log (`ChartSky._radiant_probe`).
+## The heavy RADIANT sky; it falls back to SIMPLIFIED if the GPU cannot hold it.
+## Why: docs/why/ChartRadiant.md#radiant-style
 
 const NOISE_SH := preload("res://shaders/chart_r_bake_noise.gdshader")
 const DISC_SH := preload("res://shaders/chart_r_bake_disc.gdshader")
@@ -45,23 +21,17 @@ const BURN := 3.0
 const VIB := 0.35
 ## A lobe's dy is in the chart's flattened frame; this takes it to the plane.
 const FLAT := 0.46341 / 0.38
-## THE SAFETY'S BUDGET: the sky's own GPU time, ms a frame, averaged over its
-## first seconds of drawing; past it the chart falls back to SIMPLIFIED. An RTX
-## 3070 measures 0.6-1.6 here; a machine at four times that is not one to show
-## photos on.
+## Fall back past the budget: an RTX 3070 measures 0.6 to 1.6 ms, so four times is too slow.
+## Why: docs/why/ChartRadiant.md#safety-budget
 const FALLBACK_MS := 6.0
-## The slab's march: steps through it (halved near the plane), HIGH. The
-## showcase's 22 cost 2.5 ms a frame on a full-screen chart at zoom 1 on an RTX
-## 3070; 16, with the start jittered, reads the same.
+## 16 steps with jitter read the same as the showcase's 22, which cost 2.5 ms on an RTX 3070.
+## Why: docs/why/ChartRadiant.md#march-steps
 const STEPS := 11.0
-## How near (OKLab) a colour the palette's cut may add to one already kept;
-## SIMPLIFIED's is 0.06 (`ChartSky.pal_merge`). Measured on the nebula's slow
-## zoom: 0.06 left a fan of rose twins across the remnant's shell that flickered.
+## 0.02, not SIMPLIFIED's 0.06: that left a fan of rose twins that flickered on slow zoom.
+## Why: docs/why/ChartRadiant.md#palette-merge
 static var PAL_MERGE := 0.02
-## The composite's dither gates, against SIMPLIFIED's (`ChartSky.dith_gs`,
-## `dith_coh`). 1: the same; the colour hold (`ChartSky.hyst`) keeps the dither
-## from flickering, so it can carry the soft gradients light through gas makes
-## (2 and 1.25 had flattened them into plates).
+## Gates of 1: the colour hold stops flicker, and 2 and 1.25 had flattened gradients to plates.
+## Why: docs/why/ChartRadiant.md#dither-gates
 const DITH_GS := 0.5
 const DITH_COH := 0.8
 ## How many colours the palette's cut adds to the reserved ones (the showcase's
@@ -77,10 +47,7 @@ static var _noise: ImageTexture = null
 static var fell_back := false
 
 
-## The colours every radiant palette keeps (the showcase's A): the void and the
-## navy steps above it, the hole's bands, and the key hues as the tone maps them
-## at several lights -- H-alpha, OIII, the remnant's red, the reflection's blue --
-## so small vivid things are never starved by the cut.
+## Colours every radiant palette keeps, so small vivid things are never starved by the cut.
 static func fixed_palette() -> PackedColorArray:
 	var out := PackedColorArray()
 	for h in ["#070a12", "#0b1020", "#0f1529", "#141b33"]:
@@ -101,9 +68,7 @@ static func fixed_palette() -> PackedColorArray:
 	return out
 
 
-## Whether a chart draws in the radiant style: the player's style, or a
-## harness's `style=radiant` while RADIANT is not built (DisplaySettings will not
-## take a style it cannot draw everywhere; the chart can, so a shot can ask).
+## A harness's `style=radiant` is honoured though unbuilt, as the chart can draw it.
 static func wanted() -> bool:
 	if fell_back:
 		return false
@@ -126,23 +91,105 @@ static func probe_forced() -> bool:
 	return false
 
 
-## The galaxy's look: the showcase's per-kind numbers (set by eye for the
-## grand design, the barred spiral and the elliptical), generalised by shape and
-## by the galaxy's own bulge, gas and arms.
-## A BALL'S BODY AND HALO (Jon, Oct 18, "radiant:yes": the balls bloomed into a big orb
-## with a hard edge): the outer component's peak, and the halo's light, a ball is
-## lit by. The showcase's were 0.95 and 0.03.
-## A ball's story's light in this style's own (`ChartSky.ball_story`)
+## Per-kind showcase numbers generalised by shape; balls use a lower peak and halo (Jon, Oct 18).
+## Why: docs/why/ChartRadiant.md#galaxy-look
 const STORY_GAIN_R := 1.0
 const BALL_BODY := 0.8
 const BALL_HALO := 0.06
+
+## A ball as its own kind in this style (`u_ballK`, `chart_r_place`, `chart_r_bake_disc`): (its
+## kind as `ChartSky.ball_of` numbers it, its young gas and star birth 0..1, how lopsided 0..1,
+## its globular-cluster halo 0..1).
+## Why: docs/why/ChartRadiant.md#ball-kinds
+static func ball_kind(p: Dictionary) -> Vector4:
+	var ball: Vector4 = p.ball
+	match int(ball.w):
+		1:
+			return Vector4(1.0, 1.0, 0.0, 0.0)
+		2:
+			return Vector4(2.0, 0.0, 0.0, 0.0)
+		3:
+			return Vector4(3.0, 0.35, 0.6, 0.0)
+	return Vector4(0.0, 0.0, 0.0, 1.0 if GalaxyGen.type_name(int(p.kind)) == "Giant Elliptical" else 0.0)
+
+
+## A ball's body in this style: (size against its ball radius; where its light starts to fade
+## and where it is gone, in its outer scale; its roundness, the bulge's c/R).
+## Why: docs/why/ChartRadiant.md#ball-body
+static func ball_form(p: Dictionary) -> Vector4:
+	match GalaxyGen.type_name(int(p.kind)):
+		"Flattened Elliptical":
+			return Vector4(1.05, 0.4, 1.6, 0.54)
+		"Giant Elliptical":
+			return Vector4(1.15, 0.45, 2.3, 0.72)
+		"Dwarf Spheroidal":
+			return Vector4(0.75, 0.3, 2.4, 0.8)
+		"Blue Compact Dwarf":
+			return Vector4(1.0, 0.45, 1.8, 0.72)
+	return Vector4(1.0, 0.5, 1.9, 0.72)
+
+
+## THE KNOTS OF A BALL THAT MAKES STARS (Nov 5): a blue compact dwarf full of them,
+## a merger's remnant a few along its stream -- the spirals' own knots (`ChartSky`'s
+## format: they breathe and bloom as a spiral's do, and the knot map draws them), in
+## the plane, where this style's bake lays the young gas (`chart_r_bake_disc`'s ball).
+## None for the others.
+static func ball_knots(p: Dictionary) -> Array:
+	var out: Array = []
+	if int(p.form) != 1:
+		return out
+	var bk := ball_kind(p)
+	var re: float = (p.ball as Vector4).x
+	var n := 14 if int(bk.x) == 1 else (5 if int(bk.x) == 3 else 0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([Run.galaxy_seed, int(p.kind), 4471])
+	for i in n:
+		var xy: Vector2
+		if int(bk.x) == 1:
+			var a := rng.randf() * TAU
+			var r := re * 0.85 * sqrt(rng.randf())
+			xy = Vector2(cos(a), sin(a)) * r
+		else:
+			xy = stream_at(0.15 + 0.75 * rng.randf(), re) + Vector2(rng.randf() - 0.5, rng.randf() - 0.5) * 0.04 * re
+		out.append({"xy": xy, "size": 0.004 + 0.006 * rng.randf(), "T": 20.0 + 40.0 * rng.randf(),
+			"ph": rng.randf() * TAU, "st": []})
+	return out
+
+
+## A point a share f (0..1) along a merger's tidal stream on the plane (gu): out from
+## the body's edge, curling round one side (`chart_r_bake_disc`'s `streamD`, the same arc).
+static func stream_at(f: float, re: float) -> Vector2:
+	var a := 0.3 + 2.4 * f
+	var r := re * (0.95 + 1.2 * f)
+	return Vector2(cos(a), sin(a)) * r
+
+
+## The gas's two colours from the galaxy's gas and its kinds of cloud (moved
+## here from the LEGACY chart's renderer when that style went, Nov 7).
+static func _gas_palette(gas: float) -> Array:
+	var kinds := {}
+	for raw in NebulaField.clouds():
+		kinds[(raw as NebulaField.Cloud).kind] = true
+	var a := Vector3(0.36, 0.52, 0.95)
+	var b := Vector3(0.95, 0.36, 0.55)
+	if gas > 1.6:
+		a = Vector3(0.30, 0.70, 0.92)
+		b = Vector3(0.98, 0.34, 0.62)
+	elif kinds.has(NebulaField.Kind.REMNANT) and not kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(0.86, 0.42, 0.62)
+	if kinds.has(NebulaField.Kind.EMISSION):
+		b = Vector3(1.0, 0.38, 0.5)
+	if gas < 0.4:
+		a = Vector3(0.55, 0.62, 0.85)
+		b = Vector3(0.85, 0.58, 0.5)
+	return [a, b]
 
 static func look(p: Dictionary) -> Dictionary:
 	var form: int = p.form
 	var br: float = p.bulge_r
 	var ell := form == 1
 	var ball: Vector4 = p.ball
-	var pals: Array = ChartLegacy._gas_palette(float(p.gas))
+	var pals: Array = _gas_palette(float(p.gas))
 	var blue: Vector3 = pals[0]
 	var arms := int(p.arms)
 	var chaos: float = p.chaos
@@ -151,22 +198,25 @@ static func look(p: Dictionary) -> Dictionary:
 		arm_k = clampf(1.0 - chaos * 1.8, 0.35, 1.0) * (0.75 if arms >= 5 else 1.0)
 	var L := {}
 	if ell:
-		var re: float = ball.x
-		L.bulge = Vector4(0.23 * re, 1.0 * re, 0.72, 0.08 * re)
-		L.peaks = Vector4(1.5, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
-		L.halo = Vector4(BALL_HALO, maxf(0.3, 1.4 * re), 0.72, 1.0)
+		var bk := ball_kind(p)
+		var bf := ball_form(p)
+		var re: float = ball.x * bf.x
+		L.bulge = Vector4(0.23 * re, 1.0 * re, bf.w, 0.08 * re)
+		# (a dwarf spheroidal has no bright nucleus: its light is spread thin)
+		L.peaks = Vector4(0.7 if int(bk.x) == 2 else 1.5, BALL_BODY * clampf(float(ball.z) / 0.085, 0.4, 1.3), 0.25, 1.4)
+		L.halo = Vector4(BALL_HALO, maxf(0.3, 1.4 * re), bf.w, 1.0)
 		# (no disc under a ball: the showcase's faint one drew a flat plate with a
-		# hard rim round the small ones)
-		L.discK = Vector4(0.0, 0.0, 0.0, 0.0)
+		# hard rim round the small ones. Only a ball with young gas has one: its gas
+		# and young light, baked about its middle (`chart_r_bake_disc`), lit and
+		# billowing as a spiral's arms are)
+		L.discK = Vector4(0.0, 1.35, 1.8, 0.6) * bk.y
 		L.gasK = Vector4(34.0, 0.0, 0.6, 0.2)
 		L.rd = 0.3
 		L.young = Vector3(0.8, 0.85, 1.0)
 		L.oldIn = Vector3(1.0, 0.8, 0.56)
 		L.oldOut = Vector3(0.95, 0.78, 0.6)
 	else:
-		# (the showcase's two spirals: 0.04 / 0.13 / 0.02 gu at bulge 0.128 and
-		# 0.045 / 0.155 / 0.022 at 0.187: the bulge's light grows slower than its
-		# radius, or a big bulge washed over the billows round it)
+		# The bulge's light grows slower than its radius, or a big bulge washes over the billows.
 		var bk := br / 0.128
 		L.bulge = Vector4(0.04 * pow(bk, 0.4), 0.13 * pow(bk, 0.5), 0.83, 0.02 * pow(bk, 0.3))
 		L.peaks = Vector4(1.5, 1.0, 0.3, 1.6)
@@ -191,8 +241,17 @@ static func look(p: Dictionary) -> Dictionary:
 		L.bInner = Vector3(0.75, 0.82, 1.0)
 		L.bOuter = Vector3(0.45, 0.58, 1.0)
 		L.halo = Vector4(L.halo.x, L.halo.y, L.halo.z, 0.0)
+		L.young = blue * 0.6 + Vector3(0.42, 0.58, 1.0) * 0.4
+	elif ell and int(ball.w) == 2:
+		# a dwarf spheroidal grey: old, faint starlight, barely warm
+		L.bCore = Vector3(0.92, 0.86, 0.78)
+		L.bInner = Vector3(0.8, 0.77, 0.74)
+		L.bOuter = Vector3(0.6, 0.6, 0.62)
+		L.halo = Vector4(L.halo.x * 0.6, L.halo.y, L.halo.z, 0.45)
+	elif ell and int(ball.w) == 3:
+		L.young = blue * 0.75 + Vector3(0.42, 0.58, 1.0) * 0.25
 	L.arm_k = arm_k
-	L.gas = 0.0 if ell else float(p.gas)
+	L.gas = (float(ball_kind(p).y) * maxf(float(p.gas), 0.8)) if ell else float(p.gas)
 	L.ell = ell
 	return L
 
@@ -227,7 +286,13 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		m.set_shader_parameter("u_ext", EXT)
 		m.set_shader_parameter("u_pass", pass_i)
 		m.set_shader_parameter("u_isEll", 1.0 if L.ell else 0.0)
+		m.set_shader_parameter("u_ballK", ball_kind(p) if L.ell else Vector4.ZERO)
+		m.set_shader_parameter("u_ballR", float((p.ball as Vector4).x) if L.ell else 0.3)
 		out.append(sky._pass_vp(holder, Vector2i(DISC_N, DISC_N), ChartSky._rect(m), true))
+	# (a ball that makes stars has knots of its own: none came from `ChartSky._make_knots`,
+	# which lays them on arms)
+	if L.ell and (g.knots as Array).is_empty():
+		g["knots"] = ball_knots(p)
 	# the knot map: the nearest knot to each texel (8-bit, 512 square)
 	var mk := ShaderMaterial.new()
 	mk.shader = DISC_SH
@@ -246,9 +311,7 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		var mn := ShaderMaterial.new()
 		mn.shader = NOISE_SH
 		out.append(sky._pass_vp(holder, Vector2i(528, 528), ChartSky._rect(mn), true))
-	# THE SOLID LOOK's height fields read SIMPLIFIED's two bakes (`chart_solid`'s
-	# contract: the noise's billows, the structure's ridges and lanes), so RADIANT's
-	# puffs, terrain and edge stand where SIMPLIFIED's do; baked beside its own
+	# Height fields read SIMPLIFIED's two bakes, so puffs and terrain stand where its do.
 	g["_s_at"] = out.size()
 	for mode in 2:
 		var n := ChartSky.NOISE_N if mode == 0 else (ChartSky.STRUCT_N if (int(p.arms) > 0 or float(p.bar) > 0.0) else 16)
@@ -325,6 +388,11 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_sStruct", g.get("struct"))
 	m.set_shader_parameter("u_sExt", ChartSky.EXT)
 	m.set_shader_parameter("u_isBall", bool(L.ell))
+	# (set for every galaxy, a disc's to the defaults: a material that drew a ball before
+	# must not lean a spiral's bulge or squash its outline)
+	var bf := ball_form(p)
+	m.set_shader_parameter("u_ballK", ball_kind(p) if L.ell else Vector4.ZERO)
+	m.set_shader_parameter("u_ballF", Vector4(bf.y, bf.z, float((p.ball as Vector4).x) * bf.x, 0.72 / bf.w) if L.ell else Vector4(0.5, 1.8, 0.3, 1.0))
 	ChartSky.push_story(m, STORY_GAIN_R)
 	m.set_shader_parameter("u_discA", g.discA)
 	m.set_shader_parameter("u_discB", g.discB)
@@ -349,17 +417,14 @@ static func feed_static(m: ShaderMaterial, g: Dictionary) -> void:
 	m.set_shader_parameter("u_gasK", L.gasK)
 	m.set_shader_parameter("u_nebK", Vector4(13.0, 15.0, 7.0, 16.0))
 	m.set_shader_parameter("u_steps", 8.0 if DisplaySettings.graphics_low else STEPS)
-	m.set_shader_parameter("u_holeR", float(p.hole_r))
+	m.set_shader_parameter("u_holeR", ChartSky.hole_of(p))
 	m.set_shader_parameter("u_holeLight", Vector3(0.9, 0.42, 0.14))
 	var cl := cloud_uniforms(g.clouds)
 	for k in cl:
 		m.set_shader_parameter(k, cl[k])
 
 
-## The named clouds as the place pass marches them (the showcase's format): the
-## plane centre, a bounding radius and the kind; a half height, a shell radius,
-## the hollowness and a seed; the main lobe (the emission's ionising cluster,
-## the reflection's lamp), the shape and a size; the lobes in the plane.
+## Named clouds as the place pass marches them: centre, radius, kind, lobes and a seed.
 static func cloud_uniforms(clouds: Array) -> Dictionary:
 	var A := PackedVector4Array()
 	var B := PackedVector4Array()
@@ -394,10 +459,8 @@ static func cloud_uniforms(clouds: Array) -> Dictionary:
 		var xy: Vector2 = c.xy
 		A.append(Vector4(xy.x, xy.y, rb, float(kind)))
 		B.append(Vector4(cz, shell, float(c.hollow), fmod(float(c.seed), 10.0)))
-		# (an emission cloud's cluster at its biggest lobe, as the showcase's A had it.
-		# It was moved 0.6 of the way in when the teal heart barely showed on the
-		# Starburst Spiral, but the cause was the lobes: `feed_events` puts this
-		# style's own back, which SIMPLIFIED's had been overwriting)
+		# Cluster stays at the biggest lobe; the faint teal heart was the lobes, not this.
+		# Why: docs/why/ChartRadiant.md#cloud-lobes
 		var cl0 := Vector2(main.x, main.y * FLAT)
 		C.append(Vector4(cl0.x, cl0.y, float(c.shape), shell if (kind == 2 or kind == 3) else float(c.radius)))
 		for j in 3:
@@ -418,9 +481,7 @@ static func cloud_uniforms(clouds: Array) -> Dictionary:
 	return {"u_nCl": n, "u_clA": A, "u_clB": B, "u_clC": C, "u_lobe": Lb}
 
 
-## The events at time t (after `ChartSky._feed_events` has fed the shared ones):
-## the knots' breathing, a supernova and its echo in the plane, lightning in the
-## emission and dark clouds -- all as light the volume scatters.
+## Events at time t, all as light the volume scatters: knots, supernova, echo, lightning.
 static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, live: bool) -> void:
 	var knots: Array = g.knots
 	var kn := PackedVector4Array()
@@ -447,23 +508,14 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 		n += 1
 	lt.resize(8)
 	m.set_shader_parameter("u_lt", lt)
-	# THE CLOUDS' OWN LOBES AGAIN. `ChartSky._feed_events` runs first, every frame
-	# and for every palette probe, and sets the same `u_lobe` to SIMPLIFIED's: its
-	# clouds sorted by where they sit on screen and their lobes turned into each
-	# cloud's round frame. Read here, cloud k took another cloud's lobes, turned
-	# -- so an emission cloud's gas lay off its own cluster and its teal heart
-	# (the cavity round the cluster) sat at the thin edge of the wrong gas, or
-	# outside it (the Starburst's ESO 101 shown as emission: a flat rose band
-	# with a sliver of teal, where the showcase's A has a teal heart).
+	# `feed_events` restores this style's lobes after SIMPLIFIED's overwrote them per frame.
+	# Why: docs/why/ChartRadiant.md#cloud-lobes
 	if not g.has("r_lobe"):
 		g["r_lobe"] = cloud_uniforms(g.clouds).u_lobe
 	m.set_shader_parameter("u_lobe", g.r_lobe)
 
 
-## Distant lightning in an emission or dark cloud (SIMPLIFIED's schedule): a
-## flash in most ten-second slots, two or three pulses (80 ms rise, 250 ms
-## decay, 120 ms apart), at a point of one of its lobes. (envelope, plane offset
-## x, y from the cloud's centre, the light's reach) or none.
+## Lightning follows SIMPLIFIED's schedule: a flash in most ten-second slots, 2 or 3 pulses.
 static func _flash(c: Dictionary, t: float) -> Vector4:
 	var kind: int = c.kind
 	if kind != 0 and kind != 4:

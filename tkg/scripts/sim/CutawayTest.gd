@@ -1,16 +1,8 @@
 extends Harness
 
-## THE CUTAWAY'S MOVES, through the cutaway's own handlers, headless:
-##   godot --headless --path . -- cutawaytest
-##
-## `CutawayView` moves parts with Run's rule (`lift_part`, `fit_at_mount`,
-## `stow_at`) and claims loot with the calls SECTOR LOOT makes (`take_item`,
-## `take_from_jetsam`), so the refit screen, the map's loot popup and the
-## cutaway cannot disagree. This drives the view's own drop handlers -- what a
-## real drag ends in -- and checks both the model AND what the view draws (its
-## hold's icons, its popup's grid), because a model that moved and a screen
-## that did not is the bug the transfer screen had three times. Then the
-## picture itself on every hull: see `_check_layouts`.
+## Drives the view's own drop handlers and checks both the model and what is drawn.
+## A moved model with an unmoved screen is the bug the transfer screen had three times.
+## Why: docs/why/CutawayTest.md#cutaway-test
 
 ## Where LOCAL's SECTOR LOOT sits, on the bottom bar under the cutaway.
 const BAR_BUTTON := Rect2(770, 466, 94, 20)
@@ -167,9 +159,7 @@ func run(tree: SceneTree) -> void:
 	await _settle()
 	_ok("Esc shuts the popup and leaves the cutaway open", not _cut.popup_open() and _cut.is_open())
 
-	# 7c. CLICKS: on the sky with a popup open, the popup alone shuts; on a tag
-	# or an empty mount's ring, nothing; a drag let go of over the sky puts the
-	# part back and shuts nothing
+	# Clicks: an open popup alone shuts; tags and rings do nothing; a dropped drag restores.
 	_cut.open_popup(wreck, BAR_BUTTON)
 	await _settle()
 	_cut._sky_click(_cut.get_global_rect().position + Vector2(_cut.size.x - 6, 6))
@@ -308,22 +298,8 @@ func _popups() -> int:
 	return n
 
 
-## THE CUTAWAY'S PICTURE, per hull, read off what is DRAWN (`MountPoints`'s
-## rects, the controls' own rects), not off the layout's own bookkeeping:
-##  - every word clear of every other word and of the hull's own pixels, every
-##    lifted part off the hull and off every other part, all of it right of the
-##    left panel and inside the view;
-##  - the left panel (the ship's numbers, its hold, DONE) the
-##    content area's full height, every hold cell and button in it on screen and
-##    uncovered;
-##  - the popup (this system's pile) right of the left panel,
-##    on screen, every cell and button in it too;
-##  - pointing at a module in each place -- the hold, the hull, this system's
-##    pile -- shows the MODULES page's own popup for THAT module, clear of the
-##    left panel, of the thing pointed at and of the open popup, and nothing in
-##    here carries Godot's own tooltip as well;
-##  - a bob step carries every part, tag and label with the hull;
-##  - and the heavy, the biggest ship, drawn at least as big as the medium.
+## Read off what is drawn (rects), not off the layout's own bookkeeping.
+## Why: docs/why/CutawayTest.md#layout-checks
 func _check_layouts() -> void:
 	var widths := {}
 	for pair in [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]:
@@ -389,11 +365,7 @@ func _check_layouts() -> void:
 		_ok("%s: the ship is right of the left panel and inside the view (%s)" % [wname,
 			", ".join(outside) if not outside.is_empty() else "clear"], outside.is_empty())
 
-		# NO RINGS AT REST (Jon: "Why is there a circle for a missing module?
-		# Shouldn't that only be when I have a module in my hand?"): nothing marks an
-		# empty mount until a part that fits it is carried; then its mounts ping,
-		# with their words, and no other slot's do -- and the words still clear
-		# everything else drawn
+		# No rings at rest (Jon): empty mounts ping only while a part that fits is carried.
 		mp.queue_redraw()
 		await _tree.process_frame
 		var rest_words := 0
@@ -767,19 +739,8 @@ func _check_game_over() -> void:
 		one.size() >= 3 and one[1].contains(" · 1 routine · ") and not texts[2].contains("DATA"))
 
 
-## EVERY EMPTY MOUNT GETS ITS WORDS (Jon: "There is no text for an empty
-## utility, just empty systems and empty weapons."). "EMPTY UTILITY" is the
-## widest of the three and a utility ring sits in the tightest spots, so the
-## near-ring search found no room and dropped it -- and the check above counted
-## the rings, never the words. On every startable manufacturer's light, medium
-## and heavy, in three used states (as launched with a part in the hold, loot in
-## the system and malfunctions in the deck; one part of each slot taken off; and
-## crowded, every mount but the last of each slot fitted), carrying a part of
-## each slot that has an empty mount: one label per empty mount of that slot,
-## each clear of every part, tag, other label and ring, off the hull's pixels,
-## inside the view and right of the left panel (its buttons with it); and a
-## label set away from its ring has a 1 px leader to it that crosses none of
-## those either.
+## Every empty mount gets its words: EMPTY UTILITY was dropped for lack of room (Jon).
+## Why: docs/why/CutawayTest.md#empty-mount-words
 func _check_empty_words() -> void:
 	var weights := [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]
 	for mk: StringName in DB.STARTABLE:
@@ -847,9 +808,7 @@ func _empty_words_on(cut: CutawayView, wname: String) -> void:
 		if empties == 0:
 			continue
 		var carried := _module_of(slot)
-		# ONE THE REACTOR CAN CARRY: a mount is lit only for a part the reactor
-		# can run (`refit_allowed`), many frames launch at their cells, and the
-		# crowded ones are filled past them by hand. The words are the subject.
+		# Carry a part the reactor can run, as a mount is lit only for such a part.
 		carried.reactor = 40
 		mp.light(carried)
 		mp.queue_redraw()
@@ -918,24 +877,8 @@ func _empty_words_on(cut: CutawayView, wname: String) -> void:
 	await _tree.process_frame
 
 
-## THE SWAP MARKS (Jon: "When you are swapping modules on the ship... can the
-## swappable modules already installed get highlighted? Just so you know what
-## can or cannot be swapped with that part."). On three hulls -- Korvan's light,
-## Solari's medium, Redline's heavy -- each slot's mounts fitted with parts of
-## different sizes and its last mount left empty, a part of each slot in the
-## hold and another in this system's pile; once with room in the hold and once
-## with it packed with crates. For each slot, a part carried from the hold, lifted off
-## the hull and taken from the pile, through a real drag (`force_drag`, the
-## viewport's own drag): the mounts the hull marks while it is carried -- fitted
-## parts framed, empty mounts pinged (`MountPoints.marked`) -- are EXACTLY the
-## mounts a drop lands on, found by dropping it on every mount of the hull in
-## turn (at the part's middle or the ring, `_can_drop_data` then `_drop_data` as
-## the viewport calls them, the cutaway's own handler and Run's rule doing the
-## rest; the state put back after each). Each drop and a cancel leave nothing
-## marked; starting
-## the drag changes no rect of anything drawn or pressed. And a crate carried
-## marks nothing. Some drop must have been refused on a fitted part of the
-## carried part's own kind, and some swap marked, or the check proved nothing.
+## Marked mounts must be exactly the mounts a drop lands on, found by dropping on every mount.
+## Why: docs/why/CutawayTest.md#swap-marks
 func _check_swap_marks() -> void:
 	if _tree.root.size.x < 1000:
 		_tree.root.size = Vector2i(1920, 1080)
@@ -1148,11 +1091,7 @@ func _spot_point(mp: MountPoints, slot: int, index: int) -> Vector2:
 	return Vector2.INF
 
 
-## LET GO OVER THE HULL at `p` (its own px): what the viewport does with a
-## drop (`Viewport._perform_drop`) -- ask the control under the pointer
-## `_can_drop_data`, and only on a yes hand it `_drop_data` -- and then end the
-## drag, which every control hears. (Headless, a pushed pointer never finds the
-## hull under a forced drag, so the two calls are made here as Godot makes them.)
+## Mimics `Viewport._perform_drop`: headless, a pushed pointer never finds the hull on a drag.
 func _drop_on(mp: MountPoints, p: Vector2, data: Dictionary) -> void:
 	if mp._can_drop_data(p, data):
 		mp._drop_data(p, data)
@@ -1161,10 +1100,7 @@ func _drop_on(mp: MountPoints, p: Vector2, data: Dictionary) -> void:
 		await _tree.process_frame
 
 
-## Everything the cutaway draws or takes a click on, and where: the lifted
-## parts and their tags, the mounts' own control, every hold cell's icon, the
-## left panel. (Not the empty mounts' words: those are the carrying's own,
-## shown since before the marks.)
+## Everything the cutaway draws or takes a click on; empty mounts' words are excluded.
 func _pressables(cut: CutawayView) -> Array:
 	var out := []
 	for d in cut._mounts.drawn_rects():
@@ -1216,11 +1152,7 @@ func _point_gp(cut: CutawayView, wname: String, where: String, want: ModuleData,
 	cut._show(null)
 
 
-## A MATERIAL POINTED AT shows its own tooltip on the card's plate, the words its
-## icon carries everywhere else (`MaterialIcon.tip_text`). Jon, Oct 22: "the
-## tooltips for non-module items ... don't show up when you drag them onto your
-## ship" -- in here `_quiet` took the icon's tooltip away for a card that only
-## ever showed a module.
+## A pointed material shows its own tooltip (Jon, Oct 22); `_quiet` had hidden it.
 func _point_material(cut: CutawayView, wname: String, where: String, want: MaterialData, icon: Control) -> void:
 	if icon == null:
 		_ok("%s: a material is there to point at in the %s" % [wname, where], false)
@@ -1239,9 +1171,7 @@ func _point_material(cut: CutawayView, wname: String, where: String, want: Mater
 	cut._show(null)
 
 
-## A left click at a point on screen, pressed and let go, as the pointer would.
-## Pushed into the viewport `on` is drawn in -- the game's own, under Main's
-## screen effect, for a screen; the root for a bare host.
+## A left click pushed into the viewport the node is drawn in, as a pointer would.
 func _click(gp: Vector2, on: Node = null) -> void:
 	var vp: Viewport = on.get_viewport() if on != null else _tree.root
 	# (headless, the window is 64 px square and a click past it goes nowhere)
@@ -1318,14 +1248,8 @@ func _tipless(g: Control) -> bool:
 	return true
 
 
-## THE REAL LOCAL. A wreck you killed here, your ship, and the screen itself:
-##  - with the cutaway open, a click where the wreck is drawn opens nothing and
-##    shuts the cutaway (Jon: "You shouldn't be able to open a wreck when your
-##    ship is clicked on and in focus");
-##  - with it shut, the same click opens the wreck's own two-grid screen;
-##  - in a fight, a click on your ship opens nothing and asks for the thud a dead
-##    button makes (Jon: "the same thud sound when you try and click on a button
-##    that doesn't work"), with no outline on it.
+## A wreck behind your ship cannot be opened; a dead click in a fight makes the thud (Jon).
+## Why: docs/why/CutawayTest.md#real-local
 func _check_local() -> void:
 	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1374,10 +1298,7 @@ func _check_local() -> void:
 	var sb := cut._ship.art_scale() * cut._ship.get_global_transform().get_scale().x
 	_ok("LOCAL's own ship, zoomed, is where the parts come off (%s vs %s, %.2fx vs %.2fx)" % [a0, b0, sa, sb],
 		a0.distance_to(b0) <= 1.0 and is_equal_approx(sa, sb))
-	# THE ESC MENU'S BLUR OVER THE ZOOMED SCENE, and nothing of the cutaway's own
-	# under it: the scrim first, its shader the pause menu's, fully on; the HUD
-	# and the bottom bar outside it; the hull, its parts and the panel drawn after
-	# it; the scene's own ship gone, this view's hull drawn in its place
+	# The esc menu's blur over the zoomed scene, with nothing of the cutaway under it.
 	var scrim := cut._scrim
 	var bar_top := sc._quiet_holder.get_global_rect().position.y if sc._quiet_holder != null and sc._quiet_holder.is_visible_in_tree() else INF
 	_ok("the blur is the Esc menu's own shader, first under everything the cutaway draws, fully on (%.2f)" % float(cut._scrim_mat.get_shader_parameter(&"amount")),
@@ -1449,11 +1370,7 @@ func _check_local() -> void:
 	_ok("and it wears no outline", not fs._ship_outline.visible)
 
 
-## YOUR SHIP'S PARTS ON ITS HULL (Jon: "why are the modules off the ship?"):
-## with the cutaway shut, every fitted part is drawn over the hull's own pixels
-## at its mount -- as it stands, and again after the hull has moved in its view
-## with the bob stopped (the view laid out again: LOCAL's band folding away),
-## which is when the parts used to stay behind where the hull had been.
+## Parts must stay on the hull after it moves in its view (Jon: why are the modules off the ship?).
 func _parts_on_hull(sc: SectorScreen, where: String) -> void:
 	var art := sc._view.ship_view()
 	var mp: MountPoints = null
@@ -1547,10 +1464,7 @@ func _icons(g: Control) -> int:
 	return n
 
 
-## R TURNS A MATERIAL, as it turns a module. It turned module plates only: the
-## hold asked `HoldGrid.icon_at`, which finds nothing but modules, so a 2x1 crate
-## under the pointer stayed lying down. Here in the hold (the refit screen's own
-## call) and in the hand off the loot popup (the cutaway's own R, a real drag).
+## R turns a material too: the hold asked `HoldGrid.icon_at`, which finds only modules.
 func _check_turn_material() -> void:
 	var crate := _material_shaped(Vector2i(2, 1))
 	if not _ok("a 2x1 material to turn (%s)" % (crate.name if crate != null else "none"),
@@ -1618,12 +1532,8 @@ func _free_cell(m: HoldItem) -> Vector2i:
 	return -Vector2i.ONE
 
 
-## A module of this slot from the catalogue (of this size, if asked), a copy.
-## THE REACTOR'S RULE ON A MOUNT (the tutorial audit, Oct 22): a part coming
-## aboard the reactor cannot carry is refused in the cutaway, as the transfer
-## screen refuses it (`pad_to_mount`, its hold drop), and the mount is not lit
-## for it while it is carried. It used to be bolted on past the cap. A part the
-## reactor can carry, on the same mount, still lands; a fitted part still moves.
+## A part the reactor cannot carry is refused in the cutaway and not lit; it once bolted on.
+## Why: docs/why/CutawayTest.md#reactor-rule
 func _check_power() -> void:
 	seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))

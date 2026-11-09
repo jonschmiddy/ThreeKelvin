@@ -1,26 +1,7 @@
 extends Harness
 
-## The escape menu after the motion settings change under it:
-##   godot --headless --path . -- menutest
-##
-## Jon: "Clicking reduced motion and/or clicking skip animations makes the
-## escape menu lock up?" It did, on one path. A menu opened UNDER reduced motion
-## never set its backdrop's `amount`, because only the animated way in set it.
-## Turn reduced motion off in Settings and the way out is animated again, and
-## `close` read that `amount`: null, `as float` threw, and `close` stopped
-## halfway. Main had already let go of the menu, so it stayed up, swallowing
-## every click, and Escape opened a second one over it.
-##
-## HEADLESS NEVER ANIMATES (`Router.animating`), which is why no test saw it.
-## This one turns the animations on with `Router.animate_in_harness`, so the
-## tweens and the animated close really run.
-##
-## Each case opens the menu with Escape, goes into Settings by its button,
-## changes the motion settings, and then checks the menu still answers: Escape
-## leaves Settings, BACK leaves Settings, Escape shuts the menu and it is GONE
-## from the tree, and the ship screen takes its keys again. The settings are
-## changed in memory and the panel redrawn, as the chip does, without the save:
-## the player's settings file is never written.
+## Regression: reduced motion left no backdrop `amount`, so the animated close threw and stuck.
+## Why: docs/why/MenuTest.md#motion-lockup
 
 var _tree: SceneTree
 var _main: Node
@@ -148,11 +129,7 @@ func _drawer_case() -> void:
 		_main.get("_settings") == null and not is_instance_valid(drawer))
 
 
-## THE RENDERING STYLE (`DisplaySettings.render_style`): SIMPLIFIED by default,
-## a style with no renderer cannot be chosen, a settings file naming one that is
-## unknown or not built loads as the default, the choice survives a save and a load,
-## and while only one style is built Settings builds no STYLE row at all. In a
-## scratch settings file: the player's is never read or written.
+## Covers `render_style`: default SIMPLIFIED, unknown styles fall back, choice survives a save.
 func _style_case() -> void:
 	const SCRATCH := "user://styletest_settings.cfg"
 	var was_path := DisplaySettings.path
@@ -160,8 +137,11 @@ func _style_case() -> void:
 	DisplaySettings.path = SCRATCH
 	var fresh := ConfigFile.new()
 	_ok("  a fresh settings file is SIMPLIFIED", DisplaySettings.style_in(fresh) == &"simplified")
-	_ok("  SIMPLIFIED is built, LEGACY first in the list", DisplaySettings.style_built(&"simplified")
-		and DisplaySettings.STYLES[0] == &"legacy" and DisplaySettings.STYLES[1] == &"simplified")
+	_ok("  SIMPLIFIED is built and first in the list", DisplaySettings.style_built(&"simplified")
+		and DisplaySettings.STYLES[0] == &"simplified")
+	_ok("  LEGACY is gone: not built, not listed, three styles (%s)" % [DisplaySettings.STYLES],
+		not DisplaySettings.style_built(&"legacy") and not DisplaySettings.STYLES.has(&"legacy")
+		and str(DisplaySettings.STYLES) == str([&"simplified", &"painted", &"radiant"]))
 	var heard := [0]
 	var on_change := func() -> void: heard[0] += 1
 	Sig.render_style_changed.connect(on_change)
@@ -181,6 +161,24 @@ func _style_case() -> void:
 		var back := ConfigFile.new()
 		back.load(SCRATCH)
 		_ok("  a saved %s loads as the default" % [JSON.stringify(bad)], DisplaySettings.style_in(back) == DisplaySettings.DEFAULT_STYLE)
+	# LEGACY WENT (Jon, Nov 7): a file that chose it, by name or by its old place
+	# in the list (0), loads through the boot's own read as SIMPLIFIED with no
+	# error, and that read's save writes SIMPLIFIED over it; the other three keep
+	# what they were saved as, by name and by their old places (1, 2, 3), so
+	# nobody else's choice moves
+	for c: Array in [["legacy", &"simplified"], [0, &"simplified"], ["simplified", &"simplified"],
+			[1, &"simplified"], ["painted", &"painted"], [2, &"painted"], ["radiant", &"radiant"], [3, &"radiant"]]:
+		var f := ConfigFile.new()
+		f.set_value("display", "mode", int(DisplaySettings.mode))
+		f.set_value("display", "window_scale", DisplaySettings.window_scale)
+		f.set_value("display", "render_style", c[0])
+		f.save(SCRATCH)
+		DisplaySettings.load_and_apply()
+		var after := ConfigFile.new()
+		after.load(SCRATCH)
+		var wrote := str(after.get_value("display", "render_style", ""))
+		_ok("  a saved %s loads as %s and is saved as %s" % [JSON.stringify(c[0]), String(c[1]).to_upper(), wrote],
+			DisplaySettings.render_style == c[1] and wrote == String(c[1]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.render_style = &"simplified"
 	DisplaySettings.save()
@@ -206,10 +204,7 @@ func _style_case() -> void:
 	await _tree.process_frame
 
 
-## GRAPHICS LOW from Settings (`DisplaySettings.set_graphics_low`): the row is
-## there beside STYLE, a press keeps it (written to a scratch settings file,
-## never the player's), the sky is told to rebuild, and turning it on lets
-## RADIANT's safety try again.
+## Covers GRAPHICS LOW from Settings: kept in a scratch file, sky rebuilt, RADIANT retries.
 func _graphics_case() -> void:
 	const SCRATCH := "user://gfxtest_settings.cfg"
 	var was_path := DisplaySettings.path
@@ -253,15 +248,8 @@ func _graphics_case() -> void:
 	ChartRadiant.fell_back = was_fell
 
 
-## FRAME CAP AND VSYNC (Jon, Oct 27, perf C3: "yes"). FRAME CAP offers NONE,
-## 30, 60 and 120; VSYNC is ON or OFF, and OFF only with a cap: OFF with the
-## cap at NONE sets it to 60, and NONE turns VSYNC back on. Every value reaches
-## `Engine.max_fps` and the window's V-Sync (`applied_vsync`, which is what was
-## handed to `window_set_vsync_mode`, and the window's own reading when there
-## is a window to ask). A file from before VSYNC loads ON with its cap and
-## leaves the window's V-Sync alone; one that says OFF with no cap loads ON.
-## Pressed through the real chips, in a scratch settings file, never the
-## player's.
+## FRAME CAP and VSYNC are coupled: OFF needs a cap, and NONE turns VSYNC back on (Jon, Oct 27).
+## Why: docs/why/MenuTest.md#frame-cap-and-vsync
 func _pacing_case() -> void:
 	const SCRATCH := "user://pacingtest_settings.cfg"
 	var was_path := DisplaySettings.path
@@ -378,11 +366,7 @@ func _pacing_case() -> void:
 	await _tree.process_frame
 
 
-## THE TWO ROWS FIT, in the escape drawer as it opens over the ship at
-## 960x540: the drawer keeps its width, every chip and label sits inside the
-## settings column and on screen, nothing in either row touches anything else
-## (each other, the rows above and below, the next section), and each chip's
-## word fits its chip.
+## Both pacing rows must fit the escape drawer at 960x540 with nothing overlapping.
 func _pacing_fit_case() -> void:
 	await _press(KEY_ESCAPE)
 	await _secs(0.4)
@@ -504,19 +488,8 @@ func _saved(file: String, key: String, fallback: Variant) -> Variant:
 	return cfg.get_value("display", key, fallback)
 
 
-## GRAPHICS PICKED FOR THE MACHINE (Jon, Oct 27, ruling C1; `GpuProbe`). The
-## adapter's name is a hint (Intel but not Arc is weak; Apple never), the
-## measure decides (a heavy HIGH sky is LOW, a sky measured on LOW is judged by
-## what HIGH would cost; a GPU that reads 0, as a Mac's does, by the title's
-## median frame; no reading leaves it to the hint). A settings file from
-## before `graphics_by` loads: HIGH as nobody's, LOW as the player's. Nobody's +
-## a heavy measure: LOW, kept once in the file, nothing rebuilt under the
-## picture (no `render_style_changed`), never decided again, and read back so.
-## Settings says it beside the GRAPHICS row (a line and its tooltips), clear of
-## the rows round it in the real drawer at 960x540, and HIGH pressed makes it
-## the player's. The player's HIGH is never touched, by the hint or a measure.
-## A forced `graphics=` / `style=` and an ordinary harness never measure or pick.
-## All in a scratch settings file, the hint's adapter stood in for.
+## The hint and measure pick graphics; the player's HIGH is never overridden (Jon, Oct 27).
+## Why: docs/why/MenuTest.md#auto-graphics
 func _auto_graphics_case() -> void:
 	const SCRATCH := "user://autogfx_settings.cfg"
 	const INTEL := ["Intel Inc.", "Intel(R) Iris(TM) Plus Graphics 645"]
@@ -802,11 +775,8 @@ func _auto_graphics_case() -> void:
 	await _tree.process_frame
 
 
-## TUTORIAL ON / OFF (Jon, Oct 20: "Have a setting in the options for tutorial
-## on or tutorial off"): the row is in Settings' HINTS with ON picked on a fresh
-## file, OFF is kept and read back (written to a scratch settings file, never
-## the player's), ON brings it back; and pressing REPLAY TUTORIAL does not move
-## it (nothing clickable moves).
+## Tutorial ON or OFF is a setting, and REPLAY TUTORIAL does not move it (Jon, Oct 20).
+## Why: docs/why/MenuTest.md#tutorial-toggle
 func _tutorial_case() -> void:
 	const SCRATCH := "user://tuttest_settings.cfg"
 	var was_path := DisplaySettings.path
@@ -864,9 +834,7 @@ func _tutorial_chips(panel: Node) -> Array:
 	return out
 
 
-## SAVE MY LOGS (`PlaytestLogs`): the button is in Settings, and the zip it
-## writes holds the named files and nothing else -- written to a scratch folder,
-## not the Desktop, with a scratch settings file; then removed.
+## The SAVE MY LOGS zip holds only the named files; written to a scratch folder.
 func _logs_case() -> void:
 	const SCRATCH := "user://logstest_settings.cfg"
 	var was_path := DisplaySettings.path
@@ -902,9 +870,7 @@ func _logs_case() -> void:
 		_ok("  with the home folder taken out of the log", home == "" or not log.contains(home.replace("\\", "/")))
 		var build := zr.read_file("build.txt").get_string_from_utf8()
 		_ok("  and the build named", build.begins_with("Three Kelvin"))
-		# WHAT A SLOW MACHINE'S REPORT NEEDS (Oct 27): which look and window the
-		# game was drawn at, how the screen scales it, what paces the frames, the
-		# renderer and whether it ran on battery -- so "it chugs" comes with them
+		# A slow machine's report needs look, window, frames, driver and battery (Oct 27).
 		for line: String in ["look: ", "window: ", "frames: ", "driver: ", "battery: "]:
 			_ok("  build.txt says the %s" % line.trim_suffix(": "), build.contains("\n" + line))
 		zr.close()
@@ -915,14 +881,8 @@ func _logs_case() -> void:
 	await _tree.process_frame
 
 
-## THE FRAME COUNTER (`FpsMeter`, Settings' FRAME COUNTER): the rate and the
-## mean frame, and the WORST frame of the last second -- the one a rate hides
-## and a player feels. A frame held for 90 ms has to read as the worst, and be
-## gone from it a second and a half later; and the meter stays top-level, in
-## no layout (`872f546` removed one that was a child of the HUD row).
-## GONE MEANS THAT FRAME IS GONE, not that every frame since was under 85 ms:
-## the gate runs three at once on an 8 GB Mac, and a stall of the machine's
-## own in that second is not the meter's fault (Oct 27 review).
+## The meter shows the worst frame of the last second, which a rate hides; it stays top-level.
+## Why: docs/why/MenuTest.md#frame-counter
 func _meter_case() -> void:
 	var m := FpsMeter.new()
 	_tree.root.add_child(m)
@@ -957,11 +917,8 @@ func _meter_worst(m: FpsMeter) -> float:
 	return parts[1].split(" ")[0].to_float()
 
 
-## THE FIRST LAUNCH'S WINDOW (`DisplaySettings.first_launch_window`; Jon's
-## release-check pick A, Oct 18). With no settings file: BORDERLESS where a
-## window could only be 1x (a 1080p screen), else a window at the largest size
-## that fits. A settings file that exists is never overridden. Through the real
-## `load_and_apply`, on a scratch file.
+## Release-check pick A: BORDERLESS where only 1x fits, else the largest window (Jon).
+## Why: docs/why/MenuTest.md#first-launch-window
 func _first_window_case() -> void:
 	const SCRATCH := "user://firstwindow_settings.cfg"
 	var was_path := DisplaySettings.path
@@ -1006,16 +963,8 @@ func _first_window_case() -> void:
 	await _tree.process_frame
 
 
-## A RETINA MAC'S WINDOW STOPS AT 2X (`DisplaySettings.RETINA_MAX_SCALE`; Jon,
-## Oct 27, ruling C2). On stand-in screens (`DisplaySettings.test_screen`,
-## `test_retina`), since no machine the gate runs on is a Retina Mac and
-## headless has no screen: "looks like 1440x900" (2880x1800 pixels) offers 2X
-## at most and its first launch is a 2X window, where the same screen off a Mac
-## still offers and opens 3X, and a 1080p screen is unchanged; a settings file
-## saved before the cap at 3X opens at 2X on a Retina Mac and stays 3X off one,
-## and a saved BORDERLESS is kept; Settings' WINDOW SIZE row on that Mac has no
-## 3X chip, says why, and fits the drawer at 960x540 with nothing overlapping.
-## A scratch settings file, never the player's.
+## A Retina Mac's window stops at 2X, tested on stand-in screens (Jon, Oct 27, ruling C2).
+## Why: docs/why/MenuTest.md#retina-window
 func _retina_case() -> void:
 	const SCRATCH := "user://retinatest_settings.cfg"
 	const NOTE := "LARGER SIZES NEED BORDERLESS"
@@ -1146,14 +1095,9 @@ func _retina_case() -> void:
 	await _tree.process_frame
 
 
-## MOTION HOLDS THE PLAYER'S ROWS, EVEN IN DEV MODE. The zoom ladder's
-## developer rows -- ONE CAMERA, each seam's design, 3B into the yard, the move
-## timings and the station lights -- were built there under `DevMode.enabled`
-## until Jon had them out, Oct 19; what he had them on is `ZoomLadder`'s
-## constants. So the section, built with dev mode on, names exactly ANIMATION,
-## CLICK TO SKIP JUMP, SCREEN SHAKE, FRAME CAP and VSYNC (Oct 27); and a settings file still
-## holding the old `[flow]` keys loads without a word and moves nothing.
-const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
+## MOTION holds only the player's rows even in dev mode, after Jon removed the ladder rows.
+## Why: docs/why/MenuTest.md#motion-rows
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
 const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
 	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
 	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",
@@ -1205,6 +1149,12 @@ func _dev_motion_case() -> void:
 		ZoomLadder.design_for(1) == "A" and ZoomLadder.design_for(2) == "C"
 		and ZoomLadder.design_for(3) == "B" and ZoomLadder.seam3_fade() == "F")
 	_ok("  the calm move stays on", ZoomLadder.calm_on())
+	_ok("  a file with no AUTOPILOT key flies CURVED (%s)" % DisplaySettings.autopilot, DisplaySettings.autopilot == &"curved")
+	for ap: Array in [["direct", &"direct"], ["sideways", &"curved"], ["curved", &"curved"]]:
+		old.set_value("display", "autopilot", ap[0])
+		old.save(SCRATCH)
+		DisplaySettings.load_and_apply()
+		_ok("  AUTOPILOT saved as %s loads %s (%s)" % [ap[0], ap[1], DisplaySettings.autopilot], DisplaySettings.autopilot == ap[1])
 	_ok("  and the timings are the baked ones (UI out %.2f, hop camera %.2f, station on %.2f)" % [
 		ZoomLadder.UI_OUT_S, ZoomLadder.CALM_CAM_S, ZoomLadder.LIGHT_ON],
 		is_equal_approx(ZoomLadder.UI_OUT_S, 0.22) and is_equal_approx(ZoomLadder.CALM_CAM_S, 0.8)
@@ -1216,9 +1166,7 @@ func _dev_motion_case() -> void:
 	await _tree.process_frame
 
 
-## RUN ENDED HAS A WAY BACK TO THE TITLE (the tutorial audit, Oct 22): the only
-## one was Esc and then ABANDON. Its TITLE leaves as the win's does: the title
-## up, no ship.
+## RUN ENDED needs a way back to the title; the only one was Esc then ABANDON (audit, Oct 22).
 func _run_ended_case() -> void:
 	seed_run(4471)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -1240,10 +1188,7 @@ func _run_ended_case() -> void:
 	Run.dead = false
 
 
-## ESC ON THE HULL PICK (the tutorial audit, Oct 22): before a run launches
-## there is no escape menu, whose ABANDON put a run that never started on the
-## record. Esc shuts the opening deck's popup first, then goes back to the
-## title, and nothing is recorded.
+## Esc on the hull pick leaves no ABANDON record, as no run ever started (audit, Oct 22).
 func _chassis_case() -> void:
 	Router.new_run()
 	if not _ok("  NEW RUN opens the hull pick", await _wait_for(func() -> bool:
@@ -1267,22 +1212,8 @@ func _chassis_case() -> void:
 		after == runs and Run.hull == null)
 
 
-## THE PICK ON THE REAL TITLE, END TO END (the review of Oct 27). Everything in
-## `_auto_graphics_case` drives `GpuProbe` and `DisplaySettings` by hand; the part
-## that makes the pick had never run anywhere: the title's sky stepping its probe
-## every frame (`ChartSky._gfx_step` over `sky_viewports`), `GpuProbe.conclude`,
-## the picked pass compiled (`warm_place`), the title keeping the pass it has
-## (`low_held` in `_push`), and the next sky drawing the pick. On an Intel Mac a
-## dead measure looks like a working one (the hint has LOW up before it), so
-## these titles run on chips with no hint. Headless never bakes the sky, so the
-## bake's GPU products are stood in for (`ChartSky.stand_in_bake`; the CPU's
-## share is real), and the dummy renderer's GPU timer reads 0, as a Mac's does:
-##   A: a GPU timer (Windows) reading a heavy sky (`GpuProbe.force_ms`): LOW.
-##   B: no GPU timer (a Mac), the frames slow on the wall clock: LOW.
-##   C: no GPU timer, the frames as fast as they come: what they say, kept.
-## RADIANT's safety on the same sky waits for the pick and never judges a held
-## pass, and does judge a sky drawn as it will be. Each title over a scratch
-## settings file nobody has set; each wait fails at its timeout, never hangs.
+## End to end on the real title: other cases drive `GpuProbe` by hand, so the pick never ran.
+## Why: docs/why/MenuTest.md#graphics-pick-e2e
 const PICK_SCRATCH := "user://titlepick_settings.cfg"
 const NVIDIA := ["NVIDIA Corporation", "NVIDIA GeForce GTX 750/PCIe/SSE2"]
 const RADEON := ["ATI Technologies Inc.", "AMD Radeon Pro 555 OpenGL Engine"]
@@ -1474,9 +1405,7 @@ func _readers(sky: ChartSky) -> int:
 	return n
 
 
-## RADIANT's safety on `sky` as if the style were RADIANT, its probe reading a
-## heavy sky past its end: true if it waited (RADIANT kept). All put back after
-## (a fall-back saves SIMPLIFIED to the scratch file, which already says it).
+## Runs RADIANT's safety as if the style were RADIANT, then restores everything.
 func _radiant_waits(sky: ChartSky) -> bool:
 	var style := DisplaySettings.render_style
 	var fell := ChartRadiant.fell_back

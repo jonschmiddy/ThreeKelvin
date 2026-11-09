@@ -1,26 +1,9 @@
 class_name HullGrade
 extends RefCounted
 
-## ONE HULL PER WEIGHT, FOUR GRADES DRAWN FROM IT (Jon, Oct 14: "Instead of
-## generating 12 ships per manufacturer. We just do Three... use shader code to
-## modify each ship at each heaviness to make them more shitty (C tier)" or new
-## looking at S).
-##
-## A BAKE, NOT A LIVE SHADER: one pass per hull and grade, cached, so it costs a
-## frame nothing, and every operation ends on a colour the sprite ALREADY HAS (a
-## step along its own ramp, its amber turned to the grey of the same lightness,
-## its own lightest colour) -- the ruling that generated art may not drift the
-## palette holds by construction, as it does in HullWear, and `palette()` before
-## and after can prove it.
-##
-## GRADE IS BUILD QUALITY, DAMAGE IS CONDITION. HullWear draws what the fights
-## did, off hull points; this draws what the yard did. The three looks below are
-## three ideas of what a C has that an S does not, on trial (Jon picks one):
-##   A  wear:   age -- grime in the panels, drips under the seams, the amber faded
-##   B  paint:  livery -- C in primer with odd panels, B chipped, S trimmed
-##   C  finish: light -- C flat and dull, S crisp with lit edges and lit ports
-## A is the one that leans on condition's register; that is a known risk against
-## the "a class is a SPECIFICATION, not a condition" ruling, and why B and C exist.
+## One hull per weight, four grades baked from it (Jon, Oct 14).
+## Grade is build quality, damage is condition. Looks A, B, C are on trial for Jon.
+## Why: docs/why/HullGrade.md#hull-grades
 
 enum Look { WEAR, PAINT, MARKS, LIGHTS, KIT }
 const LOOKS := {&"A": Look.WEAR, &"B": Look.PAINT, &"D": Look.MARKS, &"E": Look.LIGHTS, &"F": Look.KIT}
@@ -36,14 +19,8 @@ static func bake(src: Image, grade: int, look: int, seed_in: int = 7, hull: Stri
 	return bake_mix(src, grade, [look], seed_in, hull)
 
 
-## More than one look on one hull (Jon: "the combinations of wear using A B and
-## C"). Always in the same order whatever order they are asked in -- the paint
-## the yard put on, then the age on top of the paint, then the light falling on
-## all of it -- and every pass steps along the ramps read off the SOURCE, so a
-## pass after the paint still knows the amber the paint took away.
-## `hull` is the hull's key in art/hull_grade.json ("korvan/hull_medium_a"): the
-## markings and the lights are placed by hand there, and a hull with no entry
-## gets neither.
+## Fixed pass order (paint, age, light), each stepping along ramps read off the SOURCE.
+## Why: docs/why/HullGrade.md#mixed-looks
 static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hull: String = "") -> Image:
 	var img := src.duplicate() as Image
 	if img.is_compressed():
@@ -87,16 +64,13 @@ class _Ramps extends RefCounted:
 					seen[HullGrade.key(c)] = c
 		for k in seen:
 			var c: Color = seen[k]
-			# warm only: a navy grey is saturated too (the light and heavy
-			# sprites' shadow side is #2f3348), and was being worn as if it
-			# were the band. Korvan's band is amber; another manufacturer's
-			# band hue goes here when it has one.
+			# Warm only: a navy grey is saturated too and
+			# was worn as if it were Korvan's amber band.
 			if c.s > 0.28 and c.v > 0.25 and (c.h < 0.17 or c.h > 0.95):
 				accent.append(c)
 			elif HullGrade._manufacturer != "korvan" and c.s > 0.45:
-				# a pale hull's glass and cold glints (Solari's blue panes):
-				# neither ramp, so grime on the white tile never steps into
-				# blue. Korvan keeps its navy in the grey, as approved.
+				# A pale hull's glass and cold glints sit on
+				# neither ramp, so grime never steps into blue.
 				pass
 			else:
 				grey.append(c)
@@ -141,9 +115,7 @@ class _Ramps extends RefCounted:
 		var i := int(round(lerpf(float(w[1]), mid, t)))
 		return ramp[clampi(i, 0, ramp.size() - 1)]
 
-	## The grey nearest `dl` lighter (or darker) than this colour: a fixed step
-	## in lightness, where `step` is a step along a ramp whose shades may be
-	## crowded together.
+	## The grey nearest `dl` away: a fixed lightness step, where a ramp step may be crowded.
 	func lift(c: Color, dl: float) -> Color:
 		var want := HullGrade.luma(c) + dl
 		var best: Color = c
@@ -177,10 +149,7 @@ static func noise(x: int, y: int, seed_in: int) -> float:
 	return float(h & 0xffff) / 65535.0
 
 
-## The same field, but soft: `noise` at the corners of `sx` x `sy` cells,
-## eased between, so a threshold on it cuts round patches rather than a checker
-## of cells (Jon, Oct 14: "All of the C tiers should have a degraded band, but
-## have it be less pixelated").
+## Soft noise, eased between corners, so thresholds cut round patches, not a checker (Jon, Oct 14).
 static func smooth(x: int, y: int, sx: int, sy: int, seed_in: int) -> float:
 	var gx := floori(float(x) / sx)
 	var gy := floori(float(y) / sy)
@@ -206,10 +175,7 @@ static func _inner(img: Image, x: int, y: int) -> bool:
 
 # --------------------------------------------------------------------- A  wear
 
-## AGE. Grime settles in blotches a few pixels across, dark drips run down from
-## under the seams (a seam: a pixel clearly darker than the one above it), and
-## the amber dulls in patches, worn through to the grey in a few. An S is the sprite cleaned: the single
-## stray speckles (a pixel unlike both its neighbours) are wiped.
+## AGE: grime blotches, drips under seams and patchy amber wear; an S has stray speckles wiped.
 static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 	var w := img.get_width()
 	var h := img.get_height()
@@ -230,10 +196,9 @@ static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 			if not _inner(src, x, y):
 				continue
 			var c := src.get_pixel(x, y)
-			# the amber dulls in patches and wears through to the grey in a few:
-			# the manufacturer's colour is always still there (Jon, Oct 14).
-			# Soft patches, no speckle: on the band a checker of cells read as
-			# pixelation, not as paint worn off
+			# Amber wears in soft patches to grey in a few, never
+			# gone (Jon, Oct 14); a checker read as pixelation.
+			# Why: docs/why/HullGrade.md#manufacturer-colour-stays
 			if r.is_accent(c):
 				var f := smooth(x, y, 6, 5, seed_in + 2)
 				if f < age * 0.2:
@@ -271,11 +236,7 @@ static func _wear(img: Image, r: _Ramps, age: float, seed_in: int) -> void:
 
 # -------------------------------------------------------------------- B  paint
 
-## LIVERY. C is in primer: a few panels two shades off their neighbours, as if
-## pulled from other hulls, and the manufacturer's colour dulled and worn through in
-## patches -- never gone, because the band is how a manufacturer is known. B has its livery chipped
-## (the amber dithered out where it would have worn). A is as the yard paints it.
-## S adds a trim line in the manufacturer's colour along the hull's top edge.
+## LIVERY: C in primer with odd panels, B chipped, A as painted, S adds a trim line.
 static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 	var w := img.get_width()
 	var h := img.get_height()
@@ -287,10 +248,9 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 			var c := src.get_pixel(x, y)
 			match grade:
 				0:
-					# THE MANUFACTURER'S COLOUR STAYS (Jon, Oct 14: "there should be SOME COLOR even
-					# at C class. The color of the bands is really important for
-					# manufacturer identity"): a shade darker and worn through to the
-					# grey in patches, never gone
+					# Some colour even at C (Jon, Oct 14): the band is
+					# manufacturer identity, so darker and worn, never gone.
+					# Why: docs/why/HullGrade.md#manufacturer-colour-stays
 					if r.is_accent(c):
 						if smooth(x, y, 7, 6, seed_in + 7) < 0.3:
 							c = r.to_grey(c)
@@ -328,13 +288,8 @@ static func _paint(img: Image, r: _Ramps, grade: int, seed_in: int) -> void:
 
 # ------------------------------------------------------------------- the band
 
-## THE MANUFACTURER'S BAND IN ITS OWN AMBER on every weight (Jon, Oct 14: "can
-## we make the orange band ... as vibrantly orange as the medium?"). Today's
-## light and heavy sprites were generated apart and their band came out a
-## duller, browner orange, with its lower half in shadow. The band's colours
-## are the manufacturer's, so they are read off one sprite (the medium's) and
-## every other hull's band is put onto them by lightness. The palette lock
-## still holds, against the sprite's own colours AND the manufacturer's ramp.
+## Band colours are read off the medium sprite and put on other hulls by lightness (Jon, Oct 14).
+## Why: docs/why/HullGrade.md#manufacturer-band
 const BAND_FROM := {"korvan": "res://art/sprites/hulls/korvan/hull_medium_a.png"}
 ## A warm run smaller than this is a rust speck, not the band, and keeps its colour.
 const BAND_MIN := 40
@@ -364,9 +319,8 @@ static func _band(img: Image, hull: String) -> void:
 		return
 	var lo := luma(own[0])
 	var hi := luma(own[own.size() - 1])
-	# own lightest onto the ramp's face colour (one under its highlight), own
-	# darkest onto its second step; the curve lifts the shaded half, which is
-	# what made the band read dull
+	# Own lightest onto the ramp's face colour, darkest
+	# onto its second step; the curve lifts the shaded half.
 	var t_lo := luma(ramp[1])
 	var t_hi := luma(ramp[ramp.size() - 2])
 	var to := {}
@@ -433,17 +387,9 @@ const STENCIL := {
 	"8": ["111", "1.1", "111", "1.1", "111"], "9": ["111", "1.1", "111", "..1", "111"],
 }
 
-## MARKINGS: the registry painted straight on the hull where its entry puts it
-## (a plate behind it looked stuck on: Jon, "Can't we have it more integrated
-## into the ship?"), in a grey that reads on that panel. Scraped at C (a few
-## strokes left), faded through a dither at B, clean at A, fresh at S -- the
-## lightest ink -- with two amber chevrons on the nose.
-## THE REGISTRY'S LOOK, on trial (Jon, Oct 15: "THE TEXT PLACEMENT HERE LOOKS
-## BAD AND PRINTED ON", of the white number on L1 and H3): "" the white stencil
-## as it was; &"A" tone on tone, each stroke the panel under it two shades
-## lighter; &"B" the number alone, in dark paint across the band; &"C" no
-## number. Jon picked A (Oct 15), "a bit lighter, it's too faint": a fifth
-## lighter, up from a tenth.
+## Registry painted on the hull, not a plate, which looked stuck on. Look A (Jon's
+## pick, Oct 15) is tone on tone. A fifth lighter, up from a tenth, as it was too faint.
+## Why: docs/why/HullGrade.md#markings
 static var reg_look: StringName = &"A"
 
 ## Whose hull is being baked: the registry's first letter is its manufacturer's
@@ -484,10 +430,9 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 			cells.append([ch, Vector2i(cx, int(reg[1]))])
 			cx += 4
 	var src := img.duplicate() as Image
-	# LOOK A'S ONE INK: a fifth lighter than the panel under the whole number,
-	# not under each stroke. Lifted pixel by pixel, a speckled panel gave a
-	# speckled number that read fainter on one hull than another (Jon: "why are
-	# all three of these letters different brightness?")
+	# One ink for the whole number: per-stroke lifting
+	# made a speckled number read fainter on some hulls.
+	# Why: docs/why/HullGrade.md#markings
 	if reg_look == &"A":
 		var sum := 0.0
 		var k := 0
@@ -572,13 +517,9 @@ static func _chevrons(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void
 
 # ------------------------------------------------------------------- E  lights
 
-## RUNNING LIGHTS where the hull's entry puts them: its own dark glass (the
-## ports' panes, the bridge windows) and the nav lights. Dead at C; at B a third
-## of the panes and the white nose light; at A two thirds and every nav light; at
-## S every pane. Lit panes are warm, in the manufacturer's colour. A nav light is
-## 2x2 with a glow round it: the hull a step or two lighter along its own ramp,
-## so the light spills without a colour the sprite does not have. Which panes
-## light is fixed by their order, never rolled.
+## Dead at C, a third of panes at B, two thirds at A,
+## every pane at S; which light is fixed, never rolled.
+## Why: docs/why/HullGrade.md#running-lights
 static func _lights(img: Image, r: _Ramps, grade: int, at: Dictionary) -> void:
 	var glass: Color = r.grey[0]
 	var wins: Array = at.get("windows", [])
@@ -640,23 +581,11 @@ static func _nav_on(kind: String, grade: int) -> bool:
 	return grade >= 2 or (grade == 1 and kind == "white")
 
 
-## THE GLOW, which the bake cannot make: a light is brighter than any colour the
-## hull has, so it is a separate layer added over the hull where it is drawn
-## (ThrusterFx.add_material, the flames' own blend), the one thing here off the
-## palette, as a flame is. Three stepped rings round every lit pane and nav
-## light, pixel-sharp, fading out (two round a surface marker); a hull with no
-## entry gets none. `dy` moves it
-## with a bake that moved the hull. Jon: "The lights look just like rectangular
-## pixels."
+## The glow is a separate additive layer, as a light is brighter than any colour the hull has.
+## Why: docs/why/HullGrade.md#light-glow
 const GLOW := [0.55, 0.28, 0.12]
-## THE LIGHTS LIVE (Jon: "Can the lights on the surface flicker?"). `t` is
-## the game clock in seconds; -1 draws every light at rest (a still, a test).
-## A surface marker strobes: a short flash every 1.2-1.6 s on its own beat, a
-## white one twice. The masthead beacon swells and fades once a second and a
-## half. A window is steady, but now and then dips for a moment, as if someone
-## crossed in front of it. Nav lights are steady, as a ship's are. A pulsing
-## pane (Solari's bar strips: Jon, "softly pulsate... BACK to front") swells
-## and eases in turn, aft to fore by its order, one wave every 2.4 s.
+## `t` is the game clock; -1 draws every light at rest. Each light kind has its own beat.
+## Why: docs/why/HullGrade.md#live-lights
 static func level(kind: String, i: int, t: float) -> float:
 	if t < 0.0:
 		return 1.0
@@ -739,13 +668,9 @@ static func lit(baked: Image, grade: int, hull: String, t: float = -1.0) -> Imag
 
 # ---------------------------------------------------------------------- F  kit
 
-## KIT. Every thin thing standing proud of the hull's top edge -- masts,
-## antennas, the small fittings on the roof and the nose -- is DETAIL, and the
-## grades take it away: S is the sprite exactly as drawn, A loses the top third
-## of each, B two thirds, C all of it. Nothing is ever drawn, only removed (Jon,
-## Oct 14: "I don't want you to DRAW pixels for S. I want you to remove details
-## towards C"). A thin thing: a column's top pixels while the row's run of
-## opaque pixels through them is three wide or narrower.
+## Grades only remove detail (Jon, Oct 14): S as drawn,
+## A loses a third of thin things, B two thirds, C all.
+## Why: docs/why/HullGrade.md#kit
 static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary) -> void:
 	if grade >= 3:
 		return
@@ -790,9 +715,8 @@ static func _kit(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictionary
 
 # ------------------------------------------------------------------- in game
 
-## The hull's key in art/hull_grade.json, or "" when its weight is not graded.
-## A manufacturer with no pictures of its own flies Korvan's (DB.hull_art_dir),
-## and grades by Korvan's entry.
+## The hull's key in art/hull_grade.json, or empty
+## when its weight is not graded; others use Korvan's.
 static func key_for(h: HullData) -> String:
 	if h == null or not DB.graded(h.weight, h.manufacturer):
 		return ""
@@ -806,11 +730,8 @@ static func key_for(h: HullData) -> String:
 
 static var _tex := {}
 
-## The hull's picture at its grade, baked once and kept. `half` is the convoy's
-## half sheet, brought down from the graded full picture the way the half sheets
-## were made (every other pixel), so the two always agree. `seed_in` picks the
-## registry number, so it is the ship's. Its resource path is set apart from the
-## base's, because HullWear's cache is keyed by path.
+## Baked once and kept; its resource path is set apart
+## from the base's, as HullWear's cache is keyed by path.
 static func graded_tex(h: HullData, half: bool, seed_in: int) -> Texture2D:
 	var key := key_for(h)
 	if key == "" or h.sprite == null:
@@ -836,9 +757,7 @@ static func graded_tex(h: HullData, half: bool, seed_in: int) -> Texture2D:
 	return tex
 
 
-## The lights as the game draws them: every lit spot's pixels and how bright,
-## at time `t`. [Vector2i, Color] pairs in the full picture's pixels, the glow
-## included; draw them additively (ThrusterFx.add_material).
+## Every lit spot's pixels and brightness at `t`, glow included, to draw additively.
 static func light_pixels(grade: int, hull: String, t: float) -> Array:
 	var out: Array = []
 	var glow := light_layer_sparse(grade, hull, t)
@@ -872,9 +791,7 @@ static func light_layer_sparse(grade: int, hull: String, t: float) -> Dictionary
 	return acc
 
 
-## Draw the lights into `ci` (its material additive), in the picture's own
-## pixels: the caller sets the transform from the picture to its canvas.
-## `scale` 0.5 for a half sheet.
+## Draw the lights into `ci` (additive) in the picture's own pixels; `scale` 0.5 for a half sheet.
 static func draw_lights(ci: CanvasItem, h: HullData, t: float, scale: float = 1.0) -> void:
 	var key := key_for(h)
 	if key == "":

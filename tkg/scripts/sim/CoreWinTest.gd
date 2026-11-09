@@ -1,47 +1,8 @@
 extends Node
 
-## THE CORE'S BOSS, BEATEN, THROUGH THE REAL DOORS:
-##   godot --headless --path . -- sheet=CoreWinTest
-##
-## Jon, Oct 12: "when defeating the final boss at the core, let's have the body
-## of the boss lootable, but let it end the alpha with a winning game popup.
-## same music as the death screen."
-##
-## A run with things in its hold flies to the core, presses ENGAGE
-## (`Router.engage_here`), and plays the custodian to a kill: its hull is cut to
-## one and its block to none first, so the fight is short, and the cards are
-## played through `Combat.play` as the hand plays them. Then, from the screen
-## the router leaves:
-##   - the custodian's body lying on LOCAL, NOT opened by itself (Jon: "I would
-##     want to have to click the dead custodian"): SALVAGE THE CUSTODIAN said,
-##     every door shut; clicking it (the wreck's own click) opens the popup with
-##     the boss's own loot in it, and the win screen is NOT up yet;
-##   - the run already in the record as a win, and the one save a won run may
-##     have written: the core with the body on it (`core_won`). Quit there and
-##     CONTINUE comes back to the body, still to click, recorded once;
-##   - Tab doing nothing while the body is open, a part taken into the hold;
-##   - DONE bringing up the win screen: YOU WON, Jon's note whole and unscrolled
-##     at the game's size, the stats, TITLE, and the death screen's music
-##     (`Audio.music_asked` &"gameover", which plays `Audio.DEATH_CUE`);
-##   - a second kill closed with Escape, and a third left by a door that should
-##     not be there (`Router.show_system`), both ending on the win screen;
-##   - an ordinary fight won, which leaves you on LOCAL by its wreck with no
-##     win screen, no loot step and no win in the record;
-##   - and the death screen asking for the same music the win does.
-##
-## THE CUSTODIAN GROWS WITH THE RUN (Jon, Nov 3, rule G3 with cap B): 200
-## through jump 15, then x1.04 a jump, capped at 400 from jump 33. Checked first
-## (`_custodian_growth`): the template's `hull_at`, the hull a fight fields
-## through `Combat.plan` at each count, the template left at 200 across fights,
-## only the Custodian growing, and a co-op joiner adding 0.6 of the grown hull.
-## ONE CUSTODIAN FOR THE GALAXY (Jon, Nov 4): in co-op it grows on the lead
-## ship's jumps (`Run.custodian_jumps()`), so a ship at jump 5 behind a lead at
-## 33 fields 400, and a fight opened at 20 grows to 33 mid-fight with its damage
-## kept and the log saying so (`_custodian_party`), a count asleep or past the
-## cap rising with no hull moving and nothing said, a ship joining a fight
-## already grown past its count saying nothing; and `Router.start_combat` on a
-## host in a dive opens the party's fight at that count (`_party_router_fight`).
-## Every core run below flies in at jump 41, so ENGAGE must open at 400.
+## Jon, Oct 12: the boss body is lootable and ends the alpha with a win popup, death music.
+## The custodian grows with the run (Nov 3), is built for the game's players (Nov 5) and is one galaxy-wide in co-op (Nov 4).
+## Why: docs/why/CoreWinTest.md#core-win
 
 var _tree: SceneTree
 var _fails := 0
@@ -110,9 +71,7 @@ func _run() -> void:
 	_ok("the popup is the custodian's body",
 		body != null and body.art == &"custodian" and body == Router.core_body_here())
 	_check_loot(body)
-	# EVERY PART CAN BE SEEN. The popup sized the far grid by the number of
-	# things in it, so the body's big parts pushed the rest below a view with
-	# no scrollbar (seen in the first still).
+	# Every part can be seen: the popup sized the grid by count and pushed parts below the view.
 	if tv != null and tv._loose_scroll != null:
 		var rows := tv._loose.content_rows()
 		var shown := int(tv._loose_scroll.custom_minimum_size.y / HoldGrid.CELL)
@@ -268,22 +227,29 @@ func _custodian_growth() -> void:
 			hulls.append(cb.enemies[0].max_hp)
 	_ok("a lancer and the Hellbender field the same hull at jump 60 as at 0 (%s)" % str(hulls),
 		hulls[0] == hulls[1] and hulls[2] == hulls[3])
-	# CO-OP: the opener's grown hull goes to the party's fight, and a joiner
-	# adds 0.6 of it (SharedFight.CREW_SHARE), not 0.6 of 200.
+	# CO-OP (Jon, Nov 5): the grown hull built for the players in the game,
+	# and a joiner adds nothing
 	Run.jumps = 33
 	var op := Combat.new()
-	op.plan(cust, 1)
-	var f := SharedFight.open(0, op.foe_ids(), op.foe_hp(), op.foe_brace(), op.foe_hp_now(), 1)
+	op.plan(cust, 1, [], 2)
+	var f := SharedFight.open(0, op.foe_ids(), op.foe_hp(), op.foe_brace(), op.foe_hp_now(), 1, -1, 2)
 	var opened := f.foes[0].max_hp
+	var two := PartyScale.party_hull(400, 2)
 	f.join(2)
-	_ok("co-op: opened at jump 33 the party's Custodian is 400, and a joiner makes it 640 (%d, %d)"
-		% [opened, f.foes[0].max_hp], opened == 400 and f.foes[0].max_hp == 640 and f.foes[0].hp == 640)
+	_ok("co-op: at jump 33 a game of two fields 400 x %.2f = %d, and a joiner adds nothing (%d, %d)"
+		% [PartyScale.hull(2), two, opened, f.foes[0].max_hp], opened == two and f.foes[0].max_hp == two and f.foes[0].hp == two)
+	var hulls4: Array = []
+	for n in [1, 2, 3, 4]:
+		var c4 := Combat.new()
+		c4.plan(cust, 1, [], n)
+		hulls4.append(c4.enemies[0].max_hp)
+	_ok("co-op: at jump 33 the Custodian for 1 to 4 players is %s" % str(hulls4),
+		hulls4 == [400, PartyScale.party_hull(400, 2), PartyScale.party_hull(400, 3), PartyScale.party_hull(400, 4)])
 	Run.jumps = 0
 
 
-## THE LEAD SHIP'S JUMPS (Jon, Nov 4: "The custodian strength and icon should be
-## the same for everyone in the galaxy, even if they join late."), without a
-## wire: the count a fight is built at, and the growth the host makes mid-fight.
+## Jon, Nov 4: strength and icon are the same for everyone, even late joiners, with no wire.
+## Why: docs/why/CoreWinTest.md#custodian-growth
 func _custodian_party() -> void:
 	var cust: EnemyTemplate = DB.enemies[&"custodian"]
 	Rng.forced = 31337
@@ -294,12 +260,13 @@ func _custodian_party() -> void:
 	Run.jumps = 5
 	Run.party_jumps = 33
 	var cb := Combat.new()
-	cb.plan(cust, 1)
-	var f := SharedFight.open(0, cb.foe_ids(), cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), 1, cb.grown)
+	cb.plan(cust, 1, [], 2)
+	var f := SharedFight.open(0, cb.foe_ids(), cb.foe_hp(), cb.foe_brace(), cb.foe_hp_now(), 1, cb.grown, 2)
 	var opened := f.foes[0].max_hp
 	f.join(2)
-	_ok("co-op: at jump 5 behind a lead at 33 the Custodian is 400, grown at 33, and a joiner makes it 640 (%d, %d, %d)"
-		% [opened, cb.grown, f.foes[0].max_hp], opened == 400 and cb.grown == 33 and f.foes[0].max_hp == 640)
+	var two := PartyScale.party_hull(400, 2)
+	_ok("co-op: at jump 5 behind a lead at 33 a game of two fields %d, grown at 33, and a joiner adds nothing (%d, %d, %d)"
+		% [two, opened, cb.grown, f.foes[0].max_hp], opened == two and cb.grown == 33 and f.foes[0].max_hp == two)
 	# and ahead of the lead's last word, your own jumps are the floor
 	Run.jumps = 40
 	Run.party_jumps = 20
@@ -316,14 +283,11 @@ func _custodian_party() -> void:
 	lancer.plan(DB.enemies[&"lancer"], 1)
 	_ok("solo: fights at 60, 60 and 0 still field 400, 400, 200 (%s), and a lancer's says no count (%d)"
 		% [str(seq), lancer.grown], seq == [400, 400, 200] and lancer.grown == -1)
-	# MID-FIGHT (decision 2): opened at 20 with a joiner and hurt, the lead
-	# ship reaches 33; the host grows it (`NetSession._regrow`) and this
-	# machine adopts it (`Combat._adopt`): the hull bar rises, the damage done
-	# stays done, and the log says "The Custodian grows stronger."
+	# Mid-fight: the host grows it, this machine adopts it, damage stays done, and the log says so.
 	Run.jumps = 20
 	var me := Combat.new()
-	me.plan(cust, 1)
-	var sf := SharedFight.open(0, me.foe_ids(), me.foe_hp(), me.foe_brace(), me.foe_hp_now(), 1, me.grown)
+	me.plan(cust, 1, [], 2)
+	var sf := SharedFight.open(0, me.foe_ids(), me.foe_hp(), me.foe_brace(), me.foe_hp_now(), 1, me.grown, 2)
 	sf.join(2)
 	var said: Array = []
 	var listen := func(text: String, _kind: StringName) -> void: said.append(text)
@@ -338,17 +302,16 @@ func _custodian_party() -> void:
 	me._adopt(sf)
 	var grown_by := me.enemies[0].max_hp
 	var lines := said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.")
-	_ok("mid-fight from 20 to 33: the hull bar rises from %d to %d (joined hull x hull_at(33) / hull_at(20)), the damage done (%d) stays done"
+	_ok("mid-fight from 20 to 33: the hull bar rises from %d to %d (the two-player hull x hull_at(33) / hull_at(20)), the damage done (%d) stays done"
 		% [joined, grown_by, done], grown_by == int(round(joined * float(cust.hull_at(33)) / float(cust.hull_at(20))))
+		and joined == PartyScale.party_hull(cust.hull_at(20), 2)
 		and me.enemies[0].max_hp - me.enemies[0].hp == done and done > 0)
 	_ok("and the log says \"The Custodian grows stronger.\" once, never on joining (%d; %s)" % [lines.size(), "quiet" if quiet else "said early"],
 		lines.size() == 1 and quiet and me.grown == 33)
 	me._adopt(sf)
 	_ok("and not again for the same count", said.filter(func(s: String) -> bool: return s == "The Custodian grows stronger.").size() == 1)
 	me.release()
-	# ASLEEP AND CAPPED: a count that rises before the wake (7 to 8) or past
-	# the cap (33 to 40) grows no hull, and the log says nothing; the wake
-	# itself (8 to 16) does say it
+	# Asleep and capped counts grow no hull and say nothing. The wake itself says it.
 	for row: Array in [[7, 8, false], [8, 16, true], [33, 40, false]]:
 		said.clear()
 		Run.jumps = int(row[0])
@@ -366,10 +329,7 @@ func _custodian_party() -> void:
 			told == bool(row[2]) and grew == bool(row[2]) and c3.grown == int(row[1])
 			and (not told or said.has("The Custodian grows stronger.")))
 		c3.release()
-	# JOINING A FIGHT ALREADY GROWN past this machine's count (its push not
-	# landed yet, its plan at 17; the host raised the fight to 20 before it
-	# got here): adopted on attaching, so nothing is said, as nothing grew in
-	# front of it
+	# Joining an already grown fight: adopted on attaching, so nothing is said.
 	said.clear()
 	Run.jumps = 17
 	var late := Combat.new()
@@ -592,12 +552,67 @@ func _ordinary_fight() -> void:
 	_ok("(ordinary) the music is not the death cue", Audio.music_asked != &"gameover")
 
 
-## THE FIGHT CARRIES ITS COUNT TO THE HOST (PROTOCOL 16), through the real
-## door: `Router.start_combat` on a host in a dive with a partner on its
-## roster hands `Combat.grown` to `Net.open_fight`, and the party's fight is
-## grown at the lead ship's count. The partner is a roster row only (nobody on
-## the wire), as NetTest's stale guest is; the fight's push goes to nobody.
-## And the tooltip's party words follow the dive's galaxy (`CustodianBadge.party`).
+## WHAT THE LOG SAYS IS WHAT WAS MADE (review, Nov 5): in a game of three a
+## material is paid three times (`add_material`, `PartyScale.pay`), and the
+## line says three, not the one a lone pilot gets.
+func _logs_say_what_was_made() -> void:
+	var said: Array[String] = []
+	var hear := func(text: String, _kind: StringName) -> void: said.append(text)
+	Sig.log_line.connect(hear)
+	var k := PartyScale.pay(1)
+	# a found hull scrapped: its crates
+	Run.found_hull = DB.hull_for(&"korvan", HullData.Weight.LIGHT).duplicate() as HullData
+	Run.found_scrap = {credits = 30, material = &"deck_plate"}
+	var pile0 := Run.sector_jetsam(Run.node_at()).items.size()
+	Run.scrap_found_hull()
+	var made := Run.sector_jetsam(Run.node_at()).items.size() - pile0
+	var mat_name := String(MaterialTable.by_id(&"deck_plate").get("name", "?"))
+	var line := ""
+	for t in said:
+		if t.begins_with("Scrapped"):
+			line = t
+	_ok("(party) scrapping a found hull in a game of %d makes %d crates and the log says so: \"%s\"" % [PartyScale.players(), made, line],
+		k == 3 and made == 3 and line.ends_with(" %d crates of %s are in SECTOR LOOT." % [made, mat_name]))
+	# a pulsar's beam: what it leaves adrift (`harvest_pulsar` reads the
+	# system's danger and nothing of its kind, so any system but this one does
+	# when the map has no pulsar)
+	var p: MapGen.MapNode = null
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.PULSAR:
+			p = raw
+			break
+	if p == null:
+		for raw in Run.map:
+			if (raw as MapGen.MapNode).index != Run.at and (raw as MapGen.MapNode).danger >= 4:
+				p = raw
+				break
+	if _ok("(party) a system to fly the beam in", p != null):
+		var was_cleared := p.cleared
+		p.cleared = false
+		var at0 := Run.at
+		var kept := [Run.hp, Run.fuel, Run.heat]
+		Run.at = p.index
+		Run.hp = Run.max_hp()
+		said.clear()
+		var silt0 := Run.sector_jetsam(p).items.size()
+		Run.harvest_pulsar()
+		var adrift := Run.sector_jetsam(p).items.size() - silt0
+		var said_n := -1
+		for t in said:
+			if t.contains(" adrift alongside."):
+				said_n = int(t.split(", and ")[1].split(" ")[0])
+		_ok("(party) a pulsar's beam leaves %d adrift in a game of three and the log says %d" % [adrift, said_n],
+			adrift == PartyScale.pay(1 + int(p.danger / 4)) and adrift > 1 and said_n == adrift)
+		p.cleared = was_cleared
+		Run.at = at0
+		Run.hp = int(kept[0])
+		Run.fuel = int(kept[1])
+		Run.heat = int(kept[2])
+	Sig.log_line.disconnect(hear)
+
+
+## `Router.start_combat` on a host hands `Combat.grown` to `Net.open_fight` (PROTOCOL 16).
+## Why: docs/why/CoreWinTest.md#party-fight-count
 func _party_router_fight() -> void:
 	Rng.forced = 777
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -633,13 +648,34 @@ func _party_router_fight() -> void:
 	var f := Net.fight_at(idx)
 	var want := Run.custodian_jumps()
 	var h20 := DB.core_boss().hull_at(20)
-	_ok("(party) Router opens the party's Custodian with its count: the fight's %d, Combat's %d, want %d, hull %d of %d" % [
-		f.grown if f != null else -2, cb.grown if cb != null else -2, want, f.foes[0].max_hp if f != null else -1, h20],
+	var h20x2 := PartyScale.party_hull(h20, 2)
+	_ok("(party) Router opens the party's Custodian with its count: the fight's %d, Combat's %d, want %d, hull %d of %d (hull_at(20) x %.2f for two)" % [
+		f.grown if f != null else -2, cb.grown if cb != null else -2, want, f.foes[0].max_hp if f != null else -1, h20x2, PartyScale.hull(2)],
 		f != null and cb != null and want == 20 and f.grown == want and cb.grown == want
-		and f.foes[0].max_hp == h20 and Net.galaxy_jumps == want)
+		and f.foes[0].max_hp == h20x2 and f.party == 2 and cb.party == 2 and Net.galaxy_jumps == want)
+	# ONE CUSTODIAN FOR THE GALAXY, AND ONE PARTY SIZE (Jon, Nov 4 and 5): the
+	# badge shows the lead ship's jumps, the same for every pilot whatever the
+	# party's size; the size is the host's count, the same for every pilot too
+	_ok("(party) the badge's count is the lead ship's jumps, not the party's size (%d)" % CustodianBadge.count(),
+		CustodianBadge.count() == want)
 	if cb != null:
 		cb.release()
 	Router.combat = null
+	# A THIRD PLAYER ARRIVES: the fight open keeps its numbers, the next
+	# Custodian is built for three; the badge does not move
+	Net.leave_fight(idx)
+	Net.roster[778] = Net._slot(778, "Vela", &"korvan", 2)
+	Router.start_combat(DB.core_boss(), [], false, true)
+	await _frames(3)
+	var f3 := Net.fight_at(idx)
+	_ok("(party) with a third player the next Custodian is built for three (%d, want %d), the badge still %d" % [
+		f3.foes[0].max_hp if f3 != null else -1, PartyScale.party_hull(h20, 3), CustodianBadge.count()],
+		f3 != null and f3 != f and f3.party == 3 and f3.foes[0].max_hp == PartyScale.party_hull(h20, 3)
+		and CustodianBadge.count() == want)
+	if Router.combat != null:
+		Router.combat.release()
+	Router.combat = null
+	await _logs_say_what_was_made()
 	Net.leave_party()
 	Net.dive_seed = 0
 	Run.jumps = 0

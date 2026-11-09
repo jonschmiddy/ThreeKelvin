@@ -1,28 +1,8 @@
 extends RefCounted
 
-## Determinism: the same seed twice, and streams that do not move each other.
-##
-##   godot --headless --path . -- rngtest
-##
-## RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR. Determinism fails silently by
-## nature. A run that is 99% reproducible looks exactly like one that is
-## reproducible — the map matches, the galaxy matches, and then one call site
-## that still reaches for the global `randf()` puts four players in four
-## different games at jump 40, an hour into an evening they had scheduled.
-##
-## The four properties, in the order they matter:
-##
-## 1. **Same seed, same galaxy.** The one the co-op design needs. A seed is only
-##    worth sending if the receiver draws the same numbers from it.
-## 2. **Different seeds, different galaxies.** The check that catches a seed
-##    which is not actually being read — a generator stuck on its default is
-##    perfectly deterministic and completely useless.
-## 3. **Streams do not move each other.** Ten thousand combat rolls must not
-##    move the map by one system. Without this, tuning a loot weight changes the
-##    world, and the balance sim reports numbers nobody can attribute.
-## 4. **Position beats order.** What is at a node is the same whoever reaches it
-##    and whenever. This is the property that survives four players doing four
-##    different things at once, and a stream cannot provide it.
+## Run after touching Rng or any generator: silent nondeterminism looks like a good run.
+## Run it headless as `-- rngtest`.
+## Why: docs/why/RngTest.md#determinism-checks
 
 const SEED_A: int = 12345
 const SEED_B: int = 999983
@@ -69,11 +49,8 @@ func run() -> void:
 
 
 # --- the fingerprints -----------------------------------------------------
-#
-# Everything the world is, flattened to a string. Deliberately over-inclusive:
-# a field left out of this is a field that can drift between two machines with
-# the test still green, and the whole point is to catch the one call site
-# somebody forgot.
+# Over-inclusive: a field left out can drift between machines while the test stays green.
+# Why: docs/why/RngTest.md#fingerprints
 
 func world_print() -> String:
 	var parts: PackedStringArray = [
@@ -148,10 +125,7 @@ func _different_seeds() -> void:
 	var b := world_print() + map_print()
 	ok("a different seed is a different galaxy", a != b)
 
-	# Ten seeds, ten distinct maps. One pair colliding would be a coincidence;
-	# a generator that ignores its seed produces ten identical strings, and the
-	# single-pair check above would still pass if the two seeds happened to be
-	# the ones being read.
+	# Ten seeds, ten distinct maps: a generator ignoring its seed would pass a single pair.
 	var seen := {}
 	for i in 10:
 		build_world(4000 + i * 7)
@@ -165,9 +139,7 @@ func _independence() -> void:
 	build_world(SEED_A)
 	var clean := world_print() + map_print()
 
-	# Burn the other streams hard, then rebuild the world from the same seed.
-	# If any generator still reaches for the global RNG, or if two streams share
-	# a cursor, this is where it shows.
+	# Burn the other streams hard, then rebuild: any global RNG use or shared cursor shows here.
 	Rng.forced = SEED_A
 	Run.start_new_run()
 	Rng.forced = 0
@@ -191,11 +163,8 @@ func _independence() -> void:
 	check("generating a map did not move the loot stream",
 		module_print(second), module_print(first))
 
-	# THE STATION PASS DRAWS NOTHING FROM THE WORLD STREAM (Jon, Nov 3, S3):
-	# it halves and spaces the stations off `Rng.derive`, so every roll the
-	# world stream makes after it is the one it made before the pass existed.
-	# Run again on a map that has had it once, so it has work to do: stations
-	# to halve and, after `_pick_type`'s count, some too close to move.
+	# The station pass draws nothing from the world stream (Jon, Nov 3, S3): it uses `Rng.derive`.
+	# Why: docs/why/RngTest.md#station-pass
 	Rng.reseed(SEED_A)
 	var nodes := MapGen.generate(Rect2(Vector2.ZERO, Vector2(1600, 900)))
 	for raw in nodes:
@@ -243,11 +212,7 @@ func _positional() -> void:
 # --- 5. the mixer ---------------------------------------------------------
 
 func _mixer() -> void:
-	# Adjacent node indices must not give adjacent sequences. The mixer this
-	# replaced was a single multiply, which leaves the low bits of neighbouring
-	# seeds correlated — every system on a ring would drift toward the same
-	# roll. 4096 consecutive indices, first byte of each: a good mixer fills
-	# essentially all 256 buckets, a bad one clusters.
+	# Adjacent node indices must not give adjacent sequences: 4096 should fill 256 buckets.
 	Rng.reseed(SEED_A)
 	var buckets := {}
 	for i in 4096:
@@ -353,10 +318,7 @@ func _board() -> void:
 # --- 7. a whole run -------------------------------------------------------
 
 func _whole_run() -> void:
-	# The map is generated once, so it proves the world stream and nothing else.
-	# This walks a run far enough to touch the foe, event and loot paths and
-	# checks that the whole thing replays — which is what "-- seed N reproduces
-	# the bug" actually has to mean.
+	# The map proves only the world stream; walk a run to replay the foe, event and loot paths.
 	var trace_a := _walk(SEED_A)
 	var trace_b := _walk(SEED_A)
 	check("forty jumps replay exactly", trace_b, trace_a)

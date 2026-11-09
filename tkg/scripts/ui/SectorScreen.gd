@@ -1,15 +1,9 @@
 class_name SectorScreen
 extends Control
 
-## Where you are — one screen, whether or not something is shooting at you.
-##
-## There is no separate combat screen. A fight is this sector with an enemy in
-## it: the same frame, the same ship in the same place, with the hand and intent
-## strip appearing underneath. Two classes drawing the same place gave the player
-## two versions of one page and made the ship jump between contexts.
-##
-## `combat` is null when the sector is quiet. Combat-only controls hide rather
-## than being built conditionally, so there is one layout to reason about.
+## No separate combat screen: a fight is this sector with an enemy in it.
+## Two classes drawing one place made the ship jump between contexts.
+## Why: docs/why/SectorScreen.md#screen-shape
 
 var combat: Combat
 ## The last card played, kept only so an attack can be drawn as the weapon it
@@ -27,37 +21,18 @@ var _hull: Label
 # --- salvage (quiet only)
 var _salvage: VBoxContainer
 var _salvage_wrap: PanelContainer
-## The window onto the list. THE RAIL HAS A CEILING NOW, and the bug it fixes is
-## not a scrolling bug — it is a layout one.
-##
-## A `PanelContainer` takes its minimum size from its child, and the child was a
-## `VBoxContainer` holding one panel per part in the hold. Six parts out of a
-## lawless run came to well over a screen, the rail's minimum grew past the
-## viewport, and because it sits in the arena — which is the expanding row of the
-## root column — the whole page grew with it. The hand strip and the quiet strip
-## were pushed off the bottom, and the sector was unplayable until the hold was
-## emptied from another screen.
-##
-## A ScrollContainer's minimum height does NOT track its content, so the rail now
-## asks for a fixed, small amount of room and gives the overflow a scrollbar.
+## The rail has a fixed small height and scrolls: a tall list pushed the hand off screen.
+## Why: docs/why/SectorScreen.md#salvage-rail
 var _salvage_scroll: ScrollContainer
-## STOW and JETTISON, built once and kept out of the scrolling region. They are
-## the way to close this panel, so they must never be the thing you have to
-## scroll to reach.
+## Built once, outside the scroll: they close this panel, so must stay reachable.
 var _salvage_actions: HBoxContainer
 ## The rail's heading. Two things share this panel and they are not the same
 ## question: a BAG is loot nobody owns yet and a HOLD is loot you are carrying.
 var _salvage_head: Label
-## True while a TAKE is out at the host and has not been answered.
-##
-## One click at a time. `take_from_bag()` awaits a round trip, and a second click
-## landing inside that window would put two requests in the air for a hold with
-## one slot left in it — the answer to the first is what decides whether the
-## second is even legal.
+## One TAKE at a time: a second click mid round trip could oversubscribe a one-slot hold.
+## Why: docs/why/SectorScreen.md#salvage-rail
 var _taking: bool = false
-## Dismissed for now, not thrown away. See RunState.salvage_hushed_hauls — the
-## flag lives there because THIS SCREEN IS REBUILT ON EVERY JUMP and a dismissal
-## kept here was forgotten the moment you left.
+## Dismissal lives in `RunState`, as this screen is rebuilt on every jump.
 
 
 # --- combat only
@@ -68,10 +43,12 @@ var _preview: Label
 var _energy: BoxGauge
 var _energy_text: Label
 var _player_chips: HBoxContainer
-var _self_bar: ProgressBar
+var _self_bar: HullBar
 var _self_name: Label
 var _self_plate: VBoxContainer
 var _self_hp: Label
+## "+17" beside the hull's number while brace is up.
+var _self_brace: Label
 var _enemy_name: Label
 var _enemy_tag: Label
 var _enemy_hp: Label
@@ -93,47 +70,24 @@ var _grab_from: Vector2 = Vector2.ZERO
 ## 0 undecided, 1 reordering, 2 aiming.
 var _grab_mode: int = 0
 
-## How far sideways before a press is a REORDER, and how far up before it is a
-## SHOT. Both in design pixels, both deliberately small -- the gesture should
-## commit early enough that the card is following your hand rather than lagging
-## a decision behind it.
-##
-## Sideways is the larger of the two because it is the recoverable one: reorder
-## the wrong way and you drag back, fire the wrong card and it is spent. The
-## bias belongs on the side that costs something.
+## Small thresholds so the card follows the hand; sideways is larger as it is recoverable.
+## Why: docs/why/SectorScreen.md#card-gestures
 const GRAB_SIDE := 14.0
 ## The keyword panel while a card is hovered. See _show_readout.
 var _readout: PanelContainer = null
-## Every keyword panel is parented HERE and nowhere else, and opening one empties
-## it first.
-##
-## "At most one readout on screen" used to be an invariant three suspended
-## coroutines had to maintain between them — the rest timer, the layout frame and
-## whichever hover event arrived while those were waiting — each holding the same
-## `_readout` member and each able to run while the others slept. One interleaving
-## that lost track of the reference left a panel on screen that nothing owned and
-## nothing would ever close, so a second one opened on top of it. A single parent
-## that is swept before every open makes it a fact about the node tree instead,
-## which no interleaving can break.
+## Every readout parents here and is swept before each open, so two cannot coexist.
+## Why: docs/why/SectorScreen.md#keyword-readout
 var _readout_host: Control = null
 ## Which card the panel belongs to. See _show_readout.
 var _readout_for: CardView = null
 ## The card whose panel is counting down but has not opened yet.
 var _readout_pending: CardView = null
-## Bumped every time the panel is torn down. A coroutine that wakes holding a
-## stale generation has been overtaken while it slept and must not touch the
-## screen — not to position a panel, not to fade one in, not to leave one behind.
-##
-## Deliberately bumped in _clear_readout() rather than on every hover event: an
-## exit for a card that does not own the panel is not an interruption, and
-## cancelling on those would mean the panel never opens while the cursor is
-## sliding along a fan.
+## Bumped on teardown: a coroutine holding a stale generation must not touch the screen.
+## Why: docs/why/SectorScreen.md#keyword-readout
 var _readout_gen: int = 0
 ## How long you have to rest on a card before it explains itself.
 const READOUT_DELAY := 1.0
-## The shortest the salvage list is allowed to be. Roughly one module row, so a
-## single part does not open a tall empty box — everything past that comes out of
-## the arena's spare height, and everything past THAT scrolls.
+## About one module row tall, so a single part does not open a tall empty box.
 const SALVAGE_MIN_H := 96
 var _deck_label: Label
 var _draw_pile: PileView
@@ -143,24 +97,8 @@ var _exit_ask: PanelContainer = null
 ## Its contents, so the question can be replaced by the answer in place.
 var _exit_box: VBoxContainer = null
 
-## ONE SIZE FOR ALL FOUR OF THEM.
-##
-## There are two exits and each has a question and an answer, and every one of
-## the four was a different height: the hail question is five wrapped lines and
-## its answer is two, so the box shrank under the cursor at the moment of the
-## press and CONTINUE landed somewhere KEEP FIGHTING had not been. A panel that
-## resizes between asking and answering is two panels wearing the same border.
-##
-## MEASURED, not guessed -- `-- sectorshot combat askhail resolve` prints the
-## box either side of the press. The tallest of the four is the hail question at
-## 137 -- its badge and its two sentences wrap to one line more than anything
-## else -- and this is that plus a line of slack, because the badge is the part
-## that varies: SENSORS 4 - YOU HAVE 0 - 5% - NEAR-CERTAIN FAILURE is a good
-## deal longer than THRUST 3 - CERTAIN SUCCESS, and a floor that only just fits
-## the case I happened to photograph would be a wish rather than a size.
-##
-## The body expands into whatever is left, so the buttons sit on the same line
-## in all four.
+## One size for all four exit panels, so the buttons do not move between ask and answer.
+## Why: docs/why/SectorScreen.md#exit-panel-size
 const EXIT_ASK := Vector2(244, 144)
 ## What colour this exit is, and what it says when it fails. Held on the screen
 ## because the answer arrives on a signal, long after the question was built.
@@ -174,12 +112,16 @@ var _transfer: TransferView = null
 ## The event band (`LocalEventDrawer`): an event from the map resolves here.
 var _events: LocalEventDrawer = null
 var _discard_pile: PileView
-## WHAT THE DISCARD HOLDS, as `Combat` fills it: every card played or picked to
-## discard, and at END TURN the rest of the hand (`Combat.end_turn`). It said
-## "What you have played so far", and half the pile is cards never played (the
-## tutorial audit, Oct 22).
+## The discard also holds discarded cards and the hand at END TURN, not just played ones.
+## Why: docs/why/SectorScreen.md#discard-tooltip
 const DISCARD_TIP := "DISCARD\n\nCards you played or discarded, and the rest of your hand at END TURN.\nClick to look."
 var _end_button: Button
+## The line in the empty drawer while this ship is stunned (`Combat.stunned`).
+var _stun_note: Label
+const STUN_NOTE := "Stunned. You act after the enemy's turn."
+## END TURN's tooltip while stunned, the stun's one full explanation.
+const STUN_TIP := "STUNNED\n\nYou just arrived. You act after the enemy's turn. It can still shoot you."
+const END_TIP := "END TURN\n\nStop, and let them act."
 var _hail_button: Button
 var _flee_button: Button
 var _log: LogPanel
@@ -190,33 +132,11 @@ var _quiet_wrap: PanelContainer
 var _quiet_holder: Control
 var _quiet_text: Label
 var _action: Button
-## How tall the drawer is, and therefore how tall the viewport is not.
-##
-## 190 of 540, so the system keeps a little over two thirds. FIXED rather than
-## sized to content on purpose: the drawer holds three different things -- the
-## list, one option, one result -- and if it resized between them the viewport
-## would jump on every click. A view that moves while you are reading it is the
-## thing this layout exists to stop.
-##
-## THE HAND USES IT TOO, so a fight is a clean swap: the system does not resize
-## when something starts shooting. 170 rather than a cleaner quarter because a
-## card is 160 tall and the hand reserves 164 -- below that the cards have to
-## hang out of the band.
-##
-## THE CARDS NO LONGER CARE WHAT THIS IS. `HandView` holds itself at a card plus
-## sixteen and centres, so its eight pixels of air are fixed whatever the band
-## does -- which is what lets this number belong to the RAILS again.
-##
-## It has been 135, 170, 190, 182 and now 196, and every move before this one was
-## the cards and the piles taking room off each other through it. They are
-## decoupled now: this grows when the rails need it, and nothing else moves.
+## Fixed so the viewport does not jump; the hand shares it so a fight is a clean swap.
+## Why: docs/why/SectorScreen.md#drawer-height
 const DRAWER_H := 190
 
-## Which node the approach animation has already played for.
-##
-## STATIC, because this screen is rebuilt every time you tab away and back, and
-## the question it answers is about the RUN rather than about the screen: have
-## you already flown into this system? `Run.at` is the whole of that.
+## Static: this screen is rebuilt on tab-back, and the answer is about the run.
 static var _approached_at: int = -1
 
 ## The box the drawer's contents are rebuilt into.
@@ -226,9 +146,8 @@ var _overlay: PanelContainer
 var _overlay_title: Label
 var _overlay_body: Label
 
-## THE MAP'S DOCK (`Router.show_station`, `ZoomLadder`'s fade): the LOCAL it
-## builds keeps your ship off itself until the dock's arrival brings it in, so
-## its first sight on LOCAL is that arrival's first frame (Jon, Oct 20).
+## Keeps the ship off LOCAL until the dock's arrival brings it in (Jon, Oct 20).
+## Why: docs/why/SectorScreen.md#dock-arrival
 static var dock_hidden := false
 var _dock_hidden := false
 
@@ -253,13 +172,8 @@ func setup(c: Combat = null) -> void:
 	Sig.map_changed.connect(_refresh)
 	Sig.hand_changed.connect(_refresh_hand)
 	Sig.enemy_changed.connect(_refresh_enemy)
-	# THE HAND TOO, not just the ship panel. Every modifier the card faces show --
-	# lock-on, salvo, adapt, heat -- is written in `CardResolver` when a card
-	# resolves, and this is the signal that fires for it. Hooked here as ONE
-	# refresh rather than four separate hooks, which is what the brief's section
-	# 5 recommends: the alternative is subscribing the hand to heat, lock-on,
-	# adapt and the turn's first attack independently and hoping nobody adds a
-	# fifth modifier without remembering the fifth hook.
+	# One refresh on the combat state signal, so a new card modifier needs no new hook.
+	# Why: docs/why/SectorScreen.md#hand-refresh
 	Sig.player_combat_state_changed.connect(func() -> void:
 		_refresh_player()
 		if fighting():
@@ -270,16 +184,12 @@ func setup(c: Combat = null) -> void:
 		if fighting():
 			_refresh_hand()
 			_refresh_enemy()
-		# Out of one, the bar's JOIN FIGHT comes and goes with a partner's
-		# fight here -- rebuilt only when that answer changes, not on every
-		# push of somebody's turn three systems away.
-		elif Router.can_join_fight() != _join_shown:
+		# JOIN FIGHT is rebuilt only when its answer changes, not on every partner push.
+		elif Router.join_state() != _join_shown:
 			_refresh())
 	Sig.turn_started.connect(func(_t): _refresh())
 	Sig.combat_ended.connect(_on_combat_ended)
-	# EVERY ATTACK, drawn over time: `combat_hit` carries what reached the hull,
-	# what block and brace took and what missed, for both sides. See "the fight,
-	# played out" at the end of this file.
+	# `combat_hit` drives the shot-by-shot playback; see the end of this file.
 	Sig.combat_hit.connect(_on_hit)
 	Sig.combat_started.connect(_on_fight_opened)
 	Sig.hull_burned.connect(_on_burn)
@@ -290,10 +200,8 @@ func setup(c: Combat = null) -> void:
 	_depart_to = Router.take_depart()
 	var handoff := Router.take_arrival()
 	var flyin := _depart_to < 0 and not fighting() and _approached_at == Run.at and _flyin_due()
-	# THE EVENT THE MAP SENT YOU TO, lifting from the bottom of the view (before
-	# the first refresh, so the bar can offer OPEN IT) -- or, by LOCAL's own
-	# doors, the event at the place the ship is, as GO opens it (Jon, Oct 21:
-	# "Clicking GO or clicking LOCAL should have the same result")
+	# Attached before the first refresh so the bar can offer OPEN IT; GO and LOCAL match.
+	# Why: docs/why/SectorScreen.md#local-event
 	_events = LocalEventDrawer.attach(self, fighting(), c == null and not _dock_hidden and not Router.docked, flyin)
 	_events.changed.connect(_refresh)
 	# (an event coming up: the thin bar kept off, so the band rises from below
@@ -303,28 +211,8 @@ func setup(c: Combat = null) -> void:
 	_refresh()
 	_attach_station_face()
 
-	# Fly in. Arriving somewhere should look like arriving somewhere — the ship
-	# comes in under power from the left, cuts its engines short of station and
-	# coasts to a halt, then sits there breathing.
-	#
-	# Not during a fight. A combat sector is one you are already in the middle
-	# of, and Router rebuilds this screen when the fight starts, so playing the
-	# approach there would fly the ship back in mid-battle.
-	# ONCE PER ARRIVAL, not once per screen. This is rebuilt every time you come
-	# back from SHIP or STARCHART, so the approach played again each time -- the
-	# ship flying in to a system it has been parked in for five minutes.
-	#
-	# Static because the screen is not: the flag has to outlive the thing that
-	# sets it, in the same way the chart's view memory does.
-	#
-	# AND SOMETIMES IT IS A WHOLE JOURNEY. `Router.begin_jump` spends nothing;
-	# it hands this screen a departure to play on the system you are LEAVING,
-	# and the jump is committed at the flare's peak, when the ship is gone. So
-	# the two halves of a jump are two screens, and the seam between them is a
-	# frame with nothing on it.
-	# An ambush builds its own copy of this screen, so the arrival message has
-	# to be CONSUMED AND DISCARDED there rather than left for the next screen to
-	# find and play over a fight that has already started.
+	# The fly-in plays once per arrival, never in a fight, and an ambush screen must discard it.
+	# Why: docs/why/SectorScreen.md#arrival
 	var flew_in: bool = bool(handoff[0]) and not fighting()
 	if fighting():
 		flew_in = false
@@ -334,44 +222,20 @@ func setup(c: Combat = null) -> void:
 		_begin_depart()
 	elif not fighting() and _approached_at != Run.at:
 		_approached_at = Run.at
-		# NOT ONLY AFTER A JUMP. The first system of a run is arrived at too --
-		# the ship has always flown in there, it just did it in silence with no
-		# idea where it had got to. `flew_in` is still read, because it is what
-		# tells an ambush's screen to discard the message rather than play it.
+		# Also plays at a run's first system; `flew_in` lets an ambush screen discard it.
 		if Router.animating() and not skipped:
 			_begin_arrive()
 			_station_here()
 			return
 		var art := _view.ship_view()
 		if art != null and skipped:
-			# CLICKED THROUGH, SO ALREADY THERE. A skip carried across the commit
-			# means the player wants to BE at the next system -- not to watch the
-			# half of the sequence that survived the screen swap. This used to
-			# fall into the call below and fly the ship in with its thruster at
-			# full level, which is a jump animation being skipped into a jump
-			# animation. `-- jumpcine hush` is what says so.
+			# A skip across the commit means be there already, not a half-finished jump animation.
+			# Why: docs/why/SectorScreen.md#arrival
 			art.park()
 			art.refresh()
 		elif art != null:
-			# THE DRIVE, ONCE, HERE. This is the only place in the game that
-			# means "you have just entered a system": the guard above fires once
-			# per node and never during a fight, which is exactly the condition
-			# the sound wants. Beside `arrive()` rather than inside it, because
-			# ShipView.arrive() also flies in convoy hulls and enemies, and four
-			# ships arriving must not be four thrusters.
-			#
-			# THE CLIP IS THE ONE FOR THE PATTERN THE FLAME DREW, at the
-			# weight of the hull drawing it. arrive() picks how the engines
-			# give out this time and hands back the clip cut from that row, so
-			# its coughs are the ones on screen and its size is your ship's.
-			# Picking the sound here instead -- or letting Audio's round-robin
-			# pick it -- would be fifteen ways to be wrong.
-			#
-			# No pitch variance either, for the same reason: a pitch shift is a
-			# time shift, and it would slide them apart. The three weights are
-			# pitch-shifted, but in the render, before the flame was cut in.
-			# The ship waits out the drive's lead-in here too, or the clip's coughs
-			# would land ARRIVE_LEAD_S after the flame's.
+			# The drive sounds once here, not in `arrive()`, which also flies in convoy hulls.
+			# Why: docs/why/SectorScreen.md#arrival-sound
 			Audio.play(_ship_arrives(art, 0.0), 0.0)
 	elif flyin:
 		_flyin_hold()
@@ -380,18 +244,8 @@ func setup(c: Combat = null) -> void:
 
 
 # ---------------------------------------------------- LOCAL's own arrival
-## AT A PLACE FLOWN TO (Jon, Oct 21, "station:BC": "In a sector with a dock, if I
-## click LOCAL the ship is just near the dock already, no animation happens"):
-## the first LOCAL at a world, the star or the station the map's ship flew to
-## plays a system's arrival -- the very call, `_ship_arrives`: off the left
-## edge on its drive, the flameout, the drift to its mooring, its bob, its clip,
-## the sky held still -- without the system's name (you are already in it).
-## Once a flight (`SystemMapScreen.flown_to`): LOCAL again there shows it
-## parked. Not after a jump (the map plays that), at a run's first system (it
-## has its own), at an undock or a dock (`arrived_here`), for an event GO opens
-## (the zoom down was the arrival), in a fight, or with reduced motion. LOCAL
-## pressed as the ship still burns onto the orbit plays it too: the ship was
-## arriving, and that is what LOCAL shows. A key or a click parks it at once.
+# The first LOCAL at a place flown to plays the system arrival, once per flight.
+# Why: docs/why/SectorScreen.md#local-arrival
 
 ## the flight (`SystemMapScreen.flown_to` n) whose arrival LOCAL has had
 static var _flyin_seen := -1
@@ -409,12 +263,8 @@ var _wake_t := -1.0
 ## after the fly-in (or as LOCAL comes up), the station's wake is owed
 var _wake_owed := false
 
-## THE STATION WAKES ON LOCAL as the dock wakes it: an idle beat, then its
-## lights on over the dock's own POWER step and curve (`WAKE_POWER_BY`), the
-## warning lights flashing and then green (`WARN_CLEAR`); held green a moment,
-## then gone. After your ship has settled at its mooring, as the dock's
-## ARRIVE, BEAT, POWER run: the station answering the ship that came alongside,
-## and the flameout and the breakers never over each other.
+## The station wakes after the ship settles, so flameout and breakers never overlap.
+## Why: docs/why/SectorScreen.md#station-wake
 const WAKE_BEAT_S := ZoomLadder.DOCK_BEAT_S
 const WAKE_S := ZoomLadder.DOCK_POWER_S
 const WAKE_GREEN_S := 0.6
@@ -536,9 +386,7 @@ func _flyin_end() -> void:
 		_wake()
 
 
-## SETTLED: the event here, held for the ship to settle, rises from below the
-## screen (GO's band, as LOCAL's own doors open it); with none, the thin bar
-## slides in. Never the bar first and the band out of it.
+## The event band rises once the ship settles; with none, the thin bar slides in.
 func _arrived_drawer() -> void:
 	if _events != null and is_instance_valid(_events) and not _events.deferred.is_empty():
 		_events.open_held()
@@ -549,9 +397,7 @@ func _arrived_drawer() -> void:
 		_open_drawer(false)
 
 
-## The station's side as this visit has it: lit if it woke (or an undock left
-## it lit), else woken now -- after the fly-in if there is one, else once LOCAL
-## is up. A dock coming (the map's DOCK) wakes it itself.
+## Lit if already woken, else woken after the fly-in or once LOCAL is up.
 func _station_here() -> void:
 	if _face == null or not is_instance_valid(_face):
 		return
@@ -654,13 +500,9 @@ func wrecks_out(going: Array) -> void:
 
 # ------------------------------------------------------- the jump, as a journey
 
-## How long the drive is up before the flare takes the ship. Straight out of
-## `ShipView.DEPART_MS`; the lead is there so the Router's own 0.13 s fade has
-## landed before anything moves.
+## The lead lets the Router's own 0.13 s fade land before anything moves.
 const DEPART_LEAD := 0.10
-## When the column fires. Deliberately BEFORE the hull stops
-## accelerating -- ShipView.DEPART_MS runs on past this, so the ship is still
-## gaining speed on the frame it is taken.
+## Fires before the hull stops accelerating, so the ship is still gaining speed.
 const REV_S := 0.90
 ## The system announcing itself. IN, HOLD, OUT — and the OUT overlaps the ship
 ## coming in, which is where the second the sequence used to waste went.
@@ -668,27 +510,14 @@ const CARD_IN := 0.50
 const CARD_HOLD := 1.80
 const CARD_OUT := 0.60
 const CARD_TOTAL := CARD_IN + CARD_HOLD + CARD_OUT
-## The jump's warp in reverse, ending on the frame the drive starts and the ship
-## comes in, so leaving and arriving are one event heard both ways. Jon: "let's
-## have the warp sound in reverse when the transition to the new sector happens.
-## right before the thruster sound cuts on". `audio/hyperjump.py` reads this and
-## cuts the clip to exactly this long, so its end is the drive's start. It is the
-## whole length of the warp, doppler over basswarp: 1.48 s.
+## Reversed warp ends on the frame the drive starts, so leaving and arriving match.
+## Why: docs/why/SectorScreen.md#jump-sounds
 const WARP_IN_S := 1.48
-## And a breath between it and the ship: the warp ends this long before the drive
-## starts. Jon: "little more delay between the warp and the ship coming into
-## frame", then "i like the .5!!!".
+## A 0.5 s breath between the warp ending and the ship appearing, Jon's pick.
+## Why: docs/why/SectorScreen.md#jump-sounds
 const ARRIVAL_GAP_S := 0.50
-## When the boards light up, as a fraction of the approach.
-##
-## A SECOND BEFORE THE SHIP STOPS, which is not the same as the beats bleeding
-## into each other. The approach's last second and a half is unpowered drift --
-## nothing is happening in it, it is the ship losing its speed -- so the boards
-## coming up through it reads as the system answering while you coast in, not as
-## two animations talking over each other. 0.78 of 4.5 s is one second early.
-## NOW ONLY A FIGHT'S HAND (an ambush met on arrival): the thin bar waits for the
-## ship to settle, and an event's band rises then (Jon, Oct 22: "You should
-## enter the sector with NO bottom drawer shown", `_arrived_drawer`).
+## Boards light a second before the ship stops, in its unpowered drift.
+## Why: docs/why/SectorScreen.md#arrival
 const DRAWER_AT := 0.78
 const DRAWER_RISE := 0.28
 ## How much of the sky the drawer lets through. A shade under PANEL_A, because
@@ -697,19 +526,13 @@ const DRAWER_A := 0.80
 
 enum Phase { NONE, DEPART, COMMITTING, ARRIVE }
 var _phase: Phase = Phase.NONE
-## The jump this screen owns, or -1. TAKEN from Router and cleared there, so
-## Router holds no mode: if this screen dies before it commits, the jump is
-## simply cancelled and nothing was spent.
+## Taken from Router and cleared there, so a dying screen cancels the jump unspent.
 var _depart_to: int = -1
 var _card: Control = null
 ## Held so a skip can kill it. A tween left running after the thing it animates
 ## has been jumped past is the sequence happening twice.
 var _cine: Tween = null
-## WHAT THIS SEQUENCE HAS PUT IN THE AIR. Killing `_cine` stops the sounds that
-## have not started; these are the ones that have. The warp is 5.7 seconds long
-## and the ripple 1.5, so without this a skip leaves the jump still sounding
-## over a sector that has already settled -- and only these, because a skip is
-## not a reason to silence a fight or the music under it.
+## Sounds already playing: a skip cuts these but leaves a fight or music alone.
 var _cine_sfx: Array[StringName] = []
 
 ## Engines up, lean, and go.
@@ -741,18 +564,11 @@ func _pulse_out() -> void:
 	if f == null:
 		_commit(false)
 		return
-	# THE SOUND STARTS WITH THE CHARGE, on the frame the flare does, because it
-	# was placed on the flare's own clock: `audio/hyperjump.py` reads JumpFx's
-	# timings, so the build tops out as the hull goes and the warp starts as the
-	# dot leaves. No pitch variance, for the reason the arrival drive has none --
-	# a pitch shift is a time shift.
+	# Sound is placed on the flare's clock, with no pitch variance, as that shifts time.
 	if f.melts():
 		_cine_sfx.append(&"hyperjump")
 		Audio.play(&"hyperjump", 0.0)
-	# THE PEAK, NOT THE END. The flash is at its widest here and JumpFlare was
-	# built so the hull changes hands behind the brightest frame — which is
-	# exactly the screen swap that needs hiding. It also lands the `jump` sfx
-	# that Sig.jumped already fires on the right frame, for nothing.
+	# Commits at the peak: the flash is widest there, so it hides the screen swap.
 	f.peaked.connect(func() -> void:
 		var art := _view.ship_view()
 		if art != null:
@@ -761,10 +577,8 @@ func _pulse_out() -> void:
 
 ## Spend it. Nothing in this object is valid after this line.
 func _commit(skipped: bool) -> void:
-	# THE SCREEN HAS TO STILL BE THE SCREEN. `_swap` hides the outgoing screen on
-	# the frame it frees it, and queue_free leaves it in the tree for the rest of
-	# that frame — so a flare peaking after QUIT has cleared the hull would run a
-	# jump against a run that has ended. That is the quittest bug, in a new place.
+	# `_swap` frees the old screen late in the frame, so a late flare peak would jump a dead run.
+	# Why: docs/why/SectorScreen.md#jump-commit
 	if _phase != Phase.DEPART or not is_visible_in_tree():
 		return
 	_phase = Phase.COMMITTING
@@ -775,9 +589,7 @@ func _commit(skipped: bool) -> void:
 	Audio.suppress(&"ui_tab", 600)
 	Router.commit_jump(to, skipped)
 
-## The system announcing itself, then the ship arriving into it.
-## Your ship's idle bob once an arrival has brought it to rest (source px):
-## a system's arrival and the dock's, which is the same arrival (`_dock_arrival`).
+## Idle bob once an arrival has brought the ship to rest, for system and dock alike.
 const ARRIVE_BOB := 2
 
 
@@ -791,31 +603,20 @@ func _begin_arrive() -> void:
 		_phase = Phase.NONE
 		_open_drawer(true)
 		return
-	# THE DELAY IS WHAT KEEPS THE SHIP OFF SCREEN. `_tick_arrival` measures its
-	# span and puts the hull at -span on its FIRST tick, and only then honours
-	# the delay — "held off screen rather than parked at rest". Calling arrive()
-	# later instead would leave the ship sitting at its mooring through the card.
-	# And the drive's lead-in on top: the ship moves ARRIVE_LEAD_S after its sound
-	# starts. See ShipView.ARRIVE_LEAD_S.
+	# The delay keeps the ship off screen: `_tick_arrival` measures first, then honours it.
+	# Why: docs/why/SectorScreen.md#arrival
 	var clip := _ship_arrives(art, CARD_TOTAL)
 	_card = _build_name_card(Run.node_at())
 	add_child(_card)
 
 	_cine = create_tween()
 	_cine.tween_property(_card, "modulate:a", 1.0, CARD_IN).from(0.0)
-	# HOLD, THEN FADE, AND THEY ARE NOT THE SAME STEP. `parallel()` joins the
-	# tweener BEFORE it, so writing the fade as `tween_interval(HOLD)` followed
-	# by `parallel().tween_property(out)` ran the fade during the hold -- the
-	# card was gone in 0.8 s of a beat that was supposed to last 1.4. Chained,
-	# it is read for as long as it says it is.
-	# The reversed warp has to END ARRIVAL_GAP_S before the drive starts, so it
-	# starts inside the hold. The hold is split around it rather than a timer left
-	# running, so a skip that kills this tween silences it too.
+	# Hold and fade are chained, not `parallel()`, or the fade ran during the hold.
+	# Why: docs/why/SectorScreen.md#arrival
 	var warp_lead := clampf(WARP_IN_S + ARRIVAL_GAP_S - CARD_OUT, 0.0, CARD_HOLD)
 	_cine.tween_interval(CARD_HOLD - warp_lead)
-	# NOT IN THE FIRST SECTOR. The run starts there, so nothing warped in to be
-	# heard arriving. Jon: "No reverse warp sound in first sector." The hold is
-	# split the same way either way, so the card keeps its timing.
+	# No reverse warp in the first sector, as nothing warped in (Jon).
+	# Why: docs/why/SectorScreen.md#jump-sounds
 	_cine.tween_callback(func() -> void:
 		if Run.jumps > 0:
 			_cine_sfx.append(&"hyperjump_in")
@@ -823,9 +624,7 @@ func _begin_arrive() -> void:
 	_cine.tween_interval(warp_lead)
 	_cine.tween_property(_card, "modulate:a", 0.0, CARD_OUT)
 	_cine.tween_callback(func() -> void:
-		# The drive starts ARRIVE_LEAD_S before the SHIP, not with the call: arrive()
-		# was given the card and the lead as its delay, and the clip opens with the
-		# lead, so the flame's coughs still land on the sound's.
+		# The clip opens with the lead-in, so the flame's coughs land on the sound's.
 		_cine_sfx.append(clip)
 		Audio.play(clip, 0.0)
 		_drop_card())
@@ -855,15 +654,8 @@ func _drop_card() -> void:
 		_card.queue_free()
 		_card = null
 
-## The system announcing itself, once, over empty space.
-##
-## THE DETAIL LINE LIVES HERE AND NOWHERE ELSE, and this does not reverse THE
-## NAME, AND NOTHING ELSE above. That ruling is about the corner you stand in
-## for as long as you are here, and the corner still carries the name alone.
-## This is the arrival, and it is gone before you can act on anything.
-##
-## ICE and COLD. A heading in this game is cold; EMBER, FLARE and HOT are heat,
-## and a system name in them would read as a warning about the system.
+## The detail line lives only on this card; the corner keeps the name alone.
+## Why: docs/why/SectorScreen.md#name-card
 func _build_name_card(n: MapGen.MapNode) -> Control:
 	var wrap := CenterContainer.new()
 	wrap.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -875,36 +667,24 @@ func _build_name_card(n: MapGen.MapNode) -> Control:
 	var name_l := UITheme.body(MapGen.star_name(n), UITheme.ICE, UITheme.FS_PLACE)
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(name_l)
-	# WHERE YOU ARE, except the one time the answer is WHEN you are. A run opens
-	# on a system like any other and the class line under it -- OUTPOST,
-	# LAWLESS, whatever the generator rolled -- is true and says nothing. This
-	# is the only frame in a run that can say the thing every roguelike is about
-	# and never gets to state, so it states it.
+	# A run's first frame says when you are, not where: the class line adds nothing.
 	var under := "YOUR JOURNEY BEGINS HERE" if Run.jumps == 0 		else MapGen.place_line(n)
 	var line := UITheme.body(under, UITheme.COLD, UITheme.FS_SMALL)
 	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(line)
 	return wrap
 
-## Straight to the end of whatever is playing.
-##
-## NOT A COURTESY. Seven seconds times sixty-odd jumps is minutes of a run spent
-## watching a transition, and the twentieth time you see it matters more than
-## the first. It has to work from the first frame of the departure.
+## Skip is essential: sixty-odd jumps of watching a transition adds up to minutes.
 func _skip() -> void:
 	if _cine != null and _cine.is_valid():
 		_cine.kill()
 	_cine = null
-	# THE TWEEN WAS ONLY HALF OF IT. Killing it stops what has not been played;
-	# what is already sounding has to be cut, or the click that skips the jump
-	# is followed by five more seconds of it.
+	# Killing the tween only stops unplayed sounds; ones already sounding must be cut.
 	if not _cine_sfx.is_empty():
 		Audio.hush(_cine_sfx)
 		_cine_sfx.clear()
 	if _phase == Phase.DEPART:
-		# Somebody clicking through a departure wants to BE at the next system,
-		# so the skip is carried across the commit and the arrival does not play
-		# either.
+		# The skip is carried across the commit so the arrival does not play either.
 		_commit(true)
 		return
 	_phase = Phase.NONE
@@ -939,11 +719,8 @@ func _arrival_drawer() -> void:
 		_view.release_entrances()
 		_raise_band()
 		return
-	# NOTHING AT THE BOTTOM WHILE YOU ARRIVE (Jon, Oct 22: "You should enter the
-	# sector with NO bottom drawer shown"): the thin bar rose here, a second
-	# before the ship stopped, and an event's band then rose out of it. It comes
-	# once the ship has settled now, and only if no event's band is coming
-	# (`_arrived_drawer`).
+	# No bottom drawer while arriving; the thin bar comes once the ship settles (Jon, Oct 22).
+	# Why: docs/why/SectorScreen.md#arrival
 
 # ---------------------------------------------------------------------- build
 
@@ -967,9 +744,7 @@ func _build() -> void:
 	_view = EncounterView.new()
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_view)
-	# The arena's height is the drawer band's leftovers, so the gap under it
-	# changes whenever the band does — a bookend's drawer, a fight's hand, a
-	# cinematic's parked one. Asked again every time the view is re-laid out.
+	# Re-asked on every re-layout, as the arena height is the drawer band's leftovers.
 	_view.resized.connect(_sync_bleed)
 	_build_self_plate()
 	# YOUR IDLE, HEARD: this is the one view of your ship whose idle flame has
@@ -992,26 +767,8 @@ func _build() -> void:
 	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.add_child(col)
-	# THE NAME, AND NOT EVEN THAT, WHICH FINISHES AN ARGUMENT THIS CORNER HAS
-	# BEEN LOSING BY DEGREES.
-	#
-	# It carried an eyebrow reading SECTOR, the name, a class line, and a
-	# paragraph of description. Three went because the screen already answered
-	# them: SECTOR is which tab is lit, and the class line and the blurb
-	# describe a place whose contents are the drawer along the bottom and
-	# whatever is floating in the middle. The name survived as "the one fact
-	# nothing else on screen carries".
-	#
-	# It is not that fact any more. ARRIVING SAYS IT NOW -- the system announces
-	# itself across the middle of an empty frame as you fly in, which is a
-	# better place to be told where you are than a label you stopped reading
-	# after the first system. See `_build_name_card`. What is left in the corner
-	# is nothing, and an empty corner is the point: melancholy comes from
-	# composition, and the frame is doing that work.
-	#
-	# `_title`, `_sub` and `_blurb` are all BUILT AND NOT ADDED now, following
-	# the note below about `_hull`: the refresh writes to them every
-	# frame and would have to grow a null check for each one otherwise.
+	# The corner holds nothing now: the arrival card names the system, and empty is the point.
+	# Why: docs/why/SectorScreen.md#header-corner
 	_title = UITheme.body("", UITheme.ICE, UITheme.FS_PLACE)
 	_sub = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_blurb = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
@@ -1020,13 +777,8 @@ func _build() -> void:
 	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(gap)
-	# Hull, heat, danger, layer and "engaged - 1 hostile" all lived here, and
-	# every one of them is already on screen: hull and heat in the HUD along the
-	# top, the sector's name and class in the header above this, and the count
-	# of hostiles is the number of ships you can see. Built but not added, so
-	# the refresh code that writes to them keeps working. (The danger and layer
-	# line, `_facts`, was cut outright on Oct 22: nothing read it, and danger and
-	# layer are on the sector map, the chart and the escape menu's ladder.)
+	# Built but not added, so the refresh code that writes to them keeps working.
+	# Why: docs/why/SectorScreen.md#header-corner
 	_hull = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	_state = UITheme.body("", UITheme.FLARE, UITheme.FS_SMALL)
 
@@ -1041,18 +793,8 @@ func _build() -> void:
 	add_child(_fight_log)
 	_build_overlay()
 
-## The side rail is gone. Its contents, in order of what happened to them:
-##
-## The log went because every line was a transcript of an animation you had just
-## watched, competing with the board for the same glance. (It came back hidden,
-## behind a LOG button, for whoever wants the transcript: `FightLog`.) The enemy's name,
-## health bar, hull count and class went because all four already sit under its
-## sprite, where the enemy actually is. The two chip rows moved to the intent
-## strip, which was already the line answering "what is happening this turn".
-##
-## And _preview went because the targets now say it themselves: a valid drop
-## lights up and paints the number it would do. These four stay alive as
-## orphans so the refresh code that writes to them does not have to change.
+## These four stay alive as orphans so the refresh code writing to them need not change.
+## Why: docs/why/SectorScreen.md#removed-side-rail
 
 func _build_orphans() -> void:
 	_enemy_name = UITheme.body("", UITheme.THEM, UITheme.FS_BODY)
@@ -1063,12 +805,8 @@ func _build_orphans() -> void:
 	_preview = UITheme.body("", UITheme.FLARE, UITheme.FS_SMALL)
 	_log = LogPanel.new()
 
-## Three bands: a heading, a scrolling list, and the two buttons that dismiss it.
-##
-## Only the middle one scrolls, and only the middle one is rebuilt. The heading
-## used to be a child of the list with a `name` on it so the refresh could tell
-## it apart from a module row — that check is gone with the structure that needed
-## it, which is the small win hidden inside the layout fix.
+## Only the middle band scrolls and is rebuilt; the heading needs no `name` check.
+## Why: docs/why/SectorScreen.md#salvage-rail
 func _build_salvage_rail() -> PanelContainer:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 3)
@@ -1080,9 +818,7 @@ func _build_salvage_rail() -> PanelContainer:
 	_salvage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	_salvage_scroll = ScrollContainer.new()
-	# Sideways scrolling would mean the rail is too NARROW, which is a different
-	# bug and one this screen does not have — the rows wrap to the 268 the panel
-	# asks for. Disabled so a wide row cannot quietly buy itself a second bar.
+	# Sideways scroll would mean the rail is too narrow; disabled so no second bar.
 	_salvage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	# Takes the arena's leftover height rather than demanding its content's. This
 	# line and SALVAGE_MIN_H below are the whole of the fix.
@@ -1093,14 +829,8 @@ func _build_salvage_rail() -> PanelContainer:
 
 	_salvage_actions = HBoxContainer.new()
 	_salvage_actions.add_theme_constant_override("separation", 4)
-	# IT HIDES THE PANEL. It does not move anything, and it never did -- what it
-	# sets is a hush, and the old label got away with "STOW" only because
-	# everything it listed was already in the hold.
-	#
-	# A bag is not. Loose salvage sits in the SYSTEM until you take it, so
-	# pressing this on a bag put the panel away and left the parts on the floor,
-	# which read exactly like the game had eaten them. Same word, two states,
-	# and only one of them was true.
+	# The button only hides the panel, so it reads DECIDE LATER, not STOW.
+	# Why: docs/why/SectorScreen.md#salvage-rail
 	var stow := Widgets.button("DECIDE LATER",
 		func() -> void:
 			Run.salvage_hushed_hauls = Run.hauls
@@ -1109,151 +839,78 @@ func _build_salvage_rail() -> PanelContainer:
 	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	stow.tooltip_text = Widgets.tip("Closes this panel. Anything already in your hold stays there; anything still loose stays in this system for the rest of the run.")
 	_salvage_actions.add_child(stow)
-	# THE JETTISON BUTTON IS GONE, and it was wrong twice over.
-	#
-	# It called `Run.cargo.clear()` -- it emptied your whole hold, everything,
-	# in one press. Its own tooltip said "Destroys everything in the hold. There
-	# is no reason to do this", which is an accurate description of a control
-	# that should not exist. MATERIALS_NOTE 3.4 now rules it out outright:
-	# nothing of yours is ever destroyed for you.
-	#
-	# And the word had been taken. Jettison means one thing now -- overboard,
-	# into this system's own pile, where it stays -- and it is done
-	# by right-clicking the thing you want rid of, one at a time, wherever the
-	# hold is shown. A second button spelled the same way and meaning "burn
-	# everything" is not a button, it is a trap.
+	# No JETTISON button: it cleared the whole hold, which `MATERIALS_NOTE` 3.4 rules out.
+	# Why: docs/why/SectorScreen.md#salvage-rail
 	col.add_child(_salvage_actions)
 
 	_salvage_wrap = Widgets.panel_with(col)
 	_salvage_wrap.custom_minimum_size = Vector2(268, 0)
 	return _salvage_wrap
 
-## Your hull and your status, under your own ship.
-##
-## THE ENEMY HAS HAD ONE SINCE THE START and you have not: their name, their bar
-## and their number sit under their hull where you are already looking, while
-## yours were a strip in the corner of the card rail and a pair of digits in the
-## top bar. Two pools read from two different parts of the screen.
-##
-## Mirrors `EnemySlot` deliberately -- same bar width, same six pixels of height,
-## same centred number under it -- so the two sides of the fight are one
-## vocabulary rather than two.
-##
-## `HULL_BIAS` is `ShipSlot`'s: the hull is centred in the left 68% of its half,
-## so the plate is centred on the same fraction rather than on the middle of the
-## panel, which would put it off the ship's nose.
+## Mirrors `EnemySlot` so both sides share one vocabulary; centred on `HULL_BIAS`.
+## Why: docs/why/SectorScreen.md#self-plate
 const PLATE_W := 120
-## How far under the hull the plate sits.
-## How much air between the hull's last row and the top of the bar.
-##
-## AIR UNDER THE SHIP, not distance from its middle, which is what `PLATE_DROP`
-## measured and why it read as neither centred nor clear: the hull is about a
-## third of its canvas, so 56 from the middle lands wherever that particular
-## hull happens to end. The enemy's own readout sits about this far under its
-## art, and the two sides of the fight should agree.
+## Measured as air under the hull; distance from its middle lands wherever the hull ends.
+## Why: docs/why/SectorScreen.md#self-plate
 const PLATE_AIR := 26.0
 
 func _build_self_plate() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# BEGIN, NOT CENTER. A Control's size does not shrink back when its minimum
-	# does, so with no statuses showing the box stayed as tall as it had been
-	# with them -- and centring the contents in that leftover height put the
-	# hull bar eight pixels lower than it sat a moment before. The bar moved
-	# every time an effect came or went.
-	#
-	# Top-aligned, the bar is at the top of the plate whatever else is in it,
-	# and the statuses print underneath. The bar is the thing you look for; it
-	# does not get to move.
+	# Top-aligned so the hull bar does not move when statuses come and go.
+	# Why: docs/why/SectorScreen.md#self-plate
 	col.alignment = BoxContainer.ALIGNMENT_BEGIN
 
-	# YOUR NAME, ABOVE YOUR BAR, in the same order the enemy's readout uses:
-	# name, bar, number, statuses. Two ships in a fight should be described the
-	# same way -- theirs has always said who it is, and yours said nothing.
-	#
-	# ICE against their THEM. The colour is the only part of the readout that is
-	# NOT mirrored, and it is the part carrying whose ship it is.
+	# Name above the bar, in the enemy readout's order; ICE colour marks it as yours.
+	# Why: docs/why/SectorScreen.md#self-plate
 	_self_name = UITheme.body("", UITheme.ICE, UITheme.FS_SMALL)
 	_self_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_self_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_self_name)
 
-	_self_bar = ProgressBar.new()
+	_self_bar = HullBar.new()
 	_self_bar.custom_minimum_size = Vector2(PLATE_W, 6)
-	# SHRINK, or the bar is as wide as the widest thing under it. A VBox fills
-	# its children horizontally by default, and the status row is the child that
-	# grows -- so a fight with five effects running would have stretched the
-	# hull bar to match, and the bar's LENGTH is a reading. It has to mean hull.
+	# Shrink-centred: the bar's length is a reading and must not stretch to the status row.
 	_self_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_self_bar.show_percentage = false
-	_self_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_self_bar)
 
+	# "37 / 40 +17", the way the two sit on the bar above.
+	var nums := HBoxContainer.new()
+	nums.add_theme_constant_override("separation", 4)
+	nums.alignment = BoxContainer.ALIGNMENT_CENTER
+	nums.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(nums)
 	_self_hp = UITheme.body("", UITheme.HULL_GREEN, UITheme.FS_SMALL)
 	_self_hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(_self_hp)
+	nums.add_child(_self_hp)
+	# STOP so its tooltip shows: the one place that says brace costs heat to hold.
+	_self_brace = UITheme.body("", UITheme.BRACE, UITheme.FS_SMALL)
+	_self_brace.mouse_filter = Control.MOUSE_FILTER_STOP
+	_self_brace.visible = false
+	nums.add_child(_self_brace)
 
-	# THE CHIPS COME DOWN HERE FROM THE RAIL. They are things carried on YOUR
-	# hull -- brace, block, lock-on, a charging card -- so they belong on the
-	# hull rather than in a strip beside the deck. It also gives the draw pile
-	# the twenty-two pixels the rail was spending on a row that is empty most of
-	# the time.
+	# Chips sit on the hull that carries them, which frees 22 px for the draw pile.
 	_player_chips = HBoxContainer.new()
 	_player_chips.add_theme_constant_override("separation", 3)
 	_player_chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	_player_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_player_chips)
 
-	# Centred under the hull rather than under the half: see `HULL_BIAS`.
-	# A CHILD OF THE SHIP, so it goes where the ship goes.
-	#
-	# Two wrong answers came first and both were about the same thing. Anchoring
-	# it to a fraction of the panel assumed the ship's slot was the whole width;
-	# it is one of several children of a row, so the plate sat a long way to
-	# starboard. Positioning it from `self_anchor()` on refresh got the place
-	# right and the TIME wrong -- `ShipView.arrive()` animates, so the plate was
-	# aimed at where the hull had been when the last refresh happened and stayed
-	# there.
-	#
-	# Parenting settles both: the offset is measured once, against the art, and
-	# the arrival carries the plate in with the ship.
+	# A child of the ship so it moves with it; panel anchors and `self_anchor()` both missed.
+	# Why: docs/why/SectorScreen.md#self-plate
 	_self_plate = col
 	col.size = Vector2(PLATE_W, 0)
-	# THE SLOT, NOT THE ART. `ShipView` animates its own position on arrival and
-	# its control is wider than the sprite inside it, so centring on that control
-	# put the plate off the hull's nose and moving with it. The slot is stable,
-	# is a plain Control rather than a container, and so leaves a child's
-	# position alone -- which is what `_place_self_plate` then sets.
+	# Parented to the slot, not the art: the slot is stable and leaves positions alone.
 	_view.ship_view().get_parent().add_child(col)
-	# ON RESIZE, NOT JUST ON REFRESH. The first version placed the plate only
-	# from `_refresh_self_plate`, which runs before the slot has been laid out
-	# -- `ship_bottom_y` had no canvas to measure yet and the ship's control was
-	# still half its eventual height, so the plate landed eighty pixels above
-	# the hull and stayed there.
-	#
-	# Both signals matter and for different reasons: the ship resizing moves the
-	# hull, and the plate resizing changes what "centred" means, because a
-	# status row wider than the bar widens the box the bar sits in.
+	# Placed on resize too: on refresh alone the slot was unlaid and the plate landed high.
+	# Why: docs/why/SectorScreen.md#self-plate
 	_view.ship_view().resized.connect(_place_self_plate)
 	col.resized.connect(_place_self_plate)
 
 
-## What there is to do here, when nothing is shooting. Occupies the same band as
-## the enemy intent strip does in a fight, so the screen keeps one shape whether
-## the sector is quiet or not.
-## A PLAIN CONTROL BETWEEN THE PANEL AND THE COLUMN, so the drawer has a
-## position of its own to slide in on. A container child's position belongs to
-## the container — it is rewritten on the next sort — and this panel is a direct
-## child of the root VBox, so tweening its `position.y` would hold until the
-## next layout pass and then snap back. `EnemySlot` records the same trap and
-## reaches for the same answer; `ShipView` needs none of it because its slot is
-## not a container.
-##
-## SIZED, NOT ANCHORED. A full-rect preset would tie the panel's position to the
-## holder's edges, and Godot recomputes an anchored control's position whenever
-## its parent resizes — which the holder does on its first layout pass, a frame
-## after the reveal has already put the drawer below the floor.
+## A plain Control gives the drawer its own position to slide on, sized rather than anchored.
+## Why: docs/why/SectorScreen.md#quiet-strip
 func _build_quiet_strip() -> Control:
 	# `arena` above expands, so pinning this pins the viewport at the remainder
 	# without either of them having to know about the split.
@@ -1269,21 +926,13 @@ func _build_quiet_strip() -> Control:
 	_quiet_holder.size_flags_vertical = Control.SIZE_SHRINK_END
 	_quiet_holder.custom_minimum_size = Vector2(0, DRAWER_H)
 	_quiet_holder.add_child(_quiet_wrap)
-	# THE PANEL STILL DRIVES THE LAYOUT. Drawer content taller than DRAWER_H
-	# grows the band and shrinks the arena today, and a holder pinned at
-	# DRAWER_H would silently clip it instead. So the holder asks for whatever
-	# the panel asks for, and the panel fills the holder.
+	# The panel still drives layout, so tall drawer content grows the band, not clips.
 	_quiet_holder.resized.connect(_sync_drawer_box)
 	_quiet_wrap.minimum_size_changed.connect(_sync_drawer_box)
 	return _quiet_holder
 
-## Keep the holder the size of the drawer and the drawer the width of the
-## holder. GUARDED AGAINST ITS OWN ECHO: writing the holder's minimum resizes
-## the holder, which calls this again.
-##
-## `position.y` is deliberately not touched here. It belongs to the reveal, and
-## a layout pass that quietly put it back to zero would be the reveal never
-## happening for a reason nobody could see.
+## Guarded against its own echo; `position.y` is left alone as it belongs to the reveal.
+## Why: docs/why/SectorScreen.md#quiet-strip
 func _sync_drawer_box() -> void:
 	if _quiet_wrap == null or _quiet_holder == null:
 		return
@@ -1295,18 +944,12 @@ func _sync_drawer_box() -> void:
 		_quiet_wrap.size = want
 	_sync_bleed()
 
-## Carry the sky down to the bottom of the screen.
-##
-## The arena stops at the drawer band and the band was a flat dark strip with a
-## hard seam across it -- fine while the drawer was always up, and the first
-## thing you see during an arrival, when it is parked below the floor. The view
-## paints past itself now; see `EncounterView.set_bleed`.
+## The sky bleeds under the drawer band, removing the hard seam while it is parked low.
+## Why: docs/why/SectorScreen.md#quiet-strip
 func _sync_bleed() -> void:
 	if _view == null:
 		return
-	# MEASURED FROM THE VIEW'S PARENT, not from the view. The view's own bottom
-	# edge is what the bleed MOVES, so asking it how far it has to reach is a
-	# question whose answer changes the question.
+	# Measured from the view's parent, as the view's own edge is what the bleed moves.
 	var slot := _view.get_parent() as Control
 	if slot == null:
 		return
@@ -1344,11 +987,8 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 		var hl := EncounterDrawer.quiet_lines(n)
 		_drawer_simple(String(hl[0]), String(hl[1]))
 		return
-	# A SYSTEM OR A STATION: ONE LINE, AND THE WAY TO THE MAP. What is here, its
-	# pages and its choices, the floor's loot and the berth are all on the sector
-	# map (`SystemPanel`), and every one of them is taken where it stands -- you
-	# fly there first. LOCAL said all of it again in a drawer of its own, and a
-	# choice taken from here was one taken without going (Jon's LOCAL ruling).
+	# A system or station shows one line and the map link; contents are taken on the map.
+	# Why: docs/why/SectorScreen.md#local-drawer
 	if n.type == MapGen.NodeType.SYSTEM or n.type == MapGen.NodeType.STATION:
 		_drawer_here(n)
 		return
@@ -1356,44 +996,17 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 	_drawer_simple(String(lines[0]), String(lines[1]))
 
 
-## How tall the drawer is for this place.
-##
-## THE BOOKENDS ARE NARROW. A system gets the fixed `DRAWER_H`, because its
-## drawer swaps between a list, an option and a result and a band that resized
-## between those would make the viewport jump on every click. The start and the
-## core swap between nothing: each says one line, offers one button, and that is
-## the whole of it. A hundred and seventy pixels of panel holding forty of
-## content is a hole under the ship, and these two are the first and last things
-## anybody sees.
-##
-## Costs one resize on the first jump of a run and one on the last. Stations and
-## pulsars are the same shape and could have the same treatment; they are left
-## alone because each one would add a resize to a transition that has none, and
-## unlike these two you dock at them repeatedly.
+## The bookends get a narrow drawer: they swap between nothing, so a fixed height is a hole.
+## Why: docs/why/SectorScreen.md#drawer-sizing
 func _size_drawer(n: MapGen.MapNode) -> void:
-	# EVERY PLACE WITH ONE THING TO DO. It was the two bookends of a run; a
-	# station and a pulsar say exactly as little -- a line and a button -- and
-	# were being given a drawer sized for a list of four options, so most of the
-	# panel was air.
-	#
-	# AND A SYSTEM NEVER IS ONE, WHICH REVERSES A RULING FROM AN HOUR AGO. A
-	# finished system did collapse to this height and should have: it said one
-	# line over a hundred and ninety pixels of air. It does not say one line any
-	# more -- every option it ever had is still on the row wearing SUCCESS or
-	# BOTCHED or UNAVAILABLE, so there is no air to collapse and the record of
-	# what you did there is the thing that would be hidden. The collapse was a
-	# fix for emptiness, and the emptiness is gone.
-	# (and since LOCAL's drawer became one line, a system is one too: every
-	# place says a line and offers a button, and the sky gets the rest)
+	# Reverses an earlier ruling: a system no longer collapses, as its option rows fill it.
+	# Why: docs/why/SectorScreen.md#drawer-sizing
 	var bookend := n != null and not Run.dead
 	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.
 	_sync_drawer_box()
-	# AND IT KEEPS ITS ALPHA. `Widgets.panel_with` builds this panel at
-	# UITheme.PANEL_A -- "the panel-over-sky alpha" -- and this override was
-	# handing back an OPAQUE colour, which undid it every refresh. Nobody
-	# noticed while there was no sky under the drawer to see.
+	# Keeps the panel alpha: an opaque override undid `UITheme.PANEL_A` each refresh.
 	_quiet_wrap.add_theme_stylebox_override("panel",
 		UITheme.flat(Color(UITheme.PANEL, DRAWER_A), UITheme.LINE,
 			0, 6 if bookend else 12, 12))
@@ -1415,19 +1028,8 @@ func _drawer_simple(line: String, label: String) -> void:
 	b.custom_minimum_size = EncounterDrawer.BTN
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(b)
-	# AND THE WAY OUT -- UNLESS LEAVING IS ALREADY THE ONE THING. A cleared
-	# system and a spent pulsar have nothing left to do but go, so their own
-	# button IS the jump, and adding a second one printed PLOT NEXT JUMP twice
-	# side by side.
-	#
-	# Compared against the label rather than the node type on purpose: what the
-	# button SAYS is the thing that would be duplicated, and `_on_action` decides
-	# that from four different branches.
-	# AND THE WAY OUT, WHICH IS NOT `_on_action`. That function is "the one
-	# thing this place offers" and it is DIFFERENT per node -- dock at a
-	# station, harvest a pulsar -- and only happens to be the chart at a system
-	# because a system's options are the rows above it. Wiring the jump to it
-	# would make PLOT NEXT JUMP dock you.
+	# No second jump button when the main one already leaves; the way out goes to the chart.
+	# Why: docs/why/SectorScreen.md#drawer-actions
 	if label != EncounterDrawer.TO_SECTOR:
 		# NO CLICK ON THIS ONE, and see `_plot_next_jump` for why.
 		var jump := Widgets.button(EncounterDrawer.TO_SECTOR, _plot_next_jump, false)
@@ -1437,10 +1039,8 @@ func _drawer_simple(line: String, label: String) -> void:
 	_drawer.add_child(row)
 
 
-## WHAT IS HERE (Jon, Oct 21, "bar:here"): the events not yet taken at the place
-## the ship is (`SystemLayout.place_of`, `Run.site_here`), not the whole
-## system's -- "3 THINGS HERE" stood beside a giant with nothing at it. At the
-## edge and in open space, none.
+## Counts only events at the ship's place, not the whole system's (Jon, Oct 21).
+## Why: docs/why/SectorScreen.md#local-drawer
 static func things_here(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	if n == null:
@@ -1455,14 +1055,11 @@ static func things_here(n: MapGen.MapNode) -> Array:
 	return out
 
 
-## Whether the bar is offering JOIN FIGHT, so a fight push rebuilds it only
-## when that changes.
-var _join_shown := false
+## What the bar is offering for a partner's fight (`Router.join_state`), so a
+## fight push rebuilds it only when that changes.
+var _join_shown := Router.JOIN_NONE
 
-## WHAT IS HERE, IN ONE LINE, and the sector map to see it on. The parts joined
-## with a dot, as the event's own line is (`LocalEventDrawer.bar_line`): they
-## were joined with a dash, and a player-facing line has none (the tutorial
-## audit, Oct 22).
+## Parts are joined with a dot, as a player-facing line has no dash (audit, Oct 22).
 static func here_line(n: MapGen.MapNode) -> String:
 	var left := things_here(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
 	var line := "NOTHING ELSE HERE · SEE SECTOR"
@@ -1483,8 +1080,8 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	var line := here_line(n)
 	# A PARTNER IS FIGHTING HERE, and the way in is on this bar (Oct 22
 	# playtest: there was no way into a partner's fight at all).
-	_join_shown = Router.can_join_fight()
-	if _join_shown:
+	_join_shown = Router.join_state()
+	if _join_shown != Router.JOIN_NONE:
 		line = "%s IS FIGHTING HERE" % Router.join_fight_names()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -1493,14 +1090,14 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(t)
-	# THIS SYSTEM'S OWN PILE, beside the way to the map (Jon: "button on the
-	# bottom right next to SCAN SECTOR that opens the popup for the sector
-	# loot"), only while there is something on it, as the map's SECTOR LOOT is:
-	# a popup in the cutaway, the two-grid screen with your hold beside it
-	# anywhere else
-	if _join_shown:
+	# The sector loot button shows only while the pile has something, as on the map.
+	# Why: docs/why/SectorScreen.md#local-drawer
+	if _join_shown != Router.JOIN_NONE:
 		var jf := Widgets.button("JOIN FIGHT", Router.join_fight)
 		jf.name = "JoinFight"
+		# greyed while the Hellbender spools its escape, and saying why
+		jf.disabled = _join_shown == Router.JOIN_SHUT
+		jf.tooltip_text = Widgets.tip(Router.join_tip())
 		jf.custom_minimum_size = EncounterDrawer.BTN
 		jf.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(jf)
@@ -1520,11 +1117,8 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 		lb.custom_minimum_size = EncounterDrawer.BTN
 		lb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(lb)
-	# DOCK, ONE DISTANCE IN (`ZoomLadder`): the station is right there, so the way
-	# into it is here as well as on the map -- ONLY THERE (Jon, Oct 18, "dock:A"):
-	# at a world, the star or open space in a station's system there is no
-	# station beside you to dock with (`Router.at_station`), and no button that
-	# looks like one; the line says where to go
+	# DOCK shows only where a station is beside you, never at a world, star or open space.
+	# Why: docs/why/SectorScreen.md#local-drawer
 	if n.type == MapGen.NodeType.STATION and ZoomLadder.chosen() and Router.at_station(n):
 		var dk := Widgets.button("DOCK", func() -> void: Router.show_station())
 		dk.name = "Dock"
@@ -1544,10 +1138,7 @@ func _on_action() -> void:
 	if Run.dead:
 		Router.show_game_over()
 		return
-	# While the hellbender holds the system it IS the one thing this place offers —
-	# same blockade the arrival path enforces in Router.resolve_current_node().
-	# ...where it is anchored: elsewhere the button is the way to the map,
-	# where its place is, to fly there
+	# While the hellbender holds the system it is the one thing offered, as in Router.
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		if Router.at_hellbender(n):
 			Router.engage_hellbender()
@@ -1569,11 +1160,7 @@ func _on_action() -> void:
 				Router.show_system()
 			else:
 				Router.harvest_pulsar()
-		# A contact you have not fought yet. For FIGHT that is a resumed run —
-		# arriving at one normally starts the fight before this screen draws. For
-		# CORE it is the ORDINARY path: the core is a place you arrive at and
-		# then commit to, so a party can be at it together. See
-		# Router.resolve_current_node().
+		# An unfought contact: a resumed run for FIGHT, the ordinary path for CORE.
 		MapGen.NodeType.CORE:
 			if n.cleared or n.fled or not Router.at_custodian(n):
 				Router.show_system()
@@ -1582,27 +1169,15 @@ func _on_action() -> void:
 		_:
 			Router.show_system()
 
-## ONE SOUND FOR IT, AND IT IS THE PAGE TURNING.
-##
-## This started as the opposite ruling -- "Clicking plot next jump should not
-## activate the tab_click sound effect" -- which silenced the page and left the
-## click. Hearing it, Jon corrected it the other way: "let's not have the
-## ui_click sound, just the page tab sound." That is the better half to keep.
-## The click is the sound of a BUTTON, and there are a dozen of them on this
-## screen; the page turn is the sound of the thing that actually happened.
-##
-## So the button is built with its click off (`Widgets.button`'s third
-## argument) and `ui_tab` is left alone to play from `_swap`, where every
-## screen change plays it.
+## Only the page-turn sound plays; the button's click is off, per Jon's correction.
+## Why: docs/why/SectorScreen.md#plot-jump-sound
 func _plot_next_jump() -> void:
 	if _cutaway != null:
 		_cutaway.close_now()
 	Router.show_system()
 
 
-## SECTOR LOOT on the bottom bar: over the cutaway, this system's pile in its
-## popup beside the button (drag to the hold or a ring); anywhere else, the
-## two-grid screen, your hold beside the pile.
+## The loot button opens a popup over the cutaway, else the two-grid screen.
 func _open_loose() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null:
@@ -1619,73 +1194,24 @@ func _open_loose() -> void:
 func _dead_strip_note() -> void:
 	pass
 
-## A stack of card backs with a count on it.
-##
-## The strips either side of the hand were dead space with a line of text in
-## them — "deck 12 · discard 3" — which is a pile's information without a pile.
-## Drawn as actual backs the number stops being a stat and becomes a THING: you
-## can see the draw pile getting thin, and the discard growing to meet it,
-## without reading either.
-##
-## The back borrows the card's own vocabulary — a banner down the left, a
-## punched square where an emblem would go — so a face-down card is obviously
-## one of these cards rather than a generic rectangle.
-## The height the player's status chip row holds whether or not it has chips in
-## it. See where it is built for what happens without it.
-##
-## 18, MEASURED. A chip is a PanelContainer around 10px text with 2px of padding
-## and a border, and it renders 18 rows tall — not the 16 the arithmetic
-## suggested. Reserving 16 changed nothing at all, because the chip was still
-## the taller of the two and the row sized to it: the hand sat at y=690 with no
-## chips and y=654 with one, either way.
+## 18 is the measured chip height, not 16, and the row reserves it with or without chips.
+## Why: docs/why/SectorScreen.md#pile-view
 const CHIP_ROW_H := 18
 
 class PileView extends Control:
-	# Big enough to read as a card rather than as an icon of one.
-	#
-	# WAS 86, WHICH THE BAND CAN NO LONGER HOLD. The old note read "the hand row
-	# is 160 tall to fit a card, so there was height going spare either side" --
-	# and the spare is gone now the band is a fixed 170 shared with the drawer.
-	# At 86 the left rail came to about 179 and pushed the whole panel past the
-	# drawer it is supposed to swap with.
-	# 68, NOT 60, and the reason is a word. Every button on both rails is cut to
-	# this width, and "END TURN" on one line does not fit 60 -- it wrapped, came
-	# out at 24 against its neighbours' 16, and no amount of stylebox padding was
-	# ever going to explain that. The eight pixels come off the card area, which
-	# has them.
-	# THE FLOOR, NOT A CHOICE. `END TURN` measures 58 at FS_SMALL and the flat
-	# button boxes add six each side, so no rail can be narrower than this
-	# whatever else is written on one. `-- fitwords` prints the table.
-	#
-	# It went to 100 to hold "NOT NEGOTIATING" and that was the wrong way round:
-	# the rail sets what a word may be, because the PILE is cut to the rail too
-	# and a wide rail makes a landscape pile. At 68 a full stack is 64 across
-	# against 66 tall; at 100 it was 96 against 66.
+	# `W` is the floor `END TURN` needs; a wider rail makes a landscape pile.
+	# Why: docs/why/SectorScreen.md#rail-sizing
 	const W := 68
-	# 52 IS THE CEILING, swept rather than guessed: the band is a fixed 170 shared
-	# with the drawer, and `-- sectorshot` reports 171 at 53 and 175 at 57. Every
-	# pixel this gains comes straight off the panel it has to fit inside.
-	#
-	# It has come down from 86 in three steps, each paying for something the rail
-	# gained -- the fixed band, then the stack's lean, then the air under the
-	# label. If it needs to be bigger the room has to come from somewhere else in
-	# the column, because there is none here.
-	# 66, which is where it was always trying to get to. It has been 86, 66, 62,
-	# 58, 52, 60 and 52 again across one night of the rail and the cards trading
-	# pixels; the hand holding its own height is what ended the argument.
+	# 52 is the swept ceiling: the band is fixed at 170 and each pixel comes off the panel.
+	# Why: docs/why/SectorScreen.md#rail-sizing
 	const H := 88
 	var count: int = 0
 	var label: String = ""
 
 	func _init() -> void:
-		# H, plus the four the stack leans by, plus room for the label under it,
-		# plus the same gap under THAT as the rails carry above them -- the piles
-		# are the last thing in each column and sat flush against the panel edge
-		# while everything above them had six of air.
+		# `H`, plus the stack lean, the label and the same gap the rails have above them.
 		custom_minimum_size = Vector2(W, H + 16 + SectorScreen.RAIL_DROP)
-		# STOP, not IGNORE. A control that ignores the mouse never shows a
-		# tooltip, and these two are the least self-explanatory things on the
-		# panel -- a number on a card back that reshuffles when it runs out.
+		# STOP, not IGNORE: a control that ignores the mouse never shows a tooltip.
 		mouse_filter = Control.MOUSE_FILTER_STOP
 
 	## Told when the pile is clicked. Set by whoever built it.
@@ -1707,49 +1233,21 @@ class PileView extends Control:
 		label = text
 		queue_redraw()
 
-	## The card inside the column, which is NARROWER than the column.
-	##
-	## `W` is the rail's width and every button on both sides is cut to it, so
-	## narrowing that narrows the whole panel. The card is drawn at `CARD_W`
-	## instead, centred, at 60 against 68 -- four pixels of margin each side and
-	## the rest of the column filled. It was 44, which left twenty-four pixels of
-	## nothing beside a pile that had already been squeezed three times.
-	##
-	## HEIGHT IS MAXED, not chosen: the control is `H + 16 + RAIL_DROP` and every
-	## one of those is spoken for -- the lean, the label, and the air under it --
-	## inside a band that is a fixed 170. Width was the only slack left.
-	## The card, sized so a FULL stack is exactly as wide as a button.
-	##
-	## Three cards each lean two right of the last, so the widest the pile ever
-	## draws is this plus four -- and tying it to `W` here is what stops the two
-	## drifting apart. They did: the rail went to 100 for a long word and the
-	## card stayed at 64, which put the pile back in the dead space it had just
-	## been given to fill.
+	## The card is narrower than the column and tied to `W`, so a full stack equals a button.
+	## Why: docs/why/SectorScreen.md#rail-sizing
 	const CARD_W := W - 4
 
-	## Where the BACK card starts, so the whole leaning stack is centred.
-	##
-	## Centring one card and then leaning the others off it pushed the pile right
-	## as it filled, which is a pile that moves while you play. The lean is known
-	## -- two pixels per card behind the front one -- so it is subtracted here and
-	## the group stays put.
+	## The lean is subtracted so the stack stays centred and does not move as it fills.
+	## Why: docs/why/SectorScreen.md#pile-view
 	func _card_x(shown: int) -> float:
 		return float(W - CARD_W - maxi(shown - 1, 0) * 2) * 0.5
 
 	func _draw() -> void:
-		# Up to three backs, offset, so the pile has depth without needing to
-		# draw one rect per card. Depth is the only thing the extra backs are
-		# for — the number says how many.
+		# Up to three backs for depth only; the number says how many.
 		var shown: int = clampi(count, 0, 3)
 		for i in range(shown - 1, -1, -1):
-			# INSIDE ITS OWN BOX. This was `-i * 2`, which drew the cards behind
-			# the front one ABOVE y=0 -- outside the control, over whatever sits
-			# above it. On the right rail that is FLEE, so a discard pile with
-			# anything in it painted across the button.
-			#
-			# The stack still leans up and to the right; the whole thing is just
-			# offset down by as far as it leans, so the deepest card starts at
-			# zero instead of the front one.
+			# Offset down by the lean: `-i * 2` drew the backs above the control, over FLEE.
+			# Why: docs/why/SectorScreen.md#pile-view
 			var o := Vector2(_card_x(shown) + float(i) * 2.0, float(shown - 1 - i) * 2.0)
 			var r := Rect2(o, Vector2(CARD_W, H))
 			draw_rect(r, UITheme.PANEL2, true)
@@ -1775,36 +1273,12 @@ class PileView extends Control:
 		draw_string(f, Vector2((W - lw) * 0.5, H + 14), LowHull.scr(self, label, UITheme.FS_SMALL, f),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.COLD)
 
-## Where the rails begin, which is where a HOVERED card begins.
-##
-## A card rests at 8 inside a hand bottom-aligned at 14, and hovering lifts it by
-## 8 -- so the top edge of the card you are looking at is at 14, and that is the
-## line the rails should start on. Rested cards sit 8 below it, which is right:
-## the lifted one is the one you are considering, so it is the one the panel
-## squares up to.
-##
-## Separate from `RAIL_DROP` because they stopped being the same number the
-## moment this had to match something. That one is still the gap BETWEEN things
-## and the air under the pile label; this is only the gap above the first box.
-## 4, plus the 4 gap that lands after it, puts the first box on 8.
-##
-## EIGHT IS ALSO WHERE A HOVERED CARD STARTS, and that is not a coincidence
-## surviving by luck -- the hand is bottom-aligned, so shortening the band moves
-## it up by exactly what the band lost, and the lift is a constant. Both were 14
-## at a band of 196 and both are 8 at 190. They travel together.
-##
-## The spacer is a CHILD of the rail, so the separation lands after it too, which
-## is why this is 4 and not 8. Setting it to the target directly overshoots by
-## exactly one gap.
+## Rails start where a hovered card starts; the gap after the spacer makes 4 land on 8.
+## Why: docs/why/SectorScreen.md#rail-sizing
 const RAIL_TOP := 4
 
-## How far the rails sit below the top of the band.
-##
-## A card's frame starts at the very top of the panel and its CONTENT starts a
-## few pixels in, so rails flush with the frame read as sitting higher than the
-## cards they flank. Six is the difference, and it is paid for out of the pile
-## rather than added to the band -- 170 is shared with the drawer and there is no
-## slack in it.
+## A card's content starts a few px inside its frame; the 6 is paid out of the pile.
+## Why: docs/why/SectorScreen.md#rail-sizing
 const RAIL_DROP := 6
 
 
@@ -1818,28 +1292,15 @@ func _rail_drop() -> Control:
 func _build_hand() -> Control:
 	var hand_row := HBoxContainer.new()
 	hand_row.add_theme_constant_override("separation", 6)
-	# Everything you spend on the left, everything you end with on the right,
-	# and the cards in between. Energy sits at the top of the left column
-	# because it is the number you check before choosing a card, not after.
-	# TOP-ALIGNED, BOTH OF THEM. Centred, each column centres against its OWN
-	# height -- and the left carries a chip row the right does not -- so the
-	# pairs that are meant to read across the panel drifted apart by more the
-	# further down you looked. ENERGY/END TURN, TURN/FLEE and the two piles are
-	# the same three rows on both sides, and now they start at the same y.
+	# Both columns are top-aligned, as the left's chip row made paired rows drift apart.
+	# Why: docs/why/SectorScreen.md#hand-layout
 	var left := VBoxContainer.new()
-	# FOUR BETWEEN ITEMS, against `RAIL_TOP` above the first and `RAIL_DROP`
-	# under the last label. Three numbers where there was one, and the reason is
-	# that the top now has to LINE UP with something outside the rail -- a
-	# hovered card -- rather than just look even. The eight that costs comes off
-	# the separations rather than off the band or the pile.
+	# Gaps of 4 so the top lines up with a hovered card; the cost comes off separations.
 	left.add_theme_constant_override("separation", 4)
 	left.alignment = BoxContainer.ALIGNMENT_BEGIN
 	left.add_child(_rail_drop())
 
-	# A box of the same width as END TURN opposite it, so the panel reads as a
-	# pair of columns rather than as a pile of leftovers at each end. Label,
-	# then the cells you spend, then the count — top to bottom, because that is
-	# the order you read it in when deciding whether a card is affordable.
+	# Same width as END TURN opposite, ordered the way you weigh a card's cost.
 	var nrg := VBoxContainer.new()
 	nrg.add_theme_constant_override("separation", 2)
 	var nrg_label := UITheme.body("ENERGY", UITheme.COLD, UITheme.FS_SMALL)
@@ -1862,9 +1323,7 @@ func _build_hand() -> Control:
 	nrg_box.add_child(nrg)
 	left.add_child(nrg_box)
 
-	# Turn count in a box of its own, directly under energy — the two things
-	# that are true of the whole turn, above the pile that changes within it.
-	# It mirrors FLEE opposite: a thin strip between the tall box and the pile.
+	# Turn count sits under energy, as both are true of the whole turn. Mirrors FLEE.
 	_deck_label = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_deck_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var turn_box := PanelContainer.new()
@@ -1877,15 +1336,8 @@ func _build_hand() -> Control:
 	left.add_child(turn_box)
 
 
-	# PUSHES THE PILE TO THE BOTTOM, and this is what `RIGHT_GAP` was doing by
-	# hand. That gap was a measured constant chosen to make the two rails come
-	# out the same length -- which held exactly until any other number in either
-	# column moved, and then the piles were four pixels apart again and the fix
-	# was another measurement.
-	#
-	# An expanding spacer needs no measuring: both piles sit on the rail's bottom
-	# edge, so they are level with each other by construction and their labels
-	# land on the card edge because the band is what it is.
+	# An expanding spacer levels the piles by construction; `RIGHT_GAP` needed re-measuring.
+	# Why: docs/why/SectorScreen.md#hand-layout
 	var draw_push := Control.new()
 	draw_push.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(draw_push)
@@ -1903,50 +1355,41 @@ func _build_hand() -> Control:
 	_hand.card_hovered.connect(_on_card_hovered)
 	_hand.picked.connect(_on_card_picked)
 	_view.preview = _drag_preview
+	if not _view.slid.is_connected(_on_view_slid):
+		_view.slid.connect(_on_view_slid)
 	_hand.reordered.connect(_on_hand_reorder)
 	hand_row.add_child(_hand)
-	# END TURN, then FLEE, then the discard. Ordered by how often you mean it:
-	# the one you press every turn is on top and full size, the one you press
-	# once a run is a thin red line under it, and the pile you never press at
-	# all is at the bottom.
+	# WHERE THE HAND GOES WHILE STUNNED (Jon, Nov 5): an empty drawer says why
+	_stun_note = UITheme.body(STUN_NOTE, UITheme.COLD, UITheme.FS_SMALL)
+	_stun_note.name = "StunNote"
+	_stun_note.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_stun_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_stun_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_stun_note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stun_note.visible = false
+	_hand.add_child(_stun_note)
+	# Ordered by how often each is pressed: END TURN, then FLEE, then the discard.
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
 	right.alignment = BoxContainer.ALIGNMENT_BEGIN
 	right.add_child(_rail_drop())
 
-	# Two lines and a box. It is the button you press every single turn, so it
-	# should be the biggest target on the panel — and stacked it reads as a
-	# button rather than as a word in a row of words.
-	# THREE BUTTONS SPANNING ONE BLOCK. Together they come to the same 54 as
-	# ENERGY and TURN opposite -- 22 + 3 + 14 + 3 + 14 -- so the piles below stay
-	# level with the draw pile and the two rails read as columns rather than as
-	# two lists that happen to be the same length.
-	#
-	# END TURN keeps the weight because it is the one you press every turn. It was
-	# two lines and 38 tall, which made it a different size from the ENERGY box it
-	# is supposed to mirror; one line at 22 mirrors it as part of the block.
+	# Three buttons sum to 54 like ENERGY and TURN opposite, so the piles stay level.
+	# Why: docs/why/SectorScreen.md#hand-layout
 	_end_button = Widgets.button("END TURN", _on_end_turn)
-	# 16, not 22. A bevel button floors at about 17 whatever it is asked for, so
-	# three of them plus a 22 came to 62 against the 54 the left rail spends on
-	# ENERGY and TURN. Levelling them is what makes the block fit at all.
+	# 16 not 22: a bevel button floors near 17, so three plus a 22 gave 62 against 54.
+	# Why: docs/why/SectorScreen.md#hand-layout
 	_end_button.custom_minimum_size = Vector2(PileView.W, 16)
-	_end_button.tooltip_text = Widgets.tip("END TURN\n\nStop, and let them act.")
-	# ITS OWN STYLEBOX, because the default bevel pads four above and below and
-	# rendered this at 28 while FLEE and HAIL -- which already carry flat boxes
-	# with no vertical padding -- came out at 16. Three buttons cannot share a
-	# block while one of them is nearly twice the others. Brighter border rather
-	# than more height: it is still the primary, it just says so in colour.
+	_end_button.tooltip_text = Widgets.tip(END_TIP)
+	# Own stylebox: the default bevel padding made END TURN 28 against FLEE's 16.
 	_end_button.add_theme_stylebox_override("normal",
 		UITheme.flat(UITheme.PANEL2, Color("#4a5f78"), 0, 1, 6))
 	_end_button.add_theme_stylebox_override("hover",
 		UITheme.flat(Color("#1d2836"), UITheme.ICE, 0, 1, 6))
 	_end_button.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#243044"), UITheme.ICE, 0, 1, 6))
-	# AND `disabled`, WHICH IS THE ONE EVERY CUSTOM BUTTON FORGETS. The theme's
-	# is `bevel_in(PANEL, 3, 5)` -- three above and below against these boxes'
-	# zero -- so a button that greys GROWS, and the rail and everything under it
-	# shifts a couple of pixels. Reported as the drawer moving when FLEE turns to
-	# NO ESCAPE, which is exactly when a button greys.
+	# Override `disabled` too: the theme's pads 3 px, so a greyed button grew and shifted the rail.
+	# Why: docs/why/SectorScreen.md#hand-layout
 	_end_button.add_theme_stylebox_override("disabled",
 		UITheme.flat(UITheme.PANEL, Color("#2b3746"), 0, 1, 6))
 	right.add_child(_end_button)
@@ -1970,16 +1413,10 @@ func _build_hand() -> Control:
 		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
 	right.add_child(flee)
 
-	# THE OTHER WAY OUT, and the one that costs nothing if it works. FLEE burns
-	# fuel and rolls MANEUVER; HAIL burns nothing and rolls STEALTH. Two exits,
-	# two attributes, and a ship is usually good at one of them.
+	# HAIL is the free exit rolling STEALTH; FLEE burns fuel and rolls MANEUVER.
 	_hail_button = Widgets.button("HAIL", _on_hail)
 	_hail_button.custom_minimum_size = Vector2(PileView.W, 16)
-	# YELLOW, against FLEE's red. Two exits, and they should not look like the
-	# same button twice -- red is the one that costs you a run's salvage, yellow
-	# is the one that costs you nothing if it lands. `HOT` is the palette's warm
-	# high note and is otherwise spent on outcome prose, which is close enough to
-	# "this went well" for a button that tries to make a fight not happen.
+	# Yellow against FLEE's red, so the two exits do not look like one button twice.
 	_hail_button.add_theme_color_override("font_color", UITheme.HOT)
 	_hail_button.add_theme_color_override("font_hover_color", Color("#fff0c4"))
 	_hail_button.add_theme_stylebox_override("normal",
@@ -1992,10 +1429,7 @@ func _build_hand() -> Control:
 		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
 	right.add_child(_hail_button)
 
-	# THE CHIP ROW'S OPPOSITE NUMBER. The left column spends `CHIP_ROW_H` on
-	# your brace, block and lock-on; without the same gap here the discard pile
-	# sits that much higher than the draw pile and the two columns stop being
-	# columns. Empty on purpose -- the enemy's chips live in their own strip.
+	# Matches the left column's `CHIP_ROW_H` so both piles sit level; empty on purpose.
 	var chip_gap := Control.new()
 	# EXPANDING, like the left one. Neither rail needs to know how tall the other
 	# is any more; both piles simply sit on the bottom.
@@ -2009,26 +1443,14 @@ func _build_hand() -> Control:
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
-	# THE SAME HEIGHT AS THE DRAWER, so a fight is a clean swap. The two panels
-	# are mutually exclusive and occupy the same band; matching them means the
-	# system above does not resize the moment something starts shooting, which is
-	# the one frame where a viewport jumping would be most obvious.
-	#
-	# AND THE PADDING HAD TO GIVE. `custom_minimum_size` is a floor, not a
-	# ceiling: the hand reserves a card's height plus four, and `panel_with`'s
-	# default 12 above and below took that to 188 against the drawer's 170. The
-	# measurement is why this is 3 rather than a guess -- 164 + 6 is exactly the
-	# band, and any more padding puts the cards back through the ceiling.
+	# Same height as the drawer so a fight is a clean swap; padding is 3 so 164 + 6 fits.
+	# Why: docs/why/SectorScreen.md#hand-layout
 	_hand_wrap.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 12))
 	_hand_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
 	_hand_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
-	# IN A HOLDER, SO IT CAN BE LOWERED. Jon: "the card drawer should slowly
-	# lower after a fight is won... instead of totally disappearing and the ships
-	# jerking down to the center of the screen." The holder is what the root
-	# column measures; shrinking it slides the panel down behind the bottom edge
-	# while the arena grows in step, so the ships ease to where LOCAL will have
-	# them instead of snapping there. Same shape as the quiet strip's holder.
+	# A holder lets the panel be lowered after a win; the root column measures the holder.
+	# Why: docs/why/SectorScreen.md#hand-lowering
 	_hand_holder = Control.new()
 	_hand_holder.clip_contents = true
 	_hand_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2041,24 +1463,13 @@ func _build_hand() -> Control:
 			_hand_wrap.get_combined_minimum_size().y)))
 	return _hand_holder
 
-## How many cards fit across the panel before it wraps.
-##
-## Seven at `CARD_W` plus the flow's four is 808, which leaves the 960 a margin
-## either side. Past that the panel would be wider than the screen it is
-## centred in, so the flow wraps and the scroll takes the overflow -- a starting
-## deck is ten cards but nothing stops a run ending with forty.
+## Seven cards across at `CARD_W` leave a margin; past that the flow wraps and scrolls.
+## Why: docs/why/SectorScreen.md#pile-listing
 const PILE_COLS := 7
 
 
-## What is in a pile.
-##
-## Both piles are public information -- the discard always was, and a draw pile
-## you cannot count is just an unfair surprise -- but they are public in
-## DIFFERENT ways, which is why the draw pile is sorted and the discard is not.
-## The ORDER of the draw pile is the one thing that is genuinely hidden, so
-## showing it in sequence would hand over the next five turns; sorting by name
-## answers "what is left" without answering "what is next". The discard has no
-## such secret, so it reads newest-first, the way you put it there.
+## The draw pile is sorted so its hidden order is not shown; the discard reads newest first.
+## Why: docs/why/SectorScreen.md#pile-listing
 func _show_pile(title: String, cards: Array[CardData], sorted_by_name: bool) -> void:
 	if _pile_panel != null:
 		_close_pile()
@@ -2070,9 +1481,7 @@ func _show_pile(title: String, cards: Array[CardData], sorted_by_name: bool) -> 
 	# STOP, so the fight underneath cannot be played through the panel covering
 	# it. A card dropped on an enemy you cannot see is not a click you meant.
 	_pile_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	# CLICK ANYWHERE TO PUT IT DOWN. The cards ignore the mouse and the CLOSE
-	# button eats its own click, so everything that reaches the backdrop is a
-	# click on nothing -- which is the gesture people already try first.
+	# Any click reaching the backdrop is a click on nothing, so it closes the pile.
 	_pile_panel.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
@@ -2125,15 +1534,8 @@ func _show_pile(title: String, cards: Array[CardData], sorted_by_name: bool) -> 
 
 	for c in shown:
 		var v := CardView.new()
-		# PLAYABLE, WHICH IS A LIE THAT READS TRUE. `set_playable(false)` drops
-		# a card to a third alpha, and `CardView` already records why that is
-		# wrong in bulk: "a hand greyed out end to end reads as unplayable".
-		# A pile listing greyed end to end reads the same way -- as if the
-		# cards had been taken off you rather than merely put down.
-		#
-		# Nothing can be played from here regardless: the flow is not a
-		# `HandView`, which is the parent `CardView` checks before it will
-		# start a drag, and the card ignores the mouse anyway.
+		# Cards stay playable-looking: a greyed list reads as cards taken, and none can be played.
+		# Why: docs/why/SectorScreen.md#pile-listing
 		v.setup(c, true, 1)
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		flow.add_child(v)
@@ -2183,17 +1585,12 @@ func _build_overlay() -> void:
 func _refresh() -> void:
 	if Run.hull == null:
 		return
-	# WHILE A TURN IS PLAYING OUT, the screen shows what the eye has been shown
-	# so far, not what the maths already knows. Everything is caught up in one
-	# refresh when it has finished. See `_hold`.
+	# While a turn plays out the screen shows what the eye has seen; see `_hold`.
 	if _hold:
 		_dirty = true
 		return
-	# `Run.jump_to` emits `resources_changed` BEFORE `jumped`, so there is one
-	# synchronous refresh on the DEPARTING screen already holding the new
-	# `Run.at` -- it would repaint the backdrop to the system it is leaving for,
-	# for one frame, on the frame the flare is brightest. Harmless until now
-	# because that refresh used to land on the starchart.
+	# `Run.jump_to` emits before `jumped`, so a refresh here would repaint the next system.
+	# Why: docs/why/SectorScreen.md#jump-commit
 	if _phase == Phase.COMMITTING:
 		return
 	var n: MapGen.MapNode = Run.node_at()
@@ -2209,9 +1606,7 @@ func _refresh() -> void:
 		# THE HOLDER, not the panel. The panel stays visible and keeps driving
 		# the band's height; the holder is what collapses it during a fight.
 		_quiet_holder.visible = not at_war
-		# A HULL BAR IS A COMBAT READOUT. Out of a fight the top bar already
-		# carries the number and nothing is taking it off you, so a second copy
-		# floating under the ship is a gauge for a thing that is not happening.
+		# A hull bar is a combat readout; out of a fight the top bar carries the number.
 		if _self_plate != null:
 			_self_plate.visible = at_war
 	_refresh_hail()
@@ -2237,12 +1632,8 @@ func _refresh() -> void:
 		_refresh_enemy()
 		_refresh_hand()
 	else:
-		# EVERY HULL THAT DIED HERE, and they stay whether or not anything is
-		# left in them. A wreck does not stop existing because you emptied it,
-		# and one that vanished when picked clean would say the sector had
-		# forgotten a fight happened in it.
-		# ...AT THIS PLACE: the world you orbit keeps the hulls of the fights
-		# over it, and the next world along has none of them.
+		# Wrecks stay once emptied, per place, so the sector remembers a fight happened.
+		# Why: docs/why/SectorScreen.md#wrecks
 		var wrecks: Array = Run.wrecks_here(n)
 		if not wrecks.is_empty():
 			_view.show_wrecks(wrecks, _open_jetsam)
@@ -2273,64 +1664,27 @@ func _refresh_salvage() -> void:
 
 	var n: MapGen.MapNode = Run.node_at()
 	var loose := Run.bag_left(n)
-	# NOT `Run.cargo`. This rail listed everything in your hold, which made
-	# sense when loot ARRIVED there -- something turned up and the rail was how
-	# you heard about it. Nothing arrives any more: 3.6 made every physical
-	# grant a container you reach into, so by the time a part is in your hold
-	# you have already picked it up on purpose and decided to keep it. Printing
-	# it again in the sector is the game telling you something you just did.
-	#
-	# A found hull is different and stays: it is not in your hold, it is an
-	# offer, and the rail is where the offer lives.
-	# ONLY A HULL OPENS THIS NOW.
-	#
-	# The rail has been shedding jobs for a while: it stopped listing your cargo
-	# when every payout became a container, and the bag it summarised is now
-	# several containers reached through the hulls they came out of. What was
-	# left was a panel occupying the top right of every system to hold one
-	# button and a sentence.
-	#
-	# A found hull is a real reason to keep it: an OFFER rather than a
-	# possession, not a hold item so it cannot go in a container, and rare
-	# enough that a panel appearing for it reads as something having happened.
+	# Only a found hull opens the rail: it is an offer, not a hold item.
+	# Why: docs/why/SectorScreen.md#salvage-rail
 	var mine := Run.found_hull != null
 	var bag_here := n.index if loose > 0 else -1
 
-	# STAYS DISMISSED ACROSS A JUMP. The state lives on `Run` because this screen
-	# does not survive one — see RunState.salvage_hushed_hauls.
-	#
-	# It stops being dismissed when there is something NEW to decide about: a
-	# fresh haul, or a bag at a system you have not stood over yet. Watching
-	# `cargo.size()` instead of `hauls` was right until the refit screen learned
-	# to drag a part off a hardpoint into the hold — that grows the hold too, so
-	# unbolting your own coolant line made this panel offer it back as salvage.
+	# Dismissal lives on `Run`, as the screen does not survive a jump; a new haul resets it.
+	# Why: docs/why/SectorScreen.md#salvage-rail
 	var hushed := Run.salvage_hushed(bag_here)
-	# JUST THE HULL. `loose` counted `MapNode.bag`, which nothing fills any more
-	# -- containers replaced it -- so the panel was opening on a stale number
-	# and showing a heading with nothing under it. A panel with no contents is
-	# the clearest possible statement that a screen has stopped being about
-	# anything.
+	# Just the hull: `MapNode.bag` is never filled now, so it opened an empty panel.
 	var has := mine and not fighting()
 	_salvage_wrap.visible = has and not hushed
 	if not _salvage_wrap.visible:
 		return
 
-	# The bag names itself, because the rule is not obvious from looking at it
-	# and it is the rule that matters: the parts are not yours yet, and they stop
-	# being available the moment somebody reaches for one.
+	# The bag names itself: its parts are not yours yet, and go when anyone reaches.
 	_salvage_head.text = "A HULL, IF YOU WANT IT"
 
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
-	# MODULES ONLY. This rail asks "stow it or fit it", and a crate of ore
-	# answers neither: it cannot be bolted to anything and there is nothing to
-	# decide about it here.
-	#
-	# It listed everything in `Run.cargo`, which was every part you owned and
-	# was survivable while a hold held four of them. With materials in there it
-	# became your whole inventory, printed down the side of the sector, every
-	# time you arrived anywhere. The hold is where you look at what you are
-	# carrying; this is where you look at what just arrived and is fittable.
+	# Modules only: the rail asks stow or fit, and a crate of ore answers neither.
+	# Why: docs/why/SectorScreen.md#salvage-rail
 
 
 
@@ -2343,9 +1697,7 @@ func _refresh_self_plate() -> void:
 	_self_bar.max_value = cap
 	_self_bar.value = hp
 	_self_hp.text = "%d / %d" % [hp, cap]
-	# THE NAME YOU GAVE IT, not the frame it came on. This plate is the one you
-	# read while something is shooting at you, and it used to be the one place
-	# in the run that still called your ship by its chassis.
+	# Shows the name you gave the ship, not its chassis.
 	if Run.hull != null:
 		_self_name.text = Run.display_name().to_upper()
 	# The same three bands the top bar uses, so a hull in trouble reads the same
@@ -2354,28 +1706,33 @@ func _refresh_self_plate() -> void:
 	_self_hp.add_theme_color_override("font_color",
 		UITheme.LEAVE if frac < 0.34 else (UITheme.EMBER if frac < 0.67
 			else UITheme.HULL_GREEN))
+	# In a fight brace comes from `_refresh_player` and `_on_volley_landed`.
+	if not fighting():
+		_show_self_brace(0)
 	_place_self_plate()
 
 
-## Under the hull, centred on the hull.
-##
-## MEASURED FROM THE SPRITE, not from the box around it. `PLATE_X` was 0.26 of
-## the slot's width, arrived at by looking at a screenshot, and it was wrong the
-## moment anything about the layout moved -- which is how it came to sit off to
-## port of the ship it belongs to. `ship_offset_x` is the same question answered
-## by the image itself, and `ship_bottom_y` is the vertical half of it.
-##
-## The canvas is drawn `STRETCH_KEEP_CENTERED`, so the control's middle IS the
-## canvas's middle and both offsets are corrections from there.
+## Your brace on your hull bar, and its "+N" beside the hull's number.
+func _show_self_brace(b: int) -> void:
+	if _self_bar == null:
+		return
+	_self_bar.brace = b
+	_self_brace.visible = b > 0
+	_self_brace.text = "+%d" % b
+	_self_brace.tooltip_text = Widgets.tip(
+		"BRACE\n\nStops %d damage before your hull. Stays up, and costs 1 heat a turn." % b) \
+		if b > 0 else ""
+
+
+## Measured from the sprite, not its box: a fixed `PLATE_X` fraction drifted off the ship.
+## Why: docs/why/SectorScreen.md#self-plate
 func _place_self_plate() -> void:
 	if _self_plate == null or _view == null:
 		return
 	var sv := _view.ship_view()
 	if sv == null:
 		return
-	# ITS OWN WIDTH, not `PLATE_W`. The box is as wide as its widest child and
-	# the status row can be twice the bar, so halving the CONSTANT centres a
-	# narrower plate than the one actually on screen.
+	# Uses its own width, not `PLATE_W`: the box is as wide as its widest child.
 	_self_plate.position = Vector2(
 		sv.position.x + sv.size.x * 0.5 + sv.ship_offset_x()
 			- _self_plate.size.x * 0.5,
@@ -2393,17 +1750,11 @@ func _refresh_player() -> void:
 	_energy_text.text = "%d/%d" % [combat.energy, Run.reactor()]
 	_fx_sync_player()
 
-	# EVERY EFFECT ON YOUR HULL, AS A PICTURE. See `StatusChip` for why these
-	# stopped being words: five words under a sprite is a paragraph, five icons
-	# is a glance, and the word survives in the tooltip.
-	#
-	# The colours are the ones the words already carried, because colour is what
-	# says whose an effect is -- the two blues are yours, ember is a timer, and
-	# the drones share one steel.
+	# Effects are icons, not words; colours match the old words and say whose they are.
+	# Why: docs/why/SectorScreen.md#status-chips
+	# Brace is on the hull bar instead.
+	_show_self_brace(combat.brace)
 	Widgets.clear(_player_chips)
-	if combat.brace > 0:
-		_player_chips.add_child(StatusChip.make(&"brace", str(combat.brace),
-			Color("#3a5a6e"), "BRACE\n\nStops %d damage. Stays up, and costs 1 heat a turn." % combat.brace))
 	if combat.block > 0:
 		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
 			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))
@@ -2411,28 +1762,12 @@ func _refresh_player() -> void:
 		_player_chips.add_child(StatusChip.make(&"lock", "+%d" % combat.lock_on,
 			Color("#6e5a3a"), "LOCK ON\n\nYour next attack deals %d more per hit."
 				% combat.lock_on))
-	# NAMED BY THE CARD'S OWN KEYWORD (`CardData.KW_NEGATE`, `KW_GROWS`): these
-	# two said SLIP and ADAPT while the cards that set them say Negate and Grows
-	# (the tutorial audit, Oct 22).
+	# Named by the card keywords `KW_NEGATE` and `KW_GROWS` (tutorial audit, Oct 22).
 	if combat.negate_next:
 		_player_chips.add_child(StatusChip.make(&"slip", "", UITheme.GOOD,
 			"%s\n\nThe next attack on you misses." % CardData.KW_NEGATE.to_upper()))
-	# NO SALVO CHIP, AND LIVE_CARD_NUMBERS SECTION 3 IS WHY IT IS GONE.
-	#
-	# It never was a status. Its own note said so -- "SALVO IS NOT A STATUS, BUT
-	# ITS CONDITION IS" -- and it sat in this row regardless, between BRACE and
-	# FEEDBACK, which are things ON THE SHIP that got there because you played a
-	# card. This one appeared and vanished according to what was in your HAND,
-	# which nothing else in the row does, and it was never the result of an
-	# action you took. A light in the status row answering a different kind of
-	# question from every light beside it reads as broken even when it is right.
-	#
-	# What it was FOR was the arithmetic: "whether every salvo card in your hand
-	# is currently worth more was invisible -- you had to remember whether you
-	# had swung yet." That is exactly the tax section 3 removed. A salvo card in
-	# hand now prints its raised number, in the modified colour, under the same
-	# `salvo_live` test this chip was asking. The fact moved onto the card it is
-	# a fact about, which is where it had been trying to get to.
+	# No salvo chip: it was not a status, and the live number now prints on the card.
+	# Why: docs/why/SectorScreen.md#status-chips
 	if combat.feedback > 0:
 		_player_chips.add_child(StatusChip.make(&"feedback", str(combat.feedback),
 			Color("#6e3a4a"), "FEEDBACK\n\nAttackers take %d back." % combat.feedback))
@@ -2456,17 +1791,8 @@ func _refresh_player() -> void:
 			"PEACEFUL\n\nIt has not been provoked for %d turns."
 				% combat.peaceful_turns))
 
-## RULING 8's shape: a disabled thing says what it wants.
-##
-## A greyed HAIL with no explanation reads as a bug. "NO REPLY" on a creature
-## and "NO TERMS" on the thing guarding the core both say the rule out loud,
-## once, at the moment it applies -- and both fit the button, which the first
-## pair did not.
-## One shape for the two shut-door buttons. RULING 8: a disabled thing states
-## what it wants -- the LABEL carries the reason, the TOOLTIP the cause, and
-## the ink cools while the door is shut. The button has room for two words of
-## why not; the tooltip has room for a short sentence, and that is all it
-## should be. Only the cause-to-sentence table differs between the two.
+## RULING 8: a disabled button states what it wants; label has the reason, tooltip the cause.
+## Why: docs/why/SectorScreen.md#gate-buttons
 func _refresh_gate(b: Button, label: String, why: String, cause: StringName,
 		tips: Dictionary, lit: Color) -> void:
 	if b == null:
@@ -2474,11 +1800,8 @@ func _refresh_gate(b: Button, label: String, why: String, cause: StringName,
 	if not fighting():
 		b.disabled = true
 		return
-	# A FIGHT THAT IS OVER, OR PLAYING OUT, OFFERS NO WAY OUT OF IT. After a
-	# successful flee HAIL stayed bright and pressable -- `hail_cause` has no
-	# reason to give once the fight is finished, so the button read as open --
-	# and FLEE said NO ESCAPE, which is a reason for something else (audit item
-	# 12). Greyed under its own name, no reason: there is nothing to explain.
+	# A finished or playing-out fight offers no exit: HAIL stayed bright, FLEE misreported.
+	# Why: docs/why/SectorScreen.md#gate-buttons
 	if combat.finished or _hold or _opening:
 		b.disabled = true
 		b.text = label
@@ -2490,9 +1813,7 @@ func _refresh_gate(b: Button, label: String, why: String, cause: StringName,
 	b.tooltip_text = Widgets.tip("%s\n\n%s" % [label, str(tips.get(cause, tips[&""]))])
 
 
-## FLEE can be shut two ways -- you tried and missed, or it is the core's
-## guard and there is nowhere to run to -- and a greyed button with no reason
-## reads as a bug either way.
+## FLEE can be shut by a miss or by the core's guard; either needs a stated reason.
 func _refresh_flee() -> void:
 	if not fighting():
 		_refresh_gate(_flee_button, "FLEE", "", &"", {&"": ""}, UITheme.LEAVE)
@@ -2501,6 +1822,7 @@ func _refresh_flee() -> void:
 		combat.flee_cause(), {
 			&"failed": "You tried. They are still here.",
 			&"boss": "You cannot flee this fight.",
+			&"stunned": "You are stunned.",
 			&"": "Get away on a Maneuver check.",
 		}, UITheme.LEAVE)
 
@@ -2511,6 +1833,7 @@ func _refresh_hail() -> void:
 		return
 	_refresh_gate(_hail_button, "HAIL", combat.hail_reason(),
 		combat.hail_cause(), {
+			&"stunned": "You are stunned.",
 			&"failed": "You already tried. They heard you.",
 			&"struck": "Too late. You shot first.",
 			&"fauna": "It does not have a radio.",
@@ -2541,9 +1864,7 @@ func _refresh_enemy() -> void:
 
 	_enemy_tag.text = "%s · danger %d" % [
 		combat.enemy.template.tag, Run.node_at().danger]
-	# Each enemy's chips go under that enemy. In a pack the old row had to
-	# prefix every chip with a ship's name to say who it belonged to; standing
-	# under the hull, it does not have to say anything.
+	# Chips sit under their own enemy, so no ship-name prefix is needed.
 	for i in combat.enemies.size():
 		var row := _view.chips_for(i)
 		if row == null:
@@ -2552,17 +1873,8 @@ func _refresh_enemy() -> void:
 		var e = combat.enemies[i]
 		if e.hp <= 0:
 			continue
-		# THE SAME CHIP AS YOURS (Jon: "why is it BLOCK 6 instead of the
-		# icon?"). The enemy's row was still the words-in-a-box chip the player
-		# row dropped.
-		#
-		# NO BRACE CHIP. An enemy's brace is already the pips on its hull bar
-		# (`EnemySlot.BracePips`) and the plating on its picture; a chip would
-		# say it a third time. It also cost room: the lancer, hulk, sentinel
-		# and custodian start every fight with brace, so the row was never
-		# empty, and the slot's centred column lifted each of them 9 px into
-		# its neighbours (PopPlaceTest: a pop on the cutter in cutter, lancer,
-		# hulk hit both their readouts).
+		# The enemy uses the same icon chip; no brace chip, as the hull bar pips already show it.
+		# Why: docs/why/SectorScreen.md#status-chips
 		if e.block > 0:
 			row.add_child(StatusChip.make(&"block", str(e.block),
 				Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % e.block))
@@ -2592,28 +1904,26 @@ func _refresh_hand() -> void:
 	_hand.sync(combat.hand, func(c): return combat.can_play(c), combat.choosing > 0,
 		func(c): return combat.card_output(c),
 		func(c): return combat.card_hot(c))
-	# A card that left the hand takes its panel with it. The panel is closed by
-	# the card's own exit event, and a card that was played or discarded never
-	# sends one — its view flies off and fades on a tween, so it is not even
-	# freed yet. Keyed on the HAND rather than on whether the view still exists,
-	# because the question the panel answers is "what am I holding".
+	# A card that left the hand takes its panel: a played card never sends its exit event.
 	if _readout_for != null and (not is_instance_valid(_readout_for)
 			or not combat.hand.has(_readout_for.card)):
 		_clear_readout()
 	_draw_pile.set_count(combat.deck.size(), "DRAW")
 	_discard_pile.set_count(combat.discard.size(), "DISCARD")
 	_deck_label.text = "TURN %d" % combat.turn
-	# WAITING, with a name on it. A button that greys out and says nothing is
-	# indistinguishable from a hang, and in a shared fight the reason it is grey
-	# is always another person — so say who.
-	if combat.waiting:
+	# WAITING names who, as a silent grey button reads as a hang.
+	if _stun_note != null:
+		_stun_note.visible = combat.stunned and not combat.finished
+	if combat.stunned:
+		# STUNNED, greyed, and the tooltip says what it means (Jon, Nov 5)
+		_end_button.text = "STUNNED"
+		_end_button.tooltip_text = Widgets.tip(STUN_TIP)
+	elif combat.waiting:
 		var f := Net.fight_at(combat.shared_at)
 		var names := PackedStringArray()
 		if f != null:
 			for p2 in f.waiting_on():
-				# Never yourself. You pressed the button; the local copy of the
-				# fight has not heard back yet, so for one frame it still lists
-				# you among the ships it is waiting for.
+				# Never yourself: the local fight has not heard back and still lists you.
 				if p2 == Net.local_id():
 					continue
 				var who := Net.name_of(p2)
@@ -2622,32 +1932,17 @@ func _refresh_hand() -> void:
 		_end_button.text = "WAIT\n%s" % (names[0] if names.size() == 1
 			else ("%d SHIPS" % names.size() if names.size() > 1 else "..."))
 	else:
-		# ONE LINE, and it is set here as well as at construction because this
-		# runs on every refresh and used to put the newline back. That is why
-		# the button measured 24 against its neighbours' 16 whatever its
-		# minimum size or its stylebox said: it was two lines tall again by
-		# the time anything looked at it.
+		# Text set here too: refresh restored a newline each time, so the button measured 24.
+		# Why: docs/why/SectorScreen.md#hand-layout
 		_end_button.text = "END TURN"
-	_end_button.disabled = combat.finished or combat.waiting
+	if not combat.stunned:
+		_end_button.tooltip_text = Widgets.tip(END_TIP)
+	_end_button.disabled = combat.finished or combat.waiting or combat.stunned
 
 # --------------------------------------------------------------------- input
 
-## Reaching into the bag, which is the one control on this screen that has to
-## ask somebody else's machine before it can answer.
-##
-## `Widgets` binds the module rather than the index, so the index is recovered by
-## identity — `n.bag` holds the very objects the rows were built from, and the
-## array never shrinks, so `find()` is exact rather than a lookup by name.
-## Open the two-grid view over this system's loose salvage.
-##
-## Built per open and torn down on close, the same as the pile listing, because
-## what it shows changes every time something is taken out of it.
-## Open one container: a hull you killed, or the system's own pile.
-##
-## ONE FUNCTION FOR BOTH, because they are the same thing with different
-## contents -- `MATERIALS_NOTE` 3.6 -- and the only difference is which door you
-## came through. The container names the popup, so a Rustjaw Cutter says so and
-## the floor says SECTOR LOOT.
+## One function opens any container; the popup is named after it and built per open.
+## Why: docs/why/SectorScreen.md#containers
 func _open_jetsam(h: MapGen.Jetsam, title: String = "", direct: bool = false) -> void:
 	if _transfer != null or h == null:
 		return
@@ -2660,18 +1955,12 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "", direct: bool = false) ->
 		return
 	_transfer = TransferView.new()
 	add_child(_transfer)
-	# GETTING INTO IT IS A SOUND OF ITS OWN. `menu_open` stood in here for a
-	# while and it was honestly what the moment is -- a panel arriving over what
-	# you were looking at -- but it is a UI sound and this is not a UI moment:
-	# you are getting INTO something. A hatch on a dead ship giving way, over
-	# before the scan sweep starts and the rarity ladder begins ringing.
+	# Own sound: `menu_open` is a UI sound, and opening a hatch is not a UI moment.
 	Audio.play(&"wreck_open")
 	_transfer.setup(h, n, _close_transfer, true, title)
 
 
-## A container opened from outside the screen, with something to do once it is
-## shut: the custodian's body, which the win screen follows
-## (`Router._open_core_body`). The same popup a wreck click opens.
+## Opened from outside with a follow-up, such as the custodian's body before the win.
 func open_jetsam(h: MapGen.Jetsam, title: String, after: Callable) -> void:
 	_open_jetsam(h, title, true)
 	if _transfer != null and after.is_valid():
@@ -2684,11 +1973,7 @@ func has_open_container() -> bool:
 	return _transfer != null
 
 
-## The system's own pile, from the button beside PLOT NEXT JUMP.
-##
-## `false` so it is not created by being asked about: the floor exists once
-## something is on it, and a door onto a pile that does not exist yet is a door
-## that lies.
+## `false` so asking does not create the pile: a door to nothing lies.
 func _open_sector_loot() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n != null:
@@ -2717,10 +2002,8 @@ func _on_salvage(action: String, thing: Variant) -> void:
 		"take_hull":
 			Audio.act(&"hull_transfer")
 			Run.transfer_to_hull(thing as HullData)
-			# STRAIGHT TO THE MOVE, as the yard's TAKE IT goes. Everything you own
-			# is on the pad now and this is the one screen that shows it; without
-			# it the ship flew on bare, its kit on a pad nobody could see, until a
-			# station's UNDOCK refused for good (Jon, Oct 23).
+			# Goes straight to the move: gear left on the pad blocked UNDOCK (Jon, Oct 23).
+			# Why: docs/why/SectorScreen.md#salvage-rail
 			Router.show_transfer()
 			return
 		"leave_hull":
@@ -2731,15 +2014,8 @@ func _on_salvage(action: String, thing: Variant) -> void:
 			Run.scrap_found_hull()
 	_refresh()
 
-## Hovering a card prices it against every enemy at once, so choosing a target
-## is a comparison rather than a guess.
-## What a held card would do to the thing under it. Drawn ON the target by the
-## slot itself; this only decides the words.
-##
-## It replaces a small label under each enemy's health bar, which read as part
-## of the enemy's own stat block — a number that belonged to them and happened
-## to move. Shown only while a card is actually over a target, it reads as the
-## answer to a question you are asking.
+## Hover prices a card against every enemy; the slot draws it so it reads as an answer.
+## Why: docs/why/SectorScreen.md#drag-preview
 func _drag_preview(c: CardData, index: int) -> String:
 	if not fighting() or combat.finished:
 		return ""
@@ -2763,9 +2039,7 @@ func _drag_preview(c: CardData, index: int) -> String:
 	if c.vent_all:
 		bits.append("-%d HEAT" % Run.heat)
 	elif c.vent > 0:
-		# THE SHIP'S HALF INCLUDED. This is the preview a player reads at the
-		# moment of committing a card, and without the dissipation term it
-		# under-reports every vent card by the whole radiator.
+		# Includes the ship's dissipation, or vent previews under-report by the whole radiator.
 		bits.append("-%d HEAT" % mini(c.vent + Run.dissipation(), Run.heat))
 	if c.draw > 0:
 		bits.append("+%d CARD" % c.draw)
@@ -2775,11 +2049,7 @@ func _drag_preview(c: CardData, index: int) -> String:
 		bits.append("+%d NEXT" % c.lock_on)
 	return " ".join(bits)
 
-## A card was pointed at to satisfy a discard or a decommission.
-##
-## Resolved by INDEX rather than by passing the card object down, because
-## Combat.choose takes an index — the same door the simulator and the bot use,
-## so a choice is never something only a mouse can make.
+## Resolved by index, as `Combat.choose` takes: the sim and bot use the same door.
 func _on_card_picked(card: CardData) -> void:
 	if combat == null or combat.choosing <= 0:
 		return
@@ -2807,11 +2077,8 @@ var _cutaway: CutawayView = null
 ## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
 var denied_clicks := 0
 var _ship_outline: CutawayView.Outline = null
-## WHERE THE POINTER WAS WHEN THE SHIP ARRIVED UNDER IT, or INF. A ship coming
-## to rest under a pointer nobody moved is not being pointed at: the outline
-## lit there the instant the arrival ended (Jon, Oct 13: "the ship is
-## highlighted... No highlight"). Held until the pointer moves off this spot
-## or clicks; then the hover works as it always did.
+## A ship arriving under an unmoved pointer is not pointed at; no outline until it moves.
+## Why: docs/why/SectorScreen.md#ship-hover
 var _still_pointer := Vector2.INF
 
 
@@ -2857,11 +2124,8 @@ func _on_own_ship_input(e: InputEvent) -> void:
 	if _still_pointer != Vector2.INF and (mpos.distance_to(_still_pointer) >= 1.0 			or (press0 != null and press0.pressed)):
 		_still_pointer = Vector2.INF
 	if not cutaway_ready() or _still_pointer != Vector2.INF:
-		# NOT PRESSABLE NOW -- a fight, an arrival, a screen up over LOCAL -- so it
-		# does not look it (no outline, no hand), and a click on it is the thud a
-		# button that cannot be pressed makes (Jon: "the same thud sound when you
-		# try and click on a button that doesn't work"). Not while a card is being
-		# aimed: then your hull is a target, and the click is the card's.
+		# An unpressable ship shows no outline, and a click makes the dead-button thud.
+		# Why: docs/why/SectorScreen.md#ship-hover
 		_ship_outline.visible = false
 		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW
 		var press := e as InputEventMouseButton
@@ -2881,13 +2145,8 @@ func _on_own_ship_input(e: InputEvent) -> void:
 
 
 # ------------------------------------------------------------ the zoom ladder
-## LOCAL AS ONE DISTANCE OF FOUR (`ZoomLadder`). Its camera is the cutaway's: the
-## scene itself scaled round a point (the ships, the subject, the dust and the
-## shots) and the sky by depth (`LocalSky.set_zoom`), so a move in or out has
-## real parallax -- the far stars hold, the world you orbit moves most. k is 0 at
-## rest and 1 at the distance toward the other screen: pulled back to a speck of
-## your ship for the map and the chart, pushed in on the station's ring for the
-## station.
+# LOCAL is one distance of four; the scene scales for real parallax.
+# Why: docs/why/SectorScreen.md#zoom-ladder
 var _lad := {}
 var _lad_zs := 1.0
 
@@ -2934,11 +2193,8 @@ func _attach_station_face() -> void:
 	# (the ring stands down: the station is its side now)
 	_view._area.modulate.a = 0.0
 	_view.resized.connect(_place_face)
-	# (and when your ship's own place moves with the screen's layout -- its slot
-	# taller or shorter as the bar along the bottom settles, the view itself the
-	# same size -- the hallway stays level with it: LOCAL built ahead at UNDOCK
-	# was placed for a slot 8 px taller than the one it stood in, the station 4
-	# px low)
+	# The hallway tracks the ship's slot: built early at UNDOCK it sat 4 px low.
+	# Why: docs/why/SectorScreen.md#docking
 	var art := _view.ship_view()
 	if art != null:
 		art.resized.connect(_place_face)
@@ -2952,9 +2208,7 @@ func _place_face() -> void:
 	var tint := Color(1, 1, 1)
 	if sky != null:
 		tint = Color(sky._tint.x, sky._tint.y, sky._tint.z)
-	# (level with your ship's middle with its idle bob left out, as `calm_begin`
-	# takes it: the station stands in one place whatever moment of the bob LOCAL
-	# was built on -- the dock's LOCAL and the undock's alike)
+	# Level with the ship's middle without its idle bob, so the station stays put.
 	var mid := _ladder_ship()
 	var art := _view.ship_view() if _view != null else null
 	if art != null:
@@ -3023,10 +2277,7 @@ func ladder_pre(target: int, seam: int, design: String) -> float:
 	return 1.0
 
 
-## LOCAL'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
-## moves and comes back after it lands, never during): the bar along the bottom,
-## and the event's band if it is up as the move starts (one that opens on
-## arrival lifts on its own once the move has landed, `LocalEventDrawer.attach`).
+## LOCAL's UI leaves before the camera moves and returns after it lands.
 var _chrome_band := false
 
 
@@ -3092,21 +2343,14 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 	var art := _view.ship_view()
 	if hull_flies and art != null:
 		var ink := Rect2(art.ink_rect())
-		# (its middle with its idle bob left out, as `calm_begin` takes it: the
-		# move aims at the place and the hull bobs about it on the way, so the
-		# path is the same whatever moment of the bob it set off on -- the
-		# dock's ENTER and the undock's, laid over each other backwards)
+		# Middle without the idle bob, so the path is the same whenever it set off.
 		ship = {"art": art, "pos": art.position, "scale": art.scale, "pivot": art.pivot_offset,
 			"mid": art.canvas_to_local(ink.get_center()) - Vector2(0.0, float(art.bob_offset()) * float(art._k))}
 		art.pivot_offset = ship.mid
 	_lad = {"fixed": fixed, "to1": to1, "zs1": zs1, "scenes": scenes, "smooth": smooth, "ship": ship,
 		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,
 		"bar": _quiet_holder.modulate.a if _quiet_holder != null else 1.0, "x0": position.x}
-	# THE HALLWAY (the Drum, `StationFace`): the camera follows your ship down it
-	# -- its anchor travels along the hallway's middle row (plate x A0 -> A1) as it
-	# zooms and is carried to the view's middle, held back so the station's right
-	# edge never comes inside the view -- and your ship flies in to its berth in
-	# the bay: its nose short of the inner door, all of it in behind the lips
+	# The camera follows the ship down the hallway; its right edge never enters the view.
 	if hull_flies and _face != null and is_instance_valid(_face):
 		var art2 := _view.ship_view()
 		var s_end := StationFace.SHIP_END_SCALE
@@ -3126,19 +2370,14 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		# way in -- `hold` is the fraction of the path the ENTER sets off from)
 		var hold := 0.0
 		var dip_s := ZoomLadder.DOCK_DIP_S
-		# (measured both ways: undocking is the ENTER backwards, so this is also
-		# how long after LOCAL comes up before any of your ship can be seen,
-		# `ladder_up_s`)
+		# Measured both ways: undocking leaves down the same path, so this is also `ladder_up_s`.
 		if art2 != null:
 			var ink3 := Rect2(art2.ink_rect())
 			var to_plate := xf0.affine_inverse()
 			var a3 := to_plate * (art2.get_global_transform() * art2.canvas_to_local(ink3.position))
 			var b3 := to_plate * (art2.get_global_transform() * art2.canvas_to_local(ink3.end))
 			var run := berth.x - start.x
-			# AND WHEN IT IS ALL IN: the fraction of the way at which the tail of
-			# everything bolted on is past the recess's end, behind the hull, and
-			# so how long before the hand-off the dip to black may start
-			# (`ladder_dip_s`): only once none of it can be seen
+			# Fraction at which all bolted-on kit has passed the recess, so the dip may start.
 			var fg := art2.fitted_rect_global()
 			var dl := (a3.x + b3.x) * 0.5 - (to_plate * fg.position).x
 			var din := run + dl * (1.0 - s_end)
@@ -3146,20 +2385,8 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 				var f_in := clampf((StationFace.RECESS.end.x + 2.0 - start.x + dl) / din, hold, 1.0)
 				var ue_in := sqrt(clampf((f_in - hold) / maxf(1.0 - hold, 0.001), 0.0, 1.0))
 				dip_s = clampf(ZoomLadder.DOCK_ENTER_S * (1.0 - ue_in), 0.1, ZoomLadder.DOCK_DIP_S)
-		# THE SKY AND THE DUST HOLD STILL WHILE IT DOCKS (Jon, Oct 20: "The dust
-		# move too much"): LOCAL's sky camera follows your ship's own travel
-		# (`LocalSky.cam_follow`, `CAM_FOLLOW` of it), and the dust slides with
-		# it at its depth (`LocalDust._rest_at`) -- 209 px in one frame as the
-		# arrival takes the hull off the left edge, then back over its approach,
-		# and up to 515 px on with it as it goes in. Docking, the station stands
-		# still and so does all of it: held where it is (`cam_hold`), the dust
-		# left its own slow drift. Given back at the end (`ladder_cam_end`).
-		# UNDOCKING TOO (Jon, Oct 21: "Undocking holds still too"): the ship flies
-		# out of the bay to its mooring and the dust, the sun and the world stay
-		# put. Held at the camera of the ship at its mooring (`ship.pos`, where
-		# `ladder_cam_end` puts it back), so it is the camera the move hands back
-		# and nothing steps when the hold is let go. (With the ladder's own camera
-		# still too: `ladder_cam`.)
+		# Sky and dust hold still while docking and undocking; the camera is given back after.
+		# Why: docs/why/SectorScreen.md#docking
 		var skyc: LocalSky = _view.backdrop
 		if skyc != null and is_instance_valid(skyc):
 			_lad["sky_hold0"] = skyc.cam_hold
@@ -3168,12 +2395,8 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 			else:
 				var rest_x := float((ship.pos as Vector2).x) if not ship.is_empty() else 0.0
 				skyc.cam_hold = Vector2(roundf(rest_x * LocalSky.CAM_FOLLOW), 0.0)
-		# (and the station's lights as the move found them: after an undock a
-		# dock's CUT goes down to black over them lit; undocking, which of the
-		# arrival's flameouts its engines will sputter out on, picked as an
-		# arrival picks one)
-		# (a wake on LOCAL still under way is finished, lit: the dock finds the
-		# station awake and does not put it out again)
+		# Lights are kept as the move found them; a wake in progress finishes lit.
+		# Why: docs/why/SectorScreen.md#docking
 		if inward and (_wake_t >= 0.0 or _wake_owed):
 			_wake_finish()
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
@@ -3188,9 +2411,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		_lad["hand_R"] = float(sky._near[0][3])
 
 
-## A point on screen in the sky's own frame (the 960x540 picture its layers are
-## placed in, which its window shows offset): what `LocalSky.set_zoom` takes, and
-## the frame `LocalSky.near_info` reads back from, so the two agree.
+## The sky's 960x540 frame, which `set_zoom` takes and `near_info` reads back.
 func _sky_pt(sky: LocalSky, g: Vector2) -> Vector2:
 	if sky._box != null and is_instance_valid(sky._box):
 		return (sky._box.get_global_transform().affine_inverse() * g) * 2.0
@@ -3209,12 +2430,8 @@ func ladder_cam(k: float) -> void:
 	var follow := 0.0
 	var beat := &""
 	if not hall.is_empty() and bool(hall.get("inward", true)):
-		# DOCKING, IN FIVE STEPS (`ZoomLadder.dock_steps`; Jon, Oct 20: "I want
-		# the ship to enter the screen like it does for the first sector"): k is
-		# the whole approach's clock, linear. The camera holds still through the
-		# whole dock -- the cut, the arrival, the beat, the power-on and the way
-		# in -- with nothing but your ship moving; its arrival is stepped on
-		# this clock (below).
+		# Five steps on one linear clock; the camera holds still and only the ship moves.
+		# Why: docs/why/SectorScreen.md#docking
 		var t := hk * ZoomLadder.dock_approach_s()
 		var su := ZoomLadder.dock_step_at(t)
 		var step := int(su.x)
@@ -3238,11 +2455,8 @@ func ladder_cam(k: float) -> void:
 			# up to meet it (POWER)
 			beat = [&"beat", &"power"][step - 2]
 		else:
-			# 5. THEN IN, ONE MOVE: from its mooring, slowly at first, gathering
-			# speed down the hallway and on into the hull, still at speed as it
-			# goes in. THE CAMERA STAYS WHERE IT IS (Jon, Oct 20: "Why is there so
-			# much parallax? The dust shouldn't move as the ship comes in. The
-			# station is stationary."): only your ship moves
+			# Final move in: only your ship moves, so dust and station do not parallax (Jon).
+			# Why: docs/why/SectorScreen.md#docking
 			beat = &"enter"
 			ue = u
 			hall_fly = hold + (1.0 - hold) * ue * ue
@@ -3258,23 +2472,13 @@ func ladder_cam(k: float) -> void:
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
 	elif not hall.is_empty():
-		# UNDOCKING IS THE DOCK PLAYED BACKWARDS (Jon, Oct 21: "the background
-		# stays put as your ship flies out, matching docking"). k runs from 1 to
-		# 0 over the dock's own ENTER (`ZoomLadder.DOCK_ENTER_S`), and on every
-		# frame your ship is where the ENTER had it as far from its end: in the
-		# hull at its berth while LOCAL comes up from the yard's black (the dock's
-		# dip backwards, `ladder_up_s`), then out through the mouth, growing back
-		# to its own size, fastest first and slowing all the way to rest at its
-		# mooring (fly = k squared, the ENTER's ue squared run back). Its engines
-		# burn as the ENTER's did and sputter out as it settles
-		# (`_undock_engines`). THE CAMERA DOES NOT MOVE -- no pan, no zoom out of
-		# the mouth: the station, its layers, the wrecks, the dust, the sky and
-		# its worlds stand where they are, as they do docking (4e6d1fcc) -- and
-		# the station stays lit, a working station (Jon).
+		# Undocking holds the background as docking does: eased out down the ENTER's path, station lit.
+		# Why: docs/why/SectorScreen.md#undocking
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
 		hall["t"] = (1.0 - hk) * ZoomLadder.DOCK_ENTER_S
+		hall_fly = ZoomLadder._ease(hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -3300,24 +2504,16 @@ func ladder_cam(k: float) -> void:
 			sc.position = sc.position.round()
 		sc.size = w[6]
 	if not hall.is_empty():
-		# THE STATION WAKES while your ship waits at its mouth (docking): the
-		# power-on over the wake, the warning lights flashing while it waits and
-		# going green as it is cleared to come in; UNDOCKING, the station stays
-		# lit, before your ship is out and after (Jon, Oct 21: a working station)
+		# The station wakes while the ship waits at its mouth; undocking, it stays lit.
 		var pw := 0.0
 		var warn := 0.0
 		if bool(hall.get("inward", true)):
-			# (dark and asleep until the POWER step: only its always-on beacons;
-			# lit through the CUT if it was lit, as after an undock, and asleep
-			# under the black)
+			# Dark until the POWER step apart from beacons; lit through the CUT if already lit.
 			var up := float(hall.get("u_power", 0.0))
 			pw = clampf(up / WAKE_POWER_BY, 0.0, 1.0)
 			if beat == &"cut":
 				pw = float(hall.get("power0", 0.0))
-			# A STATION ALREADY AWAKE (woken on LOCAL as your ship came alongside,
-			# or left lit by an undock: `_station_lit`) stays lit through the whole
-			# dock, and its power-on is not played again or heard; the warning
-			# lights still ask and clear your ship in, silent
+			# A station already awake stays lit; its power-on is not replayed, only the clearance.
 			var lit0 := float(hall.get("power0", 0.0)) >= 1.0
 			if lit0:
 				pw = 1.0
@@ -3398,9 +2594,7 @@ func ladder_dip_s() -> float:
 	return float(hall.get("dip_s", ZoomLadder.DOCK_DIP_S))
 
 
-## Undocking: how long LOCAL takes to come up from the yard's black, s -- the
-## dock's dip run backwards (`dip_s`: your ship still all in the hull through
-## it) -- or -1 where this is no undock.
+## How long LOCAL takes to rise from the yard's black when undocking, else -1.
 func ladder_up_s() -> float:
 	var hall: Dictionary = _lad.get("hall", {})
 	if hall.is_empty() or bool(hall.get("inward", true)):
@@ -3408,10 +2602,7 @@ func ladder_up_s() -> float:
 	return float(hall.get("dip_s", ZoomLadder.DOCK_DIP_S))
 
 
-## THE STATION AWAKE: LOCAL arrived on by undocking (`Router.show_local`), the
-## station's lights on as the undock leaves them (a working station, Jon, Oct
-## 21), whether the undock was played (`ladder_cam` keeps them on) or not
-## (reduced motion, a harness).
+## Arrived by undocking: the station stays lit, whether or not the undock played.
 func station_awake() -> void:
 	_mark_lit()
 	for f: StationFace in [_face, _face_front]:
@@ -3440,16 +2631,8 @@ func ladder_black() -> float:
 	return float(hall.get("black", 0.0))
 
 
-## THE DOCK'S ENTRANCE IS A NEW SYSTEM'S ARRIVAL, EXACTLY (Jon, Oct 20: "Why
-## doesn't the ship enter like the first local?"). Under the CUT's black your
-## ship stays at its mooring; on the ARRIVE's first frame it is handed to
-## `_ship_arrives` -- the one call every arrival on LOCAL makes, the first
-## system's and every jump's alike -- and its clip played with it, as
-## `_begin_arrive` plays it when the name card goes. The only difference is the
-## clock: the arrival is stepped on the ladder's (`arrive_step`, the very same
-## tick), so the dock's steps and its approach cannot drift apart. Its mooring,
-## its size, its path, its flameout and drift, its bob are the arrival's; nothing
-## here moves or sizes it until the ENTER.
+## The dock's entrance is a new system's arrival, stepped on the ladder's clock.
+## Why: docs/why/SectorScreen.md#docking
 func _dock_arrival(art: ShipView, hall: Dictionary, p0: Vector2) -> void:
 	var ship: Dictionary = _lad.ship
 	if int(hall.get("step", 0)) == 0:
@@ -3470,20 +2653,13 @@ func _dock_arrival(art: ShipView, hall: Dictionary, p0: Vector2) -> void:
 	art.arrive_step(float(hall.get("t_arrive", 0.0)) - float(hall.get("t_called", 0.0)))
 
 
-## YOUR SHIP ARRIVES ON LOCAL: the one call (a system's arrival after its name
-## card, `_begin_arrive`; the arrival with no card; the dock's,
-## `_dock_arrival`). `wait` s held off screen first (the card), then its
-## drive's lead-in, then the approach. Returns the clip to play when the wait
-## is over.
+## The one call every arrival on LOCAL makes; returns the clip once the wait is over.
 func _ship_arrives(art: ShipView, wait: float) -> StringName:
 	_hold_outline()
 	return art.arrive(ARRIVE_BOB, wait + ShipView.ARRIVE_LEAD_S)
 
 
-## THE ENTER'S ENGINES (Jon, Oct 20: "the ship flies in"): lit for the move in
-## (`ShipView.burn`, the cruise flame) from its first frame, heard as the map's
-## burn is (`Audio.ship_thrust`, at `DOCK_BURN_LEVEL`) while any of it can be
-## seen, and both out once it is all in behind the hull (`ladder_dip_s`).
+## The ENTER's engines are lit from its first frame and cut once the ship is in.
 const DOCK_BURN_LEVEL := 1.0
 
 
@@ -3500,25 +2676,15 @@ func _dock_burn(art: ShipView, hall: Dictionary, on: bool) -> void:
 		Audio.ship_thrust_off()
 
 
-## UNDOCKING'S ENGINES, the ENTER's backwards: lit at the cruise burn (the
-## dock's entry burn, `_dock_burn`, seen and heard) from the moment any of your
-## ship can be seen coming out -- `dip_s` after LOCAL comes up, where the dock's
-## burn went out -- until the arrival's own flameout takes over
-## (`ShipView.sputter`), timed so that its last cough comes `UNDOCK_COAST_S`
-## before your ship comes to rest at its mooring -- the last of the way coasted
-## at the idle, as an arrival's is -- then the idle it keeps. The flameout's clip from its
-## first cough, at the burn's level so the two are one engine, from where the
-## coughs are -- and never on a press that ended the move at once
-## (`ZoomLadder.finish_now`): your ship is parked then, and nothing is heard.
+## Engines idle as your ship backs out, then the arrival's coughs; silent if cut short.
+## Why: docs/why/SectorScreen.md#undocking
 func _undock_engines(art: ShipView, hall: Dictionary) -> void:
 	var t := float(hall.get("t", 0.0))
 	var row := int(hall.get("row", 0))
 	var cough_at := ZoomLadder.DOCK_ENTER_S - UNDOCK_COAST_S - ShipView.sputter_s(row)
 	if t < cough_at:
-		_dock_burn(art, hall, t >= float(hall.get("dip_s", 0.0)))
 		return
 	if not hall.has("cough_clip"):
-		_dock_burn(art, hall, false)
 		hall["cough_clip"] = art.sputter(row)
 		hall["cough_at"] = cough_at
 		if not (ZoomLadder.active != null and ZoomLadder.active._cut):
@@ -3530,18 +2696,14 @@ func _undock_engines(art: ShipView, hall: Dictionary) -> void:
 ## Undocking: the last of the way to the mooring coasted at the idle, s, after
 ## the flameout's last cough.
 const UNDOCK_COAST_S := 0.4
-## THE DOCK'S STEPS (`ZoomLadder.dock_steps`): the lights are all on by
-## `WAKE_POWER_BY` of the POWER step, and the warning lights go green at
-## `WARN_CLEAR` of it. Undocking, the station is lit all the way.
+## Dock timing: lights on by `WAKE_POWER_BY`, warning lights green at `WARN_CLEAR`.
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86
 
 
 
 
-## Your ship's speed along the hallway at its end (k 1), in screen px a second,
-## for an approach of `dur` s: the speed the camera has as it follows it in,
-## and the pan carries on with (`ZoomLadder`'s one motion).
+## Ship speed at the hallway's end, which the camera and pan carry on with.
 func ladder_track_speed(dur: float) -> float:
 	var hall: Dictionary = _lad.get("hall", {})
 	if hall.is_empty():
@@ -3570,9 +2732,7 @@ func ladder_hull_side() -> Array:
 	return [_face_front.side, _face_front.par.duplicate()]
 
 
-## The hallway camera's anchor on screen at rest: the plate's row `ROW`, at x
-## A0 -> A1 with the zoom, then coming round (`w` 0 -> 1) to your ship's own
-## middle, so it ends following it at its speed.
+## The camera anchor runs along the plate's row, then turns to follow the ship.
 func _hall_anchor(hall: Dictionary, kc: float, w: float, fly: float) -> Vector2:
 	var xf: Transform2D = hall.xf
 	var o: Vector2 = hall.o
@@ -3599,9 +2759,8 @@ func ladder_cam_end() -> void:
 		sc.offset_top = w[3]
 		sc.offset_right = w[4]
 		sc.offset_bottom = w[5]
-	# THE ROW ON THE BAND AS IT IS NOW, not as it was when the camera was taken:
-	# its bottom offset is the band's height, and a band that moved under the
-	# camera left your ship low and its plate under the hand
+	# The row is measured at the band as now: a moved band left the ship low, plate under the hand.
+	# Why: docs/why/SectorScreen.md#zoom-ladder
 	_view.reapply_bleed()
 	var sky: LocalSky = _view.backdrop
 	if sky != null and is_instance_valid(sky):
@@ -3637,9 +2796,7 @@ func ladder_cam_end() -> void:
 		art.scale = ship.scale
 		art.visible = true
 		_dock_hidden = false
-	# (a dock ended before its arrival had -- a press, or the berth taken some
-	# other way -- takes the arrival's clip with it: the sound follows the
-	# picture, and the picture has gone)
+	# A dock ended early takes the arrival clip with it: sound follows the picture.
 	if _lad.has("sky_hold0") and _view.backdrop != null and is_instance_valid(_view.backdrop):
 		_view.backdrop.cam_hold = _lad.sky_hold0
 	var hall_e: Dictionary = _lad.get("hall", {})
@@ -3661,11 +2818,8 @@ func ladder_cam_end() -> void:
 
 
 # ------------------------------------------------------------ the calm move
-## THE CALM MOVE (`ZoomLadder`, Jon's pick A, Oct 17: "one motion everywhere").
-## LOCAL's camera is placed by two numbers: where your ship is on screen and how
-## big the scene is drawn against rest. The ladder walks your ship along one
-## straight line between where it rests here and where it rests on the next
-## view; nothing else on LOCAL moves on its own account.
+# The ladder walks the ship along one line between rest spots; nothing else moves.
+# Why: docs/why/SectorScreen.md#calm-move
 
 ## The camera taken: the scene's places at rest kept, to put back exactly.
 func calm_begin() -> void:
@@ -3770,9 +2924,8 @@ func open_cutaway() -> CutawayView:
 		return null
 	_ship_outline.visible = false
 	_cutaway = CutawayView.open_over(self, _view.ship_view())
-	# THE SCENE ITSELF ZOOMS (Jon: "LOCAL should zoom the real scene too"): the
-	# ships (yours, the wrecks, a partner's), the dust and the shots with your
-	# ship, 2x; the sky layer by layer by its own depth
+	# The real scene zooms with the ship, the sky layer by layer by depth (Jon).
+	# Why: docs/why/SectorScreen.md#zoom-ladder
 	var near: Array[Control] = []
 	for c: Control in [LocalSubject.of(_view), _view._row, _view.dust, _view.fx]:
 		if c != null and is_instance_valid(c):
@@ -3802,25 +2955,8 @@ func _light_source(c: CardData) -> void:
 			(ch as MountPoints).lit_part = src
 			(ch as MountPoints).queue_redraw()
 
-## A card was pressed in the hand. Arm it: it lifts and stays, and from here the
-## LINE does the aiming.
-##
-## The whole point of section 3a. `set_drag_preview` pinned a full-size card to
-## the cursor, so at the exact moment the damage figure appeared the enemy it
-## applied to was behind a 112x160 card. Live numbers made that worse rather
-## than better: the biggest number on the screen was hidden under the thing that
-## produced it.
-## A card was pressed. NOTHING HAPPENS YET.
-##
-## Sideways inside the hand is a reorder; up and out of it is a shot. Which one
-## was meant is not knowable at the press -- only once the pointer moves -- so
-## this records the grab and `_grab_decide` commits to a mode on the first
-## motion that clears a threshold.
-##
-## LIVE_CARD_NUMBERS section 3a rules hand reorder DROPPED, on the grounds that
-## it collides with the targeting line. It does not collide if the two are told
-## apart by DIRECTION, and both are worth having: the fan is the only place hand
-## order can be arranged, and order is the whole of what a hand is.
+## Pressing arms nothing: reorder versus shot is only known once the pointer moves.
+## Why: docs/why/SectorScreen.md#card-gestures
 func _on_card_grabbed(view: CardView, at: Vector2) -> void:
 	if not fighting() or combat.finished or view == null or _hold or _opening:
 		return
@@ -3830,27 +2966,14 @@ func _on_card_grabbed(view: CardView, at: Vector2) -> void:
 	_grab_from = at
 	_grab_mode = 0
 
-## Which gesture this is, decided on the first motion that clears a threshold.
-##
-## HELD IN ONE DIRECTION ONLY. A shot must never quietly become a reorder --
-## your hand drifting back down over the fan would eat the click, which is the
-## fault this hold was written for and it still stands. A reorder BECOMING a
-## shot is the opposite case and is safe, because the only way to trigger it is
-## to carry the card clean out of the drawer: a deliberate, large gesture that
-## cannot happen by drift. See `_promote_to_aim`.
-##
-## Without that promotion a sideways nudge trapped the card: the only way back
-## to aiming was to drop it and start the drag again.
+## A shot never becomes a reorder, but a reorder may become a shot, as drift eats clicks.
+## Why: docs/why/SectorScreen.md#card-gestures
 func _grab_decide(at: Vector2) -> void:
 	if _grab_view == null or _grab_mode != 0:
 		return
 	var d := at - _grab_from
-	# ABOVE THE DRAWER, and nothing else. This used to arm on leaving the hand's
-	# rect in ANY direction, or on any upward travel past GRAB_UP -- so a card
-	# dragged off the side of the fan, or nudged up while still inside it, threw
-	# a targeting line across the board before the player had aimed at anything.
-	# The line now exists only once the cursor is out of the drawer vertically,
-	# which is also the only direction anything can be aimed at.
+	# Aim only once the cursor is above the drawer, the only direction anything is aimed.
+	# Why: docs/why/SectorScreen.md#card-gestures
 	var above_drawer := at.y < _hand.get_global_rect().position.y
 	if above_drawer:
 		if not combat.can_play(_grab_view.card):
@@ -3859,30 +2982,19 @@ func _grab_decide(at: Vector2) -> void:
 			return
 		_grab_mode = 2
 		_begin_aim(_grab_view)
-	# DOMINANTLY SIDEWAYS, not merely sideways. A drag heading up out of the
-	# drawer carries a little x with it, and on the old test that committed to a
-	# reorder before the cursor had cleared the fan -- so the shot never armed
-	# and the card was left being dragged along a row it was trying to leave.
+	# Dominantly sideways: an upward drag carries some x and wrongly committed to reorder.
 	elif absf(d.x) > GRAB_SIDE and absf(d.x) > absf(d.y):
 		_grab_mode = 1
 		_hand.slide_to(at, _grab_view.card)
 
-## A reorder carried out of the drawer becomes a shot. Returns whether it did.
-##
-## THE REORDER IS COMMITTED, not undone. It was written the other way first, on
-## the reasoning that dragging a card up through the fan is not a request to
-## move it -- and that is wrong about what the player sees: the card has spent
-## the whole gesture sitting in its new place, and reverting on the way out
-## yanks it back to where it was grabbed from at the exact moment attention
-## moves to the board. Where you left it is where it stays.
+## The reorder is kept when promoted to a shot; reverting yanks the card back.
+## Why: docs/why/SectorScreen.md#card-gestures
 func _promote_to_aim(at: Vector2) -> bool:
 	if _grab_view == null or combat == null or _hand == null:
 		return false
 	if at.y >= _hand.get_global_rect().position.y:
 		return false
-	# Same refusal `_grab_decide` makes: an unplayable card can still be
-	# rearranged, so this leaves the reorder running rather than arming a shot
-	# that cannot be taken.
+	# Same refusal as `_grab_decide`: an unplayable card rearranges but never arms a shot.
 	if not combat.can_play(_grab_view.card):
 		return false
 	# `_end_reorder` clears the grab, and the grab is what the aim is about to
@@ -3927,15 +3039,8 @@ func _aim_anchor() -> Vector2:
 	return get_global_transform().affine_inverse() \
 		* Vector2(r.position.x + r.size.x * 0.5, r.position.y)
 
-## Take the line down. `played` says whether the card resolved, which decides
-## only whether the armed card is put back the way it was -- a played card is
-## about to be rebuilt out of the hand anyway.
-## Take the system pointer away, or give it back.
-##
-## `MOUSE_MODE_HIDDEN` rather than a blank cursor image: the game already drives
-## an animated custom cursor from `Main`, and swapping that out from here would
-## fight it for the same slot. Held as a flag so the mode is only pushed when it
-## actually changes -- this is called on every mouse motion during an aim.
+## `MOUSE_MODE_HIDDEN` and a flag, so Main's animated cursor is not fought on each motion.
+## Why: docs/why/SectorScreen.md#aim-cursor
 var _cursor_off: bool = false
 
 func _hide_cursor(on: bool) -> void:
@@ -3982,29 +3087,11 @@ func _end_aim(played: bool) -> void:
 	if _view != null:
 		_view.clear_aim()
 
-## Motion and release while a card is armed.
-##
-## `_input` rather than `_unhandled_input`: the release has to be seen wherever
-## it happens, including over a Control that would otherwise swallow it, because
-## a gesture you cannot get out of is worse than one that occasionally misfires.
-## Cancel comes free from this -- releasing over nothing is releasing over
-## AIM_NONE, which resolves nothing and puts the card back.
+## `_input` so a release is seen anywhere; releasing over nothing cancels.
+## Why: docs/why/SectorScreen.md#card-gestures
 func _input(e: InputEvent) -> void:
-	# THE SKIP, AND IT HAS TO BE FIRST. `_unhandled_input` would be too late --
-	# the drawer's own buttons and the HUD tabs get the click before it. ESCAPE
-	# is deliberately let through so the pause menu is always reachable, and TAB
-	# is deliberately eaten: Main owns it and swaps screens with it, and a
-	# mid-departure Tab would walk off with an uncommitted jump.
-	# THE SKIP IS OFF BY DEFAULT NOW, and it is a setting: MOTION > SKIP THE
-	# JUMP. A player mid-jump is holding the mouse -- they just clicked JUMP --
-	# so a click-anywhere skip is something you do by accident the first time
-	# and then never see the animation again. Whoever has seen it enough says
-	# so once.
-	#
-	# THE EVENT IS STILL EATEN EITHER WAY. Everything behind this is a drawer
-	# button or a HUD tab belonging to a system the ship is leaving or has not
-	# arrived at, and clicking one mid-jump is how an uncommitted jump walks
-	# off. ESCAPE is let through so the pause menu is always reachable.
+	# The skip is first in `_input` and off by default; Tab is eaten, Escape let through.
+	# Why: docs/why/SectorScreen.md#jump-skip
 	if _phase == Phase.DEPART or _phase == Phase.ARRIVE:
 		var sb := e as InputEventMouseButton
 		var sk := e as InputEventKey
@@ -4043,26 +3130,32 @@ func _input(e: InputEvent) -> void:
 		return
 	if _aim_view != null:
 		_aim_release(mb.position)
-	# A PRESS THAT NEVER MOVED does nothing, and that is the honest answer. It
-	# is equally the start of a reorder and the start of a shot, and picking one
-	# would fire a card every time somebody tapped the fan to look at it.
+	# A press that never moved does nothing: it could start a reorder or a shot.
 	_grab_view = null
 	_grab_mode = 0
+
+## THE BOARD MOVED UNDER A CARD BEING AIMED: the convoy column sliding in or
+## out (J4 B, Jon, Nov 5). The card stays in hand and armed, and the target
+## lit is whatever is under the pointer now, as a motion would light it; the
+## release resolves against the board as it stands then (`_aim_release`).
+func _on_view_slid() -> void:
+	if _aim_view != null and is_inside_tree():
+		_aim_track(_aim_where)
+
+
+## Where the pointer last was while aiming, as `_input` saw it.
+var _aim_where := Vector2.ZERO
+
 
 ## Light whatever is under the cursor, and remember where to draw to.
 func _aim_track(where: Vector2) -> void:
 	if _view == null or _aim_view == null:
 		return
+	_aim_where = where
 	var at := get_global_transform().affine_inverse() * where
-	# BACK IN THE DRAWER IS NOT AIMING. The same test that spawned the line takes
-	# it away again: there is nothing above the fan to shoot while the cursor is
-	# inside it, so a line drawn there points at nothing and covers the hand it
-	# is drawn over. The card stays armed -- the gesture is still live and can be
-	# taken back out -- but the line and the target preview both go.
+	# Back in the drawer is not aiming: the line and preview go, the card stays armed.
 	var aiming := where.y < _hand.get_global_rect().position.y
-	# THE RETICLE IS THE POINTER while one is drawn. Two of them on the same
-	# spot is one too many, and the system cursor sits on top of the lock it is
-	# meant to be showing you.
+	# The reticle replaces the pointer while drawn; the system cursor covered the lock.
 	_hide_cursor(aiming)
 	if _aim_line != null:
 		_aim_line.visible = aiming
@@ -4085,10 +3178,7 @@ func _aim_release(where: Vector2) -> void:
 		_end_aim(false)
 		return
 	var idx := _view.target_at(where)
-	# ASKED OF THE SLOT, not of the index. `aimable` is the same rule the drop
-	# path used, and it is the slot's to answer: brace does nothing to a
-	# Rustjaw, an attack does nothing to your own hull, and a dead slot is not
-	# a target at all.
+	# Asked of the slot, which owns `aimable`: brace does nothing to a Rustjaw.
 	var legal := idx != EncounterView.AIM_NONE \
 		and _view.aim_at(idx, view.card, _drag_preview)
 	_end_aim(legal)
@@ -4110,44 +3200,21 @@ func _on_card_dropped(index: int, view: CardView) -> void:
 	if hand_index >= 0 and combat.can_play(view.card):
 		combat.play(hand_index, index)
 
-## Hand order is presentation, not state — the deck, discard and draw rules do
-## not care — so reordering is free and worth allowing.
-## Hand order is presentation, not state — the deck, discard and draw rules do
-## not care — so reordering is free. The view hands over the order it is already
-## showing, which is why nothing can land a slot off.
-## The aiming line: from the armed card to wherever you are pointing.
-##
-## Its own Control because it must draw OVER the board and under nothing, and
-## because a `_draw` on the screen itself would be behind every child panel.
-## Ignores the mouse entirely -- it is a picture of a gesture, not a part of one.
+## Its own Control so it draws over the board; it ignores the mouse, being a picture.
+## Why: docs/why/SectorScreen.md#aim-line
 class AimLine extends Control:
-	## E-folds per second the tip chases the cursor. Borrowed from
-	## `ModuleIcon.FOLLOW`, which is a MEASURED value rather than a guess: it is
-	## what makes a dragged thing feel alive rather than welded to the pointer.
+	## Follow rate borrowed from `ModuleIcon.FOLLOW`, a measured value.
 	const FOLLOW := 16.0
 
-	## TWO WAVES BEATING ALONG A STRAIGHT RUN, under an envelope that is widest
-	## at the middle. Chosen off a bench of forty-odd treatments; the numbers are
-	## the bench's, kept rather than re-guessed.
-	##
-	## Each entry is a frequency in cycles across the run, a travel speed in
-	## radians a second (sign is direction), and its share of the swing. The two
-	## are deliberately not harmonics -- 12 against 17 never repeats over a run,
-	## so the crossings wander instead of standing in a row.
+	## Two non-harmonic waves (12 and 17) from a bench of forty treatments; numbers kept.
+	## Why: docs/why/SectorScreen.md#aim-line
 	const AMP := 5.0
 	const WAVE_F := [12.0, 17.0]
 	const WAVE_S := [5.5, -3.6]
 	const WAVE_A := [1.0, 0.6]
 
-	## How far the run bows off the straight line, as a share of its length and
-	## capped. Generous on purpose: a shallow bow reads as a UI rule, a deep one
-	## reads as something thrown.
-	##
-	## MIRRORED ON THE HORIZONTAL. The bow is perpendicular to the run, so left
-	## to itself it turns WITH the aim -- leaning out when you aim up-left and the
-	## other way up-right, and swinging through the change as the cursor crosses.
-	## Flipping its sign with the run's x makes it always belly away from the
-	## card. That swing is what "acts weirdly" was.
+	## A generous bow, mirrored on the horizontal so it always bellies away from the card.
+	## Why: docs/why/SectorScreen.md#aim-line
 	const BOW := 0.24
 	const BOW_MAX := 46.0
 
@@ -4155,9 +3222,7 @@ class AimLine extends Control:
 	## reticle. Slightly more than the reticle's own reach.
 	const HEAD_GAP := 12.0
 
-	## The reticle: three marks at 120 degrees, rotating inward and seating from
-	## radius 8 to 5. It is a LOCK rather than a dot -- the closing is what says
-	## a target is under the cursor.
+	## The reticle is a lock of three marks closing from radius 8 to 5.
 	const LOCK_R := 8.0
 	const LOCK_CLOSE := 3.0
 	const LOCK_SPIN := 1.6
@@ -4177,9 +3242,7 @@ class AimLine extends Control:
 		owner_screen._aim_tip = owner_screen._aim_tip.lerp(target, k)
 		queue_redraw()
 
-	## One pixel. Everything here is plotted rather than stroked: the board is
-	## 960x540 pixel art and a smoothed curve over it reads as a stray from
-	## another game. See the note on the antialiasing this replaced.
+	## Plotted pixel by pixel: smoothed curves look like strays on 960x540 pixel art.
 	func _px(x: float, y: float, c: Color) -> void:
 		draw_rect(Rect2(roundf(x), roundf(y), 1.0, 1.0), c)
 
@@ -4192,12 +3255,8 @@ class AimLine extends Control:
 		_draw_shaft(a, b, t)
 		_draw_lock(b, t)
 
-	## The run, walked a pixel at a time with the waves placed off the axis.
-	##
-	## STRAIGHT, and that is a fix rather than a simplification. This was a bowed
-	## arc whose control point was perpendicular to the run, so the curve leaned
-	## one way aiming left and the other aiming right and swung through the change
-	## as the cursor crossed. Waves on a straight run have no such handedness.
+	## Straight run: a bowed arc swung with the aim, and waves on a straight run do not.
+	## Why: docs/why/SectorScreen.md#aim-line
 	func _draw_shaft(a: Vector2, b: Vector2, t: float) -> void:
 		var run := b - a
 		var span := run.length()
@@ -4205,9 +3264,7 @@ class AimLine extends Control:
 			return
 		var lean := -1.0 if run.x >= 0.0 else 1.0
 		var ctrl := (a + b) * 0.5 			+ Vector2(-run.y, run.x) / span * minf(span * BOW, BOW_MAX) * lean
-		# One step per pixel, against an UPPER BOUND on the curve's length -- the
-		# two control legs. Stepping by the straight span leaves the samples more
-		# than a pixel apart once the bow is deep, and the shaft comes out dashed.
+		# Steps use an upper bound on the length; stepping by the span left a dashed shaft.
 		var steps := int(ceilf(a.distance_to(ctrl) + ctrl.distance_to(b)))
 		if steps < 2:
 			return
@@ -4257,19 +3314,8 @@ class AimLine extends Control:
 		_px(b.x, b.y, UITheme.HOT)
 
 
-## The keyword panel, in a fight.
-##
-## Same builder the gallery uses. The glossary was only reachable from a
-## development screen, which meant every rules word on a card was something the
-## player had to already know — and Brace, Salvo and Feedback are precisely the
-## words a new player does not.
-##
-## Floated in a layer above everything rather than placed in the hand row: the
-## hand is a fixed-height panel at the bottom of the screen, so a panel parented
-## into it would either resize the row or be clipped by it.
-## Created on first use rather than in _build(), so the layer does not exist at
-## all in a run that never rests on a card. Full-rect and click-through: it is a
-## place to put panels, not a thing on the screen.
+## Floats in a layer above the hand, created on first use and click-through.
+## Why: docs/why/SectorScreen.md#keyword-readout
 func _readout_layer() -> Control:
 	if _readout_host == null or not is_instance_valid(_readout_host):
 		_readout_host = Control.new()
@@ -4280,34 +3326,20 @@ func _readout_layer() -> Control:
 
 func _show_readout(view: CardView, entered: bool) -> void:
 	if not entered:
-		# Only the card that owns the panel — or the one waiting to — may close
-		# it. Sliding from one card to the next fires exited on the old one
-		# AFTER entered on the new, so obeying every exit would tear down a
-		# panel that had just been built.
+		# Only the owning card may close it: sliding fires exited after entered.
 		if view == null or view == _readout_for or view == _readout_pending:
 			_clear_readout()
 		return
 	_clear_readout()
 
-	# Not while a card is in the air. Godot keeps sending hover events to
-	# whatever the cursor passes over during a drag, so without this, dragging
-	# one card across the hand opens the panel for every card it crosses —
-	# right where you are trying to see the board.
+	# Not mid-drag: Godot sends hover events during a drag and opened a panel per card.
 	if get_viewport().gui_is_dragging():
 		return
 
-	# And not immediately. In a fight the cursor crosses the hand constantly
-	# on its way to an enemy, and a panel that appears the instant it touches a
-	# card turns reading the board into a slideshow. The delay is what makes it
-	# a thing you ASK for by resting on a card, rather than a thing that happens
-	# to you. The gallery keeps its instant panel: browsing is the whole point
-	# there, and nothing is behind it to look at.
+	# Delayed so it is a thing you ask for by resting; the gallery stays instant.
+	# Why: docs/why/SectorScreen.md#keyword-readout
 	_readout_pending = view
-	# Captured AFTER the clear above, so this coroutine owns the current
-	# generation until something else tears the panel down. Checked rather than
-	# `_readout_pending == view` at every wake-up below, because the card is not
-	# a unique enough claim: rest on a card, leave, and rest on it again and
-	# there are two coroutines that both think the pending card is theirs.
+	# The generation is checked per wake, as the card is not a unique enough claim.
 	var gen := _readout_gen
 	await get_tree().create_timer(READOUT_DELAY).timeout
 	if gen != _readout_gen or not is_instance_valid(view):
@@ -4317,28 +3349,16 @@ func _show_readout(view: CardView, entered: bool) -> void:
 
 	_readout_pending = null
 	_readout_for = view
-	# Held locally as well as on the member. Everything after this point runs
-	# across an await, and the member may belong to a newer panel by then — a
-	# coroutine that positions `_readout` blind can move somebody else's panel
-	# to its own card.
+	# Held locally: across an await, the member may belong to a newer panel.
 	var panel := Widgets.card_readout(view.card)
 	_readout = panel
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Invisible until it knows where it goes.
-	#
-	# The panel's height depends on how much of its text wrapped, which is not
-	# settled until the layout pass — so its final position cannot be computed
-	# on the frame it is created. It used to be parked at the top of the screen
-	# for that one frame and then moved, which is exactly the flash: a panel
-	# appearing in the wrong place and jumping. Held at zero alpha, that frame
-	# is simply not seen.
+	# Held at zero alpha until placed, as the wrapped height is unknown on the first frame.
+	# Why: docs/why/SectorScreen.md#keyword-readout
 	panel.modulate.a = 0.0
 	_readout_layer().add_child(panel)
 
-	# Above the card, nudged to stay on screen. Above rather than beside because
-	# a hand fans across the full width — there is no reliable "beside" — and
-	# because the space above the hand is the one part of a combat screen that
-	# is never holding anything you need while choosing a card.
+	# Above the card: a hand fans full width, and the space above holds nothing needed.
 	var w: float = panel.custom_minimum_size.x
 	var top := view.global_position - global_position
 	var px := clampf(top.x + CardView.CARD_W * 0.5 - w * 0.5, 2.0,
@@ -4349,9 +3369,7 @@ func _show_readout(view: CardView, entered: bool) -> void:
 	if gen != _readout_gen or not is_instance_valid(panel):
 		return
 	var py := maxf(2.0, top.y - panel.size.y - 6.0)
-	# Rises the last few pixels as it fades in. The card lifts when you point at
-	# it; the panel arriving on the same vector reads as one gesture rather than
-	# two things happening near each other.
+	# Rises as it fades in, matching the card's lift so it reads as one gesture.
 	panel.position = Vector2(px, py + 5.0)
 	var tw := panel.create_tween().set_parallel(true)
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -4366,12 +3384,8 @@ func _clear_readout() -> void:
 	if _readout_host == null or not is_instance_valid(_readout_host):
 		return
 	for c in _readout_host.get_children():
-		# Removed as well as freed. queue_free() takes effect at the END of the
-		# frame, so a panel that is only queued is still on screen for the frame
-		# in which its replacement is built — one frame of exactly the doubled
-		# panel this is here to prevent. The sweep is over every child rather
-		# than over the one the member points at, which is the whole point: a
-		# panel nothing is tracking any more is still a panel on the screen.
+		# Removed as well as freed, as `queue_free()` leaves a doubled panel for a frame.
+		# Why: docs/why/SectorScreen.md#keyword-readout
 		_readout_host.remove_child(c)
 		c.queue_free()
 
@@ -4389,13 +3403,8 @@ func _on_hand_reorder(cards: Array) -> void:
 func _on_end_turn() -> void:
 	if not fighting() or combat.waiting or combat.finished or _hold or _opening:
 		return
-	# THE TURN PLAYS OUT ON SCREEN (audit item 1). `end_turn` resolves the whole
-	# enemy turn and deals the next hand in one call, and the screen used to
-	# show all of it on the frame of the click. Held, it is caught as it
-	# happens and then shown in order: what you burned, each enemy's move one
-	# after another, the hull dropping as each shot lands, and only then the
-	# new hand. In a shared fight the enemy's turn arrives later, over the
-	# wire, and is drawn as it comes.
+	# The turn plays out on screen: it is held, caught as it happens, then shown in order.
+	# Why: docs/why/SectorScreen.md#turn-playback
 	if combat.is_shared():
 		combat.end_turn()
 		return
@@ -4403,23 +3412,8 @@ func _on_end_turn() -> void:
 	combat.end_turn()
 	_play_turn()
 
-## Talk instead of shoot. `Combat.hail` owns the ruling and the roll.
-##
-## No confirm panel, unlike FLEE. Fleeing throws a run's salvage away and deserves
-## the second question; hailing costs nothing you can see, and RULING 3 says a
-## number on the button IS the commitment.
-## BOTH WAYS OUT ASK FIRST.
-##
-## Each is a single press that spends a run's progress, and each sits one row
-## from END TURN, which you press every single turn. Making them thin and
-## coloured narrowed the target; it did not make the click reversible.
-##
-## They are also both CHECKS now, and that is the other half of it: RULING 3
-## says the odds go on the thing you press, so a button that rolls something
-## behind you is the one shape the rest of this game does not use. The panel is
-## where the number lives.
-##
-## Nothing else in combat costs a run in one press, so nothing else gets this.
+## Both exits ask first: each spends a run's progress, and the odds live on the panel.
+## Why: docs/why/SectorScreen.md#exit-buttons
 func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 		go_label: String, fail_title: String, on_go: Callable) -> void:
 	_exit_ink = ink
@@ -4443,12 +3437,8 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	# Staying is the default and sits first: the safe answer should be the one
 	# under your hand when the panel opens.
 	row.add_child(Widgets.button("KEEP FIGHTING", _close_exit_ask))
-	# IT DOES NOT CLOSE. The panel asked the question and it is the thing the
-	# player is looking at, so it is where the answer belongs -- a panel that
-	# vanishes and hands off to a full-screen overlay somewhere else makes you
-	# find the result of your own press. `_on_combat_ended` rewrites it when the
-	# exit works; the branch below rewrites it when the exit fails and the fight
-	# simply goes on, which nothing was telling you at all.
+	# The panel does not close; the answer appears where the player is already looking.
+	# Why: docs/why/SectorScreen.md#exit-buttons
 	var go := Widgets.button(go_label, func() -> void:
 		if not fighting() or combat.finished or _hold:
 			return
@@ -4464,23 +3454,13 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 			# It worked: nothing swings, so nothing waits. A partial hail still
 			# costs heat, and the panel says so (audit item 11).
 			_end_hold()
-		# AND THE SCREEN CATCHES UP, for both of them. Hailing did this in its
-		# own closure and fleeing did not, so a successful hail left the hand
-		# greyed behind the panel and a successful burn left five playable cards
-		# sitting under a fight that was already over. The refresh belongs to
-		# "an exit was taken", not to one of the two exits.
+		# Refresh belongs to 'an exit was taken': a successful hail left the hand greyed.
+		# Why: docs/why/SectorScreen.md#exit-buttons
 		_refresh()
-		# `finished`, NOT `fighting()`. That helper asks whether there is a fight
-		# on this screen and stays true after one ends -- `_finish` sets a flag,
-		# it does not clear the enemy -- so testing it here ran the failure
-		# branch over a hail that had just WORKED, and `_on_combat_ended` had
-		# already written STOOD DOWN into the panel a microsecond earlier. The
-		# only way to see it was the empty body: a success carries its summary
-		# on the signal, so `exit_note` was still the empty string.
+		# Tests `finished`, not `fighting()`, which stays true after a fight ends.
+		# Why: docs/why/SectorScreen.md#exit-buttons
 		if _exit_ask != null and not combat.finished:
-			# THE ANSWER SAYS WHAT IT COST, and the enemy's turn it handed them
-			# waits until you have read it: it plays out when you press CONTINUE,
-			# not behind the panel (audit item 11).
+			# The answer states the cost; the enemy's turn plays when CONTINUE is pressed.
 			_exit_ask_result(_exit_fail, _exit_ink,
 				combat.exit_note + ("\n" + _exit_cost if _exit_cost != "" else ""),
 				func() -> void:
@@ -4495,9 +3475,7 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	_exit_ask.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL, edge, 0, 10, 12))
 	_exit_ask.add_child(box)
-	# UNSEEN UNTIL IT IS WHERE IT GOES. Centring waits two layout frames, and a
-	# panel opened by nothing the player pressed (an ending) sat in the top-left
-	# corner for those frames and then jumped. See `_centre_exit_ask`.
+	# Unseen until centred, as centring waits two layout frames and it flashed top-left.
 	_exit_ask.modulate.a = 0.0
 	add_child(_exit_ask)
 	_exit_ask.set_anchors_preset(Control.PRESET_CENTER)
@@ -4528,11 +3506,7 @@ func _cost_line(heat0: int, fuel0: int) -> String:
 	return " ".join(bits)
 
 
-## The same panel, holding what happened instead of what it would cost.
-##
-## `Widgets.clear` rather than a fresh panel: the border, the position and the
-## thing under the cursor all stay put, so the question becoming the answer
-## reads as one object rather than as two that happened to be the same size.
+## `Widgets.clear` keeps the border and position, so question and answer read as one.
 func _exit_ask_result(title: String, ink: Color, said: String,
 		on_go: Callable) -> void:
 	if _exit_ask == null or _exit_box == null:
@@ -4541,9 +3515,7 @@ func _exit_ask_result(title: String, ink: Color, said: String,
 	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_exit_box.add_child(head)
-	# ALWAYS BUILT, even with nothing to say. It is what pushes CONTINUE to the
-	# bottom of the box, and a button that moves up when the sentence is short
-	# is the thing this size exists to stop.
+	# Always built so CONTINUE stays at the bottom even with nothing to say.
 	var body := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -4563,9 +3535,7 @@ func _centre_exit_ask() -> void:
 	await get_tree().process_frame
 	if not is_instance_valid(_exit_ask):
 		return
-	# SHRINK FIRST. A `Control` grows to fit its contents and never shrinks back,
-	# so the answer -- two lines where the question had five -- kept the
-	# question's box and sat in the top third of a rectangle of nothing.
+	# Shrink first: a Control never shrinks back, so a short answer kept the tall box.
 	_exit_ask.reset_size()
 	await get_tree().process_frame
 	if is_instance_valid(_exit_ask):
@@ -4586,17 +3556,8 @@ func _on_flee() -> void:
 		"BREAK CONTACT", "STILL ON YOU", func() -> void: combat.flee())
 
 
-## Hailing: the same exit bought with words rather than fuel.
-##
-## It used to fire on the press. That was defensible while it was the cheap way
-## out -- nothing spent, nothing lost -- and it stopped being true once failing
-## it broadcast your position: fourteen heat and the turn handed back is a worse
-## afternoon than the six fuel FLEE asks you to confirm, and FLEE was the one
-## with the panel.
-##
-## Heat rather than fuel, and the number is the botched one, because that is the
-## outcome the panel exists to warn about. A partial costs six and they still
-## leave; nobody presses a button because of what a partial costs.
+## Hail asks first now: failing broadcasts your position, costing 14 heat and the turn.
+## Why: docs/why/SectorScreen.md#hail
 func _on_hail() -> void:
 	if not fighting() or _exit_ask != null or _opening or not combat.can_hail():
 		return
@@ -4615,10 +3576,8 @@ func _close_exit_ask() -> void:
 
 
 
-## A hull coming apart. Not drawn here any more: the kill is shown when the
-## killing shot LANDS, as a breakup of the ship's own picture (`_start_death`).
-## Spawning debris on this signal put the explosion on screen eight frames
-## before the shot that caused it arrived (audit F4).
+## Kills show when the shot lands; a signal spawned debris 8 frames early (audit F4).
+## Why: docs/why/SectorScreen.md#death-breakup
 func _on_enemy_destroyed(who: int) -> void:
 	if not fighting() or _view == null or _view.fx == null:
 		return
@@ -4629,25 +3588,33 @@ func _on_enemy_destroyed(who: int) -> void:
 	if int(_slot_volleys.get(who, 0)) == 0 and not _hold:
 		_start_death(who)
 
-## The shot arrived. Now the target moves.
+## The shot arrived. Now the target moves, about its place at rest, a second hit too:
+## two hits a frame apart once left the hull 0.8 px off the grid.
+## Why: docs/why/SectorScreen.md#shot-landed
 func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:
 	var target: Control = _view.ship_view() if to_player else _view.enemy_view(who)
 	if target == null:
 		return
 	var origin := target.position
+	var was: Array = _shook.get(target, [])
+	if not was.is_empty() and (was[1] as Tween).is_valid():
+		(was[1] as Tween).kill()
+		origin = was[0]
 	var tw := create_tween()
 	for i in 3:
 		tw.tween_property(target, "position",
 			origin + Vector2(randf_range(-3, 3), randf_range(-2, 2)).round(), 0.03)
 	tw.tween_property(target, "position", origin, 0.05)
+	_shook[target] = [origin, tw]
+	tw.finished.connect(func() -> void: _shook.erase(target))
+
+
+## What each shaken thing's place at rest is while it shakes, and its shake.
+var _shook: Dictionary = {}
 
 func _on_combat_ended(result: StringName, text: String) -> void:
-	# NOTHING ENDS ON THE FRAME IT RESOLVED. The kill, the death, the escape:
-	# each waits for what the eye is still being shown -- the shots in the air,
-	# the turn playing out, a hull coming apart -- and then ends, by
-	# `_check_ending`. A won fight then lowers the hand (Jon) before LOCAL.
-	# The endings a player ASKED for (flee, hail) still answer in the panel
-	# they pressed.
+	# Nothing ends on the frame it resolved; it waits for what the eye is still being shown.
+	# Why: docs/why/SectorScreen.md#fight-end
 	_ending = {result = result, text = text}
 	# Your ship's breakup is cut now, off the main thread, while the shot that
 	# did it is still in the air (see `_lose_ship`).
@@ -4681,27 +3648,10 @@ func _leave_combat() -> void:
 
 
 # ------------------------------------------------------- the fight, played out
-#
-# COMBAT RESOLVES INSTANTLY AND ALWAYS WILL; THE SCREEN TAKES ITS TIME (combat
-# polish, Oct 13). The audit filmed END TURN doing everything on one frame --
-# the hand gone, every enemy acting, the hull down, new intents, a new hand --
-# with the shots landing half a second after the numbers had moved, and a kill
-# swapping the screen on the frame the card was let go. Nothing here changes a
-# number. It holds what the SCREEN shows back until the eye has been shown why:
-#
-#   * a shot's numbers move when it LANDS (`_on_volley_landed`), with the
-#     damage, BLOCKED or MISS popped where it hit, and the impact sound and the
-#     view's kick on that frame (`Sig.hit_landed`);
-#   * END TURN is held (`_hold`): what it caught is replayed in order -- what you
-#     burned, then each enemy's move one after another -- and the new hand is
-#     dealt when the last shot is in (`_play_turn`);
-#   * a kill is a breakup of the ship's own picture when the killing shot lands
-#     (`_start_death`, `ShipBreakup`), and the fight ends when every death has
-#     finished (`_check_ending`), lowering the hand into LOCAL's band.
+# Combat resolves instantly; the screen holds back what it shows until the eye has seen why.
+# Why: docs/why/SectorScreen.md#turn-playback
 
-## Every hull number on screen while the turn plays out: the HUD and your plate
-## read these instead of `Run` while they are not -1. Static because the HUD is
-## not this screen's; reset whenever this screen goes.
+## Static, as the HUD is not this screen's; reset whenever this screen goes.
 static var shown_hull: int = -1
 static var shown_heat: int = -1
 
@@ -4743,18 +3693,14 @@ var _breakups: Array = []
 var _ending: Dictionary = {}
 var _ending_started := false
 
-## How long the hand takes to lower when a fight is over. Jon asked for about
-## half a second to 0.8 s: slow enough to read as the drawer going down, short
-## enough that nobody is waiting for it.
+## Jon asked for 0.5 to 0.8 s: slow enough to read as lowering, short enough not to wait.
+## Why: docs/why/SectorScreen.md#hand-lowering
 const LOWER_S := 0.65
 
 
 func _on_fight_opened(_name: String) -> void:
-	# THE FIRST HAND IS DEALT ONCE THE CONTACTS ARE IN (audit F6). It used to be
-	# on screen whole on the first frame of the fight, the drawer and the cards
-	# popping in together while the enemy was still flying in.
-	# Every contact's wreck is cut now, off the main thread, so a kill costs its
-	# frame nothing (see EnemyArt.warm_wreck).
+	# The first hand is dealt once contacts are in; before, drawer and cards popped in (audit F6).
+	# Why: docs/why/SectorScreen.md#hand-raising
 	if combat != null:
 		_wrecks_before = _count_wrecks()
 		for i0 in combat.enemies.size():
@@ -4768,14 +3714,8 @@ func _on_fight_opened(_name: String) -> void:
 	_raise_band()
 
 
-## AN AMBUSH ON ARRIVAL WAITS FOR YOU TO ARRIVE. The fight is begun as the jump
-## lands, and its screen plays the arrival (the system's name, your ship coming
-## in under power); the contacts used to fly in under the name and the hand was
-## up before your ship was there, which then flew in to a fight already laid
-## out. Now it is an arrival like any other until the approach's last second,
-## where LOCAL's drawer would have come up: there the contacts fly in and the
-## hand comes up instead (`_arrival_drawer`). The band and its buttons are held
-## as `_raise_band` holds them.
+## An ambush waits for the arrival to finish, then contacts fly in and the hand comes up.
+## Why: docs/why/SectorScreen.md#hand-raising
 func _hold_for_arrival() -> void:
 	_ambushed = true
 	_opening = true
@@ -4798,27 +3738,8 @@ func _hold_for_arrival() -> void:
 ## The longest a fight's hand waits for a camera move to land (frames).
 const LADDER_WAIT_FRAMES := 600
 
-## THE HAND COMES UP (Jon, Oct 13): "When the enemy ship enters.... the ships
-## pop up and the drawer pops into view.... can we have the opposite of the
-## fight ending screen where the drawer and ships would move up gently instead
-## of a pop?"
-##
-## `_lower_band` played backwards, on the same clock and the same curve. The
-## fight's screen is built looking exactly like the LOCAL it replaces (it is
-## swapped in without a fade: `Router.start_combat`), so its first frame is
-## LOCAL's band, one line tall. Then LOCAL's line fades out (`BAND_FADE_S`, the
-## ending's fade in), the hand's band grows from that height to the hand's over
-## `LOWER_S` on the same sine, two pixels a step, while the arena shrinks with
-## it so your ship and the contacts ease up to their places; the hand's panel
-## fades up as it starts to rise and your plate fades in over the second half
-## (the ending fades it out over the first). The contacts fly in through it
-## (`EnemySlot.enter`, started as the fight opened).
-##
-## NOTHING ON THE BAND TAKES A CLICK WHILE IT MOVES: LOCAL's buttons are behind
-## a shield from the first frame, END TURN, FLEE and HAIL are greyed as they are
-## while the hand lowers, and the first hand is dealt once the band is up.
-## Picture only: the fight it opens was begun before any of this, and nothing
-## here is sent to, or waited on by, anybody else's game.
+## `_lower_band` played backwards on the same clock and curve; no clicks while it moves.
+## Why: docs/why/SectorScreen.md#hand-raising
 func _raise_band() -> void:
 	if _hand_holder == null or _quiet_holder == null:
 		return
@@ -4841,11 +3762,8 @@ func _raise_band() -> void:
 	await get_tree().process_frame
 	if not is_inside_tree() or not _raising:
 		return
-	# AND NOT UNDER A CAMERA MOVE. ENGAGE pressed on the system map (the core's
-	# guard) brings this screen in on the map-to-LOCAL zoom, which holds the row
-	# at the size it had when the move began; a band grown under it left your
-	# ship half the band low with its plate under the hand once the move landed
-	# (Jon, Oct 22: "Glitch on boss fight?"). The hand comes up once it has.
+	# Not under a camera move: a band grown under it left the ship low (Jon, Oct 22).
+	# Why: docs/why/SectorScreen.md#hand-raising
 	var waited := 0
 	while ZoomLadder.busy() and waited < LADDER_WAIT_FRAMES:
 		await get_tree().process_frame
@@ -4858,9 +3776,7 @@ func _raise_band() -> void:
 	from = roundf(from * 0.5) * 2.0
 	_view.band_left = _band_still_to_come
 	_open_row_eased()
-	# WHAT LOCAL SHOWED GOES BEFORE THEY COME: an event's subject or the
-	# place's picture fades with LOCAL's line, and the contacts fly in once it
-	# has gone, not across it (they overlapped it on the way in).
+	# LOCAL's picture fades first; the contacts fly in after it, as overlapping looked wrong.
 	var clear_first := _view.leaving()
 	if clear_first:
 		_view.hold_entrances()
@@ -4884,16 +3800,8 @@ func _raise_band() -> void:
 	_raise_tw.tween_callback(_band_up)
 
 
-## The contacts take their half of the row. Where LOCAL gave your ship more of
-## it (an event's subject stood in the place's stead; a pack wider than the
-## place), your ship is carried across to the fight's place over the band's
-## rise, on its curve, in whole pixels, its plate with it, rather than standing
-## there on the next frame.
-##
-## PINNED, NOT MEASURED ONCE: the row settles over a frame or two (the slots
-## learn their ships' widths, a pack closes up), so the ship is held where LOCAL
-## had it through every layout pass (`_pin_ship`, on its own rect changing) and
-## eased from there to wherever the row has put it by then.
+## The ship is pinned through layout passes and eased to wherever the row puts it.
+## Why: docs/why/SectorScreen.md#hand-raising
 func _open_row_eased() -> void:
 	var sv := _view.ship_view()
 	if not _view.hold_row or sv == null:
@@ -4939,10 +3847,7 @@ func _pin_ship() -> void:
 	_place_self_plate()
 
 
-## The band is up: the cards are dealt and the hand is yours.
-## How much the hand's band has still to grow while a fight opens, measured
-## off the band as it is laid out (the pack plans in the arena it will have:
-## `EncounterView.band_left`).
+## How much the band has still to grow, measured off the band as laid out.
 func _band_still_to_come() -> float:
 	if not _raising:
 		return 0.0
@@ -4987,9 +3892,7 @@ func _stop_raise() -> void:
 		_self_plate.modulate.a = 1.0
 
 
-## A pane over the bottom band that takes every click while it moves, so a
-## press meant for LOCAL's button lands on nothing rather than on whatever the
-## band has slid under the pointer.
+## A pane over the band eats clicks while it moves, so none land on LOCAL's button.
 func _shield(on: bool) -> void:
 	if not on:
 		if _band_shield != null and is_instance_valid(_band_shield):
@@ -5088,10 +3991,7 @@ func _play_turn() -> void:
 				_show_burn(int(st.amount), st.cause)
 				await _wait_s(0.45)
 			&"hit":
-				# A CREATURE WINDS UP BEFORE IT FIRES (Jon, Oct 13: "windup:B"):
-				# the deep in-breath, spines up, lights flaring or running to
-				# its head, THEN the shot. Ships keep their pacing; without
-				# motion `_wait_s` waits for nothing.
+				# A creature winds up before it fires (Jon, Oct 13); ships keep their pacing.
 				if st.to_player and _fauna_winds_up(int(st.who)):
 					await _wait_s(FAUNA_ANTICIPATION)
 					if not is_inside_tree() or combat == null:
@@ -5196,9 +4096,7 @@ func _on_hit(to_player: bool, who: int, dealt: int, absorbed: int, missed: int, 
 	var kind := CombatFx.Kind.HOSTILE
 	var pre := -1
 	if not to_player:
-		# THE WEAPON THAT FIRED IT, read as it resolves (audit item 7). Ballistics
-		# run cold and energy weapons run hot -- a card that makes heat is an
-		# energy weapon.
+		# The firing weapon is read as it resolves: a card that makes heat is an energy weapon.
 		kind = CombatFx.Kind.BALLISTIC
 		var c: CardData = combat.resolving
 		if c != null and (c.heat > 0 or c.damage_equals_heat or c.heat_scale > 0):
@@ -5261,6 +4159,9 @@ func _on_volley_landed(id: int) -> void:
 			_sync_hull()
 		if _ship_fx != null:
 			_ship_fx.land(int(q.dealt), int(q.absorbed), shown_hull if shown_hull >= 0 else Run.hp)
+			# the bar's brace runs down with the hit, not at the end of the turn
+			if _hold:
+				_show_self_brace(_ship_fx.brace.brace)
 		if int(q.dealt) > 0:
 			_flash_hit(_view.ship_view())
 	elif who >= 0:
@@ -5288,11 +4189,8 @@ func _on_volley_landed(id: int) -> void:
 	_check_ending()
 
 
-## Where a number about a hull goes, in the fx layer's space: centred across on
-## the hull's ink, just above your ship; above an enemy's INTENT WORDS, clear of
-## them (Jon, Oct 13, "C": just above the hull it sat on STRAFE and read
-## "ST-8E"). `lines` is how many will stack upward from here: the whole stack,
-## and the rise, is kept on screen under the top of the fight (`_pop_room`).
+## Numbers sit above an enemy's intent words, as just above the hull one read 'ST-8E'.
+## Why: docs/why/SectorScreen.md#pop-numbers
 func _pop_at(to_player: bool, who: int, lines: int = 1) -> Vector2:
 	var ink := _hull_ink(to_player, who)
 	var top := ink
@@ -5304,9 +4202,7 @@ func _pop_at(to_player: bool, who: int, lines: int = 1) -> Vector2:
 			var w := Rect2(inv * words.position, words.size)
 			top = Rect2(ink.position.x, minf(ink.position.y, w.position.y), ink.size.x, ink.size.y)
 	var at := HitText.above(Rect2(ink.position.x, top.position.y, ink.size.x, 1.0))
-	# NO ROOM ABOVE (a ship high in a pack, its words close under the HUD): the
-	# stack goes on the hull instead, centred on its ink, and the ship's words
-	# step back while the numbers are up rather than be written over.
+	# With no room above, the stack goes on the hull and the ship's words step back.
 	if not to_player and at.y - _pop_reach(lines) < _pop_limit(who, ink):
 		var mid := ink.get_center()
 		at = Vector2(mid.x, mid.y + HitText.CAP * 0.5 + float(maxi(lines, 1) - 1) * HitText.LINE * 0.5).round()
@@ -5327,13 +4223,8 @@ func _pop_reach(lines: int) -> float:
 	return float(maxi(lines, 1) - 1) * HitText.LINE + HitText.CAP + 1.0 + HitText.RISE
 
 
-## The top of the fight in the fx layer: under the HUD.
-## How high a number may rise: under the HUD, and -- for a ship in a pack's
-## front rank -- under whatever ship stands behind and above it in the
-## formation (its words, hull and plate, wherever they come over the
-## numbers' width: the ship behind is set into the front ships' shoulders,
-## `EncounterView._pack_shoulders`), so a landed number never runs into the
-## rank behind. `ink` is the hull's ink in the fight layer's coordinates.
+## The rise limit is under the HUD, and under any ship behind in the pack's front rank.
+## Why: docs/why/SectorScreen.md#pop-numbers
 func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 	var inv := _view.fx.get_global_transform().affine_inverse()
 	var top_g := _view.get_global_rect().position.y
@@ -5361,9 +4252,7 @@ func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 					if g.size.x > 0.0 and g.position.x < span.end.x and g.end.x > span.position.x:
 						top_g = maxf(top_g, g.end.y)
 			k += 1
-	# THE FIGHT LOG, while it is open over the top left (`FightLog`): it keeps
-	# room for two of your numbers over your hull, and a third and on stay
-	# under it rather than run into its lines
+	# Keeps clear of the fight log: room for two of your numbers, then they stay under it.
 	if who < 0 and _fight_log != null and is_instance_valid(_fight_log) and _fight_log.panel.is_visible_in_tree():
 		var lr := _fight_log.panel.get_global_rect()
 		var sv := _view.ship_view()
@@ -5374,9 +4263,7 @@ func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 	return (inv * Vector2(0.0, top_g)).y + 2.0
 
 
-## ON SCREEN: a stack of `lines` pops from `at`, risen, stays under the top of
-## the fight (a ship sitting high in a pack would put its numbers under the HUD).
-## Moved down only as far as it has to be.
+## Moved down only as far as needed to keep the stack under the HUD.
 func _pop_room(at: Vector2, lines: int, who: int = -1, ink: Rect2 = Rect2()) -> Vector2:
 	var limit := _pop_limit(who, ink)
 	_view.fx.pop_top = limit
@@ -5386,10 +4273,8 @@ func _pop_room(at: Vector2, lines: int, who: int = -1, ink: Rect2 = Rect2()) -> 
 	return at
 
 
-## A hull's INK in the fight layer's coordinates (`_view.fx`): the painted
-## pixels, not the canvas or the slot. Your canvas carries the exhaust's
-## clearance on one side, and centring on it put BLOCKED 5 right of the hull's
-## middle (Jon's still).
+## Uses painted ink, not the canvas, which carries exhaust clearance and put BLOCKED 5 right.
+## Why: docs/why/SectorScreen.md#pop-numbers
 func _hull_ink(to_player: bool, who: int) -> Rect2:
 	var inv := _view.fx.get_global_transform().affine_inverse()
 	if to_player:
@@ -5402,10 +4287,7 @@ func _hull_ink(to_player: bool, who: int) -> Rect2:
 	var art := _view.enemy_view(who)
 	if art == null:
 		return Rect2(_view.enemy_anchor(who), Vector2.ZERO)
-	# WHERE THE SHIP STANDS AT REST (`EnemySlot.ink_rect`: the sprite's ink,
-	# without a wind-up's glow), not where its entry slide, a hit's shake or
-	# the bob has it this frame: a number landing as a pack flies in was put
-	# where the ship was mid-slide, over its neighbour's words.
+	# Rest position, not mid-slide: a number landing as a pack flew in hit a neighbour.
 	var sl := _view.slot(who)
 	if sl != null:
 		var ink := sl.ink_rect()
@@ -5416,9 +4298,7 @@ func _hull_ink(to_player: bool, who: int) -> Rect2:
 	return Rect2(inv * (tl + Vector2(u.position)), Vector2(u.size))
 
 
-## What a volley did, where it did it (audit item 8): the damage, then what
-## block and brace took, or that it missed.
-## How many lines a landing pops (`_pop_hit`): damage, what was taken, a miss.
+## What a volley did, popped where it landed: damage, then what was taken, or a miss.
 func _pop_lines(q: Dictionary) -> int:
 	return int(int(q.dealt) > 0) + int(int(q.absorbed) > 0) + int(int(q.missed) > 0)
 
@@ -5462,9 +4342,7 @@ func _hitstop() -> void:
 	Engine.time_scale = 1.0
 
 
-## The size of the picture an enemy's art draws, centred and unscaled in its
-## control. Asked of the texture rather than assumed, because the enemy art is
-## being re-cut round PixelLab sprites as this is written.
+## Asked of the texture, as the enemy art is being re-cut round PixelLab sprites.
 func _canvas_size(art: EnemyArt) -> Vector2:
 	if art.texture != null:
 		return art.texture.get_size()
@@ -5490,12 +4368,8 @@ func _count_wrecks() -> int:
 	return n
 
 # ------------------------------------------------------------- hits, block, brace
-#
-# Jon's picks (Oct 13): hits B, block as the bubble, brace as the plated overlay,
-# on every ship in a fight (`HitLayers`). Each lands on the frame its pop and
-# sound do: `_on_volley_landed` hands it the volley; the refreshes catch block
-# and brace up when the screen does (a card's, a turn's start); the enemy's turn
-# fizzles each one's block as it acts and shimmers up the block it gains.
+# Hits, block and brace land on the frame their pop and sound do, on every ship.
+# Why: docs/why/SectorScreen.md#hit-layers
 
 ## Where enemy `who`'s wreck will lie, by the same count `_death_style` uses.
 func _wreck_id_of(who: int) -> int:
@@ -5551,15 +4425,10 @@ func _fx_drop_player() -> void:
 		_ship_fx.queue_free()
 	_ship_fx = null
 
-## THE EFFECTS' MOMENTS, HEARD on the frame each picture acts (`Audio.FX`, one
-## row a moment, each switchable). The ones still without a sound of their own
-## are named in the plan (`sfx-plan/plan.json`) and left quiet. (The impact and
-## the plate's ring on a landing are `Audio._on_hit_landed`'s.) `creature`: a
-## living thing's looks (`FaunaBrace` and the rest), which say the same words.
+## Effect moments are heard on the frame each picture acts; unsounded ones stay quiet.
 func _on_fx_moment(kind: StringName, s: float, len: float, mine: bool, creature: bool, from: HitLayers) -> void:
-	# NOTHING SEEN, NOTHING HEARD: a ship's layers go with it while it breaks up
-	# and stay hidden on its wreck, but its open vents keep their clock -- and
-	# sputtered, heard, over a Hellbender coming apart and after it was a wreck.
+	# Nothing seen, nothing heard: open vents kept sputtering over a wreck.
+	# Why: docs/why/SectorScreen.md#hit-layers
 	if from != null and is_instance_valid(from) and not from.is_visible_in_tree():
 		return
 	match kind:
@@ -5687,16 +4556,12 @@ func _death_style(who: int) -> int:
 	return EnemyArt.death_style(combat.enemies[who].template, Run.node_at().index,
 		_wrecks_before + who)
 
-## Breakups being cut on a worker thread, by enemy: started on the frame the
-## kill resolved, picked up when its shot lands ten-odd frames later. Cutting a
-## hull is 40 to 90 ms of GDScript; on the landing frame it was a visible
-## freeze at the moment of impact (measured 105-128 ms frames).
+## Prebuilt on a worker: cutting a hull is 40 to 90 ms and froze impact at 105 to 128 ms.
+## Why: docs/why/SectorScreen.md#death-breakup
 var _prebuilt: Dictionary = {}
 
 func _prebuild_death(who: int) -> void:
-	# A creature's or the Custodian's own movement comes back to its still
-	# picture first (`FaunaMotion.settle`, four frames at most), so the cut
-	# below, ten-odd frames away, is cut from what is on screen.
+	# Creature movement settles first, so the cut matches what is on screen.
 	if _view.slot(who) != null:
 		_view.slot(who).fauna_settle()
 	if not Router.animating():
@@ -5705,10 +4570,7 @@ func _prebuild_death(who: int) -> void:
 	if sl == null or sl.art == null or who >= combat.enemies.size() or _prebuilt.has(who):
 		return
 	var e: Combat.EnemyState = combat.enemies[who]
-	# Cut from the ship drawn dead, so the breakup's last frame IS the wreck the
-	# slot and LOCAL draw afterwards (see EnemyArt.dead_canvas) -- with the marks
-	# its fight left on it, its wreck cut from the same picture, at the size the
-	# pack draws it (a pack of three or more from half sheets).
+	# Cut from the dead ship so the breakup's last frame is the wreck drawn afterwards.
 	var dc := EnemyArt.dead_canvas(e, _enemy_marks(who), sl.art.draw_scale)
 	var img: Image = dc[0]
 	var used: Rect2i = dc[1]
@@ -5786,10 +4648,7 @@ func _start_death(who: int) -> void:
 	_view.add_child(b)
 	# Under the shots and the numbers, over everything else.
 	_view.move_child(b, _view.fx.get_index())
-	# WHERE THE SHIP STANDS AT REST, not where a hit's shake or the bob has it
-	# this frame: the canvas's corner at the art's resting place in its holder.
-	# The breakup then rides the bob from that rest, and hands back to the
-	# wreck drawn at that same rest, pixel for pixel.
+	# Rest position, so the breakup hands back to the wreck pixel for pixel.
 	var rest := sl.holder_rect().position + sl._art_base
 	var canvas := rest + (art.size - _canvas_size(art)) * 0.5
 	var base := (_view.get_global_transform().affine_inverse() * canvas).round()
@@ -5797,10 +4656,8 @@ func _start_death(who: int) -> void:
 	sl.hide_art(true)
 	var entry := {b = b, art = art, y0 = sl._art_base.y, base = base}
 	_breakups.append(entry)
-	# SOUND ON EACH VISIBLE BREAK, never on the resolution (Jon's rule). The
-	# death styles' own sounds are not made yet: `moment` names every event a
-	# sound will follow and is left unheard for now; a ship's explosive breaks
-	# play today's explosion, and a creature's death plays nothing.
+	# Sound on each visible break, never on the resolution (Jon's rule).
+	# Why: docs/why/SectorScreen.md#death-breakup
 	if not e.template.fauna:
 		b.broke.connect(func(s: float) -> void:
 			Audio.kill_beat(s))
@@ -5828,20 +4685,13 @@ func _start_death(who: int) -> void:
 
 
 # ------------------------------------------------------------- your ship, lost
-#
-# Jon, Oct 13: "When you die... let's have your ship crack and explode... pause
-# for a beat... then the run ended popup shows up." The killing volley lands as
-# it always did; then your hull comes apart (`ShipLoss`, the boss-length cut of
-# a ship style), the wreck holds for WRECK_HOLD_S, and RUN ENDED follows by the
-# same door as before (`_leave_combat`). Nothing about the run changes: it was
-# over in the maths on the frame the fight resolved.
+# Your hull comes apart, holds a beat, then RUN ENDED; the run was over in the maths.
+# Why: docs/why/SectorScreen.md#ship-loss
 
 ## How long the wreck is held before the run's screen.
 const WRECK_HOLD_S := 1.0
 
-## FROM THE WRECK INTO RUN ENDED (Jon: "the transition from this to this is
-## really abrupt"). Which of the three filmed ideas plays (`DeathHandoff`):
-## "A" linger and fade, "B" pull back, "C" signal lost.
+## Which of three filmed hand-offs plays: A linger, B pull back, C signal lost.
 const DEATH_HANDOFF := "A"
 ## A harness's pick of the three, for filming them side by side; empty in play.
 static var handoff_override := ""
@@ -5981,13 +4831,8 @@ func _process(_delta: float) -> void:
 		ShipLoss.place(loss, _view, _view.ship_view())
 
 
-## THE END OF A FIGHT, once the screen has caught up with it: nothing in the
-## air, no turn playing out, no hull still coming apart.
-##
-## THE HAND-OFF for the core's guard is the `won` branch: The Custodian's
-## breakup has finished and its body is on screen as the wreck it left
-## (`EnemyArt` draws a dead ship as its breakup's wreck). From there the band is
-## lowered and `_leave_combat` hands over to `Router.after_combat`.
+## Ends once nothing is in the air; the core's guard hands off on the `won` branch.
+## Why: docs/why/SectorScreen.md#fight-end
 func _check_ending() -> void:
 	if _ending.is_empty() or _ending_started or _hold or _playing:
 		return
@@ -5998,18 +4843,13 @@ func _check_ending() -> void:
 	match r:
 		&"victory", &"won":
 			_lower_band(func() -> void:
-				# LOCAL arrives with this very layout, so it is not faded in over
-				# it; the wrecks stay exactly where the fight left them. The
-				# core's win comes to LOCAL too, with the Custodian's body opened
-				# over it (`Router.after_combat` -> `_open_core_body`).
+				# LOCAL arrives with this layout, so no fade; the wrecks stay put.
 				Router.seamless_next = true
 				# Nor the page's door sound: nothing on screen changes page.
 				Audio.suppress(&"ui_tab", 300)
 				_leave_combat())
 		&"dead":
-			# YOUR SHIP COMES APART where the shot that did it landed, then a
-			# beat on the wreck, then the run's own screen (Jon, Oct 13). With
-			# nothing animating it is the beat alone, as it always was.
+			# Your ship comes apart, a beat on the wreck, then the run's own screen.
 			if await _lose_ship():
 				# THE SCORE STEPS BACK through the gap the breakup leaves, the
 				# wreck's hold and the handoff, and comes up as Lights Out
@@ -6034,9 +4874,7 @@ func _check_ending() -> void:
 			_end_panel("COMBAT ENDED", UITheme.ICE, UITheme.LINE, String(_ending.text))
 
 
-## A contact leaving under its own power: a furnace flash and gone, off to
-## starboard. The Hellbender's escape used to be a black screen with COMBAT
-## ENDED on it (audit item 13).
+## A contact leaves under its own power; before, it was a black COMBAT ENDED screen.
 func _escape(who: int) -> void:
 	var sl := _view.slot(who)
 	if sl == null or not Router.animating():
@@ -6060,17 +4898,8 @@ func _end_panel(title: String, ink: Color, edge: Color, text: String) -> void:
 		_lower_band(_on_continue))
 
 
-## THE HAND GOES DOWN (Jon, Oct 13): "the card drawer should slowly lower after
-## a fight is won... instead of totally disappearing and the ships jerking down
-## to the center of the screen."
-##
-## LOCAL's band is one line tall and the fight's is a hand of cards, so the
-## arena grew by the difference on the frame the screen was swapped and every
-## ship dropped to its new centre at once. Now the band shrinks to exactly the
-## height LOCAL will give it -- measured off this screen's own quiet drawer,
-## filled the way LOCAL fills it -- over `LOWER_S`, two pixels a step, and the
-## ships ease down with the arena. Then the quiet strip fades in where the hand
-## was, and `then` runs on a layout identical to the one coming.
+## The band shrinks to LOCAL's height over `LOWER_S`, so the ships ease down, not drop.
+## Why: docs/why/SectorScreen.md#hand-lowering
 func _lower_band(then: Callable) -> void:
 	if _lowered:
 		then.call()
@@ -6086,9 +4915,8 @@ func _lower_band(then: Callable) -> void:
 	_sync_drawer_box()
 	var target := _one_line_height()
 	var from := _hand_holder.size.y
-	# DOWN, NEVER UP. At the core LOCAL's band says a paragraph and asked for
-	# more than the hand had, so the "lowering" grew the band and pulled every
-	# ship to the top of the screen. The body's popup covers that swap anyway.
+	# Down, never up: at the core LOCAL's band was taller and pulled ships to the top.
+	# Why: docs/why/SectorScreen.md#hand-lowering
 	target = minf(target, from)
 	if not Router.animating() or _hand_holder == null or not _hand_holder.visible:
 		_finish_lower()
@@ -6110,12 +4938,8 @@ func _lower_band(then: Callable) -> void:
 	tw.tween_callback(then)
 
 
-## How tall LOCAL's band will be. Its words wrap, and a wrapping label hidden
-## in a fight has no width to wrap to: asked as it stands, the core's line
-## measured a column of single words, most of the screen high. LOCAL gives it
-## the whole width, where one line fits, so a measure taller than the hand is
-## replaced by one line: the button's height or the text's, whichever is more,
-## inside the panel's own padding.
+## A hidden wrapping label measures as single words, so a tall measure becomes one line.
+## Why: docs/why/SectorScreen.md#hand-lowering
 func _one_line_height() -> float:
 	var measured := _quiet_wrap.get_combined_minimum_size().y
 	if measured < DRAWER_H:

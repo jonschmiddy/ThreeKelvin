@@ -1,14 +1,7 @@
 extends RefCounted
 
-## Every damage band of every hull with real art, as PNGs — plus the cost of
-## building one, which is the number that decides whether this can run in a fight.
-##
-##     godot --headless --path . -- wear
-##
-## Needs no renderer: HullWear works on an Image and an Image is a file. It also
-## PROVES the thing that matters, which is not that the grades render but that
-## they render CLEAN — the whole argument for drawing wear rather than generating
-## it is that arithmetic cannot introduce a colour, and this counts them.
+## Proves wear renders clean: arithmetic cannot introduce a colour, and this counts them.
+## Why: docs/why/WearSheet.md#wear-sheet
 
 const OUT := "user://wear"
 ## What fraction of the hull is gone at each band, for the labels. band_for()
@@ -58,9 +51,7 @@ func _sheet(h: HullData) -> int:
 				var was := src.get_pixel(x, y)
 				if c.a > 0.0:
 					opaque += 1
-					# The manufacturer's paint. Korvan flies amber, and a grade
-					# that scrubs the manufacturer colour off is a grade that costs the
-					# player the ability to tell whose ship they are looking at.
+					# Scrubbing the manufacturer paint stops the player telling whose ship it is.
 					if c.r - c.b > 0.157 and c.r > 0.392:
 						livery += 1
 				elif was.a > 0.0:

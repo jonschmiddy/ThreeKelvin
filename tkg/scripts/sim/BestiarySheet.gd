@@ -1,15 +1,7 @@
 extends RefCounted
 
-## Every enemy body at every damage band, as PNGs.
-##
-##     godot --headless --path . -- bestiary
-##
-## EnemyArt is a TextureRect but it composites CPU-side into an Image, so it
-## works with no renderer at all — the same trick WearSheet uses on hulls.
-##
-## The point of this one is the SUBSTANCE split. A whale does not weld and a
-## gunship does not scar, and this is where that gets looked at rather than
-## argued about.
+## Composites on the CPU, so it needs no renderer. Its point is the substance split in damage bands.
+## Why: docs/why/BestiarySheet.md#bestiary-sheet
 
 const OUT := "user://bestiary"
 const BANDS := ["intact", "marked", "mauled", "wrecked"]
@@ -40,9 +32,7 @@ func _sheet(art: StringName) -> void:
 	print("\n%s (%s)" % [String(art).to_upper(), kind])
 	print("  %-8s %-8s %-13s %s" % ["band", "opaque", "new colours", "build"])
 
-	# NOT added to the tree. EnemyArt composites into its own Image inside
-	# set_enemy() and only needs a parent to be SEEN, which is exactly what this
-	# does not want — and add_child() during _ready() fails anyway.
+	# Not added to the tree: it needs a parent only to be seen, and `add_child` in `_ready` fails.
 	var view := EnemyArt.new()
 	var e := Combat.EnemyState.new()
 	e.template = EnemyTemplate.new()

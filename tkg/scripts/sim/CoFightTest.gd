@@ -1,63 +1,34 @@
 class_name CoFightTest
 extends Harness
 
-## Two processes, one enemy. The end of the chain, flown rather than argued.
-##
-## `-- nettest` proves `SharedFight` and `NetSession` in one process, and that
-## is as far as one process can go: `Run` is a singleton, so a single instance
-## holds exactly one ship. Everything in `Combat`'s shared path — attaching to
-## the party's enemy, adopting a push, taking a swing, waiting on the barrier —
-## therefore CANNOT execute in nettest, and without this it would first execute
-## in front of a person.
-##
-##   godot --headless --path . -- cofight host
-##   godot --headless --path . -- cofight join CODE
-##
-## or both at once, which is how it is actually run:
-##
-##   tools/cofight.sh
-##
-## What it proves: two machines open ONE fight at one system; the enemy is
-## scaled for two and both see the same hull; each ship's cards land on the
-## other's copy of it; the enemy does not swing until both have ended their
-## turn; it swings at exactly one of them; and when it dies BOTH ships are paid.
-##
-## What it does not prove: any of it through a NAT. Nothing that runs on one
-## machine can.
+## Nettest cannot reach `Combat`'s shared path: `Run` is a singleton, one ship per process.
+## Without this it would first run in front of a person. NAT is not covered.
+## Why: docs/why/CoFightTest.md#test-purpose
 
 const CODE_TAG := "[cofight] code "
 ## Long enough for a partner to launch a second Godot, load its content tables
 ## and pick a chassis. This is a real process start, not a frame.
 const PARTNER_TIMEOUT := 45.0
-## A fight that has not ended in this many turns is a fight that is stuck. The
-## real ceiling is much lower — HeadlessSim uses 60 for a solo fight — but a
-## shared one takes a round trip per turn and the enemy is scaled for two.
+## A stuck-fight ceiling, above HeadlessSim's 60 as shared turns take a round trip.
 const TURN_CEILING := 80
-## Not `DirectTransport.DEFAULT_PORT`. This harness has to be runnable WHILE a
-## playtest is open, and two hosts on one port is the test failing for a reason
-## that has nothing to do with the code under it. The port travels inside the
-## lobby code, so the joiner needs to be told nothing.
+## Not the default port, so this runs while a playtest is open; the lobby code carries the port.
 const PORT := DirectTransport.DEFAULT_PORT + 11
 
 var _tree: SceneTree
 var _me: String = ""
-## `-- cofight host boss` / `-- cofight join CODE boss`. The core is the one
-## fight in the game that is not rolled from a node's own table, so it reaches
-## `Router.start_combat` down its own branch — which is exactly the kind of
-## second path that goes unshared without anybody deciding it should be.
+## The core reaches `Router.start_combat` down its own branch, the kind of path that goes unshared.
 var _boss: bool = false
-## `-- cofight join CODE late`. The guest holds off until the host is already
-## shooting, which is what actually happens between two people: nobody arrives
-## at a system on the same second as anybody else. Joining an OPEN fight is a
-## different path through `_open_or_join` than opening one, and it is the one a
-## playtest exercises.
+## The guest holds off until the host is shooting: joining an open fight is a different path.
+## Past turn one the guest walks in STUNNED (PROTOCOL 18), no hand until the host's END TURN.
 var _late: bool = false
-## `-- cofight host hellbender` / `-- cofight join CODE hellbender`. The roamer, flown:
-## host authority moving it on both charts, a client's jumps ticking the clock
-## through presence, the blockade refusing to auto-engage, a staggered two-ship
-## engagement, and whichever ending the fight produces — the kill's one bag, or
-## the escape leaving the same banked damage on both machines.
+## The roamer, flown: host-authority movement, presence-ticked clock, blockade and both endings.
 var _hellbender: bool = false
+## The same-second race (Nov 5), both orders: one ship opens a fight, the other another.
+## The shell checks the pair from outside: same ids, intent and wrecks.
+## Why: docs/why/CoFightTest.md#race-leg
+var _race: bool = false
+## What this ship's log said, in race mode, for the line the second ship owes.
+var _said: PackedStringArray = PackedStringArray()
 ## How long the late arrival waits. Long enough that the host is unambiguously
 ## in the fight first, short enough that the harness is not mostly sleeping.
 const LATE_ARRIVAL := 6.0
@@ -66,11 +37,7 @@ const LATE_ARRIVAL := 6.0
 const BOSS_HOST_JUMPS := 3
 const BOSS_GUEST_JUMPS := 17
 var _at: int = -1
-## Counters, and members rather than locals ON PURPOSE. A GDScript lambda
-## captures a local BY VALUE, so `count += 1` inside one increments the
-## closure's own copy and the outer variable never moves. The first version of
-## this file did exactly that and reported zero partner shots on both machines —
-## which looks precisely like the network being broken.
+## Members, not locals: a lambda captures a local by value, which reported zero partner shots.
 var _partner_shots: int = 0
 var _swings_at_me: int = 0
 var _seen_hit: int = 0
@@ -86,6 +53,7 @@ func run(tree: SceneTree) -> void:
 	_boss = "boss" in argv
 	_late = "late" in argv
 	_hellbender = "hellbender" in argv
+	_race = "race" in argv
 	_me = "HOST" if hosting else "GUEST"
 
 	if hosting:
@@ -94,9 +62,7 @@ func run(tree: SceneTree) -> void:
 		await _join(argv)
 	if _fails == 0:
 		await _fly()
-	# THE OTHER SHIP MAY STILL BE READING. A host that quits the moment it has
-	# printed takes the party down under a guest still waiting on the last claim
-	# push, and the guest's table is cleared with it ("buyer nobody").
+	# The other ship may still be reading: a host quitting early clears the guest's table.
 	await _until(func() -> bool: return false, 3.0)
 
 	print("")
@@ -114,9 +80,7 @@ func _host() -> void:
 	if code.is_empty():
 		_fail("could not host: %s" % Net.last_error())
 		return
-	# The tag the shell script greps for. Printed on its own line and nowhere
-	# else, so the joiner's argument cannot come from a log line about
-	# something similar.
+	# The tag the shell script greps for, printed alone so the joiner's argument is unambiguous.
 	print(CODE_TAG + LobbyCode.pretty(code))
 	Net.set_ready(true)
 	var came := await _until(func() -> bool:
@@ -158,15 +122,15 @@ func _fly() -> void:
 	await _tree.process_frame
 	print("  %s flying a %s, galaxy seed %d" % [
 		_me, Run.hull.display_name(), Run.galaxy_seed])
-	# The seed is shared and the LOOT STREAM MUST NOT BE. Printed rather than
-	# asserted here because a single process cannot see the other one's — the
-	# shell script compares the two lines, which is the only place the claim can
-	# actually be checked.
+	# The seed is shared, the loot stream must not be; the shell compares the two lines.
 	print("[cofight] seat %d" % Rng.seat)
 	print("[cofight] lootseed %d" % Rng.loot.seed)
 
 	if _hellbender:
 		await _hellbender_leg()
+		return
+	if _race:
+		await _race_legs()
 		return
 
 	_at = _find(MapGen.NodeType.CORE) if _boss else _find(MapGen.NodeType.SYSTEM)
@@ -180,11 +144,14 @@ func _fly() -> void:
 		print("  GUEST holding off %.0fs so the host opens the fight first"
 			% LATE_ARRIVAL)
 		await _until(func() -> bool: return false, LATE_ARRIVAL)
+		# what the log says from here: the stun, then the turn (a stunned ship
+		# counts as ended, so the host's END TURN can move the turn the frame
+		# after this ship is seated; the log keeps the order)
+		Sig.log_line.connect(func(t: String, _k: StringName) -> void: _said.append(t))
 
-	# ONE CUSTODIAN FOR THE GALAXY (PROTOCOL 16, Jon, Nov 4): the two ships at
-	# different jumps, the guest ahead. Its presence says 17, the host folds it
-	# and pushes it back, and both machines grow the boss and draw the badge on
-	# the lead ship's 17 (the shell compares the `custodian` lines)
+	# One Custodian for the galaxy (PROTOCOL 16, Jon, Nov 4): the guest's 17 is pushed back.
+	# Both machines grow the boss and draw the badge on the lead ship.
+	# Why: docs/why/CoFightTest.md#custodian
 	if _boss:
 		Run.jumps = BOSS_GUEST_JUMPS if _me == "GUEST" else BOSS_HOST_JUMPS
 		Net._mark_presence()
@@ -192,26 +159,17 @@ func _fly() -> void:
 			return Net.galaxy_jumps == BOSS_GUEST_JUMPS and Run.custodian_jumps() == BOSS_GUEST_JUMPS, 10.0)
 		_ok("both ships know the lead ship's %d jumps (own %d, count %d)" % [BOSS_GUEST_JUMPS, Run.jumps,
 			Run.custodian_jumps()], agreed)
-	# Placed rather than flown. Adjacency and fuel are not what is under test,
-	# and making both ships legally reach one system means routing two of them
-	# across a map neither has explored — which would test the pathfinder.
+	# Placed, not flown: routing two ships across an unexplored map would test the pathfinder.
 	Run.at = _at
 	Run.map[_at].visited = true
 	Router.resolve_current_node()
-	# The core does not open on arrival any more — it is a place you land at and
-	# then commit to, which is the whole point of the change and the reason a
-	# party can be at the boss together at all. So this presses ENGAGE, which is
-	# what `SectorScreen._on_action` does with the button the player sees.
+	# The core opens on ENGAGE, not on arrival, which is why a party can be at the boss together.
 	await _tree.process_frame
 	if _boss:
 		Router.engage_here()
 	else:
-		# NO SYSTEM HOLDS A FIGHT ON ARRIVAL ANY MORE: its hostiles are an option
-		# you choose, and waiting for one to open by itself waited forever. So
-		# this opens the fight that option would, the same template on both
-		# machines (picked by the node, not by either ship's stream), shared and
-		# clearing the node as the old fight node did, which is what the bag and the
-		# consumed-system checks below were written against.
+		# No system holds a fight on arrival; this opens the one the option would, on both.
+		# Why: docs/why/CoFightTest.md#fight-opening
 		var pool := DB.fight_pool(Run.node_at().danger, false)
 		Router.start_combat(DB.enemies[pool[_at % pool.size()]], [], true, true)
 
@@ -220,37 +178,56 @@ func _fly() -> void:
 	if not _ok("the fight started", started):
 		return
 	var cb: Combat = Router.combat
-	# Not immediately. `Router.start_combat` assigns `combat` and THEN asks the
-	# party, so there is a real window — one round trip on a client, nothing on
-	# the host — where the fight exists and is not yet shared. Checking inside it
-	# is how this test failed the first time it ran, and the window is worth
-	# knowing about: it is also a moment where a screen draws a fight with no
-	# hand in it.
+	# Not immediately: `Router.start_combat` assigns `combat` then asks the party.
+	# Why: docs/why/CoFightTest.md#shared-window
 	var shared := await _until(func() -> bool: return cb.is_shared(), 15.0)
 	if not _ok("and it is the party's fight, not a private one", shared):
 		return
+	# LATE: the host ends its first turn alone, so the guest walks in on turn 2
+	if _late and _me == "HOST":
+		cb.end_turn()
+		_ok("the host ended its first turn alone: turn 2 before the guest arrives", await _until(func() -> bool:
+			return Net.fight_at(_at) != null and Net.fight_at(_at).turn >= 2 and not cb.waiting, 10.0))
 
-	# Both ships have to be IN it before either ends a turn, or the first one
-	# closes a barrier of one and this quietly measures a solo fight with extra
-	# round trips in it.
+	# Both ships must be in before either ends a turn, or a barrier of one measures a solo fight.
 	var together := await _until(func() -> bool:
 		var f := Net.fight_at(_at)
 		return f != null and f.crew.size() >= 2, PARTNER_TIMEOUT)
 	if not _ok("both ships are in the same fight%s" % (
 			" the host had already opened" if _late else ""), together):
 		return
+	# A stunned ship counts as ended, so the host's next END TURN moves the
+	# turn at once: it holds a moment first, so the guest is seen stunned
+	# rather than seated straight into turn 3 (which is right too: the swing is
+	# held for it, `MidJoinTest`)
+	if _late and _me == "HOST":
+		await _until(func() -> bool: return false, 3.0)
+	if _late and _me == "GUEST":
+		await _until(func() -> bool: return _said.has("Stunned. You act after the enemy's turn."), 3.0)
+		print("  GUEST seated: the fight's turn %d, stunned %s, said %s" % [Net.fight_at(_at).turn,
+			str(Net.fight_at(_at).stunned), str(_said)])
+		var stun_at := _said.find("Stunned. You act after the enemy's turn.")
+		_ok("the guest walked in after turn 1: stunned (the log says so, line %d)" % stun_at, stun_at >= 0)
+		var freed := await _until(func() -> bool: return not cb.stunned and not cb.hand.is_empty(), 30.0)
+		_ok("the host's END TURN moved the turn: the stun is gone and the hand came (turn %d, \"Your turn.\" at %d)" % [
+			cb.turn, _said.find("Your turn.")], freed and _said.find("Your turn.") > stun_at)
 
 	var f0 := Net.fight_at(_at)
 	var scaled := f0.foes[0].max_hp
-	var solo := f0.foes[0].base
-	print("  %s sees %s at %d hull — one ship's worth is %d" % [
-		_me, cb.enemies[0].template.name, scaled, solo])
-	_ok("the enemy is scaled for the crew, not for one ship", scaled > solo)
+	var solo := Combat.new()
+	solo.plan(cb.enemies[0].template, Run.node_at().danger, [], 1)
+	var two := Combat.new()
+	two.plan(cb.enemies[0].template, Run.node_at().danger, [], 2)
+	print("  %s sees %s at %d hull, built for %d players; one player's is %d" % [
+		_me, cb.enemies[0].template.name, scaled, f0.party, solo.enemies[0].max_hp])
+	_ok("the enemy is built for the game's two players (%d), not one (%d)" % [two.enemies[0].max_hp, solo.enemies[0].max_hp],
+		f0.party == 2 and scaled == two.enemies[0].max_hp and scaled > solo.enemies[0].max_hp)
 	_ok("and both machines agree what it is",
 		cb.enemies[0].max_hp == scaled)
 	if _boss:
-		_ok("the Custodian is grown at the lead ship's %d jumps (%d, one ship's worth %d)" % [BOSS_GUEST_JUMPS, f0.grown, solo],
-			f0.grown == BOSS_GUEST_JUMPS and solo == (DB.enemies[&"custodian"] as EnemyTemplate).hull_at(BOSS_GUEST_JUMPS))
+		_ok("the Custodian is grown at the lead ship's %d jumps for two (%d, %d)" % [BOSS_GUEST_JUMPS, f0.grown, scaled],
+			f0.grown == BOSS_GUEST_JUMPS and scaled == PartyScale.party_hull(
+				(DB.enemies[&"custodian"] as EnemyTemplate).hull_at(BOSS_GUEST_JUMPS), 2))
 		print("[cofight] custodian hull %d grown %d count %d stage %s" % [scaled, f0.grown,
 			CustodianBadge.count(), CustodianBadge.stage(CustodianBadge.count())])
 
@@ -264,10 +241,7 @@ func _fly() -> void:
 ## The fight itself. Deliberately not HeadlessSim's loop: that one runs inside a
 ## single frame, and every turn here needs the tree to tick so the wire moves.
 func _play(cb: Combat) -> void:
-	# Counted off the signals, not polled once a turn. Polling was the first
-	# version and it undercounted: a push carries the LAST hit, one push per hit,
-	# so a reader that looks once a turn sees one shot out of however many landed
-	# in that window. The events are the truth and there is one per hit.
+	# Counted off signals: a push carries the last hit, so once-a-turn polling undercounted.
 	_partner_shots = 0
 	_swings_at_me = 0
 	_seen_hit = 0
@@ -281,7 +255,7 @@ func _play(cb: Combat) -> void:
 		# Yield first. A turn that opens the instant the last one closed gives
 		# the socket no frame to deliver anything in.
 		await _tree.process_frame
-		if cb.waiting:
+		if cb.waiting or cb.stunned or cb.asking_at >= 0:
 			continue
 		turns += 1
 		var acted := true
@@ -326,37 +300,22 @@ func _play(cb: Combat) -> void:
 		% [_me, _swings_at_me, hp_before - Run.hp, _partner_shots])
 	_ok("the other ship's cards landed on this machine's copy of the enemy",
 		_partner_shots > 0)
-	# Winning a fight gets you the loot, and everyone still in it when the last
-	# hull came apart is in it. Both processes assert this about themselves,
-	# which is the only way to check "both were paid" without a third observer.
+	# Each process asserts its own payout: the only way to check both were paid.
 	if cb.result == &"victory":
 		_ok("and the win paid THIS ship", Run.kills == kills_before + 1)
-		# The hellbender is a visitor: killing it must NOT consume the system it
-		# happened to be caught in. Its own leg asserts that; the ordinary
-		# contact still has to consume its node.
+		# Killing the hellbender must not consume its system; waited for, as a push trails.
 		if not _hellbender:
-			_ok("and consumed the system for the party", Run.map[_at].cleared)
-		await _bag(cb)
+			_ok("and consumed the system for the party", await _until(func() -> bool:
+				return Run.map[_at].cleared, 5.0))
+		# The race legs compare their wrecks from outside and reach for nothing:
+		# a part taken in one leg would sit in the hold through the next.
+		if not _race:
+			await _bag(cb)
 
 
-## One kill, one set of wrecks, and one hand on each part.
-##
-## The third contested thing in the game, and the one the last playtest asked
-## for by name. Before the bag a shared kill paid each ship its own private
-## roll -- duplication solved and distribution never attempted: one frigate paid
-## the party twice. The bag became a WRECK per hull you killed (`Combat`,
-## `MapGen.Jetsam`), reached into with `Run.take_from_jetsam` / `take_item`;
-## what it guards did not change. It is checked from outside, because neither
-## process can see the other's hold.
-##
-## Four claims, and they are not the same claim:
-##   the wrecks MATCH on both machines -- they belong to the system, so they are
-##     rolled positionally and every ship is looking at one pile (`wreck`);
-##   nothing was paid privately -- a hold with something already in it means a
-##     per-ship roll is still running somewhere;
-##   exactly ONE ship walks away with the part both reached for (`took`);
-##   and both machines agree WHO has it (`taker`), which is what the sector's
-##     "X took it" line and a later reach are built on.
+## One kill, one set of wrecks, one hand per part: checked from outside, as neither sees the other.
+## Four claims: wrecks match, nothing paid privately, one ship took it, both agree who.
+## Why: docs/why/CoFightTest.md#wreck-bag
 func _bag(cb: Combat) -> void:
 	var n: MapGen.MapNode = Run.map[_at]
 	var wrecks: Array = []
@@ -388,19 +347,15 @@ func _bag(cb: Combat) -> void:
 				if at < 0:
 					h0 = h
 					at = i
-	# Each wreck rolls its parts once per ship the party paid (Jon, Oct 13: each
-	# kill is its own chance -- see `Combat.roll_wreck`), so the count is a roll
-	# and not a floor. What it must be is exactly the roll for this crew: both
-	# machines have to agree on that number or they are not looking at the same
-	# pile -- see SharedFight.paid.
+	# Each wreck rolls once per paid ship; both machines must agree on that count.
 	var hands := cb.wreck_hands
 	var expect := 0
 	for i in wrecks.size():
 		var w: MapGen.Jetsam = wrecks[i]
-		for m in Combat.roll_wreck(n, DB.enemies[w.art], i, hands):
+		for m in Combat.roll_wreck(n, DB.enemies[w.art], i, PartyScale.loot(hands)):
 			if m is ModuleData:
 				expect += 1
-	_ok("sized for the crew, not for one ship (%d parts for %d hands, the roll says %d)"
+	_ok("sized for the game's players, not for one ship (%d parts for %d players, the roll says %d)"
 		% [parts, hands, expect], hands >= 2 and parts == expect)
 	if not _ok("and there is a part to reach for", at >= 0):
 		return
@@ -424,10 +379,7 @@ func _bag(cb: Combat) -> void:
 		got == Run.cargo.has(wanted))
 	_ok("and a part somebody took is marked taken for everybody",
 		n.taken.has(h0.option(at)))
-	# By NAME off the claims table, which is the party's record and the same on
-	# every machine -- not "me" or "them", which flips between the two.
-	# (the host's table reaches the loser as a push, which can trail its own
-	# refusal: wait for it rather than print a table that has not arrived)
+	# By name off the claims table, the party's record; 'me' and 'them' flip between machines.
 	await _until(func() -> bool: return Net.who_took(n.index, h0.option(at)) != 0, 5.0)
 	print("[cofight] taker %s" % _claimant(n.index, h0.option(at)))
 
@@ -454,24 +406,18 @@ func _hellbender_leg() -> void:
 		return
 
 	if _me == "HOST":
-		# One stride of party jumps, whatever this crew's stride is. This is the
-		# call jump_to() makes, made bare so the leg does not depend on fuel or
-		# adjacency.
+		# One stride of party jumps, the call `jump_to()` makes, so fuel and adjacency are moot.
 		var was := Run.hellbender_at
 		for i in Run.hellbender_stride():
 			Run.hellbender_jumped()
 		_ok("one stride moved it on the authority's chart", Run.hellbender_at != was)
 	else:
-		# The same call is a NO-OP on a client — proving the guard, not the
-		# wire. No awaits between the capture and the check, so a host push
-		# cannot land in the middle and fake a failure.
+		# The same call is a no-op on a client, proving the guard; no awaits, so no faked failure.
 		var was := Run.hellbender_at
 		for i in Run.hellbender_stride():
 			Run.hellbender_jumped()
 		_ok("a client cannot move it", Run.hellbender_at == was)
-		# Then the guest jumps a stride's worth, the only way the host can see:
-		# presence. Each hop moves `at` and says so, which is what a real jump
-		# does — this is the _apply_presence clock, flown.
+		# The guest jumps a stride; the host sees only presence, so each hop moves `at`.
 		var a := Run.at
 		var b := int(Run.map[a].links[0])
 		for i in Run.hellbender_stride():
@@ -517,16 +463,14 @@ func _hellbender_leg() -> void:
 	if not _ok("both ships are in it", together):
 		return
 	var f0 := Net.fight_at(_at)
-	print("  %s sees the Hellbender at %d of %d hull — one ship's worth is %d" % [
-		_me, f0.foes[0].hp, f0.foes[0].max_hp, f0.foes[0].base])
-	_ok("scaled for the crew, not for one ship",
-		f0.foes[0].max_hp > f0.foes[0].base)
+	print("  %s sees the Hellbender at %d of %d hull, built for %d players" % [
+		_me, f0.foes[0].hp, f0.foes[0].max_hp, f0.party])
+	_ok("built for the game's two players (%d), not one (%d)" % [f0.foes[0].max_hp, Run.hellbender_max],
+		f0.party == 2 and f0.foes[0].max_hp == PartyScale.party_hull(Run.hellbender_max, 2))
 
 	await _play(cb)
 
-	# The two endings a hellbender fight can have, and what each must leave true on
-	# BOTH machines. The dive seed decides which one this run takes; either way
-	# the fate line has to match across the pair, which only the shell can see.
+	# Two possible endings, each must leave the fate line matching on both machines.
 	if cb.result == &"victory":
 		_ok("the rival is dead on this machine's chart", not Run.hellbender_alive())
 		_ok("and its system was not consumed by the kill",
@@ -543,6 +487,92 @@ func _hellbender_leg() -> void:
 		print("[cofight] hellbenderfate %s" % cb.result)
 
 
+## THE SAME-SECOND RACE, both orders. See `_race` above.
+func _race_legs() -> void:
+	Sig.log_line.connect(func(t: String, _k: StringName) -> void: _said.append(t))
+	var a := _find(MapGen.NodeType.SYSTEM)
+	var b := -1
+	for i in Run.map.size():
+		var n: MapGen.MapNode = Run.map[i]
+		if i > a and n.type == MapGen.NodeType.SYSTEM and not n.cleared 				and n.region != MapGen.Region.FAUNA:
+			b = i
+			break
+	if not _ok("the shared galaxy holds two systems to race at", a >= 0 and b >= 0):
+		return
+	await _race_leg(1, a, "HOST", [&"cutter", &"lancer"], [&"hulk"])
+	if _fails == 0:
+		await _race_leg(2, b, "GUEST", [&"marauder"], [&"lancer", &"hulk"])
+
+
+## One leg: `first` opens `opened` at system `at`; the other ship, once it can
+## see that fight, starts `asked` there without looking.
+func _race_leg(leg: int, at: int, first: String, opened: Array, asked: Array) -> void:
+	_at = at
+	Run.at = at
+	Run.map[at].visited = true
+	# whole again, cold, and no ambush of this ship's own on the way in: the
+	# leg is the race, not the last leg's damage
+	Run.hp = Run.max_hp()
+	Run.heat = 0
+	Run.map[at].ambush_rolled = true
+	Run.map[at].ambush_pending = false
+	Router.resolve_current_node()
+	await _tree.process_frame
+	var mine: Array = opened if _me == first else asked
+	if _me != first:
+		var seen := await _until(func() -> bool: return Net.fight_open_at(at), PARTNER_TIMEOUT)
+		if not _ok("leg %d: %s sees the fight %s opened" % [leg, _me, first], seen):
+			return
+		Router.forced_race = true
+	_said.clear()
+	Router.start_combat(DB.enemies[mine[0]], mine.slice(1).map(
+		func(id: StringName) -> EnemyTemplate: return DB.enemies[id]), true, true)
+	var cb: Combat = Router.combat
+	var shared := await _until(func() -> bool: return cb != null and cb.is_shared(), 15.0)
+	if not _ok("leg %d: %s is in the party's fight" % [leg, _me], shared):
+		return
+	var together := await _until(func() -> bool:
+		var f := Net.fight_at(at)
+		return f != null and f.crew.size() >= 2, PARTNER_TIMEOUT)
+	if not _ok("leg %d: both ships are in it" % leg, together):
+		return
+	var ids := PackedStringArray()
+	var intents := PackedStringArray()
+	for e in cb.enemies:
+		ids.append(String(e.template.id))
+		intents.append(e.intent.name if e.intent != null else "?")
+	var want := PackedStringArray(opened.map(func(id: StringName) -> String: return String(id)))
+	_ok("leg %d: %s fights the fight %s opened (%s), whatever it asked for" % [leg, _me, first, ",".join(ids)],
+		ids == want and cb.foe_ids() == want and Net.fight_at(at).foe_ids == want)
+	if _me != first:
+		var line := "%s got here first. You join their fight." % Router.opener_name(Net.fight_at(at))
+		_ok("leg %d: and its log says \"%s\"" % [leg, line], _said.has(line))
+	print("[cofight] race%d ids %s" % [leg, ",".join(ids)])
+	print("[cofight] race%d intents %s" % [leg, "|".join(intents)])
+	await _play(cb)
+	print("[cofight] race%d outcome %s" % [leg, _outcome])
+	print("[cofight] race%d wreck %s" % [leg, _wreck_desc(at)])
+	# the fight's own hand-off, played out before the next leg starts one
+	await _until(func() -> bool: return Router.combat == null, 5.0)
+	if Router.combat != null and Router.combat.finished:
+		Router.after_combat(Router.combat)
+	await _until(func() -> bool: return false, 1.0)
+
+
+## The wrecks at a system, for the cross-process comparison.
+func _wreck_desc(at: int) -> String:
+	var desc := PackedStringArray()
+	for raw in Run.map[at].jetsam:
+		var h: MapGen.Jetsam = raw
+		if not h.is_wreck():
+			continue
+		var ids := PackedStringArray()
+		for m in h.items:
+			ids.append(_item_id(m))
+		desc.append("%s[%s]" % [h.art, ",".join(ids)])
+	return "|".join(desc) if desc.size() > 0 else "none"
+
+
 func _count_hit(_at2: int) -> void:
 	var f := Net.fight_at(_at)
 	if f == null or f.hit_serial <= _seen_hit:
@@ -556,13 +586,8 @@ func _count_swing(_a: int, _w: int, _k: int, _p: int) -> void:
 	_swings_at_me += 1
 
 
-## And then both ships dock at the same station and reach for the same part.
-##
-## The shelf is the second contested thing in the game and the first that is a
-## LIST: a wreck is taken whole, a shelf is taken a part at a time. It is also
-## the one that looked correct in a playtest — the stock IS meant to be
-## identical on both machines, because it is one shop — so the bug was not in
-## the roll, it was that buying only emptied the local copy.
+## The shelf is the first contested list; buying only emptied the local copy.
+## Why: docs/why/CoFightTest.md#shop-leg
 func _shop() -> void:
 	var here := _find(MapGen.NodeType.STATION)
 	if not _ok("the shared galaxy holds a station to share", here >= 0):
@@ -570,11 +595,7 @@ func _shop() -> void:
 	Run.at = here
 	Run.map[here].visited = true
 	Run.add_credits(100000)
-	# Docking without the screen: the station's decks are a windowed scene and
-	# cannot be stood up headless, and the shelf is what is under test, not the
-	# page drawn over it. So the shelf is stocked exactly as docking stocks it
-	# -- `StationScreen._stock_up`, positional off the station -- and bought
-	# from below.
+	# Docking without the screen, which cannot stand up headless: stocked as docking stocks it.
 	Router.resolve_current_node()
 	await _tree.process_frame
 	var stocker := StationScreen.new()
@@ -584,9 +605,7 @@ func _shop() -> void:
 	var n: MapGen.MapNode = Run.map[here]
 	if not _ok("the shelf has something on it", n.shop.size() > 0):
 		return
-	# What the shop rolled, printed for the cross-process comparison. This one is
-	# meant to MATCH: a station's shelf belongs to the station, so it is drawn
-	# positionally and four ships docking in four different orders see one shelf.
+	# Meant to match: a station's shelf is drawn positionally, so four orders see one shelf.
 	var shelf := PackedStringArray()
 	for m in n.shop:
 		shelf.append(String(m.id))
@@ -602,9 +621,7 @@ func _shop() -> void:
 	if not _ok("both ships are at the same station", both):
 		return
 
-	# The purchase as every buyer makes it -- the screen's "buy" and the bot's
-	# `_buy` are this, in this order: room first, then ASK the party, and pay
-	# only if you won.
+	# The purchase as every buyer makes it: room first, then ask the party, pay only if you won.
 	var before := Run.credits
 	var wanted: ModuleData = n.shop[0]
 	var price := Market.ask(n, wanted)
@@ -625,19 +642,8 @@ func _shop() -> void:
 	print("[cofight] buyer %s" % _claimant(n.index, MapGen.OPTION_SHOP))
 
 
-## The first system of a kind, skipping the one you start on.
-##
-## One function rather than three. `_find_station`, `_find_fight` and
-## `_find_goal` were the same six lines with the type constant swapped, and
-## `ContractTest` — written the same day — had already generalised it. A third
-## copy was one type constant's worth of value.
-##
-## `cleared` is honoured for a FIGHT because a spent contact is not a fight to
-## share; a station and the core do not go away. Migration-route fights are
-## skipped too, and that one was learned from a flaking run: a fauna kill pays
-## exotic and ZERO module drops by design, so there is no bag at the node and
-## the bag leg fails on a fight that behaved perfectly. The harness is here to
-## measure the shared kill's payout, which needs a kill that pays one.
+## One function, not three copies. Fauna fights are skipped: they pay no drops.
+## Why: docs/why/CoFightTest.md#find-a-system
 func _find(t: MapGen.NodeType) -> int:
 	for i in Run.map.size():
 		var n: MapGen.MapNode = Run.map[i]
@@ -659,15 +665,9 @@ func _score(c: CardData, cb: Combat) -> float:
 		return -1.0
 	if c.energy_gain > 0:
 		return 95.0
-	# NOT Policy.vent_cold, and deliberately not. `Policy` is the balance model
-	# and its thresholds are a dial that gets swept -- see the sweep that set
-	# them after the end-of-turn shed was deleted. This scorer only has to end a
-	# fight, per the header above, and coupling it to a balance dial would mean
-	# retuning the economy could change whether a CO-OP TEST passes.
-	#
-	# 0.7 still holds under the new heat rules for the reason it always did: it
-	# is comfortably under the cap, and a vent card now sheds more than it
-	# prints, so this bot cools better than it used to rather than worse.
+	# Not `Policy.vent_cold`: it is a swept balance dial and must not decide a co-op test.
+	# 0.7 holds under the new heat rules, as vent cards shed more than they print.
+	# Why: docs/why/CoFightTest.md#bot-scoring
 	if c.vent > 0 and Run.heat > Run.heat_cap() * 0.7:
 		return 85.0
 	if c.damage > 0:

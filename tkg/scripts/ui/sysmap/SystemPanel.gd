@@ -1,47 +1,7 @@
 extends VBoxContainer
 
-## THE SECTOR MAP'S PANEL, on the right of the map in the star chart's own type.
-##
-## TWO PAGES, NOT SIX (Jon: "It's not super clear right now to the user what the
-## actual events are in a particular sector. There are also multiple different
-## pages for the right panel ... It could be super simplified"; he picked B on
-## the "Sector Panel Rethink" mockup). It had a sector page, a star page, a
-## world page, an encounter page, a page each for DOCK and HARVEST, and a result
-## page, and the list of beacons was printed on three of them. Now:
-##   LIST   every event in the sector as a card: its title, its tag word in its
-##          colour, where it is, and its first line -- or, once it is over, a
-##          stamp saying how it ended and a line of what came of it. DOCK,
-##          HARVEST and the custodian are cards with their button on them.
-##          Clicking a world or the star on the map narrows the list to that
-##          place, with its picture, its facts and FLY HERE on top; SHOW ALL
-##          widens it again. There is no star page and no world page.
-##   EVENT  one encounter: its place, where you are, its one sentence and GO.
-##          GO flies you there and down into LOCAL, where the event's text, its
-##          choices and how it went come up (`LocalEventDrawer`) -- the one
-##          place a choice is taken. A walked-away one stays LEFT ALONE, open.
-##
-## THE PAIR IS SHOWN WHEN IT MATTERS (Jon: "hovering over an option would grey
-## it out and would say WILL BE MADE UNAVAILABLE"). No divider and no warning
-## line: pointing at a card greys its rival and says so top right; pointing at a
-## choice that would take the event says what it would close; once taken, the
-## rival is stamped UNAVAILABLE.
-##
-## THE STAMP (Jon picked treatment 1 of three): a finished card dims hard and
-## wears a solid badge with a pixel mark -- a tick in its band's colour, a cross
-## on grey for UNAVAILABLE, a figure on the partner colour with their name -- and
-## LEFT ALONE is an outline badge on a card that stays bright, because it is
-## still there to take. What each state means is `EncounterDrawer.option_state`.
-##
-## IN ORBIT, THE CHOICES (Jon: "you can either fly to a planet... get in its orbit,
-## and the right panel updates with info on the planet, the picture of the
-## planet, and the choices. OR you click on the choices and that moves you to the
-## planet's orbit"). A place's page is its picture, its facts, whether you are in
-## orbit of it, and every event there with its one sentence and GO; GO flies you
-## into orbit first if you are not there, then down into LOCAL to take it (the
-## choices moved there: events resolve on LOCAL). The star's page is the same,
-## with its own picture and the worlds that go round it.
-##
-## The screen owns the rules; this only builds what is shown and calls back.
+## Two pages, not six (Jon picked B on the Sector Panel Rethink mockup); the screen owns the rules.
+## Why: docs/why/SystemPanel.md#panel-design
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const KeyGlyphS := preload("res://scripts/ui/sysmap/KeyGlyph.gd")
@@ -49,10 +9,7 @@ const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 ## A locked choice: dimmed this far, and still clickable.
 const LOCKED_A := 0.55
 
-## The chart's panel width, and the width its text wraps at: the panel less the
-## scroll bar and its gutter (`UITheme.BAR_W`), so a page that scrolls keeps
-## every word and value clear of the bar (Jon, Oct 20: "the scroll bar covers
-## up text") without the panel widening when the bar comes.
+## Wrap width leaves room for the scroll bar so the panel does not widen (Jon, Oct 20).
 const W := 236
 const TEXT_W := W - UITheme.BAR_W
 const DIM := Color("#55647a")
@@ -71,9 +28,7 @@ var _portrait: Node2D = null
 var _portraits: Array[Node2D] = []
 ## Which page is up: &"list" or &"event".
 var mode: StringName = &"list"
-## The place the list is narrowed to: a body, -1 the star (star A of two suns),
-## `SystemLayout.STAR_B` (-4) star B, -2 nowhere. Any negative filter shows the
-## sector's page, which is the star's (both suns' in a pair).
+## Filter: a body, -1 star A, `SystemLayout.STAR_B` star B, -2 nowhere; negatives show the star.
 var filter: int = -2
 ## The option whose page is up.
 var open_opt: int = -1
@@ -104,10 +59,10 @@ func _init() -> void:
 
 ## Whether the list's foot is offering JOIN FIGHT. A partner's fight opening or
 ## ending here rebuilds the list; a push about one three systems away does not.
-var _join_shown := false
+var _join_shown := Router.JOIN_NONE
 
 func _on_party_fight(_at: int) -> void:
-	if mode == &"list" and is_inside_tree() and Router.can_join_fight() != _join_shown:
+	if mode == &"list" and is_inside_tree() and Router.join_state() != _join_shown:
 		_list()
 
 
@@ -208,9 +163,7 @@ func _small(text: String, on: Callable, off := false) -> Button:
 	return b
 
 
-## DOCKED, A WAY OFF THE BERTH IS GREYED AND SAYS HOW TO LEAVE (Jon, Oct 27:
-## UNDOCK is the only way out): FLY HERE and GO read DOCKED. GO used to take an
-## event at the station's own body straight down to LOCAL, undocking there.
+## Docked, a way off the berth is greyed (Jon, Oct 27: UNDOCK is the only way out).
 func _docked_small(text: String) -> Button:
 	var b := _small(text, func() -> void: pass, true)
 	b.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
@@ -248,12 +201,8 @@ func _spacer() -> Control:
 
 
 # ---------------------------------------------------------------- what is in the sector
-## Every event in the sector, as [body, beacon], in the order of their places'
-## names (I, II, III), as the SATELLITES list below them goes (`_satellites`,
-## "list:C"); the pulsar's own on the star (beacon null). Round one sun that is
-## the order the bodies were made in, as ever; in a binary the cards read III,
-## IV, I over a list that read I to V (KAPPA AUGUR-9 on seed 7, the picks
-## review, Nov 1). What < and > step through follows (`_encounters`).
+# Cards read in place-name order like the satellites list; a binary once read III, IV, I.
+# Why: docs/why/SystemPanel.md#event-order
 func _events() -> Array:
 	var L: SystemLayout = screen.view.layout
 	var out: Array = []
@@ -295,9 +244,7 @@ func _body_of_opt(i: int) -> int:
 	return at if SystemLayout.is_place(at) else -1
 
 
-## A place's name. A star by its own (`SystemLayout.star_title`: "<system> A"
-## and "<system> B" of two suns); anything else negative reads as the star, as
-## it always did.
+## A star uses its own title; any other negative reads as the star, as before.
 func _place_name(body: int) -> String:
 	var v = screen.view
 	if body < 0:
@@ -327,8 +274,7 @@ func _there_word(body: int) -> String:
 	return "ALONGSIDE" if k == &"belt" or k == &"station" or k == &"derelict" or k == &"contact" else "IN ORBIT"
 
 
-## The line a locked page carries over its choices: a choice flies you there,
-## but only out of an orbit (`ShipFlight.can_fly`).
+## Shown when GO cannot fly there yet; `LOCKED_LINE` is shown nowhere now (Jon, Nov 5).
 const LOCKED_LINE := "GO FLIES YOU THERE, THEN DOWN TO IT"
 const WAIT_LINE := "GO ONCE YOU ARE IN AN ORBIT"
 ## on the way to it already
@@ -411,9 +357,7 @@ func _tags_bb(o: Dictionary) -> String:
 
 
 # ---------------------------------------------------------------- the stamp
-## The badge on a card that is not simply open: solid in its band's colour with
-## a tick, grey with a cross for UNAVAILABLE, the partner colour with a figure,
-## and an outline with an arrow back for LEFT ALONE.
+# Badge for a card that is not simply open: tick, cross, figure or arrow by state.
 func _badge(st: Dictionary) -> Control:
 	var ink: Color = st.ink
 	var bg := ink
@@ -521,30 +465,34 @@ func _list() -> void:
 		_eyebrow("ON %s · %d EVENT%s" % [_place_name(filter), shown.size(), "" if shown.size() == 1 else "S"])
 	else:
 		_eyebrow("EVENTS · %d OPEN OF %d" % [open, all.size()])
+	var goes := false
 	for pair in shown:
-		if filter >= 0 and pair[1] != null and pair[1].opt >= 0 and _is_open(pair[1].opt):
+		if filter >= 0 and _open_event(pair):
 			_place_event(pair[0], pair[1].opt)
+			goes = true
 		else:
 			_box.add_child(_card(pair[0], pair[1]))
 	if filter >= 0 and shown.is_empty() and not all.is_empty():
 		_eyebrow("NOTHING HERE WANTS YOU", DIM)
 	if filter < 0:
 		_satellites()
-	# SECTOR LOOT ONLY WHEN THERE IS SOME (Jon: "Why does the first sector have a
-	# SECTOR LOOT button? I can click it, but it doesn't do anything"): the floor
-	# of jettisoned things, as the sector screen counts it; with nothing on it
-	# there is no button, since only pressable things look pressable
+	# No SECTOR LOOT button with nothing on the floor (Jon): only pressable things look pressable.
 	var n_loot: MapGen.MapNode = screen.view.node
 	if Run.jetsam_left(n_loot, Run.sector_loot(n_loot)) > 0:
 		_act("SECTOR LOOT", func() -> void: screen.open_sector_loot())
 	# A PARTNER IS FIGHTING IN THIS SYSTEM: the way in, from wherever you are in
 	# it (Oct 22 playtest: there was no way into a partner's fight at all)
-	_join_shown = Router.can_join_fight()
-	if _join_shown:
+	_join_shown = Router.join_state()
+	if _join_shown != Router.JOIN_NONE:
 		var jb := _act("JOIN FIGHT", Router.join_fight)
 		jb.name = "JoinFight"
-		jb.tooltip_text = Widgets.tip("%s is fighting in this system. Join them: the enemy grows for two, and the turn waits for both of you." % Router.join_fight_names())
-	_act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
+		# greyed while the Hellbender spools its escape, and saying why
+		jb.disabled = _join_shown == Router.JOIN_SHUT
+		jb.tooltip_text = Widgets.tip(Router.join_tip())
+	var plot := _act("PLOT NEXT JUMP", func() -> void: screen.plot_next_jump(), false)
+	# beside a GO it is the way out, not the way on
+	if goes:
+		Widgets.quiet(plot)
 
 
 func _pair_open(pair: Array) -> bool:
@@ -559,9 +507,7 @@ func _pair_open(pair: Array) -> bool:
 	return _is_open(bc.opt)
 
 
-## ONE OPEN EVENT ON ITS PLACE'S PAGE: its tags, its title, its one sentence and
-## GO -- the event itself is taken on LOCAL (`LocalEventDrawer`), where GO takes
-## you (flying there first).
+## The event is taken on LOCAL (`LocalEventDrawer`), where GO takes you.
 func _place_event(body: int, i: int) -> void:
 	var n: MapGen.MapNode = screen.view.node
 	var o := OptionTable.by_id(n.options[i])
@@ -573,11 +519,22 @@ func _place_event(body: int, i: int) -> void:
 
 
 ## GO, which flies you to the event (if you are not there) and down into LOCAL,
-## where it is taken. Pointed at, it says what taking the event would close.
+## where it is taken. The page's one action, so it is the whole text column
+## wide (never into the scroll bar's gutter) and in the commit ink.
+const GO_H := 20
+
 func _go_button(i: int) -> void:
-	var row := HBoxContainer.new()
-	row.add_child(_spacer())
-	var go := _small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go()))
+	_gap(2)
+	var go := _dress_go(_small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go())), i)
+	go.custom_minimum_size = Vector2(TEXT_W, GO_H)
+	go.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_box.add_child(go)
+
+
+## Either GO (a world's page, an event's): the ink, DOCKED, and pointed at, what
+## taking event i would close.
+func _dress_go(go: Button, i: int) -> Button:
+	Widgets.commit(go, 4, 8)
 	go.name = "Go"
 	_docked_go(go)
 	var rivals := _rivals(i)
@@ -585,13 +542,10 @@ func _go_button(i: int) -> void:
 		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
 		go.mouse_entered.connect(func() -> void: hover_choice(names))
 		go.mouse_exited.connect(func() -> void: hover_choice(""))
-	row.add_child(go)
-	_box.add_child(row)
+	return go
 
 
-## THE SECTOR'S PAGE, WHICH IS THE STAR'S: its picture, its name and class, the
-## sector's place line and the star's facts, and the way into its close orbit;
-## locked only when the star has an event of its own (the pulsar's harvest).
+## The sector's page is the star's; locked only when the star has an event of its own.
 func _star_head() -> void:
 	var v = screen.view
 	if v.layout != null and v.layout.twin:
@@ -616,25 +570,13 @@ func _star_head() -> void:
 	_row("SURFACE", sf.temp)
 	_row("MASS", sf.mass)
 	_row("RADIUS", sf.radius)
-	# THE WAY INTO ITS CLOSE ORBIT, always (Jon: "when I click on nothing, the
-	# star is the focus of the panel, but there is no fly here"); locked only
-	# when the star has an event
+	# Always shown (Jon): with nothing selected the star is the focus; locked if it has an event.
 	_way_there(-1)
 	_rule()
 
 
-## THE SECTOR'S PAGE WITH TWO SUNS (ruling 20, Oct 30): both suns in the one
-## sun's picture, the system named once and called BINARY (Jon, Nov 1: "Let's
-## call it Binary instead of two suns"; it read TWO SUNS), its place line,
-## and then each star under its own name ("<system> A", "<system> B") with its
-## kind, its facts and its own way into its close orbit. Clicking either star on
-## the map opens this page, as clicking the one star does.
-## EACH STAR'S FACTS AS IT IS DRAWN (`SystemView.star_facts_of`, one source with
-## the tip's kind): star A as the one sun reads, a yellow dwarf of 1.0 SOL; star B
-## the K5 orange dwarf the map draws, with a K5's own mass and radius, 0.7 SOL
-## each (Jon, Nov 1, "starb:B"). (MASS read each star's share of the pair's pull:
-## 0.55 SOL beside G2, and B a yellow dwarf too; then B's mass against A's as
-## their pulls are, 0.72 to 0.92 SOL, and its radius its drawn size.)
+## The two-suns page names the system BINARY (Jon, Nov 1) and shows each star's facts as drawn.
+## Why: docs/why/SystemPanel.md#twin-panel
 func _twin_head() -> void:
 	var v = screen.view
 	var L: SystemLayout = v.layout
@@ -684,10 +626,7 @@ const TWIN_SUN_DX_A := 46
 const TWIN_SUN_DX_B := 50
 
 
-## Which sun picture star p is drawn with where the map cannot paint one
-## (`SystemView.sun_setup`, the drawing's, comes first): star A's as the one
-## sun's and star B's rolled off a number of its own so the two are not one
-## picture twice.
+## Where the map cannot paint one: star B is rolled off its own number so the two differ.
 func _sun_look(p: int) -> Array:
 	var v = screen.view
 	if p == SystemLayout.STAR_B:
@@ -699,20 +638,13 @@ func _sun_look(p: int) -> Array:
 const SUN_B_SALT := 100003
 
 
-## A GIANT'S WEIGHT (ruling 20, Jon: "1/4 - 1/10 ... purely because it's more
-## fun"): its pull against its star's, as one simple fraction. 1/n, n the whole
-## number nearest 1 / gm_frac (0.17 is 1/5.9, so 1/6), held to 4 through 10,
-## the range it is rolled in; "OF ITS STARS" round two suns, whose pull it is
-## weighed against together.
+## A giant's weight as one fraction 1/n, held to 4 through 10 (ruling 20, Jon).
 static func mass_line(frac: float, two: bool) -> String:
 	var n := clampi(roundi(1.0 / maxf(frac, 0.001)), 4, 10)
 	return "1/%d OF ITS STAR%s" % [n, "S" if two else ""]
 
 
-## The worlds that go round the star, each a link to its page, in the order of
-## their names (Jon, Nov 1, "list:C": in a binary the order they were made read
-## III, IV, I, V, II, VI; `SystemLayout.name_order`, the same order as ever
-## round one sun).
+## Worlds in name order (Jon, Nov 1): a binary's creation order read III, IV, I, V, II, VI.
 func _satellites() -> void:
 	var v = screen.view
 	var L: SystemLayout = v.layout
@@ -742,6 +674,15 @@ func _has_events(body: int) -> bool:
 	return false
 
 
+## An (event's place, beacon) pair that is an open encounter, which gets a GO.
+func _open_event(pair: Array) -> bool:
+	return pair[1] != null and pair[1].opt >= 0 and _is_open(pair[1].opt)
+
+
+func _has_open_event(body: int) -> bool:
+	return _events().any(func(p: Array) -> bool: return p[0] == body and _open_event(p))
+
+
 ## THE WAY THERE: in orbit (or alongside) a place's events are open; until then
 ## they are locked, and FLY HERE (or any choice) takes you there.
 func _way_there(i: int) -> void:
@@ -761,14 +702,18 @@ func _way_there(i: int) -> void:
 		elif _held():
 			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
 		elif _can_go():
-			go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
+			var fly := _small("FLY HERE", func() -> void: screen.fly_to_body(i))
+			# quiet above a GO, which flies you here too (the star's page has none)
+			if i >= 0 and _has_open_event(i):
+				Widgets.quiet(fly)
+			go.add_child(fly)
 		elif _heading_to(i):
 			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
 		else:
 			go.add_child(_small("FLY HERE ONCE IN ORBIT", func() -> void: pass, true))
+	# (no line under it: the button already says whether GO can fly you there,
+	# Jon, Nov 5: "it's not needed there"; an event's own page keeps its line)
 	_box.add_child(go)
-	if not _ship_at(i) and _has_events(i):
-		_blurb(_locked_line(i), UITheme.COLD)
 
 
 ## The place the list is narrowed to: its picture, its name and kind, its facts,
@@ -814,10 +759,7 @@ func _place_head(i: int) -> void:
 			var key := String(f[0])
 			if key == "TYPE" or key == "BEACONS":
 				continue
-			# A GIANT'S WEIGHT against its star, under its gravity (every giant
-			# has one: `gm_frac`, ruling 20). It takes the FAUNA row's place,
-			# which on a giant always read NONE, so the page keeps its rows and
-			# its FLY HERE stays where it was (an extra row put it 13 px lower).
+			# Takes the FAUNA row's place, as an extra row put FLY HERE 13 px lower.
 			if key == "FAUNA" and b.gm_frac > 0.0 and String(f[1]) == "NONE":
 				continue
 			_row(f[0], f[1])
@@ -859,10 +801,7 @@ func _card(body: int, bc) -> Control:
 		if bc == null:
 			words = ["HARVEST THE BEAM", "NEUTRON STAR", "The pulsar's beam sweeps by once a second. Sitting in it gives fuel but costs hull and heat.", "HARVESTED" if n.cleared else "HARVEST", UITheme.TRACTOR, n.cleared]
 		elif bc.dock:
-			# ONLY AT THE STATION (Jon, Oct 18, "dock:A"): from anywhere else in
-			# the system the card says where to go and its DOCK is greyed, with
-			# the same words on it; FLY HERE on the station's page, or a click on
-			# it on the map, takes you there, and the card wakes when you arrive
+			# Only at the station (Jon, Oct 18): elsewhere the card says where to go, DOCK greyed.
 			var there := _ship_at(body) or Router.docked
 			words = ["DOCK", "STATION", "A station is in this orbit. " + ("Its berths are open." if there else Router.DOCK_AWAY), "DOCK", UITheme.ICE, not there]
 		elif bc.hellbender:
@@ -964,7 +903,9 @@ func _event_page(out: Dictionary) -> void:
 		# THE TRIP COMES WITH THE CHOICE, and says so before you make it
 		if _ship_at(body):
 			_eyebrow("YOU ARE " + _there_word(body), UITheme.FLARE)
-		else:
+		elif not _can_go():
+			# only why GO can't fly you yet; when it can, GO says so itself
+			# (Jon, Nov 5: "You can remove that here too")
 			_blurb(_locked_line(body), UITheme.COLD)
 		if st.kind == &"left":
 			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
@@ -983,17 +924,16 @@ func _event_page(out: Dictionary) -> void:
 		_rule()
 		_blurb(String(o.get("body", "")), DIM)
 	# GO, the page's one action, at the foot where the panel's buttons are
-	if st.kind == &"open" or st.kind == &"left":
+	var has_go: bool = st.kind == &"open" or st.kind == &"left"
+	if has_go:
 		var go := _act("GO", func() -> void: screen.go_event(i))
-		go.name = "Go"
 		go.disabled = not (_ship_at(body) or _can_go())
-		_docked_go(go)
-		var rivals := _rivals(i)
-		if not rivals.is_empty():
-			var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
-			go.mouse_entered.connect(func() -> void: hover_choice(names))
-			go.mouse_exited.connect(func() -> void: hover_choice(""))
-	_act("ALL EVENTS", func() -> void: screen.panel_back())
+		_dress_go(go, i)
+		# two thirds of the foot
+		go.size_flags_stretch_ratio = 2.0
+	var back := _act("ALL EVENTS", func() -> void: screen.panel_back())
+	if has_go:
+		Widgets.quiet(back)
 
 
 ## The line under the choices: "WILL MAKE THE QUEUE UNAVAILABLE", or nothing.
@@ -1004,9 +944,7 @@ func hover_choice(names: String) -> void:
 
 
 # ---------------------------------------------------------------- the card itself
-## ONE EVENT ON THE LIST: a stripe in its tag's colour, its title with its stamp
-## top right, its tags and where it is, and one line. Pointed at, its rivals
-## grey (`set_doomed`); finished, it dims hard so the open ones lead.
+# One event on the list: stripe, title, stamp and tags; its rivals grey when it is pointed at.
 class EventCard extends PanelContainer:
 	var press: Callable = Callable()
 	var hover_cb: Callable = Callable()
@@ -1059,13 +997,8 @@ class EventCard extends PanelContainer:
 		_doom = UITheme.body("WILL BE MADE UNAVAILABLE", UITheme.WARN, UITheme.FS_SMALL)
 		_doom.visible = false
 		top.add_child(_doom)
-		# ITS TAGS, AND WHERE IT IS AT THE RIGHT, ON ONE LINE WHERE THEY FIT AND
-		# ON TWO WHERE THEY DO NOT, as the panel's other words wrap at its column
-		# (`_wrap`): on one row a card at the world you orbit asked for 231 px of
-		# the 226 (RECEIPTED TWICE, YOU · LAMBDA CALLOUS I; Nov 1), and a page
-		# that asks for more than the column widens the panel under its scroll
-		# bar. The place goes down whole, YOU with it; on one line it is laid out
-		# as it was.
+		# Tags and place go on one line where they fit, else two: 231 px of 226 widened the panel.
+		# Why: docs/why/SystemPanel.md#card-tags
 		var mid := HFlowContainer.new()
 		mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mid.add_theme_constant_override("h_separation", 4)

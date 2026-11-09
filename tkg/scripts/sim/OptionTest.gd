@@ -1,29 +1,7 @@
 extends Harness
 
-## Does the option roller obey its own rules?
-##   godot --headless --path . -- optiontest
-##
-## A GATE, not a measurement. Everything checked here is a thing that would be
-## invisible in a run and wrong in a save or a co-op session.
-##
-## The four that matter:
-##
-## **Positional and stable.** What is AT a place is a property of the place, so
-## four machines must roll the same list. `Rng.derive(&"options", n.index)` is
-## the mechanism; this proves it by rolling the same node twice and by rolling
-## the same seed twice.
-##
-## **Gating is honoured.** Every clause is ANDed and all seven axes already exist
-## on `MapNode`. An option that surfaces where its gate forbids is the fault
-## `EventTable` has today -- `pick_key()` reads none of the axes, which is most
-## of why fourteen events feel same-y.
-##
-## **The tier plan is obeyed.** Counts stay flat and only grouping moves, per
-## `ENCOUNTER_REBUILD.md` §4. A tier-5 system offering two independent options
-## has lost the dial the whole design turns on.
-##
-## **No duplicates.** Drawn without replacement, so a system never offers the
-## same situation twice.
+## A gate, not a measurement: positional, gated, tier-planned and duplicate-free rolling.
+## Why: docs/why/OptionTest.md#option-test
 
 const ROLLS := 200
 
@@ -104,10 +82,7 @@ func run() -> void:
 		t.n += 1
 		t.opts += got.size()
 		t.grouped += groups.size()
-		# UNDER the plan is a CONTENT signal, not a machine fault. The roller
-		# clamps what it wants to what the gate admits, so a thin table shows up
-		# here as a shortfall rather than as a broken rule -- and filling the
-		# pool is its own phase, per ROADMAP 11.
+		# Under the plan is a content signal, not a machine fault; the roller clamps to the gate.
 		if got.size() < int(plan.lo):
 			t.short += 1
 		by_tier[tier] = t
@@ -151,26 +126,8 @@ func run() -> void:
 	# names: "sparse-and-easy is not tension, it is dead air".
 	_ok("no system is left with nothing to do", empty == 0)
 
-	# AND AN OPTION NO GALAXY WILL ADMIT IS DEAD CONTENT.
-	#
-	# The counterpart to the gate check above, and the failure that arrives with
-	# star features: `needs_pulsar` is a real gate rather than the `min_danger 4`
-	# proxy it replaced, and a real gate can be too tight. An option gated on a
-	# sky nothing has is authored, reviewed, committed and never seen -- and
-	# nothing else here would say so, because every other test is about what WAS
-	# rolled rather than what COULD be.
-	#
-	# ACROSS SEEDS, and that distinction is the whole of it. Pulsars are derived
-	# from supernova remnants and `_seed_pulsars` says plainly that "a galaxy can
-	# roll none" -- so an option needing one is CORRECTLY absent from a galaxy
-	# with no corpses in it, the way a fauna option is absent from a galaxy of
-	# cities. Homeless everywhere is a bug. Homeless somewhere is the map doing
-	# its job, and asserting against it would force every gate down to the
-	# weakest galaxy the generator can produce.
-	#
-	# Admittance rather than appearance: weight and the draw are the roller's
-	# business and a rare option legitimately misses a small sample. What must
-	# never happen is a home that exists nowhere.
+	# An option no galaxy admits is dead content; checked across seeds, not in each galaxy.
+	# Why: docs/why/OptionTest.md#dead-content
 	var reach: Dictionary = {}
 	var skies: Array[String] = []
 	for seed in [4242, 11, 90210, 31337, 7, 1000, 5150, 8675309, 42, 99, 2024, 777]:
@@ -444,19 +401,8 @@ func _science_gate() -> void:
 	Run.fuel = Run.FUEL_TANK
 
 
-## Every field an option gates on is one `admits` actually reads.
-##
-## THE FAILURE THIS EXISTS FOR IS SILENT. `admits` tests the keys it knows and
-## ignores the rest, so an option carrying a gate nobody implemented is not
-## rejected loudly -- it is admitted EVERYWHERE. The content then reads as
-## deliberately placed while being placed nowhere in particular.
-##
-## Batch 04 shipped `max_development` and there was no such gate. `long_claim` is
-## a seam nobody works "because hauling ore back costs more than the ore", and it
-## would have turned up in capital systems saying so. Nothing failed, nothing
-## warned, and the only symptom was prose that did not match where it appeared.
-##
-## Cheap to check and it closes the class: a typo in a gate name is the same bug.
+## `admits` ignores unknown keys, so an unimplemented gate admits everywhere, silently.
+## Why: docs/why/OptionTest.md#gate-names
 func _gates_are_real() -> void:
 	# The keys `OptionTable.admits` tests, plus the ones that are not gates.
 	var known := {
@@ -470,15 +416,9 @@ func _gates_are_real() -> void:
 		# WHAT LOCAL SHOWS while the event is open (`LocalSubject`): not a gate,
 		# and `-- subjecttest` checks its pieces and its fit
 		&"subject": true,
-		# PLACED: this option is never rolled, only put on a system by another
-		# option's outcome. `OptionTable.admits` refuses it and `place` is the
-		# only door in. Declared here because this list is what stops a gate
-		# from silently doing nothing -- which is the failure the `admits`
-		# header describes, and which this test exists to catch.
+		# PLACED: never rolled, only put by an outcome; listed so the gate does not do nothing.
 		&"placed": true,
-		# A SIGNED CONTRACT'S WORK (`Contracts.post_goal`): placed for one
-		# ship's job, laid out past the system's own worlds, never claimed over
-		# the wire. Read by `OptionTable.is_job`.
+		# A signed contract's work (`Contracts.post_goal`), read by `OptionTable.is_job`.
 		&"job": true,
 		# A PLACED OPTION'S ROW IN THE QUESTS TABLE: its task, its chart tag's
 		# word, its note and the event that places it. Read by `QuestLog`.
@@ -487,16 +427,11 @@ func _gates_are_real() -> void:
 		# `needs_fauna` is. See `OptionTable.admits`.
 		&"needs_star": true, &"needs_giant": true, &"needs_pulsar": true,
 		&"needs_nebula": true,
-		# WHERE IT SITS on the system (`SystemLayout`: `site = &"giant"` or
-		# `&"star"` puts it on the giant or the star when the system has one),
-		# and how LOCAL draws the giant while it is open (`LocalSky`, `near`)
+		# Where it sits on the system and how LOCAL draws the giant while it is open.
 		&"site": true, &"near": true,
-		# (`site = &"barren"` or `&"belt"`: a science reading's dry world or
-		# belt, Phase 12; its DATA lines' `burns` and `reads` are choice keys,
-		# which `encounter_lint` check 10 reads)
-		# WHAT ITS FIGHT BRINGS: the creature its text set up (Jon, Oct 17),
-		# read by `OptionTable.fight_foe` -- not a gate; `-- sheet=FoeTagTest`
-		# holds it to the text and to the fight that opens
+		# (`site`: a science reading's dry world or belt; its DATA lines' `burns`
+		# and `reads` are choice keys, which `encounter_lint` check 10 reads)
+		# What its fight brings (Jon, Oct 17), read by `OptionTable.fight_foe`; not a gate.
 		&"foe": true,
 	}
 	var bad: Array[String] = []

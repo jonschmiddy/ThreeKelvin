@@ -1,16 +1,9 @@
 class_name Worlds
 extends RefCounted
 
-## THE WORLDS: every kind of planet the system map draws, what it is made of
-## and how it is lit, and each world's lasting facts from one seed.
-##
-## A port of the approved mockup's planet painter (the scratchpad's
-## `sysmap/planets.js`, "Thirty-Four Worlds"). The painting itself is
-## `planet.gdshader`; this holds what the shader is told: the colour ramps (one
-## texture), what each kind of world has (air, caps, clouds, rings, storms,
-## lights), and `spec()`, which rolls a world's spin, tilt, craters, storms and
-## the rest from its seed exactly as the mockup did -- the same generator, the
-## same order of draws -- so a world here is the world Jon approved there.
+## A port of the approved mockup's painter; the same
+## generator and draw order give the world Jon approved.
+## Why: docs/why/Worlds.md#worlds
 
 ## Six steps a ramp, darkest first. The order is the shader's: `R_*` there.
 const RAMP_ORDER := [
@@ -149,9 +142,7 @@ static func display_name(world: StringName) -> String:
 	return String(WORLD.get(world, {}).get("name", String(world).to_upper()))
 
 
-## THE MOCKUP'S GENERATOR, bit for bit: xorshift32, as `rng()` in the
-## scratchpad's template. A world's spin, tilt, craters and storms come from it
-## in the mockup's order of draws, so the same seed gives the same world.
+## The mockup's generator bit for bit (xorshift32), so the same seed gives the same world.
 class XRng extends RefCounted:
 	var s: int = 1
 
@@ -186,9 +177,8 @@ static func _nudge(p: Vector3, R: XRng, sd: float) -> Vector3:
 	return q.normalized()
 
 
-## A world's lasting facts, from one seed: everything `planet.gdshader` is told
-## that does not change from frame to frame. `seed` is the layout's (or the
-## gallery's) seed; the painter's own runs from it as the mockup's did.
+## A world's lasting facts from one seed: the
+## `planet.gdshader` inputs that never change between frames.
 static func spec(world: StringName, seed: int, r: float) -> Dictionary:
 	var W: Dictionary = WORLD[world]
 	var R := XRng.new(floor(float(seed) * 7919.0) + 13.0)
@@ -297,11 +287,8 @@ static func half_size(world: StringName, r: float) -> int:
 	return int(ceil(r * (3.4 if WORLD[world].get("tail", false) else 1.25))) + 7
 
 
-## LIGHTNING THIS MOMENT: the flashes and their bolts, as the mockup rolled them
-## -- one chance in every 0.16 s slot, a flicker of strike, dark beat, strike,
-## dying away. A storm world flashes often; a giant now and then, on its night
-## side only. Returns [flashes (x, y, sigma, strength), bolts (x, y)] in pixels
-## from the world's centre.
+## Lightning as the mockup rolled it: one chance per
+## 0.16 s slot; a giant flashes on its night side only.
 static func lightning(s: Dictionary, light: Vector3, t: float) -> Array:
 	var W: Dictionary = WORLD[s.world]
 	var storm_world: bool = W.get("lightning", false)

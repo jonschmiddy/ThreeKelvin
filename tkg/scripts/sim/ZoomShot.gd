@@ -1,20 +1,8 @@
 extends RefCounted
 
-## The star chart at a ladder of zooms:
-##   godot --path . -- zoomshot
-##
-## NEEDS A WINDOW. Under `--headless` the dummy display server never emits
-## `frame_post_draw`, so nothing is ever captured and it looks like a hang.
-##
-## IT EXISTS BECAUSE THE BUG IS A SHAPE, NOT A NUMBER. The report is that the
-## galaxy sits inside a boundary, and that zooming IN makes that boundary
-## smaller -- which is backwards, and not something a frame time or an assert
-## can see. Six shots at a fixed seed, so the only thing that changes between
-## them is `zoom`.
-##
-## Seeded with `Rng.forced`, NOT `Rng.reseed`: `start_new_run` rolls its own
-## master seed, so a reseed before it changes nothing and every run draws a
-## different galaxy. ChartFilter learned this first.
+## Needs a window, as headless never emits `frame_post_draw`. The bug is a shape no assert sees.
+## Seeded with `Rng.forced`, as `start_new_run` rolls its own seed and discards a reseed.
+## Why: docs/why/ZoomShot.md#zoom-shot
 
 const ZOOMS: Array[float] = [0.42, 0.8, 1.5, 2.5, 4.0, 6.0]
 
@@ -37,15 +25,11 @@ func run(tree: SceneTree) -> void:
 		chart.zoom = z
 		chart.pan = Vector2.ZERO
 		chart._clamp_pan()
-		# _repaint_sky, not _repaint_galaxy: a zoom invalidates the backdrop's
-		# slide basis outright, and this is the one caller that changes zoom
-		# without going through the input path that already knows that.
+		# `_repaint_sky`: a zoom invalidates the backdrop's slide basis, and this skips input.
 		chart._repaint_sky()
 		for i in 12:
 			await RenderingServer.frame_post_draw
-		# The radii that decide what the sky looks like, in screen pixels, next
-		# to the panel they have to fit inside. A boundary you can SEE is one of
-		# these landing inside the panel.
+		# Screen-pixel radii beside the panel: a visible boundary is one landing inside it.
 		print("  zoom %.2f  panel %.0fx%.0f  disc %.0f  core_clear %.0f  shadow %.0f" % [
 			z, chart.size.x, chart.size.y,
 			chart._radius() * StarchartScreen.MapChart.DISC * z * 1.1,
@@ -56,10 +40,7 @@ func run(tree: SceneTree) -> void:
 		img.save_png(path)
 		_profile(img, chart, z)
 
-	# AND AT THE LIMIT OF THE DRAG, which is the thing that was actually wrong.
-	# The rule is "the rim reaches the near edge of the view", so at full pan the
-	# galaxy must be JUST touching the edge -- still visible, and one pixel from
-	# not being. A shot that comes back empty means the clamp lets you lose it.
+	# At full pan the galaxy must just touch the edge. An empty shot means the clamp loses it.
 	for z in [0.42, 1.5, 4.0]:
 		chart.zoom = z
 		chart.pan = Vector2(99999.0, 0.0)
@@ -75,13 +56,8 @@ func run(tree: SceneTree) -> void:
 	tree.quit()
 
 
-## How many pixels are lit, as a function of distance from the galaxy's centre.
-##
-## A DENSITY STEP IS A VISIBLE EDGE. `_star_layer` drops 88% of the foreground
-## stars inside `disc` and none outside it, so there is a hard circle at that
-## radius where the sky abruptly gets busier. On a smooth image this profile
-## falls away steadily; a step in it is the boundary, and where the step lands
-## says which radius drew it.
+## `_star_layer` drops 88% of stars inside `disc`, so a step in the profile is a visible edge.
+## Why: docs/why/ZoomShot.md#density-step
 func _profile(img: Image, chart: Control, z: float) -> void:
 	var org := chart.global_position
 	var c := org + chart.size * 0.5

@@ -1,52 +1,9 @@
 class_name HullHitFx
 extends ShipHitFx
 
-## A SHIP'S HULL TAKING HITS WITHOUT HOLES IN IT (Oct 17). Three looks were made
-## for Jon's pick and he picked the fourth, D, all three mixed per hit: it is the
-## game's (`ShipHitFx.look`); A, B and C stay as its parts and as looks to compare.
-##
-## James, a playtester, of today's marks: when ships are damaged they get big
-## holes in the hull, and ships can't really have holes in them. Jon: "Can we
-## update the damage shader to be more realistic and prettier?" What read as a
-## hole was measured, not guessed: Chain's bite (a near-black disc 9 to 17 px
-## across on a full sheet, its pixels flown off as chips), the vent's punched
-## disc, and the black-brown core of every soot disc, which on a dark hull is the
-## same colour as space. So every look here is armour taking punishment, and
-## nothing in it is see-through or punched out to space:
-##
-##   A  BATTLE-WORN PLATING. Dents (the plating's own shading bent: shadow under
-##      the top of the dish, light on its floor, a raised lip), soot streaks
-##      thrown from the blast, paint scraped back to the metal, popped rivets
-##      along a lifted panel line. Grounded and quiet; at low hull, split seams
-##      at the edge sputter vapour.
-##   B  HEAT AND STRESS. Every impact leaves a heat bloom on the plating that
-##      cools white, orange, dull red, then a dark scorch over about four
-##      seconds; under 60% hull the hull's own panel lines glow where the hits
-##      are, more of them the lower it goes, throwing sparks.
-##   C  PLATES CRACK AND PEEL. A big hit tears a plate and curls it back over its
-##      hinge, showing the ribs and stringers under it (lit and shadowed, never
-##      empty); a small one cracks a plate along its panel lines. Under half
-##      hull, each breach sputters vapour and throws sparks.
-##   D  ALL THREE, MIXED PER HIT (Jon: "What would battleworn + heat + stress
-##      and crack and peel look like together?"), as a creature's hits mix
-##      wounds, bruises and shed. Small hits lean to A's dents and scrapes and
-##      C's knocked panels, big ones to B's blooms and C's peels; every hit
-##      also gets B's bloom cooling to a scorch (smaller on a small hit), the
-##      mark that reads on a dark hull. Low hull brings B's glowing lines, C's
-##      breaches and A's split edges together, each held down (fewer lines, the
-##      newest three breaches and two splits) so it stays quieter than today's.
-##
-## THE SAME RULES AS EVERY MARK SINCE: on the hull's own pixels, never its
-## outline (the silhouette never changes); every colour is one the sprite
-## already has (`_snap`, HullWear's guarantee) or the heat ramp; light has a
-## falloff in held steps with dithered edges, and whatever glows changes shape
-## twelve times a second (`GLOW_HZ`); a mote that leaves the hull stays inside
-## the shield's oval (`ShieldFx.fit`, which the pack layout keeps clear of the
-## words, name and bars). Each hit is rolled from the fight's seeded stream as
-## today, so two machines draw the same marks; what moves with time alone (a
-## spark, a puff) draws from its own stream so it can never move a mark.
-##
-## The marks are `marks()` like today's, so a wreck and a death keep them.
+## Hits are armour taking punishment, never holes (a playtester's note, Oct 17). Look D
+## mixes A, B and C.
+## Why: docs/why/HullHitFx.md#hull-hit-looks
 
 const GLOW_HZ := 12.0
 const NAMES_A := ["DENT", "SOOT", "SCRAPE", "RIVETS", "SPLIT"]
@@ -60,9 +17,8 @@ const D_SPLITS := 2
 
 ## 1 A, 2 B, 3 C, 4 D (all three mixed per hit; `ShipHitFx.look`).
 var style := 1
-## Drawing a mark that belongs on the plate (a dent, a scrape, rivets, a knocked
-## panel, a split edge): it leaves alone the structure a peel has bared, so a
-## dent never sits inside a plate that is already peeled back.
+## Plate marks leave a peeled plate's bared structure alone, so a dent never sits inside
+## it.
 var _plate := false
 
 var _lum := PackedFloat32Array()
@@ -138,9 +94,7 @@ static func _key(c: Color) -> int:
 	return (int(c.r * 255.0) << 16) | (int(c.g * 255.0) << 8) | int(c.b * 255.0)
 
 
-## The hull's own panel lines: a pixel darker than both its neighbours across a
-## line, in a run along it (four across, three down), so a speckled texture
-## does not count and a drawn seam does.
+## A seam is a pixel darker than both neighbours in a run, so speckle does not count.
 func _find_seams() -> void:
 	const T := 0.05
 	var hz := PackedByteArray()
@@ -193,11 +147,8 @@ func _find_gas() -> void:
 		_vap.append(greys[clampi(int(q * float(greys.size() - 1)), 0, greys.size() - 1)])
 
 
-## The nearest colour the sprite already has. The guarantee: a mark cannot
-## bring a colour of its own. `char` also lets it be one of the heat ramp's
-## three darkest (burnt metal), so soot goes brown-black rather than to the
-## nearest dark the art has, which on most ships is a window's navy, the
-## colour of space.
+## Snaps to a colour the sprite has, so a mark brings none of its own. Burnt metal avoids
+## window navy.
 const CHAR := [5]
 
 
@@ -262,10 +213,7 @@ func _ok(x: int, y: int) -> bool:
 	return _mask[i] == 1 and _edge[i] == 0
 
 
-## The plating at `i` lit `f` times as bright (held steps, dithered between
-## them), from what is there now so marks stack, and snapped. Never darker than
-## 40% of the art (a much-hit patch is dark metal, not another hole), never
-## near black where the art was not.
+## Never below 40% of the art: a much-hit patch is dark metal, not another hole.
 const STEPS: Array[float] = [0.4, 0.5, 0.62, 0.75, 0.88, 1.0, 1.15, 1.3, 1.45]
 
 
@@ -294,9 +242,7 @@ func _tone(i: int, f: float) -> void:
 	_mark_px(i, _snap_floor(q, floor_l, fq < 1.0))
 
 
-## Metal burnt by heat: one of the heat ramp's own colours (`which` 4 or 5),
-## and only where it is darker than the plating's own light would make it read
-## as glowing -- on a dark hull it shows as a brown ring, on a light one a rust one.
+## Burnt metal only where darker than the lit plating, so it never reads as glowing.
 func _burnt(i: int, which: int) -> void:
 	if _mask[i] == 0 or _edge[i] == 1:
 		return
@@ -342,12 +288,9 @@ func _bare(i: int, sheen: bool) -> void:
 
 # ----------------------------------------------------------------- a hit
 
-## Where a hit lands: the best of sixteen fair candidates on the hull, leaning
-## to the side the shots come from and to plating light enough for a mark to
-## show (the 3x3 round it, so a dark seam is not mistaken for dark plating),
-## and clear of the marks already there. `edge` on the outline (a split vents
-## into open space above or below), `near` as close as it gets to a screen
-## point, `around` a mark's width or so from a hit (an extra).
+## Best of sixteen candidates, leaning to the shot side and to light plating, clear of
+## earlier marks.
+## Why: docs/why/HullHitFx.md#hit-placement
 func _pick(edge: bool, rad: float, near: Vector2 = Vector2.INF, around: Vector2 = Vector2.INF) -> Vector2i:
 	var best := -1e9
 	var bp := Vector2i(int(float(_H.get("cx", 0.0))), int(float(_H.get("cy", 0.0))))
@@ -510,9 +453,7 @@ func _one(kind: int, p: Vector2i, frac: float, big: bool) -> void:
 			_mixed(kind, p, frac, big)
 
 
-## D: one of A's, B's or C's marks, and under every one of them B's bloom,
-## cooling to a scorch (smaller on a small hit): the one mark that reads on a
-## dark hull. A peel brings its own scorch; a bloom is B's whole hit.
+## Every D hit has B's bloom under it: the one mark that reads on a dark hull.
 func _mixed(kind: int, p: Vector2i, frac: float, big: bool) -> void:
 	if kind == 4:
 		_heat(p, frac, big, _rng.randi_range(0, 2))
@@ -548,10 +489,7 @@ func _ed(x: int, y: int, p: Vector2i, rx: float, ry: float, fd: Dictionary, amp:
 	return sqrt(dx * dx + dy * dy) + amp * ShipBreakup._nz(fd, x, y)
 
 
-## A dent: the plating's own shading bent. Lit from above, so the top wall of
-## the dish is in shadow and the bottom wall catches the light; the metal it
-## pushed aside stands up round the top as a lit lip and falls away under the
-## bottom into shadow. A bright scuff where it struck.
+## Lit from above: top wall in shadow, bottom wall lit, a raised lip round the top.
 func _dent(p: Vector2i, big: bool) -> void:
 	var rx := (4.2 if big else 3.4) * _K()
 	var ry := rx * 0.55
@@ -584,9 +522,8 @@ func _dent(p: Vector2i, big: bool) -> void:
 		moment.emit(&"punch", 0.6 if big else 0.45, 0.0)
 
 
-## A scorch from a blast: the blotch (`_blotch`), streaks thrown out from it
-## (longest along the hull), bright flecks where the paint blew off, and a
-## short ember where it struck.
+## Blotch plus streaks (longest along the hull), paint flecks and a short ember at the
+## strike.
 func _soot(p: Vector2i, big: bool) -> void:
 	var rx := (3.8 if big else 3.0) * _K()
 	var ry := rx * 0.66
@@ -614,10 +551,7 @@ func _soot(p: Vector2i, big: bool) -> void:
 		moment.emit(&"sizzle", 0.3 if big else 0.2, 0.45)
 
 
-## A scorch: a blotch of soot in four held steps, its edge broken by noise and
-## each step dithered into the next, its middle burnt brown-black (the heat
-## ramp's darkest, mottled with the charred plating). Darkened plating that
-## keeps its texture; never one flat near-black that could be an opening.
+## Darkened but textured; never one flat near-black, which could read as an opening.
 func _blotch(p: Vector2i, rx: float, ry: float) -> void:
 	var fd := ShipBreakup._field(_rng, _w, _h, 3)
 	# four held steps, each edge an ordered dither from one to the next
@@ -643,9 +577,7 @@ func _blotch(p: Vector2i, rx: float, ry: float) -> void:
 					_tone(y * _w + x, f)
 
 
-## Paint scraped back to the metal: a gouge skidding on away from the shot,
-## bare metal along its top, a dark trough under it, flecks of paint lifted
-## either side, a curl of metal where it stopped.
+## A gouge skidding away from the shot, with bare metal on top and a dark trough under it.
 func _scrape(p: Vector2i, big: bool) -> void:
 	var k := _K()
 	var dir := Vector2(-float(facing), _rng.randf_range(-0.3, 0.3)).normalized()
@@ -715,9 +647,8 @@ func _seam_run(q: Vector2i, n: int) -> Array:
 	return [out, across]
 
 
-## A panel's edge lifted along its line: the line opens a shade darker, the
-## raised edge beside it catches the light and the plate beyond it is in its
-## shadow.
+## Panel edge lifted: the line darkens, the raised edge catches light, the plate beyond is
+## shadowed.
 func _lift(run: Array, across: bool) -> void:
 	for q in run:
 		var v: Vector2i = q
@@ -784,10 +715,8 @@ func _ember(p: Vector2i, big: bool) -> void:
 
 # --------------------------------------------------------- B: heat and stress
 
-## A heat bloom that cools white, orange, dull red, dark, over about four
-## seconds, on the scorch it leaves (soot, metal tempered brown through it).
-## `SPLASH` throws molten drops that land round it and cool faster; `STRESS`
-## runs a crack from it that glows as it cools.
+## Bloom cools white, orange, dull red, dark over about four seconds. SPLASH and STRESS add
+## drops and cracks.
 func _heat(p: Vector2i, frac: float, big: bool, kind: int) -> void:
 	var k := _K()
 	var rr := clampf(3.0 + 14.0 * frac, 3.2, 5.5) * k
@@ -821,9 +750,8 @@ func _heat(p: Vector2i, frac: float, big: bool, kind: int) -> void:
 		moment.emit(&"sizzle", 0.4 if big else 0.28, 1.2)
 
 
-## Under 60% hull the panel lines near a hit start to glow: from the nearest
-## line, along it, more of it the lower the hull, the nearest hottest. A line
-## that has glowed stays a shade darker (it carries into the wreck).
+## Under 60% hull panel lines near a hit glow, more the lower it goes. They carry into the
+## wreck.
 func _stress(p: Vector2i) -> void:
 	var q := _near_seam(p, int(14.0 * maxf(0.5, mark_scale)))
 	if q.x < 0:
@@ -860,11 +788,7 @@ func _stress(p: Vector2i) -> void:
 
 # ------------------------------------------------ C: plates crack and peel
 
-## A plate torn and curled back over its hinge (on the side away from the
-## shot), the structure under it showing: a frame under every panel line and
-## every fourth column lit, stringers across, the bays between them in shadow,
-## the top wall shaded by the plate's thickness and the bottom wall lit. Never
-## empty: every pixel of it is the ship's own metal.
+## Never empty: every pixel under a peeled plate is the ship's own metal.
 func _peel(p: Vector2i, big: bool) -> void:
 	var k := _K()
 	var rp := (3.0 if big else 2.4) * k
@@ -983,12 +907,9 @@ func _inner(i: int, f: float) -> void:
 	_what[i] = 2
 
 
-## A plate knocked out of true: the panel it struck (bounded by the hull's own
-## panel lines) sags a pixel down or is driven a pixel back from the shot. The
-## strip it uncovers is the frame under it, in shadow; its leading edge rides
-## over the seam beyond and throws a shadow of its own; its trailing edge is lit.
-## A short crack from where it struck. Where no panel line bounds the plate
-## near the hit, it cracks instead (`_plate_crack`).
+## A knocked plate sags or is driven back a pixel; with no bounding panel line it cracks
+## (`_plate_crack`).
+## Why: docs/why/HullHitFx.md#knocked-plates
 func _knock(p: Vector2i, big: bool) -> void:
 	var k := _K()
 	var lim := Vector2i(int(8.0 * k), int(5.0 * k))
@@ -1056,9 +977,7 @@ func _knock(p: Vector2i, big: bool) -> void:
 		moment.emit(&"crack", 0.4 if big else 0.3, 0.15)
 
 
-## A plate cracked: a line from the hit to the nearest panel line (dark, its
-## lower lip lit), that line lifted either side, the plate dished where it was
-## struck.
+## Crack runs from the hit to the nearest panel line, with the plate dished where struck.
 func _plate_crack(p: Vector2i, big: bool) -> void:
 	var k := _K()
 	_dent(p, false)
@@ -1150,12 +1069,9 @@ func _heat_at(i: int, T: float) -> void:
 		_tl.append(i)
 
 
-## The light on the plating, GLOW_HZ times a second: every bloom and glowing
-## line as heat, a pixel's heat jittered and the dither shifted each step, so a
-## glow's edge changes shape twelve times a second and no faster. A step that
-## happens to come out as the last one is jittered again, then flickered dimmer
-## (a small ember can come out the same), so while anything glows, every step
-## moves.
+## Glow jitters 12 times a second and no faster, and a repeat step is jittered again so
+## every step moves.
+## Why: docs/why/HullHitFx.md#glow-stepping
 func _build_glow(step: int) -> void:
 	var prev := _glow.get_data()
 	for attempt in 4:

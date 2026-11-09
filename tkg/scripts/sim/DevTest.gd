@@ -1,30 +1,8 @@
 extends Harness
 
-## Developer mode exists only where the editor does:
-##   godot --headless --path . -- devtest
-##   godot --headless --path . -- devtest asrelease
-##
-## Jon: "Dev mode shouldn't even be accessible in the released version." It was
-## on for a fresh install, so a friend's first launch would have opened every
-## manufacturer, the card gallery and the whole galaxy. `DevMode.available` is
-## the editor binary now, and an exported game has no workshop at all.
-##
-## BOTH SIDES, FROM THE SAME SETTINGS FILE. A scratch file that says
-## [dev] enabled=true, because Jon's own file says that and a check against an
-## empty one would pass on a build that still read it. In the editor that file
-## gives developer mode: the title screen builds its switch, the HUD its CARDS
-## and MODULES tabs, the chassis select its tier row, the star chart its four
-## dev buttons, and every manufacturer is open. As released, the same file gives
-## none of it: the switch is not built, toggle() changes nothing and writes
-## nothing, and a fresh profile flies Korvan alone. The editor half is the
-## proof that the release half can see what it is looking for.
-##
-## THE PLAYER'S FILES ARE NEVER TOUCHED. `DevMode.path` and `RunHistory.path`
-## point at scratch files for the whole run, and both are deleted at the end.
-## Screens are built in a holder of the test's own and never through Router, so
-## no screen swap autosaves a run. With `asrelease` on the command line the boot
-## itself is checked too: Main came up without dev mode or its tabs, whatever
-## the settings file says.
+## Dev mode must be absent in a release (Jon); one settings file is checked both ways.
+## The player's files are never touched: scratch paths, and no Router swaps.
+## Why: docs/why/DevTest.md#dev-mode-gate
 
 const SCRATCH := "user://devtest.cfg"
 const HISTORY := "user://devtest_history.json"
@@ -48,9 +26,7 @@ func run(tree: SceneTree) -> void:
 
 	print("boot")
 	_boot()
-	# EVERY HARNESS KEEPS OFF THE PLAYER'S SETTINGS: the boot's own save (and
-	# Audio's and Keys') goes to the scratch file. A `sheet=` shot once rewrote
-	# the player's settings.cfg on every boot that did not pass `keepwindow`.
+	# Every harness keeps off the player's settings: a `sheet=` shot once rewrote settings.cfg.
 	_ok("a harness's display, audio and key settings live in a scratch file, never the player's settings.cfg",
 		TestRun.active() and DisplaySettings.path != DisplaySettings.PATH and Keys.path != DisplaySettings.PATH)
 
@@ -108,10 +84,7 @@ func _boot() -> void:
 		editor, as_release, DevMode.enabled])
 	_ok("available at boot is the editor binary, less asrelease",
 		DevMode.available == (editor and not as_release))
-	# The rule, asked for the build this process is not. From the editor binary
-	# has_feature("editor") is always true, so the check above would pass a rule
-	# that forgot it, or one that asked is_debug_build(), which a debug export
-	# also is. Only these see that.
+	# Asks the rule for a build this process is not: the editor always has the editor feature.
 	_ok("an export, which has no editor feature, gets none",
 		not DevMode._detect(PackedStringArray(["devtest"]), false))
 	_ok("the editor binary gets it",
@@ -170,9 +143,7 @@ func _toggle_in_editor() -> void:
 		cfg.get_value("dev", "enabled", true) == false
 		and int(cfg.get_value("display", "brightness", 0)) == 1)
 	_ok("so the file's bytes changed", FileAccess.get_file_as_bytes(SCRATCH) != before)
-	# Off is not gone. The switch is built wherever dev mode is AVAILABLE, on or
-	# off, or the first untick in the editor would be the last one short of
-	# editing settings.cfg by hand.
+	# Off is not gone: the switch is built wherever dev mode is available, or one untick is final.
 	print("title screen, in the editor, developer mode off")
 	await _launcher(true)
 	DevMode.toggle()
@@ -217,9 +188,7 @@ func _screens(dev: bool) -> void:
 	_ok("and no SHIP tab (your ship opens where it is drawn)", _buttons(hud, ["SHIP"]) == 0)
 	_ok("and no ARCHIVE tab, label or tooltip (Jon, Oct 22)",
 		_with_text(hud, "ARCHIVE") + _with_text(hud, "rchive") == 0)
-	# NOR ANY DOOR TO ONE. Tab's cycle, the HUD and the title all open pages
-	# through Router's `show_` calls; with no `show_archive` and no reading-room
-	# class in the project, no key, tab or menu can reach an archive.
+	# No door to an archive: every page opens through a `show_` call and none exists.
 	_ok("and no door to an archive anywhere: no Router.show_archive",
 		not Router.has_method(&"show_archive"))
 	var classes: Array = []
@@ -265,9 +234,7 @@ func _screens(dev: bool) -> void:
 	await _drop(chart)
 
 
-## In the editor everything is open with no record at all. As released a fresh
-## profile has Korvan, and a win with Korvan opens Solari and nothing past it:
-## the chain is honoured, so the release side is not simply "everything shut".
+## As released, a fresh profile has Korvan and the unlock chain is honoured, not all shut.
 func _unlocks(dev: bool) -> void:
 	_drop_file(HISTORY)
 	var open: Array[StringName] = []
@@ -287,9 +254,7 @@ func _unlocks(dev: bool) -> void:
 	_ok("and not the one after it", not Unlocks.unlocked(&"probate"))
 	_drop_file(HISTORY)
 
-	# GENO'S WIN (Oct 23): the record took the hull flown at the end, an
-	# unbranded derelict frame, so it said "" and opened nothing. A win with no
-	# manufacturer on a fresh profile counts as Korvan's.
+	# Geno's win (Oct 23): a win with no manufacturer on a fresh profile counts as Korvan's.
 	f = FileAccess.open(HISTORY, FileAccess.WRITE)
 	f.store_string(JSON.stringify({version = RunHistory.VERSION, runs = [
 		{outcome = int(RunHistory.Outcome.WON), chassis_manufacturer = ""}]}))
@@ -401,9 +366,7 @@ func _drop_scratch() -> void:
 	_drop_file(HISTORY)
 
 
-## Everything put back as Main left it, then torn down as `BindTest._finish`
-## does: a headless run that quits holding a live Control tree reports leaks the
-## gate reads as errors.
+## Torn down as `BindTest._finish` does: a live Control tree at quit reports leaks as errors.
 func _finish(boot_available: bool, boot_enabled: bool) -> void:
 	Sig.dev_mode_changed.disconnect(_on_changed)
 	_drop_scratch()

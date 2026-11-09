@@ -1,15 +1,7 @@
 extends Node
 
-## The chart's REGENERATE GALAXY button (developer mode), pressed:
-##   godot --path . -- sheet=RegenTest [out=<png>]
-## Opens the star chart on a run, presses the button, and checks that a new
-## galaxy came of it -- a new seed, a map a new run would have (its start at 0,
-## its indices and links in range, its core present), the ship at the start with
-## its hull, credits and cargo kept, no contract left naming the old map -- and
-## that the chart was made again on the new galaxy, its sky baked for it.
-## Prints `regentest: PASS` or each failure. Needs a window (the chart bakes).
-## The button autosaves, so the run save on this machine is kept aside first
-## and put back after.
+## Presses REGENERATE GALAXY and checks the new map, kept ship and rebaked chart. Needs a window.
+## Why: docs/why/RegenTest.md#regenerate-check
 
 var _fails: Array[String] = []
 
@@ -68,8 +60,7 @@ func _ready() -> void:
 	_ok("the chart made again", now != null and now != old_screen)
 	if now != null:
 		var sky: ChartSky = now._chart._sky
-		# (the legacy style keeps its key on its own renderer, `ChartLegacy`)
-		var key: String = "" if sky == null else (sky._legacy._key if sky._legacy != null else sky._key)
+		var key: String = "" if sky == null else sky._key
 		_ok("its sky keyed to the new galaxy", key.begins_with(ChartSky.galaxy_key()))
 		var t0 := Time.get_ticks_msec()
 		while sky != null and is_instance_valid(sky) and not sky.ready_to_draw() and Time.get_ticks_msec() - t0 < 10000:

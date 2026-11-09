@@ -1,38 +1,23 @@
 class_name SignalText
 extends Control
 
-## TEXT THAT ARRIVES LIKE A SIGNAL (Jon: "let's have the text read in letter by
-## letter ... like a signal transmission? IDK something stylized"). Each
-## character comes in as one or two scrambled glyphs from the pixel font before
-## it settles on the true letter, with a block cursor at the leading edge and,
-## now and then, a short dropout. At `cps` a second, punctuation holding a beat.
-##
-## THE LAYOUT NEVER MOVES: the whole text is broken into lines and measured
-## before a character shows, so the control is its full height from the start
-## and nothing reflows while it reveals. Drawn by hand in the game's pixel face
-## (`UITheme.pixel_font`), one character at a time.
-##
-## `skip()` finishes it at once; reduced motion (`Router.animating`) shows it
-## whole.
-##
-## THE SOUND is Jon's pick from the audition page: "cps 40 · A blip_5 every 3,
-## ±100c, 0 dB · B off · C off". Every third settled letter plays `text_blip`
-## (spaces do not count), pitch spread ±100 cents, at its levelled gain, with at
-## most two in the air (`Audio.play_capped`). Only a settling letter makes a
-## blip. So `skip()` finishes silently and also fades any tail still ringing,
-## and reduced motion, which has no reveal, has no blips.
+## Text arrives like a signal (Jon): scrambled glyphs settle to letters, layout fixed up front.
+## Sound is Jon's audition pick: a blip every third letter. Skip is silent.
+## `by_word` (the event band, issue #38) settles whole words, one blip each.
+## Why: docs/why/SignalText.md#signal-text
 
 signal char_settled(index: int, ch: String)
 signal line_settled(line: int)
 signal finished
 
-## Characters a second -- THE ONE DIAL for the reveal's speed (Jon: "have the
-## letters arrive more slowly"; he set 40 by ear on the audition page) -- and
-## the beat a punctuation mark holds, s.
+## Characters a second, the one dial for reveal speed (Jon set 40 by ear).
 static var cps := 40.0
 ## This text's own speed, characters a second, over `cps` when set: A.S.H.'s
 ## line types as long as her voice takes to say it (`rate_for`).
 var rate := 0.0
+var by_word := false
+## A whole word reads the moment it lands, so words run a shade over `cps`.
+const WORD_PACE := 1.15
 const PAUSE := {".": 0.09, "!": 0.09, "?": 0.09, ",": 0.03, ";": 0.05, ":": 0.05}
 ## How many characters past the settled edge show as noise, and how often
 ## their glyph changes, s.
@@ -46,9 +31,7 @@ const NOISE_A := 0.55
 const DROP_P := 0.012
 const DROP_S := 0.06
 const LINE_GAP := 3
-## The blip: which sound, every how many letters, its pitch spread as a
-## pitch_scale (2^(1/12) - 1, so +100 cents up and -106 down), and how many may
-## ring at once. `sound` off keeps a reveal silent.
+## Blip settings: pitch spread as a scale (+100 cents up, -106 down), capped overlap.
 const BLIP := &"text_blip"
 const BLIP_EVERY := 3
 const BLIP_PITCH := 0.0595
@@ -81,6 +64,10 @@ var _noise: Array = []
 var _drop := 0.0
 var _rng := RandomNumberGenerator.new()
 var _last_line := -1
+## By word: the word starts, the next to settle, and the clock in characters.
+var _starts := PackedInt32Array()
+var _wi := 0
+var _clock := 0.0
 
 
 func _init() -> void:
@@ -97,19 +84,32 @@ func play() -> void:
 	_last_line = -1
 	_letters = 0
 	blips = 0
+	_wi = 0
+	_clock = 0.0
+	_starts = word_starts(text) if by_word else PackedInt32Array()
 	if not Router.animating():
 		skip()
 	queue_redraw()
 
 
-## The speed at which `what` takes `secs` to arrive, characters a second: its
-## letters share what the punctuation's beats leave (the last mark's beat is
-## never waited out: the text is done when its last letter settles).
+## Rate so `what` takes `secs`, with the last mark's beat not waited out.
 static func rate_for(what: String, secs: float) -> float:
 	var beats := 0.0
 	for i in what.length() - 1:
 		beats += float(PAUSE.get(what[i], 0.0))
 	return float(what.length()) / maxf(secs - beats, 0.25)
+
+
+## The index of each word's first character; a word runs to the next start.
+static func word_starts(what: String) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var gap := true
+	for i in what.length():
+		var sp := what[i] == " " or what[i] == "\n"
+		if not sp and gap:
+			out.append(i)
+		gap = sp
+	return out
 
 
 ## Finish now.
@@ -134,9 +134,7 @@ func _line_h() -> int:
 	return int(_font().get_height(size_px)) + LINE_GAP
 
 
-## Words into lines at this width, each character's x measured once. A "\n"
-## starts a new line (the cutaway's keys under A.S.H.'s words): it is one
-## character of `text`, settled like a space and drawn as nothing.
+## Words into lines once; a newline is one settled character drawn as nothing.
 func _relayout() -> void:
 	var w := size.x
 	if w <= 1.0:
@@ -186,21 +184,32 @@ func _process(delta: float) -> void:
 	var n := text.length()
 	if _hold > 0.0:
 		_hold -= delta
+	elif by_word:
+		_clock += (rate if rate > 0.0 else cps) * WORD_PACE * delta
+		while _wi < _starts.size() and _clock >= float(_starts[_wi]):
+			var before := int(shown)
+			_wi += 1
+			var end := _starts[_wi] if _wi < _starts.size() else n
+			shown = float(end)
+			for k in range(before, end):
+				_settle(k)
+			if sound:
+				_blip()
+			var last := text.substr(before, end - before).strip_edges().right(1)
+			if PAUSE.has(last) and end < n:
+				_hold = float(PAUSE[last])
+				break
+		if _starts.is_empty():
+			shown = float(n)
 	else:
 		var before := int(shown)
 		shown = minf(shown + (rate if rate > 0.0 else cps) * delta, float(n))
 		for k in range(before, int(shown)):
-			var ch := text.substr(k, 1)
-			char_settled.emit(k, ch)
+			var ch := _settle(k)
 			if sound and ch != " " and ch != "\n":
 				_letters += 1
 				if (_letters - 1) % BLIP_EVERY == 0:
-					blips += 1
-					Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
-			var li := _line_of(k)
-			if li != _last_line and _last_line >= 0:
-				line_settled.emit(_last_line)
-			_last_line = li
+					_blip()
 			if PAUSE.has(ch):
 				shown = float(k + 1)
 				_hold = float(PAUSE[ch])
@@ -222,6 +231,21 @@ func _process(delta: float) -> void:
 			line_settled.emit(_last_line)
 		finished.emit()
 	queue_redraw()
+
+
+func _settle(k: int) -> String:
+	var ch := text.substr(k, 1)
+	char_settled.emit(k, ch)
+	var li := _line_of(k)
+	if li != _last_line and _last_line >= 0:
+		line_settled.emit(_last_line)
+	_last_line = li
+	return ch
+
+
+func _blip() -> void:
+	blips += 1
+	Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
 
 
 func _line_of(k: int) -> int:

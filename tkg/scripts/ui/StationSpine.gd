@@ -1,44 +1,21 @@
 class_name StationSpine
 extends Control
 
-## The station in section, five floors of it, drawn behind the deck rail.
-##
-## THE RAIL WAS FIVE BUTTONS AND IT IS A BUILDING NOW. A tab strip tells you
-## which page you are on; a cutaway tells you where you are STANDING. They cost
-## the same vertical, and only one of them makes the station a place -- so the
-## decks are floors of one structure, stacked in the order you walk them, and
-## the one you are on is the one with its lights on.
-##
-## EVERY FLOOR IS AN INTERIOR. That is the whole conceit: you are inside this
-## thing. Nothing here is drawn from outside, there is no starfield, and the
-## hull walls run down both edges of every floor to say so.
-##
-## The rooms were drawn rather than loaded, as the placeholder AND the fallback;
-## the art has landed (`_draw_picture`), and a deck without a picture still gets
-## its room in rectangles.
+## A cutaway of floors of one structure shows where you stand; every floor is an interior.
+## Why: docs/why/StationSpine.md#station-spine
 
 ## Which floors are showing, top to bottom -- outposts do not have every deck, so
 ## this is not always five. Ids from `StationScreen.DECKS`.
 var floors: Array[StringName] = []
 ## Which of them you are standing on. -1 lights none.
 var active: int = -1
-## WHERE THE CAR IS, as a floor number that need not be a whole one.
-##
-## THE LIGHT TRAVELS, AND THAT IS THE WHOLE ELEVATOR. `active` says which floor
-## you have chosen; this says where the car has actually got to on its way
-## there. At 2.4 it is between the third and fourth rooms, and both of them are
-## partly lit -- so a floor brightens as the car arrives and dims as it leaves,
-## which is what makes it read as something moving through a building rather
-## than as a highlight teleporting between rows.
+## The car's float position lights floors as it passes, so it reads as moving, not teleporting.
+## Why: docs/why/StationSpine.md#elevator-car
 var car: float = -1.0
 ## Whoever holds the station, for the pigment shift. Same weight as the berth.
 var manufacturer: StringName = &""
-## How far the far wall of each room is offset, in pixels.
-##
-## THE BACK OF A ROOM IS FURTHER AWAY, so it is drawn inset. This used to be
-## driven by the building sliding in its shaft; the building does not slide any
-## more -- the CAR does -- so it is a fixed inset now and the depth comes from
-## the light moving across rooms that have a behind.
+## A fixed inset for the far wall now, as the building no longer slides: the car does.
+## Why: docs/why/StationSpine.md#parallax
 var parallax: float = 0.0
 
 const WALL := Color("#0d141d")
@@ -51,13 +28,8 @@ const HULL_W := 6.0
 ## The deck plate between one floor and the next.
 const DECK_T := 3.0
 
-## THE FLOORS ARE PICTURES NOW (Jon, 2026-10-01: "Can we have these animated
-## and colored when on the respective floor? ... When the floor is not active
-## ... the colors are muted a lot and not animated"). One per deck, the same at
-## every station, installed by `tools/rail_install.py`: the floor the car is on
-## plays its frames in full colour, every other floor stands muted and still,
-## and as the car passes a floor fades from one to the other. A deck with no
-## picture keeps the rooms drawn below.
+## Floors are pictures (Jon, 2026-10-01): active in colour and animated, others muted, still.
+## Why: docs/why/StationSpine.md#floor-pictures
 const RAIL_DIR := "res://art/sprites/station/rail/"
 ## A picture's size; a floor shows the window of it that fits.
 const PIC := Vector2(144.0, 128.0)
@@ -166,13 +138,9 @@ func _draw() -> void:
 			draw_rect(Rect2(0.0, top + fh - DECK_T, w, 1.0), edge)
 			continue
 
-		# THE ROOM YOU ARE IN IS THE LIT ONE, and it is lit rather than merely
-		# brighter: a warm floor among cold ones reads as somewhere with people
-		# in it, where a grey one lifted ten percent reads as a selected button.
+		# The room you are in is lit, not just brighter, so it reads as occupied, not selected.
 		draw_rect(room, wall.lerp(LAMP, 0.10 * glow))
-		# THE BACK OF THE ROOM, inset and lagging. Inset because a wall further
-		# away subtends less; lagging because that is what further away DOES when
-		# you move past it.
+		# The back wall is inset and lags, as a further wall does.
 		var back := Rect2(room.position.x + 7.0,
 			room.position.y + 4.0 - parallax * 0.33,
 			room.size.x - 14.0, room.size.y - 8.0)
@@ -183,20 +151,14 @@ func _draw() -> void:
 				wall.lerp(edge, 0.30))
 			sy += 9.0
 		if glow > 0.02:
-			# The spill from that floor's own lamps, banded down from the ceiling
-			# because that is where they hang. Scaled by `glow`, so the light
-			# comes UP as the car arrives instead of snapping on.
+			# Lamp spill is banded from the ceiling and scaled by `glow`, so light comes up.
 			for step in 3:
 				draw_rect(Rect2(room.position.x, room.position.y + 3.0 * float(step),
 					room.size.x, 3.0),
 					Color(LAMP.r, LAMP.g, LAMP.b,
 						(0.09 - 0.025 * float(step)) * glow))
-		# THE FURNITURE IS DRAWN BRIGHTER THAN THE ROOM IT IS IN, and the first
-		# pass was not. Everything in here was `plate` on `wall` -- #151e2a on
-		# #0d141d -- which is eight levels of difference at 156 pixels wide, and
-		# eight levels of difference is nothing. The walls stay dark because the
-		# ship on the Yard has to read against them; what is IN a room has no
-		# such duty and has to be legible at a glance from a rail.
+		# Furniture is drawn brighter than its room: eight levels of difference was unreadable.
+		# Why: docs/why/StationSpine.md#furniture-contrast
 		var furn := plate.lerp(EDGE, 1.4).lerp(LAMP, 0.16 * glow)
 		var line := EDGE.lerp(Color("#5c718c"), 0.55).lerp(LAMP, 0.20 * glow)
 		_furnish(floors[i], room, furn, line, lit)
@@ -206,12 +168,8 @@ func _draw() -> void:
 		draw_rect(Rect2(0.0, top + fh - DECK_T, w, DECK_T), plate)
 		draw_rect(Rect2(0.0, top + fh - DECK_T, w, 1.0), edge)
 
-	# --- THE CAR. A lit frame the height of one floor, at wherever it has got to.
-	#
-	# Drawn as a FRAME rather than a fill: a filled box would hide the room it is
-	# standing in, and the room is the thing you came to look at. Four edges and a
-	# brighter left post, because the post is the side the labels are on and it is
-	# what makes the selection read from across the screen.
+	# The car is a frame, not a fill, so the room shows; a brighter left post marks selection.
+	# Why: docs/why/StationSpine.md#elevator-car
 	if car >= 0.0:
 		var cy := fh * car
 		var cr := Rect2(0.0, cy, w, fh - DECK_T)
@@ -221,14 +179,8 @@ func _draw() -> void:
 		draw_rect(Rect2(cr.end.x - 2.0, cr.position.y, 2.0, cr.size.y),
 			Color(LAMP.r, LAMP.g, LAMP.b, 0.55))
 
-	# --- A SHADOW DOWN THE LEFT, UNDER THE LABELS.
-	#
-	# The deck names sit over this drawing and nine-pixel type on a lit stall is
-	# not type you can read. So the near side of every room is in shade -- which
-	# is also what a room lit from the far wall would actually look like, so the
-	# thing that makes the words legible is the same thing that gives the section
-	# its light direction. Banded rather than smooth: a gradient is not a move
-	# this renderer makes, and hard steps are what pixel art uses for falloff.
+	# The near side is in banded shade so deck names read; steps, as the renderer has no gradient.
+	# Why: docs/why/StationSpine.md#label-shadow
 	for band in 5:
 		var bw := 78.0 - 13.0 * float(band)
 		draw_rect(Rect2(HULL_W, 0.0, bw, h),

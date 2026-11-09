@@ -1,31 +1,8 @@
 extends Node
 
-## YOUR OWN SHIP ON THE SECTOR MAP, AND ITS ION DRIVE:
-##   godot --headless --fixed-fps 60 --path . -- sheet=MapShipTest
-##
-## Jeremy, friends' alpha: the sector map's ship should be the player's own,
-## not a generic one, and its engine flame blue, an ion drive, so flying in a
-## system reads as the drive and not the warp. A new run's sector map, through
-## the real screen (`SystemOverlay._draw_ship`, its pixels kept by `record_px`,
-## since headless draws nothing that can be read back):
-##   - the ship is drawn from your hull's own picture, the one LOCAL draws (the
-##     grade's bake, worked out here on its own, not asked of the code under
-##     test), at the map's length for its weight: the picture's colours are that
-##     art's (a dark hull lifted to read, `MapHull.LIFT_TO`), and pointing
-##     straight along the map every hull pixel drawn is the picture's pixel for
-##     pixel;
-##   - after a hull swap (`Run.transfer_to_hull`, a Solari heavy) the map draws
-##     the new hull the same way, longer;
-##   - W held through the real step: the flame lit, and every pixel of it and of
-##     the engine glow in the ion ramp (blue over red and green), none warm;
-##   - fit means nothing overlaps: YOU clear of the hull pointing straight up,
-##     and a partner sitting where you are drawn in formation clear of it;
-##   - AFTER THE MAP'S KEY: the map's picture is keyed onto the field
-##     (`nav_key.gdshader` on `SystemMapScreen._box`), so a colour can be drawn
-##     and still not be seen. Each solid pixel of the hull and its dark rim is
-##     put through the key's own rule, read off the screen's material, and must
-##     stand. The rim was the old arrow's #05070b, inside the key's band, and
-##     never showed; the colours recorded before the key could not tell.
+## The map ship is the player's own hull with a blue ion flame (Jeremy, friends' alpha).
+## Checked after the map's key: the old arrow's rim sat inside the key's band and never showed.
+## Why: docs/why/MapShipTest.md#map-ship-test
 
 var _tree: SceneTree
 var _fails := 0
@@ -76,10 +53,7 @@ static func _mean(img: Image, pm: PackedFloat32Array = PackedFloat32Array()) -> 
 	return Color(r / w, g / w, b / w) if w > 0.0 else Color(0, 0, 0, 0)
 
 
-## THE MAP'S KEY as the screen has it: `nav_key.gdshader`'s band (`lo`, `hi`,
-## `dark`, `dark_w`) and whether it is on, each from the screen's material or,
-## left unset there, the shader's own default. {} when the map is not keyed
-## (`-- field=off`): every colour stands.
+## The key's band as the screen has it, from its material or the shader default. Empty when unkeyed.
 static func key_of(map: SystemMapScreen) -> Dictionary:
 	var m := map._box.material as ShaderMaterial
 	if m == null or m.shader == null:
@@ -138,9 +112,7 @@ func _run() -> void:
 	_finish()
 
 
-## WHAT IT COSTS, printed and not judged (the machine is shared): shrinking a
-## hull the map has not drawn yet, and turning it to a step not yet drawn --
-## the most a frame ever pays, since a frame draws one ship at one step.
+## Printed, not judged (the machine is shared): the most a frame pays at one step.
 func _cost() -> void:
 	var path := "res://scripts/ui/sysmap/MapHull.gd"
 	if not ResourceLoader.exists(path):

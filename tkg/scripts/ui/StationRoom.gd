@@ -1,36 +1,19 @@
 class_name StationRoom
 extends Control
 
-## The room a station deck happens in: a back wall, a floor, and the lamps over
-## it. Every deck but the Shipyard's hangar is one of these with its own furniture.
-##
-## ONE ROOM, FOUR DECKS. The Promenade got a room first and everything in it --
-## the palette, the tint, the lamp count, the floor laid in widening courses, the
-## light pools drawn after the floor -- was worked out the hard way, one wrong
-## screenshot at a time. The Exchange, the Hiring Hall and the Laboratory need
-## exactly that room with different things standing in it, and three copies of
-## two hundred lines is three places for the next lesson to be learned only once.
-## So the room is here and each deck says only what is DIFFERENT about it, in
-## `_dress_wall` and `_dress_floor`.
-##
-## A PLACEHOLDER THAT IS ALSO THE FALLBACK, like `YardScene`. The layout is the
-## part worth settling with rectangles, and every answer is a constraint the art
-## will have to meet. If a generated plate never lands, this is what the station
-## looks like.
+## One room serves four decks, so each deck says only what differs, not three copies.
+## A placeholder that is also the fallback if a generated plate never lands.
+## Why: docs/why/StationRoom.md#room-design
 
-## How built-up this station is, from `MapGen.Development`. The axis that already
-## sets prices and stock, so the picture says something true rather than
-## decorating: fewer lamps at an outpost, more at a capital.
+## Development already sets prices and stock,
+## so the picture says something true: fewer lamps at an outpost.
 var dev: int = MapGen.Development.CITY
 ## Whoever holds the station. Tints the TRIM and nothing else -- see `_tint`.
 var manufacturer: StringName = &""
 
-## THE STATION'S OWN PALETTE, and deliberately the berth's numbers.
-##
-## `YardScene`'s header records why they are darker than they look like they
-## should be: a mid-grey room puts mid-grey objects against mid-grey and every
-## silhouette goes soft. The decks reading as one station is worth more than any
-## one of them reading well alone.
+## Deliberately the berth's numbers, darker than they look: a mid-grey room makes every
+## silhouette soft. The decks reading as one station beats any one reading well alone.
+## Why: docs/why/StationRoom.md#palette
 const WALL := Color("#0d141d")
 const PLATE := Color("#151e2a")
 const EDGE := Color("#202d3d")
@@ -47,11 +30,8 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
-## How deep the floor band is, measured up from the bottom.
-##
-## The furniture stands on the bottom edge of this control, so this is the strip
-## of deck VISIBLE around it. A function rather than a constant so a deck whose
-## furniture is taller than the shop's can give itself less floor.
+## The visible deck strip round furniture standing on the
+## bottom edge; a function so a taller deck can have less.
 func floor_h() -> float:
 	return 78.0
 
@@ -65,70 +45,33 @@ func _lamps() -> int:
 		_: return 4
 
 
-## A colour pigment-shifted toward whoever holds the station.
-##
-## ON THE TRIM, NOT ON THE WALLS -- which is the whole finding.
-##
-## A lerp moves each channel by a fraction of ITS OWN GAP, and out of a colour
-## this dark the gaps are wildly uneven: Solari's #ed9b22 against #0d141d is 224
-## of red and 5 of blue. Any weight at all therefore does not tint a wall, it
-## DESATURATES it -- at 0.12 the shop's wall came out #2f2d29 and at 0.06
-## #1a1c1d, both neutral warm greys where the station is meant to be cold blue.
-##
-## So big surfaces keep the station's colour and the livery goes on the EDGES:
-## joints, studs, conduit, window frames, floor courses. That is how a livery
-## works anyway -- nobody repaints a hull, they paint the trim -- and a 2px line
-## can afford to be orange.
+## Tint the trim, not the walls: a lerp on a dark colour desaturates it (at 0.12 the wall came
+## out grey). Big surfaces keep the station's colour; the livery goes on joints, studs and frames.
+## Why: docs/why/StationRoom.md#livery-tint
 func _tint(c: Color) -> Color:
 	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
 	return c if m == null else c.lerp(m.colour, 0.18)
 
 
-## A repeatable scatter. Stars and bubbles have to land in the same place every
-## redraw or they twinkle each time the pointer moves, and GDScript's RNG is a
-## stream rather than a function of position.
+## A repeatable scatter, or stars and bubbles twinkle each redraw, as GDScript's RNG is a stream.
 func _scatter(i: int, span: float) -> float:
 	return fmod(float(i) * 2654435761.0 / 65536.0, span)
 
 
-## Which plate this room wants, or `&""` for none.
-##
-## KEYED ON THE DECK, NOT ON DEVELOPMENT, because the plate is a BACKDROP and
-## carries no lamps. The lamp count is what development changes, and lamps are
-## drawn over the plate from `_lamps()` -- so one plate serves an outpost and a
-## capital alike, and the twelve this used to need are three. Decks override
-## this; the base is the plain room.
+## Keyed on the deck, not development, since the plate is a backdrop with no lamps.
+## So one plate serves outpost and capital alike, and the twelve needed become three.
+## Why: docs/why/StationRoom.md#plates
 func plate_id() -> StringName:
 	return &"room"
 
 
-## The room as two generated layers, or `false` if either is missing.
-##
-## TWO LAYERS BECAUSE THE LIVERY TINTS TRIM ONLY, which is `_tint`'s finding
-## above: a wall lerped toward a manufacturer colour desaturates instead of
-## tinting. So the plate ships as `<id>_wall.png` flat and `<id>_trim.png`
-## through `_tint`, and the orange lands on the joints and the courses where it
-## belongs.
-##
-## RESOLVED OUTSIDE A DRAW CALL AND REMEMBERED.
-##
-## A TEXTURE FIRST TOUCHED INSIDE `_draw` RENDERS WHITE. Resolving one there
-## hands the renderer a resource whose GPU side is not ready for the commands
-## being recorded, and the sampler falls back to white -- every texture, every
-## size, `draw_texture` and `draw_texture_rect` alike, while `draw_rect` on the
-## same item draws correctly. A room draws about twice in its life, so it keeps
-## that white for good. Rect-drawn rooms never hit it, which is why it waited
-## for the first plate to appear.
-##
-## Keyed on the id so a deck that changes development level reloads rather than
-## keeping the plate it was born with; `dev` is set after `_ready`, so loading
-## there would cache the wrong one.
+## A texture first touched inside `_draw` renders white, so plates are resolved outside it and kept.
+## Keyed on id as `dev` is set after `_ready`; two layers as the livery tints trim only.
+## Why: docs/why/StationRoom.md#plates
 var _plate_key: StringName = &""
 var _plate_wall: Texture2D = null
 var _plate_trim: Texture2D = null
-## The lamp, as art rather than rectangles. Shared by every deck and every
-## development level: what changes is how many are hung and what colour the
-## light is, and both of those are the room's to decide.
+## One lamp art for every deck and level; count and light colour are the room's to decide.
 var _lamp_hood: Texture2D = null
 var _lamp_cone: Texture2D = null
 var _lamp_pool: Texture2D = null
@@ -150,9 +93,8 @@ func _load_plate(key: StringName) -> void:
 	if _box_window == null:
 		_box_window = _bezel(&"window", true)
 	_ports = DB.station_sprite(&"frame", &"ports")
-	# Every opening frame this station might cut, resolved here rather than in
-	# the draw call that needs it. Fifteen small textures; the room is built
-	# about twice in its life.
+	# Opening frames are resolved here, not in the draw call:
+	# fifteen small textures, built about twice a life.
 	_opening_art.clear()
 	for skin in _hole_runs_keys():
 		var a := DB.station_sprite(&"opening", skin)
@@ -189,18 +131,9 @@ func _plate_cache_key() -> StringName:
 		openings(size.x, size.y, size.y - floor_h()).size()])
 
 
-## The lamps as sprites, or `false` if there is no art and rectangles it is.
-##
-## THE COUNT AND THE POSITIONS STAY THE ROOM'S. Art supplies the fixture and the
-## shape of the light; `_lamps()` says how many and `w * (i + 0.5) / n` says
-## where, so an outpost still reads as two lamps and a capital as six off one
-## plate. The glow is drawn through `_light()`, which is how the Laboratory gets
-## cold light out of the same cone everything else lights warm.
-## The lamps as rectangles: the fallback, and what the room has always drawn.
-##
-## THE LIGHT LANDS ON THE FLOOR. A lamp that glows and lights nothing is a
-## sticker; the pool underneath is the half that makes the room have a source,
-## and it is drawn later, after the plating it falls on.
+## Art supplies the fixture; `_lamps()` keeps count and positions, so an outpost reads as two lamps.
+## The light must land on the floor: a lamp that lights nothing is a sticker.
+## Why: docs/why/StationRoom.md#lamps
 func _lamp_rects(w: float, _floor_y: float) -> void:
 	var n := _lamps()
 	var glow := _light()
@@ -247,11 +180,8 @@ func _blit_plate() -> bool:
 	var wall: Texture2D = _plate_wall
 	if wall == null:
 		return false
-	# Stretched to the room, NOT centred, because a room is a fitted surface
-	# rather than an object standing in one -- the wall has to reach both edges
-	# whatever width the rail leaves. This is the one place in the art direction
-	# where a texture is not drawn at 1:1, and it is why a plate is authored at
-	# the size the panel actually is rather than cropped to its ink.
+	# Stretched to the room because the wall must reach
+	# both edges: the one texture not drawn at 1:1.
 	draw_texture_rect(wall, Rect2(Vector2.ZERO, size), false)
 	var trim: Texture2D = _plate_trim
 	if trim != null:
@@ -274,28 +204,20 @@ func _draw() -> void:
 		_draw_cast(all0)
 		return
 	if _blit_plate():
-		# A plate is the ROOM AS A BACKDROP -- walls, deck, and nothing that
-		# varies. The lamps go on over it because their COUNT is development and
-		# their COLOUR is the deck, and the furniture goes on over that because
-		# it is per-deck and often live: the Exchange's cage is measured off the
-		# hold grid every redraw, and the service rigs reach for whatever hull
-		# is parked. None of those can be baked and none of them are meant to be.
+		# A plate is the room as a backdrop only; lamps and furniture go over it because they vary
+		# by development, deck and live state, and none of those can be baked.
+		# Why: docs/why/StationRoom.md#plates
 		_draw_openings(w, h, floor_y)
 		_dress_wall(w, h, floor_y)
-		# NO LAMPS ON THE ART PATH. The generated hood and its drawn cone and
-		# pool read as stickers over a room that is otherwise made, and were
-		# cut. `_draw_lamp_art` stays for when lighting comes back as art that
-		# belongs; the drawn fallback room below still hangs its own.
+		# No lamps on the art path: the generated hood, cone and pool read as stickers and
+		# were cut. `_draw_lamp_art` stays for when lighting returns as art that belongs.
+		# Why: docs/why/StationRoom.md#lamps
 		_dress_floor(w, h, floor_y)
 		_draw_haze(w, h, floor_y)
 		return
 
-	# --- THE BACK WALL, AND IT IS THE DARKEST THING IN THE ROOM.
-	#
-	# It was `PLATE` for one pass, which is the colour of the FURNITURE -- so the
-	# shop's rack and till read as dark holes cut in a lighter wall. Everything
-	# standing in a room has to out-read the room. Untinted, for the reason
-	# `_tint` gives at length.
+	# The back wall is the darkest thing in the room: as `PLATE` the furniture read as dark holes.
+	# Why: docs/why/StationRoom.md#palette
 	draw_rect(Rect2(0.0, 0.0, w, floor_y), WALL)
 	# Panel joints, wide and faint. A flat wall reads as a hole.
 	var jy := 30.0
@@ -312,11 +234,7 @@ func _draw() -> void:
 
 	_lamp_rects(w, floor_y)
 
-	# --- THE FLOOR.
-	#
-	# BEFORE THE LIGHT THAT FALLS ON IT. The pools were once drawn with the lamps
-	# and the floor went down on top of them, so the lamps lit a room that stayed
-	# uniformly dark -- painted over by the surface they were lighting.
+	# The floor goes down before the light that falls on it, or it painted over the lamps' pools.
 	draw_rect(Rect2(0.0, floor_y, w, floor_h()), FLOOR)
 	# The junction, lit along the top edge: the one line that stops the wall and
 	# the deck being the same surface.
@@ -366,9 +284,7 @@ func _light() -> Color:
 	return LAMP
 
 
-## Where this room hangs the station's manufacturer banners. Each entry is a
-## horizontal anchor fraction and a top; the screen hangs the whole set side by
-## side, centred on it. Empty means the room hangs none.
+## Anchors for the station's manufacturer banners; the screen hangs the whole set centred on it.
 func banner_spots() -> Array:
 	return []
 
@@ -385,24 +301,15 @@ func _dress_floor(_w: float, _h: float, _floor_y: float) -> void:
 
 
 # ------------------------------------------------------------------ the layers
-#
-# A ROOM IN DEPTH, NOT A ROOM ON A PANEL. The back wall opens -- a window onto
-# the concourse outside, a door onto a corridor -- and what is seen through each
-# opening is a generated view of somewhere else on the station, with people
-# walking past in it. In front of the whole deck, furniture included, hang dark
-# cables. Nothing here moves the camera, so the depth comes from what a still
-# picture can do: overlap, far things hazier than near ones, a dark frame in
-# front, and near things moving faster than far ones.
-#
-# ALL OF IT IS THE PLATE PATH'S. A deck with no art keeps the rectangles it had.
+# A room in depth: openings show views and cables hang in front, with depth from overlap and haze.
+# All of it is the plate path's; a deck with no art keeps its rectangles.
+# Why: docs/why/StationRoom.md#room-layers
 
 ## Which station this is, as a number: picks the views, the walkers and the
 ## cables, so a station looks the same every visit and different from the next.
 var place_seed: int = 0
 
-## What can be seen through each kind of opening. Checked against the files when
-## the plate loads, so an id with no art drops out of the pool rather than
-## drawing a hole.
+## Views per opening kind are checked against the files at load, so an id with no art drops out.
 const VIEWS := {
 	&"window": [&"prom_a", &"prom_d", &"shops_b", &"arcade_a",
 		&"arcade_b", &"gallery_c", &"lounge_a", &"lounge_b", &"mess_a",
@@ -410,49 +317,26 @@ const VIEWS := {
 	&"door": [&"hall_a", &"hall_b", &"hall_c"],
 }
 
-## A view is somewhere else, seen through glass: a touch colder than it was
-## drawn. The heavy lifting -- getting it to sit BEHIND the room's own light --
-## is done once at install, by `room_plate.py view`, which fits each view's
-## midtones and leaves its lit signs alone.
+## A view is seen through glass, a touch colder;
+## `room_plate.py view` seats it behind the room's light.
 const VIEW_GLASS := Color(0.90, 0.94, 1.0)
-## How often the moving layers redraw: 30, as the room bench does.
-##
-## It was 12, the sector view's rate, on the grounds that pixel art moving at
-## 60 Hz reads as sliding. That does not apply here: a walker's body only moves
-## when its pose changes (planted feet, Jon's pick), and poses change 4 to 13
-## times a second -- so at 12 Hz every pose was held for 83 or 167 ms at
-## random, and the fastest walker skipped poses outright. At 30 the holds are
-## even and nothing is skipped. Walkers, drones and the drawn figures are the
-## only things on this clock.
+## Layers redraw at 30 Hz: at 12 every walker pose was held 83 or 167 ms at random,
+## and the fastest walker skipped poses outright.
+## Why: docs/why/StationRoom.md#layer-rate
 const LAYER_HZ := 30.0
 
 ## A view to show instead of the seed's pick, by kind. For `stationshot view=`,
 ## which photographs a named view in its real window; nothing in play sets it.
 static var forced_views := {}
 
-## The place outside and its walkers with no room round them, for
-## `stationshot roomview`: the elevator's Promenade picture is filmed from it.
-## Nothing in play sets it.
+## The place outside with no room round it, for `stationshot roomview`; nothing in play sets it.
 static var view_only := false
 
 var _views: Array = []
 var _box_window: StyleBoxTexture = null
-## ONE PLACE BEHIND THE WHOLE WALL, when there is one: every opening shows the
-## part of it behind that hole, instead of each opening picking its own view.
-## Placed by `_draw_openings` so its walkway meets this room's floor.
-##
-## EVERY ONE IS 800x400, AND THAT IS NOT A STYLE CHOICE. `_bd_pos` centres the
-## picture on the wall and stands it on the floor line, so on the 740x431 panel
-## it sits at (-30, -47) -- past both sides and over the top. The set this
-## replaced was 808 wide but only 286 to 352 tall, which left between 1 and 67
-## pixels of bare wall above it, and an opening dragged high showed the gap.
-## Drawing those smaller to widen the view only uncovered more wall. Any
-## backdrop added here has to reach as far.
-## ONE POOL PER DEVELOPMENT LEVEL (Jon, 2026-09-25). The promenade behind the
-## wall is part of how a station says how built-up it is, so a squat never
-## looks out on a capital atrium. Each is `backdrop_<level>_<name>.png`; the
-## first set of 25 (arches, archive ... vitrine) is retired, files kept, and
-## `room_bench.py` fails its build if this and its VIEWS ever disagree.
+## Every backdrop is 800x400: `_bd_pos` centres it, and shorter ones left bare wall above.
+## One pool per development level (Jon, 2026-09-25), so a squat never views a capital atrium.
+## Why: docs/why/StationRoom.md#backdrops
 const BACKDROPS := {
 	MapGen.Development.UNCLAIMED: [&"unclaimed_foodcounter14u",
 		&"unclaimed_gutted14u", &"unclaimed_habs15u", &"unclaimed_habtrash14u",
@@ -470,19 +354,15 @@ const BACKDROPS := {
 	MapGen.Development.CAPITAL: [&"capital_bank6a", &"capital_boutique9b",
 		&"capital_embassy8a", &"capital_plaza2b", &"capital_skygarden2a"],
 }
-## FLOORS THAT SHOW A REFLECTION: the walkers on these are drawn a second
-## time, upside down under their feet and faint (Jon, 2026-09-25). Only the
-## backdrops whose floor was generated polished; a reflection on grating
-## would be a lie about the floor.
+## Only polished-floor backdrops reflect their walkers (Jon, 2026-09-25); on grating it would lie.
+## Why: docs/why/StationRoom.md#backdrops
 const REFLECTIVE: Array[StringName] = [&"outpost_hydro", &"outpost_vending"]
 
 var _backdrop: Texture2D = null
 ## Which backdrop that is, by id: what `_load_plate` drew from the pool.
 var _bd_id: StringName = &""
 var _bd_pos := Vector2.ZERO
-## WHAT THE CONCOURSE IS SEEN THROUGH: `VIEW_GLASS`, a touch colder than drawn.
-## The shop turns it off -- its rooms are the bench's, which never cooled the
-## view, and its openings carry their own glaze.
+## Views are seen through `VIEW_GLASS`; the shop turns it off as its openings carry their own glaze.
 var _view_tint := VIEW_GLASS
 ## How far this station's backdrop sits below the default, from DROPS_PATH.
 var _bd_drop := 0.0
@@ -508,42 +388,20 @@ var _reflect := false
 ## reads as a second person standing on their head.
 const REFLECT_ALPHA := 0.3
 
-## PEOPLE ON THE CONCOURSE, as pixel-art sprites on the backdrop.
-##
-## THEY BELONG TO THE BACKDROP, NOT TO A WINDOW. Each one stands on a walk line
-## measured for that particular backdrop and moves in the picture's own
-## coordinates, so two openings onto the same stretch of concourse show the
-## same person in the same place. The procedural figures this replaces were
-## drawn per pane in lanes, which meant two windows side by side showed two
-## unrelated crowds of the same three silhouettes.
-##
-## A FUNCTION OF THE CLOCK, not a list that steps: each walker's position comes
-## from the time and its own seed, so nothing has to be kept in step and a room
-## that was hidden picks up wherever the clock says it should be.
+## Walkers belong to the backdrop, not a window, so two windows on one stretch show the same person.
+## Positions are a function of the clock, so a hidden room picks up where it should be.
+## Why: docs/why/StationRoom.md#walkers
 const WALKERS := true
 
 const WALK_LINES_PATH := "res://art/sprites/station/backdrop_walk.json"
 const STRIPS_PATH := "res://art/sprites/station/walker_strips.json"
 
-## The pace the concourse walks at, and it is NOT a free number. A walker's
-## frame is chosen by the distance it has covered, so this sets how fast the
-## legs move as well as how fast the body crosses.
-##
-## 40, ON JON'S CALL, AND IT BREAKS THE RULE THE CYCLES WERE CUT TO. At 20 a
-## thirteen-frame cycle plays about 4.7 frames a second, inside the band where
-## the eye separates steps; at 40 the same cycle plays 9.5, which is half again
-## past the 6.3 he once rejected outright as jitter. Every cycle in
-## `walker_strips.json` was measured and judged at 20.
-##
-## It is here at 40 anyway because his eye has overruled that arithmetic six
-## times running -- five quality gates and a drone bob depth, every one of them
-## fitted to his earlier verdicts and broken by his next one. A number nobody
-## has watched is worth less than a look.
+## WALK_PACE 40 is on Jon's call and breaks the cycle rule: 9.5 frames a second against 4.7 at 20.
+## His eye overruled the arithmetic six times running, so a number nobody has watched is worth less.
+## Why: docs/why/StationRoom.md#walk-pace
 const WALK_PACE := 40.0
 
-## How far above its walk line a drone rides. A flyer touches nothing, so
-## unlike a walker -- whose feet ARE the placement -- there is nothing in the
-## art to say where it belongs.
+## A flyer has no feet to place it, so nothing in the art says how high above its line it rides.
 const FLY_ALT := 96.0
 
 static var _walk_lines: Dictionary = {}
@@ -569,9 +427,8 @@ var _clock := 0.0
 var _since := 0.0
 
 
-## Where this deck's back wall opens, as `{rect, kind}` with kind `&"window"` or
-## `&"door"`. Empty is a blind wall. A deck places these round its own furniture;
-## the room knows nothing about what stands in front of it.
+## A deck places its openings round its own furniture;
+## the room knows nothing of what stands in front.
 func openings(_w: float, _h: float, _floor_y: float) -> Array:
 	return []
 
@@ -605,10 +462,7 @@ func _process(delta: float) -> void:
 		return
 	_clock += delta
 	_since += delta
-	# HALF A FRAME OF SLACK. `_since` counts whole frames, and two 60 Hz frames
-	# sum to a hair under 1/30 often enough that the gate waited a third one --
-	# measured, the room redrew anywhere from 10 to 12 times a second at a
-	# nominal 12. With the slack it fires on the frame nearest the period.
+	# Half a frame of slack: two 60 Hz frames sum to a hair under 1/30 and the gate waited a third.
 	if _since >= 1.0 / LAYER_HZ - 0.5 * delta:
 		_since = 0.0
 		queue_redraw()
@@ -617,16 +471,10 @@ func _process(delta: float) -> void:
 func _draw_openings(w: float, h: float, floor_y: float) -> void:
 	var list := openings(w, h, floor_y)
 	if _backdrop != null:
-		# FIXED TO THE WALL: centred across it, standing on the floor. It is the
-		# place outside, so where the openings are changes what you see of it,
-		# never where it is. (Centring it on the openings made it slide whenever
-		# a window moved.) The walkway is at the foot of the picture, so a door
-		# opens onto it at deck level.
+		# Fixed to the wall, as centring it on the openings made it slide whenever a window moved.
 		var bs := Vector2(_backdrop.get_size())
-		# DROPPED BY ITS OWN HEIGHT: how far down this picture sits so its floor
-		# meets the room's, set by eye per backdrop on the heights page (Jon,
-		# 2026-09-25) and kept in `backdrop_drops.json`. 0 is the old placement,
-		# bottom edge on the floor line.
+		# Dropped by its own height so its floor meets the room's;
+		# set by eye per backdrop (Jon, 2026-09-25).
 		_bd_pos = Vector2(roundf((w - bs.x) * 0.5), floor_y - bs.y + _bd_drop)
 	for i in list.size():
 		var r: Rect2 = list[i].rect
@@ -641,22 +489,13 @@ func _draw_openings(w: float, h: float, floor_y: float) -> void:
 			_pane(r, tex, i)
 
 
-## A HOLE THAT IS NOT A RECTANGLE. An arch, a canopy, a torn breach: the sprite
-## carries the frame, and the station shows through the shape cut in it.
-##
-## THE SPRITE CANNOT TELL US WHERE THE HOLE IS. Both the hole and the air around
-## the frame are transparent in it, so filling "everywhere the sprite is clear"
-## paints promenade in a square all round the opening -- which is exactly what
-## the bench did until the hole was measured out separately. `opening_holes.json`
-## holds the inside as spans of [y, x, width]; we fill those and nothing else,
-## then lay the sprite over the top.
+## The sprite cannot say where its hole is, so the inside is filled from `opening_holes.json` spans,
+## then the sprite goes over the top.
+## Why: docs/why/StationRoom.md#shaped-openings
 func _shaped_opening(r: Rect2, tex: Texture2D, skin: StringName) -> void:
-	# FROM THE CACHE, NEVER `load()` HERE. Resolving a texture inside a draw
-	# call hands the renderer a resource whose GPU side is not ready and it
-	# samples opaque white for good -- the warning at the top of this file,
-	# broken nine hundred lines below where it is written. Every opening frame
-	# in the game rendered as a solid white rectangle because of this one line,
-	# and it was invisible in the bench because the bench never ran this path.
+	# Read from the cache, never `load()` in a draw call: it sampled white and every opening frame
+	# rendered as a white rectangle.
+	# Why: docs/why/StationRoom.md#plates
 	var art: Texture2D = _opening_art.get(skin, null)
 	var runs: Array = _hole_runs(skin)
 	if art == null or runs.is_empty():
@@ -723,11 +562,7 @@ func _porthole_plate(r: Rect2, tex: Texture2D) -> void:
 	draw_texture(_ports, (r.get_center() - ps * 0.5).round())
 
 
-## The backdrop, in whatever part of `dst` it covers -- and above its top edge,
-## its top row stretched up to the ceiling. A dropped picture no longer reaches
-## the top of the wall, and the top of these views is deckhead or girder, so the
-## row carries; the heights page and the bench draw it the same way, so what
-## was judged there is what the room shows.
+## The backdrop's top row is stretched up to the ceiling, as the heights page and bench draw it.
 func _blit_backdrop(dst: Rect2) -> void:
 	var bs := Vector2(_backdrop.get_size())
 	var src := Rect2(dst.position - _bd_pos, dst.size).intersection(Rect2(Vector2.ZERO, bs))
@@ -744,9 +579,8 @@ func _blit_backdrop(dst: Rect2) -> void:
 				Rect2(Vector2(x0 - _bd_pos.x, 0.0), Vector2(x1 - x0, 1.0)), _view_tint)
 
 
-## A view cropped into its opening at 1:1 -- never scaled, because a view is
-## pixel art like everything else here. `bottom` pins its foot to the opening's
-## foot, which a corridor needs and a concourse does not.
+## A view is cropped at 1:1, never scaled; `bottom`
+## pins its foot to the opening's, which corridors need.
 func _blit_view(r: Rect2, tex: Texture2D, bottom: bool) -> void:
 	draw_rect(r, DEEP)
 	if _backdrop != null:
@@ -819,12 +653,9 @@ func _door(r: Rect2, tex: Texture2D, _i: int) -> void:
 		sx += 8.0
 
 
-## An opening's frame: the authored bezel, nine-sliced round the opening.
-##
-## THE BEZEL IS A SPRITE, NOT RECTANGLES -- `room_plate.py frames` records why.
-## The livery goes on a light bar in its head, which is the one place on a frame
-## a manufacturer would put a colour; with no bezel art the old drawn frame stays
-## as the fallback.
+## The bezel is a nine-sliced sprite with the livery
+## on its head bar; without art the drawn frame stays.
+## Why: docs/why/StationRoom.md#openings
 func _frame(r: Rect2, sill: bool) -> void:
 	var box: StyleBoxTexture = _box_window if sill else _box_door
 	if box != null:
@@ -889,11 +720,7 @@ static func _read_walk() -> void:
 			_strips = b
 
 
-## Pick a sprite for a rung. NOT simply the nearest by height, which would hand
-## every 80px line the same one walker for ever. Anything within a sixth of the
-## rung is close enough -- the cast measures 74-87px against an 80px line by
-## design, because people are not all one height -- so the seed chooses among
-## those and the nearest is only the fallback.
+## Pick among strips within a sixth of the rung by seed, so every 80px line is not the same walker.
 func _pick_strip(tall: float, s: int, flying: bool) -> String:
 	var near: Array[String] = []
 	var best := ""
@@ -908,11 +735,9 @@ func _pick_strip(tall: float, s: int, flying: bool) -> String:
 			best = String(nm)
 		if d <= tall / 6.0:
 			near.append(String(nm))
-	# NOTHING NEAR, NOBODY DRAWN. Every sprite is 74-87px, so a 60px or 40px
-	# line used to get the nearest one anyway -- a 74px curlyB on all nineteen
-	# far lines, and on eight backdrops everyone was curlyB. A far line keeps
-	# the drawn figures until sprites that size exist, as the bench does. A
-	# drone has no line height to match, so it still takes the nearest.
+	# Far lines with no sprite near their size draw figures:
+	# every far line used to get the same 74px sprite.
+	# Why: docs/why/StationRoom.md#walker-picking
 	if near.is_empty():
 		return best if (flying or bestd <= tall * 0.2) else ""
 	near.sort()
@@ -931,9 +756,8 @@ func _build_cast(bd: StringName) -> void:
 	var rows: Array = lines
 	if rows.is_empty():
 		return
-	# HOW FAR OFF A LINE IS, FROM HOW TALL ITS PEOPLE ARE -- the bench's rule.
-	# Half the height of the nearest line is twice as far away: half the speed,
-	# and washed toward the colour of the air.
+	# Distance from people's height, the bench's rule:
+	# half the height is twice as far, half the speed.
 	var near_tall := 0.0
 	for row in rows:
 		near_tall = maxf(near_tall, float(row.get("tall", 80)))
@@ -977,10 +801,7 @@ func _spawn_figure(tall: float, feet: float, s: int, depth: float) -> void:
 	})
 
 
-## AT ITS OWN SIZE OR EXACTLY DOUBLED. The room and every backdrop are pixel
-## art drawn 2x2; the walkers are 1:1, so on a line twice a strip's height the
-## strip is drawn at 2x -- the one resize pixel art survives (Jon, 2026-09-25:
-## "the scale of people are so tiny compared to the door and the room").
+## Drawn at 1x or exactly 2x, the one resize pixel art survives (Jon, 2026-09-25).
 static func _strip_k(m: Dictionary, tall: float) -> int:
 	var fh := float(m.get("frame_h", 0))
 	return 2 if fh > 0.0 and tall >= fh * 1.5 else 1
@@ -1010,9 +831,7 @@ func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0, tall :=
 		"adv": (float(adv_v) if adv_v != null else 0.0) * k,
 		"fly": flying,
 		"fps": float(m.get("fps", 10.0)),
-		# Each one within a fifth of the room's pace, so the concourse is never
-		# a conveyor belt of people in lockstep -- times its own gait, since an
-		# elder with a stick does not keep up with a porter.
+		# Pace within a fifth of the room's, times its own gait, so the crowd is not in lockstep.
 		"speed": WALK_PACE * float(m.get("gait", 1.0))
 				* (0.85 + 0.3 * float(s % 100) / 100.0) * depth * k,
 		"flip": (s >> 11) % 2 == 0,
@@ -1020,15 +839,11 @@ func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0, tall :=
 	})
 
 
-## Draw the concourse's people into whatever part of the backdrop is showing.
-## `clip` is in canvas space; a walker outside it is simply not drawn, which is
-## how somebody passes behind the wall between two windows.
+## A walker outside the clip is not drawn, which is how somebody passes behind the wall.
 func _draw_cast(clip: Rect2) -> void:
 	if _backdrop == null or _cast.is_empty():
 		return
-	# ONCE PER REDRAW, NOT ONCE PER ROW. A shaped hole calls this for every
-	# 1px run it is cut into, and every call used to work out every walker
-	# again from the same clock. The poses are the same for the whole redraw.
+	# Poses once per redraw, as a shaped hole calls this for every 1px run it is cut into.
 	if _posed_at != _clock:
 		_pose_cast()
 	# REFLECTIONS FIRST, so a walker crossing another's reflection stands on it.
@@ -1067,18 +882,15 @@ func _pose_cast() -> void:
 			_posed.append([w, roundf(fx), roundf(_bd_pos.y + float(w["feet"])), 0, run])
 			continue
 		if bool(w["fly"]):
-			# A flyer's frames run on a CLOCK. It touches nothing, so tying its
-			# rotors to its travel would have them speed up and slow down with
-			# it -- the one thing a hovering thing must not do.
+			# A flyer's frames run on a clock: tied to
+			# travel its rotors would speed up and slow down.
 			f = int(_clock * float(w["fps"])) % int(w["frames"])
 		else:
 			var adv: float = w["adv"]
 			if adv <= 0.0:
 				continue
-			# THE BODY IS DRAWN WHERE IT WAS AT THE START OF ITS FRAME. Sliding
-			# it smoothly between frame changes drags the planted boot a pixel
-			# at a time, hundreds of times a minute, and that is what reads as
-			# skating however well the stride was measured.
+			# The body is drawn where it was at its frame start:
+			# sliding between frames reads as skating.
 			var steps := floorf(run / adv)
 			f = int(steps) % int(w["frames"])
 			at = steps * adv
@@ -1096,9 +908,8 @@ func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> voi
 	var cut := dst.intersection(clip)
 	if not cut.has_area():
 		return
-	# Which columns of the frame the visible slice shows. Mirrored, the visible
-	# LEFT edge comes from the frame's RIGHT, so the offset is taken from the
-	# far side instead.
+	# Mirrored, the visible left edge comes from the
+	# frame's right, so the offset is from the far side.
 	var flip: bool = w["flip"]
 	var off := (dst.end.x - cut.end.x) if flip else (cut.position.x - dst.position.x)
 	# The slice is measured on screen; the frame is read in the strip's own
@@ -1118,10 +929,8 @@ func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> voi
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## The same frame upside down, head at the bottom, its feet on the walker's
-## feet -- what a polished floor gives back. Drawn through a transform that
-## flips both axes as needed, so the clip slice maps onto the right rows and
-## columns of the frame whichever way the walker faces.
+## The frame upside down with its feet on the walker's feet,
+## through a flip transform, for polished floors.
 func _blit_reflection(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> void:
 	var fw: float = w["fw"]
 	var fh: float = w["fh"]
@@ -1145,15 +954,9 @@ func _blit_reflection(w: Dictionary, x: float, y: float, f: int, clip: Rect2) ->
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## People walking past on the far side of the glass, in three lanes.
-##
-## DEPTH BY SPEED AND HAZE. The near lane is lowest, tallest, darkest and
-## fastest; the far lane is higher, smaller, paler and slower. On a picture that
-## never pans, that difference in speed is the whole of the parallax.
-##
-## A FUNCTION OF THE CLOCK, not a list of walkers that step: each one's place is
-## computed from the time and its own seed, so there is no state to keep in step
-## and a room that was hidden picks up exactly where the clock says.
+## Depth in three lanes comes from speed and haze,
+## which is the whole parallax on a picture that never pans.
+## Why: docs/why/StationRoom.md#walkers
 func _walkers(r: Rect2, i: int) -> void:
 	# far, mid, near: feet as a fraction down the pane, height, speed, haze
 	var lanes := [[0.72, 16.0, 5.0, 0.30], [0.84, 22.0, 9.0, 0.15],
@@ -1180,10 +983,9 @@ func _walkers(r: Rect2, i: int) -> void:
 
 ## One walker, feet at `at`, `tall` pixels high, clipped to the pane.
 func _figure(at: Vector2, tall: float, s: int, run: float, ink: Color, clip: Rect2) -> void:
-	# A PERSON, NOT A POST. The first cut was a block with a head the same width
-	# and read as a row of bollards. What says "person" at twenty pixels is the
-	# head narrower than the shoulders, a gap for the neck, a waist narrower than
-	# the chest, and arms and legs that swing.
+	# The first block figure read as bollards: a person needs
+	# a narrower head, a neck gap, a waist and swinging limbs.
+	# Why: docs/why/StationRoom.md#figures
 	var head := maxf(3.0, roundf(tall * 0.16))
 	var chest := maxf(5.0, roundf(tall * 0.30)) + float(s % 2) * 2.0
 	var torso := roundf(tall * 0.34)
@@ -1216,9 +1018,7 @@ func _figure(at: Vector2, tall: float, s: int, run: float, ink: Color, clip: Rec
 		_clip(Rect2(sx + chest - 1.0 - lw + 1.0, ly, lw, legs), clip, ink)
 	else:
 		_clip(Rect2(cx - lw, ly, lw * 2.0, legs), clip, ink)
-	# A RIM OF LAMPLIGHT down one side and over the head. A silhouette only reads
-	# against something lit, and half these views have dark reflective floors --
-	# the rim is what keeps a walker there when the floor behind it goes black.
+	# A lamplight rim keeps a walker readable against dark reflective floors.
 	var rim := Color(LAMP.r, LAMP.g, LAMP.b, 0.55 * (1.0 - ink.b))
 	var edge := sx + chest - 1.0 if (s >> 5) % 2 == 0 else sx
 	_clip(Rect2(hx + 1.0, top, head - 2.0, 1.0), clip, rim)
@@ -1249,12 +1049,9 @@ func _draw_haze(w: float, h: float, floor_y: float) -> void:
 			Color(0.27, 0.35, 0.47, a))
 
 
-## The layer IN FRONT of the deck, furniture and all, as its own node.
-##
-## ITS OWN NODE BECAUSE THE FURNITURE IS. A deck's rack, till and cage are
-## children of the screen stacked over this room, and nothing this room draws can
-## reach above them. So the screen adds this after the furniture, and it draws
-## the cables that make the whole deck sit behind something.
+## The foreground is its own node because the furniture is:
+## nothing this room draws can reach above it.
+## Why: docs/why/StationRoom.md#foreground
 func foreground() -> Control:
 	if _fore == null:
 		var f := _Fore.new()
@@ -1313,18 +1110,12 @@ func _crate(r: Rect2) -> void:
 		r.size.x, 2.0), Color(DEEP.r, DEEP.g, DEEP.b, 0.55))
 
 
-## A viewport onto space: stars, the station's own hull curving away below them,
-## and a frame with a lit sill and mullions.
-##
-## The hull arc is the one mark that says you are ON something rather than
-## looking at a poster -- so it is drawn as hull: solid, lit along its rim, with
-## a row of lit ports along it. As a translucent band it read as a gradient.
+## The hull arc says you are on something, so it is drawn
+## solid and lit; as a translucent band it read as a gradient.
+## Why: docs/why/StationRoom.md#window
 func _window(sky: Rect2) -> void:
 	draw_rect(sky, DEEP)
-	# Stars. Fixed positions, three brightnesses, and none of them on the frame --
-	# a star touching a mullion looks like a dead pixel. Every ninth is a bright
-	# one drawn as a cross, and a few run warm or blue, because a field of
-	# identical dots is the look of a loop rather than a sky.
+	# Stars keep off the frame and vary in brightness and hue, as identical dots read as a loop.
 	for i in 46:
 		var sx := floorf(sky.position.x + 4.0 + _scatter(i * 7 + 1, sky.size.x - 8.0))
 		var sy := floorf(sky.position.y + 4.0 + _scatter(i * 13 + 5, sky.size.y - 8.0))

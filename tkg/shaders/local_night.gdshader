@@ -16,8 +16,7 @@ render_mode unshaded, blend_add;
 // never a flat blot. Drawn over the near picture, not in it (the play tone
 // would press the lights to tan smudges). By style: SIMPLIFIED stepped light
 // with a faint cross of glow; PAINTED two flat hand-picked warm tones from B's
-// glow ramp, no soft glow; RADIANT a softer, wider spill through an exposure;
-// LEGACY pale points only.
+// glow ramp, no soft glow; RADIANT a softer, wider spill through an exposure.
 
 // the world: its middle (this sky's 960x540 px, as drawn), radius, turn
 uniform vec2 ctr = vec2(0.0);
@@ -83,9 +82,6 @@ void fragment() {
 		// PAINTED: flat tones off the glow ramp, a pixel artist's two
 		if (core) col = s > 0.95 ? vec3(1.0, 0.847, 0.478) : (s > 0.45 ? vec3(1.0, 0.659, 0.235) : vec3(0.69, 0.227, 0.063));
 		else if (side && s > 0.95) col = vec3(0.416, 0.11, 0.031);
-	} else if (style == 3) {
-		// LEGACY: pale points, three steps, nothing round them
-		if (core) col = vec3(0.86, 0.8, 0.66) * (floor(min(s, 1.0) * 3.0 + 0.5) / 3.0);
 	} else if (style == 2) {
 		// RADIANT: through an exposure, a wider softer spill
 		float x = core ? s * 1.3 : (side ? s * 0.2 : s * 0.05);

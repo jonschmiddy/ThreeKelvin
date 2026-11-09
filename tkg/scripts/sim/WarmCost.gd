@@ -1,17 +1,7 @@
 extends Node
 
-## WHAT EACH SHADER COSTS TO COMPILE THE FIRST TIME IT IS DRAWN, on this machine:
-##   tools/dev/render.sh --path tkg -- sheet=WarmCost [only=sky,planet,...] [mesh=map_fabric]
-## Each shader under res://shaders/ is drawn once into a 4x4 viewport of its own
-## (as a rect; `mesh=` names the ones also drawn as a mesh, the variant
-## `draw_mesh` binds): the frame that draws it, timed from its process step to
-## the end of its draw (`frame_post_draw`), against the median of frames that
-## compile nothing. (Not a `force_draw` straight after adding it: a new item's
-## draw list is made at the frame's end, so that draw held nothing to compile,
-## and every shader timed at under a millisecond.) Every run has a fresh profile, so this is
-## a cold compile -- what a launch costs where the driver keeps no program
-## binaries (Apple's OpenGL), or a first launch anywhere. Needs a window: the
-## dummy renderer compiles nothing.
+## A new item's draw list is made at frame end, so a forced draw timed under a millisecond.
+## Why: docs/why/WarmCost.md#warm-cost
 
 var _tree: SceneTree
 var _args: PackedStringArray
@@ -26,9 +16,7 @@ func _arg(k: String, d: String = "") -> String:
 
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
-	# (the title under this sheet compiles the map's shaders ahead where it
-	# can, `ShaderWarm`: off, or they would be compiled before they are timed.
-	# By path, so this sheet runs on a tree without it too)
+	# `ShaderWarm` is off, or shaders would compile before they are timed; loaded by path.
 	if ResourceLoader.exists("res://scripts/ui/ShaderWarm.gd"):
 		(load("res://scripts/ui/ShaderWarm.gd") as GDScript).set("off", true)
 	_run.call_deferred()

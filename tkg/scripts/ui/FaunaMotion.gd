@@ -1,70 +1,8 @@
 class_name FaunaMotion
 extends Control
 
-## THE THREE THAT ARE NOT SHIPS MOVE ON THEIR OWN (Oct 13). Jon: "The custodian
-## and the megafauna should get their own movement animations :) Not
-## thrusters." Every ordinary ship burns an engine flame (`ThrusterFx`); The
-## Custodian, the Voidwhale Calf and the Void Leviathan move instead. Jon picked
-## from three ideas each (fx/fauna-motion's films): "custodian:A leviathan:B
-## whale:B", and for the calf "i really like the movement of breathe but the
-## lights of glow".
-##   - THE CUSTODIAN, BREATH: its octahedra drift apart along the spine and
-##     back, a pixel or two each, out of step; its orange pinpoints pulse in a
-##     wave that runs along the spine. Charging pulls the pieces in tight, runs
-##     two light waves into its heart and fills the heart with the cold charge.
-##   - THE LEVIATHAN, BREATHE: the body swells up to two pixels, the belly
-##     first, the swell running head to tail with a slow pulse of the belly
-##     lights; the flippers drift back with each breath; a ripple lifts the
-##     back crystals one after another.
-##   - THE CALF, BREATHE'S BODY AND GLOW'S LIGHTS: the same swell and spine
-##     ripple, and two packets of light chasing down the belly head to tail.
-##   - A creature's strike (`strike`, 0.35 s before its attack is fired, Jon's
-##     "windup:B"): a deep in-breath, the spines bristling; the Leviathan's
-##     belly lights flare, the calf's light runs back up to its head and
-##     blazes; then the shot.
-##
-## THE PICTURE IS NEVER REDRAWN OR TURNED. Rotating pixel art shimmers, and an
-## AI animation of a whole picture boils (memory turn-pixel-art-in-whole-pixel-
-## steps, animate-image-redraws-the-whole-picture). Each picture is cut ONCE
-## (`cut`, on a worker thread: pure CPU work, its textures owed until `attach`
-## pays them on the main thread -- `OffThread`) into the parts it already has, and only the
-## parts move, in whole pixels, on held steps (8 or 12 a second):
-##   - THE CUSTODIAN into its octahedra: their apexes are the dips in its top
-##     edge and they all sit on one equator (the silver spine), so each is a
-##     diamond; a pixel belongs to the biggest diamond holding it (the big ones
-##     read as nearer), and each piece is filled in behind its neighbours from
-##     its own nearest pixels, so a piece that moves a pixel or two uncovers
-##     more of the piece behind it, never a hole. Its pinpoints are the warm
-##     pixels sitting in dark glass (too pale for `ShipBreakup._is_glow`), cut
-##     into their little star clusters, each riding its piece.
-##   - THE CREATURES in one small shader: a medial line per column (a swell
-##     parts the body there, the belly half dropping, the back half rising),
-##     their spines (the calf's are its thin lines, what a 3x3 opening of the
-##     silhouette loses; the Leviathan's are the pale crystal blobs along its
-##     back), the Leviathan's two hanging flippers (below a belly line drawn
-##     between them), and their lights (`ShipBreakup._is_glow`'s, the pixels its
-##     creature deaths dim).
-##
-## LIGHT IS DRAWN AS LIGHT (memory draw-light-as-light): every glowing pixel is
-## the dark body plus its own light added back at a level, and above level 1 it
-## gathers a halo, added in 4x4-ordered-dither eighths, on the body only. At
-## level 1 with no halo the sum is the picture. The Custodian's charge is
-## `EnemyArt._pool` to the dither: the same falloff, colour and strength, at
-## the same point, so a full charge here is the charge the still picture has.
-##
-## REST IS THE STILL PICTURE. `settle()` (`SectorScreen._prebuild_death`, ten-
-## odd frames before the breakup is cut) walks every offset back a pixel a
-## frame and every light a step a frame; it is at rest in four frames or fewer
-## and then draws the still picture itself, which is what the death cuts from.
-##
-## THE BOB is the slot's 2 px (`EnemySlot.BOB_AMP` / `BOB_HZ`), but taken from
-## here (`bob_px`), on the motion's own steps: a bob step one frame and a part's
-## step the next put pixels back where they were, one-frame flip-backs of 0.1-
-## 0.4 x1e-4 a frame against today's 0.011 (measured on fx/fauna-motion).
-##
-## HALF SIZE (a pack of three or more draws each ship from its half sheet,
-## `EnemyArt.draw_scale`): `pic_scale` 0.5 halves the moves (never under a pixel)
-## and the cut's own measures.
+## Non-ships cut parts once and move them in whole pixels; the picture is never redrawn.
+## Why: docs/why/FaunaMotion.md#fauna-motion
 
 enum Kind { CUSTODIAN, CALF, LEVIATHAN }
 
@@ -125,9 +63,7 @@ static func kind_of(id: StringName) -> int:
 static var enabled := true
 
 
-## WHICH PICTURE the slot shows at rest, as far as the motion is concerned: the
-## kind, which of its pictures, the wound bands `EnemyArt._draw_sprite` draws
-## (a half-hurt scorch, a quarter, the dark under a third) and the size.
+## The picture key: kind, which picture, wound bands and size, as far as motion cares.
 static func picture_key(e, hull: int, s: float) -> String:
 	var w := float(hull) / float(maxi(1, e.max_hp))
 	return "%s|%d|%d%d%d|%d|%.2f" % [e.template.id, e.look, int(w < 0.5), int(w < 0.3), int(w < 0.25),
@@ -140,11 +76,7 @@ static func picture_name(e) -> String:
 	return String(files[posmod(e.look, files.size())]).get_basename() if not files.is_empty() else ""
 
 
-## The canvas the slot's art draws for `e` at `hull`, without a wind-up, at
-## size `s`, with the fight's hit marks (`marks`, a `ShipHitFx`): what the
-## motion is cut from. Drawn the art's own way, by a second
-## `EnemyArt` (a few ms, on the main thread), so the rest it settles to is the
-## art's picture to the pixel.
+## Drawn by a second `EnemyArt`, so the rest it settles to is the art's picture to the pixel.
 static func still_canvas(e, hull: int, s: float, marks = null) -> Image:
 	var art := EnemyArt.new()
 	art.set("draw_scale", s)
@@ -161,11 +93,7 @@ static func still_canvas(e, hull: int, s: float, marks = null) -> Image:
 	return img
 
 
-## Cut `img` (an `EnemyArt` canvas holding the picture, drawn without a wind-up)
-## for kind `k`. Touches nothing in the tree and makes no RID (its textures
-## are owed, `OffThread.tex`): safe on a worker thread. The node itself is
-## made on the main thread (a Control is a canvas item).
-## `pic_key` is the picture's file name (for `EnemyArt.CORE_AT`, if it has one).
+## Touches no tree and makes no RID, so it is safe on a worker; the node is made on main.
 func cut(img: Image, k: int, s: float = 1.0, pic_key: String = "") -> void:
 	var t0 := Time.get_ticks_usec()
 	kind = k
@@ -221,9 +149,7 @@ func rest_image() -> Image:
 	return _img
 
 
-## FOR THE TESTS: how far from rest what is shown is -- parts off their place,
-## lights off level 1 or haloed, the charge lit -- the deepest swell, and the
-## wind-up's ease.
+## For the tests: how far from rest the shown parts, lights, charge and wind-up are.
 func state() -> Dictionary:
 	var off := 0
 	var lit := 0
@@ -253,9 +179,7 @@ func windup(on: bool) -> void:
 	_wind_on = on
 
 
-## A creature is about to fire (`SectorScreen._play_turn` waits
-## `FAUNA_ANTICIPATION`, 0.35 s, before its shot): the wind-up, in fast, held
-## through the shot, then let go.
+## The wind-up goes in fast, is held through the shot, then let go (0.35 s before firing).
 func strike() -> void:
 	_strike_left = STRIKE_S
 
@@ -428,9 +352,7 @@ void fragment() {
 """
 
 
-## The Custodian's light layer, added: each texel's colour times how much of it
-## (its alpha) times the level (the draw's modulate red), put into eighths by a
-## 4x4 dither locked to the canvas -- `EnemyArt._pool`'s own steps.
+## Light layer added as eighths on a 4x4 dither locked to the canvas, like `EnemyArt._pool`.
 const LIGHT_SHADER := """
 shader_type canvas_item;
 render_mode blend_add;
@@ -469,9 +391,7 @@ var _mat: ShaderMaterial
 var _body_tex: ImageTexture
 var _shader_tex := {}
 var _nglow := 0
-## The cut's masks, canvas-sized (`FaunaGuard.Body` reads them): the ink, its
-## lights, its spines (the calf's thin lines, the Leviathan's crystals) and the
-## Leviathan's flippers (1 the front, 2 the rear).
+## The cut's canvas-sized masks: ink, lights, spines and the Leviathan's two flippers.
 var m_ink := PackedByteArray()
 var m_glow := PackedByteArray()
 var m_spine := PackedByteArray()
@@ -621,10 +541,7 @@ func _grow(m: PackedByteArray, r: Rect2i) -> PackedByteArray:
 	return out
 
 
-## THE LEVIATHAN'S BACK CRYSTALS: blobs of pale blue (bright, blue over red,
-## not saturated) that reach its top edge, along the middle 70% of it (its head
-## and tail curl catch the same highlight and are not crystals), with the grey
-## outline round them.
+## Back crystals are pale blue blobs on the middle 70% of the top edge; head and tail excluded.
 func _crystals(ink: PackedByteArray, glow: PackedByteArray, r: Rect2i) -> PackedByteArray:
 	var W := _W
 	var n := W * _H
@@ -707,9 +624,7 @@ func _crystals(ink: PackedByteArray, glow: PackedByteArray, r: Rect2i) -> Packed
 	return keep
 
 
-## THE LEVIATHAN'S FLIPPERS: everything hanging below its belly line, which is
-## drawn straight between the belly either side of them. The biggest piece
-## furthest back is the rear flipper (2); the rest is the front one (1).
+## Flippers are what hangs below a straight belly line; the biggest rear piece is flipper 2.
 func _fins(ink: PackedByteArray, glow: PackedByteArray, spine: PackedByteArray, r: Rect2i) -> PackedByteArray:
 	var W := _W
 	var out := PackedByteArray()
@@ -871,9 +786,7 @@ func _at_rest_creature() -> bool:
 	return _fin_cur == Vector2i.ZERO
 
 
-## Idle at u (0 the head, 1 the tail tip): [body dy, spine dy, upper swell,
-## lower swell, light, halo]. BREATHE's body for both; the Leviathan breathes
-## its lights with it, the calf chases GLOW's packets along them.
+## Idle at u, 0 the head to 1 the tail: BREATHE's body, with lights differing by creature.
 func _idle(u: float, ts: float) -> Array:
 	var b := _ease01(0.5 - 0.5 * cos(TAU * (ts - u * 0.6) / 3.6))
 	var body := 1.0 if u > 0.12 and u < 0.9 else 0.0
@@ -1226,11 +1139,7 @@ func _cut_custodian() -> void:
 	_cut_charge(ink)
 
 
-## THE CHARGE, as `EnemyArt._windup` lights a "core" wind-up on this picture:
-## the same point (`CORE_AT` for a picture that names its heart, else the
-## hull's mass, moved onto solid hull), the same `_pool` (its falloff in the
-## texture's alpha, COLD[3], strength 1.6 carried by the level) and the same
-## white heart.
+## The charge matches `EnemyArt._windup`: same point, same `_pool`, same white heart.
 func _cut_charge(ink: PackedByteArray) -> void:
 	var W := _W
 	var H := _H

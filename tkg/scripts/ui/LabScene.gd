@@ -1,36 +1,9 @@
 class_name LabScene
 extends StationRoom
 
-## The Laboratory: one of Jon's five painted labs, lit and running.
-##
-## IT WAS A ROOM DRAWN IN CODE -- a fume hood, a whiteboard, two culture tanks
-## -- with the recipes behind the hood's glass. It is one picture per
-## development level now, each a PixelLab take Jon chose and had edited by hand,
-## and each lit the way Five Labs, Lit lit it: the artifact he judged them on,
-## and the reference for everything below. `tools/lab_install.py` installed
-## them (`art/sprites/station/lab/`) with every light's pool worked out ahead of
-## time; what happens here is the part that moves.
-##
-## THREE LAYERS, AND THE RECIPES BETWEEN THEM.
-##
-##   this node   the picture, lit (`lab_light.gdshader`), and its life: the
-##               small monitors typing, bubbles in the capital's tanks, the
-##               flasks on its counter fizzing
-##   (screen)    the station owner's sign-on (`LabLogin`, `StationScreen`'s),
-##               standing in the picture's own screen (`win_rect`), and the
-##               glass's key, clipped to the glass so the power-on's scan can
-##               bring them up
-##   fx_layer()  what the big screen does, over the rows: the city's sweep,
-##               the outpost's and settlement's bad signal, the unclaimed
-##               screen failing with its bulb, the capital's rim light
-##
-## ON A 30 HZ CLOCK, like the shop, because the prototype drew at 30 and every
-## fault was shaped for that rate. Each lab powers on from black the first time
-## you step onto the deck at a station: the lamps strike, the room fades up,
-## the screen scans its sign-on in -- each with its sound (`POWER_ON_SOUNDS`).
-##
-## Drawn at 1:1 at the top-left, like the shop's rooms: every lab is the
-## 740x431 wall they were laid out on.
+## Jon's painted labs, one per development level, lit as in Five Labs, Lit, the reference.
+## Runs on a 30 Hz clock: the prototype drew at 30 and every fault was shaped for it.
+## Why: docs/why/LabScene.md#lab-scene
 
 const LAB_DIR := "res://art/sprites/station/lab/"
 const LAB_JSON := LAB_DIR + "labs.json"
@@ -45,13 +18,9 @@ const MASK_FLASK := 2
 const MASK_MONITOR := 4
 const MASK_GLASS := 8
 
-## THE POWER-ON, HEARD: each lab's sounds, seconds after power-on, as Jon passed
-## them on the audition page (Lab Sounds, 2026-09-28) -- a flicker on each of
-## the bulb's flashes, a click before the screen it wakes, the static on the
-## frame the rows start to scan in. Each name is one wav in `assets/audio/sfx/`
-## with its layers already mixed and a static already cut to length, so it
-## plays at 0 dB and no pitch wander. The times meet the lights in `_weights`
-## and the rows' `boot.reveal` in labs.json: move one and move the other.
+## Sounds from Jon's audition page (Lab Sounds, 2026-09-28); times meet `_weights` and labs.json.
+## Move one and move the other.
+## Why: docs/why/LabScene.md#power-on-sounds
 const POWER_ON_SOUNDS := {
 	"unclaimed": [[0.3, &"lab_unclaimed_bulb"], [0.6, &"lab_unclaimed_bulb"],
 		[1.0, &"lab_unclaimed_bulb"], [1.1, &"lab_unclaimed_bulb"],
@@ -70,14 +39,8 @@ const POWER_ON_SOUNDS := {
 		[2.2, &"lab_monitor_pop"], [3.0, &"lab_capital_glass"]],
 }
 
-## THE LAB AFTER ITS POWER-ON, HEARD (Jon: "They're dead silent after the
-## monitor turns on. Let's make em feel real."): a bed that loops, from
-## `assets/audio/ambience/`; now and then one of its sounds, dropped in at
-## random; and on each flash of a light that already stutters (`watch`, the
-## light and the power-on seconds before it starts), its flicker -- the city's
-## two ticks in turn. Every level is baked into its file, as Jon set it on the
-## audition page, and all of it plays on the Ambient bus beside the station's
-## own crowd and PA, which carry on underneath.
+## Added because labs were dead silent after power-on (Jon): a looping bed plus now-and-then sounds.
+## Why: docs/why/LabScene.md#lab-ambience
 const AMBIENCE := {
 	"unclaimed": {"bed": &"lab_unclaimed", "shots": [&"lab_unclaimed_sheet_rattle"],
 		"watch": ["bulb", 3.0], "flicker": [&"lab_unclaimed_flicker"]},
@@ -91,9 +54,7 @@ const AMBIENCE := {
 		"shots": [&"lab_capital_big_bubble", &"lab_capital_data_chirp", &"lab_capital_valve_hiss"]},
 }
 const AMB_VOICES := 6
-## Seconds between one now-and-then sound and the next, at random in this
-## range. The audition ran 8 to 16 so Jon could hear them; a lab you stand in
-## spaces them out. `stationshot labshots=a,b` shortens it for a test.
+## Random gap between sounds; the audition ran 8 to 16 s, a lab you stand in spaces them out.
 static var shot_every := Vector2(15.0, 30.0)
 
 ## The small monitors' inks (ink, mid, pale): on a lit screen, and on a dark one.
@@ -299,9 +260,7 @@ static func _read(name: String) -> Image:
 	return img
 
 
-## Power the lab on from black: the first time the deck is shown at a station.
-## `settled` comes back to a lab already on this docking (`Router.powered`): its
-## power-on long over, none of its sounds to play, the bed in at once.
+## `settled` is a lab already on this docking: no power-on sounds, the bed in at once.
 func power_on(settled: bool = false) -> void:
 	if _powered:
 		return
@@ -343,9 +302,7 @@ func _process(delta: float) -> void:
 	_tick(t)
 
 
-## The power-on's sounds that are due, each once, the moment its time comes: on
-## the lab's own clock, so a sound meets the frame its light moves on. Never on
-## a pinned clock -- a photograph has no sound.
+## Sounds follow the lab's own clock so one meets its light's frame; never on a pinned clock.
 func _sound() -> void:
 	if not _powered or pin_clock >= 0.0 or _boot_heard:
 		return
@@ -357,9 +314,7 @@ func _sound() -> void:
 		_voiced = true
 
 
-## LEAVING THE DECK MID POWER-ON TAKES ITS SOUNDS WITH IT. The lab's clock stops
-## while it is hidden, so what was already in the air would ring on over
-## another deck with nothing on screen making it; `Audio.hush` fades it.
+## Leaving mid power-on hushes its sounds, as the lab's clock stops while hidden.
 func _hush() -> void:
 	if not _voiced:
 		return
@@ -401,10 +356,7 @@ func _amb_setup() -> void:
 	_bed.stream = stream
 
 
-## THE BED RISES WITH THE POWER-ON, silent to 0.3 s and full by 3.0, as the
-## lights come up; coming back to a lab already on, it rises over half a
-## second. It loops for as long as the lab is on screen. Now and then one of
-## the lab's sounds drops in, never the same one twice running.
+## The bed rises with the lights, 0.3 to 3.0 s; a lab already on takes half a second.
 func _ambience(delta: float) -> void:
 	if _amb_quiet or not _powered or pin_clock >= 0.0 or _bed == null or _bed.stream == null:
 		return
@@ -567,19 +519,13 @@ func _reveal(tb: float) -> void:
 
 
 # ---------------------------------------------------------------- each clock
-#
-# Five Labs, Lit's `weights`, one per lab, line for line: how hard each light
-# burns at `t`, `tb` seconds after power-on. A number is steady; a pair is
-# [steady, breathing].
+# Five Labs, Lit's `weights`, line for line: a number is steady, a pair is steady and breathing.
 
 func _weights(t: float, tb: float) -> Dictionary:
 	match _level:
 		"unclaimed":
-			# A DEN UNDER ONE BAD BULB: it strikes, then flutters, and every few
-			# seconds it is gone for a frame.
-			# FIVE FLASHES, TO JON'S RHYTHM ("1 .. 2... 3 4 5"): 0.3, 0.6, 1.0, 1.1
-			# and 1.2 s, two frames each, the last holding on, a flicker sounding on
-			# each. It struck at random, nine times, before.
+			# Five flashes to Jon's rhythm ('1 .. 2... 3 4 5'); it used to strike at random.
+			# Why: docs/why/LabScene.md#light-rhythms
 			var n := roundi(tb * HZ)
 			var on := 1.0 if n >= 36 else (1.0 if n in [9, 10, 18, 19, 30, 31, 33, 34] else (0.04 if n >= 9 else 0.0))
 			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 and not lamps_held else 1.0) * _flutter(t, 0.4)],
@@ -600,9 +546,8 @@ func _weights(t: float, tb: float) -> Dictionary:
 				"l2": [_warm(tb, 0.75), _sway(t, tb, 0.75, 5.3)],
 				"l3": [_warm(tb, 1.2), _sway(t, tb, 1.2, 8.7) * (_loose(t, 4.4) if tb > 5.0 and not lamps_held else 1.0)]}
 		"city":
-			# THE HOOD STRIKES, the tubes stutter on in turn, the monitors pop --
-			# spaced out (Jon: "space the city sounds out a bit"): the tubes at 1.0
-			# and 1.6, the helix monitor at 2.3 with its neighbours round it.
+			# The city's sounds are spaced out (Jon): tubes at 1.0 and 1.6 s, helix monitor at 2.3.
+			# Why: docs/why/LabScene.md#light-rhythms
 			var hood := _strikes(tb, 0.3, 0.55, 1.3)
 			var br := 0.9 + 0.1 * sin(t * 6.283 / 4.5)
 			return {"strip": [hood, br], "floor": [hood, br], "hood": [hood, br],
@@ -613,9 +558,8 @@ func _weights(t: float, tb: float) -> Dictionary:
 				"meter": _pop_on(tb, 2.2),
 				"dev": _pop_on(tb, 2.4) * (1.0 if fmod(t, 1.4) < 1.0 else 0.2)}
 		"capital":
-			# THE GOLD BAR STRIKES, the tanks come up teal, the glass comes on --
-			# each waiting for the last (Jon: "the tanks start even later ... more
-			# of a delay"): tanks from 1.5 s, the monitor at 2.2, the glass from 3.0.
+			# Each element waits for the last (Jon): tanks from 1.5 s, monitor 2.2, glass 3.0.
+			# Why: docs/why/LabScene.md#light-rhythms
 			var tank := [_smooth(1.5, 2.3, tb), 0.9 + 0.1 * sin(t * 6.283 / 3.7)]
 			var bar := [_strikes(tb, 0.3, 0.6, 3.3), 0.96 + 0.04 * sin(t * 6.283 / 5.0)]
 			return {"bar": bar, "halo": bar, "glass": [1.15 * _smooth(3.0, 3.5, tb), 1.0],
@@ -640,9 +584,7 @@ static func _sway(t: float, tb: float, at: float, s: float) -> float:
 
 
 # ---------------------------------------------------------------- the clocks' parts
-#
-# The prototype's, which are the shop's lamp faults (`ShopLight.flicker_at`) on
-# the same 30 Hz clock.
+# The prototype's, which are the shop's lamp faults (`ShopLight.flicker_at`) at 30 Hz.
 
 ## A repeatable scatter in 0..1.
 static func _hash(v: float) -> float:
@@ -926,10 +868,7 @@ class _Life extends Control:
 
 # ---------------------------------------------------------------- the big screen
 
-## WHAT THE BIG SCREEN DOES, over the rows (Five Labs `SCREEN_FX`): worked out
-## here each tick and drawn by `lab_glass.gdshader` over a copy of the glass.
-## Hidden whenever the screen is doing nothing, which is most of the time, so
-## the copy is only taken when something uses it.
+## Hidden when the screen does nothing, so the glass copy is only taken when used.
 class _Glass extends Control:
 	var lab: LabScene
 	var _copy: BackBufferCopy
@@ -960,11 +899,7 @@ class _Glass extends Control:
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		visible = false
-		# THE WHOLE VIEWPORT, NOT THE GLASS'S RECT. Under the compatibility
-		# renderer a rect copy is taken from the screen's top-left whatever the
-		# node's position, so the glass read black everywhere the two did not
-		# overlap. A 960x540 copy, and only on the frames the screen is doing
-		# something.
+		# The whole viewport: a rect copy under the compatibility renderer reads from top-left.
 		_copy = BackBufferCopy.new()
 		_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 		add_child(_copy)
@@ -1091,10 +1026,8 @@ class _Glass extends Control:
 				_snow.append(Vector2(float(ly), float(f) * 1.7 + k * 3.3 + float(s2) * 0.9))
 		return true
 
-	## THE SAG: when the bulb fails (its own fault clock) the screen goes dark
-	## with it, then comes back with a flash and a jolt. `sagEvery` makes it only
-	## the bulb's first blink in each that many seconds -- Jon: "it just flashes
-	## too much" when it was every blink (2026-09-28).
+	## `sagEvery` sags only on the bulb's first blink per interval; every blink was too much (Jon).
+	## Why: docs/why/LabScene.md#screen-sag
 	func _sag_with_bulb(t: float, s: Dictionary) -> bool:
 		var seed := float(s.get("bulbSeed", 1.3))
 		var v := LabScene._loose(t, seed)

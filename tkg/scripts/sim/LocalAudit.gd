@@ -1,20 +1,7 @@
 extends Node
 
-## LOCAL IN EVERY STYLE AND STATE, in one window (`LocalShot` and `CutawayShot`
-## take one state a run; this walks the whole matrix in one process, for the
-## polish audit and its before/after):
-##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LocalAudit
-##       out=<dir> [styles=simplified,legacy,painted,radiant] [cases=<name>,...]
-##       [clipframes=45] [cut] [nocut] [noblur]
-## Each case: a new run (its seed), the ship parked as the sector map leaves it,
-## LOCAL shown, then <dir>/<style>/<case>.png (the game's own 960x540 frame),
-## <case>_clip/f_####.png (the sky and the dust, ships and words hidden, every
-## frame for `frames.py`), and with `cut` (the default for the cases marked so)
-## the cutaway pushed in on your ship: <case>_cut/f_####.png every frame of the
-## push-in and 30 held after it (its ship, parts and panel hidden), the scene as
-## the player sees it behind the cutaway (`noblur`: the blur held off, to see
-## what the zoom itself draws). The clocks step 1/30 s a frame; run with
-## `--fixed-fps 30` so the frames play at true speed. Needs a window.
+## Walks the whole style and state matrix in one process for the polish audit's before and after.
+## Why: docs/why/LocalAudit.md#local-audit
 
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 ## name: [sky, seed, orbit, cutaway]
@@ -71,7 +58,7 @@ func _run() -> void:
 	if "noblur" in _args:
 		CutawayView.harness_no_blur = true
 	var out := _arg("out", "user://local_audit")
-	var styles := _arg("styles", "simplified,legacy,painted,radiant").split(",")
+	var styles := _arg("styles", "simplified,painted,radiant").split(",")
 	var cases: PackedStringArray = _arg("cases", ",".join(CASES.keys())).split(",")
 	var nclip := int(_arg("clipframes", "45"))
 	for st in styles:
@@ -159,11 +146,7 @@ func _run() -> void:
 	_tree.quit()
 
 
-## A FIGHT, its shots in the air: a still, the foreground dust's rules measured
-## over 90 frames (`LocalShot dustcheck`: what its boxes cover of the ships and
-## of every label and gauge, the largest change in a mote's visibility in a
-## frame, the frames that changed one abruptly), then the dust alone over the
-## view's plain wash for `frames.py` (`dustonly`).
+## A fight with shots in the air: a still, dust rules over 90 frames, then dust alone.
 func _fight(dir: String, st: String) -> void:
 	if not await _show("reflection", 4242, ""):
 		return
@@ -293,7 +276,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 func _hide(view: EncounterView) -> Array[CanvasItem]:
 	var hid: Array[CanvasItem] = []
 	for c in view.get_children():
-		var keep_c: bool = c == view.get("dust") or c == view.backdrop or c == view.weather
+		var keep_c: bool = c == view.get("dust") or c == view.backdrop
 		if c is CanvasItem and not keep_c and (c as CanvasItem).visible:
 			(c as CanvasItem).visible = false
 			hid.append(c)

@@ -1,40 +1,8 @@
 extends Node
 
-## ALL FIVE DECKS AT EVERY STATION, headless:
-##   godot --headless --path . -- sheet=StationDeckTest
-## Jon, Nov 3: every station has the PROMENADE, SHIPYARD, EXCHANGE, HIRING BOARD
-## and LABORATORY, at every development level. The LABORATORY used to hide below
-## a city (RELIC ANALYSIS was dev 3) and the HIRING BOARD where no manufacturer
-## berths (an empty `Contracts.board`).
-##
-## Through the real station screen, at each level from UNCLAIMED to CAPITAL,
-## once with no berth and once with one: all five tabs are on and shown and the
-## elevator lights five floors; the lab's screen shows the owner's logo, and
-## the sign-in while the pointer is on the glass (Jon, Nov 5), each inside the
-## screen's window, nothing overlapping (the settlement's 206 x 110 is the
-## smallest); the glass is the only key (a click just off it opens nothing,
-## Enter and the pad's A press it); pressed, the camera goes onto the glass
-## (`LabZoom`, science S9, Jon's 1C), one uniform zoom landing at the lab's
-## whole number with the board's glass inside the lab's, and RECIPES (AUGMENT's
-## layout, Jon, Nov 5) greys every recipe with nothing held, prices RELIC
-## ANALYSIS at that level and the other two at no credits, picks by a click on
-## a row and a ring, and its MAKE survives thirty refreshes and makes, and
-## the RESEARCH board passes the mockup's box test (every box inside the glass,
-## none overlapping, no word across an arm) with no step, some and all of them
-## bought and the strip on every step; AUGMENT passes it on every part and
-## every affix (one part augmented, one with a rolled affix, DATA short, a
-## hold that runs onto a second page, STRIP on each affix), costs 5 DATA and
-## 22/20/18/16/15 credits, its key survives thirty refreshes, a click on a row
-## moves no part, AUGMENT and STRIP pressed through the viewport do what they
-## say; BUY stays one object through thirty
-## refreshes, never shows on a step behind the next, buys, and the board is the
-## same at a second station of the run; with no berth the board
-## posts its dock desk's work (`Contracts.dock_desk`), hangs the desk's notice,
-## and a job signed there is handed in at that desk; with a berth there is no
-## desk.
-## A board with nothing to post says NO WORK POSTED. and keeps its tab. The
-## chart names the dock desk under OPERATORS, and every such line fits the
-## destination panel.
+## Jon, Nov 3: every station has all five decks at every level; the lab and board used to hide.
+## The lab's glass, its zoom (`LabZoom`) and its pages pass the box test at every level.
+## Why: docs/why/StationDeckTest.md#test-purpose
 
 var _fails := 0
 var _tree: SceneTree
@@ -82,9 +50,7 @@ func _run() -> void:
 	_tree.quit(1 if _fails > 0 else 0)
 
 
-## WHO THE DOCK DESK IS, off the map alone: nobody at a station with a berth, at an
-## ordinary system or at the start; the same desk for one station every time;
-## and every station without a berth has one.
+## The dock desk from the map alone: none with a berth, stable, one per berthless station.
 func _dock_desk_rule() -> void:
 	Rng.forced = 9300
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -117,9 +83,7 @@ func _dock_desk_rule() -> void:
 		other_with_desk == 0 and Contracts.dock_desk(Run.map[Run.at]) == &"")
 	_ok("a station's dock desk is the same every time it is asked", steady)
 	_ok("a null node has none", Contracts.dock_desk(null) == &"")
-	# PINNED to the text order of the ids: `keys().sort()` on StringNames sorts
-	# by address, and one process cannot see that, since its order holds for
-	# the whole run. A literal desk fails as soon as the pick is not by text.
+	# Pinned to text order: `keys().sort()` on StringNames sorts by address, unseen in one process.
 	var pins: Array = []
 	for raw in Run.map:
 		var np: MapGen.MapNode = raw
@@ -138,11 +102,9 @@ func _dock_desk_rule() -> void:
 			by_text = false
 	_ok("each desk is drawn from the ids in text order (%s)" % ", ".join(abc),
 		by_text and NetSession.sorted_ids(DB.manufacturers) == abc)
-	# One process keeps one address order, so the real table cannot show the
-	# fault. A table of fresh StringNames made in reverse text order can: their
-	# addresses fall in no text order, and a different one each process (3, 4,
-	# 2, 5, 1, 6, 7 one run and 1, 5, 2, 4, 3, 7, 6 the next on Nov 3), and a
-	# `keys().sort()` pick follows the addresses. Checked failing on that sort.
+	# One process keeps one address order, so reversed fresh StringNames expose the fault.
+	# Addresses differed per process on Nov 3; checked failing on a `keys().sort()` pick.
+	# Why: docs/why/StationDeckTest.md#address-order
 	var made: Array = []
 	for i in range(7, 0, -1):
 		made.append(StringName("tk_desk_probe_%d" % i))
@@ -312,9 +274,7 @@ func _decks(dev: int, berth: bool) -> void:
 		_ok("%s: and pressed, it pays (%d -> %d)" % [tag, cash, Run.credits], Run.credits > cash)
 
 
-## A BOARD WITH NOTHING TO POST: a station with no berth whose two offers both
-## want an ordinary system nearby, with none left. Its tab stays, and it says
-## NO WORK POSTED. on a note in the board's own hand.
+## A board with nothing to post keeps its tab and says NO WORK POSTED. on a note.
 func _bare(dev: int) -> void:
 	var tag := "%s, bare" % String(MapGen.Development.keys()[dev]).to_lower()
 	var here: MapGen.MapNode = null
@@ -374,9 +334,7 @@ func _chart() -> void:
 			row_ok = box.grow(0.5).encloses(labels[labels.size() - 1].get_global_rect())
 	_ok("chart: OPERATORS reads %s (%s)" % [want, said], said == want)
 	_ok("chart: and its line sits inside the panel", row_ok)
-	# The dock desk's blurb is the longest a station gives (the salvage line and the
-	# desk line, and a law line after them). Its extra line spends the spacer
-	# below the rows; JUMP must stay on screen and clear of them.
+	# The dock desk blurb is the longest a station gives; JUMP must stay on screen and clear.
 	var blurb := ch._dest_blurb.text
 	var rows_bottom := ch._rows.get_global_rect().end.y
 	var jump := ch._jump.get_global_rect()

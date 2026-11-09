@@ -1,33 +1,8 @@
 class_name PostingBoard
 extends Control
 
-## The Hiring Hall: a bulletin board, and the whole deck is the board.
-##
-## IT WAS A BOARD IN A ROOM, and before that a board filling a panel with nothing
-## on it but the work. Neither looked like the thing every station actually has,
-## which is a bulletin board somebody has been pinning to for years: notices hung
-## wherever there was room, a wanted poster, a clipping, a flyer with half its
-## tabs torn off, and the holes of every pin that was ever pulled out. The WORK is
-## what you came for; the rest is how the deck says people live here.
-##
-## EVERYTHING WITH WORDS ON IT HANGS SQUARE. The notices and the town's sheets
-## were each turned a few degrees for one pass, and pixel text turned by even a
-## degree breaks into stair-steps. The board is made of things to read, so the
-## lived-in look comes from overlaps, shadows and pin holes instead.
-##
-## TWO KINDS OF PAPER, AND ONLY ONE OF THEM IS A BUTTON. The real contracts are the
-## dark printed notices down the left -- `_offer_row` and `_deliver_row` build
-## them as they always did, pinned in a straight column. Everything in the
-## right-hand column is drawn here and is scenery: nothing in it can be signed, so
-## none of it is printed the way the notices that can be are.
-##
-## AND THE MANUFACTURERS PIN THINGS UP TOO. Every manufacturer holding the station
-## has a notice of its own on the board, in its own colours and in its own voice
-## -- Korvan's misfire counter, Calyx asking you not to feed the hull. A board at a
-## Korvan yard and a board at a Calyx one should not read the same, and a notice
-## is the cheapest way there is to say who runs a place.
-##
-## Drawn rather than loaded, like the rest of the station's furniture.
+## Only the dark notices on the left are buttons; the rest is scenery, and all text hangs square.
+## Why: docs/why/PostingBoard.md#board-design
 
 ## The notices pinned to this. Read every redraw, never cached -- the rows are
 ## rebuilt from scratch on every refresh of the deck.
@@ -48,12 +23,8 @@ const SHADE := Color("#070a10")
 const PIN := Color("#d4614f")
 const PIN_COOL := Color("#6f8fb0")
 
-## WHAT THE BOARD IS, by the station's development level (Jon, 2026-10-01:
-## "Unclaimed and outpost is like a cheap corkboard / settlement could be a
-## whiteboard / city and capital are more of a LCD screen"), drawn here rather
-## than generated ("Maybe we just stick with the coded for right now ... Can you
-## code generate these at the different development levels?"). The paper on it
-## is the same everywhere: the work and the town's are what the deck is for.
+## Board kind follows the station's development level (Jon, Oct 1), drawn in code, not generated.
+## Why: docs/why/PostingBoard.md#board-by-development
 var dev := 2
 const KINDS := {
 	0: {"kind": "cork", "frame": Color("#b08c5c"), "frame_dark": Color("#7a5c34"), "lip": Color("#d8bc8c")},
@@ -64,19 +35,10 @@ const KINDS := {
 }
 const WHITE := Color("#e2e6e8")
 
-## THE SCREEN IS A MARKETPLACE (Jon: "maybe we can have ads and popups on the
-## LCD screens ... or we can make it look like a craigslist / facebook
-## marketplace", then "Both"). An app bar across the top -- a title, a search
-## box, category tabs -- the work as listings under it, and down the side the
-## town's WANTED Hellbender as the featured listing, a rotating ad, the manufacturers'
-## sponsored posts, and now and then a popup that opens over the side and
-## closes itself. Popups never cover the work: nothing moves over what you can
-## click.
+## The LCD is a marketplace; popups never cover the work, as nothing moves over what you click.
+## Why: docs/why/PostingBoard.md#screen-marketplace
 const HEADER := 22.0
-## THE TABS FILTER THE WORK (Jon: only what can be pressed may look as if it
-## can). Each is a contract kind -- -1 for all of them -- and `tab_counts` is
-## how many of each are on offer here, set by `StationScreen`. Picking one
-## sends `tab_picked`; `StationScreen` lists only that kind.
+## Tabs filter the work, as only what can be pressed may look pressable (Jon).
 const TABS := ["ALL", "HAULAGE", "BOUNTY", "HEAT"]
 const TAB_KINDS := [-1, ContractData.Kind.FETCH, ContractData.Kind.HUNT, ContractData.Kind.HEAT]
 signal tab_picked(i: int)
@@ -85,16 +47,12 @@ var tab_counts: Array[int] = [0, 0, 0, 0]
 var _tab_rects: Array[Rect2] = []
 var _tab_hover := -1
 const AD_EVERY := 6.0
-## A POPUP STAYS UP UNTIL YOU SHUT IT (Jon: "the popups should stay up until
-## you click on them"), by its X or its button; the next one comes POP_EVERY
-## seconds after, the first POP_FIRST seconds after the screen is first drawn.
+## A popup stays up until shut (Jon); the next follows after `POP_EVERY` seconds.
 const POP_EVERY := 19.0
 const POP_FIRST := 8.0
 
 
-## THE STATION'S NUMBER (`StationScreen` sets it from the map), so each board is
-## its own: which pieces of the pools it shows, where they sit, which ad and
-## which headlines its screen starts on. The same station always looks the same.
+## The station's number makes each board its own, but one station always looks the same.
 var station_seed := 0:
 	set(v):
 		if v != station_seed:
@@ -108,9 +66,7 @@ var station_seed := 0:
 var _orders := {}
 
 
-## The k-th entry of a list of `n` in this station's own order for `salt`: every
-## list is shuffled once per station, so two stations start in different places
-## and one station turns through all of it before it repeats.
+## Each list is shuffled once per station, so stations start apart and one turns through all.
 func _nth(n: int, salt: int, k: int) -> int:
 	if n <= 0:
 		return 0
@@ -144,14 +100,8 @@ func _ticker_text() -> String:
 	return _ticker_cache
 
 
-## EVERYTHING BUT THE WORK GOES WHERE IT LANDS (Jon: "having things in random
-## locations would be cool. we can have a designated spot for the quests (top
-## left), but the rest can just be random"). The work flows from the top left.
-## The WANTED poster and the manufacturers' notices are always up: they are
-## placed first, so they find room, and nothing lies over them. Then pieces
-## from the board's pool, in this station's order, each tried at random spots
-## until one is clear of the work and lies over no more than a little of what
-## is already up. Nothing ever goes over the work.
+## Work flows from top left; everything else lands at random, never over the work (Jon).
+## Why: docs/why/PostingBoard.md#scatter-placement
 const SCATTER_TRIES := 90
 ## How many pieces from the pool a board puts up, at most.
 const SCATTER_MAX := {"cork": 14, "white": 10}
@@ -274,10 +224,7 @@ func _spot(sz: Vector2, area: Rect2, blocked: Array[Rect2], laid: Array[Rect2], 
 	return null
 
 
-## FOR THE HARNESS (`boardpool=`): the board's whole pool laid out in rows, from
-## piece `gallery_from`, in place of the scatter, each with its number. On a
-## screen, the ads, then the strip ads, then the popups. `gallery_shown` is how
-## many fitted.
+## Harness gallery (`boardpool=`): the whole pool in rows, in place of the scatter.
 var gallery_from := -1
 ## How many moments of each commercial a pool page shows.
 const REEL_FRAMES := 6
@@ -379,10 +326,7 @@ func _scatter_draw(w: float, h: float) -> void:
 				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## A COMMERCIAL'S JINGLE, once, as it plays (Jon: "Can we just do little jingles
-## for the ads?"): each of BoardCommercial's, in its order, and how far into
-## the commercial it starts, as he set them on Hiring Board, Heard. Composed on
-## the game's own synth; levelled for a screen across the hall.
+## A commercial's jingle plays once as it plays (Jon); composed on the game's own synth.
 const JINGLES: Array[StringName] = [&"board_ad_hull_wax", &"board_ad_star_taxi", &"board_ad_noodles",
 	&"board_ad_drone", &"board_ad_coolant", &"board_ad_lucky_spin"]
 const JINGLE_AT := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -407,9 +351,7 @@ func _process(_dt: float) -> void:
 			var into := fposmod(_t(), AD_EVERY) - float(JINGLE_AT[ci])
 			if into >= 0.0:
 				_jingled = turn
-				# SCORED TO THE PICTURE, so it starts on the commercial's first
-				# frame or not at all: come in partway through one and it stays
-				# quiet rather than play out of step
+				# Scored to the picture: starts on the commercial's first frame or stays quiet.
 				if into < 0.1:
 					Audio.play(JINGLES[ci], 0.0)
 
@@ -524,11 +466,7 @@ func _centre_at(t: String, x: float, baseline: float, width: float, fs: int, col
 		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
-## THE LETTERS ARE STROKES, NOT A TYPEFACE (Jon: "let's make the text a little
-## more believeable as hand written"). Each is a few pen strokes on a grid four
-## wide and six tall, written with a steady lean, each letter a touch bigger or
-## smaller than the last and spaced by hand. Calm, not shaky (Jon: "WAY too
-## shakey"): no jitter inside a letter, at most a pixel off the line.
+## Letters are calm pen strokes, not a typeface; Jon found shaky text far too shaky.
 const PEN := {
 	"A": [[[0, 6], [2, 0], [4, 6]], [[1, 3.6], [3, 3.6]]],
 	"B": [[[0, 6], [0, 0], [3, 0], [4, 1], [3, 3], [0, 3]], [[3, 3], [4, 4.5], [3, 6], [0, 6]]],
@@ -638,9 +576,7 @@ func _wobble_rect(r: Rect2, col: Color, seed: float) -> void:
 	_wobble_line(Vector2(r.position.x, r.end.y + o), r.position + Vector2(0, -o), col, seed + 3.0)
 
 
-## A circle by hand: a little lumpy, and closed -- the pen runs a touch past
-## where it started, as a hand does. (It used to stop short, and the gap always
-## fell at the top: Jon, "why are the circles cut off at the top?")
+## The hand circle closes past its start, as a hand does; it once stopped short at the top.
 func _wobble_circle(c: Vector2, rad: float, col: Color, seed: float) -> void:
 	var n := 24
 	var start := ShopLight.hash1(seed * 2.3) * TAU
@@ -669,9 +605,7 @@ func _ticker(w: float, h: float) -> void:
 	var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var x := r.position.x + 36.0 - fposmod(_t() * 32.0, tw)
 	while x < r.end.x:
-		# NOT LEFT OF THE LIVE BADGE: what starts left of the board was drawn on
-		# over the deck rail beside it. The letters that would be under the badge
-		# are skipped, and the rest drawn from where they fall.
+		# Skip letters under the live badge: text left of the board drew over the deck rail.
 		var at := x
 		var k := 0
 		while k < text.length() and at < r.position.x + 30.0:
@@ -812,14 +746,8 @@ func _side(col: Rect2) -> void:
 			Rect2(at2, Vector2(pw, 88.0)), _t() - _pop_at)
 
 
-## THE FEATURED LISTING, a marketplace's, not a poster (Jon: "let's have the
-## sponsered and featured different from the corkboard and whiteboard"): a
-## photo of the Hellbender across the top with a gold star on its corner,
-## WANTED where a price would go, what it is and what for. No bounty and no
-## sum (Jon, Oct 22: the bounty was promised and never paid, so the posters
-## just say WANTED). No VIEW chip: it is an ad,
-## and nothing that cannot be pressed may look as if it can (Jon: "just remove
-## the view and more buttons entirely. Just have it be an ad").
+## No bounty, sum or VIEW chip: the bounty was never paid (Jon, Oct 22) and ads are not buttons.
+## Why: docs/why/PostingBoard.md#featured-listing
 func _featured(sz: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, sz), Color("#0c2034"))
 	var ph := Rect2(0.0, 0.0, sz.x, 70.0)
@@ -855,9 +783,7 @@ func _featured(sz: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, sz), Color("#f0c040"), false, 1.0)
 
 
-## A SPONSORED POST, an ad in the manufacturer's own colours: its field, its
-## emblem large, its words in a band under it, and SPONSORED in small. No MORE
-## chip: it cannot be pressed, so it does not look as if it can.
+## A sponsored post has no MORE chip: it cannot be pressed, so it must not look pressable.
 func _sponsored(sz: Vector2, mid: StringName) -> void:
 	var m: ManufacturerData = DB.manufacturers.get(mid)
 	if m == null:
@@ -936,10 +862,7 @@ func _popup(P: Dictionary, r: Rect2, age: float) -> void:
 	draw_rect(bb, Color("#1a1e28"), false, 1.0)
 	_text(String(P["btn"]), bb.position.x + 6.0, bb.position.y + 10.0, UITheme.FS_SMALL, Color("#1a1e28"))
 
-## A SCREEN, NOT A BOARD (Jon: "so for the city and capital... it needs to be
-## a screen"). In a city or a capital nothing is pinned up: the work and the
-## town's notices are shown on the panel, lit, in its colours, square, with no
-## pins and no shadows.
+## A screen, not a board: no pins or shadows in a city or capital (Jon).
 func screen() -> bool:
 	return dev >= 3
 
@@ -963,9 +886,7 @@ const SMUDGE := Color("#9aa4ac")
 const GLASS := Color("#08101c")
 const GRID := Color("#0d1828")
 
-## THE TOWN'S PAPER. Every sheet is lighter than the cork, because it is furniture
-## on a surface, and every sheet is a different shade from the next, because
-## nothing on a real board came out of the same packet.
+## Every sheet is lighter than the cork and a different shade from its neighbour.
 const PAPER := Color("#c2b48e")
 const NEWSPRINT := Color("#a7a397")
 const CARD := Color("#cdc1a0")
@@ -992,13 +913,9 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 
 
-## THE X WORKS (Jon: "making the x work is funny. yes"). Where the open
-## popup's close box is, and which popup was closed, so it stays shut until the
-## next one comes round.
+## The X works (Jon): the closed popup stays shut until the next one comes round.
 var pop_x := Rect2()
-## The popup's own button. It shuts the popup too, as the X does: anything that
-## looks pressable on this board can be pressed (Jon: "Clicking claim/scan now
-## or whatever button on the popup just closes them lol").
+## The popup's own button shuts it too, as anything pressable-looking must be pressable (Jon).
 var pop_btn := Rect2()
 
 
@@ -1006,10 +923,7 @@ var pop_btn := Rect2()
 var pop_rect := Rect2()
 
 
-## WHERE A.S.H. MAY TEACH ON THIS BOARD, local (Jon, Oct 20, the decks' hints):
-## the town's own side, right of the work's share, inside the frame, and on a
-## screen under its app bar and over its ticker. She stands over the town's ads
-## and paper, never over the work, the tabs or the ticker.
+## A.S.H. teaches over the town's ads and paper, never the work, tabs or ticker.
 func town_rect() -> Rect2:
 	var top := FRAME_W + (HEADER + 6.0 if screen() else 0.0)
 	var bottom := size.y - FRAME_W - (TICKER + 8.0 if screen() else 0.0)
@@ -1017,11 +931,7 @@ func town_rect() -> Rect2:
 	return Rect2(x0, top, size.x - FRAME_W - x0, bottom - top)
 
 
-## EVERY JOB NOTE ON THE BOARD, local, whole (Oct 20: a job note is a thing you
-## press, even where it has no words, so A.S.H. never stands on any of one): the
-## real notices, and what is drawn as one: on a screen the other people's
-## listings in the work's free slots and the FEATURED bounty, on a board the
-## WANTED bounty poster. The town's ads and paper are not jobs.
+## Every job note, drawn or real, so A.S.H. never stands on one; ads and paper are not jobs.
 func job_rects() -> Array[Rect2]:
 	var out: Array[Rect2] = _work_rects()
 	if size.x <= 60.0 or size.y <= 60.0 or gallery_from >= 0 or reel >= 0 or piece.is_valid():
@@ -1113,11 +1023,7 @@ func _redraw_all() -> void:
 		_pins.queue_redraw()
 
 
-## The pins through the notices, as a layer for the page to add ABOVE them.
-##
-## A control draws under its children, and a pin goes THROUGH the paper -- so the
-## notices' pins cannot be drawn by the board. This hands back a layer whose
-## drawing the board does, the same pattern the Shipyard's old service rows used.
+## A pin goes through the paper, so it is a layer the page adds above, as the Shipyard did.
 func make_pins() -> Control:
 	var p := Control.new()
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1147,10 +1053,7 @@ func _draw() -> void:
 		_:
 			_cork(w, h, dev == 0)
 
-	# --- WHAT FILLS THE WORK'S EMPTY SPACE (Jon: "make the screen busier ...
-	# add a ton more content to all of these"): old jobs, stickies and cards on
-	# cork, marker on a whiteboard, other people's listings on a screen. Only
-	# where no real notice is, and always under them.
+	# Filler for the work's empty space (Jon wanted a busier screen), only where no real notice is.
 	_fill(w, h)
 
 	# --- ON A SCREEN, the marketplace's app bar across the top and its side
@@ -1178,9 +1081,7 @@ func _draw() -> void:
 	_frame(w, h, k)
 
 
-## A CHEAP CORKBOARD, an unclaimed station's and an outpost's: a pressed mat, so
-## its texture has no beat, every pin ever pulled out still a hole in it; the
-## unclaimed one older, stapled and torn where paper was ripped off.
+## A cheap corkboard: a pressed mat with every pulled pin still a hole; unclaimed is older and torn.
 func _cork(w: float, h: float, worn: bool) -> void:
 	draw_rect(Rect2(0.0, 0.0, w, h), CORK)
 	var gy := 4.0
@@ -1329,12 +1230,8 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 			_monitor(w, h, k)
 
 
-## A MONITOR'S CASING, not a picture frame (Jon: "Can we make the frame of the
-## LCD monitors have little buttons or something? Just to make it look more like
-## a TV monitor or screen instead of a painting frame"): rounded corners, a
-## speaker grille and a blank nameplate along the chin, a row of push buttons
-## and the power light on the right of it, a camera eye at the top. A city's
-## is grey plastic; a capital's is brushed brass with gold buttons.
+## A monitor casing, not a picture frame (Jon): buttons, grille, power light and a camera eye.
+## Why: docs/why/PostingBoard.md#monitor-casing
 func _monitor(w: float, h: float, k: Dictionary) -> void:
 	var e := FRAME_W
 	var fr: Color = k["frame"]
@@ -1432,14 +1329,8 @@ func _draw_pins(p: Control) -> void:
 # ------------------------------------------------------------- the town's paper
 
 
-## One sheet, with its shadow and its pin -- turned about its corner only when
-## `deg` is not zero, which is only ever the scrap with nothing written on it.
-##
-## THE PIN GOES WHERE THE WORDS ARE NOT. It sat dead centre on every sheet, and on
-## a sheet whose title starts at its left edge the centre is the end of the title:
-## the rota card read SHIFT ROT with a pin where the A was. `pin_x` is a fraction
-## of the width -- the middle for a centred title, the right-hand corner for one
-## that starts at the left.
+## The pin sits off the words: dead centre it covered the A of SHIFT ROTA.
+## Why: docs/why/PostingBoard.md#sheet-pins
 func _sheet(at: Vector2, sz: Vector2, deg: float, paint: Callable, pin_x: float) -> void:
 	if screen():
 		draw_set_transform(at, 0.0, Vector2.ONE)
@@ -1484,9 +1375,7 @@ static func _disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 		ci.draw_rect(Rect2(c.x - float(hw), c.y - float(r) + float(i), float(hw * 2 + 1), 1.0), col)
 
 
-## A PUSH PIN, seen from the front: its shadow thrown down and right where the
-## needle goes in, a round cap darker at its rim, lighter in its middle, and a
-## glint (Jon: "make the corkboard pins look like pins").
+## A front-view push pin with a shadow, a shaded cap and a glint (Jon).
 static func draw_pushpin(ci: CanvasItem, at: Vector2, col: Color) -> void:
 	var c := (at + Vector2(1, -1)).round()
 	_disc(ci, c + Vector2(2, 3), 4, Color(SHADE.r, SHADE.g, SHADE.b, 0.5))
@@ -1526,11 +1415,7 @@ func _centre(s: String, baseline: float, width: float, fs: int, col: Color) -> v
 		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
-## WANTED: THE HELLBENDER. The rival harvester every run shares its galaxy with,
-## drawn as the salamander of a hull the log describes, its holds glowing.
-## Stamped DESTROYED once somebody has actually killed it, so the board keeps
-## up with the run it is in. No bounty and no sum under it (Jon, Oct 22: the
-## bounty was promised and never paid); the wreck's chit is what it pays.
+## Stamped DESTROYED once killed; no bounty shown, as it was promised and never paid (Jon, Oct 22).
 func _wanted(sz: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, sz), _pal(PAPER))
 	draw_rect(Rect2(Vector2.ZERO, sz), _pal(PAPER).darkened(0.3), false, 1.0)
@@ -1562,9 +1447,7 @@ func _wanted(sz: Vector2) -> void:
 const DEAD_STAMP := "DESTROYED"
 
 
-## A stamp across a poster: the word in the heading size, centred, in a 2px
-## box 24px tall from `top` that is as wide as the word plus a margin, so a
-## long word never runs into its own border.
+## A stamp sized to its word plus a margin, so a long word never meets its border.
 func _stamp(word: String, top: float, width: float, col: Color) -> void:
 	var tw := UITheme.pixel_font().get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
 	var bw := minf(tw + 12.0, width - 4.0)
@@ -1654,14 +1537,8 @@ func _scrap(sz: Vector2) -> void:
 		row += 1.0
 
 
-## What each manufacturer pins up: its lines, then one word set large.
-##
-## IN EACH ONE'S OWN VOICE, lifted from who they already are rather than invented
-## beside it. Korvan stamps parts for a war two centuries over, and they fire every
-## time; Solari lost an argument about safety margins; Probate follows other
-## people's disasters; Redline is never at the address on its invoices; Verity
-## makes few and signs them; Cygnet's drones anticipate you and nobody discusses
-## it; Calyx hulls are grown, with a clause about what not to feed them.
+## Each notice is in the manufacturer's own voice, lifted from who they already are.
+## Why: docs/why/PostingBoard.md#manufacturer-posts
 const POSTS := {
 	&"korvan": [["DAYS WITHOUT", "A MISFIRE"], "71204"],
 	&"solari": [["NOW HIRING", "FURNACE HANDS", "MUST ENJOY"], "HEAT"],

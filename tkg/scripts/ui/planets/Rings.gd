@@ -1,27 +1,9 @@
 class_name Rings
 extends RefCounted
 
-## A WORLD'S RINGS ACROSS THEIR WIDTH: how thick and how bright the ring is at
-## each distance from the world's centre, rolled from the world's seed, as one
-## strip of texture `planet_ring.gdshader` draws the ring from and
-## `planet.gdshader` reads to lay the ring's shadow across the world.
-##
-## Three looks, for Jon to pick from (Jon: "can these rings be a bit nicer?
-## they're flat"):
-##   ICY    -- bright and many-ringed, Saturn's: a faint inner sheet, a broad
-##             dense ring, a clear dark gap, an outer ring with a thin gap of
-##             its own, and a narrow ring outside it all.
-##   DUSTY  -- two or three broad soft bands with a soft trough between, and a
-##             thin haze reaching out past them; thick enough that the world's
-##             shadow cuts a black notch out of them.
-##   DARK   -- Uranus's: a handful of thin dark rings and one bright one.
-##
-## THE GAP HAS TO SHOW. A real gap is a hair wide; on the map a world's ring is
-## ten blocks across, and a gap thinner than a block averages away into a slightly
-## dimmer ring. So every feature here is at least `px` wide, `px` being how far
-## one block of the picture reaches across the ring at the world's size: the
-## gap stays a dark line a block wide however small the world is drawn, and the
-## dark rings stay a block wide with a block between them, or are left out.
+## Three looks for Jon to pick from, as the rings were flat. Every feature is at least a block wide.
+## A hair-thin real gap averages away on the map, so gaps stay one block wide.
+## Why: docs/why/Rings.md#ring-looks
 
 enum Look { DOTS, ICY, DUSTY, DARK }
 
@@ -35,12 +17,8 @@ const RAMP_FOR := {&"banded": &"banded", &"icegiant": &"icegiant", &"storm": &"s
 static var _cache := {}
 
 
-## A world's rings in look `look`, at `px` (one block's width, in world radii).
-## Returns {tex, rin, rout, ramp_a, ramp_b, cast, dark_shadow}: the strip
-## (red: how much of the light the ring stops; green: how bright its stuff is;
-## blue: 1 where it is drawn in the second, dark ramp), the ring's inner and outer
-## edge in world radii, its two ramps, how dark its shadow on the world is, and
-## how dark the world's shadow on it.
+## Returns the strip and edges at `px`, one block's width in world radii, plus ramps and shadows.
+## Why: docs/why/Rings.md#ring-strip
 static func build(look: int, world: StringName, seed: int, px: float) -> Dictionary:
 	# the block width in quarter-octave steps, so a zoom easing in does not
 	# build a new strip every frame
@@ -104,9 +82,7 @@ class _Strip extends RefCounted:
 			var k := inside(rho(i), a, b, soft)
 			op[i] *= lerpf(1.0, keep, k)
 
-	## fine ringlets: the thickness wavering by `amp` over a few wavelengths,
-	## and the brightness by `lamp` (a ring too thick to thin shows its
-	## ringlets as bands of brightness, a ramp step apart)
+	## Fine ringlets: a thick ring shows them as bands of brightness, a ramp step apart.
 	func waver(a: float, b: float, amp: float, R: Worlds.XRng, shortest: float, lamp: float = -1.0) -> void:
 		if lamp < 0.0:
 			lamp = amp * 0.35

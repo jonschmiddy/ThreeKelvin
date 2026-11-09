@@ -1,32 +1,12 @@
 extends RefCounted
 
-## The station, photographed. `godot --path . -- stationshot [manufacturer=solari]`
-##
-## Same reason ChartShot and ShipShot exist, and one more besides: `-- station`
-## opens this screen but nothing has ever taken a picture of it, so the busiest
-## screen in the game is the one every change to it was judged on by memory. The
-## header alone carries two documented layout disasters -- an autowrapping label
-## that collapsed into a column, and a non-wrapping one that grew the screen to
-## 983 pixels inside a 960 window -- and both were found by looking.
-##
-## NOT HEADLESS. The dummy display server never emits `frame_post_draw`, so a
-## headless run of this hangs and looks exactly like a crash.
+## Not headless: the dummy display never emits `frame_post_draw`, so a run hangs like a crash.
+## Why: docs/why/StationShot.md#station-shot
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 
-	# `manufacturer=none` photographs a station NOBODY holds, which is the case the
-	# header has to get right by omission rather than by drawing -- lawless space
-	# has no berth, and a blank flag there would read as a manufacturer with no
-	# mark instead of as an absence of manufacturers.
-	# A COMMA LIST, because a station can be held by up to THREE and the rail
-	# sizes its flags to how many are flying. `MapGen` wants three on 35% of
-	# cities and 60% of capitals, so the contested case is common -- and it is
-	# exactly the case no amount of clicking will reliably reach, which is what
-	# this tool is for.
-	#
-	#   manufacturer=solari              one berth
-	#   manufacturer=solari,cygnet       contested
-	#   manufacturer=solari,cygnet,korvan   three, at the smaller flag
+	# `manufacturer=none` shows an unheld station; a comma list covers contested berths.
+	# Why: docs/why/StationShot.md#berth-flags
 	var berths: Array[StringName] = [&"solari"]
 	for a in OS.get_cmdline_user_args():
 		if not (a as String).begins_with("manufacturer="):
@@ -45,9 +25,7 @@ func run(tree: SceneTree) -> void:
 		if not want.is_empty():
 			berths = want
 	var berth: StringName = berths[0] if not berths.is_empty() else &"none"
-	# `view=<id>` and `door=<id>`: what the shop's window and door show, instead
-	# of whatever this run's seed picks. For judging a view IN its window, which
-	# is the only place a view is ever seen.
+	# `view` and `door` force what the shop shows, as a view is judged in its own window.
 	for a3 in OS.get_cmdline_user_args():
 		var s3 := a3 as String
 		if s3.begins_with("view="):
@@ -106,9 +84,7 @@ func run(tree: SceneTree) -> void:
 			Rng.forced = int((a4 as String).substr(8))
 	Run.start_new_run(&"korvan" if berths.is_empty() else berths[0], 1)
 
-	# The same state `-- station` builds, so the two flags photograph one screen
-	# rather than two. A shot of a state nothing else ever reaches is evidence
-	# about nothing.
+	# Builds the same state as `-- station`, so the two flags photograph one screen.
 	var here: MapGen.MapNode = Run.node_at()
 	here.type = MapGen.NodeType.STATION
 	here.development = MapGen.Development.CITY
@@ -137,10 +113,7 @@ func run(tree: SceneTree) -> void:
 		Run.stow(LootGen.roll_module(4 + i, &"", true))
 	for seeded in [&"exotic", &"exotic", &"relic"]:
 		Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
-	# FOUR OF THE BERTH'S OWN PARTS BOLTED ON, so the set-bonus chip is lit.
-	# A fresh run counts one -- the hull -- and the chip appears at three, so a
-	# shot of the state you get for free is a shot of the chip not existing.
-	# `sets=N` asks for a different count; five lights the upper tier.
+	# Four of the berth's own parts: the set chip appears at three and a fresh run counts one.
 	var want := 4
 	for a2 in OS.get_cmdline_user_args():
 		if (a2 as String).begins_with("sets="):
@@ -158,9 +131,7 @@ func run(tree: SceneTree) -> void:
 		print("  %d %s parts fitted · set count %d" % [fitted,
 			DB.short_name(DB.manufacturer_name(berth)), Run.manufacturer_count(berth)])
 
-	# `yardmine=light:1[:solari]`: your ship refitted to that frame, weight and
-	# grade, with the frame's own starter kit (`Run.fit_chassis`) -- a ship as a
-	# run starts it, for the yard's stands under every hull.
+	# Refits to a frame with its own starter kit, as a run starts it.
 	for a10 in OS.get_cmdline_user_args():
 		if (a10 as String).begins_with("yardmine="):
 			var ym := (a10 as String).substr(9).split(":")
@@ -170,13 +141,8 @@ func run(tree: SceneTree) -> void:
 			print("  yardmine: %s, %d parts" % [Run.hull.name, Run.installed.size()])
 			break
 
-	# `fit=full`: every hardpoint the hull has, filled with its own manufacturer's
-	# parts, to see how a fitted hull reads -- `manufacturer=korvan` for the
-	# manufacturer whose parts are all drawn. `fit=full:heavy:3` refits the
-	# chassis first, at that weight and grade. Couplings go on first, since a
-	# part that raises the reactor makes room for the rest; then the smallest
-	# draw, different parts before repeats, and only what the reactor will run:
-	# a ship a player could fly.
+	# `fit=full` fills every hardpoint with a flyable kit: couplings first, then smallest draw.
+	# Why: docs/why/StationShot.md#fit-flag
 	for a8 in OS.get_cmdline_user_args():
 		if not (a8 as String).begins_with("fit=full"):
 			continue
@@ -209,23 +175,14 @@ func run(tree: SceneTree) -> void:
 	Run.hp = maxi(1, Run.max_hp() - 12)
 	Run.add_dross(3)
 
-	# `full` PHOTOGRAPHS THE BUSY CASE, the same one `-- station full` plays.
-	#
-	# Without it the Yard's hull is a 75% roll and the shelf is whatever the node
-	# happened to stock -- so one shot in four of the shipyard is a picture of
-	# the empty-berth line, and a shot of a full shelf is luck. The odds are
-	# balance and are left alone; this forces the state, exactly as the playable
-	# flag does.
+	# `full` forces the busy case; otherwise the yard hull is a 75% roll and the shelf is luck.
+	# Why: docs/why/StationShot.md#full-flag
 	if "full" in OS.get_cmdline_user_args():
 		while not Run.hold_full() and Run.cargo.size() < 40:
 			Run.stow(LootGen.roll_module(5, &"", true))
 		Run.add_credits(900)
 		here.stocked = true
-		# THE SHELF THE GAME WOULD STOCK, at its ceiling: sixteen cells of parts
-		# and no more columns than the rack has, the rule
-		# `StationScreen._stock_up` uses. `full` photographs the busy case, so it
-		# takes the top of the band rather than rolling one. Five parts
-		# regardless was a shelf no station has.
+		# Shelf at its ceiling by `StationScreen._stock_up`'s rule; five parts was no real shelf.
 		var cells := StationScreen.SHOP_CELLS
 		var cols := StationScreen.SHOP_COLS
 		var spins := 0
@@ -250,29 +207,16 @@ func run(tree: SceneTree) -> void:
 					weights.get(wt[0], HullData.Weight.MEDIUM)), int(wt[1]) if wt.size() > 1 else 2)
 		print("  full: hold %d · shelf %d · hull on the blocks"
 			% [Run.cargo.size(), here.shop.size()])
-	# `stock=N` cuts the shelf to N parts. `full` stocks five, which is a
-	# Cosmopolitan hub's shelf; every other station stocks three, and the rack
-	# sizes itself to its stock -- so the ordinary shop needs asking for.
+	# `full` stocks five, a Cosmopolitan shelf; the ordinary shop needs `stock=N`.
 	for a4 in OS.get_cmdline_user_args():
 		if (a4 as String).begins_with("stock="):
 			var keep := int((a4 as String).substr(6))
 			while here.shop.size() > keep:
 				here.shop.pop_back()
 
-	# `-- stationshot full moving` photographs MOVING DAY: the state one click
-	# after TAKE IT, with both ships drawn and the leftovers still on the old
-	# one. Reached by actually buying the hull rather than by posing the screen,
-	# so what the shot shows is what the flow produces.
-	# `-- stationshot full ship=BLUEBIRD` flies a NAMED ship.
-	#
-	# A custom name is the one piece of state no fixture reached, and it is
-	# exactly the state that catches a screen printing `hull.name` where it
-	# should print `Run.display_name()` -- which the Shipyard's own berth label
-	# was doing until this flag showed it.
-	#
-	# SET BEFORE THE SCREEN IS BUILT. Parsed after `show_station` the first time,
-	# which proved nothing at all: the deck had already drawn itself off the old
-	# value and no refresh had been asked for.
+	# `ship=` flies a named ship, catching `hull.name` printed for `Run.display_name()`.
+	# Parsed before the screen is built, or the deck draws off the old value.
+	# Why: docs/why/StationShot.md#moving-day
 	for a in OS.get_cmdline_user_args():
 		if not (a as String).begins_with("ship="):
 			continue
@@ -280,10 +224,7 @@ func run(tree: SceneTree) -> void:
 		print("  flying the %s (a %s)" % [Run.display_name(), Run.hull.name])
 		break
 
-	# `-- stationshot full deck=hold hold=6x5` gives the ship a hold of another
-	# size, so the Exchange stands that hull's frame. The test ship's is 5x4,
-	# which photographed the medium frame only, and every room is laid out round
-	# three. What no longer fits goes on the pad, as a hull swap puts it.
+	# A different hold size shows other frames; the test ship's 5x4 only showed the medium one.
 	for a in OS.get_cmdline_user_args():
 		if not (a as String).begins_with("hold="):
 			continue
@@ -294,9 +235,7 @@ func run(tree: SceneTree) -> void:
 			Run.hold_grid().y, Run.cargo.size(), Run.pad.size()])
 		break
 
-	# `-- stationshot full nofaults` clears every malfunction, so the Shipyard's
-	# fault post is drawn reading NO FAULTS. `full` always rolls at least one,
-	# which left that label reachable by no fixture at all.
+	# `nofaults` reaches the NO FAULTS label, which `full` always rolls past.
 	if "nofaults" in OS.get_cmdline_user_args():
 		Run.dross = []
 		print("  nofaults: %d faults aboard" % Run.dross_count())
@@ -306,10 +245,7 @@ func run(tree: SceneTree) -> void:
 		Run.hp = Run.max_hp()
 		print("  hullfull: hull %d of %d" % [Run.hp, Run.max_hp()])
 
-	# `-- stationshot full noyard` clears the blocks, so the Shipyard is drawn
-	# with nothing for sale. `full` guarantees a hull, which is right for almost
-	# every shot and made this path -- your ship and its machines with an empty
-	# berth beside them -- unreachable by any fixture.
+	# `noyard` reaches the empty-berth path, which `full` never reaches.
 	if "noyard" in OS.get_cmdline_user_args():
 		here.shop_hull = null
 		print("  noyard: nothing on the blocks")
@@ -327,12 +263,8 @@ func run(tree: SceneTree) -> void:
 	else:
 		Router.show_station()
 
-	# `-- stationshot full deck=hold` photographs a deck other than the one the
-	# screen opens on. The rail is a lift and clicking it is the only way in, so
-	# without this every shot of this screen was the SERVICES deck and the other
-	# four could only be looked at by playing to them.
-	#
-	#   deck=services  deck=work  deck=stock  deck=hold  deck=bench
+	# `deck=` shoots other decks: the rail is a lift, so every shot was SERVICES.
+	# Why: docs/why/StationShot.md#deck-flag
 	for a in OS.get_cmdline_user_args():
 		if not (a as String).begins_with("deck="):
 			continue
@@ -350,10 +282,8 @@ func run(tree: SceneTree) -> void:
 		if not known:
 			print("[station] no deck '%s' -- staying on the one it opened" % deck)
 			break
-		# EVERY STATION HAS ITS LAB since Jon's Nov 3 ruling (all five decks at
-		# every level), so this never fires today. It used to: a lab below a city
-		# had no recipe and its deck was shut. Kept as a guard, so a deck that is
-		# ever shut again can still be photographed, and says so when it does.
+		# Every station has its lab (Jon, Nov 3), so this never fires; kept for any shut deck.
+		# Why: docs/why/StationShot.md#lab-deck
 		if deck == &"bench" and not scr0._tabs_on.get(&"bench", true):
 			scr0._enable_tab(&"bench", true)
 			print("  deck: bench is shut at this station -- opened for the shot")
@@ -361,11 +291,7 @@ func run(tree: SceneTree) -> void:
 		print("  deck: %s" % deck)
 		break
 
-	# `revisit`: A DECK POWERS ON ONCE A DOCKING. Let the deck power on, go to the
-	# star chart and back the way the HUD does, open the same deck again, and
-	# print whether it came back settled (already on, nothing replayed) or powered
-	# on a second time. Then undock and dock, where it must power on afresh
-	# (`revisit=chart` stops after the chart, to photograph the deck come back).
+	# `revisit` checks a deck powers on once per docking, and afresh after undock and dock.
 	var cmd := OS.get_cmdline_user_args()
 	if cmd.has("revisit") or cmd.has("revisit=chart"):
 		var scr1 := Router.current as StationScreen
@@ -397,12 +323,8 @@ func run(tree: SceneTree) -> void:
 				settled = scr2._board_lamp._settled and scr2._board_lamp._now() - scr2._board_lamp._boot_at > 5.0
 			print("  revisit: %s after %s -- %s" % [deck1, leg, "settled, not powered on again" if settled else "powered on again"])
 
-	# `labtape=<path>`: the Laboratory's power-on as the game plays it, heard rather
-	# than seen -- every sound Audio really plays in the 4.5 s after the lab powers
-	# on, as [name, seconds after power-on], written to <path> as json. The lab's
-	# clock has to run for it (no labclock=); what it hears is POWER_ON_SOUNDS
-	# through Audio.play, rate limits and all. Needs a window: without one Audio
-	# is off and the tape stays empty.
+	# `labtape=` records every sound the lab's power-on plays; it needs a window, or Audio is off.
+	# Why: docs/why/StationShot.md#tape-flags
 	for a12 in OS.get_cmdline_user_args():
 		if not (a12 as String).begins_with("labtape="):
 			continue
@@ -432,12 +354,8 @@ func run(tree: SceneTree) -> void:
 		print("  labtape %s: lab %s, %d sounds" % [(a12 as String).substr(8), lab12._level, heard12.size()])
 		break
 
-	# `boardav=<dir>`: the Hiring Board seen AND heard, as a player gets it: the
-	# station picked by `avseed=N`, powered on from dark, for `avsecs=S` (24)
-	# seconds -- every frame of the board, with when it was drawn
-	# (`frames.json`), and everything the game played on its master bus
-	# (`audio.wav`), music and station included. On a screen, a popup is
-	# clicked shut 2.5 s after it opens, as a player would. Needs a window.
+	# `boardav=` captures the board seen and heard as a player gets it; it needs a window.
+	# Why: docs/why/StationShot.md#tape-flags
 	for a23 in OS.get_cmdline_user_args():
 		if not (a23 as String).begins_with("boardav="):
 			continue
@@ -456,9 +374,8 @@ func run(tree: SceneTree) -> void:
 			elif (b23 as String).begins_with("avseed="):
 				bd23.station_seed = int((b23 as String).substr(7))
 		await tree.process_frame
-		# A CAPTURE, NOT A RECORD: AudioEffectRecord hands back silence here (4.7,
-		# WASAPI, added at run time) though the master bus meters -6 dB. The
-		# capture's ring buffer is drained every frame instead, into `pcm23`.
+		# A capture, not a record: `AudioEffectRecord` returns silence here (4.7, WASAPI).
+		# Why: docs/why/StationShot.md#audio-capture
 		var cap23 := AudioEffectCapture.new()
 		cap23.buffer_length = 2.0
 		AudioServer.add_bus_effect(0, cap23)
@@ -498,10 +415,8 @@ func run(tree: SceneTree) -> void:
 					target23.push_input(mb23)
 		pcm23.append_array(cap23.get_buffer(cap23.get_frames_available()))
 		AudioServer.remove_bus_effect(0, AudioServer.get_bus_effect_count(0) - 1)
-		# ONE BLOCK PER SPEAKER PAIR: on a 7.1 output the master bus is four stereo
-		# pairs, and the capture is handed each pair's 512-frame mix block in turn
-		# (front, centre, rear, side). The front pair is what plays on stereo; keep
-		# it, drop the rest, or the sound runs four times too long.
+		# On 7.1 keep only the front speaker pair, or the sound runs four times too long.
+		# Why: docs/why/StationShot.md#audio-capture
 		var pairs23 := int(AudioServer.get_speaker_mode()) + 1
 		if pairs23 > 1:
 			var front23 := PackedVector2Array()
@@ -540,10 +455,7 @@ func run(tree: SceneTree) -> void:
 			times23[-1] if not times23.is_empty() else 0.0, float(pcm23.size()) / float(rate23), rate23])
 		break
 
-	# `boardpieces=<dir>`: every piece of the Hiring Board's art at this level,
-	# each drawn alone on the bare board, unlit, and cropped to itself (with its
-	# shadow and pin) as `<kind>_<n>.png`, plus `pieces.json` listing them and
-	# the bare board itself (`board.png`). For the review page.
+	# `boardpieces=` draws each piece of the board's art alone, unlit, for the review page.
 	for a24 in OS.get_cmdline_user_args():
 		if not (a24 as String).begins_with("boardpieces="):
 			continue
@@ -627,10 +539,7 @@ func run(tree: SceneTree) -> void:
 		print("  boardpieces: %d pieces of %s to %s" % [out24.size(), kind24, dir24])
 		break
 
-	# `boardtape=<path>`: the Hiring Board heard -- every sound the game plays for
-	# `boardtapes=S` seconds (12) after its lights power on, as [name, seconds
-	# after power-on]: the tubes striking, their flickers, a screen's power-on,
-	# popups and commercials. Needs a window.
+	# `boardtape=` records the sounds the board plays after power-on; it needs a window.
 	for a22 in OS.get_cmdline_user_args():
 		if not (a22 as String).begins_with("boardtape="):
 			continue
@@ -657,12 +566,8 @@ func run(tree: SceneTree) -> void:
 		print("  boardtape: dev %d, %s" % [lamp22.dev, heard22])
 		break
 
-	# `yardtape=<path>`: the Shipyard heard -- every sound the game plays for
-	# `yardtapes=S` seconds (12) after its TV powers on, as [name, seconds after
-	# power-on], on the yard's own running clock (no `yardclock=`). The TV's
-	# power-on, the bed, the drones flying in and at work (`yardbuy=I:S` buys as
-	# a click does), the welder, the now-and-then, a light's flicker. Needs a
-	# window: without one there is no sound.
+	# `yardtape=` records the Shipyard's sounds on its own clock; it needs a window.
+	# Why: docs/why/StationShot.md#tape-flags
 	for a14 in OS.get_cmdline_user_args():
 		if not (a14 as String).begins_with("yardtape="):
 			continue
@@ -700,20 +605,13 @@ func run(tree: SceneTree) -> void:
 		print("  yardtape %s: yard %s, %d sounds" % [(a14 as String).substr(9), yard14.level, heard14.size()])
 		break
 
-	# `-- stationshot full hover` shows the Yard's details slab, which otherwise
-	# only appears while a real pointer is over the ship -- and a pushed event
-	# never moves the OS cursor.
+	# `hover` shows the details slab, which only appears under a real pointer.
 	if "hover" in OS.get_cmdline_user_args():
 		var yard := Router.current as StationScreen
 		if yard != null:
 			yard._on_ship_hover(true)
-			# THE SLAB'S OWN HEIGHT, printed rather than eyeballed.
-			#
-			# It sat at 293 for 189 of content -- a hundred pixels of nothing
-			# under the last perk -- because `set_anchors_and_offsets_preset`
-			# writes the CURRENT rect into the offsets and nothing had corrected
-			# `offset_bottom` since. A screenshot shows you a panel looks empty;
-			# only this says by how much, and against what it should be.
+			# Slab height is printed: it sat 100 px too tall as offsets kept the old rect.
+			# Why: docs/why/StationShot.md#measured-slab
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
 			if yard._scene_slab != null:
@@ -731,10 +629,7 @@ func run(tree: SceneTree) -> void:
 		var yard2 := Router.current as StationScreen
 		if yard2 != null:
 			yard2._on_mine_hover(true)
-			# MEASURED, for the reason the other one is, and the WIDTH as well as
-			# the height: with nothing on the blocks this slab has no "AGAINST
-			# <SHIP>" in its head row, so it is the narrowest the panel ever has
-			# cause to be and the first place spare width shows.
+			# Width is measured too: with no blocks this slab is narrowest and shows slack first.
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
 			if yard2._mine_slab != null:
@@ -750,10 +645,7 @@ func run(tree: SceneTree) -> void:
 		if scr != null:
 			scr._open_purge()
 
-	# `-- stationshot full deck=hold flyby` holds the Exchange's clock at the
-	# first moment a ship is crossing the window its world is framed in, so a
-	# pass can be photographed on purpose rather than waited for. `flyby=N`
-	# takes the Nth such moment instead.
+	# `flyby` holds the clock at a ship crossing the window, so a pass is shot on purpose.
 	for a10 in OS.get_cmdline_user_args():
 		if not ((a10 as String) == "flyby" or (a10 as String).begins_with("flyby=")):
 			continue
@@ -789,16 +681,12 @@ func run(tree: SceneTree) -> void:
 			print("  flyby: only %d passes through the window in ten minutes" % seen10)
 		break
 
-	# A ROOM SHOT IS OF THE ROOM, NOT OF WHERE THE MOUSE HAPPENS TO BE. The real
-	# pointer is wherever it was left on the desk, and over a part on the rack
-	# it opens that part's tooltip across the shot.
+	# A room shot is of the room: a real pointer over a part would open a tooltip across it.
 	for a7 in OS.get_cmdline_user_args():
 		if (a7 as String).begins_with("roomshot=") and Router.current != null:
 			Router.current.get_viewport().gui_disable_input = true
 
-	# Thirty frames rather than one. The screen builds four panels, and a shot
-	# taken on the frame after `show_station` catches half of them unsized --
-	# the same reason `fittest` waits two frames before it samples a redraw.
+	# Thirty frames: the screen builds four panels, and one frame catches half of them unsized.
 	for i in 30:
 		await RenderingServer.frame_post_draw
 
@@ -849,11 +737,8 @@ func run(tree: SceneTree) -> void:
 		tree.quit()
 		return
 
-	# THE BAR'S OWN WIDTH, printed rather than eyeballed. HudBar's header records
-	# that the row was 983px at a 960 window with dev mode on, and that the fix
-	# was four pixels of separation per gap -- so anything added to it since is
-	# spending a margin measured in single figures. A screenshot shows you the
-	# last tab is short; only this says by how much.
+	# Prints the bar's width: it was 983px in a 960 window, so additions spend a tiny margin.
+	# Why: docs/why/StationShot.md#bar-width
 	if Router.hud != null and Router.hud._row != null:
 		var need: float = Router.hud._row.get_combined_minimum_size().x
 		# against the row's clip (932 at a 960 window), not the panel's 944:
@@ -862,18 +747,10 @@ func run(tree: SceneTree) -> void:
 		print("  hud row wants %.0f of %.0f%s" % [need, have,
 			"  <-- CLIPPED by %.0f" % (need - have) if need > have else ""])
 
-	# `-- stationshot full deck=stock buy` BUYS A PART THE WAY A PLAYER DOES:
-	# a real pick-up off the rack, handed to the counter, and the run checked
-	# after. The rack is scaled by two and the counter stands where the room
-	# puts it, and neither is anything `fittest` reaches. The drop is handed to
-	# the counter directly for the reason `FitTest._carry` gives: Godot follows
-	# the OS cursor once a drag is live, and warping the real mouse is not a
-	# thing a test should do to the machine running it.
+	# Buys as a player does; the drop goes straight to the counter, not a warped mouse.
+	# Why: docs/why/StationShot.md#buy-and-sell
 	if "buy" in OS.get_cmdline_user_args():
-		# ROOM IN THE HOLD. `full` fills it, which is the case the counter
-		# rightly refuses ("NO ROOM") -- this is about the purchase, so it
-		# makes space the way a player would, by dumping something. First, so
-		# the shelf it redraws is the one the part is picked off.
+		# Dumps something first, as `full` fills the hold and the counter rightly says NO ROOM.
 		var scr7 := Router.current as StationScreen
 		var icon: ModuleIcon = null
 		var pick7: HoldItem = null
@@ -946,10 +823,7 @@ func run(tree: SceneTree) -> void:
 				"took it" if took else "refused (%s)" % scr7._till._why, had,
 				now_have, cash, Run.credits])
 
-	# `-- stationshot full deck=hold sell` SELLS A PART THE WAY A PLAYER DOES: a
-	# real pick-up out of the hold, which stands in the Exchange's frame, handed
-	# to the counter that pays, and the run checked after. The same drag the buy
-	# test makes, the other way across the room.
+	# Sells as a player does: the same drag as the buy test, the other way across the room.
 	if "sell" in OS.get_cmdline_user_args():
 		var scr8 := Router.current as StationScreen
 		var icon8: Control = null
@@ -1013,17 +887,8 @@ func run(tree: SceneTree) -> void:
 				"took it" if took8 else "refused (%s)" % scr8._sell_desk._why, had8,
 				Run.cargo.size(), cash8, Run.credits])
 
-	# `skyview=<path>`: THIS STATION'S SKY at backdrop size, 800x400 -- the
-	# planet it orbits and its stars, as the sector draws them -- for the
-	# Exchange's bench to hang behind its windows. `skyseed=N` borrows node
-	# index N for the roll, so five levels can show five different skies
-	# without moving the station anywhere. `skyseed=3,9,14` rolls several in one
-	# run, each to the path with `{seed}` replaced; `skysize=740x431` draws the
-	# sky at the size of the room's wall, the way the Exchange hangs it, and
-	# `skyframe=x,y,w,h` frames its world in that rect of it, as the Exchange
-	# frames it in the room's biggest window. `skyparts` also writes the sky
-	# without its world (`<path>` with `_stars` before `.png`) and the world
-	# alone at the size it is drawn (`_body`), for the bench to frame live.
+	# `skyview=` draws the station's sky at backdrop size; seed, size and frame flags tune it.
+	# Why: docs/why/StationShot.md#sky-flags
 	for a9 in OS.get_cmdline_user_args():
 		if not (a9 as String).begins_with("skyview="):
 			continue
@@ -1076,10 +941,7 @@ func run(tree: SceneTree) -> void:
 		node9.index = was_index
 		break
 
-	# `roomshot=<path>`: the shop's room alone, at the game's own 1:1, out of the
-	# 960x540 frame -- the picture to put beside the bench's render of the same
-	# room. The window shot is the frame scaled to the window through the tube,
-	# which is right for judging the game and useless for a pixel diff.
+	# `roomshot` is the room at 1:1; the window shot is scaled through the tube, useless for diffs.
 	for a6 in OS.get_cmdline_user_args():
 		if not (a6 as String).begins_with("roomshot="):
 			continue
@@ -1118,10 +980,7 @@ func run(tree: SceneTree) -> void:
 		out.save_png((a6 as String).substr(9))
 		print("  roomshot %s: room %s at %s, backdrop %s" % [(a6 as String).substr(9),
 			room6.room.get("slug", "?"), box, room6._bd_id])
-	# `roomclip=<dir>`: the room on screen as a run of frames, `clipframes=N`
-	# of them (90) `clipms=M` apart (66, fifteen a second), starting `clipfrom=`
-	# milliseconds before the clock the shot was held at (2000) -- a pass by a
-	# window, to be judged moving. Speed can only be judged in motion.
+	# `roomclip` records frames, since speed can only be judged in motion.
 	for a11 in OS.get_cmdline_user_args():
 		if not (a11 as String).begins_with("roomclip="):
 			continue
@@ -1164,9 +1023,7 @@ func run(tree: SceneTree) -> void:
 		print("  roomclip: %d frames from %.2fs to %s" % [frames11, t11 / 1000.0, dir11])
 		break
 
-	# `boardpop`: on a city's or a capital's screen, wait for a popup, click its
-	# X as a player does, and print whether it shut.
-	# `boardpopbtn` clicks the popup's own button instead, which shuts it too.
+	# `boardpop` clicks the popup's X as a player does and prints whether it shut.
 	var btn17 := "boardpopbtn" in OS.get_cmdline_user_args()
 	if "boardpop" in OS.get_cmdline_user_args() or btn17:
 		var scr17 := Router.current as StationScreen
@@ -1198,10 +1055,7 @@ func run(tree: SceneTree) -> void:
 				print("  boardpop: popup opened after %.1fs; after a click on its %s it is %s" % [waited, "button" if btn17 else "X",
 					"shut" if not bd17.pop_x.has_area() else "STILL OPEN"])
 
-	# `boardclip=<dir>`: the Hiring Board as the game shows it -- the board, its
-	# notices and its lamp -- a frame every `clipms=M` (33) for `clipframes=N`
-	# (90) on the real clock its lamp keeps, from the moment the deck opened, so
-	# the power-on is in it.
+	# `boardclip=` records the board on its lamp's real clock, so the power-on is in it.
 	for a16 in OS.get_cmdline_user_args():
 		if not (a16 as String).begins_with("boardclip="):
 			continue
@@ -1264,10 +1118,7 @@ func run(tree: SceneTree) -> void:
 				scr20._board_lamp.get_viewport().get_texture().get_image().get_region(box20).save_png((b20 as String).substr(8))
 		break
 
-	# `boardsign=<dir>`: on the Hiring Board, once its lamp is lit, SIGN the
-	# first job as a player does, and photograph the whole screen just before
-	# (`<dir>/before.png`) and after (`after.png`). SIGN changes that one note
-	# (Jon, Oct 22: "the whole hiring board resets"; `-- sheet=BoardSignTest`).
+	# `boardsign=` shoots before and after SIGN (Jon, Oct 22: the whole hiring board resets).
 	for a25 in OS.get_cmdline_user_args():
 		if not (a25 as String).begins_with("boardsign="):
 			continue
@@ -1362,9 +1213,7 @@ func run(tree: SceneTree) -> void:
 		bd21.reel = -1
 		break
 
-	# `boardpool=<dir>`: every piece in this level's pool, laid out in rows with
-	# its number, page after page (`pool_01.png` and on), the work taken down so
-	# nothing hides them -- for checking new pieces one by one.
+	# `boardpool=` lays out every piece in the level's pool with its number, for checking new ones.
 	for a19 in OS.get_cmdline_user_args():
 		if not (a19 as String).begins_with("boardpool="):
 			continue
@@ -1396,9 +1245,7 @@ func run(tree: SceneTree) -> void:
 		print("  boardpool: %d pieces on %d pages to %s" % [bd19.gallery_count(), page19, dir19])
 		break
 
-	# `boardseeds=<dir>`: the Hiring Board as `seedcount=N` (12) different
-	# stations would show it -- its pieces and where they land are keyed to the
-	# station's number -- settled, one still each, `seed_001.png` and on.
+	# `boardseeds=` shows the board at different stations, as its pieces are keyed to the station.
 	for a18 in OS.get_cmdline_user_args():
 		if not (a18 as String).begins_with("boardseeds="):
 			continue
@@ -1424,10 +1271,7 @@ func run(tree: SceneTree) -> void:
 		print("  boardseeds: %d boards to %s" % [count18, dir18])
 		break
 
-	# `railclip=<dir>`: the elevator (`StationSpine`) as the game shows it, a
-	# frame every `clipms=M` (33) for `clipframes=N` (90), on the real clock its
-	# pictures play on -- to set against the frames `tools/room_stage/rail/`
-	# holds. Each file is named for the milliseconds it was taken at.
+	# `railclip=` records the elevator on its real clock, to set against `tools/room_stage/rail/`.
 	for a15 in OS.get_cmdline_user_args():
 		if not (a15 as String).begins_with("railclip="):
 			continue
@@ -1454,10 +1298,7 @@ func run(tree: SceneTree) -> void:
 		print("  railclip: %d frames of %s to %s" % [frames15, box15, dir15])
 		break
 
-	# `labclip=<dir>`: the Laboratory as a run of frames on its own clock,
-	# `clipframes=N` (90) `clipms=M` apart (66), from `clipfrom=S` seconds after
-	# it powered on (6, settled) -- its lights, its monitor, its glass, as the
-	# game moves them. The lab's 740x431 alone, like `roomshot=`.
+	# `labclip=` records the lab on its own clock from a settled power-on, at 740x431.
 	for a14 in OS.get_cmdline_user_args():
 		if not (a14 as String).begins_with("labclip="):
 			continue
@@ -1488,12 +1329,8 @@ func run(tree: SceneTree) -> void:
 		print("  labclip: %d frames from %.2fs to %s" % [frames14, from14, dir14])
 		break
 
-	# `yardclip=<dir>`: the Shipyard as a run of frames on its own clock,
-	# `clipframes=N` (90) `clipms=M` apart (66), from `clipfrom=S` seconds after
-	# its TV powered on (0) -- the power-on, the drones flying in, anything
-	# `yardev=` fires. `yardbuy=I:S` buys service I at S seconds, as a click does;
-	# `yardbuy=take:S` presses TAKE IT, and the clip goes on with the dock open
-	# over the yard; `yardbuy=backout:S` presses the dock's BACK OUT.
+	# `yardclip=` records the Shipyard on its own clock; `yardbuy=` buys, takes or backs out.
+	# Why: docs/why/StationShot.md#clip-flags
 	for a13 in OS.get_cmdline_user_args():
 		if not (a13 as String).begins_with("yardclip="):
 			continue
@@ -1576,10 +1413,7 @@ func run(tree: SceneTree) -> void:
 			vp_s.get_texture().get_image().save_png(to)
 			print("wrote ", to)
 
-	# `layerhz=S`: time every redraw of the station's rooms for S seconds and
-	# print how evenly they land. A frame capture a twelfth of a second apart
-	# cannot show a 30 Hz layer holding a walker's pose for 83 ms here and 167
-	# there -- which is exactly what the walkers did at the old 12 Hz gate.
+	# `layerhz` times redraws: captures a twelfth of a second apart miss uneven 30 Hz layers.
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("layerhz="):
 			var secs := float(a.trim_prefix("layerhz="))
@@ -1618,9 +1452,7 @@ func run(tree: SceneTree) -> void:
 				fps_sum / maxf(1.0, float(fps_n))])
 			print("  layer gaps: ", ", ".join(hist))
 
-	# `frames=N`: N more shots a twelfth of a second apart, for the layers that
-	# move. A still cannot show that a walker walks or that the near lane is
-	# faster than the far one, and those are the whole point of them.
+	# `frames=N` takes extra shots, as a still cannot show that a walker walks.
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("frames="):
 			var n := int(a.trim_prefix("frames="))

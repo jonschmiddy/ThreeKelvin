@@ -1,23 +1,7 @@
 extends Node
 
-## LOCAL'S LIFE FILMED (`LocalLife`: the air, the city lights, the moons, the
-## traffic), each frame both ways:
-##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LocalLifeShot
-##       out=<dir> [cases=<case>[:<hide>[:approach]],...] [hide=air|night|moons|traffic|all]
-##       [frames=240] [warm=70] [style=simplified|painted|radiant|legacy]
-##       [approach] [bench]
-## For each case: a new run (its seed), the ship parked as the sector map leaves
-## it, LOCAL shown; then `frames` frames, each saved TWICE -- as played
-## (`<case>/after/f_####.png`), and the same frame drawn again with what `hide`
-## names taken away (`LocalLife.hide`; no clock moved in a forced draw, the
-## worlds' surface memories held: `<case>/before/f_####.png`) -- so the two
-## differ by that alone (a case may name its own `hide`, and `approach`; its
-## folder is then `<case>_<hide>`). The game's 960x540 picture. The clocks step 1/30 s a
-## frame (run with `--fixed-fps 30`). `approach`: the ship flies in, as it does
-## arriving from the map. `bench`: the air's and the city lights' GPU time, each
-## drawn 40 times over in a viewport of its own, on and off alternated (the GPU
-## is shared, and a sliver of a millisecond is lost in a whole frame's noise).
-## LocalLife's own CPU a frame is printed for every case. Needs a window.
+## Each frame is saved as played and again with `hide` applied, so the two differ by that alone.
+## Why: docs/why/LocalLifeShot.md#local-life-film
 
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 ## name: [sky, seed, orbit]
@@ -130,9 +114,7 @@ func _run() -> void:
 	_tree.quit()
 
 
-## The frame just drawn, drawn again with the hidden ideas taken away (or put
-## back): no clock moves (nothing processes in a forced draw) and the worlds'
-## memories are held, so it is the same frame but for them.
+## Redraw with hidden ideas removed: no clock moves in a forced draw and memories are held.
 func _draw_again(sky: LocalSky, hidden: bool) -> void:
 	LocalLife.hide.clear()
 	if hidden:
@@ -160,9 +142,7 @@ func _hold_mems(nd: Node, held: Array) -> void:
 
 
 const COPIES := 40
-## The air's and the lights' GPU time: COPIES of each in a viewport the sky's
-## size (480x270 of 2x2 blocks), on and off alternated, the medians'
-## difference over COPIES.
+## GPU time via COPIES of each in a sky-sized viewport, on and off alternated, medians compared.
 func _bench(sky: LocalSky, cname: String) -> void:
 	for what in ["air", "night"]:
 		var src: CanvasItem = sky.life._air if what == "air" else sky.life._night

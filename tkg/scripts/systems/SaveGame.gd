@@ -1,325 +1,20 @@
 class_name SaveGame
 extends RefCounted
 
-## The run in progress, on disk. One slot, rewritten at every safe point.
-##
-## This is a SUSPEND SAVE, not a checkpoint. Loading deletes the file, and the
-## file is rewritten from live state at the very next safe point — so there is
-## never an older state on disk to go back to. Quitting is a bookmark. It is not
-## a way to retry a fight you are losing or a jump you regret.
-##
-## That restraint is not fussiness. "Lateral map travel is always available and
-## cheap, so every death is self-authored" is a design ruling, and it only means
-## anything while a death is final. A reloadable save repeals the greed clock
-## without appearing to change a single number.
-##
-## COMBAT IS DELIBERATELY OUTSIDE THE SAVE. A safe point is a moment when the
-## only live state is RunState's, so restoring one cannot strand a half-resolved
-## fight. The autosave lands immediately BEFORE a fight begins rather than after
-## the jump that led to it, so force-quitting mid-fight costs you the fight, not
-## the jump — you resume on the sector with the contact still there and ENGAGE
-## still offered. It does refund the hull the fight had already taken, which is
-## the one hole in this; closing it would mean serialising deck order, enemy
-## intent loops, drones and charge timers for a case reached only by force-quit.
+## A suspend save, not a checkpoint: loading deletes the file, so death stays final.
+## Combat is outside the save; the autosave lands just before a fight begins.
+## Why: docs/why/SaveGame.md#suspend-save
 
 const PATH := "user://run.save"
-## WHERE THE SAVE GOES: the player's file, or, when the game was started by a
-## harness or test (anything after `--` that a player would not type), a scratch
-## file beside it. Tests used to overwrite Jon's run.save on every gate run and
-## every render (2026-10-05: a chart render replaced his run). Tests that need
-## the real path set this themselves. One scratch file PER PROCESS
-## (`TestRun.scratch`): a single shared one let harnesses running side by side
-## load each other's runs.
+## Harnesses write a scratch file per process: tests once overwrote Jon's run.save (2026-10-05).
+## Why: docs/why/SaveGame.md#save-path
 static var path: String = TestRun.scratch("run", "save") if TestRun.active() else PATH
 ## True while a load announces its run (`Sig.run_started`), so a listener can
 ## tell CONTINUE from a new run (A.S.H.'s introduction is a new run's only).
 static var restoring := false
-## Bumped whenever the shape below changes. An old file is discarded rather than
-## guessed at — a half-understood save produces a run that is subtly wrong,
-## which is worse than no save at all.
-## 2: the economy. `exotic` became the first row of a materials ledger, station
-## stock stopped storing a price and started deriving one, and a node learned
-## whether it has ever been stocked and how much has been sold into it.
-## 3: heat reached the map. A node now carries whether it rolled for an ambush
-## and what that roll produced, so a hostile attracted by your own heat cannot
-## be refused by quitting and coming back cold.
-## 6: a node carries the BAG a shared kill left in it, and whether one has been
-## rolled. Stored by value like the shelf rather than re-derived: the roll is
-## deterministic from the node, but its SIZE came from how many ships were in the
-## fight, and nothing on a resumed map remembers that.
-## 7: the contract ledger and manufacturer standing. A version 6 save has neither, so
-## it resumes with an empty board and no accounts — which is survivable but
-## silently loses work the player had already flown for.
-## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
-## arranged comes back arranged rather than re-packed from scratch.
-## 9: the hellbender — where the galaxy's other harvester is, what hull it has
-## left, and how many moves it has made (the counter is a seed source, so
-## losing it would re-derive a different walk). A node also carries `eaten`:
-## a save that forgot it would resume a derelict the rival stripped as one
-## somebody in the party did.
-## 10: a hull carries the perks its GRADE grants, on top of its manufacturer's one.
-## They are granted by `at_tier` and the loader does not call it, so they are
-## written and read back explicitly. A version 9 save has none of them, and
-## an S-tier ship restored from one is three perks short with every number
-## still right — unreadable rather than wrong, which is what the rule at the
-## top is for.
-## 11: the vocabulary pass. A node's manufacturers-with-berths moved from
-## `makers` to `berths`, and a contract's manufacturer from `house` to
-## `manufacturer`. A version 10 file has neither key, so it would resume
-## with every node stripped of its berths and every contract unbranded — a
-## galaxy that looks intact, posts no work anywhere, and tints nothing on
-## the chart. Discarded instead.
-##
-## THE RENAME DID NOT TOUCH THIS NUMBER, and that is the whole reason this
-## entry exists. The keys moved and the gate above went on saying 10, so an
-## old save PASSED the check and was read with keys that are not in it —
-## the exact failure the rule at the top of this file forbids, arrived at by
-## renaming rather than by shipping a new shape. See the note below: the
-## number is not the defence, it is only how the defence notices.
-##
-## 8 rather than either side's number, and the reason is worth writing down: two
-## branches both shipped a "6" — the shared-kill bag on one and the hold grid on
-## the other — so a file stamped 6 could be either shape and there is no way to
-## tell which from the number. This format has BOTH, so it is readable by
-## neither, and taking a fresh number is the only answer that keeps the rule
-## above true. Anything stamped 6 or 7 is now discarded, which is the correct
-## outcome and the whole reason the field exists.
-##
-## AND THEN IT HAPPENED AGAIN AT 8. The hold grid and the hellbender were written
-## on separate branches and both stamped 8, so an 8 can be either shape by
-## exactly the argument above. 9 has both.
-##
-## Which says something the paragraph before it did not: the number is not the
-## defence. It collides whenever two branches are open at once, and it will
-## collide again. What actually keeps a wrong save from being loaded is the
-## rule at the top -- an unreadable file is DISCARDED rather than guessed at --
-## and the number is only how that rule recognises one. 8 is discarded now for
-## the same reason 6 and 7 were.
-## 12: THRUST BECAME A FIELD. It was read off fuel_factor -- the gauge and the
-## price of a jump were one number -- so every fuel-efficiency part quietly
-## lowered the pilot's thrust and made them worse at thrust checks for fitting
-## a thriftier engine. HULL_FIELDS gained 'thrust', so a version 11 hull has
-## no such key and would restore with a thrust of whatever the default is
-## rather than what its weight class says. Discarded instead.
-##
-## Caught by .github/scripts/version_guard.py, which is the first time that
-## has happened in anger -- and it needed fixing first: a field LIST declares
-## its keys as bare quoted strings, and the guard could not read one. It said
-## PASS on this very change until it was taught to.
-## 13: THE AFFIX VOCABULARY CHANGED, and this is a break the version guard
-## cannot see. An affix is stored as its NAME — a string VALUE in the save, not
-## a key — and the guard watches keys. Seven of the ten names are gone
-## (Overbored, Autoloader, Salvaged, Mass-Fed, Efficient, Grafted, Heat-Sinked),
-## and `_module_from` resolves a name by walking DB.affixes and simply skipping
-## what it cannot match. So a version 12 save would load, and every rolled part
-## on it would come back stripped of its rolls: no crash, no warning, a quietly
-## weaker ship. Discarded instead.
-##
-## Worth writing down because it is the shape of break the guard is blind to by
-## construction: renaming the VALUES a save stores is exactly as destructive as
-## renaming its keys, and nothing automated is watching for it.
-## 17: THREE NODE TYPES DELETED. FIGHT, EVENT and DERELICT are gone and SYSTEM
-## replaces them, because what is at a place is `options` now and those three
-## were only labels for what got rolled there.
-##
-## THE ENUM RENUMBERED, and that is the whole reason this line exists. `type` is
-## serialised as an INT, so a version 16 save loaded against this build would
-## come back with every node pointing at a different kind of place -- stations
-## reading as cores, cores as pulsars. It would not crash and it would not warn;
-## it would simply be a different galaxy wearing the old one's name.
-##
-## Discarded, and that discard IS the migration: there is no forward-read worth
-## writing when the mapping is meaningless. This bump is what arms it.
-##
-## 16: THE AMBUSH IS A FLAG. `MapNode.ambush` held the pack itself; it is now
-## `ambush_pending`, with the pack derived positionally at fight time. A version
-## 15 save carries the old array and it is read forward as "pending if it was not
-## empty" -- so a run suspended mid-approach still gets jumped, by the SAME pack,
-## because `_roll_foes` answers the same way it did when the array was written.
-##
-## 15: A SYSTEM HOLDS A LIST. `MapNode.options` carries the ids of what was
-## rolled at each node, so the shape of a saved system changed. A version 14
-## save has no such key and every node comes back with an empty list, which
-## re-rolls once on the next arrival -- the same contract `foes` has, and not a
-## corruption. KEPT rather than discarded for that reason: the worst case is one
-## system offering a different set than it did before the quit, against losing
-## the run entirely.
-##
-## 14: SENSORS CAN SEE. Every map node carries a `sensed` mark now -- set when
-## the ship is close enough and never cleared -- so the shape of a saved system
-## changed. A version 13 save has no such key, and every node would come back
-## unsensed: not a corruption, but a chart quietly narrower than the one the
-## player left, which is the same class of lie as a stripped module. Discarded.
-## 18: THE HOLD CARRIES TWO KINDS OF THING. Cargo rows gained a `kind`, and a
-## material row stores an id and a cell instead of a rolled part.
-##
-## Backward compatibility actually holds -- `kind` is absent on every module row
-## ever written, so a version 17 save reads back through exactly the old path.
-## The bump is about the OTHER direction: a version 17 build handed a material
-## row would run it through `_module_from` and produce a nameless part with no
-## affixes sitting in your hold. That is the stripped-module lie again, so the
-## number moves and the save is discarded rather than half-understood.
-## 19: MONEY IS A THING IN A CONTAINER. A bag row can now be `kind = credits`,
-## which a version 18 build would push through `_module_from` and land in your
-## hold as a nameless part worth nothing. Same argument as 18 and the same
-## direction: old saves read back fine, new ones must not be handed backwards.
-## 20: A SYSTEM HOLDS CONTAINERS. One per hull you killed plus one of its own,
-## each with its own items and its own claims -- and they persist, which is the
-## point: a wreck you left half stripped is somewhere you can go back to.
-##
-## A version 19 save has no `jetsam` key and reads back with none, which is
-## correct for it: nothing was ever put in one. The bump is for the other
-## direction, as 18 and 19 were -- a 19 build handed this save would show you a
-## sector with the loot missing and no wrecks in it.
-## 21: `hoards` became `jetsam`. A RENAME AND NOTHING ELSE -- same shape, same
-## contents, same claims -- but the key a save is written under is the key a
-## save is read from, so a version 20 file would come back with no containers in
-## it and a version 20 build handed this one would do the same. `SaveGame.load`
-## refuses a mismatch, which is what makes the discard the migration.
-## 22: and `flotsam` became `jetsam`, for the reason 21 should have used --
-## `jettison` is the verb and jetsam is its noun. Same rename, same argument:
-## the key a save is written under is the key it is read from.
-## 23: A SPENT OPTION REMEMBERS WHAT IT CAME TO. `taken` said an option was
-## done and nothing said what happened, which was enough while a spent option
-## vanished off the list and is not now that the card stays and wears its band.
-## `results` is written as two parallel arrays because JSON has no integer
-## keys -- a dictionary keyed by option index comes back keyed by "0" and "3".
-##
-## A version 22 save has no `results` and reads back with none, which draws
-## every already-spent option as RESOLVED rather than as the band it actually
-## got. That is a downgrade rather than a lie, and it is the direction the
-## version guard does not care about; the bump is for the other one, as 18
-## through 22 were.
-## 24: THE MATERIAL LEDGER IS GONE. `materials` was a dictionary of id to count
-## saved beside `cargo`, which already stored the same materials as objects with
-## shapes and positions -- and the objects are what the game reads now, so the
-## dictionary is not written and not read. A version 23 save carries one and a
-## version 24 build would ignore it, which is the quiet half; the loud half is
-## that a 23 build handed this save would find no ledger and show you nothing
-## for a hold full of crates.
-## 25: A SYSTEM HAS A SKY. `star`, `gas_giant` and `near_pulsar` decide whether
-## four options may appear at all -- the pulsar sweep, the two flare-star
-## encounters and the gas giant -- and all three are rolled at generation off
-## `Rng.world`. They are saved rather than recomputed because a save carries the
-## MAP, not the seed that made it: a 24 save read by this build would come back
-## with an ordinary sky everywhere, and the systems that had been offering those
-## options would quietly stop.
-## 26: THE GALAXY TABLE LOST TWO KINDS AND GAINED FOUR. `galaxy_kind` is an
-## INDEX into `GalaxyGen.KINDS`, so removing Barred Ring Spiral and Collisional
-## Ring renumbered everything after them. The rolled parameters are saved
-## alongside the index and would still restore correctly -- the map would be
-## intact -- but the run would name itself after a different galaxy than the one
-## it is, on the one screen that exists to tell you where you are.
-# 27: `pad` joins the file. Overflow from a hull swap is state now rather than
-# a deletion, so a save taken mid-move has to carry it or the move eats it --
-# which is the bug the pad exists to fix.
-## 28: `fight`, the fight a run was saved out of (see mark_fight). A save from
-## 27 has no way to say whether it was written mid-fight, so it is not read.
-## 29: A SYSTEM REMEMBERS WHAT ITS CARDS SAY. The sector map lists every event
-## as a card, and a card you walked away from reads LEFT ALONE, STILL OPEN (Jon:
-## "left alone should survive a reload"); a card you took reads its band and a
-## line of what came of it, "FUEL -16 · You put sixteen units across." Neither
-## is in `taken` or `results` -- walking away spends nothing, and `results` is
-## only the band -- so each node carries two more maps, `left` (option index to
-## the first line of leaving) and `said` (option index to what moved and the
-## first line of the outcome). Written as parallel arrays for the reason 23
-## gives: JSON keys are strings. A 28 save would load with every walk-away
-## forgotten and every card's line gone, quietly; a 28 build handed this save
-## would drop them the same way. Refusing the mismatch is the migration.
-## 30: WHERE THE SHIP WAS LEFT, by system (`parked`: `SystemMapScreen._parked`,
-## the orbit or the open-space spot the map last had you at). It lived only in
-## memory, so a reload dropped you at the system's edge and LOCAL drew the
-## warp-in instead of the world you were orbiting. Written as a list of rows
-## with the system's index in each, for the reason 23 gives.
-##
-## THE FIRST BUMP THAT STILL READS THE ONE BEFORE IT (`OLDEST_READ`). A 29 save
-## differs from this shape only by not having `parked`, and missing, it means
-## exactly what a 29 build did with it: every system's ship at its edge. So
-## there is nothing to half-understand, and refusing it would cost a player a
-## run for a field whose absence is a correct answer. A 29 build handed a 30
-## save still refuses it, which is the direction the number exists for.
-## 31: WHICH PICTURE A WRECK IS (`Jetsam.look`). The enemies wear Jon's kept
-## ships now, three to an ordinary kind and one per fight (`Combat.look_for`),
-## and a wreck has to be the hull the fight showed. Read the way 30 reads 29: a
-## 30 save has no `look`, and missing it means the kind's first picture -- a 30
-## build drew none of these pictures at all, so there is nothing to disagree
-## with. OLDEST_READ stays at 29.
-## 32: THE CORE WON, ITS BODY NOT YET SALVAGED (`core_won`). The one save a won
-## run may have: written at the custodian's kill so a game quit before the body
-## is clicked comes back to the body (`SaveGame.save_core_won`). Read the way 31
-## reads 30: a 31 save has no `core_won`, and missing means not won -- the only
-## state a 31 build ever wrote. OLDEST_READ stays at 29.
-## 33: A WRECK HAS A PLACE (`Jetsam.site`, Jon Oct 14: "each planet or POI you
-## can visit should contain its own wrecks/fights"). Read the way 32 reads 31: a
-## 32 save's wrecks have no `site`, and missing means `MapGen.SITE_ANY`, shown
-## at every place in the system -- what a 32 build drew. And `opened` (a wreck
-## you have looked in, whose leftovers SECTOR LOOT shows too); missing means
-## the wreck's `scanned`, the nearest thing a 32 save kept. OLDEST_READ stays at 29.
-## 34: WHAT THIS RUN'S WORLD MAY HOLD (`unlocked`, `Run.unlocked_manufacturers`;
-## Jon, Oct 20: "Solari things should NOT show up in the game until Solari is
-## unlocked"). Read off the flight record once at run start and kept, so a
-## CONTINUE rolls the shelves and wrecks it has not opened yet from the same
-## pool as the ones it has, whatever the record says now. Read the way 33 reads
-## 32: a 33 save has no `unlocked`, and missing means every manufacturer -- a 33
-## build gated drops on `DB.ACTIVE_MANUFACTURERS` alone, so that is the world it
-## was already rolling. OLDEST_READ stays at 29.
-## 35: THE QUESTS AN EVENT GAVE YOU, AND WHAT EVERY QUEST PAID (`event_quests`,
-## `quests_done`; Jon, Oct 22: an event that plants a follow-up "is essentially
-## a quest", and finished quests go under COMPLETED, not away). Read the way 34
-## reads 33: a 34 save has neither, and missing loses only what the map cannot
-## say. Its open event quests still list, read off the map (the placed option
-## on its system, not taken), with the giver the option itself names
-## (`quest.from`); one taken lists under COMPLETED without its pay; and its
-## delivered contracts list there too, after any finished since, with the pay
-## each one carries. OLDEST_READ stays at 29.
-## 36: THE FRAME YOU ARE MOVING OUT OF (`old_hull`), written while anything is
-## still on the pad. A 35 save quit mid-move came back with its parts on the pad
-## and no ship to draw the fitted ones on, and nothing showed the pad at all: the
-## station would not let you go and would not say what was holding it (Jon, Oct
-## 23, 0.4.1-alpha.1). Read the way 35 reads 34: a 35 save has no `old_hull`, and
-## missing means none -- the pad's parts forget the old hardpoints and are laid
-## out in the old hold (`RunState.mend_loadout`, which every load runs, and which
-## also puts a fitted part on a hardpoint it can have). Also in 36, both
-## optional: A.S.H.'s COMMS log for the run (`ash_comms`; a 35 save starts it
-## empty), and the manufacturer the run launched as (`launched_as`; a 35 save
-## has none, and its win falls back to the hull it ends in, see Unlocks).
-## OLDEST_READ stays at 29.
-## 37: WHAT THE HULL ON OFFER CUTS UP FOR (`found_scrap`, `{credits,
-## material}`). The derelict hauler's frame carries the pay of the strip you
-## gave up for it, so a frame you do not fly has SCRAP in place of LEAVE IT
-## (Jeremy, friends' alpha). Read the way 36 reads 35: a 36 save has no
-## `found_scrap`, and missing means none -- its found hull offers LEAVE IT, as
-## a 36 build did. OLDEST_READ stays at 29.
-## 38: A SYSTEM CAN HAVE TWO SUNS (`twin`, ruling 20). Rolled at generation off
-## its own stream and saved with the node for 25's reason: a save carries the
-## MAP, not the seed. It also decides the whole layout -- which world goes round
-## which star, and every body's index -- so a system that changed its mind
-## across a load would move the ship's parked place and its wrecks' sites
-## (`parked.at`, `Jetsam.site`, both body indices) onto other bodies. Read the
-## way 37 reads 36: a 37 save has no `twin`, and missing means one sun, so its
-## systems lay out as they did. OLDEST_READ stays at 29.
-## 39: EACH SYSTEM'S MAP CLOCK (`clocks`: `Run.map_clock`, ruling 23). A
-## binary's two suns turn on map time, and the worlds round one of them with
-## them, so where everything in a system is depends on its clock; a parked free
-## ship's spot is an absolute plane point that only means where it was at the
-## clock it was left at. Rows of {index, t}, for the reason 23 gives. Read the
-## way 38 reads 37: a 38 save has no `clocks`, and missing means t 0 -- the
-## picture a 38 build showed on every visit, its suns where they were laid out
-## -- so every parked spot loads where it was made. OLDEST_READ stays at 29.
-## 40: THE LEAD SHIP'S JUMPS (`party_jumps`: `Run.party_jumps`, Jon, Nov 4). In
-## co-op the Custodian grows on the most jumps any ship in the dive has made
-## (`RunState.custodian_jumps`), so a pilot behind the lead who quit and pressed
-## CONTINUE would otherwise meet a weaker boss than the badge showed. Read the
-## way 39 reads 38: a 39 save has no `party_jumps`, and missing means 0, so its
-## count is its own jumps, as a 39 build grew it. OLDEST_READ stays at 29.
-## 41: SCIENCE (Phase 12, Jon's picks Nov 4). `data` (`Run.data`), the dealt
-## `board` (as routine ids), `board_owned` (steps bought per branch),
-## `black_box_spent`, and a module's `augmented`. The board is saved as ids and
-## never dealt again at a load: a retuned pool would otherwise move a live run's
-## board under steps already bought. Read the way 40 reads 39: a 40 save loads
-## with 0 DATA, nothing owned, nothing augmented, and its board dealt from its
-## seed and seat (`_board_from`), the board a 41 build would have dealt it.
-## OLDEST_READ stays at 29.
+## Bumped whenever the shape changes; an old file is discarded, never guessed at.
+## 41: science (DATA, the board as ids, its steps, the black box, a part's mark).
+## Why: docs/why/SaveGame.md#version-history
 const VERSION := 41
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
@@ -354,26 +49,16 @@ static func summary() -> Dictionary:
 
 # ---------------------------------------------------------------------- write
 
-## Called from Router at every safe point. Cheap enough to be unconditional:
-## the map is the bulk of it and a hundred and fifty nodes stringify in a
-## millisecond or two, which is nothing beside the screen swap that triggered it.
-##
-## The map guard is doubled here and in Router._autosave() on purpose. This is
-## the one function that writes, and _snapshot() indexes `Run.map[Run.at]` with
-## nothing in front of it — a half-populated run reaching this call takes the
-## process down rather than declining to write.
+## Unconditional and cheap. The map guard is doubled here as this is the one writer.
+## Why: docs/why/SaveGame.md#saving
 static func save() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won:
 		return
 	_write(false)
 
 
-## THE CORE WON, ITS BODY NOT YET SALVAGED (Jon: "I would want to have to click
-## the dead custodian"). The run is recorded as won at the kill and the ordinary
-## save goes then, as ever; this writes the one save a won run may have: the
-## core, cleared, with the body on it, marked `core_won`, so a game quit before
-## the body is opened comes back to the body -- and to nothing else (the doors
-## stay shut, `Router.final_loot`). DONE on the body clears it.
+## The one save a won run may have: the core cleared with its body, so a quit returns to it.
+## Why: docs/why/SaveGame.md#core-won-save
 static func save_core_won() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or not Run.won:
 		return
@@ -381,10 +66,7 @@ static func save_core_won() -> void:
 
 
 static func _write(core_won: bool) -> void:
-	# THE MAP STILL UP writes where its ship is first. It records that only as
-	# it is put away (`_keep_ship`), and SAVE & EXIT from the map saves while
-	# it is still showing -- so without this the file would carry wherever the
-	# ship was the last time the map closed, not where you just flew it.
+	# The map still up writes its ship's spot first, as it records it only when put away.
 	if Router.current is SystemMapScreen:
 		(Router.current as SystemMapScreen)._keep_ship()
 	var f := FileAccess.open(path, FileAccess.WRITE)
@@ -392,27 +74,13 @@ static func _write(core_won: bool) -> void:
 		push_warning("SaveGame: could not open %s for writing (%d)" % [
 			path, FileAccess.get_open_error()])
 		return
-	# full_precision, not the default. Without it JSON rounds floats hard enough
-	# to move systems on the chart by a visible fraction of a pixel.
-	#
-	# It is still not bit-exact, and it is worth writing down what was measured
-	# rather than leaving the next person to wonder: over 20,000 random floats,
-	# 63% round-trip exactly and the worst relative error is 9.3e-14. That is
-	# three orders of magnitude below single precision and it cannot reach any
-	# observable in this game — fuel is int(round(distance * 10)), so flipping
-	# one would need a distance sitting within 1e-13 of a .5 boundary.
-	#
-	# JSON is kept over FileAccess.store_var, which WOULD be bit-exact, because
-	# a save you can read in a text editor is worth more during development than
-	# fourteen digits nothing consults.
+	# `full_precision` on: the default rounds floats enough to move systems on the chart.
+	# Not bit-exact (worst error 9.3e-14) but unobservable. JSON stays readable in dev.
+	# Why: docs/why/SaveGame.md#json-precision
 	f.store_string(JSON.stringify(_snapshot(), "", true, true))
 	f.close()
 
-## SAVE & EXIT MID-FIGHT. The run on disk stays the one from before the fight
-## -- combat is outside the save, and a half-fought state cannot be rebuilt --
-## and this writes down which fight it was, so CONTINUE starts it again from its
-## first turn (Jon: "the game should just restart the fight from the beginning").
-## Read back by `load_into_run` into `Router.fight_on_resume`.
+## Mid-fight SAVE & EXIT keeps the old save and notes the fight to restart on CONTINUE.
 static func mark_fight(fight: Dictionary) -> void:
 	var d := _read()
 	if d.is_empty() or fight.is_empty():
@@ -458,9 +126,7 @@ static func _snapshot() -> Dictionary:
 		# What the world may hold (VERSION 34).
 		unlocked = Array(Run.unlocked_manufacturers).map(
 			func(m: StringName) -> String: return String(m)),
-		# Where every roll stream had got to. Without this, loading a run
-		# rewinds them all to the start of the run, and the next module you
-		# find is the first module you found. See Rng.state().
+		# Saved so a load does not rewind every roll stream to the start of the run.
 		rng = Rng.state(),
 		galaxy_spin = Run.galaxy_spin,
 		galaxy_name = Run.galaxy_name,
@@ -491,23 +157,17 @@ static func _snapshot() -> Dictionary:
 		board = Array(Run.board).map(func(x: StringName) -> String: return String(x)),
 		board_owned = Array(Run.board_owned),
 		black_box_spent = Run.black_box_spent,
-		# The whole ledger, not the one row that used to be a field. A material
-		# added to MaterialTable is saved by construction rather than by somebody
-		# remembering to add a line here.
+		# The whole ledger, so a new material is saved by construction.
 		fuel = Run.fuel,
 		dross = Run.dross.map(func(x: StringName) -> String: return String(x)),
 		whale_boon = Run.whale_boon,
-		# The ledger and the accounts. Both are RUN state — a contract points at a
-		# node index in this galaxy and standing is spent inside this dive — so
-		# both belong here and neither survives the dive ending.
+		# Contracts and standing are run state tied to this galaxy, so they live here.
 		contracts = _contracts_to(),
 		next_contract_id = Run.next_contract_id,
 		# The event quests and the finished order (VERSION 35).
 		event_quests = _event_quests_to(),
 		quests_done = Array(Run.quests_done),
-		# What A.S.H. has said this run, for the HUD's COMMS (Oct 23). Optional:
-		# a save without it (a 35 written before it) loads with an empty log, so
-		# it did not need a VERSION of its own.
+		# Optional: a save without it loads an empty log, so it needed no `VERSION`.
 		ash_comms = Ash.comms_to(),
 		standing = _standing_to(),
 
@@ -549,23 +209,15 @@ static func _read() -> Dictionary:
 		return {}
 	return d
 
-## Restores the run and consumes the file. True when a run is now live.
-##
-## The delete is the whole point of the model, but it also opens a window: a
-## crash between here and the next safe point would lose the run. Router saves
-## on the very next screen swap, which is the one this call is about to cause,
-## so that window is a few milliseconds wide.
+## The file is consumed on load; Router saves on the next swap, so the window is milliseconds.
+## Why: docs/why/SaveGame.md#loading
 static func load_into_run() -> bool:
 	var d := _read()
 	if d.is_empty():
 		clear()
 		return false
 
-	# Checked before the first write to Run, not after the last one. Everything
-	# below overwrites the live run field by field, and this check used to sit
-	# at the bottom — so a file with a good version and a truncated map returned
-	# false having already left a hull, an economy and an empty map behind, and
-	# the launcher this failure routes to autosaved that and indexed map[at].
+	# Check before the first write to Run: a truncated map used to leave a half-loaded run.
 	var saved_map: Variant = d.get("map", [])
 	# The fight this run was saved out of, if any. Always assigned, so a stale
 	# one from an earlier load can never restart a fight this save never had.
@@ -609,10 +261,7 @@ static func load_into_run() -> bool:
 		if m != null:
 			installed.append(m)
 	Run.installed = installed
-	# A save written before mounts existed carries -1 on every fitted part, which
-	# reads as "in the hold" and would draw a fully-armed ship with an empty rack.
-	# Anything unplaced gets the first free hardpoint, so an old file loads as the
-	# same loadout in a tidy arrangement rather than as a ship with no guns on it.
+	# Unplaced parts from an old save get the first free hardpoint, not an empty rack.
 	for m in Run.installed:
 		if m.mount < 0:
 			m.mount = Run.free_mount(m.slot)
@@ -622,16 +271,9 @@ static func load_into_run() -> bool:
 		if m != null:
 			cargo.append(m)
 	Run.cargo = cargo
-	# EMPTIED HERE, not where the saved list is read. The loader overwrites the
-	# live run field by field rather than resetting it, so a pad left over from
-	# the run you were playing a moment ago would survive into this one -- and
-	# `repack_hold` below APPENDS to it, so the clear has to happen before that
-	# rather than after.
+	# Cleared here, before `repack_hold` appends to the pad, or the old run's pad leaks.
 	Run.pad.clear()
-	# Anything that came back without a cell — a pre-grid save, or a part whose
-	# position no longer fits the hull it was loaded onto — gets one now. Done
-	# AFTER the assignment because repack_hold reads Run.cargo, and after the
-	# hull is set for the same reason: the grid's shape is the hull's.
+	# Cell-less parts are repacked after the hull is set, as the grid's shape is the hull's.
 	var unplaced := false
 	for m in Run.cargo:
 		if m.hold_at.x < 0 or not Run.can_place(m, m.hold_at):
@@ -639,10 +281,7 @@ static func load_into_run() -> bool:
 			break
 	if unplaced:
 		Run.repack_hold()
-	# THE PAD, AFTER THE REPACK. `repack_hold` appends to it, so reading the
-	# saved list first and assigning after would throw away anything the repack
-	# had just put there. A file written before v27 has no key and loads with an
-	# empty dock, which is what it meant.
+	# Read the pad after the repack, which appends to it, or the repack's parts are lost.
 	var padded: Array[HoldItem] = []
 	for e in d.get("pad", []):
 		var pm := _item_from(e)
@@ -657,10 +296,7 @@ static func load_into_run() -> bool:
 	if Run.found_hull != null and typeof(fs) == TYPE_DICTIONARY and int((fs as Dictionary).get("credits", 0)) > 0:
 		Run.found_scrap = {credits = int(fs.get("credits", 0)),
 			material = StringName(String(fs.get("material", "")))}
-	# THE MOVE IN PROGRESS, as far as a save can carry it (VERSION 36; a 35
-	# save has none). The undo is never saved, and it is CLEARED here rather than
-	# left: SAVE AND EXIT then CONTINUE is one process, and the undo and the old
-	# frame still in memory name the objects this load has just replaced.
+	# The undo is cleared, not kept: it names objects this load just replaced.
 	var oh: Variant = d.get("old_hull", null)
 	Run.old_hull = _hull_from(oh) if typeof(oh) == TYPE_DICTIONARY else null
 	Run._undo_move = {}
@@ -676,11 +312,7 @@ static func load_into_run() -> bool:
 	Run.heat = int(d.get("heat", 0))
 	Run.heat_cap_bonus = int(d.get("heat_cap_bonus", 0))
 	Run.credits = int(d.get("credits", 0))
-	# JSON hands back String keys and float values; the ledger is StringName to
-	# int. Rebuilt entry by entry rather than assigned wholesale, because a
-	# dictionary that compares equal but hashes its keys as Strings prints
-	# differently from the one it replaced — and that difference is the sort of
-	# thing that gets chased for an hour later.
+	# Rebuild the ledger entry by entry so keys hash as StringName, not String.
 	var mats: Dictionary = {}
 	Run.fuel = int(d.get("fuel", 0))
 	# A save written when dross was a COUNT restores as that many Dross, which is
@@ -704,12 +336,8 @@ static func load_into_run() -> bool:
 	if typeof(done_raw) == TYPE_ARRAY:
 		for k in (done_raw as Array):
 			Run.quests_done.append(str(k))
-	# ZEROED, not restored — these two are deliberately outside the save, so a
-	# load has to clear them the way `start_new_run()` does. Without it, SAVE &
-	# QUIT to the launcher and CONTINUE inside the same process carries the
-	# previous run's haul count and its dismissed salvage rail into the loaded
-	# one: the rail stays shut in-session and opens after a cold start, which is
-	# the same save behaving two different ways.
+	# Zeroed, not restored: these sit outside the save, so a load must clear them like a new run.
+	# Why: docs/why/SaveGame.md#load-resets
 	Run.hauls = 0
 	Run.salvage_hushed_hauls = -1
 	Run.salvage_hushed_bag = -1
@@ -757,9 +385,7 @@ static func load_into_run() -> bool:
 	# Jump range is a pure function of a system and the galaxy, and both just
 	# changed underneath it.
 	Run._range_cache.clear()
-	# A SHIP A 0.4.1 BUILD COULD STRAND, PUT RIGHT (`RunState.mend_loadout`);
-	# nothing on a sound one moves. Last, once the map is back, because putting
-	# a part in the hold announces the ship changed and the listeners read it.
+	# Last, once the map is back: a part put in the hold announces a ship change.
 	var mended := Run.mend_loadout()
 	if mended > 0:
 		Router.crumb("[save] mended %d part%s: off a hardpoint it could not have, or off a pad with no old ship"
@@ -772,10 +398,7 @@ static func load_into_run() -> bool:
 	# HER COMMS, after run_started (which empties them for a new run); none in a
 	# save from before them
 	Ash.comms_from(d.get("ash_comms", []))
-	# AFTER run_started, not before: the Router's listener clears the record (a
-	# new run, or a load, must not inherit the last run's orbits), so anything
-	# put there first would be wiped by the signal that announces it. A 29 save
-	# has no `parked` and loads with none: every ship at its system's edge.
+	# After `run_started`, whose Router listener clears the parked record.
 	SystemMapScreen._parked = _parked_from(d.get("parked", []), map.size())
 	# (the map clocks with them, after run_started for the same reason; a 38
 	# save has none: every system at t 0, as a 38 build drew it)
@@ -787,20 +410,13 @@ static func load_into_run() -> bool:
 
 # --------------------------------------------------------------- galaxy params
 
-## JSON has one number type, so a round-trip turns every int in the parameter
-## block into a float — and `arms` is a loop count. Rebuilding from the KIND
-## template and coercing each saved value to the template's type restores the
-## rolled numbers without restoring them as the wrong type.
+## JSON turns ints into floats, so rebuild from the KIND template and coerce each value.
 static func _galaxy_from(kind: int, saved: Variant) -> Dictionary:
 	var out: Dictionary = GalaxyGen.params(kind).duplicate()
 	if typeof(saved) != TYPE_DICTIONARY:
 		return out
 	for raw_key in (saved as Dictionary).keys():
-		# JSON hands back String keys; the template's are StringName. Godot
-		# hashes the two alike so lookups work either way, but a String key
-		# added beside StringName ones makes the restored dictionary print
-		# differently from the one it copied — and that difference is the sort
-		# of thing that gets chased for an hour later.
+		# JSON keys are Strings; convert to StringName so the restored dictionary prints the same.
 		var k := StringName(str(raw_key))
 		var v: Variant = (saved as Dictionary)[raw_key]
 		if out.has(k):
@@ -817,28 +433,9 @@ static func _galaxy_from(kind: int, saved: Variant) -> Dictionary:
 
 # -------------------------------------------------------------------- modules
 
-## A module is a template id plus what LootGen rolled onto it. Affixes are
-## stored by name and resolved back to the shared DB instances, which is how
-## they are held during a run too — LootGen picks out of a shallow duplicate.
-##
-## There used to be a "price" meta in here as well, because a station stamped one
-## on its stock and a shelf that came back without it silently held a sale.
-## Market removed the whole class of problem: a price is a function of the place
-## and the part, computed when it is asked for, so there is no longer a price
-## anywhere to lose. A derived number that is saved is a second copy of the
-## truth, and it only ever goes one way.
-## Cargo is two kinds of thing now, so the hold's rows say which they are.
-##
-## A material stores ONLY its id and where it sits. Everything else -- name,
-## tier, value, shape, text -- is rebuilt from `MaterialTable`, which is the
-## right way round: a catalogue row that changed between versions should change
-## what you are carrying, rather than leaving a save that contradicts the table
-## it was authored against. A module cannot do this, because a module is rolled
-## rather than looked up: its affixes and its wear are the instance.
-##
-## `kind` is absent on every module row, old and new, so a save written before
-## materials existed reads back exactly as it did -- there is nothing to migrate
-## and the version did not need to move for this.
+## A module is a template id plus its rolls; a material stores only id and cell.
+## No price is saved: a derived number that is saved is a second copy of the truth.
+## Why: docs/why/SaveGame.md#module-rows
 static func _item_to(m: HoldItem) -> Dictionary:
 	if m is CreditChit:
 		return {kind = "credits", amount = (m as CreditChit).amount}
@@ -883,9 +480,7 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		rarity = int(m.rarity),
 		scrap_value = m.scrap_value,
 		affixes = affixes,
-		# Which hardpoint it is bolted to. Without this a resumed ship keeps every
-		# part it had and rearranges them, because -1 is "in the hold" and the
-		# refit screen would draw a full rack of empty mounts over a full loadout.
+		# The mount is saved, or a resumed ship rearranges every part into the hold.
 		mount = m.mount,
 		turned = m.turned,
 		hold_at = [m.hold_at.x, m.hold_at.y],
@@ -893,9 +488,7 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		augmented = m.augmented,
 	}
 
-## Null when the id is gone from the database — content changed under a save.
-## The module is dropped and the rest of the run loads, which beats refusing the
-## whole file over one retired part.
+## A retired part id is dropped and the rest of the run loads.
 static func _module_from(e: Variant) -> ModuleData:
 	if typeof(e) != TYPE_DICTIONARY:
 		return null
@@ -905,18 +498,14 @@ static func _module_from(e: Variant) -> ModuleData:
 		push_warning("SaveGame: dropped unknown module '%s'" % id)
 		return null
 	var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
-	# Through DB.regrade: the duplicate carries the catalogue grade's pips, and a
-	# part saved a grade up needs that grade's (a Rare Ranging Optics read
-	# SENSORS +1 and moved nothing). Mends saves made before the fix as they load.
+	# Through `DB.regrade` so a part saved a grade up gets that grade's pips.
 	DB.regrade(m, int(d.get("rarity", int(m.rarity))))
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
 	m.mount = int(d.get("mount", -1))
 	m.turned = bool(d.get("turned", false))
 	# VERSION 41; a 40 save's parts were never augmented
 	m.augmented = bool(d.get("augmented", false))
-	# Version 6. A save from before the hold was a grid carries no position, and
-	# -1,-1 is exactly what a part not yet placed looks like — so the loader
-	# below re-packs those rather than leaving them claiming no cells.
+	# Version 6: a pre-grid save has no position, so those parts are re-packed.
 	var at: Array = d.get("hold_at", [-1, -1])
 	m.hold_at = Vector2i(int(at[0]), int(at[1])) if at.size() == 2 else -Vector2i.ONE
 	var affixes: Array[AffixData] = []
@@ -930,19 +519,11 @@ static func _module_from(e: Variant) -> ModuleData:
 
 # ---------------------------------------------------------------------- hulls
 
-## `manufacturer` is written alongside perk_id rather than added to HULL_FIELDS,
-## and that is not a style choice: the restore loop below coerces every listed
-## field to int or float, so a StringName in that list would come back as 0.
-##
-## It is written at all — rather than inherited from the frame matched by name —
-## because who built your hull decides a set bonus. The name lookup happens to
-## resolve it today, but its fallback is hull_frames[1], an UNBRANDED frame, so
-## any save whose hull name stopped matching would silently cost you a set piece
-## and nothing would report it.
+## `manufacturer` is written apart from `HULL_FIELDS`, whose restore loop coerces to numbers.
+## It is saved at all as the name lookup can fall back to an unbranded frame.
+## Why: docs/why/SaveGame.md#hull-rows
 static func _hull_to(h: HullData) -> Dictionary:
-	# `tier_perks` goes here beside perk_id and NOT in HULL_FIELDS, for the
-	# reason stated above it: that loop coerces every field to int or float,
-	# so a list of StringNames put in it comes back as 0.
+	# `tier_perks` sits beside `perk_id`, not in `HULL_FIELDS`, whose loop coerces to numbers.
 	var wrote: Array = []
 	for tp in h.tier_perks:
 		wrote.append(String(tp))
@@ -955,13 +536,8 @@ static func _hull_to(h: HullData) -> Dictionary:
 static func _hull_from(e: Variant) -> HullData:
 	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}
 	var base: HullData = DB.hull_frames[1]
-	# MANUFACTURER AND WEIGHT FIRST, name only as a fallback.
-	#
-	# The warning above came true: hulls gained a name per CLASS, so a save
-	# holding a Halberd Cutter found nothing in `hull_frames` — those carry
-	# the tier-0 name — and silently restored an unbranded Medium Frame with
-	# somebody else's perk. Manufacturer and weight are both written into the save
-	# and neither is renameable, so they identify the frame outright.
+	# Match on manufacturer and weight, name only as a fallback: neither is renameable.
+	# Why: docs/why/SaveGame.md#hull-restore
 	var manufacturer := StringName(str(d.get("manufacturer", "")))
 	var found := false
 	if manufacturer != &"":
@@ -976,22 +552,13 @@ static func _hull_from(e: Variant) -> HullData:
 				base = frame
 				break
 	var h := base.duplicate(true) as HullData
-	# THE NAME IS RESTORED, not inherited. It used to come free because the
-	# frame was FOUND by name; matching on manufacturer and weight instead means the
-	# frame carries the tier-0 name, so a Halberd Cutter came back as a Picket
-	# Cutter — same ship, same stats, wrong badge. Intermittent, because it
-	# only shows on a hull rolled above C.
+	# The name is restored, not inherited: weight matching lost class names (Halberd to Picket).
 	var saved_name := str(d.get("name", ""))
 	if saved_name != "":
 		h.name = saved_name
 	h.perk_id = StringName(str(d.get("perk_id", "salvage_rack")))
-	# RESTORED, NEVER RE-DERIVED. `_hull_from` does not go through `at_tier`
-	# -- it copies a tier-0 frame and puts the saved scalars back on it -- so
-	# nothing here would grant the grade's perks a second time. An S-tier ship
-	# would come back carrying only its manufacturer perk, three short, with every
-	# number on the screen still correct. That is the same shape of fault as
-	# the Halberd that came back a Picket, and it is why the version below
-	# moved: a save written before this cannot be told from one written after.
+	# Grade perks are restored, never re-derived: `_hull_from` skips `at_tier`.
+	# Why: docs/why/SaveGame.md#hull-restore
 	var tp: Array = d.get("tier_perks", []) as Array
 	var restored: Array[StringName] = []
 	for e2 in tp:
@@ -1009,10 +576,7 @@ static func _hull_from(e: Variant) -> HullData:
 
 # ----------------------------------------------------------------- map nodes
 
-## The map is stored whole rather than regenerated from a seed. MapGen draws on
-## the global RNG rather than a seeded stream, so there is no seed that would
-## reproduce it — and even if there were, the run's own marks (visited, cleared,
-## inspected, rolled shop stock) are not in it.
+## The map is stored whole: MapGen has no seed, and the run's marks are not in it.
 static func _contracts_to() -> Array:
 	var out: Array = []
 	for c in Run.contracts:
@@ -1062,9 +626,7 @@ static func _event_quests_from(raw: Variant) -> Array:
 	return out
 
 
-## The run's unlocked manufacturers, as saved. Missing (a 33 save) is every
-## manufacturer in the chain -- see VERSION 34. An id this build does not know
-## is dropped; an empty list cannot happen, because Korvan is always first.
+## Missing means every manufacturer. Unknown ids are dropped; Korvan is always first.
 static func _unlocked_from(raw: Variant) -> Array[StringName]:
 	var out: Array[StringName] = []
 	if typeof(raw) != TYPE_ARRAY:
@@ -1113,15 +675,8 @@ static func _standing_to() -> Dictionary:
 	return out
 
 
-## WHERE THE SHIP WAS LEFT (`SystemMapScreen._parked`), one row per system.
-## Rows, not a dictionary keyed by system: JSON keys are strings (see 23).
-## `at` is the place the ship orbits (a body, -1 the star (star A of two suns),
-## SystemLayout.STAR_B (-4) star B, -9 none), and `p`, `head` and `mode` say
-## where it was flying in open space when it orbits nothing. Settled on a wide
-## orbit there, `cen`, `r` and `sense` say round what (-1 star A, the star; -4
-## star B; -9 both suns), how wide and which way, so it is put back on it
-## (`ShipFlight.restore_free`). They are only there for such a row, and a row
-## without them -- an older save's -- settles again where it is: no VERSION.
+## Rows, not a dictionary, as JSON keys are strings. Absent orbit fields just settle again.
+## Why: docs/why/SaveGame.md#parked-ship-rows
 static func _parked_to() -> Array:
 	var out: Array = []
 	for k in SystemMapScreen._parked:
@@ -1169,9 +724,7 @@ static func _clocks_to() -> Array:
 	return out
 
 
-## The rows back into `Run.map_clock`. A row for a system outside this map, or
-## a clock that is not a finite time from 0 on, is dropped: that system opens
-## at t 0.
+## Rows outside this map or with a bad clock are dropped; that system opens at t 0.
 static func _clocks_from(raw: Variant, systems: int) -> Dictionary:
 	var out := {}
 	if typeof(raw) != TYPE_ARRAY:
@@ -1195,27 +748,18 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	var shop: Array = []
 	for m in n.shop:
 		shop.append(_module_to(m))
-	# Everything the bag was rolled with, including the parts already claimed.
-	# `taken` is what says which are gone, and dropping the claimed ones here
-	# would renumber the rest — the array must not shrink, on disk any more than
-	# in memory. See MapGen.OPTION_BAG.
+	# Keep the claimed bag parts: `taken` marks them gone, and the array must not shrink.
 	var bag: Array = []
 	for m in n.bag:
 		bag.append(_item_to(m))
-	# EVERY CONTAINER IN THE SYSTEM. They persist across a jump by being node
-	# state, and across a session by being here -- a wreck you left half
-	# stripped is somewhere you can go back to, which is most of the point.
-	# TWO ARRAYS, NOT A DICTIONARY. See VERSION 23: JSON keys are strings, so a
-	# map from option index to outcome comes back with "0" where 0 went in and
-	# every lookup misses silently.
+	# Containers persist as node state. Two arrays, not a dictionary: JSON keys are strings.
+	# Why: docs/why/SaveGame.md#node-containers
 	var res_at: Array = []
 	var res_of: Array = []
 	for k in n.results:
 		res_at.append(int(k))
 		res_of.append(String(n.results[k]))
-	# WHAT THE CARDS SAY, the same way (VERSION 29): a walk-away's line, and a
-	# taken option's moved ledger and line. Short strings, and only on the few
-	# options anybody touched.
+	# What the cards say is saved the same way (VERSION 29), only for options touched.
 	var left_at: Array = []
 	var left_of: Array = []
 	for k in n.left:
@@ -1286,15 +830,11 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.twin = bool(d.get("twin", false))
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
-	# Absent on a save from before sensors could see. False is the honest
-	# default -- an old run simply has not charted anything it did not fly to,
-	# and the next arrival fills it in.
+	# Absent on old saves; false is honest and the next arrival fills it in.
 	n.sensed = bool(d.get("sensed", false))
 	n.cleared = bool(d.get("cleared", false))
 	n.eaten = bool(d.get("eaten", false))
-	# Absent on a save written before a system could offer more than one thing
-	# to do. A cleared node with no list is a node whose single option was the
-	# system itself, which is what it always was.
+	# Absent on old saves: a cleared node with no list had the system itself as its option.
 	var taken := PackedInt32Array()
 	for o in d.get("taken", []):
 		taken.append(int(o))
@@ -1302,38 +842,26 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 		taken.append(MapGen.OPTION_WHOLE)
 	n.taken = taken
 	n.fled = bool(d.get("fled", false))
-	# Absent on a save written before the node carried its own roll. Left empty,
-	# which makes the node roll once on the next arrival and keep it from then
-	# on — the old behaviour for exactly one more visit, rather than a crash.
+	# Absent on old saves: left empty, the node rolls once on the next arrival, no crash.
 	var foes: Array[StringName] = []
 	for f in d.get("foes", []):
 		foes.append(StringName(str(f)))
 	n.foes = foes
 	n.event_key = str(d.get("event_key", ""))
-	# Absent on a save written before a system held a LIST of things to do. Left
-	# empty, which makes the node roll once on the next arrival and keep it from
-	# then on -- the same contract `foes` and `ambush` state above.
-	#
-	# Ids rather than definitions, so a save can be rebuilt after the table has
-	# changed underneath it. Resolution is lazy -- `OptionTable.by_id` answers
-	# empty for an id this build does not have; a missing option must never
-	# refuse a save.
+	# Saved as ids and resolved lazily, so a missing option never refuses a save.
+	# Why: docs/why/SaveGame.md#node-options
 	var opts: Array[StringName] = []
 	for o in d.get("options", []):
 		opts.append(StringName(str(o)))
 	n.options = opts
-	# Absent on a save written before heat had a map layer. An unrolled node
-	# rolls once on the next arrival, which is the old behaviour for exactly one
-	# more visit rather than a crash — same contract as `foes` above.
+	# Absent on old saves: an unrolled node rolls once on the next arrival, like `foes`.
 	var amb: Array[StringName] = []
 	for a in d.get("ambush", []):
 		amb.append(StringName(str(a)))
 	n.ambush_pending = bool(d.get("ambush_pending", not amb.is_empty()))
 	n.ambush_rolled = bool(d.get("ambush_rolled", false))
 	n.inspected = bool(d.get("inspected", false))
-	# Whether the shelf has ever been rolled, and how much has been sold into
-	# this market. Both are run marks like `visited` — losing either would let a
-	# save-and-resume re-roll a bought-out station or reset a saturated one.
+	# Run marks like `visited`: losing them would let a resume re-roll or reset a market.
 	n.stocked = bool(d.get("stocked", false))
 	n.trades = int(d.get("trades", 0))
 	n.in_nebula = bool(d.get("in_nebula", false))
