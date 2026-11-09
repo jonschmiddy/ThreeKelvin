@@ -308,7 +308,7 @@ func _pick(edge: bool, rad: float, near: Vector2 = Vector2.INF, around: Vector2 
 		if edge:
 			if _edge[i] == 0:
 				continue
-			if absf(ShipBreakup._normal_at(_H, _mask, Vector2i(x, y)).y) < 0.5:
+			if absf(BreakupCuts._normal_at(_H, _mask, Vector2i(x, y)).y) < 0.5:
 				continue
 		elif not (_ok(x - 2, y) and _ok(x + 2, y) and _ok(x, y - 2) and _ok(x, y + 2)):
 			continue
@@ -486,14 +486,14 @@ func _K() -> float:
 func _ed(x: int, y: int, p: Vector2i, rx: float, ry: float, fd: Dictionary, amp: float) -> float:
 	var dx := float(x - p.x) / rx
 	var dy := float(y - p.y) / ry
-	return sqrt(dx * dx + dy * dy) + amp * ShipBreakup._nz(fd, x, y)
+	return sqrt(dx * dx + dy * dy) + amp * BreakupCuts._nz(fd, x, y)
 
 
 ## Lit from above: top wall in shadow, bottom wall lit, a raised lip round the top.
 func _dent(p: Vector2i, big: bool) -> void:
 	var rx := (4.2 if big else 3.4) * _K()
 	var ry := rx * 0.55
-	var fd := ShipBreakup._field(_rng, _w, _h, 3)
+	var fd := BreakupCuts._field(_rng, _w, _h, 3)
 	for y in range(p.y - int(ry) - 3, p.y + int(ry) + 4):
 		for x in range(p.x - int(rx) - 3, p.x + int(rx) + 4):
 			if not _ok(x, y):
@@ -553,7 +553,7 @@ func _soot(p: Vector2i, big: bool) -> void:
 
 ## Darkened but textured; never one flat near-black, which could read as an opening.
 func _blotch(p: Vector2i, rx: float, ry: float) -> void:
-	var fd := ShipBreakup._field(_rng, _w, _h, 3)
+	var fd := BreakupCuts._field(_rng, _w, _h, 3)
 	# four held steps, each edge an ordered dither from one to the next
 	const LV: Array[float] = [0.4, 0.5, 0.74, 1.0]
 	const AT: Array[float] = [0.45, 0.7, 0.88, 1.02]
@@ -688,7 +688,7 @@ func _rivets(p: Vector2i, big: bool) -> void:
 ## A plate's edge split at the hull's rim (from 60% hull): a short line opened
 ## a shade, its lip lit, soot round it; from then on it sputters vapour.
 func _split(p: Vector2i, big: bool) -> void:
-	var n := ShipBreakup._normal_at(_H, _mask, p)
+	var n := BreakupCuts._normal_at(_H, _mask, p)
 	var inward := Vector2i((Vector2(p) - n * 2.0).round())
 	var tang := Vector2(-n.y, n.x)
 	var ln := int((2.5 if big else 2.0) * _K())
@@ -792,7 +792,7 @@ func _stress(p: Vector2i) -> void:
 func _peel(p: Vector2i, big: bool) -> void:
 	var k := _K()
 	var rp := (3.0 if big else 2.4) * k
-	var fd := ShipBreakup._field(_rng, _w, _h, 3)
+	var fd := BreakupCuts._field(_rng, _w, _h, 3)
 	if not _ok(p.x, p.y):
 		_plate_crack(p, big)
 		return

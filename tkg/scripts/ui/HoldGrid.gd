@@ -92,14 +92,6 @@ func item_at(p: Vector2) -> ItemIcon:
 			return c
 	return null
 
-## Which cell a point falls in. Outside the grid returns (-1,-1).
-func cell_at(p: Vector2) -> Vector2i:
-	var c := Vector2i(int(floor(p.x / float(CELL + GAP))),
-		int(floor(p.y / float(CELL + GAP))))
-	if c.x < 0 or c.y < 0 or c.x >= _cols or c.y >= _rows:
-		return -Vector2i.ONE
-	return c
-
 func _process(delta: float) -> void:
 	_beam_phase = fmod(_beam_phase + delta * 2.4, TAU)
 	queue_redraw()
@@ -199,6 +191,7 @@ func _light_all() -> void:
 	if want.keys() == _beam.keys():
 		return
 	_beam = want
+	set_process(true)
 	queue_redraw()
 
 
@@ -216,6 +209,9 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	var m: HoldItem = (data as Dictionary).module
 	var target := target_for(m, at)
 	_clear_beam()
+	# Money takes no cell, so a full hold still takes the drop it lit.
+	if m is CreditChit and target == -Vector2i.ONE:
+		target = Vector2i.ZERO
 	if target != -Vector2i.ONE:
 		dropped.emit(data as Dictionary, target)
 

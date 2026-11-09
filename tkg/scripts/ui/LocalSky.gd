@@ -198,7 +198,7 @@ var _sky_on := Vector2.ZERO
 var sky_took := false
 ## the world you orbit, as drawn (`near_info`); a great storm an event holds on
 ## its face (`_hold_storm`); how far the gas has closed in (`set_closed`)
-var _near_world: Node2D = null
+var _near_world: WorldView = null
 var near_storm: Dictionary = {}
 var closed := 0.0
 
@@ -562,9 +562,9 @@ func _build() -> void:
 		var b := layout.bodies[i]
 		if b.world == &"" or i == orbit_target:
 			continue
-		var v: Node2D = Worlds.view_for(b.world)
-		v.call("set_world", b.world, b.seed, _world_r(b))
-		v.call("set_cell", 2)
+		var v: WorldView = Worlds.view_for(b.world)
+		v.set_world(b.world, b.seed, _world_r(b))
+		v.set_cell(2)
 		_worlds.add_child(v)
 		_views[i] = v
 		if painted:
@@ -813,17 +813,15 @@ func _world_r(b: SystemLayout.Body) -> float:
 
 
 ## Grown as the map grows a world under zoom: redrawn once two pixels of radius on, live between.
-func _grow(v: Node2D, world: StringName, seed: int, base_r: float, r: float, over: Dictionary) -> float:
-	if not (v is PlanetView or v is ShatteredView):
-		return base_r
+func _grow(v: WorldView, world: StringName, seed: int, base_r: float, r: float, over: Dictionary) -> float:
 	var held := float(v.get_meta(&"held_r", base_r))
 	var at_rest := absf(r - base_r) < 0.001
 	if (at_rest and held != base_r) or (not at_rest and absf(r - held) > 2.0):
 		held = base_r if at_rest else roundf(r)
-		v.call("set_world", world, seed, held, over)
+		v.set_world(world, seed, held, over)
 		v.set_meta(&"held_r", held)
 	if not at_rest or v.has_meta(&"live"):
-		v.call("set_live", r, Vector2.ZERO)
+		v.set_live(r, Vector2.ZERO)
 		if at_rest:
 			v.remove_meta(&"live")
 		else:
@@ -1387,7 +1385,7 @@ func _step_worlds(o: Vector2) -> void:
 			continue
 		var i: int = order[e]
 		var p: Vector2 = pos[i]
-		var v: Node2D = _views[i]
+		var v: WorldView = _views[i]
 		_worlds.move_child(v, -1)
 		var b := layout.bodies[i]
 		var at := _zp(_block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s), Z_BAND)
@@ -1419,8 +1417,8 @@ func _step_worlds(o: Vector2) -> void:
 				behind = true
 				so = star2.position
 				sr = float(layout.star2_r) * star_k_of(SystemLayout.STAR_B) * _zl(Z_STAR)
-		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
-		var vm: ShaderMaterial = v.get("_mat")
+		v.step(t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
+		var vm: ShaderMaterial = v.world_mat()
 		if vm != null:
 			vm.set_shader_parameter("star_tint", _tint_at(p))
 			vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
@@ -1801,15 +1799,15 @@ func _build_near() -> void:
 		var R := float(plan.R)
 		var at: Vector2 = plan.at
 		var over: Dictionary = plan.over
-		var v: Node2D = Worlds.view_for(tgt.world)
-		v.call("set_world", tgt.world, tgt.seed, R, over)
+		var v: WorldView = Worlds.view_for(tgt.world)
+		v.set_world(tgt.world, tgt.seed, R, over)
 		_near_world = v
 		# (its surface's memory worked out only where this picture can show it:
 		# much of it lies off the bottom or the side)
 		if v is PlanetView:
 			(v as PlanetView).mem_clip = true
 			(v as PlanetView).mem_clip_lead = near_lead()
-		v.call("set_cell", 2)
+		v.set_cell(2)
 		_near_vp.add_child(v)
 		_dress(v)
 		_near.append([v, at, F_NEAR, R, tgt.world, tgt.seed, over])
@@ -1963,9 +1961,9 @@ func near_info() -> Dictionary:
 	var at := _box.get_global_transform() * (_zp(p, Z_NEAR) * 0.5)
 	var r := float(e[3]) * _zl(Z_NEAR) * _box.get_global_transform().get_scale().x * 0.5
 	var d := {at = at, r = r, ring_in = 0.0, ring_out = 0.0, open = 0.28, view = _near_world}
-	var spec: Dictionary = _near_world.get("spec")
+	var spec: Dictionary = _near_world.spec
 	if spec != null and bool(spec.get("ring", false)):
-		var mat := _near_world.get("_mat") as ShaderMaterial
+		var mat := _near_world.world_mat()
 		if mat != null:
 			d.ring_in = float(mat.get_shader_parameter("ring_in"))
 			d.ring_out = float(mat.get_shader_parameter("ring_out"))
@@ -2011,9 +2009,9 @@ func _apply_closed() -> void:
 
 ## The first great storm is put back every frame against
 ## the world's turn, so it stays under the event's ship.
-func _hold_storm(pv: Node2D, t_now: float) -> void:
-	var spec: Dictionary = pv.get("spec")
-	var mat := pv.get("_mat") as ShaderMaterial
+func _hold_storm(pv: WorldView, t_now: float) -> void:
+	var spec: Dictionary = pv.spec
+	var mat := pv.world_mat()
 	if spec == null or mat == null or not (spec.get("storms", []) as Array).size() >= 2:
 		return
 	var sv2: Vector2 = near_storm.get("sv", Vector2(-0.45, -0.5))
@@ -2036,9 +2034,9 @@ func _hold_storm(pv: Node2D, t_now: float) -> void:
 	var sp := PackedVector4Array([first, st[1]])
 	mat.set_shader_parameter("storms", sp)
 	# (the world is drawn from its surface's memory, worked out by its own pass)
-	var mm: Variant = pv.get("_mem_mat")
-	if mm is ShaderMaterial:
-		(mm as ShaderMaterial).set_shader_parameter("storms", sp)
+	var mm := pv.memory_mat()
+	if mm != null:
+		mm.set_shader_parameter("storms", sp)
 
 
 ## Near worlds get almost none of RADIANT's gas wash:
@@ -2099,10 +2097,10 @@ func adopt_near(v: Node2D, at: Vector2, g: Dictionary) -> bool:
 	# its memory as the map last drew it, handed in by hand: drawn from it this
 	# frame, and the memory's next step taken from it (`_step_hand` lets go)
 	var mem_left := 0
-	if g.has("mem_img") and v.get("_mem_mat") != null:
+	if g.has("mem_img") and (v as PlanetView).memory_mat() != null:
 		var tm := ImageTexture.create_from_image(g.mem_img)
-		(v.get("_mat") as ShaderMaterial).set_shader_parameter("mem_now", tm)
-		(v.get("_mem_mat") as ShaderMaterial).set_shader_parameter("mem_prev", tm)
+		(v as PlanetView).world_mat().set_shader_parameter("mem_now", tm)
+		(v as PlanetView).memory_mat().set_shader_parameter("mem_prev", tm)
 		mem_left = 2
 	# (its own world, carried out: the rest of the near layer stays, zoomed as
 	# a picture round it -- `hand_own`)
@@ -2123,9 +2121,9 @@ func adopt_near(v: Node2D, at: Vector2, g: Dictionary) -> bool:
 		"vp": hvp, "rect": hrect, "mat": hmat, "start": at, "grid": _block_round(at), "self": own_world, "ov": g.get("ov", {})}
 	# (a measurement holds the surface's memory too, so the frame is the map's
 	# last one exactly: the memory eases a step each frame on its own)
-	var mv: Variant = v.get("_mem_vp")
-	if bool(g.get("freeze", false)) and mv is SubViewport:
-		(mv as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var mv := (v as PlanetView).memory_view()
+	if bool(g.get("freeze", false)) and mv != null:
+		mv.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_step_hand()
 	return true
 
@@ -2161,9 +2159,9 @@ func near_hand(at: Vector2, r: float, mix: float, end: Vector2 = Vector2.INF) ->
 	_hand.mix = clampf(mix, 0.0, 1.0)
 	if mix > 0.0 and float(_hand.freeze_t) >= 0.0:
 		_hand.freeze_t = -1.0
-		var mv: Variant = (_hand.view as Node).get("_mem_vp")
-		if mv is SubViewport:
-			(mv as SubViewport).render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+		var mv := (_hand.view as WorldView).memory_view()
+		if mv != null:
+			mv.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
 
 
 ## The move is over: the handed-over world becomes the near world for good.
@@ -2195,7 +2193,7 @@ func end_hand() -> void:
 	if is_instance_valid(own) and own != v:
 		own.queue_free()
 	v.set_world(StringName(_hand.world), int(_hand.seed), R, ov)
-	v.call("set_cell", 2)
+	v.set_cell(2)
 	v.set_live(R, Vector2.ZERO)
 	# (where `_step_near` will stand it, now: not one frame wherever it was
 	# standing in its own picture)
@@ -2220,11 +2218,11 @@ func _step_hand() -> void:
 	if int(_hand.get("mem_left", 0)) > 0 and float(_hand.freeze_t) < 0.0:
 		_hand.mem_left = int(_hand.mem_left) - 1
 		if int(_hand.mem_left) == 0:
-			var mvp: Variant = v.get("_mem_vp")
-			var mcp: Variant = v.get("_mem_copy")
-			if mvp is SubViewport and mcp is SubViewport:
-				(v.get("_mat") as ShaderMaterial).set_shader_parameter("mem_now", (mvp as SubViewport).get_texture())
-				(v.get("_mem_mat") as ShaderMaterial).set_shader_parameter("mem_prev", (mcp as SubViewport).get_texture())
+			var mvp := v.memory_view()
+			var mcp := v.memory_copy()
+			if mvp != null and mcp != null:
+				v.world_mat().set_shader_parameter("mem_now", mvp.get_texture())
+				v.memory_mat().set_shader_parameter("mem_prev", mcp.get_texture())
 	var m := float(_hand.mix)
 	var r := float(_hand.r)
 	var at: Vector2 = _hand.at
@@ -2233,7 +2231,7 @@ func _step_hand() -> void:
 	if absf(r - float(_hand.held)) > 2.0:
 		_hand.held = roundf(r)
 		v.set_world(StringName(_hand.world), int(_hand.seed), float(_hand.held), _hand.get("ov", {}))
-		v.call("set_cell", 2)
+		v.set_cell(2)
 	var hs := Worlds.half_size(StringName(_hand.world), float(_hand.held))
 	# In its own picture it holds still and the picture moves, eased onto LOCAL's grid at the end.
 	var e := clampf((m - 0.8) / 0.2, 0.0, 1.0)
@@ -2258,7 +2256,7 @@ func _step_hand() -> void:
 	if float(_hand.freeze_t) >= 0.0:
 		tt = float(_hand.freeze_t)
 	v.step(tt, L, lerpf(float(f.get("k_light", 1.0)), 1.0, m))
-	var vm: ShaderMaterial = v.get("_mat")
+	var vm: ShaderMaterial = v.world_mat()
 	if vm != null:
 		var nf_here := Vector3(0.02, 0.02, 0.03)
 		vm.set_shader_parameter("star_tint", (f.get("star_tint", _tint) as Vector3).lerp(_tint, m))
@@ -2295,13 +2293,14 @@ func _near_rest() -> Vector2:
 	return at + Vector2.ONE * float(hs % 2)
 
 
-func _step_near(o: Vector2) -> void:
+func _step_near(_o: Vector2) -> void:
 	if not _hand.is_empty():
 		_step_hand()
 	for e: Array in _near:
 		if not _hand.is_empty() and (e[0] == _hand.own or not (e[0] as CanvasItem).visible):
 			continue
 		var n: Node2D = e[0]
+		var wv := n as WorldView
 		var at0: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
 		# where the zoom puts it (the near layer zooms with the ship), drawn there
 		# at the size the zoom gives it
@@ -2309,22 +2308,22 @@ func _step_near(o: Vector2) -> void:
 		var zl := _zl(Z_NEAR)
 		# (a broken world too: left out, the shattered world you orbit stood still,
 		# lit from the default side, its rubble frozen)
-		if n is PlanetView or n is ShatteredView:
-			var spec: Dictionary = n.get("spec")
+		if wv != null:
+			var spec: Dictionary = wv.spec
 			var wn := StringName(e[4]) if e.size() > 4 else StringName(spec.get("world", &"rock"))
 			var held := float(e[3])
 			if e.size() > 6:
-				held = _grow(n, wn, int(e[5]), float(e[3]), float(e[3]) * zl, e[6])
+				held = _grow(wv, wn, int(e[5]), float(e[3]), float(e[3]) * zl, e[6])
 			var hs := Worlds.half_size(wn, held)
 			n.position = at + Vector2.ONE * float(hs % 2)
 			# lit from the star, across the view: from where the star is on screen
 			# to where this world is, under the zoom, in this layer's own px
 			var d := (origin() - at) / zl
 			var L := _light_vec(d)
-			n.call("step", t + (near_t_off if n == _near_world else 0.0), L, 1.0)
+			wv.step(t + (near_t_off if n == _near_world else 0.0), L, 1.0)
 			if n == _near_world and not near_storm.is_empty():
-				_hold_storm(n, t)
-			var vm: ShaderMaterial = n.get("_mat")
+				_hold_storm(wv, t)
+			var vm: ShaderMaterial = wv.world_mat()
 			if vm != null:
 				vm.set_shader_parameter("star_tint", _tint)
 				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))

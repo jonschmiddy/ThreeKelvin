@@ -390,7 +390,7 @@ func _buy(n: MapGen.MapNode, slot: int) -> void:
 	if Run.credits < price:
 		print("[bot] cannot afford %s at %d." % [m.name, price])
 		return
-	if Run.hold_full():
+	if not Run.has_room_for(m):
 		print("[bot] the hold is full.")
 		return
 	if not await Run.take_option(n, MapGen.OPTION_SHOP + slot):

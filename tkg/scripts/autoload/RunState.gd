@@ -83,9 +83,6 @@ var fuel: int = FUEL_TANK:
 		fuel = mini(v, fuel_cap())
 		Sig.resources_changed.emit()
 
-## Materials are prerequisites, never a second currency; credits stay the only currency.
-## Why: docs/why/RunState.md#materials
-
 ## Read-only total of exotic-tier things, counted by tier, for the run record only.
 ## Why: docs/why/RunState.md#materials
 var exotic: int:
@@ -314,25 +311,28 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	found_hull = null
 	hulls_bought = 0
 	whale_boon = false
-	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
-	galaxy = GalaxyGen.roll(galaxy_kind)
-	galaxy_spin = Rng.world.randf() * TAU
-	galaxy_name = GalaxyGen.roll_name()
-	galaxy_title = GalaxyGen.roll_title()
-	map = MapGen.generate(MAP_CANVAS)
+	_roll_galaxy()
 	# Whatever the party has already used up. A run rolled from the host's seed
 	# is generated after the party exists, so the list can predate the map.
 	adopt_party_claims()
 	_spawn_hellbender()
 	at = 0
 	trail = PackedInt32Array([0])
-	_range_cache.clear()
 	Sig.run_started.emit()
 	# The dish is already on, or a new run's first screen shows no neighbours.
 	chart_from(node_at())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	log_line("Reactor cold-started. The core is at least twenty jumps away.", &"big")
+
+## The galaxy's draws, in the order a seed replays them: kind, shape, spin, name, title, then the map.
+func _roll_galaxy() -> void:
+	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
+	galaxy = GalaxyGen.roll(galaxy_kind)
+	galaxy_spin = Rng.world.randf() * TAU
+	galaxy_name = GalaxyGen.roll_name()
+	galaxy_title = GalaxyGen.roll_title()
+	map = MapGen.generate(MAP_CANVAS)
 
 ## Developer-only reroll of the galaxy under the same ship; contracts drop and co-op refuses.
 ## DATA, the board and its bought steps stay: the board is the ship's, not the galaxy's.
@@ -345,12 +345,7 @@ func dev_regenerate_galaxy() -> bool:
 	while galaxy_seed == old or galaxy_seed == 0:
 		galaxy_seed = randi() & 0x7FFFFFFF
 	Rng.reseed(galaxy_seed, Net.seat())
-	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
-	galaxy = GalaxyGen.roll(galaxy_kind)
-	galaxy_spin = Rng.world.randf() * TAU
-	galaxy_name = GalaxyGen.roll_name()
-	galaxy_title = GalaxyGen.roll_title()
-	map = MapGen.generate(MAP_CANVAS)
+	_roll_galaxy()
 	contracts.clear()
 	event_quests = []
 	quests_done.clear()
@@ -358,7 +353,6 @@ func dev_regenerate_galaxy() -> bool:
 	_spawn_hellbender()
 	at = 0
 	trail = PackedInt32Array([0])
-	_range_cache.clear()
 	chart_from(node_at())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
@@ -438,39 +432,15 @@ func hold_full() -> bool:
 	one.size = Vector2i.ONE
 	return not has_room_for(one)
 
-## Every cell a part covers at a given origin.
-func _cells_of(m: HoldItem, at: Vector2i) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	var f := m.footprint()
-	for dy in f.y:
-		for dx in f.x:
-			out.append(at + Vector2i(dx, dy))
-	return out
-
 ## Public so drag paths build the occupancy map once instead of once per probed cell.
-## Why: docs/why/RunState.md#room-in-the-hold
+## Why: docs/why/HoldPacking.md#cells-taken
 func hold_taken(m: HoldItem = null, leaving: HoldItem = null) -> Dictionary:
-	var taken := {}
-	for other in cargo:
-		if other == m or other == leaving or other.hold_at.x < 0:
-			continue
-		for c in _cells_of(other, other.hold_at):
-			taken[c] = true
-	return taken
+	return HoldPacking.taken(cargo, m, leaving)
 
 
 ## Whether `m` at `at` stays inside the grid and off the `taken` cells.
 func fits_at(taken: Dictionary, m: HoldItem, at: Vector2i) -> bool:
-	var g := hold_grid()
-	if at.x < 0 or at.y < 0:
-		return false
-	var f := m.footprint()
-	if at.x + f.x > g.x or at.y + f.y > g.y:
-		return false
-	for c in _cells_of(m, at):
-		if taken.has(c):
-			return false
-	return true
+	return HoldPacking.fits_at(hold_grid(), taken, m, at)
 
 
 ## Can `m` sit at `at`, ignoring itself if it is already down?
@@ -733,24 +703,9 @@ func settle(m: HoldItem) -> bool:
 
 
 ## Largest first after the grid shrinks, since first fit strands big parts behind small ones.
-## Why: docs/why/RunState.md#repacking-the-hold
+## Why: docs/why/HoldPacking.md#repacking-the-hold
 func repack_hold() -> void:
-	var all := cargo.duplicate()
-	# Typed `HoldItem`, not `ModuleData`: the hold carries materials, and a narrower
-	# lambda type fails the whole sort at runtime.
-	all.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
-		return a.cells() > b.cells())
-	cargo.clear()
-	var lost: Array[HoldItem] = []
-	for m in all:
-		m.hold_at = -Vector2i.ONE
-	for m in all:
-		var cell := find_hold_slot(m)
-		if cell == -Vector2i.ONE:
-			lost.append(m)
-			continue
-		m.hold_at = cell
-		cargo.append(m)
+	var lost := HoldPacking.repack(hold_grid(), cargo)
 	# Onto the pad, not overboard: the loader reaches this, and a mismatched save must not lose crates.
 	for m in lost:
 		pad.append(m)
@@ -761,14 +716,7 @@ func repack_hold() -> void:
 ## First cell the part fits, row-major, or (-1,-1). First fit, not best fit: a
 ## predictable rule beats one that rearranges your hold.
 func find_hold_slot(m: HoldItem, leaving: HoldItem = null) -> Vector2i:
-	var g := hold_grid()
-	var taken := hold_taken(m, leaving)
-	for y in g.y:
-		for x in g.x:
-			var at := Vector2i(x, y)
-			if fits_at(taken, m, at):
-				return at
-	return -Vector2i.ONE
+	return HoldPacking.find_slot(hold_grid(), cargo, m, leaving)
 
 ## One door for finishing a system, so co-op sharing comes by construction.
 ## Why: docs/why/RunState.md#claims-in-co-op
@@ -827,7 +775,7 @@ func take_from_bag(n: MapGen.MapNode, i: int) -> bool:
 		return false
 	# A HoldItem: jettison puts materials in the same bag a kill fills.
 	var m: HoldItem = n.bag[i]
-	if hold_full():
+	if not has_room_for(m):
 		log_line("The hold is full. %s stays where it is." % m.name, &"them")
 		return false
 	if not await take_option(n, option):
@@ -1147,16 +1095,13 @@ func has_set(id: StringName, threshold: int) -> bool:
 # Attributes are functions of tracked state, never fields, so checks read current values.
 # Why: docs/why/RunState.md#attributes
 
-## Ten is how many cells the bar draws, not a ceiling: each consumer caps its own use.
-## Why: docs/why/RunState.md#attributes
-const ATTR_MAX := 10
+## Tables moved to `Attributes`, which `Database` reads before this autoload exists; same names here.
+const ATTR_MAX := Attributes.ATTR_MAX
 
 ## The most stealth can take off an ambush. Named because the tooltip quotes it.
 const AMBUSH_RELIEF := 0.6
 
-## A fixed reference so frame size and damage both count; 70 leaves the biggest hull room to grow.
-## Why: docs/why/RunState.md#hull-reference
-const HULL_REF := 70.0
+const HULL_REF := Attributes.HULL_REF
 
 ## Hull reads current hp; the bare reading caps at the bare frame's max, so hull
 ## above that shows as the plating's.
@@ -1183,9 +1128,7 @@ func attr_maneuver(bare: bool = false) -> int:
 ## Why: docs/why/RunState.md#thermal
 const THERMAL_FLOOR := 8.0
 
-## Three cells a pip, named because a coupling is priced in it.
-## Why: docs/why/RunState.md#reactor-level
-const CELLS_PER_PIP := 3.0
+const CELLS_PER_PIP := Attributes.CELLS_PER_PIP
 
 ## The attribute is the reactor level itself: the only gauge whose raw unit is on screen.
 ## Why: docs/why/RunState.md#reactor-level
@@ -1229,43 +1172,10 @@ func attr_stealth(bare: bool = false) -> int:
 	var v := float(n) * SENSE_SCALE - signature() * HEAT_STEALTH_COST
 	return maxi(0, int(round(v)))
 
-## One pip's cost in raw units, inverted from the formulas above; `-- attrtest` checks they agree.
-## Why: docs/why/RunState.md#pip-costs
-const PER_PIP := {
-	&"hull": {&"max_hull": 7.0},                       ## HULL_REF / ATTR_MAX
-	&"thermal": {&"heat_cap": 1.0, &"dissipation": 1.0},
-	# Dodge alone: nothing in combat reads initiative, so a maneuver pip must buy dodge.
-	# Why: docs/why/RunState.md#pip-costs
-	&"maneuver": {&"dodge": 1.0 / 23.0},
-	&"sensors": {&"sensors": 1.0},
-	&"stealth": {&"stealth": 1.0},
-	# Reactor and thrust pips are one for one.
-	# Why: docs/why/RunState.md#pip-costs
-	&"reactor": {&"reactor": 1.0},
-	&"thrust": {&"thrust": 1.0},
-}
+const PER_PIP := Attributes.PER_PIP
 
-## Short and full gauge names are spelled once; the short forms fit a 93 px card readout.
-## Why: docs/why/RunState.md#gauge-names
-const ATTR_LABEL := {
-	&"hull": "HULL",
-	&"reactor": "REACTOR",
-	&"thrust": "THRUST",
-	&"maneuver": "MANEUVERABILITY",
-	&"thermal": "THERMAL",
-	&"sensors": "SENSORS",
-	&"stealth": "STEALTH",
-}
-
-const ATTR_SHORT := {
-	&"hull": "HUL",
-	&"reactor": "RCT",
-	&"thrust": "THR",
-	&"maneuver": "MNV",
-	&"thermal": "THM",
-	&"sensors": "SEN",
-	&"stealth": "STL",
-}
+const ATTR_LABEL := Attributes.ATTR_LABEL
+const ATTR_SHORT := Attributes.ATTR_SHORT
 
 ## Stands the hull in for one call so the formulas are not copied; emits and saves nothing.
 ## Why: docs/why/RunState.md#bare-hull-attributes
@@ -1349,11 +1259,6 @@ func contraband_count() -> int:
 		if m is ModuleData and m.contraband:
 			n += 1
 	return n
-
-## What one hull point costs to fix here: local, since work is dear on the frontier.
-## Market owns the number.
-func repair_cost_per_hull() -> float:
-	return Market.repair_rate(here())
 
 ## What a part melts down to: the floor under every price, below any station's. See Market.gd.
 func scrap_value_of(m: ModuleData) -> int:
@@ -1895,7 +1800,7 @@ func transfer_to_hull(h: HullData, paid: int = 0,
 	# THE SHARE OF THE SHIP YOU WERE FLYING, plates and all, read before they
 	# come off. Read after, it was over the bare frame: 40 of 50 with a +10
 	# plate landed as full, and a full one overshot and was clamped back.
-	var ratio := float(hp) / float(max_hp())
+	var ratio := minf(1.0, float(hp) / float(max_hp()))
 	pad.clear()
 	pad.append_array(installed)
 	pad.append_array(cargo)
@@ -2136,11 +2041,7 @@ func nearest_dock() -> Dictionary:
 	var here := node_at()
 	if here.type == MapGen.NodeType.STATION:
 		return {node = here, jumps = 0, fuel = 0}
-	var known: Array = []
-	for raw in map:
-		var t: MapGen.MapNode = raw
-		if t.type != MapGen.NodeType.CORE:
-			known.append(t)
+	var known := _dock_known()
 	# Breadth first by jumps, keeping the cheapest fuel to reach each system at
 	# that depth; a ring of a few dozen charted systems, so this is small.
 	var best_fuel := {here.index: 0}
@@ -2153,21 +2054,40 @@ func nearest_dock() -> Dictionary:
 		for raw in frontier:
 			var from: MapGen.MapNode = raw
 			var spent: int = best_fuel[from.index]
-			var dish := sense_radius_of(from)
-			for raw2 in known:
-				var t: MapGen.MapNode = raw2
-				if t.index == from.index or not reachable_from(from, t) \
-						or not hop_seen(here, from, t, dish):
-					continue
-				var c := spent + _hop_cost(from, t)
+			for hop in _dock_hops(here, from, known):
+				var t: MapGen.MapNode = hop[0]
+				var c: int = spent + int(hop[1])
 				if c > fuel or (best_fuel.has(t.index) and best_fuel[t.index] <= c):
 					continue
 				best_fuel[t.index] = c
 				next.append(t)
-				if t.type == MapGen.NodeType.STATION 						and (found.is_empty() or c < int(found.fuel)):
+				if t.type == MapGen.NodeType.STATION \
+						and (found.is_empty() or c < int(found.fuel)):
 					found = {node = t, jumps = jumps, fuel = c}
 		frontier = next
 	return found
+
+## Every system a dock route may pass through: all but the core.
+func _dock_known() -> Array[MapGen.MapNode]:
+	var known: Array[MapGen.MapNode] = []
+	for raw in map:
+		var t: MapGen.MapNode = raw
+		if t.type != MapGen.NodeType.CORE:
+			known.append(t)
+	return known
+
+## The hops out of `from` that sight allows on arrival, as [system, fuel], in chart order; `skip` is by index.
+func _dock_hops(here: MapGen.MapNode, from: MapGen.MapNode, known: Array[MapGen.MapNode],
+		skip: Dictionary = {}) -> Array[Array]:
+	var out: Array[Array] = []
+	var dish := sense_radius_of(from)
+	for raw in known:
+		var t: MapGen.MapNode = raw
+		if t.index == from.index or skip.has(t.index) or not reachable_from(from, t) \
+				or not hop_seen(here, from, t, dish):
+			continue
+		out.append([t, _hop_cost(from, t)])
+	return out
 
 ## A hop counts only if arriving at its start will show its end.
 ## Why: docs/why/RunState.md#nearest-dock
@@ -2245,11 +2165,7 @@ func nearest_other_dock() -> Dictionary:
 	if map.is_empty() or node_at() == null:
 		return {}
 	var here := node_at()
-	var known: Array = []
-	for raw in map:
-		var t: MapGen.MapNode = raw
-		if t.type != MapGen.NodeType.CORE:
-			known.append(t)
+	var known := _dock_known()
 	var best := {here.index: 0}
 	var hops := {here.index: 0}
 	var open: Array = [here]
@@ -2266,12 +2182,9 @@ func nearest_other_dock() -> Dictionary:
 		done[from.index] = true
 		if from.type == MapGen.NodeType.STATION and from.index != here.index:
 			return {node = from, jumps = int(hops[from.index]), fuel = int(best[from.index])}
-		var dish := sense_radius_of(from)
-		for raw2 in known:
-			var t: MapGen.MapNode = raw2
-			if done.has(t.index) or not reachable_from(from, t) or not hop_seen(here, from, t, dish):
-				continue
-			var c := int(best[from.index]) + _hop_cost(from, t)
+		for hop in _dock_hops(here, from, known, done):
+			var t: MapGen.MapNode = hop[0]
+			var c := int(best[from.index]) + int(hop[1])
 			if c > fuel_cap() or (best.has(t.index) and int(best[t.index]) <= c):
 				continue
 			best[t.index] = c
@@ -2301,11 +2214,7 @@ func buy_refuel(n: MapGen.MapNode) -> bool:
 func fuel_cost_to(n: MapGen.MapNode) -> int:
 	return _hop_cost(node_at(), n)
 
-## Range from the nearest few neighbours, not the furthest link, so one long link cannot inflate it.
-## Why: docs/why/RunState.md#jump-neighbours
-const JUMP_NEIGHBOURS := 6
-## Cleared whenever the map changes. Range is a pure function of a system and
-## the galaxy, and working it out costs a pass over every system.
+## Nothing reads or writes this any more; it stays only so the sims that still `.clear()` it parse.
 var _range_cache: Dictionary = {}
 
 ## Referenced to the lightest hull so thrust only adds; 0.15 a point makes the class ladder visible.
@@ -2336,8 +2245,8 @@ const SENSE_REACH := 0.25
 func charted(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
-	# `station_heard` is deliberately absent: see the note above. It cannot admit
-	# a system that `visited` has not already admitted.
+	# `station_heard` is deliberately absent (docs/why/RunState.md#stations-heard): it
+	# cannot admit a system that `visited` has not already admitted.
 	return n.sensed or n.visited or n.index == at \
 		or contract_at(n.index) != null
 
@@ -2510,34 +2419,45 @@ func jump_to(index: int) -> void:
 
 
 # ----------------------------------------------------------------- the hellbender
-## Host-authoritative because it moves and the game has no shared clock.
-## Why: docs/why/RunState.md#the-hellbender
+## The rival lives in `Hellbender`; every name stays on `Run`, so no caller changes.
+## Why: docs/why/Hellbender.md#the-hellbender
+const HELLBENDER_STRIDE := Hellbender.STRIDE
+const HELLBENDER_STRIDE_CREW := Hellbender.STRIDE_CREW
+const HELLBENDER_FLEE_HOPS := Hellbender.FLEE_HOPS
+const HELLBENDER_MEND := Hellbender.MEND
 
-## Jumps between moves, SOLO. At ~65 jumps a run this is ~20 moves — enough to
-## matter on the chart, slow enough to be caught.
-const HELLBENDER_STRIDE := 3
-## Scaled per ship, so a bigger crew does not outrun it.
-## Why: docs/why/RunState.md#the-hellbender
-const HELLBENDER_STRIDE_CREW := 2
-## Hops taken all at once when it breaks off a fight. Two, so it is out of the
-## system and out of jump range, but never out of the story.
-const HELLBENDER_FLEE_HOPS := 2
-## Hull mended per ordinary move, never per flee hop, so it escapes hurt and stays
-## hurt: the mending window is the chase.
-const HELLBENDER_MEND := 6
+var _hb := Hellbender.new()
 
-## Node index, or -1 once it is dead. There is no `alive` flag; a position is
-## the one fact everything else about it hangs off, so absence of one IS death.
-var hellbender_at: int = -1
-var hellbender_hp: int = 0
-var hellbender_max: int = 0
-## How many moves it has made. Drives the stride and seeds each move's roll.
-var hellbender_moves: int = 0
-## Jumps counted toward the next move.
-var hellbender_ticks: int = 0
-## Test seam: `-- sim nohellbender` measures the control cell. Never set from game
-## code — the same discipline as Net.forced_protocol.
-var hellbender_off: bool = false
+var hellbender_at: int:
+	get:
+		return _hb.at
+	set(v):
+		_hb.at = v
+var hellbender_hp: int:
+	get:
+		return _hb.hp
+	set(v):
+		_hb.hp = v
+var hellbender_max: int:
+	get:
+		return _hb.hull_max
+	set(v):
+		_hb.hull_max = v
+var hellbender_moves: int:
+	get:
+		return _hb.moves
+	set(v):
+		_hb.moves = v
+var hellbender_ticks: int:
+	get:
+		return _hb.ticks
+	set(v):
+		_hb.ticks = v
+var hellbender_off: bool:
+	get:
+		return _hb.off
+	set(v):
+		_hb.off = v
 
 ## The ascension level the Hellbender first flies at (Jon, Nov 8); the hiring boards still name it below.
 ## Why: docs/why/RunState.md#hellbender-ascension
@@ -2573,358 +2493,83 @@ func hellbender_in_play() -> bool:
 	return ascension >= HELLBENDER_ASCENSION
 
 func hellbender_alive() -> bool:
-	return hellbender_at >= 0 and hellbender_hp > 0
+	return _hb.alive()
 
-## Whether this run HAD a Hellbender and it is gone. Not just "not alive": below
-## HELLBENDER_ASCENSION there never was one (`hellbender_max` 0), and a board
-## that stamped its WANTED poster DESTROYED would tell the player a story that
-## never happened.
 func hellbender_destroyed() -> bool:
-	return hellbender_max > 0 and not hellbender_alive()
+	return _hb.destroyed()
 
-## Whether this machine is the one that moves it: the host, or nobody's client.
-func _hellbender_authority() -> bool:
-	return not Net.is_networked() or Net.is_host()
-
-## Placed off a positional roll so the world stream does not shift. Middle shells: not
-## on a fresh chassis, but on every run's ground.
 func _spawn_hellbender() -> void:
-	hellbender_at = -1
-	hellbender_hp = 0
-	hellbender_max = 0
-	hellbender_moves = 0
-	hellbender_ticks = 0
-	# Ascension 7 and up only (HELLBENDER_ASCENSION). `hellbender_max` stays 0
-	# below it, which is how a board tells "never here" from "killed".
-	if hellbender_off or not hellbender_in_play():
-		return
-	var t: EnemyTemplate = DB.enemies.get(&"hellbender")
-	if t == null or map.is_empty():
-		return
-	var candidates: Array = []
-	for n in map:
-		var node: MapGen.MapNode = n
-		# (never a station: there are no fights at stations, `Router.no_fights_at`)
-		if node.layer >= 3 and node.layer <= MapGen.LAYERS - 3 and node.type != MapGen.NodeType.STATION:
-			candidates.append(node.index)
-	if candidates.is_empty():
-		return
-	hellbender_max = t.max_hull
-	hellbender_hp = hellbender_max
-	hellbender_at = Rng.pick(Rng.derive(&"hellbender", 0), candidates)
+	_hb.spawn()
 
-## Compared with `<`, so a crew that shrinks still moves it on the next jump.
-## Why: docs/why/RunState.md#the-hellbender
 func hellbender_stride() -> int:
-	var crew := maxi(1, Net.party_size())
-	return HELLBENDER_STRIDE if crew <= 1 else HELLBENDER_STRIDE_CREW * crew
+	return _hb.stride()
 
-## A jump happened somewhere in the party; the authority guard makes every caller safe.
 func hellbender_jumped() -> void:
-	if not hellbender_alive() or not _hellbender_authority():
-		return
-	# Pinned while anyone is in its fight: it leaves only by the escape burn.
-	if Net.fight_open_at(hellbender_at):
-		return
-	hellbender_ticks += 1
-	if hellbender_ticks < hellbender_stride():
-		return
-	hellbender_ticks = 0
-	_hellbender_step(true)
-	Net.push_hellbender(true)
+	_hb.jumped()
 
-## A flee hop does not feed and never lands back where it fled from.
-## Why: docs/why/RunState.md#the-hellbender
 func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
-	if not hellbender_alive():
-		return
-	hellbender_moves += 1
-	var r := Rng.derive(&"hellbender", hellbender_moves)
-	var here_n: MapGen.MapNode = map[hellbender_at]
-	var options: Array = []
-	var food: Array = []
-	for i in here_n.links:
-		if i == away_from:
-			continue
-		var n: MapGen.MapNode = map[i]
-		# Not the rim's first system and not the core: one is the front door,
-		# and the other already has a custodian in it.
-		if n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.CORE:
-			continue
-		# nor a station: there are no fights at stations (`Router.no_fights_at`)
-		if n.type == MapGen.NodeType.STATION:
-			continue
-		options.append(i)
-		# What is actually here, not the node's label: a wreck is a system with salvage to strip.
-		if OptionTable.system_has_tag(n, &"salvage") and not n.cleared:
-			food.append(i)
-	if options.is_empty():
-		return
-	# Mending rides the ordinary stride, never a flee hop — it escapes HURT and
-	# stays hurt until it has had quiet moves, which is the window the chase is.
-	if feeding and hellbender_hp < hellbender_max:
-		hellbender_hp = mini(hellbender_max, hellbender_hp + HELLBENDER_MEND)
-	# It goes where the salvage is. That is what makes it legible enough to
-	# route around — and what makes racing it to a wreck a real race.
-	var to: int = Rng.pick(r, food if feeding and not food.is_empty() else options)
-	hellbender_land(to, feeding)
+	_hb.step(feeding, away_from)
 
-## Apply a landing, on the authority and on clients alike: a pure function of the
-## landing, so the party cannot disagree.
 func hellbender_land(to: int, feeding: bool) -> void:
-	if to < 0 or to >= map.size():
-		return
-	hellbender_at = to
-	var n: MapGen.MapNode = map[to]
-	if feeding and OptionTable.system_has_tag(n, &"salvage") and not n.cleared:
-		# Consumed locally, not via Net.claim(): the movement push is already the shared fact.
-		n.cleared = true
-		n.eaten = true
-		_mark_taken(n, MapGen.OPTION_WHOLE)
-		log_line("The wreck at %s goes dark on the scope. The Hellbender stripped it." % MapGen.star_name(n), &"them")
-	if to == at:
-		log_line("A very hot signature fills the scope. THE HELLBENDER IS HERE.", &"big")
-	Sig.map_changed.emit()
+	_hb.land(to, feeding)
 
-## A fight ended without a kill; the hull it lost stays lost between engagements.
 func hellbender_scarred(hp: int) -> void:
-	if not hellbender_alive() or not _hellbender_authority():
-		return
-	hellbender_hp = clampi(hp, 1, hellbender_max)
-	Net.push_hellbender(false)
+	_hb.scarred(hp)
 
-## The escape burn went unchecked: damage written back, then HELLBENDER_FLEE_HOPS at once.
 func hellbender_breaks_off(hp: int) -> void:
-	if not hellbender_alive() or not _hellbender_authority():
-		return
-	hellbender_hp = clampi(hp, 1, hellbender_max)
-	var fled_from := hellbender_at
-	for i in HELLBENDER_FLEE_HOPS:
-		_hellbender_step(false, fled_from)
-	Net.push_hellbender(false)
+	_hb.breaks_off(hp)
 
-## The kill. Idempotent, because in a party several callers fire it.
 func hellbender_defeated() -> void:
-	if hellbender_at < 0:
-		return
-	hellbender_at = -1
-	hellbender_hp = 0
-	log_line("The Hellbender breaks apart. All the heat it stole this run leaks into space.", &"good")
-	Sig.map_changed.emit()
-	Net.push_hellbender(false)
+	_hb.defeated()
 
-## Position, hull and counter arrive whole from the host, so a dropped push costs one
-## update rather than a drift.
 func hellbender_adopt(to: int, hp: int, moves: int, feeding: bool) -> void:
-	hellbender_moves = moves
-	hellbender_hp = hp
-	if to < 0:
-		# Only a machine not in the fight gets here still thinking it alive, so this line
-		# tells it what it missed.
-		if hellbender_at >= 0:
-			hellbender_at = -1
-			hellbender_hp = 0
-			log_line("Word on the convoy channel: the Hellbender is dead.", &"good")
-			Sig.map_changed.emit()
-		return
-	if to == hellbender_at:
-		Sig.map_changed.emit()
-		return
-	hellbender_land(to, feeding)
+	_hb.adopt(to, hp, moves, feeding)
 
 
 # ------------------------------------------------------------------ contracts
+## The ledger's rules live in `Contracts`; these names stay on `Run`, and so do the fields.
 
-## Take a job, returning the ledger's copy; the board keeps its own, so a partner is
-## offered the same work.
 func take_contract(c: ContractData) -> ContractData:
-	var mine := ContractData.from_wire(c.to_wire())
-	mine.id = next_contract_id
-	next_contract_id += 1
-	mine.state = ContractData.State.TAKEN
-	contracts.append(mine)
-	# The work goes on the named system's map now, so it is there to find
-	# however you get there (`Contracts.post_goal`).
-	Contracts.post_goal(mine)
-	log_line("Signed: %s. It pays %d credits on delivery." % [
-		_contract_short(mine), mine.pay], &"sys")
-	Sig.contracts_changed.emit()
-	return mine
+	return Contracts.take(c)
 
-## Whether this work is already yours, compared by content, since the board
-## regenerates its objects every draw.
 func holds_contract(c: ContractData) -> bool:
-	for other in contracts:
-		var o: ContractData = other
-		if o.state == ContractData.State.CLOSED:
-			continue
-		if o.manufacturer == c.manufacturer and o.kind == c.kind and o.at == c.at \
-				and o.amount == c.amount and o.posted_at == c.posted_at:
-			return true
-	return false
+	return Contracts.holds(c)
 
-## Work that is done and waiting to be paid at one of this station's berths.
 func deliverable_at(n: MapGen.MapNode) -> Array:
-	var out: Array = []
-	for c in contracts:
-		var job: ContractData = c
-		if job.state != ContractData.State.READY:
-			continue
-		if ContractData.berth_of(n, job.manufacturer):
-			out.append(job)
-	return out
+	return Contracts.deliverable_at(n)
 
-## A heat contract can be closed only while docked and still carrying the heat.
-## Why: docs/why/RunState.md#heat-contracts
 func heat_deliverable_at(n: MapGen.MapNode) -> Array:
-	var out: Array = []
-	for c in contracts:
-		var job: ContractData = c
-		if job.state != ContractData.State.TAKEN \
-				or job.kind != ContractData.Kind.HEAT:
-			continue
-		if ContractData.berth_of(n, job.manufacturer) and heat >= job.amount:
-			out.append(job)
-	return out
+	return Contracts.heat_deliverable_at(n)
 
-## Paid. Heat contracts spend the heat; the other two spend the flying you
-## already did.
 func deliver_contract(job: ContractData) -> void:
-	if job == null or job.state == ContractData.State.CLOSED:
-		return
-	if job.kind == ContractData.Kind.HEAT:
-		if heat < job.amount:
-			return
-		heat -= job.amount
-		log_line("Offloaded %d heat." % job.amount, &"heat")
-	job.state = ContractData.State.CLOSED
-	quests_done.append("c%d" % job.id)
-	add_credits(job.pay)
-	standing[job.manufacturer] = int(standing.get(job.manufacturer, 0)) + job.standing
-	log_line("Delivered. %d credits. %s account in good order." % [
-		job.pay, DB.short_name(DB.manufacturer_name(job.manufacturer))], &"good")
-	Sig.contracts_changed.emit()
-	Sig.resources_changed.emit()
+	Contracts.deliver(job)
 
-## An event placed option `id` on `at`, from option `from`. One record a system,
-## since the chart marks a system only once.
 func note_placed(at: int, id: StringName, from: StringName) -> void:
-	for i in range(event_quests.size() - 1, -1, -1):
-		if int((event_quests[i] as Dictionary).get("at", -1)) == at:
-			event_quests.remove_at(i)
-	event_quests.append({at = at, id = id, from = from})
+	Contracts.note_placed(at, id, from)
 
-
-## The record of the event quest on system `at`, or {} (a save from before
-## the records, or nothing placed there).
 func event_quest_at(at: int) -> Dictionary:
-	for raw in event_quests:
-		var r: Dictionary = raw
-		if int(r.get("at", -1)) == at:
-			return r
-	return {}
+	return Contracts.event_quest_at(at)
 
-
-## Option `slot` at `n` was taken: if it is an event quest, record its pay and finish
-## it. A signed job's quest is its contract.
 func finish_event_quest(n: MapGen.MapNode, slot: int, paid: int, got: Array) -> void:
-	if n == null or slot < 0 or slot >= n.options.size():
-		return
-	var id: StringName = n.options[slot]
-	if not OptionTable.placed_ids().has(id):
-		return
-	var r := event_quest_at(n.index)
-	if r.is_empty() or StringName(r.get("id", &"")) != id:
-		# placed under a save from before the records: what is known now
-		note_placed(n.index, id, &"")
-		r = event_quest_at(n.index)
-	r["credits"] = paid
-	r["got"] = got.duplicate()
-	var key := "e%d" % n.index
-	quests_done.erase(key)
-	quests_done.append(key)
-	Sig.contracts_changed.emit()
+	Contracts.finish_event_quest(n, slot, paid, got)
 
-
-## A recovered item is named, not carried, so a contract cannot soft-lock on inventory.
-## Why: docs/why/RunState.md#fetch-contracts
 func reach_contract_target(index: int) -> void:
-	var moved := false
-	for c in contracts:
-		var job: ContractData = c
-		if job.state != ContractData.State.TAKEN or job.at != index:
-			continue
-		if job.kind != ContractData.Kind.FETCH:
-			continue
-		job.state = ContractData.State.READY
-		moved = true
-		log_line("Recovered: %s. Strapped to the frame until you deliver it." % job.item,
-			&"good")
-	if moved:
-		Sig.contracts_changed.emit()
+	Contracts.reach_target(index)
 
-## Winning a fight here finishes any HUNT pointed at it.
 func clear_contract_target(index: int) -> void:
-	var moved := false
-	for c in contracts:
-		var job: ContractData = c
-		if job.state != ContractData.State.TAKEN or job.at != index:
-			continue
-		if job.kind != ContractData.Kind.HUNT:
-			continue
-		job.state = ContractData.State.READY
-		moved = true
-		log_line("Contact removed. %s will want to hear about it." %
-			DB.short_name(DB.manufacturer_name(job.manufacturer)).to_upper(), &"good")
-	if moved:
-		Sig.contracts_changed.emit()
+	Contracts.clear_target(index)
 
-## How well a manufacturer thinks of you. Zero for six of them, most of the time.
 func standing_with(manufacturer: StringName) -> int:
-	return int(standing.get(manufacturer, 0))
+	return Contracts.standing_with(manufacturer)
 
-## The bonus is on the bid only: a discount on the ask would open a buy-and-melt exploit.
-## Why: docs/why/RunState.md#standing
-const STANDING_BID := 0.05
-const STANDING_BID_MAX := 0.20
 func standing_bid_bonus(manufacturer: StringName) -> float:
-	return minf(float(standing_with(manufacturer)) * STANDING_BID, STANDING_BID_MAX)
+	return Contracts.standing_bid_bonus(manufacturer)
 
-func _contract_short(c: ContractData) -> String:
-	match c.kind:
-		ContractData.Kind.HEAT:
-			return "%d heat to %s" % [c.amount,
-				DB.short_name(DB.manufacturer_name(c.manufacturer))]
-		ContractData.Kind.HUNT:
-			return "a contact at %s" % MapGen.star_name(map[c.at]) if c.at >= 0 \
-				and c.at < map.size() else "a contact"
-		_:
-			return "%s from %s" % [c.item, MapGen.star_name(map[c.at])] if c.at >= 0 \
-				and c.at < map.size() else c.item
-
-
-## The open contract pointing at this system, or null. First match wins: the chart
-## can say so only once.
 func contract_at(index: int) -> ContractData:
-	for c in contracts:
-		var job: ContractData = c
-		if job.state == ContractData.State.TAKEN and job.at == index:
-			return job
-	return null
+	return Contracts.open_at(index)
 
-
-## Marks where to hand finished work in, the half of the trip that costs fuel.
-## Why: docs/why/RunState.md#delivery-markers
 func delivery_manufacturers() -> Array:
-	var out: Array = []
-	for c in contracts:
-		var job: ContractData = c
-		if job.state == ContractData.State.READY \
-				or (job.state == ContractData.State.TAKEN
-					and job.kind == ContractData.Kind.HEAT):
-			if not out.has(job.manufacturer):
-				out.append(job.manufacturer)
-	return out
+	return Contracts.delivery_manufacturers()
 
 
 ## A contract reveals where and nothing more; a station counts only once sensed or visited.

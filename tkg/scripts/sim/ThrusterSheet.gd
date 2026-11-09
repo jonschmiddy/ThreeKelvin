@@ -8,20 +8,11 @@ const POOL := ["ship_armedtrader", "ship_ringdrive", "ship_pr_drum"]
 const LABEL_H := 14
 const ROW_LABEL_W := 44
 
-var _args: PackedStringArray
 var _t := 0.0
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 class Stars extends Control:
@@ -106,11 +97,11 @@ func _label(parent: Node, text: String, at: Vector2) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var dir := _arg("out")
+	var dir := Harness.arg("out")
 	DirAccess.make_dir_recursive_absolute(dir)
-	var frames := int(_arg("frames", "150"))
+	var frames := int(Harness.arg("frames", "150"))
 	var list: Array = []
-	var arg := _arg("ships", "")
+	var arg := Harness.arg("ships", "")
 	if arg == "":
 		list = PLAYER + POOL
 	else:
@@ -147,13 +138,13 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 	var th := chh + 16
 	# Columns are today then one per flame setting; `set=a_dyn` is Jon's pick of A.
 	var configs: Array = []
-	if _arg("set", "") == "a_dyn":
+	if Harness.arg("set", "") == "a_dyn":
 		configs = [{look = 0, name = "A  LIVELY (before)", fps = 8.0, rag = 1.0, dyn = false},
 			{look = 0, name = "A  DYNAMIC + SPARKS", fps = 8.0, rag = 1.0, dyn = true}]
 	else:
 		for lk in 3:
-			configs.append({look = lk, name = ThrusterFx.LOOK_NAMES[lk], fps = float(_arg("fps", "8")),
-				rag = float(_arg("rag", "1.0")), dyn = false})
+			configs.append({look = lk, name = ThrusterFx.LOOK_NAMES[lk], fps = float(Harness.arg("fps", "8")),
+				rag = float(Harness.arg("rag", "1.0")), dyn = false})
 	var cols := 1 + configs.size()
 	var vw := ROW_LABEL_W + cols * tw
 	var vh := LABEL_H + 3 * th
@@ -263,7 +254,7 @@ func _film(ship: String, dir: String, frames: int, layer: CanvasLayer) -> void:
 		looks[look2].info.particle_us_per_ship_frame = snappedf(float(fx5.particle_us) / float(draws) / 3.0, 0.01)
 		looks[look2].info.particle_px_per_ship_frame = snappedf(float(fx5.particle_px) / float(draws) / 3.0, 0.1)
 		per_look[look2] = looks[look2].info
-	var meta := {ship = ship, player = player, frames = frames, fps = 30, flame_fps = float(_arg("fps", "8")), flame_rag = float(_arg("rag", "1.0")), set = _arg("set", ""), tile = [tw, th],
+	var meta := {ship = ship, player = player, frames = frames, fps = 30, flame_fps = float(Harness.arg("fps", "8")), flame_rag = float(Harness.arg("rag", "1.0")), set = Harness.arg("set", ""), tile = [tw, th],
 		canvas = [cw, chh], hull_at_in_tile = [8, 8], ink_w = looks[0].fx.ink_w, tiles = tiles,
 		columns = heads, rows = ThrusterFx.THRUST_NAMES, looks = per_look,
 		worst_frame_us_all_tiles = worst, starts = starts,

@@ -532,8 +532,8 @@ Inside `_type_glyph()`, above `var arm := Vector2(11, 3)`:
 A reticle closing on something. The only glyph that is about the
 NEXT card rather than this one.
 Written out, not looped. An L has a handedness and there are four
-of them — see ModuleIcon._glyph, where the derived version read as
-four unrelated ticks.
+of them — see ModuleIcon._glyph (since deleted), where the derived version
+read as four unrelated ticks.
 ```
 
 ## Heat text

@@ -15,18 +15,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String) -> String:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _on_added(n: Node) -> void:
 	if not (n is HitLayers) or (n as HitLayers).follow != null:
 		return
@@ -49,8 +37,8 @@ static func _median(xs: Array) -> float:
 
 
 func _run() -> void:
-	await _frames(2)
-	var reps := int(_arg("reps", "5"))
+	await Harness.frames(_tree, 2)
+	var reps := int(Harness.arg("reps", "5"))
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 
@@ -66,7 +54,7 @@ func _run() -> void:
 		add_child(sl)
 		sl.wreck_id = 1
 		sl.bind(0, e, false)
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 		for s in [1.0, 0.5]:
 			var ts: Array = []
 			for k in reps:
@@ -81,7 +69,7 @@ func _run() -> void:
 			cost["%s/%.1f" % [id, s]] = _median(ts)
 		print("packarmprof: _arm %-9s full %.1f ms  half %.1f ms" % [id, cost["%s/1.0" % id], cost["%s/0.5" % id]])
 		sl.queue_free()
-		await _frames(1)
+		await Harness.frames(_tree, 1)
 
 	var idx := -1
 	for n: MapGen.MapNode in Run.map:
@@ -111,11 +99,11 @@ func _run() -> void:
 			for r in reps:
 				Router.combat = null
 				Router.show_local()
-				await _frames(4)
+				await Harness.frames(_tree, 4)
 				if mode == "animated":
 					var w := 0
 					while w < 240 and not ((Router.current is SectorScreen) and (Router.current as SectorScreen).settled_local()):
-						await _frames(1)
+						await Harness.frames(_tree, 1)
 						w += 1
 				var extras: Array = []
 				for i in range(1, kinds.size()):
@@ -126,7 +114,7 @@ func _run() -> void:
 				Router.start_combat(DB.enemies[kinds[0]], extras, false, false)
 				opens.append(float(Time.get_ticks_usec() - t0) / 1000.0)
 				# the band's rise, and its layout, in the animated opening
-				await _frames(150 if mode == "animated" else 4)
+				await Harness.frames(_tree, 150 if mode == "animated" else 4)
 				measured.append(float(int(Engine.get_meta(&"prof_arm_us", 0))) / 1000.0)
 				builds = _built.size()
 				halves = 0

@@ -96,6 +96,21 @@ tk_new_profile() {
 	printf '%s\n' "$d"
 }
 
+# tk_parse_run_args "$@": the -t SECONDS and -C DIR options of godot.sh and
+# render.sh. Sets TK_LIMIT (default 600), cds for -C, and leaves the rest in
+# TK_RUN_ARGS. Call it, then: set -- ${TK_RUN_ARGS[@]+"${TK_RUN_ARGS[@]}"}
+tk_parse_run_args() {
+	TK_LIMIT=600
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			-t) TK_LIMIT="$2"; shift 2 ;;
+			-C) cd "$2" || exit 1; shift 2 ;;
+			*) break ;;
+		esac
+	done
+	TK_RUN_ARGS=("$@")
+}
+
 # tk_isolated <profile-dir> <command...>
 # Runs the command with user:// pointed inside <profile-dir>: APPDATA and
 # LOCALAPPDATA on Windows; HOME and the XDG folders on macOS and Linux (Godot
@@ -108,6 +123,16 @@ tk_isolated() {
 	else
 		HOME="$p/home" XDG_DATA_HOME="$p/home/.local/share" XDG_CONFIG_HOME="$p/home/.config" "$@"
 	fi
+}
+
+# tk_import_project: the import a fresh checkout needs before anything compiles,
+# in a throwaway profile, tried twice. Run it from the checkout's root.
+tk_import_project() {
+	local p
+	p="$(tk_new_profile)"
+	tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1 \
+		|| tk_isolated "$p" tk_timeout 900 "$GODOT" --headless --audio-driver Dummy --path tkg --import >/dev/null 2>&1
+	rm -rf "$p"
 }
 
 # tk_guard: refuses (returns 1) unless an isolated Godot really writes inside

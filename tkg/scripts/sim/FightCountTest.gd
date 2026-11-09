@@ -3,24 +3,17 @@ extends Node
 ## Nothing joins a fight (Jon, Oct 13): the enemy count may never rise. `-- sheet=FightCountTest`.
 ## Why: docs/why/FightCountTest.md#no-reinforcements
 
-var _fails := 0
+var h := Harness.new()
 var _shown := 0
 
 
 func _ok(what: String, c: bool) -> bool:
 	if not c:
-		_fails += 1
+		h._fails += 1
 		if _shown < 20:
 			print("  FAIL %s" % what)
 			_shown += 1
 	return c
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
@@ -30,7 +23,7 @@ func _ready() -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var seeds := int(_arg("seeds", "12"))
+	var seeds := int(Harness.arg("seeds", "12"))
 	var fights := 0
 	var past3 := 0
 	var turns := 0
@@ -47,12 +40,12 @@ func _run() -> void:
 	# so the galaxy never changed what a fight saw. A sixth of the run's time (168 fights).
 	for sd in seeds:
 		var at := _lawless_system(9000 + sd * 31)
-		if at < 0:
+		if not _ok("seed %d: a system to fight in" % sd, at >= 0):
 			continue
 		for pack: Array in packs:
 			var t: EnemyTemplate = DB.enemies[pack[0]]
 			var r := await _fight(tree, pack, at, 9000 + sd * 31)
-			if r.is_empty():
+			if not _ok("%s seed %d: the fight started" % ["+".join(pack), sd], not r.is_empty()):
 				continue
 			fights += 1
 			turns += int(r.turns)
@@ -61,10 +54,10 @@ func _run() -> void:
 			_ok("%s seed %d: the count never rose (%s)" % ["+".join(pack), sd, r.counts], not bool(r.rose))
 			if t.boss or t.miniboss:
 				_ok("%s seed %d: fought alone the whole way (%s)" % [pack[0], sd, r.counts], int(r.most) == 1)
-	_ok("enough fights ran past turn 3 to have met the old wave (%d of %d)" % [past3, fights], past3 * 2 >= fights)
+	_ok("enough fights ran past turn 3 to have met the old wave (%d of %d)" % [past3, fights], fights > 0 and past3 * 2 >= fights)
 	print("fightcounttest: %d fights, %d past turn 3, %.1f turns a fight" % [fights, past3, float(turns) / maxf(1.0, fights)])
-	print("fightcounttest: %s (%d failures)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	tree.quit()
+	h.verdict("fightcounttest")
+	tree.quit(h.code())
 
 
 ## The run's galaxy from the seed, and the index of its first lawless system (or any system), or -1.

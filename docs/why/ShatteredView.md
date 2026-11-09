@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/ui/planets/ShatteredView.gd`, moved out of the
 
 ## Surface memory
 
-Above `var _mem_vp: SubViewport`:
+Above `var _mem_vp: SubViewport` (now in `WorldView.gd`, shared with `PlanetView`):
 
 ```text
 ITS SURFACE'S MEMORY (`PixelTurn.world_mode` BLENDED, the default; as

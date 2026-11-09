@@ -361,7 +361,7 @@ it gates the position going *onto* the wire, not coming off it.
 ### Arriving and leaving
 
 A ship enters and leaves the sector strip in a column of cold light —
-`EncounterView.JumpFlare`.
+`JumpFlare`.
 
 **One animation for both directions.** A jump is a column of light with a hull
 either side of it: what differs between arriving and leaving is only whether the

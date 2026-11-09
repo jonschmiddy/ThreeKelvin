@@ -83,12 +83,6 @@ var _quiet := false   ## making an extra: its moments are the hit's
 var rolled: Array = []
 
 
-class Layer extends Control:
-	var paint: Callable
-	func _draw() -> void:
-		paint.call(self)
-
-
 ## `seed` comes from the fight (`Rng.derive`), so the same fight rolls the same hits.
 func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -97,7 +91,7 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	_origin = origin.round()
 	_rng.seed = seed * 977 + 5
 	_sc = SIZE * mark_scale
-	_H = ShipBreakup._hull_pic(img, used, 0)
+	_H = BreakupCuts._hull_pic(img, used, 0)
 	_r = _H.r
 	_w = _H.w
 	_h = _H.h
@@ -113,21 +107,8 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	_dmg_tex = ImageTexture.create_from_image(_dmg)
 	if int(_H.n) > 0:
 		_build_network()
-	var body := Layer.new()
-	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	body.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	body.paint = _paint_body
-	add_child(body)
-	var light := Layer.new()
-	light.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	light.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	light.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var mat := CanvasItemMaterial.new()
-	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	light.material = mat
-	light.paint = _paint_light
-	add_child(light)
+	PaintLayer.add_to(self, _paint_body)
+	PaintLayer.add_to(self, _paint_light, true)
 
 
 ## The crack network: the borders of a rough Voronoi over the hull, one pixel
@@ -143,7 +124,7 @@ func _build_network() -> void:
 			if _mask[y * _w + x] == 1:
 				seeds.append(Vector2(x, y))
 				break
-		fields.append(ShipBreakup._field(_rng, _w, _h, 5))
+		fields.append(BreakupCuts._field(_rng, _w, _h, 5))
 	var amp := 0.5 * sqrt(float(_H.n) / float(maxi(1, seeds.size())))
 	var lab := PackedInt32Array()
 	lab.resize(_w * _h)
@@ -156,7 +137,7 @@ func _build_network() -> void:
 			var best := 1e9
 			var bi := 0
 			for s in seeds.size():
-				var d := Vector2(x, y).distance_to(seeds[s]) + amp * ShipBreakup._nz(fields[s], x, y)
+				var d := Vector2(x, y).distance_to(seeds[s]) + amp * BreakupCuts._nz(fields[s], x, y)
 				if d < best:
 					best = d
 					bi = s
@@ -229,7 +210,7 @@ func _pick(edge: bool, rad: float, near: Vector2 = Vector2.INF, around: Vector2 
 		if edge:
 			# a puncture vents into open space above or below the hull, not
 			# into its own underside
-			var nrm := ShipBreakup._normal_at(_H, _mask, Vector2i(x, y))
+			var nrm := BreakupCuts._normal_at(_H, _mask, Vector2i(x, y))
 			if absf(nrm.y) < 0.5:
 				continue
 		found += 1
@@ -404,7 +385,7 @@ func _scorch(p: Vector2i, big: bool) -> void:
 ## twice its size; the bitten pixels fly off as chips; its lip glows and cools.
 func _hole_hit(p: Vector2i, big: bool) -> void:
 	var rb := (4.2 if big else 3.0) * _sc
-	var fd := ShipBreakup._field(_rng, _w, _h, 3)
+	var fd := BreakupCuts._field(_rng, _w, _h, 3)
 	var bite: Array[Vector2i] = []
 	for y in range(p.y - 12, p.y + 13):
 		for x in range(p.x - 12, p.x + 13):
@@ -413,7 +394,7 @@ func _hole_hit(p: Vector2i, big: bool) -> void:
 			var i := y * _w + x
 			if _mask[i] == 0 or _what[i] == 2:
 				continue
-			if Vector2(x, y).distance_to(Vector2(p)) <= rb + 1.1 * ShipBreakup._nz(fd, x, y):
+			if Vector2(x, y).distance_to(Vector2(p)) <= rb + 1.1 * BreakupCuts._nz(fd, x, y):
 				bite.append(Vector2i(x, y))
 	_soot_disc(p, rb + 5.0 * _sc)
 	# chips: the bitten pixels in their own colours, a few pieces by angle
@@ -531,7 +512,7 @@ func _crack(p: Vector2i, frac: float, big: bool) -> void:
 
 
 func _vent(p: Vector2i, big: bool) -> void:
-	var n := ShipBreakup._normal_at(_H, _mask, p)
+	var n := BreakupCuts._normal_at(_H, _mask, p)
 	_soot_disc(p, (6.0 if big else 4.5) * _sc)
 	var hr := (2.2 if big else 1.4) * _sc
 	for y in range(p.y - 6, p.y + 7):
@@ -636,9 +617,7 @@ func _paint_body(ci: CanvasItem) -> void:
 		var rot := int(floor(age * float(c.spin))) % 4
 		var al := 1.0 if age < 0.22 else (0.6 if age < 0.3 else (0.3 if age < 0.36 else 0.12))
 		var sz := float(c.size)
-		ci.draw_set_transform(p + Vector2(sz, sz) * 0.5, float(rot) * PI * 0.5, Vector2.ONE)
-		ci.draw_texture(c.tex, -Vector2(sz, sz) * 0.5, Color(1, 1, 1, al))
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		FxKit.draw_chip(ci, c.tex, p, Vector2(sz, sz), rot, al)
 
 
 func _paint_light(ci: CanvasItem) -> void:
@@ -649,7 +628,7 @@ func _paint_light(ci: CanvasItem) -> void:
 		if age < 0.0:
 			continue
 		var x := age / life
-		var l := (1.0 if x < 0.25 else (0.6 if x < 0.5 else (0.32 if x < 0.75 else 0.14))) * float(f.s)
+		var l := FxKit.flash_level(x) * float(f.s)
 		var tex := ShipBreakup._warm(int(f.r))
 		ci.draw_texture(tex, (Vector2(f.p) - Vector2(tex.get_size()) * 0.5).round(), Color(l, l, l, 1))
 	for rg in _rings:
@@ -657,7 +636,7 @@ func _paint_light(ci: CanvasItem) -> void:
 		var x5 := age5 / float(rg.dur)
 		var rr := int(float(rg.r0) + (float(rg.r1) - float(rg.r0)) * (1.0 - pow(1.0 - x5, 3.0)))
 		var l5 := float(rg.s) * (1.0 if x5 < 0.33 else (0.6 if x5 < 0.66 else 0.3))
-		_ring(ci, rg.p, rr, ShipBreakup._lv(R[1], l5))
+		_ring(ci, rg.p, rr, FxKit.lv(R[1], l5))
 	for e in _embers:
 		var a := t - float(e.t0)
 		var big: bool = e.big
@@ -670,24 +649,24 @@ func _paint_light(ci: CanvasItem) -> void:
 			var tx2 := ShipBreakup._warm(3 if big else 2)
 			ci.draw_texture(tx2, p - Vector2(tx2.get_size()) * 0.5 + Vector2(0.5, 0.5), Color(0.75, 0.75, 0.75, 1))
 		elif a < 0.3 * s:
-			ci.draw_rect(Rect2(p, Vector2.ONE), ShipBreakup._lv(R[2], 0.8))
+			ci.draw_rect(Rect2(p, Vector2.ONE), FxKit.lv(R[2], 0.8))
 		elif a < 0.45 * s:
-			ci.draw_rect(Rect2(p, Vector2.ONE), ShipBreakup._lv(R[3], 0.6))
+			ci.draw_rect(Rect2(p, Vector2.ONE), FxKit.lv(R[3], 0.6))
 		elif a < 0.6 * s:
-			ci.draw_rect(Rect2(p, Vector2.ONE), ShipBreakup._lv(R[4], 0.4))
+			ci.draw_rect(Rect2(p, Vector2.ONE), FxKit.lv(R[4], 0.4))
 	for lp in _lips:
 		var a2 := t - float(lp.t0)
 		var lc: Color
 		if a2 < 0.08:
-			lc = ShipBreakup._lv(R[0], 0.9)
+			lc = FxKit.lv(R[0], 0.9)
 		elif a2 < 0.18:
-			lc = ShipBreakup._lv(R[1], 0.75)
+			lc = FxKit.lv(R[1], 0.75)
 		elif a2 < 0.3:
-			lc = ShipBreakup._lv(R[2], 0.55)
+			lc = FxKit.lv(R[2], 0.55)
 		elif a2 < 0.42:
-			lc = ShipBreakup._lv(R[3], 0.4)
+			lc = FxKit.lv(R[3], 0.4)
 		else:
-			lc = ShipBreakup._lv(R[4], 0.25)
+			lc = FxKit.lv(R[4], 0.25)
 		for q in (lp.px as PackedVector2Array):
 			if a2 >= 0.3 and ((int(q.x) + int(q.y)) & 1) == 1:
 				continue
@@ -698,15 +677,15 @@ func _paint_light(ci: CanvasItem) -> void:
 			continue
 		var col: Color
 		if age2 < 0.06:
-			col = ShipBreakup._lv(R[0], 1.0)
+			col = FxKit.lv(R[0], 1.0)
 		elif age2 < 0.16:
-			col = ShipBreakup._lv(R[1], 0.85)
+			col = FxKit.lv(R[1], 0.85)
 		elif age2 < 0.3:
-			col = ShipBreakup._lv(R[2], 0.6)
+			col = FxKit.lv(R[2], 0.6)
 		elif age2 < 0.45:
-			col = ShipBreakup._lv(R[3], 0.4)
+			col = FxKit.lv(R[3], 0.4)
 		else:
-			col = ShipBreakup._lv(R[4], 0.25)
+			col = FxKit.lv(R[4], 0.25)
 		var i := int(c.i)
 		var pp := _screen(Vector2i(i % _w, i / _w))
 		ci.draw_rect(Rect2(pp, Vector2.ONE), col)
@@ -720,19 +699,16 @@ func _paint_light(ci: CanvasItem) -> void:
 		match int(mo.kind):
 			0:
 				var c2: Color = R[0] if f2 < 0.4 else (R[2] if f2 < 0.75 else R[4])
-				ci.draw_rect(Rect2(p2, Vector2.ONE), c2)
-				var tail: Vector2 = ((mo.p as Vector2) - (mo.v as Vector2).normalized() * 2.0).round()
-				if tail != p2:
-					ci.draw_rect(Rect2(tail, Vector2.ONE), c2 * Color(0.5, 0.5, 0.5, 1))
+				FxKit.draw_spark(ci, mo.p, mo.v, c2)
 			1:
 				var c1: Color = R[1] if f2 < 0.25 else (R[2] if f2 < 0.5 else (R[3] if f2 < 0.8 else R[5]))
 				ci.draw_rect(Rect2(p2, Vector2(2, 2) if mo.big and f2 < 0.5 else Vector2.ONE), c1)
 			_:
 				var gi := 0 if f2 < 0.2 else (1 if f2 < 0.5 else (2 if f2 < 0.8 else 3))
 				var gl: float = [1.0, 0.75, 0.5, 0.3][gi]
-				ci.draw_rect(Rect2(p2, Vector2.ONE), ShipBreakup._lv(ShipBreakup.GAS[gi], gl))
+				ci.draw_rect(Rect2(p2, Vector2.ONE), FxKit.lv(ShipBreakup.GAS[gi], gl))
 				if mo.big and f2 < 0.4:
-					var arm := ShipBreakup._lv(ShipBreakup.GAS[gi], gl * 0.4)
+					var arm := FxKit.lv(ShipBreakup.GAS[gi], gl * 0.4)
 					for o2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
 						ci.draw_rect(Rect2(p2 + o2, Vector2.ONE), arm)
 

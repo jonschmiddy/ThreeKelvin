@@ -200,9 +200,6 @@ func preview(card: CardData, slot: int) -> void:
 func preview_at(x: float, card: CardData) -> void:
 	preview(card, _slot_at(x))
 
-func preview_onto(card: CardData, onto: CardView) -> void:
-	preview_at(onto.position.x + CardView.CARD_W * 0.5, card)
-
 func clear_preview() -> void:
 	var carried := _carry != null
 	_drop_carry()
@@ -214,6 +211,9 @@ func clear_preview() -> void:
 
 ## Played cards leave rather than vanish, so the eye can follow where they went.
 func _discard(v: CardView) -> void:
+	if _tweens.has(v) and is_instance_valid(_tweens[v]) and _tweens[v].is_valid():
+		_tweens[v].kill()
+	_tweens.erase(v)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Out of the stack on the way out, so it cannot come back over the top of
 	# the cards that are still being played.
@@ -271,7 +271,8 @@ func slide_to(at_global: Vector2, card: CardData) -> void:
 			_tweens[v].kill()
 		set_process(true)
 	# Centred on the pointer, and the vertical clamped into the drawer: reorder is horizontal.
-	var want := at_global - global_position 		- Vector2(CardView.CARD_W, CardView.CARD_H) * 0.5
+	var want := at_global - global_position \
+		- Vector2(CardView.CARD_W, CardView.CARD_H) * 0.5
 	want.y = clampf(want.y, _baseline() - 26.0, _baseline() + 6.0)
 	_carry_to = want
 	preview_at(at_global.x - global_position.x, card)

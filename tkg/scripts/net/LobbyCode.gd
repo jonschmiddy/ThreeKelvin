@@ -21,11 +21,14 @@ const ROOM_MAX: int = 1 << ROOM_BITS
 
 static func encode_direct(ip: String, port: int) -> String:
 	var octets := ip.split(".")
-	if octets.size() != 4:
+	if octets.size() != 4 or port < 1 or port > 65535:
 		return ""
 	var bits: Array[int] = []
 	for o in octets:
-		_push(bits, int(o), 8)
+		var s := o.strip_edges()
+		if not s.is_valid_int() or int(s) < 0 or int(s) > 255:
+			return ""
+		_push(bits, int(s), 8)
 	_push(bits, port, 16)
 	return _finish(Kind.DIRECT, bits)
 

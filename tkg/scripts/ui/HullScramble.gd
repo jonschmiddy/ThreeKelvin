@@ -31,9 +31,10 @@ const MASK := preload("res://shaders/low_hull_mask.gdshader")
 
 static var instance: HullScramble = null
 ## For a harness: letters scrambled now, and every scramble started
-## ({at, node, kind, n, text}).
+## ({at, node, kind, n, text}); kept only while `logging`, so play does not grow it.
 static var cells_now := 0
 static var started_log: Array = []
+static var logging := false
 ## Microseconds this node's frame cost, last frame and the most since cleared.
 static var cost_usec := 0
 static var cost_most := 0
@@ -176,7 +177,8 @@ func _process(_d: float) -> void:
 	var dt := clampf(get_process_delta_time(), 0.0, 0.25)
 	var lk: Dictionary = LowHull.look().scr
 	var d := LowHull.depth
-	var rate := lerpf(float(lk.rate[0]), float(lk.rate[1]), pow(d, 1.5)) * smoothstep(0.0, 1.0, LowHull.on) 		* clampf(float(_wsum) / float(REF_LETTERS), DENSITY[0], DENSITY[1])
+	var rate := lerpf(float(lk.rate[0]), float(lk.rate[1]), pow(d, 1.5)) * smoothstep(0.0, 1.0, LowHull.on) \
+		* clampf(float(_wsum) / float(REF_LETTERS), DENSITY[0], DENSITY[1])
 	_refresh_some(now)
 	_acc += rate * dt
 	var guard := 0
@@ -381,7 +383,8 @@ func _spawn(now: float, d: float, lk: Dictionary) -> int:
 	if (lv.cells as Array).is_empty():
 		_release(key)
 		return 0
-	started_log.append({at = now, node = who, kind = kind, n = placed, text = text})
+	if logging:
+		started_log.append({at = now, node = who, kind = kind, n = placed, text = text})
 	_paint(lv, true)
 	return 1
 

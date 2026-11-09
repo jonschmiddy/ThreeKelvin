@@ -219,18 +219,7 @@ func _heading(title: String) -> void:
 
 ## The salvage popup's chamfered case (`TransferView._cut_box`), with more room.
 func _case() -> StyleBoxFlat:
-	var b := StyleBoxFlat.new()
-	b.bg_color = UITheme.PANEL2
-	b.border_color = UITheme.LINE
-	b.set_border_width_all(1)
-	b.corner_radius_top_left = 10
-	b.corner_radius_bottom_right = 10
-	b.corner_detail = 1
-	b.content_margin_top = 18
-	b.content_margin_bottom = 18
-	b.content_margin_left = 24
-	b.content_margin_right = 24
-	return b
+	return UITheme.chamfer(UITheme.PANEL2, UITheme.LINE, 18, 24)
 
 
 ## Scroll only if the panel would not fit, and not before the note has its width.

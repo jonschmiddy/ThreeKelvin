@@ -513,7 +513,7 @@ func _draw_under() -> void:
 		_buoy(c)
 
 
-## LOCAL's own beacon buoy (`EncounterView.AreaView._beacon`), the same steel,
+## LOCAL's own beacon buoy (`AreaView._beacon`), the same steel,
 ## with its power off: no rings walking out, its lamp dark glass.
 func _buoy(c: Vector2) -> void:
 	var grey: Array[Color] = [Color("#141721"), Color("#1e202a"), Color("#2e313e"),

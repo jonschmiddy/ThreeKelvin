@@ -4,25 +4,16 @@ extends Node
 ## Why: docs/why/StationFaceShot.md#station-face-shot
 
 var _tree: SceneTree
-var _args: PackedStringArray
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
 
 
 func _run() -> void:
 	_tree = get_tree()
 	await _tree.process_frame
-	var out := _arg("out", "user://facesshot")
+	var out := Harness.arg("out", "user://facesshot")
 	DirAccess.make_dir_recursive_absolute(out)
 	var layer := CanvasLayer.new()
 	layer.layer = 100
@@ -34,13 +25,13 @@ func _run() -> void:
 	var host := Control.new()
 	# (`host_w=712`: the plate whole on the picture, from x 400, and the hull
 	# it runs on into)
-	host.size = Vector2(float(_arg("host_w", "960")), 540)
+	host.size = Vector2(float(Harness.arg("host_w", "960")), 540)
 	layer.add_child(host)
-	var side := _arg("side", "")
-	var interior := _arg("interior", "none")
-	var clock := float(_arg("clock", "0.37"))
-	var dock := float(_arg("dock", "0"))
-	for ps in _arg("powers", "0,1").split(",", false):
+	var side := Harness.arg("side", "")
+	var interior := Harness.arg("interior", "none")
+	var clock := float(Harness.arg("clock", "0.37"))
+	var dock := float(Harness.arg("dock", "0"))
+	for ps in Harness.arg("powers", "0,1").split(",", false):
 		var p := float(ps)
 		for c in host.get_children():
 			c.queue_free()

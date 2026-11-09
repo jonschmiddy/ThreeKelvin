@@ -18,6 +18,8 @@ var _scroll: ScrollContainer
 var _screen: Control
 ## Rows are remade only when the log grows, as a rebuilt button cannot be clicked.
 var _count := -1
+## The newest line when drawn: at the cap the size stays put while the log moves.
+var _last: Variant = null
 
 
 static func is_open() -> bool:
@@ -64,7 +66,7 @@ func _process(_d: float) -> void:
 	if Hints.menu_up() or Router.current != _screen:
 		CommsPanel.close()
 		return
-	if Ash.comms.size() != _count:
+	if Ash.comms.size() != _count or not is_same(_last, _newest()):
 		fill()
 	# PLAY waits while she speaks (it would talk over her), lit again after
 	var can := Ash.can_replay()
@@ -100,9 +102,14 @@ func _build() -> void:
 	fill()
 
 
+func _newest() -> Variant:
+	return null if Ash.comms.is_empty() else Ash.comms.back()
+
+
 ## The rows, again: newest first.
 func fill() -> void:
 	_count = Ash.comms.size()
+	_last = _newest()
 	for c in _rows.get_children():
 		_rows.remove_child(c)
 		c.queue_free()

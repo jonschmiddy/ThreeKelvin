@@ -665,7 +665,7 @@ func _find(t: MapGen.NodeType) -> int:
 
 ## Small on purpose. This is not a balance model — it only has to be competent
 ## enough that the fight ends.
-func _score(c: CardData, cb: Combat) -> float:
+func _score(c: CardData, _cb: Combat) -> float:
 	if c.unplayable:
 		return -1.0
 	if Run.heat + c.heat > Run.heat_cap() + 3 and c.heat > 0:

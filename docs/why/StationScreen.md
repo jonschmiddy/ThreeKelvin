@@ -114,26 +114,6 @@ TABS order: a player reads the rail downward and arrives at their own ship,
 which is where UNDOCK belongs.
 ```
 
-## Heading centring
-
-Above `const HEAD_TOP := 11`:
-
-```text
-The air above a heading's LABEL BOX, and below it.
-
-TWO NUMBERS, ONE PIXEL APART, AND THAT PIXEL IS THE WHOLE POINT. Centring the
-label's box does not centre the WORD: Silkscreen has an ascent of 17 and a
-descent of 4, so the capitals occupy rows 7 to 17 of a 21-pixel box and sit
-three pixels below its middle. Everything under the row -- the two pixels of
-separation before the rule -- counts as air below as well.
-
-Measured off a real frame rather than reasoned about, twice. The ink was
-landing at rows 105 to 114 in a band running 84 to 126 -- 21 above and 12
-below. At 10 and 11 it came out 16 and 19, still a pixel and a half high; at
-11 and 10 it is 17 and 18, which is as square as an even band and an odd
-number of leftover rows allows.
-```
-
 ## Header and undock
 
 Inside `_build()`, above `_header = RichTextLabel.new()`:
@@ -319,7 +299,7 @@ are docked it is a fact about a choice you have already made.
 
 ## Services panels
 
-Above `func _heading(title: String) -> MarginContainer:`:
+Was above `func _heading(title: String) -> MarginContainer:` (deleted, unused):
 
 ```text
 Repair, refuel, and the yard that sells whole ships.
@@ -329,13 +309,6 @@ one-line prices and the shipyard is two ships being compared; side by side,
 the ships got half a page to do the harder job in and the price list got the
 other half to print seven short rows in. Stacked, each gets the shape it
 wants -- the list is wide and short, the comparison is wide and tall.
-A panel heading, in a band with its capitals actually centred.
-
-The panel below it is built with NO vertical stylebox margin -- see
-`_flat_panel` -- so this row owns all of the air above the rule and can make
-it symmetric. Left to `panel_with`'s twelve, the top of the band was fixed at
-twelve and the bottom at two, and no amount of centring inside the row could
-make up a ten-pixel head start.
 ```
 
 ## The yard
@@ -478,7 +451,7 @@ cards jumped sideways every time you opened a part with a different footprint
 
 ## Promenade room
 
-Inside `_page_stock()`, above `var outer := VBoxContainer.new()`:
+Inside `_page_stock()`, above `_shop = ShopScene.new()`:
 
 ```text
 NO SECTION HEADING AT THE TOP. "STOCK" over a rule, above a part that
@@ -497,7 +470,7 @@ front. Nothing here places anything by itself.
 
 ## Till
 
-Inside `_page_stock()`, above `_till = TradeCounter.new()`:
+Inside `_page_stock()`, above `var made := _room_page(_shop, func(stack: Control) -> void:`:
 
 ```text
 --- AND THE TILL YOU CARRY IT TO.
@@ -554,7 +527,7 @@ its own readout and cards.
 
 ## Exchange room
 
-Inside `_page_hold()`, above `var outer := VBoxContainer.new()`:
+Inside `_page_hold()`, above `_exchange = ExchangeScene.new()`:
 
 ```text
 --- THE DECK IS ONE ROOM, and it is one of Jon's five.
@@ -904,7 +877,7 @@ tip says so (`Run.dock_rescue`).
 
 ## Hold plate
 
-Above `const CELL := 44`:
+Above `const PART_CELL := 44`:
 
 ```text
 THE PART ITSELF, ON THE CELLS IT WILL TAKE UP IN THE HOLD.

@@ -3,7 +3,7 @@ extends Node
 ## The side bar must never go blank (Jon, Oct 13) in any swap look, and clicks wait for resolve.
 ## Why: docs/why/SideBarTest.md#side-bar-test
 
-var _fails := 0
+var harness := Harness.new()
 var _tree: SceneTree
 ## the calm move (Jon's pick A, Oct 17) on this build: the side bar and toolbar
 ## change after the camera lands, and a press hurries a move rather than ending it
@@ -15,19 +15,11 @@ const GY := 24
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return harness._ok(what, c)
 
 
 func _ready() -> void:
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _idle() -> void:
@@ -329,7 +321,7 @@ func _hop(label: String, call: Callable, want: Script) -> int:
 		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and _swap_now() == null and _bar_now() == null:
 			break
 		await _tree.process_frame
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	_ok("%s lands on %s" % [label, want.get_global_name()], Router.current != null and Router.current.get_script() == want)
 	_ok("%s: no blank side bar (%d of %d frames blank, least %.2f)" % [label, blank, frames, low], blank == 0)
 	# (A's crossfade is allowed its middle: under 40% of its frames half and half)
@@ -385,7 +377,7 @@ func _instant(why: String) -> void:
 		await _tree.process_frame
 		side = _side_of(Router.current)
 		_ok("%s: and the frame after (%.2f)" % [why, _eff(side) if side != null else 1.0], side == null or _eff(side) > 0.99)
-		await _frames(3)
+		await Harness.frames(_tree, 3)
 
 
 ## A click mid-swap at the chart's JUMP ends the move and reaches no control in the new bar.
@@ -438,7 +430,7 @@ func _click_mid_swap() -> void:
 		if b.gui_input.is_connected(probe):
 			b.gui_input.disconnect(probe)
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 ## A click on the unresolved toolbar is eaten and the button never hears it.
@@ -476,7 +468,7 @@ func _click_bar_mid_decode() -> void:
 		if b.gui_input.is_connected(probe):
 			b.gui_input.disconnect(probe)
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	_ok("%s: a click on the toolbar (%s) before it resolved was eaten (blocked %s, heard %d)" % [_cur_look,
 		(target as Button).text if target is Button else "its row", blocked, heard[0]], blocked and heard[0] == 0)
 
@@ -485,13 +477,13 @@ func _click_bar_mid_decode() -> void:
 func _toolbar_rows() -> void:
 	ZoomLadder.force = 0
 	Router.show_system()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var m := Router.current as SystemMapScreen
 	var mr: Rect2 = m._strip.get_global_rect()
 	var m_pips := m._danger_cells.get_child_count()
 	var m_pip: Vector2 = (m._danger_cells.get_child(0) as Control).size if m_pips > 0 else Vector2.ZERO
 	Router.show_starchart()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var c := Router.current as StarchartScreen
 	var cr: Rect2 = c._strip_row.get_global_rect()
 	var c_pip: Vector2 = (c._layer_cells.get_child(0) as Control).size
@@ -501,7 +493,7 @@ func _toolbar_rows() -> void:
 	_ok("its danger pips are the chart's blocks (%d of %s; the chart's %s)" % [m_pips, m_pip, c_pip],
 		m_pips == MapGen.DANGER_MAX and m_pip == c_pip)
 	Router.show_system()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	m = Router.current as SystemMapScreen
 	var n0 := SystemMapScreen.names_on
 	var o0 := SystemMapScreen.orbits_on
@@ -511,9 +503,9 @@ func _toolbar_rows() -> void:
 		m.overlay.names_on == not n0 and m.view.orbits_on == not o0
 		and m._names_btn.text == ("HIDE NAMES" if not n0 else "SHOW NAMES"))
 	Router.show_starchart()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	Router.show_system()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	m = Router.current as SystemMapScreen
 	_ok("and they are kept across the chart and back (%s, %s, \"%s\")" % [m.overlay.names_on, m.view.orbits_on, m._names_btn.text],
 		m.overlay.names_on == not n0 and m.view.orbits_on == not o0
@@ -522,7 +514,7 @@ func _toolbar_rows() -> void:
 	m._orbits_btn.pressed.emit()
 	_ok("and back on again", SystemMapScreen.names_on == n0 and SystemMapScreen.orbits_on == o0)
 	Router.show_local()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	ZoomLadder.force = 1
 
 
@@ -532,7 +524,7 @@ func _click_moving_chrome() -> void:
 		return
 	Router.show_system()
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	Router.show_local()
 	var pc: Object = null
 	for i in 400:
@@ -588,7 +580,7 @@ func _click_moving_chrome() -> void:
 	else:
 		_ok("a click on it mid-slide ends the move and lands on nothing (heard %d)" % heard[0], heard[0] == 0 and not ZoomLadder.busy())
 	await _idle()
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 
 
 func _buttons(n: Node) -> Array[BaseButton]:
@@ -619,7 +611,7 @@ func _run() -> void:
 			break
 	SectorScreen._approached_at = sys
 	Router.show_local()
-	await _frames(40)
+	await Harness.frames(_tree, 40)
 	_ok("a run opens on LOCAL", Router.current is SectorScreen)
 	for m: Dictionary in _zl.get_script_method_list():
 		if String(m.name) == "calm_on":
@@ -649,11 +641,11 @@ func _run() -> void:
 			_set_look(l)
 			Router.show_system()
 			await _idle()
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 			await _click_mid_swap()
 			Router.show_system()
 			await _idle()
-			await _frames(4)
+			await Harness.frames(_tree, 4)
 			await _click_bar_mid_decode()
 		Router.show_system()
 		await _idle()
@@ -681,5 +673,5 @@ func _run() -> void:
 	DisplaySettings.reduced_motion = false
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
-	print("sidebartest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	harness.verdict("sidebartest")
+	_tree.quit(harness.code())

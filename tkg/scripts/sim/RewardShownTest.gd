@@ -5,34 +5,25 @@ extends Node
 ## Why: docs/why/RewardShownTest.md#reward-shown
 
 var _tree: SceneTree
-var _fails := 0
+var h := Harness.new()
 var _holder: Control
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _fail(why: String) -> void:
-	print("  FAIL %s" % why)
-	_fails += 1
+	h._fail(why)
 
 
 func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(k: int) -> void:
-	for i in k:
-		await _tree.process_frame
-
-
 func _run() -> void:
 	_tree = get_tree()
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	LocalEventDrawer.quiet = true
 	LocalEventDrawer.layout = &"column"
 	Rng.forced = 4242
@@ -76,11 +67,11 @@ func _run() -> void:
 				d.node = n
 				_holder.add_child(d)
 				d.open(0)
-				await _frames(3)
+				await Harness.frames(_tree, 3)
 				var was := OptionResolve.pile_now(n)
 				var r: Dictionary = await d.choose(j)
 				SkillCheck.forced = -1
-				await _frames(1)
+				await Harness.frames(_tree, 1)
 				var tag := "%s choice %d%s" % [id, j, "" if b < 0 else " " + SkillCheck.band_name(b)]
 				if not r.get("ok", false):
 					_fail("%s did not resolve: %s" % [tag, r.get("why", "?")])
@@ -124,7 +115,7 @@ func _run() -> void:
 					# CONTINUE with REWARD unopened: the things stay in SECTOR LOOT
 					if reward != null and not left_ok:
 						d.continue_on()
-						await _frames(2)
+						await Harness.frames(_tree, 2)
 						var loot := Run.sector_loot(n)
 						left_ok = _ok("CONTINUE past an unopened REWARD (%s) leaves it under SECTOR LOOT (%d there)" % [
 							tag, Run.jetsam_left(n, loot) if loot != null else 0],
@@ -160,8 +151,8 @@ func _end() -> void:
 	SkillCheck.forced = -1
 	LocalEventDrawer.quiet = false
 	print("")
-	print("rewardshowntest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("rewardshowntest")
+	_tree.quit(h.code())
 
 
 ## The first ordinary system of the run, with the ship at it.

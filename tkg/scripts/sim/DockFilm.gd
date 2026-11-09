@@ -7,21 +7,9 @@ var _tree: SceneTree
 var _args: PackedStringArray
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _ready() -> void:
 	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _run() -> void:
@@ -31,9 +19,9 @@ func _run() -> void:
 	ZoomLadder.force = 1
 	ZoomLadder.fixed_dt = 1.0 / 30.0
 	DisplaySettings.reduced_motion = "rm" in _args
-	Rng.forced = int(_arg("seed", "1"))
+	Rng.forced = Harness.seed_arg(1)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
-	Run.start_new_run(&"korvan", int(wt.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)))
+	Run.start_new_run(&"korvan", int(wt.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)))
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var st := -1
 	for raw in Run.map:
@@ -49,7 +37,7 @@ func _run() -> void:
 	Run.map[st].visited = true
 	SectorScreen._approached_at = st
 	Router.park_at_station()
-	var route := _arg("route", "local")
+	var route := Harness.arg("route", "local")
 	if route == "parked":
 		# (LOCAL at the station, nothing happening: the dust's idle rate)
 		Router.show_local()
@@ -61,10 +49,10 @@ func _run() -> void:
 	if route == "first":
 		# The dock's arrival is the first system's, five seconds in so both have settled.
 		Router.show_local()
-		await _frames(150)
+		await Harness.frames(_tree, 150)
 		# (`stills=<dir>`: the frame before the arrival, then 0.5 s and 1 s into
 		# it, at 2x, for judging the dust against the arrival)
-		var stills := _arg("stills", "")
+		var stills := Harness.arg("stills", "")
 		if stills != "":
 			DirAccess.make_dir_recursive_absolute(stills)
 			await _still(stills, "arrive_0.0s")
@@ -83,7 +71,7 @@ func _run() -> void:
 		ZoomLadder.force = 0
 		Router.show_station()
 		ZoomLadder.force = 1
-		await _frames(120)
+		await Harness.frames(_tree, 120)
 		await _undock()
 		_tree.quit()
 		return
@@ -91,12 +79,12 @@ func _run() -> void:
 		Router.show_system()
 	else:
 		Router.show_local()
-	await _frames(150)
+	await Harness.frames(_tree, 150)
 	var f0 := Engine.get_frames_drawn()
 	if route == "map":
 		var m := Router.current as SystemMapScreen
 		m.panel.show_system()
-		await _frames(2)
+		await Harness.frames(_tree, 2)
 		var card = m.panel._cards.get(&"dock")
 		(card._right as Button).pressed.emit()
 	else:
@@ -129,7 +117,7 @@ func _run() -> void:
 		if Router.current is StationScreen and not ZoomLadder.busy():
 			print("  [dockfilm] frame %d: the move done" % (Engine.get_frames_drawn() - f0))
 			break
-	await _frames(75)
+	await Harness.frames(_tree, 75)
 	# (`undock`: and out again)
 	if "undock" in _args:
 		await _undock()
@@ -138,7 +126,7 @@ func _run() -> void:
 
 ## UNDOCK as the station's screen does it, logging dust and ship place every frame on LOCAL.
 func _undock() -> void:
-	var stills := _arg("stills", "")
+	var stills := Harness.arg("stills", "")
 	if stills != "":
 		DirAccess.make_dir_recursive_absolute(stills)
 	print("  [dockfilm] undock: UNDOCK at drawn %d" % Engine.get_frames_drawn())

@@ -67,7 +67,7 @@ func _run() -> void:
 				_rule(seed_v, k, e)
 			_hook(seed_v, k)
 	if not "rulesonly" in OS.get_cmdline_user_args():
-		StarchartScreen.MapChart.clock_override = 600.0
+		MapChart.clock_override = 600.0
 		DisplaySettings.reduced_motion = false
 		for st in _arg("styles", "painted,simplified,radiant").split(","):
 			DisplaySettings._harness_style = true
@@ -215,7 +215,7 @@ func _drawn(st: StringName, kind: int) -> void:
 	var small: Image = (await _open(true)).img
 	ChartTorn.big = true
 	var op: Dictionary = await _open(true)
-	var chart: StarchartScreen.MapChart = op.chart
+	var chart: MapChart = op.chart
 	var big: Image = op.img
 	_save(big, "%s_%d_big" % [st, kind])
 	var void_l := _void(small)
@@ -313,9 +313,9 @@ func _drawn(st: StringName, kind: int) -> void:
 
 
 ## The giant's bulge on the screen against the chart's marks, words and controls.
-func _clear(tag: String, chart: StarchartScreen.MapChart) -> void:
+func _clear(tag: String, chart: MapChart) -> void:
 	var core_pt: Vector2 = chart._screen_pos(Run.map[_core_index()])
-	var ze: float = chart.zoom * chart._radius() * StarchartScreen.MapChart.DISC / ChartSky.K0
+	var ze: float = chart.zoom * chart._radius() * MapChart.DISC / ChartSky.K0
 	var kc := 1.0
 	if ChartSky.solid():
 		var w := ChartSky.SOLID_CAM
@@ -417,7 +417,7 @@ func _save(img: Image, name: String) -> void:
 ## and YOU's mark and name.
 ## `every`: every system still standing, charted or not (the hook runs past the rim's,
 ## which a run charts later).
-func _mark_boxes(chart: StarchartScreen.MapChart, every := false) -> Array[Rect2]:
+func _mark_boxes(chart: MapChart, every := false) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var here := Run.node_at()
 	var visible: Dictionary = chart._visible_set(here, chart._in_range())
@@ -504,7 +504,7 @@ func _open(fresh: bool, pan := Vector2.ZERO) -> Dictionary:
 	if fresh:
 		ChartSky._baked.clear()
 		ChartSky._early.clear()
-		StarchartScreen.MapChart._sky_cache.clear()
+		MapChart._sky_cache.clear()
 	var old := Router.current
 	if fresh or not old is StarchartScreen:
 		Router.show_starchart()
@@ -512,14 +512,14 @@ func _open(fresh: bool, pan := Vector2.ZERO) -> Dictionary:
 		while (Router.current == old or not Router.current is StarchartScreen) and Time.get_ticks_msec() - t0 < 10000:
 			await get_tree().process_frame
 	var scp := Router.current as StarchartScreen
-	var chart: StarchartScreen.MapChart = scp._chart
+	var chart: MapChart = scp._chart
 	var sky := chart._sky as ChartSky
 	var t1 := Time.get_ticks_msec()
 	while not sky.ready_to_draw() and Time.get_ticks_msec() - t1 < 30000:
 		await get_tree().process_frame
 	scp.dismiss_primer()
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var k: float = chart._radius() * StarchartScreen.MapChart.DISC
+	var k: float = chart._radius() * MapChart.DISC
 	chart._go_to(0.42 * ChartSky.K0 / k, pan, false)
 	chart._repaint_sky()
 	chart.show_icons = false

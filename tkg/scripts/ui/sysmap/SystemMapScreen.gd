@@ -1148,7 +1148,8 @@ func _map_at(p: Vector2) -> Vector2:
 ## Why: docs/why/SystemMapScreen.md#go-in-flight
 func _on_map_input(e: InputEvent) -> void:
 	last_input_t = Time.get_ticks_msec() / 1000.0
-	if _transfer != null or _diving:
+	# No flight until the sky bake has made the ship: a tap before then has nothing to fly.
+	if _transfer != null or _diving or flight == null:
 		return
 	if e is InputEventMouseMotion:
 		var mm := e as InputEventMouseMotion
@@ -1173,7 +1174,7 @@ func _on_map_input(e: InputEvent) -> void:
 			_scan_px = fmod(_scan_px, SCAN_STEP)
 			_sound(&"chart_scan", 0.08, SCAN_LIMIT_MS)
 	elif e is InputEventGesture:
-		var f := StarchartScreen.MapChart.gesture_zoom(e, ZOOM_STEP)
+		var f := MapChart.gesture_zoom(e, ZOOM_STEP)
 		if f != 1.0:
 			_zoom_by(f, _map_at((e as InputEventGesture).position))
 		_frame.accept_event()
@@ -1200,6 +1201,10 @@ func _on_map_input(e: InputEvent) -> void:
 					_dragging = false
 			MOUSE_BUTTON_MIDDLE:
 				_dragging = mb.pressed
+				if mb.pressed:
+					_drag_from = mb.position
+					_press_at = mb.position
+					_drag_moved = false
 			MOUSE_BUTTON_RIGHT:
 				if mb.pressed:
 					right_click(overlay.hit(_map_at(mb.position)))
@@ -1576,7 +1581,7 @@ func ladder_anchor(other: int, seam: int, design: String) -> Vector2:
 
 
 ## How far the map moves before it hands over (a share of k), 0 for none.
-func ladder_pre(target: int, seam: int, design: String) -> float:
+func ladder_pre(_target: int, seam: int, design: String) -> float:
 	if not ladder_ready():
 		return 0.0
 	if seam == 2 and design == "B":

@@ -134,3 +134,48 @@ profile that has not unlocked Solari still posts its work, but the crate it
 asks for is unmarked rather than named after a part the player has never
 seen and cannot meet.
 ```
+
+## Heat contracts
+
+Above `static func heat_deliverable_at(n: MapGen.MapNode) -> Array:`:
+
+```text
+Heat contracts you could close RIGHT NOW, standing where you are.
+
+Separate from deliverable_at() because a heat contract is never READY out in
+the dark — it becomes closable at the moment you dock still carrying the heat,
+and it stops being closable the moment you vent. It is the one job whose
+completion is a fact about this second.
+```
+
+## Fetch contracts
+
+Above `static func reach_target(index: int) -> void:`:
+
+```text
+Taking the pickup finishes any FETCH pointed at this system.
+
+Called by the pickup's own event (`OptionTable` `job_pickup`), which
+`Contracts.post_goal` puts on the named system's map; and on arrival
+(`Router.settle_arrival`) only for a fetch naming a place that cannot hold
+an event, which nothing signed now does. A recovered item is
+NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
+accident and cannot be lost to a full hold. A contract that soft-locks on
+inventory is a bug wearing a decision's clothes, and there is no version of
+"you sold the thing you were paid to fetch" that is worth what it costs.
+```
+
+## Delivery markers
+
+Above `static func delivery_manufacturers() -> Array:`:
+
+```text
+Manufacturers with something waiting to be handed over: a heat contract you are
+carrying the heat for, or any job you have already finished out there.
+
+THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place
+before you go; this points at a place afterwards, and a heat contract points
+at one and never had a target at all. Without it the chart answers "where is
+the work" and goes silent on "where do I take it", which is the half of the
+trip that actually costs fuel.
+```

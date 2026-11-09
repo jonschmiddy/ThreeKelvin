@@ -289,6 +289,8 @@ func _on_run_started() -> void:
 	# Let go of the `Sig` bus first: a dropped fight's connections would outlive it.
 	drop_combat()
 	final_loot = false
+	# Quitting from a berth must not carry its dock into the next run's first arrival.
+	docked = false
 	# Parked ship spots are kept by system index, so a new run must not inherit them.
 	SystemMapScreen._parked.clear()
 	# Same for the event last opened on LOCAL, also kept by system index.
@@ -319,7 +321,7 @@ func new_run(seed_value: int = 0) -> void:
 	Rng.forced = was
 	# the run's star chart built on a worker while the hull is picked, not on
 	# the click that first opens it (`MapChart.build_ahead`)
-	StarchartScreen.MapChart.build_ahead()
+	MapChart.build_ahead()
 	show_chassis_select()
 
 func show_chassis_select() -> void:
@@ -341,7 +343,7 @@ func continue_run() -> void:
 		return
 	crumb("[run] resumed, seed %d, jump %d, %s" % [Run.galaxy_seed, Run.jumps, BuildInfo.stamp()])
 	# (and its star chart, as a new run's: `MapChart.build_ahead`)
-	StarchartScreen.MapChart.build_ahead()
+	MapChart.build_ahead()
 	# QUIT BETWEEN THE CORE'S KILL AND ITS BODY: back to the body, to click.
 	if Run.won and core_body_here() != null:
 		await_core_body()
@@ -389,7 +391,8 @@ func _saved_fight_over(saved: Dictionary) -> bool:
 	var n: MapGen.MapNode = Run.node_at()
 	if bool(saved.get("clears", true)) and n != null and n.cleared:
 		return true
-	return String(ids[0]) == "hellbender" and 		(not Run.hellbender_alive() or Run.hellbender_at != Run.at)
+	return String(ids[0]) == "hellbender" and \
+			(not Run.hellbender_alive() or Run.hellbender_at != Run.at)
 
 
 ## `back` is where LEAVE returns to, so three screens can reach the HUD.
@@ -964,7 +967,9 @@ func show_station() -> void:
 		Audio.suppress(&"ui_tab", 200)
 		# A dock that flies the ship into the yard owes the clamps sound until it lands (Jon).
 		# Why: docs/why/Router.md#station-docking
-		if animating() and ZoomLadder.busy() and not ZoomLadder.active._cut 				and ZoomLadder.active.r_new == ZoomLadder.STATION and ZoomLadder.active.seam == 3 				and ZoomLadder.active.design in ["B", "D"]:
+		if animating() and ZoomLadder.busy() and not ZoomLadder.active._cut \
+				and ZoomLadder.active.r_new == ZoomLadder.STATION and ZoomLadder.active.seam == 3 \
+				and ZoomLadder.active.design in ["B", "D"]:
 			dock_clamps_owed = true
 		else:
 			play_dock()
@@ -1205,7 +1210,8 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 		_ask_serial += 1
 		# If the fight was dropped or ended while asking, leave again or the party waits.
 		if combat != cb or cb.finished:
-			var kept := combat != null and combat != cb and 				(combat.shared_at == node.index or combat.asking_at == node.index)
+			var kept := combat != null and combat != cb and \
+					(combat.shared_at == node.index or combat.asking_at == node.index)
 			if f != null and not kept:
 				Net.leave_fight(node.index)
 			Net.take_held_swings(node.index)

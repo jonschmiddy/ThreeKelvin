@@ -3,25 +3,17 @@ extends Node
 ## SIGN must change one note only; it rebuilt the whole hiring board (Jon, Oct 22).
 ## Why: docs/why/BoardSignTest.md#sign-test
 
-var _fails := 0
+var h := Harness.new()
 var _tree: SceneTree
 
 
 func _ok(what: String, c: bool) -> bool:
-	print("  %s %s" % ["ok  " if c else "FAIL", what])
-	if not c:
-		_fails += 1
-	return c
+	return h._ok(what, c)
 
 
 func _ready() -> void:
 	_tree = get_tree()
 	_run.call_deferred()
-
-
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
 
 
 func _run() -> void:
@@ -30,8 +22,8 @@ func _run() -> void:
 	for dev: int in [MapGen.Development.OUTPOST, MapGen.Development.SETTLEMENT, MapGen.Development.CITY]:
 		await _board(dev, false)
 	await _board(MapGen.Development.OUTPOST, true)
-	print("boardsigntest: %s (%d failed)" % ["PASS" if _fails == 0 else "FAIL", _fails])
-	_tree.quit(1 if _fails > 0 else 0)
+	h.verdict("boardsigntest")
+	_tree.quit(h.code())
 
 
 ## No board promises a Hellbender bounty, as it was never paid (Jon, Oct 22).
@@ -166,17 +158,6 @@ func _offers_wire(n: MapGen.MapNode) -> String:
 	return str(out)
 
 
-func _find_button(n: Node, text: String) -> Button:
-	var b := n as Button
-	if b != null and b.text == text and b.is_visible_in_tree():
-		return b
-	for c in n.get_children():
-		var got := _find_button(c, text)
-		if got != null:
-			return got
-	return null
-
-
 func _find_label(n: Node, text: String) -> bool:
 	if n is Label and (n as Label).text == text:
 		return true
@@ -223,7 +204,7 @@ func _board(dev: int, heat: bool) -> void:
 	if not _ok("%s: a station posting two offers%s" % [tag, ", the first a heat job" if heat else ""], n != null):
 		return
 	Router.show_station()
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var st := Router.current as StationScreen
 	if not _ok("%s: the station is up, its Hiring Board on" % tag, st != null and st._tabs.has(&"work")):
 		return
@@ -231,7 +212,7 @@ func _board(dev: int, heat: bool) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 20000 and not st.deck_subject(&"work").has_area():
 		await _tree.process_frame
-	await _frames(4)
+	await Harness.frames(_tree, 4)
 	if not _ok("%s: the board is open and lit" % tag, st.deck_subject(&"work").has_area()):
 		return
 	var bd := st._board
@@ -252,7 +233,7 @@ func _board(dev: int, heat: bool) -> void:
 			target.push_input(mb)
 			await _tree.process_frame
 		bd._pop_next = PostingBoard._t()
-		await _frames(6)
+		await Harness.frames(_tree, 6)
 		_ok("%s: the %s tab picked (tab %d) and a popup up" % [tag, PostingBoard.TABS[i], bd.tab], bd.tab == i and bd._pop_at >= 0.0)
 
 	var before := _look(st)
@@ -261,9 +242,9 @@ func _board(dev: int, heat: bool) -> void:
 	# this reads the same on any version of the board)
 	var says: Array[String] = []
 	for c in st._work.get_children():
-		if _find_button(c, "SIGN") != null:
+		if Harness.button_with_text(c, "SIGN") != null:
 			says.append("offer")
-		elif _find_button(c, "DELIVER") != null:
+		elif Harness.button_with_text(c, "DELIVER") != null:
 			says.append("deliver")
 		elif _find_label(c, "SIGNED, ELSEWHERE"):
 			says.append("mine")
@@ -278,13 +259,13 @@ func _board(dev: int, heat: bool) -> void:
 	if not _ok("%s: an offer's note is on the board" % tag, at_i >= 0):
 		return
 	var note := st._work.get_child(at_i) as Control
-	var sign := _find_button(note, "SIGN")
+	var sign := Harness.button_with_text(note, "SIGN")
 	if not _ok("%s: it carries SIGN" % tag, sign != null):
 		return
 	var job: ContractData = Contracts.board(n)[0]
 	var held0 := Run.contracts.size()
 	await _click(sign)
-	await _frames(10)
+	await Harness.frames(_tree, 10)
 	var after := _look(st)
 	_ok("%s: SIGN signed it (%d jobs in the ledger, %d before)" % [tag, Run.contracts.size(), held0],
 		Run.contracts.size() == held0 + 1 and Run.holds_contract(job))
@@ -307,13 +288,13 @@ func _board(dev: int, heat: bool) -> void:
 		_ok("%s: the signed note keeps its place and size (%s, %s before)" % [tag, sa.rect, sb.rect], sa.rect == sb.rect)
 		var now := st._work.get_child(at_i)
 		if heat:
-			var pay := _find_button(now, "OFFLOAD %d HEAT" % job.amount)
+			var pay := Harness.button_with_text(now, "OFFLOAD %d HEAT" % job.amount)
 			_ok("%s: it reads OFFLOAD, payable here at once, and no SIGN (%s)" % [tag, sa.say],
-				pay != null and _find_button(now, "SIGN") == null and sa.say.contains("|pay|"))
+				pay != null and Harness.button_with_text(now, "SIGN") == null and sa.say.contains("|pay|"))
 			if pay != null:
 				var cash := Run.credits
 				await _click(pay)
-				await _frames(10)
+				await Harness.frames(_tree, 10)
 				var paid := _look(st)
 				_ok("%s: OFFLOAD paid it (credits %d -> %d)" % [tag, cash, Run.credits], Run.credits > cash and not Run.holds_contract(job))
 				var still := true
@@ -321,11 +302,11 @@ func _board(dev: int, heat: bool) -> void:
 					if i != at_i and (paid.notes[i].id != before.notes[i].id or paid.notes[i].rect != before.notes[i].rect):
 						still = false
 				_ok("%s: paid, the note is back to SIGN in its place, the rest unmoved" % tag,
-					_find_button(st._work.get_child(at_i), "SIGN") != null and paid.notes[at_i].rect == sb.rect and still
+					Harness.button_with_text(st._work.get_child(at_i), "SIGN") != null and paid.notes[at_i].rect == sb.rect and still
 					and paid.laid == before.laid)
 		else:
 			_ok("%s: it is stamped SIGNED, with no SIGN on it (%s)" % [tag, sa.say],
-				_find_button(now, "SIGN") == null and _has_stamp(now) and sa.say.contains("|signed|"))
+				Harness.button_with_text(now, "SIGN") == null and _has_stamp(now) and sa.say.contains("|signed|"))
 	for k: String in ["tab", "counts", "deck", "laid", "slots", "jobs", "ticker", "pop", "boot", "lit"]:
 		_ok("%s: the board's %s is unchanged%s" % [tag, k, "" if str(after[k]) == str(before[k]) else " (%s -> %s)" % [str(before[k]).left(160), str(after[k]).left(160)]],
 			str(after[k]) == str(before[k]))
@@ -334,7 +315,7 @@ func _board(dev: int, heat: bool) -> void:
 	# A REFRESH FROM ELSEWHERE (credits moving fires it) changes nothing either
 	Run.credits += 5
 	Sig.resources_changed.emit()
-	await _frames(6)
+	await Harness.frames(_tree, 6)
 	var later := _look(st)
 	var same: bool = later.notes.size() == after.notes.size()
 	if same:

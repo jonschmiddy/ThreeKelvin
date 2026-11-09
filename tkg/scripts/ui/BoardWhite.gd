@@ -99,7 +99,7 @@ static func draw(b: PostingBoard, i: int) -> void:
 			var w := PostingBoard.WHITE
 			for k in 7:
 				b.draw_rect(Rect2(p.x + 62.0 + float(k % 2) * 3.0, p.y + 2.0 + float(k) * 6.0, 52.0, 6.0),
-					Color(w.r, w.g, w.b, 0.78))
+					Color(w, 0.78))
 		4:
 			# a smiley that does not quite close, and a number
 			var c2 := Vector2(20, 22)
@@ -560,18 +560,18 @@ static func _star(b: PostingBoard, c: Vector2, r: float, col: Color) -> void:
 		var p0: Vector2 = (pts[k] as Vector2).round()
 		var p1: Vector2 = (pts[k + 1] as Vector2).round()
 		b.draw_line(p0, p1, col, 1.0)
-		b.draw_line(p0 + Vector2(1, 0), p1 + Vector2(1, 0), Color(col.r, col.g, col.b, 0.6), 1.0)
+		b.draw_line(p0 + Vector2(1, 0), p1 + Vector2(1, 0), Color(col, 0.6), 1.0)
 
 
 ## A signature: a looping scrawl `w` wide and a flick under it.
 static func _squig(b: PostingBoard, p: Vector2, w: float, col: Color, s: float, initial := "") -> void:
 	# a big capital, then the rest of the name run out into humps that shrink
 	var caps := "ABDEJKLMNPRSTW"
-	var cap := initial if initial != "" else caps[int(ShopLight.hash1(s) * float(caps.length())) % caps.length()]
+	var cap := initial if initial != "" else caps[int(UIHash.hash1(s) * float(caps.length())) % caps.length()]
 	_say(b, cap, p.x, p.y + 5.0, col, s, true)
 	var pts: Array = []
 	var n := 20
-	var humps := 4.0 + floorf(ShopLight.hash1(s + 0.3) * 2.0)
+	var humps := 4.0 + floorf(UIHash.hash1(s + 0.3) * 2.0)
 	var x0 := p.x + 15.0
 	for j in n + 1:
 		var t := float(j) / float(n)
@@ -957,21 +957,21 @@ static func _p_dots(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var vt := {}
 	for j in ny:
 		for i in nx - 1:
-			hz[Vector2i(i, j)] = ShopLight.hash1(s * 0.37 + float(j * 17 + i) * 1.31) < dn
+			hz[Vector2i(i, j)] = UIHash.hash1(s * 0.37 + float(j * 17 + i) * 1.31) < dn
 	for j in ny - 1:
 		for i in nx:
-			vt[Vector2i(i, j)] = ShopLight.hash1(s * 0.53 + float(j * 17 + i) * 1.71 + 50.0) < dn
+			vt[Vector2i(i, j)] = UIHash.hash1(s * 0.53 + float(j * 17 + i) * 1.71 + 50.0) < dn
 	var k := 0
 	for key: Vector2i in hz:
 		if hz[key]:
 			var a := o + Vector2(key) * sp
-			var col := RED if ShopLight.hash1(s + float(k) * 0.9) < 0.5 else BLUE
+			var col := RED if UIHash.hash1(s + float(k) * 0.9) < 0.5 else BLUE
 			_ln(b, a + Vector2(3, 0), a + Vector2(sp - 3.0, 0), col, s + 60.0 + float(k))
 		k += 1
 	for key: Vector2i in vt:
 		if vt[key]:
 			var a := o + Vector2(key) * sp
-			var col := RED if ShopLight.hash1(s + float(k) * 0.9) < 0.5 else BLUE
+			var col := RED if UIHash.hash1(s + float(k) * 0.9) < 0.5 else BLUE
 			_ln(b, a + Vector2(0, 3), a + Vector2(0, sp - 3.0), col, s + 60.0 + float(k))
 		k += 1
 	var ta := String(d["a"])
@@ -981,7 +981,7 @@ static func _p_dots(b: PostingBoard, d: Dictionary, s: float) -> void:
 	for j in ny - 1:
 		for i in nx - 1:
 			if hz[Vector2i(i, j)] and hz[Vector2i(i, j + 1)] and vt[Vector2i(i, j)] and vt[Vector2i(i + 1, j)]:
-				var mine := ShopLight.hash1(s + float(i) * 3.1 + float(j) * 7.3) < 0.5
+				var mine := UIHash.hash1(s + float(i) * 3.1 + float(j) * 7.3) < 0.5
 				var at := o + Vector2(i, j) * sp
 				if mine:
 					ca += 1
@@ -1039,7 +1039,7 @@ static func _p_bars(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> voi
 		b._wobble_rect(Rect2(x, top, 12, bh), col, s + 10.0 + float(k))
 		var yy := top + 4.0
 		while yy + 2.0 < base - 1.0:
-			b.draw_line(Vector2(x + 2.0, yy + 2.0), Vector2(x + 10.0, yy - 1.0), Color(col.r, col.g, col.b, 0.7), 1.0)
+			b.draw_line(Vector2(x + 2.0, yy + 2.0), Vector2(x + 10.0, yy - 1.0), Color(col, 0.7), 1.0)
 			yy += 4.0
 		var t := String(ls[k])
 		_say(b, t, 16.0 + float(k) * slot + (slot - _tw(t)) * 0.5, z.y - 2.0, BLACK, s + 20.0 + float(k))
@@ -1557,7 +1557,7 @@ static func _p_erased(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> v
 	var k2 := 0
 	while y < float(wy[1]) - 6.0:
 		var off := float(k2 % 2) * 3.0
-		b.draw_rect(Rect2(wx + off, y, z.x - 2.0 - wx - off, 6.0), Color(w.r, w.g, w.b, 0.8))
+		b.draw_rect(Rect2(wx + off, y, z.x - 2.0 - wx - off, 6.0), Color(w, 0.8))
 		y += 6.0
 		k2 += 1
 	var add: Array = d["add"]
@@ -1648,8 +1648,8 @@ static func _sal_th(x: float) -> float:
 static func _p_swarm(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var c := Vector2(30, 34)
 	for k in 46:
-		var a := ShopLight.hash1(s + float(k) * 1.7) * TAU
-		var rr := sqrt(ShopLight.hash1(s + float(k) * 2.3 + 0.5)) * 24.0
+		var a := UIHash.hash1(s + float(k) * 1.7) * TAU
+		var rr := sqrt(UIHash.hash1(s + float(k) * 2.3 + 0.5)) * 24.0
 		_dot(b, c + Vector2(cos(a) * rr, sin(a) * rr * 0.8), BLACK)
 	_caption(b, d["t"], 62, 66, RED, s + 10.0)
 

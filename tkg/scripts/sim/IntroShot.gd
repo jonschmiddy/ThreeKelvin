@@ -11,13 +11,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
-
-
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
@@ -26,14 +19,14 @@ func _run() -> void:
 		DisplaySettings.reduced_motion = true
 	# a fresh player, as far as the scratch store knows
 	Hints.reset()
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
-	var dir := _arg("clip")
+	var dir := Harness.arg("clip")
 	if dir != "":
 		DirAccess.make_dir_recursive_absolute(dir)
-	var every := int(_arg("every", "6"))
-	var frames := int(float(_arg("secs", "12")) * 60.0)
+	var every := int(Harness.arg("every", "6"))
+	var frames := int(float(Harness.arg("secs", "12")) * 60.0)
 	var t := 0.0
 	var k := 0
 	var control_at := -1.0

@@ -207,7 +207,6 @@ def segments(x, gate_db=-38, min_gap_ms=80):
 
 def glitch(x, p, rng):
     gaps = segments(x)
-    # lines are split at the long pauses (>250 ms)
     # lines are split at the "..." pauses (>1 s); shorter gaps are word/phrase boundaries
     longs = [g for g in gaps if g[1] - g[0] > 1.0 * SR]
     bounds = [0] + [(a + b) // 2 for a, b in longs] + [len(x)]

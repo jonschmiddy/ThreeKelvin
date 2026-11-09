@@ -6,8 +6,6 @@ extends RefCounted
 ## Why: docs/why/FaunaGuard.md#fauna-guard
 
 static var enabled := true
-## Block's light (the bubble's colour, so block still reads as block).
-const BLOCK_COL := Color("#7cd8ff")
 
 
 static func wants(kind: int) -> bool:
@@ -37,9 +35,6 @@ class Body extends RefCounted:
 	var din := PackedInt32Array()
 	var fps := 8.0
 	var cut_ms := 0.0
-
-	func u_of(x: float) -> float:
-		return clampf((x - float(x0)) / maxf(1.0, float(x1 - x0)), 0.0, 1.0)
 
 	func on(x: int, y: int) -> bool:
 		return x >= 0 and y >= 0 and x < W and y < H and ink[y * W + x] == 1
@@ -179,12 +174,6 @@ static func shown(fm: FaunaMotion, p: Vector2) -> Vector2:
 	if fm == null:
 		return p
 	return p + Vector2(0, fm.off_at(int(p.x), int(p.y)))
-
-
-static func shown_spine(fm: FaunaMotion, p: Vector2) -> Vector2:
-	if fm == null:
-		return p
-	return p + Vector2(0, fm.spine_off_at(int(p.x)))
 
 
 static func in_keep(keep: Array, p: Vector2, s: Vector2 = Vector2.ONE) -> bool:

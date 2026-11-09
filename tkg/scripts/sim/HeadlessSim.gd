@@ -330,7 +330,7 @@ func _run_by_chassis() -> void:
 		for w in weights:
 			_reset()
 			for i in runs:
-				_play_one(manufacturer, int(w))
+				_play_one(manufacturer, int(w), i)
 			var hull := DB.hull_for(manufacturer, w)
 			var rate := 100.0 * wins / maxi(1, runs)
 			rows.append({name = hull.name, rate = rate})
@@ -554,6 +554,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			var pf := Run.fuel
 			Run.harvest_pulsar()
 			_tr.pulsar_fuel += Run.fuel - pf
+			fuel_from_elsewhere += maxi(0, Run.fuel - pf)
 			if Run.dead:
 				break
 		# Policy-taken options are the only way a system resolves since the collapse, fights too.
@@ -564,6 +565,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			var ot := credits_taken
 			var got := policy.take_options(node)
 			_tr.event_fuel += Run.fuel - of
+			fuel_from_elsewhere += maxi(0, Run.fuel - of)
 			# What the lines themselves paid, the loot of any fight they
 			# opened left out (`_loot` counts that into `credits_taken`).
 			_event_credits += (Run.credits - oc) - (credits_taken - ot)
@@ -766,6 +768,9 @@ func _play_out(cb: Combat) -> int:
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
+	if not cb.finished:
+		errors += 1
+		print("  a fight was cut off at %d turns" % turns)
 	return turns
 
 
@@ -1376,7 +1381,7 @@ func _mix_table(keys: Array, cut: int) -> void:
 
 
 ## Keeps the first jump where the fuel hint's rule is true, and whether it would name a dock.
-func _audit_jump(node: MapGen.MapNode, pick: int) -> void:
+func _audit_jump(node: MapGen.MapNode, _pick: int) -> void:
 	if _tr.is_empty():
 		return
 	var dear := 0

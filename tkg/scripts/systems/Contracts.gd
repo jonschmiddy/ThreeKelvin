@@ -209,6 +209,201 @@ static func _reopen(n: MapGen.MapNode) -> void:
 	n.cleared = false
 
 
+# --- the ledger: `Run.contracts`, `Run.event_quests`, `Run.standing` -----------
+# `Run` keeps a one-line forwarder for each of these, and the fields themselves.
+
+## Take a job, returning the ledger's copy; the board keeps its own, so a partner is
+## offered the same work.
+static func take(c: ContractData) -> ContractData:
+	var mine := ContractData.from_wire(c.to_wire())
+	mine.id = Run.next_contract_id
+	Run.next_contract_id += 1
+	mine.state = ContractData.State.TAKEN
+	Run.contracts.append(mine)
+	# The work goes on the named system's map now, so it is there to find
+	# however you get there (`Contracts.post_goal`).
+	post_goal(mine)
+	Run.log_line("Signed: %s. It pays %d credits on delivery." % [
+		_short(mine), mine.pay], &"sys")
+	Sig.contracts_changed.emit()
+	return mine
+
+## Whether this work is already yours, compared by content, since the board
+## regenerates its objects every draw.
+static func holds(c: ContractData) -> bool:
+	for other in Run.contracts:
+		var o: ContractData = other
+		if o.state == ContractData.State.CLOSED:
+			continue
+		if o.manufacturer == c.manufacturer and o.kind == c.kind and o.at == c.at \
+				and o.amount == c.amount and o.posted_at == c.posted_at:
+			return true
+	return false
+
+## Work that is done and waiting to be paid at one of this station's berths.
+static func deliverable_at(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.READY:
+			continue
+		if ContractData.berth_of(n, job.manufacturer):
+			out.append(job)
+	return out
+
+## A heat contract can be closed only while docked and still carrying the heat.
+## Why: docs/why/Contracts.md#heat-contracts
+static func heat_deliverable_at(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN \
+				or job.kind != ContractData.Kind.HEAT:
+			continue
+		if ContractData.berth_of(n, job.manufacturer) and Run.heat >= job.amount:
+			out.append(job)
+	return out
+
+## Paid. Heat contracts spend the heat; the other two spend the flying you
+## already did.
+static func deliver(job: ContractData) -> void:
+	if job == null or job.state == ContractData.State.CLOSED:
+		return
+	if job.kind == ContractData.Kind.HEAT:
+		if Run.heat < job.amount:
+			return
+		Run.heat -= job.amount
+		Run.log_line("Offloaded %d heat." % job.amount, &"heat")
+	job.state = ContractData.State.CLOSED
+	Run.quests_done.append("c%d" % job.id)
+	Run.add_credits(job.pay)
+	Run.standing[job.manufacturer] = int(Run.standing.get(job.manufacturer, 0)) + job.standing
+	Run.log_line("Delivered. %d credits. %s account in good order." % [
+		job.pay, DB.short_name(DB.manufacturer_name(job.manufacturer))], &"good")
+	Sig.contracts_changed.emit()
+	Sig.resources_changed.emit()
+
+## An event placed option `id` on `at`, from option `from`. One record a system,
+## since the chart marks a system only once.
+static func note_placed(at: int, id: StringName, from: StringName) -> void:
+	for i in range(Run.event_quests.size() - 1, -1, -1):
+		if int((Run.event_quests[i] as Dictionary).get("at", -1)) == at:
+			Run.event_quests.remove_at(i)
+	Run.event_quests.append({at = at, id = id, from = from})
+
+
+## The record of the event quest on system `at`, or {} (a save from before
+## the records, or nothing placed there).
+static func event_quest_at(at: int) -> Dictionary:
+	for raw in Run.event_quests:
+		var r: Dictionary = raw
+		if int(r.get("at", -1)) == at:
+			return r
+	return {}
+
+
+## Option `slot` at `n` was taken: if it is an event quest, record its pay and finish
+## it. A signed job's quest is its contract.
+static func finish_event_quest(n: MapGen.MapNode, slot: int, paid: int, got: Array) -> void:
+	if n == null or slot < 0 or slot >= n.options.size():
+		return
+	var id: StringName = n.options[slot]
+	if not OptionTable.placed_ids().has(id):
+		return
+	var r := event_quest_at(n.index)
+	if r.is_empty() or StringName(r.get("id", &"")) != id:
+		# placed under a save from before the records: what is known now
+		note_placed(n.index, id, &"")
+		r = event_quest_at(n.index)
+	r["credits"] = paid
+	r["got"] = got.duplicate()
+	var key := "e%d" % n.index
+	Run.quests_done.erase(key)
+	Run.quests_done.append(key)
+	Sig.contracts_changed.emit()
+
+
+## A recovered item is named, not carried, so a contract cannot soft-lock on inventory.
+## Why: docs/why/Contracts.md#fetch-contracts
+static func reach_target(index: int) -> void:
+	var moved := false
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN or job.at != index:
+			continue
+		if job.kind != ContractData.Kind.FETCH:
+			continue
+		job.state = ContractData.State.READY
+		moved = true
+		Run.log_line("Recovered: %s. Strapped to the frame until you deliver it." % job.item,
+			&"good")
+	if moved:
+		Sig.contracts_changed.emit()
+
+## Winning a fight here finishes any HUNT pointed at it.
+static func clear_target(index: int) -> void:
+	var moved := false
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN or job.at != index:
+			continue
+		if job.kind != ContractData.Kind.HUNT:
+			continue
+		job.state = ContractData.State.READY
+		moved = true
+		Run.log_line("Contact removed. %s will want to hear about it." %
+			DB.short_name(DB.manufacturer_name(job.manufacturer)).to_upper(), &"good")
+	if moved:
+		Sig.contracts_changed.emit()
+
+## How well a manufacturer thinks of you. Zero for six of them, most of the time.
+static func standing_with(manufacturer: StringName) -> int:
+	return int(Run.standing.get(manufacturer, 0))
+
+## The bonus is on the bid only: a discount on the ask would open a buy-and-melt exploit.
+## Why: docs/why/RunState.md#standing
+const STANDING_BID := 0.05
+const STANDING_BID_MAX := 0.20
+static func standing_bid_bonus(manufacturer: StringName) -> float:
+	return minf(float(standing_with(manufacturer)) * STANDING_BID, STANDING_BID_MAX)
+
+static func _short(c: ContractData) -> String:
+	match c.kind:
+		ContractData.Kind.HEAT:
+			return "%d heat to %s" % [c.amount,
+				DB.short_name(DB.manufacturer_name(c.manufacturer))]
+		ContractData.Kind.HUNT:
+			return "a contact at %s" % MapGen.star_name(Run.map[c.at]) if c.at >= 0 \
+				and c.at < Run.map.size() else "a contact"
+		_:
+			return "%s from %s" % [c.item, MapGen.star_name(Run.map[c.at])] if c.at >= 0 \
+				and c.at < Run.map.size() else c.item
+
+
+## The open contract pointing at this system, or null. First match wins: the chart
+## can say so only once.
+static func open_at(index: int) -> ContractData:
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.TAKEN and job.at == index:
+			return job
+	return null
+
+
+## Marks where to hand finished work in, the half of the trip that costs fuel.
+## Why: docs/why/Contracts.md#delivery-markers
+static func delivery_manufacturers() -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.READY \
+				or (job.state == ContractData.State.TAKEN
+					and job.kind == ContractData.Kind.HEAT):
+			if not out.has(job.manufacturer):
+				out.append(job.manufacturer)
+	return out
+
+
 static func _trip_pay(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 	var hops := absi(to.layer - from.layer) + 1
 	return PAY_BASE + hops * PAY_PER_LAYER + MapGen.tier(to.danger) * PAY_PER_DANGER

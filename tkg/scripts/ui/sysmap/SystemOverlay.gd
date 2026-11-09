@@ -194,7 +194,7 @@ func _place_labels() -> void:
 				break
 		if int(e[0]) == 1:
 			for k in placed.size():
-				if int(_lq[k][0]) >= 3 and (placed[k] as Rect2).get_center().distance_to(_ship_at) < 160.0:
+				if int(_lq[k][0]) >= 3 and (placed[k] as Rect2).has_area() and (placed[k] as Rect2).get_center().distance_to(_ship_at) < 160.0:
 					hit = true
 		if hit:
 			placed.append(Rect2())

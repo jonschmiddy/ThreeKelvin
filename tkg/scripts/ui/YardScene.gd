@@ -371,7 +371,10 @@ func _capture_fitted(i: int) -> void:
 	_fit_vp[i] = vp
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	if not is_instance_valid(vp) or _fit_vp[i] != vp:
+	if not is_instance_valid(vp):
+		return
+	if _fit_vp[i] != vp:
+		vp.queue_free()
 		return
 	_fit_vp[i] = null
 	var got := vp.get_texture().get_image()

@@ -1964,12 +1964,12 @@ func _painter(rec: Dictionary, p: Dictionary, r: float, planet: bool = false) ->
 	vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
-	var pv: Node2D = Worlds.view_for(StringName(p.world))
+	var pv: WorldView = Worlds.view_for(StringName(p.world))
 	pv.position = Vector2(roundf(float(p.cx) * k) + pad, roundf(float(p.cy) * k) + pad)
 	vp.add_child(pv)
-	pv.call("set_world", StringName(p.world), int(p.seed), r0 * k)
+	pv.set_world(StringName(p.world), int(p.seed), r0 * k)
 	if shards:
-		pv.call("set_cell", 1)
+		pv.set_cell(1)
 	var spr: Sprite2D = rec.sprite
 	spr.texture = vp.get_texture()
 	var mat: ShaderMaterial = rec.mat
@@ -2363,7 +2363,7 @@ func _place() -> void:
 			m2.set_shader_parameter("to_star", local)
 			m2.set_shader_parameter("star_col", star_col)
 		if rec.planet != null:
-			(rec.planet as Node2D).call("step", t, Vector3(ts.x, ts.y, 0.47), 1.0)
+			(rec.planet as WorldView).step(t, Vector3(ts.x, ts.y, 0.47), 1.0)
 		if rec.get("spin_mat") != null:
 			(rec.spin_mat as ShaderMaterial).set_shader_parameter("phi", spin_phi(rec, t))
 	_t = t

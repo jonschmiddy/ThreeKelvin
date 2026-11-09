@@ -315,18 +315,7 @@ func _gutter() -> Control:
 
 ## A chamfered popup, the shape the escape drawer's plates already use.
 func _cut_box(pad_v: int, pad_h: int) -> StyleBoxFlat:
-	var b := StyleBoxFlat.new()
-	b.bg_color = UITheme.PANEL2
-	b.border_color = UITheme.LINE
-	b.set_border_width_all(1)
-	b.corner_radius_top_left = 10
-	b.corner_radius_bottom_right = 10
-	b.corner_detail = 1
-	b.content_margin_top = pad_v
-	b.content_margin_bottom = pad_v
-	b.content_margin_left = pad_h
-	b.content_margin_right = pad_h
-	return b
+	return UITheme.chamfer(UITheme.PANEL2, UITheme.LINE, pad_v, pad_h)
 
 
 ## The arrow shows which way things come, and holds still when motion is off.
@@ -495,8 +484,10 @@ func refresh() -> void:
 		# Reserve the bar only when a pile is deeper than it can show, or a column is lost.
 		# Why: docs/why/TransferView.md#scrollbar-room
 		var over := deep > FIT_ROWS
-		_loose_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO 			if over else ScrollContainer.SCROLL_MODE_SHOW_NEVER
-		_loose_scroll.custom_minimum_size.x = SalvageGrid.COLS * HoldGrid.CELL 			+ (BAR if over else 0)
+		_loose_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO \
+			if over else ScrollContainer.SCROLL_MODE_SHOW_NEVER
+		_loose_scroll.custom_minimum_size.x = SalvageGrid.COLS * HoldGrid.CELL \
+			+ (BAR if over else 0)
 	_loose_label.text = _jetsam.label if _jetsam != null else "SECTOR LOOT"
 
 

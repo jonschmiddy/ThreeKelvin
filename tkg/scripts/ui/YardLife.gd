@@ -538,7 +538,7 @@ func _put_lift(P: YardPaint, LS: Dictionary, rise: float) -> void:
 		P.tex(LS["tex"], Vector2(left, py), src, Color.WHITE, false)
 
 
-func _sparks(t: float, dt: float) -> void:
+func _sparks(_t: float, dt: float) -> void:
 	if weld_now["on"]:
 		for k in 3:
 			sparks.append({"x": float(weld_now["x"]) + 0.5, "y": float(weld_now["y"]) + 0.5, "vx": -28.0 + 56.0 * randf(),
@@ -688,7 +688,7 @@ func _at_stack() -> float:
 
 ## The forklift's next trip: deliver until the stack is three high, then fetch
 ## them back down to one (the page's `fkPlan`).
-func _fk_plan(t: float) -> void:
+func _fk_plan(_t: float) -> void:
 	var n := (FK["stack"] as Array).size()
 	if FK["mode"] == "deliver" and n >= 3:
 		FK["mode"] = "fetch"
@@ -1703,8 +1703,8 @@ func draw_air(P: YardPaint, t: float, dt: float) -> void:
 ## A walker's "!", a startled tech's, the bot's (the page's `drawGlyphs`).
 func draw_glyphs(P: YardPaint) -> void:
 	P.use(YardPaint.PLAIN)
-	var out := Color("#0a0e15")
-	var ink := Color("#ffd28a")
+	var out := UITheme.VOID
+	var ink := UITheme.HOT
 	for g: Array in GLYPH:
 		var x := float(g[0])
 		var y := float(g[1])

@@ -211,8 +211,8 @@ string with `chr(10)` or an explicit backslash.
 carries no `class_name`, so `RunState.PER_PIP` is a parse error — `.new()`
 returns nothing, `get_tree().quit()` never runs, and Godot sits there until the
 gate's watchdog kills it at 120 seconds. Autoload constants are reached through
-the singleton (`Run.PER_PIP`) from a harness, and through a `preload` from
-`Database`, which runs before the autoload exists.
+the singleton (`Run.PER_PIP`) from a harness, and `Database`, which runs before
+the autoload exists, reads `Attributes.PER_PIP`.
 
 **A multi-step edit that aborts partway writes nothing.** Twice a Python
 `assert` failed on the third of four replacements and I read the success line

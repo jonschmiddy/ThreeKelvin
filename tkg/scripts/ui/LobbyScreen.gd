@@ -51,7 +51,7 @@ func setup() -> void:
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(gap)
-	head.add_child(Widgets.button("BACK", _leave))
+	head.add_child(Widgets.button("BACK", leave))
 	col.add_child(head)
 	col.add_child(UITheme.hsep())
 
@@ -395,7 +395,7 @@ func _join() -> void:
 	_rebuild()
 
 
-func _leave() -> void:
+func leave() -> void:
 	Net.leave_party()
 	if on_leave.is_valid():
 		on_leave.call()

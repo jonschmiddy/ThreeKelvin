@@ -12,11 +12,6 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-func _frames(n: int) -> void:
-	for i in n:
-		await _tree.process_frame
-
-
 func _ok(what: String, c: bool) -> bool:
 	return h._ok(what, c)
 
@@ -31,7 +26,7 @@ func _offsets(slots: Array, ship: ShipView) -> Array:
 
 
 func _run() -> void:
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	h.seed_run(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var idx := -1
@@ -43,10 +38,10 @@ func _run() -> void:
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
 	Router.show_local()
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"], DB.enemies[&"cutter"]], false, false)
 	# past the fly-in, whatever it is headless
-	await _frames(30)
+	await Harness.frames(_tree, 30)
 	var t_in := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t_in < 800:
 		await _tree.process_frame
@@ -60,7 +55,7 @@ func _run() -> void:
 		if n2 is EnemySlot and (n2 as EnemySlot).is_visible_in_tree():
 			slots.append(n2)
 	slots.sort_custom(func(a: EnemySlot, b: EnemySlot) -> bool: return a.index < b.index)
-	var ship: ShipView = h.first(sc, func(n3: Node) -> bool:
+	var ship: ShipView = Harness.first(sc, func(n3: Node) -> bool:
 		return n3 is ShipView and (n3 as ShipView)._bob_amp > 0 and (n3 as ShipView).is_visible_in_tree()) as ShipView
 	if not _ok("three enemy slots and your ship bobbing (%d slots)" % slots.size(),
 			slots.size() == 3 and ship != null):
@@ -70,10 +65,10 @@ func _run() -> void:
 	# A FROZEN FRAME. The wall moves 2.6 s -- 0.55 of the slots' cycle, 0.78 of
 	# your ship's -- and the game none.
 	Engine.time_scale = 0.0
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var before := _offsets(slots, ship)
 	OS.delay_msec(2600)
-	await _frames(3)
+	await Harness.frames(_tree, 3)
 	var after := _offsets(slots, ship)
 	Engine.time_scale = 1.0
 	_ok("time stopped, 2.6 s on the wall: no bob moved (%s -> %s)" % [str(before), str(after)],
@@ -125,10 +120,10 @@ func _run() -> void:
 	# THE HARNESSES' HOOK: `shot_clock` still drives your ship.
 	var q := 1.0 / (4.0 * ship._bob_hz)
 	ShipView.shot_clock = q
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var top := ship._bob_off
 	ShipView.shot_clock = 3.0 * q
-	await _frames(2)
+	await Harness.frames(_tree, 2)
 	var bottom := ship._bob_off
 	ShipView.shot_clock = -1.0
 	_ok("shot_clock drives your ship's bob (%d at a quarter cycle, %d at three)" % [top, bottom],

@@ -1,0 +1,1 @@
+- **Changed** — internal only, nothing in the game: an on-demand tool, `-- sheet=GoldenFrames` with `tools/dev/golden_diff.py`, captures a few drawing frames before and after a refactor so it can show no pixel moved. It is not in the gate.

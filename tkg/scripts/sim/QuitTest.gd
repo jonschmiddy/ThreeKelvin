@@ -20,12 +20,12 @@ func run(tree: SceneTree) -> void:
 	# Wait for the chart, do not count frames: `for i
 	# in 3` passed seven runs and failed the eighth.
 	# Why: docs/why/QuitTest.md#quit-test-waits
-	var chart: StarchartScreen.MapChart = null
+	var chart: MapChart = null
 	var until := Time.get_ticks_msec() + 5000
 	while Time.get_ticks_msec() < until:
 		chart = null
 		if Router.current is StarchartScreen:
-			chart = first(Router.current, _is_chart) as StarchartScreen.MapChart
+			chart = first(Router.current, _is_chart) as MapChart
 		if chart != null:
 			break
 		await tree.process_frame
@@ -62,7 +62,7 @@ func _on_draw() -> void:
 
 
 func _is_chart(n: Node) -> bool:
-	return n is StarchartScreen.MapChart
+	return n is MapChart
 
 
 ## Tear down first, as `StowTest._finish` records: a

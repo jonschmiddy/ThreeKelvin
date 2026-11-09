@@ -5,19 +5,9 @@ extends Node
 
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
 
-var _args: PackedStringArray
-
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _wait(s: float) -> void:
@@ -27,8 +17,8 @@ func _wait(s: float) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	var id := StringName(_arg("id", "cutter"))
-	Rng.forced = int(_arg("seed", "4242"))
+	var id := StringName(Harness.arg("id", "cutter"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.hand_size_override = 5
 	for n: MapGen.MapNode in Run.map:
@@ -40,7 +30,7 @@ func _run() -> void:
 	Router.start_combat(DB.enemies[id], [], false, false)
 	var cb: Combat = Router.combat
 	var e: Combat.EnemyState = cb.enemies[0]
-	e.hp = mini(e.max_hp, int(_arg("hp", "6")))
+	e.hp = mini(e.max_hp, int(Harness.arg("hp", "6")))
 	Sig.enemy_changed.emit()
 	var sc := Router.current as SectorScreen
 	await _wait(2.2)
@@ -97,6 +87,6 @@ func _run() -> void:
 		guard += 1
 		await tree.process_frame
 	await _wait(4.0)
-	await _wait(float(_arg("hold", "2")))
+	await _wait(float(Harness.arg("hold", "2")))
 	print("fightfilm: done")
 	tree.quit()

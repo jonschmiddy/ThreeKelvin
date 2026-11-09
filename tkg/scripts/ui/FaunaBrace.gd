@@ -69,7 +69,7 @@ void fragment() {
 
 
 
-func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
+func setup(_img: Image, _used: Rect2i, origin: Vector2, seed: int, the_facing: int = -1) -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	facing = the_facing
@@ -86,19 +86,8 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 		if brace > 0 or _was_on:
 			ci.draw_texture(_data, Vector2.ZERO)
 	# the flakes that come off, and the light (the hit's dust)
-	for k in 2:
-		var l := BraceFx.Layer.new()
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		if k == 1:
-			var mat := CanvasItemMaterial.new()
-			mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-			l.material = mat
-			l.paint = _paint_light
-		else:
-			l.paint = _paint_body
-		add_child(l)
+	PaintLayer.add_to(self, _paint_body)
+	PaintLayer.add_to(self, _paint_light, true)
 
 
 func _new_skin(add: bool, code: String) -> FaunaGuard.GuardSkin:
@@ -137,7 +126,7 @@ func _build_hide() -> void:
 		var y := _rng.randi_range(b.r.position.y, b.r.end.y - 1)
 		if b.ink[y * W + x] == 1:
 			seeds.append(Vector2(x, y))
-	var fd := ShipBreakup._field(_rng, W, H, 6)
+	var fd := BreakupCuts._field(_rng, W, H, 6)
 	for s in seeds:
 		_patches.append({c = s, on = false, n = 0})
 	# the hide's own range of brightness (5th to 95th): a pale calf hardens
@@ -159,7 +148,7 @@ func _build_hide() -> void:
 			var best := 1e9
 			var bi := 0
 			for k in seeds.size():
-				var dd := Vector2(x, y).distance_to(seeds[k]) + 4.0 * ShipBreakup._nz(fd, x, y)
+				var dd := Vector2(x, y).distance_to(seeds[k]) + 4.0 * BreakupCuts._nz(fd, x, y)
 				if dd < best:
 					best = dd
 					bi = k
@@ -360,7 +349,7 @@ func advance(delta: float) -> void:
 	if brace > 0:
 		sig = st
 	for c2 in get_children():
-		if c2 is BraceFx.Layer:
+		if c2 is PaintLayer:
 			sig = sig * 7919 + int(c2.get_meta(&"sig", 0))
 	# counted once a step, on the frame after it (the step's paint is in)
 	if _since_step == 1:
@@ -385,9 +374,7 @@ func _paint_body(ci: CanvasItem) -> void:
 		if FaunaGuard.in_keep(keep, pp, Vector2(sz, sz)):
 			continue
 		var rot := posmod(int(floor(age * float(c.spin))), 4)
-		ci.draw_set_transform(pp + Vector2(sz, sz) * 0.5, float(rot) * PI * 0.5, Vector2.ONE)
-		ci.draw_texture(c.tex, -Vector2(sz, sz) * 0.5, Color(1, 1, 1, al))
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		FxKit.draw_chip(ci, c.tex, pp, Vector2(sz, sz), rot, al)
 		h = h * 31 + int(pp.x) * 5 + int(pp.y) * 11 + rot
 	ci.set_meta(&"sig", h)
 

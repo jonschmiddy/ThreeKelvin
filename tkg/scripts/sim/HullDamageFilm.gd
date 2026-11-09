@@ -11,19 +11,9 @@ const GAP := 1.1
 const HOLD := 2.6
 const YOU: Array = [[1.0, 6], [3.4, 9], [5.6, 7], [7.9, 8]]
 
-var _args: PackedStringArray
-
 
 func _ready() -> void:
-	_args = OS.get_cmdline_user_args()
 	_run.call_deferred()
-
-
-func _arg(k: String, d: String = "") -> String:
-	for a in _args:
-		if a.begins_with(k + "="):
-			return a.substr(k.length() + 1)
-	return d
 
 
 func _wait(s: float) -> void:
@@ -35,16 +25,16 @@ func _wait(s: float) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	ShipHitFx.look = {"today": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get(_arg("hull", "today"), 0)
-	var pack := _arg("pack", "")
-	var specs := (pack if pack != "" else _arg("id", "cutter")).split(",")
+	ShipHitFx.look = {"today": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get(Harness.arg("hull", "today"), 0)
+	var pack := Harness.arg("pack", "")
+	var specs := (pack if pack != "" else Harness.arg("id", "cutter")).split(",")
 	var kinds: Array[StringName] = []
 	var looks: Array[int] = []
 	for s in specs:
 		var parts := (s as String).split(":")
 		kinds.append(StringName(parts[0]))
 		looks.append(int(parts[1]) if parts.size() > 1 else -1)
-	Rng.forced = int(_arg("seed", "4242"))
+	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	for n: MapGen.MapNode in Run.map:
 		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.START \
@@ -73,10 +63,10 @@ func _run() -> void:
 				sl0.layers = null
 				sl0.art.marks = null
 	Sig.enemy_changed.emit()
-	await _wait(float(_arg("settle", "3.4")))
+	await _wait(float(Harness.arg("settle", "3.4")))
 	var k2 := float(get_window().size.x) / get_viewport().get_visible_rect().size.x
-	var crop_dir := _arg("crop", "")
-	var box := _arg("boxtest", "0") == "1"
+	var crop_dir := Harness.arg("crop", "")
+	var box := Harness.arg("boxtest", "0") == "1"
 	var r := Rect2()
 	var sl: EnemySlot = sc._view.slot(0)
 	r = sl.holder_rect()

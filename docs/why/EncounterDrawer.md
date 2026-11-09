@@ -17,8 +17,8 @@ Everything here is STATIC and builds a Control from data. That is not a style
 choice, it is the test that decided what could move: eleven of these twelve
 touched no screen state at all, and the two that did reached for exactly one
 thing each -- opening an option, and taking one. Both are now `Callable`
-parameters, which is the pattern `Widgets.module_row` and `PileView.opened`
-already use here.
+parameters, which is the pattern `PileView.opened` (and the since-deleted
+`Widgets.module_row`) used here.
 
 What stayed behind is the state machine: which of LIST, OPTION and RESULT the
 drawer is in, what is open, and what happens when you take something. That is
