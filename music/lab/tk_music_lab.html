@@ -1534,6 +1534,12 @@ const GROOVES = {
     if (bar % 8 === 7) for (let k = 0; k < 8; k++) h.push([2 + k * .25, 38, .18 + k * .045]);
     return h; },
   // ---- the battle and boss candidates (Nov 10) ----
+  // storm: the boss beat. Kicks on the eighths around the backbeat, sixteenth hats, a snare run every eighth bar.
+  storm: bar => { const h = [[0, 36, .75], [.5, 36, .45], [1.5, 36, .5], [2, 36, .7], [2.5, 36, .45], [3.5, 36, .5], [1, 38, .6], [3, 38, .62]];
+    for (let k = 0; k < 16; k++) h.push([k * .25, 42, k % 2 ? .06 : .12]);
+    if (bar % 4 === 3) h.push([3.5, 46, .2]);
+    if (bar % 8 === 7) [2.5, 2.75, 3.25, 3.5, 3.75].forEach((b, i) => h.push([b, 38, .3 + i * .06]));
+    return h; },
   // charge: a rock beat with a pickup kick before beat 3 and a snare run into every eighth bar.
   charge: bar => { const h = [[0, 36, .7], [1, 38, .55], [1.75, 36, .38], [2, 36, .6], [3, 38, .58]];
     for (let k = 0; k < 8; k++) h.push([k * .5, 42, k % 2 ? .09 : .15]);
@@ -2071,6 +2077,11 @@ const BL = (fn, roots) => roots.trim().split(/\s+/).map(fn);
 const pump = r => `${r}:.5 ${r}:.5 ${up8(r)}:.5 ${r}:.5 ${r}:.5 ${up8(r)}:.5 ${r}:.5 ${up8(r)}:.5`;   // driving eighths
 const gal  = r => [0, 1, 2, 3].map(() => `${r}:.5 ${r}:.25 ${up8(r)}:.25`).join(' ');             // an eighth and two sixteenths
 const s332 = r => `${r}:.75 ${r}:.75 ${up8(r)}:.5 ${r}:.75 ${r}:.75 ${up8(r)}:.5`;                   // 3+3+2, twice
+const rush = r => [0, 1, 2, 3].map(() => `${r}:.25 ${r}:.25 ${up8(r)}:.25 ${r}:.25`).join(' ');     // sixteenths
+// the phrase itself as a bass riff on one chord: 1 2 1 2 3, then the root, its octave and the root
+const riff = (a, b, c) => `${a}:.5 ${b}:.5 ${a}:.5 ${b}:.5 ${c}:.5 ${a}:.5 ${up8(a)}:.5 ${a}:.5`;
+const RIFF = {i:riff('F2','G2','Ab2'), VI:riff('Db2','Eb2','F2'), VII:riff('Eb2','F2','G2'), iv:riff('Bb1','C2','Db2'), V:riff('C2','Db2','E2')};
+const riffs = chords => chords.trim().split(/\s+/).map(k => RIFF[k]);
 const LADDER = [
   // ---- EASY ----
   // A song with verses and a chorus that comes back. The only cue here that repeats a tune on purpose.
@@ -2645,6 +2656,88 @@ const LADDER = [
           'Fall':{notes:['Ab5:4','G5:4','F5:4','Bb4:2 D5:2','F5:4','Gb5:4','G5:4','E5:4'], amp:.8}},
    bells:[['Toll',0,'F6',4],['Toll',8,'F6',4],['Break',0,'Db7',4],['Fall',16,'F6',4]],
    booms:[['Toll',0],['Toll',4],['Toll',8],['Toll',12],['Lament',0],['Lament 2',0],['Break',0],['Break',8],['Rise',0],['Rise',16],['Fall',0]]},
+
+  // ---- the Custodian, round two (Nov 10): Jon kept B1-B3 and turned down C1 and C2 as not big enough,
+  // the wrong mood (too sad, too slow) and no tune that sticks. These three grow out of B1-B3: the same
+  // palettes, the storm beat, sixteenth bass, and a short hook made of the phrase that comes back again and again.
+
+  // D1. Full Burn's big brother. A four-bar hook -- the phrase, then a falling answer -- over B2's falling
+  // chords, stated twice, a running section, the hook again on sixteenths, then the whole hook a step UP in
+  // G minor for the last eight bars before it drops back.
+  {id:'overload', name:'D1 Overload', tier:'BOSS', role:'fight', bpm:142, key:'F minor, the hook, then the hook a step up',
+   form:[['Alarm',4],['Hook',8],['Drive',8],['Hook 2',8],['Lift',8],['Return',4]],
+   arch:[-4, -2, -2, -1, 0, -2.5],
+   groove:{'Alarm':'charge', 'Hook':'storm', 'Drive':'storm', 'Hook 2':'storm', 'Lift':'storm', 'Return':'storm'},
+   chords:{i:['F2','C3','F3','Ab3'], VII:['Eb2','Bb2','Eb3','G3'], VI:['Db2','Ab2','Db3','F3'], V:['C2','G2','C3','E3'], iv:['Bb1','F2','Bb2','Db3'],
+           gi:['G2','D3','G3','Bb3'], gVII:['F2','C3','F3','A3'], gVI:['Eb2','Bb2','Eb3','G3'], gV:['D2','A2','D3','F#3']},
+   bars:{'Alarm':'i i VI V', 'Hook':'i VII VI V i VII VI V', 'Drive':'iv iv i i VI VII V V',
+         'Hook 2':'i VII VI V i VII VI V', 'Lift':'gi gVII gVI gV gi gVII gVI gV', 'Return':'VI VII V V'},
+   basslines:{'Alarm':BL(pump, 'F2 F2 Db2 C2'), 'Hook':BL(pump, 'F2 Eb2 Db2 C2 F2 Eb2 Db2 C2'), 'Drive':BL(pump, 'Bb1 Bb1 F2 F2 Db2 Eb2 C2 C2'),
+              'Hook 2':BL(rush, 'F2 Eb2 Db2 C2 F2 Eb2 Db2 C2'), 'Lift':BL(rush, 'G2 F2 Eb2 D2 G2 F2 Eb2 D2'), 'Return':BL(pump, 'Db2 Eb2 C2 C2')},
+   figures:{'Alarm':[.5,0], 'Hook':[.25,0], 'Drive':[.25,0], 'Hook 2':[.25,12], 'Lift':[.25,12], 'Return':[.5,0]},
+   lines:{'Alarm':{notes:['','','r:2 Ab5:1 G5:1','E5:2 C5:2'], amp:.85},
+          'Hook':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 C6:1','Bb5:.5 Ab5:.5 G5:.5 F5:.5 G5:2','F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
+                         'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 C6:1','Bb5:.5 Ab5:.5 G5:.5 F5:.5 G5:2','F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1'], amp:.95, second:true},
+          'Drive':{notes:['Db6:1 C6:.5 Bb5:.5 F5:1 Bb5:1','Db6:.5 Eb6:.5 Db6:.5 C6:.5 Bb5:2','C6:1 Ab5:.5 G5:.5 F5:1 Ab5:1','C6:.5 Db6:.5 C6:.5 Bb5:.5 Ab5:2',
+                          'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 F5:1','G5:.5 Ab5:.5 G5:.5 Ab5:.5 Bb5:1 Eb6:1','E6:1 C6:1 G5:1 C6:1','G5:.5 Ab5:.5 G5:.5 F5:.5 E5:2'], amp:.95, second:true},
+          'Hook 2':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 C6:1','Bb5:.5 Ab5:.5 G5:.5 F5:.5 G5:2','F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
+                           'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 C6:1','Bb5:.5 Ab5:.5 G5:.5 F5:.5 G5:2','F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 E5:1'], amp:1, second:true},
+          'Lift':{notes:['G5:.5 A5:.5 G5:.5 A5:.5 Bb5:1 D6:1','C6:.5 Bb5:.5 A5:.5 G5:.5 A5:2','G5:.5 A5:.5 G5:.5 A5:.5 Bb5:1 Eb6:1','D6:1.5 C6:.5 Bb5:1 A5:1',
+                         'G5:.5 A5:.5 G5:.5 A5:.5 Bb5:1 D6:1','C6:.5 Bb5:.5 A5:.5 G5:.5 A5:2','G5:.5 A5:.5 G5:.5 A5:.5 Bb5:1 Eb6:1','D6:1.5 C6:.5 Bb5:1 A5:1'], amp:1, second:true},
+          'Return':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 Ab5:2','G5:.5 Ab5:.5 G5:.5 Ab5:.5 Bb5:2','C6:4','E5:2 G5:2'], amp:.9, second:true}},
+   bells:[['Hook',0,'F6',2],['Lift',0,'G6',2],['Lift',16,'D7',2]],
+   booms:[['Alarm',0],['Hook',0],['Drive',0],['Hook 2',0],['Hook 2',16],['Lift',0],['Lift',16],['Return',0]]},
+
+  // D2. The phrase at two speeds. Underneath, the bass PLAYS the phrase, in eighths, on every chord, all the
+  // way through (B2's gallop grown into a riff). On top, the same phrase a bar a note: C, D flat, C, D flat,
+  // E flat. Then a hammered hook, a stop-time break, and round again. Gallop's palette.
+  {id:'undertow', name:'D2 Undertow', tier:'BOSS', role:'fight', bpm:142, key:'F minor, the phrase in the bass and, slowed, on top',
+   form:[['Riff',4],['Climb',8],['Hammer',8],['Break',4],['Climb 2',8],['Hammer 2',8]],
+   arch:[-4, -2, -1.5, -5, -1, 0],
+   groove:{'Riff':'gallop', 'Climb':'storm', 'Hammer':'storm', 'Break':'quake', 'Climb 2':'storm', 'Hammer 2':'storm'},
+   chords:{i:['F2','C3','F3','Ab3'], VI:['Db2','Ab2','Db3','F3'], VII:['Eb2','Bb2','Eb3','G3'], iv:['Bb1','F2','Bb2','Db3'], V:['C2','G2','C3','E3']},
+   bars:{'Riff':'i i VI V', 'Climb':'i VI i VI VII VII V V', 'Hammer':'i VII VI V i VII VI V', 'Break':'iv iv V V',
+         'Climb 2':'i VI i VI VII VII V V', 'Hammer 2':'i VII VI V i VII VI V'},
+   basslines:{'Riff':riffs('i i VI V'), 'Climb':riffs('i VI i VI VII VII V V'), 'Hammer':riffs('i VII VI V i VII VI V'),
+              'Break':['Bb1:1 r:3', 'Bb1:1 r:1 Bb1:.5 Bb1:.5 r:1', 'C2:1 r:3', 'C2:.5 C2:.5 C2:.5 C2:.5 C2:.25 C2:.25 C2:.25 C2:.25 E2:1'],
+              'Climb 2':riffs('i VI i VI VII VII V V'), 'Hammer 2':riffs('i VII VI V i VII VI V')},
+   figures:{'Riff':[.5,0], 'Climb':[.25,0], 'Hammer':[.25,0], 'Break':[1,0], 'Climb 2':[.25,12], 'Hammer 2':[.25,12]},
+   lines:{'Climb':{notes:['C6:4','Db6:4','C6:4','Db6:4','Eb6:4','Bb5:2 G5:2','C6:4','E5:2 G5:2'], amp:.95, second:true},
+          'Hammer':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
+                           'Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Db6:.5 E6:2'], amp:1, second:true},
+          'Break':{notes:['Db6:1 r:3','r:4','C6:1 r:3','r:2 E5:1 G5:1'], amp:.9},
+          'Climb 2':{notes:['C6:4','Db6:4','C6:4','Db6:4','Eb6:4','Bb5:2 G5:2','C6:4','E5:2 G5:2'], amp:1, second:true},
+          'Hammer 2':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
+                             'Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Db6:.5 E6:2'], amp:1, second:true}},
+   bells:[['Climb',16,'Eb7',2],['Hammer 2',0,'F6',2]],
+   booms:[['Riff',0],['Climb',0],['Hammer',0],['Break',0],['Break',8],['Climb 2',0],['Hammer 2',0],['Hammer 2',16]]},
+
+  // D3. A song with a chorus. Crosswind's skipping verse, then a chorus in A flat major whose hook is the
+  // phrase turned major (A flat, B flat, A flat, B flat, C) sung three times in eight bars over the big
+  // III-VII-i-VI turn. The chorus comes round three times, the last on sixteenths. Crosswind's palette.
+  {id:'rally', name:'D3 Rally', tier:'BOSS', role:'fight', bpm:142, key:'F Dorian verse, A flat major chorus',
+   form:[['Intro',4],['Verse',8],['Chorus',8],['Bridge',4],['Chorus 2',8],['Chorus 3',8]],
+   arch:[-5, -3, -1, -2, -0.5, 0],
+   groove:{'Intro':'skip', 'Verse':'skip', 'Chorus':'storm', 'Bridge':'skip', 'Chorus 2':'storm', 'Chorus 3':'storm'},
+   chords:{i:['F2','C3','F3','Ab3'], IV:['Bb1','F3','Bb3','D4'], VII:['Eb2','Bb2','Eb3','G3'], III:['Ab1','Eb3','Ab3','C4'], v:['C2','G2','C3','Eb3'],
+           VI:['Db2','Ab2','Db3','F3'], V:['C2','G2','C3','E3'], iv:['Bb1','F3','Bb3','Db4']},
+   bars:{'Intro':'i IV i IV', 'Verse':'i IV i IV VII VII IV v', 'Chorus':'III VII i VI III VII VI V', 'Bridge':'iv iv V V',
+         'Chorus 2':'III VII i VI III VII VI V', 'Chorus 3':'III VII i VI III VII VI V'},
+   basslines:{'Intro':BL(s332, 'F2 Bb1 F2 Bb1'), 'Verse':BL(s332, 'F2 Bb1 F2 Bb1 Eb2 Eb2 Bb1 C2'), 'Chorus':BL(pump, 'Ab1 Eb2 F2 Db2 Ab1 Eb2 Db2 C2'),
+              'Bridge':BL(rush, 'Bb1 Bb1 C2 C2'), 'Chorus 2':BL(pump, 'Ab1 Eb2 F2 Db2 Ab1 Eb2 Db2 C2'), 'Chorus 3':BL(rush, 'Ab1 Eb2 F2 Db2 Ab1 Eb2 Db2 C2')},
+   figures:{'Intro':[.5,0], 'Verse':[.5,0], 'Chorus':[.25,0], 'Bridge':[.25,12], 'Chorus 2':[.25,12], 'Chorus 3':[.25,12]},
+   lines:{'Intro':{notes:['','','','r:2 D5:1 Eb5:1'], amp:.8},
+          'Verse':{notes:['F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','r:.5 F5:.5 D5:.75 F5:.75 Bb5:1.5','C6:.75 Bb5:.75 Ab5:.5 G5:.75 F5:1.25','D5:1.5 F5:1.5 Bb5:1',
+                          'G5:.75 Ab5:.75 G5:.5 Ab5:.75 Bb5:1.25','Eb6:1.5 D6:.5 G5:2','Bb5:.75 C6:.75 Bb5:.5 C6:.75 D6:1.25','C6:1.5 G5:1.5 Eb5:1'], amp:.92, second:true},
+          'Chorus':{notes:['Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Bb5:1.5 G5:.5 Eb6:2','Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Db6:1.5 Ab5:.5 F5:2',
+                           'Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Eb6:1.5 Bb5:.5 G5:2','F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','C6:1.5 G5:.5 E5:2'], amp:.95, second:true},
+          'Bridge':{notes:['Db6:1.5 Bb5:1.5 F5:1','Db6:.75 Eb6:.75 Db6:.5 C6:.75 Bb5:1.25','C6:1.5 G5:1.5 E5:1','C6:.75 Db6:.75 C6:.5 Db6:.75 E6:1.25'], amp:.95, second:true},
+          'Chorus 2':{notes:['Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Bb5:1.5 G5:.5 Eb6:2','Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Db6:1.5 Ab5:.5 F5:2',
+                             'Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Eb6:1.5 Bb5:.5 G5:2','F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','C6:1.5 G5:.5 E5:2'], amp:1, second:true},
+          'Chorus 3':{notes:['Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Bb5:1.5 G5:.5 Eb6:2','Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Db6:1.5 Ab5:.5 F5:2',
+                             'Ab5:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Eb6:1.5 Bb5:.5 G5:2','F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','C6:1.5 G5:.5 E5:2'], amp:1, second:true}},
+   bells:[['Chorus',0,'Ab6',2],['Chorus 3',0,'C7',2]],
+   booms:[['Verse',0],['Chorus',0],['Bridge',0],['Chorus 2',0],['Chorus 3',0],['Chorus 3',16]]},
 ];
 const LADDER_TWEAKS = [
   {id:'bpm',    label:'Tempo',            opts:[['own','Its own tempo'],[71,'71'],[84,'84'],[104,'104']]},
@@ -2659,13 +2752,15 @@ const LADDER_TWEAKS = [
 const LADDER_TWEAK_DEFAULT = {bpm:'own', arch:'arch', arp:'on', second:'on', bells:'on', boom:'on', bass:'on', groove:'hits'};
 const LADDER_BPM = {salvage:'own', thinice:'own', attrition:'own', aftermath:'own', driftplane:'own', ghostfreight:'own', coldiron:'own', countdown:'own', sealed:'own', lightsout:'own', eventhorizon:'own', noair:'own', laststand:'own', closequarters:'own', coldstart:71, longway:71, slipstream:'own', cutsignal:'own', redline:'own', hairline:'own', deadweight:'own',
                     overpressure:84, nothingleft:'own', wrongship:71,
-                    fullburn:'own', gallop:'own', crosswind:'own', lastlight:'own', keeper:'own'};   // locked in
+                    fullburn:'own', gallop:'own', crosswind:'own', lastlight:'own', keeper:'own',
+                    overload:'own', undertow:'own', rally:'own'};   // locked in
 const LADDER_ARCH = {wrongship:'flat'};   // locked in: it holds one level all the way through
 const LADDER_BASS = {noair:'off'};        // No Air has no bottom end: that is the whole cue
 const LADDER_GROOVE = {salvage:'pattern', thinice:'pattern', attrition:'pattern', aftermath:'pattern', driftplane:'pattern', ghostfreight:'pattern', coldiron:'pattern', countdown:'pattern', sealed:'hits', lightsout:'hits', eventhorizon:'hits', noair:'pattern', laststand:'pattern', closequarters:'pattern', coldstart:'pattern', longway:'hits', slipstream:'pattern', cutsignal:'pattern',
                        redline:'pattern', hairline:'pattern', deadweight:'pattern',
                        overpressure:'pattern', nothingleft:'pattern', wrongship:'hits',
-                       fullburn:'pattern', gallop:'pattern', crosswind:'pattern', lastlight:'pattern', keeper:'pattern'};   // locked in
+                       fullburn:'pattern', gallop:'pattern', crosswind:'pattern', lastlight:'pattern', keeper:'pattern',
+                       overload:'pattern', undertow:'pattern', rally:'pattern'};   // locked in
 const LADDER_SETUPS = {   // locked in
   coldstart:  {tune:115, middle:95,  echo:20, chords:24, extra:111, bass:86, drums:125, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
   longway:    {tune:2,   middle:115, echo:20, chords:50, extra:26,  bass:86, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},
@@ -2696,6 +2791,10 @@ const LADDER_SETUPS = {   // locked in
   crosswind:  {tune:7, middle:115, echo:47, chords:24, extra:111, bass:102, drums:121, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
   lastlight:  {tune:110, middle:80, echo:20, chords:50, extra:112, bass:86, drums:129, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{vol:'quiet', dly:'off'}, drums:{rev:'wet'}}},
   keeper:     {tune:95, middle:25, echo:20, chords:50, extra:112, bass:86, drums:129, fx:{echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{vol:'quiet', dly:'off'}, drums:{rev:'wet'}}},
+  // the Custodian, round two: B1's, B2's and B3's palettes, the leads at full level
+  overload:   {tune:10, middle:109, echo:20, chords:24, extra:112, bass:85, drums:121, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
+  undertow:   {tune:113, middle:112, echo:37, chords:24, extra:114, bass:85, drums:122, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
+  rally:      {tune:7, middle:115, echo:47, chords:24, extra:111, bass:102, drums:121, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
   cutsignal:  {tune:116, middle:115, echo:20, chords:50, extra:26,  bass:86, drums:129, fx:{middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},
 };
 function applyTweaksLadder(){
