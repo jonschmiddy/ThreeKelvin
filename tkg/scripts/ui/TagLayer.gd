@@ -146,6 +146,9 @@ func _show(c: Control, text: String) -> void:
 		_tag = tag
 		add_child(_tag)
 	_tag.position = _spot(c, _tag.size)
+	if _tag is TornTag:
+		var inv := get_global_transform().affine_inverse()
+		(_tag as TornTag).point = 1 if _tag.position.y < (inv * c.get_global_rect().position).y else -1
 
 
 func _hide() -> void:

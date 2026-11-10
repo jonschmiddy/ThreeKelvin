@@ -197,6 +197,16 @@ static func build() -> Theme:
 enum ButtonStyle { PLATE, SOFT, FLAT, OUTLINE, CUT, UNDERLINE }
 static var button_style: ButtonStyle = ButtonStyle.PLATE
 
+
+## The looks still up for Jon's pick, off the command line: `btn=N` (the button shape, read
+## before the theme is built) and `tiplook=N` (the tooltip's box, `TipFrames`).
+static func read_look_flags(args: PackedStringArray) -> void:
+	for a in args:
+		if a.begins_with("btn="):
+			button_style = clampi(int(a.substr(4)), 0, 5) as ButtonStyle
+		elif a.begins_with("tiplook="):
+			TornTag.look = clampi(int(a.substr(8)), 0, TipFrames.LOOKS)
+
 ## A plate with its corners cut, like the drawer's chips.
 static func _cut(bg: Color, edge: Color) -> StyleBoxFlat:
 	var sb := flat(bg, edge, 3, 3, 5)
@@ -226,6 +236,8 @@ static func bevel_in(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTextu
 ## readout, the badge's lines): `TornTag.FILL` under a 1 px edge that steps in a pixel here and
 ## there, tiled, so the edge reads as torn at any size. Margins of 2 keep the jag whole.
 static func torn_box() -> StyleBoxTexture:
+	if TornTag.look != 0:
+		return TipFrames.box(TornTag.look)
 	var n := 24
 	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	img.fill(TornTag.FILL)

@@ -43,6 +43,7 @@ func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
 	_pure()
+	await _looks()
 	await _local_tags()
 	await _chart()
 	await _words()
@@ -82,6 +83,50 @@ func _pure() -> void:
 		ls.size() >= 2 and widest <= UITheme.TOOLTIP_WRAP)
 	var m := TornTag.measure(ls)
 	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * TornTag.LINE_H + TornTag.PAD_V * 2 - 2)
+
+
+## THE TEN BOXES (`-- tiplook=N`): each a whole-pixel 9-slice the words fit inside, the plate
+## for a rich body the same box, today's tag back when the dial is 0.
+func _looks() -> void:
+	print("
+--- the tag's boxes")
+	_ok("the dial rests on today's tag (%d of %d looks)" % [TornTag.look, TipFrames.LOOKS],
+		TornTag.look == 0 and TipFrames.LOOKS == 10 and TipFrames.NAMES.size() == 11)
+	var ls := TornTag.sentence("At zero the ship is lost; a station repairs it for credits.")
+	var today := TornTag.measure(ls)
+	var f := UITheme.pixel_font()
+	var widest := 0.0
+	for l in ls:
+		widest = maxf(widest, f.get_string_size(String((l as Array)[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
+	var host := Control.new()
+	_tree.root.add_child(host)
+	for look in range(1, TipFrames.LOOKS + 1):
+		TornTag.look = look
+		var p := TipFrames.pad(look)
+		var sb := TipFrames.box(look)
+		var tex := sb.texture as ImageTexture
+		var m := TornTag.measure(ls)
+		var tag := TornTag.new()
+		tag.set_lines(ls)
+		host.add_child(tag)
+		await _frames(2)
+		var fits := m.x >= widest + p.position.x + p.size.x and m.y >= ls.size() * TornTag.LINE_H + p.position.y + p.size.y - 2
+		var whole := tex != null and tex.get_width() == tex.get_height() and sb.get_content_margin(SIDE_LEFT) == p.position.x 			and sb.get_content_margin(SIDE_TOP) == p.position.y and sb.texture_margin_left * 2 < tex.get_width()
+		_ok("%2d %-11s a whole-pixel slice of %d, margins %s; the words fit (%s), no smaller than today" % [look,
+			TipFrames.NAMES[look], tex.get_width() if tex != null else 0, str(p), str(m)],
+			whole and fits and m.x >= today.x and m.y >= today.y and tag.size == m and m == m.round()
+			and UITheme.torn_box() == sb)
+		if look == 3:
+			_ok("   HUD types its words on: %.2f at once, all there after %.2f s" % [tag._reveal, TipFrames.REVEAL],
+				tag._reveal < 1.0)
+			await _secs(TipFrames.REVEAL + 0.1)
+			_ok("   and they are", tag._reveal >= 1.0 and not tag.is_processing())
+		tag.queue_free()
+	TornTag.look = 0
+	_ok("the dial back at 0: today's measure (%s)" % str(TornTag.measure(ls)), TornTag.measure(ls) == today
+		and UITheme.torn_box().texture_margin_left == 2)
+	host.queue_free()
+	await _frames(2)
 
 
 ## THE HUD'S HULL GAUGE pointed at on LOCAL: the tag above it, clear, one sentence, no title;

@@ -126,6 +126,7 @@ func _run() -> void:
 	_out = _arg("out", "user://ui_highlight.png")
 	var stage := _arg("stage", "fight_hover")
 	MarkOutline.look = int(_arg("marklook", "0"))
+	TornTag.look = int(_arg("tiplook", "0"))
 	# The window at the game's own size, as `Main._shoot` has it: root px are game px.
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)
@@ -269,6 +270,13 @@ func _run() -> void:
 		var ow: Control = L._owner_of(L._over) if L._over != null else null
 		print("[tag] over %s since %.2f owner %s text \"%s\" shown %s mouse %s" % [str(L._over), L._since, str(ow),
 			(L._text_of(ow) if ow != null else "").c_escape(), str(L.shown()), str(L.get_viewport().get_mouse_position())])
+	# where the tag is, for a crop
+	var up: Control = TagLayer.instance.shown() if TagLayer.instance != null else null
+	if up == null and _screen() != null:
+		up = _screen().word_tag()
+	if up != null:
+		var tr := up.get_global_rect()
+		print("[tagrect] %d %d %d %d" % [int(tr.position.x), int(tr.position.y), int(tr.size.x), int(tr.size.y)])
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	var img := _tree.root.get_texture().get_image()

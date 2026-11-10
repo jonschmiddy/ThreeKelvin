@@ -1,0 +1,1 @@
+- **Added** — ten sci-fi boxes for the tooltip, behind `-- tiplook=N` (1 to 10) for Jon to pick from; the tooltip looks as it did until he does.

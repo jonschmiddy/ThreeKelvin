@@ -3304,6 +3304,7 @@ func _on_word_hovered(view: CardView, term: String, on: bool) -> void:
 		return
 	var tag := TornTag.new()
 	tag.set_lines(TornTag.sentence(meaning, UITheme.ICE, 24))
+	tag.point = 1
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_readout_layer().add_child(tag)
 	_readout = tag

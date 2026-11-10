@@ -23,9 +23,7 @@ func _ready() -> void:
 	DisplaySettings.load_and_apply()
 	DevMode.load_settings()
 	# Read before the theme is built, the only moment it can be read.
-	for a_btn in OS.get_cmdline_user_args():
-		if (a_btn as String).begins_with("btn="):
-			UITheme.button_style = clampi(int((a_btn as String).substr(4)), 0, 5) as UITheme.ButtonStyle
+	UITheme.read_look_flags(OS.get_cmdline_user_args())
 	theme = UITheme.build()
 
 	var margin := Widgets.pad(null, 8, 7)

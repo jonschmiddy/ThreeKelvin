@@ -15,9 +15,18 @@ const GAP := 3
 const FILL := Color("#05080d", 0.94)
 const EDGE := Color("#5e6b7a")
 
+## WHICH BOX THE TAG WEARS, for Jon's pick (Nov 9): 0 this torn tag, 1..`TipFrames.LOOKS` the
+## sci-fi boxes in `TipFrames`. `-- tiplook=N`; the default stays until he picks.
+## Why: docs/why/TornTag.md#tip-looks
+static var look: int = 0
+
 ## [[text, Color], ...], one entry a line.
 var lines: Array = []
 var alpha := 1.0
+## 1 when the tag sits above its thing, -1 below it, 0 unknown: look 2's leader points that way.
+var point := 0
+## Look 3 types its words on over `TipFrames.REVEAL` seconds; 1.0 once they are all there.
+var _reveal := 1.0
 
 
 func _init() -> void:
@@ -29,11 +38,27 @@ func set_lines(ls: Array) -> void:
 	lines = ls
 	size = measure(ls)
 	custom_minimum_size = size
+	_reveal = 0.0 if look == 3 else 1.0
+	set_process(look == 3)
+	queue_redraw()
+
+
+func _process(dt: float) -> void:
+	if _reveal >= 1.0:
+		set_process(false)
+		return
+	_reveal = minf(1.0, _reveal + dt / TipFrames.REVEAL)
 	queue_redraw()
 
 
 func _draw() -> void:
-	draw_tag(self, Rect2(Vector2.ZERO, size), lines, alpha)
+	var shown := -1
+	if _reveal < 1.0:
+		var total := 0
+		for l in lines:
+			total += String((l as Array)[0]).length()
+		shown = int(ceilf(total * _reveal))
+	draw_tag(self, Rect2(Vector2.ZERO, size), lines, alpha, point, shown)
 
 
 ## The tag's box for these lines: the widest line plus the padding, a line's height each.
@@ -42,7 +67,8 @@ static func measure(ls: Array) -> Vector2:
 	var w := 0.0
 	for l in ls:
 		w = maxf(w, f.get_string_size(String((l as Array)[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
-	return Vector2(ceilf(w) + PAD_H * 2.0, float(ls.size() * LINE_H + PAD_V * 2 - 2))
+	var p := TipFrames.pad(look)
+	return Vector2(ceilf(w) + p.position.x + p.size.x, float(ls.size() * LINE_H + p.position.y + p.size.y - 2))
 
 
 ## One sentence, wrapped to `width` characters, as the tag's lines in `col`.
@@ -65,19 +91,29 @@ static func sentence(text: String, col: Color = UITheme.ICE, width: int = UIThem
 	return out
 
 
-## The fill, its torn edge and the words, in `rect` on `ci`, at `a` alpha.
-static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0) -> void:
+## The box (`look`), then the words, in `rect` on `ci`, at `a` alpha. `point` is where the thing
+## is (see `point`); `shown` caps the letters drawn, -1 for all of them.
+static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, point: int = 0,
+		shown: int = -1) -> void:
 	var r := Rect2(rect.position.round(), rect.size.round())
-	var fill := Color(FILL, FILL.a * a)
-	var edge := Color(EDGE, a)
-	ci.draw_rect(Rect2(r.position + Vector2.ONE, r.size - Vector2(2, 2)), fill, true)
-	torn(ci, r, edge)
+	if look == 0:
+		var fill := Color(FILL, FILL.a * a)
+		ci.draw_rect(Rect2(r.position + Vector2.ONE, r.size - Vector2(2, 2)), fill, true)
+		torn(ci, r, Color(EDGE, a))
+	else:
+		TipFrames.draw(ci, r, look, a, point)
+	var p := TipFrames.pad(look)
 	var f := UITheme.pixel_font()
-	var y := r.position.y + PAD_V + f.get_ascent(UITheme.FS_SMALL) - 1.0
+	var y := r.position.y + p.position.y + f.get_ascent(UITheme.FS_SMALL) - 1.0
+	var left := shown
 	for l in ls:
 		var pair: Array = l
 		var c: Color = pair[1]
-		ci.draw_string(f, Vector2(r.position.x + PAD_H, y), String(pair[0]),
+		var text := String(pair[0])
+		if left >= 0:
+			text = text.left(left)
+			left -= text.length()
+		ci.draw_string(f, Vector2(r.position.x + p.position.x, y), text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * a))
 		y += LINE_H
 
