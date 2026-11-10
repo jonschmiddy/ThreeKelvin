@@ -13,7 +13,7 @@ const RUNGS := [
 	["THE SPIRAL AS IT IS", Form.SPIRAL, "The spiral as it is today."],
 	["PICKED SHELVES", Form.SPIRAL, "Traders got here first. Dock shelves carry fewer parts."],
 	["THICK GAS", Form.SPIRAL, "Jumps into a nebula cost 1 more fuel."],
-	["HIDDEN IN GAS", Form.SPIRAL, "Raiders wait inside nebulae. Ambushes there are more likely."],
+	["HIDDEN IN GAS", Form.SPIRAL, "Raiders wait inside nebulae, so an ambush there is more likely."],
 	["SHORT TANK", Form.DISC, "Fuel is rationed here, so you launch with 35 fuel in a 45 tank."],
 	["FEWER DOCKS", Form.DISC, "Few people ever settled this old galaxy, so there are a quarter fewer docks."],
 	["SCARCE PARTS", Form.DISC, "Nothing is built here any more, so repairs cost half again as much."],
