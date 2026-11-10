@@ -104,6 +104,16 @@ func _box_case() -> void:
 	await Harness.frames(_tree, 8)
 	_ok("LAUNCH starts the run at tier 1", Router.current is ChassisSelect and Run.ascension == 1)
 	_ok("in a spiral galaxy: %s" % GalaxyGen.type_name(Run.galaxy_kind), Ladder.form_of_kind(Run.galaxy_kind) == Ladder.Form.SPIRAL)
+	# tier 0 keeps the seed's own roll: the world seed 4242 always gave
+	Run.forced_ascension = 0
+	var kinds: Array[int] = []
+	for pass_n in 2:
+		Rng.forced = 4242
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Rng.forced = 0
+		kinds.append(Run.galaxy_kind)
+	Run.forced_ascension = -1
+	_ok("a tier 0 run keeps the seed's own galaxy kind (%d, twice)" % kinds[0], kinds[0] == kinds[1] and Run.ascension == 0)
 	_ok("the pick is remembered for the next box", LaunchBox.last_tier == 1)
 	Run.hull = null
 

@@ -76,8 +76,12 @@ static func kinds_of(tier: int) -> Array[int]:
 	return out
 
 
-## One draw from `rng` (the world stream, in the seed's order), a kind of the tier's form.
+## One draw from `rng` (the world stream, in the seed's order): at tier 0 any
+## kind, as every seed rolled until now (the pinned galaxies and the seeded
+## tests keep their worlds); from tier 1 a kind of the tier's form.
 static func roll_kind(tier: int, rng: RandomNumberGenerator) -> int:
+	if tier <= 0:
+		return rng.randi() % GalaxyGen.count()
 	var ks := kinds_of(tier)
 	return ks[rng.randi() % ks.size()]
 
