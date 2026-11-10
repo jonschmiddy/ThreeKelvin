@@ -65,15 +65,15 @@
   "loops": true
  },
  {
-  "file": "closequarters.wav",
-  "ogg": "closequarters.ogg",
-  "cue": "Close Quarters",
+  "file": "crosswind.wav",
+  "ogg": "crosswind.ogg",
+  "cue": "Crosswind",
   "tier": "EASY",
   "role": "fight",
-  "bpm": 100.0,
-  "bars": 32,
-  "loop_seconds": 76.8,
-  "loop_end_samples": 3386880,
+  "bpm": 142.0,
+  "bars": 40,
+  "loop_seconds": 67.606,
+  "loop_end_samples": 2981408,
   "sample_rate": 44100,
   "loops": true
  },
@@ -130,19 +130,6 @@
   "loops": true
  },
  {
-  "file": "slipstream.wav",
-  "ogg": "slipstream.ogg",
-  "cue": "Slipstream",
-  "tier": "ROUGH",
-  "role": "fight",
-  "bpm": 104.0,
-  "bars": 40,
-  "loop_seconds": 92.308,
-  "loop_end_samples": 4070783,
-  "sample_rate": 44100,
-  "loops": true
- },
- {
   "file": "redline.wav",
   "ogg": "redline.ogg",
   "cue": "Red Line",
@@ -195,15 +182,15 @@
   "loops": true
  },
  {
-  "file": "hairline.wav",
-  "ogg": "hairline.ogg",
-  "cue": "Hairline",
+  "file": "gallop.wav",
+  "ogg": "gallop.ogg",
+  "cue": "Gallop",
   "tier": "HARD",
   "role": "fight",
-  "bpm": 108.0,
-  "bars": 38,
-  "loop_seconds": 84.444,
-  "loop_end_samples": 3723980,
+  "bpm": 142.0,
+  "bars": 40,
+  "loop_seconds": 67.606,
+  "loop_end_samples": 2981408,
   "sample_rate": 44100,
   "loops": true
  },
@@ -260,15 +247,15 @@
   "loops": true
  },
  {
-  "file": "overpressure.wav",
-  "ogg": "overpressure.ogg",
-  "cue": "Overpressure",
+  "file": "fullburn.wav",
+  "ogg": "fullburn.ogg",
+  "cue": "Full Burn",
   "tier": "BRUTAL",
   "role": "fight",
-  "bpm": 84.0,
-  "bars": 32,
-  "loop_seconds": 91.429,
-  "loop_end_samples": 4032019,
+  "bpm": 142.0,
+  "bars": 40,
+  "loop_seconds": 67.606,
+  "loop_end_samples": 2981408,
   "sample_rate": 44100,
   "loops": true
  },

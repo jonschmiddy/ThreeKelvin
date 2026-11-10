@@ -348,6 +348,29 @@ the same one twice running" stops being strict alternation and becomes a real
 shuffle with the one repeat that matters ruled out.
 ```
 
+Above `const FIGHT_CUES := {`:
+
+```text
+THREE BATTLE CUES, BY DANGER (Jon, Nov 10). Playtester Jeremy loved the
+flying music and asked for "epic" battle music in the Final Fantasy spirit.
+ElevenLabs takes "didn't fit the rest of the soundtrack" and measured far
+brighter than the game's cues, so five were composed in the music lab on
+the game's own phrase (F G F G Ab) at 142, double First Light's 71. Jon
+kept the three battle ideas and ruled the order: Crosswind (B3, the phrase
+in 3+3+2, F Dorian, Close Quarters' palette) for easy fights, Gallop (B2,
+four falling chords over a gallop bass, Slipstream's palette) for the
+middle, Full Burn (B1, First Light's phrase as a march that turns major)
+for the hardest. Five tiers onto three cues: EASY and ROUGH share
+Crosswind, HARD is Gallop, BRUTAL and LETHAL share Full Burn.
+
+Levelled to -14.0, -13.5 and -13.0 LUFS (the run cues sit at -12.6 to
+-15.3), so the fight gets a little louder as it gets more dangerous.
+Close Quarters, Slipstream, Hairline and Overpressure left the game: no
+table named them any more, and AudioTest fails on a cue nobody can reach.
+They are still in the lab (music/lab) and in git. Last Stand stays as
+BOSS_CUE. The candidates page: https://claude.ai/artifact/XAzA8fBWYxaobwPqD8ukUm
+```
+
 ## Music level
 
 Above `const MUSIC_DB := -14.0`:
