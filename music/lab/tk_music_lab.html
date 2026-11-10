@@ -1533,6 +1533,37 @@ const GROOVES = {
     if (bar % 4 === 2) h.push([3.5, 38, .4]);
     if (bar % 8 === 7) for (let k = 0; k < 8; k++) h.push([2 + k * .25, 38, .18 + k * .045]);
     return h; },
+  // ---- the battle and boss candidates (Nov 10) ----
+  // charge: a rock beat with a pickup kick before beat 3 and a snare run into every eighth bar.
+  charge: bar => { const h = [[0, 36, .7], [1, 38, .55], [1.75, 36, .38], [2, 36, .6], [3, 38, .58]];
+    for (let k = 0; k < 8; k++) h.push([k * .5, 42, k % 2 ? .09 : .15]);
+    if (bar % 4 === 3) h.push([3.5, 46, .2]);
+    if (bar % 8 === 7) [3.25, 3.5, 3.75].forEach((b, i) => h.push([b, 38, .3 + i * .08]));
+    return h; },
+  // gallop: the hats ride an eighth and two sixteenths, the old battle-theme horse.
+  gallop: bar => { const h = [[0, 36, .7], [1, 38, .5], [2, 36, .6], [3, 38, .55]];
+    for (let k = 0; k < 4; k++) h.push([k, 42, .15], [k + .5, 42, .09], [k + .75, 42, .08]);
+    if (bar % 8 === 7) h.push([3.5, 46, .2], [3.75, 38, .35]);
+    return h; },
+  // skip: 3+3+2 in sixteenths. The kick lands on the threes, the snare stays on two and four.
+  skip: bar => { const h = [[0, 36, .7], [.75, 36, .45], [2, 36, .55], [2.75, 36, .45], [1, 38, .5], [3, 38, .55]];
+    [0, .75, 1.5, 2, 2.75, 3.5].forEach(b => h.push([b, 42, .15]));
+    [.25, .5, 1.25, 1.75, 2.25, 2.5, 3.25, 3.75].forEach(b => h.push([b, 42, .06]));
+    if (bar % 2 === 1) h.push([3.5, 39, .3]);
+    if (bar % 8 === 7) [3.25, 3.5, 3.75].forEach((b, i) => h.push([b, 38, .3 + i * .08]));
+    return h; },
+  // anthem: for the Cinematic kit, where 46 is a taiko. Boom on one and three, taiko on the offbeats,
+  // and a taiko roll into every fourth bar.
+  anthem: bar => { const h = [[0, 36, .8], [2, 36, .6], [1, 38, .5], [3, 38, .6]];
+    [.5, 1.5, 2.5, 3.5].forEach(b => h.push([b, 46, .3]));
+    for (let k = 0; k < 8; k++) h.push([k * .5, 42, k % 2 ? .06 : .1]);
+    if (bar % 4 === 3) for (let k = 0; k < 8; k++) h.push([2 + k * .25, 46, .2 + k * .04]);
+    return h; },
+  // march: slower-feeling, heavy: boom on one and the and-of-three, taiko answers, snare on four.
+  march: bar => { const h = [[0, 36, .85], [2.5, 36, .5], [3, 38, .6], [1.5, 46, .35], [3.5, 46, .3]];
+    for (let k = 0; k < 4; k++) h.push([k, 42, .08]);
+    if (bar % 4 === 3) [3.25, 3.5, 3.75].forEach((b, i) => h.push([b, 38, .3 + i * .08]));
+    return h; },
 };
 function buildStandalone(th){
   const M = midi, c = th.cue, o = th.opts;
@@ -1557,8 +1588,15 @@ function buildStandalone(th){
     const name = PH.find(([n, l]) => b >= start[n] && b < start[n] + l)[0], g = gi(name);
     ev.chords.push([b * 4, len, M(ch[0]), .5 * g, true]);
     ch.slice(1).forEach(n => ev.chords.push([b * 4, len, M(n), .5 * g, false]));
-    if (o.bass) ev.bass.push([b * 4, len, M(ch[0]), .75]);
+    if (o.bass && !(c.basslines && c.basslines[name])) ev.bass.push([b * 4, len, M(ch[0]), .75]);
   }
+  // A written bass line, where a cue has one, replaces the held sub for its section. Same level all the
+  // way through, like the sub: the build still goes on top.
+  if (o.bass && c.basslines) for (const [name] of PH){ const L = c.basslines[name]; if (!L) continue;
+    L.forEach((s, k) => { if (!s) return; let t = start[name] * 4 + k * 4;
+      s.trim().split(/\s+/).forEach(tok => { const [n, d] = tok.split(':'), dur = +d;
+        if (n !== 'r') ev.bass.push([t, dur * .85, M(n), .75]);
+        t += dur; }); }); }
   if (o.arp) for (const name in c.figures){
     const [div, lift] = c.figures[name], len = PH.find(p => p[0] === name)[1];
     for (let k = 0; k < len; k++){
@@ -1689,6 +1727,11 @@ function initAudio(){
   mfx.ll.connect(mfx.merge, 0, 0); mfx.lr.connect(mfx.merge, 0, 1); mfx.rl.connect(mfx.merge, 0, 0); mfx.rr.connect(mfx.merge, 0, 1);
   mfx.drop = ctx.createGain();
   master.connect(mfx.wob); mfx.wob.connect(mfx.warmIn); mfx.warmOut.connect(mfx.tone); mfx.tone.connect(mfx.hp); mfx.hp.connect(mfx.lp); mfx.lp.connect(mfx.crushIn);
+  // The splitter up-mixes DISCRETELY (the spec's rule for it): a mono signal arriving here keeps only
+  // its left channel. In a browser the reverb makes the mix stereo long before this point, so nothing
+  // changes there; in node's renderer the convolver comes out mono, and the right channel came out
+  // empty. Forcing two channels with a speaker up-mix here copies mono to both sides.
+  mfx.crushOut.channelCount = 2; mfx.crushOut.channelCountMode = 'explicit'; mfx.crushOut.channelInterpretation = 'speakers';
   mfx.crushOut.connect(mfx.split); mfx.merge.connect(mfx.drop); mfx.drop.connect(comp);
   // surface noise: a looped hiss and a looped bed of random crackles and pops, both colored by the lo-fi filters
   const sr = ctx.sampleRate;
@@ -2022,6 +2065,12 @@ function applyTweaksFL(){
   for (const k in metaCache) delete metaCache[k];
   stripTheme = -1;
 }
+// Bass lines for the battle and boss candidates, written one chord root a bar. Each returns one bar.
+const up8 = n => n.slice(0, -1) + (+n.slice(-1) + 1);
+const BL = (fn, roots) => roots.trim().split(/\s+/).map(fn);
+const pump = r => `${r}:.5 ${r}:.5 ${up8(r)}:.5 ${r}:.5 ${r}:.5 ${up8(r)}:.5 ${r}:.5 ${up8(r)}:.5`;   // driving eighths
+const gal  = r => [0, 1, 2, 3].map(() => `${r}:.5 ${r}:.25 ${up8(r)}:.25`).join(' ');             // an eighth and two sixteenths
+const s332 = r => `${r}:.75 ${r}:.75 ${up8(r)}:.5 ${r}:.75 ${r}:.75 ${up8(r)}:.5`;                   // 3+3+2, twice
 const LADDER = [
   // ---- EASY ----
   // A song with verses and a chorus that comes back. The only cue here that repeats a tune on purpose.
@@ -2469,6 +2518,133 @@ const LADDER = [
           'Collapse':{notes:['E5:2 C#5:2','A4:2 F#5:2','D5:4','A#4:2 E5:2','C#5:4','B4:2 D#5:2','G4:2 C#5:2','C#5:4'], amp:.75}},
    bells:[['Signal',16,'C#6',2],['Burst',12,'G6',2],['Collapse',28,'C#5',4]],
    booms:[['Signal',0],['Push',0],['Burst',0],['Burst',12],['Collapse',0]]},
+
+  // ---- BATTLE AND BOSS CANDIDATES (Nov 10): five new fights for Jon to pick from, not wired in ----
+  // Jeremy asked for "epic" battle music and a "legendary" boss. ElevenLabs takes did not fit the set, so
+  // these are built here, from the game's own phrase (F G F G Ab, 1-2-1-2-b3) at 142, double First Light's 71.
+
+  // B1. First Light goes to war: the phrase as a fanfare, a march in F minor, and then First Light's own
+  // turn -- A flat becomes A natural, the phrase turns major -- before it drops back to minor.
+  {id:'fullburn', name:'B1 Full Burn', tier:'BATTLE', role:'fight', bpm:142, key:'F minor, turning to F major: First Light goes to war',
+   form:[['Call',4],['Charge',8],['Climb',8],['Charge 2',8],['Turn',8],['Hold',4]],
+   arch:[-6, -3, -2, -1.5, 0, -6],
+   groove:{'Call':'pulse', 'Charge':'charge', 'Climb':'charge', 'Charge 2':'charge', 'Turn':'charge', 'Hold':'pulse'},
+   chords:{i:['F2','C3','F3','Ab3'], VI:['Db2','Ab2','Db3','F3'], VII:['Eb2','Bb2','Eb3','G3'], iv:['Bb1','F2','Bb2','Db3'], V:['C2','G2','C3','E3'],
+           I:['F2','C3','F3','A3'], IV:['Bb1','F2','Bb2','D3'], vi:['D2','A2','D3','F3']},
+   bars:{'Call':'i i VI VII', 'Charge':'i i VI VII i i iv V', 'Climb':'VI VI VII VII i i V V',
+         'Charge 2':'i i VI VII i i iv V', 'Turn':'I I vi vi IV IV V V', 'Hold':'i VI VII V'},
+   basslines:{'Call':BL(r => `${r}:4`, 'F2 F2 Db2 Eb2'), 'Charge':BL(pump, 'F2 F2 Db2 Eb2 F2 F2 Bb1 C2'), 'Climb':BL(pump, 'Db2 Db2 Eb2 Eb2 F2 F2 C2 C2'),
+              'Charge 2':BL(pump, 'F2 F2 Db2 Eb2 F2 F2 Bb1 C2'), 'Turn':BL(pump, 'F2 F2 D2 D2 Bb1 Bb1 C2 C2'), 'Hold':BL(r => `${r}:4`, 'F2 Db2 Eb2 C2')},
+   figures:{'Call':[1,0], 'Charge':[.5,0], 'Climb':[.5,12], 'Charge 2':[.25,0], 'Turn':[.25,12], 'Hold':[1,0]},
+   lines:{'Call':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 Ab5:2','r:2 C5:1 Eb5:1','F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 Bb5:1','G5:4'], amp:.85},
+          'Charge':{notes:['C6:1.5 Ab5:.5 F5:1 C5:1','F5:.5 G5:.5 Ab5:1 G5:1 F5:1','Ab5:1.5 F5:.5 Db6:2','Bb5:1.5 G5:.5 Eb5:2',
+                           'C6:1.5 Ab5:.5 F5:1 Ab5:1','G5:.5 Ab5:.5 Bb5:1 C6:2','Db6:1.5 C6:.5 Bb5:1 F5:1','E5:1 F5:.5 G5:.5 C6:2'], amp:.9, second:true},
+          'Climb':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 Ab5:2','Db6:1 C6:1 Ab5:2','G5:.5 Ab5:.5 G5:.5 Ab5:.5 Bb5:2','G5:1 Bb5:1 Eb6:2',
+                          'Ab5:.5 Bb5:.5 Ab5:.5 Bb5:.5 C6:2','F6:1 C6:1 Ab5:2','C6:.5 Db6:.5 C6:.5 Db6:.5 E6:2','C6:1 G5:1 E5:1 G5:1'], amp:.95, second:true},
+          'Charge 2':{notes:['C6:1.5 Ab5:.5 F5:1 C5:1','F5:.5 G5:.5 Ab5:1 G5:1 F5:1','Ab5:1.5 F5:.5 Db6:2','Bb5:1.5 G5:.5 Eb5:2',
+                             'C6:1.5 Ab5:.5 F5:1 Ab5:1','G5:.5 Ab5:.5 Bb5:1 C6:2','Db6:1.5 C6:.5 Bb5:1 F5:1','E5:1 F5:.5 G5:.5 C6:2'], amp:1, second:true},
+          'Turn':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 A5:2','C6:3 A5:1','D6:2 C6:1 A5:1','F5:2 A5:2','Bb5:2 C6:1 D6:1','F6:2 D6:2',
+                         'C6:.5 D6:.5 C6:.5 D6:.5 E6:2','C6:1 G5:1 E5:2'], amp:1, second:true},
+          'Hold':{notes:['F5:4','Ab5:2 F5:2','G5:2 Bb5:2','C6:2 E5:2'], amp:.75}},
+   bells:[['Call',0,'F6',2],['Turn',0,'A6',2]],
+   booms:[['Charge',0],['Climb',0],['Charge 2',0],['Turn',0],['Turn',16],['Hold',0]]},
+
+  // B2. A ground: four chords falling, F E-flat D-flat C, under a galloping bass that never stops. The tune
+  // goes from long notes to the phrase climbing in sequence, F, G, B flat, then lifts. Slipstream's palette.
+  {id:'gallop', name:'B2 Gallop', tier:'BATTLE', role:'fight', bpm:142, key:'F minor, four chords falling over a gallop',
+   form:[['Gate',4],['Ride',8],['Ride 2',8],['Lift',8],['Ride 3',8],['Fall',4]],
+   arch:[-6, -3, -2, -1, 0, -5],
+   groove:{'Gate':'gallop', 'Ride':'gallop', 'Ride 2':'gallop', 'Lift':'charge', 'Ride 3':'gallop', 'Fall':'half'},
+   chords:{i:['F2','C3','F3','Ab3'], VII:['Eb2','Bb2','Eb3','G3'], VI:['Db2','Ab2','Db3','F3'], V:['C2','G2','C3','E3']},
+   bars:{'Gate':'i VII VI V', 'Ride':'i VII VI V i VII VI V', 'Ride 2':'i VII VI V i VII VI V',
+         'Lift':'VI VII i i VI VII V V', 'Ride 3':'i VII VI V i VII VI V', 'Fall':'i VII VI V'},
+   basslines:{'Gate':BL(gal, 'F2 Eb2 Db2 C2'), 'Ride':BL(gal, 'F2 Eb2 Db2 C2 F2 Eb2 Db2 C2'), 'Ride 2':BL(gal, 'F2 Eb2 Db2 C2 F2 Eb2 Db2 C2'),
+              'Lift':BL(gal, 'Db2 Eb2 F2 F2 Db2 Eb2 C2 C2'), 'Ride 3':BL(gal, 'F2 Eb2 Db2 C2 F2 Eb2 Db2 C2'), 'Fall':BL(r => `${r}:4`, 'F2 Eb2 Db2 C2')},
+   figures:{'Gate':[.5,0], 'Ride':[.5,0], 'Ride 2':[.25,0], 'Lift':[.25,12], 'Ride 3':[.25,12], 'Fall':[1,0]},
+   lines:{'Gate':{notes:['','','','r:2 E5:1 G5:1'], amp:.7},
+          'Ride':{notes:['C6:2 Ab5:2','Bb5:2 G5:2','Ab5:2 F5:2','G5:2 E5:2',
+                         'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:2','G5:.5 Ab5:.5 G5:.5 Ab5:.5 Bb5:2','F5:1 Ab5:1 Db6:2','C6:1 G5:1 E5:1 C5:1'], amp:.88},
+          'Ride 2':{notes:['Ab5:1 C6:1 F6:2','Eb6:2 Bb5:2','Db6:2 C6:1 Ab5:1','C6:2 G5:1 E5:1',
+                           'F5:1.5 Ab5:.5 C6:2','Bb5:1.5 G5:.5 Eb5:2','F5:1 Ab5:1 Db6:1 C6:1','E5:2 G5:2'], amp:.92, second:true},
+          'Lift':{notes:['Ab5:2 Db6:2','Bb5:2 Eb6:2','C6:4','Ab5:1 G5:1 F5:1 Ab5:1',
+                         'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:2','G5:.5 Ab5:.5 G5:.5 Ab5:.5 Bb5:2','C6:4','G5:2 E5:2'], amp:1, second:true},
+          'Ride 3':{notes:['C6:2 Ab5:2','Bb5:2 G5:2','Ab5:2 F5:2','G5:2 E5:2',
+                           'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:2','G5:.5 Ab5:.5 G5:.5 Ab5:.5 Bb5:2','F5:1 Ab5:1 Db6:2','C6:1 G5:1 E5:1 C5:1'], amp:.95, second:true},
+          'Fall':{notes:['F5:4','G5:4','Ab5:4','G5:2 E5:2'], amp:.7}},
+   bells:[['Ride 2',0,'F6',2],['Lift',8,'C7',2]],
+   booms:[['Ride',0],['Ride 2',0],['Lift',0],['Ride 3',0],['Fall',0]]},
+
+  // B3. Rhythm first: the phrase squeezed into 3+3+2, in F Dorian (D natural), so it skips rather than
+  // marches and sounds scrappy instead of grand. On B flat it becomes 1-2-1-2-3, the phrase in major.
+  // Close Quarters' palette with a punchier lead.
+  {id:'crosswind', name:'B3 Crosswind', tier:'BATTLE', role:'fight', bpm:142, key:'F Dorian, three-three-two',
+   form:[['Riff',4],['Skip',8],['Answer',8],['Lift',8],['Skip 2',8],['Out',4]],
+   arch:[-6, -3, -2, 0, -1, -6],
+   groove:{'Riff':'skip', 'Skip':'skip', 'Answer':'skip', 'Lift':'skip', 'Skip 2':'skip', 'Out':'pulse'},
+   chords:{i:['F2','C3','F3','Ab3'], IV:['Bb1','F3','Bb3','D4'], VII:['Eb2','Bb2','Eb3','G3'], III:['Ab1','Eb3','Ab3','C4'], v:['C2','G2','C3','Eb3']},
+   bars:{'Riff':'i IV i IV', 'Skip':'i IV i IV VII VII IV v', 'Answer':'III III VII VII i i IV IV',
+         'Lift':'IV IV v v VII VII IV IV', 'Skip 2':'i IV i IV VII VII IV v', 'Out':'i IV i IV'},
+   basslines:{'Riff':BL(s332, 'F2 Bb1 F2 Bb1'), 'Skip':BL(s332, 'F2 Bb1 F2 Bb1 Eb2 Eb2 Bb1 C2'), 'Answer':BL(s332, 'Ab1 Ab1 Eb2 Eb2 F2 F2 Bb1 Bb1'),
+              'Lift':BL(s332, 'Bb1 Bb1 C2 C2 Eb2 Eb2 Bb1 Bb1'), 'Skip 2':BL(s332, 'F2 Bb1 F2 Bb1 Eb2 Eb2 Bb1 C2'), 'Out':BL(r => `${r}:4`, 'F2 Bb1 F2 Bb1')},
+   figures:{'Riff':[.5,0], 'Skip':[.5,0], 'Answer':[.5,12], 'Lift':[.25,12], 'Skip 2':[.25,0], 'Out':[1,0]},
+   lines:{'Riff':{notes:['','','','r:2 D5:1 Eb5:1'], amp:.7},
+          'Skip':{notes:['F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','r:.5 F5:.5 D5:.75 F5:.75 Bb5:1.5','C6:.75 Bb5:.75 Ab5:.5 G5:.75 F5:1.25','D5:1.5 F5:1.5 Bb5:1',
+                         'G5:.75 Ab5:.75 G5:.5 Ab5:.75 Bb5:1.25','Eb6:1.5 D6:.5 G5:2','Bb5:.75 C6:.75 Bb5:.5 C6:.75 D6:1.25','C6:1.5 G5:1.5 Eb5:1'], amp:.88},
+          'Answer':{notes:['Eb6:1.5 C6:1.5 Ab5:1','C6:.75 Bb5:.75 Ab5:.5 Bb5:.75 C6:1.25','Bb5:1.5 G5:1.5 Eb5:1','G5:.75 Ab5:.75 G5:.5 Ab5:.75 Bb5:1.25',
+                           'Ab5:1.5 C6:1.5 Ab5:1','F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','D6:1.5 Bb5:1.5 F5:1','D6:2 C6:2'], amp:.92, second:true},
+          'Lift':{notes:['Bb5:.75 C6:.75 Bb5:.5 C6:.75 D6:1.25','F6:1.5 D6:1.5 Bb5:1','C6:.75 D6:.75 C6:.5 D6:.75 Eb6:1.25','G5:1.5 C6:1.5 Eb6:1',
+                         'G5:.75 Ab5:.75 G5:.5 Ab5:.75 Bb5:1.25','Eb6:2 Bb5:2','D6:1.5 F6:1.5 D6:1','Bb5:4'], amp:1, second:true},
+          'Skip 2':{notes:['F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','r:.5 F5:.5 D5:.75 F5:.75 Bb5:1.5','C6:.75 Bb5:.75 Ab5:.5 G5:.75 F5:1.25','D5:1.5 F5:1.5 Bb5:1',
+                           'G5:.75 Ab5:.75 G5:.5 Ab5:.75 Bb5:1.25','Eb6:1.5 D6:.5 G5:2','Bb5:.75 C6:.75 Bb5:.5 C6:.75 D6:1.25','C6:1.5 G5:1.5 Eb5:1'], amp:.95, second:true},
+          'Out':{notes:['F5:.75 G5:.75 F5:.5 G5:.75 Ab5:1.25','F5:4','C5:2 Ab4:2','D5:2 F5:2'], amp:.72}},
+   bells:[['Answer',0,'Eb6',2],['Lift',28,'D6',2]],
+   booms:[['Skip',0],['Answer',0],['Lift',0],['Skip 2',0]]},
+
+  // C1. The Custodian, heroic. The phrase in whole notes, then harmonised D flat, E flat, D flat, E flat,
+  // A flat: its last note, the flat third that every other cue leaves hanging, becomes a home key. After a
+  // storm on the Neapolitan it is crowned in F major (First Light's turn) and falls straight back to minor.
+  {id:'lastlight', name:'C1 Last Light', tier:'BOSS', role:'fight', bpm:142, key:'F minor to A flat major: the phrase turned heroic',
+   form:[['Omen',4],['Gate',8],['Anthem',8],['Storm',8],['Crown',12],['Fall',4]],
+   arch:[-7, -3, -1.5, -1, 0, -6],
+   groove:{'Gate':'march', 'Anthem':'anthem', 'Storm':'anthem', 'Crown':'anthem', 'Fall':'march'},
+   chords:{i:['F2','C3','F3','Ab3'], VI:['Db2','Ab2','Db3','F3'], VII:['Eb2','Bb2','Eb3','G3'], III:['Ab1','Eb3','Ab3','C4'],
+           iv:['Bb1','F3','Bb3','Db4'], V:['C2','G2','C3','E3'], bII:['Gb1','Db3','Gb3','Bb3'], I:['F2','C3','F3','A3']},
+   bars:{'Omen':'i i bII V', 'Gate':'i VII i VII VI VI V V', 'Anthem':'VI VII VI VII III III iv V',
+         'Storm':'i bII i bII iv V i V', 'Crown':'VI VII VI VII III III iv V I I I I', 'Fall':'i VI VII V'},
+   basslines:{'Storm':BL(pump, 'F2 Gb2 F2 Gb2 Bb1 C2 F2 C2'), 'Crown':BL(pump, 'Db2 Eb2 Db2 Eb2 Ab1 Ab1 Bb1 C2 F2 F2 F2 F2')},
+   figures:{'Omen':[2,0], 'Gate':[.5,0], 'Anthem':[.25,0], 'Storm':[.25,0], 'Crown':[.25,12], 'Fall':[1,0]},
+   lines:{'Omen':{notes:['F5:2 G5:2','F5:2 G5:2','Ab5:4','r:4'], amp:.75},
+          'Gate':{notes:['F5:4','G5:4','F5:4','G5:4','Ab5:4','F5:1 Ab5:1 Db6:2','C6:4','E5:2 G5:2'], amp:.9, second:true},
+          'Anthem':{notes:['F5:3 Ab5:1','G5:3 Bb5:1','F5:1.5 Ab5:.5 Db6:2','G5:2 Bb5:1 Eb6:1','Ab5:4','C6:2 Eb6:2','Db6:2 Bb5:2','C6:3 E5:1'], amp:1, second:true},
+          'Storm':{notes:['F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 C6:1','Bb5:.5 Ab5:.5 Gb5:.5 Ab5:.5 Bb5:1 Db6:1','C6:.5 Bb5:.5 Ab5:.5 G5:.5 F5:1 Ab5:1','Gb5:2 Bb5:2',
+                          'Db6:1 C6:1 Bb5:1 F5:1','E5:1 G5:1 C6:2','Ab5:.5 Bb5:.5 Ab5:.5 Bb5:.5 C6:2','Db6:1 C6:1 G5:1 E5:1'], amp:.95, second:true},
+          'Crown':{notes:['F5:1.5 Ab5:.5 Db6:2','G5:1.5 Bb5:.5 Eb6:2','F6:2 Db6:1 Ab5:1','Eb6:2 Bb5:1 G5:1','Ab5:4','C6:2 Eb6:2','Db6:2 F6:2','E6:2 C6:2',
+                          'F5:.5 G5:.5 F5:.5 G5:.5 A5:2','C6:4','F6:2 C6:2','A5:4'], amp:1, second:true},
+          'Fall':{notes:['Ab5:4','F5:4','G5:4','E5:2 G5:2'], amp:.7}},
+   bells:[['Gate',16,'Ab6',4],['Crown',32,'F6',4],['Crown',40,'A6',4]],
+   booms:[['Omen',0],['Omen',8],['Omen',12],['Gate',0],['Anthem',0],['Anthem',16],['Storm',0],['Crown',0],['Crown',16],['Crown',32],['Fall',0]]},
+
+  // C2. The Custodian, tragic. The bass falls a half step a bar, F E E-flat D D-flat C, the old lament,
+  // and the phrase takes a flat second: F G-flat F G-flat A flat. A guardian that has outlived its reason.
+  // It swells to one big climb and never turns major.
+  {id:'keeper', name:'C2 Keeper', tier:'BOSS', role:'fight', bpm:142, key:'F minor over a falling lament, the phrase with a flat second',
+   form:[['Toll',4],['Lament',8],['Lament 2',8],['Break',4],['Rise',8],['Fall',8]],
+   arch:[-7, -3, -2, -6, 0, -3],
+   groove:{'Lament':'march', 'Lament 2':'anthem', 'Break':'quake', 'Rise':'anthem', 'Fall':'march'},
+   chords:{i:['F2','C3','F3','Ab3'], V6:['E2','C3','G3','C4'], i7:['Eb2','C3','F3','Ab3'], IV6:['D2','F3','Bb3','D4'],
+           VI:['Db2','Ab2','Db3','F3'], V:['C2','G2','C3','E3'], bII:['Gb1','Db3','Gb3','Bb3']},
+   bars:{'Toll':'i i bII bII', 'Lament':'i V6 i7 IV6 VI VI V V', 'Lament 2':'i V6 i7 IV6 VI VI V V',
+         'Break':'bII bII V V', 'Rise':'i i VI VI bII bII V V', 'Fall':'i V6 i7 IV6 VI bII V V'},
+   basslines:{'Lament 2':BL(pump, 'F2 E2 Eb2 D2 Db2 Db2 C2 C2'), 'Rise':BL(pump, 'F2 F2 Db2 Db2 Gb2 Gb2 C2 C2')},
+   figures:{'Toll':[2,0], 'Lament':[.5,0], 'Lament 2':[.25,0], 'Break':[1,0], 'Rise':[.25,12], 'Fall':[.5,0]},
+   lines:{'Toll':{notes:['F5:1 Gb5:1 F5:1 Gb5:1','Ab5:4','Gb5:4','Db5:4'], amp:.75},
+          'Lament':{notes:['C6:2 Ab5:2','G5:4','F5:2 Ab5:1 C6:1','Bb5:2 F5:2','Ab5:2 F5:1 Db5:1','F5:.5 Gb5:.5 F5:.5 Gb5:.5 Ab5:2','G5:4','E5:2 G5:2'], amp:.9, second:true},
+          'Lament 2':{notes:['C6:3 Bb5:1','C6:2 G5:2','Ab5:3 C6:1','D6:2 Bb5:2','Db6:2 C6:1 Ab5:1','F5:.5 Gb5:.5 F5:.5 Gb5:.5 Ab5:1 Db6:1','C6:2 G5:2','E6:2 C6:2'], amp:.95, second:true},
+          'Break':{notes:['Db6:4','Bb5:2 Gb5:2','C6:4','G5:4'], amp:.6},
+          'Rise':{notes:['Ab5:1 C6:1 F6:2','Eb6:1 Db6:1 C6:2','Db6:4','F6:2 Db6:2','Bb5:2 Gb5:2','F5:.5 Gb5:.5 F5:.5 Gb5:.5 Ab5:1 Bb5:1','C6:4','G5:1 C6:1 E6:2'], amp:1, second:true},
+          'Fall':{notes:['Ab5:4','G5:4','F5:4','Bb4:2 D5:2','F5:4','Gb5:4','G5:4','E5:4'], amp:.8}},
+   bells:[['Toll',0,'F6',4],['Toll',8,'F6',4],['Break',0,'Db7',4],['Fall',16,'F6',4]],
+   booms:[['Toll',0],['Toll',4],['Toll',8],['Toll',12],['Lament',0],['Lament 2',0],['Break',0],['Break',8],['Rise',0],['Rise',16],['Fall',0]]},
 ];
 const LADDER_TWEAKS = [
   {id:'bpm',    label:'Tempo',            opts:[['own','Its own tempo'],[71,'71'],[84,'84'],[104,'104']]},
@@ -2482,12 +2658,14 @@ const LADDER_TWEAKS = [
 ];
 const LADDER_TWEAK_DEFAULT = {bpm:'own', arch:'arch', arp:'on', second:'on', bells:'on', boom:'on', bass:'on', groove:'hits'};
 const LADDER_BPM = {salvage:'own', thinice:'own', attrition:'own', aftermath:'own', driftplane:'own', ghostfreight:'own', coldiron:'own', countdown:'own', sealed:'own', lightsout:'own', eventhorizon:'own', noair:'own', laststand:'own', closequarters:'own', coldstart:71, longway:71, slipstream:'own', cutsignal:'own', redline:'own', hairline:'own', deadweight:'own',
-                    overpressure:84, nothingleft:'own', wrongship:71};   // locked in
+                    overpressure:84, nothingleft:'own', wrongship:71,
+                    fullburn:'own', gallop:'own', crosswind:'own', lastlight:'own', keeper:'own'};   // locked in
 const LADDER_ARCH = {wrongship:'flat'};   // locked in: it holds one level all the way through
 const LADDER_BASS = {noair:'off'};        // No Air has no bottom end: that is the whole cue
 const LADDER_GROOVE = {salvage:'pattern', thinice:'pattern', attrition:'pattern', aftermath:'pattern', driftplane:'pattern', ghostfreight:'pattern', coldiron:'pattern', countdown:'pattern', sealed:'hits', lightsout:'hits', eventhorizon:'hits', noair:'pattern', laststand:'pattern', closequarters:'pattern', coldstart:'pattern', longway:'hits', slipstream:'pattern', cutsignal:'pattern',
                        redline:'pattern', hairline:'pattern', deadweight:'pattern',
-                       overpressure:'pattern', nothingleft:'pattern', wrongship:'hits'};   // locked in
+                       overpressure:'pattern', nothingleft:'pattern', wrongship:'hits',
+                       fullburn:'pattern', gallop:'pattern', crosswind:'pattern', lastlight:'pattern', keeper:'pattern'};   // locked in
 const LADDER_SETUPS = {   // locked in
   coldstart:  {tune:115, middle:95,  echo:20, chords:24, extra:111, bass:86, drums:125, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
   longway:    {tune:2,   middle:115, echo:20, chords:50, extra:26,  bass:86, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},
@@ -2512,6 +2690,12 @@ const LADDER_SETUPS = {   // locked in
   thinice:    {tune:17, middle:112, echo:47, chords:26, extra:107, bass:85, drums:126, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},   // locked in
   attrition:  {tune:113, middle:116, echo:37, chords:26, extra:112, bass:77, drums:127, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},   // locked in
   aftermath:  {tune:104, middle:95, echo:55, chords:50, extra:26, bass:86, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet', dly:'off'}, bass:{vol:'quiet'}, drums:{rev:'huge', vol:'quiet'}}},   // locked in
+  // the battle and boss candidates (Nov 10): First Light's, Slipstream's and Close Quarters' palettes, and two boss palettes
+  fullburn:   {tune:10, middle:109, echo:20, chords:24, extra:112, bass:86, drums:121, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
+  gallop:     {tune:113, middle:112, echo:37, chords:24, extra:114, bass:85, drums:122, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
+  crosswind:  {tune:7, middle:115, echo:47, chords:24, extra:111, bass:102, drums:121, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},
+  lastlight:  {tune:110, middle:80, echo:20, chords:50, extra:112, bass:86, drums:129, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{vol:'quiet', dly:'off'}, drums:{rev:'wet'}}},
+  keeper:     {tune:95, middle:25, echo:20, chords:50, extra:112, bass:86, drums:129, fx:{echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{vol:'quiet', dly:'off'}, drums:{rev:'wet'}}},
   cutsignal:  {tune:116, middle:115, echo:20, chords:50, extra:26,  bass:86, drums:129, fx:{middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},
 };
 function applyTweaksLadder(){
@@ -2528,7 +2712,7 @@ const SONGS = [
   {id:'fl',    tab:'First Light (EASY)', apply: () => applyTweaksFL(),    tweaks: FL_TWEAKS,    defaults: FL_TWEAK_DEFAULT,    setup: FL_SETUP_ROW,    gfx: FL_GFX},
   // every other cue, grouped by tier in ladder order. Quiet Orbit is hand-written, so it is
   // slotted into its tier by hand; the rest come from LADDER.
-  ...['EASY', 'ROUGH', 'HARD', 'BRUTAL', 'LETHAL', 'DEATH'].flatMap(tier => [
+  ...['EASY', 'ROUGH', 'HARD', 'BRUTAL', 'LETHAL', 'DEATH', 'BATTLE', 'BOSS'].flatMap(tier => [
     ...LADDER.filter(c => c.tier === tier && c.role !== 'fight').map(c => ({id: c.id, tab: tier === 'DEATH' ? `${c.name} (death)` : `${c.name} (${tier})`, apply: () => applyTweaksLadder(),
       tweaks: LADDER_TWEAKS, defaults: {...LADDER_TWEAK_DEFAULT, bpm: LADDER_BPM[c.id], groove: LADDER_GROOVE[c.id], arch: LADDER_ARCH[c.id] || 'arch', bass: LADDER_BASS[c.id] || 'on'}, setup: LADDER_SETUPS[c.id], gfx: QO_GFX})),
     ...(tier === 'ROUGH' ? [{id:'qo', tab:'Quiet Orbit (ROUGH)', apply: () => applyTweaksQO(), tweaks: QO_TWEAKS,
