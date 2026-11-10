@@ -424,14 +424,14 @@ func _confirm_new_run() -> void:
 			"Launching abandons that run. It keeps its place on the flight record.",
 			UITheme.COLD, UITheme.FS_SMALL))
 	col.add_child(_gap(4))
-	col.add_child(_seed_row())
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	# Silent, like the hull pick's LAUNCH: starting the game is not a UI click.
-	row.add_child(Widgets.button("LAUNCH", _launch, false))
-	row.add_child(_leave_button("NOT YET", _close_popup))
-	col.add_child(row)
+	# THE TIERS AND THE GALAXY (Jon's T1, Nov 10), then LAUNCH, NOT YET and the
+	# seed on one row. Silent, like the hull pick's LAUNCH: starting the game is
+	# not a UI click.
+	var box := LaunchBox.new()
+	box.setup(Widgets.button("LAUNCH", _launch, false), _leave_button("NOT YET", _close_popup), _seed_row())
+	box.tier_changed.connect(func(t: int) -> void: Run.picked_ascension = t)
+	Run.picked_ascension = box.tier
+	col.add_child(box)
 
 	_open_popup(col, true)
 	# Typing is the whole reason this panel exists, so the caret starts in the

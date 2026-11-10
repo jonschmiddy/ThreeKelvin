@@ -203,11 +203,16 @@ func _screens(dev: bool) -> void:
 	pick.setup()
 	await _tree.process_frame
 	var tiers := _tier_buttons(pick)
+	var open_banners := 0
+	for b in pick._yard.banners:
+		if b.open:
+			open_banners += 1
 	if dev:
 		_ok("the chassis select builds the C-B-A-S tier row", tiers == HullData.TIER_NAMES.size())
+		_ok("and every manufacturer's banner is named and open", open_banners == DB.STARTABLE.size())
 	else:
 		_ok("the chassis select builds no tier row", tiers == 0)
-	_ok("and still says the grade", _with_text(pick, "TIER") >= 1)
+		_ok("and a fresh profile has Korvan's banner alone open, six ???", open_banners == 1 and pick._yard.banners[0].open)
 	await _drop(pick)
 
 	Run.chart_from(Run.node_at())

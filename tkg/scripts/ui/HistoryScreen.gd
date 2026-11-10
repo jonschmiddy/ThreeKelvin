@@ -90,6 +90,8 @@ func _row(e: Dictionary) -> Control:
 	top.add_child(UITheme.body(RunHistory.depth_text(e), UITheme.ICE, UITheme.FS_SMALL))
 	top.add_child(UITheme.body("danger %d" % int(e.get("danger", 1)),
 		UITheme.COLD, UITheme.FS_SMALL))
+	top.add_child(UITheme.body("tier %d" % int(e.get("ascension", 0)),
+		Ladder.colour(int(e.get("ascension", 0))), UITheme.FS_SMALL))
 	top.add_child(UITheme.body(_count(int(e.get("kills", 0)), "kill"),
 		UITheme.COLD, UITheme.FS_SMALL))
 	top.add_child(UITheme.body(_count(int(e.get("jumps", 0)), "jump"),

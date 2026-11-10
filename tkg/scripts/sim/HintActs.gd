@@ -156,6 +156,8 @@ static func act(id: StringName) -> String:
 			var cs := cur as ChassisSelect
 			if cs == null:
 				return ""
+			# (the banner yard: LAUNCH is grey until a ship is clicked)
+			cs._pick_weight(HullData.Weight.MEDIUM)
 			for b in cs.find_children("*", "Button", true, false):
 				if (b as Button).text == "LAUNCH":
 					(b as Button).pressed.emit()

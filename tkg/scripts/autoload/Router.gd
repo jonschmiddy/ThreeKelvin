@@ -329,7 +329,8 @@ func show_chassis_select() -> void:
 	# named rather than inherited, because this screen is also reachable cold.
 	Audio.music_state(&"lobby")
 	var s := ChassisSelect.new()
-	_swap(s)
+	# No HUD over the yard (Jon's W2 v10): the hall is the whole picture.
+	_swap(s, false)
 	s.setup()
 	# A new run opens on LOCAL (Jon). No tour: hints teach each thing when it first matters.
 	# Why: docs/why/Router.md#new-run-opening

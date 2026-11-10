@@ -39,6 +39,8 @@ static func record(outcome: Outcome, reason: String) -> void:
 		ended_at = now,
 		seconds = seconds,
 		jumps = Run.jumps,
+		# the tier flown (the player's word for the ascension level); an old entry reads 0
+		ascension = Run.ascension,
 		kills = Run.kills,
 		hp = Run.hp,
 		max_hp = Run.max_hp(),
