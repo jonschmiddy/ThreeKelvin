@@ -488,24 +488,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			sb.opt = i
 			L.star_beacons.append(sb)
 			continue
-		# A BELT READING ON THE BELT (science, Phase 12): its text is about the
-		# rocks, so it sits on them in every system. Its planet twin, a barren
-		# reading, wants a planet as any untagged option does; `_worlds` makes
-		# that world a dry one
-		if site == &"belt":
-			want.append([i, &"belt"])
-			continue
-		var tags: Array = OptionTable.by_id(n.options[i]).get("tags", [])
-		var k := &"planet"
-		if tags.has(&"fight") and not tags.has(&"salvage"):
-			k = &"contact"
-		elif tags.has(&"salvage") and tags.has(&"hazard"):
-			k = &"belt"
-		elif tags.has(&"salvage"):
-			k = &"derelict" if R.randf() < 0.5 else &"belt"
-		elif tags.has(&"hazard"):
-			k = &"belt"
-		want.append([i, k])
+		want.append([i, _wanted_kind(site, OptionTable.by_id(n.options[i]).get("tags", []), R)])
 
 	# Few bodies are fine (Jon): options share a world half the time, the planet only if none.
 	var order: Array = []
@@ -648,6 +631,27 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			b.soi = soi_of(b)
 	_weigh_giant(L, n)
 	return L
+
+
+## The body an option sits on: the place its words name (`site`), else by its tags.
+## The tags' coin flip is always drawn, so a named site moves nothing else in the system.
+## Why: docs/why/SystemLayout.md#event-sites
+static func _wanted_kind(site: StringName, tags: Array, R: RandomNumberGenerator) -> StringName:
+	var k := &"planet"
+	if tags.has(&"fight") and not tags.has(&"salvage"):
+		k = &"contact"
+	elif tags.has(&"salvage") and tags.has(&"hazard"):
+		k = &"belt"
+	elif tags.has(&"salvage"):
+		k = &"derelict" if R.randf() < 0.5 else &"belt"
+	elif tags.has(&"hazard"):
+		k = &"belt"
+	match site:
+		&"belt", &"derelict", &"contact":
+			return site
+		&"world", &"barren":
+			return &"planet"
+	return k
 
 
 ## Zone is set first: by index round one star, by distance from the light round two.

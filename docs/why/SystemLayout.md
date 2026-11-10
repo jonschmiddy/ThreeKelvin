@@ -515,3 +515,38 @@ ships orbit is fine actually"). A game constant, not a setting: every peer
 must turn the worlds alike (`NetSession.PROTOCOL` 17). 4: Jon's pick from
 the films (Nov 5, "3D"), the binary pair with them.
 ```
+
+## Event sites
+
+Above `static func _wanted_kind(site: StringName, tags: Array, R: RandomNumberGenerator) -> StringName:`:
+
+```text
+EVERY EVENT DRAWS ITS OWN PLACE (Jon, Nov 9, the Stripped-Down UI's card 9,
+S2B). Before this the body an option sat on came from its tags alone, so about
+20 of 134 events sat on a body their words contradicted: `the_grazing` says a
+body of dirty ice the size of a small moon and sat on a belt; `the_sunken_freighter`
+is inside the giant's air and got a wreck or a belt; a dozen salvage events
+whose words are one dead hull took the coin flip and sat on rocks half the
+time. LOCAL draws the place behind the band (`LocalSky._build_near`), so the
+picture contradicted the words too.
+
+Now an option's `site` names the place its words name, and the tags only
+decide where the words name none:
+  giant     the gas giant (where the system has one), as before;
+  star      a hot star's close orbit (where the star is red or blue), as before;
+  barren    a planet whose world is a dry one (`_worlds`, `DRY`), as the science
+            readings had it;
+  world     a planet of any kind (a dock, a yard, a settlement);
+  belt      the belt's rocks;
+  derelict  a dead hull;
+  contact   open space, the event's subject the whole scene (a convoy, a carcass,
+            a herd crossing, a tender selling in the open).
+The tags' coin flip (salvage alone: a wreck or a belt) is drawn whether or not a
+site overrides it, so naming a site moves nothing else in that system: the
+other bodies' worlds, the giant's slot, the scenery belt and every orbit come
+off R exactly as before. Only the sited body's own kind changes.
+
+The 45 sites assigned on Nov 9, for Jon to check, are listed in
+docs/tests.md's `subjecttest` row's neighbour, `tk-scratch/ui-build/part9/sites.md`,
+and the `-- subjecttest` check `_every_place` holds every option to its site.
+```

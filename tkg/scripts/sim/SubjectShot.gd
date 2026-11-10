@@ -20,7 +20,9 @@ func _run() -> void:
 	var want := Harness.arg("subject", "all")
 	var ids: Array[StringName] = []
 	for o: Dictionary in OptionTable.all():
-		if o.has("subject") and (want == "all" or String(o.id) in want.split(",")):
+		# (`all` is every encounter with a subject; a named one needs none: its
+		# place alone is the picture, `LocalSky.near_what`)
+		if (o.has("subject") and want == "all") or String(o.id) in want.split(","):
 			ids.append(o.id)
 	if ids.is_empty():
 		print("subjectshot: no encounter %s carries a subject" % want)
