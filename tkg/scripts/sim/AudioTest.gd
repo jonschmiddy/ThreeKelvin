@@ -47,6 +47,11 @@ func run(tree: SceneTree) -> void:
 	_ok("and every cue the table names exists (%d named, missing %s)"
 			% [named.size(), missing], missing.is_empty())
 
+	# Three fight cues by danger (Jon, Nov 10). Why: docs/why/Audio.md#music-cues
+	var f: Array = Audio.TIERS.map(func(t: StringName) -> StringName: return Audio.FIGHT_CUES[t])
+	_ok("fights by danger: EASY = ROUGH, HARD alone, BRUTAL = LETHAL, three cues (%s)" % [f],
+			f[0] == f[1] and f[3] == f[4] and f[1] != f[2] and f[2] != f[3] and f[0] != f[4])
+
 	# Read as a table, not by driving a run: the layer bands are arithmetic.
 	_ok("five tiers over %d layers, %d apiece"
 			% [MapGen.LAYERS, Audio.TIER_SPAN],
@@ -153,6 +158,9 @@ func run(tree: SceneTree) -> void:
 			Audio._now == dv)
 
 	# Winning is quiet by decision; the tape proves it, as `_connect_signals` is skipped headless.
+	# A run first: Router logs the hull on a fight's end, and with no hull that was a SCRIPT ERROR.
+	seed_run(4242)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Audio.taping = true
 	Audio.tape.clear()
 	Sig.combat_ended.emit(&"victory", "")
@@ -165,8 +173,6 @@ func run(tree: SceneTree) -> void:
 	Audio.tape.clear()
 
 	# The top of the rarity ladder rings and the rest does not, read through the real view.
-	seed_run(4242)
-	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var node: MapGen.MapNode = Run.node_at()
 	node.jetsam.clear()
 	node.taken.clear()

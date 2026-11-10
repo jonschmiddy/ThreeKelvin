@@ -391,6 +391,8 @@ func _beat_core() -> bool:
 		% [Run.jumps, cb.enemies[0].max_hp],
 		Run.jumps == 41 and cb.enemies[0].max_hp == 400 and cb.enemies[0].hp == 400)
 	_ok("which asks for the boss cue", Audio.music_asked == &"boss")
+	_ok("  its own, %s, which no ordinary fight plays (Nov 10)" % Audio.BOSS_CUE,
+		not Audio.FIGHT_CUES.values().has(Audio.BOSS_CUE))
 	Run.hp = Run.max_hp()
 	var tries := 0
 	while not cb.finished and tries < 30:
