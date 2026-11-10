@@ -16,6 +16,8 @@ const END_PX := 0.5
 const HOLD_S := 3.0
 ## flown this long at most (s)
 const FLY_MAX := 45.0
+## click to settled at each spot, s: median, 90th, worst (Jon, Nov 9, "M1")
+const TIME_LIMITS := [4.5, 7.5, 8.0]
 const NONE := {"w": false, "a": false, "s": false, "d": false}
 
 var h := Harness.new()
@@ -110,8 +112,11 @@ func _run() -> void:
 		ys.sort()
 		if ys.is_empty():
 			continue
+		var q := [float(ys[ys.size() / 2]), float(ys[int(ys.size() * 0.9)]), float(ys[-1])]
 		print("  spot %d %s, click to settled, s: median %.2f, 90th %.2f, worst %.2f (%d); made from the moment it comes in: %d of %d" % [k + 1,
-			CometPath.SPOT_NAMES[k], ys[ys.size() / 2], ys[int(ys.size() * 0.9)], ys[-1], ys.size(), made[k], tried[k]])
+			CometPath.SPOT_NAMES[k], q[0], q[1], q[2], ys.size(), made[k], tried[k]])
+		h._ok("spot %d: median %.2f, 90th %.2f, worst %.2f s within %.1f / %.1f / %.1f" % [k + 1, q[0], q[1], q[2],
+			TIME_LIMITS[0], TIME_LIMITS[1], TIME_LIMITS[2]], q[0] <= TIME_LIMITS[0] and q[1] <= TIME_LIMITS[1] and q[2] <= TIME_LIMITS[2])
 	print("  flown: worst settle %.3f px off the spot, worst hold %.3f px over %.0f s, worst miss of the comet %.3f px, nearest a sun's keep-out %.1f px outside" % [worst_end, worst_hold, HOLD_S, worst_meet, least_clear])
 	for line in bad.slice(0, 6):
 		print("    " + line)

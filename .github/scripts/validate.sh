@@ -784,6 +784,26 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet pairlocaltest 120 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=PairLocalTest
 }
 
+unit_cometflighttest() {
+step "Every comet spot can be flown to, in time"
+# The comet's three spots as flights, under Jon's limits (Nov 9, "M1").
+# Why: docs/why/validate.md#unit_cometflighttest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet cometflighttest 300 \
+	"every comet spot is found, flown and held, within the time limits" \
+	"a comet spot flight is missing, misses the spot or the comet, or is too slow" \
+	--headless --path "$PROJECT" -- sheet=CometFlightTest
+}
+
+unit_cometcatchtest() {
+step "The comet catch plays through on the real map"
+# The race, the wait, the pass in LOCAL and TOO LATE (Jon, Nov 9, "CC").
+# Why: docs/why/validate.md#unit_cometcatchtest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet cometcatchtest 180 \
+	"the comet's spots are raced, waited at and caught; late spots are refused" \
+	"the catch broke: a spot, the pass in LOCAL or TOO LATE" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=CometCatchTest
+}
+
 # FlightTest and SolveTest run SPLIT, GATE_FLIGHT_SHARDS and GATE_SOLVE_SHARDS
 # units each (`-- shard=K/N`: every Nth system or case, `Harness.mine`), side by
 # side in the pool. Each shard judges its own cases (FlightTest's worker plans
@@ -2098,6 +2118,7 @@ gate_weight() {
 		fueltest) echo 22 ;; deeploottest) echo 22 ;; goaltest) echo 21 ;;
 		bindtest) echo 20 ;; swaptest) echo 20 ;; arriveidletest) echo 20 ;;
 		nettest) echo 20 ;; solvetest_*) echo 170 ;;
+		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;;
 		*) echo 15 ;;
 	esac

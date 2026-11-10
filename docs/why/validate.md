@@ -445,3 +445,20 @@ files describe a moment and are kept stale deliberately.
 Two exemptions here that the code does not need: "house style", the
 publishing idiom for a publication's own conventions, and the line in
 docs/README.md that states the rule, which has to name the words it bans.
+
+## unit_cometflighttest
+
+The comet's three spots as flights (CometFlightTest): a comet forced into up to
+25 systems a seed over four seeds, every world's orbit to every spot planned
+and one in four flown. Found and clean in 99%, settled and held within 0.5 px,
+the comet met there, never inside a sun's keep-out, and click to settled at
+each spot within Jon's limits (Nov 9, "M1"): median 4.5 s, 90th 7.5 s, worst
+8 s. It measured 4.30/6.92/7.42, 3.42/5.92/7.44 and 2.55/4.89/7.49 s for the
+far, near and star spots when the limits were set; about 90 s.
+
+## unit_cometcatchtest
+
+The catch on the real map (CometCatchTest): the race planned for all three
+spots, the comet's page offering them, a spot flown to and waited at, the pass
+down to LOCAL with the reading open, the ship back on its spot after, and TOO
+LATE twice, neither flown to. About 34 s.
