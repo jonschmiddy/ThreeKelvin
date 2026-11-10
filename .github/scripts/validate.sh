@@ -1362,8 +1362,8 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardfronttest 240 \
 
 unit_launchtiertest() {
 step "LAUNCH A RUN: the tier stops, the galaxy by tier, the record"
-# Jon's T1 (Nov 10). On a scratch flight record: no win opens tiers 0 and 1 and no
-# more; a stop past best + 1 refuses a click; a pick reaches the run's level and the
+# Jon's T1 (Nov 10). On a scratch flight record: no win opens tier 0 alone, and a
+# tier 0 win opens 1; a stop past best + 1 refuses a click; a pick reaches the run's level and the
 # galaxy's form, and the won run goes on the record with its tier, which opens the
 # next; the fresh-profile skip still launches at 0; the box on screen at every tier.
 ALLOW_EXTRA="$GATE_LEAKS" gate_sheet launchtiertest 180 \
