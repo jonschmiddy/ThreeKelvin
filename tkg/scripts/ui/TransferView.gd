@@ -585,6 +585,17 @@ func window_rect() -> Rect2:
 	return _window.get_global_rect()
 
 
+## The hold and the plate where they come to rest, global: what A.S.H. keeps
+## off, picked while they may still be sliding in.
+func rest_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	if _hold_panel != null and is_instance_valid(_hold_panel) and _hold_panel.is_visible_in_tree():
+		out.append(Rect2(get_global_rect().position + Vector2(0.0, _hold_panel.position.y), _hold_panel.size))
+	if _window != null and is_instance_valid(_window) and _window.is_visible_in_tree():
+		out.append(Rect2(get_global_rect().position + _plate_rest, _window.size))
+	return out
+
+
 ## Your hold's panel, global.
 func hold_rect() -> Rect2:
 	if _hold_panel == null or not is_instance_valid(_hold_panel) or not _hold_panel.is_visible_in_tree():
