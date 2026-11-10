@@ -1546,6 +1546,12 @@ const GROOVES = {
     if (bar % 4 === 3) h.push([3.5, 46, .2]);
     if (bar % 8 === 7) [3.25, 3.5, 3.75].forEach((b, i) => h.push([b, 38, .3 + i * .08]));
     return h; },
+  // surge: a four-bar run-up. Kicks on one and three, the snare doubling its rate each bar (quarters,
+  // eighths, then sixteenths) and getting louder, over steady eighth hats.
+  surge: bar => { const h = [[0, 36, .8], [2, 36, .7]], k = bar % 4, step = [1, .5, .25, .25][k];
+    for (let b = 0; b < 4; b += step) h.push([b, 38, .25 + .1 * k + b * .03]);
+    for (let j = 0; j < 8; j++) h.push([j * .5, 42, .1]);
+    return h; },
   // gallop: the hats ride an eighth and two sixteenths, the old battle-theme horse.
   gallop: bar => { const h = [[0, 36, .7], [1, 38, .5], [2, 36, .6], [3, 38, .55]];
     for (let k = 0; k < 4; k++) h.push([k, 42, .15], [k + .5, 42, .09], [k + .75, 42, .08]);
@@ -2691,26 +2697,60 @@ const LADDER = [
   // D2. The phrase at two speeds. Underneath, the bass PLAYS the phrase, in eighths, on every chord, all the
   // way through (B2's gallop grown into a riff). On top, the same phrase a bar a note: C, D flat, C, D flat,
   // E flat. Then a hammered hook, a stop-time break, and round again. Gallop's palette.
+  // Jon picked it (Nov 10) and asked for it longer, so a boss fight hears it come round less often:
+  // after the second lap a quiet stretch (the riff, a pulse and the hook in pieces), a run-up on the
+  // phrase climbing through the chords, then a final lap at full size that turns back to the top.
   {id:'undertow', name:'D2 Undertow', tier:'BOSS', role:'fight', bpm:142, key:'F minor, the phrase in the bass and, slowed, on top',
-   form:[['Riff',4],['Climb',8],['Hammer',8],['Break',4],['Climb 2',8],['Hammer 2',8]],
-   arch:[-4, -2, -1.5, -5, -1, 0],
-   groove:{'Riff':'gallop', 'Climb':'storm', 'Hammer':'storm', 'Break':'quake', 'Climb 2':'storm', 'Hammer 2':'storm'},
+   form:[['Riff',4],['Climb',8],['Hammer',8],['Break',4],['Climb 2',8],['Hammer 2',8],
+         ['Deep',8],['Deep 2',8],['Rise',8],['Surge',4],['Climb 3',8],['Hammer 3',8],['Hammer 4',8]],
+   arch:[-4, -2, -1.5, -5, -1.5, -0.5, -6, -4.5, -2.5, -1.5, 0, 0, 0],
+   groove:{'Riff':'gallop', 'Climb':'storm', 'Hammer':'storm', 'Break':'quake', 'Climb 2':'storm', 'Hammer 2':'storm',
+           'Deep':'pulse', 'Deep 2':'drive', 'Rise':'charge', 'Surge':'surge', 'Climb 3':'storm', 'Hammer 3':'storm', 'Hammer 4':'storm'},
    chords:{i:['F2','C3','F3','Ab3'], VI:['Db2','Ab2','Db3','F3'], VII:['Eb2','Bb2','Eb3','G3'], iv:['Bb1','F2','Bb2','Db3'], V:['C2','G2','C3','E3']},
    bars:{'Riff':'i i VI V', 'Climb':'i VI i VI VII VII V V', 'Hammer':'i VII VI V i VII VI V', 'Break':'iv iv V V',
-         'Climb 2':'i VI i VI VII VII V V', 'Hammer 2':'i VII VI V i VII VI V'},
+         'Climb 2':'i VI i VI VII VII V V', 'Hammer 2':'i VII VI V i VII VI V',
+         'Deep':'i i VI VI i i VII V', 'Deep 2':'i i VI VI VII VII V V', 'Rise':'iv iv i i VI VI V V', 'Surge':'V V V V',
+         'Climb 3':'i VI i VI VII VII V V', 'Hammer 3':'i VII VI V i VII VI V', 'Hammer 4':'i VII VI V i VII VI V'},
    basslines:{'Riff':riffs('i i VI V'), 'Climb':riffs('i VI i VI VII VII V V'), 'Hammer':riffs('i VII VI V i VII VI V'),
               'Break':['Bb1:1 r:3', 'Bb1:1 r:1 Bb1:.5 Bb1:.5 r:1', 'C2:1 r:3', 'C2:.5 C2:.5 C2:.5 C2:.5 C2:.25 C2:.25 C2:.25 C2:.25 E2:1'],
-              'Climb 2':riffs('i VI i VI VII VII V V'), 'Hammer 2':riffs('i VII VI V i VII VI V')},
-   figures:{'Riff':[.5,0], 'Climb':[.25,0], 'Hammer':[.25,0], 'Break':[1,0], 'Climb 2':[.25,12], 'Hammer 2':[.25,12]},
+              'Climb 2':riffs('i VI i VI VII VII V V'), 'Hammer 2':riffs('i VII VI V i VII VI V'),
+              'Deep':riffs('i i VI VI i i VII V'), 'Deep 2':riffs('i i VI VI VII VII V V'), 'Rise':riffs('iv iv i i VI VI V V'),
+              'Surge':BL(rush, 'C2 C2 C2 C2'), 'Climb 3':riffs('i VI i VI VII VII V V'),
+              'Hammer 3':riffs('i VII VI V i VII VI V'), 'Hammer 4':riffs('i VII VI V i VII VI V')},
+   figures:{'Riff':[.5,0], 'Climb':[.25,0], 'Hammer':[.25,0], 'Break':[1,0], 'Climb 2':[.25,12], 'Hammer 2':[.25,12],
+            'Deep 2':[.5,0], 'Rise':[.25,0], 'Surge':[.25,12], 'Climb 3':[.25,12], 'Hammer 3':[.25,12], 'Hammer 4':[.25,12]},
    lines:{'Climb':{notes:['C6:4','Db6:4','C6:4','Db6:4','Eb6:4','Bb5:2 G5:2','C6:4','E5:2 G5:2'], amp:.95, second:true},
           'Hammer':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
                            'Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Db6:.5 E6:2'], amp:1, second:true},
           'Break':{notes:['Db6:1 r:3','r:4','C6:1 r:3','r:2 E5:1 G5:1'], amp:.9},
           'Climb 2':{notes:['C6:4','Db6:4','C6:4','Db6:4','Eb6:4','Bb5:2 G5:2','C6:4','E5:2 G5:2'], amp:1, second:true},
           'Hammer 2':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
+                             'Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Db6:.5 E6:2'], amp:1, second:true},
+          // the quiet stretch: the hook in pieces over the riff, then answered and climbing
+          'Deep':{notes:['', 'Ab5:1.5 G5:.5 F5:2', '', 'r:2 Ab5:1 F5:1', '', 'Ab5:1.5 G5:.5 F5:2', '', 'r:2 E5:1 G5:1'], amp:.75},
+          'Deep 2':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1', 'r:4', 'Ab5:1.5 G5:.5 F5:1 Db6:1', 'r:4',
+                           'Bb5:1.5 Ab5:.5 G5:1 Eb6:1', 'r:4', 'C6:.5 Db6:.5 C6:.5 Db6:.5 E6:2', 'r:2 G5:1 E5:1'], amp:.85},
+          // the run-up: the phrase on each chord, a step higher every two bars
+          'Rise':{notes:['Bb4:.5 C5:.5 Bb4:.5 C5:.5 Db5:1 F5:1', 'Bb4:.5 C5:.5 Bb4:.5 C5:.5 Db5:1 Bb5:1',
+                         'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 C6:1', 'F5:.5 G5:.5 F5:.5 G5:.5 Ab5:1 F6:1',
+                         'Ab5:.5 Bb5:.5 Ab5:.5 Bb5:.5 C6:1 Db6:1', 'Ab5:.5 Bb5:.5 Ab5:.5 Bb5:.5 C6:.5 Db6:.5 F6:1',
+                         'C6:.5 Db6:.5 C6:.5 Db6:.5 E6:1 G6:1', 'C6:.25 Db6:.25 C6:.25 Db6:.25 C6:.25 Db6:.25 C6:.25 Db6:.25 E6:2'], amp:.9, second:true},
+          'Surge':{notes:['C6:.5 Db6:.5 C6:.5 Db6:.5 E6:2', 'C6:.5 Db6:.5 C6:.5 Db6:.5 G6:2',
+                          'E6:.5 G6:.5 E6:.5 G6:.5 E6:.5 G6:.5 E6:.5 G6:.5', 'C6:2 r:2'], amp:.95, second:true},
+          // the final lap, at full size
+          'Climb 3':{notes:['C6:4','Db6:4','C6:4','Db6:4','Eb6:4','Bb5:2 G5:2','C6:4','E5:2 G5:2'], amp:1, second:true},
+          'Hammer 3':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
+                           'Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Db6:.5 E6:2'], amp:1, second:true},
+          'Hammer 4':{notes:['Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Bb5:.5 Ab5:1 G5:1',
                              'Ab5:1.5 G5:.5 F5:1 C6:1','Bb5:1.5 Ab5:.5 G5:1 Eb5:1','Ab5:1.5 G5:.5 F5:1 Db6:1','C6:1.5 Db6:.5 E6:2'], amp:1, second:true}},
-   bells:[['Climb',16,'Eb7',2],['Hammer 2',0,'F6',2]],
-   booms:[['Riff',0],['Climb',0],['Hammer',0],['Break',0],['Break',8],['Climb 2',0],['Hammer 2',0],['Hammer 2',16]]},
+   bells:[['Climb',16,'Eb7',2],['Hammer 2',0,'F6',2],
+          ['Climb 3',0,'C7',4],['Climb 3',4,'Db7',4],['Climb 3',8,'C7',4],['Climb 3',12,'Db7',4],['Climb 3',16,'Eb7',4],
+          // the final lap's hook gets a falling bell line on top: the top of each chord, C B flat A flat G
+          ['Hammer 3',0,'C7',3],['Hammer 3',4,'Bb6',3],['Hammer 3',8,'Ab6',3],['Hammer 3',12,'G6',3],['Hammer 3',16,'C7',3],['Hammer 3',20,'Bb6',3],['Hammer 3',24,'Ab6',3],['Hammer 3',28,'G6',3],
+          ['Hammer 4',0,'C7',3],['Hammer 4',4,'Bb6',3],['Hammer 4',8,'Ab6',3],['Hammer 4',12,'G6',3],['Hammer 4',16,'C7',3],['Hammer 4',20,'Bb6',3],['Hammer 4',24,'Ab6',3],['Hammer 4',28,'G6',3]],
+   booms:[['Riff',0],['Climb',0],['Hammer',0],['Break',0],['Break',8],['Climb 2',0],['Hammer 2',0],['Hammer 2',16],
+          ['Deep',0],['Deep 2',0],['Rise',0],['Rise',16],['Surge',0],['Climb 3',0],['Climb 3',16],
+          ['Hammer 3',0],['Hammer 3',16],['Hammer 4',0],['Hammer 4',16]]},
 
   // D3. A song with a chorus. Crosswind's skipping verse, then a chorus in A flat major whose hook is the
   // phrase turned major (A flat, B flat, A flat, B flat, C) sung three times in eight bars over the big
