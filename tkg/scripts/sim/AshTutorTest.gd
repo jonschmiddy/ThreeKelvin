@@ -568,10 +568,14 @@ func _gather(cur: Control, v: Rect2) -> Array:
 	if Ash.lesson_subject.size != Vector2.ZERO:
 		out.append(["what she points at", Ash.lesson_subject])
 	# every button and word on the screen, and every control that takes the
-	# mouse (but a backdrop that holds the whole of her view)
+	# mouse (but a backdrop that holds the whole of her view). With loot open
+	# in place, the scene under it takes no click, so only the loot's own count.
+	var tv: TransferView = Hints._transfer(cur as SectorScreen) if cur is SectorScreen else null
 	for c in cur.find_children("*", "Control", true, false):
 		var k := c as Control
 		if k == null or not k.is_visible_in_tree() or k.size.x <= 0.0 or k.size.y <= 0.0:
+			continue
+		if tv != null and k != tv and not tv.is_ancestor_of(k):
 			continue
 		var g := k.get_global_rect()
 		var drawn := (k is BaseButton) or (k is Label and (k as Label).text.strip_edges() != "") \

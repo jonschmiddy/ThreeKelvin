@@ -6,7 +6,7 @@ writer's MJPEG is full range (yuvj420p, "pc"), which -pix_fmt yuv420p alone
 passed through to the MP4, and some phone players shift full-range H.264's
 contrast: the scale converts it to TV range first.
 
-usage: uv run --with imageio-ffmpeg python tools/dev/encode_video.py IN.avi OUT.mp4 [START_SECONDS]
+usage: uv run --with imageio-ffmpeg python tools/dev/encode_video.py IN.avi OUT.mp4 [START_SECONDS] [WxH]
 """
 import subprocess
 import sys
@@ -24,10 +24,12 @@ def main():
         sys.exit(__doc__)
     src, out = sys.argv[1], sys.argv[2]
     start = sys.argv[3] if len(sys.argv) > 3 else "0"
+    # A fourth argument, WxH, picks the size: 1920x1080 is the game at 2x, as Jon sees it.
+    size = sys.argv[4] if len(sys.argv) > 4 else "960x540"
     ff = imageio_ffmpeg.get_ffmpeg_exe()
     print(streams(ff, src))
     subprocess.run([ff, "-y", "-loglevel", "error", "-ss", start, "-i", src,
-                    "-vf", "scale=960:540:flags=neighbor:out_range=tv,format=yuv420p", "-color_range", "tv", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-vf", "scale=%s:flags=neighbor:out_range=tv,format=yuv420p" % size.replace("x", ":"), "-color_range", "tv", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                     "-crf", "16", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", out], check=True)
     print(streams(ff, out))
 

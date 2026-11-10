@@ -1226,7 +1226,7 @@ static func tut_avoid_rects(cur: Control) -> Array:
 		_cutaway_rects(sc._cutaway, out)
 		var tv := Hints._transfer(sc)
 		if tv != null:
-			out.append(tv.window_rect())
+			out.append_array(tv.rest_rects())
 		return out
 	if cur is StarchartScreen:
 		_chart_rects(cur as StarchartScreen, out)

@@ -1,0 +1,1 @@
+- **Changed** — when an event opens on LOCAL, the scene behind it is the event's own place: a world event draws its world, a belt event the rocks, a wreck event the hulk. 45 events whose words named a place their tags did not now sit on that place on the sector map too.

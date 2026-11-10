@@ -146,7 +146,7 @@ static func stages_of(s: Variant) -> Array:
 ## left), under the sector's name, above the event's band.
 static func box_for(view_size: Vector2) -> Rect2:
 	var x0 := view_size.x * 0.5 + 12.0
-	return Rect2(x0, 36.0, view_size.x - x0 - 14.0, view_size.y - BAND - 36.0 - PAD)
+	return Rect2(x0, 36.0, maxf(0.0, view_size.x - x0 - 14.0), maxf(0.0, view_size.y - BAND - 36.0 - PAD))
 
 
 ## Deterministic and draws nothing, so a test can check the fit without a screen.
