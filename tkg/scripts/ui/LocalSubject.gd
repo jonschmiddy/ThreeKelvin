@@ -146,7 +146,6 @@ static func stages_of(s: Variant) -> Array:
 ## left), under the sector's name, above the event's band.
 static func box_for(view_size: Vector2) -> Rect2:
 	var x0 := view_size.x * 0.5 + 12.0
-	# never negative: a view not sized yet gets an empty box, not an inside-out one
 	return Rect2(x0, 36.0, maxf(0.0, view_size.x - x0 - 14.0), maxf(0.0, view_size.y - BAND - 36.0 - PAD))
 
 
