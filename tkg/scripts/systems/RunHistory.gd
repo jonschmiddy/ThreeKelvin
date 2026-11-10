@@ -8,10 +8,12 @@ const PATH := "user://history.json"
 ## Where the record is read and written. A harness points this at a scratch
 ## file, so a test can stand in a fresh profile without touching the player's.
 static var path: String = TestRun.scratch("history", "json") if TestRun.active() else PATH
-## 2: each record carries `build`. Version 1 records are still read: the change
-## only adds a key, and losing the record would re-lock every manufacturer.
-const VERSION := 2
-const READS := [1, 2]
+## 2: each record carries `build`; 3: each carries `ascension`, the tier flown
+## (Nov 10). Every older version is still read: each change only adds a key,
+## an entry without it reads as a tier 0 run, and losing the record would
+## re-lock every manufacturer.
+const VERSION := 3
+const READS := [1, 2, 3]
 ## Old runs fall off the end. A file that grows forever eventually costs a
 ## visible pause on a screen whose whole job is to open instantly.
 const LIMIT := 200
@@ -51,7 +53,7 @@ static func record(outcome: Outcome, reason: String) -> void:
 		depth = _deepest_shell(),
 		shells = MapGen.LAYERS,
 		hull = Run.hull.display_name(),
-		# Record the manufacturer launched as; a new key needs VERSION and drops the record.
+		# Record the manufacturer launched as; a new key needs VERSION, and READS to keep the record.
 		# Why: docs/why/RunHistory.md#run-history
 		chassis_manufacturer = String(Run.launched_as if Run.launched_as != &"" else Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),

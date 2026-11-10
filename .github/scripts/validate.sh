@@ -303,8 +303,9 @@ step "The Hellbender flies only at ascension 7 and up"
 # Jon, Nov 8: "ONLY have the hellbender show up on Ascention 7+", and the
 # hiring boards' signs stay as a hint. Level 0 over 60 seeds: none spawns, its
 # clock moves nothing, nothing eaten, no body, ENGAGE, drawer or log line names
-# it, no poster stamped DESTROYED; level 7 spawns it as before on the same
-# world; a VERSION 40 save loads at 0; a dev fight with none opens at full hull.
+# it, no poster stamped DESTROYED; level 7 spawns it as before, in a ball galaxy
+# (the tier's form), on the world tier 7 rolls with it kept off (its place moves
+# nothing else); a VERSION 40 save loads at 0; a dev fight with none opens at full hull.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hellbendergatetest 240 --headless --path "$PROJECT" -- sheet=HellbenderGateTest; then
 	if grep -qE '^hellbendergatetest: PASS' "$LOG_DIR/hellbendergatetest.log"; then
 		ok "no Hellbender below ascension 7, and nothing names it but the boards"
