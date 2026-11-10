@@ -90,7 +90,7 @@ func _pure() -> void:
 func _looks() -> void:
 	print("\n--- the tag's boxes")
 	_ok("the dial rests on today's tag (%d of %d looks)" % [TornTag.look, TipFrames.LOOKS],
-		TornTag.look == 0 and TipFrames.LOOKS == 10 and TipFrames.NAMES.size() == 11)
+		TornTag.look == 0 and TipFrames.LOOKS == 20 and TipFrames.NAMES.size() == 21)
 	var ls := TornTag.sentence("At zero the ship is lost; a station repairs it for credits.")
 	var today := TornTag.measure(ls)
 	var f := UITheme.pixel_font()
@@ -140,7 +140,7 @@ func _opens(tag: TornTag, look: int, m: Vector2) -> void:
 		moving = moving or tag.is_processing()
 	var age := tag.age()
 	var total := 60
-	var still := TipFrames.alpha_at(look, age) == 1.0 and TipFrames.letters_at(look, age, total) == total 		and TipFrames.idle_phase(look, age - TipFrames.OPEN[look]) == 0 and TipFrames.idle_phase(look, 0.0) == 0
+	var still := TipFrames.alpha_at(look, age) == 1.0 and TipFrames.letters_at(look, age, total) == total 		and TipFrames.idle_phase(look, age - TipFrames.open_of(look)) == 0 and TipFrames.idle_phase(look, 0.0) == 0
 	await _frames(2)
 	var loops := TipFrames.idles(look)
 	_ok("   opens over %.2f s (%d frames), the box fixed at %s, still at %.2f%s" % [done, frames, str(pos), age,

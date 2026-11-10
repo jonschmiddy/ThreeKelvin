@@ -1,10 +1,9 @@
 extends Node
 
-## A film of one tooltip look (`tiplook=N`) opening and holding: the HUD's hull tip on LOCAL,
-## then END TURN and the word VENT in a fight, each held `hold=` seconds (default 2.5). The
-## window at the game's own 960x540, so the movie writer's frames are game pixels; every
-## wait is on `GameClock`, as the writer runs the wall clock fast. Stages and flags: docs/tests.md.
-##   tools/dev/render.sh --path tkg --fixed-fps 30 --write-movie <dir>/x.avi -- asrelease nolauncher sheet=UiTipFilm tiplook=N
+## A film of one tooltip look (`tiplook=N`) opening and holding: the HUD's hull tip on LOCAL, then
+## END TURN and the word VENT in a fight, each held `hold=` seconds (2.5); `only=hull` stops after
+## the first. The window at the game's own 960x540, so the writer's frames are game pixels; every
+## wait on `GameClock`. docs/tests.md has the command.
 
 var _tree: SceneTree
 var _hold := 2.5
@@ -88,6 +87,10 @@ func _run() -> void:
 	await _wait(TagLayer.DELAY + _hold)
 	await _hover(Vector2(480, 300))
 	await _wait(0.4)
+	if _arg("only", "") == "hull":
+		print("[film] done at %.1f s" % GameClock.now())
+		_tree.quit()
+		return
 	var sc := await _fight()
 	if sc == null:
 		_tree.quit()

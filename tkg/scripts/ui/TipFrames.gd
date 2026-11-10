@@ -7,10 +7,12 @@ extends RefCounted
 ## keep a slow idle loop (`idles`). The words never move. `-- tiplook=N`; 0 is today's torn tag.
 ## Why: docs/why/TornTag.md#tip-looks
 
-const LOOKS := 10
+## 1..10 the ten ideas; 11..LOOKS the HOLO family (`HoloFrames`).
+const LOOKS := 20
 const NAMES: Array[String] = ["TORN", "PLATE", "HOLO", "HUD", "GLASS", "SLATE", "SCOPE",
-	"HAZARD", "ORGANIC", "BLUEPRINT", "TRANSPONDER"]
-## How long each look's open animation runs, by look; 0 for today's tag.
+	"HAZARD", "ORGANIC", "BLUEPRINT", "TRANSPONDER", "CYAN", "BEAM", "INTERLACE", "GLITCH",
+	"CORNERS", "GHOST", "DASHED", "HEADER", "VSCAN", "CHEAP"]
+## How long each of the first ten's open animation runs, by look; 0 for today's tag.
 const OPEN: Array[float] = [0.0, 0.2, 0.2, 0.12, 0.2, 0.15, 0.25, 0.2, 0.2, 0.25, 0.15]
 ## HUD's words type on over `REVEAL` seconds from `HUD_TYPE_AT`, while its brackets snap out.
 const REVEAL := 0.12
@@ -27,8 +29,15 @@ static var _boxes: Dictionary[int, StyleBoxTexture] = {}
 static var _texes: Dictionary[int, ImageTexture] = {}
 
 
+## How long the look's open animation runs.
+static func open_of(look: int) -> float:
+	return HoloFrames.open_of(look) if look >= HoloFrames.FIRST else OPEN[look]
+
+
 ## The words' margins inside the box, by look: left, top, right, bottom.
 static func pad(look: int) -> Rect2i:
+	if look >= HoloFrames.FIRST:
+		return HoloFrames.pad(look)
 	match look:
 		1: return Rect2i(7, 5, 7, 5)
 		2: return Rect2i(6, 5, 6, 5)
@@ -45,12 +54,12 @@ static func pad(look: int) -> Rect2i:
 
 ## Whether the look keeps moving once open.
 static func idles(look: int) -> bool:
-	return look in [2, 5, 6, 8, 10]
+	return HoloFrames.idles(look) if look >= HoloFrames.FIRST else look in [2, 5, 6, 8, 10]
 
 
 ## When the look's open animation is over, the words included.
 static func open_done(look: int) -> float:
-	return maxf(OPEN[look], HUD_TYPE_AT + REVEAL) if look == 3 else OPEN[look]
+	return maxf(OPEN[look], HUD_TYPE_AT + REVEAL) if look == 3 else open_of(look)
 
 
 ## Whether the look is still at `age`: its open done and no idle loop.
@@ -63,6 +72,8 @@ static func settled(look: int, age: float) -> bool:
 ## row 0..2; SLATE's dim, ORGANIC's breath in and the TRANSPONDER's blink 1 while on; SCOPE's
 ## sweep 1 + its column while crossing.
 static func idle_phase(look: int, idle: float) -> int:
+	if look >= HoloFrames.FIRST:
+		return HoloFrames.idle_phase(look, idle)
 	match look:
 		2: return int(idle / CRAWL) % 3
 		5: return 1 if fmod(idle, BREATH) >= 1.5 else 0
@@ -76,6 +87,8 @@ static func idle_phase(look: int, idle: float) -> int:
 
 ## The look's texture size and slice margin.
 static func _grid(look: int) -> Vector2i:
+	if look >= HoloFrames.FIRST:
+		return Vector2i(8, 3)
 	match look:
 		1: return Vector2i(14, 6)
 		2: return Vector2i(8, 3)
@@ -106,7 +119,8 @@ static func box(look: int) -> StyleBoxTexture:
 	var sb := StyleBoxTexture.new()
 	sb.texture = texture(look)
 	sb.set_texture_margin_all(_grid(look).y)
-	var mode := StyleBoxTexture.AXIS_STRETCH_MODE_TILE if look in [2, 6] else StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	var tiled := look == 2 or look == 6 or look >= HoloFrames.FIRST
+	var mode := StyleBoxTexture.AXIS_STRETCH_MODE_TILE if tiled else StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	sb.axis_stretch_horizontal = mode
 	sb.axis_stretch_vertical = mode
 	var p := pad(look)
@@ -120,6 +134,8 @@ static func box(look: int) -> StyleBoxTexture:
 
 ## The look's fill behind the words.
 static func fill(look: int) -> Color:
+	if look >= HoloFrames.FIRST:
+		return HoloFrames.FILL
 	match look:
 		1: return Color("#0b1119", 0.94)
 		2: return Color("#061010", 0.92)
@@ -138,6 +154,15 @@ static func _px(look: int, x: int, y: int, n: int) -> Color:
 	var dx := mini(x, n - 1 - x)
 	var dy := mini(y, n - 1 - y)
 	var f := fill(look)
+	if look >= HoloFrames.FIRST:
+		# the family's plate: HOLO's slice in the look's own edge colour
+		if dx == 0 and dy == 0:
+			return Color(0, 0, 0, 0)
+		if dx == 0 or dy == 0:
+			return Color(HoloFrames.edge(look), 0.25)
+		if dx == 1 or dy == 1:
+			return HoloFrames.edge(look)
+		return Color(HoloFrames.SCAN, 0.92) if y % 2 == 1 else f
 	match look:
 		1:
 			# a hull plate: a 2 px steel edge, the corners cut at 45 degrees, a rivet in each
@@ -256,6 +281,8 @@ static func slice(ci: CanvasItem, look: int, r: Rect2, a: float, runs: Vector4 =
 
 ## The whole tag's alpha at `age` (look 2 flickers on); 1 otherwise.
 static func alpha_at(look: int, age: float) -> float:
+	if look >= HoloFrames.FIRST:
+		return HoloFrames.alpha_at(look, age)
 	if look == 2 and age < OPEN[2]:
 		var steps: Array[float] = [1.0, 0.45, 1.0, 0.6, 1.0]
 		return steps[mini(4, int(age / 0.04))]
@@ -264,6 +291,8 @@ static func alpha_at(look: int, age: float) -> float:
 
 ## How many of `total` letters show at `age`: look 3 types them on; the rest show all.
 static func letters_at(look: int, age: float, total: int) -> int:
+	if look >= HoloFrames.FIRST:
+		return HoloFrames.letters_at(look, age, total)
 	if look != 3:
 		return total
 	return int(ceilf(total * clampf((age - HUD_TYPE_AT) / REVEAL, 0.0, 1.0)))
@@ -272,6 +301,9 @@ static func letters_at(look: int, age: float, total: int) -> int:
 ## The box in `r` at `age` seconds since it opened (INF for the still frame), then the marks a
 ## slice cannot carry. `point` is 1 for a tag above its thing, -1 below it, 0 for neither.
 static func draw(ci: CanvasItem, r: Rect2, look: int, a: float, point: int, age: float = INF) -> void:
+	if look >= HoloFrames.FIRST:
+		HoloFrames.draw(ci, r, look, a, point, age)
+		return
 	var t := 1.0 if age == INF else clampf(age / OPEN[look], 0.0, 1.0)
 	var idle := 0.0 if age == INF else maxf(0.0, age - OPEN[look])
 	match look:

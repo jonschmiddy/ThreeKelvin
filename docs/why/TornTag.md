@@ -87,3 +87,44 @@ second of every 2.5; 8 the rim breathes in a pixel for 0.6 s of every 2;
 1, 3, 4, 7, 9 (a plate, a terminal, glass, tape and a drawing have no
 reason to move). The films: tk-scratch/ui-build/tips/films (UiTipFilm).
 ```
+
+## Holo family
+
+Above `class_name HoloFrames`:
+
+```text
+Jon, Nov 9, from the ten: "2 HOLO is the best, 10 versions similar to it".
+Looks 11 to 20 keep HOLO's family (a mint edge with a glow, scanlines, a
+flicker-on, an arrow at the thing) and each is one idea apart, so they
+tell apart at a glance; 1 to 10 are left as they were. Drawn by hand in
+whole pixels (`_fill`, `_scan`, `_ring`, `_halo`, `_arrow`), since a
+corner tick, a dash or a ghost edge is not a slice; the rich plate gets
+HOLO's slice in the look's edge colour. Opens 0.2 to 0.24 s, stepped on
+GameClock through TipFrames' age; the box and the words never move; 12
+and 15 hold the words back until the box is there (its last third), which
+reads as a type-on.
+
+ 11 CYAN: HOLO in a cooler cyan-mint with a 2 px halo.
+ 12 BEAM: the arrow first, a beam cone fanning from it to the box's near
+    corners, the box rising from that edge, then the words; no loop.
+ 13 INTERLACE: a dark row in two, odd rows a pixel over; the box starts as
+    stripes over a quarter-strength fill and fills in; the rows swap every
+    0.5 s.
+ 14 GLITCH: HOLO, and a 3 px band of the box torn 4 px sideways for a
+    frame mid-open, then one frame of it every 3.5 s.
+ 15 CORNERS: four corner ticks, the edges grow from them to meet, then the
+    fill and the words; no loop.
+ 16 GHOST: a faint second edge 2 px outside the box; it starts 6 px out
+    and steps in as the box opens; the scanlines crawl.
+ 17 DASHED: the edge is dashes, 3 on and 2 off, that march a pixel round
+    the ring every 0.25 s.
+ 18 HEADER: a mint bar across the top drawn out left to right, a cursor
+    block at its end blinking every 0.5 s, scanlines below; the words sit
+    3 px lower for it.
+ 19 VSCAN: a bright line sweeps down and shows the box row by row; a faint
+    one sweeps again in the last quarter second of every 3 s; no flicker.
+ 20 CHEAP: an uneven flicker (.3, 1, .2, .7, .4, 1), the ring at 0.75 or
+    0.55 every 0.6 s, grain in the fill from a fixed hash that shifts
+    every 0.2 s.
+The close-ups for the pick: tk-scratch/ui-build/tips/holo (rig/close.py).
+```

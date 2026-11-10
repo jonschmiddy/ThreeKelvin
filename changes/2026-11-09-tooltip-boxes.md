@@ -1,1 +1,1 @@
-- **Added** — ten sci-fi boxes for the tooltip, each with a quick open animation and some with a slow idle loop, behind `-- tiplook=N` (1 to 10) for Jon to pick from; the tooltip looks as it did until he does.
+- **Added** — twenty sci-fi boxes for the tooltip (ten ideas, then ten takes on the hologram), each with a quick open animation and most with a slow idle loop, behind `-- tiplook=N` for Jon to pick from; the tooltip looks as it did until he does.
