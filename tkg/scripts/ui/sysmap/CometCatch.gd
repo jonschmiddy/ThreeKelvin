@@ -162,6 +162,13 @@ func _plan_all(c: CometPath) -> void:
 				box.res[k] = FlightSolve.solve(grav, dep, tgts[k], t, {}, o))
 
 
+## A plan still running when the map goes is waited out, so no task outlives the screen it reads.
+func _exit_tree() -> void:
+	if _job >= 0:
+		WorkerThreadPool.wait_for_task_completion(_job)
+		_job = -1
+
+
 func _take_plans() -> void:
 	if _job < 0 or not WorkerThreadPool.is_task_completed(_job):
 		return

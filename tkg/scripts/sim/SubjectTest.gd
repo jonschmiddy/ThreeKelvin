@@ -640,6 +640,11 @@ func _every_place() -> void:
 	for o: Dictionary in OptionTable.all():
 		var oid: StringName = o.id
 		var site := StringName(o.get("site", &""))
+		if site == &"comet":
+			# a comet's reading rides the comet, not a body (CometCatchTest checks it)
+			by_kind[&"comet"] = int(by_kind.get(&"comet", 0)) + 1
+			n += 1
+			continue
 		host.gas_giant = site == &"giant" or bool(o.get("needs_giant", false))
 		host.star = int(o.get("needs_star", MapGen.Star.RED if site == &"star" else MapGen.Star.ORDINARY))
 		host.options.clear()
