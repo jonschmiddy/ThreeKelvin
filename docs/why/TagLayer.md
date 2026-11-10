@@ -27,3 +27,8 @@ Nothing shows while the mouse button is down or a drag is on, as before.
 `hold_off` lets a screen keep this tag off a control that has a tag of its
 own: a card in the hand (T2's keyword tags).
 ```
+
+A part's readout (the body `ModuleIcon.tip_for` builds, tagged with the
+`module` meta) is the one rich body with no plate and no arrow (Jon, Nov 9:
+"remove the square border around the whole thing"); its row draws its own
+shadows. Every other rich body keeps the box and the arrow.

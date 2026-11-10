@@ -126,9 +126,14 @@ func _fight() -> void:
 		return
 	var tint0: Color = card._tint
 	card._on_hover_in()
-	await _frames(12)
-	_ok("pointed at, the card is outlined and lifted 8 px", card.marked
-		and is_equal_approx(card.position.y, card._base_y - 8.0))
+	# the lift is a 0.12 s tween on the frame clock: wait for it, with room, rather than count
+	# frames (on a loaded machine twelve headless frames were under 0.12 s)
+	for i in 240:
+		await _tree.process_frame
+		if is_equal_approx(card.position.y, card._base_y - 8.0):
+			break
+	_ok("pointed at, the card is outlined and lifted 8 px (%.1f of %.1f)" % [card.position.y, card._base_y - 8.0],
+		card.marked and is_equal_approx(card.position.y, card._base_y - 8.0))
 	_ok("its glyph tint is its manufacturer's, not FLARE", card._tint == tint0 and card._tint != UITheme.FLARE)
 	card._on_hover_out()
 	await _frames(12)

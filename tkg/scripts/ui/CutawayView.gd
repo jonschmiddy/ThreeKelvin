@@ -784,6 +784,9 @@ func _show(m: Variant, at: Rect2 = Rect2()) -> void:
 	if fresh:
 		_shown = m
 		Widgets.clear(_panel_box)
+		# a part's readout floats with no plate (Jon, Nov 9); a material's and the dross keep it
+		_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new() if m is ModuleData
+			else get_theme_stylebox(&"panel", &"TooltipPanel"))
 		if m is ModuleData:
 			_panel_box.add_child(ModuleIcon.tip_for(m as ModuleData))
 		elif m is MaterialData or m is CreditChit:

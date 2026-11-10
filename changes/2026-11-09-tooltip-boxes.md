@@ -2,4 +2,4 @@
 - **Changed** — point at your ship, an enemy or a wreck you can open and it gets the fight's orange corner brackets; the picture itself is left alone.
 - **Changed** — the star's hover tag on the chart is a few lines: the name, what is there, the place, and danger with fuel.
 - **Removed** — the flavour line under a part: gone from the hover readout, the card readout, and the Promenade's and Exchange's item column. Name, rarity, manufacturer, size, stats and cards stay.
-- **Changed** — the cards in a part's hover readout bob a pixel, each on its own beat.
+- **Changed** — a part's hover readout floats over the scene with no box round it: the part's panel and its cards, each on a soft shadow, and the cards drift gently up and down, each on its own beat.

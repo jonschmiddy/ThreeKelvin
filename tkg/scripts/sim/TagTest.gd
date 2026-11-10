@@ -153,10 +153,11 @@ func _readout() -> void:
 	var holders: Array[Vector2] = []
 	for b in bobs:
 		holders.append((b as Control).position)
-	var seen: Dictionary[int, bool] = {}
-	var moved := false
+	var seen: Dictionary[float, bool] = {}
 	var steady := true
-	var whole := true
+	var within := true
+	var smooth := true
+	var last := INF
 	var t0 := GameClock.now()
 	while GameClock.now() - t0 < 1.0:
 		await _tree.process_frame
@@ -164,18 +165,37 @@ func _readout() -> void:
 			var b := bobs[k] as ModuleIcon.BobCard
 			steady = steady and b.position == holders[k] and tip.position == Vector2.ZERO
 			var y := b.card.position.y
-			whole = whole and y == roundf(y) and absf(y) <= 1.0
-			seen[int(y)] = true
-			moved = moved or y != 0.0
+			within = within and absf(y) <= ModuleIcon.BobCard.SWING + 0.001
+			if k == 0:
+				# smooth: no frame moves the card more than a sliver (a step of a pixel would)
+				smooth = smooth and (last == INF or absf(y - last) < 0.5)
+				last = y
+				seen[snappedf(y, 0.001)] = true
 	var b0 := bobs[0] as ModuleIcon.BobCard
 	var b1 := bobs[1] as ModuleIcon.BobCard
-	_ok("the cards move a whole pixel at most, in steps (%s seen); the holders and the plate never" % str(seen.keys()),
-		moved and whole and steady)
+	_ok("the cards move smoothly, sub-pixel (%d distinct offsets in a second, within %.0f px); the holders never" % [
+		seen.size(), ModuleIcon.BobCard.SWING], seen.size() >= 12 and smooth and within and steady)
 	_ok("each on its own beat: periods %.1f and %.1f s, phases %.1f and %.1f" % [b0.period, b1.period, b0.phase, b1.phase],
 		b0.period != b1.period and b0.phase != b1.phase and b0.period >= 1.6 and b1.period <= 2.4)
 	_ok("none of it takes the mouse, and the cards are drawn bright, not dimmed (alpha %.2f)" % b0.card.modulate.a,
 		b0.mouse_filter == Control.MOUSE_FILTER_IGNORE and b0.card.mouse_filter == Control.MOUSE_FILTER_IGNORE
 		and b0.card.modulate.a == 1.0 and (b0.card as CardView).playable)
+	_ok("the row draws its pieces' shadows and sits them %d px apart" % tip.get_theme_constant("separation"),
+		tip is ModuleIcon.ReadoutRow and tip.get_theme_constant("separation") >= 4)
+	var icon := ModuleIcon.new()
+	icon.setup(m, &"test")
+	icon.position = Vector2(600, 300)
+	_tree.root.add_child(icon)
+	await _frames(2)
+	await _hover(icon.get_global_rect().get_center())
+	await _secs(TagLayer.DELAY + 0.15)
+	var plate := TagLayer.instance.shown() as PanelContainer
+	_ok("pointed at a part, its readout floats: no plate round it, no arrow, the row alone",
+		plate != null and plate.get_theme_stylebox("panel") is StyleBoxEmpty and plate.get_child_count() == 1
+		and plate.get_child(0) is ModuleIcon.ReadoutRow)
+	await _hover(Vector2(480, 300))
+	await _frames(3)
+	icon.queue_free()
 	var shelf := Widgets.module_readout(m)
 	var shelf_texts: Array[String] = []
 	for l in shelf.find_children("*", "Label", true, false):

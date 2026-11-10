@@ -133,7 +133,8 @@ func _show(c: Control, text: String) -> void:
 	if body != null:
 		var plate := PanelContainer.new()
 		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		plate.add_theme_stylebox_override("panel", UITheme.tag_plate())
+		# a part's readout floats with no plate (Jon, Nov 9); every other rich body gets the box
+		plate.add_theme_stylebox_override("panel", StyleBoxEmpty.new() if body.has_meta(&"module") else UITheme.tag_plate())
 		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		plate.add_child(body)
 		_tag = plate
@@ -150,8 +151,9 @@ func _show(c: Control, text: String) -> void:
 	var point := 1 if _tag.position.y < (inv * c.get_global_rect().position).y else -1
 	if _tag is HoloTag:
 		(_tag as HoloTag).point = point
-	else:
+	elif not (_tag.get_child(0) as Control).has_meta(&"module"):
 		# a rich body's plate wears the box through its stylebox; the arrow is its own child
+		# (a part's readout has neither: it floats)
 		var arrow := PlateArrow.new()
 		arrow.point = point
 		_tag.add_child(arrow)

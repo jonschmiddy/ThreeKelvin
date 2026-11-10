@@ -428,18 +428,35 @@ more than a twentieth of the art.
 
 ## Readout bob
 
-Above `class BobCard extends Control`:
+Above `class ReadoutRow extends HBoxContainer` and `class BobCard extends Control`:
 
 ```text
-Jon, Nov 9, on the part's hover readout: the cards inside it should "bob
-gently up and down, each out of step with the others", 1 game px, whole
-steps, slow. Each card sits in a BobCard holder the HBox lays out; the
-holder never moves, the plate and the words never move, and the card
-inside steps to round(sin(2 pi t / period + phase)): -1, 0 or 1 px, on
-GameClock so a film runs at the right speed. Periods 1.6 to 2.4 s by card
-index (1.6 + 0.2 i), phases 1.7 i rad, so no two cards agree. The cards
-take no mouse (IGNORE, as before: a tooltip that eats the mouse counts as
-leaving the thing), so nothing that bobs can be clicked. The holder is
-freed with the plate, which stops the bob. The same readout no longer
-shows the flavour line (Widgets.md, Card readout).
+Jon, Nov 9, on the part's hover readout, in three notes. First: the cards
+inside it should "bob gently up and down, each out of step with the
+others". Then, seeing it: "wayyyy smoother", and "remove the square border
+around the whole thing".
+
+The row (ReadoutRow) is the HBox that holds the part's panel and its cards,
+6 px apart, and it has no plate: TagLayer gives a body with the `module`
+meta an empty StyleBox and no arrow, and the cutaway does the same for a
+part (a material's card and the dross keep the box, as every other rich
+body does). So the pieces read over a busy scene, the row draws a soft
+shadow under each child before the children draw: the child's rect 2 px
+down and right at 0.45 black, and 4 px at 0.22. Not a box.
+
+Each card sits in a BobCard holder the row lays out; the holder never
+moves, the panel never moves, and the card inside sits at
+SWING * sin(2 pi t / period + phase), SWING 2 px, on GameClock so a film
+runs at the right speed: a continuous sine, which eases at both ends of
+the swing. Periods 1.6 to 2.4 s by card index (1.6 + 0.2 i), phases 1.7 i
+rad, so no two cards agree. It renders smoothly because the project
+leaves snap_2d_transforms_to_pixel and snap_2d_vertices_to_pixel off and
+the game is drawn through a 2x canvas transform (Main), so a fractional
+game-pixel offset lands on whole screen pixels: half a game pixel is one
+screen pixel at the normal window, finer on a bigger one, with no blur
+(the default filter is nearest). The cards take no mouse (IGNORE, as
+before: a tooltip that eats the mouse counts as leaving the thing), so
+nothing that bobs can be clicked. The holder is freed with the readout,
+which stops the bob. The same readout shows no flavour line (Widgets.md,
+Card readout).
 ```

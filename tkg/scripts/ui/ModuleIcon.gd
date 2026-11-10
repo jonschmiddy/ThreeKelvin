@@ -62,9 +62,9 @@ func _make_custom_tooltip(_for_text: String) -> Object:
 
 ## Shared with LOCAL's cutaway hover card so the two cannot drift.
 static func tip_for(module: ModuleData) -> Control:
-	var row := HBoxContainer.new()
+	var row := ReadoutRow.new()
 	row.set_meta(&"module", module)
-	row.add_theme_constant_override("separation", 4)
+	row.add_theme_constant_override("separation", 6)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(Widgets.module_readout(module))
 	var i := 0
@@ -80,11 +80,32 @@ static func tip_for(module: ModuleData) -> Control:
 	return row
 
 
-## THE CARDS IN A PART'S READOUT bob a pixel, each on its own beat (Jon, Nov 9): the card sits
-## in this holder, which moves it one pixel up or down in whole steps on GameClock. The holder
-## and the plate never move; nothing here can be clicked; freed with the plate, the bob stops.
-## Why: docs/why/ModuleIcon.md#readout-bob
+## THE READOUT'S ROW, with no plate round it (Jon, Nov 9: "remove the square border"): the
+## part's panel and its cards float over the scene, each on a soft dark shadow drawn here,
+## under the children. Why: docs/why/ModuleIcon.md#readout-bob
+class ReadoutRow extends HBoxContainer:
+	func _init() -> void:
+		sort_children.connect(queue_redraw)
+
+	func _draw() -> void:
+		for c in get_children():
+			var k := c as Control
+			if k == null or not k.visible or k is BobCard:
+				continue
+			shadow(self, Rect2(k.position, k.size))
+
+	## The soft shadow under a piece of the readout: two steps of black, 2 and 4 px off.
+	static func shadow(ci: CanvasItem, r: Rect2) -> void:
+		ci.draw_rect(Rect2(r.position + Vector2(4, 4), r.size), Color(0, 0, 0, 0.22), true)
+		ci.draw_rect(Rect2(r.position + Vector2(2, 2), r.size), Color(0, 0, 0, 0.45), true)
+
+
+## THE CARDS IN A PART'S READOUT bob, each on its own beat (Jon, Nov 9, then "wayyyy
+## smoother"): the card sits in this holder, which moves it on a continuous sine, `SWING` px
+## either way, on GameClock. The holder never moves; nothing here can be clicked; freed with
+## the readout, the bob stops. Why: docs/why/ModuleIcon.md#readout-bob
 class BobCard extends Control:
+	const SWING := 2.0
 	var card: Control
 	var period := 2.0
 	var phase := 0.0
@@ -97,14 +118,17 @@ class BobCard extends Control:
 		custom_minimum_size = c.custom_minimum_size
 		add_child(c)
 
-	## -1, 0 or 1: where the card sits at `t` seconds on its beat.
-	func step_at(t: float) -> float:
-		return roundf(sin(TAU * t / period + phase))
+	## Where the card sits at `t` seconds on its beat: a sine, so it eases at both ends.
+	func offset_at(t: float) -> float:
+		return SWING * sin(TAU * t / period + phase)
 
 	func _process(_d: float) -> void:
-		var y := step_at(GameClock.now())
-		if card.position.y != y:
-			card.position.y = y
+		card.position.y = offset_at(GameClock.now())
+		queue_redraw()
+
+	## The card's shadow rides with it.
+	func _draw() -> void:
+		ReadoutRow.shadow(self, Rect2(card.position, card.size))
 
 
 ## Godot asks for a tooltip only when `tooltip_text` is non-empty, so this arms it.
