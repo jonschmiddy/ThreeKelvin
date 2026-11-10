@@ -25,8 +25,8 @@ var lines: Array = []
 var alpha := 1.0
 ## 1 when the tag sits above its thing, -1 below it, 0 unknown: look 2's leader points that way.
 var point := 0
-## Look 3 types its words on over `TipFrames.REVEAL` seconds; 1.0 once they are all there.
-var _reveal := 1.0
+## When the words were set, on the game's clock: the look's open animation runs from here.
+var _born := -INF
 
 
 func _init() -> void:
@@ -38,27 +38,25 @@ func set_lines(ls: Array) -> void:
 	lines = ls
 	size = measure(ls)
 	custom_minimum_size = size
-	_reveal = 0.0 if look == 3 else 1.0
-	set_process(look == 3)
+	_born = GameClock.now() if look != 0 else -INF
+	set_process(look != 0)
 	queue_redraw()
 
 
-func _process(dt: float) -> void:
-	if _reveal >= 1.0:
+## Seconds since the words were set; INF for today's tag, which is still.
+func age() -> float:
+	return INF if _born == -INF else GameClock.now() - _born
+
+
+## Redrawn each frame while the look moves; stopped once it is still.
+func _process(_dt: float) -> void:
+	if TipFrames.settled(look, age()):
 		set_process(false)
-		return
-	_reveal = minf(1.0, _reveal + dt / TipFrames.REVEAL)
 	queue_redraw()
 
 
 func _draw() -> void:
-	var shown := -1
-	if _reveal < 1.0:
-		var total := 0
-		for l in lines:
-			total += String((l as Array)[0]).length()
-		shown = int(ceilf(total * _reveal))
-	draw_tag(self, Rect2(Vector2.ZERO, size), lines, alpha, point, shown)
+	draw_tag(self, Rect2(Vector2.ZERO, size), lines, alpha, point, age())
 
 
 ## The tag's box for these lines: the widest line plus the padding, a line's height each.
@@ -92,27 +90,29 @@ static func sentence(text: String, col: Color = UITheme.ICE, width: int = UIThem
 
 
 ## The box (`look`), then the words, in `rect` on `ci`, at `a` alpha. `point` is where the thing
-## is (see `point`); `shown` caps the letters drawn, -1 for all of them.
+## is (see `point`); `age` is seconds since the tag opened, INF for the still frame.
 static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, point: int = 0,
-		shown: int = -1) -> void:
+		age: float = INF) -> void:
 	var r := Rect2(rect.position.round(), rect.size.round())
 	if look == 0:
 		var fill := Color(FILL, FILL.a * a)
 		ci.draw_rect(Rect2(r.position + Vector2.ONE, r.size - Vector2(2, 2)), fill, true)
 		torn(ci, r, Color(EDGE, a))
 	else:
-		TipFrames.draw(ci, r, look, a, point)
+		a *= TipFrames.alpha_at(look, age)
+		TipFrames.draw(ci, r, look, a, point, age)
 	var p := TipFrames.pad(look)
 	var f := UITheme.pixel_font()
 	var y := r.position.y + p.position.y + f.get_ascent(UITheme.FS_SMALL) - 1.0
-	var left := shown
+	var total := 0
+	for l in ls:
+		total += String((l as Array)[0]).length()
+	var left := TipFrames.letters_at(look, age, total)
 	for l in ls:
 		var pair: Array = l
 		var c: Color = pair[1]
-		var text := String(pair[0])
-		if left >= 0:
-			text = text.left(left)
-			left -= text.length()
+		var text := String(pair[0]).left(left)
+		left -= text.length()
 		ci.draw_string(f, Vector2(r.position.x + p.position.x, y), text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * a))
 		y += LINE_H

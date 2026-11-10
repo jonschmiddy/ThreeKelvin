@@ -63,4 +63,27 @@ green shell with an inner membrane; 9 BLUEPRINT, blue fill, edge lines run
 past the corners, dimension ticks; 10 TRANSPONDER, a punched hole and a
 seam before the words, clipped corners. None has a bevel or a raised face:
 a tooltip is not a button (only-pressable-things-look-pressable).
+
+Jon, after the sheet: "animate all of them, the ones that make sense to
+animate". Each look opens in `OPEN` seconds (0.12 to 0.25, done before it
+can be read) in whole-pixel steps, and five keep a slow idle loop; the box
+never moves or changes size, so the words stay put, and the slice is drawn
+by hand (`slice`: corners, edge runs to a fraction, the fill) so an edge
+can draw out. The age comes from `GameClock` (the movie writer runs the
+wall clock fast), and `idle_phase` is the one clock every loop reads, 0 the
+resting step, so the first frame after the open is the still frame and
+TagTest can hold it. The opens: 1 the edge draws round from the top-left
+corner clockwise; 2 flickers on (alpha 1, .45, 1, .6, 1 at 0.04 s a step),
+the scanlines wipe down and the arrow blinks in; 3 the brackets snap from
+the centre to the corners in four steps while the words type on from
+0.06 s; 4 a glint crosses the pane once, 2 px a step; 5 the lights come on
+in turn; 6 a sweep line crosses the grid; 7 the stripes slide in 12 px; 8
+the rim swells out 3 px to its size; 9 the lines draw out from the top-left
+corner, the far corners and the ticks following; 10 the beacon blinks
+twice. The loops: 2 the scanlines crawl a row every 0.4 s; 5 the top light
+dims for 0.5 s of every 2; 6 the sweep crosses again in the last quarter
+second of every 2.5; 8 the rim breathes in a pixel for 0.6 s of every 2;
+10 the beacon blinks for 0.1 s at the end of every 1.5. Still once open:
+1, 3, 4, 7, 9 (a plate, a terminal, glass, tape and a drawing have no
+reason to move). The films: tk-scratch/ui-build/tips/films (UiTipFilm).
 ```

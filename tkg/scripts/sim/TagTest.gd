@@ -88,8 +88,7 @@ func _pure() -> void:
 ## THE TEN BOXES (`-- tiplook=N`): each a whole-pixel 9-slice the words fit inside, the plate
 ## for a rich body the same box, today's tag back when the dial is 0.
 func _looks() -> void:
-	print("
---- the tag's boxes")
+	print("\n--- the tag's boxes")
 	_ok("the dial rests on today's tag (%d of %d looks)" % [TornTag.look, TipFrames.LOOKS],
 		TornTag.look == 0 and TipFrames.LOOKS == 10 and TipFrames.NAMES.size() == 11)
 	var ls := TornTag.sentence("At zero the ship is lost; a station repairs it for credits.")
@@ -116,17 +115,51 @@ func _looks() -> void:
 			TipFrames.NAMES[look], tex.get_width() if tex != null else 0, str(p), str(m)],
 			whole and fits and m.x >= today.x and m.y >= today.y and tag.size == m and m == m.round()
 			and UITheme.torn_box() == sb)
-		if look == 3:
-			_ok("   HUD types its words on: %.2f at once, all there after %.2f s" % [tag._reveal, TipFrames.REVEAL],
-				tag._reveal < 1.0)
-			await _secs(TipFrames.REVEAL + 0.1)
-			_ok("   and they are", tag._reveal >= 1.0 and not tag.is_processing())
+		await _opens(tag, look, m)
 		tag.queue_free()
 	TornTag.look = 0
 	_ok("the dial back at 0: today's measure (%s)" % str(TornTag.measure(ls)), TornTag.measure(ls) == today
 		and UITheme.torn_box().texture_margin_left == 2)
 	host.queue_free()
 	await _frames(2)
+
+
+## THE OPEN ANIMATION of one look, watched frame by frame: the tag never moves or changes
+## size, it is done by `open_done`, the first frame after is the still frame (every letter,
+## full alpha, every idle loop on its resting step), and only the looping looks keep drawing.
+func _opens(tag: TornTag, look: int, m: Vector2) -> void:
+	var done := TipFrames.open_done(look)
+	var pos := tag.position
+	var steady := true
+	var frames := 0
+	var moving := false
+	while tag.age() < done:
+		await _tree.process_frame
+		frames += 1
+		steady = steady and tag.size == m and tag.position == pos
+		moving = moving or tag.is_processing()
+	var age := tag.age()
+	var total := 60
+	var still := TipFrames.alpha_at(look, age) == 1.0 and TipFrames.letters_at(look, age, total) == total 		and TipFrames.idle_phase(look, age - TipFrames.OPEN[look]) == 0 and TipFrames.idle_phase(look, 0.0) == 0
+	await _frames(2)
+	var loops := TipFrames.idles(look)
+	_ok("   opens over %.2f s (%d frames), the box fixed at %s, still at %.2f%s" % [done, frames, str(pos), age,
+		"; then loops" if loops else "; then stops"], frames >= 2 and moving and steady and still
+		and done <= 0.25 and tag.is_processing() == loops and TipFrames.settled(look, age) != loops)
+	if look == 3:
+		_ok("   HUD's words: %d of %d letters at %.2f s, all at %.2f" % [TipFrames.letters_at(3, 0.12, total), total,
+			0.12, done], TipFrames.letters_at(3, 0.12, total) > 0 and TipFrames.letters_at(3, 0.12, total) < total
+			and TipFrames.letters_at(3, TipFrames.HUD_TYPE_AT, total) == 0)
+	if look == 2:
+		_ok("   HOLO flickers on: alpha %.2f at 0.05 s, 1 at %.2f; the scanlines crawl a row at %.1f s" % [
+			TipFrames.alpha_at(2, 0.05), done, TipFrames.CRAWL], TipFrames.alpha_at(2, 0.05) < 1.0
+			and TipFrames.idle_phase(2, TipFrames.CRAWL) == 1 and TipFrames.idle_phase(2, TipFrames.CRAWL * 3) == 0)
+	if look == 6:
+		_ok("   SCOPE sweeps again at the end of every %.1f s" % TipFrames.SWEEP_EVERY,
+			TipFrames.idle_phase(6, 1.0) == 0 and TipFrames.idle_phase(6, TipFrames.SWEEP_EVERY - 0.1) > 0)
+	if look == 10:
+		_ok("   the beacon blinks at the end of every %.1f s" % TipFrames.BLINK_EVERY,
+			TipFrames.idle_phase(10, 1.0) == 0 and TipFrames.idle_phase(10, TipFrames.BLINK_EVERY - 0.05) == 1)
 
 
 ## THE HUD'S HULL GAUGE pointed at on LOCAL: the tag above it, clear, one sentence, no title;
