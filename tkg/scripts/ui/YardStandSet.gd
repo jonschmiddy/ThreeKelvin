@@ -260,9 +260,7 @@ class Tarp extends Control:
 
 	## (lift, stretch at the top, sag at the hem, flutter phase or -1) at this moment.
 	func pose() -> Array[float]:
-		var u := _u
-		if u < 0.0:
-			return []
+		var u := maxf(_u, 0.0)  # (waiting its turn, it hangs at the top of its fall: a stand is never bare)
 		if u < 0.26:
 			var f := pow(u / 0.26, 2.0)
 			return [-12.0 + 12.0 * f, 3.0 * (1.0 - f), 0.0, -1.0]
