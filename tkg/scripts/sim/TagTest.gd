@@ -82,17 +82,22 @@ func _pure() -> void:
 	_ok("a sentence wraps at %d letters (%d lines, widest %d)" % [UITheme.TOOLTIP_WRAP, ls.size(), widest],
 		ls.size() >= 2 and widest <= UITheme.TOOLTIP_WRAP)
 	var m := TornTag.measure(ls)
-	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * TornTag.LINE_H + TornTag.PAD_V * 2 - 2)
+	var pv := TipFrames.pad(TornTag.look)
+	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * TornTag.LINE_H + pv.position.y + pv.size.y - 2)
 
 
 ## THE TEN BOXES (`-- tiplook=N`): each a whole-pixel 9-slice the words fit inside, the plate
 ## for a rich body the same box, today's tag back when the dial is 0.
 func _looks() -> void:
 	print("\n--- the tag's boxes")
-	_ok("the dial rests on today's tag (%d of %d looks)" % [TornTag.look, TipFrames.LOOKS],
-		TornTag.look == 0 and TipFrames.LOOKS == 20 and TipFrames.NAMES.size() == 21)
+	var home := TornTag.look
+	_ok("the dial rests on Jon's pick, %d %s, of %d looks" % [TornTag.look, TipFrames.NAMES[TornTag.look], TipFrames.LOOKS],
+		TornTag.look == TornTag.DEFAULT_LOOK and TornTag.look == 14 and TipFrames.LOOKS == 20 and TipFrames.NAMES.size() == 21)
 	var ls := TornTag.sentence("At zero the ship is lost; a station repairs it for credits.")
+	TornTag.look = 0
 	var today := TornTag.measure(ls)
+	_ok("0 is still the torn tag (%s)" % str(today), today.y == ls.size() * TornTag.LINE_H + TornTag.PAD_V * 2 - 2
+		and UITheme.torn_box().texture_margin_left == 2)
 	var f := UITheme.pixel_font()
 	var widest := 0.0
 	for l in ls:
@@ -117,9 +122,9 @@ func _looks() -> void:
 			and UITheme.torn_box() == sb)
 		await _opens(tag, look, m)
 		tag.queue_free()
-	TornTag.look = 0
-	_ok("the dial back at 0: today's measure (%s)" % str(TornTag.measure(ls)), TornTag.measure(ls) == today
-		and UITheme.torn_box().texture_margin_left == 2)
+	TornTag.look = home
+	_ok("the dial back home at %d: the pick's plate (%s)" % [home, str(TornTag.measure(ls))],
+		UITheme.torn_box() == TipFrames.box(home) and TornTag.measure(ls).y == today.y + 2.0)
 	host.queue_free()
 	await _frames(2)
 
@@ -217,9 +222,15 @@ func _local_tags() -> void:
 	await _hover(box.get_global_rect().get_center())
 	await _secs(TagLayer.DELAY + 0.15)
 	var plate := layer.shown() as PanelContainer
-	_ok("a rich tooltip (the hull's perks) comes up on the torn plate, above the thing",
-		plate != null and plate.get_child_count() == 1 and plate.get_theme_stylebox("panel") is StyleBoxTexture
+	_ok("a rich tooltip (the hull's perks) comes up on the plate, above the thing",
+		plate != null and plate.get_child_count() >= 1 and plate.get_child(0) is Control and not plate.get_child(0) is TagLayer.PlateArrow
+		and plate.get_theme_stylebox("panel") is StyleBoxTexture
 		and plate.global_position.y + plate.size.y <= box.get_global_rect().position.y + 0.5)
+	var sbp := plate.get_theme_stylebox("panel") as StyleBoxTexture if plate != null else null
+	_ok("the plate wears the pick: its slice, its margins, and the arrow at the thing",
+		sbp == TipFrames.box(TornTag.look) and sbp.get_content_margin(SIDE_LEFT) == TipFrames.pad(TornTag.look).position.x
+		and plate.get_child_count() == 2 and plate.get_child(1) is TagLayer.PlateArrow
+		and (plate.get_child(1) as TagLayer.PlateArrow).point == 1)
 	await _hover(Vector2(480, 300))
 	await _frames(3)
 	box.queue_free()
@@ -264,12 +275,8 @@ func _chart() -> void:
 	_ok("the panel keeps danger, fuel and warnings: %d rows for %d hazards" % [ch._rows.get_child_count(), hz],
 		ch._rows.get_child_count() == 2 + hz)
 	var tip := ch._chart.tip_lines(go, here)
-	_ok("the star's tag carries the survey (%d lines): %s" % [tip.size(), " / ".join(tip)],
-		tip.size() >= 6 and tip[0] == MapGen.star_name(go) and tip[3].begins_with("DANGER"))
-	var survey := MapChart.survey_lines(go, here)
-	_ok("with the star, how built up and policed, who runs it, and the heading",
-		survey.size() >= 3 and survey[0].contains("STAR") and survey[1].contains("SECURITY")
-		and (survey[survey.size() - 1].contains("WARD") or survey[survey.size() - 1] == "LATERAL"))
+	_ok("the star's tag is a few lines (Q1): the name, what is there, the place, danger and fuel: %s" % " / ".join(tip),
+		tip.size() == 4 and tip[0] == MapGen.star_name(go) and tip[3].begins_with("DANGER") and tip[3].contains("FUEL"))
 	ch._on_node_picked(far.index)
 	await _frames(3)
 	var db := ch._jump.get_theme_stylebox("disabled") as StyleBoxFlat

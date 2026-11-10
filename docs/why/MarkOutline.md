@@ -81,3 +81,7 @@ by side (tk-scratch/ui-build/part2/ship_mark_options.png), picked by
     FLARE, 7 px arms) round the picture's box, the ship untouched; the
     brackets Jon likes on the enemy he aims at
 ```
+
+Jon picked C (Nov 9, "SC"): the fight's orange corner brackets round a
+wreck you can open, the ship itself untouched. `DEFAULT_LOOK` is 3 and
+`look` starts there; `-- marklook=N` still shows 0, 1 and 2.

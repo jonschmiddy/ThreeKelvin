@@ -431,6 +431,13 @@ static func _scope(ci: CanvasItem, r: Rect2, a: float, t: float, idle: float) ->
 		ci.draw_rect(Rect2(o + c + Vector2(0, sy), Vector2(1, 2)), g, true)
 
 
+## The arrow a rich body's plate gets, for the looks that have one (HOLO and its family).
+static func plate_arrow(ci: CanvasItem, r: Rect2, look: int, point: int) -> void:
+	if look == 2 or look >= HoloFrames.FIRST:
+		var col := HoloFrames.edge(look) if look >= HoloFrames.FIRST else UITheme.MARK
+		_notch(ci, r, point, col)
+
+
 ## Look 2's leader: a 3 px pixel arrow off the box's edge, pointing at the thing.
 static func _notch(ci: CanvasItem, r: Rect2, point: int, col: Color) -> void:
 	if point == 0:

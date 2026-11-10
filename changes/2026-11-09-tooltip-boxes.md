@@ -1,1 +1,3 @@
-- **Added** — twenty sci-fi boxes for the tooltip (ten ideas, then ten takes on the hologram), each with a quick open animation and most with a slow idle loop, behind `-- tiplook=N` for Jon to pick from; the tooltip looks as it did until he does.
+- **Changed** — tooltips are a hologram now: a thin mint box with scanlines and an arrow at the thing, that flickers on with a one-frame glitch and tears for a frame now and then. The same box round a part's readout and the star's tag on the chart. (Twenty boxes were drawn; Jon picked this one. `-- tiplook=N` shows the others, 0 the plain torn tag.)
+- **Changed** — a wreck you can open shows the fight's orange corner brackets when you point at it; the wreck itself is left alone. (`-- marklook=0|1|2` shows the other three.)
+- **Changed** — the star's hover tag on the chart is a few lines again: the name, what is there, the place, and danger with fuel.

@@ -609,9 +609,8 @@ func _refresh() -> void:
 	# An empty Label still reserves a line, and the WARNING group already names the nebula.
 	# Why: docs/why/StarchartScreen.md#class-line-removed
 	_class("")
-	# No blurb and no survey rows with a star picked (C3): what the place is, who runs it and
-	# what it sells are the star's hover tag now (`MapChart.tip_lines`). The panel keeps what
-	# decides the jump: danger, fuel, warnings.
+	# No blurb and no survey rows with a star picked (C3; the rows went off the hover tag too,
+	# Q1, Nov 9). The panel keeps what decides the jump: danger, fuel, warnings.
 	# Why: docs/why/StarchartScreen.md#jump-plate
 	_blurb("")
 	_rows.add_child(_danger_row(t.danger))

@@ -15,10 +15,11 @@ const GAP := 3
 const FILL := Color("#05080d", 0.94)
 const EDGE := Color("#5e6b7a")
 
-## WHICH BOX THE TAG WEARS, for Jon's pick (Nov 9): 0 this torn tag, 1..`TipFrames.LOOKS` the
-## sci-fi boxes in `TipFrames`. `-- tiplook=N`; the default stays until he picks.
+## WHICH BOX THE TAG WEARS: `DEFAULT_LOOK`, 14 GLITCH, Jon's pick (Nov 9) out of the twenty in
+## `TipFrames`; 0 is this torn tag; `-- tiplook=N` shows any of them.
 ## Why: docs/why/TornTag.md#tip-looks
-static var look: int = 0
+const DEFAULT_LOOK := 14
+static var look: int = DEFAULT_LOOK
 
 ## [[text, Color], ...], one entry a line.
 var lines: Array = []

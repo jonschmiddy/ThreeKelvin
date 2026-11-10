@@ -1536,45 +1536,11 @@ func tip_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
 		elif here.links.has(n.index):
 			l4 += "   %d FUEL" % Run.fuel_cost_to(n)
 		return PackedStringArray([l1, l2, l3, l4])
-	# THE SURVEY, after those four (C3, Jon, Nov 9): the rows the DESTINATION panel used to
-	# carry. The first four lines keep their places for the harnesses that read them.
+	# A FEW LINES (Jon, Nov 9, Q1): the survey rows that followed these four are gone; what a
+	# player needs at a glance is the name, what is there, the place, and danger with fuel.
 	# Why: docs/why/MapChart.md#survey-tag
-	return PackedStringArray([l1, l2, l3, l4]) + survey_lines(n, here)
+	return PackedStringArray([l1, l2, l3, l4])
 
-
-## What the place is, who runs it and what it sells, one short line each (the chart panel's
-## old CONTAINS, STAR, BODIES, NEARBY, DEVELOPMENT, SECURITY, OPERATORS, MARKET and HEADING).
-static func survey_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
-	var out := PackedStringArray()
-	var star := MapGen.BINARY if n.twin and MapGen.twin_ok(n) else MapGen.star_kind(n)
-	var sky := "%s STAR" % star
-	if n.gas_giant:
-		sky += " · GAS GIANT"
-	if n.near_pulsar and n.type != MapGen.NodeType.PULSAR:
-		sky += " · PULSAR NEARBY"
-	out.append(sky)
-	if n.type == MapGen.NodeType.CORE:
-		out.append("PRECURSOR RUINS · NOTHING LIVING")
-	else:
-		out.append("%s · %s SECURITY" % [MapGen.development_name(n.development).to_upper(),
-			MapGen.security_name(n.security).to_upper()])
-		var who := "NO OPERATOR"
-		var desk := Contracts.dock_desk(n)
-		if desk != &"":
-			who = "%s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
-		if not n.berths.is_empty():
-			var names: Array[String] = []
-			for m in n.berths:
-				names.append(DB.short_name(DB.manufacturer_name(m)).to_upper())
-			who = " / ".join(names)
-		out.append(who)
-		var trade := Market.trade_line(n)
-		if not trade.is_empty():
-			out.append(trade if trade.begins_with("NO ") else "MARKET  %s" % trade)
-	if n.index != here.index:
-		out.append("LATERAL" if n.layer == here.layer
-			else ("COREWARD  L%d" if n.layer > here.layer else "OUTWARD  L%d") % (n.layer + 1))
-	return out
 
 ## Zoomed out every system is a two-pixel dot, so the tooltip is what makes places readable.
 func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
@@ -1587,8 +1553,8 @@ func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	MarkOutline.draw_ring_mark(self, at, reach, float(UITheme.MARK_PX), Color(UITheme.MARK, _hover_t))
 
 	var lines := tip_lines(n, here)
-	# THE TORN TAG above the star (T1, C3): the name, what it is, where, danger and fuel, then
-	# the survey in the quiet colour. No frame, no chip; the star's own colour is the dot.
+	# THE TAG above the star (T1, C3, Q1): the name, what it is, where, danger and fuel, in
+	# the one tooltip box. No chip; the star's own colour is the dot.
 	var inks: Array[Color] = [UITheme.ICE, UITheme.COLD, UITheme.THEM, Color(0.541, 0.416, 0.227)]
 	var ls: Array = []
 	for i in lines.size():
@@ -1598,7 +1564,7 @@ func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 		Rect2(Vector2(2, 2), size - Vector2(4, 4)))
 	# slides the last few pixels in as it fades up
 	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
-	TornTag.draw_tag(self, Rect2(o, box), ls, _hover_t)
+	TornTag.draw_tag(self, Rect2(o, box), ls, _hover_t, -1 if o.y > at.y else 1)
 
 ## A stable hash from position, not a running sequence: `ChartSheet` finds its burst times with it.
 func _hash2(i: int, j: int, salt: int) -> int:

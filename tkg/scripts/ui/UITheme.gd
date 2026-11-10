@@ -181,7 +181,8 @@ static func build() -> Theme:
 	# sprawl or sliver.
 	# Why: docs/why/UITheme.md#tooltip-shape
 	# The plate is the torn tag's (T1): black, a 1 px grey torn edge, no bevel.
-	var tip := torn_box()
+	# a copy: `torn_box` is the shared plate, and these margins are Godot's own tooltip's
+	var tip := torn_box().duplicate() as StyleBoxTexture
 	tip.set_content_margin(SIDE_LEFT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_RIGHT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_TOP, TOOLTIP_PAD_V)

@@ -330,14 +330,16 @@ func _chart() -> void:
 		return
 	ch._on_node_picked(here.index)
 	await Harness.frames(_tree, 6)
-	# THE SURVEY IS ON THE STAR'S TAG (stripped-down UI C3, Nov 9): the desk reads there, and
-	# the panel keeps danger, fuel and warnings; the blurb hides once a star is picked.
-	var want := "%s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
-	var survey := MapChart.survey_lines(here, here)
-	var said := survey[2] if survey.size() > 2 else ""
-	_ok("chart: the star's tag says who runs it: %s (%s)" % [want, said], said == want)
-	var tag_w := TornTag.measure(TornTag.sentence(" ".join(survey), UITheme.COLD, 40)).x
-	_ok("chart: the tag's lines fit inside the chart (%.0f of %.0f)" % [tag_w, ch._chart.size.x], tag_w < ch._chart.size.x)
+	# THE STAR'S TAG IS A FEW LINES (Jon, Nov 9, Q1): the name, what is there, the place and
+	# danger with fuel; the survey is gone, and the panel keeps danger, fuel and warnings.
+	var tip := ch._chart.tip_lines(here, here)
+	_ok("chart: the star's tag is %d lines, the name first and danger last: %s" % [tip.size(), " / ".join(tip)],
+		tip.size() == 4 and tip[0] == MapGen.star_name(here) and tip[3].begins_with("DANGER"))
+	var ls: Array = []
+	for l in tip:
+		ls.append([l, UITheme.COLD])
+	var tag_w := TornTag.measure(ls).x
+	_ok("chart: the tag fits inside the chart (%.0f of %.0f)" % [tag_w, ch._chart.size.x], tag_w < ch._chart.size.x)
 	var rows_bottom := ch._rows.get_global_rect().end.y
 	# (docked, UNDOCK FIRST stands where JUMP would: stripped-down UI 5, Nov 9)
 	var slot: Control = ch._undock_first if Router.docked else ch._jump

@@ -125,8 +125,8 @@ func _run() -> void:
 	await _frames(2)
 	_out = _arg("out", "user://ui_highlight.png")
 	var stage := _arg("stage", "fight_hover")
-	MarkOutline.look = int(_arg("marklook", "0"))
-	TornTag.look = int(_arg("tiplook", "0"))
+	MarkOutline.look = int(_arg("marklook", str(MarkOutline.DEFAULT_LOOK)))
+	TornTag.look = int(_arg("tiplook", str(TornTag.DEFAULT_LOOK)))
 	# The window at the game's own size, as `Main._shoot` has it: root px are game px.
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)
@@ -202,6 +202,15 @@ func _run() -> void:
 				var slot := sc._view.slot(0)
 				if slot != null:
 					await _hover(slot.get_global_transform() * slot.ink_rect().get_center())
+			await _secs(0.8)
+		"readout":
+			# a part on the station's shelf, pointed at: its readout on the rich plate
+			await _station()
+			var icons := (Router.current as Node).find_children("*", "ModuleIcon", true, false)
+			for ic in icons:
+				if (ic as Control).is_visible_in_tree():
+					await _hover((ic as Control).get_global_rect().get_center())
+					break
 			await _secs(0.8)
 		"yard_ship", "yard_drone", "deck":
 			await _station()

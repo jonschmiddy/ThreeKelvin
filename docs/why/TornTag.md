@@ -128,3 +128,16 @@ reads as a type-on.
     every 0.2 s.
 The close-ups for the pick: tk-scratch/ui-build/tips/holo (rig/close.py).
 ```
+
+Jon picked 14 GLITCH (Nov 9) from the close-ups. `TornTag.DEFAULT_LOOK`
+is 14 and `look` starts there; 0 is still the torn tag and `-- tiplook=N`
+shows any of the twenty. Every tooltip wears it: the layer's tags with
+their open and loop, a rich body's plate through `UITheme.torn_box` (the
+GLITCH slice as a StyleBox, its margins the look's, and `TagLayer.PlateArrow`
+drawing the arrow at the thing; `UITheme.build` takes a copy for Godot's own
+tooltip so the shared plate keeps its margins), and the chart's and map's
+hand-drawn tips through `draw_tag` with no age (the still frame) and the
+arrow pointed at the star or body. The other nineteen stay behind the
+flag for now: TipFrames is 511 lines and HoloFrames 346, of which GLITCH
+needs about 120 (the shared helpers and its own two functions); the rest,
+roughly 740 lines, can go before landing if Jon says so.

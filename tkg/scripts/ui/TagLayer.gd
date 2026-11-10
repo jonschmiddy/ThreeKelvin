@@ -146,9 +146,27 @@ func _show(c: Control, text: String) -> void:
 		_tag = tag
 		add_child(_tag)
 	_tag.position = _spot(c, _tag.size)
+	var inv := get_global_transform().affine_inverse()
+	var point := 1 if _tag.position.y < (inv * c.get_global_rect().position).y else -1
 	if _tag is TornTag:
-		var inv := get_global_transform().affine_inverse()
-		(_tag as TornTag).point = 1 if _tag.position.y < (inv * c.get_global_rect().position).y else -1
+		(_tag as TornTag).point = point
+	elif TornTag.look != 0:
+		# a rich body's plate wears the box through its stylebox; the arrow is its own child
+		var arrow := PlateArrow.new()
+		arrow.point = point
+		_tag.add_child(arrow)
+
+
+## The arrow at the thing on a rich body's plate (a `TornTag` draws its own).
+class PlateArrow extends Control:
+	var point := 0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _draw() -> void:
+		TipFrames.plate_arrow(self, Rect2(Vector2.ZERO, size), TornTag.look, point)
 
 
 func _hide() -> void:

@@ -13,11 +13,12 @@ var view: ShipView = null
 var art: TextureRect = null
 var _key := Vector4(-1, -1, -1, -1)
 static var _shader: Shader = null
-## HOW A SHIP IS MARKED, for Jon's pick (Nov 9: the full stroke on a wreck was "WAY too intense"):
-## 0 today's stroke, 1 (A) a 1 px outer silhouette, 2 (B) a lift with a rim light, 3 (C) the
-## fight's ember brackets round its box. `-- marklook=N`; the default stays until he picks.
+## HOW A SHIP IS MARKED: 3 (C), the fight's ember brackets round its box and the picture
+## untouched, Jon's pick (Nov 9; the full stroke on a wreck was "WAY too intense"); 0 the old
+## stroke, 1 (A) a 1 px outer silhouette, 2 (B) a lift with a rim light. `-- marklook=N`.
 ## Why: docs/why/MarkOutline.md#ship-looks
-static var look: int = 0
+const DEFAULT_LOOK := 3
+static var look: int = DEFAULT_LOOK
 var _outside: ImageTexture = null
 var _outside_key := Vector2i(-1, -1)
 

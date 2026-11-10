@@ -2545,7 +2545,7 @@ func _draw_tip() -> void:
 	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
 	var al := maxf(0.15, _hover_t)
 	tip_rect = Rect2(o, box)
-	TornTag.draw_tag(self, tip_rect, ls, al)
+	TornTag.draw_tag(self, tip_rect, ls, al, -1 if o.y > at.y else 1)
 
 
 ## While a GO flies a click does nothing, so no line offers one.

@@ -75,7 +75,7 @@ func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
 	_hold = float(_arg("hold", "2.5"))
-	TornTag.look = int(_arg("tiplook", "0"))
+	TornTag.look = int(_arg("tiplook", str(TornTag.DEFAULT_LOOK)))
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)
 	print("[film] look %d %s" % [TornTag.look, TipFrames.NAMES[TornTag.look]])

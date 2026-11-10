@@ -1484,3 +1484,10 @@ position known only from a contract still withholds the survey.
 The tag itself is the torn tag (T1, `TornTag`), placed above the star and
 clear of it, where it was a framed box with a colour chip beside the cursor.
 ```
+
+Jon, Nov 9, after seeing it (Q1): the tag "took the long survey lines when
+the panel dropped them"; trim it to a few lines. `tip_lines` is the first
+four alone now (the name, what is there with CLEARED, the place line,
+DANGER with FUEL or TOO DEEP) and `survey_lines` is gone with the rows
+nobody shows: the star kind, development and security, the operator, the
+market line and the heading. StationDeckTest and TagTest read the four.
