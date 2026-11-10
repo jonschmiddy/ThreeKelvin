@@ -256,7 +256,7 @@ func refresh() -> void:
 
 	# Tooltips say what a gauge is first; no repair rate, as it is priced per station.
 	# Why: docs/why/HudBar.md#tooltips
-	var hull_note := "Hull is your ship's health.\nAt zero the run ends. Stations repair it for credits."
+	var hull_note := "At zero the ship is lost; a station repairs it for credits."
 	# WHAT THE FIGHT HAS SHOWN SO FAR, while a turn plays out on screen: the
 	# hull drops as each shot lands rather than on the click (combat polish).
 	var hp := Run.hp if SectorScreen.shown_hull < 0 else SectorScreen.shown_hull
@@ -278,11 +278,9 @@ func refresh() -> void:
 	# Heat's second line changes when over cap, since then the rule has become a bill.
 	var shed: int = maxi(1, Run.dissipation())
 	# The tooltip once said vents on its own, false since the end-of-turn shed was deleted.
-	var heat_note := "Weapons and systems make heat.\nPast %d, each point over burns 1 hull at end of turn. Your vent cards shed %d more than they print." % [
-		Run.heat_cap(), shed]
+	var heat_note := "Past %d, each point over burns 1 hull at the end of the turn." % Run.heat_cap()
 	if over > 0:
-		heat_note = "Weapons and systems make heat.\nYou are %d over the cap: %d hull burns at end of turn. Your vent cards shed %d more than they print." % [
-			over, over, shed]
+		heat_note = "You are %d over the cap, so %d hull burns at the end of the turn." % [over, over]
 	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), heat)
 	_heat.tooltip_text = Widgets.tip(heat_note)
 	_hint(_heat_label, heat_note)
@@ -307,7 +305,7 @@ func refresh() -> void:
 	if fv != null:
 		fv.add_theme_color_override("font_color", FUEL_INK[state])
 	_fuel_bar.set_tank(shown, Run.fuel_cap(), state)
-	_hint(_fuel, "Every jump burns fuel. Longer jumps burn more. The tank holds %d.\nStations sell fuel. If you run dry between them, the run ends." % Run.fuel_cap())
+	_hint(_fuel, "Every jump burns some; run dry between stations and the run ends.")
 
 ## 0 the tank is fine, 1 low (a third or less), 2 critical (under two of the
 ## dearest jump on offer). Public for the harnesses.

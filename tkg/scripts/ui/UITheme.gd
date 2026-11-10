@@ -16,6 +16,15 @@ const HOT := Color("#ffd28a")
 const HULL_GREEN := Color("#4d7a63")
 const THEM := Color("#c98d7a")
 
+## THE ONE HIGHLIGHT (stripped-down UI C1, Jon, Nov 9): a pale mint no art uses, a 2 px
+## outline on what you point at and on what it will hit, and nowhere at rest.
+## Why: docs/why/UITheme.md#one-outline
+const MARK := Color("#b8f5d8")
+const MARK_PX := 2
+## How far everything else steps back when one move is the only one (C2), and a card you
+## cannot pay for.
+const DIM := 0.4
+
 ## A lookup on `ModuleData.rarity_colour`, not a second palette. `rarity_ink` as contraband
 ## is near black.
 ## Why: docs/why/UITheme.md#material-tier-colour
@@ -108,7 +117,8 @@ static func build() -> Theme:
 
 	# Buttons. See `button_style`: the shape of every button in the game.
 	var normal: StyleBox = bevel(PANEL2, 3, 5)
-	var hover: StyleBox = bevel(Color("#243244"), 3, 5)
+	# Hover is the one outline, not a lighter box with warm text (C1).
+	var hover: StyleBox = mark_box(PANEL2, 3, 5)
 	var pressed: StyleBox = bevel_in(Color("#4a2a0c"), 3, 5)
 	var disabled: StyleBox = bevel_in(PANEL, 3, 5)
 	match button_style:
@@ -142,7 +152,7 @@ static func build() -> Theme:
 	t.set_stylebox("disabled", "Button", disabled)
 	t.set_stylebox("focus", "Button", normal)
 	t.set_color("font_color", "Button", ICE)
-	t.set_color("font_hover_color", "Button", FLARE)
+	t.set_color("font_hover_color", "Button", ICE)
 	t.set_color("font_pressed_color", "Button", HOT)
 	t.set_color("font_disabled_color", "Button", Color(COLD.r, COLD.g, COLD.b, 0.35))
 	t.set_font_size("font_size", "Button", FS_SMALL)
@@ -170,7 +180,9 @@ static func build() -> Theme:
 	# Tooltips get a minimum width and a `TOOLTIP_WRAP` ceiling; with only one half they
 	# sprawl or sliver.
 	# Why: docs/why/UITheme.md#tooltip-shape
-	var tip := bevel(PANEL2, TOOLTIP_PAD_V, TOOLTIP_PAD_H)
+	# The plate is the torn tag's (T1): black, a 1 px grey torn edge, no bevel.
+	# a copy: `tag_plate` is the shared plate, and these margins are Godot's own tooltip's
+	var tip := tag_plate().duplicate() as StyleBoxTexture
 	tip.set_content_margin(SIDE_LEFT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_RIGHT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_TOP, TOOLTIP_PAD_V)
@@ -185,6 +197,13 @@ static func build() -> Theme:
 ## Why: docs/why/UITheme.md#button-styles
 enum ButtonStyle { PLATE, SOFT, FLAT, OUTLINE, CUT, UNDERLINE }
 static var button_style: ButtonStyle = ButtonStyle.PLATE
+
+
+## `btn=N` off the command line: the button shape, read before the theme is built.
+static func read_look_flags(args: PackedStringArray) -> void:
+	for a in args:
+		if a.begins_with("btn="):
+			button_style = clampi(int(a.substr(4)), 0, 5) as ButtonStyle
 
 ## A plate with its corners cut, like the drawer's chips.
 static func _cut(bg: Color, edge: Color) -> StyleBoxFlat:
@@ -211,6 +230,12 @@ static func bevel(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 static func bevel_in(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 	return _bevel_box(bg, BEVEL_LO, Color("#2a3644"), pad_v, pad_h)
 
+## THE TOOLTIP'S BOX AS A STYLEBOX, for the plates that wrap a rich tooltip body (a part's
+## readout, the badge's lines): `HoloTag.plate`, the same box the tag draws.
+static func tag_plate() -> StyleBoxTexture:
+	return HoloTag.plate()
+
+
 static func _bevel_box(bg: Color, hi: Color, lo: Color,
 		pad_v: int, pad_h: int) -> StyleBoxTexture:
 	var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
@@ -234,11 +259,19 @@ static func _bevel_box(bg: Color, hi: Color, lo: Color,
 	sb.content_margin_right = pad_h
 	return sb
 
+## The hover box every button shares: its own fill under a `MARK_PX` outline in MARK.
+## Content margins stay the caller's, so a hovered button is the size it was at rest.
+static func mark_box(bg: Color, pad_v: int, pad_h: int) -> StyleBoxFlat:
+	var sb := flat(bg, MARK, 0, pad_v, pad_h)
+	sb.set_border_width_all(MARK_PX)
+	return sb
+
+
 ## The OUTLINE button style's boxes, by state; also `Widgets.quiet`'s.
 static func outline_boxes() -> Dictionary:
 	return {
 		"normal": flat(Color(0, 0, 0, 0), LINE, 0, 3, 5),
-		"hover": flat(Color(PANEL2, 0.9), CHILL, 0, 3, 5),
+		"hover": mark_box(Color(PANEL2, 0.9), 3, 5),
 		"pressed": flat(Color("#4a2a0c"), EMBER, 0, 3, 5),
 		"disabled": flat(Color(0, 0, 0, 0), Color(LINE, 0.5), 0, 3, 5),
 	}

@@ -477,3 +477,42 @@ and `HoldGrid` draws no icon for one, so the space was invisible.
 A chit has already landed by the time we are here. There is nothing
 left to place.
 ```
+
+## Loot opens where it is
+
+Above `const PAD := 24`:
+
+```text
+LOOT OPENS WHERE IT IS (Jon, Nov 9, stripped-down UI A2). This was a centred
+window over a 72% dim: the sector went dark and a frame with two grids came up,
+the same for a wreck, the system's pile and an event's REWARD. A pop-up says
+"you are somewhere else now" about a crate twenty metres away.
+
+Now there is no window. Opened over LOCAL, the view finds its subject on its
+own (`_aim_local`): the wreck's slot where the container is a wreck drawn at
+this place, else your ship (the pile, REWARD). The camera pushes in on it with
+the cutaway's own move (`SceneZoom`, the same 0.4 s ease, 2x where it fits
+else 1x), the hold panel slides in from the left and the plate with the
+container's things floats out of the subject to its rest under it (or beside
+it, where the room is too short). DONE eases the camera back out, then the
+opener's close runs. Freed from outside mid-push (a harness, the screen torn
+down) the scene still goes back (`_exit_tree`).
+
+NOTHING CLICKABLE MOVES UNDER THE CURSOR: the hold panel and the plate are
+`MOUSE_BEHAVIOR_DISABLED` until the push has landed, and the view itself stays
+STOP over the whole screen so nothing behind is clicked while it is up. The
+room ends at LOCAL's bar, or at an event's band when the band opened it
+(`floor_g`), so neither covers the thing that opened them.
+
+The plate says nothing twice: under a wreck its own name and SALVAGE stand over
+the plate, zoomed with it, so the plate has no heading; the pile's heading is
+SECTOR LOOT, its one name (Part 1). The hold panel is as tall as its grid and
+DONE, not the window: an empty slab under them read as a page.
+
+Off LOCAL (the map's event page, a harness) there is no scene to push on: the
+hold slides in from the left and the plate from the right, no dim. Under
+reduced motion everything is at rest the frame it is measured.
+
+The arrow between the two grids went with the window: with the subject above
+the plate and the hold at the left, the geometry says which way things go.
+```

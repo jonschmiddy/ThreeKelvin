@@ -23,9 +23,7 @@ func _ready() -> void:
 	DisplaySettings.load_and_apply()
 	DevMode.load_settings()
 	# Read before the theme is built, the only moment it can be read.
-	for a_btn in OS.get_cmdline_user_args():
-		if (a_btn as String).begins_with("btn="):
-			UITheme.button_style = clampi(int((a_btn as String).substr(4)), 0, 5) as UITheme.ButtonStyle
+	UITheme.read_look_flags(OS.get_cmdline_user_args())
 	theme = UITheme.build()
 
 	var margin := Widgets.pad(null, 8, 7)
@@ -95,8 +93,6 @@ func _ready() -> void:
 			var want := (a0 as String).substr(5).to_upper()
 			var names := ["FLAT", "LINES", "CRT", "CRT+", "ARCADE"]
 			DisplaySettings.screen_look = maxi(names.find(want), 0) as DisplaySettings.Look
-		if (a0 as String).begins_with("phase="):
-			TransferView.Arrow.freeze = float((a0 as String).substr(6))
 		# `-- off=0.5` freezes the set halfway through switching off, for
 		# photographing a moment nobody can pause in play.
 		if (a0 as String).begins_with("off="):
@@ -232,6 +228,8 @@ var _cursor_shown: int = -1
 
 
 func _wear_cursor() -> void:
+	# The game's tooltips are one torn tag at the thing (T1), over everything but the menu.
+	_overlay_layer().add_child(TagLayer.new())
 	_cursor_tex.clear()
 	for i in CURSOR_FRAMES:
 		# Load via the imported texture: an export has no loose PNG, so friends got the arrow.

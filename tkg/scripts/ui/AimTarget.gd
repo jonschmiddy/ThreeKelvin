@@ -2,10 +2,13 @@ class_name AimTarget
 extends Control
 
 ## What a held card aims at: the corner brackets that light up and the number the card would
-## give or take. EnemySlot and ShipSlot differ only in the box, the arm length and the colours.
+## give or take (kept as on main, Jon, Nov 9). EnemySlot and ShipSlot differ only in the box,
+## the arm length and the colours.
 
 var _hot: bool = false
 var _drag_text: String = ""
+## The one outline on this slot's art (C1): the wreck's hover, never the aim.
+var mark: MarkOutline = null
 
 
 ## `set_drag_preview` hid the target under a 112x160 card; the aimed line keeps the board
@@ -23,12 +26,29 @@ func set_hot(v: bool) -> void:
 	if _hot == v:
 		return
 	_hot = v
+	sync_mark()
 	queue_redraw()
+
+
+## Whether the outline should show now: never for the aim (that is the brackets); a slot says.
+func mark_wanted() -> bool:
+	return false
+
+
+## The outline on or off as `mark_wanted` says.
+func sync_mark() -> void:
+	if mark == null or not is_instance_valid(mark):
+		return
+	var want := mark_wanted()
+	if mark.visible != want:
+		mark.visible = want
+		mark.queue_redraw()
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END and _hot:
 		_hot = false
+		sync_mark()
 		queue_redraw()
 
 

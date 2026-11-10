@@ -1466,3 +1466,28 @@ is where the star that threw the shell has to be. Planetary nebulae get
 nothing, same as in a real run — they are low-mass envelopes and leave
 a white dwarf.
 ```
+
+## Survey tag
+
+Above `static func survey_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:`:
+
+```text
+STRIPPED-DOWN UI C3 (Jon, Nov 9): the chart's one action is JUMP, and it is
+the biggest thing on the screen, so the DESTINATION panel keeps only what
+decides a jump (name, danger, fuel, warnings). The survey the panel used to
+list in eight to ten rows (what the star is, what else is in the sky, how
+built up, how policed, who runs it, what it sells, which way it lies) moved
+here, to the star's hover tag, one short line each, after the four lines
+the harnesses read by index (ChartDeepTest reads line 3 for TOO DEEP). A
+position known only from a contract still withholds the survey.
+
+The tag itself is the tooltip's tag (T1, `HoloTag`), placed above the star and
+clear of it, where it was a framed box with a colour chip beside the cursor.
+```
+
+Jon, Nov 9, after seeing it (Q1): the tag "took the long survey lines when
+the panel dropped them"; trim it to a few lines. `tip_lines` is the first
+four alone now (the name, what is there with CLEARED, the place line,
+DANGER with FUEL or TOO DEEP) and `survey_lines` is gone with the rows
+nobody shows: the star kind, development and security, the operator, the
+market line and the heading. StationDeckTest and TagTest read the four.

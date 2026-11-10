@@ -607,7 +607,7 @@ func _stunned_join() -> void:
 	if _ok("(stun) the fight screen is up", sc != null):
 		_ok("(stun) END TURN reads STUNNED and is greyed (\"%s\", %s)" % [sc._end_button.text, str(sc._end_button.disabled)],
 			sc._end_button.text == "STUNNED" and sc._end_button.disabled)
-		_ok("(stun) its tooltip says what it means", sc._end_button.tooltip_text.replace("\n", " ").contains("You act after the enemy's turn. It can still shoot you."))
+		_ok("(stun) its tooltip says what it means", sc._end_button.tooltip_text.replace("\n", " ").contains("You act after the enemy's turn, and it can still shoot you."))
 		_ok("(stun) the drawer says why it is empty (\"%s\")" % sc._stun_note.text,
 			sc._stun_note.visible and sc._stun_note.text == "Stunned. You act after the enemy's turn.")
 		_ok("(stun) HAIL and FLEE are greyed, under their names, and say why",

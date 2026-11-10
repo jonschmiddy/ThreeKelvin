@@ -470,3 +470,22 @@ Above `func _light_vec(d: Vector2) -> Vector3:`:
 (by its way only: `d` is in the world's own layer px, under its zoom, and
 for the near world it is short, so any depth at all lit it from the front)
 ```
+
+## Event place
+
+Above `func _situate() -> void:`:
+
+```text
+THE EVENT'S OWN PLACE IS THE ONE SOURCE (Jon, Nov 9, S2B: "when an event
+opens, LOCAL draws the event's own place behind it"). LOCAL used to compose
+its near picture only from where the sector map last left the ship
+(`SystemMapScreen._parked`); with no word from the map (a harness, an event on
+no place, a LOCAL built before the map parked) it drew open space while the
+band said "ROCK · YOU ARE IN ORBIT". Now, with an event open here
+(`LocalEventDrawer.open_here`: the one the map asked for, or the bar's), the
+body it sits on is LOCAL's place: the world, the belt's rocks or the hulk is
+drawn for it, and the band's place line and the picture come from the same
+body. The map's parked place still decides everything else (a free ship's
+point, a wide orbit) and wins where no event is open. `near_what` says which
+kind of picture that is without drawing, so headless tests can hold LOCAL to it.
+```

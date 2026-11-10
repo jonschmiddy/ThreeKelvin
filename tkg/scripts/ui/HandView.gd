@@ -5,6 +5,8 @@ extends Control
 ## Why: docs/why/HandView.md#hand-layout
 
 signal card_hovered(view: CardView, entered: bool)
+## A keyword on a card in this hand pointed at, or left (T2).
+signal word_hovered(view: CardView, term: String, on: bool)
 ## Carries the finished order, not an index, which needed re-basing and landed a slot off.
 signal reordered(cards: Array)
 
@@ -70,6 +72,8 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 			add_child(found)
 			found.setup(c, playable.call(c))
 			found.chosen.connect(func(v: CardView) -> void: picked.emit(v.card))
+			found.word_hovered.connect(func(v: CardView, t: String, on: bool) -> void:
+				word_hovered.emit(v, t, on))
 			found.grabbed.connect(func(v: CardView, p: Vector2) -> void:
 				card_grabbed.emit(v, p))
 			found.size = Vector2(CardView.CARD_W, CardView.CARD_H)

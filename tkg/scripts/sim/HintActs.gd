@@ -59,13 +59,14 @@ static func act(id: StringName) -> String:
 			sc._on_card_picked(cb.hand[0])
 			return "picked a card from the hand to discard"
 		&"keywords":
-			# the pointer rests on the card: its readout after the screen's delay
+			# the pointer on a word of the card: its tag, at once (T2)
 			if sc == null or sc._hand == null:
 				return ""
 			for v in sc._hand._views:
-				if v != null and is_instance_valid(v) and v._body != null and v._body.text.contains("[u]"):
-					sc._on_card_hovered(v, true)
-					return "rested the pointer on %s" % v.card.name
+				if v != null and is_instance_valid(v) and v._body != null and v._body.text.contains("[u]") \
+						and not v.card.keywords().is_empty():
+					sc._on_word_hovered(v, String((v.card.keywords()[0] as Array)[0]), true)
+					return "pointed at %s on %s" % [String((v.card.keywords()[0] as Array)[0]), v.card.name]
 		&"malfunction":
 			var cb: Combat = Router.combat
 			if cb == null:

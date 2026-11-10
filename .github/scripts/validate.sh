@@ -1210,6 +1210,30 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arriveidletest 180 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest
 }
 
+unit_marktest() {
+step "One outline means this one, and the rest steps back"
+# Stripped-down UI C1 and C2 (Jon, Nov 9): the one mint outline on what you
+# point at and what a card will hit, a dashed line between them, nothing at
+# rest; out of moves, the screen dims round END TURN, which lights ember,
+# and nothing clickable moves.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet marktest 300 \
+	"the one outline, the dashed line and the dim round END TURN hold" \
+	"the highlight or the dim is wrong (sheet=MarkTest)" \
+	--headless --path "$PROJECT" -- sheet=MarkTest
+}
+
+unit_tagtest() {
+step "Tooltips are one sentence at the thing; a card's words answer the pointer; JUMP is the plate"
+# Stripped-down UI T1, T2 and C3 (Jon, Nov 9): the torn tag above the thing,
+# one sentence, no title; each keyword on a card its own hover target with
+# its sentence on the card's picture; the chart's JUMP a big ember plate with
+# the star's name, the panel down to danger, fuel and warnings.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet tagtest 300 \
+	"the tags, the keyword tags and the jump plate hold" \
+	"a tooltip, a keyword tag or the chart's plate is wrong (sheet=TagTest)" \
+	--headless --path "$PROJECT" -- sheet=TagTest
+}
+
 unit_banddroptest() {
 step "The event band drops without a jump"
 # It moved up to 29 px a frame on a middle-length event (a cubic ease-in ends at
@@ -1248,6 +1272,21 @@ GATE_FAIL_RE='FAIL' ALLOW_EXTRA="$GATE_LEAKS" gate_sheet rewardshowntest 300 \
 	"every outcome that put something on the pile shows REWARD" \
 	"an event paid into SECTOR LOOT with no REWARD on its result" \
 	--headless --path "$PROJECT" -- sheet=RewardShownTest
+}
+
+unit_lootopentest() {
+step "Loot opens where it is"
+# Jon, Nov 9 (stripped-down UI A2): a wreck's loot is no window. Through the
+# real LOCAL, animated: a click on the wreck pushes the camera in on it, its
+# things float out on a plate, the hold slides in, nothing takes a click till
+# it rests, the box test at rest, a take and a put-back through the view's
+# handlers, a partner's claim greyed, DONE eases out and the scene is back to
+# the pixel; SECTOR LOOT and REWARD open the pile at your ship; reduced motion
+# at rest at once; no camera off LOCAL.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet lootopentest 180 \
+	"a wreck's loot opens where it lies and shuts back to the pixel" \
+	"the loot view's camera, hold or plate is off, or the scene did not come back" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=LootOpenTest
 }
 
 unit_gradesheet() {
@@ -2110,6 +2149,7 @@ gate_weight() {
 		calmladdertest) echo 47 ;; moontest) echo 46 ;; fightopentest) echo 46 ;;
 		wreckloottest) echo 45 ;; menutest) echo 42 ;; pairlocaltest) echo 40 ;;
 		rewardshowntest) echo 40 ;; scrollcheck) echo 40 ;; faunatest) echo 37 ;;
+		marktest) echo 45 ;; tagtest) echo 35 ;;
 		flightclicks) echo 36 ;; hulldamagetest) echo 35 ;; corewintest) echo 35 ;;
 		threadstress) echo 32 ;; foetagtest) echo 32 ;; killholdtest) echo 31 ;;
 		lowhulltest) echo 30 ;; contracttest) echo 27 ;; questlogtest) echo 26 ;;

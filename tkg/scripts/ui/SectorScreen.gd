@@ -73,20 +73,13 @@ var _grab_mode: int = 0
 ## Small thresholds so the card follows the hand; sideways is larger as it is recoverable.
 ## Why: docs/why/SectorScreen.md#card-gestures
 const GRAB_SIDE := 14.0
-## The keyword panel while a card is hovered. See _show_readout.
-var _readout: PanelContainer = null
+## The word's tag while a keyword is pointed at (T2). See _on_word_hovered.
+var _readout: Control = null
 ## Every readout parents here and is swept before each open, so two cannot coexist.
 ## Why: docs/why/SectorScreen.md#keyword-readout
 var _readout_host: Control = null
-## Which card the panel belongs to. See _show_readout.
+## Which card the tag belongs to. See _on_word_hovered.
 var _readout_for: CardView = null
-## The card whose panel is counting down but has not opened yet.
-var _readout_pending: CardView = null
-## Bumped on teardown: a coroutine holding a stale generation must not touch the screen.
-## Why: docs/why/SectorScreen.md#keyword-readout
-var _readout_gen: int = 0
-## How long you have to rest on a card before it explains itself.
-const READOUT_DELAY := 1.0
 ## About one module row tall, so a single part does not open a tall empty box.
 const SALVAGE_MIN_H := 96
 var _deck_label: Label
@@ -114,13 +107,13 @@ var _events: LocalEventDrawer = null
 var _discard_pile: PileView
 ## The discard also holds discarded cards and the hand at END TURN, not just played ones.
 ## Why: docs/why/SectorScreen.md#discard-tooltip
-const DISCARD_TIP := "DISCARD\n\nCards you played or discarded, and the rest of your hand at END TURN.\nClick to look."
+const DISCARD_TIP := "DISCARD\n\nCards you played or discarded, and the rest of your hand at END TURN; click to look."
 var _end_button: Button
 ## The line in the empty drawer while this ship is stunned (`Combat.stunned`).
 var _stun_note: Label
 const STUN_NOTE := "Stunned. You act after the enemy's turn."
 ## END TURN's tooltip while stunned, the stun's one full explanation.
-const STUN_TIP := "STUNNED\n\nYou just arrived. You act after the enemy's turn. It can still shoot you."
+const STUN_TIP := "STUNNED\n\nYou act after the enemy's turn, and it can still shoot you."
 const END_TIP := "END TURN\n\nStop, and let them act."
 var _hail_button: Button
 var _flee_button: Button
@@ -837,7 +830,7 @@ func _build_salvage_rail() -> PanelContainer:
 			Run.salvage_hushed_bag = _bag_here()
 			_refresh())
 	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stow.tooltip_text = Widgets.tip("Closes this panel. Anything already in your hold stays there; anything still loose stays in this system for the rest of the run.")
+	stow.tooltip_text = Widgets.tip("Closes this; anything still loose stays in this system for the rest of the run.")
 	_salvage_actions.add_child(stow)
 	# No JETTISON button: it cleared the whole hold, which `MATERIALS_NOTE` 3.4 rules out.
 	# Why: docs/why/SectorScreen.md#salvage-rail
@@ -1338,21 +1331,15 @@ func _build_hand() -> Control:
 	left.add_child(draw_push)
 
 	_draw_pile = PileView.new()
-	_draw_pile.tooltip_text = Widgets.tip("DRAW\n\nWhat is left to draw from.\nClick to look.")
+	_draw_pile.tooltip_text = Widgets.tip("DRAW\n\nWhat is left to draw; click to look.")
 	_draw_pile.opened = func() -> void:
 		_show_pile("DRAW PILE", combat.deck, true)
 	left.add_child(_draw_pile)
 	hand_row.add_child(left)
 
 	_hand = HandView.new()
-	_hand.card_grabbed.connect(_on_card_grabbed)
 	_hand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_hand.card_hovered.connect(_on_card_hovered)
-	_hand.picked.connect(_on_card_picked)
-	_view.preview = _drag_preview
-	if not _view.slid.is_connected(_on_view_slid):
-		_view.slid.connect(_on_view_slid)
-	_hand.reordered.connect(_on_hand_reorder)
+	_wire_hand()
 	hand_row.add_child(_hand)
 	# WHERE THE HAND GOES WHILE STUNNED (Jon, Nov 5): an empty drawer says why
 	_stun_note = UITheme.body(STUN_NOTE, UITheme.COLD, UITheme.FS_SMALL)
@@ -1380,7 +1367,7 @@ func _build_hand() -> Control:
 	_end_button.add_theme_stylebox_override("normal",
 		UITheme.flat(UITheme.PANEL2, Color("#4a5f78"), 0, 1, 6))
 	_end_button.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#1d2836"), UITheme.ICE, 0, 1, 6))
+		UITheme.mark_box(Color("#1d2836"), 1, 6))
 	_end_button.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#243044"), UITheme.ICE, 0, 1, 6))
 	# Override `disabled` too: the theme's pads 3 px, so a greyed button grew and shifted the rail.
@@ -1400,7 +1387,7 @@ func _build_hand() -> Control:
 	flee.add_theme_stylebox_override("normal",
 		UITheme.flat(Color(0, 0, 0, 0), Color("#8f4034"), 0, 0, 6))
 	flee.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#2a1a18"), Color("#d4614f"), 0, 0, 6))
+		UITheme.mark_box(Color("#2a1a18"), 0, 6))
 	flee.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#3a2320"), Color("#d4614f"), 0, 0, 6))
 	# Same padding as the others, so NO ESCAPE is exactly as tall as FLEE.
@@ -1417,7 +1404,7 @@ func _build_hand() -> Control:
 	_hail_button.add_theme_stylebox_override("normal",
 		UITheme.flat(Color(0, 0, 0, 0), Color("#8a6a2e"), 0, 0, 6))
 	_hail_button.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#2a2213"), UITheme.HOT, 0, 0, 6))
+		UITheme.mark_box(Color("#2a2213"), 0, 6))
 	_hail_button.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#3a2f1a"), UITheme.HOT, 0, 0, 6))
 	_hail_button.add_theme_stylebox_override("disabled",
@@ -1447,7 +1434,9 @@ func _build_hand() -> Control:
 	# A holder lets the panel be lowered after a win; the root column measures the holder.
 	# Why: docs/why/SectorScreen.md#hand-lowering
 	_hand_holder = Control.new()
-	_hand_holder.clip_contents = true
+	# No clip until the band lowers (Jon, Nov 9): a lifted or armed card rises past the
+	# holder's top, and clipped there its mint frame lost its top edge.
+	_hand_holder.clip_contents = false
 	_hand_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hand_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hand_holder.size_flags_vertical = Control.SIZE_SHRINK_END
@@ -1457,6 +1446,18 @@ func _build_hand() -> Control:
 		_hand_wrap.size = Vector2(_hand_holder.size.x, maxf(DRAWER_H,
 			_hand_wrap.get_combined_minimum_size().y)))
 	return _hand_holder
+
+## What the hand and the board tell the screen: grabs, hovers, a word pointed at, picks, reorders.
+func _wire_hand() -> void:
+	_hand.card_grabbed.connect(_on_card_grabbed)
+	_hand.card_hovered.connect(_on_card_hovered)
+	_hand.word_hovered.connect(_on_word_hovered)
+	_hand.picked.connect(_on_card_picked)
+	_view.preview = _drag_preview
+	if not _view.slid.is_connected(_on_view_slid):
+		_view.slid.connect(_on_view_slid)
+	_hand.reordered.connect(_on_hand_reorder)
+
 
 ## Seven cards across at `CARD_W` leave a margin; past that the flow wraps and scrolls.
 ## Why: docs/why/SectorScreen.md#pile-listing
@@ -1715,7 +1716,7 @@ func _show_self_brace(b: int) -> void:
 	_self_brace.visible = b > 0
 	_self_brace.text = "+%d" % b
 	_self_brace.tooltip_text = Widgets.tip(
-		"BRACE\n\nStops %d damage before your hull. Stays up, and costs 1 heat a turn." % b) \
+		"BRACE\n\nStops %d damage before your hull, and costs 1 heat a turn to hold." % b) \
 		if b > 0 else ""
 
 
@@ -3195,118 +3196,78 @@ func _on_card_dropped(index: int, view: CardView) -> void:
 	if hand_index >= 0 and combat.can_play(view.card):
 		combat.play(hand_index, index)
 
-## Its own Control so it draws over the board; it ignores the mouse, being a picture.
-## Why: docs/why/SectorScreen.md#aim-line
-class AimLine extends Control:
-	## Follow rate borrowed from `ModuleIcon.FOLLOW`, a measured value.
-	const FOLLOW := 16.0
+# ------------------------------------------------------------ dim the rest (C2)
+## ONE MOVE LEFT, EVERYTHING ELSE STEPS BACK (stripped-down UI C2, Jon, Nov 9): nothing in
+## the hand playable on your turn, the screen dims to `UITheme.DIM` round END TURN, which
+## lights ember. Dim, never move (dont-move-what-can-be-clicked).
+## Why: docs/why/SectorScreen.md#dim-the-rest
+var _dim: DimScrim = null
+var _dim_on := false
+var _end_rest: Dictionary = {}
 
-	## Two non-harmonic waves (12 and 17) from a bench of forty treatments; numbers kept.
-	## Why: docs/why/SectorScreen.md#aim-line
-	const AMP := 5.0
-	const WAVE_F := [12.0, 17.0]
-	const WAVE_S := [5.5, -3.6]
-	const WAVE_A := [1.0, 0.6]
 
-	## A generous bow, mirrored on the horizontal so it always bellies away from the card.
-	## Why: docs/why/SectorScreen.md#aim-line
-	const BOW := 0.24
-	const BOW_MAX := 46.0
+## Whether END TURN is the only move now: your turn, nothing in the hand you can play, no
+## card held, nothing asked, nothing playing out, no panel over the board.
+func dim_wanted() -> bool:
+	if not fighting() or combat == null or combat.finished or combat.stunned or combat.waiting:
+		return false
+	if combat.choosing > 0 or combat.asking_at >= 0 or _hold or _opening or _playing \
+			or _raising or _lowered or not _ending.is_empty():
+		return false
+	if _aim_view != null or _grab_view != null or _exit_ask != null or _transfer != null \
+			or _pile_panel != null:
+		return false
+	if _end_button == null or _end_button.disabled or not _end_button.is_visible_in_tree():
+		return false
+	for c in combat.hand:
+		if combat.can_play(c):
+			return false
+	return true
 
-	## How far short of the tip the shaft stops, so it never draws underneath the
-	## reticle. Slightly more than the reticle's own reach.
-	const HEAD_GAP := 12.0
 
-	## The reticle is a lock of three marks closing from radius 8 to 5.
-	const LOCK_R := 8.0
-	const LOCK_CLOSE := 3.0
-	const LOCK_SPIN := 1.6
-	const LOCK_RATE := 2.2
+## Asked every frame: the state it reads changes from a dozen places and none of them moves.
+func _sync_dim() -> void:
+	var want := dim_wanted()
+	if want == _dim_on:
+		return
+	_dim_on = want
+	if _dim == null:
+		var layer := CanvasLayer.new()
+		# Under the pause menu's layer (10), over the HUD and the goal line.
+		layer.layer = 5
+		add_child(layer)
+		_dim = DimScrim.new()
+		layer.add_child(_dim)
+	_dim.show_dim(want, _end_button)
+	_light_end_turn(want)
 
-	const SHADOW := Color("#060a10")
 
-	var owner_screen: SectorScreen = null
-	var target: Vector2 = Vector2.ZERO
+## END TURN as the one lit thing: the ember plate (`Widgets.commit`'s pressed look), its
+## own box kept so it does not grow; put back as it was when a move comes back.
+func _light_end_turn(on: bool) -> void:
+	if _end_button == null:
+		return
+	if _end_rest.is_empty():
+		for st: String in ["normal", "hover", "pressed"]:
+			_end_rest[st] = _end_button.get_theme_stylebox(st)
+		_end_rest["ink"] = _end_button.get_theme_color("font_color")
+		_end_rest["ink_hover"] = _end_button.get_theme_color("font_hover_color")
+	if on:
+		_end_button.add_theme_stylebox_override("normal", UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, 1, 6))
+		_end_button.add_theme_stylebox_override("hover", UITheme.mark_box(UITheme.EMBER, 1, 6))
+		_end_button.add_theme_stylebox_override("pressed", UITheme.flat(UITheme.HOT, UITheme.HOT, 0, 1, 6))
+		_end_button.add_theme_color_override("font_color", UITheme.VOID)
+		_end_button.add_theme_color_override("font_hover_color", UITheme.VOID)
+	else:
+		for st: String in ["normal", "hover", "pressed"]:
+			_end_button.add_theme_stylebox_override(st, _end_rest[st])
+		_end_button.add_theme_color_override("font_color", _end_rest["ink"])
+		_end_button.add_theme_color_override("font_hover_color", _end_rest["ink_hover"])
 
-	func _process(delta: float) -> void:
-		if owner_screen == null or owner_screen._aim_view == null:
-			return
-		# Exponential, so the tip never overshoots and the rate does not depend
-		# on the frame rate.
-		var k: float = 1.0 - exp(-FOLLOW * delta)
-		owner_screen._aim_tip = owner_screen._aim_tip.lerp(target, k)
-		queue_redraw()
 
-	## Plotted pixel by pixel: smoothed curves look like strays on 960x540 pixel art.
-	func _px(x: float, y: float, c: Color) -> void:
-		draw_rect(Rect2(roundf(x), roundf(y), 1.0, 1.0), c)
-
-	func _draw() -> void:
-		if owner_screen == null or owner_screen._aim_view == null:
-			return
-		var a: Vector2 = owner_screen._aim_anchor()
-		var b: Vector2 = owner_screen._aim_tip
-		var t := GameClock.now()
-		_draw_shaft(a, b, t)
-		_draw_lock(b, t)
-
-	## Straight run: a bowed arc swung with the aim, and waves on a straight run do not.
-	## Why: docs/why/SectorScreen.md#aim-line
-	func _draw_shaft(a: Vector2, b: Vector2, t: float) -> void:
-		var run := b - a
-		var span := run.length()
-		if span < HEAD_GAP + 4.0:
-			return
-		var lean := -1.0 if run.x >= 0.0 else 1.0
-		var ctrl := (a + b) * 0.5 			+ Vector2(-run.y, run.x) / span * minf(span * BOW, BOW_MAX) * lean
-		# Steps use an upper bound on the length; stepping by the span left a dashed shaft.
-		var steps := int(ceilf(a.distance_to(ctrl) + ctrl.distance_to(b)))
-		if steps < 2:
-			return
-		for i in steps + 1:
-			var u := float(i) / float(steps)
-			var here := a.lerp(ctrl, u).lerp(ctrl.lerp(b, u), u)
-			# Stop short of the reticle. Guarded past the midpoint because a deep
-			# bow can start out closer to the tip than the straight line is.
-			if u > 0.5 and here.distance_to(b) < HEAD_GAP:
-				break
-			# The normal turns with the curve, so the waves stay square to the
-			# run rather than to the straight line between its ends.
-			var tang := (ctrl - a) * (2.0 * (1.0 - u)) + (b - ctrl) * (2.0 * u)
-			if tang.length() < 0.001:
-				continue
-			var nrm := Vector2(-tang.y, tang.x) / tang.length()
-			# Widest at the middle, pinched at both ends: it gives the run a waist
-			# and keeps the air around the reticle clear.
-			var env := 0.2 + sin(u * PI) * 1.1
-			var amp := AMP * env
-			for w in WAVE_F.size():
-				var off: float = sin(u * WAVE_F[w] - t * WAVE_S[w]) * amp * WAVE_A[w]
-				var at := here + nrm * off
-				if w == 0:
-					_px(at.x, at.y + 1.0, SHADOW)
-					_px(at.x, at.y, UITheme.FLARE)
-				else:
-					_px(at.x, at.y, UITheme.EMBER)
-
-	## Three marks closing on the mark.
-	func _draw_lock(b: Vector2, t: float) -> void:
-		var r := LOCK_R - roundf(absf(sin(t * LOCK_RATE)) * LOCK_CLOSE)
-		var ph := -t * LOCK_SPIN
-		for i in 3:
-			var th := ph + float(i) * TAU / 3.0
-			var c := b + Vector2(cos(th), sin(th)) * r
-			var across := Vector2(cos(th + PI * 0.5), sin(th + PI * 0.5))
-			for s in range(-2, 3):
-				var q := c + across * float(s)
-				_px(q.x + 1.0, q.y + 1.0, SHADOW)
-			for s2 in range(-2, 3):
-				var q2 := c + across * float(s2)
-				_px(q2.x, q2.y, UITheme.FLARE)
-			var inward := c - Vector2(cos(th), sin(th))
-			_px(inward.x, inward.y, UITheme.EMBER)
-		draw_rect(Rect2(b.x - 1.0, b.y - 1.0, 3.0, 3.0), SHADOW)
-		_px(b.x, b.y, UITheme.HOT)
+## Whether the screen is dimmed round END TURN now (for the harness).
+func dimmed() -> bool:
+	return _dim_on
 
 
 ## Floats in a layer above the hand, created on first use and click-through.
@@ -3320,60 +3281,47 @@ func _readout_layer() -> Control:
 	return _readout_host
 
 func _show_readout(view: CardView, entered: bool) -> void:
-	if not entered:
-		# Only the owning card may close it: sliding fires exited after entered.
-		if view == null or view == _readout_for or view == _readout_pending:
-			_clear_readout()
-		return
+	# NO WHOLE-CARD READOUT IN THE HAND (stripped-down UI T2, Jon, Nov 9): each keyword on the
+	# card is its own hover target and shows its one sentence at once (`_on_word_hovered`). The
+	# card already says its name, type, cost and picture; the gallery keeps the full readout.
+	# Why: docs/why/SectorScreen.md#keyword-readout
+	if not entered and (view == null or view == _readout_for):
+		_clear_readout()
+
+
+## POINT AT A WORD (T2): the word lights on the card (`CardView.lit_word`) and its sentence
+## sits on the card's picture in the torn tag, at once, not after a second. `_readout` and
+## `_readout_for` name the tag and its card, as the keywords lesson reads them.
+func _on_word_hovered(view: CardView, term: String, on: bool) -> void:
 	_clear_readout()
-
-	# Not mid-drag: Godot sends hover events during a drag and opened a panel per card.
-	if get_viewport().gui_is_dragging():
+	if not on or view == null or not is_instance_valid(view) or not fighting():
 		return
-
-	# Delayed so it is a thing you ask for by resting; the gallery stays instant.
-	# Why: docs/why/SectorScreen.md#keyword-readout
-	_readout_pending = view
-	# The generation is checked per wake, as the card is not a unique enough claim.
-	var gen := _readout_gen
-	await get_tree().create_timer(READOUT_DELAY).timeout
-	if gen != _readout_gen or not is_instance_valid(view):
+	var meaning := ""
+	for raw in view.card.keywords():
+		if String((raw as Array)[0]) == term:
+			meaning = String((raw as Array)[1])
+	if meaning == "":
 		return
-	if get_viewport().gui_is_dragging():
-		return
-
-	_readout_pending = null
+	var tag := HoloTag.new()
+	tag.set_lines(HoloTag.sentence(meaning, UITheme.ICE, 24))
+	tag.point = 1
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_readout_layer().add_child(tag)
+	_readout = tag
 	_readout_for = view
-	# Held locally: across an await, the member may belong to a newer panel.
-	var panel := Widgets.card_readout(view.card)
-	_readout = panel
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Held at zero alpha until placed, as the wrapped height is unknown on the first frame.
-	# Why: docs/why/SectorScreen.md#keyword-readout
-	panel.modulate.a = 0.0
-	_readout_layer().add_child(panel)
-
-	# Above the card: a hand fans full width, and the space above holds nothing needed.
-	var w: float = panel.custom_minimum_size.x
+	# on the picture: centred on the card, its foot on the art window's foot, inside the screen
 	var top := view.global_position - global_position
-	var px := clampf(top.x + CardView.CARD_W * 0.5 - w * 0.5, 2.0,
-		maxf(2.0, size.x - w - 2.0))
-	panel.position = Vector2(px, 2.0)
+	var art := Rect2(top + CardView.Z_ART.position, CardView.Z_ART.size)
+	var x := clampf(art.get_center().x - tag.size.x * 0.5, 2.0, maxf(2.0, size.x - tag.size.x - 2.0))
+	tag.position = Vector2(x, art.end.y - tag.size.y).round()
 
-	await get_tree().process_frame
-	if gen != _readout_gen or not is_instance_valid(panel):
-		return
-	var py := maxf(2.0, top.y - panel.size.y - 6.0)
-	# Rises as it fades in, matching the card's lift so it reads as one gesture.
-	panel.position = Vector2(px, py + 5.0)
-	var tw := panel.create_tween().set_parallel(true)
-	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(panel, "modulate:a", 1.0, 0.14)
-	tw.tween_property(panel, "position:y", py, 0.14)
+
+## The word's tag, for the harness.
+func word_tag() -> Control:
+	return _readout
+
 
 func _clear_readout() -> void:
-	_readout_gen += 1
-	_readout_pending = null
 	_readout_for = null
 	_readout = null
 	if _readout_host == null or not is_instance_valid(_readout_host):
@@ -4813,6 +4761,7 @@ func _lose_ship() -> bool:
 
 func _process(_delta: float) -> void:
 	_shield_hum()
+	_sync_dim()
 	if _wake_t >= 0.0:
 		_wake_step(_delta)
 	# A breakup draws where the hull was; the hull's slot keeps its slow bob, so
@@ -4903,6 +4852,8 @@ func _lower_band(then: Callable) -> void:
 		then.call()
 		return
 	_lowered = true
+	# the holder clips only now, as the panel slides down behind the bottom edge
+	_hand_holder.clip_contents = true
 	# a fight over before its hand was up: down from wherever it had got to
 	_stop_raise()
 	_clear_readout()

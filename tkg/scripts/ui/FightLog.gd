@@ -133,7 +133,7 @@ func _init(s: SectorScreen) -> void:
 	button.focus_mode = Control.FOCUS_NONE
 	button.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
 	button.custom_minimum_size = Vector2(32, 16)
-	button.tooltip_text = Widgets.tip("LOG\n\nWhat happened each turn of this fight. Click to show or hide it.")
+	button.tooltip_text = Widgets.tip("LOG\n\nWhat happened each turn of this fight; click to show or hide it.")
 	# FLAT, LIKE FLEE AND HAIL ON THE HAND'S RAIL: an edge, no fill until it is
 	# pointed at, and filled while the log is open
 	var edge := Color("#4a5f78")

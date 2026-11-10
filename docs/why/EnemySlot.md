@@ -226,6 +226,12 @@ what lets a reticle frame where the ship is going to be rather than chase
 it in from off-screen.
 ```
 
+THE BRACKETS ARE GONE (Nov 9, stripped-down UI C1): the target wears the
+game's one outline instead, `MarkOutline` on the art's own pixels, a child of
+the art so it rides the bob. The holder's origin reasoning above is what the
+outline's host transform gives for nothing. The same outline shows on an
+openable wreck under the pointer, which used to change only the cursor.
+
 ## Damage preview number
 
 Inside `_draw()`, above `if _hot and _drag_text != "":`:

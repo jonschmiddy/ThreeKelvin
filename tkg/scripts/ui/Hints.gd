@@ -73,7 +73,7 @@ const DONE := {
 	&"heat_corner": "a card played, or END TURN pressed",
 	&"heat": "END TURN pressed",
 	&"brace": "END TURN pressed",
-	&"keywords": "a card's readout opened (the pointer rested on a card)",
+	&"keywords": "a word on a card pointed at (its tag opened)",
 	&"malfunction": "the malfunction played (purged), or END TURN pressed",
 	&"flee_hail": "a card played, END TURN, FLEE or HAIL pressed",
 	&"piles": "a card played, or END TURN pressed",

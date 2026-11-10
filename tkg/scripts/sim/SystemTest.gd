@@ -51,8 +51,11 @@ var _stand_in := {}
 func _science_sites(n: MapGen.MapNode, L: SystemLayout, at: String) -> void:
 	var kind := "close" if L.close else ("wide" if L.twin else "one")
 	for i in n.options.size():
-		var site := StringName(OptionTable.by_id(n.options[i]).get("site", &""))
-		if site != &"barren" and site != &"belt":
+		var o := OptionTable.by_id(n.options[i])
+		var site := StringName(o.get("site", &""))
+		# (a reading's site only: since Nov 9 any event may name its site, and a
+		# salvage event sited on the belt still draws its coin flip, `_wanted_kind`)
+		if (site != &"barren" and site != &"belt") or not OptionTable.is_science(o):
 			continue
 		var key := "%s %s" % [kind, site]
 		_sci[key] = int(_sci.get(key, 0)) + 1

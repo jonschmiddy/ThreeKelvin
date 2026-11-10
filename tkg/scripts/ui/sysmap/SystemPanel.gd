@@ -1186,9 +1186,12 @@ class EventCard extends PanelContainer:
 			bg = UITheme.PANEL
 			edge = Color("#1a2230")
 		elif hot:
-			bg = (DONE_BG if finished else UITheme.PANEL2).lightened(0.06)
-			edge = UITheme.COLD
-		add_theme_stylebox_override("panel", UITheme.flat(bg, edge, 0, 0, 0))
+			# The one outline, not a lighter fill (C1).
+			edge = UITheme.MARK
+		var sb := UITheme.flat(bg, edge, 0, 0, 0)
+		if hot and not doomed:
+			sb.set_border_width_all(UITheme.MARK_PX)
+		add_theme_stylebox_override("panel", sb)
 		if _stripe != null:
 			_stripe.color = SPENT if doomed else stripe_col
 		for c in _fade:

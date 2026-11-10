@@ -259,6 +259,7 @@ func _init() -> void:
 	# `enter()`.
 	art.size = Vector2(EnemyArt.W, EnemyArt.H)
 	_art_holder.add_child(art)
+	_make_mark()
 	# The flame beside the art here, not top level, so the piles' panel covers it (#56).
 	art.host_flame(_art_holder)
 	col.add_child(_art_holder)
@@ -308,8 +309,27 @@ func _init() -> void:
 	_lift_bot.visible = false
 	col.add_child(_lift_bot)
 
+	_wire_hover()
+
+## The one outline on this hull, aimed at or an openable wreck pointed at (C1). A child of
+## the art, so it rides the bob; over the hit layers, which are siblings added later.
+func _make_mark() -> void:
+	mark = MarkOutline.new()
+	mark.art = art
+	mark.visible = false
+	mark.z_index = 1
+	art.add_child(mark)
+
+
+## The pointer on and off the slot: the screen hears it, and a wreck's outline goes with it.
+func _wire_hover() -> void:
 	mouse_entered.connect(func() -> void: hovered.emit(index, true))
-	mouse_exited.connect(func() -> void: hovered.emit(index, false))
+	mouse_exited.connect(func() -> void:
+		hovered.emit(index, false)
+		if _wreck_on:
+			_wreck_on = false
+			sync_mark())
+
 
 func bind(i: int, e, telegraphed: bool) -> void:
 	# A third of a cycle apart, so three contacts never reach the top together.
@@ -353,7 +373,7 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	if _dead and opened.is_valid():
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDisabled, with cargo still aboard. Open it." % e.template.name.to_upper())
+			"%s\n\nDisabled, with cargo still aboard; click to open it." % e.template.name.to_upper())
 	else:
 		# Only here: running always repainted SALVAGE corpse-grey, so the clickable thing read as
 		# disabled.
@@ -373,13 +393,13 @@ func set_salvage(left: int) -> void:
 		_hp.text = "SALVAGE"
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDisabled, with %d still aboard. Open it."
+			"%s\n\nDisabled, with %d things still aboard; click to open it."
 			% [_name.text, left])
 	elif opened.is_valid():
 		_hp.text = "STRIPPED"
 		_hp.add_theme_color_override("font_color", Color("#4a5c72"))
 		tooltip_text = Widgets.tip(
-			"%s\n\nPicked clean. The hull stays, but its cargo is gone." % _name.text)
+			"%s\n\nPicked clean; the hull stays, its cargo is gone." % _name.text)
 	queue_redraw()
 
 ## Set by EncounterView from the screen owning Combat: the slot knows only the card and the
@@ -403,6 +423,13 @@ func _on_hull(p: Vector2) -> bool:
 
 
 func _gui_input(e: InputEvent) -> void:
+	var mm := e as InputEventMouseMotion
+	if mm != null:
+		var on := _dead and opened.is_valid() and _on_hull(mm.position)
+		if on != _wreck_on:
+			_wreck_on = on
+			sync_mark()
+		return
 	if not _dead:
 		return
 	var mb := e as InputEventMouseButton
@@ -891,6 +918,16 @@ func aimable(c: CardData) -> bool:
 
 ## No `_drop_data`: its body emits `card_dropped`, still wired to `SectorScreen`, and would
 ## play past aiming.
+
+## The outline shows on an openable wreck under the pointer (C1: a wreck used to change
+## only the cursor); the aim keeps its brackets.
+func mark_wanted() -> bool:
+	return _wreck_on and _dead and opened.is_valid()
+
+
+## The pointer's last place on this slot, for the wreck's outline.
+var _wreck_on := false
+
 
 func _draw() -> void:
 	if not _hot:

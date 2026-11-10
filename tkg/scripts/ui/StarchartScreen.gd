@@ -51,6 +51,8 @@ var _plot := false
 ## One row plus its separation, for sizing the box to the list.
 const NEIGH_ROW := 16.0
 var _jump: Button
+## The star's name on the JUMP plate (C3): the one action is the biggest thing on the screen.
+var _jump_to: Label
 ## Docked, the line that stands where JUMP would (`_berth_lock`).
 var _undock_first: Label
 
@@ -291,7 +293,7 @@ func _build() -> void:
 	_neigh_scroll.add_child(_neigh)
 	right.add_child(_neigh_scroll)
 	_jump = Widgets.button("JUMP", _on_jump)
-	_jump.custom_minimum_size = Vector2(0, 24)
+	_jump_plate(_jump)
 	right.add_child(_jump)
 
 	_ladder_side = Widgets.panel_with(right)
@@ -565,13 +567,13 @@ func _refresh() -> void:
 			_dest_name.text = Run.galaxy_title.to_upper()
 			_class("%s - %s" % [
 				Run.galaxy_name, GalaxyGen.type_name(Run.galaxy_kind).to_upper()])
-			_dest_blurb.text = GalaxyGen.blurb(Run.galaxy_kind)
+			_blurb(GalaxyGen.blurb(Run.galaxy_kind))
 			# The count stays: blanking it left the start of a run with a list and no number above.
 			# Why: docs/why/StarchartScreen.md#neighbour-count-hint
 		else:
 			_dest_name.text = "NOWHERE"
 			_class("")
-			_dest_blurb.text = "No jump you can afford. The tank is dry."
+			_blurb("No jump you can afford. The tank is dry.")
 			# Not repeated here, as the header already said it: the same sentence twice.
 			_hint.text = ""
 		_lock_jump()
@@ -586,7 +588,7 @@ func _refresh() -> void:
 		var job := Run.contract_at(_selected)
 		_dest_name.text = MapGen.star_name(t)
 		_class("%s - POSITION ONLY" % Run.galaxy_name)
-		_dest_blurb.text = job.text
+		_blurb(job.text)
 		_rows.add_child(_row("CIRCLED BY",
 			DB.manufacturer_name(job.manufacturer).to_upper(),
 			DB.manufacturer_colour(job.manufacturer)))
@@ -596,6 +598,7 @@ func _refresh() -> void:
 		_rows.add_child(_row("SURVEY", "NONE"))
 		_hint.text = "They gave you a position and nothing else."
 		_jump.disabled = not Run.can_jump_to(t)
+		_jump_to.text = MapGen.star_name(t) if not _jump.disabled else ""
 		_berth_lock()
 		return
 
@@ -606,58 +609,10 @@ func _refresh() -> void:
 	# An empty Label still reserves a line, and the WARNING group already names the nebula.
 	# Why: docs/why/StarchartScreen.md#class-line-removed
 	_class("")
-	_dest_blurb.text = MapGen.place_blurb(t)
-
-	# Rows run what it is, who is there, what it costs: the order the questions arrive.
-	# Gaps are four pixels, not rules: three separators in a narrow panel read as three panels.
-	# Why: docs/why/StarchartScreen.md#row-order
-	_rows.add_child(_row("CONTAINS", _contains(t)))
-	# Says what is in the sky, which decides what you are offered (corona, wind, slipping orbit).
-	# In the star's own colour; BINARY for two suns (ruling 20; Jon, Nov 1).
-	# Why: docs/why/StarchartScreen.md#star-row
-	_rows.add_child(_row("STAR", MapGen.BINARY if t.twin and MapGen.twin_ok(t) else MapGen.star_kind(t), MapGen.star_colour(t)))
-	# Only when there is one: NONE would be blank four times in nine and say nothing.
-	if t.gas_giant:
-		_rows.add_child(_row("BODIES", "GAS GIANT"))
-	if t.near_pulsar and t.type != MapGen.NodeType.PULSAR:
-		_rows.add_child(_row("NEARBY", "PULSAR", Color("#8fd2e0")))
-	# No nebula row: `MapGen.hazards()` already says NEBULA in the WARNING group.
-	# Why: docs/why/StarchartScreen.md#no-nebula-row
-
-	_rows.add_child(_gap())
-	# The three axes get their own rows, so nobody scans a run-on class line for how policed.
-	if t.type == MapGen.NodeType.CORE:
-		# Development and security are questions about a society. There is not
-		# one here.
-		_rows.add_child(_row("STRUCTURE", "PRECURSOR RUINS"))
-		_rows.add_child(_row("SECURITY", "NONE", Color("#c8734f")))
-		_rows.add_child(_row("OPERATORS", "NOTHING LIVING"))
-	else:
-		_rows.add_child(_row("DEVELOPMENT", MapGen.development_name(t.development).to_upper()))
-		_rows.add_child(_row("SECURITY", MapGen.security_name(t.security).to_upper(),
-			Color("#c8734f") if t.security <= 2 else UITheme.CHILL))
-		# NONE, not UNCLAIMED: 18% of systems printed UNCLAIMED on two consecutive rows.
-		# The row stays: 143 systems have no berths yet are real outposts or settlements.
-		# Why: docs/why/StarchartScreen.md#none-vs-unclaimed
-		var who := "NONE"
-		# A dock desk (Jon, Nov 3: every station posts work): nobody holds the place.
-		# Said, or the chart draws a delivery square on a place it calls unoperated.
-		# Why: docs/why/StarchartScreen.md#dock-desks
-		var desk := Contracts.dock_desk(t)
-		if desk != &"":
-			who = "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
-		if not t.berths.is_empty():
-			var names: Array[String] = []
-			for m in t.berths:
-				names.append(DB.short_name(DB.manufacturer_name(m)).to_upper())
-			who = " / ".join(names)
-		_rows.add_child(_row("OPERATORS", who))
-		# Sits under OPERATORS as a reading of it. Seen before the jump, a haul is a plan.
-		var trade := Market.trade_line(t)
-		if not trade.is_empty():
-			_rows.add_child(_row("MARKET", trade, Color("#d99b29")))
-
-	_rows.add_child(_gap())
+	# No blurb and no survey rows with a star picked (C3; the rows went off the hover tag too,
+	# Q1, Nov 9). The panel keeps what decides the jump: danger, fuel, warnings.
+	# Why: docs/why/StarchartScreen.md#jump-plate
+	_blurb("")
 	_rows.add_child(_danger_row(t.danger))
 
 	# Out of range is a different answer from "cannot afford it", and quoting a
@@ -680,9 +635,7 @@ func _refresh() -> void:
 			_rows.add_child(_fuel_row(cost, cost <= Run.fuel))
 		# OUTWARD is its own word: it read COREWARD, which was wrong and, now
 		# that only the way in is limited, also the wrong advice.
-		var heading := "LATERAL" if t.layer == here.layer \
-			else ("COREWARD  L%d" if t.layer > here.layer else "OUTWARD  L%d") % (t.layer + 1)
-		_rows.add_child(_row("HEADING", heading, UITheme.FLARE if t.layer > here.layer else UITheme.CHILL))
+		# (the heading is on the star's tag too, C3)
 
 	# Hazards last, so the thing that might kill you is where the eye stops. The key shows once.
 	var hz := MapGen.hazards(t)
@@ -695,6 +648,7 @@ func _refresh() -> void:
 	# Two different reasons a jump is impossible, and they need different words:
 	# no route at all, versus a route you cannot currently pay for.
 	_jump.disabled = not Run.can_jump_to(t)
+	_jump_to.text = MapGen.star_name(t) if not _jump.disabled else ""
 	if not _jump.disabled:
 		_jump.text = "JUMP"
 	elif t.index == here.index:
@@ -716,7 +670,42 @@ func _refresh() -> void:
 ## Nothing to jump to: JUMP off, or UNDOCK FIRST at the berth.
 func _lock_jump() -> void:
 	_jump.disabled = true
+	_jump_to.text = ""
 	_berth_lock()
+
+
+## THE ONE ACTION IS THE BIGGEST THING (stripped-down UI C3, Jon, Nov 9): JUMP is a big ember
+## plate, JUMP in the heading size and the star's name under it, the refusal word on a dark
+## plate of the same size. The rows that filled the panel moved to the star's hover tag.
+## Why: docs/why/StarchartScreen.md#jump-plate
+const JUMP_H := 56
+
+func _jump_plate(b: Button) -> void:
+	b.custom_minimum_size = Vector2(0, JUMP_H)
+	b.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
+	var boxes := {
+		"normal": UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, 4, 8),
+		"hover": UITheme.mark_box(UITheme.EMBER, 4, 8),
+		"pressed": UITheme.flat(UITheme.HOT, UITheme.HOT, 0, 4, 8),
+		"focus": UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, 4, 8),
+		"disabled": UITheme.flat(UITheme.VOID, UITheme.LINE, 0, 4, 8),
+	}
+	for st: String in boxes:
+		var sb: StyleBoxFlat = boxes[st]
+		# the word sits in the upper half, the name's line under it
+		sb.content_margin_bottom = 18
+		b.add_theme_stylebox_override(st, sb)
+	for st: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(st, UITheme.VOID)
+	b.add_theme_color_override("font_disabled_color", UITheme.COLD)
+	_jump_to = UITheme.body("", UITheme.VOID, UITheme.FS_SMALL)
+	_jump_to.name = "JumpTo"
+	_jump_to.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_jump_to.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_jump_to.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_jump_to.offset_top = -18
+	_jump_to.offset_bottom = -6
+	b.add_child(_jump_to)
 
 
 ## Docked, no JUMP: one plain line, UNDOCK FIRST, as UNDOCK is the only way (Jon,
@@ -897,6 +886,12 @@ func _clear(host: Node) -> void:
 
 ## Hazard red, warmer than THEM (an enemy's colour), so a warning wins over the cold blues.
 const _WARN := Color("#d4614f")
+
+## The blurb the same way: shown for the galaxy at rest, hidden once a star is picked (C3).
+func _blurb(s: String) -> void:
+	_dest_blurb.text = s
+	_dest_blurb.visible = s != ""
+
 
 ## Hidden when empty: an empty Label still reserves a font line, only hiding returns the space.
 ## Why: docs/why/StarchartScreen.md#class-line-hiding

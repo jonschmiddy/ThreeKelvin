@@ -215,6 +215,7 @@ func run(tree: SceneTree) -> void:
 	# THE BARE EVENTS BUILT (Jon's "Forty-three bare events" plan): where they
 	# sit, what each shows, and that none of it covers your ship
 	_site_rule()
+	await _every_place()
 	await _bare_events()
 	# ROUND THREE'S KEEPS (Jon's verdicts on the bare events' takes): each wired
 	# encounter shows its kept art, every kept take fits, the per-system pick
@@ -556,8 +557,9 @@ func _near_metal(img: Image, q: Vector2, r: int) -> bool:
 	return false
 
 
-## Opens `oid` on the real LOCAL at system `sys`, with its sky and the ship parked.
-func _open_at(oid: StringName, sys: int, fresh: bool = true) -> Dictionary:
+## Opens `oid` on the real LOCAL at system `sys`, with its sky and the ship parked
+## (or, `parked` false, with no word from the map on where the ship is).
+func _open_at(oid: StringName, sys: int, fresh: bool = true, parked: bool = true) -> Dictionary:
 	var o := OptionTable.by_id(oid)
 	if fresh:
 		Rng.forced = _seed
@@ -575,12 +577,124 @@ func _open_at(oid: StringName, sys: int, fresh: bool = true) -> Dictionary:
 	Run.at = idx
 	SectorScreen._approached_at = idx
 	var place := LocalEventDrawer.body_of(node, 0)
-	SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	if parked:
+		SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	else:
+		SystemMapScreen._parked.erase(idx)
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
 	await Harness.frames(_tree, 25)
 	var sc := Router.current as SectorScreen
-	return {sc = sc, sub = LocalSubject.of(sc._view) if sc != null else null}
+	return {sc = sc, sub = LocalSubject.of(sc._view) if sc != null else null, place = place}
+
+
+## The near picture each kind of place gives LOCAL (`LocalSky.near_what`).
+const NEAR_OF := {&"planet": &"world", &"giant": &"world", &"belt": &"belt", &"derelict": &"wreck", &"contact": &""}
+## One event of each kind of place, opened on the real LOCAL (`_every_place`).
+const ONE_OF := {&"dropped_load": &"planet", &"the_first_look": &"planet", &"the_spare_probe": &"belt",
+	&"dead_hull": &"derelict", &"the_sunken_freighter": &"giant", &"corona": &"star", &"hostile_contact": &"contact"}
+
+
+## The body kind an option's site asks for, or "" where its tags decide.
+static func _site_kind(o: Dictionary) -> StringName:
+	match StringName(o.get("site", &"")):
+		&"world", &"barren":
+			return &"planet"
+		&"belt", &"derelict", &"contact", &"giant", &"star":
+			return StringName(o.site)
+	return &""
+
+
+## The body kind an option's tags give it, as `SystemLayout` reads them; the
+## salvage coin flip is either of its two.
+static func _tag_kinds(o: Dictionary) -> Array[StringName]:
+	var tags: Array = o.get("tags", [])
+	if tags.has(&"fight") and not tags.has(&"salvage"):
+		return [&"contact"]
+	if tags.has(&"salvage") and tags.has(&"hazard"):
+		return [&"belt"]
+	if tags.has(&"salvage"):
+		return [&"derelict", &"belt"]
+	if tags.has(&"hazard"):
+		return [&"belt"]
+	return [&"planet"]
+
+
+## Every event draws its own place (Jon, Nov 9, S2B): the body its site names,
+## or its tags give it, is one LOCAL can draw behind the band (a world, a belt's
+## rocks, a wreck, the star) or a contact whose subject is the scene; and LOCAL,
+## opened on the event, draws that body whether or not the map parked the ship there.
+## Why: docs/why/SubjectTest.md#event-places
+func _every_place() -> void:
+	Rng.forced = _seed
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var host: MapGen.MapNode = Run.map[_a_system()]
+	var keep := {gas_giant = host.gas_giant, star = host.star, options = host.options.duplicate()}
+	var bad: Array[String] = []
+	var n := 0
+	var by_kind := {}
+	var dry: Array = []
+	for pool: Array in SystemLayout.DRY:
+		dry.append_array(pool)
+	dry.append_array(SystemLayout.DRY_PULSAR)
+	for o: Dictionary in OptionTable.all():
+		var oid: StringName = o.id
+		var site := StringName(o.get("site", &""))
+		host.gas_giant = site == &"giant" or bool(o.get("needs_giant", false))
+		host.star = int(o.get("needs_star", MapGen.Star.RED if site == &"star" else MapGen.Star.ORDINARY))
+		host.options.clear()
+		host.options.append(oid)
+		var L := SystemLayout.of(host)
+		var at := L.place_of(0)
+		var kind: StringName = &"star" if at == -1 else (L.bodies[at].kind if at >= 0 and at < L.bodies.size() else &"")
+		by_kind[kind] = int(by_kind.get(kind, 0)) + 1
+		var want := _site_kind(o)
+		if want != &"" and kind != want:
+			bad.append("%s: site %s, laid on %s" % [oid, site, kind if kind != &"" else "no body"])
+		elif want == &"" and not kind in _tag_kinds(o):
+			bad.append("%s: by its tags %s, laid on %s" % [oid, ", ".join(_tag_kinds(o)), kind])
+		elif site == &"barren" and not L.bodies[at].world in dry:
+			bad.append("%s: barren, but its world is %s" % [oid, L.bodies[at].world])
+		elif kind == &"contact" and (not o.has("subject") or LocalSubject.plan(o.subject, oid, 5).is_empty()):
+			bad.append("%s: a contact with nothing drawn beside you" % oid)
+		elif kind == &"":
+			bad.append("%s: on no body" % oid)
+		else:
+			n += 1
+	host.gas_giant = keep.gas_giant
+	host.star = keep.star
+	host.options.assign(keep.options)
+	var counts: Array[String] = []
+	for k in by_kind:
+		counts.append("%s %d" % [k, by_kind[k]])
+	_ok("every event (%d of %d) sits on the body its site names, or its tags give, and that body draws something: %s (%s)" % [n, OptionTable.all().size(),
+		", ".join(counts), ", ".join(bad) if not bad.is_empty() else "all"], bad.is_empty())
+	# and LOCAL draws it, told where the ship is or not
+	var bad2: Array[String] = []
+	var n2 := 0
+	LocalEventDrawer.quiet = true
+	for oid: StringName in ONE_OF:
+		var kind: StringName = ONE_OF[oid]
+		var want_near: StringName = &"star" if kind == &"star" else NEAR_OF[kind]
+		for parked: bool in [true, false]:
+			var got := await _open_at(oid, -1, true, parked)
+			var sky := _local_sky()
+			var how := "parked there" if parked else "unparked"
+			if sky == null:
+				bad2.append("%s %s: no LOCAL" % [oid, how])
+				continue
+			var near: StringName = sky.near_what() if sky.has_method("near_what") else &"?"
+			if sky.orbit_target != int(got.place):
+				bad2.append("%s %s: LOCAL at %s, the event at %d" % [oid, how, _orbit_name(sky), int(got.place)])
+			elif near != want_near:
+				bad2.append("%s %s: LOCAL draws %s near, wanted %s" % [oid, how, near if near != &"" else "nothing", want_near if want_near != &"" else "nothing"])
+			elif kind == &"contact" and got.sub == null:
+				bad2.append("%s %s: a contact with no subject on LOCAL" % [oid, how])
+			else:
+				n2 += 1
+	LocalEventDrawer.quiet = false
+	_ok("  and LOCAL opened on one event of each kind of place (%d checks) draws that place, parked there or not (%s)" % [n2,
+		", ".join(bad2) if not bad2.is_empty() else "all"], bad2.is_empty() and n2 == ONE_OF.size() * 2)
 
 
 ## Which of them sit on the giant and which on the star (`site`).

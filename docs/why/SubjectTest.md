@@ -209,3 +209,22 @@ one is the save reaching in for it). Each time the run goes to the title,
 the memory of where the ship was is wiped as a fresh launch would have it,
 and CONTINUE must land on the map in orbit of that world, with LOCAL drawing it.
 ```
+
+## Event places
+
+Above `func _every_place() -> void:`:
+
+```text
+EVERY EVENT DRAWS ITS OWN PLACE (Jon, Nov 9, S2B). Two checks. First, every
+option planted alone in a system lands on the body its `site` names (giant,
+star, barren or world as a planet, belt, derelict, contact), or, with no site,
+on one its tags give; a barren reading's world is a dry one; a contact's
+subject plans at least one piece (open space with nothing in it is the empty
+scene this card is against); and no option is on no body. Second, one event
+of each kind of place is opened on the real LOCAL twice, with the ship parked
+where the map's GO leaves it and with no word from the map at all: LOCAL's sky
+is at the event's body and `LocalSky.near_what` says the picture that body
+gives (a world, the belt, a wreck, the star), and a contact's subject is up.
+On 08534bae the second check failed unparked (LOCAL at -9, nothing near) and
+the first failed for every event whose words name a place its tags did not.
+```

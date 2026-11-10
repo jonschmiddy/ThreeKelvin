@@ -234,18 +234,19 @@ func keywords() -> Array:
 ## Longest term first, as 'Brace from heat' contains 'Brace'. `live` stops the face double-counting.
 ## Why: docs/why/CardData.md#rich-description
 func describe_rich(live: int = -1,
-		hot: PackedStringArray = PackedStringArray()) -> String:
+		hot: PackedStringArray = PackedStringArray(), lit: String = "") -> String:
 	var terms: Array = []
 	for raw in keywords():
 		terms.append(String((raw as Array)[0]))
 	terms.sort_custom(func(x: String, y: String) -> bool: return x.length() > y.length())
 	var out := describe(live)
+	# Each term is its own hover target (`[url]`, T2): the one under the pointer (`lit`) goes the
+	# game's highlight colour, a paying one green, the rest ICE.
 	for t in terms:
-		out = out.replace(t, "[u][color=%s]%s[/color][/u]"
-			% ["#7fb89a" if hot.has(t) else "#c3d2e2", t])
+		out = out.replace(t, keyword_markup(t, hot.has(t), t == lit))
 	# The value goes green with its keyword, up to the next period, or the number looks still owed.
 	for t in hot:
-		var tag := "[u][color=#7fb89a]%s[/color][/u] " % t
+		var tag := keyword_markup(t, true, t == lit) + " "
 		var i := out.find(tag)
 		if i < 0:
 			continue
@@ -263,6 +264,12 @@ func describe_rich(live: int = -1,
 		out = out.replace("Deal %d" % live,
 			"Deal [color=%s]%d[/color]" % [col, live])
 	return out
+
+## A keyword's markup: a hover target round an underlined, coloured word.
+static func keyword_markup(t: String, hot: bool, lit: bool) -> String:
+	var col := UITheme.MARK.to_html(false) if lit else ("7fb89a" if hot else "c3d2e2")
+	return "[url=%s][u][color=#%s]%s[/color][/u][/url]" % [t, col, t]
+
 
 ## Default -1 prints the card as authored: in a shop you compare cards, not lock-on figures.
 ## Why: docs/why/CardData.md#describe

@@ -315,7 +315,7 @@ func _bare(dev: int) -> void:
 			note.is_visible_in_tree() and board.encloses(note.get_global_rect()))
 
 
-## THE CHART at a dock desk station: OPERATORS reads NONE, <MANUFACTURER> DESK.
+## THE CHART at a dock desk station: the star's tag reads <MANUFACTURER> DESK.
 func _chart() -> void:
 	var here := _station(MapGen.Development.OUTPOST, false, 9100)
 	var desk := Contracts.dock_desk(here)
@@ -330,27 +330,24 @@ func _chart() -> void:
 		return
 	ch._on_node_picked(here.index)
 	await Harness.frames(_tree, 6)
-	var want := "NONE, %s DESK" % DB.short_name(DB.manufacturer_name(desk)).to_upper()
-	var said := ""
-	var row_ok := false
-	for row in ch._rows.get_children():
-		var labels := _labels(row as Control)
-		if labels.size() >= 2 and labels[0].text == "OPERATORS":
-			said = labels[labels.size() - 1].text
-			var box := ch._rows.get_global_rect()
-			row_ok = box.grow(0.5).encloses(labels[labels.size() - 1].get_global_rect())
-	_ok("chart: OPERATORS reads %s (%s)" % [want, said], said == want)
-	_ok("chart: and its line sits inside the panel", row_ok)
-	# The dock desk blurb is the longest a station gives; JUMP must stay on screen and clear.
-	var blurb := ch._dest_blurb.text
+	# THE STAR'S TAG IS A FEW LINES (Jon, Nov 9, Q1): the name, what is there, the place and
+	# danger with fuel; the survey is gone, and the panel keeps danger, fuel and warnings.
+	var tip := ch._chart.tip_lines(here, here)
+	_ok("chart: the star's tag is %d lines, the name first and danger last: %s" % [tip.size(), " / ".join(tip)],
+		tip.size() == 4 and tip[0] == MapGen.star_name(here) and tip[3].begins_with("DANGER"))
+	var ls: Array = []
+	for l in tip:
+		ls.append([l, UITheme.COLD])
+	var tag_w := HoloTag.measure(ls).x
+	_ok("chart: the tag fits inside the chart (%.0f of %.0f)" % [tag_w, ch._chart.size.x], tag_w < ch._chart.size.x)
 	var rows_bottom := ch._rows.get_global_rect().end.y
 	# (docked, UNDOCK FIRST stands where JUMP would: stripped-down UI 5, Nov 9)
 	var slot: Control = ch._undock_first if Router.docked else ch._jump
 	var jump := slot.get_global_rect()
 	var screen_h: float = ch.get_viewport_rect().size.y
-	print("    chart blurb %d chars: rows end at %.0f, JUMP %.0f to %.0f of %.0f" 		% [blurb.length(), rows_bottom, jump.position.y, jump.end.y, screen_h])
-	_ok("chart: the blurb says salvage is thin and names the desk",
-		blurb.contains("Salvage is thin and random.") and blurb.contains("posts work from a desk"))
+	print("    chart rows end at %.0f, JUMP %.0f to %.0f of %.0f" % [rows_bottom, jump.position.y, jump.end.y, screen_h])
+	_ok("chart: the blurb is off with a star picked, the rows down to danger, fuel and warnings (%d)" % ch._rows.get_child_count(),
+		not ch._dest_blurb.visible and ch._rows.get_child_count() <= 2 + MapGen.hazards(here).size())
 	_ok("chart: JUMP (docked, UNDOCK FIRST in its place) is on screen and below the rows",
 		slot.is_visible_in_tree() and jump.end.y <= screen_h + 0.5 and jump.position.y >= rows_bottom - 0.5)
 
@@ -1149,6 +1146,7 @@ func _every_ride(dev: int) -> void:
 		rides == 20 and bad.is_empty())
 	_ok("%s: the board's tubes stay dark riding in till the car is nearly in (level %.2f)" % [tag, lamp_max],
 		lamp_max == 0.0)
+	await _press_mid_ride(st, tag, span)
 	# THE FALLBACK: the dip through the dark
 	StationScreen.deck_move = &"dip"
 	(st._tabs[&"stock"] as Button).pressed.emit()
@@ -1158,6 +1156,40 @@ func _every_ride(dev: int) -> void:
 	_ok("%s: deck_move &\"dip\" dips through the dark instead (%s), and lands (tab %s)" % [tag, dipped, st._tab],
 		dipped and st._tab == &"stock" and (st._pages[&"stock"] as Control).visible and not st.deck_changing())
 	Router.animate_in_harness = was_anim
+
+
+## THE RAIL STAYS LIVE MID-RIDE (stripped-down UI A1, Nov 9): six frames into the
+## yard's ride up to the LABORATORY, the EXCHANGE's cell is clicked through the
+## viewport: it takes the click, the ride turns from where the shaft stands (no
+## jump), the moving decks took no click, and it lands on the EXCHANGE at rest.
+func _press_mid_ride(st: StationScreen, tag: String, span: float) -> void:
+	Router.animate_in_harness = false
+	st._show_tab(&"services")
+	await _tree.process_frame
+	Router.animate_in_harness = true
+	(st._tabs[&"bench"] as Button).pressed.emit()
+	await Harness.frames(_tree, 6)
+	var from := st._pages[&"services"] as Control
+	var y_mid := from.position.y
+	var moving: bool = st.deck_changing() and y_mid != 0.0 and st._deck_to == st._pages[&"bench"]
+	var dead := from.mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_DISABLED \
+		and (st._pages[&"bench"] as Control).mouse_behavior_recursive == Control.MOUSE_BEHAVIOR_DISABLED
+	await _click(st._tabs[&"hold"] as Button)
+	# (three frames pass in the click: the shaft may move three steps, no more)
+	var step_cap := span * PI / 2.0 * StationScreen.RIDE_STEP_S / StationScreen.DECK_MIN_S + 2.0
+	var y_now := from.position.y
+	var turned: bool = st._tab == &"hold" and st.deck_changing() and st._deck_from == from \
+		and st._deck_to == st._pages[&"hold"] and absf(y_now - y_mid) <= 3.0 * step_cap
+	await _until(func() -> bool: return not st.deck_changing(), 6000)
+	await _tree.process_frame
+	var shown := 0
+	for k in st._pages:
+		if (st._pages[k] as Control).visible:
+			shown += 1
+	_ok("%s: mid-ride the moving decks take no click and the rail does: the ride turns to the EXCHANGE from where the shaft stands (moving %s, dead %s, turned %s, y %.0f to %.0f) and lands there (tab %s, shown %d)" % [
+		tag, moving, dead, turned, y_mid, y_now, st._tab, shown],
+		moving and dead and turned and st._tab == &"hold" and shown == 1
+		and (st._pages[&"hold"] as Control).position.y == 0.0 and not st.deck_changing())
 
 
 ## AUGMENT AND STRIP (S9 part two): the page's box test on every part and

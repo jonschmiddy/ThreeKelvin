@@ -517,10 +517,10 @@ func _option(text: String, action: Callable, primary: bool = false) -> Button:
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	b.add_theme_font_size_override("font_size", MENU_SIZE)
-	# Grey at rest, white for the primary, warm on hover: three states, three jobs.
+	# Grey at rest, white for the primary, the one highlight colour under the pointer (C1).
 	var rest := UITheme.ICE if primary else UITheme.COLD
 	b.add_theme_color_override("font_color", rest)
-	b.add_theme_color_override("font_hover_color", UITheme.HOT)
+	b.add_theme_color_override("font_hover_color", UITheme.MARK)
 	b.add_theme_color_override("font_pressed_color", UITheme.FLARE)
 	b.add_theme_color_override("font_focus_color", rest)
 	for s in ["normal", "hover", "pressed", "focus", "disabled"]:

@@ -365,6 +365,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		ghost.hp = 0
 		ghost.look = h.look
 		_made[i].opened = on_open.bind(h)
+		# (which container this slot is: the loot view's camera finds it by this)
+		_made[i].set_meta(&"jetsam", h)
 		# The style it died in, from where it lies -- the same roll the kill made,
 		# by its number among the system's wrecks (this place shows only some)
 		var k := Run.wreck_ordinal(Run.node_at(), h)
@@ -377,6 +379,16 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		_made[i].set_salvage(Run.jetsam_left(Run.node_at(), h))
 	_queue_pack()
 	queue_redraw()
+
+
+## The slot drawing wreck `h` here, or null (not at this place, or a fight is on).
+func wreck_slot(h: MapGen.Jetsam) -> EnemySlot:
+	if h == null or not _slots.visible or _slots_mode != &"wrecks":
+		return null
+	for s in _made:
+		if is_instance_valid(s) and s.is_visible_in_tree() and s.get_meta(&"jetsam", null) == h:
+			return s
+	return null
 
 
 func show_area(n: MapGen.MapNode) -> void:

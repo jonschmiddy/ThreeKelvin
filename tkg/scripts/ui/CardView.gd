@@ -10,6 +10,8 @@ signal chosen(view: CardView)
 ## Why: docs/why/CardView.md#grab-gesture
 signal grabbed(view: CardView, at: Vector2)
 signal hovered(view: CardView, entered: bool)
+## The pointer on one of the card's keywords, or off it (T2): the word lights, its tag shows.
+signal word_hovered(view: CardView, term: String, on: bool)
 
 ## Hand width 112, with the gain going to the content column. Five cards still fit 640.
 ## Why: docs/why/CardView.md#card-size
@@ -62,8 +64,67 @@ func set_live(n: int, hot: PackedStringArray = PackedStringArray()) -> void:
 		return
 	live_output = n
 	live_hot = hot
+	_refresh_body()
+
+
+## The word under the pointer, lit on the card (T2).
+var lit_word := ""
+
+
+func _refresh_body() -> void:
 	if _body != null and card != null:
-		_body.text = card.describe_rich(live_output, live_hot)
+		_body.text = card.describe_rich(live_output, live_hot, lit_word)
+
+
+## The pointer moving over the text: the keyword under it lights, the one it left goes out.
+func _on_body_input(e: InputEvent) -> void:
+	var mm := e as InputEventMouseMotion
+	if mm == null:
+		return
+	var t := word_at(mm.position)
+	if t == lit_word:
+		return
+	if lit_word != "":
+		_on_word(lit_word, false)
+	if t != "":
+		_on_word(t, true)
+
+
+## Which keyword sits under `p` (the body's own coordinates), or "". Measured with a
+## `TextParagraph` shaped as the body is, not the label's meta hover, which never fired for
+## a pushed motion over the hand; the same measure works headless.
+## Why: docs/why/CardView.md#word-under-the-pointer
+func word_at(p: Vector2) -> String:
+	if _body == null or card == null:
+		return ""
+	var text := _body.get_parsed_text()
+	var para := TextParagraph.new()
+	para.width = _body.size.x
+	para.add_string(text, UITheme.pixel_font(), UITheme.FS_SMALL * _s)
+	if p.x < 0.0 or p.y < 0.0 or p.x > _body.size.x or p.y > para.get_size().y:
+		return ""
+	var idx := para.hit_test(p)
+	for raw in card.keywords():
+		var term := String((raw as Array)[0])
+		var i := text.find(term)
+		while i >= 0:
+			if idx >= i and idx < i + term.length():
+				return term
+			i = text.find(term, i + 1)
+	return ""
+
+
+func _on_word(meta: Variant, on: bool) -> void:
+	var term := String(meta)
+	var now := term if on else ""
+	if now == lit_word and on:
+		return
+	# a word left while another is already lit: that one stays
+	if not on and lit_word != term:
+		return
+	lit_word = now
+	_refresh_body()
+	word_hovered.emit(self, term, on)
 
 
 func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
@@ -100,13 +161,21 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	body.fit_content = true
 	body.scroll_active = false
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# PASS, not IGNORE: the words answer the pointer (T2), and clicks still reach the card.
+	# The card counts the body's hover as its own, so the lift is not lost over the text.
+	body.mouse_filter = Control.MOUSE_FILTER_PASS
+	body.meta_underlined = false
+	body.gui_input.connect(_on_body_input)
+	body.mouse_exited.connect(func() -> void:
+		if lit_word != "":
+			_on_word(lit_word, false))
+	mouse_behavior_recursive = Control.MOUSE_BEHAVIOR_ENABLED
 	body.add_theme_font_override("normal_font", UITheme.pixel_font())
 	body.add_theme_font_size_override("normal_font_size", UITheme.FS_SMALL * _s)
 	body.add_theme_color_override("default_color", UITheme.CHILL)
 	body.add_theme_constant_override("line_separation", 0)
 	_body = body
-	body.text = c.describe_rich(live_output, live_hot)
+	body.text = c.describe_rich(live_output, live_hot, lit_word)
 	body.position = Vector2((Z_TEXT.position.x + 2) * _s, Z_TEXT.position.y * _s)
 	body.size = Vector2((Z_TEXT.size.x - 4) * _s, Z_TEXT.size.y * _s)
 	add_child(body)
@@ -183,6 +252,12 @@ func _draw() -> void:
 
 	# Rarity is the name's colour and the module is in the readout, freeing a row for effect text.
 	# Why: docs/why/CardView.md#rarity-and-provenance
+
+	# Pointed at: the one outline (C1); armed: the same frame in the aim's own orange, one with
+	# the wavy line and the brackets (Jon, Nov 9).
+	if marked:
+		MarkOutline.draw_rect_mark(self, Rect2(0, 0, w, h), UITheme.MARK_PX * s,
+			UITheme.FLARE if armed else UITheme.MARK)
 
 ## A banner is identity: ground, mark and hem. The hem survives with no colour at all.
 ## A malfunction has no mark, as nobody built it and an emblem would invent an allegiance.
@@ -545,7 +620,7 @@ func _heat_text() -> String:
 
 func set_playable(can_play: bool) -> void:
 	playable = can_play
-	modulate.a = 1.0 if can_play else 0.34
+	modulate.a = 1.0 if can_play else UITheme.DIM
 
 ## The hand sets it: `_ready` fires before position is set, so cards animated to the top.
 ## Why: docs/why/CardView.md#hover-lift
@@ -584,7 +659,7 @@ func set_picking(on: bool) -> void:
 		return
 	picking = on
 	# Full brightness while picking: a hand greyed end to end reads as nothing can be done.
-	modulate.a = 1.0 if (on or playable) else 0.34
+	modulate.a = 1.0 if (on or playable) else UITheme.DIM
 	queue_redraw()
 
 func _on_input(event: InputEvent) -> void:
@@ -604,19 +679,32 @@ func _on_input(event: InputEvent) -> void:
 	hovered.emit(self, false)
 	grabbed.emit(self, get_global_transform() * mb.position)
 
+## Pointed at and playable, or armed: the card wears the one outline (C1). The lift stays;
+## the warm tint it used to take is gone, the outline being the whole signal.
+var marked: bool = false
+
+
+func _set_marked(on: bool) -> void:
+	if marked == on:
+		queue_redraw()
+		return
+	marked = on
+	queue_redraw()
+
+
 func _on_hover_in() -> void:
 	emitted_hover(true)
 	if not playable:
 		return
-	_tint = UITheme.FLARE
-	queue_redraw()
+	_set_marked(true)
 	_animate_lift(-8.0)
 
 func _on_hover_out() -> void:
 	emitted_hover(false)
-	_tint = UITheme.FLARE if armed else DB.manufacturer_colour(card.manufacturer)
-	queue_redraw()
+	_set_marked(armed)
 	_animate_lift(0.0)
+	if lit_word != "":
+		_on_word(lit_word, false)
 
 ## Only in a hand: elsewhere it slid cards to y=0 and stacked the gallery into its first row.
 ## Why: docs/why/CardView.md#hover-lift
@@ -647,8 +735,7 @@ func set_armed(on: bool) -> void:
 	if armed == on:
 		return
 	armed = on
-	_tint = UITheme.FLARE if on else DB.manufacturer_colour(card.manufacturer)
-	queue_redraw()
+	_set_marked(on)
 	_animate_lift(-22.0 if on else 0.0)
 
 
