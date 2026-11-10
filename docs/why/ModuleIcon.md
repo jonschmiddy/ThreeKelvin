@@ -425,3 +425,21 @@ magnification. `-- attrtest` checks it sits clear of every drawn silhouette
 at 1x and at the hold's 2x, and that on any sprite, at 1x to 3x, it hides no
 more than a twentieth of the art.
 ```
+
+## Readout bob
+
+Above `class BobCard extends Control`:
+
+```text
+Jon, Nov 9, on the part's hover readout: the cards inside it should "bob
+gently up and down, each out of step with the others", 1 game px, whole
+steps, slow. Each card sits in a BobCard holder the HBox lays out; the
+holder never moves, the plate and the words never move, and the card
+inside steps to round(sin(2 pi t / period + phase)): -1, 0 or 1 px, on
+GameClock so a film runs at the right speed. Periods 1.6 to 2.4 s by card
+index (1.6 + 0.2 i), phases 1.7 i rad, so no two cards agree. The cards
+take no mouse (IGNORE, as before: a tooltip that eats the mouse counts as
+leaving the thing), so nothing that bobs can be clicked. The holder is
+freed with the plate, which stops the bob. The same readout no longer
+shows the flavour line (Widgets.md, Card readout).
+```

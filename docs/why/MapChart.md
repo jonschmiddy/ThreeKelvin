@@ -1481,7 +1481,7 @@ here, to the star's hover tag, one short line each, after the four lines
 the harnesses read by index (ChartDeepTest reads line 3 for TOO DEEP). A
 position known only from a contract still withholds the survey.
 
-The tag itself is the torn tag (T1, `TornTag`), placed above the star and
+The tag itself is the tooltip's tag (T1, `HoloTag`), placed above the star and
 clear of it, where it was a framed box with a colour chip beside the cursor.
 ```
 

@@ -182,7 +182,7 @@ static func build() -> Theme:
 	# Why: docs/why/UITheme.md#tooltip-shape
 	# The plate is the torn tag's (T1): black, a 1 px grey torn edge, no bevel.
 	# a copy: `torn_box` is the shared plate, and these margins are Godot's own tooltip's
-	var tip := torn_box().duplicate() as StyleBoxTexture
+	var tip := tag_plate().duplicate() as StyleBoxTexture
 	tip.set_content_margin(SIDE_LEFT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_RIGHT, TOOLTIP_PAD_H)
 	tip.set_content_margin(SIDE_TOP, TOOLTIP_PAD_V)
@@ -199,14 +199,11 @@ enum ButtonStyle { PLATE, SOFT, FLAT, OUTLINE, CUT, UNDERLINE }
 static var button_style: ButtonStyle = ButtonStyle.PLATE
 
 
-## The looks still up for Jon's pick, off the command line: `btn=N` (the button shape, read
-## before the theme is built) and `tiplook=N` (the tooltip's box, `TipFrames`).
+## `btn=N` off the command line: the button shape, read before the theme is built.
 static func read_look_flags(args: PackedStringArray) -> void:
 	for a in args:
 		if a.begins_with("btn="):
 			button_style = clampi(int(a.substr(4)), 0, 5) as ButtonStyle
-		elif a.begins_with("tiplook="):
-			TornTag.look = clampi(int(a.substr(8)), 0, TipFrames.LOOKS)
 
 ## A plate with its corners cut, like the drawer's chips.
 static func _cut(bg: Color, edge: Color) -> StyleBoxFlat:
@@ -233,32 +230,10 @@ static func bevel(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 static func bevel_in(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 	return _bevel_box(bg, BEVEL_LO, Color("#2a3644"), pad_v, pad_h)
 
-## THE TORN TAG AS A STYLEBOX (T1), for the plates that wrap a rich tooltip body (a part's
-## readout, the badge's lines): `TornTag.FILL` under a 1 px edge that steps in a pixel here and
-## there, tiled, so the edge reads as torn at any size. Margins of 2 keep the jag whole.
-static func torn_box() -> StyleBoxTexture:
-	if TornTag.look != 0:
-		return TipFrames.box(TornTag.look)
-	var n := 24
-	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
-	img.fill(TornTag.FILL)
-	for i in n:
-		for side in 4:
-			var j := TornTag._jag(i, side + 1)
-			var px := Vector2i(i, j) if side == 0 else (Vector2i(i, n - 1 - j) if side == 1
-				else (Vector2i(j, i) if side == 2 else Vector2i(n - 1 - j, i)))
-			# the step in leaves the outer pixel clear, as the hand-drawn tag does
-			if j == 1:
-				var outer := Vector2i(i, 0) if side == 0 else (Vector2i(i, n - 1) if side == 1
-					else (Vector2i(0, i) if side == 2 else Vector2i(n - 1, i)))
-				img.set_pixel(outer.x, outer.y, Color(0, 0, 0, 0))
-			img.set_pixel(px.x, px.y, TornTag.EDGE)
-	var sb := StyleBoxTexture.new()
-	sb.texture = ImageTexture.create_from_image(img)
-	sb.set_texture_margin_all(2)
-	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
-	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
-	return sb
+## THE TOOLTIP'S BOX AS A STYLEBOX, for the plates that wrap a rich tooltip body (a part's
+## readout, the badge's lines): `HoloTag.plate`, the same box the tag draws.
+static func tag_plate() -> StyleBoxTexture:
+	return HoloTag.plate()
 
 
 static func _bevel_box(bg: Color, hi: Color, lo: Color,

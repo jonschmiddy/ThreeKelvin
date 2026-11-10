@@ -2060,7 +2060,7 @@ name, type, rarity, manufacturer, module, every keyword's meaning and the
 flavour. Now each keyword on the card is its own hover target
 (`CardData.keyword_markup`, a `[url]` round the word): the word lights in
 the highlight colour and its one sentence shows at once on the card's
-picture, in the torn tag (`TornTag`), through `_on_word_hovered`. The
+picture, in the tooltip's tag (`HoloTag`), through `_on_word_hovered`. The
 coroutine, its generation counter and the delay above went with the panel;
 `_readout` and `_readout_for` now name the tag and its card, which the
 keywords lesson reads. The gallery and the deck popups keep the full

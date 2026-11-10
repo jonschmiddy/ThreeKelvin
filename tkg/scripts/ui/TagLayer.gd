@@ -3,7 +3,7 @@ extends Control
 
 ## THE GAME'S TOOLTIPS, as one torn tag at the thing (stripped-down UI T1, Jon, Nov 9). Godot's
 ## own tooltips open at the cursor in a framed panel with a title; this layer turns them off
-## and shows `TornTag` right above whatever the pointer rests on, from the control's own
+## and shows `HoloTag` right above whatever the pointer rests on, from the control's own
 ## `tooltip_text`. A control that builds a rich tooltip gets that body on the tag's plate.
 ## Why: docs/why/TagLayer.md#one-tag-at-the-thing
 
@@ -133,7 +133,7 @@ func _show(c: Control, text: String) -> void:
 	if body != null:
 		var plate := PanelContainer.new()
 		plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		plate.add_theme_stylebox_override("panel", UITheme.torn_box())
+		plate.add_theme_stylebox_override("panel", UITheme.tag_plate())
 		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		plate.add_child(body)
 		_tag = plate
@@ -141,23 +141,23 @@ func _show(c: Control, text: String) -> void:
 		_tag.reset_size()
 		_tag.size = _tag.get_combined_minimum_size()
 	else:
-		var tag := TornTag.new()
-		tag.set_lines(TornTag.sentence(plain(text)))
+		var tag := HoloTag.new()
+		tag.set_lines(HoloTag.sentence(plain(text)))
 		_tag = tag
 		add_child(_tag)
 	_tag.position = _spot(c, _tag.size)
 	var inv := get_global_transform().affine_inverse()
 	var point := 1 if _tag.position.y < (inv * c.get_global_rect().position).y else -1
-	if _tag is TornTag:
-		(_tag as TornTag).point = point
-	elif TornTag.look != 0:
+	if _tag is HoloTag:
+		(_tag as HoloTag).point = point
+	else:
 		# a rich body's plate wears the box through its stylebox; the arrow is its own child
 		var arrow := PlateArrow.new()
 		arrow.point = point
 		_tag.add_child(arrow)
 
 
-## The arrow at the thing on a rich body's plate (a `TornTag` draws its own).
+## The arrow at the thing on a rich body's plate (a `HoloTag` draws its own).
 class PlateArrow extends Control:
 	var point := 0
 
@@ -166,7 +166,7 @@ class PlateArrow extends Control:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	func _draw() -> void:
-		TipFrames.plate_arrow(self, Rect2(Vector2.ZERO, size), TornTag.look, point)
+		HoloTag.draw_arrow(self, Rect2(Vector2.ZERO, size), point, HoloTag.EDGE)
 
 
 func _hide() -> void:
@@ -184,14 +184,14 @@ func _hide() -> void:
 const WIDE := Vector2(300.0, 200.0)
 
 
-## Above the thing, clear of it, inside the screen (`TornTag.place`).
+## Above the thing, clear of it, inside the screen (`HoloTag.place`).
 func _spot(c: Control, sz: Vector2) -> Vector2:
 	var about := c.get_global_rect()
 	var inv := get_global_transform().affine_inverse()
 	about = Rect2(inv * about.position, about.size)
 	if (about.size.x > WIDE.x or about.size.y > WIDE.y) and _pointer != Vector2.INF:
 		about = Rect2(_pointer - Vector2(12, 22), Vector2(24, 44))
-	return TornTag.place(sz, about, Rect2(Vector2(2, 2), size - Vector2(4, 4)))
+	return HoloTag.place(sz, about, Rect2(Vector2(2, 2), size - Vector2(4, 4)))
 
 
 ## The sentence out of a tooltip's text: a short title line in caps goes (the thing under the
@@ -219,6 +219,6 @@ func hold_off(c: Control, on: bool) -> void:
 		_hide()
 
 
-## The tag up now, for the harness: null, a `TornTag`, or a plate round a rich body.
+## The tag up now, for the harness: null, a `HoloTag`, or a plate round a rich body.
 func shown() -> Control:
 	return _tag

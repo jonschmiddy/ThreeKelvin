@@ -188,6 +188,11 @@ left at 8px for character to survive. Colour still works perfectly
 well down here, and it costs no asset, no licence and no size guess.
 ```
 
+Jon, Nov 9: "just generally I think the flavor text can go away." The
+flavour section at the foot of this readout is gone, and with it the
+quote ink's one job here; the panel ends on the keywords. `ModuleData.flavour`
+stays on the data for now (Phase 14, the text rework, may reuse it).
+
 ## Ability rows
 
 Above `static func ability_row(at: String, title: String, text: String, accent: Color,`:
@@ -322,6 +327,10 @@ with three of them threw it across the screen.
 The cap was already sitting eight lines below, on the flavour. This is the
 same number for the same reason.
 ```
+
+Jon, Nov 9: the flavour line at the foot of this panel is gone too (the
+same ruling), so the panel ends on the affixes, or the augmented mark. The
+hover readout's cards beside it bob a pixel each (`ModuleIcon.BobCard`).
 
 ## Perk tooltip
 

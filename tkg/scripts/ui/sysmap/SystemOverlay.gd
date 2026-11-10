@@ -2532,7 +2532,7 @@ func _draw_tip() -> void:
 	var ls: Array = []
 	for l in lines:
 		ls.append([String((l as Array)[0]), (l as Array)[1]])
-	var box := TornTag.measure(ls)
+	var box := HoloTag.measure(ls)
 	var at: Vector2 = h.at
 	# THE TORN TAG above the thing (T1), clear of its outline, inside the frame; it slides
 	# the last few pixels in and fades up with the hover, as the chart's does.
@@ -2541,11 +2541,11 @@ func _draw_tip() -> void:
 	if kind == &"body" or kind == &"star":
 		r = _reach(int(h.body))
 	var win: Rect2 = view.window
-	var o := TornTag.place(box, Rect2(at - Vector2(r, r), Vector2(r, r) * 2.0), win.grow(-6.0))
+	var o := HoloTag.place(box, Rect2(at - Vector2(r, r), Vector2(r, r) * 2.0), win.grow(-6.0))
 	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
 	var al := maxf(0.15, _hover_t)
 	tip_rect = Rect2(o, box)
-	TornTag.draw_tag(self, tip_rect, ls, al, -1 if o.y > at.y else 1)
+	HoloTag.draw_tag(self, tip_rect, ls, al, -1 if o.y > at.y else 1)
 
 
 ## While a GO flies a click does nothing, so no line offers one.

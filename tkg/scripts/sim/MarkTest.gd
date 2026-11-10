@@ -1,8 +1,8 @@
 extends Node
 
-## One outline means "this one" (stripped-down UI C1, Jon, Nov 9): the mint `MarkOutline` on
-## the card you point at, on your ship, a wreck and a deck, nothing outlined at rest; and the
-## fight's aim kept as on main (Jon: the wavy line and the brackets), the armed card in its orange.
+## One mark means "this one" (stripped-down UI C1, Jon, Nov 9): the mint outline on the card you
+## point at and a deck, the ember brackets (`MarkOutline`) on your ship, an enemy and a wreck,
+## nothing marked at rest; the fight's aim as on main, the armed card in its orange.
 ##   tools/dev/godot.sh --headless --path tkg -- sheet=MarkTest
 ## Why: docs/why/MarkTest.md#test-purpose
 
@@ -59,9 +59,8 @@ func _theme() -> void:
 	_ok("a quiet button's hover is the same outline", (ob.hover as StyleBoxFlat).border_color == UITheme.MARK)
 	var m := MarkOutline.new()
 	var mat := m.material as ShaderMaterial
-	_ok("the shape outline is drawn in MARK, %d px" % UITheme.MARK_PX,
-		mat != null and mat.get_shader_parameter("col") == UITheme.MARK
-		and is_equal_approx(float(mat.get_shader_parameter("px")), float(UITheme.MARK_PX)))
+	_ok("a picture's mark is the fight's brackets in FLARE (Jon's pick, Nov 9), the picture untouched",
+		mat != null and mat.get_shader_parameter("col") == UITheme.FLARE and m.get_child_count() == 0)
 	m.free()
 	_ok("the cutaway's hull outline is that outline", CutawayView.Outline.new() is MarkOutline)
 	var st := StationScreen.new()

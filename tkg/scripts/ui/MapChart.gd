@@ -1428,7 +1428,7 @@ func _draw_neb_tip() -> void:
 
 	var edge := Color("#a98ab8") if _neb_hot_emit else Color("#6fa5b0")
 	# the torn tag (T1), the cloud's kind in its own colour
-	TornTag.draw_tag(self, Rect2(o, box), [[_neb_hot, UITheme.ICE], [l2, edge]])
+	HoloTag.draw_tag(self, Rect2(o, box), [[_neb_hot, UITheme.ICE], [l2, edge]])
 
 ## An ellipse, not a circle: `hop_distance` divides out squash, so reach is round in the galaxy.
 ## Whole pixels and a radius-tied step count, or dashes land on fractions and shimmer on pan.
@@ -1559,12 +1559,12 @@ func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	var ls: Array = []
 	for i in lines.size():
 		ls.append([lines[i], inks[i] if i < inks.size() else UITheme.COLD])
-	var box := TornTag.measure(ls)
-	var o := TornTag.place(box, Rect2(at - Vector2(reach, reach), Vector2(reach, reach) * 2.0),
+	var box := HoloTag.measure(ls)
+	var o := HoloTag.place(box, Rect2(at - Vector2(reach, reach), Vector2(reach, reach) * 2.0),
 		Rect2(Vector2(2, 2), size - Vector2(4, 4)))
 	# slides the last few pixels in as it fades up
 	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
-	TornTag.draw_tag(self, Rect2(o, box), ls, _hover_t, -1 if o.y > at.y else 1)
+	HoloTag.draw_tag(self, Rect2(o, box), ls, _hover_t, -1 if o.y > at.y else 1)
 
 ## A stable hash from position, not a running sequence: `ChartSheet` finds its burst times with it.
 func _hash2(i: int, j: int, salt: int) -> int:

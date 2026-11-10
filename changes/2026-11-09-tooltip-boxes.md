@@ -1,3 +1,5 @@
-- **Changed** — tooltips are a hologram now: a thin mint box with scanlines and an arrow at the thing, that flickers on with a one-frame glitch and tears for a frame now and then. The same box round a part's readout and the star's tag on the chart. (Twenty boxes were drawn; Jon picked this one. `-- tiplook=N` shows the others, 0 the plain torn tag.)
-- **Changed** — a wreck you can open shows the fight's orange corner brackets when you point at it; the wreck itself is left alone. (`-- marklook=0|1|2` shows the other three.)
-- **Changed** — the star's hover tag on the chart is a few lines again: the name, what is there, the place, and danger with fuel.
+- **Changed** — tooltips are a hologram: a thin mint box with scanlines and an arrow at the thing, that flickers on with a one-frame glitch and tears for a frame now and then. The same box round a part's readout, the badge, and the star's tag on the chart.
+- **Changed** — point at your ship, an enemy or a wreck you can open and it gets the fight's orange corner brackets; the picture itself is left alone.
+- **Changed** — the star's hover tag on the chart is a few lines: the name, what is there, the place, and danger with fuel.
+- **Removed** — the flavour line under a part: gone from the hover readout, the card readout, and the Promenade's and Exchange's item column. Name, rarity, manufacturer, size, stats and cards stay.
+- **Changed** — the cards in a part's hover readout bob a pixel, each on its own beat.

@@ -43,7 +43,8 @@ func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
 	_pure()
-	await _looks()
+	await _box()
+	await _readout()
 	await _local_tags()
 	await _chart()
 	await _words()
@@ -66,105 +67,126 @@ func _pure() -> void:
 	var bound := Rect2(0, 0, 960, 540)
 	var thing := Rect2(400, 300, 60, 20)
 	var sz := Vector2(120, 25)
-	var p := TornTag.place(sz, thing, bound)
+	var p := HoloTag.place(sz, thing, bound)
 	_ok("above the thing, centred, clear of it (%s)" % str(p), p.y + sz.y <= thing.position.y
 		and not Rect2(p, sz).intersects(thing) and absf(p.x + sz.x * 0.5 - thing.get_center().x) < 1.0)
 	var top := Rect2(400, 4, 60, 20)
-	var p2 := TornTag.place(sz, top, bound)
+	var p2 := HoloTag.place(sz, top, bound)
 	_ok("no room above: below it, clear of it (%s)" % str(p2), p2.y >= top.end.y and not Rect2(p2, sz).intersects(top))
 	var edge := Rect2(930, 300, 20, 20)
-	var p3 := TornTag.place(sz, edge, bound)
+	var p3 := HoloTag.place(sz, edge, bound)
 	_ok("at the screen's edge: slid inside (%s)" % str(p3), bound.encloses(Rect2(p3, sz)))
-	var ls := TornTag.sentence("At zero the ship is lost; a station repairs it for credits.")
+	var ls := HoloTag.sentence("At zero the ship is lost; a station repairs it for credits.")
 	var widest := 0
 	for l in ls:
 		widest = maxi(widest, String((l as Array)[0]).length())
 	_ok("a sentence wraps at %d letters (%d lines, widest %d)" % [UITheme.TOOLTIP_WRAP, ls.size(), widest],
 		ls.size() >= 2 and widest <= UITheme.TOOLTIP_WRAP)
-	var m := TornTag.measure(ls)
-	var pv := TipFrames.pad(TornTag.look)
-	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * TornTag.LINE_H + pv.position.y + pv.size.y - 2)
+	var m := HoloTag.measure(ls)
+	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * HoloTag.LINE_H + HoloTag.PAD_V * 2 - 2)
 
 
-## THE TEN BOXES (`-- tiplook=N`): each a whole-pixel 9-slice the words fit inside, the plate
-## for a rich body the same box, today's tag back when the dial is 0.
-func _looks() -> void:
-	print("\n--- the tag's boxes")
-	var home := TornTag.look
-	_ok("the dial rests on Jon's pick, %d %s, of %d looks" % [TornTag.look, TipFrames.NAMES[TornTag.look], TipFrames.LOOKS],
-		TornTag.look == TornTag.DEFAULT_LOOK and TornTag.look == 14 and TipFrames.LOOKS == 20 and TipFrames.NAMES.size() == 21)
-	var ls := TornTag.sentence("At zero the ship is lost; a station repairs it for credits.")
-	TornTag.look = 0
-	var today := TornTag.measure(ls)
-	_ok("0 is still the torn tag (%s)" % str(today), today.y == ls.size() * TornTag.LINE_H + TornTag.PAD_V * 2 - 2
-		and UITheme.torn_box().texture_margin_left == 2)
-	var f := UITheme.pixel_font()
-	var widest := 0.0
-	for l in ls:
-		widest = maxf(widest, f.get_string_size(String((l as Array)[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
-	var host := Control.new()
-	_tree.root.add_child(host)
-	for look in range(1, TipFrames.LOOKS + 1):
-		TornTag.look = look
-		var p := TipFrames.pad(look)
-		var sb := TipFrames.box(look)
-		var tex := sb.texture as ImageTexture
-		var m := TornTag.measure(ls)
-		var tag := TornTag.new()
-		tag.set_lines(ls)
-		host.add_child(tag)
-		await _frames(2)
-		var fits := m.x >= widest + p.position.x + p.size.x and m.y >= ls.size() * TornTag.LINE_H + p.position.y + p.size.y - 2
-		var whole := tex != null and tex.get_width() == tex.get_height() and sb.get_content_margin(SIDE_LEFT) == p.position.x 			and sb.get_content_margin(SIDE_TOP) == p.position.y and sb.texture_margin_left * 2 < tex.get_width()
-		_ok("%2d %-11s a whole-pixel slice of %d, margins %s; the words fit (%s), no smaller than today" % [look,
-			TipFrames.NAMES[look], tex.get_width() if tex != null else 0, str(p), str(m)],
-			whole and fits and m.x >= today.x and m.y >= today.y and tag.size == m and m == m.round()
-			and UITheme.torn_box() == sb)
-		await _opens(tag, look, m)
-		tag.queue_free()
-	TornTag.look = home
-	_ok("the dial back home at %d: the pick's plate (%s)" % [home, str(TornTag.measure(ls))],
-		UITheme.torn_box() == TipFrames.box(home) and TornTag.measure(ls).y == today.y + 2.0)
-	host.queue_free()
-	await _frames(2)
-
-
-## THE OPEN ANIMATION of one look, watched frame by frame: the tag never moves or changes
-## size, it is done by `open_done`, the first frame after is the still frame (every letter,
-## full alpha, every idle loop on its resting step), and only the looping looks keep drawing.
-func _opens(tag: TornTag, look: int, m: Vector2) -> void:
-	var done := TipFrames.open_done(look)
+## THE BOX (Jon's pick of twenty, Nov 9): the plate is the same box, and the open watched frame
+## by frame: the tag never moves or changes size, flickers on and is whole by `OPEN`, lands on
+## the still frame, then the scanlines crawl and a band tears for a frame now and then.
+func _box() -> void:
+	print("
+--- the tag's box")
+	var ls := HoloTag.sentence("At zero the ship is lost; a station repairs it for credits.")
+	var m := HoloTag.measure(ls)
+	var sb := HoloTag.plate()
+	_ok("the plate is the same box: an 8 px slice tiled, the tag's margins (%s)" % str(m),
+		UITheme.tag_plate() == sb and sb.texture.get_width() == 8 and sb.get_content_margin(SIDE_LEFT) == HoloTag.PAD_H
+		and sb.get_content_margin(SIDE_TOP) == HoloTag.PAD_V and m.y == ls.size() * HoloTag.LINE_H + HoloTag.PAD_V * 2 - 2)
+	var tag := HoloTag.new()
+	tag.set_lines(ls)
+	_tree.root.add_child(tag)
 	var pos := tag.position
 	var steady := true
 	var frames := 0
-	var moving := false
-	while tag.age() < done:
+	while tag.age() < HoloTag.OPEN:
 		await _tree.process_frame
 		frames += 1
 		steady = steady and tag.size == m and tag.position == pos
-		moving = moving or tag.is_processing()
 	var age := tag.age()
-	var total := 60
-	var still := TipFrames.alpha_at(look, age) == 1.0 and TipFrames.letters_at(look, age, total) == total 		and TipFrames.idle_phase(look, age - TipFrames.open_of(look)) == 0 and TipFrames.idle_phase(look, 0.0) == 0
+	var idle := age - HoloTag.OPEN
+	_ok("opens over %.2f s (%d frames), the box fixed at %s, %s" % [HoloTag.OPEN, frames, str(pos), str(m)],
+		frames >= 2 and steady and tag.size == m and HoloTag.OPEN <= 0.25)
+	_ok("flickers on (alpha %.2f at 0.05 s), whole from %.2f, and lands on the still frame" % [HoloTag.alpha_at(0.05), HoloTag.OPEN],
+		HoloTag.alpha_at(0.05) < 1.0 and HoloTag.alpha_at(HoloTag.OPEN) == 1.0 and HoloTag.alpha_at(age) == 1.0
+		and HoloTag.crawl_phase(idle) == 0 and not HoloTag.tearing(idle) and HoloTag.crawl_phase(0.0) == 0)
+	_ok("then loops: the scanlines crawl a row every %.1f s, a one-frame tear at the end of every %.1f s" % [
+		HoloTag.CRAWL, HoloTag.TEAR_EVERY], tag.is_processing() and HoloTag.crawl_phase(HoloTag.CRAWL) == 1
+		and HoloTag.crawl_phase(HoloTag.CRAWL * 3) == 0 and HoloTag.tearing(HoloTag.TEAR_EVERY - 0.02)
+		and not HoloTag.tearing(1.0) and not HoloTag.tearing(HoloTag.TEAR_EVERY - 0.1))
+	tag.queue_free()
 	await _frames(2)
-	var loops := TipFrames.idles(look)
-	_ok("   opens over %.2f s (%d frames), the box fixed at %s, still at %.2f%s" % [done, frames, str(pos), age,
-		"; then loops" if loops else "; then stops"], frames >= 2 and moving and steady and still
-		and done <= 0.25 and tag.is_processing() == loops and TipFrames.settled(look, age) != loops)
-	if look == 3:
-		_ok("   HUD's words: %d of %d letters at %.2f s, all at %.2f" % [TipFrames.letters_at(3, 0.12, total), total,
-			0.12, done], TipFrames.letters_at(3, 0.12, total) > 0 and TipFrames.letters_at(3, 0.12, total) < total
-			and TipFrames.letters_at(3, TipFrames.HUD_TYPE_AT, total) == 0)
-	if look == 2:
-		_ok("   HOLO flickers on: alpha %.2f at 0.05 s, 1 at %.2f; the scanlines crawl a row at %.1f s" % [
-			TipFrames.alpha_at(2, 0.05), done, TipFrames.CRAWL], TipFrames.alpha_at(2, 0.05) < 1.0
-			and TipFrames.idle_phase(2, TipFrames.CRAWL) == 1 and TipFrames.idle_phase(2, TipFrames.CRAWL * 3) == 0)
-	if look == 6:
-		_ok("   SCOPE sweeps again at the end of every %.1f s" % TipFrames.SWEEP_EVERY,
-			TipFrames.idle_phase(6, 1.0) == 0 and TipFrames.idle_phase(6, TipFrames.SWEEP_EVERY - 0.1) > 0)
-	if look == 10:
-		_ok("   the beacon blinks at the end of every %.1f s" % TipFrames.BLINK_EVERY,
-			TipFrames.idle_phase(10, 1.0) == 0 and TipFrames.idle_phase(10, TipFrames.BLINK_EVERY - 0.05) == 1)
+
+
+## A PART'S READOUT (Jon, Nov 9): no flavour line anywhere a part is read out, and the cards in
+## the hover readout bob a pixel each on its own beat while the plate and the words stay put.
+func _readout() -> void:
+	print("\n--- a part's readout")
+	var m: ModuleData = null
+	for id in DB.modules:
+		var cand := DB.modules[id] as ModuleData
+		if cand.flavour != "" and cand.resolved_cards().size() >= 2:
+			m = cand
+			break
+	if not _ok("a part with flavour on its data and two cards", m != null):
+		return
+	var tip := ModuleIcon.tip_for(m)
+	_tree.root.add_child(tip)
+	await _frames(2)
+	var texts: Array[String] = []
+	for l in tip.find_children("*", "Label", true, false):
+		texts.append((l as Label).text)
+	var shows_flavour := false
+	for t in texts:
+		shows_flavour = shows_flavour or t.contains(m.flavour)
+	_ok("the readout says its name and not its flavour", not shows_flavour
+		and (texts.has(m.name.to_upper()) or texts.has(m.name)))
+	var bobs := tip.find_children("*", "", true, false).filter(func(n: Node) -> bool: return n is ModuleIcon.BobCard)
+	if not _ok("each card sits in its own bob holder (%d)" % bobs.size(), bobs.size() == m.resolved_cards().size()):
+		tip.queue_free()
+		return
+	var holders: Array[Vector2] = []
+	for b in bobs:
+		holders.append((b as Control).position)
+	var seen: Dictionary[int, bool] = {}
+	var moved := false
+	var steady := true
+	var whole := true
+	var t0 := GameClock.now()
+	while GameClock.now() - t0 < 1.0:
+		await _tree.process_frame
+		for k in bobs.size():
+			var b := bobs[k] as ModuleIcon.BobCard
+			steady = steady and b.position == holders[k] and tip.position == Vector2.ZERO
+			var y := b.card.position.y
+			whole = whole and y == roundf(y) and absf(y) <= 1.0
+			seen[int(y)] = true
+			moved = moved or y != 0.0
+	var b0 := bobs[0] as ModuleIcon.BobCard
+	var b1 := bobs[1] as ModuleIcon.BobCard
+	_ok("the cards move a whole pixel at most, in steps (%s seen); the holders and the plate never" % str(seen.keys()),
+		moved and whole and steady)
+	_ok("each on its own beat: periods %.1f and %.1f s, phases %.1f and %.1f" % [b0.period, b1.period, b0.phase, b1.phase],
+		b0.period != b1.period and b0.phase != b1.phase and b0.period >= 1.6 and b1.period <= 2.4)
+	_ok("none of it takes the mouse, and the cards are drawn bright, not dimmed (alpha %.2f)" % b0.card.modulate.a,
+		b0.mouse_filter == Control.MOUSE_FILTER_IGNORE and b0.card.mouse_filter == Control.MOUSE_FILTER_IGNORE
+		and b0.card.modulate.a == 1.0 and (b0.card as CardView).playable)
+	var shelf := Widgets.module_readout(m)
+	var shelf_texts: Array[String] = []
+	for l in shelf.find_children("*", "Label", true, false):
+		shelf_texts.append((l as Label).text)
+	var shelf_flavour := false
+	for t in shelf_texts:
+		shelf_flavour = shelf_flavour or t.contains(m.flavour)
+	_ok("the module readout alone has no flavour line either", not shelf_flavour)
+	shelf.free()
+	tip.queue_free()
+	await _frames(2)
 
 
 ## THE HUD'S HULL GAUGE pointed at on LOCAL: the tag above it, clear, one sentence, no title;
@@ -190,7 +212,7 @@ func _local_tags() -> void:
 	await _frames(3)
 	_ok("resting on the hull gauge: no tag before the delay", layer.shown() == null)
 	await _secs(TagLayer.DELAY + 0.15)
-	var tag := layer.shown() as TornTag
+	var tag := layer.shown() as HoloTag
 	if not _ok("after the delay, the torn tag is up", tag != null):
 		return
 	var tr := Rect2(tag.global_position, tag.size)
@@ -198,6 +220,8 @@ func _local_tags() -> void:
 	_ok("above the gauge or below it, never on it (%s vs %s)" % [str(tr), str(gr)], not tr.intersects(gr)
 		and (tr.end.y <= gr.position.y + 0.5 or tr.position.y >= gr.end.y - 0.5))
 	_ok("inside the screen", screen.encloses(tr))
+	_ok("the arrow points at the gauge (point %d: the tag is %s it)" % [tag.point, "above" if tag.point > 0 else "below"],
+		tag.point == (1 if tr.end.y <= gr.position.y + 0.5 else -1))
 	var words := ""
 	for l in tag.lines:
 		words += String((l as Array)[0]) + " "
@@ -227,8 +251,8 @@ func _local_tags() -> void:
 		and plate.get_theme_stylebox("panel") is StyleBoxTexture
 		and plate.global_position.y + plate.size.y <= box.get_global_rect().position.y + 0.5)
 	var sbp := plate.get_theme_stylebox("panel") as StyleBoxTexture if plate != null else null
-	_ok("the plate wears the pick: its slice, its margins, and the arrow at the thing",
-		sbp == TipFrames.box(TornTag.look) and sbp.get_content_margin(SIDE_LEFT) == TipFrames.pad(TornTag.look).position.x
+	_ok("the plate wears the box: its slice, its margins, and the arrow pointing down at the thing",
+		sbp == HoloTag.plate() and sbp.get_content_margin(SIDE_LEFT) == HoloTag.PAD_H
 		and plate.get_child_count() == 2 and plate.get_child(1) is TagLayer.PlateArrow
 		and (plate.get_child(1) as TagLayer.PlateArrow).point == 1)
 	await _hover(Vector2(480, 300))
@@ -332,7 +356,7 @@ func _words() -> void:
 		and sc._readout_layer().get_child_count() == 0)
 	v._on_word(term, true)
 	await _frames(2)
-	var tag := sc.word_tag() as TornTag
+	var tag := sc.word_tag() as HoloTag
 	_ok("pointed at %s: its tag is up at once" % term, tag != null and v.lit_word == term)
 	_ok("the word lights in the highlight colour", v._body.text.contains(UITheme.MARK.to_html(false)))
 	if tag != null:
@@ -342,8 +366,9 @@ func _words() -> void:
 		_ok("the tag says the keyword's one sentence", words.strip_edges() == meaning)
 		var art := Rect2(v.global_position + CardView.Z_ART.position, CardView.Z_ART.size)
 		var tr := Rect2(tag.global_position, tag.size)
-		_ok("sitting on the card's picture (%s on %s)" % [str(tr), str(art)], tr.intersects(art)
-			and absf(tr.end.y - art.end.y) <= 1.0 and Rect2(Vector2.ZERO, Vector2(960, 540)).encloses(tr))
+		_ok("sitting on the card's picture (%s on %s), the arrow pointing down at the words" % [str(tr), str(art)],
+			tr.intersects(art) and absf(tr.end.y - art.end.y) <= 1.0 and Rect2(Vector2.ZERO, Vector2(960, 540)).encloses(tr)
+			and tag.point == 1)
 	v._on_word(term, false)
 	await _frames(2)
 	_ok("pointed off the word: the tag goes, the word is plain", sc.word_tag() == null and v.lit_word == ""

@@ -67,13 +67,44 @@ static func tip_for(module: ModuleData) -> Control:
 	row.add_theme_constant_override("separation", 4)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(Widgets.module_readout(module))
+	var i := 0
 	for c in module.resolved_cards():
 		var v := CardView.new()
-		v.setup(c, false, 1)
+		# `true`: drawn bright, not at the unplayable dim (Jon, Nov 9); the lift and the click a
+		# playable card gets live behind the hand and the mouse, and this one takes neither
+		v.setup(c, true, 1)
 		# IGNORE, not STOP: a tooltip that eats the mouse counts as leaving what you point at.
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(v)
+		row.add_child(BobCard.new(v, i))
+		i += 1
 	return row
+
+
+## THE CARDS IN A PART'S READOUT bob a pixel, each on its own beat (Jon, Nov 9): the card sits
+## in this holder, which moves it one pixel up or down in whole steps on GameClock. The holder
+## and the plate never move; nothing here can be clicked; freed with the plate, the bob stops.
+## Why: docs/why/ModuleIcon.md#readout-bob
+class BobCard extends Control:
+	var card: Control
+	var period := 2.0
+	var phase := 0.0
+
+	func _init(c: Control, i: int) -> void:
+		card = c
+		period = 1.6 + 0.2 * float(i % 5)
+		phase = 1.7 * float(i)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = c.custom_minimum_size
+		add_child(c)
+
+	## -1, 0 or 1: where the card sits at `t` seconds on its beat.
+	func step_at(t: float) -> float:
+		return roundf(sin(TAU * t / period + phase))
+
+	func _process(_d: float) -> void:
+		var y := step_at(GameClock.now())
+		if card.position.y != y:
+			card.position.y = y
 
 
 ## Godot asks for a tooltip only when `tooltip_text` is non-empty, so this arms it.

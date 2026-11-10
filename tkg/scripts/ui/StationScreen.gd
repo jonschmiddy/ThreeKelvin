@@ -1744,7 +1744,7 @@ func _hold_plate(m: ModuleData) -> Control:
 	return box
 
 
-## Shared by the Promenade and the Exchange, as two copies had already drifted on the flavour line.
+## Shared by the Promenade and the Exchange, as two copies had already drifted on their last line.
 ## Why: docs/why/StationScreen.md#part-column
 func _part_column(mod: ModuleData) -> VBoxContainer:
 	var left := VBoxContainer.new()
@@ -1802,13 +1802,7 @@ func _part_column(mod: ModuleData) -> VBoxContainer:
 		af.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		af.custom_minimum_size = Vector2(PICK_W, 0)
 		desc.add_child(af)
-	# WHAT THE THING IS LIKE, under what it does. In QUOTE, the ink this game
-	# reserves for writing that is not a rule.
-	if mod.flavour != "":
-		var fl := UITheme.body(mod.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
-		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		fl.custom_minimum_size = Vector2(PICK_W, 0)
-		desc.add_child(fl)
+	# (no flavour line under it: Jon, Nov 9, "the flavor text can go away")
 	return left
 
 

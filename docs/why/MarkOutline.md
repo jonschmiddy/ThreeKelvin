@@ -59,29 +59,15 @@ KEPT, because they carry meaning rather than "this one":
     goes, a flight's own instruments)
 ```
 
-## Ship looks
+## The brackets
 
-Above `static var look: int = 0`:
-
-```text
 Jon on c1_local_wreck_after (Nov 9): "the stroke on the salvage ship is WAY
-too intense": the 2 px stroke traces every broken piece and hole of a wreck.
-He asked for options rather than a fix of mine. Three ideas, rendered side
-by side (tk-scratch/ui-build/part2/ship_mark_options.png), picked by
-`-- marklook=N`, the default left at 0 until he picks:
-
- 0  today: the 2 px MARK stroke on every clear pixel next to ink
- 1  A: the outer silhouette only, 1 px, at 0.8: clear pixels next to ink that
-    the canvas edge can reach through clear pixels (a CPU flood fill, once
-    per canvas size, handed to the shader as the `outside` mask), so inner
-    holes and the gaps between a wreck's pieces are not traced
- 2  B: a light lift, no stroke: the sprite's ink brightened a step (x1.18
-    + 0.05) and a 1 px rim light at 0.55 on the outer edge
- 3  C: the fight's own ember corner brackets (`AimTarget.draw_brackets`,
-    FLARE, 7 px arms) round the picture's box, the ship untouched; the
-    brackets Jon likes on the enemy he aims at
-```
-
-Jon picked C (Nov 9, "SC"): the fight's orange corner brackets round a
-wreck you can open, the ship itself untouched. `DEFAULT_LOOK` is 3 and
-`look` starts there; `-- marklook=N` still shows 0, 1 and 2.
+too intense": the 2 px stroke traced every broken piece and hole of a wreck.
+Three looks were rendered side by side (tk-scratch/ui-build/part2/
+ship_mark_options.png: the outer silhouette, a lift with a rim light, the
+fight's brackets) and he picked the brackets ("SC"): `AimTarget.draw_brackets`
+in FLARE, 7 px arms, round the picture's own box grown 3 px, the picture
+untouched. It is the one mark on every picture now (your ship, an enemy,
+a wreck you can open; the cutaway's `Outline` is this class), drawn by a
+flat-colour shader so a wreck's dimming modulate does not reach it. The
+stroke shader, the silhouette mask and the lift are gone from the code.

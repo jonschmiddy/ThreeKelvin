@@ -125,8 +125,6 @@ func _run() -> void:
 	await _frames(2)
 	_out = _arg("out", "user://ui_highlight.png")
 	var stage := _arg("stage", "fight_hover")
-	MarkOutline.look = int(_arg("marklook", str(MarkOutline.DEFAULT_LOOK)))
-	TornTag.look = int(_arg("tiplook", str(TornTag.DEFAULT_LOOK)))
 	# The window at the game's own size, as `Main._shoot` has it: root px are game px.
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)
@@ -203,13 +201,33 @@ func _run() -> void:
 				if slot != null:
 					await _hover(slot.get_global_transform() * slot.ink_rect().get_center())
 			await _secs(0.8)
-		"readout":
-			# a part on the station's shelf, pointed at: its readout on the rich plate
+		"readout", "readout_hold", "shelf_pick", "hold_pick":
+			# a part on the station's shelf (`tab=stock`) or in your hold (`tab=hold`): pointed
+			# at, its readout on the rich plate; or picked (`*_pick`), its column on the deck
 			await _station()
 			var icons := (Router.current as Node).find_children("*", "ModuleIcon", true, false)
 			for ic in icons:
 				if (ic as Control).is_visible_in_tree():
-					await _hover((ic as Control).get_global_rect().get_center())
+					var at := (ic as Control).get_global_rect().get_center()
+					if stage.ends_with("_pick"):
+						await _click(at)
+						await _hover(Vector2(480, 20))
+					else:
+						await _hover(at)
+					break
+			await _secs(0.8 + float(_arg("hold", "0")))
+		"cutaway_part":
+			# the ship's cutaway over LOCAL, a part on the hull pointed at: its card, the same readout
+			var sc := await _local()
+			var cut := CutawayView.open_over(sc, sc._view.ship_view())
+			await _secs(1.5)
+			var mp: MountPoints = cut._mounts
+			for sp in mp.spots():
+				if sp.held != null:
+					var r := mp.part_rect(sp.held, sp.slot, mp._part_at(sp), mp._mag())
+					var gp := mp.get_global_transform() * r.get_center()
+					await _hover(gp)
+					cut._point(gp)
 					break
 			await _secs(0.8)
 		"yard_ship", "yard_drone", "deck":
@@ -283,6 +301,10 @@ func _run() -> void:
 	var up: Control = TagLayer.instance.shown() if TagLayer.instance != null else null
 	if up == null and _screen() != null:
 		up = _screen().word_tag()
+	if up == null:
+		for cv in _tree.root.find_children("*", "CutawayView", true, false):
+			if (cv as CutawayView)._panel != null and (cv as CutawayView)._panel.is_visible_in_tree():
+				up = (cv as CutawayView)._panel
 	if up != null:
 		var tr := up.get_global_rect()
 		print("[tagrect] %d %d %d %d" % [int(tr.position.x), int(tr.position.y), int(tr.size.x), int(tr.size.y)])

@@ -392,16 +392,8 @@ static func card_readout(c: CardData) -> PanelContainer:
 		def.custom_minimum_size = Vector2(168, 0)
 		box.add_child(def)
 
-	# Flavour goes last in its own section: among specifications the eye scans past a sentence.
+	# No flavour line (Jon, Nov 9: "the flavor text can go away"); the field stays on the data.
 	# Why: docs/why/Widgets.md#card-readout
-	if mod != null and mod.flavour != "":
-		box.add_child(UITheme.hsep())
-		# Colour carries the voice: a second typeface at 8 px reads as a different UI, so dropped.
-		# Why: docs/why/Widgets.md#card-readout
-		var fl := UITheme.body("\"%s\"" % mod.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
-		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		fl.custom_minimum_size = Vector2(168, 0)
-		box.add_child(fl)
 	return panel
 
 ## Shared by chassis select and refit so two copies cannot drift; locked rows are dimmed.
@@ -548,7 +540,7 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 			var g: Array = raw
 			box.add_child(UITheme.body(String(g[0]), g[1], UITheme.FS_SMALL))
 
-	# Affixes wrap at the flavour's cap: one unwrapped affix sentence set the whole panel's width.
+	# Affixes wrap at a card's width: one unwrapped affix sentence set the whole panel's width.
 	# Why: docs/why/Widgets.md#module-readout
 	for a in m.affixes:
 		var al := UITheme.body("%s \u2014 %s" % [a.name, a.text],
@@ -558,13 +550,7 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		box.add_child(al)
 	if m.augmented:
 		box.add_child(augmented_label(CardView.CARD_W - 14, UITheme.FS_SMALL))
-
-	if m.flavour != "":
-		box.add_child(UITheme.hsep())
-		var q := UITheme.body(m.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
-		q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		q.custom_minimum_size = Vector2(CardView.CARD_W - 14, 0)
-		box.add_child(q)
+	# no flavour line (Jon, Nov 9); the field stays on the data
 	return panel
 
 ## One tooltip, perks grouped by source: manufacturer ones persist, grade ones are the upgrade.
