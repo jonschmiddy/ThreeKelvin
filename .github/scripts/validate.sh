@@ -804,6 +804,13 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet cometcatchtest 180 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=CometCatchTest
 }
 
+unit_arrivesidetest() {
+step "A click on a world's lit or dark half arrives on that side, Shift against the spin"
+# Jon, Nov 10, "S3": the real map's hover, tag, click and arrival; then the solver's sides.
+# Why: docs/why/validate.md#unit_arrivesidetest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arrivesidetest 300 \n	"the lit and dark halves arrive on their sides, Shift reverses the way round, the tag names both" \n	"an arrival side, the way round or the hover tag is wrong" \n	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveSideTest
+}
+
 # FlightTest and SolveTest run SPLIT, GATE_FLIGHT_SHARDS and GATE_SOLVE_SHARDS
 # units each (`-- shard=K/N`: every Nth system or case, `Harness.mine`), side by
 # side in the pool. Each shard judges its own cases (FlightTest's worker plans
@@ -2158,7 +2165,7 @@ gate_weight() {
 		fueltest) echo 22 ;; deeploottest) echo 22 ;; goaltest) echo 21 ;;
 		bindtest) echo 20 ;; swaptest) echo 20 ;; arriveidletest) echo 20 ;;
 		nettest) echo 20 ;; solvetest_*) echo 170 ;;
-		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;;
+		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
 		sciencesimtest) echo 51 ;; routinetest) echo 28 ;;
 		*) echo 15 ;;
 	esac

@@ -183,6 +183,9 @@ const NEAR := 260.0
 ## a coast passing within this of the ring's virtual circle is priced at its
 ## closest even when it does not cross it
 const GRAZE := 60.0
+## AN ARRIVAL ON THE SIDE ASKED (`ArriveSide`) lands this far into its half (cos of the
+## angle off the terminator: 8.6 deg), so it reads on that half as the light drifts over the flight.
+const SIDE_IN := 0.15
 ## Scan headings and per-pass speeds or kicks; the third pass is slower and faster.
 const SCAN_HEAD := 8
 const SCAN_SPEED := [[1.0, 1.43, 2.0, 2.71], [1.2, 1.71, 2.34, 3.29], [0.66, 0.8, 1.57, 3.86]]
@@ -292,6 +295,9 @@ static func tgt_tau(tgt: Dictionary, k: float) -> Dictionary:
 	var g := tgt.duplicate()
 	if StringName(g.get("kind", &"")) == &"ring":
 		g.V = tau_speed(float(g.V), k)
+		if g.has("lit_w"):
+			g.lit_w = float(g.lit_w) / k
+			g.lit_t = float(g.lit_t) * k
 	return g
 
 
@@ -427,6 +433,13 @@ var _toffz := 0.0
 var _tplace := -9
 var _tsense := 0
 var _senses := PackedFloat64Array([1.0, -1.0])
+## the side asked for (+1 the lit half of the target's ring, -1 the dark, 0 either), and
+## the light's way on the plane at `_tlt`, turning at `_tlw` (a twin's blended light), or
+## INF for toward the host the world rides round
+var _tside := 0
+var _tlit := Vector2.INF
+var _tlw := 0.0
+var _tlt := 0.0
 var _twin := false
 ## (a departure out of a settled star orbit, round a fixed point or riding with
 ## one sun of a turning pair: its burn eased while slow, R_BURN)
@@ -952,12 +965,17 @@ func _setup_in(dep: Dictionary, tgt: Dictionary) -> bool:
 			var sn := int(tgt.get("sense", 0))
 			_tsense = signi(sn)
 			_senses = PackedFloat64Array([1.0, -1.0]) if sn == 0 else PackedFloat64Array([float(signi(sn))])
+			_tside = signi(int(tgt.get("side", 0)))
+			_tlit = tgt.get("lit", Vector2.INF)
+			_tlw = float(tgt.get("lit_w", 0.0))
+			_tlt = float(tgt.get("lit_t", 0.0))
 		&"keep":
 			_tk = 1
 			var o2: Vector2 = tgt.get("off", Vector2.ZERO)
 			_toffx = o2.x
 			_toffz = o2.y
 			_tsense = 0
+			_tside = 0
 			_senses = PackedFloat64Array([1.0])
 		_:
 			return false
@@ -1937,6 +1955,17 @@ func _const_burn(rx: float, rz: float, ux: float, uz: float, s: float, d_near: f
 	return true
 
 
+## Whether an arrival at ring angle phi (at te) is on the side asked, SIDE_IN into it: the
+## half toward the light, which is the host the world rides round, or `lit` where given.
+func _side_ok(te: float, phi: float) -> bool:
+	if _tside == 0:
+		return true
+	var a := _tph + _tn * te + PI
+	if _tlit != Vector2.INF:
+		a = _tlit.angle() + _tlw * (te - _tlt)
+	return cos(phi - a) * float(_tside) >= SIDE_IN
+
+
 ## NAN where there is no constant burn or it would start before the departure burn ends.
 func _ka_at(te: float, s: float, d_near: float) -> float:
 	if te > _cT[_cn - 1] or te < _tc0:
@@ -2474,7 +2503,7 @@ func _price() -> void:
 		for _try in 4:
 			var st := _coast_at(te)
 			ar = _arrival(te, st[0], st[1], st[2], st[3], s2, pk)
-			if ar.is_empty():
+			if ar.is_empty() or not _side_ok(te, ar[1]):
 				break
 			var tb := te - ar[2]
 			if tb < _tc0 + TB_PAD or tb > _tight_t:
@@ -3483,104 +3512,17 @@ func _lambert_gm(cx: float, cz: float, gm: float, p1x: float, p1z: float, p2x: f
 		r2x = nx
 		dth += da
 	var sq := sqrt(gm)
-	var sol := lambert(r1x, r1z, r2x, r2z, dth, T * sq)
+	var sol := LambertPlane.solve(r1x, r1z, r2x, r2z, dth, T * sq)
 	if sol.is_empty():
 		return sol
 	return PackedFloat64Array([sol[0] * sq, sol[1] * sq * way, sol[2] * sq, sol[3] * sq * way])
-
-
-## The universal variables' time of flight at z (mu 1), NAN where the conic
-## does not exist (Stumpff's C and S worked out once).
-static func _tof(z: float, r1: float, r2: float, A: float) -> float:
-	var c := 0.5
-	var sv := 1.0 / 6.0
-	if z > 1e-6:
-		var q := sqrt(z)
-		c = (1.0 - cos(q)) / z
-		sv = (q - sin(q)) / (q * q * q)
-	elif z < -1e-6:
-		var q2 := sqrt(-z)
-		c = (cosh(q2) - 1.0) / -z
-		sv = (sinh(q2) - q2) / (q2 * q2 * q2)
-	var y := r1 + r2 + A * (z * sv - 1.0) / sqrt(c)
-	if not (y > 0.0):
-		return NAN
-	var yc := y / c
-	return yc * sqrt(yc) * sv + A * sqrt(y)
-
-
-static func _y_of(z: float, r1: float, r2: float, A: float) -> float:
-	var c := 0.5
-	var sv := 1.0 / 6.0
-	if z > 1e-6:
-		var q := sqrt(z)
-		c = (1.0 - cos(q)) / z
-		sv = (q - sin(q)) / (q * q * q)
-	elif z < -1e-6:
-		var q2 := sqrt(-z)
-		c = (cosh(q2) - 1.0) / -z
-		sv = (sinh(q2) - q2) / (q2 * q2 * q2)
-	return r1 + r2 + A * (z * sv - 1.0) / sqrt(c)
-
-
-## Lambert's problem in 64-bit scalars, as `ShipFlight.lambert`'s Vector3 inputs are 32-bit.
-static func lambert(r1x: float, r1z: float, r2x: float, r2z: float, dth: float, tof: float) -> PackedFloat64Array:
-	var r1 := sqrt(r1x * r1x + r1z * r1z)
-	var r2 := sqrt(r2x * r2x + r2z * r2z)
-	if r1 < 1.0 or r2 < 1.0:
-		return PackedFloat64Array()
-	var A := sin(dth) * sqrt(r1 * r2 / (1.0 - cos(dth)))
-	var zhi := 4.0 * PI * PI - 1e-3
-	var lo := -100.0
-	var tlo := _tof(lo, r1, r2, A)
-	if is_nan(tlo):
-		# where the conic starts to exist: a coarse step up, then a bisection
-		var prev := lo
-		var found := false
-		for j in range(1, 41):
-			var z := -100.0 + (zhi + 100.0) * float(j) / 40.0
-			if not is_nan(_tof(z, r1, r2, A)):
-				var bad := prev
-				var good := z
-				for _e in 24:
-					var mz := 0.5 * (bad + good)
-					if is_nan(_tof(mz, r1, r2, A)):
-						bad = mz
-					else:
-						good = mz
-				lo = good
-				tlo = _tof(lo, r1, r2, A)
-				found = true
-				break
-			prev = z
-		if not found:
-			return PackedFloat64Array()
-	var hi := zhi
-	var thi := _tof(hi, r1, r2, A)
-	if is_nan(thi) or tlo > tof or thi < tof:
-		return PackedFloat64Array()
-	for _it in 46:
-		var m := 0.5 * (lo + hi)
-		var tm := _tof(m, r1, r2, A)
-		if is_nan(tm) or tm < tof:
-			lo = m
-		else:
-			hi = m
-	var zb := 0.5 * (lo + hi)
-	var y := _y_of(zb, r1, r2, A)
-	var fl := 1.0 - y / r1
-	var g := A * sqrt(y)
-	var gd := 1.0 - y / r2
-	if absf(g) < 1e-9:
-		return PackedFloat64Array()
-	return PackedFloat64Array([(r2x - r1x * fl) / g, (r2z - r1z * fl) / g, (r2x * gd - r1x) / g, (r2z * gd - r1z) / g])
 
 
 # ---------------------------------------------------------------- replay
 # A choice replays only for the very same departure and target, or it was rebuilt for another.
 # Why: docs/why/FlightSolve.md#same-flight-check
 func _same_flight(c: Dictionary) -> bool:
-	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
+	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk or int(c.get("sd", 0)) != _tside:
 		return false
 	if int(c.get("dhs", -9)) != _dhs or int(c.get("ths", -9)) != _ths:
 		return false
@@ -3686,7 +3628,7 @@ func _replay(c: Dictionary) -> Result:
 ## Reflies a choice that cannot be rebuilt, for the same places only. The first build kept any.
 ## Why: docs/why/FlightSolve.md#warm-start
 func _warm(c: Dictionary) -> bool:
-	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk:
+	if int(c.get("dk", -1)) != _dk or int(c.get("dp", -99)) != _dplace or int(c.get("tp", -99)) != _tplace or int(c.get("tk", -1)) != _tk or int(c.get("sd", 0)) != _tside:
 		return false
 	# (nor from a flight out of a settled orbit round another centre: round a
 	# sun of a turning pair against round the balance point, say)
@@ -3832,7 +3774,7 @@ func _build_in(kind: StringName) -> Result:
 		"rv": Vector2(rvx, rvz), "t": te, "keep": keepd, "sense": s if not keepd else 0.0}
 	res.choice = {"v": CHOICE_V, "dk": _dk, "dp": _dplace, "tp": _tplace, "tk": _tk, "w": _dw, "rt": _drt,
 		"dox": _doffx, "doz": _doffz, "dhx": _dhx, "dhz": _dhz, "R": _tR, "V": _tV, "tox": _toffx, "toz": _toffz,
-		"thx": _thx, "thz": _thz, "sn": _tsense, "dhs": _dhs, "ths": _ths,
+		"thx": _thx, "thz": _thz, "sn": _tsense, "sd": _tside, "dhs": _dhs, "ths": _ths,
 		"td": td, "ad": float(b.ad), "a0": float(b.a0), "dvx": float(b.dvx), "dvz": float(b.dvz), "ux": float(b.ux), "uz": float(b.uz),
 		"x0": float(b.x0), "z0": float(b.z0), "vx0": float(b.vx0), "vz0": float(b.vz0),
 		"fix": bool(b.fix), "afix": float(b.afix), "te": float(b.te), "s": s, "phi": float(b.phi), "d2": float(b.d2),

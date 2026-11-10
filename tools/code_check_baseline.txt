@@ -510,7 +510,6 @@ bare scripts/ui/sysmap/ShipFlight.gd::flight_opts
 bare scripts/ui/sysmap/ShipFlight.gd::free_step
 bare scripts/ui/sysmap/ShipFlight.gd::hand_over
 bare scripts/ui/sysmap/ShipFlight.gd::insert_plan
-bare scripts/ui/sysmap/ShipFlight.gd::lambert
 bare scripts/ui/sysmap/ShipFlight.gd::lay_out
 bare scripts/ui/sysmap/ShipFlight.gd::said_path
 bare scripts/ui/sysmap/ShipFlight.gd::take_bg
@@ -570,16 +569,16 @@ bare scripts/ui/sysmap/SystemView.gd::orbit_runs
 bare scripts/ui/sysmap/SystemView.gd::positions
 bare scripts/ui/sysmap/SystemView.gd::ring_slots
 bare scripts/ui/sysmap/SystemView.gd::star_facts_of
-file scripts/systems/FlightSolve.gd 4027
+file scripts/systems/FlightSolve.gd 3969
 file scripts/ui/LabSavers.gd 5410
 file scripts/ui/LocalSubject.gd 3175
-file scripts/ui/SectorScreen.gd 4956
+file scripts/ui/SectorScreen.gd 4907
 file scripts/ui/ShipBreakup.gd 3639
-file scripts/ui/StationScreen.gd 3294
+file scripts/ui/StationScreen.gd 3281
 file scripts/ui/ZoomLadder.gd 3002
-file scripts/ui/sysmap/ShipFlight.gd 4472
+file scripts/ui/sysmap/ShipFlight.gd 4398
 file scripts/ui/sysmap/SystemView.gd 3240
-length scripts/Main.gd::_ready 147
+length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/autoload/Router.gd::start_combat 101
 length scripts/systems/CardResolver.gd::resolve 139
@@ -594,7 +593,7 @@ length scripts/systems/MaterialTable.gd::all 212
 length scripts/systems/NebulaField.gd::_build 120
 length scripts/systems/SaveGame.gd::_node_from 110
 length scripts/systems/SaveGame.gd::load_into_run 197
-length scripts/systems/SystemLayout.gd::of 194
+length scripts/systems/SystemLayout.gd::of 177
 length scripts/systems/options/OptionsPart01.gd::entries 437
 length scripts/systems/options/OptionsPart02.gd::entries 532
 length scripts/systems/options/OptionsPart03.gd::entries 485
@@ -627,7 +626,7 @@ length scripts/ui/Hints.gd::_done 128
 length scripts/ui/Hints.gd::lines 101
 length scripts/ui/Hints.gd::probe 301
 length scripts/ui/HudBar.gd::_build 111
-length scripts/ui/HudBar.gd::refresh 112
+length scripts/ui/HudBar.gd::refresh 110
 length scripts/ui/HullHitFx.gd::_peel 103
 length scripts/ui/JumpFx.gd::_beam 139
 length scripts/ui/JumpFx.gd::_draw 118
@@ -664,7 +663,7 @@ length scripts/ui/MapChart.gd::_build_nebulae 218
 length scripts/ui/MapChart.gd::_draw_chart 151
 length scripts/ui/ModuleGalleryScreen.gd::_fill 101
 length scripts/ui/QuestPanel.gd::_row 115
-length scripts/ui/SectorScreen.gd::_build_hand 173
+length scripts/ui/SectorScreen.gd::_build_hand 169
 length scripts/ui/SectorScreen.gd::ladder_cam 163
 length scripts/ui/SectorScreen.gd::ladder_cam_begin 108
 length scripts/ui/SettingsPanel.gd::_page_look 116
@@ -679,7 +678,7 @@ length scripts/ui/ShipView.gd::draw_ship 135
 length scripts/ui/SideSwap.gd::_content 125
 length scripts/ui/SpaceBackdrop.gd::_bake_world 123
 length scripts/ui/StarchartScreen.gd::_build 178
-length scripts/ui/StarchartScreen.gd::_refresh 171
+length scripts/ui/StarchartScreen.gd::_refresh 123
 length scripts/ui/StationScreen.gd::_build 119
 length scripts/ui/ThrusterFx.gd::_stream 111
 length scripts/ui/ThrusterFx.gd::for_hull 268
@@ -699,7 +698,7 @@ length scripts/ui/sysmap/ShipFlight.gd::free_step 220
 length scripts/ui/sysmap/SkyWeather.gd::_draw 128
 length scripts/ui/sysmap/SunView.gd::_flare 103
 length scripts/ui/sysmap/SystemMapScreen.gd::_init 141
-length scripts/ui/sysmap/SystemOverlay.gd::_draw 224
+length scripts/ui/sysmap/SystemOverlay.gd::_draw 222
 length scripts/ui/sysmap/SystemOverlay.gd::_draw_edge_marks 122
 length scripts/ui/sysmap/SystemOverlay.gd::_draw_paths 114
 length scripts/ui/sysmap/SystemOverlay.gd::_draw_ship 224
