@@ -16,6 +16,9 @@ static var force := -1
 static var ending := &"F"
 ## The dwarfs drawn big (`dwarfbig=0` draws them as before, for a before/after).
 static var big := true
+## Moves the giant (mockup px), for the tier picture's bake only (`TierMiniBake`): Jon wanted
+## the giant above the dwarf there. Zero everywhere else.
+static var nudge := Vector2.ZERO
 
 ## Back to off, as a new run starts (statics outlive a run: the mechanic,
 ## when it is built, calls this where a run begins).
@@ -337,7 +340,7 @@ static func par() -> float:
 
 ## The giant's middle, still (gu on the screen about the dwarf's core): closer as it feeds.
 static func giant_at() -> Vector2:
-	return _m(GIANT_M + GIANT_IN * share())
+	return _m(GIANT_M + GIANT_IN * share() + nudge)
 
 
 ## Its half length (gu on the screen).

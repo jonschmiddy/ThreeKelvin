@@ -48,6 +48,9 @@ static var _early: Dictionary = {}
 ## Zoom flicker follows palette size. Measured: 0.06 / 10 gave 0.0030 / 0.0035 (core / hole),
 ## against 0.0051 / 0.0069 at the showcase's 0.03 / 12.
 ## Why: docs/why/ChartSky.md#palette-size
+## No small companions or their torn stream round a ball, for the tier pictures' bake only
+## (`TierMiniBake`: Jon, Nov 11, "the weird ring around the ball galaxy").
+static var no_story := false
 static var pal_merge := 0.03
 static var pal_free := 12
 ## The composite's dither, 1 as made, 0 nearest colour only (tuning).
@@ -649,7 +652,7 @@ static func ball_story(gain: float) -> Dictionary:
 			r.randf_range(0.14, 0.2)))
 	# (a big dwarf has no small companion: its body is out past where the companion stood,
 	# under the rim's systems, and the giant eating it is its story, `ChartTorn`)
-	if dwarf and ChartTorn.big:
+	if (dwarf and ChartTorn.big) or no_story:
 		for i in 3:
 			cs[i] = Vector4.ZERO
 			ds[i] = Vector4.ZERO

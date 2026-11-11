@@ -11,6 +11,8 @@ const FPS := 12
 ## The chart's zoom for the shot: the whole galaxy in the frame (ChartLook's "opening" is 0.42).
 const VIEW_Z := 0.28
 const TORN_LOST := 4.0
+## Tier 10's giant moved above the dwarf (mockup px; Jon: "the spiral slightly higher").
+const GIANT_NUDGE := Vector2(60.0, -40.0)
 
 var _out := ""
 
@@ -41,6 +43,8 @@ func _run() -> void:
 	DevMode.enabled = false
 	for ts in Harness.arg("tiers", "0,1,2,3,4,5,6,7,8,9,10").split(","):
 		await _bake(int(ts))
+	ChartTorn.nudge = Vector2.ZERO
+	ChartSky.no_story = false
 	print("tierminibake: done")
 	get_tree().quit()
 
@@ -60,6 +64,8 @@ func _bake(t: int) -> void:
 	Run.chart_from(Run.node_at())
 	# tier 10: the dwarf shown with its outer rings already torn away (TORN AWAY from jump 4)
 	ChartTorn.active = t == 10
+	ChartTorn.nudge = GIANT_NUDGE if t == 10 else Vector2.ZERO
+	ChartSky.no_story = true
 	ChartTorn.lost = TORN_LOST if t == 10 else 0.0
 	Router.show_starchart()
 	var scp := Router.current as StarchartScreen
