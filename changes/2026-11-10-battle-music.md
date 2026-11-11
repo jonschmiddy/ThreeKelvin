@@ -1,0 +1,1 @@
+- **Changed** — new battle music, built on the flying music's own tune: Crosswind for easy fights, Gallop in the middle depths, and Full Burn, the flying theme turned into a march, for the most dangerous ones.

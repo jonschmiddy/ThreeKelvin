@@ -348,6 +348,49 @@ the same one twice running" stops being strict alternation and becomes a real
 shuffle with the one repeat that matters ruled out.
 ```
 
+Above `const FIGHT_CUES := {`:
+
+```text
+THREE BATTLE CUES, BY DANGER (Jon, Nov 10). Playtester Jeremy loved the
+flying music and asked for "epic" battle music in the Final Fantasy spirit.
+ElevenLabs takes "didn't fit the rest of the soundtrack" and measured far
+brighter than the game's cues, so five were composed in the music lab on
+the game's own phrase (F G F G Ab) at 142, double First Light's 71. Jon
+kept the three battle ideas and ruled the order: Crosswind (B3, the phrase
+in 3+3+2, F Dorian, Close Quarters' palette) for easy fights, Gallop (B2,
+four falling chords over a gallop bass, Slipstream's palette) for the
+middle, Full Burn (B1, First Light's phrase as a march that turns major)
+for the hardest. Five tiers onto three cues: EASY and ROUGH share
+Crosswind, HARD is Gallop, BRUTAL and LETHAL share Full Burn.
+
+Levelled to -14.0, -13.5 and -13.0 LUFS (the run cues sit at -12.6 to
+-15.3), so the fight gets a little louder as it gets more dangerous.
+Close Quarters, Slipstream, Hairline and Overpressure left the game: no
+table named them any more, and AudioTest fails on a cue nobody can reach.
+They are still in the lab (music/lab) and in git. Last Stand stays as
+BOSS_CUE. The candidates page: https://claude.ai/artifact/XAzA8fBWYxaobwPqD8ukUm
+```
+
+Above `const CUSTODIAN_CUE := &"undertow"`, and for `Router.fight_music`:
+
+```text
+THE CUSTODIAN GETS ITS OWN CUE (Jon, Nov 10). He turned down the first
+two boss candidates (C1, C2: "not big enough, wrong mood, tune doesn't
+stick") and picked D2 Undertow from three more: the bass plays the
+phrase in eighths on every chord while the tune plays it a bar a note
+on top, then a hammered hook. He asked for it longer, so it was extended
+in the lab to 92 bars (2:35 before the loop, from 1:08): two laps, a
+quiet stretch over the riff, a run-up, and a final lap at full size.
+Levelled to -12.0 LUFS, a step over Full Burn (-13.0), beside Last
+Stand (-11.8). Pages: https://claude.ai/artifact/WmpBZdpzQGF2poQbJSSFWL
+and https://claude.ai/artifact/DZZL8ccHadTHYDPBywigyD
+
+Only the Custodian, found by `id == DB.CORE_BOSS`, not by the `boss`
+flag, so a boss added later does not inherit the run's last fight. The
+Hellbender (a miniboss) and any other boss keep Last Stand on BOSS_CUE.
+The music state is `&"custodian"`, beside `&"boss"` and `&"combat"`.
+```
+
 ## Music level
 
 Above `const MUSIC_DB := -14.0`:

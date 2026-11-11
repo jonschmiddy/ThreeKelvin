@@ -32,7 +32,8 @@ const page = () => new JSDOM(html.replace(/<link[^>]*>/g, '').replace(/<script>[
   const m = page();
   m.window.requestAnimationFrame = () => 0;
   m.window.HTMLElement.prototype.scrollIntoView = () => {};
-  m.window.eval(src.replace('buildUI();\n', `buildUI(); switchSong('${id}'); window.__m = buildTheme(THEMES[0]);`));
+  // \r?: a Windows checkout has CRLF, and a literal '\n' never matched -- every cue came back "unknown".
+  m.window.eval(src.replace(/buildUI\(\);\r?\n/, `buildUI(); switchSong('${id}'); window.__m = buildTheme(THEMES[0]);`));
   meta = m.window.__m;
   if (!meta) { console.error(`unknown cue: ${id}`); process.exit(1); }
 }
@@ -48,7 +49,7 @@ const ctx = new WA.OfflineAudioContext(2, Math.ceil((seconds + TAIL) * SR), SR);
 w.AudioContext = function () { return ctx; };
 w.setInterval = () => 1;
 w.clearInterval = () => {};
-w.eval(src.replace('buildUI();\n', `buildUI(); switchSong('${id}'); initAudio();
+w.eval(src.replace(/buildUI\(\);\r?\n/, `buildUI(); switchSong('${id}'); initAudio();
   const sg = buildTheme(THEMES[0]); SPB = 60 / sg.bpm; events = slotEvents(sg);
   for (const slot in events){
     if (!state.slots[slot]) continue;
@@ -78,7 +79,8 @@ head.write('RIFF', 0); head.writeUInt32LE(36 + data.length, 4); head.write('WAVE
 head.write('fmt ', 12); head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20); head.writeUInt16LE(2, 22);
 head.writeUInt32LE(SR, 24); head.writeUInt32LE(SR * 4, 28); head.writeUInt16LE(4, 32); head.writeUInt16LE(16, 34);
 head.write('data', 36); head.writeUInt32LE(data.length, 40);
-fs.writeFileSync(new URL(out, import.meta.url), Buffer.concat([head, data]));
+// An absolute path (C:/... or /...) is written as given; new URL() read "C:" as a URL scheme.
+fs.writeFileSync(/^([A-Za-z]:|\/)/.test(out) ? out : new URL(out, import.meta.url), Buffer.concat([head, data]));
 
 console.log(`${id}: ${meta.bpm} BPM, ${meta.loopBeats / 4} bars, loop ${seconds.toFixed(3)}s ` +
             `(+${TAIL}s tail), peak ${peak.toFixed(2)} -> ${out}`);
