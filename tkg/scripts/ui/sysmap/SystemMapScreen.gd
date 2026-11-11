@@ -269,13 +269,13 @@ func _init() -> void:
 		item.add_child(g)
 		item.add_child(UITheme.body(k[1], UITheme.COLD, UITheme.FS_SMALL))
 		key.add_child(item)
-	root.add_child(_key_foot(key, side_wrap))
+	root.add_child(_key_foot(key))
 	_key_row = key
 
 
-## THE KEY ON LOCAL'S STRIP (Jon, Nov 11): under the map, the map's width, the row centred.
+## THE KEY ON LOCAL'S STRIP (Jon, Nov 11): under the map and the panel, the screen's width, the row centred.
 ## The band and the row are siblings, so the ladder fades each once (`ladder_chrome`).
-func _key_foot(key: HBoxContainer, side_wrap: Control) -> HBoxContainer:
+func _key_foot(key: HBoxContainer) -> HBoxContainer:
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 5)
 	var hold := Control.new()
@@ -298,11 +298,6 @@ func _key_foot(key: HBoxContainer, side_wrap: Control) -> HBoxContainer:
 		hold.custom_minimum_size.y = key.get_combined_minimum_size().y + sb.get_minimum_size().y
 	key.minimum_size_changed.connect(fit)
 	fit.call()
-	# (the side panel's width left empty beside it, so the band ends where the map does)
-	var gap := Control.new()
-	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	foot.add_child(gap)
-	side_wrap.resized.connect(func() -> void: gap.custom_minimum_size.x = side_wrap.size.x)
 	return foot
 
 

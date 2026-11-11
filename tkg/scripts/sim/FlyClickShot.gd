@@ -116,7 +116,7 @@ func _shots() -> void:
 	await _band(m)
 
 
-## THE KEY BAND (Jon, Nov 11): LOCAL's strip under the map, the map's width, covering nothing
+## THE KEY BAND (Jon, Nov 11): LOCAL's strip under the map and the panel, full width, covering nothing
 ## drawn in the frame (the scale bar, LOCATION, the edge arrows, the comet's spots).
 func _band(m: SystemMapScreen) -> void:
 	m.panel_back()
@@ -127,7 +127,8 @@ func _band(m: SystemMapScreen) -> void:
 	var wrap: Rect2 = (m._frame.get_parent() as Control).get_global_rect()
 	var key: Rect2 = m._key_row.get_global_rect()
 	h._ok("the band is under the map, clear of its frame (band %s, frame %s)" % [band, frame], not band.intersects(frame) and band.position.y >= wrap.end.y)
-	h._ok("the band is the map's width (%.0f, the map's %.0f)" % [band.size.x, wrap.size.x], absf(band.size.x - wrap.size.x) < 0.5 and absf(band.position.x - wrap.position.x) < 0.5)
+	var foot: Rect2 = (m._key_band.get_parent().get_parent() as Control).get_global_rect()
+	h._ok("the band runs the whole row, map and panel (%.0f of %.0f)" % [band.size.x, foot.size.x], absf(band.size.x - foot.size.x) < 0.5 and band.position.x <= wrap.position.x + 0.5)
 	h._ok("the KEY row inside it, centred (%s; off by %.1f px)" % [key, absf(key.get_center().x - band.get_center().x)], band.encloses(key) and absf(key.get_center().x - band.get_center().x) <= 1.0)
 	h._ok("the band's style is LOCAL's strip", m._key_band.get_theme_stylebox(&"panel") is StyleBoxFlat
 		and (m._key_band.get_theme_stylebox(&"panel") as StyleBoxFlat).bg_color.is_equal_approx(UITheme.quiet_strip(SectorScreen.DRAWER_A, true).bg_color))
