@@ -325,6 +325,19 @@
   "loops": true
  },
  {
+  "file": "undertow.wav",
+  "ogg": "undertow.ogg",
+  "cue": "Undertow",
+  "tier": "BOSS",
+  "role": "fight",
+  "bpm": 142.0,
+  "bars": 92,
+  "loop_seconds": 155.493,
+  "loop_end_samples": 6857239,
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
   "file": "lightsout.wav",
   "ogg": "lightsout.ogg",
   "cue": "Lights Out",

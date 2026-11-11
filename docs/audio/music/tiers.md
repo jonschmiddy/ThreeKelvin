@@ -1,7 +1,7 @@
 # Which cue plays when
 
-Twenty-six cues: a title theme, four run cues for each of five tiers, three battle cues by
-danger, a boss cue, and a death cue.
+Twenty-seven cues: a title theme, four run cues for each of five tiers, three battle cues by
+danger, a boss cue, the Custodian's cue, and a death cue.
 
 | Game state | Cues |
 |---|---|
@@ -16,11 +16,12 @@ danger, a boss cue, and a death cue.
 | BRUTAL fight | Full Burn |
 | LETHAL run | Event Horizon, No Air, Sealed, Aftermath |
 | LETHAL fight | Full Burn |
-| Boss | Last Stand |
+| Boss (the Hellbender, any other boss) | Last Stand |
+| The Custodian | Undertow |
 | Death | Lights Out, then silence |
 
 Pick randomly among a tier's run cues without repeating the last one. Switch to that tier's fight
-cue (a boss gets Last Stand at any depth) when a fight starts and back when it ends; a 2 to 3 second crossfade covers the tempo change.
+cue (the Custodian gets Undertow, any other boss Last Stand, at any depth) when a fight starts and back when it ends; a 2 to 3 second crossfade covers the tempo change.
 
 **Lights Out is not a loop.** It is 70 seconds: 50 of music and 20 of literal silence at the end.
 Play it once from zero on death and let it run out, or fade it during the silence. Do not loop it.
@@ -59,6 +60,7 @@ Three battle cues by danger (Jon, Nov 10), all in F minor at 142 on the game's p
 | Gallop | HARD | 142 | 1:08 | four falling chords over a gallop bass that never stops |
 | Full Burn | BRUTAL, LETHAL | 142 | 1:08 | First Light's phrase as a march, then its turn to F major |
 | Last Stand | boss | 132 | 2:00 | the boss: three waves, a phase break, then it tightens |
+| Undertow | the Custodian | 142 | 2:35 | the phrase in the bass on every chord and, slowed, on top; a hammered hook; a quiet stretch, a run-up and a final lap |
 
 Close Quarters, Slipstream, Hairline and Overpressure, the fights before these, are still in the
 lab and in git but no longer ship.

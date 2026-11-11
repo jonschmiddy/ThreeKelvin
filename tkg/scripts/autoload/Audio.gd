@@ -183,6 +183,9 @@ const FIGHT_CUES := {
 const TITLE_CUE := &"title"
 ## The boss gets the boss cue whatever the depth: a boss met early is still a boss.
 const BOSS_CUE := &"laststand"
+## The Custodian alone gets Undertow (Jon, Nov 10); the Hellbender keeps Last Stand.
+## Why: docs/why/Audio.md#music-cues
+const CUSTODIAN_CUE := &"undertow"
 ## Lights Out plays once and runs out: looped, a death would restart its elegy every 70 s.
 const DEATH_CUE := &"lightsout"
 const ONE_SHOT: Array[StringName] = [DEATH_CUE]
@@ -223,6 +226,8 @@ func music_state(state: StringName) -> void:
 			play_cue(DEATH_CUE)
 		&"boss":
 			play_cue(BOSS_CUE)
+		&"custodian":
+			play_cue(CUSTODIAN_CUE)
 		&"combat":
 			play_cue(FIGHT_CUES[_tier()])
 		_:

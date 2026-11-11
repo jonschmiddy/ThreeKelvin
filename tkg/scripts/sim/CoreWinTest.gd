@@ -390,9 +390,11 @@ func _beat_core() -> bool:
 	_ok("which opens at hull 400 at jump %d, before the test cuts it (%d)"
 		% [Run.jumps, cb.enemies[0].max_hp],
 		Run.jumps == 41 and cb.enemies[0].max_hp == 400 and cb.enemies[0].hp == 400)
-	_ok("which asks for the boss cue", Audio.music_asked == &"boss")
-	_ok("  its own, %s, which no ordinary fight plays (Nov 10)" % Audio.BOSS_CUE,
-		not Audio.FIGHT_CUES.values().has(Audio.BOSS_CUE))
+	_ok("which asks for the Custodian's cue (%s)" % Audio.music_asked,
+		Audio.music_asked == &"custodian")
+	_ok("  its own, %s, which no other fight plays (Nov 10)" % Audio.CUSTODIAN_CUE,
+		Audio.CUSTODIAN_CUE != Audio.BOSS_CUE
+		and not Audio.FIGHT_CUES.values().has(Audio.CUSTODIAN_CUE))
 	Run.hp = Run.max_hp()
 	var tries := 0
 	while not cb.finished and tries < 30:

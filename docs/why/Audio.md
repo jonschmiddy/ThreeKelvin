@@ -371,6 +371,26 @@ They are still in the lab (music/lab) and in git. Last Stand stays as
 BOSS_CUE. The candidates page: https://claude.ai/artifact/XAzA8fBWYxaobwPqD8ukUm
 ```
 
+Above `const CUSTODIAN_CUE := &"undertow"`, and for `Router.fight_music`:
+
+```text
+THE CUSTODIAN GETS ITS OWN CUE (Jon, Nov 10). He turned down the first
+two boss candidates (C1, C2: "not big enough, wrong mood, tune doesn't
+stick") and picked D2 Undertow from three more: the bass plays the
+phrase in eighths on every chord while the tune plays it a bar a note
+on top, then a hammered hook. He asked for it longer, so it was extended
+in the lab to 92 bars (2:35 before the loop, from 1:08): two laps, a
+quiet stretch over the riff, a run-up, and a final lap at full size.
+Levelled to -12.0 LUFS, a step over Full Burn (-13.0), beside Last
+Stand (-11.8). Pages: https://claude.ai/artifact/WmpBZdpzQGF2poQbJSSFWL
+and https://claude.ai/artifact/DZZL8ccHadTHYDPBywigyD
+
+Only the Custodian, found by `id == DB.CORE_BOSS`, not by the `boss`
+flag, so a boss added later does not inherit the run's last fight. The
+Hellbender (a miniboss) and any other boss keep Last Stand on BOSS_CUE.
+The music state is `&"custodian"`, beside `&"boss"` and `&"combat"`.
+```
+
 ## Music level
 
 Above `const MUSIC_DB := -14.0`:

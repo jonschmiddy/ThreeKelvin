@@ -39,6 +39,7 @@ cue, not the end of the file, which is why Loop End has to be set by hand.
 | `sealed.wav` | LETHAL | run | 54 | 30 | 133.333 s | 5879985 |
 | `aftermath.wav` | LETHAL | run | 56 | 30 | 128.571 s | 5669981 |
 | `laststand.wav` | boss | fight | 132 | 66 | 120.000 s | 5292000 |
+| `undertow.wav` | the Custodian | fight | 142 | 92 | 155.493 s | 6857239 |
 | `lightsout.wav` | DEATH | death | 48 | 14 | 70.000 s | 3087000 |
 
 If you'd rather not set loop points by hand, re-render with `TAIL = 0` in

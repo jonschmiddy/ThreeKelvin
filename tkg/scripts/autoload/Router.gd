@@ -1146,8 +1146,7 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 			template = open[0]
 			extras = open.slice(1)
 			folded = true
-	# Bosses and the hellbender get the dread cue, not the full-intensity theme.
-	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
+	Audio.music_state(fight_music(template))
 	combat = Combat.new()
 	combat.clears_node = clears_node
 	var s := SectorScreen.new()
@@ -1274,7 +1273,18 @@ func fight_door(f: SharedFight) -> Dictionary:
 	return {templates = templates, ids = ids, kind = kind,
 		# Only the core clears its node on a win; the hellbender is a visitor.
 		clears = kind == &"core",
-		cue = &"boss" if lead != null and (lead.boss or lead.miniboss) else &"combat"}
+		cue = fight_music(lead)}
+
+
+## The music a fight asks for: the Custodian its own cue (Jon, Nov 10), any other boss
+## or the hellbender the dread cue, everything else the tier's fight.
+## Why: docs/why/Audio.md#music-cues
+func fight_music(lead: EnemyTemplate) -> StringName:
+	if lead == null:
+		return &"combat"
+	if lead.id == DB.CORE_BOSS:
+		return &"custodian"
+	return &"boss" if lead.boss or lead.miniboss else &"combat"
 
 ## Only reachable after a resume, as arrival normally starts the fight itself.
 ## Why: docs/why/Router.md#engaging
