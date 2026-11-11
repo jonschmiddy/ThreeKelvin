@@ -26,6 +26,23 @@ The unlock rule is the record's: a tier up to one past the best tier won
 tier 0 win, so one win opens tier 1). Developer mode opens every tier, as it opens
 every manufacturer.
 
+Tier 7 was THE HELLBENDER HUNTS until Nov 11, when Jon cut it to THE HELLBENDER
+("just do 'the hellbender', get rid of hunts"); its rule line did not change.
+
+## The stack
+
+A tier keeps every rule below it: tier 8 flies with the rules of 1 to 8, not 8
+alone. The box said only the tier's own rule, so a player could read tier 8 as one
+rule. Jon picked two of three ideas on Nov 11 (`tk-scratch/ui-build/tierstack/`,
+https://claude.ai/artifact/AbkrXZ5YG3KppYHqSpd4JK, reply "T-A and T-C"): T-A, the
+ladder fills, and T-C, the galaxy wears its rules. The third, B, listed every
+earlier rule's name in the box and grew it at the higher tiers.
+`Ladder.still_line` is T-A's line under the rule: none at tiers 0 and 1 (tier 0 has
+no rule and tier 1 has nothing under it), "TIER 1 STILL APPLIES." at 2, "TIERS 1 AND
+2 STILL APPLY." at 3, and "TIERS 1 TO N-1 STILL APPLY." from 4. `Ladder.in_force`
+is the list both halves read: tiers 1 to N, newest first. The drawing is in
+`docs/why/LaunchBox.md#the-stack`.
+
 ## The galaxy
 
 The box's picture is procedural pixel art, 112 px, animated (Jon's v2, Nov 9): the
@@ -47,7 +64,8 @@ label, the galaxy, LAUNCH's border), C at L + 112 + 14 (the stops, TIER N, its n
 line and rule, SEED), R the right text edge (the last stop, the end of the seed
 field). The buttons sit 12 px under the galaxy and the box ends 12 px under them;
 LAUNCH, NOT YET, SEED and its field share one row. The eleven stops are the things
-you click: the current one outlined in its kind colour, an open one plain, one past
+you click: stops 1 to the current tier lit as one bar in their kind colours (T-A,
+Nov 11, `#the-stack`), the current one outlined; an open one plain, one past
 best + 1 dim and dead (a click on it is refused with the denied sound). The pick is
 remembered across opens (`LaunchBox.last_tier`) and clamped to what is open; the
 seed field behaves as it did. A fresh profile still skips the box
