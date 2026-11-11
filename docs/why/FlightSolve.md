@@ -591,7 +591,13 @@ through that point first, where the old legs no longer held, the
 first found stood later than a fresh plan's (seed 7 node 143, ring
 1 to keep 2, line-up 5: 291.63 where a fresh plan arrives 291.50;
 seed 1999 node 150, star -1 to keep 2, line-up 1: 131.39 against
-127.84; the fifth review, Nov 1)
+127.84; the fifth review, Nov 1). Where the old legs beat the one leg
+planned again from its choice, they stand beside a fresh plan too, as
+held legs do (`_sooner_of`): the one leg warmed from its choice can
+arrive later than one found afresh, and the old legs were kept between
+them (seed 4242 node 48, ring 2 to ring 3, line-up 1, CURVED, 15 s on:
+47.00 s in two legs where a fresh plan of one flew 44.17; SolveTest on
+G2's spiral worlds, Nov 10).
 ```
 
 ## Sooner of two plans

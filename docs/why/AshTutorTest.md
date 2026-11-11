@@ -92,7 +92,10 @@ Above `func _map_fly_world(m: SystemMapScreen) -> void:`:
 THE MAP_FLY LINE POINTS AT A WORLD (Jon, Nov 4: "Shouldn't a world be
 highlighted here and not my ship?"): her subject holds a planet's or the
 giant's place on screen and not the ship's, follows that world round its
-star (the map's clock run on six minutes over two seconds, then put back),
+star (the map's clock run on six minutes over two seconds, then put back)
+until the world's box meets the ship's, at least a second's frames, and from
+then on is on a world clear of the ship, as `Hints._fly_world` keeps it (G2's
+seed 4242 swings its world past the ship at frame 104 of 120, Nov 10),
 and is on the ship in a system with no world (its worlds made belts for one
 probe, put back at once: every system has one). The world is one a click at
 its middle picks, and not one under another place's beacon (seed 4242's

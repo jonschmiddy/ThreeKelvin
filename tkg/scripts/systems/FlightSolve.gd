@@ -662,16 +662,16 @@ static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: fl
 			rc.usec = Time.get_ticks_usec() - t_us
 			return rc
 		if prefer.has("alt") and held:
-			# Old legs are tried beside the fresh plan, or the preview went later than they flew.
+			# Old legs are tried beside the warm plan, and where they beat it, beside a fresh one.
 			# Why: docs/why/FlightSolve.md#two-leg-replans
 			var t_ua := Time.get_ticks_usec()
-			var alt: Dictionary = prefer.alt
 			var c1 := prefer.duplicate()
 			c1.erase("alt")
-			var ra := _chain_again(grav, dep, tgt, t, alt)
+			var ra := _chain_again(grav, dep, tgt, t, prefer.alt)
 			var r := _solve_or_chain(grav, dep, tgt, t, c1, Vector2.INF)
 			if ra != null:
-				r = _sooner_of(ra, r)
+				var rk := _sooner_of(ra, r)
+				r = rk if rk != ra else _sooner_of(ra, _solve_or_chain(grav, dep, tgt, t, {}, Vector2.INF))
 			r.usec = Time.get_ticks_usec() - t_ua
 			return r
 	return _solve_or_chain(grav, dep, tgt, t, prefer, Vector2.INF)
