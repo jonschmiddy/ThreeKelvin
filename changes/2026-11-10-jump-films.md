@@ -1,5 +1,5 @@
 - **Added** — a jump is a film now, about ten seconds long, picked at random each jump from
-  ten, each with its own sound cut to the picture. NEGATIVE: space turns to a photographic
+  eleven, each with its own sound cut to the picture. NEGATIVE: space turns to a photographic
   negative, closes tight round your ship, and it falls in on itself to a black point.
   SLIT-SCAN CORRIDOR: planes of coloured light rush out of a slit ahead and your ship dives
   down the corridor, which folds shut. HYPERSPACE: the drive spools, a pinhole opens ahead,
@@ -15,7 +15,10 @@
   open ahead and bends the stars into a ring round a black hole; your ship falls in, wraps
   round the ring, turns red and freezes there, then the hole zips shut. MAELSTROM: the nebula
   ahead turns into a whirlpool and spins your ship down the drain, faster each lap, until the
-  eye swallows it in a flash. Settings has REDUCE FLASHES under MOTION for eyes that cannot
+  eye swallows it in a flash. DATAMOSH: the ship flickers like a broken tooltip, the picture
+  corrupts and pours forward off the hull in smeared blocks until the whole screen is broken
+  video, the tape grinds to a stop on one frozen frame, then snaps back clean with the ship
+  gone. Settings has REDUCE FLASHES under MOTION for eyes that cannot
   take the whole-screen flashes.
 - **Changed** — after a jump you arrive at the edge of the system map, as a quiet jump already
   did. The name card, the reversed warp and the fly-in on LOCAL no longer play after a jump; a

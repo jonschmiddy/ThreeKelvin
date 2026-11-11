@@ -385,6 +385,8 @@ func _whole(tree: SceneTree, to: int) -> void:
 	if film != "":
 		JumpRegistry.forced = StringName(film)
 	var dir := Harness.arg("out", "user://whole")
+	# `reduce` films it with REDUCE FLASHES on
+	DisplaySettings.reduce_flashes = "reduce" in OS.get_cmdline_user_args()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
 	var total := 10.0 + WHOLE_TAIL
 	var log := PackedStringArray()
@@ -401,8 +403,12 @@ func _whole(tree: SceneTree, to: int) -> void:
 	var gpu := PackedFloat32Array()
 	RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 	var last_us := Time.get_ticks_usec()
+	var seq: JumpSequence = null
 	while t < total:
 		await RenderingServer.frame_post_draw
+		var scr := Router.current as SectorScreen
+		if scr != null and scr._jump != null and scr._jump.seq != null:
+			seq = scr._jump.seq
 		var now_us := Time.get_ticks_usec()
 		wall.append(float(now_us - last_us) / 1000.0)
 		gpu.append(float(RenderingServer.viewport_get_measured_render_time_gpu(vp.get_viewport_rid())))
@@ -428,6 +434,13 @@ func _whole(tree: SceneTree, to: int) -> void:
 		log.append("gpu ms per frame (the game viewport): median %.2f  p95 %.2f  max %.2f" % [
 			g2[g2.size() / 2], g2[int(float(g2.size()) * 0.95)], g2[g2.size() - 1]])
 		print("  " + log[log.size() - 1])
+	if seq is SeqDatamosh:
+		for pair in [["cpu", (seq as SeqDatamosh).cpu_ms], ["gpu (its four viewports)", (seq as SeqDatamosh).gpu_ms]]:
+			var a: PackedFloat32Array = (pair[1] as PackedFloat32Array).duplicate()
+			a.sort()
+			if a.size() > 10:
+				log.append("r15 %s ms per tick: median %.2f  p95 %.2f  max %.2f" % [pair[0], a[a.size() / 2], a[int(float(a.size()) * 0.95)], a[a.size() - 1]])
+				print("  " + log[log.size() - 1])
 	var fa := FileAccess.open("%s/log.txt" % dir, FileAccess.WRITE)
 	fa.store_string(String.chr(10).join(log))
 	fa.close()
@@ -450,6 +463,7 @@ const STRIP_TS := {
 	&"r2": [0.3, 1.4, 2.6, 3.15, 3.9, 4.35, 4.7, 5.15, 5.5, 5.85, 5.95, 7.0],
 	&"r3": [0.3, 1.8, 3.0, 3.4, 3.6, 3.8, 4.4, 4.75, 5.3, 6.6, 7.35, 8.0],
 	&"r8": [0.3, 1.8, 3.0, 3.75, 4.4, 4.9, 5.4, 5.8, 6.2, 6.6, 8.0, 10.2],
+	&"r15": [0.5, 1.6, 2.1, 2.8, 3.4, 4.2, 5.0, 5.8, 6.3, 6.5, 7.0667, 7.8],
 }
 
 func _films(tree: SceneTree) -> void:

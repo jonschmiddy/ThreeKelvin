@@ -12,7 +12,7 @@ const LIST := [
 		version = NEXT,
 		date = "",
 		lines = [
-			"A jump is a ten second film now, one of ten picked at random each time. After it you arrive at the edge of the system map.",
+			"A jump is a ten second film now, one of eleven picked at random each time. After it you arrive at the edge of the system map.",
 			"Most enemies have four times the hull, so fights last longer.",
 			"The Custodian grows stronger with each jump after your fifteenth.",
 			"An eye beside the goal shows how strong the Custodian is.",
