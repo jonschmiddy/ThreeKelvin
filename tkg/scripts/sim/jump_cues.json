@@ -1,4 +1,22 @@
 {
+ "r1": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r1_build",
+   "len": 4.86
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 4.86,
+  "file": "SeqHyperspace.gd",
+  "hit": {
+   "at": 4.86,
+   "cue": "jump_r1_hit",
+   "len": 5.14,
+   "onset": 5.1344
+  },
+  "hit_t": 5.0,
+  "lufs": -15.8
+ },
  "r12": {
   "build": {
    "at": 0.0,
@@ -33,6 +51,24 @@
    "onset": 4.9844
   },
   "hit_t": 5.0,
+  "lufs": -15.8
+ },
+ "r5": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r5_build",
+   "len": 6.42
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 6.42,
+  "file": "SeqQuantumSmear.gd",
+  "hit": {
+   "at": 6.42,
+   "cue": "jump_r5_hit",
+   "len": 4.08,
+   "onset": 6.5946
+  },
+  "hit_t": 6.6,
   "lufs": -15.8
  }
 }

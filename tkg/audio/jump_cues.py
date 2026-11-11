@@ -18,7 +18,8 @@ It refuses to write when:
   - the mix is louder than CUT_DB in the CUT_MS after the cut (the films cut dead there, so
     the hit cue must start in silence), unless the film says `hard`;
   - the hit's onset in the cue (the first 5 ms whose level comes within ONSET_DB of the
-    cue's loudest 5 ms) lands more than a frame (1/60 s) off the film's `hit_t`;
+    cue's loudest 5 ms) lands more than a frame (1/60 s) off the film's `hit_t` (plus the
+    film's LATE, where its hit swells after the picture's);
   - the mix's loudest second is off LUFS_WANT by more than LUFS_TOL (hyperjump.wav's level,
     which every film was levelled to).
 
@@ -53,6 +54,11 @@ LUFS_TOL = 0.3
 SR = 44100
 ## Films whose cut is not in a silence (none yet).
 HARD = set()
+## Films whose hit swells to its peak after the picture's hit, as filmed: the onset is
+## checked that many seconds after `hit_t`. R1's hit take comes in 20 ms before the
+## launch frame (round3/_r1/sound/mix.py places it at T_HIT - 0.02) under the boom,
+## which peaks 135 ms in.
+LATE = {"r1": 0.135}
 
 
 def seqs() -> dict:
@@ -154,8 +160,9 @@ def main() -> int:
             continue
         hit = x[ci:]
         on = cut + onset_s(hit.mean(axis=1))
-        if abs(on - hit_t) > FRAME_S:
-            print("%s: the hit's onset is at %.4f s, %.1f ms off hit_t %.4f" % (sid, on, (on - hit_t) * 1000.0, hit_t))
+        want = hit_t + LATE.get(sid, 0.0)
+        if abs(on - want) > FRAME_S:
+            print("%s: the hit's onset is at %.4f s, %.1f ms off %.4f (hit_t %.4f)" % (sid, on, (on - want) * 1000.0, want, hit_t))
             bad += 1
             continue
         lufs = loudest_second(x)

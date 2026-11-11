@@ -143,7 +143,7 @@ func _check_film(id: StringName) -> void:
 	_ok("%s: the stage and the director went with the commit" % id, not s.stage_left and not s.director_left)
 	_ok("%s: shook by whole pixels only (most %.1f)" % [id, s.max_shake], s.max_shake == floorf(s.max_shake))
 	_ok("%s: the flash lit the whole frame as filmed (floor %.2f, most %.2f)" % [id, s.flash_floor, s.max_flash],
-		s.max_flash == 0.0 or s.flash_floor == 0.10)
+		s.max_flash == 0.0 or is_equal_approx(s.flash_floor, seq.flash_floor))
 
 
 func seen_ok(id: StringName, s: Dictionary) -> bool:
@@ -176,8 +176,8 @@ func _run() -> void:
 	for j in 40:
 		b.append(JumpRegistry.pick(j))
 	_ok("picks are deterministic for a seed", a == b)
-	_ok("and both films are drawn in forty jumps (%s)" % [a.slice(0, 8)],
-		a.has(&"r12") and a.has(&"r4") and a.all(func(x: StringName) -> bool: return x in JumpRegistry.ALL))
+	_ok("and every film is drawn in forty jumps (%s)" % [a.slice(0, 8)],
+		JumpRegistry.ALL.all(func(f: StringName) -> bool: return a.has(f)) and a.all(func(x: StringName) -> bool: return x in JumpRegistry.ALL))
 
 	for id in JumpRegistry.ALL:
 		await _check_film(id)

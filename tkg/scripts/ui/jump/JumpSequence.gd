@@ -23,6 +23,8 @@ var reduce := false
 var shake := Vector2.ZERO
 ## The full-frame flash this instant, 0..1, for the harnesses.
 var flash := 0.0
+## The flash's frame-wide floor, the film's own (R4 and R12 lit the whole frame a tenth).
+var flash_floor := 0.10
 
 ## The smooth noise the films shook with (r4.py / r12.py `smooth_noise`, seeds 1 and 2, 15 Hz).
 const NOISE_F := [[15.90959, 18.60846, 31.70334, 62.53935], [12.53176, 33.98648, 41.04326, 35.76366]]
@@ -64,11 +66,13 @@ static func ease5(u: float) -> float:
 	return u * u * u * (u * (6.0 * u - 15.0) + 10.0)
 
 
-static func smooth_noise(t: float, seed_i: int) -> float:
+## `hz` scales the rolled rates (the films rolled them as a factor of the rate asked for);
+## R5's three-term `snoise` is the first three terms over 1.6.
+static func smooth_noise(t: float, seed_i: int, hz: float = 15.0, terms: int = 4) -> float:
 	var v := 0.0
-	for k in 4:
-		v += sin(TAU * float(NOISE_F[seed_i][k]) * t + float(NOISE_PH[seed_i][k])) / float(1 + k)
-	return v / 1.9
+	for k in terms:
+		v += sin(TAU * float(NOISE_F[seed_i][k]) * (hz / 15.0) * t + float(NOISE_PH[seed_i][k])) / float(1 + k)
+	return v / (1.9 if terms == 4 else 1.6)
 
 
 ## A deterministic 0..1 for a held frame and a salt (the films' `held` rng draws).
@@ -87,6 +91,6 @@ func set_shake(sh: Vector2) -> void:
 func set_flash(fl: float, centre: Vector2, sy: float) -> void:
 	flash = minf(fl, 0.35) if reduce else fl
 	stage.set2(&"flash", flash)
-	stage.set2(&"flash_floor", 0.0 if reduce else 0.10)
+	stage.set2(&"flash_floor", 0.0 if reduce else flash_floor)
 	stage.set2(&"flash_sy", sy)
 	stage.set2(&"centre", centre)
