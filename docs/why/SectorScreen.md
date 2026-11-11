@@ -512,6 +512,17 @@ once the ship has settled now, and only if no event's band is coming
 (`_arrived_drawer`).
 ```
 
+THE ARRIVAL AFTER A JUMP IS THE MAP'S (Jon, Nov 10, on the jump films' arrival question: "I
+just want the arrival at the edge of the map"). A quiet jump already landed on the system map
+with the ship warping in at the frame's edge (`Router.show_sector` to `show_system(arrived)`,
+which spends LOCAL's approach through `_approached_at`); the map's panel names the system and
+its class line there. So the name card, the reversed warp and the fly-in played after a jump
+only where the map could not take the arrival: a fight met on arrival (the ambush fights on the
+way to the door) and the Hellbender anchored here. Those now fly the ship in after
+`ARRIVAL_GAP_S` with no card and no `hyperjump_in`; the card and its timing (`CARD_*`) are the
+run's first system's alone. `FightOpenTest`'s "an ambush shows no contact or hand before your
+ship has arrived" holds, as the fly-in is still the fight's approach.
+
 ## Arrival sound
 
 Inside `setup()`, above `Audio.play(_ship_arrives(art, 0.0), 0.0)`:
@@ -598,6 +609,12 @@ NOT IN THE FIRST SECTOR. The run starts there, so nothing warped in to be
 heard arriving. Jon: "No reverse warp sound in first sector." The hold is
 split the same way either way, so the card keeps its timing.
 ```
+
+Nov 10: the player's arrival plays `hyperjump_in` nowhere now (see Arrival above). The clip
+stays, cut to `WARP_IN_S` by `audio/hyperjump.py`, for partners' slots (`ConvoySlot.jump_in`).
+The departure's sound is each jump film's own mix, split into its cues by `audio/jump_cues.py`
+and fired by `JumpDirector`; `hyperjump.wav` stays for an enemy escaping and partners leaving
+until the cleanup slice.
 
 ## Jump commit
 

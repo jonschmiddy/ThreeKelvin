@@ -367,6 +367,15 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_skip_jump(i == 1)
 			_refresh()))
+	# THE JUMP FILMS FLASH (the whole frame, for a frame or two). ON swaps each for a local
+	# bloom and crossfades R12's snap over four frames (`JumpSequence.reduce`).
+	_body.add_child(_row_chips("REDUCE FLASHES", ["OFF", "ON"],
+		1 if DisplaySettings.reduce_flashes else 0,
+		func(i: int) -> void:
+			DisplaySettings.set_reduce_flashes(i == 1)
+			_refresh(),
+		["The jump films flash the whole screen on their big moment.",
+			"No whole-screen flashes: a glow round the event instead."]))
 	# THE AUTOPILOT'S FLIGHT (Jon, Nov 5, "AUTOPILOT: DIRECT . CURVED"): the
 	# map's flights for a world clicked twice. A flight under way flies on; the
 	# line drawn is planned again (`SystemOverlay`'s preview key holds the path)

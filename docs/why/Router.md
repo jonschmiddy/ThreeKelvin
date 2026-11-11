@@ -611,6 +611,12 @@ at the edge as above. (No fight is ever rolled at a station, so nothing
 arrives there to leave its wrecks.)
 ```
 
+Nov 10 (the jump films): the arrival at the edge of the map is the whole arrival for a quiet
+jump (Jon: "I just want the arrival at the edge of the map"); LOCAL's name card and reversed
+warp no longer play after a jump at all (`docs/why/SectorScreen.md#arrival`). The flow here is
+unchanged: `commit_jump` at the film's commit time, `_on_jumped`, `resolve_current_node`, the
+autosave at the safe point, `show_sector` to the map.
+
 ## Arrival save
 
 Inside `resolve_current_node()`, above `_autosave()`:

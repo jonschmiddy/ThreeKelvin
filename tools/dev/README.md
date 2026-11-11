@@ -45,6 +45,7 @@ at the bottom says where the work stands.
 | `voice/install.py OUT "id:take ..."` | Copy the picked takes into the game. |
 | `badge/dump_golden.py golden\|frames DIR` | The Custodian's badge (9b) drawn by the approved page's own code (`badge/core.js`, `badge/fin_eye.js`, `badge/dump.html`): `golden` writes `tkg/scripts/sim/badge_golden.json` for `BadgeTest`, `frames` the page's PNGs of the frames `-- sheet=BadgeFrames` writes. Uses the installed Chrome. |
 | `badge/diff_frames.py GAME WEB [SHEET.png]` | Those two frame folders compared file by file, and a 4x contact sheet. |
+| `jump_compare.py GAME_DIR ID OUT [--strips]` | A jump film as the game played it (`-- jumpcine whole film=ID`, through `render.sh --fixed-fps 60`) muxed with its taped cues, 1x and 2x MP4s, and laid beside the approved film's frames at the strip's moments. `uv run --with pillow --with numpy --with soundfile --with imageio-ffmpeg python tools/dev/jump_compare.py ...` |
 | `golden_diff.py A B` | On demand, never in the gate: two `-- sheet=GoldenFrames out=<dir>` capture folders (temp, before and after a drawing refactor) compared file by file: prints each file that differs with its changed pixel count, each missing or extra file, and exits 1 on any. `uv run --with pillow tools/dev/golden_diff.py A B`. `docs/tests.md` has the capture command. |
 
 Python tools run through uv, for example:

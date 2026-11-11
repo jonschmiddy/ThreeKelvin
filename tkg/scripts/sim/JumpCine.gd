@@ -87,7 +87,7 @@ func _demo(tree: SceneTree) -> void:
 		# ship: the hull is accelerating out of the flare.
 		art.depart(sc._view.ship_flare_melts())
 		var t0 := 0.0
-		while t0 < (JumpFx.HYPER_REV if sc._view.ship_flare_melts() else SectorScreen.REV_S):
+		while t0 < (JumpFx.HYPER_REV if sc._view.ship_flare_melts() else JumpDirector.REV_S):
 			await tree.process_frame
 			t0 += tree.root.get_process_delta_time()
 		var fx := sc._view.ship_pulse()
@@ -148,7 +148,7 @@ func _film(tree: SceneTree) -> void:
 
 	var log := PackedStringArray()
 	var hyper := sc._view.ship_flare_melts()
-	var rev := JumpFx.HYPER_REV if hyper else SectorScreen.REV_S
+	var rev := JumpFx.HYPER_REV if hyper else JumpDirector.REV_S
 	var total := rev + (JumpFx.LONG_LIFE if hyper else JumpFx.LIFE) + 0.35
 	var dclip := art.depart(hyper)
 	# The film plays what the game plays, which for a hyperdrive is no roar.
@@ -368,45 +368,122 @@ func _spools(tree: SceneTree, rows: Array = []) -> void:
 	tree.quit()
 
 
-## Real Router path, full frame, with every effect taped by `Audio` so no sound is assumed.
+## Real Router path, full frame, every frame at the film's own 60 fps (`--fixed-fps 60`), every
+## effect taped by `Audio` so no sound is assumed; `tools/dev/jump_compare.py` muxes the frames
+## with the taped cues and lays them beside the approved film:
+##   render.sh --path tkg --fixed-fps 60 -- jumpcine whole film=r12 [out=<dir>]
 ## Why: docs/why/JumpCine.md#whole-jump-film
-const WHOLE_FPS := 30.0
-const WHOLE_TAIL := 1.2
+const WHOLE_FPS := 60.0
+const WHOLE_TAIL := 1.5
 
 func _whole(tree: SceneTree, to: int) -> void:
 	var sc := Router.current as SectorScreen
 	sc._skip()
 	for _s in 20:
 		await tree.process_frame
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://whole"))
-	var total := (SectorScreen.DEPART_LEAD + JumpFx.HYPER_REV
-		+ JumpFx.LONG_LIFE * JumpFx.LONG_PEAK + SectorScreen.CARD_TOTAL
-		+ ShipView.ARRIVE_MS / 1000.0 + WHOLE_TAIL)
+	var film := Harness.arg("film", "")
+	if film != "":
+		JumpRegistry.forced = StringName(film)
+	var dir := Harness.arg("out", "user://whole")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+	var total := 10.0 + WHOLE_TAIL
 	var log := PackedStringArray()
 	log.append("route %s -> %s" % [MapGen.star_name(Run.node_at()), MapGen.star_name(Run.map[to])])
+	log.append("film %s" % JumpRegistry.pick(Run.jumps))
 	Audio.tape.clear()
 	Audio.taping = true
-	var t0 := Time.get_ticks_msec()
+	var t0 := GameClock.now()
 	Router.begin_jump(to)
 	var f := 0
 	var t := 0.0
+	var vp := GameShell.input_target(tree)
+	var wall := PackedFloat32Array()
+	var gpu := PackedFloat32Array()
+	RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
+	var last_us := Time.get_ticks_usec()
 	while t < total:
 		await RenderingServer.frame_post_draw
-		t = float(Time.get_ticks_msec() - t0) / 1000.0
-		if t >= float(f) / WHOLE_FPS:
-			tree.root.get_texture().get_image().save_png("user://whole/f_%04d.png" % f)
-			log.append("frame %d %.4f" % [f, t])
+		var now_us := Time.get_ticks_usec()
+		wall.append(float(now_us - last_us) / 1000.0)
+		gpu.append(float(RenderingServer.viewport_get_measured_render_time_gpu(vp.get_viewport_rid())))
+		last_us = now_us
+		t = GameClock.now() - t0
+		if t >= float(f) / WHOLE_FPS - 1e-4:
+			vp.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
+			log.append("frame %d %.4f %s" % [f, t, Router.current.get_script().resource_path.get_file()])
 			f += 1
 		await tree.process_frame
 	Audio.taping = false
 	for e in Audio.tape:
-		log.append("sfx %s %.4f %.2f %.4f" % [e[0], float(int(e[1]) - t0) / 1000.0,
-			float(e[2]), float(e[3])])
-	var fa := FileAccess.open("user://whole/log.txt", FileAccess.WRITE)
+		log.append("sfx %s %.4f from %.4f frame %d" % [e[0], float(e[4]) - t0, float(e[7]), int(e[5])])
+	# the wall clock per frame (the png save included, so a ceiling, not the film's cost)
+	var sorted := wall.duplicate()
+	sorted.sort()
+	if sorted.size() > 10:
+		log.append("wall ms per frame: median %.1f  p95 %.1f  max %.1f (png saves included)" % [
+			sorted[sorted.size() / 2], sorted[int(float(sorted.size()) * 0.95)], sorted[sorted.size() - 1]])
+		print("  " + log[log.size() - 1])
+		var g2 := gpu.duplicate()
+		g2.sort()
+		log.append("gpu ms per frame (the game viewport): median %.2f  p95 %.2f  max %.2f" % [
+			g2[g2.size() / 2], g2[int(float(g2.size()) * 0.95)], g2[g2.size() - 1]])
+		print("  " + log[log.size() - 1])
+	var fa := FileAccess.open("%s/log.txt" % dir, FileAccess.WRITE)
 	fa.store_string(String.chr(10).join(log))
 	fa.close()
 	print("  whole: %d frames over %.2f s, %d sounds -> %s"
-		% [f, t, Audio.tape.size(), ProjectSettings.globalize_path("user://whole")])
+		% [f, t, Audio.tape.size(), ProjectSettings.globalize_path(dir)])
+	tree.quit()
+
+
+## Every landed film's strip frames (the approved strips' moments) in one run, for
+## `tools/dev/jump_compare.py --strips`:  render.sh --path tkg --fixed-fps 60 -- jumpcine films out=<dir>
+## Why: docs/why/JumpCine.md#film-strips
+const STRIP_TS := {
+	&"r12": [0.5, 1.84, 2.25, 2.9, 3.6, 4.3, 4.95, 5.5, 5.8, 6.0, 6.117, 6.6],
+	&"r4": [0.5, 1.3, 2.2, 3.0, 4.0, 4.85, 5.017, 5.08, 5.2, 5.8, 6.3, 9.5],
+}
+
+func _films(tree: SceneTree) -> void:
+	var dir := Harness.arg("out", "user://films")
+	var vp := GameShell.input_target(tree)
+	for id in JumpRegistry.ALL:
+		var sc := Router.current as SectorScreen
+		sc._skip()
+		for _s in 20:
+			await tree.process_frame
+		var to := -1
+		for n: MapGen.MapNode in Run.map:
+			if n.index != Run.at and n.type == MapGen.NodeType.SYSTEM and Run.can_jump_to(n):
+				n.ambush_rolled = true
+				n.ambush_pending = false
+				to = n.index
+				break
+		if to < 0:
+			print("  films: nowhere to jump to for %s" % id)
+			break
+		var sub := "%s/%s" % [dir, id]
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(sub))
+		JumpRegistry.forced = id
+		var ts: Array = STRIP_TS[id]
+		var t0 := GameClock.now()
+		Router.begin_jump(to)
+		var next := 0
+		var f := 0
+		while next < ts.size() and GameClock.now() - t0 < 12.0:
+			await RenderingServer.frame_post_draw
+			var t := GameClock.now() - t0
+			if t >= float(ts[next]) - 1e-4:
+				vp.get_texture().get_image().save_png("%s/f_%04d.png" % [sub, int(round(float(ts[next]) * 60.0))])
+				next += 1
+			f += 1
+			await tree.process_frame
+		print("  films: %s, %d frames -> %s" % [id, next, ProjectSettings.globalize_path(sub)])
+		for _s in 30:
+			await tree.process_frame
+		Router.show_local()
+		for _s in 10:
+			await tree.process_frame
 	tree.quit()
 
 
@@ -436,15 +513,17 @@ func _hush(tree: SceneTree, to: int) -> void:
 	var heard := false
 	while float(Time.get_ticks_msec() - t0) / 1000.0 < HUSH_WAIT:
 		await tree.process_frame
-		if _voices_on().has("hyperjump"):
-			heard = true
+		for v in _voices_on():
+			if v.begins_with("jump_"):
+				heard = true
+		if heard:
 			break
 	if not heard:
-		print("  hush: FAIL -- the warp never played, so nothing was tested")
+		print("  hush: FAIL -- no jump cue ever played, so nothing was tested")
 		tree.quit(1)
 		return
 	var at := float(Time.get_ticks_msec() - t0) / 1000.0
-	print("  hush: warp sounding at %.2f s, skipping" % at)
+	print("  hush: a jump cue sounding at %.2f s, skipping" % at)
 
 	var live := Router.current as SectorScreen
 	if live != null:
@@ -521,6 +600,9 @@ func run(tree: SceneTree) -> void:
 		return
 	if "whole" in OS.get_cmdline_user_args():
 		await _whole(tree, to)
+		return
+	if "films" in OS.get_cmdline_user_args():
+		await _films(tree)
 		return
 	print("jumpcine: %s -> %s"
 		% [MapGen.star_name(Run.node_at()), MapGen.star_name(Run.map[to])])

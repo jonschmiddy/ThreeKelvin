@@ -1217,6 +1217,15 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arriveidletest 180 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest
 }
 
+unit_jumpseqtest() {
+step "The jump films commit on time, their cues land on their frames, the HUD never moves"
+# Every landed film (JumpRegistry.ALL) through Router.begin_jump on a fixed clock: the commit
+# at the film's commit time, the build cue on the first frame and the hit cue on the frame the
+# clock crosses the cut, the stage last in EncounterView and gone with the commit, a skip that
+# commits and hushes, deterministic picks, REDUCE FLASHES capping the flash.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet jumpseqtest 300 	"the jump films play as filmed" 	"a jump film is off its clock, moved the HUD or left something behind" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=JumpSeqTest
+}
+
 unit_marktest() {
 step "One outline means this one, and the rest steps back"
 # Stripped-down UI C1 and C2 (Jon, Nov 9): the one mint outline on what you

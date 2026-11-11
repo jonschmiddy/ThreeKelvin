@@ -1,0 +1,38 @@
+{
+ "r12": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r12_build",
+   "len": 5.62
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.62,
+  "file": "SeqNegative.gd",
+  "hit": {
+   "at": 5.62,
+   "cue": "jump_r12_hit",
+   "len": 4.38,
+   "onset": 6.1089
+  },
+  "hit_t": 6.1033,
+  "lufs": -15.8
+ },
+ "r4": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r4_build",
+   "len": 4.73
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 4.73,
+  "file": "SeqSlitScan.gd",
+  "hit": {
+   "at": 4.73,
+   "cue": "jump_r4_hit",
+   "len": 5.27,
+   "onset": 4.9844
+  },
+  "hit_t": 5.0,
+  "lufs": -15.8
+ }
+}

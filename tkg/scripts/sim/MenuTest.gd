@@ -1116,7 +1116,7 @@ func _retina_case() -> void:
 
 ## MOTION holds only the player's rows even in dev mode, after Jon removed the ladder rows.
 ## Why: docs/why/MenuTest.md#motion-rows
-const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "REDUCE FLASHES", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
 const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
 	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
 	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",
