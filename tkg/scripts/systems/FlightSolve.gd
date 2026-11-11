@@ -580,7 +580,7 @@ var _b_J := INF
 var _b := {}
 
 
-## The flight from `dep` to `tgt` at map time t; in a twin, where nothing is found, two legs (`_chain`).
+## The flight from `dep` to `tgt` at map time t; where nothing is found, two legs (`_chain`: a twin's, or `FlightTurn`'s).
 ## `opts` {path, pace} (`ShipFlight.flight_opts`); none is DIRECT at pace 1. The search runs on the flight's
 ## own clock; the Result comes back on the map's (`Result.to_map`) unless opts.tau.
 ## Why: docs/why/FlightSolve.md#solve
@@ -647,7 +647,7 @@ static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
 
 ## (the search on the flight's own clock: dep, tgt and t already in tau)
 static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary = {}) -> Result:
-	if grav.star_x0.size() > 1:
+	if grav.star_x0.size() > 1 or prefer.has("chain") or prefer.has("alt"):
 		var held := StringName(dep.get("kind", &"")) != &"free"
 		if prefer.has("chain"):
 			# A held two-leg flight is kept only while a fresh plan finds none arriving sooner.
@@ -693,12 +693,12 @@ static func _sooner_of(rc: Result, r1: Result) -> Result:
 	return out
 
 
-## The flight of one leg; in a twin where none is found, of two (`_chain`,
+## The flight of one leg; where none is found, of two (`_chain`, a twin's or `FlightTurn`'s;
 ## `hint` its first point tried first).
 static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary, hint: Vector2) -> Result:
 	var fs := FlightSolve.new()
 	var r := fs._solve(grav, dep, tgt, t, prefer)
-	if r.found or not fs._twin or not fs._set:
+	if r.found or not fs._set:
 		return r
 	var t_us := Time.get_ticks_usec()
 	var rc := _chain(grav, dep, tgt, t, hint)
@@ -3945,7 +3945,7 @@ static func _waypoints(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float
 	fs.G = G
 	fs.t_now = t
 	if G.star_x0.size() < 2 or not fs._setup_in(dep, tgt):
-		return out
+		return FlightTurn.waypoints(G, dep, tgt, t) if G.star_x0.size() == 1 else out
 	var pd := fs._dep_pos(t)
 	fs._tgt_at(t + CHAIN_T)
 	var pt := Vector2(fs._cx + fs._toffx, fs._cz + fs._toffz)

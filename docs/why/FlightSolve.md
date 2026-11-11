@@ -354,7 +354,9 @@ with one leg). The 24 left were all close by a world coasting fast: in 23,
 no burn at THRUST keeps the coast clear of a keep-out for a second (the one
 where a burn did, seed 7 system 110, is FlightTest's residual). Points all
 round the pair (12 bearings, two radii) and round the place found no more,
-nor, there, a first leg that was that burn and its coast.
+nor, there, a first leg that was that burn and its coast. Round one sun
+too since Nov 10, where the target is behind the ship's motion: the points
+are `FlightTurn.waypoints`' (docs/why/FlightTurn.md).
 ```
 
 Above `static func _chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> Result:`:
