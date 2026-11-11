@@ -58,8 +58,8 @@ const PUT_LEFT_CLOSE := 6
 ## readings lay a few systems out anew, and three more starts leave one.
 ## Why: docs/why/FlightTest.md#the-harnesss-starts-the-residual-may
 const PUT_LEFT_CASES := {
-	"twin": ["1999:177:free", "7:209:free", "1999:258:near", "7:328:free", "1999:74:near"],
-	"close": ["1999:257:free", "4242:24:near", "4242:297:free"],
+	"twin": ["4242:129:free", "1999:217:free"],
+	"close": [],
 }
 ## the click comes up to this long after the first plan (s)
 const CLICK_S := 1.5

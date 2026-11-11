@@ -581,7 +581,7 @@ func _wreck_boxes(sl: EnemySlot) -> Array:
 ## jump.
 ## Why: docs/why/WreckSiteTest.md#wreck-systems
 func _other_systems() -> void:
-	h.seed_run(1618)
+	h.seed_run(1619)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var a: MapGen.MapNode = null
 	for c: MapGen.MapNode in Run.map:

@@ -1991,6 +1991,11 @@ func _alongside_hold() -> void:
 			break
 	if not h._ok("a system with a place to sit alongside", keep_n != null):
 		return
+	# (the map up now put away first, as `_one_sun_fallback` does: shown again
+	# with the ship carried over, it came up free, not alongside)
+	Router.show_local()
+	await _idle()
+	await Harness.frames(get_tree(), 2)
 	Run.at = keep_n.index
 	keep_n.visited = true
 	SystemMapScreen._parked[keep_n.index] = {"at": kb, "mode": &"keep"}
@@ -2194,13 +2199,18 @@ func _giant_page(n: MapGen.MapNode) -> void:
 
 ## A SHIP LEFT AT STAR B IN A SYSTEM WITH ONE SUN comes back at the star.
 func _one_sun_fallback(n: MapGen.MapNode) -> void:
+	# (with two worlds: the tab, the restyle and the GO below fly between them)
 	var one: MapGen.MapNode = null
 	for raw in Run.map:
 		var c: MapGen.MapNode = raw
 		if c.type == MapGen.NodeType.SYSTEM and not c.twin and c.index != n.index and c.region != MapGen.Region.FAUNA:
-			one = c
-			break
-	if not h._ok("a system with one sun", one != null):
+			var worlds := 0
+			for b in SystemLayout.of(c).bodies:
+				worlds += int(b.world != &"")
+			if worlds >= 2:
+				one = c
+				break
+	if not h._ok("a system with one sun and two worlds", one != null):
 		return
 	# (the map up now put away first, and out of the tree, its own record
 	# written: it may be this one)
@@ -3028,8 +3038,10 @@ func _ship_marks(m: SystemMapScreen, sd: int, n: MapGen.MapNode, st: Dictionary,
 	for k in 4:
 		var a := a0 + TAU * float(k) / 4.0
 		spots.append(mid + Vector2(cos(a) * reach.x, sin(a) * reach.y))
+	# (and one on the frame's own diagonal, so its arrow lands in a corner: the
+	# corner case was met by chance before G2's worlds, Nov 10)
 	var corner := [Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1), Vector2(1, -1)][st.wide % 4] as Vector2
-	spots.append(mid + reach * corner)
+	spots.append(mid + win.size * 0.625 * corner)
 	var names := ["Mercer", "Kevin", "Geno", "Cody", "Jeremy"]
 	names[st.wide % 5] = SHIP_NAME_LONG
 	var ids: Array[int] = []

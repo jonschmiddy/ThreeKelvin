@@ -521,18 +521,23 @@ Above `const PUT_LEFT_CASES := {`:
 
 ```text
 the harness's starts the residual may come from, "seed:system:start" a sweep
-(any other start put there fails, whatever the count). SCIENCE (Phase 12,
-Nov 4) put a reading in place of one option in about three systems in eight,
-and those systems alone lay out anew (checked system by system against the
-layouts before): two of them, seed 1999 system 258's near start (THE RACE
-COURSE on its belt) and seed 7 system 328's free start (THE TARGET RANGE on
-its dry world), each to one place, now leave a twin's residual, the best burn
-from each keeping clear for 30 s, so again the arrivals miss. At the study's
-1 in 6 (Nov 4) about half of all systems hold one, and one more does: seed
-1999 system 74's near start (THE FIRST LOOK on its dry world, a reading it
-does not hold at 1 in 8; its list is main's but for that slot), to one place,
-the best burn keeping clear for 30 s again
+(any other start put there fails, whatever the count). Re-measured on Nov 10
+for the spiral worlds Jon's G2 gives every seed at tier 0 (the full run, three
+seeds, twelve systems a sweep, four shards): two free starts leave a twin's
+residual, seed 4242 system 129 (EPSILON KESTREL IX) to one place and seed
+1999 system 217 (DELTA WICK REACH) to two on the curved path, the best burn
+from each keeping clear for 30 s, so again the arrivals miss; the close pairs
+leave none past the starts no burn can leave.
 ```
+
+Until Nov 10 the list was seed 1999 system 177 and seed 7 system 209 (free), seed
+1999 system 258 and seed 7 system 74 (near) in twins, and seed 1999 system 257, seed
+4242 system 24 and seed 4242 system 297 in close pairs: SCIENCE (Phase 12, Nov 4) had
+put a reading in place of one option in about three systems in eight, and those
+systems alone laid out anew, so seed 1999 system 258's near start (THE RACE COURSE on
+its belt), seed 7 system 328's free start (THE TARGET RANGE on its dry world) and seed
+1999 system 74's near start (THE FIRST LOOK on its dry world) each left a residual.
+Those worlds are gone with G2.
 
 ## Star starts clear of rings
 
