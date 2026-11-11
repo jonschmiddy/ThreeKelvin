@@ -20,9 +20,14 @@ const LAMP_R := 52.0
 const RING := Color8(30, 42, 57)
 const LAMP_RIM := Color8(9, 13, 20)
 const LAMP_OFF := Color8(44, 60, 78)
-## A dev switch for drafts of the tier pictures: a folder of tier_<n>.png (112 px) shown in
-## place of the drawn galaxy. `-- sheet=LaunchBoxShot tierart=<dir>` sets it.
+## The tier's picture (Jon's S-C, Nov 11): a strip of 112 px frames, `tier_<n>.png`, played
+## on GameClock; the drawn galaxy below is the fallback.
+## Why: docs/why/LaunchBox.md#the-pictures
+const ART := "res://art/ui/tiers"
+const ART_FPS := 8.0
+## Dev switches: a folder of draft strips (`-- sheet=LaunchBoxShot tierart=<dir>`), and a held frame.
 static var art_dir := ""
+static var hold_frame := -1
 
 var tier: int = 0
 var form: int = 0
@@ -47,7 +52,9 @@ var _flares: Array[Array] = []
 var _rng := RandomNumberGenerator.new()
 var _body: ColorRect
 var _mat: ShaderMaterial
-var _art: TextureRect
+var _art: Texture2D
+var _art_n := 0
+var _art_k := -1
 var _lamps: Lamps
 var _ring: Array[Vector2] = []
 
@@ -65,10 +72,6 @@ func _init() -> void:
 	_mat.shader = preload("res://shaders/tier_galaxy.gdshader")
 	_body.material = _mat
 	add_child(_body)
-	_art = TextureRect.new()
-	_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_art.visible = false
-	add_child(_art)
 	_lamps = Lamps.new()
 	_lamps.gal = self
 	add_child(_lamps)
@@ -117,14 +120,28 @@ func set_tier(t: int) -> void:
 	_mat.set_shader_parameter(&"cool", Vector3(COOL.r, COOL.g, COOL.b))
 	_mat.set_shader_parameter(&"panel", Vector3(PANEL.r, PANEL.g, PANEL.b))
 	_tick = -1
-	var draft := art_dir.path_join("tier_%d.png" % tier)
-	_art.visible = art_dir != "" and FileAccess.file_exists(draft)
-	_body.visible = not _art.visible
-	if _art.visible:
-		_art.texture = ImageTexture.create_from_image(Image.load_from_file(draft))
+	_art = _load_art()
+	_art_n = 0 if _art == null else _art.get_width() / G
+	_art_k = -1
+	_body.visible = _art == null
 	tooltip_text = rules_text()
 	_lamps.queue_redraw()
 	queue_redraw()
+
+
+func _load_art() -> Texture2D:
+	var draft := art_dir.path_join("tier_%d.png" % tier)
+	if art_dir != "":
+		return ImageTexture.create_from_image(Image.load_from_file(draft)) if FileAccess.file_exists(draft) else null
+	var path := ART.path_join("tier_%d.png" % tier)
+	return load(path) as Texture2D if ResourceLoader.exists(path) else null
+
+
+## The picture's frame now, or -1 with no picture.
+func art_frame() -> int:
+	if _art_n == 0:
+		return -1
+	return posmod(hold_frame if hold_frame >= 0 else int(GameClock.now() * ART_FPS), _art_n)
 
 
 func _seed_stars() -> void:
@@ -168,6 +185,11 @@ func pulse() -> float:
 
 
 func _process(delta: float) -> void:
+	if _art != null:
+		if art_frame() != _art_k:
+			_art_k = art_frame()
+			queue_redraw()
+		return
 	_t += delta
 	var tick := int(floorf(_t * HZ))
 	if tick == _tick:
@@ -198,9 +220,10 @@ func _bez(u: float) -> Vector2:
 func _draw() -> void:
 	# the far stars behind the body are under the ColorRect: drawn by the parent, they
 	# would be over it, so the body rect is kept transparent where the glow is none
-	if _art.visible:
+	if _art != null:
 		for q in _ring:
 			draw_rect(Rect2(q, Vector2.ONE), RING)
+		draw_texture_rect_region(_art, Rect2(0, 0, G, G), Rect2(maxi(art_frame(), 0) * G, 0, G, G))
 		return
 	for p in far:
 		draw_rect(Rect2(p.x, p.y, 1, 1), Color8(40, 52, 68) if (p.x * 7 + p.y * 13) % 10 < 7 else Color8(70, 84, 104))

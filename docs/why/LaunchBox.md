@@ -33,3 +33,25 @@ FORCE", then each rule by number in its kind colour and name, newest first, the
 current one in ICE. At tier 0 it says NO RULES IN FORCE. The tag sits where every
 tag sits, above the thing pointed at (`HoloTag.place`), where the mock showed it
 beside the pointer.
+
+## The pictures
+
+Jon, Nov 11, on the tier stack: "the tier 10 image should be inside the circle... can we
+also redesign the icon", then "you could honestly redesign the icons for all of the 10
+tiers". The drawn galaxies showed the galaxy's form, not the rule: four shapes that heat
+up, so tiers 0 to 3 were one spiral and 7 to 9 one ball, soft glows with no hard edge, and
+tier 10's big spiral and stream spilled past the lamp ring (808 px; tiers 2 to 9 leaked
+2 to 23 px of stars and glare). Three styles went on a page: a flat emblem (S-A), chart
+lines (S-B), a painted scene (S-C). He picked S-C ("the best, keep iterating"), then
+"they should all be animated".
+
+So each tier is a strip of 112 px frames in `art/ui/tiers/tier_<n>.png`, a small crisp
+dithered galaxy of the tier's form as the setting and the rule drawn big in front of it
+with a dark outline, in the tier bar's colour. Each moves in a calm loop that shows the
+rule (a trader leaving with the last crate, gas shifting, raiders' eyes blinking, fuel
+sloshing, the Hellbender swimming, the core feeding, the dwarf's tail streaming off), 8
+frames a second on `GameClock`, so films and fixed-fps runs play it at the right speed.
+The drawn galaxy stays as the fallback for a tier with no strip. The strips are made by
+a script kept outside the repo (tk-scratch/ui-build/tierstack/icons2/make_c2.py).
+`LaunchBoxShot` holds each frame in turn (`TierGalaxy.hold_frame`) and fails any ink
+outside the ring on any frame.

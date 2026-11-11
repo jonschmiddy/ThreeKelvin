@@ -2,7 +2,8 @@ extends Node
 
 ## Stills of LAUNCH A RUN at tiers 0 (no win), 3, 7, 8 and 10 (won up to there) and tier 8
 ## pointed at; then every tier's picture (`gal_<n>.png`), checked inside the lamp ring.
-## `-- sheet=LaunchBoxShot out=<dir> [tiers=3,10] [tierart=<dir>]`; needs a window.
+## `-- sheet=LaunchBoxShot out=<dir> [tiers=3,10] [tierart=<dir>] [film=1] [frames=1]`; needs a
+## window. `film=1`: the box at every tier, each frame of its picture (`film_<t>_<k>.png`).
 
 var _out := ""
 
@@ -47,6 +48,8 @@ func _run() -> void:
 			print("  wrote %s/tier_%d.png (%dx%d)" % [_out, tier, img.get_width(), img.get_height()])
 		if tier == 8:
 			await _hovered()
+	if Harness.arg("film") == "1":
+		await _film()
 	await _ring_sweep()
 	SaveGame.clear()
 	RunHistory.clear()
@@ -87,20 +90,42 @@ func _ring_sweep() -> void:
 	var g := TierGalaxy.new()
 	vp.add_child(g)
 	var bad := 0
+	var every := Harness.arg("frames") == "1"
 	for t in Ladder.count():
 		g.set_tier(t)
 		await _secs(0.5)
 		var worst := 0
-		for f in 6:
+		var n := g._art_n if g._art_n > 0 else 6
+		for f in n:
+			if g._art_n > 0:
+				TierGalaxy.hold_frame = f
+				await Harness.frames(get_tree(), 3)
 			var img := vp.get_texture().get_image()
-			if f == 0:
-				img.save_png("%s/gal_%d.png" % [_out, t])
+			if f == 0 or every:
+				img.save_png("%s/gal_%d%s.png" % [_out, t, "_%d" % f if every else ""])
 			worst = maxi(worst, _outside(g, img))
-			await _secs(0.25)
+			if g._art_n == 0:
+				await _secs(0.25)
+		TierGalaxy.hold_frame = -1
 		bad += 1 if worst > 0 else 0
-		print("  ring: tier %d %s (%d px outside)" % [t, "inside" if worst == 0 else "OUTSIDE", worst])
+		print("  ring: tier %d %s (%d px outside, %d frames)" % [t, "inside" if worst == 0 else "OUTSIDE", worst, n])
 	print("ring: %s, %d of %d tiers inside" % ["PASS" if bad == 0 else "FAIL", Ladder.count() - bad, Ladder.count()])
 	vp.queue_free()
+
+
+## The box at every tier, a still of it for each frame of its picture, held in turn.
+func _film() -> void:
+	var box := Harness.first(Router.current, func(n: Node) -> bool: return n is LaunchBox) as LaunchBox
+	var r := Rect2i(box.get_global_rect().grow(6.0))
+	for t in Ladder.count():
+		box.pick(t)
+		await _secs(0.3)
+		for k in maxi(1, box.galaxy._art_n):
+			TierGalaxy.hold_frame = k
+			await Harness.frames(get_tree(), 3)
+			get_tree().root.get_texture().get_image().get_region(r).save_png("%s/film_%d_%d.png" % [_out, t, k])
+		TierGalaxy.hold_frame = -1
+	print("  filmed the box at every tier")
 
 
 func _outside(g: TierGalaxy, img: Image) -> int:
