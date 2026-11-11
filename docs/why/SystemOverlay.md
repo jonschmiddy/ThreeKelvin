@@ -634,16 +634,16 @@ the selected place flies. So the map says so where the click is:
 - the pointer shuts to the game's sight as it does over a button
   (`SystemMapScreen._aim_sight` sets the frame's cursor shape, which `Main` reads),
   and the map's own plane cursor rings in HOT with four ticks (`SectorCursor.sight`);
-- the tag's last line is `CLICK AGAIN: FLY · N S`, where N is click to arrival on the
-  drawn plan: its wait on the ring (`t0` less now) plus the flight (`dur`), rounded
-  to whole seconds, at least 1. Until the plan for this click's own side and way
-  round is drawn (`ArriveSide.plan_matches`) it reads `CLICK AGAIN: FLY` with no time,
-  so the number is never another flight's.
+- the tag's last line is `CLICK AGAIN: FLY`.
 
-This restores the line the Nov 9 stripped-down pass (UI 3) took out, now with the
-time. On a world the side lines (`ArriveSide.words`) come first and the click line
-last: what you will get, how to change it, then the click (the side lines only while
-the click would fly). Where the click cannot
+This restores the line the Nov 9 stripped-down pass (UI 3) took out. It first carried
+the flight's time (`CLICK AGAIN: FLY · N S`, click to arrival on the drawn plan) and,
+on a world, two side lines over it ("LIT SIDE · WITH ITS SPIN", "HOLD SHIFT: AGAINST
+ITS SPIN") with an arc over the picked half. Jon, Nov 11: "too much text on the box for
+a planet... Click again to fly is good, but you can remove the flight time from after
+it." The side choice went with it (every flight arrives lit, with the spin:
+docs/why/ArriveSide.md#arrive-side), so the tag is the name, the kind, the event line
+and the click. Where the click cannot
 fly, the same last line says why: UNDOCK FIRST, CANNOT UNDOCK, CLICK AGAIN ONCE IN
 ORBIT (a click while the ship spins down onto its ring is kept, so that counts as
 flying). A beacon on the selected world says no click line, as its click may open

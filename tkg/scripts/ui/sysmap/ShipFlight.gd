@@ -2025,8 +2025,8 @@ const CLICK_GAIN := 0.15
 ## whether the last click flew a flight planned at it, not the one drawn (a
 ## harness reads it)
 var click_replanned := false
-## THE ARRIVAL ASKED FOR at a world (`ArriveSide`: side, sense, lit), set by the map each
-## frame from the hover and Shift; empty, the autopilot arrives as it likes
+## THE ARRIVAL ASKED FOR at a world (`ArriveSide`: the lit side, with its spin), set by the map each
+## frame while the selected world is pointed at; empty, the autopilot arrives as it likes
 var wish: Dictionary = {}
 
 

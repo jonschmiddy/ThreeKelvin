@@ -879,7 +879,7 @@ func _step_ship(delta: float, hold := false) -> void:
 			flown_to[view.node.index] = {"at": ob, "n": flights}
 	# THE FLIGHT A SECOND CLICK WOULD FLY, drawn before you fly it (star B too)
 	overlay.preview_to = overlay.selected if SystemLayout.is_place(overlay.selected) else -9
-	# (and the side and way round it arrives, from the hover and Shift: `ArriveSide`)
+	# (and its arrival: the lit side, with the spin, `ArriveSide`)
 	flight.wish = ArriveSide.wish_now(overlay, view, flight)
 	_aim_sight()
 	# WHETHER A FLIGHT CAN START changed (settled into an orbit, or left one):
@@ -1274,7 +1274,7 @@ func tap(h: Dictionary) -> void:
 		# A FLIGHT STARTS ONLY FROM AN ORBIT: on the way, or under thrust, a click
 		# selects and no more
 		if flight.orbit_body() != body and flight.can_fly():
-			# (the side and way round from this click's own half and Shift: `ArriveSide`)
+			# (the lit side, with the spin, for this click: `ArriveSide`)
 			overlay.hover = h
 			flight.wish = ArriveSide.wish_now(overlay, view, flight)
 			fly_to_body(body)

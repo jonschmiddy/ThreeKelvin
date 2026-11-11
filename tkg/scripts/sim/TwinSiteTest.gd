@@ -939,7 +939,7 @@ func _leaves(root: Node, out: Array) -> Array:
 
 
 # ---------------------------------------------------------------- the flight
-## STAR B CLICKED AGAIN: the tag's time, the flight there, its words, and the orbit.
+## STAR B CLICKED AGAIN: the tag, the flight there, its words, and the orbit.
 func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	var ov = m.overlay
@@ -951,14 +951,13 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	m.select_body(B)
 	var hb := {"kind": &"star", "body": B, "at": ov.star_scr(B)}
 	ov.hover = hb
-	var said_s := ""
 	for i in 600:
-		said_s = String((ov.tip_lines(hb)[0] as Array)[-1][0])
-		if ov.fly_s(B) > 0:
+		if ov._pv_plan != null and int(ov._pv_plan.to) == B:
 			break
 		await get_tree().process_frame
-	if not h._ok("star B selected, pointed at: CLICK AGAIN: FLY with the drawn flight's time (%s; %d s), the line lit (%s)" % [said_s, ov.fly_s(B), ov.aimed()],
-			said_s == "CLICK AGAIN: FLY · %d S" % ov.fly_s(B) and ov.fly_s(B) > 0 and ov.aimed()):
+	var said_s := String((ov.tip_lines(hb)[0] as Array)[-1][0])
+	if not h._ok("star B selected, pointed at: CLICK AGAIN: FLY, its flight drawn, the line lit (%s; %s)" % [said_s, ov.aimed()],
+			said_s == "CLICK AGAIN: FLY" and ov._pv_plan != null and int(ov._pv_plan.to) == B and ov.aimed()):
 		return
 	m.tap(hb)
 	var said := {}

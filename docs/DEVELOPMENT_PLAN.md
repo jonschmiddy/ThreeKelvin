@@ -598,7 +598,9 @@ seen on a page before it touches the game.*
 2. **Transfer arcs and arrival side** (days). The autopilot flies a real arc.
    The ship can capture on the front, back, lit or dark side of a world, and
    orbit with or against its spin, at about the same cost (Jeremy: "since
-   you're already in orbit the energy should be virtually the same").
+   you're already in orbit the energy should be virtually the same"). The
+   map's choice of side was dropped Nov 11 ("too much noise"): every flight
+   to a world arrives lit, with the spin.
 3. ~~**Gravity assists**~~ **Dropped Oct 30** (ruling 18, "Giant on map
    time: B", from the Giant Assist On Map Time page). Jeremy asked for assists
    "where the direction of travel makes it worth it". On map time it never is:

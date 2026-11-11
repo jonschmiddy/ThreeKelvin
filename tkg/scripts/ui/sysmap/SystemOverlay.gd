@@ -2495,10 +2495,6 @@ func tip_lines(h: Dictionary) -> Array:
 		if b.beacons.size() > 0:
 			var here: bool = flight != null and flight.reached() == int(h.body)
 			lines.append(["%d %s · %s" % [b.beacons.size(), "EVENT" if b.beacons.size() == 1 else "EVENTS", "OPEN" if here else ("OPEN ALONGSIDE" if b.kind == &"belt" or b.kind == &"station" else "OPEN IN ORBIT")], UITheme.EMBER])
-		# THE SIDE AND WAY ROUND a second click arrives (`ArriveSide`), while one would fly,
-		# over the click's own line, which is last
-		if h.has("side") and click_flies(int(h.body)) and flight.can_fly():
-			lines.append_array(ArriveSide.words(int(h.side), ArriveSide.spin_of(view, L, int(h.body)), ArriveSide.shift_held()))
 		lines.append_array(_click_line(int(h.body)))
 	elif h.kind == &"comet" and L.comet != null:
 		lines.append([L.comet.name, UITheme.ICE])
@@ -2545,11 +2541,7 @@ func tip_lines(h: Dictionary) -> Array:
 
 func _draw_tip() -> void:
 	var h := hover
-	var tl := tip_lines(h)
-	# (the half a click arrives on, marked on the hover ring while the tag names it)
-	if (tl[0] as Array).any(func(l: Array) -> bool: return String(l[0]).contains(" SIDE · ")):
-		ArriveSide.draw_half(self, view, int(h.body), int(h.side), _reach(int(h.body)) + 2.0, Color(UITheme.EMBER, maxf(0.15, _hover_t)))
-	var lines: Array = tl[0]
+	var lines: Array = tip_lines(h)[0]
 	var ls: Array = []
 	for l in lines:
 		ls.append([String((l as Array)[0]), (l as Array)[1]])
@@ -2579,23 +2571,22 @@ func _click_line(body: int, place := true) -> Array:
 	if selected == body:
 		if flight != null and (flight.heading_to() == body or flight.orbit_body() == body):
 			return [["ON YOUR WAY", UITheme.HOT]]
-		# THE SECOND CLICK FLIES, and says so with the flight's time (Jon, Nov 11, F-C:
-		# no FLY HERE button); or why it cannot. Why: docs/why/SystemOverlay.md#click-again
-		return [[fly_word(body), UITheme.HOT if click_flies(body) else UITheme.COLD]] if place else []
+		# THE SECOND CLICK FLIES, and says so (Jon, Nov 11, F-C: no FLY HERE button); or
+		# why it cannot. Why: docs/why/SystemOverlay.md#click-again
+		return [[fly_word(), UITheme.HOT if click_flies(body) else UITheme.COLD]] if place else []
 	return [["CLICK: SELECT", UITheme.QUOTE]]
 
 
-## What the second click on the selected place says: CLICK AGAIN: FLY with the drawn
-## flight's time, or what stops it (the panel's old FLY HERE states, as words).
-func fly_word(body: int) -> String:
+## What the second click on the selected place says: CLICK AGAIN: FLY, or what stops it
+## (the panel's old FLY HERE states, as words).
+func fly_word() -> String:
 	if Router.docked:
 		return "UNDOCK FIRST"
 	if not Router.may_cast_off():
 		return "CANNOT UNDOCK"
 	if flight == null or not (flight.can_fly() or flight.spinning()):
 		return "CLICK AGAIN ONCE IN ORBIT"
-	var s := fly_s(body)
-	return "CLICK AGAIN: FLY" if s <= 0 else "CLICK AGAIN: FLY · %d S" % s
+	return "CLICK AGAIN: FLY"
 
 
 ## A click on `body` (selected, the place itself) flies now (`SystemMapScreen.tap`).
@@ -2614,17 +2605,6 @@ func aimed() -> bool:
 	if k != &"body" and k != &"belt" and k != &"star":
 		return false
 	return int(hover.get("body", -99)) == selected and click_flies(selected)
-
-
-## Seconds from now to arrival on the drawn flight (its wait on the ring and the flight),
-## whole and at least 1; 0 while the flight for this click is still being planned.
-func fly_s(body: int) -> int:
-	var pl = _pv_plan
-	if pl == null or preview_to != body or int(pl.to) != body or _pv_new.size() != PV_N:
-		return 0
-	if flight != null and not ArriveSide.plan_matches(pl, flight.wish):
-		return 0
-	return maxi(1, roundi(maxf(float(pl.t0) - float(view.t), 0.0) + float(pl.dur)))
 
 
 static func _first_sentence(s: String) -> String:
@@ -2748,9 +2728,6 @@ func hit(p: Vector2) -> Dictionary:
 			continue
 		var at: Vector2 = view.at[i]
 		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0 and not _behind_sun(view.pos[i], p):
-			# (a world's lit or dark half under the pointer: `ArriveSide`)
-			if b.world != &"":
-				return {"kind": &"body", "body": i, "beacon": null, "at": at, "side": ArriveSide.side_at(view, i, p)}
 			return {"kind": &"body", "body": i, "beacon": null, "at": at}
 	# A click where two suns overlap is on the sun drawn on top, the nearer.
 	for s: int in _suns_near_first():

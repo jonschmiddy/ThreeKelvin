@@ -119,7 +119,9 @@ tk-scratch/ui-build/fly-here): no FLY HERE button. The panel shows only facts, a
 the click on the map is the action: a click selects a place, a second click on it
 flies there (`SystemMapScreen.tap`). That second click already flew before; the
 button was a second way to do the same thing (every control earns its place), and
-it could not carry the lit/dark side and Shift picks (`ArriveSide`) the click can.
+it could not carry the lit/dark side and Shift picks (`ArriveSide`) the click could.
+Those picks were dropped the same day (Jon, Nov 11, "too much noise"): every flight to
+a world the click flies arrives on its lit side with its spin.
 
 What the button's other states told the player is kept, never as a greyed button
 (only pressable things look pressable):

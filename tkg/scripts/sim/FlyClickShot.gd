@@ -2,7 +2,7 @@ extends Node
 
 ## STILLS OF THE SECOND CLICK (F-C, Nov 11), windowed: `-- sheet=FlyClickShot out=<dir>`.
 ## Seed 4242's first one-sun system with two worlds, in orbit of the first: pointing at the
-## other world unselected; selected and pointed at (the line lit, the tag's CLICK AGAIN · time);
+## other world unselected; selected and pointed at (the line lit, the tag's CLICK AGAIN: FLY);
 ## the pointer away (the panel with no FLY HERE); in orbit (its line); docked (UNDOCK FIRST).
 
 var h := Harness.new()
@@ -90,15 +90,18 @@ func _shots() -> void:
 	m.panel_back()
 	_point(m, m.view.at[w1])
 	await _shot("1_point_unselected", m)
-	# 2. selected and pointed at: the line lit, the sight, CLICK AGAIN: FLY · N S
+	# 2. selected and pointed at: the line lit, the sight, CLICK AGAIN: FLY and nothing of sides
 	m.select_body(w1)
 	_point(m, m.view.at[w1])
 	for f in 600:
 		_point(m, m.view.at[w1])
-		if m.overlay.fly_s(w1) > 0:
+		var pv = m.overlay._pv_plan
+		if pv != null and int(pv.to) == w1 and ArriveSide.plan_matches(pv, m.flight.wish):
 			break
 		await _tree.process_frame
-	h._ok("the tag gives the flight's time (%d s)" % m.overlay.fly_s(w1), m.overlay.fly_s(w1) > 0)
+	var tl: Array = (m.overlay.tip_lines(m.overlay.hover)[0] as Array).map(func(l): return String(l[0]))
+	h._ok("the tag ends CLICK AGAIN: FLY, no time, nothing of sides (%s)" % " / ".join(tl),
+		tl[-1] == "CLICK AGAIN: FLY" and not tl.any(func(w: String) -> bool: return w.contains("SIDE") or w.contains("SHIFT")))
 	await _shot("2_point_selected", m)
 	# 3. the pointer away: the line faint, the panel facts only
 	_point(m, m.view.window.position + Vector2(8.0, 8.0))
