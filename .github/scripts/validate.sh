@@ -1227,6 +1227,59 @@ step "The jump films commit on time, their cues land on their frames, the HUD ne
 ALLOW_EXTRA="$GATE_LEAKS" gate_sheet jumpseqtest 300 	"the jump films play as filmed" 	"a jump film is off its clock, moved the HUD or left something behind" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=JumpSeqTest
 }
 
+unit_jumpshadertest() {
+step "Every jump shader compiles in a real renderer, and every film's stage draws"
+# Headless compiles no shaders, so a jump shader that does not compile passed JumpSeqTest.
+# The gate's one windowed unit: a hidden desktop on Windows, xvfb-run on Linux.
+# Why: docs/why/validate.md#unit_jumpshadertest
+local log="$LOG_DIR/jumpshadertest.log" limit=600 code=0 bin="${TK_GODOT_BIN:-$GODOT}"
+local args=(--audio-driver Dummy --disable-vsync --fixed-fps 60 --path "$PROJECT" -- sheet=JumpShaderTest)
+case "$(uname -s)" in
+	MINGW*|MSYS*|CYGWIN*)
+		if [ -n "${TK_HIDDESK:-}" ] && [ -x "$TK_HIDDESK" ] && [ "${bin%.sh}" = "$bin" ]; then
+			local wlog="$LOG_DIR/jumpshadertest.win.log"
+			run_limited "$limit" "$TK_HIDDESK" "$(cygpath -w "$wlog")" "$(cygpath -w "$bin")" "${args[@]}"
+			code=$?
+			cat "$wlog" >"$log" 2>/dev/null
+		else
+			run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
+			code=$?
+		fi ;;
+	Linux)
+		if [ -n "${DISPLAY:-}" ]; then
+			run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
+			code=$?
+		elif command -v xvfb-run >/dev/null 2>&1; then
+			run_limited "$limit" xvfb-run -a -s "-screen 0 1280x800x24" "$GODOT" "${args[@]}" >"$log" 2>&1
+			code=$?
+		else
+			bad "jumpshadertest: no display and no xvfb-run, so nothing can compile the jump shaders"
+			return
+		fi ;;
+	*)
+		run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
+		code=$? ;;
+esac
+if [ "$code" -eq 124 ]; then
+	bad "jumpshadertest: still running after ${limit}s, killed"
+	tail -n 25 "$log" | sed 's/^/        /'
+	return
+fi
+# the leaks a windowed run reports at exit; anything while the films play fails in the sheet
+local hits
+hits="$(grep -nE "SHADER ERROR|$ERROR_PATTERNS" "$log" 	| grep -vE "$GATE_LEAKS|Texture with GL ID of [0-9]+: leaked|Parameter \"RenderingServer::get_singleton\(\)\" is null" || true)"
+if [ -n "$hits" ]; then
+	bad "jumpshadertest: a shader or script error"
+	printf '%s
+' "$hits" | head -n 20 | sed 's/^/        /'
+elif [ "$code" -eq 0 ] && grep -qE '^jumpshadertest: PASS' "$log"; then
+	ok "every jump shader compiles and every film's stage draws"
+else
+	bad "a jump shader did not compile or a film's stage did not draw (godot exited $code)"
+	grep -E 'FAIL|^jumpshadertest' "$log" | head -n 12 | sed 's/^/        /'
+fi
+}
+
 unit_marktest() {
 step "One outline means this one, and the rest steps back"
 # Stripped-down UI C1 and C2 (Jon, Nov 9): the one mint outline on what you
@@ -2202,7 +2255,7 @@ gate_weight() {
 		bindtest) echo 20 ;; swaptest) echo 20 ;; arriveidletest) echo 20 ;;
 		nettest) echo 20 ;; solvetest_*) echo 170 ;;
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
-		sciencesimtest) echo 51 ;; routinetest) echo 28 ;;
+		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		*) echo 15 ;;
 	esac
 }

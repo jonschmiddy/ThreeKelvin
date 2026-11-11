@@ -28,7 +28,8 @@ func _init(mode: int, count: int, origin: Vector2) -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_2D
 	mm.use_colors = true
 	mm.use_custom_data = true
-	mm.mesh = _quad()
+	# the same unit quad as JumpLines' streaks (UV is along and across)
+	mm.mesh = JumpLines.quad()
 	mm.instance_count = count
 	for i in count:
 		mm.set_instance_transform_2d(i, Transform2D.IDENTITY)
@@ -38,17 +39,6 @@ func _init(mode: int, count: int, origin: Vector2) -> void:
 	mat.set_shader_parameter(&"mode", mode)
 	material = mat
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-
-
-static func _quad() -> ArrayMesh:
-	var m := ArrayMesh.new()
-	var arr: Array = []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)])
-	arr[Mesh.ARRAY_TEX_UV] = PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)])
-	arr[Mesh.ARRAY_INDEX] = PackedInt32Array([0, 1, 2, 0, 2, 3])
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	return m
 
 
 ## One instance's numbers: its colour (any four floats) and its custom four.

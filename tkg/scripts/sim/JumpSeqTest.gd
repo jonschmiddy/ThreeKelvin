@@ -9,6 +9,29 @@ extends Node
 var _tree: SceneTree
 var h := Harness.new()
 var _cues: Dictionary = {}
+## The films that reached their commit and ran every check: a film whose coroutine died
+## mid-run (a script error in it or in the checks) skips the rest silently, so it must be here.
+## Why: docs/why/JumpSeqTest.md#a-dead-film-fails
+var _finished: Array[StringName] = []
+var _errs := ErrCount.new()
+
+
+## Every engine or script error while a film plays: there must be none.
+class ErrCount extends Logger:
+	var n := 0
+	var first: Array[String] = []
+	var lock := Mutex.new()
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+			_editor_notify: bool, _error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		lock.lock()
+		n += 1
+		if first.size() < 64:
+			first.append("%s  (%s:%d %s)" % [rationale if rationale != "" else code, file, line, function])
+		lock.unlock()
+
+	func _log_message(_message: String, _error: bool) -> void:
+		pass
 
 
 func _ok(what: String, c: bool) -> bool:
@@ -120,7 +143,9 @@ func _cue_t(tape: Array, cue: StringName, t0: float) -> float:
 
 func _check_film(id: StringName) -> void:
 	var seq := JumpRegistry.make(id)
+	var e0 := _errs.n
 	var s := await _jump(id)
+	_ok("%s: no script or engine error while it played (%d: %s)" % [id, _errs.n - e0, _errs.first.slice(e0, e0 + 3)], _errs.n == e0)
 	if not seen_ok(id, s):
 		return
 	var dt := 1.0 / 60.0 + 1e-4
@@ -151,6 +176,7 @@ func _check_film(id: StringName) -> void:
 		s.max_flash == 0.0 or is_equal_approx(s.flash_floor, seq.flash_floor))
 	if seq.flame_s > 0.0:
 		_check_warp(id, s, seq)
+	_finished.append(id)
 
 
 ## R3 and R8: the ship inside the bend (ship pass, copy, warp, copy, finish), the idle flame kept
@@ -179,6 +205,7 @@ func _run() -> void:
 	await _tree.process_frame
 	Router.animate_in_harness = true
 	Rng.forced = Harness.seed_arg(4242)
+	OS.add_logger(_errs)
 	var f := FileAccess.open("res://scripts/sim/jump_cues.json", FileAccess.READ)
 	_cues = JSON.parse_string(f.get_as_text()) if f != null else {}
 	_ok("jump_cues.json names every landed film (%s)" % ", ".join(JumpRegistry.ALL),
@@ -191,16 +218,16 @@ func _run() -> void:
 	for i in 10:
 		await _tree.process_frame
 
-	# the pick: one draw per jump off the run's seed, both films drawn, the same again
+	# the pick: one draw per jump off the run's seed, every film drawn, the same again
 	JumpRegistry.forced = &""
 	var a: Array = []
-	for j in 40:
+	for j in 120:
 		a.append(JumpRegistry.pick(j))
 	var b: Array = []
-	for j in 40:
+	for j in 120:
 		b.append(JumpRegistry.pick(j))
 	_ok("picks are deterministic for a seed", a == b)
-	_ok("and every film is drawn in forty jumps (%s)" % [a.slice(0, 8)],
+	_ok("and every film is drawn in 120 jumps (%s)" % [a.slice(0, 8)],
 		JumpRegistry.ALL.all(func(f: StringName) -> bool: return a.has(f))
 		and a.all(func(x: StringName) -> bool: return x in JumpRegistry.ALL))
 
@@ -212,6 +239,8 @@ func _run() -> void:
 		(Router.current as SectorScreen)._skip()
 		for i in 5:
 			await _tree.process_frame
+	_ok("every landed film reached its commit and ran every check (%s of %s)" % [_finished, JumpRegistry.ALL],
+		_finished == JumpRegistry.ALL)
 
 	# a skip two seconds in: the cues hushed, the jump committed as skipped, nothing left
 	var s := await _jump(&"r12", 2.0)
@@ -233,5 +262,7 @@ func _run() -> void:
 		r.max_flash <= 0.35 + 1e-4 and r.max_flash > 0.0 and r.flash_floor == 0.0)
 	DisplaySettings.reduce_flashes = false
 	_ok("the hull bake cache stays capped (%d)" % JumpHull._cache.size(), JumpHull._cache.size() <= JumpHull.CACHE_MAX)
+	_ok("no script or engine error in the whole run (%d: %s)" % [_errs.n, _errs.first.slice(0, 3)], _errs.n == 0)
+	OS.remove_logger(_errs)
 	h.verdict("jumpseqtest")
 	_tree.quit(h.code())

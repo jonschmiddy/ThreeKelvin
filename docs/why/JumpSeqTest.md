@@ -29,3 +29,13 @@ in numbers, on `--fixed-fps 60` with `Router.animate_in_harness`, through `Route
 Headless there is no render, so the bake falls back to the CPU canvas and the shaders are
 never compiled: what the picture looks like is `JumpCine whole` and `films`, judged by eye
 against the approved strips (`tools/dev/jump_compare.py`).
+
+## A dead film fails
+
+Merging the slices showed the test printing PASS over a film that broke mid-run: a script
+error inside a film's checks (or inside the film) ends that coroutine, the checks after it
+never run, and a harness that only counts failed checks has nothing to count. So the test
+keeps an engine logger (`ErrCount`, as `FlightTest` does) and fails on any error while a
+film plays, and every film must append itself to `_finished` after its last check; the run
+fails unless that list is exactly `JumpRegistry.ALL`. The pick check draws 120 jumps, not 40:
+with eleven films, forty draws miss one about a fifth of the time over seeds.
