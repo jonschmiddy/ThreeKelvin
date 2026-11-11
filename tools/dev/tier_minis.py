@@ -6,9 +6,9 @@ part-transparent cell), put on one palette per tier with no dither (so nothing c
 turns), kept inside the lamp ring, and written as one strip of square frames:
 tier_<n>.png, 56 px tall, frames side by side, played by TierGalaxy at its ART_FPS.
 
-usage: uv run --with pillow --with numpy python tools/dev/tier_minis.py RAW_DIR OUT_DIR [tiers] [--fx M3|K1|K2|K3]
-  M3 (Jon's pick, round 3): K1's heat without sparks, ramping within each form (`ACT`), with
-  flares; tier 10's stream runs with stars and its giant is set back.
+usage: uv run --with pillow --with numpy python tools/dev/tier_minis.py RAW_DIR OUT_DIR [tiers] [--fx M4|K1|K2|K3]
+  M4 (Jon's rounds 3 and 4): K1's heat without sparks or flicker, ramping within each form
+  (`ACT`), with slow bursts of light; tier 10's stream runs with stars, its giant set back.
   --fx: the tier's intensity drawn over the turn, rising 0 to 10 (Jon, Nov 11), in whole cells:
   K1 heat (warmer palette, a bigger brighter core, more sparks lit), K2 storm (the body boils
   in moving patches, its edge frays), K3 pressure (a pulsing halo round it, debris thrown off).
@@ -287,54 +287,77 @@ ACT = [0.0, 1 / 3, 2 / 3, 1.0, 0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 1.0]
 DARK = 0.5
 
 
-def m3(cells, keeps, t):
-    """Jon's heat, round 3: no sparks. One number a tier (ACT) drives it all: the light (dark
-    at a form's first tier), the warmth, the core's size and whiteness, a glow round the core
-    that swells, and flares: patches that flash white and fade, more, bigger and more often
-    up the form. Tier 0 has none of it moving but its turn."""
+def m4(cells, keeps, t):
+    """Jon's round 4: no flicker, nothing shaking. One number a tier (ACT) drives the light
+    (dark at a form's first tier), the warmth, a still core whiter up the form that breathes
+    slowly, and slow bursts: a patch of the core or an arm brightens over half a second to a
+    second, blooms a glow out a cell or two, and fades over one to two. Up the form they come
+    more often, bigger and brighter, and overlap. Nothing moves but the turn."""
     act = ACT[t]
     n = len(cells)
-    rnd = np.random.RandomState(500 + t)
+    rnd = np.random.RandomState(700 + t)
     yy, xx = np.mgrid[0:CELLS, 0:CELLS]
-    # flares: (start frame, length in frames, chosen cell, radius)
-    flares = []
-    for _ in range(int(round(14 * act * act + 3 * act))):
-        flares.append((rnd.randint(0, n), rnd.randint(5, 10), rnd.rand(), 1 + rnd.randint(0, 1 + int(act))))
-    core_flash = int(round(3 * act)) if act >= 0.5 else 0
-    out = []
-    for k, (a, keep) in enumerate(zip(cells, keeps)):
+    ins = inside_cells()
+    glow_col = np.array(TIER_COL[t] if t > 0 else (120, 150, 200))
+    rate = 0.0 if act <= 0 else 0.12 + 0.55 * act ** 1.2          # bursts a second
+    bursts = []
+    for _ in range(int(round(rate * n / 12.0))):
+        bursts.append((rnd.randint(0, n), rnd.randint(6, 13), rnd.randint(12, 25),
+                       (0.35 + 0.45 * act) * rnd.uniform(0.7, 1.0), 1.5 + 2.5 * act * rnd.rand(),
+                       rnd.rand() < 0.35, rnd.rand()))
+    out, kout = [], []
+    for k, (a, keep0) in enumerate(zip(cells, keeps)):
         u = k / n
         a = a.astype(float)
+        keep = keep0.copy()
         a = PANEL_C + (a - PANEL_C) * (DARK + (1 - DARK) * act)
         warm = np.stack([a[..., 0] * 1.18 + 18, a[..., 1] * 1.0 + 4, a[..., 2] * 0.72], -1)
         a = a + (warm - a) * (0.45 * act)
-        if keep.any():
-            cx, cy = middle(keep, cells[k])
+        if keep0.any():
+            cx, cy = middle(keep0, cells[k])
             d = np.hypot(xx - cx, (yy - cy) * 1.8)
-            sw = 0.5 + 0.5 * math.sin(2 * math.pi * u * (1 + round(2 * act)))
-            # the glow: brighter toward the middle, swelling and settling
-            g = act * (0.18 + 0.22 * sw) * np.exp(-d / (3.0 + 4.0 * act))
-            a = np.where(keep[..., None], a + (WHITE - a) * g[..., None], a)
-            core = keep & (d <= 1.0 + 1.6 * act + 0.8 * act * sw)
-            a[core] = a[core] + (WHITE - a[core]) * (0.2 + 0.35 * act)
-            # the core's flash: fast up, slower down
-            for c in range(core_flash):
-                age = (k - int(n * c / core_flash)) % n
-                if age < 8:
-                    f = (1.0 if age < 2 else math.exp(-(age - 1) / 2.0)) * act
-                    m = keep & (d <= 1.5 + 2.0 * act)
-                    a[m] = a[m] + (WHITE - a[m]) * f
-            ys, xs = np.nonzero(keep & (lum(a) > np.percentile(lum(a)[keep], 40)))
-            for (st, ln, sel, r) in flares:
+            # the core: still in size, whiter up the form, breathing slowly
+            breath = 0.5 - 0.5 * math.cos(2 * math.pi * u * max(1, round(n / 12.0 / 4.0)))
+            g = act * (0.10 + 0.14 * breath) * np.exp(-d / (2.5 + 3.0 * act))
+            a = np.where(keep0[..., None], a + (WHITE - a) * g[..., None], a)
+            core = keep0 & (d <= 1.0 + 1.6 * act)
+            a[core] = a[core] + (WHITE - a[core]) * (0.2 + 0.3 * act)
+            lift = np.zeros((CELLS, CELLS))
+            for (st, rise, fall, peak, r0, at_core, sel) in bursts:
                 age = (k - st) % n
-                if age >= ln or not len(ys):
+                if age >= rise + fall:
                     continue
-                f = 1.0 if age < 2 else math.exp(-(age - 1) / (ln / 3.0))
-                i = int(sel * len(ys)) % len(ys)
-                m = keep & (np.hypot(xx - xs[i], (yy - ys[i]) * 1.6) <= r)
-                a[m] = a[m] + (WHITE - a[m]) * (0.5 + 0.35 * act) * f
+                if age < rise:
+                    e = age / rise
+                    e = e * e * (3 - 2 * e)
+                else:
+                    e = 1 - (age - rise) / fall
+                    e = e * e * (3 - 2 * e)
+                # where: the core, or a bright patch of the arms, fixed for the burst's life
+                if at_core:
+                    bx, by = cx, cy
+                else:
+                    sk = cells[st % n]
+                    kk = keeps[st % n]
+                    lv = lum(sk)
+                    ys, xs = np.nonzero(kk & (lv > np.percentile(lv[kk], 55))) if kk.any() else ((), ())
+                    if not len(ys):
+                        continue
+                    ii = int(sel * len(ys)) % len(ys)
+                    bx, by = xs[ii], ys[ii]
+                r = r0 * (1.0 + 0.6 * e)
+                dd = np.hypot(xx - bx, (yy - by) * 1.6)
+                lift = np.maximum(lift, peak * e * np.clip(1.0 - dd / (r + 1.0), 0, 1))
+            # in whole steps, so the glow is rings of cells, not a blur
+            lift = np.floor(lift / 0.12) * 0.12
+            on = keep0 & (lift > 0)
+            a[on] = a[on] + (WHITE - a[on]) * lift[on][:, None]
+            bloom = ~keep0 & ins & (lift >= 0.24)
+            a[bloom] = PANEL_C + (glow_col - PANEL_C) * np.clip(lift[bloom] * 1.4, 0, 0.8)[:, None]
+            keep |= bloom
         out.append(a)
-    return out, keeps
+        kout.append(keep)
+    return out, kout
 
 
 # ---------------------------------------------------------------- tier 10: the stream flows
@@ -403,7 +426,7 @@ def main():
     args = sys.argv[1:]
     if "--fx" in args:
         i = args.index("--fx")
-        FX = {"K1": k1, "K2": k2, "K3": k3, "M3": m3}[args[i + 1]]
+        FX = {"K1": k1, "K2": k2, "K3": k3, "M4": m4}[args[i + 1]]
         args = args[:i] + args[i + 2:]
     raw, out = args[0], args[1]
     tiers = [int(a) for a in args[2:]] or list(range(11))
