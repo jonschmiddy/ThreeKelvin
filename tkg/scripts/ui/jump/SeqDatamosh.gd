@@ -823,7 +823,8 @@ func _deal_stamps(tt: float, a: float) -> void:
 func _freeze() -> void:
 	_froze = true
 	var img: Image = null
-	if is_instance_valid(_out) and _out.get_texture() != null:
+	# (headless the dummy renderer has no texture to read: the freeze holds the live picture)
+	if not LocalSky.headless() and is_instance_valid(_out) and _out.get_texture() != null:
 		img = _out.get_texture().get_image()
 	if img != null and not img.is_empty():
 		img.convert(Image.FORMAT_RGB8)
