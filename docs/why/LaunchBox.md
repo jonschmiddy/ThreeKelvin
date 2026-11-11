@@ -59,10 +59,17 @@ outside the ring on any frame.
 Then on C2 (Nov 11): "having more of a toy view of the galaxy type with more intense
 motion as the tier goes up would be better. The little icons showing what the tier adds
 or changes about the game is cool, but they don't work here", and "more like a
-pixelated and stylized icon". So `ART` is "" (the drawn galaxy shows) while he picks
-from twelve icon themes; C2's strips stay in `art/ui/tiers`. A strip now plays as one
-loop of `ART_LOOP` seconds whatever its frame count, so the icons can run at 16 frames
-a second for a smooth turn.
+pixelated and stylized icon". So `ART` is "" (the drawn galaxy shows) while he picks;
+C2's strips stay in `art/ui/tiers`. Twelve icon themes, then three crisp ones, missed:
+"I just want a stylized pixelated animated image of the galaxies viewed head on at an
+angle (kinda like the star chart rn)". So M1 is the star chart's own render, not a copy
+of it: `TierMiniBake` opens the real chart on a run at the tier (one of the form's kinds,
+in turn), icons off, and stills one whole turn; `tools/dev/tier_minis.py` cuts that down
+to 56 cells (drawn 2x) on one flat palette a tier, no dither, hard edges, inside the ring.
+A strip is square frames of any size side by side, played at `ART_FPS`. The turn takes
+24 s at tier 0 and 8 s at tier 10; the dwarf is shown with four rings torn away. Driving
+the chart live in the box was not tried: it bakes per galaxy, reads the run's galaxy from
+`Run`, and its sky drew nothing in a small SubViewport.
 
 The twelve icon themes were "muddy" (Nov 11). Part of that was the shots: the sheet ran
 in a 960x540 window, where the default screen look (CRT_GENTLE's curve) resamples the

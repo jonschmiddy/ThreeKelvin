@@ -125,7 +125,7 @@ func _film(which: String) -> void:
 			continue
 		box.pick(t)
 		await _secs(0.3)
-		for k in maxi(1, box.galaxy._art_n):
+		for k in mini(maxi(1, box.galaxy._art_n), int(Harness.arg("filmmax", "100000"))):
 			TierGalaxy.hold_frame = k
 			await Harness.frames(get_tree(), 3)
 			var img := get_tree().root.get_texture().get_image()

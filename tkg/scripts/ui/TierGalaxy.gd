@@ -20,11 +20,11 @@ const LAMP_R := 52.0
 const RING := Color8(30, 42, 57)
 const LAMP_RIM := Color8(9, 13, 20)
 const LAMP_OFF := Color8(44, 60, 78)
-## The tier's picture: a strip of 112 px frames, `tier_<n>.png`, one loop of ART_LOOP s on
-## GameClock. Off ("") while Jon picks a toy galaxy; C2's strips stay in art/ui/tiers.
+## The tier's picture: a strip of square frames, `tier_<n>.png`, drawn G px across and
+## played at ART_FPS on GameClock. Off ("") until Jon picks; C2's strips stay in art/ui/tiers.
 ## Why: docs/why/LaunchBox.md#the-pictures
 const ART := ""
-const ART_LOOP := 5.0
+const ART_FPS := 12.0
 ## Dev switches: a folder of draft strips (`-- sheet=LaunchBoxShot tierart=<dir>`), and a held frame.
 static var art_dir := ""
 static var hold_frame := -1
@@ -121,7 +121,7 @@ func set_tier(t: int) -> void:
 	_mat.set_shader_parameter(&"panel", Vector3(PANEL.r, PANEL.g, PANEL.b))
 	_tick = -1
 	_art = _load_art()
-	_art_n = 0 if _art == null else _art.get_width() / G
+	_art_n = 0 if _art == null else _art.get_width() / _art.get_height()
 	_art_k = -1
 	_body.visible = _art == null
 	tooltip_text = rules_text()
@@ -141,7 +141,7 @@ func _load_art() -> Texture2D:
 func art_frame() -> int:
 	if _art_n == 0:
 		return -1
-	return posmod(hold_frame if hold_frame >= 0 else int(GameClock.now() * _art_n / ART_LOOP), _art_n)
+	return posmod(hold_frame if hold_frame >= 0 else int(GameClock.now() * ART_FPS), _art_n)
 
 
 func _seed_stars() -> void:
@@ -223,7 +223,8 @@ func _draw() -> void:
 	if _art != null:
 		for q in _ring:
 			draw_rect(Rect2(q, Vector2.ONE), RING)
-		draw_texture_rect_region(_art, Rect2(0, 0, G, G), Rect2(maxi(art_frame(), 0) * G, 0, G, G))
+		var fh := float(_art.get_height())
+		draw_texture_rect_region(_art, Rect2(0, 0, G, G), Rect2(maxi(art_frame(), 0) * fh, 0, fh, fh))
 		return
 	for p in far:
 		draw_rect(Rect2(p.x, p.y, 1, 1), Color8(40, 52, 68) if (p.x * 7 + p.y * 13) % 10 < 7 else Color8(70, 84, 104))
