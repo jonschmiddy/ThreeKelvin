@@ -11,6 +11,14 @@ the hull at 0.25, before the slam lights it.
 The sink is the hull's ink centroid on screen (`JumpPlace.centroid`), not its box's middle,
 as the film's was.
 
+What differs from the film, and why:
+
+- The film's beat rings started at REACH[0] x 1.5 (150 px); so do these, scaled by the hull.
+- The bloom is off, as the film's was for R14; the flash is the shared finish pass.
+- The sky is the system's own. A starrier sky than the film's (the test system had about three
+  times its stars) pours as more streaks, so it flickers more: flick-back 0.5-0.7% a second
+  through the pour against the film's 0.2-0.3%, the same through the crunch and the burst.
+
 ## Pour
 
 Every pixel at distance r from the sink shows the world from further out along its ray,
@@ -24,6 +32,10 @@ The film's sky was a capture with the GOAL readout baked into it under its HUD b
 film patched that out of the art so the pour could not drag it. In the game the goal line is a
 live Control drawn after EncounterView, not part of the picture the stage copies, so there is
 nothing to patch: it stays where it is over the void, as the film's did.
+
+The stars are taken out of what pours, as the film's BARE sky was: the pass subtracts each
+found star's light from the texel it sits on, and the star pours as its own streak alone.
+Sampled with the sky, each star also smeared through the six taps as a hopping block.
 
 ## Stars
 

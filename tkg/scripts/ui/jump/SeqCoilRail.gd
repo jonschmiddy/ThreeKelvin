@@ -63,6 +63,7 @@ func _init() -> void:
 	hit_t = T_J
 	cut_t = T_SIL
 	commit_t = 8.8
+	flash_floor = 0.14
 	for i in RN:
 		rxf.append(FILM_NOSE + RING0 + RING_GAP * float(i))
 		fl.append(0.24 + (rxf[i] - FILM_NOSE) / 1500.0)

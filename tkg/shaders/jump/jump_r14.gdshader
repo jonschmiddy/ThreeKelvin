@@ -191,7 +191,7 @@ void fragment() {
 		for (int b = 0; b < 4; b++) {
 			float k2 = beat_k[b];
 			if (k2 >= 0.0) {
-				float rr = 150.0 * hk * 1.5 + 900.0 * pow(k2, 0.8);
+				float rr = 100.0 * hk * 1.5 + 900.0 * pow(k2, 0.8);
 				Lunder += exp(-pow((RP - rr) / 1.4, 2.0)) * 1.1 * exp(-k2 / 0.16) * (J_LIL * 0.5 + J_VIO * 0.5);
 			}
 		}

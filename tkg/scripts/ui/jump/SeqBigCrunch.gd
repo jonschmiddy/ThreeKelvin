@@ -39,6 +39,9 @@ var _det: SubViewport = null
 var _det_frames := 0
 var _det_img: Image = null
 var _det_row := 0
+var _det_data := PackedByteArray()
+## Each sky star's lag behind the burst's front (the film's rng 5, 0-40 px).
+var _lag_rng := RandomNumberGenerator.new()
 var _real_n := 0
 var _sky_org := Vector2.ZERO
 var _backdrop: LocalSky = null
@@ -208,6 +211,7 @@ func _roll_sparks() -> void:
 ## read back once a frame or two in, scanned a few rows a frame, each a two-pixel streak.
 func _start_detector() -> void:
 	var view := stage.get_parent() as EncounterView
+	_lag_rng.seed = 5
 	if view == null or LocalSky.headless():
 		return
 	_backdrop = view.backdrop
@@ -237,30 +241,38 @@ func _poll_detector() -> void:
 		_det_img = _det.get_texture().get_image()
 		if _det_img != null and _det_img.get_format() != Image.FORMAT_RGBA8:
 			_det_img.convert(Image.FORMAT_RGBA8)
+		if _det_img != null:
+			_det_data = _det_img.get_data()
 		_det.queue_free()
 		_det = null
 		return
 	if _det_img == null or _det_row >= _det_img.get_height():
 		return
-	var data := _det_img.get_data()
 	var w := _det_img.get_width()
 	var sc := _backdrop._box.scale.x if _backdrop != null and _backdrop._box != null else 2.0
 	var y1 := mini(_det_row + 68, _det_img.get_height())
 	for y in range(_det_row, y1):
 		for x in w:
 			var i := (y * w + x) * 4
-			if data[i + 3] < 128 or _real_n >= REAL_MAX:
+			if _det_data[i + 3] < 128:
 				continue
 			var at := _sky_org + Vector2(x, y) * sc
-			if not place.window.has_point(at):
+			if _real_n >= REAL_MAX or not place.window.has_point(at):
+				# not drawn as a streak, so not taken out of the sky either
+				_det_data[i + 3] = 0
 				continue
 			var d := at - pc
-			far_real.put(_real_n, Color(float(data[i]) / 255.0, float(data[i + 1]) / 255.0, float(data[i + 2]) / 255.0, 0.0),
-				Color(d.length(), atan2(d.y, d.x), 1.0, 0.0))
+			far_real.put(_real_n, Color(float(_det_data[i]) / 255.0, float(_det_data[i + 1]) / 255.0, float(_det_data[i + 2]) / 255.0, 0.0),
+				Color(d.length(), atan2(d.y, d.x), 1.0, _lag_rng.randf_range(0.0, 40.0)))
 			_real_n += 1
 	_det_row = y1
 	if _det_row >= _det_img.get_height():
+		# the sky that pours is the sky without these stars (the film's BARE): they pour as streaks
+		var img := Image.create_from_data(w, _det_img.get_height(), false, Image.FORMAT_RGBA8, _det_data)
+		stage.set1(&"stars_tex", ImageTexture.create_from_image(img))
+		stage.set1(&"sky_box", Vector4(_sky_org.x, _sky_org.y, sc, 1.0))
 		_det_img = null
+		_det_data = PackedByteArray()
 
 
 ## The hull's textures go to the compose pass, which draws the stand-in.

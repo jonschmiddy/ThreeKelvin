@@ -23,12 +23,33 @@ uniform float rb = 0.0;
 uniform float empty = 1.0;
 uniform float charge = 0.0;
 uniform float kb = -1.0;
+// the sky's stars as found (their light over the ground, on the sky's own texels) and where
+// that picture sits on screen (x, y, scale, on): taken out of what pours, as the film's BARE
+uniform sampler2D stars_tex : filter_nearest, repeat_disable;
+uniform vec4 sky_box = vec4(0.0, 0.0, 2.0, 0.0);
 
 const vec3 VOID = vec3(5.0, 3.0, 10.0) / 255.0;
 const float SPAN = 1.0 / 14.0;
 
 float shock_r(float k) {
 	return 8.0 + 1150.0 * (1.0 - exp(-k / 0.40));
+}
+
+// The world at q with the sky's stars taken out: they pour as streaks of their own.
+vec3 bare(vec2 px, vec2 q) {
+	vec3 c = j_world(screen, px, q, world);
+	if (sky_box.w > 0.5) {
+		vec2 cq = clamp(q, world.xy, world.xy + world.zw - 1.0);
+		ivec2 tx = ivec2(floor((cq - sky_box.xy) / sky_box.z));
+		ivec2 sz = textureSize(stars_tex, 0);
+		if (tx.x >= 0 && tx.y >= 0 && tx.x < sz.x && tx.y < sz.y) {
+			vec4 st = texelFetch(stars_tex, tx, 0);
+			if (st.a > 0.5) {
+				c = max(c - st.rgb, vec3(0.0));
+			}
+		}
+	}
+	return c;
 }
 
 void fragment() {
@@ -51,7 +72,7 @@ void fragment() {
 			for (int j = 0; j < 6; j++) {
 				float A = ab[j].x, B = ab[j].y;
 				float R0 = sqrt(RP * RP + A * A) + B;
-				vec3 src = j_world(screen, px, floor(pc + U * R0 + 0.5), world);
+				vec3 src = bare(px, floor(pc + U * R0 + 0.5));
 				float vf = clamp((R0 - RMAX + 22.0) / 22.0, 0.0, 1.0) > j_dith4(p) ? 1.0 : 0.0;
 				acc += mix(src, VOID, vf);
 				if (j == 0) {
@@ -70,7 +91,7 @@ void fragment() {
 			float push = 34.0 * exp(-kb / 0.30) * exp(-max(S - RP, 0.0) / 55.0);
 			float sp = 6.0 * exp(-kb / 0.5) * sin(TAU * kb / 0.5);
 			float R0 = max(RP - push - sp * clamp(RP / 400.0, 0.0, 1.0), 0.0);
-			sky = j_world(screen, px, floor(pc + U * R0 + 0.5), world);
+			sky = bare(px, floor(pc + U * R0 + 0.5));
 			bool inside = clamp((S - RP) / 6.0, 0.0, 1.0) > j_dith4(p);
 			sky = inside ? sky : VOID;
 		}

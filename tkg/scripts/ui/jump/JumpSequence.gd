@@ -23,6 +23,8 @@ var reduce := false
 var shake := Vector2.ZERO
 ## The full-frame flash this instant, 0..1, for the harnesses.
 var flash := 0.0
+## The flash's frame-wide floor as the film had it (R10's was 0.14).
+var flash_floor := 0.10
 
 ## The smooth noise the films shook with (`smooth_noise`, seeds 1 and 2): the rolled rates at
 ## 15 Hz (r4, r12); another film's rate scales them (R10 17 Hz, R14 14 Hz), the phases stay.
@@ -88,6 +90,6 @@ func set_shake(sh: Vector2) -> void:
 func set_flash(fl: float, centre: Vector2, sy: float) -> void:
 	flash = minf(fl, 0.35) if reduce else fl
 	stage.set2(&"flash", flash)
-	stage.set2(&"flash_floor", 0.0 if reduce else 0.10)
+	stage.set2(&"flash_floor", 0.0 if reduce else flash_floor)
 	stage.set2(&"flash_sy", sy)
 	stage.set2(&"centre", centre)

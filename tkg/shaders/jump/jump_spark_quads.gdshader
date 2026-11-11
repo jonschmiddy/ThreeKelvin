@@ -76,9 +76,9 @@ void vertex() {
 				float speed = (r0 - r1) / 0.14;
 				float hot = clamp(speed / 900.0, 0.0, 1.5) + 1.2 * exp(-max(r1 - rb, 0.0) / 90.0) * p_t;
 				if (kind == 0) {
-					// the poured sky shows the star itself: only its heat and its tail are added
-					hc = base * 1.5 * hot + hot * (60.0 / 255.0) * R14_LIL;
-					tc = (base * (1.0 + 1.5 * hot) + hot * (60.0 / 255.0) * R14_LIL) * 0.85;
+					// the poured sky has its stars taken out: each is this streak alone, as the film's
+					hc = base * (1.0 + 1.5 * hot) + hot * (60.0 / 255.0) * R14_LIL;
+					tc = hc * 0.85;
 				} else {
 					vec3 col = base * (eb * vis * (110.0 + 120.0 * hot) / 255.0);
 					hc = col;
@@ -86,6 +86,19 @@ void vertex() {
 				}
 				on = true;
 			}
+		} else if (phase == 2 && kind == 0) {
+			// the sky's own stars ride out behind the front and spring home, still ones on their pixel
+			r1 = burst_pos(R0, kb, lag);
+			r0 = kb > 0.0 ? burst_pos(R0, max(kb - 0.04, 0.0), lag) : 0.0;
+			float sp = abs(r1 - r0) / 0.04;
+			float shot = clamp(sp / 1600.0, 0.0, 0.6);
+			if (sp < 2.0 && abs(r1 - R0) < 0.5) {
+				r1 = R0;
+				r0 = R0;
+			}
+			hc = base * (1.0 + 1.2 * shot) + shot * (40.0 / 255.0) * R14_LIL;
+			tc = hc * 0.85;
+			on = true;
 		} else if (phase == 2 && kind != 0) {
 			float vb = 1.0 - j_ease((kb - 0.25) / 0.9);
 			if (vb > 0.005) {

@@ -20,6 +20,19 @@ R10's mix is the one whose hit is a climb, not an onset: seven punches each loud
 jump's boom. `jump_cues.py` lists it in RAMP, so its onset is recorded but not held to the
 jump's time.
 
+What differs from the film, and why:
+
+- The bloom is sparse taps, not two box blurs (`docs/why/JumpStage.md#finish-pass`), so a
+  flared ring's white is a little crisper and its vertical flare thinner.
+- The rail's flash bar ramps in over 220 px whatever the room; the rest of the flash is the
+  film's (falloff 200 px, frame-wide floor 0.14, `JumpSequence.flash_floor`).
+- The stars, sun and worlds are the system's own LOCAL, not the film's capture.
+
+Measured beside the film (60 fps, the LOCAL window): pixels changed per frame and flick-back
+(a pixel back to its value of two frames before) match it second by second, 2.75% against
+2.89% flick-back in the run's second, 0.5% or less everywhere else. With 240 px less room
+ahead (a convoy pad) the seven rings close up to 48 px apart and the run still lands on them.
+
 ## World pass
 
 One `canvas_item` shader on the stage draws the film's frame: the bow emitter and the seam

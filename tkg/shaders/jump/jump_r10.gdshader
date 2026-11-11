@@ -106,10 +106,10 @@ vec3 blur_pt(vec2 p, vec2 at, float mass, vec3 col) {
 	return g * col;
 }
 
-vec3 ring_col(float E) {
-	float a = clamp(E - 0.3, 0.0, 1.0);
+vec3 ring_col(float en) {
+	float a = clamp(en - 0.3, 0.0, 1.0);
 	vec3 cc = mix(VIO, MAG, a);
-	float w = clamp((E - 1.6) / 2.5, 0.0, 1.0);
+	float w = clamp((en - 1.6) / 2.5, 0.0, 1.0);
 	return mix(cc, WHT, w);
 }
 
@@ -125,12 +125,12 @@ float glints(float th) {
 }
 
 // One point of the ring's curve seen from pixel p: the line there, its band, its glow.
-void ring_pt(float th, float d, float d2, bool front, float n, float E, float rri, bool glow, vec3 col, vec3 cf,
+void ring_pt(float th, float d, float d2, bool front, float n, float en, float rri, bool glow, vec3 col, vec3 cf,
 		inout vec3 Lf, inout vec3 Lb, inout vec3 Lg) {
 	float kn = 1.0 / sqrt(1.0 + n / 120.0);
 	float nd = glints(th - rri);
-	float wf = E * (0.55 + 0.9 * nd) * kn;
-	float wb = E * (0.20 + 0.45 * nd) * kn;
+	float wf = en * (0.55 + 0.9 * nd) * kn;
+	float wb = en * (0.20 + 0.45 * nd) * kn;
 	if (d < 0.5) {
 		if (front) {
 			Lf += wf * 1.6 * cf;
@@ -142,27 +142,27 @@ void ring_pt(float th, float d, float d2, bool front, float n, float E, float rr
 		Lf += wf * 0.7 * col;
 	}
 	if (glow) {
-		Lg += E * 0.9 * kn * (0.6 * tent(d, 5.0) + 0.1333 * tent(d, 15.0)) * col;
+		Lg += en * 0.9 * kn * (0.6 * tent(d, 5.0) + 0.1333 * tent(d, 15.0)) * col;
 	}
 }
 
-// A ring (cx, R, E, squash) at yaw, spun to rri, as the film plotted it: points along the
+// A ring (cx, R, energy, squash) at yaw, spun to rri, as the film plotted it: points along the
 // ellipse (x = cx + rx sin th, y = ax + ry cos th), the near arc (sin th <= 0.05) in front of
 // the hull with a second line a pixel left of it, the far arc behind, the glow seeds blurred.
 // The points bunch where the curve turns, so the light is their density per pixel.
 void ring_add(vec2 p, vec4 prm, float yaw, float rri, bool glow, inout vec3 Lf, inout vec3 Lb, inout vec3 Lg) {
-	float cx = prm.x, R = prm.y, E = prm.z, sq = prm.w;
+	float cx = prm.x, R = prm.y, en = prm.z, sq = prm.w;
 	if (R < 0.6) {
 		if (p.x == floor(cx + 0.5) && p.y == ax) {
-			Lf += E * 1.4 * WHT;
+			Lf += en * 1.4 * WHT;
 		}
 		return;
 	}
 	float n = TAU * R * 1.4 + 12.0;
 	float ry = R * (1.0 + sq);
 	float rx = max(R * yaw * (1.0 - 2.5 * sq), 1.0);
-	vec3 col = ring_col(E);
-	vec3 cf = E > 1.2 ? ROSE * 0.5 + col * 0.5 : col;
+	vec3 col = ring_col(en);
+	vec3 cf = en > 1.2 ? ROSE * 0.5 + col * 0.5 : col;
 	float dx = p.x - cx, dy = p.y - ax;
 	float uy = dy / ry, ux = dx / rx;
 	vec3 Lf2 = vec3(0.0), Lb2 = vec3(0.0), Lg2 = vec3(0.0);
@@ -180,7 +180,7 @@ void ring_add(vec2 p, vec4 prm, float yaw, float rri, bool glow, inout vec3 Lf, 
 				float dens = n / TAU / max(speed, 0.5);
 				float d = abs(dx - float(g) * xs) * sl;
 				float d2 = abs(dx + 1.0 - float(g) * xs) * sl;
-				ring_pt(th, d, d2, ex <= 0.05, n, E * dens, rri, glow, col, cf, Lf2, Lb2, Lg2);
+				ring_pt(th, d, d2, ex <= 0.05, n, en * dens, rri, glow, col, cf, Lf2, Lb2, Lg2);
 			}
 		}
 	}
@@ -198,7 +198,7 @@ void ring_add(vec2 p, vec4 prm, float yaw, float rri, bool glow, inout vec3 Lf, 
 				float dens = n / TAU / max(speed, 0.5);
 				float d = abs(dy - float(g) * ys) * sl;
 				float d2 = abs(dy - float(g) * ys) * sl + 1.0;
-				ring_pt(th, d, d2, ux <= 0.05, n, E * dens, rri, glow, col, cf, Lf2, Lb2, Lg2);
+				ring_pt(th, d, d2, ux <= 0.05, n, en * dens, rri, glow, col, cf, Lf2, Lb2, Lg2);
 			}
 		}
 	}
