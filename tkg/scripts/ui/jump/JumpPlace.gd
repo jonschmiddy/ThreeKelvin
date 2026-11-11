@@ -18,6 +18,8 @@ var canvas := Rect2()
 var ink := Rect2()
 var core := Vector2.ZERO
 var pc := Vector2.ZERO
+## The ink's centre of mass on screen (R14's sink), off the live canvas at every other pixel.
+var centroid := Vector2.ZERO
 var room := FILM_ROOM
 var hull_k := 1.0
 
@@ -32,6 +34,17 @@ static func measure(view: EncounterView, art: ShipView) -> JumpPlace:
 	p.ink = Rect2(org + Vector2(used.position), Vector2(used.size))
 	p.core = p.ink.position + Vector2(roundf(CORE_AT.x * p.ink.size.x), roundf(CORE_AT.y * p.ink.size.y))
 	p.pc = p.ink.get_center()
+	var img := art.canvas()
+	var sx := 0.0
+	var sy := 0.0
+	var cnt := 0
+	for y in range(used.position.y, used.end.y, 2):
+		for x in range(used.position.x, used.end.x, 2):
+			if img.get_pixel(x, y).a > 0.0:
+				sx += x
+				sy += y
+				cnt += 1
+	p.centroid = org + Vector2(sx, sy) / maxf(cnt, 1.0) if cnt > 0 else p.pc
 	p.room = maxf(p.window.end.x - p.ink.end.x, 60.0)
 	p.hull_k = clampf(p.ink.size.x / FILM_SHIP.size.x, 0.7, 1.3)
 	return p

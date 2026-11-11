@@ -1,4 +1,22 @@
 {
+ "r10": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r10_build",
+   "len": 4.86
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 4.86,
+  "file": "SeqCoilRail.gd",
+  "hit": {
+   "at": 4.86,
+   "cue": "jump_r10_hit",
+   "len": 5.14,
+   "onset": 5.2142
+  },
+  "hit_t": 5.424,
+  "lufs": -15.8
+ },
  "r12": {
   "build": {
    "at": 0.0,
@@ -15,6 +33,24 @@
    "onset": 6.1089
   },
   "hit_t": 6.1033,
+  "lufs": -15.8
+ },
+ "r14": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r14_build",
+   "len": 5.62
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.62,
+  "file": "SeqBigCrunch.gd",
+  "hit": {
+   "at": 5.62,
+   "cue": "jump_r14_hit",
+   "len": 4.38,
+   "onset": 6.3084
+  },
+  "hit_t": 6.3,
   "lufs": -15.8
  },
  "r4": {
