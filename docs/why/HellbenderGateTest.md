@@ -21,7 +21,11 @@ label all read), ENGAGE nowhere, and the WANTED posters not stamped
 DESTROYED (`Run.hellbender_destroyed`). The hiring boards' own paper still
 names it, as the hint. At ascension 7, the same seeds spawn it at its
 template hull in the middle shells, and the world around it is the one
-level 0 rolled (its place is a positional roll, so nothing else moves). A
+tier 7 rolls with the Hellbender kept off (`Run.hellbender_off`, the sim's
+control seam): its place is a positional roll, so nothing else moves. Until
+Tiers (Nov 10) the comparison was against level 0's world; since then the
+galaxy takes the tier's form from tier 1 (`Ladder.roll_kind`), so level 7
+is rightly a ball galaxy and level 0's world is not the measure. A
 dev's `-- fight foe=hellbender` at level 0 opens at its template hull, not
 at 1 (`Router.start_combat` read a dead rival's hull of 0). A save from
 before the level (VERSION 40) loads at 0.

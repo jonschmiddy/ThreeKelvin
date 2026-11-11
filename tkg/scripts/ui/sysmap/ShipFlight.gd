@@ -2025,6 +2025,9 @@ const CLICK_GAIN := 0.15
 ## whether the last click flew a flight planned at it, not the one drawn (a
 ## harness reads it)
 var click_replanned := false
+## THE ARRIVAL ASKED FOR at a world (`ArriveSide`: side, sense, lit), set by the map each
+## frame from the hover and Shift; empty, the autopilot arrives as it likes
+var wish: Dictionary = {}
 
 
 ## Whether a flight planned at the click (pn) goes before the drawn one (pv).
@@ -2045,7 +2048,7 @@ func _tgt_of(i: int) -> Dictionary:
 		return {"kind": &"keep", "place": i, "off": KEEP_OFF}
 	if SystemLayout.is_star(i):
 		return {"kind": &"ring", "place": i, "R": orbit_r(i), "V": STAR_RAIL_V, "sense": 0}
-	return {"kind": &"ring", "place": i, "R": orbit_r(i), "V": RAIL_V, "sense": 0}
+	return ArriveSide.ring_target(i, orbit_r(i), RAIL_V, wish)
 
 
 ## A solved flight as a FlightPlan, with the insertion after it drawn.
@@ -2082,7 +2085,10 @@ func make_plan(i: int, t: float, prefer: Dictionary = {}, ahead := 0.0) -> Fligh
 		ahead = 0.0
 	var pf := prefer if int(prefer.get("v", -1)) == FlightSolve.CHOICE_V else {}
 	var o := flight_opts()
-	var r := FlightSolve.solve(_grav_at(float(o.pace)), dep, _tgt_of(i), t + ahead, pf, o)
+	var tg := _tgt_of(i)
+	var r := FlightSolve.solve(_grav_at(float(o.pace)), dep, tg, t + ahead, pf, o)
+	if not r.found and tg.has("side"):
+		r = ArriveSide.unsided_solve(_grav_at(float(o.pace)), dep, tg, t + ahead, pf, o)
 	last_ms = float(r.usec) / 1000.0
 	last_bg = false
 	if r.found:
@@ -2456,6 +2462,8 @@ func plan_bg(i: int, t: float, prefer: Dictionary, use: StringName, lay := 0) ->
 	var only_old := old_only
 	var task := WorkerThreadPool.add_task(func() -> void:
 		var r := FlightSolve.Result.new() if only_old else FlightSolve.solve(G, d2, t2, ts, p2, o)
+		if not r.found and not only_old and t2.has("side"):
+			r = ArriveSide.unsided_solve(G, d2, t2, ts, p2, o)
 		held.r = r
 		var pl = null
 		if r.found:
@@ -4037,7 +4045,7 @@ func _lam(r1: Vector3, r2: Vector3, T: float, kf: float, full := true) -> Dictio
 		return {}
 	var a := (f1.length() + f2.length()) / 2.0
 	var tof := kf * dth * sqrt(a * a * a)
-	var sol := lambert(f1, f2, dth, tof)
+	var sol := LambertSpace.solve(f1, f2, dth, tof)
 	if sol.is_empty():
 		if why:
 			print("    lambert: no solution, dth %.2f r1 %.0f r2 %.0f" % [dth, f1.length(), f2.length()])
@@ -4383,88 +4391,6 @@ func _arrived() -> void:
 		var d := _fly_done
 		_fly_done = Callable()
 		d.call()
-
-
-# ---------------------------------------------------------------- the transfer orbit
-static func _stc(z: float) -> float:
-	if z > 1e-6:
-		var s := sqrt(z)
-		return (1.0 - cos(s)) / z
-	if z < -1e-6:
-		var s := sqrt(-z)
-		return (cosh(s) - 1.0) / -z
-	return 0.5
-
-
-static func _sts(z: float) -> float:
-	if z > 1e-6:
-		var s := sqrt(z)
-		return (s - sin(s)) / (s * s * s)
-	if z < -1e-6:
-		var s := sqrt(-z)
-		return (sinh(s) - s) / (s * s * s)
-	return 1.0 / 6.0
-
-
-## LAMBERT'S PROBLEM by universal variables (mu 1): the conic from r1 to r2
-## sweeping dth in time tof; [v1, v2], or [] when it has none.
-static func lambert(r1v: Vector3, r2v: Vector3, dth: float, tof: float) -> Array:
-	var r1 := r1v.length()
-	var r2 := r2v.length()
-	var A := sin(dth) * sqrt(r1 * r2 / (1.0 - cos(dth)))
-	var zhi := 4.0 * PI * PI - 1e-3
-	# Time rises with z wherever the conic exists, so find its edge then bisect to the time.
-	var lo := -100.0
-	var tlo := _tof(lo, r1, r2, A)
-	if is_nan(tlo):
-		var prev := lo
-		var found := false
-		for j in range(1, 41):
-			var z := -100.0 + (zhi + 100.0) * j / 40.0
-			if not is_nan(_tof(z, r1, r2, A)):
-				var bad := prev
-				var good := z
-				for _e in 24:
-					var mz := (bad + good) / 2.0
-					if is_nan(_tof(mz, r1, r2, A)):
-						bad = mz
-					else:
-						good = mz
-				lo = good
-				tlo = _tof(lo, r1, r2, A)
-				found = true
-				break
-			prev = z
-		if not found:
-			return []
-	var hi := zhi
-	var thi := _tof(hi, r1, r2, A)
-	if is_nan(thi) or tlo > tof or thi < tof:
-		return []
-	for _it in 46:
-		var m := (lo + hi) / 2.0
-		var tm := _tof(m, r1, r2, A)
-		if is_nan(tm) or tm < tof:
-			lo = m
-		else:
-			hi = m
-	var best := (lo + hi) / 2.0
-	if is_nan(best):
-		return []
-	var y := r1 + r2 + A * (best * _sts(best) - 1.0) / sqrt(_stc(best))
-	var fl := 1.0 - y / r1
-	var g := A * sqrt(y)
-	var gd := 1.0 - y / r2
-	if absf(g) < 1e-9:
-		return []
-	return [(r2v - r1v * fl) / g, (r2v * gd - r1v) / g]
-
-
-static func _tof(z: float, r1: float, r2: float, A: float) -> float:
-	var y := r1 + r2 + A * (z * _sts(z) - 1.0) / sqrt(_stc(z))
-	if not (y > 0.0):
-		return NAN
-	return pow(y / _stc(z), 1.5) * _sts(z) + A * sqrt(y)
 
 
 static func _acc(p: Vector3) -> Vector3:

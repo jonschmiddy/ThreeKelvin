@@ -76,9 +76,10 @@ Python tools run through uv, for example:
 - **Releases are built from a clean detached copy** of the landed commit
   (`release.sh` does this). Zips are not uploaded anywhere; Jon shares them.
 - **Saves:** a change to what a save holds raises `SaveGame.VERSION` and keeps
-  every version since 29 loading (`.github/scripts/version_guard.py`). Never
-  raise `RunHistory.VERSION`: it discards the whole flight record, unlocks
-  included.
+  every version since 29 loading (`.github/scripts/version_guard.py`). A new
+  key on the flight record raises `RunHistory.VERSION` AND adds the old number
+  to `RunHistory.READS`: a version it does not read is the whole record gone,
+  unlocks included.
 
 ## Handoff, Nov 8
 

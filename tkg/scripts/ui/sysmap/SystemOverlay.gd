@@ -1313,7 +1313,7 @@ func _draw_paths(t: float) -> void:
 	if SystemLayout.is_place(preview_to) and can and flight.orbit_body() != preview_to:
 		var in_orbit: bool = flight.mode == &"rail" and not flight.inserting()
 		# (the AUTOPILOT setting's path too: changed, the line is planned again)
-		var key := "%d:%d:%d:%s:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode, flight.flight_opts().path]
+		var key := "%d:%d:%d:%s:%s:%s" % [preview_to, flight.orbit_body() if in_orbit else -9, roundi(float(flight.rail.get("rt", 0.0))) if in_orbit else 0, flight.mode, flight.flight_opts().path, ArriveSide.key(flight.wish)]
 		# Replan every 3 s on a ring, every 1 s alongside
 		# or round a star orbit, and as departure nears.
 		var every := 3.0 if in_orbit else 1.0
@@ -2494,6 +2494,9 @@ func tip_lines(h: Dictionary) -> Array:
 			var here: bool = flight != null and flight.reached() == int(h.body)
 			lines.append(["%d %s · %s" % [b.beacons.size(), "EVENT" if b.beacons.size() == 1 else "EVENTS", "OPEN" if here else ("OPEN ALONGSIDE" if b.kind == &"belt" or b.kind == &"station" else "OPEN IN ORBIT")], UITheme.EMBER])
 		lines.append_array(_click_line(int(h.body)))
+		# THE SIDE AND WAY ROUND a second click arrives (`ArriveSide`), while one would fly
+		if h.has("side") and selected == int(h.body) and flight != null and flight.reached() != int(h.body) and flight.can_fly() and not clicks_held:
+			lines.append_array(ArriveSide.words(int(h.side), ArriveSide.spin_of(view, L, int(h.body)), ArriveSide.shift_held()))
 	elif h.kind == &"comet" and L.comet != null:
 		lines.append([L.comet.name, UITheme.ICE])
 		lines.append([CometPath.KIND, UITheme.COLD])
@@ -2540,6 +2543,9 @@ func tip_lines(h: Dictionary) -> Array:
 func _draw_tip() -> void:
 	var h := hover
 	var tl := tip_lines(h)
+	# (the half a click arrives on, marked on the hover ring while the tag names it)
+	if (tl[0] as Array).size() > 1 and String((tl[0] as Array)[-2][0]).contains(" SIDE · "):
+		ArriveSide.draw_half(self, view, int(h.body), int(h.side), _reach(int(h.body)) + 2.0, Color(UITheme.EMBER, maxf(0.15, _hover_t)))
 	var lines: Array = tl[0]
 	var ls: Array = []
 	for l in lines:
@@ -2695,6 +2701,9 @@ func hit(p: Vector2) -> Dictionary:
 			continue
 		var at: Vector2 = view.at[i]
 		if p.distance_to(at) <= maxf(view.draw_r(b), 4.0) + 3.0 and not _behind_sun(view.pos[i], p):
+			# (a world's lit or dark half under the pointer: `ArriveSide`)
+			if b.world != &"":
+				return {"kind": &"body", "body": i, "beacon": null, "at": at, "side": ArriveSide.side_at(view, i, p)}
 			return {"kind": &"body", "body": i, "beacon": null, "at": at}
 	# A click where two suns overlap is on the sun drawn on top, the nearer.
 	for s: int in _suns_near_first():

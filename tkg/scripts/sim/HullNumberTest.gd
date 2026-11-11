@@ -151,6 +151,10 @@ func _check(cs: ChassisSelect, manufacturer: StringName, w: HullData.Weight, scr
 ## Every Control under `root` that puts ink on the screen.
 func _drawn(root: Node) -> Array[Control]:
 	var out: Array[Control] = []
+	# (the banner yard's hall is the band's backdrop, words on the floor by design;
+	# the yard's own test box-tests its hulls and banners against the band)
+	if root is YardFront:
+		return out
 	if root is Control and (root as Control).is_visible_in_tree() and (
 			root is Label or root is BaseButton or root is TextureRect
 			or root is AttrBlock.Cells or root is ShipView or root is ChassisSelect.Banner):

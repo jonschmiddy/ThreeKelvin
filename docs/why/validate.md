@@ -456,6 +456,15 @@ each spot within Jon's limits (Nov 9, "M1"): median 4.5 s, 90th 7.5 s, worst
 8 s. It measured 4.30/6.92/7.42, 3.42/5.92/7.44 and 2.55/4.89/7.49 s for the
 far, near and star spots when the limits were set; about 90 s.
 
+## unit_arrivesidetest
+
+The side and way round a flight arrives (ArriveSideTest; Jon, Nov 10, "S3"): on
+the real map a click on the selected world's lit half arrives on the lit side
+going with its spin, with Shift a click on the dark half arrives dark and
+against it, the hover tag names both and the line drawn is the one flown; then
+the solver alone over real systems, every sided or sensed flight landing as
+asked. About 60 s.
+
 ## unit_cometcatchtest
 
 The catch on the real map (CometCatchTest): the race planned for all three

@@ -28,7 +28,8 @@ Unlocks.
 The manufacturer LAUNCHED AS (`Run.launched_as`), not the hull flown at
 the end, which a swap can make another manufacturer's or none (Geno,
 Oct 23). No new key for the end hull: a new key here needs
-RunHistory.VERSION, and moving it discards the whole record.
+RunHistory.VERSION, and the old number kept in READS, or moving it
+discards the whole record.
 ```
 
 Inside `record()`, above `seed = Run.galaxy_seed,`:

@@ -114,6 +114,7 @@ LIST+=(
 "midjointest midjointest 180 0 --headless --path tkg -- sheet=MidJoinTest"
 "fueltest fueltest 180 0 --headless --path tkg -- sheet=FuelTest"
 "arriveidletest arriveidletest 180 0 --headless --fixed-fps 60 --path tkg -- sheet=ArriveIdleTest"
+"arrivesidetest arrivesidetest 300 0 --headless --fixed-fps 60 --path tkg -- sheet=ArriveSideTest"
 "goaltest goaltest 180 0 --headless --path tkg -- sheet=GoalTest"
 "nettest nettest 180 0 --headless --path tkg -- nettest"
 "savetest savetest 120 0 --headless --path tkg -- savetest"
