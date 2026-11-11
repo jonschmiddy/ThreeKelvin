@@ -511,6 +511,10 @@ func _offer(kind: int) -> ContractData:
 				continue
 			if job.at >= 0 and (job.at == Run.at or QuestLog.jumps(job.at) < 1 or QuestLog.jumps(job.at) > 4):
 				continue
+			# (none at a held quest's target: reaching the first FETCH's readies only it;
+			# G2's seed 4242 put the second FETCH at the first's star, Nov 10)
+			if job.at >= 0 and Run.contracts.any(func(h: ContractData) -> bool: return h.at == job.at):
+				continue
 			return job
 	return null
 
