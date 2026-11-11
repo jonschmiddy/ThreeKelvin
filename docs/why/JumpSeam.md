@@ -13,23 +13,28 @@ behind an `await` (the sky bake), so for four frames it is a bare sun on an empt
 the fifth the orbits, paths, labels, your ship, the side panel's text and the event cards all
 appear at once. The side panel's quarter goes from 11 to 28 luma in 0.13 s. Different sky,
 different sun, a UI that pops: that is the flash. No white frame, and no sound is cut: the hit
-cue's tail (R1 1.3 s, R9 1 s, at -40 to -60 dB) already rings on under the map.
+cue's tail (R1 1.3 s, R9 1 s, at -40 to -60 dB) already rings on under the map, and still does.
 
-Three ideas, different in kind, behind `-- jumpseam=t1|t2|t3` (off is today's cut), each taking
-the film's last frame (the content area, the HUD left alone) before the commit:
+Three ideas were filmed from one build behind a dev switch (tk-scratch/jump-drive/seam): T1 a dip
+through black, T2 a held frame dissolving into the map, T3 a settle. Jon picked T3 (Nov 11), and
+the switch and the other two went.
 
-- T1 dip: the frame falls to black over 0.4 s, a 0.25 s black beat, the map rises from black
-  (0.6 s), then its UI fades in (0.35 s).
-- T2 dissolve: the frame is held until the map has drawn its system, then dissolves into the
-  bare map (0.9 s); the UI fades in after (0.35 s).
-- T3 settle: the frame dissolves into the map's sky and system only (0.7 s), the map's paths
-  and beacons come in, the side panel slides in on the calm ladder's sine and the toolbar and
-  key fade, and only then does your ship warp in at the edge (its own streak and dust ring,
-  `warp_t` moved to that moment).
+The settle: the film's last frame (the content area; the HUD is the same on both sides and left
+alone) is taken before the commit and laid over the map. It is held until the map has drawn its
+system, then dissolves into the map's sky, sun and orbits (0.7 s) with the paths, beacons and
+ship held back; the paths come in (0.6-1.1 s); the side panel slides in on the calm ladder's
+sine while the toolbar, key row and words fade (1.0-1.6 s); then your ship warps in at the edge
+(its own streak and dust ring, `warp_t` moved to that moment, 1.75 s). A map that never draws
+its system within 2 s is handed back as it stands.
 
 The UI is held back through the goal line too (`ui_held`, `GoalLine.shows_on`). The side
-panel's star portrait is a shader that writes COLOR and so ignores a fade; it is shown at the
-halfway point of the fade rather than drawn at full strength over a faint panel. Presses are
-taken by the seam until the map can be seen, then pass through. Reduced motion never plays a
-film, so it never gets here; the settle's slide falls back to a fade if it ever did. Nothing
-here flashes, so reduce flashes changes nothing. No zoom anywhere (Jon dislikes zoom in jumps).
+panel's star portrait is a shader that writes COLOR and so ignores a fade, so it is hidden until
+the panel slides, not left at full strength over a faint one. The "YOU" edge arrow is off while
+the ship is held back (it pointed at the ship's last drawn place, the frame's corner). Presses
+are taken by the seam until the map can be seen, then pass through.
+
+Off where there is no picture: headless (`get_image` has nothing to read) and wherever
+`Router.animating()` is false (reduced motion, the sim, the shot tools) take the cut, and
+nothing is hidden then, because the map's UI is only touched once a seam exists. Reduced motion
+never plays a film anyway; the slide falls back to a fade if it ever did. Nothing here flashes,
+so reduce flashes changes nothing. No zoom (Jon dislikes zoom in jumps).

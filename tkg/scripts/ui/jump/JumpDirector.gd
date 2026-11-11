@@ -91,7 +91,7 @@ func _tick() -> void:
 	if not _committed and t >= seq.commit_t:
 		_committed = true
 		_over = true
-		# the film's last frame, kept for the hand-off to the map (`JumpSeam`; off, a cut)
+		# the film's last frame, kept for its hand-off to the map (`JumpSeam`)
 		var pic := JumpSeam.grab()
 		sector._commit(false)
 		JumpSeam.begin(pic)
