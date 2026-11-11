@@ -591,7 +591,7 @@ func _rich_system() -> void:
 
 func _journey_rest() -> void:
 	var mp := Router.current as SystemMapScreen
-	# FLY TO ANOTHER WORLD: click it, FLY HERE
+	# FLY TO ANOTHER WORLD: click it, then click it again (F-C, Nov 11)
 	var here := mp._ladder_body()
 	var to := -1
 	for b in mp.view.layout.bodies:
@@ -602,10 +602,8 @@ func _journey_rest() -> void:
 		var at: Vector2 = mp._ladder_origin() + mp.overlay.place_rel(to)
 		await _click_at(at, "a world on the map")
 		await _wait(1.2)
-		var fly := Harness.button_with_text(mp, "FLY HERE", false, true)
-		if fly != null:
-			await _click(fly, "FLY HERE")
-		else:
+		await _click_at(mp._ladder_origin() + mp.overlay.place_rel(to), "the world again: fly")
+		if not SystemLayout.is_place(mp.flight.heading_to()):
 			_mark("fly_fallback")
 			mp.fly_to_body(to)
 		_mark("flying")
@@ -1024,10 +1022,8 @@ func _reel_session() -> void:
 		if to >= 0:
 			await _click_at(mp._ladder_origin() + mp.overlay.place_rel(to), "a world")
 			await _wait(1.0)
-			var fly := Harness.button_with_text(mp, "FLY HERE", false, true)
-			if fly != null:
-				await _click(fly, "FLY HERE")
-			else:
+			await _click_at(mp._ladder_origin() + mp.overlay.place_rel(to), "the world again: fly")
+			if not SystemLayout.is_place(mp.flight.heading_to()):
 				mp.fly_to_body(to)
 			await _wait(2.0)
 	# LOCAL mid-flight, a look, back to the map

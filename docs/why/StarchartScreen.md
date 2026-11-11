@@ -147,6 +147,16 @@ aligned, so the longest line on top gives a clean descending edge; the
 other order notches inward and then back out.
 ```
 
+Since Jon, Nov 11 ("Can we vertically align the top of the thruster range /
+sensor reach with the top of the GOAL: REACH THE CORE"), the first one's words
+start on the goal line's row, to the pixel, rather than BAR_PAD down from the
+chart's top (`_level_corner`). The goal keeps its fixed place (`GoalLine.place_at(1)`),
+so the toggle is placed off it: at the goal's top plus its backing's padding, and
+one text line tall so a Button's centring puts its words at its top. It is placed
+again whenever the chart's rect changes. The second toggle stays 14 px under. The
+system map and LOCAL have nothing at the top right of the picture to share the row.
+FlyClickShot reads both rows off the picture and holds them equal.
+
 ## Destination name height
 
 Inside `_build()`, above `var head := VBoxContainer.new()`:

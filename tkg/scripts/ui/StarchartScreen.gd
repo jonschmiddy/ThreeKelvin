@@ -309,7 +309,7 @@ func _build() -> void:
 	# Why: docs/why/StarchartScreen.md#legend-colours
 	for item in _legend_items():
 		key.add_child(item)
-	root.add_child(key)
+	root.add_child(SystemMapScreen.key_foot(key))
 	_key_row = key
 
 	# Catches a fresh screen up with the static toggles: labels, rings and the held region.
@@ -990,16 +990,34 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 	b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	# 8px clear over the SCALE BLOCK, measured from the chart's numbers; `row` stacks upward.
 	if top:
-		# Down from the top edge instead, by the same padding the scale block
-		# keeps off the bottom, so both corners sit the same distance in.
+		# The first one's words level with the goal's, to the pixel (Jon, Nov 11): `_level_corner`.
 		b.offset_top = MapChart.BAR_PAD + 14.0 * float(row)
 		b.offset_bottom = MapChart.BAR_PAD + 14.0 * float(row + 1)
+		b.set_meta(&"row", row)
+		if not _chart.item_rect_changed.is_connected(_level_corners):
+			_chart.item_rect_changed.connect(_level_corners)
+		_level_corners.call_deferred()
 	else:
 		var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
 		b.offset_top = -(14.0 * float(row + 1) + scale_top)
 		b.offset_bottom = -(14.0 * float(row) + scale_top)
 	_chart.add_child(b)
 	return b
+
+## A top toggle's words at the goal line's height (`GoalLine` below the plate: `place_at(1)` and its backing's
+## padding), the button one text line tall so its words start at its top; the next row 14 px under.
+func _level_corners() -> void:
+	for b: Button in [_reach_btn, _sight_btn]:
+		if b != null and is_instance_valid(b) and b.is_inside_tree() and b.get_parent() == _chart:
+			_level_corner(b)
+
+
+func _level_corner(b: Button) -> void:
+	var lh := b.get_theme_font(&"font").get_height(UITheme.FS_SMALL)
+	var top := GoalLine.place_at(1.0).y + GoalLine.PAD_V - _chart.global_position.y + 14.0 * float(b.get_meta(&"row", 0))
+	b.offset_top = roundf(top)
+	b.offset_bottom = roundf(top) + lh
+
 
 ## The two ring toggles, tinted to the rings they govern so the corner reads
 ## as a key as well as a control.
@@ -1138,14 +1156,23 @@ func ladder_cam(k: float) -> void:
 ## Why: docs/why/StarchartScreen.md#ladder-ui-fade
 var _strip_row: Control = null
 var _key_row: Control = null
+## the KEY row's band (`SystemMapScreen.key_foot`: the map's, LOCAL's strip, Jon Nov 11)
+var _key_band: Panel:
+	get: return _key_row.get_parent().get_parent().get_child(0) as Panel if _key_row != null and _key_row.get_parent() != null else null
 
 
 func ladder_chrome(k: float) -> void:
-	for c: CanvasItem in [_key_row, _region_btn, _reach_btn, _sight_btn]:
+	# (on the calm ladder the KEY band slides, `ladder_foot`; it never fades)
+	for c: CanvasItem in ([_region_btn, _reach_btn, _sight_btn] if ZoomLadder.calm_moving() else [_key_row, _key_band, _region_btn, _reach_btn, _sight_btn]):
 		ZoomLadder.fade_chrome(c, k)
 	if _chart != null:
 		_chart.ui_a = 1.0 - k
 		_chart.queue_redraw()
+
+
+## The KEY band's holder, which the ladder slides as the map's (`SystemMapScreen.ladder_foot`).
+func ladder_foot() -> Control:
+	return _key_band.get_parent() as Control if _key_band != null and is_instance_valid(_key_band) else null
 
 
 ## The side bar, for the ladder to swap in place (`SideSwap`).

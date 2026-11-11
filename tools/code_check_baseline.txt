@@ -575,12 +575,10 @@ file scripts/ui/LocalSubject.gd 3175
 file scripts/ui/SectorScreen.gd 4907
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3281
-file scripts/ui/ZoomLadder.gd 3002
 file scripts/ui/sysmap/ShipFlight.gd 4398
 file scripts/ui/sysmap/SystemView.gd 3240
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
-length scripts/autoload/Router.gd::start_combat 101
 length scripts/systems/CardResolver.gd::resolve 139
 length scripts/systems/FlightSolve.gd::_arrival_cusps 103
 length scripts/systems/FlightSolve.gd::_build_in 120
@@ -616,7 +614,6 @@ length scripts/ui/CardGalleryScreen.gd::_fill 120
 length scripts/ui/CardView.gd::_type_glyph 122
 length scripts/ui/ChartPainted.gd::push 109
 length scripts/ui/ChartSky.gd::_push 174
-length scripts/ui/ChassisSelect.gd::_build_detail 171
 length scripts/ui/CutawayView.gd::_layout 221
 length scripts/ui/EncounterView.gd::_shoulders_at 103
 length scripts/ui/EnemySlot.gd::_init#2 106
@@ -686,8 +683,8 @@ length scripts/ui/TradeCounter.gd::_draw 124
 length scripts/ui/YardDeal.gd::draw 101
 length scripts/ui/ZoomLadder.gd::_calm_hold 147
 length scripts/ui/ZoomLadder.gd::_process_move 152
-length scripts/ui/ZoomLadder.gd::_style_for 129
-length scripts/ui/ZoomLadder.gd::preroll 174
+length scripts/ui/ZoomLadder.gd::_style_for 124
+length scripts/ui/ZoomLadder.gd::preroll 169
 length scripts/ui/sysmap/MapHull.gd::picture 150
 length scripts/ui/sysmap/ShipFlight.gd::_manoeuvre 356
 length scripts/ui/sysmap/ShipFlight.gd::_near_hop 148

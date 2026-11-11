@@ -1,10 +1,10 @@
 extends Node
 
-## THE SIDE AND WAY ROUND A FLIGHT ARRIVES (Jon, Nov 10, "S3"), headless at a fixed 60 fps:
-## the real map (a click on the lit half arrives lit; with Shift, one on the dark half arrives
-## dark and against the spin; the hover tag names both), then the solver alone over a few
-## real systems (every sided flight lands on its side, every sensed one goes its way, and
-## how much longer they are is printed). Why: docs/why/ArriveSideTest.md#arrive-side-test
+## THE SIDE AND WAY ROUND A FLIGHT ARRIVES, headless at a fixed 60 fps: the real map (Jon,
+## Nov 11: every click arrives on the lit side with the spin, on either half, Shift up or held;
+## the tag says nothing of sides), then the solver alone over a few real systems (every sided
+## flight lands on its side, every sensed one goes its way, and how much longer they are is
+## printed). Why: docs/why/ArriveSideTest.md#arrive-side-test
 
 const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 const SEEDS := [4242, 7]
@@ -218,22 +218,65 @@ func _map_part() -> void:
 				break
 			await _tree.process_frame
 		await Harness.frames(_tree, 3)
-	# LIT, WITH THE SPIN: the lit half of world w1 pointed at, the tag read, clicked, arrived
-	await _fly_side(m, L, w1, ArriveSide.LIT, false, "lit")
-	# DARK, AGAINST THE SPIN (Shift held): back to world w0's dark half
+	# EITHER HALF, SHIFT UP OR HELD: always the lit side, with the spin
 	_shift(true)
-	h._ok("Shift held reads as held (%s)" % ("the keyboard's" if ArriveSide.force_shift == 0 else "forced"), ArriveSide.shift_held())
-	await _fly_side(m, L, w0, ArriveSide.DARK, true, "dark")
+	await _fly_side(m, L, w1, ArriveSide.DARK, "the dark half, Shift held")
 	_shift(false)
-	h._ok("Shift let go reads as up", not ArriveSide.shift_held())
-	# NO HALF POINTED AT: no wish, the autopilot arrives as it likes
+	await _fly_side(m, L, w0, ArriveSide.LIT, "the lit half, Shift up")
+	# THE POINTER OFF THE WORLD (GO-lit, Jon, Nov 11): the selected world's wish all the same, for it alone
 	m.select_body(w1)
 	m._on_map_input(_motion(m, m.view.window.position + Vector2(8.0, 8.0)))
 	await Harness.frames(_tree, 3)
-	h._ok("pointing away from the world, nothing is asked of the arrival (wish %s)" % str(m.flight.wish), (m.flight.wish as Dictionary).is_empty())
+	h._ok("pointing away, the selected world's arrival is still asked: lit, with its spin, for it (wish %s)" % str(m.flight.wish),
+		int(m.flight.wish.get("side", 0)) == ArriveSide.LIT and int(m.flight.wish.get("to", -9)) == w1)
+	# A STALE WISH steers no other flight: world w0's wish on a flight to w1
+	var stale: Dictionary = {"side": ArriveSide.LIT, "sense": -ArriveSide.spin_sense(m.view, L, w1), "to": w0}
+	var keep: Dictionary = m.flight.wish
+	m.flight.wish = stale
+	var tg: Dictionary = m.flight._tgt_of(w1)
+	h._ok("a wish made for world %d asks nothing of a flight to world %d (target %s)" % [w0, w1, str(tg)], not tg.has("side") and int(tg.get("sense", 0)) == 0)
+	m.flight.wish = keep
+	await _go_lit(m, L, n, w1)
 
 
-## Shift through the input system (as a key), and forced for the harness if that does not take.
+## GO-LIT (Jon, Nov 11): the panel's GO on an event world, nothing selected or pointed at, arrives
+## on the lit side going round with the spin, as the second click does.
+func _go_lit(m: SystemMapScreen, L: SystemLayout, n: MapGen.MapNode, w1: int) -> void:
+	var opt := -1
+	var at := -1
+	for i in n.options.size():
+		var b := LocalEventDrawer.body_of(n, i)
+		if b >= 0 and b < L.bodies.size() and L.bodies[b].world != &"" and L.bodies[b].kind != &"belt" and b != m.flight.reached():
+			opt = i
+			at = b
+			break
+	if not h._ok("an event on another world to GO to (option %d, world %d)" % [opt, at], opt >= 0):
+		return
+	for f in 600:
+		if m.flight.can_fly():
+			break
+		await _tree.process_frame
+	m.panel_back()
+	m.overlay.hover = {}
+	await Harness.frames(_tree, 3)
+	# (GO's own path, `go_event` -> `_go_then`, with the zoom down to LOCAL held for the check)
+	var want := ArriveSide.spin_sense(m.view, L, at)
+	var got := []
+	m._go_then(at, func() -> void:
+		got.assign([ArriveSide.side_now(m.flight, L, at, float(m.view.t)), int(signf(float(m.flight.rail.get("dir", 0.0))))]))
+	h._ok("GO asks the lit side, with the spin, of world %d (wish %s)" % [at, str(m.flight.wish)],
+		int(m.flight.wish.get("side", 0)) == ArriveSide.LIT and int(m.flight.wish.get("sense", 0)) == want and int(m.flight.wish.get("to", -9)) == at)
+	for f in 4800:
+		if not got.is_empty():
+			break
+		await _tree.process_frame
+	if not h._ok("GO flies there and arrives", not got.is_empty()):
+		return
+	h._ok("GO arrives on the lit side of world %d, going round with its spin (side %d, rail dir %d, spin's way %d)" % [at, got[0], got[1], want], int(got[0]) == ArriveSide.LIT and int(got[1]) == want)
+	LocalEventDrawer.pending.clear()
+
+
+## Shift through the input system, as a key (it used to turn the ship against the spin).
 func _shift(down: bool) -> void:
 	var k := InputEventKey.new()
 	k.keycode = KEY_SHIFT
@@ -241,9 +284,6 @@ func _shift(down: bool) -> void:
 	k.pressed = down
 	Input.parse_input_event(k)
 	Input.flush_buffered_events()
-	ArriveSide.force_shift = 0
-	if Input.is_key_pressed(KEY_SHIFT) != down:
-		ArriveSide.force_shift = 1 if down else -1
 
 
 func _motion(m: SystemMapScreen, map_p: Vector2) -> InputEventMouseMotion:
@@ -260,7 +300,7 @@ func _half_point(m: SystemMapScreen, L: SystemLayout, i: int, side: int) -> Vect
 	return (m.view.at[i] as Vector2) + ds * maxf(2.0, m.view.draw_r(L.bodies[i]) * 0.6)
 
 
-func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, side: int, shift: bool, tag: String) -> void:
+func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, half: int, tag: String) -> void:
 	var from: int = m.flight.reached()
 	m.select_body(i)
 	# (on its ring and able to leave: after a fast flight the ship spins down onto it first)
@@ -269,24 +309,13 @@ func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, side: int, shift: bo
 			break
 		await _tree.process_frame
 	await Harness.frames(_tree, 3)
-	var p := _half_point(m, L, i, side)
+	var p := _half_point(m, L, i, half)
 	m._on_map_input(_motion(m, p))
 	await Harness.frames(_tree, 2)
-	var hv: Dictionary = m.overlay.hover
-	h._ok("%s: the pointer on world %d's %s half is read so (hover %s side %s)" % [tag, i, "lit" if side > 0 else "dark", str(hv.get("kind", "")), str(hv.get("side", "none"))],
-		hv.get("kind", &"") == &"body" and int(hv.get("body", -9)) == i and int(hv.get("side", 0)) == side)
-	var want_sense := ArriveSide.spin_sense(m.view, L, i) * (-1 if shift else 1)
+	var want_sense := ArriveSide.spin_sense(m.view, L, i)
 	var wish: Dictionary = m.flight.wish
-	h._ok("%s: the map asks the autopilot for side %d, sense %d (wish %s)" % [tag, side, want_sense, str(wish)],
-		int(wish.get("side", 0)) == side and int(wish.get("sense", 0)) == want_sense)
-	# THE TAG names the side and the way round, and what Shift does
-	var lines: Array = m.overlay.tip_lines(hv)[0]
-	var words: Array = lines.map(func(l): return String(l[0]))
-	var spin := ArriveSide.spin_of(m.view, L, i)
-	var what := "ITS ORBIT (LOCKED)" if spin == 0.0 else ("ITS SPIN (BACKWARD)" if spin < 0.0 else "ITS SPIN")
-	var side_line := "%s · %s %s" % ["LIT SIDE" if side > 0 else "DARK SIDE", "AGAINST" if shift else "WITH", what]
-	var shift_line := ("LET GO OF SHIFT: WITH " if shift else "HOLD SHIFT: AGAINST ") + what
-	h._ok("%s: the tag reads \"%s\" and \"%s\" (%s)" % [tag, side_line, shift_line, " / ".join(words)], side_line in words and shift_line in words)
+	h._ok("%s: the map asks the autopilot for the lit side, sense %d (wish %s)" % [tag, want_sense, str(wish)],
+		int(wish.get("side", 0)) == ArriveSide.LIT and int(wish.get("sense", 0)) == want_sense)
 	# the preview for it, drawn before the click (planned on a worker)
 	var drawn := false
 	for f in 600:
@@ -296,11 +325,18 @@ func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, side: int, shift: bo
 			break
 		await _tree.process_frame
 	h._ok("%s: the flight drawn before the click is the one asked for" % tag, drawn)
-	await _shot("hover_%s" % tag)
+	# THE TAG: nothing about sides, its last line CLICK AGAIN: FLY (Jon, Nov 11)
+	var tl: Array = m.overlay.tip_lines(m.overlay.hover)[0]
+	var words: Array = tl.map(func(l): return String(l[0]))
+	h._ok("%s: the tag ends CLICK AGAIN: FLY, says nothing of sides or Shift, the line lit and the pointer a sight (%s; aimed %s, cursor %d)" % [tag, " / ".join(words), m.overlay.aimed(), m._frame.mouse_default_cursor_shape],
+		String(words[-1]) == "CLICK AGAIN: FLY" and not words.any(func(w: String) -> bool: return w.contains("SIDE") or w.contains("SHIFT") or w.contains("SPIN"))
+		and m.overlay.aimed() and m._frame.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND)
+	await _shot("hover_%d" % i)
 	# THE CLICK flies it (the world has moved on while the line was planned: pointed at again)
-	p = _half_point(m, L, i, side)
+	p = _half_point(m, L, i, half)
 	m._on_map_input(_motion(m, p))
 	await Harness.frames(_tree, 2)
+	var t_click := float(m.view.t)
 	m.tap(m.overlay.hit(p))
 	var arrived := false
 	for f in 4800:
@@ -308,16 +344,16 @@ func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, side: int, shift: bo
 			arrived = true
 			break
 		await _tree.process_frame
-	if not h._ok("%s: the click flies there and arrives (%.1f map s)" % [tag, float(m.view.t) - 30.0], arrived):
+	if not h._ok("%s: the click flies there and arrives (%.1f map s)" % [tag, float(m.view.t) - t_click], arrived):
 		return
 	var at_side := ArriveSide.side_now(m.flight, L, i, float(m.view.t))
 	var dir := int(signf(float(m.flight.rail.get("dir", 0.0))))
 	var a := float(m.flight.rail.ang)
 	var d := Vector2(cos(a), sin(a)).dot(ArriveSide.lit_dir(L, i, float(m.view.t)))
-	h._ok("%s: it arrives on the %s side of world %d (toward the light %.2f)" % [tag, "lit" if side > 0 else "dark", i, d], at_side == side)
-	h._ok("%s: it goes round %s the spin (rail dir %d, the spin's way %d)" % [tag, "against" if shift else "with", dir, ArriveSide.spin_sense(m.view, L, i)], dir == want_sense)
-	print("    %s: world %d to %d, %s" % [tag, from, i, "replanned at the click" if m.flight.click_replanned else "flew the line drawn"])
-	await _shot("arrived_%s" % tag)
+	h._ok("%s: it arrives on the lit side of world %d (toward the light %.2f)" % [tag, i, d], at_side == ArriveSide.LIT)
+	h._ok("%s: it goes round with the spin (rail dir %d, the spin's way %d)" % [tag, dir, want_sense], dir == want_sense)
+	print("    %s: world %d to %d, %s, %.1f map s" % [tag, from, i, "replanned at the click" if m.flight.click_replanned else "flew the line drawn", float(m.view.t) - t_click])
+	await _shot("arrived_%d" % i)
 
 
 func _shot(name: String) -> void:

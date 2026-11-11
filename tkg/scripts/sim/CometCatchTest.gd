@@ -79,8 +79,17 @@ func _run() -> void:
 		await get_tree().process_frame
 	h._ok("the race is planned for all three spots: YOU %s, IT %s" % [_secs(cc.you), _secs([cc.it_in(0), cc.it_in(1), cc.it_in(2)])],
 		float(cc.you[0]) != INF and float(cc.you[1]) != INF and float(cc.you[2]) != INF)
-	m.select_body(SystemLayout.COMET)
+	# HIDDEN TILL CLICKED (Jon, Nov 11): neither the path nor a spot drawn while unselected
+	var rc = m.view._weather.real_comet
+	var hc: Dictionary = m.overlay.hit(m.overlay.comet_scr())
+	m.overlay.hover = hc
 	await Harness.frames(get_tree(), 3)
+	h._ok("unselected (pointed at): no path dot and no spot drawn (%d dots, %d spots), the comet still clickable at %s" % [rc.dots, m.overlay.spots_drawn, m.overlay.comet_scr()],
+		not rc.path_on and rc.dots == 0 and m.overlay.spots_drawn == 0 and hc.get("kind", &"") == &"comet")
+	m.tap(hc)
+	await Harness.frames(get_tree(), 3)
+	h._ok("selected: the path and the three spots are drawn (%d dots%s, %d spots)" % [rc.dots, "" if rc.is_visible_in_tree() else ", not drawn headless", m.overlay.spots_drawn],
+		rc.path_on and (rc.dots > 0 or not rc.is_visible_in_tree()) and m.overlay.spots_drawn == 3)
 	var b1 := m.panel.find_child("Spot1", true, false) as Button
 	h._ok("the comet's page offers its spots: \"%s\"" % (b1.text if b1 != null else "none"), b1 != null and "IT" in b1.text and "YOU" in b1.text)
 	# GO TO A SPOT and wait there
@@ -91,6 +100,9 @@ func _run() -> void:
 			break
 		await get_tree().process_frame
 	var spot := c.spot_at(L, k)
+	m.panel_back()
+	await Harness.frames(get_tree(), 3)
+	h._ok("deselected while it waits: only that spot drawn (%d), no path (%d dots)" % [m.overlay.spots_drawn, rc.dots], m.overlay.spots_drawn == 1 and rc.dots == 0)
 	h._ok("the ship settles on spot %d before the comet (%.2f px off, %.1f s to spare)" % [k + 1, (m.flight.f.p as Vector2).distance_to(spot), c.spot_in(k, float(m.view.t))],
 		int(cc.waiting) == k and (m.flight.f.p as Vector2).distance_to(spot) <= 0.5 and c.spot_in(k, float(m.view.t)) > 0.0)
 	# THE PASS: down to LOCAL with the reading open as the comet reaches the spot

@@ -2,6 +2,26 @@ The reasoning behind `tkg/scripts/ui/sysmap/ArriveSide.gd`; each heading is refe
 
 ## Arrive side
 
+**Nov 11: the choice was dropped.** Jon: "I think the light side/dark side is cool, but
+it doesn't make sense. I think it adds too much noise... Let's just have the light side
+and with its spin as the default. It's too much text on the box for a planet." So every
+flight to a world now asks for the lit side, going round with its spin. Clicking the dark
+half and holding Shift change nothing; the hover no longer reads a half (`side_at` is
+gone), the tag has no side lines (`words` is gone) and the ring has no arc over the
+picked half (`draw_half` is gone). Only a world is asked: belts and stations have no
+lit side. The solver's ring target keeps `side` and `sense` as below; the map just always
+hands it `side` +1 and the spin's sense.
+
+**GO-lit (Jon, Nov 11, with E1 and P1).** The wish was built only while the selected world
+was under the pointer, and `_tgt_of` put whatever wish stood on any target, so the panel's
+GO on an event world flew a free arrival, and a wish left over from one world could steer a
+flight to another. Now `wish_now` asks for the selected world pointed at or not, every
+flight the map starts (`_fly`: the second click, GO, the panel and the keys) sets the wish
+for its own world (`wish_for`), and a wish carries `to`, the world it was made for:
+`_tgt_of` uses it only on that world. Comets, keeps and stars are untouched.
+
+What follows is the Nov 10 design as built, kept for the solver's half of it.
+
 Jeremy (friends' alpha) asked to arrive on a chosen side of a world and to orbit with or
 against its spin. Three ways to pick were filmed on the real map (tk-scratch/arrive-side,
 Nov 10: S1 a spot on the ring, S2 draw the swoop, S3 click the lit or dark half) and Jon
