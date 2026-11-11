@@ -63,3 +63,11 @@ pixelated and stylized icon". So `ART` is "" (the drawn galaxy shows) while he p
 from twelve icon themes; C2's strips stay in `art/ui/tiers`. A strip now plays as one
 loop of `ART_LOOP` seconds whatever its frame count, so the icons can run at 16 frames
 a second for a smooth turn.
+
+The twelve icon themes were "muddy" (Nov 11). Part of that was the shots: the sheet ran
+in a 960x540 window, where the default screen look (CRT_GENTLE's curve) resamples the
+game's own pixels 1:1 and blurs them (4 colours became 521, every pixel off). In the
+game's real window the curve is per screen pixel and the art stays sharp, so
+`LaunchBoxShot` now sizes its window to 1920x1080. The rest was the art: dither, soft
+mid-tones near the panel's own value, dim single stars. The next three (J1 to J3) use
+flat colours only, no dither and no part-transparent pixels.

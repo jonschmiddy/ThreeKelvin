@@ -17,6 +17,9 @@ func _ready() -> void:
 
 func _run() -> void:
 	await Harness.frames(get_tree(), 2)
+	# the tube bends per screen pixel: at 1:1 it resamples and softens the art, so shoot at 2x
+	DisplayServer.window_set_size(DisplaySettings.HARNESS_WINDOW)
+	await Harness.frames(get_tree(), 4)
 	DevMode.enabled = false
 	RunHistory.path = TestRun.scratch("launchboxshot_history", "json")
 	Rng.forced = 4242
@@ -125,7 +128,9 @@ func _film(which: String) -> void:
 		for k in maxi(1, box.galaxy._art_n):
 			TierGalaxy.hold_frame = k
 			await Harness.frames(get_tree(), 3)
-			get_tree().root.get_texture().get_image().get_region(r).save_png("%s/film_%d_%d.png" % [_out, t, k])
+			var img := get_tree().root.get_texture().get_image()
+			var f := img.get_width() / GameShell.BASE.x
+			img.get_region(Rect2i(r.position * f, r.size * f)).save_png("%s/film_%d_%d.png" % [_out, t, k])
 		TierGalaxy.hold_frame = -1
 	print("  filmed the box at every tier")
 
