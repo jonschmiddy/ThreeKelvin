@@ -63,7 +63,9 @@ func _process(_delta: float) -> void:
 		if view.get_global_rect().size.x < 10.0 or art.size.x < 10.0:
 			return
 		_begin()
-	t = GameClock.now() - _t0
+	# snapped to 0.1 ms: the clock's summed 1/60 steps land frame 300 at 4.99999, a frame
+	# short of a hit at 5.0 (R1's launch frames showed a frame late)
+	t = snappedf(GameClock.now() - _t0, 1e-4)
 	_tick()
 
 

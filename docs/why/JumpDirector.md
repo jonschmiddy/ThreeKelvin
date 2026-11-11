@@ -19,7 +19,8 @@ What it does, in order:
 - Steps the film on `GameClock` (never the wall clock: the movie writer runs the wall clock
   12.7x fast, `docs/why/GameClock.md`). The cues fire on the frame the clock crosses them,
   playing from inside the take by how late that frame was, so picture and sound stay within a
-  frame however the frames fall.
+  frame however the frames fall. The film's t is snapped to 0.1 ms: GameClock sums 1/60
+  steps, so frame 300 read 4.99999 and a hit at 5.0 (R1's launch frames) drew a frame late.
 - Swaps the live hull for the baked stand-in at `swap_t` (0.6 s, before any light touches the
   hull) on a frame the two are pixel-identical (the spike measured 0 px of difference in the
   hull's box).

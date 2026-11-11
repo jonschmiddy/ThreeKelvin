@@ -63,6 +63,24 @@ func set2(pname: StringName, v: Variant) -> void:
 	mat2.set_shader_parameter(pname, v)
 
 
+## An additive light buffer the size of the window, drawn in screen coordinates and read by
+## the world pass as `pname` (8-bit, so what is drawn into it is pre-scaled by LIGHT_K).
+## Why: docs/why/JumpStage.md#light-buffers
+const LIGHT_K := 0.25
+
+func light(pname: StringName, k: float = 1.0) -> SubViewport:
+	var vp := SubViewport.new()
+	vp.size = Vector2i((world.size * k).ceil())
+	vp.transparent_bg = true
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	# set once it is in the tree: before, its canvas is not yet the viewport's
+	vp.canvas_transform = Transform2D(0.0, Vector2(k, k), 0.0, -world.position * k)
+	mat1.set_shader_parameter(pname, vp.get_texture())
+	return vp
+
+
 ## The hull's textures, once baked, to the world pass.
 func hull_textures(h: JumpHull) -> void:
 	mat1.set_shader_parameter(&"hull", h.tex)
