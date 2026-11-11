@@ -12,7 +12,9 @@ const FPS := 12
 const VIEW_Z := 0.28
 const TORN_LOST := 4.0
 ## Tier 10's giant moved above the dwarf (mockup px; Jon: "the spiral slightly higher").
-const GIANT_NUDGE := Vector2(60.0, -40.0)
+const GIANT_NUDGE := Vector2(70.0, -95.0)
+## Tier 10's giant smaller, as if further back (Jon, round 3).
+const GIANT_FAR := 0.55
 
 var _out := ""
 
@@ -44,6 +46,7 @@ func _run() -> void:
 	for ts in Harness.arg("tiers", "0,1,2,3,4,5,6,7,8,9,10").split(","):
 		await _bake(int(ts))
 	ChartTorn.nudge = Vector2.ZERO
+	ChartTorn.far = 1.0
 	ChartSky.no_story = false
 	print("tierminibake: done")
 	get_tree().quit()
@@ -65,6 +68,7 @@ func _bake(t: int) -> void:
 	# tier 10: the dwarf shown with its outer rings already torn away (TORN AWAY from jump 4)
 	ChartTorn.active = t == 10
 	ChartTorn.nudge = GIANT_NUDGE if t == 10 else Vector2.ZERO
+	ChartTorn.far = GIANT_FAR if t == 10 else 1.0
 	ChartSky.no_story = true
 	ChartTorn.lost = TORN_LOST if t == 10 else 0.0
 	Router.show_starchart()
@@ -93,7 +97,30 @@ func _bake(t: int) -> void:
 		ch._repaint_galaxy()
 		ch._repaint_sky()
 		await _shot(ch, "frame_%d_%d" % [t, k])
+		if t == 10:
+			_stream(ch, "frame_%d_%d" % [t, k])
 	ch.show_icons = true
+
+
+## Tier 10's stream and giant in the still's pixels (`<name>.json`), so tier_minis.py can
+## run stars along the stream and set the giant back.
+func _stream(ch: MapChart, name: String) -> void:
+	var core := 0
+	for raw in Run.map:
+		if (raw as MapGen.MapNode).type == MapGen.NodeType.CORE:
+			core = (raw as MapGen.MapNode).index
+	var at: Vector2 = ch._screen_pos(Run.map[core])
+	var ze: float = ch.zoom * ch._radius() * MapChart.DISC / ChartSky.K0
+	var pts: Array = []
+	for p in ChartTorn.ribbon(ChartTorn.last_phi):
+		var q := at + Vector2(p.x, p.y) * ze
+		pts.append([q.x, q.y, p.w])
+	var g := at + ChartTorn.giant_at() * ChartSky.K0 * ze
+	var info := {"stream": pts, "width": ChartTorn.root_w() * ChartSky.K0 * ze, "giant": [g.x, g.y,
+		ChartTorn.giant_len() * ChartSky.K0 * ze, ChartTorn.GIANT_RY / ChartTorn.GIANT_RX, ChartTorn.GIANT_ANG]}
+	var f := FileAccess.open("%s/%s.json" % [_out, name], FileAccess.WRITE)
+	f.store_string(JSON.stringify(info))
+	f.close()
 
 
 func _shot(ch: MapChart, name: String) -> void:

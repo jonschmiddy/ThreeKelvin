@@ -6,7 +6,9 @@ part-transparent cell), put on one palette per tier with no dither (so nothing c
 turns), kept inside the lamp ring, and written as one strip of square frames:
 tier_<n>.png, 56 px tall, frames side by side, played by TierGalaxy at its ART_FPS.
 
-usage: uv run --with pillow --with numpy python tools/dev/tier_minis.py RAW_DIR OUT_DIR [tiers] [--fx K1|K2|K3]
+usage: uv run --with pillow --with numpy python tools/dev/tier_minis.py RAW_DIR OUT_DIR [tiers] [--fx M3|K1|K2|K3]
+  M3 (Jon's pick, round 3): K1's heat without sparks, ramping within each form (`ACT`), with
+  flares; tier 10's stream runs with stars and its giant is set back.
   --fx: the tier's intensity drawn over the turn, rising 0 to 10 (Jon, Nov 11), in whole cells:
   K1 heat (warmer palette, a bigger brighter core, more sparks lit), K2 storm (the body boils
   in moving patches, its edge frays), K3 pressure (a pulsing halo round it, debris thrown off).
@@ -24,6 +26,12 @@ FILL = 50           # the galaxy's widest reach, dim edge and all, in cells (its
 COLOURS = 24        # the palette a tier gets
 CUT = 22            # how far above the chart's sky a block must be to count as galaxy (summed rgb)
 KEEP = 48           # how far above it a cell must be, once lifted, to be drawn
+FORM = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3]
+## The balls (Jon, round 3, "the bottom ball the best"): sized by their body, not their
+## faint halo, and kept down to a dimmer light, so 7 and 8 are as full and soft as 9.
+BALL_REACH_CUT = 60
+BALL_KEEP = 26
+BALL_FILL = 46
 
 
 def frames_of(raw, t):
@@ -95,13 +103,13 @@ def bake(raw, out, t):
     lit = np.zeros((hb, wb), bool)
     for fr in frs[:: max(1, len(frs) // 12)]:
         d = np.abs(fr[:hb * B, :wb * B] - sky).sum(-1).reshape(hb, B, wb, B).mean(axis=(1, 3))
-        lit |= flood(d > CUT)
+        lit |= flood(d > (BALL_REACH_CUT if FORM[t] == 2 else CUT))
     ys, xs = np.nonzero(lit)
     # centred on the galaxy's own box (tier 10's giant sits off the dwarf's middle)
     cx = ((xs.min() + xs.max() + 1) / 2.0) * B
     cy = ((ys.min() + ys.max() + 1) / 2.0) * B
     reach = max(np.abs((xs + 0.5) * B - cx).max(), np.abs((ys + 0.5) * B - cy).max()) + B
-    side = int(math.ceil(reach * 2 * CELLS / FILL))
+    side = int(math.ceil(reach * 2 * CELLS / (BALL_FILL if FORM[t] == 2 else FILL)))
     x0, y0 = int(round(cx - side / 2)), int(round(cy - side / 2))
     pad = np.zeros((side, side, 3), int) + sky.astype(int)
     sx0, sy0 = max(0, x0), max(0, y0)
@@ -120,13 +128,15 @@ def bake(raw, out, t):
     keep_all = []
     for s_ in small:
         d = np.abs(s_ - sky).sum(-1)
-        keep_all.append(body((d > KEEP) & inside_cells(), d > np.percentile(d, 97)))
+        keep_all.append(body((d > (BALL_KEEP if FORM[t] == 2 else KEEP)) & inside_cells(), d > np.percentile(d, 97)))
     pool = np.concatenate([s[k] for s, k in zip(small, keep_all)])
     pal_im = Image.fromarray(pool.reshape(1, -1, 3).astype(np.uint8), "RGB").quantize(COLOURS, method=Image.Quantize.FASTOCTREE)
     cells = [np.asarray(Image.fromarray(s.astype(np.uint8), "RGB").quantize(palette=pal_im, dither=Image.Dither.NONE)
                         .convert("RGB")).astype(int) for s in small]
     if FX:
         cells, keep_all = FX(cells, keep_all, t)
+    if t == 10 and STREAM:
+        cells, keep_all = stream_on(raw, cells, keep_all, (x0, y0, side))
     strip = Image.new("RGBA", (CELLS * len(small), CELLS), (0, 0, 0, 0))
     for i, (a, keep) in enumerate(zip(cells, keep_all)):
         rgba = np.zeros((CELLS, CELLS, 4), np.uint8)
@@ -268,12 +278,132 @@ def k3(cells, keeps, t):
     return out, kout
 
 
+# ---------------------------------------------------------------- M3: activity by tier
+
+## Where each tier stands in its own form's run, 0 (the form's first tier: dark and quiet)
+## to 1 (its last: bright, glowing, flaring). Tier 10 is the dwarf, alone and at full.
+ACT = [0.0, 1 / 3, 2 / 3, 1.0, 0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 1.0]
+## How dark a form's first tier is, as a share of its light (1 at the top of the form).
+DARK = 0.5
+
+
+def m3(cells, keeps, t):
+    """Jon's heat, round 3: no sparks. One number a tier (ACT) drives it all: the light (dark
+    at a form's first tier), the warmth, the core's size and whiteness, a glow round the core
+    that swells, and flares: patches that flash white and fade, more, bigger and more often
+    up the form. Tier 0 has none of it moving but its turn."""
+    act = ACT[t]
+    n = len(cells)
+    rnd = np.random.RandomState(500 + t)
+    yy, xx = np.mgrid[0:CELLS, 0:CELLS]
+    # flares: (start frame, length in frames, chosen cell, radius)
+    flares = []
+    for _ in range(int(round(14 * act * act + 3 * act))):
+        flares.append((rnd.randint(0, n), rnd.randint(5, 10), rnd.rand(), 1 + rnd.randint(0, 1 + int(act))))
+    core_flash = int(round(3 * act)) if act >= 0.5 else 0
+    out = []
+    for k, (a, keep) in enumerate(zip(cells, keeps)):
+        u = k / n
+        a = a.astype(float)
+        a = PANEL_C + (a - PANEL_C) * (DARK + (1 - DARK) * act)
+        warm = np.stack([a[..., 0] * 1.18 + 18, a[..., 1] * 1.0 + 4, a[..., 2] * 0.72], -1)
+        a = a + (warm - a) * (0.45 * act)
+        if keep.any():
+            cx, cy = middle(keep, cells[k])
+            d = np.hypot(xx - cx, (yy - cy) * 1.8)
+            sw = 0.5 + 0.5 * math.sin(2 * math.pi * u * (1 + round(2 * act)))
+            # the glow: brighter toward the middle, swelling and settling
+            g = act * (0.18 + 0.22 * sw) * np.exp(-d / (3.0 + 4.0 * act))
+            a = np.where(keep[..., None], a + (WHITE - a) * g[..., None], a)
+            core = keep & (d <= 1.0 + 1.6 * act + 0.8 * act * sw)
+            a[core] = a[core] + (WHITE - a[core]) * (0.2 + 0.35 * act)
+            # the core's flash: fast up, slower down
+            for c in range(core_flash):
+                age = (k - int(n * c / core_flash)) % n
+                if age < 8:
+                    f = (1.0 if age < 2 else math.exp(-(age - 1) / 2.0)) * act
+                    m = keep & (d <= 1.5 + 2.0 * act)
+                    a[m] = a[m] + (WHITE - a[m]) * f
+            ys, xs = np.nonzero(keep & (lum(a) > np.percentile(lum(a)[keep], 40)))
+            for (st, ln, sel, r) in flares:
+                age = (k - st) % n
+                if age >= ln or not len(ys):
+                    continue
+                f = 1.0 if age < 2 else math.exp(-(age - 1) / (ln / 3.0))
+                i = int(sel * len(ys)) % len(ys)
+                m = keep & (np.hypot(xx - xs[i], (yy - ys[i]) * 1.6) <= r)
+                a[m] = a[m] + (WHITE - a[m]) * (0.5 + 0.35 * act) * f
+        out.append(a)
+    return out, keeps
+
+
+# ---------------------------------------------------------------- tier 10: the stream flows
+
+STREAM = True
+
+
+def stream_on(raw, cells, keeps, crop):
+    """Stars running along tier 10's stream from the dwarf into the giant, a fresh one in at
+    the root as each leaves at the far end (frame_10_<k>.json from TierMiniBake), and the
+    giant set back: dimmer, as if further off."""
+    import json
+    x0, y0, side = crop
+    sc = CELLS / float(side)
+    n = len(cells)
+    rnd = np.random.RandomState(77)
+    stars = [(rnd.rand(), rnd.randn(), rnd.rand()) for _ in range(46)]
+    flows = 3                                   # times a star runs the stream in a loop
+    yy, xx = np.mgrid[0:CELLS, 0:CELLS]
+    out, kout = [], []
+    for k, (a, keep) in enumerate(zip(cells, keeps)):
+        path = os.path.join(raw, "frame_10_%d.json" % k)
+        a = a.astype(float)
+        keep = keep.copy()
+        if not os.path.exists(path):
+            out.append(a)
+            kout.append(keep)
+            continue
+        info = json.load(open(path))
+        pts = np.array([[(p[0] - x0) * sc, (p[1] - y0) * sc] for p in info["stream"]])
+        seg = np.hypot(*(pts[1:] - pts[:-1]).T)
+        acc = np.concatenate([[0], np.cumsum(seg)])
+        total = acc[-1]
+        # the giant set back, a third darker: the kept cells above the emptiest row between
+        # the picture's top and the dwarf's middle (the dark space between them)
+        rows = np.nonzero(keep.any(1))[0]
+        my = int(middle(keep, a)[1])
+        if len(rows) and my > rows[0] + 2:
+            span = np.arange(rows[0] + 2, my)
+            cut = span[np.argmin(keep[span].sum(1))]
+            far = keep & (yy < cut)
+            a[far] = PANEL_C + (a[far] - PANEL_C) * 0.62
+        w = max(1.0, info["width"] * sc)
+        u = k / n
+        for (p, side_, b) in stars:
+            f = (p + u * flows) % 1.0
+            dist = f * total
+            i = min(len(seg) - 1, int(np.searchsorted(acc, dist, side="right") - 1))
+            t_ = (dist - acc[i]) / max(seg[i], 1e-6)
+            pt = pts[i] + (pts[i + 1] - pts[i]) * t_
+            tang = (pts[i + 1] - pts[i]) / max(seg[i], 1e-6)
+            nrm = np.array([-tang[1], tang[0]])
+            q = pt + nrm * side_ * w * 0.45 * (1 - 0.6 * f)
+            x, y = int(q[0]), int(q[1])
+            if 0 <= x < CELLS and 0 <= y < CELLS:
+                c = WHITE * (1 - f) + np.array([150, 175, 235]) * f
+                a[y, x] = c * (0.75 + 0.25 * b)
+                keep[y, x] = True
+        out.append(a)
+        kout.append(keep)
+    return out, kout
+
+
 def main():
     global FX
     args = sys.argv[1:]
     if "--fx" in args:
         i = args.index("--fx")
-        FX = {"K1": k1, "K2": k2, "K3": k3}[args[i + 1]]
+        FX = {"K1": k1, "K2": k2, "K3": k3, "M3": m3}[args[i + 1]]
         args = args[:i] + args[i + 2:]
     raw, out = args[0], args[1]
     tiers = [int(a) for a in args[2:]] or list(range(11))
