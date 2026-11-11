@@ -22,19 +22,26 @@ the switch and the other two went.
 The settle: the film's last frame (the content area; the HUD is the same on both sides and left
 alone) is taken before the commit and laid over the map. It is held until the map has drawn its
 system, then dissolves into the map's sky, sun and orbits (0.7 s) with the paths, beacons and
-ship held back; the paths come in (0.6-1.1 s); the side panel slides in on the calm ladder's
-sine while the toolbar, key row and words fade (1.0-1.6 s); then your ship warps in at the edge
-(its own streak and dust ring, `warp_t` moved to that moment, 1.75 s). A map that never draws
-its system within 2 s is handed back as it stands.
+ship held back; the paths come in (0.6-1.1 s). At 1.0 s the side panel, the top row and the KEY
+band slide on together, drawn whole, as the calm ladder brings them when a move lands
+(`PanelSlide`s made as `ZoomLadder._panels_slide` makes them: side from the right, row from the
+top, band from the bottom; `CALM_SLIDE_S` on `_calm_slide_curve`, whole pixels), and the words
+(labels, scale, LOCATION) fade in after over `CALM_IN_S`. Jon asked (Nov 11) "does the bottom
+panel slide in?": the first settle slid only the side panel and faded the row and the KEY band;
+since F1 the ladder slides all three, so the settle does too. Then your ship warps in at the
+edge (its own streak and dust ring, `warp_t` moved to that moment, 1.75 s). A map that never
+draws its system within 2 s is handed back as it stands. The side panel's slide is silent here:
+the ladder's `chrome_on` would land on the film's ringing tail.
 
 The UI is held back through the goal line too (`ui_held`, `GoalLine.shows_on`). The side
 panel's star portrait is a shader that writes COLOR and so ignores a fade, so it is hidden until
 the panel slides, not left at full strength over a faint one. The "YOU" edge arrow is off while
 the ship is held back (it pointed at the ship's last drawn place, the frame's corner). Presses
-are taken by the seam until the map can be seen, then pass through.
+are taken by the seam until the map can be seen, and after that only on a panel still moving
+(as the ladder eats them), so nothing is clickable while it moves.
 
 Off where there is no picture: headless (`get_image` has nothing to read) and wherever
 `Router.animating()` is false (reduced motion, the sim, the shot tools) take the cut, and
 nothing is hidden then, because the map's UI is only touched once a seam exists. Reduced motion
-never plays a film anyway; the slide falls back to a fade if it ever did. Nothing here flashes,
+never plays a film anyway. Nothing here flashes,
 so reduce flashes changes nothing. No zoom (Jon dislikes zoom in jumps).
