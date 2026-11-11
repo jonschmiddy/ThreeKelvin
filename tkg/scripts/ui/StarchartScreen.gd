@@ -990,16 +990,29 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 	b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	# 8px clear over the SCALE BLOCK, measured from the chart's numbers; `row` stacks upward.
 	if top:
-		# Down from the top edge instead, by the same padding the scale block
-		# keeps off the bottom, so both corners sit the same distance in.
+		# The first one's words level with the goal's, to the pixel (Jon, Nov 11): `_level_corner`.
 		b.offset_top = MapChart.BAR_PAD + 14.0 * float(row)
 		b.offset_bottom = MapChart.BAR_PAD + 14.0 * float(row + 1)
+		b.set_meta(&"row", row)
+		_chart.item_rect_changed.connect(_level_corner.bind(b))
+		_level_corner.call_deferred(b)
 	else:
 		var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
 		b.offset_top = -(14.0 * float(row + 1) + scale_top)
 		b.offset_bottom = -(14.0 * float(row) + scale_top)
 	_chart.add_child(b)
 	return b
+
+## A top toggle's words at the goal line's height (`GoalLine` below the plate: `place_at(1)` and its backing's
+## padding), the button one text line tall so its words start at its top; the next row 14 px under.
+func _level_corner(b: Button) -> void:
+	if not is_instance_valid(b) or not b.is_inside_tree():
+		return
+	var lh := b.get_theme_font(&"font").get_height(UITheme.FS_SMALL)
+	var top := GoalLine.place_at(1.0).y + GoalLine.PAD_V - _chart.global_position.y + 14.0 * float(b.get_meta(&"row", 0))
+	b.offset_top = roundf(top)
+	b.offset_bottom = roundf(top) + lh
+
 
 ## The two ring toggles, tinted to the rings they govern so the corner reads
 ## as a key as well as a control.

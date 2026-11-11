@@ -213,12 +213,33 @@ func _chart_band(map_band: Rect2) -> void:
 		h._ok("%s inside the chart, off the band (%s)" % [c.text, c.get_global_rect()], chart.grow(0.5).encloses(c.get_global_rect()) and not c.get_global_rect().intersects(band))
 	h._ok("the scale bar drawn inside the chart, above the band (its line at y %.0f, the band from %.0f)" % [chart.end.y - MapChart.BAR_PAD, band.position.y], chart.end.y - MapChart.BAR_PAD < band.position.y)
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(_out.path_join("10_chart_bottom.png"))
+	var im := get_viewport().get_texture().get_image()
+	im.save_png(_out.path_join("10_chart_bottom.png"))
 	_crop("10_chart_bottom", band.grow_individual(0, 60, 0, 4))
+	# THE TOP CORNER LEVEL WITH THE GOAL (Jon, Nov 11): the first lit row of each one's words, from the picture
+	var gl: GoalLine = Router.hud.goal
+	var gt := _ink_top(im, gl._goal.get_global_rect())
+	var tt := _ink_top(im, cs._reach_btn.get_global_rect())
+	h._ok("THRUSTER REACH's words start on the goal's row (goal ink from y %d, toggle's from y %d)" % [gt, tt], gt >= 0 and gt == tt)
+	var plate: Rect2 = ZoomLadder.bar_of(cs).get_global_rect()
+	h._ok("and the toggles clear of the top plate, still clickable (%s, %s; plate %s)" % [cs._reach_btn.get_global_rect(), cs._sight_btn.get_global_rect(), plate],
+		not cs._reach_btn.get_global_rect().intersects(plate) and not cs._sight_btn.get_global_rect().intersects(cs._reach_btn.get_global_rect())
+		and cs._reach_btn.mouse_filter == Control.MOUSE_FILTER_STOP and not cs._reach_btn.disabled)
+	_crop("10_chart_bottom", Rect2(0.0, plate.end.y - 4.0, im.get_width(), 60.0), "11_chart_top")
+
+
+## The first row in `r` with a lit pixel of words (bright, not the black shadow copies), or -1.
+static func _ink_top(im: Image, r: Rect2) -> int:
+	var ri := Rect2i(r).intersection(Rect2i(Vector2i.ZERO, im.get_size()))
+	for y in range(ri.position.y, ri.end.y):
+		for x in range(ri.position.x, ri.end.x):
+			if im.get_pixel(x, y).get_luminance() > 0.35:
+				return y
+	return -1
 
 
 ## A 2x crop of a still, nearest-neighbour, beside it.
-func _crop(name: String, r: Rect2) -> void:
+func _crop(name: String, r: Rect2, as_name := "") -> void:
 	var im := Image.load_from_file(_out.path_join(name + ".png"))
 	if im == null:
 		return
@@ -228,4 +249,4 @@ func _crop(name: String, r: Rect2) -> void:
 	var c := im.get_region(ri)
 	c.convert(Image.FORMAT_RGB8)
 	c.resize(ri.size.x * 2, ri.size.y * 2, Image.INTERPOLATE_NEAREST)
-	c.save_png(_out.path_join(name + "_2x.png"))
+	c.save_png(_out.path_join((as_name if as_name != "" else name) + "_2x.png"))

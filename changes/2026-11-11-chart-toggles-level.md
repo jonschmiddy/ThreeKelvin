@@ -1,0 +1,1 @@
+- **Changed** — on the star chart, THRUSTER REACH and SENSOR RANGE at the top right now line up with the GOAL line at the top left.
