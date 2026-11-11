@@ -7,6 +7,8 @@ extends Control
 signal resume_requested
 signal quit_requested
 signal save_and_quit_requested
+## The yard's exit: no run has launched, so nothing is saved or recorded.
+signal title_requested
 
 const DRAWER_W := 290.0
 const SIDE := 20
@@ -75,7 +77,7 @@ func setup() -> void:
 	col.add_child(tab)
 	col.add_child(UITheme.body("THREE KELVIN", UITheme.ICE, UITheme.FS_HEAD))
 
-	if Run.hull != null and not Run.map.is_empty():
+	if Run.hull != null and not Run.map.is_empty() and not before_launch():
 		# The order Jon asked for: where you are, then how deep, then what you
 		# are flying, then the three numbers.
 		col.add_child(_inset())
@@ -87,7 +89,7 @@ func setup() -> void:
 		col.add_child(_gap(2))
 
 	var resume := DrawerPlate.plate(&"resume", "RESUME",
-		"BACK TO THE FIGHT" if Router.in_combat() else "BACK TO THE SHIP",
+		"BACK TO THE FIGHT" if Router.in_combat() else ("BACK TO THE YARD" if before_launch() else "BACK TO THE SHIP"),
 		func() -> void: resume_requested.emit())
 	resume.tone = DrawerPlate.Tone.GOOD
 	col.add_child(resume)
@@ -130,6 +132,12 @@ func setup() -> void:
 ## Why: docs/why/PauseMenu.md#exits
 func _show_exits() -> void:
 	Widgets.clear(_exits)
+	if before_launch():
+		# Nothing to lose, so no confirm: the title, as the yard's Esc once went (Oct 22 audit).
+		var back := DrawerPlate.plate(&"abandon", "BACK TO TITLE", "NO RUN HAS STARTED",
+			func() -> void: title_requested.emit())
+		_exits.add_child(back)
+		return
 	var fighting := Router.in_combat()
 	var save := DrawerPlate.plate(&"save", "SAVE & EXIT TO TITLE",
 		"THE FIGHT STARTS OVER" if fighting else "PICK UP HERE LATER",
@@ -140,6 +148,11 @@ func _show_exits() -> void:
 		func() -> void: confirm(true))
 	abandon.tone = DrawerPlate.Tone.BAD
 	_exits.add_child(abandon)
+
+## The hull pick: a run is set up but not launched, so SAVE and ABANDON mean nothing yet.
+static func before_launch() -> bool:
+	return Router.current is ChassisSelect
+
 
 ## Both exits end the run, so both ask first, in place of the buttons (Jon: consent before ending).
 func confirm(destroys: bool) -> void:

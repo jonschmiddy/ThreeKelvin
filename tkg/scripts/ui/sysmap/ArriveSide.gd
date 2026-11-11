@@ -1,29 +1,19 @@
 class_name ArriveSide
 extends RefCounted
 
-## WHICH SIDE A FLIGHT ARRIVES ON, AND WHICH WAY ROUND (Jon, Nov 10, "S3"): on the sector
-## map a click on the selected world's lit half arrives on the lit side of its ring, on its
-## dark half the dark side; Shift held, the ship goes round against the world's spin. The
-## hover names both, the solver is asked for both (`FlightSolve`'s ring target: `sense`,
-## `side`, `lit`), and the second click flies the line drawn. Why: docs/why/ArriveSide.md#arrive-side
+## A FLIGHT TO A WORLD ARRIVES ON ITS LIT SIDE, GOING ROUND WITH ITS SPIN (Jon, Nov 11: the
+## lit/dark and Shift choice dropped as "too much noise"). The solver is asked for it
+## (`FlightSolve`'s ring target: `sense`, `side`, `lit`), and the second click flies the line
+## drawn. Why: docs/why/ArriveSide.md#arrive-side
 
 const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
-## The half a click picks: +1 the lit half, -1 the dark; 0 no pick (today's free arrival).
+## The side asked: +1 the lit half, -1 the dark (the solver takes either); 0 a free arrival.
 const LIT := 1
 const DARK := -1
 
-## A harness's Shift: 1 held, -1 up, 0 the keyboard's.
-static var force_shift := 0
-
-
-static func shift_held() -> bool:
-	if force_shift != 0:
-		return force_shift > 0
-	return Input.is_key_pressed(KEY_SHIFT)
-
 
 ## Toward the light at world i on the plane at t: the map's own rule (`SystemViewS.toward_light_of`,
-## which shades the lit half), so the half clicked is the half that looks lit.
+## which shades the lit half), so the side arrived on is the side that looks lit.
 static func lit_dir(L: SystemLayout, i: int, t: float) -> Vector2:
 	return SystemViewS.toward_light_of(L, L.bodies[i].pos(t), t)
 
@@ -48,17 +38,10 @@ static func spin_sense(view, L: SystemLayout, i: int) -> int:
 	return -1 if spin_of(view, L, i) < 0.0 else 1
 
 
-## The half of world i under screen point p: LIT or DARK.
-static func side_at(view, i: int, p: Vector2) -> int:
-	var rel: Vector2 = p - view.at[i]
-	var plane := Vector2(rel.x, rel.y / SystemViewS.TILT)
-	return LIT if plane.dot(lit_dir(view.layout, i, float(view.t))) >= 0.0 else DARK
-
-
-## What a click asks for at world i: its side, the sense (with the spin, or against it while
-## Shift is held), and in a twin the light's way (`light_wish`).
-static func wish_of(view, L: SystemLayout, i: int, side: int, shift: bool) -> Dictionary[String, Variant]:
-	var w: Dictionary[String, Variant] = {"side": side, "sense": spin_sense(view, L, i) * (-1 if shift else 1)}
+## What a click asks for at world i: the lit side, with its spin, and in a twin the light's
+## way (`light_wish`).
+static func wish_of(view, L: SystemLayout, i: int) -> Dictionary[String, Variant]:
+	var w: Dictionary[String, Variant] = {"side": LIT, "sense": spin_sense(view, L, i)}
 	w.merge(light_wish(L, i, float(view.t)))
 	return w
 
@@ -75,16 +58,22 @@ static func light_wish(L: SystemLayout, i: int, t: float) -> Dictionary[String, 
 	return {"lit": u, "lit_w": angle_difference(u.angle(), u2.angle()) / 0.5, "lit_t": t}
 
 
-## The wish as the map stands: the selected world under the cursor, out of another orbit; else
-## none, and the autopilot arrives as it likes.
+## The wish as the map stands: the selected world, pointed at or not (GO-lit, Jon, Nov 11),
+## out of another orbit; else none, and the autopilot arrives as it likes.
 static func wish_now(overlay, view, flight) -> Dictionary[String, Variant]:
-	var h: Dictionary = overlay.hover
-	var i: int = overlay.preview_to
-	if i < 0 or h.get("kind", &"") != &"body" or int(h.get("body", -9)) != i or not h.has("side"):
+	return wish_for(view, flight, int(overlay.preview_to))
+
+
+## The wish for a flight to world i, marked `to` i: only that world's flight wears it
+## (`ShipFlight._tgt_of`). Belts and stations have no lit side; comets and keeps none.
+static func wish_for(view, flight, i: int) -> Dictionary[String, Variant]:
+	if i < 0 or i >= view.layout.bodies.size() or view.layout.bodies[i].world == &"":
 		return {}
 	if flight == null or flight.orbit_body() == i or flight.is_keep(i):
 		return {}
-	return wish_of(view, view.layout, i, int(h.side), shift_held())
+	var w := wish_of(view, view.layout, i)
+	w["to"] = i
+	return w
 
 
 ## The solver's ring target for world i with the wish on it (`ShipFlight._tgt_of`).
@@ -126,30 +115,6 @@ static func plan_matches(pl, wish: Dictionary) -> bool:
 	var side := int(wish.get("side", 0))
 	var sided: bool = int(c.get("sd", 0)) == side or int(c.get("sdx", 0)) == side
 	return sided and int(c.get("sn", 0)) == int(wish.get("sense", 0))
-
-
-## THE HOVER TAG'S LINES: the side and the way round a click arrives, and what Shift does.
-static func words(side: int, spin: float, shift: bool) -> Array[Array]:
-	var half := "LIT SIDE" if side > 0 else "DARK SIDE"
-	var way := "AGAINST" if shift else "WITH"
-	var what := "ITS SPIN"
-	if spin == 0.0:
-		what = "ITS ORBIT (LOCKED)"
-	elif spin < 0.0:
-		what = "ITS SPIN (BACKWARD)"
-	var other := ("LET GO OF SHIFT: WITH " if shift else "HOLD SHIFT: AGAINST ") + what
-	var out: Array[Array] = [["%s · %s %s" % [half, way, what], UITheme.EMBER], [other, UITheme.QUOTE]]
-	return out
-
-
-## THE HALF PICKED, marked on the hover ring: an arc over the lit or dark half of world i.
-static func draw_half(ci: CanvasItem, view, i: int, side: int, r: float, col: Color) -> void:
-	var u := lit_dir(view.layout, i, float(view.t)) * float(side)
-	var ds := Vector2(u.x, u.y * SystemViewS.TILT)
-	if ds.length() < 1e-6:
-		return
-	var a := ds.angle()
-	ci.draw_arc(view.at[i], r, a - PI / 2.0, a + PI / 2.0, 24, col, 1.0)
 
 
 ## The side the ship is on round world i at t, by the solver's own margin: LIT, DARK, or 0 on

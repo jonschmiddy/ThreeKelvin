@@ -158,7 +158,7 @@ func _act(text: String, on: Callable, click := true) -> Button:
 	return b
 
 
-## A small button inside a card or a page: DOCK, HARVEST, FLY HERE.
+## A small button inside a card or a page: DOCK, HARVEST.
 func _small(text: String, on: Callable, off := false) -> Button:
 	var b := Widgets.button(text, on)
 	b.disabled = off
@@ -171,11 +171,19 @@ func _small(text: String, on: Callable, off := false) -> Button:
 const UNDOCK_FIRST := "UNDOCK FIRST"
 
 func _undock_line() -> Label:
-	var l := UITheme.body(UNDOCK_FIRST, UITheme.COLD, UITheme.FS_SMALL)
+	var l := fact_line(UNDOCK_FIRST, Router.DOCKED_LINE)
 	l.name = "UndockFirst"
+	return l
+
+
+## A plain line of fact where a greyed button used to stand (IN ORBIT, ON YOUR WAY):
+## only pressable things look pressable (Jon).
+static func fact_line(text: String, tip := "") -> Label:
+	var l := UITheme.body(text, UITheme.COLD, UITheme.FS_SMALL)
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	l.mouse_filter = Control.MOUSE_FILTER_STOP
-	l.tooltip_text = Widgets.tip(Router.DOCKED_LINE)
+	if tip != "":
+		l.mouse_filter = Control.MOUSE_FILTER_STOP
+		l.tooltip_text = Widgets.tip(tip)
 	return l
 
 
@@ -643,7 +651,7 @@ func _twin_head() -> void:
 		_row("SURFACE", sf.temp)
 		_row("MASS", sf.mass)
 		_row("RADIUS", sf.radius)
-		# (the same way in that star A's FLY HERE always was: `fly_to_body`)
+		# (where the ship is against either star, as a line: `_way_there`)
 		_way_there(s)
 	_rule()
 
@@ -719,35 +727,27 @@ func _has_open_event(body: int) -> bool:
 	return _events().any(func(p: Array) -> bool: return p[0] == body and _open_event(p))
 
 
-## THE WAY THERE: in orbit (or alongside) a place's events are open; until then
-## they are locked, and FLY HERE (or any choice) takes you there.
+## THE WAY THERE, as facts (Jon, Nov 11, F-C): no FLY HERE, as a second click on the
+## place flies; a plain line says where the ship stands to it, or what holds it.
+## Why: docs/why/SystemPanel.md#fly-by-click
 func _way_there(i: int) -> void:
-	var go := HBoxContainer.new()
-	# (named for its place, so a harness can press the right one of two suns'
-	# FLY HERE: Way_3, Way_m1 star A, Way_m4 star B)
-	go.name = way_name(i)
-	# WHERE FLY HERE GOES, GREYED (Jon: "have ON YOUR WAY and IN ORBIT be a
-	# grayed-out button on the right side")
+	var line: Label = null
 	if _ship_at(i):
-		go.add_child(_spacer())
-		go.add_child(_small(_there_word(i), func() -> void: pass, true))
-	else:
-		go.add_child(_spacer())
-		# A world with an open event flies by its GO alone (Jon, Nov 9, stripped-down UI 3).
-		var by_go := i >= 0 and _has_open_event(i)
-		if Router.docked:
-			go.add_child(_undock_line())
-		elif _held():
-			go.add_child(_small("CANNOT UNDOCK", func() -> void: pass, true))
-		elif _can_go():
-			if not by_go:
-				go.add_child(_small("FLY HERE", func() -> void: screen.fly_to_body(i)))
-		elif _heading_to(i):
-			go.add_child(_small("ON YOUR WAY", func() -> void: pass, true))
-		elif not by_go:
-			go.add_child(_small("FLY HERE ONCE IN ORBIT", func() -> void: pass, true))
-	# (no line under it: the button already says whether GO can fly you there,
-	# Jon, Nov 5: "it's not needed there"; an event's own page keeps its line)
+		line = fact_line(_there_word(i))
+	elif Router.docked:
+		line = _undock_line()
+	elif _held():
+		line = fact_line("CANNOT UNDOCK", HELD_LINE)
+	elif _heading_to(i):
+		line = fact_line("ON YOUR WAY")
+	if line == null:
+		return
+	var go := HBoxContainer.new()
+	# (named for its place, so a harness can read the right one of two suns'
+	# lines: Way_3, Way_m1 star A, Way_m4 star B)
+	go.name = way_name(i)
+	go.add_child(_spacer())
+	go.add_child(line)
 	_box.add_child(go)
 
 
@@ -794,7 +794,7 @@ func _place_head(i: int) -> void:
 			var key := String(f[0])
 			if key == "TYPE" or key == "BEACONS":
 				continue
-			# Takes the FAUNA row's place, as an extra row put FLY HERE 13 px lower.
+			# Takes the FAUNA row's place, as an extra row put the way-there line 13 px lower.
 			if key == "FAUNA" and b.gm_frac > 0.0 and String(f[1]) == "NONE":
 				continue
 			_row(f[0], f[1])

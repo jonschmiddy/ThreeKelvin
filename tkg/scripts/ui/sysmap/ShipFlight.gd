@@ -2025,8 +2025,7 @@ const CLICK_GAIN := 0.15
 ## whether the last click flew a flight planned at it, not the one drawn (a
 ## harness reads it)
 var click_replanned := false
-## THE ARRIVAL ASKED FOR at a world (`ArriveSide`: side, sense, lit), set by the map each
-## frame from the hover and Shift; empty, the autopilot arrives as it likes
+## THE ARRIVAL ASKED FOR at a world (`ArriveSide`), set by the map for the selected world and every flight it starts
 var wish: Dictionary = {}
 
 
@@ -2042,13 +2041,14 @@ static func _sooner(pn: FlightPlan, pv: FlightPlan) -> bool:
 const LINE_N := 1600
 
 
-## Arrival: a ring at RAIL_V either way round, a star's close orbit, or alongside a place.
+## Arrival: a ring at RAIL_V either way round, a star's close orbit, or alongside a place; a wish
+## (`ArriveSide`) only on the world it was made for, never another (GO-lit, Jon, Nov 11).
 func _tgt_of(i: int) -> Dictionary:
 	if is_keep(i):
 		return {"kind": &"keep", "place": i, "off": KEEP_OFF}
 	if SystemLayout.is_star(i):
 		return {"kind": &"ring", "place": i, "R": orbit_r(i), "V": STAR_RAIL_V, "sense": 0}
-	return ArriveSide.ring_target(i, orbit_r(i), RAIL_V, wish)
+	return ArriveSide.ring_target(i, orbit_r(i), RAIL_V, wish if int(wish.get("to", -9)) == i else {})
 
 
 ## A solved flight as a FlightPlan, with the insertion after it drawn.

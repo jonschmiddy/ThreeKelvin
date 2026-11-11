@@ -458,10 +458,10 @@ far, near and star spots when the limits were set; about 90 s.
 
 ## unit_arrivesidetest
 
-The side and way round a flight arrives (ArriveSideTest; Jon, Nov 10, "S3"): on
-the real map a click on the selected world's lit half arrives on the lit side
-going with its spin, with Shift a click on the dark half arrives dark and
-against it, the hover tag names both and the line drawn is the one flown; then
+The side and way round a flight arrives (ArriveSideTest; Jon, Nov 10, "S3", the
+choice dropped Nov 11): on the real map a click on either half of the selected
+world, Shift up or held, arrives on the lit side going with its spin, the tag
+says nothing of sides and the line drawn is the one flown; then
 the solver alone over real systems, every sided or sensed flight landing as
 asked. About 60 s.
 

@@ -16,6 +16,9 @@ const RING_R := 9.0
 var view
 ## Where the cursor is on the map, or x < 0 when it is off the map.
 var at := Vector2(-1, -1)
+## On the selected place where a click flies: the ring in the flight's ink, with a sight's ticks.
+var sight := false
+const SIGHT_TICK := 3.0
 
 
 func _draw() -> void:
@@ -45,9 +48,15 @@ func _draw() -> void:
 				for k in NOTCH:
 					draw_rect(Rect2(side + k, floorf(c.y + (side + k - c.x) * slope), 1.0, 1.0), notch)
 	# the ring, flat on the plane: a circle seen at the plane's tilt
-	var ring := Color(UITheme.ICE, RING_ALPHA)
+	var ring := Color(UITheme.HOT if sight else UITheme.ICE, 1.0 if sight else RING_ALPHA)
 	var n := 40
 	for i in n:
 		var a := float(i) / n * TAU
 		var p := (c + Vector2(cos(a) * RING_R, sin(a) * RING_R * view.TILT)).floor()
 		draw_rect(Rect2(p, Vector2.ONE), ring)
+	if sight:
+		# four ticks out from the ring, whole pixels: a sight
+		var ry := roundf(RING_R * view.TILT)
+		for k in SIGHT_TICK:
+			for q: Vector2 in [Vector2(RING_R + 1.0 + k, 0), Vector2(-RING_R - 1.0 - k, 0), Vector2(0, ry + 1.0 + k), Vector2(0, -ry - 1.0 - k)]:
+				draw_rect(Rect2((c + q).floor(), Vector2.ONE), ring)

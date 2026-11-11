@@ -1090,3 +1090,18 @@ shut meanwhile (`final_loot`: no HUD, no Tab, and any screen swapped in is
 followed by the win screen), and the one save a won run may have is written
 (`SaveGame.save_core_won`), so quitting here comes back to the body.
 ```
+
+## Yard sound
+
+The hull pick played the title cue from Sep 13 ("Choosing a hull is still
+before you launch, so it is the title music"), and the banner yard kept it.
+Jon, Nov 11: "The title menu plays in the ship selection screen." The yard
+front is the Shipyard deck's own hall, and the deck has no score: a docked
+station's room tone steps the music out to silence, and the deck plays its
+bed (`yard_bed`, `YardSound`) under every level. So the hull pick asks for
+`&"yard"`, which fades the score out (`Audio.stop_music`), and its room is
+`Audio.YARD_ROOM`, the same bed at the 0 dB it plays on the deck. Not
+`amb_station`: the station's crowd and PA belong to docking, and a pre-run
+screen announcing departures read wrong. LAUNCH lands on LOCAL, whose star
+room and run cue take over; the title's own `&"menu"` brings the title cue
+back.

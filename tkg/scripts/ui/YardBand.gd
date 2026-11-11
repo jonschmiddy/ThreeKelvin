@@ -3,7 +3,7 @@ extends Control
 
 ## The front door's info band, straight on the floor under the ships (Jon's
 ## band B1, Nov 10: no panel behind it): the facts, a tie line up to the
-## ship's stand, and LAUNCH, a big amber key, grey until a ship is picked.
+## ship's stand, and LAUNCH, a big amber key, shown once a ship is picked.
 ## Why: docs/why/ChassisSelect.md#banner-yard
 
 signal launch
@@ -11,7 +11,10 @@ signal tier_picked(t: int)
 
 ## The band's box and the key's, in game pixels (the mockup's BAND and KEY).
 const BAND := Rect2i(40, 404, 880, 122)
-const KEY := Rect2i(744, 426, 156, 76)
+## Jon's L-A plate (Nov 11): 139 x 35 with its 2 px lip and shadow under it.
+const KEY := Rect2i(762, 446, 139, 37)
+## The developer's grade chips, where the old key's foot left room.
+const CHIPS_AT := Vector2i(744, 508)
 ## The left column, the attribute column and the hardpoint column.
 const COL_L := 58
 const COL_A := 236
@@ -34,6 +37,9 @@ var block: AttrBlock = null
 var tie: Vector2 = Vector2.ZERO
 var _words: Control
 var _tiers: Array[Button] = []
+## LAUNCH (and the developer's grade chips) are up: hidden until a ship is picked.
+var armed: bool = false
+var _arm_tw: Tween = null
 
 
 func _init() -> void:
@@ -50,10 +56,32 @@ func setup(dev: bool, tier: int) -> void:
 	key.position = Vector2(KEY.position)
 	key.size = Vector2(KEY.size)
 	key.pressed.connect(func() -> void: launch.emit())
+	key.visible = false
 	add_child(key)
 	if dev:
 		_tier_chips(tier)
 	show_rest()
+
+
+## LAUNCH and the grade chips appear in place once a ship is picked (Jon, Nov 11:
+## "weird" before one is); faded, never slid, as they are things to click.
+## Why: docs/why/ChassisSelect.md#launch-on-pick
+func arm(on: bool) -> void:
+	if on == armed:
+		return
+	armed = on
+	var keys: Array[Control] = [key]
+	keys.append_array(_tiers)
+	if _arm_tw != null and _arm_tw.is_valid():
+		_arm_tw.kill()
+	var fade := on and Router.animating()
+	for c in keys:
+		c.visible = on
+		c.self_modulate.a = 0.0 if fade else 1.0
+	if fade:
+		_arm_tw = create_tween().set_parallel(true)
+		for c in keys:
+			_arm_tw.tween_property(c, ^"self_modulate:a", 1.0, 0.18)
 
 
 ## Developer mode only: the condition grade to launch on, under the key. A
@@ -62,9 +90,10 @@ func _tier_chips(tier: int) -> void:
 	for t in HullData.TIER_NAMES.size():
 		var b := Widgets.button(String(HullData.TIER_NAMES[t]), func() -> void: tier_picked.emit(t))
 		b.custom_minimum_size = Vector2(22, 20)
-		b.position = Vector2(KEY.position.x + t * 28, KEY.end.y + 6)
+		b.position = Vector2(CHIPS_AT.x + t * 28, CHIPS_AT.y)
 		b.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
 		b.tooltip_text = Widgets.tip("%s tier\n%s" % [HullData.TIER_NAMES[t], ChassisSelect.TIER_BLURB[t]])
+		b.visible = false
 		_tiers.append(b)
 		add_child(b)
 	mark_tier(tier)
@@ -85,7 +114,8 @@ func _clear() -> void:
 ## Nothing picked: the one instruction, large, and the quiet line under it.
 func show_rest() -> void:
 	_clear()
-	var cx := (BAND.position.x + KEY.position.x) / 2
+	# (centred where it was under the old key: the plate's box test measured it there)
+	var cx := (BAND.position.x + CHIPS_AT.x) / 2
 	_centred("SELECT A SHIP", UITheme.FS_HEAD, cx, (BAND.position.y + BAND.end.y) / 2 - 8, REST)
 	_centred("POINT AT A SHIP TO SEE IT.", UITheme.FS_SMALL, cx, (BAND.position.y + BAND.end.y) / 2 + 16, COLD)
 	key.set_on(false)
@@ -145,6 +175,15 @@ func show_locked(m: StringName, at: Vector2) -> void:
 	queue_redraw()
 
 
+## Is `p` (global) on a band word that carries a tooltip? A click there is not "away".
+func on_word(p: Vector2) -> bool:
+	for c in _words.find_children("*", "Label", true, false):
+		var l := c as Label
+		if l.mouse_filter != Control.MOUSE_FILTER_IGNORE and l.is_visible_in_tree() and l.get_global_rect().has_point(p):
+			return true
+	return false
+
+
 func _word(s: String, px: int, x: int, y: int, col: Color) -> Label:
 	var l := UITheme.body(s, col, px)
 	l.position = Vector2(x, y)
@@ -171,20 +210,16 @@ func _draw() -> void:
 
 
 ## THE KEY: a Button, so the hints and the harnesses find LAUNCH by name, drawn
-## as the mockup's amber key cap with its lit top and dark lip; grey and
-## disabled until a ship is picked. Silent: launching is the start of the game,
+## as Jon's L-A "Plate" (Nov 11). Silent: launching is the start of the game,
 ## not a UI click (Jon).
+## Why: docs/why/ChassisSelect.md#launch-plate
 class LaunchKey extends Button:
 	const AMBER := Color8(240, 160, 67)
-	const TOP := Color8(255, 206, 122)
-	const TOP_LINE := Color8(255, 234, 180)
-	const LIP := Color8(126, 76, 22)
-	const RIM := Color8(255, 190, 100)
-	const INK := Color8(24, 16, 8)
-	const SHADE := Color8(120, 70, 20)
-	const OFF_FILL := Color8(22, 34, 34)
-	const OFF_RIM := Color8(44, 58, 58)
-	const OFF_INK := Color8(64, 80, 84)
+	## The plate's box from its corner; the lip and its contact shadow hang below it.
+	const PLATE_W := 139
+	const PLATE_H := 35
+	const TRACK := 3
+	const GLOW := Color8(255, 170, 70)
 	var on: bool = false
 
 	func _init() -> void:
@@ -214,27 +249,92 @@ class LaunchKey extends Button:
 		disabled = not v
 		queue_redraw()
 
-	func _draw() -> void:
-		var b := Rect2(Vector2.ZERO, size)
-		var font := UITheme.pixel_font()
-		var px := UITheme.FS_HEAD
-		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
-		var tx := floorf((size.x - w) / 2.0)
-		var ty := floorf(size.y / 2.0 - 8.0 + font.get_ascent(px))
+	## The mockup's four states: ready, hover, pressed, locked.
+	func state() -> StringName:
 		if not on:
-			draw_rect(Rect2(0, 0, size.x, size.y + 4), Color8(8, 26, 22), true)
-			draw_rect(b, OFF_FILL, true)
-			draw_rect(b, OFF_RIM, false, 1.0)
-			draw_string(font, Vector2(tx, ty), text, HORIZONTAL_ALIGNMENT_LEFT, -1, px, OFF_INK)
-			return
-		var down := 2.0 if is_pressed() else 0.0
-		var fill := AMBER.lightened(0.12) if is_hovered() else AMBER
-		draw_rect(Rect2(0, 4, size.x, size.y), Color8(4, 12, 10), true)
-		var cap := Rect2(0, down, size.x, size.y - down)
-		draw_rect(cap, fill, true)
-		draw_rect(Rect2(0, down, size.x, 6), TOP, true)
-		draw_rect(Rect2(0, down, size.x, 1), TOP_LINE, true)
-		draw_rect(Rect2(0, size.y - 6, size.x, 6), LIP, true)
-		draw_rect(cap.grow(-0.5), RIM, false, 1.0)
-		draw_string(font, Vector2(tx + 1, ty + 1 + down), text, HORIZONTAL_ALIGNMENT_LEFT, -1, px, SHADE)
-		draw_string(font, Vector2(tx, ty + down), text, HORIZONTAL_ALIGNMENT_LEFT, -1, px, INK)
+			return &"locked"
+		if is_pressed():
+			return &"pressed"
+		return &"hover" if is_hovered() else &"ready"
+
+	## A pixel box by its inclusive corners, as the mockup's PIL drew it.
+	func _px(x0: int, y0: int, x1: int, y1: int, c: Color) -> void:
+		if x1 >= x0 and y1 >= y0:
+			draw_rect(Rect2(x0, y0, x1 - x0 + 1, y1 - y0 + 1), c, true)
+
+	func _chamfer(x0: int, y0: int, x1: int, y1: int, c: Color, ch: int) -> void:
+		_px(x0 + ch, y0, x1 - ch, y1, c)
+		_px(x0, y0 + ch, x1, y1 - ch, c)
+
+	func _draw() -> void:
+		var st := state()
+		var x1 := PLATE_W - 1
+		var y1 := PLATE_H - 1
+		var fill := AMBER
+		var hi := Color8(255, 212, 140)
+		var lo := Color8(184, 110, 36)
+		var rim := Color8(30, 16, 6)
+		var ink := Color8(34, 20, 6)
+		var lip := Color8(132, 76, 22)
+		match st:
+			&"locked":
+				fill = Color8(24, 34, 36)
+				hi = Color8(42, 56, 58)
+				lo = Color8(14, 22, 24)
+				rim = Color8(6, 10, 11)
+				ink = Color8(70, 86, 90)
+				lip = Color8(10, 16, 17)
+			&"hover":
+				fill = Color8(252, 180, 86)
+				hi = Color8(255, 232, 176)
+			&"pressed":
+				fill = Color8(226, 146, 56)
+				hi = Color8(186, 112, 36)
+		var pressed := st == &"pressed"
+		var dn := 2 if pressed else 0
+		if st == &"hover":
+			_glow(x1, y1 + 2)
+		_px(1, y1 + 3, x1 + 1, y1 + 4, Color(0, 0, 0, 120.0 / 255.0))
+		_chamfer(0, dn, x1, y1 + 2, rim, 2)
+		if not pressed:
+			_px(2, y1 - 1, x1 - 2, y1 + 1, lip)
+		# the face: over the lip when sunk, above it at rest
+		var f0 := 1
+		var f1 := 1 + dn
+		var f2 := x1 - 1
+		var f3 := y1 + 1 if pressed else y1 - 3
+		_chamfer(f0, f1, f2, f3, fill, 1)
+		_px(f0 + 1, f1, f2 - 1, f1, hi)
+		_px(f0, f1 + 1, f0, f3 - 1, lo if pressed else hi)
+		_px(f0 + 1, f3, f2 - 1, f3, hi if pressed else lo)
+		_px(f2, f1 + 1, f2, f3 - 1, lo)
+		var font := UITheme.pixel_font()
+		var fs := UITheme.FS_HEAD
+		var tw := TRACK * (text.length() - 1)
+		for ch in text:
+			tw += int(font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		var x := float((f0 + f2 + 1) / 2 - tw / 2)
+		var base := float((f1 + f3 + 1) / 2 - 12) + font.get_ascent(fs)
+		for ch in text:
+			draw_string(font, Vector2(x, base), ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
+			x += font.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + TRACK
+
+	## Light as light: amber in steps round the plate, the outermost dithered.
+	func _glow(x1: int, y1: int) -> void:
+		for d in range(1, 7):
+			var a := 0.42 if d <= 2 else (0.2 if d <= 4 else 0.1)
+			var c := Color(GLOW, a)
+			if d <= 4:
+				_px(-d + 1, -d, x1 + d - 1, -d, c)
+				_px(-d + 1, y1 + d, x1 + d - 1, y1 + d, c)
+				_px(-d, -d + 1, -d, y1 + d - 1, c)
+				_px(x1 + d, -d + 1, x1 + d, y1 + d - 1, c)
+				continue
+			for xx in range(-d + 1, x1 + d):
+				if (xx + d) % 2 == 0:
+					_px(xx, -d, xx, -d, c)
+					_px(xx, y1 + d, xx, y1 + d, c)
+			for y in range(-d + 1, y1 + d):
+				if (y + d) % 2 == 0:
+					_px(-d, y, -d, y, c)
+					_px(x1 + d, y, x1 + d, y, c)

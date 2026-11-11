@@ -1,10 +1,9 @@
 extends Node
 
-## Stills of the banner shipyard as a player sees it, for judging the look:
-## at rest, a ship picked, another pointed at (the blur), and a locked
-## manufacturer's tarps. `-- sheet=YardFrontShot out=<dir>`; needs a window.
-## `dev` opens every banner first, `nodev` shows a fresh profile's (from the
-## editor binary, where developer mode is on). The window's own pixels.
+## Stills of the banner shipyard as a player sees it: rest, picked, pointed at,
+## the tarps, a tarp clicked, and with `dev` every other set's heavy picked.
+## `-- sheet=YardFrontShot out=<dir> [dev|nodev]`; needs a window.
+## `nodev` shows a fresh profile's banners from the editor binary.
 
 var _out := ""
 
@@ -32,6 +31,10 @@ func _run() -> void:
 	cs._pick_weight(HullData.Weight.MEDIUM)
 	await _secs(1.0)
 	_shot("2_picked")
+	cs._band.key.notification(Control.NOTIFICATION_MOUSE_ENTER)
+	await _secs(0.3)
+	_shot("2b_launch_hover")
+	cs._band.key.notification(Control.NOTIFICATION_MOUSE_EXIT)
 	var heavy: YardStandSet = cs._yard.set_of(HullData.Weight.HEAVY)
 	heavy.notification(Control.NOTIFICATION_MOUSE_ENTER)
 	await _secs(0.8)
@@ -47,6 +50,18 @@ func _run() -> void:
 	light.notification(Control.NOTIFICATION_MOUSE_ENTER)
 	await _secs(0.8)
 	_shot("6_locked_hover")
+	light.notification(Control.NOTIFICATION_MOUSE_EXIT)
+	cs._pick_weight(HullData.Weight.LIGHT)
+	await _secs(0.6)
+	_shot("7_locked_tarp_clicked")
+	if DevMode.enabled:
+		for i in DB.STARTABLE.size():
+			if DB.STARTABLE[i] == &"korvan":
+				continue
+			cs._select(i)
+			cs._pick_weight(HullData.Weight.HEAVY)
+			await _secs(0.6)
+			_shot("8_%s" % DB.STARTABLE[i])
 	print("yardfrontshot: done, %s" % _out)
 	get_tree().quit()
 
