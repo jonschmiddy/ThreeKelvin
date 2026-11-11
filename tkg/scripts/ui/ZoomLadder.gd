@@ -330,7 +330,7 @@ var _hid: Array = []
 
 
 func _hide_chrome(s: Control) -> void:
-	for c: Variant in [side_of(s), bar_of(s), PanelSlide.foot_of(s)]:
+	for c: Variant in [side_of(s), bar_of(s), PanelSlide.veil_of(s)]:
 		if c != null and is_instance_valid(c):
 			(c as CanvasItem).modulate.a = 0.0
 			_hid.append(c)
@@ -1394,7 +1394,7 @@ static func bar_of(s: Control) -> Control:
 
 
 ## The decodes under way: the side bar's, the toolbar's and the KEY band's.
-func _swaps() -> Array[SideSwap]:
+func _swaps() -> Array[Variant]:
 	return [side_swap, bar_swap, foot_swap]
 
 

@@ -255,7 +255,7 @@ made here too, for the same reason.
 
 ## Chart built ahead
 
-Above `const CHART_AT := Vector2(655.0, 419.0)`:
+Above `const CHART_AT := Vector2(655.0, 407.0)`:
 
 ```text
 THE FIRST CHART OF A RUN, BUILT WHILE THE HULL IS PICKED (Oct 27, on
@@ -272,7 +272,8 @@ layout decides: the size the last chart had this session, or the one it
 has had since the field went under the navigation screens (`CHART_AT`;
 `-- sheet=ChartAheadTest` fails if the layout moves it). Built for a size
 the chart turns out not to have, it is simply not used: the chart builds
-its own, as before.
+its own, as before. (419 tall until Nov 11, when the KEY row went onto the
+map's full-width band and the chart gave it 12 px.)
 
 Not headless and not in the sim, which start runs by the hundred and never
 draw a chart (`ahead_always` for the test).

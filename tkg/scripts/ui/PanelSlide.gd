@@ -102,3 +102,11 @@ static func for_foot(parent: Node, s: Control, c: Rect2, on: bool) -> PanelSlide
 	parent.add_child(pf)
 	pf.setup(ft, &"foot", Vector2(0.0, c.end.y - ft.get_global_rect().position.y + 2.0), 0.0 if on else 1.0, s)
 	return pf
+
+
+## What hides `s`'s bottom band until it slides on: the band, or for a drawer in a clipping
+## holder (LOCAL's strip) the holder, so nothing of it reads as there while the camera moves.
+static func veil_of(s: Control) -> Control:
+	var ft := foot_of(s)
+	var hp := ft.get_parent() as Control if ft != null and is_instance_valid(ft) else null
+	return hp if hp != null and hp.clip_contents and not (hp is Container) else ft

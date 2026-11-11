@@ -994,8 +994,9 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 		b.offset_top = MapChart.BAR_PAD + 14.0 * float(row)
 		b.offset_bottom = MapChart.BAR_PAD + 14.0 * float(row + 1)
 		b.set_meta(&"row", row)
-		_chart.item_rect_changed.connect(_level_corner.bind(b))
-		_level_corner.call_deferred(b)
+		if not _chart.item_rect_changed.is_connected(_level_corners):
+			_chart.item_rect_changed.connect(_level_corners)
+		_level_corners.call_deferred()
 	else:
 		var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
 		b.offset_top = -(14.0 * float(row + 1) + scale_top)
@@ -1005,9 +1006,13 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 
 ## A top toggle's words at the goal line's height (`GoalLine` below the plate: `place_at(1)` and its backing's
 ## padding), the button one text line tall so its words start at its top; the next row 14 px under.
+func _level_corners() -> void:
+	for b: Button in [_reach_btn, _sight_btn]:
+		if b != null and is_instance_valid(b) and b.is_inside_tree() and b.get_parent() == _chart:
+			_level_corner(b)
+
+
 func _level_corner(b: Button) -> void:
-	if not is_instance_valid(b) or not b.is_inside_tree():
-		return
 	var lh := b.get_theme_font(&"font").get_height(UITheme.FS_SMALL)
 	var top := GoalLine.place_at(1.0).y + GoalLine.PAD_V - _chart.global_position.y + 14.0 * float(b.get_meta(&"row", 0))
 	b.offset_top = roundf(top)

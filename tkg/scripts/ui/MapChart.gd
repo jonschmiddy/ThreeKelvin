@@ -354,7 +354,7 @@ func sky_drawn() -> bool:
 ## Builds the run's star field on a worker while the hull is picked (Oct 27, Jon's Mac).
 ## Opening the chart held the screen 300 to 560 ms; now it finds the field in the cache.
 ## Why: docs/why/MapChart.md#chart-built-ahead
-const CHART_AT := Vector2(655.0, 419.0)
+const CHART_AT := Vector2(655.0, 407.0)
 ## The navigated chart's size, the last time it built its field.
 static var last_size := Vector2.ZERO
 static var ahead_always := false
