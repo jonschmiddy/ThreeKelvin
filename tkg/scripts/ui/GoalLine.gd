@@ -323,6 +323,9 @@ static func shows_on(cur: Control) -> bool:
 		return false
 	if Hints.menu_up():
 		return false
+	# (nor while a jump's hand-off still holds the map's UI back: `JumpSeam`)
+	if JumpSeam.ui_held:
+		return false
 	# (through a move between LOCAL, the map and the chart it stays: a fixed
 	# piece of the HUD; any other move, the dive or the dock, takes it)
 	if ZoomLadder.busy() and not (bool(ZoomLadder.active.get("_calm")) and Router.nav_screen(cur)):

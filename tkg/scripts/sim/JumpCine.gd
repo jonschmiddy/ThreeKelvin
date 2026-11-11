@@ -388,7 +388,9 @@ func _whole(tree: SceneTree, to: int) -> void:
 	# `reduce` films it with REDUCE FLASHES on
 	DisplaySettings.reduce_flashes = "reduce" in OS.get_cmdline_user_args()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
-	var total := 10.0 + WHOLE_TAIL
+	# `tail=` films that long past ten seconds and `from=` saves frames from then on (the seam)
+	var total := 10.0 + float(Harness.arg("tail", str(WHOLE_TAIL)))
+	var from := float(Harness.arg("from", "0"))
 	var log := PackedStringArray()
 	log.append("route %s -> %s" % [MapGen.star_name(Run.node_at()), MapGen.star_name(Run.map[to])])
 	log.append("film %s" % JumpRegistry.pick(Run.jumps))
@@ -415,7 +417,8 @@ func _whole(tree: SceneTree, to: int) -> void:
 		last_us = now_us
 		t = GameClock.now() - t0
 		if t >= float(f) / WHOLE_FPS - 1e-4:
-			vp.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
+			if t >= from - 1e-4:
+				vp.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, f])
 			log.append("frame %d %.4f %s" % [f, t, Router.current.get_script().resource_path.get_file()])
 			f += 1
 		await tree.process_frame
