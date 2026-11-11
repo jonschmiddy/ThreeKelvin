@@ -10,7 +10,11 @@ extends Control
 signal pressed
 
 const BW := 48
-const CLOTH := 76
+## A third longer than the mockup's 76 (Jon, Nov 11: "the banners can be longer").
+const CLOTH := 100
+## The cloth's lighting bands: lit head, mid, shaded foot (the 76-row cloth's 22 and 48).
+const HEAD_ROWS := 22
+const MID_ROWS := 64
 ## The margin a posed cloth needs either side of the rod for its shear.
 const MARGIN := 4
 const TRUSS_Y := 18
@@ -133,9 +137,11 @@ func _bake(md: ManufacturerData, _name: String) -> void:
 	for r in CLOTH:
 		var f := float(r)
 		var v: float
-		if f < 22.0: v = lerpf(bl * 1.15, bl * 0.95, f / 22.0)
-		elif f < 48.0: v = lerpf(bl * 0.95, bl * 0.7, (f - 22.0) / 26.0)
-		else: v = lerpf(bl * 0.7, bl * 0.45, (f - 48.0) / 27.0)
+		var head_r := float(HEAD_ROWS)
+		var mid_r := float(MID_ROWS)
+		if f < head_r: v = lerpf(bl * 1.15, bl * 0.95, f / head_r)
+		elif f < mid_r: v = lerpf(bl * 0.95, bl * 0.7, (f - head_r) / (mid_r - head_r))
+		else: v = lerpf(bl * 0.7, bl * 0.45, (f - mid_r) / float(CLOTH - 1 - MID_ROWS))
 		var q := _quant(v)
 		for x in BW:
 			var c := img.get_pixel(x, r)
@@ -165,7 +171,7 @@ static func shear(k: int, r: int) -> int:
 	return int(round(float(k) * pow(float(r) / float(CLOTH - 1), 1.5)))
 
 
-## The forked foot: full width to row 66, then two flaps meeting at the notch.
+## The forked foot: full width to ten rows from the foot, then two flaps meeting at the notch.
 static func _inside(x: int, r: int) -> bool:
 	if r <= CLOTH - 10:
 		return true
@@ -190,9 +196,19 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 
-## Only the cloth is the thing: the chains and the air beside them are not.
+## Only the cloth is the thing, as it hangs this frame: not the chains, the air
+## beside it, or anything below its foot, which once picked from the floor (Jon, Nov 11).
 func _has_point(p: Vector2) -> bool:
-	return p.y >= ROD_Y - TRUSS_Y + 4 and p.x >= MARGIN and p.x < MARGIN + BW
+	return on_cloth(p, _k)
+
+
+## Is `p` (in this control) on the cloth posed `k`, forked foot and all?
+static func on_cloth(p: Vector2, k: int) -> bool:
+	var r := int(floorf(p.y)) - (ROD_Y - TRUSS_Y + 4)
+	if r < 0 or r >= CLOTH:
+		return false
+	var x := int(floorf(p.x)) - MARGIN - shear(k, r)
+	return x >= 0 and x < BW and _inside(x, r)
 
 
 func _gui_input(e: InputEvent) -> void:

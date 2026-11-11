@@ -265,6 +265,9 @@ func _flow() -> void:
 	_mark("chassis_select")
 	# looking the hull over, as a new player does
 	await _wait(float(Harness.arg("chassis_s", "8")))
+	# (the banner yard: LAUNCH shows once a ship is picked)
+	(Router.current as ChassisSelect)._pick_weight(HullData.Weight.MEDIUM)
+	await _wait(0.4)
 	await _click(Harness.button_with_text(Router.current, "LAUNCH"), "LAUNCH (hull pick)")
 	_mark("launched")
 	# ---- 3. the arrival; no tour: the controls are yours when the ship stops
