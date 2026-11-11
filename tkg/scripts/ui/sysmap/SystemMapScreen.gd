@@ -1352,6 +1352,9 @@ func _fly(body: int, done: Callable) -> void:
 	# The callback decides what the panel shows, so the frame's arrival must not open the place.
 	# The flight drawn is the flight flown: reuse the preview's plan or plan on a worker.
 	# Why: docs/why/SystemMapScreen.md#flying
+	# (GO, the panel and the keys too: every flight to a world arrives lit, with its spin)
+	if int(flight.wish.get("to", -9)) != body:
+		flight.wish = ArriveSide.wish_for(view, flight, body)
 	var near: bool = overlay.preview_to == body and ArriveSide.plan_matches(overlay._pv_plan, flight.wish)
 	if overlay.preview_to == body and not near:
 		# (the line drawn is another side's or way's: planned afresh for this click)

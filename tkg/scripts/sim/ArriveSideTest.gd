@@ -223,11 +223,57 @@ func _map_part() -> void:
 	await _fly_side(m, L, w1, ArriveSide.DARK, "the dark half, Shift held")
 	_shift(false)
 	await _fly_side(m, L, w0, ArriveSide.LIT, "the lit half, Shift up")
-	# THE POINTER OFF THE WORLD: no wish, the autopilot arrives as it likes
+	# THE POINTER OFF THE WORLD (GO-lit, Jon, Nov 11): the selected world's wish all the same, for it alone
 	m.select_body(w1)
 	m._on_map_input(_motion(m, m.view.window.position + Vector2(8.0, 8.0)))
 	await Harness.frames(_tree, 3)
-	h._ok("pointing away from the world, nothing is asked of the arrival (wish %s)" % str(m.flight.wish), (m.flight.wish as Dictionary).is_empty())
+	h._ok("pointing away, the selected world's arrival is still asked: lit, with its spin, for it (wish %s)" % str(m.flight.wish),
+		int(m.flight.wish.get("side", 0)) == ArriveSide.LIT and int(m.flight.wish.get("to", -9)) == w1)
+	# A STALE WISH steers no other flight: world w0's wish on a flight to w1
+	var stale: Dictionary = {"side": ArriveSide.LIT, "sense": -ArriveSide.spin_sense(m.view, L, w1), "to": w0}
+	var keep: Dictionary = m.flight.wish
+	m.flight.wish = stale
+	var tg: Dictionary = m.flight._tgt_of(w1)
+	h._ok("a wish made for world %d asks nothing of a flight to world %d (target %s)" % [w0, w1, str(tg)], not tg.has("side") and int(tg.get("sense", 0)) == 0)
+	m.flight.wish = keep
+	await _go_lit(m, L, n, w1)
+
+
+## GO-LIT (Jon, Nov 11): the panel's GO on an event world, nothing selected or pointed at, arrives
+## on the lit side going round with the spin, as the second click does.
+func _go_lit(m: SystemMapScreen, L: SystemLayout, n: MapGen.MapNode, w1: int) -> void:
+	var opt := -1
+	var at := -1
+	for i in n.options.size():
+		var b := LocalEventDrawer.body_of(n, i)
+		if b >= 0 and b < L.bodies.size() and L.bodies[b].world != &"" and L.bodies[b].kind != &"belt" and b != m.flight.reached():
+			opt = i
+			at = b
+			break
+	if not h._ok("an event on another world to GO to (option %d, world %d)" % [opt, at], opt >= 0):
+		return
+	for f in 600:
+		if m.flight.can_fly():
+			break
+		await _tree.process_frame
+	m.panel_back()
+	m.overlay.hover = {}
+	await Harness.frames(_tree, 3)
+	# (GO's own path, `go_event` -> `_go_then`, with the zoom down to LOCAL held for the check)
+	var want := ArriveSide.spin_sense(m.view, L, at)
+	var got := []
+	m._go_then(at, func() -> void:
+		got.assign([ArriveSide.side_now(m.flight, L, at, float(m.view.t)), int(signf(float(m.flight.rail.get("dir", 0.0))))]))
+	h._ok("GO asks the lit side, with the spin, of world %d (wish %s)" % [at, str(m.flight.wish)],
+		int(m.flight.wish.get("side", 0)) == ArriveSide.LIT and int(m.flight.wish.get("sense", 0)) == want and int(m.flight.wish.get("to", -9)) == at)
+	for f in 4800:
+		if not got.is_empty():
+			break
+		await _tree.process_frame
+	if not h._ok("GO flies there and arrives", not got.is_empty()):
+		return
+	h._ok("GO arrives on the lit side of world %d, going round with its spin (side %d, rail dir %d, spin's way %d)" % [at, got[0], got[1], want], int(got[0]) == ArriveSide.LIT and int(got[1]) == want)
+	LocalEventDrawer.pending.clear()
 
 
 ## Shift through the input system, as a key (it used to turn the ship against the spin).

@@ -58,16 +58,22 @@ static func light_wish(L: SystemLayout, i: int, t: float) -> Dictionary[String, 
 	return {"lit": u, "lit_w": angle_difference(u.angle(), u2.angle()) / 0.5, "lit_t": t}
 
 
-## The wish as the map stands: the selected world under the cursor, out of another orbit; else
-## none, and the autopilot arrives as it likes. Belts and stations have no lit side.
+## The wish as the map stands: the selected world, pointed at or not (GO-lit, Jon, Nov 11),
+## out of another orbit; else none, and the autopilot arrives as it likes.
 static func wish_now(overlay, view, flight) -> Dictionary[String, Variant]:
-	var h: Dictionary = overlay.hover
-	var i: int = overlay.preview_to
-	if i < 0 or h.get("kind", &"") != &"body" or int(h.get("body", -9)) != i or view.layout.bodies[i].world == &"":
+	return wish_for(view, flight, int(overlay.preview_to))
+
+
+## The wish for a flight to world i, marked `to` i: only that world's flight wears it
+## (`ShipFlight._tgt_of`). Belts and stations have no lit side; comets and keeps none.
+static func wish_for(view, flight, i: int) -> Dictionary[String, Variant]:
+	if i < 0 or i >= view.layout.bodies.size() or view.layout.bodies[i].world == &"":
 		return {}
 	if flight == null or flight.orbit_body() == i or flight.is_keep(i):
 		return {}
-	return wish_of(view, view.layout, i)
+	var w := wish_of(view, view.layout, i)
+	w["to"] = i
+	return w
 
 
 ## The solver's ring target for world i with the wish on it (`ShipFlight._tgt_of`).
