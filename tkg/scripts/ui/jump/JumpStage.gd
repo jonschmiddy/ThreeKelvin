@@ -15,6 +15,7 @@ var pass1: ColorRect
 var mat1: ShaderMaterial
 var pass2: ColorRect
 var mat2: ShaderMaterial
+var _copy2: BackBufferCopy
 
 
 func _init() -> void:
@@ -31,7 +32,8 @@ func build(world_shader: Shader, world_rect: Rect2) -> void:
 	mat1 = ShaderMaterial.new()
 	mat1.shader = world_shader
 	pass1 = _pass(mat1)
-	add_child(_copy())
+	_copy2 = _copy()
+	add_child(_copy2)
 	mat2 = ShaderMaterial.new()
 	mat2.shader = FINISH
 	pass2 = _pass(mat2)
@@ -53,6 +55,24 @@ func _pass(mat: ShaderMaterial) -> ColorRect:
 	r.material = mat
 	add_child(r)
 	return r
+
+
+## A layer of the film's own between the world pass and the finish (a mesh of streaks, a
+## second world pass): added in order, each before the finish's copy, so the finish sees it.
+func mid_node(n: Node) -> void:
+	add_child(n)
+	move_child(n, _copy2.get_index())
+
+
+## A further full-frame pass over what is drawn so far: its own copy, then the shader.
+func mid_pass(shader: Shader) -> ShaderMaterial:
+	mid_node(_copy())
+	var m := ShaderMaterial.new()
+	m.shader = shader
+	var r := _pass(m)
+	move_child(r, _copy2.get_index())
+	m.set_shader_parameter(&"world", Vector4(world.position.x, world.position.y, world.size.x, world.size.y))
+	return m
 
 
 func set1(pname: StringName, v: Variant) -> void:
@@ -81,12 +101,14 @@ func light(pname: StringName, k: float = 1.0) -> SubViewport:
 	return vp
 
 
-## The hull's textures, once baked, to the world pass.
-func hull_textures(h: JumpHull) -> void:
-	mat1.set_shader_parameter(&"hull", h.tex)
-	mat1.set_shader_parameter(&"aux", h.aux)
-	mat1.set_shader_parameter(&"aux2", h.aux2)
-	mat1.set_shader_parameter(&"sdf", h.sdf)
-	mat1.set_shader_parameter(&"sdf_pad", float(JumpHull.PAD))
-	mat1.set_shader_parameter(&"d_in_max", h.d_in_max)
-	mat1.set_shader_parameter(&"ink_rect", Vector4(h.ink.position.x, h.ink.position.y, h.ink.size.x, h.ink.size.y))
+## The hull's textures, once baked, to the world pass (or to another pass of the film's).
+func hull_textures(h: JumpHull, m: ShaderMaterial = null) -> void:
+	if m == null:
+		m = mat1
+	m.set_shader_parameter(&"hull", h.tex)
+	m.set_shader_parameter(&"aux", h.aux)
+	m.set_shader_parameter(&"aux2", h.aux2)
+	m.set_shader_parameter(&"sdf", h.sdf)
+	m.set_shader_parameter(&"sdf_pad", float(JumpHull.PAD))
+	m.set_shader_parameter(&"d_in_max", h.d_in_max)
+	m.set_shader_parameter(&"ink_rect", Vector4(h.ink.position.x, h.ink.position.y, h.ink.size.x, h.ink.size.y))

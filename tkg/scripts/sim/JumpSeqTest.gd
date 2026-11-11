@@ -177,7 +177,8 @@ func _run() -> void:
 		b.append(JumpRegistry.pick(j))
 	_ok("picks are deterministic for a seed", a == b)
 	_ok("and every film is drawn in forty jumps (%s)" % [a.slice(0, 8)],
-		JumpRegistry.ALL.all(func(f: StringName) -> bool: return a.has(f)) and a.all(func(x: StringName) -> bool: return x in JumpRegistry.ALL))
+		JumpRegistry.ALL.all(func(f: StringName) -> bool: return a.has(f))
+		and a.all(func(x: StringName) -> bool: return x in JumpRegistry.ALL))
 
 	for id in JumpRegistry.ALL:
 		await _check_film(id)

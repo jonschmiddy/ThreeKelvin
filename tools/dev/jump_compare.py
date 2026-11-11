@@ -36,6 +36,8 @@ STRIP_TS = {
     "r4": [0.5, 1.3, 2.2, 3.0, 4.0, 4.85, 5.017, 5.08, 5.2, 5.8, 6.3, 9.5],
     "r1": [0.4, 1.6, 2.8, 3.8, 4.5, 4.95, 5.0, 5.017, 5.1, 5.4, 6.3, 9.5],
     "r5": [0.4, 1.8, 3.2, 4.4, 5.6, 6.4, 6.6, 6.617, 6.8, 6.95, 7.4, 10.2],
+    "r10": [0.4, 1.4, 2.4, 3.3, 4.3, 4.9, 5.15, 5.3, 5.4, 5.47, 6.9, 9.5],
+    "r14": [0.3, 0.467, 1.25, 2.2, 3.0, 3.6, 4.3, 4.8, 5.3, 5.9, 6.42, 6.9],
 }
 ## The crop judged at 2x: the ship's end of the frame.
 CROP = (0, 120, 640, 440)
@@ -100,7 +102,7 @@ def compare(game_dir: str, film_dir: str, ts, out_png: str, crop=None, scale: in
         fi = int(round(t * 60))
         film = Image.open(os.path.join(film_dir, "f%04d.png" % fi)).convert("RGB")
         if film.size != (960, 540):
-            # R1 kept its frames at 2x (round 3b's finish draws the camera there): back to 1x
+            # R1 and R10 kept their frames at 2x (the size the game is seen at): back to 1x
             film = film.resize((960, 540), Image.NEAREST)
         gp = os.path.join(game_dir, "f_%04d.png" % fi)
         game = Image.open(gp).convert("RGB") if os.path.exists(gp) else Image.new("RGB", (960, 540), (80, 0, 0))

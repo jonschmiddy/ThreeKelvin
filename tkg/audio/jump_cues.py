@@ -19,7 +19,8 @@ It refuses to write when:
     the hit cue must start in silence), unless the film says `hard`;
   - the hit's onset in the cue (the first 5 ms whose level comes within ONSET_DB of the
     cue's loudest 5 ms) lands more than a frame (1/60 s) off the film's `hit_t` (plus the
-    film's LATE, where its hit swells after the picture's);
+    film's LATE, where its hit swells after the picture's; not for a film in RAMP, whose hit
+    climbs);
   - the mix's loudest second is off LUFS_WANT by more than LUFS_TOL (hyperjump.wav's level,
     which every film was levelled to).
 
@@ -59,6 +60,10 @@ HARD = set()
 ## launch frame (round3/_r1/sound/mix.py places it at T_HIT - 0.02) under the boom,
 ## which peaks 135 ms in.
 LATE = {"r1": 0.135}
+## Films whose hit is a climb, not one onset: R10's run lands seven ring punches, each louder,
+## into the jump's boom, so the first window within ONSET_DB of the loudest is a punch mid-run.
+## Their onset is recorded but not held to `hit_t`.
+RAMP = {"r10"}
 
 
 def seqs() -> dict:
@@ -161,7 +166,7 @@ def main() -> int:
         hit = x[ci:]
         on = cut + onset_s(hit.mean(axis=1))
         want = hit_t + LATE.get(sid, 0.0)
-        if abs(on - want) > FRAME_S:
+        if abs(on - want) > FRAME_S and sid not in RAMP:
             print("%s: the hit's onset is at %.4f s, %.1f ms off %.4f (hit_t %.4f)" % (sid, on, (on - want) * 1000.0, want, hit_t))
             bad += 1
             continue

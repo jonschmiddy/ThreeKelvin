@@ -18,13 +18,15 @@ uniform float flash = 0.0;
 uniform float flash_floor = 0.10;
 uniform float flash_sy = 1.3;
 uniform float bloom = 0.0;
-// the flash's shape, where a film's differs: its falloff, peak, colour, steps, and a beam
-// along the ship's line left of the event (R1's launch), as (y, width, strength, x_max)
+// the flash's shape, where a film's differs: its falloff (R4: 2.6 e^(-r/110)), colour, steps;
+// a beam along the ship's line left of the event (R1's launch) as (y, width, strength, x_max);
+// a bar along a line ramping in over 220 px from x (R10's rail) as (amp, y, width, x)
 uniform float flash_r = 110.0;
 uniform float flash_amp = 2.6;
 uniform vec3 flash_col = vec3(0.952, 0.886, 1.0);
 uniform float flash_lv = 16.0;
 uniform vec4 flash_beam = vec4(0.0);
+uniform vec4 flash_bar = vec4(0.0);
 
 vec3 pick(vec2 q, vec2 px) {
 	return j_world(screen, px, q, world);
@@ -68,7 +70,9 @@ void fragment() {
 		float r = length(vec2(q.x - centre.x, (q.y - centre.y) * flash_sy));
 		float beam = flash_beam.z > 0.0 && q.x < flash_beam.w
 			? flash_beam.z * exp(-pow((q.y - flash_beam.x) / flash_beam.y, 2.0)) : 0.0;
-		vec3 Lf = flash * (flash_floor + flash_amp * exp(-r / flash_r) + beam) * flash_col;
+		float bar = flash_bar.x > 0.0
+			? flash_bar.x * exp(-pow((q.y - flash_bar.y) / flash_bar.z, 2.0)) * clamp((q.x - flash_bar.w) / 220.0, 0.0, 1.0) : 0.0;
+		vec3 Lf = flash * (flash_floor + flash_amp * exp(-r / flash_r) + beam + bar) * flash_col;
 		img = j_add_glow(img, Lf, flash_lv, p);
 	}
 	COLOR = vec4(clamp(img, 0.0, 1.0), 1.0);

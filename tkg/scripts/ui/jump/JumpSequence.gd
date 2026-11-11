@@ -26,7 +26,8 @@ var flash := 0.0
 ## The flash's frame-wide floor, the film's own (R4 and R12 lit the whole frame a tenth).
 var flash_floor := 0.10
 
-## The smooth noise the films shook with (r4.py / r12.py `smooth_noise`, seeds 1 and 2, 15 Hz).
+## The smooth noise the films shook with (`smooth_noise`, seeds 1 and 2): the rolled rates at
+## 15 Hz (r4, r12); another film's rate scales them (R10 17 Hz, R14 14 Hz), the phases stay.
 const NOISE_F := [[15.90959, 18.60846, 31.70334, 62.53935], [12.53176, 33.98648, 41.04326, 35.76366]]
 const NOISE_PH := [[5.96891, 5.95752, 2.65849, 2.56977], [1.87452, 0.57723, 4.57536, 0.34632]]
 

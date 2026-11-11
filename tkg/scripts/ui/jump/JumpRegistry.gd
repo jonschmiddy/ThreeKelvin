@@ -6,7 +6,7 @@ extends RefCounted
 ## Nov 10, Q3 B). `-- jumpfilm=r4` forces one for the harnesses and the films' captures.
 ## Why: docs/why/JumpRegistry.md#pick
 
-const ALL: Array[StringName] = [&"r12", &"r4", &"r1", &"r5"]
+const ALL: Array[StringName] = [&"r12", &"r4", &"r1", &"r5", &"r10", &"r14"]
 
 static var forced: StringName = &""
 static var _parsed := false
@@ -32,5 +32,9 @@ static func make(id: StringName) -> JumpSequence:
 			return SeqHyperspace.new()
 		&"r5":
 			return SeqQuantumSmear.new()
+		&"r10":
+			return SeqCoilRail.new()
+		&"r14":
+			return SeqBigCrunch.new()
 		_:
 			return SeqNegative.new()

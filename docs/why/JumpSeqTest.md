@@ -18,9 +18,9 @@ in numbers, on `--fixed-fps 60` with `Router.animate_in_harness`, through `Route
 - the live hull is hidden at the swap time and not before;
 - the shake is whole pixels;
 - a skip two seconds in commits, hushes both cues and leaves nothing;
-- picks are the same twice from one seed and both films are drawn in forty;
+- picks are the same twice from one seed and every landed film is drawn in forty;
 - REDUCE FLASHES caps the flash and drops its frame-wide floor; without it the floor is the
-  film's.
+  film's (`JumpSequence.flash_floor`: 0.10, R10 0.14).
 
 Headless there is no render, so the bake falls back to the CPU canvas and the shaders are
 never compiled: what the picture looks like is `JumpCine whole` and `films`, judged by eye
