@@ -187,7 +187,9 @@ brighter look of its own (see Real comet look). What it adds:
 - Its path ahead, dotted on the plane in blocks every DOT_PX, from its head to
   where it leaves. A dotted line is no world's ring (those are solid), and it
   shows where the comet will be before it gets there, which is the whole idea
-  of option C. Before it comes in, the whole path shows.
+  of option C. Before it comes in, the whole path shows. Since Jon's Nov 11
+  ("invisible unless the comet is clicked") it shows only while the comet is
+  selected: the map sets `path_on` each frame, and `dots` counts what was drawn.
 - In RADIANT, a wider coma: the halo is 1.6 times the radius, in the same
   dithered steps (the "draw light as light" rule).
 

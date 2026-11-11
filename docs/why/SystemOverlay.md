@@ -621,6 +621,13 @@ no longer be made is greyed and says TOO LATE. The spot the ship waits at has a
 larger ring.
 ```
 
+Jon, Nov 11: "Can we have the path of the comet and the landing points invisible
+unless the comet is clicked?" So the spots, like the path (`RealComet.path_on`),
+show only while the comet is selected. Pointing at it does not preview them: he
+said clicked. The one exception is the spot the ship is flying to or waiting at,
+which stays marked after the comet is deselected, so a ship parked in empty space
+still says why it is there. `spots_drawn` counts them for `CometCatchTest`.
+
 ## Click again
 
 Above `var preview_to := -9` and `func _click_line`.

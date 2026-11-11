@@ -117,6 +117,38 @@ func _shots() -> void:
 	await _shot("5_docked", m)
 	Router.docked = false
 	await _band(m)
+	await _comet()
+
+
+## THE COMET HIDDEN TILL CLICKED (Jon, Nov 11): its path and spots drawn only while it is selected.
+func _comet() -> void:
+	CometPath._force = 1
+	var n: MapGen.MapNode = null
+	for raw in Run.map:
+		var m0: MapGen.MapNode = raw
+		if m0.type == MapGen.NodeType.SYSTEM and not m0.twin and m0.index != Run.at:
+			OptionTable.ensure(m0)
+			if not m0.options.has(&"comet_coma"):
+				m0.options.append(&"comet_coma")
+			if SystemLayout.of(m0).comet != null:
+				n = m0
+				break
+	if not h._ok("a system with a comet", n != null):
+		return
+	Run.at = n.index
+	n.visited = true
+	Run.map_clock[n.index] = SystemLayout.of(n).comet.t_in + 6.0
+	var m := await _map()
+	await Harness.frames(_tree, 20)
+	var rc = m.view._weather.real_comet
+	var hc: Dictionary = m.overlay.hit(m.overlay.comet_scr())
+	m.overlay.hover = hc
+	await _shot("8_comet_unselected", m)
+	h._ok("unselected: no path, no spots (%d dots, %d spots)" % [rc.dots, m.overlay.spots_drawn], rc.dots == 0 and m.overlay.spots_drawn == 0)
+	m.tap(hc)
+	await _shot("9_comet_selected", m)
+	h._ok("clicked: the path and three spots (%d dots, %d spots)" % [rc.dots, m.overlay.spots_drawn], rc.dots > 0 and m.overlay.spots_drawn == 3)
+	CometPath._force = 0
 
 
 ## THE KEY BAND (Jon, Nov 11): LOCAL's strip under the map and the panel, full width, covering nothing
@@ -132,7 +164,9 @@ func _band(m: SystemMapScreen) -> void:
 	h._ok("the band is under the map, clear of its frame (band %s, frame %s)" % [band, frame], not band.intersects(frame) and band.position.y >= wrap.end.y)
 	var foot: Rect2 = (m._key_band.get_parent().get_parent() as Control).get_global_rect()
 	h._ok("the band runs the whole row, map and panel (%.0f of %.0f)" % [band.size.x, foot.size.x], absf(band.size.x - foot.size.x) < 0.5 and band.position.x <= wrap.position.x + 0.5)
-	h._ok("the KEY row inside it, centred (%s; off by %.1f px)" % [key, absf(key.get_center().x - band.get_center().x)], band.encloses(key) and absf(key.get_center().x - band.get_center().x) <= 1.0)
+	var pad: float = UITheme.quiet_strip(SectorScreen.DRAWER_A, true).content_margin_left
+	h._ok("the KEY row inside it, at its left padding as LOCAL's words (%s; %.1f px in, want %.0f)" % [key, key.position.x - band.position.x, pad],
+		band.encloses(key) and absf(key.position.x - band.position.x - pad) <= 0.5 and absf(key.get_center().y - band.get_center().y) <= 1.0)
 	h._ok("the band's style is LOCAL's strip", m._key_band.get_theme_stylebox(&"panel") is StyleBoxFlat
 		and (m._key_band.get_theme_stylebox(&"panel") as StyleBoxFlat).bg_color.is_equal_approx(UITheme.quiet_strip(SectorScreen.DRAWER_A, true).bg_color))
 	for c: Control in [m._loc_btn, m._scale_bar]:

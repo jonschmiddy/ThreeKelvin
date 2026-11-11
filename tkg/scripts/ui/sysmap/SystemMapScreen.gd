@@ -273,7 +273,8 @@ func _init() -> void:
 	_key_row = key
 
 
-## THE KEY ON LOCAL'S STRIP (Jon, Nov 11): under the map and the panel, the screen's width, the row centred.
+## THE KEY ON LOCAL'S STRIP (Jon, Nov 11): under the map and the panel, the screen's width, the row
+## at the strip's left padding, where LOCAL's words start.
 ## The band and the row are siblings, so the ladder fades each once (`ladder_chrome`).
 func _key_foot(key: HBoxContainer) -> HBoxContainer:
 	var foot := HBoxContainer.new()
@@ -289,9 +290,12 @@ func _key_foot(key: HBoxContainer) -> HBoxContainer:
 	_key_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_key_band.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hold.add_child(_key_band)
-	var mid := CenterContainer.new()
+	var mid := MarginContainer.new()
 	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mid.add_theme_constant_override("margin_left", int(sb.content_margin_left))
+	key.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	mid.add_child(key)
 	hold.add_child(mid)
 	var fit := func() -> void:
@@ -783,6 +787,9 @@ func _process(delta: float) -> void:
 		_catch_up(delta)
 	_step_ship(delta, hold)
 	comet_catch().step()
+	# (the comet's path only while it is selected, Jon Nov 11: `RealComet.path_on`)
+	if is_instance_valid(view._weather) and is_instance_valid(view._weather.real_comet):
+		view._weather.real_comet.path_on = overlay.selected == SystemLayout.COMET
 	_report_spot(held)
 	_report_flight()
 	# A CLICK MADE WHILE THE SHIP SPUN DOWN onto its ring (`_after_spin`), now

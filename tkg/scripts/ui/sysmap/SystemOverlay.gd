@@ -2675,9 +2675,11 @@ func _draw_partners_and_comet(t: float) -> void:
 			_reticle(hc, COMET_R + (6.0 - 6.0 * _hover_t), _hover_t, 0.55)
 
 
-## THE SPOTS on the comet's path while its reading is open: a ring and its words each,
-## greyed TOO LATE once it cannot be made (`CometCatch`). Why: docs/why/SystemOverlay.md#comet-spots
+## THE SPOTS on the comet's path while its reading is open and the comet selected (Jon, Nov 11),
+## and the one the ship flies to or waits at: a ring and words each. Why: docs/why/SystemOverlay.md#comet-spots
+var spots_drawn := 0
 func _draw_spots() -> void:
+	spots_drawn = 0
 	var c: CometPath = view.layout.comet
 	var sc = view.get_parent()
 	while sc != null and not sc.has_method(&"comet_catch"):
@@ -2688,6 +2690,9 @@ func _draw_spots() -> void:
 	if cc._open_reading(view.node) < 0:
 		return
 	for k in 3:
+		if selected != SystemLayout.COMET and int(cc.going) != k and int(cc.waiting) != k:
+			continue
+		spots_drawn += 1
 		var p: Vector2 = c.spot_at(view.layout, k)
 		var s: Vector2 = view.block_round(view.screen(p.x, p.y))
 		var late: bool = cc.too_late(k)

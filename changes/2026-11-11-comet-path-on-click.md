@@ -1,0 +1,2 @@
+- **Changed** — a comet's path and its three catch spots show only while the comet is selected. Click the comet to see them; click something else and they go. The spot your ship is flying to or waiting at stays marked.
+- **Changed** — the system map's KEY row starts at the band's left edge, where LOCAL's words start, instead of in the middle.
