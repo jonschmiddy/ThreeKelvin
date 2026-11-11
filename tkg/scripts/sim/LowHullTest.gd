@@ -399,17 +399,18 @@ func _run() -> void:
 	_tree.quit(h.code())
 
 
-## THE TAGS FOLLOW THE HULL (scratch/tag-calm, Jon, Nov 11): C-D's glitch is G2 above the line,
-## G3 at or under TIER1_AT, G4 at or under TIER2_AT, and back, at the warning's own pace.
+## THE TAGS FOLLOW THE HULL (Jon, Nov 11): the tags' glitch is G2 over WORN_AT, G3 at or under it,
+## G4 with the red (TIER1_AT), G5b under DIRE_UNDER, back to G2 on repair, at the warning's pace.
 func _tag_levels() -> void:
 	var dial := HoloTag.glitch
 	HoloTag.glitch = 0
 	var seen := []
-	# by hull points: one over the line (31% where max allows), on it, on the second step, back
+	# by hull points, each step's edge: one over 50%, 50%, 30%, the first under 15%, then repaired
 	var top := Run.max_hp()
-	var l1 := int(floorf(top * LowHull.TIER1_AT + 0.00001))
-	var l2 := int(floorf(top * LowHull.TIER2_AT + 0.00001))
-	for st in [[l1 + 1, 2], [l1, 3], [l2, 4], [l1 + 1, 2]]:
+	var w := int(floorf(top * LowHull.WORN_AT + 0.00001))
+	var t1 := int(floorf(top * LowHull.TIER1_AT + 0.00001))
+	var d := int(ceilf(top * LowHull.DIRE_UNDER - 0.00001)) - 1
+	for st in [[w + 1, 2], [w, 3], [t1, 4], [d + 1, 4], [d, HoloTag.G5B], [w + 1, 2]]:
 		var was := HoloTag.level_now()
 		Run.hp = int(st[0])
 		SectorScreen.shown_hull = -1
@@ -425,7 +426,7 @@ func _tag_levels() -> void:
 	for i in range(1, seen.size()):
 		# eased, not snapped: 0.3 of EASE_S in, still the level before
 		ok = ok and int(seen[i][2]) == int(seen[i][1])
-	_ok("the tags' glitch follows the hull, eased: %s (share, before, 0.3 s in, after, want)" % str(seen), ok)
+	_ok("the tags' glitch follows the hull, eased: %s (hull, before, 0.3 s in, after, want)" % str(seen), ok)
 	HoloTag.glitch = dial
 
 

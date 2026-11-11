@@ -1,10 +1,10 @@
 extends Node
 
-## SCRATCH (scratch/tag-calm): a film of a tag under `tagcalm=N tagglitch=G` (read by
-## `HoloTag.read_dial`). `shot=hull`: hover LOCAL's hull readout for `hold=` seconds, then off;
-## `quick=1` adds hull, heat, 1.4 s each. `shot=sys`: the system map, an event's beacon pointed
-## at (held on it as it moves) for `hold=` seconds; `steps=T:SHARE,...` sets the hull as it runs.
-## 960x540; timing on GameClock.
+## A film of a tag wearing thin (`HoloTag`), `tagglitch=1..5|5b` to hold a level (none: the
+## hull's). `shot=hull`: LOCAL's hull readout pointed at for `hold=` s (`quick=1` adds hull and
+## heat, 1.4 s each). `shot=sys`: the system map, an event's beacon held for `hold=` s;
+## `steps=T:SHARE,...` sets the hull T s after the tag opens. `shot=fight`: a card's keyword tag.
+## `hull=SHARE` sets the hull before the tag opens. 960x540; timed on GameClock.
 
 var _tree: SceneTree
 
@@ -47,7 +47,7 @@ func _run() -> void:
 	var hold := float(_arg("hold", "8"))
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)
-	print("[film] calm %d glitch %d" % [HoloTag.calm, HoloTag.glitch])
+	print("[film] glitch %d" % HoloTag.glitch)
 	Router.animate_in_harness = true
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -58,17 +58,68 @@ func _run() -> void:
 			break
 	Run.map[Run.at].visited = true
 	SectorScreen._approached_at = Run.at
-	if _arg("shot", "hull") == "sys":
+	var shot := _arg("shot", "hull")
+	if shot == "sys":
 		await _sys(hold)
+	elif shot == "fight":
+		await _fight(hold)
 	else:
 		await _hull(hold)
 	print("[film] done at %.3f" % GameClock.now())
 	_tree.quit()
 
 
+## The hull at `hull=` of its max (by points, floored as LowHull's share), if asked.
+func _set_hull() -> void:
+	var sh := _arg("hull", "")
+	if sh == "":
+		return
+	Run.hp = maxi(1, int(floorf(Run.max_hp() * float(sh) + 0.00001)))
+	SectorScreen.shown_hull = -1
+	Sig.resources_changed.emit()
+	print("[film] hp %d/%d" % [Run.hp, Run.max_hp()])
+
+
+func _fight(hold: float) -> void:
+	Run.node_at().danger = maxi(Run.node_at().danger, 3)
+	Router.show_local()
+	await _wait(4.0)
+	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
+	await _wait(5.0)
+	_set_hull()
+	await _hover(Vector2(480, 120))
+	await _wait(2.0)
+	var sc := Router.current as SectorScreen
+	var view: CardView = null
+	var term := ""
+	if sc != null:
+		for v in sc._hand.find_children("*", "CardView", true, false):
+			var cv := v as CardView
+			if cv.card != null and not cv.card.keywords().is_empty():
+				view = cv
+				term = String((cv.card.keywords()[0] as Array)[0])
+				break
+	if view == null:
+		print("[film] ERROR no card with a keyword")
+		return
+	print("[film] hull at %.3f" % GameClock.now())
+	sc._on_word_hovered(view, term, true)
+	await _frames(2)
+	var tag := sc.word_tag()
+	if tag != null:
+		var gr := tag.get_global_rect()
+		print("[film] rect %d %d %d %d" % [gr.position.x, gr.position.y, gr.size.x, gr.size.y])
+	await _wait(hold)
+	sc._on_word_hovered(view, term, false)
+	print("[film] off at %.3f" % GameClock.now())
+	await _wait(0.4)
+
+
 func _sys(hold: float) -> void:
 	Router.show_system()
-	await _wait(7.0)
+	await _wait(5.0)
+	_set_hull()
+	await _wait(2.0)
 	var sm := Router.current as SystemMapScreen
 	if sm == null:
 		print("[film] ERROR no system map: %s" % Router.current)

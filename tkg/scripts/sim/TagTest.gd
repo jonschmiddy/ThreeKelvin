@@ -87,8 +87,8 @@ func _pure() -> void:
 	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * HoloTag.LINE_H + HoloTag.PAD_V * 2 - 2)
 
 
-## C-D's GLITCH (scratch/tag-calm, Jon, Nov 11), with no screen: G2 by default; a burst keeps the
-## level it began on; G5b's bursts short with long still breaks; reduced motion stills it.
+## WEARS THIN (C-D, Jon, Nov 11), with no screen: G2 by default; steady for D_AFTER; a burst keeps
+## the level it began on; G5b's bursts short with long still breaks; reduced motion stills it.
 func _glitch_rules() -> void:
 	print("
 --- the glitch's rules")
@@ -97,37 +97,39 @@ func _glitch_rules() -> void:
 	DisplaySettings.reduced_motion = false
 	var dial := HoloTag.glitch
 	HoloTag.glitch = 0
-	_ok("by default every tag is C-D following the hull, G2 with the hull fine (calm %d, level %d)" % [HoloTag.calm, HoloTag.level_now()],
-		HoloTag.calm == 4 and HoloTag.hull_level(0.0, 0.0) == 2 and HoloTag.hull_level(0.6, 0.0) == 3
-		and HoloTag.hull_level(1.0, 0.6) == 4 and HoloTag.hull_level(0.4, 0.0) == 2)
-	_ok("steady for its first D_AFTER s", HoloTag._glitch(HoloTag.D_AFTER - 0.05, 9001).is_empty())
+	_ok("by default every tag follows the hull: G%d with it fine, G3 worn, G4 with the red, G5b dire" % HoloTag.level_now(),
+		HoloTag.hull_level(0.0, 0.0, 0.0) == 2 and HoloTag.hull_level(0.6, 0.0, 0.0) == 3
+		and HoloTag.hull_level(1.0, 0.6, 0.0) == 4 and HoloTag.hull_level(1.0, 1.0, 0.6) == HoloTag.G5B
+		and HoloTag.hull_level(0.4, 0.0, 0.0) == 2)
+	_ok("steady for its first D_AFTER s", HoloTag.glitch_at(HoloTag.D_AFTER - 0.05, 9001) == null)
 	# a burst keeps its level: G2's first burst starts at D_AFTER; G4 asked for inside it
 	HoloTag.glitch = 2
 	HoloTag._sched.erase(9002)
-	var g0 := HoloTag._glitch(HoloTag.D_AFTER + 0.001, 9002)
+	var g0 := HoloTag.glitch_at(HoloTag.D_AFTER + 0.001, 9002)
 	HoloTag.glitch = 4
-	var g1 := HoloTag._glitch(HoloTag.D_AFTER + 1.0 / HoloTag.G_HZ + 0.001, 9002)
-	var later := {}
+	var g1 := HoloTag.glitch_at(HoloTag.D_AFTER + 1.0 / HoloTag.G_HZ + 0.001, 9002)
+	var later: HoloTag.Glitch = null
 	for i in 200:
-		later = HoloTag._glitch(HoloTag.D_AFTER + 2.0 + i / HoloTag.G_HZ, 9002)
-		if not later.is_empty():
+		later = HoloTag.glitch_at(HoloTag.D_AFTER + 2.0 + i / HoloTag.G_HZ, 9002)
+		if later != null:
 			break
-	_ok("a burst keeps the level it began on (G%d, G%d mid-burst), the next takes the new one (G%d)" % [
-		int(g0.get("lvl", 0)), int(g1.get("lvl", 0)), int(later.get("lvl", 0))],
-		int(g0.get("lvl", 0)) == 2 and int(g1.get("lvl", 0)) == 2 and int(later.get("lvl", 0)) == 4)
+	var l0 := g0.lvl if g0 != null else 0
+	var l1 := g1.lvl if g1 != null else 0
+	var l2 := later.lvl if later != null else 0
+	_ok("a burst keeps the level it began on (G%d, G%d mid-burst), the next takes the new one (G%d)" % [l0, l1, l2],
+		l0 == 2 and l1 == 2 and l2 == 4)
 	# G5b over 2 minutes open
 	HoloTag.glitch = HoloTag.G5B
 	HoloTag._sched.erase(9003)
 	var runs: Array = []
 	var start := -1.0
-	var torn_lv5 := 0
-	var steps := int(120.0 * HoloTag.G_HZ)
-	for i in steps:
+	var torn := 0
+	for i in int(120.0 * HoloTag.G_HZ):
 		var t := HoloTag.D_AFTER + (i + 0.5) / HoloTag.G_HZ
-		var g := HoloTag._glitch(t, 9003)
-		var on := not g.is_empty()
-		if on and (g.tears as Array).size() > 0 and int(g.chroma) == HoloTag.G_CHROMA[4]:
-			torn_lv5 += 1
+		var g := HoloTag.glitch_at(t, 9003)
+		var on := g != null and g.on
+		if on and g.tears.size() > 0 and g.chroma == HoloTag.G_CHROMA[4]:
+			torn += 1
 		if on and start < 0.0:
 			start = t
 		elif not on and start >= 0.0:
@@ -143,13 +145,13 @@ func _glitch_rules() -> void:
 			shortest_still = minf(shortest_still, still)
 			longest_still = maxf(longest_still, still)
 	_ok("G5b: %d bursts in 2 min, each %.2f s at most, torn as G5 (%d frames), still and untorn %.2f-%.2f s between" % [
-		runs.size(), longest, torn_lv5, shortest_still, longest_still],
-		runs.size() >= 25 and longest <= 0.51 and torn_lv5 > 0 and shortest_still >= 2.5 and longest_still <= 4.5)
+		runs.size(), longest, torn, shortest_still, longest_still],
+		runs.size() >= 25 and longest <= 0.51 and torn > 0 and shortest_still >= 2.5 and longest_still <= 4.5)
 	DisplaySettings.reduced_motion = true
 	HoloTag.glitch = 5
 	var calm_rm := true
 	for i in 120:
-		if not HoloTag._glitch(HoloTag.D_AFTER + i / HoloTag.G_HZ, 9004).is_empty():
+		if HoloTag.glitch_at(HoloTag.D_AFTER + i / HoloTag.G_HZ, 9004) != null:
 			calm_rm = false
 	_ok("reduced motion: no glitch at any level (G5 for 4 s)", calm_rm)
 	DisplaySettings.reduced_motion = false
@@ -158,8 +160,7 @@ func _glitch_rules() -> void:
 
 
 ## THE BOX (Jon's pick of twenty, Nov 9): the plate is the same box, and the open watched frame
-## by frame: the tag never moves or changes size, flickers on and is whole by `OPEN`, lands on
-## the still frame, then the scanlines crawl and a band tears for a frame now and then.
+## by frame: the tag never moves or changes size and is whole by `OPEN`; then steady (C-D, Nov 11).
 func _box() -> void:
 	print("
 --- the tag's box")
@@ -183,13 +184,9 @@ func _box() -> void:
 	var idle := age - HoloTag.OPEN
 	_ok("opens over %.2f s (%d frames), the box fixed at %s, %s" % [HoloTag.OPEN, frames, str(pos), str(m)],
 		frames >= 2 and steady and tag.size == m and HoloTag.OPEN <= 0.25)
-	_ok("flickers on (alpha %.2f at 0.05 s), whole from %.2f, and lands on the still frame" % [HoloTag.alpha_at(0.05), HoloTag.OPEN],
-		HoloTag.alpha_at(0.05) < 1.0 and HoloTag.alpha_at(HoloTag.OPEN) == 1.0 and HoloTag.alpha_at(age) == 1.0
-		and HoloTag.crawl_phase(idle) == 0 and not HoloTag.tearing(idle) and HoloTag.crawl_phase(0.0) == 0)
-	_ok("then loops: the scanlines crawl a row every %.1f s, a one-frame tear at the end of every %.1f s" % [
-		HoloTag.CRAWL, HoloTag.TEAR_EVERY], tag.is_processing() and HoloTag.crawl_phase(HoloTag.CRAWL) == 1
-		and HoloTag.crawl_phase(HoloTag.CRAWL * 3) == 0 and HoloTag.tearing(HoloTag.TEAR_EVERY - 0.02)
-		and not HoloTag.tearing(1.0) and not HoloTag.tearing(HoloTag.TEAR_EVERY - 0.1))
+	_ok("opens steady: no glitch in its first %.1f s (at %.2f s)" % [HoloTag.D_AFTER, idle],
+		tag.is_processing() and HoloTag.glitch_at(idle, tag.get_instance_id()) == null
+		and HoloTag.glitch_at(HoloTag.D_AFTER - 0.1, tag.get_instance_id()) == null)
 	tag.queue_free()
 	await _frames(2)
 

@@ -88,3 +88,17 @@ least MIN_APART between two, and never more than MOST_SHARE of a line.
 Inside her words only: after the take's 30 ms lead-in (and a little) and
 before its trailing silence.
 ```
+
+## Tags
+
+Above `const WORN_AT`:
+
+```text
+The tooltips wear with the hull (`HoloTag`, Jon, Nov 11): "G2 above 50% hull;
+at 50% hull and below they move to G3, and at 30% and below to G4, easing in
+with the red edge. They go back to G2 when you repair. G5b when under 15%."
+WORN_AT 0.50 is at or under, like the tiers; DIRE_UNDER 0.15 is strictly
+under, as he said it (6 of 40 is G4, 5 of 40 is G5b). `worn` and `dire` ease
+like `on` (EASE_S on the game's clock) and change no red: G3 comes before the
+red edge exists. Off in the title, at 0 hull and out of a run, as the rest.
+```

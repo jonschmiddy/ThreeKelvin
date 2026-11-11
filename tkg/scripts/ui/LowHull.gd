@@ -13,6 +13,10 @@ const PRESET := Preset.STRONG
 ## The hull's share at or under which it comes on, and the red's second step.
 const TIER1_AT := 0.30
 const TIER2_AT := 0.15
+## The tags' glitch (`HoloTag`; Jon, Nov 11): G3 at or under WORN_AT, G4 with the red
+## (TIER1_AT), G5b under DIRE_UNDER. Why: docs/why/LowHull.md#tags
+const WORN_AT := 0.50
+const DIRE_UNDER := 0.15
 ## In and out, s, on the game's clock. `depth` follows the hull at the same pace.
 const EASE_S := 1.0
 ## One breath, s: tier 1, and tier 2 (a little quicker).
@@ -52,6 +56,9 @@ static var tier := 0
 ## Eased toward on (1) and toward the red's second step (1), 0..1.
 static var on := 0.0
 static var deep := 0.0
+## Eased toward 1 at or under WORN_AT and under DIRE_UNDER, as `on` (no red: the tags read them).
+static var worn := 0.0
+static var dire := 0.0
 ## How far below the line the hull is, 0 at TIER1_AT to 1 at none, eased.
 static var depth := 0.0
 ## The red the shader was given this frame.
@@ -126,6 +133,16 @@ static func tier_for(hp: int, top: int) -> int:
 	return 0
 
 
+## Whether a hull of `hp` out of `top` is at or under WORN_AT (and not 0, where all is off).
+static func is_worn(hp: int, top: int) -> bool:
+	return top > 0 and hp > 0 and float(hp) / float(top) <= WORN_AT + 0.00001
+
+
+## Whether it is strictly under DIRE_UNDER ("when under 15%"), not 0.
+static func is_dire(hp: int, top: int) -> bool:
+	return top > 0 and hp > 0 and float(hp) / float(top) < DIRE_UNDER - 0.00001
+
+
 ## How far under the line a hull at `share` of its max is: 0 at TIER1_AT, 1 at
 ## none; 0 above the line too (and at 0 hull, where it is off).
 static func depth_for(share: float) -> float:
@@ -166,6 +183,8 @@ func _process(_d: float) -> void:
 	var share := float(h.x) / float(h.y) if h.y > 0 else 1.0
 	on = move_toward(on, 1.0 if tier > 0 else 0.0, dt / EASE_S)
 	deep = move_toward(deep, 1.0 if tier > 1 else 0.0, dt / EASE_S)
+	worn = move_toward(worn, 1.0 if live and is_worn(h.x, h.y) else 0.0, dt / EASE_S)
+	dire = move_toward(dire, 1.0 if live and is_dire(h.x, h.y) else 0.0, dt / EASE_S)
 	depth = move_toward(depth, depth_for(share) if tier > 0 else 0.0, dt / EASE_S)
 	var lk := look()
 	var e_on := smoothstep(0.0, 1.0, on)

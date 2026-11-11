@@ -3,8 +3,8 @@ extends Control
 
 ## THE ONE TOOLTIP (stripped-down UI T1, Jon, Nov 9): a small hologram right above the thing you
 ## point at: one sentence on a dark fill with scanlines, a 1 px mint edge with a glow, an arrow at
-## the thing. It flickers on over `OPEN` seconds, the scanlines crawl, now and then a band tears
-## for a frame; the words never move. Drawn by hand (`draw_tag`) for the chart's and the map's
+## the thing. It opens steady and, after it has been open a while, wears thin: it glitches, harder
+## as the hull fails (C-D, Jon, Nov 11). Drawn by hand (`draw_tag`) for the chart's and the map's
 ## tips, and as this Control for every tooltip `TagLayer` shows. Why: docs/why/HoloTag.md#one-tag
 
 const PAD_H := 6
@@ -15,29 +15,20 @@ const GAP := 3
 const FILL := Color("#061010", 0.92)
 const SCAN := Color("#0a1a16", 0.92)
 const EDGE := Color("#b8f5d8")
-## The flicker-on, `FLICKER` alpha steps of `STEP` seconds; the scanlines crawl a row every
-## `CRAWL`; a `TEAR_FRAME` tear at the end of every `TEAR_EVERY`.
+## The open: the scanlines wipe down over `OPEN` seconds.
 const OPEN := 0.2
-const STEP := 0.04
-const FLICKER: Array[float] = [1.0, 0.45, 1.0, 0.6, 1.0]
-const CRAWL := 0.4
-const TEAR_EVERY := 3.5
-const TEAR_FRAME := 0.04
-## SCRATCH (scratch/tag-calm, never main): which calm variant draws. 0 today, 1 A tear-in only,
-## 2 B rare slip, 3 C drifting line, 4 D wears thin after a while (Jon's pick, Nov 11).
-## `-- tagcalm=N`. Under D, `glitch` 0 follows the hull (Jon, Nov 11: G2 "perfect"; G3 at or under
-## LowHull.TIER1_AT, G4 at or under TIER2_AT); `-- tagglitch=1..5` or `5b` holds a level.
-static var calm := 4
-static var glitch := 0
-static var _dialled := false
-## D: steady until this many seconds open, then the glitch of the level in force.
+
+## WEARS THIN (C-D): steady for D_AFTER s once open, then bursts of glitch at a level: G2 with
+## the hull over LowHull.WORN_AT, G3 at or under it, G4 with the red edge, G5b under DIRE_UNDER.
+## Why: docs/why/HoloTag.md#wears-thin
 const D_AFTER := 3.0
-## The level with the hull fine, and G5b's index (a dev level, not wired yet).
 const G_BASE := 2
 const G5B := 6
-## D's levels, G1 (barely there) to G5 (failing), then G5b (G5's bursts with long still breaks),
-## on a 30 Hz glitch clock. A burst every PERIOD frames (+- JIT / 2), BURST (+ up to BURST_JIT)
-## frames long; within a burst, each frame rolls its effects. A burst keeps the level it began on.
+## A harness's hold on the level (`-- tagglitch=1..5` or `5b`); 0 follows the hull.
+static var glitch := 0
+static var _dialled := false
+## Per level G1..G5, G5b, on a 30 Hz clock: a burst every PERIOD frames (+- JIT / 2), BURST (+ up
+## to BURST_JIT) frames long; each burst frame rolls its effects. A burst keeps its level.
 const G_HZ := 30.0
 const G_PERIOD: Array[int] = [78, 50, 32, 18, 9, 115]
 const G_PERIOD_JIT: Array[int] = [26, 17, 11, 6, 3, 30]
@@ -61,14 +52,40 @@ const G_DIM_P: Array[float] = [0.0, 0.0, 0.25, 0.35, 0.4, 0.4]
 const G_DIM: Array[float] = [1.0, 1.0, 0.75, 0.55, 0.35, 0.35]
 const G_BLINK_P: Array[float] = [0.0, 0.0, 0.0, 0.05, 0.16, 0.16]
 const G_JIT: Array[int] = [0, 0, 0, 1, 2, 2]
-## Each open tag's burst schedule, by its canvas item: {fr, k, start, len, lvl, next, t}.
-static var _sched := {}
 const JUNK := "#%&@$*+=?/<>[]01"
-## B: one slip every B_EVERY (+- B_JITTER) seconds, B_FRAME long.
-const B_EVERY := 5.0
-const B_FRAME := 0.08
-## C: the faint line's trip down the box, seconds.
-const C_TRIP := 3.2
+
+
+## One frame's glitch. `on` false: steady (or only the split, between bursts at G4 and up).
+class Glitch:
+	var on := false
+	var lvl := 2
+	var fr := 0
+	var blink := false
+	var dim := 1.0
+	var jit := Vector2.ZERO
+	## [[yf, h, dx], ...]
+	var tears: Array = []
+	var chroma := 0
+	var scr := 0.0
+	var drop := 0.0
+	var noise := 0
+	var rows := 0
+
+
+## One open tag's bursts: the frame last asked, the burst's index, start, length and level, and
+## when the next starts.
+class Sched:
+	var fr := 0
+	var k := 0
+	var start := 0
+	var length := 0
+	var lvl := 2
+	var next := 0
+	var t := 0.0
+
+
+## Each open tag's schedule, by its canvas item.
+static var _sched := {}
 
 ## [[text, Color], ...], one entry a line.
 var lines: Array = []
@@ -100,7 +117,7 @@ func age() -> float:
 	return INF if _born == -INF else GameClock.now() - _born
 
 
-## Redrawn each frame: the open, then the crawl and the tear.
+## Redrawn each frame: the open, then the wear.
 func _process(_dt: float) -> void:
 	queue_redraw()
 
@@ -138,77 +155,36 @@ static func sentence(text: String, col: Color = UITheme.ICE, width: int = UIThem
 	return out
 
 
-## The whole tag's alpha `age` seconds in: the flicker-on, then 1.
-static func alpha_at(age: float) -> float:
-	if age >= OPEN:
-		return 1.0
-	return FLICKER[mini(FLICKER.size() - 1, int(age / STEP))]
-
-
-## Which row the scanlines start on, `idle` seconds after the open: 0 at rest and at INF.
-static func crawl_phase(idle: float) -> int:
-	return int(idle / CRAWL) % 3
-
-
-## Whether the tear shows, `idle` seconds after the open.
-static func tearing(idle: float) -> bool:
-	return fmod(idle, TEAR_EVERY) >= TEAR_EVERY - TEAR_FRAME
-
-
 ## The box, then the words, in `rect` on `ci`, at `a` alpha. `point` is where the thing is (see
 ## `point`); `age` is seconds since the tag opened, INF for the still frame.
 static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, point: int = 0,
 		age: float = INF) -> void:
-	read_dial()
 	var r := Rect2(rect.position.round(), rect.size.round())
 	var t := 1.0 if age == INF else clampf(age / OPEN, 0.0, 1.0)
-	var idle := 0.0 if age == INF else maxf(0.0, age - OPEN)
-	var g: Dictionary = _glitch(idle, ci.get_instance_id()) if calm == 4 and age != INF else {}
-	if calm == 0:
-		a *= alpha_at(age) if age != INF else 1.0
-	elif not g.is_empty():
+	var g: Glitch = null if age == INF else glitch_at(maxf(0.0, age - OPEN), ci.get_instance_id())
+	if g != null and g.on:
 		if g.blink:
 			return
-		a *= float(g.dim)
+		a *= g.dim
 		r.position += g.jit
 	_fill(ci, r, a)
-	_scan(ci, r, a, crawl_phase(idle) if calm == 0 else 0, t)
-	if calm == 3 and age != INF:
-		_drift(ci, r, a, age)
+	_scan(ci, r, a, t)
 	_halo(ci, r, 0.25 * a)
 	_ring(ci, r.grow(-1), Color(EDGE, a))
-	if calm == 0:
-		if t >= 1.0 or (t >= 0.5 and t < 0.75):
-			draw_arrow(ci, r, point, Color(EDGE, a))
-	else:
-		draw_arrow(ci, r, point, Color(EDGE, a))
-	if age != INF:
-		match calm:
-			0:
-				if (t >= 0.4 and t < 0.6) or (idle > 0.0 and tearing(idle)):
-					_tear(ci, r, a, t)
-			1:
-				# A: the tear-in, a band that walks down the box as it opens (0.2 s), then nothing.
-				if t < 1.0:
-					_tear(ci, r, a, t, 10.0 + minf(0.99, floorf(t * 4.0) / 4.0))
-			2:
-				var k := int(idle / B_EVERY)
-				var at := k * B_EVERY + 3.5 + fmod(k * 1.7, 2.0) - 1.0
-				if idle >= at and idle < at + B_FRAME:
-					_slip(ci, r, a, k)
+	draw_arrow(ci, r, point, Color(EDGE, a))
+	var tears: Array = g.tears if g != null else []
+	for tr in tears:
+		_band(ci, r, a, tr[0], tr[1], tr[2])
+	var ch := g.chroma if g != null else 0
 	var f := UITheme.pixel_font()
 	var asc := f.get_ascent(UITheme.FS_SMALL)
 	var y := r.position.y + PAD_V + asc - 1.0
-	var tears: Array = g.get("tears", [])
-	for tr in tears:
-		_band(ci, r, a, tr[0], tr[1], tr[2])
-	var ch: int = g.get("chroma", 0)
 	for i in ls.size():
 		var pair: Array = ls[i]
 		var c: Color = pair[1]
 		var s := String(pair[0])
 		var pos := Vector2(r.position.x + PAD_H, y)
-		if not g.is_empty():
+		if g != null and g.on:
 			s = _junk(s, g, i)
 			# a line under a tear is torn with it
 			var top := y - asc - r.position.y
@@ -222,21 +198,35 @@ static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, poi
 			ci.draw_string(f, pos + Vector2(ch, 0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(0.2, 0.95, 1.0, 0.6 * a))
 		ci.draw_string(f, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * a))
 		y += LINE_H
-	if not g.is_empty():
+	if g != null and g.on:
 		_static(ci, r, a, g)
 
 
-## The dials from the command line, once: `tagcalm=N`, `tagglitch=N`.
+## A harness's `-- tagglitch=N` (1..5, or 5b), read once.
 static func read_dial() -> void:
 	if _dialled:
 		return
 	_dialled = true
 	for a in OS.get_cmdline_user_args():
 		var kv := (a as String).split("=")
-		if kv.size() == 2 and kv[0] == "tagcalm":
-			calm = int(kv[1])
-		elif kv.size() == 2 and kv[0] == "tagglitch":
+		if kv.size() == 2 and kv[0] == "tagglitch":
 			glitch = G5B if kv[1] == "5b" else clampi(int(kv[1]), 0, G5B)
+
+
+## The level a tag glitches at now: a harness's hold, or the hull's.
+static func level_now() -> int:
+	read_dial()
+	return glitch if glitch > 0 else hull_level(LowHull.worn, LowHull.on, LowHull.dire)
+
+
+## The level for LowHull's eased `worn`, `on` and `dire` (0..1 on the game's clock at EASE_S):
+## each step taken once it is half in, so the tags follow the warning's pace, both ways.
+static func hull_level(worn: float, on: float, dire: float = 0.0) -> int:
+	if dire >= 0.5:
+		return G5B
+	if on >= 0.5:
+		return 4
+	return 3 if worn >= 0.5 else G_BASE
 
 
 ## A stable 0..1 from three ints.
@@ -246,86 +236,84 @@ static func _h(x: int, y: int, z: int) -> float:
 	return float((n ^ (n >> 16)) & 0xffff) / 65535.0
 
 
-## D: the level a tag glitches at now: the dial's, or the hull's (`hull_level`).
-static func level_now() -> int:
-	return glitch if glitch > 0 else hull_level(LowHull.on, LowHull.deep)
-
-
-## D: the level for LowHull's eased `on` and `deep`: G2, G3 once the warning is half in, G4 once
-## its second step is. They ease on the game's clock at LowHull.EASE_S, so the tag follows the
-## warning's own pace, both ways.
-static func hull_level(on: float, deep: float) -> int:
-	return G_BASE + (1 if on >= 0.5 else 0) + (1 if deep >= 0.5 else 0)
-
-
-## D: burst `k`'s frames from its start to the next's, at level `lvl`.
+## Burst `k`'s frames from its start to the next's, at level `lvl`.
 static func _gap(lvl: int, k: int) -> int:
 	var L := lvl - 1
 	return maxi(G_BURST[L] + G_BURST_JIT[L] + 1, G_PERIOD[L] + int((_h(k, 7, L) - 0.5) * G_PERIOD_JIT[L]))
 
 
-## D: burst `k`'s length in frames at level `lvl`.
+## Burst `k`'s length in frames at level `lvl`.
 static func _burst_len(lvl: int, k: int) -> int:
 	var L := lvl - 1
 	return G_BURST[L] + int(_h(k, 13, L) * (G_BURST_JIT[L] + 0.999))
 
 
-## D: what glitches this frame, `idle` seconds open, for the tag `key`: {} while steady (before
-## D_AFTER, between bursts below G4, and always under reduced motion, as LowHull stills). Each
-## burst takes the level in force as it begins and keeps it to its end. Keys: blink, dim, jit,
-## tears [[yf, h, dx]], chroma, scr, drop, noise, rows, fr, lvl.
-static func _glitch(idle: float, key: int = 0) -> Dictionary:
-	if idle < D_AFTER or not LowHull.moving():
-		return {}
-	var fr := int((idle - D_AFTER) * G_HZ)
-	var s: Dictionary = _sched.get(key, {})
-	if s.is_empty() or fr < int(s.fr):
-		var l0 := level_now()
-		s = {"fr": fr, "k": 0, "start": 0, "lvl": l0, "len": _burst_len(l0, 0), "next": _gap(l0, 0), "t": 0.0}
+## The schedule of the tag `key` walked to frame `fr`: a new one when the tag (re)opened; each
+## burst takes the level in force as it begins.
+static func _walk(key: int, fr: int) -> Sched:
+	var s: Sched = _sched.get(key)
+	if s == null or fr < s.fr:
+		s = Sched.new()
+		s.lvl = level_now()
+		s.length = _burst_len(s.lvl, 0)
+		s.next = _gap(s.lvl, 0)
 		_sched[key] = s
-	while fr >= int(s.next):
-		s.k = int(s.k) + 1
+	while fr >= s.next:
+		s.k += 1
 		s.start = s.next
 		s.lvl = level_now()
-		s.len = _burst_len(s.lvl, s.k)
-		s.next = int(s.start) + _gap(s.lvl, s.k)
+		s.length = _burst_len(s.lvl, s.k)
+		s.next = s.start + _gap(s.lvl, s.k)
 	s.fr = fr
 	s.t = GameClock.now()
 	if _sched.size() > 32:
 		for k2 in _sched.keys():
-			if GameClock.now() - float(_sched[k2].t) > 5.0:
+			if GameClock.now() - (_sched[k2] as Sched).t > 5.0:
 				_sched.erase(k2)
-	var lv: int = s.lvl
-	var L := lv - 1
-	if fr >= int(s.start) + int(s.len):
+	return s
+
+
+## What glitches `idle` seconds after the open, for the tag `key`: null while steady (before
+## D_AFTER, and always under reduced motion, as LowHull stills).
+static func glitch_at(idle: float, key: int = 0) -> Glitch:
+	if idle < D_AFTER or not LowHull.moving():
+		return null
+	var fr := int((idle - D_AFTER) * G_HZ)
+	var s := _walk(key, fr)
+	var L := s.lvl - 1
+	var g := Glitch.new()
+	g.lvl = s.lvl
+	g.fr = fr
+	if fr >= s.start + s.length:
 		if G_CHROMA_IDLE[L] == 0:
-			return {}
-		return {"blink": false, "dim": 1.0, "jit": Vector2.ZERO, "tears": [], "chroma": G_CHROMA_IDLE[L],
-			"scr": 0.0, "drop": 0.0, "noise": 0, "rows": 0, "fr": fr, "lvl": lv}
-	var tears := []
+			return null
+		g.chroma = G_CHROMA_IDLE[L]
+		return g
+	g.on = true
 	var n := mini(G_TEARS[L], 1 + int(_h(fr, 1, L) * G_TEARS[L]))
 	for j in n:
 		var dx := int(ceilf(G_TEAR_DX[L] * (0.5 + 0.5 * _h(fr, 2, j))))
 		if _h(fr, 3, j) < 0.35:
 			dx = -dx
-		tears.append([_h(fr, 4, j), G_TEAR_H[L], dx])
-	var jit := Vector2.ZERO
+		g.tears.append([_h(fr, 4, j), G_TEAR_H[L], dx])
 	if G_JIT[L] > 0 and _h(fr, 5, L) < 0.4:
-		jit = Vector2(roundf((_h(fr, 6, L) * 2.0 - 1.0) * G_JIT[L]), 0)
-	return {
-		"blink": _h(fr, 8, L) < G_BLINK_P[L],
-		"dim": G_DIM[L] if _h(fr, 9, L) < G_DIM_P[L] else 1.0,
-		"jit": jit, "tears": tears, "chroma": G_CHROMA[L],
-		"scr": G_SCRAMBLE[L], "drop": G_DROP[L], "noise": G_NOISE[L], "rows": G_ROWS[L], "fr": fr, "lvl": lv,
-	}
+		g.jit = Vector2(roundf((_h(fr, 6, L) * 2.0 - 1.0) * G_JIT[L]), 0)
+	g.blink = _h(fr, 8, L) < G_BLINK_P[L]
+	g.dim = G_DIM[L] if _h(fr, 9, L) < G_DIM_P[L] else 1.0
+	g.chroma = G_CHROMA[L]
+	g.scr = G_SCRAMBLE[L]
+	g.drop = G_DROP[L]
+	g.noise = G_NOISE[L]
+	g.rows = G_ROWS[L]
+	return g
 
 
-## D: a tear band's top row inside the box, `yf` of the way down.
+## A tear band's top row inside the box, `yf` of the way down.
 static func _band_y(r: Rect2, yf: float, hgt: int) -> int:
 	return 2 + int(yf * maxf(1.0, r.size.y - 4.0 - hgt))
 
 
-## D: a band `hgt` px tall at `yf` of the way down the box, its fill slid `dx` px with its edge.
+## A band `hgt` px tall at `yf` of the way down the box, its fill slid `dx` px with its edge.
 static func _band(ci: CanvasItem, r: Rect2, a: float, yf: float, hgt: int, dx: int) -> void:
 	var band := Rect2(r.position + Vector2(dx, _band_y(r, yf, hgt)), Vector2(r.size.x, hgt))
 	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
@@ -333,69 +321,44 @@ static func _band(ci: CanvasItem, r: Rect2, a: float, yf: float, hgt: int, dx: i
 	ci.draw_rect(Rect2(band.end.x - 1.0, band.position.y, 1, hgt), Color(EDGE, a), true)
 
 
-## D: the line's letters this frame, some turned to junk or gone.
-static func _junk(s: String, g: Dictionary, line: int) -> String:
-	var scr: float = g.scr
-	var drop: float = g.drop
-	if scr <= 0.0 and drop <= 0.0:
+## The line's letters this frame, some turned to junk or gone.
+static func _junk(s: String, g: Glitch, line: int) -> String:
+	if g.scr <= 0.0 and g.drop <= 0.0:
 		return s
-	var fr: int = g.fr
 	var out := ""
 	for j in s.length():
 		var c := s[j]
-		var p := _h(fr, line * 97 + j, 11)
-		if c != " " and p < drop:
+		var p := _h(g.fr, line * 97 + j, 11)
+		if c != " " and p < g.drop:
 			c = " "
-		elif c != " " and p < drop + scr:
-			c = JUNK[int(_h(fr, line * 97 + j, 12) * JUNK.length()) % JUNK.length()]
+		elif c != " " and p < g.drop + g.scr:
+			c = JUNK[int(_h(g.fr, line * 97 + j, 12) * JUNK.length()) % JUNK.length()]
 		out += c
 	return out
 
 
-## D: static dots and bright rows over the box.
-static func _static(ci: CanvasItem, r: Rect2, a: float, g: Dictionary) -> void:
-	var fr: int = g.fr
-	for j in int(g.rows):
-		var y := 2 + int(_h(fr, 20, j) * (r.size.y - 4.0))
-		var x0 := int(_h(fr, 21, j) * r.size.x * 0.5)
+## Static dots and bright rows over the box.
+static func _static(ci: CanvasItem, r: Rect2, a: float, g: Glitch) -> void:
+	for j in g.rows:
+		var y := 2 + int(_h(g.fr, 20, j) * (r.size.y - 4.0))
+		var x0 := int(_h(g.fr, 21, j) * r.size.x * 0.5)
 		ci.draw_rect(Rect2(r.position + Vector2(x0, y), Vector2(r.size.x - x0 - 1.0, 1)), Color(EDGE, 0.35 * a), true)
-	for j in int(g.noise):
-		var p := Vector2(int(_h(fr, 22, j) * r.size.x), int(_h(fr, 23, j) * r.size.y))
-		ci.draw_rect(Rect2(r.position + p, Vector2(1, 1)), Color(EDGE, (0.4 + 0.6 * _h(fr, 24, j)) * a), true)
-
-
-## B: a 2 px band of the box slid 3 px sideways for a few frames, its edge with it.
-static func _slip(ci: CanvasItem, r: Rect2, a: float, k: int) -> void:
-	var h := int(r.size.y)
-	var y := 4 + (k * 7) % maxi(1, h - 8)
-	var band := Rect2(r.position + Vector2(3, y), Vector2(r.size.x, 2))
-	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
-	ci.draw_rect(Rect2(band.end.x - 2.0, band.position.y, 1, 2), Color(EDGE, a), true)
-
-
-## C: one faint mint row drifting down the fill, under the words, a trip every C_TRIP.
-static func _drift(ci: CanvasItem, r: Rect2, a: float, age: float) -> void:
-	var h := int(r.size.y) - 4
-	var y := int(fmod(age, C_TRIP) / C_TRIP * (h + 6)) - 3
-	for d in [-1, 0, 1]:
-		var yy: int = y + d
-		if yy < 0 or yy >= h:
-			continue
-		var al := 0.24 if d == 0 else 0.09
-		ci.draw_rect(Rect2(r.position + Vector2(2, 2 + yy), Vector2(r.size.x - 4.0, 1)), Color(EDGE, al * a), true)
+	for j in g.noise:
+		var p := Vector2(int(_h(g.fr, 22, j) * r.size.x), int(_h(g.fr, 23, j) * r.size.y))
+		ci.draw_rect(Rect2(r.position + p, Vector2(1, 1)), Color(EDGE, (0.4 + 0.6 * _h(g.fr, 24, j)) * a), true)
 
 
 static func _fill(ci: CanvasItem, r: Rect2, a: float) -> void:
 	ci.draw_rect(Rect2(r.position + Vector2(1, 1), r.size - Vector2(2, 2)), Color(FILL, FILL.a * a), true)
 
 
-## One dark row in three from row `ph`, wiped down to `t` of the height as it opens.
-static func _scan(ci: CanvasItem, r: Rect2, a: float, ph: int, t: float) -> void:
+## One dark row in three, wiped down to `t` of the height as it opens.
+static func _scan(ci: CanvasItem, r: Rect2, a: float, t: float) -> void:
 	var line := Color(SCAN, SCAN.a * a)
 	var h := int(r.size.y)
 	var rows := h - 4 if t >= 1.0 else int(t * (h - 4))
 	for i in rows:
-		if (i + ph) % 3 == 1:
+		if i % 3 == 1:
 			ci.draw_rect(Rect2(r.position + Vector2(2, 2 + i), Vector2(r.size.x - 4.0, 1)), line, true)
 
 
@@ -432,20 +395,6 @@ static func draw_arrow(ci: CanvasItem, r: Rect2, point: int, col: Color) -> void
 		var wd := 5 - i * 2
 		var y := r.end.y + i if point > 0 else r.position.y - 1 - i
 		ci.draw_rect(Rect2(Vector2(cx - (wd - 1) / 2, y), Vector2(wd, 1)), col, true)
-
-
-## The tear: a 3 px band of the box drawn again 4 px to the side, for a frame; its row from
-## the open's clock, so it is not always the same row.
-static func _tear(ci: CanvasItem, r: Rect2, a: float, t: float, row: float = -1.0) -> void:
-	var h := int(r.size.y)
-	var y := 3 + int(fmod((t if row < 0.0 else row) * 97.0, maxf(1.0, h - 8.0)))
-	if row >= 10.0:
-		# an explicit fraction of the way down (row - 10)
-		y = 3 + int((row - 10.0) * maxf(1.0, h - 8.0))
-	var band := Rect2(r.position + Vector2(4, y), Vector2(r.size.x, 3))
-	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
-	ci.draw_rect(Rect2(band.position, Vector2(1, 3)), Color(EDGE, a), true)
-	ci.draw_rect(Rect2(band.position + Vector2(band.size.x - 1.0, 0), Vector2(1, 3)), Color(EDGE, a), true)
 
 
 ## The same box as a StyleBox, for the plate round a rich body (a part's readout, the badge):
