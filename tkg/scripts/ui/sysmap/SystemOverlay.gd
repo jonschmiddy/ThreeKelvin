@@ -59,8 +59,10 @@ var _last_rel := Vector2.INF
 ## from nothing again for each new thing pointed at.
 var _hover_t := 0.0
 var _hover_key := ""
-## The flight a second click would fly, drawn before you fly it.
+## The flight a second click would fly, drawn before you fly it: faint at rest, lit
+## while the pointer is on the place (F-C, Nov 11). Why: docs/why/SystemOverlay.md#click-again
 var preview_to := -9
+const PV_REST := 0.45
 ## The orbit is a solid ring never smaller than the world's disc plus 9 px,
 ## so being in orbit or not reads at a glance.
 ## Why: docs/why/SystemOverlay.md#orbit-look
@@ -1376,7 +1378,7 @@ func _draw_paths(t: float) -> void:
 					pvl = eased
 			# (a solved flight's ends at its rings' drawn size: `_drawn_ends`)
 			var whole: bool = _pv_plan != null and _pv_plan.res != null and _pv_old.is_empty() and _pv_u.size() == pvl.size()
-			_draw_line3(pvl, _pv_lit, 1.0, _pv_u if whole else PackedFloat32Array(), 0.0, _pv_plan if whole else null)
+			_draw_line3(pvl, _pv_lit, 1.0 if aimed() else PV_REST, _pv_u if whole else PackedFloat32Array(), 0.0, _pv_plan if whole else null, UITheme.HOT if aimed() else UITheme.ICE)
 
 
 ## The preview as it is drawn now: the last plan blending into the new.
@@ -1402,7 +1404,7 @@ func _plan_line(pl, _with_u: bool) -> Array:
 ## The dotted line hides behind suns and nearer worlds: dotted over everything,
 ## it ran across a sun's face in a quarter of a twin's flights.
 ## Why: docs/why/SystemOverlay.md#flight-line
-func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: PackedFloat32Array, u0: float, pl = null) -> void:
+func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: PackedFloat32Array, u0: float, pl = null, ink := UITheme.ICE) -> void:
 	var drawn := _drawn_ends(pts, us, pl)
 	var sp := PackedVector2Array()
 	var sl := PackedByteArray()
@@ -1441,7 +1443,7 @@ func _draw_line3(pts: PackedVector3Array, lit: PackedByteArray, k: float, us: Pa
 			for d in [Vector2(0, -1), Vector2(-1, 0), Vector2(1, 0), Vector2(0, 1)]:
 				_px(c0 + d, Color(ION_TIP, 0.85 * k))
 		if dot:
-			_px(wp[j].round(), Color(ION_CORE, 0.85 * k) if on else Color(UITheme.ICE, 0.65 * k))
+			_px(wp[j].round(), Color(ION_CORE, 0.85 * k) if on else Color(ink, 0.65 * k))
 
 
 ## What can stand in front of a point: each sun's disc and each drawn world.
@@ -2493,10 +2495,11 @@ func tip_lines(h: Dictionary) -> Array:
 		if b.beacons.size() > 0:
 			var here: bool = flight != null and flight.reached() == int(h.body)
 			lines.append(["%d %s · %s" % [b.beacons.size(), "EVENT" if b.beacons.size() == 1 else "EVENTS", "OPEN" if here else ("OPEN ALONGSIDE" if b.kind == &"belt" or b.kind == &"station" else "OPEN IN ORBIT")], UITheme.EMBER])
-		lines.append_array(_click_line(int(h.body)))
-		# THE SIDE AND WAY ROUND a second click arrives (`ArriveSide`), while one would fly
-		if h.has("side") and selected == int(h.body) and flight != null and flight.reached() != int(h.body) and flight.can_fly() and not clicks_held:
+		# THE SIDE AND WAY ROUND a second click arrives (`ArriveSide`), while one would fly,
+		# over the click's own line, which is last
+		if h.has("side") and click_flies(int(h.body)) and flight.can_fly():
 			lines.append_array(ArriveSide.words(int(h.side), ArriveSide.spin_of(view, L, int(h.body)), ArriveSide.shift_held()))
+		lines.append_array(_click_line(int(h.body)))
 	elif h.kind == &"comet" and L.comet != null:
 		lines.append([L.comet.name, UITheme.ICE])
 		lines.append([CometPath.KIND, UITheme.COLD])
@@ -2536,7 +2539,7 @@ func tip_lines(h: Dictionary) -> Array:
 			chip = UITheme.BAD
 			lines.append(["THE HELLBENDER", UITheme.HOT])
 			lines.append(["ANCHORED HERE" if Run.hellbender_alive() else "ITS WRECK", UITheme.BAD])
-		lines.append_array(_click_line(int(h.body)))
+		lines.append_array(_click_line(int(h.body), false))
 	return [lines, chip]
 
 
@@ -2544,7 +2547,7 @@ func _draw_tip() -> void:
 	var h := hover
 	var tl := tip_lines(h)
 	# (the half a click arrives on, marked on the hover ring while the tag names it)
-	if (tl[0] as Array).size() > 1 and String((tl[0] as Array)[-2][0]).contains(" SIDE · "):
+	if (tl[0] as Array).any(func(l: Array) -> bool: return String(l[0]).contains(" SIDE · ")):
 		ArriveSide.draw_half(self, view, int(h.body), int(h.side), _reach(int(h.body)) + 2.0, Color(UITheme.EMBER, maxf(0.15, _hover_t)))
 	var lines: Array = tl[0]
 	var ls: Array = []
@@ -2566,18 +2569,62 @@ func _draw_tip() -> void:
 	HoloTag.draw_tag(self, tip_rect, ls, al, -1 if o.y > at.y else 1)
 
 
-## While a GO flies a click does nothing, so no line offers one.
-func _click_line(body: int) -> Array:
+## The tag's last line: what a click on this place does now. While a GO flies a click
+## does nothing, so no line offers one; a beacon's click may open its page, so it says none.
+func _click_line(body: int, place := true) -> Array:
 	if flight != null and flight.reached() == body:
 		return [["YOU ARE HERE", UITheme.FLARE]]
 	if clicks_held:
 		return [["ON YOUR WAY", UITheme.HOT]] if flight != null and flight.heading_to() == body else []
 	if selected == body:
-		if flight != null and flight.mode == &"fly" and flight.fly_to == body:
+		if flight != null and (flight.heading_to() == body or flight.orbit_body() == body):
 			return [["ON YOUR WAY", UITheme.HOT]]
-		# (a second click still flies; the tip stops saying so: Jon, Nov 9, stripped-down UI 3)
-		return []
+		# THE SECOND CLICK FLIES, and says so with the flight's time (Jon, Nov 11, F-C:
+		# no FLY HERE button); or why it cannot. Why: docs/why/SystemOverlay.md#click-again
+		return [[fly_word(body), UITheme.HOT if click_flies(body) else UITheme.COLD]] if place else []
 	return [["CLICK: SELECT", UITheme.QUOTE]]
+
+
+## What the second click on the selected place says: CLICK AGAIN: FLY with the drawn
+## flight's time, or what stops it (the panel's old FLY HERE states, as words).
+func fly_word(body: int) -> String:
+	if Router.docked:
+		return "UNDOCK FIRST"
+	if not Router.may_cast_off():
+		return "CANNOT UNDOCK"
+	if flight == null or not (flight.can_fly() or flight.spinning()):
+		return "CLICK AGAIN ONCE IN ORBIT"
+	var s := fly_s(body)
+	return "CLICK AGAIN: FLY" if s <= 0 else "CLICK AGAIN: FLY · %d S" % s
+
+
+## A click on `body` (selected, the place itself) flies now (`SystemMapScreen.tap`).
+func click_flies(body: int) -> bool:
+	if flight == null or clicks_held or selected != body or not SystemLayout.is_place(body):
+		return false
+	if flight.reached() == body or flight.orbit_body() == body or flight.heading_to() == body:
+		return false
+	return (flight.can_fly() or flight.spinning()) and Router.may_cast_off()
+
+
+## The pointer is on the selected place and a click there flies: the line lights, the
+## pointer shuts to a sight.
+func aimed() -> bool:
+	var k: StringName = hover.get("kind", &"")
+	if k != &"body" and k != &"belt" and k != &"star":
+		return false
+	return int(hover.get("body", -99)) == selected and click_flies(selected)
+
+
+## Seconds from now to arrival on the drawn flight (its wait on the ring and the flight),
+## whole and at least 1; 0 while the flight for this click is still being planned.
+func fly_s(body: int) -> int:
+	var pl = _pv_plan
+	if pl == null or preview_to != body or int(pl.to) != body or _pv_new.size() != PV_N:
+		return 0
+	if flight != null and not ArriveSide.plan_matches(pl, flight.wish):
+		return 0
+	return maxi(1, roundi(maxf(float(pl.t0) - float(view.t), 0.0) + float(pl.dur)))
 
 
 static func _first_sentence(s: String) -> String:

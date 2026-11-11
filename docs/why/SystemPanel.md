@@ -18,7 +18,8 @@ page, and the list of beacons was printed on three of them. Now:
          stamp saying how it ended and a line of what came of it. DOCK,
          HARVEST and the custodian are cards with their button on them.
          Clicking a world or the star on the map narrows the list to that
-         place, with its picture, its facts and FLY HERE on top; SHOW ALL
+         place, with its picture and its facts on top (no FLY HERE since
+         Nov 11: the second click flies, see Fly by click); SHOW ALL
          widens it again. There is no star page and no world page.
   EVENT  one encounter: its place, where you are, its one sentence and GO.
          GO flies you there and down into LOCAL, where the event's text, its
@@ -108,3 +109,27 @@ or is there. The costs are one plain line under them, in the danger colours:
 near costs hull, at the star hull and heat. The buttons clip their words, as
 long ones widened the panel.
 ```
+
+## Fly by click
+
+Above `func _way_there(i: int) -> void:`.
+
+Jon's pick F-C (Nov 11, page RjrZFLxyyAjTjTqNQt6LBJ, mockups in
+tk-scratch/ui-build/fly-here): no FLY HERE button. The panel shows only facts, and
+the click on the map is the action: a click selects a place, a second click on it
+flies there (`SystemMapScreen.tap`). That second click already flew before; the
+button was a second way to do the same thing (every control earns its place), and
+it could not carry the lit/dark side and Shift picks (`ArriveSide`) the click can.
+
+What the button's other states told the player is kept, never as a greyed button
+(only pressable things look pressable):
+
+- in orbit, in a close orbit, alongside: a plain line here, as `_there_word`;
+- on the way there: ON YOUR WAY, a plain line here (and in the tag);
+- docked: UNDOCK FIRST, here and as the tag's last line;
+- crates on the pad: CANNOT UNDOCK, here (its tooltip says to see the station) and in the tag;
+- not settled in an orbit yet: only in the tag, CLICK AGAIN ONCE IN ORBIT, since it
+  is about the click and the panel holds facts.
+
+Where none of these hold (the ship can fly there now) the row is not built at all.
+A world with an open event keeps its GO (63a09f26), which flies there and opens the event.

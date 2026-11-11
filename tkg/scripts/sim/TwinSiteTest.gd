@@ -608,9 +608,9 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	await Harness.frames(get_tree(), 3)
 	h._ok("one click selects star B (%d), the panel on it (%d)" % [ov.selected, m.panel.filter], ov.selected == B and m.panel.filter == B)
 	var tb2: Array = ov.tip_lines(hb)[0]
-	# (a second click still flies; the tip no longer says so: stripped-down UI 3, Nov 9)
-	h._ok("its tip drops CLICK: SELECT and says no CLICK AGAIN (%s)" % tb2[tb2.size() - 1][0],
-		not tb2.any(func(l: Array) -> bool: return String(l[0]).begins_with("CLICK")))
+	# (a second click flies, and the tip's last line says so: F-C, Nov 11)
+	h._ok("its tip drops CLICK: SELECT, its last line CLICK AGAIN (%s)" % tb2[tb2.size() - 1][0],
+		not tb2.any(func(l: Array) -> bool: return String(l[0]) == "CLICK: SELECT") and String(tb2[tb2.size() - 1][0]).begins_with("CLICK AGAIN"))
 	var words := _words(m.panel._box)
 	h._ok("the panel says BINARY (never TWO SUNS), and names %s and %s" % [nm_a, nm_b],
 		words.has("BINARY") and not words.has("TWO SUNS") and words.has(nm_a) and words.has(nm_b))
@@ -618,10 +618,9 @@ func _stars_as_places(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 		and m.panel._box.find_child("TwoSuns", true, false).get_child_count() == 2)
 	_star_facts_page(m)
 	h._ok("star B's tip calls it the ORANGE DWARF it is drawn as (%s)" % tb[1][0], tb[1][0] == "ORANGE DWARF")
-	var fa := _way_button(m, -1)
-	var fb := _way_button(m, B)
-	h._ok("FLY HERE to each (%s / %s)" % [fa.text if fa != null else "none", fb.text if fb != null else "none"],
-		fa != null and fb != null and fa.text == "FLY HERE" and fb.text == "FLY HERE" and not fa.disabled and not fb.disabled)
+	# NO FLY HERE (F-C, Nov 11): neither star's row is a button, and away from both it says nothing
+	h._ok("no FLY HERE on the page, no line under either star (%s / %s; %d buttons)" % [_way_line(m, -1), _way_line(m, B), _way_buttons(m)],
+		_way_line(m, -1) == "" and _way_line(m, B) == "" and _way_buttons(m) == 0)
 	await _fit(m, "the sector page, star B selected")
 	m.panel_back()
 	await _fit(m, "the sector page, nothing selected")
@@ -808,15 +807,23 @@ func _orbit_fit(m: SystemMapScreen) -> void:
 	_saw("stars of two with a world, at fit_zoom", stars)
 
 
-## THE ROW `_way_there` built for place i, and its button.
-func _way_button(m: SystemMapScreen, i: int) -> Button:
+## THE LINE `_way_there` wrote for place i (IN A CLOSE ORBIT, ON YOUR WAY), or "".
+func _way_line(m: SystemMapScreen, i: int) -> String:
 	var row: Node = m.panel._box.find_child(PanelS.way_name(i), true, false)
 	if row == null:
-		return null
+		return ""
 	for c in row.get_children():
-		if c is Button:
-			return c
-	return null
+		if c is Label:
+			return (c as Label).text
+	return ""
+
+
+## Buttons in any way-there row: none since F-C (Nov 11).
+func _way_buttons(m: SystemMapScreen) -> int:
+	var n := 0
+	for row in m.panel._box.find_children("Way_*", "HBoxContainer", true, false):
+		n += row.find_children("*", "Button", true, false).size()
+	return n
 
 
 ## The keys of the page's fact rows (`SystemPanel._row`: a key, a spacer, a
@@ -932,7 +939,7 @@ func _leaves(root: Node, out: Array) -> Array:
 
 
 # ---------------------------------------------------------------- the flight
-## STAR B'S FLY HERE, pressed: the flight there, its words, and the orbit.
+## STAR B CLICKED AGAIN: the tag's time, the flight there, its words, and the orbit.
 func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var B := SystemLayout.STAR_B
 	var ov = m.overlay
@@ -941,10 +948,19 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 		if m.flight.can_fly():
 			break
 		await get_tree().process_frame
-	var fb := _way_button(m, B)
-	if not h._ok("star B's FLY HERE is there to press", fb != null and not fb.disabled):
+	m.select_body(B)
+	var hb := {"kind": &"star", "body": B, "at": ov.star_scr(B)}
+	ov.hover = hb
+	var said_s := ""
+	for i in 600:
+		said_s = String((ov.tip_lines(hb)[0] as Array)[-1][0])
+		if ov.fly_s(B) > 0:
+			break
+		await get_tree().process_frame
+	if not h._ok("star B selected, pointed at: CLICK AGAIN: FLY with the drawn flight's time (%s; %d s), the line lit (%s)" % [said_s, ov.fly_s(B), ov.aimed()],
+			said_s == "CLICK AGAIN: FLY · %d S" % ov.fly_s(B) and ov.fly_s(B) > 0 and ov.aimed()):
 		return
-	fb.pressed.emit()
+	m.tap(hb)
 	var said := {}
 	var landed := false
 	# A flight takes up to 30 s of map time plus a 4.4 s ride: 3600 frames is a minute.
@@ -962,10 +978,8 @@ func _fly_to_b(m: SystemMapScreen, n: MapGen.MapNode) -> void:
 	var st: String = ov.ship_status()[0]
 	h._ok("the status line says CLOSE ORBIT · %s (%s)" % [nm_b, st], st == "CLOSE ORBIT · " + nm_b)
 	_round_b(m, "it rides")
-	var fb2 := _way_button(m, B)
-	var fa2 := _way_button(m, -1)
-	h._ok("star B's FLY HERE reads IN A CLOSE ORBIT, greyed (%s); star A's FLY HERE (%s)" % [fb2.text if fb2 != null else "none", fa2.text if fa2 != null else "none"],
-		fb2 != null and fb2.text == "IN A CLOSE ORBIT" and fb2.disabled and fa2 != null and fa2.text == "FLY HERE")
+	h._ok("star B's row reads IN A CLOSE ORBIT, a line, no button (%s); star A's says nothing (%s)" % [_way_line(m, B), _way_line(m, -1)],
+		_way_line(m, B) == "IN A CLOSE ORBIT" and _way_line(m, -1) == "" and _way_buttons(m) == 0)
 	await _fit(m, "the sector page, in star B's close orbit")
 	h._ok("the ship's place as LOCAL is told it is star B (%d)" % m.ship_place(), m.ship_place() == B)
 	# THE HUD's SECTOR tab says it is a binary system (Jon, Nov 1: "Let's call it

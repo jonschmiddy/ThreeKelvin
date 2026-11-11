@@ -620,3 +620,31 @@ number and name, and IT, the time until the comet gets there. A spot that can
 no longer be made is greyed and says TOO LATE. The spot the ship waits at has a
 larger ring.
 ```
+
+## Click again
+
+Above `var preview_to := -9` and `func _click_line`.
+
+Jon's pick F-C (Nov 11): the system map has no FLY HERE button; the second click on
+the selected place flies. So the map says so where the click is:
+
+- the flight a second click would fly (the preview) is drawn faint (`PV_REST`) while
+  the place is only selected, and lit in the flight's ink (HOT, full strength) while
+  the pointer is on the place and a click there would fly (`aimed`);
+- the pointer shuts to the game's sight as it does over a button
+  (`SystemMapScreen._aim_sight` sets the frame's cursor shape, which `Main` reads),
+  and the map's own plane cursor rings in HOT with four ticks (`SectorCursor.sight`);
+- the tag's last line is `CLICK AGAIN: FLY · N S`, where N is click to arrival on the
+  drawn plan: its wait on the ring (`t0` less now) plus the flight (`dur`), rounded
+  to whole seconds, at least 1. Until the plan for this click's own side and way
+  round is drawn (`ArriveSide.plan_matches`) it reads `CLICK AGAIN: FLY` with no time,
+  so the number is never another flight's.
+
+This restores the line the Nov 9 stripped-down pass (UI 3) took out, now with the
+time. On a world the side lines (`ArriveSide.words`) come first and the click line
+last: what you will get, how to change it, then the click (the side lines only while
+the click would fly). Where the click cannot
+fly, the same last line says why: UNDOCK FIRST, CANNOT UNDOCK, CLICK AGAIN ONCE IN
+ORBIT (a click while the ship spins down onto its ring is kept, so that counts as
+flying). A beacon on the selected world says no click line, as its click may open
+its page instead (`tap`'s `panel.mode` test).

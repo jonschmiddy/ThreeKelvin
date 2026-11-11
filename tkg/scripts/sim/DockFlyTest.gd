@@ -529,6 +529,10 @@ func _berth_shut(p: int) -> void:
 		_ok("berth: the world's page offers no flight, no button: one line, UNDOCK FIRST (%s)" % _says(fly),
 			fly == null and ul != null)
 		_fits("the world page's UNDOCK FIRST", ul, m)
+		# (and the selected world's tag, where a second click would fly: F-C, Nov 11)
+		var tl: Array = m.overlay._click_line(p)
+		_ok("berth: the selected world's tag ends UNDOCK FIRST, no CLICK AGAIN, no sight (%s)" % str(tl),
+			tl.size() == 1 and String(tl[0][0]) == UNDOCK_FIRST and not m.overlay.click_flies(p))
 		m.fly_to_body(p)
 		await Harness.frames(_tree, 30)
 		_ok("berth: FLY HERE refused, still docked, the ship where it was (%d)" % m.flight.reached(),

@@ -296,11 +296,20 @@ func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, side: int, shift: bo
 			break
 		await _tree.process_frame
 	h._ok("%s: the flight drawn before the click is the one asked for" % tag, drawn)
+	# THE TAG'S LAST LINE: the second click and the drawn flight's time, under the side lines (F-C, Nov 11)
+	var tl2: Array = m.overlay.tip_lines(m.overlay.hover)[0]
+	var n_s: int = m.overlay.fly_s(i)
+	var last := String(tl2[-1][0])
+	h._ok("%s: the tag ends CLICK AGAIN: FLY · %d S under the side lines, the line lit and the pointer a sight (%s; aimed %s, cursor %d)" % [tag, n_s, " / ".join(tl2.map(func(l): return String(l[0]))), m.overlay.aimed(), m._frame.mouse_default_cursor_shape],
+		n_s > 0 and last == "CLICK AGAIN: FLY · %d S" % n_s and String(tl2[-3][0]) == side_line and String(tl2[-2][0]) == shift_line
+		and m.overlay.aimed() and m._frame.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND)
 	await _shot("hover_%s" % tag)
 	# THE CLICK flies it (the world has moved on while the line was planned: pointed at again)
 	p = _half_point(m, L, i, side)
 	m._on_map_input(_motion(m, p))
 	await Harness.frames(_tree, 2)
+	n_s = m.overlay.fly_s(i)
+	var t_click := float(m.view.t)
 	m.tap(m.overlay.hit(p))
 	var arrived := false
 	for f in 4800:
@@ -316,7 +325,10 @@ func _fly_side(m: SystemMapScreen, L: SystemLayout, i: int, side: int, shift: bo
 	var d := Vector2(cos(a), sin(a)).dot(ArriveSide.lit_dir(L, i, float(m.view.t)))
 	h._ok("%s: it arrives on the %s side of world %d (toward the light %.2f)" % [tag, "lit" if side > 0 else "dark", i, d], at_side == side)
 	h._ok("%s: it goes round %s the spin (rail dir %d, the spin's way %d)" % [tag, "against" if shift else "with", dir, ArriveSide.spin_sense(m.view, L, i)], dir == want_sense)
-	print("    %s: world %d to %d, %s" % [tag, from, i, "replanned at the click" if m.flight.click_replanned else "flew the line drawn"])
+	var took := float(m.view.t) - t_click
+	print("    %s: world %d to %d, %s; the tag said %d s, it took %.1f map s" % [tag, from, i, "replanned at the click" if m.flight.click_replanned else "flew the line drawn", n_s, took])
+	if not m.flight.click_replanned:
+		h._ok("%s: the tag's time is the flight's, click to arrival (%d s said, %.1f s)" % [tag, n_s, took], absf(took - float(n_s)) <= 1.5)
 	await _shot("arrived_%s" % tag)
 
 

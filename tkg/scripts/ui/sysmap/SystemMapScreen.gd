@@ -269,8 +269,41 @@ func _init() -> void:
 		item.add_child(g)
 		item.add_child(UITheme.body(k[1], UITheme.COLD, UITheme.FS_SMALL))
 		key.add_child(item)
-	root.add_child(key)
+	root.add_child(_key_foot(key, side_wrap))
 	_key_row = key
+
+
+## THE KEY ON LOCAL'S STRIP (Jon, Nov 11): under the map, the map's width, the row centred.
+## The band and the row are siblings, so the ladder fades each once (`ladder_chrome`).
+func _key_foot(key: HBoxContainer, side_wrap: Control) -> HBoxContainer:
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 5)
+	var hold := Control.new()
+	hold.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	foot.add_child(hold)
+	var sb := UITheme.quiet_strip(SectorScreen.DRAWER_A, true)
+	_key_band = Panel.new()
+	_key_band.name = "KeyBand"
+	_key_band.add_theme_stylebox_override("panel", sb)
+	_key_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_key_band.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hold.add_child(_key_band)
+	var mid := CenterContainer.new()
+	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mid.add_child(key)
+	hold.add_child(mid)
+	var fit := func() -> void:
+		hold.custom_minimum_size.y = key.get_combined_minimum_size().y + sb.get_minimum_size().y
+	key.minimum_size_changed.connect(fit)
+	fit.call()
+	# (the side panel's width left empty beside it, so the band ends where the map does)
+	var gap := Control.new()
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	foot.add_child(gap)
+	side_wrap.resized.connect(func() -> void: gap.custom_minimum_size.x = side_wrap.size.x)
+	return foot
 
 
 ## A beacon kind's colour: the drawer's tag colours, and the dock in ice.
@@ -853,8 +886,9 @@ func _step_ship(delta: float, hold := false) -> void:
 	overlay.preview_to = overlay.selected if SystemLayout.is_place(overlay.selected) else -9
 	# (and the side and way round it arrives, from the hover and Shift: `ArriveSide`)
 	flight.wish = ArriveSide.wish_now(overlay, view, flight)
+	_aim_sight()
 	# WHETHER A FLIGHT CAN START changed (settled into an orbit, or left one):
-	# FLY HERE and the choices say so
+	# the tag's click line and the choices say so
 	var cf: bool = flight.can_fly()
 	if cf != _could_fly:
 		_could_fly = cf
@@ -1254,6 +1288,16 @@ func tap(h: Dictionary) -> void:
 		open_beacon(h.body, h.beacon)
 	else:
 		select_body(body)
+
+
+## ON THE SELECTED PLACE, WHERE A CLICK FLIES (F-C, Nov 11): the pointer shuts to the
+## game's sight, as over a button, and the map's own cursor rings in the flight's ink.
+func _aim_sight() -> void:
+	var aim: bool = overlay.aimed()
+	_frame.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if aim else Control.CURSOR_ARROW
+	if bool(_cursor.get("sight")) != aim:
+		_cursor.set("sight", aim)
+		_cursor.queue_redraw()
 
 
 ## Whether the ship is in orbit of (or alongside) place i: its events are open.
@@ -1810,6 +1854,8 @@ func calm_end() -> void:
 ## The map's UI leaves before the camera moves and returns after; the panel and strip stay.
 ## Why: docs/why/SystemMapScreen.md#ladder-ui
 var _key_row: Control = null
+## LOCAL's strip behind the KEY row (`_key_foot`)
+var _key_band: Panel = null
 var _scale_bar: Control = null
 
 
@@ -1831,7 +1877,7 @@ func ladder_side() -> Control:
 
 
 func ladder_chrome(k: float) -> void:
-	for c: CanvasItem in [_key_row, _scale_bar, _loc_btn]:
+	for c: CanvasItem in [_key_row, _key_band, _scale_bar, _loc_btn]:
 		ZoomLadder.fade_chrome(c, k)
 	if overlay != null:
 		overlay.label_a = 1.0 - k

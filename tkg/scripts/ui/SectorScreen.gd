@@ -1000,9 +1000,7 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	# twelve below is most of what is left.
 	_sync_drawer_box()
 	# Keeps the panel alpha: an opaque override undid `UITheme.PANEL_A` each refresh.
-	_quiet_wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.PANEL, DRAWER_A), UITheme.LINE,
-			0, 6 if bookend else 12, 12))
+	_quiet_wrap.add_theme_stylebox_override("panel", UITheme.quiet_strip(DRAWER_A, bookend))
 
 
 ## A place with exactly one thing to do: a station, a pulsar, the core.
