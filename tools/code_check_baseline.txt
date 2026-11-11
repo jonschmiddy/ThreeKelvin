@@ -572,7 +572,7 @@ bare scripts/ui/sysmap/SystemView.gd::star_facts_of
 file scripts/systems/FlightSolve.gd 3969
 file scripts/ui/LabSavers.gd 5410
 file scripts/ui/LocalSubject.gd 3175
-file scripts/ui/SectorScreen.gd 4907
+file scripts/ui/SectorScreen.gd 4875
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3281
 file scripts/ui/sysmap/ShipFlight.gd 4398

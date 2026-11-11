@@ -1,0 +1,316 @@
+extends Node
+
+## Every landed jump film through the real Router, headless on a fixed clock: the commit on
+## time, the cues on their frames, the HUD still, the stage inside EncounterView and gone
+## with the commit, a skip that hushes, deterministic picks, REDUCE FLASHES capping the flash.
+##   godot --headless --fixed-fps 60 --path . -- sheet=JumpSeqTest
+## Why: docs/why/JumpSeqTest.md#jump-sequence-test
+
+var _tree: SceneTree
+var h := Harness.new()
+var _cues: Dictionary = {}
+## The films that reached their commit and ran every check: a film whose coroutine died
+## mid-run (a script error in it or in the checks) skips the rest silently, so it must be here.
+## Why: docs/why/JumpSeqTest.md#a-dead-film-fails
+var _finished: Array[StringName] = []
+var _errs := ErrCount.new()
+
+
+## Every engine or script error while a film plays: there must be none.
+class ErrCount extends Logger:
+	var n := 0
+	var first: Array[String] = []
+	var lock := Mutex.new()
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String,
+			_editor_notify: bool, _error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		lock.lock()
+		n += 1
+		if first.size() < 64:
+			first.append("%s  (%s:%d %s)" % [rationale if rationale != "" else code, file, line, function])
+		lock.unlock()
+
+	func _log_message(_message: String, _error: bool) -> void:
+		pass
+
+
+func _ok(what: String, c: bool) -> bool:
+	return h._ok(what, c)
+
+
+func _ready() -> void:
+	_run.call_deferred()
+
+
+func _quiet_target() -> int:
+	for raw in Run.map:
+		var m: MapGen.MapNode = raw
+		if m.index != Run.at and Run.can_jump_to(m) and m.type == MapGen.NodeType.SYSTEM:
+			m.ambush_rolled = true
+			m.ambush_pending = false
+			return m.index
+	return -1
+
+
+func _hud() -> Control:
+	return _tree.root.find_child("HudBar", true, false) as Control if _tree.root.find_child("HudBar", true, false) != null else _find_hud(_tree.root)
+
+
+func _find_hud(n: Node) -> Control:
+	if n is HudBar:
+		return n
+	for c in n.get_children():
+		var f := _find_hud(c)
+		if f != null:
+			return f
+	return null
+
+
+func _count(n: Node, cls: String) -> int:
+	var k := 1 if n.get_script() != null and n.get_script().get_global_name() == cls else 0
+	for c in n.get_children():
+		k += _count(c, cls)
+	return k
+
+
+## One jump on film `id`: returns what was seen, for the checks.
+func _jump(id: StringName, skip_at: float = -1.0) -> Dictionary:
+	JumpRegistry.forced = id
+	var to := _quiet_target()
+	var seen := {to = to, began = false, commit_t = -1.0, hud_moved = false, canvas_moved = false,
+		stage_ok = true, hull_hidden_at = -1.0, max_flash = 0.0, film = &"", stage_left = false, flash_floor = -1.0,
+		director_left = false, skipped_at = -1.0, max_shake = 0.0, order = [], flame_early = [], flame_late = [],
+		seq = null, hud_culled = false}
+	if not _ok("%s: a quiet system in reach (%d)" % [id, to], to >= 0):
+		return seen
+	var hud := _find_hud(_tree.root)
+	var hud_rect := hud.get_global_rect() if hud != null else Rect2()
+	var jumps0 := Run.jumps
+	Audio.tape.clear()
+	Audio.hushed.clear()
+	Audio.taping = true
+	Router.begin_jump(to)
+	var t0 := -1.0
+	for i in 60 * 16:
+		await _tree.process_frame
+		var sc := Router.current as SectorScreen
+		var d: JumpDirector = sc._jump if sc != null else null
+		if d != null and d._begun and t0 < 0.0:
+			t0 = d._t0
+			seen.began = true
+			seen.film = d.film()
+		if d != null and d._begun and Run.jumps == jumps0:
+			var st: JumpStage = d.stage
+			if st == null or st.get_parent() != sc._view or st.get_index() != sc._view.get_child_count() - 1:
+				seen.stage_ok = false
+			if hud != null and hud.get_global_rect() != hud_rect:
+				seen.hud_moved = true
+			if sc.get_viewport().canvas_transform != Transform2D.IDENTITY:
+				seen.canvas_moved = true
+			if seen.order.is_empty() and st != null:
+				for ch in st.get_children():
+					seen.order.append(ch.get_class())
+			if d.seq.flame_s > 0.0 and not d._swapped:
+				(seen.flame_early if d.t < d.seq.flame_s else seen.flame_late).append([d.t, d.art._thrust_now()])
+			if seen.hull_hidden_at < 0.0 and not d.art.visible:
+				seen.hull_hidden_at = d.t
+			seen.max_flash = maxf(seen.max_flash, d.seq.flash)
+			if d.seq.flash > 0.0 and st != null:
+				seen.flash_floor = float(st.mat2.get_shader_parameter(&"flash_floor"))
+			seen.max_shake = maxf(seen.max_shake, absf(d.seq.shake.x) + absf(d.seq.shake.y))
+			seen.seq = d.seq
+			if hud != null and _culled(hud):
+				seen.hud_culled = true
+			if skip_at >= 0.0 and d.t >= skip_at and seen.skipped_at < 0.0:
+				seen.skipped_at = d.t
+				sc._skip()
+		if Run.jumps > jumps0 and seen.commit_t < 0.0:
+			seen.commit_t = GameClock.now() - t0
+		if Run.jumps > jumps0 and i > 0 and seen.commit_t >= 0.0 and GameClock.now() - t0 > seen.commit_t + 0.5:
+			break
+	Audio.taping = false
+	seen.t0 = t0
+	seen.tape = Audio.tape.duplicate()
+	seen.hushed = Audio.hushed.duplicate()
+	seen.stage_left = _count(_tree.root, "JumpStage") > 0
+	seen.director_left = _count(_tree.root, "JumpDirector") > 0
+	seen.jumped = Run.jumps == jumps0 + 1
+	seen.layers_left = _hidden(_tree.root)
+	return seen
+
+
+## Whether n or an ancestor is on the mirror's hidden layer (R15's history buffer culls the HUD).
+func _culled(n: Node) -> bool:
+	while n != null:
+		if n is CanvasItem and (n as CanvasItem).visibility_layer == JumpMirror.HIDDEN:
+			return true
+		n = n.get_parent()
+	return false
+
+
+func _hidden(n: Node) -> int:
+	var k := 1 if n is CanvasItem and (n as CanvasItem).visibility_layer & JumpMirror.HIDDEN != 0 else 0
+	for c in n.get_children():
+		k += _hidden(c)
+	return k
+
+
+func _cue_t(tape: Array, cue: StringName, t0: float) -> float:
+	for e in tape:
+		if e[0] == cue:
+			return float(e[4]) - t0
+	return -99.0
+
+
+func _check_film(id: StringName) -> void:
+	var seq := JumpRegistry.make(id)
+	var e0 := _errs.n
+	var s := await _jump(id)
+	_ok("%s: no script or engine error while it played (%d: %s)" % [id, _errs.n - e0, _errs.first.slice(e0, e0 + 3)], _errs.n == e0)
+	if not seen_ok(id, s):
+		return
+	var dt := 1.0 / 60.0 + 1e-4
+	_ok("%s: the film played (%s) and the jump committed once" % [id, s.film], s.film == id and s.jumped)
+	_ok("%s: committed at %.3f s, the film's %.2f (within a frame)" % [id, s.commit_t, seq.commit_t],
+		s.commit_t >= seq.commit_t - 1e-4 and s.commit_t <= seq.commit_t + 2.0 * dt)
+	_ok("%s: landed on the system map" % id, Router.current is SystemMapScreen)
+	var c: Dictionary = _cues.get(String(id), {})
+	var bt := _cue_t(s.tape, StringName(c.build.cue), s.t0)
+	var ht := _cue_t(s.tape, StringName(c.hit.cue), s.t0)
+	_ok("%s: the build cue fired on the first frame (%.4f)" % [id, bt], absf(bt) <= dt)
+	_ok("%s: the hit cue fired on the frame the clock crossed the cut (%.4f, cut %.3f)" % [id, ht, c.hit.at],
+		ht >= float(c.hit.at) - 1e-4 and ht <= float(c.hit.at) + dt)
+	var hit_from := -1.0
+	for e in s.tape:
+		if e[0] == StringName(c.hit.cue):
+			hit_from = float(e[7])
+	_ok("%s: and from inside the take by how late the frame was (%.4f vs %.4f)" % [id, hit_from, ht - float(c.hit.at)],
+		absf(hit_from - (ht - float(c.hit.at))) < 1e-3)
+	_ok("%s: no other effect played through the film (%d taped)" % [id, s.tape.size()], s.tape.size() <= 3)
+	_ok("%s: the HUD never moved and the canvas never shook" % id, not s.hud_moved and not s.canvas_moved)
+	_ok("%s: the stage stayed the last child of EncounterView" % id, s.stage_ok)
+	_ok("%s: the live hull gave way to the stand-in at %.3f s (swap %.2f)" % [id, s.hull_hidden_at, seq.swap_t],
+		s.hull_hidden_at >= seq.swap_t - 1e-4 and s.hull_hidden_at < seq.swap_t + 0.5)
+	_ok("%s: the stage and the director went with the commit" % id, not s.stage_left and not s.director_left)
+	_ok("%s: shook by whole pixels only (most %.1f)" % [id, s.max_shake], s.max_shake == floorf(s.max_shake))
+	_ok("%s: the flash lit the whole frame as filmed (floor %.2f, most %.2f)" % [id, s.flash_floor, s.max_flash],
+		s.max_flash == 0.0 or is_equal_approx(s.flash_floor, seq.flash_floor))
+	_ok("%s: every canvas item's layer put back (%d left hidden)" % [id, s.layers_left], s.layers_left == 0)
+	if seq.flame_s > 0.0:
+		_check_warp(id, s, seq)
+	if s.seq is SeqDatamosh:
+		var q: SeqDatamosh = s.seq
+		_ok("r15: stateful, so stepped every tick from its start to the freeze (%d of %d)" % [q.advanced, q._freeze_tick + 1],
+			q.advanced == q._freeze_tick + 1)
+		_ok("r15: the HUD was culled off the history buffer while the film ran", s.hud_culled)
+		_ok("r15: the vectors released on every mosh tick (%d)" % q.released.size(), q.released.size() >= q._freeze_tick - int(SeqDatamosh.T_MOSH * 60.0))
+	_finished.append(id)
+
+
+## R3 and R8: the ship inside the bend (ship pass, copy, warp, copy, finish), the idle flame kept
+## burning to the wake and out by the swap.
+func _check_warp(id: StringName, s: Dictionary, seq: JumpSequence) -> void:
+	var o: Array = s.order
+	# R3 draws its hull into the world before the lens; R8's warp reads the hull at each sight line
+	var want := ["Node2D", "BackBufferCopy", "ColorRect", "BackBufferCopy", "ColorRect", "BackBufferCopy", "ColorRect", "SubViewport"]
+	if id == &"r8":
+		want = ["Node2D", "BackBufferCopy", "ColorRect", "BackBufferCopy", "ColorRect", "SubViewport"]
+	_ok("%s: the warp field's order: specks, copy, [ship pass, copy,] warp, copy, finish, light buffer (%s)" % [id, o], o == want)
+	var early: Array = s.flame_early
+	var late: Array = s.flame_late
+	_ok("%s: the idle flame burned until the wake (%d frames, all IDLE)" % [id, early.size()],
+		early.size() > 10 and early.all(func(e: Array) -> bool: return int(e[1]) == ThrusterFx.Thrust.IDLE))
+	_ok("%s: and was out for good by %.2f s, before the swap" % [id, seq.flame_s + 0.25],
+		late.all(func(e: Array) -> bool: return float(e[0]) < seq.flame_s + 0.25 or int(e[1]) < 0))
+
+
+func _fail_r15() -> void:
+	_ok("reduce flashes: R15 played", false)
+
+
+func seen_ok(id: StringName, s: Dictionary) -> bool:
+	return _ok("%s: the director began" % id, bool(s.began))
+
+
+func _run() -> void:
+	_tree = get_tree()
+	await _tree.process_frame
+	Router.animate_in_harness = true
+	Rng.forced = Harness.seed_arg(4242)
+	OS.add_logger(_errs)
+	var f := FileAccess.open("res://scripts/sim/jump_cues.json", FileAccess.READ)
+	_cues = JSON.parse_string(f.get_as_text()) if f != null else {}
+	_ok("jump_cues.json names every landed film (%s)" % ", ".join(JumpRegistry.ALL),
+		JumpRegistry.ALL.all(func(i: StringName) -> bool: return _cues.has(String(i))))
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Router.show_local()
+	for i in 10:
+		await _tree.process_frame
+	(Router.current as SectorScreen)._skip()
+	for i in 10:
+		await _tree.process_frame
+
+	# the pick: one draw per jump off the run's seed, every film drawn, the same again
+	JumpRegistry.forced = &""
+	var a: Array = []
+	for j in 120:
+		a.append(JumpRegistry.pick(j))
+	var b: Array = []
+	for j in 120:
+		b.append(JumpRegistry.pick(j))
+	_ok("picks are deterministic for a seed", a == b)
+	_ok("and every film is drawn in 120 jumps (%s)" % [a.slice(0, 8)],
+		JumpRegistry.ALL.all(func(f: StringName) -> bool: return a.has(f))
+		and a.all(func(x: StringName) -> bool: return x in JumpRegistry.ALL))
+
+	for id in JumpRegistry.ALL:
+		await _check_film(id)
+		Router.show_local()
+		for i in 10:
+			await _tree.process_frame
+		(Router.current as SectorScreen)._skip()
+		for i in 5:
+			await _tree.process_frame
+	_ok("every landed film reached its commit and ran every check (%s of %s)" % [_finished, JumpRegistry.ALL],
+		_finished == JumpRegistry.ALL)
+
+	# a skip two seconds in: the cues hushed, the jump committed as skipped, nothing left
+	var s := await _jump(&"r12", 2.0)
+	_ok("skip: pressed at %.2f s, the jump committed" % s.skipped_at, s.skipped_at >= 2.0 and s.jumped)
+	var hushed_names: Array = []
+	for hs in s.hushed:
+		hushed_names.append_array(hs[0])
+	_ok("skip: both cues were hushed (%s)" % [hushed_names], hushed_names.has(&"jump_r12_build") and hushed_names.has(&"jump_r12_hit"))
+	_ok("skip: no stage or director left", not s.stage_left and not s.director_left)
+	Router.show_local()
+	for i in 10:
+		await _tree.process_frame
+	(Router.current as SectorScreen)._skip()
+
+	# REDUCE FLASHES: R4's full-frame flash is capped and keeps off the frame's floor
+	DisplaySettings.reduce_flashes = true
+	var r := await _jump(&"r4")
+	_ok("reduce flashes: R4's flash capped at 0.35 (most %.2f) with no frame-wide floor (%.2f)" % [r.max_flash, r.flash_floor],
+		r.max_flash <= 0.35 + 1e-4 and r.max_flash > 0.0 and r.flash_floor == 0.0)
+	# REDUCE FLASHES on R15: the vectors step at 4 Hz or less and nothing slips
+	Router.show_local()
+	for i in 10:
+		await _tree.process_frame
+	(Router.current as SectorScreen)._skip()
+	var rd := await _jump(&"r15")
+	if rd.seq is SeqDatamosh:
+		var q: SeqDatamosh = rd.seq
+		var gap := 999
+		for i in range(1, q.released.size()):
+			gap = mini(gap, q.released[i] - q.released[i - 1])
+		_ok("reduce flashes: R15's vectors stepped at 4 Hz or less (%d releases, closest %d ticks apart)" % [q.released.size(), gap],
+			q.released.size() > 2 and gap >= 15)
+		_ok("reduce flashes: and no channel slip (%d slipped ticks)" % q.slipped, q.slipped == 0)
+	else:
+		_fail_r15()
+	DisplaySettings.reduce_flashes = false
+	_ok("the hull bake cache stays capped (%d)" % JumpHull._cache.size(), JumpHull._cache.size() <= JumpHull.CACHE_MAX)
+	_ok("no script or engine error in the whole run (%d: %s)" % [_errs.n, _errs.first.slice(0, 3)], _errs.n == 0)
+	OS.remove_logger(_errs)
+	h.verdict("jumpseqtest")
+	_tree.quit(h.code())

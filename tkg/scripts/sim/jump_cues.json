@@ -1,0 +1,200 @@
+{
+ "r1": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r1_build",
+   "len": 4.86
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 4.86,
+  "file": "SeqHyperspace.gd",
+  "hit": {
+   "at": 4.86,
+   "cue": "jump_r1_hit",
+   "len": 5.14,
+   "onset": 5.1344
+  },
+  "hit_t": 5.0,
+  "lufs": -15.8
+ },
+ "r10": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r10_build",
+   "len": 4.86
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 4.86,
+  "file": "SeqCoilRail.gd",
+  "hit": {
+   "at": 4.86,
+   "cue": "jump_r10_hit",
+   "len": 5.14,
+   "onset": 5.2142
+  },
+  "hit_t": 5.424,
+  "lufs": -15.8
+ },
+ "r12": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r12_build",
+   "len": 5.62
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.62,
+  "file": "SeqNegative.gd",
+  "hit": {
+   "at": 5.62,
+   "cue": "jump_r12_hit",
+   "len": 4.38,
+   "onset": 6.1089
+  },
+  "hit_t": 6.1033,
+  "lufs": -15.8
+ },
+ "r14": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r14_build",
+   "len": 5.62
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.62,
+  "file": "SeqBigCrunch.gd",
+  "hit": {
+   "at": 5.62,
+   "cue": "jump_r14_hit",
+   "len": 4.38,
+   "onset": 6.3084
+  },
+  "hit_t": 6.3,
+  "lufs": -15.8
+ },
+ "r15": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r15_build",
+   "len": 6.48
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 6.48,
+  "file": "SeqDatamosh.gd",
+  "hit": {
+   "at": 6.48,
+   "cue": "jump_r15_hit",
+   "len": 3.52,
+   "onset": 7.0537
+  },
+  "hit_t": 7.05,
+  "lufs": -15.8
+ },
+ "r2": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r2_build",
+   "len": 5.6
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.6,
+  "file": "SeqFourth.gd",
+  "hit": {
+   "at": 5.6,
+   "cue": "jump_r2_hit",
+   "len": 5.0,
+   "onset": 5.9243
+  },
+  "hit_t": 5.92,
+  "lufs": -15.8
+ },
+ "r3": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r3_build",
+   "len": 3.322
+  },
+  "cut_dbfs": -46.1,
+  "cut_t": 3.322,
+  "file": "SeqRift.gd",
+  "hit": {
+   "at": 3.322,
+   "cue": "jump_r3_hit",
+   "len": 7.278,
+   "onset": 3.6163
+  },
+  "hit_t": 3.6,
+  "lufs": -15.8
+ },
+ "r4": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r4_build",
+   "len": 4.73
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 4.73,
+  "file": "SeqSlitScan.gd",
+  "hit": {
+   "at": 4.73,
+   "cue": "jump_r4_hit",
+   "len": 5.27,
+   "onset": 4.9844
+  },
+  "hit_t": 5.0,
+  "lufs": -15.8
+ },
+ "r5": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r5_build",
+   "len": 6.42
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 6.42,
+  "file": "SeqQuantumSmear.gd",
+  "hit": {
+   "at": 6.42,
+   "cue": "jump_r5_hit",
+   "len": 4.08,
+   "onset": 6.5946
+  },
+  "hit_t": 6.6,
+  "lufs": -15.8
+ },
+ "r8": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r8_build",
+   "len": 6.065
+  },
+  "cut_dbfs": -30.4,
+  "cut_t": 6.065,
+  "file": "SeqMaelstrom.gd",
+  "hit": {
+   "at": 6.065,
+   "cue": "jump_r8_hit",
+   "len": 4.535,
+   "onset": 6.1997
+  },
+  "hit_t": 6.2,
+  "lufs": -15.8
+ },
+ "r9": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r9_build",
+   "len": 5.8
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.8,
+  "file": "SeqUnravel.gd",
+  "hit": {
+   "at": 5.8,
+   "cue": "jump_r9_hit",
+   "len": 4.2,
+   "onset": 6.1592
+  },
+  "hit_t": 6.15,
+  "lufs": -15.8
+ }
+}

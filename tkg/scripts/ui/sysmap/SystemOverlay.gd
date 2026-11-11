@@ -274,6 +274,8 @@ func _clear_of_beacons(words: String, also: Array = [], grow := 0.0) -> Callable
 var hush_labels := false
 ## and faded on their way out and back in (`SystemMapScreen.ladder_chrome`)
 var label_a := 1.0
+## Your ship held back while a jump's hand-off settles the map round it (`JumpSeam`).
+var hide_ship := false
 
 
 func _text(at: Vector2, s: String, c: Color) -> void:
@@ -582,7 +584,7 @@ func _draw() -> void:
 	_draw_paths(t)
 	view.tick("overlay paths", t_paths)
 	var t_ship := Time.get_ticks_usec()
-	_draw_ship(t)
+	if not hide_ship: _draw_ship(t)
 	_draw_partners_and_comet(t)
 	view.tick("overlay ship", t_ship)
 	_place_labels()
@@ -857,7 +859,7 @@ func _draw_edge_marks(status: String) -> void:
 			# (the event's key glyph: a pulsar's beacon has none of its own,
 			# harvest the beam)
 			want.append([e[0], int(e[1]), col, 0, &"harvest" if bc == null else beacon_look(bc)[0], ""])
-	if flight != null and not win.grow(-2.0).has_point(_ship_at):
+	if flight != null and not hide_ship and not win.grow(-2.0).has_point(_ship_at):
 		want.append([_ship_at, -9, UITheme.ICE, 0, &"", "YOU"])
 	# Partners get arrows too: framed on a wide pair's own part,
 	# 15 of 16 out on a world round both were nowhere.
