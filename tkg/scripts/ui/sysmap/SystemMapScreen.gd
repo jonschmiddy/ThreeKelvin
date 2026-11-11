@@ -269,14 +269,14 @@ func _init() -> void:
 		item.add_child(g)
 		item.add_child(UITheme.body(k[1], UITheme.COLD, UITheme.FS_SMALL))
 		key.add_child(item)
-	root.add_child(_key_foot(key))
+	root.add_child(key_foot(key))
 	_key_row = key
 
 
 ## THE KEY ON LOCAL'S STRIP (Jon, Nov 11): under the map and the panel, the screen's width, the row
-## at the strip's left padding, where LOCAL's words start.
-## The band and the row are siblings, so the ladder fades each once (`ladder_chrome`).
-func _key_foot(key: HBoxContainer) -> HBoxContainer:
+## at the strip's left padding, where LOCAL's words start. The star chart's too.
+## The band and the row are siblings, so a fade takes each once; the ladder slides their holder.
+static func key_foot(key: HBoxContainer) -> HBoxContainer:
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 5)
 	var hold := Control.new()
@@ -284,22 +284,24 @@ func _key_foot(key: HBoxContainer) -> HBoxContainer:
 	hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	foot.add_child(hold)
 	var sb := UITheme.quiet_strip(SectorScreen.DRAWER_A, true)
-	_key_band = Panel.new()
-	_key_band.name = "KeyBand"
-	_key_band.add_theme_stylebox_override("panel", sb)
-	_key_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_key_band.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	hold.add_child(_key_band)
+	var band := Panel.new()
+	band.name = "KeyBand"
+	band.add_theme_stylebox_override("panel", sb)
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hold.add_child(band)
 	var mid := MarginContainer.new()
 	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mid.add_theme_constant_override("margin_left", int(sb.content_margin_left))
+	mid.add_theme_constant_override("margin_top", int(sb.content_margin_top))
 	key.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	key.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	mid.add_child(key)
 	hold.add_child(mid)
+	# (one height on both screens: the chart's glyphs are 13 px, the map's 12; whole px, top-aligned)
 	var fit := func() -> void:
-		hold.custom_minimum_size.y = key.get_combined_minimum_size().y + sb.get_minimum_size().y
+		hold.custom_minimum_size.y = maxf(key.get_combined_minimum_size().y, 13.0) + sb.get_minimum_size().y
 	key.minimum_size_changed.connect(fit)
 	fit.call()
 	return foot
@@ -1857,7 +1859,8 @@ func calm_end() -> void:
 ## Why: docs/why/SystemMapScreen.md#ladder-ui
 var _key_row: Control = null
 ## LOCAL's strip behind the KEY row (`_key_foot`)
-var _key_band: Panel = null
+var _key_band: Panel:
+	get: return _key_row.get_parent().get_parent().get_child(0) as Panel if _key_row != null and _key_row.get_parent() != null else null
 var _scale_bar: Control = null
 
 
@@ -1873,13 +1876,19 @@ var _row_plate: PanelContainer = null
 var _gas_ext: TextureRect = null
 
 
+## The KEY band's holder, which the ladder slides down off the screen and back (Jon, Nov 11).
+func ladder_foot() -> Control:
+	return _key_band.get_parent() as Control if _key_band != null and is_instance_valid(_key_band) else null
+
+
 ## The side bar, for the ladder to swap in place (`SideSwap`).
 func ladder_side() -> Control:
 	return panel.get_parent() as Control if panel != null and is_instance_valid(panel) else null
 
 
 func ladder_chrome(k: float) -> void:
-	for c: CanvasItem in [_key_row, _key_band, _scale_bar, _loc_btn]:
+	# (on the calm ladder the KEY band slides, `ladder_foot`; it never fades)
+	for c: CanvasItem in ([_scale_bar, _loc_btn] if ZoomLadder.calm_moving() else [_key_row, _key_band, _scale_bar, _loc_btn]):
 		ZoomLadder.fade_chrome(c, k)
 	if overlay != null:
 		overlay.label_a = 1.0 - k

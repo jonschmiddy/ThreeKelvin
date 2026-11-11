@@ -207,6 +207,22 @@ is drawn whole beneath and uncovered, never scaled (`ChromeSlide`).
 the band of this move, if any (out of LOCAL: it opens as the camera leaves)
 ```
 
+THE BOTTOM BANDS (Jon, Nov 11: "I want the star chart to have the same bottom
+tray as the system. I also want them to slide in and out like the other panels
+during the transitions"). The map's and the chart's KEY band and LOCAL's strip
+are each screen's `ladder_foot`, and on the calm move they never fade
+(`calm_moving`). Between LOCAL and the map or the chart they are a `PanelSlide`
+of kind foot, down off the screen on the panels' curve and timing: the leaving
+screen's off before the camera moves, the arriving one's on after it lands, so
+LOCAL's strip now goes before the camera on the way out and comes after it on the
+way in. That makes every hop to or from LOCAL a slide longer (`calm_length`).
+Between the map and the chart the band does what the toolbar does: held whole as
+a piece of the held picture while the camera moves, then decoded into the new
+row (`foot_swap`). LOCAL's strip is a drawer (`_quiet_wrap` in its clipped
+holder, with its own rise on arrival and the hand band that replaces it in a
+fight): the slide moves the drawer inside its holder, and with the hand up, where
+the strip is hidden, LOCAL has no foot.
+
 Inside `_drive_chrome()`, above `var on := _slide_way == &"on"`:
 
 ```text

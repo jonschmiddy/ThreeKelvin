@@ -1,0 +1,2 @@
+- **Changed** — the star chart's KEY row sits on the same bottom band as the system map's, the full width of the screen.
+- **Changed** — the bottom bands on LOCAL, the system map and the star chart now slide down and back up during the moves between them, like the side panel, instead of fading. Between the map and the chart the band stays put and its row changes over like the top row.

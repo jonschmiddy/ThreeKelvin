@@ -32,10 +32,9 @@ const UI_IN_S := 0.4
 const SEAM1_S := 1.7
 const SEAM2_S := 1.8
 const DIVE_S := 1.9
-## THE LAB'S SCREEN, PRESSED (science S9, Jon's 1C): the camera into the glass
-## until it fills the window, and back out on LEAVE (`LabZoom`), between the
-## same UI_OUT_S and UI_IN_S beats. A guess at the calm moves' pace, not yet
-## Jon's: one dial, here with the others.
+## THE LAB'S SCREEN, PRESSED (science S9, Jon's 1C): the camera into the glass until it fills the
+## window, and back out on LEAVE (`LabZoom`), between the same UI_OUT_S and UI_IN_S beats. A guess
+## at the calm moves' pace, not yet Jon's: one dial, here with the others.
 const LAB_ZOOM_S := 0.9
 ## Docking is five steps, never two at once, camera still; undocking eases out down the same path.
 ## Why: docs/why/ZoomLadder.md#dock-in-five-steps
@@ -82,8 +81,7 @@ const CALM_DECODE_S := 0.7
 
 ## how much of the station's hull the pan passes through (game px)
 const PAN_HULL_W := 520.0
-## F is Jon's pick: the empty yard rises from black,
-## then the ship flies in. P is kept as the alternative.
+## F is Jon's pick: the empty yard rises from black, then the ship flies in. P is kept as the alternative.
 ## Why: docs/why/ZoomLadder.md#yard-handoff
 const FADES := ["F", "P"]
 static var force_fade := ""
@@ -231,6 +229,8 @@ var _side_old := Rect2()
 ## and the screen's own toolbar along its top (`ladder_bar`), the same way
 var bar_swap: SideSwap = null
 var _bar_old := Rect2()
+## and the KEY band along the bottom (`ladder_foot`), between the map and the chart
+var foot_swap: SideSwap = null
 ## ended by a press or a key: anything still decoding ends with it
 var _cut := false
 ## The side bar's look, one of `SIDE_LOOKS` (A crossfade to F reboot), each drawn by `SideSwap`.
@@ -330,7 +330,7 @@ var _hid: Array = []
 
 
 func _hide_chrome(s: Control) -> void:
-	for c: Variant in [side_of(s), bar_of(s)]:
+	for c: Variant in [side_of(s), bar_of(s), PanelSlide.foot_of(s)]:
 		if c != null and is_instance_valid(c):
 			(c as CanvasItem).modulate.a = 0.0
 			_hid.append(c)
@@ -489,6 +489,11 @@ static func busy() -> bool:
 	return active != null and is_instance_valid(active)
 
 
+## A calm move is under way: the screens' bottom bands slide or stand held, never fade (Jon, Nov 11).
+static func calm_moving() -> bool:
+	return busy() and active._calm
+
+
 ## The distance the HUD's tabs light: where a move under way is going, or the
 ## screen up (-1 for one that is none of the four).
 static func lit_rank() -> int:
@@ -569,8 +574,7 @@ static func preroll(target: int, then: Callable) -> bool:
 		return false
 	if busy():
 		active.finish_now()
-	# The map's DOCK goes by black, ship kept off LOCAL,
-	# so its arrival is the first sight (Jon, Oct 20).
+	# The map's DOCK goes by black, ship kept off LOCAL, so its arrival is the first sight (Jon, Oct 20).
 	# Why: docs/why/ZoomLadder.md#map-dock-by-black
 	var dock_fade := chain == &"station" and r == MAP and target == LOCAL
 	if calm_hop(r, target) and not dock_fade:
@@ -632,8 +636,7 @@ static func preroll(target: int, then: Callable) -> bool:
 	var _pt_pre := Time.get_ticks_usec()
 	if (target == MAP or target == CHART) and not Run.map.is_empty() and Router.content != null:
 		var pm: Control = SystemMapScreen.new() if target == MAP else StarchartScreen.new()
-		# The chart stands at a trace of opacity; the
-		# map at none, as its sun shader ignores opacity.
+		# The chart stands at a trace of opacity; the map at none, as its sun shader ignores opacity.
 		# Why: docs/why/ZoomLadder.md#prebuilt-map
 		pm.modulate.a = PREBUILT_A if target == CHART else 0.0
 		pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -668,16 +671,14 @@ static func preroll(target: int, then: Callable) -> bool:
 		ps.setup(null)
 		prebuilt = ps
 		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
-	# On 3B both screens are built before anything
-	# moves; built at the swap they stood still mid-move.
+	# On 3B both screens are built before anything moves; built at the swap they stood still mid-move.
 	# Why: docs/why/ZoomLadder.md#prebuild-yard
 	elif target == STATION and ((lad.seam == 3 and lad.design == "B") or (lad.seam == 0 and Router.docked)) \
 			and Router.content != null and not Router.in_combat():
 		var ss := StationScreen.new()
 		ss.modulate.a = 0.0
 		ss.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Build under the game's theme, not the ladder's:
-		# the engine's made the figures 153 tall, not 144.
+		# Build under the game's theme, not the ladder's: the engine's made the figures 153 tall, not 144.
 		# Why: docs/why/ZoomLadder.md#prebuild-yard
 		Router.content.add_child(ss)
 		Router.content.move_child(ss, 0)
@@ -696,8 +697,7 @@ static func preroll(target: int, then: Callable) -> bool:
 		var pl := SectorScreen.new()
 		pl.modulate.a = 0.0
 		pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Build under the game's theme: the engine's left
-		# the bar 43 px tall for 32 and the ship 5 px high.
+		# Build under the game's theme: the engine's left the bar 43 px tall for 32 and the ship 5 px high.
 		# Why: docs/why/ZoomLadder.md#prebuild-yard
 		Router.content.add_child(pl)
 		Router.content.move_child(pl, 0)
@@ -1064,8 +1064,7 @@ func _input(e: InputEvent) -> void:
 	if _calm:
 		var eat_c := _calm_eats(e)
 		hurry()
-		# The arriving screen's key is carried to it: L
-		# pressed as the chart came on was lost (Jon, Oct 20).
+		# The arriving screen's key is carried to it: L pressed as the chart came on was lost (Jon, Oct 20).
 		# Why: docs/why/ZoomLadder.md#carried-keys
 		if e is InputEventKey and _carry(e as InputEventKey):
 			eat_c = true
@@ -1394,6 +1393,11 @@ static func bar_of(s: Control) -> Control:
 	return s.call(&"ladder_bar") as Control
 
 
+## The decodes under way: the side bar's, the toolbar's and the KEY band's.
+func _swaps() -> Array[SideSwap]:
+	return [side_swap, bar_swap, foot_swap]
+
+
 ## Whether a press lands on a side bar still changing; the move ends and the press lands on nothing.
 func _side_eats(e: InputEvent) -> bool:
 	if not (e is InputEventMouseButton):
@@ -1422,8 +1426,7 @@ func _style_for() -> Dictionary:
 		"axis": Vector2.ONE, "chrome": 0.45, "block": 0.0, "plane": false, "world": false, "hull": false}
 	if seam == 0:
 		s.extra = 3.0 if inward else 0.3
-		# Tab from the chart leaves by how much is kept,
-		# not a dither: the 4x4 checker read as noise.
+		# Tab from the chart leaves by how much is kept, not a dither: the 4x4 checker read as noise.
 		# Why: docs/why/ZoomLadder.md#two-distances-in-one
 		s.soft = true
 		s.sharp = true
@@ -1435,8 +1438,7 @@ func _style_for() -> Dictionary:
 	s.reach = 420.0
 	match "%d%s" % [seam, design]:
 		"1A":
-			# The held chart has a hole the size of the live
-			# sun, so the star icon becomes the sun (Jon).
+			# The held chart has a hole the size of the live sun, so the star icon becomes the sun (Jon).
 			# Why: docs/why/ZoomLadder.md#star-handoff
 			s.curve = true
 			s.soft = true
@@ -1468,8 +1470,7 @@ func _style_for() -> Dictionary:
 			s.axis = Vector2(40.0, 1.0)
 			s.reach = 260.0
 		"2C":
-			# One curve with the same speed both sides of
-			# the handoff, sampled between pixels (Jon).
+			# One curve with the same speed both sides of the handoff, sampled between pixels (Jon).
 			# Why: docs/why/ZoomLadder.md#smoothed-handoff
 			s.world = true
 			s.curve = true
@@ -1494,8 +1495,7 @@ func _style_for() -> Dictionary:
 				s.spread = -0.85
 				s.extra = 0.6
 		"3B", "3D":
-			# LOCAL draws the station's side; the ship flies in
-			# and the camera follows. Undocking runs it back.
+			# LOCAL draws the station's side; the ship flies in and the camera follows. Undocking runs it back.
 			# Why: docs/why/ZoomLadder.md#into-the-hangar
 			s.soft = true
 			s.spread = 0.8 if inward else -0.8
@@ -1532,8 +1532,7 @@ func _style_for() -> Dictionary:
 		0: total = DIVE_S
 		1: total = SEAM1_S
 		2: total = SEAM2_S
-	# Soft moves already feather the held edge; the
-	# eaten edge on top put a 40 px dark band round it.
+	# Soft moves already feather the held edge; the eaten edge on top put a 40 px dark band round it.
 	# Why: docs/why/ZoomLadder.md#soft-edge
 	if bool(s.get("soft", false)) and (seam == 0 or seam == 1):
 		s.edge = 0.0
@@ -2109,10 +2108,7 @@ func _end() -> void:
 			remove_child(band)
 			get_parent().add_child(band)
 			band.global_position = bgp
-	if is_instance_valid(side_swap):
-		going.append(side_swap)
-	if is_instance_valid(bar_swap):
-		going.append(bar_swap)
+	going.append_array(_swaps().filter(func(sw: Variant) -> bool: return is_instance_valid(sw)))
 	for sw: SideSwap in going:
 		if sw.done:
 			continue
@@ -2217,11 +2213,9 @@ static func _calm_key(a: int, b: int) -> String:
 static func calm_length(a: int, b: int) -> float:
 	# Into LOCAL: panel off, camera, LOCAL's UI. Out of LOCAL the reverse, then the decode.
 	var t := 0.0
-	if b == LOCAL:
-		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_IN_S
-	elif a == LOCAL:
-		# (the side panel and toolbar slide on drawn: nothing left to decode)
-		t = CALM_OUT_S + CALM_CAM_S + CALM_SLIDE_S + CALM_IN_S
+	if a == LOCAL or b == LOCAL:
+		# (what has a panel slides it off, then on; LOCAL's strip too: nothing left to decode)
+		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_SLIDE_S + CALM_IN_S
 	else:
 		t = CALM_OUT_S + CALM_CAM_S + maxf(CALM_IN_S, CALM_DECODE_S)
 	# The frames between: the camera sets off a frame after chrome stills, and a decode takes two.
@@ -2286,8 +2280,7 @@ func _calm_prebuild(target: int) -> void:
 		return
 	pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if Router.content != null:
-		# Build under the game's theme (the engine's made its
-		# buttons 31 px tall), behind the screen being left.
+		# Build under the game's theme (the engine's made its buttons 31 px tall), behind the screen being left.
 		# Why: docs/why/ZoomLadder.md#prebuilt-chart
 		Router.content.add_child(pm)
 		Router.content.move_child(pm, 0)
@@ -2346,9 +2339,9 @@ func _process_calm(delta: float) -> void:
 			if not is_instance_valid(old) or Router.current != old:
 				_calm_end()
 				return
-			if r_new == LOCAL:
-				# INTO LOCAL: the side panel and toolbar slide off first, the UI
-				# leaving with them, all before the camera moves
+			if r_new == LOCAL or r_old == LOCAL:
+				# INTO LOCAL: the side panel and toolbar slide off first, the UI leaving with
+				# them, all before the camera moves; out of it, LOCAL's strip
 				_calm_next(Phase.C_SLIDE)
 				_calm_t = dt
 				_panels_slide(old, false)
@@ -2529,8 +2522,7 @@ func _calm_hold(n: Control) -> void:
 	_calm_t_h = _calm_t
 	_calm_swap_frame = Engine.get_process_frames()
 	_calm_ph = _calm_p0.lerp(_calm_p1, _calm_e_drawn)
-	# Use where the left screen drew the ship, not its
-	# aim: a far chart zoom put a second ship 5 px off.
+	# Use where the left screen drew the ship, not its aim: a far chart zoom put a second ship 5 px off.
 	# Why: docs/why/ZoomLadder.md#held-ship-position
 	if is_instance_valid(old) and bool(old.call(&"ladder_ready")):
 		var seen: Variant = old.call(&"calm_ship")
@@ -2637,16 +2629,17 @@ func _calm_hold(n: Control) -> void:
 	Audio.suppress(&"ui_tab", 200)
 	# THE CHROME STANDS STILL THROUGH THE MOVE (into LOCAL it went before it)
 	if r_old != LOCAL and r_new == LOCAL:
-		pass
+		if chain != &"station": _hide_chrome.call_deferred(n)
 	elif r_old != LOCAL and r_new != LOCAL:
 		# the map and the chart: the old side bar and toolbar held whole, to decode
 		# into the new ones once landed
-		for oc: Variant in [side_of(old), bar_of(old)]:
+		for oc: Variant in [side_of(old), bar_of(old), PanelSlide.foot_of(old)]:
 			if oc != null and (oc as Control).is_visible_in_tree():
 				_calm_cover((oc as Control).get_global_rect())
 		side_swap = _region_swap(side_of(old), side_of(n), &"side", CALM_DECODE_S, false)
 		bar_swap = _region_swap(bar_of(old), bar_of(n), &"side2", CALM_DECODE_S, true)
-		for sw: Variant in [side_swap, bar_swap]:
+		foot_swap = _region_swap(PanelSlide.foot_of(old), PanelSlide.foot_of(n), &"foot", CALM_DECODE_S, true)
+		for sw: Variant in _swaps():
 			if sw != null:
 				(sw as SideSwap).frozen = true
 				(sw as SideSwap).target_s = CALM_DECODE_S
@@ -2690,9 +2683,9 @@ func _calm_land() -> void:
 		new.call(&"calm_end")
 	_run_landed()
 	_calm_uncover()
-	if r_old == LOCAL and r_new != LOCAL:
-		# Out of LOCAL the column and band come on, then
-		# decode. Panels slide once the left screen is whole.
+	if r_old == LOCAL or (r_new == LOCAL and chain != &"station"):
+		# Out of LOCAL the column and bands slide on once the left screen
+		# is whole; into it, LOCAL's strip.
 		_calm_next(Phase.C_POST)
 		_calm_post()
 		return
@@ -2701,7 +2694,7 @@ func _calm_land() -> void:
 		# (the map's DOCK: LOCAL's UI stays away, the hangar is next, at once)
 		_calm_end()
 		return
-	for sw: Variant in [side_swap, bar_swap]:
+	for sw: Variant in _swaps():
 		if sw != null and is_instance_valid(sw):
 			(sw as SideSwap).frozen = false
 			(sw as SideSwap).rate = _calm_rate
@@ -2779,6 +2772,9 @@ func _panels_slide(s: Control, on: bool) -> void:
 		var r2 := br.get_global_rect()
 		pb.setup(br, &"band", Vector2(0.0, -(r2.end.y - c.position.y + 2.0)), 0.0 if on else 1.0, s)
 		slides.append(pb)
+	var pf := PanelSlide.for_foot(self, s, c, on)
+	if pf != null:
+		slides.append(pf)
 
 
 ## The side column and the band at `q` (0 to 1) of their slide, on (out of
@@ -2834,7 +2830,7 @@ func hurry() -> void:
 	_calm_hurried = true
 	var left := 0.0
 	var after := CALM_IN_S if (r_new == LOCAL or r_old == LOCAL) else maxf(CALM_IN_S, CALM_DECODE_S)
-	if r_old == LOCAL:
+	if r_old == LOCAL or r_new == LOCAL:
 		after += CALM_SLIDE_S
 	match phase:
 		Phase.C_OUT:
@@ -2850,7 +2846,7 @@ func hurry() -> void:
 		Phase.C_IN:
 			left = (CALM_IN_S if (r_new == LOCAL or r_old == LOCAL) else maxf(CALM_IN_S, CALM_DECODE_S)) - _calm_t
 	_calm_rate = maxf(1.0, left / CALM_HURRY_S)
-	for sw: Variant in [side_swap, bar_swap]:
+	for sw: Variant in _swaps():
 		if sw != null and is_instance_valid(sw):
 			(sw as SideSwap).rate = _calm_rate
 	calm_log.append(["hurry", _calm_t])
@@ -2874,13 +2870,13 @@ func _calm_eats(e: InputEvent) -> bool:
 		if is_instance_valid(pc) and (pc as PanelSlide).at().intersection(_content_rect()).has_point(p):
 			return true
 	if phase == Phase.C_IN or phase == Phase.C_POST:
-		for sw: Variant in [side_swap, bar_swap]:
+		for sw: Variant in _swaps():
 			if sw != null and is_instance_valid(sw) and not (sw as SideSwap).done and (sw as SideSwap).blocks(p):
 				return true
 		return false
 	for s: Variant in [old, new]:
 		if s != null and is_instance_valid(s):
-			for c: Variant in [side_of(s), bar_of(s)]:
+			for c: Variant in [side_of(s), bar_of(s), PanelSlide.foot_of(s)]:
 				if c != null and (c as Control).is_visible_in_tree() and (c as Control).get_global_rect().has_point(p):
 					return true
 	return false
@@ -2911,7 +2907,7 @@ func _calm_finish_now() -> void:
 	slides.clear()
 	if is_instance_valid(new):
 		new.modulate.a = 1.0
-	for sw: Variant in [side_swap, bar_swap]:
+	for sw: Variant in _swaps():
 		if sw != null and is_instance_valid(sw):
 			(sw as SideSwap).finish()
 	if band != null and is_instance_valid(band):
@@ -2968,7 +2964,7 @@ func _calm_end() -> void:
 	_rect.visible = false
 	# THE DECODE RUNS ON PAST THE MOVE (a press hurried the camera; the letters
 	# finish on their own), handed to the viewport as the ladder goes
-	for sw: Variant in [side_swap, bar_swap]:
+	for sw: Variant in _swaps():
 		if sw == null or not is_instance_valid(sw) or (sw as SideSwap).done:
 			continue
 		if get_parent() == null:

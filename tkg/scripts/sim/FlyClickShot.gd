@@ -166,7 +166,7 @@ func _band(m: SystemMapScreen) -> void:
 	h._ok("the band runs the whole row, map and panel (%.0f of %.0f)" % [band.size.x, foot.size.x], absf(band.size.x - foot.size.x) < 0.5 and band.position.x <= wrap.position.x + 0.5)
 	var pad: float = UITheme.quiet_strip(SectorScreen.DRAWER_A, true).content_margin_left
 	h._ok("the KEY row inside it, at its left padding as LOCAL's words (%s; %.1f px in, want %.0f)" % [key, key.position.x - band.position.x, pad],
-		band.encloses(key) and absf(key.position.x - band.position.x - pad) <= 0.5 and absf(key.get_center().y - band.get_center().y) <= 1.0)
+		band.encloses(key) and absf(key.position.x - band.position.x - pad) <= 0.5 and absf(key.get_center().y - band.get_center().y) <= 1.0 and key.position == key.position.round())
 	h._ok("the band's style is LOCAL's strip", m._key_band.get_theme_stylebox(&"panel") is StyleBoxFlat
 		and (m._key_band.get_theme_stylebox(&"panel") as StyleBoxFlat).bg_color.is_equal_approx(UITheme.quiet_strip(SectorScreen.DRAWER_A, true).bg_color))
 	for c: Control in [m._loc_btn, m._scale_bar]:
@@ -184,7 +184,37 @@ func _band(m: SystemMapScreen) -> void:
 	get_viewport().get_texture().get_image().save_png(_out.path_join("7_local_bottom.png"))
 	var sc := Router.current as SectorScreen
 	if sc != null and sc._quiet_wrap != null:
-		_crop("7_local_bottom", sc._quiet_wrap.get_global_rect().grow_individual(0, 60, 0, 4))
+		# (the strip's own rect can still be unlaid here: the screen's bottom, as wide as the map's crop)
+		_crop("7_local_bottom", Rect2(0.0, get_viewport().get_visible_rect().end.y - 90.0, get_viewport().get_visible_rect().size.x, 90.0))
+	await _chart_band(band)
+
+
+## THE STAR CHART'S KEY on the same band (Jon, Nov 11): under the chart and its panel, the map's height,
+## the row at the left padding, and nothing of the chart's (LOCAL REGION, the scale bar, the toggles) on it.
+func _chart_band(map_band: Rect2) -> void:
+	Router.show_starchart()
+	for i in 900:
+		if not ZoomLadder.busy() and ZoomLadder.chain == &"" and Router.current is StarchartScreen:
+			break
+		await _tree.process_frame
+	await Harness.frames(_tree, 30)
+	var cs := Router.current as StarchartScreen
+	if not h._ok("the star chart is up", cs != null and cs._key_band != null):
+		return
+	var band: Rect2 = cs._key_band.get_global_rect()
+	var chart: Rect2 = cs._chart.get_global_rect()
+	var side: Rect2 = cs.ladder_side().get_global_rect()
+	var key: Rect2 = cs._key_row.get_global_rect()
+	h._ok("the chart's band is the map's: the same place and size (%s; map %s)" % [band, map_band], band.position.is_equal_approx(map_band.position) and band.size.is_equal_approx(map_band.size))
+	h._ok("under the chart and its panel, clear of both (chart %s, panel %s)" % [chart, side], not band.intersects(chart) and not band.intersects(side))
+	var pad: float = UITheme.quiet_strip(SectorScreen.DRAWER_A, true).content_margin_left
+	h._ok("its KEY row inside it at the left padding (%s; %.1f px in)" % [key, key.position.x - band.position.x], band.encloses(key) and absf(key.position.x - band.position.x - pad) <= 0.5)
+	for c: Control in [cs._region_btn, cs._reach_btn, cs._sight_btn]:
+		h._ok("%s inside the chart, off the band (%s)" % [c.text, c.get_global_rect()], chart.grow(0.5).encloses(c.get_global_rect()) and not c.get_global_rect().intersects(band))
+	h._ok("the scale bar drawn inside the chart, above the band (its line at y %.0f, the band from %.0f)" % [chart.end.y - MapChart.BAR_PAD, band.position.y], chart.end.y - MapChart.BAR_PAD < band.position.y)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(_out.path_join("10_chart_bottom.png"))
+	_crop("10_chart_bottom", band.grow_individual(0, 60, 0, 4))
 
 
 ## A 2x crop of a still, nearest-neighbour, beside it.
@@ -193,6 +223,9 @@ func _crop(name: String, r: Rect2) -> void:
 	if im == null:
 		return
 	var ri := Rect2i(r).intersection(Rect2i(Vector2i.ZERO, im.get_size()))
+	if ri.size.x <= 0 or ri.size.y <= 0:
+		return
 	var c := im.get_region(ri)
+	c.convert(Image.FORMAT_RGB8)
 	c.resize(ri.size.x * 2, ri.size.y * 2, Image.INTERPOLATE_NEAREST)
 	c.save_png(_out.path_join(name + "_2x.png"))

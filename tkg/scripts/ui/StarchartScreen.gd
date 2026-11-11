@@ -309,7 +309,7 @@ func _build() -> void:
 	# Why: docs/why/StarchartScreen.md#legend-colours
 	for item in _legend_items():
 		key.add_child(item)
-	root.add_child(key)
+	root.add_child(SystemMapScreen.key_foot(key))
 	_key_row = key
 
 	# Catches a fresh screen up with the static toggles: labels, rings and the held region.
@@ -1138,14 +1138,23 @@ func ladder_cam(k: float) -> void:
 ## Why: docs/why/StarchartScreen.md#ladder-ui-fade
 var _strip_row: Control = null
 var _key_row: Control = null
+## the KEY row's band (`SystemMapScreen.key_foot`: the map's, LOCAL's strip, Jon Nov 11)
+var _key_band: Panel:
+	get: return _key_row.get_parent().get_parent().get_child(0) as Panel if _key_row != null and _key_row.get_parent() != null else null
 
 
 func ladder_chrome(k: float) -> void:
-	for c: CanvasItem in [_key_row, _region_btn, _reach_btn, _sight_btn]:
+	# (on the calm ladder the KEY band slides, `ladder_foot`; it never fades)
+	for c: CanvasItem in ([_region_btn, _reach_btn, _sight_btn] if ZoomLadder.calm_moving() else [_key_row, _key_band, _region_btn, _reach_btn, _sight_btn]):
 		ZoomLadder.fade_chrome(c, k)
 	if _chart != null:
 		_chart.ui_a = 1.0 - k
 		_chart.queue_redraw()
+
+
+## The KEY band's holder, which the ladder slides as the map's (`SystemMapScreen.ladder_foot`).
+func ladder_foot() -> Control:
+	return _key_band.get_parent() as Control if _key_band != null and is_instance_valid(_key_band) else null
 
 
 ## The side bar, for the ladder to swap in place (`SideSwap`).

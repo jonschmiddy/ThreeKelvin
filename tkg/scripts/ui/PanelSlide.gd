@@ -9,7 +9,7 @@ extends Node
 static var live: Array = []
 
 var target: Control = null
-## &"side" (off to the right) or &"band" (up)
+## &"side" (off to the right), &"band" (up) or &"foot" (down: a bottom band, `for_foot`)
 var kind: StringName = &"side"
 ## where the container has it at rest (its parent's px) and how far away it is
 ## at k 0
@@ -86,3 +86,19 @@ func finish() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
 		live.erase(self)
+
+
+## A screen's bottom band (`ladder_foot`: the KEY band, LOCAL's strip), or null.
+static func foot_of(s: Control) -> Control:
+	return s.call(&"ladder_foot") as Control if s != null and is_instance_valid(s) and s.has_method(&"ladder_foot") else null
+
+
+## `s`'s bottom band sliding down off the content rect `c` (Jon, Nov 11), started on or off, or null.
+static func for_foot(parent: Node, s: Control, c: Rect2, on: bool) -> PanelSlide:
+	var ft := foot_of(s)
+	if ft == null or not is_instance_valid(ft) or ft.size.y <= 2.0:
+		return null
+	var pf := PanelSlide.new()
+	parent.add_child(pf)
+	pf.setup(ft, &"foot", Vector2(0.0, c.end.y - ft.get_global_rect().position.y + 2.0), 0.0 if on else 1.0, s)
+	return pf
