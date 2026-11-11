@@ -90,6 +90,23 @@ def flood(mask, gap=True, seeds=None):
     return seen
 
 
+def core_of(small, sky):
+    """The core's cells: the brightest of the loop's median, grown a cell and filled round
+    the middle, so the arms' turn starts outside it."""
+    med = np.median(np.stack(small[:: max(1, len(small) // 24)]), axis=0)
+    d = np.abs(med - sky).sum(-1)
+    if d.max() <= 0:
+        return np.zeros(d.shape, bool)
+    hot = d >= np.percentile(d, 98.5)
+    ys, xs = np.nonzero(hot)
+    cy, cx = ys.mean(), xs.mean()
+    yy, xx = np.mgrid[0:CELLS, 0:CELLS]
+    # the hot cells near the middle only (a giant's own core elsewhere stays as it is)
+    near = np.hypot(xx - cx, (yy - cy) * 1.8) <= 6
+    m = grow(hot & near, 1) & near
+    return m
+
+
 def bake(raw, out, t):
     frs = frames_of(raw, t)
     if not frs:
@@ -124,6 +141,15 @@ def bake(raw, out, t):
     peak = np.percentile(np.concatenate([np.abs(s - sky).max(-1).ravel() for s in small[:: max(1, len(small) // 8)]]), 99.5)
     gain = min(2.2, 235.0 / max(peak, 1.0))
     small = [np.clip(sky + (s - sky) * gain, 0, 255) for s in small]
+    # THE CORE HELD STILL (Jon, M4: "a little jitter with the core"): the chart's core turns
+    # and boils from still to still, so its cells flipped colour and its brightest cell
+    # wandered. The core's cells are one picture for the whole loop, the per-cell median of
+    # every still about the fixed centre; only the arms outside it turn.
+    core = core_of(small, sky)
+    if core.any() and os.environ.get("TIER_HOLD", "1") == "1":
+        held = np.median(np.stack(small), axis=0)
+        for s_ in small:
+            s_[core] = held[core]
     # one palette for the whole turn, from every frame's kept cells
     keep_all = []
     for s_ in small:
@@ -133,6 +159,10 @@ def bake(raw, out, t):
     pal_im = Image.fromarray(pool.reshape(1, -1, 3).astype(np.uint8), "RGB").quantize(COLOURS, method=Image.Quantize.FASTOCTREE)
     cells = [np.asarray(Image.fromarray(s.astype(np.uint8), "RGB").quantize(palette=pal_im, dither=Image.Dither.NONE)
                         .convert("RGB")).astype(int) for s in small]
+    if core.any():
+        moved = [int((np.abs(cells[i] - cells[(i + 1) % len(cells)]).sum(-1)[core] > 0).sum()) for i in range(len(cells))]
+        print("  tier %d core: %d cells, changed between stills (effects off): mean %.2f, most %d"
+              % (t, int(core.sum()), float(np.mean(moved)), max(moved)))
     if FX:
         cells, keep_all = FX(cells, keep_all, t)
     if t == 10 and STREAM:
