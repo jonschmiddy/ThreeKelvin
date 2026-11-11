@@ -112,11 +112,12 @@ func _run() -> void:
 			Router.current is ChassisSelect and Harness.first(_tree.root, func(n: Node) -> bool:
 				return n is Label and (n as Label).text == "LAUNCH A RUN" and (n as Label).is_visible_in_tree()) == null)
 		# LAUNCH: LOCAL, no tour, no note
+		_ok("the hull pick shows no LAUNCH until a ship is picked",
+			Harness.button_with_text(Router.current, "LAUNCH") == null)
+		(Router.current as ChassisSelect)._pick_weight(HullData.Weight.MEDIUM)
+		await Harness.frames(_tree, 2)
 		var go := Harness.button_with_text(Router.current, "LAUNCH")
-		if _ok("the hull pick has LAUNCH, grey until a ship is picked", go != null and go.disabled):
-			(Router.current as ChassisSelect)._pick_weight(HullData.Weight.MEDIUM)
-			await Harness.frames(_tree, 2)
-			_ok("a picked ship turns it on", not go.disabled)
+		if _ok("a picked ship brings LAUNCH up, on", go != null and not go.disabled):
 			go.pressed.emit()
 			await Harness.frames(_tree, 30)
 			_ok("LAUNCH puts you on LOCAL", Router.current is SectorScreen)

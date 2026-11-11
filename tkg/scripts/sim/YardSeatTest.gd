@@ -58,7 +58,7 @@ func _run() -> void:
 				if not _ok("%s: stood" % tag, not P.is_empty() and (P["supports"] as Array).size() == 2):
 					v.free()
 					continue
-				var r := _measure(v, P)
+				var r := _measure(v.canvas(), Vector2i(v.position), P)
 				worst_c = maxf(worst_c, absf(float(r["off"])))
 				worst_sink = maxi(worst_sink, int(r["sink"]))
 				if bi == 0:
@@ -76,15 +76,70 @@ func _run() -> void:
 	print("  the worst centring %.2f px, the most sunk %d rows" % [worst_c, worst_sink])
 	for key in order:
 		print("  %s: %s" % [key.get_file().get_basename(), ", ".join(by_sprite[key]["names"])])
+	_front()
 	harness.verdict("yardseattest")
 	get_tree().quit(harness.code())
 
 
-## Off the pictures: the hull's canvas where its view stands, and each stand's
-## picture where it stands.
-func _measure(v: ShipView, P: Dictionary) -> Dictionary:
-	var img: Image = v.canvas()
-	var at := Vector2i(v.position)
+## THE FRONT DOOR (Jon, Nov 11: "the ships are floating above their stands"):
+## every manufacturer's three hulls at every grade on the banner yard's stands,
+## measured off the pictures as above: no floor between the belly and either
+## cradle, the belly on a cradle's seat row, centred, inside the picture; and
+## each locked set's tarp down over both cradles' tops.
+func _front() -> void:
+	var front := YardFront.new()
+	add_child(front)
+	front.setup()
+	if not _ok("front door: the city hall is installed", front.ready_hall):
+		front.free()
+		return
+	var worst := 0
+	for m: StringName in DB.STARTABLE:
+		for tier in 4:
+			front.show_set(m, true, tier)
+			for w: HullData.Weight in front.sets:
+				var s: YardStandSet = front.sets[w]
+				var tag := "front %s %s %s" % [m, HullData.weight_name(w), DB.tier_name(tier)]
+				if not _ok("%s: a hull on two stands" % tag, s._view != null and s._stand_x.size() == 2):
+					continue
+				var r := _measure(s._view.canvas(), Vector2i(s.position + s._view.position), _stood(s))
+				worst = maxi(worst, int(r["sink"]))
+				if tier == 0:
+					print("  front %-8s %-6s hull to cradle top %d,%d rows (0 on the seat, sink %d)  floor showing %d,%d px  centre %+.2f px" % [
+						m, HullData.weight_name(w), r["d"][0], r["d"][1], r["sink"], r["gap"][0], r["gap"][1], r["off"]])
+				_ok("%s: no rows of floor between the hull and a cradle top (%s px)" % [tag, r["gap"]],
+					int(r["gap"][0]) == 0 and int(r["gap"][1]) == 0)
+				_ok("%s: the belly rests on a cradle's seat row (rows past it %s, sink %d)" % [tag, r["d"], r["sink"]],
+					mini(int(r["d"][0]), int(r["d"][1])) == int(r["sink"]) and int(r["sink"]) <= SINK_MAX)
+				_ok("%s: centred on its stands (%+.2f px)" % [tag, r["off"]], absf(float(r["off"])) <= 1.0)
+				_ok("%s: the stands' feet on the berth's floor row" % tag,
+					s._stand_top + s._stand_img.get_height() == s.feet)
+				_ok("%s: inside the picture (%s)" % [tag, r["span"]], int(r["span"][0]) >= 0 and int(r["span"][1]) < YardFront.W)
+	print("  front door: the most sunk %d rows" % worst)
+	front.show_set(&"solari", false)
+	for w: HullData.Weight in front.sets:
+		var s: YardStandSet = front.sets[w]
+		var tag := "front tarp %s" % HullData.weight_name(w)
+		if not _ok("%s: a tarp on two stands" % tag, s._tarp != null and s._tarp.image != null and s._stand_x.size() == 2):
+			continue
+		var r := _measure(s._tarp.image, s.thing.position, _stood(s))
+		print("  %s: tarp hem past the cradle top %d,%d rows, floor showing %d,%d px" % [tag, r["d"][0], r["d"][1], r["gap"][0], r["gap"][1]])
+		_ok("%s: the tarp lies down over both cradle tops (%s px of floor)" % [tag, r["gap"]],
+			int(r["gap"][0]) == 0 and int(r["gap"][1]) == 0)
+	front.free()
+
+
+## A front berth's stands in `_stand`'s shape, for `_measure`.
+func _stood(s: YardStandSet) -> Dictionary:
+	var sup: Array = []
+	for sx in s._stand_x:
+		sup.append({"img": s._stand_img, "x": sx, "y": s._stand_top})
+	return {"supports": sup, "seat": s.seat, "pair": {"sink": s.sink}}
+
+
+## Off the pictures: the hull's canvas `img` with its corner at `at` in the
+## hall, and each stand's picture where it stands.
+func _measure(img: Image, at: Vector2i, P: Dictionary) -> Dictionary:
 	var w := img.get_width()
 	var hgt := img.get_height()
 	# the hull's lowest pixel per hall column, and its mass middle in the hall

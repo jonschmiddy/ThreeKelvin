@@ -75,6 +75,8 @@ func setup() -> void:
 	scene.size = Vector2(HALL_W, HALL_H)
 	add_child(scene)
 	scene.setup()
+	# A click on the hall is "away" from the ships, so it goes on up to `ChassisSelect`.
+	scene.mouse_filter = Control.MOUSE_FILTER_PASS
 	if scene.light == null or scene.lv.is_empty():
 		push_warning("yard front: no city hall installed")
 		return
@@ -210,10 +212,23 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 	_apply_light()
 
 
-## What is picked lights its lamps as spotlights.
+## What is picked lights its lamps as spotlights, and holds the blur round it
+## with the pointer gone (Jon, Nov 11: "the blur should stay").
+## Why: docs/why/ChassisSelect.md#held-blur
 func set_picked(w: int) -> void:
 	picked = w
+	if hover_w < 0:
+		_focus(w)
 	_apply_light()
+
+
+## The ship drawn sharp over the blur: the one pointed at, else the picked one.
+func _focus(w: int) -> void:
+	if _ghost == null:
+		return
+	_sharp_set = sets.get(w) as YardStandSet if w >= 0 else _sharp_set
+	if _sharp_set != null:
+		_ghost.set_source(_sharp_set)
 
 
 ## The light's ship map: every hull's (or tarp's) pixels, shaded toward the
@@ -296,7 +311,7 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 	scene.light.lamp_gain = _lamp_gains()
-	var target := 1.0 if hover_w >= 0 else 0.0
+	var target := 1.0 if hover_w >= 0 or (picked >= 0 and not locked) else 0.0
 	var k := move_toward(_k, target, delta * BLUR_RATE)
 	if k != _k:
 		_k = k
@@ -311,10 +326,10 @@ func _process(delta: float) -> void:
 func _on_hover(w: HullData.Weight, on: bool) -> void:
 	if on:
 		hover_w = int(w)
-		_sharp_set = sets[w]
-		_ghost.set_source(_sharp_set)
+		_focus(int(w))
 	elif hover_w == int(w):
 		hover_w = -1
+		_focus(picked)
 	ship_hover.emit(hover_w)
 
 

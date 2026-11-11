@@ -392,11 +392,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			# Nothing to pause: the launcher IS the menu. Its Settings drawer is
 			# the one thing Esc can close there.
 			(Router.current as LauncherScreen).close_settings()
-		elif Router.current is ChassisSelect and _menu == null:
-			# Before the run: no escape menu, whose ABANDON would record a run
-			# that never launched. The deck's popup, then the title.
-			(Router.current as ChassisSelect).escape()
 		else:
+			# The yard too (Jon, Nov 11): before launch its menu offers BACK TO TITLE, never ABANDON.
 			toggle_menu()
 	elif k.is_action_pressed(&"fullscreen"):
 		# A binding (`Keys`), F11 out of the box. Escape above is not: it is
@@ -465,6 +462,12 @@ func toggle_menu(animate: bool = true) -> void:
 		# a ghost in the party's crew until then (review, Nov 5).
 		Router.drop_combat()
 		Router.show_launcher())
+	# The yard's one exit: nothing launched, so nothing to save or put on the record.
+	_menu.title_requested.connect(func() -> void:
+		toggle_menu(false)
+		var yard := Router.current as ChassisSelect
+		if yard != null:
+			yard.escape())
 	# Save and quit skips mid-combat: combat is outside the save and would bank spent hull.
 	# Why: docs/why/Main.md#abandon-and-quit
 	_menu.save_and_quit_requested.connect(func() -> void:

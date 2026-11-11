@@ -285,6 +285,14 @@ quit leaves, with no ship, the state the title expects; the save was cleared
 by NEW RUN already, and a cold arrival here is left its save.
 ```
 
+Changed Nov 11 (Jon: "When in the ship selection screen, Esc doesn't open the
+menu... it goes back to the title"). Esc opens the escape menu here as on every
+other screen. The audit's worry stands, so the menu knows it is before launch
+(`PauseMenu.before_launch`): no run status block, RESUME says BACK TO THE YARD,
+and its one exit is BACK TO TITLE, with no confirm, as nothing is lost; SAVE
+and ABANDON are not offered. BACK TO TITLE calls `escape()`, which leaves the
+way it always did: no ship, nothing on the record.
+
 ## Grade buttons
 
 Above `func _tier_row(manufacturer: StringName, m: ManufacturerData) -> Control:`:
@@ -444,3 +452,80 @@ hall runs edge to edge of the 960 x 540 picture rather than the shell's
 content box. Developer mode shows every banner open (as `Unlocks` already
 said) and the C-B-A-S grade chips under the key, nothing else.
 ```
+
+## Seated on the stands
+
+Jon, Nov 11: "The ships are floating above their stands." The banner yard stood
+two 88-row stands at the hull's quarters with their tops six rows above the
+hull's lowest pixel. That lowest pixel is a keel, a fin or a pod, rarely the
+belly over a stand, so most hulls hung over the cradles with floor between
+(the heavy and both side ships worst). The mockup's drawn hulls had flat
+bellies, which is why it looked right there.
+
+`YardStandSet._seat_stands` now stands a hull as the Shipyard deck does
+(`YardScene._stand`): `seat_pair` puts the two stands on the hull's mass
+middle where the belly over each cradle is level, the higher cradle's seat row
+(the stand's `seat` in yard.json, 11 for the city stand: the white lip) lies
+under the belly, the other is let in deeper behind the hull, and both stands
+are one height, grown or cut by `_sized` so their feet stay on the berth's
+floor row. The hull stays where the mockup put it; the stands reach up to it.
+A tarp keeps the mockup's stands (quarters, the stand let six rows in), which
+its drawn hem covers. `YardSeatTest`'s front-door section measures every
+manufacturer, weight and grade, and the tarps, off the pictures.
+
+## Launch on pick
+
+Jon, Nov 11: "having the launch and buttons appear when a ship isn't selected
+is weird." With nothing picked the band shows SELECT A SHIP and its line and
+nothing else. LAUNCH and, in developer mode, the C B A S grade chips (the
+condition grade to launch on, `_tier_chips`) appear once a ship is picked, in
+place, faded in over 0.18 s through `self_modulate` (the chips' own
+`modulate` marks the picked grade); never slid, as they are things to click.
+Under a locked manufacturer a click on a tarp picks nothing but brings LAUNCH
+up grey beside the lock line, so the way out (win a run) is said where the key
+would be.
+
+## Held blur
+
+Jon, Nov 11: "When a ship is selected, the blur should stay." The blur used to
+follow the pointer only. Now the picked ship holds it: the rest of the yard
+stays soft with the pick drawn sharp over it after the pointer leaves.
+Pointing at another ship moves the sharp copy to it as a preview, and leaving
+it brings the pick back. The fades stay at a fifth of a second. A locked set
+holds no blur: a carried pick is not a ship on those stands.
+
+## Click away
+
+Jon, Nov 11: "Clicking away from the ship (not directly on the ship) deselects
+it." A left click no ship, banner, LAUNCH or grade chip took reaches
+`ChassisSelect._gui_input` (the hall passes its clicks on), and clears the
+pick: SELECT A SHIP, LAUNCH and the chips hidden, the blur gone. A band word
+with a tooltip passes its click on too, so a click on a word is not away. A
+ship is its own opaque pixels (`YardStandSet.on_ink`), not its box: a click in
+a hull's box but off its pixels is away.
+
+## Banner cloth
+
+Jon, Nov 11: "You can select the different banners at the bottom of the
+screen...? Should only be when hovering over them." `YardBanner._has_point`
+kept the chains out but had no foot, so every column under a banner, down to
+the band, was that banner. It is now the cloth as it hangs this frame
+(`on_cloth`: the posed shear and the forked foot), and nothing below it. The
+same day: "the banners can be longer", so the cloth went from the mockup's 76
+rows to 100, the name and emblem where they were and the lighting bands
+stretched to the new foot; the foot stays clear of the heavy's top.
+
+## Launch plate
+
+Jon picked L-A "Plate" on Nov 11 (`tk-scratch/ui-build/launch-btn/launch_designs.py`,
+`design_a`, drawn there pixel for pixel): the old 156 x 76 key cap read as a
+slab, so LAUNCH is a slim 139 x 35 amber plate with a 2 px lip under it, a
+crisp 1 px bevel lit from the top left, 2 px chamfered corners and the word
+tracked out 3 px in dark ink, with floor all round. Hover lays a stepped amber
+glow round it (two solid steps and a dithered outer one, light drawn as light);
+a press sinks the face 2 px over the lip; locked is the same plate in dark
+slate. It is still a Button named LAUNCH, still appears only once a ship is
+picked, and nothing on it moves at rest. The mockup's box test put it clear of
+the band's words (122 px at its nearest) and of the developer's grade chips,
+which keep the old key's foot at (744, 508); SELECT A SHIP stays centred where
+it was.
