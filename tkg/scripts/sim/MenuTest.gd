@@ -1254,15 +1254,14 @@ func _chassis_case() -> void:
 	await _secs(0.3)
 	var pick := Router.current as ChassisSelect
 	var runs := RunHistory.load_all().size()
-	pick._show_deck()
-	await _press(KEY_ESCAPE)
-	await _secs(0.3)
-	_ok("  Escape shuts the opening deck's popup and stays on the hull pick",
-		pick._deck_pop == null and Router.current == pick
-		and _main.get("_menu") == null and _pause_menus() == 0)
+	# (the banner yard, Nov 10: a ship picked, so Esc leaves a pick behind too)
+	pick._pick_weight(HullData.Weight.MEDIUM)
+	await _secs(0.2)
+	_ok("  the yard is up with a ship picked and no escape menu",
+		Router.current == pick and pick.launchable() and _main.get("_menu") == null and _pause_menus() == 0)
 	await _press(KEY_ESCAPE)
 	await _secs(0.4)
-	_ok("  Escape again goes back to the title, and no escape menu opens",
+	_ok("  Escape goes back to the title, and no escape menu opens",
 		Router.current is LauncherScreen and _main.get("_menu") == null and _pause_menus() == 0)
 	var after := RunHistory.load_all().size()
 	_ok("  and nothing goes on the record (%d runs before, %d after), no ship" % [runs, after],

@@ -127,12 +127,19 @@ func _level_seven(seeds: int) -> void:
 	var wrong := 0
 	var world_moved := 0
 	var asc_off := 0
+	var form_off := 0
 	for i in seeds:
-		_start(1000 + i * 37, 0)
+		# the same seed at the same tier with the Hellbender kept off (the sim's
+		# control seam): the tier's galaxy form moves the world, and nothing else may
+		Run.hellbender_off = true
+		_start(1000 + i * 37, Run.HELLBENDER_ASCENSION)
 		var w0 := _world()
+		Run.hellbender_off = false
 		_start(1000 + i * 37, Run.HELLBENDER_ASCENSION)
 		if Run.ascension != Run.HELLBENDER_ASCENSION:
 			asc_off += 1
+		if Ladder.form_of_kind(Run.galaxy_kind) != Ladder.form(Run.HELLBENDER_ASCENSION):
+			form_off += 1
 		if not Run.hellbender_alive():
 			missing += 1
 			continue
@@ -146,7 +153,8 @@ func _level_seven(seeds: int) -> void:
 	h._ok("a run at ascension 7 is at 7 (%d were not)" % asc_off, asc_off == 0)
 	h._ok("every run spawns it (%d of %d did not)" % [missing, seeds], missing == 0)
 	h._ok("at its template hull %d, in the middle shells, never a station, its body placed (%d wrong)" % [t.max_hull, wrong], wrong == 0)
-	h._ok("and the world is the one level 0 rolled (%d differ)" % world_moved, world_moved == 0)
+	h._ok("and the world is the one tier 7 rolls without it: its place moves nothing else (%d differ)" % world_moved, world_moved == 0)
+	h._ok("its galaxy takes the tier's form, %s, as the ladder says (%d did not)" % [Ladder.form_name(Run.HELLBENDER_ASCENSION), form_off], form_off == 0)
 	# the ladder's top is ten; past it reads ten
 	Run.forced_ascension = 99
 	h._ok("a level past the ladder reads its top (%d)" % Run.ascension_for_new_run(),

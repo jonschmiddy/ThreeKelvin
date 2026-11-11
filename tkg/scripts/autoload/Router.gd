@@ -329,7 +329,8 @@ func show_chassis_select() -> void:
 	# named rather than inherited, because this screen is also reachable cold.
 	Audio.music_state(&"lobby")
 	var s := ChassisSelect.new()
-	_swap(s)
+	# No HUD over the yard (Jon's W2 v10): the hall is the whole picture.
+	_swap(s, false)
 	s.setup()
 	# A new run opens on LOCAL (Jon). No tour: hints teach each thing when it first matters.
 	# Why: docs/why/Router.md#new-run-opening
@@ -1146,8 +1147,7 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 			template = open[0]
 			extras = open.slice(1)
 			folded = true
-	# Bosses and the hellbender get the dread cue, not the full-intensity theme.
-	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
+	Audio.music_state(fight_music(template))
 	combat = Combat.new()
 	combat.clears_node = clears_node
 	var s := SectorScreen.new()
@@ -1274,7 +1274,18 @@ func fight_door(f: SharedFight) -> Dictionary:
 	return {templates = templates, ids = ids, kind = kind,
 		# Only the core clears its node on a win; the hellbender is a visitor.
 		clears = kind == &"core",
-		cue = &"boss" if lead != null and (lead.boss or lead.miniboss) else &"combat"}
+		cue = fight_music(lead)}
+
+
+## The music a fight asks for: the Custodian its own cue (Jon, Nov 10), any other boss
+## or the hellbender the dread cue, everything else the tier's fight.
+## Why: docs/why/Audio.md#music-cues
+func fight_music(lead: EnemyTemplate) -> StringName:
+	if lead == null:
+		return &"combat"
+	if lead.id == DB.CORE_BOSS:
+		return &"custodian"
+	return &"boss" if lead.boss or lead.miniboss else &"combat"
 
 ## Only reachable after a resume, as arrival normally starts the fight itself.
 ## Why: docs/why/Router.md#engaging

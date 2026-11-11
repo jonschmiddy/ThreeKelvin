@@ -246,7 +246,17 @@ void fragment() {
 	vec3 base = t.rgb * vc.rgb;
 	// (a SHIP left of the hall -- flying in over the hall continued, `shift_x` --
 	// is lit as the hall's first column is)
-	bool outside = p.y < 0 || p.x > 765 || p.y > 481 || (p.x < 0 && mode != 2);
+	// A thing STANDING ON THE FLOOR is lit by its cell wherever it is drawn, and
+	// a SHIP by its own mask, which the front door makes wider than the hall
+	// (`YardFront`: the hall continued to its right, a hull over the join).
+	bool outside;
+	if (mode == 1) {
+		outside = false;
+	} else if (mode == 2) {
+		outside = p.y < 0 || p.y > 481 || p.x >= textureSize(ship_map, 0).x;
+	} else {
+		outside = p.y < 0 || p.x > 765 || p.y > 481 || p.x < 0;
+	}
 	if (mode == 2 && p.x < 0) {
 		p.x = 0;
 	}
@@ -261,7 +271,9 @@ void fragment() {
 			// A SHIP takes the light over it, falling into its own shade.
 			vec4 sm = texelFetch(ship_map, p, 0);
 			float belly = sm.b > 0.0 ? sm.b : 1.0;
-			float v = u16(texelFetch(lship_map, ivec2(p.x, 0), 0).rg, lscale) * belly;
+			// (past the hall's right edge the floor is the hall's first columns again)
+			int lx = p.x > 765 ? p.x - 766 : p.x;
+			float v = u16(texelFetch(lship_map, ivec2(lx, 0), 0).rg, lscale) * belly;
 			COLOR = vec4(shade(base, mainc * v, v, drgb, dw, dq), 1.0);
 		} else if (mode == 1) {
 			vec4 l = sa_at(ivec2(cell));

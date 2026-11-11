@@ -1,25 +1,27 @@
 # Which cue plays when
 
-Twenty-seven cues: a title theme, four run cues and one fight cue for each of five tiers, and a
-death cue.
+Twenty-seven cues: a title theme, four run cues for each of five tiers, three battle cues by
+danger, a boss cue, the Custodian's cue, and a death cue.
 
 | Game state | Cues |
 |---|---|
 | Title screen | Title menu |
 | EASY run | First Light, Cold Start, Long Way Round, Drift Plane |
-| EASY fight | Close Quarters |
+| EASY fight | Crosswind |
 | ROUGH run | Ghost Freight, Salvage, Cut Signal, Quiet Orbit |
-| ROUGH fight | Slipstream |
+| ROUGH fight | Crosswind |
 | HARD run | Red Line, Dead Weight, Cold Iron, Thin Ice |
-| HARD fight | Hairline |
+| HARD fight | Gallop |
 | BRUTAL run | Nothing Left, Wrong Ship, Countdown, Attrition |
-| BRUTAL fight | Overpressure |
+| BRUTAL fight | Full Burn |
 | LETHAL run | Event Horizon, No Air, Sealed, Aftermath |
-| LETHAL fight / boss | Last Stand |
+| LETHAL fight | Full Burn |
+| Boss (the Hellbender, any other boss) | Last Stand |
+| The Custodian | Undertow |
 | Death | Lights Out, then silence |
 
 Pick randomly among a tier's run cues without repeating the last one. Switch to that tier's fight
-cue when a fight starts and back when it ends; a 2 to 3 second crossfade covers the tempo change.
+cue (the Custodian gets Undertow, any other boss Last Stand, at any depth) when a fight starts and back when it ends; a 2 to 3 second crossfade covers the tempo change.
 
 **Lights Out is not a loop.** It is 70 seconds: 50 of music and 20 of literal silence at the end.
 Play it once from zero on death and let it run out, or fade it during the silence. Do not loop it.
@@ -49,10 +51,16 @@ denser, so the gap between running and fighting widens the further in you get.
 
 ## The fights
 
-| Fight | Tier | Tempo | Length | Feel |
+Three battle cues by danger (Jon, Nov 10), all in F minor at 142 on the game's phrase
+(F G F G A flat), composed in the lab after ElevenLabs takes did not fit the set.
+
+| Fight | Tiers | Tempo | Length | Feel |
 |---|---|---|---|---|
-| Close Quarters | EASY | 100 | 1:17 | resolves every eight bars, lands on the tonic |
-| Slipstream | ROUGH | 104 | 1:32 | relentless, with the floor dropping out mid-fight |
-| Hairline | HARD | 108 | 1:24 | the key comes apart underneath you |
-| Overpressure | BRUTAL | 84 | 1:31 | no pulse at all, only rising pressure |
-| Last Stand | LETHAL | 132 | 2:00 | the boss: three waves, a phase break, then it tightens |
+| Crosswind | EASY, ROUGH | 142 | 1:08 | the phrase in a skipping 3+3+2, F Dorian; scrappy rather than grand |
+| Gallop | HARD | 142 | 1:08 | four falling chords over a gallop bass that never stops |
+| Full Burn | BRUTAL, LETHAL | 142 | 1:08 | First Light's phrase as a march, then its turn to F major |
+| Last Stand | boss | 132 | 2:00 | the boss: three waves, a phase break, then it tightens |
+| Undertow | the Custodian | 142 | 2:35 | the phrase in the bass on every chord and, slowed, on top; a hammered hook; a quiet stretch, a run-up and a final lap |
+
+Close Quarters, Slipstream, Hairline and Overpressure, the fights before these, are still in the
+lab and in git but no longer ship.

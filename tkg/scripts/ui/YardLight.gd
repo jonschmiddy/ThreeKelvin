@@ -27,6 +27,9 @@ var ew := PackedFloat32Array()
 var ceil_idx: Array = []
 var tired := -1
 var no_flicker := false
+## A gain on each ceiling lamp, by its place in `ceil_idx` (the front door's
+## spotlight on the picked ship's lamps, its gloom over a locked set); empty is 1.
+var lamp_gain := PackedFloat32Array()
 var main := Color(0.82, 0.9, 1.0)
 var ambc := Color(0.7, 0.8, 1.0)
 var amb := 0.1
@@ -378,6 +381,8 @@ func weigh(t: float) -> void:
 	for i in ceil_idx.size():
 		var n := int(ceil_idx[i])
 		var w := (lamp_level(t) if flk_lamp == i else 1.0) * (tired_w(t) if i == tired else 1.0)
+		if i < lamp_gain.size():
+			w *= lamp_gain[i]
 		nw[n] = w
 		ew[n] = w
 	for n in nlights:

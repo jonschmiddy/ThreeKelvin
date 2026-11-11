@@ -82,43 +82,21 @@ Each melodic line is an array of bar strings. One string is one bar of four beat
 
 ## Things that will bite you
 
-- **`render_wav.mjs` does not currently reproduce the shipped audio.** Do not
-  re-render a cue and ship it until this is understood. The oggs in
-  `tkg/assets/audio/music/` are good; a fresh render is not.
+- **`render_wav.mjs` used to come out with an empty right channel. Found and fixed, Nov 10.**
+  Measured on `qo` before the fix: shipped L/R rms 0.099/0.088, fresh render 0.096/**0.015**.
 
-  **The right channel comes out nearly empty.** Measured on `qo`, which nobody
-  had touched — a fresh render against its shipped ogg:
+  The cause: the width stage's `ChannelSplitter` up-mixes *discretely* (the spec's rule for a
+  splitter), so a MONO signal reaching it keeps only its left channel. Every voice is mono; in a
+  browser the shared reverb makes the mix stereo long before that point, but node's
+  `ConvolverNode` sums to mono and outputs mono, so the whole mix arrived at the splitter mono.
+  Shown in isolation: mono oscillator -> splitter -> merger gives L 0.707, R 0.000. The lab now
+  forces two channels with a speaker up-mix on `mfx.crushOut`, just before the splitter; in a
+  browser that signal is already stereo, so nothing changes there.
 
-  | | L rms | R rms |
-  |---|---|---|
-  | shipped | 0.099 | 0.088 |
-  | fresh render | 0.096 | **0.015** |
-
-  By band, the fresh render's R against its own L: **17 to 26 dB down below
-  2.5 kHz, and +10 dB above 5 kHz.** So the right channel has almost none of the
-  music and mostly high-frequency noise. Summed to mono that loses 5.7 dB and
-  the cue goes thin and dry, which is how it was first noticed.
-
-  Ruled out, each by experiment:
-  - **The dependency version.** Pinned `^0.21.0`, installs 0.21.5; 0.21.0
-    exactly behaves identically.
-  - **The reverb impulse.** `makeIR` builds two independent noise channels.
-    Forcing both channels to the *same* noise changes nothing.
-  - **Every node in the master chain.** Gain, biquad, waveshaper, compressor,
-    analyser and the splitter/merger width stage each pass a stereo signal
-    through with both channels intact.
-
-  Found but not the cause: **node's `ConvolverNode` sums its input to mono.**
-  Feed it 300 Hz left and 900 Hz right and both output channels come back
-  identical, carrying both tones — where a browser keeps them separate. Worth
-  knowing, but it makes reverb *more* correlated, not less, so it does not
-  explain an empty right channel.
-
-  **What would settle it fastest is knowing how the shipped oggs were made** —
-  whether `render_wav.mjs` produced them on another machine, or whether they
-  came from somewhere else and this script never matched.
-
-  Check any render before shipping it:
+  After the fix a fresh render sits on the shipped ogg: Close Quarters -15.0 LUFS against
+  -14.8, spectral centroid 346 Hz against 344, L and R equal. First Light -12.0 against -12.6.
+  One difference remains: node's reverb is mono, so a render is a little narrower than the
+  browser-made oggs (L and R come out identical). Check a render before shipping it anyway:
 
   ```python
   import soundfile as sf, numpy as np
@@ -127,13 +105,17 @@ Each melodic line is an array of bar strings. One string is one bar of four beat
   print(np.sqrt(np.mean(L**2)), np.sqrt(np.mean(R**2)))   # want them within a few dB
   ```
 
+  Also fixed the same day: on a Windows checkout (CRLF) `render_wav.mjs` replaced a literal
+  `'buildUI();\n'`, matched nothing, and called every cue "unknown". It uses `\r?\n` now, as the
+  checkers already did, and takes an absolute output path.
+
 - **`nothingleft.ogg` is one note behind the lab, deliberately.** Bar 24 held a
   half step against bVI and was changed to `B4` in the lab; the shipped ogg still
   has the old note, because the render that would have carried the change is the
   broken one above. Jon has heard the shipped cue and is happy with it, so this
   is not urgent — but `check_cue.mjs` reads the LAB, so it is green while the
-  audio is not. **When the renderer is fixed, re-render this cue first** and the
-  two come back into line.
+  audio is not. **The renderer is fixed now (above); re-render this cue first** when Jon
+  wants the lab and the audio back in line. Nobody has yet, because it changes shipped audio.
 
 - **Handoffs arrive from a copy of this folder that is not the repo.** The
   second one came back with bar 24 of Nothing Left undone and `check_cue.mjs`

@@ -327,7 +327,8 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 
 ## The galaxy's draws, in the order a seed replays them: kind, shape, spin, name, title, then the map.
 func _roll_galaxy() -> void:
-	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
+	# one draw, as before; the tier says which form it is (`Ladder`)
+	galaxy_kind = Ladder.roll_kind(ascension, Rng.world)
 	galaxy = GalaxyGen.roll(galaxy_kind)
 	galaxy_spin = Rng.world.randf() * TAU
 	galaxy_name = GalaxyGen.roll_name()
@@ -2473,6 +2474,9 @@ var ascension: int = 0
 ## Test seam: the level the next `start_new_run` uses, or -1 to read the
 ## command line. Never set from game code, the same discipline as `Rng.forced`.
 var forced_ascension: int = -1
+## THE PLAYER'S PICK: the tier the title's LAUNCH A RUN box has on (`LaunchBox`),
+## or -1 before the box was ever opened (a fresh profile launches at 0).
+var picked_ascension: int = -1
 
 ## The level a new run starts at. In a dive, the host's (sent with the seed,
 ## PROTOCOL 19), so four ships fly one galaxy with one rival or none. Solo, the
@@ -2483,6 +2487,8 @@ func ascension_for_new_run() -> int:
 		return clampi(Net.dive_ascension, 0, ASCENSION_MAX)
 	if forced_ascension >= 0:
 		return clampi(forced_ascension, 0, ASCENSION_MAX)
+	if picked_ascension >= 0:
+		return clampi(picked_ascension, 0, ASCENSION_MAX)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("asc="):
 			return clampi(int(arg.substr(4)), 0, ASCENSION_MAX)

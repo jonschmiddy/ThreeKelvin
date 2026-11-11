@@ -303,8 +303,9 @@ step "The Hellbender flies only at ascension 7 and up"
 # Jon, Nov 8: "ONLY have the hellbender show up on Ascention 7+", and the
 # hiring boards' signs stay as a hint. Level 0 over 60 seeds: none spawns, its
 # clock moves nothing, nothing eaten, no body, ENGAGE, drawer or log line names
-# it, no poster stamped DESTROYED; level 7 spawns it as before on the same
-# world; a VERSION 40 save loads at 0; a dev fight with none opens at full hull.
+# it, no poster stamped DESTROYED; level 7 spawns it as before, in a ball galaxy
+# (the tier's form), on the world tier 7 rolls with it kept off (its place moves
+# nothing else); a VERSION 40 save loads at 0; a dev fight with none opens at full hull.
 if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hellbendergatetest 240 --headless --path "$PROJECT" -- sheet=HellbenderGateTest; then
 	if grep -qE '^hellbendergatetest: PASS' "$LOG_DIR/hellbendergatetest.log"; then
 		ok "no Hellbender below ascension 7, and nothing names it but the boards"
@@ -1360,6 +1361,32 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet welcometest 120 \
 	"the welcome note shows once and comes back from the menu" \
 	"the welcome note failed" \
 	--headless --path "$PROJECT" -- sheet=WelcomeTest welcome
+}
+
+unit_yardfronttest() {
+step "The banner shipyard: pick a manufacturer, pick a ship, LAUNCH"
+# Jon's W2 v10 front door (Nov 10). A fresh profile's hall: Korvan named, six
+# ??? banners, SELECT A SHIP and LAUNCH grey; pointing at a hull shows its facts
+# off the live refit, a click picks it and LAUNCH comes on; a ??? banner brings
+# tarps, the lock line, and nothing can launch; Korvan's brings the ships and
+# the pick back; LAUNCH lands on LOCAL in the picked hull; developer mode opens
+# every banner. Every state box-tested. Same exit-time leak allowance as stowtest.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardfronttest 240 \
+	"the banner yard picks, locks and launches" \
+	"the banner yard misbehaved" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardFrontTest
+}
+
+unit_launchtiertest() {
+step "LAUNCH A RUN: the tier stops, the galaxy by tier, the record"
+# Jon's T1 (Nov 10). On a scratch flight record: no win opens tier 0 alone, and a
+# tier 0 win opens 1; a stop past best + 1 refuses a click; a pick reaches the run's level and the
+# galaxy's form, and the won run goes on the record with its tier, which opens the
+# next; the fresh-profile skip still launches at 0; the box on screen at every tier.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet launchtiertest 180 \
+	"the tiers pick, lock and reach the run" \
+	"the tier box misbehaved" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=LaunchTierTest
 }
 
 unit_scrollcheck() {

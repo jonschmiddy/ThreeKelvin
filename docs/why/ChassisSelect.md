@@ -389,3 +389,58 @@ DAMAGE CONTROL shows as +7 hull, nor SPARE CELLS as +3 cells in
 wiped that board, and LAUNCH deals none: every run flew with an empty
 board, and the first autosave wrote it (`-- savetest`).
 ```
+
+## Banner yard
+
+The screen since Nov 10 (Jon's W2 v10, "Y1: the yard is good, build it"), drawn by
+`YardFront` (the hall), `YardBanner` (a banner), `YardStandSet` (a berth), `YardBand`
+(the facts and LAUNCH) and `YardFrontLife` (the crew), with `ChassisSelect` left to
+say what a click means:
+
+```text
+The front door is the old shipyard. The Shipyard deck's own hall at city level,
+with its lamps, its crew lanes and its workers (`YardScene`, `YardLife`), is the
+picture; it is 766 wide and the frame is 960, so the hall's first columns are
+drawn again at its right, lit as those columns are (the light shader's
+`shift_x`, as the deck's elevator edge already used it), and its last rows run
+on under the band. Three things of the deck's life would have crossed the band
+on the apron (the forklift, the floor hatch, the front welder's lane) and go;
+the engine cart and the grinder move to where the mockup put them.
+
+Seven banners hang from the gantry, one a manufacturer, every one shown: a
+locked one is a dark cloth saying ??? for its name and its emblem, and it is
+still clickable, so the chain reads as a horizon. The sway is a whole-pixel
+shear of the cloth, more at the foot than the head, nine poses held while the
+sine holds: pixel art turns in whole steps.
+
+The chosen manufacturer's three hulls stand on the yard's stands, staged in
+depth: the medium front left, the light front right, the heavy centred behind
+and higher on the floor. They are the game's own hull art on the deck's own
+stands, lit by the deck's light with the deck's belly shading (a ship map as
+wide as the frame, so the light hull over the hall's join is lit too), and the
+floor lamps' pools are baked without the hulls in them: the deck's camera
+throws a hull standing this high up the hall as a long shape across the floor
+that read as writing. Stand shadows and contact shadows ground them instead.
+
+Pointing at a hull blurs everything else, stands included, a little strong
+(a box blur of 1.8 px and 13% down), and the hull is drawn again sharp over
+the blur. There is no outline: the ship stands out by being the one thing in
+focus. Clicking a hull picks it; the pick carries across manufacturers (a
+medium stays a medium) because the two axes are independent. LAUNCH is a big
+amber key, grey until a ship is picked, and silent, as it always was.
+
+A locked manufacturer's three ships sit under tarps (PixelLab art, one a
+weight, cut for the Korvan hulls), which drop one after another, sag and
+settle, then ripple at the hem now and then while the body never moves; the
+hall goes gloomy, two lamps stutter in uneven steps, and the band shows ???
+and `Unlocks.lock_line`. The band itself (Jon's B1) has no panel: the floor
+falls to near black toward the frame's foot in stepped dithered bands and the
+words sit on it. It shows the name, the manufacturer, the weight, the seven
+attributes as `AttrBlock` always drew them, the hardpoints spelled out, the
+hand and the hull's perk, and a mint tie line up to the ship's stand.
+
+The HUD bar is hidden over this screen, and the screen is `top_level`, so the
+hall runs edge to edge of the 960 x 540 picture rather than the shell's
+content box. Developer mode shows every banner open (as `Unlocks` already
+said) and the C-B-A-S grade chips under the key, nothing else.
+```
