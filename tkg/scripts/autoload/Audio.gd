@@ -57,12 +57,14 @@ const ROOM_DB := -14.0
 ## Set by ear, levelled in LUFS not RMS; each number is target minus the file's own reading.
 ## Why: docs/why/Audio.md#room-levels
 const ROOM_LEVELS: Dictionary = {&"amb_space": -14.3, &"amb_blue": -14.5,
-		&"amb_red": -9.2, &"amb_pulsar": -8.5, &"amb_station": -15.4}
+		&"amb_red": -9.2, &"amb_pulsar": -8.5, &"amb_station": -15.4, &"yard_bed": 0.0}
 ## As the build scripts measured them; the test re-does the arithmetic.
 const ROOM_FILE_DB: Dictionary = {
 		&"amb_space": [-15.7, -12.0], &"amb_blue": [-15.6, -10.2],
 		&"amb_red": [-12.7, -13.4], &"amb_pulsar": [-13.5, -14.3],
 		&"amb_station": [-30.3, -26.5]}
+## The hull pick's room: the Shipyard deck's bed, at the 0 dB it plays there (`YardSound`).
+const YARD_ROOM := &"yard_bed"
 const ROOM_TARGET: Dictionary = {&"amb_space": -26.3, &"amb_blue": -24.7,
 		&"amb_red": -22.6, &"amb_pulsar": -22.8, &"amb_station": -41.9}
 const ROOM_FADE := 1.6     ## seconds, because a room does not arrive on a beat
@@ -221,6 +223,9 @@ func music_state(state: StringName) -> void:
 	match state:
 		&"menu", &"lobby":
 			play_cue(TITLE_CUE)
+		&"yard":
+			# The hull pick has no score, as the Shipyard deck has none: its bed is the room.
+			stop_music()
 		&"gameover":
 			# Lights Out plays once, then silence; the silence is written into the file's end.
 			play_cue(DEATH_CUE)

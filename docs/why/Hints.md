@@ -47,7 +47,8 @@ lesson with its trigger, subject, end and pacing (`docs/ash.md`):
   the cutaway  mounts, cards_from_parts, attributes (the flip key dropped)
   the station  faults, hull_sale, undock
   the menu     save (over the escape menu: the one lesson said there)
-  the title    chassis_card (a card only: she has not introduced herself)
+  the yard     chassis_card (a card only: she has not introduced herself), under
+               the row of ships until one is picked, then on LAUNCH
 
 PACING (the audit's, binding). One lesson at a time; each starts only when its
 screen has held still (SETTLE_S) and ends when the player does what it

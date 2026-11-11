@@ -38,28 +38,68 @@ func _run() -> void:
 	if not _ok("the city hall is installed", cs._yard.ready_hall):
 		return _finish()
 	await _rest(cs)
+	await _banner_cloth(cs)
+	await _tarp_click(cs)
 	await _pick(cs)
 	await _locked(cs)
+	await _away(cs)
 	await _launch(cs)
 	await _dev()
 	_finish()
 
 
-## Nothing picked: the instruction, LAUNCH grey, seven banners, one of them named.
+## Nothing picked: the instruction alone, no LAUNCH (Jon, Nov 11), seven banners, one named.
 func _rest(cs: ChassisSelect) -> void:
 	_ok("a fresh profile shows Korvan's set: the first banner's manufacturer", cs.manufacturer() == &"korvan" and cs.open())
-	_ok("nothing is picked and LAUNCH is grey", cs._picked < 0 and not cs.launchable() and cs._band.key.disabled)
+	_ok("nothing is picked and LAUNCH is hidden", cs._picked < 0 and not cs.launchable()
+		and not cs._band.key.visible and not cs._band.armed)
 	_ok("the band says SELECT A SHIP", _band_says(cs, "SELECT A SHIP"))
+	_ok("the yard plays no score, and its bed is the room (asks %s, room %s)" % [Audio.music_asked, Router._room_for(cs)],
+		Audio.music_asked == &"yard" and Router._room_for(cs) == Audio.YARD_ROOM)
+	_ok("a hull's tooltip is its blurb, without its size first", cs._yard.sets.values().all(_blurb_only))
 	_ok("seven banners hang, Korvan's named and six ???", cs._yard.banners.size() == DB.STARTABLE.size()
 		and cs._yard.banners[0].open and cs._yard.banners.slice(1).all(func(b: YardBanner) -> bool: return not b.open))
 	_ok("three hulls stand, none under a tarp", cs._yard.sets.size() == 3
 		and cs._yard.sets.values().all(func(s: YardStandSet) -> bool: return not s.tarped))
-	var launch := Harness.button_with_text(cs, "LAUNCH")
-	_ok("LAUNCH is a button the hints can find, disabled", launch != null and launch.disabled)
+	_ok("and no visible LAUNCH for the hints to find", Harness.button_with_text(cs, "LAUNCH") == null)
 	var was := Router.current
 	cs._launch()
-	_ok("and pressing it with nothing picked does nothing", Router.current == was)
+	_ok("and launching with nothing picked does nothing", Router.current == was)
 	_fit(cs, "at rest")
+
+
+func _blurb_only(s: YardStandSet) -> bool:
+	var blurb := ChassisSelect.WEIGHT_BLURB[int(s.weight)]
+	return s.tooltip_text == Widgets.tip(blurb) and not blurb.begins_with(HullData.weight_name(s.weight))
+
+
+## A banner is its cloth (Jon, Nov 11): below its foot, on the floor or the band, it is not there.
+func _banner_cloth(cs: ChassisSelect) -> void:
+	var solari: YardBanner = cs._yard.banners[1]
+	var top := float(YardBanner.ROD_Y - YardBanner.TRUSS_Y + 4)
+	var mid := Vector2(YardBanner.MARGIN + YardBanner.BW / 2.0, top + YardBanner.CLOTH / 2.0)
+	var below := Vector2(mid.x, top + YardBanner.CLOTH + 6.0)
+	_ok("a point on the cloth is the banner, one under its foot and one on the band are not",
+		solari._has_point(mid) and not solari._has_point(below)
+		and not solari._has_point(Vector2(mid.x, 470.0 - solari.global_position.y)))
+	_ok("the cloth is %d rows, a third more than the mockup's 76" % YardBanner.CLOTH, YardBanner.CLOTH >= 100)
+	await _click(cs, solari.global_position + below)
+	await _click(cs, Vector2(solari.global_position.x + mid.x, 470.0))
+	_ok("clicks under a banner, on the wall and the band, pick nothing", cs.manufacturer() == &"korvan" and cs.open())
+
+
+## A ??? set with nothing picked: no LAUNCH until a tarp is clicked, then grey by the lock line.
+func _tarp_click(cs: ChassisSelect) -> void:
+	var solari: YardBanner = cs._yard.banners[1]
+	await _click(cs, solari.global_position + Vector2(YardBanner.MARGIN + 24, 50))
+	_ok("a ??? banner with nothing picked: tarps, the lock line, no LAUNCH", not cs.open()
+		and _band_says(cs, "LOCKED MANUFACTURER") and not cs._band.key.visible)
+	await _click(cs, _mid(cs._yard.set_of(HullData.Weight.MEDIUM)))
+	_ok("a click on a tarp brings LAUNCH up grey beside the lock line", cs._band.key.visible
+		and cs._band.key.disabled and _band_says(cs, Unlocks.lock_line(&"solari").to_upper()) and cs._picked < 0)
+	_fit(cs, "a tarp clicked")
+	await _click(cs, cs._yard.banners[0].global_position + Vector2(YardBanner.MARGIN + 24, 50))
+	_ok("Korvan's banner again: nothing picked, LAUNCH hidden", cs.open() and cs._picked < 0 and not cs._band.key.visible)
 
 
 ## Pointing and clicking the hulls themselves.
@@ -73,8 +113,8 @@ func _pick(cs: ChassisSelect) -> void:
 	_ok("the blur comes up behind it", cs._yard.hover_w == int(HullData.Weight.MEDIUM))
 	_fit(cs, "pointing at the medium")
 	await _click(cs, _mid(medium))
-	_ok("a click picks it: LAUNCH comes on", cs._picked == int(HullData.Weight.MEDIUM) and cs.launchable()
-		and not cs._band.key.disabled and not _band_says(cs, "CLICK TO MAKE IT YOURS"))
+	_ok("a click picks it: LAUNCH appears, on", cs._picked == int(HullData.Weight.MEDIUM) and cs.launchable()
+		and cs._band.key.visible and not cs._band.key.disabled and not _band_says(cs, "CLICK TO MAKE IT YOURS"))
 	_ok("the band spells the hardpoints and the hand out", _band_says(cs, "%d WEAPON" % Run.slots_for(ModuleData.Slot.WEAPON))
 		and _band_says(cs, "%d SYSTEM" % Run.slots_for(ModuleData.Slot.SYSTEM))
 		and _band_says(cs, "%d UTILITY" % Run.slots_for(ModuleData.Slot.UTILITY))
@@ -92,6 +132,9 @@ func _pick(cs: ChassisSelect) -> void:
 	await _enter(null)
 	_ok("pointing away goes back to the picked ship", cs._hover < 0 and Run.hull.weight == HullData.Weight.MEDIUM
 		and not _band_says(cs, "CLICK TO MAKE IT YOURS") and cs.launchable())
+	await Harness.frames(_tree, 20)
+	_ok("the blur holds round the picked ship with the pointer gone (k %.2f)" % cs._yard._k,
+		is_equal_approx(cs._yard._k, 1.0) and cs._yard._ghost.visible and cs._yard._ghost.source == medium)
 
 
 ## A locked banner: tarps, the lock line, no launch; Korvan's brings it all back.
@@ -101,7 +144,7 @@ func _locked(cs: ChassisSelect) -> void:
 	if not _ok("clicking a ??? banner brings its set in, locked", cs.manufacturer() == &"solari" and not cs.open()):
 		return
 	_ok("its ships sit under their tarps", cs._yard.sets.values().all(func(s: YardStandSet) -> bool: return s.tarped))
-	_ok("LAUNCH is grey and nothing can launch", not cs.launchable() and cs._band.key.disabled)
+	_ok("LAUNCH is grey and nothing can launch", not cs.launchable() and cs._band.key.visible and cs._band.key.disabled)
 	_ok("the band says what unlocks it: \"%s\"" % Unlocks.lock_line(&"solari"),
 		_band_says(cs, Unlocks.lock_line(&"solari").to_upper()) and _band_says(cs, "LOCKED MANUFACTURER"))
 	_ok("the hall goes dim and two lamps stutter", cs._yard.locked and cs._yard._lamp_gains()[0] == 0.5
@@ -121,11 +164,57 @@ func _locked(cs: ChassisSelect) -> void:
 		and cs._yard.sets.values().all(func(s: YardStandSet) -> bool: return not s.tarped))
 
 
-## LAUNCH starts the run in the picked hull.
+## A click away from the ships clears the pick; only a hull's own pixels pick (Jon, Nov 11).
+func _away(cs: ChassisSelect) -> void:
+	var medium: YardStandSet = cs._yard.set_of(HullData.Weight.MEDIUM)
+	var heavy: YardStandSet = cs._yard.set_of(HullData.Weight.HEAVY)
+	await _click(cs, Vector2(480, 392))
+	await Harness.frames(_tree, 20)
+	_ok("a click on the floor clears the pick: SELECT A SHIP, no LAUNCH, the blur gone",
+		cs._picked < 0 and not cs._band.key.visible and _band_says(cs, "SELECT A SHIP") and cs._yard._k == 0.0)
+	var off := _spot(medium, false)
+	var on := _spot(medium, true)
+	if not _ok("the medium's box has air and hull in it", off.x >= 0.0 and on.x >= 0.0):
+		return
+	await _click(cs, off)
+	_ok("a click in the medium's box but off its pixels picks nothing", cs._picked < 0)
+	await _click(cs, on)
+	_ok("a click on its pixels picks it", cs._picked == int(HullData.Weight.MEDIUM) and cs._band.key.visible)
+	await _click(cs, _spot(heavy, true))
+	_ok("a click on another ship switches the pick", cs._picked == int(HullData.Weight.HEAVY) and cs.launchable())
+	await _click(cs, cs._yard.banners[0].global_position + Vector2(YardBanner.MARGIN + 24, 50))
+	_ok("a click on a banner is not away: the pick stays", cs._picked == int(HullData.Weight.HEAVY))
+	await _click(cs, on)
+	_ok("and the medium again", cs._picked == int(HullData.Weight.MEDIUM))
+	var word := Harness.first(cs._band, func(n: Node) -> bool:
+		return n is Label and (n as Label).mouse_filter == Control.MOUSE_FILTER_PASS) as Label
+	if _ok("the band has a word with a tooltip", word != null):
+		await _click(cs, word.get_global_rect().get_center())
+		_ok("a click on it is not away: the pick stays", cs._picked == int(HullData.Weight.MEDIUM))
+
+
+## The first hall point in a berth's box that is (or is not) on its pixels.
+func _spot(s: YardStandSet, ink: bool) -> Vector2:
+	var b := Rect2(s.thing)
+	for y in range(int(b.position.y) + 2, int(b.end.y) - 1, 3):
+		for x in range(int(b.position.x) + 2, int(b.end.x) - 1, 3):
+			var p := Vector2(x, y) + Vector2(0.5, 0.5)
+			if s.on_ink(p) == ink:
+				return p
+	return Vector2(-1, -1)
+
+
+## LAUNCH starts the run in the picked hull. A click on it is not "away"; the
+## press itself is emitted, as every harness presses a Button (a pushed click
+## does not press one headless).
 func _launch(cs: ChassisSelect) -> void:
 	var launch := Harness.button_with_text(cs, "LAUNCH")
-	_ok("LAUNCH is on", launch != null and not launch.disabled)
-	launch.pressed.emit()
+	if not _ok("LAUNCH is on", launch != null and not launch.disabled):
+		return
+	await _click(cs, launch.get_global_rect().get_center())
+	_ok("a click on LAUNCH is not away: the pick stays", cs._picked == int(HullData.Weight.MEDIUM))
+	if Router.current == cs:
+		launch.pressed.emit()
 	await Harness.frames(_tree, 20)
 	_ok("LAUNCH puts you on LOCAL", Router.current is SectorScreen)
 	_ok("in the picked hull: a Korvan medium", Run.hull != null and Run.hull.weight == HullData.Weight.MEDIUM
@@ -144,12 +233,16 @@ func _dev() -> void:
 	if not _ok("developer mode: a new run opens the hull pick", cs != null):
 		return
 	_ok("every banner is open", cs._yard.banners.all(func(b: YardBanner) -> bool: return b.open))
+	_ok("the grade chips wait for a pick, as LAUNCH does", cs._band._tiers.size() == 4
+		and cs._band._tiers.all(func(b: Button) -> bool: return not b.visible))
 	cs._select(DB.STARTABLE.find(&"calyx"))
 	_ok("the last manufacturer's ships stand uncovered", cs.open() and cs.manufacturer() == &"calyx"
 		and cs._yard.sets.values().all(func(s: YardStandSet) -> bool: return not s.tarped))
 	cs._pick_weight(HullData.Weight.HEAVY)
 	await Harness.frames(_tree, 3)
 	_ok("and its heavy can be picked and launched", cs.launchable() and Run.hull.manufacturer == &"calyx")
+	_ok("the grade chips appear with LAUNCH", cs._band.key.visible
+		and cs._band._tiers.all(func(b: Button) -> bool: return b.visible))
 	_fit(cs, "developer mode, a Calyx heavy")
 	Run.hull = null
 
@@ -222,8 +315,10 @@ func _fit(cs: ChassisSelect, when: String) -> void:
 			continue
 		boxes.append(l.get_global_rect())
 		names.append(l.text)
-	boxes.append(cs._band.key.get_global_rect())
-	names.append("LAUNCH key")
+	for k: Control in [cs._band.key] + cs._band._tiers:
+		if k.visible:
+			boxes.append(k.get_global_rect())
+			names.append("LAUNCH key" if k == cs._band.key else "grade chip")
 	var off: Array[String] = []
 	for i in boxes.size():
 		if not screen.grow(0.5).encloses(boxes[i]):

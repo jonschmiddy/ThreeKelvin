@@ -1574,8 +1574,8 @@ func _menu_box() -> void:
 	_screens["save (escape menu)"] = r
 
 
-## THE CHASSIS SELECT: its card (she has not introduced herself), on LAUNCH,
-## clicked on and still up, spent by LAUNCH.
+## THE CHASSIS SELECT, no ship picked (a new player's first state): its card (she has
+## not introduced herself) under the row of ships, clicked on and still up, spent by LAUNCH.
 func _chassis_card() -> void:
 	Router.show_chassis_select()
 	await Harness.frames(_tree, 40)
@@ -1594,7 +1594,7 @@ func _chassis_card() -> void:
 	for l in c.find_children("*", "Label", true, false):
 		words.append((l as Label).text)
 	_ok("chassis select: the card's words (%s)" % " / ".join(words), words == Hints.lines(&"chassis_card"))
-	_ok("chassis select: on screen, clear of LAUNCH (%s by %s)" % [c.card_rect(), c.subject],
+	_ok("chassis select: on screen, clear of the ships (%s by %s)" % [c.card_rect(), c.subject],
 		c.get_viewport_rect().encloses(c.card_rect()) and not c.card_rect().intersects(c.subject))
 	for i in 3:
 		_push_click(c.card_rect().get_center())
