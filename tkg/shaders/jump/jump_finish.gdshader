@@ -17,6 +17,12 @@ uniform float fringe = 0.0;
 uniform float flash = 0.0;
 uniform float flash_floor = 0.10;
 uniform float flash_sy = 1.3;
+// the flash's falloff (R4: 2.6 e^(-r/110)), its colour (zero: white-lilac), and an optional
+// bar of it along a line (amp, y, width, x from which it ramps in over 220 px; R10's rail)
+uniform float flash_k = 2.6;
+uniform float flash_r = 110.0;
+uniform vec3 flash_col = vec3(0.0);
+uniform vec4 flash_bar = vec4(0.0);
 uniform float bloom = 0.0;
 
 vec3 pick(vec2 q, vec2 px) {
@@ -59,8 +65,12 @@ void fragment() {
 	}
 	if (flash > 0.0) {
 		float r = length(vec2(q.x - centre.x, (q.y - centre.y) * flash_sy));
-		vec3 Lf = flash * (flash_floor + 2.6 * exp(-r / 110.0)) * (J_WHT * 0.6 + J_LIL * 0.4);
-		img = j_add_glow(img, Lf, 16.0, p);
+		float fk = flash_floor + flash_k * exp(-r / flash_r);
+		if (flash_bar.x > 0.0) {
+			fk += flash_bar.x * exp(-pow((q.y - flash_bar.y) / flash_bar.z, 2.0)) * clamp((q.x - flash_bar.w) / 220.0, 0.0, 1.0);
+		}
+		vec3 fc = flash_col == vec3(0.0) ? J_WHT * 0.6 + J_LIL * 0.4 : flash_col;
+		img = j_add_glow(img, flash * fk * fc, 16.0, p);
 	}
 	COLOR = vec4(clamp(img, 0.0, 1.0), 1.0);
 }

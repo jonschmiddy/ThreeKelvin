@@ -17,6 +17,24 @@
   "hit_t": 6.1033,
   "lufs": -15.8
  },
+ "r2": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r2_build",
+   "len": 5.6
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.6,
+  "file": "SeqFourth.gd",
+  "hit": {
+   "at": 5.6,
+   "cue": "jump_r2_hit",
+   "len": 5.0,
+   "onset": 5.9243
+  },
+  "hit_t": 5.92,
+  "lufs": -15.8
+ },
  "r4": {
   "build": {
    "at": 0.0,
@@ -33,6 +51,24 @@
    "onset": 4.9844
   },
   "hit_t": 5.0,
+  "lufs": -15.8
+ },
+ "r9": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r9_build",
+   "len": 5.8
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 5.8,
+  "file": "SeqUnravel.gd",
+  "hit": {
+   "at": 5.8,
+   "cue": "jump_r9_hit",
+   "len": 4.2,
+   "onset": 6.1592
+  },
+  "hit_t": 6.15,
   "lufs": -15.8
  }
 }

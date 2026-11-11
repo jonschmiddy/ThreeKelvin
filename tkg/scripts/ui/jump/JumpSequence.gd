@@ -23,8 +23,11 @@ var reduce := false
 var shake := Vector2.ZERO
 ## The full-frame flash this instant, 0..1, for the harnesses.
 var flash := 0.0
+## The flash's frame-wide floor, the film's own (R4 and R12 lit the whole frame a tenth).
+var flash_floor := 0.10
 
-## The smooth noise the films shook with (r4.py / r12.py `smooth_noise`, seeds 1 and 2, 15 Hz).
+## The smooth noise the films shook with (`smooth_noise`, seeds 1 and 2): the rolled rates at
+## 15 Hz (r4, r12); another film's rate scales them (R9 16 Hz), the phases stay.
 const NOISE_F := [[15.90959, 18.60846, 31.70334, 62.53935], [12.53176, 33.98648, 41.04326, 35.76366]]
 const NOISE_PH := [[5.96891, 5.95752, 2.65849, 2.56977], [1.87452, 0.57723, 4.57536, 0.34632]]
 
@@ -64,10 +67,10 @@ static func ease5(u: float) -> float:
 	return u * u * u * (u * (6.0 * u - 15.0) + 10.0)
 
 
-static func smooth_noise(t: float, seed_i: int) -> float:
+static func smooth_noise(t: float, seed_i: int, hz: float = 15.0) -> float:
 	var v := 0.0
 	for k in 4:
-		v += sin(TAU * float(NOISE_F[seed_i][k]) * t + float(NOISE_PH[seed_i][k])) / float(1 + k)
+		v += sin(TAU * float(NOISE_F[seed_i][k]) * (hz / 15.0) * t + float(NOISE_PH[seed_i][k])) / float(1 + k)
 	return v / 1.9
 
 
@@ -87,6 +90,6 @@ func set_shake(sh: Vector2) -> void:
 func set_flash(fl: float, centre: Vector2, sy: float) -> void:
 	flash = minf(fl, 0.35) if reduce else fl
 	stage.set2(&"flash", flash)
-	stage.set2(&"flash_floor", 0.0 if reduce else 0.10)
+	stage.set2(&"flash_floor", 0.0 if reduce else flash_floor)
 	stage.set2(&"flash_sy", sy)
 	stage.set2(&"centre", centre)

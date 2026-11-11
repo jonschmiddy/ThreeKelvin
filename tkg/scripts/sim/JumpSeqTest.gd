@@ -143,7 +143,7 @@ func _check_film(id: StringName) -> void:
 	_ok("%s: the stage and the director went with the commit" % id, not s.stage_left and not s.director_left)
 	_ok("%s: shook by whole pixels only (most %.1f)" % [id, s.max_shake], s.max_shake == floorf(s.max_shake))
 	_ok("%s: the flash lit the whole frame as filmed (floor %.2f, most %.2f)" % [id, s.flash_floor, s.max_flash],
-		s.max_flash == 0.0 or s.flash_floor == 0.10)
+		s.max_flash == 0.0 or is_equal_approx(s.flash_floor, seq.flash_floor))
 
 
 func seen_ok(id: StringName, s: Dictionary) -> bool:
