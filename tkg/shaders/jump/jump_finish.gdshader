@@ -17,12 +17,6 @@ uniform float fringe = 0.0;
 uniform float flash = 0.0;
 uniform float flash_floor = 0.10;
 uniform float flash_sy = 1.3;
-// the flash's falloff (R4: 2.6 e^(-r/110)), its colour (zero: white-lilac), and an optional
-// bar of it along a line (amp, y, width, x from which it ramps in over 220 px; R10's rail)
-uniform float flash_k = 2.6;
-uniform float flash_r = 110.0;
-uniform vec3 flash_col = vec3(0.0);
-uniform vec4 flash_bar = vec4(0.0);
 uniform float bloom = 0.0;
 // the flash's shape, where a film's differs: its falloff (R4: 2.6 e^(-r/110)), colour, steps;
 // a beam along the ship's line left of the event (R1's launch) as (y, width, strength, x_max);
@@ -33,6 +27,8 @@ uniform vec3 flash_col = vec3(0.952, 0.886, 1.0);
 uniform float flash_lv = 16.0;
 uniform vec4 flash_beam = vec4(0.0);
 uniform vec4 flash_bar = vec4(0.0);
+// R3 and R8's fringe: red and blue slid this many px apart by quadrant from `centre`, flat
+uniform float fringe_px = 0.0;
 
 vec3 pick(vec2 q, vec2 px) {
 	return j_world(screen, px, q, world);
@@ -51,6 +47,12 @@ void fragment() {
 		float kk = clamp(dl / 300.0, 0.0, 1.0) * fringe;
 		img.r = pick(floor(q - u * kk + 0.5), px).r;
 		img.b = pick(floor(q + u * kk + 0.5), px).b;
+	}
+	if (fringe_px >= 1.0) {
+		vec2 sg = sign(q - centre);
+		vec2 o = sg * vec2(fringe_px, floor(fringe_px / 2.0));
+		img.r = pick(q - o, px).r;
+		img.b = pick(q + o, px).b;
 	}
 	if (bloom > 0.0) {
 		// box(box(.,4),4)*1.2 + box(box(.,14),14)*0.4 on pixels past 200/255, as sparse taps:

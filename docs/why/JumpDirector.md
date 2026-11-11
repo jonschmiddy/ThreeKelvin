@@ -12,7 +12,10 @@ What it does, in order:
 - Waits for the first frame the view has a size. `_begin_depart` is called from the screen's
   `setup`, before its first layout, and measuring then gave a window of nothing: every sample
   clamped to one column and the whole film was horizontal bands (slice 1's first capture).
-- `art.depart(true)`: the hull goes still, no flame, no bob, as the films' hull was.
+- `art.depart(true)`: the hull goes still, no flame, no bob, as the films' hull was. A film
+  that filmed the ion flame burning into its first act (R3, R8: `flame_s` 0.6) gets the idle
+  flame back (`sputter` then `sputter_stop`, still no bob) and blinks it out over a quarter
+  second on the film's 30 fps frames, before the swap; the stand-in has no flame.
 - Picks the film (`JumpRegistry.pick(Run.jumps)`), bakes or fetches the hull (`JumpHull`),
   measures where things go (`JumpPlace`), builds the stage last in EncounterView and the film
   on it.

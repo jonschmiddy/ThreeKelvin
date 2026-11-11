@@ -53,8 +53,9 @@ FRAME_S = 1.0 / 60.0
 LUFS_WANT = -15.8
 LUFS_TOL = 0.3
 SR = 44100
-## Films whose cut is not in a silence (none yet).
-HARD = set()
+## Films whose cut is not in a silence: their mixes only dip there (R3's inhale to about -50 dBFS,
+## R8's hush to about -30); the cut is at the dip's lowest 10 ms.
+HARD = {"r3", "r8"}
 ## Films whose hit swells to its peak after the picture's hit, as filmed: the onset is
 ## checked that many seconds after `hit_t`. R1's hit take comes in 20 ms before the
 ## launch frame (round3/_r1/sound/mix.py places it at T_HIT - 0.02) under the boom,
