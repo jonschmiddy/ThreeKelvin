@@ -24,13 +24,37 @@ const CRAWL := 0.4
 const TEAR_EVERY := 3.5
 const TEAR_FRAME := 0.04
 ## SCRATCH (scratch/tag-calm, never main): which calm variant draws. 0 today, 1 A tear-in only,
-## 2 B rare slip, 3 C drifting line, 4 D wears thin after a while. `-- tagcalm=N`.
-static var calm := 0
-## D: steady until this many seconds open, then tears that come closer, never faster than D_MIN.
+## 2 B rare slip, 3 C drifting line, 4 D wears thin after a while (Jon's pick, Nov 11).
+## `-- tagcalm=N`; under D, `-- tagglitch=1..5` is how hard it glitches once it starts.
+static var calm := 4
+static var glitch := 3
+static var _dialled := false
+## D: steady until this many seconds open, then the glitch of level `glitch`.
 const D_AFTER := 3.0
-const D_FIRST := 2.5
-const D_SHRINK := 0.82
-const D_MIN := 1.1
+## D's five levels, G1 (barely there) to G5 (failing), on a 30 Hz glitch clock. A burst every
+## PERIOD frames (+- a third), BURST frames long; within a burst, each frame rolls its effects.
+const G_HZ := 30.0
+const G_PERIOD: Array[int] = [78, 50, 32, 18, 9]
+const G_BURST: Array[int] = [1, 2, 4, 6, 8]
+## Bands torn sideways a burst frame (up to), how far (px), how tall (px).
+const G_TEARS: Array[int] = [1, 1, 2, 3, 4]
+const G_TEAR_DX: Array[int] = [2, 3, 5, 9, 16]
+const G_TEAR_H: Array[int] = [2, 3, 4, 5, 7]
+## Red/cyan split of the words in a burst, and between bursts (px).
+const G_CHROMA: Array[int] = [0, 1, 1, 2, 3]
+const G_CHROMA_IDLE: Array[int] = [0, 0, 0, 1, 1]
+## A letter's chance a burst frame to turn to junk, or to go blank.
+const G_SCRAMBLE: Array[float] = [0.0, 0.0, 0.05, 0.12, 0.3]
+const G_DROP: Array[float] = [0.0, 0.0, 0.0, 0.06, 0.18]
+## Static dots a burst frame; bright rows across the box.
+const G_NOISE: Array[int] = [0, 0, 3, 14, 40]
+const G_ROWS: Array[int] = [0, 1, 1, 2, 4]
+## A burst frame's chance to dim the whole tag (to G_DIM), to blink it out, to nudge it (G_JIT px).
+const G_DIM_P: Array[float] = [0.0, 0.0, 0.25, 0.35, 0.4]
+const G_DIM: Array[float] = [1.0, 1.0, 0.75, 0.55, 0.35]
+const G_BLINK_P: Array[float] = [0.0, 0.0, 0.0, 0.05, 0.16]
+const G_JIT: Array[int] = [0, 0, 0, 1, 2]
+const JUNK := "#%&@$*+=?/<>[]01"
 ## B: one slip every B_EVERY (+- B_JITTER) seconds, B_FRAME long.
 const B_EVERY := 5.0
 const B_FRAME := 0.08
@@ -126,13 +150,18 @@ static func tearing(idle: float) -> bool:
 ## `point`); `age` is seconds since the tag opened, INF for the still frame.
 static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, point: int = 0,
 		age: float = INF) -> void:
+	read_dial()
 	var r := Rect2(rect.position.round(), rect.size.round())
 	var t := 1.0 if age == INF else clampf(age / OPEN, 0.0, 1.0)
 	var idle := 0.0 if age == INF else maxf(0.0, age - OPEN)
+	var g: Dictionary = _glitch(idle) if calm == 4 and age != INF else {}
 	if calm == 0:
 		a *= alpha_at(age) if age != INF else 1.0
-	elif calm == 4 and age != INF:
-		a *= _d_dim(idle)
+	elif not g.is_empty():
+		if g.blink:
+			return
+		a *= float(g.dim)
+		r.position += g.jit
 	_fill(ci, r, a)
 	_scan(ci, r, a, crawl_phase(idle) if calm == 0 else 0, t)
 	if calm == 3 and age != INF:
@@ -158,42 +187,131 @@ static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, poi
 				var at := k * B_EVERY + 3.5 + fmod(k * 1.7, 2.0) - 1.0
 				if idle >= at and idle < at + B_FRAME:
 					_slip(ci, r, a, k)
-			4:
-				var ev := _d_event(idle)
-				if ev >= 0:
-					_tear(ci, r, a, 1.0, ev * 0.37)
 	var f := UITheme.pixel_font()
-	var y := r.position.y + PAD_V + f.get_ascent(UITheme.FS_SMALL) - 1.0
-	for l in ls:
-		var pair: Array = l
+	var asc := f.get_ascent(UITheme.FS_SMALL)
+	var y := r.position.y + PAD_V + asc - 1.0
+	var tears: Array = g.get("tears", [])
+	for tr in tears:
+		_band(ci, r, a, tr[0], tr[1], tr[2])
+	var ch: int = g.get("chroma", 0)
+	for i in ls.size():
+		var pair: Array = ls[i]
 		var c: Color = pair[1]
-		ci.draw_string(f, Vector2(r.position.x + PAD_H, y), String(pair[0]),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * a))
+		var s := String(pair[0])
+		var pos := Vector2(r.position.x + PAD_H, y)
+		if not g.is_empty():
+			s = _junk(s, g, i)
+			# a line under a tear is torn with it
+			var top := y - asc - r.position.y
+			for tr in tears:
+				var ty := _band_y(r, tr[0], tr[1])
+				if top + LINE_H > ty and top < ty + int(tr[1]):
+					pos.x += int(tr[2])
+					break
+		if ch > 0:
+			ci.draw_string(f, pos - Vector2(ch, 0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(1.0, 0.18, 0.3, 0.6 * a))
+			ci.draw_string(f, pos + Vector2(ch, 0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(0.2, 0.95, 1.0, 0.6 * a))
+		ci.draw_string(f, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * a))
 		y += LINE_H
+	if not g.is_empty():
+		_static(ci, r, a, g)
 
 
-## D: the index of the tear showing `idle` seconds open, or -1. None before D_AFTER; then each
-## gap D_SHRINK of the last, from D_FIRST down to D_MIN.
-static func _d_event(idle: float) -> int:
+## The dials from the command line, once: `tagcalm=N`, `tagglitch=N`.
+static func read_dial() -> void:
+	if _dialled:
+		return
+	_dialled = true
+	for a in OS.get_cmdline_user_args():
+		var kv := (a as String).split("=")
+		if kv.size() == 2 and kv[0] == "tagcalm":
+			calm = int(kv[1])
+		elif kv.size() == 2 and kv[0] == "tagglitch":
+			glitch = clampi(int(kv[1]), 1, 5)
+
+
+## A stable 0..1 from three ints.
+static func _h(x: int, y: int, z: int) -> float:
+	var n := (x * 73856093) ^ (y * 19349663) ^ (z * 83492791)
+	n = (n ^ (n >> 13)) * 1274126177
+	return float((n ^ (n >> 16)) & 0xffff) / 65535.0
+
+
+## D: what glitches this frame, `idle` seconds open: {} while steady (before D_AFTER, and between
+## bursts below G4). Keys: blink, dim, jit, tears [[yf, h, dx]], chroma, scr, drop, noise, rows, fr.
+static func _glitch(idle: float) -> Dictionary:
 	if idle < D_AFTER:
-		return -1
-	var at := D_AFTER
-	var gap := D_FIRST
-	var k := 0
-	while at <= idle:
-		var dur := 0.05 if k < 4 else 0.08
-		if idle < at + dur:
-			return k
-		at += gap
-		gap = maxf(D_MIN, gap * D_SHRINK)
-		k += 1
-	return -1
+		return {}
+	var L := clampi(glitch, 1, 5) - 1
+	var fr := int((idle - D_AFTER) * G_HZ)
+	var per: int = G_PERIOD[L]
+	var k := fr / per
+	var start := 0 if k == 0 else k * per + int(_h(k, 7, L) * per / 3.0)
+	if fr < start or fr >= start + G_BURST[L]:
+		if G_CHROMA_IDLE[L] == 0:
+			return {}
+		return {"blink": false, "dim": 1.0, "jit": Vector2.ZERO, "tears": [], "chroma": G_CHROMA_IDLE[L],
+			"scr": 0.0, "drop": 0.0, "noise": 0, "rows": 0, "fr": fr}
+	var tears := []
+	var n := mini(G_TEARS[L], 1 + int(_h(fr, 1, L) * G_TEARS[L]))
+	for j in n:
+		var dx := int(ceilf(G_TEAR_DX[L] * (0.5 + 0.5 * _h(fr, 2, j))))
+		if _h(fr, 3, j) < 0.35:
+			dx = -dx
+		tears.append([_h(fr, 4, j), G_TEAR_H[L], dx])
+	var jit := Vector2.ZERO
+	if G_JIT[L] > 0 and _h(fr, 5, L) < 0.4:
+		jit = Vector2(roundf((_h(fr, 6, L) * 2.0 - 1.0) * G_JIT[L]), 0)
+	return {
+		"blink": _h(fr, 8, L) < G_BLINK_P[L],
+		"dim": G_DIM[L] if _h(fr, 9, L) < G_DIM_P[L] else 1.0,
+		"jit": jit, "tears": tears, "chroma": G_CHROMA[L],
+		"scr": G_SCRAMBLE[L], "drop": G_DROP[L], "noise": G_NOISE[L], "rows": G_ROWS[L], "fr": fr,
+	}
 
 
-## D: past the fifth tear, a tear also dims the whole tag a step, as if the light thins.
-static func _d_dim(idle: float) -> float:
-	var k := _d_event(idle)
-	return 0.75 if k >= 5 and k % 2 == 1 else 1.0
+## D: a tear band's top row inside the box, `yf` of the way down.
+static func _band_y(r: Rect2, yf: float, hgt: int) -> int:
+	return 2 + int(yf * maxf(1.0, r.size.y - 4.0 - hgt))
+
+
+## D: a band `hgt` px tall at `yf` of the way down the box, its fill slid `dx` px with its edge.
+static func _band(ci: CanvasItem, r: Rect2, a: float, yf: float, hgt: int, dx: int) -> void:
+	var band := Rect2(r.position + Vector2(dx, _band_y(r, yf, hgt)), Vector2(r.size.x, hgt))
+	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
+	ci.draw_rect(Rect2(band.position, Vector2(1, hgt)), Color(EDGE, a), true)
+	ci.draw_rect(Rect2(band.end.x - 1.0, band.position.y, 1, hgt), Color(EDGE, a), true)
+
+
+## D: the line's letters this frame, some turned to junk or gone.
+static func _junk(s: String, g: Dictionary, line: int) -> String:
+	var scr: float = g.scr
+	var drop: float = g.drop
+	if scr <= 0.0 and drop <= 0.0:
+		return s
+	var fr: int = g.fr
+	var out := ""
+	for j in s.length():
+		var c := s[j]
+		var p := _h(fr, line * 97 + j, 11)
+		if c != " " and p < drop:
+			c = " "
+		elif c != " " and p < drop + scr:
+			c = JUNK[int(_h(fr, line * 97 + j, 12) * JUNK.length()) % JUNK.length()]
+		out += c
+	return out
+
+
+## D: static dots and bright rows over the box.
+static func _static(ci: CanvasItem, r: Rect2, a: float, g: Dictionary) -> void:
+	var fr: int = g.fr
+	for j in int(g.rows):
+		var y := 2 + int(_h(fr, 20, j) * (r.size.y - 4.0))
+		var x0 := int(_h(fr, 21, j) * r.size.x * 0.5)
+		ci.draw_rect(Rect2(r.position + Vector2(x0, y), Vector2(r.size.x - x0 - 1.0, 1)), Color(EDGE, 0.35 * a), true)
+	for j in int(g.noise):
+		var p := Vector2(int(_h(fr, 22, j) * r.size.x), int(_h(fr, 23, j) * r.size.y))
+		ci.draw_rect(Rect2(r.position + p, Vector2(1, 1)), Color(EDGE, (0.4 + 0.6 * _h(fr, 24, j)) * a), true)
 
 
 ## B: a 2 px band of the box slid 3 px sideways for a few frames, its edge with it.

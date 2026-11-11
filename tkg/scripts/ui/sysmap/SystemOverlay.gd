@@ -59,6 +59,9 @@ var _last_rel := Vector2.INF
 ## from nothing again for each new thing pointed at.
 var _hover_t := 0.0
 var _hover_key := ""
+## SCRATCH (tag-calm): when the thing pointed at last changed, on the game's clock, so the tag
+## knows how long it has been open (`HoloTag.draw_tag` age).
+var _hover_born := 0.0
 ## The flight a second click would fly, drawn before you fly it.
 var preview_to := -9
 ## The orbit is a solid ring never smaller than the world's disc plus 9 px,
@@ -357,6 +360,7 @@ func _process(d: float) -> void:
 	if key != _hover_key:
 		_hover_key = key
 		_hover_t = 0.0
+		_hover_born = GameClock.now()
 	_hover_t = move_toward(_hover_t, 0.0 if hover.is_empty() else 1.0, d * 9.0)
 	# THE MOONS' ORBITS, only for the world pointed at, selected or circled
 	var mf := {}
@@ -2563,7 +2567,7 @@ func _draw_tip() -> void:
 	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
 	var al := maxf(0.15, _hover_t)
 	tip_rect = Rect2(o, box)
-	HoloTag.draw_tag(self, tip_rect, ls, al, -1 if o.y > at.y else 1)
+	HoloTag.draw_tag(self, tip_rect, ls, al, -1 if o.y > at.y else 1, GameClock.now() - _hover_born)
 
 
 ## While a GO flies a click does nothing, so no line offers one.

@@ -1,7 +1,9 @@
 extends Node
 
-## SCRATCH (scratch/tag-calm): a film of the hull tag under `tagcalm=N`: hover the hull for
-## `hold=` seconds, then off; `quick=1` adds hull, heat, fuel, scrap, 1.4 s each. 960x540.
+## SCRATCH (scratch/tag-calm): a film of a tag under `tagcalm=N tagglitch=G` (read by
+## `HoloTag.read_dial`). `shot=hull`: hover LOCAL's hull readout for `hold=` seconds, then off;
+## `quick=1` adds hull, heat, 1.4 s each. `shot=sys`: the system map, an event's beacon pointed
+## at (held on it as it moves) for `hold=` seconds. 960x540; timing on GameClock.
 
 var _tree: SceneTree
 
@@ -40,11 +42,11 @@ func _hover(at: Vector2) -> void:
 func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
-	HoloTag.calm = int(_arg("tagcalm", "0"))
+	HoloTag.read_dial()
 	var hold := float(_arg("hold", "8"))
 	get_window().size = Vector2i(960, 540)
 	await _frames(8)
-	print("[film] calm %d" % HoloTag.calm)
+	print("[film] calm %d glitch %d" % [HoloTag.calm, HoloTag.glitch])
 	Router.animate_in_harness = true
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
@@ -55,6 +57,53 @@ func _run() -> void:
 			break
 	Run.map[Run.at].visited = true
 	SectorScreen._approached_at = Run.at
+	if _arg("shot", "hull") == "sys":
+		await _sys(hold)
+	else:
+		await _hull(hold)
+	print("[film] done at %.3f" % GameClock.now())
+	_tree.quit()
+
+
+func _sys(hold: float) -> void:
+	Router.show_system()
+	await _wait(7.0)
+	var sm := Router.current as SystemMapScreen
+	if sm == null:
+		print("[film] ERROR no system map: %s" % Router.current)
+		return
+	var away := Vector2(8, 530)
+	await _hover(away)
+	await _wait(0.5)
+	var ov = sm.overlay
+	var pick := -1
+	for i in (ov.beacons_at as Array).size():
+		var e: Array = ov.beacons_at[i]
+		if e[2] != null and int(e[2].opt) >= 0:
+			pick = i
+			break
+	if pick < 0 and (ov.beacons_at as Array).size() > 0:
+		pick = 0
+	print("[film] beacons %d pick %d" % [(ov.beacons_at as Array).size(), pick])
+	print("[film] hull at %.3f" % GameClock.now())
+	var t0 := GameClock.now()
+	var logged := false
+	while GameClock.now() - t0 < hold:
+		var h: Dictionary = {}
+		if pick >= 0 and pick < (ov.beacons_at as Array).size():
+			h = ov.hit((ov.beacons_at[pick] as Array)[0])
+		ov.hover = h
+		await _tree.process_frame
+		if not logged and GameClock.now() - t0 > 0.5:
+			logged = true
+			var gr: Rect2 = ov.get_global_transform_with_canvas() * (ov.tip_rect as Rect2)
+			print("[film] rect %d %d %d %d" % [gr.position.x, gr.position.y, gr.size.x, gr.size.y])
+	ov.hover = {}
+	print("[film] off at %.3f" % GameClock.now())
+	await _wait(0.6)
+
+
+func _hull(hold: float) -> void:
 	Router.show_local()
 	await _wait(6.0)
 	var away := Vector2(480, 300)
@@ -79,5 +128,3 @@ func _run() -> void:
 			await _wait(1.4)
 		await _hover(away)
 		await _wait(0.6)
-	print("[film] done at %.3f" % GameClock.now())
-	_tree.quit()
