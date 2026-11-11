@@ -20,6 +20,9 @@ const LAMP_R := 52.0
 const RING := Color8(30, 42, 57)
 const LAMP_RIM := Color8(9, 13, 20)
 const LAMP_OFF := Color8(44, 60, 78)
+## A dev switch for drafts of the tier pictures: a folder of tier_<n>.png (112 px) shown in
+## place of the drawn galaxy. `-- sheet=LaunchBoxShot tierart=<dir>` sets it.
+static var art_dir := ""
 
 var tier: int = 0
 var form: int = 0
@@ -39,11 +42,12 @@ var core: Color = Color8(255, 244, 220)
 var _t: float = 0.0
 var _tick: int = -1
 var _stars: Array[Dictionary] = []
-var _far: Array[Vector2i] = []
+var far: Array[Vector2i] = []
 var _flares: Array[Array] = []
 var _rng := RandomNumberGenerator.new()
 var _body: ColorRect
 var _mat: ShaderMaterial
+var _art: TextureRect
 var _lamps: Lamps
 var _ring: Array[Vector2] = []
 
@@ -61,6 +65,10 @@ func _init() -> void:
 	_mat.shader = preload("res://shaders/tier_galaxy.gdshader")
 	_body.material = _mat
 	add_child(_body)
+	_art = TextureRect.new()
+	_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_art.visible = false
+	add_child(_art)
 	_lamps = Lamps.new()
 	_lamps.gal = self
 	add_child(_lamps)
@@ -69,10 +77,10 @@ func _init() -> void:
 		if not _ring.has(q):
 			_ring.append(q)
 	# the far stars behind it, the same every time
-	var far := RandomNumberGenerator.new()
-	far.seed = 3
+	var fr := RandomNumberGenerator.new()
+	fr.seed = 3
 	for i in 26:
-		_far.append(Vector2i(far.randi_range(0, G - 1), far.randi_range(0, G - 1)))
+		far.append(Vector2i(fr.randi_range(0, G - 1), fr.randi_range(0, G - 1)))
 
 
 ## Build the galaxy for a tier: its heat, colours, shape and stars.
@@ -109,6 +117,11 @@ func set_tier(t: int) -> void:
 	_mat.set_shader_parameter(&"cool", Vector3(COOL.r, COOL.g, COOL.b))
 	_mat.set_shader_parameter(&"panel", Vector3(PANEL.r, PANEL.g, PANEL.b))
 	_tick = -1
+	var draft := art_dir.path_join("tier_%d.png" % tier)
+	_art.visible = art_dir != "" and FileAccess.file_exists(draft)
+	_body.visible = not _art.visible
+	if _art.visible:
+		_art.texture = ImageTexture.create_from_image(Image.load_from_file(draft))
 	tooltip_text = rules_text()
 	_lamps.queue_redraw()
 	queue_redraw()
@@ -185,7 +198,11 @@ func _bez(u: float) -> Vector2:
 func _draw() -> void:
 	# the far stars behind the body are under the ColorRect: drawn by the parent, they
 	# would be over it, so the body rect is kept transparent where the glow is none
-	for p in _far:
+	if _art.visible:
+		for q in _ring:
+			draw_rect(Rect2(q, Vector2.ONE), RING)
+		return
+	for p in far:
 		draw_rect(Rect2(p.x, p.y, 1, 1), Color8(40, 52, 68) if (p.x * 7 + p.y * 13) % 10 < 7 else Color8(70, 84, 104))
 	# the lamps' ring, under the glow like the far stars: it shows only where the galaxy is dark
 	for q in _ring:
