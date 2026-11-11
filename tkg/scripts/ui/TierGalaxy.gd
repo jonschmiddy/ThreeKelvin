@@ -20,11 +20,11 @@ const LAMP_R := 52.0
 const RING := Color8(30, 42, 57)
 const LAMP_RIM := Color8(9, 13, 20)
 const LAMP_OFF := Color8(44, 60, 78)
-## The tier's picture (Jon's S-C, Nov 11): a strip of 112 px frames, `tier_<n>.png`, played
-## on GameClock; the drawn galaxy below is the fallback.
+## The tier's picture: a strip of 112 px frames, `tier_<n>.png`, one loop of ART_LOOP s on
+## GameClock. Off ("") while Jon picks a toy galaxy; C2's strips stay in art/ui/tiers.
 ## Why: docs/why/LaunchBox.md#the-pictures
-const ART := "res://art/ui/tiers"
-const ART_FPS := 8.0
+const ART := ""
+const ART_LOOP := 5.0
 ## Dev switches: a folder of draft strips (`-- sheet=LaunchBoxShot tierart=<dir>`), and a held frame.
 static var art_dir := ""
 static var hold_frame := -1
@@ -134,14 +134,14 @@ func _load_art() -> Texture2D:
 	if art_dir != "":
 		return ImageTexture.create_from_image(Image.load_from_file(draft)) if FileAccess.file_exists(draft) else null
 	var path := ART.path_join("tier_%d.png" % tier)
-	return load(path) as Texture2D if ResourceLoader.exists(path) else null
+	return load(path) as Texture2D if ART != "" and ResourceLoader.exists(path) else null
 
 
 ## The picture's frame now, or -1 with no picture.
 func art_frame() -> int:
 	if _art_n == 0:
 		return -1
-	return posmod(hold_frame if hold_frame >= 0 else int(GameClock.now() * ART_FPS), _art_n)
+	return posmod(hold_frame if hold_frame >= 0 else int(GameClock.now() * _art_n / ART_LOOP), _art_n)
 
 
 func _seed_stars() -> void:

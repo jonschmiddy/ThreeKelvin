@@ -2,8 +2,8 @@ extends Node
 
 ## Stills of LAUNCH A RUN at tiers 0 (no win), 3, 7, 8 and 10 (won up to there) and tier 8
 ## pointed at; then every tier's picture (`gal_<n>.png`), checked inside the lamp ring.
-## `-- sheet=LaunchBoxShot out=<dir> [tiers=3,10] [tierart=<dir>] [film=1] [frames=1]`; needs a
-## window. `film=1`: the box at every tier, each frame of its picture (`film_<t>_<k>.png`).
+## `-- sheet=LaunchBoxShot out=<dir> [tiers=3,10] [tierart=<dir>] [film=all|5,10] [frames=1]`;
+## needs a window. `film`: the box at those tiers, each frame of its picture (`film_<t>_<k>.png`).
 
 var _out := ""
 
@@ -48,8 +48,8 @@ func _run() -> void:
 			print("  wrote %s/tier_%d.png (%dx%d)" % [_out, tier, img.get_width(), img.get_height()])
 		if tier == 8:
 			await _hovered()
-	if Harness.arg("film") == "1":
-		await _film()
+	if Harness.arg("film") != "":
+		await _film(Harness.arg("film"))
 	await _ring_sweep()
 	SaveGame.clear()
 	RunHistory.clear()
@@ -114,10 +114,12 @@ func _ring_sweep() -> void:
 
 
 ## The box at every tier, a still of it for each frame of its picture, held in turn.
-func _film() -> void:
+func _film(which: String) -> void:
 	var box := Harness.first(Router.current, func(n: Node) -> bool: return n is LaunchBox) as LaunchBox
 	var r := Rect2i(box.get_global_rect().grow(6.0))
 	for t in Ladder.count():
+		if which != "all" and not which.split(",").has(str(t)):
+			continue
 		box.pick(t)
 		await _secs(0.3)
 		for k in maxi(1, box.galaxy._art_n):

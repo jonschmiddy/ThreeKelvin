@@ -55,3 +55,11 @@ The drawn galaxy stays as the fallback for a tier with no strip. The strips are 
 a script kept outside the repo (tk-scratch/ui-build/tierstack/icons2/make_c2.py).
 `LaunchBoxShot` holds each frame in turn (`TierGalaxy.hold_frame`) and fails any ink
 outside the ring on any frame.
+
+Then on C2 (Nov 11): "having more of a toy view of the galaxy type with more intense
+motion as the tier goes up would be better. The little icons showing what the tier adds
+or changes about the game is cool, but they don't work here", and "more like a
+pixelated and stylized icon". So `ART` is "" (the drawn galaxy shows) while he picks
+from twelve icon themes; C2's strips stay in `art/ui/tiers`. A strip now plays as one
+loop of `ART_LOOP` seconds whatever its frame count, so the icons can run at 16 frames
+a second for a smooth turn.
