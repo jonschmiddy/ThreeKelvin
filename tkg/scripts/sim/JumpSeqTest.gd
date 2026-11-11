@@ -56,7 +56,7 @@ func _jump(id: StringName, skip_at: float = -1.0) -> Dictionary:
 	var to := _quiet_target()
 	var seen := {to = to, began = false, commit_t = -1.0, hud_moved = false, canvas_moved = false,
 		stage_ok = true, hull_hidden_at = -1.0, max_flash = 0.0, film = &"", stage_left = false, flash_floor = -1.0,
-		director_left = false, skipped_at = -1.0, max_shake = 0.0}
+		director_left = false, skipped_at = -1.0, max_shake = 0.0, seq = null, hud_culled = false}
 	if not _ok("%s: a quiet system in reach (%d)" % [id, to], to >= 0):
 		return seen
 	var hud := _find_hud(_tree.root)
@@ -89,6 +89,9 @@ func _jump(id: StringName, skip_at: float = -1.0) -> Dictionary:
 			if d.seq.flash > 0.0 and st != null:
 				seen.flash_floor = float(st.mat2.get_shader_parameter(&"flash_floor"))
 			seen.max_shake = maxf(seen.max_shake, absf(d.seq.shake.x) + absf(d.seq.shake.y))
+			seen.seq = d.seq
+			if hud != null and _culled(hud):
+				seen.hud_culled = true
 			if skip_at >= 0.0 and d.t >= skip_at and seen.skipped_at < 0.0:
 				seen.skipped_at = d.t
 				sc._skip()
@@ -103,7 +106,24 @@ func _jump(id: StringName, skip_at: float = -1.0) -> Dictionary:
 	seen.stage_left = _count(_tree.root, "JumpStage") > 0
 	seen.director_left = _count(_tree.root, "JumpDirector") > 0
 	seen.jumped = Run.jumps == jumps0 + 1
+	seen.layers_left = _hidden(_tree.root)
 	return seen
+
+
+## Whether n or an ancestor is on the mirror's hidden layer (R15's history buffer culls the HUD).
+func _culled(n: Node) -> bool:
+	while n != null:
+		if n is CanvasItem and (n as CanvasItem).visibility_layer == JumpMirror.HIDDEN:
+			return true
+		n = n.get_parent()
+	return false
+
+
+func _hidden(n: Node) -> int:
+	var k := 1 if n is CanvasItem and (n as CanvasItem).visibility_layer & JumpMirror.HIDDEN != 0 else 0
+	for c in n.get_children():
+		k += _hidden(c)
+	return k
 
 
 func _cue_t(tape: Array, cue: StringName, t0: float) -> float:
@@ -144,6 +164,17 @@ func _check_film(id: StringName) -> void:
 	_ok("%s: shook by whole pixels only (most %.1f)" % [id, s.max_shake], s.max_shake == floorf(s.max_shake))
 	_ok("%s: the flash lit the whole frame as filmed (floor %.2f, most %.2f)" % [id, s.flash_floor, s.max_flash],
 		s.max_flash == 0.0 or s.flash_floor == 0.10)
+	_ok("%s: every canvas item's layer put back (%d left hidden)" % [id, s.layers_left], s.layers_left == 0)
+	if s.seq is SeqDatamosh:
+		var q: SeqDatamosh = s.seq
+		_ok("r15: stateful, so stepped every tick from its start to the freeze (%d of %d)" % [q.advanced, q._freeze_tick + 1],
+			q.advanced == q._freeze_tick + 1)
+		_ok("r15: the HUD was culled off the history buffer while the film ran", s.hud_culled)
+		_ok("r15: the vectors released on every mosh tick (%d)" % q.released.size(), q.released.size() >= q._freeze_tick - int(SeqDatamosh.T_MOSH * 60.0))
+
+
+func _fail_r15() -> void:
+	_ok("reduce flashes: R15 played", false)
 
 
 func seen_ok(id: StringName, s: Dictionary) -> bool:
@@ -206,6 +237,22 @@ func _run() -> void:
 	var r := await _jump(&"r4")
 	_ok("reduce flashes: R4's flash capped at 0.35 (most %.2f) with no frame-wide floor (%.2f)" % [r.max_flash, r.flash_floor],
 		r.max_flash <= 0.35 + 1e-4 and r.max_flash > 0.0 and r.flash_floor == 0.0)
+	# REDUCE FLASHES on R15: the vectors step at 4 Hz or less and nothing slips
+	Router.show_local()
+	for i in 10:
+		await _tree.process_frame
+	(Router.current as SectorScreen)._skip()
+	var rd := await _jump(&"r15")
+	if rd.seq is SeqDatamosh:
+		var q: SeqDatamosh = rd.seq
+		var gap := 999
+		for i in range(1, q.released.size()):
+			gap = mini(gap, q.released[i] - q.released[i - 1])
+		_ok("reduce flashes: R15's vectors stepped at 4 Hz or less (%d releases, closest %d ticks apart)" % [q.released.size(), gap],
+			q.released.size() > 2 and gap >= 15)
+		_ok("reduce flashes: and no channel slip (%d slipped ticks)" % q.slipped, q.slipped == 0)
+	else:
+		_fail_r15()
 	DisplaySettings.reduce_flashes = false
 	_ok("the hull bake cache stays capped (%d)" % JumpHull._cache.size(), JumpHull._cache.size() <= JumpHull.CACHE_MAX)
 	h.verdict("jumpseqtest")

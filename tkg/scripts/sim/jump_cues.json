@@ -17,6 +17,24 @@
   "hit_t": 6.1033,
   "lufs": -15.8
  },
+ "r15": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r15_build",
+   "len": 6.48
+  },
+  "cut_dbfs": -240.0,
+  "cut_t": 6.48,
+  "file": "SeqDatamosh.gd",
+  "hit": {
+   "at": 6.48,
+   "cue": "jump_r15_hit",
+   "len": 3.52,
+   "onset": 7.0537
+  },
+  "hit_t": 7.05,
+  "lufs": -15.8
+ },
  "r4": {
   "build": {
    "at": 0.0,
