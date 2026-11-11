@@ -25,6 +25,15 @@ const BREATH_S := [2.6, 2.0]
 const REDUCED_RED := 0.6
 ## Above the screens (layer 0), under the escape menu and Settings (10).
 const LAYER := 5
+## THE SCREEN WEARS (Jon, Nov 11): bursts of torn bands drawn over the picture, rarer and fainter
+## at WORN_AT, more with the red, most at TIER2_AT. Per step (none, 50, 30, 15%): bursts a
+## second, a burst's 30 Hz frames, bands, how far they slide (px), the colour split (px).
+## Why: docs/why/LowHull.md#screen-wears
+const UI_RATE: Array[float] = [0.0, 0.12, 0.45, 1.3]
+const UI_FRAMES: Array[float] = [0.0, 2.0, 3.0, 5.0]
+const UI_BANDS: Array[float] = [0.0, 1.0, 2.0, 4.0]
+const UI_SHIFT: Array[float] = [0.0, 2.0, 4.0, 8.0]
+const UI_SPLIT: Array[float] = [0.0, 1.0, 1.0, 2.0]
 
 ## Per-preset strengths for the red, the scramble and the voice, each from the line to no hull.
 ## Why: docs/why/LowHull.md#presets
@@ -63,12 +72,21 @@ static var dire := 0.0
 static var depth := 0.0
 ## The red the shader was given this frame.
 static var red_now := 0.0
+## The screen's wear, 0 to 3 (`worn` + `on` + `deep`, eased); a burst showing now, how strong
+## (bands times slide), and how many have started (for a harness).
+static var ui_k := 0.0
+static var ui_on := false
+static var ui_strength := 0.0
+static var ui_bursts := 0
 
 var _layer: CanvasLayer
 var _rect: ColorRect
 var _mat: ShaderMaterial
 var _breath := 0.0
 var _last := -1.0
+var _ui_next := -1.0
+var _ui_end := -1.0
+var _ui_rng := RandomNumberGenerator.new()
 var scramble: HullScramble
 
 
@@ -197,10 +215,48 @@ func _process(_d: float) -> void:
 	else:
 		_breath = 0.0
 		red_now = e_on * base * REDUCED_RED
-	var show := red_now > 0.0005
+	ui_k = (worn + on + deep) if live else 0.0
+	_wear(now)
+	var show := red_now > 0.0005 or ui_on
 	_rect.visible = show
 	if show:
 		_mat.set_shader_parameter(&"red", red_now)
+
+
+## `arr` at the screen's wear `ui_k`, between its steps.
+static func ui_val(arr: Array[float], k: float = -1.0) -> float:
+	var x := clampf(ui_k if k < 0.0 else k, 0.0, 3.0)
+	var i := mini(int(x), 2)
+	return lerpf(arr[i], arr[i + 1], x - i)
+
+
+## THE SCREEN WEARS: a burst now and then, its bands rolled on a 30 Hz clock, drawn by the glass;
+## none under reduced motion or out of a run. It only tints pixels: nothing moves or stops a click.
+func _wear(now: float) -> void:
+	var rate := ui_val(UI_RATE)
+	if ui_k <= 0.001 or rate <= 0.0 or not moving():
+		ui_on = false
+		ui_strength = 0.0
+		_ui_next = -1.0
+		_mat.set_shader_parameter(&"gl_on", 0.0)
+		return
+	if _ui_next < 0.0 or _ui_next - now > 1.5 / rate:
+		_ui_next = now + _ui_rng.randf_range(0.5, 1.5) / rate
+	if not ui_on and now >= _ui_next:
+		ui_on = true
+		ui_bursts += 1
+		_ui_end = now + maxf(1.0, roundf(ui_val(UI_FRAMES))) / 30.0
+		_ui_next = _ui_end + _ui_rng.randf_range(0.5, 1.5) / rate
+	if ui_on and now >= _ui_end:
+		ui_on = false
+	var bands := int(roundf(ui_val(UI_BANDS)))
+	var shift := ui_val(UI_SHIFT)
+	ui_strength = bands * shift if ui_on else 0.0
+	_mat.set_shader_parameter(&"gl_on", 1.0 if ui_on else 0.0)
+	_mat.set_shader_parameter(&"gl_seed", floorf(now * 30.0))
+	_mat.set_shader_parameter(&"gl_bands", bands)
+	_mat.set_shader_parameter(&"gl_shift", shift)
+	_mat.set_shader_parameter(&"gl_split", roundf(ui_val(UI_SPLIT)))
 
 
 static func _screen_rect(c: Control) -> Rect2:

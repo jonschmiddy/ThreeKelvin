@@ -21,6 +21,18 @@ uniform float red = 0.0;
 // How far in it reaches, in game pixels, across and down.
 uniform vec2 reach = vec2(150.0, 100.0);
 
+// THE SCREEN WEARS (`LowHull._wear`): in a burst, a few bands of rows slide sideways with a red
+// and blue split, a little darker. Rows only, a frame or few: never the whole screen at once.
+uniform float gl_on = 0.0;
+uniform float gl_seed = 0.0;
+uniform int gl_bands = 0;
+uniform float gl_shift = 0.0;
+uniform float gl_split = 0.0;
+
+float h1(float n) {
+	return fract(sin(n * 12.9898) * 43758.5453);
+}
+
 vec3 tap(vec2 px, vec2 inv) {
 	return texture(screen_tex, (px + 0.5) * inv).rgb;
 }
@@ -30,6 +42,23 @@ void fragment() {
 	vec2 size = 1.0 / inv;
 	vec2 px = floor(SCREEN_UV * size);
 	vec3 c = tap(px, inv);
+	if (gl_on > 0.5) {
+		for (int i = 0; i < 4; i++) {
+			if (i >= gl_bands) {
+				break;
+			}
+			float fi = float(i);
+			float hh = 2.0 + floor(h1(gl_seed * 3.1 + fi * 5.7) * 7.0);
+			float y0 = floor(h1(gl_seed * 7.3 + fi * 13.1) * (size.y - hh));
+			if (px.y >= y0 && px.y < y0 + hh) {
+				float dx = floor((h1(gl_seed * 11.7 + fi * 17.3) * 2.0 - 1.0) * gl_shift + 0.5);
+				vec2 q = vec2(clamp(px.x - dx, 0.0, size.x - 1.0), px.y);
+				vec2 sp = vec2(gl_split, 0.0);
+				c = vec3(tap(clamp(q + sp, vec2(0.0), size - 1.0), inv).r, tap(q, inv).g,
+					tap(clamp(q - sp, vec2(0.0), size - 1.0), inv).b) * 0.88;
+			}
+		}
+	}
 	if (red > 0.0) {
 		// THE EDGE, as a rectangle and not an oval: the screen is wide, and an
 		// oval reaches the middle of the top and bottom long before it gets to

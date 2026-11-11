@@ -102,3 +102,27 @@ under, as he said it (6 of 40 is G4, 5 of 40 is G5b). `worn` and `dire` ease
 like `on` (EASE_S on the game's clock) and change no red: G3 comes before the
 red edge exists. Off in the title, at 0 hull and out of a run, as the rest.
 ```
+
+## Screen wears
+
+Above `const UI_RATE`:
+
+```text
+Jon, Nov 11: "the rest text and UI elements should glitch as the hull
+decreases, with increasing intensity and frequency." Unlike the tooltips
+(whose calm stays 3-4 s), both rise. One pass on the glass this layer
+already draws: in a burst, a few bands of rows slide sideways with a red and
+blue split, a little darker, for 2-5 frames on a 30 Hz clock. Steps follow
+the tooltips' thresholds through `ui_k` (`worn` + `on` + `deep`, each eased
+at EASE_S): at 50% about one burst in 8 s, one band 2 px; with the red at
+30%, one in 2 s, two bands 4 px; at 15%, more than one a second, four bands
+8 px. Between steps the numbers ease. `HullScramble` starts too at WORN_AT,
+a faint few (FAINT_RATE, at most FAINT_MOST letters), then its own rate from
+the red's line.
+
+It only tints pixels and only rows, never the whole screen at once (no
+strobe): every control keeps its rect, its hover and its click (the glass
+ignores the mouse; LowHullTest clicks a button mid-burst). Under the escape
+menu and Settings (LAYER), which stay clean; reduced motion stills it; off
+out of a run and when repaired.
+```

@@ -88,7 +88,7 @@ func _pure() -> void:
 
 
 ## WEARS THIN (C-D, Jon, Nov 11), with no screen: G2 by default; steady for D_AFTER; a burst keeps
-## the level it began on; G5b's bursts short with long still breaks; reduced motion stills it.
+## the level it began on; 3-4 s of clean words between bursts at every level; reduced motion stills it.
 func _glitch_rules() -> void:
 	print("
 --- the glitch's rules")
@@ -118,35 +118,38 @@ func _glitch_rules() -> void:
 	var l2 := later.lvl if later != null else 0
 	_ok("a burst keeps the level it began on (G%d, G%d mid-burst), the next takes the new one (G%d)" % [l0, l1, l2],
 		l0 == 2 and l1 == 2 and l2 == 4)
-	# G5b over 2 minutes open
-	HoloTag.glitch = HoloTag.G5B
-	HoloTag._sched.erase(9003)
-	var runs: Array = []
-	var start := -1.0
-	var torn := 0
-	for i in int(120.0 * HoloTag.G_HZ):
-		var t := HoloTag.D_AFTER + (i + 0.5) / HoloTag.G_HZ
-		var g := HoloTag.glitch_at(t, 9003)
-		var on := g != null and g.on
-		if on and g.tears.size() > 0 and g.chroma == HoloTag.G_CHROMA[4]:
-			torn += 1
-		if on and start < 0.0:
-			start = t
-		elif not on and start >= 0.0:
-			runs.append([start, t])
-			start = -1.0
-	var longest := 0.0
-	var shortest_still := INF
-	var longest_still := 0.0
-	for j in runs.size():
-		longest = maxf(longest, runs[j][1] - runs[j][0])
-		if j > 0:
-			var still: float = runs[j][0] - runs[j - 1][1]
-			shortest_still = minf(shortest_still, still)
-			longest_still = maxf(longest_still, still)
-	_ok("G5b: %d bursts in 2 min, each %.2f s at most, torn as G5 (%d frames), still and untorn %.2f-%.2f s between" % [
-		runs.size(), longest, torn, shortest_still, longest_still],
-		runs.size() >= 25 and longest <= 0.51 and torn > 0 and shortest_still >= 2.5 and longest_still <= 4.5)
+	# every level over 2 minutes open: the same 3-4 s of clean words between bursts; only the
+	# bursts grow (Jon, Nov 11)
+	for lv in [2, 3, 4, HoloTag.G5B]:
+		HoloTag.glitch = lv
+		HoloTag._sched.erase(9003 + lv)
+		var runs: Array = []
+		var start := -1.0
+		var torn := 0
+		for i in int(120.0 * HoloTag.G_HZ):
+			var t := HoloTag.D_AFTER + (i + 0.5) / HoloTag.G_HZ
+			var g := HoloTag.glitch_at(t, 9003 + lv)
+			var on := g != null
+			if on and g.tears.size() > 0 and g.chroma == HoloTag.G_CHROMA[mini(lv, 5) - 1]:
+				torn += 1
+			if on and start < 0.0:
+				start = t
+			elif not on and start >= 0.0:
+				runs.append([start, t])
+				start = -1.0
+		var longest := 0.0
+		var lo := INF
+		var hi := 0.0
+		for j in runs.size():
+			longest = maxf(longest, runs[j][1] - runs[j][0])
+			if j > 0:
+				var still: float = runs[j][0] - runs[j - 1][1]
+				lo = minf(lo, still)
+				hi = maxf(hi, still)
+		var name := "G5b" if lv == HoloTag.G5B else "G%d" % lv
+		_ok("%s: %d bursts in 2 min, each %.2f s at most, torn (%d frames); clean, untorn, unsplit %.2f-%.2f s between" % [
+			name, runs.size(), longest, torn, lo, hi],
+			runs.size() >= 28 and longest <= 0.51 and torn > 0 and lo >= 2.95 and hi <= 4.1)
 	DisplaySettings.reduced_motion = true
 	HoloTag.glitch = 5
 	var calm_rm := true

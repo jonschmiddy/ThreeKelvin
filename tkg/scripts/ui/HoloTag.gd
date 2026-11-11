@@ -27,20 +27,20 @@ const G5B := 6
 ## A harness's hold on the level (`-- tagglitch=1..5` or `5b`); 0 follows the hull.
 static var glitch := 0
 static var _dialled := false
-## Per level G1..G5, G5b, on a 30 Hz clock: a burst every PERIOD frames (+- JIT / 2), BURST (+ up
-## to BURST_JIT) frames long; each burst frame rolls its effects. A burst keeps its level.
+## On a 30 Hz clock: every level rests CALM_F to CALM_F + CALM_JIT_F frames (3-4 s) of clean
+## words between bursts (Jon, Nov 11: "only the bursts' intensity should increase"); a burst
+## is BURST (+ up to BURST_JIT) frames, per level G1..G5, G5b, and keeps the level it began on.
 const G_HZ := 30.0
-const G_PERIOD: Array[int] = [78, 50, 32, 18, 9, 115]
-const G_PERIOD_JIT: Array[int] = [26, 17, 11, 6, 3, 30]
-const G_BURST: Array[int] = [1, 2, 4, 6, 8, 9]
-const G_BURST_JIT: Array[int] = [0, 0, 0, 0, 0, 6]
+const CALM_F := 90
+const CALM_JIT_F := 30
+const G_BURST: Array[int] = [1, 2, 5, 7, 9, 9]
+const G_BURST_JIT: Array[int] = [0, 0, 1, 2, 3, 6]
 ## Bands torn sideways a burst frame (up to), how far (px), how tall (px).
 const G_TEARS: Array[int] = [1, 1, 2, 3, 4, 4]
 const G_TEAR_DX: Array[int] = [2, 3, 5, 9, 16, 16]
 const G_TEAR_H: Array[int] = [2, 3, 4, 5, 7, 7]
-## Red/cyan split of the words in a burst, and between bursts (px).
+## Red/cyan split of the words in a burst (px).
 const G_CHROMA: Array[int] = [0, 1, 1, 2, 3, 3]
-const G_CHROMA_IDLE: Array[int] = [0, 0, 0, 1, 1, 0]
 ## A letter's chance a burst frame to turn to junk, or to go blank.
 const G_SCRAMBLE: Array[float] = [0.0, 0.0, 0.05, 0.12, 0.3, 0.3]
 const G_DROP: Array[float] = [0.0, 0.0, 0.0, 0.06, 0.18, 0.18]
@@ -55,7 +55,7 @@ const G_JIT: Array[int] = [0, 0, 0, 1, 2, 2]
 const JUNK := "#%&@$*+=?/<>[]01"
 
 
-## One frame's glitch. `on` false: steady (or only the split, between bursts at G4 and up).
+## One frame's glitch, in a burst.
 class Glitch:
 	var on := false
 	var lvl := 2
@@ -236,10 +236,9 @@ static func _h(x: int, y: int, z: int) -> float:
 	return float((n ^ (n >> 16)) & 0xffff) / 65535.0
 
 
-## Burst `k`'s frames from its start to the next's, at level `lvl`.
-static func _gap(lvl: int, k: int) -> int:
-	var L := lvl - 1
-	return maxi(G_BURST[L] + G_BURST_JIT[L] + 1, G_PERIOD[L] + int((_h(k, 7, L) - 0.5) * G_PERIOD_JIT[L]))
+## Burst `k`'s frames from its start to the next's: its own length, then 3-4 s of calm.
+static func _gap(length: int, k: int) -> int:
+	return length + CALM_F + int(_h(k, 7, 0) * (CALM_JIT_F + 0.999))
 
 
 ## Burst `k`'s length in frames at level `lvl`.
@@ -256,14 +255,14 @@ static func _walk(key: int, fr: int) -> Sched:
 		s = Sched.new()
 		s.lvl = level_now()
 		s.length = _burst_len(s.lvl, 0)
-		s.next = _gap(s.lvl, 0)
+		s.next = _gap(s.length, 0)
 		_sched[key] = s
 	while fr >= s.next:
 		s.k += 1
 		s.start = s.next
 		s.lvl = level_now()
 		s.length = _burst_len(s.lvl, s.k)
-		s.next = s.start + _gap(s.lvl, s.k)
+		s.next = s.start + _gap(s.length, s.k)
 	s.fr = fr
 	s.t = GameClock.now()
 	if _sched.size() > 32:
@@ -274,7 +273,7 @@ static func _walk(key: int, fr: int) -> Sched:
 
 
 ## What glitches `idle` seconds after the open, for the tag `key`: null while steady (before
-## D_AFTER, and always under reduced motion, as LowHull stills).
+## D_AFTER, between bursts, and always under reduced motion, as LowHull stills).
 static func glitch_at(idle: float, key: int = 0) -> Glitch:
 	if idle < D_AFTER or not LowHull.moving():
 		return null
@@ -285,10 +284,7 @@ static func glitch_at(idle: float, key: int = 0) -> Glitch:
 	g.lvl = s.lvl
 	g.fr = fr
 	if fr >= s.start + s.length:
-		if G_CHROMA_IDLE[L] == 0:
-			return null
-		g.chroma = G_CHROMA_IDLE[L]
-		return g
+		return null
 	g.on = true
 	var n := mini(G_TEARS[L], 1 + int(_h(fr, 1, L) * G_TEARS[L]))
 	for j in n:

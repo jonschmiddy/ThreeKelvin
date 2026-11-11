@@ -56,8 +56,7 @@ the tag opens steady and only starts to glitch once it has been open D_AFTER
 = 3 s, the time it takes to read it. Five strengths of the wear were filmed
 (G1 barely there to G5 failing); Jon: "G2 is perfect. G3 and G4 can be used
 when the ship hull is low", and G5 was "really cool, but it's unreadable", so
-G5b keeps G5's damage in 0.3-0.5 s bursts with 3-4 s of still, clean words
-between them.
+G5b keeps G5's damage in 0.3-0.5 s bursts with long still breaks.
 
 The levels follow the hull (Jon, Nov 11): G2 above 50%; G3 at or under 50%
 (LowHull.WORN_AT); G4 at or under 30%, with the red edge (TIER1_AT); G5b under
@@ -66,9 +65,17 @@ is read off LowHull's eased `worn`, `on` and `dire`, which move at EASE_S on
 the game's clock, and a burst keeps the level it began on, so the tag never
 changes level mid-burst. Reduced motion stills it, as it stills the red.
 
-A burst is a few 30 Hz frames: torn bands of the box slid sideways (a line of
-words under one goes with it), a red/cyan split of the words, letters swapped
-for junk or dropped, static and bright rows, a dim, a 1-2 px nudge, at G5b
-a frame blinked out. Only the tag moves; it takes no clicks.
+The rhythm is the same at every level (Jon, Nov 11: "Each of them should
+have 3-4 seconds of calm between bursts. The bursts intensity and the glitch
+intensity should be the only thing increasing"): CALM_F to CALM_F +
+CALM_JIT_F frames (3-4 s, uneven) of clean, still words between bursts, with
+nothing drawn between them. A burst is a few 30 Hz frames, longer as the
+level rises (G2 two frames, the flick he liked; G3 about 0.2 s; G4 about
+0.25-0.3 s; G5b 0.3-0.5 s): torn bands of the box slid sideways (a line of
+words under one goes with it), a red/cyan split of the words, letters
+swapped for junk or dropped, static and bright rows, a dim, a 1-2 px nudge,
+at G5b a frame blinked out. Only the tag moves; it takes no clicks. A hull
+drop shows at the next burst, within 4 s: no burst is started early, as
+that would break the calm he asked for.
 `-- tagglitch=1..5|5b` holds a level for the films (`TagGlitchFilm`).
 ```

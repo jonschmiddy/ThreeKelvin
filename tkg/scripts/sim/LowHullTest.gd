@@ -99,10 +99,10 @@ func _run() -> void:
 			break
 	Run.map[Run.at].visited = true
 	Router.show_local()
-	_set_share(0.5)
+	_set_share(0.6)
 	await _secs(2.5)
-	_ok("LOCAL, half the hull: off (tier %d, on %.2f, glass %s)" % [LowHull.tier, LowHull.on, lh._rect.visible],
-		LowHull.tier == 0 and LowHull.on == 0.0 and not lh._rect.visible)
+	_ok("LOCAL, 60%% of the hull: off (tier %d, on %.2f, wear %.2f, glass %s)" % [LowHull.tier, LowHull.on, LowHull.ui_k, lh._rect.visible],
+		LowHull.tier == 0 and LowHull.on == 0.0 and LowHull.ui_k == 0.0 and not lh._rect.visible)
 	var base := _rects()
 	_ok("a LOCAL with controls and texts to keep still (%d)" % base.size(), base.size() > 20)
 	# THE CONTROL: the same 8 s with the hull sound, so what LOCAL moves or
@@ -277,8 +277,8 @@ func _run() -> void:
 	# A TOOLTIP at 10%
 	await _tooltip_check(top)
 
-	# REPAIRED, to the half it started at (so every text should read as it did)
-	_set_share(0.5)
+	# REPAIRED, to the 60% it started at (so every text should read as it did)
+	_set_share(0.6)
 	await _secs(LowHull.EASE_S * 0.5)
 	_ok("repaired: easing out (on %.2f)" % LowHull.on, LowHull.on > 0.3 and LowHull.on < 0.7)
 	await _secs(LowHull.EASE_S * 0.5 + 0.15)
@@ -375,6 +375,7 @@ func _run() -> void:
 	Router.show_local()
 	await _secs(LowHull.EASE_S + 0.3)
 	await _tag_levels()
+	await _screen_wears(lh)
 	DisplaySettings.reduced_motion = true
 	_set_share(0.05)
 	await _secs(LowHull.EASE_S + 0.2)
@@ -428,6 +429,113 @@ func _tag_levels() -> void:
 		ok = ok and int(seen[i][2]) == int(seen[i][1])
 	_ok("the tags' glitch follows the hull, eased: %s (hull, before, 0.3 s in, after, want)" % str(seen), ok)
 	HoloTag.glitch = dial
+
+
+
+## THE SCREEN WEARS (Jon, Nov 11): above WORN_AT nothing; at 50, 30 and 15% the glass's bursts and
+## the words' scramble come more often and harder; a click lands on a button mid-burst; repaired,
+## clean; reduced motion, still.
+func _screen_wears(lh: LowHull) -> void:
+	lh._ui_rng.seed = 7
+	var top := Run.max_hp()
+	var steps := [[int(floorf(top * LowHull.WORN_AT + 0.00001)) + 1, 6.0],
+		[int(floorf(top * LowHull.WORN_AT + 0.00001)), 30.0],
+		[int(floorf(top * LowHull.TIER1_AT + 0.00001)), 20.0],
+		[int(floorf(top * LowHull.TIER2_AT + 0.00001)), 15.0]]
+	var seen := []
+	for st in steps:
+		Run.hp = int(st[0])
+		SectorScreen.shown_hull = -1
+		Sig.resources_changed.emit()
+		await _secs(LowHull.EASE_S + 0.3)
+		var b0 := LowHull.ui_bursts
+		HullScramble.started_log.clear()
+		var sum := 0.0
+		var on_frames := 0
+		var t0 := GameClock.now()
+		while GameClock.now() - t0 < float(st[1]):
+			await _tree.process_frame
+			if LowHull.ui_on:
+				sum += LowHull.ui_strength
+				on_frames += 1
+		var secs: float = st[1]
+		seen.append(["%d/%d" % [st[0], top], (LowHull.ui_bursts - b0) / secs,
+			sum / maxf(1.0, on_frames), HullScramble.started_log.size() / secs])
+	print("    (hull, bursts a second, a burst's strength, scrambles a second) %s" % str(seen))
+	var none: bool = seen[0][1] == 0.0 and seen[0][3] == 0.0
+	var rising := true
+	for i in range(2, seen.size()):
+		for j in [1, 2, 3]:
+			rising = rising and float(seen[i][j]) > float(seen[i - 1][j])
+	_ok("the screen wears: nothing over 50%%, then bursts, their strength and the scramble all rising 50 -> 30 -> 15%%: %s" % str(seen),
+		none and rising and float(seen[1][1]) > 0.0 and float(seen[1][3]) > 0.0)
+	# a click mid-burst lands
+	var cl := CanvasLayer.new()
+	cl.layer = LowHull.LAYER - 1
+	var b := Button.new()
+	b.text = "PRESS"
+	b.position = Vector2(40, 200)
+	b.size = Vector2(90, 30)
+	cl.add_child(b)
+	# in the game's own viewport, where the glass is (the shell's SubViewport)
+	lh.get_parent().add_child(cl)
+	var presses := [0]
+	# (what reaches the button: a press in its own input; headless keeps no hover, so not `pressed`)
+	b.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
+			presses[0] += 1)
+	await Harness.frames(_tree, 2)
+	var at := b.get_global_rect().get_center()
+	# the same click with no burst first: what the harness can land at all
+	while LowHull.ui_on:
+		await _tree.process_frame
+	await _click(lh.get_viewport(), at)
+	var calm_presses: int = presses[0]
+	var t1 := GameClock.now()
+	while not LowHull.ui_on and GameClock.now() - t1 < 10.0:
+		await _tree.process_frame
+	var mid := LowHull.ui_on
+	await _click(lh.get_viewport(), at)
+	_ok("a click on a button mid-burst lands as one with none (burst %s, %d with none, %d mid-burst)" % [
+		mid, calm_presses, presses[0] - calm_presses], mid and calm_presses == 1 and presses[0] == 2)
+	cl.queue_free()
+	# reduced motion: still
+	DisplaySettings.reduced_motion = true
+	await Harness.frames(_tree, 2)
+	var b1 := LowHull.ui_bursts
+	var any_on := false
+	var t2 := GameClock.now()
+	while GameClock.now() - t2 < 4.0:
+		await _tree.process_frame
+		any_on = any_on or LowHull.ui_on
+	_ok("reduced motion at 15%: no burst in 4 s", LowHull.ui_bursts == b1 and not any_on)
+	DisplaySettings.reduced_motion = false
+	# repaired: clean
+	Run.hp = top
+	SectorScreen.shown_hull = -1
+	Sig.resources_changed.emit()
+	await _secs(LowHull.EASE_S + 0.3)
+	var b2 := LowHull.ui_bursts
+	HullScramble.started_log.clear()
+	await _secs(3.0)
+	_ok("repaired: clean (wear %.2f, no burst, no scramble, glass %s)" % [LowHull.ui_k, lh._rect.visible],
+		LowHull.ui_k == 0.0 and LowHull.ui_bursts == b2 and HullScramble.started_log.is_empty() and not lh._rect.visible)
+
+## A left click at `at`: a motion there, then down and up.
+func _click(vp: Viewport, at: Vector2) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	vp.push_input(mm, true)
+	await _tree.process_frame
+	for down in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = down
+		ev.position = at
+		ev.global_position = at
+		vp.push_input(ev, true)
+		await _tree.process_frame
 
 
 func _peak(x: PackedVector2Array, s: int, n: int) -> float:
