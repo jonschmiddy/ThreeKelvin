@@ -2060,12 +2060,17 @@ func _report(cap: Dictionary) -> void:
 			var lp: float = CLICK_P90[kq[2]]
 			if kq[2] == &"direct" and sweep.begins_with("twin"):
 				lp = CLICK_P90_TWIN
-			var le: float = CLICK_EDGE[kq[2]]
 			h._ok("%s: click to settled at pace %.0f, median %.2f s (at most %.1f), 90th %.2f s (at most %.1f)" % [sweep, S.pace, med, lm, p90, lp], med <= lm and p90 <= lp)
-			if not (S.click_edge as Array).is_empty():
-				var ce: Array = (S.click_edge as Array).duplicate()
-				ce.sort()
-				h._ok("%s: a jump's first flight (from the edge as arrived), median %.2f s (at most %.1f)" % [sweep, float(ce[ce.size() / 2]), le], float(ce[ce.size() / 2]) <= le)
+		if float(S.pace) == float(ShipFlightS.FLIGHT_PACE[kq[2]]):
+			# A jump's first flight: the median over every shard (Jon's TP, Nov 11), each shard's printed.
+			# Why: docs/why/FlightTest.md#a-jumps-first-flight-pooled
+			var le: float = CLICK_EDGE[kq[2]]
+			var ce: Array = (S.click_edge as Array).duplicate()
+			ce.sort()
+			var under := ce.filter(func(x: float) -> bool: return x <= le).size()
+			print("  %s: a jump's first flight, this shard's median %s of %d" % [sweep, "%.2f s" % float(ce[ce.size() / 2]) if not ce.is_empty() else "(none)", ce.size()])
+			h.total("%s: a jump's first flight" % sweep, "%s: a jump's first flight (from the edge as arrived), the median of every shard's at most %.1f s: %d of %d at most it" % [sweep, le, under, ce.size()],
+				"n == 0 or under >= n / 2 + 1", {"n": ce.size(), "under": under, "LIMIT": le})
 		print("  closest to a star's surface %.1f px; least margin to a keep-out %.2f px; closest to a world's disc %.1f px; top speed %.0f px/s" % [S.star, S.keep, S.world, S.speed])
 		print("  sharpest turn of the drawn path, deg per px: zoom 1 %s; zoom 2 %s" % [_dist(S.turn1), _dist(S.turn2)])
 		print("  corners (over %.0f deg/px in 2 px) in solved flights: zoom 1 %d, zoom 2 %d (from the game's starts %d, %d); and %d on a ring's own curve only (a ring drawn so small its ends turn that fast)" % [CORNER, S.corners1, S.corners2, S.game_corners1, S.game_corners2, S.ring_corners])

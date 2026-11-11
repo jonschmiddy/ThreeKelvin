@@ -466,6 +466,22 @@ path's own pace the times are judged (`CLICK_MED`, `CLICK_P90`,
 `CLICK_EDGE`).
 ```
 
+## A jump's first flight, pooled
+
+Inside `_report()`, above `var le: float = CLICK_EDGE[kq[2]]`:
+
+```text
+A JUMP'S FIRST FLIGHT (from the edge as arrived) is judged on the median
+over every shard's flights (Jon's TP, Nov 11), each shard's own median
+printed so a slow one still shows. Judged shard by shard, the gate's short
+run held one system's five to seven flights to CLICK_EDGE: on G2's spiral
+worlds shard 3 drew seed 4242 system 217 (DELTA WICK REACH), 4.05 to 7.52 s,
+median 5.90 against 5.8, where the twins over all four shards had a median
+of 4.82 s (main's draw 4.77). The shards hand ShardSum each sweep's count
+of flights and of those at most CLICK_EDGE; the median (the sorted flights'
+n/2-th, as before) is at most CLICK_EDGE where over half of them are.
+```
+
 ## Drawn line held
 
 Above `const MOVE_MED := 16.0`:
