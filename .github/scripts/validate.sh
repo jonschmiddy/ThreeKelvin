@@ -1357,8 +1357,8 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet welcometest 120 \
 unit_yardfronttest() {
 step "The banner shipyard: pick a manufacturer, pick a ship, LAUNCH"
 # Jon's W2 v10 front door (Nov 10). A fresh profile's hall: Korvan named, six
-# ??? banners, SELECT A SHIP and LAUNCH grey; pointing at a hull shows its facts
-# off the live refit, a click picks it and LAUNCH comes on; a ??? banner brings
+# ??? banners, SELECT A SHIP and no LAUNCH; pointing at a hull shows its facts
+# off the live refit, a click picks it and LAUNCH appears, a click away clears it; a ??? banner brings
 # tarps, the lock line, and nothing can launch; Korvan's brings the ships and
 # the pick back; LAUNCH lands on LOCAL in the picked hull; developer mode opens
 # every banner. Every state box-tested. Same exit-time leak allowance as stowtest.

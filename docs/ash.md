@@ -457,7 +457,7 @@ shipped; where a draft said something the code does not do, the words follow the
 | 32 | jump_blocked | a star picked that JUMP cannot go to | We can't jump there yet. The button says why. | JUMP | another star picked |
 | 33 | hull_sale | the yard with a ship for sale, its deal on the TV | That ship is for sale. TAKE IT trades ours in. It comes empty, so we move everything over. | the TV | the ship taken, or said whole and left |
 | 34 | save | the escape menu | SAVE AND EXIT keeps the run. CONTINUE on the title picks it back up. | SAVE & EXIT | the menu shut, or SAVE & EXIT pressed |
-| 35 | chassis_card | the chassis select (a card only) | (card) Pick a ship, then press LAUNCH. / Point at a line or a card to read more. | LAUNCH | LAUNCH |
+| 35 | chassis_card | the chassis select (a card only) | (card) Pick a ship, then press LAUNCH. / Point at a ship or a line to read more. | the row of ships, then LAUNCH once a ship is picked | LAUNCH |
 
 **Changed to match the code** (each draft line was checked):
 
@@ -483,7 +483,7 @@ shipped; where a draft said something the code does not do, the words follow the
 - quest: the event's mark is not in the QUESTS table (it lists signed jobs), so the line does not
   send the player there.
 - heat's spoken script says "Past the limit" (the gauge has no line on it).
-- chassis_card: not everything has a readout (rows and cards do): "Point at a line or a card".
+- chassis_card: not everything has a readout (the ships and the band's rows do; the banner yard has no cards): "Point at a ship or a line".
 - fuel_first: a jump lands on the map, not LOCAL, so it teaches there, as information.
 
 **Pacing** (the audit's, binding; `Hints._pace_ok`). One lesson at a time; each starts once its

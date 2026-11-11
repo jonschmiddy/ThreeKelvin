@@ -235,6 +235,8 @@ func _autosave() -> void:
 func _room_for(screen: Control) -> Variant:
 	if screen is StationScreen:
 		return &"amb_station"
+	if screen is ChassisSelect:
+		return Audio.YARD_ROOM
 	if screen is SectorScreen or screen is SystemMapScreen:
 		return _star_room()
 	# (the refit page, reached only by the harnesses now, sounds like where your
@@ -325,9 +327,9 @@ func new_run(seed_value: int = 0) -> void:
 	show_chassis_select()
 
 func show_chassis_select() -> void:
-	# Choosing a hull is still "before you launch", so it is the title music --
-	# named rather than inherited, because this screen is also reachable cold.
-	Audio.music_state(&"lobby")
+	# The yard is a shipyard, not the title: no score, its own bed as the room (Jon, Nov 11).
+	# Why: docs/why/Router.md#yard-sound
+	Audio.music_state(&"yard")
 	var s := ChassisSelect.new()
 	# No HUD over the yard (Jon's W2 v10): the hall is the whole picture.
 	_swap(s, false)
