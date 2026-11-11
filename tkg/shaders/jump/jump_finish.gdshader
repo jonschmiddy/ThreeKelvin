@@ -17,6 +17,12 @@ uniform float fringe = 0.0;
 uniform float flash = 0.0;
 uniform float flash_floor = 0.10;
 uniform float flash_sy = 1.3;
+// the flash's falloff (R4: 2.6 e^(-r/110)), its colour (zero: white-lilac), and an optional
+// bar of it along a line (amp, y, width, x from which it ramps in over 220 px; R10's rail)
+uniform float flash_k = 2.6;
+uniform float flash_r = 110.0;
+uniform vec3 flash_col = vec3(0.0);
+uniform vec4 flash_bar = vec4(0.0);
 uniform float bloom = 0.0;
 // the flash's shape, where a film's differs: its falloff (R4: 2.6 e^(-r/110)), colour, steps;
 // a beam along the ship's line left of the event (R1's launch) as (y, width, strength, x_max);

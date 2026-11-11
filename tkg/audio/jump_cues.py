@@ -138,6 +138,9 @@ def main() -> int:
         for sid in seqs():
             up = sid.upper()
             src = os.path.join(src_root, "_" + sid, "sound", "%s_mix.wav" % up)
+            if not os.path.exists(src):
+                # (R2's mix is plain mix.wav)
+                src = os.path.join(src_root, "_" + sid, "sound", "mix.wav")
             if os.path.exists(src):
                 shutil.copyfile(src, os.path.join(SAMPLES, "%s_mix.wav" % up))
                 print("copied", src)

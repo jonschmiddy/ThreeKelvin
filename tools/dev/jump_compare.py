@@ -38,7 +38,11 @@ STRIP_TS = {
     "r5": [0.4, 1.8, 3.2, 4.4, 5.6, 6.4, 6.6, 6.617, 6.8, 6.95, 7.4, 10.2],
     "r10": [0.4, 1.4, 2.4, 3.3, 4.3, 4.9, 5.15, 5.3, 5.4, 5.47, 6.9, 9.5],
     "r14": [0.3, 0.467, 1.25, 2.2, 3.0, 3.6, 4.3, 4.8, 5.3, 5.9, 6.42, 6.9],
+    "r9": [0.3, 1.9, 2.7, 3.4, 4.1, 4.8, 5.6, 6.0, 6.167, 6.4, 7.4, 9.5],
+    "r2": [0.3, 1.4, 2.6, 3.15, 3.9, 4.35, 4.7, 5.15, 5.5, 5.85, 5.95, 7.0],
 }
+## How a film's own frames are kept, where not f%04d.png at 60 fps and 1x: (name, fps, scale).
+FILM_FRAMES = {"r9": ("f%04d.png", 60, 2), "r2": ("%04d.png", 30, 1)}
 ## The crop judged at 2x: the ship's end of the frame.
 CROP = (0, 120, 640, 440)
 
@@ -98,11 +102,13 @@ def compare(game_dir: str, film_dir: str, ts, out_png: str, crop=None, scale: in
     w, h = (960, 540) if crop is None else (crop[2] - crop[0], crop[3] - crop[1])
     gap = 6
     sheet = Image.new("RGB", (cols * (w * scale + gap), rows * (2 * h * scale + 3 * gap)), (40, 40, 40))
+    sid = os.path.basename(os.path.dirname(film_dir)).lstrip("_")
+    name, fps, fsc = FILM_FRAMES.get(sid, ("f%04d.png", 60, 1))
     for i, t in enumerate(ts):
         fi = int(round(t * 60))
-        film = Image.open(os.path.join(film_dir, "f%04d.png" % fi)).convert("RGB")
-        if film.size != (960, 540):
-            # R1 and R10 kept their frames at 2x (the size the game is seen at): back to 1x
+        film = Image.open(os.path.join(film_dir, name % int(round(t * fps)))).convert("RGB")
+        if fsc > 1 or film.size != (960, 540):
+            # R1, R9 and R10 kept their frames at 2x (the size the game is seen at): back to 1x
             film = film.resize((960, 540), Image.NEAREST)
         gp = os.path.join(game_dir, "f_%04d.png" % fi)
         game = Image.open(gp).convert("RGB") if os.path.exists(gp) else Image.new("RGB", (960, 540), (80, 0, 0))
