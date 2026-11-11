@@ -3,7 +3,8 @@ extends Node
 ## SCRATCH (scratch/tag-calm): a film of a tag under `tagcalm=N tagglitch=G` (read by
 ## `HoloTag.read_dial`). `shot=hull`: hover LOCAL's hull readout for `hold=` seconds, then off;
 ## `quick=1` adds hull, heat, 1.4 s each. `shot=sys`: the system map, an event's beacon pointed
-## at (held on it as it moves) for `hold=` seconds. 960x540; timing on GameClock.
+## at (held on it as it moves) for `hold=` seconds; `steps=T:SHARE,...` sets the hull as it runs.
+## 960x540; timing on GameClock.
 
 var _tree: SceneTree
 
@@ -88,7 +89,18 @@ func _sys(hold: float) -> void:
 	print("[film] hull at %.3f" % GameClock.now())
 	var t0 := GameClock.now()
 	var logged := false
+	# `steps=T:SHARE,...`: the hull set to SHARE of its max T s after the tag opens
+	var steps: Array = []
+	for st in _arg("steps", "").split(",", false):
+		var kv := (st as String).split(":")
+		steps.append([float(kv[0]), float(kv[1])])
 	while GameClock.now() - t0 < hold:
+		while not steps.is_empty() and GameClock.now() - t0 >= float(steps[0][0]):
+			Run.hp = maxi(1, int(floorf(Run.max_hp() * float(steps[0][1]) + 0.00001)))
+			SectorScreen.shown_hull = -1
+			Sig.resources_changed.emit()
+			print("[film] hp %d/%d at %.3f" % [Run.hp, Run.max_hp(), GameClock.now()])
+			steps.pop_front()
 		var h: Dictionary = {}
 		if pick >= 0 and pick < (ov.beacons_at as Array).size():
 			h = ov.hit((ov.beacons_at[pick] as Array)[0])

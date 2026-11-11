@@ -373,6 +373,8 @@ func _run() -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
+	await _secs(LowHull.EASE_S + 0.3)
+	await _tag_levels()
 	DisplaySettings.reduced_motion = true
 	_set_share(0.05)
 	await _secs(LowHull.EASE_S + 0.2)
@@ -395,6 +397,36 @@ func _run() -> void:
 	DisplaySettings.reduced_motion = false
 	h.verdict("LowHullTest")
 	_tree.quit(h.code())
+
+
+## THE TAGS FOLLOW THE HULL (scratch/tag-calm, Jon, Nov 11): C-D's glitch is G2 above the line,
+## G3 at or under TIER1_AT, G4 at or under TIER2_AT, and back, at the warning's own pace.
+func _tag_levels() -> void:
+	var dial := HoloTag.glitch
+	HoloTag.glitch = 0
+	var seen := []
+	# by hull points: one over the line (31% where max allows), on it, on the second step, back
+	var top := Run.max_hp()
+	var l1 := int(floorf(top * LowHull.TIER1_AT + 0.00001))
+	var l2 := int(floorf(top * LowHull.TIER2_AT + 0.00001))
+	for st in [[l1 + 1, 2], [l1, 3], [l2, 4], [l1 + 1, 2]]:
+		var was := HoloTag.level_now()
+		Run.hp = int(st[0])
+		SectorScreen.shown_hull = -1
+		Sig.resources_changed.emit()
+		st[0] = "%d/%d" % [st[0], top]
+		await _secs(LowHull.EASE_S * 0.3)
+		var mid := HoloTag.level_now()
+		await _secs(LowHull.EASE_S * 0.9)
+		seen.append([st[0], was, mid, HoloTag.level_now(), st[1]])
+	var ok := true
+	for x in seen:
+		ok = ok and int(x[3]) == int(x[4])
+	for i in range(1, seen.size()):
+		# eased, not snapped: 0.3 of EASE_S in, still the level before
+		ok = ok and int(seen[i][2]) == int(seen[i][1])
+	_ok("the tags' glitch follows the hull, eased: %s (share, before, 0.3 s in, after, want)" % str(seen), ok)
+	HoloTag.glitch = dial
 
 
 func _peak(x: PackedVector2Array, s: int, n: int) -> float:

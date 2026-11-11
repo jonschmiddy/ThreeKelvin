@@ -43,6 +43,7 @@ func _run() -> void:
 	_tree = get_tree()
 	await _frames(2)
 	_pure()
+	_glitch_rules()
 	await _box()
 	await _readout()
 	await _local_tags()
@@ -84,6 +85,76 @@ func _pure() -> void:
 		ls.size() >= 2 and widest <= UITheme.TOOLTIP_WRAP)
 	var m := HoloTag.measure(ls)
 	_ok("and measures to its lines (%s)" % str(m), m.y == ls.size() * HoloTag.LINE_H + HoloTag.PAD_V * 2 - 2)
+
+
+## C-D's GLITCH (scratch/tag-calm, Jon, Nov 11), with no screen: G2 by default; a burst keeps the
+## level it began on; G5b's bursts short with long still breaks; reduced motion stills it.
+func _glitch_rules() -> void:
+	print("
+--- the glitch's rules")
+	var was_anim := Router.animate_in_harness
+	Router.animate_in_harness = true
+	DisplaySettings.reduced_motion = false
+	var dial := HoloTag.glitch
+	HoloTag.glitch = 0
+	_ok("by default every tag is C-D following the hull, G2 with the hull fine (calm %d, level %d)" % [HoloTag.calm, HoloTag.level_now()],
+		HoloTag.calm == 4 and HoloTag.hull_level(0.0, 0.0) == 2 and HoloTag.hull_level(0.6, 0.0) == 3
+		and HoloTag.hull_level(1.0, 0.6) == 4 and HoloTag.hull_level(0.4, 0.0) == 2)
+	_ok("steady for its first D_AFTER s", HoloTag._glitch(HoloTag.D_AFTER - 0.05, 9001).is_empty())
+	# a burst keeps its level: G2's first burst starts at D_AFTER; G4 asked for inside it
+	HoloTag.glitch = 2
+	HoloTag._sched.erase(9002)
+	var g0 := HoloTag._glitch(HoloTag.D_AFTER + 0.001, 9002)
+	HoloTag.glitch = 4
+	var g1 := HoloTag._glitch(HoloTag.D_AFTER + 1.0 / HoloTag.G_HZ + 0.001, 9002)
+	var later := {}
+	for i in 200:
+		later = HoloTag._glitch(HoloTag.D_AFTER + 2.0 + i / HoloTag.G_HZ, 9002)
+		if not later.is_empty():
+			break
+	_ok("a burst keeps the level it began on (G%d, G%d mid-burst), the next takes the new one (G%d)" % [
+		int(g0.get("lvl", 0)), int(g1.get("lvl", 0)), int(later.get("lvl", 0))],
+		int(g0.get("lvl", 0)) == 2 and int(g1.get("lvl", 0)) == 2 and int(later.get("lvl", 0)) == 4)
+	# G5b over 2 minutes open
+	HoloTag.glitch = HoloTag.G5B
+	HoloTag._sched.erase(9003)
+	var runs: Array = []
+	var start := -1.0
+	var torn_lv5 := 0
+	var steps := int(120.0 * HoloTag.G_HZ)
+	for i in steps:
+		var t := HoloTag.D_AFTER + (i + 0.5) / HoloTag.G_HZ
+		var g := HoloTag._glitch(t, 9003)
+		var on := not g.is_empty()
+		if on and (g.tears as Array).size() > 0 and int(g.chroma) == HoloTag.G_CHROMA[4]:
+			torn_lv5 += 1
+		if on and start < 0.0:
+			start = t
+		elif not on and start >= 0.0:
+			runs.append([start, t])
+			start = -1.0
+	var longest := 0.0
+	var shortest_still := INF
+	var longest_still := 0.0
+	for j in runs.size():
+		longest = maxf(longest, runs[j][1] - runs[j][0])
+		if j > 0:
+			var still: float = runs[j][0] - runs[j - 1][1]
+			shortest_still = minf(shortest_still, still)
+			longest_still = maxf(longest_still, still)
+	_ok("G5b: %d bursts in 2 min, each %.2f s at most, torn as G5 (%d frames), still and untorn %.2f-%.2f s between" % [
+		runs.size(), longest, torn_lv5, shortest_still, longest_still],
+		runs.size() >= 25 and longest <= 0.51 and torn_lv5 > 0 and shortest_still >= 2.5 and longest_still <= 4.5)
+	DisplaySettings.reduced_motion = true
+	HoloTag.glitch = 5
+	var calm_rm := true
+	for i in 120:
+		if not HoloTag._glitch(HoloTag.D_AFTER + i / HoloTag.G_HZ, 9004).is_empty():
+			calm_rm = false
+	_ok("reduced motion: no glitch at any level (G5 for 4 s)", calm_rm)
+	DisplaySettings.reduced_motion = false
+	HoloTag.glitch = dial
+	Router.animate_in_harness = was_anim
 
 
 ## THE BOX (Jon's pick of twenty, Nov 9): the plate is the same box, and the open watched frame

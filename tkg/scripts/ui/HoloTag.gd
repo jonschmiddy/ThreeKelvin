@@ -25,35 +25,44 @@ const TEAR_EVERY := 3.5
 const TEAR_FRAME := 0.04
 ## SCRATCH (scratch/tag-calm, never main): which calm variant draws. 0 today, 1 A tear-in only,
 ## 2 B rare slip, 3 C drifting line, 4 D wears thin after a while (Jon's pick, Nov 11).
-## `-- tagcalm=N`; under D, `-- tagglitch=1..5` is how hard it glitches once it starts.
+## `-- tagcalm=N`. Under D, `glitch` 0 follows the hull (Jon, Nov 11: G2 "perfect"; G3 at or under
+## LowHull.TIER1_AT, G4 at or under TIER2_AT); `-- tagglitch=1..5` or `5b` holds a level.
 static var calm := 4
-static var glitch := 3
+static var glitch := 0
 static var _dialled := false
-## D: steady until this many seconds open, then the glitch of level `glitch`.
+## D: steady until this many seconds open, then the glitch of the level in force.
 const D_AFTER := 3.0
-## D's five levels, G1 (barely there) to G5 (failing), on a 30 Hz glitch clock. A burst every
-## PERIOD frames (+- a third), BURST frames long; within a burst, each frame rolls its effects.
+## The level with the hull fine, and G5b's index (a dev level, not wired yet).
+const G_BASE := 2
+const G5B := 6
+## D's levels, G1 (barely there) to G5 (failing), then G5b (G5's bursts with long still breaks),
+## on a 30 Hz glitch clock. A burst every PERIOD frames (+- JIT / 2), BURST (+ up to BURST_JIT)
+## frames long; within a burst, each frame rolls its effects. A burst keeps the level it began on.
 const G_HZ := 30.0
-const G_PERIOD: Array[int] = [78, 50, 32, 18, 9]
-const G_BURST: Array[int] = [1, 2, 4, 6, 8]
+const G_PERIOD: Array[int] = [78, 50, 32, 18, 9, 115]
+const G_PERIOD_JIT: Array[int] = [26, 17, 11, 6, 3, 30]
+const G_BURST: Array[int] = [1, 2, 4, 6, 8, 9]
+const G_BURST_JIT: Array[int] = [0, 0, 0, 0, 0, 6]
 ## Bands torn sideways a burst frame (up to), how far (px), how tall (px).
-const G_TEARS: Array[int] = [1, 1, 2, 3, 4]
-const G_TEAR_DX: Array[int] = [2, 3, 5, 9, 16]
-const G_TEAR_H: Array[int] = [2, 3, 4, 5, 7]
+const G_TEARS: Array[int] = [1, 1, 2, 3, 4, 4]
+const G_TEAR_DX: Array[int] = [2, 3, 5, 9, 16, 16]
+const G_TEAR_H: Array[int] = [2, 3, 4, 5, 7, 7]
 ## Red/cyan split of the words in a burst, and between bursts (px).
-const G_CHROMA: Array[int] = [0, 1, 1, 2, 3]
-const G_CHROMA_IDLE: Array[int] = [0, 0, 0, 1, 1]
+const G_CHROMA: Array[int] = [0, 1, 1, 2, 3, 3]
+const G_CHROMA_IDLE: Array[int] = [0, 0, 0, 1, 1, 0]
 ## A letter's chance a burst frame to turn to junk, or to go blank.
-const G_SCRAMBLE: Array[float] = [0.0, 0.0, 0.05, 0.12, 0.3]
-const G_DROP: Array[float] = [0.0, 0.0, 0.0, 0.06, 0.18]
+const G_SCRAMBLE: Array[float] = [0.0, 0.0, 0.05, 0.12, 0.3, 0.3]
+const G_DROP: Array[float] = [0.0, 0.0, 0.0, 0.06, 0.18, 0.18]
 ## Static dots a burst frame; bright rows across the box.
-const G_NOISE: Array[int] = [0, 0, 3, 14, 40]
-const G_ROWS: Array[int] = [0, 1, 1, 2, 4]
+const G_NOISE: Array[int] = [0, 0, 3, 14, 40, 40]
+const G_ROWS: Array[int] = [0, 1, 1, 2, 4, 4]
 ## A burst frame's chance to dim the whole tag (to G_DIM), to blink it out, to nudge it (G_JIT px).
-const G_DIM_P: Array[float] = [0.0, 0.0, 0.25, 0.35, 0.4]
-const G_DIM: Array[float] = [1.0, 1.0, 0.75, 0.55, 0.35]
-const G_BLINK_P: Array[float] = [0.0, 0.0, 0.0, 0.05, 0.16]
-const G_JIT: Array[int] = [0, 0, 0, 1, 2]
+const G_DIM_P: Array[float] = [0.0, 0.0, 0.25, 0.35, 0.4, 0.4]
+const G_DIM: Array[float] = [1.0, 1.0, 0.75, 0.55, 0.35, 0.35]
+const G_BLINK_P: Array[float] = [0.0, 0.0, 0.0, 0.05, 0.16, 0.16]
+const G_JIT: Array[int] = [0, 0, 0, 1, 2, 2]
+## Each open tag's burst schedule, by its canvas item: {fr, k, start, len, lvl, next, t}.
+static var _sched := {}
 const JUNK := "#%&@$*+=?/<>[]01"
 ## B: one slip every B_EVERY (+- B_JITTER) seconds, B_FRAME long.
 const B_EVERY := 5.0
@@ -154,7 +163,7 @@ static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, poi
 	var r := Rect2(rect.position.round(), rect.size.round())
 	var t := 1.0 if age == INF else clampf(age / OPEN, 0.0, 1.0)
 	var idle := 0.0 if age == INF else maxf(0.0, age - OPEN)
-	var g: Dictionary = _glitch(idle) if calm == 4 and age != INF else {}
+	var g: Dictionary = _glitch(idle, ci.get_instance_id()) if calm == 4 and age != INF else {}
 	if calm == 0:
 		a *= alpha_at(age) if age != INF else 1.0
 	elif not g.is_empty():
@@ -227,7 +236,7 @@ static func read_dial() -> void:
 		if kv.size() == 2 and kv[0] == "tagcalm":
 			calm = int(kv[1])
 		elif kv.size() == 2 and kv[0] == "tagglitch":
-			glitch = clampi(int(kv[1]), 1, 5)
+			glitch = G5B if kv[1] == "5b" else clampi(int(kv[1]), 0, G5B)
 
 
 ## A stable 0..1 from three ints.
@@ -237,21 +246,62 @@ static func _h(x: int, y: int, z: int) -> float:
 	return float((n ^ (n >> 16)) & 0xffff) / 65535.0
 
 
-## D: what glitches this frame, `idle` seconds open: {} while steady (before D_AFTER, and between
-## bursts below G4). Keys: blink, dim, jit, tears [[yf, h, dx]], chroma, scr, drop, noise, rows, fr.
-static func _glitch(idle: float) -> Dictionary:
-	if idle < D_AFTER:
+## D: the level a tag glitches at now: the dial's, or the hull's (`hull_level`).
+static func level_now() -> int:
+	return glitch if glitch > 0 else hull_level(LowHull.on, LowHull.deep)
+
+
+## D: the level for LowHull's eased `on` and `deep`: G2, G3 once the warning is half in, G4 once
+## its second step is. They ease on the game's clock at LowHull.EASE_S, so the tag follows the
+## warning's own pace, both ways.
+static func hull_level(on: float, deep: float) -> int:
+	return G_BASE + (1 if on >= 0.5 else 0) + (1 if deep >= 0.5 else 0)
+
+
+## D: burst `k`'s frames from its start to the next's, at level `lvl`.
+static func _gap(lvl: int, k: int) -> int:
+	var L := lvl - 1
+	return maxi(G_BURST[L] + G_BURST_JIT[L] + 1, G_PERIOD[L] + int((_h(k, 7, L) - 0.5) * G_PERIOD_JIT[L]))
+
+
+## D: burst `k`'s length in frames at level `lvl`.
+static func _burst_len(lvl: int, k: int) -> int:
+	var L := lvl - 1
+	return G_BURST[L] + int(_h(k, 13, L) * (G_BURST_JIT[L] + 0.999))
+
+
+## D: what glitches this frame, `idle` seconds open, for the tag `key`: {} while steady (before
+## D_AFTER, between bursts below G4, and always under reduced motion, as LowHull stills). Each
+## burst takes the level in force as it begins and keeps it to its end. Keys: blink, dim, jit,
+## tears [[yf, h, dx]], chroma, scr, drop, noise, rows, fr, lvl.
+static func _glitch(idle: float, key: int = 0) -> Dictionary:
+	if idle < D_AFTER or not LowHull.moving():
 		return {}
-	var L := clampi(glitch, 1, 5) - 1
 	var fr := int((idle - D_AFTER) * G_HZ)
-	var per: int = G_PERIOD[L]
-	var k := fr / per
-	var start := 0 if k == 0 else k * per + int(_h(k, 7, L) * per / 3.0)
-	if fr < start or fr >= start + G_BURST[L]:
+	var s: Dictionary = _sched.get(key, {})
+	if s.is_empty() or fr < int(s.fr):
+		var l0 := level_now()
+		s = {"fr": fr, "k": 0, "start": 0, "lvl": l0, "len": _burst_len(l0, 0), "next": _gap(l0, 0), "t": 0.0}
+		_sched[key] = s
+	while fr >= int(s.next):
+		s.k = int(s.k) + 1
+		s.start = s.next
+		s.lvl = level_now()
+		s.len = _burst_len(s.lvl, s.k)
+		s.next = int(s.start) + _gap(s.lvl, s.k)
+	s.fr = fr
+	s.t = GameClock.now()
+	if _sched.size() > 32:
+		for k2 in _sched.keys():
+			if GameClock.now() - float(_sched[k2].t) > 5.0:
+				_sched.erase(k2)
+	var lv: int = s.lvl
+	var L := lv - 1
+	if fr >= int(s.start) + int(s.len):
 		if G_CHROMA_IDLE[L] == 0:
 			return {}
 		return {"blink": false, "dim": 1.0, "jit": Vector2.ZERO, "tears": [], "chroma": G_CHROMA_IDLE[L],
-			"scr": 0.0, "drop": 0.0, "noise": 0, "rows": 0, "fr": fr}
+			"scr": 0.0, "drop": 0.0, "noise": 0, "rows": 0, "fr": fr, "lvl": lv}
 	var tears := []
 	var n := mini(G_TEARS[L], 1 + int(_h(fr, 1, L) * G_TEARS[L]))
 	for j in n:
@@ -266,7 +316,7 @@ static func _glitch(idle: float) -> Dictionary:
 		"blink": _h(fr, 8, L) < G_BLINK_P[L],
 		"dim": G_DIM[L] if _h(fr, 9, L) < G_DIM_P[L] else 1.0,
 		"jit": jit, "tears": tears, "chroma": G_CHROMA[L],
-		"scr": G_SCRAMBLE[L], "drop": G_DROP[L], "noise": G_NOISE[L], "rows": G_ROWS[L], "fr": fr,
+		"scr": G_SCRAMBLE[L], "drop": G_DROP[L], "noise": G_NOISE[L], "rows": G_ROWS[L], "fr": fr, "lvl": lv,
 	}
 
 
