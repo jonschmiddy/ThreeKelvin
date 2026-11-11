@@ -114,11 +114,15 @@ decreases, with increasing intensity and frequency." Unlike the tooltips
 already draws: in a burst, a few bands of rows slide sideways with a red and
 blue split, a little darker, for 2-5 frames on a 30 Hz clock. Steps follow
 the tooltips' thresholds through `ui_k` (`worn` + `on` + `deep`, each eased
-at EASE_S): at 50% about one burst in 8 s, one band 2 px; with the red at
-30%, one in 2 s, two bands 4 px; at 15%, more than one a second, four bands
-8 px. Between steps the numbers ease. `HullScramble` starts too at WORN_AT,
-a faint few (FAINT_RATE, at most FAINT_MOST letters), then its own rate from
-the red's line.
+at EASE_S): at 50% about one burst in 8 s, one band 2-3 px; with the red at
+30%, one in 2 s, three bands 5 px; at 15%, more than one a second, five
+bands 10 px, a 3 px split. Between steps the numbers ease. `HullScramble`
+starts too at WORN_AT, a faint few (FAINT_RATE, at most FAINT_MOST letters),
+then its own rate from the red's line. H2 (Jon, Nov 11): "Can we make the
+intensity of all of the levels increased by like 25%? More than 50% health
+stays clean": the bands, slide, split, darkening and the scramble's ceiling
+and share (STRONG's `most`, `share`) a quarter up; the rate and the timing
+as they were.
 
 It only tints pixels and only rows, never the whole screen at once (no
 strobe): every control keeps its rect, its hover and its click (the glass

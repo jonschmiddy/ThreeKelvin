@@ -74,7 +74,9 @@ level rises (G2 two frames, the flick he liked; G3 about 0.2 s; G4 about
 0.25-0.3 s; G5b 0.3-0.5 s): torn bands of the box slid sideways (a line of
 words under one goes with it), a red/cyan split of the words, letters
 swapped for junk or dropped, static and bright rows, a dim, a 1-2 px nudge,
-at G5b a frame blinked out. Only the tag moves; it takes no clicks. A hull
+at G5b a frame blinked out. G3, G4 and G5b are a quarter stronger than
+first filmed (H2, Jon, Nov 11); G2 stays as he passed it. Only the tag
+moves; it takes no clicks. A hull
 drop shows at the next burst, within 4 s: no burst is started early, as
 that would break the calm he asked for.
 `-- tagglitch=1..5|5b` holds a level for the films (`TagGlitchFilm`).

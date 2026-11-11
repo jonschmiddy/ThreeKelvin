@@ -35,22 +35,23 @@ const CALM_F := 90
 const CALM_JIT_F := 30
 const G_BURST: Array[int] = [1, 2, 5, 7, 9, 9]
 const G_BURST_JIT: Array[int] = [0, 0, 1, 2, 3, 6]
-## Bands torn sideways a burst frame (up to), how far (px), how tall (px).
-const G_TEARS: Array[int] = [1, 1, 2, 3, 4, 4]
-const G_TEAR_DX: Array[int] = [2, 3, 5, 9, 16, 16]
-const G_TEAR_H: Array[int] = [2, 3, 4, 5, 7, 7]
+## Bands torn sideways a burst frame (up to), how far (px), how tall (px). G3 and up are a quarter
+## stronger than first filmed (Jon, Nov 11, H2); G2 as he passed it.
+const G_TEARS: Array[int] = [1, 1, 2, 4, 4, 5]
+const G_TEAR_DX: Array[int] = [2, 3, 6, 11, 16, 20]
+const G_TEAR_H: Array[int] = [2, 3, 5, 6, 7, 9]
 ## Red/cyan split of the words in a burst (px).
-const G_CHROMA: Array[int] = [0, 1, 1, 2, 3, 3]
+const G_CHROMA: Array[int] = [0, 1, 1, 2, 3, 4]
 ## A letter's chance a burst frame to turn to junk, or to go blank.
-const G_SCRAMBLE: Array[float] = [0.0, 0.0, 0.05, 0.12, 0.3, 0.3]
-const G_DROP: Array[float] = [0.0, 0.0, 0.0, 0.06, 0.18, 0.18]
+const G_SCRAMBLE: Array[float] = [0.0, 0.0, 0.0625, 0.15, 0.3, 0.375]
+const G_DROP: Array[float] = [0.0, 0.0, 0.0, 0.075, 0.18, 0.225]
 ## Static dots a burst frame; bright rows across the box.
-const G_NOISE: Array[int] = [0, 0, 3, 14, 40, 40]
-const G_ROWS: Array[int] = [0, 1, 1, 2, 4, 4]
+const G_NOISE: Array[int] = [0, 0, 4, 18, 40, 50]
+const G_ROWS: Array[int] = [0, 1, 1, 3, 4, 5]
 ## A burst frame's chance to dim the whole tag (to G_DIM), to blink it out, to nudge it (G_JIT px).
-const G_DIM_P: Array[float] = [0.0, 0.0, 0.25, 0.35, 0.4, 0.4]
-const G_DIM: Array[float] = [1.0, 1.0, 0.75, 0.55, 0.35, 0.35]
-const G_BLINK_P: Array[float] = [0.0, 0.0, 0.0, 0.05, 0.16, 0.16]
+const G_DIM_P: Array[float] = [0.0, 0.0, 0.31, 0.44, 0.4, 0.5]
+const G_DIM: Array[float] = [1.0, 1.0, 0.69, 0.44, 0.35, 0.19]
+const G_BLINK_P: Array[float] = [0.0, 0.0, 0.0, 0.0625, 0.16, 0.2]
 const G_JIT: Array[int] = [0, 0, 0, 1, 2, 2]
 const JUNK := "#%&@$*+=?/<>[]01"
 

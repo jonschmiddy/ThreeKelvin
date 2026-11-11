@@ -24,7 +24,7 @@ const REF_LETTERS := 240
 const DENSITY := [0.6, 2.0]
 ## Above the red's line, at or under LowHull.WORN_AT: runs a second, and at most this many letters.
 const FAINT_RATE := 0.35
-const FAINT_MOST := 3
+const FAINT_MOST := 4
 ## Hand-drawn text not drawn for this long, s, is off the screen.
 const DRAWN_STALE_S := 0.5
 

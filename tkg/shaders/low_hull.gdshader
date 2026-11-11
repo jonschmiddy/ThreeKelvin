@@ -28,6 +28,7 @@ uniform float gl_seed = 0.0;
 uniform int gl_bands = 0;
 uniform float gl_shift = 0.0;
 uniform float gl_split = 0.0;
+uniform float gl_dark = 0.15;
 
 float h1(float n) {
 	return fract(sin(n * 12.9898) * 43758.5453);
@@ -43,7 +44,7 @@ void fragment() {
 	vec2 px = floor(SCREEN_UV * size);
 	vec3 c = tap(px, inv);
 	if (gl_on > 0.5) {
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 6; i++) {
 			if (i >= gl_bands) {
 				break;
 			}
@@ -55,7 +56,7 @@ void fragment() {
 				vec2 q = vec2(clamp(px.x - dx, 0.0, size.x - 1.0), px.y);
 				vec2 sp = vec2(gl_split, 0.0);
 				c = vec3(tap(clamp(q + sp, vec2(0.0), size - 1.0), inv).r, tap(q, inv).g,
-					tap(clamp(q - sp, vec2(0.0), size - 1.0), inv).b) * 0.88;
+					tap(clamp(q - sp, vec2(0.0), size - 1.0), inv).b) * (1.0 - gl_dark);
 			}
 		}
 	}

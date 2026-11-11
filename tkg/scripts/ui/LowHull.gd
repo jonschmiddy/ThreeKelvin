@@ -31,9 +31,11 @@ const LAYER := 5
 ## Why: docs/why/LowHull.md#screen-wears
 const UI_RATE: Array[float] = [0.0, 0.12, 0.45, 1.3]
 const UI_FRAMES: Array[float] = [0.0, 2.0, 3.0, 5.0]
-const UI_BANDS: Array[float] = [0.0, 1.0, 2.0, 4.0]
-const UI_SHIFT: Array[float] = [0.0, 2.0, 4.0, 8.0]
-const UI_SPLIT: Array[float] = [0.0, 1.0, 1.0, 2.0]
+const UI_BANDS: Array[float] = [0.0, 1.25, 2.5, 5.0]
+const UI_SHIFT: Array[float] = [0.0, 2.5, 5.0, 10.0]
+const UI_SPLIT: Array[float] = [0.0, 1.25, 1.25, 2.5]
+## How dark a torn band goes (0.12 first, a quarter more, H2).
+const UI_DARK := 0.15
 
 ## Per-preset strengths for the red, the scramble and the voice, each from the line to no hull.
 ## Why: docs/why/LowHull.md#presets
@@ -50,7 +52,7 @@ const LOOKS := {
 	},
 	Preset.STRONG: {
 		red = [0.68, 0.85], breath = 0.45,
-		scr = {rate = [1.2, 34.0], run = 6, hold = [0.12, 0.45], most = 26, share = 0.3},
+		scr = {rate = [1.2, 34.0], run = 6, hold = [0.12, 0.45], most = 32, share = 0.375},
 		voice = {rate = [1.8, 4.2], len = [1.1, 1.55], amt = [1.0, 1.0]},
 	},
 }
@@ -257,6 +259,7 @@ func _wear(now: float) -> void:
 	_mat.set_shader_parameter(&"gl_bands", bands)
 	_mat.set_shader_parameter(&"gl_shift", shift)
 	_mat.set_shader_parameter(&"gl_split", roundf(ui_val(UI_SPLIT)))
+	_mat.set_shader_parameter(&"gl_dark", UI_DARK)
 
 
 static func _screen_rect(c: Control) -> Rect2:

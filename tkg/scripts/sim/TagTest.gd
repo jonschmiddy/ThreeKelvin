@@ -130,7 +130,7 @@ func _glitch_rules() -> void:
 			var t := HoloTag.D_AFTER + (i + 0.5) / HoloTag.G_HZ
 			var g := HoloTag.glitch_at(t, 9003 + lv)
 			var on := g != null
-			if on and g.tears.size() > 0 and g.chroma == HoloTag.G_CHROMA[mini(lv, 5) - 1]:
+			if on and g.tears.size() > 0 and g.chroma == HoloTag.G_CHROMA[lv - 1]:
 				torn += 1
 			if on and start < 0.0:
 				start = t
