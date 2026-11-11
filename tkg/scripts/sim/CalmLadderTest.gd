@@ -204,6 +204,19 @@ func _rank(s: Control) -> int:
 	return ZoomLadder.rank_of(s)
 
 
+## A hop's length by click before the bottom bands slid (main, Nov 11): measured 1.77 s into LOCAL, 1.98 s out,
+## 1.82 s map to chart (a key starts a frame or so sooner, so a hop may be shorter, never 0.05 s longer).
+func _before_s(a: int, b: int) -> float:
+	var t := 0.0
+	if b == ZoomLadder.LOCAL:
+		t = maxf(ZoomLadder.CALM_OUT_S, ZoomLadder.CALM_SLIDE_S) + ZoomLadder.CALM_CAM_S + ZoomLadder.CALM_IN_S
+	elif a == ZoomLadder.LOCAL:
+		t = ZoomLadder.CALM_OUT_S + ZoomLadder.CALM_CAM_S + ZoomLadder.CALM_SLIDE_S + ZoomLadder.CALM_IN_S
+	else:
+		t = ZoomLadder.CALM_OUT_S + ZoomLadder.CALM_CAM_S + maxf(ZoomLadder.CALM_IN_S, ZoomLadder.CALM_DECODE_S)
+	return t + 4.0 / 60.0 + 0.05
+
+
 func _target_s(a: int, b: int) -> float:
 	for m: Dictionary in _zl.get_script_method_list():
 		if String(m.name) == "calm_length":
@@ -610,6 +623,8 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			cam_first >= 0 and panel_last < cam_first and panel_first > cam_last)
 	if press.is_empty():
 		_ok("%s: %.2f s, within 10%% of its %.2f s" % [label, secs, target], absf(secs - target) <= target * 0.1)
+		# (the bands slide inside the beats there were: Jon, Nov 11, "not an extra step")
+		_ok("%s: and no longer than before the bands slid (%.2f s against %.2f)" % [label, secs, _before_s(from, want)], secs <= _before_s(from, want) + 0.05)
 	elif two:
 		# (Tab mid-move: the move hurried to the map, then the map to the chart)
 		var after2 := (frames - pressed_at) / 60.0

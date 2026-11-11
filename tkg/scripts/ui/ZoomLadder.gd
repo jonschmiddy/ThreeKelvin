@@ -1838,8 +1838,7 @@ func _start_move() -> void:
 			new.call(&"ladder_hide_hull", true)
 	phase = Phase.MOVE
 	_u = 0.0
-	# Out of a pre-roll the first frame is a frame on,
-	# as a dive's swap used to stand still a frame.
+	# Out of a pre-roll the first frame is a frame on, as a dive's swap used to stand still a frame.
 	if _had_pre and not measure_hold and not bool(_style.get("curve", false)):
 		_u = _dt(get_process_delta_time()) / maxf(_move_s, 0.001)
 	_step(0.0 if measure_hold else (_curve_e() if bool(_style.get("curve", false)) else _u))
@@ -1964,14 +1963,12 @@ const PREBUILT_A := 0.008
 static var prebuilt: Control = null
 
 
-## The screen built ahead for the move under way (`NavField` feeds on its LOCAL
-## sky), or null.
+## The screen built ahead for the move under way (`NavField` feeds on its LOCAL sky), or null.
 static func prebuilt_screen() -> Control:
 	return prebuilt if prebuilt != null and is_instance_valid(prebuilt) else null
 
 
-## The map (or the chart) built ahead, if it is the kind asked for and ready;
-## the Router takes it.
+## The map (or the chart) built ahead, if it is the kind asked for and ready; the Router takes it.
 static func take_prebuilt(kind: int) -> Control:
 	var pm := prebuilt
 	if pm == null or not is_instance_valid(pm) or rank_of(pm) != kind:
@@ -1997,8 +1994,7 @@ static func take_prebuilt(kind: int) -> Control:
 	return pm
 
 
-## The map's DOCK goes on into the hangar from LOCAL;
-## if that door does not open, LOCAL's UI returns.
+## The map's DOCK goes on into the hangar from LOCAL; if that door does not open, LOCAL's UI returns.
 func _chain_chrome() -> void:
 	if chain == &"station" and new is SectorScreen and is_instance_valid(new):
 		_chrome(new, 1.0)
@@ -2046,8 +2042,7 @@ static func drop_prebuilt() -> void:
 	prebuilt = null
 
 
-## A move that goes on into the next when it lands (the map's DOCK: down to
-## LOCAL, then into the hangar).
+## A move that goes on into the next when it lands (the map's DOCK: down to LOCAL, then into the hangar).
 static var chain := &""
 
 
@@ -2089,8 +2084,7 @@ func _end() -> void:
 	_rect.visible = false
 	# The decode runs on past a shorter move (Jon: not sped up); a press or a key ends it.
 	var going: Array = []
-	# (the band first, so it stays under what decodes on it; and the chrome
-	# that waits for a decode to be drawing)
+	# (the band first, so it stays under what decodes on it; and the chrome that waits for a decode to be drawing)
 	for p: Variant in slides:
 		if is_instance_valid(p) and not (p as ChromeSlide).done:
 			if _cut or get_parent() == null or _slide_way != &"done":
@@ -2156,8 +2150,7 @@ var _calm_e := 0.0
 var _calm_e_drawn := 0.0
 var _calm_e_h := -1.0
 var _calm_t_h := 0.0
-## the crossfade's own clock (the move's, a press's hurry and all), from the
-## moment the screen arriving took its camera
+## the crossfade's own clock (the move's, a press's hurry and all), from the moment the screen arriving took its camera
 var _calm_diss := 0.0
 var _calm_swap_frame := 0
 var _calm_L := 0.0
@@ -2213,9 +2206,11 @@ static func _calm_key(a: int, b: int) -> String:
 static func calm_length(a: int, b: int) -> float:
 	# Into LOCAL: panel off, camera, LOCAL's UI. Out of LOCAL the reverse, then the decode.
 	var t := 0.0
-	if a == LOCAL or b == LOCAL:
-		# (what has a panel slides it off, then on; LOCAL's strip too: nothing left to decode)
-		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_SLIDE_S + CALM_IN_S
+	if b == LOCAL:
+		t = maxf(CALM_OUT_S, CALM_SLIDE_S) + CALM_CAM_S + CALM_IN_S
+	elif a == LOCAL:
+		# (the side panel and toolbar slide on drawn: nothing left to decode)
+		t = CALM_OUT_S + CALM_CAM_S + CALM_SLIDE_S + CALM_IN_S
 	else:
 		t = CALM_OUT_S + CALM_CAM_S + maxf(CALM_IN_S, CALM_DECODE_S)
 	# The frames between: the camera sets off a frame after chrome stills, and a decode takes two.
@@ -2339,17 +2334,21 @@ func _process_calm(delta: float) -> void:
 			if not is_instance_valid(old) or Router.current != old:
 				_calm_end()
 				return
-			if r_new == LOCAL or r_old == LOCAL:
-				# INTO LOCAL: the side panel and toolbar slide off first, the UI leaving with
-				# them, all before the camera moves; out of it, LOCAL's strip
+			if r_new == LOCAL:
+				# INTO LOCAL: the side panel and toolbar slide off first, the UI leaving with them, all before the camera moves
 				_calm_next(Phase.C_SLIDE)
 				_calm_t = dt
 				_panels_slide(old, false)
 				_process_slide_off()
 				return
+			# (out of LOCAL its strip slides off in LOCAL's own beat, no step added: Jon, Nov 11)
+			if r_old == LOCAL and _slide_way == &"":
+				_panels_slide(old, false)
 			_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
+			_drive_slide(clampf(_calm_t / maxf(CALM_OUT_S, 0.001), 0.0, 1.0), false)
 			if _calm_t >= CALM_OUT_S:
 				_chrome(old, 1.0)
+				_slides_done()
 				_calm_next(Phase.C_WAIT)
 		Phase.C_SLIDE:
 			if not is_instance_valid(old) or Router.current != old:
@@ -2377,10 +2376,7 @@ func _process_slide_off() -> void:
 	_drive_slide(q, false)
 	if q >= 1.0 and _calm_t >= CALM_OUT_S:
 		# (the panels stay away, on the screen about to go)
-		for pc: Variant in slides:
-			if is_instance_valid(pc):
-				pc.call(&"finish")
-		slides.clear()
+		_slides_done()
 		_chrome(old, 1.0)
 		# (gone on this frame; the camera from the next)
 		_calm_next(Phase.C_WAIT)
@@ -2432,8 +2428,7 @@ func _calm_cam() -> void:
 			_cloud_round(old, e)
 			_calm_e_drawn = e
 			return
-	# THE SCREEN ARRIVED, live underneath; the held picture over it on the same
-	# move, crossfading away
+	# THE SCREEN ARRIVED, live underneath; the held picture over it on the same move, crossfading away
 	if not is_instance_valid(new):
 		_calm_end()
 		return
@@ -2443,8 +2438,7 @@ func _calm_cam() -> void:
 			# (not laid out yet: the held picture stands, the clock waits)
 			_calm_t -= _calm_dt
 			return
-		# Its camera is taken once it has stood a frame
-		# where it is shown, the held picture over it.
+		# Its camera is taken once it has stood a frame where it is shown, the held picture over it.
 		if Engine.get_process_frames() > _calm_swap_frame:
 			new.call(&"calm_begin")
 			_calm_new_begun = true
@@ -2516,8 +2510,7 @@ func _calm_hold(n: Control) -> void:
 	# Why: docs/why/ZoomLadder.md#held-picture-opacity
 	img.convert(Image.FORMAT_RGB8)
 	_tex = ImageTexture.create_from_image(img)
-	# THE PICTURE HELD IS THE LAST FRAME DRAWN: its ship where that frame put it,
-	# and the line goes on from there
+	# THE PICTURE HELD IS THE LAST FRAME DRAWN: its ship where that frame put it, and the line goes on from there
 	_calm_e_h = _calm_e_drawn
 	_calm_t_h = _calm_t
 	_calm_swap_frame = Engine.get_process_frames()
@@ -2564,8 +2557,7 @@ func _calm_hold(n: Control) -> void:
 				_mat.set_shader_parameter(&"under_past", ImageTexture.create_from_image(pi))
 		cuts = _chrome_cuts(old)
 	elif old is StarchartScreen and (old as StarchartScreen)._chart != null and (old as StarchartScreen)._chart.sky_out.has_area():
-		# The chart's sky runs past its picture under
-		# the glass, so the held picture takes all of it.
+		# The chart's sky runs past its picture under the glass, so the held picture takes all of it.
 		pic = _content_rect()
 		if r_new != LOCAL:
 			cuts = _chrome_cuts(old)
@@ -2585,8 +2577,7 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"cut3", cuts[0])
 	_mat.set_shader_parameter(&"cut4", cuts[1])
 	if r_new == LOCAL:
-		# Into LOCAL the panels went before the move, so
-		# the whole screen left is the carried picture.
+		# Into LOCAL the panels went before the move, so the whole screen left is the carried picture.
 		pic = _content_rect()
 	_mat.set_shader_parameter(&"old_lin", _tex)
 	_mat.set_shader_parameter(&"vp", Vector2(img.get_width(), img.get_height()))
@@ -2607,8 +2598,7 @@ func _calm_hold(n: Control) -> void:
 	_mat.set_shader_parameter(&"field_on", _calm_field != null)
 	if _calm_field != null:
 		_mat.set_shader_parameter(&"field_tex", _calm_field)
-	# (the goal line, up through the move over both screens, left out of the
-	# picture held: `calm_ladder.gdshader` `cut`)
+	# (the goal line, up through the move over both screens, left out of the picture held: `calm_ladder.gdshader` `cut`)
 	var gcut := Vector4.ZERO
 	var gcut2 := Vector4.ZERO
 	var gl: Variant = Router.hud.get("goal") if Router.hud != null else null
@@ -2631,8 +2621,7 @@ func _calm_hold(n: Control) -> void:
 	if r_old != LOCAL and r_new == LOCAL:
 		if chain != &"station": _hide_chrome.call_deferred(n)
 	elif r_old != LOCAL and r_new != LOCAL:
-		# the map and the chart: the old side bar and toolbar held whole, to decode
-		# into the new ones once landed
+		# the map and the chart: the old side bar and toolbar held whole, to decode into the new ones once landed
 		for oc: Variant in [side_of(old), bar_of(old), PanelSlide.foot_of(old)]:
 			if oc != null and (oc as Control).is_visible_in_tree():
 				_calm_cover((oc as Control).get_global_rect())
@@ -2683,9 +2672,8 @@ func _calm_land() -> void:
 		new.call(&"calm_end")
 	_run_landed()
 	_calm_uncover()
-	if r_old == LOCAL or (r_new == LOCAL and chain != &"station"):
-		# Out of LOCAL the column and bands slide on once the left screen
-		# is whole; into it, LOCAL's strip.
+	if r_old == LOCAL and r_new != LOCAL:
+		# Out of LOCAL the column and bands slide on once the left screen is whole.
 		_calm_next(Phase.C_POST)
 		_calm_post()
 		return
@@ -2732,8 +2720,7 @@ func _chrome_cuts(s: Control) -> Array:
 	return cuts
 
 
-## the ellipse's middle (the map's picture's) and its reach (to the screens'
-## area's farthest edges), as [position, size]
+## the ellipse's middle (the map's picture's) and its reach (to the screens' area's farthest edges), as [position, size]
 func _cloud_ellipse(m: Control) -> Rect2:
 	var mid := (m.call(&"ladder_picture") as Rect2).get_center()
 	var c := _content_rect()
@@ -2805,10 +2792,7 @@ func _calm_post() -> void:
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
 	_drive_slide(q, true)
 	if q >= 1.0:
-		for pc: Variant in slides:
-			if is_instance_valid(pc):
-				pc.call(&"finish")
-		slides.clear()
+		_slides_done()
 		_slide_way = &"done"
 		_calm_next(Phase.C_IN)
 
@@ -2818,8 +2802,22 @@ func _calm_in() -> void:
 		_calm_end()
 		return
 	_chrome(new, 1.0 - _ease(_calm_t / maxf(CALM_IN_S, 0.001)))
+	# (into LOCAL its strip slides on in LOCAL's own beat, as its UI comes up)
+	if r_new == LOCAL and _slide_way == &"off":
+		_show_chrome()
+		_panels_slide(new, true)
+	_drive_slide(clampf(_calm_t / maxf(CALM_IN_S, 0.001), 0.0, 1.0), true)
 	if _calm_t >= CALM_IN_S:
+		_slides_done()
 		_calm_end()
+
+
+## The slides under way finished where they stand.
+func _slides_done() -> void:
+	for pc: Variant in slides:
+		if is_instance_valid(pc):
+			pc.call(&"finish")
+	slides.clear()
 
 
 ## A PRESS MID-MOVE (or another door asked for): the rest of the move in about
@@ -2830,7 +2828,7 @@ func hurry() -> void:
 	_calm_hurried = true
 	var left := 0.0
 	var after := CALM_IN_S if (r_new == LOCAL or r_old == LOCAL) else maxf(CALM_IN_S, CALM_DECODE_S)
-	if r_old == LOCAL or r_new == LOCAL:
+	if r_old == LOCAL:
 		after += CALM_SLIDE_S
 	match phase:
 		Phase.C_OUT:

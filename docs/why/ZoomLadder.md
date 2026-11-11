@@ -212,10 +212,13 @@ tray as the system. I also want them to slide in and out like the other panels
 during the transitions"). The map's and the chart's KEY band and LOCAL's strip
 are each screen's `ladder_foot`, and on the calm move they never fade
 (`calm_moving`). Between LOCAL and the map or the chart they are a `PanelSlide`
-of kind foot, down off the screen on the panels' curve and timing: the leaving
-screen's off before the camera moves, the arriving one's on after it lands, so
-LOCAL's strip now goes before the camera on the way out and comes after it on the
-way in. That makes every hop to or from LOCAL a slide longer (`calm_length`).
+of kind foot, down off the screen on the panels' curve: the map's and the
+chart's with their side panel and toolbar, the same frames and length. LOCAL's
+strip has no panels to go with (they slide while the other screen is up), so it
+slides in LOCAL's own UI beats on the same curve: off over `CALM_OUT_S` before the
+camera leaves LOCAL, on over `CALM_IN_S` after it lands there. No step is added:
+a first try that gave it the panels' 0.6 s made every LOCAL hop about half a
+second longer, and the hops stay as they were (CalmLadderTest holds them to it).
 Between the map and the chart the band does what the toolbar does: held whole as
 a piece of the held picture while the camera moves, then decoded into the new
 row (`foot_swap`). LOCAL's strip is a drawer (`_quiet_wrap` in its clipped
