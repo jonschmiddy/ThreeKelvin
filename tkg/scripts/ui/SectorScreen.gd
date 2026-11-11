@@ -1000,9 +1000,7 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	# twelve below is most of what is left.
 	_sync_drawer_box()
 	# Keeps the panel alpha: an opaque override undid `UITheme.PANEL_A` each refresh.
-	_quiet_wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.PANEL, DRAWER_A), UITheme.LINE,
-			0, 6 if bookend else 12, 12))
+	_quiet_wrap.add_theme_stylebox_override("panel", UITheme.quiet_strip(DRAWER_A, bookend))
 
 
 ## A place with exactly one thing to do: a station, a pulsar, the core.
@@ -2278,13 +2276,19 @@ var _chrome_band := false
 
 
 func ladder_chrome(k: float) -> void:
-	if k > 0.0 and _quiet_holder != null and not _quiet_holder.has_meta(&"lad_a0"):
+	if k > 0.0 and not _chrome_band:
 		_chrome_band = _events != null and is_instance_valid(_events) and _events.visible
-	ZoomLadder.fade_chrome(_quiet_holder, k)
+	# (on the calm ladder the strip slides, `ladder_foot`; it never fades)
+	if not ZoomLadder.calm_moving(): ZoomLadder.fade_chrome(_quiet_holder, k)
 	if _chrome_band:
 		ZoomLadder.fade_chrome(_events, k)
 	if k <= 0.0:
 		_chrome_band = false
+
+
+## The strip, which the ladder slides down off the screen and back as the map's KEY band (Jon, Nov 11).
+func ladder_foot() -> Control:
+	return _quiet_wrap if _quiet_holder != null and _quiet_holder.is_visible_in_tree() else null
 
 
 ## Where the held picture's anchor is (and its world, for the world handoff):
@@ -3130,10 +3134,8 @@ func _input(e: InputEvent) -> void:
 	_grab_view = null
 	_grab_mode = 0
 
-## THE BOARD MOVED UNDER A CARD BEING AIMED: the convoy column sliding in or
-## out (J4 B, Jon, Nov 5). The card stays in hand and armed, and the target
-## lit is whatever is under the pointer now, as a motion would light it; the
-## release resolves against the board as it stands then (`_aim_release`).
+## THE BOARD MOVED UNDER A CARD BEING AIMED: the convoy column sliding in or out (J4 B, Jon, Nov 5). The card
+## stays armed, the target lit is what is under the pointer now, and the release resolves on the board then (`_aim_release`).
 func _on_view_slid() -> void:
 	if _aim_view != null and is_inside_tree():
 		_aim_track(_aim_where)
@@ -3887,11 +3889,9 @@ func _end_hold() -> void:
 	_check_ending()
 
 
-## How low the replay of a turn may show your hull: where the turn left it.
-## Each hit takes its whole `dealt`, which is right until BLACK BOX (science)
-## holds a killing hit at 1. Taken whole, 5 hull against a 6 hit drew "0 / 47"
-## and a broken ship for a ship that lived. Dead, it is 0 as before. Never above
-## the number on show, so a hit can only ever take the shown hull down.
+## How low the replay of a turn may show your hull: where the turn left it. Each hit takes its whole `dealt`, until
+## BLACK BOX (science) holds a killing hit at 1: 5 hull against a 6 hit drew "0 / 47" for a ship that lived. Dead, it
+## is 0 as before. Never above the number on show, so a hit can only ever take the shown hull down.
 func _shown_less(n: int) -> int:
 	var floor_at := 0 if Run.dead else maxi(0, Run.hp)
 	return maxi(shown_hull - n, mini(shown_hull, floor_at))

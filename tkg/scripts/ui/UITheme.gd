@@ -289,6 +289,11 @@ static func flat(bg: Color, border: Color, radius: int = 0,
 	sb.content_margin_right = pad_h
 	return sb
 
+## LOCAL's bottom strip (`SectorScreen._size_drawer`), its one look: the system map's KEY
+## band wears it too (Jon, Nov 11). `narrow` is the one-line strip's padding.
+static func quiet_strip(alpha: float, narrow: bool) -> StyleBoxFlat:
+	return flat(Color(PANEL, alpha), LINE, 0, 6 if narrow else 12, 12)
+
 ## The game's chamfered plate: top-left and bottom-right corners cut, square on the others.
 static func chamfer(bg: Color, border: Color, pad_v: int, pad_h: int, radius: int = 10) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()

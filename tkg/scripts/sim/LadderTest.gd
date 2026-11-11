@@ -1968,9 +1968,10 @@ func _run() -> void:
 				c_out = true
 				if is_instance_valid(cmm) and absf(cmm.view.zoom - cz0) > 0.0001:
 					c_early += 1
+			# (the KEY band is held and decodes as the toolbar, Jon Nov 11: CalmLadderTest)
 			if nm == "C_CAM" and CL.new is StarchartScreen:
 				var cc := CL.new as StarchartScreen
-				if cc._key_row.modulate.a > 0.01 or cc._chart.ui_a > 0.01:
+				if cc._chart.ui_a > 0.01:
 					c_ui_cam += 1
 			if nm == "C_IN":
 				c_in = true

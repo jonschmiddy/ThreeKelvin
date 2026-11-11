@@ -523,14 +523,14 @@ func cast_off() -> bool:
 	return false
 
 
-## Whether `cast_off` would let the ship go: what the map's FLY HERE and GO and
+## Whether `cast_off` would let the ship go: what the map's second click and GO and
 ## the chart's JUMP read to say DOCKED (or CANNOT UNDOCK) before they are pressed.
 func may_cast_off() -> bool:
 	return not docked and Run.pad.is_empty()
 
 
 ## What every way off the berth but UNDOCK says (Jon, Oct 27): the HUD's LOCAL
-## greyed at the station, the map's FLY HERE and GO, the chart's JUMP.
+## greyed at the station, the map's second click and GO, the chart's JUMP.
 const DOCKED_LINE := "Docked. Press UNDOCK to leave."
 ## A way out was refused while the station was not up: it blinks UNDOCK when
 ## it is. Cleared by leaving the berth (`docked`).

@@ -806,10 +806,13 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet cometcatchtest 180 \
 }
 
 unit_arrivesidetest() {
-step "A click on a world's lit or dark half arrives on that side, Shift against the spin"
-# Jon, Nov 10, "S3": the real map's hover, tag, click and arrival; then the solver's sides.
+step "A click on either half of a world, Shift or not, arrives on its lit side with its spin"
+# Jon, Nov 10, "S3", the choice dropped Nov 11: the real map's tag, click and arrival; then the solver's sides.
 # Why: docs/why/validate.md#unit_arrivesidetest
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arrivesidetest 300 \n	"the lit and dark halves arrive on their sides, Shift reverses the way round, the tag names both" \n	"an arrival side, the way round or the hover tag is wrong" \n	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveSideTest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arrivesidetest 300 \
+	"every click arrives on the lit side with the spin, the tag says nothing of sides" \
+	"an arrival side, the way round or the hover tag is wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveSideTest
 }
 
 # FlightTest and SolveTest run SPLIT, GATE_FLIGHT_SHARDS and GATE_SOLVE_SHARDS
