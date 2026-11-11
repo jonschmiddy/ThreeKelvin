@@ -20,7 +20,11 @@ in numbers, on `--fixed-fps 60` with `Router.animate_in_harness`, through `Route
 - a skip two seconds in commits, hushes both cues and leaves nothing;
 - picks are the same twice from one seed and both films are drawn in forty;
 - REDUCE FLASHES caps the flash and drops its frame-wide floor; without it the floor is the
-  film's.
+  film's;
+- the films that bend the ship with the world (R3, R8) build the warp field's order on the
+  stage (specks, copy, ship pass, copy, warp, copy, finish, light buffer; R8 has no ship pass:
+  `docs/why/JumpWarpField.md`), and the live hull's idle flame burns to the film's wake and is
+  out for good a quarter second later, before the swap.
 
 Headless there is no render, so the bake falls back to the CPU canvas and the shaders are
 never compiled: what the picture looks like is `JumpCine whole` and `films`, judged by eye

@@ -18,6 +18,8 @@ uniform float flash = 0.0;
 uniform float flash_floor = 0.10;
 uniform float flash_sy = 1.3;
 uniform float bloom = 0.0;
+// R3 and R8's fringe: red and blue slid this many px apart by quadrant from `centre`, flat
+uniform float fringe_px = 0.0;
 
 vec3 pick(vec2 q, vec2 px) {
 	return j_world(screen, px, q, world);
@@ -36,6 +38,12 @@ void fragment() {
 		float kk = clamp(dl / 300.0, 0.0, 1.0) * fringe;
 		img.r = pick(floor(q - u * kk + 0.5), px).r;
 		img.b = pick(floor(q + u * kk + 0.5), px).b;
+	}
+	if (fringe_px >= 1.0) {
+		vec2 sg = sign(q - centre);
+		vec2 o = sg * vec2(fringe_px, floor(fringe_px / 2.0));
+		img.r = pick(q - o, px).r;
+		img.b = pick(q + o, px).b;
 	}
 	if (bloom > 0.0) {
 		// box(box(.,4),4)*1.2 + box(box(.,14),14)*0.4 on pixels past 200/255, as sparse taps:

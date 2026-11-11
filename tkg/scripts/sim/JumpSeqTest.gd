@@ -56,7 +56,7 @@ func _jump(id: StringName, skip_at: float = -1.0) -> Dictionary:
 	var to := _quiet_target()
 	var seen := {to = to, began = false, commit_t = -1.0, hud_moved = false, canvas_moved = false,
 		stage_ok = true, hull_hidden_at = -1.0, max_flash = 0.0, film = &"", stage_left = false, flash_floor = -1.0,
-		director_left = false, skipped_at = -1.0, max_shake = 0.0}
+		director_left = false, skipped_at = -1.0, max_shake = 0.0, order = [], flame_early = [], flame_late = []}
 	if not _ok("%s: a quiet system in reach (%d)" % [id, to], to >= 0):
 		return seen
 	var hud := _find_hud(_tree.root)
@@ -83,6 +83,11 @@ func _jump(id: StringName, skip_at: float = -1.0) -> Dictionary:
 				seen.hud_moved = true
 			if sc.get_viewport().canvas_transform != Transform2D.IDENTITY:
 				seen.canvas_moved = true
+			if seen.order.is_empty() and st != null:
+				for ch in st.get_children():
+					seen.order.append(ch.get_class())
+			if d.seq.flame_s > 0.0 and not d._swapped:
+				(seen.flame_early if d.t < d.seq.flame_s else seen.flame_late).append([d.t, d.art._thrust_now()])
 			if seen.hull_hidden_at < 0.0 and not d.art.visible:
 				seen.hull_hidden_at = d.t
 			seen.max_flash = maxf(seen.max_flash, d.seq.flash)
@@ -144,6 +149,25 @@ func _check_film(id: StringName) -> void:
 	_ok("%s: shook by whole pixels only (most %.1f)" % [id, s.max_shake], s.max_shake == floorf(s.max_shake))
 	_ok("%s: the flash lit the whole frame as filmed (floor %.2f, most %.2f)" % [id, s.flash_floor, s.max_flash],
 		s.max_flash == 0.0 or s.flash_floor == 0.10)
+	if seq.flame_s > 0.0:
+		_check_warp(id, s, seq)
+
+
+## R3 and R8: the ship inside the bend (ship pass, copy, warp, copy, finish), the idle flame kept
+## burning to the wake and out by the swap.
+func _check_warp(id: StringName, s: Dictionary, seq: JumpSequence) -> void:
+	var o: Array = s.order
+	# R3 draws its hull into the world before the lens; R8's warp reads the hull at each sight line
+	var want := ["Node2D", "BackBufferCopy", "ColorRect", "BackBufferCopy", "ColorRect", "BackBufferCopy", "ColorRect", "SubViewport"]
+	if id == &"r8":
+		want = ["Node2D", "BackBufferCopy", "ColorRect", "BackBufferCopy", "ColorRect", "SubViewport"]
+	_ok("%s: the warp field's order: specks, copy, [ship pass, copy,] warp, copy, finish, light buffer (%s)" % [id, o], o == want)
+	var early: Array = s.flame_early
+	var late: Array = s.flame_late
+	_ok("%s: the idle flame burned until the wake (%d frames, all IDLE)" % [id, early.size()],
+		early.size() > 10 and early.all(func(e: Array) -> bool: return int(e[1]) == ThrusterFx.Thrust.IDLE))
+	_ok("%s: and was out for good by %.2f s, before the swap" % [id, seq.flame_s + 0.25],
+		late.all(func(e: Array) -> bool: return float(e[0]) < seq.flame_s + 0.25 or int(e[1]) < 0))
 
 
 func seen_ok(id: StringName, s: Dictionary) -> bool:

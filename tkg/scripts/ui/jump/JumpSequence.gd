@@ -14,6 +14,8 @@ var cut_t := 5.0
 var commit_t := 8.8
 ## When the live hull gives way to the baked stand-in (before any light touches it).
 var swap_t := 0.6
+## How long the live ion flame keeps its idle burn before it sputters out (R3, R8 filmed it); 0 out at once.
+var flame_s := 0.0
 var stage: JumpStage
 var place: JumpPlace
 var hull: JumpHull

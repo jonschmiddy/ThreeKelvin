@@ -44,6 +44,8 @@ func _begin() -> void:
 	art.depart(true)
 	seq = JumpRegistry.make(JumpRegistry.pick(Run.jumps))
 	seq.reduce = DisplaySettings.reduce_flashes
+	if seq.flame_s > 0.0:
+		_flame(true)
 	hull = JumpHull.of(art, self)
 	place = JumpPlace.measure(view, art)
 	stage = JumpStage.new()
@@ -74,6 +76,10 @@ func _tick() -> void:
 			_fired[i] = true
 			# the film's own mix from this point, no pitch variance, this take and no other
 			Audio.play(_cues[i][0], 0.0, 0, 0.0, 1.0, maxf(0.0, t - at), true)
+	if seq.flame_s > 0.0 and not _swapped:
+		# the idle flame sputters out over a quarter second, flickering on the film's 30 fps frames
+		var k := t - seq.flame_s
+		_flame(k < 0.0 or (k < 0.25 and int(t * 30.0) % 2 == 1))
 	# the stand-in takes over on a frame nothing has touched the hull yet
 	if not _swapped and hull.poll() and t >= seq.swap_t:
 		_swapped = true
@@ -84,6 +90,20 @@ func _tick() -> void:
 		_committed = true
 		_over = true
 		sector._commit(false)
+
+
+var _lit := false
+
+## The live hull's idle flame on or off (still, no bob, either way).
+func _flame(on: bool) -> void:
+	if on == _lit:
+		return
+	_lit = on
+	if on:
+		art.sputter(0)
+		art.sputter_stop()
+	else:
+		art.depart(true)
 
 
 ## A skip: the cues are cut, the stage goes, and the sector commits as skipped.

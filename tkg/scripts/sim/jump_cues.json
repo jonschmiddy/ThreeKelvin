@@ -17,6 +17,24 @@
   "hit_t": 6.1033,
   "lufs": -15.8
  },
+ "r3": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r3_build",
+   "len": 3.322
+  },
+  "cut_dbfs": -46.1,
+  "cut_t": 3.322,
+  "file": "SeqRift.gd",
+  "hit": {
+   "at": 3.322,
+   "cue": "jump_r3_hit",
+   "len": 7.278,
+   "onset": 3.6163
+  },
+  "hit_t": 3.6,
+  "lufs": -15.8
+ },
  "r4": {
   "build": {
    "at": 0.0,
@@ -33,6 +51,24 @@
    "onset": 4.9844
   },
   "hit_t": 5.0,
+  "lufs": -15.8
+ },
+ "r8": {
+  "build": {
+   "at": 0.0,
+   "cue": "jump_r8_build",
+   "len": 6.065
+  },
+  "cut_dbfs": -30.4,
+  "cut_t": 6.065,
+  "file": "SeqMaelstrom.gd",
+  "hit": {
+   "at": 6.065,
+   "cue": "jump_r8_hit",
+   "len": 4.535,
+   "onset": 6.1997
+  },
+  "hit_t": 6.2,
   "lufs": -15.8
  }
 }
