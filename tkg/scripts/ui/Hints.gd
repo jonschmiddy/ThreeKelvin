@@ -258,7 +258,7 @@ func lines(id: StringName) -> Array:
 		&"save":
 			return ["SAVE & EXIT keeps the run.", "CONTINUE on the title picks it back up."]
 		&"chassis_card":
-			return ["Pick a ship, then press LAUNCH.", "Point at a line or a card to read more."]
+			return ["Pick a ship, then press LAUNCH.", "Point at a ship or a line to read more."]
 		&"intent":
 			return ["This is what it will do", "when you press END TURN."]
 		&"endturn":
@@ -1662,14 +1662,10 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 				return {}
 			return {subject = plate.get_global_rect(), avoid = [m._drawer.get_global_rect()]}
 		&"chassis_card":
-			# THE CHASSIS SELECT, its LAUNCH (a card only)
-			if not (cur is ChassisSelect) or ZoomLadder.busy():
-				return {}
-			for b in (cur as Node).find_children("*", "Button", true, false):
-				var lb := b as Button
-				if lb.text == "LAUNCH" and lb.is_visible_in_tree():
-					return {subject = lb.get_global_rect(), avoid = [hud]}
-			return {}
+			var cr: Array[Rect2] = []
+			if cur is ChassisSelect and not ZoomLadder.busy():
+				cr = _chassis_rects(cur as ChassisSelect)
+			return {subject = cr[0], avoid = [hud] + cr.slice(1)} if not cr.is_empty() else {}
 		&"ship":
 			if cur is StationScreen:
 				var st := cur as StationScreen
@@ -1690,6 +1686,20 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 				return {}
 			return {subject = _ship_box(ship), avoid = [hud]}
 	return {}
+
+
+## THE CHASSIS SELECT (a card only): LAUNCH once a ship is picked; before that,
+## when LAUNCH is hidden (Jon, Nov 11), under the row of ships, off them and the banners.
+## The subject first, then what else the card keeps off (beside the HUD).
+func _chassis_rects(cs: ChassisSelect) -> Array[Rect2]:
+	for b in cs.find_children("*", "Button", true, false):
+		var lb := b as Button
+		if lb.text == "LAUNCH" and lb.is_visible_in_tree():
+			return [lb.get_global_rect()]
+	var row := _union(cs._yard.sets.values())
+	if row.size == Vector2.ZERO:
+		return []
+	return [row, _union(cs._yard.banners)]
 
 
 ## THE FIGHT'S NEW LESSONS (the deep tutorial), each on a settled hand.
