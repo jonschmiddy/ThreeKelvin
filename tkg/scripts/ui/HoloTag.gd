@@ -23,6 +23,19 @@ const FLICKER: Array[float] = [1.0, 0.45, 1.0, 0.6, 1.0]
 const CRAWL := 0.4
 const TEAR_EVERY := 3.5
 const TEAR_FRAME := 0.04
+## SCRATCH (scratch/tag-calm, never main): which calm variant draws. 0 today, 1 A tear-in only,
+## 2 B rare slip, 3 C drifting line, 4 D wears thin after a while. `-- tagcalm=N`.
+static var calm := 0
+## D: steady until this many seconds open, then tears that come closer, never faster than D_MIN.
+const D_AFTER := 3.0
+const D_FIRST := 2.5
+const D_SHRINK := 0.82
+const D_MIN := 1.1
+## B: one slip every B_EVERY (+- B_JITTER) seconds, B_FRAME long.
+const B_EVERY := 5.0
+const B_FRAME := 0.08
+## C: the faint line's trip down the box, seconds.
+const C_TRIP := 3.2
 
 ## [[text, Color], ...], one entry a line.
 var lines: Array = []
@@ -116,15 +129,39 @@ static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, poi
 	var r := Rect2(rect.position.round(), rect.size.round())
 	var t := 1.0 if age == INF else clampf(age / OPEN, 0.0, 1.0)
 	var idle := 0.0 if age == INF else maxf(0.0, age - OPEN)
-	a *= alpha_at(age) if age != INF else 1.0
+	if calm == 0:
+		a *= alpha_at(age) if age != INF else 1.0
+	elif calm == 4 and age != INF:
+		a *= _d_dim(idle)
 	_fill(ci, r, a)
-	_scan(ci, r, a, crawl_phase(idle), t)
+	_scan(ci, r, a, crawl_phase(idle) if calm == 0 else 0, t)
+	if calm == 3 and age != INF:
+		_drift(ci, r, a, age)
 	_halo(ci, r, 0.25 * a)
 	_ring(ci, r.grow(-1), Color(EDGE, a))
-	if t >= 1.0 or (t >= 0.5 and t < 0.75):
+	if calm == 0:
+		if t >= 1.0 or (t >= 0.5 and t < 0.75):
+			draw_arrow(ci, r, point, Color(EDGE, a))
+	else:
 		draw_arrow(ci, r, point, Color(EDGE, a))
-	if (t >= 0.4 and t < 0.6) or (idle > 0.0 and tearing(idle)):
-		_tear(ci, r, a, t)
+	if age != INF:
+		match calm:
+			0:
+				if (t >= 0.4 and t < 0.6) or (idle > 0.0 and tearing(idle)):
+					_tear(ci, r, a, t)
+			1:
+				# A: the tear-in, a band that walks down the box as it opens (0.2 s), then nothing.
+				if t < 1.0:
+					_tear(ci, r, a, t, 10.0 + minf(0.99, floorf(t * 4.0) / 4.0))
+			2:
+				var k := int(idle / B_EVERY)
+				var at := k * B_EVERY + 3.5 + fmod(k * 1.7, 2.0) - 1.0
+				if idle >= at and idle < at + B_FRAME:
+					_slip(ci, r, a, k)
+			4:
+				var ev := _d_event(idle)
+				if ev >= 0:
+					_tear(ci, r, a, 1.0, ev * 0.37)
 	var f := UITheme.pixel_font()
 	var y := r.position.y + PAD_V + f.get_ascent(UITheme.FS_SMALL) - 1.0
 	for l in ls:
@@ -133,6 +170,51 @@ static func draw_tag(ci: CanvasItem, rect: Rect2, ls: Array, a: float = 1.0, poi
 		ci.draw_string(f, Vector2(r.position.x + PAD_H, y), String(pair[0]),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * a))
 		y += LINE_H
+
+
+## D: the index of the tear showing `idle` seconds open, or -1. None before D_AFTER; then each
+## gap D_SHRINK of the last, from D_FIRST down to D_MIN.
+static func _d_event(idle: float) -> int:
+	if idle < D_AFTER:
+		return -1
+	var at := D_AFTER
+	var gap := D_FIRST
+	var k := 0
+	while at <= idle:
+		var dur := 0.05 if k < 4 else 0.08
+		if idle < at + dur:
+			return k
+		at += gap
+		gap = maxf(D_MIN, gap * D_SHRINK)
+		k += 1
+	return -1
+
+
+## D: past the fifth tear, a tear also dims the whole tag a step, as if the light thins.
+static func _d_dim(idle: float) -> float:
+	var k := _d_event(idle)
+	return 0.75 if k >= 5 and k % 2 == 1 else 1.0
+
+
+## B: a 2 px band of the box slid 3 px sideways for a few frames, its edge with it.
+static func _slip(ci: CanvasItem, r: Rect2, a: float, k: int) -> void:
+	var h := int(r.size.y)
+	var y := 4 + (k * 7) % maxi(1, h - 8)
+	var band := Rect2(r.position + Vector2(3, y), Vector2(r.size.x, 2))
+	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
+	ci.draw_rect(Rect2(band.end.x - 2.0, band.position.y, 1, 2), Color(EDGE, a), true)
+
+
+## C: one faint mint row drifting down the fill, under the words, a trip every C_TRIP.
+static func _drift(ci: CanvasItem, r: Rect2, a: float, age: float) -> void:
+	var h := int(r.size.y) - 4
+	var y := int(fmod(age, C_TRIP) / C_TRIP * (h + 6)) - 3
+	for d in [-1, 0, 1]:
+		var yy: int = y + d
+		if yy < 0 or yy >= h:
+			continue
+		var al := 0.24 if d == 0 else 0.09
+		ci.draw_rect(Rect2(r.position + Vector2(2, 2 + yy), Vector2(r.size.x - 4.0, 1)), Color(EDGE, al * a), true)
 
 
 static func _fill(ci: CanvasItem, r: Rect2, a: float) -> void:
@@ -186,9 +268,12 @@ static func draw_arrow(ci: CanvasItem, r: Rect2, point: int, col: Color) -> void
 
 ## The tear: a 3 px band of the box drawn again 4 px to the side, for a frame; its row from
 ## the open's clock, so it is not always the same row.
-static func _tear(ci: CanvasItem, r: Rect2, a: float, t: float) -> void:
+static func _tear(ci: CanvasItem, r: Rect2, a: float, t: float, row: float = -1.0) -> void:
 	var h := int(r.size.y)
-	var y := 3 + int(fmod(t * 97.0, maxf(1.0, h - 8.0)))
+	var y := 3 + int(fmod((t if row < 0.0 else row) * 97.0, maxf(1.0, h - 8.0)))
+	if row >= 10.0:
+		# an explicit fraction of the way down (row - 10)
+		y = 3 + int((row - 10.0) * maxf(1.0, h - 8.0))
 	var band := Rect2(r.position + Vector2(4, y), Vector2(r.size.x, 3))
 	ci.draw_rect(band, Color(FILL, FILL.a * a), true)
 	ci.draw_rect(Rect2(band.position, Vector2(1, 3)), Color(EDGE, a), true)
