@@ -90,109 +90,6 @@ def flood(mask, gap=True, seeds=None):
     return seen
 
 
-MID = CELLS * 4      # the stills shrunk this far first, to steady them
-STEADY = os.environ.get("TIER_STEADY", "1") == "1"
-
-
-def turn_map(shape, pivot, tilt, ang):
-    """Each pixel's source when the picture is turned by ang in the galaxy's own plane
-    (its screen ellipse flattened by tilt), nearest pixel."""
-    hh, ww = shape
-    yy, xx = np.mgrid[0:hh, 0:ww].astype(np.float32)
-    x = xx + 0.5 - pivot[0]
-    y = (yy + 0.5 - pivot[1]) / tilt
-    c, s_ = math.cos(ang), math.sin(ang)
-    qx = x * c - y * s_
-    qy = (x * s_ + y * c) * tilt
-    sx = np.clip(np.floor(qx + pivot[0]).astype(int), 0, ww - 1)
-    sy = np.clip(np.floor(qy + pivot[1]).astype(int), 0, hh - 1)
-    return sy, sx
-
-
-def steady(mids, pivot, t):
-    """THE TURN WITHOUT THE BOIL (Jon, M5: "a cloud jittering around the core"): the chart's
-    render churns still to still, cell by cell. Every still is turned back to the first's
-    angle, the median of them all is one clean galaxy, and each frame is that galaxy turned
-    to its own angle, whole pixels: only the true turn moves. The flattening and the turn's
-    way are fitted against the stills themselves."""
-    n = len(mids)
-    k = max(1, n // 8)
-    best = None
-    for sign in (1.0, -1.0):
-        for tilt in np.arange(0.26, 0.72, 0.02):
-            sy, sx = turn_map(mids[0].shape[:2], pivot, tilt, sign * 2 * math.pi * k / n)
-            e = np.abs(mids[k][sy, sx] - mids[0]).mean()
-            if best is None or e < best[0]:
-                best = (e, sign, tilt)
-    _, sign, tilt = best
-    back = []
-    for i, m in enumerate(mids):
-        sy, sx = turn_map(m.shape[:2], pivot, tilt, sign * 2 * math.pi * i / n)
-        back.append(m[sy, sx])
-    ref = np.median(np.stack(back), axis=0)
-    if FORM[t] == 2:
-        # a ball has no arms to show its turn: turned, its speckle only twinkles; it holds still
-        print("  tier %d steadied: a ball, held still" % t)
-        return [ref] * n
-    out = []
-    for i in range(n):
-        sy, sx = turn_map(ref.shape[:2], pivot, tilt, -sign * 2 * math.pi * i / n)
-        out.append(ref[sy, sx])
-    print("  tier %d steadied: flattening %.2f, turning %s" % (t, tilt, "+" if sign > 0 else "-"))
-    return out
-
-
-HOLD_COL = 30        # a cell keeps last frame's colour unless the new one is this much nearer (summed rgb)
-HOLD_EDGE = 3        # an edge cell lit last frame stays lit for this many frames after it dims
-
-
-def settle(small, keeps, pal_im):
-    """Palette colours with a memory: a cell keeps its colour until another is clearly
-    nearer, and an edge cell does not blink off for one frame, so a turning galaxy's slow
-    change does not flip cells between two close colours. Run twice round the loop so its
-    end meets its start."""
-    pal = np.array(pal_im.getpalette()[:COLOURS * 3]).reshape(-1, 3)
-    n = len(small)
-    idx = None
-    hold = None
-    cells, kout = [None] * n, [None] * n
-    for lap in (0, 1):
-        for i in range(n):
-            s_ = small[i]
-            dist = np.abs(s_[:, :, None, :] - pal[None, None]).sum(-1)
-            new = dist.argmin(-1)
-            if idx is not None:
-                cur = np.take_along_axis(dist, idx[..., None], -1)[..., 0]
-                best = np.take_along_axis(dist, new[..., None], -1)[..., 0]
-                idx = np.where(cur <= best + HOLD_COL, idx, new)
-            else:
-                idx = new
-            k = keeps[i]
-            hold = np.where(k, HOLD_EDGE, np.maximum(0, (hold if hold is not None else 0) - 1))
-            if lap == 1:
-                cells[i] = pal[idx]
-                kout[i] = k | ((hold > 0) & inside_cells())
-    return cells, kout
-
-
-def ring_check(cells, core, keeps, t):
-    """Cells changed between stills, effects off: the core, the ring just outside it (the
-    bulge's gas, out to where the arms start) and the arms beyond."""
-    if not core.any():
-        return
-    ring = grow(core, 5) & ~core
-    n = len(cells)
-    parts = {"core": core, "ring": ring, "arms": None}
-    out = []
-    for name, m in parts.items():
-        ch = []
-        for i in range(n):
-            mm = (keeps[i] & ~core & ~ring) if m is None else m
-            ch.append(int((np.abs(cells[i] - cells[(i + 1) % n]).sum(-1)[mm] > 0).sum()) / max(1, int(mm.sum())))
-        out.append("%s %.1f%%" % (name, 100 * float(np.mean(ch))))
-    print("  tier %d changed a frame (effects off): %s" % (t, ", ".join(out)))
-
-
 def core_of(small, sky):
     """The core's cells: the brightest of the loop's median, grown a cell and filled round
     the middle, so the arms' turn starts outside it."""
@@ -234,17 +131,12 @@ def bake(raw, out, t):
     pad = np.zeros((side, side, 3), int) + sky.astype(int)
     sx0, sy0 = max(0, x0), max(0, y0)
     sx1, sy1 = min(w, x0 + side), min(h, y0 + side)
-    mids = []
+    small = []
     for fr in frs:
         sq = pad.copy()
         sq[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = fr[sy0:sy1, sx0:sx1]
-        mids.append(np.asarray(Image.fromarray(sq.astype(np.uint8), "RGB").resize((MID, MID), Image.BOX)).astype(np.float32))
-    # the chart's centre (its core, the turn's pivot) in the mid picture's pixels
-    pivot = ((w / 2.0 - x0) * MID / side, (h / 2.0 - y0) * MID / side)
-    if t != 10 and STEADY:
-        mids = steady(mids, pivot, t)
-    small = [np.asarray(Image.fromarray(np.clip(m, 0, 255).astype(np.uint8), "RGB").resize((CELLS, CELLS), Image.BOX)).astype(int)
-             for m in mids]
+        im = Image.fromarray(sq.astype(np.uint8), "RGB").resize((CELLS, CELLS), Image.BOX)
+        small.append(np.asarray(im).astype(int))
     # lifted so its brightest cells reach near white: shrinking averages the chart's light down
     peak = np.percentile(np.concatenate([np.abs(s - sky).max(-1).ravel() for s in small[:: max(1, len(small) // 8)]]), 99.5)
     gain = min(2.2, 235.0 / max(peak, 1.0))
@@ -265,8 +157,12 @@ def bake(raw, out, t):
         keep_all.append(body((d > (BALL_KEEP if FORM[t] == 2 else KEEP)) & inside_cells(), d > np.percentile(d, 97)))
     pool = np.concatenate([s[k] for s, k in zip(small, keep_all)])
     pal_im = Image.fromarray(pool.reshape(1, -1, 3).astype(np.uint8), "RGB").quantize(COLOURS, method=Image.Quantize.FASTOCTREE)
-    cells, keep_all = settle(small, keep_all, pal_im)
-    ring_check(cells, core, keep_all, t)
+    cells = [np.asarray(Image.fromarray(s.astype(np.uint8), "RGB").quantize(palette=pal_im, dither=Image.Dither.NONE)
+                        .convert("RGB")).astype(int) for s in small]
+    if core.any():
+        moved = [int((np.abs(cells[i] - cells[(i + 1) % len(cells)]).sum(-1)[core] > 0).sum()) for i in range(len(cells))]
+        print("  tier %d core: %d cells, changed between stills (effects off): mean %.2f, most %d"
+              % (t, int(core.sum()), float(np.mean(moved)), max(moved)))
     if FX:
         cells, keep_all = FX(cells, keep_all, t)
     if t == 10 and STREAM:
@@ -419,8 +315,6 @@ def k3(cells, keeps, t):
 ACT = [0.0, 1 / 3, 2 / 3, 1.0, 0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 1.0]
 ## How dark a form's first tier is, as a share of its light (1 at the top of the form).
 DARK = 0.5
-## And its last tier's (Jon, M5: "ramp up even more"): above 1, its light is lifted past the chart's.
-TOP = 1.45
 
 
 def m4(cells, keeps, t):
@@ -439,15 +333,14 @@ def m4(cells, keeps, t):
     bursts = []
     for _ in range(int(round(rate * n / 12.0))):
         bursts.append((rnd.randint(0, n), rnd.randint(6, 13), rnd.randint(12, 25),
-                       min(1.0, 0.35 + 0.9 * act) * rnd.uniform(0.7, 1.0), 1.5 + 4.5 * act * rnd.rand(),
+                       (0.35 + 0.45 * act) * rnd.uniform(0.7, 1.0), 1.5 + 2.5 * act * rnd.rand(),
                        rnd.rand() < 0.35, rnd.rand()))
     out, kout = [], []
     for k, (a, keep0) in enumerate(zip(cells, keeps)):
         u = k / n
         a = a.astype(float)
         keep = keep0.copy()
-        a = PANEL_C + (a - PANEL_C) * (DARK + (TOP - DARK) * act)
-        a = a + (WHITE - a) * (0.06 * act)
+        a = PANEL_C + (a - PANEL_C) * (DARK + (1 - DARK) * act)
         warm = np.stack([a[..., 0] * 1.18 + 18, a[..., 1] * 1.0 + 4, a[..., 2] * 0.72], -1)
         a = a + (warm - a) * (0.45 * act)
         if keep0.any():
@@ -455,10 +348,10 @@ def m4(cells, keeps, t):
             d = np.hypot(xx - cx, (yy - cy) * 1.8)
             # the core: still in size, whiter up the form, breathing slowly
             breath = 0.5 - 0.5 * math.cos(2 * math.pi * u * max(1, round(n / 12.0 / 4.0)))
-            g = act * (0.2 + 0.22 * breath) * np.exp(-d / (2.5 + 6.0 * act))
+            g = act * (0.10 + 0.14 * breath) * np.exp(-d / (2.5 + 3.0 * act))
             a = np.where(keep0[..., None], a + (WHITE - a) * g[..., None], a)
-            core = keep0 & (d <= 1.0 + 2.6 * act)
-            a[core] = a[core] + (WHITE - a[core]) * (0.2 + 0.6 * act)
+            core = keep0 & (d <= 1.0 + 1.6 * act)
+            a[core] = a[core] + (WHITE - a[core]) * (0.2 + 0.3 * act)
             lift = np.zeros((CELLS, CELLS))
             for (st, rise, fall, peak, r0, at_core, sel) in bursts:
                 age = (k - st) % n
