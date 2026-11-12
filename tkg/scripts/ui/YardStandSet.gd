@@ -48,7 +48,7 @@ var _stand_tex: ImageTexture = null
 ## The stand's seat row and how far the hull was let down past it.
 var seat: int = 0
 var sink: int = 0
-## TRIAL (`YardLaunch`): rows the stands have sunk into the floor.
+## Rows the stands have sunk into the floor (`ShipLift`, as the hull lifts off).
 var retract: int = 0
 
 

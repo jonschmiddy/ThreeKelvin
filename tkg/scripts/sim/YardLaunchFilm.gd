@@ -1,9 +1,7 @@
 extends Node
 
-## TRIAL FILM (not for landing): the front door's LAUNCH as a player meets it,
-## from the press to LOCAL's first frames, every wait in game seconds.
-##   render.sh --windowed --resolution 960x540 --fixed-fps 30 --write-movie <dir>/x.avi
-##     -- sheet=YardLaunchFilm [manufacturer=korvan] [weight=medium] [yardlaunch=1|2|3] [plume=P1..P6] [after=S]
+## The front door's LAUNCH as a player meets it (`ShipLift`), from the press to LOCAL's
+## first frames, every wait in game seconds. `docs/tests.md` has the command line.
 ## Prints `mark <name> <frame>` (the AVI's frame) for the encoder's start.
 
 var _t := 0.0
@@ -34,6 +32,13 @@ func _run() -> void:
 	var mk := StringName(Harness.arg("manufacturer", "korvan"))
 	var wt: HullData.Weight = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM,
 		"heavy": HullData.Weight.HEAVY}.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)
+	# a manufacturer past Korvan: the win that opens it, in the harness's scratch record
+	var need := Unlocks.prereq(mk)
+	if need != &"":
+		var f := FileAccess.open(RunHistory.path, FileAccess.WRITE)
+		f.store_string(JSON.stringify({"version": RunHistory.VERSION, "runs": [
+			{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": String(need)}]}))
+		f.close()
 	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(wt))
 	Router.show_chassis_select()

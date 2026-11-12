@@ -63,10 +63,13 @@ var _under_at: int = 1
 ## TRIAL ONLY (`YardLightTrial`): the fixtures over the banners, and the floor's light waiting for the bake.
 var _fix: Control = null
 var _trial_bay: Image = null
-## TRIAL ONLY (`YardLaunch`): the liftoff under way, the lamps' share of it, and
-## the ship map with the launching hull lifted out, to stamp back where it flies.
+## LAUNCH's heavy lift (`ShipLift`, Jon's L1) under way, its clock and what it
+## calls when the hull is gone; and the ship map with the launching hull lifted
+## out, to stamp back where it flies.
 var launching := false
-var launch_lamp_k := 1.0
+var lift: ShipLift = null
+var _lift_t := 0.0
+var _lift_done: Callable = Callable()
 var _ship_map_img: Image = null
 var _lm_base: Image = null
 var _lm_piece: Image = null
@@ -372,11 +375,14 @@ func _process(delta: float) -> void:
 	if not ready_hall:
 		return
 	_t += delta
-	var lg := _lamp_gains()
-	if launch_lamp_k != 1.0:
-		for i in lg.size():
-			lg[i] *= launch_lamp_k
-	scene.light.lamp_gain = lg
+	scene.light.lamp_gain = _lamp_gains()
+	if lift != null:
+		_lift_t += delta
+		lift.lift_at(_lift_t)
+		if _lift_t >= ShipLift.FRONT_S and _lift_done.is_valid():
+			var d := _lift_done
+			_lift_done = Callable()
+			d.call()
 	if YardLightTrial.has("nobay") and scene.light._bay_on:
 		scene.light.set_bay(null)
 	if _trial_bay != null and scene._bay_ready:
@@ -404,7 +410,44 @@ func _on_hover(w: HullData.Weight, on: bool) -> void:
 	ship_hover.emit(hover_w)
 
 
-## TRIAL (`YardLaunch`): the launching hull's pixels out of the ship map, kept to stamp back.
+## LAUNCH: the picked hull lifts off its stands and burns off the right edge
+## (Jon's L1, Nov 12), then `done`. `shake` is what shivers with it (the whole screen).
+## Why: docs/why/ShipLift.md#front-door
+func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
+	var s: YardStandSet = sets.get(w)
+	if s == null or s._view == null or lift != null:
+		return null
+	launching = true
+	_lift_done = done
+	_lift_t = 0.0
+	launch_mask_begin(s)
+	var L := ShipLift.new()
+	L.k = 1.0
+	L.floor_y = float(s.feet)
+	L.rise = float(ShipLift.RISE_PX[s.weight])
+	L.exit_px = float(W) + 60.0 - float(s.thing.position.x)
+	L.life = scene.life
+	L.light = scene.light
+	L.sink = func(rows: int) -> void: s.retract = rows
+	L.shake_node = shake
+	L.shake_rest = shake.position
+	L.attach = ShipLift.attach_arg()
+	var sw := float(s._stand_img.get_width()) if s._stand_img != null else 0.0
+	for sx: int in s._stand_x:
+		L.stands_x.append(float(sx) + sw * 0.5)
+	# the jets under the hulls, the smoke and its light over the hall, under the floor's fall
+	L.setup(s._view, self, get_children().find(sets.values()[0]), _fall.get_index())
+	# the hull flies with its berth (its click box goes with it, and nothing is clickable now)
+	var p0 := s.position
+	L.move_view = false
+	L.moved = func(o: Vector2) -> void:
+		s.position = p0 + o
+		launch_mask_at(Vector2i(o))
+	lift = L
+	return L
+
+
+## The launching hull's pixels out of the ship map, kept to stamp back as it flies.
 func launch_mask_begin(s: YardStandSet) -> void:
 	if _ship_map_img == null:
 		return

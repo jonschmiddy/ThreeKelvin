@@ -2800,11 +2800,9 @@ func ladder_cam(k: float) -> void:
 	var settle := clampf((q - 0.7) / 0.3, 0.0, 1.0)
 	var lift := 8.0 * (1.0 - settle * settle * (3.0 - 2.0 * settle)) if q < 1.0 else 0.0
 	var p0: Vector2 = _lad.pos
-	_mine_view.position = Vector2(p0.x - float(_lad.off) * (1.0 - fly), p0.y - lift)
-	# TRIAL (`-- yardlaunch=`): the landing jets' smoke on the floor as it sets down
-	if YardLaunch.idea_arg() > 0:
-		var kk := smoothstep(0.5, 0.72, q) * (1.0 - smoothstep(0.96, 1.0, q))
-		_deck_plume(kk, q >= 0.5)
+	# (once the heavy set-down has it, on the yard's clock: `ladder_yard_t`)
+	if _heavy == null:
+		_mine_view.position = Vector2(p0.x - float(_lad.off) * (1.0 - fly), p0.y - lift)
 	# the elevator stays out of the picture until the hull is down
 	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
 		# (out until `ladder_cam_end` slides it back in -- set back at k 0, the
@@ -2853,6 +2851,11 @@ func ladder_yard_t(t: float, dur: float) -> void:
 		return
 	_lad["yard_t"] = t
 	_lad["yard_dur"] = dur
+	# THE HEAVY SET-DOWN (`ShipLift.land_at`): in high on the mains, a hover over
+	# the stands on the jets, a slow descent in its smoke, the stands take the weight.
+	var L := _deck_lift()
+	if L != null:
+		L.land_at(t)
 	if not _lad.has("row"):
 		var pick := yard_flameout(dur)
 		_lad["row"] = pick[0]
@@ -2900,6 +2903,9 @@ func _yard_engines_out(hush: bool = false) -> void:
 
 func ladder_cam_end() -> void:
 	ladder_hide_hull(false)
+	if _heavy != null:
+		_heavy.release()
+		_heavy = null
 	# (the clamps, if the landing did not get to them: a press, or a dock that
 	# flew no hull in)
 	Router.pay_dock_clamps()
@@ -3072,64 +3078,63 @@ func _rail_land_now() -> void:
 		_edge._process(0.0)
 
 
-## Undocking (3B): k 0 to 1 is the elevator out (the first 30%), then the hull
-## lifting off its stands and flying out to the left.
+## Undocking (3B): k 0 to 1 is the elevator out, then your ship's heavy lift off
+## its stands and away to the RIGHT (Jon, Nov 12: L1 here as on the front door),
+## then -- F -- the empty yard's beat and its fade, the smoke still drifting.
+## Why: docs/why/ShipLift.md#deck
 func ladder_pre_cam(k: float) -> void:
 	if _lad.is_empty() or not is_instance_valid(_mine_view):
 		return
-	# (in seconds of the pre-roll: the elevator out, your ship off its stands and
-	# away, then -- F -- a beat of the empty yard and its slow fade to black)
 	var f := ZoomLadder.seam3_fade() == "F"
 	var tt := k * (ZoomLadder.UNDOCK_YARD_S + (ZoomLadder.YARD_BEAT_S + ZoomLadder.YARD_FADE_S if f else 0.0))
 	var a := clampf(tt / undock_elev_s(), 0.0, 1.0)
 	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
 		_rail.position.x = float(_lad.rail_x) - (_rail.size.x + 16.0) * (a * a * (3.0 - 2.0 * a))
-	var b := clampf((tt - undock_elev_s()) / (ZoomLadder.UNDOCK_YARD_S - undock_elev_s()), 0.0, 1.0)
-	var up := clampf(b / 0.25, 0.0, 1.0)
-	# (ONE SMOOTH MOTION: off its stands from rest, gathering speed, and away at
-	# the speed the pan takes on -- `ladder_track_speed`)
-	var go := 1.0 - ZoomLadder.herm(1.0 - b, YARD_M, 0.0)
-	var p0: Vector2 = _lad.pos
-	_mine_view.position = Vector2(p0.x - float(_lad.off) * go, p0.y - 8.0 * (up * up * (3.0 - 2.0 * up)))
-	# TRIAL (`-- yardlaunch=`): the lift jets' smoke as it comes off its stands
-	if YardLaunch.idea_arg() > 0:
-		_deck_plume(smoothstep(0.0, 0.08, b) * (1.0 - smoothstep(0.35, 0.75, b)), b > 0.0)
+	var L := _deck_lift()
+	if L != null:
+		L.lift_at(maxf(tt - undock_elev_s(), 0.0) if tt > undock_elev_s() else 0.0)
 
 
-## TRIAL (not for landing): the shared liftoff smoke (`LiftPlume`) under your
-## hull in the yard, `k` the jets' strength; started the first time `go` is true.
-var _plume: LiftPlume = null
+## THE HEAVY LIFT on the deck (`ShipLift`), made once per move with your hull at
+## rest on its stands: smaller than the front door's, the hull shivering rather
+## than the yard (the camera holds still on the deck).
+var _heavy: ShipLift = null
 
 
-func _deck_plume(k: float, go: bool) -> void:
+func _deck_lift() -> ShipLift:
+	if _heavy != null:
+		return _heavy
 	if _scene == null or not is_instance_valid(_scene) or _scene.placed.is_empty() or (_scene.placed[0] as Dictionary).is_empty():
-		return
+		return null
 	var Q: Dictionary = _scene.placed[0]
-	if _plume == null or not is_instance_valid(_plume):
-		_plume = LiftPlume.new()
-		_plume.style = LiftPlume.style_arg(1)
-		# the deck's hulls stand smaller than the front door's
-		_plume.size_k = 0.75
-		_plume.setup(float(YardScene.W), float(YardScene.H), float(YardScene.EDGE_W) + 40.0)
-		var feet := 0.0
-		for s2: Dictionary in Q["supports"]:
-			feet = maxf(feet, float(s2["y"]) + float((s2["img"] as Image).get_height()))
-		_plume.floor_y = feet if feet > 0.0 else float(Q["top"]) + float(Q["h"]) + 40.0
-		var vents: Array[Vector2] = []
-		for s3: Dictionary in Q["supports"]:
-			var iw := float((s3["img"] as Image).get_width())
-			vents.append(Vector2(float(s3["x"]) + iw * 0.5, float(s3["y"]) + 10.0))
-			vents.append(Vector2(float(s3["x"]) + iw * 0.5, _plume.floor_y - 6.0))
-		_plume.vents = vents
-		_scene.add_child(_plume)
-	var d: Vector2 = _mine_view.position - (_lad.pos as Vector2)
-	_plume.src = Vector2(floorf(float(Q["x0"]) + float(Q["w"]) * 0.5 + d.x), floorf(float(Q["top"]) + float(Q["h"]) + d.y))
-	_plume.src_w = float(Q["w"]) * 0.4
-	_plume.thrust = k
-	if go and not _plume.fired():
-		_plume.fire()
-	if _scene.life != null:
-		_scene.life.extra = _plume.lights()
+	var L := ShipLift.new()
+	L.k = DECK_LIFT_K
+	L.floor_y = float(Q["floor"])
+	L.rise = float(ShipLift.RISE_PX.get(Run.hull.weight if Run.hull != null else HullData.Weight.MEDIUM, 46.0)) * DECK_LIFT_K
+	L.exit_px = float(YardScene.W) + 40.0 - float(Q["x0"])
+	L.in_px = float(_lad.get("off", 300.0))
+	# in high, its top 42 rows over the wall's foot: just under the lamp strings
+	# along the wall, well clear of the stands (Jon, Nov 12: "far too low")
+	L.approach_px = clampf(float(Q["top"]) - (float(YardScene.doc().get("wallrow", 207)) - 42.0), 30.0, 90.0)
+	L.life = _scene.life
+	L.light = _scene.light
+	L.shiver_hull = true
+	L.plume_k = 0.8
+	L.attach = ShipLift.attach_arg()
+	for s2: Dictionary in Q["supports"]:
+		L.stands_x.append(float(s2["x"]) + float((s2["img"] as Image).get_width()) * 0.5)
+	var sc := _scene
+	L.sink = func(rows: int) -> void: sc.sink_mine = rows
+	var v := _mine_view
+	var p0: Vector2 = _lad.pos
+	v.position = p0
+	L.setup(v, _scene, _scene._ships.get_index())
+	_heavy = L
+	return L
+
+
+## The deck's hulls stand this much smaller than the front door's front row.
+const DECK_LIFT_K := 0.75
 
 
 ## The berth's UI leaves before the camera moves; the

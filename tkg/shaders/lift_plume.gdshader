@@ -1,10 +1,10 @@
 shader_type canvas_item;
 
-// TRIAL (not for landing): the liftoff's smoke (`LiftPlume`). Every puff is a
-// soft blob; the blobs add into one density, torn by a noise field that moves
-// on the plume's own held clock (`step`, ten a second), so the shape changes
-// like fire's does. Density steps through four levels and the light inside it
-// through four more, each with a 4x4 ordered dither: pixel art, lit as light.
+// THE LIFT'S SMOKE (`LiftPlume`). Every puff is a soft blob; the blobs add into
+// one density, torn by a noise field that moves on the plume's own held clock
+// (`tstep`, ten a second), so the shape changes like fire's does. Density and the
+// light inside it each step through four levels with a 4x4 ordered dither.
+// Why: docs/why/ShipLift.md#plume
 
 uniform vec2 rect_size = vec2(960.0, 540.0);
 // the rect's top left in the host's pixels (it reaches past the host's edges)
@@ -12,22 +12,17 @@ uniform vec2 org = vec2(0.0);
 uniform int n = 0;
 // x, y, radius, density
 uniform vec4 puff[64];
-// heat, stretch x, stretch y, cool (steam 1, smoke 0)
+// heat, stretch x, stretch y, unused
 uniform vec4 puff2[64];
-// the shockwave ring: centre x, y, radius, strength (P6)
-uniform vec4 ring = vec4(0.0);
 uniform float tstep = 0.0;
-uniform float turb = 1.0;
 // the source's light: x, y, radius, strength
 uniform vec4 src = vec4(0.0);
 uniform vec4 box = vec4(0.0, 0.0, 960.0, 540.0);
 uniform float floor_y = 372.0;
-uniform float dark = 0.0;
 uniform vec3 c_dark = vec3(0.1, 0.11, 0.135);
 uniform vec3 c_mid = vec3(0.2, 0.22, 0.26);
 uniform vec3 c_lite = vec3(0.33, 0.36, 0.41);
 uniform vec3 c_top = vec3(0.5, 0.53, 0.57);
-uniform vec3 c_steam = vec3(0.72, 0.77, 0.8);
 uniform vec3 g_lo = vec3(0.45, 0.16, 0.06);
 uniform vec3 g_mid = vec3(0.86, 0.36, 0.1);
 uniform vec3 g_hi = vec3(1.0, 0.75, 0.38);
@@ -73,11 +68,10 @@ void fragment() {
 	float th = bayer4(p);
 	// the field the puffs are torn by: it rolls on in held steps
 	vec2 q = p * 0.045 + vec2(tstep * 0.21, -tstep * 0.29);
-	vec2 disp = (vec2(fbm(q), fbm(q + 31.7)) - 0.5) * 30.0 * turb;
+	vec2 disp = (vec2(fbm(q), fbm(q + 31.7)) - 0.5) * 30.0;
 	vec2 pd = p + disp;
 	float D = 0.0;
 	float H = 0.0;
-	float cool = 0.0;
 	float T = 0.0;
 	for (int i = 0; i < 64; i++) {
 		if (i >= n) {
@@ -91,7 +85,6 @@ void fragment() {
 			float f = (1.0 - dd);
 			float v = a.w * f * f;
 			D += v;
-			cool += v * b.w;
 			// the puff's top faces the lamps, its belly the floor
 			T += v * clamp(0.55 - d.y * 0.6, 0.0, 1.0);
 		}
@@ -99,16 +92,6 @@ void fragment() {
 		float hh = dot(dh, dh);
 		if (hh < 1.0) {
 			H += b.x * (1.0 - hh) * (1.0 - hh);
-		}
-	}
-	if (ring.w > 0.0) {
-		vec2 rd = (pd - ring.xy) / vec2(ring.z, ring.z * 0.2);
-		float e = abs(length(rd) - 1.0) * ring.z;
-		float thick = 5.0 + ring.z * 0.05;
-		if (e < thick) {
-			D += ring.w * (1.0 - e / thick) * 1.8;
-			T += ring.w * (1.0 - e / thick) * 1.8;
-			H += ring.w * 0.15 * (1.0 - e / thick);
 		}
 	}
 	// ragged edges: the field eats the thin smoke
@@ -127,21 +110,16 @@ void fragment() {
 	}
 	float alpha = lv >= 1.0 ? 1.0 : (lv > 0.7 ? 0.9 : (lv > 0.45 ? 0.72 : 0.45));
 	float Ds = max(D + (eat - 0.4) * 0.7, 0.001);
-	cool = clamp(cool / Ds, 0.0, 1.0);
 	float top = clamp(T / Ds, 0.0, 1.0);
-	// lit from above, darker at the thin edges, dense exhaust darker throughout
+	// lit from above, darker at the thin edges
 	float sh = clamp(top * 0.75 + lv * 0.45 - 0.25, 0.0, 1.0);
 	float sq = floor(sh * 3.0 + th) / 3.0;
 	vec3 smoke = sq >= 1.0 ? c_top : (sq >= 0.66 ? c_lite : (sq >= 0.33 ? c_mid : c_dark));
-	smoke = mix(smoke, smoke * 0.42, dark);
-	smoke = mix(smoke, c_steam * (0.55 + 0.45 * lv), cool);
 	// lit from inside: the puffs' heat and the engines over them
 	vec2 sd = (p - src.xy) / vec2(src.z, src.z * 0.55);
 	float sl = max(0.0, 1.0 - dot(sd, sd));
 	// the light sits low in the smoke, under its own top
 	float L = (H + src.w * sl * sl) * (0.45 + 0.55 * (1.0 - top)) * min(D * 1.4, 1.0);
-	L *= 1.0 - 0.6 * cool;
-	L *= 1.0 - 0.35 * dark;
 	// fire lights smoke in patches that move with it
 	L *= 0.45 + 1.1 * fbm(p * 0.08 + vec2(tstep * 0.53, tstep * 0.11));
 	float g = stepq(L * 0.7, 4.0, th);

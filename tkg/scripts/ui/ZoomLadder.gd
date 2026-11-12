@@ -52,14 +52,15 @@ const LIGHT_ON := 1.35
 const LIGHT_GLOW := 1.8
 ## the camera's pan sideways through the station's hull into the yard
 const DOCK_PAN_S := 1.4
-## the yard: your ship in from the left onto its stands (and then the elevator,
-## `ELEVATOR_S`)
-const DOCK_YARD_S := 2.2
-## undocking: the elevator out, your ship off its stands and away to the left
-## (and on LOCAL the ENTER backwards, `DOCK_ENTER_S`)
-const UNDOCK_YARD_S := 2.0
+## the yard: your ship in from the left, hanging on its jets, down onto its
+## stands (`ShipLift.land_at`; and then the elevator, `ELEVATOR_S`)
+const DOCK_YARD_S := ShipLift.LAND_S
 ## the elevator sliding back in once your ship is down (and out, undocking)
 const ELEVATOR_S := 0.8
+## undocking: the elevator out, then your ship's heavy lift off its stands and
+## away to the right (`ShipLift.lift_at`, Jon Nov 12), and on LOCAL the ENTER
+## backwards, `DOCK_ENTER_S`
+const UNDOCK_YARD_S := ELEVATOR_S * 0.6 + ShipLift.EXIT_S
 ## Chart straight to LOCAL or the berth is a fade through black, no camera (Jon, Oct 10).
 ## Why: docs/why/ZoomLadder.md#chart-to-local
 const FADE_OUT_S := 0.3

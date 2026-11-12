@@ -81,7 +81,7 @@ var _bot_img: Image = null
 var _crew_img: Dictionary = {}
 var last_forgot: Dictionary = {}
 var has_welder := true
-## TRIAL (`YardLaunch`, `LiftPlume`): the liftoff's small lights this tick.
+## The heavy lift's small lights this tick (`ShipLift`: the jets on the floor, the mains).
 var extra: Array = []
 var _standing: Dictionary = {}
 

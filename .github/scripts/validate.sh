@@ -1433,6 +1433,15 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardfronttest 240 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardFrontTest
 }
 
+unit_shiplifttest() {
+step "The heavy lift: LAUNCH and UNDOCK lift off and go"
+# Jon's L1 (Nov 12) on both screens: LAUNCH lifts the hull off its stands and
+# burns it off right before the run starts, once, with no click reaching the
+# hall meanwhile, and reduced motion cuts straight to LOCAL; UNDOCK runs the
+# same lift on the Shipyard deck, off to the right, and lands on LOCAL undocked.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet shiplifttest 240 	"the heavy lift lifts off and lands where it should" 	"the heavy lift misbehaved" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ShipLiftTest
+}
+
 unit_launchtiertest() {
 step "LAUNCH A RUN: the tier stops, the galaxy by tier, the record"
 # Jon's T1 (Nov 10). On a scratch flight record: no win opens tier 0 alone, and a

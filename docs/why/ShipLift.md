@@ -1,0 +1,41 @@
+The reasoning behind `tkg/scripts/ui/ShipLift.gd`, `LiftPlume.gd` and the screens that fly them; each heading is referenced from the code by a `Why:` line.
+
+## Heavy lift
+
+Jon, Nov 12, on the hull pick: "When a launch happens... maybe we can have the ship lift off ... and then fly off the screen to the right?" Three ideas were filmed (tk-scratch/yard-launch/page): L1 heavy and grounded, L2 crane and gantry, L3 fast and punchy. He picked L1: "It should be the same slow heavy animation for the shipyard and the ship selection screen. When undocking from the shipyard, let's have the ship move to the right."
+
+One class, so the front door and the deck cannot drift apart. The host owns time (the front door its own `_process` clock, the deck the zoom ladder's) and calls `lift_at` or `land_at`; `ShipLift` poses the hull and everything that answers it. Its beats are constants because a sound is cut to them (tk-scratch/yard-launch/beats.json): the jets at 0.15 s, the rise from 0.45 s with a sag, the stands sinking from 0.7 s, the mains at 1.85 s (cruise) and 2.05 s (full), off the picture by 3.1 s.
+
+3.9 s on the front door: the weight is the idea, and a slow rise needs about a second and a half to read as heavy. The last 0.8 s holds the hall with the smoke drifting before the cut. Measured on the films, not guessed: L3's 2.0 s read as punchy, not heavy.
+
+The light is drawn as light (the memory "draw light as light"): the jets' floor light goes in as the yard's own small lights (`YardLight.dyn`, through `YardLife.extra`), so it lands on the floor, the stands, the crew and the hull through the hall's shader; the jets' line and the nozzle glow are an added layer stepped in six levels with a dither (`launch_glow.gdshader`). The lamps stutter through `YardLight.lamp_k`, on top of whatever else sets them.
+
+## Plume
+
+The smoke is P1 from the page, the rolling ground cloud: puffs added into one density in `lift_plume.gdshader`, torn by a noise field that moves ten times a second (fire's rate, the memory "fire should move"), stepped in four levels and lit from inside in four more. It lingers: the puffs live three to four and a half seconds, longer than the lift. The knobs (`size_k`, `strength`, `floor_y`) fit it to a hall; another kind of smoke is another `_spawn`.
+
+## Attach
+
+Jon, Nov 12: P1 "doesn't align perfectly with the ships." The first cut put the smoke and the jets at fixed shares of the hull's picture box, which a nose spike or a fin moves off the belly. Now every source comes from the hull's own pixels at rest (`_read_belly`: each column's lowest inked pixel), offset each frame by where the hull is. Four ways to hang it, on trial by `-- liftplume=a|b|c|d`: a, one cloud under the belly's lowest stretch, as wide as it; b, one jet per stand; c, jets at the belly's low points; d, a sheet along the belly, heavier where it hangs lowest.
+
+## Front door
+
+LAUNCH runs the lift and emits `launched` when it ends; the Router's cut to LOCAL is unchanged, and LOCAL's name card and fly-in follow as before (the ship leaves right and LOCAL brings it in from the left, so the direction carries across the cut). A second press does nothing; a full-screen control takes every click while the ship is in the air, and the escape menu's BACK TO TITLE waits. Reduced motion, and the harnesses that do not animate, cut straight to the run (`Router.animating()`). The hull's berth moves rather than the hull, so its light map (`launch_mask_at`) follows it. The hover blur fades so the whole hall is sharp for the lift.
+
+## Deck
+
+Undocking: the elevator goes, then the same lift at three quarters the size, off to the RIGHT (it left to the left before Nov 12), then F's beat of the empty yard and its fade with the smoke still drifting. `UNDOCK_YARD_S` grew from 2.0 s to the elevator plus `EXIT_S`. With F, the default, the yard goes to black before LOCAL, so the yard's exit direction does not have to meet LOCAL's backing out.
+
+Landing (Jon, Nov 12: "the ship comes in far too low. It should come in higher, hover over the stands, and then slowly descend"): in high on the mains, its belly ten rows over the wall's foot (from the hall art: under the lamps and hoists), slowing to a hover over the stands; 0.8 s on the jets with a whole-pixel bob and the smoke building; a slow 1.6 s descent with the smoke rolling out harder as it nears the floor; the stands take the weight with a pixel's give. `LAND_S` is 4.25 s, so `DOCK_YARD_S` grew from 2.2 s to 4.25 s. The landing's sound (roar, coughs, quiet, clamps) is unchanged and fits itself to the length (`yard_flameout`); the clamps land as it settles. The deck shivers the hull, up and down only, not the yard: the camera holds still on the deck (LadderTest), and a sideways shiver would break the flight's one motion.
+
+One takeoff (Jon, Nov 12: "the same for the shipyard and ship selection screen"): the deck runs the same `lift_at` with the same beats. What differs, and why: the deck's starts after its elevator slides out (0.48 s); its rise, stands and smoke are three quarters the size, as its hulls stand smaller; it shivers the hull and not the screen; after the exit it holds F's beat and fade (1.7 s) rather than the front door's 0.8 s before the cut.
+
+`lateral(on, speed)` reports the mains pushing the hull sideways (the takeoff's burn right, the landing's approach until the hover) for the thruster layer under the sound; `lateral_speed` is px/s every frame.
+
+## Crew
+
+The crew near the blast walk off from it, whole steps on their own strides; the rest stop and look at it. On the deck, once the landing is over, they walk on from where they stood (`release`).
+
+## Test
+
+`ShipLiftTest`: both screens run the same class to its end, LAUNCH fires once, no click reaches the hall while the ship is in the air, reduced motion cuts, UNDOCK goes right and lands on LOCAL undocked.

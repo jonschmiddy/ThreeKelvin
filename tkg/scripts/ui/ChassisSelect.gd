@@ -56,6 +56,8 @@ var _band: YardBand
 var _hover: int = -1
 ## A tarp was clicked under this locked set: LAUNCH shows, grey.
 var _tarp_tried: bool = false
+## LAUNCH pressed: it never fires twice.
+var _launching := false
 
 
 func setup() -> void:
@@ -188,12 +190,20 @@ func _launch() -> void:
 	if not launchable():
 		return
 	_refit()
-	# TRIAL (`-- yardlaunch=1|2|3`, not for landing): the ship lifts off first.
-	if YardLaunch.idea_arg() > 0 and _yard.ready_hall and _yard.set_of(_picked as HullData.Weight) != null:
-		if _yard.launching:
-			return
-		YardLaunch.go(self, _yard, _picked, func() -> void: launched.emit())
+	# The ship lifts off its stands and burns off right first (Jon's L1, Nov 12);
+	# reduced motion, and the harnesses that do not animate, cut straight to the run.
+	# Why: docs/why/ShipLift.md#front-door
+	if _launching:
 		return
+	_launching = true
+	if Router.animating() and _yard.ready_hall:
+		# nothing on the hall or the band answers the pointer from here on
+		var block := Control.new()
+		block.mouse_filter = Control.MOUSE_FILTER_STOP
+		block.size = size
+		add_child(block)
+		if _yard.lift_off(_picked, self, func() -> void: launched.emit()) != null:
+			return
 	launched.emit()
 
 
@@ -201,6 +211,9 @@ func _launch() -> void:
 ## which put a run that never started on the record.
 ## Why: docs/why/ChassisSelect.md#escape-handling
 func escape() -> void:
+	# (not once LAUNCH has the ship in the air: the run is on its way)
+	if _launching:
+		return
 	Run.hull = null
 	Router.show_launcher()
 

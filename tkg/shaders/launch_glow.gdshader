@@ -1,9 +1,9 @@
 shader_type canvas_item;
 render_mode blend_add, unshaded;
 
-// TRIAL (not for landing): light added over the yard by the liftoff (`YardLaunch`):
-// up to eight soft lights, summed, then stepped in five levels with a 4x4
-// ordered dither, so it reads as light and stays pixel art.
+// Light added over the yard by the heavy lift (`ShipLift`): up to eight soft
+// lights, summed, then stepped in six levels with a 4x4 ordered dither, so it
+// reads as light and stays pixel art.
 
 uniform vec2 rect_size = vec2(960.0, 540.0);
 uniform int n = 0;

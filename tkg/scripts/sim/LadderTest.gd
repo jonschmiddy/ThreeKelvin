@@ -827,11 +827,12 @@ func _hull_flies_out() -> void:
 		return
 	var rail0 := st._rail.position.x if st._rail != null else 0.0
 	var ship0 := st._mine_view.position.x if st._mine_view != null else 0.0
+	var ship0_p := st._mine_view.position if st._mine_view != null else Vector2.ZERO
 	Audio.taping = true
 	Audio.tape.clear()
 	Router.show_sector()
 	var rail_first := true
-	var left := false
+	var right := false
 	var noses: Array[float] = []
 	var pan_x: Array[float] = []
 	var last_seen := false
@@ -864,7 +865,7 @@ func _hull_flies_out() -> void:
 				empty_down += 1
 			# (once the elevator is out: the hull's flight off its stands)
 			if ZoomLadder.busy() and st._mine_view != null and (st._rail == null or st._rail.modulate.a < 0.01):
-				track.append(["Y", -st._mine_view.position.x, 1.0])
+				track.append(["Y", st._mine_view.position.x, 1.0])
 		var c := Router.current as SectorScreen
 		if c != null and ZoomLadder.busy() and ZoomLadder.active.phase == ZoomLadder.Phase.MOVE:
 			if not fmode and ZoomLadder.active._u < ZoomLadder.DOCK_PAN_S:
@@ -911,16 +912,17 @@ func _hull_flies_out() -> void:
 			_still_frame(c, still)
 		if Router.current == st and is_instance_valid(st) and st._mine_view != null:
 			var gone := st._rail == null or st._rail.position.x < rail0 - 20.0
-			if st._mine_view.position.x < ship0 - 5.0 and not gone:
+			if st._mine_view.position.distance_to(ship0_p) > 5.0 and not gone:
 				rail_first = false
-			if st._mine_view.position.x < ship0 - 100.0:
-				left = true
+			if st._mine_view.position.x > ship0 + 100.0:
+				right = true
 		if not ZoomLadder.busy() and Router.current is SectorScreen:
 			break
 	_ok("3B UNDOCK: the elevator goes before the hull moves", rail_first)
 	_one_motion("3B UNDOCK", track)
 	_ok("3B UNDOCK: the elevator is all the way out before the pan", not last_seen)
-	_ok("3B UNDOCK: the hull leaves to the left", left)
+	# (Jon, Nov 12: the heavy lift, off its stands and away to the right, `ShipLift`)
+	_ok("3B UNDOCK: the hull leaves to the right", right)
 	if fmode:
 		_ok("3B F UNDOCK: the empty yard holds, then slowly goes to black, before LOCAL (%d frames empty; black %.2f at the hand-off)" % [empty_down, black_last],
 			empty_down >= 9 and black_last >= 0.99)
