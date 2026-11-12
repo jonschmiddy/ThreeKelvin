@@ -270,7 +270,7 @@ void fragment() {
 		vec3 drgb;
 		vec2 dw;
 		bool dq;
-		// (TRIAL, yard-launch: a small light lights where it is drawn, the hall continued too)
+		// (a small light lights where it is drawn: the hall continued past 765 too, `ShipLift`)
 		dyn_at(mirror_x ? p : ivec2(floor(sp)), drgb, dw, dq);
 		if (mode == 2) {
 			// A SHIP takes the light over it, falling into its own shade.

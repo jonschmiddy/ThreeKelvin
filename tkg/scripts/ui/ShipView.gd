@@ -1312,6 +1312,10 @@ func _notification(what: int) -> void:
 ## game; it is there for a before/after film.
 var draw_strips: bool = false
 
+## Coughing out and after, dark between the coughs and none at the idle: a hull
+## landing in the Shipyard on its belly jets (Jon, Nov 12: "visually turn off too").
+var dark_idle := false
+
 ## How hard the engines are burning right now, or -1 for no flame.
 func _thrust_now() -> int:
 	if draw_strips or _engines_off or _melt > 0.45:
@@ -1322,10 +1326,11 @@ func _thrust_now() -> int:
 	if _arrive_at >= 0:
 		return arrive_thrust(_arrive_window if _burning else -1)
 	if _sputter_e >= 0.0:
-		return arrive_thrust(_flame_window(_sputter_e))
+		var th := arrive_thrust(_flame_window(_sputter_e))
+		return -1 if dark_idle and th == ThrusterFx.Thrust.IDLE else th
 	if _burning:
 		return _burn_thrust
-	return ThrusterFx.Thrust.IDLE
+	return -1 if dark_idle else ThrusterFx.Thrust.IDLE
 
 
 ## Only your own ships hum at idle (Jon, Oct 13): a bed under every ship would be mud.

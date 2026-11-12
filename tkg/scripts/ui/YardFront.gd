@@ -383,18 +383,14 @@ func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
 	L.k = 1.0
 	L.floor_y = float(s.feet)
 	L.rise = float(ShipLift.RISE_PX[s.weight])
-	L.exit_px = float(W) + 60.0 - float(s.thing.position.x)
+	L.exit_px = float(W) + ShipLift.EXIT_CLEAR - float(s.thing.position.x)
 	L.life = scene.life
 	L.light = scene.light
 	L.sink = func(rows: int) -> void: s.retract = rows
 	L.shake_node = shake
 	L.shake_rest = shake.position
-	L.attach = ShipLift.attach_arg()
 	# (out under the ceiling lamps, in front of the banners: the hulls draw after them)
 	L.ceiling_y = 44.0
-	var sw := float(s._stand_img.get_width()) if s._stand_img != null else 0.0
-	for sx: int in s._stand_x:
-		L.stands_x.append(float(sx) + sw * 0.5)
 	# the jets under the hulls, the smoke and its light over the hall, under the floor's fall
 	L.setup(s._view, self, get_children().find(sets.values()[0]), _fall.get_index())
 	# the hull flies with its berth (its click box goes with it, and nothing is clickable now)

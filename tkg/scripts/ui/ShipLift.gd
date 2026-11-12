@@ -19,6 +19,8 @@ const BURN_AT := 2.05
 const BURN_BY := {1: 2.1, 2: 3.15, 3: 4.2}
 ## The front door holds the hall this long after the hull is off the picture.
 const HOLD_S := 0.8
+## Past the picture's right edge by this much, its flame and glow off it too.
+const EXIT_CLEAR := 190.0
 const PLUME_AT := 0.15
 const SINK_FROM := 0.7
 const SINK_S := 0.8
@@ -75,14 +77,6 @@ var shake_rest := Vector2.ZERO
 var shiver_hull := false
 ## The smoke's size against the hull's (the deck's low hulls drowned in a full cloud).
 var plume_k := 1.0
-## How the smoke hangs off the hull, all from its own pixels (Jon, Nov 12: P1 "doesn't
-## align perfectly with the ships"): "a" one cloud under the belly's lowest stretch,
-## as wide as it; "b" one jet per stand; "c" jets at the belly's low points; "d" a
-## sheet of jets along the belly, heavier where it hangs lowest.
-## Why: docs/why/ShipLift.md#attach
-var attach := "a"
-## The stands' middles across (host px), for "b".
-var stands_x: Array[float] = []
 
 
 ## How long the burn off the picture takes (`BURN_BY`), off the picture by `exit_s`,
@@ -103,12 +97,6 @@ static func front_s() -> float:
 	return exit_s() + HOLD_S
 
 
-## The attachment on trial (`-- liftplume=a|b|c|d`, for the films Jon picks from).
-static func attach_arg() -> String:
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("liftplume=") and a.substr(10) in ["a", "b", "c", "d"]:
-			return a.substr(10)
-	return "a"
 
 var plume: LiftPlume
 var _glow: ColorRect
@@ -116,9 +104,6 @@ var _gmat: ShaderMaterial
 var _jets: Control
 var _off := Vector2.ZERO
 var _dt := 0.0
-## The landing's way in glides across in fractions of a pixel, as the dock's flight
-## always has: whole pixels stall a slowing hull a frame at a time (LadderTest's one motion).
-var _glide := false
 var _prev_x := NAN
 var _lat_on := false
 ## How fast the hull is going across this frame (px/s, signed).
@@ -193,7 +178,10 @@ func lift_at(t: float) -> void:
 	_off.y = -rise * lift_e - sag * k - _climb() * (1.0 - pow(1.0 - burn, 1.6))
 	_off.x = dir * exit_px * pow(burn, 2.6)
 	_sink(clampf((t - SINK_FROM) / SINK_S, 0.0, 1.0))
-	if t >= BURN_AT:
+	if t >= exit_s():
+		# off the picture: its engines dark, nothing of it left at the edge
+		_set_engines(-1)
+	elif t >= BURN_AT:
 		_set_engines(ThrusterFx.Thrust.FULL)
 	elif t >= MAINS_AT:
 		_set_engines(ThrusterFx.Thrust.CRUISE)
@@ -216,7 +204,6 @@ func lift_at(t: float) -> void:
 ## smoke rolling out as it nears the floor, and the stands take the weight.
 func land_at(t: float) -> void:
 	_begin(t)
-	_glide = true
 	var hover_at := LAND_FLY_S
 	var down_at := hover_at + LAND_HOVER_S
 	var touch_at := down_at + LAND_DOWN_S
@@ -291,9 +278,16 @@ func _climb() -> float:
 	return maxf(0.0, _ink.position.y - rise - ceiling_y)
 
 
+## How many of its added lights are on this frame (none once it is gone).
+func lit() -> int:
+	return _lights.size() + _extra.size()
+
+
 ## Where the hull is now, from its place at rest (whole px).
 func offset() -> Vector2:
-	return Vector2(_off.x if _glide else roundf(_off.x), roundf(_off.y)) + _shiver
+	# (across in fractions of a pixel, as the dock's flight always has: whole pixels
+	# stall a hull gathering or losing speed a frame at a time, LadderTest's one motion)
+	return Vector2(_off.x, roundf(_off.y)) + _shiver
 
 
 # ------------------------------------------------------------------ pieces
@@ -359,6 +353,11 @@ func _set_engines(th: int) -> void:
 	if _engines == th:
 		return
 	_engines = th
+	if th < 0:
+		view.burn(false)
+		view._engines_off = true
+		view.refresh()
+		return
 	view._engines_off = false
 	view.burn(true)
 	view._burn_thrust = th
@@ -451,7 +450,6 @@ func _draw_jets() -> void:
 	var o := offset()
 	var step := floorf(_t * 10.0)
 	var cols := [Color("#fff4d0"), Color("#ffd27a"), Color("#ff9a3c"), Color("#c0501a")]
-	var sheet := attach == "d"
 	for n in _jet_pts.size():
 		var jp := _jet_pts[n]
 		var x := floorf(jp.x + o.x)
@@ -460,8 +458,8 @@ func _draw_jets() -> void:
 		var len := floorf((6.0 + 12.0 * _jets_k) * k * w * (0.7 + 0.5 * YardLight.hash1(step * 1.3 + float(n) * 7.1)))
 		for row in int(len):
 			var uu := float(row) / maxf(1.0, len)
-			var half := 0.0 if sheet else floorf((3.0 - 2.0 * uu) * maxf(k, 0.67) + (1.0 if YardLight.hash1(step + float(row) * 0.7 + float(n)) > 0.6 else 0.0))
-			_jets.draw_rect(Rect2(x - half, y0 + float(row), half * 2.0 + (3.0 if sheet else 1.0), 1), cols[mini(3, int(uu * 4.0))])
+			var half := floorf((3.0 - 2.0 * uu) * maxf(k, 0.67) + (1.0 if YardLight.hash1(step + float(row) * 0.7 + float(n)) > 0.6 else 0.0))
+			_jets.draw_rect(Rect2(x - half, y0 + float(row), half * 2.0 + 1.0, 1), cols[mini(3, int(uu * 4.0))])
 
 
 ## The belly, column by column: each column's lowest inked pixel, in host px at rest.
@@ -499,64 +497,23 @@ func _keel() -> Array[Vector2]:
 	return out
 
 
-## Where the jets are, from the hull's own pixels, by `attach`.
+## THE JETS from the hull's own pixels, not its picture's box (Jon, Nov 12: P1 "doesn't
+## align perfectly with the ships"; his pick P1a): four across the belly's lowest stretch,
+## one cloud as wide as it.
+## Why: docs/why/ShipLift.md#attach
 func _place_jets() -> void:
 	_jet_pts.clear()
 	if _profile.is_empty():
 		_jet_pts.append(Vector3(_ink.get_center().x, _ink.end.y, 1.0))
 		return
 	var keel := _keel()
-	match attach:
-		"b":
-			for x in stands_x:
-				_jet_pts.append(Vector3(x, _belly_y(x), 1.0))
-		"c":
-			# the belly's low points: local lows at least 14 px apart, up to six
-			var lows: Array[Vector2] = []
-			for i in _profile.size():
-				var p := _profile[i]
-				var lo := true
-				for j in range(maxi(0, i - 6), mini(_profile.size(), i + 7)):
-					if _profile[j].y > p.y:
-						lo = false
-				if lo and (lows.is_empty() or p.x - lows[-1].x >= 14.0 * k):
-					lows.append(p)
-			var low := -INF
-			for p in lows:
-				low = maxf(low, p.y)
-			lows.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y > b.y)
-			for p in lows.slice(0, 6):
-				_jet_pts.append(Vector3(p.x, p.y, clampf(1.0 - (low - p.y) / (24.0 * k), 0.25, 1.0)))
-		"d":
-			# a sheet along the whole belly, heavier the lower it hangs
-			var low2 := -INF
-			for p in _profile:
-				low2 = maxf(low2, p.y)
-			var i2 := 0
-			while i2 < _profile.size():
-				var p2 := _profile[i2]
-				var w := clampf(1.0 - (low2 - p2.y) / (20.0 * k), 0.0, 1.0)
-				if w > 0.15:
-					_jet_pts.append(Vector3(p2.x, p2.y, w * w))
-				i2 += maxi(1, int(5.0 * k))
-		_:
-			# one cloud under the lowest stretch, as wide as it: four jets across it
-			var x0 := keel[0].x
-			var x1 := keel[-1].x
-			for n in 4:
-				var x := lerpf(x0, x1, (float(n) + 0.5) / 4.0)
-				_jet_pts.append(Vector3(x, _belly_y(x), 1.0))
-	if _jet_pts.is_empty():
-		_jet_pts.append(Vector3(keel[keel.size() / 2].x, keel[keel.size() / 2].y, 1.0))
+	for n in 4:
+		var x := lerpf(keel[0].x, keel[-1].x, (float(n) + 0.5) / 4.0)
+		_jet_pts.append(Vector3(x, _belly_y(x), 1.0))
 
 
 ## How far either side of a jet its smoke starts.
 func _spread() -> float:
-	match attach:
-		"b", "c":
-			return 6.0 * k
-		"d":
-			return 3.0 * k
 	if _jet_pts.size() < 2:
 		return 10.0 * k
 	return absf(_jet_pts[-1].x - _jet_pts[0].x) * 0.2

@@ -610,13 +610,17 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 			for k in spans.size():
 				if ee >= (spans[k] as Vector2).x and ee < (spans[k] as Vector2).y:
 					win = k
-			if int(e.th) != ShipView.arrive_thrust(win) or not bool(e.sputter):
+			# (dark between the coughs, not at the idle: Jon, Nov 12, "visually turn off too")
+			var want_th := ShipView.arrive_thrust(win)
+			if want_th == ThrusterFx.Thrust.IDLE:
+				want_th = -1
+			if int(e.th) != want_th or not bool(e.sputter):
 				cough_bad += 1
 				if cough_at_bad == "":
-					cough_at_bad = "%.3f s: drawn %d, the row %d" % [dt, int(e.th), ShipView.arrive_thrust(win)]
+					cough_at_bad = "%.3f s: drawn %d, the row %d" % [dt, int(e.th), want_th]
 		else:
 			quiet_n += 1
-			if int(e.th) != ThrusterFx.Thrust.IDLE or bool(e.sputter):
+			if int(e.th) != -1 or bool(e.sputter):
 				quiet_bad += 1
 	_ok("%s: THE ROAR -- the cruise flame drawn and the thrust loop asked for at the dock's burn level (%.1f) while your ship flies in, from %.2f s to the coughs at %.2f s (%d frames, %d moving with it heard; %d off%s), nothing before (%d)" % [
 		label, SectorScreen.DOCK_BURN_LEVEL, StationScreen.YARD_ROAR_FROM_S, cough_at, roar_n, roar_moved, roar_bad,
@@ -640,7 +644,7 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 	_ok("%s: the coughs drawn are the coughs heard -- the flame on its row's coughs every frame of them (%d frames, %d off%s)" % [
 		label, cough_n, cough_bad, "; first " + cough_at_bad if cough_at_bad != "" else ""],
 		cough_n >= int(sp * 30.0) - 1 and cough_bad == 0)
-	_ok("%s: SILENT BEFORE TOUCHDOWN -- the loop out from the first cough (%d frames loud), the last cough at %.2f s, %.2f s before it lands at %.2f (at least %.2f), the flame at the idle after (%d frames, %d off)" % [
+	_ok("%s: SILENT BEFORE TOUCHDOWN -- the loop out from the first cough (%d frames loud), the last cough at %.2f s, %.2f s before it lands at %.2f (at least %.2f), the mains dark after, on the belly jets (%d frames, %d off)" % [
 		label, after_loud, cough_at + sp, dur - cough_at - sp, dur, StationScreen.YARD_QUIET_S, quiet_n, quiet_bad],
 		after_loud == 0 and cough_at + sp <= dur - StationScreen.YARD_QUIET_S + 0.0001
 			and quiet_n >= int(StationScreen.YARD_QUIET_S * 30.0) - 1 and quiet_bad == 0)

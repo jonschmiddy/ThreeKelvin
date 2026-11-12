@@ -16,7 +16,7 @@ The smoke is P1 from the page, the rolling ground cloud: puffs added into one de
 
 ## Attach
 
-Jon, Nov 12: P1 "doesn't align perfectly with the ships." The first cut put the smoke and the jets at fixed shares of the hull's picture box, which a nose spike or a fin moves off the belly. Now every source comes from the hull's own pixels at rest (`_read_belly`: each column's lowest inked pixel), offset each frame by where the hull is. Four ways to hang it, on trial by `-- liftplume=a|b|c|d`: a, one cloud under the belly's lowest stretch, as wide as it; b, one jet per stand; c, jets at the belly's low points; d, a sheet along the belly, heavier where it hangs lowest.
+Jon, Nov 12: P1 "doesn't align perfectly with the ships." The first cut put the smoke and the jets at fixed shares of the hull's picture box, which a nose spike or a fin moves off the belly. Now every source comes from the hull's own pixels at rest (`_read_belly`: each column's lowest inked pixel), offset each frame by where the hull is. Four ways to hang it were filmed (P1a under the belly's lowest stretch, P1b one jet per stand, P1c the belly's low points, P1d a sheet along the belly); Jon picked P1a: four jets across the belly's lowest stretch, one cloud as wide as it.
 
 ## Front door
 

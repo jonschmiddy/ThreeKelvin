@@ -2879,6 +2879,9 @@ func ladder_yard_t(t: float, dur: float) -> void:
 		_mine_view.burn(false)
 		Audio.ship_thrust_off()
 		_lad["cough_clip"] = _mine_view.sputter(row)
+		# the mains cough out and stay dark; the belly jets hold it (`ShipLift.land_at`)
+		_mine_view.dark_idle = true
+		_mine_view.refresh()
 		Audio.play(_lad.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL), 1.0,
 			ShipView.sputter_from_s(row) + (t - cough_at))
 	_mine_view.sputter_step(t - cough_at)
@@ -2894,6 +2897,9 @@ func _yard_engines_out(hush: bool = false) -> void:
 		_mine_view.burn(false)
 		Audio.ship_thrust_off()
 	_mine_view.sputter_stop()
+	# (down on its stands: its engines at the idle again, as a berthed hull's are)
+	_mine_view.dark_idle = false
+	_mine_view.refresh()
 	if hush:
 		Audio.ship_thrust_off()
 		if _lad.has("cough_clip"):
@@ -3111,7 +3117,7 @@ func _deck_lift() -> ShipLift:
 	L.k = DECK_LIFT_K
 	L.floor_y = float(Q["floor"])
 	L.rise = float(ShipLift.RISE_PX.get(Run.hull.weight if Run.hull != null else HullData.Weight.MEDIUM, 46.0)) * DECK_LIFT_K
-	L.exit_px = float(YardScene.W) + 40.0 - float(Q["x0"])
+	L.exit_px = float(YardScene.W) + ShipLift.EXIT_CLEAR - float(Q["x0"])
 	L.in_px = float(_lad.get("off", 300.0))
 	# in high, its top 42 rows over the wall's foot: just under the lamp strings
 	# along the wall, well clear of the stands (Jon, Nov 12: "far too low")
@@ -3122,9 +3128,6 @@ func _deck_lift() -> ShipLift:
 	L.plume_k = 0.8
 	# (out under the ceiling's lamp boxes, within the hall)
 	L.ceiling_y = 64.0
-	L.attach = ShipLift.attach_arg()
-	for s2: Dictionary in Q["supports"]:
-		L.stands_x.append(float(s2["x"]) + float((s2["img"] as Image).get_width()) * 0.5)
 	var sc := _scene
 	L.sink = func(rows: int) -> void: sc.sink_mine = rows
 	var v := _mine_view

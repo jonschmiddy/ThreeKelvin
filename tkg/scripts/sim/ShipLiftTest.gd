@@ -93,10 +93,13 @@ func _launch() -> void:
 	var dim := 1.0
 	var smoke := 0
 	var landed_at := -1.0
-	for i in 600:
+	var left_lit := 0
+	for i in 900:
 		if Router.current != cs:
 			landed_at = _t - t0
 			break
+		if _t - t0 > ShipLift.exit_s() + 0.1 and _left_behind(lift, cs._yard.scene):
+			left_lit += 1
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
@@ -105,6 +108,8 @@ func _launch() -> void:
 		await _tree.process_frame
 	_ok("it rises off its stands (%.0f px), the stands sink (%d rows), the smoke rolls (%d puffs), the lamps stutter (%.2f)" % [
 		-top, sunk, smoke, dim], top <= -40.0 and sunk >= 40 and smoke >= 20 and dim < 0.9)
+	_ok("off the picture, nothing of it is left at the edge: its engines dark, no jet, nozzle or smoke light (%d frames lit)" % left_lit,
+		left_lit == 0)
 	_ok("it burns off the right edge (%.0f px across, off past %d)" % [right, YardFront.W],
 		x0 + right > float(YardFront.W))
 	_ok("the mains' sideways burn is reported once each way, going right, from %.2f s (%s)" % [ShipLift.BURN_AT, lat],
@@ -167,9 +172,15 @@ func _undock() -> void:
 	var sunk := 0
 	var smoke := 0
 	var until := -1.0
-	for i in 1200:
+	var left_lit := 0
+	var t_lift := -1.0
+	for i in 1500:
 		await _tree.process_frame
 		if Router.current == st and is_instance_valid(st) and st._heavy != null:
+			if t_lift < 0.0:
+				t_lift = _t
+			if _t - t_lift > StationScreen.undock_elev_s() + ShipLift.exit_s() + 0.1 and _left_behind(st._heavy, st._scene):
+				left_lit += 1
 			used = true
 			right = maxf(right, st._mine_view.position.x - rest.x)
 			top = minf(top, st._mine_view.position.y - rest.y)
@@ -179,9 +190,18 @@ func _undock() -> void:
 			until = _t - t0
 			break
 	_ok("UNDOCK runs the shared lift on the deck", used)
+	_ok("off the yard, nothing of it is left at the edge (%d frames lit)" % left_lit, left_lit == 0)
 	_ok("off its stands (%.0f px up), the stands sink (%d rows), the smoke rolls (%d puffs), and away to the RIGHT (%.0f px)" % [
 		-top, sunk, smoke, right], top <= -25.0 and sunk >= 25 and smoke >= 20 and right > 200.0)
 	_ok("it lands on LOCAL undocked (%.2f s; the yard's part %.2f s)" % [until, ZoomLadder.UNDOCK_YARD_S],
 		until > ZoomLadder.UNDOCK_YARD_S and Router.current is SectorScreen and not Router.docked)
 	ZoomLadder.force = -1
 	ZoomLadder.fixed_dt = -1.0
+
+
+## Anything of the lift still lit once the hull is off the picture: its flame, the
+## jets' or nozzle's light, or a small light it put in the yard's light.
+func _left_behind(lift: ShipLift, sc: YardScene) -> bool:
+	if lift.view._thrust_now() >= 0 or not lift.plume.lights().is_empty() or lift.lit() > 0:
+		return true
+	return sc.life != null and not sc.life.extra.is_empty()
