@@ -169,6 +169,11 @@ func _build() -> void:
 	rail.add_theme_constant_override("separation", 3)
 	rail.custom_minimum_size = Vector2(RAIL_W, 0)
 	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Sliding away, the elevator keeps the screen's dark behind its header and gaps:
+	# the hall run on into its column showed through them, the title afloat on it.
+	rail.draw.connect(func() -> void:
+		if _edge != null and _edge._on:
+			rail.draw_rect(Rect2(Vector2.ZERO, rail.size), UITheme.VOID))
 
 	# Station facts head the rail one to a line now that the banners hang in the rooms.
 	# Why: docs/why/StationScreen.md#rail-particulars
@@ -2694,6 +2699,7 @@ class _YardEdge extends Node:
 		if away == _on:
 			return
 		_on = away
+		r.queue_redraw()
 		# The yard's hall runs on into the elevator's
 		# column, under the ships, with the elevator over it.
 		sc.set_edge(away)
