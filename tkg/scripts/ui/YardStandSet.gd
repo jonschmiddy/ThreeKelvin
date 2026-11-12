@@ -172,30 +172,50 @@ func _seat_stands(v: ShipView, img: Image, ink: Rect2i, tarp: bool) -> void:
 
 
 ## The hull's (or tarp's) pixels into the light's ship map (R a hull, G a stand),
-## at their hall places; `img` may be wider than the hall.
-func mask_into(img: Image) -> void:
+## at their hall places, as RGBA8 bytes `map` `w` wide; returns the box the hull's went in.
+func mask_into(map: PackedByteArray, w: int) -> Rect2i:
 	var si := _stand_img
 	if si != null:
 		for sx in _stand_x:
-			_stamp(img, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _stand_top), Color8(0, 255, 0, 255), false)
+			_stamp(map, w, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _stand_top), 1, false)
 	if _view != null:
 		var c := _view.canvas()
-		_stamp(img, c, _ink(c), Vector2i(_x0, thing.position.y), Color8(255, 0, 0, 255), true)
-	elif _tarp != null and _tarp.image != null:
-		_stamp(img, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, Color8(255, 0, 0, 255), true)
+		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
+	if _tarp != null and _tarp.image != null:
+		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
+	return Rect2i()
 
 
-static func _stamp(img: Image, src: Image, ink: Rect2i, at: Vector2i, col: Color, over: bool) -> void:
+## `src`'s solid pixels (alpha 128 up) as opaque 255 in channel `ch` (0 R, 1 G), in bytes:
+## `get_pixel` and `set_pixel` took 15 ms a banner. A stand (`over` false) never covers a hull.
+static func _stamp(map: PackedByteArray, w: int, src: Image, ink: Rect2i, at: Vector2i, ch: int, over: bool) -> Rect2i:
+	var s := src
+	if s.get_format() != Image.FORMAT_RGBA8:
+		s = src.duplicate() as Image
+		s.convert(Image.FORMAT_RGBA8)
+	var sd := s.get_data()
+	var sw := s.get_width()
+	var h := map.size() / (4 * w)
+	var lo := Vector2i(w, h)
+	var hi := Vector2i(-1, -1)
 	for y in ink.size.y:
+		var Y := at.y + y
+		if Y < 0 or Y >= h:
+			continue
+		var si := ((ink.position.y + y) * sw + ink.position.x) * 4 + 3
 		for x in ink.size.x:
-			if src.get_pixel(ink.position.x + x, ink.position.y + y).a8 < 128:
-				continue
 			var X := at.x + x
-			var Y := at.y + y
-			if X < 0 or Y < 0 or X >= img.get_width() or Y >= img.get_height():
+			if sd[si + x * 4] < 128 or X < 0 or X >= w:
 				continue
-			if over or img.get_pixel(X, Y).r8 == 0:
-				img.set_pixel(X, Y, col)
+			var o := (Y * w + X) * 4
+			if over or map[o] == 0:
+				map[o] = 255 if ch == 0 else 0
+				map[o + 1] = 255 if ch == 1 else 0
+				map[o + 2] = 0
+				map[o + 3] = 255
+				lo = Vector2i(mini(lo.x, X), mini(lo.y, Y))
+				hi = Vector2i(maxi(hi.x, X), maxi(hi.y, Y))
+	return Rect2i(lo, hi - lo + Vector2i.ONE) if hi.x >= 0 else Rect2i()
 
 
 ## The box of a picture's opaque pixels.

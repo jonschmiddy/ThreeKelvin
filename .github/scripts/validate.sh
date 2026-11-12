@@ -1433,6 +1433,15 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardfronttest 240 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardFrontTest
 }
 
+unit_yardperftest() {
+step "The banner shipyard's click stays cheap and looks the same"
+# Nov 12, Jon: "VERY laggy". A banner's first click baked three hulls on the main
+# thread (0.6 s); now every open banner's are baked ahead on a worker, each the
+# main thread's picture byte for byte. The ship map in bytes equals the old
+# per-pixel one for every set, and the floor pools bake once. Counts, never times.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardperftest 240 	"the banner yard bakes ahead and its ship map is unchanged" 	"the banner yard's bakes or ship map changed" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardPerfTest
+}
+
 unit_launchtiertest() {
 step "LAUNCH A RUN: the tier stops, the galaxy by tier, the record"
 # Jon's T1 (Nov 10). On a scratch flight record: no win opens tier 0 alone, and a
