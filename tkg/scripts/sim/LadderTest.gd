@@ -993,10 +993,11 @@ func _hull_flies_out() -> void:
 	_ok("3B UNDOCK: its engines at the idle as it backs out, no cruise burn, then the arrival's coughs down to the idle (%d frames: idle first and no CRUISE before the coughs %s, coughs from frame %d, last %s)" % [
 		thr_seq.size(), idled, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
 		idled and not thr_seq.is_empty() and thr_seq[-1] == ThrusterFx.Thrust.IDLE)
-	# AND HEARD: the flameout's clip for its row, once, from its first cough
+	# AND HEARD: the flameout's clip for its row, once, from its first cough (the
+	# yard's takeoff burn before it, `ShipLift`, is the yard's own)
 	var clips: Array = []
 	for tp: Array in Audio.tape:
-		if String(tp[6]).begins_with("thruster_"):
+		if String(tp[6]).begins_with("thruster_") and not String(tp[6]).begins_with("thruster_depart"):
 			clips.append([tp[6], float(tp[7])])
 	var from_want := ShipView.sputter_from_s(row) if row >= 0 else -1.0
 	_ok("3B UNDOCK: the flameout's clip (%s) heard once, from its first cough (%s; its first cough at %.3f s)" % [cough_clip, clips, from_want],
@@ -1105,7 +1106,7 @@ func _undock_skipped() -> void:
 	var art := c._view.ship_view() if c != null and is_instance_valid(c) else null
 	var heard := 0
 	for tp: Array in Audio.tape:
-		if String(tp[6]).begins_with("thruster_"):
+		if String(tp[6]).begins_with("thruster_") and not String(tp[6]).begins_with("thruster_depart"):
 			heard += 1
 	Audio.taping = false
 	_ok("3B: a key mid-undock (backing out, before its coughs: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [

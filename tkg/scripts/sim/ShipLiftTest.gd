@@ -60,6 +60,8 @@ func _launch() -> void:
 	var x0 := berth.position.x
 	var y0 := berth.position.y
 	var key := Harness.button_with_text(cs, "LAUNCH")
+	Audio.taping = true
+	Audio.tape.clear()
 	key.pressed.emit()
 	var t0 := _t
 	await Harness.frames(_tree, 1)
@@ -68,7 +70,7 @@ func _launch() -> void:
 	if lift == null:
 		return
 	var lat: Array = []
-	lift.lateral.connect(func(on: bool, v: float) -> void: lat.append([on, v, _t - t0]))
+	lift.lateral.connect(func(on: bool, v: float) -> void: lat.append([on, v, _t - t0, Engine.get_process_frames()]))
 	# a second press, by the key and by the code, starts nothing more
 	key.pressed.emit()
 	cs._launch()
@@ -95,6 +97,8 @@ func _launch() -> void:
 	var landed_at := -1.0
 	var left_lit := 0
 	var flame_at := -1.0
+	var jets_f := -1
+	var loop_f := -1
 	for i in 900:
 		if Router.current != cs:
 			landed_at = _t - t0
@@ -103,6 +107,10 @@ func _launch() -> void:
 			left_lit += 1
 		if flame_at < 0.0 and lift.view._thrust_now() >= 0:
 			flame_at = _t - t0
+		if jets_f < 0 and lift.plume.fired():
+			jets_f = Engine.get_process_frames()
+		if loop_f < 0 and Audio.ship_want > 0.0:
+			loop_f = Engine.get_process_frames()
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
@@ -122,6 +130,19 @@ func _launch() -> void:
 	_ok("no main flame through the rise: it lights with the sideways burn, on `MAINS_ON` (flame from %.3f s, the burn's signal at %.3f s, the beat %.2f s)" % [
 		flame_at, lat_at, ShipLift.MAINS_ON], flame_at >= 0.0 and lat_at >= 0.0 and absf(flame_at - lat_at) < 0.02
 			and flame_at >= ShipLift.MAINS_ON - 0.001)
+	var heard := {}
+	for tp: Array in Audio.tape:
+		if tp.size() > 5 and not heard.has(String(tp[0])):
+			heard[String(tp[0])] = int(tp[5])
+	Audio.taping = false
+	var mains_f := int(lat[0][3]) if not lat.is_empty() else -99
+	var depart := String(ShipView.DEPART_SFX[int(HullData.Weight.MEDIUM)])
+	var take_f := int(heard.get(String(ShipLift.LIFT_TAKE), -99))
+	_ok("THE TAKEOFF HEARD: the take (%s) on the jets' first frame (frame %d, the jets at %d), within a frame" % [
+		ShipLift.LIFT_TAKE, take_f, jets_f], jets_f >= 0 and absi(take_f - jets_f) <= 1)
+	_ok("and the LTC layer on `MAINS_ON`: the departure burn (%s at frame %d) and the drive loop (from frame %d) with the burn's signal (frame %d), within a frame" % [
+		depart, int(heard.get(depart, -99)), loop_f, mains_f],
+		absi(int(heard.get(depart, -99)) - mains_f) <= 1 and absi(loop_f - mains_f) <= 1)
 	_ok("the run starts when the lift ends (%.2f s; the lift %.2f s)" % [landed_at, ShipLift.front_s()],
 		landed_at >= ShipLift.front_s() - 0.05 and landed_at <= ShipLift.front_s() + 0.2)
 	await Harness.frames(_tree, 10)

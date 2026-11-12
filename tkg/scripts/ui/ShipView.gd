@@ -1315,6 +1315,8 @@ var draw_strips: bool = false
 ## Coughing out and after, dark between the coughs and none at the idle: a hull
 ## landing in the Shipyard on its belly jets (Jon, Nov 12: "visually turn off too").
 var dark_idle := false
+## And yet its idle heard (the landing's hover, as laid out with the sound: `ShipLift`).
+var dark_hum := false
 
 ## How hard the engines are burning right now, or -1 for no flame.
 func _thrust_now() -> int:
@@ -1350,6 +1352,8 @@ func idle_heard() -> bool:
 		return false
 	var th := _thrust_now()
 	var settling := ((_arrive_at >= 0 and _arrive_window >= 1) or _sputter_e >= 0.0) and th >= 0
+	if dark_idle and dark_hum and th < 0:
+		settling = true
 	if th != ThrusterFx.Thrust.IDLE and not settling:
 		return false
 	var h := hull_rect()

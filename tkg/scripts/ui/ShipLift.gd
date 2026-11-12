@@ -44,6 +44,16 @@ const LAND_PLUME_AT := 1.3
 ## it is going across (px/s, signed): for the thruster layer under the lift's sound.
 signal lateral(on: bool, speed: float)
 
+## THE TAKEOFF HEARD (Jon's LC2 with the LTC layer, Nov 12): the take from the jets
+## (`PLUME_AT`), its own fade carrying it out; the ship's own thrust loop and departure
+## burn at `Audio.SHIP_DB` from `MAINS_ON`, the loop faded over `LOOP_OUT_S` at the exit.
+## Why: docs/why/ShipLift.md#heard
+const LIFT_TAKE := &"ship_liftoff"
+const LOOP_OUT_S := 0.3
+## The landing's take, from the descent's start (`LAND_FLY_S + LAND_HOVER_S`): none
+## until Jon picks one; the rest of the landing's sound is the dock's own.
+const LAND_TAKE := &""
+
 ## The hull and its place at rest, in its parent.
 var view: ShipView
 var rest := Vector2.ZERO
@@ -98,6 +108,9 @@ var _dt := 0.0
 var _prev_x := NAN
 var _lat_on := false
 var _lat_want := false
+var _lifting := false
+var _heard_take := false
+var _loop_out := -1.0
 ## How fast the hull is going across this frame (px/s, signed).
 var lateral_speed := 0.0
 var _shiver := Vector2.ZERO
@@ -158,6 +171,7 @@ func setup(v: ShipView, h: Control, under: int, over: int = -1) -> void:
 ## THE LIFT at `t` s: spool, a sagging rise, the mains, and away.
 func lift_at(t: float) -> void:
 	_begin(t)
+	_lifting = true
 	var spool := clampf(t / SPOOL_S, 0.0, 1.0)
 	var lift_e := _ease_io(clampf((t - SPOOL_S) / RISE_S, 0.0, 1.0))
 	var sag := -2.0 * sin(clampf((t - SPOOL_S) / SAG_S, 0.0, 1.0) * PI) if t > SPOOL_S else 0.0
@@ -179,6 +193,9 @@ func lift_at(t: float) -> void:
 		# (dark through the rise: the jets hold it, the mains have not lit)
 		_set_engines(-1)
 	_lat_want = t >= MAINS_ON and t < exit_s()
+	if t >= PLUME_AT and not _heard_take:
+		_heard_take = true
+		Audio.play(LIFT_TAKE, 0.0, 0, 0.0, 1.0, 0.0, true)
 	# a shiver while it hangs on the jets, harder as the mains light
 	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and burn < 0.85 else 0.0)
 	_shake(t, amp)
@@ -231,12 +248,23 @@ func land_at(t: float) -> void:
 	_belly_glow(jets)
 	if _walk == "" and t > LAND_JETS_AT:
 		_walkers(false)
+	# (the idle heard under the dark mains through the hover, until the descent:
+	# the landing's sound as the sound builder laid it out)
+	view.dark_hum = t < down_at
+	if LAND_TAKE != &"" and t >= down_at and not _heard_take:
+		_heard_take = true
+		Audio.play(LAND_TAKE, 0.0, 0, 0.0, 1.0, 0.0, true)
 	_pose()
 
 
 ## Everything back as it was: the lamps, the crew walking on, nothing shaking.
 ## The smoke stays and drifts.
 func release() -> void:
+	# (a lift cut short: its drive loop out with it)
+	if _lifting and (_lat_on or _loop_out >= 0.0):
+		Audio.ship_thrust_off()
+		_lat_on = false
+		_loop_out = -1.0
 	if light != null:
 		light.lamp_k = 1.0
 	if life != null:
@@ -267,6 +295,28 @@ func _track_lateral() -> void:
 	if on != _lat_on:
 		_lat_on = on
 		lateral.emit(on, lateral_speed)
+		if _lifting:
+			_ltc(on)
+	# the drive loop under the burn, every frame it runs, and its fade at the exit
+	if _lifting and _lat_on:
+		Audio.ship_thrust(1.0)
+	elif _loop_out >= 0.0:
+		var k := 1.0 - (_t - _loop_out) / LOOP_OUT_S
+		if k > 0.0:
+			Audio.ship_thrust(k)
+		else:
+			Audio.ship_thrust_off()
+			_loop_out = -1.0
+
+
+## The LTC layer: the departure burn once as the mains light; the loop's fade at the exit.
+func _ltc(on: bool) -> void:
+	if on:
+		var h := view._hull()
+		var w := int(h.weight) if h != null else int(HullData.Weight.MEDIUM)
+		Audio.play(ShipView.DEPART_SFX[w], 0.0, 0, Audio.SHIP_DB, 1.0, 0.0, true)
+	else:
+		_loop_out = _t
 
 
 ## How far it climbs past its rise on the way out: its top up to `ceiling_y`.
