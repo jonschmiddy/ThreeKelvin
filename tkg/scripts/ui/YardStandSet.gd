@@ -48,6 +48,8 @@ var _stand_tex: ImageTexture = null
 ## The stand's seat row and how far the hull was let down past it.
 var seat: int = 0
 var sink: int = 0
+## TRIAL (`YardLaunch`): rows the stands have sunk into the floor.
+var retract: int = 0
 
 
 func _init() -> void:
@@ -166,7 +168,7 @@ func paint_stands(P: YardPaint) -> void:
 				P.use(YardPaint.PLAIN)
 				P.tex(shadow, Vector2(float(sx1) + float(sw) * 0.5 - 23.0 + float(sh.get("x", -20)), f + float(sh.get("y", -4))))
 			P.use(YardPaint.SHIP)
-			P.tex(_stand_tex, Vector2(sx1, _stand_top))
+			P.tex(_stand_tex, Vector2(sx1, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
 		return
 	if YardLightTrial.has("nostand"):
 		for sx0 in _stand_x:
@@ -190,7 +192,7 @@ func paint_stands(P: YardPaint) -> void:
 	for sx in _stand_x:
 		var cx2 := float(sx) + float(sw) * 0.5
 		P.use(YardPaint.FLOOR, Vector2(floorf(cx2), f))
-		P.tex(_stand_tex, Vector2(sx, _stand_top))
+		P.tex(_stand_tex, Vector2(sx, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
 	P.use(YardPaint.PLAIN)
 	var done := 0
 	for band: Array in BASE_DARK:

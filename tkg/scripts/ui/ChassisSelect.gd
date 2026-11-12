@@ -188,6 +188,12 @@ func _launch() -> void:
 	if not launchable():
 		return
 	_refit()
+	# TRIAL (`-- yardlaunch=1|2|3`, not for landing): the ship lifts off first.
+	if YardLaunch.idea_arg() > 0 and _yard.ready_hall and _yard.set_of(_picked as HullData.Weight) != null:
+		if _yard.launching:
+			return
+		YardLaunch.go(self, _yard, _picked, func() -> void: launched.emit())
+		return
 	launched.emit()
 
 

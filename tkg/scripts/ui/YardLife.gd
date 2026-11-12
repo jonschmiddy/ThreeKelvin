@@ -81,6 +81,8 @@ var _bot_img: Image = null
 var _crew_img: Dictionary = {}
 var last_forgot: Dictionary = {}
 var has_welder := true
+## TRIAL (`YardLaunch`, `LiftPlume`): the liftoff's small lights this tick.
+var extra: Array = []
 var _standing: Dictionary = {}
 
 
@@ -1641,6 +1643,9 @@ func light_up(t: float) -> void:
 	if FORKLIT["on"]:
 		dyn.append([FORKLIT["x"], float(FORKLIT["y"]) + 4.0, 22.0, 15.0, 0.9, Color(1.0, 0.6, 0.2), beacon_pulse(t)])
 		dyn.append([float(FORKLIT["front"]) + 24.0, float(FORKLIT["lane"]) - 1.0, 32.0, 9.0, 0.85, Color(1.0, 0.95, 0.84), 1.0])
+	for l: Array in extra:
+		if dyn.size() < 12:
+			dyn.append(l)
 
 
 ## What lives in the wall: the city's tenants and lifts, the capital's stars.

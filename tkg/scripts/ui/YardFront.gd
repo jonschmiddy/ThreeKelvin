@@ -63,6 +63,15 @@ var _under_at: int = 1
 ## TRIAL ONLY (`YardLightTrial`): the fixtures over the banners, and the floor's light waiting for the bake.
 var _fix: Control = null
 var _trial_bay: Image = null
+## TRIAL ONLY (`YardLaunch`): the liftoff under way, the lamps' share of it, and
+## the ship map with the launching hull lifted out, to stamp back where it flies.
+var launching := false
+var launch_lamp_k := 1.0
+var _ship_map_img: Image = null
+var _lm_base: Image = null
+var _lm_piece: Image = null
+var _lm_rect := Rect2i()
+var _lm_off := Vector2i(1 << 20, 0)
 
 
 func _init() -> void:
@@ -297,6 +306,7 @@ func _rebake() -> void:
 	if YardLightTrial.option() != "":
 		YardLightTrial.shade_ships(img, self)
 		scene._mats[YardPaint.SHIP].set_shader_parameter(&"ship_k", YardLightTrial.ship_k())
+	_ship_map_img = img
 	if _ship_tex == null:
 		_ship_tex = ImageTexture.create_from_image(img)
 	else:
@@ -362,13 +372,17 @@ func _process(delta: float) -> void:
 	if not ready_hall:
 		return
 	_t += delta
-	scene.light.lamp_gain = _lamp_gains()
+	var lg := _lamp_gains()
+	if launch_lamp_k != 1.0:
+		for i in lg.size():
+			lg[i] *= launch_lamp_k
+	scene.light.lamp_gain = lg
 	if YardLightTrial.has("nobay") and scene.light._bay_on:
 		scene.light.set_bay(null)
 	if _trial_bay != null and scene._bay_ready:
 		scene.light.set_bay(_trial_bay)
 		_trial_bay = null
-	var target := 1.0 if hover_w >= 0 or (picked >= 0 and not locked) else 0.0
+	var target := 1.0 if not launching and (hover_w >= 0 or (picked >= 0 and not locked)) else 0.0
 	var k := move_toward(_k, target, delta * BLUR_RATE)
 	if k != _k:
 		_k = k
@@ -388,6 +402,33 @@ func _on_hover(w: HullData.Weight, on: bool) -> void:
 		hover_w = -1
 		_focus(picked)
 	ship_hover.emit(hover_w)
+
+
+## TRIAL (`YardLaunch`): the launching hull's pixels out of the ship map, kept to stamp back.
+func launch_mask_begin(s: YardStandSet) -> void:
+	if _ship_map_img == null:
+		return
+	_lm_rect = Rect2i(s.thing.position - Vector2i(2, 2), s.thing.size + Vector2i(4, 4)).intersection(
+		Rect2i(Vector2i.ZERO, _ship_map_img.get_size()))
+	_lm_base = _ship_map_img.duplicate() as Image
+	_lm_piece = Image.create(_lm_rect.size.x, _lm_rect.size.y, false, Image.FORMAT_RGBA8)
+	_lm_piece.fill(Color(0, 0, 0, 0))
+	for y in _lm_rect.size.y:
+		for x in _lm_rect.size.x:
+			var c := _ship_map_img.get_pixel(_lm_rect.position.x + x, _lm_rect.position.y + y)
+			if c.r8 == 255:
+				_lm_piece.set_pixel(x, y, c)
+				_lm_base.set_pixel(_lm_rect.position.x + x, _lm_rect.position.y + y, Color(0, 0, 0, 0))
+
+
+## The ship map with the launching hull `off` from its berth.
+func launch_mask_at(off: Vector2i) -> void:
+	if _lm_base == null or off == _lm_off:
+		return
+	_lm_off = off
+	var f := _lm_base.duplicate() as Image
+	f.blend_rect(_lm_piece, Rect2i(Vector2i.ZERO, _lm_piece.get_size()), _lm_rect.position + off)
+	_ship_tex.update(f)
 
 
 ## The berth the band ties its line to.
