@@ -41,6 +41,8 @@ var locked: bool = false
 var picked: int = -1
 var hover_w: int = -1
 var ready_hall: bool = false
+## The pools have been baked (`YardFrontPools`), with this set's hulls' shadows in them.
+var _bay_baked := false
 
 var _paint: Control
 var _fall: Sprite2D
@@ -247,36 +249,47 @@ func _focus(w: int) -> void:
 
 ## The light's ship map: every hull's (or tarp's) pixels, shaded toward the
 ## belly as the Shipyard deck shades them, and the floor lamps' pools baked
-## again with the hulls' shadows in them (`YardFrontPools`).
+## again with the hulls' shadows in them (`YardFrontPools`), on a banner, never on
+## a pick. In bytes, over the hulls' box: per pixel it took 60 ms a banner click.
+## Why: docs/why/ChassisSelect.md#ship-map-in-bytes
 func _rebake() -> void:
-	var img := Image.create(W, HALL_H, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
+	var img := Image.create_from_data(W, HALL_H, false, Image.FORMAT_RGBA8, ship_map())
+	if _ship_tex == null:
+		_ship_tex = ImageTexture.create_from_image(img)
+	else:
+		_ship_tex.update(img)
+	scene.light.set_ship_map(_ship_tex)
+	_bay_baked = true
+	YardFrontPools.bake(self)
+
+
+## The ship map's RGBA8 bytes, W x HALL_H, as the sets stand now.
+func ship_map() -> PackedByteArray:
+	var map := PackedByteArray()
+	map.resize(W * HALL_H * 4)
+	var box := Rect2i()
 	for w: HullData.Weight in sets:
-		(sets[w] as YardStandSet).mask_into(img)
-	for x in W:
+		var b := (sets[w] as YardStandSet).mask_into(map, W)
+		if b.size != Vector2i.ZERO:
+			box = b if box.size == Vector2i.ZERO else box.merge(b)
+	for x in range(box.position.x, box.end.x):
 		var top := -1
 		var bot := -1
-		for y in HALL_H:
-			if img.get_pixel(x, y).r8 == 255:
+		for y in range(box.position.y, box.end.y):
+			if map[(y * W + x) * 4] == 255:
 				if top < 0:
 					top = y
 				bot = y
 		if top < 0 or bot - top < 6:
 			continue
 		for y in range(top, bot + 1):
-			var c := img.get_pixel(x, y)
-			if c.r8 != 255:
+			var o := (y * W + x) * 4
+			if map[o] != 255:
 				continue
 			var u := float(y - top) / float(bot - top)
 			var k := floorf(clampf((u - 0.5) / 0.5, 0.0, 1.0) * 3.0 + 0.5) / 3.0
-			c.b8 = clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
-			img.set_pixel(x, y, c)
-	if _ship_tex == null:
-		_ship_tex = ImageTexture.create_from_image(img)
-	else:
-		_ship_tex.update(img)
-	scene.light.set_ship_map(_ship_tex)
-	YardFrontPools.bake(self)
+			map[o + 2] = clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
+	return map
 
 
 func _apply_light() -> void:

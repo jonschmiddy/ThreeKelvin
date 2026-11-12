@@ -11,11 +11,14 @@ extends RefCounted
 const GRID := Vector2i(481, 242)
 
 static var _gen := 0
+## How many bakes have been started: once a banner, never a pick (`YardPerfTest`).
+static var bakes := 0
 
 
 ## Bake the pools round `front`'s hulls and hand them to the light when done.
 static func bake(front: YardFront) -> void:
 	var sc := front.scene
+	bakes += 1
 	_gen += 1
 	var gen := _gen
 	if sc._quiet:
@@ -53,13 +56,14 @@ static func material_for(front: YardFront) -> ShaderMaterial:
 	m.shader = preload("res://shaders/yard_bay.gdshader")
 	_dress(m, front.scene)
 	for k in 2:
-		var mask := Image.create(YardFront.W, YardFront.HALL_H, false, Image.FORMAT_RGBA8)
-		mask.fill(Color(0, 0, 0, 0))
+		var map := PackedByteArray()
+		map.resize(YardFront.W * YardFront.HALL_H * 4)
 		var box := Rect2i()
 		for w: HullData.Weight in rows[k][1]:
-			var b := (front.sets[w] as YardStandSet).hull_into(mask)
+			var b := (front.sets[w] as YardStandSet).hull_into(map, YardFront.W)
 			if b.size != Vector2i.ZERO:
 				box = b if box.size == Vector2i.ZERO else box.merge(b)
+		var mask := Image.create_from_data(YardFront.W, YardFront.HALL_H, false, Image.FORMAT_RGBA8, map)
 		_row(m, k, mask, box, float(rows[k][0]))
 	return m
 

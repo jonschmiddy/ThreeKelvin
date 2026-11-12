@@ -613,3 +613,40 @@ picked, and nothing on it moves at rest. The mockup's box test put it clear of
 the band's words (122 px at its nearest) and of the developer's grade chips,
 which keep the old key's foot at (744, 508); SELECT A SHIP stays centred where
 it was.
+
+
+## Hulls baked ahead
+
+Above `func _bake_ahead() -> void:`:
+
+```text
+Jon, Nov 12: "the whole ship yard selection screen is VERY laggy". Measured
+on the PC (RTX 3070, `-- sheet=YardBench`): a frame of the hall costs about
+1.2 ms at rest and 1.7 ms with the blur, so the hall itself was never the lag.
+The clicks were. A banner's first click in a run took 630 to 690 ms, as its
+three hulls' graded pictures (`HullGrade.graded_tex`, C grade) were baked on
+the main thread; the bake is seeded by the run (`Rng.master`), so every new
+run paid it again, and with developer mode (or a record that opens them) every
+banner paid it. Now every open banner's hulls bake on a worker while the hall
+stands: Korvan's three alongside the hall's build, the rest one at a time.
+All twenty-one at once starved Korvan's three and made the way in 1.4 to 1.6 s
+(from 1.0); one at a time it stays 1.0 s and the rest are done in about 4 s.
+A click on a banner not yet baked waits for the bake in flight and bakes the
+rest itself, as before. Leaving the yard waits for the one in flight.
+```
+
+## Ship map in bytes
+
+Above `func _rebake() -> void:`:
+
+```text
+Each banner click rebuilt the light's ship map with get_pixel and set_pixel
+over the whole 960 x 482 hall (the stamps 15 ms, the belly shading about
+30 ms) and baked the floor pools again (15 ms and a GPU read the next frame),
+65 ms a click. The map is built in a byte array over the hulls' box only. The
+pools were then baked with no hull in them and baked once; since Jon's D (Nov
+12, `Lit as the Shipyard`) they carry the hulls' shadows, so they bake again
+on each banner, from byte masks, and never on a pick. `-- sheet=YardPerfTest` holds it equal, byte for byte, to the old
+per-pixel map for every set, hulls and tarps.
+```
+
