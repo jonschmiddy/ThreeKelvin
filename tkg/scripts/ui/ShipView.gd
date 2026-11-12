@@ -1365,7 +1365,8 @@ func idle_heard() -> bool:
 static func dark_cough_thrust(window: int) -> int:
 	if window < 0:
 		return -1
-	return ThrusterFx.Thrust.CRUISE if window == 0 else ThrusterFx.Thrust.IDLE
+	# (window 0 is the clean burn before the coughs; the first cough is window 1)
+	return ThrusterFx.Thrust.CRUISE if window <= 1 else ThrusterFx.Thrust.IDLE
 
 
 static func arrive_thrust(window: int) -> int:
