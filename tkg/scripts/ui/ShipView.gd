@@ -1326,8 +1326,9 @@ func _thrust_now() -> int:
 	if _arrive_at >= 0:
 		return arrive_thrust(_arrive_window if _burning else -1)
 	if _sputter_e >= 0.0:
-		var th := arrive_thrust(_flame_window(_sputter_e))
-		return -1 if dark_idle and th == ThrusterFx.Thrust.IDLE else th
+		if dark_idle:
+			return dark_cough_thrust(_flame_window(_sputter_e))
+		return arrive_thrust(_flame_window(_sputter_e))
 	if _burning:
 		return _burn_thrust
 	return -1 if dark_idle else ThrusterFx.Thrust.IDLE
@@ -1359,6 +1360,14 @@ func idle_heard() -> bool:
 
 ## The arrival sputters down to idle and never goes out (Jon, Oct 13), to avoid off then on.
 ## Why: docs/why/ShipView.md#arrival-sputter
+## Putting out for good (`dark_idle`): the first cough a cruise flame, the rest the
+## idle's, dark between them and after (Jon, Nov 12: "turn off actually when they putter out").
+static func dark_cough_thrust(window: int) -> int:
+	if window < 0:
+		return -1
+	return ThrusterFx.Thrust.CRUISE if window == 0 else ThrusterFx.Thrust.IDLE
+
+
 static func arrive_thrust(window: int) -> int:
 	if window < 0:
 		return ThrusterFx.Thrust.IDLE

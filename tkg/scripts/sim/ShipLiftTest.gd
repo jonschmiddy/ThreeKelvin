@@ -94,12 +94,15 @@ func _launch() -> void:
 	var smoke := 0
 	var landed_at := -1.0
 	var left_lit := 0
+	var flame_at := -1.0
 	for i in 900:
 		if Router.current != cs:
 			landed_at = _t - t0
 			break
 		if _t - t0 > ShipLift.exit_s() + 0.1 and _left_behind(lift, cs._yard.scene):
 			left_lit += 1
+		if flame_at < 0.0 and lift.view._thrust_now() >= 0:
+			flame_at = _t - t0
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
@@ -112,9 +115,13 @@ func _launch() -> void:
 		left_lit == 0)
 	_ok("it burns off the right edge (%.0f px across, off past %d)" % [right, YardFront.W],
 		x0 + right > float(YardFront.W))
-	_ok("the mains' sideways burn is reported once each way, going right, from %.2f s (%s)" % [ShipLift.BURN_AT, lat],
-		lat.size() == 2 and bool(lat[0][0]) and float(lat[0][1]) > 0.0 and not bool(lat[1][0])
-			and float(lat[0][2]) >= ShipLift.BURN_AT and float(lat[0][2]) < ShipLift.exit_s())
+	_ok("the mains' sideways burn is reported once each way, going right, from %.2f s (%s)" % [ShipLift.MAINS_ON, lat],
+		lat.size() == 2 and bool(lat[0][0]) and float(lat[0][1]) >= 0.0 and not bool(lat[1][0])
+			and float(lat[0][2]) >= ShipLift.MAINS_ON - 0.02 and float(lat[0][2]) < ShipLift.exit_s())
+	var lat_at := float(lat[0][2]) if not lat.is_empty() else -1.0
+	_ok("no main flame through the rise: it lights with the sideways burn, on `MAINS_ON` (flame from %.3f s, the burn's signal at %.3f s, the beat %.2f s)" % [
+		flame_at, lat_at, ShipLift.MAINS_ON], flame_at >= 0.0 and lat_at >= 0.0 and absf(flame_at - lat_at) < 0.02
+			and flame_at >= ShipLift.MAINS_ON - 0.001)
 	_ok("the run starts when the lift ends (%.2f s; the lift %.2f s)" % [landed_at, ShipLift.front_s()],
 		landed_at >= ShipLift.front_s() - 0.05 and landed_at <= ShipLift.front_s() + 0.2)
 	await Harness.frames(_tree, 10)

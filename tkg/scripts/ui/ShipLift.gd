@@ -12,11 +12,13 @@ extends RefCounted
 const SPOOL_S := 0.45
 const RISE_S := 1.7
 const SAG_S := 0.35
-const MAINS_AT := 1.85
-const BURN_AT := 2.05
-## The burn off the picture, s, gathering speed from near still the whole way (Jon,
-## Nov 12: "WAY too fast" at 1.05 s); E1-E3 on trial by `-- liftexit=1|2|3`, E2 by default.
-const BURN_BY := {1: 2.1, 2: 3.15, 3: 4.2}
+## THE MAINS LIGHT here and nowhere sooner: the flame, the sideways burn and its
+## sound (`lateral`) all start on this one beat (Jon, Nov 12: "shouldn't visually turn
+## on until the thrusters sound turns on"); through the rise only the jets are lit.
+const MAINS_ON := 2.05
+## The burn off the picture, s, gathering speed from near still the whole way (Jon's
+## E2, Nov 12: 1.05 s was "WAY too fast").
+const BURN_S := 3.15
 ## The front door holds the hall this long after the hull is off the picture.
 const HOLD_S := 0.8
 ## Past the picture's right edge by this much, its flame and glow off it too.
@@ -37,8 +39,6 @@ const LAND_SETTLE_S := 0.25
 const LAND_S := LAND_FLY_S + LAND_HOVER_S + LAND_DOWN_S + LAND_SETTLE_S
 const LAND_JETS_AT := 1.0
 const LAND_PLUME_AT := 1.3
-## Sideways faster than this (px/s) is a lateral burn (`lateral`).
-const LATERAL_MIN := 4.0
 
 ## The main engines pushing the hull sideways start (`on`) and stop, and how fast
 ## it is going across (px/s, signed): for the thruster layer under the lift's sound.
@@ -79,18 +79,9 @@ var shiver_hull := false
 var plume_k := 1.0
 
 
-## How long the burn off the picture takes (`BURN_BY`), off the picture by `exit_s`,
-## and the front door's whole lift.
-static func burn_s() -> float:
-	var e := 2
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("liftexit=") and int(a.substr(9)) in BURN_BY:
-			e = int(a.substr(9))
-	return float(BURN_BY[e])
-
-
+## Off the picture by here, and the front door's whole lift.
 static func exit_s() -> float:
-	return BURN_AT + burn_s()
+	return MAINS_ON + BURN_S
 
 
 static func front_s() -> float:
@@ -106,6 +97,7 @@ var _off := Vector2.ZERO
 var _dt := 0.0
 var _prev_x := NAN
 var _lat_on := false
+var _lat_want := false
 ## How fast the hull is going across this frame (px/s, signed).
 var lateral_speed := 0.0
 var _shiver := Vector2.ZERO
@@ -169,7 +161,7 @@ func lift_at(t: float) -> void:
 	var spool := clampf(t / SPOOL_S, 0.0, 1.0)
 	var lift_e := _ease_io(clampf((t - SPOOL_S) / RISE_S, 0.0, 1.0))
 	var sag := -2.0 * sin(clampf((t - SPOOL_S) / SAG_S, 0.0, 1.0) * PI) if t > SPOOL_S else 0.0
-	var burn := clampf((t - BURN_AT) / burn_s(), 0.0, 1.0)
+	var burn := clampf((t - MAINS_ON) / BURN_S, 0.0, 1.0)
 	if t >= PLUME_AT and not plume.fired():
 		plume.fire()
 	plume.thrust = spool * (1.0 - 0.75 * burn) if t < exit_s() else 0.0
@@ -181,12 +173,12 @@ func lift_at(t: float) -> void:
 	if t >= exit_s():
 		# off the picture: its engines dark, nothing of it left at the edge
 		_set_engines(-1)
-	elif t >= BURN_AT:
+	elif t >= MAINS_ON:
 		_set_engines(ThrusterFx.Thrust.FULL)
-	elif t >= MAINS_AT:
-		_set_engines(ThrusterFx.Thrust.CRUISE)
-	elif t >= PLUME_AT:
-		_set_engines(ThrusterFx.Thrust.IDLE)
+	else:
+		# (dark through the rise: the jets hold it, the mains have not lit)
+		_set_engines(-1)
+	_lat_want = t >= MAINS_ON and t < exit_s()
 	# a shiver while it hangs on the jets, harder as the mains light
 	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and burn < 0.85 else 0.0)
 	_shake(t, amp)
@@ -208,6 +200,7 @@ func land_at(t: float) -> void:
 	var down_at := hover_at + LAND_HOVER_S
 	var touch_at := down_at + LAND_DOWN_S
 	var fly := 1.0 - pow(1.0 - clampf(t / LAND_FLY_S, 0.0, 1.0), 3.0)
+	_lat_want = t < hover_at
 	_off.x = -dir * in_px * (1.0 - fly)
 	var high := approach_px
 	var near := 0.0
@@ -216,7 +209,9 @@ func land_at(t: float) -> void:
 		var bob := roundf(sin((t - hover_at) * TAU * 0.8)) if t > hover_at - 0.3 else 0.0
 		_off.y = -high + bob
 	elif t < touch_at:
-		var d := _ease_io((t - down_at) / LAND_DOWN_S)
+		# (slow and heavy: most of the drop mid-way, a soft start and a soft settle)
+		var u := (t - down_at) / LAND_DOWN_S
+		var d := u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
 		_off.y = -high * (1.0 - d)
 		near = d
 	elif t < LAND_S:
@@ -262,12 +257,13 @@ func release() -> void:
 		_gmat.set_shader_parameter(&"n", 0)
 
 
-## Sideways motion is the mains' burn: `lateral` on its first frame and its last.
+## The mains' sideways burn, from `MAINS_ON` to the exit (and the landing's way in
+## to the hover): `lateral` on its first frame and its last, with how fast it goes.
 func _track_lateral() -> void:
 	if not is_nan(_prev_x) and _dt > 0.0:
 		lateral_speed = (_off.x - _prev_x) / _dt
 	_prev_x = _off.x
-	var on := absf(lateral_speed) > LATERAL_MIN
+	var on := _lat_want
 	if on != _lat_on:
 		_lat_on = on
 		lateral.emit(on, lateral_speed)

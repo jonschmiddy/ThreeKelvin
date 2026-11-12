@@ -544,7 +544,7 @@ func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
 			yr.clip = lad.cough_clip
 	(yr.f as Array).append({"frame": Engine.get_process_frames(),
 		"t": float(lad.get("yard_t", -INF)) if not lad.is_empty() else INF, "pos": v.position,
-		"th": v._thrust_now(), "level": Audio._ship_level, "want": Audio.ship_want, "sputter": v.sputtering()})
+		"th": v._thrust_now(), "glow": not v.engine_glow().is_empty(), "level": Audio._ship_level, "want": Audio.ship_want, "sputter": v.sputtering()})
 
 
 ## The landing is checked as roar, putter, silence at touchdown, then the clamps once.
@@ -611,16 +611,15 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 				if ee >= (spans[k] as Vector2).x and ee < (spans[k] as Vector2).y:
 					win = k
 			# (dark between the coughs, not at the idle: Jon, Nov 12, "visually turn off too")
-			var want_th := ShipView.arrive_thrust(win)
-			if want_th == ThrusterFx.Thrust.IDLE:
-				want_th = -1
+			var want_th := ShipView.dark_cough_thrust(win)
 			if int(e.th) != want_th or not bool(e.sputter):
 				cough_bad += 1
 				if cough_at_bad == "":
 					cough_at_bad = "%.3f s: drawn %d, the row %d" % [dt, int(e.th), want_th]
 		else:
 			quiet_n += 1
-			if int(e.th) != -1 or bool(e.sputter):
+			# (no flame and no engine glow from the last cough to touchdown)
+			if int(e.th) != -1 or bool(e.sputter) or bool(e.get("glow", false)):
 				quiet_bad += 1
 	_ok("%s: THE ROAR -- the cruise flame drawn and the thrust loop asked for at the dock's burn level (%.1f) while your ship flies in, from %.2f s to the coughs at %.2f s (%d frames, %d moving with it heard; %d off%s), nothing before (%d)" % [
 		label, SectorScreen.DOCK_BURN_LEVEL, StationScreen.YARD_ROAR_FROM_S, cough_at, roar_n, roar_moved, roar_bad,

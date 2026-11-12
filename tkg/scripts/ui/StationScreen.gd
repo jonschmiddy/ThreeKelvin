@@ -3119,9 +3119,9 @@ func _deck_lift() -> ShipLift:
 	L.rise = float(ShipLift.RISE_PX.get(Run.hull.weight if Run.hull != null else HullData.Weight.MEDIUM, 46.0)) * DECK_LIFT_K
 	L.exit_px = float(YardScene.W) + ShipLift.EXIT_CLEAR - float(Q["x0"])
 	L.in_px = float(_lad.get("off", 300.0))
-	# in high, its top 42 rows over the wall's foot: just under the lamp strings
-	# along the wall, well clear of the stands (Jon, Nov 12: "far too low")
-	L.approach_px = clampf(float(Q["top"]) - (float(YardScene.doc().get("wallrow", 207)) - 42.0), 30.0, 90.0)
+	# in high, its top 100 rows down the hall: under the ceiling's lamp boxes, well
+	# clear of the stands, a long drop to them (Jon, Nov 12: "far too low", "higher up")
+	L.approach_px = clampf(float(Q["top"]) - LAND_TOP_Y, 40.0, 160.0)
 	L.life = _scene.life
 	L.light = _scene.light
 	L.shiver_hull = true
@@ -3138,6 +3138,8 @@ func _deck_lift() -> ShipLift:
 	return L
 
 
+## How high the landing comes in and hovers: the hull's top on this row.
+const LAND_TOP_Y := 100.0
 ## The deck's hulls stand this much smaller than the front door's front row.
 const DECK_LIFT_K := 0.75
 
