@@ -20,11 +20,6 @@ const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(2, 75), HullData.Weight.ME
 const TARP_DELAY := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 0.18, HullData.Weight.LIGHT: 0.36}
 const TARP_SEED := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 1.4, HullData.Weight.LIGHT: 2.9}
 const TARP_LIFT := 12
-## The stands' feet in the floor's polish, and the shade on their base plates
-## (rows up from the floor at the front row's size, and how dark).
-const GLOSS := 0.2
-const MIRROR_ROWS := 24
-const BASE_DARK := [[4, 0.34], [9, 0.2], [14, 0.1]]
 
 var weight: HullData.Weight = HullData.Weight.MEDIUM
 var scene: YardScene
@@ -50,6 +45,8 @@ var seat: int = 0
 var sink: int = 0
 ## Rows the stands have sunk into the floor (`ShipLift`, as the hull lifts off).
 var retract: int = 0
+## Off its stands (`ShipLift`): the floor lamps are baked again without it.
+var lifted := false
 
 
 func _init() -> void:
@@ -147,88 +144,86 @@ func _seat_stands(v: ShipView, img: Image, ink: Rect2i) -> int:
 	return _stand_top + seat - 1 + sink - r[1]
 
 
-## The stands on the floor, in the hall's depth order (`YardFrontLife`): the
-## shadow Jon passed for every stand, a dithered contact shade under each foot
-## and the hull's shade between them, the feet in the floor's polish, the stand
-## lit at its foot's cell, and its base plate darkened toward the floor.
-## Why: docs/why/ChassisSelect.md#grounded-stands
+## The stands on the floor, in the hall's depth order (`YardFrontLife`), as
+## the Shipyard deck draws its stands (`YardScene._draw_ships`): the one stand
+## shadow Jon passed for every stand, the stand lit as the deck lights a ship.
+## Why: docs/why/ChassisSelect.md#lit-as-the-shipyard
 func paint_stands(P: YardPaint) -> void:
 	if _stand_tex == null:
 		return
-	var k := YardSlot.depth_k(weight)
 	var sw := _stand_img.get_width()
-	var shh := _stand_img.get_height()
 	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
 	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
-	var f := float(feet)
-	if YardLightTrial.option() == "D":
-		# the deck's stands: the one shadow picture, the stand lit as a ship is
-		for sx1 in _stand_x:
-			if shadow != null:
-				P.use(YardPaint.PLAIN)
-				P.tex(shadow, Vector2(float(sx1) + float(sw) * 0.5 - 23.0 + float(sh.get("x", -20)), f + float(sh.get("y", -4))))
-			P.use(YardPaint.SHIP)
-			P.tex(_stand_tex, Vector2(sx1, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
-		return
-	if YardLightTrial.has("nostand"):
-		for sx0 in _stand_x:
-			var c0 := float(sx0) + float(sw) * 0.5
-			P.use(YardPaint.FLOOR, Vector2(floorf(c0), f))
-			P.tex(_stand_tex, Vector2(sx0, _stand_top))
-		return
-	P.use(YardPaint.PLAIN)
-	var last := _stand_x[_stand_x.size() - 1]
-	var mid := float(_stand_x[0] + last + sw) * 0.5
-	scene.shade(P, floorf(mid), f - 1.0, float(last - _stand_x[0]) * 0.5 + 6.0, maxf(2.0, floorf(5.0 * k)), 0.22)
 	for sx in _stand_x:
-		var cx := float(sx) + float(sw) * 0.5
 		if shadow != null:
-			P.tex(shadow, Vector2(floorf(cx - float(shadow.get_width()) * 0.5), f + floorf(float(sh.get("y", -4)) * k)))
-		scene.shade(P, floorf(cx), f, float(sw) * 0.5 + 2.0, maxf(2.0, floorf(3.0 * k)), 0.42)
-	var rows := mini(roundi(float(MIRROR_ROWS) * k), shh)
-	P.use(YardPaint.MIRROR)
-	for sx in _stand_x:
-		P.mirror(_stand_tex, Rect2(0, shh - rows, sw, rows), float(sx), f, GLOSS, YardLife.TINT, false)
-	for sx in _stand_x:
-		var cx2 := float(sx) + float(sw) * 0.5
-		P.use(YardPaint.FLOOR, Vector2(floorf(cx2), f))
-		P.tex(_stand_tex, Vector2(sx, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
-	P.use(YardPaint.PLAIN)
-	var done := 0
-	for band: Array in BASE_DARK:
-		var n := mini(roundi(float(band[0]) * k), shh)
-		if n <= done:
-			continue
-		for sx in _stand_x:
-			P.tex(_stand_tex, Vector2(sx, f - float(n)), Rect2(0, shh - n, sw, n - done), Color(0, 0, 0, float(band[1])))
-		done = n
+			# (placed by the stand's middle: the heavy's stands are narrower than the picture's 46)
+			P.use(YardPaint.PLAIN)
+			P.tex(shadow, Vector2(float(sx) + float(sw - YardSlot.STAND_W) * 0.5 + float(sh.get("x", -20)), float(feet) + float(sh.get("y", -4))))
+		P.use(YardPaint.SHIP)
+		var shh := _stand_img.get_height()
+		if retract < shh:
+			P.tex(_stand_tex, Vector2(sx, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
+
+
+## The hull's (or the tarp's) pixels as a hull in `map` (RGBA8 bytes, `w` wide),
+## where the floor lamps look for what stands in their way (`YardFrontPools`); returns their box.
+func hull_into(map: PackedByteArray, w: int) -> Rect2i:
+	# (a hull lifting off throws no shadow on its berth's floor any more)
+	if lifted:
+		return Rect2i()
+	if _view != null:
+		var c := _view.canvas()
+		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
+	if _tarp != null and _tarp.image != null:
+		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
+	return Rect2i()
 
 
 ## The hull's (or tarp's) pixels into the light's ship map (R a hull, G a stand),
-## at their hall places; `img` may be wider than the hall.
-func mask_into(img: Image) -> void:
+## at their hall places, as RGBA8 bytes `map` `w` wide; returns the box the hull's went in.
+func mask_into(map: PackedByteArray, w: int) -> Rect2i:
 	var si := _stand_img
 	if si != null:
 		for sx in _stand_x:
-			_stamp(img, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _stand_top), Color8(0, 255, 0, 255), false)
+			_stamp(map, w, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _stand_top), 1, false)
 	if _view != null:
 		var c := _view.canvas()
-		_stamp(img, c, _ink(c), Vector2i(_x0, thing.position.y), Color8(255, 0, 0, 255), true)
-	elif _tarp != null and _tarp.image != null:
-		_stamp(img, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, Color8(255, 0, 0, 255), true)
+		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
+	if _tarp != null and _tarp.image != null:
+		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
+	return Rect2i()
 
 
-static func _stamp(img: Image, src: Image, ink: Rect2i, at: Vector2i, col: Color, over: bool) -> void:
+## `src`'s solid pixels (alpha 128 up) as opaque 255 in channel `ch` (0 R, 1 G), in bytes:
+## `get_pixel` and `set_pixel` took 15 ms a banner. A stand (`over` false) never covers a hull.
+static func _stamp(map: PackedByteArray, w: int, src: Image, ink: Rect2i, at: Vector2i, ch: int, over: bool) -> Rect2i:
+	var s := src
+	if s.get_format() != Image.FORMAT_RGBA8:
+		s = src.duplicate() as Image
+		s.convert(Image.FORMAT_RGBA8)
+	var sd := s.get_data()
+	var sw := s.get_width()
+	var h := map.size() / (4 * w)
+	var lo := Vector2i(w, h)
+	var hi := Vector2i(-1, -1)
 	for y in ink.size.y:
+		var Y := at.y + y
+		if Y < 0 or Y >= h:
+			continue
+		var si := ((ink.position.y + y) * sw + ink.position.x) * 4 + 3
 		for x in ink.size.x:
-			if src.get_pixel(ink.position.x + x, ink.position.y + y).a8 < 128:
-				continue
 			var X := at.x + x
-			var Y := at.y + y
-			if X < 0 or Y < 0 or X >= img.get_width() or Y >= img.get_height():
+			if sd[si + x * 4] < 128 or X < 0 or X >= w:
 				continue
-			if over or img.get_pixel(X, Y).r8 == 0:
-				img.set_pixel(X, Y, col)
+			var o := (Y * w + X) * 4
+			if over or map[o] == 0:
+				map[o] = 255 if ch == 0 else 0
+				map[o + 1] = 255 if ch == 1 else 0
+				map[o + 2] = 0
+				map[o + 3] = 255
+				lo = Vector2i(mini(lo.x, X), mini(lo.y, Y))
+				hi = Vector2i(maxi(hi.x, X), maxi(hi.y, Y))
+	return Rect2i(lo, hi - lo + Vector2i.ONE) if hi.x >= 0 else Rect2i()
 
 
 ## The box of a picture's opaque pixels.

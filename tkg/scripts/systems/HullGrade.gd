@@ -27,8 +27,7 @@ static func bake_mix(src: Image, grade: int, looks: Array, seed_in: int = 7, hul
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
 	_band(img, hull)
-	_manufacturer = hull.get_slice("/", 0) if hull != "" else "korvan"
-	var r := _Ramps.new(img)
+	var r := _Ramps.new(img, hull.get_slice("/", 0) if hull != "" else "korvan")
 	var at := places(hull)
 	# the silhouette first, then the yard's paint, the age over it, the marks,
 	# then the lights shining through the grime
@@ -54,8 +53,11 @@ class _Ramps extends RefCounted:
 	var grey: Array = []
 	var accent: Array = []
 	var _where := {}           ## colour key -> [is_accent, index]
+	## Whose hull: its own, not a static, so bakes can run side by side (`bake_ahead`).
+	var mf := "korvan"
 
-	func _init(img: Image) -> void:
+	func _init(img: Image, who: String = "korvan") -> void:
+		mf = who
 		var seen := {}
 		for y in img.get_height():
 			for x in img.get_width():
@@ -68,7 +70,7 @@ class _Ramps extends RefCounted:
 			# was worn as if it were Korvan's amber band.
 			if c.s > 0.28 and c.v > 0.25 and (c.h < 0.17 or c.h > 0.95):
 				accent.append(c)
-			elif HullGrade._manufacturer != "korvan" and c.s > 0.45:
+			elif mf != "korvan" and c.s > 0.45:
 				# A pale hull's glass and cold glints sit on
 				# neither ramp, so grime never steps into blue.
 				pass
@@ -392,9 +394,8 @@ const STENCIL := {
 ## Why: docs/why/HullGrade.md#markings
 static var reg_look: StringName = &"A"
 
-## Whose hull is being baked: the registry's first letter is its manufacturer's
-## (Solari's ships read S-, Korvan's K-).
-static var _manufacturer := "korvan"
+## The registry's first letter is the hull's manufacturer's (`_Ramps.mf`):
+## Solari's ships read S-, Korvan's K-.
 
 
 ## How much lighter look A's strokes are than the panel under them.
@@ -425,7 +426,7 @@ static func _marks(img: Image, r: _Ramps, grade: int, seed_in: int, at: Dictiona
 		ink = r.accent[0] if not r.accent.is_empty() else r.grey[0]
 	else:
 		var cx := int(reg[0])
-		var letter := _manufacturer.substr(0, 1).to_upper()
+		var letter := r.mf.substr(0, 1).to_upper()
 		for ch in (letter if STENCIL.has(letter) else "K") + "-" + num:
 			cells.append([ch, Vector2i(cx, int(reg[1]))])
 			cx += 4
@@ -739,11 +740,7 @@ static func graded_tex(h: HullData, half: bool, seed_in: int) -> Texture2D:
 	var ck := "%s|%d|%d|%d" % [key, h.tier, int(half), seed_in]
 	if _tex.has(ck):
 		return _tex[ck]
-	var full := h.sprite.get_image()
-	if full.is_compressed():
-		full.decompress()
-	full.convert(Image.FORMAT_RGBA8)
-	var img := bake_mix(full, clampi(h.tier, 0, 3), SHIPPED, seed_in, key)
+	var img: Image = _collect(ck) if _ahead.has(ck) else bake_mix(_full(h), clampi(h.tier, 0, 3), SHIPPED, seed_in, key)
 	if half and h.sprite_half != null:
 		var small := Image.create(h.sprite_half.get_width(), h.sprite_half.get_height(), false, Image.FORMAT_RGBA8)
 		for y in small.get_height():
@@ -755,6 +752,64 @@ static func graded_tex(h: HullData, half: bool, seed_in: int) -> Texture2D:
 	tex.resource_path = "%s#grade%d%s%d" % [h.sprite.resource_path, h.tier, "h" if half else "", seed_in]
 	_tex[ck] = tex
 	return tex
+
+
+static func _full(h: HullData) -> Image:
+	var full := h.sprite.get_image()
+	if full.is_compressed():
+		full.decompress()
+	full.convert(Image.FORMAT_RGBA8)
+	return full
+
+
+## Bakes started on worker threads, by `graded_tex` key: [task id, [image], hull, seed].
+static var _ahead := {}
+
+
+## Bake these hulls' whole-size pictures on worker threads now, so the screen that
+## shows them next finds them done (the front door's banner click baked three, 0.6 s).
+## Why: docs/why/HullGrade.md#baked-ahead
+static func bake_ahead(hulls: Array[HullData], seed_of: Callable) -> void:
+	for h in hulls:
+		var key := key_for(h)
+		if key == "" or h.sprite == null:
+			continue
+		var s: int = seed_of.call(h)
+		var ck := "%s|%d|%d|%d" % [key, h.tier, 0, s]
+		if _tex.has(ck) or _ahead.has(ck):
+			continue
+		# (the tables a bake reads, filled here: the workers only read them)
+		band_ramp(key)
+		places(key)
+		var full := _full(h)
+		var grade := clampi(h.tier, 0, 3)
+		var out: Array = [null]
+		var task := WorkerThreadPool.add_task(func() -> void: out[0] = bake_mix(full, grade, SHIPPED, s, key),
+			false, "hull grade ahead")
+		_ahead[ck] = [task, out, h, s]
+
+
+## No bake still running on a worker.
+static func ahead_idle() -> bool:
+	for a: Array in _ahead.values():
+		if not WorkerThreadPool.is_task_completed(int(a[0])):
+			return false
+	return true
+
+
+## The bake started ahead for `ck`, waited for if it is still going.
+static func _collect(ck: String) -> Image:
+	var a: Array = _ahead[ck]
+	_ahead.erase(ck)
+	WorkerThreadPool.wait_for_task_completion(int(a[0]))
+	return (a[1] as Array)[0]
+
+
+## Every bake still out, waited for and kept: none may outlive the screen that asked.
+static func finish_ahead() -> void:
+	for ck: String in _ahead.keys():
+		var a: Array = _ahead[ck]
+		graded_tex(a[2], false, int(a[3]))
 
 
 ## Every lit spot's pixels and brightness at `t`, glow included, to draw additively.

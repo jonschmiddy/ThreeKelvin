@@ -56,6 +56,8 @@ var _band: YardBand
 var _hover: int = -1
 ## A tarp was clicked under this locked set: LAUNCH shows, grey.
 var _tarp_tried: bool = false
+## The open banners' hulls not yet handed to the worker (`_bake_ahead`).
+var _to_bake: Array[HullData] = []
 ## LAUNCH pressed: it never fires twice.
 var _launching := false
 
@@ -68,6 +70,7 @@ func setup() -> void:
 	size = Vector2(YardFront.W, YardFront.H)
 	# NO SCIENCE CLEARED HERE.
 	# Why: docs/why/ChassisSelect.md#no-science-cleared-here
+	_bake_ahead()
 	_yard = YardFront.new()
 	add_child(_yard)
 	_yard.setup()
@@ -80,6 +83,32 @@ func setup() -> void:
 	_band.launch.connect(_launch)
 	_band.tier_picked.connect(_pick_tier)
 	_select(0)
+
+
+## Every open banner's hulls baked on a worker, Korvan's alongside the hall's
+## build, then one at a time behind the hall: a banner's first click baked its
+## three here, 0.6 s. Twenty-one side by side starved the first three.
+## Why: docs/why/ChassisSelect.md#hulls-baked-ahead
+func _bake_ahead() -> void:
+	for m: StringName in DB.STARTABLE:
+		if Unlocks.unlocked(m):
+			for w: HullData.Weight in [HullData.Weight.HEAVY, HullData.Weight.MEDIUM, HullData.Weight.LIGHT]:
+				_to_bake.append(DB.at_tier(DB.hull_for(m, w), _tier))
+	HullGrade.bake_ahead(_to_bake.slice(0, 3), _bake_seed)
+	_to_bake = _to_bake.slice(3)
+
+
+static func _bake_seed(h: HullData) -> int:
+	return HullWear.seed_for(h, "", Rng.master)
+
+
+func _process(_dt: float) -> void:
+	if not _to_bake.is_empty() and HullGrade.ahead_idle():
+		HullGrade.bake_ahead([_to_bake.pop_front()], _bake_seed)
+
+
+func _exit_tree() -> void:
+	HullGrade.finish_ahead()
 
 
 func manufacturer() -> StringName:
