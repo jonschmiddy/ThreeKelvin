@@ -77,6 +77,7 @@ func _run() -> void:
 	for key in order:
 		print("  %s: %s" % [key.get_file().get_basename(), ", ".join(by_sprite[key]["names"])])
 	_front()
+	_berths()
 	harness.verdict("yardseattest")
 	get_tree().quit(harness.code())
 
@@ -127,6 +128,102 @@ func _front() -> void:
 		_ok("%s: the tarp lies down over both cradle tops (%s px of floor)" % [tag, r["gap"]],
 			int(r["gap"][0]) == 0 and int(r["gap"][1]) == 0)
 	front.free()
+
+
+## THE FRONT DOOR'S FIXED BERTHS (Jon, Nov 12): each weight's stands in one place
+## for every set, on its floor row, drawn with the crew; no walker inside a berth.
+## Why: docs/why/ChassisSelect.md#fixed-berths
+func _berths() -> void:
+	var front := YardFront.new()
+	add_child(front)
+	front.setup()
+	if not _ok("berths: the city hall is installed", front.ready_hall):
+		front.free()
+		return
+	var seen := {}
+	var sets_seen := 0
+	for m: StringName in DB.STARTABLE:
+		for tier in 4:
+			for open: bool in [true, false]:
+				if not open and tier > 0:
+					continue
+				front.show_set(m, open, tier)
+				sets_seen += 1
+				for w: HullData.Weight in front.sets:
+					var s: YardStandSet = front.sets[w]
+					var rects: Array[Rect2i] = []
+					for sx in s._stand_x:
+						rects.append(Rect2i(Vector2i(sx, s._stand_top), s._stand_img.get_size()))
+					var key := str(rects)
+					if not seen.has(w):
+						seen[w] = key
+					_ok("berths: %s %s %s%s stands where every other set's do (%s, not %s)" % [m, DB.tier_name(tier),
+						HullData.weight_name(w), "" if open else " tarp", key, seen[w]], key == seen[w])
+	print("  berths: %d sets, each weight's stands in one place" % sets_seen)
+	for w: HullData.Weight in front.sets:
+		var s: YardStandSet = front.sets[w]
+		var want := YardSlot.stand_rects(w)
+		var got: Array[Rect2i] = []
+		for sx in s._stand_x:
+			got.append(Rect2i(Vector2i(sx, s._stand_top), s._stand_img.get_size()))
+		print("  berths: %-6s stands %s, feet on row %d, floor %s" % [HullData.weight_name(w), got, s.feet, YardSlot.footprint(w)])
+		_ok("berths: the %s's stands are the slot's (%s)" % [HullData.weight_name(w), want], got == want)
+		var bottom := -1
+		for y in s._stand_img.get_height():
+			for x in s._stand_img.get_width():
+				if s._stand_img.get_pixel(x, y).a8 >= 128:
+					bottom = y
+		_ok("berths: the %s's stands touch the floor row %d (ink to row %d)" % [HullData.weight_name(w), s.feet,
+			s._stand_top + bottom], s._stand_top + s._stand_img.get_height() == s.feet and s._stand_top + bottom == s.feet - 1
+			and s.feet == YardSlot.feet(w))
+		_ok("berths: the %s's stands are drawn with the crew, not over it" % HullData.weight_name(w),
+			s.get_children().all(func(c: Node) -> bool: return c is ShipView or c is YardStandSet.Tarp)
+			and (front.scene.life as YardFrontLife).berths.has(s))
+	var L: YardStandSet = front.sets[HullData.Weight.LIGHT]
+	var M: YardStandSet = front.sets[HullData.Weight.MEDIUM]
+	var Hv: YardStandSet = front.sets[HullData.Weight.HEAVY]
+	_ok("berths: the light far left, the medium far right, the heavy between and behind",
+		L._stand_x.max() < Hv._stand_x.min() and Hv._stand_x.max() < M._stand_x.min() and Hv.feet < L.feet and L.feet == M.feet)
+	_ok("berths: the heavy's stands smaller by the floor's depth (%s against %s)" % [Hv._stand_img.get_size(), L._stand_img.get_size()],
+		Hv._stand_img.get_width() < L._stand_img.get_width() and Hv._stand_img.get_height() < L._stand_img.get_height())
+	_walkers(front.scene.life as YardFrontLife)
+	front.free()
+
+
+## Every lane walked at 30 samples a second for a whole lap: the foot never
+## inside a berth's floor, nor under the band; and the workers clear of them.
+func _walkers(life: YardFrontLife) -> void:
+	var floors: Array[Rect2i] = []
+	for w: HullData.Weight in YardStandSet.WEIGHTS:
+		floors.append(YardSlot.footprint(w))
+	var samples := 0
+	var inside: Array[String] = []
+	var stepped := 0
+	for c: Dictionary in life.CREW:
+		var C := life.crew_strip(String(c["name"]))
+		var pace := float(c.get("pace", C.get("pace", 10.0)))
+		var lap := absf(float(c["to"]) - float(c["from"])) * (2.0 if bool(c.get("pace_back", false)) else 1.0)
+		var n := int(ceilf(lap / maxf(pace, 0.1) * 30.0))
+		for i in n + 1:
+			var p := life.walk_at(c, float(i) / 30.0)
+			var x := float(p["x"])
+			var dy := life.avoid(x, float(c["y"]))
+			var foot := Vector2i(int(floorf(x + 0.5)), int(float(c["y"]) + dy))
+			samples += 1
+			if dy > 0.0:
+				stepped += 1
+			if foot.y >= int(YardFrontLife.BAND_TOP):
+				inside.append("%s under the band at %s" % [c["name"], foot])
+			for r in floors:
+				if r.has_point(foot) and inside.size() < 12:
+					inside.append("%s at %s in %s" % [c["name"], foot, r])
+	for wk: Vector2 in [YardFrontLife.ENG_FRONT, YardFrontLife.BENCH_FRONT]:
+		for r in floors:
+			if r.has_point(Vector2i(wk)):
+				inside.append("the worker at %s in %s" % [wk, r])
+	print("  berths: %d lanes, %d foot samples, %d stepping round a berth" % [life.CREW.size(), samples, stepped])
+	_ok("berths: no walker or worker inside a berth's floor%s" % ("" if inside.is_empty() else ": " + ", ".join(inside)),
+		inside.is_empty() and samples > 1000 and stepped > 0)
 
 
 ## A front berth's stands in `_stand`'s shape, for `_measure`.

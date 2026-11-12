@@ -18,12 +18,12 @@ const HALL_H := YardScene.H
 ## The banners' left edges on the gantry.
 const BANNER_X := [126, 238, 350, 462, 574, 686, 798]
 ## The hall's ceiling lamps over each weight's berth (`YardLight.ceil_idx` order,
-## lamps at x 100, 256, 411, 570, 727): the medium under the second, the heavy
-## under the third and fourth, the light under the fifth.
-const SHIP_LAMPS := {HullData.Weight.MEDIUM: [1], HullData.Weight.HEAVY: [2, 3], HullData.Weight.LIGHT: [4]}
+## lamps at x 100, 256, 411, 570, 727): the light under the first two, the heavy
+## under the third and fourth, the medium under the fifth.
+const SHIP_LAMPS := {HullData.Weight.LIGHT: [0, 1], HullData.Weight.HEAVY: [2, 3], HullData.Weight.MEDIUM: [4]}
 ## The pools the haze cones hang under: lamp x and the pool's reach.
-const POOLS := [[256.0, 92.0, HullData.Weight.MEDIUM], [411.0, 80.0, HullData.Weight.HEAVY],
-	[570.0, 80.0, HullData.Weight.HEAVY], [727.0, 92.0, HullData.Weight.LIGHT]]
+const POOLS := [[100.0, 70.0, HullData.Weight.LIGHT], [256.0, 70.0, HullData.Weight.LIGHT],
+	[411.0, 80.0, HullData.Weight.HEAVY], [570.0, 80.0, HullData.Weight.HEAVY], [727.0, 92.0, HullData.Weight.MEDIUM]]
 ## The yard's ambient, well down from the Shipyard deck's 0.2, so the pools read.
 const AMB_OPEN := 0.12
 const AMB_LOCKED := 0.07
@@ -57,8 +57,9 @@ var _ghost: Ghost
 var _k: float = 0.0
 var _t: float = 0.0
 var _ship_tex: ImageTexture = null
-var _dither: ImageTexture = null
 var _sharp_set: YardStandSet = null
+## Where the next piece of floor goes among the hall's children: after the hall picture.
+var _under_at: int = 1
 
 
 func _init() -> void:
@@ -81,6 +82,9 @@ func setup() -> void:
 		push_warning("yard front: no city hall installed")
 		return
 	ready_hall = true
+	# the floor runs on past the hall to the frame's edge, its crew and stands with it
+	scene.clip_contents = false
+	scene.draw_w = W
 	scene.life = YardFrontLife.new(scene)
 	# the deal TV stands on the apron where the band goes: off the picture
 	scene.deal_tv.X = -2000.0
@@ -91,7 +95,7 @@ func setup() -> void:
 	_paint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_paint.size = Vector2(W, H)
 	_paint.draw.connect(_draw_paint)
-	add_child(_paint)
+	_under(_paint)
 	for i in DB.STARTABLE.size():
 		var b := YardBanner.new()
 		b.setup(i, DB.STARTABLE[i], Unlocks.unlocked(DB.STARTABLE[i]), int(BANNER_X[i % BANNER_X.size()]))
@@ -104,6 +108,10 @@ func setup() -> void:
 		s.pressed.connect(func() -> void: ship_pressed.emit(w))
 		s.hovered.connect(func(on: bool) -> void: _on_hover(w, on))
 		add_child(s)
+	var berths: Array[YardStandSet] = []
+	for w: HullData.Weight in sets:
+		berths.append(sets[w])
+	(scene.life as YardFrontLife).berths = berths
 	_fall = Sprite2D.new()
 	_fall.centered = false
 	_fall.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -144,7 +152,7 @@ func _build_hall_extras() -> void:
 	tr.size = Vector2(HALL_W, HALL_H)
 	tr.material = edge_m
 	clip.add_child(tr)
-	add_child(clip)
+	_under(clip)
 	# the floor under the band: the hall's last rows again, each piece lit at its own cell
 	var rows := H - HALL_H
 	for cx in range(0, W, 80):
@@ -152,7 +160,7 @@ func _build_hall_extras() -> void:
 		var piece := _sprite(L.hall, Rect2(sx, HALL_H - rows, mini(80, HALL_W - sx), rows), Vector2(cx, HALL_H))
 		piece.material = scene._mats[YardPaint.FLOOR]
 		piece.set_instance_shader_parameter(&"cell", Vector2(sx + 40, HALL_H - 12))
-		add_child(piece)
+		_under(piece)
 	# plain floor over the two painted bay marks (and the copy's) and over the
 	# striped hatch where the band's words go, as the mockup patched them
 	var patches: Array = []
@@ -163,7 +171,15 @@ func _build_hall_extras() -> void:
 	for pr: Array in patches:
 		var p := _sprite(L.hall, pr[0], pr[1])
 		p.material = edge_m if p.position.x >= HALL_W else scene._mats[YardPaint.HALL]
-		add_child(p)
+		_under(p)
+
+
+## Into the hall under its crew and stands: the floor they walk and stand on.
+## (Laid over the scene, it hid every walker who crossed a patch or the hall's join.)
+func _under(n: CanvasItem) -> void:
+	scene.add_child(n)
+	scene.move_child(n, _under_at)
+	_under_at += 1
 
 
 ## A piece of the hall drawn somewhere else: scenery, which no box test reads as ink.
@@ -343,8 +359,9 @@ func set_of(w: HullData.Weight) -> YardStandSet:
 	return sets.get(w)
 
 
-## The scenery over the hall and under the ships: the banners' shadows on the
-## wall, the haze under each lamp, the bay paint and the stands' contact shadows.
+## The scenery on the hall, under its crew: the banners' shadows on the wall,
+## the haze under each lamp and the bay paint. The stands ground themselves
+## (`YardStandSet.paint_stands`).
 func _draw_paint() -> void:
 	var ci := _paint
 	for x: int in BANNER_X:
@@ -378,17 +395,6 @@ func _draw_paint() -> void:
 		while dx < x1 - 24.0:
 			ci.draw_rect(Rect2(dx, y1, 6, 1), PAINT, true)
 			dx += 12.0
-	if _dither == null:
-		var d := Image.create(2, 2, false, Image.FORMAT_RGBA8)
-		d.fill(Color(0, 0, 0, 0))
-		d.set_pixel(0, 0, Color(0, 0, 0, 1))
-		_dither = ImageTexture.create_from_image(d)
-	for w: HullData.Weight in sets:
-		var s: YardStandSet = sets[w]
-		var b := s.thing
-		var f := float(s.feet)
-		ci.draw_rect(Rect2(b.position.x + 10, f - 2, b.size.x - 20, 4), Color(0, 0, 0, 120.0 / 255.0), true)
-		ci.draw_texture_rect(_dither, Rect2(b.position.x + 4, f + 3, b.size.x - 7, 12), true, Color(0, 0, 0, 110.0 / 255.0))
 
 
 ## The sharp copy of the ship pointed at, over the blurred yard.

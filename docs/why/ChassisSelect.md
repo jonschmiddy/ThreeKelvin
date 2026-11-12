@@ -473,6 +473,63 @@ A tarp keeps the mockup's stands (quarters, the stand let six rows in), which
 its drawn hem covers. `YardSeatTest`'s front-door section measures every
 manufacturer, weight and grade, and the tarps, off the pictures.
 
+## Fixed berths
+
+Jon, Nov 12: "the stands don't line up between manufacturers. They kinda move
+around when you select different manufacturers. The light should be on the far
+left. The medium on the far right and the heavy in the back." Since Nov 11 each
+hull stood where the mockup put its left edge and the stands reached up to it
+(`Seated on the stands`, above), so a wider or differently shaped hull moved and
+resized both stands. The berths are now fixed (`YardSlot`): the light centred at
+x 200, the medium at 776 (over the hall's join, so its right stand is lit as the
+hall's first columns are), the heavy at 480 behind them; the front stands' feet
+on row 372, the heavy's on 334. The front stands are the picture as drawn
+(46 x 88); the heavy's are smaller by the floor's depth, (334 - 30) / (372 - 30)
+= 0.89 (`YardLife.zat`'s vanishing row 30), so 41 x 78: rows cut by `_sized`
+where the sides match best, whole columns dropped where a column matches its
+neighbour best. Only the hull moves: `YardSlot.seat` slides it up to `DRIFT`
+(14) columns off its mass middle and lets it down onto the stands with the score
+`YardScene.seat_pair` uses, resting on the higher cradle. The stands' middles
+apart (light 84, medium 108, heavy 180) were swept from 60 to 196 over Korvan's
+and Solari's art, the only two with their own hulls (the others wear Korvan's),
+and picked where both sit centred (no slide), nothing let down past the seat,
+and the stands near the deck's 48% of the hull: the light's keel pod and
+Solari's light's tail drop 12 to 14 rows, so the light's left stand stands up
+behind its keel, as on the deck. The lamps follow: the light under the first two,
+the medium under the fifth. The tarps sit where Korvan's hull sits on the same stands.
+
+## Grounded stands
+
+Jon, Nov 12: "The stands don't really meet the floor in the right way, they are
+kinda floating." The stands were TextureRects over the whole hall, and under
+them a 4-row black bar and a 12-row dither ran the width of the hull at the
+feet row, which read as a shelf the stands stood on. Now each stand grounds
+itself as the hall's own things do (`YardStandSet.paint_stands`): the stand
+shadow Jon passed on Sep 30 under each foot, a dithered contact shade hugging
+each base plate, a soft shade of the hull between the two, the base plate's
+last rows in the floor's polish (gloss 0.2, as the crew's), the stand lit at its
+foot's cell, and its lowest 14 rows (at the front row's size) darkened in three
+steps toward the floor.
+
+## Walkers round the stands
+
+Jon, Nov 12: "People walking around the ship selection screen run through the
+stands or right underneath them." Three faults. The stands were drawn above the
+whole hall, so every walker went under them, in front or not. The crew's front
+lanes (rows 358, 368, 376) crossed the front berths' feet (372). And the floor
+patches over the bay marks and the hall's continued right side were laid over
+the hall after its crew, so a walker crossing one vanished (the generator
+mechanic at x 806 was never seen at all, and is gone). Now the stands are items
+in the crew's depth order (`YardFrontLife.tick`, by their feet row), the patches
+and the continued hall lie under the crew (`YardFront._under`), the hall is not
+clipped at its 766 columns and the lanes run on to x 990, off the frame. Each
+berth keeps its floor (`YardSlot.footprint`: stand to stand plus 6 columns,
+from 24 rows behind the feet to 12 in front, at the front row's size), and
+`YardFrontLife.avoid` steps a lane that crosses one forward to pass in front of
+the stands, eased in and out over 36 columns. Walkers behind a berth (the back
+lanes, rows 224 to 280) pass behind its stands and under its hull, drawn under
+both. `YardSeatTest` walks every lane for a whole lap.
+
 ## Launch on pick
 
 Jon, Nov 11: "having the launch and buttons appear when a ship isn't selected

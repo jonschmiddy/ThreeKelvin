@@ -122,7 +122,8 @@ func _pick(cs: ChassisSelect) -> void:
 	var block := Harness.first(cs._band, func(n: Node) -> bool: return n is AttrBlock) as AttrBlock
 	_ok("the seven attributes are the picker's block", block != null and block._rows.size() == Run.attributes().size()
 		and Run.attributes().size() == 7)
-	_ok("the picked ship's lamps are spotlights, the rest a shade down", is_equal_approx(cs._yard._lamp_gains()[1], 1.5)
+	# the medium stands far right, under the fifth lamp (Jon, Nov 12)
+	_ok("the picked ship's lamps are spotlights, the rest a shade down", is_equal_approx(cs._yard._lamp_gains()[4], 1.5)
 		and is_equal_approx(cs._yard._lamp_gains()[0], 0.9))
 	_fit(cs, "medium picked")
 	await _enter(heavy)

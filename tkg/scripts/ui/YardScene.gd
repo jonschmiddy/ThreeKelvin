@@ -1132,6 +1132,8 @@ func set_deal(d: Dictionary) -> void:
 # ------------------------------------------------------------------ shadows
 
 var _shade_cache: Dictionary = {}
+## How wide the floor is drawn: the front door runs it on past the hall to its frame's edge.
+var draw_w: int = W
 
 
 ## A contact shadow on the floor (the page's `shade` / `_shadow` / `shadeZ`): an
@@ -1140,7 +1142,7 @@ func shade(P: YardPaint, cx: float, cy: float, rx: float, ry: float, k: float) -
 	var y0 := int(maxf(0.0, floorf(cy - ry)))
 	var y1 := int(minf(float(H - 1), floorf(cy + ry)))
 	var x0 := int(maxf(0.0, floorf(cx - rx)))
-	var x1 := int(minf(float(W - 1), floorf(cx + rx)))
+	var x1 := int(minf(float(draw_w - 1), floorf(cx + rx)))
 	if x1 < x0 or y1 < y0:
 		return
 	var key := "%s|%s|%s|%s|%s|%d|%d|%d|%d|%d" % [cx - floorf(cx), cy - floorf(cy), rx, ry, k, x0 - int(floorf(cx)), y0 - int(floorf(cy)), (x0 + y0) & 1, x1 - x0, y1 - y0]
