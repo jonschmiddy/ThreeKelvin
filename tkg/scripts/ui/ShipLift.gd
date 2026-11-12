@@ -32,13 +32,13 @@ const RISE_PX := {HullData.Weight.LIGHT: 50.0, HullData.Weight.MEDIUM: 46.0, Hul
 ## The landing, s from its start (Jon, Nov 12: "come in higher, hover over the
 ## stands, and then slowly descend"): in high on the mains, slowing to a hover over
 ## the stands, holding on the jets with a bob, a slow descent, the stands take it.
-const LAND_FLY_S := 1.6
+const LAND_FLY_S := 2.6
 const LAND_HOVER_S := 0.8
 const LAND_DOWN_S := 1.6
 const LAND_SETTLE_S := 0.25
 const LAND_S := LAND_FLY_S + LAND_HOVER_S + LAND_DOWN_S + LAND_SETTLE_S
-const LAND_JETS_AT := 1.0
-const LAND_PLUME_AT := 1.3
+const LAND_JETS_AT := 1.8
+const LAND_PLUME_AT := 2.1
 
 ## The main engines pushing the hull sideways start (`on`) and stop, and how fast
 ## it is going across (px/s, signed): for the thruster layer under the lift's sound.
@@ -216,7 +216,9 @@ func land_at(t: float) -> void:
 	var hover_at := LAND_FLY_S
 	var down_at := hover_at + LAND_HOVER_S
 	var touch_at := down_at + LAND_DOWN_S
-	var fly := 1.0 - pow(1.0 - clampf(t / LAND_FLY_S, 0.0, 1.0), 3.0)
+	# (in slowing hard into the hover, as the takeoff gathers speed out: Jon, Nov 12,
+	# "enters too fast"; the belly jets light over the stands as it slows)
+	var fly := 1.0 - pow(1.0 - clampf(t / LAND_FLY_S, 0.0, 1.0), 2.6)
 	_lat_want = t < hover_at
 	_off.x = -dir * in_px * (1.0 - fly)
 	var high := approach_px

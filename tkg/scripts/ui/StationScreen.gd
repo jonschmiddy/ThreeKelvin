@@ -2818,8 +2818,9 @@ func ladder_cam(k: float) -> void:
 ## motion never flies it in, so it is never heard. The flight's path and timing are untouched.
 ## Why: docs/why/StationScreen.md#landing-sound
 const YARD_ROAR_FROM_S := -0.2
-## s after the flight starts that the roar gives way to the coughs
-const YARD_COUGH_AT_S := 0.75
+## s after the flight starts that the roar gives way to the coughs: tied to the
+## hover (`ShipLift.LAND_FLY_S`), the coughs done as it slows to it
+const YARD_COUGH_AT_S := ShipLift.LAND_FLY_S - 0.85
 ## s, at least, between the last cough and touchdown
 const YARD_QUIET_S := 0.35
 
