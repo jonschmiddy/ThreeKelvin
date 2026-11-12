@@ -3,7 +3,8 @@ extends RefCounted
 
 ## TRIAL ONLY (Jon, Nov 12: "the lights are not emanating from the top"): each light
 ## source off in turn, or option A (a lamp over each berth), B (one light bar) or
-## C (the hall's own five lamps), by `-- yardlight=a,b,...`. Inert without it.
+## C (the hall's own five lamps), or D (the Shipyard deck's light exactly), by
+## `-- yardlight=a,b,...`. Inert without it.
 
 static var _tokens: PackedStringArray = PackedStringArray()
 static var _read := false
@@ -33,7 +34,7 @@ static func has(tok: String) -> bool:
 
 ## The option on trial: "A", "B", "C", or "" for the game as it is.
 static func option() -> String:
-	for o in ["A", "B", "C"]:
+	for o in ["A", "B", "C", "D"]:
 		if has(o):
 			return o
 	return ""
@@ -48,10 +49,16 @@ static func amb(base: float) -> float:
 	return base
 
 
+## D: the deck's own ambient (yard.json's dial, 0.2 at city), not the front door's.
+static func deck_amb(front: YardFront, base: float) -> float:
+	return front.scene.light.amb if option() == "D" else base
+
+
 static func ceil_gain(base: float) -> float:
 	match option():
 		"A": return 0.3
 		"B": return 0.25
+		"D": return 1.0
 	return base
 
 
@@ -174,6 +181,10 @@ static func _hull_at(opt: String, w: HullData.Weight, x: float, u: float, picked
 		return peak * (0.22 + 0.78 * top * (0.45 + 0.55 * g))
 	if opt == "B":
 		return 0.28 + 0.72 * pow(1.0 - u, 1.2)
+	if opt == "D":
+		# the deck's: toward its belly a hull falls into its own shade, in three steps
+		var k := floorf(clampf((u - 0.5) / 0.5, 0.0, 1.0) * 3.0 + 0.5) / 3.0
+		return 1.0 - 0.45 * k
 	if opt == "C":
 		var g2 := 0.0
 		for lx: float in C_LAMPS:
@@ -293,3 +304,106 @@ static func _glow(ci: CanvasItem, cx: float, cy: float, r: float, k: float) -> v
 				a = 0.16
 			if a > 0.0:
 				ci.draw_rect(Rect2(xi, yi, 1, 1), Color(1.0, 0.93, 0.78, minf(1.0, a * k)), true)
+
+
+# ------------------------------------------------------------------ D: the deck's floor lamps
+
+## D: the deck's floor-lamp pools with the hulls' shadows in them (`yard_bay.gdshader`),
+## baked over the whole frame, once for the front row at its depth and once for
+## the heavy at its own, the darker of the two kept; then handed to `front`.
+static func bake_d(front: YardFront) -> void:
+	var rows := {YardSlot.FRONT_FEET: [HullData.Weight.LIGHT, HullData.Weight.MEDIUM], YardSlot.BACK_FEET: [HullData.Weight.HEAVY]}
+	var vps: Array[SubViewport] = []
+	for feet: int in rows:
+		var mask := Image.create(YardFront.W, YardFront.HALL_H, false, Image.FORMAT_RGBA8)
+		mask.fill(Color(0, 0, 0, 0))
+		for w: HullData.Weight in rows[feet]:
+			var s: YardStandSet = front.sets[w]
+			if s._view != null:
+				var c := s._view.canvas()
+				YardStandSet._stamp(mask, c, YardStandSet._ink(c), Vector2i(s._x0, s.thing.position.y), Color8(255, 0, 0, 255), true)
+		vps.append(_bay_vp(front, mask, float(feet)))
+	await RenderingServer.frame_post_draw
+	var out: Image = null
+	for vp in vps:
+		var img := vp.get_texture().get_image()
+		vp.queue_free()
+		if img.get_format() != Image.FORMAT_RGBA8:
+			img.convert(Image.FORMAT_RGBA8)
+		if out == null:
+			out = img
+			continue
+		for y in out.get_height():
+			for x in out.get_width():
+				var a := out.get_pixel(x, y)
+				var b := img.get_pixel(x, y)
+				if b.r8 * 256 + b.g8 < a.r8 * 256 + a.g8:
+					out.set_pixel(x, y, b)
+	front._trial_bay = out
+
+
+static func _bay_vp(front: YardFront, mask: Image, feet: float) -> SubViewport:
+	var sc := front.scene
+	var cam: Dictionary = YardScene.doc().get("cam", {})
+	var vx := float(cam.get("vx", 383))
+	var hy := float(cam.get("hy", 30))
+	var f := float(cam.get("f", 500))
+	var ch := float(cam.get("ch", 300))
+	var zs := ch * f / maxf(0.5, feet - hy)
+	var zsf := f / zs
+	var u0 := 1e9
+	var u1 := -1e9
+	var h0 := 1e9
+	var h1 := -1e9
+	var any := false
+	for y in mask.get_height():
+		for x in mask.get_width():
+			if mask.get_pixel(x, y).r8 == 255:
+				any = true
+				var u := (float(x) - vx) / zsf
+				var h := ch - (float(y) - hy) / zsf
+				u0 = minf(u0, u)
+				u1 = maxf(u1, u)
+				h0 = minf(h0, h)
+				h1 = maxf(h1, h)
+	var vp := SubViewport.new()
+	vp.size = Vector2i(481, 242)
+	vp.transparent_bg = false
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var r := ColorRect.new()
+	r.size = Vector2(481, 242)
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/yard_bay.gdshader")
+	var fx: Array = sc.lv.get("floorX", [])
+	var fl := PackedFloat32Array()
+	fl.resize(12)
+	for i in mini(12, fx.size()):
+		fl[i] = float(fx[i])
+	var lrows: Array = sc.lv.get("floor", [])
+	var rv := PackedVector2Array()
+	rv.resize(4)
+	for i in mini(4, lrows.size()):
+		rv[i] = Vector2(float(lrows[i][0]), float(lrows[i][1]))
+	m.set_shader_parameter(&"mask", ImageTexture.create_from_image(mask))
+	m.set_shader_parameter(&"floorx", fl)
+	m.set_shader_parameter(&"nfloor", mini(12, fx.size()))
+	m.set_shader_parameter(&"rows", rv)
+	m.set_shader_parameter(&"nrows", mini(4, lrows.size()))
+	m.set_shader_parameter(&"vx", vx)
+	m.set_shader_parameter(&"hy", hy)
+	m.set_shader_parameter(&"f", f)
+	m.set_shader_parameter(&"ch", ch)
+	m.set_shader_parameter(&"wallrow", float(YardScene.doc().get("wallrow", 207)))
+	m.set_shader_parameter(&"bayr", float((YardScene.doc().get("bay", {}) as Dictionary).get("r", 115)))
+	m.set_shader_parameter(&"lamph", float((YardScene.doc().get("bay", {}) as Dictionary).get("lamph", 330)))
+	m.set_shader_parameter(&"zs", zs)
+	m.set_shader_parameter(&"zsf", zsf)
+	m.set_shader_parameter(&"bounds", Vector4(u0, u1, h0, h1))
+	m.set_shader_parameter(&"ships", any)
+	m.set_shader_parameter(&"scale", YardLight.BSCALE)
+	m.set_shader_parameter(&"grid", Vector2(481, 242))
+	r.material = m
+	vp.add_child(r)
+	front.add_child(vp)
+	return vp

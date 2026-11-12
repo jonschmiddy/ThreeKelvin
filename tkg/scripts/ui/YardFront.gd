@@ -308,14 +308,16 @@ func _rebake() -> void:
 	scene._ship_img.fill(Color(0, 0, 0, 0))
 	scene._ship_tex.update(scene._ship_img)
 	scene._bake_bay()
-	if YardLightTrial.option() != "":
+	if YardLightTrial.option() == "D":
+		YardLightTrial.bake_d(self)
+	elif YardLightTrial.option() != "":
 		_trial_bay = YardLightTrial.pools(self)
 
 
 func _apply_light() -> void:
 	if not ready_hall:
 		return
-	var amb := 0.0 if YardLightTrial.has("noamb") else YardLightTrial.amb(AMB_LOCKED if locked else AMB_OPEN)
+	var amb := 0.0 if YardLightTrial.has("noamb") else YardLightTrial.deck_amb(self, YardLightTrial.amb(AMB_LOCKED if locked else AMB_OPEN))
 	for m in scene.light.mats:
 		m.set_shader_parameter(&"amb", amb)
 	for b in banners:
@@ -344,6 +346,8 @@ func _lamp_gains() -> PackedFloat32Array:
 		else:
 			g[i] = 0.9 if picked >= 0 else 1.05
 		g[i] = YardLightTrial.ceil_gain(g[i])
+		if YardLightTrial.option() == "D" and not locked:
+			g[i] = 1.0
 	return g
 
 

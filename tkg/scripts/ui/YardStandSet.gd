@@ -159,6 +159,15 @@ func paint_stands(P: YardPaint) -> void:
 	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
 	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
 	var f := float(feet)
+	if YardLightTrial.option() == "D":
+		# the deck's stands: the one shadow picture, the stand lit as a ship is
+		for sx1 in _stand_x:
+			if shadow != null:
+				P.use(YardPaint.PLAIN)
+				P.tex(shadow, Vector2(float(sx1) + float(sw) * 0.5 - 23.0 + float(sh.get("x", -20)), f + float(sh.get("y", -4))))
+			P.use(YardPaint.SHIP)
+			P.tex(_stand_tex, Vector2(sx1, _stand_top))
+		return
 	if YardLightTrial.has("nostand"):
 		for sx0 in _stand_x:
 			var c0 := float(sx0) + float(sw) * 0.5

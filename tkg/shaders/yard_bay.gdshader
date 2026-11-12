@@ -31,6 +31,8 @@ uniform float zsf = 0.9333;
 uniform vec4 bounds = vec4(0.0);
 uniform bool ships = false;
 uniform float scale = 2.0;
+// the half grid's size: the hall's (384 x 242), or the front door's frame (481 x 242)
+uniform vec2 grid = vec2(384.0, 242.0);
 
 float z_of(float y) {
 	return ch * f / max(0.5, y - hy);
@@ -65,7 +67,7 @@ bool hit_at(float up, float zp, float ul, float zl) {
 		float h = s * lamph;
 		int xm = int(floor(vx + u * zsf + 0.5));
 		int ym = int(floor(hy + (ch - h) * zsf + 0.5));
-		if (xm >= 0 && xm < 766 && ym >= 0 && ym < 482) {
+		if (xm >= 0 && xm < textureSize(mask, 0).x && ym >= 0 && ym < 482) {
 			if (texelFetch(mask, ivec2(xm, ym), 0).r > 0.5) {
 				return true;
 			}
@@ -75,7 +77,7 @@ bool hit_at(float up, float zp, float ul, float zl) {
 }
 
 void fragment() {
-	vec2 cell = floor(UV * vec2(384.0, 242.0));
+	vec2 cell = floor(UV * grid);
 	float x = cell.x * 2.0;
 	float y = cell.y * 2.0;
 	float acc = 0.0;
