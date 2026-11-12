@@ -17,22 +17,15 @@ const HALL_W := YardScene.W
 const HALL_H := YardScene.H
 ## The banners' left edges on the gantry.
 const BANNER_X := [126, 238, 350, 462, 574, 686, 798]
-## The hall's ceiling lamps over each weight's berth (`YardLight.ceil_idx` order,
-## lamps at x 100, 256, 411, 570, 727): the light under the first two, the heavy
-## under the third and fourth, the medium under the fifth.
-const SHIP_LAMPS := {HullData.Weight.LIGHT: [0, 1], HullData.Weight.HEAVY: [2, 3], HullData.Weight.MEDIUM: [4]}
-## The pools the haze cones hang under: lamp x and the pool's reach.
-const POOLS := [[100.0, 70.0, HullData.Weight.LIGHT], [256.0, 70.0, HullData.Weight.LIGHT],
-	[411.0, 80.0, HullData.Weight.HEAVY], [570.0, 80.0, HullData.Weight.HEAVY], [727.0, 92.0, HullData.Weight.MEDIUM]]
-## The yard's ambient, well down from the Shipyard deck's 0.2, so the pools read.
-const AMB_OPEN := 0.12
+## An open set is lit as the Shipyard deck is (its ambient, yard.json's dial);
+## a locked set's hall goes down to this, its lamps to half.
+## Why: docs/why/ChassisSelect.md#lit-as-the-shipyard
 const AMB_LOCKED := 0.07
 ## A locked set's two stuttering lamps and their steps.
 const FLICK_LAMPS := [2, 4]
 const FLICK := [1.0, 0.55, 0.85, 0.3]
 ## The bay paint: corner brackets and a dashed line, in the hall's cyan.
 const PAINT := Color8(42, 132, 138)
-const HAZE := Color8(255, 236, 200)
 ## The floor darkens toward the frame's foot (band B1): from this row, in six steps.
 const FALL_FROM := 372
 const FALL_TO := 0.08
@@ -60,9 +53,6 @@ var _ship_tex: ImageTexture = null
 var _sharp_set: YardStandSet = null
 ## Where the next piece of floor goes among the hall's children: after the hall picture.
 var _under_at: int = 1
-## TRIAL ONLY (`YardLightTrial`): the fixtures over the banners, and the floor's light waiting for the bake.
-var _fix: Control = null
-var _trial_bay: Image = null
 
 
 func _init() -> void:
@@ -74,8 +64,6 @@ func _init() -> void:
 
 func setup() -> void:
 	scene = YardScene.new()
-	if YardLightTrial.has("fullbright"):
-		YardScene.fullbright = true
 	scene.dev = MapGen.Development.CITY
 	scene.position = Vector2.ZERO
 	scene.size = Vector2(HALL_W, HALL_H)
@@ -107,12 +95,6 @@ func setup() -> void:
 		b.pressed.connect(func() -> void: banner_pressed.emit(i))
 		banners.append(b)
 		add_child(b)
-	if YardLightTrial.option() != "":
-		_fix = Control.new()
-		_fix.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_fix.size = Vector2(W, H)
-		_fix.draw.connect(func() -> void: YardLightTrial.draw_fixtures(_fix, self))
-		add_child(_fix)
 	for w: HullData.Weight in [HullData.Weight.HEAVY, HullData.Weight.MEDIUM, HullData.Weight.LIGHT]:
 		var s := YardStandSet.new()
 		sets[w] = s
@@ -128,7 +110,6 @@ func setup() -> void:
 	_fall.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_fall.texture = _falloff()
 	_fall.position = Vector2(0, FALL_FROM)
-	_fall.visible = not YardLightTrial.has("nofall")
 	add_child(_fall)
 	_blur = ColorRect.new()
 	_blur.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -183,7 +164,7 @@ func _build_hall_extras() -> void:
 	for pr: Array in patches:
 		var src: Rect2 = pr[0]
 		var at: Vector2 = pr[1]
-		# a patch across the hall's join is cut at it: past it the hall's light is out of reach (it drew unlit)
+		# a patch across the hall's join is cut at it: past it the hall's light did not reach it, so it drew unlit
 		if at.x < HALL_W and at.x + src.size.x > HALL_W:
 			src.size.x = HALL_W - at.x
 		var p := _sprite(L.hall, src, at)
@@ -245,15 +226,13 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 	_apply_light()
 
 
-## What is picked lights its lamps as spotlights, and holds the blur round it
-## with the pointer gone (Jon, Nov 11: "the blur should stay").
+## What is picked holds the blur round it with the pointer gone (Jon, Nov 11:
+## "the blur should stay"). It is lit no differently: the deck adds no light to a ship shown.
 ## Why: docs/why/ChassisSelect.md#held-blur
 func set_picked(w: int) -> void:
 	picked = w
 	if hover_w < 0:
 		_focus(w)
-	if YardLightTrial.option() != "":
-		_rebake()
 	_apply_light()
 
 
@@ -268,7 +247,7 @@ func _focus(w: int) -> void:
 
 ## The light's ship map: every hull's (or tarp's) pixels, shaded toward the
 ## belly as the Shipyard deck shades them, and the floor lamps' pools baked
-## again round them (`YardScene._bake_bay`).
+## again with the hulls' shadows in them (`YardFrontPools`).
 func _rebake() -> void:
 	var img := Image.create(W, HALL_H, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
@@ -289,35 +268,21 @@ func _rebake() -> void:
 			if c.r8 != 255:
 				continue
 			var u := float(y - top) / float(bot - top)
-			if YardLightTrial.option() != "":
-				break
 			var k := floorf(clampf((u - 0.5) / 0.5, 0.0, 1.0) * 3.0 + 0.5) / 3.0
-			c.b8 = 255 if YardLightTrial.has("noshipshade") else clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
+			c.b8 = clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
 			img.set_pixel(x, y, c)
-	if YardLightTrial.option() != "":
-		YardLightTrial.shade_ships(img, self)
-		scene._mats[YardPaint.SHIP].set_shader_parameter(&"ship_k", YardLightTrial.ship_k())
 	if _ship_tex == null:
 		_ship_tex = ImageTexture.create_from_image(img)
 	else:
 		_ship_tex.update(img)
 	scene.light.set_ship_map(_ship_tex)
-	# the pools baked with no hull in them: the deck's camera throws a hull
-	# standing this high up the hall as a long shape across the floor that
-	# read as writing; the stands' shadows and the contact shadows ground the ships
-	scene._ship_img.fill(Color(0, 0, 0, 0))
-	scene._ship_tex.update(scene._ship_img)
-	scene._bake_bay()
-	if YardLightTrial.option() == "D":
-		YardLightTrial.bake_d(self)
-	elif YardLightTrial.option() != "":
-		_trial_bay = YardLightTrial.pools(self)
+	YardFrontPools.bake(self)
 
 
 func _apply_light() -> void:
 	if not ready_hall:
 		return
-	var amb := 0.0 if YardLightTrial.has("noamb") else YardLightTrial.deck_amb(self, YardLightTrial.amb(AMB_LOCKED if locked else AMB_OPEN))
+	var amb := AMB_LOCKED if locked else scene.light.amb
 	for m in scene.light.mats:
 		m.set_shader_parameter(&"amb", amb)
 	for b in banners:
@@ -325,29 +290,15 @@ func _apply_light() -> void:
 		b.queue_redraw()
 	if _paint != null:
 		_paint.queue_redraw()
-	if _fix != null:
-		_fix.queue_redraw()
 
 
-## The lamps this tick: spotlights over the picked ship, the rest a shade down;
-## a locked set's hall at half, two lamps stuttering in uneven steps.
+## The lamps this tick: all full, as on the deck; a locked set's hall at half,
+## two lamps stuttering in uneven steps.
 func _lamp_gains() -> PackedFloat32Array:
 	var g := PackedFloat32Array()
 	g.resize(5)
-	var spot: Array = SHIP_LAMPS.get(picked, []) if picked >= 0 else []
 	for i in 5:
-		if YardLightTrial.has("noceil"):
-			g[i] = 0.0
-			continue
-		if locked:
-			g[i] = 0.5 * (float(FLICK[_flick_index()]) if i in FLICK_LAMPS else 1.0)
-		elif i in spot:
-			g[i] = 1.5
-		else:
-			g[i] = 0.9 if picked >= 0 else 1.05
-		g[i] = YardLightTrial.ceil_gain(g[i])
-		if YardLightTrial.option() == "D" and not locked:
-			g[i] = 1.0
+		g[i] = 0.5 * (float(FLICK[_flick_index()]) if i in FLICK_LAMPS else 1.0) if locked else 1.0
 	return g
 
 
@@ -363,11 +314,6 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 	scene.light.lamp_gain = _lamp_gains()
-	if YardLightTrial.has("nobay") and scene.light._bay_on:
-		scene.light.set_bay(null)
-	if _trial_bay != null and scene._bay_ready:
-		scene.light.set_bay(_trial_bay)
-		_trial_bay = null
 	var target := 1.0 if hover_w >= 0 or (picked >= 0 and not locked) else 0.0
 	var k := move_toward(_k, target, delta * BLUR_RATE)
 	if k != _k:
@@ -400,9 +346,8 @@ func set_of(w: HullData.Weight) -> YardStandSet:
 	return sets.get(w)
 
 
-## The scenery on the hall, under its crew: the banners' shadows on the wall,
-## the haze under each lamp and the bay paint. The stands ground themselves
-## (`YardStandSet.paint_stands`).
+## The scenery on the hall, under its crew: the banners' shadows on the wall
+## and the bay paint. The stands ground themselves (`YardStandSet.paint_stands`).
 func _draw_paint() -> void:
 	var ci := _paint
 	for x: int in BANNER_X:
@@ -411,18 +356,6 @@ func _draw_paint() -> void:
 		ci.draw_colored_polygon(PackedVector2Array([Vector2(x + 4, ry + 12), Vector2(x + 52, ry + 12),
 			Vector2(x + 52, ry + cl + 10), Vector2(x + 28, ry + cl + 2), Vector2(x + 4, ry + cl + 10)]),
 			Color(0, 0, 0, 80.0 / 255.0))
-	YardLightTrial.draw_beams(ci, self)
-	for pool: Array in ([] if YardLightTrial.has("nohaze") or YardLightTrial.option() != "" else POOLS):
-		var lx := float(pool[0])
-		var r := float(pool[1])
-		var gain := 0.45 if locked else (1.6 if int(pool[2]) == picked else 1.0)
-		var steps := [[26.0, 0.55], [18.0, 0.78], [10.0, 1.0]]
-		for s in 3:
-			var top_w := 10.0 + 4.0 * s
-			var a: float = float(steps[s][0]) * gain / 255.0
-			var spread: float = steps[s][1]
-			ci.draw_colored_polygon(PackedVector2Array([Vector2(lx - top_w, 14), Vector2(lx + top_w, 14),
-				Vector2(lx + r * spread, 360), Vector2(lx - r * spread, 360)]), Color(HAZE.r, HAZE.g, HAZE.b, a))
 	for box: Array in [[310, 214, 650, 340], [70, 300, 890, 380]]:
 		var x0 := float(box[0])
 		var y0 := float(box[1])

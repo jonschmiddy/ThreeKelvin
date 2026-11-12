@@ -122,9 +122,7 @@ func _pick(cs: ChassisSelect) -> void:
 	var block := Harness.first(cs._band, func(n: Node) -> bool: return n is AttrBlock) as AttrBlock
 	_ok("the seven attributes are the picker's block", block != null and block._rows.size() == Run.attributes().size()
 		and Run.attributes().size() == 7)
-	# the medium stands far right, under the fifth lamp (Jon, Nov 12)
-	_ok("the picked ship's lamps are spotlights, the rest a shade down", is_equal_approx(cs._yard._lamp_gains()[4], 1.5)
-		and is_equal_approx(cs._yard._lamp_gains()[0], 0.9))
+	_lit_as_deck(cs)
 	_fit(cs, "medium picked")
 	await _enter(heavy)
 	_ok("pointing at the heavy shows the heavy, not yet yours", cs._hover == int(HullData.Weight.HEAVY)
@@ -303,6 +301,35 @@ func _labels(root: Node) -> Array[Label]:
 	for c in root.get_children():
 		out.append_array(_labels(c))
 	return out
+
+
+## LIT AS THE SHIPYARD DECK (Jon's D, Nov 12): with a ship picked every lamp is
+## full, the ambient is the deck's, no haze cones hang in the hall, and the floor
+## lamps' bake carries both rows of hulls, each at its berth's depth, so their
+## shadows lie in the pools (`YardStandsShot` prints the light under each hull).
+func _lit_as_deck(cs: ChassisSelect) -> void:
+	var y := cs._yard
+	var full := true
+	for g: float in y._lamp_gains():
+		full = full and is_equal_approx(g, 1.0)
+	_ok("a picked ship is lit as the deck lights one: every lamp full", full)
+	_ok("the deck's ambient (%.2f)" % y.scene.light.amb,
+		is_equal_approx(float(y.scene.light.mats[0].get_shader_parameter(&"amb")), y.scene.light.amb) and y.scene.light.amb >= 0.15)
+	var consts := (y.get_script() as Script).get_script_constant_map()
+	_ok("no haze cones in the hall", not consts.has("POOLS") and not consts.has("HAZE"))
+	var m := YardFrontPools.material_for(y)
+	var ok := bool(m.get_shader_parameter(&"ships")) and bool(m.get_shader_parameter(&"ships2"))
+	var cam_f := 500.0 * 300.0
+	ok = ok and is_equal_approx(float(m.get_shader_parameter(&"zs")), cam_f / float(YardSlot.FRONT_FEET - 30))
+	ok = ok and is_equal_approx(float(m.get_shader_parameter(&"zs2")), cam_f / float(YardSlot.BACK_FEET - 30))
+	var front_mask := (m.get_shader_parameter(&"mask") as Texture2D).get_image()
+	var back_mask := (m.get_shader_parameter(&"mask2") as Texture2D).get_image()
+	for w: HullData.Weight in y.sets:
+		var p := _spot(y.sets[w], true)
+		var mk := back_mask if w == HullData.Weight.HEAVY else front_mask
+		var other := front_mask if w == HullData.Weight.HEAVY else back_mask
+		ok = ok and p.x >= 0.0 and mk.get_pixelv(Vector2i(p)).r8 == 255 and other.get_pixelv(Vector2i(p)).r8 == 0
+	_ok("the floor lamps' bake has every hull in its row, each at its berth's depth", ok)
 
 
 ## FIT: every word and the key on screen, none over another, none over a hull

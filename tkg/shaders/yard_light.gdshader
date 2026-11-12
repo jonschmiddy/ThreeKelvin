@@ -53,8 +53,6 @@ uniform float vscale = 2.0;
 uniform float bscale = 2.0;
 uniform float lscale = 2.0;
 uniform bool bay_on = false;
-// how bright a ship's full light is: 1 everywhere but the front door's light trials
-uniform float ship_k = 1.0;
 uniform int nvary = 0;
 uniform vec4 vbox[12];
 // the lamp's colour, and (weight - 1) x power: what it adds to or takes off the sum
@@ -137,7 +135,7 @@ float bay_at(ivec2 p) {
 	return (a * (1.0 - tx) + b * tx) * (1.0 - ty) + (c * (1.0 - tx) + d * tx) * ty;
 }
 
-// Every lamp's light at a pixel: (R, G, B, how much). `p` may lie on the hall
+// Every lamp's light at a pixel: (R, G, B, how much). `pt` may lie on the hall
 // continued past its right edge, lit as the hall's first columns are; only a
 // floor-lamp map as wide as the frame (the front door's) is read there itself.
 vec4 sa_at(ivec2 pt) {
@@ -279,7 +277,7 @@ void fragment() {
 			float belly = sm.b > 0.0 ? sm.b : 1.0;
 			// (past the hall's right edge the floor is the hall's first columns again)
 			int lx = p.x > 765 ? p.x - 766 : p.x;
-			float v = u16(texelFetch(lship_map, ivec2(lx, 0), 0).rg, lscale) * belly * ship_k;
+			float v = u16(texelFetch(lship_map, ivec2(lx, 0), 0).rg, lscale) * belly;
 			COLOR = vec4(shade(base, mainc * v, v, drgb, dw, dq), 1.0);
 		} else if (mode == 1) {
 			vec4 l = sa_at(ivec2(cell));

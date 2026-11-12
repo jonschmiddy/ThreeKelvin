@@ -424,11 +424,8 @@ sine holds: pixel art turns in whole steps.
 The chosen manufacturer's three hulls stand on the yard's stands, staged in
 depth: the medium front left, the light front right, the heavy centred behind
 and higher on the floor. They are the game's own hull art on the deck's own
-stands, lit by the deck's light with the deck's belly shading (a ship map as
-wide as the frame, so the light hull over the hall's join is lit too), and the
-floor lamps' pools are baked without the hulls in them: the deck's camera
-throws a hull standing this high up the hall as a long shape across the floor
-that read as writing. Stand shadows and contact shadows ground them instead.
+stands, lit as the Shipyard deck is lit (see `Lit as the Shipyard`, which
+replaced this paragraph's first lighting on Nov 12).
 
 Pointing at a hull blurs everything else, stands included, a little strong
 (a box blur of 1.8 px and 13% down), and the hull is drawn again sharp over
@@ -495,21 +492,51 @@ and Solari's art, the only two with their own hulls (the others wear Korvan's),
 and picked where both sit centred (no slide), nothing let down past the seat,
 and the stands near the deck's 48% of the hull: the light's keel pod and
 Solari's light's tail drop 12 to 14 rows, so the light's left stand stands up
-behind its keel, as on the deck. The lamps follow: the light under the first two,
-the medium under the fifth. The tarps sit where Korvan's hull sits on the same stands.
+behind its keel, as on the deck. The tarps sit where Korvan's hull sits on the same stands.
 
 ## Grounded stands
 
 Jon, Nov 12: "The stands don't really meet the floor in the right way, they are
 kinda floating." The stands were TextureRects over the whole hall, and under
 them a 4-row black bar and a 12-row dither ran the width of the hull at the
-feet row, which read as a shelf the stands stood on. Now each stand grounds
-itself as the hall's own things do (`YardStandSet.paint_stands`): the stand
-shadow Jon passed on Sep 30 under each foot, a dithered contact shade hugging
-each base plate, a soft shade of the hull between the two, the base plate's
-last rows in the floor's polish (gloss 0.2, as the crew's), the stand lit at its
-foot's cell, and its lowest 14 rows (at the front row's size) darkened in three
-steps toward the floor.
+feet row, which read as a shelf the stands stood on. The bar is gone and the
+stands are drawn as the Shipyard deck draws its own (`YardStandSet.paint_stands`,
+`YardScene._draw_ships`): the stand shadow Jon passed on Sep 30 under each, the
+stand lit as the deck lights a ship, in the crew's depth order. A first pass
+added contact shades, a reflection of the feet and a darkened base plate; Jon
+picked the deck's whole light instead (D, below), so they went with it.
+
+## Lit as the Shipyard
+
+Jon, Nov 12: "The lighting on the ships doesn't really make sense... the lights
+are not emanating from the top", then, shown the deck beside the front door:
+"Why can't the yard light work like it does in the shipyard?", and picked D,
+the deck's light exactly ("D ❤️"). The front door runs on the deck's engine
+(`YardLight`, `yard_light.gdshader`) but was built on Nov 10 from the W2 v10
+mockup, and its light followed the mockup: haze cones hung from the ceiling
+lamps to row 360 and ended on a flat line with no pool, the ambient was 0.12
+against the deck's 0.2 ("so the pools read"), the lamps over the picked ship
+went to 1.5 as spotlights that lit the wall but never the ship, and the floor
+pools were baked with no hulls in them (a deliberate note then: the deck's bake
+puts every ship at the deck's row, 310, and hulls standing further up the hall
+threw "long shapes across the floor that read as writing"). The hall copied past
+x 766 read the floor lamps of the hall's left edge. Measured source by source
+(`tk-scratch/yard-stands/light/diag_*.png`), the floor lamps lit 48% of the
+picture in a grid of 44 lamps that line up with nothing you see, the haze 23%,
+the ceiling lamps 13% and only the wall.
+
+Now: no haze; the deck's ambient (yard.json's dial, 0.2 at city) and its five
+ceiling lamps at full, picked or not (the deck adds no light to a ship shown:
+the pick has the blur); the deck's belly shading; and the deck's floor-lamp
+pools with the hulls' shadows in them (`YardFrontPools`), baked over the whole
+960 columns by `yard_bay.gdshader` with two rows of ships, the front berths at
+their depth and the heavy at its own (`mask2`, `zs2`), so each shadow falls
+where its hull stands; the light shader reads a frame-wide floor map at its own
+place past x 766 and folds everything else back onto the hall's first columns,
+so the join has no seam. The pools are baked when the hulls change, on a banner,
+never on a pick. A locked set keeps its gloom: the ambient to 0.07, the lamps to
+half and two of them stuttering. The shapes the hulls' shadows make on the floor
+are the deck's own, which Jon chose.
 
 ## Walkers round the stands
 

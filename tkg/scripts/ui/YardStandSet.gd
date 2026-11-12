@@ -20,11 +20,6 @@ const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(2, 75), HullData.Weight.ME
 const TARP_DELAY := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 0.18, HullData.Weight.LIGHT: 0.36}
 const TARP_SEED := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 1.4, HullData.Weight.LIGHT: 2.9}
 const TARP_LIFT := 12
-## The stands' feet in the floor's polish, and the shade on their base plates
-## (rows up from the floor at the front row's size, and how dark).
-const GLOSS := 0.2
-const MIRROR_ROWS := 24
-const BASE_DARK := [[4, 0.34], [9, 0.2], [14, 0.1]]
 
 var weight: HullData.Weight = HullData.Weight.MEDIUM
 var scene: YardScene
@@ -145,61 +140,36 @@ func _seat_stands(v: ShipView, img: Image, ink: Rect2i) -> int:
 	return _stand_top + seat - 1 + sink - r[1]
 
 
-## The stands on the floor, in the hall's depth order (`YardFrontLife`): the
-## shadow Jon passed for every stand, a dithered contact shade under each foot
-## and the hull's shade between them, the feet in the floor's polish, the stand
-## lit at its foot's cell, and its base plate darkened toward the floor.
-## Why: docs/why/ChassisSelect.md#grounded-stands
+## The stands on the floor, in the hall's depth order (`YardFrontLife`), as
+## the Shipyard deck draws its stands (`YardScene._draw_ships`): the one stand
+## shadow Jon passed for every stand, the stand lit as the deck lights a ship.
+## Why: docs/why/ChassisSelect.md#lit-as-the-shipyard
 func paint_stands(P: YardPaint) -> void:
 	if _stand_tex == null:
 		return
-	var k := YardSlot.depth_k(weight)
 	var sw := _stand_img.get_width()
-	var shh := _stand_img.get_height()
 	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
 	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
-	var f := float(feet)
-	if YardLightTrial.option() == "D":
-		# the deck's stands: the one shadow picture, the stand lit as a ship is
-		for sx1 in _stand_x:
-			if shadow != null:
-				P.use(YardPaint.PLAIN)
-				P.tex(shadow, Vector2(float(sx1) + float(sw) * 0.5 - 23.0 + float(sh.get("x", -20)), f + float(sh.get("y", -4))))
-			P.use(YardPaint.SHIP)
-			P.tex(_stand_tex, Vector2(sx1, _stand_top))
-		return
-	if YardLightTrial.has("nostand"):
-		for sx0 in _stand_x:
-			var c0 := float(sx0) + float(sw) * 0.5
-			P.use(YardPaint.FLOOR, Vector2(floorf(c0), f))
-			P.tex(_stand_tex, Vector2(sx0, _stand_top))
-		return
-	P.use(YardPaint.PLAIN)
-	var last := _stand_x[_stand_x.size() - 1]
-	var mid := float(_stand_x[0] + last + sw) * 0.5
-	scene.shade(P, floorf(mid), f - 1.0, float(last - _stand_x[0]) * 0.5 + 6.0, maxf(2.0, floorf(5.0 * k)), 0.22)
 	for sx in _stand_x:
-		var cx := float(sx) + float(sw) * 0.5
 		if shadow != null:
-			P.tex(shadow, Vector2(floorf(cx - float(shadow.get_width()) * 0.5), f + floorf(float(sh.get("y", -4)) * k)))
-		scene.shade(P, floorf(cx), f, float(sw) * 0.5 + 2.0, maxf(2.0, floorf(3.0 * k)), 0.42)
-	var rows := mini(roundi(float(MIRROR_ROWS) * k), shh)
-	P.use(YardPaint.MIRROR)
-	for sx in _stand_x:
-		P.mirror(_stand_tex, Rect2(0, shh - rows, sw, rows), float(sx), f, GLOSS, YardLife.TINT, false)
-	for sx in _stand_x:
-		var cx2 := float(sx) + float(sw) * 0.5
-		P.use(YardPaint.FLOOR, Vector2(floorf(cx2), f))
+			# (placed by the stand's middle: the heavy's stands are narrower than the picture's 46)
+			P.use(YardPaint.PLAIN)
+			P.tex(shadow, Vector2(float(sx) + float(sw - YardSlot.STAND_W) * 0.5 + float(sh.get("x", -20)), float(feet) + float(sh.get("y", -4))))
+		P.use(YardPaint.SHIP)
 		P.tex(_stand_tex, Vector2(sx, _stand_top))
-	P.use(YardPaint.PLAIN)
-	var done := 0
-	for band: Array in BASE_DARK:
-		var n := mini(roundi(float(band[0]) * k), shh)
-		if n <= done:
-			continue
-		for sx in _stand_x:
-			P.tex(_stand_tex, Vector2(sx, f - float(n)), Rect2(0, shh - n, sw, n - done), Color(0, 0, 0, float(band[1])))
-		done = n
+
+
+## The hull's (or the tarp's) pixels as a hull in `img`, where the floor lamps
+## look for what stands in their way (`YardFrontPools`); returns their box.
+func hull_into(img: Image) -> Rect2i:
+	if _view != null:
+		var c := _view.canvas()
+		_stamp(img, c, _ink(c), Vector2i(_x0, thing.position.y), Color8(255, 0, 0, 255), true)
+	elif _tarp != null and _tarp.image != null:
+		_stamp(img, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, Color8(255, 0, 0, 255), true)
+	else:
+		return Rect2i()
+	return thing.intersection(Rect2i(0, 0, img.get_width(), img.get_height()))
 
 
 ## The hull's (or tarp's) pixels into the light's ship map (R a hull, G a stand),
