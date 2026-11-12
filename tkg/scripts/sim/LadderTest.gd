@@ -534,6 +534,9 @@ func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
 		return
 	if not yr.has("f"):
 		yr.f = []
+	if st._heavy != null:
+		yr.jets_frame = st._heavy.jets_frame
+		yr.take_frame = st._heavy.take_frame
 	var v := st._mine_view
 	if not lad.is_empty():
 		yr.row = int(lad.get("row", -1))
@@ -647,6 +650,14 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 		label, after_loud, cough_at + sp, dur - cough_at - sp, dur, StationScreen.YARD_QUIET_S, quiet_n, quiet_bad],
 		after_loud == 0 and cough_at + sp <= dur - StationScreen.YARD_QUIET_S + 0.0001
 			and quiet_n >= int(StationScreen.YARD_QUIET_S * 30.0) - 1 and quiet_bad == 0)
+	# the landing's take from the belly jets lighting (Jon, Nov 12), once one is picked
+	var jf := int(yr.get("jets_frame", -1))
+	var tf := int(yr.get("take_frame", -1))
+	if ShipLift.LAND_TAKE == &"":
+		_ok("%s: the belly jets light (frame %d); no landing take picked yet, so none plays (%d)" % [label, jf, tf], jf >= 0 and tf < 0)
+	else:
+		_ok("%s: THE LANDING TAKE (%s) from the belly jets lighting, within a frame (take %d, jets %d)" % [label, ShipLift.LAND_TAKE, tf, jf],
+			jf >= 0 and tf >= 0 and absi(tf - jf) <= 1)
 	_ok("%s: THE CLAMPS as it touches down, once (heard at frames %s; on its stands from frame %d, at %s, its berth %s)" % [
 		label, clamps, touch, touch_pos, yr.get("berth", Vector2.INF)],
 		clamps.size() == 1 and touch >= 0 and int(clamps[0]) >= touch - 2 and int(clamps[0]) <= touch

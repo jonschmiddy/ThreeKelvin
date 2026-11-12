@@ -50,8 +50,8 @@ signal lateral(on: bool, speed: float)
 ## Why: docs/why/ShipLift.md#heard
 const LIFT_TAKE := &"ship_liftoff"
 const LOOP_OUT_S := 0.3
-## The landing's take, from the descent's start (`LAND_FLY_S + LAND_HOVER_S`): none
-## until Jon picks one; the rest of the landing's sound is the dock's own.
+## The landing's take (the engines bearing it down), from the belly jets lighting
+## (`LAND_JETS_AT`): none until Jon picks one; the rest of the landing's sound is the dock's own.
 const LAND_TAKE := &""
 
 ## The hull and its place at rest, in its parent.
@@ -109,6 +109,9 @@ var _prev_x := NAN
 var _lat_on := false
 var _lat_want := false
 var _lifting := false
+## The process frames the landing's belly jets lit and its take started (-1: not yet).
+var jets_frame := -1
+var take_frame := -1
 var _heard_take := false
 var _loop_out := -1.0
 ## How fast the hull is going across this frame (px/s, signed).
@@ -239,7 +242,10 @@ func land_at(t: float) -> void:
 		near = 1.0
 	else:
 		_off = Vector2.ZERO
-	var jets := smoothstep(LAND_JETS_AT, LAND_JETS_AT + 0.5, t) * (1.0 - smoothstep(touch_at - 0.12, touch_at, t))
+	# (the jets catch on their beat, already seen, then build: a ramp from nothing
+	# showed them a fifth of a second late)
+	var catch := 0.0 if t < LAND_JETS_AT else 0.35 + 0.65 * smoothstep(LAND_JETS_AT, LAND_JETS_AT + 0.5, t)
+	var jets := catch * (1.0 - smoothstep(touch_at - 0.12, touch_at, t))
 	# the nearer the floor, the harder the jets throw the smoke out across it
 	plume.thrust = jets
 	plume.strength = 0.3 + 0.55 * near
@@ -253,8 +259,11 @@ func land_at(t: float) -> void:
 	# (the idle heard under the dark mains through the hover, until the descent:
 	# the landing's sound as the sound builder laid it out)
 	view.dark_hum = t < down_at
-	if LAND_TAKE != &"" and t >= down_at and not _heard_take:
+	if jets > 0.0 and jets_frame < 0:
+		jets_frame = Engine.get_process_frames()
+	if LAND_TAKE != &"" and t >= LAND_JETS_AT and not _heard_take:
 		_heard_take = true
+		take_frame = Engine.get_process_frames()
 		Audio.play(LAND_TAKE, 0.0, 0, 0.0, 1.0, 0.0, true)
 	_pose()
 

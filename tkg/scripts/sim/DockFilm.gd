@@ -110,7 +110,8 @@ func _run() -> void:
 		# `StationScreen.ladder_yard_t`; the clips are in `sfxtape=`)
 		var sy := Router.current as StationScreen
 		if sy != null and not sy._lad.is_empty() and sy._lad.has("yard_t") and is_instance_valid(sy._mine_view):
-			print("  [yard] drawn %d pf %d gc %.4f t %.3f thrust %d sputter %s loop %.2f row %d" % [Engine.get_frames_drawn(), Engine.get_process_frames(), GameClock.now(), float(sy._lad.yard_t),
+			print("  [yard] drawn %d pf %d gc %.4f jets %.2f t %.3f thrust %d sputter %s loop %.2f row %d" % [Engine.get_frames_drawn(), Engine.get_process_frames(), GameClock.now(),
+				sy._heavy._jets_k if sy._heavy != null else 0.0, float(sy._lad.yard_t),
 				sy._mine_view._thrust_now(), sy._mine_view.sputtering(), Audio._ship_level, int(sy._lad.get("row", -1))])
 		if in_station < 0 and Router.current is StationScreen:
 			in_station = Engine.get_frames_drawn() - f0

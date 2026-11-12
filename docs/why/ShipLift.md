@@ -40,7 +40,7 @@ One takeoff (Jon, Nov 12: "the same for the shipyard and ship selection screen")
 
 Jon picked LC2 with the LTC layer (Nov 12). The take (`ship_liftoff`) is the sound builder's game cut of LC2 (tk-scratch/yard-launch/sound/final/LC2_game.wav, 5.85 s), levelled to -16 LUFS for its loudest second and carrying its own fade. It starts with the belly jets (`PLUME_AT`, 0.15 s; 0.63 s into the deck's undock pre-roll): from `MAINS_ON` it was "far too late". Under it, the LTC layer is the game's own: `thruster_depart_<weight>` once and `ship_thrust_loop` at `Audio.SHIP_DB`, both from the `lateral` signal at `MAINS_ON`, the loop faded over 0.3 s at the exit. It ships as WAV like every other sound effect (`audio/README.md`: SFX are WAV so they start at once; `Audio.SFX_PATH` loads WAV).
 
-The landing keeps the dock's own sound until Jon picks a landing take: the drive loop in, the row's flameout, the idle bed under the dark mains through the hover (`ShipView.dark_hum`), as the sound builder laid it out, then the clamps. `LAND_TAKE` is the one line to set, and it plays from the descent's start, where the idle bed ends.
+The landing keeps the dock's own sound until Jon picks a landing take: the drive loop in, the row's flameout, the idle bed under the dark mains through the hover (`ShipView.dark_hum`), as the sound builder laid it out, then the clamps. `LAND_TAKE` is the one line to set, and it plays from the belly jets lighting (`LAND_JETS_AT`; Jon: the downward engine sound starts with the jets), over the idle bed the sound builder laid under it; LadderTest checks it starts within a frame of the jets.
 
 ## Crew
 
