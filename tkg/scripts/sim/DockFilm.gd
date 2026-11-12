@@ -17,7 +17,8 @@ func _run() -> void:
 	await _tree.process_frame
 	Router.animate_in_harness = true
 	ZoomLadder.force = 1
-	ZoomLadder.fixed_dt = 1.0 / 30.0
+	# (`live`: the ladder on the game's own clock, as in play, for timing what is heard against what is drawn)
+	ZoomLadder.fixed_dt = -1.0 if "live" in _args else 1.0 / 30.0
 	DisplaySettings.reduced_motion = "rm" in _args
 	Rng.forced = Harness.seed_arg(1)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
@@ -93,7 +94,7 @@ func _run() -> void:
 		dk.pressed.emit()
 	var last := &""
 	var in_station := -1
-	for i in 1500:
+	for i in (9000 if "live" in _args else 1500):
 		await _tree.process_frame
 		_log_ship()
 		var lcb := Router.current as SectorScreen
@@ -109,7 +110,7 @@ func _run() -> void:
 		# `StationScreen.ladder_yard_t`; the clips are in `sfxtape=`)
 		var sy := Router.current as StationScreen
 		if sy != null and not sy._lad.is_empty() and sy._lad.has("yard_t") and is_instance_valid(sy._mine_view):
-			print("  [yard] drawn %d t %.3f thrust %d sputter %s loop %.2f row %d" % [Engine.get_frames_drawn(), float(sy._lad.yard_t),
+			print("  [yard] drawn %d pf %d gc %.4f t %.3f thrust %d sputter %s loop %.2f row %d" % [Engine.get_frames_drawn(), Engine.get_process_frames(), GameClock.now(), float(sy._lad.yard_t),
 				sy._mine_view._thrust_now(), sy._mine_view.sputtering(), Audio._ship_level, int(sy._lad.get("row", -1))])
 		if in_station < 0 and Router.current is StationScreen:
 			in_station = Engine.get_frames_drawn() - f0
