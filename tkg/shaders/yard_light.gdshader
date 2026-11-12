@@ -275,8 +275,9 @@ void fragment() {
 			// A SHIP takes the light over it, falling into its own shade.
 			vec4 sm = texelFetch(ship_map, p, 0);
 			float belly = sm.b > 0.0 ? sm.b : 1.0;
-			// (past the hall's right edge the floor is the hall's first columns again)
-			int lx = p.x > 765 ? p.x - 766 : p.x;
+			// (past the hall's right edge the row runs back the way it came: a hull over
+			// the join is one hull, and the hall's first columns' light is not its next)
+			int lx = p.x > 765 ? max(0, 1531 - p.x) : p.x;
 			float v = u16(texelFetch(lship_map, ivec2(lx, 0), 0).rg, lscale) * belly;
 			COLOR = vec4(shade(base, mainc * v, v, drgb, dw, dq), 1.0);
 		} else if (mode == 1) {
