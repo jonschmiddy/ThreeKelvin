@@ -1,0 +1,1 @@
+- **Fixed** — The autopilot can now plan a flight to a place behind the ship while it circles a single star, turning round in two parts instead of falling back to the old planner.

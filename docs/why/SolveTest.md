@@ -73,10 +73,13 @@ own Body has it, not MapGravity's copy); its pull at most THRUST in a burn
 and none on the coast (from the samples, every SPAN); the ride's phasing
 push at most THRUST; engine work, time, integrations and milliseconds.
 A sample of plans flown again at SAMPLE by plain RK4 through
-`MapGravity.acc` (the physics); rebuilt from their own choice (the same
-samples bit for bit, now, half a second on round a ring, and half a second
-on alongside, unless a flight the fallback found gave way to a fresh one
-arriving sooner); planned again 3 s on with the old choice (the overlay's
+`MapGravity.acc` (the physics; the departure burn eased while slow
+wherever the solver eased it, a settled orbit's or a choice found eased,
+`ez`: G2's seed 4242 node 22, ring 0 to keep 4, line-up 5, an eased last
+look, strayed 838.8 px flown at full pull, 0.13 eased, Nov 10); rebuilt
+from their own choice (the same samples bit for bit, now, half a second
+on round a ring, and half a second on alongside, unless a flight the
+fallback found gave way to a fresh one arriving sooner); planned again 3 s on with the old choice (the overlay's
 preview in orbit), every one found and none kept that a fresh search beats
 by more than the warm slack, nor a flight the fallback found, rebuilt or
 warm, where a fresh plan arrives sooner; flights in two legs planned again

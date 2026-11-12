@@ -124,6 +124,10 @@ and those a selected world's name sat across its sun in (SIGMA CINDER-2 II,
 LAMBDA FALLOW II, ETA CALLOUS II; the picks review, Nov 1)
 ```
 
+Since Nov 10 (Jon's G2: tier 0 is spirals only) every seed gives a new world, so
+these indices no longer name the review's binaries; the sweep still adds them where
+the index is a binary. The next picks review names the new ones.
+
 ## Click clock
 
 Inside `_run()`, above `var over: Dictionary = m.overlay.hit(m.overlay.star_scr(-1))`:
@@ -632,8 +636,10 @@ YOUR SHIP'S AND THE PARTNERS' ARROWS, NAMED (Jon, Nov 5: "Maybe hollow arrow
 with their name?"), on this wide pair at its opening framing: your ship put
 in orbit of a place round both suns off the picture, and five partners off
 it (`Net.roster`, `Net.spots`) -- four round the frame from an angle that
-turns with each pair, and one straight out past a corner -- one of them with
-a long name (SHIP_NAME_LONG). Each ship's arrow carries its name (YOU, the
+turns with each pair, and one out along the frame's own diagonal, so its
+arrow lands in a corner every time (until Nov 10 it stood past a corner at a
+fixed reach, and the corner case the arrows check wants came by chance; G2's
+worlds left it out) -- one of them with a long name (SHIP_NAME_LONG). Each ship's arrow carries its name (YOU, the
 pilot's, cut with ".." to `MARK_NAME_MOST` or less), its box (`name_box`)
 inside the frame, in the mark's box, off its arrow and on its inward side,
 queued for the screen (`mark_words`); every arrow's box, names in, inside the

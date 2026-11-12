@@ -1,0 +1,1 @@
+- **Fixed** — In a two-star system, the autopilot's planned route no longer sticks to a two-part flight when a direct flight would get there sooner.

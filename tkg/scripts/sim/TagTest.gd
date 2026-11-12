@@ -372,7 +372,9 @@ func _chart() -> void:
 	var go: MapGen.MapNode = null
 	var far: MapGen.MapNode = null
 	for n: MapGen.MapNode in Run.map:
-		if n.index != here.index and n.sensed and Run.can_jump_to(n) and go == null:
+		# (one on a lane from here: the tag prices only a lane's jump, `MapChart.tip_lines`;
+		# G2's seed put a jumpable star off the lanes first, Nov 10)
+		if n.index != here.index and n.sensed and Run.can_jump_to(n) and here.links.has(n.index) and go == null:
 			go = n
 		if n.index != here.index and not Run.can_jump_to(n) and n.type == MapGen.NodeType.SYSTEM and far == null:
 			far = n

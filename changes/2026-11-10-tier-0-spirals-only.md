@@ -1,0 +1,1 @@
+- **Changed** — Tier 0 (THE SPIRAL AS IT IS) now always flies a spiral galaxy, as its name says; the other galaxy shapes come with the higher tiers. A seed gives a different world than it did before.
