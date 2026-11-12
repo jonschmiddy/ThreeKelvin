@@ -109,9 +109,9 @@ func _launch() -> void:
 		x0 + right > float(YardFront.W))
 	_ok("the mains' sideways burn is reported once each way, going right, from %.2f s (%s)" % [ShipLift.BURN_AT, lat],
 		lat.size() == 2 and bool(lat[0][0]) and float(lat[0][1]) > 0.0 and not bool(lat[1][0])
-			and float(lat[0][2]) >= ShipLift.BURN_AT and float(lat[0][2]) < ShipLift.EXIT_S)
-	_ok("the run starts when the lift ends (%.2f s; the lift %.2f s)" % [landed_at, ShipLift.FRONT_S],
-		landed_at >= ShipLift.FRONT_S - 0.05 and landed_at <= ShipLift.FRONT_S + 0.2)
+			and float(lat[0][2]) >= ShipLift.BURN_AT and float(lat[0][2]) < ShipLift.exit_s())
+	_ok("the run starts when the lift ends (%.2f s; the lift %.2f s)" % [landed_at, ShipLift.front_s()],
+		landed_at >= ShipLift.front_s() - 0.05 and landed_at <= ShipLift.front_s() + 0.2)
 	await Harness.frames(_tree, 10)
 	_ok("LOCAL, launched once (%d), in the picked hull" % fired[0], Router.current is SectorScreen and fired[0] == 1
 		and Run.hull != null and Run.hull.weight == HullData.Weight.MEDIUM)

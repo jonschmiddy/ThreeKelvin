@@ -14,10 +14,11 @@ const RISE_S := 1.7
 const SAG_S := 0.35
 const MAINS_AT := 1.85
 const BURN_AT := 2.05
-const BURN_S := 1.05
-## Off the picture by here; the front door holds the hall this long more.
-const EXIT_S := 3.1
-const FRONT_S := 3.9
+## The burn off the picture, s, gathering speed from near still the whole way (Jon,
+## Nov 12: "WAY too fast" at 1.05 s); E1-E3 on trial by `-- liftexit=1|2|3`, E2 by default.
+const BURN_BY := {1: 2.1, 2: 3.15, 3: 4.2}
+## The front door holds the hall this long after the hull is off the picture.
+const HOLD_S := 0.8
 const PLUME_AT := 0.15
 const SINK_FROM := 0.7
 const SINK_S := 0.8
@@ -55,6 +56,8 @@ var exit_px := 300.0
 var in_px := 300.0
 ## How high over its stands it comes in and hovers (host px), under the hall's lamps.
 var approach_px := 70.0
+## The highest the hull's top may climb as it leaves (host px): under the hall's lamps.
+var ceiling_y := 40.0
 ## Size against the front door's front row (the deck's hulls stand smaller).
 var k := 1.0
 ## The yard's crew and light, both optional.
@@ -80,6 +83,24 @@ var plume_k := 1.0
 var attach := "a"
 ## The stands' middles across (host px), for "b".
 var stands_x: Array[float] = []
+
+
+## How long the burn off the picture takes (`BURN_BY`), off the picture by `exit_s`,
+## and the front door's whole lift.
+static func burn_s() -> float:
+	var e := 2
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("liftexit=") and int(a.substr(9)) in BURN_BY:
+			e = int(a.substr(9))
+	return float(BURN_BY[e])
+
+
+static func exit_s() -> float:
+	return BURN_AT + burn_s()
+
+
+static func front_s() -> float:
+	return exit_s() + HOLD_S
 
 
 ## The attachment on trial (`-- liftplume=a|b|c|d`, for the films Jon picks from).
@@ -163,11 +184,13 @@ func lift_at(t: float) -> void:
 	var spool := clampf(t / SPOOL_S, 0.0, 1.0)
 	var lift_e := _ease_io(clampf((t - SPOOL_S) / RISE_S, 0.0, 1.0))
 	var sag := -2.0 * sin(clampf((t - SPOOL_S) / SAG_S, 0.0, 1.0) * PI) if t > SPOOL_S else 0.0
-	var burn := clampf((t - BURN_AT) / BURN_S, 0.0, 1.0)
+	var burn := clampf((t - BURN_AT) / burn_s(), 0.0, 1.0)
 	if t >= PLUME_AT and not plume.fired():
 		plume.fire()
-	plume.thrust = spool * (1.0 - 0.75 * burn) if t < BURN_AT + BURN_S else 0.0
-	_off.y = -rise * lift_e - sag * k - 10.0 * k * burn * burn
+	plume.thrust = spool * (1.0 - 0.75 * burn) if t < exit_s() else 0.0
+	# and it climbs as it goes: up a rising diagonal to its ceiling, faster than it
+	# gathers speed across, so it leaves high (Jon, Nov 12: "can also go higher up")
+	_off.y = -rise * lift_e - sag * k - _climb() * (1.0 - pow(1.0 - burn, 1.6))
 	_off.x = dir * exit_px * pow(burn, 2.6)
 	_sink(clampf((t - SINK_FROM) / SINK_S, 0.0, 1.0))
 	if t >= BURN_AT:
@@ -177,7 +200,7 @@ func lift_at(t: float) -> void:
 	elif t >= PLUME_AT:
 		_set_engines(ThrusterFx.Thrust.IDLE)
 	# a shiver while it hangs on the jets, harder as the mains light
-	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and t < 2.9 else 0.0)
+	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and burn < 0.85 else 0.0)
 	_shake(t, amp)
 	_lamps(t, 0.25 * spool + (0.45 * (1.0 - absf(burn * 2.0 - 1.0)) if burn > 0.0 else 0.0))
 	_belly_glow(plume.thrust)
@@ -261,6 +284,11 @@ func _track_lateral() -> void:
 	if on != _lat_on:
 		_lat_on = on
 		lateral.emit(on, lateral_speed)
+
+
+## How far it climbs past its rise on the way out: its top up to `ceiling_y`.
+func _climb() -> float:
+	return maxf(0.0, _ink.position.y - rise - ceiling_y)
 
 
 ## Where the hull is now, from its place at rest (whole px).

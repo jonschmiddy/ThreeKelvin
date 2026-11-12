@@ -379,7 +379,7 @@ func _process(delta: float) -> void:
 	if lift != null:
 		_lift_t += delta
 		lift.lift_at(_lift_t)
-		if _lift_t >= ShipLift.FRONT_S and _lift_done.is_valid():
+		if _lift_t >= ShipLift.front_s() and _lift_done.is_valid():
 			var d := _lift_done
 			_lift_done = Callable()
 			d.call()
@@ -432,6 +432,8 @@ func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
 	L.shake_node = shake
 	L.shake_rest = shake.position
 	L.attach = ShipLift.attach_arg()
+	# (out under the ceiling lamps, in front of the banners: the hulls draw after them)
+	L.ceiling_y = 44.0
 	var sw := float(s._stand_img.get_width()) if s._stand_img != null else 0.0
 	for sx: int in s._stand_x:
 		L.stands_x.append(float(sx) + sw * 0.5)

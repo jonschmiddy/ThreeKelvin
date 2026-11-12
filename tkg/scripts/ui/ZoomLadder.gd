@@ -60,7 +60,7 @@ const ELEVATOR_S := 0.8
 ## undocking: the elevator out, then your ship's heavy lift off its stands and
 ## away to the right (`ShipLift.lift_at`, Jon Nov 12), and on LOCAL the ENTER
 ## backwards, `DOCK_ENTER_S`
-const UNDOCK_YARD_S := ELEVATOR_S * 0.6 + ShipLift.EXIT_S
+static var UNDOCK_YARD_S := ELEVATOR_S * 0.6 + ShipLift.exit_s()
 ## Chart straight to LOCAL or the berth is a fade through black, no camera (Jon, Oct 10).
 ## Why: docs/why/ZoomLadder.md#chart-to-local
 const FADE_OUT_S := 0.3

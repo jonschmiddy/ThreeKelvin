@@ -3120,6 +3120,8 @@ func _deck_lift() -> ShipLift:
 	L.light = _scene.light
 	L.shiver_hull = true
 	L.plume_k = 0.8
+	# (out under the ceiling's lamp boxes, within the hall)
+	L.ceiling_y = 64.0
 	L.attach = ShipLift.attach_arg()
 	for s2: Dictionary in Q["supports"]:
 		L.stands_x.append(float(s2["x"]) + float((s2["img"] as Image).get_width()) * 0.5)
