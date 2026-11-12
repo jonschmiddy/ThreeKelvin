@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://n7j6snx4bety"
-path="res://.godot/imported/tarp_light.png-edff3d7a445c78a0824829e72e4eb068.ctex"
+uid="uid://jt5ppbv4seqq"
+path="res://.godot/imported/redline_light.png-751a5827bada095df563aba8eac501dd.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/station/yard/tarp_light.png"
-dest_files=["res://.godot/imported/tarp_light.png-edff3d7a445c78a0824829e72e4eb068.ctex"]
+source_file="res://art/sprites/station/yard/tarps/redline_light.png"
+dest_files=["res://.godot/imported/redline_light.png-751a5827bada095df563aba8eac501dd.ctex"]
 
 [params]
 

@@ -232,7 +232,7 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 	for w: HullData.Weight in sets:
 		var frame := DB.hull_for(&"korvan", w)
 		var hull: HullData = DB.at_tier(DB.hull_for(m, w), tier) if open else null
-		(sets[w] as YardStandSet).setup(scene, w, hull, frame)
+		(sets[w] as YardStandSet).setup(scene, w, hull, frame, m)
 	if locked:
 		for w: HullData.Weight in sets:
 			(sets[w] as YardStandSet).drop_tarp()

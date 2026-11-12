@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c4b78eb7edsqb"
-path="res://.godot/imported/tarp_heavy.png-8b671ac475e30a7010aac4525fac08bf.ctex"
+uid="uid://bniwhe1y8oxe2"
+path="res://.godot/imported/cygnet_medium.png-490fca36edb46386ee3d7b37faaf7f1b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/station/yard/tarp_heavy.png"
-dest_files=["res://.godot/imported/tarp_heavy.png-8b671ac475e30a7010aac4525fac08bf.ctex"]
+source_file="res://art/sprites/station/yard/tarps/cygnet_medium.png"
+dest_files=["res://.godot/imported/cygnet_medium.png-490fca36edb46386ee3d7b37faaf7f1b.ctex"]
 
 [params]
 

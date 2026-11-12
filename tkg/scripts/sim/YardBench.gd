@@ -137,7 +137,7 @@ func _profile_select(m: StringName) -> void:
 		var u := Time.get_ticks_usec()
 		var frame := DB.hull_for(&"korvan", w)
 		var hull: HullData = DB.at_tier(DB.hull_for(m, w), 0) if open else null
-		(y.sets[w] as YardStandSet).setup(y.scene, w, hull, frame)
+		(y.sets[w] as YardStandSet).setup(y.scene, w, hull, frame, m)
 		print("    %s setup %d: %.1f ms" % [m, w, (Time.get_ticks_usec() - u) / 1000.0])
 	var u2 := Time.get_ticks_usec()
 	var map := PackedByteArray()

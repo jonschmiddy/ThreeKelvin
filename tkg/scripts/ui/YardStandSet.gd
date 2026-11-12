@@ -10,12 +10,13 @@ signal pressed
 signal hovered(on: bool)
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## The tarp art, drawn over the Korvan hulls: its left edge from the hull's, and
-## the row inside it that lies on the hull's belly row.
-const TARP_FILE := {HullData.Weight.LIGHT: "tarp_light.png", HullData.Weight.MEDIUM: "tarp_medium.png",
-	HullData.Weight.HEAVY: "tarp_heavy.png"}
-const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(2, 75), HullData.Weight.MEDIUM: Vector2i(3, 88),
-	HullData.Weight.HEAVY: Vector2i(5, 107)}
+## Each locked maker's own tarp (Jon, Nov 12), drawn over the Korvan hulls: one canvas
+## per weight for every maker, its left edge from the hull's, and the row inside it
+## that lies on the hull's belly row.
+const TARP_DIR := "tarps/%s_%s.png"
+const TARP_WEIGHT := {HullData.Weight.LIGHT: "light", HullData.Weight.MEDIUM: "medium", HullData.Weight.HEAVY: "heavy"}
+const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(3, 76), HullData.Weight.MEDIUM: Vector2i(4, 89),
+	HullData.Weight.HEAVY: Vector2i(6, 108)}
 ## The tarps drop one after another, the heavy first, and each hem ripples on its own clock.
 const TARP_DELAY := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 0.18, HullData.Weight.LIGHT: 0.36}
 const TARP_SEED := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 1.4, HullData.Weight.LIGHT: 2.9}
@@ -56,7 +57,7 @@ func _init() -> void:
 
 ## Stand `hull` here, or the weight's tarp when `hull` is null (the tarp sits
 ## where Korvan's hull would, which the tarps were cut for).
-func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -> void:
+func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, maker: StringName = &"solari") -> void:
 	scene = sc
 	weight = w
 	tarped = hull == null
@@ -89,7 +90,7 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 	else:
 		probe.free()
 		_tarp = Tarp.new()
-		_tarp.setup(scene.tex(String(TARP_FILE[w])), float(TARP_DELAY[w]), float(TARP_SEED[w]))
+		_tarp.setup(scene.tex(tarp_file(maker, w)), float(TARP_DELAY[w]), float(TARP_SEED[w]))
 		var a: Vector2i = TARP_ANCHOR[w]
 		var at := Vector2i(_x0 - a.x, _belly - a.y)
 		_tarp.position = Vector2(at.x - 4, at.y - TARP_LIFT) - position
@@ -103,6 +104,12 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 			size.y += grow
 			for c in get_children():
 				(c as Control).position.y += grow
+
+
+## The maker's tarp for this weight (a maker with none of its own wears Solari's).
+static func tarp_file(maker: StringName, w: HullData.Weight) -> String:
+	var f := TARP_DIR % [String(maker), String(TARP_WEIGHT[w])]
+	return f if ResourceLoader.exists(YardScene.DIR + f) else TARP_DIR % ["solari", String(TARP_WEIGHT[w])]
 
 
 ## The berth's two stands where `YardSlot` puts them, the same for every
