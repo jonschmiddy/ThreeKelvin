@@ -53,6 +53,8 @@ uniform float vscale = 2.0;
 uniform float bscale = 2.0;
 uniform float lscale = 2.0;
 uniform bool bay_on = false;
+// how bright a ship's full light is: 1 everywhere but the front door's light trials
+uniform float ship_k = 1.0;
 uniform int nvary = 0;
 uniform vec4 vbox[12];
 // the lamp's colour, and (weight - 1) x power: what it adds to or takes off the sum
@@ -124,7 +126,7 @@ float bay_at(ivec2 p) {
 	}
 	float fx = float(p.x) * 0.5;
 	float fy = float(p.y) * 0.5;
-	int cx = min(382, int(floor(fx)));
+	int cx = min(textureSize(bay_map, 0).x - 2, int(floor(fx)));
 	int cy = min(240, int(floor(fy)));
 	float tx = fx - float(cx);
 	float ty = fy - float(cy);
@@ -135,8 +137,12 @@ float bay_at(ivec2 p) {
 	return (a * (1.0 - tx) + b * tx) * (1.0 - ty) + (c * (1.0 - tx) + d * tx) * ty;
 }
 
-// Every lamp's light at a pixel: (R, G, B, how much).
-vec4 sa_at(ivec2 p) {
+// Every lamp's light at a pixel: (R, G, B, how much). `p` may lie on the hall
+// continued past its right edge, lit as the hall's first columns are; only a
+// floor-lamp map as wide as the frame (the front door's) is read there itself.
+vec4 sa_at(ivec2 pt) {
+	ivec2 p = pt.x > 765 ? ivec2(pt.x - 766, pt.y) : pt;
+	ivec2 pb = textureSize(bay_map, 0).x > 384 ? pt : p;
 	vec4 hi = texelFetch(light_map, p, 0);
 	vec4 lo = texelFetch(light_map, p + ivec2(0, 482), 0);
 	vec4 v = (floor(hi * 255.0 + 0.5) * 256.0 + floor(lo * 255.0 + 0.5)) / 65535.0 * scale;
@@ -157,7 +163,7 @@ vec4 sa_at(ivec2 p) {
 		float f = u16((i % 2 == 0) ? t.rg : t.ba, vscale);
 		v += vec4(vcol[i].rgb * (f * k), f * k);
 	}
-	float by = bay_at(p);
+	float by = bay_at(pb);
 	v += vec4(mainc * by, by);
 	return v;
 }
@@ -273,7 +279,7 @@ void fragment() {
 			float belly = sm.b > 0.0 ? sm.b : 1.0;
 			// (past the hall's right edge the floor is the hall's first columns again)
 			int lx = p.x > 765 ? p.x - 766 : p.x;
-			float v = u16(texelFetch(lship_map, ivec2(lx, 0), 0).rg, lscale) * belly;
+			float v = u16(texelFetch(lship_map, ivec2(lx, 0), 0).rg, lscale) * belly * ship_k;
 			COLOR = vec4(shade(base, mainc * v, v, drgb, dw, dq), 1.0);
 		} else if (mode == 1) {
 			vec4 l = sa_at(ivec2(cell));
@@ -297,7 +303,9 @@ void fragment() {
 						base = min(vec3(1.0), base * lamp_off(lamp_at(l2 - 1), o.a));
 					}
 				}
-				vec4 l = sa_at(p);
+				// (the hall continued is lit as the columns it copies, but stands where it is drawn)
+				ivec2 ps = ivec2(floor(sp));
+				vec4 l = sa_at(shift_x != 0.0 && ps.x > 765 ? ps : p);
 				vec3 lit = shade(base, l.rgb, l.a, drgb, dw, dq);
 				// THE POLISH GIVES BACK what burns low on the wall: a mirror of the
 				// burning pixels, brighter the nearer the wall, only ever lighter.

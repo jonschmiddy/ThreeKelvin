@@ -159,6 +159,12 @@ func paint_stands(P: YardPaint) -> void:
 	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
 	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
 	var f := float(feet)
+	if YardLightTrial.has("nostand"):
+		for sx0 in _stand_x:
+			var c0 := float(sx0) + float(sw) * 0.5
+			P.use(YardPaint.FLOOR, Vector2(floorf(c0), f))
+			P.tex(_stand_tex, Vector2(sx0, _stand_top))
+		return
 	P.use(YardPaint.PLAIN)
 	var last := _stand_x[_stand_x.size() - 1]
 	var mid := float(_stand_x[0] + last + sw) * 0.5
@@ -174,7 +180,7 @@ func paint_stands(P: YardPaint) -> void:
 		P.mirror(_stand_tex, Rect2(0, shh - rows, sw, rows), float(sx), f, GLOSS, YardLife.TINT, false)
 	for sx in _stand_x:
 		var cx2 := float(sx) + float(sw) * 0.5
-		P.use(YardPaint.FLOOR, YardScene.cell(cx2 - 766.0 if cx2 > 765.0 else cx2, f))
+		P.use(YardPaint.FLOOR, Vector2(floorf(cx2), f))
 		P.tex(_stand_tex, Vector2(sx, _stand_top))
 	P.use(YardPaint.PLAIN)
 	var done := 0

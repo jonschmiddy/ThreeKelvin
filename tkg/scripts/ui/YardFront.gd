@@ -60,6 +60,9 @@ var _ship_tex: ImageTexture = null
 var _sharp_set: YardStandSet = null
 ## Where the next piece of floor goes among the hall's children: after the hall picture.
 var _under_at: int = 1
+## TRIAL ONLY (`YardLightTrial`): the fixtures over the banners, and the floor's light waiting for the bake.
+var _fix: Control = null
+var _trial_bay: Image = null
 
 
 func _init() -> void:
@@ -71,6 +74,8 @@ func _init() -> void:
 
 func setup() -> void:
 	scene = YardScene.new()
+	if YardLightTrial.has("fullbright"):
+		YardScene.fullbright = true
 	scene.dev = MapGen.Development.CITY
 	scene.position = Vector2.ZERO
 	scene.size = Vector2(HALL_W, HALL_H)
@@ -102,6 +107,12 @@ func setup() -> void:
 		b.pressed.connect(func() -> void: banner_pressed.emit(i))
 		banners.append(b)
 		add_child(b)
+	if YardLightTrial.option() != "":
+		_fix = Control.new()
+		_fix.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fix.size = Vector2(W, H)
+		_fix.draw.connect(func() -> void: YardLightTrial.draw_fixtures(_fix, self))
+		add_child(_fix)
 	for w: HullData.Weight in [HullData.Weight.HEAVY, HullData.Weight.MEDIUM, HullData.Weight.LIGHT]:
 		var s := YardStandSet.new()
 		sets[w] = s
@@ -117,6 +128,7 @@ func setup() -> void:
 	_fall.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_fall.texture = _falloff()
 	_fall.position = Vector2(0, FALL_FROM)
+	_fall.visible = not YardLightTrial.has("nofall")
 	add_child(_fall)
 	_blur = ColorRect.new()
 	_blur.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -169,7 +181,12 @@ func _build_hall_extras() -> void:
 			patches.append([Rect2(330, 226, 110, 98), Vector2(bx + k * 110, 226)])
 	patches.append([Rect2(560, 408, 80, 24), Vector2(400, 408)])
 	for pr: Array in patches:
-		var p := _sprite(L.hall, pr[0], pr[1])
+		var src: Rect2 = pr[0]
+		var at: Vector2 = pr[1]
+		# a patch across the hall's join is cut at it: past it the hall's light is out of reach (it drew unlit)
+		if at.x < HALL_W and at.x + src.size.x > HALL_W:
+			src.size.x = HALL_W - at.x
+		var p := _sprite(L.hall, src, at)
 		p.material = edge_m if p.position.x >= HALL_W else scene._mats[YardPaint.HALL]
 		_under(p)
 
@@ -235,6 +252,8 @@ func set_picked(w: int) -> void:
 	picked = w
 	if hover_w < 0:
 		_focus(w)
+	if YardLightTrial.option() != "":
+		_rebake()
 	_apply_light()
 
 
@@ -270,9 +289,14 @@ func _rebake() -> void:
 			if c.r8 != 255:
 				continue
 			var u := float(y - top) / float(bot - top)
+			if YardLightTrial.option() != "":
+				break
 			var k := floorf(clampf((u - 0.5) / 0.5, 0.0, 1.0) * 3.0 + 0.5) / 3.0
-			c.b8 = clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
+			c.b8 = 255 if YardLightTrial.has("noshipshade") else clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
 			img.set_pixel(x, y, c)
+	if YardLightTrial.option() != "":
+		YardLightTrial.shade_ships(img, self)
+		scene._mats[YardPaint.SHIP].set_shader_parameter(&"ship_k", YardLightTrial.ship_k())
 	if _ship_tex == null:
 		_ship_tex = ImageTexture.create_from_image(img)
 	else:
@@ -284,12 +308,14 @@ func _rebake() -> void:
 	scene._ship_img.fill(Color(0, 0, 0, 0))
 	scene._ship_tex.update(scene._ship_img)
 	scene._bake_bay()
+	if YardLightTrial.option() != "":
+		_trial_bay = YardLightTrial.pools(self)
 
 
 func _apply_light() -> void:
 	if not ready_hall:
 		return
-	var amb := AMB_LOCKED if locked else AMB_OPEN
+	var amb := 0.0 if YardLightTrial.has("noamb") else YardLightTrial.amb(AMB_LOCKED if locked else AMB_OPEN)
 	for m in scene.light.mats:
 		m.set_shader_parameter(&"amb", amb)
 	for b in banners:
@@ -297,6 +323,8 @@ func _apply_light() -> void:
 		b.queue_redraw()
 	if _paint != null:
 		_paint.queue_redraw()
+	if _fix != null:
+		_fix.queue_redraw()
 
 
 ## The lamps this tick: spotlights over the picked ship, the rest a shade down;
@@ -306,12 +334,16 @@ func _lamp_gains() -> PackedFloat32Array:
 	g.resize(5)
 	var spot: Array = SHIP_LAMPS.get(picked, []) if picked >= 0 else []
 	for i in 5:
+		if YardLightTrial.has("noceil"):
+			g[i] = 0.0
+			continue
 		if locked:
 			g[i] = 0.5 * (float(FLICK[_flick_index()]) if i in FLICK_LAMPS else 1.0)
 		elif i in spot:
 			g[i] = 1.5
 		else:
 			g[i] = 0.9 if picked >= 0 else 1.05
+		g[i] = YardLightTrial.ceil_gain(g[i])
 	return g
 
 
@@ -327,6 +359,11 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 	scene.light.lamp_gain = _lamp_gains()
+	if YardLightTrial.has("nobay") and scene.light._bay_on:
+		scene.light.set_bay(null)
+	if _trial_bay != null and scene._bay_ready:
+		scene.light.set_bay(_trial_bay)
+		_trial_bay = null
 	var target := 1.0 if hover_w >= 0 or (picked >= 0 and not locked) else 0.0
 	var k := move_toward(_k, target, delta * BLUR_RATE)
 	if k != _k:
@@ -370,7 +407,8 @@ func _draw_paint() -> void:
 		ci.draw_colored_polygon(PackedVector2Array([Vector2(x + 4, ry + 12), Vector2(x + 52, ry + 12),
 			Vector2(x + 52, ry + cl + 10), Vector2(x + 28, ry + cl + 2), Vector2(x + 4, ry + cl + 10)]),
 			Color(0, 0, 0, 80.0 / 255.0))
-	for pool: Array in POOLS:
+	YardLightTrial.draw_beams(ci, self)
+	for pool: Array in ([] if YardLightTrial.has("nohaze") or YardLightTrial.option() != "" else POOLS):
 		var lx := float(pool[0])
 		var r := float(pool[1])
 		var gain := 0.45 if locked else (1.6 if int(pool[2]) == picked else 1.0)

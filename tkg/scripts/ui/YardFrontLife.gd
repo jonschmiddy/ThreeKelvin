@@ -57,9 +57,10 @@ func avoid(x: float, lane_y: float) -> float:
 	return dy
 
 
-## Past the hall's right edge the floor is its first columns again, lit as they are.
+## Past the hall's right edge the floor is its first columns again, lit as they
+## are (the light shader folds the cell back itself).
 func lit_cell(x: float, y: float) -> Vector2:
-	return YardScene.cell(x - float(YardScene.W) if x >= float(YardScene.W) else x, y)
+	return Vector2(clampf(floorf(x + 0.5), 0.0, float(YardFront.W - 1)), float(YardLight.cell_y(y)))
 
 
 func _engine(t: float) -> void:

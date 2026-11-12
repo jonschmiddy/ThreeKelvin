@@ -55,6 +55,7 @@ var _vary_w := LW
 var _own := PackedByteArray()
 var _bay := PackedByteArray()
 var _bay_on := false
+var _bay_w := 384
 var _scale := 4.0
 var _vscale := 2.0
 const BSCALE := 2.0
@@ -198,6 +199,7 @@ func set_bay(img: Image) -> void:
 		if img.get_format() != Image.FORMAT_RGBA8:
 			img.convert(Image.FORMAT_RGBA8)
 		_bay = img.get_data()
+		_bay_w = img.get_width()
 		_bay_on = true
 		_textures["bay_map"] = ImageTexture.create_from_image(img)
 	for m in mats:
@@ -470,12 +472,12 @@ func bay_at(x: int, y: int) -> float:
 		return 0.0
 	var fx := float(x) * 0.5
 	var fy := float(y) * 0.5
-	var cx := mini(382, int(floorf(fx)))
+	var cx := mini(_bay_w - 2, int(floorf(fx)))
 	var cy := mini(240, int(floorf(fy)))
 	var tx := fx - float(cx)
 	var ty := fy - float(cy)
-	var i0 := (cy * 384 + cx) * 4
-	var i1 := ((cy + 1) * 384 + cx) * 4
+	var i0 := (cy * _bay_w + cx) * 4
+	var i1 := ((cy + 1) * _bay_w + cx) * 4
 	var a := _u16(_bay, i0, i0 + 1, BSCALE)
 	var b := _u16(_bay, i0 + 4, i0 + 5, BSCALE)
 	var c := _u16(_bay, i1, i1 + 1, BSCALE)

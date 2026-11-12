@@ -16,6 +16,9 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	# `pin=S` holds the yard's clock, so two runs' stills differ only by what they change.
+	if Harness.arg("pin", "") != "":
+		YardScene.pin_clock = float(Harness.arg("pin", "6"))
 	await Harness.frames(get_tree(), 2)
 	if DevMode.available:
 		DevMode.enabled = true
@@ -32,10 +35,22 @@ func _run() -> void:
 		print("yardstandsshot: filmed %.1f s" % film)
 		get_tree().quit()
 		return
+	var only := Harness.arg("only", "").split(",", false)
 	for i in DB.STARTABLE.size():
+		if not only.is_empty() and not String(DB.STARTABLE[i]) in only:
+			continue
 		cs._select(i)
 		await _secs(1.2)
 		_shot("%d_%s" % [i, DB.STARTABLE[i]])
+		# `pick=medium` also shoots the set with that ship picked
+		var pick := Harness.arg("pick", "")
+		if pick != "":
+			cs._pick_weight({"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}[pick])
+			await _secs(1.2)
+			_shot("%d_%s_picked" % [i, DB.STARTABLE[i]])
+			cs._picked = -1
+			cs._yard.set_picked(-1)
+			cs._show_band()
 	print("yardstandsshot: done, %s" % _out)
 	get_tree().quit()
 
