@@ -48,6 +48,8 @@ var locked: bool = false
 var picked: int = -1
 var hover_w: int = -1
 var ready_hall: bool = false
+## The pools are baked round no hull, so once is enough.
+var _bay_baked := false
 
 var _paint: Control
 var _fall: Sprite2D
@@ -59,8 +61,6 @@ var _t: float = 0.0
 var _ship_tex: ImageTexture = null
 var _dither: ImageTexture = null
 var _sharp_set: YardStandSet = null
-## The pools are baked round no hull, so once is enough.
-var _bay_baked := false
 
 
 func _init() -> void:
