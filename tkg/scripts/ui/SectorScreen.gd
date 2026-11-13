@@ -704,6 +704,11 @@ func _build() -> void:
 
 	_view = EncounterView.new()
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# (moored on the station's right: the scene mirrored, set before it is built)
+	var n0: MapGen.MapNode = Run.node_at()
+	_view.mirrored = Moored.here() and n0 != null and n0.type == MapGen.NodeType.STATION and Router.at_station(n0)
+	_view.mouth_g = func() -> Vector2:
+		return _face.mouth_g() if _face != null and is_instance_valid(_face) else Vector2.INF
 	stack.add_child(_view)
 	# Re-asked on every re-layout, as the arena height is the drawer band's leftovers.
 	_view.resized.connect(_sync_bleed)
@@ -914,7 +919,7 @@ func _sync_bleed() -> void:
 	var slot := _view.get_parent() as Control
 	if slot == null:
 		return
-	_view.set_bleed(get_global_rect().end.y - slot.get_global_rect().end.y)
+	_view.set_bleed(UiRect.of(self).end.y - UiRect.of(slot).end.y)
 
 
 # -------------------------------------------------------------------- drawer
@@ -1143,7 +1148,7 @@ func _open_loose() -> void:
 		return
 	var from := _drawer.find_child("SectorLoot", true, false) as Control
 	if _cutaway != null and from != null:
-		_cutaway.open_popup(Run.sector_loot(n), from.get_global_rect())
+		_cutaway.open_popup(Run.sector_loot(n), UiRect.of(from))
 	else:
 		_open_sector_loot()
 
@@ -2058,7 +2063,7 @@ func _hook_cutaway() -> void:
 	slot.gui_input.connect(_on_own_ship_input)
 	slot.mouse_exited.connect(func() -> void:
 		_ship_outline.visible = false
-		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW)
+		Moored.cursor(_view, slot, Control.CURSOR_ARROW))
 
 
 ## An arrival is starting: whatever the pointer is resting on when the ship
@@ -2089,7 +2094,7 @@ func _on_own_ship_input(e: InputEvent) -> void:
 		# An unpressable ship shows no outline, and a click makes the dead-button thud.
 		# Why: docs/why/SectorScreen.md#ship-hover
 		_ship_outline.visible = false
-		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		Moored.cursor(_view, slot, Control.CURSOR_ARROW)
 		var press := e as InputEventMouseButton
 		if press != null and press.pressed and press.button_index == MOUSE_BUTTON_LEFT 				and _aim_view == null and CutawayView.on_hull(art, at):
 			denied_clicks += 1
@@ -2099,7 +2104,7 @@ func _on_own_ship_input(e: InputEvent) -> void:
 	if on != _ship_outline.visible:
 		_ship_outline.visible = on
 		_ship_outline.queue_redraw()
-	slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if on else Control.CURSOR_ARROW
+	Moored.cursor(_view, slot, Control.CURSOR_POINTING_HAND if on else Control.CURSOR_ARROW)
 	var mb := e as InputEventMouseButton
 	if on and mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		slot.accept_event()
@@ -2118,7 +2123,7 @@ func ladder_ready() -> bool:
 
 
 func ladder_picture() -> Rect2:
-	return _view.get_global_rect()
+	return UiRect.of(_view)
 
 
 func ladder_scale() -> float:
@@ -2128,7 +2133,7 @@ func ladder_scale() -> float:
 func _ladder_ship() -> Vector2:
 	var art := _view.ship_view() if _view != null else null
 	if art == null:
-		return _view.get_global_rect().get_center()
+		return UiRect.of(_view).get_center()
 	var ink := Rect2(art.ink_rect())
 	return art.get_global_transform() * art.canvas_to_local(ink.get_center())
 
@@ -2186,7 +2191,7 @@ func _ladder_ring() -> Vector2:
 		return _face.mouth_g()
 	var a: Control = _view._area if _view != null else null
 	if a != null and a.is_visible_in_tree() and a.size.x > 1.0:
-		return a.get_global_rect().get_center()
+		return UiRect.of(a).get_center()
 	return _ladder_ship()
 
 
@@ -2285,7 +2290,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 			# into the mouth: the bulkhead hides the rest (B); straight through it
 			# until the hangar fills the picture (D)
 			zs1 = 2.0 if design == "B" else 4.2
-		to1 = _view.get_global_rect().get_center()
+		to1 = UiRect.of(_view).get_center()
 	elif seam == 2 and design == "C":
 		zs1 = 0.3
 	elif seam == 2 and design == "B":
@@ -2310,10 +2315,9 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 	var ship := {}
 	var art := _view.ship_view()
 	if hull_flies and art != null:
-		var ink := Rect2(art.ink_rect())
 		# Middle without the idle bob, so the path is the same whenever it set off.
 		ship = {"art": art, "pos": art.position, "scale": art.scale, "pivot": art.pivot_offset,
-			"mid": art.canvas_to_local(ink.get_center()) - Vector2(0.0, float(art.bob_offset()) * float(art._k))}
+			"mid": _view.hull_mid()}
 		art.pivot_offset = ship.mid
 	_lad = {"fixed": fixed, "to1": to1, "zs1": zs1, "scenes": scenes, "smooth": smooth, "ship": ship,
 		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,
@@ -2368,7 +2372,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		if inward and (_wake_t >= 0.0 or _wake_owed):
 			_wake_finish()
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
-			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
+			"right": UiRect.of(_view).end.x, "vc": UiRect.of(_view).get_center(), "s_end": s_end,
 			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &"",
 			"hold": hold, "dip_s": dip_s, "heard": false, "hidden": _dock_hidden and inward,
 			"power0": _face.power, "row": randi() % ShipView.FLAMEOUTS.size()}
@@ -2427,7 +2431,7 @@ func ladder_cam(k: float) -> void:
 			# Why: docs/why/SectorScreen.md#docking
 			beat = &"enter"
 			ue = u
-			hall_fly = hold + (1.0 - hold) * ue * ue
+			hall_fly = hold if ZoomLadder.dock_fade_only else hold + (1.0 - hold) * ue * ue
 		hall["beat"] = beat
 		hall["step"] = step
 		hall["t"] = t
@@ -2436,7 +2440,7 @@ func ladder_cam(k: float) -> void:
 		# off it: no cut of its own)
 		if bool(hall.get("hidden", false)):
 			blk = 0.0
-		hall["black"] = clampf(blk, 0.0, 1.0)
+		hall["black"] = 1.0 if ZoomLadder.dock_fade_only and step >= 1 else clampf(blk, 0.0, 1.0)
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
 	elif not hall.is_empty():
@@ -2445,8 +2449,7 @@ func ladder_cam(k: float) -> void:
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
-		hall["t"] = (1.0 - hk) * ZoomLadder.DOCK_ENTER_S
-		hall_fly = ZoomLadder._ease(hk)
+		hall_fly = Moored.undock_fly(hall, hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -2531,7 +2534,8 @@ func ladder_cam(k: float) -> void:
 			var step := int(hall.get("step", 0))
 			# (and on, a frame past the ARRIVE if need be, to its own end: it
 			# runs from the frame it was called on)
-			if docking and (step <= 1 or (step <= 3 and art.arrive_driven)):
+			if docking and ZoomLadder.dock_fade_only: Moored.hold(art, p0, step)
+			elif docking and (step <= 1 or (step <= 3 and art.arrive_driven)):
 				_dock_arrival(art, hall, p0)
 			else:
 				# FROM ITS MOORING (docking) or the bay (undocking), down the
@@ -2541,7 +2545,7 @@ func ladder_cam(k: float) -> void:
 			if docking:
 				_dock_burn(art, hall, step == 4 and float(hall.get("t", 0.0)) < ZoomLadder.dock_approach_s() - ladder_dip_s())
 			else:
-				_undock_engines(art, hall)
+				Moored.undock_engines(self, art, hall)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
@@ -2644,26 +2648,6 @@ func _dock_burn(art: ShipView, hall: Dictionary, on: bool) -> void:
 		Audio.ship_thrust_off()
 
 
-## Engines idle as your ship backs out, then the arrival's coughs; silent if cut short.
-## Why: docs/why/SectorScreen.md#undocking
-func _undock_engines(art: ShipView, hall: Dictionary) -> void:
-	var t := float(hall.get("t", 0.0))
-	var row := int(hall.get("row", 0))
-	var cough_at := ZoomLadder.DOCK_ENTER_S - UNDOCK_COAST_S - ShipView.sputter_s(row)
-	if t < cough_at:
-		return
-	if not hall.has("cough_clip"):
-		hall["cough_clip"] = art.sputter(row)
-		hall["cough_at"] = cough_at
-		if not (ZoomLadder.active != null and ZoomLadder.active._cut):
-			Audio.play(hall.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(DOCK_BURN_LEVEL), 1.0,
-				ShipView.sputter_from_s(row) + (t - cough_at))
-	art.sputter_step(t - cough_at)
-
-
-## Undocking: the last of the way to the mooring coasted at the idle, s, after
-## the flameout's last cough.
-const UNDOCK_COAST_S := 0.4
 ## Dock timing: lights on by `WAKE_POWER_BY`, warning lights green at `WARN_CLEAR`.
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86
@@ -2902,7 +2886,7 @@ func open_cutaway() -> CutawayView:
 	_cutaway.sky = _view.backdrop
 	# ABOVE THE BOTTOM BAR, which stays: its SECTOR LOOT works from in here
 	if _quiet_holder != null and _quiet_holder.is_visible_in_tree():
-		_cutaway.offset_bottom = -maxf(0.0, get_global_rect().end.y - _quiet_holder.get_global_rect().position.y)
+		_cutaway.offset_bottom = -maxf(0.0, UiRect.of(self).end.y - UiRect.of(_quiet_holder).position.y)
 	_cutaway.closed.connect(func() -> void: _cutaway = null)
 	return _cutaway
 
@@ -2942,7 +2926,7 @@ func _grab_decide(at: Vector2) -> void:
 	var d := at - _grab_from
 	# Aim only once the cursor is above the drawer, the only direction anything is aimed.
 	# Why: docs/why/SectorScreen.md#card-gestures
-	var above_drawer := at.y < _hand.get_global_rect().position.y
+	var above_drawer := at.y < UiRect.of(_hand).position.y
 	if above_drawer:
 		if not combat.can_play(_grab_view.card):
 			# Unplayable cards can still be REARRANGED, so this refuses the shot
@@ -2960,7 +2944,7 @@ func _grab_decide(at: Vector2) -> void:
 func _promote_to_aim(at: Vector2) -> bool:
 	if _grab_view == null or combat == null or _hand == null:
 		return false
-	if at.y >= _hand.get_global_rect().position.y:
+	if at.y >= UiRect.of(_hand).position.y:
 		return false
 	# Same refusal as `_grab_decide`: an unplayable card rearranges but never arms a shot.
 	if not combat.can_play(_grab_view.card):
@@ -3003,7 +2987,7 @@ func _begin_aim(view: CardView) -> void:
 func _aim_anchor() -> Vector2:
 	if _aim_view == null:
 		return Vector2.ZERO
-	var r := _aim_view.get_global_rect()
+	var r := UiRect.of(_aim_view)
 	return get_global_transform().affine_inverse() \
 		* Vector2(r.position.x + r.size.x * 0.5, r.position.y)
 
@@ -3120,7 +3104,7 @@ func _aim_track(where: Vector2) -> void:
 	_aim_where = where
 	var at := get_global_transform().affine_inverse() * where
 	# Back in the drawer is not aiming: the line and preview go, the card stays armed.
-	var aiming := where.y < _hand.get_global_rect().position.y
+	var aiming := where.y < UiRect.of(_hand).position.y
 	# The reticle replaces the pointer while drawn; the system cursor covered the lock.
 	_hide_cursor(aiming)
 	if _aim_line != null:
@@ -4140,9 +4124,9 @@ func _pop_reach(lines: int) -> float:
 ## Why: docs/why/SectorScreen.md#pop-numbers
 func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 	var inv := _view.fx.get_global_transform().affine_inverse()
-	var top_g := _view.get_global_rect().position.y
+	var top_g := UiRect.of(_view).position.y
 	if Router.hud != null and Router.hud.is_visible_in_tree():
-		top_g = maxf(top_g, Router.hud.get_global_rect().end.y)
+		top_g = maxf(top_g, UiRect.of(Router.hud).end.y)
 	if who >= 0 and ink.size.x > 0.0:
 		var fxg := _view.fx.get_global_transform()
 		# as wide as the numbers' widest line, centred on the ink
@@ -4153,21 +4137,21 @@ func _pop_limit(who: int = -1, ink: Rect2 = Rect2()) -> float:
 		while _view.slot(k) != null:
 			var other := _view.slot(k)
 			if other != mine and other.visible and mine != null \
-					and other.get_global_rect().position.y < mine.get_global_rect().position.y - 0.5:
+					and UiRect.of(other).position.y < UiRect.of(mine).position.y - 0.5:
 				var oi := other.ink_rect()
 				var parts: Array[Rect2] = [other.intent_rect_global(), other.readout_rect_global(),
-					Rect2(other.get_global_rect().position + oi.position, oi.size)]
+					Rect2(UiRect.of(other).position + oi.position, oi.size)]
 				# and its shield's oval, up or not
 				for p in other.rooms(other.art.draw_scale):
 					if p[0] == &"oval":
-						parts.append(Rect2(other.get_global_rect().position + (p[1] as Rect2).position, (p[1] as Rect2).size))
+						parts.append(Rect2(UiRect.of(other).position + (p[1] as Rect2).position, (p[1] as Rect2).size))
 				for g in parts:
 					if g.size.x > 0.0 and g.position.x < span.end.x and g.end.x > span.position.x:
 						top_g = maxf(top_g, g.end.y)
 			k += 1
 	# Keeps clear of the fight log: room for two of your numbers, then they stay under it.
 	if who < 0 and _fight_log != null and is_instance_valid(_fight_log) and _fight_log.panel.is_visible_in_tree():
-		var lr := _fight_log.panel.get_global_rect()
+		var lr := UiRect.of(_fight_log.panel)
 		var sv := _view.ship_view()
 		if sv != null:
 			var sr := sv.get_global_transform() * sv.ship_rect()
@@ -4207,7 +4191,7 @@ func _hull_ink(to_player: bool, who: int) -> Rect2:
 		var at := sl.get_global_transform() * ink.position
 		return Rect2(inv * at, ink.size)
 	var u := art.used_rect()
-	var tl := art.get_global_rect().position + (art.size - _canvas_size(art)) * 0.5
+	var tl := UiRect.of(art).position + (art.size - _canvas_size(art)) * 0.5
 	return Rect2(inv * (tl + Vector2(u.position)), Vector2(u.size))
 
 
@@ -4266,7 +4250,7 @@ func _ship_pt() -> Vector2:
 	var sv := _view.ship_view()
 	if sv == null:
 		return _view.ship_muzzle()
-	return _view.fx.get_global_transform().affine_inverse() * sv.get_global_rect().get_center()
+	return _view.fx.get_global_transform().affine_inverse() * UiRect.of(sv).get_center()
 
 
 ## How many wrecks lay in this system before the fight: enemy `i`'s will be

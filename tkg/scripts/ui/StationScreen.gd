@@ -133,7 +133,7 @@ const DECK_H := 44
 
 func _build() -> void:
 	# The yard's hall runs on into the elevator's column while the elevator is away.
-	_edge = _YardEdge.new()
+	_edge = YardEdge.new()
 	_edge.screen = self
 	add_child(_edge)
 	# One outer margin, or the header runs to x=0 and 960 and UNDOCK is sliced by the window.
@@ -2638,7 +2638,7 @@ func _on_mine_input(e: InputEvent) -> void:
 	open_cutaway()
 
 
-var _edge: _YardEdge = null
+var _edge: YardEdge = null
 ## how long the elevator takes to slide back in once your hull is down: a dial,
 ## `ZoomLadder.ELEVATOR_S`
 ## undocking: how long the elevator takes to go, before your ship lifts off (s)
@@ -2656,63 +2656,6 @@ func ladder_track_speed(dur: float) -> float:
 	if _lad.is_empty():
 		return 0.0
 	return YARD_M * float(_lad.off) / maxf(dur, 0.001)
-class _YardEdge extends Node:
-	var screen: StationScreen
-
-	## Whether the ladder is panning this screen in or out right now.
-	func _panning() -> bool:
-		return ZoomLadder.busy() and ZoomLadder.active._pan_view != null \
-			and is_instance_valid(ZoomLadder.active._pan_view) and ZoomLadder.active._pan_view.visible
-	var _rest_x := NAN
-	var _on := false
-	var _clipped: Array = []
-
-	func _process(_d: float) -> void:
-		var r := screen._rail if screen != null else null
-		var sc: YardScene = screen._scene if screen != null else null
-		if r == null or not is_instance_valid(r) or sc == null or not is_instance_valid(sc):
-			return
-		# (the elevator's own place: the ladder's note of it, or learned while it
-		# stands in it)
-		if not screen._lad.is_empty() and not is_nan(float(screen._lad.get("rail_x", NAN))):
-			_rest_x = float(screen._lad.rail_x)
-		elif (screen._lad_tw == null or not screen._lad_tw.is_valid()) and screen._rail_slide == null \
-				and (screen._cutaway == null or not is_instance_valid(screen._cutaway)):
-			_rest_x = r.position.x
-		# (not while the cutaway has the yard zoomed: the hall is not where it was)
-		var away := not is_nan(_rest_x) and r.position.x < _rest_x - 0.5 \
-			and (screen._cutaway == null or not is_instance_valid(screen._cutaway))
-		# The elevator fully away is not drawn, so the pan and flight never show it through.
-		var gone := away and r.position.x <= _rest_x - r.size.x + 0.5
-		# (and through the whole flight in, wherever its row puts it back for a
-		# frame while the screen is laid out)
-		if not screen._lad.is_empty() and not bool(screen._lad.get("out", false)):
-			gone = true
-		# (by its alpha, not `visible`: hidden, the row it stands in would close up)
-		r.modulate.a = 0.0 if gone else screen._rail_a * screen._lab_rail_a
-		r.z_index = 2 if screen._lab_lift else (1 if away and not gone and not _panning() else 0)
-		if away == _on:
-			return
-		_on = away
-		# The yard's hall runs on into the elevator's
-		# column, under the ships, with the elevator over it.
-		sc.set_edge(away)
-		# (every box between the yard and this screen that would clip it)
-		if away:
-			_clipped = []
-			var c: Node = sc
-			while c != null and c != screen:
-				if c is Control and (c as Control).clip_contents:
-					_clipped.append(c)
-					(c as Control).clip_contents = false
-				c = c.get_parent()
-		else:
-			for c in _clipped:
-				if is_instance_valid(c):
-					(c as Control).clip_contents = true
-			_clipped = []
-
-
 # ------------------------------------------------------------ the zoom ladder
 # The station is the closest of four distances: the camera stays, its picture and your ship move.
 func ladder_ready() -> bool:
@@ -2768,7 +2711,7 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 	var past := YardScene.EDGE_W + 8.0 if design == "B" else 0.0
 	_lad = {"pos": _mine_view.position, "rail_x": rail_x, "out": going,
 		"off": _mine_view.position.x + float(_mine_view.size.x) + 24.0 + past, "design": design}
-	# (docking: the elevator unseen from the first frame -- `_YardEdge` keeps it so)
+	# (docking: the elevator unseen from the first frame -- `YardEdge` keeps it so)
 	if not going and _rail != null and is_instance_valid(_rail):
 		_rail.modulate.a = 0.0
 	if _scene != null:
@@ -2794,7 +2737,9 @@ func ladder_cam(k: float) -> void:
 	var settle := clampf((q - 0.7) / 0.3, 0.0, 1.0)
 	var lift := 8.0 * (1.0 - settle * settle * (3.0 - 2.0 * settle)) if q < 1.0 else 0.0
 	var p0: Vector2 = _lad.pos
-	_mine_view.position = Vector2(p0.x - float(_lad.off) * (1.0 - fly), p0.y - lift)
+	# (once the heavy set-down has it, on the yard's clock: `ladder_yard_t`)
+	if _heavy == null:
+		_mine_view.position = Vector2(p0.x - float(_lad.off) * (1.0 - fly), p0.y - lift)
 	# the elevator stays out of the picture until the hull is down
 	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
 		# (out until `ladder_cam_end` slides it back in -- set back at k 0, the
@@ -2810,8 +2755,9 @@ func ladder_cam(k: float) -> void:
 ## motion never flies it in, so it is never heard. The flight's path and timing are untouched.
 ## Why: docs/why/StationScreen.md#landing-sound
 const YARD_ROAR_FROM_S := -0.2
-## s after the flight starts that the roar gives way to the coughs
-const YARD_COUGH_AT_S := 0.75
+## s after the flight starts that the roar gives way to the coughs: tied to the
+## hover (`ShipLift.LAND_FLY_S`), the coughs done as it slows to it
+const YARD_COUGH_AT_S := ShipLift.LAND_FLY_S - 0.85
 ## s, at least, between the last cough and touchdown
 const YARD_QUIET_S := 0.35
 
@@ -2843,6 +2789,11 @@ func ladder_yard_t(t: float, dur: float) -> void:
 		return
 	_lad["yard_t"] = t
 	_lad["yard_dur"] = dur
+	# THE HEAVY SET-DOWN (`ShipLift.land_at`): in high on the mains, a hover over
+	# the stands on the jets, a slow descent in its smoke, the stands take the weight.
+	var L := _deck_lift()
+	if L != null:
+		L.land_at(t)
 	if not _lad.has("row"):
 		var pick := yard_flameout(dur)
 		_lad["row"] = pick[0]
@@ -2866,7 +2817,11 @@ func ladder_yard_t(t: float, dur: float) -> void:
 		_mine_view.burn(false)
 		Audio.ship_thrust_off()
 		_lad["cough_clip"] = _mine_view.sputter(row)
-		Audio.play(_lad.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL), 1.0,
+		# the mains cough out and stay dark; the belly jets hold it (`ShipLift.land_at`)
+		_mine_view.dark_idle = true
+		_mine_view.refresh()
+		# (rising in over 15 ms: it starts mid-wave, at its first cough)
+		Audio.play_in(_lad.cough_clip as StringName, Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL),
 			ShipView.sputter_from_s(row) + (t - cough_at))
 	_mine_view.sputter_step(t - cough_at)
 
@@ -2881,6 +2836,9 @@ func _yard_engines_out(hush: bool = false) -> void:
 		_mine_view.burn(false)
 		Audio.ship_thrust_off()
 	_mine_view.sputter_stop()
+	# (down on its stands, its engines out, as every berthed hull's: Jon, Nov 13)
+	_mine_view.dark_idle = true
+	_mine_view.refresh()
 	if hush:
 		Audio.ship_thrust_off()
 		if _lad.has("cough_clip"):
@@ -2890,6 +2848,9 @@ func _yard_engines_out(hush: bool = false) -> void:
 
 func ladder_cam_end() -> void:
 	ladder_hide_hull(false)
+	if _heavy != null:
+		_heavy.release()
+		_heavy = null
 	# (the clamps, if the landing did not get to them: a press, or a dock that
 	# flew no hull in)
 	Router.pay_dock_clamps()
@@ -2988,7 +2949,7 @@ func _rail_in() -> void:
 	ground.panel_rect = Rect2(panel.position - g.position, panel.size)
 	back.add_child(ground)
 	# (under the elevator, over the yard: the elevator is lifted while it is
-	# away, `_YardEdge`, and this before it in the tree at the same height)
+	# away, `YardEdge`, and this before it in the tree at the same height)
 	back.z_index = 1
 	add_child(back)
 	move_child(back, 0)
@@ -3057,30 +3018,38 @@ func _rail_land_now() -> void:
 	_rail_back = null
 	_rail_block = null
 	# (the yard's hall out of the column on the same frame the elevator stands
-	# in it, not the next, when `_YardEdge` would see it there)
+	# in it, not the next, when `YardEdge` would see it there)
 	if was and _edge != null and is_instance_valid(_edge):
 		_edge._process(0.0)
 
 
-## Undocking (3B): k 0 to 1 is the elevator out (the first 30%), then the hull
-## lifting off its stands and flying out to the left.
+## Undocking (3B): k 0 to 1 is the elevator out, then your ship's heavy lift off
+## its stands and away to the RIGHT (Jon, Nov 12: L1 here as on the front door),
+## then -- F -- the empty yard's beat and its fade, the smoke still drifting.
+## Why: docs/why/ShipLift.md#deck
 func ladder_pre_cam(k: float) -> void:
 	if _lad.is_empty() or not is_instance_valid(_mine_view):
 		return
-	# (in seconds of the pre-roll: the elevator out, your ship off its stands and
-	# away, then -- F -- a beat of the empty yard and its slow fade to black)
 	var f := ZoomLadder.seam3_fade() == "F"
 	var tt := k * (ZoomLadder.UNDOCK_YARD_S + (ZoomLadder.YARD_BEAT_S + ZoomLadder.YARD_FADE_S if f else 0.0))
 	var a := clampf(tt / undock_elev_s(), 0.0, 1.0)
 	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
 		_rail.position.x = float(_lad.rail_x) - (_rail.size.x + 16.0) * (a * a * (3.0 - 2.0 * a))
-	var b := clampf((tt - undock_elev_s()) / (ZoomLadder.UNDOCK_YARD_S - undock_elev_s()), 0.0, 1.0)
-	var up := clampf(b / 0.25, 0.0, 1.0)
-	# (ONE SMOOTH MOTION: off its stands from rest, gathering speed, and away at
-	# the speed the pan takes on -- `ladder_track_speed`)
-	var go := 1.0 - ZoomLadder.herm(1.0 - b, YARD_M, 0.0)
-	var p0: Vector2 = _lad.pos
-	_mine_view.position = Vector2(p0.x - float(_lad.off) * go, p0.y - 8.0 * (up * up * (3.0 - 2.0 * up)))
+	var L := _deck_lift()
+	if L != null:
+		L.lift_at(maxf(tt - undock_elev_s(), 0.0) if tt > undock_elev_s() else 0.0)
+
+
+## THE HEAVY LIFT on the deck (`ShipLift`), made once per move with your hull at
+## rest on its stands: smaller than the front door's, the hull shivering rather
+## than the yard (the camera holds still on the deck).
+var _heavy: ShipLift = null
+
+
+func _deck_lift() -> ShipLift:
+	if _heavy == null and _scene != null and is_instance_valid(_scene) and not _scene.placed.is_empty() 			and not (_scene.placed[0] as Dictionary).is_empty():
+		_heavy = ShipLift.on_deck(_scene, _mine_view, _lad.pos, float(_lad.get("off", 300.0)))
+	return _heavy
 
 
 ## The berth's UI leaves before the camera moves; the

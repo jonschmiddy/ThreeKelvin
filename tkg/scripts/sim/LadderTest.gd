@@ -78,7 +78,9 @@ func _hull_flies_in(dock_b: Button) -> void:
 	# it comes up now, Jon, Oct 21, "station:BC" -- into one awake, `_dock_lit`)
 	if loc0 != null:
 		loc0.station_asleep()
+	_ok("from the left: LOCAL drawn as ever, the station on the right", loc0 != null and not loc0._view.mirrored)
 	dock_b.pressed.emit()
+	_ok("from the left: the dock flies in (not the fade from the right)", not ZoomLadder.dock_fade_only)
 	var xs: Array[float] = []
 	var rail_out := true
 	var st: StationScreen = null
@@ -286,6 +288,10 @@ func _hull_flies_in(dock_b: Button) -> void:
 	if not _ok("3B DOCK lands in the station", st != null and Router.docked):
 		return
 	_yard_heard("3B DOCK (LOCAL's)", yr)
+	# (and down on its stands, its engines out: no flame, no glow -- Jon, Nov 13)
+	var mv := st._mine_view
+	_ok("3B DOCK: landed on the deck's stands, its engines out (thrust %d)" % (mv._thrust_now() if mv != null else -9),
+		mv != null and mv._thrust_now() < 0 and mv.engine_glow().is_empty())
 	if hall:
 		var right := true
 		for i in range(1, tails.size()):
@@ -534,6 +540,9 @@ func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
 		return
 	if not yr.has("f"):
 		yr.f = []
+	if st._heavy != null:
+		yr.jets_frame = st._heavy.jets_frame
+		yr.take_frame = st._heavy.take_frame
 	var v := st._mine_view
 	if not lad.is_empty():
 		yr.row = int(lad.get("row", -1))
@@ -544,7 +553,7 @@ func _yard_sample(st: StationScreen, yr: Dictionary) -> void:
 			yr.clip = lad.cough_clip
 	(yr.f as Array).append({"frame": Engine.get_process_frames(),
 		"t": float(lad.get("yard_t", -INF)) if not lad.is_empty() else INF, "pos": v.position,
-		"th": v._thrust_now(), "level": Audio._ship_level, "want": Audio.ship_want, "sputter": v.sputtering()})
+		"th": v._thrust_now(), "glow": not v.engine_glow().is_empty(), "level": Audio._ship_level, "want": Audio.ship_want, "sputter": v.sputtering()})
 
 
 ## The landing is checked as roar, putter, silence at touchdown, then the clamps once.
@@ -584,7 +593,8 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 			continue
 		# (the landing's own comparisons, so a frame on the line is read alike)
 		if t < StationScreen.YARD_ROAR_FROM_S:
-			if float(e.level) > 0.001 or float(e.want) > 0.0 or int(e.th) != ThrusterFx.Thrust.IDLE:
+			# (nothing lit or heard yet: its engines out, as on the deck's stands, Nov 13)
+			if float(e.level) > 0.001 or float(e.want) > 0.0 or int(e.th) > ThrusterFx.Thrust.IDLE:
 				early += 1
 			continue
 		if t < cough_at:
@@ -610,13 +620,16 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 			for k in spans.size():
 				if ee >= (spans[k] as Vector2).x and ee < (spans[k] as Vector2).y:
 					win = k
-			if int(e.th) != ShipView.arrive_thrust(win) or not bool(e.sputter):
+			# (dark between the coughs, not at the idle: Jon, Nov 12, "visually turn off too")
+			var want_th := ShipView.dark_cough_thrust(win)
+			if int(e.th) != want_th or not bool(e.sputter):
 				cough_bad += 1
 				if cough_at_bad == "":
-					cough_at_bad = "%.3f s: drawn %d, the row %d" % [dt, int(e.th), ShipView.arrive_thrust(win)]
+					cough_at_bad = "%.3f s: drawn %d, the row %d" % [dt, int(e.th), want_th]
 		else:
 			quiet_n += 1
-			if int(e.th) != ThrusterFx.Thrust.IDLE or bool(e.sputter):
+			# (no flame and no engine glow from the last cough to touchdown)
+			if int(e.th) != -1 or bool(e.sputter) or bool(e.get("glow", false)):
 				quiet_bad += 1
 	_ok("%s: THE ROAR -- the cruise flame drawn and the thrust loop asked for at the dock's burn level (%.1f) while your ship flies in, from %.2f s to the coughs at %.2f s (%d frames, %d moving with it heard; %d off%s), nothing before (%d)" % [
 		label, SectorScreen.DOCK_BURN_LEVEL, StationScreen.YARD_ROAR_FROM_S, cough_at, roar_n, roar_moved, roar_bad,
@@ -640,10 +653,18 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 	_ok("%s: the coughs drawn are the coughs heard -- the flame on its row's coughs every frame of them (%d frames, %d off%s)" % [
 		label, cough_n, cough_bad, "; first " + cough_at_bad if cough_at_bad != "" else ""],
 		cough_n >= int(sp * 30.0) - 1 and cough_bad == 0)
-	_ok("%s: SILENT BEFORE TOUCHDOWN -- the loop out from the first cough (%d frames loud), the last cough at %.2f s, %.2f s before it lands at %.2f (at least %.2f), the flame at the idle after (%d frames, %d off)" % [
+	_ok("%s: SILENT BEFORE TOUCHDOWN -- the loop out from the first cough (%d frames loud), the last cough at %.2f s, %.2f s before it lands at %.2f (at least %.2f), the mains dark after, on the belly jets (%d frames, %d off)" % [
 		label, after_loud, cough_at + sp, dur - cough_at - sp, dur, StationScreen.YARD_QUIET_S, quiet_n, quiet_bad],
 		after_loud == 0 and cough_at + sp <= dur - StationScreen.YARD_QUIET_S + 0.0001
 			and quiet_n >= int(StationScreen.YARD_QUIET_S * 30.0) - 1 and quiet_bad == 0)
+	# the landing's take from the belly jets lighting (Jon, Nov 12), once one is picked
+	var jf := int(yr.get("jets_frame", -1))
+	var tf := int(yr.get("take_frame", -1))
+	if ShipLift.LAND_TAKE == &"":
+		_ok("%s: the belly jets light (frame %d); no landing take picked yet, so none plays (%d)" % [label, jf, tf], jf >= 0 and tf < 0)
+	else:
+		_ok("%s: THE LANDING TAKE (%s) from the belly jets lighting, within a frame (take %d, jets %d)" % [label, ShipLift.LAND_TAKE, tf, jf],
+			jf >= 0 and tf >= 0 and absi(tf - jf) <= 1)
 	_ok("%s: THE CLAMPS as it touches down, once (heard at frames %s; on its stands from frame %d, at %s, its berth %s)" % [
 		label, clamps, touch, touch_pos, yr.get("berth", Vector2.INF)],
 		clamps.size() == 1 and touch >= 0 and int(clamps[0]) >= touch - 2 and int(clamps[0]) <= touch
@@ -695,11 +716,11 @@ func _yard_skipped(dock_b: Button, at: float) -> void:
 			hushed = true
 	Audio.taping = false
 	var what := "mid-coughs" if coughing else "mid-roar"
-	_ok("3B: a key %s in the yard (%.2f s into the flight; roaring %s, coughing %s) lands at once (%d frames): your ship on its stands at the idle, the loop out (%.2f), %s, nothing of the landing heard after (%s), the clamps once (%d)" % [
+	_ok("3B: a key %s in the yard (%.2f s into the flight; roaring %s, coughing %s) lands at once (%d frames): your ship on its stands, its engines out, the loop out (%.2f), %s, nothing of the landing heard after (%s), the clamps once (%d)" % [
 		what, t, roaring, coughing, n, level, "its coughs hushed" if coughing else "no coughs begun", after, clamps],
 		t > -INF and (roaring or coughing) and n >= 0 and n <= 3 and st != null and Router.docked and v != null
 			and v.position.is_equal_approx(_yard_seat(st).position) and not v._burning and not v.sputtering()
-			and v._thrust_now() == ThrusterFx.Thrust.IDLE and level == 0.0 and after.is_empty()
+			and v._thrust_now() < 0 and level == 0.0 and after.is_empty()
 			and (hushed if coughing else clip == &"") and clamps == 1 and not Router.dock_clamps_owed)
 	Router.show_sector()
 	await _idle()
@@ -769,8 +790,9 @@ func _dust_seen(c: SectorScreen, d: Dictionary) -> void:
 	if du._motes.is_empty() or du.sky == null:
 		return
 	var xf := du.get_global_transform()
-	var sx := xf.get_scale().x
-	var strip := (du.size.x + LocalDust.WRAP * 2.0) * sx
+	# (as drawn: across, signed, so a mirrored LOCAL's drift runs the other way)
+	var sx := xf.x.x
+	var strip := (du.size.x + LocalDust.WRAP * 2.0) * absf(sx)
 	var prev: Dictionary = d.prev
 	var seen := false
 	var over_any := false
@@ -783,7 +805,7 @@ func _dust_seen(c: SectorScreen, d: Dictionary) -> void:
 			var ddt := du._t - float(pv[1])
 			var dd: Vector2 = gp - (pv[0] as Vector2)
 			var ex := fposmod(dd.x - float(mo.vx) * ddt * sx + strip * 0.5, strip) - strip * 0.5
-			var over := maxf(absf(ex), absf(dd.y) - 0.15 * float(mo.bob) * ddt * sx)
+			var over := maxf(absf(ex), absf(dd.y) - 0.15 * float(mo.bob) * ddt * absf(sx))
 			seen = true
 			d.worst = maxf(float(d.worst), over)
 			if over > 0.01:
@@ -827,11 +849,12 @@ func _hull_flies_out() -> void:
 		return
 	var rail0 := st._rail.position.x if st._rail != null else 0.0
 	var ship0 := st._mine_view.position.x if st._mine_view != null else 0.0
+	var ship0_p := st._mine_view.position if st._mine_view != null else Vector2.ZERO
 	Audio.taping = true
 	Audio.tape.clear()
 	Router.show_sector()
 	var rail_first := true
-	var left := false
+	var right := false
 	var noses: Array[float] = []
 	var pan_x: Array[float] = []
 	var last_seen := false
@@ -848,6 +871,7 @@ func _hull_flies_out() -> void:
 	var path_bad := 0
 	var path_at := ""
 	var out_x: Array[float] = []
+	var out_g: Array[float] = []
 	var moor := Vector2.INF
 	var moor_s := Vector2.ZERO
 	var thr_seq: Array[int] = []
@@ -864,7 +888,7 @@ func _hull_flies_out() -> void:
 				empty_down += 1
 			# (once the elevator is out: the hull's flight off its stands)
 			if ZoomLadder.busy() and st._mine_view != null and (st._rail == null or st._rail.modulate.a < 0.01):
-				track.append(["Y", -st._mine_view.position.x, 1.0])
+				track.append(["Y", st._mine_view.position.x, 1.0])
 		var c := Router.current as SectorScreen
 		if c != null and ZoomLadder.busy() and ZoomLadder.active.phase == ZoomLadder.Phase.MOVE:
 			if not fmode and ZoomLadder.active._u < ZoomLadder.DOCK_PAN_S:
@@ -892,7 +916,8 @@ func _hull_flies_out() -> void:
 				var slot := art.get_parent() as Control
 				var p1: Vector2 = slot.get_global_transform().affine_inverse() * c._face.plate_g(hall.berth) \
 					- ((c._lad.ship as Dictionary).mid as Vector2)
-				var g := ZoomLadder._ease(1.0 - tau / ZoomLadder.DOCK_ENTER_S)
+				# (a slow pull-away, the burn, eased into the mooring: `SectorScreen.ladder_cam`)
+				var g := 1.0 - smoothstep(0.0, 1.0, pow(tau / ZoomLadder.DOCK_ENTER_S, 1.5))
 				var want_p := moor.lerp(p1, g)
 				var want_s := moor_s * lerpf(1.0, float(hall.s_end), g)
 				if art.position.distance_to(want_p) < 0.01 and art.scale.distance_to(want_s) < 0.0001:
@@ -902,6 +927,7 @@ func _hull_flies_out() -> void:
 					if path_at == "":
 						path_at = "%.3f s out: %s %s (the path's %s %s)" % [tau, art.position, art.scale, want_p, want_s]
 				out_x.append(art.position.x)
+				out_g.append(_ship_global(art).get_center().x)
 				# (its engines, from the moment any of it can be seen)
 				if tau >= up_s:
 					thr_seq.append(art._thrust_now())
@@ -911,16 +937,17 @@ func _hull_flies_out() -> void:
 			_still_frame(c, still)
 		if Router.current == st and is_instance_valid(st) and st._mine_view != null:
 			var gone := st._rail == null or st._rail.position.x < rail0 - 20.0
-			if st._mine_view.position.x < ship0 - 5.0 and not gone:
+			if st._mine_view.position.distance_to(ship0_p) > 5.0 and not gone:
 				rail_first = false
-			if st._mine_view.position.x < ship0 - 100.0:
-				left = true
+			if st._mine_view.position.x > ship0 + 100.0:
+				right = true
 		if not ZoomLadder.busy() and Router.current is SectorScreen:
 			break
 	_ok("3B UNDOCK: the elevator goes before the hull moves", rail_first)
 	_one_motion("3B UNDOCK", track)
 	_ok("3B UNDOCK: the elevator is all the way out before the pan", not last_seen)
-	_ok("3B UNDOCK: the hull leaves to the left", left)
+	# (Jon, Nov 12: the heavy lift, off its stands and away to the right, `ShipLift`)
+	_ok("3B UNDOCK: the hull leaves to the right", right)
 	if fmode:
 		_ok("3B F UNDOCK: the empty yard holds, then slowly goes to black, before LOCAL (%d frames empty; black %.2f at the hand-off)" % [empty_down, black_last],
 			empty_down >= 9 and black_last >= 0.99)
@@ -970,34 +997,98 @@ func _hull_flies_out() -> void:
 	var peak_at := sp.find(peak)
 	var eased := sp.size() > 10 and peak > 0.5 and sp[0] < 0.2 * peak and sp[-1] < 0.2 * peak \
 		and float(peak_at) > float(sp.size()) * 0.25 and float(peak_at) < float(sp.size()) * 0.75
-	_ok("3B UNDOCK: it backs out from rest and slows to rest, fastest mid-way (first %.2f, peak %.2f at frame %d of %d, last %.2f px a frame)" % [
+	_ok("3B UNDOCK: it pulls away from rest and slows to rest, fastest mid-way (first %.2f, peak %.2f at frame %d of %d, last %.2f px a frame)" % [
 		sp[0] if not sp.is_empty() else -1.0, peak, peak_at, sp.size(), sp[-1] if not sp.is_empty() else -1.0], eased)
 	var art2 := lc2._view.ship_view() if lc2 != null else null
 	_ok("3B UNDOCK: it ends parked at its mooring at its own size (%s, %s; its mooring %s, %s), its engines at the idle" % [
 		art2.position if art2 != null else Vector2.INF, art2.scale if art2 != null else Vector2.ZERO, moor, moor_s],
-		art2 != null and art2.position.is_equal_approx(moor) and art2.scale.is_equal_approx(moor_s) and moor_s.is_equal_approx(Vector2.ONE)
+		art2 != null and art2.position.is_equal_approx(moor) and art2.scale.is_equal_approx(moor_s) and moor_s.abs().is_equal_approx(Vector2.ONE)
 			and not art2._burning and not art2.sputtering() and art2._arrive_at < 0 and art2._thrust_now() == ThrusterFx.Thrust.IDLE)
+	# MOORED ON THE STATION'S RIGHT (Jon's (c), Nov 13): LOCAL mirrored, the station on
+	# the left, your ship right of it facing right, its nose clear of the edge; and it
+	# went there left to right
+	var ship_g := art2.get_global_transform() if art2 != null else Transform2D()
+	var face_r := UiRect.of(lc2._face) if lc2 != null and lc2._face != null else Rect2()
+	var hull_r := _ship_global(art2) if art2 != null else Rect2()
+	var screen_r := UiRect.of(lc2._view) if lc2 != null else Rect2()
+	_ok("3B UNDOCK: LOCAL mirrored -- the station on the left, your ship moored on its right facing right, its nose %.0f px clear of the edge (%s; ship %s; screen %s)" % [
+		screen_r.end.x - hull_r.end.x, face_r, hull_r, screen_r],
+		lc2 != null and lc2._view.mirrored and Moored.here() and ship_g.x.x > 0.0
+			and face_r.get_center().x < hull_r.get_center().x and screen_r.end.x - hull_r.end.x >= 40.0)
+	_ok("3B UNDOCK: it goes left to right, nose first (on screen from x %.0f to %.0f)" % [
+		out_g[0] if not out_g.is_empty() else -1.0, out_g[-1] if not out_g.is_empty() else -1.0],
+		out_g.size() > 10 and out_g[-1] > out_g[0] + 100.0)
 	_ok("3B UNDOCK: the station stays lit, a working station -- on every frame of LOCAL and after (power at least %.2f; at rest %.2f)" % [
 		still.lit, lc2._face.power if lc2 != null and lc2._face != null else -1.0],
 		lc2 != null and lc2._face != null and float(still.lit) >= 0.999 and lc2._face.power >= 0.999)
-	# ITS ENGINES: the idle as it backs out, then the coughs (the flameout's FULL
-	# flashes over the idle), ending on the idle
+	# ITS ENGINES, NOSE FIRST (Jon's (c), Nov 13): the idle as it pulls away, the
+	# burn, then the flameout's coughs (FULL flashes) into the mooring, ending on the idle
+	var first_cruise := thr_seq.find(ThrusterFx.Thrust.CRUISE)
 	var first_full := thr_seq.find(ThrusterFx.Thrust.FULL)
-	var idled := first_full > 0 and not thr_seq.slice(0, first_full).has(ThrusterFx.Thrust.CRUISE) \
-		and thr_seq[0] == ThrusterFx.Thrust.IDLE
-	_ok("3B UNDOCK: its engines at the idle as it backs out, no cruise burn, then the arrival's coughs down to the idle (%d frames: idle first and no CRUISE before the coughs %s, coughs from frame %d, last %s)" % [
-		thr_seq.size(), idled, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
+	var idled := first_cruise > 0 and thr_seq[0] == ThrusterFx.Thrust.IDLE and first_full > first_cruise
+	_ok("3B UNDOCK: its engines at the idle as it pulls away, then the burn, then the coughs down to the idle (%d frames: burn from frame %d, coughs from frame %d, last %s)" % [
+		thr_seq.size(), first_cruise, first_full, thr_seq[-1] if not thr_seq.is_empty() else -9],
 		idled and not thr_seq.is_empty() and thr_seq[-1] == ThrusterFx.Thrust.IDLE)
-	# AND HEARD: the flameout's clip for its row, once, from its first cough
+	# AND HEARD: the flameout's clip for its row, once, from its first cough (the
+	# yard's takeoff burn before it, `ShipLift`, is the yard's own)
 	var clips: Array = []
 	for tp: Array in Audio.tape:
-		if String(tp[6]).begins_with("thruster_"):
+		if String(tp[6]).begins_with("thruster_") and not String(tp[6]).begins_with("thruster_depart"):
 			clips.append([tp[6], float(tp[7])])
 	var from_want := ShipView.sputter_from_s(row) if row >= 0 else -1.0
 	_ok("3B UNDOCK: the flameout's clip (%s) heard once, from its first cough (%s; its first cough at %.3f s)" % [cough_clip, clips, from_want],
 		cough_clip != &"" and clips.size() == 1 and StringName(clips[0][0]) == cough_clip
 			and float(clips[0][1]) >= from_want - 0.001 and float(clips[0][1]) <= from_want + 1.0 / 30.0 + 0.001)
 	_clean("3B undock")
+
+
+## Your hull's drawn box on screen, flips and all.
+func _ship_global(art: ShipView) -> Rect2:
+	var r := Rect2(art.ink_rect())
+	var xf := art.get_global_transform()
+	var a := xf * art.canvas_to_local(r.position)
+	var b := xf * art.canvas_to_local(r.end)
+	return Rect2(a, b - a).abs()
+
+
+## A DOCK FROM THE STATION'S RIGHT (Jon, Nov 13): no flight in -- LOCAL goes to black
+## with your ship where it is, then the yard and the landing; and UNDOCK puts it back
+## on the right.
+## Why: docs/why/LadderTest.md#mirrored
+func _redock_from_right() -> void:
+	var loc := Router.current as SectorScreen
+	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
+	if not _ok("from the right: DOCK on LOCAL, moored on the station's right", dock_b != null and Moored.here()):
+		return
+	var art := loc._view.ship_view()
+	# (where it is put, not as drawn: the idle bob moves the drawing a pixel)
+	var at0 := art.position
+	dock_b.pressed.emit()
+	var fade_only := ZoomLadder.dock_fade_only
+	var moved := 0.0
+	var black_max := 0.0
+	var landed_yard := false
+	for i in 900:
+		await _tree.process_frame
+		if Router.current == loc and is_instance_valid(art) and art.visible and _black_a() < 0.99:
+			moved = maxf(moved, art.position.distance_to(at0))
+		if Router.current == loc:
+			black_max = maxf(black_max, _black_a())
+		var st := Router.current as StationScreen
+		if st != null and st._heavy != null:
+			landed_yard = true
+		if Router.current is StationScreen and not ZoomLadder.busy() and ZoomLadder.chain == &"":
+			break
+	_ok("from the right: the dock is LOCAL to black and no flight (fade only %s; your ship moved %.1f px while seen; black %.2f)" % [
+		fade_only, moved, black_max], fade_only and moved < 1.0 and black_max >= 0.99)
+	_ok("from the right: then the deck's landing, docked (the lift %s)" % landed_yard,
+		landed_yard and Router.current is StationScreen and Router.docked and not ZoomLadder.dock_fade_only)
+	_clean("redock from the right")
+	Router.show_sector()
+	await _idle()
+	_ok("from the right: UNDOCK moors it on the right again", Router.current is SectorScreen and Moored.here()
+		and (Router.current as SectorScreen)._view.mirrored)
+	_clean("undock after the redock")
 
 
 ## THE BERTH AS A DOCK LEAVES IT: the station's screen once its elevator has
@@ -1100,7 +1191,7 @@ func _undock_skipped() -> void:
 	var art := c._view.ship_view() if c != null and is_instance_valid(c) else null
 	var heard := 0
 	for tp: Array in Audio.tape:
-		if String(tp[6]).begins_with("thruster_"):
+		if String(tp[6]).begins_with("thruster_") and not String(tp[6]).begins_with("thruster_depart"):
 			heard += 1
 	Audio.taping = false
 	_ok("3B: a key mid-undock (backing out, before its coughs: %s) ends it at once (%d frames): your ship at its mooring at its own size (%s, %s; its mooring %s, %s), at the idle, no flameout begun or heard (%d), the station lit" % [
@@ -1213,6 +1304,8 @@ func _every_side_once() -> void:
 		print("  -- side %s, interior %s" % [id, StationSides.force_interior])
 		# (LOCAL built again, so its face is this side)
 		await _go("%s: to the map" % id, Router.show_system, SystemMapScreen)
+		# (flown in, as far as LOCAL knows: moored on the station's left, where a dock flies)
+		Moored.at = -1
 		await _go("%s: to LOCAL at the station" % id, Router.show_local, SectorScreen)
 		var loc := Router.current as SectorScreen
 		if not _ok("%s: LOCAL draws it" % id, loc != null and loc._face != null and loc._face.side.id == id
@@ -2122,6 +2215,11 @@ func _run() -> void:
 			_station_rects["LOCAL's DOCK"] = _station_layout(await _station_settled())
 			_arrival_is_first_locals()
 			await _hull_flies_out()
+			await _redock_from_right()
+			# (and back on the station's left, as a flight in leaves it, for the
+			# arrival and the docks from there)
+			Moored.at = -1
+			await _go("LOCAL on the station's left again", Router.show_local, SectorScreen)
 			# LOCAL'S OWN ARRIVAL, THE STATION'S WAKE AND ITS SOUND (Jon, Oct 21,
 			# "station:BC")
 			await _flyin_is_first_locals()
@@ -2182,6 +2280,9 @@ func _run() -> void:
 			# to LOCAL by the station's side, and on into the hangar, one call
 			Router.show_sector()
 			await _idle()
+			# (flown back to the station's left, as far as LOCAL knows: the flight in;
+			# from its right, `_redock_from_right`)
+			Moored.at = -1
 			await _go("the map from LOCAL beside the station", Router.show_system, SystemMapScreen)
 			Router.show_station()
 			Audio.taping = true
@@ -2236,9 +2337,9 @@ func _run() -> void:
 					rm_heard.append([tp[6], int(tp[5]) - rm_f])
 			Audio.taping = false
 			var rm_v := rm_st._mine_view if rm_st != null else null
-			_ok("reduced motion: no landing heard -- no roar (%.2f), no coughs, the flame at the idle; only the clamps, as the berth opens (%s)" % [rm_level, rm_heard],
+			_ok("reduced motion: no landing heard -- no roar (%.2f), no coughs, its engines out; only the clamps, as the berth opens (%s)" % [rm_level, rm_heard],
 				rm_level == 0.0 and rm_heard.size() == 1 and String(rm_heard[0][0]) == "station_dock" and int(rm_heard[0][1]) <= 0
-					and rm_v != null and rm_v._thrust_now() == ThrusterFx.Thrust.IDLE and not Router.dock_clamps_owed)
+					and rm_v != null and rm_v._thrust_now() < 0 and not Router.dock_clamps_owed)
 			DisplaySettings.reduced_motion = false
 			Router.show_sector()
 			await _idle()

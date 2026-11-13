@@ -1312,6 +1312,12 @@ func _notification(what: int) -> void:
 ## game; it is there for a before/after film.
 var draw_strips: bool = false
 
+## Coughing out and after, dark between the coughs and none at the idle: a hull
+## landing in the Shipyard on its belly jets (Jon, Nov 12: "visually turn off too").
+var dark_idle := false
+## And yet its idle heard (the landing's hover, as laid out with the sound: `ShipLift`).
+var dark_hum := false
+
 ## How hard the engines are burning right now, or -1 for no flame.
 func _thrust_now() -> int:
 	if draw_strips or _engines_off or _melt > 0.45:
@@ -1322,10 +1328,12 @@ func _thrust_now() -> int:
 	if _arrive_at >= 0:
 		return arrive_thrust(_arrive_window if _burning else -1)
 	if _sputter_e >= 0.0:
+		if dark_idle:
+			return dark_cough_thrust(_flame_window(_sputter_e))
 		return arrive_thrust(_flame_window(_sputter_e))
 	if _burning:
 		return _burn_thrust
-	return ThrusterFx.Thrust.IDLE
+	return -1 if dark_idle else ThrusterFx.Thrust.IDLE
 
 
 ## Only your own ships hum at idle (Jon, Oct 13): a bed under every ship would be mud.
@@ -1344,6 +1352,8 @@ func idle_heard() -> bool:
 		return false
 	var th := _thrust_now()
 	var settling := ((_arrive_at >= 0 and _arrive_window >= 1) or _sputter_e >= 0.0) and th >= 0
+	if dark_idle and dark_hum and th < 0:
+		settling = true
 	if th != ThrusterFx.Thrust.IDLE and not settling:
 		return false
 	var h := hull_rect()
@@ -1354,6 +1364,15 @@ func idle_heard() -> bool:
 
 ## The arrival sputters down to idle and never goes out (Jon, Oct 13), to avoid off then on.
 ## Why: docs/why/ShipView.md#arrival-sputter
+## Putting out for good (`dark_idle`): the first cough a cruise flame, the rest the
+## idle's, dark between them and after (Jon, Nov 12: "turn off actually when they putter out").
+static func dark_cough_thrust(window: int) -> int:
+	if window < 0:
+		return -1
+	# (window 0 is the clean burn before the coughs; the first cough is window 1)
+	return ThrusterFx.Thrust.CRUISE if window <= 1 else ThrusterFx.Thrust.IDLE
+
+
 static func arrive_thrust(window: int) -> int:
 	if window < 0:
 		return ThrusterFx.Thrust.IDLE

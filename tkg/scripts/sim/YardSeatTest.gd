@@ -117,16 +117,23 @@ func _front() -> void:
 					s._stand_top + s._stand_img.get_height() == s.feet)
 				_ok("%s: inside the picture (%s)" % [tag, r["span"]], int(r["span"][0]) >= 0 and int(r["span"][1]) < YardFront.W)
 	print("  front door: the most sunk %d rows" % worst)
-	front.show_set(&"solari", false)
-	for w: HullData.Weight in front.sets:
-		var s: YardStandSet = front.sets[w]
-		var tag := "front tarp %s" % HullData.weight_name(w)
-		if not _ok("%s: a tarp on two stands" % tag, s._tarp != null and s._tarp.image != null and s._stand_x.size() == 2):
+	# every locked manufacturer under its own tarp (Jon, Nov 12), each seated as the old one was
+	for m: StringName in DB.STARTABLE:
+		if m == &"korvan":
 			continue
-		var r := _measure(s._tarp.image, s.thing.position, _stood(s))
-		print("  %s: tarp hem past the cradle top %d,%d rows, floor showing %d,%d px" % [tag, r["d"][0], r["d"][1], r["gap"][0], r["gap"][1]])
-		_ok("%s: the tarp lies down over both cradle tops (%s px of floor)" % [tag, r["gap"]],
-			int(r["gap"][0]) == 0 and int(r["gap"][1]) == 0)
+		front.show_set(m, false)
+		for w: HullData.Weight in front.sets:
+			var s: YardStandSet = front.sets[w]
+			var tag := "front tarp %s %s" % [m, HullData.weight_name(w)]
+			if not _ok("%s: a tarp on two stands" % tag, s._tarp != null and s._tarp.image != null and s._stand_x.size() == 2):
+				continue
+			var path := s._tarp.texture.resource_path
+			_ok("%s: the manufacturer's own tarp (%s)" % [tag, path.get_file()],
+				path.get_file() == "%s_%s.png" % [m, YardStandSet.TARP_WEIGHT[w]])
+			var r := _measure(s._tarp.image, s.thing.position, _stood(s))
+			print("  %s: tarp hem past the cradle top %d,%d rows, floor showing %d,%d px" % [tag, r["d"][0], r["d"][1], r["gap"][0], r["gap"][1]])
+			_ok("%s: the tarp lies down over both cradle tops (%s px of floor)" % [tag, r["gap"]],
+				int(r["gap"][0]) == 0 and int(r["gap"][1]) == 0)
 	front.free()
 
 

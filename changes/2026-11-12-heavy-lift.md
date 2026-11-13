@@ -1,0 +1,2 @@
+- **Added** — LAUNCH lifts your ship off its stands on its belly jets in a rolling cloud of smoke, the hall's lamps stuttering and the crew backing off, then the main engines light and it climbs away to the right, slowly gathering speed, before the run starts.
+- **Changed** — Undocking from the Shipyard flies the same heavy takeoff, off to the right. Docking comes in high, the main engine coughs out, and your ship hovers on its belly jets and settles slowly onto its stands.

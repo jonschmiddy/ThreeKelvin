@@ -10,12 +10,13 @@ signal pressed
 signal hovered(on: bool)
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## The tarp art, drawn over the Korvan hulls: its left edge from the hull's, and
-## the row inside it that lies on the hull's belly row.
-const TARP_FILE := {HullData.Weight.LIGHT: "tarp_light.png", HullData.Weight.MEDIUM: "tarp_medium.png",
-	HullData.Weight.HEAVY: "tarp_heavy.png"}
-const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(2, 75), HullData.Weight.MEDIUM: Vector2i(3, 88),
-	HullData.Weight.HEAVY: Vector2i(5, 107)}
+## Each locked manufacturer's own tarp (Jon, Nov 12), drawn over the Korvan hulls: one canvas
+## per weight for every manufacturer, its left edge from the hull's, and the row inside it
+## that lies on the hull's belly row.
+const TARP_DIR := "tarps/%s_%s.png"
+const TARP_WEIGHT := {HullData.Weight.LIGHT: "light", HullData.Weight.MEDIUM: "medium", HullData.Weight.HEAVY: "heavy"}
+const TARP_ANCHOR := {HullData.Weight.LIGHT: Vector2i(3, 76), HullData.Weight.MEDIUM: Vector2i(4, 89),
+	HullData.Weight.HEAVY: Vector2i(6, 108)}
 ## The tarps drop one after another, the heavy first, and each hem ripples on its own clock.
 const TARP_DELAY := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 0.18, HullData.Weight.LIGHT: 0.36}
 const TARP_SEED := {HullData.Weight.HEAVY: 0.0, HullData.Weight.MEDIUM: 1.4, HullData.Weight.LIGHT: 2.9}
@@ -45,6 +46,10 @@ var _stand_tex: ImageTexture = null
 ## The stand's seat row and how far the hull was let down past it.
 var seat: int = 0
 var sink: int = 0
+## Rows the stands have sunk into the floor (`ShipLift`, as the hull lifts off).
+var retract: int = 0
+## Off its stands (`ShipLift`): the floor lamps are baked again without it.
+var lifted := false
 
 
 func _init() -> void:
@@ -54,7 +59,7 @@ func _init() -> void:
 
 ## Stand `hull` here, or the weight's tarp when `hull` is null (the tarp sits
 ## where Korvan's hull would, which the tarps were cut for).
-func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -> void:
+func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, manufacturer: StringName = &"solari") -> void:
 	scene = sc
 	weight = w
 	tarped = hull == null
@@ -88,7 +93,7 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 	else:
 		probe.free()
 		_tarp = Tarp.new()
-		_tarp.setup(scene.tex(String(TARP_FILE[w])), float(TARP_DELAY[w]), float(TARP_SEED[w]))
+		_tarp.setup(scene.tex(tarp_file(manufacturer, w)), float(TARP_DELAY[w]), float(TARP_SEED[w]))
 		var a: Vector2i = TARP_ANCHOR[w]
 		var at := Vector2i(_x0 - a.x, _belly - a.y)
 		_tarp.position = Vector2(at.x - 4, at.y - TARP_LIFT) - position
@@ -102,6 +107,12 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 			size.y += grow
 			for c in get_children():
 				(c as Control).position.y += grow
+
+
+## The manufacturer's tarp for this weight (one with none of its own wears Solari's).
+static func tarp_file(manufacturer: StringName, w: HullData.Weight) -> String:
+	var f := TARP_DIR % [String(manufacturer), String(TARP_WEIGHT[w])]
+	return f if ResourceLoader.exists(YardScene.DIR + f) else TARP_DIR % ["solari", String(TARP_WEIGHT[w])]
 
 
 ## The berth's two stands where `YardSlot` puts them, the same for every
@@ -159,12 +170,17 @@ func paint_stands(P: YardPaint) -> void:
 			P.use(YardPaint.PLAIN)
 			P.tex(shadow, Vector2(float(sx) + float(sw - YardSlot.STAND_W) * 0.5 + float(sh.get("x", -20)), float(feet) + float(sh.get("y", -4))))
 		P.use(YardPaint.SHIP)
-		P.tex(_stand_tex, Vector2(sx, _stand_top))
+		var shh := _stand_img.get_height()
+		if retract < shh:
+			P.tex(_stand_tex, Vector2(sx, _stand_top + retract), Rect2(0, 0, sw, shh - retract))
 
 
 ## The hull's (or the tarp's) pixels as a hull in `map` (RGBA8 bytes, `w` wide),
 ## where the floor lamps look for what stands in their way (`YardFrontPools`); returns their box.
 func hull_into(map: PackedByteArray, w: int) -> Rect2i:
+	# (a hull lifting off throws no shadow on its berth's floor any more)
+	if lifted:
+		return Rect2i()
 	if _view != null:
 		var c := _view.canvas()
 		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)

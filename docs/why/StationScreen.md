@@ -1401,3 +1401,13 @@ is the same label, the same size, in the same place: nothing new on screen.
 row's next step but a last one (15). With science off it never shows.
 ```
 
+## Yard edge
+
+`YardEdge` (its own file since Nov 13, when `StationScreen` passed its size cap)
+watches the elevator's column as it slides away. The yard's hall runs on into the
+column under the ships, with the elevator over it. While it is away, the boxes
+that would clip the yard let go of their clipping, and the column keeps the
+screen's dark behind its header and gaps: the hall showing through them had left
+the title afloat on it. Fully away, the elevator is not drawn at all, so the pan
+and the flight never show it through.
+

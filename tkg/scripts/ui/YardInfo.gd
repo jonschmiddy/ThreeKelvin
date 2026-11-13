@@ -223,6 +223,18 @@ static func kit_for(m: StringName, w: HullData.Weight, tier: int) -> Array[Modul
 	return out
 
 
+## The sharp copy's weapons where the hull is this frame (LAUNCH's lift flies it).
+static func follow(ghost: Control, s: YardStandSet) -> void:
+	if s._view == null:
+		return
+	for c in ghost.get_children():
+		if c is MountPoints:
+			var at := s._view.global_position - ghost.global_position
+			if (c as Control).position != at:
+				(c as Control).position = at
+				(c as MountPoints).refresh()
+
+
 ## The sharp copy over the blur carries the picked ship's weapons too.
 static func ghost_mounts(ghost: Control, s: YardStandSet) -> void:
 	for c in ghost.get_children():

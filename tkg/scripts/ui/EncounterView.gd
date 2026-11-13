@@ -50,6 +50,20 @@ var dust: LocalDust
 var fx: CombatFx
 ## the place the sky was last set to
 var _place: MapGen.MapNode = null
+## MOORED ON THE STATION'S RIGHT (`Moored`): the whole scene drawn
+## mirrored, the station on the left; your hull, the partners' hulls and their
+## names flipped back so they face right and read; the sky not mirrored at all.
+## Set before the view enters the tree.
+## Why: docs/why/SectorScreen.md#mirrored
+var mirrored := false
+## Where the station's mouth is on screen, or INF with no station: partners come
+## out of it and go into it (`ConvoySlot.come_out`, `go_in`).
+var mouth_g: Callable = func() -> Vector2: return Vector2.INF
+## Partners seen docked at this station, by id: one that undocks comes out of the mouth.
+var _docked_seen := {}
+## Moored on the right, your hull sits this share of its slot in from the edge, so its
+## nose is clear of the screen's side (Jon, Nov 13: "the nose shouldn't be touching").
+const MIRROR_INSET := 0.22
 
 func _ready() -> void:
 	clip_contents = true
@@ -131,7 +145,60 @@ func _ready() -> void:
 	fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fx)
 
+	if mirrored:
+		_ship_slot.inset = MIRROR_INSET
+		resized.connect(_mirror)
+		_ship.resized.connect(_mirror)
+		backdrop.resized.connect(_mirror)
+		_mirror()
+		# (your hull's picture comes after the view: its middle looked at again
+		# now and then, a used-rect scan being too dear for every frame)
+		get_tree().process_frame.connect(_pivot_tick)
 	refresh_convoy()
+
+
+## The mirror about the view's middle, and what is flipped back inside it.
+func _mirror() -> void:
+	# (whole pixels: a half-pixel middle sent the rounded scene a pixel either way)
+	pivot_offset = (size * 0.5).floor()
+	scale.x = -absf(scale.x)
+	if backdrop != null:
+		backdrop.pivot_offset = (backdrop.size * 0.5).floor()
+		backdrop.scale.x = -absf(backdrop.scale.x)
+	if _ship != null:
+		# (your hull flipped about its own middle, the one the dock and undock turn it
+		# about, `SectorScreen.ladder_pre_cam`: a pivot moved under a flip moves the hull)
+		_ship.pivot_offset = hull_mid()
+		_ship.scale.x = -absf(_ship.scale.x)
+	for s in _made_convoy:
+		_unflip(s)
+
+
+var _ticks := 0
+
+
+func _pivot_tick() -> void:
+	_ticks += 1
+	if _ticks % 15 == 0 and _ship != null:
+		_ship.pivot_offset = hull_mid()
+
+
+## Your hull's middle in its own box, without the idle bob.
+func hull_mid() -> Vector2:
+	var ink := Rect2(_ship.ink_rect())
+	return _ship.canvas_to_local(ink.get_center()) - Vector2(0.0, float(_ship.bob_offset()) * float(_ship._k))
+
+
+func _unflip(s: Control) -> void:
+	if not mirrored or s == null or not is_instance_valid(s):
+		return
+	# (a partner's slot sits in a container, which puts its scale back: the slot
+	# flips its own hull and name instead, `ConvoySlot.flipped`)
+	if s is ConvoySlot:
+		(s as ConvoySlot).flipped = true
+		return
+	s.pivot_offset = s.size * 0.5
+	s.scale.x = -absf(s.scale.x)
 
 
 ## Asked from the hull data, not typed, so no hull is cropped nose-first.
@@ -158,8 +225,15 @@ func _here() -> Array:
 	if Run.map.is_empty():
 		return []
 	var at := Run.at
+	# (a partner docked here is in the station, not out on LOCAL)
 	return Net.partners().filter(func(s: Dictionary) -> bool:
-		return int(s.get("at", -1)) == at)
+		return int(s.get("at", -1)) == at and not bool(s.get("docked", false)))
+
+
+## A partner, gone from LOCAL, is docked in this station now.
+func _docks_here(id: int) -> bool:
+	var r: Dictionary = Net.roster.get(id, {})
+	return int(r.get("at", -1)) == Run.at and bool(r.get("docked", false))
 
 
 ## Rebuilt only when the party changes; partner views repaint themselves on `Sig.party_changed`.
@@ -183,7 +257,15 @@ func refresh_convoy() -> void:
 			continue
 		_made_convoy.erase(c)
 		# Stays a child until the flash ends so the column keeps its height; it frees itself.
-		c.jump_out()
+		# DOCKED HERE: into the mouth, behind your hull; moored on the right, faded out
+		# where it sits, as your own dock from there is (Jon's co-op rules, Nov 13).
+		if _docks_here(c.peer) and mouth_g.call() != Vector2.INF:
+			if mirrored:
+				c.fade_out()
+			else:
+				c.go_in(mouth_g)
+		else:
+			c.jump_out()
 		c.tree_exited.connect(refresh_convoy, CONNECT_ONE_SHOT)
 
 	for i in them.size():
@@ -193,16 +275,27 @@ func refresh_convoy() -> void:
 			slot = ConvoySlot.new(id, CONVOY_H)
 			_convoy.add_child(slot)
 			_made_convoy.append(slot)
+			if mirrored:
+				_unflip(slot)
 			# Stagger only the opening convoy; a lone later arrival would just feel it as latency.
 			# Why: docs/why/EncounterView.md#convoy-arrivals
 			var lone := _made_convoy.size() == 1 and _convoy.get_child_count() == 1
-			slot.jump_in(0.0 if not lone else ARRIVE_LEAD)
+			# OUT OF THE STATION: an undock here, or (moored on the right) any arrival,
+			# comes out of the mouth to its place (Jon's co-op rules, Nov 13).
+			if bool(_docked_seen.get(id, false)) or mirrored:
+				slot.come_out(mouth_g, 0.0 if not lone else ARRIVE_LEAD)
+			else:
+				slot.jump_in(0.0 if not lone else ARRIVE_LEAD)
 		# Keep the column in the party's order even after somebody has left a
 		# hole in the middle of it.
 		_convoy.move_child(slot, i)
 		slot.bind(them[i])
 
 	_refresh_overflow(here.size() - them.size())
+	_docked_seen.clear()
+	for p: Dictionary in Net.partners():
+		if int(p.get("at", -1)) == Run.at and bool(p.get("docked", false)):
+			_docked_seen[int(p.id)] = true
 
 	# Visible while any ship is in the column, even one leaving, so the jump flash has its frame.
 	# Your hull drops to 1x while anyone flies with you, to leave room for the column.
@@ -408,10 +501,10 @@ const AIM_NONE := -2
 func target_at(p: Vector2) -> int:
 	for i in _made.size():
 		var s := _made[i] as EnemySlot
-		if s != null and s.visible and s.get_global_rect().has_point(p):
+		if s != null and s.visible and UiRect.of(s).has_point(p):
 			return i
 	if _ship_slot != null and _ship_slot.visible \
-			and _ship_slot.get_global_rect().has_point(p):
+			and UiRect.of(_ship_slot).has_point(p):
 		return -1
 	return AIM_NONE
 
@@ -544,7 +637,7 @@ func hand_wrecks() -> Array:
 		var e := sl as EnemySlot
 		if e == null or not is_instance_valid(e) or not _placed.has(e) or e.size == Vector2.ZERO:
 			continue
-		out.append([e, e.get_global_rect()])
+		out.append([e, UiRect.of(e)])
 		_slots.remove_child(e)
 	_made.clear()
 	return out
@@ -719,11 +812,11 @@ func _collect_boxes(n: Node, out: Array[Rect2]) -> void:
 			# its brace hangs past its own right end
 			out.append((c as HullBar).drawn_rect())
 		elif c is ProgressBar or c is EnemySlot.BracePips:
-			out.append((c as Control).get_global_rect())
+			out.append(UiRect.of(c as Control))
 		elif c is HBoxContainer and (c as Control).get_parent() is VBoxContainer:
 			for k in c.get_children():
 				if k is Control and (k as Control).visible:
-					out.append((k as Control).get_global_rect())
+					out.append(UiRect.of(k as Control))
 		_collect_boxes(c, out)
 
 
@@ -851,7 +944,7 @@ func _body_rest() -> Vector3:
 	var p := backdrop.near_plan()
 	if p.is_empty():
 		return Vector3.ZERO
-	var c: Vector2 = Vector2(p.at) - get_global_rect().position - _slots.position
+	var c: Vector2 = Vector2(p.at) - UiRect.of(self).position - _slots.position
 	return Vector3(c.x, c.y, float(p.R))
 
 
@@ -1473,7 +1566,7 @@ var preview: Callable:
 func ship_muzzle() -> Vector2:
 	if _ship == null or fx == null:
 		return size * 0.5
-	var r := _ship.get_global_rect()
+	var r := UiRect.of(_ship)
 	return fx.get_global_transform().affine_inverse() \
 		* Vector2(r.position.x + r.size.x * 0.86, r.position.y + r.size.y * 0.5)
 
@@ -1483,7 +1576,7 @@ func enemy_anchor(i: int) -> Vector2:
 	var art := enemy_view(i)
 	if art == null:
 		return size * 0.5
-	return fx.get_global_transform().affine_inverse() * art.get_global_rect().get_center()
+	return fx.get_global_transform().affine_inverse() * UiRect.of(art).get_center()
 
 ## Ask where the ship is instead of deriving it from `ShipSlot.HULL_BIAS`; the row gains children.
 ## Why: docs/why/EncounterView.md#hull-anchor
@@ -1491,7 +1584,7 @@ func self_anchor() -> Vector2:
 	if _ship == null:
 		return size * 0.5
 	return get_global_transform().affine_inverse() \
-		* _ship.get_global_rect().get_center()
+		* UiRect.of(_ship).get_center()
 
 
 func ship_view() -> ShipView:

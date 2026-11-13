@@ -43,7 +43,7 @@ load each other's runs.
 
 ## Version history
 
-Above `const VERSION := 42`:
+Above `const VERSION := 43`:
 
 ```text
 Bumped whenever the shape below changes. An old file is discarded rather than
@@ -344,6 +344,10 @@ these keys and loads with 0 DATA, nothing owned, nothing augmented, and its
 board dealt from its seed and seat (`_board_from`), the board a 42 build
 would have dealt it. Nothing in science reads `ascension`, so a 41 save's
 key is the Hellbender's to read. OLDEST_READ stays at 29.
+43: `moored_right`, the station node your ship is moored right of after an
+undock (`SectorScreen.mirrored_at`, docs/why/SectorScreen.md#mirrored), or -1.
+A 42 save has none and loads moored on the left, as any arrival is.
+OLDEST_READ stays at 29.
 ```
 
 ## Saving

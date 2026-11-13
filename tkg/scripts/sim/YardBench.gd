@@ -1,10 +1,10 @@
 extends Node
 
 ## What a frame of the front door (the banner shipyard) costs, windowed: at rest,
-## a ship picked (the held blur) and another pointed at. Manual, not in the gate.
-## `-- sheet=YardBench [secs=20] [states=rest,picked,hover] [ablate] [out=<json>]`
-## through `tools/dev/render.sh`. Vsync and the frame cap go off, so a frame lasts
-## as long as its work. `ablate` adds 5 s samples with one part switched off.
+## a ship picked, another pointed at, the lift's steam at full burn. Manual, not in
+## the gate. `-- sheet=YardBench [secs=20] [states=rest,picked,hover,steam] [ablate]`
+## through `tools/dev/render.sh`; vsync and the frame cap go off.
+## Why: docs/tests.md
 
 var _game_rid := RID()
 var _root_rid := RID()
@@ -28,6 +28,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _run() -> void:
+	# (`steam=heavy|heavier`: the lift's steam at that weight, `LiftPlume.WEIGHTS`)
+	if Harness.arg("steam", "") != "":
+		LiftPlume.weight = int({"built": 0, "heavy": 1, "heavier": 2}.get(Harness.arg("steam", ""), LiftPlume.weight))
+	# (`steam_style=0..3`, `steam_seed=N`: a texture, and one steam for every texture's film)
+	if Harness.arg("steam_style", "") != "":
+		LiftPlume.style = int(Harness.arg("steam_style", "1"))
+	LiftPlume.seed = int(Harness.arg("steam_seed", "-1"))
 	var tree := get_tree()
 	await tree.process_frame
 	if DisplayServer.get_name() == "headless":
@@ -101,6 +108,26 @@ func _state(st: String) -> void:
 			heavy.notification(Control.NOTIFICATION_MOUSE_ENTER)
 		"sweep":
 			heavy.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		"steam":
+			_steam()
+
+
+## The steam a lift throws up, at full burn and never cutting.
+func _steam() -> void:
+	var y := _cs._yard
+	var s: YardStandSet = y.set_of(HullData.Weight.MEDIUM)
+	var p := LiftPlume.new()
+	p.setup(y.size.x, y.size.y, 220.0)
+	p.floor_y = float(s.feet)
+	p.lamps = ShipLift.lamps_of(y.scene.light, y.size.x)
+	var r := Rect2(s.thing)
+	p.hull = Rect2(r.position.x, r.position.y, r.size.x, r.size.y * 0.5)
+	p.src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.5)
+	p.src_w = r.size.x * 0.2
+	y.add_child(p.back_layer)
+	y.add_child(p)
+	p.thrust = 1.0
+	p.fire()
 
 
 ## A pointer crossing the banners and the three ships, as a player looks round.
@@ -137,7 +164,7 @@ func _profile_select(m: StringName) -> void:
 		var u := Time.get_ticks_usec()
 		var frame := DB.hull_for(&"korvan", w)
 		var hull: HullData = DB.at_tier(DB.hull_for(m, w), 0) if open else null
-		(y.sets[w] as YardStandSet).setup(y.scene, w, hull, frame)
+		(y.sets[w] as YardStandSet).setup(y.scene, w, hull, frame, m)
 		print("    %s setup %d: %.1f ms" % [m, w, (Time.get_ticks_usec() - u) / 1000.0])
 	var u2 := Time.get_ticks_usec()
 	var map := PackedByteArray()

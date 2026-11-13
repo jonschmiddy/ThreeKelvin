@@ -672,6 +672,7 @@ func ash_speaking() -> bool:
 
 func _process(delta: float) -> void:
 	_fx_tick()
+	_step_ramps(delta)
 	if not _reap.is_empty():
 		_reap_done()
 	if not _enabled:
@@ -749,7 +750,7 @@ func act(name: StringName) -> void:
 ## `db` is an offset so a reward sting can be turned down without authoring a second file.
 ## Why: docs/why/Audio.md#play-parameters
 func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
-		db: float = 0.0, pitch: float = 1.0, from: float = 0.0, exact: bool = false) -> void:
+		db: float = 0.0, pitch: float = 1.0, from: float = 0.0, exact: bool = false, fade_in: float = 0.0) -> void:
 	# (headless there is no sound, but a harness taping still gets the decision:
 	# everything below down to the pick, then `_dry_play`)
 	if not _enabled and not taping:
@@ -797,7 +798,14 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	_sfx_next = (_sfx_next + 1) % _sfx.size()
 	p.stream = stream
 	p.pitch_scale = pitch * (1.0 + randf_range(-pitch_var, pitch_var))
-	p.volume_db = db
+	# A START MID-WAVE RAMPS IN (Jon, Nov 12: a pop as a landing's coughs began):
+	# a seek lands on a sample far from zero, so it starts near silent and rises
+	# over `RAMP_S` or more (`_step_ramps`, from the frame after: a tween finished
+	# inside the frame it was made in, before that frame's mix, so it went out loud).
+	# (and a ship's sounds always: their takes start on a loud sample)
+	if from > 0.0 or String(pick).begins_with("thruster_") or String(pick).begins_with("ship_") 			or pick == &"station_dock" or pick == &"station_undock":
+		fade_in = maxf(fade_in, RAMP_S)
+	p.volume_db = db - 60.0 if fade_in > 0.0 else db
 	# Store the pick, not the asked name, so a hush naming either one lands.
 	p.set_meta(&"cue", pick)
 	p.set_meta(&"asked", name)
@@ -806,6 +814,39 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 		tape.append([pick, Time.get_ticks_msec(), db, p.pitch_scale, GameClock.now(),
 			Engine.get_process_frames(), name, from])
 	p.play(from)
+	if fade_in > 0.0:
+		_ramps.append([p, db, 0.0, fade_in, Engine.get_process_frames()])
+
+
+## The shortest a sound may rise in or fall out over, s: a step at a sample is a click.
+const RAMP_S := 0.01
+## Voices rising in: [player, db, s so far, s to rise, the frame it started].
+var _ramps: Array = []
+
+
+## Each voice rising in, linear in level, from the frame after its `play()`.
+func _step_ramps(delta: float) -> void:
+	var keep: Array = []
+	for r: Array in _ramps:
+		var p: AudioStreamPlayer = r[0]
+		if not is_instance_valid(p) or not p.playing:
+			continue
+		if int(r[4]) == Engine.get_process_frames():
+			keep.append(r)
+			continue
+		r[2] = float(r[2]) + delta
+		var k := clampf(float(r[2]) / float(r[3]), 0.0, 1.0)
+		p.volume_db = float(r[1]) + linear_to_db(maxf(k, 0.001))
+		if k < 1.0:
+			keep.append(r)
+	_ramps = keep
+
+
+## `play`, no pitch spread, rising in over `fade_s` (`RAMP_S` at least): for a ship's
+## takes, which start at full level.
+func play_in(name: StringName, db: float = 0.0, from: float = 0.0, exact: bool = false, fade_s: float = RAMP_S) -> void:
+	play(name, 0.0, 0, db, 1.0, from, exact, maxf(fade_s, RAMP_S))
+
 
 ## Holds a name quiet when a screen plays its own better-informed sound for the same change.
 func suppress(name: StringName, ms: int = 400) -> void:
@@ -1417,6 +1458,8 @@ func ship_thrust(level: float) -> void:
 		_ship_loop.volume_db = -80.0
 		add_child(_ship_loop)
 		_ship_loop.play()
+		# (silent the frame it starts: a level set before its first mix went out as a step)
+		return
 	_ship_loop.volume_db = -80.0 if _ship_level < 0.002 else SHIP_DB + linear_to_db(_ship_level)
 
 
@@ -1483,6 +1526,7 @@ func _tick_idle(delta: float) -> void:
 		# STARTED SILENT AND NEVER RESTARTED, like the map's thrust loop: the
 		# fade alone brings it in and out, so no play() lands mid-swing
 		_idle_player.play()
+		return
 	var g := idle_level * _duck
 	_idle_player.volume_db = -80.0 if g < 0.002 else IDLE_DB + linear_to_db(g)
 

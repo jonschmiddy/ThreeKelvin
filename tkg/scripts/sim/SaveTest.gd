@@ -745,6 +745,7 @@ func run_version_test() -> void:
 	check("a new run with nothing asked starts at 0, with no Hellbender", "0 false 0",
 		"%d %s %d" % [Run.ascension, Run.hellbender_alive(), Run.hellbender_max])
 	_science_versions()
+	_moored_versions()
 
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
@@ -815,13 +816,33 @@ func run_version_test() -> void:
 "
 		% ["PASS" if fails == fails_before else "FAIL", fails - fails_before])
 
+## MOORED ON THE STATION'S RIGHT (VERSION 43, Nov 13): the save keeps the station
+## node, a load puts it back, and a 42 save (none) loads moored on the left.
+func _moored_versions() -> void:
+	Run.start_new_run(&"korvan", 1)
+	Moored.moor(Run.at)
+	SaveGame.save()
+	var s43 := _read_save()
+	check("a 43 save keeps where you are moored", Run.at, int(s43.get("moored_right", -9)))
+	Moored.at = -1
+	check("and loads it back", true, SaveGame.load_into_run() and Moored.at == Run.at)
+	s43["version"] = 42
+	s43.erase("moored_right")
+	var w := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if w != null:
+		w.store_string(JSON.stringify(s43, "", true, true))
+		w.close()
+	check("a 42 save (none) loads moored on the left", true, SaveGame.load_into_run() and Moored.at == -1)
+	Moored.at = -1
+
+
 ## SCIENCE (VERSION 42, Phase 12): this build writes 42. A 41 save (the Hellbender's
 ## build, its `ascension` key unread here) and a 40 one load with
 ## no DATA, nothing bought, the black box unspent, no part augmented, and the
 ## board its seed and seat deal; a malformed one is mended, not refused; and a
 ## new run after a used one starts clean.
 func _science_versions() -> void:
-	check("this build writes VERSION 42", 42, SaveGame.VERSION)
+	check("this build writes VERSION 43 (42's science, and where you are moored)", 43, SaveGame.VERSION)
 	Run.start_new_run(&"korvan", 1)
 	var dealt := Run.board.duplicate()
 	check("a new run is dealt a whole board", 9, dealt.size())

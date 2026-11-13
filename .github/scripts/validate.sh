@@ -1433,6 +1433,23 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardfronttest 240 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardFrontTest
 }
 
+unit_shiplifttest() {
+step "The heavy lift: LAUNCH and UNDOCK lift off and go"
+# Jon's L1 (Nov 12) on both screens: LAUNCH lifts the hull off its stands and
+# burns it off right before the run starts, once, with no click reaching the
+# hall meanwhile, and reduced motion cuts straight to LOCAL; UNDOCK runs the
+# same lift on the Shipyard deck, off to the right, and lands on LOCAL undocked.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet shiplifttest 240 	"the heavy lift lifts off and lands where it should" 	"the heavy lift misbehaved" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ShipLiftTest
+}
+
+unit_mirrorlocaltest() {
+step "LOCAL moored on the station's right, and the partners in it"
+# Jon's (c) and his co-op rules (Nov 13): after an undock LOCAL at the station is
+# drawn mirrored; everyone faces right, names read, partners come out of the
+# mouth, go into it or fade, the mooring is saved, and clicks land where drawn.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet mirrorlocaltest 240 	"LOCAL is drawn both ways round with its partners" 	"LOCAL moored on the right misbehaved" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=MirrorLocalTest
+}
+
 unit_yardperftest() {
 step "The banner shipyard's click stays cheap and looks the same"
 # Nov 12, Jon: "VERY laggy". A banner's first click baked three hulls on the main

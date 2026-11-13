@@ -1,0 +1,1 @@
+- **Fixed** — The station's elevator slides away as one dark column when you undock; the station's name no longer floats over the yard as it goes.

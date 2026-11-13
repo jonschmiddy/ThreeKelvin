@@ -7,7 +7,7 @@ extends Node
 ## Bump on any change to the messages or the meaning of their fields.
 ## Cheap to raise, very expensive to forget: a mismatch is refused at the door.
 ## Why: docs/why/NetSession.md#protocol-versions
-const PROTOCOL: int = 19
+const PROTOCOL: int = 20
 
 ## Generous: giving up early costs a wreck, assuming costs the party's economy.
 ## Why: docs/why/NetSession.md#take-timeout
@@ -567,9 +567,9 @@ func _choose_hull_at_host(hull_id: StringName) -> void:
 ## Through the host, not peer to peer: one message shape, one direction, one place to fail.
 ## Why: docs/why/NetSession.md#presence-relay
 @rpc("any_peer", "call_remote", "reliable")
-func _report_presence_at_host(wire: Dictionary, at: int, jumps: int) -> void:
+func _report_presence_at_host(wire: Dictionary, at: int, jumps: int, dk: bool = false) -> void:
 	if is_host():
-		_apply_presence(multiplayer.get_remote_sender_id(), wire, at, jumps)
+		_apply_presence(multiplayer.get_remote_sender_id(), wire, at, jumps, dk)
 
 
 ## Only a node index and option id travel: the seed already puts the same loot everywhere.
@@ -814,14 +814,16 @@ func _send_presence() -> void:
 	var wire := b.to_wire()
 	var at := Run.at if not Run.map.is_empty() else -1
 	var jumps := _my_jumps()
-	var stamp := hash([wire, at, jumps])
+	# (docked: partners at the station take you off LOCAL, and see you dock and undock)
+	var dk := Router.docked
+	var stamp := hash([wire, at, jumps, dk])
 	if stamp == _presence_sent:
 		return
 	_presence_sent = stamp
 	if is_host():
-		_apply_presence(1, wire, at, jumps)
+		_apply_presence(1, wire, at, jumps, dk)
 	else:
-		_report_presence_at_host.rpc_id(1, wire, at, jumps)
+		_report_presence_at_host.rpc_id(1, wire, at, jumps, dk)
 
 
 ## Only in a dive on the dive's own galaxy: a stale or NEW RUN ship must not raise the count.
@@ -835,7 +837,7 @@ func _on_dive_galaxy() -> bool:
 		and not Run.map.is_empty()
 
 
-func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> void:
+func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1, dk: bool = false) -> void:
 	if not roster.has(id) or not _is_place(at, true):
 		return
 	# A moved `at` is a jump for others only: the host's own jumps tick in `RunState.jump_to()`.
@@ -843,6 +845,7 @@ func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1) -> voi
 	var said := int(_jumps_said.get(id, -1))
 	roster[id].build = wire
 	roster[id].at = at
+	roster[id].docked = dk
 	# (in the dive, a presence with no jumps to say is a ship off this galaxy:
 	# not one of the players the fights are built for, `party_count`)
 	roster[id].away = state == State.DIVING and jumps < 0
@@ -1747,7 +1750,7 @@ func _slot(id: int, player_name: String, hull_id: StringName, order: int) -> Dic
 	# `build` is empty and `at` is -1 until that player has a ship and a place to
 	# be in. See build_of() and where_is().
 	return {"id": id, "name": player_name, "hull": hull_id, "ready": false,
-		"order": order, "build": {}, "at": -1}
+		"order": order, "build": {}, "at": -1, "docked": false}
 
 
 func _set_state(next: State) -> void:

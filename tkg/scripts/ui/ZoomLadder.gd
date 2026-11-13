@@ -39,6 +39,8 @@ const LAB_ZOOM_S := 0.9
 ## Docking is five steps, never two at once, camera still; undocking eases out down the same path.
 ## Why: docs/why/ZoomLadder.md#dock-in-five-steps
 const DOCK_BEAT_S := 0.3
+## A dock from the station's right (`Moored`): LOCAL to black, then the landing.
+static var dock_fade_only := false
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
@@ -52,14 +54,14 @@ const LIGHT_ON := 1.35
 const LIGHT_GLOW := 1.8
 ## the camera's pan sideways through the station's hull into the yard
 const DOCK_PAN_S := 1.4
-## the yard: your ship in from the left onto its stands (and then the elevator,
-## `ELEVATOR_S`)
-const DOCK_YARD_S := 2.2
-## undocking: the elevator out, your ship off its stands and away to the left
-## (and on LOCAL the ENTER backwards, `DOCK_ENTER_S`)
-const UNDOCK_YARD_S := 2.0
+## the yard: your ship in from the left, hanging on its jets, down onto its
+## stands (`ShipLift.land_at`; and then the elevator, `ELEVATOR_S`)
+const DOCK_YARD_S := ShipLift.LAND_S
 ## the elevator sliding back in once your ship is down (and out, undocking)
 const ELEVATOR_S := 0.8
+## undocking: the elevator out, your ship's heavy lift away to the right
+## (`ShipLift.lift_at`), and on LOCAL the ENTER backwards, `DOCK_ENTER_S`
+const UNDOCK_YARD_S := ELEVATOR_S * 0.6 + ShipLift.MAINS_ON + ShipLift.BURN_S
 ## Chart straight to LOCAL or the berth is a fade through black, no camera (Jon, Oct 10).
 ## Why: docs/why/ZoomLadder.md#chart-to-local
 const FADE_OUT_S := 0.3
@@ -101,6 +103,8 @@ static func seam3_fade() -> String:
 
 ## The dock's five steps, s, in order: CUT, ARRIVE, BEAT, POWER, ENTER.
 static func dock_steps() -> PackedFloat32Array:
+	if dock_fade_only:
+		return PackedFloat32Array([FADE_OUT_S, 0.0, 0.0, 0.0, 0.0])
 	return PackedFloat32Array([FADE_OUT_S, ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0,
 		DOCK_BEAT_S, DOCK_POWER_S, DOCK_ENTER_S])
 

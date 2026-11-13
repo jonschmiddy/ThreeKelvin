@@ -1601,16 +1601,65 @@ Eased from rest to rest, not the ENTER's curve run back, which left
 the bay at full speed and read as the film reversed.
 ```
 
-Above `func _undock_engines(art: ShipView, hall: Dictionary) -> void:`:
+Nov 13: undocking is nose first now (see Mirrored below). The ship's undock runs
+`hall_fly = 1 - smoothstep(u^1.5)` on `u = 1 - k`: a slow pull-away out of the
+mouth, fastest mid-way, eased into the mooring. `_undock_out` gives it its engines:
+the idle through the pull-away, the dock's burn from `UNDOCK_BURN` of the way out,
+then the arrival's coughs, timed so the last comes `UNDOCK_COAST_S` before it is
+in its mooring, at the dock burn's level; nothing heard on a press that ends the
+move at once. The old back-out (`_undock_engines`, idle then coughs) is gone.
 
-```text
-UNDOCKING'S ENGINES: the idle as your ship backs out (no cruise burn), then
-the arrival's own coughs (`ShipView.sputter`) as it slows, timed so that the
-last comes `UNDOCK_COAST_S` before it comes to rest at its mooring, then the
-idle it keeps. The coughs' clip from the first, at the dock burn's level --
-and never on a press that ended the move at once (`ZoomLadder.finish_now`):
-your ship is parked then, and nothing is heard.
-```
+## Mirrored
+
+Jon's (c), Nov 13: "the ship should be leaving the space station left to right";
+then, of the trial, "basically one-shotted it", with one note, "the nose
+shouldn't be touching the side". After an undock, LOCAL at that station is drawn
+mirrored: the station on the left, your ship moored on its right, facing right.
+The undock leaves nose first to the right, carrying on the yard's exit.
+
+- **State.** `SectorScreen.mirrored_at` is the station's node, set by `moor_right`
+  at UNDOCK, before LOCAL is built ahead. It holds for the visit it was set in
+  (`_visit`, the map flight that brought you): flown to the station again, you
+  arrive as any ship does, on its left. Saved as `moored_right` (optional: an
+  older save loads moored left). Cleared by a new run or a jump.
+- **Drawing.** `EncounterView.mirrored` flips the whole scene about its middle
+  (on a whole pixel: a half-pixel middle sent the rounded scene a pixel either
+  way). Inside it, three things are flipped back. The sky is never mirrored (a
+  mirrored sky showed a seam and a red cast down the middle). Your hull is flipped
+  about its ink middle, the same middle the dock and undock turn it on: a pivot
+  moved under a flip moves the hull. Partners' slots flip their own hull and name
+  (`ConvoySlot.flipped`), because the column is a container and a container puts a
+  child's scale back.
+- **Mooring.** `ShipSlot.inset` moves your hull's box `EncounterView.MIRROR_INSET`
+  of its slot in from the edge, so the nose is clear of the screen's side.
+  Partners sit `ConvoySlot.FLIP_IN` px in for the same reason.
+- **Docking from the right.** There is no flight in: `ZoomLadder.dock_fade_only`
+  makes the dock's steps after the CUT take no time and keeps LOCAL black. Your
+  ship and the camera stay where they are, then the yard comes up for the deck's
+  landing. The map's DOCK does the same: LOCAL with your ship where it is, then
+  the dock from there.
+- **Clicks.** `get_global_rect()` builds a box from the transform's scale, and a
+  mirrored transform puts its minus sign on y, so under the flip the box was
+  upside down and on the wrong side. LOCAL's hit tests use `UiRect.of`, which
+  builds the box from the corners. Your hull's own click already went through the
+  transforms and needed nothing.
+
+## Partners
+
+Jon's co-op rules, Nov 13. Each pilot's LOCAL is drawn in that pilot's own
+orientation. Partners stand in the column on the moored side, beyond your ship,
+all facing right, their names readable (`ConvoySlot.flipped`).
+
+- A partner docked at the station is in the station, not on LOCAL
+  (`NetSession` presence carries `docked`; `EncounterView._here`).
+- **Moored left (as ever).** A partner arriving jumps in with its flash. One
+  undocking backs out of the mouth to its place. One docking flies from its place
+  into the mouth, behind your ship (`ConvoySlot.go_in`).
+- **Moored right.** A partner arriving comes in through the dock (Jon: "the ship
+  comes in THROUGH the dock, from the station's side, then pulls up to a parking
+  spot. From left to right"). So does one undocking (`ConvoySlot.come_out`). One
+  docking fades where it sits, as your own dock from there is
+  (`ConvoySlot.fade_out`).
 
 ## Calm move
 

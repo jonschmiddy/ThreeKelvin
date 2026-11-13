@@ -1268,17 +1268,17 @@ func _point(gp: Vector2) -> void:
 	# the open popup first: it is drawn over everything but the card
 	if _pop_grid != null:
 		for c in _pop_grid.get_children():
-			if c is ItemIcon and (c as Control).is_visible_in_tree() and (c as Control).get_global_rect().has_point(gp):
+			if c is ItemIcon and (c as Control).is_visible_in_tree() and UiRect.of(c as Control).has_point(gp):
 				m = (c as ItemIcon).held_item()
 				# (beside the whole popup, so the card covers none of it)
-				at = _popup.get_global_rect()
+				at = UiRect.of(_popup)
 	if m == null:
 		# (any item, not only a module: `icon_at` is R's, which turns parts)
 		var ic := _hold.item_at(gp)
 		if ic != null:
 			m = ic.held_item()
-			at = ic.get_global_rect()
-	var over_popup := _popup != null and _popup.get_global_rect().has_point(gp)
+			at = UiRect.of(ic)
+	var over_popup := _popup != null and UiRect.of(_popup).has_point(gp)
 	if m == null and not over_popup:
 		var lp := _mounts.get_global_transform().affine_inverse() * gp
 		var part := _mounts.part_under(lp)
@@ -1290,8 +1290,8 @@ func _point(gp: Vector2) -> void:
 					at = Rect2(_mounts.get_global_transform() * r.position, r.size * _mounts.get_global_transform().get_scale())
 	if not (m is ModuleData or m is MaterialData or m is CreditChit):
 		m = null
-	if m == null and _dross.is_visible_in_tree() and _dross.get_global_rect().has_point(gp):
-		_show(&"dross", _dross.get_global_rect())
+	if m == null and _dross.is_visible_in_tree() and UiRect.of(_dross).has_point(gp):
+		_show(&"dross", UiRect.of(_dross))
 		return
 	_show(m, at)
 

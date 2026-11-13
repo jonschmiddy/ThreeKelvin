@@ -293,6 +293,10 @@ func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: Str
 			v.queue_free()
 	_mine = mine
 	_sale = sale
+	# (on their stands, their engines out: no flame, no glow -- Jon, Nov 13)
+	for v: ShipView in [mine, sale]:
+		if v != null:
+			v.dark_idle = true
 	_mine_name = mine_name
 	_sale_name = sale_name
 	if light == null or lv.is_empty():
@@ -1055,17 +1059,26 @@ func _draw_ships() -> void:
 		P.mirror(t, Rect2(ink.position, ink.size), x, 2.0 * fl - bottom, 0.22 * 0.7 * (mine_a if i == 0 else 1.0), tint, false)
 
 	P.use(YardPaint.SHIP)
-	for S: Dictionary in placed:
+	for i in 2:
+		var S: Dictionary = placed[i]
 		if S.is_empty():
 			continue
+		# (your stands sink into the floor as your ship lifts off them: `ShipLift`)
+		var sk := sink_mine if i == 0 else 0
 		for s: Dictionary in S["supports"]:
-			P.tex(s["tex"], Vector2(float(s["x"]), float(s["y"])))
+			var st: Texture2D = s["tex"]
+			if sk <= 0:
+				P.tex(st, Vector2(float(s["x"]), float(s["y"])))
+			elif sk < st.get_height():
+				P.tex(st, Vector2(float(s["x"]), float(s["y"]) + float(sk)), Rect2(0, 0, st.get_width(), st.get_height() - sk))
 	P.end()
 
 
 ## 16 and 8 px, not the page's 24 and 16: Jon found them too big at 2x. Off while zoomed.
 ## Why: docs/why/YardScene.md#ship-names
 var hide_mine := false
+## Rows your ship's stands have sunk into the floor (`ShipLift`, undocking).
+var sink_mine := 0
 ## And brought back gently once your ship has landed (`StationScreen.ladder_chrome`):
 ## its name and its reflection come up with the yard's UI, not in one frame.
 var mine_a := 1.0

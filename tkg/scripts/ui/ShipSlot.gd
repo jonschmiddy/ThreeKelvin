@@ -11,6 +11,14 @@ var preview: Callable
 ## Hull is centred in the left two thirds by anchor, as `ShipView.arrive()` resets position.
 ## Why: docs/why/ShipSlot.md#own-ship-slot
 const HULL_BIAS := 0.68
+## The hull's box moved this share of the slot in from its outer side (the view
+## mirrored, moored on the station's right: `EncounterView.MIRROR_INSET`).
+var inset := 0.0:
+	set(v):
+		inset = v
+		if art != null:
+			art.set_anchor(SIDE_LEFT, inset, false)
+			art.set_anchor(SIDE_RIGHT, HULL_BIAS + inset, false)
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP

@@ -119,7 +119,8 @@ const ENTER_SECS := 0.5
 ## The contact flies in, not your ship: you were already parked here when the fight opens.
 ## Why: docs/why/EnemySlot.md#fly-in
 func holder_rect() -> Rect2:
-	return Rect2(_art_holder.global_position, _art_holder.size)
+	# (its global rect, made whole: LOCAL can be drawn mirrored)
+	return UiRect.of(_art_holder)
 
 
 ## Global box of the holder and its words, which a neighbouring wreck must keep off
@@ -130,7 +131,7 @@ func drawn_box() -> Rect2:
 		if l != null and l.is_visible_in_tree() and l.text.strip_edges() != "":
 			out = out.merge(text_rect(l))
 	if _bar != null and _bar.is_visible_in_tree():
-		out = out.merge(_bar.get_global_rect())
+		out = out.merge(UiRect.of(_bar))
 	return out
 
 
@@ -845,20 +846,20 @@ func boxes() -> Array:
 	var out: Array = []
 	if art != null:
 		var u := Rect2(art.ink_rect())
-		var at := _art_holder.get_global_rect().position + _art_base
+		var at := UiRect.of(_art_holder).position + _art_base
 		out.append(["art", Rect2(at + u.position, u.size)])
 	for l: Label in [_intent, _intent_text, _name, _hp]:
 		if l.is_visible_in_tree() and l.text.strip_edges() != "":
 			out.append(["text:" + l.text, text_rect(l)])
 	if _brace_bar.is_visible_in_tree():
-		out.append(["brace", _brace_bar.get_global_rect()])
+		out.append(["brace", UiRect.of(_brace_bar)])
 	if _bar.is_visible_in_tree():
-		out.append(["bar", _bar.get_global_rect()])
+		out.append(["bar", UiRect.of(_bar)])
 	if chips.is_visible_in_tree() and chips.get_child_count() > 0:
 		var r := Rect2()
 		for c in chips.get_children():
 			if c is Control and (c as Control).visible:
-				r = (c as Control).get_global_rect() if r.size == Vector2.ZERO else r.merge((c as Control).get_global_rect())
+				r = UiRect.of(c as Control) if r.size == Vector2.ZERO else r.merge(UiRect.of(c as Control))
 		if r.size != Vector2.ZERO:
 			out.append(["chips", r])
 	return out
@@ -866,7 +867,7 @@ func boxes() -> Array:
 ## A label's ink: its text's own width where it fits on one line, the label's
 ## width where it wraps, aligned as the label aligns it; the label's height.
 static func text_rect(l: Label) -> Rect2:
-	var r := l.get_global_rect()
+	var r := UiRect.of(l)
 	var w := minf(_text_w(l), r.size.x)
 	var x := r.position.x
 	match l.horizontal_alignment:
@@ -981,7 +982,7 @@ func readout_rect_global() -> Rect2:
 	var r := _text_rect([_name, _hp])
 	for c: Control in [_brace_bar, _bar, chips]:
 		if c != null and c.is_visible_in_tree() and c.size.x > 0.0:
-			var g := c.get_global_rect()
+			var g := UiRect.of(c)
 			if c == chips and c.get_child_count() == 0:
 				continue
 			r = g if r.size == Vector2.ZERO else r.merge(g)
@@ -1014,7 +1015,7 @@ func _text_rect(labels: Array) -> Rect2:
 	for l: Label in labels:
 		if l == null or not l.is_visible_in_tree() or l.text == "":
 			continue
-		var g := l.get_global_rect()
+		var g := UiRect.of(l)
 		var f := l.get_theme_font(&"font")
 		var fs := l.get_theme_font_size(&"font_size")
 		var w := minf(g.size.x, f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x) \

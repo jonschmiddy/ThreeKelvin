@@ -194,7 +194,7 @@ func _look() -> Vector2:
 	var p := get_parent() as Control
 	if p == null:
 		return Vector2.ZERO
-	return get_global_transform().affine_inverse() * p.get_global_rect().get_center() - origin()
+	return get_global_transform().affine_inverse() * UiRect.of(p).get_center() - origin()
 
 
 func _parallax() -> void:

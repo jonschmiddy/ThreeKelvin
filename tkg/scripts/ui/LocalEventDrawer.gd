@@ -480,7 +480,7 @@ func _seat_card() -> void:
 ## Your ship and the encounter's subject, in this control's px.
 func _avoid_rects() -> Array:
 	var rs: Array = []
-	var at := get_global_rect().position
+	var at := UiRect.of(self).position
 	var view = screen.get("_view") if screen != null else null
 	if view == null:
 		return rs
@@ -933,7 +933,7 @@ func open_reward() -> void:
 	screen.add_child(_transfer)
 	# (the pile opens at your ship, in the room above this band)
 	if visible and layout != &"card":
-		_transfer.floor_g = get_global_rect().position.y
+		_transfer.floor_g = UiRect.of(self).position.y
 	Audio.play(&"wreck_open")
 	_transfer.setup(h, node, func() -> void:
 		_transfer.queue_free()

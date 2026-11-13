@@ -270,7 +270,8 @@ void fragment() {
 		vec3 drgb;
 		vec2 dw;
 		bool dq;
-		dyn_at(p, drgb, dw, dq);
+		// (a small light lights where it is drawn: the hall continued past 765 too, `ShipLift`)
+		dyn_at(mirror_x ? p : ivec2(floor(sp)), drgb, dw, dq);
 		if (mode == 2) {
 			// A SHIP takes the light over it, falling into its own shade.
 			vec4 sm = texelFetch(ship_map, p, 0);

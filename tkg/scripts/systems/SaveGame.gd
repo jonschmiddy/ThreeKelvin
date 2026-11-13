@@ -13,9 +13,9 @@ static var path: String = TestRun.scratch("run", "save") if TestRun.active() els
 ## tell CONTINUE from a new run (A.S.H.'s introduction is a new run's only).
 static var restoring := false
 ## Bumped whenever the shape changes; an old file is discarded, never guessed at.
-## 42: science (DATA, the board as ids, its steps, the black box, a part's mark); 41 is the Hellbender's.
+## 43: `moored_right` (LOCAL after an undock); 42 is science's.
 ## Why: docs/why/SaveGame.md#version-history
-const VERSION := 42
+const VERSION := 43
 ## The oldest file this build reads. Everything from here to VERSION must load
 ## as what it meant; see 30.
 const OLDEST_READ := 29
@@ -169,6 +169,8 @@ static func _snapshot() -> Dictionary:
 		at = Run.at,
 		# Where the ship was left in each system you have been in (VERSION 30).
 		parked = _parked_to(),
+		# Moored on the station's right, after an undock (VERSION 43): its node or -1.
+		moored_right = Moored.at,
 		# And each system's map clock, which those spots were left at (VERSION 39).
 		clocks = _clocks_to(),
 		trail = Array(Run.trail),
@@ -394,7 +396,7 @@ static func load_into_run() -> bool:
 	# save from before them
 	Ash.comms_from(d.get("ash_comms", []))
 	# After `run_started`, whose Router listener clears the parked record.
-	SystemMapScreen._parked = _parked_from(d.get("parked", []), map.size())
+	_places_from(d, map.size())
 	# (the map clocks with them, after run_started for the same reason; a 38
 	# save has none: every system at t 0, as a 38 build drew it)
 	Run.map_clock = _clocks_from(d.get("clocks", []), map.size())
@@ -686,6 +688,14 @@ static func _parked_to() -> Array:
 
 ## The rows back into the record the map reads, in its own types. A row for a
 ## system outside this map is dropped rather than kept against the wrong place.
+## Where the ship was left in each system, and where it is moored at a station
+## (`Moored`, VERSION 43), put back.
+static func _places_from(d: Dictionary, systems: int) -> void:
+	var mr := int(d.get("moored_right", -1))
+	Moored.moor(mr if mr >= 0 and mr < systems else -1)
+	SystemMapScreen._parked = _parked_from(d.get("parked", []), systems)
+
+
 static func _parked_from(raw: Variant, systems: int) -> Dictionary:
 	var out := {}
 	if typeof(raw) != TYPE_ARRAY:

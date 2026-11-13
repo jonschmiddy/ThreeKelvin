@@ -1,0 +1,1 @@
+- **Fixed** — No more pop when a ship's engine sounds start: a landing's coughs, the departure burn and the drive loop now fade in over a few milliseconds.

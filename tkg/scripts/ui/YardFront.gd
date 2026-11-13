@@ -55,6 +55,18 @@ var _ship_tex: ImageTexture = null
 var _sharp_set: YardStandSet = null
 ## Where the next piece of floor goes among the hall's children: after the hall picture.
 var _under_at: int = 1
+## LAUNCH's heavy lift (`ShipLift`, Jon's L1) under way, its clock and what it
+## calls when the hull is gone; and the ship map with the launching hull lifted
+## out, to stamp back where it flies.
+var launching := false
+var lift: ShipLift = null
+var _lift_t := 0.0
+var _lift_done: Callable = Callable()
+var _ship_map_img: Image = null
+var _lm_base: Image = null
+var _lm_piece: Image = null
+var _lm_rect := Rect2i()
+var _lm_off := Vector2i(1 << 20, 0)
 
 
 func _init() -> void:
@@ -220,7 +232,7 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 	for w: HullData.Weight in sets:
 		var frame := DB.hull_for(&"korvan", w)
 		var hull: HullData = DB.at_tier(DB.hull_for(m, w), tier) if open else null
-		(sets[w] as YardStandSet).setup(scene, w, hull, frame)
+		(sets[w] as YardStandSet).setup(scene, w, hull, frame, m)
 		# the weapons each ship launches with, bolted on where it stands (Jon's B2, Nov 12)
 		if hull != null:
 			var st: YardStandSet = sets[w]
@@ -331,7 +343,14 @@ func _process(delta: float) -> void:
 		return
 	_t += delta
 	scene.light.lamp_gain = _lamp_gains()
-	var target := 1.0 if hover_w >= 0 or (picked >= 0 and not locked) else 0.0
+	if lift != null:
+		_lift_t += delta
+		lift.lift_at(_lift_t)
+		if _lift_t >= ShipLift.front_s() and _lift_done.is_valid():
+			var d := _lift_done
+			_lift_done = Callable()
+			d.call()
+	var target := 1.0 if not launching and (hover_w >= 0 or (picked >= 0 and not locked) ) else 0.0
 	var k := move_toward(_k, target, delta * BLUR_RATE)
 	if k != _k:
 		_k = k
@@ -351,6 +370,71 @@ func _on_hover(w: HullData.Weight, on: bool) -> void:
 		hover_w = -1
 		_focus(picked)
 	ship_hover.emit(hover_w)
+
+
+## LAUNCH: the picked hull lifts off its stands and burns off the right edge
+## (Jon's L1, Nov 12), then `done`. `shake` is what shivers with it (the whole screen).
+## Why: docs/why/ShipLift.md#front-door
+func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
+	var s: YardStandSet = sets.get(w)
+	if s == null or s._view == null or lift != null:
+		return null
+	launching = true
+	_lift_done = done
+	_lift_t = 0.0
+	launch_mask_begin(s)
+	var L := ShipLift.new()
+	L.k = 1.0
+	L.floor_y = float(s.feet)
+	L.rise = float(ShipLift.RISE_PX[s.weight])
+	L.exit_px = float(W) + ShipLift.EXIT_CLEAR - float(s.thing.position.x)
+	L.life = scene.life
+	L.sink = func(rows: int) -> void: s.retract = rows
+	L.shake_node = shake
+	L.shake_rest = shake.position
+	# (out under the ceiling lamps, in front of the banners: the hulls draw after them)
+	L.ceiling_y = 44.0
+	# the jets under the hulls, the smoke and its light over the hall, under the floor's fall
+	L.lamps = ShipLift.lamps_of(scene.light, float(W))
+	L.setup(s._view, self, get_children().find(sets.values()[0]), _fall)
+	# the hull flies with its berth (its click box goes with it, and nothing is clickable now)
+	var p0 := s.position
+	L.move_view = false
+	L.moved = func(o: Vector2) -> void:
+		s.position = p0 + o
+		launch_mask_at(Vector2i(o))
+		# off its stands: the floor lamps baked again with no shadow of it under them
+		if o.y <= -12.0 and not s.lifted:
+			s.lifted = true
+			YardFrontPools.bake(self)
+	lift = L
+	return L
+
+
+## The launching hull's pixels out of the ship map, kept to stamp back as it flies.
+func launch_mask_begin(s: YardStandSet) -> void:
+	_ship_map_img = Image.create_from_data(W, HALL_H, false, Image.FORMAT_RGBA8, ship_map())
+	_lm_rect = Rect2i(s.thing.position - Vector2i(2, 2), s.thing.size + Vector2i(4, 4)).intersection(
+		Rect2i(Vector2i.ZERO, _ship_map_img.get_size()))
+	_lm_base = _ship_map_img.duplicate() as Image
+	_lm_piece = Image.create(_lm_rect.size.x, _lm_rect.size.y, false, Image.FORMAT_RGBA8)
+	_lm_piece.fill(Color(0, 0, 0, 0))
+	for y in _lm_rect.size.y:
+		for x in _lm_rect.size.x:
+			var c := _ship_map_img.get_pixel(_lm_rect.position.x + x, _lm_rect.position.y + y)
+			if c.r8 == 255:
+				_lm_piece.set_pixel(x, y, c)
+				_lm_base.set_pixel(_lm_rect.position.x + x, _lm_rect.position.y + y, Color(0, 0, 0, 0))
+
+
+## The ship map with the launching hull `off` from its berth.
+func launch_mask_at(off: Vector2i) -> void:
+	if _lm_base == null or off == _lm_off:
+		return
+	_lm_off = off
+	var f := _lm_base.duplicate() as Image
+	f.blend_rect(_lm_piece, Rect2i(Vector2i.ZERO, _lm_piece.get_size()), _lm_rect.position + off)
+	_ship_tex.update(f)
 
 
 ## The berth the band ties its line to.
@@ -406,3 +490,4 @@ class Ghost extends Control:
 	func _draw() -> void:
 		if source != null and is_instance_valid(source):
 			source.draw_sharp(self, global_position)
+			YardInfo.follow(self, source)

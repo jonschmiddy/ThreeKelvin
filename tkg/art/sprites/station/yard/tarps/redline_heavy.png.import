@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dwikrjm5dgtqt"
-path="res://.godot/imported/tarp_medium.png-e59ce8d08707a57ec73fded88f4df9c9.ctex"
+uid="uid://bri32ycsy77om"
+path="res://.godot/imported/redline_heavy.png-07722a17fe1f7ec6750e02238ba18a02.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/sprites/station/yard/tarp_medium.png"
-dest_files=["res://.godot/imported/tarp_medium.png-e59ce8d08707a57ec73fded88f4df9c9.ctex"]
+source_file="res://art/sprites/station/yard/tarps/redline_heavy.png"
+dest_files=["res://.godot/imported/redline_heavy.png-07722a17fe1f7ec6750e02238ba18a02.ctex"]
 
 [params]
 
