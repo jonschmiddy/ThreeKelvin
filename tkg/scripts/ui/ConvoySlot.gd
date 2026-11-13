@@ -98,6 +98,9 @@ var _k := 1.0
 func _face_art() -> void:
 	if art == null:
 		return
+	# (at rest and unflipped, the hull is left alone: its own arrival moves it)
+	if not flipped and _move.is_empty() and is_equal_approx(_k, 1.0) and art.scale == Vector2.ONE:
+		return
 	art.pivot_offset = (art.size * 0.5).floor()
 	art.scale = Vector2(-_k if flipped else _k, _k)
 	if _move.is_empty():
