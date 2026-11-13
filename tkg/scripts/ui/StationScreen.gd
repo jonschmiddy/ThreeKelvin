@@ -334,15 +334,12 @@ func _yard_ships(h: HullData) -> void:
 		mine.add_child(mpts)
 		mpts.attach(mine)
 		mpts.passive()
-		# (on its stands: its engines out, no flame, no glow -- Jon, Nov 13)
-		mine.dark_idle = true
 		_mine_view = mine
 	if h != null:
 		var v := ShipView.new()
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.self_clip = false
 		v.setup_preview(h, 0, 1)
-		v.dark_idle = true
 		_scene_ship = v
 	# `Run.display_name`, NOT `hull.name`: a ship you have named flies as its name.
 	_scene.set_ships(_mine_view, Run.display_name().to_upper() if Run.hull != null else "",
@@ -2839,8 +2836,7 @@ func _yard_engines_out(hush: bool = false) -> void:
 		_mine_view.burn(false)
 		Audio.ship_thrust_off()
 	_mine_view.sputter_stop()
-	# (down on its stands: its engines out, as a berthed hull's are -- Jon, Nov 13:
-	# "the rear thrusters should be completely off")
+	# (down on its stands, its engines out, as every berthed hull's: Jon, Nov 13)
 	_mine_view.dark_idle = true
 	_mine_view.refresh()
 	if hush:

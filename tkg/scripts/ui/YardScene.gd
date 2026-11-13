@@ -293,6 +293,10 @@ func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: Str
 			v.queue_free()
 	_mine = mine
 	_sale = sale
+	# (on their stands, their engines out: no flame, no glow -- Jon, Nov 13)
+	for v: ShipView in [mine, sale]:
+		if v != null:
+			v.dark_idle = true
 	_mine_name = mine_name
 	_sale_name = sale_name
 	if light == null or lv.is_empty():
