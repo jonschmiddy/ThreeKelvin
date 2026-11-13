@@ -1,12 +1,10 @@
 extends Node
 
 ## What a frame of the front door (the banner shipyard) costs, windowed: at rest,
-## a ship picked (the held blur) and another pointed at. Manual, not in the gate.
-## `-- sheet=YardBench [secs=20] [states=rest,picked,hover] [ablate] [out=<json>]`
-## (state `steam`: a lift's steam held at full burn under the medium berth, its
-## fullest; the lift itself leaves the hall, so it is measured standing)
-## through `tools/dev/render.sh`. Vsync and the frame cap go off, so a frame lasts
-## as long as its work. `ablate` adds 5 s samples with one part switched off.
+## a ship picked, another pointed at, the lift's steam at full burn. Manual, not in
+## the gate. `-- sheet=YardBench [secs=20] [states=rest,picked,hover,steam] [ablate]`
+## through `tools/dev/render.sh`; vsync and the frame cap go off.
+## Why: docs/tests.md
 
 var _game_rid := RID()
 var _root_rid := RID()

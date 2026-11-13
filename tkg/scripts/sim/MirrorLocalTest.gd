@@ -1,10 +1,8 @@
 extends Node
 
-## LOCAL MOORED ON THE STATION'S RIGHT (Jon's (c), Nov 13) and the partners in it
-## (his co-op rules, Nov 13), on the station's LOCAL drawn both ways: what a click
-## lands on, where the partners sit and which way they face, that their names read,
-## and how they come and go -- out of the mouth, into it, or faded.
-## `-- sheet=MirrorLocalTest` (headless, `--fixed-fps 60`).
+## LOCAL at a station drawn both ways round, moored left and right, with partners
+## (Jon's (c) and co-op rules, Nov 13). `-- sheet=MirrorLocalTest` (headless,
+## `--fixed-fps 60`).
 ## Why: docs/why/MirrorLocalTest.md
 
 var h := Harness.new()
@@ -56,7 +54,7 @@ func _run() -> void:
 
 func _end() -> void:
 	ZoomLadder.force = -1
-	SectorScreen.mirrored_at = -1
+	Moored.at = -1
 	Net.roster.clear()
 	h.verdict("mirrorlocaltest")
 	_tree.quit(h.code())
@@ -64,7 +62,7 @@ func _end() -> void:
 
 ## LOCAL at the station, on its left (`right` false) or moored on its right.
 func _local(right: bool) -> SectorScreen:
-	SectorScreen.moor_right(_st if right else -1)
+	Moored.moor(_st if right else -1)
 	Router.show_local()
 	for i in 120:
 		await _tree.process_frame
@@ -246,15 +244,15 @@ func _falling(xs: Array[float]) -> bool:
 
 ## SAVED: moored right comes back from a save; a new run and a jump drop it.
 func _saved() -> void:
-	SectorScreen.moor_right(_st)
+	Moored.moor(_st)
 	var d: Dictionary = SaveGame._snapshot()
 	_ok("saved: the save writes where you are moored (%s)" % d.get("moored_right", "none"), int(d.get("moored_right", -9)) == _st)
-	SectorScreen.mirrored_at = -1
-	SectorScreen.moor_right(int(d.get("moored_right", -1)))
-	_ok("saved: and reads it back, moored right", SectorScreen.mirrored())
-	SectorScreen.moor_right(_st)
+	Moored.at = -1
+	Moored.moor(int(d.get("moored_right", -1)))
+	_ok("saved: and reads it back, moored right", Moored.here())
+	Moored.moor(_st)
 	Router._on_jumped(Run.at)
-	_ok("a jump leaves it behind", not SectorScreen.mirrored())
+	_ok("a jump leaves it behind", not Moored.here())
 
 
 ## CLICKS LAND WHERE THEY ARE DRAWN: your hull opens it up, the station's mouth is
@@ -303,7 +301,7 @@ func _clicks(right: bool) -> void:
 		await _tree.process_frame
 		if Router.current is SectorScreen and not ZoomLadder.busy():
 			break
-	_ok("%s: and UNDOCK moors it on the right" % side, SectorScreen.mirrored())
+	_ok("%s: and UNDOCK moors it on the right" % side, Moored.here())
 
 
 ## A click at a point of the game's view, pushed into the window over it.

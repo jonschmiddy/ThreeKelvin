@@ -1008,7 +1008,7 @@ func _hull_flies_out() -> void:
 	var screen_r := UiRect.of(lc2._view) if lc2 != null else Rect2()
 	_ok("3B UNDOCK: LOCAL mirrored -- the station on the left, your ship moored on its right facing right, its nose %.0f px clear of the edge (%s; ship %s; screen %s)" % [
 		screen_r.end.x - hull_r.end.x, face_r, hull_r, screen_r],
-		lc2 != null and lc2._view.mirrored and SectorScreen.mirrored() and ship_g.x.x > 0.0
+		lc2 != null and lc2._view.mirrored and Moored.here() and ship_g.x.x > 0.0
 			and face_r.get_center().x < hull_r.get_center().x and screen_r.end.x - hull_r.end.x >= 40.0)
 	_ok("3B UNDOCK: it goes left to right, nose first (on screen from x %.0f to %.0f)" % [
 		out_g[0] if not out_g.is_empty() else -1.0, out_g[-1] if not out_g.is_empty() else -1.0],
@@ -1053,7 +1053,7 @@ func _ship_global(art: ShipView) -> Rect2:
 func _redock_from_right() -> void:
 	var loc := Router.current as SectorScreen
 	var dock_b: Button = loc.find_child("Dock", true, false) as Button if loc != null else null
-	if not _ok("from the right: DOCK on LOCAL, moored on the station's right", dock_b != null and SectorScreen.mirrored()):
+	if not _ok("from the right: DOCK on LOCAL, moored on the station's right", dock_b != null and Moored.here()):
 		return
 	var art := loc._view.ship_view()
 	# (where it is put, not as drawn: the idle bob moves the drawing a pixel)
@@ -1081,7 +1081,7 @@ func _redock_from_right() -> void:
 	_clean("redock from the right")
 	Router.show_sector()
 	await _idle()
-	_ok("from the right: UNDOCK moors it on the right again", Router.current is SectorScreen and SectorScreen.mirrored()
+	_ok("from the right: UNDOCK moors it on the right again", Router.current is SectorScreen and Moored.here()
 		and (Router.current as SectorScreen)._view.mirrored)
 	_clean("undock after the redock")
 
@@ -1300,7 +1300,7 @@ func _every_side_once() -> void:
 		# (LOCAL built again, so its face is this side)
 		await _go("%s: to the map" % id, Router.show_system, SystemMapScreen)
 		# (flown in, as far as LOCAL knows: moored on the station's left, where a dock flies)
-		SectorScreen.mirrored_at = -1
+		Moored.at = -1
 		await _go("%s: to LOCAL at the station" % id, Router.show_local, SectorScreen)
 		var loc := Router.current as SectorScreen
 		if not _ok("%s: LOCAL draws it" % id, loc != null and loc._face != null and loc._face.side.id == id
@@ -2213,7 +2213,7 @@ func _run() -> void:
 			await _redock_from_right()
 			# (and back on the station's left, as a flight in leaves it, for the
 			# arrival and the docks from there)
-			SectorScreen.mirrored_at = -1
+			Moored.at = -1
 			await _go("LOCAL on the station's left again", Router.show_local, SectorScreen)
 			# LOCAL'S OWN ARRIVAL, THE STATION'S WAKE AND ITS SOUND (Jon, Oct 21,
 			# "station:BC")
@@ -2277,7 +2277,7 @@ func _run() -> void:
 			await _idle()
 			# (flown back to the station's left, as far as LOCAL knows: the flight in;
 			# from its right, `_redock_from_right`)
-			SectorScreen.mirrored_at = -1
+			Moored.at = -1
 			await _go("the map from LOCAL beside the station", Router.show_system, SystemMapScreen)
 			Router.show_station()
 			Audio.taping = true

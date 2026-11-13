@@ -298,7 +298,7 @@ func _on_run_started() -> void:
 	docked = false
 	# Parked ship spots are kept by system index, so a new run must not inherit them.
 	SystemMapScreen._parked.clear()
-	SectorScreen.mirrored_at = -1
+	Moored.at = -1
 	# Same for the event last opened on LOCAL, also kept by system index.
 	LocalEventDrawer.last = []
 	# (and where the map flew it, which LOCAL arrived at and which station is
@@ -457,7 +457,7 @@ func show_sector() -> void:
 	if docked and current is StationScreen and ZoomLadder.chosen():
 		# (LOCAL comes up mirrored, your ship moored on the station's right: built
 		# ahead at this click)
-		SectorScreen.moor_right(Run.at)
+		Moored.moor(Run.at)
 		show_local()
 		return
 	if in_combat() or fight_up() or _post_depart >= 0:
@@ -833,7 +833,7 @@ func _on_jumped(_index: int) -> void:
 	# A jump arrives at the edge, so an ambush leaves wrecks there, not at a fought world.
 	# Why: docs/why/Router.md#jump-arrival
 	SystemMapScreen._parked.erase(_index)
-	SectorScreen.mirrored_at = -1
+	Moored.at = -1
 	# The event last opened on LOCAL is dropped with the place it stood at.
 	LocalEventDrawer.last = []
 	# (a jump in is not a flight on the map, and the station it finds is asleep:
@@ -967,7 +967,7 @@ func show_station() -> void:
 		ZoomLadder.chain = &"station"
 		# (moored on the station's right: LOCAL with your ship where it is, then the
 		# dock from there, black and the landing)
-		if SectorScreen.mirrored():
+		if Moored.here():
 			show_local()
 			return
 		# (LOCAL built with your ship off it: the dock's arrival brings it)
@@ -975,7 +975,7 @@ func show_station() -> void:
 		show_local()
 		return
 	# (from the station's right there is no flight in: black, then the landing)
-	if not docked and current is SectorScreen and SectorScreen.mirrored():
+	if not docked and current is SectorScreen and Moored.here():
 		ZoomLadder.dock_fade_only = true
 	if not (dock != null and is_instance_valid(dock)) and ZoomLadder.preroll(ZoomLadder.STATION, show_station):
 		return

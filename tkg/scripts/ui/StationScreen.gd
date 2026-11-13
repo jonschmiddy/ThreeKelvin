@@ -133,7 +133,7 @@ const DECK_H := 44
 
 func _build() -> void:
 	# The yard's hall runs on into the elevator's column while the elevator is away.
-	_edge = _YardEdge.new()
+	_edge = YardEdge.new()
 	_edge.screen = self
 	add_child(_edge)
 	# One outer margin, or the header runs to x=0 and 960 and UNDOCK is sliced by the window.
@@ -169,11 +169,6 @@ func _build() -> void:
 	rail.add_theme_constant_override("separation", 3)
 	rail.custom_minimum_size = Vector2(RAIL_W, 0)
 	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# Sliding away, the elevator keeps the screen's dark behind its header and gaps:
-	# the hall run on into its column showed through them, the title afloat on it.
-	rail.draw.connect(func() -> void:
-		if _edge != null and _edge._on:
-			rail.draw_rect(Rect2(Vector2.ZERO, rail.size), UITheme.VOID))
 
 	# Station facts head the rail one to a line now that the banners hang in the rooms.
 	# Why: docs/why/StationScreen.md#rail-particulars
@@ -2643,7 +2638,7 @@ func _on_mine_input(e: InputEvent) -> void:
 	open_cutaway()
 
 
-var _edge: _YardEdge = null
+var _edge: YardEdge = null
 ## how long the elevator takes to slide back in once your hull is down: a dial,
 ## `ZoomLadder.ELEVATOR_S`
 ## undocking: how long the elevator takes to go, before your ship lifts off (s)
@@ -2661,64 +2656,6 @@ func ladder_track_speed(dur: float) -> float:
 	if _lad.is_empty():
 		return 0.0
 	return YARD_M * float(_lad.off) / maxf(dur, 0.001)
-class _YardEdge extends Node:
-	var screen: StationScreen
-
-	## Whether the ladder is panning this screen in or out right now.
-	func _panning() -> bool:
-		return ZoomLadder.busy() and ZoomLadder.active._pan_view != null \
-			and is_instance_valid(ZoomLadder.active._pan_view) and ZoomLadder.active._pan_view.visible
-	var _rest_x := NAN
-	var _on := false
-	var _clipped: Array = []
-
-	func _process(_d: float) -> void:
-		var r := screen._rail if screen != null else null
-		var sc: YardScene = screen._scene if screen != null else null
-		if r == null or not is_instance_valid(r) or sc == null or not is_instance_valid(sc):
-			return
-		# (the elevator's own place: the ladder's note of it, or learned while it
-		# stands in it)
-		if not screen._lad.is_empty() and not is_nan(float(screen._lad.get("rail_x", NAN))):
-			_rest_x = float(screen._lad.rail_x)
-		elif (screen._lad_tw == null or not screen._lad_tw.is_valid()) and screen._rail_slide == null \
-				and (screen._cutaway == null or not is_instance_valid(screen._cutaway)):
-			_rest_x = r.position.x
-		# (not while the cutaway has the yard zoomed: the hall is not where it was)
-		var away := not is_nan(_rest_x) and r.position.x < _rest_x - 0.5 \
-			and (screen._cutaway == null or not is_instance_valid(screen._cutaway))
-		# The elevator fully away is not drawn, so the pan and flight never show it through.
-		var gone := away and r.position.x <= _rest_x - r.size.x + 0.5
-		# (and through the whole flight in, wherever its row puts it back for a
-		# frame while the screen is laid out)
-		if not screen._lad.is_empty() and not bool(screen._lad.get("out", false)):
-			gone = true
-		# (by its alpha, not `visible`: hidden, the row it stands in would close up)
-		r.modulate.a = 0.0 if gone else screen._rail_a * screen._lab_rail_a
-		r.z_index = 2 if screen._lab_lift else (1 if away and not gone and not _panning() else 0)
-		if away == _on:
-			return
-		_on = away
-		r.queue_redraw()
-		# The yard's hall runs on into the elevator's
-		# column, under the ships, with the elevator over it.
-		sc.set_edge(away)
-		# (every box between the yard and this screen that would clip it)
-		if away:
-			_clipped = []
-			var c: Node = sc
-			while c != null and c != screen:
-				if c is Control and (c as Control).clip_contents:
-					_clipped.append(c)
-					(c as Control).clip_contents = false
-				c = c.get_parent()
-		else:
-			for c in _clipped:
-				if is_instance_valid(c):
-					(c as Control).clip_contents = true
-			_clipped = []
-
-
 # ------------------------------------------------------------ the zoom ladder
 # The station is the closest of four distances: the camera stays, its picture and your ship move.
 func ladder_ready() -> bool:
@@ -2774,7 +2711,7 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 	var past := YardScene.EDGE_W + 8.0 if design == "B" else 0.0
 	_lad = {"pos": _mine_view.position, "rail_x": rail_x, "out": going,
 		"off": _mine_view.position.x + float(_mine_view.size.x) + 24.0 + past, "design": design}
-	# (docking: the elevator unseen from the first frame -- `_YardEdge` keeps it so)
+	# (docking: the elevator unseen from the first frame -- `YardEdge` keeps it so)
 	if not going and _rail != null and is_instance_valid(_rail):
 		_rail.modulate.a = 0.0
 	if _scene != null:
@@ -3012,7 +2949,7 @@ func _rail_in() -> void:
 	ground.panel_rect = Rect2(panel.position - g.position, panel.size)
 	back.add_child(ground)
 	# (under the elevator, over the yard: the elevator is lifted while it is
-	# away, `_YardEdge`, and this before it in the tree at the same height)
+	# away, `YardEdge`, and this before it in the tree at the same height)
 	back.z_index = 1
 	add_child(back)
 	move_child(back, 0)
@@ -3081,7 +3018,7 @@ func _rail_land_now() -> void:
 	_rail_back = null
 	_rail_block = null
 	# (the yard's hall out of the column on the same frame the elevator stands
-	# in it, not the next, when `_YardEdge` would see it there)
+	# in it, not the next, when `YardEdge` would see it there)
 	if was and _edge != null and is_instance_valid(_edge):
 		_edge._process(0.0)
 
@@ -3110,40 +3047,9 @@ var _heavy: ShipLift = null
 
 
 func _deck_lift() -> ShipLift:
-	if _heavy != null:
-		return _heavy
-	if _scene == null or not is_instance_valid(_scene) or _scene.placed.is_empty() or (_scene.placed[0] as Dictionary).is_empty():
-		return null
-	var Q: Dictionary = _scene.placed[0]
-	var L := ShipLift.new()
-	L.k = DECK_LIFT_K
-	L.floor_y = float(Q["floor"])
-	L.rise = float(ShipLift.RISE_PX.get(Run.hull.weight if Run.hull != null else HullData.Weight.MEDIUM, 46.0)) * DECK_LIFT_K
-	L.exit_px = float(YardScene.W) + ShipLift.EXIT_CLEAR - float(Q["x0"])
-	L.in_px = float(_lad.get("off", 300.0))
-	# in high, its top 100 rows down the hall: under the ceiling's lamp boxes, well
-	# clear of the stands, a long drop to them (Jon, Nov 12: "far too low", "higher up")
-	L.approach_px = clampf(float(Q["top"]) - LAND_TOP_Y, 40.0, 160.0)
-	L.life = _scene.life
-	L.shiver_hull = true
-	L.plume_k = 0.8
-	# (out under the ceiling's lamp boxes, within the hall)
-	L.ceiling_y = 64.0
-	var sc := _scene
-	L.sink = func(rows: int) -> void: sc.sink_mine = rows
-	var v := _mine_view
-	var p0: Vector2 = _lad.pos
-	v.position = p0
-	L.lamps = ShipLift.lamps_of(_scene.light, float(YardScene.W))
-	L.setup(v, _scene, _scene._ships.get_index())
-	_heavy = L
-	return L
-
-
-## How high the landing comes in and hovers: the hull's top on this row.
-const LAND_TOP_Y := 100.0
-## The deck's hulls stand this much smaller than the front door's front row.
-const DECK_LIFT_K := 0.75
+	if _heavy == null and _scene != null and is_instance_valid(_scene) and not _scene.placed.is_empty() 			and not (_scene.placed[0] as Dictionary).is_empty():
+		_heavy = ShipLift.on_deck(_scene, _mine_view, _lad.pos, float(_lad.get("off", 300.0)))
+	return _heavy
 
 
 ## The berth's UI leaves before the camera moves; the

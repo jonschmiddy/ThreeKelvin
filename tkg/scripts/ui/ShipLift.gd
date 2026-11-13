@@ -89,6 +89,37 @@ var shiver_hull := false
 var plume_k := 1.0
 
 
+## THE HEAVY LIFT on the Shipyard deck, made with your hull at rest at `at` on the
+## scene's first berth: smaller than the front door's, the hull shivering rather than
+## the yard (the camera holds still there), in from `in_px` to land.
+## Why: docs/why/ShipLift.md#deck
+static func on_deck(sc: YardScene, v: ShipView, at: Vector2, in_px: float) -> ShipLift:
+	var Q: Dictionary = sc.placed[0]
+	var L := ShipLift.new()
+	L.k = DECK_K
+	L.floor_y = float(Q["floor"])
+	L.rise = float(RISE_PX.get(Run.hull.weight if Run.hull != null else HullData.Weight.MEDIUM, 46.0)) * DECK_K
+	L.exit_px = float(YardScene.W) + EXIT_CLEAR - float(Q["x0"])
+	L.in_px = in_px
+	# in high, its top under the ceiling's lamp boxes, a long drop to the stands
+	L.approach_px = clampf(float(Q["top"]) - DECK_LAND_TOP_Y, 40.0, 160.0)
+	L.life = sc.life
+	L.shiver_hull = true
+	L.plume_k = 0.8
+	L.ceiling_y = 64.0
+	L.sink = func(rows: int) -> void: sc.sink_mine = rows
+	v.position = at
+	L.lamps = lamps_of(sc.light, float(YardScene.W))
+	L.setup(v, sc, sc._ships.get_index())
+	return L
+
+
+## The deck's hulls stand this much smaller than the front door's front row, and its
+## landing comes in and hovers with the hull's top on this row.
+const DECK_K := 0.75
+const DECK_LAND_TOP_Y := 100.0
+
+
 ## Off the picture by here, and the front door's whole lift.
 static func exit_s() -> float:
 	return MAINS_ON + BURN_S

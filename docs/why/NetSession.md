@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/net/NetSession.gd`, moved out of the code verb
 
 ## Session design
 
-Above `const PROTOCOL: int = 19`:
+Above `const PROTOCOL: int = 20`:
 
 ```text
 The party: who is in it, whether their builds agree, and what galaxy they
@@ -173,6 +173,9 @@ This is cheap to raise and very expensive to have forgotten.
    Hellbender at all (`RunState.HELLBENDER_ASCENSION`, Jon, Nov 8). A
    version 18 partner would call `_begin_dive` one argument short and roll
    a run at level 0 beside a host whose chart carries the rival.
+20: a presence carries `docked`, so partners at a station take a docked ship
+   off LOCAL and show it dock and undock (docs/why/SectorScreen.md#partners).
+   A 19 build sends none, and its docked ship would stand out on LOCAL.
 ```
 
 ## Take timeout

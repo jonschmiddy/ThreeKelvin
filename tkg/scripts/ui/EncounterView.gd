@@ -50,7 +50,7 @@ var dust: LocalDust
 var fx: CombatFx
 ## the place the sky was last set to
 var _place: MapGen.MapNode = null
-## MOORED ON THE STATION'S RIGHT (`SectorScreen.mirrored`): the whole scene drawn
+## MOORED ON THE STATION'S RIGHT (`Moored`): the whole scene drawn
 ## mirrored, the station on the left; your hull, the partners' hulls and their
 ## names flipped back so they face right and read; the sky not mirrored at all.
 ## Set before the view enters the tree.

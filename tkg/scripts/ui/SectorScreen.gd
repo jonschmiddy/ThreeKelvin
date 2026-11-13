@@ -142,25 +142,6 @@ var _overlay_body: Label
 ## Keeps the ship off LOCAL until the dock's arrival brings it in (Jon, Oct 20).
 ## Why: docs/why/SectorScreen.md#dock-arrival
 static var dock_hidden := false
-## MOORED ON THE STATION'S RIGHT (Jon's (c), Nov 13): after an undock, LOCAL at that
-## station is drawn mirrored -- the station on the left, your ship moored on its
-## right, facing right -- so the undock leaves nose first to the right, as the yard
-## did. The station's node, or -1; saved (`SaveGame`), dropped by a jump or a new
-## run. It holds for the visit it was set in (`_visit`): flown to again on the map,
-## the ship arrives as any ship does, on the station's left.
-## Why: docs/why/SectorScreen.md#mirrored
-static var mirrored_at := -1
-static var _mirror_visit := -2
-
-
-static func mirrored() -> bool:
-	return mirrored_at >= 0 and mirrored_at == Run.at and _mirror_visit == _visit(Run.node_at())
-
-
-## Moored on the right of the station at `node` (an undock there, or a save loaded), or -1.
-static func moor_right(node: int) -> void:
-	mirrored_at = node
-	_mirror_visit = _visit(Run.map[node]) if node >= 0 and node < Run.map.size() else -2
 var _dock_hidden := false
 
 
@@ -725,7 +706,7 @@ func _build() -> void:
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# (moored on the station's right: the scene mirrored, set before it is built)
 	var n0: MapGen.MapNode = Run.node_at()
-	_view.mirrored = mirrored() and n0 != null and n0.type == MapGen.NodeType.STATION and Router.at_station(n0)
+	_view.mirrored = Moored.here() and n0 != null and n0.type == MapGen.NodeType.STATION and Router.at_station(n0)
 	_view.mouth_g = func() -> Vector2:
 		return _face.mouth_g() if _face != null and is_instance_valid(_face) else Vector2.INF
 	stack.add_child(_view)
@@ -2082,22 +2063,7 @@ func _hook_cutaway() -> void:
 	slot.gui_input.connect(_on_own_ship_input)
 	slot.mouse_exited.connect(func() -> void:
 		_ship_outline.visible = false
-		_cursor(slot, Control.CURSOR_ARROW))
-
-
-## The pointer over your hull, set only when it changes. Under LOCAL drawn mirrored the
-## engine checks a changed cursor against the control's global rect, which a flip turns
-## upside down ("Rect2 size is negative"): the view is unflipped for that one set, in
-## the same frame, so nothing is drawn so.
-func _cursor(c: Control, shape: Control.CursorShape) -> void:
-	if c.mouse_default_cursor_shape == shape:
-		return
-	var flip := _view != null and _view.scale.x < 0.0
-	if flip:
-		_view.scale.x = -_view.scale.x
-	c.mouse_default_cursor_shape = shape
-	if flip:
-		_view.scale.x = -_view.scale.x
+		Moored.cursor(_view, slot, Control.CURSOR_ARROW))
 
 
 ## An arrival is starting: whatever the pointer is resting on when the ship
@@ -2128,7 +2094,7 @@ func _on_own_ship_input(e: InputEvent) -> void:
 		# An unpressable ship shows no outline, and a click makes the dead-button thud.
 		# Why: docs/why/SectorScreen.md#ship-hover
 		_ship_outline.visible = false
-		_cursor(slot, Control.CURSOR_ARROW)
+		Moored.cursor(_view, slot, Control.CURSOR_ARROW)
 		var press := e as InputEventMouseButton
 		if press != null and press.pressed and press.button_index == MOUSE_BUTTON_LEFT 				and _aim_view == null and CutawayView.on_hull(art, at):
 			denied_clicks += 1
@@ -2138,7 +2104,7 @@ func _on_own_ship_input(e: InputEvent) -> void:
 	if on != _ship_outline.visible:
 		_ship_outline.visible = on
 		_ship_outline.queue_redraw()
-	_cursor(slot, Control.CURSOR_POINTING_HAND if on else Control.CURSOR_ARROW)
+	Moored.cursor(_view, slot, Control.CURSOR_POINTING_HAND if on else Control.CURSOR_ARROW)
 	var mb := e as InputEventMouseButton
 	if on and mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		slot.accept_event()
@@ -2465,10 +2431,7 @@ func ladder_cam(k: float) -> void:
 			# Why: docs/why/SectorScreen.md#docking
 			beat = &"enter"
 			ue = u
-			hall_fly = hold + (1.0 - hold) * ue * ue
-			# (from the station's right: no move in at all, the camera where it was)
-			if ZoomLadder.dock_fade_only:
-				hall_fly = hold
+			hall_fly = hold if ZoomLadder.dock_fade_only else hold + (1.0 - hold) * ue * ue
 		hall["beat"] = beat
 		hall["step"] = step
 		hall["t"] = t
@@ -2477,10 +2440,7 @@ func ladder_cam(k: float) -> void:
 		# off it: no cut of its own)
 		if bool(hall.get("hidden", false)):
 			blk = 0.0
-		# (a dock from the station's right: black from the CUT on, no flight in)
-		if ZoomLadder.dock_fade_only and step >= 1:
-			blk = 1.0
-		hall["black"] = clampf(blk, 0.0, 1.0)
+		hall["black"] = 1.0 if ZoomLadder.dock_fade_only and step >= 1 else clampf(blk, 0.0, 1.0)
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue
 	elif not hall.is_empty():
@@ -2489,13 +2449,7 @@ func ladder_cam(k: float) -> void:
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
-		hall["t"] = (1.0 - hk) * ZoomLadder.DOCK_ENTER_S
-		# NOSE FIRST OUT OF THE MOUTH to the mooring on the station's right (Jon's (c),
-		# Nov 13): a slow pull-away, the burn, and the last of it eased into place.
-		# (`hk` runs 1 to 0 undocking, berth to mooring: `u` is how far out it is)
-		var u_out := 1.0 - hk
-		hall["u_out"] = u_out
-		hall_fly = 1.0 - smoothstep(0.0, 1.0, pow(u_out, 1.5))
+		hall_fly = Moored.undock_fly(hall, hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -2580,10 +2534,7 @@ func ladder_cam(k: float) -> void:
 			var step := int(hall.get("step", 0))
 			# (and on, a frame past the ARRIVE if need be, to its own end: it
 			# runs from the frame it was called on)
-			if docking and ZoomLadder.dock_fade_only:
-				# (from the station's right: it stays where it is, LOCAL goes to black)
-				art.position = p0
-				art.visible = step == 0
+			if docking and ZoomLadder.dock_fade_only: Moored.hold(art, p0, step)
 			elif docking and (step <= 1 or (step <= 3 and art.arrive_driven)):
 				_dock_arrival(art, hall, p0)
 			else:
@@ -2594,7 +2545,7 @@ func ladder_cam(k: float) -> void:
 			if docking:
 				_dock_burn(art, hall, step == 4 and float(hall.get("t", 0.0)) < ZoomLadder.dock_approach_s() - ladder_dip_s())
 			else:
-				_undock_out(art, hall)
+				Moored.undock_engines(self, art, hall)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
@@ -2697,34 +2648,6 @@ func _dock_burn(art: ShipView, hall: Dictionary, on: bool) -> void:
 		Audio.ship_thrust_off()
 
 
-## Undocking, nose first: idle through the pull-away, the burn from `UNDOCK_BURN`
-## of the way out, then the flameout's coughs, timed to be over `UNDOCK_COAST_S`
-## before it is in its mooring. The dock's burn level and flameouts, so it is heard
-## as the dock is.
-## Why: docs/why/SectorScreen.md#mirrored
-const UNDOCK_BURN := 0.25
-
-
-func _undock_out(art: ShipView, hall: Dictionary) -> void:
-	var u := float(hall.get("u_out", 0.0))
-	var row := int(hall.get("row", 0))
-	var cough_u := clampf(1.0 - (UNDOCK_COAST_S + ShipView.sputter_s(row)) / ZoomLadder.DOCK_ENTER_S, UNDOCK_BURN + 0.1, 0.95)
-	_dock_burn(art, hall, u >= UNDOCK_BURN and u < cough_u)
-	if u < cough_u:
-		return
-	var tc := (u - cough_u) * ZoomLadder.DOCK_ENTER_S
-	if not hall.has("cough_clip"):
-		hall["cough_clip"] = art.sputter(row)
-		hall["cough_at"] = 0.0
-		if not (ZoomLadder.active != null and ZoomLadder.active._cut):
-			Audio.play(hall.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(DOCK_BURN_LEVEL), 1.0,
-				ShipView.sputter_from_s(row) + tc)
-	art.sputter_step(tc)
-
-
-## Undocking: the last of the way to the mooring coasted at the idle, s, after
-## the flameout's last cough (`_undock_out`).
-const UNDOCK_COAST_S := 0.4
 ## Dock timing: lights on by `WAKE_POWER_BY`, warning lights green at `WARN_CLEAR`.
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86

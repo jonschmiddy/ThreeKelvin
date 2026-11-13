@@ -14,6 +14,8 @@ The light is drawn as light (the memory "draw light as light"): the jets' floor 
 
 ## Plume
 
+The knobs (`LiftPlume.WEIGHTS`): puffs a second, their size, the layers' alpha (far, mid, near), the ragged edge's share of it, the jets' push down and how fast it dies, the bank's roll-out and how fast it slows, how much longer it lingers, how much it lifts, the curl's size, the floor shadow, the darker undersides, the contrast, the warmth, and once the jets cut how long it takes to go, whether it lifts or settles as it goes, and how fast it spreads.
+
 The steam is Jon's "AB-23" (Nov 12), picked from a grid of stills: the amount halfway between light and medium, the tone halfway between grey steam and warm exhaust. It replaced P1's single rolling cloud and the three smoke trials (S1 darker, S2 with grit, S3 a low mist), which are gone.
 
 Each puff is a lobe, a sphere lit from above: a lit top, a shaded underside, the floor's warm light bounced into its base, and a crease where it rolls over steam already there. Five tones with an ordered dither between them, a dense core and a ragged see-through edge. Lobes come in three depths. The far and middle ones are drawn under the hull (`back_layer`) and the near ones over it, so the steam sits partly behind the hull and partly in front of it. A third pass of the same lobes drops a soft shadow on the floor. The hall's lamps (`ShipLift.lamps_of`) brighten the tops under them.

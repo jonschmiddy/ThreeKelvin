@@ -10,8 +10,8 @@ signal pressed
 signal hovered(on: bool)
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## Each locked maker's own tarp (Jon, Nov 12), drawn over the Korvan hulls: one canvas
-## per weight for every maker, its left edge from the hull's, and the row inside it
+## Each locked manufacturer's own tarp (Jon, Nov 12), drawn over the Korvan hulls: one canvas
+## per weight for every manufacturer, its left edge from the hull's, and the row inside it
 ## that lies on the hull's belly row.
 const TARP_DIR := "tarps/%s_%s.png"
 const TARP_WEIGHT := {HullData.Weight.LIGHT: "light", HullData.Weight.MEDIUM: "medium", HullData.Weight.HEAVY: "heavy"}
@@ -57,7 +57,7 @@ func _init() -> void:
 
 ## Stand `hull` here, or the weight's tarp when `hull` is null (the tarp sits
 ## where Korvan's hull would, which the tarps were cut for).
-func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, maker: StringName = &"solari") -> void:
+func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, manufacturer: StringName = &"solari") -> void:
 	scene = sc
 	weight = w
 	tarped = hull == null
@@ -90,7 +90,7 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, m
 	else:
 		probe.free()
 		_tarp = Tarp.new()
-		_tarp.setup(scene.tex(tarp_file(maker, w)), float(TARP_DELAY[w]), float(TARP_SEED[w]))
+		_tarp.setup(scene.tex(tarp_file(manufacturer, w)), float(TARP_DELAY[w]), float(TARP_SEED[w]))
 		var a: Vector2i = TARP_ANCHOR[w]
 		var at := Vector2i(_x0 - a.x, _belly - a.y)
 		_tarp.position = Vector2(at.x - 4, at.y - TARP_LIFT) - position
@@ -106,9 +106,9 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData, m
 				(c as Control).position.y += grow
 
 
-## The maker's tarp for this weight (a maker with none of its own wears Solari's).
-static func tarp_file(maker: StringName, w: HullData.Weight) -> String:
-	var f := TARP_DIR % [String(maker), String(TARP_WEIGHT[w])]
+## The manufacturer's tarp for this weight (one with none of its own wears Solari's).
+static func tarp_file(manufacturer: StringName, w: HullData.Weight) -> String:
+	var f := TARP_DIR % [String(manufacturer), String(TARP_WEIGHT[w])]
 	return f if ResourceLoader.exists(YardScene.DIR + f) else TARP_DIR % ["solari", String(TARP_WEIGHT[w])]
 
 

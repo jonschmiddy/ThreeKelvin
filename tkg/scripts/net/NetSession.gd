@@ -7,7 +7,7 @@ extends Node
 ## Bump on any change to the messages or the meaning of their fields.
 ## Cheap to raise, very expensive to forget: a mismatch is refused at the door.
 ## Why: docs/why/NetSession.md#protocol-versions
-const PROTOCOL: int = 19
+const PROTOCOL: int = 20
 
 ## Generous: giving up early costs a wreck, assuming costs the party's economy.
 ## Why: docs/why/NetSession.md#take-timeout

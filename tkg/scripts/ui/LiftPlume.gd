@@ -2,22 +2,16 @@ class_name LiftPlume
 extends Control
 
 ## THE STEAM a hull throws up as it lifts off or sets down (Jon's "AB-23", Nov 12):
-## sculpted lobes in three layers of depth, every lift its own. All of it leaves the
-## hull's jets: down to the floor in streams, pooled there, rolled out to both sides.
-## The host (`ShipLift`) moves it with the hull, lays `back_layer` under the hull, and
-## sets `thrust`; once the jets cut, it clears.
+## lobes in three layers of depth from the hull's jets, down, pooled, rolled out. The
+## host (`ShipLift`) moves it with the hull, lays `back_layer` under it, sets `thrust`.
 ## Why: docs/why/ShipLift.md#plume
 
 ## The shape changes ten times a second (the steam's own clock), the lobes move every frame.
 const HZ := 10.0
 const MAX_LOBES := 96
 ## HOW HEAVY (Jon, Nov 13: "more smoke and it needs to be heavier"), as `weight`:
-## 0 AB-23 as first built, 1 heavy, 2 heavier. Puffs a second, their size, the
-## layers' alpha (far, mid, near), the ragged edge's share of it, the jets' push
-## down and how fast it dies, the bank's roll out and how fast it slows, how much
-## longer it lingers, how much it lifts, the curl's size, the floor shadow, the
-## darker undersides; and once the jets cut, how long it takes to go (s), whether
-## it lifts (+) or settles (-) as it goes, and how fast it spreads (px/s).
+## 0 AB-23 as first built, 1 heavy, 2 heavier (the default). Each knob is
+## described in docs/why/ShipLift.md#plume.
 const WEIGHTS := [
 	{"rate": 28.0, "size": 1.0, "alpha": [0.42, 0.8, 0.94], "edge": 0.5, "fall": 1.0, "fall_drag": 1.0,
 		"out": 1.0, "roll_drag": 1.3, "linger": 0.0, "lift": 1.0, "curl": 1.0, "shadow": 0.34, "under": 0.0,
@@ -92,10 +86,8 @@ var _nfront := 0
 ## each lobe on by the velocity it was packed with (`tdt`).
 var _packed_tick := -1.0
 var _packed_t := 0.0
-## THE BANK GOES AS ONE (Jon, Nov 13: "it should also dissipate together"): once the
-## jets cut, every puff thins on one shared fade from `_fade_t0` over `_fade_s`.
+## When the jets cut (-1 till then): nothing new after it, each puff on its own timer.
 var _fade_t0 := -1.0
-var _fade_s := 2.0
 ## LIFTING (`ShipLift.lift_at`): the floor gets steam only while the jets are near
 ## enough to reach it -- from the belly's height at rest (`rest_gap`, px over the
 ## floor) up by the hull's own height, thinning all the way (Jon, Nov 13: "some that
@@ -114,8 +106,24 @@ const LIGHT_REACH := 75.0
 const REACH_HULLS := 2.5
 ## A trail's puffs: this much bigger than the bank's and this flat, so they run together.
 const TRAIL_R := 1.9
-## A takeoff's shared fade, s: within `ShipLift.HOLD_S` of the exit.
-const TAKEOFF_FADE_S := 0.8
+## EACH PUFF ON ITS OWN TIMER (Jon, Nov 13: "a puff is generated... and then it goes
+## away on its own timer"): its life from birth, s, a takeoff's and a landing's; once
+## the jets cut, what is left of any is cut to at most this, s (oldest go first).
+const LIFE_TAKEOFF := Vector2(1.5, 3.0)
+const LIFE_LANDING := Vector2(2.5, 4.0)
+const LEFT_TAKEOFF := Vector2(0.4, 1.0)
+const LEFT_LANDING := Vector2(1.0, 2.0)
+## Its own life from birth (kept while it falls, its own once it is on the floor).
+func _span() -> float:
+	var s: Vector2 = LIFE_TAKEOFF if reach_gate else LIFE_LANDING
+	return _rng.randf_range(s.x, s.y)
+
+
+## A falling puff that has not reached the floor by this age thins out in the air.
+const FALL_LIFE := 1.1
+## A puff further than this many radii from its neighbours along the floor is alone,
+## and goes soon.
+const ALONE_R := 2.4
 ## Px of floor the hull crosses that earn one more rest-rate's worth of steam.
 const TRAIL_STEP := 70.0
 const TRAIL_FLAT := 0.45
@@ -240,8 +248,8 @@ func touchdown() -> void:
 
 ## The floor and stands it lights this tick, as the yard's small lights
 ## (`YardLight.dyn`: x, y, radius x, y, strength, colour, beat).
-func lights() -> Array:
-	var out: Array = []
+func lights() -> Array[Array]:
+	var out: Array[Array] = []
 	var k := _lk
 	if _fired < 0.0 or k <= 0.02:
 		return out
@@ -304,21 +312,19 @@ func _process(dt: float) -> void:
 			m.set_shader_parameter(&"main_k", _mk)
 			m.set_shader_parameter(&"light_reach", LIGHT_REACH * size_k)
 	if _smat != null:
-		_smat.set_shader_parameter(&"fade_all", clampf(1.0 - (_t - _fade_t0) / _fade_s, 0.0, 1.0) if _fade_t0 >= 0.0 else 1.0)
+		_smat.set_shader_parameter(&"fade_all", 1.0)
 
 
 ## THE JETS CUT: no more steam, and what is there thins, lifts and is gone within
 ## `CLEAR_S` (its alpha steps down through the dither, so nothing pops out).
 func _clear() -> void:
 	_clearing = true
-	var c: Vector2 = _w.clear
 	_fade_t0 = _t
-	# (a takeoff's goes faster, done by the front door's cut to LOCAL; the landing's
-	# slower one Jon called perfect -- Nov 13)
-	_fade_s = TAKEOFF_FADE_S if reach_gate else _rng.randf_range(c.x, c.y)
+	var left: Vector2 = LEFT_TAKEOFF if reach_gate else LEFT_LANDING
 	for l: Dictionary in _lobes:
-		# (every puff kept to the end of the shared fade: none goes early on its own)
-		l.life = float(l.age) + _fade_s + 0.05
+		# (each on its own timer still, but none outlasts the cut by more than `left`:
+		# the oldest go first, the takeoff's within a second, the landing's two)
+		l.life = minf(float(l.life), float(l.age) + _rng.randf_range(left.x, left.y))
 		l.c0 = float(l.age)
 		# (the floor layer fades where it lies; a billow still hot lifts a little as it goes)
 		if not bool(l.hug):
@@ -335,7 +341,7 @@ func _add(at: Vector2, v: Vector2, r: float, layer: int, warm: float, life: floa
 		_nback += 1
 	else:
 		_nfront += 1
-	_lobes.append({"p": at, "d": at, "v": v, "dv": v, "clump": -1, "hug": false, "trail": false, "c0": -1.0, "r": r * size_k * float(_w.size), "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
+	_lobes.append({"p": at, "d": at, "v": v, "dv": v, "clump": -1, "hug": false, "trail": false, "span": _span(), "c0": -1.0, "r": r * size_k * float(_w.size), "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
 		"warm": warm, "life": life, "age": 0.0, "buoy": _rng.randf_range(3, 7) * size_k * float(_w.lift), "seed": _rng.randf(),
 		"k": clampf(0.4 + 0.6 * strength, 0.0, 1.0), "roll": false, "rolled": 0.0, "side": 1.0, "R": 0.0, "phi": 0.0, "w": 0.0})
 
@@ -357,7 +363,8 @@ func _spawn() -> void:
 	var layer := 0 if q < 0.3 else (1 if q < 0.7 else 2)
 	# (carried along with the hull: its velocity, which fades as the puff falls)
 	_add(Vector2(j.x, j.y + 2.0), _ship_v + Vector2(_rng.randf_range(-8, 8) * size_k, _rng.randf_range(230, 300) * size_k * float(_w.fall)),
-		_rng.randf_range(7, 10), layer, 0.9, _rng.randf_range(0.8, 1.1))
+		_rng.randf_range(7, 10), layer, 0.9, FALL_LIFE)
+
 
 
 ## Falling: the jet's push dies off as it goes. On the floor it turns into the bank:
@@ -469,7 +476,7 @@ func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
 	l.p = Vector2(at.x, floor_y - rr - 0.4 * float(l.r))
 	# (and shifted the way the hull was going, by what of its push is left)
 	l.v = Vector2(side * out * s + 0.6 * (l.v as Vector2).x, 0.0)
-	l.life = float(l.age) + _rng.randf_range(2.0, 2.8) + float(_w.linger)
+	l.life = maxf(float(l.span), float(l.age) + 0.3)
 
 
 ## A rolling lobe's height over its width as it ages (`WEIGHTS[].flat`: under 1 it
@@ -484,9 +491,25 @@ func _aspect(l: Dictionary) -> float:
 	return lerpf(1.0, lie if bool(l.hug) else tall, clampf(float(l.rolled) / 1.5, 0.0, 1.0))
 
 
+## A puff left alone on the floor, far from its neighbours either side, goes soon
+## rather than lingering by itself (Jon, Nov 13: "no lone stragglers").
+func _alone() -> void:
+	var rolled: Array = _lobes.filter(func(l: Dictionary) -> bool: return bool(l.roll))
+	rolled.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (a.d as Vector2).x < (b.d as Vector2).x)
+	for i in rolled.size():
+		var l: Dictionary = rolled[i]
+		var reach := ALONE_R * float(l.r)
+		var lx := (l.d as Vector2).x
+		var near_l := i > 0 and lx - ((rolled[i - 1] as Dictionary).d as Vector2).x < reach
+		var near_r := i < rolled.size() - 1 and (((rolled[i + 1] as Dictionary).d as Vector2).x - lx) < reach
+		if not near_l and not near_r:
+			l.life = minf(float(l.life), float(l.age) + 0.35)
+
+
 func _push() -> void:
 	if _fmat == null:
 		return
+	_alone()
 	var back: Array = []
 	var front: Array = []
 	for l: Dictionary in _lobes:
@@ -518,10 +541,12 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 			break
 		var u := float(l.age) / float(l.life)
 		# in over a sixth of a second, out over the last third of its life
+		# in at the jets over a sixth of a second, out over the last of its own life
 		var fade := minf(1.0, float(l.age) * 6.0) * clampf((1.0 - u) / 0.35, 0.0, 1.0)
-		# (going: the whole bank on one fade)
-		if _fade_t0 >= 0.0:
-			fade = minf(minf(1.0, float(l.age) * 6.0), clampf(1.0 - (_t - _fade_t0) / _fade_s, 0.0, 1.0))
+		# (the floor's shadow thins faster than the steam, or its piled-up density
+		# stays dark after the steam has gone)
+		if m == _smat:
+			fade *= fade
 		var pos: Vector2 = (l.d as Vector2).floor()
 		var r := floorf(float(l.r))
 		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float((_w.alpha as Array)[int(l.layer)]) * fade * float(l.k))

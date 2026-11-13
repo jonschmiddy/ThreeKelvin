@@ -77,10 +77,8 @@ func jump_out() -> void:
 	queue_redraw()
 
 ## OUT OF THE STATION (Jon's co-op rules, Nov 13): a partner undocking here, or
-## arriving where you are moored on the station's right, comes out of the mouth
-## (`mouth` gives it on screen, INF until the station is up) and pulls up in its
-## place: nose first on the right, backing out on the left. It flies behind your
-## hull, a little smaller out of the depth, its engines lit until it slows.
+## arriving where you are moored right, comes out of the mouth (`mouth`, INF until
+## the station is up) to its place, behind your hull, engines lit until it slows.
 ## Why: docs/why/ConvoySlot.md#out-of-the-station
 const OUT_S := 2.4
 var _move := {}
