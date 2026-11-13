@@ -22,7 +22,7 @@ const RUNGS := [
 	["ACTIVE CORE", Form.BALL, "The black hole at the core is feeding, so the Custodian gets stronger from jump 12, not 15."],
 	["TORN AWAY", Form.DWARF, "A bigger galaxy is pulling this one apart. From jump 4, the outer ring is lost each jump. Keep moving in."],
 ]
-const FORM_NAME := ["SPIRAL GALAXY", "DISC GALAXY", "BALL GALAXY", "TORN DWARF"]
+const FORM_NAME := ["SPIRAL GALAXY", "LENTICULAR GALAXY", "ELLIPTICAL GALAXY", "TORN DWARF"]
 ## Danger reads in the lamp colour: the spiral rungs cool, the disc amber, the ball red, the dwarf hot.
 const FORM_COLOUR := [Color8(150, 215, 205), Color8(240, 160, 67), Color8(238, 96, 58), Color8(255, 70, 90)]
 ## The galaxy kinds that are dwarfs: the torn one is one of these.
