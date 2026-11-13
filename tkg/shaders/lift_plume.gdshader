@@ -43,6 +43,9 @@ uniform float tdt = 0.0;
 uniform vec3 layer_shift = vec3(0.7, 0.2, 0.0);
 uniform vec3 layer_contrast = vec3(0.45, 0.8, 1.15);
 uniform float shade_var = 0.0;
+// the bank's shared fade once the jets cut (1 till then): the shadow goes with it,
+// not by its piled-up density, which stayed dark after the steam had gone
+uniform float fade_all = 1.0;
 
 float bayer4(vec2 p) {
 	int x = int(mod(p.x, 4.0));
@@ -73,9 +76,12 @@ float aspect_of(float w) {
 	return a > 0.0 ? a : 1.0;
 }
 
-// where lobe `i` is drawn now: where it was packed, carried on by its velocity
+// where lobe `i` is drawn now: where it was packed, carried on by its velocity, and
+// never below the floor
 vec2 cen(int i) {
-	return lobe[i].xy + lobe2[i].xy * tdt;
+	vec2 c = lobe[i].xy + lobe2[i].xy * tdt;
+	c.y = min(c.y, max(lobe[i].y, floor_y - 0.4 * lobe[i].z));
+	return c;
 }
 
 // whether any lobe covers this pixel, its edge torn as the colour pass tears it
@@ -92,7 +98,8 @@ bool covers(vec2 p) {
 		vec2 d = (pw - cen(i)) / L.z;
 		d.y /= aspect_of(lobe2[i].w);
 		float en = fract(edge_n + lobe2[i].w);
-		if (L.w > 0.12 && dot(d, d) < 0.9 + 0.25 * (en - 0.5)) {
+		// (any lobe still there, however thin: a thinning bank is not all edge)
+		if (L.w > 0.0 && dot(d, d) < 0.9 + 0.25 * (en - 0.5)) {
 			return true;
 		}
 	}
@@ -118,7 +125,7 @@ void fragment() {
 			vec2 d = (pw - cen(i) - vec2(0.0, 10.0)) / (L.z * 1.2);
 			dens += L.w * max(0.0, 1.0 - dot(d, d));
 		}
-		float s = floor(clamp(dens, 0.0, 1.0) * 3.0 + th) / 3.0 * shadow_k;
+		float s = floor(clamp(dens, 0.0, 1.0) * fade_all * 3.0 + th) / 3.0 * shadow_k;
 		if (s <= 0.0 || p.y < floor_y - 50.0) {
 			discard;
 		}
@@ -225,7 +232,8 @@ void fragment() {
 			// (flat, but a thinning billow goes by the dither, pixel by pixel)
 			al = a > 0.12 + 0.45 * th ? max(a, 0.85) : 0.0;
 		}
-		if (rim) {
+		// (the line is on what is drawn: never a pixel the fade has taken)
+		if (rim && al > 0.0) {
 			al = max(al, 0.75);
 		}
 		if (al <= 0.0) {

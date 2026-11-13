@@ -92,11 +92,18 @@ var _nfront := 0
 ## each lobe on by the velocity it was packed with (`tdt`).
 var _packed_tick := -1.0
 var _packed_t := 0.0
+## THE BANK GOES AS ONE (Jon, Nov 13: "it should also dissipate together"): once the
+## jets cut, every puff thins on one shared fade from `_fade_t0` over `_fade_s`.
+var _fade_t0 := -1.0
+var _fade_s := 2.0
+## Where the berth is (the jets' middle when it fired): off it, the jets throw no more
+## steam down, or a trail of lone puffs strings out along the floor after the ship.
+var _berth_x := INF
 ## THE CLUMPS the bank rolls out in (Jon, Nov 13: the painted still's separate chunky
 ## puffs, gaps between them): its share of the roll-out speed, so each clump comes to
 ## rest at its own distance from the middle. The first pools under the hull; the last,
 ## furthest out, climbs the sides past the hull.
-const CLUMPS := [0.12, 0.5, 0.9, 1.3]
+const CLUMPS := [0.12, 0.5, 0.85, 1.15]
 const CLIMB := 16.0
 ## (Jon, Nov 13: "spread out vertically" too: the clump inside the outermost climbs as well)
 const CLIMB_NEXT := 7.0
@@ -181,6 +188,7 @@ func _rect(m: ShaderMaterial, pad: float) -> ColorRect:
 ## Start it: the first billows go up at once.
 func fire() -> void:
 	_fired = _t
+	_berth_x = src.x
 	for i in BURST:
 		_spawn()
 
@@ -196,6 +204,9 @@ func puffs() -> int:
 
 ## The stands take the weight: a last breath out of the jets.
 func touchdown() -> void:
+	# (never once the bank is going: nothing may appear in the fade)
+	if _clearing:
+		return
 	for i in 6:
 		_spawn()
 
@@ -237,7 +248,10 @@ func _process(dt: float) -> void:
 		_clear()
 	if not _clearing:
 		# (a weak burn thins the steam more than it spaces it out: the streams stay streams)
-		_acc += float(_w.rate) * thrust * (0.5 + 0.5 * minf(strength, 1.0)) * dt
+		var over := 1.0
+		if _berth_x != INF:
+			over = clampf(1.0 - absf(src.x - _berth_x) / maxf(1.0, 0.6 * maxf(hull.size.x, 2.0 * src_w)), 0.0, 1.0)
+		_acc += float(_w.rate) * thrust * (0.5 + 0.5 * minf(strength, 1.0)) * over * dt
 		while _acc >= 1.0:
 			_acc -= 1.0
 			_spawn()
@@ -251,16 +265,20 @@ func _process(dt: float) -> void:
 		for m: ShaderMaterial in [_bmat, _fmat, _smat]:
 			if m != null:
 				m.set_shader_parameter(&"tdt", _t - _packed_t)
+	if _smat != null:
+		_smat.set_shader_parameter(&"fade_all", clampf(1.0 - (_t - _fade_t0) / _fade_s, 0.0, 1.0) if _fade_t0 >= 0.0 else 1.0)
 
 
 ## THE JETS CUT: no more steam, and what is there thins, lifts and is gone within
 ## `CLEAR_S` (its alpha steps down through the dither, so nothing pops out).
 func _clear() -> void:
 	_clearing = true
+	var c: Vector2 = _w.clear
+	_fade_t0 = _t
+	_fade_s = _rng.randf_range(c.x, c.y)
 	for l: Dictionary in _lobes:
-		var c: Vector2 = _w.clear
-		# (all of it given the full clearing: the heavy weights linger past a puff's own life)
-		l.life = float(l.age) + _rng.randf_range(c.x, c.y) * (1.0 if bool(l.roll) else 0.5)
+		# (every puff kept to the end of the shared fade: none goes early on its own)
+		l.life = float(l.age) + _fade_s + 0.05
 		l.c0 = float(l.age)
 		# (the floor layer fades where it lies; a billow still hot lifts a little as it goes)
 		if not bool(l.hug):
@@ -322,9 +340,15 @@ func _step(dt: float) -> void:
 			pos += v * dt
 			l.r = r + float(l.gr) * 0.6 * dt
 			if pos.y + 0.4 * r >= floor_y:
-				_land(l, pos, mid, half)
-				pos = l.p
-				v = l.v
+				if _clearing:
+					# (the bank going: what was still falling stops on the floor and goes
+					# with the rest, no splash, nothing new)
+					pos.y = floor_y - 0.4 * r
+					v = Vector2.ZERO
+				else:
+					_land(l, pos, mid, half)
+					pos = l.p
+					v = l.v
 			l.d = pos
 		else:
 			l.rolled = float(l.rolled) + dt
@@ -345,7 +369,11 @@ func _step(dt: float) -> void:
 			l.d = pos + Vector2(float(l.side) * rr * sin(float(l.phi)), rr * cos(float(l.phi)))
 		# (how fast it is drawn moving, which the shader carries it on by between packs)
 		if dt > 0.0:
-			l.dv = ((l.d as Vector2) - d0) / dt
+			var dv := ((l.d as Vector2) - d0) / dt
+			# (never carried down past the floor between packs)
+			var room := floor_y - 0.4 * float(l.r) - (l.d as Vector2).y
+			dv.y = minf(dv.y, maxf(0.0, room) / (1.0 / HZ))
+			l.dv = dv
 		l.v = v
 		l.p = pos
 		keep.append(l)
@@ -438,9 +466,9 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		var u := float(l.age) / float(l.life)
 		# in over a sixth of a second, out over the last third of its life
 		var fade := minf(1.0, float(l.age) * 6.0) * clampf((1.0 - u) / 0.35, 0.0, 1.0)
-		# (going: a slow thinning over the whole of what is left of it)
-		if float(l.c0) >= 0.0:
-			fade = minf(fade, clampf((float(l.life) - float(l.age)) / maxf(0.01, float(l.life) - float(l.c0)), 0.0, 1.0))
+		# (going: the whole bank on one fade)
+		if _fade_t0 >= 0.0:
+			fade = minf(minf(1.0, float(l.age) * 6.0), clampf(1.0 - (_t - _fade_t0) / _fade_s, 0.0, 1.0))
 		var pos: Vector2 = (l.d as Vector2).floor()
 		var r := floorf(float(l.r))
 		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float((_w.alpha as Array)[int(l.layer)]) * fade * float(l.k))
