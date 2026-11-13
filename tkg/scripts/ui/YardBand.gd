@@ -127,7 +127,7 @@ func show_rest() -> void:
 func show_ship(m: ManufacturerData, chosen: bool, at: Vector2, launchable: bool) -> void:
 	_clear()
 	tie = at
-	# the maker and what the ship comes with (Jon's B2, Nov 12)
+	# the manufacturer and what the ship comes with (Jon's B2, Nov 12)
 	# Why: docs/why/ChassisSelect.md#what-a-ship-comes-with
 	YardInfo.left_column(self, m, chosen)
 	_word("ATTRIBUTES", UITheme.FS_SMALL, COL_A, ROW0 - 4, COLD)

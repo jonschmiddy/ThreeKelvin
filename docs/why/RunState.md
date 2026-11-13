@@ -2144,5 +2144,5 @@ light and heavy were already nose first (their first two mounts share the
 nose's x); Korvan's three-mount medium (Korvan's Anvil, Redline's Moonrunner)
 moves its second gun from the top deck aft (201, 42) to the nose's lower mount
 (271, 89); Solari's Prominence and Nova take their nose mount (292, 63) and
-(340, 80) first. The two-mount mediums of the makers on Korvan's art already
+(340, 80) first. The two-mount mediums of the manufacturers on Korvan's art already
 filled the forward mount first.

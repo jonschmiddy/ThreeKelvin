@@ -3,7 +3,7 @@ extends RefCounted
 
 ## What a picked ship comes with, on the front door (Jon's B2, Nov 12: "show the
 ## manufacturer information", "show the installed modules... they do come with a
-## standard deck of cards"): the maker's block in the band, the fitted parts
+## standard deck of cards"): the manufacturer's block in the band, the fitted parts
 ## spelled out, the weapons on the hulls, and the deck as a stack by LAUNCH.
 ## Why: docs/why/ChassisSelect.md#what-a-ship-comes-with
 
@@ -33,7 +33,7 @@ static func deck() -> Array[CardData]:
 
 # ------------------------------------------------------------------ the band
 
-## The left column: the hull's name, the maker's emblem and name, its slogan and
+## The left column: the hull's name, the manufacturer's emblem and name, its slogan and
 ## (picked) how its parts play, or (pointed at) what a click does; the weight.
 static func left_column(band: YardBand, m: ManufacturerData, chosen: bool) -> void:
 	var x := YardBand.COL_L
@@ -41,7 +41,7 @@ static func left_column(band: YardBand, m: ManufacturerData, chosen: bool) -> vo
 	band._word(Run.hull.name.to_upper(), UITheme.FS_HEAD, x, YardBand.ROW0, YardBand.MINT)
 	var y := YardBand.ROW0 + 24
 	var em := Emblem.new()
-	em.maker = m
+	em.manufacturer = m
 	em.position = Vector2(x, y - 1)
 	band._words.add_child(em)
 	band._word(m.name.to_upper(), UITheme.FS_SMALL, x + 14, y, m.colour)
@@ -89,7 +89,7 @@ static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 	var strip := DeckStrip.new()
 	band._words.add_child(strip)
 	var st := DeckStack.new()
-	st.maker = m
+	st.manufacturer = m
 	st.n = Run.deck_size()
 	st.position = STACK_AT
 	band._words.add_child(st)
@@ -133,20 +133,20 @@ static func lines(s: String, w: int) -> int:
 
 
 class Emblem extends Control:
-	var maker: ManufacturerData
+	var manufacturer: ManufacturerData
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		size = Vector2(11, 11)
 
 	func _draw() -> void:
-		draw_rect(Rect2(0, 0, 11, 11), maker.field, true)
-		CardView.draw_emblem(self, maker.id, Vector2(5.5, 5.5), 1.0, maker.colour, maker.field)
+		draw_rect(Rect2(0, 0, 11, 11), manufacturer.field, true)
+		CardView.draw_emblem(self, manufacturer.id, Vector2(5.5, 5.5), 1.0, manufacturer.colour, manufacturer.field)
 
 
 ## The deck as a small stack of card backs; pointing at it spreads it (`DeckStrip`).
 class DeckStack extends Control:
-	var maker: ManufacturerData
+	var manufacturer: ManufacturerData
 	var n := 10
 
 	func _init() -> void:
@@ -157,9 +157,9 @@ class DeckStack extends Control:
 		for i in 3:
 			var r := Rect2(4 + i * 5, 2 + (2 - i) * 2, 24, 34)
 			draw_rect(r, Color8(22, 26, 34), true)
-			draw_rect(r.grow(-1), maker.field.darkened(0.3), true)
-			draw_rect(r, maker.colour.darkened(0.2), false, 1.0)
-		CardView.draw_emblem(self, maker.id, Vector2(26.5, 21.5), 1.0, maker.colour, maker.field)
+			draw_rect(r.grow(-1), manufacturer.field.darkened(0.3), true)
+			draw_rect(r, manufacturer.colour.darkened(0.2), false, 1.0)
+		CardView.draw_emblem(self, manufacturer.id, Vector2(26.5, 21.5), 1.0, manufacturer.colour, manufacturer.field)
 		draw_string(UITheme.pixel_font(), Vector2(0, 50), "%d CARDS" % n, HORIZONTAL_ALIGNMENT_LEFT, -1,
 			UITheme.FS_SMALL, YardBand.MINT)
 

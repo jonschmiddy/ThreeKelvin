@@ -1,6 +1,6 @@
 extends Node
 
-## WHAT A SHIP COMES WITH, BOX-TESTED (Jon's B2, Nov 12): every open maker's three
+## WHAT A SHIP COMES WITH, BOX-TESTED (Jon's B2, Nov 12): every open manufacturer's three
 ## ships picked in turn; the band's words, emblem, stack, LAUNCH and chips clear
 ## of each other and inside the band; the fitted list is what launches; the
 ## weapons on the hull and its sharp copy. `-- sheet=YardInfoFit`
@@ -44,7 +44,7 @@ func _run() -> void:
 			_loadout(cs, w, tag)
 			picks += 1
 	print("  yardinfofit: %d picks, %d boxes out of place" % [picks, bad])
-	_ok("every open maker's three ships were picked (%d)" % picks, picks >= 3)
+	_ok("every open manufacturer's three ships were picked (%d)" % picks, picks >= 3)
 	_finish(dev_was)
 
 
