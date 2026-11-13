@@ -288,6 +288,10 @@ func _hull_flies_in(dock_b: Button) -> void:
 	if not _ok("3B DOCK lands in the station", st != null and Router.docked):
 		return
 	_yard_heard("3B DOCK (LOCAL's)", yr)
+	# (and down on its stands, its engines out: no flame, no glow -- Jon, Nov 13)
+	var mv := st._mine_view
+	_ok("3B DOCK: landed on the deck's stands, its engines out (thrust %d)" % (mv._thrust_now() if mv != null else -9),
+		mv != null and mv._thrust_now() < 0 and mv.engine_glow().is_empty())
 	if hall:
 		var right := true
 		for i in range(1, tails.size()):
@@ -589,7 +593,8 @@ func _yard_heard(label: String, yr: Dictionary) -> void:
 			continue
 		# (the landing's own comparisons, so a frame on the line is read alike)
 		if t < StationScreen.YARD_ROAR_FROM_S:
-			if float(e.level) > 0.001 or float(e.want) > 0.0 or int(e.th) != ThrusterFx.Thrust.IDLE:
+			# (nothing lit or heard yet: its engines out, as on the deck's stands, Nov 13)
+			if float(e.level) > 0.001 or float(e.want) > 0.0 or int(e.th) > ThrusterFx.Thrust.IDLE:
 				early += 1
 			continue
 		if t < cough_at:
@@ -711,11 +716,11 @@ func _yard_skipped(dock_b: Button, at: float) -> void:
 			hushed = true
 	Audio.taping = false
 	var what := "mid-coughs" if coughing else "mid-roar"
-	_ok("3B: a key %s in the yard (%.2f s into the flight; roaring %s, coughing %s) lands at once (%d frames): your ship on its stands at the idle, the loop out (%.2f), %s, nothing of the landing heard after (%s), the clamps once (%d)" % [
+	_ok("3B: a key %s in the yard (%.2f s into the flight; roaring %s, coughing %s) lands at once (%d frames): your ship on its stands, its engines out, the loop out (%.2f), %s, nothing of the landing heard after (%s), the clamps once (%d)" % [
 		what, t, roaring, coughing, n, level, "its coughs hushed" if coughing else "no coughs begun", after, clamps],
 		t > -INF and (roaring or coughing) and n >= 0 and n <= 3 and st != null and Router.docked and v != null
 			and v.position.is_equal_approx(_yard_seat(st).position) and not v._burning and not v.sputtering()
-			and v._thrust_now() == ThrusterFx.Thrust.IDLE and level == 0.0 and after.is_empty()
+			and v._thrust_now() < 0 and level == 0.0 and after.is_empty()
 			and (hushed if coughing else clip == &"") and clamps == 1 and not Router.dock_clamps_owed)
 	Router.show_sector()
 	await _idle()
@@ -2332,9 +2337,9 @@ func _run() -> void:
 					rm_heard.append([tp[6], int(tp[5]) - rm_f])
 			Audio.taping = false
 			var rm_v := rm_st._mine_view if rm_st != null else null
-			_ok("reduced motion: no landing heard -- no roar (%.2f), no coughs, the flame at the idle; only the clamps, as the berth opens (%s)" % [rm_level, rm_heard],
+			_ok("reduced motion: no landing heard -- no roar (%.2f), no coughs, its engines out; only the clamps, as the berth opens (%s)" % [rm_level, rm_heard],
 				rm_level == 0.0 and rm_heard.size() == 1 and String(rm_heard[0][0]) == "station_dock" and int(rm_heard[0][1]) <= 0
-					and rm_v != null and rm_v._thrust_now() == ThrusterFx.Thrust.IDLE and not Router.dock_clamps_owed)
+					and rm_v != null and rm_v._thrust_now() < 0 and not Router.dock_clamps_owed)
 			DisplaySettings.reduced_motion = false
 			Router.show_sector()
 			await _idle()

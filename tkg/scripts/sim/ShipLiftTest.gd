@@ -57,6 +57,13 @@ func _launch() -> void:
 	var fired := [0]
 	cs.launched.connect(func() -> void: fired[0] += 1)
 	var berth := cs._yard.set_of(HullData.Weight.MEDIUM)
+	# PARKED ON THE STANDS, ENGINES OUT (Jon, Nov 13): no rear flame, no nozzle glow
+	var lit_parked := 0
+	for w: HullData.Weight in cs._yard.sets:
+		var pv: ShipView = (cs._yard.sets[w] as YardStandSet)._view
+		if pv != null and (pv._thrust_now() >= 0 or not pv.engine_glow().is_empty()):
+			lit_parked += 1
+	_ok("the front door's parked hulls show no rear flame or glow (%d lit)" % lit_parked, lit_parked == 0)
 	var x0 := berth.position.x
 	var y0 := berth.position.y
 	var key := Harness.button_with_text(cs, "LAUNCH")
@@ -202,6 +209,8 @@ func _undock() -> void:
 	var st := Router.current as StationScreen
 	if not _ok("docked, on the Shipyard", st != null and Router.docked and st._mine_view != null):
 		return
+	_ok("on the deck's stands, your hull's engines are out: no rear flame, no glow (thrust %d)" % st._mine_view._thrust_now(),
+		st._mine_view._thrust_now() < 0 and st._mine_view.engine_glow().is_empty())
 	var rest := st._mine_view.position
 	var t0 := _t
 	Router.show_sector()
