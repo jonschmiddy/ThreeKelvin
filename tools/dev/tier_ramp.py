@@ -42,7 +42,15 @@ RAMPS = {
     "G": (0.82, 1.10, 0.08, 0.25, 0, 1, 2, 3),
     "M": (0.68, 1.22, 0.14, 0.40, 1, 2, 2, 6),
     "S": (0.55, 1.35, 0.20, 0.55, 2, 2, 3, 10),
+    # Jon on M + turn (Nov 12): "ramp up the intensity scale a bit more": two steps past M
+    "P": (0.62, 1.28, 0.17, 0.48, 1, 2, 3, 8),
+    "Q": (0.56, 1.34, 0.20, 0.55, 2, 3, 4, 10),
 }
+## Clumps of brighter stars riding a ball's turn, so it reads as turning (Jon: "the ball
+## galaxies don't turn much at all"): how many, how far out (of the ball's reach), how bright.
+CLUMPS = 5
+CLUMP_R = (0.42, 0.78)
+CLUMP_STEP = 4
 STEP = 0.13          # one breath or glow step: this share of the way to white
 
 
@@ -123,6 +131,14 @@ def tier(base, t, ramp, frames=None):
     rnd = np.random.RandomState(40 + t)
     pick = rnd.choice(np.nonzero(edge)[0], size=min(int(round(stars * act)), int(edge.sum())), replace=False)
     twinkles = [(ys[i], xs[i], rnd.randint(0, n_out), rnd.randint(1, 3)) for i in pick]
+    clumps = []
+    if frames and FORM[t] == 2:
+        # the ball's reach and flattening on the screen, from its lit cells
+        rx = np.percentile(np.abs(xs - cx), 95)
+        ry = np.percentile(np.abs(ys - cy), 95)
+        crnd = np.random.RandomState(90 + t)
+        for j in range(CLUMPS):
+            clumps.append((crnd.uniform(*CLUMP_R), 2 * math.pi * j / CLUMPS + crnd.uniform(-0.4, 0.4), crnd.randint(3, 6)))
     out = []
     for k in range(n_out):
         u = k / n_out
@@ -131,6 +147,14 @@ def tier(base, t, ramp, frames=None):
             keep = frames[k][..., 3] > 0
         else:
             a = rgb.copy()
+        for (r, a0, size) in clumps:
+            # whole cells on the ball's own ellipse, one turn a loop, the way the bake turns
+            ang = a0 - 2 * math.pi * u
+            x = int(round(cx + r * rx * math.cos(ang)))
+            y = int(round(cy + r * ry * math.sin(ang)))
+            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (-1, 1)][:size]:
+                if 0 <= y + dy < keep.shape[0] and 0 <= x + dx < keep.shape[1] and keep[y + dy, x + dx]:
+                    a[y + dy, x + dx] = a[y + dy, x + dx] + (HOT - a[y + dy, x + dx]) * (STEP * CLUMP_STEP)
         lv = int(round(d * (0.5 - 0.5 * math.cos(2 * math.pi * m * u))))
         if lv:
             a[band] = a[band] + (WHITE - a[band]) * (STEP * lv)

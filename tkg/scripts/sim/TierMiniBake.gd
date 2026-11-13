@@ -4,7 +4,7 @@ extends Node
 ## tier in one of its galaxy kinds, the real star chart with its icons off, one still of the
 ## sky for each step of a whole turn (`frame_<t>_<k>.png`), for tools/dev/tier_minis.py to
 ## pixelate. `-- sheet=TierMiniBake out=<dir> [tiers=0,5,10] [limit=N] [tornsweep=1] [nudge=x,y] [far=f] [kinds=..]
-## [freeze=1] [typeramp=1]`; needs a window.
+## [freeze=1] [typeramp=1] [ballturn=a,b]`; needs a window.
 
 ## Seconds a whole turn takes at tier 0 and at tier 10; frames a second of the picture.
 const TURN_S := [24.0, 8.0]
@@ -104,7 +104,12 @@ func _bake(t: int) -> void:
 	var n := frames_of(t) if Harness.arg("limit") == "" else int(Harness.arg("limit"))
 	# `typeramp=1`: the turn by the tier's place in its form, slowest at a form's first tier
 	if Harness.arg("typeramp") == "1" and Harness.arg("limit") == "":
-		n = int(round(lerpf(TYPE_TURN_S[0], TYPE_TURN_S[1], TYPE_ACT[t]) * FPS))
+		var span: Array = TYPE_TURN_S
+		# `ballturn=a,b`: the balls' own range, quicker, so their turn reads
+		var bt := Harness.arg("ballturn").split(",")
+		if Ladder.form(t) == Ladder.Form.BALL and bt.size() == 2:
+			span = [float(bt[0]), float(bt[1])]
+		n = int(round(lerpf(span[0], span[1], TYPE_ACT[t]) * FPS))
 	print("  tier %d: %s (kind %d), %d frames" % [t, GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_kind, n])
 	for k in n:
 		ch.sky_angle = TAU * float(k) / float(n)
