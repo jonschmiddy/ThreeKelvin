@@ -28,9 +28,9 @@ const WEIGHTS := [
 	# (heavier, Jon's pick, Nov 13: "spread wider along the floor", "dissipate quicker";
 	# then "the stills do not match the movie": big chunky billows to the stand tops,
 	# the bands reading, a hot glow under the jets -- wider, not flatter)
-	{"rate": 52.0, "size": 1.6, "alpha": [0.8, 0.96, 1.0], "edge": 0.85, "fall": 1.3, "fall_drag": 0.7,
-		"out": 1.25, "roll_drag": 1.1, "linger": 0.6, "lift": 1.6, "curl": 2.2, "shadow": 0.56, "under": 0.4,
-		"clear": Vector2(2.5, 3.0), "clear_lift": -2.0, "clear_spread": 6.0, "flat": 0.95, "contrast": 1.5, "warm": 1.3},
+	{"rate": 44.0, "size": 1.3, "alpha": [0.8, 0.96, 1.0], "edge": 0.85, "fall": 1.3, "fall_drag": 0.7,
+		"out": 1.55, "roll_drag": 1.1, "linger": 0.6, "lift": 1.6, "curl": 2.2, "shadow": 0.56, "under": 0.4,
+		"clear": Vector2(1.8, 2.2), "clear_lift": -2.0, "clear_spread": 6.0, "flat": 1.3, "contrast": 1.5, "warm": 1.3},
 ]
 static var weight := 2
 ## The steam's texture (`lift_plume.gdshader`'s `style`): 0 as built, 1 cel,
@@ -88,6 +88,34 @@ var _ship_v := Vector2.ZERO
 var _w: Dictionary = WEIGHTS[0]
 var _nback := 0
 var _nfront := 0
+## Packed for the shader at the steam's own rate (`HZ`); between, the shader carries
+## each lobe on by the velocity it was packed with (`tdt`).
+var _packed_tick := -1.0
+var _packed_t := 0.0
+## THE CLUMPS the bank rolls out in (Jon, Nov 13: the painted still's separate chunky
+## puffs, gaps between them): its share of the roll-out speed, so each clump comes to
+## rest at its own distance from the middle. The first pools under the hull; the last,
+## furthest out, climbs the sides past the hull.
+const CLUMPS := [0.12, 0.5, 0.9, 1.3]
+const CLIMB := 16.0
+## (Jon, Nov 13: "spread out vertically" too: the clump inside the outermost climbs as well)
+const CLIMB_NEXT := 7.0
+## THE FLOOR LAYER (Jon, Nov 13: "it should stick to the ground somewhat too"): this
+## share of what lands hugs the floor across the whole roll-out, low, wide and heavy,
+## never lifting, and fades where it lies; the billows rise from it.
+const HUG := 0.45
+const HUG_FLAT := 0.7
+## HEAT (Jon, Nov 13: "Smoke rises when it is hot, but can sink once it cools down"):
+## a puff's heat is 1 off the jets and falls with this time constant, s. Above
+## `COOL_AT` it rises, below it sinks back to the floor at up to `SINK_V` px/s and
+## spreads there; its warm glow is its heat.
+const HEAT_TC := 1.6
+const COOL_AT := 0.3
+const SINK_V := 40.0
+
+
+func _heat(l: Dictionary) -> float:
+	return exp(-float(l.age) / HEAT_TC)
 var _last_src := Vector2(INF, INF)
 
 
@@ -130,6 +158,10 @@ func _material(pad: float) -> ShaderMaterial:
 		tones.append(Vector4(c.r, c.g, c.b, 1.0))
 	m.set_shader_parameter(&"tones", tones)
 	m.set_shader_parameter(&"style", style)
+	# (each layer's tone shift and contrast, and how far a billow's own shade strays)
+	m.set_shader_parameter(&"layer_shift", Vector3(float(LAYERS[0][1]), float(LAYERS[1][1]), float(LAYERS[2][1])))
+	m.set_shader_parameter(&"layer_contrast", Vector3(float(LAYERS[0][2]), float(LAYERS[1][2]), float(LAYERS[2][2])) * float(_w.contrast))
+	m.set_shader_parameter(&"shade_var", 0.6 * (float(_w.contrast) - 1.0))
 	m.set_shader_parameter(&"warm_k", float(_w.warm))
 	m.set_shader_parameter(&"edge_a", float(_w.edge))
 	m.set_shader_parameter(&"under_k", float(_w.under))
@@ -210,7 +242,15 @@ func _process(dt: float) -> void:
 			_acc -= 1.0
 			_spawn()
 	_step(dt)
-	_push()
+	var tick := floorf(_t * HZ)
+	if tick != _packed_tick:
+		_packed_tick = tick
+		_packed_t = _t
+		_push()
+	else:
+		for m: ShaderMaterial in [_bmat, _fmat, _smat]:
+			if m != null:
+				m.set_shader_parameter(&"tdt", _t - _packed_t)
 
 
 ## THE JETS CUT: no more steam, and what is there thins, lifts and is gone within
@@ -222,7 +262,9 @@ func _clear() -> void:
 		# (all of it given the full clearing: the heavy weights linger past a puff's own life)
 		l.life = float(l.age) + _rng.randf_range(c.x, c.y) * (1.0 if bool(l.roll) else 0.5)
 		l.c0 = float(l.age)
-		l.buoy = float(l.buoy) + float(_w.clear_lift) * size_k
+		# (the floor layer fades where it lies; a billow still hot lifts a little as it goes)
+		if not bool(l.hug):
+			l.buoy = maxf(0.0, float(l.buoy) + float(_w.clear_lift) * size_k)
 
 
 ## One lobe, born at the hull: where, how fast, radius, its layer (0 far .. 2 near),
@@ -235,7 +277,7 @@ func _add(at: Vector2, v: Vector2, r: float, layer: int, warm: float, life: floa
 		_nback += 1
 	else:
 		_nfront += 1
-	_lobes.append({"p": at, "d": at, "v": v, "c0": -1.0, "r": r * size_k * float(_w.size), "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
+	_lobes.append({"p": at, "d": at, "v": v, "dv": v, "clump": -1, "hug": false, "c0": -1.0, "r": r * size_k * float(_w.size), "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
 		"warm": warm, "life": life, "age": 0.0, "buoy": _rng.randf_range(3, 7) * size_k * float(_w.lift), "seed": _rng.randf(),
 		"k": clampf(0.4 + 0.6 * strength, 0.0, 1.0), "roll": false, "rolled": 0.0, "side": 1.0, "R": 0.0, "phi": 0.0, "w": 0.0})
 
@@ -274,6 +316,7 @@ func _step(dt: float) -> void:
 		var v: Vector2 = l.v
 		var pos: Vector2 = l.p
 		var r := float(l.r)
+		var d0: Vector2 = l.d
 		if not bool(l.roll):
 			v *= exp(-float(_w.fall_drag) * dt)
 			pos += v * dt
@@ -286,9 +329,12 @@ func _step(dt: float) -> void:
 		else:
 			l.rolled = float(l.rolled) + dt
 			v.x *= exp(-float(_w.roll_drag) * dt)
-			# (billowing up off the rolling front from early on)
-			v.y = -float(l.buoy) * clampf((float(l.rolled) - 0.4) / 0.6, 0.0, 1.0)
+			# hot, it billows up off the rolling front; cooled, it sinks back to the floor
+			var lift := (_heat(l) - COOL_AT) / (1.0 - COOL_AT)
+			var ramp := clampf((float(l.rolled) - 0.2) / 0.5, 0.0, 1.0)
+			v.y = -float(l.buoy) * maxf(lift, 0.0) * ramp + SINK_V * size_k * maxf(-lift, 0.0) * 2.0
 			pos += v * dt
+			pos.y = minf(pos.y, floor_y - float(l.R) - 0.4 * float(l.r))
 			l.phi = minf(float(l.phi) + float(l.w) * dt * exp(-float(l.rolled) * 0.4), 1.3 * PI)
 			l.r = r + float(l.gr) * dt * exp(-float(l.rolled) * 0.5)
 			# (going, a heavy bank settles and spreads as it thins)
@@ -297,6 +343,9 @@ func _step(dt: float) -> void:
 				pos.y = minf(pos.y, floor_y - 0.3 * float(l.r))
 			var rr := float(l.R)
 			l.d = pos + Vector2(float(l.side) * rr * sin(float(l.phi)), rr * cos(float(l.phi)))
+		# (how fast it is drawn moving, which the shader carries it on by between packs)
+		if dt > 0.0:
+			l.dv = ((l.d as Vector2) - d0) / dt
 		l.v = v
 		l.p = pos
 		keep.append(l)
@@ -317,7 +366,18 @@ func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
 	var off := at.x - mid
 	var side := signf(off) if absf(off) > 0.12 * half else (-1.0 if _rng.randf() < 0.5 else 1.0)
 	var rr := _rng.randf_range(8, 16) * s * float(_w.curl)
-	var out := (_rng.randf_range(10, 35) if _rng.randf() < 0.3 else _rng.randf_range(70, 150)) * float(_w.out)
+	# (into one of the clumps, at its own speed out)
+	var k := _rng.randi_range(0, CLUMPS.size() - 1)
+	var out := float(CLUMPS[k]) * 150.0 * _rng.randf_range(0.95, 1.05) * float(_w.out)
+	l.clump = k
+	l.hug = _rng.randf() < HUG
+	if bool(l.hug):
+		l.buoy = 0.0
+		rr *= 0.3
+	elif k == CLUMPS.size() - 1:
+		l.buoy = float(l.buoy) * CLIMB
+	elif k == CLUMPS.size() - 2:
+		l.buoy = float(l.buoy) * CLIMB_NEXT
 	# the floor takes the splash: it spreads at once
 	l.r = maxf(float(l.r), _rng.randf_range(13, 17) * s * float(_w.size))
 	l.gr = _rng.randf_range(10, 16) * s * float(_w.size)
@@ -332,12 +392,15 @@ func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
 	l.life = float(l.age) + _rng.randf_range(2.0, 2.8) + float(_w.linger)
 
 
-## A rolling lobe flattens as it spreads along the floor (`WEIGHTS[].flat`, its
-## height over its width at the last); a falling one is round.
+## A rolling lobe's height over its width as it ages (`WEIGHTS[].flat`: under 1 it
+## flattens along the floor, over 1 it grows taller, Jon's "spread out vertically");
+## a falling one is round.
 func _aspect(l: Dictionary) -> float:
 	if not bool(l.roll):
 		return 1.0
-	return lerpf(1.0, float(_w.flat), clampf(float(l.rolled) / 1.5, 0.0, 1.0))
+	# (a hot billow stands tall; cooled, it lies flat along the floor like the base)
+	var tall := lerpf(HUG_FLAT, float(_w.flat), clampf((_heat(l) - COOL_AT) / (1.0 - COOL_AT), 0.0, 1.0))
+	return lerpf(1.0, HUG_FLAT if bool(l.hug) else tall, clampf(float(l.rolled) / 1.5, 0.0, 1.0))
 
 
 func _push() -> void:
@@ -373,7 +436,6 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		if n >= MAX_LOBES:
 			break
 		var u := float(l.age) / float(l.life)
-		var L: Array = LAYERS[int(l.layer)]
 		# in over a sixth of a second, out over the last third of its life
 		var fade := minf(1.0, float(l.age) * 6.0) * clampf((1.0 - u) / 0.35, 0.0, 1.0)
 		# (going: a slow thinning over the whole of what is left of it)
@@ -382,20 +444,23 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		var pos: Vector2 = (l.d as Vector2).floor()
 		var r := floorf(float(l.r))
 		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float((_w.alpha as Array)[int(l.layer)]) * fade * float(l.k))
-		# (each billow a shade of its own, so they read apart; the warmth only on what
-		# is fresh off the jets)
-		b[n] = Vector4(float(L[1]) + (float(l.seed) - 0.5) * 0.6 * (float(_w.contrast) - 1.0),
-			float(L[2]) * float(_w.contrast), float(l.warm) * exp(-float(l.age) * (1.5 + 2.0 * (float(_w.warm) - 1.0))) * _lk,
-			float(l.seed) + floorf(_aspect(l) * 100.0))
-		x0 = minf(x0, pos.x - r - 16.0)
-		y0 = minf(y0, pos.y - r - 16.0)
-		x1 = maxf(x1, pos.x + r + 16.0)
-		y1 = maxf(y1, pos.y + r + 28.0)
+		# (its velocity as drawn, the warmth only on what is fresh off the jets, and its
+		# seed, squash and layer in one number: `lift_plume.gdshader`)
+		var dv: Vector2 = l.dv
+		b[n] = Vector4(dv.x, dv.y, float(l.warm) * pow(_heat(l), 2.0 + 2.0 * (float(_w.warm) - 1.0)) * _lk,
+			float(l.seed) + floorf(_aspect(l) * 100.0) + 1000.0 * float(l.layer))
+		# (the box holds it to the next pack too)
+		var reach := r + 16.0 + dv.length() * 0.12
+		x0 = minf(x0, pos.x - reach)
+		y0 = minf(y0, pos.y - reach)
+		x1 = maxf(x1, pos.x + reach)
+		y1 = maxf(y1, pos.y + reach + 12.0)
 		n += 1
 	m.set_shader_parameter(&"n", n)
 	m.set_shader_parameter(&"lobe", a)
 	m.set_shader_parameter(&"lobe2", b)
 	m.set_shader_parameter(&"tstep", floorf(_t * HZ))
+	m.set_shader_parameter(&"tdt", 0.0)
 	m.set_shader_parameter(&"box", Vector4(x0, y0, x1, y1) if n > 0 else Vector4(0, 0, -1, -1))
 	m.set_shader_parameter(&"floor_y", floor_y)
 	m.set_shader_parameter(&"nlamps", mini(8, lamps.size()))

@@ -36,6 +36,13 @@ uniform float under_k = 0.0;
 // bands, no dither, a dark line round each cluster); 2 patterned (a bold dither and
 // swirl marks); 3 as built with a light outline in a darker tone of the steam
 uniform int style = 0;
+// PACKED TEN TIMES A SECOND (`LiftPlume`): a lobe is carried on by its velocity
+// (`lobe2.xy`) for the time since (`tdt`). Its layer's tone shift and contrast come
+// from these, its own shade from its seed; `lobe2.w` is seed + squash x100 + layer x1000.
+uniform float tdt = 0.0;
+uniform vec3 layer_shift = vec3(0.7, 0.2, 0.0);
+uniform vec3 layer_contrast = vec3(0.45, 0.8, 1.15);
+uniform float shade_var = 0.0;
 
 float bayer4(vec2 p) {
 	int x = int(mod(p.x, 4.0));
@@ -62,8 +69,13 @@ float fbm(vec2 p) {
 
 // a lobe's own squash: its height over its width, kept in the seed's whole part
 float aspect_of(float w) {
-	float a = floor(w) / 100.0;
+	float a = floor(mod(w, 1000.0)) / 100.0;
 	return a > 0.0 ? a : 1.0;
+}
+
+// where lobe `i` is drawn now: where it was packed, carried on by its velocity
+vec2 cen(int i) {
+	return lobe[i].xy + lobe2[i].xy * tdt;
 }
 
 // whether any lobe covers this pixel, its edge torn as the colour pass tears it
@@ -77,7 +89,7 @@ bool covers(vec2 p) {
 			break;
 		}
 		vec4 L = lobe[i];
-		vec2 d = (pw - L.xy) / L.z;
+		vec2 d = (pw - cen(i)) / L.z;
 		d.y /= aspect_of(lobe2[i].w);
 		float en = fract(edge_n + lobe2[i].w);
 		if (L.w > 0.12 && dot(d, d) < 0.9 + 0.25 * (en - 0.5)) {
@@ -103,7 +115,7 @@ void fragment() {
 				break;
 			}
 			vec4 L = lobe[i];
-			vec2 d = (pw - L.xy - vec2(0.0, 10.0)) / (L.z * 1.2);
+			vec2 d = (pw - cen(i) - vec2(0.0, 10.0)) / (L.z * 1.2);
 			dens += L.w * max(0.0, 1.0 - dot(d, d));
 		}
 		float s = floor(clamp(dens, 0.0, 1.0) * 3.0 + th) / 3.0 * shadow_k;
@@ -117,6 +129,7 @@ void fragment() {
 		float covered = 0.0;
 		float warm = 0.0;
 		bool swirl = false;
+		float top_w = 1.0;
 		float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
 		float eddy = fbm(p * 0.25 + vec2(-tstep * 0.23, tstep * 0.41));
 		for (int i = 0; i < 96; i++) {
@@ -125,8 +138,12 @@ void fragment() {
 			}
 			vec4 L = lobe[i];
 			vec4 P = lobe2[i];
-			vec2 d = (pw - L.xy) / L.z;
+			vec2 c = cen(i);
+			vec2 d = (pw - c) / L.z;
 			d.y /= aspect_of(P.w);
+			int li = clamp(int(floor(P.w / 1000.0)), 0, 2);
+			float shift = layer_shift[li] + (fract(P.w) - 0.5) * shade_var;
+			float contr = layer_contrast[li];
 			float q = dot(d, d);
 			float en = fract(edge_n + P.w);
 			if (q >= 0.9 + 0.25 * (en - 0.5)) {
@@ -134,12 +151,12 @@ void fragment() {
 			}
 			float nz = sqrt(max(0.0, 1.0 - q));
 			float key = clamp(-d.y * 0.8 + nz * 0.5 - d.x * 0.1, 0.0, 1.0);
-			float bounce = clamp(d.y - 0.6, 0.0, 1.0) * 0.6 * clamp(1.0 - (floor_y - L.y - L.z) / 60.0, 0.0, 1.0);
+			float bounce = clamp(d.y - 0.6, 0.0, 1.0) * 0.6 * clamp(1.0 - (floor_y - c.y - L.z) / 60.0, 0.0, 1.0);
 			float shade = key + bounce + (eddy - 0.5) * 0.35 - under_k * clamp(d.y, 0.0, 1.0);
 			// its top shaded by the steam it rolls over
 			shade -= 0.3 * covered * clamp(-d.y + 0.3, 0.0, 1.0);
-			shade = 0.5 + (shade - 0.5) * P.y;
-			float t = clamp(shade * 4.2 + 0.2 + P.x, 0.0, 4.0);
+			shade = 0.5 + (shade - 0.5) * contr;
+			float t = clamp(shade * 4.2 + 0.2 + shift, 0.0, 4.0);
 			// a crease under it where it lies over steam already there
 			// (not on a thinning lobe: its rim would read as a dark ring)
 			// (cel: round every billow that lies over another, so each reads as its own)
@@ -149,6 +166,7 @@ void fragment() {
 			}
 			float la = q > 0.55 + 0.3 * en ? L.w * edge_a : L.w;
 			tone = t;
+			top_w = L.w;
 			// (style 2's swirl: an arc in the lobe's lit upper quarter)
 			float ang = atan(d.y, d.x);
 			swirl = abs(sqrt(q) - 0.55) < 0.07 && ang > -2.7 && ang < -1.1;
@@ -163,8 +181,12 @@ void fragment() {
 		int pick = int(clamp((tone - lo) > th ? lo + 1.0 : lo, 0.0, 4.0));
 		if (style == 1) {
 			// three flat bands, no dither
-			// (the painted still's three: dark, mid grey, a lit top short of white)
+			// (the painted still's three: dark, mid grey, a lit top short of white; a
+			// thinning billow never in the dark band, or it reads as a hole)
 			pick = tone < 1.4 ? 0 : (tone < 2.8 ? 2 : 3);
+			if (top_w < 0.55) {
+				pick = max(pick, 2);
+			}
 		} else if (style == 2) {
 			// a bold two-step pattern between the bands, and the swirl marks
 			float chk = mod(p.x + p.y, 2.0) < 1.0 ? 0.3 : 0.7;
@@ -200,7 +222,8 @@ void fragment() {
 		col += w * vec3(0.5, 0.26, 0.08) * warm_k;
 		float al = floor(a * 4.0 + th * 0.999) / 4.0;
 		if (style == 1) {
-			al = a > 0.3 ? max(a, 0.85) : 0.0;
+			// (flat, but a thinning billow goes by the dither, pixel by pixel)
+			al = a > 0.12 + 0.45 * th ? max(a, 0.85) : 0.0;
 		}
 		if (rim) {
 			al = max(al, 0.75);
