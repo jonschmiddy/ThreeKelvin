@@ -88,7 +88,8 @@ func _stills(cs: ChassisSelect, dir: String) -> void:
 		var at := float(at_s)
 		while cs._yard.lift == null or cs._yard._lift_t < at:
 			await tree.process_frame
-			if cs._yard.lift != null:
+			# (`plume=on`: the steam in the picture; else the hull alone, for painting over)
+			if cs._yard.lift != null and Harness.arg("plume", "off") == "off":
 				cs._yard.lift.plume.visible = false
 		Engine.time_scale = 0.0
 		var view: ShipView = cs._yard.lift.view

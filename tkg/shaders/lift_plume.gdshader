@@ -14,9 +14,9 @@ uniform vec2 rect_size = vec2(960.0, 540.0);
 uniform vec2 org = vec2(0.0);
 uniform int n = 0;
 // x, y, radius, alpha
-uniform vec4 lobe[64];
+uniform vec4 lobe[96];
 // tone shift, contrast, warmth, seed
-uniform vec4 lobe2[64];
+uniform vec4 lobe2[96];
 uniform float tstep = 0.0;
 uniform vec4 box = vec4(0.0, 0.0, -1.0, -1.0);
 uniform float floor_y = 372.0;
@@ -72,7 +72,7 @@ bool covers(vec2 p) {
 	vec2 q0 = p * 0.07 + vec2(tstep * 0.19, -tstep * 0.27);
 	vec2 pw = p + (vec2(fbm(q0), fbm(q0 + 31.7)) - 0.5) * 11.0;
 	float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
-	for (int i = 0; i < 64; i++) {
+	for (int i = 0; i < 96; i++) {
 		if (i >= n) {
 			break;
 		}
@@ -98,7 +98,7 @@ void fragment() {
 	if (shadow_pass) {
 		// the lobes' cover, dropped and softened, darkening the floor in steps
 		float dens = 0.0;
-		for (int i = 0; i < 64; i++) {
+		for (int i = 0; i < 96; i++) {
 			if (i >= n) {
 				break;
 			}
@@ -119,7 +119,7 @@ void fragment() {
 		bool swirl = false;
 		float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
 		float eddy = fbm(p * 0.25 + vec2(-tstep * 0.23, tstep * 0.41));
-		for (int i = 0; i < 64; i++) {
+		for (int i = 0; i < 96; i++) {
 			if (i >= n) {
 				break;
 			}
@@ -142,7 +142,9 @@ void fragment() {
 			float t = clamp(shade * 4.2 + 0.2 + P.x, 0.0, 4.0);
 			// a crease under it where it lies over steam already there
 			// (not on a thinning lobe: its rim would read as a dark ring)
-			if (q > 0.82 && d.y > 0.15 && covered > 0.4 && L.w > 0.6) {
+			// (cel: round every billow that lies over another, so each reads as its own)
+			bool crease = style == 1 ? (q > 0.74 && d.y > -0.35) : (q > 0.82 && d.y > 0.15);
+			if (crease && covered > 0.4 && L.w > 0.6) {
 				t = min(t, 0.8);
 			}
 			float la = q > 0.55 + 0.3 * en ? L.w * edge_a : L.w;
@@ -161,7 +163,8 @@ void fragment() {
 		int pick = int(clamp((tone - lo) > th ? lo + 1.0 : lo, 0.0, 4.0));
 		if (style == 1) {
 			// three flat bands, no dither
-			pick = tone < 1.4 ? 0 : (tone < 2.8 ? 2 : 4);
+			// (the painted still's three: dark, mid grey, a lit top short of white)
+			pick = tone < 1.4 ? 0 : (tone < 2.8 ? 2 : 3);
 		} else if (style == 2) {
 			// a bold two-step pattern between the bands, and the swirl marks
 			float chk = mod(p.x + p.y, 2.0) < 1.0 ? 0.3 : 0.7;

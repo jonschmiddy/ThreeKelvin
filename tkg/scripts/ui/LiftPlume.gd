@@ -10,7 +10,7 @@ extends Control
 
 ## The shape changes ten times a second (the steam's own clock), the lobes move every frame.
 const HZ := 10.0
-const MAX_LOBES := 64
+const MAX_LOBES := 96
 ## HOW HEAVY (Jon, Nov 13: "more smoke and it needs to be heavier"), as `weight`:
 ## 0 AB-23 as first built, 1 heavy, 2 heavier. Puffs a second, their size, the
 ## layers' alpha (far, mid, near), the ragged edge's share of it, the jets' push
@@ -21,14 +21,16 @@ const MAX_LOBES := 64
 const WEIGHTS := [
 	{"rate": 28.0, "size": 1.0, "alpha": [0.42, 0.8, 0.94], "edge": 0.5, "fall": 1.0, "fall_drag": 1.0,
 		"out": 1.0, "roll_drag": 1.3, "linger": 0.0, "lift": 1.0, "curl": 1.0, "shadow": 0.34, "under": 0.0,
-		"clear": Vector2(1.4, 2.0), "clear_lift": 10.0, "clear_spread": 0.0, "flat": 1.0},
+		"clear": Vector2(1.4, 2.0), "clear_lift": 10.0, "clear_spread": 0.0, "flat": 1.0, "contrast": 1.0, "warm": 1.0},
 	{"rate": 32.0, "size": 1.35, "alpha": [0.62, 0.9, 1.0], "edge": 0.7, "fall": 1.15, "fall_drag": 0.8,
 		"out": 0.75, "roll_drag": 1.5, "linger": 0.5, "lift": 0.5, "curl": 1.3, "shadow": 0.46, "under": 0.25,
-		"clear": Vector2(4.0, 5.0), "clear_lift": -3.0, "clear_spread": 4.0, "flat": 0.85},
-	# (heavier, Jon's pick, Nov 13: "spread wider along the floor", "dissipate quicker")
-	{"rate": 36.0, "size": 1.6, "alpha": [0.75, 0.95, 1.0], "edge": 0.82, "fall": 1.3, "fall_drag": 0.7,
-		"out": 1.1, "roll_drag": 1.2, "linger": 0.8, "lift": 0.15, "curl": 1.15, "shadow": 0.56, "under": 0.4,
-		"clear": Vector2(2.5, 3.0), "clear_lift": -4.0, "clear_spread": 8.0, "flat": 0.62},
+		"clear": Vector2(4.0, 5.0), "clear_lift": -3.0, "clear_spread": 4.0, "flat": 0.85, "contrast": 1.0, "warm": 1.0},
+	# (heavier, Jon's pick, Nov 13: "spread wider along the floor", "dissipate quicker";
+	# then "the stills do not match the movie": big chunky billows to the stand tops,
+	# the bands reading, a hot glow under the jets -- wider, not flatter)
+	{"rate": 52.0, "size": 1.6, "alpha": [0.8, 0.96, 1.0], "edge": 0.85, "fall": 1.3, "fall_drag": 0.7,
+		"out": 1.25, "roll_drag": 1.1, "linger": 0.6, "lift": 1.6, "curl": 2.2, "shadow": 0.56, "under": 0.4,
+		"clear": Vector2(2.5, 3.0), "clear_lift": -2.0, "clear_spread": 6.0, "flat": 0.95, "contrast": 1.5, "warm": 1.3},
 ]
 static var weight := 2
 ## The steam's texture (`lift_plume.gdshader`'s `style`): 0 as built, 1 cel,
@@ -128,6 +130,7 @@ func _material(pad: float) -> ShaderMaterial:
 		tones.append(Vector4(c.r, c.g, c.b, 1.0))
 	m.set_shader_parameter(&"tones", tones)
 	m.set_shader_parameter(&"style", style)
+	m.set_shader_parameter(&"warm_k", float(_w.warm))
 	m.set_shader_parameter(&"edge_a", float(_w.edge))
 	m.set_shader_parameter(&"under_k", float(_w.under))
 	m.set_shader_parameter(&"shadow_k", float(_w.shadow))
@@ -172,7 +175,7 @@ func lights() -> Array:
 	var k := _lk
 	if _fired < 0.0 or k <= 0.02:
 		return out
-	out.append([src.x, floor_y - 2.0, 150.0 * size_k, 46.0 * size_k, 1.6 * k, Color(1.0, 0.55, 0.22), 1.0])
+	out.append([src.x, floor_y - 2.0, 150.0 * size_k, 46.0 * size_k, 1.6 * k * float(_w.warm), Color(1.0, 0.55, 0.22), 1.0])
 	out.append([src.x, src.y + 4.0, 90.0 * size_k, 50.0 * size_k, 1.1 * k, Color(1.0, 0.75, 0.45), 1.0])
 	return out
 
@@ -283,7 +286,8 @@ func _step(dt: float) -> void:
 		else:
 			l.rolled = float(l.rolled) + dt
 			v.x *= exp(-float(_w.roll_drag) * dt)
-			v.y = -float(l.buoy) * clampf(float(l.rolled) - 1.0, 0.0, 1.0)
+			# (billowing up off the rolling front from early on)
+			v.y = -float(l.buoy) * clampf((float(l.rolled) - 0.4) / 0.6, 0.0, 1.0)
 			pos += v * dt
 			l.phi = minf(float(l.phi) + float(l.w) * dt * exp(-float(l.rolled) * 0.4), 1.3 * PI)
 			l.r = r + float(l.gr) * dt * exp(-float(l.rolled) * 0.5)
@@ -378,7 +382,10 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		var pos: Vector2 = (l.d as Vector2).floor()
 		var r := floorf(float(l.r))
 		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float((_w.alpha as Array)[int(l.layer)]) * fade * float(l.k))
-		b[n] = Vector4(float(L[1]), float(L[2]), float(l.warm) * exp(-float(l.age) * 1.5) * _lk,
+		# (each billow a shade of its own, so they read apart; the warmth only on what
+		# is fresh off the jets)
+		b[n] = Vector4(float(L[1]) + (float(l.seed) - 0.5) * 0.6 * (float(_w.contrast) - 1.0),
+			float(L[2]) * float(_w.contrast), float(l.warm) * exp(-float(l.age) * (1.5 + 2.0 * (float(_w.warm) - 1.0))) * _lk,
 			float(l.seed) + floorf(_aspect(l) * 100.0))
 		x0 = minf(x0, pos.x - r - 16.0)
 		y0 = minf(y0, pos.y - r - 16.0)
