@@ -202,8 +202,10 @@ def tier(base, t, ramp, frames=None):
     pick = rnd.choice(np.nonzero(edge)[0], size=min(int(round(stars * act)), int(edge.sum())), replace=False)
     twinkles = [(ys[i], xs[i], rnd.randint(0, n_out), rnd.randint(1, 3)) for i in pick]
     ball = bool(frames) and FORM[t] == 2 and BALL_FX != ""
-    if ball:
+    if FORM[t] == 2:
+        # no specks on the balls (Jon, Nov 12)
         twinkles = []
+    if ball:
         # the ball's reach and flattening on the screen, from its lit cells
         rx = np.percentile(np.abs(xs - cx), 95)
         ry = np.percentile(np.abs(ys - cy), 95)

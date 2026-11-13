@@ -51,6 +51,9 @@ static var _early: Dictionary = {}
 ## No small companions or their torn stream round a ball, for the tier pictures' bake only
 ## (`TierMiniBake`: Jon, Nov 11, "the weird ring around the ball galaxy").
 static var no_story := false
+## A ball's young gas forced (0..1), for the tier pictures' bake only (`TierMiniBake ballyoung=`:
+## Jon, Nov 12, "can't they just have nebula in them"). -1 elsewhere.
+static var young := -1.0
 static var pal_merge := 0.03
 static var pal_free := 12
 ## The composite's dither, 1 as made, 0 nearest colour only (tuning).
@@ -677,14 +680,17 @@ static func push_story(m: ShaderMaterial, gain: float) -> void:
 ## irregular its outline 0..1).
 ## Why: docs/why/ChartSky.md#ball-kinds
 static func ball_kind(ball: Vector4) -> Vector4:
+	var v := Vector4(0.0, 1.25, 0.0, 0.0)
 	match int(ball.w):
 		1:
-			return Vector4(1.0, 0.45, 1.0, 0.6)
+			v = Vector4(1.0, 0.45, 1.0, 0.6)
 		2:
-			return Vector4(2.0, 0.6, 0.0, 0.15)
+			v = Vector4(2.0, 0.6, 0.0, 0.15)
 		3:
-			return Vector4(3.0, 1.3, 0.3, 0.25)
-	return Vector4(0.0, 1.25, 0.0, 0.0)
+			v = Vector4(3.0, 1.3, 0.3, 0.25)
+	if young >= 0.0:
+		v.z = young
+	return v
 
 
 ## A ball's body in this style (`ellBall`'s `u_ballF`): (size against `ball_of`'s radius, the

@@ -1,10 +1,8 @@
 extends Node
 
-## The star chart's own galaxy, small, for each tier's picture on LAUNCH A RUN: a run at the
-## tier in one of its galaxy kinds, the real star chart with its icons off, one still of the
-## sky for each step of a whole turn (`frame_<t>_<k>.png`), for tools/dev/tier_minis.py to
-## pixelate. `-- sheet=TierMiniBake out=<dir> [tiers=0,5,10] [limit=N] [tornsweep=1] [nudge=x,y] [far=f] [kinds=..]
-## [freeze=1] [typeramp=1] [ballturn=a,b]`; needs a window.
+## The star chart's own galaxy, small, a still per step of one turn, for each tier's picture
+## (`frame_<t>_<k>.png`; tools/dev/tier_minis.py pixelates). Needs a window. Its args are
+## in docs/tests.md (`-- sheet=TierMiniBake`).
 
 ## Seconds a whole turn takes at tier 0 and at tier 10; frames a second of the picture.
 const TURN_S := [24.0, 8.0]
@@ -53,6 +51,7 @@ func _run() -> void:
 	ChartTorn.nudge = Vector2.ZERO
 	ChartTorn.far = 1.0
 	ChartSky.no_story = false
+	ChartSky.young = -1.0
 	MapChart.clock_override = -1.0
 	print("tierminibake: done")
 	get_tree().quit()
@@ -68,6 +67,12 @@ func _bake(t: int) -> void:
 	var ks := Harness.arg("kinds").split(",")
 	Run.galaxy_kind = int(ks[t]) if ks.size() > t and ks[t] != "" else kind_of(t)
 	Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
+	# `ballgas=x`: a ball baked with this much gas, so the chart draws nebulae in it as it does
+	# in the spirals (an elliptical's own gas, about 0.05, rolls none)
+	if Ladder.form(t) == Ladder.Form.BALL and Harness.arg("ballgas") != "":
+		Run.galaxy["gas"] = float(Harness.arg("ballgas"))
+	# `ballyoung=x`: a ball drawn with young gas, the blue star-forming haze a blue compact dwarf has
+	ChartSky.young = float(Harness.arg("ballyoung")) if Ladder.form(t) == Ladder.Form.BALL and Harness.arg("ballyoung") != "" else -1.0
 	Run.map = MapGen.generate(Run.MAP_CANVAS)
 	Run.at = 0
 	Run.trail = PackedInt32Array([0])
