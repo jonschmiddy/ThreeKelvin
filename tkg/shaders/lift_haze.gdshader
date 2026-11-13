@@ -37,13 +37,13 @@ void fragment() {
 		}
 	}
 	w *= k;
-	if (w < 0.08) {
+	if (w < 0.05) {
 		discard;
 	}
 	// a held field of whole-pixel shifts, mostly sideways, in rows that wobble
 	float row = floor(p.y / 2.0);
 	float h = hash(vec2(row, tstep)) - 0.5;
-	float shift = floor(h * 2.0 * (1.0 + 2.0 * w) + 0.5);
+	float shift = floor(h * 2.0 * (1.5 + 3.0 * w) + 0.5);
 	float vshift = floor((hash(vec2(row + 17.0, tstep)) - 0.5) * 1.4 * w + 0.5);
 	// screen pixels per picture pixel, so a shift is whole picture pixels
 	vec2 per = vec2(length(dFdx(UV * rect_size)), length(dFdy(UV * rect_size)));

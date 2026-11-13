@@ -112,18 +112,19 @@ func _palette() -> void:
 			# heavy billows: grey-black above and at the edges, the engines' orange under them
 			_set_pal(Vector3(0.07, 0.07, 0.08), Vector3(0.15, 0.15, 0.17), Vector3(0.26, 0.26, 0.28), Vector3(0.36, 0.36, 0.38))
 			_mat.set_shader_parameter(&"top_light", 0.0)
-			_mat.set_shader_parameter(&"floor_glow", 1.3)
+			_mat.set_shader_parameter(&"floor_glow", 0.55)
+			_mat.set_shader_parameter(&"glow_k", 0.6)
 			_mat.set_shader_parameter(&"turb", 0.75)
 		"S2":
 			# a low skirt of floor dust
 			_set_pal(Vector3(0.2, 0.18, 0.15), Vector3(0.3, 0.27, 0.22), Vector3(0.41, 0.37, 0.31), Vector3(0.5, 0.46, 0.38))
 			_mat.set_shader_parameter(&"glow_k", 0.15)
-			_mat.set_shader_parameter(&"alpha_k", 0.75)
+			_mat.set_shader_parameter(&"alpha_k", 0.85)
 		"S3":
 			# white-grey vapour, a mist that hangs low
 			_set_pal(Vector3(0.46, 0.5, 0.54), Vector3(0.6, 0.64, 0.68), Vector3(0.74, 0.78, 0.81), Vector3(0.86, 0.89, 0.91))
-			_mat.set_shader_parameter(&"glow_k", 0.25)
-			_mat.set_shader_parameter(&"alpha_k", 0.8)
+			_mat.set_shader_parameter(&"glow_k", 0.2)
+			_mat.set_shader_parameter(&"alpha_k", 0.62)
 
 
 func _set_pal(d: Vector3, m: Vector3, l: Vector3, t: Vector3) -> void:
@@ -267,12 +268,12 @@ func _spawn() -> void:
 			# big round puffs piling up and rolling out in a wall, rising slowly
 			var up := _rng.randf() < 0.45
 			_add(Vector2(bx, floor_y - 10.0 * s), Vector2(side * _rng.randf_range(50, 150) * s, -_rng.randf_range(10, 40) * s if up else 0.0),
-				_rng.randf_range(18, 28), 30.0, _rng.randf_range(0.9, 1.15), _rng.randf_range(5.5, 7.5), 1.2,
+				_rng.randf_range(18, 28), 30.0, _rng.randf_range(0.9, 1.15), _rng.randf_range(5.5, 7.5), 0.7,
 				_rng.randf_range(1.0, 1.2), _rng.randf_range(0.95, 1.15), 0.9, 8.0 if up else 3.0)
 		"S2":
 			# a low skirt of dust thrown out fast along the floor, settling
 			_add(Vector2(bx, floor_y - 4.0 * s), Vector2(side * _rng.randf_range(200, 320) * s, _rng.randf_range(-6, 0)),
-				_rng.randf_range(7, 11), 18.0, _rng.randf_range(0.35, 0.5), _rng.randf_range(1.4, 2.4), 0.0, 2.4, 0.45, 2.6, -3.0)
+				_rng.randf_range(7, 11), 18.0, _rng.randf_range(0.55, 0.7), _rng.randf_range(1.4, 2.4), 0.0, 2.4, 0.45, 2.6, -3.0)
 		"S3":
 			# (a burst is `_burst`; a lone puff is a wisp of the mist)
 			_add(Vector2(bx, floor_y - 6.0 * s), Vector2(side * _rng.randf_range(20, 50) * s, 0.0),
@@ -292,15 +293,17 @@ func _burst(k: float, stands_only: bool = false) -> void:
 	var s := size_k
 	var points: Array[Vector2] = []
 	if not stands_only:
+		# (the belly's vents while it is still low over the floor: higher, they hung a layer in the air)
 		for q in sources:
-			points.append(Vector2(q.x, q.y + 2.0))
+			if floor_y - q.y < 110.0 * s:
+				points.append(Vector2(q.x, q.y + 2.0))
 	for v in vents:
 		points.append(v)
 	for at in points:
 		for side: float in [-1.0, 1.0]:
 			_add(at + Vector2(side * 3.0, 0.0), Vector2(side * _rng.randf_range(220, 320) * s * k, _rng.randf_range(-12, 12)),
-				_rng.randf_range(4, 6), 70.0, _rng.randf_range(0.7, 0.9), _rng.randf_range(3.2, 4.6), 0.15,
-				1.8, 0.7, 4.5, -9.0)
+				_rng.randf_range(4, 6), 32.0, _rng.randf_range(0.55, 0.75), _rng.randf_range(2.6, 3.6), 0.1,
+				2.4, 0.5, 4.5, -40.0)
 
 
 ## S2: grit and sparks off the floor in fast streaks, out from under the jets.
@@ -365,8 +368,9 @@ func _draw_grit() -> void:
 			_bits.draw_line(l + Vector2(0.5, 0.5), p + Vector2(0.5, 0.5), Color(1.0, 0.82, 0.48, 0.6 * a), 1.0)
 			_bits.draw_rect(Rect2(p, Vector2(1, 1)), Color("#fff4d0") if a > 0.5 else Color("#ffb347"))
 		else:
-			var c := Color(0.55, 0.5, 0.42, 0.75 * a) if int(p.x) % 3 != 0 else Color(0.36, 0.32, 0.27, 0.8 * a)
-			_bits.draw_line(l + Vector2(0.5, 0.5), p + Vector2(0.5, 0.5), c, 1.0)
+			var c := Color(0.78, 0.72, 0.6, 0.85 * a) if int(p.x) % 3 != 0 else Color(0.5, 0.45, 0.38, 0.9 * a)
+			var back := (l - p) * 2.0
+			_bits.draw_line(p + back + Vector2(0.5, 0.5), p + Vector2(0.5, 0.5), c, 1.0)
 
 
 func _push() -> void:
@@ -387,7 +391,7 @@ func _push() -> void:
 		var pos: Vector2 = (p.p as Vector2).floor()
 		var r := floorf(float(p.r))
 		a[n] = Vector4(pos.x, pos.y, maxf(2.0, r), d)
-		b[n] = Vector4(float(p.heat) * exp(-float(p.age) * (1.2 if kind == "S1" else 4.5)), float(p.sx), float(p.sy), 0.0)
+		b[n] = Vector4(float(p.heat) * exp(-float(p.age) * (2.2 if kind == "S1" else 4.5)), float(p.sx), float(p.sy), 0.0)
 		var ext := r * maxf(float(p.sx), float(p.sy)) + 24.0
 		x0 = minf(x0, pos.x - ext)
 		y0 = minf(y0, pos.y - ext)
