@@ -42,6 +42,9 @@ func _run() -> void:
 	Run.map[st].visited = true
 	SectorScreen._approached_at = st
 	Router.park_at_station()
+	# (`party=N`: N made-up partners in the room, ConvoyTest's, for the co-op stills)
+	if Harness.arg("party", "") != "":
+		load("res://scripts/sim/ConvoyTest.gd").fake_party(int(Harness.arg("party", "0")))
 	var route := Harness.arg("route", "local")
 	if route == "parked":
 		# (LOCAL at the station, nothing happening: the dust's idle rate)
@@ -49,6 +52,9 @@ func _run() -> void:
 		for i in 240:
 			await _tree.process_frame
 			_log_dust(&"parked")
+		if Harness.arg("stills", "") != "":
+			DirAccess.make_dir_recursive_absolute(Harness.arg("stills", ""))
+			await _still(Harness.arg("stills", ""), "parked")
 		_tree.quit()
 		return
 	if route == "first":
@@ -164,6 +170,9 @@ func _undock() -> void:
 			print("  [dockfilm] undock: the move done at drawn %d" % Engine.get_frames_drawn())
 		if done >= 0 and i > done + 30 and k > 30:
 			break
+	if stills != "":
+		await Harness.frames(_tree, 60)
+		await _still(stills, "undocked")
 
 
 ## DOCK pressed on LOCAL, run until the station's move is done and a beat after.
