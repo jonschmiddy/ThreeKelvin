@@ -9,6 +9,11 @@ extends RefCounted
 
 ## The small font's line pitch in a wrapped label, measured off the renders.
 const LINE := 13
+## The line spacing that brings a wrapped perk's lines to the parts' 11 px pitch.
+const PERK_SPACING := 0
+## The FITTED column's left edge: 32 px after the attribute values (Jon, Nov 12:
+## "move the fitted block to the left a bit"), so the names and the perk have room.
+const FIT_X := 504
 ## The card stack's place, left of LAUNCH.
 const STACK_AT := Vector2(706, 438)
 ## A still can hold the deck spread out (`YardStandsShot deckopen`).
@@ -59,7 +64,7 @@ static func left_column(band: YardBand, m: ManufacturerData, chosen: bool) -> vo
 ## The hardpoint column, spelled out: each fitted part and its slot, the mounts
 ## left, the hand and the deck, and the hull's perk; the deck's stack by LAUNCH.
 static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
-	var x := YardBand.COL_H
+	var x := FIT_X
 	var w := int(STACK_AT.x) - x - 6
 	band._word("FITTED", UITheme.FS_SMALL, x, YardBand.ROW0 - 4, YardBand.COLD)
 	var row := YardBand.ROW0 + 8
@@ -77,10 +82,10 @@ static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 	band._word("NO MOUNTS FREE" if free == 0 else ("1 MOUNT FREE" if free == 1 else "%d MOUNTS FREE" % free),
 		UITheme.FS_SMALL, x + 52, YardBand.ROW0 - 4, YardBand.COLD)
 	row += 1
-	var hand := band._word("HAND %d A TURN" % Run.hand_size(), UITheme.FS_SMALL, x, row, YardBand.ICE)
+	var hand := band._word("HAND SIZE: %d A TURN" % Run.hand_size(), UITheme.FS_SMALL, x, row, YardBand.ICE)
 	hand.mouse_filter = Control.MOUSE_FILTER_PASS
 	hand.tooltip_text = Widgets.tip(str(ChassisSelect.MOUNT_TIP["hand"]))
-	var dk := band._word("DECK %d CARDS" % Run.deck_size(), UITheme.FS_SMALL, x + 92, row, YardBand.ICE)
+	# (no deck line: the stack says it, Jon: "Deck 10 cards is redundant")
 	var strip := DeckStrip.new()
 	band._words.add_child(strip)
 	var st := DeckStack.new()
@@ -88,10 +93,8 @@ static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 	st.n = Run.deck_size()
 	st.position = STACK_AT
 	band._words.add_child(st)
-	for over: Control in [dk, st]:
-		over.mouse_filter = Control.MOUSE_FILTER_PASS
-		over.mouse_entered.connect(func() -> void: strip.show_deck(true))
-		over.mouse_exited.connect(func() -> void: strip.show_deck(false))
+	st.mouse_entered.connect(func() -> void: strip.show_deck(true))
+	st.mouse_exited.connect(func() -> void: strip.show_deck(false))
 	if hold_open:
 		strip.show_deck(true)
 	var perk: Dictionary = DB.hull_perks.get(Run.hull.perk_id, {})
@@ -99,6 +102,8 @@ static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 		var pk := band._word("%s: %s" % [String(perk.name).to_upper(), String(perk.text).to_upper().trim_suffix(".")],
 			UITheme.FS_SMALL, x, row + 11, YardBand.COLD)
 		_wrap(pk, w)
+		# its second line at the column's own pitch, not the label's looser one
+		pk.add_theme_constant_override(&"line_spacing", PERK_SPACING)
 
 
 static func _wrap(l: Label, w: int) -> void:

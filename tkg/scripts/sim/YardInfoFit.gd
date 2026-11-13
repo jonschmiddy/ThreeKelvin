@@ -91,8 +91,8 @@ func _loadout(cs: ChassisSelect, w: HullData.Weight, when: String) -> void:
 	var parts := true
 	for p: ModuleData in Run.installed:
 		parts = parts and said.has(p.name.to_upper())
-	_ok("%s: the band names every fitted part, the hand and the deck" % when, parts
-		and said.has("DECK %d CARDS" % Run.deck_size()) and said.has("HAND %d A TURN" % Run.hand_size()))
+	_ok("%s: the band names every fitted part and the hand, and leaves the deck to the stack" % when, parts
+		and said.has("HAND SIZE: %d A TURN" % Run.hand_size()) and not said.has("DECK %d CARDS" % Run.deck_size()))
 	var s: YardStandSet = cs._yard.set_of(w)
 	var guns := 0
 	if s.mounts != null:

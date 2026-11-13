@@ -668,9 +668,12 @@ box to the left". `YardInfo` draws it: the band's left column is the hull's name
 the maker's emblem and name, its slogan and, once picked, its identity line (while
 only pointed at, CLICK TO MAKE IT YOURS stands there instead, so the column fits);
 the hardpoint column is FITTED, each part's name and slot, the mounts left, the
-hand, the deck and the hull's perk, wrapped to the card stack's edge. The weapons
+hand and the hull's perk, wrapped to the card stack's edge. Jon's notes on the
+build: no deck line ("Deck 10 cards is redundant": the stack says it), the
+column moved left to 32 px after the attribute values, and the perk's second
+line at the parts' pitch. The hand reads "HAND SIZE: 5 A TURN" (Jon's words). The weapons
 are bolted on every open hull in the yard (`MountPoints`, passive, weapons only, as
 on the Shipyard deck), the kit fitted on `Run` for a moment and put back, and the
 sharp copy over the blur carries them. The deck is a stack of three card backs
-in the maker's colours by LAUNCH; pointing at it, or at the DECK line, lays the
+in the maker's colours by LAUNCH; pointing at it lays the
 whole deck out over the floor at the hand's size. `YardInfoFit` box-tests it.

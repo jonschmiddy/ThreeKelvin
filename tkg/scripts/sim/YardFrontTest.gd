@@ -119,8 +119,9 @@ func _pick(cs: ChassisSelect) -> void:
 	var parts := true
 	for p: ModuleData in Run.installed:
 		parts = parts and _band_says(cs, p.name.to_upper())
-	_ok("the band spells the fitted parts, the hand and the deck out", parts
-		and _band_says(cs, "HAND %d A TURN" % Run.hand_size()) and _band_says(cs, "DECK %d CARDS" % Run.deck_size()))
+	var stack := Harness.first(cs._band, func(n: Node) -> bool: return n is YardInfo.DeckStack) as YardInfo.DeckStack
+	_ok("the band spells the fitted parts and the hand out, the stack the deck", parts
+		and _band_says(cs, "HAND SIZE: %d A TURN" % Run.hand_size()) and stack != null and stack.n == Run.deck_size())
 	var block := Harness.first(cs._band, func(n: Node) -> bool: return n is AttrBlock) as AttrBlock
 	_ok("the seven attributes are the picker's block", block != null and block._rows.size() == Run.attributes().size()
 		and Run.attributes().size() == 7)
