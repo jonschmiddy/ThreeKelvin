@@ -110,8 +110,6 @@ var _lat_on := false
 var _lat_want := false
 var _lifting := false
 var _touched := false
-## The stands' tops at rest (host px), where steam also rises.
-var vents: Array[Vector2] = []
 ## The hall's ceiling lamps over it (x, reach), for the light on the steam's tops.
 var lamps: Array[Vector2] = []
 
@@ -178,7 +176,6 @@ func setup(v: ShipView, h: Control, under: int, over_node: Node = null) -> void:
 	plume.size_k = k * plume_k
 	plume.setup(host.size.x, host.size.y, 220.0)
 	plume.floor_y = floor_y
-	plume.vents = vents
 	plume.lamps = lamps
 	# the steam's far layers and its shadow under the hull, its near layer over it
 	host.add_child(plume.back_layer)
@@ -212,11 +209,8 @@ func lift_at(t: float) -> void:
 	# gathers speed across, so it leaves high (Jon, Nov 12: "can also go higher up")
 	_off.y = -rise * lift_e - sag * k - _climb() * (1.0 - pow(1.0 - burn, 1.6))
 	_off.x = dir * exit_px * pow(burn, 2.6)
-	# the floor throws steam up only while the jets are over it and near it: it
-	# thins as the hull climbs and slides off its berth, and clears behind it
-	var over := clampf(1.0 - maxf(0.0, -_off.y - rise) / (90.0 * k), 0.0, 1.0) 		* clampf(1.0 - absf(_off.x) / maxf(1.0, 0.5 * _ink.size.x), 0.0, 1.0)
 	var jets := spool * (1.0 - 0.75 * burn) if t < exit_s() else 0.0
-	plume.thrust = jets * over
+	plume.thrust = jets
 	_sink(clampf((t - SINK_FROM) / SINK_S, 0.0, 1.0))
 	if t >= exit_s():
 		# off the picture: its engines dark, nothing of it left at the edge

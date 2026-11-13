@@ -2,7 +2,8 @@ class_name LiftPlume
 extends Control
 
 ## THE STEAM a hull throws up as it lifts off or sets down (Jon's "AB-23", Nov 12):
-## sculpted lobes in three layers of depth, rising round the hull, every lift its own.
+## sculpted lobes in three layers of depth, every lift its own. All of it leaves the
+## hull's jets: down to the floor in streams, pooled there, rolled out to both sides.
 ## The host (`ShipLift`) moves it with the hull, lays `back_layer` under the hull, and
 ## sets `thrust`; once the jets cut, it clears.
 ## Why: docs/why/ShipLift.md#plume
@@ -10,7 +11,7 @@ extends Control
 ## The shape changes ten times a second (the steam's own clock), the lobes move every frame.
 const HZ := 10.0
 const MAX_LOBES := 48
-const RATE := 26.0
+const RATE := 28.0
 const BURST := 12
 ## Once the jets cut, every lobe is gone within this many seconds (Jon, Nov 12:
 ## "The smoke should also dissipate when landing").
@@ -39,8 +40,6 @@ var thrust: float = 0.0
 ## and how far either side of each it starts.
 var sources: Array[Vector3] = []
 var spread: float = 10.0
-## The stands' tops (host px), where steam also rises.
-var vents: Array[Vector2] = []
 ## The hall's lamps over the berth (x, reach), for the light on its tops.
 var lamps: Array[Vector2] = []
 ## The far and middle layers and the steam's shadow, which the host lays under the hull.
@@ -60,6 +59,9 @@ var _acc := 0.0
 var _burned := false
 var _clearing := false
 var _lk := 0.0
+## The hull's jets' velocity (host px/s), eased; every puff born takes it along.
+var _ship_v := Vector2.ZERO
+var _last_src := Vector2(INF, INF)
 
 
 func _init() -> void:
@@ -124,11 +126,10 @@ func puffs() -> int:
 	return _lobes.size()
 
 
-## The stands take the weight: a last puff off their tops.
+## The stands take the weight: a last breath out of the jets.
 func touchdown() -> void:
-	for v in vents:
-		_add(v + Vector2(_rng.randf_range(-3, 3), 0), Vector2(_rng.randf_range(-12, 12), -_rng.randf_range(20, 40)),
-			_rng.randf_range(8, 11), 2, 0.0, 1.4)
+	for i in 6:
+		_spawn()
 
 
 ## The floor and stands it lights this tick, as the yard's small lights
@@ -156,6 +157,10 @@ func cleared() -> bool:
 func _process(dt: float) -> void:
 	_t += dt
 	_lk += (thrust * strength - _lk) * (1.0 - exp(-dt / LIGHT_TC))
+	if dt > 0.0:
+		var sv := Vector2.ZERO if _last_src.x == INF else ((src - _last_src) / dt).limit_length(600.0)
+		_ship_v = _ship_v.lerp(sv, 1.0 - exp(-dt / 0.08))
+		_last_src = src
 	if _fired < 0.0:
 		return
 	if thrust > 0.05:
@@ -163,7 +168,8 @@ func _process(dt: float) -> void:
 	elif _burned and not _clearing:
 		_clear()
 	if not _clearing:
-		_acc += RATE * thrust * strength * dt
+		# (a weak burn thins the steam more than it spaces it out: the streams stay streams)
+		_acc += RATE * thrust * (0.5 + 0.5 * minf(strength, 1.0)) * dt
 		while _acc >= 1.0:
 			_acc -= 1.0
 			_spawn()
@@ -180,12 +186,14 @@ func _clear() -> void:
 		l.buoy = float(l.buoy) + 10.0 * size_k
 
 
-## One lobe: where, how fast, radius, its layer (0 far .. 2 near), warmth, life s.
+## One lobe, born at the hull: where, how fast, radius, its layer (0 far .. 2 near),
+## warmth, life s. It falls (`roll` false) until it reaches the floor.
 func _add(at: Vector2, v: Vector2, r: float, layer: int, warm: float, life: float) -> void:
 	if _lobes.size() >= MAX_LOBES * 2:
 		_lobes.pop_front()
-	_lobes.append({"p": at, "v": v, "r": r * size_k, "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
-		"warm": warm, "life": life, "age": 0.0, "buoy": _rng.randf_range(6, 14) * size_k, "seed": _rng.randf()})
+	_lobes.append({"p": at, "d": at, "v": v, "r": r * size_k, "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
+		"warm": warm, "life": life, "age": 0.0, "buoy": _rng.randf_range(3, 7) * size_k, "seed": _rng.randf(),
+		"k": clampf(0.4 + 0.6 * strength, 0.0, 1.0), "roll": false, "rolled": 0.0, "side": 1.0, "R": 0.0, "phi": 0.0, "w": 0.0})
 
 
 ## A jet, by weight, and a spot either side of it.
@@ -196,61 +204,76 @@ func _jet() -> Vector2:
 	return Vector2(q.x + _rng.randf_range(-spread, spread), q.y)
 
 
-## What goes up: a bank of billows off the floor under the jets, rolling out wide
-## (some in front, some behind), pillars up past the nose and tail to the hull's top
-## (behind, and some in front), steam off the stands' tops (in front), and now and
-## then a thin wisp.
+## THE SHIP IS THE SOURCE (Jon, Nov 12): every puff leaves a belly jet, driven straight
+## down. Whatever reaches the floor pools there and rolls out sideways from under the
+## hull; what does not (the hull too high) thins out in the air.
 func _spawn() -> void:
-	var s := size_k
-	var side := -1.0 if _rng.randf() < 0.5 else 1.0
-	var mid := hull.get_center().x if hull.size.x > 0.0 else src.x
-	var half := 0.5 * hull.size.x if hull.size.x > 0.0 else src_w * 1.4
-	var roll := _rng.randf()
-	if roll < 0.5:
-		var j := _jet()
-		var near := _rng.randf() < 0.4
-		# (a third of it stays under the jets and fills the middle)
-		var out := _rng.randf_range(8, 45) if _rng.randf() < 0.35 else _rng.randf_range(60, 160)
-		_add(Vector2(j.x, floor_y - 10.0 * s), Vector2(side * out * s, -_rng.randf_range(10, 30) * s),
-			_rng.randf_range(13, 18), 2 if near else 1, 0.9, _rng.randf_range(2.4, 3.4))
-	elif roll < 0.82:
-		# up the sides, to about the hull's top
-		# (behind the hull under it; in front only past its nose and tail)
-		var layer := 0 if _rng.randf() < 0.35 else (2 if _rng.randf() < 0.25 else 1)
-		var x := mid + side * half * (_rng.randf_range(0.95, 1.15) if layer == 2 else _rng.randf_range(0.55, 1.0))
-		var up := clampf(floor_y - hull.position.y, 60.0 * s, 200.0 * s) if hull.size.y > 0.0 else 100.0 * s
-		_add(Vector2(x, floor_y - 16.0 * s), Vector2(side * _rng.randf_range(6, 24) * s, -_rng.randf_range(0.5, 0.75) * up),
-			_rng.randf_range(14, 20), layer, 0.25, _rng.randf_range(2.8, 3.8))
-	elif roll < 0.93 and not vents.is_empty():
-		var v: Vector2 = vents[_rng.randi() % vents.size()]
-		_add(v + Vector2(_rng.randf_range(-3, 3), 0), Vector2(_rng.randf_range(-8, 8), -_rng.randf_range(18, 34) * s),
-			_rng.randf_range(8, 11), 2, 0.0, _rng.randf_range(2.0, 2.8))
-	else:
-		_add(Vector2(mid + side * half * _rng.randf_range(0.6, 1.0), floor_y - 30.0 * s),
-			Vector2(side * _rng.randf_range(40, 80) * s, -_rng.randf_range(40, 70) * s),
-			_rng.randf_range(4, 6), 0, 0.0, _rng.randf_range(1.2, 1.8))
+	var j := _jet()
+	var q := _rng.randf()
+	var layer := 0 if q < 0.3 else (1 if q < 0.7 else 2)
+	# (carried along with the hull: its velocity, which fades as the puff falls)
+	_add(Vector2(j.x, j.y + 2.0), _ship_v + Vector2(_rng.randf_range(-8, 8) * size_k, _rng.randf_range(230, 300) * size_k),
+		_rng.randf_range(7, 10), layer, 0.9, _rng.randf_range(0.8, 1.1))
 
 
+## Falling: the jet's push dies off as it goes. On the floor it turns into the bank:
+## out from under the hull, slowing, each lobe riding a roll at the front (low and
+## forward, up the front, back over the top: Jon's curl), and late on lifting a little.
 func _step(dt: float) -> void:
 	var keep: Array = []
-	var fl := floor_y - 4.0
+	var mid := hull.get_center().x if hull.size.x > 0.0 else src.x
+	var half := 0.5 * hull.size.x if hull.size.x > 0.0 else src_w * 1.4
 	for l: Dictionary in _lobes:
 		l.age = float(l.age) + dt
 		if float(l.age) >= float(l.life):
 			continue
 		var v: Vector2 = l.v
 		var pos: Vector2 = l.p
-		v *= exp(-1.1 * dt)
-		v.y -= float(l.buoy) * dt
-		pos += v * dt
-		if pos.y > fl:
-			pos.y = fl
-			v.y = minf(v.y, 0.0)
+		var r := float(l.r)
+		if not bool(l.roll):
+			v *= exp(-1.0 * dt)
+			pos += v * dt
+			l.r = r + float(l.gr) * 0.6 * dt
+			if pos.y + 0.4 * r >= floor_y:
+				_land(l, pos, mid, half)
+				pos = l.p
+				v = l.v
+			l.d = pos
+		else:
+			l.rolled = float(l.rolled) + dt
+			v.x *= exp(-1.3 * dt)
+			v.y = -float(l.buoy) * clampf(float(l.rolled) - 1.0, 0.0, 1.0)
+			pos += v * dt
+			l.phi = minf(float(l.phi) + float(l.w) * dt * exp(-float(l.rolled) * 0.4), 1.3 * PI)
+			l.r = r + float(l.gr) * dt * exp(-float(l.rolled) * 0.5)
+			var rr := float(l.R)
+			l.d = pos + Vector2(float(l.side) * rr * sin(float(l.phi)), rr * cos(float(l.phi)))
 		l.v = v
 		l.p = pos
-		l.r = float(l.r) + float(l.gr) * dt * exp(-float(l.age) * 0.5)
 		keep.append(l)
 	_lobes = keep
+
+
+## A falling lobe reaches the floor: a third pools under the hull, the rest roll out,
+## each side away from the middle.
+func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
+	var s := size_k
+	var off := at.x - mid
+	var side := signf(off) if absf(off) > 0.12 * half else (-1.0 if _rng.randf() < 0.5 else 1.0)
+	var rr := _rng.randf_range(8, 16) * s
+	var out := _rng.randf_range(10, 35) if _rng.randf() < 0.3 else _rng.randf_range(70, 150)
+	# the floor takes the splash: it spreads at once
+	l.r = maxf(float(l.r), _rng.randf_range(13, 17) * s)
+	l.gr = _rng.randf_range(10, 16) * s
+	l.roll = true
+	l.side = side
+	l.R = rr
+	l.phi = 0.0
+	l.w = _rng.randf_range(1.6, 2.8)
+	l.p = Vector2(at.x, floor_y - rr - 0.4 * float(l.r))
+	# (and shifted the way the hull was going, by what of its push is left)
+	l.v = Vector2(side * out * s + 0.6 * (l.v as Vector2).x, 0.0)
+	l.life = float(l.age) + _rng.randf_range(2.0, 2.8)
 
 
 func _push() -> void:
@@ -262,8 +285,8 @@ func _push() -> void:
 		(front if int(l.layer) == 2 else back).append(l)
 	# painted far to near, and within a layer top first, so the lower ones roll over
 	back.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return int(a.layer) < int(b.layer) or (int(a.layer) == int(b.layer) and (a.p as Vector2).y < (b.p as Vector2).y))
-	front.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (a.p as Vector2).y < (b.p as Vector2).y)
+		return int(a.layer) < int(b.layer) or (int(a.layer) == int(b.layer) and (a.d as Vector2).y < (b.d as Vector2).y))
+	front.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (a.d as Vector2).y < (b.d as Vector2).y)
 	var lamp_arr := PackedVector2Array()
 	lamp_arr.resize(8)
 	for i in mini(8, lamps.size()):
@@ -289,9 +312,9 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		var L: Array = LAYERS[int(l.layer)]
 		# in over a sixth of a second, out over the last third of its life
 		var fade := minf(1.0, float(l.age) * 6.0) * clampf((1.0 - u) / 0.35, 0.0, 1.0)
-		var pos: Vector2 = (l.p as Vector2).floor()
+		var pos: Vector2 = (l.d as Vector2).floor()
 		var r := floorf(float(l.r))
-		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float(L[0]) * fade)
+		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float(L[0]) * fade * float(l.k))
 		b[n] = Vector4(float(L[1]), float(L[2]), float(l.warm) * exp(-float(l.age) * 1.5) * _lk, float(l.seed))
 		x0 = minf(x0, pos.x - r - 16.0)
 		y0 = minf(y0, pos.y - r - 16.0)
