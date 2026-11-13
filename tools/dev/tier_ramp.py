@@ -46,11 +46,11 @@ RAMPS = {
     "P": (0.62, 1.28, 0.17, 0.48, 1, 2, 3, 8),
     "Q": (0.56, 1.34, 0.20, 0.55, 2, 3, 4, 10),
 }
-## Clumps of brighter stars riding a ball's turn, so it reads as turning (Jon: "the ball
-## galaxies don't turn much at all"): how many, how far out (of the ball's reach), how bright.
-CLUMPS = 5
-CLUMP_R = (0.42, 0.78)
-CLUMP_STEP = 4
+## What a ball wears so its life reads (Jon, Nov 12: the clumps of light "do not look good"),
+## from real ellipticals: BA a dust lane that turns with it (Centaurus A, the Sombrero), BB
+## jets from an active core, BC shells rippling outward (shell galaxies). Set by BALL_FX.
+BALL_FX = os.environ.get("BALL_FX", "")
+LANE_DARK = 0.3
 STEP = 0.13          # one breath or glow step: this share of the way to white
 
 
@@ -100,6 +100,76 @@ def turning(frames):
     return out
 
 
+def ring_ok(shape):
+    """Cells wholly inside the lamp ring's limit (2x cells in the 112 px picture)."""
+    yy, xx = np.mgrid[0:shape[0], 0:shape[1]]
+    k = 112.0 / shape[0]
+    return np.hypot((xx + 0.5) * k - 56, (yy + 0.5) * k - 56) + k * 0.71 <= 47.5
+
+
+def ball_fx(a, keep, u, act, cx, cy, rx, ry, core):
+    """A ball's feature for this frame, in whole cells, never on the core's own cells."""
+    hh, ww = keep.shape
+    yy, xx = np.mgrid[0:hh, 0:ww]
+    ex, ey = (xx - cx) / max(rx, 1), (yy - cy) / max(ry, 1)
+    er = np.hypot(ex, ey)
+    near_core = grow(core, 2)
+    ok = ring_ok(keep.shape)
+    if BALL_FX == "BA":
+        # a dust lane across the ball, a little off its middle, turning with it: the line's
+        # way across the ellipse goes round once a loop, so its slant rocks and the band sweeps
+        ang = 0.35 - 2 * math.pi * u
+        dx, dy = math.cos(ang), math.sin(ang) * 0.35
+        nx, ny = -dy, dx
+        nn = math.hypot(nx, ny)
+        dist = (ex * nx + ey * ny) / nn - 0.18
+        width = 0.1 + 0.04 * act
+        lane = keep & (np.abs(dist) <= width) & (er < 0.98) & ~near_core
+        edge = keep & ~lane & (np.abs(dist) <= width + 0.09) & (er < 0.98) & ~near_core
+        a[lane] = PANEL + (a[lane] - PANEL) * LANE_DARK
+        if act > 0:
+            a[edge] = a[edge] + (HOT - a[edge]) * (0.25 + 0.35 * act) * act
+    elif BALL_FX == "BB":
+        # jets: none at the form's first tier, faint at the middle, clear at the top, pulsing
+        if act > 0:
+            pulse = 0.5 - 0.5 * math.cos(2 * math.pi * u * (2 + round(2 * act)))
+            level = (0.35 + 0.45 * act) * (0.75 + 0.25 * pulse)
+            length = (0.9 + 0.45 * act) * max(rx, ry)
+            jang = math.radians(-62)
+            for sgn in (1, -1):
+                jet = np.zeros(keep.shape, bool)
+                for i in range(int(length) + 1):
+                    r = 3.0 + i
+                    x = int(round(cx + sgn * r * math.cos(jang)))
+                    y = int(round(cy + sgn * r * math.sin(jang)))
+                    if 0 <= x < ww and 0 <= y < hh:
+                        jet[y, x] = True
+                jet &= ok & ~near_core
+                glow = grow(jet, 1) & ~jet & ok & ~near_core
+                fade = np.clip(1.0 - np.hypot(xx - cx, yy - cy) / (length + 4), 0.25, 1.0)
+                tint = np.array([200.0, 225.0, 255.0])
+                for m_, lv in ((glow, level * 0.35), (jet, level)):
+                    base_ = np.where(keep[..., None], a, PANEL)
+                    a = np.where(m_[..., None], base_ + (tint - base_) * (lv * fade)[..., None], a)
+                    keep = keep | m_
+    elif BALL_FX == "BC":
+        # shells: arcs on alternate sides, born near the body's edge, drifting out and fading
+        n_sh = 1 + int(round(2 * act))
+        for i in range(n_sh):
+            f = (u + i / n_sh) % 1.0
+            rad = 0.95 + 0.55 * f
+            side = 1 if i % 2 == 0 else -1
+            arc = (np.abs(er - rad) <= 0.045 + 0.02 / max(rad, 0.1)) & (side * ex > 0.62 * er) & ok & ~near_core
+            lv = (0.30 + 0.25 * act) * (1.0 - f) * min(1.0, f * 6)
+            if lv < 0.06:
+                continue
+            col = np.array([235.0, 170.0, 110.0])
+            base_ = np.where(keep[..., None], a, PANEL)
+            a = np.where(arc[..., None], base_ + (col - base_) * lv, a)
+            keep = keep | arc
+    return a, keep
+
+
 def tier(base, t, ramp, frames=None):
     """`frames`: a turning strip, the ramp laid on each; else `base`, one still."""
     lo, hi, cool, heat, rings, depth, breaths, stars = RAMPS[ramp]
@@ -131,14 +201,12 @@ def tier(base, t, ramp, frames=None):
     rnd = np.random.RandomState(40 + t)
     pick = rnd.choice(np.nonzero(edge)[0], size=min(int(round(stars * act)), int(edge.sum())), replace=False)
     twinkles = [(ys[i], xs[i], rnd.randint(0, n_out), rnd.randint(1, 3)) for i in pick]
-    clumps = []
-    if frames and FORM[t] == 2:
+    ball = bool(frames) and FORM[t] == 2 and BALL_FX != ""
+    if ball:
+        twinkles = []
         # the ball's reach and flattening on the screen, from its lit cells
         rx = np.percentile(np.abs(xs - cx), 95)
         ry = np.percentile(np.abs(ys - cy), 95)
-        crnd = np.random.RandomState(90 + t)
-        for j in range(CLUMPS):
-            clumps.append((crnd.uniform(*CLUMP_R), 2 * math.pi * j / CLUMPS + crnd.uniform(-0.4, 0.4), crnd.randint(3, 6)))
     out = []
     for k in range(n_out):
         u = k / n_out
@@ -147,14 +215,8 @@ def tier(base, t, ramp, frames=None):
             keep = frames[k][..., 3] > 0
         else:
             a = rgb.copy()
-        for (r, a0, size) in clumps:
-            # whole cells on the ball's own ellipse, one turn a loop, the way the bake turns
-            ang = a0 - 2 * math.pi * u
-            x = int(round(cx + r * rx * math.cos(ang)))
-            y = int(round(cy + r * ry * math.sin(ang)))
-            for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (-1, 1)][:size]:
-                if 0 <= y + dy < keep.shape[0] and 0 <= x + dx < keep.shape[1] and keep[y + dy, x + dx]:
-                    a[y + dy, x + dx] = a[y + dy, x + dx] + (HOT - a[y + dy, x + dx]) * (STEP * CLUMP_STEP)
+        if ball:
+            a, keep = ball_fx(a, keep, u, act, cx, cy, rx, ry, core)
         lv = int(round(d * (0.5 - 0.5 * math.cos(2 * math.pi * m * u))))
         if lv:
             a[band] = a[band] + (WHITE - a[band]) * (STEP * lv)

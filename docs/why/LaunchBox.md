@@ -85,3 +85,11 @@ definition and color. But swap 8 and 7", so tier 7 draws the flattened elliptica
 tier 8 the round one, and tier 10 was baked again with its giant a little further off
 (`TierMiniBake nudge=38,-74`) and cut at R2's old size, so a dark gap shows between them.
 The strips in `art/ui/tiers` are R2's, made by 63d46b66's `tier_minis.py` with no effects.
+
+Then (Nov 12) the ramps: one still of R2 per tier, recoloured by its place in its form
+(`tools/dev/tier_ramp.py`), and, for "why are they not rotating?", the same on a turning
+bake with the chart's clock held (`TierMiniBake freeze=1 typeramp=1`), the core held to its
+median and colours given a memory. Jon picked "M+T steep" (ramp P) for the spirals, the
+discs and tier 10; tiers 0 to 6 in `art/ui/tiers` are those. The balls stay R2 until he
+picks a feature for them (BA dust lane, BB jets, BC shells: `BALL_FX`); the clumps of
+light he tried first "do not look good".
