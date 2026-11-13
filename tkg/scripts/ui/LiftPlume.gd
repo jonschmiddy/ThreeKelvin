@@ -114,6 +114,8 @@ const LIGHT_REACH := 75.0
 const REACH_HULLS := 2.5
 ## A trail's puffs: this much bigger than the bank's and this flat, so they run together.
 const TRAIL_R := 1.9
+## A takeoff's shared fade, s: within `ShipLift.HOLD_S` of the exit.
+const TAKEOFF_FADE_S := 0.8
 ## Px of floor the hull crosses that earn one more rest-rate's worth of steam.
 const TRAIL_STEP := 70.0
 const TRAIL_FLAT := 0.45
@@ -311,7 +313,9 @@ func _clear() -> void:
 	_clearing = true
 	var c: Vector2 = _w.clear
 	_fade_t0 = _t
-	_fade_s = _rng.randf_range(c.x, c.y)
+	# (a takeoff's goes faster, done by the front door's cut to LOCAL; the landing's
+	# slower one Jon called perfect -- Nov 13)
+	_fade_s = TAKEOFF_FADE_S if reach_gate else _rng.randf_range(c.x, c.y)
 	for l: Dictionary in _lobes:
 		# (every puff kept to the end of the shared fade: none goes early on its own)
 		l.life = float(l.age) + _fade_s + 0.05
