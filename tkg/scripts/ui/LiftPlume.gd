@@ -21,15 +21,22 @@ const MAX_LOBES := 64
 const WEIGHTS := [
 	{"rate": 28.0, "size": 1.0, "alpha": [0.42, 0.8, 0.94], "edge": 0.5, "fall": 1.0, "fall_drag": 1.0,
 		"out": 1.0, "roll_drag": 1.3, "linger": 0.0, "lift": 1.0, "curl": 1.0, "shadow": 0.34, "under": 0.0,
-		"clear": Vector2(1.4, 2.0), "clear_lift": 10.0, "clear_spread": 0.0},
+		"clear": Vector2(1.4, 2.0), "clear_lift": 10.0, "clear_spread": 0.0, "flat": 1.0},
 	{"rate": 32.0, "size": 1.35, "alpha": [0.62, 0.9, 1.0], "edge": 0.7, "fall": 1.15, "fall_drag": 0.8,
 		"out": 0.75, "roll_drag": 1.5, "linger": 0.5, "lift": 0.5, "curl": 1.3, "shadow": 0.46, "under": 0.25,
-		"clear": Vector2(4.0, 5.0), "clear_lift": -3.0, "clear_spread": 4.0},
+		"clear": Vector2(4.0, 5.0), "clear_lift": -3.0, "clear_spread": 4.0, "flat": 0.85},
+	# (heavier, Jon's pick, Nov 13: "spread wider along the floor", "dissipate quicker")
 	{"rate": 36.0, "size": 1.6, "alpha": [0.75, 0.95, 1.0], "edge": 0.82, "fall": 1.3, "fall_drag": 0.7,
-		"out": 0.6, "roll_drag": 1.7, "linger": 0.8, "lift": 0.3, "curl": 1.5, "shadow": 0.56, "under": 0.4,
-		"clear": Vector2(5.0, 6.0), "clear_lift": -4.0, "clear_spread": 5.0},
+		"out": 1.1, "roll_drag": 1.2, "linger": 0.8, "lift": 0.15, "curl": 1.15, "shadow": 0.56, "under": 0.4,
+		"clear": Vector2(2.5, 3.0), "clear_lift": -4.0, "clear_spread": 8.0, "flat": 0.62},
 ]
-static var weight := 0
+static var weight := 2
+## The steam's texture (`lift_plume.gdshader`'s `style`): 0 as built, 1 cel,
+## 2 patterned, 3 outlined. Stills for Jon to pick from (Nov 13).
+static var style := 0
+## A harness's fixed seed for the steam, so two textures can be shown on one
+## frame; -1, every lift its own.
+static var seed := -1
 const BURST := 12
 ## The light it gives eases after the thrust over a few tenths of a second: steady,
 ## never stepping frame to frame (Jon's F1, Nov 12).
@@ -85,7 +92,10 @@ var _last_src := Vector2(INF, INF)
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# every launch and landing its own steam (Jon, Nov 12)
-	_rng.randomize()
+	if seed >= 0:
+		_rng.seed = seed
+	else:
+		_rng.randomize()
 	_w = WEIGHTS[clampi(weight, 0, WEIGHTS.size() - 1)]
 
 
@@ -117,6 +127,7 @@ func _material(pad: float) -> ShaderMaterial:
 	for c: Color in TONES:
 		tones.append(Vector4(c.r, c.g, c.b, 1.0))
 	m.set_shader_parameter(&"tones", tones)
+	m.set_shader_parameter(&"style", style)
 	m.set_shader_parameter(&"edge_a", float(_w.edge))
 	m.set_shader_parameter(&"under_k", float(_w.under))
 	m.set_shader_parameter(&"shadow_k", float(_w.shadow))
@@ -317,6 +328,14 @@ func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
 	l.life = float(l.age) + _rng.randf_range(2.0, 2.8) + float(_w.linger)
 
 
+## A rolling lobe flattens as it spreads along the floor (`WEIGHTS[].flat`, its
+## height over its width at the last); a falling one is round.
+func _aspect(l: Dictionary) -> float:
+	if not bool(l.roll):
+		return 1.0
+	return lerpf(1.0, float(_w.flat), clampf(float(l.rolled) / 1.5, 0.0, 1.0))
+
+
 func _push() -> void:
 	if _fmat == null:
 		return
@@ -359,7 +378,8 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		var pos: Vector2 = (l.d as Vector2).floor()
 		var r := floorf(float(l.r))
 		a[n] = Vector4(pos.x, pos.y, maxf(3.0, r), float((_w.alpha as Array)[int(l.layer)]) * fade * float(l.k))
-		b[n] = Vector4(float(L[1]), float(L[2]), float(l.warm) * exp(-float(l.age) * 1.5) * _lk, float(l.seed))
+		b[n] = Vector4(float(L[1]), float(L[2]), float(l.warm) * exp(-float(l.age) * 1.5) * _lk,
+			float(l.seed) + floorf(_aspect(l) * 100.0))
 		x0 = minf(x0, pos.x - r - 16.0)
 		y0 = minf(y0, pos.y - r - 16.0)
 		x1 = maxf(x1, pos.x + r + 16.0)

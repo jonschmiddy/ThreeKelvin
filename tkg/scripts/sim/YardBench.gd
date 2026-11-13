@@ -31,7 +31,11 @@ func _input(event: InputEvent) -> void:
 
 func _run() -> void:
 	# (`steam=heavy|heavier`: the lift's steam at that weight, `LiftPlume.WEIGHTS`)
-	LiftPlume.weight = int({"heavy": 1, "heavier": 2}.get(Harness.arg("steam", ""), 0))
+	if Harness.arg("steam", "") != "":
+		LiftPlume.weight = int({"built": 0, "heavy": 1, "heavier": 2}.get(Harness.arg("steam", ""), LiftPlume.weight))
+	# (`steam_style=0..3`, `steam_seed=N`: a texture, and one steam for every texture's film)
+	LiftPlume.style = int(Harness.arg("steam_style", "0"))
+	LiftPlume.seed = int(Harness.arg("steam_seed", "-1"))
 	var tree := get_tree()
 	await tree.process_frame
 	if DisplayServer.get_name() == "headless":

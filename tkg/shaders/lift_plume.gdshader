@@ -32,6 +32,10 @@ uniform float shadow_k = 0.34;
 // much darker its underside goes
 uniform float edge_a = 0.5;
 uniform float under_k = 0.0;
+// THE TEXTURE (Jon, Nov 13, stills to pick from): 0 as built; 1 cel (three flat
+// bands, no dither, a dark line round each cluster); 2 patterned (a bold dither and
+// swirl marks); 3 as built with a light outline in a darker tone of the steam
+uniform int style = 0;
 
 float bayer4(vec2 p) {
 	int x = int(mod(p.x, 4.0));
@@ -54,6 +58,33 @@ float vnoise(vec2 p) {
 
 float fbm(vec2 p) {
 	return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.1 + 5.2) + 0.15 * vnoise(p * 4.3 + 1.7);
+}
+
+// a lobe's own squash: its height over its width, kept in the seed's whole part
+float aspect_of(float w) {
+	float a = floor(w) / 100.0;
+	return a > 0.0 ? a : 1.0;
+}
+
+// whether any lobe covers this pixel, its edge torn as the colour pass tears it
+// (for the outlines of styles 1 and 3)
+bool covers(vec2 p) {
+	vec2 q0 = p * 0.07 + vec2(tstep * 0.19, -tstep * 0.27);
+	vec2 pw = p + (vec2(fbm(q0), fbm(q0 + 31.7)) - 0.5) * 11.0;
+	float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
+	for (int i = 0; i < 64; i++) {
+		if (i >= n) {
+			break;
+		}
+		vec4 L = lobe[i];
+		vec2 d = (pw - L.xy) / L.z;
+		d.y /= aspect_of(lobe2[i].w);
+		float en = fract(edge_n + lobe2[i].w);
+		if (L.w > 0.12 && dot(d, d) < 0.9 + 0.25 * (en - 0.5)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 void fragment() {
@@ -85,6 +116,7 @@ void fragment() {
 		float a = 0.0;
 		float covered = 0.0;
 		float warm = 0.0;
+		bool swirl = false;
 		float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
 		float eddy = fbm(p * 0.25 + vec2(-tstep * 0.23, tstep * 0.41));
 		for (int i = 0; i < 64; i++) {
@@ -94,6 +126,7 @@ void fragment() {
 			vec4 L = lobe[i];
 			vec4 P = lobe2[i];
 			vec2 d = (pw - L.xy) / L.z;
+			d.y /= aspect_of(P.w);
 			float q = dot(d, d);
 			float en = fract(edge_n + P.w);
 			if (q >= 0.9 + 0.25 * (en - 0.5)) {
@@ -114,6 +147,9 @@ void fragment() {
 			}
 			float la = q > 0.55 + 0.3 * en ? L.w * edge_a : L.w;
 			tone = t;
+			// (style 2's swirl: an arc in the lobe's lit upper quarter)
+			float ang = atan(d.y, d.x);
+			swirl = abs(sqrt(q) - 0.55) < 0.07 && ang > -2.7 && ang < -1.1;
 			a = max(la, q > 0.8 ? a : 0.0);
 			covered = max(covered, la);
 			warm = max(warm, P.z * clamp(d.y + 0.3, 0.0, 1.0));
@@ -123,7 +159,30 @@ void fragment() {
 		}
 		float lo = floor(tone);
 		int pick = int(clamp((tone - lo) > th ? lo + 1.0 : lo, 0.0, 4.0));
+		if (style == 1) {
+			// three flat bands, no dither
+			pick = tone < 1.4 ? 0 : (tone < 2.8 ? 2 : 4);
+		} else if (style == 2) {
+			// a bold two-step pattern between the bands, and the swirl marks
+			float chk = mod(p.x + p.y, 2.0) < 1.0 ? 0.3 : 0.7;
+			pick = int(clamp((tone - lo) > chk ? lo + 1.0 : lo, 0.0, 4.0));
+			if (swirl) {
+				pick = max(pick - 2, 0);
+			}
+		}
+		// the outline: a pixel of the cluster with open air beside it
+		bool rim = false;
+		if (style == 1 || style == 3) {
+			bool up = covers(p + vec2(0.0, -1.0));
+			bool side = covers(p + vec2(-1.0, 0.0)) && covers(p + vec2(1.0, 0.0)) && covers(p + vec2(0.0, 1.0));
+			// (style 3 leaves it open on the lit tops, now and then)
+			rim = !side || (!up && (style == 1 || th < 0.5));
+		}
 		vec3 col = tones[pick].rgb;
+		if (rim) {
+			// (cel: near black; outlined: a dark grey of the steam's own, light-touch)
+			col = style == 1 ? tones[0].rgb * 0.6 : tones[1].rgb;
+		}
 		// lit by the hall's lamps over it: a little brighter under each
 		float lit = 0.84;
 		for (int i = 0; i < 8; i++) {
@@ -137,6 +196,12 @@ void fragment() {
 		float w = floor(warm * 3.0 + th) / 3.0;
 		col += w * vec3(0.5, 0.26, 0.08) * warm_k;
 		float al = floor(a * 4.0 + th * 0.999) / 4.0;
+		if (style == 1) {
+			al = a > 0.3 ? max(a, 0.85) : 0.0;
+		}
+		if (rim) {
+			al = max(al, 0.75);
+		}
 		if (al <= 0.0) {
 			discard;
 		}
