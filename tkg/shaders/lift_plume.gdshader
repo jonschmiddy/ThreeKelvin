@@ -46,6 +46,14 @@ uniform float shade_var = 0.0;
 // the bank's shared fade once the jets cut (1 till then): the shadow goes with it,
 // not by its piled-up density, which stayed dark after the steam had gone
 uniform float fade_all = 1.0;
+// THE FLAME'S LIGHT (Jon, Nov 13): the jets' middle and the main flame (host px) and
+// how hard each burns; lit in stepped, dithered bands on the faces turned to them,
+// warm near, a cool hall grey far out, all of it cool once the jets are out
+uniform vec2 jet_g = vec2(-9999.0);
+uniform float jet_k = 0.0;
+uniform vec2 main_g = vec2(-9999.0);
+uniform float main_k = 0.0;
+uniform float light_reach = 120.0;
 
 float bayer4(vec2 p) {
 	int x = int(mod(p.x, 4.0));
@@ -137,6 +145,8 @@ void fragment() {
 		float warm = 0.0;
 		bool swirl = false;
 		float top_w = 1.0;
+		vec2 top_c = p;
+		vec2 top_d = vec2(0.0);
 		float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
 		float eddy = fbm(p * 0.25 + vec2(-tstep * 0.23, tstep * 0.41));
 		for (int i = 0; i < 96; i++) {
@@ -174,6 +184,8 @@ void fragment() {
 			float la = q > 0.55 + 0.3 * en ? L.w * edge_a : L.w;
 			tone = t;
 			top_w = L.w;
+			top_c = c;
+			top_d = d;
 			// (style 2's swirl: an arc in the lobe's lit upper quarter)
 			float ang = atan(d.y, d.x);
 			swirl = abs(sqrt(q) - 0.55) < 0.07 && ang > -2.7 && ang < -1.1;
@@ -225,6 +237,19 @@ void fragment() {
 			lit = max(lit, 0.84 + 0.3 * exp(-dx * dx));
 		}
 		col *= lit;
+		// the flame's light: near the jets and the main flame, on the side facing them
+		vec2 dj = (p - jet_g) / light_reach;
+		vec2 dm = (p - main_g) / (light_reach * 0.8);
+		float lj = jet_k * exp(-dot(dj, dj));
+		float lm = main_k * exp(-dot(dm, dm));
+		float fj = clamp(0.55 + 0.6 * dot(normalize(jet_g - top_c + vec2(0.001)), top_d), 0.0, 1.0);
+		float fm = clamp(0.55 + 0.6 * dot(normalize(main_g - top_c + vec2(0.001)), top_d), 0.0, 1.0);
+		float flame = clamp(lj * fj + lm * fm, 0.0, 1.0);
+		float band = floor(flame * 3.0 + th) / 3.0;
+		col = mix(col, col * vec3(1.25, 0.98, 0.72) + vec3(0.16, 0.07, 0.015), band);
+		// and out where none of it reaches, the hall's cool grey
+		float cool = 1.0 - clamp((lj + lm) * 1.6, 0.0, 1.0);
+		col = mix(col, col * vec3(0.9, 0.95, 1.06), cool);
 		float w = floor(warm * 3.0 + th) / 3.0;
 		col += w * vec3(0.5, 0.26, 0.08) * warm_k;
 		float al = floor(a * 4.0 + th * 0.999) / 4.0;

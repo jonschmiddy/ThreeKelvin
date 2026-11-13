@@ -30,7 +30,7 @@ const WEIGHTS := [
 	# the bands reading, a hot glow under the jets -- wider, not flatter)
 	{"rate": 44.0, "size": 1.3, "alpha": [0.8, 0.96, 1.0], "edge": 0.85, "fall": 1.3, "fall_drag": 0.7,
 		"out": 1.55, "roll_drag": 1.1, "linger": 0.6, "lift": 1.6, "curl": 2.2, "shadow": 0.56, "under": 0.4,
-		"clear": Vector2(1.8, 2.2), "clear_lift": -2.0, "clear_spread": 6.0, "flat": 1.3, "contrast": 1.5, "warm": 1.3},
+		"clear": Vector2(1.8, 2.2), "clear_lift": -2.0, "clear_spread": 6.0, "flat": 1.3, "contrast": 1.5, "warm": 1.0},
 ]
 static var weight := 2
 ## The steam's texture (`lift_plume.gdshader`'s `style`): 0 as built, 1 cel,
@@ -96,9 +96,27 @@ var _packed_t := 0.0
 ## jets cut, every puff thins on one shared fade from `_fade_t0` over `_fade_s`.
 var _fade_t0 := -1.0
 var _fade_s := 2.0
-## Where the berth is (the jets' middle when it fired): off it, the jets throw no more
-## steam down, or a trail of lone puffs strings out along the floor after the ship.
-var _berth_x := INF
+## LIFTING (`ShipLift.lift_at`): the floor gets steam only while the jets are near
+## enough to reach it -- from the belly's height at rest (`rest_gap`, px over the
+## floor) up by the hull's own height, thinning all the way (Jon, Nov 13: "some that
+## reaches the floor as the ship flies to the right"). The landing is not gated.
+var reach_gate := false
+var rest_gap := 40.0
+## THE FLAME'S LIGHT ON IT (Jon, Nov 13: "more lit by the flame and cooler further
+## out"): the main flame's place (host px) and how hard it burns, set by the host
+## each frame; the jets' are `src` and the thrust. Eased like the floor's light.
+var main_g := Vector2(-9999, -9999)
+var main_k := 0.0
+var _mk := 0.0
+const LIGHT_REACH := 75.0
+## How many hulls' height over its rest the jets still put steam on the floor, thinning
+## all the way (one put it out before the hull had moved off: no trail).
+const REACH_HULLS := 2.5
+## A trail's puffs: this much bigger than the bank's and this flat, so they run together.
+const TRAIL_R := 1.9
+## Px of floor the hull crosses that earn one more rest-rate's worth of steam.
+const TRAIL_STEP := 70.0
+const TRAIL_FLAT := 0.45
 ## THE CLUMPS the bank rolls out in (Jon, Nov 13: the painted still's separate chunky
 ## puffs, gaps between them): its share of the roll-out speed, so each clump comes to
 ## rest at its own distance from the middle. The first pools under the hull; the last,
@@ -119,6 +137,14 @@ const HUG_FLAT := 0.7
 const HEAT_TC := 1.6
 const COOL_AT := 0.3
 const SINK_V := 40.0
+
+
+## How much of the jets' steam reaches the floor now, 0..1 (1 unless lifting).
+func _reach() -> float:
+	if not reach_gate:
+		return 1.0
+	var gap := floor_y - src.y
+	return clampf(1.0 - (gap - rest_gap) / maxf(20.0, REACH_HULLS * hull.size.y), 0.0, 1.0)
 
 
 func _heat(l: Dictionary) -> float:
@@ -188,7 +214,6 @@ func _rect(m: ShaderMaterial, pad: float) -> ColorRect:
 ## Start it: the first billows go up at once.
 func fire() -> void:
 	_fired = _t
-	_berth_x = src.x
 	for i in BURST:
 		_spawn()
 
@@ -242,16 +267,19 @@ func _process(dt: float) -> void:
 		_last_src = src
 	if _fired < 0.0:
 		return
-	if thrust > 0.05:
+	# (lifting, what the floor gets: nothing once the jets are too high to reach it --
+	# and the bank's shared fade starts then, as it does when a landing's jets cut)
+	var feed := thrust * _reach()
+	if feed > 0.05:
 		_burned = true
 	elif _burned and not _clearing:
 		_clear()
 	if not _clearing:
 		# (a weak burn thins the steam more than it spaces it out: the streams stay streams)
-		var over := 1.0
-		if _berth_x != INF:
-			over = clampf(1.0 - absf(src.x - _berth_x) / maxf(1.0, 0.6 * maxf(hull.size.x, 2.0 * src_w)), 0.0, 1.0)
-		_acc += float(_w.rate) * thrust * (0.5 + 0.5 * minf(strength, 1.0)) * over * dt
+		# (and going sideways, as many to the stretch of floor as at rest, so the trail
+		# it lays is one streak and not a puff here and there)
+		var along := 1.0 + absf(_ship_v.x) / (TRAIL_STEP * size_k)
+		_acc += float(_w.rate) * feed * (0.5 + 0.5 * minf(strength, 1.0)) * along * dt
 		while _acc >= 1.0:
 			_acc -= 1.0
 			_spawn()
@@ -265,6 +293,14 @@ func _process(dt: float) -> void:
 		for m: ShaderMaterial in [_bmat, _fmat, _smat]:
 			if m != null:
 				m.set_shader_parameter(&"tdt", _t - _packed_t)
+	_mk += (main_k - _mk) * (1.0 - exp(-dt / LIGHT_TC))
+	for m: ShaderMaterial in [_bmat, _fmat]:
+		if m != null:
+			m.set_shader_parameter(&"jet_g", src)
+			m.set_shader_parameter(&"jet_k", _lk)
+			m.set_shader_parameter(&"main_g", main_g)
+			m.set_shader_parameter(&"main_k", _mk)
+			m.set_shader_parameter(&"light_reach", LIGHT_REACH * size_k)
 	if _smat != null:
 		_smat.set_shader_parameter(&"fade_all", clampf(1.0 - (_t - _fade_t0) / _fade_s, 0.0, 1.0) if _fade_t0 >= 0.0 else 1.0)
 
@@ -295,7 +331,7 @@ func _add(at: Vector2, v: Vector2, r: float, layer: int, warm: float, life: floa
 		_nback += 1
 	else:
 		_nfront += 1
-	_lobes.append({"p": at, "d": at, "v": v, "dv": v, "clump": -1, "hug": false, "c0": -1.0, "r": r * size_k * float(_w.size), "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
+	_lobes.append({"p": at, "d": at, "v": v, "dv": v, "clump": -1, "hug": false, "trail": false, "c0": -1.0, "r": r * size_k * float(_w.size), "gr": _rng.randf_range(7, 12) * size_k, "layer": layer,
 		"warm": warm, "life": life, "age": 0.0, "buoy": _rng.randf_range(3, 7) * size_k * float(_w.lift), "seed": _rng.randf(),
 		"k": clampf(0.4 + 0.6 * strength, 0.0, 1.0), "roll": false, "rolled": 0.0, "side": 1.0, "R": 0.0, "phi": 0.0, "w": 0.0})
 
@@ -399,6 +435,14 @@ func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
 	var out := float(CLUMPS[k]) * 150.0 * _rng.randf_range(0.95, 1.05) * float(_w.out)
 	l.clump = k
 	l.hug = _rng.randf() < HUG
+	# THE TRAIL (the hull going sideways): it lies down low and flat where it lands,
+	# barely rolling, a little wider, so the trail is one streak joined to the bank
+	var trail := absf(_ship_v.x) > 60.0 * s
+	if trail:
+		l.hug = true
+		l.trail = true
+		k = mini(k, 1)
+		out = float(CLUMPS[k]) * 150.0 * float(_w.out) * 0.5
 	if bool(l.hug):
 		l.buoy = 0.0
 		rr *= 0.3
@@ -409,6 +453,10 @@ func _land(l: Dictionary, at: Vector2, mid: float, half: float) -> void:
 	# the floor takes the splash: it spreads at once
 	l.r = maxf(float(l.r), _rng.randf_range(13, 17) * s * float(_w.size))
 	l.gr = _rng.randf_range(10, 16) * s * float(_w.size)
+	# (a trail's puff lies long and low, so the next one along runs into it: one streak)
+	if trail:
+		l.r = float(l.r) * TRAIL_R
+		l.gr = float(l.gr) * 1.5
 	l.roll = true
 	l.side = side
 	l.R = rr
@@ -428,7 +476,8 @@ func _aspect(l: Dictionary) -> float:
 		return 1.0
 	# (a hot billow stands tall; cooled, it lies flat along the floor like the base)
 	var tall := lerpf(HUG_FLAT, float(_w.flat), clampf((_heat(l) - COOL_AT) / (1.0 - COOL_AT), 0.0, 1.0))
-	return lerpf(1.0, HUG_FLAT if bool(l.hug) else tall, clampf(float(l.rolled) / 1.5, 0.0, 1.0))
+	var lie := TRAIL_FLAT if bool(l.trail) else HUG_FLAT
+	return lerpf(1.0, lie if bool(l.hug) else tall, clampf(float(l.rolled) / 1.5, 0.0, 1.0))
 
 
 func _push() -> void:

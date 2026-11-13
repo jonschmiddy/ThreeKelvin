@@ -176,6 +176,12 @@ func setup(v: ShipView, h: Control, under: int, over_node: Node = null) -> void:
 	plume.size_k = k * plume_k
 	plume.setup(host.size.x, host.size.y, 220.0)
 	plume.floor_y = floor_y
+	# (the belly's height over the floor at rest: lifting, the steam reaches the floor
+	# from up to a hull's height above that)
+	var low := 0.0
+	for j in _jet_pts:
+		low = maxf(low, j.y)
+	plume.rest_gap = maxf(4.0, floor_y - low)
 	plume.lamps = lamps
 	# the steam's far layers and its shadow under the hull, its near layer over it
 	host.add_child(plume.back_layer)
@@ -211,6 +217,8 @@ func lift_at(t: float) -> void:
 	_off.x = dir * exit_px * pow(burn, 2.6)
 	var jets := spool * (1.0 - 0.75 * burn) if t < exit_s() else 0.0
 	plume.thrust = jets
+	plume.reach_gate = true
+	plume.main_k = 0.0
 	_sink(clampf((t - SINK_FROM) / SINK_S, 0.0, 1.0))
 	if t >= exit_s():
 		# off the picture: its engines dark, nothing of it left at the edge
@@ -480,6 +488,9 @@ func _nozzle_glow(kk: float) -> void:
 		return
 	var at: Vector2 = host.get_global_transform().affine_inverse() * (g.at as Vector2)
 	_lights.append([at.x - 6.0, at.y, 46.0 * k, 26.0 * k, Color(1.0, 0.7, 0.4), 0.8 * kk])
+	# (and on the steam it passes over)
+	plume.main_g = at
+	plume.main_k = clampf(kk / 1.2, 0.0, 1.0)
 	_extra.append([at.x - 10.0, at.y, 140.0 * k, 80.0 * k, 1.4 * kk, Color(1.0, 0.65, 0.35), 1.0])
 
 
