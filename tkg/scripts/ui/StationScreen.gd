@@ -3125,8 +3125,9 @@ func _deck_lift() -> ShipLift:
 	# clear of the stands, a long drop to them (Jon, Nov 12: "far too low", "higher up")
 	L.approach_px = clampf(float(Q["top"]) - LAND_TOP_Y, 40.0, 160.0)
 	L.life = _scene.life
-	L.light = _scene.light
 	L.shiver_hull = true
+	for s2: Dictionary in Q["supports"]:
+		L.vents.append(Vector2(float(s2["x"]) + float((s2["img"] as Image).get_width()) * 0.5, float(s2["y"]) + 4.0))
 	L.plume_k = 0.8
 	# (out under the ceiling's lamp boxes, within the hall)
 	L.ceiling_y = 64.0

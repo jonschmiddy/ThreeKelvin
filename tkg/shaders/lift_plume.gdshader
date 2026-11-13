@@ -19,6 +19,14 @@ uniform float tstep = 0.0;
 uniform vec4 src = vec4(0.0);
 uniform vec4 box = vec4(0.0, 0.0, 960.0, 540.0);
 uniform float floor_y = 372.0;
+// the kinds (`LiftPlume.kind`): which face the lamps light (1 the top, 0 the
+// underside: S1's billows are dark above), the engines' glow along the floor,
+// how much of the heat shows, how dense it reads, how hard it is torn
+uniform float top_light = 1.0;
+uniform float floor_glow = 0.0;
+uniform float glow_k = 1.0;
+uniform float alpha_k = 1.0;
+uniform float turb = 1.0;
 uniform vec3 c_dark = vec3(0.1, 0.11, 0.135);
 uniform vec3 c_mid = vec3(0.2, 0.22, 0.26);
 uniform vec3 c_lite = vec3(0.33, 0.36, 0.41);
@@ -68,7 +76,7 @@ void fragment() {
 	float th = bayer4(p);
 	// the field the puffs are torn by: it rolls on in held steps
 	vec2 q = p * 0.045 + vec2(tstep * 0.21, -tstep * 0.29);
-	vec2 disp = (vec2(fbm(q), fbm(q + 31.7)) - 0.5) * 30.0;
+	vec2 disp = (vec2(fbm(q), fbm(q + 31.7)) - 0.5) * 30.0 * turb;
 	vec2 pd = p + disp;
 	float D = 0.0;
 	float H = 0.0;
@@ -112,7 +120,8 @@ void fragment() {
 	float Ds = max(D + (eat - 0.4) * 0.7, 0.001);
 	float top = clamp(T / Ds, 0.0, 1.0);
 	// lit from above, darker at the thin edges
-	float sh = clamp(top * 0.75 + lv * 0.45 - 0.25, 0.0, 1.0);
+	float face = mix(1.0 - top, top, top_light);
+	float sh = clamp(face * 0.75 + lv * 0.45 - 0.25, 0.0, 1.0);
 	float sq = floor(sh * 3.0 + th) / 3.0;
 	vec3 smoke = sq >= 1.0 ? c_top : (sq >= 0.66 ? c_lite : (sq >= 0.33 ? c_mid : c_dark));
 	// lit from inside: the puffs' heat and the engines over them
@@ -120,8 +129,10 @@ void fragment() {
 	float sl = max(0.0, 1.0 - dot(sd, sd));
 	// the light sits low in the smoke, under its own top
 	float L = (H + src.w * sl * sl) * (0.45 + 0.55 * (1.0 - top)) * min(D * 1.4, 1.0);
-	// fire lights smoke in patches that move with it
-	L *= 0.45 + 1.1 * fbm(p * 0.08 + vec2(tstep * 0.53, tstep * 0.11));
+	// the engines' glow pooled low in the smoke, along the floor (S1)
+	L += floor_glow * src.w * smoothstep(floor_y - 70.0, floor_y - 6.0, p.y) * min(D, 1.0);
+	// fire lights smoke in patches that move with it, the level held steady (F1)
+	L *= (0.7 + 0.6 * fbm(p * 0.08 + vec2(tstep * 0.53, tstep * 0.11))) * glow_k;
 	float g = stepq(L * 0.7, 4.0, th);
 	vec3 col = smoke;
 	if (g > 0.0) {
@@ -129,5 +140,5 @@ void fragment() {
 		col = g >= 0.75 ? gc : smoke + gc * (g >= 0.5 ? 0.85 : 0.55);
 		alpha = max(alpha, g >= 0.5 ? 0.95 : alpha);
 	}
-	COLOR = vec4(min(col, vec3(1.0)), alpha);
+	COLOR = vec4(min(col, vec3(1.0)), alpha * alpha_k);
 }

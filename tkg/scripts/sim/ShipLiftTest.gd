@@ -92,7 +92,10 @@ func _launch() -> void:
 	var top := 0.0
 	var right := 0.0
 	var sunk := 0
-	var dim := 1.0
+	var lamps0 := cs._yard.scene.light.lamp_gain.duplicate()
+	var lamps_moved := 0
+	var light_jump := 0.0
+	var light_prev := -1.0
 	var smoke := 0
 	var landed_at := -1.0
 	var left_lit := 0
@@ -114,11 +117,19 @@ func _launch() -> void:
 		top = minf(top, berth.position.y - y0)
 		right = maxf(right, berth.position.x - x0)
 		sunk = maxi(sunk, berth.retract)
-		dim = minf(dim, cs._yard.scene.light.lamp_k)
+		if cs._yard.scene.light.lamp_gain != lamps0:
+			lamps_moved += 1
+		var lv := lift.plume.light_level()
+		if light_prev >= 0.0:
+			light_jump = maxf(light_jump, absf(lv - light_prev))
+		light_prev = lv
 		smoke = maxi(smoke, lift.plume.puffs())
 		await _tree.process_frame
-	_ok("it rises off its stands (%.0f px), the stands sink (%d rows), the smoke rolls (%d puffs), the lamps stutter (%.2f)" % [
-		-top, sunk, smoke, dim], top <= -40.0 and sunk >= 40 and smoke >= 20 and dim < 0.9)
+	_ok("it rises off its stands (%.0f px), the stands sink (%d rows), the smoke rolls (%d puffs)" % [-top, sunk, smoke],
+		top <= -40.0 and sunk >= 40 and smoke >= 20)
+	# (Jon's F1: no flicker -- the hall's lamps hold, the engines' light eases)
+	_ok("the hall's lamps hold steady through the lift (%d frames moved), and its own light eases (at most %.3f a frame)" % [
+		lamps_moved, light_jump], lamps_moved == 0 and light_jump <= 0.12)
 	_ok("off the picture, nothing of it is left at the edge: its engines dark, no jet, nozzle or smoke light (%d frames lit)" % left_lit,
 		left_lit == 0)
 	_ok("it burns off the right edge (%.0f px across, off past %d)" % [right, YardFront.W],
@@ -227,9 +238,17 @@ func _undock() -> void:
 	ZoomLadder.fixed_dt = -1.0
 
 
-## Anything of the lift still lit once the hull is off the picture: its flame, the
-## jets' or nozzle's light, or a small light it put in the yard's light.
+## Anything of the lift still lit on the picture once the hull is off it: its flame,
+## the jets' or nozzle's light, or a small light it put in the yard's light (one
+## still easing out past the picture's right edge, with the hull, is not on it).
 func _left_behind(lift: ShipLift, sc: YardScene) -> bool:
-	if lift.view._thrust_now() >= 0 or not lift.plume.lights().is_empty() or lift.lit() > 0:
+	if lift.view._thrust_now() >= 0 or lift.lit() > 0:
 		return true
-	return sc.life != null and not sc.life.extra.is_empty()
+	var edge := float(lift.host.size.x)
+	var lit: Array = lift.plume.lights()
+	if sc.life != null:
+		lit.append_array(sc.life.extra)
+	for l: Array in lit:
+		if float(l[0]) - float(l[2]) < edge:
+			return true
+	return false

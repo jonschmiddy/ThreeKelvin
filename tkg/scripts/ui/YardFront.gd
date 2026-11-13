@@ -385,10 +385,12 @@ func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
 	L.rise = float(ShipLift.RISE_PX[s.weight])
 	L.exit_px = float(W) + ShipLift.EXIT_CLEAR - float(s.thing.position.x)
 	L.life = scene.life
-	L.light = scene.light
 	L.sink = func(rows: int) -> void: s.retract = rows
 	L.shake_node = shake
 	L.shake_rest = shake.position
+	var sw := float(s._stand_img.get_width()) if s._stand_img != null else 0.0
+	for sx: int in s._stand_x:
+		L.vents.append(Vector2(float(sx) + sw * 0.5, float(s._stand_top) + 4.0))
 	# (out under the ceiling lamps, in front of the banners: the hulls draw after them)
 	L.ceiling_y = 44.0
 	# the jets under the hulls, the smoke and its light over the hall, under the floor's fall

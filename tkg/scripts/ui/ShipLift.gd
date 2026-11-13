@@ -51,8 +51,9 @@ signal lateral(on: bool, speed: float)
 const LIFT_TAKE := &"ship_liftoff"
 const LOOP_OUT_S := 0.3
 ## The landing's take (the engines bearing it down), from the belly jets lighting
-## (`LAND_JETS_AT`): none until Jon picks one; the rest of the landing's sound is the dock's own.
-const LAND_TAKE := &""
+## (`LAND_JETS_AT`): one of four at random each landing (Jon's "ALL": DA3, DB3, DC2,
+## DC4 as `ship_landing`, `_2`, `_3`, `_4`, `Audio.play`'s round robin).
+const LAND_TAKE := &"ship_landing"
 
 ## The hull and its place at rest, in its parent.
 var view: ShipView
@@ -72,9 +73,8 @@ var approach_px := 70.0
 var ceiling_y := 40.0
 ## Size against the front door's front row (the deck's hulls stand smaller).
 var k := 1.0
-## The yard's crew and light, both optional.
+## The yard's crew, optional.
 var life: YardLife = null
-var light: YardLight = null
 ## Hooks the host fills: `sink(rows)` sinks the stands, `moved(off)` follows the hull.
 var sink: Callable = Callable()
 var moved: Callable = Callable()
@@ -109,6 +109,9 @@ var _prev_x := NAN
 var _lat_on := false
 var _lat_want := false
 var _lifting := false
+var _touched := false
+## The stands' tops at rest (host px), where some smoke vents (`LiftPlume`'s S3).
+var vents: Array[Vector2] = []
 ## The process frames the landing's belly jets lit and its take started (-1: not yet).
 var jets_frame := -1
 var take_frame := -1
@@ -156,6 +159,7 @@ func setup(v: ShipView, h: Control, under: int, over: int = -1) -> void:
 	plume.size_k = k * plume_k
 	plume.setup(host.size.x, host.size.y, 220.0)
 	plume.floor_y = floor_y
+	plume.vents = vents
 	host.add_child(plume)
 	_glow = ColorRect.new()
 	_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -202,7 +206,6 @@ func lift_at(t: float) -> void:
 	# a shiver while it hangs on the jets, harder as the mains light
 	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and burn < 0.85 else 0.0)
 	_shake(t, amp)
-	_lamps(t, 0.25 * spool + (0.45 * (1.0 - absf(burn * 2.0 - 1.0)) if burn > 0.0 else 0.0))
 	_belly_glow(plume.thrust)
 	if burn > 0.0 and burn < 1.0:
 		_nozzle_glow(1.2)
@@ -252,7 +255,9 @@ func land_at(t: float) -> void:
 	if t >= LAND_PLUME_AT and not plume.fired():
 		plume.fire()
 	_shake(t, 1.0 if t > hover_at and t < touch_at else 0.0)
-	_lamps(t, 0.25 * jets)
+	if t >= touch_at and not _touched:
+		_touched = true
+		plume.touchdown()
 	_belly_glow(jets)
 	if _walk == "" and t > LAND_JETS_AT:
 		_walkers(false)
@@ -264,7 +269,7 @@ func land_at(t: float) -> void:
 	if LAND_TAKE != &"" and t >= LAND_JETS_AT and not _heard_take:
 		_heard_take = true
 		take_frame = Engine.get_process_frames()
-		Audio.play_in(LAND_TAKE, 0.0, 0.0, true)
+		Audio.play_in(LAND_TAKE)
 	_pose()
 
 
@@ -276,8 +281,6 @@ func release() -> void:
 		Audio.ship_thrust_off()
 		_lat_on = false
 		_loop_out = -1.0
-	if light != null:
-		light.lamp_k = 1.0
 	if life != null:
 		life.extra = []
 		var t := life.scene._t if life.scene != null else 0.0
@@ -439,24 +442,13 @@ func _shake(t: float, amp: float) -> void:
 		shake_node.position = shake_rest + j
 
 
-## The hall's lamps stutter with the thrust, in uneven held steps.
-func _lamps(t: float, depth: float) -> void:
-	if light == null:
-		return
-	if depth <= 0.0:
-		light.lamp_k = 1.0
-		return
-	var h := YardLight.hash1(floorf(t * 12.0) * 3.17)
-	light.lamp_k = 1.0 - depth * (1.0 if h < 0.35 else (0.5 if h < 0.7 else 0.0))
-
-
 ## The jets' line of light under the belly; the floor takes its light from the plume.
 func _belly_glow(kk: float) -> void:
 	if kk <= 0.01:
 		return
 	var c := plume.src
-	var flick := 0.88 + 0.12 * YardLight.hash1(floorf(_t * 10.0) * 1.7)
-	_lights.append([c.x, c.y + 4.0, plume.src_w * 1.3, 12.0 * k, Color(1.0, 0.7, 0.4), 0.8 * kk * flick])
+	# (steady: it follows the plume's eased light, no flicker, Jon's F1)
+	_lights.append([c.x, c.y + 4.0, plume.src_w * 1.3, 12.0 * k, Color(1.0, 0.7, 0.4), 0.8 * plume.light_level()])
 	_jets_k = kk
 
 

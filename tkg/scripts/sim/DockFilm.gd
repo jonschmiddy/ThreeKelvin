@@ -119,7 +119,7 @@ func _run() -> void:
 		if Router.current is StationScreen and not ZoomLadder.busy():
 			print("  [dockfilm] frame %d: the move done" % (Engine.get_frames_drawn() - f0))
 			break
-	await Harness.frames(_tree, 75)
+	await Harness.frames(_tree, int(float(Harness.arg("after", "2.5")) * 30.0))
 	# (`undock`: and out again)
 	if "undock" in _args:
 		await _undock()
