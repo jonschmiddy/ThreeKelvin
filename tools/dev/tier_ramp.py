@@ -11,7 +11,10 @@ changes only colours, cell by cell:
   - a few stars at the edge lit for half a second at a time, more up the form
 A form's first tier is still. Tier 10 is R2's strip as it is. One loop is LOOP_S seconds.
 
-usage: uv run --with pillow --with numpy python tools/dev/tier_ramp.py R2_DIR TIER10_STRIP OUT_DIR G|M|S
+usage: uv run --with pillow --with numpy python tools/dev/tier_ramp.py R2_DIR TIER10_STRIP OUT_DIR G|M|S [TURN_DIR]
+  TURN_DIR: turning strips (TierMiniBake freeze=1 typeramp=1, cut by tier_minis.py) to lay the
+  ramp on frame by frame instead of one still; the core's cells are held to their median over
+  the turn and a cell keeps its colour until it changes by more than HOLD.
 """
 import math
 import os
@@ -60,24 +63,56 @@ def grow(m, r):
     return m
 
 
-def tier(base, t, ramp):
+HOLD = 80
+
+
+def turning(frames):
+    """A turning strip made calm: the core held to its median, colours with a memory."""
+    base = frames[0]
+    keep = base[..., 3] > 0
+    lum = base[..., :3].max(-1)
+    core = keep & (lum >= np.percentile(lum[keep], 97))
+    ys, xs = np.nonzero(core)
+    yy, xx = np.mgrid[0:base.shape[0], 0:base.shape[1]]
+    held = np.hypot(xx - xs.mean(), (yy - ys.mean()) * 2.0) <= 3.0
+    med = np.median(np.stack(frames), axis=0)
+    out = []
+    cur = None
+    for lap in (0, 1):
+        for i, f in enumerate(frames):
+            f = f.copy()
+            f[held] = med[held]
+            if cur is not None:
+                both = (f[..., 3] > 0) & (cur[..., 3] > 0)
+                hold = both & (np.abs(f[..., :3] - cur[..., :3]).sum(-1) <= HOLD)
+                f = np.where(hold[..., None], cur, f)
+            cur = f
+            if lap:
+                out.append(f)
+    return out
+
+
+def tier(base, t, ramp, frames=None):
+    """`frames`: a turning strip, the ramp laid on each; else `base`, one still."""
     lo, hi, cool, heat, rings, depth, breaths, stars = RAMPS[ramp]
     act = ACT[t]
+    n_out = len(frames) if frames else N
     rgb, keep = base[..., :3].copy(), base[..., 3] > 0
     lum = rgb.max(-1)
     lit = lum[keep]
     core = keep & (lum >= np.percentile(lit, 97))
     band = keep & (lum >= np.percentile(lit, 85))
-    # the tone curve: dim and cool low, bright and hot high
-    f = lo + (hi - lo) * act
-    rgb = PANEL + (rgb - PANEL) * f
-    c = (1 - act) * cool
-    rgb = rgb * (1 - c) + rgb * np.array([0.82, 0.95, 1.18]) * c
-    rgb[core] = rgb[core] + (HOT - rgb[core]) * (heat * act)
-    if act >= 0.99 and rings:
-        ring = grow(core, rings) & ~core & keep
-        rgb[ring] = rgb[ring] + (WHITE - rgb[ring]) * STEP
-    rgb = np.clip(rgb, 0, 255)
+    ring = grow(core, rings) & ~core & keep if (act >= 0.99 and rings) else np.zeros_like(keep)
+
+    def tone(px):
+        # the tone curve: dim and cool low, bright and hot high
+        px = PANEL + (px - PANEL) * (lo + (hi - lo) * act)
+        c = (1 - act) * cool
+        px = px * (1 - c) + px * np.array([0.82, 0.95, 1.18]) * c
+        px[core] = px[core] + (HOT - px[core]) * (heat * act)
+        px[ring] = px[ring] + (WHITE - px[ring]) * STEP
+        return np.clip(px, 0, 255)
+    rgb = tone(rgb)
     # the breath and the stars
     d = int(round(depth * act))
     m = max(1, int(round(1 + (breaths - 1) * act)))
@@ -87,17 +122,21 @@ def tier(base, t, ramp):
     edge = far >= np.percentile(far, 60)
     rnd = np.random.RandomState(40 + t)
     pick = rnd.choice(np.nonzero(edge)[0], size=min(int(round(stars * act)), int(edge.sum())), replace=False)
-    twinkles = [(ys[i], xs[i], rnd.randint(0, N), rnd.randint(1, 3)) for i in pick]
+    twinkles = [(ys[i], xs[i], rnd.randint(0, n_out), rnd.randint(1, 3)) for i in pick]
     out = []
-    for k in range(N):
-        u = k / N
-        a = rgb.copy()
+    for k in range(n_out):
+        u = k / n_out
+        if frames:
+            a = tone(frames[k][..., :3].copy())
+            keep = frames[k][..., 3] > 0
+        else:
+            a = rgb.copy()
         lv = int(round(d * (0.5 - 0.5 * math.cos(2 * math.pi * m * u))))
         if lv:
             a[band] = a[band] + (WHITE - a[band]) * (STEP * lv)
         for (y, x, st, cyc) in twinkles:
             # lit for half a second, with a half step either side, cyc times a loop
-            age = (k * cyc - st) % N
+            age = (k * cyc - st) % n_out
             if age < 8:
                 w = 0.5 if age in (0, 7) else 1.0
                 a[y, x] = a[y, x] + (WHITE - a[y, x]) * w
@@ -110,10 +149,17 @@ def tier(base, t, ramp):
 
 def main():
     r2, t10, out, ramp = sys.argv[1:5]
+    turn = sys.argv[5] if len(sys.argv) > 5 else None
     os.makedirs(out, exist_ok=True)
     for t in range(10):
-        base = frame(os.path.join(r2, "tier_%d.png" % BASE[t]), BASE_FRAME)
-        frs = tier(base, t, ramp)
+        if turn:
+            path = os.path.join(turn, "tier_%d.png" % t)
+            w = Image.open(path).width // Image.open(path).height
+            frames = turning([frame(path, k) for k in range(w)])
+            frs = tier(frames[0], t, ramp, frames)
+        else:
+            base = frame(os.path.join(r2, "tier_%d.png" % BASE[t]), BASE_FRAME)
+            frs = tier(base, t, ramp)
         Image.fromarray(np.concatenate(frs, axis=1), "RGBA").save(os.path.join(out, "tier_%d.png" % t), optimize=True)
     Image.open(t10).save(os.path.join(out, "tier_10.png"))
     print("ramp %s: %s" % (ramp, out))

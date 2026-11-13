@@ -3,11 +3,16 @@ extends Node
 ## The star chart's own galaxy, small, for each tier's picture on LAUNCH A RUN: a run at the
 ## tier in one of its galaxy kinds, the real star chart with its icons off, one still of the
 ## sky for each step of a whole turn (`frame_<t>_<k>.png`), for tools/dev/tier_minis.py to
-## pixelate. `-- sheet=TierMiniBake out=<dir> [tiers=0,5,10] [limit=N] [tornsweep=1] [nudge=x,y] [far=f]`; needs a window.
+## pixelate. `-- sheet=TierMiniBake out=<dir> [tiers=0,5,10] [limit=N] [tornsweep=1] [nudge=x,y] [far=f] [kinds=..]
+## [freeze=1] [typeramp=1]`; needs a window.
 
 ## Seconds a whole turn takes at tier 0 and at tier 10; frames a second of the picture.
 const TURN_S := [24.0, 8.0]
 const FPS := 12
+## The turn by a tier's place in its form (`typeramp=1`): a form's first tier, its last.
+## 24 s is the longest a 56 px strip holds at 12 a second (16384 px).
+const TYPE_TURN_S := [24.0, 10.0]
+const TYPE_ACT := [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 1.0]
 ## The chart's zoom for the shot: the whole galaxy in the frame (ChartLook's "opening" is 0.42).
 const VIEW_Z := 0.28
 const TORN_LOST := 4.0
@@ -48,6 +53,7 @@ func _run() -> void:
 	ChartTorn.nudge = Vector2.ZERO
 	ChartTorn.far = 1.0
 	ChartSky.no_story = false
+	MapChart.clock_override = -1.0
 	print("tierminibake: done")
 	get_tree().quit()
 
@@ -58,7 +64,9 @@ func _bake(t: int) -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.forced_ascension = -1
 	Rng.forced = 0
-	Run.galaxy_kind = kind_of(t)
+	# `kinds=a,b,..`: each tier's galaxy kind by hand (Jon's picks: one spiral, one disc)
+	var ks := Harness.arg("kinds").split(",")
+	Run.galaxy_kind = int(ks[t]) if ks.size() > t and ks[t] != "" else kind_of(t)
 	Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
 	Run.map = MapGen.generate(Run.MAP_CANVAS)
 	Run.at = 0
@@ -74,6 +82,9 @@ func _bake(t: int) -> void:
 	ChartTorn.far = float(Harness.arg("far", str(GIANT_FAR))) if t == 10 else 1.0
 	ChartSky.no_story = true
 	ChartTorn.lost = TORN_LOST if t == 10 else 0.0
+	# `freeze=1`: the chart's clock held, so its sparkle, clouds and noise stand still and
+	# only the turn moves from still to still
+	MapChart.clock_override = 100.0 if Harness.arg("freeze") == "1" else -1.0
 	Router.show_starchart()
 	var scp := Router.current as StarchartScreen
 	var ch := scp._chart
@@ -91,6 +102,9 @@ func _bake(t: int) -> void:
 		await _shot(ch, "chart_%d" % t)
 	ch.show_icons = false
 	var n := frames_of(t) if Harness.arg("limit") == "" else int(Harness.arg("limit"))
+	# `typeramp=1`: the turn by the tier's place in its form, slowest at a form's first tier
+	if Harness.arg("typeramp") == "1" and Harness.arg("limit") == "":
+		n = int(round(lerpf(TYPE_TURN_S[0], TYPE_TURN_S[1], TYPE_ACT[t]) * FPS))
 	print("  tier %d: %s (kind %d), %d frames" % [t, GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_kind, n])
 	for k in n:
 		ch.sky_angle = TAU * float(k) / float(n)
