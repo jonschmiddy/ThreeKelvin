@@ -3,6 +3,8 @@ extends Node
 ## What a frame of the front door (the banner shipyard) costs, windowed: at rest,
 ## a ship picked (the held blur) and another pointed at. Manual, not in the gate.
 ## `-- sheet=YardBench [secs=20] [states=rest,picked,hover] [ablate] [out=<json>]`
+## (state `steam`: a lift's steam held at full burn under the medium berth, its
+## fullest; the lift itself leaves the hall, so it is measured standing)
 ## through `tools/dev/render.sh`. Vsync and the frame cap go off, so a frame lasts
 ## as long as its work. `ablate` adds 5 s samples with one part switched off.
 
@@ -101,6 +103,26 @@ func _state(st: String) -> void:
 			heavy.notification(Control.NOTIFICATION_MOUSE_ENTER)
 		"sweep":
 			heavy.notification(Control.NOTIFICATION_MOUSE_EXIT)
+		"steam":
+			_steam()
+
+
+## The steam a lift throws up, at full burn and never cutting.
+func _steam() -> void:
+	var y := _cs._yard
+	var s: YardStandSet = y.set_of(HullData.Weight.MEDIUM)
+	var p := LiftPlume.new()
+	p.setup(y.size.x, y.size.y, 220.0)
+	p.floor_y = float(s.feet)
+	p.lamps = ShipLift.lamps_of(y.scene.light, y.size.x)
+	var r := Rect2(s.thing)
+	p.hull = Rect2(r.position.x, r.position.y, r.size.x, r.size.y * 0.5)
+	p.src = Vector2(r.get_center().x, r.position.y + r.size.y * 0.5)
+	p.src_w = r.size.x * 0.2
+	y.add_child(p.back_layer)
+	y.add_child(p)
+	p.thrust = 1.0
+	p.fire()
 
 
 ## A pointer crossing the banners and the three ships, as a player looks round.

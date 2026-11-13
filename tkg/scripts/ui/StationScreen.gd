@@ -3136,6 +3136,7 @@ func _deck_lift() -> ShipLift:
 	var v := _mine_view
 	var p0: Vector2 = _lad.pos
 	v.position = p0
+	L.lamps = ShipLift.lamps_of(_scene.light, float(YardScene.W))
 	L.setup(v, _scene, _scene._ships.get_index())
 	_heavy = L
 	return L

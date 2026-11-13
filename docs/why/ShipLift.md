@@ -14,7 +14,15 @@ The light is drawn as light (the memory "draw light as light"): the jets' floor 
 
 ## Plume
 
-The smoke is P1 from the page, the rolling ground cloud: puffs added into one density in `lift_plume.gdshader`, torn by a noise field that moves ten times a second (fire's rate, the memory "fire should move"), stepped in four levels and lit from inside in four more. It lingers: the puffs live three to four and a half seconds, longer than the lift. The knobs (`size_k`, `strength`, `floor_y`) fit it to a hall; another kind of smoke is another `_spawn`.
+The steam is Jon's "AB-23" (Nov 12), picked from a grid of stills: the amount halfway between light and medium, the tone halfway between grey steam and warm exhaust. It replaced P1's single rolling cloud and the three smoke trials (S1 darker, S2 with grit, S3 a low mist), which are gone.
+
+Each puff is a lobe, a sphere lit from above: a lit top, a shaded underside, the floor's warm light bounced into its base, and a crease where it rolls over steam already there. Five tones with an ordered dither between them, a dense core and a ragged see-through edge. Lobes come in three depths. The far and middle ones are drawn under the hull (`back_layer`) and the near ones over it, so the steam sits partly behind the hull and partly in front of it. A third pass of the same lobes drops a soft shadow on the floor. The hall's lamps (`ShipLift.lamps_of`) brighten the tops under them.
+
+What goes up: a bank off the floor under the jets, a third of it filling the middle and the rest rolling out wide; pillars up past the nose and tail to about the hull's top; puffs off the stands' tops; now and then a thin wisp. The lobes grow and drift up every frame, and the field that tears their edges moves ten times a second (the memory "fire should move"). The light it throws eases and never steps (F1).
+
+The floor only throws steam while the jets are near it and over the berth (`over` in `lift_at`), so the steam thins as the hull climbs and slides off, and it clears about two seconds behind it. Once the jets cut, every lobe is gone within `CLEAR_S`. Each lift gets its own random seed, so no two look alike (Jon: "different every time"). The knobs (`size_k`, `strength`, `floor_y`) fit it to a hall; the deck runs it at `plume_k` 0.8.
+
+Cost: `-- sheet=YardBench states=rest,steam` holds it at full burn under the medium berth. On the PC (RTX 3070, 960x540) the frame mean went from 1.18 to 1.75 ms, p95 from 1.33 to 4.69 ms, and GPU time from 0.27 to 0.46 ms.
 
 ## Attach
 

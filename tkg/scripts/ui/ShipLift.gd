@@ -110,8 +110,27 @@ var _lat_on := false
 var _lat_want := false
 var _lifting := false
 var _touched := false
-## The stands' tops at rest (host px), where some smoke vents (`LiftPlume`'s S3).
+## The stands' tops at rest (host px), where steam also rises.
 var vents: Array[Vector2] = []
+## The hall's ceiling lamps over it (x, reach), for the light on the steam's tops.
+var lamps: Array[Vector2] = []
+
+
+## The ceiling lamps of `light`'s hall as (x, reach), and their copies on a hall run on past its edge.
+static func lamps_of(light: YardLight, width: float) -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	if light == null:
+		return out
+	for i in light.ceil_idx:
+		var b: Array = (light.lights[int(i)] as Dictionary).get("box", [])
+		if b.size() < 4:
+			continue
+		var x := (float(b[0]) + float(b[2])) * 0.5
+		var reach := maxf(30.0, (float(b[2]) - float(b[0])) * 0.45)
+		out.append(Vector2(x, reach))
+		if x + float(YardScene.W) < width:
+			out.append(Vector2(x + float(YardScene.W), reach))
+	return out
 ## The process frames the landing's belly jets lit and its take started (-1: not yet).
 var jets_frame := -1
 var take_frame := -1
@@ -136,7 +155,7 @@ var _jet_pts: Array[Vector3] = []
 
 ## Lay the layers into the host: the jets just under the hull's own layer (index
 ## `under`), the smoke and its light over everything at `over` (-1: on top).
-func setup(v: ShipView, h: Control, under: int, over: int = -1) -> void:
+func setup(v: ShipView, h: Control, under: int, over_node: Node = null) -> void:
 	view = v
 	host = h
 	rest = v.position
@@ -160,6 +179,10 @@ func setup(v: ShipView, h: Control, under: int, over: int = -1) -> void:
 	plume.setup(host.size.x, host.size.y, 220.0)
 	plume.floor_y = floor_y
 	plume.vents = vents
+	plume.lamps = lamps
+	# the steam's far layers and its shadow under the hull, its near layer over it
+	host.add_child(plume.back_layer)
+	host.move_child(plume.back_layer, _jets.get_index())
 	host.add_child(plume)
 	_glow = ColorRect.new()
 	_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -169,9 +192,9 @@ func setup(v: ShipView, h: Control, under: int, over: int = -1) -> void:
 	_gmat.set_shader_parameter(&"rect_size", _glow.size)
 	_glow.material = _gmat
 	host.add_child(_glow)
-	if over >= 0:
-		host.move_child(plume, over)
-		host.move_child(_glow, over + 1)
+	if over_node != null:
+		host.move_child(plume, over_node.get_index())
+		host.move_child(_glow, over_node.get_index())
 	_pose()
 
 
@@ -185,11 +208,15 @@ func lift_at(t: float) -> void:
 	var burn := clampf((t - MAINS_ON) / BURN_S, 0.0, 1.0)
 	if t >= PLUME_AT and not plume.fired():
 		plume.fire()
-	plume.thrust = spool * (1.0 - 0.75 * burn) if t < exit_s() else 0.0
 	# and it climbs as it goes: up a rising diagonal to its ceiling, faster than it
 	# gathers speed across, so it leaves high (Jon, Nov 12: "can also go higher up")
 	_off.y = -rise * lift_e - sag * k - _climb() * (1.0 - pow(1.0 - burn, 1.6))
 	_off.x = dir * exit_px * pow(burn, 2.6)
+	# the floor throws steam up only while the jets are over it and near it: it
+	# thins as the hull climbs and slides off its berth, and clears behind it
+	var over := clampf(1.0 - maxf(0.0, -_off.y - rise) / (90.0 * k), 0.0, 1.0) 		* clampf(1.0 - absf(_off.x) / maxf(1.0, 0.5 * _ink.size.x), 0.0, 1.0)
+	var jets := spool * (1.0 - 0.75 * burn) if t < exit_s() else 0.0
+	plume.thrust = jets * over
 	_sink(clampf((t - SINK_FROM) / SINK_S, 0.0, 1.0))
 	if t >= exit_s():
 		# off the picture: its engines dark, nothing of it left at the edge
@@ -206,7 +233,7 @@ func lift_at(t: float) -> void:
 	# a shiver while it hangs on the jets, harder as the mains light
 	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and burn < 0.85 else 0.0)
 	_shake(t, amp)
-	_belly_glow(plume.thrust)
+	_belly_glow(jets)
 	if burn > 0.0 and burn < 1.0:
 		_nozzle_glow(1.2)
 	if _walk == "" and t > 0.3:
@@ -383,6 +410,7 @@ func _pose() -> void:
 		x1 = maxf(x1, j.x)
 	plume.sources = srcs
 	plume.spread = _spread()
+	plume.hull = Rect2(_ink.position + o, _ink.size)
 	if sw > 0.0:
 		plume.src = Vector2(floorf(sx / sw), floorf(sy / sw))
 		plume.src_w = maxf(8.0 * k, (x1 - x0) * 0.5)

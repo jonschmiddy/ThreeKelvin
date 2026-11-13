@@ -394,7 +394,8 @@ func lift_off(w: int, shake: Control, done: Callable) -> ShipLift:
 	# (out under the ceiling lamps, in front of the banners: the hulls draw after them)
 	L.ceiling_y = 44.0
 	# the jets under the hulls, the smoke and its light over the hall, under the floor's fall
-	L.setup(s._view, self, get_children().find(sets.values()[0]), _fall.get_index())
+	L.lamps = ShipLift.lamps_of(scene.light, float(W))
+	L.setup(s._view, self, get_children().find(sets.values()[0]), _fall)
 	# the hull flies with its berth (its click box goes with it, and nothing is clickable now)
 	var p0 := s.position
 	L.move_view = false
