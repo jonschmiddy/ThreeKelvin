@@ -1056,7 +1056,8 @@ func _redock_from_right() -> void:
 	if not _ok("from the right: DOCK on LOCAL, moored on the station's right", dock_b != null and SectorScreen.mirrored()):
 		return
 	var art := loc._view.ship_view()
-	var at0 := _ship_global(art)
+	# (where it is put, not as drawn: the idle bob moves the drawing a pixel)
+	var at0 := art.position
 	dock_b.pressed.emit()
 	var fade_only := ZoomLadder.dock_fade_only
 	var moved := 0.0
@@ -1065,7 +1066,7 @@ func _redock_from_right() -> void:
 	for i in 900:
 		await _tree.process_frame
 		if Router.current == loc and is_instance_valid(art) and art.visible and _black_a() < 0.99:
-			moved = maxf(moved, _ship_global(art).position.distance_to(at0.position))
+			moved = maxf(moved, art.position.distance_to(at0))
 		if Router.current == loc:
 			black_max = maxf(black_max, _black_a())
 		var st := Router.current as StationScreen
