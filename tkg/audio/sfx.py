@@ -417,7 +417,8 @@ def main(out_dir='out/sfx'):
         # the attack alone, and normalising afterwards is what guarantees the
         # printed peak is the one the balance table asked for.
         n = y.shape[1]
-        ki = max(1, min(int(0.0008*SR), n//10))
+        # (5 ms in, as the shipped files were given on Nov 12: a start mid-wave clicked)
+        ki = max(1, min(int(0.005*SR), n//10))
         ko = max(1, min(int(0.005*SR), n//5))
         y[:, :ki] *= np.linspace(0, 1, ki); y[:, -ko:] *= np.linspace(1, 0, ko)
         m = np.max(np.abs(y))
