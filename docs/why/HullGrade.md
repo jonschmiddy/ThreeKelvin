@@ -160,3 +160,19 @@ Oct 14: "I don't want you to DRAW pixels for S. I want you to remove details
 towards C"). A thin thing: a column's top pixels while the row's run of
 opaque pixels through them is three wide or narrower.
 ```
+
+
+## Baked ahead
+
+Above `static func bake_ahead(hulls: Array[HullData], seed_of: Callable) -> void:`:
+
+```text
+For the front door (Nov 12): a graded picture is 100 to 300 ms of GDScript,
+seeded by the run, so a banner's three cost 0.6 s on its first click. The
+bake reads two tables, `_band_ramps` and `_places`, filled here on the main
+thread first so the workers only read them. Whose hull it is used to be a
+static (`_manufacturer`) set at the top of each bake; it is now `_Ramps.mf`,
+so bakes of two manufacturers can run at once. `-- sheet=YardPerfTest`
+checks a worker's bake equals the main thread's, byte for byte.
+```
+

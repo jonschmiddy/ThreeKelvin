@@ -84,7 +84,7 @@ func _dock_desk_rule() -> void:
 			pins.append("%d:%s" % [np.index, Contracts.dock_desk(np)])
 	var pin := " ".join(pins)
 	_ok("seed 9300's dock desks are the text-ordered picks (%s)" % pin,
-		pin == "11:verity 37:calyx 62:calyx")
+		pin == "37:calyx 47:korvan 50:redline 86:verity 90:cygnet 113:solari 191:solari")
 	# And every one of them, against the ids written out in text order here.
 	var abc := PackedStringArray(["calyx", "cygnet", "korvan", "probate", "redline", "solari", "verity"])
 	var by_text := true

@@ -63,6 +63,18 @@ func run(tree: SceneTree) -> void:
 			Audio.CUSTODIAN_CUE != Audio.BOSS_CUE
 			and not Audio.FIGHT_CUES.values().has(Audio.CUSTODIAN_CUE))
 
+	# The hull pick is the Shipyard's hall: no score, the deck's bed as its room (Jon, Nov 11).
+	Audio.music_state(&"lobby")
+	await _settle()
+	Audio.music_state(&"yard")
+	await _settle()
+	_ok("the yard stops the title cue (plays '%s')" % Audio.cue(), Audio.cue() == &"")
+	Audio.room(Audio.YARD_ROOM)
+	_ok("and plays the yard's bed as the room, at 0 dB", Audio._room_now == Audio.YARD_ROOM
+			and Audio._room != null and Audio._room.playing and Audio._room.stream != null
+			and is_equal_approx(float(Audio.ROOM_LEVELS[Audio.YARD_ROOM]), 0.0))
+	Audio.room(&"")
+
 	# Read as a table, not by driving a run: the layer bands are arithmetic.
 	_ok("five tiers over %d layers, %d apiece"
 			% [MapGen.LAYERS, Audio.TIER_SPAN],

@@ -31,6 +31,15 @@ uniform float zsf = 0.9333;
 uniform vec4 bounds = vec4(0.0);
 uniform bool ships = false;
 uniform float scale = 2.0;
+// the half grid's size: the hall's (384 x 242), or the front door's frame (481 x 242)
+uniform vec2 grid = vec2(384.0, 242.0);
+// A SECOND ROW OF SHIPS at its own depth (the front door's heavy, behind the
+// front berths): its mask, depth, scale and bounds, as the first's above.
+uniform sampler2D mask2 : filter_nearest, repeat_disable;
+uniform float zs2 = 535.714;
+uniform float zsf2 = 0.9333;
+uniform vec4 bounds2 = vec4(0.0);
+uniform bool ships2 = false;
 
 float z_of(float y) {
 	return ch * f / max(0.5, y - hy);
@@ -54,19 +63,21 @@ float pool_v(float u0, float z0, float x, float y) {
 	return e * e * (3.0 - 2.0 * e);
 }
 
-bool hit_at(float up, float zp, float ul, float zl) {
+// Does the line from the floor patch to the lamp pass through a ship of mask
+// `m`, standing at depth `z0` (drawn at `zf` picture pixels a unit there)?
+bool hit_in(sampler2D m, float z0, float zf, float up, float zp, float ul, float zl) {
 	for (int j = -1; j <= 1; j++) {
-		float zk = zs + float(j) * 45.0;
+		float zk = z0 + float(j) * 45.0;
 		float s = (zk - zp) / (zl - zp);
 		if (!(s > 0.0 && s < 1.0)) {
 			continue;
 		}
 		float u = up + s * (ul - up);
 		float h = s * lamph;
-		int xm = int(floor(vx + u * zsf + 0.5));
-		int ym = int(floor(hy + (ch - h) * zsf + 0.5));
-		if (xm >= 0 && xm < 766 && ym >= 0 && ym < 482) {
-			if (texelFetch(mask, ivec2(xm, ym), 0).r > 0.5) {
+		int xm = int(floor(vx + u * zf + 0.5));
+		int ym = int(floor(hy + (ch - h) * zf + 0.5));
+		if (xm >= 0 && xm < textureSize(m, 0).x && ym >= 0 && ym < 482) {
+			if (texelFetch(m, ivec2(xm, ym), 0).r > 0.5) {
 				return true;
 			}
 		}
@@ -74,8 +85,30 @@ bool hit_at(float up, float zp, float ul, float zl) {
 	return false;
 }
 
+// How much of the lamp a patch sees past one row of ships: five lines across
+// the lamp, so a shadow's edge is soft.
+float seen(sampler2D m, float z0, float zf, vec4 bd, float up, float zp, float ul, float zl) {
+	float s = (z0 - zp) / (zl - zp);
+	if (!(s > -0.3 && s < 1.3)) {
+		return 1.0;
+	}
+	float um = up + s * (ul - up);
+	float hm = s * lamph;
+	float pad = 85.0;
+	if (!(um > bd.x - pad && um < bd.y + pad && hm > bd.z - pad && hm < bd.w + pad)) {
+		return 1.0;
+	}
+	float hits = 0.0;
+	if (hit_in(m, z0, zf, up, zp, ul, zl)) { hits += 1.0; }
+	if (hit_in(m, z0, zf, up, zp, ul + 40.0, zl)) { hits += 1.0; }
+	if (hit_in(m, z0, zf, up, zp, ul - 40.0, zl)) { hits += 1.0; }
+	if (hit_in(m, z0, zf, up, zp, ul, zl + 40.0)) { hits += 1.0; }
+	if (hit_in(m, z0, zf, up, zp, ul, zl - 40.0)) { hits += 1.0; }
+	return 1.0 - hits / 5.0;
+}
+
 void fragment() {
-	vec2 cell = floor(UV * vec2(384.0, 242.0));
+	vec2 cell = floor(UV * grid);
 	float x = cell.x * 2.0;
 	float y = cell.y * 2.0;
 	float acc = 0.0;
@@ -99,21 +132,10 @@ void fragment() {
 				}
 				float vis = 1.0;
 				if (ships) {
-					float s = (zs - zp) / (zl - zp);
-					if (s > -0.3 && s < 1.3) {
-						float um = up + s * (ul - up);
-						float hm = s * lamph;
-						float pad = 85.0;
-						if (um > bounds.x - pad && um < bounds.y + pad && hm > bounds.z - pad && hm < bounds.w + pad) {
-							float hits = 0.0;
-							if (hit_at(up, zp, ul, zl)) { hits += 1.0; }
-							if (hit_at(up, zp, ul + 40.0, zl)) { hits += 1.0; }
-							if (hit_at(up, zp, ul - 40.0, zl)) { hits += 1.0; }
-							if (hit_at(up, zp, ul, zl + 40.0)) { hits += 1.0; }
-							if (hit_at(up, zp, ul, zl - 40.0)) { hits += 1.0; }
-							vis = 1.0 - hits / 5.0;
-						}
-					}
+					vis *= seen(mask, zs, zsf, bounds, up, zp, ul, zl);
+				}
+				if (ships2) {
+					vis *= seen(mask2, zs2, zsf2, bounds2, up, zp, ul, zl);
 				}
 				acc += rows[r].y * v * vis;
 			}

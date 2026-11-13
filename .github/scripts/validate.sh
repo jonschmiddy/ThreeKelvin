@@ -806,10 +806,13 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet cometcatchtest 180 \
 }
 
 unit_arrivesidetest() {
-step "A click on a world's lit or dark half arrives on that side, Shift against the spin"
-# Jon, Nov 10, "S3": the real map's hover, tag, click and arrival; then the solver's sides.
+step "A click on either half of a world, Shift or not, arrives on its lit side with its spin"
+# Jon, Nov 10, "S3", the choice dropped Nov 11: the real map's tag, click and arrival; then the solver's sides.
 # Why: docs/why/validate.md#unit_arrivesidetest
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arrivesidetest 300 \n	"the lit and dark halves arrive on their sides, Shift reverses the way round, the tag names both" \n	"an arrival side, the way round or the hover tag is wrong" \n	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveSideTest
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arrivesidetest 300 \
+	"every click arrives on the lit side with the spin, the tag says nothing of sides" \
+	"an arrival side, the way round or the hover tag is wrong" \
+	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveSideTest
 }
 
 # FlightTest and SolveTest run SPLIT, GATE_FLIGHT_SHARDS and GATE_SOLVE_SHARDS
@@ -1218,6 +1221,68 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet arriveidletest 180 \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=ArriveIdleTest
 }
 
+unit_jumpseqtest() {
+step "The jump films commit on time, their cues land on their frames, the HUD never moves"
+# Every landed film (JumpRegistry.ALL) through Router.begin_jump on a fixed clock: the commit
+# at the film's commit time, the build cue on the first frame and the hit cue on the frame the
+# clock crosses the cut, the stage last in EncounterView and gone with the commit, a skip that
+# commits and hushes, deterministic picks, REDUCE FLASHES capping the flash.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet jumpseqtest 300 	"the jump films play as filmed" 	"a jump film is off its clock, moved the HUD or left something behind" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=JumpSeqTest
+}
+
+unit_jumpshadertest() {
+step "Every jump shader compiles in a real renderer, and every film's stage draws"
+# Headless compiles no shaders, so a jump shader that does not compile passed JumpSeqTest.
+# The gate's one windowed unit: a hidden desktop on Windows, xvfb-run on Linux.
+# Why: docs/why/validate.md#unit_jumpshadertest
+local log="$LOG_DIR/jumpshadertest.log" limit=600 code=0 bin="${TK_GODOT_BIN:-$GODOT}"
+local args=(--audio-driver Dummy --disable-vsync --fixed-fps 60 --path "$PROJECT" -- sheet=JumpShaderTest)
+case "$(uname -s)" in
+	MINGW*|MSYS*|CYGWIN*)
+		if [ -n "${TK_HIDDESK:-}" ] && [ -x "$TK_HIDDESK" ] && [ "${bin%.sh}" = "$bin" ]; then
+			local wlog="$LOG_DIR/jumpshadertest.win.log"
+			run_limited "$limit" "$TK_HIDDESK" "$(cygpath -w "$wlog")" "$(cygpath -w "$bin")" "${args[@]}"
+			code=$?
+			cat "$wlog" >"$log" 2>/dev/null
+		else
+			run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
+			code=$?
+		fi ;;
+	Linux)
+		if [ -n "${DISPLAY:-}" ]; then
+			run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
+			code=$?
+		elif command -v xvfb-run >/dev/null 2>&1; then
+			run_limited "$limit" xvfb-run -a -s "-screen 0 1280x800x24" "$GODOT" "${args[@]}" >"$log" 2>&1
+			code=$?
+		else
+			bad "jumpshadertest: no display and no xvfb-run, so nothing can compile the jump shaders"
+			return
+		fi ;;
+	*)
+		run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
+		code=$? ;;
+esac
+if [ "$code" -eq 124 ]; then
+	bad "jumpshadertest: still running after ${limit}s, killed"
+	tail -n 25 "$log" | sed 's/^/        /'
+	return
+fi
+# the leaks a windowed run reports at exit; anything while the films play fails in the sheet
+local hits
+hits="$(grep -nE "SHADER ERROR|$ERROR_PATTERNS" "$log" 	| grep -vE "$GATE_LEAKS|Texture with GL ID of [0-9]+: leaked|Parameter \"RenderingServer::get_singleton\(\)\" is null" || true)"
+if [ -n "$hits" ]; then
+	bad "jumpshadertest: a shader or script error"
+	printf '%s
+' "$hits" | head -n 20 | sed 's/^/        /'
+elif [ "$code" -eq 0 ] && grep -qE '^jumpshadertest: PASS' "$log"; then
+	ok "every jump shader compiles and every film's stage draws"
+else
+	bad "a jump shader did not compile or a film's stage did not draw (godot exited $code)"
+	grep -E 'FAIL|^jumpshadertest' "$log" | head -n 12 | sed 's/^/        /'
+fi
+}
+
 unit_marktest() {
 step "One outline means this one, and the rest steps back"
 # Stripped-down UI C1 and C2 (Jon, Nov 9): the one mint outline on what you
@@ -1357,8 +1422,8 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet welcometest 120 \
 unit_yardfronttest() {
 step "The banner shipyard: pick a manufacturer, pick a ship, LAUNCH"
 # Jon's W2 v10 front door (Nov 10). A fresh profile's hall: Korvan named, six
-# ??? banners, SELECT A SHIP and LAUNCH grey; pointing at a hull shows its facts
-# off the live refit, a click picks it and LAUNCH comes on; a ??? banner brings
+# ??? banners, SELECT A SHIP and no LAUNCH; pointing at a hull shows its facts
+# off the live refit, a click picks it and LAUNCH appears, a click away clears it; a ??? banner brings
 # tarps, the lock line, and nothing can launch; Korvan's brings the ships and
 # the pick back; LAUNCH lands on LOCAL in the picked hull; developer mode opens
 # every banner. Every state box-tested. Same exit-time leak allowance as stowtest.
@@ -1366,6 +1431,15 @@ ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardfronttest 240 \
 	"the banner yard picks, locks and launches" \
 	"the banner yard misbehaved" \
 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardFrontTest
+}
+
+unit_yardperftest() {
+step "The banner shipyard's click stays cheap and looks the same"
+# Nov 12, Jon: "VERY laggy". A banner's first click baked three hulls on the main
+# thread (0.6 s); now every open banner's are baked ahead on a worker, each the
+# main thread's picture byte for byte. The ship map in bytes equals the old
+# per-pixel one for every set, and the floor pools bake once. Counts, never times.
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet yardperftest 240 	"the banner yard bakes ahead and its ship map is unchanged" 	"the banner yard's bakes or ship map changed" 	--headless --fixed-fps 60 --path "$PROJECT" -- sheet=YardPerfTest
 }
 
 unit_launchtiertest() {
@@ -2193,7 +2267,7 @@ gate_weight() {
 		bindtest) echo 20 ;; swaptest) echo 20 ;; arriveidletest) echo 20 ;;
 		nettest) echo 20 ;; solvetest_*) echo 170 ;;
 		cometflighttest) echo 90 ;; cometcatchtest) echo 34 ;; arrivesidetest) echo 60 ;;
-		sciencesimtest) echo 51 ;; routinetest) echo 28 ;;
+		sciencesimtest) echo 51 ;; routinetest) echo 28 ;; jumpshadertest) echo 90 ;;
 		*) echo 15 ;;
 	esac
 }

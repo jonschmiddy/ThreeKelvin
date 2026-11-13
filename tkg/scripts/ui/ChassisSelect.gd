@@ -54,6 +54,10 @@ var _yard: YardFront
 var _band: YardBand
 ## The weight the pointer is on, or -1: its facts show while it is.
 var _hover: int = -1
+## A tarp was clicked under this locked set: LAUNCH shows, grey.
+var _tarp_tried: bool = false
+## The open banners' hulls not yet handed to the worker (`_bake_ahead`).
+var _to_bake: Array[HullData] = []
 
 
 func setup() -> void:
@@ -64,6 +68,7 @@ func setup() -> void:
 	size = Vector2(YardFront.W, YardFront.H)
 	# NO SCIENCE CLEARED HERE.
 	# Why: docs/why/ChassisSelect.md#no-science-cleared-here
+	_bake_ahead()
 	_yard = YardFront.new()
 	add_child(_yard)
 	_yard.setup()
@@ -76,6 +81,32 @@ func setup() -> void:
 	_band.launch.connect(_launch)
 	_band.tier_picked.connect(_pick_tier)
 	_select(0)
+
+
+## Every open banner's hulls baked on a worker, Korvan's alongside the hall's
+## build, then one at a time behind the hall: a banner's first click baked its
+## three here, 0.6 s. Twenty-one side by side starved the first three.
+## Why: docs/why/ChassisSelect.md#hulls-baked-ahead
+func _bake_ahead() -> void:
+	for m: StringName in DB.STARTABLE:
+		if Unlocks.unlocked(m):
+			for w: HullData.Weight in [HullData.Weight.HEAVY, HullData.Weight.MEDIUM, HullData.Weight.LIGHT]:
+				_to_bake.append(DB.at_tier(DB.hull_for(m, w), _tier))
+	HullGrade.bake_ahead(_to_bake.slice(0, 3), _bake_seed)
+	_to_bake = _to_bake.slice(3)
+
+
+static func _bake_seed(h: HullData) -> int:
+	return HullWear.seed_for(h, "", Rng.master)
+
+
+func _process(_dt: float) -> void:
+	if not _to_bake.is_empty() and HullGrade.ahead_idle():
+		HullGrade.bake_ahead([_to_bake.pop_front()], _bake_seed)
+
+
+func _exit_tree() -> void:
+	HullGrade.finish_ahead()
 
 
 func manufacturer() -> StringName:
@@ -97,23 +128,50 @@ func launchable() -> bool:
 func _select(i: int) -> void:
 	_sel = i
 	_hover = -1
+	_tarp_tried = false
 	if open() and _picked >= 0:
 		_refit()
 	_yard.show_set(manufacturer(), open(), _tier)
 	_yard.set_picked(_picked)
 	_show_band()
+	# The blurb alone: the band and the hull already say its size (Jon, Nov 11).
 	for s: YardStandSet in _yard.sets.values():
-		s.tooltip_text = Widgets.tip("%s\n%s" % [HullData.weight_name(s.weight), WEIGHT_BLURB[int(s.weight)]]) \
+		s.tooltip_text = Widgets.tip(WEIGHT_BLURB[int(s.weight)]) \
 			if open() else Widgets.tip(Unlocks.lock_line(manufacturer()))
 
 
 ## A click on a hull picks it: it is the ship until another is clicked.
+## A tarp's click picks nothing, but brings LAUNCH up grey beside the lock line.
 func _pick_weight(w: HullData.Weight) -> void:
 	if not open():
+		_tarp_tried = true
+		_show_band()
 		return
 	_picked = int(w)
 	_refit()
 	_yard.set_picked(_picked)
+	_show_band()
+
+
+## A click that no ship, banner or key took: away from the ships, so the pick goes
+## (Jon, Nov 11). A band word with a tooltip passes its click on, and is not away.
+## Why: docs/why/ChassisSelect.md#click-away
+func _gui_input(e: InputEvent) -> void:
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if _band.on_word(get_global_transform() * mb.position):
+		return
+	accept_event()
+	deselect()
+
+
+func deselect() -> void:
+	if _picked < 0 and not _tarp_tried:
+		return
+	_picked = -1
+	_tarp_tried = false
+	_yard.set_picked(-1)
 	_show_band()
 
 
@@ -152,6 +210,7 @@ func _show_band() -> void:
 		_band.show_ship(m, shown == _picked, _yard.tie_point(shown as HullData.Weight), launchable())
 	else:
 		_band.show_rest()
+	_band.arm(_picked >= 0 or (_tarp_tried and not open()))
 
 
 func _launch() -> void:
@@ -161,8 +220,8 @@ func _launch() -> void:
 	launched.emit()
 
 
-## Esc goes back to the title, not the escape menu (tutorial audit, Oct 22).
-## Its ABANDON put a run that never started on the record.
+## Back to the title: the escape menu's BACK TO TITLE here (Jon, Nov 11), never ABANDON,
+## which put a run that never started on the record.
 ## Why: docs/why/ChassisSelect.md#escape-handling
 func escape() -> void:
 	Run.hull = null

@@ -1,24 +1,15 @@
 class_name YardStandSet
 extends Control
 
-## One display berth on the front door: a hull on two of the yard's stands, or,
-## for a locked manufacturer, the tarp that covers it. The hull (or the tarp) is
-## the thing you point at and click; the stands are scenery.
+## One display berth on the front door: a hull on two of the yard's stands, or a
+## locked manufacturer's tarp. The hull (or tarp) is what you click; the stands
+## are scenery, drawn by depth with the crew (`paint_stands`).
 ## Why: docs/why/ChassisSelect.md#banner-yard
 
 signal pressed
 signal hovered(on: bool)
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
-## Where each weight stands (the mockup's SHIPS): the hull's left edge and its
-## belly row in hall pixels; the heavy centred behind, higher on the floor.
-const PLACE := {HullData.Weight.HEAVY: Vector2i(333, 252), HullData.Weight.MEDIUM: Vector2i(88, 290),
-	HullData.Weight.LIGHT: Vector2i(634, 290)}
-## The hull is let six rows into the stands' saddles; a stand picture is 46 x 88.
-const SINK := 6
-const STAND_W := 46
-const STAND_H := 88
-const STAND_AT := [0.27, 0.73]
 ## The tarp art, drawn over the Korvan hulls: its left edge from the hull's, and
 ## the row inside it that lies on the hull's belly row.
 const TARP_FILE := {HullData.Weight.LIGHT: "tarp_light.png", HullData.Weight.MEDIUM: "tarp_medium.png",
@@ -45,6 +36,13 @@ var _x0: int = 0
 var _belly: int = 0
 var _hull_w: int = 0
 var _stand_x: Array[int] = []
+## The stands' top row and picture: fixed by the berth (`YardSlot`), whatever stands on them.
+var _stand_top: int = 0
+var _stand_img: Image = null
+var _stand_tex: ImageTexture = null
+## The stand's seat row and how far the hull was let down past it.
+var seat: int = 0
+var sink: int = 0
 
 
 func _init() -> void:
@@ -52,8 +50,8 @@ func _init() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 
-## Stand `hull` here, or the weight's tarp when `hull` is null (the frame's
-## width still comes from Korvan's hull, which the tarps were cut for).
+## Stand `hull` here, or the weight's tarp when `hull` is null (the tarp sits
+## where Korvan's hull would, which the tarps were cut for).
 func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -> void:
 	scene = sc
 	weight = w
@@ -62,11 +60,8 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 		c.queue_free()
 	_view = null
 	_tarp = null
-	var place: Vector2i = PLACE[w]
-	_x0 = place.x
-	_belly = place.y
-	feet = _belly - SINK + STAND_H
-	# the hull's ink, for the stands' places and the box
+	feet = YardSlot.feet(w)
+	# the hull's ink, to sit it on the stands
 	var probe := ShipView.new()
 	# a hull on stands: no idle flame, no running lights
 	probe._engines_off = true
@@ -74,35 +69,10 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 	var img := probe.canvas()
 	var ink := _ink(img)
 	_hull_w = maxi(1, ink.size.x)
-	var top := _belly - ink.size.y
+	var top := _seat_stands(probe, img, ink)
+	_belly = top + ink.size.y
 	position = Vector2(_x0 - 24, top)
 	size = Vector2(_hull_w + 48, feet - top)
-	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
-	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
-	var st: Dictionary = ((YardScene.doc().get("art", {}) as Dictionary).get("stands", {}) as Dictionary).get("city", {})
-	var stand := scene.tex(String(st.get("picture", "stand_city.png")))
-	_stand_x.clear()
-	for q: float in STAND_AT:
-		_stand_x.append(int(_x0 + float(_hull_w) * q) - STAND_W / 2)
-	for sx in _stand_x:
-		if shadow != null:
-			var tr := TextureRect.new()
-			tr.texture = shadow
-			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			tr.position = Vector2(sx - 20, feet - 4) - position
-			add_child(tr)
-	for sx in _stand_x:
-		if stand != null:
-			var tr2 := TextureRect.new()
-			tr2.texture = stand
-			tr2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			tr2.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			tr2.position = Vector2(sx, _belly - SINK) - position
-			tr2.material = scene._mats[YardPaint.FLOOR]
-			var cx := sx + STAND_W / 2
-			tr2.set_instance_shader_parameter(&"cell", Vector2(cx - 766 if cx > 765 else cx, feet))
-			add_child(tr2)
 	if hull != null:
 		_view = probe
 		_view.position = Vector2(_x0 - ink.position.x, top - ink.position.y) - position
@@ -131,32 +101,120 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 				(c as Control).position.y += grow
 
 
-## The hull's (or tarp's) pixels into the light's ship map (R a hull, G a stand),
-## at their hall places; `img` may be wider than the hall.
-func mask_into(img: Image) -> void:
+## The berth's two stands where `YardSlot` puts them, the same for every
+## manufacturer, and the hull slid and let down onto them as the Shipyard deck
+## seats one (Jon, Nov 11: "floating above"; Nov 12: "the stands don't line up").
+## Returns the hull's top row; sets `_x0`, `seat` and `sink`.
+## Why: docs/why/ChassisSelect.md#fixed-berths
+func _seat_stands(v: ShipView, img: Image, ink: Rect2i) -> int:
 	var st: Dictionary = ((YardScene.doc().get("art", {}) as Dictionary).get("stands", {}) as Dictionary).get("city", {})
-	var si := scene.img(String(st.get("picture", "stand_city.png")))
-	if si != null:
-		for sx in _stand_x:
-			_stamp(img, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _belly - SINK), Color8(0, 255, 0, 255), false)
+	var si := scene._stand_image(st)
+	var rects := YardSlot.stand_rects(weight)
+	_stand_x.clear()
+	for r in rects:
+		_stand_x.append(r.position.x)
+	_stand_top = rects[0].position.y
+	seat = int(st.get("seat", 0))
+	sink = 0
+	_stand_img = null
+	_stand_tex = null
+	_x0 = int(YardSlot.CENTRE[weight]) - ink.size.x / 2
+	if si == null:
+		return _stand_top + seat - 1 - ink.size.y
+	var s := YardSlot.stand_size(weight)
+	_stand_img = scene._sized(YardSlot.shrink_width(si, s.x), st, s.y)
+	_stand_tex = ImageTexture.create_from_image(_stand_img)
+	var under := PackedInt32Array()
+	under.resize(ink.size.x)
+	for x in ink.size.x:
+		under[x] = -1
+		for y in range(ink.size.y - 1, -1, -1):
+			if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
+				under[x] = y
+				break
+	var r := YardSlot.seat(under, ink.size.x, YardScene.hull_mass_x(img, ink), scene.stand_cap(_stand_img, seat), seat,
+		scene._hanging(v, img, ink, under), _stand_x)
+	_x0 = r[0]
+	sink = r[2]
+	# the higher cradle's seat under the belly's row cmin, the hull let down `sink` past it
+	return _stand_top + seat - 1 + sink - r[1]
+
+
+## The stands on the floor, in the hall's depth order (`YardFrontLife`), as
+## the Shipyard deck draws its stands (`YardScene._draw_ships`): the one stand
+## shadow Jon passed for every stand, the stand lit as the deck lights a ship.
+## Why: docs/why/ChassisSelect.md#lit-as-the-shipyard
+func paint_stands(P: YardPaint) -> void:
+	if _stand_tex == null:
+		return
+	var sw := _stand_img.get_width()
+	var sh: Dictionary = (YardScene.doc().get("art", {}) as Dictionary).get("stand_shadow", {})
+	var shadow := scene.tex(String(sh.get("picture", "stand_shadow.png")))
+	for sx in _stand_x:
+		if shadow != null:
+			# (placed by the stand's middle: the heavy's stands are narrower than the picture's 46)
+			P.use(YardPaint.PLAIN)
+			P.tex(shadow, Vector2(float(sx) + float(sw - YardSlot.STAND_W) * 0.5 + float(sh.get("x", -20)), float(feet) + float(sh.get("y", -4))))
+		P.use(YardPaint.SHIP)
+		P.tex(_stand_tex, Vector2(sx, _stand_top))
+
+
+## The hull's (or the tarp's) pixels as a hull in `map` (RGBA8 bytes, `w` wide),
+## where the floor lamps look for what stands in their way (`YardFrontPools`); returns their box.
+func hull_into(map: PackedByteArray, w: int) -> Rect2i:
 	if _view != null:
 		var c := _view.canvas()
-		_stamp(img, c, _ink(c), Vector2i(_x0, thing.position.y), Color8(255, 0, 0, 255), true)
-	elif _tarp != null and _tarp.image != null:
-		_stamp(img, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, Color8(255, 0, 0, 255), true)
+		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
+	if _tarp != null and _tarp.image != null:
+		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
+	return Rect2i()
 
 
-static func _stamp(img: Image, src: Image, ink: Rect2i, at: Vector2i, col: Color, over: bool) -> void:
+## The hull's (or tarp's) pixels into the light's ship map (R a hull, G a stand),
+## at their hall places, as RGBA8 bytes `map` `w` wide; returns the box the hull's went in.
+func mask_into(map: PackedByteArray, w: int) -> Rect2i:
+	var si := _stand_img
+	if si != null:
+		for sx in _stand_x:
+			_stamp(map, w, si, Rect2i(Vector2i.ZERO, si.get_size()), Vector2i(sx, _stand_top), 1, false)
+	if _view != null:
+		var c := _view.canvas()
+		return _stamp(map, w, c, _ink(c), Vector2i(_x0, thing.position.y), 0, true)
+	if _tarp != null and _tarp.image != null:
+		return _stamp(map, w, _tarp.image, Rect2i(Vector2i.ZERO, _tarp.image.get_size()), thing.position, 0, true)
+	return Rect2i()
+
+
+## `src`'s solid pixels (alpha 128 up) as opaque 255 in channel `ch` (0 R, 1 G), in bytes:
+## `get_pixel` and `set_pixel` took 15 ms a banner. A stand (`over` false) never covers a hull.
+static func _stamp(map: PackedByteArray, w: int, src: Image, ink: Rect2i, at: Vector2i, ch: int, over: bool) -> Rect2i:
+	var s := src
+	if s.get_format() != Image.FORMAT_RGBA8:
+		s = src.duplicate() as Image
+		s.convert(Image.FORMAT_RGBA8)
+	var sd := s.get_data()
+	var sw := s.get_width()
+	var h := map.size() / (4 * w)
+	var lo := Vector2i(w, h)
+	var hi := Vector2i(-1, -1)
 	for y in ink.size.y:
+		var Y := at.y + y
+		if Y < 0 or Y >= h:
+			continue
+		var si := ((ink.position.y + y) * sw + ink.position.x) * 4 + 3
 		for x in ink.size.x:
-			if src.get_pixel(ink.position.x + x, ink.position.y + y).a8 < 128:
-				continue
 			var X := at.x + x
-			var Y := at.y + y
-			if X < 0 or Y < 0 or X >= img.get_width() or Y >= img.get_height():
+			if sd[si + x * 4] < 128 or X < 0 or X >= w:
 				continue
-			if over or img.get_pixel(X, Y).r8 == 0:
-				img.set_pixel(X, Y, col)
+			var o := (Y * w + X) * 4
+			if over or map[o] == 0:
+				map[o] = 255 if ch == 0 else 0
+				map[o + 1] = 255 if ch == 1 else 0
+				map[o + 2] = 0
+				map[o + 3] = 255
+				lo = Vector2i(mini(lo.x, X), mini(lo.y, Y))
+				hi = Vector2i(maxi(hi.x, X), maxi(hi.y, Y))
+	return Rect2i(lo, hi - lo + Vector2i.ONE) if hi.x >= 0 else Rect2i()
 
 
 ## The box of a picture's opaque pixels.
@@ -170,13 +228,35 @@ static func _ink(img: Image) -> Rect2i:
 ## Where the band's tie line meets this berth: the heavy's on its left stand,
 ## clear of the crew between its stands; the others at the hull's middle.
 func tie_point() -> Vector2:
-	var x := thing.position.x + 79 if weight == HullData.Weight.HEAVY else thing.position.x + thing.size.x / 2
+	var heavy := weight == HullData.Weight.HEAVY and not _stand_x.is_empty()
+	var x := _stand_x[0] + YardSlot.stand_size(weight).x / 2 if heavy else thing.position.x + thing.size.x / 2
 	return Vector2(x, feet - 2)
 
 
-## Only the hull or the tarp is the thing; the stands and the air are not.
+## Only the hull's or the tarp's own pixels are the thing: the stands, the air and
+## the box's empty corners are "away", where a click clears the pick (Jon, Nov 11).
 func _has_point(p: Vector2) -> bool:
-	return thing.has_point(Vector2i(p + position))
+	return on_ink(p + position)
+
+
+## Is the hall point `at` on the hull's (or the settled tarp's) opaque pixels?
+func on_ink(at: Vector2) -> bool:
+	if not thing.has_point(Vector2i(at)):
+		return false
+	var img: Image = null
+	var corner := Vector2.ZERO
+	if _view != null:
+		img = _view.canvas()
+		corner = position + _view.position
+	elif _tarp != null:
+		img = _tarp.image
+		corner = Vector2(thing.position)
+	if img == null:
+		return true
+	var q := Vector2i((at - corner).floor())
+	if q.x < 0 or q.y < 0 or q.x >= img.get_width() or q.y >= img.get_height():
+		return false
+	return img.get_pixel(q.x, q.y).a8 >= 128
 
 
 func _gui_input(e: InputEvent) -> void:

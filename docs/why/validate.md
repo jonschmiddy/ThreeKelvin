@@ -458,10 +458,10 @@ far, near and star spots when the limits were set; about 90 s.
 
 ## unit_arrivesidetest
 
-The side and way round a flight arrives (ArriveSideTest; Jon, Nov 10, "S3"): on
-the real map a click on the selected world's lit half arrives on the lit side
-going with its spin, with Shift a click on the dark half arrives dark and
-against it, the hover tag names both and the line drawn is the one flown; then
+The side and way round a flight arrives (ArriveSideTest; Jon, Nov 10, "S3", the
+choice dropped Nov 11): on the real map a click on either half of the selected
+world, Shift up or held, arrives on the lit side going with its spin, the tag
+says nothing of sides and the line drawn is the one flown; then
 the solver alone over real systems, every sided or sensed flight landing as
 asked. About 60 s.
 
@@ -471,3 +471,22 @@ The catch on the real map (CometCatchTest): the race planned for all three
 spots, the comet's page offering them, a spot flown to and waited at, the pass
 down to LOCAL with the reading open, the ship back on its spot after, and TOO
 LATE twice, neither flown to. About 34 s.
+
+## unit_jumpshadertest
+
+Every jump shader compiled by a real renderer, and every landed film's stage built and
+drawn through the real Router (JumpShaderTest). Headless runs use a renderer that compiles
+nothing, so at the jump films' merge (Nov 11) a shader with a `return` in `vertex()`
+passed JumpSeqTest and would have shipped a film that draws nothing. The sheet draws each
+`shaders/jump/*.gdshader` on a rect, then plays every film to its commit, with an engine
+logger that fails on any error; a shader that does not compile prints `SHADER ERROR` and
+`Shader compilation failed`, which it counts. Checked by adding two broken shaders: both
+failed it.
+
+It is the gate's one windowed unit. On Windows it opens on the hidden desktop (TK_HIDDESK,
+which gate_land.sh's env.sh finds) with the real binary, never on Jon's screen; on Linux CI
+under `xvfb-run` with Mesa's software OpenGL (the workflow installs both); with no display
+and no xvfb-run it fails, since a check that cannot run has not passed. Nothing in it is
+timed: it counts errors, so a busy machine only makes it slower. Exit-time leak reports of a
+windowed run are allowed; an error while the films play fails in the sheet itself.
+About 40 s on the PC.

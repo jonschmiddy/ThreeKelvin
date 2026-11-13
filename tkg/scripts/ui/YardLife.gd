@@ -226,7 +226,7 @@ func _crew(t: float) -> void:
 		if c.has("dyEase"):
 			var de: Dictionary = c["dyEase"]
 			ease = float(de["from"]) * (1.0 - YardLight.smooth(float(de["t0"]), float(de["t0"]) + float(de["dur"]), t))
-		var dy := floorf(float(p.get("dy", 0.0)) + ease + 0.5)
+		var dy := floorf(float(p.get("dy", 0.0)) + ease + 0.5) + avoid(float(p["x"]), float(c["y"]))
 		var cy := float(c["y"]) + dy
 		var F := crew_frame(String(c["name"]), int(p["f"]))
 		var x0 := floorf(float(p["x"]) - float(F["w"]) / 2.0 + 0.5)
@@ -240,7 +240,7 @@ func _crew(t: float) -> void:
 			scene.shade(P, floorf(px + 0.5), cy + 1.0, maxf(3.0, fs + 1.5), 2.0, 0.4)
 			P.use(YardPaint.MIRROR)
 			P.mirror(F["tex"], F["src"], x0, cy + 1.0, 0.16, TINT, fl)
-			P.use(YardPaint.FLOOR, YardScene.cell(px, cy))
+			P.use(YardPaint.FLOOR, lit_cell(px, cy))
 			P.tex(F["tex"], Vector2(x0, y0), F["src"], Color.WHITE, fl)})
 		c["lastX"] = px
 		c["lastH"] = float(F["h"])
@@ -411,8 +411,19 @@ func put(P: YardPaint, S: Dictionary, x: float, bottom: float, o: Dictionary = {
 	if o.get("mirror", true) != false:
 		P.use(YardPaint.MIRROR)
 		P.mirror(S["tex"], S["src"], left, fl + (fl - bottom) + 1.0 - (float(S["h"]) - 1.0 - float(S["foot"])), float(o.get("gloss", 0.2)), TINT, flip)
-	P.use(YardPaint.FLOOR, YardScene.cell(x, fl))
+	P.use(YardPaint.FLOOR, lit_cell(x, fl))
 	P.tex(S["tex"], Vector2(left, top), S["src"], Color.WHITE, flip)
+
+
+## Rows a walker on the lane at `lane_y` steps forward at `x`, round what stands
+## there: none on the Shipyard deck (`YardFrontLife` routes round its stands).
+func avoid(_x: float, _lane_y: float) -> float:
+	return 0.0
+
+
+## The light's cell for a thing standing on the floor at x, y.
+func lit_cell(x: float, y: float) -> Vector2:
+	return YardScene.cell(x, y)
 
 
 func item(y: float, back: bool, fn: Callable) -> void:

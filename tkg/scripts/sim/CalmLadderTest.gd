@@ -80,9 +80,9 @@ func _field_wrong(f0: Variant, v0: int) -> String:
 
 
 ## Top plate this frame: drawn by the screen up, or held whole by an opaque picture.
-func _plate_unsteady() -> String:
+func _plate_unsteady(foot := false) -> String:
 	var cur := Router.current
-	var bar := ZoomLadder.bar_of(cur)
+	var bar := PanelSlide.foot_of(cur) if foot else ZoomLadder.bar_of(cur)
 	if bar == null or not is_instance_valid(bar):
 		return ""
 	var r := bar.get_global_rect()
@@ -162,7 +162,15 @@ func _panel_blank(ps: Object) -> String:
 
 ## A side panel or toolbar piece of the ladder's up this frame: a column or a
 ## band sliding (`ChromeSlide`, `SideBand`), or a decode drawn (`SideSwap`).
-func _side_chrome_up() -> bool:
+## With `was`, only the panels of that screen (`olds`) or of any other, and every other piece only for those.
+func _side_chrome_up(was: Variant = null, olds := false, filt := false) -> bool:
+	for ps: Variant in _panel_slides():
+		if is_instance_valid(ps) and not bool(ps.get("done")) and filt:
+			var t: Variant = ps.get("target")
+			if is_instance_valid(t) and (is_instance_valid(was) and (was as Control).is_ancestor_of(t)) == olds:
+				return true
+	if filt and olds:
+		return false
 	for pc: Variant in ChromeSlide.live:
 		if is_instance_valid(pc) and (pc as CanvasItem).is_visible_in_tree():
 			return true
@@ -173,7 +181,7 @@ func _side_chrome_up() -> bool:
 		if is_instance_valid(sw) and (sw as CanvasItem).is_visible_in_tree():
 			return true
 	for ps: Variant in _panel_slides():
-		if is_instance_valid(ps) and not bool(ps.get("done")):
+		if is_instance_valid(ps) and not bool(ps.get("done")) and not filt:
 			return true
 	return false
 
@@ -194,6 +202,19 @@ func held_on_now() -> bool:
 
 func _rank(s: Control) -> int:
 	return ZoomLadder.rank_of(s)
+
+
+## A hop's length by click before the bottom bands slid (main, Nov 11): measured 1.77 s into LOCAL, 1.98 s out,
+## 1.82 s map to chart (a key starts a frame or so sooner, so a hop may be shorter, never 0.05 s longer).
+func _before_s(a: int, b: int) -> float:
+	var t := 0.0
+	if b == ZoomLadder.LOCAL:
+		t = maxf(ZoomLadder.CALM_OUT_S, ZoomLadder.CALM_SLIDE_S) + ZoomLadder.CALM_CAM_S + ZoomLadder.CALM_IN_S
+	elif a == ZoomLadder.LOCAL:
+		t = ZoomLadder.CALM_OUT_S + ZoomLadder.CALM_CAM_S + ZoomLadder.CALM_SLIDE_S + ZoomLadder.CALM_IN_S
+	else:
+		t = ZoomLadder.CALM_OUT_S + ZoomLadder.CALM_CAM_S + maxf(ZoomLadder.CALM_IN_S, ZoomLadder.CALM_DECODE_S)
+	return t + 4.0 / 60.0 + 0.05
 
 
 func _target_s(a: int, b: int) -> float:
@@ -367,6 +388,13 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 	var ghost_why := ""
 	var panel_first := -1
 	var panel_last := -1
+	# THE BOTTOM BANDS SLIDE (Jon, Nov 11): the leaving screen's, the arriving one's; whole px, one way
+	var foot_frames := [0, 0]
+	var foot_bad := 0
+	var foot_why := ""
+	var foot_dir := {}
+	var foot_shaky := 0
+	var foot_shaky_why := ""
 	var bad: Array = []
 	var held_last := -1.0
 	var chrome_last := _chrome_state()
@@ -454,9 +482,10 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 			if cam_first < 0:
 				cam_first = frames
 			cam_last = frames
-		if _side_chrome_up():
+		if _side_chrome_up(was, false, true):
 			if panel_first < 0:
 				panel_first = frames
+		if _side_chrome_up(was, true, true):
 			panel_last = frames
 		var fw := _field_wrong(field0, field_v0)
 		if fw != "":
@@ -484,10 +513,28 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 				plate_shaky += 1
 				if plate_why == "":
 					plate_why = "%s at frame %d" % [pw, frames]
+			var fw2 := _plate_unsteady(true)
+			if fw2 != "":
+				foot_shaky += 1
+				if foot_shaky_why == "":
+					foot_shaky_why = "%s at frame %d" % [fw2, frames]
 		for psv: Variant in _panel_slides():
 			if not is_instance_valid(psv) or bool(psv.get("done")):
 				continue
 			panel_moving += 1
+			if psv.get("kind") == &"foot":
+				var ft: Control = psv.get("target")
+				foot_frames[0 if is_instance_valid(was) and was.is_ancestor_of(ft) else 1] += 1
+				var dy: float = ft.position.y - (psv.get("rest") as Vector2).y
+				var id: int = (psv as Object).get_instance_id()
+				var prev: Array = foot_dir.get(id, [dy, 0.0])
+				var step := signf(dy - float(prev[0]))
+				var turned := step != 0.0 and float(prev[1]) != 0.0 and step != float(prev[1])
+				if ft.position.y != roundf(ft.position.y) or turned or dy < -0.5:
+					foot_bad += 1
+					if foot_why == "":
+						foot_why = "at %.2f px (%s) frame %d" % [ft.position.y, "turned back" if turned else "not whole or above its place", frames]
+				foot_dir[id] = [dy, step if step != 0.0 else float(prev[1])]
 			var why := _panel_blank(psv)
 			if why != "":
 				panel_blank += 1
@@ -559,20 +606,25 @@ func _hop(label: String, go: Callable, want: int, press: Array = []) -> void:
 		_ok("%s: the goal up in its one place on every frame (%d frames not%s)" % [label, goal_off, "" if goal_why == "" else ": " + goal_why], goal_off == 0)
 		_ok("%s: one goal -- left out of the picture held on every frame it is drawn (%d frames not%s)" % [label, ghost, "" if ghost_why == "" else ": " + ghost_why], ghost == 0)
 	if map_chart:
+		_ok("%s: the KEY band steady too -- held whole through the move, then decoded, never faded (%d frames not%s)" % [label, foot_shaky, "" if foot_shaky_why == "" else ": " + foot_shaky_why], foot_shaky == 0)
 		_ok("%s: the top plate steady -- one opaque thing draws it every frame, the plate itself or it as held (%d frames not%s)" % [label, plate_shaky, "" if plate_why == "" else ": " + plate_why], plate_shaky == 0)
 	_ok("%s: one field under it all -- the same layer, on, under the screens, never faded or redrawn (%d frames not%s)" % [label, field_bad, "" if field_why == "" else ": " + field_why], field_bad == 0)
 	if local_hop:
 		_ok("%s: the side panel and toolbar drawn on every frame they move, never an empty plate (%d of %d frames blank%s)" % [label, panel_blank, panel_moving, "" if blank_why == "" else ": " + blank_why], panel_blank == 0)
 		if press.is_empty():
 			_ok("%s: and they do move, the screen's own (%d frames)" % [label, panel_moving], panel_moving > 0)
+			_ok("%s: the bottom bands slide, the leaving screen's off and the arriving one's on (%d and %d frames)" % [label, foot_frames[0], foot_frames[1]], foot_frames[0] > 0 and foot_frames[1] > 0)
+		_ok("%s: and each down off the screen and back in whole px, one way, never above its place (%d frames not%s)" % [label, foot_bad, "" if foot_why == "" else ": " + foot_why], foot_bad == 0)
 	if press.is_empty() and from == ZoomLadder.LOCAL and want != ZoomLadder.LOCAL:
-		_ok("%s: the side panel comes in only after the camera has landed (camera to frame %d, panel from %d)" % [label, cam_last, panel_first],
-			cam_last >= 0 and panel_first > cam_last)
+		_ok("%s: the side panel and bands come in only after the camera has landed, LOCAL's strip gone before it moves (camera to frame %d, in from %d)" % [label, cam_last, panel_first],
+			cam_last >= 0 and panel_first > cam_last and panel_last < cam_first)
 	if press.is_empty() and want == ZoomLadder.LOCAL and from != ZoomLadder.LOCAL:
-		_ok("%s: the side panel is gone before the camera moves (panel to frame %d, camera from %d)" % [label, panel_last, cam_first],
-			cam_first >= 0 and panel_last < cam_first)
+		_ok("%s: the side panel and band are gone before the camera moves, LOCAL's strip in after it lands (out to frame %d, camera from %d)" % [label, panel_last, cam_first],
+			cam_first >= 0 and panel_last < cam_first and panel_first > cam_last)
 	if press.is_empty():
 		_ok("%s: %.2f s, within 10%% of its %.2f s" % [label, secs, target], absf(secs - target) <= target * 0.1)
+		# (the bands slide inside the beats there were: Jon, Nov 11, "not an extra step")
+		_ok("%s: and no longer than before the bands slid (%.2f s against %.2f)" % [label, secs, _before_s(from, want)], secs <= _before_s(from, want) + 0.05)
 	elif two:
 		# (Tab mid-move: the move hurried to the map, then the map to the chart)
 		var after2 := (frames - pressed_at) / 60.0

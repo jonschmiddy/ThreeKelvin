@@ -22,6 +22,9 @@ const WEIGHT_MAX := 240
 ## screen, so a bare LOCAL is not three times as broken.
 const REF_LETTERS := 240
 const DENSITY := [0.6, 2.0]
+## Above the red's line, at or under LowHull.WORN_AT: runs a second, and at most this many letters.
+const FAINT_RATE := 0.35
+const FAINT_MOST := 4
 ## Hand-drawn text not drawn for this long, s, is off the screen.
 const DRAWN_STALE_S := 0.5
 
@@ -147,7 +150,7 @@ func _unelig(key: Variant) -> void:
 ## May anything scramble now: the hull failing, the screen animated, a run up,
 ## the escape menu shut.
 func _may() -> bool:
-	if LowHull.instance == null or LowHull.on <= 0.001 or not LowHull.moving():
+	if LowHull.instance == null or LowHull.worn <= 0.001 or not LowHull.moving():
 		return false
 	if get_tree().paused or not LowHull.in_run():
 		return false
@@ -177,8 +180,14 @@ func _process(_d: float) -> void:
 	var dt := clampf(get_process_delta_time(), 0.0, 0.25)
 	var lk: Dictionary = LowHull.look().scr
 	var d := LowHull.depth
-	var rate := lerpf(float(lk.rate[0]), float(lk.rate[1]), pow(d, 1.5)) * smoothstep(0.0, 1.0, LowHull.on) \
+	# from WORN_AT a faint few (Jon, Nov 11: "the rest text ... should glitch as the hull
+	# decreases"), then the warning's own rate from the red's line
+	var rate := maxf(FAINT_RATE * smoothstep(0.0, 1.0, LowHull.worn),
+		lerpf(float(lk.rate[0]), float(lk.rate[1]), pow(d, 1.5)) * smoothstep(0.0, 1.0, LowHull.on)) \
 		* clampf(float(_wsum) / float(REF_LETTERS), DENSITY[0], DENSITY[1])
+	if LowHull.on < 0.5:
+		lk = lk.duplicate()
+		lk.most = FAINT_MOST
 	_refresh_some(now)
 	_acc += rate * dt
 	var guard := 0

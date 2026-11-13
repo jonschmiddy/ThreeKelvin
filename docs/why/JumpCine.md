@@ -95,7 +95,7 @@ across CHARGE_S, cropped to the hull and nothing past it.
 
 ## Whole jump film
 
-Above `const WHOLE_FPS := 30.0`:
+Above `const WHOLE_FPS := 60.0`:
 
 ```text
 THE WHOLE JUMP, as a film with its sound:
@@ -107,6 +107,25 @@ card, the approach, the drawer -- captured full-frame. Every effect that
 actually plays is taped by `Audio` with the moment it played, so the muxer
 lays the real sounds under the frames: which arrival clip was drawn, whether
 the screen-change tick fired, none of it assumed.
+```
+
+Since the jump films (Nov 10) it runs at the films' own 60 fps on `--fixed-fps 60`, saving
+every frame, with `film=r12` forcing the film (`JumpRegistry.forced`) and `out=` the folder.
+The log holds each frame's clock, each taped cue with how far into its take it started, and
+the wall clock per frame (median, p95, max; the png save included, so a ceiling). The jump
+now lands on the system map at 8.8 s, so the last frames are the map, not LOCAL's drawer.
+`tools/dev/jump_compare.py` muxes the taped cues under the frames (1x and 2x MP4s) and lays
+the approved film's strip frames over the game's at the same moments, whole and as a 2x crop
+of the ship's end: that side-by-side is what Jon judges.
+
+## Film strips
+
+Above `const STRIP_TS := {`:
+
+```text
+Every landed film's strip frames in one run: the approved strips' twelve moments (the films'
+encode.py TS lists), each film jumped from a fresh LOCAL, so `jump_compare.py --strips` can
+lay all of them beside the approved frames without a whole capture each.
 ```
 
 ## Hush test

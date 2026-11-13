@@ -493,20 +493,16 @@ func wrecks_out(going: Array) -> void:
 
 # ------------------------------------------------------- the jump, as a journey
 
-## The lead lets the Router's own 0.13 s fade land before anything moves.
-const DEPART_LEAD := 0.10
-## Fires before the hull stops accelerating, so the ship is still gaining speed.
-const REV_S := 0.90
-## The system announcing itself. IN, HOLD, OUT — and the OUT overlaps the ship
-## coming in, which is where the second the sequence used to waste went.
+## The system announcing itself at a run's first system. IN, HOLD, OUT.
 const CARD_IN := 0.50
 const CARD_HOLD := 1.80
 const CARD_OUT := 0.60
 const CARD_TOTAL := CARD_IN + CARD_HOLD + CARD_OUT
-## Reversed warp ends on the frame the drive starts, so leaving and arriving match.
+## The length of hyperjump_in.wav, which `audio/hyperjump.py` reads from here. The player's
+## arrival no longer plays it (Jon, Nov 10); partners' slots still do.
 ## Why: docs/why/SectorScreen.md#jump-sounds
 const WARP_IN_S := 1.48
-## A 0.5 s breath between the warp ending and the ship appearing, Jon's pick.
+## The breath before the ship flies in at a place a jump landed a fight at.
 ## Why: docs/why/SectorScreen.md#jump-sounds
 const ARRIVAL_GAP_S := 0.50
 ## Boards light a second before the ship stops, in its unpowered drift.
@@ -527,46 +523,20 @@ var _card: Control = null
 var _cine: Tween = null
 ## Sounds already playing: a skip cuts these but leaves a fight or music alone.
 var _cine_sfx: Array[StringName] = []
+## The jump film under way (`JumpDirector`), which commits the jump at its own time.
+var _jump: JumpDirector = null
 
-## Engines up, lean, and go.
+## The jump, as one of the films: the director picks it, plays it and commits.
 func _begin_depart() -> void:
 	_phase = Phase.DEPART
 	_cine_sfx.clear()
 	_shut_drawer()
-	var art := _view.ship_view()
-	if art == null:
+	if _view.ship_view() == null:
 		_commit(false)
 		return
-	_cine = create_tween()
-	_cine.tween_interval(DEPART_LEAD)
-	# The style decides whether the hull is dismantled or merely hidden, so the
-	# view is told before it starts rather than being corrected mid-run.
-	var hyper := _view.ship_flare_melts()
-	_cine.tween_callback(func() -> void:
-		var clip := art.depart(hyper)
-		# And no thruster roar with no thruster lit. The charge's own whine is the
-		# drive for a hyperdrive; the roar belongs to departures that burn.
-		if not hyper:
-			_cine_sfx.append(clip)
-			Audio.play(clip, 0.0))
-	_cine.tween_interval(JumpFx.HYPER_REV if hyper else REV_S)
-	_cine.tween_callback(_pulse_out)
-
-func _pulse_out() -> void:
-	var f := _view.ship_pulse()
-	if f == null:
-		_commit(false)
-		return
-	# Sound is placed on the flare's clock, with no pitch variance, as that shifts time.
-	if f.melts():
-		_cine_sfx.append(&"hyperjump")
-		Audio.play(&"hyperjump", 0.0)
-	# Commits at the peak: the flash is widest there, so it hides the screen swap.
-	f.peaked.connect(func() -> void:
-		var art := _view.ship_view()
-		if art != null:
-			art.visible = false
-		_commit(false), CONNECT_ONE_SHOT)
+	_jump = JumpDirector.new()
+	add_child(_jump)
+	_jump.start(self, _view)
 
 ## Spend it. Nothing in this object is valid after this line.
 func _commit(skipped: bool) -> void:
@@ -596,26 +566,22 @@ func _begin_arrive() -> void:
 		_phase = Phase.NONE
 		_open_drawer(true)
 		return
-	# The delay keeps the ship off screen: `_tick_arrival` measures first, then honours it.
+	# A run's first system announces itself with the card. After a jump the map's edge
+	# arrival has already said where you are (Jon, Nov 10), so a fight or the Hellbender
+	# met on LOCAL flies you in after a breath: no card, no warp.
 	# Why: docs/why/SectorScreen.md#arrival
-	var clip := _ship_arrives(art, CARD_TOTAL)
-	_card = _build_name_card(Run.node_at())
-	add_child(_card)
-
+	var card := Run.jumps == 0
+	var clip := _ship_arrives(art, CARD_TOTAL if card else ARRIVAL_GAP_S)
 	_cine = create_tween()
-	_cine.tween_property(_card, "modulate:a", 1.0, CARD_IN).from(0.0)
-	# Hold and fade are chained, not `parallel()`, or the fade ran during the hold.
-	# Why: docs/why/SectorScreen.md#arrival
-	var warp_lead := clampf(WARP_IN_S + ARRIVAL_GAP_S - CARD_OUT, 0.0, CARD_HOLD)
-	_cine.tween_interval(CARD_HOLD - warp_lead)
-	# No reverse warp in the first sector, as nothing warped in (Jon).
-	# Why: docs/why/SectorScreen.md#jump-sounds
-	_cine.tween_callback(func() -> void:
-		if Run.jumps > 0:
-			_cine_sfx.append(&"hyperjump_in")
-			Audio.play(&"hyperjump_in", 0.0))
-	_cine.tween_interval(warp_lead)
-	_cine.tween_property(_card, "modulate:a", 0.0, CARD_OUT)
+	if card:
+		_card = _build_name_card(Run.node_at())
+		add_child(_card)
+		_cine.tween_property(_card, "modulate:a", 1.0, CARD_IN).from(0.0)
+		# Hold and fade are chained, not `parallel()`, or the fade ran during the hold.
+		_cine.tween_interval(CARD_HOLD)
+		_cine.tween_property(_card, "modulate:a", 0.0, CARD_OUT)
+	else:
+		_cine.tween_interval(ARRIVAL_GAP_S)
 	_cine.tween_callback(func() -> void:
 		# The clip opens with the lead-in, so the flame's coughs land on the sound's.
 		_cine_sfx.append(clip)
@@ -676,6 +642,8 @@ func _skip() -> void:
 	if not _cine_sfx.is_empty():
 		Audio.hush(_cine_sfx)
 		_cine_sfx.clear()
+	if _jump != null and is_instance_valid(_jump):
+		_jump.skip()
 	if _phase == Phase.DEPART:
 		# The skip is carried across the commit so the arrival does not play either.
 		_commit(true)
@@ -1000,9 +968,7 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	# twelve below is most of what is left.
 	_sync_drawer_box()
 	# Keeps the panel alpha: an opaque override undid `UITheme.PANEL_A` each refresh.
-	_quiet_wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.PANEL, DRAWER_A), UITheme.LINE,
-			0, 6 if bookend else 12, 12))
+	_quiet_wrap.add_theme_stylebox_override("panel", UITheme.quiet_strip(DRAWER_A, bookend))
 
 
 ## A place with exactly one thing to do: a station, a pulsar, the core.
@@ -2278,13 +2244,19 @@ var _chrome_band := false
 
 
 func ladder_chrome(k: float) -> void:
-	if k > 0.0 and _quiet_holder != null and not _quiet_holder.has_meta(&"lad_a0"):
+	if k > 0.0 and not _chrome_band:
 		_chrome_band = _events != null and is_instance_valid(_events) and _events.visible
-	ZoomLadder.fade_chrome(_quiet_holder, k)
+	# (on the calm ladder the strip slides, `ladder_foot`; it never fades)
+	if not ZoomLadder.calm_moving(): ZoomLadder.fade_chrome(_quiet_holder, k)
 	if _chrome_band:
 		ZoomLadder.fade_chrome(_events, k)
 	if k <= 0.0:
 		_chrome_band = false
+
+
+## The strip, which the ladder slides down off the screen and back as the map's KEY band (Jon, Nov 11).
+func ladder_foot() -> Control:
+	return _quiet_wrap if _quiet_holder != null and _quiet_holder.is_visible_in_tree() else null
 
 
 ## Where the held picture's anchor is (and its world, for the world handoff):
@@ -3130,10 +3102,8 @@ func _input(e: InputEvent) -> void:
 	_grab_view = null
 	_grab_mode = 0
 
-## THE BOARD MOVED UNDER A CARD BEING AIMED: the convoy column sliding in or
-## out (J4 B, Jon, Nov 5). The card stays in hand and armed, and the target
-## lit is whatever is under the pointer now, as a motion would light it; the
-## release resolves against the board as it stands then (`_aim_release`).
+## THE BOARD MOVED UNDER A CARD BEING AIMED: the convoy column sliding in or out (J4 B, Jon, Nov 5). The card
+## stays armed, the target lit is what is under the pointer now, and the release resolves on the board then (`_aim_release`).
 func _on_view_slid() -> void:
 	if _aim_view != null and is_inside_tree():
 		_aim_track(_aim_where)
@@ -3887,11 +3857,9 @@ func _end_hold() -> void:
 	_check_ending()
 
 
-## How low the replay of a turn may show your hull: where the turn left it.
-## Each hit takes its whole `dealt`, which is right until BLACK BOX (science)
-## holds a killing hit at 1. Taken whole, 5 hull against a 6 hit drew "0 / 47"
-## and a broken ship for a ship that lived. Dead, it is 0 as before. Never above
-## the number on show, so a hit can only ever take the shown hull down.
+## How low the replay of a turn may show your hull: where the turn left it. Each hit takes its whole `dealt`, until
+## BLACK BOX (science) holds a killing hit at 1: 5 hull against a 6 hit drew "0 / 47" for a ship that lived. Dead, it
+## is 0 as before. Never above the number on show, so a hit can only ever take the shown hull down.
 func _shown_less(n: int) -> int:
 	var floor_at := 0 if Run.dead else maxi(0, Run.hp)
 	return maxi(shown_hull - n, mini(shown_hull, floor_at))

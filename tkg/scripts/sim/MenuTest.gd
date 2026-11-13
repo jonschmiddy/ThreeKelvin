@@ -1116,7 +1116,7 @@ func _retina_case() -> void:
 
 ## MOTION holds only the player's rows even in dev mode, after Jon removed the ladder rows.
 ## Why: docs/why/MenuTest.md#motion-rows
-const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
+const PLAYER_MOTION := ["ANIMATION", "CLICK TO SKIP JUMP", "REDUCE FLASHES", "AUTOPILOT", "SCREEN SHAKE", "FRAME CAP", "VSYNC"]
 const GONE_ROWS := ["ONE CAMERA", "CHART - MAP", "MAP - LOCAL", "LOCAL - STATION",
 	"3B INTO THE YARD", "MOVE TIMINGS", "STATION LIGHTS", "TIMINGS", "UI LEAVES",
 	"UI ARRIVES", "TWO AT ONCE", "DOCK: THE STATION WAKES", "HANDOFF DISC SIZE (PX)",
@@ -1245,7 +1245,8 @@ func _text_button(root: Node, text: String) -> Button:
 		return n is Button and (n as Button).text == text) as Button
 
 
-## Esc on the hull pick leaves no ABANDON record, as no run ever started (audit, Oct 22).
+## Esc on the hull pick opens the escape menu as everywhere else (Jon, Nov 11), with
+## BACK TO TITLE in place of SAVE and ABANDON: no record, as no run ever started (Oct 22).
 func _chassis_case() -> void:
 	Router.new_run()
 	if not _ok("  NEW RUN opens the hull pick", await _wait_for(func() -> bool:
@@ -1261,7 +1262,23 @@ func _chassis_case() -> void:
 		Router.current == pick and pick.launchable() and _main.get("_menu") == null and _pause_menus() == 0)
 	await _press(KEY_ESCAPE)
 	await _secs(0.4)
-	_ok("  Escape goes back to the title, and no escape menu opens",
+	var menu: PauseMenu = _main.get("_menu")
+	if not _ok("  Escape opens the escape menu over the yard", menu != null and Router.current == pick):
+		return
+	_ok("  with SETTINGS and BACK TO TITLE, and no SAVE or ABANDON",
+		_plate(menu, "SETTINGS") != null and _plate(menu, "BACK TO TITLE") != null
+		and _plate(menu, "SAVE & EXIT TO TITLE") == null and _plate(menu, "ABANDON — EXIT TO TITLE") == null)
+	await _press(KEY_ESCAPE)
+	await _secs(0.4)
+	_ok("  Escape again shuts it, still on the yard with the pick",
+		_main.get("_menu") == null and _pause_menus() == 0 and Router.current == pick and pick.launchable())
+	await _press(KEY_ESCAPE)
+	await _secs(0.4)
+	menu = _main.get("_menu")
+	if menu != null and _plate(menu, "BACK TO TITLE") != null:
+		_plate(menu, "BACK TO TITLE").pressed.emit()
+	await _secs(0.4)
+	_ok("  BACK TO TITLE goes to the title and the menu is gone",
 		Router.current is LauncherScreen and _main.get("_menu") == null and _pause_menus() == 0)
 	var after := RunHistory.load_all().size()
 	_ok("  and nothing goes on the record (%d runs before, %d after), no ship" % [runs, after],

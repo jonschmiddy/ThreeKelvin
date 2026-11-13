@@ -113,6 +113,11 @@ func _map_fly_world(m: SystemMapScreen) -> void:
 		return
 	var moved := 0.0
 	var followed := 0
+	# (frames before the world's box first meets the ship's; from then on the
+	# outline goes to a world clear of the ship, `Hints._fly_world`: G2's seed
+	# 4242 swings its world past the ship at frame 104, Nov 10)
+	var clear_n := -1
+	var off_ok := 0
 	var from: Vector2 = m.view.at[on]
 	# (the map's clock run on 3 s a frame, so the world goes a way round its
 	# star: at its own pace it moves under a pixel in the two seconds; put back)
@@ -121,12 +126,19 @@ func _map_fly_world(m: SystemMapScreen) -> void:
 		await Harness.frames(_tree, 1)
 		var pf := Hints._map_fly_probe(m, Hints._hud_rect())
 		var sf: Rect2 = pf.get("subject", Rect2())
-		followed += int(int(pf.get("world", -1)) == on and sf.has_point(g * m.view.at[on])
-			and sf.get_center().distance_to(g * m.view.at[on]) <= 2.0)
-		moved = maxf(moved, from.distance_to(m.view.at[on]))
+		if clear_n < 0 and Hints._fly_box(m, on).intersects(Hints._fly_ship_box(m)):
+			clear_n = f
+		if clear_n < 0:
+			followed += int(int(pf.get("world", -1)) == on and sf.has_point(g * m.view.at[on])
+				and sf.get_center().distance_to(g * m.view.at[on]) <= 2.0)
+			moved = maxf(moved, from.distance_to(m.view.at[on]))
+		else:
+			off_ok += int(int(pf.get("world", -1)) >= 0 and not sf.intersects(Hints._fly_ship_box(m)))
 	m.view.t -= 360.0
-	_ok("map_fly: the outline goes round with its world (%d of 120 frames, the world moved %.1f px)" % [followed, moved],
-		followed == 120 and moved >= 10.0)
+	clear_n = 120 if clear_n < 0 else clear_n
+	_ok("map_fly: the outline goes round with its world while it is clear of the ship (%d of %d frames, at least 60, the world moved %.1f px), then on a world clear of it (%d of %d)" % [
+		followed, clear_n, moved, off_ok, 120 - clear_n],
+		followed == clear_n and clear_n >= 60 and moved >= 10.0 and off_ok == 120 - clear_n)
 	var kinds: Array = []
 	for i in worlds:
 		kinds.append(L.bodies[i].kind)
@@ -1574,8 +1586,8 @@ func _menu_box() -> void:
 	_screens["save (escape menu)"] = r
 
 
-## THE CHASSIS SELECT: its card (she has not introduced herself), on LAUNCH,
-## clicked on and still up, spent by LAUNCH.
+## THE CHASSIS SELECT, no ship picked (a new player's first state): its card (she has
+## not introduced herself) under the row of ships, clicked on and still up, spent by LAUNCH.
 func _chassis_card() -> void:
 	Router.show_chassis_select()
 	await Harness.frames(_tree, 40)
@@ -1594,7 +1606,7 @@ func _chassis_card() -> void:
 	for l in c.find_children("*", "Label", true, false):
 		words.append((l as Label).text)
 	_ok("chassis select: the card's words (%s)" % " / ".join(words), words == Hints.lines(&"chassis_card"))
-	_ok("chassis select: on screen, clear of LAUNCH (%s by %s)" % [c.card_rect(), c.subject],
+	_ok("chassis select: on screen, clear of the ships (%s by %s)" % [c.card_rect(), c.subject],
 		c.get_viewport_rect().encloses(c.card_rect()) and not c.card_rect().intersects(c.subject))
 	for i in 3:
 		_push_click(c.card_rect().get_center())

@@ -3,8 +3,8 @@ extends Node
 ## GO IS THE OBVIOUS BUTTON ON THE SYSTEM MAP'S PANEL (issue #35), headless:
 ##   -- sheet=SystemGoTest
 ## World pages with an open event the ship is not at: GO column-wide, in ember.
-## One way each (stripped-down UI, Nov 9): no FLY HERE or CLICK AGAIN beside a
-## GO, PLOT NEXT JUMP only once the system is done, and the event page's foot GO alone.
+## No FLY HERE (F-C, Nov 11: the tag says CLICK AGAIN), PLOT NEXT JUMP only once
+## the system is done, and the event page's foot GO alone.
 
 const SEEDS := [4242, 7, 1999]
 ## systems with events looked at, a seed
@@ -104,8 +104,8 @@ func _system(m: SystemMapScreen, s: int) -> void:
 		var fly := _buttons(P._box, "FLY HERE")
 		h._ok("%s: no FLY HERE beside the GO (%d)" % [where, fly.size()], fly.is_empty())
 		var tip: Array = m.overlay._click_line(bi)
-		h._ok("%s: the selected world's tip has no CLICK AGAIN line (%s)" % [where, tip],
-			not tip.any(func(l: Array) -> bool: return String(l[0]).contains("CLICK AGAIN")))
+		h._ok("%s: the selected world's tag ends on what a second click does (%s)" % [where, tip],
+			tip.size() == 1 and String(tip[0][0]).begins_with("CLICK AGAIN"))
 		var plot := _buttons(P._foot, "PLOT NEXT JUMP")
 		h._ok("%s: no PLOT NEXT JUMP while events are open (%d)" % [where, plot.size()], plot.is_empty())
 		# the event's own page, from the first open one here

@@ -12,14 +12,15 @@ save), the record's key and the protocol keep `ascension`, so nothing old stops
 loading and nothing was renamed for its own sake.
 
 Only two rungs do anything yet: the Hellbender flies from tier 7 (`Hellbender`), and
-the galaxy takes the tier's form from tier 1 (`Ladder.roll_kind`: the same one draw
-from the world stream `_roll_galaxy` always made, among the kinds of that form), which
-is Jon's Nov 5 galaxy pick (the others opened by winning) folded into the ladder. Tier
-0 still rolls any kind, as every seed did until now: forcing spirals there moved every
-seeded world, and six pinned harnesses (TwinSiteTest, WreckSiteTest, StationDeckTest's
-seed 9300, FlightTest's twin counts, two SolveTest cases) failed on their pins. Whether
-tier 0 should be spirals only, and those pins re-measured, is Jon's call. The other rules are stated on the box and not yet in play; building them is
-the ladder's own job.
+the galaxy takes the tier's form (`Ladder.roll_kind`: the same one draw from the world
+stream `_roll_galaxy` always made, now among the kinds of that form), which is Jon's
+Nov 5 galaxy pick (spiral by default, the others opened by winning) folded into the
+ladder. Tier 0 is spirals only: Jon ruled G2 on Nov 10, after a day when tier 0 rolled
+any kind because forcing spirals there moved every seeded world and six pinned
+harnesses (TwinSiteTest, WreckSiteTest, StationDeckTest's seed 9300, FlightTest's twin
+counts, two SolveTest cases) failed on their pins. Those pins were re-measured for the
+spiral worlds the same seeds now give. The other rules are stated on the box and not yet
+in play; building them is the ladder's own job.
 
 The unlock rule is the record's: a tier up to one past the best tier won
 (`Ladder.best_won`, the `ascension` of a WON entry; an entry from before tiers is a

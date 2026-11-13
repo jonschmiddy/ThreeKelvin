@@ -2271,6 +2271,9 @@ class RealComet extends Comet:
 	## Why: docs/why/SkyWeather.md#real-comet-and-the-palette
 	var _since_pal := 0
 	const PAL_WAIT := 4
+	## Its path is drawn only while the comet is selected (Jon, Nov 11); the map sets it. Dots drawn last frame.
+	var path_on := false
+	var dots := 0
 
 	func _process(_d: float) -> void:
 		_since_pal = _since_pal + 1 if view != null and bool(view._palette_built) else 0
@@ -2287,12 +2290,14 @@ class RealComet extends Comet:
 		queue_redraw()
 
 	func _draw() -> void:
+		dots = 0
 		if ev.is_empty() or view == null:
 			return
 		var a := float(ev.age)
 		if a > float(ev.end):
 			return
-		_path(maxf(a, 0.0))
+		if path_on:
+			_path(maxf(a, 0.0))
 		if a < 0.0:
 			return
 		var sa: Vector2 = a_at(float(view.t))
@@ -2382,6 +2387,7 @@ class RealComet extends Comet:
 				# (the first dots under the head are skipped: the coma is there)
 				if age - from > 1.2 or from == 0.0:
 					_blk(sp, Color(PATH_C, PATH_A))
+					dots += 1
 				last = sp
 			age += 0.1
 

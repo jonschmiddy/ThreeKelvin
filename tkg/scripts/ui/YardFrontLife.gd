@@ -1,20 +1,24 @@
 class_name YardFrontLife
 extends YardLife
 
-## The yard's crew on the front door: the Shipyard deck's walkers and workers,
-## minus what would cross the info band on the apron, the engine cart and the
-## grinder where the mockup put them, a mechanic under the generator at the right.
-## Why: docs/why/ChassisSelect.md#banner-yard
+## The yard's crew on the front door: the Shipyard deck's, minus what would cross
+## the band, the engine cart and grinder where the mockup put them, the berths'
+## stands drawn with them by depth, and every walker stepping round a berth.
+## Why: docs/why/ChassisSelect.md#walkers-round-the-stands
 
 ## The band's top row in hall pixels: nothing of the floor's life goes below it.
 const BAND_TOP := 400.0
 ## The mechanic at the engine cart, kneeling between the heavy's stands.
 const ENG_FRONT := Vector2(442, 346)
-## The grinder bench, left of the medium's stands at the apron's edge.
+## The grinder bench, left of the light's stands at the apron's edge.
 const BENCH_FRONT := Vector2(24, 380)
-## A mechanic under the generator on its lift, right of the light, on the
-## hall's continued floor (lit as the hall's first columns are).
-const GEN_FRONT := Vector2(806, 376)
+## The lanes run on past the hall to off the frame's right edge.
+const LANE_END := 990.0
+## A walker turns out round a berth over this many columns either side of it.
+const RAMP := 36.0
+
+## The berths, for their stands' place in the depth order.
+var berths: Array[YardStandSet] = []
 
 
 func _init(s: YardScene) -> void:
@@ -24,26 +28,40 @@ func _init(s: YardScene) -> void:
 		if float(c["y"]) < BAND_TOP:
 			keep.append(c)
 	CREW = keep
+	for c: Dictionary in CREW:
+		if float(c["to"]) > float(YardScene.W):
+			c["to"] = LANE_END
 	has_welder = false
 
 
 func tick(t: float, dt: float) -> void:
 	super(t, dt)
-	var F := sprite("mech_gen_1", int(t * 2.0) % maxi(1, frames_of("mech_gen_1")))
-	if not F.is_empty():
-		item(GEN_FRONT.y, false, func(P: YardPaint) -> void:
-			_put_lit(P, F, GEN_FRONT.x, GEN_FRONT.y, Vector2(GEN_FRONT.x - 766.0, GEN_FRONT.y)))
+	for b in berths:
+		if is_instance_valid(b):
+			var s := b
+			item(float(b.feet), float(b.feet) < SHIP_ROW, func(P: YardPaint) -> void: s.paint_stands(P))
 
 
-## `put`, with the light taken at a given hall cell (a thing past the hall's edge).
-func _put_lit(P: YardPaint, S: Dictionary, x: float, bottom: float, cell: Vector2) -> void:
-	var left := floorf(x - float(S["cx"]) + 0.5)
-	var top := bottom - float(S["foot"])
-	var inkw := float(S["x1"]) - float(S["x0"]) + 1.0
-	P.use(YardPaint.PLAIN)
-	scene.shade(P, floorf(x + 0.5), bottom + 1.0, maxf(3.0, inkw * 0.5), maxf(2.0, floorf(inkw * 0.07 + 0.5)), 0.4)
-	P.use(YardPaint.FLOOR, Vector2(YardLight.cell_x(cell.x), YardLight.cell_y(cell.y)))
-	P.tex(S["tex"], Vector2(left, top), S["src"], Color.WHITE, false)
+## Out round a berth's floor (`YardSlot.footprint`): a lane that crosses one
+## steps forward to pass in front of its stands, easing out and back over `RAMP`.
+## Why: docs/why/ChassisSelect.md#walkers-round-the-stands
+func avoid(x: float, lane_y: float) -> float:
+	var dy := 0.0
+	for w: HullData.Weight in YardStandSet.WEIGHTS:
+		var r := YardSlot.footprint(w)
+		if lane_y < float(r.position.y) or lane_y >= float(r.end.y):
+			continue
+		var out := float(r.position.x) - x if x < float(r.position.x) else x - float(r.end.x - 1)
+		var f := 1.0 - smoothstep(0.0, RAMP, out)
+		dy = maxf(dy, floorf((float(r.end.y) + 1.0 - lane_y) * f + 0.5))
+	return dy
+
+
+## Where it stands, across the whole frame: the light folds a cell past the
+## hall's edge back onto the hall's first columns itself, and reads the floor
+## lamps (as wide as the frame here) where it is.
+func lit_cell(x: float, y: float) -> Vector2:
+	return Vector2(clampf(floorf(x + 0.5), 0.0, float(YardFront.W - 1)), float(YardLight.cell_y(y)))
 
 
 func _engine(t: float) -> void:

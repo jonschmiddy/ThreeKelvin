@@ -1148,8 +1148,8 @@ func _physics() -> void:
 		var dv := sqrt(dvx * dvx + dvz * dvz)
 		var bux := dvx / dv if dv > 1e-9 else 0.0
 		var buz := dvz / dv if dv > 1e-9 else 0.0
-		# The departure burn by its own law, eased out of a settled orbit while slow (`R_BURN`).
-		var ease := StringName(c.dep.kind) == &"ring" and int(c.dep.place) == -9
+		# The departure burn by its own law, eased while slow (`R_BURN`): out of a settled orbit, or a ring where the choice says so (`ez`).
+		var ease := StringName(c.dep.kind) == &"ring" and (int(c.dep.place) == -9 or bool(r.choice.get("ez", false)))
 		var rem := dv if dv > 1e-9 else 0.0
 		var pull := 0.0
 		var t := r.t0
