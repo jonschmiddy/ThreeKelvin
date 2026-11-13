@@ -2085,11 +2085,19 @@ func _hook_cutaway() -> void:
 		_cursor(slot, Control.CURSOR_ARROW))
 
 
-## The pointer over your hull, set only when it changes: under LOCAL drawn mirrored
-## the engine's own check of a changed cursor reads a box upside down, and says so.
+## The pointer over your hull, set only when it changes. Under LOCAL drawn mirrored the
+## engine checks a changed cursor against the control's global rect, which a flip turns
+## upside down ("Rect2 size is negative"): the view is unflipped for that one set, in
+## the same frame, so nothing is drawn so.
 func _cursor(c: Control, shape: Control.CursorShape) -> void:
-	if c.mouse_default_cursor_shape != shape:
-		c.mouse_default_cursor_shape = shape
+	if c.mouse_default_cursor_shape == shape:
+		return
+	var flip := _view != null and _view.scale.x < 0.0
+	if flip:
+		_view.scale.x = -_view.scale.x
+	c.mouse_default_cursor_shape = shape
+	if flip:
+		_view.scale.x = -_view.scale.x
 
 
 ## An arrival is starting: whatever the pointer is resting on when the ship
