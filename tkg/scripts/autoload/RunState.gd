@@ -388,12 +388,32 @@ func fit_chassis(manufacturer: StringName = &"",
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
 
-## The lowest hardpoint of this type nothing is bolted to, or -1 if full.
+## The first hardpoint of this type nothing is bolted to, in fill order, or -1 if full.
 func free_mount(s: ModuleData.Slot) -> int:
-	for i in slots_for(s):
+	for i in mount_order(s):
 		if module_at(s, i) == null:
 			return i
 	return -1
+
+## The order hardpoints are filled in when nobody chose one: weapons from the
+## nose back (Jon, Nov 13: "just the order in which they are filled"), the hull's
+## own mounts unmoved; the rest lowest first. A ship's art faces +x.
+## Why: docs/why/RunState.md#weapons-fill-from-the-nose
+func mount_order(s: ModuleData.Slot) -> PackedInt32Array:
+	var n := slots_for(s)
+	var order := PackedInt32Array()
+	for i in n:
+		order.append(i)
+	if s != ModuleData.Slot.WEAPON or hull == null or n < 2:
+		return order
+	var pts := hull.mounts_along(s, n)
+	if pts.size() != n:
+		return order
+	var idx: Array[int] = []
+	idx.assign(Array(order))
+	idx.sort_custom(func(a: int, b: int) -> bool:
+		return pts[a].x > pts[b].x or (pts[a].x == pts[b].x and a < b))
+	return PackedInt32Array(idx)
 
 ## What is bolted to one specific hardpoint.
 func module_at(s: ModuleData.Slot, index: int) -> ModuleData:

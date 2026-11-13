@@ -2128,3 +2128,21 @@ log, the drawer, its fight, its music, the co-op pushes) has anything to
 show. The hiring boards still name it at every level, as a hint of what is
 coming (Jon's follow-up); they promise no bounty (`BoardSignTest`).
 ```
+
+## Weapons fill from the nose
+
+Jon, Nov 13: "Can we have the default hardpoint locations put the weapons at the
+front of the ship instead of both on top?", then: "The hardpoints shouldn't change
+themselves, just the order in which they are filled, yes?" No mount moved. When
+nobody chose a hardpoint (the starter kit, the top-up, an install, a part put back
+from a broken save), `free_mount` takes weapon mounts in `mount_order`: by the
+mount's x on the hull's art, nose first (every hull faces +x in its art, and the
+LOCAL mirror flips the drawing, not the indices), level x by index. Systems and
+utilities still fill lowest first. A part the player bolted on keeps its mount,
+and a save keeps what it stored. Measured on the starter kits: the Korvan-art
+light and heavy were already nose first (their first two mounts share the
+nose's x); Korvan's three-mount medium (Korvan's Anvil, Redline's Moonrunner)
+moves its second gun from the top deck aft (201, 42) to the nose's lower mount
+(271, 89); Solari's Prominence and Nova take their nose mount (292, 63) and
+(340, 80) first. The two-mount mediums of the makers on Korvan's art already
+filled the forward mount first.

@@ -104,6 +104,15 @@ func _loadout(cs: ChassisSelect, w: HullData.Weight, when: String) -> void:
 		copy = copy or c is MountPoints
 	_ok("%s: and so does its sharp copy over the blur" % when, copy)
 	_ok("%s: the deck's spread is the deck" % when, YardInfo.deck().size() == Run.deck_size())
+	# the weapons fill from the nose back (Jon, Nov 13): no empty weapon mount ahead of a filled one
+	var n := Run.slots_for(ModuleData.Slot.WEAPON)
+	var pts := Run.hull.mounts_along(ModuleData.Slot.WEAPON, n)
+	var front := true
+	for i in n:
+		for j in n:
+			if Run.module_at(ModuleData.Slot.WEAPON, i) != null and Run.module_at(ModuleData.Slot.WEAPON, j) == null:
+				front = front and pts[i].x >= pts[j].x
+	_ok("%s: the starting weapons are on the foremost weapon mounts" % when, front)
 
 
 static func _in_strip(c: Node) -> bool:
