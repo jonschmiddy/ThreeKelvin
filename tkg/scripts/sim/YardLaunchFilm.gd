@@ -57,6 +57,13 @@ func _run() -> void:
 			break
 	if not pressed:
 		cs._launch()
+	# `stills=<dir> at=0.5,1.5,2.1`: the lift held at each moment and photographed
+	# with no smoke, then again with the hull hidden (the hull's mask), for mockups
+	var stills := Harness.arg("stills", "")
+	if stills != "":
+		await _stills(cs, stills)
+		tree.quit()
+		return
 	var guard := 0.0
 	while not (Router.current is SectorScreen) and guard < 15.0:
 		guard += 1.0 / 30.0
@@ -65,3 +72,28 @@ func _run() -> void:
 	await _wait(float(Harness.arg("after", "1.0")))
 	_mark("end")
 	tree.quit()
+
+
+func _stills(cs: ChassisSelect, dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var tree := get_tree()
+	for at_s in Harness.arg("at", "0.5,1.5,2.1").split(","):
+		var at := float(at_s)
+		while cs._yard.lift == null or cs._yard._lift_t < at:
+			await tree.process_frame
+			if cs._yard.lift != null:
+				cs._yard.lift.plume.visible = false
+		Engine.time_scale = 0.0
+		var view: ShipView = cs._yard.lift.view
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("%s/t%s.png" % [dir, at_s])
+		view.visible = false
+		await tree.process_frame
+		await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("%s/t%s_nohull.png" % [dir, at_s])
+		view.visible = true
+		var o := cs._yard.lift.offset()
+		var ink := cs._yard.lift._ink
+		print("still %s lift %.3f hull ink %s offset %s floor %.0f jets %s" % [at_s, cs._yard._lift_t, ink, o, cs._yard.lift.floor_y,
+			cs._yard.lift._jet_pts])
+		Engine.time_scale = 1.0
