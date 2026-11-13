@@ -198,7 +198,7 @@ func lift_at(t: float) -> void:
 	_lat_want = t >= MAINS_ON and t < exit_s()
 	if t >= PLUME_AT and not _heard_take:
 		_heard_take = true
-		Audio.play(LIFT_TAKE, 0.0, 0, 0.0, 1.0, 0.0, true)
+		Audio.play_in(LIFT_TAKE, 0.0, 0.0, true)
 	# a shiver while it hangs on the jets, harder as the mains light
 	var amp := (1.0 if t > 0.2 and t < 2.0 else 0.0) + (2.0 * (1.0 - burn) if t >= 2.0 and burn < 0.85 else 0.0)
 	_shake(t, amp)
@@ -264,7 +264,7 @@ func land_at(t: float) -> void:
 	if LAND_TAKE != &"" and t >= LAND_JETS_AT and not _heard_take:
 		_heard_take = true
 		take_frame = Engine.get_process_frames()
-		Audio.play(LAND_TAKE, 0.0, 0, 0.0, 1.0, 0.0, true)
+		Audio.play_in(LAND_TAKE, 0.0, 0.0, true)
 	_pose()
 
 
@@ -325,7 +325,7 @@ func _ltc(on: bool) -> void:
 	if on:
 		var h := view._hull()
 		var w := int(h.weight) if h != null else int(HullData.Weight.MEDIUM)
-		Audio.play(ShipView.DEPART_SFX[w], 0.0, 0, Audio.SHIP_DB, 1.0, 0.0, true)
+		Audio.play_in(ShipView.DEPART_SFX[w], Audio.SHIP_DB, 0.0, true)
 	else:
 		_loop_out = _t
 

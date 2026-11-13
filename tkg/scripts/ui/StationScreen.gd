@@ -2883,7 +2883,8 @@ func ladder_yard_t(t: float, dur: float) -> void:
 		# the mains cough out and stay dark; the belly jets hold it (`ShipLift.land_at`)
 		_mine_view.dark_idle = true
 		_mine_view.refresh()
-		Audio.play(_lad.cough_clip as StringName, 0.0, 0, Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL), 1.0,
+		# (rising in over 15 ms: it starts mid-wave, at its first cough)
+		Audio.play_in(_lad.cough_clip as StringName, Audio.SHIP_DB + linear_to_db(SectorScreen.DOCK_BURN_LEVEL),
 			ShipView.sputter_from_s(row) + (t - cough_at))
 	_mine_view.sputter_step(t - cough_at)
 
