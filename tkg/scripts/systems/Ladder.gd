@@ -17,12 +17,12 @@ const RUNGS := [
 	["SHORT TANK", Form.DISC, "Fuel is rationed here, so you launch with 35 fuel in a 45 tank."],
 	["FEWER DOCKS", Form.DISC, "Few people ever settled this old galaxy, so there are a quarter fewer docks."],
 	["SCARCE PARTS", Form.DISC, "Nothing is built here any more, so repairs cost half again as much."],
-	["THE HELLBENDER HUNTS", Form.BALL, "Nothing here flies in lanes, so the Hellbender starts closer and moves more often."],
+	["THE HELLBENDER", Form.BALL, "Nothing here flies in lanes, so the Hellbender starts closer and moves more often."],
 	["THICK PLATING", Form.BALL, "The hot gas here burns thin hulls, so enemy ships carry 15% more hull."],
 	["ACTIVE CORE", Form.BALL, "The black hole at the core is feeding, so the Custodian gets stronger from jump 12, not 15."],
 	["TORN AWAY", Form.DWARF, "A bigger galaxy is pulling this one apart. From jump 4, the outer ring is lost each jump. Keep moving in."],
 ]
-const FORM_NAME := ["SPIRAL GALAXY", "DISC GALAXY", "BALL GALAXY", "TORN DWARF"]
+const FORM_NAME := ["SPIRAL GALAXY", "LENTICULAR GALAXY", "ELLIPTICAL GALAXY", "TORN DWARF"]
 ## Danger reads in the lamp colour: the spiral rungs cool, the disc amber, the ball red, the dwarf hot.
 const FORM_COLOUR := [Color8(150, 215, 205), Color8(240, 160, 67), Color8(238, 96, 58), Color8(255, 70, 90)]
 ## The galaxy kinds that are dwarfs: the torn one is one of these.
@@ -103,3 +103,24 @@ static func can_pick(tier: int) -> bool:
 	if DevMode.enabled:
 		return true
 	return tier <= best_won() + 1
+
+
+## The line under a tier's rule that says the lower tiers' rules still hold
+## (Jon's T-A, Nov 11); none at tiers 0 and 1.
+## Why: docs/why/Ladder.md#the-stack
+static func still_line(tier: int) -> String:
+	if tier <= 1:
+		return ""
+	if tier == 2:
+		return "TIER 1 STILL APPLIES."
+	if tier == 3:
+		return "TIERS 1 AND 2 STILL APPLY."
+	return "TIERS 1 TO %d STILL APPLY." % (tier - 1)
+
+
+## The tiers whose rules a run at `tier` flies under, newest first: tier 0 has none.
+static func in_force(tier: int) -> Array[int]:
+	var out: Array[int] = []
+	for k in range(clampi(tier, 0, RUNGS.size() - 1), 0, -1):
+		out.append(k)
+	return out

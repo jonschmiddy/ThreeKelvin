@@ -53,8 +53,18 @@ func _ladder() -> void:
 		and Ladder.form(4) == Ladder.Form.DISC and Ladder.form(6) == Ladder.Form.DISC
 		and Ladder.form(7) == Ladder.Form.BALL and Ladder.form(9) == Ladder.Form.BALL
 		and Ladder.form(10) == Ladder.Form.DWARF)
-	_ok("the Hellbender's rung is tier %d" % Run.HELLBENDER_ASCENSION,
-		Ladder.rung_name(Run.HELLBENDER_ASCENSION).contains("HELLBENDER"))
+	_ok("the Hellbender's rung is tier %d, THE HELLBENDER (Jon, Nov 11)" % Run.HELLBENDER_ASCENSION,
+		Ladder.rung_name(Run.HELLBENDER_ASCENSION) == "THE HELLBENDER")
+	# T-A's line under the rule, per tier
+	var want := {0: "", 1: "", 2: "TIER 1 STILL APPLIES.", 3: "TIERS 1 AND 2 STILL APPLY.",
+		4: "TIERS 1 TO 3 STILL APPLY.", 8: "TIERS 1 TO 7 STILL APPLY.", 10: "TIERS 1 TO 9 STILL APPLY."}
+	var bad: Array[String] = []
+	for t: int in want:
+		if Ladder.still_line(t) != String(want[t]):
+			bad.append("%d: '%s'" % [t, Ladder.still_line(t)])
+	_ok("the still-applies line per tier%s" % ("" if bad.is_empty() else ": " + ", ".join(bad)), bad.is_empty())
+	_ok("the rules in force at tier 3 are 3, 2, 1 and at tier 0 none",
+		Ladder.in_force(3) == [3, 2, 1] and Ladder.in_force(0).is_empty())
 	for f in 4:
 		_ok("some galaxy kind takes form %s" % Ladder.FORM_NAME[f], not Ladder.kinds_of([0, 4, 7, 10][f]).is_empty())
 
@@ -90,6 +100,7 @@ func _box_case() -> void:
 		and _says(box, "TIER 1") and _says(box, Ladder.rung_name(1)))
 	_ok("the galaxy is the tier's", box.galaxy.tier == 1 and box.galaxy.form == int(Ladder.Form.SPIRAL))
 	_fit(box, "tier 1 picked")
+	await _hover_case(box)
 	var ny := Harness.button_with_text(Router.current, "NOT YET")
 	var field := Harness.first(box, func(n: Node) -> bool: return n is LineEdit) as Control
 	var go0 := Harness.button_with_text(Router.current, "LAUNCH")
@@ -147,17 +158,21 @@ func _record() -> void:
 	_write_history([{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": "korvan"}])
 	_ok("a win from before tiers is a tier 0 win: tier 1 opens", Ladder.best_won() == 0 and Ladder.can_pick(1) and not Ladder.can_pick(2))
 	Run.hull = null
-	# the box at tiers 8 and 10, box-tested, with the wins that open them
+	# the box at every tier, box-tested, with the wins that open them
 	_write_history([{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": "korvan", "ascension": 10}])
-	for t in [8, 10]:
+	var sizes: Array[Vector2] = []
+	for t in Ladder.count():
 		LaunchBox.last_tier = t
 		var box := LaunchBox.new()
 		add_child(box)
 		box.setup(Widgets.button("LAUNCH", func() -> void: pass, false), Widgets.button("NOT YET", func() -> void: pass), HBoxContainer.new())
 		await Harness.frames(_tree, 2)
 		_ok("the box opens on the remembered tier %d" % t, box.tier == t and _says(box, "TIER %d" % t))
+		_stack(box, t)
 		_fit(box, "tier %d" % t)
+		sizes.append(box.size)
 		box.queue_free()
+	_ok("the box is one size at every tier (%s)" % sizes[0], sizes.all(func(v: Vector2) -> bool: return v == sizes[0]))
 	await Harness.frames(_tree, 1)
 	_write_history([])
 	LaunchBox.last_tier = 0
@@ -179,6 +194,66 @@ func _fresh() -> void:
 	_ok("a fresh profile's NEW RUN skips the box and launches at tier 0",
 		Router.current is ChassisSelect and Run.ascension == 0)
 	Run.hull = null
+
+
+## T-A and T-C at tier t: the lit stops are 1 to t, the line under the rule says
+## the lower tiers still apply, one lamp lit per rule in force, the lamps inside
+## the galaxy and clear of each other.
+func _stack(box: LaunchBox, t: int) -> void:
+	var lit: Array[int] = []
+	for s in box.stops:
+		if s.lit():
+			lit.append(s.tier)
+	var want: Array[int] = []
+	for k in range(1, t + 1):
+		want.append(k)
+	_ok("tier %d: stops %s lit" % [t, lit], lit == want)
+	var line := box.still.text if box.still != null else ""
+	_ok("tier %d: the line under the rule is '%s'" % [t, line], line == Ladder.still_line(t)
+		and (box.still == null) == (t <= 1) and (t <= 1 or _says(box, line)))
+	_ok("tier %d: %d lamps lit" % [t, box.galaxy.lamps_lit()], box.galaxy.lamps_lit() == t)
+	var inside := true
+	var apart := true
+	for k in range(1, 11):
+		var r := box.galaxy.lamp_rect(k).grow(1.0)
+		inside = inside and Rect2(Vector2.ZERO, box.galaxy.size).encloses(r)
+		for j in range(k + 1, 11):
+			apart = apart and not r.intersects(box.galaxy.lamp_rect(j).grow(1.0))
+	_ok("tier %d: the ten lamps inside the galaxy and clear of each other" % t, inside and apart)
+
+
+## T-C's tag: pointing at the galaxy at tier 8 lists the eight rules in force by name, newest first.
+func _hover_case(box: LaunchBox) -> void:
+	_write_history([{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": "korvan", "ascension": 9}])
+	box.pick(8)
+	await Harness.frames(_tree, 2)
+	var gr := box.galaxy.get_global_rect()
+	await _point(gr.get_center())
+	await Harness.frames(_tree, int(TagLayer.DELAY * 60.0) + 12)
+	var plate := TagLayer.instance.shown() if TagLayer.instance != null else null
+	var body: TierGalaxy.RulesTag = plate.get_child(0) as TierGalaxy.RulesTag if plate != null and plate.get_child_count() > 0 else null
+	if _ok("pointing at the galaxy brings up the tag of rules in force", body != null):
+		_ok("it says %s and lists tiers %s" % [body.head, body.rows],
+			body.head == "8 RULES IN FORCE" and body.rows == [8, 7, 6, 5, 4, 3, 2, 1])
+		var tr := Rect2(plate.global_position, plate.size)
+		_ok("the tag is on screen and off the galaxy (%s)" % tr,
+			Rect2(0, 0, 960, 540).encloses(tr) and not tr.intersects(gr))
+	_ok("its words name every rule: %s" % box.galaxy.tooltip_text.replace("
+", " / "),
+		Ladder.in_force(8).all(func(k: int) -> bool: return box.galaxy.tooltip_text.contains(Ladder.rung_name(k))))
+	await _point(Vector2(4, 4))
+	await Harness.frames(_tree, 3)
+	box.pick(1)
+	_write_history([{"outcome": int(RunHistory.Outcome.WON), "chassis_manufacturer": "korvan", "ascension": 0}])
+	await Harness.frames(_tree, 2)
+
+
+func _point(at: Vector2) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = at
+	mm.global_position = at
+	get_viewport().push_input(mm, true)
+	await Harness.frames(_tree, 2)
 
 
 # ------------------------------------------------------------------ helpers

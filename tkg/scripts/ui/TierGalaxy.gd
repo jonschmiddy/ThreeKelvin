@@ -14,6 +14,20 @@ const COOL := Color8(140, 165, 230)
 const PANEL := Color8(17, 24, 35)
 ## The stars step on a 30 Hz clock, as a film of them would.
 const HZ := 30.0
+## The ring of ten lamps round the galaxy, one lit per rule in force (Jon's T-C, Nov 11).
+## Why: docs/why/LaunchBox.md#the-stack
+const LAMP_R := 52.0
+const RING := Color8(30, 42, 57)
+const LAMP_RIM := Color8(9, 13, 20)
+const LAMP_OFF := Color8(44, 60, 78)
+## The tier's picture: a strip of square frames, `tier_<n>.png`, drawn G px across and
+## played at ART_FPS on GameClock: Jon's R2 (Nov 12), the star chart's own galaxies, baked.
+## Why: docs/why/LaunchBox.md#the-pictures
+const ART := "res://art/ui/tiers"
+const ART_FPS := 12.0
+## Dev switches: a folder of draft strips (`-- sheet=LaunchBoxShot tierart=<dir>`), and a held frame.
+static var art_dir := ""
+static var hold_frame := -1
 
 var tier: int = 0
 var form: int = 0
@@ -33,15 +47,21 @@ var core: Color = Color8(255, 244, 220)
 var _t: float = 0.0
 var _tick: int = -1
 var _stars: Array[Dictionary] = []
-var _far: Array[Vector2i] = []
+var far: Array[Vector2i] = []
 var _flares: Array[Array] = []
 var _rng := RandomNumberGenerator.new()
 var _body: ColorRect
 var _mat: ShaderMaterial
+var _art: Texture2D
+var _art_n := 0
+var _art_k := -1
+var _lamps: Lamps
+var _ring: Array[Vector2] = []
 
 
 func _init() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# it takes the pointer for its tag: the rules in force, by name
+	mouse_filter = Control.MOUSE_FILTER_STOP
 	custom_minimum_size = Vector2(G, G)
 	size = Vector2(G, G)
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -52,11 +72,18 @@ func _init() -> void:
 	_mat.shader = preload("res://shaders/tier_galaxy.gdshader")
 	_body.material = _mat
 	add_child(_body)
+	_lamps = Lamps.new()
+	_lamps.gal = self
+	add_child(_lamps)
+	for i in 720:
+		var q := (Vector2(G / 2.0, G / 2.0) + Vector2.from_angle(i * PI / 360.0) * LAMP_R).floor()
+		if not _ring.has(q):
+			_ring.append(q)
 	# the far stars behind it, the same every time
-	var far := RandomNumberGenerator.new()
-	far.seed = 3
+	var fr := RandomNumberGenerator.new()
+	fr.seed = 3
 	for i in 26:
-		_far.append(Vector2i(far.randi_range(0, G - 1), far.randi_range(0, G - 1)))
+		far.append(Vector2i(fr.randi_range(0, G - 1), fr.randi_range(0, G - 1)))
 
 
 ## Build the galaxy for a tier: its heat, colours, shape and stars.
@@ -93,7 +120,28 @@ func set_tier(t: int) -> void:
 	_mat.set_shader_parameter(&"cool", Vector3(COOL.r, COOL.g, COOL.b))
 	_mat.set_shader_parameter(&"panel", Vector3(PANEL.r, PANEL.g, PANEL.b))
 	_tick = -1
+	_art = _load_art()
+	_art_n = 0 if _art == null else _art.get_width() / _art.get_height()
+	_art_k = -1
+	_body.visible = _art == null
+	tooltip_text = rules_text()
+	_lamps.queue_redraw()
 	queue_redraw()
+
+
+func _load_art() -> Texture2D:
+	var draft := art_dir.path_join("tier_%d.png" % tier)
+	if art_dir != "":
+		return ImageTexture.create_from_image(Image.load_from_file(draft)) if FileAccess.file_exists(draft) else null
+	var path := ART.path_join("tier_%d.png" % tier)
+	return load(path) as Texture2D if ART != "" and ResourceLoader.exists(path) else null
+
+
+## The picture's frame now, or -1 with no picture.
+func art_frame() -> int:
+	if _art_n == 0:
+		return -1
+	return posmod(hold_frame if hold_frame >= 0 else int(GameClock.now() * ART_FPS), _art_n)
 
 
 func _seed_stars() -> void:
@@ -137,6 +185,11 @@ func pulse() -> float:
 
 
 func _process(delta: float) -> void:
+	if _art != null:
+		if art_frame() != _art_k:
+			_art_k = art_frame()
+			queue_redraw()
+		return
 	_t += delta
 	var tick := int(floorf(_t * HZ))
 	if tick == _tick:
@@ -167,8 +220,17 @@ func _bez(u: float) -> Vector2:
 func _draw() -> void:
 	# the far stars behind the body are under the ColorRect: drawn by the parent, they
 	# would be over it, so the body rect is kept transparent where the glow is none
-	for p in _far:
+	if _art != null:
+		for q in _ring:
+			draw_rect(Rect2(q, Vector2.ONE), RING)
+		var fh := float(_art.get_height())
+		draw_texture_rect_region(_art, Rect2(0, 0, G, G), Rect2(maxi(art_frame(), 0) * fh, 0, fh, fh))
+		return
+	for p in far:
 		draw_rect(Rect2(p.x, p.y, 1, 1), Color8(40, 52, 68) if (p.x * 7 + p.y * 13) % 10 < 7 else Color8(70, 84, 104))
+	# the lamps' ring, under the glow like the far stars: it shows only where the galaxy is dark
+	for q in _ring:
+		draw_rect(Rect2(q, Vector2.ONE), RING)
 	var th := omega * _t
 	var c := G / 2.0
 	var dw := Vector2(90, 86)
@@ -229,3 +291,96 @@ func _draw() -> void:
 		var from := Vector2(fc.x + cos(a) * 6.0, fc.y + sin(a) * 6.0 * tilt).round()
 		var to := Vector2(fc.x + cos(a) * L, fc.y + sin(a) * L * tilt).round()
 		draw_line(from, to, mid.lerp(Color.WHITE, (1.0 - age) * 0.9), 1.0)
+
+
+# ------------------------------------------------------------------ the rules in force
+
+## Lamp k's 3 x 3 core (k 1 to 10, clockwise from the top), in this control's pixels.
+func lamp_rect(k: int) -> Rect2:
+	var a := -PI / 2.0 + float(k - 1) * TAU / 10.0
+	var c := (Vector2(G / 2.0, G / 2.0) + Vector2.from_angle(a) * LAMP_R).floor()
+	return Rect2(c - Vector2.ONE, Vector2(3, 3))
+
+
+## How many lamps are lit: one per rule in force.
+func lamps_lit() -> int:
+	return Ladder.in_force(tier).size()
+
+
+## The tag's words as plain text (what `TagLayer` keys on); the tag itself is `_make_custom_tooltip`.
+func rules_text() -> String:
+	var ks := Ladder.in_force(tier)
+	if ks.is_empty():
+		return "No rules in force."
+	var names: PackedStringArray = []
+	for k in ks:
+		names.append("%d %s" % [k, Ladder.rung_name(k)])
+	return "%s
+%s" % [heading(), "
+".join(names)]
+
+
+func heading() -> String:
+	var n := Ladder.in_force(tier).size()
+	return "NO RULES IN FORCE" if n == 0 else ("1 RULE IN FORCE" if n == 1 else "%d RULES IN FORCE" % n)
+
+
+func _make_custom_tooltip(_for_text: String) -> Object:
+	var body := RulesTag.new()
+	body.setup(tier, heading())
+	return body
+
+
+## The tag's body: the count, then each rule in force by number and name, newest first.
+class RulesTag extends Control:
+	const NUM_W := 12
+	var tier := 0
+	var head := ""
+	var rows: Array[int] = []
+
+	func setup(t: int, h: String) -> void:
+		tier = t
+		head = h
+		rows = Ladder.in_force(t)
+		var f := UITheme.pixel_font()
+		var w := f.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		for k in rows:
+			w = maxf(w, NUM_W + f.get_string_size(Ladder.rung_name(k), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
+		custom_minimum_size = Vector2(ceilf(w), HoloTag.LINE_H * (1 + rows.size()) + (2 if rows.size() > 0 else 0) - 2)
+		size = custom_minimum_size
+
+	func _draw() -> void:
+		var f := UITheme.pixel_font()
+		var y := f.get_ascent(UITheme.FS_SMALL) - 1.0
+		draw_string(f, Vector2(0, y), head, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.ICE)
+		y += HoloTag.LINE_H + 2
+		for k in rows:
+			draw_string(f, Vector2(0, y), str(k), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Ladder.colour(k))
+			draw_string(f, Vector2(NUM_W, y), Ladder.rung_name(k), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL,
+				UITheme.ICE if k == tier else UITheme.CHILL)
+			y += HoloTag.LINE_H
+
+
+## The ten lamps, over the glow: lit in their rule's kind colour up to the tier, the
+## current one with a white heart and four glints, the rest dark.
+class Lamps extends Control:
+	var gal: TierGalaxy
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		size = Vector2(G, G)
+
+	func _draw() -> void:
+		for k in range(1, 11):
+			var r := gal.lamp_rect(k)
+			draw_rect(r.grow(1.0), LAMP_RIM)
+			if k > gal.tier:
+				draw_rect(r, LAMP_OFF)
+				continue
+			var kc := Ladder.colour(k)
+			draw_rect(r, kc)
+			if k == gal.tier:
+				var p := r.position
+				draw_rect(Rect2(p + Vector2(1, 1), Vector2.ONE), Color8(250, 250, 250))
+				for d: Vector2 in [Vector2(1, -2), Vector2(1, 4), Vector2(-2, 1), Vector2(4, 1)]:
+					draw_rect(Rect2(p + d, Vector2.ONE), PANEL.lerp(kc, 0.5))

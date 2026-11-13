@@ -23,6 +23,8 @@ const DIM_LINE := Color8(26, 36, 48)
 const COLD := Color8(107, 125, 148)
 const CHILL := Color8(143, 163, 186)
 const ICE := Color8(195, 210, 226)
+## A lit stop's numeral at the current tier (T-A).
+const LIT_INK := Color8(240, 246, 250)
 ## The rule wraps at this many characters, three lines at most.
 const WRAP := 38
 
@@ -33,6 +35,8 @@ var tier: int = 0
 var galaxy: TierGalaxy
 var stops: Array[Stop] = []
 var _lines: Control
+## The line under the rule that the lower tiers still apply, or null at tiers 0 and 1.
+var still: Label
 var _font: Font
 
 
@@ -113,6 +117,7 @@ func _show_tier() -> void:
 	galaxy.set_tier(tier)
 	for s in stops:
 		s.queue_redraw()
+	queue_redraw()
 	Widgets.clear(_lines)
 	var col := Ladder.colour(tier)
 	var head := UITheme.body("TIER %d" % tier, col, UITheme.FS_HEAD)
@@ -122,10 +127,25 @@ func _show_tier() -> void:
 	sub.position = Vector2(0, 26)
 	_lines.add_child(sub)
 	var lines := _wrap(Ladder.rule(tier).to_upper(), WRAP)
-	for i in mini(3, lines.size()):
+	var n := mini(3, lines.size())
+	for i in n:
 		var l := UITheme.body(lines[i], ICE, UITheme.FS_SMALL)
 		l.position = Vector2(0, 44 + i * 12)
 		_lines.add_child(l)
+	still = null
+	if Ladder.still_line(tier) != "":
+		still = UITheme.body(Ladder.still_line(tier), CHILL, UITheme.FS_SMALL)
+		still.position = Vector2(0, 44 + n * 12)
+		_lines.add_child(still)
+
+
+## The bridges that join the lit stops into one bar (Jon's T-A, Nov 11): 4 x 5 px
+## between stop k and k + 1, in k + 1's kind colour, under the stops.
+## Why: docs/why/LaunchBox.md#the-stack
+func _draw() -> void:
+	for k in range(1, tier):
+		var x := COL_C + k * STEP + STOP_W + 1
+		draw_rect(Rect2(x, 5, STEP - STOP_W - 1, 5), PANEL.lerp(Ladder.colour(k + 1), 0.6), true)
 
 
 static func _wrap(s: String, width: int) -> Array[String]:
@@ -143,8 +163,8 @@ static func _wrap(s: String, width: int) -> Array[String]:
 	return out
 
 
-## One stop on the ladder: the current tier outlined in its kind colour, an
-## open one plain, one past best + 1 dim and dead.
+## One stop on the ladder: stops 1 to the current tier lit in their kind colours
+## (T-A), the current one outlined; an open one plain, one past best + 1 dim and dead.
 class Stop extends Control:
 	var box: LaunchBox
 	var tier: int = 0
@@ -154,6 +174,10 @@ class Stop extends Control:
 
 	func can() -> bool:
 		return Ladder.can_pick(tier)
+
+	## A rule in force at the box's tier: stops 1 up to it.
+	func lit() -> bool:
+		return tier >= 1 and tier <= box.tier
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_MOUSE_ENTER:
@@ -176,14 +200,19 @@ class Stop extends Control:
 		var r := Rect2(0, 0, STOP_W + 1, STOP_H + 1)
 		var kind := Ladder.colour(tier)
 		var ink: Color
-		if tier == box.tier:
+		var cur := tier == box.tier
+		if lit():
+			draw_rect(r, PANEL.lerp(kind, 0.42 if cur else 0.26), true)
+			draw_rect(r.grow(-0.5), kind if cur else PANEL.lerp(kind, 0.6), false, 1.0)
+			ink = LIT_INK if cur else kind
+		elif cur:
 			draw_rect(r, PANEL2, true)
 			draw_rect(r.grow(-0.5), kind, false, 1.0)
 			ink = kind
 		elif can():
 			draw_rect(r, PANEL, true)
 			draw_rect(r.grow(-0.5), LINE, false, 1.0)
-			ink = kind if tier <= box.tier else CHILL
+			ink = CHILL
 		else:
 			draw_rect(r, PANEL, true)
 			draw_rect(r.grow(-0.5), DIM_LINE, false, 1.0)
