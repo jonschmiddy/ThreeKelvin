@@ -33,7 +33,7 @@ const WEIGHTS := [
 static var weight := 2
 ## The steam's texture (`lift_plume.gdshader`'s `style`): 0 as built, 1 cel,
 ## 2 patterned, 3 outlined. Stills for Jon to pick from (Nov 13).
-static var style := 0
+static var style := 1
 ## A harness's fixed seed for the steam, so two textures can be shown on one
 ## frame; -1, every lift its own.
 static var seed := -1

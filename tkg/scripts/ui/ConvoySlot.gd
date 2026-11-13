@@ -76,6 +76,115 @@ func jump_out() -> void:
 	Audio.play(&"hyperjump", 0.10, 900)
 	queue_redraw()
 
+## OUT OF THE STATION (Jon's co-op rules, Nov 13): a partner undocking here, or
+## arriving where you are moored on the station's right, comes out of the mouth
+## (`mouth` gives it on screen, INF until the station is up) and pulls up in its
+## place: nose first on the right, backing out on the left. It flies behind your
+## hull, a little smaller out of the depth, its engines lit until it slows.
+## Why: docs/why/ConvoySlot.md#out-of-the-station
+const OUT_S := 2.4
+var _move := {}
+## In a mirrored LOCAL (`EncounterView.mirrored`): the hull and the name drawn
+## flipped back, so it faces right and reads.
+var flipped := false:
+	set(v):
+		flipped = v
+		_face_art()
+		queue_redraw()
+## The hull's size against its place, as it flies (1 at rest).
+var _k := 1.0
+
+
+func _face_art() -> void:
+	if art == null:
+		return
+	art.pivot_offset = (art.size * 0.5).floor()
+	art.scale = Vector2(-_k if flipped else _k, _k)
+	if _move.is_empty():
+		art.position = _rest()
+
+
+## Where the hull sits in its place: mirrored, its nose kept off the screen's edge
+## (+x is toward the middle of the screen there).
+const FLIP_IN := 20.0
+
+
+func _rest() -> Vector2:
+	return Vector2(FLIP_IN if flipped else 0.0, 0.0)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED:
+		_face_art()
+
+
+func come_out(mouth: Callable, delay: float = 0.0) -> void:
+	art.visible = false
+	_move = {"mouth": mouth, "t": -delay, "out": true}
+	set_process(true)
+
+
+## Into the mouth from its place (a partner docking, seen from the station's left).
+func go_in(mouth: Callable) -> void:
+	_leaving = true
+	_move = {"mouth": mouth, "t": 0.0, "out": false}
+	set_process(true)
+	queue_redraw()
+
+
+## Faded where it sits (a partner docking, seen from the station's right).
+func fade_out() -> void:
+	_leaving = true
+	var tw := create_tween()
+	tw.tween_property(self, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(queue_free)
+
+
+func _process(delta: float) -> void:
+	if _move.is_empty():
+		set_process(false)
+		return
+	var g: Vector2 = (_move.mouth as Callable).call()
+	if g == Vector2.INF:
+		return
+	_move.t = float(_move.t) + delta
+	var t := float(_move.t)
+	if t < 0.0:
+		return
+	var u := clampf(t / OUT_S, 0.0, 1.0)
+	# where the mouth is in this slot's own pixels, the hull's middle put on it (the
+	# hull's own middle, not its box's: it sits to one side of a box sized for the widest)
+	var ic := art.canvas_to_local(Rect2(art.ink_rect()).get_center())
+	if flipped:
+		ic.x = art.size.x - ic.x
+	var at := get_global_transform().affine_inverse() * g - ic
+	var out := bool(_move.out)
+	# out: quick from the mouth, easing into its place; in: easing off, faster into it
+	var k := 1.0 - pow(1.0 - u, 2.4) if out else pow(u, 2.0)
+	var f := (1.0 - k) if out else k
+	clip_contents = false
+	art.visible = true
+	art.position = _rest().lerp(at, f)
+	_k = lerpf(1.0, 0.7, f)
+	_face_art()
+	var lit := u < 0.7 if out else u > 0.05
+	if lit != bool(_move.get("lit", false)):
+		_move["lit"] = lit
+		art.burn(lit)
+	queue_redraw()
+	if u >= 1.0:
+		_move = {}
+		art.burn(false)
+		if out:
+			_k = 1.0
+			_face_art()
+			clip_contents = true
+			queue_redraw()
+		else:
+			art.visible = false
+			queue_free()
+
+
 func leaving() -> bool:
 	return _leaving
 
@@ -154,9 +263,13 @@ func _break_up() -> void:
 		b.modulate = Color(0.45, 0.45, 0.52))
 
 func _draw() -> void:
-	# Paint nothing without a hull, or a name and bars hang in empty space.
-	if not art.visible:
+	# Paint nothing without a hull, or a name and bars hang in empty space;
+	# nor while it flies, out of or into the station.
+	if not art.visible or not _move.is_empty():
 		return
+	# (mirrored: drawn flipped back about the slot's middle, so it reads)
+	if flipped:
+		draw_set_transform(Vector2(size.x, 0.0), 0.0, Vector2(-1.0, 1.0))
 	var f := UITheme.pixel_font()
 	var fs := UITheme.FS_SMALL
 	var text := "LOST · " + _label if _lost else _label

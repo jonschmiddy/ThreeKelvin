@@ -14,7 +14,12 @@ func _ready() -> void:
 
 func _run() -> void:
 	# (`steam=heavy|heavier`: the lift's steam at that weight, `LiftPlume.WEIGHTS`)
-	LiftPlume.weight = int({"heavy": 1, "heavier": 2}.get(Harness.arg("steam", ""), 0))
+	if Harness.arg("steam", "") != "":
+		LiftPlume.weight = int({"built": 0, "heavy": 1, "heavier": 2}.get(Harness.arg("steam", ""), LiftPlume.weight))
+	# (`steam_style=0..3`, `steam_seed=N`: a texture, and one steam for every texture's film)
+	if Harness.arg("steam_style", "") != "":
+		LiftPlume.style = int(Harness.arg("steam_style", "1"))
+	LiftPlume.seed = int(Harness.arg("steam_seed", "-1"))
 	_tree = get_tree()
 	await _tree.process_frame
 	Router.animate_in_harness = true
@@ -22,8 +27,6 @@ func _run() -> void:
 	# (`live`: the ladder on the game's own clock, as in play, for timing what is heard against what is drawn)
 	ZoomLadder.fixed_dt = -1.0 if "live" in _args else 1.0 / 30.0
 	DisplaySettings.reduced_motion = "rm" in _args
-	# (`mirror`: the trial of LOCAL mirrored after an undock, Jon's (c))
-	SectorScreen.mirror_trial = "mirror" in _args
 	Rng.forced = Harness.seed_arg(1)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
 	Run.start_new_run(&"korvan", int(wt.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)))
@@ -55,6 +58,8 @@ func _run() -> void:
 		if Harness.arg("stills", "") != "":
 			DirAccess.make_dir_recursive_absolute(Harness.arg("stills", ""))
 			await _still(Harness.arg("stills", ""), "parked")
+		if "moves" in _args:
+			await _partner_moves()
 		_tree.quit()
 		return
 	if route == "first":
@@ -84,6 +89,8 @@ func _run() -> void:
 		ZoomLadder.force = 1
 		await Harness.frames(_tree, 120)
 		await _undock()
+		if "moves" in _args:
+			await _partner_moves()
 		# (`redock`: and DOCK again from where the undock left it)
 		if "redock" in _args:
 			await Harness.frames(_tree, 45)
@@ -173,6 +180,29 @@ func _undock() -> void:
 	if stills != "":
 		await Harness.frames(_tree, 60)
 		await _still(stills, "undocked")
+
+
+## (`moves`, with `party=N`): the first partner docks, undocks, and a new one
+## arrives, on whichever side your ship is moored.
+func _partner_moves() -> void:
+	var ids: Array = Net.partners().map(func(p: Dictionary) -> int: return int(p.id))
+	if ids.is_empty():
+		return
+	var id: int = ids[0]
+	print("  [dockfilm] moves: %d docks at drawn %d" % [id, Engine.get_frames_drawn()])
+	Net.roster[id].docked = true
+	Sig.party_changed.emit()
+	await Harness.frames(_tree, 90)
+	print("  [dockfilm] moves: %d undocks at drawn %d" % [id, Engine.get_frames_drawn()])
+	Net.roster[id].docked = false
+	Sig.party_changed.emit()
+	await Harness.frames(_tree, 120)
+	var b: ShipBuild = Net.build_of(id)
+	print("  [dockfilm] moves: one arrives at drawn %d" % Engine.get_frames_drawn())
+	Net.roster[9] = {"id": 9, "name": "ORIN", "hull": &"korvan", "ready": true, "order": 9,
+		"build": b.to_wire() if b != null else {}, "at": Run.at, "docked": false}
+	Sig.party_changed.emit()
+	await Harness.frames(_tree, 120)
 
 
 ## DOCK pressed on LOCAL, run until the station's move is done and a beat after.

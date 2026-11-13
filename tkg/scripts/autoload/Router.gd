@@ -18,6 +18,9 @@ var docked: bool = false:
 		if not v:
 			powered.clear()
 			undock_nudge = false
+		if v != docked:
+			# (partners see you dock and undock: `NetSession`'s presence)
+			Net._mark_presence()
 		docked = v
 
 ## Powered-on decks are remembered per docking, so a chart round trip does not replay them.
@@ -295,6 +298,7 @@ func _on_run_started() -> void:
 	docked = false
 	# Parked ship spots are kept by system index, so a new run must not inherit them.
 	SystemMapScreen._parked.clear()
+	SectorScreen.mirrored_at = -1
 	# Same for the event last opened on LOCAL, also kept by system index.
 	LocalEventDrawer.last = []
 	# (and where the map flew it, which LOCAL arrived at and which station is
@@ -451,9 +455,9 @@ func show_sector() -> void:
 	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
 	# beside the station, where DOCK takes you back in and the map is a Tab away
 	if docked and current is StationScreen and ZoomLadder.chosen():
-		# (the trial: LOCAL comes up mirrored, built ahead at this click)
-		if SectorScreen.mirror_trial:
-			SectorScreen.mirrored_at = Run.at
+		# (LOCAL comes up mirrored, your ship moored on the station's right: built
+		# ahead at this click)
+		SectorScreen.moor_right(Run.at)
 		show_local()
 		return
 	if in_combat() or fight_up() or _post_depart >= 0:
@@ -829,6 +833,7 @@ func _on_jumped(_index: int) -> void:
 	# A jump arrives at the edge, so an ambush leaves wrecks there, not at a fought world.
 	# Why: docs/why/Router.md#jump-arrival
 	SystemMapScreen._parked.erase(_index)
+	SectorScreen.mirrored_at = -1
 	# The event last opened on LOCAL is dropped with the place it stood at.
 	LocalEventDrawer.last = []
 	# (a jump in is not a flight on the map, and the station it finds is asleep:
@@ -960,12 +965,17 @@ func show_station() -> void:
 	if not docked and current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
 			and Run.node_at() != null and Run.node_at().type == MapGen.NodeType.STATION:
 		ZoomLadder.chain = &"station"
+		# (moored on the station's right: LOCAL with your ship where it is, then the
+		# dock from there, black and the landing)
+		if SectorScreen.mirrored():
+			show_local()
+			return
 		# (LOCAL built with your ship off it: the dock's arrival brings it)
 		SectorScreen.dock_hidden = true
 		show_local()
 		return
-	# (the trial: from the mirrored side there is no flight in -- black, then the landing)
-	if not docked and current is SectorScreen and SectorScreen.mirrored() and not ZoomLadder.busy():
+	# (from the station's right there is no flight in: black, then the landing)
+	if not docked and current is SectorScreen and SectorScreen.mirrored():
 		ZoomLadder.dock_fade_only = true
 	if not (dock != null and is_instance_valid(dock)) and ZoomLadder.preroll(ZoomLadder.STATION, show_station):
 		return

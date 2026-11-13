@@ -169,6 +169,9 @@ static func _snapshot() -> Dictionary:
 		at = Run.at,
 		# Where the ship was left in each system you have been in (VERSION 30).
 		parked = _parked_to(),
+		# Moored on the station's right, after an undock (Nov 13): its node or -1.
+		# Optional: a save without it loads moored as before.
+		moored_right = SectorScreen.mirrored_at,
 		# And each system's map clock, which those spots were left at (VERSION 39).
 		clocks = _clocks_to(),
 		trail = Array(Run.trail),
@@ -398,6 +401,8 @@ static func load_into_run() -> bool:
 	# (the map clocks with them, after run_started for the same reason; a 38
 	# save has none: every system at t 0, as a 38 build drew it)
 	Run.map_clock = _clocks_from(d.get("clocks", []), map.size())
+	var mr := int(d.get("moored_right", -1))
+	SectorScreen.moor_right(mr if mr >= 0 and mr < map.size() else -1)
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	Run.log_line("Reactor warm. Resuming from %s." % MapGen.star_name(Run.node_at()), &"big")

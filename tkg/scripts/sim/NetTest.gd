@@ -1283,6 +1283,11 @@ func _hostile_peer_test() -> void:
 	check("a presence at no system is dropped", int(host.roster[gid].at), at0)
 	host._apply_presence(gid, {}, last, 3)
 	check("a real one lands", int(host.roster[gid].at), last)
+	# (docked at a station: LOCAL leaves it off the column, and shows it dock and undock)
+	host._apply_presence(gid, {}, last, 3, true)
+	ok("a presence docked says so", bool(host.roster[gid].get("docked", false)))
+	host._apply_presence(gid, {}, last, 3)
+	ok("and one undocked says so", not bool(host.roster[gid].get("docked", true)))
 	Run.party_jumps = party0
 
 	host._apply_spot(gid, 1, 0, 0.0, 0.0, 0.0, INF, 0)

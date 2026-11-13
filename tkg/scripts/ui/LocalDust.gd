@@ -351,12 +351,12 @@ func _collect(n: Node, out: Array[Rect2]) -> void:
 			out.append(_xrect((c as Control).get_global_transform(), Rect2((c as EnemyArt).used_rect()).grow(4.0)))
 			continue
 		if c is Label or c is ProgressBar or c is TextureRect or c is Button:
-			var r := (c as Control).get_global_rect()
+			var r := UiRect.of(c as Control)
 			if r.size.x > 0.0 and r.size.y > 0.0:
 				out.append(r)
 			continue
 		if c is Control and not (c is Container) and c.get_child_count() == 0 and (c as Control).size.x * (c as Control).size.y < 200000.0:
-			out.append((c as Control).get_global_rect())
+			out.append(UiRect.of(c as Control))
 		_collect(c, out)
 
 

@@ -1095,7 +1095,7 @@ func _set_update(m: SubViewport.UpdateMode) -> void:
 func _place_box() -> void:
 	if _box == null:
 		return
-	var p := -(get_global_rect().position / 2.0).round() * 2.0
+	var p := -(UiRect.of(self).position / 2.0).round() * 2.0
 	if _box.position != p:
 		_box.position = p
 

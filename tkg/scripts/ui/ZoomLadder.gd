@@ -39,7 +39,9 @@ const LAB_ZOOM_S := 0.9
 ## Docking is five steps, never two at once, camera still; undocking eases out down the same path.
 ## Why: docs/why/ZoomLadder.md#dock-in-five-steps
 const DOCK_BEAT_S := 0.3
-## TRIAL (`SectorScreen.mirror_trial`): this dock is LOCAL to black and no more.
+## A dock from the station's right (`SectorScreen.mirrored`): LOCAL to black and no
+## more, then the landing (Jon, Nov 13).
+## Why: docs/why/SectorScreen.md#mirrored
 static var dock_fade_only := false
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0

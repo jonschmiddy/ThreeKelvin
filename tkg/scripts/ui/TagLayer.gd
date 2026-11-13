@@ -89,20 +89,21 @@ func _owner_of(h: Control) -> Control:
 
 
 ## The topmost visible Control under `p` that takes the mouse, children before parents and later
-## children first, as the GUI picks one; a parent that clips hides what it clips.
+## children first, as the GUI picks one; a parent that clips hides what it clips. (Boxes from
+## `UiRect`: LOCAL can be drawn mirrored, and a mirrored global rect is upside down.)
 static func under(n: Node, p: Vector2) -> Control:
 	var c := n as Control
 	if c != null and (not c.visible or not c.is_inside_tree()):
 		return null
 	if n is CanvasItem and not (n as CanvasItem).visible:
 		return null
-	if c != null and c.clip_contents and not c.get_global_rect().has_point(p):
+	if c != null and c.clip_contents and not UiRect.of(c).has_point(p):
 		return null
 	for i in range(n.get_child_count() - 1, -1, -1):
 		var hit := under(n.get_child(i), p)
 		if hit != null:
 			return hit
-	if c != null and c.mouse_filter != Control.MOUSE_FILTER_IGNORE and c.get_global_rect().has_point(p):
+	if c != null and c.mouse_filter != Control.MOUSE_FILTER_IGNORE and UiRect.of(c).has_point(p):
 		return c
 	return null
 

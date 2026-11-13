@@ -191,3 +191,17 @@ place picture (`AreaView`, `site` as LOCAL sets it) is none; a
 station's is the station itself, and only where it is. The sheets (`ANY`)
 still draw each picture.
 ```
+
+## Mirrored
+
+Nov 13: an undock moors the ship on the station's right
+(`docs/why/SectorScreen.md#mirrored`). `_hull_flies_out` checks the nose-first
+undock: its path (`1 - smoothstep((t / ENTER)^1.5)`), the engines (idle, burn,
+coughs, idle), LOCAL drawn mirrored with the nose clear of the edge, and the ship
+going left to right on screen. `_redock_from_right` checks a dock from there: LOCAL
+to black with the ship unmoved, then the deck's landing, and UNDOCK moors it right
+again. Then LOCAL is put back on the station's left, as a flight in leaves it, for
+the arrival and dock checks that follow, and before each station side and the
+map's DOCK. Each of those docks from the left, which is the flight they test.
+`_hull_flies_in` checks that a dock from the left flies.
+

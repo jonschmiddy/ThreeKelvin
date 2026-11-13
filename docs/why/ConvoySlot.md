@@ -47,3 +47,17 @@ next in the column.
 Hull above heat, which is the order they are stacked on the HUD and
 under every enemy.
 ```
+
+## Out of the station
+
+Jon's co-op rules, Nov 13 (`docs/why/SectorScreen.md#partners`). At a station a
+partner comes and goes through the dock as well as by jumping. `come_out` brings
+the hull from the station's mouth (`EncounterView.mouth_g`, INF until the station
+is up, so it waits) to its place over `OUT_S`: quick out of the mouth, easing in,
+its engines lit until it slows, a little smaller out of the depth. Moored left
+that path is a back-out; moored right it is nose first. `go_in` runs it the other
+way, into the mouth, and frees the slot. `fade_out` fades it where it sits. The
+slot stops cropping while the hull flies, so it can be drawn outside it, and draws
+no name until it is in place. Moored right (`flipped`), the slot flips its own hull
+and its name back, and holds the hull `FLIP_IN` px in from the screen's edge.
+
