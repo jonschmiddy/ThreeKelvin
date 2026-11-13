@@ -3,7 +3,7 @@ extends Node
 ## The star chart's own galaxy, small, for each tier's picture on LAUNCH A RUN: a run at the
 ## tier in one of its galaxy kinds, the real star chart with its icons off, one still of the
 ## sky for each step of a whole turn (`frame_<t>_<k>.png`), for tools/dev/tier_minis.py to
-## pixelate. `-- sheet=TierMiniBake out=<dir> [tiers=0,5,10] [limit=N] [tornsweep=1]`; needs a window.
+## pixelate. `-- sheet=TierMiniBake out=<dir> [tiers=0,5,10] [limit=N] [tornsweep=1] [nudge=x,y] [far=f]`; needs a window.
 
 ## Seconds a whole turn takes at tier 0 and at tier 10; frames a second of the picture.
 const TURN_S := [24.0, 8.0]
@@ -67,8 +67,11 @@ func _bake(t: int) -> void:
 	Run.chart_from(Run.node_at())
 	# tier 10: the dwarf shown with its outer rings already torn away (TORN AWAY from jump 4)
 	ChartTorn.active = t == 10
-	ChartTorn.nudge = GIANT_NUDGE if t == 10 else Vector2.ZERO
-	ChartTorn.far = GIANT_FAR if t == 10 else 1.0
+	# `nudge=x,y` and `far=f` override tier 10's giant (R2 was baked at nudge=60,-40 far=1)
+	var nv := Harness.arg("nudge").split(",")
+	var nudge := Vector2(float(nv[0]), float(nv[1])) if nv.size() == 2 else GIANT_NUDGE
+	ChartTorn.nudge = nudge if t == 10 else Vector2.ZERO
+	ChartTorn.far = float(Harness.arg("far", str(GIANT_FAR))) if t == 10 else 1.0
 	ChartSky.no_story = true
 	ChartTorn.lost = TORN_LOST if t == 10 else 0.0
 	Router.show_starchart()

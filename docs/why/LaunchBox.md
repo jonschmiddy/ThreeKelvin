@@ -78,3 +78,10 @@ game's real window the curve is per screen pixel and the art stays sharp, so
 `LaunchBoxShot` now sizes its window to 1920x1080. The rest was the art: dither, soft
 mid-tones near the panel's own value, dim single stars. The next three (J1 to J3) use
 flat colours only, no dither and no part-transparent pixels.
+
+M3 to M6 each added energy and lost R2's definition ("so much worse, you can't even
+tell that they are spirals"); M6 was reverted. Jon picked R2 (Nov 12): "It has the most
+definition and color. But swap 8 and 7", so tier 7 draws the flattened elliptical and
+tier 8 the round one, and tier 10 was baked again with its giant a little further off
+(`TierMiniBake nudge=38,-74`) and cut at R2's old size, so a dark gap shows between them.
+The strips in `art/ui/tiers` are R2's, made by 63d46b66's `tier_minis.py` with no effects.

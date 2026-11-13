@@ -21,9 +21,9 @@ const RING := Color8(30, 42, 57)
 const LAMP_RIM := Color8(9, 13, 20)
 const LAMP_OFF := Color8(44, 60, 78)
 ## The tier's picture: a strip of square frames, `tier_<n>.png`, drawn G px across and
-## played at ART_FPS on GameClock. Off ("") until Jon picks; C2's strips stay in art/ui/tiers.
+## played at ART_FPS on GameClock: Jon's R2 (Nov 12), the star chart's own galaxies, baked.
 ## Why: docs/why/LaunchBox.md#the-pictures
-const ART := ""
+const ART := "res://art/ui/tiers"
 const ART_FPS := 12.0
 ## Dev switches: a folder of draft strips (`-- sheet=LaunchBoxShot tierart=<dir>`), and a held frame.
 static var art_dir := ""
