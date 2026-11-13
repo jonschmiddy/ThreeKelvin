@@ -69,12 +69,13 @@ func _local(right: bool) -> SectorScreen:
 	for i in 120:
 		await _tree.process_frame
 	var loc := Router.current as SectorScreen
-	# (the partners' comings settled: out of the mouth takes `ConvoySlot.OUT_S`)
-	for i in 200:
+	# (the partners' comings settled: out of the mouth takes `ConvoySlot.OUT_S`, a
+	# jump's arrival its own approach)
+	for i in 600:
 		await _tree.process_frame
 		var busy := false
 		for s in _slots(loc):
-			if not s._move.is_empty():
+			if not s._move.is_empty() or s.art._arrive_at >= 0:
 				busy = true
 		if not busy:
 			break
