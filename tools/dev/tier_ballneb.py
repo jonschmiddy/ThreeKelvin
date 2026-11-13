@@ -87,7 +87,7 @@ def mix(ball, disc, w):
     # colour as it goes round (mixed against each frame, the ball's churn showed through)
     lit = ball[0][..., :3] * (1 - w) + colour * w * 1.15
     if WARM:
-        lit = warm(lit, ball[0])
+        lit = warm(lit, ball[0], colour)
     out = []
     n = len(ball)
     for k, b in enumerate(ball):
@@ -102,13 +102,17 @@ def mix(ball, disc, w):
 WARM = os.environ.get("BALL_GAS_WARM") == "1"
 
 
-def warm(lit, b0):
-    """The gas in the ball's own warm palette: its brightness, the ball's hue (a test against
-    the borrowed blue; Jon likes the balls hot)."""
-    keep = b0[..., 3] > 0
-    hue = np.median(b0[keep][:, :3], axis=0)
-    hue = hue / max(hue.max(), 1.0)
-    return np.clip(lit.max(-1, keepdims=True) * hue[None, None, :] * 1.05, 0, 255)
+def warm(lit, b0, gas_colour=None):
+    """The gas in the ball's own warm palette: the borrowed gas's light and dark kept as warm
+    patches (a deep red-brown where it is dim, a bright amber where it is bright) over the
+    ball, so the nebula still reads without cooling it (a test; Jon likes the balls hot)."""
+    src = lit if gas_colour is None else gas_colour
+    g = src.max(-1)
+    lo, hi = np.percentile(g, 10), np.percentile(g, 95)
+    u = np.clip((g - lo) / max(hi - lo, 1.0), 0, 1)[..., None]
+    dark = b0[..., :3] * np.array([0.62, 0.42, 0.30])
+    bright = b0[..., :3] * np.array([1.45, 1.3, 1.05])
+    return np.clip(dark + (bright - dark) * u, 0, 255)
 
 
 def main():
