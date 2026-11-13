@@ -72,9 +72,10 @@ def grow(m, r):
 
 
 HOLD = 80
+BALL_HOLD = int(os.environ.get("BALL_HOLD", "30"))
 
 
-def turning(frames):
+def turning(frames, hold=HOLD):
     """A turning strip made calm: the core held to its median, colours with a memory."""
     base = frames[0]
     keep = base[..., 3] > 0
@@ -92,8 +93,8 @@ def turning(frames):
             f[held] = med[held]
             if cur is not None:
                 both = (f[..., 3] > 0) & (cur[..., 3] > 0)
-                hold = both & (np.abs(f[..., :3] - cur[..., :3]).sum(-1) <= HOLD)
-                f = np.where(hold[..., None], cur, f)
+                held_px = both & (np.abs(f[..., :3] - cur[..., :3]).sum(-1) <= hold)
+                f = np.where(held_px[..., None], cur, f)
             cur = f
             if lap:
                 out.append(f)
@@ -243,7 +244,9 @@ def main():
         if turn:
             path = os.path.join(turn, "tier_%d.png" % t)
             w = Image.open(path).width // Image.open(path).height
-            frames = turning([frame(path, k) for k in range(w)])
+            # a ball's faint texture, held back by the colour memory, crept the wrong way; its
+            # nebula (tier_ballneb.py) turns over it, so it goes without (BALL_HOLD)
+            frames = turning([frame(path, k) for k in range(w)], BALL_HOLD if FORM[t] == 2 else HOLD)
             frs = tier(frames[0], t, ramp, frames)
         else:
             base = frame(os.path.join(r2, "tier_%d.png" % BASE[t]), BASE_FRAME)
