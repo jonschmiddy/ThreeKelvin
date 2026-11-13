@@ -14,8 +14,8 @@ const PERK_SPACING := 0
 ## The FITTED column's left edge: 32 px after the attribute values (Jon, Nov 12:
 ## "move the fitted block to the left a bit"), so the names and the perk have room.
 const FIT_X := 504
-## The card stack's place, left of LAUNCH.
-const STACK_AT := Vector2(706, 438)
+## The card stack's place, left of LAUNCH and a little off it (Jon, Nov 13: "nudge the cards over to the left").
+const STACK_AT := Vector2(694, 438)
 ## A still can hold the deck spread out (`YardStandsShot deckopen`).
 static var hold_open := false
 
