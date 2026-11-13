@@ -451,6 +451,9 @@ func show_sector() -> void:
 	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
 	# beside the station, where DOCK takes you back in and the map is a Tab away
 	if docked and current is StationScreen and ZoomLadder.chosen():
+		# (the trial: LOCAL comes up mirrored, built ahead at this click)
+		if SectorScreen.mirror_trial:
+			SectorScreen.mirrored_at = Run.at
 		show_local()
 		return
 	if in_combat() or fight_up() or _post_depart >= 0:
@@ -961,10 +964,14 @@ func show_station() -> void:
 		SectorScreen.dock_hidden = true
 		show_local()
 		return
+	# (the trial: from the mirrored side there is no flight in -- black, then the landing)
+	if not docked and current is SectorScreen and SectorScreen.mirrored() and not ZoomLadder.busy():
+		ZoomLadder.dock_fade_only = true
 	if not (dock != null and is_instance_valid(dock)) and ZoomLadder.preroll(ZoomLadder.STATION, show_station):
 		return
 	var arriving := not docked
 	docked = true
+	ZoomLadder.dock_fade_only = false
 	Audio.music_state(&"station")
 	if arriving:
 		Audio.suppress(&"ui_tab", 200)

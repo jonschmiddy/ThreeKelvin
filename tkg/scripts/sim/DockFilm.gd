@@ -20,6 +20,8 @@ func _run() -> void:
 	# (`live`: the ladder on the game's own clock, as in play, for timing what is heard against what is drawn)
 	ZoomLadder.fixed_dt = -1.0 if "live" in _args else 1.0 / 30.0
 	DisplaySettings.reduced_motion = "rm" in _args
+	# (`mirror`: the trial of LOCAL mirrored after an undock, Jon's (c))
+	SectorScreen.mirror_trial = "mirror" in _args
 	Rng.forced = Harness.seed_arg(1)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
 	Run.start_new_run(&"korvan", int(wt.get(Harness.arg("weight", "medium"), HullData.Weight.MEDIUM)))
@@ -74,6 +76,10 @@ func _run() -> void:
 		ZoomLadder.force = 1
 		await Harness.frames(_tree, 120)
 		await _undock()
+		# (`redock`: and DOCK again from where the undock left it)
+		if "redock" in _args:
+			await Harness.frames(_tree, 45)
+			await _redock()
 		_tree.quit()
 		return
 	if route == "map":
@@ -156,6 +162,27 @@ func _undock() -> void:
 			print("  [dockfilm] undock: the move done at drawn %d" % Engine.get_frames_drawn())
 		if done >= 0 and i > done + 30 and k > 30:
 			break
+
+
+## DOCK pressed on LOCAL, run until the station's move is done and a beat after.
+func _redock() -> void:
+	var loc := Router.current as SectorScreen
+	if loc == null:
+		print("  [dockfilm] redock: not on LOCAL")
+		return
+	var dk := loc.find_child("Dock", true, false) as Button
+	if dk == null:
+		print("  [dockfilm] redock: no DOCK")
+		return
+	print("  [dockfilm] redock: DOCK at drawn %d (fade only %s)" % [Engine.get_frames_drawn(), ZoomLadder.dock_fade_only])
+	dk.pressed.emit()
+	print("  [dockfilm] redock: fade only %s" % ZoomLadder.dock_fade_only)
+	for i in 900:
+		await _tree.process_frame
+		if Router.current is StationScreen and not ZoomLadder.busy():
+			print("  [dockfilm] redock: the move done at drawn %d" % Engine.get_frames_drawn())
+			break
+	await Harness.frames(_tree, 45)
 
 
 ## Your ship on LOCAL this frame, while an arrival has it: its place and size.

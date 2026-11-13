@@ -142,6 +142,16 @@ var _overlay_body: Label
 ## Keeps the ship off LOCAL until the dock's arrival brings it in (Jon, Oct 20).
 ## Why: docs/why/SectorScreen.md#dock-arrival
 static var dock_hidden := false
+## TRIAL (Jon's (c), Nov 13, behind `mirror_trial`): after an undock, LOCAL at that
+## station is drawn mirrored -- the station on the left, your ship moored on its
+## right, facing right -- so the undock leaves nose first to the right, as the yard
+## did. `mirrored_at` is the station's node; a jump leaves it behind.
+static var mirror_trial := false
+static var mirrored_at := -1
+
+
+static func mirrored() -> bool:
+	return mirror_trial and mirrored_at >= 0 and mirrored_at == Run.at
 var _dock_hidden := false
 
 
@@ -2155,12 +2165,31 @@ func _attach_station_face() -> void:
 	# (the ring stands down: the station is its side now)
 	_view._area.modulate.a = 0.0
 	_view.resized.connect(_place_face)
+	if mirrored():
+		_view.resized.connect(_mirror_view)
+		_mirror_view.call_deferred()
 	# The hallway tracks the ship's slot: built early at UNDOCK it sat 4 px low.
 	# Why: docs/why/SectorScreen.md#docking
 	var art := _view.ship_view()
 	if art != null:
 		art.resized.connect(_place_face)
 	_place_face.call_deferred()
+
+
+## The trial's mirror: the whole scene flipped about its middle, your ship flipped
+## back so it still faces right.
+func _mirror_view() -> void:
+	if _view == null or not is_instance_valid(_view):
+		return
+	_view.pivot_offset = _view.size * 0.5
+	_view.scale.x = -absf(_view.scale.x)
+	var art := _view.ship_view()
+	if art != null:
+		# (flipped about its own middle, so it stays in its slot)
+		art.pivot_offset = art.size * 0.5
+		art.scale.x = -absf(art.scale.x)
+		if not art.resized.is_connected(_mirror_view):
+			art.resized.connect(_mirror_view)
 
 
 func _place_face() -> void:
@@ -2436,6 +2465,9 @@ func ladder_cam(k: float) -> void:
 		# off it: no cut of its own)
 		if bool(hall.get("hidden", false)):
 			blk = 0.0
+		# (the trial's redock from the mirrored side: black from the CUT on)
+		if ZoomLadder.dock_fade_only and step >= 1:
+			blk = 1.0
 		hall["black"] = clampf(blk, 0.0, 1.0)
 		hall["u_power"] = 0.0 if step < 3 else (u if step == 3 else 1.0)
 		hall["u_enter"] = ue

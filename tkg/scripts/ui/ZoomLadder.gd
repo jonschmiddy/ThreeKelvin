@@ -39,6 +39,8 @@ const LAB_ZOOM_S := 0.9
 ## Docking is five steps, never two at once, camera still; undocking eases out down the same path.
 ## Why: docs/why/ZoomLadder.md#dock-in-five-steps
 const DOCK_BEAT_S := 0.3
+## TRIAL (`SectorScreen.mirror_trial`): this dock is LOCAL to black and no more.
+static var dock_fade_only := false
 const DOCK_POWER_S := 1.3
 const DOCK_ENTER_S := 4.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
@@ -102,6 +104,8 @@ static func seam3_fade() -> String:
 
 ## The dock's five steps, s, in order: CUT, ARRIVE, BEAT, POWER, ENTER.
 static func dock_steps() -> PackedFloat32Array:
+	if dock_fade_only:
+		return PackedFloat32Array([FADE_OUT_S, 0.0, 0.0, 0.0, 0.0])
 	return PackedFloat32Array([FADE_OUT_S, ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0,
 		DOCK_BEAT_S, DOCK_POWER_S, DOCK_ENTER_S])
 
