@@ -221,6 +221,9 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 		var frame := DB.hull_for(&"korvan", w)
 		var hull: HullData = DB.at_tier(DB.hull_for(m, w), tier) if open else null
 		(sets[w] as YardStandSet).setup(scene, w, hull, frame)
+		if hull != null and YardInfoTrial.opt() == "B2":
+			var st: YardStandSet = sets[w]
+			st.set_meta(&"mounts", YardInfoTrial.mount(st._view, hull, YardInfoTrial.kit_for(m, w, tier)))
 	if locked:
 		for w: HullData.Weight in sets:
 			(sets[w] as YardStandSet).drop_tarp()
@@ -396,6 +399,7 @@ class Ghost extends Control:
 	func set_source(s: YardStandSet) -> void:
 		source = s
 		material = s.sharp_material() if s != null else null
+		YardInfoTrial.ghost_mounts(self, s)
 		queue_redraw()
 
 	func _draw() -> void:

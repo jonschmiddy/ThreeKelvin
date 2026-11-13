@@ -211,6 +211,7 @@ func _show_band() -> void:
 	else:
 		_band.show_rest()
 	_band.arm(_picked >= 0 or (_tarp_tried and not open()))
+	YardInfoTrial.dossier(self, m, shown if open() else -1)
 
 
 func _launch() -> void:
