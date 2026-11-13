@@ -14,9 +14,9 @@ uniform vec2 rect_size = vec2(960.0, 540.0);
 uniform vec2 org = vec2(0.0);
 uniform int n = 0;
 // x, y, radius, alpha
-uniform vec4 lobe[48];
+uniform vec4 lobe[64];
 // tone shift, contrast, warmth, seed
-uniform vec4 lobe2[48];
+uniform vec4 lobe2[64];
 uniform float tstep = 0.0;
 uniform vec4 box = vec4(0.0, 0.0, -1.0, -1.0);
 uniform float floor_y = 372.0;
@@ -28,6 +28,10 @@ uniform vec2 lamps[8];
 uniform float warm_k = 1.0;
 uniform bool shadow_pass = false;
 uniform float shadow_k = 0.34;
+// how heavy (`LiftPlume.WEIGHTS`): the ragged edge's share of a lobe's alpha, and how
+// much darker its underside goes
+uniform float edge_a = 0.5;
+uniform float under_k = 0.0;
 
 float bayer4(vec2 p) {
 	int x = int(mod(p.x, 4.0));
@@ -63,7 +67,7 @@ void fragment() {
 	if (shadow_pass) {
 		// the lobes' cover, dropped and softened, darkening the floor in steps
 		float dens = 0.0;
-		for (int i = 0; i < 48; i++) {
+		for (int i = 0; i < 64; i++) {
 			if (i >= n) {
 				break;
 			}
@@ -83,7 +87,7 @@ void fragment() {
 		float warm = 0.0;
 		float edge_n = fbm(p * 0.16 + vec2(tstep * 0.31, tstep * 0.13));
 		float eddy = fbm(p * 0.25 + vec2(-tstep * 0.23, tstep * 0.41));
-		for (int i = 0; i < 48; i++) {
+		for (int i = 0; i < 64; i++) {
 			if (i >= n) {
 				break;
 			}
@@ -98,16 +102,17 @@ void fragment() {
 			float nz = sqrt(max(0.0, 1.0 - q));
 			float key = clamp(-d.y * 0.8 + nz * 0.5 - d.x * 0.1, 0.0, 1.0);
 			float bounce = clamp(d.y - 0.6, 0.0, 1.0) * 0.6 * clamp(1.0 - (floor_y - L.y - L.z) / 60.0, 0.0, 1.0);
-			float shade = key + bounce + (eddy - 0.5) * 0.35;
+			float shade = key + bounce + (eddy - 0.5) * 0.35 - under_k * clamp(d.y, 0.0, 1.0);
 			// its top shaded by the steam it rolls over
 			shade -= 0.3 * covered * clamp(-d.y + 0.3, 0.0, 1.0);
 			shade = 0.5 + (shade - 0.5) * P.y;
 			float t = clamp(shade * 4.2 + 0.2 + P.x, 0.0, 4.0);
 			// a crease under it where it lies over steam already there
-			if (q > 0.82 && d.y > 0.15 && covered > 0.4) {
+			// (not on a thinning lobe: its rim would read as a dark ring)
+			if (q > 0.82 && d.y > 0.15 && covered > 0.4 && L.w > 0.6) {
 				t = min(t, 0.8);
 			}
-			float la = q > 0.55 + 0.3 * en ? L.w * 0.5 : L.w;
+			float la = q > 0.55 + 0.3 * en ? L.w * edge_a : L.w;
 			tone = t;
 			a = max(la, q > 0.8 ? a : 0.0);
 			covered = max(covered, la);

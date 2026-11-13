@@ -22,7 +22,9 @@ The ship is the source (Jon, Nov 12: "it should flow DOWNWARD with gravity and c
 
 Once the jets cut, every lobe is gone within `CLEAR_S`. Each lift gets its own random seed (Jon: "different every time"). The knobs (`size_k`, `strength`, `floor_y`) fit it to a hall; the deck runs it at `plume_k` 0.8.
 
-Cost: `-- sheet=YardBench states=rest,steam` holds it at full burn under the medium berth. On the PC (RTX 3070, 960x540) the frame mean went from 1.33 to 2.08 ms and p95 from 2.27 to 5.07 ms, with no spikes.
+Weight (Jon, Nov 13: "more smoke and it needs to be heavier"; then "dissipate slower"): `LiftPlume.WEIGHTS` holds three, picked by `LiftPlume.weight`. 0 is AB-23 as first built; 1 "heavy" and 2 "heavier" have more and bigger puffs, denser cores, darker undersides, a stronger floor shadow, a harder fall, and a slower roll that lifts less. Once the jets cut they thin and settle over 4-5 s and 5-6 s, spreading as they go. The films' and bench's `steam=heavy|heavier` set it. A lobe that is fading gets no crease, or its rim reads as a dark ring.
+
+Cost: `-- sheet=YardBench states=rest,steam` holds it at full burn under the medium berth. On the PC (RTX 3070, 960x540) the frame mean went from 1.33 to 2.08 ms and p95 from 2.27 to 5.07 ms, with no spikes; heavy 2.48 ms (p95 5.66), heavier 2.49 ms (p95 5.42).
 
 ## Attach
 
