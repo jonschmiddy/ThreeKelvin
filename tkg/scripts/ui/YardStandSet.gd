@@ -31,6 +31,8 @@ var feet: int = 0
 var hover: bool = false
 
 var _view: ShipView = null
+## The weapons drawn on the hull (`YardInfo.mount`), or null under a tarp.
+var mounts: MountPoints = null
 var _tarp: Tarp = null
 var _x0: int = 0
 var _belly: int = 0
@@ -60,6 +62,7 @@ func setup(sc: YardScene, w: HullData.Weight, hull: HullData, frame: HullData) -
 		c.queue_free()
 	_view = null
 	_tarp = null
+	mounts = null
 	feet = YardSlot.feet(w)
 	# the hull's ink, to sit it on the stands
 	var probe := ShipView.new()

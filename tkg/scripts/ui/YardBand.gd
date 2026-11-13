@@ -127,17 +127,9 @@ func show_rest() -> void:
 func show_ship(m: ManufacturerData, chosen: bool, at: Vector2, launchable: bool) -> void:
 	_clear()
 	tie = at
-	if YardInfoTrial.opt() != "":
-		YardInfoTrial.band_ship(self, m, chosen)
-	else:
-		_word(Run.hull.name.to_upper(), UITheme.FS_HEAD, COL_L, ROW0, MINT)
-		_word(m.name.to_upper(), UITheme.FS_SMALL, COL_L, ROW0 + 24, COLD)
-		var weight := _word("%s HULL" % HullData.weight_name(Run.hull.weight).to_upper(), UITheme.FS_SMALL, COL_L, ROW0 + 36, COLD)
-		weight.mouse_filter = Control.MOUSE_FILTER_PASS
-		weight.tooltip_text = Widgets.tip("%s\n%s" % [HullData.weight_name(Run.hull.weight),
-			ChassisSelect.WEIGHT_BLURB[int(Run.hull.weight)]])
-		if not chosen:
-			_word("CLICK TO MAKE IT YOURS", UITheme.FS_SMALL, COL_L, ROW0 + 58, MINT_DIM)
+	# the maker and what the ship comes with (Jon's B2, Nov 12)
+	# Why: docs/why/ChassisSelect.md#what-a-ship-comes-with
+	YardInfo.left_column(self, m, chosen)
 	_word("ATTRIBUTES", UITheme.FS_SMALL, COL_A, ROW0 - 4, COLD)
 	var col := Control.new()
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -147,26 +139,7 @@ func show_ship(m: ManufacturerData, chosen: bool, at: Vector2, launchable: bool)
 	block = AttrBlock.new()
 	block.setup(Run.attributes(), m.colour, true)
 	col.add_child(block)
-	if YardInfoTrial.opt() == "B1":
-		YardInfoTrial.fitted_column(self, COL_H, ROW0)
-		key.set_on(launchable)
-		queue_redraw()
-		return
-	_word("HARDPOINTS", UITheme.FS_SMALL, COL_H, ROW0 - 4, COLD)
-	for i in SLOTS.size():
-		var s: ModuleData.Slot = SLOTS[i]
-		var row := _word("%d %s" % [Run.slots_for(s), ModuleData.slot_name(s).to_upper()],
-			UITheme.FS_SMALL, COL_H, ROW0 + 8 + i * 11, ICE)
-		row.mouse_filter = Control.MOUSE_FILTER_PASS
-		row.tooltip_text = Widgets.tip(str(ChassisSelect.MOUNT_TIP[ModuleData.slot_name(s)]))
-	_word("HAND", UITheme.FS_SMALL, COL_H, ROW0 + 46, COLD)
-	var hand := _word("%d CARDS A TURN" % Run.hand_size(), UITheme.FS_SMALL, COL_H + 34, ROW0 + 46, ICE)
-	hand.mouse_filter = Control.MOUSE_FILTER_PASS
-	hand.tooltip_text = Widgets.tip(str(ChassisSelect.MOUNT_TIP["hand"]))
-	var perk: Dictionary = DB.hull_perks.get(Run.hull.perk_id, {})
-	if not perk.is_empty():
-		_word(String(perk.name).to_upper(), UITheme.FS_SMALL, COL_H, ROW0 + 64, COLD)
-		_word(String(perk.text).to_upper().trim_suffix("."), UITheme.FS_SMALL, COL_H, ROW0 + 76, ICE)
+	YardInfo.fitted_column(self, m)
 	key.set_on(launchable)
 	queue_redraw()
 

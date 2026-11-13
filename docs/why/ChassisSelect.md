@@ -650,3 +650,27 @@ on each banner, from byte masks, and never on a pick. `-- sheet=YardPerfTest` ho
 per-pixel map for every set, hulls and tarps.
 ```
 
+
+## What a ship comes with
+
+Jon, Nov 12, on the hull pick: "In the bottom left, it might be helpful to show
+the manufacturer information", and "Let's also show the installed modules (I
+think it's just the weapons?)... they do come with a standard deck of cards."
+A chassis launches with more than its weapons: `Run.fit_chassis` fits the
+maker's weapon and the four yard parts of `DB.GENERIC_KIT` (Mining Laser, Hull
+Plating, Signal Board, Coolant Line) where the mounts and the reactor allow, and
+`_top_up_deck` fills spare mounts until the deck is the hand plus four: ten cards
+for most, twelve for Cygnet's light, nine for Verity's (its parts grant one each).
+
+Of three options (B1 in the band, B2 on the ship, B3 a dossier plate that had to
+sit over another ship) Jon picked B2, with B1's parts list "without the little
+box to the left". `YardInfo` draws it: the band's left column is the hull's name,
+the maker's emblem and name, its slogan and, once picked, its identity line (while
+only pointed at, CLICK TO MAKE IT YOURS stands there instead, so the column fits);
+the hardpoint column is FITTED, each part's name and slot, the mounts left, the
+hand, the deck and the hull's perk, wrapped to the card stack's edge. The weapons
+are bolted on every open hull in the yard (`MountPoints`, passive, weapons only, as
+on the Shipyard deck), the kit fitted on `Run` for a moment and put back, and the
+sharp copy over the blur carries them. The deck is a stack of three card backs
+in the maker's colours by LAUNCH; pointing at it, or at the DECK line, lays the
+whole deck out over the floor at the hand's size. `YardInfoFit` box-tests it.

@@ -1,10 +1,18 @@
 extends Node
 
-## TRIAL: the `-- yardinfo=B1|B2|B3` band and dossier box-tested, every word,
-## icon, stack, key and chip against every other and the hulls, for each
-## open manufacturer's three ships picked. `-- sheet=YardInfoFit yardinfo=B1`.
+## WHAT A SHIP COMES WITH, BOX-TESTED (Jon's B2, Nov 12): every open maker's three
+## ships picked in turn; the band's words, emblem, stack, LAUNCH and chips clear
+## of each other and inside the band; the fitted list is what launches; the
+## weapons on the hull and its sharp copy. `-- sheet=YardInfoFit`
+## Why: docs/why/ChassisSelect.md#what-a-ship-comes-with
 
-var _bad: Array[String] = []
+var harness := Harness.new()
+
+
+func _ok(what: String, c: bool) -> bool:
+	if not c:
+		harness._fail(what)
+	return c
 
 
 func _ready() -> void:
@@ -13,55 +21,98 @@ func _ready() -> void:
 
 func _run() -> void:
 	await Harness.frames(get_tree(), 2)
+	var dev_was := DevMode.enabled
 	if DevMode.available:
 		DevMode.enabled = true
 	Router.new_run(4242)
 	await Harness.frames(get_tree(), 6)
 	var cs := Router.current as ChassisSelect
-	var checked := 0
+	if not _ok("the hull pick opens", cs != null):
+		_finish(dev_was)
+		return
+	var picks := 0
+	var bad := 0
 	for m: StringName in DB.STARTABLE:
 		cs._select(DB.STARTABLE.find(m))
+		if not cs.open():
+			continue
 		for w: HullData.Weight in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			cs._pick_weight(w)
 			await Harness.frames(get_tree(), 3)
-			_fit(cs, "%s %s" % [m, HullData.weight_name(w)])
-			checked += 1
-	print("yardinfofit %s: %d picks, %d overlaps" % [YardInfoTrial.opt(), checked, _bad.size()])
-	for b in _bad.slice(0, 20):
-		print("  OVER " + b)
-	get_tree().quit(0 if _bad.is_empty() else 1)
+			var tag := "%s %s" % [m, HullData.weight_name(w)]
+			bad += _fit(cs, tag)
+			_loadout(cs, w, tag)
+			picks += 1
+	print("  yardinfofit: %d picks, %d boxes out of place" % [picks, bad])
+	_ok("every open maker's three ships were picked (%d)" % picks, picks >= 3)
+	_finish(dev_was)
 
 
-func _fit(cs: ChassisSelect, when: String) -> void:
+func _finish(dev_was: bool) -> void:
+	DevMode.enabled = dev_was
+	harness.verdict("yardinfofit")
+	get_tree().quit(harness.code())
+
+
+## Every box on the band against every other and against the band's own box.
+func _fit(cs: ChassisSelect, when: String) -> int:
 	var boxes: Array[Rect2] = []
 	var names: Array[String] = []
 	for n in cs._band.find_children("*", "Control", true, false):
 		var c := n as Control
-		if not c.is_visible_in_tree() or c is YardInfoTrial.DeckStrip or c.get_parent() is YardInfoTrial.DeckStrip:
+		if not c.is_visible_in_tree() or _in_strip(c):
 			continue
 		if c is Label and (c as Label).text.strip_edges() != "":
 			boxes.append(_ink(c as Label))
-			names.append((c as Label).text.left(18))
-		elif c is YardInfoTrial.PartIcon or c is YardInfoTrial.DeckStack or c is YardInfoTrial.Emblem or c is Button:
+			names.append((c as Label).text.left(20))
+		elif c is YardInfo.DeckStack or c is YardInfo.Emblem or c is Button:
 			boxes.append(c.get_global_rect())
-			names.append(c.get_class() if not (c is Button) else (c as Button).text)
-	var d := cs.get_node_or_null(^"Dossier") as Control
-	var things: Array[Rect2] = []
-	for s: YardStandSet in cs._yard.sets.values():
-		things.append(Rect2(s.thing))
+			names.append((c as Button).text if c is Button else String(c.get_script().get_global_name()))
+	var band := Rect2(YardBand.BAND)
+	var bad := 0
 	for i in boxes.size():
+		# (the developer's grade chips hang 2 px under the band, as they did before)
+		if not band.grow(0.5).encloses(boxes[i]) and not names[i] in ["C", "B", "A", "S"]:
+			bad += 1
+			_ok("%s: %s inside the band (%s in %s)" % [when, names[i], boxes[i], band], false)
 		for j in range(i + 1, boxes.size()):
-			if _hit(boxes[i], boxes[j]) and not boxes[i].encloses(boxes[j]) and not boxes[j].encloses(boxes[i]):
-				_bad.append("%s: %s x %s" % [when, names[i], names[j]])
-		if not Rect2(0, 0, 960, 540).encloses(boxes[i]):
-			_bad.append("%s: %s off screen" % [when, names[i]])
-	if d != null:
-		var dr := Rect2(d.position.x, d.position.y, d.size.x, d.size.y)
-		for t in things:
-			if _hit(dr, t):
-				_bad.append("%s: the dossier over a hull at %s" % [when, t])
-		if dr.end.y > 404.0:
-			_bad.append("%s: the dossier into the band" % when)
+			var r := boxes[i].intersection(boxes[j])
+			if r.size.x > 0.0 and r.size.y > 0.0:
+				bad += 1
+				_ok("%s: %s clear of %s" % [when, names[i], names[j]], false)
+	return bad
+
+
+## The fitted list is what launches; the weapons are on the hull and its sharp copy.
+func _loadout(cs: ChassisSelect, w: HullData.Weight, when: String) -> void:
+	var said: Array[String] = []
+	for c in cs._band.find_children("*", "Label", true, false):
+		said.append((c as Label).text)
+	var parts := true
+	for p: ModuleData in Run.installed:
+		parts = parts and said.has(p.name.to_upper())
+	_ok("%s: the band names every fitted part, the hand and the deck" % when, parts
+		and said.has("DECK %d CARDS" % Run.deck_size()) and said.has("HAND %d A TURN" % Run.hand_size()))
+	var s: YardStandSet = cs._yard.set_of(w)
+	var guns := 0
+	if s.mounts != null:
+		for p: ModuleData in s.mounts.fitted:
+			guns += 1 if p.slot == ModuleData.Slot.WEAPON else 0
+	_ok("%s: the hull carries its weapons (%d)" % [when, guns], guns > 0 and s.mounts.is_inside_tree())
+	var copy := false
+	for c in cs._yard._ghost.get_children():
+		copy = copy or c is MountPoints
+	_ok("%s: and so does its sharp copy over the blur" % when, copy)
+	_ok("%s: the deck's spread is the deck" % when, YardInfo.deck().size() == Run.deck_size())
+
+
+static func _in_strip(c: Node) -> bool:
+	var n := c
+	while n != null:
+		if n is YardInfo.DeckStrip:
+			return true
+		n = n.get_parent()
+	return false
 
 
 ## A label's box as its text is set, not its control's.
@@ -70,11 +121,6 @@ static func _ink(l: Label) -> Rect2:
 	var px := l.get_theme_font_size(&"font_size")
 	var w := f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
 	if l.autowrap_mode != TextServer.AUTOWRAP_OFF and l.custom_minimum_size.x > 0.0:
-		var lines := YardInfoTrial._lines(l.text, int(l.custom_minimum_size.x))
-		return Rect2(l.global_position, Vector2(minf(w, l.custom_minimum_size.x), lines * YardInfoTrial.LINE))
+		var n := YardInfo.lines(l.text, int(l.custom_minimum_size.x))
+		return Rect2(l.global_position, Vector2(minf(w, l.custom_minimum_size.x), n * YardInfo.LINE - 3))
 	return Rect2(l.global_position, Vector2(w, float(px) + 2.0))
-
-
-static func _hit(a: Rect2, b: Rect2) -> bool:
-	var r := a.intersection(b)
-	return r.size.x > 0.0 and r.size.y > 0.0

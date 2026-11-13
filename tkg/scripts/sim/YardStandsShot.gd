@@ -14,6 +14,7 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	YardInfo.hold_open = OS.get_cmdline_user_args().has("deckopen")
 	if Harness.arg("pin", "") != "":
 		YardScene.pin_clock = float(Harness.arg("pin", "6"))
 	await Harness.frames(get_tree(), 2)

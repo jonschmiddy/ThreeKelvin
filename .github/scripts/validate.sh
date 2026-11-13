@@ -1480,6 +1480,14 @@ gate_sheet yardseattest 120 \
 	--headless --path "$PROJECT" -- sheet=YardSeatTest
 }
 
+unit_yardinfofit() {
+step "What a picked ship comes with fits the band"
+# Jon's B2 (Nov 12): the maker, the fitted parts spelled out, the hand and the
+# deck, every open maker's three ships picked; nothing overlaps, nothing leaves
+# the band, the weapons are on the hull and on its sharp copy over the blur.
+gate_sheet yardinfofit 180 	"what a ship comes with fits the band" 	"the ship pick's maker block, parts list or deck stack overlaps or leaves the band" 	--headless --path "$PROJECT" -- sheet=YardInfoFit
+}
+
 unit_enemyarttest() {
 step "Every enemy wears Jon's kept ships, and every pack fits"
 # The enemies are kept PixelLab ships (`art/sprites/enemies`, from

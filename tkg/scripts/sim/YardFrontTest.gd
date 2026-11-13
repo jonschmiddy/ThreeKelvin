@@ -115,10 +115,12 @@ func _pick(cs: ChassisSelect) -> void:
 	await _click(cs, _mid(medium))
 	_ok("a click picks it: LAUNCH appears, on", cs._picked == int(HullData.Weight.MEDIUM) and cs.launchable()
 		and cs._band.key.visible and not cs._band.key.disabled and not _band_says(cs, "CLICK TO MAKE IT YOURS"))
-	_ok("the band spells the hardpoints and the hand out", _band_says(cs, "%d WEAPON" % Run.slots_for(ModuleData.Slot.WEAPON))
-		and _band_says(cs, "%d SYSTEM" % Run.slots_for(ModuleData.Slot.SYSTEM))
-		and _band_says(cs, "%d UTILITY" % Run.slots_for(ModuleData.Slot.UTILITY))
-		and _band_says(cs, "%d CARDS A TURN" % Run.hand_size()))
+	# the fitted parts spelled out, the hand and the deck (Jon's B2, Nov 12)
+	var parts := true
+	for p: ModuleData in Run.installed:
+		parts = parts and _band_says(cs, p.name.to_upper())
+	_ok("the band spells the fitted parts, the hand and the deck out", parts
+		and _band_says(cs, "HAND %d A TURN" % Run.hand_size()) and _band_says(cs, "DECK %d CARDS" % Run.deck_size()))
 	var block := Harness.first(cs._band, func(n: Node) -> bool: return n is AttrBlock) as AttrBlock
 	_ok("the seven attributes are the picker's block", block != null and block._rows.size() == Run.attributes().size()
 		and Run.attributes().size() == 7)
