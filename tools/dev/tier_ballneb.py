@@ -2,15 +2,17 @@
 them like the other galaxies have?"). An elliptical has almost no gas, so the chart draws
 none in it, and forcing gas or young gas on gave only specks. So each ball strip takes the
 gas of a disc strip (tier 4 for 7, 5 for 8, 6 for 9): every ball cell looks up the disc cell
-at the same place on its own ellipse, in the frame at the same point of the turn, and where
-the disc has gas (bluer than red, off its core) the ball takes that colour by W. The disc's
-gas turns once a loop, as the ball does, so it turns with it. Pixel for pixel, no blur.
+at the same place on its own ellipse in the disc's first frame, and where the disc has gas
+(bluer than red, off its core) the ball takes that colour by W. That one map then turns
+rigidly with the ball, counter-clockwise, once a loop, so every patch stays put on the ball
+(Jon: sampled frame by frame, "the nebula aren't persistent"). Whole cells, no blur.
 
 usage: uv run --with pillow --with numpy python tools/dev/tier_ballneb.py RAMPED_DIR OUT_DIR W
   RAMPED_DIR: tier_ramp.py's finished strips (tiers 4 to 9). The gas goes on last, after the
   ramp's colour memory, which otherwise held the gas back in steps that read as turning the
   wrong way; OUT_DIR gets 7 to 9.
 """
+import math
 import os
 import sys
 
@@ -39,30 +41,74 @@ def shape(fr):
     return cx, cy, max(rx, 1.0), max(ry, 1.0)
 
 
-def mix(ball, disc, w):
-    bcx, bcy, brx, bry = shape(ball[0])
-    dcx, dcy, drx, dry = shape(disc[0])
-    hh, ww = ball[0].shape[:2]
+def gas_map(ball0, disc0):
+    """The ball's one gas map, built once from the disc's first frame: each ball cell's disc
+    colour, and whether it is gas (bluer than red, off both cores)."""
+    bcx, bcy, brx, bry = shape(ball0)
+    dcx, dcy, drx, dry = shape(disc0)
+    hh, ww = ball0.shape[:2]
     yy, xx = np.mgrid[0:hh, 0:ww]
     # the disc's gas lies round and below its core (its glow stands above it): the ball's upper
-    # half samples the lower side turned half round (x and y both flipped), which keeps the
-    # turn's sense; flipping y alone turned the upper half's gas the wrong way (Jon, Nov 12)
+    # half samples the lower side turned half round (x and y both flipped)
     flip = np.where(yy < bcy, -1.0, 1.0)
     xd = np.clip(np.round(dcx + flip * (xx - bcx) / brx * drx).astype(int), 0, ww - 1)
     yd = np.clip(np.round(dcy + flip * (yy - bcy) / bry * dry).astype(int), 0, hh - 1)
+    d = disc0[yd, xd]
+    dcore = np.hypot(xd - dcx, (yd - dcy) * 2.0) <= 4.0
+    gas = (d[..., 3] > 0) & (d[..., 2] > d[..., 0] + 8) & ~dcore
+    return d[..., :3], gas, (bcx, bcy, brx, bry)
+
+
+def turned(colour, gas, shp, ang):
+    """The map turned by ang counter-clockwise on the ball's own ellipse, whole cells."""
+    bcx, bcy, brx, bry = shp
+    hh, ww = gas.shape
+    yy, xx = np.mgrid[0:hh, 0:ww]
+    ex, ey = (xx + 0.5 - bcx) / brx, -(yy + 0.5 - bcy) / bry      # y up
+    c, s_ = math.cos(-ang), math.sin(-ang)
+    sx = ex * c - ey * s_
+    sy = ex * s_ + ey * c
+    xi = np.round(bcx + sx * brx - 0.5).astype(int)
+    yi = np.round(bcy - sy * bry - 0.5).astype(int)
+    inside = (xi >= 0) & (xi < ww) & (yi >= 0) & (yi < hh)
+    xi, yi = np.clip(xi, 0, ww - 1), np.clip(yi, 0, hh - 1)
+    return colour[yi, xi], gas[yi, xi] & inside
+
+
+def mix(ball, disc, w):
+    """The one map, turned rigidly with the ball, once a loop: frame n would be frame 0."""
+    colour, gas0, shp = gas_map(ball[0], disc[0])
+    bcx, bcy = shp[0], shp[1]
+    hh, ww = gas0.shape
+    yy, xx = np.mgrid[0:hh, 0:ww]
     # the ball's own core is left alone, so it holds still
     bcore = np.hypot(xx - bcx, (yy - bcy) * 2.0) <= 4.0
+    # the gas's own colour, set once against the ball's first frame, so a patch keeps its
+    # colour as it goes round (mixed against each frame, the ball's churn showed through)
+    lit = ball[0][..., :3] * (1 - w) + colour * w * 1.15
+    if WARM:
+        lit = warm(lit, ball[0])
     out = []
-    nb, nd = len(ball), len(disc)
+    n = len(ball)
     for k, b in enumerate(ball):
-        d = disc[int(round(k / nb * nd)) % nd][yd, xd]
-        dcore = np.hypot(xd - dcx, (yd - dcy) * 2.0) <= 4.0
-        gas = (b[..., 3] > 0) & (d[..., 3] > 0) & (d[..., 2] > d[..., 0] + 8) & ~dcore & ~bcore
+        col, gas = turned(lit, gas0 & (ball[0][..., 3] > 0), shp, 2 * math.pi * k / n)
+        gas = gas & (b[..., 3] > 0) & ~bcore
         f = b.copy()
-        # the gas keeps the ball's light: its colour, at least as bright as the ball's dimmest
-        f[gas, :3] = b[gas, :3] * (1 - w) + d[gas, :3] * w * 1.15
+        f[gas, :3] = col[gas]
         out.append(f)
     return out
+
+
+WARM = os.environ.get("BALL_GAS_WARM") == "1"
+
+
+def warm(lit, b0):
+    """The gas in the ball's own warm palette: its brightness, the ball's hue (a test against
+    the borrowed blue; Jon likes the balls hot)."""
+    keep = b0[..., 3] > 0
+    hue = np.median(b0[keep][:, :3], axis=0)
+    hue = hue / max(hue.max(), 1.0)
+    return np.clip(lit.max(-1, keepdims=True) * hue[None, None, :] * 1.05, 0, 255)
 
 
 def main():
