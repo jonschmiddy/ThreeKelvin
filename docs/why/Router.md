@@ -816,23 +816,9 @@ Above `func option_resolved(index: int, result: StringName = &"done") -> void:`:
 ```text
 Mark one option spent without opening anything.
 
-What the sector calls when a row resolved IN PLACE. The bookkeeping is the
-same as `event_resolved`'s and lives in one function so the two paths cannot
-drift: an option spends itself, and the system is finished only when nothing
-is left in it.
-```
-
-## Claiming options
-
-Above `func claim_open_option() -> bool:`:
-
-```text
-Ask the party for the option this event screen is standing in, BEFORE the
-screen rolls or pays anything. The other half of the seam `event_resolved`
-records: consumption is arbitrated here through `Run.take_option`, because
-an option two ships can race for must be asked for, not assumed -- roll
-first and apologise afterwards, and the loser has already pocketed the
-payout.
+What the sector calls when a row resolved IN PLACE. The bookkeeping is in
+`event_resolved`: an option spends itself, and the system is finished only when
+nothing is left in it.
 ```
 
 ## One only
