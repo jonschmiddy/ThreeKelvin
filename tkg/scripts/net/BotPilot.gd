@@ -221,7 +221,7 @@ func _fly() -> void:
 		if verbose:
 			print("[bot] %s -> %s (%s, danger %d)" % [
 				MapGen.star_name(n), MapGen.star_name(Run.map[pick]),
-				BotBoard._node_type(Run.map[pick].type), Run.map[pick].danger])
+				BotBoard.node_type_name(Run.map[pick].type), Run.map[pick].danger])
 		Run.jump_to(pick)
 		await _tree.process_frame
 

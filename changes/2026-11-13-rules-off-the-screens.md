@@ -1,0 +1,1 @@
+- **Changed** — Run state and rules helpers (where each ship is parked, the skill-check colours, the event text lines, the pilot model) moved out of screen and test code; nothing changes in play.

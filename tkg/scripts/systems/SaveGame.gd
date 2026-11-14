@@ -672,8 +672,8 @@ static func _standing_to() -> Dictionary:
 ## Why: docs/why/SaveGame.md#parked-ship-rows
 static func _parked_to() -> Array:
 	var out: Array = []
-	for k in SystemMapScreen._parked:
-		var e: Dictionary = SystemMapScreen._parked[k]
+	for k in ParkedShips.spots:
+		var e: Dictionary = ParkedShips.spots[k]
 		var p: Vector2 = e.get("p", Vector2.ZERO)
 		var v: Vector2 = e.get("v", Vector2.ZERO)
 		var row := {index = int(k), at = int(e.get("at", -9)), p = [p.x, p.y], v = [v.x, v.y],
@@ -691,7 +691,7 @@ static func _parked_to() -> Array:
 static func _places_from(d: Dictionary, systems: int) -> void:
 	var mr := int(d.get("moored_right", -1))
 	Moored.moor(mr if mr >= 0 and mr < systems else -1)
-	SystemMapScreen._parked = _parked_from(d.get("parked", []), systems)
+	ParkedShips.spots = _parked_from(d.get("parked", []), systems)
 
 
 ## The rows back into the record the map reads, in its own types. A row for a

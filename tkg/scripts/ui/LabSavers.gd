@@ -207,11 +207,11 @@ var _g_last := 1.0
 # ================================================================== the kit
 
 func ink(a: float) -> Color:
-	return g._ink(clampf(a, 0.0, 1.0))
+	return g.tint_ink(clampf(a, 0.0, 1.0))
 
 
 func cue() -> Color:
-	return g._ink(g.cue_ink())
+	return g.tint_ink(g.cue_ink())
 
 
 ## The hover, eased in over `dur` (1 while signing in, 0 at rest).
@@ -412,7 +412,7 @@ func line(a: Vector2i, b: Vector2i, c: Color, every: int = 1, off: int = 0) -> v
 
 
 func text(x: int, y: int, s: String, c: Color, sz: int = 8) -> void:
-	g._text(x, y, s, c, sz)
+	g.leaf_text(x, y, s, c, sz)
 
 
 ## Words with "·" in them: Silkscreen's own dot if it has one, else drawn.
@@ -455,7 +455,7 @@ func fit(s: String, wmax: int, sz: int = 8) -> String:
 
 ## The owner's mark and short name, a header at (x, y) (the mark 11 px).
 func head(x: int, y: int, extra: String = "") -> int:
-	g._mark(x + 5, y + 5, 11, 1.0)
+	g.owner_mark(x + 5, y + 5, 11, 1.0)
 	var s := g.owner_short() + extra
 	text(x + 14, y + 3, s, ink(0.85))
 	return x + 14 + LabBoard.tw(s)
@@ -477,8 +477,8 @@ func plate(cx: int, top: int, lines: Array, open: float = 1.0) -> Rect2i:
 
 func plate_draw(r: Rect2i, lines: Array, full: bool) -> void:
 	g.draw_rect(Rect2(r), LabBoard.BG)
-	g._frame_box(r, ink(0.45))
-	g._brackets(r.grow(2), 4, ink(0.9))
+	g.frame_box(r, ink(0.45))
+	g.corner_brackets(r.grow(2), 4, ink(0.9))
 	g.leaves.append(["plate", r.grow(2)])
 	if not full:
 		return
@@ -534,12 +534,12 @@ func _paint_b() -> void:
 	# the owner, its mark at twice the size, in the corner
 	var mcx := x0 + 14
 	var mcy := y0 + h - 14
-	g._mark(mcx, mcy, 22, 2.0)
+	g.owner_mark(mcx, mcy, 22, 2.0)
 	var tx := mcx + 14
 	text(tx, mcy - 7, g.owner_short(), ink(0.9))
 	text(tx, mcy + 3, "RESEARCH TERMINAL", ink(0.55))
 	_keep.append(Rect2i(mcx - 13, mcy - 13, 14 + 26 + LabBoard.tw("RESEARCH TERMINAL"), 27))
-	g._data_corner()
+	g.data_corner()
 	var ds := "DATA %d" % g.data
 	_keep.append(Rect2i(a.end.x - 8 - LabBoard.tw(ds), y0 + 2, LabBoard.tw(ds) + 6, 10))
 	# the plate, pointed at: under the hub
@@ -867,7 +867,7 @@ func _paint_1() -> void:
 		# Cygnet's scope closes a hex aperture on the target, not brackets
 		_hex_line(Vector2(ai), 6.0, acc(lk))
 	else:
-		g._brackets(Rect2i(ai - Vector2i(5, 5), Vector2i(11, 11)), 3, acc(lk) if cross else ink(lk))
+		g.corner_brackets(Rect2i(ai - Vector2i(5, 5), Vector2i(11, 11)), 3, acc(lk) if cross else ink(lk))
 	_circ_r = -1
 	# the scope's rim and its ticks
 	var bpr := _painter()
@@ -1128,7 +1128,7 @@ func _paint_2() -> void:
 				px(x, scan_y, acc(0.45 * dim) if sa else ink(0.3 * dim))
 		for x in [box.position.x - 2, box.position.x - 1, box.end.x, box.end.x + 1]:
 			px(x, scan_y, acc(0.95 * dim) if sa else ink(0.95 * dim))
-	g._brackets(box, 5, ink(0.45 * dim))
+	g.corner_brackets(box, 5, ink(0.45 * dim))
 	# THE COLUMN
 	var cx0 := box.end.x + 8
 	var cw := x0 + w - 4 - cx0
@@ -1299,7 +1299,7 @@ func _paint_3() -> void:
 	var every := float(dz.s3_every)
 	var sa := bool(dz.s3_acc)
 	if String(dz.s3_full) != "":
-		g._mark(x0 + 9, y0 + 8, 11, 1.0)
+		g.owner_mark(x0 + 9, y0 + 8, 11, 1.0)
 		text(x0 + 18, y0 + 6, String(dz.s3_full), ink(0.85))
 	else:
 		head(x0 + 4, y0 + 3, String(dz.s3_title))
@@ -1374,7 +1374,7 @@ func _paint_3() -> void:
 		if yy - 3 >= top:
 			var r := Rect2i(x0 + 4, yy - 3, w - 8, pitch)
 			g.draw_rect(Rect2(r), LabBoard.BG)
-			g._frame_box(r, ink(0.5))
+			g.frame_box(r, ink(0.5))
 			g.leaves.append(["plate", r])
 			text(x0 + 10, yy, "THIS TERMINAL", ink(0.6))
 			var s := "PILOT %s · CLICK TO SIGN IN" % ship()
@@ -1471,7 +1471,7 @@ func _paint_4() -> void:
 	var dz := dress()
 	var title := String(dz.s4_full) if String(dz.s4_full) != "" else g.owner_short() + String(dz.s4_title)
 	if String(dz.s4_full) != "":
-		g._mark(x0 + 9, y0 + 8, 11, 1.0)
+		g.owner_mark(x0 + 9, y0 + 8, 11, 1.0)
 		text(x0 + 18, y0 + 6, title, ink(0.85))
 	else:
 		head(x0 + 4, y0 + 3, String(dz.s4_title))
@@ -1535,7 +1535,7 @@ func _paint_4() -> void:
 		var ac := s4a and (not bool(dz.s4_own) or m.manufacturer == g.owner_id)
 		g.draw_rect(Rect2(p.x - 1, p.y - 1, 3, 3), acc((1.0 if on else 0.55) * dim) if ac else ink((1.0 if on else 0.55) * dim))
 		if on:
-			g._brackets(Rect2i(p - Vector2i(5, 5), Vector2i(11, 11)), 3, acc(0.95 * dim) if ac else ink(0.95 * dim))
+			g.corner_brackets(Rect2i(p - Vector2i(5, 5), Vector2i(11, 11)), 3, acc(0.95 * dim) if ac else ink(0.95 * dim))
 		# its augment slot: a diamond, filled once it is used
 		var dp := p + Vector2i(5, -6)
 		var dcol: Color = (dz.acc as Color) if ac else g.tint
@@ -1744,7 +1744,7 @@ func _s5_card(cd: Array, a: Rect2i, tr: float, leaf: bool) -> void:
 		var by := y0 + (h - 12 - n) / 2
 		var r := Rect2i(bx - 1 - n / 2 + n / 2, by - 1, n + 2, n + 2)
 		if _clip.encloses(r):
-			g._mark(bx + n / 2, by + n / 2, n, s)
+			g.owner_mark(bx + n / 2, by + n / 2, n, s)
 			# a glint runs over the mark now and then
 			var gk := fposmod(tr, S5_EACH) / 1.2
 			if gk < 1.0:
@@ -1770,7 +1770,7 @@ func _s5_card(cd: Array, a: Rect2i, tr: float, leaf: bool) -> void:
 	_s5_text(x0 + (w - LabBoard.tw(l3s)) / 2, by + lh * 2 + 7, l3s, ink(0.6), 8, leaf)
 	# the owner's mark, small, top left on every card
 	if _clip.encloses(Rect2i(x0 + 3, y0 + 3, 13, 13)):
-		g._mark(x0 + 9, y0 + 9, 11, 1.0)
+		g.owner_mark(x0 + 9, y0 + 9, 11, 1.0)
 
 
 func _s5_hello(a: Rect2i) -> void:
@@ -1779,7 +1779,7 @@ func _s5_hello(a: Rect2i) -> void:
 	var w := a.size.x
 	var h := a.size.y
 	if _clip.encloses(Rect2i(x0 + 3, y0 + 3, 13, 13)):
-		g._mark(x0 + 9, y0 + 9, 11, 1.0)
+		g.owner_mark(x0 + 9, y0 + 9, 11, 1.0)
 	var l1 := "WELCOME BACK,"
 	var l2 := "PILOT %s" % ship()
 	var sz := 16 if LabBoard.tw(l2, 16) <= w - 16 else 8
@@ -2327,7 +2327,7 @@ func _paint_k2() -> void:
 	if into < float(nh) * K2_HOLE + 0.4:
 		line(Vector2i(ox - 4, pq.y), Vector2i(ox + pw + 3, pq.y), ink(0.3 * dk), 2)
 		line(Vector2i(pq.x, oy - 2), Vector2i(pq.x, oy + phh + 1), ink(0.3 * dk), 2)
-		g._brackets(Rect2i(pq - Vector2i(4, 4), Vector2i(9, 9)), 3, ink(0.95 * dk))
+		g.corner_brackets(Rect2i(pq - Vector2i(4, 4), Vector2i(9, 9)), 3, ink(0.95 * dk))
 	# THE READING ROW: the part, and the hole in hand (or the sign-in)
 	var ry := a.end.y - 19
 	g.draw_rect(Rect2(x0 + 4, ry - 3, w - 8, 1), ink(0.25))
@@ -2573,7 +2573,7 @@ func _paint_p1() -> void:
 	for i in (60 if big else 28):
 		var q := plot.position + Vector2i(rng.randi_range(2, plot.size.x - 3), rng.randi_range(2, plot.size.y - 3))
 		px(q.x, q.y, ink((0.08 + 0.2 * rng.randf()) * dim))
-	g._brackets(plot, 5, ink(0.4 * dim))
+	g.corner_brackets(plot, 5, ink(0.4 * dim))
 	var inner := plot.grow(-8)
 	# the station this lab is on, in the middle, and two range rings round it
 	var mid := plot.get_center()
@@ -2629,7 +2629,7 @@ func _paint_p1() -> void:
 	var claimed := not cur.is_empty() and int(cur.st) == 2 and float(cur.tau) >= P1_M + P1_D + P1_FILE
 	if not cur.is_empty():
 		var q: Vector2i = cur.q
-		g._brackets(Rect2i(q - Vector2i(4, 4), Vector2i(10, 10)), 3, pc(P_BRASS, dim) if claimed else ink(0.95 * dim))
+		g.corner_brackets(Rect2i(q - Vector2i(4, 4), Vector2i(10, 10)), 3, pc(P_BRASS, dim) if claimed else ink(0.95 * dim))
 	# THE COLUMN: the ship tracked, its speed falling, and the claim; or the sign-in
 	var pitch := 12 if big else 9
 	var y := y0 + 20
@@ -3161,7 +3161,7 @@ func _paint_r2() -> void:
 	_r_right(a, " SIGNATURE TEST", "TEST %d" % test)
 	# THE WATERFALL: a row a twelfth of a second, newest on top
 	var wf := Rect2i(x0 + 8, y0 + 20, w - 16, a.end.y - 27 - (y0 + 20))
-	g._brackets(wf.grow(2), 4, ink(0.45 * dim))
+	g.corner_brackets(wf.grow(2), 4, ink(0.45 * dim))
 	var now_row := int(floorf(tr * R2_RATE))
 	var cx := float(wf.position.x) + float(wf.size.x) * 0.5
 	var drift := float(wf.size.x) * 0.03
@@ -3316,7 +3316,7 @@ func _paint_r3() -> void:
 	g.draw_rect(Rect2(cx - 1, beam_y + 2, 2, 2), ink(0.6 * dim))
 	var by := beam_y + 4
 	g.draw_rect(Rect2(cx - dw / 2, by, dw, dh), ink(0.26 * dim))
-	g._frame_box(Rect2i(cx - dw / 2, by, dw, dh), ink(0.7 * dim))
+	g.frame_box(Rect2i(cx - dw / 2, by, dw, dh), ink(0.7 * dim))
 	for yy in range(by + 6, by + dh - 1, 3):
 		line(Vector2i(cx - dw / 2 + 2, yy), Vector2i(cx + dw / 2 - 3, yy), ink(0.42 * dim))
 	g.draw_rect(Rect2(cx - dw / 2, by + 2, dw / 2 - 1, 2), _red(1.0 * dim))
@@ -3589,11 +3589,11 @@ func _paint_c1() -> void:
 	if out:
 		# the empty cell, bracketed over its neighbours
 		var dc := cells[dark]
-		g._brackets(Rect2i(dc - Vector2i(r + 3, hh + 3), Vector2i(2 * r + 7, 2 * hh + 7)), 3, LabBoard.mixc(LabBoard.BG, LabBoard.BAD, 0.8 * dim))
+		g.corner_brackets(Rect2i(dc - Vector2i(r + 3, hh + 3), Vector2i(2 * r + 7, 2 * hh + 7)), 3, LabBoard.mixc(LabBoard.BG, LabBoard.BAD, 0.8 * dim))
 	if pl.has_area():
 		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
 		var mc2 := cells[mid]
-		g._brackets(Rect2i(mc2 - Vector2i(r + 3, hh + 3), Vector2i(2 * r + 7, 2 * hh + 7)), 3, cue())
+		g.corner_brackets(Rect2i(mc2 - Vector2i(r + 3, hh + 3), Vector2i(2 * r + 7, 2 * hh + 7)), 3, cue())
 	# THE FOOT: the roll call's one line
 	var fy := a.end.y - 9
 	g.draw_rect(Rect2(x0 + 4, fy - 4, w - 8, 1), ink(0.25))
@@ -3733,10 +3733,10 @@ func _paint_c2() -> void:
 			elif p.distance_to(cells[i]) > 2.0:
 				px(q.x, q.y, om((0.6 - 0.08 * float(tk)) * dim))
 	if hv > 0.0:
-		g._brackets(Rect2i(cb - Vector2i(4, 4), Vector2i(9, 9)), 3, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, hv))
+		g.corner_brackets(Rect2i(cb - Vector2i(4, 4), Vector2i(9, 9)), 3, LabBoard.mixc(LabBoard.BG, LabBoard.HOT, hv))
 		g.draw_rect(Rect2(cb.x - 1, cb.y - 1, 3, 3), LabBoard.mixc(LabBoard.BG, LabBoard.HOT, hv))
 	_clip = old
-	g._brackets(box, 5, ink(0.45 * dim))
+	g.corner_brackets(box, 5, ink(0.45 * dim))
 	# THE COLUMN
 	var cx0 := box.end.x + 8
 	var cw := a.end.x - 4 - cx0
@@ -3839,7 +3839,7 @@ func _paint_c3() -> void:
 	var ci := Vector2i(c.round())
 	px(ci.x, ci.y, om(0.9 * dim))
 	_clip = old
-	g._brackets(box, 5, ink(0.45 * dim))
+	g.corner_brackets(box, 5, ink(0.45 * dim))
 	if hv > 0.0:
 		# locked on the middle cell
 		var old2 := _clip
@@ -4234,7 +4234,7 @@ func _paint_ver3() -> void:
 	var stamp := Rect2i(body.end.x - 13 - sgw - 4, body.position.y - 1, sgw + 4 + 13, 13)
 	_keep.append(stamp)
 	if p >= VR3_STAMP and dd > 0.3:
-		g._mark(body.end.x - 6, body.position.y + 5, 11, 1.0)
+		g.owner_mark(body.end.x - 6, body.position.y + 5, 11, 1.0)
 		text(body.end.x - 13 - sgw - 2, body.position.y + 3, sg, _vr_gold(1.0))
 	# THE SETTING OUT: the centre line, the ends, the length, ruled in first
 	var yd := cy + int(hh * rb) + 5
@@ -4515,7 +4515,7 @@ func _paint_cx1() -> void:
 			var an := u * TAU - PI * 0.5
 			var q := Vector2i(_c1_pt(c, an, tr_r).round())
 			px(q.x, q.y, ink(0.85 * hold_k * dim))
-	g._brackets(box, 5, ink(0.45 * dim))
+	g.corner_brackets(box, 5, ink(0.45 * dim))
 	# THE COLUMN: the owner, the culture, its chart, where it stands
 	var cx0 := box.end.x + 8
 	var cw := a.end.x - 4 - cx0
@@ -4837,7 +4837,7 @@ func _paint_cx3() -> void:
 		if ln >= 1.0:
 			px(xb, roundi(q.y), ink(0.9 * dim))
 	_clip = old
-	g._brackets(sr.grow(2), 5, ink(0.45 * dim))
+	g.corner_brackets(sr.grow(2), 5, ink(0.45 * dim))
 	# THE READOUT
 	if hover:
 		plate_draw(pl, lines, pl.size.x >= say_w(String(lines[0][0])) + 8)
@@ -4946,7 +4946,7 @@ func _paint_i1() -> void:
 	var segs := _i1_segs()
 	var ms := _i_manufacturers()
 	head(x0 + 4, y0 + 3, " STATION")
-	g._data_corner()
+	g.data_corner()
 	# THE FOOT: the plate in front named, and under it each manufacturer's count
 	var leg_y := a.end.y - 9
 	var cap_y := leg_y - 15

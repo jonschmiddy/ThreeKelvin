@@ -43,8 +43,7 @@ Inside `run()`, above `if "region" in OS.get_cmdline_user_args():`:
 THE DRAWER HAS THREE STATES AND A SCREENSHOT ONLY EVER CATCHES THE FIRST.
 `open=N` clicks into an option, `take=N` resolves one of its choices, so
 LIST -> OPTION -> RESULT can each be photographed. Driving the screen
-directly rather than faking a pointer, for the same reason the hover shot
-does: there is no pointer.
+directly rather than faking a pointer: there is no pointer.
 `combat` swaps the drawer for the hand, which is the only way to see
 whether the two bands actually match -- they are mutually exclusive, so no
 single frame shows both and the comparison is between two screenshots.

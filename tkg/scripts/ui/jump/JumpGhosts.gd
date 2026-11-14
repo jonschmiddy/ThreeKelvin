@@ -27,8 +27,8 @@ static func bake(h: JumpHull) -> ImageTexture:
 			if c.a > 0.0:
 				a[y * w + x] = 1
 				hl[y * w + x] = (c.r + c.g + c.b) / 3.0
-	var er1 := JumpHull._erode(a, w, hh)
-	var er2 := JumpHull._erode(er1, w, hh)
+	var er1 := JumpHull.erode_mask(a, w, hh)
+	var er2 := JumpHull.erode_mask(er1, w, hh)
 	var seam := h.aux.get_image()
 	var out := Image.create(w, hh, true, Image.FORMAT_RGBA8)
 	for y in hh:

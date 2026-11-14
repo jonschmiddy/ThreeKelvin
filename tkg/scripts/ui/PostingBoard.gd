@@ -295,7 +295,7 @@ func _gallery_draw(w: float, h: float) -> void:
 			row = 0.0
 		if y + sz.y > h - FRAME_W - 16.0:
 			break
-		_text(str(j), x, y - 2.0, UITheme.FS_SMALL, Color("#ff3040"))
+		text_at(str(j), x, y - 2.0, UITheme.FS_SMALL, Color("#ff3040"))
 		draw_set_transform(Vector2(x, y), 0.0, Vector2.ONE)
 		match kind:
 			"white":
@@ -309,8 +309,8 @@ func _gallery_draw(w: float, h: float) -> void:
 					var S: Dictionary = BoardScreen.STRIPS[j - na]
 					var strip := Rect2(Vector2.ZERO, sz)
 					draw_rect(strip, S["bg"])
-					_centre_at(String(S["t"]), 0.0, 13.0, sz.x, UITheme.FS_SMALL, S["ink"])
-					_centre_at(String(S["s"]), 0.0, 25.0, sz.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
+					centre_text_at(String(S["t"]), 0.0, 13.0, sz.x, UITheme.FS_SMALL, S["ink"])
+					centre_text_at(String(S["s"]), 0.0, 25.0, sz.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
 				elif j < na + ns + BoardScreen.POPUPS.size():
 					_popup(BoardScreen.POPUPS[j - na - ns], Rect2(Vector2.ZERO, sz), 1.0)
 				else:
@@ -464,9 +464,9 @@ func _decoy_listing(r: Rect2, i: int) -> void:
 		CardView.draw_emblem(self, mid, ph.get_center(), 1.2, m.colour, m.field)
 	draw_rect(ph, Color(0.02, 0.06, 0.1, 0.45))
 	var p := r.position + Vector2(6.0, 40.0)
-	_text("%d CR" % (20 + (i * 37) % 180), p.x, p.y + 16.0, UITheme.FS_HEAD, Color("#8a6a3a"))
-	_text(String(BoardScreen.DECOYS[_nth(BoardScreen.DECOYS.size(), 5, i)]), p.x, p.y + 30.0, UITheme.FS_SMALL, Color("#6f8ea4"))
-	_text("%dH AGO" % (1 + (i * 5) % 23), p.x, p.y + 43.0, UITheme.FS_SMALL, Color("#3e5a70"))
+	text_at("%d CR" % (20 + (i * 37) % 180), p.x, p.y + 16.0, UITheme.FS_HEAD, Color("#8a6a3a"))
+	text_at(String(BoardScreen.DECOYS[_nth(BoardScreen.DECOYS.size(), 5, i)]), p.x, p.y + 30.0, UITheme.FS_SMALL, Color("#6f8ea4"))
+	text_at("%dH AGO" % (1 + (i * 5) % 23), p.x, p.y + 43.0, UITheme.FS_SMALL, Color("#3e5a70"))
 	if r.size.y > 110.0:
 		for k in 2:
 			draw_rect(Rect2(p.x, p.y + 52.0 + float(k) * 7.0, r.size.x - 30.0 - float(k) * 24.0, 2.0), Color("#1c3448"))
@@ -478,10 +478,10 @@ func _decoy_listing(r: Rect2, i: int) -> void:
 	var sr := Rect2(r.position.x + (r.size.x - sw) * 0.5, r.position.y + 10.0, sw, 22.0)
 	draw_rect(sr, Color(0, 0, 0, 0.5))
 	draw_rect(sr, col, false, 2.0)
-	_centre_at(st, sr.position.x, sr.position.y + 17.0, sw, UITheme.FS_HEAD, col)
+	centre_text_at(st, sr.position.x, sr.position.y + 17.0, sw, UITheme.FS_HEAD, col)
 
 
-func _centre_at(t: String, x: float, baseline: float, width: float, fs: int, col: Color) -> void:
+func centre_text_at(t: String, x: float, baseline: float, width: float, fs: int, col: Color) -> void:
 	var tw := UITheme.pixel_font().get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	draw_string(UITheme.pixel_font(), Vector2(floorf(x + (width - tw) * 0.5), baseline), t,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
@@ -543,7 +543,7 @@ const PEN := {
 
 ## Words in marker, in strokes: `at` is where the line sits (the foot of the
 ## letters), as a string's baseline is.
-func _hand(t: String, at: Vector2, col: Color, seed: float, fs: int = UITheme.FS_SMALL) -> void:
+func hand_text(t: String, at: Vector2, col: Color, seed: float, fs: int = UITheme.FS_SMALL) -> void:
 	var sc := 1.35 if fs <= UITheme.FS_SMALL else 2.8
 	var x := at.x
 	for k in t.length():
@@ -574,7 +574,7 @@ func _hand(t: String, at: Vector2, col: Color, seed: float, fs: int = UITheme.FS
 
 ## A marker line: one gentle bow along its length, never a shake (Jon: the
 ## writing was "WAY too shakey"), two pixels wide.
-func _wobble_line(a: Vector2, b: Vector2, col: Color, seed: float) -> void:
+func wobble_line(a: Vector2, b: Vector2, col: Color, seed: float) -> void:
 	var d := b - a
 	var n := maxi(1, int(d.length() / 8.0))
 	var bow := (UIHash.hash1(seed * 1.9) - 0.5) * minf(3.0, d.length() * 0.05)
@@ -589,16 +589,16 @@ func _wobble_line(a: Vector2, b: Vector2, col: Color, seed: float) -> void:
 
 
 ## A box by hand: four strokes, each overshooting its corner a little.
-func _wobble_rect(r: Rect2, col: Color, seed: float) -> void:
+func wobble_rect(r: Rect2, col: Color, seed: float) -> void:
 	var o := 2.0
-	_wobble_line(r.position + Vector2(-o, 0), Vector2(r.end.x + o, r.position.y), col, seed)
-	_wobble_line(Vector2(r.end.x, r.position.y - o), r.end + Vector2(0, o), col, seed + 1.0)
-	_wobble_line(r.end + Vector2(o, 0), Vector2(r.position.x - o, r.end.y), col, seed + 2.0)
-	_wobble_line(Vector2(r.position.x, r.end.y + o), r.position + Vector2(0, -o), col, seed + 3.0)
+	wobble_line(r.position + Vector2(-o, 0), Vector2(r.end.x + o, r.position.y), col, seed)
+	wobble_line(Vector2(r.end.x, r.position.y - o), r.end + Vector2(0, o), col, seed + 1.0)
+	wobble_line(r.end + Vector2(o, 0), Vector2(r.position.x - o, r.end.y), col, seed + 2.0)
+	wobble_line(Vector2(r.position.x, r.end.y + o), r.position + Vector2(0, -o), col, seed + 3.0)
 
 
 ## The hand circle closes past its start, as a hand does; it once stopped short at the top.
-func _wobble_circle(c: Vector2, rad: float, col: Color, seed: float) -> void:
+func wobble_circle(c: Vector2, rad: float, col: Color, seed: float) -> void:
 	var n := 24
 	var start := UIHash.hash1(seed * 2.3) * TAU
 	var sweep := TAU + 0.3
@@ -620,7 +620,7 @@ func _ticker(w: float, h: float) -> void:
 	draw_rect(r, Color("#0a2a44"))
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.0), LCD_CYAN)
 	draw_rect(Rect2(r.position.x, r.position.y + 1.0, 30.0, TICKER - 1.0), Color("#c83a3a"))
-	_text("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
+	text_at("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
 	var f := UITheme.pixel_font()
 	var text := _ticker_text()
 	var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
@@ -637,7 +637,7 @@ func _ticker(w: float, h: float) -> void:
 				HORIZONTAL_ALIGNMENT_LEFT, r.end.x - at, UITheme.FS_SMALL, LCD_INK)
 		x += tw
 	draw_rect(Rect2(r.position.x, r.position.y + 1.0, 30.0, TICKER - 1.0), Color("#c83a3a"))
-	_text("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
+	text_at("LIVE", r.position.x + 4.0, r.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
 
 
 ## The app bar across the top of the glass.
@@ -645,13 +645,13 @@ func _app_bar(w: float) -> void:
 	var e := FRAME_W
 	draw_rect(Rect2(e, e, w - e * 2.0, HEADER), Color("#0a2a44"))
 	draw_rect(Rect2(e, e + HEADER - 1.0, w - e * 2.0, 1.0), LCD_CYAN)
-	_text("STATION LISTINGS", e + 8.0, e + 14.0, UITheme.FS_SMALL, LCD_INK)
+	text_at("STATION LISTINGS", e + 8.0, e + 14.0, UITheme.FS_SMALL, LCD_INK)
 	# the search box, kept for the look of the thing (Jon: "you can keep the
 	# search box")
 	var sx := e + 126.0
 	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), Color("#061426"))
 	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), LCD_CYAN, false, 1.0)
-	_text("SEARCH WORK", sx + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#4a7a96"))
+	text_at("SEARCH WORK", sx + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#4a7a96"))
 	if int(_t() * 2.0) % 2 == 0:
 		draw_rect(Rect2(sx + 76.0, e + 7.0, 1.0, 8.0), LCD_INK)
 	# the tabs: real ones, each with how many it holds
@@ -663,13 +663,13 @@ func _app_bar(w: float) -> void:
 		_tab_rects.append(tr)
 		if i == tab:
 			draw_rect(tr, LCD_CYAN)
-			_text(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#061426"))
+			text_at(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#061426"))
 		else:
 			var hot := i == _tab_hover
 			draw_rect(tr, Color("#12405e") if hot else Color("#0c2a40"))
 			draw_rect(tr, LCD_CYAN if hot else Color("#2c6a88"), false, 1.0)
 			var empty := i < tab_counts.size() and tab_counts[i] == 0
-			_text(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL,
+			text_at(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL,
 				Color("#3e6a84") if empty else Color("#a8dcf0"))
 		tx += tr.size.x + 6.0
 	# the avatar and the bell, kept (Jon: "you can keep the bell and avatar,
@@ -683,10 +683,10 @@ func _app_bar(w: float) -> void:
 	draw_rect(Rect2(bx - 1.0, e + 13.0, 11.0, 2.0), LCD_INK)
 	draw_rect(Rect2(bx + 3.0, e + 15.0, 3.0, 2.0), LCD_INK)
 	draw_rect(Rect2(bx + 6.0, e + 2.0, 9.0, 9.0), Color("#e03a3a"))
-	_text("%d" % (3 + int(_t() / 11.0) % 7), bx + 8.0, e + 10.0, UITheme.FS_SMALL, Color.WHITE)
+	text_at("%d" % (3 + int(_t() / 11.0) % 7), bx + 8.0, e + 10.0, UITheme.FS_SMALL, Color.WHITE)
 	var on := 40 + int(_t() / 5.0) % 9
 	draw_rect(Rect2(bx - 74.0, e + 9.0, 4.0, 4.0), Color("#46e07a"))
-	_text("%d ONLINE" % on, bx - 66.0, e + 14.0, UITheme.FS_SMALL, Color("#7fb8d4"))
+	text_at("%d ONLINE" % on, bx - 66.0, e + 14.0, UITheme.FS_SMALL, Color("#7fb8d4"))
 
 
 ## The side of the marketplace: featured, an ad, the sponsored, a popup.
@@ -742,10 +742,10 @@ func _side(col: Rect2) -> void:
 	if strip.end.y <= col.end.y:
 		var S: Dictionary = BoardScreen.STRIPS[_nth(BoardScreen.STRIPS.size(), 2, int(_t() / 4.0))]
 		draw_rect(strip, S["bg"])
-		_centre_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
-		_centre_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
+		centre_text_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
+		centre_text_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
 		draw_rect(Rect2(strip.end.x - 16.0, strip.position.y + 2.0, 14.0, 9.0), Color(0, 0, 0, 0.35))
-		_text("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))
+		text_at("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))
 	# a popup, now and then, over the side only, up until it is shut
 	pop_x = Rect2()
 	pop_btn = Rect2()
@@ -795,10 +795,10 @@ func _featured(sz: Vector2) -> void:
 	draw_rect(Rect2(st.x + 5.0, st.y + 2.0, 3.0, 9.0), Color("#7a5a10"))
 	draw_rect(Rect2(st.x + 2.0, st.y + 5.0, 9.0, 3.0), Color("#7a5a10"))
 	draw_rect(Rect2(0.0, ph.end.y, sz.x, 1.0), LCD_CYAN)
-	_text("WANTED", 6.0, 92.0, UITheme.FS_HEAD, UITheme.EMBER)
-	_text("THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, LCD_INK)
-	_text("RIVAL HARVESTER", 6.0, 121.0, UITheme.FS_SMALL, Color("#6fa8c4"))
-	_text("FOR STOLEN HEAT", 6.0, 132.0, UITheme.FS_SMALL, Color("#6fa8c4"))
+	text_at("WANTED", 6.0, 92.0, UITheme.FS_HEAD, UITheme.EMBER)
+	text_at("THE HELLBENDER", 6.0, 108.0, UITheme.FS_SMALL, LCD_INK)
+	text_at("RIVAL HARVESTER", 6.0, 121.0, UITheme.FS_SMALL, Color("#6fa8c4"))
+	text_at("FOR STOLEN HEAT", 6.0, 132.0, UITheme.FS_SMALL, Color("#6fa8c4"))
 	if Run.hellbender_destroyed():
 		_stamp(DEAD_STAMP, 18.0, sz.x, LCD_ALARM)
 	draw_rect(Rect2(Vector2.ZERO, sz), LCD_AMBER, false, 1.0)
@@ -826,12 +826,12 @@ func _sponsored(sz: Vector2, mid: StringName) -> void:
 		baseline += 10.0
 	var big: String = entry[1]
 	if big != "":
-		_text(big, 5.0, sz.y - 6.0, UITheme.FS_SMALL, ink)
-	_text("SPONSORED", 4.0, 9.0, UITheme.FS_SMALL, Color(ink, 0.7))
+		text_at(big, 5.0, sz.y - 6.0, UITheme.FS_SMALL, ink)
+	text_at("SPONSORED", 4.0, 9.0, UITheme.FS_SMALL, Color(ink, 0.7))
 
 
 func _tag(s: String, at: Vector2, col: Color) -> void:
-	_text(s, at.x, at.y + 7.0, UITheme.FS_SMALL, col)
+	text_at(s, at.x, at.y + 7.0, UITheme.FS_SMALL, col)
 
 
 ## One ad, in its colours, its lines centred down it, an AD mark in its corner.
@@ -848,7 +848,7 @@ func _ad(sz: Vector2, k: int) -> void:
 		y += float(fs) + 6.0
 		_centre(String(L[0]), y, sz.x, fs, A["ink"])
 	draw_rect(Rect2(sz.x - 16.0, 2.0, 14.0, 9.0), Color(0, 0, 0, 0.35))
-	_text("AD", sz.x - 14.0, 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))
+	text_at("AD", sz.x - 14.0, 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))
 
 
 func _commercial(sz: Vector2, i: int, t: float) -> void:
@@ -868,20 +868,20 @@ func _popup(P: Dictionary, r: Rect2, age: float) -> void:
 	if grow < 1.0:
 		return
 	draw_rect(Rect2(rr.position + Vector2(1, 1), Vector2(rr.size.x - 2.0, 12.0)), Color("#2a5ad8"))
-	_text(String(P["title"]), rr.position.x + 4.0, rr.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
+	text_at(String(P["title"]), rr.position.x + 4.0, rr.position.y + 10.0, UITheme.FS_SMALL, Color.WHITE)
 	var xb := Rect2(rr.end.x - 12.0, rr.position.y + 2.0, 10.0, 10.0)
 	pop_x = xb
 	draw_rect(xb, Color("#c83a3a"))
-	_text("X", xb.position.x + 2.0, xb.position.y + 8.0, UITheme.FS_SMALL, Color.WHITE)
+	text_at("X", xb.position.x + 2.0, xb.position.y + 8.0, UITheme.FS_SMALL, Color.WHITE)
 	var body: Array = P["body"]
 	for i in body.size():
-		_text(String(body[i]), rr.position.x + 8.0, rr.position.y + 30.0 + float(i) * 12.0, UITheme.FS_SMALL, Color("#1a1e28"))
+		text_at(String(body[i]), rr.position.x + 8.0, rr.position.y + 30.0 + float(i) * 12.0, UITheme.FS_SMALL, Color("#1a1e28"))
 	var bw := float(String(P["btn"]).length()) * 6.0 + 12.0
 	var bb := Rect2(rr.end.x - bw - 8.0, rr.end.y - 20.0, bw, 13.0)
 	pop_btn = bb
 	draw_rect(bb, Color("#b8bec8"))
 	draw_rect(bb, Color("#1a1e28"), false, 1.0)
-	_text(String(P["btn"]), bb.position.x + 6.0, bb.position.y + 10.0, UITheme.FS_SMALL, Color("#1a1e28"))
+	text_at(String(P["btn"]), bb.position.x + 6.0, bb.position.y + 10.0, UITheme.FS_SMALL, Color("#1a1e28"))
 
 ## A screen, not a board: no pins or shadows in a city or capital (Jon).
 func screen() -> bool:
@@ -1350,11 +1350,11 @@ func _sheet(at: Vector2, sz: Vector2, deg: float, paint: Callable, pin_x: float)
 	if paint.get_method() != &"_flyer":
 		draw_rect(Rect2(3.0, 4.0, sz.x, sz.y), Color(SHADE, 0.5))
 	paint.call(sz)
-	_pin(Vector2(floorf(sz.x * pin_x), 4.0), PIN)
+	pin_at(Vector2(floorf(sz.x * pin_x), 4.0), PIN)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-func _pin(p: Vector2, col: Color) -> void:
+func pin_at(p: Vector2, col: Color) -> void:
 	if screen():
 		return
 	if dev >= 2:
@@ -1368,15 +1368,15 @@ const MAGNETS := [Color("#d8402a"), Color("#2a6ad8"), Color("#e8b820"), Color("#
 
 
 ## Rows of a filled circle, as half-widths from its middle, top to bottom.
-static func _disc_rows(r: int) -> Array[int]:
+static func pixel_disc_rows(r: int) -> Array[int]:
 	var out: Array[int] = []
 	for y in range(-r, r + 1):
 		out.append(int(floorf(sqrt(maxf(0.0, float(r * r) - float(y * y)) + 0.6))))
 	return out
 
 
-static func _disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
-	var rows := _disc_rows(r)
+static func pixel_disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
+	var rows := pixel_disc_rows(r)
 	for i in rows.size():
 		var hw := rows[i]
 		ci.draw_rect(Rect2(c.x - float(hw), c.y - float(r) + float(i), float(hw * 2 + 1), 1.0), col)
@@ -1385,12 +1385,12 @@ static func _disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 ## A front-view push pin with a shadow, a shaded cap and a glint (Jon).
 static func draw_pushpin(ci: CanvasItem, at: Vector2, col: Color) -> void:
 	var c := (at + Vector2(1, -1)).round()
-	_disc(ci, c + Vector2(2, 3), 4, Color(SHADE, 0.5))
+	pixel_disc(ci, c + Vector2(2, 3), 4, Color(SHADE, 0.5))
 	# the needle, going in below the cap
 	ci.draw_rect(Rect2(c.x + 1.0, c.y + 4.0, 1.0, 2.0), Color("#b8b8b0"))
 	ci.draw_rect(Rect2(c.x + 2.0, c.y + 5.0, 2.0, 1.0), Color(SHADE, 0.6))
-	_disc(ci, c, 4, col.darkened(0.4))
-	_disc(ci, c + Vector2(0, -1), 3, col)
+	pixel_disc(ci, c, 4, col.darkened(0.4))
+	pixel_disc(ci, c + Vector2(0, -1), 3, col)
 	ci.draw_rect(Rect2(c.x - 2.0, c.y - 3.0, 2.0, 1.0), col.lightened(0.6))
 	ci.draw_rect(Rect2(c.x - 3.0, c.y - 2.0, 1.0, 2.0), col.lightened(0.4))
 	ci.draw_rect(Rect2(c.x - 1.0, c.y - 2.0, 1.0, 1.0), Color(1, 1, 1, 0.7))
@@ -1400,9 +1400,9 @@ static func draw_pushpin(ci: CanvasItem, at: Vector2, col: Color) -> void:
 ## underneath and light on top, a shiny crescent, and its shadow on the enamel.
 static func draw_magnet(ci: CanvasItem, at: Vector2, col: Color) -> void:
 	var c := (at + Vector2(1, 0)).round()
-	_disc(ci, c + Vector2(1, 3), 6, Color(SHADE, 0.35))
-	_disc(ci, c, 6, col.darkened(0.45))
-	_disc(ci, c + Vector2(0, -1), 5, col)
+	pixel_disc(ci, c + Vector2(1, 3), 6, Color(SHADE, 0.35))
+	pixel_disc(ci, c, 6, col.darkened(0.45))
+	pixel_disc(ci, c + Vector2(0, -1), 5, col)
 	# the shine: a crescent up and to the left, and a spot of light
 	ci.draw_rect(Rect2(c.x - 3.0, c.y - 5.0, 4.0, 1.0), col.lightened(0.6))
 	ci.draw_rect(Rect2(c.x - 5.0, c.y - 3.0, 1.0, 3.0), col.lightened(0.5))
@@ -1410,7 +1410,7 @@ static func draw_magnet(ci: CanvasItem, at: Vector2, col: Color) -> void:
 	ci.draw_rect(Rect2(c.x + 2.0, c.y - 4.0, 1.0, 1.0), Color(1, 1, 1, 0.55))
 
 
-func _text(s: String, x: float, baseline: float, fs: int, col: Color) -> void:
+func text_at(s: String, x: float, baseline: float, fs: int, col: Color) -> void:
 	draw_string(UITheme.pixel_font(), Vector2(x, baseline), s,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
@@ -1467,10 +1467,10 @@ func _news(sz: Vector2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, sz), _pal(NEWSPRINT))
 	for i in int(sz.x / 4.0):
 		draw_rect(Rect2(float(i) * 4.0, sz.y, 4.0, float((i * 3) % 3)), _pal(NEWSPRINT))
-	_text("DOCK CRIER", 5.0, 11.0, UITheme.FS_SMALL, _pal(INK))
+	text_at("DOCK CRIER", 5.0, 11.0, UITheme.FS_SMALL, _pal(INK))
 	draw_rect(Rect2(4.0, 14.0, sz.x - 8.0, 1.0), _pal(INK))
 	draw_rect(Rect2(4.0, 16.0, sz.x - 8.0, 1.0), _pal(INK_SOFT))
-	_text("LANE CLOSED", 5.0, 27.0, UITheme.FS_SMALL, _pal(INK))
+	text_at("LANE CLOSED", 5.0, 27.0, UITheme.FS_SMALL, _pal(INK))
 	var photo := Rect2(sz.x - 44.0, 32.0, 38.0, 30.0)
 	draw_rect(photo, Color(_pal(INK).r, _pal(INK).g, _pal(INK).b, 0.35))
 	draw_rect(Rect2(photo.position.x + 12.0, photo.position.y + 12.0, 12.0, 5.0), _pal(INK))
@@ -1496,9 +1496,9 @@ func _flyer(sz: Vector2) -> void:
 			if i % 3 != 1:
 				draw_rect(Rect2(float(i) * tw + 3.0, body + 4.0, tw - 1.0, 26.0), sh)
 	draw_rect(Rect2(0.0, 0.0, sz.x, body), _pal(CARD))
-	_text("LOST DRONE", 6.0, 14.0, UITheme.FS_SMALL, _pal(INK))
-	_text("ANSWERS TO", 6.0, 28.0, UITheme.FS_SMALL, _pal(INK_SOFT))
-	_text("BLIP", 6.0, 40.0, UITheme.FS_SMALL, _pal(BLUE))
+	text_at("LOST DRONE", 6.0, 14.0, UITheme.FS_SMALL, _pal(INK))
+	text_at("ANSWERS TO", 6.0, 28.0, UITheme.FS_SMALL, _pal(INK_SOFT))
+	text_at("BLIP", 6.0, 40.0, UITheme.FS_SMALL, _pal(BLUE))
 	# A drawing of Blip, done by somebody who loved it.
 	draw_rect(Rect2(sz.x - 34.0, 22.0, 20.0, 10.0), _pal(INK_SOFT))
 	draw_rect(Rect2(sz.x - 30.0, 25.0, 4.0, 3.0), EMBER)
@@ -1526,7 +1526,7 @@ func _card(sz: Vector2) -> void:
 	while ly < sz.y - 2.0:
 		draw_rect(Rect2(0.0, ly, sz.x, 1.0), Color(_pal(BLUE).r, _pal(BLUE).g, _pal(BLUE).b, 0.25))
 		ly += 8.0
-	_text("SHIFT ROTA", 4.0, 9.0, UITheme.FS_SMALL, _pal(INK))
+	text_at("SHIFT ROTA", 4.0, 9.0, UITheme.FS_SMALL, _pal(INK))
 	for r in 4:
 		var yy := 15.0 + float(r) * 8.0
 		if yy > sz.y - 4.0:

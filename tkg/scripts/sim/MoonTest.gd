@@ -30,7 +30,7 @@ func _park(idx: int, bi: int, options: Array = []) -> LocalSky:
 		node.options.assign(options)
 	Run.at = idx
 	SectorScreen._approached_at = idx
-	SystemMapScreen._parked[idx] = {"at": bi, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": bi, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_local()
 	await Harness.frames(_tree, 6)
 	return _sky()
@@ -146,7 +146,7 @@ func _run() -> void:
 			node.options.assign([oid])
 			Run.at = node.index
 			SectorScreen._approached_at = node.index
-			SystemMapScreen._parked[node.index] = {"at": LocalEventDrawer.body_of(node, 0), "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+			ParkedShips.spots[node.index] = {"at": LocalEventDrawer.body_of(node, 0), "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 			LocalEventDrawer.quiet = true
 			LocalEventDrawer.request(node.index, 0)
 			Router.show_local()

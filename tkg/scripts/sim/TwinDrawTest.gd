@@ -696,12 +696,12 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 			h._fail("%s: no world round star %s" % [at, "A" if wa < 0 else "B"])
 			return
 		places = [[wb, SystemLayout.STAR_B, "a world round B"], places[0], [wa, -1, "a world round A"], places[1]]
-	var had: Dictionary = SystemMapScreen._parked.get(n.index, {})
+	var had: Dictionary = ParkedShips.spots.get(n.index, {})
 	for c: Array in places:
 		var place: int = c[0]
 		var lit_want: int = c[1]
 		var what: String = c[2]
-		SystemMapScreen._parked[n.index] = {"at": place, "p": Vector2(L.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+		ParkedShips.spots[n.index] = {"at": place, "p": Vector2(L.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 		var sky := LocalSky.new()
 		add_child(sky)
 		sky.setup(n)
@@ -729,7 +729,7 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 			sky.star_k_of(far) * L.star_radius(far) / (sky.star_k_of(lit_want) * L.star_radius(lit_want)), at + " at " + what)
 		if gap <= 0.0:
 			h._fail("%s: LOCAL at %s draws the two suns' discs over each other (%.1f px)" % [at, what, gap])
-		if sky.star_light().is_equal_approx(SystemViewS._lin_top(SystemViewS.STAR_B_COL)) != (lit_want == SystemLayout.STAR_B):
+		if sky.star_light().is_equal_approx(SystemViewS.brightest_to_one(SystemViewS.STAR_B_COL)) != (lit_want == SystemLayout.STAR_B):
 			h._fail("%s: LOCAL at %s lit in the other sun's colour" % [at, what])
 		# THE BUBBLE ROUND THE LIT SUN, clear of every band of distance from it a
 		# body sweeps (`SystemView.bubble_gap`'s bands, which keep 24 px off them)
@@ -764,9 +764,9 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 		# (freed at the frame's end, not now: anything `setup` queued for it runs first)
 		sky.queue_free()
 	if had.is_empty():
-		SystemMapScreen._parked.erase(n.index)
+		ParkedShips.spots.erase(n.index)
 	else:
-		SystemMapScreen._parked[n.index] = had
+		ParkedShips.spots[n.index] = had
 
 
 func _local_verdict(seen: int) -> void:

@@ -204,13 +204,13 @@ func _clocks() -> String:
 		parts.append("%d:%.9f" % [int(k), float(Run.map_clock[k])])
 	return " ".join(parts)
 
-## `SystemMapScreen._parked` as a stable string, sorted by system.
+## `ParkedShips.spots` as a stable string, sorted by system.
 func _parked() -> String:
-	var keys: Array = SystemMapScreen._parked.keys()
+	var keys: Array = ParkedShips.spots.keys()
 	keys.sort()
 	var parts: PackedStringArray = []
 	for k in keys:
-		var e: Dictionary = SystemMapScreen._parked[k]
+		var e: Dictionary = ParkedShips.spots[k]
 		var p: Vector2 = e.get("p", Vector2.ZERO)
 		var v: Vector2 = e.get("v", Vector2.ZERO)
 		parts.append("%d:at=%d p=%.6f,%.6f v=%.6f,%.6f head=%.6f mode=%s" % [int(k), int(e.get("at", -9)),
@@ -414,9 +414,9 @@ func run() -> void:
 		print("  FAIL: no system to hold the reading's card fixture"); fails += 1
 
 	# Parked in orbit and in open space, written as `SystemMapScreen._keep_ship` writes them.
-	SystemMapScreen._parked.clear()
-	SystemMapScreen._parked[Run.at] = {"at": 1, "p": Vector2(212.5, -40.25), "v": Vector2(0.75, -1.5), "head": 2.25, "mode": &"rail"}
-	SystemMapScreen._parked[card_node if card_node >= 0 else 0] = {"at": -9, "p": Vector2(-318.125, 96.5), "v": Vector2.ZERO, "head": -0.625, "mode": &"free"}
+	ParkedShips.spots.clear()
+	ParkedShips.spots[Run.at] = {"at": 1, "p": Vector2(212.5, -40.25), "v": Vector2(0.75, -1.5), "head": 2.25, "mode": &"rail"}
+	ParkedShips.spots[card_node if card_node >= 0 else 0] = {"at": -9, "p": Vector2(-318.125, 96.5), "v": Vector2.ZERO, "head": -0.625, "mode": &"free"}
 	# Star B close orbit (ruling 20): force a twin so the case exists whatever the run rolled.
 	var twin_node := -1
 	for e in Run.map:
@@ -424,7 +424,7 @@ func run() -> void:
 		if MapGen.twin_ok(nt) and nt.index != Run.at and nt.index != card_node:
 			twin_node = nt.index
 			nt.twin = true
-			SystemMapScreen._parked[nt.index] = {"at": SystemLayout.STAR_B, "p": Vector2(402.5, -61.75), "v": Vector2(-12.5, 30.25), "head": 1.125, "mode": &"rail"}
+			ParkedShips.spots[nt.index] = {"at": SystemLayout.STAR_B, "p": Vector2(402.5, -61.75), "v": Vector2(-12.5, 30.25), "head": 1.125, "mode": &"rail"}
 			break
 	if twin_node < 0:
 		print("  FAIL: no system that may have two suns, for the star B fixture"); fails += 1
@@ -435,7 +435,7 @@ func run() -> void:
 		if MapGen.twin_ok(nw) and nw.index != Run.at and nw.index != card_node and nw.index != twin_node:
 			wide_node = nw.index
 			nw.twin = true
-			SystemMapScreen._parked[nw.index] = {"at": -9, "p": Vector2(361.25, -88.5), "v": Vector2(-20.5, 14.25), "head": 0.75, "mode": &"free",
+			ParkedShips.spots[nw.index] = {"at": -9, "p": Vector2(361.25, -88.5), "v": Vector2(-20.5, 14.25), "head": 0.75, "mode": &"free",
 				"cen": SystemLayout.STAR_B, "r": 69.375, "sense": -1.0}
 			break
 	if wide_node < 0:
@@ -541,7 +541,7 @@ func run() -> void:
 	Run.galaxy_name = ""
 	Run.galaxy_title = ""
 	Run._range_cache.clear()
-	SystemMapScreen._parked = {3: {"at": 0, "p": Vector2.ONE, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
+	ParkedShips.spots = {3: {"at": 0, "p": Vector2.ONE, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
 	Run.map_clock = {3: 9.0, 5: 99.5}
 	Rng.reseed(SEED_SCRAMBLE)
 	Rng.loot.randi()
@@ -568,11 +568,11 @@ func run() -> void:
 	if twin_node >= 0:
 		var nt2: MapGen.MapNode = Run.map[twin_node]
 		check("star B's system has two suns after reload", true, nt2.twin and SystemLayout.of(nt2).twin)
-		check("the ship parked in star B's close orbit", SystemLayout.STAR_B, int(SystemMapScreen._parked.get(twin_node, {}).get("at", -9)))
+		check("the ship parked in star B's close orbit", SystemLayout.STAR_B, int(ParkedShips.spots.get(twin_node, {}).get("at", -9)))
 		check("and the run's place for it there", SystemLayout.STAR_B, Run.site_here(nt2))
 		print("  twin cases: 1 (a ship parked at star B of %s)" % MapGen.star_name(nt2))
 	if wide_node >= 0:
-		var ew: Dictionary = SystemMapScreen._parked.get(wide_node, {})
+		var ew: Dictionary = ParkedShips.spots.get(wide_node, {})
 		check("the ship settled round star B, read back round it, as wide, the same way", "-4 69.375 -1",
 			"%d %.3f %d" % [int(ew.get("cen", -99)), float(ew.get("r", -1.0)), int(ew.get("sense", 0.0))])
 		print("  twin cases: 2 (and one settled round star B of %s)" % MapGen.star_name(Run.map[wide_node]))
@@ -631,7 +631,7 @@ func run_version_test() -> void:
 	# VERSION 39: a 38 save without `clocks` loads with every system at t 0, as a 38 build drew.
 	Run.start_new_run(&"korvan", 1)
 	Run.map_clock[Run.at] = 512.5
-	SystemMapScreen._parked[Run.at] = {"at": -9, "p": Vector2(140.5, -60.25), "v": Vector2.ZERO, "head": 0.5, "mode": &"free"}
+	ParkedShips.spots[Run.at] = {"at": -9, "p": Vector2(140.5, -60.25), "v": Vector2.ZERO, "head": 0.5, "mode": &"free"}
 	SaveGame.save()
 	var f38 := FileAccess.open(SaveGame.path, FileAccess.READ)
 	var save38: Dictionary = JSON.parse_string(f38.get_as_text()) if f38 != null else {}
@@ -649,8 +649,8 @@ func run_version_test() -> void:
 	Run.map_clock[Run.at] = 77.0
 	check("a save of version 38 (no map clocks) still loads", true, SaveGame.load_into_run())
 	check("and with no map clocks: every system at t 0", "0 0.000", "%d %.3f" % [Run.map_clock.size(), Run.map_t(Run.at)])
-	check("and its parked spot where it was made", "-9 140.50 -60.25", "%d %.2f %.2f" % [int(SystemMapScreen._parked.get(Run.at, {}).get("at", 0)),
-		(SystemMapScreen._parked.get(Run.at, {}).get("p", Vector2.ZERO) as Vector2).x, (SystemMapScreen._parked.get(Run.at, {}).get("p", Vector2.ZERO) as Vector2).y])
+	check("and its parked spot where it was made", "-9 140.50 -60.25", "%d %.2f %.2f" % [int(ParkedShips.spots.get(Run.at, {}).get("at", 0)),
+		(ParkedShips.spots.get(Run.at, {}).get("p", Vector2.ZERO) as Vector2).x, (ParkedShips.spots.get(Run.at, {}).get("p", Vector2.ZERO) as Vector2).y])
 	# (and the rows' reader drops what it cannot place: a system off this map,
 	# a clock that is not a time)
 	check("clock rows off the map or not a time are dropped", "1 2.500",
@@ -663,7 +663,7 @@ func run_version_test() -> void:
 
 	# VERSION 40 (Jon, Nov 4) saves the lead ship's jumps; a 39 save grows on its own jumps.
 	# Why: docs/why/SaveTest.md#version-rules
-	# (this build writes 42; the lead ship's jumps came in at 40)
+	# (this build writes 43; the lead ship's jumps came in at 40)
 	Run.start_new_run(&"korvan", 1)
 	Run.jumps = 7
 	Run.party_jumps = 21
@@ -703,7 +703,7 @@ func run_version_test() -> void:
 	check("a new run clears the lead ship's jumps and the badge's seen count", "0 0",
 		"%d %d" % [Run.party_jumps, Run.custodian_seen])
 
-	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 42, science's). The
+	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 43, moored's). The
 	# Hellbender flies only at 7 and up, so the level is saved and comes back;
 	# a 40 save has none and loads at 0, the game a 40 build played, and keeps
 	# a live Hellbender it already had (pulling one mid-chase is worse).
@@ -750,7 +750,7 @@ func run_version_test() -> void:
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
 	Run.start_new_run(&"korvan", 1)
-	SystemMapScreen._parked[Run.at] = {"at": 0, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[Run.at] = {"at": 0, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	SaveGame.save()
 	var fr := FileAccess.open(SaveGame.path, FileAccess.READ)
 	var old_save: Dictionary = JSON.parse_string(fr.get_as_text()) if fr != null else {}
@@ -776,7 +776,7 @@ func run_version_test() -> void:
 		fo.store_string(JSON.stringify(old_save, "", true, true))
 		fo.close()
 	check("a save of version %d (no parked spot) still loads" % SaveGame.OLDEST_READ, true, SaveGame.load_into_run())
-	check("and with no parked spot: every ship at its edge", 0, SystemMapScreen._parked.size())
+	check("and with no parked spot: every ship at its edge", 0, ParkedShips.spots.size())
 	var twins_read := 0
 	for e2 in Run.map:
 		if (e2 as MapGen.MapNode).twin:
@@ -836,7 +836,7 @@ func _moored_versions() -> void:
 	Moored.at = -1
 
 
-## SCIENCE (VERSION 42, Phase 12): this build writes 42. A 41 save (the Hellbender's
+## SCIENCE (VERSION 42, Phase 12): this build writes 43. A 41 save (the Hellbender's
 ## build, its `ascension` key unread here) and a 40 one load with
 ## no DATA, nothing bought, the black box unspent, no part augmented, and the
 ## board its seed and seat deal; a malformed one is mended, not refused; and a

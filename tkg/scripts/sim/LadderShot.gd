@@ -283,7 +283,7 @@ func _run() -> void:
 			world = b.index
 			break
 	if world >= 0:
-		SystemMapScreen._parked[sys] = {"at": world, "mode": &"rail"}
+		ParkedShips.spots[sys] = {"at": world, "mode": &"rail"}
 	SectorScreen._approached_at = sys
 	Router.show_system()
 	await Harness.frames(_tree, 90)
@@ -355,7 +355,7 @@ func _run() -> void:
 			Run.at = gsys
 			Run.map[gsys].visited = true
 			SectorScreen._approached_at = gsys
-			SystemMapScreen._parked[gsys] = {"at": pb, "mode": &"rail"}
+			ParkedShips.spots[gsys] = {"at": pb, "mode": &"rail"}
 			Router.show_system()
 			await Harness.frames(_tree, 120)
 			ZoomLadder.force = 1

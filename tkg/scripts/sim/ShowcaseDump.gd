@@ -96,7 +96,7 @@ func _plain(v: Variant) -> Variant:
 
 
 func _dump(ch, kind: int, natural: int) -> Dictionary:
-	var r_max: float = ch._radius() * MapChart.DISC
+	var r_max: float = ch.chart_radius() * MapChart.DISC
 	var g: Dictionary = {}
 	for k in Run.galaxy:
 		g[k] = _plain(Run.galaxy[k])
@@ -188,12 +188,12 @@ func _dump(ch, kind: int, natural: int) -> Dictionary:
 		"galaxy_name": Run.galaxy_name, "galaxy_title": Run.galaxy_title,
 		"params": g,
 		"sky": _plain(ChartSky.params(true)),
-		"chart": {"w": ch.size.x, "h": ch.size.y, "radius": _r(ch._radius()), "r_max": _r(r_max),
+		"chart": {"w": ch.size.x, "h": ch.size.y, "radius": _r(ch.chart_radius()), "r_max": _r(r_max),
 			"zoom_min": MapChart.ZOOM_MIN, "zoom_max": MapChart.ZOOM_MAX,
 			"disc": MapChart.DISC, "tilt": ChartSky.TILT,
 			"turn_minutes": ChartSky.TURN_MINUTES, "hole_k": ChartSky.HOLE_K, "disc_k": ChartSky.DISC_K,
 			"shadow": _r(ch._shadow_r() / r_max), "core_clear": _r(ch._core_clear() / r_max),
-			"bulge": _r(ch._radius() * float(Run.galaxy.get("bulge", 0.2)) / r_max),
+			"bulge": _r(ch.chart_radius() * float(Run.galaxy.get("bulge", 0.2)) / r_max),
 			"nebula_extent": NebulaField.EXTENT},
 		"colours": table,
 		"points": {"x": xs, "y": ys, "c": cs, "big": bs},

@@ -344,12 +344,7 @@ func release() -> void:
 	if life != null:
 		life.extra = []
 		var t := life.scene._t if life.scene != null else 0.0
-		for c: Dictionary in life.CREW:
-			if c.has("_l"):
-				life.rephase(c, float(c.get("_lx", (c["_l"] as Dictionary).x)), t)
-				c.erase("_l")
-				c.erase("_lx")
-				c.erase("ev")
+		life.stop_walk(t)
 	if shake_node != null and is_instance_valid(shake_node):
 		shake_node.position = shake_rest
 	_jets_k = 0.0
@@ -531,28 +526,7 @@ func _walkers() -> void:
 	_walk = "back"
 	if life == null:
 		return
-	var L := life
-	var sx := plume.src.x
-	var reach := 240.0 * k
-	for c: Dictionary in L.CREW:
-		var cd := c
-		cd["ev"] = func(t: float) -> Dictionary:
-			if not cd.has("_l"):
-				var p0 := L.walk_at(cd, t)
-				cd["_l"] = {"x": float(p0.x), "t": t}
-			var S: Dictionary = cd["_l"]
-			var x0 := float(S.x)
-			var away := -1.0 if x0 < sx else 1.0
-			var nm := String(cd["name"])
-			if absf(x0 - sx) < reach:
-				var C := L.crew_strip(nm)
-				var dist := 34.0 * k * maxf(0.0, t - float(S.t) - 0.25)
-				var adv := float(C.get("advance", 1.0))
-				var stp := floorf(dist / adv)
-				cd["_lx"] = x0 + away * stp * adv
-				return {"x": cd["_lx"], "dir": away, "f": int(stp) % int(C.get("frames", 8)), "dy": 0.0}
-			cd["_lx"] = x0
-			return {"x": x0, "dir": -away, "f": L.stand_frame(nm), "dy": 0.0}
+	life.walk_off(plume.src.x, 240.0 * k, k)
 
 
 ## THE LIFT JETS: short flames down from the belly at the jets, a new shape ten

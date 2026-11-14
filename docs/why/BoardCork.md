@@ -13,7 +13,7 @@ work, overlapping a little, as a real board's paper does.
 
 Every piece is drawn in its own box, `size_of(i)` from (0, 0): its paper, the
 shadow it throws down and to the right (inside the box), and its pins through
-`b._pin`, which makes a push pin on cork and a magnet on enamel.
+`b.pin_at`, which makes a push pin on cork and a magnet on enamel.
 
 The first five are drawn by hand below. The rest are rows of `POOL`, each a
 kind of paper (`k`) and what is on it, painted by the `_kind` funcs further
