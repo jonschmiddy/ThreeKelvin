@@ -7,7 +7,7 @@ names. The scheduler finds the units with a `sed`, so a slip is silent:
 
 - `unit_codecheck` was defined twice for a week. The list had it twice, so it ran twice, and
   nobody noticed. The check fails on any `unit_<name>() {` defined more than once.
-- `SOLO_UNITS`, `FIRST_UNITS` and `AFTER_UNITS` must name defined units. (The scheduler already
+- `SOLO_UNITS`, `FIRST_UNITS`, `AFTER_UNITS` and `STATIC_UNITS` must name defined units. (The scheduler already
   stops with exit 2 for one it does not find; this says so before a gate run, and in plain words.)
 - Every label in `gate_weight` must be a defined unit (a trailing `*` matches a family, as in
   `solvetest_*`). A weight for a renamed unit does nothing, and the unit it was meant for starts

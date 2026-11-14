@@ -101,6 +101,20 @@ def guard_base(cond):
                 return gm.group(1)
     return None
 RETURN_GUARD = re.compile(r"^(?:if|elif)\s+(.*?)\s*:\s*(return\b.*)?$")
+# The only conditions that make an early return a cache guard (a throttle such as `if _acc < 0.1: return` is not one):
+CACHE_TERMS = [
+    re.compile(r"^(?:self\.)?[A-Za-z_]\w*(?:\[.*?\])?(?:\.\w+)*\s*!=\s*null$"),          # X != null
+    re.compile(r"^(?:self\.)?[A-Za-z_]\w*(?:\.\w+)*$"),                                    # X
+    re.compile(r"^not\s+(?:self\.)?[A-Za-z_]\w*(?:\.\w+)*\.is_empty\(\)$"),               # not X.is_empty()
+    re.compile(r"^(?:self\.)?[A-Za-z_]\w*(?:\.\w+)*\.has\(.*\)$"),                        # C.has(k)
+    re.compile(r"^(?:self\.)?_[A-Za-z]\w*\s*==\s*[A-Za-z_][\w.]*$"),                        # _built == size
+]
+
+
+def cache_guard(cond):
+    """True when every and/or term of an early-return condition has one of the cache-guard shapes above."""
+    terms = [t.strip() for t in re.split(r"\s+(?:and|or)\s+", cond.strip())]
+    return all(any(rx.match(t) for rx in CACHE_TERMS) for t in terms)
 
 
 def mask(codes):
@@ -173,7 +187,7 @@ def lazy_init(raws, codes, s, j, e_fn):
     for k in range(s + 1, j):
         line = codes[k].strip()
         m = RETURN_GUARD.match(line)
-        if not m or indent_of(raws[k]) > ind:
+        if not m or indent_of(raws[k]) > ind or not cache_guard(m.group(1)):
             continue
         if not m.group(2):
             nxt = next((x for x in range(k + 1, j) if codes[x].strip()), None)
@@ -416,6 +430,7 @@ func _draw() -> void:
 		print("no assignment here")
 		var oops := load("res://font2.tres")
 	var again := _memo("k")
+	_throttled(1.0)
 	if _built != size:
 		_rebuild()
 	if visible and not _done:
@@ -430,6 +445,12 @@ func _rebuild() -> void:
 
 func _make() -> void:
 	_node = load("res://made.tscn").instantiate()
+
+func _throttled(delta) -> void:
+	if _acc < 0.1:
+		return
+	var th := load("res://throttle.tres")
+	_acc = 0.0
 
 func _memo(k: String):
 	if _cache.has(k):
@@ -464,6 +485,7 @@ EXPECTED = {
     "frame scripts/x/Synth.gd::_tick load(": 1,
     "frame scripts/x/Synth.gd::_draw load(": 1,
     "frame scripts/x/Synth.gd::_inner_step DirAccess.": 1,
+    "frame scripts/x/Synth.gd::_throttled load(": 1,
 }
 # Not in EXPECTED on purpose: `preload(`, `Color(some_string)`, text and comment mentions, `cfg.load(`, `.duplicate()`,
 # the call in `_ready`, in `_helper` (two levels from a frame), in `_unrelated`, in `_memo` (early-return cache),

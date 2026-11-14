@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT" || exit 2
 
-RUN_TESTS=0; STAGED=""; BASE="main"; STATIC_ONLY=0; QUIET=0
+RUN_TESTS=0; PARSED=0; STAGED=""; BASE="main"; STATIC_ONLY=0; QUIET=0
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--tests) RUN_TESTS=1 ;;
@@ -99,6 +99,7 @@ if [ -x "$GODOT" ] || command -v "$GODOT" >/dev/null 2>&1; then
 	if [ "$PCODE" -eq 0 ] && grep -q '^parseall: PASS' "$OUT/parseall.log" \
 		&& ! grep -E 'SCRIPT ERROR|Parse Error|Compile Error|^ERROR:' "$OUT/parseall.log" >/dev/null; then
 		line ok "parseall: every script loads" "$((SECONDS - T1))"
+		PARSED=1
 	else
 		line FAIL "parseall: a script does not load (godot exit $PCODE)" "$((SECONDS - T1))"
 		grep -E 'SCRIPT ERROR|Parse Error|Compile Error|^ERROR:|FAIL' "$OUT/parseall.log" | head -n 12 | sed 's/^/        /'
@@ -106,7 +107,7 @@ if [ -x "$GODOT" ] || command -v "$GODOT" >/dev/null 2>&1; then
 		PROBLEMS=$((PROBLEMS + 1))
 	fi
 else
-	echo "  skip  parseall: no Godot found (set GODOT=/path/to/Godot to include it)"
+	echo "  skip  parseall: no Godot found (set GODOT=/path/to/Godot to include it); no stamp is written, so the Stop reminder stays on"
 fi
 
 # --- 3. the tests this change needs -------------------------------------------
@@ -134,7 +135,15 @@ echo
 if [ "$PROBLEMS" -eq 0 ]; then
 	# Record that this exact tree passed, for the Stop hook's reminder (tools/dev/claude_hooks.py,
 	# docs/why/claude_hooks.md): a file under this worktree's .git directory. Never fails the check.
-	"$PY" "$HERE/claude_hooks.py" stamp ${RUN_TESTS:+--tests} >/dev/null 2>&1 || true
+	# Only a check that parsed the scripts counts (no Godot: no stamp), and --tests is marked only
+	# when the tests really ran.
+	if [ "$PARSED" -eq 1 ]; then
+		if [ "$RUN_TESTS" -eq 1 ]; then
+			"$PY" "$HERE/claude_hooks.py" stamp --tests >/dev/null 2>&1 || true
+		else
+			"$PY" "$HERE/claude_hooks.py" stamp >/dev/null 2>&1 || true
+		fi
+	fi
 	echo "check: PASS"
 	exit 0
 fi

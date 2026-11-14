@@ -50,8 +50,11 @@ cache idiom, which does the work once:
   or `if _built != size:` (a rebuild when its key changed), and that block assigns to X (or to the
   cache). A condition joined with `and`/`or` counts if any term is one of these, so
   `if visible and not _done:` with `_done = true` inside is a once-flag.
-- the call is after an early return on a member the function then fills:
-  `if _cache.has(k): return _cache[k]` ... `_cache[k] = v`.
+- the call is after an early return on a member the function then fills, and the return is a genuine cache
+  guard: `if _cache.has(k): return _cache[k]` ... `_cache[k] = v`; also `if X != null: return`, `if X: return X`,
+  `if not X.is_empty(): return`, `if _built == size: return`. Any other comparison is a throttle
+  (`if _acc < 0.1: return`, then a load, then `_acc = 0.0`), which still loads on every pass that gets
+  through, so the call stays counted.
 - the helper is called from a frame function inside such a guard and fills the guarded member
   itself: `if _vp == null: _runtime()` where `_runtime` sets `_vp`. The helper is then not
   treated as per-frame at all.

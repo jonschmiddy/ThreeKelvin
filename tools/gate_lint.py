@@ -3,7 +3,7 @@
 and lists of unit names, and a slip in either is silent (a unit defined twice runs twice, a renamed unit
 loses its place in the order). Checks, no baseline (all are zero today and must stay so):
   1. no `unit_<name>() {` is defined twice
-  2. every name in SOLO_UNITS, FIRST_UNITS and AFTER_UNITS is a defined unit
+  2. every name in SOLO_UNITS, FIRST_UNITS, AFTER_UNITS and STATIC_UNITS is a defined unit
   3. every label in `gate_weight` is a defined unit (a trailing `*` matches a family: solvetest_*)
   4. every `docs/why/<file>.md#<anchor>` pointer in validate.sh names a real heading
 Run: python3 tools/gate_lint.py [--selftest]   Why: docs/why/gate_lint.md"""
@@ -18,7 +18,7 @@ from comment_check import REF, anchors  # the resolver the .gd pointers use
 
 ROOT = Path(__file__).resolve().parent.parent
 UNIT = re.compile(r"^unit_([A-Za-z0-9_]+)\(\) \{$", re.M)
-LISTS = ("SOLO_UNITS", "FIRST_UNITS", "AFTER_UNITS")
+LISTS = ("SOLO_UNITS", "FIRST_UNITS", "AFTER_UNITS", "STATIC_UNITS")
 
 
 def lint(root):
@@ -87,6 +87,7 @@ step "x"
 SOLO_UNITS="good ghost"
 FIRST_UNITS="good"
 AFTER_UNITS="dup"
+STATIC_UNITS="good nostatic"
 gate_weight() {
 	case "$1" in
 		good) echo 5 ;; flight_*) echo 9 ;; phantom) echo 7 ;;
@@ -105,7 +106,7 @@ def selftest():
         (root / ".github" / "scripts" / "validate.sh").write_text(SYNTH_GATE)
         (root / "docs" / "why" / "validate.md").write_text("# Why\n\n## unit_good\ntext\n")
         got = "\n".join(lint(root))
-        want = ["unit_dup() is defined 2 times", "SOLO_UNITS names ghost", "time for phantom",
+        want = ["unit_dup() is defined 2 times", "SOLO_UNITS names ghost", "STATIC_UNITS names nostatic", "time for phantom",
                 "validate.md#unit_nowhere", "docs/why/missing.md, which does not exist"]
         for w in want:
             if w not in got:

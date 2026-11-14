@@ -29,6 +29,10 @@
 *.js        text eol=lf
 *.mjs       text eol=lf
 
+# Extensionless files a shell runs: the git hooks. A CRLF in `exit 0\r` fails the hook and blocks every
+# commit on a Windows checkout with core.autocrlf=true.
+.githooks/*     text eol=lf
+
 # Marked so a checkout never tries to translate them. A single byte changed in
 # a PNG is a corrupt sprite, not a whitespace nit.
 *.png       binary

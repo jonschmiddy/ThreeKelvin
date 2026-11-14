@@ -44,6 +44,25 @@ else
 	[ -n "$file" ] || exit 0   # not GDScript, nothing to compile
 fi
 
+# The tree that holds the edited file is the one to import: a session started in the main checkout that
+# edits ../tk-wt/x/tkg/scripts/A.gd must check x, not itself. Same rule as claude_hooks.py's tree_of():
+# the part before /tkg/scripts/, backslashes read as slashes. No match: keep $CLAUDE_PROJECT_DIR / this tree.
+if [ "$file" != manual ]; then
+	fnorm="${file//\\//}"
+	case "$fnorm" in
+		*/tkg/scripts/*) froot="${fnorm%%/tkg/scripts/*}"; [ -n "$froot" ] || froot="/" ;;
+		tkg/scripts/*) froot="" ;;
+		*) froot="" ;;
+	esac
+	case "$froot" in
+		[A-Za-z]:) froot="$froot/" ;;
+	esac
+	# On Git Bash a C:/ path works as is; elsewhere it is simply not a directory and the fallback stays.
+	if [ -n "$froot" ] && [ -f "$froot/tkg/project.godot" ] && [ -f "$froot/tools/dev/godot.sh" ]; then
+		ROOT="$froot"
+	fi
+fi
+
 source "$ROOT/tools/dev/env.sh"
 # The binary env.sh found, or nothing to run: say nothing and let the edit stand.
 if ! [ -x "$GODOT" ] && ! command -v "$GODOT" >/dev/null 2>&1; then exit 0; fi

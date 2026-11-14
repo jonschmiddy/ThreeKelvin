@@ -53,8 +53,11 @@ fi
 
 for h in pre-commit post-commit post-checkout; do
 	if [ -f ".git/hooks/$h" ]; then
-		mv ".git/hooks/$h" ".git/hooks/$h.superseded"
-		note "moved stale .git/hooks/$h aside (superseded by .githooks/$h)"
+		# never overwrite an earlier .superseded: take the first free name
+		dest=".git/hooks/$h.superseded"; n=1
+		while [ -e "$dest" ]; do dest=".git/hooks/$h.superseded.$n"; n=$((n + 1)); done
+		mv ".git/hooks/$h" "$dest"
+		note "moved stale .git/hooks/$h aside to $dest (superseded by .githooks/$h)"
 	fi
 	[ -x ".githooks/$h" ] || chmod +x ".githooks/$h"
 done
