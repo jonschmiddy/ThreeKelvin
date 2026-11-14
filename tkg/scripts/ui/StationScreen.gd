@@ -2692,7 +2692,6 @@ var _lad_going := false
 ## k is 1 with the hull off left and the elevator gone; the elevator slides back once it settles.
 ## Why: docs/why/StationScreen.md#yard-flight-in
 var _lad := {}
-var _lad_tw: Tween = null
 
 
 func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
@@ -3001,8 +3000,6 @@ func _rail_step(q: float) -> void:
 
 ## The elevator in its place now (a press on it while it slides; another move).
 func rail_land() -> void:
-	if _lad_tw != null and _lad_tw.is_valid():
-		_lad_tw.kill()
 	_rail_land_now()
 
 
@@ -3061,7 +3058,7 @@ func ladder_chrome(k: float) -> void:
 	if _scene != null and is_instance_valid(_scene):
 		_scene.mine_a = 1.0 - k
 		_scene.queue_redraw()
-	var own := not _lad.is_empty() or (_lad_tw != null and _lad_tw.is_valid()) or _rail_slide != null
+	var own := not _lad.is_empty() or _rail_slide != null
 	# (where the move owns the elevator it is drawn whole, its slide the arrival)
 	_rail_a = 1.0 if own else 1.0 - k
 	if _rail != null and is_instance_valid(_rail) and _rail.modulate.a > 0.0:
