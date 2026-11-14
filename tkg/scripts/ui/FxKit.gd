@@ -49,3 +49,8 @@ static func ease_out(u: float) -> float:
 ## A cubic that starts and ends slowly (`x` is not clamped).
 static func ease_in_out(x: float) -> float:
 	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
+
+
+## Anything slung under a hull sits in its shadow: the same ramp shifted two stops down.
+static func ramp_under(r: Array) -> Array[Variant]:
+	return [r[0], r[0], r[1], r[1], r[2], r[3]]

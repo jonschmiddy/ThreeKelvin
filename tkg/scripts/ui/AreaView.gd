@@ -138,11 +138,6 @@ func _body(pos: Vector2, dim: Vector2, r: Array, deck: float = 0.55) -> void:
 	_dither(Rect2(p + Vector2(0, h - 4), Vector2(w, 3)), r[0], 0.45)
 	draw_rect(Rect2(p + Vector2(0, h - 1), Vector2(w, 1)), r[0], true)
 
-## Anything hanging under a hull is in that hull's shadow: the same ramp,
-## shifted two stops down.
-func _under(r: Array) -> Array:
-	return [r[0], r[0], r[1], r[1], r[2], r[3]]
-
 ## Ordered 2x2 dither, the only kind of gradient this art style has.
 func _dither(r: Rect2, col: Color, density: float) -> void:
 	var th := [0.0, 0.5, 0.75, 0.25]
@@ -375,7 +370,7 @@ func _battlefield(c: Vector2) -> void:
 	# two states of this sector are obviously the same place.
 	_body(c + Vector2(-56, -13), Vector2(112, 28), _grey, 0.55)
 	_body(c + Vector2(-20, -27), Vector2(46, 15), _grey, 0.64)
-	_body(c + Vector2(-10, 15), Vector2(32, 9), _under(_grey), 0.28)
+	_body(c + Vector2(-10, 15), Vector2(32, 9), FxKit.ramp_under(_grey), 0.28)
 	for i in 6:
 		draw_rect(Rect2(c + Vector2(-42 + i * 17, -9), Vector2(1, 11)),
 			_grey[1], true)
