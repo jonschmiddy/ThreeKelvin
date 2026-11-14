@@ -38,3 +38,10 @@ static func ring_pixels(rr: float, squash: float = 1.0) -> Dictionary[Vector2i, 
 		var a := TAU * float(i) / float(n)
 		pts[Vector2i(roundi(cos(a) * rr), roundi(sin(a) * rr * squash))] = true
 	return pts
+
+
+## A cubic that starts fast and settles, `u` clamped to 0..1.
+static func ease_out(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return 1.0 - pow(1.0 - u, 3.0)
+

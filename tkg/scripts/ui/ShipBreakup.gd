@@ -436,18 +436,13 @@ func _on_beat(strength: float, at: Vector2, kind: StringName = &"") -> void:
 
 # ------------------------------------------------------------------ motion
 
-func _ease_out(x: float) -> float:
-	x = clampf(x, 0.0, 1.0)
-	return 1.0 - pow(1.0 - x, 3.0)
-
-
 ## Where a major is now, in whole pixels.
 func _major_pos(m: Dictionary) -> Vector2:
 	var base := _origin + Vector2(m.at)
 	var off := Vector2(drift(m.off, style))
 	var k := 0.0
 	if t >= _split_at:
-		k = _ease_out((t - _split_at) / maxf(0.05, _split_dur * 2.2))
+		k = FxKit.ease_out((t - _split_at) / maxf(0.05, _split_dur * 2.2))
 	var extra := Vector2.ZERO
 	if style == Style.IMPLODE and t < _split_at and t > _split_at - 0.14:
 		# The pull in before it lets go: one or two pixels toward the middle.
@@ -1366,7 +1361,7 @@ func _hull_shift() -> Vector2:
 		return (Vector2(_plan.glob) * (x * x * (3.0 - 2.0 * x))).round()
 	if style == Style.OVERLOAD:
 		if tt >= 0.4:
-			s = Vector2(_plan.glob) * _ease_out((tt - 0.4) / 0.12)
+			s = Vector2(_plan.glob) * FxKit.ease_out((tt - 0.4) / 0.12)
 	elif style == Style.VENT:
 		for j in _plan.jets:
 			var a: float = tt - float(j.t)
@@ -1382,7 +1377,7 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 	var base := _origin + Vector2(m.at) + _hull_shift()
 	var k := 0.0
 	if t >= _split_at:
-		k = _ease_out((t - _split_at) / _split_len)
+		k = FxKit.ease_out((t - _split_at) / _split_len)
 	var extra := Vector2.ZERO
 	if style == Style.PART:
 		# Each seam opens on its own clock and pushes the two sides apart.
@@ -1390,8 +1385,8 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 		var sx := 0.0
 		for i in int(_plan.nb) - 1:
 			if tt >= PART_TEAR[i]:
-				sx += (2.5 if i < j else -2.5) * _ease_out((tt - PART_TEAR[i]) / 1.2)
-		var sy := (2.0 if j % 2 == 0 else -2.0) * (_ease_out((tt - 0.15) / 1.2) if tt >= 0.15 else 0.0)
+				sx += (2.5 if i < j else -2.5) * FxKit.ease_out((tt - PART_TEAR[i]) / 1.2)
+		var sy := (2.0 if j % 2 == 0 else -2.0) * (FxKit.ease_out((tt - 0.15) / 1.2) if tt >= 0.15 else 0.0)
 		# rounded on its own, as the cut rounds `own` (x.5 rounds away from 0)
 		return base.round() + Vector2(sx, sy).round()
 	if style == Style.COLLAPSE:
@@ -1400,7 +1395,7 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 			# pulled in, a whole pixel at a time, faster as the hole grows
 			extra = -dir * floorf(4.0 * pow(clampf(tt, 0.0, 1.0), 2.0))
 		else:
-			extra = -dir * 4.0 * (1.0 - _ease_out((tt - 1.0) / 0.3))
+			extra = -dir * 4.0 * (1.0 - FxKit.ease_out((tt - 1.0) / 0.3))
 	return (base + Vector2(m.own) * k + extra).round()
 
 
@@ -1865,7 +1860,7 @@ func _paint_light_new(ci: CanvasItem) -> void:
 				ci.draw_texture(tex, (_centre - Vector2(tex.get_size()) * 0.5).round(), Color(lvl, lvl, lvl, 1))
 			var a := tt - 0.35
 			if a >= 0.0 and a < 0.56:
-				var R := 4.0 + 30.0 * _ease_out(a / 0.22) + (6.0 * (a - 0.3) / 0.26 if a > 0.3 else 0.0)
+				var R := 4.0 + 30.0 * FxKit.ease_out(a / 0.22) + (6.0 * (a - 0.3) / 0.26 if a > 0.3 else 0.0)
 				var lv2 := 1.0 if a < 0.3 else (0.6 if a < 0.38 else (0.35 if a < 0.46 else 0.16))
 				_draw_sphere(ci, _centre, int(R), lv2)
 		Style.OVERLOAD:
@@ -1909,9 +1904,9 @@ func _paint_light_new(ci: CanvasItem) -> void:
 		if age2 > dur:
 			continue
 		var x2 := age2 / dur
-		var rr := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * _ease_out(x2)
+		var rr := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * FxKit.ease_out(x2)
 		var lv5 := float(rg.s) * (1.0 if x2 < 0.25 else (0.7 if x2 < 0.5 else (0.45 if x2 < 0.75 else 0.22)))
-		var rp_ := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * _ease_out(maxf(0.0, age2 - 1.0 / 30.0) / dur)
+		var rp_ := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * FxKit.ease_out(maxf(0.0, age2 - 1.0 / 30.0) / dur)
 		_draw_ring(ci, rg.p, int(rr), float(rg.squash), lv5, rg.col, false, clampi(int(rr) - int(rp_), 0, 8))
 	for mo in _motes:
 		var f2: float = mo.age / mo.life
@@ -2705,7 +2700,7 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 		var fd: float = sp.fade
 		if a < 0.0 or a > g + hold + fd:
 			continue
-		var R := float(sp.r1) * _ease_out(a / g) if a < g else float(sp.r1) + 4.0 * (a - g) / maxf(0.01, hold + fd)
+		var R := float(sp.r1) * FxKit.ease_out(a / g) if a < g else float(sp.r1) + 4.0 * (a - g) / maxf(0.01, hold + fd)
 		var lvl2 := 1.0 if a < g + hold else (0.6 if a < g + hold + fd * 0.33 else (0.35 if a < g + hold + fd * 0.66 else 0.15))
 		if sp.get("soft", false):
 			_draw_soft_light(ci, sp.p, int(R), lvl2)

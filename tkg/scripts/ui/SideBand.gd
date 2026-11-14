@@ -57,11 +57,6 @@ func _place(r: Rect2) -> void:
 	size = Vector2(r.size.x, roundf(full * _k))
 
 
-static func _ease_out(u: float) -> float:
-	u = clampf(u, 0.0, 1.0)
-	return 1.0 - pow(1.0 - u, 3.0)
-
-
 func _process(delta: float) -> void:
 	if done:
 		return
@@ -71,7 +66,7 @@ func _process(delta: float) -> void:
 	var holding := wait.is_valid() and bool(wait.call())
 	if not closing:
 		_u = minf(1.0, _u + dt / OPEN_S)
-		_k = _ease_out(_u)
+		_k = FxKit.ease_out(_u)
 		# (open, and nothing of LOCAL left under it: the map's own band is it)
 		if _u >= 1.0 and wait.is_valid() and not holding:
 			finish()
@@ -79,7 +74,7 @@ func _process(delta: float) -> void:
 	else:
 		if not holding:
 			_u = minf(1.0, _u + dt / OPEN_S)
-			_k = 1.0 - _ease_out(_u)
+			_k = 1.0 - FxKit.ease_out(_u)
 			if _u >= 1.0:
 				finish()
 				return
