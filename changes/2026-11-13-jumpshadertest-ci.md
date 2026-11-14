@@ -1,0 +1,1 @@
+- **Fixed** — the gate's jump shader check on CI no longer runs out of time: it draws the films at the game's own size instead of a window four times larger.
