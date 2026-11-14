@@ -19,6 +19,8 @@ const EDGE := 2.0
 
 ## Two cells: far enough to catch a near miss, close enough never to land out of sight.
 const NUDGE := 2
+## An empty cell's well.
+const CELL_WELL := Color("#0b1017")
 
 signal dropped(payload: Dictionary, at: Vector2i)
 
@@ -95,7 +97,7 @@ func _draw() -> void:
 	for y in _rows:
 		for x in _cols:
 			var r := Rect2(_origin(Vector2i(x, y)), Vector2(CELL, CELL))
-			draw_rect(r, Color("#0b1017"), true)
+			draw_rect(r, CELL_WELL, true)
 	# The lattice is drawn: with GAP zero, one shared stroke per interior edge.
 	for x in range(1, _cols):
 		var px := float(x * CELL)

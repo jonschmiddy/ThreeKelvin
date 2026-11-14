@@ -17,6 +17,9 @@ var _t: float = 0.0
 var _light: Vector3 = Vector3(-0.83, -0.31, 0.47)
 ## what the memory's pass must see each frame as the pieces on screen see it
 const MEM_LIVE := ["time", "light", "k_light", "r", "ctr_off", "cell", "painted"]
+## A shard that faces the light, and one that does not.
+const SHARD_FACING := Color("#262a34")
+const SHARD_DARK := Color("#15171d")
 
 
 ## Rubble wheeling outward round the pieces: small motes lit by the core, big
@@ -53,7 +56,7 @@ class _Rubble extends Node2D:
 					if facing > q.sz * 0.5:
 						c = Worlds.ramp_color(&"glow", (0.4 + near * 0.5) * fade, ix + o.x, iy + o.y)
 					else:
-						c = Color("#262a34") if facing > 0.0 else Color("#15171d")
+						c = SHARD_FACING if facing > 0.0 else SHARD_DARK
 				var at := Vector2(ix + o.x, iy + o.y)
 				if block > 1:
 					at = ((global_position + at) / float(block)).floor() * float(block) - global_position

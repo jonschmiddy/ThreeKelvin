@@ -94,6 +94,10 @@ var _preview_ms := 0.0
 ## Why: docs/why/SystemOverlay.md#plan-preview
 const PV_N := 1600
 const PV_BLEND := 0.5
+## A derelict's hull, plate and shade.
+const DERELICT_HULL := Color("#5a6068")
+const DERELICT_PLATE := Color("#7a828c")
+const DERELICT_SHADE := Color("#3a4048")
 var _pv_at := -99.0
 var _pv_old := PackedVector3Array()
 var _pv_new := PackedVector3Array()
@@ -209,7 +213,7 @@ func _place_labels() -> void:
 		label_rects.append(box)
 		label_says.append(s)
 		if e[4]:
-			_text(at + Vector2(1, 1), s, Color(Color("#05070b"), (e[3] as Color).a))
+			_text(at + Vector2(1, 1), s, Color(MARK_DARK, (e[3] as Color).a))
 		_text(at, s, e[3])
 	_lq.clear()
 
@@ -414,9 +418,9 @@ func _draw() -> void:
 			if int(floor(t * 2.0)) % 2 == 1:
 				_px(s + Vector2(4, 0), UITheme.HOT)
 		elif b.kind == &"derelict":
-			draw_rect(Rect2(s + Vector2(-3, -1), Vector2(6, 2)), Color("#5a6068"))
-			draw_rect(Rect2(s + Vector2(-1, -2), Vector2(2, 1)), Color("#7a828c"))
-			_px(s + Vector2(3, 0), Color("#3a4048"))
+			draw_rect(Rect2(s + Vector2(-3, -1), Vector2(6, 2)), DERELICT_HULL)
+			draw_rect(Rect2(s + Vector2(-1, -2), Vector2(2, 1)), DERELICT_PLATE)
+			_px(s + Vector2(3, 0), DERELICT_SHADE)
 	# the beacons
 	var groups := {}
 	var hover_group := ""

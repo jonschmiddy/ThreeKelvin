@@ -11,6 +11,8 @@ const ECON_GAP := 8
 
 ## Wide enough to read as a break, narrow enough that CARDS stays in the bar's left half.
 const MID_GAP := 24
+## The fuel bar's empty well.
+const FUEL_WELL := Color("#10161f")
 
 var _row: HBoxContainer
 var _built: bool = false
@@ -583,7 +585,7 @@ class FuelBar extends Control:
 	func _draw() -> void:
 		# +1 for the same optical reason as BoxGauge: Silkscreen's caps sit high.
 		var y: float = floor((size.y - H) * 0.5) + 1.0
-		draw_rect(Rect2(0, y, W, H), Color("#10161f"), true)
+		draw_rect(Rect2(0, y, W, H), FUEL_WELL, true)
 		draw_rect(Rect2(0, y, W, H), UITheme.LINE, false, 1.0)
 		var px := lit_px()
 		if px > 0:

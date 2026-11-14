@@ -66,6 +66,23 @@ const FAR: Array[StringName] = [&"neb", &"sky", &"drift"]
 ## the strike's light colour, by kind
 const LC_EMISSION := Color(1.0, 0.82, 0.9)
 const LC_DARK := Color(0.82, 0.78, 1.0)
+## The comet and its puffs: tails, coma, head and dust.
+const AMBER_PALE := Color("#ffdc96")
+const PLUNGE_ORANGE := Color("#ec7a26")
+const COMA_BLOOM := Color("#e6f6ff")
+const ION_TAIL_0 := Color("#c8f0ff")
+const ION_TAIL_1 := Color("#8ad0f0")
+const ION_TAIL_2 := Color("#4a8ad8")
+const ION_TAIL_3 := Color("#2a5ab8")
+const DUST_TAIL_1 := Color("#ffb054")
+const DUST_TAIL_2 := Color("#84280c")
+const HEAD_WARM := Color("#fff6e2")
+const HEAD_COLD := Color("#c9d8ea")
+const PUFF_DUST := Color("#6a5a4a")
+const PORTRAIT_GLOW_0 := Color("#ffffff")
+const PORTRAIT_GLOW_1 := Color("#d8f4ff")
+const PORTRAIT_GLOW_2 := Color("#8ccaf0")
+const PORTRAIT_HEAD := Color("#fffaf0")
 
 var view
 ## The comet you can fly to (`CometPath`), drawn in the system as the weather comet is.
@@ -2122,7 +2139,7 @@ class Comet extends Node2D:
 				if pa > 0.6:
 					return
 				var lp: Vector2 = ev.limb
-				var c := Color("#ffdc96").lerp(Color("#ec7a26"), pa / 0.6)
+				var c := AMBER_PALE.lerp(PLUNGE_ORANGE, pa / 0.6)
 				var k := 1.0 - pa / 0.6
 				_blk(lp, Color(c, 0.9 * k))
 				var tang := (lp - o).normalized().orthogonal()
@@ -2147,7 +2164,7 @@ class Comet extends Node2D:
 						if not _on_checker(qb):
 							continue
 						var dd := Vector2(bx, by).length() / 2.6
-						_blk(qb, Color(Color("#e6f6ff"), 0.4 * k2 * (1.0 - dd)))
+						_blk(qb, Color(COMA_BLOOM, 0.4 * k2 * (1.0 - dd)))
 				return
 		# Tails point away from where the head truly is, not
 		# its block, or they flicked between 2 degree steps.
@@ -2170,14 +2187,14 @@ class Comet extends Node2D:
 		var zt := maxf(z, 0.9)
 		# ion tail: straight, blue, thin
 		var n_ion := int(minf((16.0 + 14.0 * A) * A * zt, cap / 2.0))
-		var ion_cols := [Color("#c8f0ff"), Color("#8ad0f0"), Color("#4a8ad8"), Color("#2a5ab8")]
+		var ion_cols := [ION_TAIL_0, ION_TAIL_1, ION_TAIL_2, ION_TAIL_3]
 		for k3 in range(1, n_ion + 1):
 			var step := int(floor(float(k3 - 1) / maxf(1.0, float(n_ion) / 4.0)))
 			if step > 3:
 				break
 			_blk(hs + ad * 2.0 * float(k3), Color(ion_cols[step], 0.5 * fade))
 		# dust tail: the syndyne, where the dust it shed is now
-		var dust_cols := [Color("#ffdc96"), Color("#ffb054"), Color("#84280c")]
+		var dust_cols := [AMBER_PALE, DUST_TAIL_1, DUST_TAIL_2]
 		var beta := 1.3 * A * zt / maxf(z, 0.05)
 		var last := Vector2.INF
 		var head_a := atan2(p.y, p.x)
@@ -2214,8 +2231,8 @@ class Comet extends Node2D:
 					var dd := Vector2(bx, by).length()
 					if dd < 0.5 or dd > 2.3 or (dd > 1.2 and (not _on_checker(hs + Vector2(bx, by) * 2.0) or A < 0.5)):
 						continue
-					_blk(hs + Vector2(bx, by) * 2.0, Color(Color("#e6f6ff"), (0.55 if dd < 1.2 else 0.3) * A * fade))
-		_blk(hs, Color(Color("#fff6e2") if A > 0.3 else Color("#c9d8ea"), 0.9 * fade))
+					_blk(hs + Vector2(bx, by) * 2.0, Color(COMA_BLOOM, (0.55 if dd < 1.2 else 0.3) * A * fade))
+		_blk(hs, Color(HEAD_WARM if A > 0.3 else HEAD_COLD, 0.9 * fade))
 
 
 ## The comet you can fly to (`CometPath`): the weather comet's drawing, its path
@@ -2336,10 +2353,10 @@ class RealComet extends Comet:
 				# (dithered steps: the faint outer rings on the checker only)
 				if I < 0.3 and not _on_checker(q3):
 					continue
-				var col := Color("#ffffff") if d < 0.3 else (Color("#d8f4ff") if d < 0.6 else Color("#8ccaf0"))
+				var col := PORTRAIT_GLOW_0 if d < 0.3 else (PORTRAIT_GLOW_1 if d < 0.6 else PORTRAIT_GLOW_2)
 				ci.draw_rect(Rect2((q3 / 2.0).floor() * 2.0, Vector2(2, 2)), Color(col, (0.3 + 0.65 * I) * fade))
 		# the head, 4 px, white
-		ci.draw_rect(Rect2((hs / 2.0).floor() * 2.0 - Vector2(2, 2), Vector2(4, 4)), Color(Color("#fffaf0"), fade))
+		ci.draw_rect(Rect2((hs / 2.0).floor() * 2.0 - Vector2(2, 2), Vector2(4, 4)), Color(PORTRAIT_HEAD, fade))
 
 	static func _lay(ci: CanvasItem, laid: Dictionary, p: Vector2, c: Color) -> void:
 		var b := Vector2i((p / 2.0).floor())
@@ -2401,12 +2418,12 @@ class Puff extends Node2D:
 		var fl := sm(0.0, 4.0 / 60.0, a) * (1.0 - sm(4.0 / 60.0, 15.0 / 60.0, a))
 		var c0: Vector2 = view.block(view.screen(b.host_at(float(view.t)).x + cos(a0) * r0, b.host_at(float(view.t)).y + sin(a0) * r0))
 		if fl > 0.0:
-			draw_rect(Rect2(c0, Vector2(2, 2)), Color(Color("#ffdc96"), fl))
+			draw_rect(Rect2(c0, Vector2(2, 2)), Color(AMBER_PALE, fl))
 			for bx in range(-1, 2):
 				for by in range(-1, 2):
 					if (bx + by) % 2 != 0 or (bx == 0 and by == 0):
 						continue
-					draw_rect(Rect2(c0 + Vector2(bx, by) * 2.0, Vector2(2, 2)), Color(Color("#ffdc96"), 0.4 * fl))
+					draw_rect(Rect2(c0 + Vector2(bx, by) * 2.0, Vector2(2, 2)), Color(AMBER_PALE, 0.4 * fl))
 		if a < 0.1:
 			return
 		# (a cloud a few blocks across at the zoom the map opens at, not a speck)
@@ -2434,7 +2451,7 @@ class Puff extends Node2D:
 				var t: Vector3 = view.tone(x, zz, Vector3(0.84, 0.76, 0.62))
 				col = Color(t.x, t.y, t.z, al)
 			else:
-				col = Color(Color("#6a5a4a"), al)
+				col = Color(PUFF_DUST, al)
 			draw_rect(Rect2(s, Vector2(2, 2)), col)
 
 

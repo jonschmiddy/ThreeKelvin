@@ -5,6 +5,9 @@ extends ItemIcon
 ## Why: docs/why/ChitIcon.md#credit-chit
 
 var chit: CreditChit = null
+## The credit chit's ink and brass.
+const CHIT_INK := Color("#0b0f16")
+const CHIT_BRASS := Color("#b8894a")
 
 
 func setup(c: CreditChit, from: StringName) -> void:
@@ -35,8 +38,8 @@ func _draw() -> void:
 	if chit == null:
 		return
 	# Brass is the only warm colour in a hold of steel and ore, so money draws the eye.
-	var ink := Color("#0b0f16")
-	var note := Color("#b8894a")
+	var ink := CHIT_INK
+	var note := CHIT_BRASS
 	var lit := note.lerp(Color.WHITE, 0.34)
 	var dim := note.lerp(ink, 0.45)
 
