@@ -42,7 +42,7 @@ proof, and its number is in the table for when you want to read one.
 | #87 | Small helpers that were copied between files are one function each (23 copies gone). | each pair compared over at least 100,000 inputs, bit for bit | nothing |
 | #88 | Work that gave the same answer every call is done once (the launch arguments, the material table, the lab's screensaver deal, the board lamp). | 33,377 cached answers compared with fresh ones, 0 differ | nothing |
 | (no wave PR) | **Party input.** The host ignores or trims bad, oversize and late input from another ship: a flight with no duration, a build carrying more than a ship has, more claims than a system can hold, a connection that never says hello. `PROTOCOL` stays 20. | new checks in `nettest`, each failing on the old code | your ruling on two visible things, below |
-| (no wave PR) | **Relay limits.** The relay answers a path that is not a party code without waking a party, drops a frame over the game's buffer, closes a socket far faster than a ship, and gives back the seat of a guest that never speaks. | 20 node tests, now a gate unit (`relaytest`); codes checked against 300 the game made | **not live until James deploys the relay**; never run on Cloudflare |
+| (no wave PR) | **Relay limits.** The relay answers a path that is not a party code without waking a party, drops a frame over the game's buffer, closes a socket far faster than a ship, and gives back the seat of a guest that never speaks. | 20 node tests, now a gate unit (`relaytest`); codes checked against 300 the game made | nothing: **live since Nov 14** (James's deploy, from this branch), and checked on the live address |
 | (no wave PR) | **Damaged files.** A save with a wrong-typed field is refused whole before the run is touched; SAVE MY LOGS scrubs the settings, save and history files too; CI's Godot download and its actions are pinned. `VERSION` stays 43. | 44 cases in `savetest`; `menutest` | nothing |
 
 The rows are in the order the commits sit on the branch, except the first two, which
@@ -98,6 +98,12 @@ Each of these would change what the game does, so it is your call.
   pixel fails about one run in several and passes on a re-run. The world's position in
   the failing line differs between failures, so something tied to the wall clock feeds
   it even at `--fixed-fps 60`.
+- **`stationdecktest`, one line once on CI.** "capital, every ride: mid-ride the
+  moving decks take no click and the rail does" failed on the first CI run of this
+  branch's tip and passed on a re-run. The test clicks six frames into a ride and runs
+  on the wall clock, without `--fixed-fps`, so on a slow runner frame the ride is over
+  before the click. The background room loader of the floor-change fix stands still
+  while a ride moves, so it adds no work there.
 - **BallHaloTest** (the work order's known failure) was not looked at: it is windowed.
 
 ## Yours to rule on
@@ -135,13 +141,16 @@ Each of these would change what the game does, so it is your call.
   One system holds at most 1,024 claims and the party 16,384 (ten eight-ship fights
   stripped bare at one system; about twice a galaxy stripped bare). Past either, a
   take is refused. Raise them if you would rather.
-- **The relay limits are code only until deployed.** James: try it under
-  `wrangler dev` with two game copies first (`relay/README.md` says how), then
-  `wrangler deploy` when nobody is mid-dive. No client build is needed, and the alpha
-  already out sees no difference. Left for a ruling: a guest that says hello and is
-  then refused cannot be removed on the relay without a new relay frame; a
-  per-address rate rule belongs in the Cloudflare account; longer codes would change
-  what players type.
+- **The relay limits are live.** Deployed on Nov 14 from this branch, before it
+  landed: until it does, `relay/` on `main` is older than the relay that is running.
+  No client build was needed. Checked three ways, first on a local `wrangler dev` and
+  then on the live address: 30 checks by a script that talks to the relay as ships do
+  (each limit, each refusal, each close code); two copies of the game as it is on
+  `main` flown through a whole `cojoin` dive; and two copies of this branch's game,
+  with a late join. All passed. `wrangler rollback`, run in `relay/`, puts the August
+  version back. Left for a ruling: a guest that says hello and is then refused cannot
+  be removed on the relay without a new relay frame; a per-address rate rule belongs
+  in the Cloudflare account; longer codes would change what players type.
 - **A ship's own machine reports its hits,** and the host checks only that they are in
   range. Left as it is: a friends' game.
 - **`nettest`, one line once.** "a spot that holds still is not said again within a
