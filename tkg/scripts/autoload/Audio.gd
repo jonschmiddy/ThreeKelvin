@@ -93,11 +93,6 @@ const ROOM_DUCK_S := 1.6   ## and it arrives with the room, not before it
 var _rduck: float = 1.0
 
 # ---------------- the bed ----------------
-# Room tone is not a cue: it needs its own player and a fade in seconds, not beats.
-# Why: docs/why/Audio.md#room-tone-history
-
-## Room tone is back as `amb_station`, outside the cue system, assembled and not synthesised.
-## Why: docs/why/Audio.md#room-tone-history
 
 func _ready() -> void:
 	# the idle bed decides on a headless run too, so a test can read it
@@ -315,6 +310,9 @@ static func loop_whole(w: AudioStreamWAV) -> void:
 	w.loop_end = roundi(w.get_length() * float(w.mix_rate)) - 1
 
 
+## Room tone is not a cue: it needs its own player and a fade in seconds, not beats.
+## Back as `amb_station`, outside the cue system, assembled and not synthesised.
+## Why: docs/why/Audio.md#room-tone-history
 func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if not _enabled or name == _room_now:
 		return

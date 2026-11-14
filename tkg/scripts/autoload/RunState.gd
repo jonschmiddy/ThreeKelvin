@@ -2356,7 +2356,7 @@ func too_deep_only(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if n.index == here.index:
 		return false
-	# The last ring can always reach the core, so a ring galaxy's hole never blocks the end.
+	# The last two rings can always reach the core, so a ring galaxy's hole never blocks the end.
 	# Why: docs/why/RunState.md#reachable
 	if n.type == MapGen.NodeType.CORE and here.layer >= MapGen.LAYERS - 2:
 		return true
