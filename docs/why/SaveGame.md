@@ -359,7 +359,7 @@ Called from Router at every safe point. Cheap enough to be unconditional:
 the map is the bulk of it and a hundred and fifty nodes stringify in a
 millisecond or two, which is nothing beside the screen swap that triggered it.
 
-The map guard is doubled here and in Router._autosave() on purpose. This is
+The map guard is doubled here and in Router.autosave() on purpose. This is
 the one function that writes, and _snapshot() indexes `Run.map[Run.at]` with
 nothing in front of it — a half-populated run reaching this call takes the
 process down rather than declining to write.

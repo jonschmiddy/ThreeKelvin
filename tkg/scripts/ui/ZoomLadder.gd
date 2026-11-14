@@ -365,7 +365,7 @@ func _drive_chrome() -> void:
 			Phase.UI_OUT:
 				q = 0.0
 			Phase.PRE:
-				q = clampf(_ease_cam(_tau / maxf(_T, 0.001)) / maxf(_F, 0.001), 0.0, 1.0) if curve else clampf(_u, 0.0, 1.0)
+				q = clampf(ease_cam_curve(_tau / maxf(_T, 0.001)) / maxf(_F, 0.001), 0.0, 1.0) if curve else clampf(_u, 0.0, 1.0)
 			Phase.FADE_OUT, Phase.FADE_HOLD, Phase.FADE_IN:
 				q = _dive_q()
 			_:
@@ -846,14 +846,14 @@ func _dt(delta: float) -> float:
 	return minf(delta, 1.0 / 30.0)
 
 
-static func _ease(u: float) -> float:
+static func ease_curve(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
 
 
 ## Smootherstep: no jolt at either end, where the
 ## smoothstep before it set off and stopped with a kick.
-static func _ease_cam(u: float) -> float:
+static func ease_cam_curve(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	return u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
 
@@ -887,7 +887,7 @@ func _process_move(delta: float) -> void:
 				_end()
 				return
 			_ui_u += dt
-			_black_at(_ease(_ui_u / maxf(FADE_OUT_S, 0.001)))
+			_black_at(ease_curve(_ui_u / maxf(FADE_OUT_S, 0.001)))
 			if _ui_u >= FADE_OUT_S:
 				_black_at(1.0)
 				phase = Phase.PRE
@@ -912,7 +912,7 @@ func _process_move(delta: float) -> void:
 				_end()
 				return
 			_ui_u += dt
-			_black_at(1.0 - _ease(_ui_u / maxf(FADE_IN_S, 0.001)))
+			_black_at(1.0 - ease_curve(_ui_u / maxf(FADE_IN_S, 0.001)))
 			_chain_chrome()
 			if _ui_u >= FADE_IN_S:
 				if _slide_way == &"on":
@@ -924,7 +924,7 @@ func _process_move(delta: float) -> void:
 				_end()
 				return
 			_ui_u += dt
-			_chrome(old, _ease(_ui_u / maxf(UI_OUT_S, 0.001)))
+			_chrome(old, ease_curve(_ui_u / maxf(UI_OUT_S, 0.001)))
 			if _ui_u >= UI_OUT_S:
 				_chrome(old, 1.0)
 				phase = Phase.PRE
@@ -937,7 +937,7 @@ func _process_move(delta: float) -> void:
 				_end()
 				return
 			_ui_u += dt
-			_chrome(new, 1.0 - _ease(_ui_u / maxf(UI_IN_S, 0.001)))
+			_chrome(new, 1.0 - ease_curve(_ui_u / maxf(UI_IN_S, 0.001)))
 			if _ui_u >= UI_IN_S:
 				_end()
 			return
@@ -947,7 +947,7 @@ func _process_move(delta: float) -> void:
 				return
 			if curve:
 				_tau += dt
-				var g := _ease_cam(_tau / _T)
+				var g := ease_cam_curve(_tau / _T)
 				# Handed over before this frame moves the old
 				# camera, so the held picture and its anchors match.
 				if g >= _F:
@@ -972,7 +972,7 @@ func _process_move(delta: float) -> void:
 				# (and only once your ship is all in: LOCAL knows when that is)
 				if old is SectorScreen and float(old.call(&"ladder_dip_s")) > 0.0:
 					fd = minf(fd, float(old.call(&"ladder_dip_s")))
-				var blk := _ease(clampf((_u * _pre_s - (_pre_s - fd)) / fd, 0.0, 1.0))
+				var blk := ease_curve(clampf((_u * _pre_s - (_pre_s - fd)) / fd, 0.0, 1.0))
 				# (docking, the CUT at the start: LOCAL's own black)
 				if old is SectorScreen:
 					blk = maxf(blk, float(old.call(&"ladder_black")))
@@ -1025,7 +1025,7 @@ func _process_move(delta: float) -> void:
 
 ## How far into the second half of the one curve the clock is (0 to 1).
 func _curve_e() -> float:
-	var g := _ease_cam(_tau / maxf(_T, 0.001))
+	var g := ease_cam_curve(_tau / maxf(_T, 0.001))
 	return clampf((g - _F) / maxf(1.0 - _F, 0.001), 0.0, 1.0)
 
 
@@ -1665,7 +1665,7 @@ func _step_pan(t: float) -> void:
 		_pan_view.visible = false
 		new.position.x = _pan_x0
 		if inward:
-			_black_at(1.0 - _ease(clampf(t / YARD_FADE_S, 0.0, 1.0)))
+			_black_at(1.0 - ease_curve(clampf(t / YARD_FADE_S, 0.0, 1.0)))
 			# (coming in at the speed LOCAL's approach ended on, within reason)
 			var lad: Variant = new.get("_lad")
 			var off := maxf(float((lad as Dictionary).get("off", 1.0)) if lad is Dictionary else 1.0, 1.0)
@@ -1680,7 +1680,7 @@ func _step_pan(t: float) -> void:
 			var up := float(new.call(&"ladder_up_s")) if new.has_method(&"ladder_up_s") else -1.0
 			if up <= 0.0:
 				up = LOCAL_FADE_S
-			_black_at(1.0 - _ease(clampf(t / up, 0.0, 1.0)))
+			_black_at(1.0 - ease_curve(clampf(t / up, 0.0, 1.0)))
 			new.call(&"ladder_cam", 1.0 - clampf(t / maxf(_move_s, 0.001), 0.0, 1.0))
 		return
 	var P := DOCK_PAN_S
@@ -1798,7 +1798,7 @@ func _step(u: float) -> void:
 	if not is_instance_valid(new):
 		return
 	# out of a pre-roll, eased OUT (it arrives at speed); from a standstill, both
-	var e := 1.0 - (1.0 - clampf(u, 0.0, 1.0)) * (1.0 - clampf(u, 0.0, 1.0)) if _had_pre else _ease(u)
+	var e := 1.0 - (1.0 - clampf(u, 0.0, 1.0)) * (1.0 - clampf(u, 0.0, 1.0)) if _had_pre else ease_curve(u)
 	# (on the one curve, `u` is already where the curve is)
 	if bool(_style.get("curve", false)):
 		e = clampf(u, 0.0, 1.0)
@@ -1861,12 +1861,12 @@ func _step(u: float) -> void:
 		_mat.set_shader_parameter(&"c", to)
 	# the held picture goes on a slightly faster curve than the camera, so the
 	# arriving picture is whole well before the camera settles
-	var tm := _ease_out(clampf(u / 0.85, 0.0, 1.0)) if bool(_style.get("fast", false)) 		else _ease(clampf(u / 0.85, 0.0, 1.0))
+	var tm := _ease_out(clampf(u / 0.85, 0.0, 1.0)) if bool(_style.get("fast", false)) 		else ease_curve(clampf(u / 0.85, 0.0, 1.0))
 	if _style.has("t_from"):
 		# (the held picture goes over its own stretch of the move)
-		tm = _ease(clampf((u - float(_style.t_from)) / maxf(float(_style.t_to) - float(_style.t_from), 0.001), 0.0, 1.0))
+		tm = ease_curve(clampf((u - float(_style.t_from)) / maxf(float(_style.t_to) - float(_style.t_from), 0.001), 0.0, 1.0))
 	_mat.set_shader_parameter(&"t", tm)
-	_mat.set_shader_parameter(&"chrome_t", _ease(clampf(u / float(_style.chrome), 0.0, 1.0)))
+	_mat.set_shader_parameter(&"chrome_t", ease_curve(clampf(u / float(_style.chrome), 0.0, 1.0)))
 	if int(_style.mode) == 3:
 		var bmax := float(_style.block)
 		var tri := 1.0 - absf(u * 2.0 - 1.0)
@@ -2049,7 +2049,7 @@ func _end() -> void:
 	# (the run written now the move has landed: `Router._swap` held it back)
 	if save_after:
 		save_after = false
-		Router._autosave()
+		Router.autosave()
 
 
 # ------------------------------------------------------------------ the calm move
@@ -2145,7 +2145,7 @@ static func calm_length(a: int, b: int) -> float:
 
 
 ## Eased up over the first fifth and down over the last: the most even crossing for its length.
-static func _calm_slide_curve(u: float) -> float:
+static func calm_slide_curve(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	var a := 0.2
 	var v := 1.0 / (1.0 - a)
@@ -2271,7 +2271,7 @@ func _process_calm(delta: float) -> void:
 			# (out of LOCAL its strip slides off in LOCAL's own beat, no step added: Jon, Nov 11)
 			if r_old == LOCAL and _slide_way == &"":
 				_panels_slide(old, false)
-			_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
+			_chrome(old, ease_curve(_calm_t / maxf(CALM_OUT_S, 0.001)))
 			_drive_slide(clampf(_calm_t / maxf(CALM_OUT_S, 0.001), 0.0, 1.0), false)
 			if _calm_t >= CALM_OUT_S:
 				_chrome(old, 1.0)
@@ -2298,7 +2298,7 @@ func _process_calm(delta: float) -> void:
 ## INTO LOCAL: the side column and the band go off, the camera still, the
 ## screen's UI leaving over the first of it; gone whole before the camera moves.
 func _process_slide_off() -> void:
-	_chrome(old, _ease(_calm_t / maxf(CALM_OUT_S, 0.001)))
+	_chrome(old, ease_curve(_calm_t / maxf(CALM_OUT_S, 0.001)))
 	var q := clampf(_calm_t / maxf(CALM_SLIDE_S, 0.001), 0.0, 1.0)
 	_drive_slide(q, false)
 	if q >= 1.0 and _calm_t >= CALM_OUT_S:
@@ -2328,7 +2328,7 @@ func _calm_next(p: Phase) -> void:
 ## One step of the camera's curve.
 func _calm_cam() -> void:
 	var u := clampf(_calm_t / maxf(CALM_CAM_S, 0.001), 0.0, 1.0)
-	var e := _ease_cam(u)
+	var e := ease_cam_curve(u)
 	_calm_e = e
 	if _calm_e_h < 0.0:
 		# THE SCREEN BEING LEFT, live, until the screens change hands
@@ -2380,7 +2380,7 @@ func _calm_fade() -> void:
 		_calm_a = 1.0
 	else:
 		var d := maxf(CALM_DISSOLVE_S, 0.12 * _calm_rate)
-		_calm_a = 1.0 - _ease(clampf(_calm_diss / d, 0.0, 1.0))
+		_calm_a = 1.0 - ease_curve(clampf(_calm_diss / d, 0.0, 1.0))
 	_mat.set_shader_parameter(&"alpha", _calm_a)
 	_rect.visible = _calm_a > 0.0
 	# The arriving screen comes up as the left one goes, each as things in front of the same stars.
@@ -2679,9 +2679,9 @@ func _panels_slide(s: Control, on: bool) -> void:
 
 
 ## The side column and the band at `q` (0 to 1) of their slide, on (out of
-## LOCAL) or off (into it), on the one even curve (`_calm_slide_curve`).
+## LOCAL) or off (into it), on the one even curve (`calm_slide_curve`).
 func _drive_slide(q: float, on: bool) -> void:
-	var c := _calm_slide_curve(q)
+	var c := calm_slide_curve(q)
 	var k := c if on else 1.0 - c
 	for p: Variant in slides:
 		if is_instance_valid(p):
@@ -2715,7 +2715,7 @@ func _calm_in() -> void:
 	if not is_instance_valid(new) or Router.current != new:
 		_calm_end()
 		return
-	_chrome(new, 1.0 - _ease(_calm_t / maxf(CALM_IN_S, 0.001)))
+	_chrome(new, 1.0 - ease_curve(_calm_t / maxf(CALM_IN_S, 0.001)))
 	# (into LOCAL its strip slides on in LOCAL's own beat, as its UI comes up)
 	if r_new == LOCAL and _slide_way == &"off":
 		_show_chrome()
@@ -2904,7 +2904,7 @@ func _calm_end() -> void:
 	queue_free()
 	if save_after:
 		save_after = false
-		Router._autosave()
+		Router.autosave()
 	# THE DOOR ASKED FOR WHILE THIS MOVE WAS ON, from where it landed
 	if q.is_valid():
 		q.call_deferred()

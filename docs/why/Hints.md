@@ -52,7 +52,7 @@ lesson with its trigger, subject, end and pacing (`docs/ash.md`):
 
 PACING (the audit's, binding). One lesson at a time; each starts only when its
 screen has held still (SETTLE_S) and ends when the player does what it
-teaches. IN A FIGHT (`_pace_ok`) a lesson starts only while the hand is
+teaches. IN A FIGHT (`pace_ok`) a lesson starts only while the hand is
 settled and no card is held; only the hand's, energy, discard_pick and END
 TURN's start after a card this turn (`MID_TURN`), the rest at a turn's start.
 Turn 1 of the first fight teaches the hand, energy and END TURN alone
@@ -194,7 +194,7 @@ cap and hand size, never a number written here.
 
 ## Pacing
 
-Above `func _pace_ok(id: StringName) -> bool:`:
+Above `func pace_ok(id: StringName) -> bool:`:
 
 ```text
 THE AUDIT'S PACING: whether lesson `id` may START now (not whether it may

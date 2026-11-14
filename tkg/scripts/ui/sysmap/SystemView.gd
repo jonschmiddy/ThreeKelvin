@@ -446,7 +446,7 @@ func show_system(n: MapGen.MapNode) -> void:
 		# (PAINTED: B's small teal heart round the sun, the rose lit all round it)
 		bubble_r *= 0.45
 	_tint = star_light()
-	_tint2 = _lin_top(STAR_B_COL)
+	_tint2 = brightest_to_one(STAR_B_COL)
 	_beam_k.clear()
 	_neb_mat = null
 	_weather = null
@@ -1240,7 +1240,7 @@ func star2_light_k() -> float:
 
 
 ## A colour as light, its brightest channel 1 (`star_light`'s rule).
-static func _lin_top(c: Vector3) -> Vector3:
+static func brightest_to_one(c: Vector3) -> Vector3:
 	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
 	return l / maxf(l.x, maxf(l.y, l.z))
 

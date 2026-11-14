@@ -99,7 +99,7 @@ func _bake(t: int) -> void:
 	scp.dismiss_primer()
 	ch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ch.turn_speed = 0.0
-	var k0: float = ch._radius() * MapChart.DISC
+	var k0: float = ch.chart_radius() * MapChart.DISC
 	ch._go_to(VIEW_Z * ChartSky.K0 / k0, Vector2.ZERO, false)
 	for _i in 30:
 		await get_tree().process_frame
@@ -136,8 +136,8 @@ func _stream(ch: MapChart, name: String) -> void:
 	for raw in Run.map:
 		if (raw as MapGen.MapNode).type == MapGen.NodeType.CORE:
 			core = (raw as MapGen.MapNode).index
-	var at: Vector2 = ch._screen_pos(Run.map[core])
-	var ze: float = ch.zoom * ch._radius() * MapChart.DISC / ChartSky.K0
+	var at: Vector2 = ch.screen_pos(Run.map[core])
+	var ze: float = ch.zoom * ch.chart_radius() * MapChart.DISC / ChartSky.K0
 	var pts: Array = []
 	for p in ChartTorn.ribbon(ChartTorn.last_phi):
 		var q := at + Vector2(p.x, p.y) * ze

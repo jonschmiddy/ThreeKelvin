@@ -322,7 +322,7 @@ func _region_key(scr: StarchartScreen, key: Key, name: String) -> void:
 	var want := _region_frame(chart)
 	await _press(key)
 	await _glided(chart)
-	var you := chart._screen_pos(Run.node_at())
+	var you := chart.screen_pos(Run.node_at())
 	_ok("%s: LOCAL REGION on and the view on the local region (zoom %.3f, pan %s; its frame %.3f, %s), YOU in view at %s" % [
 		name, chart.zoom, chart.pan, want[0], want[1], you],
 		StarchartScreen._region_on and absf(chart.zoom - float(want[0])) < 0.002

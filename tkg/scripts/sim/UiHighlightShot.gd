@@ -224,7 +224,7 @@ func _run() -> void:
 			var mp: MountPoints = cut._mounts
 			for sp in mp.spots():
 				if sp.held != null:
-					var r := mp.part_rect(sp.held, sp.slot, mp._part_at(sp), mp._mag())
+					var r := mp.part_rect(sp.held, sp.slot, mp.part_drawn_at(sp), mp.part_mag())
 					var gp := mp.get_global_transform() * r.get_center()
 					await _hover(gp)
 					cut._point(gp)
@@ -289,7 +289,7 @@ func _run() -> void:
 					ch._on_node_picked(picked)
 					await _secs(0.5)
 				if hov >= 0:
-					var p: Vector2 = ch._chart._screen_pos(Run.map[hov])
+					var p: Vector2 = ch._chart.screen_pos(Run.map[hov])
 					await _hover(ch._chart.get_global_transform() * p)
 			await _secs(1.2)
 	if "tagprobe" in OS.get_cmdline_user_args():

@@ -456,7 +456,7 @@ static func cloud_tear(xy: Vector2, reach: float, phi: float) -> Array:
 	# the way it is drawn out, on the screen: sideways out from the core, as the mockup
 	# smears them, a little up. Toward the stream's bend it dragged a cloud across the core
 	# in a bar, and down the screen RADIANT's rays through it flickered (240 flips a second)
-	var v := ChartSky._to_view(xy, phi) / ChartSky.K0
+	var v := ChartSky.to_view(xy, phi) / ChartSky.K0
 	var ds := Vector2(-1.0 if v.x <= 0.0 else 1.0, -0.3)
 	var wr := Vector2(ds.x, ds.y / CLOUD_FLAT).normalized()
 	# (back into the plane: the chart's projection turned back)

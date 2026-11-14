@@ -248,7 +248,7 @@ func run(tree: SceneTree) -> void:
 	var was_flipped := fitted.flipped
 	for sp in _cut._mounts.spots():
 		if sp.held == fitted:
-			var pr := _cut._mounts.part_rect(fitted, sp.slot, _cut._mounts._part_at(sp), _cut._mounts._mag())
+			var pr := _cut._mounts.part_rect(fitted, sp.slot, _cut._mounts.part_drawn_at(sp), _cut._mounts.part_mag())
 			ShipScreen.flip_at(_cut._mounts, pr.get_center())
 	_ok("F mirrors a part on the cutaway's hull", fitted.flipped != was_flipped)
 	fitted.flipped = was_flipped
@@ -491,7 +491,7 @@ func _check_layouts() -> void:
 		for s in mp.spots():
 			if s.held != null:
 				on_ship = s.held
-				var pr := mp.part_rect(s.held, s.slot, mp._part_at(s), mp._mag())
+				var pr := mp.part_rect(s.held, s.slot, mp.part_drawn_at(s), mp.part_mag())
 				ship_at = mp.get_global_transform() * pr.get_center()
 				break
 		await _point_gp(cut, wname, "hull", on_ship, ship_at)
@@ -812,7 +812,7 @@ func _empty_words_on(cut: CutawayView, wname: String) -> void:
 	var img := cut._ship.canvas()
 	var origin := cut._ship.canvas_to_local(Vector2(0, -float(cut._ship._bob_amp + cut._ship._bob_off)))
 	var sc := cut._ship.art_scale()
-	var k := mp._mag()
+	var k := mp.part_mag()
 	var rings: Array[Rect2] = []
 	var per := {}
 	for sp in mp.spots():
@@ -1102,7 +1102,7 @@ func _spot_point(mp: MountPoints, slot: int, index: int) -> Vector2:
 			continue
 		var p: Vector2 = sp.at
 		if sp.held != null:
-			p = mp.part_rect(sp.held, sp.slot, mp._part_at(sp), mp._mag()).get_center()
+			p = mp.part_rect(sp.held, sp.slot, mp.part_drawn_at(sp), mp.part_mag()).get_center()
 		var i := mp.spot_at(p)
 		if i < 0 or int(mp.spots()[i].slot) != slot or int(mp.spots()[i].index) != index:
 			return Vector2.INF

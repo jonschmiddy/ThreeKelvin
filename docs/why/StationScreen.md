@@ -1096,7 +1096,7 @@ cells all the way in, and on the frame it landed the hall went and the dark
 column and the yard's frame appeared under it at once -- a pop of the whole
 column. It also eased in on its own cubic, off the whole pixel, in silence.
 Now it is the side panel's slide (`PanelSlide`): the control itself moved,
-in whole pixels, on the panels' one curve (`ZoomLadder._calm_slide_curve`)
+in whole pixels, on the panels' one curve (`ZoomLadder.calm_slide_curve`)
 over `ZoomLadder.CALM_SLIDE_S`, heard as they are (`chrome_on`), carrying its
 own ground with it -- the dark the column stands on at rest and the yard's
 frame beside it (`_RailBack`) -- over the hall, so when it lands the picture
