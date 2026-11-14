@@ -809,23 +809,6 @@ place's -- the node records which options are SPENT, in `taken`, and that is
 the part a save has to carry.
 ```
 
-## Option detail
-
-Above `func show_option_at(index: int) -> void:`:
-
-```text
-Open one named option as the detail view.
-
-RULING 2. The sector renders the list; this is the screen an option gets when
-it has earned one -- both a `body` and a check, so there is prose worth reading
-and a number worth weighing. Everything simpler resolves in its own row and
-never comes here, because two to four options across twenty-five systems is a
-great deal of reading and prose that is unavoidable stops being read.
-
-`EventScreen` is reused rather than replaced: an option is
-`{title, body, choices}` and it renders `{title, body, options}`. One key.
-```
-
 ## Option bookkeeping
 
 Above `func option_resolved(index: int, result: StringName = &"done") -> void:`:

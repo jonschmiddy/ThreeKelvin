@@ -1010,31 +1010,6 @@ func show_station() -> void:
 var _open_option := -1
 
 
-## Only an option with both a body and a check earns this screen (ruling 2).
-## Why: docs/why/Router.md#option-detail
-func show_option_at(index: int) -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null or n.cleared:
-		return
-	_roll_here(n)
-	if index < 0 or index >= n.options.size():
-		return
-	if n.taken.has(MapGen.OPTION_SITE + index):
-		return
-	var opt := OptionTable.by_id(n.options[index])
-	if opt.is_empty():
-		# An id this build no longer has. Spend it rather than stalling the
-		# system on a name nobody can resolve.
-		n.taken.append(MapGen.OPTION_SITE + index)
-		return
-	_open_option = index
-	Audio.music_state(&"event")
-	var e := EventScreen.new()
-	_swap(e)
-	e.setup({id = opt.get("id", &""), title = opt.get("title", ""), body = opt.get("body", ""),
-		options = opt.get("choices", []), foe = opt.get("foe", &"")})
-
-
 ## Shares `event_resolved`'s bookkeeping in one function so the two paths cannot drift.
 ## Why: docs/why/Router.md#option-bookkeeping
 func option_resolved(index: int, result: StringName = &"done") -> void:
