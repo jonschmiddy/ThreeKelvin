@@ -5,6 +5,7 @@ extends RefCounted
 ## and grinder vary by visit.
 ## Why: docs/why/YardLife.md#yard-life
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const TINT := Color(0.8, 0.8, 0.82)
 ## Where the ships' depth is, on the floor: nearer than this row stands in
 ## front of them (the page's depth buffer, Z 500 at row 330).
@@ -245,7 +246,7 @@ func _crew(t: float) -> void:
 		var ease := 0.0
 		if c.has("dyEase"):
 			var de: Dictionary = c["dyEase"]
-			ease = float(de["from"]) * (1.0 - YardLight.smooth(float(de["t0"]), float(de["t0"]) + float(de["dur"]), t))
+			ease = float(de["from"]) * (1.0 - SkyBakeS.smooth_k(float(de["t0"]), float(de["t0"]) + float(de["dur"]), t))
 		var dy := floorf(float(p.get("dy", 0.0)) + ease + 0.5) + avoid(float(p["x"]), float(c["y"]))
 		var cy := float(c["y"]) + dy
 		var F := crew_frame(String(c["name"]), int(p["f"]))
@@ -371,7 +372,7 @@ func _shuffle_step(t: float) -> void:
 			var da := float(pa["dir"])
 			var db := float(pb["dir"])
 			var ease := func(u: float, a0: float, a1: float, y0: float, y1: float) -> float:
-				return y0 + (y1 - y0) * YardLight.smooth(a0, a1, u)
+				return y0 + (y1 - y0) * SkyBakeS.smooth_k(a0, a1, u)
 			var dy_of := func(u: float) -> float:
 				if u < 0.6:
 					return 0.0

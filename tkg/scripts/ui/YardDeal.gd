@@ -5,6 +5,7 @@ extends RefCounted
 ## The box takes the hall's light when fully on (Jon); only the glass and lamps follow the power-on.
 ## Why: docs/why/YardDeal.md#yard-deal-tv
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const LID := 13
 const DEAL_CAP := UITheme.CHILL
 const DEAL_VAL := UITheme.ICE
@@ -169,13 +170,13 @@ func lights(t: float, tb: float) -> Dictionary:
 			return {"status": st}
 		"settlement":
 			var at := 0.3
-			return {"lamp": YardLight.smooth(at, at + 0.45, tb) * (1.0 + 0.12 * sin((tb - at) * 9.0) * exp(-maxf(0.0, tb - at) * 2.0)) * flutter(t, 3.1)}
+			return {"lamp": SkyBakeS.smooth_k(at, at + 0.45, tb) * (1.0 + 0.12 * sin((tb - at) * 9.0) * exp(-maxf(0.0, tb - at) * 2.0)) * flutter(t, 3.1)}
 		"city":
 			return {"hood": YardLight.strikes(tb, 0.3, 0.55, 1.3) * (0.9 + 0.1 * sin(t * TAU / 4.5)),
 				"edge": (0.0 if tb < 2.3 else minf(1.0, (tb - 2.3) / 0.1)) * (0.95 + 0.05 * sin(t * 3.3))}
 		"capital":
 			return {"bar": YardLight.strikes(tb, 0.3, 0.6, 3.3) * (0.96 + 0.04 * sin(t * TAU / 5.0)),
-				"tanks": YardLight.smooth(1.5, 2.3, tb) * (0.9 + 0.1 * sin(t * TAU / 3.7))}
+				"tanks": SkyBakeS.smooth_k(1.5, 2.3, tb) * (0.9 + 0.1 * sin(t * TAU / 3.7))}
 	return {}
 
 
@@ -233,7 +234,7 @@ func sag_with_bulb(t: float, s: Dictionary) -> Dictionary:
 func light_up(t: float, tb: float) -> void:
 	W8 = lights(t, tb)
 	var sc: Array = T.get("screen", [2.4, 2.9])
-	glow = YardLight.smooth(float(sc[0]), float(sc[1]), tb)
+	glow = SkyBakeS.smooth_k(float(sc[0]), float(sc[1]), tb)
 	var rv: Array = T.get("reveal", [2.7, 3.3])
 	reveal = clampf((tb - float(rv[0])) / (float(rv[1]) - float(rv[0])), 0.0, 1.0)
 	var feet := float(scene.dial.get("tv", 475))

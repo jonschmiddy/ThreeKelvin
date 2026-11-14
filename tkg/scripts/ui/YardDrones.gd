@@ -5,6 +5,7 @@ extends RefCounted
 ## What they carry is the level's (Jon, 2026-09-29). A drone with nothing to do never comes.
 ## Why: docs/why/YardDrones.md#yard-services
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const PH := [0.0, 1.3, 0.6, 2.1]
 ## The flyers that carry the four screens (the station's own, twelve frames).
 const FLYERS := ["d8", "d5", "d9", "d12"]
@@ -307,7 +308,7 @@ func doze(t: float) -> bool:
 func doze_at(d: Dictionary, t: float) -> Dictionary:
 	var u := t - float(d["doze"]["t0"])
 	if u < 2.6:
-		return {"dx": 0.0, "dy": floorf(15.0 * YardLight.smooth(0.0, 2.6, u) + 0.5)}
+		return {"dx": 0.0, "dy": floorf(15.0 * SkyBakeS.smooth_k(0.0, 2.6, u) + 0.5)}
 	if u < 2.95:
 		return {"dx": 2.0 if int(floorf(u * 30.0)) % 2 == 1 else -2.0, "dy": 15.0}
 	if u < 3.6:
@@ -348,7 +349,7 @@ func bump_at(d: Dictionary, t: float) -> Dictionary:
 	var g := float(d["bump"]["g"])
 	var s := float(d["bump"]["s"])
 	if u < 0.7:
-		var e := YardLight.smooth(0.0, 0.7, u)
+		var e := SkyBakeS.smooth_k(0.0, 0.7, u)
 		return {"dx": s * floorf(g * e * e + 0.5), "dy": 0.0}
 	if u < 2.3:
 		var v := u - 0.7
@@ -387,7 +388,7 @@ func sneeze_at(d: Dictionary, t: float) -> Dictionary:
 	var sn: Dictionary = d["sneeze"]
 	var u := t - float(sn["t0"])
 	if u < 0.9:
-		return {"dx": 0.0, "dy": -floorf(3.0 * YardLight.smooth(0.0, 0.9, u) + 0.5), "say": "AH..." if u > 0.12 else ""}
+		return {"dx": 0.0, "dy": -floorf(3.0 * SkyBakeS.smooth_k(0.0, 0.9, u) + 0.5), "say": "AH..." if u > 0.12 else ""}
 	if u < 1.05:
 		if not sn.get("puffed", false) and d.has("r"):
 			sn["puffed"] = true

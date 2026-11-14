@@ -5,6 +5,7 @@ extends StationRoom
 ## Runs on a 30 Hz clock: the prototype drew at 30 and every fault was shaped for it.
 ## Why: docs/why/LabScene.md#lab-scene
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const LAB_DIR := "res://art/sprites/station/lab/"
 const LAB_JSON := LAB_DIR + "labs.json"
 const LIGHT_SHADER := preload("res://shaders/lab_light.gdshader")
@@ -449,7 +450,7 @@ func _tick(t: float) -> void:
 	var tb := t - _boot_at
 	var boot: Dictionary = lab.get("boot", {})
 	var rm: Array = boot.get("room", [1.0, 2.0])
-	_room = _smooth(float(rm[0]), float(rm[1]), tb)
+	_room = SkyBakeS.smooth_k(float(rm[0]), float(rm[1]), tb)
 	# A WEIGHT IS [steady, breathing] -- see `lab_light.gdshader`.
 	var ws := _weights(t, tb)
 	_flicker(ws, tb)
@@ -524,7 +525,7 @@ func _weights(t: float, tb: float) -> Dictionary:
 			var n := roundi(tb * HZ)
 			var on := 1.0 if n >= 36 else (1.0 if n in [9, 10, 18, 19, 30, 31, 33, 34] else (0.04 if n >= 9 else 0.0))
 			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 and not lamps_held else 1.0) * _flutter(t, 0.4)],
-				"screen": _smooth(1.9, 2.4, tb)}
+				"screen": SkyBakeS.smooth_k(1.9, 2.4, tb)}
 		"outpost":
 			# WORK LAMPS THAT CLUNK ON, and an amber status light blinking.
 			var st := 0.0 if tb < 1.0 else ((1.0 if int(floorf((tb - 1.0) / 0.12)) % 2 == 1 else 0.1) if tb < 1.7 else 1.0)
@@ -534,7 +535,7 @@ func _weights(t: float, tb: float) -> Dictionary:
 				"status": [st, sm],
 				# its screen waits for the status light (Jon: "a bit more breathing
 				# room"): the light holds at 1.7, the glass glows from 2.4 s
-				"screen": _smooth(2.4, 2.9, tb)}
+				"screen": SkyBakeS.smooth_k(2.4, 2.9, tb)}
 		"settlement":
 			# THREE LAMPS WARMING UP, swaying as they come on.
 			return {"l1": [_warm(tb, 0.3), _sway(t, tb, 0.3, 3.1)],
@@ -555,10 +556,10 @@ func _weights(t: float, tb: float) -> Dictionary:
 		"capital":
 			# Each element waits for the last (Jon): tanks from 1.5 s, monitor 2.2, glass 3.0.
 			# Why: docs/why/LabScene.md#light-rhythms
-			var tank := [_smooth(1.5, 2.3, tb), 0.9 + 0.1 * sin(t * 6.283 / 3.7)]
+			var tank := [SkyBakeS.smooth_k(1.5, 2.3, tb), 0.9 + 0.1 * sin(t * 6.283 / 3.7)]
 			var bar := [_strikes(tb, 0.3, 0.6, 3.3), 0.96 + 0.04 * sin(t * 6.283 / 5.0)]
-			return {"bar": bar, "halo": bar, "glass": [1.15 * _smooth(3.0, 3.5, tb), 1.0],
-				"tankL": tank, "tankR": tank, "screen": _smooth(3.0, 3.5, tb),
+			return {"bar": bar, "halo": bar, "glass": [1.15 * SkyBakeS.smooth_k(3.0, 3.5, tb), 1.0],
+				"tankL": tank, "tankR": tank, "screen": SkyBakeS.smooth_k(3.0, 3.5, tb),
 				"monK": [_pop_on(tb, 2.2), 0.95 + 0.05 * sin(t * 2.3)]}
 	return {}
 
@@ -571,7 +572,7 @@ static func _clunk(tb: float, at: float) -> float:
 
 
 static func _warm(tb: float, at: float) -> float:
-	return _smooth(at, at + 0.45, tb)
+	return SkyBakeS.smooth_k(at, at + 0.45, tb)
 
 
 static func _sway(t: float, tb: float, at: float, s: float) -> float:
@@ -580,11 +581,6 @@ static func _sway(t: float, tb: float, at: float, s: float) -> float:
 
 # ---------------------------------------------------------------- the clocks' parts
 # The prototype's, which are the shop's lamp faults (`ShopLight.flicker_at`) at 30 Hz.
-
-static func _smooth(a: float, b: float, t: float) -> float:
-	var u := clampf((t - a) / (b - a), 0.0, 1.0)
-	return u * u * (3.0 - 2.0 * u)
-
 
 static func _pop_on(tb: float, at: float) -> float:
 	return 0.0 if tb < at else minf(1.0, (tb - at) / 0.1)
