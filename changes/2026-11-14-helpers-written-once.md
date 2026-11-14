@@ -1,0 +1,1 @@
+- **Changed** — small helpers that were copied between files (hashes, brightness steps, ring pixels, eases, the theme lookup) are now one function each. Nothing in play changes.
