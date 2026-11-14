@@ -289,9 +289,9 @@ func _draw_moons() -> void:
 		var pos: Vector2
 		if bool(pl[2]):
 			# where it always hung (`_step_near`'s own place for it)
-			pos = sky._zp(sky._block_round(Vector2(e[1]) - sky.cam * float(e[2])), LocalSky.Z_NEAR) + Vector2.ONE * float(hs % 2)
+			pos = sky._zp(LocalSky.SystemViewS.block_round(Vector2(e[1]) - sky.cam * float(e[2])), LocalSky.Z_NEAR) + Vector2.ONE * float(hs % 2)
 		else:
-			pos = sky._block_round(wc + p) + Vector2.ONE * float(hs % 2)
+			pos = LocalSky.SystemViewS.block_round(wc + p) + Vector2.ONE * float(hs % 2)
 			# in the world's shadow: behind it from the star, inside its radius
 			var M3 := Vector3(p.x, p.y, z)
 			var along := M3.dot(Lw)

@@ -227,7 +227,7 @@ func _zl(f: float) -> float:
 
 
 func _zp(p: Vector2, f: float) -> Vector2:
-	return _block_round(_zoom_fixed + (_zoom_to - _zoom_fixed) * f + (p - _zoom_fixed) * _zl(f))
+	return SystemViewS.block_round(_zoom_fixed + (_zoom_to - _zoom_fixed) * f + (p - _zoom_fixed) * _zl(f))
 
 
 ## A whole layer (a Node2D or a Control at the origin) put under the zoom.
@@ -976,7 +976,7 @@ func rest_origin() -> Vector2:
 
 ## Star p with no zoom, on its own near-still layer.
 func _star_rest(p: int) -> Vector2:
-	return _block_round(_sun_at(p) - cam * F_STAR)
+	return SystemViewS.block_round(_sun_at(p) - cam * F_STAR)
 
 
 ## Star B is pushed SUNS_APART clear only while the pair lies level, less as it turns end on
@@ -988,12 +988,12 @@ func _sun_at(p: int) -> Vector2:
 	var b0 := _star_rel(SystemLayout.STAR_B)
 	var off := Vector2(b0.x, b0.y * TILT) * _s
 	if not layout.close:
-		return _block_round(_sun + off)
+		return SystemViewS.block_round(_sun + off)
 	var need := layout.star_r * star_k_of(-1) + layout.star2_r * star_k_of(SystemLayout.STAR_B) + SUNS_APART
 	need *= apart_k(b0)
 	if off.length() < need:
 		off = off.normalized() * need
-	return _block_round(_sun + off)
+	return SystemViewS.block_round(_sun + off)
 
 
 ## How much of SUNS_APART's push star B gets: all within TWIN_TURN of level, none end on.
@@ -1008,7 +1008,7 @@ static func apart_k(b: Vector2) -> float:
 
 ## the band's centre this frame: where the worlds' orbits are laid out from
 func band_origin() -> Vector2:
-	return _block_round(_sun - cam * F_BAND)
+	return SystemViewS.block_round(_sun - cam * F_BAND)
 
 
 ## THE CORE'S HOLE, by `core_look`: {at (game frame px), R (its disc's outer
@@ -1032,7 +1032,7 @@ func hole_box() -> Rect2:
 
 ## the cloud's slide: its sky pixel CC at the star, and its own depth
 func neb_off() -> Vector2:
-	return _block_round(_cloud_sun - CC - cam * F_CLOUD)
+	return SystemViewS.block_round(_cloud_sun - CC - cam * F_CLOUD)
 
 
 func pose(x: float, fps: float = 8.0) -> float:
@@ -1041,10 +1041,6 @@ func pose(x: float, fps: float = 8.0) -> float:
 
 static func gfx_low() -> bool:
 	return DisplaySettings.graphics_low
-
-
-static func _block_round(p: Vector2) -> Vector2:
-	return (p / 2.0).round() * 2.0
 
 
 # ------------------------------------------------------------------ every frame
@@ -1393,7 +1389,7 @@ func _step_worlds(o: Vector2) -> void:
 		var v: WorldView = _views[i]
 		_worlds.move_child(v, -1)
 		var b := layout.bodies[i]
-		var at := _zp(_block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s), Z_BAND)
+		var at := _zp(SystemViewS.block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s), Z_BAND)
 		var held := _grow(v, b.world, b.seed, _world_r(b), _world_r(b) * _zl(Z_BAND), {})
 		var hs := Worlds.half_size(b.world, held)
 		v.position = at + Vector2.ONE * float(hs % 2)
@@ -1839,7 +1835,7 @@ func _build_near() -> void:
 			var hy := SkyBakeS.hash2(node.index * 7 + k, 902)
 			var hz := SkyBakeS.hash2(node.index * 7 + k, 903)
 			var rr := roundf((4.0 + 18.0 * hz * hz) / 2.0) * 2.0
-			var rp := _block_round(Vector2(40.0 + 880.0 * hx, 150.0 + 0.12 * (880.0 * hx - 440.0) * side + 150.0 * (hy - 0.5)))
+			var rp := SystemViewS.block_round(Vector2(40.0 + 880.0 * hx, 150.0 + 0.12 * (880.0 * hx - 440.0) * side + 150.0 * (hy - 0.5)))
 			var rv := PlanetView.new()
 			rv.set_world(&"rock" if hz < 0.6 else &"iron", node.index * 13 + k, rr)
 			rv.set_cell(2)
@@ -1854,7 +1850,7 @@ func _build_near() -> void:
 		_near_vp.add_child(w)
 		# (high, over the fight's band, toward the side away from the star: the
 		# shots fly through the middle at the ships' height)
-		_near.append([w, _block_round(Vector2(480.0 + side * 150.0, 118.0)), F_NEAR, 0.0, &"", 0, {}])
+		_near.append([w, SystemViewS.block_round(Vector2(480.0 + side * 150.0, 118.0)), F_NEAR, 0.0, &"", 0, {}])
 	if _near.is_empty():
 		_near_vp.queue_free()
 		_near_vp = null
@@ -1931,7 +1927,7 @@ func near_plan() -> Dictionary:
 		var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
 		var mp := at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk))
 		# (a big world close by puts them far out: kept in the view, under the HUD)
-		mp = _block_round(Vector2(clampf(mp.x, 24.0, 936.0), maxf(mp.y, MOON_TOP)))
+		mp = SystemViewS.block_round(Vector2(clampf(mp.x, 24.0, 936.0), maxf(mp.y, MOON_TOP)))
 		moons.append({"at": mp, "r": mr, "seed": tgt.seed + 17 * (k + 1)})
 	return {"world": tgt.world, "seed": tgt.seed, "R": R, "at": at, "over": over, "moons": moons, "spec": spec}
 
@@ -1942,7 +1938,7 @@ static func near_place(n: MapGen.MapNode, b: SystemLayout.Body, side: float) -> 
 	var h := SkyBakeS.hash2(n.index, 811 + b.index)
 	var R := near_r(b)
 	var look: Dictionary = NEAR_SIZES.get(near_size, NEAR_SIZES[&"large"])
-	return {"R": R, "at": _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), float(look.y0) + float(look.dy) * R))}
+	return {"R": R, "at": SystemViewS.block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), float(look.y0) + float(look.dy) * R))}
 
 
 ## The side of the view the world you orbit is drawn on before any event asks:
@@ -1991,7 +1987,7 @@ func near_info() -> Dictionary:
 	if _near_world == null or not is_instance_valid(_near_world) or _near.is_empty() or _box == null:
 		return {}
 	var e: Array = _near[0]
-	var p: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
+	var p: Vector2 = SystemViewS.block_round(Vector2(e[1]) - cam * float(e[2]))
 	var at := _box.get_global_transform() * (_zp(p, Z_NEAR) * 0.5)
 	var r := float(e[3]) * _zl(Z_NEAR) * _box.get_global_transform().get_scale().x * 0.5
 	var d := {at = at, r = r, ring_in = 0.0, ring_out = 0.0, open = 0.28, view = _near_world}
@@ -2152,7 +2148,7 @@ func adopt_near(v: Node2D, at: Vector2, g: Dictionary) -> bool:
 		"world": g.get("world", &"rock"), "seed": int(g.get("seed", 0)), "held": float(g.get("spec_r", 10.0)),
 		"at": at, "r": float((g.get("params", {}) as Dictionary).get("r", g.get("spec_r", 10.0))), "mix": float(g.get("mix", 0.0)),
 		"freeze_t": wt if bool(g.get("freeze", false)) else -1.0, "mem_left": mem_left,
-		"vp": hvp, "rect": hrect, "mat": hmat, "start": at, "grid": _block_round(at), "self": own_world, "ov": g.get("ov", {})}
+		"vp": hvp, "rect": hrect, "mat": hmat, "start": at, "grid": SystemViewS.block_round(at), "self": own_world, "ov": g.get("ov", {})}
 	# (a measurement holds the surface's memory too, so the frame is the map's
 	# last one exactly: the memory eases a step each frame on its own)
 	var mv := (v as PlanetView).memory_view()
@@ -2321,7 +2317,7 @@ func _near_rest() -> Vector2:
 	if _near.is_empty():
 		return Vector2.INF
 	var e0: Array = _near[0]
-	var at := _block_round(Vector2(e0[1]) - cam * float(e0[2]))
+	var at := SystemViewS.block_round(Vector2(e0[1]) - cam * float(e0[2]))
 	var hs := Worlds.half_size(StringName(_hand.get("world", &"rock")), float(e0[3]))
 	return at + Vector2.ONE * float(hs % 2)
 
@@ -2334,7 +2330,7 @@ func _step_near(_o: Vector2) -> void:
 			continue
 		var n: Node2D = e[0]
 		var wv := n as WorldView
-		var at0: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
+		var at0: Vector2 = SystemViewS.block_round(Vector2(e[1]) - cam * float(e[2]))
 		# where the zoom puts it (the near layer zooms with the ship), drawn there
 		# at the size the zoom gives it
 		var at := _zp(at0, Z_NEAR)
