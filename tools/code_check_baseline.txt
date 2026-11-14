@@ -447,7 +447,6 @@ bare scripts/ui/UITheme.gd::outline_boxes
 bare scripts/ui/VoiceGlitch.gd::bake_placed
 bare scripts/ui/VoiceGlitch.gd::decode
 bare scripts/ui/VoiceGlitch.gd::place
-bare scripts/ui/Widgets.gd::ability_rows
 bare scripts/ui/YardDeal.gd::_lamp_pictures
 bare scripts/ui/YardDeal.gd::bad_signal
 bare scripts/ui/YardDeal.gd::lights

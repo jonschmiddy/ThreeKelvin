@@ -535,7 +535,7 @@ THE GLITCHED TAKE IS MADE OFF THE MAIN THREAD. Decoding and editing a take
 cost up to 19 ms, which on the frame she started speaking was a dropped
 frame. So `ash_voice_prepare` (called as her power-on starts, 0.35 s before
 she speaks) plans the line and hands the decode and the edits to a worker
-(`VoiceGlitch.bake`, pure CPU on arrays, `OffThread`'s rule); `ash_voice`
+(`VoiceGlitch.bake_placed`, pure CPU on arrays, `OffThread`'s rule); `ash_voice`
 takes the finished bytes and makes the stream on the main thread. Not
 finished in time: the clean take, and no glitches planned (so her portrait
 does not slip on sounds that are not there). The main thread never waits.

@@ -396,29 +396,6 @@ static func card_readout(c: CardData) -> PanelContainer:
 	# Why: docs/why/Widgets.md#card-readout
 	return panel
 
-## Shared by chassis select and refit so two copies cannot drift; locked rows are dimmed.
-## Why: docs/why/Widgets.md#ability-rows
-static func ability_row(at: String, title: String, text: String, accent: Color,
-		unlocked: bool, count: String = "") -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	var tag := UITheme.body(at, accent if unlocked else UITheme.COLD, UITheme.FS_SMALL)
-	tag.custom_minimum_size = Vector2(84, 0)
-	row.add_child(tag)
-	var have := UITheme.body(count, accent if unlocked else UITheme.CHILL,
-		UITheme.FS_SMALL)
-	have.custom_minimum_size = Vector2(40, 0)
-	row.add_child(have)
-	var name_label := UITheme.body(title.to_upper(),
-		UITheme.ICE if unlocked else UITheme.COLD, UITheme.FS_SMALL)
-	name_label.custom_minimum_size = Vector2(112, 0)
-	row.add_child(name_label)
-	var what := UITheme.body(text, UITheme.COLD if unlocked else UITheme.QUOTE,
-		UITheme.FS_SMALL)
-	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(what)
-	return row
-
 ## A banner carries no words, so hovering it must name the berth's holder and set bonuses.
 ## Why: docs/why/Widgets.md#manufacturer-readout
 static func manufacturer_readout(id: StringName) -> VBoxContainer:
@@ -456,22 +433,6 @@ static func manufacturer_readout(id: StringName) -> VBoxContainer:
 			UITheme.COLD if lit else UITheme.QUOTE, UITheme.FS_SMALL)
 		box.add_child(what)
 	return box
-
-
-## Built as a list so a caller can drop the rows into whatever container it has.
-static func ability_rows(manufacturer: StringName, perk_id: StringName, have: int) -> Array:
-	var out: Array = []
-	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
-	if m == null:
-		return out
-	# The perk row moved to the masthead; four always-on rows would crowd the two tracker rows.
-	# Why: docs/why/Widgets.md#ability-rows
-	var short := DB.short_name(m.name).to_upper()
-	out.append(ability_row("3+ %s" % short, m.set3_name, m.set3_text,
-		m.colour, have >= 3, "%d / 3" % have))
-	out.append(ability_row("5+ %s" % short, m.set5_name, m.set5_text,
-		m.colour, have >= 5, "%d / 5" % have))
-	return out
 
 
 ## States what a part is, not what its cards do; the cards sit beside it.
@@ -573,8 +534,7 @@ static func set_tip(id: StringName, have: int, fitted: int) -> String:
 		var lead := "ON    " if have >= tier else "%d MORE" % (tier - have)
 		out.append("%s  %d+ %s" % [lead, tier, nm])
 		out.append("        %s" % tx)
-	return "
-".join(out)
+	return "\n".join(out)
 
 
 static func perk_tip(h: HullData) -> String:
