@@ -21,10 +21,10 @@ private scripts/autoload/Router.gd::_roll_foes <- scripts/ui/EncounterDrawer.gd
 private scripts/autoload/Router.gd::_room_for <- scripts/ui/ZoomLadder.gd
 private scripts/autoload/RunState.gd::_mark_taken <- scripts/systems/Hellbender.gd
 private scripts/net/NetSession.gd::_mark_presence <- scripts/autoload/Router.gd
-private scripts/systems/FlightSolve.gd::_dep_at <- scripts/systems/FlightTurn.gd
-private scripts/systems/FlightSolve.gd::_dep_pos <- scripts/systems/FlightTurn.gd
-private scripts/systems/FlightSolve.gd::_setup_in <- scripts/systems/FlightTurn.gd
-private scripts/systems/FlightSolve.gd::_tgt_at <- scripts/systems/FlightTurn.gd
+private scripts/systems/FlightSolve.gd::_coast_at <- scripts/systems/FlightChain.gd
+private scripts/systems/FlightSolve.gd::_dep_pos <- scripts/systems/FlightChain.gd
+private scripts/systems/FlightSolve.gd::_setup_in <- scripts/systems/FlightChain.gd
+private scripts/systems/FlightSolve.gd::_solve <- scripts/systems/FlightChain.gd
 private scripts/systems/Science.gd::_affix <- scripts/ui/LabAugment.gd
 private scripts/systems/SystemLayout.gd::_pair_r <- scripts/systems/MapGravity.gd
 private scripts/systems/SystemLayout.gd::_pair_r <- scripts/ui/sysmap/ShipFlight.gd

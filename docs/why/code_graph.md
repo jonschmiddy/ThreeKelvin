@@ -71,7 +71,7 @@ unresolved (no edge, never a false accusation):
   in its function.
 
 If these start to matter, the next step is one pass that produces statements and scopes, which
-every later step reads. The 17 baseline keys that rest on the unique-name rule would then become
+every later step reads. The baseline keys that rest on the unique-name rule (13 today) would then become
 their own fact kind.
 
 ## Self-test
@@ -101,13 +101,19 @@ and a property setter, `if cond: Class.call()`, and a method name duplicated onl
 Run `python3 tools/code_graph.py --report` before planning a refactor. With no path it writes
 `three_kelvin_code_graph.md` in the temp folder and prints where.
 
-## Measured on 67ec663e
+## Measured
 
-569 scripts (the number `--update` prints). Baseline: 190 entries, 17 `layer` (1 game-to-sim: `BotPilot -> Policy`; 12 into ui,
-nine from systems, one from net, two from data; 4 data into systems) and 173 `private` (17 of them rest on the unique-name guess). The
-report: 1 orphan game file, 43 orphan game functions, 579 game-to-game private call sites on 129
-methods (`PostingBoard` takes 300 of them, from the `Board*` painters), one 5-group set of cycles.
-The check takes about 2 seconds; the report about 4.
+On 67ec663e (main, before the Nov 2026 cleanup): 569 scripts; 190 baseline entries, 17 `layer` and
+173 `private`; 43 orphan game functions; 579 game-to-game private call sites on 129 methods, 300 of
+them `PostingBoard`'s, called by the `Board*` painters.
+
+On top of that cleanup, where this baseline was recorded: 583 scripts; 134 entries, 14 `layer` (8
+from systems, 6 from data; none from game code into sim, none from net) and 120 `private` (13 of
+them rest on the unique-name guess); 15 orphan game functions; 308 private call sites on 99
+methods. The renames and the layering moves cleared 88 entries. The file splits added 32: code
+moved out of `ShipBreakup` (169 call sites) and `LocalSubject` still reaches the state it left
+behind, which is now visible as debt instead of hidden inside one file. The largest cycle is 223
+files. The check takes about 2 seconds; the report about 4.
 
 ## The baseline
 

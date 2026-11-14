@@ -2111,7 +2111,7 @@ func _report(cap: Dictionary) -> void:
 		h._ok("%s: every clean flight clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, S.in_clean, S.in_worst], int(S.in_clean) == 0)
 		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
 		if int(S.chained) > 0 or base == "twin" or base == "close":
-			print("  flights in two legs (FlightSolve._chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
+			print("  flights in two legs (FlightChain.chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
 			for l6 in S.chain_list:
 				print("    TWO LEGS: %s" % l6)
 		if base == "twin" or base == "close":
