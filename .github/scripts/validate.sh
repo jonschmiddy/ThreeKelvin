@@ -2203,6 +2203,26 @@ else
 fi
 }
 
+unit_testsmap() {
+step "Every runnable harness has a row in docs/tests.md"
+# A ratchet: each harness in tkg/scripts/sim that DevFlags can start is named in docs/tests.md; no row
+# names a harness or flag that is gone; validate.sh names none that is gone. What predates it is in
+# `tools/tests_map_check_baseline.txt` (docs/why/tests_map_check.md).
+if [ -n "$PY" ]; then
+	if ! "$PY" tools/tests_map_check.py --selftest >"$GATE_UNIT_DIR/testsmap.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/testsmap.out" | sed 's/^/        /'
+		bad "tests map self-test failed: the check misread its synthetic tree (python3 tools/tests_map_check.py --selftest)"
+	elif "$PY" tools/tests_map_check.py >>"$GATE_UNIT_DIR/testsmap.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/testsmap.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/testsmap.out" | head -n 40 | sed 's/^/        /'
+		bad "tests map: a harness with no row in docs/tests.md, or a row or unit naming one that is gone (python3 tools/tests_map_check.py)"
+	fi
+else
+	gate_no_python "the tests map check"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.
