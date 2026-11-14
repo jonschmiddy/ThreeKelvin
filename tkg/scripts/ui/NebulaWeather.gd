@@ -36,13 +36,6 @@ func _draw() -> void:
 	_layer(NEAR, DRIFT, base.darkened(0.34) if emission else base.darkened(0.5),
 		base.lightened(0.12) if emission else base.darkened(0.2), 9173)
 
-## Hashed per tile so a cell's contents never change as the sheet scrolls.
-func _hash(i: int, j: int, salt: int) -> int:
-	var h := (i * 374761393 + j * 668265263 + salt * 144665) & 0x7fffffff
-	h = (h ^ (h >> 13)) & 0x7fffffff
-	h = (h * 1274126177) & 0x7fffffff
-	return (h ^ (h >> 16)) & 0x7fffffff
-
 ## One sheet of gas, tiled so it can scroll forever without tracking anything.
 func _layer(cell: int, speed: float, dim: Color, lit: Color, salt: int) -> void:
 	var shift := fmod(_t * speed, float(cell))
@@ -50,7 +43,8 @@ func _layer(cell: int, speed: float, dim: Color, lit: Color, salt: int) -> void:
 	var rows := int(size.y / float(cell)) + 2
 	for i in cols:
 		for j in rows:
-			var h := _hash(i, j, salt)
+			# Hashed per tile (the map's own cell hash), so a cell's contents never change as the sheet scrolls.
+			var h := MapGen.hash_cell(i, j, salt)
 			# Most cells are empty: gas is thin, and a full grid would be a fog wash, not weather.
 			if (h % 100) < 58:
 				continue
