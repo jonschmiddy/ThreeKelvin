@@ -70,16 +70,63 @@ def base(path):
 
 # ------------------------------------------------------------------ the command parser
 
-def split_commands(cmd, depth=0):
-    """The simple commands in a shell command line, each a list of words (quotes removed).
-    Splits on ; && || | & and newlines, skips # comments and heredoc bodies, and also returns the
-    contents of $( ... ) and `...` as commands of their own. Not a full shell: enough to ask
-    'which program does each simple command run'."""
+class Words(list):
+    """One simple command's words, plus what the parser knows about its surroundings: `piped_from` (the command
+    whose output it reads, when a single | came before it), `hdoc` (the text of a heredoc given to it) and
+    `here` (the text of a here-string)."""
+    piped_from = None
+    hdoc = ""
+    here = None
+
+
+def heredoc_head(cmd, i):
+    """For `<<[-]['"]WORD['"]` at cmd[i:]: (delimiter, strip tabs, quoted, index just past the word)."""
+    n = len(cmd)
+    j = i + 2
+    strip = j < n and cmd[j] == "-"
+    j += 1 if strip else 0
+    while j < n and cmd[j] in " \t":
+        j += 1
+    k = j
+    while k < n and cmd[k] not in " \t\n;&|)":
+        k += 1
+    word = cmd[j:k]
+    return word.strip("'\""), strip, ("'" in word or '"' in word or "\\" in word), k
+
+
+def read_heredoc(cmd, i, delim, strip):
+    """(body text, index after the terminator line, found) for a heredoc whose body starts at cmd[i]."""
+    n = len(cmd)
+    body = []
+    while i < n:
+        j = cmd.find("\n", i)
+        j = n if j < 0 else j
+        line = cmd[i:j]
+        i = j + 1
+        if (line.strip("\t") if strip else line) == delim:
+            return "\n".join(body), i, True
+        body.append(line)
+    return "\n".join(body), n, False
+
+
+def split_commands(cmd, depth=0, info=None):
+    """The simple commands in a shell command line, each a Words list (quotes removed).
+    Splits on ; && || | & and newlines, skips # comments, and also returns the contents of $( ... ) and
+    `...` as commands of their own. Heredoc bodies are kept on the command that owns them (Words.hdoc); an
+    unquoted body's $( ) is returned as commands too. Not a full shell: enough to ask 'which program does
+    each simple command run'. When something cannot be read with confidence (a quote or $( never closed, a
+    heredoc without its terminator) info["unsure"] is set, and the caller judges the raw text as well."""
+    info = {} if info is None else info
     cmds, words, cur = [], [], []
     inner = []
     i, n = 0, len(cmd)
     in_word = False
-    heredocs = []
+    heredocs = []                   # (delimiter, strip, quoted, index of the owning command)
+    pipe_next = False
+    here_next = None
+
+    def unsure():
+        info["unsure"] = True
 
     def end_word():
         nonlocal cur, in_word
@@ -88,22 +135,74 @@ def split_commands(cmd, depth=0):
         cur, in_word = [], False
 
     def end_cmd():
-        nonlocal words
+        nonlocal words, pipe_next, here_next
         end_word()
         if words:
-            cmds.append(words)
+            w = Words(words)
+            if pipe_next and cmds:
+                w.piped_from = cmds[-1]
+            w.here = here_next
+            cmds.append(w)
+            pipe_next, here_next = False, None
         words = []
 
     def matching(start):
-        """Index just past the ) that closes the ( at start-1."""
+        """Index just past the ) that closes the ( at start-1. Skips quoted strings, escapes, comments and
+        heredoc bodies, so a stray ( in a message does not swallow the rest of the line. Unclosed: n, unsure."""
         d, j = 1, start
-        while j < n and d:
-            if cmd[j] == "(":
-                d += 1
-            elif cmd[j] == ")":
-                d -= 1
-            j += 1
-        return j
+        pend = []
+        while j < n:
+            c = cmd[j]
+            if c == "\\":
+                j += 2
+            elif c == "'":
+                k = cmd.find("'", j + 1)
+                if k < 0:
+                    unsure(); return n
+                j = k + 1
+            elif c == '"':
+                j += 1
+                while j < n and cmd[j] != '"':
+                    if cmd[j] == "\\":
+                        j += 2
+                    elif cmd.startswith("$(", j):
+                        j = matching(j + 2)
+                    elif cmd[j] == "`":
+                        k = cmd.find("`", j + 1)
+                        j = n if k < 0 else k + 1
+                    else:
+                        j += 1
+                if j >= n:
+                    unsure(); return n
+                j += 1
+            elif c == "`":
+                k = cmd.find("`", j + 1)
+                if k < 0:
+                    unsure(); return n
+                j = k + 1
+            elif c == "#" and (j == start or cmd[j - 1] in " \t\n;&|("):
+                while j < n and cmd[j] != "\n":
+                    j += 1
+            elif cmd.startswith("<<", j) and not cmd.startswith("<<<", j):
+                delim, strip, _q, j = heredoc_head(cmd, j)
+                pend.append((delim, strip))
+            elif c == "\n" and pend:
+                j += 1
+                while pend:
+                    delim, strip = pend.pop(0)
+                    _b, j, found = read_heredoc(cmd, j, delim, strip)
+                    if not found:
+                        unsure()
+            else:
+                if c == "(":
+                    d += 1
+                elif c == ")":
+                    d -= 1
+                    if d == 0:
+                        return j + 1
+                j += 1
+        unsure()
+        return n
 
     while i < n:
         c = cmd[i]
@@ -111,7 +210,8 @@ def split_commands(cmd, depth=0):
             cur.append(cmd[i + 1]); in_word = True; i += 2; continue
         if c == "'":
             j = cmd.find("'", i + 1)
-            j = n if j < 0 else j
+            if j < 0:
+                unsure(); j = n
             cur.append(cmd[i + 1:j]); in_word = True; i = j + 1; continue
         if c == '"':
             j = i + 1
@@ -122,15 +222,21 @@ def split_commands(cmd, depth=0):
                     k = matching(j + 2)
                     inner.append(cmd[j + 2:k - 1]); cur.append("$(...)"); j = k; continue
                 if cmd[j] == "`":
-                    k = cmd.find("`", j + 1); k = n - 1 if k < 0 else k
+                    k = cmd.find("`", j + 1)
+                    if k < 0:
+                        unsure(); k = n - 1
                     inner.append(cmd[j + 1:k]); cur.append("`...`"); j = k + 1; continue
                 cur.append(cmd[j]); j += 1
+            if j >= n:
+                unsure()
             in_word = True; i = j + 1; continue
         if cmd.startswith("$(", i):
             k = matching(i + 2)
             inner.append(cmd[i + 2:k - 1]); cur.append("$(...)"); in_word = True; i = k; continue
         if c == "`":
-            k = cmd.find("`", i + 1); k = n - 1 if k < 0 else k
+            k = cmd.find("`", i + 1)
+            if k < 0:
+                unsure(); k = n - 1
             inner.append(cmd[i + 1:k]); cur.append("`...`"); in_word = True; i = k + 1; continue
         if c == "#" and not in_word:
             while i < n and cmd[i] != "\n":
@@ -141,24 +247,39 @@ def split_commands(cmd, depth=0):
         if c == "\n":
             end_cmd(); i += 1
             while heredocs:
-                delim, strip = heredocs.pop(0)
-                while i < n:
-                    j = cmd.find("\n", i); j = n if j < 0 else j
-                    line = cmd[i:j]; i = j + 1
-                    if (line.strip("\t") if strip else line) == delim:
-                        break
+                delim, strip, quoted, owner = heredocs.pop(0)
+                body, i, found = read_heredoc(cmd, i, delim, strip)
+                if not found:
+                    unsure()
+                if owner < len(cmds):
+                    cmds[owner].hdoc += body + "\n"
+                if not quoted and depth < 4 and ("$(" in body or "`" in body):
+                    # an unquoted heredoc expands $( ) and `...`: those run
+                    inner_cmds = split_commands('"%s"' % body.replace('"', '\\"'), depth + 1, info)
+                    cmds.extend(inner_cmds[1:])
             continue
         if cmd.startswith("<<", i) and not cmd.startswith("<<<", i):
-            j = i + 2
-            strip = j < n and cmd[j] == "-"
-            j += 1 if strip else 0
+            delim, strip, quoted, k = heredoc_head(cmd, i)
+            heredocs.append((delim, strip, quoted, len(cmds)))
+            cur.append(cmd[i:k]); in_word = True; i = k; continue
+        if cmd.startswith("<<<", i):
+            j = i + 3
             while j < n and cmd[j] in " \t":
                 j += 1
+            if j < n and cmd[j] in "'\"":
+                q_ = cmd[j]
+                k = j + 1
+                while k < n and cmd[k] != q_:
+                    k += 2 if (q_ == '"' and cmd[k] == "\\") else 1
+                here_next = cmd[j + 1:k]
+                i = k + 1 if k < n else n
+                continue
             k = j
             while k < n and cmd[k] not in " \t\n;&|)":
                 k += 1
-            heredocs.append((cmd[j:k].strip("'\""), strip))
-            cur.append(cmd[i:k]); in_word = True; i = k; continue
+            here_next = cmd[j:k]
+            i = k
+            continue
         if c in ";|(){}" or c == "&":
             if c == "&" and ((i > 0 and cmd[i - 1] in "<>") or (i + 1 < n and cmd[i + 1] == ">")):
                 cur.append(c); in_word = True; i += 1; continue   # 2>&1 and &>file
@@ -166,14 +287,18 @@ def split_commands(cmd, depth=0):
                 cur.append(c); i += 1; continue                     # ${VAR}, a{b,c}
             end_cmd()
             i += 1
+            is_pipe = c == "|" and not (i < n and cmd[i] == "|")
             if c in "&|" and i < n and cmd[i] in "&|":
                 i += 1
+            if is_pipe and i < n and cmd[i] == "&":
+                i += 1                                              # |&
+            pipe_next = is_pipe
             continue
         cur.append(c); in_word = True; i += 1
     end_cmd()
     if depth < 4:
         for sub in inner:
-            cmds.extend(split_commands(sub, depth + 1))
+            cmds.extend(split_commands(sub, depth + 1, info))
     return cmds
 
 
@@ -221,6 +346,13 @@ def strip_wrappers(words):
                 w.pop(0)
                 continue
             return []                       # asking where a program is does not run it
+        if b == "watch":
+            w.pop(0)
+            while w and w[0].startswith("-"):
+                opt = w.pop(0)
+                if opt in ("-n", "--interval") and w:
+                    w.pop(0)
+            continue
         if b == "xargs":
             w.pop(0)
             while w and w[0].startswith("-"):
@@ -233,7 +365,8 @@ def strip_wrappers(words):
 
 
 GODOT_NAME = re.compile(r"^(godot(4|_?v?\d[\w.\-]*)?(_console|\.console|_mono|_headless)*|godot_v[\w.\-]*)$")
-GODOT_VAR = re.compile(r"^\$\{?(TK_)?GODOT\w*\}?$")
+GODOT_VAR = re.compile(r"^\$\{?(TK_)?GODOT\w*(:?[-=+?][^}]*)?\}?$")
+VAR_REF = re.compile(r"^\$\{?([A-Za-z_]\w*)(?::?[-=+?][^}]*)?\}?$")
 
 
 def is_godot(prog):
@@ -322,6 +455,29 @@ def refspec_targets_main(spec, _unused=None):
 GIT_VALUE_OPTS = ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path")
 
 
+MAIN_WHY = ("nothing reaches main except through tools/dev/gate_land.sh, one full gate at a time, and merging is the "
+            "owner's call (the second of the two rules in CLAUDE.md at the repo root; tools/dev/README.md, 'How we work').")
+MAIN_INSTEAD = ("hand the PR to Jon to merge, or land the branch with "
+                "`bash tools/dev/gate_land.sh ../tk-wt/<name> <branch> <label>`.")
+
+
+def judge_gh(words, v):
+    """words start at `gh`: `gh pr merge` and `gh api .../merge` are merges into main."""
+    w = words[1:]
+    pos, skip = [], False
+    for a in w:
+        if skip:
+            skip = False
+        elif a in ("-R", "--repo", "--hostname"):
+            skip = True
+        elif not a.startswith("-"):
+            pos.append(a)
+    if pos[:2] == ["pr", "merge"] and not any(a in ("--help", "-h") for a in w):
+        v.blocks.append(msg("`gh pr merge` merges into main.", MAIN_WHY, MAIN_INSTEAD))
+    elif pos[:1] == ["api"] and any(re.search(r"/merges?(?:[/?]|$)|mergePullRequest", a) for a in w):
+        v.blocks.append(msg("`gh api` call to a merge endpoint.", MAIN_WHY, MAIN_INSTEAD))
+
+
 def judge_git(words, cwd, v):
     """words start at `git`. Applies the two block rules and the --no-verify warning."""
     w = words[1:]
@@ -334,7 +490,18 @@ def judge_git(words, cwd, v):
         return
     sub, args = w[k], w[k + 1:]
     if sub == "push":
-        specs = [a for a in args if not a.startswith("-")][1:]
+        pos, repo, skip = [], False, False
+        for a in args:
+            if skip:
+                skip = False
+            elif a in ("--repo", "-o", "--push-option", "--receive-pack", "--exec"):
+                skip = True
+                repo = repo or a == "--repo"
+            elif a.startswith("--repo="):
+                repo = True
+            elif not a.startswith("-"):
+                pos.append(a)
+        specs = pos if repo else pos[1:]
         hit = None
         if specs:
             hit = next((s for s in specs if refspec_targets_main(s, None)), None)
@@ -352,6 +519,19 @@ def judge_git(words, cwd, v):
                                 "merging is the humans' call), or land it with "
                                 "`bash tools/dev/gate_land.sh ../tk-wt/<name> <branch> <label>`; branches live in "
                                 "worktrees under ../tk-wt/<name>."))
+        return
+    if sub == "update-ref":
+        pos = [a for a in args if not a.startswith("-")]
+        if pos and pos[0] in ("main", "refs/heads/main"):
+            v.blocks.append(msg("`git update-ref` moves main.", MAIN_WHY, MAIN_INSTEAD))
+        return
+    if sub == "branch":
+        flags = [a for a in args if a.startswith("-")]
+        forceish = any(a in ("-f", "--force", "-M", "-m", "-D", "-d", "--delete", "--move") or
+                       (re.match(r"^-[a-zA-Z]+$", a) and re.search(r"[fMmDd]", a)) for a in flags)
+        pos = [a for a in args if not a.startswith("-")]
+        if forceish and any(p in ("main", "refs/heads/main") for p in pos):
+            v.blocks.append(msg("`git branch` forces, moves or deletes main.", MAIN_WHY, MAIN_INSTEAD))
         return
     if sub in ("merge", "rebase", "commit"):
         if sub in ("merge", "rebase") and any(a in ("--abort", "--continue", "--skip", "--quit", "--edit-todo") for a in args):
@@ -385,11 +565,117 @@ def judge_git(words, cwd, v):
 BASELINED = ("code_check.py", "code_graph.py", "frame_check.py", "tests_map_check.py")
 
 
-def judge_simple(words, cwd, v, depth=0):
-    w = strip_wrappers(words)
+RAW_CAND = re.compile(r"""(?:^|[\s;&|(`'"])([^\s;&|()`'"]+)\s+--?[A-Za-z]""")
+RAW_PUSH = re.compile(r"\bgit\b[^;&|\n]*?\bpush\b[^;&|\n]*?(?<![\w./-])\+?(?:[\w./-]*:)?(?:refs/heads/)?main(?![\w./-])")
+RAW_MERGE = re.compile(r"\bgh\b[^;&|\n]*\bpr\s+merge\b(?![^;&|\n]*(?:--help|\s-h\b))")
+
+
+def judge_raw(text, cwd, v):
+    """The text of a command that could not be parsed with confidence, judged conservatively for the two
+    blocked things: a Godot binary as a command word (a word that names Godot, then an option), and a push to
+    main (or a merge). More false alarms than the parser would give, never fewer; the parser's verdict on what
+    it did read still applies."""
+    for m in RAW_CAND.finditer(text):
+        if is_godot(m.group(1)):
+            blk = godot_block([m.group(1)], m.group(1))
+            v.blocks.append(blk + " (The command could not be parsed with confidence, so its raw text was judged.)")
+            break
+    if RAW_PUSH.search(text):
+        v.blocks.append(msg("`git push` to main (the command could not be parsed with confidence; raw text judged).", MAIN_WHY,
+                            "push your branch with `git push -u origin <branch>` and open a PR, or " + MAIN_INSTEAD[3:]))
+    if RAW_MERGE.search(text):
+        v.blocks.append(msg("`gh pr merge` merges into main (raw text judged).", MAIN_WHY, MAIN_INSTEAD))
+
+
+def new_scope():
+    return {"var": {}, "alias": {}}
+
+
+def record_assignments(words, scope):
+    """One-line indirection: `x=godot`, `export x=godot`, `alias g=godot` are remembered for later commands."""
+    w = list(words)
+    if w and all(ASSIGN.match(a) for a in w):
+        pairs = w
+    elif w and base(w[0]) in ("export", "declare", "local", "readonly", "typeset"):
+        pairs = [a for a in w[1:] if ASSIGN.match(a)]
+    elif w and w[0] == "alias":
+        for a in w[1:]:
+            if "=" in a:
+                k, val = a.split("=", 1)
+                scope["alias"][k] = val
+        return
+    else:
+        return
+    for a in pairs:
+        k, val = a.split("=", 1)
+        if k.endswith("+"):
+            continue
+        scope["var"][k] = val
+
+
+def resolve_prog(w, scope):
+    """Replace a program word that is a remembered variable or alias with what it was set to."""
+    for _ in range(3):
+        if not w:
+            return w
+        m = VAR_REF.match(w[0])
+        val = scope["var"].get(m.group(1)) if m else scope["alias"].get(w[0])
+        if val is None:
+            return w
+        try:
+            parts = shlex.split(val)
+        except ValueError:
+            parts = [val]
+        w = strip_wrappers(parts + w[1:])
+    return w
+
+
+def stdin_scripts(words, w):
+    """The texts a bare shell (`bash`, `bash -s`, `sh -`) would read: its here-string, its heredoc, and what a
+    pipe feeds it from echo, printf or a heredoc'd cat."""
+    if not w or base(w[0]) not in SHELLS:
+        return []
+    args, texts, k = list(w[1:]), [], 0
+    rest = []
+    while k < len(args):
+        if args[k] == "<<<" and k + 1 < len(args):
+            texts.append(args[k + 1]); k += 2; continue
+        if args[k].startswith("<<<"):
+            texts.append(args[k][3:])
+        elif not args[k].startswith("<<"):
+            rest.append(args[k])
+        k += 1
+    nonopt = [a for a in rest if not a.startswith("-") or a == "-"]
+    if nonopt and "-s" not in rest and "-" not in rest:
+        return texts + ([words.hdoc] if getattr(words, "hdoc", "") else [])   # runs a script file
+    if getattr(words, "here", None):
+        texts.append(words.here)
+    if getattr(words, "hdoc", ""):
+        texts.append(words.hdoc)
+    pf = getattr(words, "piped_from", None)
+    if pf:
+        pw = strip_wrappers(pf)
+        if pw and base(pw[0]) in ("echo", "printf"):
+            texts.append(" ".join(a for a in pw[1:] if not a.startswith("-")))
+        if getattr(pf, "hdoc", ""):
+            texts.append(pf.hdoc)
+        if getattr(pf, "here", None):
+            texts.append(pf.here)
+    return texts
+
+
+GODOT_QUIET = ("--headless", "--quiet")
+INFO_FLAGS = ("--version", "-v", "--help", "-h")
+
+
+def judge_simple(words, cwd, v, depth=0, scope=None):
+    scope = scope if scope is not None else new_scope()
+    w = resolve_prog(strip_wrappers(words), scope)
     if not w:
         return
     prog = w[0]
+    for text in (stdin_scripts(words, w) if depth < 3 else []):
+        judge_command(text, cwd, v, depth + 1)
     script = shell_c_script(w)
     if script is not None and depth < 3:
         judge_command(script, cwd, v, depth + 1)
@@ -397,9 +683,22 @@ def judge_simple(words, cwd, v, depth=0):
     if base(prog) == "eval" and depth < 3:
         judge_command(" ".join(w[1:]), cwd, v, depth + 1)
         return
+    if " " in prog.strip() and depth < 3:
+        judge_command(prog, cwd, v, depth + 1)      # a quoted command line given as the program: watch "godot ..."
+        return
+    if base(prog) == "find" and depth < 3:
+        for k, a in enumerate(w):
+            if a in ("-exec", "-execdir", "-ok", "-okdir"):
+                sub = []
+                for b in w[k + 1:]:
+                    if b in (";", "+"):
+                        break
+                    sub.append(b)
+                judge_simple(sub, cwd, v, depth + 1, scope)
+        return
     if is_godot(prog):
-        rest = [a for a in w[1:]]
-        if rest and all(a in ("--version", "-v", "--help", "-h") for a in rest):
+        rest = [a for a in w[1:] if a not in GODOT_QUIET]
+        if rest and all(a in INFO_FLAGS for a in rest):
             return              # prints a line and exits: no profile is touched
         v.blocks.append(godot_block(w, " ".join(w)))
         return
@@ -408,6 +707,9 @@ def judge_simple(words, cwd, v, depth=0):
         return
     if base(prog) == "git":
         judge_git(w, cwd, v)
+        return
+    if base(prog) == "gh":
+        judge_gh(w, v)
         return
     if "--update" in w[1:]:
         for a in w[:4]:
@@ -419,9 +721,11 @@ def judge_simple(words, cwd, v, depth=0):
                 break
 
 
-def judge_command(cmd, cwd, v, depth=0):
+def judge_command(cmd, cwd, v, depth=0, scope=None):
     cur = cwd
-    for words in split_commands(cmd):
+    scope = scope if scope is not None else new_scope()
+    info = {}
+    for words in split_commands(cmd, info=info):
         if words and words[0] == "cd":
             tgt = words[1] if len(words) > 1 else None
             if tgt and not re.search(r"[$`~]|^-$", tgt) and cur:
@@ -429,7 +733,10 @@ def judge_command(cmd, cwd, v, depth=0):
             else:
                 cur = None
             continue
-        judge_simple(words, cur, v, depth)
+        judge_simple(words, cur, v, depth, scope)
+        record_assignments(words, scope)
+    if info.get("unsure"):
+        judge_raw(cmd, cur, v)
 
 
 def bash_guard(payload):
@@ -653,6 +960,26 @@ GUARD_CASES = [
     ("git commit -m 'work'", "block", ["worktree", "gate_land.sh"], "main"),
     ("git merge feat/x", "block", ["worktree"], "main"),
     ("git rebase main", "block", ["worktree"], "main"),
+    # closed in the review: indirection, wrappers, a stray ( in a heredoc, a shell fed by a pipe, merges
+    ("git commit -m \"$(cat <<'EOF'\nfix (a\nEOF\n)\" && godot --path tkg", "block", ["godot.sh"], "feature"),
+    ("${GODOT:-godot} --headless --path tkg", "block", ["godot.sh"], None),
+    ("${GODOT} --headless --path tkg", "block", ["godot.sh"], None),
+    ("find . -name '*.gd' -exec godot --headless --script {} \\;", "block", ["godot.sh"], None),
+    ("watch -n1 godot --path tkg", "block", ["godot.sh"], None),
+    ("echo \"godot --path tkg\" | bash", "block", ["godot.sh"], None),
+    ("bash <<< \"godot --path tkg\"", "block", ["godot.sh"], None),
+    ("bash <<'EOF'\ngodot --path tkg\nEOF", "block", ["godot.sh"], None),
+    ("alias g=godot; g --path tkg", "block", ["godot.sh"], None),
+    ("x=godot; $x --path tkg", "block", ["godot.sh"], None),
+    ("echo \"unterminated; godot --path tkg", "block", ["godot.sh", "raw text"], None),
+    ("echo \"unterminated; git push origin main", "block", ["gate_land.sh", "raw text"], "feature"),
+    ("gh pr merge 12 --squash", "block", ["Jon", "gate_land.sh"], None),
+    ("gh -R o/r pr merge 12", "block", ["Jon", "gate_land.sh"], None),
+    ("gh api -X PUT repos/o/r/pulls/12/merge", "block", ["Jon", "gate_land.sh"], None),
+    ("git update-ref refs/heads/main HEAD", "block", ["gate_land.sh"], "feature"),
+    ("git branch -f main HEAD~1", "block", ["gate_land.sh"], "feature"),
+    ("git push --repo=origin main", "block", ["gate_land.sh"], "feature"),
+    ("git push --repo origin main", "block", ["gate_land.sh"], "feature"),
     # warned, not blocked
     ("git commit --no-verify -m wip", "warn", ["pre-commit"], "feature"),
     ("git commit -nm wip", "warn", ["pre-commit"], "feature"),
@@ -687,6 +1014,25 @@ GUARD_CASES = [
     ("git log --oneline main..HEAD", "pass", [], "main"),
     ("bash tkg/tools/coplay.sh 2", "pass", [], None),
     ("ls tkg/scripts | grep -i godot", "pass", [], None),
+    ("godot --headless --version", "pass", [], None),
+    ("godot --headless --help", "pass", [], None),
+    ("ssh host godot --headless --path tkg", "pass", [], None),       # a remote machine: documented, not guarded
+    ("gh pr view 12", "pass", [], None),
+    ("gh pr create --fill", "pass", [], None),
+    ("gh pr checks 12", "pass", [], None),
+    ("gh pr merge --help", "pass", [], None),
+    ("gh api repos/o/r/pulls/12", "pass", [], None),
+    ("git branch -f feature/x HEAD~1", "pass", [], "feature"),
+    ("git branch --list main", "pass", [], "feature"),
+    ("git update-ref refs/heads/feature/x HEAD", "pass", [], "feature"),
+    ("find . -name '*godot*'", "pass", [], None),
+    ("watch -n5 git status", "pass", [], None),
+    ("x=godot.sh; bash tools/dev/$x", "pass", [], None),
+    ("echo \"docs mention godot --path\" | tee notes.txt", "pass", [], None),
+    ("echo \"godot --path tkg\" | grep godot", "pass", [], None),
+    ("bash <<'EOF'\necho hello (not a command\nEOF", "pass", [], None),
+    ("git commit -m \"$(cat <<'EOF'\nfix (a\nEOF\n)\"", "pass", [], "feature"),
+    ("git push --repo=origin feature/main-menu", "pass", [], "feature"),
 ]
 
 
