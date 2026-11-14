@@ -314,7 +314,6 @@ bare scripts/ui/LocalSky.gd::near_info
 bare scripts/ui/LocalSky.gd::near_place
 bare scripts/ui/LocalSky.gd::near_plan
 bare scripts/ui/LocalSky.gd::palette_for
-bare scripts/ui/LocalSubject.gd::_dilated
 bare scripts/ui/LocalSubject.gd::_light_points
 bare scripts/ui/LocalSubject.gd::_loose_on
 bare scripts/ui/LocalSubject.gd::_loose_round
@@ -335,14 +334,9 @@ bare scripts/ui/LocalSubject.gd::_stage_strewn
 bare scripts/ui/LocalSubject.gd::_stage_structure
 bare scripts/ui/LocalSubject.gd::_stage_tether
 bare scripts/ui/LocalSubject.gd::fit
-bare scripts/ui/LocalSubject.gd::index
-bare scripts/ui/LocalSubject.gd::mask_of
-bare scripts/ui/LocalSubject.gd::piece_info
 bare scripts/ui/LocalSubject.gd::plan
-bare scripts/ui/LocalSubject.gd::rec_for
 bare scripts/ui/LocalSubject.gd::resolve
 bare scripts/ui/LocalSubject.gd::rock_form
-bare scripts/ui/LocalSubject.gd::role_ships
 bare scripts/ui/LocalSubject.gd::spin_at
 bare scripts/ui/LocalSubject.gd::stages_of
 bare scripts/ui/LocalSubject.gd::structure_in
@@ -433,6 +427,12 @@ bare scripts/ui/StationScreen.gd::_open_elsewhere
 bare scripts/ui/StationScreen.gd::yard_flameout
 bare scripts/ui/StationSides.gd::interior
 bare scripts/ui/StationSides.gd::pick
+bare scripts/ui/SubjectMask.gd::_dilated
+bare scripts/ui/SubjectMask.gd::index
+bare scripts/ui/SubjectMask.gd::mask_of
+bare scripts/ui/SubjectMask.gd::piece_info
+bare scripts/ui/SubjectMask.gd::rec_for
+bare scripts/ui/SubjectMask.gd::role_ships
 bare scripts/ui/ThrusterFx.gd::_bell
 bare scripts/ui/ThrusterFx.gd::_build
 bare scripts/ui/ThrusterFx.gd::_frame
@@ -568,7 +568,6 @@ bare scripts/ui/sysmap/SystemView.gd::ring_slots
 bare scripts/ui/sysmap/SystemView.gd::star_facts_of
 file scripts/systems/FlightSolve.gd 3969
 file scripts/ui/LabSavers.gd 5408
-file scripts/ui/LocalSubject.gd 3167
 file scripts/ui/SectorScreen.gd 4850
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3115

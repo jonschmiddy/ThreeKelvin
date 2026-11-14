@@ -128,7 +128,7 @@ func run(tree: SceneTree) -> void:
 			if placed.grow(6.0).intersects(ship):
 				on_ship.append(id)
 		# No two pieces' opaque pixels within drift distance, bar own rock, own body, docked pair.
-		for c: String in LocalSubject.clear_of(planned):
+		for c: String in SubjectMask.clear_of(planned):
 			piled.append("%s: %s" % [id, c])
 		if not LocalSubject.short.is_empty():
 			print("  ..   fewer shown, to stand clear: %s: %s" % [id, ", ".join(LocalSubject.short)])
@@ -148,7 +148,7 @@ func run(tree: SceneTree) -> void:
 	# one ship among them
 	var empty_roles: Array[String] = []
 	for r: String in ["hauler", "barge", "small", "survey", "mining", "passenger", "family", "tender", "armed"]:
-		if LocalSubject.role_ships(r).is_empty():
+		if SubjectMask.role_ships(r).is_empty():
 			empty_roles.append(r)
 	_ok("every role names kept ships (%s)" % (", ".join(empty_roles) if not empty_roles.is_empty() else "all"), empty_roles.is_empty())
 	var same: Array[String] = []
@@ -316,7 +316,7 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 					bad.append("%s take %d: out of its box (%s)" % [oid, k, placed])
 				if placed.grow(6.0).intersects(ship):
 					bad.append("%s take %d: on your ship" % [oid, k])
-			for c: String in LocalSubject.clear_of(planned):
+			for c: String in SubjectMask.clear_of(planned):
 				bad.append("%s take %d: piled %s" % [oid, k, c])
 			n_take += 1
 	_ok("round three's keeps: every kept take (%d) drawn by its encounter, each staged clear, plates pinned, objects in their box (%s)" % [n_take,
@@ -437,8 +437,8 @@ func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 	var ev: Array[StringName] = [&"the_auction", &"seized_clamp", &"paid_in_full", &"the_parted_line"]
 	var takes: Array = KEPT3[&"the_auction"][0]
 	for k in takes.size():
-		var p := LocalSubject.piece_info(StringName(takes[k]))
-		var img := LocalSubject._image_of(String(p.get("file", "")))
+		var p := SubjectMask.piece_info(StringName(takes[k]))
+		var img := SubjectMask._image_of(String(p.get("file", "")))
 		if img != null and img.is_compressed():
 			img.decompress()
 		var an: Dictionary = p.get("anchors", {})
@@ -923,7 +923,7 @@ func _beam_wrong(oid: StringName, _sub: LocalSubject, fx: LocalFx) -> Array[Stri
 func _piece_wrong(pid: StringName) -> String:
 	if not LocalSubject.has_piece(pid):
 		return "not in the index"
-	var p: Dictionary = LocalSubject.piece_info(pid)
+	var p: Dictionary = SubjectMask.piece_info(pid)
 	if String(p.get("kind", "")) == "painter":
 		return "" if Worlds.WORLD.has(StringName(p.get("world", ""))) else "the painter has no world %s" % p.get("world", "")
 	var f := String(p.get("file", ""))
@@ -953,7 +953,7 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 		out.append("%s: starts left of the middle (x %d)" % [id, sr.position.x])
 	# ITS NEAR PART AT YOUR HEIGHT: some of it on your ship's middle row, in the
 	# near half of it
-	var mk := LocalSubject.mask_of(m)
+	var mk := SubjectMask.mask_of(m)
 	var row := int(ship_mid - sr.position.y)
 	var hits := 0
 	if row >= 0 and row < int(mk.h):
@@ -969,7 +969,7 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 			continue
 		var r := LocalSubject.rect_of(w)
 		r.position += sr.get_center()
-		var d := LocalSubject.drift_of(w)
+		var d := SubjectMask.drift_of(w)
 		r = r.grow_individual(d.x, d.y, d.x, d.y)
 		if not room.encloses(r):
 			out.append("%s: %s out of view or under the band (%s)" % [id, w.id, r])
@@ -982,8 +982,8 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 func _cycle_checks() -> void:
 	var bad: Array[String] = []
 	var n := 0
-	for id: String in LocalSubject.index():
-		var p: Dictionary = LocalSubject.piece_info(StringName(id))
+	for id: String in SubjectMask.index():
+		var p: Dictionary = SubjectMask.piece_info(StringName(id))
 		if String(p.get("kind", "")) != "structure":
 			continue
 		var files: Array = [String(p.file)]
@@ -1003,7 +1003,7 @@ func _cycle_checks() -> void:
 		# touches, all along its part's slide, the structure has metal
 		var sp: Dictionary = p.get("sparks", {})
 		if sp.has("part") and ResourceLoader.exists(String(p.file)):
-			var img := LocalSubject._image_of(String(p.file))
+			var img := SubjectMask._image_of(String(p.file))
 			if img.is_compressed():
 				img.decompress()
 			var parts: Array = p.get("parts", [])
@@ -1359,7 +1359,7 @@ func _handover(oid: StringName) -> void:
 		for c in sub.cast:
 			if String(c).begins_with("foe:") or not LocalSubject.has_piece(c):
 				coded.append(String(c))
-			elif String(LocalSubject.piece_info(c).get("kind", "")) == "ship":
+			elif String(SubjectMask.piece_info(c).get("kind", "")) == "ship":
 				pool += 1
 	_ok("%s shows kept pool ships, never the fight's coded ship (%d pool, %s)" % [oid, pool, ", ".join(coded) if not coded.is_empty() else "none coded"],
 		sub != null and pool > 0 and coded.is_empty())
@@ -1857,7 +1857,7 @@ func _orbit_name(sky: LocalSky) -> String:
 func _role_of(ship: String) -> Array[String]:
 	var out: Array[String] = []
 	for r: String in ["hauler", "barge", "small", "survey", "mining", "passenger", "family", "tender", "armed"]:
-		if ship in LocalSubject.role_ships(r):
+		if ship in SubjectMask.role_ships(r):
 			out.append(r)
 	return out
 
