@@ -139,36 +139,17 @@ class Script:
         self.find_funcs()
 
     def find_funcs(self):
-        """Every func by position: funcs[key] = (first line index, one past last), key being the name,
-        or name#2, name#3 for a later one of the same name (an inner class's). A func runs to the last
-        line before the next declaration at its indent or less, as code_check counts it."""
+        """Every func by position: funcs[key] = (first line index, one past last), key as
+        code_check.function_spans names it."""
         self.funcs = {}
         self.names = set()       # the plain names, for finding a method
         self.params = {}         # key -> [(name, Class or None)]
         self.span_of = [None] * len(self.codes)
-        seen = {}
-        indent = code_check.indent_of
-        for s, c in enumerate(self.codes):
-            if "func" not in c:
-                continue
-            m = code_check.FUNC.match(c.lstrip())
-            if not m:
-                continue
-            ind, last = indent(self.raws[s]), s
-            for j in range(s + 1, len(self.raws)):
-                cj = self.codes[j]
-                if not cj.strip():
-                    continue
-                if indent(self.raws[j]) <= ind and code_check.DECL.match(cj.lstrip()):
-                    break
-                last = j
-            name = m.group(1)
-            seen[name] = seen.get(name, 0) + 1
-            key = name if seen[name] == 1 else "%s#%d" % (name, seen[name])
-            self.funcs[key] = (s, last + 1)
-            self.names.add(name)
+        for key, s, end, m in code_check.function_spans(self.raws, self.codes):
+            self.funcs[key] = (s, end)
+            self.names.add(m.group(1))
             self.params[key] = params_of(paren_text(self.bare[s:s + 12]))
-            for j in range(s, last + 1):
+            for j in range(s, end):
                 self.span_of[j] = key
 
 
