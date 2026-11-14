@@ -12,7 +12,7 @@ An option's `subject` (`OptionTable`, drawn by `LocalSubject`) names pieces of
 art and a staging. A misspelt piece draws nothing and says nothing; a staging
 one tank too wide runs under the event's band or off the view. So, for every
 option that has one:
- - every stage is a kind `LocalSubject` stages, with what that kind needs;
+ - every stage is a kind `SubjectPlan` stages, with what that kind needs;
  - every piece is in `art/subjects/index.json`, and its picture loads (or its
    painter recipe names a world the painter has);
  - the whole staging fits the subject's box on LOCAL's own view (right of
@@ -89,7 +89,7 @@ ROUND THREE'S KEEPS, wired:
    the top, right and bottom, clear of your ship, its near part at your
    height, what goes with it in view), an object inside the box and off your
    ship, nothing drawn across anything;
- - THE PER-SYSTEM PICK (`LocalSubject.pick_of`): the same system draws the same
+ - THE PER-SYSTEM PICK (`SubjectPlan.pick_of`): the same system draws the same
    take every time it is asked, and across the run's systems every take turns up;
  - on the real LOCAL, at a system it could be rolled at: it draws its kept
    art (one of its takes; its pieces), the plate pinned and behind the hulls,

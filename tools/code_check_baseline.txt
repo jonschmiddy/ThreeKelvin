@@ -315,31 +315,9 @@ bare scripts/ui/LocalSky.gd::near_place
 bare scripts/ui/LocalSky.gd::near_plan
 bare scripts/ui/LocalSky.gd::palette_for
 bare scripts/ui/LocalSubject.gd::_light_points
-bare scripts/ui/LocalSubject.gd::_loose_on
-bare scripts/ui/LocalSubject.gd::_loose_round
-bare scripts/ui/LocalSubject.gd::_m
-bare scripts/ui/LocalSubject.gd::_nearest_clear
-bare scripts/ui/LocalSubject.gd::_nose_to_tail
-bare scripts/ui/LocalSubject.gd::_stage_around
-bare scripts/ui/LocalSubject.gd::_stage_field
-bare scripts/ui/LocalSubject.gd::_stage_group
-bare scripts/ui/LocalSubject.gd::_stage_herd
-bare scripts/ui/LocalSubject.gd::_stage_line
-bare scripts/ui/LocalSubject.gd::_stage_on_rock
-bare scripts/ui/LocalSubject.gd::_stage_ring
-bare scripts/ui/LocalSubject.gd::_stage_ring_arc
-bare scripts/ui/LocalSubject.gd::_stage_row
-bare scripts/ui/LocalSubject.gd::_stage_single
-bare scripts/ui/LocalSubject.gd::_stage_strewn
-bare scripts/ui/LocalSubject.gd::_stage_structure
-bare scripts/ui/LocalSubject.gd::_stage_tether
 bare scripts/ui/LocalSubject.gd::fit
-bare scripts/ui/LocalSubject.gd::plan
-bare scripts/ui/LocalSubject.gd::resolve
 bare scripts/ui/LocalSubject.gd::rock_form
 bare scripts/ui/LocalSubject.gd::spin_at
-bare scripts/ui/LocalSubject.gd::stages_of
-bare scripts/ui/LocalSubject.gd::structure_in
 bare scripts/ui/LocalSubject.gd::without_foes
 bare scripts/ui/LowHull.gd::look
 bare scripts/ui/LowHull.gd::plan_for
@@ -433,6 +411,28 @@ bare scripts/ui/SubjectMask.gd::mask_of
 bare scripts/ui/SubjectMask.gd::piece_info
 bare scripts/ui/SubjectMask.gd::rec_for
 bare scripts/ui/SubjectMask.gd::role_ships
+bare scripts/ui/SubjectPlan.gd::_loose_on
+bare scripts/ui/SubjectPlan.gd::_loose_round
+bare scripts/ui/SubjectPlan.gd::_m
+bare scripts/ui/SubjectPlan.gd::_nearest_clear
+bare scripts/ui/SubjectPlan.gd::_nose_to_tail
+bare scripts/ui/SubjectPlan.gd::_stage_around
+bare scripts/ui/SubjectPlan.gd::_stage_field
+bare scripts/ui/SubjectPlan.gd::_stage_group
+bare scripts/ui/SubjectPlan.gd::_stage_herd
+bare scripts/ui/SubjectPlan.gd::_stage_line
+bare scripts/ui/SubjectPlan.gd::_stage_on_rock
+bare scripts/ui/SubjectPlan.gd::_stage_ring
+bare scripts/ui/SubjectPlan.gd::_stage_ring_arc
+bare scripts/ui/SubjectPlan.gd::_stage_row
+bare scripts/ui/SubjectPlan.gd::_stage_single
+bare scripts/ui/SubjectPlan.gd::_stage_strewn
+bare scripts/ui/SubjectPlan.gd::_stage_structure
+bare scripts/ui/SubjectPlan.gd::_stage_tether
+bare scripts/ui/SubjectPlan.gd::plan
+bare scripts/ui/SubjectPlan.gd::resolve
+bare scripts/ui/SubjectPlan.gd::stages_of
+bare scripts/ui/SubjectPlan.gd::structure_in
 bare scripts/ui/ThrusterFx.gd::_bell
 bare scripts/ui/ThrusterFx.gd::_build
 bare scripts/ui/ThrusterFx.gd::_frame
@@ -650,7 +650,6 @@ length scripts/ui/LocalEventDrawer.gd::_result 200
 length scripts/ui/LocalSky.gd::_build 247
 length scripts/ui/LocalSubject.gd::_build 135
 length scripts/ui/LocalSubject.gd::_place 145
-length scripts/ui/LocalSubject.gd::plan 101
 length scripts/ui/MapChart.gd::_build_field 231
 length scripts/ui/MapChart.gd::_build_nebulae 218
 length scripts/ui/MapChart.gd::_draw_chart 151
@@ -673,6 +672,7 @@ length scripts/ui/SpaceBackdrop.gd::_bake_world 123
 length scripts/ui/StarchartScreen.gd::_build 178
 length scripts/ui/StarchartScreen.gd::_refresh 123
 length scripts/ui/StationScreen.gd::_build 119
+length scripts/ui/SubjectPlan.gd::plan 101
 length scripts/ui/ThrusterFx.gd::_stream 111
 length scripts/ui/ThrusterFx.gd::for_hull 268
 length scripts/ui/TradeCounter.gd::_draw 124
