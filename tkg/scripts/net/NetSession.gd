@@ -290,6 +290,7 @@ func set_ready(value: bool) -> void:
 		_set_ready_at_host.rpc_id(1, value)
 
 
+## No caller today; it pairs with the `_choose_hull_at_host` rpc, which is on the wire, so both stay.
 func choose_hull(hull_id: StringName) -> void:
 	_local_hull = hull_id
 	if is_host():

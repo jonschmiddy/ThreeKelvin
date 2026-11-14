@@ -1199,9 +1199,6 @@ func hull_art_name(w: HullData.Weight, cls: int = 0, manufacturer: StringName = 
 	return "hull_%s_%s" % [stem, letter.to_lower()]
 
 
-## One hull per weight, four grades baked from it, not twelve ships a manufacturer (Jon, Oct 14).
-const GRADE_BASE: Dictionary = HULL_ART[&"korvan"]
-
 ## Whether this weight's grades are baked from one hull (HullGrade) rather than
 ## drawn as four.
 func graded(w: HullData.Weight, manufacturer: StringName = &"") -> bool:
@@ -1692,13 +1689,6 @@ func _seed_routines() -> void:
 			pips = {}, raw = {},
 			text = "Draw 2 more cards on the first turn of a fight."},
 	}
-
-## A routine as the Lab and the ship tab print it: "NAME: what it does".
-func routine_text(id: StringName) -> String:
-	if routines.has(id):
-		var r: Dictionary = routines[id]
-		return "%s: %s" % [r.name, r.text]
-	return ""
 
 ## A branch's four routines, weakest first: what the deal drops one of.
 func routines_in(branch: StringName) -> Array[StringName]:

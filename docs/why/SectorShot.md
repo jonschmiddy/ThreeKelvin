@@ -35,19 +35,6 @@ being looked at is the height of a drawer with an empty list, and running
 four payouts to get there would put their loot in the picture.
 ```
 
-## Hover shot
-
-Inside `run()`, above `if "hover" in OS.get_cmdline_user_args():`:
-
-```text
-WHAT AN EXCLUSIVE SET LOOKS LIKE WHEN YOU POINT AT ONE OF IT. RULING 1 is
-a hover now rather than a box, so there is no frame in which it is visible
-by itself -- and `Input.parse_input_event` plus `warp_mouse` does not drive
-GUI in a window that does not have focus, which has produced false failures
-here before. Notifying the card is what a pointer over it would do, and it
-is the same "drive the screen directly" the open= and take= modes use.
-```
-
 ## Drawer states
 
 Inside `run()`, above `if "region" in OS.get_cmdline_user_args():`:
@@ -56,8 +43,7 @@ Inside `run()`, above `if "region" in OS.get_cmdline_user_args():`:
 THE DRAWER HAS THREE STATES AND A SCREENSHOT ONLY EVER CATCHES THE FIRST.
 `open=N` clicks into an option, `take=N` resolves one of its choices, so
 LIST -> OPTION -> RESULT can each be photographed. Driving the screen
-directly rather than faking a pointer, for the same reason the hover shot
-does: there is no pointer.
+directly rather than faking a pointer: there is no pointer.
 `combat` swaps the drawer for the hand, which is the only way to see
 whether the two bands actually match -- they are mutually exclusive, so no
 single frame shows both and the comparison is between two screenshots.

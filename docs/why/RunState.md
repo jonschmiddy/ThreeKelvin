@@ -1345,29 +1345,6 @@ in the hold, and with nothing on screen saying so Jon called it "super NOT
 intuitive".
 ```
 
-## Heat cap upgrades
-
-Above `func add_heat_cap(n: int) -> void:`:
-
-```text
-Permanent coolant, bought at a station. Emits, and that is the point.
-
-THE MUTATION OWNS THE SIGNAL. The station used to raise `heat_cap_bonus` by
-hand and rely on the `add_credits()` call above it to redraw — which fires
-BEFORE the cap changes, so every listener repainted the old number and the
-gauge sat at 0/14 while the run was carrying 16. The upgrade worked; nothing
-ever said so, which is indistinguishable from it not working.
-
-`ship_changed` rather than `resources_changed`: a heat cap is a property of
-the ship, and `RunState._clamp_hp` and the gauges are already listening to it
-for exactly this class of change.
-
-ONE SIGNAL, NOT TWO. Every listener that cares about a heat cap is already on
-`ship_changed` — the HUD and the station screen are both on both — so emitting
-the pair meant two full rebuilds per change. Buying coolant fired three: one
-from `add_credits` and two from here.
-```
-
 ## The refit rule
 
 Above `enum Refit { REFUSED, MOVED, FITTED }`:

@@ -100,101 +100,11 @@ border was the mistake. `tag_colour` spans a bright cyan for a signal, a
 muted brown for salvage and `LINE` itself for an untagged option, so four
 cards edged in their own tag came out at four different weights and the
 brightest one read as the selected one. It is a uniform frame now, and the
-tag is the flush stripe down the left that `option_card` adds.
+tag is the flush stripe down the left that `plate` adds.
 
 Zero padding, because the stripe has to touch the edge: a PanelContainer
 insets its whole child by the stylebox margins, so the spacing moved to a
 MarginContainer around the text only.
-```
-
-## Exclusive sets
-
-Above `func doom(on: bool) -> void:`:
-
-```text
-RULING 1, AS A GESTURE RATHER THAN A BOX.
-
-An exclusive set used to be a bordered panel labelled ONE ONLY wrapped
-around its members: a caption you read once and then stopped seeing, and a
-second level of layout that made a pair of options a different SHAPE from
-every other option on the row. Pointing at one and watching the other go
-grey says the same thing at the moment it is worth knowing, costs no
-chrome, and lets every card be one card again.
-
-The warning is at full strength while everything else in the card fades,
-because the fade is the thing being said and the sentence is what says it.
-```
-
-## Seal overlay
-
-Above `func seal(text: String, ink: Color, shown: bool) -> void:`:
-
-```text
-THE WORD ACROSS THE MIDDLE, over everything else on the card.
-
-In a plain `Control` rather than a container, and that is the whole
-trick: a `PanelContainer` takes its own minimum size from its children,
-and a heading-sized label saying WILL BECOME UNAVAILABLE reports a
-minimum two hundred pixels wide -- which would push the card past its
-fifth of the row and take the drawer with it. A bare Control reports
-nothing, and the panel stretches it to fill instead.
-```
-
-Above `var veil := ColorRect.new()`:
-
-```text
-THE THING THAT MAKES IT A STAMP RATHER THAN A CAPTION. A word
-lying on top of legible prose reads as part of the card; the same
-word over a card you can no longer quite read reads as a seal on
-it. `ColorRect` has no minimum size of its own, so the scrim is
-free -- see the note above about what a heading-sized label would
-have cost.
-```
-
-## Loot button
-
-Inside `head()`, above `if on_loot.is_valid():`:
-
-```text
-ALWAYS THERE, GREYED WHEN EMPTY, and no count on it.
-
-A button that appears and disappears moves the two beside it, so the jump
-is somewhere different depending on whether you happen to have dropped
-something -- and a number on it was a running total of a thing you open to
-look at anyway. Greyed says "nothing here" and keeps the row still.
-```
-
-## Row width
-
-Above `const SLOTS := 5`:
-
-```text
-A ROW IS ALWAYS FIVE CARDS WIDE, however many are in it.
-
-Every card takes an equal share of whatever room the row has, so a system
-with one thing in it drew one card nine hundred pixels across -- a bar again,
-and the shape a card exists not to be. Padding the row out to five keeps a
-card the same object from system to system: the same width, the same amount
-of prose before it wraps, the same thing in the same place.
-
-Five rather than four because the table rolls two to FOUR and an exclusive
-pair beside three loose options is five slots' worth. `maxi` is the guard for
-the day that stops being true.
-```
-
-## Option row
-
-Above `static func option_row(n: MapGen.MapNode, on_open: Callable) -> Control:`:
-
-```text
-Every untaken option in this system, side by side.
-
-The screen used to run this loop itself and add one child per option; it is
-here because it is a picture, and because the exclusive-set bracket below has
-to be laid out ALONGSIDE the loose options rather than above them.
-EVERY OPTION THE SYSTEM EVER HAD, not just the live ones. What you did here
-is part of what the place is, so a spent option keeps its card and wears its
-outcome -- see `option_card`.
 ```
 
 ## Option card text
@@ -202,17 +112,6 @@ outcome -- see `option_card`.
 Above `static func result_stamp(r: StringName) -> Array:`:
 
 ```text
-ITS NAME AND ONE SENTENCE, AND NOTHING ELSE.
-
-The row printed a third column: the odds on its check, or what it cost, or
-what the dish read off the contact. That is the detail view leaking into the
-list. A number you can compare across four rows turns choosing an encounter
-into arithmetic before you have read what any of them ARE -- and the numbers
-are all still there, one click away, on the choice buttons where you are
-actually committing to one. `row_hint` and `lead_check` went with it.
-
-`n` is not a parameter any more for the same reason: everything the old row
-needed the system for was in that column.
 THE WORD A SPENT CARD WEARS, and its colour.
 
 Success, partial and botched take the bands' own colours, so the stamp and
@@ -238,20 +137,6 @@ event page, read off what the run already records and nothing else:
 A partner's claim used to stamp RESOLVED, as if you had done it.
 ```
 
-## Card height
-
-Inside `option_card()`, above `lead.max_lines_visible = 5`:
-
-```text
-A CEILING, WHICH A LABEL DOES NOT OTHERWISE HAVE. `custom_minimum_size` is
-a floor and an autowrapped label reports its wrapped height as a minimum,
-so a long first sentence in a fifth-width card pushed the whole drawer to
-206 -- past the fixed band, and out of step with the hand band that is
-supposed to match it. `max_lines_visible` is the one thing that actually
-caps a Label, and the ellipsis is what keeps a cut sentence honest: the
-row it replaced clipped mid-word with no mark at all.
-```
-
 ## Bill rows
 
 Above `const BILL: Array[Array] = [`:
@@ -274,39 +159,6 @@ HEAT RISING IS NOT A LOSS, and gets `FLARE` rather than the red the other
 three use when they fall: nothing was taken off the ship. It is a bill that
 comes due at the end of the turn, which is what that colour means everywhere
 else on this screen.
-```
-
-## Outcome panel
-
-Above `static func outcome(opt: Dictionary, word: String, ink: Color, odds: String,`:
-
-```text
-WHAT JUST HAPPENED, at the size it happened.
-
-The result was an eyebrow, a sentence, and a hundred and forty pixels of
-nothing: the band in small type, the prose beside it, and a CONTINUE button
-marooned in the far corner of a drawer that had gone empty. It is the payoff
-of the only decision the screen asks you to make, and it was the quietest
-thing on it.
-
-The same plate as the card you pressed to get here, which is the point --
-you chose a thing that looked like this, and this is that thing answering.
-The band gets the heading size the seals on the list already use, so the
-outcome reads from across the room and the prose is what you lean in for.
-
-It also names the encounter, which the old one did not: three clicks after
-you opened it, the only thing on screen was an outcome with nothing attached.
-```
-
-Inside `outcome()`, above `lane.add_child(_wall())`:
-
-```text
-AND IT DOES NOT NAME WHAT IT PAID YOU. It used to, in green under the
-prose, and it had to while a material was a name and twelve credits that
-appeared from nowhere -- there was no object to point at. There is now:
-the crate is in REWARD, one button away, drawn at the size it will take
-up in your hold. Printing the name here as well is the drawer telling you
-the same thing twice and only one of them can be picked up.
 ```
 
 ## Tag colours
@@ -441,20 +293,6 @@ you WHERE things are, and a better dish tells you WHAT they are.
 
 It also finally gives SENSORS something to do outside event checks -- its
 attribute row prints an empty effect string today because nothing reads it.
-```
-
-## Intent strip
-
-Above ``:
-
-```text
-The intent strip is gone.
-
-Everything it held moved to the thing it was describing: the move and its
-effect sit over each enemy, each enemy's chips sit under it, and yours sit
-with your energy. A strip at the bottom of the screen naming which ship an
-intent belonged to was doing work that position does for free — and in a
-pack it had to name them all in one line.
 ```
 
 ## Science hue

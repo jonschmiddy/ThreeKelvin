@@ -18,7 +18,6 @@ const CHIPS_AT := Vector2i(744, 508)
 ## The left column, the attribute column and the hardpoint column.
 const COL_L := 58
 const COL_A := 236
-const COL_H := 528
 const ROW0 := 416
 ## The attribute column's width (`HullNumberTest` holds it).
 const SIDE_W := 264

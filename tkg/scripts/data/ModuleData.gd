@@ -47,19 +47,9 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 ## Why: docs/why/ModuleData.md#mounts
 @export var mount: int = -1
 
-## Hold cells are separate from hardpoints, or cell counts leak into set bonuses and the sim.
-## Not keyed to rarity, so packing is a physical budget, not a second power budget.
-## Why: docs/why/ModuleData.md#hold-size
-
-## A flag, not a rewrite of `size`, so a hull swap repack does not grind shapes.
-## Why: docs/why/ModuleData.md#hold-turning
-
 ## Mirrored on the hull is drawing only, unrelated to `turned`; the sim never reads it.
 ## Why: docs/why/ModuleData.md#hull-mirroring
 @export var flipped: bool = false
-
-## Runtime state like `mount`, so a part returns where you left it, not re-packed.
-## Why: docs/why/ModuleData.md#hold-position
 
 ## Rolled at generation time
 @export var affixes: Array[AffixData] = []

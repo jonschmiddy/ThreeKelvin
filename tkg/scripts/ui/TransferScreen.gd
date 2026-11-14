@@ -7,13 +7,11 @@ extends Control
 
 ## Drawn at full size: each ship has 450 px of width and a heavy is about 340 across at 1x.
 ## Why: docs/why/TransferScreen.md#full-size-ships
-const SHIP_K := 1.0
 const SHIP_H := 132
 ## Rows of air round the taller ship in the two ship boxes.
 const SHIP_AIR := 8.0
 ## Each portrait's box, view and drawn ship, so the two boxes can share a height.
 var _portraits: Array = []
-const COL_W := 300
 
 var _oldmounts: Label
 var _newmounts: Label

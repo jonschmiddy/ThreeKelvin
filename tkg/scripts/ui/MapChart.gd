@@ -267,8 +267,6 @@ func _host_follow() -> void:
 		if _sky != null:
 			_sky.queue_push()
 			_sky.queue_redraw()
-## Cached: wanted for every system on every redraw and every mouse motion.
-var _polar_cache: Dictionary = {}
 ## The cloud under the cursor, if any.
 var _neb_hot: String = ""
 var _neb_hot_emit: bool = false
@@ -438,7 +436,6 @@ var _drawn_turn: float = 0.0
 
 ## The sky gets the view at frame end, so a glide that moves it last still lands on its frame.
 func _repaint_galaxy() -> void:
-	_polar_cache.clear()
 	_drawn_turn = turn()
 	if _sky != null:
 		_sky.queue_push()
@@ -607,7 +604,7 @@ static func _drop_torn(out: Dictionary, here: MapGen.MapNode) -> void:
 		if i != here.index and ChartTorn.gone(Run.map[i]):
 			out.erase(i)
 
-## One projection for everything drawn; a click returns through `_to_galaxy`.
+## One projection for everything drawn; a click returns through `_to_plane`.
 ## Why: docs/why/MapChart.md#projection
 
 ## One turn every `ChartSky.TURN_MINUTES`, from the chart's clock. View only.
@@ -696,12 +693,6 @@ func _proj_frame(ang: float) -> void:
 ## The same at zoom 1, for framing: where a point sits before the zoom.
 func _proj_unit(g: Vector2) -> Vector2:
 	return _proj(g, _drawn_turn) / maxf(zoom, 0.0001)
-
-## A screen point back into the galaxy's own coordinates, where 1.0 is the
-## disc radius: the inverse of `_proj`, at the angle the systems are drawn.
-func _to_galaxy(p: Vector2) -> Vector2:
-	var d := _to_plane(p)
-	return Vector2(d.x, d.y * _squash())
 
 ## A screen point into the disc's own plane (gal units, y not squashed).
 func _to_plane(p: Vector2, e: float = -1.0) -> Vector2:
@@ -1222,7 +1213,7 @@ func _draw_chart() -> void:
 	if show_scale:
 		_draw_scale()
 
-## Bottom left, the one corner nothing else claims: the tooltip and party markers move.
+## Bottom right, under MY REGION: the tooltip and party markers move out of its way.
 ## It saves the reader holding a scale in their head across every zoom step.
 ## Why: docs/why/MapChart.md#scale-bar
 func _draw_scale() -> void:
@@ -1272,7 +1263,7 @@ func _draw_scale() -> void:
 ## Why: docs/why/MapChart.md#local-region-framing
 var _glide: Tween = null
 
-## Settled every step: `_settle_sky` is a delta, so the whole journey at once slides the field.
+## The sky is solved from the start at every step: settling it by deltas accumulates and trails.
 ## Why: docs/why/MapChart.md#glide
 func glide_to(z: float, p: Vector2, secs: float = 0.55) -> void:
 	if _glide != null and _glide.is_valid():
@@ -1360,17 +1351,6 @@ func _go_to(z: float, p: Vector2, animate: bool) -> void:
 	pan = p
 	_clamp_pan()
 	_repaint_sky()
-
-## The starfield has its own offset: setting zoom and pan directly left the galaxy behind.
-## `_repaint_galaxy` is the other half, as the starfield is cached and queue_redraw misses it.
-## Why: docs/why/MapChart.md#sky-settle
-func _settle_sky(was: float, before: Vector2) -> void:
-	var c0 := size * 0.5
-	var soft: float = pow(zoom / maxf(0.0001, was), SKY_ZOOM_POWER)
-	sky_pan = c0 - (c0 - sky_pan) * soft
-	sky_pan += pan - before
-	_repaint_galaxy()
-	queue_redraw()
 
 ## Only the cloud under the cursor: outlining every cloud competed with the systems.
 ## The union boundary of its lobes, so the line agrees with the gas and the tooltip.

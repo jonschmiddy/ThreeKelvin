@@ -83,7 +83,6 @@ var _rows: Array = []       # this page's
 var _affs: Array[AffixData] = []
 var _nodes: Array[Vector2i] = []
 var _lines := PackedByteArray()
-var _line_pts: Array = []   # [{pts, c, lit, style}]
 var _live: Control
 ## Whether the line in from the rail had to run clear of the rail's words
 ## first: decided on the page's own draw, kept for the light pass.

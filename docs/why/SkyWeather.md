@@ -54,12 +54,12 @@ that take 10-45 minutes per event"): the rarest took 30-45 min to come round.
 
 ## Weather colours
 
-Above `const RAMP := {}`:
+Was above `const RAMP := {}`, which held nothing and is gone:
 
 ```text
 THE WEATHER'S OWN COLOURS, appended to the system's palette (`SystemPalette.build`'s
 `extra`), by sky. NONE, MEASURED: the gate is that the sky with no event is
-the same block for block with and without them (SystemShot `wramp=0`), and
+the same block for block with and without them (a switch SystemShot once had, now gone), and
 every one tried -- emission #ffe8f0 #ff9ab4 #b8f0e8, reflection #dcecff
 #b8d4ff, remnant #7af0e0 #e8fff8 #c0d8ff, dark #e0d8ff #b49cff -- took 0.03
 to 0.28% of the plain sky's blocks (its star points, the cluster's core, the

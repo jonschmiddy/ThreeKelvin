@@ -686,8 +686,6 @@ static func _parked_to() -> Array:
 	return out
 
 
-## The rows back into the record the map reads, in its own types. A row for a
-## system outside this map is dropped rather than kept against the wrong place.
 ## Where the ship was left in each system, and where it is moored at a station
 ## (`Moored`, VERSION 43), put back.
 static func _places_from(d: Dictionary, systems: int) -> void:
@@ -696,6 +694,8 @@ static func _places_from(d: Dictionary, systems: int) -> void:
 	SystemMapScreen._parked = _parked_from(d.get("parked", []), systems)
 
 
+## The rows back into the record the map reads, in its own types. A row for a
+## system outside this map is dropped rather than kept against the wrong place.
 static func _parked_from(raw: Variant, systems: int) -> Dictionary:
 	var out := {}
 	if typeof(raw) != TYPE_ARRAY:

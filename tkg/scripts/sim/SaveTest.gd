@@ -375,7 +375,7 @@ func run() -> void:
 	for e in Run.map:
 		var nd: MapGen.MapNode = e
 		if nd.type == MapGen.NodeType.SYSTEM and not nd.cleared:
-			# The same three writes hellbender_land() makes, because a cleared node
+			# The same three writes Hellbender.land() makes, because a cleared node
 			# with an empty `taken` is backfilled on load and would mismatch.
 			nd.cleared = true
 			nd.eaten = true

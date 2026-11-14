@@ -2271,7 +2271,6 @@ func _step_hand() -> void:
 	var e := clampf((m - 0.8) / 0.2, 0.0, 1.0)
 	var snap := e * e * (3.0 - 2.0 * e)
 	var grid: Vector2 = _hand.grid
-	var rest := _near_rest()
 	var c_vp: Vector2 = (_hand.start as Vector2).lerp(grid + Vector2.ONE * float(hs % 2), snap)
 	v.position = grid + Vector2.ONE * float(hs % 2)
 	v.set_live(r, c_vp - v.position)

@@ -21,7 +21,7 @@ func label() -> String:
 	return "direct"
 
 
-## More sockets than seats, so NetSession can refuse a fifth player in words, not a silent drop.
+## More sockets than seats, so NetSession can refuse a player past MAX_PLAYERS in words, not a silent drop.
 const CONNECTION_SLACK: int = 4
 
 func create_host() -> MultiplayerPeer:

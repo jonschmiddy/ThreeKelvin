@@ -270,7 +270,7 @@ func lift_at(t: float) -> void:
 	if burn > 0.0 and burn < 1.0:
 		_nozzle_glow(1.2)
 	if _walk == "" and t > 0.3:
-		_walkers(true)
+		_walkers()
 	_pose()
 
 
@@ -320,13 +320,13 @@ func land_at(t: float) -> void:
 		plume.touchdown()
 	_belly_glow(jets)
 	if _walk == "" and t > LAND_JETS_AT:
-		_walkers(false)
+		_walkers()
 	# (the idle heard under the dark mains through the hover, until the descent:
 	# the landing's sound as the sound builder laid it out)
 	view.dark_hum = t < down_at
 	if jets > 0.0 and jets_frame < 0:
 		jets_frame = Engine.get_process_frames()
-	if LAND_TAKE != &"" and t >= LAND_JETS_AT and not _heard_take:
+	if t >= LAND_JETS_AT and not _heard_take:
 		_heard_take = true
 		take_frame = Engine.get_process_frames()
 		Audio.play_in(LAND_TAKE)
@@ -527,7 +527,7 @@ func _nozzle_glow(kk: float) -> void:
 
 ## The crew near the blast walk off from it; the rest stop and look.
 ## Why: docs/why/ShipLift.md#crew
-func _walkers(_lifting: bool) -> void:
+func _walkers() -> void:
 	_walk = "back"
 	if life == null:
 		return

@@ -120,7 +120,7 @@ directly above the enum and survived the edit it was warning about, because
 comments do not run.
 
 `type_label` reads `NodeType.keys()` now and cannot drift. The other three
-CANNOT do that and should not: `region_name` deliberately maps FAUNA to
+CANNOT do that and should not: `REGION_NAMES` deliberately maps FAUNA to
 "Migration Route" and CORE to "Precursor Ruins", which are prose, not keys.
 
 So what is checked is LENGTH. The first cut of this looked for BLANK labels

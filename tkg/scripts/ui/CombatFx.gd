@@ -185,25 +185,6 @@ func flash(at: Vector2, big: bool = false, warm: bool = true) -> void:
 	g.life = 0.34 if big else 0.2
 	_glows.append(g)
 
-## A hull coming apart, bigger and tumbling. A kill is `ShipBreakup` now; this stays for bursts.
-func wreck(at: Vector2, tint: Color) -> void:
-	for i in 34:
-		var m := Mote.new()
-		m.at = at + Vector2(randf_range(-10, 10), randf_range(-8, 8))
-		m.vel = Vector2(randf_range(-70, 70), randf_range(-55, 45))
-		m.life = randf_range(0.7, 1.6)
-		m.size = 2.0 if i % 3 == 0 else 1.0
-		m.drag = 0.985
-		m.col = tint.lightened(0.15) if i % 4 else UITheme.EMBER
-		_motes.append(m)
-	# A brief flash at the centre, so the moment of death has a beat.
-	for i in 12:
-		var f := Mote.new()
-		f.at = at
-		f.vel = Vector2(randf_range(-190, 190), randf_range(-160, 160))
-		f.life = randf_range(0.12, 0.26)
-		f.col = UITheme.HOT
-		_motes.append(f)
 
 func _spark(at: Vector2, kind: int) -> void:
 	var warm: bool = kind != Kind.BALLISTIC

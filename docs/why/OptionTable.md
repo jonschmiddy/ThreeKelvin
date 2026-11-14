@@ -408,7 +408,7 @@ Above `static func is_mine(id: StringName) -> bool:`:
 WHETHER THIS OPTION IS ONE SHIP'S OWN: a signed contract's work (`is_job`)
 or an event quest (`placed_ids`, what `place` put on this ship's map for
 what this ship did). Neither is on a partner's map, so neither is raced for
-over the wire (`OptionResolve.take`, `Router.claim_open_option`), and a
+over the wire (`OptionResolve.take`), and a
 partner's claim on the same slot index never closes it
 (`RunState.adopt_party_claims`): the slot is theirs, not this.
 

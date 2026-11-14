@@ -6,9 +6,6 @@ extends Control
 ## Why: docs/why/SectorScreen.md#screen-shape
 
 var combat: Combat
-## The last card played, kept only so an attack can be drawn as the weapon it
-## came from. Presentation, never consulted by anything that resolves.
-var _last_played: CardData = null
 
 # --- shared
 var _view: EncounterView
@@ -53,7 +50,6 @@ var _enemy_name: Label
 var _enemy_tag: Label
 var _enemy_hp: Label
 var _enemy_bar: ProgressBar
-var _intent_label: Label
 var _hand: HandView
 
 ## The card currently being aimed, or null. Everything about the gesture hangs
@@ -123,7 +119,6 @@ var _fight_log: FightLog = null
 var _quiet_wrap: PanelContainer
 ## The clipping box the drawer slides inside. See `_build_quiet_strip`.
 var _quiet_holder: Control
-var _quiet_text: Label
 var _action: Button
 ## Fixed so the viewport does not jump; the hand shares it so a fight is a clean swap.
 ## Why: docs/why/SectorScreen.md#drawer-height
@@ -1155,8 +1150,6 @@ func _open_loose() -> void:
 
 ## 18 is the measured chip height, not 16, and the row reserves it with or without chips.
 ## Why: docs/why/SectorScreen.md#pile-view
-const CHIP_ROW_H := 18
-
 class PileView extends Control:
 	# `W` is the floor `END TURN` needs; a wider rail makes a landscape pile.
 	# Why: docs/why/SectorScreen.md#rail-sizing
@@ -1382,7 +1375,7 @@ func _build_hand() -> Control:
 		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
 	right.add_child(_hail_button)
 
-	# Matches the left column's `CHIP_ROW_H` so both piles sit level; empty on purpose.
+	# Matches the left column's chip row (18) so both piles sit level; empty on purpose.
 	var chip_gap := Control.new()
 	# EXPANDING, like the left one. Neither rail needs to know how tall the other
 	# is any more; both piles simply sit on the bottom.
@@ -1626,8 +1619,6 @@ func _bag_here() -> int:
 
 func _refresh_salvage() -> void:
 	Widgets.clear(_salvage)
-	# One deck build for the whole list.
-	var deck := DeckBuilder.build().size()
 
 	var n: MapGen.MapNode = Run.node_at()
 	var loose := Run.bag_left(n)

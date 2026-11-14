@@ -7,14 +7,21 @@ extends Resource
 
 @export var name: String = ""
 
+## Hold cells are separate from hardpoints, or cell counts leak into set bonuses and the sim.
+## Not keyed to rarity, so packing is a physical budget, not a second power budget.
+## Why: docs/why/ModuleData.md#hold-size
+
 ## The authored footprint shares the hold's vocabulary, so a hold of long things reads as guns.
 ## Why: docs/why/HoldItem.md#authored-shape
 @export var size: Vector2i = Vector2i.ONE
 
 ## Rotated a quarter turn in the hold. Packing, not identity.
+## A flag, not a rewrite of `size`, so a hull swap repack does not grind shapes.
+## Why: docs/why/ModuleData.md#hold-turning
 @export var turned: bool = false
 
 ## Stored runtime state: array order would re-pack the hold on every removal.
+## Why: docs/why/ModuleData.md#hold-position
 @export var hold_at: Vector2i = -Vector2i.ONE
 
 

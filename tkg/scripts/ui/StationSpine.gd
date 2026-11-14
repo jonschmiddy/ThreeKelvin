@@ -14,9 +14,6 @@ var active: int = -1
 var car: float = -1.0
 ## Whoever holds the station, for the pigment shift. Same weight as the berth.
 var manufacturer: StringName = &""
-## A fixed inset for the far wall now, as the building no longer slides: the car does.
-## Why: docs/why/StationSpine.md#parallax
-var parallax: float = 0.0
 
 const WALL := Color("#0d141d")
 const PLATE := Color("#151e2a")
@@ -140,9 +137,9 @@ func _draw() -> void:
 
 		# The room you are in is lit, not just brighter, so it reads as occupied, not selected.
 		draw_rect(room, wall.lerp(LAMP, 0.10 * glow))
-		# The back wall is inset and lags, as a further wall does.
+		# The back wall is inset inside the room, so it reads as a further wall.
 		var back := Rect2(room.position.x + 7.0,
-			room.position.y + 4.0 - parallax * 0.33,
+			room.position.y + 4.0,
 			room.size.x - 14.0, room.size.y - 8.0)
 		draw_rect(back, DEEP.lerp(wall, 0.45))
 		var sy := back.position.y + 5.0

@@ -1368,8 +1368,8 @@ unit_gradesheet() {
 step "A graded hull keeps its palette"
 # HullGrade bakes each weight's one hull at C, B, A and S (Jon's AB+DEF) and
 # may only use colours the sprite already has, plus the manufacturer's band
-# ramp; the lights are additive and drawn apart. Each weight on the base
-# DB.GRADE_BASE names.
+# ramp; the lights are additive and drawn apart. Each weight on its own base
+# sprite: light c, medium a, heavy a.
 for wb in light:c medium:a heavy:a; do
 	w="${wb%%:*}"; b="${wb##*:}"
 	if run_godot "gradesheet_$w" 180 --headless --path "$PROJECT" -- sheet=GradeSheet weight="$w" base="$b" out="$LOG_DIR/gradesheet_$w"; then
