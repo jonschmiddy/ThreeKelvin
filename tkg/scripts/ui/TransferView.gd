@@ -8,8 +8,6 @@ extends Control
 ## in on the container's subject, its things float out beside it, your hold slides in.
 ## Why: docs/why/TransferView.md#loot-opens-where-it-is
 
-const PAD := 24
-
 ## Both grids have a fixed height, as a window that moves while you work is worse.
 ## Why: docs/why/TransferView.md#grid-height
 const GAP := 12          ## between the subject and its things
@@ -370,7 +368,7 @@ static func _rarity_of(m: HoldItem) -> ModuleData.Rarity:
 		return UITheme.tier_rarity((m as MaterialData).tier)
 	return ModuleData.Rarity.COMMON
 
-static func _take_sound(m: HoldItem) -> StringName:
+static func take_sound(m: HoldItem) -> StringName:
 	if m is CreditChit:
 		return &"take_credits"
 	# One grade ladder for modules and materials, as materials fell through to `take_common`.
@@ -413,7 +411,7 @@ func _on_revealed(m: HoldItem, index: int) -> void:
 			return
 	# `limit_ms` 0: the stagger already spaces these, and a rate limit here
 	# would silently drop the tail of a full wreck.
-	Audio.play(_take_sound(m), 0.04, 0, REVEAL_DB)
+	Audio.play(take_sound(m), 0.04, 0, REVEAL_DB)
 
 
 ## The rarity ladder is for finding, not packing (Jon: only the first time).
@@ -562,20 +560,6 @@ class Scan extends Control:
 		draw_line(Vector2(0, 1), Vector2(size.x, 1), c, 1.0)
 		c.a = 0.5
 		draw_line(Vector2(0, 4), Vector2(size.x, 4), c, 1.0)
-
-
-## Registration marks, the corners of a frame rather than a whole border.
-class Ticks extends Control:
-	func _draw() -> void:
-		var c := UITheme.CHILL
-		c.a = 0.5
-		var n := 12.0
-		for p in [[Vector2.ZERO, Vector2(1, 1)], [Vector2(size.x, 0), Vector2(-1, 1)],
-				[Vector2(0, size.y), Vector2(1, -1)], [size, Vector2(-1, -1)]]:
-			var o: Vector2 = p[0]
-			var d: Vector2 = p[1]
-			draw_line(o, o + Vector2(d.x * n, 0), c, 1.0)
-			draw_line(o, o + Vector2(0, d.y * n), c, 1.0)
 
 
 ## The plate's box, global (what A.S.H. keeps off when she teaches over it).

@@ -1,7 +1,7 @@
 class_name ThrusterFx
 extends RefCounted
 
-## Mockup of Jon's pick: the overload plume as a steady flame. Helpers are copies of ShipBreakup's.
+## Mockup of Jon's pick: the overload plume as a steady flame. The hull picture and engine finder are BreakupCuts'.
 ## Only the length moves, in held steps; every frame would fuse into jitter.
 ## Why: docs/why/ThrusterFx.md#coded-engine-flame
 
@@ -365,7 +365,7 @@ static func for_hull(h: HullData, img: Image, the_look: int, seed: int) -> Thrus
 	return fx
 
 
-## A ship picture with no rig: nozzles from `_engines`, kept to the back edge. Enemies burn right.
+## A ship picture with no rig: nozzles from `BreakupCuts.engines`, kept to the back edge. Enemies burn right.
 static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: String = "",
 		scale: float = 1.0, pic_at: Vector2i = Vector2i.ZERO) -> ThrusterFx:
 	var fx := ThrusterFx.new()
@@ -382,10 +382,10 @@ static func for_sprite(img: Image, used: Rect2i, the_look: int, seed: int, id: S
 			_size_nozzle(nz0, (nz0.pts as PackedVector2Array).size())
 		fx._plan(seed)
 		return fx
-	var H := _hull_pic(img, used, 2)
+	var H := BreakupCuts.hull_pic(img, used, 2)
 	if int(H.n) == 0:
 		return fx
-	var raw_pts := engines(H)
+	var raw_pts := BreakupCuts.engines(H)
 	# Keep the back edge: a point inside the hull counts only if open space is
 	# within three pixels behind it; it then streams from that first open pixel.
 	var by_row := {}
@@ -1406,82 +1406,3 @@ func spill(thrust: int) -> Dictionary:
 			any = true
 	_spill[thrust] = {tex = ImageTexture.create_from_image(im) if any else null, at = at}
 	return _spill[thrust]
-
-
-# ------------------------------------------------------------------ copied from ShipBreakup
-
-## Copy of ShipBreakup's `_hull_pic`, mask half only: the box, hull pixels, middle and box.
-static func _hull_pic(img: Image, used: Rect2i, margin: int) -> Dictionary:
-	var canvas := Rect2i(Vector2i.ZERO, img.get_size())
-	var u := used.intersection(canvas)
-	var r := u.grow(margin).intersection(canvas)
-	var w := r.size.x
-	var h := r.size.y
-	var n := w * h
-	var raw := PackedColorArray()
-	raw.resize(n)
-	var pre := PackedByteArray()
-	pre.resize(n)
-	for y in h:
-		for x in w:
-			var g := r.position + Vector2i(x, y)
-			if not u.has_point(g):
-				continue
-			var c := img.get_pixel(g.x, g.y)
-			raw[y * w + x] = c
-			if c.a > 0.6:
-				pre[y * w + x] = 1
-	var mask := PackedByteArray()
-	mask.resize(n)
-	var sx := 0.0
-	var cnt := 0
-	var x1 := -1
-	for y in h:
-		for x in w:
-			var i := y * w + x
-			if pre[i] == 0:
-				continue
-			var nb := 0
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
-					if dx == 0 and dy == 0:
-						continue
-					var xx: int = x + dx
-					var yy: int = y + dy
-					if xx >= 0 and yy >= 0 and xx < w and yy < h and pre[yy * w + xx] == 1:
-						nb += 1
-			if nb < 2:
-				continue
-			mask[i] = 1
-			sx += x
-			cnt += 1
-			x1 = maxi(x1, x)
-	if cnt == 0:
-		return {n = 0, r = r, w = w, h = h}
-	return {r = r, w = w, h = h, raw = raw, mask = mask, n = cnt, cx = sx / cnt, x1 = x1}
-
-
-## Unchanged copy of ShipBreakup's `_engines`. `for_sprite` filters it for a steady flame.
-static func engines(H: Dictionary) -> PackedVector2Array:
-	var w: int = H.w
-	var h: int = H.h
-	var mask: PackedByteArray = H.mask
-	var raw: PackedColorArray = H.raw
-	var r: Rect2i = H.r
-	var x1: int = H.x1
-	var out := PackedVector2Array()
-	for y in h:
-		var xr := -1
-		for x in w:
-			if mask[y * w + x] == 1:
-				xr = x
-		if xr >= x1 - 5:
-			out.append(Vector2(r.position) + Vector2(xr + 1, y))
-	for y in h:
-		for x in w:
-			if mask[y * w + x] == 0 or float(x) < float(H.cx):
-				continue
-			var c := raw[y * w + x]
-			if c.r > 0.75 and c.r >= c.b + 0.25 and c.get_luminance() > 0.55:
-				out.append(Vector2(r.position) + Vector2(x, y))
-	return out

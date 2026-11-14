@@ -1,7 +1,7 @@
 class_name NetTransport
 extends RefCounted
 
-## Three ways to join: DIRECT, ROOM, PLATFORM. The
+## Three ways to join: DIRECT, ROOM, and PLATFORM (not built: nothing returns it). The
 ## lobby code is the seam, so choosing stays one line.
 ## Why: docs/why/NetTransport.md#transports
 

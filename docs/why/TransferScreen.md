@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/ui/TransferScreen.gd`, moved out of the code v
 
 ## Transfer overview
 
-Above `const SHIP_K := 1.0`:
+Above `const SHIP_H := 132`:
 
 ```text
 Moving day. Two ships, and everything you own between them.
@@ -27,7 +27,7 @@ a caption under a widget does not.
 
 ## Full size ships
 
-Above `const SHIP_K := 1.0`:
+Above `const SHIP_H := 132`:
 
 ```text
 FULL SIZE, and the room for it comes from the screen having nothing else on

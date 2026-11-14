@@ -305,7 +305,7 @@ visit snapped them back on a Tab to LOCAL and back). It runs only while that
 map is up. Written where the map keeps the ship
 (`SystemMapScreen._keep_ship`), read by every map open (`Router.show_system`,
 `ZoomLadder`), saved (`SaveGame`, VERSION 39), and cleared with a new run
-(`start_new_run`) and replaced whole by a load. Kept apart from `SystemMapScreen._parked`,
+(`start_new_run`) and replaced whole by a load. Kept apart from `ParkedShips.spots`,
 which every jump in erases: the suns go on from where they were. A system
 never opened has none, which is t 0, the layout as laid out.
 ```
@@ -1343,29 +1343,6 @@ gone after. False, and nothing moves, for a hull with nothing to pay.
 THE LOG SAYS WHERE THE CRATE WENT, by name. It lands in SECTOR LOOT and not
 in the hold, and with nothing on screen saying so Jon called it "super NOT
 intuitive".
-```
-
-## Heat cap upgrades
-
-Above `func add_heat_cap(n: int) -> void:`:
-
-```text
-Permanent coolant, bought at a station. Emits, and that is the point.
-
-THE MUTATION OWNS THE SIGNAL. The station used to raise `heat_cap_bonus` by
-hand and rely on the `add_credits()` call above it to redraw — which fires
-BEFORE the cap changes, so every listener repainted the old number and the
-gauge sat at 0/14 while the run was carrying 16. The upgrade worked; nothing
-ever said so, which is indistinguishable from it not working.
-
-`ship_changed` rather than `resources_changed`: a heat cap is a property of
-the ship, and `RunState._clamp_hp` and the gauges are already listening to it
-for exactly this class of change.
-
-ONE SIGNAL, NOT TWO. Every listener that cares about a heat cap is already on
-`ship_changed` — the HUD and the station screen are both on both — so emitting
-the pair meant two full rebuilds per change. Buying coolant fired three: one
-from `add_credits` and two from here.
 ```
 
 ## The refit rule

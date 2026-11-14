@@ -174,7 +174,7 @@ func _run() -> void:
 	if from == "edge":
 		Router._post_arrive = true
 	else:
-		SystemMapScreen._parked[n.index] = {"at": start, "mode": &"rail"}
+		ParkedShips.spots[n.index] = {"at": start, "mode": &"rail"}
 	Router.show_system()
 	await _idle()
 	var m := Router.current as SystemMapScreen
@@ -296,10 +296,10 @@ func _run() -> void:
 			var dang := fposmod((1.0 if w >= 0.0 else -1.0) * (dpl.res.a_dep - float(m.flight.rail.ang)), TAU)
 			var ke: float = m.flight._ride_ke(dpl)
 			var lead := float(dpl.t0) - tn
-			var shp := ShipFlightS._ride_shape(dang, absf(w), lead, ke)
+			var shp := FlightCurves.ride_shape(dang, absf(w), lead, ke)
 			shp.T = lead
 			print("DEBUG fresh lead %.3f dang %.3f (w lead %.3f) ke %.2f lead_k %.2f shape %s peak*vr %.1f most %.1f vmax %.1f" % [lead, dang, absf(w) * lead, ke, dpl.lead_k, shp,
-				absf(w) * float(dpl.dep.rt) * ShipFlightS._ride_peak(shp), FlightSolve.THRUST * dpl.pace * dpl.pace * ShipFlightS.SPIN_PUSH_K, (maxf(float(shp.k), 1.0) + ke - 1.0) * absf(w) * float(dpl.dep.rt)])
+				absf(w) * float(dpl.dep.rt) * FlightCurves.ride_peak(shp), FlightSolve.THRUST * dpl.pace * dpl.pace * ShipFlightS.SPIN_PUSH_K, (maxf(float(shp.k), 1.0) + ke - 1.0) * absf(w) * float(dpl.dep.rt)])
 		print("DEBUG plan %s res %s kind %s takeable %s dep %s mode %s ns %d nf %d nn %d" % [dpl != null, dpl != null and dpl.res != null,
 			dpl.res.kind if dpl != null and dpl.res != null else "-", (not m.flight._takeable(dpl, float(m.view.t)).is_empty()) if dpl != null else false,
 			m.flight._dep_of(float(m.view.t), ShipFlightS.PLAN_AHEAD), m.flight.mode, ShipFlightS.n_solved, ShipFlightS.n_fallback, ShipFlightS.n_none])

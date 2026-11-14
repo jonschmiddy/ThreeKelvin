@@ -1819,7 +1819,7 @@ func _no_stand_ins() -> void:
 			if site < -1 and site != -9:
 				continue
 			area.site = site
-			var what := area._place_name()
+			var what := area.place_name()
 			seen += 1
 			var ok := what == &"" or (what == &"station" and n.type == MapGen.NodeType.STATION)
 			if not ok:
@@ -1828,7 +1828,7 @@ func _no_stand_ins() -> void:
 	var any_beacon := false
 	for raw in Run.map:
 		area.node = raw
-		if area._place_name() == &"beacon":
+		if area.place_name() == &"beacon":
 			any_beacon = true
 	area.free()
 	_ok("no stand-in place picture at any of %d places on LOCAL (%s)" % [seen, bad], bad.is_empty() and seen > 0)
@@ -1916,7 +1916,7 @@ func _run() -> void:
 			break
 	if wb >= 0:
 		ZoomLadder.force_design = {2: "C"}
-		SystemMapScreen._parked[Run.at] = {"at": wb, "mode": &"rail"}
+		ParkedShips.spots[Run.at] = {"at": wb, "mode": &"rail"}
 		await _go("2C to the map, in orbit", Router.show_system, SystemMapScreen)
 		var mp := Router.current as SystemMapScreen
 		var mv: Node = mp.view._views.get(wb) if mp != null else null

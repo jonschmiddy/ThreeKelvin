@@ -2,7 +2,7 @@ class_name GoalLine
 extends Control
 
 ## The goal always shows, with the next tutorial step while one is pending, under the HUD.
-## It is not a Control: it ignores the mouse and hides over moves and popups.
+## It ignores the mouse and hides over moves and popups.
 ## Why: docs/why/GoalLine.md#goal-line
 
 const GOAL := "GOAL: REACH THE CORE"
@@ -93,7 +93,7 @@ static func step() -> Dictionary:
 		return {}
 	var cur := Router.current
 	# Not in a fight: the named tabs are locked there, so a step could not be done.
-	if _fighting(cur):
+	if in_fight(cur):
 		return {}
 	if not Hints.seen(&"step_jump"):
 		if Run.jumps >= 1:
@@ -297,7 +297,7 @@ static func stack_rect(cur: Control) -> Rect2:
 	var bw := badge_at().x + CustodianBadge.MAX_W if CustodianBadge.enabled() else 0.0
 	# (in a fight there is no step: the goal's line alone, `step`; A.S.H.
 	# stands after it, so after the badge)
-	if _fighting(cur):
+	if in_fight(cur):
 		return Rect2(fixed_at(), Vector2(maxf(ceilf(w) + 10.0, bw), _line_h()))
 	for t: String in STEP_TEXTS:
 		w = maxf(w, font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x)
@@ -305,7 +305,7 @@ static func stack_rect(cur: Control) -> Rect2:
 	return Rect2(fixed_at(), Vector2(maxf(ceilf(w) + 10.0, bw), _line_h() + GAP + _goal_h()))
 
 
-static func _fighting(cur: Control) -> bool:
+static func in_fight(cur: Control) -> bool:
 	var sc := cur as SectorScreen
 	return sc != null and is_instance_valid(sc) and sc.fighting()
 
@@ -383,7 +383,7 @@ static func avoid_rects(cur: Control) -> Array:
 	if cur.has_method("ladder_bar"):
 		var bar: Control = cur.call("ladder_bar")
 		if bar != null and is_instance_valid(bar) and bar.is_visible_in_tree():
-			_inked(bar, out)
+			collect_inked_rects(bar, out)
 	# the map's and the chart's frame (its picture, inside, is the second row's)
 	var fr := frame_rect(cur)
 	if fr.size != Vector2.ZERO:
@@ -422,7 +422,7 @@ static func avoid_rects(cur: Control) -> Array:
 
 ## The boxes of what is drawn in `c`: its labels, buttons and panels, not the
 ## containers and spacers that only hold them apart.
-static func _inked(c: Control, out: Array) -> void:
+static func collect_inked_rects(c: Control, out: Array) -> void:
 	for ch in c.get_children():
 		var k := ch as Control
 		if k == null or not k.is_visible_in_tree() or k.size.x <= 0.0:
@@ -430,9 +430,9 @@ static func _inked(c: Control, out: Array) -> void:
 		if k is Label or k is BaseButton or k is Panel or k is TextureRect or k is PanelContainer:
 			out.append(k.get_global_rect())
 		elif k is Container:
-			_inked(k, out)
+			collect_inked_rects(k, out)
 		elif k.get_child_count() > 0:
-			_inked(k, out)
+			collect_inked_rects(k, out)
 		elif k.get_class() != "Control" or k.get_script() != null:
 			# something that draws itself
 			out.append(k.get_global_rect())

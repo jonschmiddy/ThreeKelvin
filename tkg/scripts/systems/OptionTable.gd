@@ -189,7 +189,7 @@ const TIER_PLAN := {
 }
 
 
-## One place pays outcomes: three copies drifted and `EventScreen` never paid `module`.
+## One place pays outcomes: three copies drifted and one never paid `module`.
 ## Closed options get `R_GONE`, so the card says UNAVAILABLE instead of vanishing.
 ## Why: docs/why/OptionTable.md#paying-outcomes
 static func foreclose(n: MapGen.MapNode, i: int) -> void:

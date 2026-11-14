@@ -9,7 +9,6 @@ extends RefCounted
 const THRUST := 40.0
 const VMAX := 150.0
 const TURN := 200.0 * PI / 180.0
-const DRAG := 0.35
 const BRAKE := 3.0
 ## Let go in a ring slower than this and you are on its orbit. Above VMAX on
 ## purpose: anything a player flies is slow enough, so W alone decides.
@@ -63,8 +62,8 @@ const SPIN_S := 0.3
 ## the ring's speed x 1.5 / its length at its peak; with the phasing beside it
 ## a ride may push up to SPIN_PUSH_K times THRUST x pace^2, and the spin is no
 ## shorter than SPIN_MIN. The flame shows it.
-const SPIN_PUSH_K := 3.0
-const SPIN_MIN := 0.08
+const SPIN_PUSH_K := FlightCurves.SPIN_PUSH_K
+const SPIN_MIN := FlightCurves.SPIN_MIN
 
 
 ## THE RATE A RIDE ROUND A RING ENDS AT, in times the ring's own, for plan pl:
@@ -78,71 +77,6 @@ func _ride_ke(pl: FlightPlan) -> float:
 		return 1.0
 	return pl.pace * absf(FlightSolve.tau_speed(v, pl.pace)) / v
 
-
-## Whether a ride round a ring can be flown at pace pk: its push within THRUST (and VMAX) on the map,
-## the spin-up's beside the phasing's, and its phasing k no less than `FlightSolve.RIDE_K_MIN`.
-## Why: docs/why/ShipFlight.md#ride-flyable
-static func _ride_flyable(rd: Dictionary, pk: float, vr: float) -> bool:
-	var k := float(rd.get("k", 1.0))
-	var ke := float(rd.get("ke", 1.0))
-	var most := FlightSolve.THRUST * pk * pk * (SPIN_PUSH_K if ke > 1.0 + 1e-6 else 1.0)
-	return not (vr * _ride_peak(rd) > most + 1e-6 or (maxf(k, 1.0) + ke - 1.0) * vr > FlightSolve.VMAX * pk + 1e-6 or k < FlightSolve.RIDE_K_MIN)
-
-
-## The ride's shape round to a fast flight's departure: ride at w, spin up over `sp` s, ride on at
-## ke w, the spin starting `ls` s before it leaves. Returns {k, ke, ls, sp}.
-## Why: docs/why/ShipFlight.md#ride-shape
-static func _ride_shape(dang: float, w: float, T: float, ke: float) -> Dictionary:
-	if ke <= 1.0 + 1e-9 or T <= 1e-9:
-		var k0 := 2.0 * dang / (w * T) - 1.0 if T > 1e-9 else 1.0
-		return {"k": k0, "ke": 1.0, "ls": 0.0, "sp": 0.0}
-	var need := dang / w - T
-	var sp := minf(FlightSolve.spin_up(), T)
-	var ls := need / (ke - 1.0) + 0.5 * sp
-	if ls < sp:
-		sp = clampf(2.0 * need / (ke - 1.0), minf(SPIN_MIN, T), sp)
-		ls = sp
-	ls = minf(ls, T)
-	var res := dang / w - T - (ke - 1.0) * (ls - 0.5 * sp)
-	return {"k": 1.0 + 2.0 * res / T, "ke": ke, "ls": ls, "sp": sp}
-
-
-## The ride rd at tau s in: [the angle it has gone round past a0, its rate in
-## times w, its push along the ring in w / s] (rd: T, k, ke, ls, sp).
-static func _ride_at(rd: Dictionary, tau: float) -> PackedFloat64Array:
-	var T := float(rd.T)
-	var k := float(rd.get("k", 1.0))
-	var ang := tau
-	var rate := 1.0
-	var acc := 0.0
-	if T < INF and T > 1e-9 and k != 1.0:
-		ang += (k - 1.0) * (tau / 2.0 - T / (4.0 * PI) * sin(TAU * tau / T))
-		rate += (k - 1.0) * pow(sin(PI * tau / T), 2.0)
-		acc += (k - 1.0) * PI / T * sin(TAU * tau / T)
-	var ke := float(rd.get("ke", 1.0))
-	if ke != 1.0 and T < INF:
-		var ls := float(rd.ls)
-		var sp := maxf(float(rd.sp), 1e-6)
-		var s0 := T - ls
-		if tau > s0:
-			var x := clampf((tau - s0) / sp, 0.0, 1.0)
-			var g := sp * (x * x * x - 0.5 * x * x * x * x)
-			if tau > s0 + sp:
-				g = 0.5 * sp + (tau - s0 - sp)
-			ang += (ke - 1.0) * g
-			rate += (ke - 1.0) * x * x * (3.0 - 2.0 * x)
-			acc += (ke - 1.0) * 6.0 * x * (1.0 - x) / sp
-	return PackedFloat64Array([ang, rate, acc])
-
-
-## Its push along the ring at the most, in w / s.
-static func _ride_peak(rd: Dictionary) -> float:
-	var T := float(rd.T)
-	var p := absf(float(rd.get("k", 1.0)) - 1.0) * PI / T if T > 1e-9 and T < INF else 0.0
-	var ke := float(rd.get("ke", 1.0))
-	if ke != 1.0:
-		p += 1.5 * absf(ke - 1.0) / maxf(float(rd.sp), 1e-6)
-	return p
 
 ## The modes: at the edge as arrived, flying free, on a rail, held alongside,
 ## or on a planned flight.
@@ -168,8 +102,6 @@ var _ang_v := 0.0
 var _bound_t := -99.0
 var rcs := false
 var fast_t := -99.0
-var bump_t := -99.0
-var lead_t := -99.0
 ## What the line shows ending in (the capture held stickily), and its lines.
 var sticky := -9
 var _meet_raw := -9
@@ -692,7 +624,6 @@ func _flame(k: float, dt: float) -> void:
 ## A FLIGHT'S MOTION, read from its samples this far either side in time (s)
 const FLY_DT := 1.0 / 60.0
 var _fly_pos := Vector3.ZERO
-var _last_screen := Vector2.ZERO
 
 
 ## Worker plans are taken in after the step so the ride is current, not a frame stale.
@@ -988,7 +919,7 @@ func _step_rail(dt: float, t: float, k: Dictionary) -> float:
 			# then W takes it off (let go at once, a whirl dropped to 35 px/s in a frame).
 			# Why: docs/why/ShipFlight.md#w-during-a-spin-up
 			var ph: Dictionary = rail.phase
-			var w_now := float(ph.w) * _ride_at(ph, t - float(ph.t0))[1]
+			var w_now := float(ph.w) * FlightCurves.ride_at(ph, t - float(ph.t0))[1]
 			var w_own := float(rail.dir) * float(rail.speed) / float(rail.rt)
 			_cancel_flight()
 			if float(ph.get("ke", 1.0)) > 1.0 and absf(w_now - w_own) > 0.02 * absf(w_own):
@@ -1057,8 +988,8 @@ func _step_phase(dt: float, t: float) -> float:
 	var cv := center_vel(body, t)
 	var w: float = ph.w
 	# (waiting for its plan, `fly_bg`: no end, the ring's own pace; a fast
-	# flight's spin-up, `_ride_shape`)
-	var ra := _ride_at(ph, tau)
+	# flight's spin-up, `FlightCurves.ride_shape`)
+	var ra := FlightCurves.ride_at(ph, tau)
 	var a := float(ph.a0) + w * ra[0]
 	var rt: float = rail.rt
 	var tg := Vector2(-sin(a), cos(a))
@@ -1068,7 +999,7 @@ func _step_phase(dt: float, t: float) -> float:
 	rcs = false
 	var at: float = w * ra[2] * rt
 	# (a ride sped up or, replaying a drawn flight, slowed: k under 1)
-	var peak: float = absf(w) * _ride_peak(ph) * rt
+	var peak: float = absf(w) * FlightCurves.ride_peak(ph) * rt
 	if absf(at) > 4.0:
 		burn = true
 		_nose(_scr_ang(tg * signf(at)), dt)
@@ -1186,7 +1117,7 @@ func insert_plan(p0: Vector2, v0: Vector2, rt: float, w: float, b: SystemLayout.
 			var a1 := a0 + (w0 + w) * 0.5 * T * sk
 			var p1 := Vector2(cos(a1), sin(a1)) * rt
 			var v1 := Vector2(-sin(a1), cos(a1)) * w * rt
-			var ins := _polar_ins(p0, v0, acc0, rt, w, T, a1)
+			var ins := FlightCurves.polar_ins(p0, v0, acc0, rt, w, T, a1)
 			var rmin := INF
 			var amax := 0.0
 			var kmax := 0.0
@@ -1228,69 +1159,10 @@ func insert_plan(p0: Vector2, v0: Vector2, rt: float, w: float, b: SystemLayout.
 	return best
 
 
-## Built in polar terms so a head-on approach spirals in instead of drawing a hairpin.
-## Why: docs/why/ShipFlight.md#insertion-curve
-static func _polar_ins(p0: Vector2, v0: Vector2, acc0: Vector2, rt: float, w: float, T: float, a1: float) -> Dictionary:
-	var r0 := maxf(p0.length(), 0.5)
-	var er := p0 / r0
-	var ep := Vector2(-er.y, er.x)
-	var rd := v0.dot(er)
-	var pd := v0.dot(ep) / r0
-	# the pull's parts, as radius'' - r angle'^2 and r angle'' + 2 radius' angle'
-	var rdd := acc0.dot(er) + r0 * pd * pd
-	var pdd := (acc0.dot(ep) - 2.0 * rd * pd) / r0
-	var ph0 := atan2(p0.y, p0.x)
-	# the end angle, on the same turn of the circle as the way it goes
-	var ph1 := ph0 + wrapf(a1 - ph0, -PI, PI)
-	var dirw := signf(w) if w != 0.0 else 1.0
-	if (ph1 - ph0) * dirw < 0.0:
-		ph1 += TAU * dirw
-	var ins := {"polar": true, "T": T, "a1": ph1,
-		"ph": [ph0, pd * T, pdd * T * T, ph1, w * T, 0.0],
-		"rr": [r0, rd * T, rdd * T * T, rt, 0.0, 0.0]}
-	return ins
-
-
-## The insertion at s (0..1): its position (d 0), velocity (1) or acceleration
-## (2), per second, in the world's frame.
+## The insertion at s (0..1), position, velocity or acceleration: `FlightCurves.ins_at`, kept here for the
+## overlay's and the harnesses' instance calls.
 static func _ins_at(ins: Dictionary, s: float, d: int) -> Vector2:
-	var T: float = ins.T
-	if ins.get("polar", false):
-		var ph := _q5(ins.ph, s, 0)
-		var r := _q5(ins.rr, s, 0)
-		var er := Vector2(cos(ph), sin(ph))
-		var ep := Vector2(-er.y, er.x)
-		if d == 0:
-			return er * r
-		var p1 := _q5(ins.ph, s, 1) / T
-		var r1 := _q5(ins.rr, s, 1) / T
-		if d == 1:
-			return er * r1 + ep * r * p1
-		var p2 := _q5(ins.ph, s, 2) / (T * T)
-		var r2 := _q5(ins.rr, s, 2) / (T * T)
-		return er * (r2 - r * p1 * p1) + ep * (r * p2 + 2.0 * r1 * p1)
-	var s2 := s * s
-	var s3 := s2 * s
-	var s4 := s3 * s
-	var s5 := s4 * s
-	var hh: Array
-	if d == 0:
-		hh = [1.0 - 10.0 * s3 + 15.0 * s4 - 6.0 * s5, s - 6.0 * s3 + 8.0 * s4 - 3.0 * s5,
-			0.5 * s2 - 1.5 * s3 + 1.5 * s4 - 0.5 * s5, 0.5 * s3 - s4 + 0.5 * s5,
-			-4.0 * s3 + 7.0 * s4 - 3.0 * s5, 10.0 * s3 - 15.0 * s4 + 6.0 * s5]
-	elif d == 1:
-		hh = [-30.0 * s2 + 60.0 * s3 - 30.0 * s4, 1.0 - 18.0 * s2 + 32.0 * s3 - 15.0 * s4,
-			s - 4.5 * s2 + 6.0 * s3 - 2.5 * s4, 1.5 * s2 - 4.0 * s3 + 2.5 * s4,
-			-12.0 * s2 + 28.0 * s3 - 15.0 * s4, 30.0 * s2 - 60.0 * s3 + 30.0 * s4]
-	else:
-		hh = [-60.0 * s + 180.0 * s2 - 120.0 * s3, -36.0 * s + 96.0 * s2 - 60.0 * s3,
-			1.0 - 9.0 * s + 18.0 * s2 - 10.0 * s3, 3.0 * s - 12.0 * s2 + 10.0 * s3,
-			-24.0 * s + 84.0 * s2 - 60.0 * s3, 60.0 * s - 180.0 * s2 + 120.0 * s3]
-	var q: Vector2 = (ins.p0 as Vector2) * float(hh[0]) + (ins.v0 as Vector2) * T * float(hh[1]) \
-		+ (ins.a0v as Vector2) * T * T * float(hh[2]) + (ins.a1v as Vector2) * T * T * float(hh[3]) \
-		+ (ins.v1 as Vector2) * T * float(hh[4]) + (ins.p1 as Vector2) * float(hh[5])
-	return q / pow(T, float(d))
-
+	return FlightCurves.ins_at(ins, s, d)
 
 ## One insertion step along the curve round the moving world; W breaks off it.
 func _step_insert(dt: float, t: float, k: Dictionary) -> float:
@@ -1783,15 +1655,13 @@ func _run_line(t0: float, k: Dictionary, hold: float) -> Dictionary:
 
 
 # ---------------------------------------------------------------- flights
-const SAMPLE := 1.0 / 240.0
+const SAMPLE := FlightCurves.SAMPLE
 ## Out of an orbit at this speed along it (and a third of it outward), the
 ## coast met at the target's ring at APP_V relative to it.
 const ESC_V := 110.0
 const APP_V := 70.0
-## The burns that blend a coast's ends onto the motions either side.
-const T_BURN := 0.35
 ## The ride takes as long as needed up to LEAD_MAX; further round, a phasing burn.
-const LEAD_MAX := 2.2
+const LEAD_MAX := FlightCurves.LEAD_MAX
 ## How much pull a blend takes on (px/s²), and how much the insertion starts with.
 const A_BLEND := 1500.0
 const A_INS := 600.0
@@ -1865,7 +1735,7 @@ func said_path(t0: float, dt: float) -> Array:
 		if tj < tf:
 			if not ph.is_empty():
 				# (the ride round the ring, as `_step_phase` flies it)
-				var ra := _ride_at(ph, tj - float(ph.t0))
+				var ra := FlightCurves.ride_at(ph, tj - float(ph.t0))
 				var a := float(ph.a0) + float(ph.w) * ra[0]
 				var c := center(int(rail.body), tj)
 				q = c + Vector3(cos(a), 0.0, sin(a)) * float(rail.rt)
@@ -2166,7 +2036,7 @@ func _takeable(pl: FlightPlan, t: float) -> Dictionary:
 			if absf(dang - want) > 0.05:
 				return {}
 			# (a fast flight's ride spins up to `ke` times the ring's rate,
-			# `_ride_shape`)
+			# `FlightCurves.ride_shape`)
 			var ke := _ride_ke(pl)
 			var rd := {"T": lead, "k": 1.0, "a0": a, "w": w, "ke": 1.0, "ls": 0.0, "sp": 0.0}
 			if lead < 1e-6:
@@ -2175,8 +2045,8 @@ func _takeable(pl: FlightPlan, t: float) -> Dictionary:
 			else:
 				if dang < 0.0:
 					return {}
-				rd.merge(_ride_shape(dang, absf(w), lead, ke), true)
-				if not _ride_flyable(rd, pl.pace, absf(w) * rt):
+				rd.merge(FlightCurves.ride_shape(dang, absf(w), lead, ke), true)
+				if not FlightCurves.ride_flyable(rd, pl.pace, absf(w) * rt):
 					return {}
 			return rd
 		&"keep":
@@ -2289,7 +2159,7 @@ func _with_ride(pl: FlightPlan, rd: Dictionary, t: float) -> FlightPlan:
 		# (the first may be up to a sample before now: the ride runs back that far at its pace)
 		var tau := out.t0 + float(j) * sd - t
 		var a := a0 + w * tau
-		var ra := _ride_at(rdt, tau) if tau > 0.0 else PackedFloat64Array([tau, 1.0, 0.0])
+		var ra := FlightCurves.ride_at(rdt, tau) if tau > 0.0 else PackedFloat64Array([tau, 1.0, 0.0])
 		a = a0 + w * ra[0]
 		var e := smoothstep(0.0, 1.0, clampf(tau / maxf(T, 0.001), 0.0, 1.0))
 		var r := r0 + (rt - r0) * e
@@ -3051,7 +2921,7 @@ func _escape(i: int, t: float, st: Dictionary) -> Dictionary:
 			for sweep: float in sweeps:
 				var a0 := ax - dir * sweep
 				var dang := fposmod(dir * (a0 - a_now), TAU)
-				var lead := _lead(dang, absf(w))
+				var lead := FlightCurves.lead(dang, absf(w))
 				var td: float = t + float(lead[0])
 				var e := _spiral(b, td, a0, rt, w, dir, sweep, rx, vr)
 				e["lead"] = lead[0]
@@ -3088,8 +2958,8 @@ func _turnaround(i: int, t: float, st: Dictionary, toward := Vector2.ZERO, pace 
 	var vprev := Vector3(cos(h0), 0.0, sin(h0)) * sp
 	for k in ne + 1:
 		var sk := float(k) / float(ne)
-		var hh := _q5(hq, sk, 0)
-		var vv := Vector3(cos(hh), 0.0, sin(hh)) * _q5(sq, sk, 0)
+		var hh := FlightCurves.q5(hq, sk, 0)
+		var vv := Vector3(cos(hh), 0.0, sin(hh)) * FlightCurves.q5(sq, sk, 0)
 		if k > 0:
 			p += (vv + vprev) * 0.5 * SAMPLE
 		vprev = vv
@@ -3106,16 +2976,6 @@ func _turnaround(i: int, t: float, st: Dictionary, toward := Vector2.ZERO, pace 
 					return {}
 	return {"samp": samp, "p1": p, "v1": vprev, "t1": t + te, "te": te, "td": t, "a1": Vector3.ZERO,
 		"lead": 0.0, "lead_k": 1.0, "clear": true}
-
-
-## Ride to the departure point: up to LEAD_MAX it simply rides, further a burn speeds it round.
-static func _lead(dang: float, w: float) -> Array:
-	if w <= 0.0001:
-		return [0.0, 1.0]
-	var natural := dang / w
-	if natural <= LEAD_MAX:
-		return [natural, 1.0]
-	return [LEAD_MAX, 1.0 + 2.0 * (dang / (w * LEAD_MAX) - 1.0)]
 
 
 ## One escape spiral out of the ring round place b from angle a0 at time td.
@@ -3141,14 +3001,14 @@ func _spiral(b: int, td: float, a0: float, rt: float, w: float, dir: float, swee
 		# no turning back round the ring, no dipping in toward the place
 		for j in 25:
 			var sj := float(j) / 24.0
-			if _q5(ph, sj, 1) * dir <= 0.0 or _q5(rr, sj, 0) < rt * 0.9:
+			if FlightCurves.q5(ph, sj, 1) * dir <= 0.0 or FlightCurves.q5(rr, sj, 0) < rt * 0.9:
 				return {}
 	var esc := PackedVector3Array()
 	var clear := true
 	var at := func(sk: float) -> Vector3:
 		var c := center(b, td + sk * te)
-		var phi := _q5(ph, sk, 0)
-		var r := _q5(rr, sk, 0)
+		var phi := FlightCurves.q5(ph, sk, 0)
+		var r := FlightCurves.q5(rr, sk, 0)
 		return c + Vector3(cos(phi) * r, 0.0, sin(phi) * r)
 	for k in ne + 1:
 		var sk := float(k) / float(ne)
@@ -3200,7 +3060,7 @@ func _manoeuvre(i: int, t: float, st: Dictionary, kf: float, side: float, way: b
 	# Coast stretched to 5 s at most until under about
 	# 950 px/s and 4,000 px/s², not cheating the shape.
 	var cg := center(i, t1 + 2.0)
-	var dth := _pro_angle(p1, cg)
+	var dth := FlightCurves.pro_angle(p1, cg)
 	var dist := Vector2(cg.x - p1.x, cg.z - p1.z).length()
 	var T := clampf(1.3 + 0.9 * dth / PI + 0.9 * clampf((dist - 200.0) / 1200.0, 0.0, 1.0), 1.3, 3.2)
 	# A replan arrives when the last did, so its shape holds; a fresh length slid the arrival.
@@ -3276,7 +3136,7 @@ func _manoeuvre(i: int, t: float, st: Dictionary, kf: float, side: float, way: b
 		legs = []
 		# a place nearly in line with the ship has no arc to it that short: it is
 		# a swing round the star, two half-orbits through a waypoint opposite
-		var pro := _pro_angle(p1, pa)
+		var pro := FlightCurves.pro_angle(p1, pa)
 		if why:
 			print("    p1 r %.0f, target r %.0f, prograde angle %.2f, way %s" % [Vector2(p1.x, p1.z).length(), Vector2(pa.x, pa.z).length(), pro, way])
 		if pro < 0.6:
@@ -3343,7 +3203,7 @@ func _manoeuvre(i: int, t: float, st: Dictionary, kf: float, side: float, way: b
 				var pa2 := ct + Vector3(arel2.x, 0.0, arel2.y)
 				var legs2: Array = []
 				if way:
-					var lb2 := _lam(_waypoint_of(legs), pa2, int(legs[-1][1]) * SAMPLE, kf)
+					var lb2 := _lam(FlightCurves.waypoint_of(legs), pa2, int(legs[-1][1]) * SAMPLE, kf)
 					if not lb2.is_empty():
 						legs2 = [legs[0], [lb2, legs[-1][1]]]
 				else:
@@ -3417,7 +3277,7 @@ func _manoeuvre(i: int, t: float, st: Dictionary, kf: float, side: float, way: b
 				st2["esc"] = tr
 				return _manoeuvre(i, t, st2, kf, side, way)
 	for lg4: Array in legs:
-		_sample(lg4[0])
+		FlightCurves.sample(lg4[0])
 	var rin := (legs[-1][0].v2 as Vector3) - cvt
 	var vend := cvt + (rin.normalized() * APP_V if rin.length() > 0.01 else Vector3.ZERO)
 	var v_in := v1
@@ -3467,11 +3327,11 @@ func _manoeuvre(i: int, t: float, st: Dictionary, kf: float, side: float, way: b
 			var lit := false
 			if tau < tb1:
 				var x := tau / tb1
-				q += d1 * tb1 * _h1(x) + e1 * tb1 * tb1 * _h2(x)
+				q += d1 * tb1 * FlightCurves.h1(x) + e1 * tb1 * tb1 * FlightCurves.h2(x)
 				lit = real1
 			if sg < tb2 and not warp:
 				var y := sg / tb2
-				q += -d2 * tb2 * _h1(y) + e2 * tb2 * tb2 * _h2(y)
+				q += -d2 * tb2 * FlightCurves.h1(y) + e2 * tb2 * tb2 * FlightCurves.h2(y)
 				lit = lit or real2
 			pl.samp.append(q)
 			pl.burns.append(1 if lit else 0)
@@ -3569,7 +3429,7 @@ func _tangent_kf(p: Vector3, v: Vector2, c: Vector3) -> float:
 		for k0: float in ks:
 			var g0 := _lam(p, c, 2.0, k0, false)
 			dbg.append("%.2f:%s" % [k0, "x" if g0.is_empty() else "%.0f" % rad_to_deg(v.angle_to(Vector2((g0.v0 as Vector3).x, (g0.v0 as Vector3).z)))])
-		print("    tangent scan from r %.0f to r %.0f, angle %.2f: %s" % [Vector2(p.x, p.z).length(), Vector2(c.x, c.z).length(), _pro_angle(p, c), " ".join(dbg)])
+		print("    tangent scan from r %.0f to r %.0f, angle %.2f: %s" % [Vector2(p.x, p.z).length(), Vector2(c.x, c.z).length(), FlightCurves.pro_angle(p, c), " ".join(dbg)])
 	var prev_k := -1.0
 	var prev_a := 0.0
 	var best_k := -1.0
@@ -3619,7 +3479,7 @@ func _hohmann(p: Vector3, sense: float, ra: float, T: float) -> Dictionary:
 	var vt := sqrt(maxf(2.0 / r1 - 1.0 / a, 0.0))
 	var v0 := Vector3(-f1.z, 0.0, f1.x) / r1 * vt * sense
 	var m := 160
-	var pv := _coast_pv(f1, v0, tof, m)
+	var pv := FlightCurves.coast_pv(f1, v0, tof, m)
 	var nodes: PackedVector3Array = pv[0]
 	var vels: PackedVector3Array = pv[1]
 	var f2 := -f1 / r1 * ra
@@ -3629,10 +3489,10 @@ func _hohmann(p: Vector3, sense: float, ra: float, T: float) -> Dictionary:
 	var gmax := 0.0
 	for j in m + 1:
 		vmax = maxf(vmax, vels[j].length() * kk)
-		gmax = maxf(gmax, _acc(nodes[j]).length() * kk * kk)
+		gmax = maxf(gmax, FlightCurves.acc(nodes[j]).length() * kk * kk)
 	return {"nodes": nodes, "vels": vels, "err": err, "tof": tof, "T": T,
 		"v0": v0 * kk, "v2": vels[m] * kk, "vmax": vmax, "gmax": gmax,
-		"a0": _acc(nodes[0]) * kk * kk, "a2": _acc(nodes[m]) * kk * kk, "end": f2}
+		"a0": FlightCurves.acc(nodes[0]) * kk * kk, "a2": FlightCurves.acc(nodes[m]) * kk * kk, "end": f2}
 
 
 ## The departure is chosen once and kept, so the drawn
@@ -3818,8 +3678,8 @@ func _near_hop(i: int, t: float, st: Dictionary, pick: Dictionary = {}) -> Fligh
 				var prev_v := Vector3.INF
 				for k in n + 1:
 					var u := float(k) / float(n)
-					var aa := _q5(aq, u, 0)
-					var rr := _q5(rq, u, 0)
+					var aa := FlightCurves.q5(aq, u, 0)
+					var rr := FlightCurves.q5(rq, u, 0)
 					if rr < b.r * 1.3 + 6.0:
 						ok = false
 						break
@@ -3912,11 +3772,6 @@ func _near_hop(i: int, t: float, st: Dictionary, pick: Dictionary = {}) -> Fligh
 	if best_g < 20.0 and pick.is_empty():
 		return null
 	return best
-
-
-## The waypoint a two-leg coast turns at.
-static func _waypoint_of(legs: Array) -> Vector3:
-	return legs[0][0].get("to", Vector3.ZERO)
 
 
 ## Whether a plan swings far out past both its ends: out beyond 1.3 times the
@@ -4036,7 +3891,7 @@ func _lam(r1: Vector3, r2: Vector3, T: float, kf: float, full := true) -> Dictio
 	var f2 := Vector3(r2.x, 0.0, r2.z)
 	if f1.length() < 1.0 or f2.length() < 1.0:
 		return {}
-	var dth := _pro_angle(f1, f2)
+	var dth := FlightCurves.pro_angle(f1, f2)
 	# AT HALF A LAP THE ARC'S PLANE IS UNDEFINED and the solution meaningless (it
 	# missed its end by 900 px): none within 7 degrees of it; a waypoint flies it
 	if absf(sin(dth)) < 0.12:
@@ -4052,9 +3907,9 @@ func _lam(r1: Vector3, r2: Vector3, T: float, kf: float, full := true) -> Dictio
 		return {}
 	var kk := tof / T
 	if not full:
-		return {"v0": (sol[0] as Vector3) * kk, "v2": (sol[1] as Vector3) * kk, "a2": _acc(f2) * kk * kk}
+		return {"v0": (sol[0] as Vector3) * kk, "v2": (sol[1] as Vector3) * kk, "a2": FlightCurves.acc(f2) * kk * kk}
 	var m := 160
-	var pv := _coast_pv(f1, sol[0], tof, m)
+	var pv := FlightCurves.coast_pv(f1, sol[0], tof, m)
 	var nodes: PackedVector3Array = pv[0]
 	var vels: PackedVector3Array = pv[1]
 	var err := nodes[m] - f2
@@ -4067,69 +3922,10 @@ func _lam(r1: Vector3, r2: Vector3, T: float, kf: float, full := true) -> Dictio
 	var gmax := 0.0
 	for j in m + 1:
 		vmax = maxf(vmax, vels[j].length() * kk)
-		gmax = maxf(gmax, _acc(nodes[j]).length() * kk * kk)
+		gmax = maxf(gmax, FlightCurves.acc(nodes[j]).length() * kk * kk)
 	return {"nodes": nodes, "vels": vels, "err": err, "tof": tof, "T": T,
 		"v0": (sol[0] as Vector3) * kk, "v2": (sol[1] as Vector3) * kk, "vmax": vmax, "gmax": gmax,
-		"a0": _acc(nodes[0]) * kk * kk, "a2": _acc(nodes[m]) * kk * kk}
-
-
-## A coast's points, SAMPLE apart, by cubic Hermite between its integrated
-## steps on their own velocities; the miss at the end taken out evenly.
-static func _sample(lg: Dictionary) -> void:
-	if lg.has("pts"):
-		return
-	var nodes: PackedVector3Array = lg.nodes
-	var vels: PackedVector3Array = lg.vels
-	var m := nodes.size() - 1
-	var tof: float = lg.tof
-	var err: Vector3 = lg.err
-	var hstep := tof / m
-	var n := maxi(2, roundi(float(lg.T) / SAMPLE))
-	var pts := PackedVector3Array()
-	pts.resize(n + 1)
-	for k in n + 1:
-		var lam := float(k) / float(n) * tof
-		var j := mini(m - 1, int(floor(lam / hstep)))
-		var sj := lam / hstep - j
-		var s2 := sj * sj
-		var s3 := s2 * sj
-		var q := (2.0 * s3 - 3.0 * s2 + 1.0) * nodes[j] + (s3 - 2.0 * s2 + sj) * hstep * vels[j]
-		q += (-2.0 * s3 + 3.0 * s2) * nodes[j + 1] + (s3 - s2) * hstep * vels[j + 1]
-		q -= err * (float(k) / float(n))
-		q.y = 0.0
-		pts[k] = q
-	lg.pts = pts
-
-
-## The coast under the star, in m RK4 steps: its points and velocities.
-static func _coast_pv(r: Vector3, v: Vector3, T: float, m: int) -> Array:
-	var hh := T / m
-	var ps := PackedVector3Array([r])
-	var vs := PackedVector3Array([v])
-	var x := r
-	var u := v
-	for _i in m:
-		var a1 := _acc(x)
-		var x2 := x + u * hh / 2.0
-		var u2 := u + a1 * hh / 2.0
-		var a2 := _acc(x2)
-		var x3 := x + u2 * hh / 2.0
-		var u3 := u + a2 * hh / 2.0
-		var a3 := _acc(x3)
-		var x4 := x + u3 * hh
-		var u4 := u + a3 * hh
-		var a4 := _acc(x4)
-		x += (u + 2.0 * u2 + 2.0 * u3 + u4) * hh / 6.0
-		u += (a1 + 2.0 * a2 + 2.0 * a3 + a4) * hh / 6.0
-		ps.append(x)
-		vs.append(u)
-	return [ps, vs]
-
-
-## The angle from r1 round to r2 the way the worlds go (0..TAU).
-static func _pro_angle(r1: Vector3, r2: Vector3) -> float:
-	var base := acos(clampf(Vector2(r1.x, r1.z).normalized().dot(Vector2(r2.x, r2.z).normalized()), -1.0, 1.0))
-	return base if r1.x * r2.z - r1.z * r2.x >= 0.0 else TAU - base
+		"a0": FlightCurves.acc(nodes[0]) * kk * kk, "a2": FlightCurves.acc(nodes[m]) * kk * kk}
 
 
 ## Which way a coast from a to b sets off, on the plane: a reference transfer's
@@ -4144,43 +3940,9 @@ func _guess_dir(a: Vector3, b: Vector3) -> Vector2:
 	return d.normalized() if d.length() > 0.01 else Vector2.RIGHT
 
 
-## H1 and H2 blend shapes keep position, velocity and pull continuous (C2).
-static func _h1(x: float) -> float:
-	return x - 6.0 * x * x * x + 8.0 * x * x * x * x - 3.0 * pow(x, 5.0)
-
-
-static func _h2(x: float) -> float:
-	return 0.5 * x * x - 1.5 * x * x * x + 1.5 * pow(x, 4.0) - 0.5 * pow(x, 5.0)
-
-
 ## A place's own acceleration (its orbit's pull), on the plane.
 func center_acc(i: int, t: float) -> Vector3:
 	return (center_vel(i, t + 0.05) - center_vel(i, t - 0.05)) / 0.1
-
-
-## A scalar quintic Hermite on s (0..1): c = [x0, x0', x0'', x1, x1', x1''] in s.
-static func _q5(c: Array, s: float, d: int) -> float:
-	var s2 := s * s
-	var s3 := s2 * s
-	var s4 := s3 * s
-	var s5 := s4 * s
-	var hh: Array
-	if d == 0:
-		hh = [1.0 - 10.0 * s3 + 15.0 * s4 - 6.0 * s5, s - 6.0 * s3 + 8.0 * s4 - 3.0 * s5,
-			0.5 * s2 - 1.5 * s3 + 1.5 * s4 - 0.5 * s5, 10.0 * s3 - 15.0 * s4 + 6.0 * s5,
-			-4.0 * s3 + 7.0 * s4 - 3.0 * s5, 0.5 * s3 - s4 + 0.5 * s5]
-	elif d == 1:
-		hh = [-30.0 * s2 + 60.0 * s3 - 30.0 * s4, 1.0 - 18.0 * s2 + 32.0 * s3 - 15.0 * s4,
-			s - 4.5 * s2 + 6.0 * s3 - 2.5 * s4, 30.0 * s2 - 60.0 * s3 + 30.0 * s4,
-			-12.0 * s2 + 28.0 * s3 - 15.0 * s4, 1.5 * s2 - 4.0 * s3 + 2.5 * s4]
-	else:
-		hh = [-60.0 * s + 180.0 * s2 - 120.0 * s3, -36.0 * s + 96.0 * s2 - 60.0 * s3,
-			1.0 - 9.0 * s + 18.0 * s2 - 10.0 * s3, 60.0 * s - 180.0 * s2 + 120.0 * s3,
-			-24.0 * s + 84.0 * s2 - 60.0 * s3, 3.0 * s - 12.0 * s2 + 10.0 * s3]
-	var q := 0.0
-	for k in 6:
-		q += float(c[k]) * float(hh[k])
-	return q
 
 
 ## How hard a plan is to fly: its speed over 1,200 px/s and its pull over
@@ -4276,12 +4038,6 @@ func _clean(pl: FlightPlan, strict: bool, st: Dictionary, i: int) -> bool:
 	return true
 
 
-## The ship's own motion as it leaves: free, it is its velocity; on a rail or
-## alongside, the motion it has there.
-func _v0() -> Vector3:
-	return Vector3(f.v.x, 0.0, f.v.y)
-
-
 ## Plans on this thread for a harness; the map plans on a worker.
 func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPlan = null) -> FlightPlan:
 	click_replanned = false
@@ -4325,12 +4081,12 @@ func fly(i: int, t: float, done: Callable, prefer: Dictionary = {}, pv: FlightPl
 		if ke2 != 1.0 and T2 > 1e-6 and absf(w2) > 1e-9:
 			var dr2 := 1.0 if w2 >= 0.0 else -1.0
 			var dang2 := fposmod(dr2 * (pl.res.a_dep - a0), TAU) if pl.res != null else 0.0
-			rd2.merge(_ride_shape(dang2, absf(w2), T2, ke2), true)
+			rd2.merge(FlightCurves.ride_shape(dang2, absf(w2), T2, ke2), true)
 			# (held to the bounds `_takeable` holds a ride to: unchecked, a
 			# phasing under nought ran the ship backwards round its ring, the code
 			# review, Nov 5. Planned once more from here with no kept choice; else
 			# no slower than RIDE_K_MIN, the flight leaving a little off its point)
-			if not _ride_flyable(rd2, pl.pace, absf(w2) * float(pl.dep.get("rt", 0.0))):
+			if not FlightCurves.ride_flyable(rd2, pl.pace, absf(w2) * float(pl.dep.get("rt", 0.0))):
 				if not prefer.is_empty():
 					return fly(i, t, done)
 				if why:
@@ -4392,7 +4148,3 @@ func _arrived() -> void:
 		_fly_done = Callable()
 		d.call()
 
-
-static func _acc(p: Vector3) -> Vector3:
-	var d := p.length()
-	return -p / (d * d * d)

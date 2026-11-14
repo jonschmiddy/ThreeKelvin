@@ -6,9 +6,6 @@ extends Control
 ## Why: docs/why/SectorScreen.md#screen-shape
 
 var combat: Combat
-## The last card played, kept only so an attack can be drawn as the weapon it
-## came from. Presentation, never consulted by anything that resolves.
-var _last_played: CardData = null
 
 # --- shared
 var _view: EncounterView
@@ -53,7 +50,6 @@ var _enemy_name: Label
 var _enemy_tag: Label
 var _enemy_hp: Label
 var _enemy_bar: ProgressBar
-var _intent_label: Label
 var _hand: HandView
 
 ## The card currently being aimed, or null. Everything about the gesture hangs
@@ -123,7 +119,6 @@ var _fight_log: FightLog = null
 var _quiet_wrap: PanelContainer
 ## The clipping box the drawer slides inside. See `_build_quiet_strip`.
 var _quiet_holder: Control
-var _quiet_text: Label
 var _action: Button
 ## Fixed so the viewport does not jump; the hand shares it so a fight is a clean swap.
 ## Why: docs/why/SectorScreen.md#drawer-height
@@ -1155,8 +1150,6 @@ func _open_loose() -> void:
 
 ## 18 is the measured chip height, not 16, and the row reserves it with or without chips.
 ## Why: docs/why/SectorScreen.md#pile-view
-const CHIP_ROW_H := 18
-
 class PileView extends Control:
 	# `W` is the floor `END TURN` needs; a wider rail makes a landscape pile.
 	# Why: docs/why/SectorScreen.md#rail-sizing
@@ -1382,7 +1375,7 @@ func _build_hand() -> Control:
 		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
 	right.add_child(_hail_button)
 
-	# Matches the left column's `CHIP_ROW_H` so both piles sit level; empty on purpose.
+	# Matches the left column's chip row (18) so both piles sit level; empty on purpose.
 	var chip_gap := Control.new()
 	# EXPANDING, like the left one. Neither rail needs to know how tall the other
 	# is any more; both piles simply sit on the bottom.
@@ -1626,8 +1619,6 @@ func _bag_here() -> int:
 
 func _refresh_salvage() -> void:
 	Widgets.clear(_salvage)
-	# One deck build for the whole list.
-	var deck := DeckBuilder.build().size()
 
 	var n: MapGen.MapNode = Run.node_at()
 	var loose := Run.bag_left(n)
@@ -2417,11 +2408,11 @@ func ladder_cam(k: float) -> void:
 		if step == 0:
 			# 1. CUT: LOCAL down to black, your ship still at its mooring
 			beat = &"cut"
-			blk = ZoomLadder._ease(u)
+			blk = ZoomLadder.ease_curve(u)
 		elif step == 1:
 			# 2. ARRIVE: up from black, and the arrival itself flies it in
 			beat = &"arrive"
-			blk = 1.0 - ZoomLadder._ease((t - ZoomLadder.dock_step_from(1)) / maxf(ZoomLadder.FADE_IN_S, 0.001))
+			blk = 1.0 - ZoomLadder.ease_curve((t - ZoomLadder.dock_step_from(1)) / maxf(ZoomLadder.FADE_IN_S, 0.001))
 		elif step <= 3:
 			# 3-4. AT ITS MOORING, idling: a breath (BEAT), and the station powers
 			# up to meet it (POWER)
@@ -2449,7 +2440,7 @@ func ladder_cam(k: float) -> void:
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
-		hall_fly = Moored.undock_fly(hall, hk)
+		hall_fly = LocalUndock.undock_fly(hall, hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -2534,7 +2525,7 @@ func ladder_cam(k: float) -> void:
 			var step := int(hall.get("step", 0))
 			# (and on, a frame past the ARRIVE if need be, to its own end: it
 			# runs from the frame it was called on)
-			if docking and ZoomLadder.dock_fade_only: Moored.hold(art, p0, step)
+			if docking and ZoomLadder.dock_fade_only: LocalUndock.hold(art, p0, step)
 			elif docking and (step <= 1 or (step <= 3 and art.arrive_driven)):
 				_dock_arrival(art, hall, p0)
 			else:
@@ -2545,7 +2536,7 @@ func ladder_cam(k: float) -> void:
 			if docking:
 				_dock_burn(art, hall, step == 4 and float(hall.get("t", 0.0)) < ZoomLadder.dock_approach_s() - ladder_dip_s())
 			else:
-				Moored.undock_engines(self, art, hall)
+				LocalUndock.undock_engines(self, art, hall)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)

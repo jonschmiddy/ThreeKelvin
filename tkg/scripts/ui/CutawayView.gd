@@ -920,7 +920,8 @@ class Rule extends Control:
 		draw_rect(Rect2(0, y, size.x, 1), UITheme.LINE)
 
 
-## Gaps share the spare height up to `GAP_MAX`; the fullest panel keeps at least `GAP_MIN`.
+## Gaps share the spare height, half each, clamped to 0..`GAP_MAX`. `GAP_MIN` is only the floor
+## `CutawayTest` holds them to; `_fit_gaps` does not apply it.
 const GAP_MAX := 14
 const GAP_MIN := 8
 
@@ -1154,7 +1155,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 		if not got:
 			_toast("NO ROOM IN THE HOLD FOR %s" % m.name.to_upper(), true)
 			return
-		Audio.play(TransferView._take_sound(m), 0.05)
+		Audio.play(TransferView.take_sound(m), 0.05)
 	var r := Run.fit_at_mount(m, slot, index, _lifted_mount if m == _lifted else -1)
 	if r == Run.Refit.REFUSED:
 		return
@@ -1180,7 +1181,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		# where it was dropped, if it fits there (it is in the hold already); money was cashed, not held
 		if not m is CreditChit:
 			Run.stow_at(m, at)
-		Audio.play(TransferView._take_sound(m), 0.05)
+		Audio.play(TransferView.take_sound(m), 0.05)
 		_toast("TAKEN %s" % m.name.to_upper())
 		_refresh()
 		return
@@ -1286,7 +1287,7 @@ func _point(gp: Vector2) -> void:
 			m = part
 			for s in _mounts.spots():
 				if s.held == part:
-					var r := _mounts.part_rect(part, s.slot, _mounts._part_at(s), _mounts._mag())
+					var r := _mounts.part_rect(part, s.slot, _mounts.part_drawn_at(s), _mounts.part_mag())
 					at = Rect2(_mounts.get_global_transform() * r.position, r.size * _mounts.get_global_transform().get_scale())
 	if not (m is ModuleData or m is MaterialData or m is CreditChit):
 		m = null

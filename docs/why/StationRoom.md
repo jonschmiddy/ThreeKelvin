@@ -341,16 +341,3 @@ children of the screen stacked over this room, and nothing this room draws can
 reach above them. So the screen adds this after the furniture, and it draws
 the cables that make the whole deck sit behind something.
 ```
-
-## Window
-
-Above `func _window(sky: Rect2) -> void:`:
-
-```text
-A viewport onto space: stars, the station's own hull curving away below them,
-and a frame with a lit sill and mullions.
-
-The hull arc is the one mark that says you are ON something rather than
-looking at a poster -- so it is drawn as hull: solid, lit along its rim, with
-a row of lit ports along it. As a translucent band it read as a gradient.
-```

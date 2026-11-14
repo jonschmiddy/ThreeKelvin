@@ -11,11 +11,9 @@ Jon saw the plume in the F OVERLOAD enemy death and wanted it as the normal
 engine flame, side by side with the PixelLab strips. This is the MOCKUP for
 that pick: nothing live draws it yet. `-- sheet=ThrusterSheet` films it.
 
-COPIED, NOT SHARED. `_hull_pic` (its mask half), `_engines` and the plume
-builder are copies of ShipBreakup's (branch fx/deaths), because that file is
-not on main and its owner is still working in it. When both land, ShipBreakup's
-`_plume_tex` should become `ThrusterFx.plume_image` with Look.OVERLOAD and its
-`_engines` should call `ThrusterFx.engines` -- one helper, two callers. The
+SHARED, NOT COPIED. The hull picture (`BreakupCuts.hull_pic`) and the engine finder
+(`BreakupCuts.engines`) are the death's own; the plume
+builder is still a copy of ShipBreakup's. The
 differences from the death's copy, each on purpose:
   - one picture per NOZZLE per length, not one for all engine points, so each
     engine can flicker on its own;
@@ -30,7 +28,7 @@ differences from the death's copy, each on purpose:
   - on a rigged hull each stream starts at the strip's own attach pixels and
     the hull blocks it except where the strip itself burns through (see
     `for_hull`);
-  - `_engines` keeps only points on the hull's back EDGE for a steady flame:
+  - `for_sprite` keeps only points on the hull's back EDGE for a steady flame:
     the death's lit-pixel test also catches warm windows and stripes, and a
     flame streaming out of a window is fine in an explosion and absurd at rest.
 

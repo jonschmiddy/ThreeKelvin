@@ -7,8 +7,7 @@ extends Node
 ## stand-in on a pixel-identical frame, and commits the jump at the film's commit time.
 ## Why: docs/why/JumpDirector.md#director
 
-## The old hyperdrive's lead and rev (`JumpFx`), kept for the cine's strips of it.
-const DEPART_LEAD := 0.10
+## The old hyperdrive's rev (`JumpFx`), kept for the cine's strips of it.
 const REV_S := 0.90
 
 var sector: SectorScreen
@@ -27,8 +26,8 @@ var _committed := false
 var _over := false
 
 
-## Start the film. The screen is built in the same call that departs, before its first layout,
-## so the measuring waits for the first frame the view has a size; the film's clock starts then.
+## Start the film. The screen is built in `_begin`, on the first frame the view has a size,
+## and the film's clock starts there.
 func start(sc: SectorScreen, v: EncounterView) -> void:
 	sector = sc
 	view = v

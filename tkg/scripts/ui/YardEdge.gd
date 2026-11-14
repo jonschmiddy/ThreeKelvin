@@ -26,7 +26,7 @@ func _process(_d: float) -> void:
 	# stands in it)
 	if not screen._lad.is_empty() and not is_nan(float(screen._lad.get("rail_x", NAN))):
 		_rest_x = float(screen._lad.rail_x)
-	elif (screen._lad_tw == null or not screen._lad_tw.is_valid()) and screen._rail_slide == null \
+	elif screen._rail_slide == null \
 			and (screen._cutaway == null or not is_instance_valid(screen._cutaway)):
 		_rest_x = r.position.x
 	# (not while the cutaway has the yard zoomed: the hall is not where it was)

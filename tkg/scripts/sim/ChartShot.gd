@@ -170,16 +170,16 @@ func run(tree: SceneTree) -> void:
 		# measuring a light's reach about the core off the picture)
 		var ch := sc._chart
 		print("chart core %s gu_px %.3f" % [ch.get_global_rect().position + ch.centre_px(),
-			ch._radius() * MapChart.DISC * ch.zoom])
+			ch.chart_radius() * MapChart.DISC * ch.zoom])
 		if ChartSky.form_of(Run.galaxy_kind) == 1:
 			print("chart ball depth %s" % [ChartSky.ball_depth(Run.galaxy_kind)])
 	var deep_at := -1
 	if not deep.is_empty() and sc != null and sc._chart != null:
 		# (the readout opens to the star's right, or its left at the edge, about
 		# 170 x 51: the first one that leaves YOU and its own star in sight)
-		var you: Vector2 = sc._chart._screen_pos(Run.node_at())
+		var you: Vector2 = sc._chart.screen_pos(Run.node_at())
 		for nd in deep:
-			var at: Vector2 = sc._chart._screen_pos(nd)
+			var at: Vector2 = sc._chart.screen_pos(nd)
 			var o := at + Vector2(14, -26)
 			if o.x + 170.0 > sc._chart.size.x - 2.0:
 				o.x = at.x - 184.0

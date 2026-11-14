@@ -6,9 +6,6 @@ extends RefCounted
 ## both and adds the light, then the finish. Points of light go into an additive light buffer.
 ## Why: docs/why/JumpWarpField.md#warp-field
 
-## The light buffer is 8-bit, so what is drawn into it is pre-scaled by this (read back x4).
-const LIGHT_K := 0.25
-
 var stage: JumpStage
 var warp: ShaderMaterial
 var light: SubViewport

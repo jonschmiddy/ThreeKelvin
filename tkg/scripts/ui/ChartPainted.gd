@@ -304,9 +304,9 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 	g["b_debt"] = _star_debt(rows, float(p.bulge_r))
 	g.times["debt"] = (Time.get_ticks_usec() - t0) / 1000
 	g["b_sn"] = cand
-	g["b_a"] = ChartSky._data_tex(a, rows.size())
-	g["b_b"] = ChartSky._data_tex(b, rows.size())
-	g["b_c"] = ChartSky._data_tex(c3, rows.size())
+	g["b_a"] = ChartSky.data_texture(a, rows.size())
+	g["b_b"] = ChartSky.data_texture(b, rows.size())
+	g["b_c"] = ChartSky.data_texture(c3, rows.size())
 
 
 ## Star light kept across zoom: what the sparkles no longer bring a patch goes back into its gas.
@@ -343,9 +343,9 @@ static func _star_debt(rows: Array, bulge_r: float) -> ImageTexture:
 			if kind <= 2:
 				var f := 1.0
 				if kind == 1 and inner:
-					f *= ChartSky._smooth(1.55, 2.3, z)
+					f *= ChartSky.smooth_between(1.55, 2.3, z)
 				if kind == 2:
-					f *= ChartSky._smooth(1.6, 2.4, z)
+					f *= ChartSky.smooth_between(1.6, 2.4, z)
 				var kk := keeps[zi] * (0.25 if kind == 1 else 1.0)
 				if lum >= Ls[zi] and hs < kk and f > 0.02:
 					var fade := minf(1.0, (lum - Ls[zi]) / 30.0 + 0.15) * minf(1.0, (kk - hs) / 0.08 + 0.15) * f
@@ -355,7 +355,7 @@ static func _star_debt(rows: Array, bulge_r: float) -> ImageTexture:
 					elif tier >= 2 and lv > 0.3 and (tier >= 3 or z >= 0.75 or float(row[8]) < 0.035):
 						sprite = 1
 			elif kind == 4:
-				var gk := 1.0 - ChartSky._smooth(1.6, 2.4, z)
+				var gk := 1.0 - ChartSky.smooth_between(1.6, 2.4, z)
 				if gk > 0.02:
 					lv = minf(0.999, gk * (0.34 + minf(0.2, float(row[10]) / 500.0)))
 					sprite = 1
@@ -397,7 +397,7 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		m.set_shader_parameter("u_phi", 0.0)
 		m.set_shader_parameter("u_part", part)
 		m.set_shader_parameter("u_puffP", g.puffP)
-		out.append(sky._pass_vp(holder, Vector2i(PN, PN), ChartSky._rect(m), true))
+		out.append(sky.pass_viewport(holder, Vector2i(PN, PN), ChartSky.shader_rect(m), true))
 	# Solid look fields read SIMPLIFIED's own bakes at
 	# fixed scales, so relief and puffs stand where its do.
 	for mode in 2:
@@ -412,7 +412,7 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		mb.set_shader_parameter("spin", float(p.spin))
 		mb.set_shader_parameter("spread", float(p.spread))
 		mb.set_shader_parameter("chaos", float(p.chaos))
-		out.append(sky._pass_vp(holder, Vector2i(n, n), ChartSky._rect(mb), false))
+		out.append(sky.pass_viewport(holder, Vector2i(n, n), ChartSky.shader_rect(mb), false))
 	return out
 
 
@@ -477,7 +477,7 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 	sky._m_stars = ms
 	sky._stars = ChartSky.MeshDraw.new()
 	sky._stars.material = ms
-	sky._stars.mesh = MapChart._quads(int(g.b_n))
+	sky._stars.mesh = MapChart.empty_quads(int(g.b_n))
 	sky._svp.add_child(sky._stars)
 	var mp := ShaderMaterial.new()
 	mp.shader = PLACE_LOW_SH if sky._low_now else PLACE_SH
@@ -505,14 +505,14 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 			/ (log(ChartSky.DEBT_Z[-1]) - log(ChartSky.DEBT_Z[0])), float(ChartSky.DEBT_Z.size()), ChartSky.DEBT_E))
 		mp.set_shader_parameter("u_debtOn", not (ChartSky.diag & 512))
 	sky._m_place = mp
-	sky._place = ChartSky._rect(mp)
+	sky._place = ChartSky.shader_rect(mp)
 	sky._pvp.add_child(sky._place)
 	var mt := ShaderMaterial.new()
 	mt.shader = STATE_SH
 	mt.set_shader_parameter("gbuf", sky._pvp.get_texture())
 	mt.set_shader_parameter("u_mlen", T.mlen)
 	sky._m_state = mt
-	sky._state = ChartSky._rect(mt)
+	sky._state = ChartSky.shader_rect(mt)
 	sky._tvp.add_child(sky._state)
 	var mc := ShaderMaterial.new()
 	mc.shader = PAINT_SH
@@ -526,7 +526,7 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 	mc.set_shader_parameter("u_out", T.out)
 	mc.set_shader_parameter("u_trans", T.trans)
 	sky._m_comp = mc
-	sky._comp = ChartSky._rect(mc)
+	sky._comp = ChartSky.shader_rect(mc)
 	sky._vp.add_child(sky._comp)
 	sky._lut_on = true
 
@@ -658,14 +658,14 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, 
 	var rm: Array = ChartSky.remnants(g.b_sn, t, calm)
 	m.set_shader_parameter("u_nrem", int(rm[0]))
 	m.set_shader_parameter("u_rem", rm[1])
-	var sn: Dictionary = {} if calm else ChartSky._supernova(g.b_sn, t, false)
+	var sn: Dictionary = {} if calm else ChartSky.supernova_at(g.b_sn, t, false)
 	if sn.is_empty():
 		m.set_shader_parameter("u_sn", Vector4.ZERO)
 		m.set_shader_parameter("u_echo", Vector4.ZERO)
 	else:
 		var age: float = sn.age
 		var frame := 1 if age < 0.5 else (2 if age < 2.5 else (3 if age < 6.0 else (4 if age < 12.0 else 0)))
-		var v := ChartSky._to_view(sn.xy, phi)
+		var v := ChartSky.to_view(sn.xy, phi)
 		m.set_shader_parameter("u_sn", Vector4(v.x, v.y, float(frame), 0.0))
 		var step := floorf(age / 1.5) * 1.5
 		var strength := 0.0

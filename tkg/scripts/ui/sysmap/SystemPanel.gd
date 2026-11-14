@@ -7,8 +7,6 @@ const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const KeyGlyphS := preload("res://scripts/ui/sysmap/KeyGlyph.gd")
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
-## A locked choice: dimmed this far, and still clickable.
-const LOCKED_A := 0.55
 
 ## Wrap width leaves room for the scroll bar so the panel does not widen (Jon, Oct 20).
 const W := 236
@@ -292,8 +290,7 @@ func _there_word(body: int) -> String:
 	return "ALONGSIDE" if k == &"belt" or k == &"station" or k == &"derelict" or k == &"contact" else "IN ORBIT"
 
 
-## Shown when GO cannot fly there yet; `LOCKED_LINE` is shown nowhere now (Jon, Nov 5).
-const LOCKED_LINE := "GO FLIES YOU THERE, THEN DOWN TO IT"
+## Shown when GO cannot fly there yet.
 const WAIT_LINE := "GO ONCE YOU ARE IN AN ORBIT"
 ## on the way to it already
 const COMING_LINE := "ON YOUR WAY THERE"
@@ -320,8 +317,6 @@ func _locked_line(body: int = -9) -> String:
 		return DOCKED_LINE
 	if _held():
 		return HELD_LINE
-	if _can_go():
-		return LOCKED_LINE
 	return COMING_LINE if _heading_to(body) else WAIT_LINE
 
 
@@ -416,7 +411,7 @@ func _badge(st: Dictionary) -> Control:
 ## The line a card says under its tags, by its state.
 func _card_line(i: int, st: Dictionary, o: Dictionary) -> String:
 	var n: MapGen.MapNode = screen.view.node
-	var hook := EncounterDrawer.first_sentence(String(o.get("body", "")))
+	var hook := EncounterText.first_sentence(String(o.get("body", "")))
 	match st.kind:
 		&"left":
 			var w := String(n.left.get(i, ""))
@@ -544,7 +539,7 @@ func _place_event(body: int, i: int) -> void:
 	_gap(2)
 	_box.add_child(_rich(_tags_bb(o)))
 	_wrap(String(o.get("title", "")).to_upper(), EncounterDrawer.tag_colour(o).lerp(UITheme.ICE, 0.5), UITheme.FS_SMALL)
-	_blurb(EncounterDrawer.first_sentence(String(o.get("body", ""))), UITheme.CHILL if _ship_at(body) else DIM)
+	_blurb(EncounterText.first_sentence(String(o.get("body", ""))), UITheme.CHILL if _ship_at(body) else DIM)
 	_go_button(i)
 
 
@@ -628,13 +623,9 @@ func _twin_head() -> void:
 		sv.position = Vector2(TEXT_W / 2 + (TWIN_SUN_DX_B if s == SystemLayout.STAR_B else -TWIN_SUN_DX_A), 42)
 		holder.add_child(sv)
 		var sr := 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0)
-		if v.has_method(&"sun_setup"):
-			# (painted as the map paints star p: `SystemView.sun_setup`, star B
-			# from its own roll, smaller and warmer)
-			v.call(&"sun_setup", sv, s, sr)
-		else:
-			var look: Array = _sun_look(s)
-			sv.call("setup", String(look[0]), int(look[1]), sr)
+		# (painted as the map paints star p: `SystemView.sun_setup`, star B
+		# from its own roll, smaller and warmer)
+		v.sun_setup(sv, s, sr)
 		if _portrait == null:
 			_portrait = sv
 		else:
@@ -659,18 +650,6 @@ func _twin_head() -> void:
 ## How far either sun of a pair stands off the picture's middle (px).
 const TWIN_SUN_DX_A := 46
 const TWIN_SUN_DX_B := 50
-
-
-## Where the map cannot paint one: star B is rolled off its own number so the two differ.
-func _sun_look(p: int) -> Array:
-	var v = screen.view
-	if p == SystemLayout.STAR_B:
-		return [SystemViewS.KIND_NAMES[v.layout.star2], v.node.index + SUN_B_SALT]
-	return [v.kind, v.node.index]
-
-
-## (star B's picture is rolled as if for this many systems on: no system has it)
-const SUN_B_SALT := 100003
 
 
 ## A giant's weight as one fraction 1/n, held to 4 through 10 (ruling 20, Jon).
@@ -708,14 +687,6 @@ func _satellites() -> void:
 ## The name of place i's way-there row (`_way_there`).
 static func way_name(i: int) -> String:
 	return "Way_" + str(i).replace("-", "m")
-
-
-## Whether a place has any event of its own (the star's is the pulsar's harvest).
-func _has_events(body: int) -> bool:
-	for pair in _events():
-		if pair[0] == body:
-			return true
-	return false
 
 
 ## An (event's place, beacon) pair that is an open encounter, which gets a GO.
@@ -1043,7 +1014,7 @@ func _event_page(out: Dictionary) -> void:
 			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
 		_rule()
 		# ONE SENTENCE: the event itself, and its choices, are on LOCAL
-		_blurb(EncounterDrawer.first_sentence(String(o.get("body", ""))), UITheme.CHILL)
+		_blurb(EncounterText.first_sentence(String(o.get("body", ""))), UITheme.CHILL)
 		_rule()
 		_conseq = _rich("")
 		_conseq.custom_minimum_size = Vector2(TEXT_W, 11)

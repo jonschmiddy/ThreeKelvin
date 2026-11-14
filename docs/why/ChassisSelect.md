@@ -152,21 +152,6 @@ of livery compete with the one you had actually chosen. Cooled and darkened,
 they read as a list; the selected one reads as the subject.
 ```
 
-## Hull perk
-
-Inside `_build_detail()`, above `for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):`:
-
-```text
-The hull perk belongs here on THIS screen. Every chassis a yard builds
-carries the same authored perk — all three Korvan frames vent baffled — so
-at the point of choosing a manufacturer it is one of their abilities, and
-it is the only one you get without collecting anything.
-
-It is a HULL property, not a manufacturer property, and the two come apart later:
-LootGen rerolls the perk on a wreck, so a salvaged Korvan frame can carry
-anything. That is why the tag reads HULL rather than 1+.
-```
-
 ## Ability rows
 
 Inside `_build_detail()`, above `head.add_child(idc)`:
@@ -315,7 +300,7 @@ starts at C and every better frame is something you found.
 
 ## Banner
 
-Above `class Banner extends Control:`:
+In ManufacturerBanner.gd, above `const UNITS_W := 13`:
 
 ```text
 The manufacturer's banner, flown large.
@@ -362,7 +347,7 @@ see it, so the default minimum is still built from `S`.
 
 ## Slot pads
 
-Above `class SlotPads extends Control:`:
+In SlotPads.gd, above `const CELL := Vector2(9, 11)`:
 
 ```text
 Hardpoint cells: filled steel is occupied, an ember outline is a free pad.
@@ -464,7 +449,7 @@ bellies, which is why it looked right there.
 middle where the belly over each cradle is level, the higher cradle's seat row
 (the stand's `seat` in yard.json, 11 for the city stand: the white lip) lies
 under the belly, the other is let in deeper behind the hull, and both stands
-are one height, grown or cut by `_sized` so their feet stay on the berth's
+are one height, grown or cut by `YardStands.sized` so their feet stay on the berth's
 floor row. The hull stays where the mockup put it; the stands reach up to it.
 A tarp keeps the mockup's stands (quarters, the stand let six rows in), which
 its drawn hem covers. `YardSeatTest`'s front-door section measures every
@@ -482,7 +467,7 @@ x 200, the medium at 776 (over the hall's join, so its right stand is lit as the
 hall's first columns are), the heavy at 480 behind them; the front stands' feet
 on row 372, the heavy's on 334. The front stands are the picture as drawn
 (46 x 88); the heavy's are smaller by the floor's depth, (334 - 30) / (372 - 30)
-= 0.89 (`YardLife.zat`'s vanishing row 30), so 41 x 78: rows cut by `_sized`
+= 0.89 (`YardLife.zat`'s vanishing row 30), so 41 x 78: rows cut by `YardStands.sized`
 where the sides match best, whole columns dropped where a column matches its
 neighbour best. Only the hull moves: `YardSlot.seat` slides it up to `DRIFT`
 (14) columns off its mass middle and lets it down onto the stands with the score

@@ -28,7 +28,7 @@ Above `static func build(img: Image, x0: int, star_at: Vector2, star_r: float, k
 The palette for one system's picture `img`, its star at `star_at` with
 radius `star_r`, of `kind` ("ORDINARY", "RED", "BLUE", "PULSAR", "CORE").
 `y0`: the first row the map shows; above it is the HUD, not the system.
-`extra`: colours of the system's weather (`SkyWeather.RAMP`), put in before
+`extra`: colours of the system's weather (none today, see docs/why/SkyWeather.md), put in before
 the void, so its brightest moments have steps of their own.
 `merge`: twins closer than this (OKLab) are one colour (0: none).
 TWO SUNS (ruling 20): `star2_r` > 0 adds star B's light -- a cut of its own

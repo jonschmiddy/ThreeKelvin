@@ -307,8 +307,8 @@ static func _fit_place(c: Cloud, k: int, arms: int) -> void:
 	for t in range(1, FIT_TRIES):
 		if best_share >= 0.98:
 			break
-		var f1 := MapGen._frac(MapGen._hash2(k * 977 + t, salt, 4241))
-		var f2 := MapGen._frac(MapGen._hash2(k * 977 + t, salt, 4243))
+		var f1 := MapGen.hash_unit(MapGen.hash_cell(k * 977 + t, salt, 4241))
+		var f2 := MapGen.hash_unit(MapGen.hash_cell(k * 977 + t, salt, 4243))
 		var rn := R_MIN + f1 * R_SPAN
 		# Within the middle half of the arm's band, on any arm.
 		var along := (f2 - 0.5) * MapGen.arm_half_width(rn)

@@ -535,7 +535,7 @@ THE GLITCHED TAKE IS MADE OFF THE MAIN THREAD. Decoding and editing a take
 cost up to 19 ms, which on the frame she started speaking was a dropped
 frame. So `ash_voice_prepare` (called as her power-on starts, 0.35 s before
 she speaks) plans the line and hands the decode and the edits to a worker
-(`VoiceGlitch.bake`, pure CPU on arrays, `OffThread`'s rule); `ash_voice`
+(`VoiceGlitch.bake_placed`, pure CPU on arrays, `OffThread`'s rule); `ash_voice`
 takes the finished bytes and makes the stream on the main thread. Not
 finished in time: the clean take, and no glitches planned (so her portrait
 does not slip on sounds that are not there). The main thread never waits.
@@ -727,7 +727,7 @@ creature never breaks (its first beat is `play_kill`'s).
 
 ## Run end silence
 
-Above `func _on_run_ended(_won: bool, _reason: String) -> void:`:
+In `_connect_signals`, where `Sig.run_ended` is deliberately not connected:
 
 ```text
 NOTHING EITHER WAY AT THE END OF A RUN.
@@ -789,19 +789,6 @@ is -44 LUFS as heard: 16 LU under the map's thrust loop as it is heard
 (SHIP_DB at 0.7, -28 LUFS), about 11 under a UI click's 400 ms loudness (-33)
 and 24 under a hit on your hull (-20). It was -17 (-40 LUFS); Jon picked the
 quieter of three levels ("level:C"), 4 dB down.
-```
-
-## Flight sound
-
-Above `func ship_flight(dur: float, conic: bool) -> void:`:
-
-```text
-A FLIGHT, HEARD: the departure burn as it sets off, and an arrival flameout
-(a row picked as `ShipView.arrive` picks one, the hull's weight picking the
-clip) started at the point in it where its clean burn ends 0.08 s before the
-ship settles, so the stutter plays over the settling. On a transfer orbit the
-departure burn is short and the coast between is quiet; on the swoop the two
-crossfade.
 ```
 
 ## The labs glass

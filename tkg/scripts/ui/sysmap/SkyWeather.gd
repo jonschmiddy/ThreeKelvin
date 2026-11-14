@@ -40,10 +40,6 @@ const CADENCE := {&"emission": Vector2(12, 30), &"dark": Vector2(12, 30), &"remn
 	&"calm": Vector2(15, 40), &"core": Vector2(15, 40)}
 ## An event unseen for a while gains weight, so a light one comes round in minutes, not by chance.
 const STARVE_S := 90.0
-## Appended colours were measured: the plain sky moved
-## only 0.03 to 0.28% of blocks, so the gate holds.
-## Why: docs/why/SkyWeather.md#weather-colours
-const RAMP := {}
 const NEB_SKIES: Array[StringName] = [&"emission", &"reflection", &"planetary", &"remnant", &"dark"]
 ## which of its kind's events the nebula shader draws (`w_ev`, `s_ev`)
 const EV := {&"strike": 0, &"nearstrike": 0, &"tide": 1, &"jet": 2, &"newstar": 3, &"glints": 1,
@@ -158,15 +154,6 @@ static func sky_of_node(n: MapGen.MapNode) -> StringName:
 	var kind: String = ["ORDINARY", "RED", "BLUE", "PULSAR", "CORE"][L.star]
 	var look: Dictionary = SkyBakeS.look_for(n, kind)
 	return sky_of(L.star, int(look.get("neb", -1)))
-
-
-## The palette's extra colours for a sky.
-static func ramp(key: StringName) -> PackedVector3Array:
-	var out := PackedVector3Array()
-	for h: String in RAMP.get(key, []):
-		var c := Color(h)
-		out.append(Vector3(c.r, c.g, c.b))
-	return out
 
 
 func setup(v, idx: int) -> void:
@@ -789,14 +776,6 @@ func em_cc() -> Vector2:
 	return Vector2(480, 270)
 
 
-## A lit pillar tip's strength at sp: near the head of a pillar the bake raised.
-func em_tip(sp: Vector2) -> float:
-	var best := 0.0
-	for p: Array in em_tips():
-		best = maxf(best, exp(-(sp - Vector2(p[1])).length_squared() / (24.0 * 24.0)))
-	return best
-
-
 ## The cloud's pillars as [base, tip, w0, w1, seed] in sky pixels.
 func em_tips() -> Array:
 	return SkyBakeS.em_pillars(_sd, em_cc())
@@ -880,11 +859,6 @@ func rm_tangent(sp: Vector2) -> Vector2:
 func dk_d(sp: Vector2) -> float:
 	var fine := nfbm(_u(sp) * 4.2 + Vector2(5.0, _sd), 4)
 	return sm(0.3, 0.66, _bil(sp) + 0.15 * (fine - 0.5))
-
-
-func dk_ld() -> Vector2:
-	var la := nhash(_sd, 31.0) * TAU
-	return Vector2(cos(la), sin(la))
 
 
 ## THE CALM SKY'S GALAXY BAND: through (480, 270) in sky pixels, along this

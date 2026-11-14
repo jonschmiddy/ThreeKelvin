@@ -18,7 +18,6 @@ const CHIPS_AT := Vector2i(744, 508)
 ## The left column, the attribute column and the hardpoint column.
 const COL_L := 58
 const COL_A := 236
-const COL_H := 528
 const ROW0 := 416
 ## The attribute column's width (`HullNumberTest` holds it).
 const SIDE_W := 264
@@ -130,7 +129,7 @@ func show_ship(m: ManufacturerData, chosen: bool, at: Vector2, launchable: bool)
 	# the manufacturer and what the ship comes with (Jon's B2, Nov 12)
 	# Why: docs/why/ChassisSelect.md#what-a-ship-comes-with
 	YardInfo.left_column(self, m, chosen)
-	_word("ATTRIBUTES", UITheme.FS_SMALL, COL_A, ROW0 - 4, COLD)
+	word("ATTRIBUTES", UITheme.FS_SMALL, COL_A, ROW0 - 4, COLD)
 	var col := Control.new()
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.position = Vector2(COL_A, ROW0 + 7)
@@ -148,10 +147,10 @@ func show_ship(m: ManufacturerData, chosen: bool, at: Vector2, launchable: bool)
 func show_locked(m: StringName, at: Vector2) -> void:
 	_clear()
 	tie = at
-	_word("???", UITheme.FS_HEAD, COL_L, ROW0, MINT)
-	_word("LOCKED MANUFACTURER", UITheme.FS_SMALL, COL_L, ROW0 + 24, COLD)
-	_word(Unlocks.lock_line(m).to_upper(), UITheme.FS_SMALL, COL_A, ROW0 + 8, LOCK_INK)
-	_word("ITS SHIPS WAIT UNDER THEIR TARPS UNTIL THEN.", UITheme.FS_SMALL, COL_A, ROW0 + 24, LOCK_DIM)
+	word("???", UITheme.FS_HEAD, COL_L, ROW0, MINT)
+	word("LOCKED MANUFACTURER", UITheme.FS_SMALL, COL_L, ROW0 + 24, COLD)
+	word(Unlocks.lock_line(m).to_upper(), UITheme.FS_SMALL, COL_A, ROW0 + 8, LOCK_INK)
+	word("ITS SHIPS WAIT UNDER THEIR TARPS UNTIL THEN.", UITheme.FS_SMALL, COL_A, ROW0 + 24, LOCK_DIM)
 	key.set_on(false)
 	queue_redraw()
 
@@ -165,11 +164,16 @@ func on_word(p: Vector2) -> bool:
 	return false
 
 
-func _word(s: String, px: int, x: int, y: int, col: Color) -> Label:
+func word(s: String, px: int, x: int, y: int, col: Color) -> Label:
 	var l := UITheme.body(s, col, px)
 	l.position = Vector2(x, y)
 	_words.add_child(l)
 	return l
+
+
+## A node that is not a plain word (an emblem, the deck's stack) joins the band's words.
+func add_word_node(n: Node) -> void:
+	_words.add_child(n)
 
 
 func _centred(s: String, px: int, cx: int, y: int, col: Color) -> Label:

@@ -53,15 +53,6 @@ static func render(stream: AudioStream, plan: Array) -> AudioStream:
 	return from_pcm(pcm16(apply(d.x, d.sr, plan)), d.sr)
 
 
-## THE WORKER'S HALF: decode, glitch, and the 16-bit PCM. Pure CPU on arrays,
-## no resource made; empty if nothing decoded.
-static func bake(pb: AudioStreamPlayback, secs: float, sr: float, plan: Array) -> PackedByteArray:
-	var x := decode_from(pb, secs, sr)
-	if x.is_empty():
-		return PackedByteArray()
-	return pcm16(apply(x, sr, plan))
-
-
 ## THE WORKER'S HALF, with the windows moved onto her words first (`place`):
 ## {pcm, plan}. The plan comes back because her portrait slips on it.
 static func bake_placed(pb: AudioStreamPlayback, secs: float, sr: float, plan: Array) -> Dictionary:

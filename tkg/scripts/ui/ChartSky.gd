@@ -322,7 +322,7 @@ static func _warm(root: Node) -> void:
 		holder.add_child(vp)
 		var m := ShaderMaterial.new()
 		m.shader = e[0]
-		var r := _rect(m)
+		var r := shader_rect(m)
 		r.size = Vector2(4, 4)
 		vp.add_child(r)
 	# gone once it has been drawn
@@ -344,7 +344,7 @@ static func warm_place(root: Node, low: bool) -> void:
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	var m := ShaderMaterial.new()
 	m.shader = e[0]
-	var r := _rect(m)
+	var r := shader_rect(m)
 	r.size = Vector2(4, 4)
 	vp.add_child(r)
 	root.add_child(vp)
@@ -497,7 +497,7 @@ func _request_bake() -> void:
 ## What the bake reads from the chart, copied: the chart may close mid-bake.
 static func _snapshot_stars(c: MapChart) -> Dictionary:
 	return {
-		"r_max": c._radius() * MapChart.DISC,
+		"r_max": c.chart_radius() * MapChart.DISC,
 		"pos": c._star_pos.duplicate(), "col": c._star_col.duplicate(), "big": c._star_big.duplicate(),
 		"cr": c._core_rad.duplicate(), "ca": c._core_ang.duplicate(), "cc": c._core_col.duplicate(),
 		"gc": c._glob_c.duplicate(), "gi": c._glob_i.duplicate(), "pulsar": c._pulsar.duplicate(),
@@ -780,12 +780,12 @@ func hole_px() -> float:
 
 ## Chart px a galaxy unit at zoom 1: the chart's own projection.
 func _k() -> float:
-	return chart._radius() * MapChart.DISC
+	return chart.chart_radius() * MapChart.DISC
 
 
 # ------------------------------------------------------------------ the bake
 
-func _pass_vp(holder: Node, size: Vector2i, item: CanvasItem, hdr: bool) -> SubViewport:
+func pass_viewport(holder: Node, size: Vector2i, item: CanvasItem, hdr: bool) -> SubViewport:
 	var vp := SubViewport.new()
 	vp.size = size
 	vp.transparent_bg = true
@@ -800,7 +800,7 @@ func _pass_vp(holder: Node, size: Vector2i, item: CanvasItem, hdr: bool) -> SubV
 	return vp
 
 
-static func _rect(mat: ShaderMaterial) -> ColorRect:
+static func shader_rect(mat: ShaderMaterial) -> ColorRect:
 	var r := ColorRect.new()
 	r.material = mat
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -849,7 +849,7 @@ func _begin_bake() -> void:
 		m.set_shader_parameter("spin", float(p.spin))
 		m.set_shader_parameter("spread", float(p.spread))
 		m.set_shader_parameter("chaos", float(p.chaos))
-		vps.append(_pass_vp(holder, Vector2i(n, n), _rect(m), false))
+		vps.append(pass_viewport(holder, Vector2i(n, n), shader_rect(m), false))
 	_job = {"stage": 1, "frame": Engine.get_frames_drawn(), "holder": holder, "g": g, "bakes": vps, "key": _key,
 		"t0": Time.get_ticks_msec()}
 
@@ -992,7 +992,7 @@ func _queue_probes(g: Dictionary) -> void:
 		m.set_shader_parameter("u_tone_out", true)
 		# the hole as the approved palettes saw it (`legacy_hole`'s lh_probe)
 		m.set_shader_parameter("lh_probe", true)
-		probes.append(_pass_vp(_job.holder, PROBE, _rect(m), false))
+		probes.append(pass_viewport(_job.holder, PROBE, shader_rect(m), false))
 	_job.probes = probes
 	_job.stage = 2
 	_job.frame = Engine.get_frames_drawn()
@@ -1014,24 +1014,24 @@ func _probe_views(g: Dictionary) -> Array[Vector3]:
 			best_s = s
 			best = i
 	if best >= 0:
-		var v := _to_view(clouds[best].xy, phi)
+		var v := to_view(clouds[best].xy, phi)
 		out.append(Vector3(4.0, v.x, v.y))
 		out.append(Vector3(4.0, v.x, v.y))
 		# and the next cloud along, if it is a different kind
 		for i in clouds.size():
 			if i != best and int(clouds[i].kind) != int(clouds[best].kind) and int(clouds[i].kind) != 4:
-				var v2 := _to_view(clouds[i].xy, phi)
+				var v2 := to_view(clouds[i].xy, phi)
 				out.append(Vector3(4.0, v2.x, v2.y))
 				break
 	if _use_map and not Run.map.is_empty() and Run.node_at() != null:
 		var n: MapGen.MapNode = Run.node_at()
-		var y := _to_view(Vector2(n.gal.x, n.gal.y / float(g.p.squash)), phi)
+		var y := to_view(Vector2(n.gal.x, n.gal.y / float(g.p.squash)), phi)
 		out.append(Vector3(1.5, y.x, y.y))
 		out.append(Vector3(4.0, y.x, y.y))
 	return out
 
 
-static func _to_view(p: Vector2, phi: float) -> Vector2:
+static func to_view(p: Vector2, phi: float) -> Vector2:
 	var c := cos(phi)
 	var s := sin(phi)
 	return Vector2(p.x * c + p.y * s, (p.y * c - p.x * s) * TILT) * K0
@@ -1108,7 +1108,7 @@ func _stage_palette() -> void:
 		m.set_shader_parameter("exact_hi", 11)
 		m.set_shader_parameter("lchr", 2.5)
 		m.set_shader_parameter("near", 0.10)
-	_job.lut = _pass_vp(_job.holder, Vector2i(1024, 32), _rect(m), false)
+	_job.lut = pass_viewport(_job.holder, Vector2i(1024, 32), shader_rect(m), false)
 	_job.stage = 4
 	_job.frame = Engine.get_frames_drawn()
 
@@ -1217,9 +1217,9 @@ func _add_knot_stars(g: Dictionary) -> void:
 			c.append_array([0.0, 0.0, 0.0, 0.0])
 			n += 1
 	g["n_star"] = n
-	g["tex_a"] = _data_tex(a, n)
-	g["tex_b"] = _data_tex(b, n)
-	g["tex_c"] = _data_tex(c, n)
+	g["tex_a"] = data_texture(a, n)
+	g["tex_b"] = data_texture(b, n)
+	g["tex_c"] = data_texture(c, n)
 	var t0 := Time.get_ticks_usec()
 	g["debt"] = _star_debt(g)
 	g.times["debt"] = (Time.get_ticks_usec() - t0) / 1000
@@ -1249,9 +1249,9 @@ func _star_debt(g: Dictionary) -> ImageTexture:
 		var lz := log(z)
 		Ls.append(150.0 if z <= 0.6 else (60.0 if z >= 3.0 else 150.0 + (60.0 - 150.0) * (lz - log(0.6)) / (log(3.0) - log(0.6))))
 		keeps.append(0.4 if z <= 0.6 else (1.0 if z >= 2.0 else 0.4 + 0.6 * (lz - log(0.6)) / (log(2.0) - log(0.6))))
-		cz2.append(_smooth(2.2, 4.0, z) * (0.55 + 0.9 * _smooth(3.0, 6.0, z)))
-		kgs.append(_smooth(0.9, 1.8, z))
-		ggs.append(1.0 - _smooth(1.6, 2.2, z))
+		cz2.append(smooth_between(2.2, 4.0, z) * (0.55 + 0.9 * smooth_between(3.0, 6.0, z)))
+		kgs.append(smooth_between(0.9, 1.8, z))
+		ggs.append(1.0 - smooth_between(1.6, 2.2, z))
 	var acc := PackedFloat32Array()
 	acc.resize(nz * N * N * 3)
 	acc.fill(0.0)
@@ -1330,7 +1330,7 @@ func _star_debt(g: Dictionary) -> ImageTexture:
 	return ImageTexture.create_from_image(Image.create_from_data(N * nz, N, false, Image.FORMAT_RGBF, out.to_byte_array()))
 
 
-static func _data_tex(f: PackedFloat32Array, n: int) -> ImageTexture:
+static func data_texture(f: PackedFloat32Array, n: int) -> ImageTexture:
 	var w := MapChart.SKY_TEX_W
 	var rows := maxi(1, ceili(float(n) / float(w)))
 	f.resize(w * rows * 4)
@@ -1460,7 +1460,7 @@ static func _s2l(v: float) -> float:
 	return v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
 
 
-static func _l2s(v: float) -> float:
+static func linear_to_srgb(v: float) -> float:
 	v = maxf(0.0, v)
 	return v * 12.92 if v <= 0.0031308 else 1.055 * pow(v, 1.0 / 2.4) - 0.055
 
@@ -1499,10 +1499,10 @@ static func _lch(L: float, C: float, hdeg: float) -> Color:
 	for k in 40:
 		var lin := _from_oklab(Vector3(L, C * cos(h), C * sin(h)))
 		if lin.x >= -1e-4 and lin.y >= -1e-4 and lin.z >= -1e-4 and lin.x <= 1.0001 and lin.y <= 1.0001 and lin.z <= 1.0001:
-			return Color(_l2s(lin.x), _l2s(lin.y), _l2s(lin.z))
+			return Color(linear_to_srgb(lin.x), linear_to_srgb(lin.y), linear_to_srgb(lin.z))
 		C *= 0.92
 	var g := _from_oklab(Vector3(L, 0.0, 0.0))
-	return Color(_l2s(g.x), _l2s(g.y), _l2s(g.z))
+	return Color(linear_to_srgb(g.x), linear_to_srgb(g.y), linear_to_srgb(g.z))
 
 
 static func _to_lch(c: Color) -> Vector3:
@@ -1606,8 +1606,8 @@ class PaletteJob extends RefCounted:
 				out.append(c)
 		for L in C:
 			var lin := ChartSky._from_oklab(L)
-			var c := Color8(roundi(clampf(ChartSky._l2s(lin.x), 0.0, 1.0) * 255.0),
-				roundi(clampf(ChartSky._l2s(lin.y), 0.0, 1.0) * 255.0), roundi(clampf(ChartSky._l2s(lin.z), 0.0, 1.0) * 255.0))
+			var c := Color8(roundi(clampf(ChartSky.linear_to_srgb(lin.x), 0.0, 1.0) * 255.0),
+				roundi(clampf(ChartSky.linear_to_srgb(lin.y), 0.0, 1.0) * 255.0), roundi(clampf(ChartSky.linear_to_srgb(lin.z), 0.0, 1.0) * 255.0))
 			var L2 := ChartSky._oklab(c)
 			# Nothing below the void: a pure black cut flipped the hole's middle on zoom.
 			# Why: docs/why/ChartSky.md#void-darkest
@@ -1673,7 +1673,7 @@ func _runtime() -> void:
 	_m_stars.set_shader_parameter("k", K0)
 	_stars = MeshDraw.new()
 	_stars.material = _m_stars
-	_stars.mesh = MapChart._quads(int(g.n_star) + MAX_EXTRA)
+	_stars.mesh = MapChart.empty_quads(int(g.n_star) + MAX_EXTRA)
 	_svp.add_child(_stars)
 	_m_place = ShaderMaterial.new()
 	if g.has("radiant"):
@@ -1688,7 +1688,7 @@ func _runtime() -> void:
 		_m_place.set_shader_parameter("u_debtP", Vector4(log(DEBT_Z[0]), float(DEBT_Z.size() - 1) / (log(DEBT_Z[-1]) - log(DEBT_Z[0])),
 			float(DEBT_Z.size()), DEBT_E))
 		_m_place.set_shader_parameter("u_debtOn", not (diag & 512))
-	_place = _rect(_m_place)
+	_place = shader_rect(_m_place)
 	_pvp.add_child(_place)
 	# never cleared: the composite holds a block's colour from the frame before
 	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
@@ -1706,7 +1706,7 @@ func _runtime() -> void:
 		_radiant_probe.release()
 	var probed: Array[SubViewport] = [_svp, _pvp, _vp]
 	_radiant_probe = GpuProbe.new(probed, ChartRadiant.PROBE_FRAMES) if radiant else null
-	_comp = _rect(_m_comp)
+	_comp = shader_rect(_m_comp)
 	_vp.add_child(_comp)
 	if radiant:
 		_gvp = RadiantGlow.wrap(_vp, Vector2(_vp.size), ChartRadiant.GLOW_LOOK)
@@ -1782,7 +1782,7 @@ func _feed_sky(m: ShaderMaterial) -> void:
 
 # ------------------------------------------------------------------ events, pure functions of t
 
-static func _smooth(a: float, b: float, x: float) -> float:
+static func smooth_between(a: float, b: float, x: float) -> float:
 	var u := clampf((x - a) / (b - a), 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
 
@@ -1801,17 +1801,17 @@ static func _knot_amp(knots: Array, i: int, t: float, calm: bool) -> float:
 			var e := 0.0
 			if tau >= 0.0:
 				if tau < 3.0:
-					e = _smooth(0.0, 3.0, tau)
+					e = smooth_between(0.0, 3.0, tau)
 				elif tau < 7.0:
 					e = 1.0
 				elif tau < 17.0:
-					e = 1.0 - _smooth(7.0, 17.0, tau)
+					e = 1.0 - smooth_between(7.0, 17.0, tau)
 			a *= 1.0 + 1.5 * e
 	return a
 
 
 ## One supernova per 60 s slot at a hashed time and star; its light echo is a sweeping ring.
-static func _supernova(cand: PackedVector2Array, t: float, calm: bool) -> Dictionary:
+static func supernova_at(cand: PackedVector2Array, t: float, calm: bool) -> Dictionary:
 	if calm or cand.is_empty():
 		return {}
 	var n0 := floori(t / 60.0)
@@ -1822,7 +1822,7 @@ static func _supernova(cand: PackedVector2Array, t: float, calm: bool) -> Dictio
 			continue
 		var at := cand[int(LegacyHole.hash01(n, 78) * cand.size()) % cand.size()]
 		var gain: float = age / 0.4 if age < 0.4 else (1.0 if age < 1.9 else exp(-(age - 1.9) / 4.0))
-		return {"xy": at, "g": gain, "age": age, "echo": exp(-age / 11.0) * _smooth(0.0, 1.5, age)}
+		return {"xy": at, "g": gain, "age": age, "echo": exp(-age / 11.0) * smooth_between(0.0, 1.5, age)}
 	return {}
 
 
@@ -1885,7 +1885,7 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: fl
 	var clouds: Array = g.clouds
 	var order: Array = []
 	for c: Dictionary in clouds:
-		order.append([c, _to_view(c.xy, phi)])
+		order.append([c, to_view(c.xy, phi)])
 	order.sort_custom(func(x: Array, y: Array) -> bool: return (x[1] as Vector2).y < (y[1] as Vector2).y)
 	var cl := PackedVector4Array()
 	var clk := PackedVector4Array()
@@ -1957,12 +1957,12 @@ func _feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: float, _z: fl
 	m.set_shader_parameter("u_kn", kn)
 	var sv := Dictionary()
 	if live:
-		sv = _supernova(g.sn_cand, t, calm)
+		sv = supernova_at(g.sn_cand, t, calm)
 	if sv.is_empty():
 		m.set_shader_parameter("u_sn", Vector4.ZERO)
 		m.set_shader_parameter("u_echo", Vector4.ZERO)
 	else:
-		var v := _to_view(sv.xy, phi)
+		var v := to_view(sv.xy, phi)
 		m.set_shader_parameter("u_sn", Vector4(v.x, v.y, float(sv.g), float(sv.age)))
 		m.set_shader_parameter("u_echo", Vector4(sv.xy.x, sv.xy.y, 0.004 * float(sv.age), float(sv.echo)))
 	g["_amps"] = amps
@@ -2007,7 +2007,7 @@ func _cloud_stars(g: Dictionary, t: float, phi: float, cpix: Vector2, z: float, 
 				var pp: Vector2 = c.pulsar
 				if pp.x != INF:
 					var beat := 0.45 + 1.1 * pow(0.5 + 0.5 * cos(TAU * t / 5.0), 8.0)
-					var pv := _solid_view(_to_view(pp, phi))
+					var pv := _solid_view(to_view(pp, phi))
 					var s := cpix + pv * z
 					if pos.size() < MAX_EXTRA:
 						pos.append(Vector4(floorf((s.x - origin.x) * 0.5), floorf((s.y - origin.y) * 0.5), 0.0, 0.0))

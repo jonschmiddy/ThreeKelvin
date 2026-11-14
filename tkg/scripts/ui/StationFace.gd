@@ -90,7 +90,6 @@ const PAR_GAIN := 0.06
 const PAR_HOLD := 0.6
 
 const HEAT := [Color("#5c280c"), Color("#964214"), Color("#cc641c"), Color("#ffa63c"), Color("#ffdca0"), Color("#fff6e2")]
-const STROBE := Color("#b8e2f4")
 const RED := Color("#ff4a36")
 const INK := Color("#07090e")
 

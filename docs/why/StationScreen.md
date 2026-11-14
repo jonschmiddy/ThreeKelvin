@@ -419,36 +419,6 @@ work is pinned down the left wherever there was room, and the right is
 the town's own -- see `PostingBoard`.
 ```
 
-## Promenade
-
-Above `const PICK_W := 256`:
-
-```text
-THE PROMENADE: one part shown large, the rest as a list beside it.
-
-It was a scrolling column of full-width rows, every one carrying its name,
-manufacturer, slot, affixes, both card faces and a price -- four parts stated
-at identical weight, so nothing on the shelf was bigger than anything else and
-none of the art we drew appeared anywhere on the screen.
-
-Now the shelf has a FOCUS. One part is open at full size with its card
-illustration at double scale, and the others are a compact list you click to
-bring forward. See `mocks C · The Cutaway`, which is the layout Jon picked.
-HOW WIDE THE OPEN PART'S COLUMN IS, and it is fixed rather than fitted so
-that the cards beside it start at the same x whatever is open.
-
-TWO NUMBERS SET IT, and both are the widest case rather than the common one:
-
-  the plate   a SPINE part is 4x1, which at CELL is 176 -- plus the size
-              caption beside it, about 60 more.
-  the name    "Widowmaker Siege Driver" is 23 characters, and Silkscreen at
-              FS_HEAD advances 10.5 a character. 242.
-
-256 clears both. Fitted to the CONTENT instead, the column was 176 and the
-cards jumped sideways every time you opened a part with a different footprint
--- a 1x1 sight and a 4x1 rail moved the whole right-hand half of the panel.
-```
-
 ## Promenade room
 
 Inside `_page_stock()`, above `_shop = ShopScene.new()`:
@@ -875,60 +845,6 @@ another dock, REFUEL sells the fuel to reach one for what you have, and its
 tip says so (`Run.dock_rescue`).
 ```
 
-## Hold plate
-
-Above `const PART_CELL := 44`:
-
-```text
-THE PART ITSELF, ON THE CELLS IT WILL TAKE UP IN THE HOLD.
-
-The module sprite and the card illustration were drawn for different jobs and
-the panel needs both: the sprite is the OBJECT -- a silhouette drawn to read
-at twenty pixels bolted to a ship -- and the card is what owning it does to
-your deck. So the part gets its sprite and the cards get their own faces,
-and neither is a crop of the other.
-
-ON A GRID, because that makes the second picture answer a question the first
-cannot. "2×1" is a string you have to convert; two squares is the shape of the
-hole it leaves in a hold you are already packing.
-
-FORTY-FOUR, and it follows from the art rather than from taste. Module sprites
-are authored at twenty pixels to the cell, so a cell of 44 holds one drawn at
-exactly 2x with two pixels of air around it -- and 2x is the only enlargement
-this art has, the same rule the card window follows.
-```
-
-## Part column
-
-Above `func _part_column(mod: ModuleData) -> VBoxContainer:`:
-
-```text
-THE OPEN PART'S LEFT-HAND COLUMN: what the thing IS.
-
-SHARED BY THE PROMENADE AND THE EXCHANGE, because they are the same panel
-asked two different questions -- one about a part on a shelf and one about a
-part in your hold -- and the answer to "what is this" cannot be allowed to
-differ between them. It was written twice for a day and the two copies had
-already drifted on the flavour line.
-
-Everything above the actions, and nothing below: the caller owns the buttons,
-because buying and selling are the half that genuinely differs.
-```
-
-## Part description
-
-Inside `_part_column()`, above `var desc := VBoxContainer.new()`:
-
-```text
-NO FIXED HEIGHT HERE ANY MORE. This box was padded to DESC_H so that the
-price and its button, which used to sit underneath it, would land at the
-same y on every part -- a part with one affix and a one-line flavour is two
-labels where a part with a two-line flavour is one, and the extra
-separation moved the button four pixels. The money is its own column now,
-so nothing below this has to be held still and the text can simply be as
-long as it is.
-```
-
 ## Commit button
 
 Above `func _commit_button(text: String, action: Callable) -> Button:`:
@@ -946,19 +862,6 @@ DISABLED IS SPELLED OUT, and it has to be: an override on `normal` alone
 leaves the disabled state ember too, so a BUY you cannot afford would look
 exactly like one you can. It goes to LINE on VOID, which is the quietest
 thing on the page.
-```
-
-## Card fan
-
-Above `func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:`:
-
-```text
-WHAT IT PUTS IN YOUR DECK, as the cards themselves.
-
-THE REAL CARD FACE, not the illustration lifted out of it. Cropping `Z_ART`
-and reprinting the rules line underneath in grey is a card taken apart and
-laid out again worse -- the face already carries the art, the name, the cost
-and the text, drawn by the one class that knows how a card in this game looks.
 ```
 
 ## Slab width
@@ -1035,8 +938,8 @@ What you brought, priced at what this place will pay for it.
 THE SAME TWO BANDS THE PROMENADE HAS, and deliberately so: one thing open
 across the top, everything else as a list along the bottom. The two decks ask
 the same question about a part -- what is it and what does it put in my deck --
-and the only honest difference is the buttons, so `_part_column` and
-`_card_fan` are shared and this file owns nothing but the actions.
+and the only honest difference is the buttons, so this file owns nothing but
+the actions (the shared part column and card fan it once leaned on are gone).
 
 It was a scrolling column of full-width rows, each carrying the name, the
 manufacturer, the slot, the affixes, both card faces, a deck count and three
@@ -1193,7 +1096,7 @@ cells all the way in, and on the frame it landed the hall went and the dark
 column and the yard's frame appeared under it at once -- a pop of the whole
 column. It also eased in on its own cubic, off the whole pixel, in silence.
 Now it is the side panel's slide (`PanelSlide`): the control itself moved,
-in whole pixels, on the panels' one curve (`ZoomLadder._calm_slide_curve`)
+in whole pixels, on the panels' one curve (`ZoomLadder.calm_slide_curve`)
 over `ZoomLadder.CALM_SLIDE_S`, heard as they are (`chrome_on`), carrying its
 own ground with it -- the dark the column stands on at rest and the yard's
 frame beside it (`_RailBack`) -- over the hall, so when it lands the picture
@@ -1239,7 +1142,7 @@ Hang the station's manufacturer banners in a room.
 THE BANNERS LEFT THE RAIL AND WENT INTO THE ROOMS. At the head of the rail they
 were two flags over a list; in the rooms they are what a manufacturer actually
 does to a station it holds -- its colours hung in the hangar, pinned on the
-board, over the till. Still real `ChassisSelect.Banner`s rather than pictures of
+board, over the till. Still real `ManufacturerBanner`s rather than pictures of
 them, so pointing at one still gets the manufacturer's readout.
 
 Children of the ROOM, so they draw over its walls and under everything that

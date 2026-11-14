@@ -342,9 +342,6 @@ static func _combo(index: int) -> int:
 const REGION_NAMES: Array[String] = ["Frontier", "Territory", "Cosmopolitan",
 	"Lawless", "Migration Route", "Precursor Ruins"]
 
-static func region_name(r: Region) -> String:
-	return REGION_NAMES[r]
-
 ## Five nameable states, not a colour per manufacturer: the accent colours blur on a chart.
 ## `star_kind` avoids the `star_name` clash with the system namer.
 ## Why: docs/why/MapGen.md#system-colour
@@ -758,8 +755,6 @@ static func _derive_region(n: MapNode) -> Region:
 	# Why: docs/why/MapGen.md#region-derivation
 	if n.layer >= DEEP_FROM:
 		return Region.DEEP
-	if n.fauna:
-		return Region.FAUNA
 	if n.security <= 2 and not n.berths.is_empty():
 		return Region.LAWLESS
 	if n.berths.size() >= 2:
@@ -790,13 +785,13 @@ static func shape_angle_in(g: Dictionary, spin: float, r_norm: float, arm: int, 
 		t = (r_norm - bar) / maxf(0.001, 1.0 - bar)
 	return base + t * float(g.twist) + along
 
-static func _hash2(i: int, j: int, salt: int) -> int:
+static func hash_cell(i: int, j: int, salt: int) -> int:
 	var h := (i * 374761393 + j * 668265263 + salt * 144665) & 0x7fffffff
 	h = (h ^ (h >> 13)) & 0x7fffffff
 	h = (h * 1274126177) & 0x7fffffff
 	return (h ^ (h >> 16)) & 0x7fffffff
 
-static func _frac(h: int) -> float:
+static func hash_unit(h: int) -> float:
 	return float(h % 10000) / 10000.0
 
 ## Shipped PULL values (Jon, 2026-10-03); `-- sheet=GalaxyDump pulls` previews other strengths.
@@ -848,9 +843,9 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 
 	# Hashed offsets break up the lattice without shifting between frames; seeded per run.
 	var salt := (Run.galaxy_seed % 100003) * 31
-	var jr := _frac(_hash2(n.index, n.layer, 101 + salt)) - 0.5
-	var ja := _frac(_hash2(n.index, n.layer, 211 + salt)) - 0.5
-	var rot := (_frac(_hash2(n.layer, 7, 307 + salt)) - 0.5) * astep * 0.55
+	var jr := hash_unit(hash_cell(n.index, n.layer, 101 + salt)) - 0.5
+	var ja := hash_unit(hash_cell(n.index, n.layer, 211 + salt)) - 0.5
+	var rot := (hash_unit(hash_cell(n.layer, 7, 307 + salt)) - 0.5) * astep * 0.55
 	var r := rn + jr * 0.026
 	var a := (float(n.row) + half) * astep + rot + ja * astep * 0.42 + Run.galaxy_spin
 
@@ -898,15 +893,15 @@ static func spread_positions(nodes: Array) -> PackedVector2Array:
 		# Same offsets as `galaxy_pos`, so an armless galaxy is placed exactly as before.
 		var half: float = 0.5 if layer % 2 == 1 else 0.0
 		var astep := TAU / float(rows)
-		var rot := (_frac(_hash2(layer, 7, 307 + salt)) - 0.5) * astep * 0.55
+		var rot := (hash_unit(hash_cell(layer, 7, 307 + salt)) - 0.5) * astep * 0.55
 		var base := rot + Run.galaxy_spin
 		var cdf := PackedFloat32Array()
 		if arms > 0:
 			cdf = _arm_cdf(rn, base, rows)
 		for i in members:
 			var n: MapNode = nodes[i]
-			var jr := _frac(_hash2(n.index, n.layer, 101 + salt)) - 0.5
-			var ja := _frac(_hash2(n.index, n.layer, 211 + salt)) - 0.5
+			var jr := hash_unit(hash_cell(n.index, n.layer, 101 + salt)) - 0.5
+			var ja := hash_unit(hash_cell(n.index, n.layer, 211 + salt)) - 0.5
 			rad[i] = rn + jr * 0.026
 			var slot := (float(n.row) + half + ja * 0.42) / float(rows)
 			if arms > 0:

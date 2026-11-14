@@ -244,7 +244,7 @@ func _run() -> void:
 				vis[i] = true
 		for i: int in vis.keys():
 			var nd: MapGen.MapNode = Run.map[i]
-			print("  tornmark %d L%d gone=%s at %s" % [i, nd.layer, ChartTorn.gone(nd), _chart._screen_pos(nd)])
+			print("  tornmark %d L%d gone=%s at %s" % [i, nd.layer, ChartTorn.gone(nd), _chart.screen_pos(nd)])
 		print("  tornmark edge %.3f scale %.3f centre %s" % [ChartTorn.edge(), ChartTorn.scale(), _chart.centre_px()])
 		# (the stream's line, view px at zoom 1 about the core, and where it is drawn from)
 		if ChartTorn.on():
@@ -264,7 +264,7 @@ func _pan_of(x: String, y: String, z: float) -> Vector2:
 		return -ChartTorn.OPEN_SHIFT * ChartSky.K0 if ChartTorn.on() else Vector2.ZERO
 	if x == "ship":
 		var n: MapGen.MapNode = Run.node_at()
-		return ChartSky._to_view(Vector2(n.gal.x, n.gal.y / float(Run.galaxy.squash)), phi)
+		return ChartSky.to_view(Vector2(n.gal.x, n.gal.y / float(Run.galaxy.squash)), phi)
 	if x.begins_with("neb"):
 		var want := -1
 		var nth := 0
@@ -278,7 +278,7 @@ func _pan_of(x: String, y: String, z: float) -> Vector2:
 		if cl == null:
 			return Vector2.ZERO
 		print("  chartlook: view at zoom %.2f on %s (%s)" % [z, cl.name, NebulaField.Kind.keys()[cl.kind]])
-		return ChartSky._to_view(Vector2(cl.pos.x, cl.pos.y / float(Run.galaxy.squash)), phi)
+		return ChartSky.to_view(Vector2(cl.pos.x, cl.pos.y / float(Run.galaxy.squash)), phi)
 	return Vector2(float(x), float(y))
 
 
@@ -307,7 +307,7 @@ func _cloud(want: int, nth: int) -> NebulaField.Cloud:
 
 ## The chart at zoom z with the frame's centre at view px `at`.
 func _view(z: float, at: Vector2) -> void:
-	var k: float = _chart._radius() * MapChart.DISC
+	var k: float = _chart.chart_radius() * MapChart.DISC
 	var zoom := z * ChartSky.K0 / k
 	var ze := zoom * k / ChartSky.K0
 	_chart._go_to(zoom, -at * ze, false)
@@ -385,7 +385,7 @@ func _clip() -> void:
 		var gt := Harness.arg("glideto", "5:0:0").split(":")
 		var z1 := float(gt[0])
 		var at1 := _pan_of(gt[1], gt[2] if gt.size() > 2 else "0", z1)
-		var k: float = _chart._radius() * MapChart.DISC
+		var k: float = _chart.chart_radius() * MapChart.DISC
 		var fi := 0
 		for leg in 2:
 			var zz := z1 if leg == 0 else z0
@@ -508,7 +508,7 @@ func _tour(dir: String) -> void:
 	var cur := _chart.size * Vector2(0.62, 0.42)
 	var ta := Harness.arg("tourat", "")
 	if ta == "ship":
-		cur = _chart._screen_pos(Run.node_at())
+		cur = _chart.screen_pos(Run.node_at())
 	elif ta != "":
 		var tf := ta.split(":")
 		cur = _chart.size * Vector2(float(tf[0]), float(tf[1]))
@@ -523,7 +523,7 @@ func _tour(dir: String) -> void:
 			var sky0 := _chart._sky as ChartSky
 			var sn: Dictionary = sky0.next_supernova(MapChart.clock_override)
 			MapChart.clock_override = float(sn.t0) - 1.5
-			_view(1.4, ChartSky._to_view(sn.xy, _chart.turn()))
+			_view(1.4, ChartSky.to_view(sn.xy, _chart.turn()))
 			segs = [["hold", 360]]
 		"remlapse":
 			_view(0.42, Vector2.ZERO)
@@ -699,7 +699,7 @@ func _solid_test() -> void:
 			var nd: MapGen.MapNode = raw
 			if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
 				continue
-			var sp: Vector2 = _chart._screen_pos(nd)
+			var sp: Vector2 = _chart.screen_pos(nd)
 			var b := ((sp - (src._vp_origin as Vector2)) * 0.5).floor()
 			if b.x < 0 or b.y < 0 or b.x >= img.get_width() or b.y >= img.get_height():
 				continue
@@ -712,7 +712,7 @@ func _solid_test() -> void:
 			var crowded := false
 			for raw2 in Run.map:
 				var o: MapGen.MapNode = raw2
-				if o.index != nd.index and visible.has(o.index) and _chart._screen_pos(o).distance_to(sp) < 2.0 * maxf(5.0, 12.0 * _chart.zoom):
+				if o.index != nd.index and visible.has(o.index) and _chart.screen_pos(o).distance_to(sp) < 2.0 * maxf(5.0, 12.0 * _chart.zoom):
 					crowded = true
 					break
 			if not crowded and _chart._node_at(sp) != nd.index:

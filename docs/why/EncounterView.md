@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/ui/EncounterView.gd`, moved out of the code ve
 
 ## Frame and convoy
 
-Above `enum Subject { AREA, ENEMY }`:
+Above `var _row: HBoxContainer`:
 
 ```text
 One continuous space. Your ship on the left, whatever you are facing on the

@@ -4,8 +4,6 @@ extends Control
 ## One shared field, not two panels, so the ship reads as a thing in a place.
 ## Why: docs/why/EncounterView.md#frame-and-convoy
 
-enum Subject { AREA, ENEMY }
-
 var _row: HBoxContainer
 ## The other ships in the party. Empty in the solo game.
 var _convoy: VBoxContainer
@@ -217,7 +215,6 @@ const CONVOY_MAX := 3
 const CONVOY_TOP := 62
 ## Short stagger: the approach runs 4.5 s, so it only has to break the lockstep.
 const ARRIVE_LEAD := 0.25
-const ARRIVE_GAP := 0.35
 
 ## Filtered by position: a partner in another system is in the convoy but not this room.
 ## Why: docs/why/EncounterView.md#convoy-membership
@@ -728,7 +725,7 @@ func release_entrances() -> void:
 ## Why: docs/why/EncounterView.md#place-fade
 func _area_fade_out() -> void:
 	if not Router.animating() or not is_visible_in_tree() or _area.node == null \
-			or _area._place_name() == &"":
+			or _area.place_name() == &"":
 		return
 	var fixed := 0.0
 	var seen := 0

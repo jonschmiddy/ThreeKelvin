@@ -40,7 +40,7 @@ func run() -> void:
 					"%dx%d" % [tex.get_width(), tex.get_height()],
 					"%d / %d / %d" % [counts[0], counts[1], counts[2]],
 					str(stray) if stray > 0 else "-"])
-	_ok("%d mounts all land on hull" % total, off == 0)
+	_ok("%d mounts all land on hull" % total, total > 0 and off == 0)
 	verdict("mounts")
 
 

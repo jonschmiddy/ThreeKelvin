@@ -107,16 +107,6 @@ class _Ramps extends RefCounted:
 				best = g
 		return best
 
-	## Toward the middle of its ramp by `t` (0 none, 1 all the way): a dull finish.
-	func flatten(c: Color, t: float) -> Color:
-		var w = _where.get(HullGrade.key(c))
-		if w == null:
-			return c
-		var ramp: Array = accent if w[0] else grey
-		var mid := (ramp.size() - 1) * 0.5
-		var i := int(round(lerpf(float(w[1]), mid, t)))
-		return ramp[clampi(i, 0, ramp.size() - 1)]
-
 	## The grey nearest `dl` away: a fixed lightness step, where a ramp step may be crowded.
 	func lift(c: Color, dl: float) -> Color:
 		var want := HullGrade.luma(c) + dl

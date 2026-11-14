@@ -34,8 +34,6 @@ const LABEL_AIR := 3
 ## made 16.
 ## Why: docs/why/ShipScreen.md#panel-widths
 
-const STORAGE_COLS := 4
-
 ## Wider than a card so manufacturer lines do not wrap and make boxes uneven in height.
 ## Why: docs/why/ShipScreen.md#module-readouts
 const READOUT_W := 150.0
@@ -69,7 +67,7 @@ var _mounts: VBoxContainer
 var _reactor: Label
 var _mountpts: MountPoints
 var _view: ShipView
-var _banner: ChassisSelect.Banner
+var _banner: ManufacturerBanner
 var _name: Label
 var _namebtn: Button
 ## One field: freeing the shade frees the whole prompt card.
@@ -126,11 +124,11 @@ func _build() -> void:
 	# Why: docs/why/ShipScreen.md#masthead-flag
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", HEADER_SEP)
-	_banner = ChassisSelect.Banner.new()
+	_banner = ManufacturerBanner.new()
 	# Minimum is the authored flag depth so the hem is never cut off; FILL takes it to the
 	# ship's bottom.
-	_banner.custom_minimum_size = ChassisSelect.Banner.S * Vector2(
-		ChassisSelect.Banner.UNITS_W, ChassisSelect.Banner.UNITS_H)
+	_banner.custom_minimum_size = ManufacturerBanner.S * Vector2(
+		ManufacturerBanner.UNITS_W, ManufacturerBanner.UNITS_H)
 	_banner.size_flags_vertical = Control.SIZE_FILL
 	header.add_child(_banner)
 
@@ -213,7 +211,7 @@ func _build() -> void:
 	_padl = Control.new()
 	_padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vwrap.add_child(_padl)
-	# The clip box is what layout sizes; the view may grow, so `_centre_ship` measurements
+	# The clip box is what layout sizes; the view may grow, so `_sync_clip` measurements
 	# hold at any zoom.
 	_clip = Control.new()
 	_clip.clip_contents = true
@@ -392,10 +390,6 @@ func _build() -> void:
 	rwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(rwrap)
 
-## Superseded by `_sync_clip`. Kept as a name callers use on hull change.
-func _centre_ship() -> void:
-	_sync_clip()
-
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
@@ -427,7 +421,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
 		get_viewport().set_input_as_handled()
 
-## Zoom keeps the panel size so `_centre_ship` holds. MountPoints is PASS while zoomed.
+## Zoom keeps the panel size so `_sync_clip` holds. MountPoints is PASS while zoomed.
 ## Why: docs/why/ShipScreen.md#zoom-in-place
 func _set_zoom(on: bool) -> void:
 	if _view == null or _clip == null:
@@ -447,7 +441,7 @@ func _set_zoom(on: bool) -> void:
 ## flag. The window onto the ship is this wide at every zoom level.
 func _row_width() -> float:
 	return ((PANEL_W - PANEL_PAD * 2.0)
-		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP))
+		- (ManufacturerBanner.UNITS_W * ManufacturerBanner.S + HEADER_SEP))
 
 ## Measured from the longest part, since a flat 72 clipped siege drivers on a zoomed heavy.
 ## Why: docs/why/ShipScreen.md#module-overhang
@@ -1020,8 +1014,8 @@ func _refresh_mounts() -> void:
 			UITheme.COLD, UITheme.FS_SMALL)
 		label.custom_minimum_size = Vector2(46, 0)
 		row.add_child(label)
-		var pads := ChassisSelect.SlotPads.new()
-		pads.setup(Run.slots_used(s), Run.slots_for(s), ChassisSelect._mount_ceiling())
+		var pads := SlotPads.new()
+		pads.setup(Run.slots_used(s), Run.slots_for(s), SlotPads.mount_ceiling())
 		row.add_child(pads)
 		row.add_child(UITheme.body("%d/%d" % [Run.slots_used(s), Run.slots_for(s)],
 			UITheme.CHILL, UITheme.FS_SMALL))

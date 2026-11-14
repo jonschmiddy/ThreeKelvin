@@ -43,7 +43,7 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	facing = the_facing
 	_origin = origin.round()
 	_rng.seed = seed * 389 + 22
-	_H = BreakupCuts._hull_pic(img, used, 3)
+	_H = BreakupCuts.hull_pic(img, used, 3)
 	_r = _H.r
 	_w = _H.w
 	_h = _H.h
@@ -162,15 +162,14 @@ func _build() -> void:
 			elif bottom:
 				c2 = c2 * 0.72
 			c2 = Color(minf(1.0, c2.r), minf(1.0, c2.g), minf(1.0, c2.b), 1.0)
-			if true:
-				# see-through steel: the plate thin, its lines and rivets solid,
-				# a lighter sheen band across it
-				var sheen := absf(fposmod(float(q2.x + q2.y), 40.0) - 20.0) < 3.0
-				var a := 0.5 if not (outside or seam) else 0.9
-				if sheen and not (outside or seam):
-					c2 = c2.lerp(Color.WHITE, 0.3)
-					a = 0.62
-				c2.a = a
+			# see-through steel: the plate thin, its lines and rivets solid,
+			# a lighter sheen band across it
+			var sheen := absf(fposmod(float(q2.x + q2.y), 40.0) - 20.0) < 3.0
+			var a := 0.5 if not (outside or seam) else 0.9
+			if sheen and not (outside or seam):
+				c2 = c2.lerp(Color.WHITE, 0.3)
+				a = 0.62
+			c2.a = a
 			im.set_pixel(q2.x - mn.x, q2.y - mn.y, c2)
 		# rivets: a dark dot, its lit side up-left
 		var rivets: Array = [Vector2i(mn.x + 2, mn.y + 2), Vector2i(mx.x - 2, mn.y + 2), Vector2i(mn.x + 2, mx.y - 2), Vector2i(mx.x - 2, mx.y - 2)]

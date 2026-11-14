@@ -529,7 +529,7 @@ func _still_at(t: float) -> bool:
 	var z := float(_z)
 	if is_equal_approx(s0, z):
 		return true
-	var e := ZoomLadder._ease_cam(t / ZoomLadder.LAB_ZOOM_S)
+	var e := ZoomLadder.ease_cam_curve(t / ZoomLadder.LAB_ZOOM_S)
 	if e <= 0.0:
 		return true
 	var s := s0 * pow(z / s0, e)
@@ -573,7 +573,7 @@ func _apply() -> void:
 	var u := clampf(_at / move_s, 0.0, 1.0)
 	if hold_at >= 0.0:
 		u = hold_at
-	var e := ZoomLadder._ease_cam(u)
+	var e := ZoomLadder.ease_cam_curve(u)
 	var moving := _at > 0.0 or hold_at >= 0.0
 	var landed_now := e >= 1.0
 	var vk := clampf((_at - move_s) / in_s, 0.0, 1.0) if hold_at < 0.0 else 0.0

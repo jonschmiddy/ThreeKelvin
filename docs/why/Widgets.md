@@ -193,47 +193,6 @@ flavour section at the foot of this readout is gone, and with it the
 quote ink's one job here; the panel ends on the keywords. `ModuleData.flavour`
 stays on the data for now (Phase 14, the text rework, may reuse it).
 
-## Ability rows
-
-Above `static func ability_row(at: String, title: String, text: String, accent: Color,`:
-
-```text
-One manufacturer ability: what it costs, what it is called, what it does.
-
-Shared by the chassis select and the refit screen, because they are asking
-the same question at two different moments — "what would flying this manufacturer
-give me" and "how close am I now" — and two copies of the row would drift the
-first time either one was reworded.
-
-The condition column says it in full ("3+ KORVAN") rather than a bare "3+",
-which leaves you to work out three of what. The hull perk shares that column
-with "BUILT IN": the other two name what you must collect, so this one names
-where it already is.
-
-Locked rows are dimmed rather than hidden. What a manufacturer is FOR is
-mostly what it does at 3 and 5 parts, so hiding those until you get there
-would hide the reason to chase them — greying says "later", which is the
-actual state.
-`count` is the progress column — "2 / 3" — and it is why the set chips are
-gone from the hardpoints header. A chip reading "KORVAN 2" told you what you
-have and left you to remember what you need; the number belongs on the row
-that states the thing it unlocks.
-```
-
-Inside `ability_rows()`, above `var short := DB.short_name(m.name).to_upper()`:
-
-```text
-THE PERK ROW IS GONE FROM HERE. It is named in the masthead's top-right
-corner now, with its effect on hover — and a hull can carry four of them,
-so four full-width rows of always-on fact would have crowded out the two
-rows that are actually a TRACKER. What is left in this block is only
-progress: what you have not earned yet and how close you are.
-
-`perk_id` stays in the signature. Every caller has one, the argument costs
-nothing, and a block about a manufacturer that cannot see the hull's perk
-is the wrong shape to hand the next person.
-```
-
 ## Manufacturer readout
 
 Above `static func manufacturer_readout(id: StringName) -> VBoxContainer:`:

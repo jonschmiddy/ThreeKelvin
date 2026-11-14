@@ -183,7 +183,7 @@ func _same_answer() -> void:
 		var n: MapGen.MapNode = raw
 		if boxes.size() >= 40:
 			break
-		var p := mc.get_global_transform() * mc._screen_pos(n)
+		var p := mc.get_global_transform() * mc.screen_pos(n)
 		if not g.has_point(p) or not Run.charted(n) and n != here:
 			continue
 		boxes.append(Rect2(p - Vector2(30, 14), Vector2(60, 28)))

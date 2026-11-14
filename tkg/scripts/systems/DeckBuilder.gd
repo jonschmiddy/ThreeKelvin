@@ -27,19 +27,3 @@ static func build() -> Array[CardData]:
 
 	return out
 
-## Preview for the ship screen: what the deck currently looks like.
-static func summarise() -> Dictionary:
-	var cards := build()
-	var by_cost := {}
-	var total_damage := 0
-	var total_heat := 0
-	for c in cards:
-		by_cost[c.energy] = int(by_cost.get(c.energy, 0)) + 1
-		total_damage += c.damage * maxi(1, c.hits)
-		total_heat += c.heat
-	return {
-		size = cards.size(),
-		by_cost = by_cost,
-		total_damage = total_damage,
-		total_heat = total_heat,
-	}

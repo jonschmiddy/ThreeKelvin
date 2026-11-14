@@ -464,7 +464,7 @@ number measured off the box rather than off the image has to know that.
 Nothing in the UI currently does, and the reasoning is worth keeping: a fitted
 part is sized in SPRITE pixels on purpose, which makes it half the size it is
 in the hold. Matching the hold instead would put five weapon hardpoints' worth
-of gun on 125% of a heavy hull. See MountPoints._mag.
+of gun on 125% of a heavy hull. See MountPoints.part_mag.
 ```
 
 ## Half sheet

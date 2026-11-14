@@ -97,7 +97,7 @@ func _settle(u: float) -> void:
 	var q := clampf((u - PANEL_AT) / ZoomLadder.CALM_SLIDE_S, 0.0, 1.0)
 	for ps in _slides:
 		if is_instance_valid(ps):
-			ps.set_k(ZoomLadder._calm_slide_curve(q))
+			ps.set_k(ZoomLadder.calm_slide_curve(q))
 	var w := clampf((u - PANEL_AT - ZoomLadder.CALM_SLIDE_S) / ZoomLadder.CALM_IN_S, 0.0, 1.0)
 	_words(1.0 - JumpSequence.ease3(w))
 	if q >= 1.0 and not _slides.is_empty():

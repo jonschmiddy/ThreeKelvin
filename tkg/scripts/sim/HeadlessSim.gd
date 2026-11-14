@@ -21,7 +21,7 @@ var grant_routines: Array[StringName] = []
 var science_mode: StringName = &"on"
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Every decision this file used to make itself. Extracted so the party bot can
-## fly the same model the gate measures — see scripts/sim/Policy.gd.
+## fly the same model the gate measures — see scripts/systems/Policy.gd.
 var policy: Policy = Policy.new()
 ## `hot` spends heat for tempo: the default model leaves fights cold, so the heat layer never bites.
 var hot := false

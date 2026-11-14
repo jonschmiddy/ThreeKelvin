@@ -50,7 +50,7 @@ autosave only writes on a screen change, so a wreck looted, a part fitted or
 a trade made since then was lost to the window's X. Mid-fight it does what
 SAVE & EXIT does there: the save from before the fight stands and the fight
 is noted so it starts again. The title, the hull pick and a finished run
-save nothing (`_autosave`'s own rules). A harness's `quit()` never comes here.
+save nothing (`autosave`'s own rules). A harness's `quit()` never comes here.
 
 A FLIGHT PLAN STILL BEING MADE ON A WORKER is waited for before the engine
 shuts down (`ShipFlight.drain`): here as the window closes, and as this
@@ -192,7 +192,7 @@ LOCAL, the sector map or the star chart: the screens built on `field`.
 
 ## Autosave
 
-Above `func _autosave() -> void:`:
+Above `func autosave() -> void:`:
 
 ```text
 The one place the run is written to disk.
@@ -592,7 +592,7 @@ were. That is what makes a quit mid-departure safe without a save version.
 
 ## Jump arrival
 
-Inside `_on_jumped()`, above `SystemMapScreen._parked.erase(_index)`:
+Inside `_on_jumped()`, above `ParkedShips.spots.erase(_index)`:
 
 ```text
 IN AT THE EDGE. A jump arrives where every arrival does, whatever orbit
@@ -619,7 +619,7 @@ autosave at the safe point, `show_sector` to the map.
 
 ## Arrival save
 
-Inside `resolve_current_node()`, above `_autosave()`:
+Inside `resolve_current_node()`, above `autosave()`:
 
 ```text
 The save the SaveGame header promises: on the sector, at the node you flew
@@ -809,23 +809,6 @@ place's -- the node records which options are SPENT, in `taken`, and that is
 the part a save has to carry.
 ```
 
-## Option detail
-
-Above `func show_option_at(index: int) -> void:`:
-
-```text
-Open one named option as the detail view.
-
-RULING 2. The sector renders the list; this is the screen an option gets when
-it has earned one -- both a `body` and a check, so there is prose worth reading
-and a number worth weighing. Everything simpler resolves in its own row and
-never comes here, because two to four options across twenty-five systems is a
-great deal of reading and prose that is unavoidable stops being read.
-
-`EventScreen` is reused rather than replaced: an option is
-`{title, body, choices}` and it renders `{title, body, options}`. One key.
-```
-
 ## Option bookkeeping
 
 Above `func option_resolved(index: int, result: StringName = &"done") -> void:`:
@@ -833,23 +816,9 @@ Above `func option_resolved(index: int, result: StringName = &"done") -> void:`:
 ```text
 Mark one option spent without opening anything.
 
-What the sector calls when a row resolved IN PLACE. The bookkeeping is the
-same as `event_resolved`'s and lives in one function so the two paths cannot
-drift: an option spends itself, and the system is finished only when nothing
-is left in it.
-```
-
-## Claiming options
-
-Above `func claim_open_option() -> bool:`:
-
-```text
-Ask the party for the option this event screen is standing in, BEFORE the
-screen rolls or pays anything. The other half of the seam `event_resolved`
-records: consumption is arbitrated here through `Run.take_option`, because
-an option two ships can race for must be asked for, not assumed -- roll
-first and apologise afterwards, and the loser has already pocketed the
-payout. See `_resolve_derelict` for the shape.
+What the sector calls when a row resolved IN PLACE. The bookkeeping is in
+`event_resolved`: an option spends itself, and the system is finished only when
+nothing is left in it.
 ```
 
 ## One only
@@ -878,21 +847,6 @@ a neutron star's wind is the densest fuel source in the galaxy and its
 radiation is the most reliable way to lose a hull. You come away with a full
 tank and exotic matter worth studying, and you pay for it in the only
 currency the ship cannot buy back cheaply.
-```
-
-## Derelict race
-
-Above `func _resolve_derelict(n: MapGen.MapNode) -> void:`:
-
-```text
-A wreck is the one thing in the game today that two ships can genuinely race
-for, so this is the one place that ASKS the party rather than assuming.
-
-Everything else that finishes a system — the fight you won, the hail you were
-inside — cannot be taken out from under you, and `Run.take_whole()` tells the
-party without waiting. Here the answer decides whether any loot is rolled at
-all, and rolling it first and apologising afterwards does not take the module
-back out of the loser's hold.
 ```
 
 ## Fight sharing

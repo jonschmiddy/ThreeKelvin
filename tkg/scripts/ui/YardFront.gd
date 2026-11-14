@@ -236,7 +236,7 @@ func show_set(m: StringName, open: bool, tier: int = 0) -> void:
 		# the weapons each ship launches with, bolted on where it stands (Jon's B2, Nov 12)
 		if hull != null:
 			var st: YardStandSet = sets[w]
-			st.mounts = YardInfo.mount(st._view, hull, YardInfo.kit_for(m, w, tier))
+			st.mounts = YardMounts.mount(st._view, hull, YardMounts.kit_for(m, w, tier))
 	if locked:
 		for w: HullData.Weight in sets:
 			(sets[w] as YardStandSet).drop_tarp()
@@ -484,10 +484,10 @@ class Ghost extends Control:
 	func set_source(s: YardStandSet) -> void:
 		source = s
 		material = s.sharp_material() if s != null else null
-		YardInfo.ghost_mounts(self, s)
+		YardMounts.ghost_mounts(self, s)
 		queue_redraw()
 
 	func _draw() -> void:
 		if source != null and is_instance_valid(source):
 			source.draw_sharp(self, global_position)
-			YardInfo.follow(self, source)
+			YardMounts.follow(self, source)

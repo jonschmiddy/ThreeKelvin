@@ -21,7 +21,7 @@ measure (`frames.py`), `stats=` how readable the ships and labels are
 against the backdrop right round them (`_readable`), and how bright the play
 (game y 140 to 330) and the band above it are.
 `orbit=` puts the ship where the sector map would have left it
-(`SystemMapScreen._parked`): in orbit of a ringed giant (or any giant), of a
+(`ParkedShips.spots`): in orbit of a ringed giant (or any giant), of a
 world, of the star close in, alongside a belt or a wreck, or free at the
 system's edge; `giant` looks for a system of the sky with a ringed giant.
 TWO SUNS (ruling 20, Oct 30): `twin` looks for a two-sun system of the sky

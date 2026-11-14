@@ -78,7 +78,7 @@ func has_exhaust() -> bool:
 ## The half sprite is a second file, as `ShipView.zoom()` clamps at 1; nearest reduction read best.
 ## Why: docs/why/HullData.md#half-sprite
 @export var sprite_half: Texture2D
-## Far row first so near-row modules occlude it; superseded by the lines and `mounts_along()`.
+## Far row first so near-row modules occlude it; placed anchors are the live source, the lines the fallback.
 ## Why: docs/why/HullData.md#mount-anchors
 @export var weapon_anchors: Array[Vector2] = []
 @export var system_anchors: Array[Vector2] = []
