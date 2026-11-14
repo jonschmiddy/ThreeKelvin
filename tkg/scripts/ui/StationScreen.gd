@@ -532,11 +532,6 @@ func _page_work() -> Control:
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
-## One part shown large with the rest as a list (Jon picked mock C), not a column of equal rows.
-## The open column is fixed at 256, the widest case, or the cards jump sideways between parts.
-## Why: docs/why/StationScreen.md#promenade
-const PICK_W := 256
-
 ## What stands in the shop: the rack, placed where the station's room puts it.
 ## The counter is `_till`, beside it in the same stack.
 var _shelf: Control
@@ -1700,137 +1695,11 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 ## The shelf: a chassis if one is for sale, then whatever parts are left on it.
 
 
-## Sprite and card art do different jobs, so neither is a crop of the other.
-## Cell is 44, not the hold's 40 (`HoldGrid.CELL`): module sprites are 20 px a cell, so 2x leaves two pixels of air.
-## Why: docs/why/StationScreen.md#hold-plate
-const PART_CELL := 44
-
-
-func _hold_plate(m: ModuleData) -> Control:
-	var cells := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
-	var box := Control.new()
-	box.custom_minimum_size = Vector2(cells) * PART_CELL
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var grid := GridContainer.new()
-	grid.columns = cells.x
-	grid.add_theme_constant_override("h_separation", 0)
-	grid.add_theme_constant_override("v_separation", 0)
-	grid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(grid)
-	for i in cells.x * cells.y:
-		var sq := PanelContainer.new()
-		sq.custom_minimum_size = Vector2(PART_CELL, PART_CELL)
-		sq.add_theme_stylebox_override("panel",
-			UITheme.flat(Color("#0a0f17"), Color("#1b2735"), 0, 0, 0))
-		grid.add_child(sq)
-
-	# A sibling laid over the squares, as the sprite spans the whole footprint.
-	var mid := CenterContainer.new()
-	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(mid)
-	var art := TextureRect.new()
-	art.texture = m.sprite
-	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if m.sprite != null:
-		# Exactly double, computed from the texture: fitting a 44 cell gives 2.2x and half-pixels.
-		art.stretch_mode = TextureRect.STRETCH_SCALE
-		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		art.custom_minimum_size = m.sprite.get_size() * 2.0
-	mid.add_child(art)
-	return box
-
-
-## Shared by the Promenade and the Exchange, as two copies had already drifted on their last line.
-## Why: docs/why/StationScreen.md#part-column
-func _part_column(mod: ModuleData) -> VBoxContainer:
-	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 4)
-	left.custom_minimum_size = Vector2(PICK_W, 0)
-	# SHRINK_BEGIN, so PICK_W is the width and not merely the floor. Left to
-	# expand, a column with nothing beside it takes the whole band.
-	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-
-	var plate := HBoxContainer.new()
-	plate.add_theme_constant_override("separation", 10)
-	# Reserve the tallest footprint (BULK, two deep), or opening a 2x2 shifts everything below it.
-	plate.custom_minimum_size = Vector2(0, PART_CELL * 2)
-	var cells_box := _hold_plate(mod)
-	cells_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	plate.add_child(cells_box)
-	var szn := VBoxContainer.new()
-	szn.add_theme_constant_override("separation", 1)
-	szn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	szn.add_child(UITheme.body("%d×%d" % [mod.size.x, mod.size.y],
-		UITheme.CHILL, UITheme.FS_SMALL))
-	szn.add_child(UITheme.body("%d CELL%s" % [mod.cells(),
-		"" if mod.cells() == 1 else "S"], UITheme.COLD, UITheme.FS_SMALL))
-	plate.add_child(szn)
-	left.add_child(plate)
-
-	# The name carries the grade ink: on a shelf the question is how good, not what it is called.
-	var title := UITheme.body(mod.name.to_upper(),
-		ModuleData.rarity_ink(mod.rarity), UITheme.FS_HEAD)
-	# One line: a two-line name changed the panel's height; `clip_text` is the guard.
-	title.clip_text = true
-	title.custom_minimum_size = Vector2(PICK_W, 0)
-	left.add_child(title)
-
-	# Manufacturer and slot are two labels: one is an allegiance, the other a spec.
-	var mrow := HBoxContainer.new()
-	mrow.add_theme_constant_override("separation", 5)
-	mrow.add_child(UITheme.body(
-		DB.manufacturer_name(mod.manufacturer).to_upper(),
-		DB.manufacturer_colour(mod.manufacturer), UITheme.FS_SMALL))
-	mrow.add_child(UITheme.body("· %s" % ModuleData.slot_name(mod.slot).to_upper(),
-		UITheme.COLD, UITheme.FS_SMALL))
-	left.add_child(mrow)
-
-	# No fixed height: the money is its own column now, so nothing below needs holding still.
-	# Why: docs/why/StationScreen.md#part-description
-	var desc := VBoxContainer.new()
-	desc.add_theme_constant_override("separation", 4)
-	left.add_child(desc)
-	for a in mod.affixes:
-		# THE GAUGE IN FULL. `a.text` is the abbreviated form, written for a
-		# readout the width of a card; this column has room for the word.
-		var af := UITheme.body("%s — %s" % [a.name.to_upper(), a.gauge_text(true)],
-			UITheme.EMBER, UITheme.FS_SMALL)
-		af.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		af.custom_minimum_size = Vector2(PICK_W, 0)
-		desc.add_child(af)
-	# (no flavour line under it: Jon, Nov 9, "the flavor text can go away")
-	return left
-
-
 ## One ink for the five controls that commit; disabled
 ## is spelled out or an unaffordable BUY looks live.
 ## Why: docs/why/StationScreen.md#commit-button
 func _commit_button(text: String, action: Callable) -> Button:
 	return Widgets.commit(Widgets.button(text, action))
-## Show the real card face, not the art cropped out with the rules reprinted in grey.
-## Why: docs/why/StationScreen.md#card-fan
-func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
-	var deck := VBoxContainer.new()
-	deck.add_theme_constant_override("separation", 5)
-	deck.add_child(UITheme.body(heading, UITheme.COLD, UITheme.FS_SMALL))
-	var fan := HBoxContainer.new()
-	fan.add_theme_constant_override("separation", 8)
-	deck.add_child(fan)
-	# One face per copy: `resolved_cards` has an entry per copy the Grant Count Law awards.
-	for c in mod.resolved_cards():
-		var v := CardView.new()
-		# `can_play` TRUE: the flag greys the face, which
-		# in a shop window reads as the card broken.
-		v.setup(c, true, 1)
-		# `tooltip_text` must be non-empty or Godot never asks for the custom tooltip panel.
-		v.mouse_filter = Control.MOUSE_FILTER_STOP
-		v.tooltip_text = " "
-		fan.add_child(v)
-	return deck
 
 
 ## `SLAB_W` is a ceiling, not a width: read as a floor it left the right third empty.
@@ -1912,8 +1781,7 @@ func _place_shop_furniture() -> void:
 	shelf.stock(on_offer)
 
 
-## Same two bands as the Promenade, so `_part_column` and
-## `_card_fan` are shared; this file owns the actions.
+## What the hold lists here, priced at what this place pays; this file owns the actions.
 ## Why: docs/why/StationScreen.md#hold-listing
 func _refresh_hold(n: MapGen.MapNode) -> void:
 	_dress_room(_exchange, n)

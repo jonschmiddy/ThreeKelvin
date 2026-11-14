@@ -35,7 +35,6 @@ const TISSUE: Array[Color] = [Color("#ffb0a8"), Color("#ff5a6e"), Color("#c22a4a
 const ICHOR: Array = [Color("#fff0f2"), Color("#ff8a9c"), Color("#ff4a68"), Color("#c02848"), Color("#701428")]
 const BRUISE: Array[Color] = [Color("#2a1038"), Color("#5a2a78"), Color("#8a4aa8"), Color("#9a8a3a")]
 const RAW := Color("#e4b4ac")
-const VAPOUR: Array = [Color("#7a6466"), Color("#5c4a4e"), Color("#3a2e32"), Color("#1e181a")]
 
 const SKIN_WOUND := """
 uniform float beat = 0.0;

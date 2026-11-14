@@ -19,8 +19,6 @@ const CARD_W := 112
 ## Height 160 gives the art room; width is the constrained axis, height has the slack.
 ## Why: docs/why/CardView.md#card-size
 const CARD_H := 160
-const INSPECT_W := CARD_W * 2
-const INSPECT_H := CARD_H * 2
 
 ## Reading order is cost, name, picture. The banner is odd width so marks centre on a pixel.
 ## Why: docs/why/CardView.md#zone-map

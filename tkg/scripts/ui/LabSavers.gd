@@ -1222,7 +1222,6 @@ var _s2_wire := false
 
 # ================================================================== 3: research feed
 
-const S3_EVERY := 2.6
 const S3_SLIDE := 0.3
 const S3_PILOTS := ["LOWTIDE", "GRIST", "HALFLIGHT", "SEVERN", "COPPER WREN", "BALLAST", "OXBOW"]
 const S3_FINDS := [
@@ -3262,7 +3261,6 @@ func _r2_static(wf: Rect2i, now_row: int, per_row: int, dim: float) -> void:
 
 # ------------------------------------------------------------------ R3: over the line
 
-const R3_SPEED := 22.0
 const R3_RATED := 0.62
 const R3_PUSH_EVERY := 7.0
 const R3_IDLE := 0.22
