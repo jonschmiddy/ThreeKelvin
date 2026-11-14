@@ -32,7 +32,7 @@ var feet: int = 0
 var hover: bool = false
 
 var _view: ShipView = null
-## The weapons drawn on the hull (`YardInfo.mount`), or null under a tarp.
+## The weapons drawn on the hull (`YardMounts.mount`), or null under a tarp.
 var mounts: MountPoints = null
 var _tarp: Tarp = null
 var _x0: int = 0

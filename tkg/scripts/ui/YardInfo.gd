@@ -38,24 +38,24 @@ static func deck() -> Array[CardData]:
 static func left_column(band: YardBand, m: ManufacturerData, chosen: bool) -> void:
 	var x := YardBand.COL_L
 	var w := YardBand.COL_A - YardBand.COL_L - 12
-	band._word(Run.hull.name.to_upper(), UITheme.FS_HEAD, x, YardBand.ROW0, YardBand.MINT)
+	band.word(Run.hull.name.to_upper(), UITheme.FS_HEAD, x, YardBand.ROW0, YardBand.MINT)
 	var y := YardBand.ROW0 + 24
 	var em := Emblem.new()
 	em.manufacturer = m
 	em.position = Vector2(x, y - 1)
-	band._words.add_child(em)
-	band._word(m.name.to_upper(), UITheme.FS_SMALL, x + 14, y, m.colour)
-	var tag := band._word("\"%s\"" % m.tagline.to_upper(), UITheme.FS_SMALL, x, y + 13, YardBand.COLD)
+	band.add_word_node(em)
+	band.word(m.name.to_upper(), UITheme.FS_SMALL, x + 14, y, m.colour)
+	var tag := band.word("\"%s\"" % m.tagline.to_upper(), UITheme.FS_SMALL, x, y + 13, YardBand.COLD)
 	_wrap(tag, w)
 	y = bottom(tag)
 	if chosen:
-		var how := band._word(m.identity.to_upper(), UITheme.FS_SMALL, x, y + 2, YardBand.ICE)
+		var how := band.word(m.identity.to_upper(), UITheme.FS_SMALL, x, y + 2, YardBand.ICE)
 		_wrap(how, w)
 		y = bottom(how)
 	else:
-		band._word("CLICK TO MAKE IT YOURS", UITheme.FS_SMALL, x, y + 2, YardBand.MINT_DIM)
+		band.word("CLICK TO MAKE IT YOURS", UITheme.FS_SMALL, x, y + 2, YardBand.MINT_DIM)
 		y += 14
-	var weight := band._word("%s HULL" % HullData.weight_name(Run.hull.weight).to_upper(), UITheme.FS_SMALL, x, y + 1, YardBand.COLD)
+	var weight := band.word("%s HULL" % HullData.weight_name(Run.hull.weight).to_upper(), UITheme.FS_SMALL, x, y + 1, YardBand.COLD)
 	weight.mouse_filter = Control.MOUSE_FILTER_PASS
 	weight.tooltip_text = Widgets.tip("%s\n%s" % [HullData.weight_name(Run.hull.weight),
 		ChassisSelect.WEIGHT_BLURB[int(Run.hull.weight)]])
@@ -66,40 +66,40 @@ static func left_column(band: YardBand, m: ManufacturerData, chosen: bool) -> vo
 static func fitted_column(band: YardBand, m: ManufacturerData) -> void:
 	var x := FIT_X
 	var w := int(STACK_AT.x) - x - 6
-	band._word("FITTED", UITheme.FS_SMALL, x, YardBand.ROW0 - 4, YardBand.COLD)
+	band.word("FITTED", UITheme.FS_SMALL, x, YardBand.ROW0 - 4, YardBand.COLD)
 	var row := YardBand.ROW0 + 8
 	for p: ModuleData in Run.installed:
-		var nm := band._word(p.name.to_upper(), UITheme.FS_SMALL, x, row, YardBand.ICE)
+		var nm := band.word(p.name.to_upper(), UITheme.FS_SMALL, x, row, YardBand.ICE)
 		nm.mouse_filter = Control.MOUSE_FILTER_PASS
 		nm.tooltip_text = Widgets.tip("%s\nA %s part. It puts %d cards in the deck." % [p.name,
 			ModuleData.slot_name(p.slot).to_lower(), p.grant_count()])
-		band._word(ModuleData.slot_name(p.slot).to_upper(), UITheme.FS_SMALL, x + 120, row, YardBand.COLD)
+		band.word(ModuleData.slot_name(p.slot).to_upper(), UITheme.FS_SMALL, x + 120, row, YardBand.COLD)
 		row += 11
 	var free := 0
 	for s: ModuleData.Slot in YardBand.SLOTS:
 		free += Run.slots_for(s) - Run.slots_used(s)
 	# (on the heading's row: a light with six parts and a long perk ran out of the band)
-	band._word("NO MOUNTS FREE" if free == 0 else ("1 MOUNT FREE" if free == 1 else "%d MOUNTS FREE" % free),
+	band.word("NO MOUNTS FREE" if free == 0 else ("1 MOUNT FREE" if free == 1 else "%d MOUNTS FREE" % free),
 		UITheme.FS_SMALL, x + 52, YardBand.ROW0 - 4, YardBand.COLD)
 	row += 1
-	var hand := band._word("HAND SIZE: %d A TURN" % Run.hand_size(), UITheme.FS_SMALL, x, row, YardBand.ICE)
+	var hand := band.word("HAND SIZE: %d A TURN" % Run.hand_size(), UITheme.FS_SMALL, x, row, YardBand.ICE)
 	hand.mouse_filter = Control.MOUSE_FILTER_PASS
 	hand.tooltip_text = Widgets.tip(str(ChassisSelect.MOUNT_TIP["hand"]))
 	# (no deck line: the stack says it, Jon: "Deck 10 cards is redundant")
 	var strip := DeckStrip.new()
-	band._words.add_child(strip)
+	band.add_word_node(strip)
 	var st := DeckStack.new()
 	st.manufacturer = m
 	st.n = Run.deck_size()
 	st.position = STACK_AT
-	band._words.add_child(st)
+	band.add_word_node(st)
 	st.mouse_entered.connect(func() -> void: strip.show_deck(true))
 	st.mouse_exited.connect(func() -> void: strip.show_deck(false))
 	if hold_open:
 		strip.show_deck(true)
 	var perk: Dictionary = DB.hull_perks.get(Run.hull.perk_id, {})
 	if not perk.is_empty():
-		var pk := band._word("%s: %s" % [String(perk.name).to_upper(), String(perk.text).to_upper().trim_suffix(".")],
+		var pk := band.word("%s: %s" % [String(perk.name).to_upper(), String(perk.text).to_upper().trim_suffix(".")],
 			UITheme.FS_SMALL, x, row + 11, YardBand.COLD)
 		_wrap(pk, w)
 		# its second line at the column's own pitch, not the label's looser one
@@ -192,63 +192,3 @@ static func _ignore(n: Node) -> void:
 		(n as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for c in n.get_children():
 		_ignore(c)
-
-
-# ------------------------------------------------------------------ the hulls
-
-## The fitted weapons drawn on a hull standing in the yard (`MountPoints`, passive).
-static func mount(view: ShipView, hull: HullData, kit: Array[ModuleData]) -> MountPoints:
-	var pts := MountPoints.new()
-	pts.ship = hull
-	pts.fitted = kit
-	view.add_child(pts)
-	pts.attach(view)
-	pts.passive()
-	pts.use_parent_material = true
-	pts.refresh()
-	return pts
-
-
-## What a chassis launches with, fitted on `Run` for a moment and put back.
-static func kit_for(m: StringName, w: HullData.Weight, tier: int) -> Array[ModuleData]:
-	var hull := Run.hull
-	var was := Run.installed.duplicate()
-	var hp := Run.hp
-	Run.fit_chassis(m, w, tier)
-	var out: Array[ModuleData] = []
-	out.assign(Run.installed)
-	Run.hull = hull
-	Run.installed.assign(was)
-	Run.hp = hp
-	return out
-
-
-## The sharp copy's weapons where the hull is this frame (LAUNCH's lift flies it).
-static func follow(ghost: Control, s: YardStandSet) -> void:
-	if s._view == null:
-		return
-	for c in ghost.get_children():
-		if c is MountPoints:
-			var at := s._view.global_position - ghost.global_position
-			if (c as Control).position != at:
-				(c as Control).position = at
-				(c as MountPoints).refresh()
-
-
-## The sharp copy over the blur carries the picked ship's weapons too.
-static func ghost_mounts(ghost: Control, s: YardStandSet) -> void:
-	for c in ghost.get_children():
-		c.queue_free()
-	if s == null or s.mounts == null or not is_instance_valid(s.mounts) or s._view == null:
-		return
-	var pts := MountPoints.new()
-	pts.ship = s.mounts.ship
-	pts.fitted = s.mounts.fitted
-	ghost.add_child(pts)
-	pts.attach(s._view)
-	pts.passive()
-	pts.use_parent_material = true
-	pts.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	pts.position = s._view.global_position - ghost.global_position
-	pts.size = s._view.size
-	pts.refresh()
