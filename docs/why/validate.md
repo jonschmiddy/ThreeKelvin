@@ -512,3 +512,10 @@ the same build finished all eleven films inside 600 s once, and on the next run 
 pool: llvmpipe rasterises on every core, and so do the other Godots. The sheet prints
 `[t] ... at N s` lines so a log says where the time went; set the limit to twice the solo time once
 a CI run has shown it.
+
+Alone it was still too slow (PR #76, third run): shaders at 55 s, then 43 to 145 s a film, seven
+films by 572 s. Going from 1920x1080 to 960x540 had barely moved the time per film, so the cost is
+per frame, not per pixel: each film is 529 or more frames and llvmpipe draws about 8 a second. On
+CI the unit therefore runs at `--fixed-fps 15`: the engine steps a quarter second of film a frame,
+so each film is a quarter of the frames. Every shader still compiles and every stage still draws;
+what CI no longer sees is the frames in between, which the local gate (a real GPU, 60 fps) does.

@@ -1253,9 +1253,10 @@ case "$(uname -s)" in
 			run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
 			code=$?
 		elif command -v xvfb-run >/dev/null 2>&1; then
-			# llvmpipe draws the harness's 1920x1080 window at about 6 frames a second; the project's
-			# own 960x540 is a quarter of the pixels and compiles the same shaders.
+			# llvmpipe draws about 8 frames a second whatever the window's size, so on CI each frame
+			# is a quarter second of film (fixed-fps 15): the same shaders, a quarter of the frames.
 			# Why: docs/why/validate.md#unit_jumpshadertest
+			args=(--audio-driver Dummy --disable-vsync --fixed-fps 15 --path "$PROJECT" -- sheet=JumpShaderTest)
 			run_limited "$limit" xvfb-run -a -s "-screen 0 1280x800x24" "$GODOT" --resolution 960x540 "${args[@]}" >"$log" 2>&1
 			code=$?
 		else
