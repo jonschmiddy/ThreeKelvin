@@ -544,7 +544,7 @@ func _hex(c: Color) -> String:
 
 func _dump(kind: int, natural: int) -> Dictionary:
 	var ch = _chart
-	var r_max: float = ch._radius() * MapChart.DISC
+	var r_max: float = ch.chart_radius() * MapChart.DISC
 	var g: Dictionary = {}
 	for k in Run.galaxy:
 		g[k] = Run.galaxy[k]
@@ -627,11 +627,11 @@ func _dump(kind: int, natural: int) -> Dictionary:
 		"natural_kind": natural, "seed": Run.galaxy_seed,
 		"spin": Run.galaxy_spin, "galaxy_name": Run.galaxy_name,
 		"galaxy_title": Run.galaxy_title, "params": g,
-		"chart": {"w": ch.size.x, "h": ch.size.y, "radius": ch._radius(),
+		"chart": {"w": ch.size.x, "h": ch.size.y, "radius": ch.chart_radius(),
 			"r_max": r_max, "zoom": ch.zoom, "pan": [ch.pan.x, ch.pan.y],
 			"shadow": _r4(ch._shadow_r() / r_max),
 			"core_clear": _r4(ch._core_clear() / r_max),
-			"bulge": _r4(ch._radius() * float(g.bulge) / r_max)},
+			"bulge": _r4(ch.chart_radius() * float(g.bulge) / r_max)},
 		"colours": table,
 		"stars": {"x": xs, "y": ys, "c": cs, "big": bs},
 		"core": {"r": cr, "a": ca, "c": cc, "size": cz},

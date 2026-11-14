@@ -513,7 +513,7 @@ func _hint() -> void:
 		Run.at = st.index
 		Run.chart_from(st)
 		Run.fuel = 10
-		SystemMapScreen._parked.erase(st.index)
+		ParkedShips.spots.erase(st.index)
 		_ok("in a station's system, not at the station: \"%s\"" % Hints.fuel_dock_line(),
 			Hints.fuel_dock_line() == "Fly to the station here to refuel.")
 		Router.park_at_station(st)

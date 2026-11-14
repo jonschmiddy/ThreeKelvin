@@ -40,7 +40,7 @@ func setup(n: MapGen.MapNode) -> void:
 
 ## Only two places move, so every other sector pays nothing for this.
 func _moves() -> bool:
-	var what := _place_name()
+	var what := place_name()
 	return what == &"station" or what == &"beacon"
 
 func _process(delta: float) -> void:
@@ -58,7 +58,7 @@ const SHOW_PLACES := true
 
 ## Named, not typed, so the sprite and the drawing are chosen by one line and cannot disagree.
 ## Why: docs/why/AreaView.md#place-picture-choice
-func _place_name() -> StringName:
+func place_name() -> StringName:
 	if node == null:
 		return &""
 	match node.type:
@@ -92,7 +92,7 @@ func _draw() -> void:
 		return
 	var c := (size * 0.5).round()
 	var tint := MapGen.star_colour(node)
-	var what := _place_name()
+	var what := place_name()
 	if what == &"":
 		return
 	# Animated parts are overlays drawn after the picture, so the asset stays one still frame.

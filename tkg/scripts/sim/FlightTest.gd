@@ -1799,9 +1799,9 @@ func _orbit_phase() -> void:
 				var d := e
 				var tb := tp
 				if how2 == "through the save's rows":
-					var was_p: Dictionary = SystemMapScreen._parked
+					var was_p: Dictionary = ParkedShips.spots
 					var was_c: Dictionary = Run.map_clock
-					SystemMapScreen._parked = {idx: e}
+					ParkedShips.spots = {idx: e}
 					Run.map_clock = {idx: tp}
 					var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
 					var raw_c = JSON.parse_string(JSON.stringify(SaveGame._clocks_to()))
@@ -1809,7 +1809,7 @@ func _orbit_phase() -> void:
 					Run.map_clock = SaveGame._clocks_from(raw_c, Run.map.size())
 					d = back.get(idx, {})
 					tb = Run.map_t(idx)
-					SystemMapScreen._parked = was_p
+					ParkedShips.spots = was_p
 					Run.map_clock = was_c
 				elif how2 == "the clock run on 5 s without it":
 					tb = tp + 5.0

@@ -48,7 +48,7 @@ var _idle: Dictionary = {}
 ## The oval for a picture: centred on its ink, `MARGIN` px out, then grown
 ## until every hull pixel sits inside the rim band. Canvas coordinates.
 static func fit(img: Image, used: Rect2i) -> Dictionary:
-	var H := BreakupCuts._hull_pic(img, used, 0)
+	var H := BreakupCuts.hull_pic(img, used, 0)
 	var r: Rect2i = H.r
 	if int(H.n) == 0:
 		return {cc = Vector2(r.get_center()), rx = 8.0, ry = 8.0}
@@ -80,7 +80,7 @@ static func fit(img: Image, used: Rect2i) -> Dictionary:
 ## rim (y). Both must be 0.
 static func outside(img: Image, used: Rect2i) -> Vector2i:
 	var f := fit(img, used)
-	var H := BreakupCuts._hull_pic(img, used, 0)
+	var H := BreakupCuts.hull_pic(img, used, 0)
 	if int(H.n) == 0:
 		return Vector2i.ZERO
 	var r: Rect2i = H.r

@@ -25,7 +25,7 @@ system, then dissolves into the map's sky, sun and orbits (0.7 s) with the paths
 ship held back; the paths come in (0.6-1.1 s). At 1.0 s the side panel, the top row and the KEY
 band slide on together, drawn whole, as the calm ladder brings them when a move lands
 (`PanelSlide`s made as `ZoomLadder._panels_slide` makes them: side from the right, row from the
-top, band from the bottom; `CALM_SLIDE_S` on `_calm_slide_curve`, whole pixels), and the words
+top, band from the bottom; `CALM_SLIDE_S` on `calm_slide_curve`, whole pixels), and the words
 (labels, scale, LOCATION) fade in after over `CALM_IN_S`. Jon asked (Nov 11) "does the bottom
 panel slide in?": the first settle slid only the side panel and faded the row and the KEY band;
 since F1 the ladder slides all three, so the settle does too. Then your ship warps in at the

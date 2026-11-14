@@ -373,7 +373,7 @@ static func build_ahead(at: Vector2 = Vector2.ZERO) -> void:
 	var mc := MapChart.new()
 	mc.size = sz
 	var galaxy := "%d|%d" % [Run.galaxy_kind, Run.galaxy_seed]
-	var key := "%s|%.1f|%.2f" % [galaxy, mc._radius() * DISC, mc._squash()]
+	var key := "%s|%.1f|%.2f" % [galaxy, mc.chart_radius() * DISC, mc._squash()]
 	if galaxy == _sky_galaxy and _sky_cache.has(key):
 		mc.free()
 		return
@@ -460,7 +460,7 @@ func _process(delta: float) -> void:
 		StarchartScreen._view_map = Run.map.size()
 	# Redrawn when the turn moves the furthest system half a pixel (about 1 Hz zoomed out).
 	var tn := turn()
-	if absf(angle_difference(_drawn_turn, tn)) * _radius() * DISC * zoom >= 0.5:
+	if absf(angle_difference(_drawn_turn, tn)) * chart_radius() * DISC * zoom >= 0.5:
 		_drawn_turn = tn
 		queue_redraw()
 	var target: float = 1.0 if hovered >= 0 else 0.0
@@ -479,11 +479,11 @@ func set_state(sel: int) -> void:
 	selected = sel
 	queue_redraw()
 
-## For a sky on a control bigger than the view: `_radius()` is nearly twice the screen's.
+## For a sky on a control bigger than the view: `chart_radius()` is nearly twice the screen's.
 ## A zoom picked against the chart put the title galaxy 1.6 screen-widths across.
 ## Why: docs/why/MapChart.md#framing-the-title
 func frame_to(screen: Vector2, fill: float) -> void:
-	var r_max := _radius() * DISC
+	var r_max := chart_radius() * DISC
 	if r_max <= 0.0 or screen.x <= 0.0:
 		return
 	zoom = fill * minf(screen.x, screen.y) * 0.5 / r_max
@@ -512,7 +512,7 @@ func _notification(what: int) -> void:
 		_restored = true
 		_arrive()
 	if what == NOTIFICATION_RESIZED:
-		# `_radius()` comes from size, so every cached position is stale, fixed layers too.
+		# `chart_radius()` comes from size, so every cached position is stale, fixed layers too.
 		_repaint_sky()
 
 ## ON follows you on each arrival; OFF stays put so you can watch a far approach.
@@ -536,7 +536,7 @@ func _arrive() -> void:
 ## The event horizon's shadow at build time, in drawn pixels: nothing is
 ## placed inside it. (The hole the chart DRAWS is bigger: `ChartSky.hole_r`.)
 func _shadow_r() -> float:
-	return _radius() * float(_g().get("hole", 0.034))
+	return chart_radius() * float(_g().get("hole", 0.034))
 
 ## Ownership has its own curve: splitting by speed left static stars among moving ones.
 ## The split is kept as it decides which random numbers each star draws.
@@ -555,9 +555,9 @@ func _core_clear() -> float:
 	# Every star here is redrawn at 60 fps, so this radius is the frame budget.
 	# At 0.22 it was nine thousand moving particles and 23 ms a frame.
 	# Why: docs/why/MapChart.md#live-core-radius
-	return maxf(_radius() * 0.21, _shadow_r() * 5.0)
+	return maxf(chart_radius() * 0.21, _shadow_r() * 5.0)
 
-func _radius() -> float:
+func chart_radius() -> float:
 	# Twice the frame, so the chart is drawn large and navigated; ZOOM_MIN shows all of it.
 	# Fitted to TILT, not squash: a squash fit made round galaxies small.
 	# Why: docs/why/MapChart.md#chart-scale
@@ -565,7 +565,7 @@ func _radius() -> float:
 
 ## Ring by layer, angle by where MapGen put the node, so a jump reads as a hop.
 func _polar(n: MapGen.MapNode) -> Vector2:
-	return n.gal * (_radius() * DISC)
+	return n.gal * (chart_radius() * DISC)
 
 ## Built once a frame and shared with hit-testing, so drawn and clickable always agree.
 ## Pointing at a reachable system adds its neighbourhood, or routes ran to hidden systems.
@@ -654,7 +654,7 @@ func _solid_px(o: Vector2, r: float = -1.0) -> Vector2:
 	if not _solid_on():
 		return o
 	if r < 0.0:
-		r = _radius() * DISC * zoom
+		r = chart_radius() * DISC * zoom
 	if r <= 0.0:
 		return o
 	return ChartSky.solid_fwd(o / r) * r
@@ -662,7 +662,7 @@ func _solid_px(o: Vector2, r: float = -1.0) -> Vector2:
 func _solid_unpx(p: Vector2) -> Vector2:
 	if not _solid_on():
 		return p
-	var r := _radius() * DISC * zoom
+	var r := chart_radius() * DISC * zoom
 	if r <= 0.0:
 		return p
 	return ChartSky.solid_inv(p / r) * r
@@ -684,7 +684,7 @@ func _proj_frame(ang: float) -> void:
 		return
 	_pk_key = k
 	_pk_gal = gk
-	_pk_scale = _radius() * DISC * zoom
+	_pk_scale = chart_radius() * DISC * zoom
 	_pk_isq = 1.0 / _squash()
 	_pk_eff = _eff()
 	_pk_cos = cos(ang)
@@ -696,7 +696,7 @@ func _proj_unit(g: Vector2) -> Vector2:
 
 ## A screen point into the disc's own plane (gal units, y not squashed).
 func _to_plane(p: Vector2, e: float = -1.0) -> Vector2:
-	var r := _radius() * DISC * zoom
+	var r := chart_radius() * DISC * zoom
 	if r <= 0.0:
 		return Vector2.ZERO
 	var q := _solid_unpx(p - centre_px()) / r
@@ -705,7 +705,7 @@ func _to_plane(p: Vector2, e: float = -1.0) -> Vector2:
 	var s := sin(_drawn_turn)
 	return Vector2(q.x * c - q.y * s, q.x * s + q.y * c)
 
-func _screen_pos(n: MapGen.MapNode) -> Vector2:
+func screen_pos(n: MapGen.MapNode) -> Vector2:
 	return centre_px() + _proj(n.gal, _drawn_turn)
 
 ## The sky keeps a cloud's shape about its centre, flattened to `flat`, so its outline does too.
@@ -908,7 +908,7 @@ func calm_rest_star() -> Vector2:
 func calm_star() -> Vector2:
 	if Run.map.is_empty():
 		return global_position + size * 0.5
-	return global_position + _screen_pos(Run.node_at())
+	return global_position + screen_pos(Run.node_at())
 
 func calm_at(p: Vector2, s: float) -> void:
 	if not _lad.has("calm"):
@@ -965,7 +965,7 @@ func _pan_limit() -> Vector2:
 	# The rim may reach the view's edge: `maxf(half screen, ex)` switched regimes at zoom 0.62.
 	# Adding half a view gives one rule at every zoom and still cannot lose the galaxy.
 	# Why: docs/why/MapChart.md#pan-limit
-	var ex := _radius() * DISC * zoom
+	var ex := chart_radius() * DISC * zoom
 	return Vector2(ex + size.x * PAN_SLACK, ex * _eff() + size.y * PAN_SLACK)
 
 ## No pan limit: the escape menu's 66 px slack left a rim ship on the frame edge.
@@ -1025,7 +1025,7 @@ func _node_at(p: Vector2) -> int:
 		if not visible.has((n as MapGen.MapNode).index):
 			continue
 		var node: MapGen.MapNode = n
-		if _screen_pos(node).distance_to(p) < maxf(5.0, 12.0 * zoom):
+		if screen_pos(node).distance_to(p) < maxf(5.0, 12.0 * zoom):
 			return node.index
 	return -1
 
@@ -1041,7 +1041,7 @@ func nodes_near(r: Rect2) -> Dictionary:
 		var node: MapGen.MapNode = n
 		if not visible.has(node.index):
 			continue
-		var sp := _screen_pos(node)
+		var sp := screen_pos(node)
 		if g.has_point(sp):
 			out.append([node.index, sp])
 	return {nodes = out, rad = rad}
@@ -1070,7 +1070,7 @@ func _draw_chart() -> void:
 	_hole_rr = (hr + 1.0) * (hr + 1.0) if hr > 0.0 else 0.0
 
 	var here: MapGen.MapNode = Run.node_at()
-	var hp := _screen_pos(here)
+	var hp := screen_pos(here)
 	var reach: Array = []
 
 	# With the systems hidden, the chart is the galaxy alone: no routes, no
@@ -1081,14 +1081,14 @@ func _draw_chart() -> void:
 		# Why: docs/why/MapChart.md#reach-overlay
 		if show_links and hovered >= 0 and hovered < Run.map.size():
 			var from: MapGen.MapNode = Run.map[hovered]
-			var a3 := _screen_pos(from)
+			var a3 := screen_pos(from)
 			for n3 in Run.map:
 				var t3: MapGen.MapNode = n3
 				if t3.index == from.index:
 					continue
 				# Same rule as the routes out of YOU: geometry is not sight.
 				if Run.reachable_from(from, t3) and Run.charted(t3):
-					draw_line(a3, _screen_pos(t3),
+					draw_line(a3, screen_pos(t3),
 						Color(0.36, 0.56, 0.72, 0.38), 1.0)
 
 		_draw_reach_ring(hp)
@@ -1103,13 +1103,13 @@ func _draw_chart() -> void:
 		for r in reach:
 			var rn2: MapGen.MapNode = r
 			var afford: bool = Run.can_jump_to(rn2)
-			_dotted(hp, _screen_pos(rn2),
+			_dotted(hp, screen_pos(rn2),
 				Color(0.42, 0.56, 0.70, 0.75) if afford else Color(0.34, 0.38, 0.44, 0.35))
 
 		if Run.trail.size() > 1:
 			for i in range(1, Run.trail.size()):
-				var a := _screen_pos(Run.map[Run.trail[i - 1]])
-				var b := _screen_pos(Run.map[Run.trail[i]])
+				var a := screen_pos(Run.map[Run.trail[i - 1]])
+				var b := screen_pos(Run.map[Run.trail[i]])
 				draw_line(a, b, _UNDER_SOFT, 3.0)
 				draw_line(a, b, Color(0.86, 0.91, 0.97, 0.85), 1.0)
 
@@ -1127,11 +1127,11 @@ func _draw_chart() -> void:
 		if not show_icons:
 			continue
 		if visible.has(node2.index):
-			_pickable.append(_screen_pos(node2))
+			_pickable.append(screen_pos(node2))
 		# A record and a choice, not an atlas: unreachable unvisited systems were noise.
 		if not visible.has(node2.index):
 			continue
-		var p := (_screen_pos(node2) - Vector2(6, 6)).round()
+		var p := (screen_pos(node2) - Vector2(6, 6)).round()
 		var tint := MapGen.star_colour(node2)
 		if node2.cleared and node2.type != MapGen.NodeType.CORE:
 			tint = Color("#37424f")
@@ -1153,7 +1153,7 @@ func _draw_chart() -> void:
 			continue
 		if node2.type == MapGen.NodeType.CORE:
 			# The middle of the visible black: the near disc covers the shadow's lower part.
-			p = (_screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
+			p = (screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
 			drawn_ink[node2.index] = StarchartScreen.Glyph.draw_glyph(self, p, node2.type, tint.lightened(0.12),
 				node2.index == here.index, node2.index == selected, UITheme.FLARE)
 		elif tiny:
@@ -1219,7 +1219,7 @@ func _draw_chart() -> void:
 func _draw_scale() -> void:
 	# Pixels per light year at the current zoom. `_polar` scales a `gal`
 	# of 1.0 by radius*DISC, and the view then scales by `zoom`.
-	var per_gal := _radius() * DISC * zoom
+	var per_gal := chart_radius() * DISC * zoom
 	if per_gal <= 0.0:
 		return
 	var per_ly := per_gal / RADIUS_LY
@@ -1302,7 +1302,7 @@ func frame_galaxy() -> void:
 ## Where the core sits at the opening: the middle, or TORN AWAY's dwarf down and right
 ## of it with the giant above to the left (`ChartTorn.open_pan`).
 func _open_pan() -> Vector2:
-	return ChartTorn.open_pan(ZOOM_MIN * _radius() * DISC / ChartSky.K0)
+	return ChartTorn.open_pan(ZOOM_MIN * chart_radius() * DISC / ChartSky.K0)
 
 ## `animate` false snaps, for an arrival: a glide made the screen visibly zoom itself in.
 ## Why: docs/why/MapChart.md#snap-on-arrival
@@ -1358,7 +1358,7 @@ func _go_to(z: float, p: Vector2, animate: bool) -> void:
 func _draw_neb_edges() -> void:
 	if _neb_hot == "":
 		return
-	var r_max := _radius() * DISC
+	var r_max := chart_radius() * DISC
 	for raw in NebulaField.clouds():
 		var cl: NebulaField.Cloud = raw
 		if cl.name != _neb_hot:
@@ -1426,7 +1426,7 @@ func _draw_reach_ring(c: Vector2) -> void:
 func _ring(c: Vector2, r: float, col: Color, on: int = 2, period: int = 5) -> void:
 	if r <= 0.0:
 		return
-	var rx := r * _radius() * DISC * zoom
+	var rx := r * chart_radius() * DISC * zoom
 	# Flattened as the disc is (`_proj`): the reach is a circle in the disc's
 	# plane, and a circle turns into itself, so the ring never turns.
 	var ry := rx * _eff()
@@ -1440,7 +1440,7 @@ func _ring(c: Vector2, r: float, col: Color, on: int = 2, period: int = 5) -> vo
 	# (through the solid galaxy's camera the ring is a circle on the disc seen in
 	# perspective: each dot placed on the flat view, then through the camera)
 	var co := _solid_unpx(c - centre_px())
-	var rpx := _radius() * DISC * zoom
+	var rpx := chart_radius() * DISC * zoom
 	for i in steps:
 		if i % period >= on:
 			continue
@@ -1525,7 +1525,7 @@ func tip_lines(n: MapGen.MapNode, here: MapGen.MapNode) -> PackedStringArray:
 ## Zoomed out every system is a two-pixel dot, so the tooltip is what makes places readable.
 func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	var f := UITheme.pixel_font()
-	var at := _screen_pos(n)
+	var at := screen_pos(n)
 
 	# The one outline closes onto the system as the panel arrives (C1), which points the eye
 	# at which dot the panel is describing. It was four white corner ticks.
@@ -1593,7 +1593,7 @@ func party_marks() -> Array:
 		var at := int(slot.get("at", -1))
 		if at < 0 or at >= Run.map.size():
 			continue
-		var c := _screen_pos(Run.map[at])
+		var c := screen_pos(Run.map[at])
 		if at == Run.at:
 			# clear of YOU's brackets, whose corner reaches 17 px right
 			out.append([slot, c + Vector2(26, -8 + with_me * 11), -1])
@@ -1611,7 +1611,7 @@ func _draw_hellbender() -> void:
 	if not show_icons or not Run.hellbender_alive() \
 			or Run.hellbender_at >= Run.map.size():
 		return
-	var c := _screen_pos(Run.map[Run.hellbender_at])
+	var c := screen_pos(Run.map[Run.hellbender_at])
 	_diamond(c, 7.0, _UNDER)
 	_diamond(c, 6.0, UITheme.EMBER)
 	var at_text := c + Vector2(-46, -14)
@@ -1635,7 +1635,7 @@ func _draw_quests() -> void:
 		var n: MapGen.MapNode = raw
 		if not OptionTable.holds_quest(n):
 			continue
-		var c := _screen_pos(n)
+		var c := screen_pos(n)
 		# Backed in ink first, for the reason the party diamond is: the deep
 		# systems sit over the core, which is the brightest thing here.
 		var said := OptionTable.quest_name(n)
@@ -1657,8 +1657,8 @@ func _draw_quest_route() -> void:
 		return
 	var gold := EncounterDrawer.TAG_QUEST
 	for i in range(quest_route.size() - 1):
-		var a := _screen_pos(Run.map[quest_route[i]])
-		var b := _screen_pos(Run.map[quest_route[i + 1]])
+		var a := screen_pos(Run.map[quest_route[i]])
+		var b := screen_pos(Run.map[quest_route[i + 1]])
 		var d := a.distance_to(b)
 		var steps := int(d / 4.0)
 		for k in range(1, steps):
@@ -1686,12 +1686,12 @@ func place_quest_tags() -> Array:
 		if show_icons and OptionTable.holds_quest(qn):
 			var said := OptionTable.quest_name(qn)
 			var sw := f.get_string_size(said, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-			var c := _screen_pos(qn)
+			var c := screen_pos(qn)
 			avoid.append(Rect2(c + Vector2(-sw * 0.5, -21), Vector2(sw, 10)))
 	var rad := maxf(5.0, 12.0 * zoom)
 	var frame := Rect2(Vector2(2, 2), size - Vector2(4, 4))
 	for t in quest_tags:
-		var at := _screen_pos(Run.map[int(t.index)]).round()
+		var at := screen_pos(Run.map[int(t.index)]).round()
 		var w := ceilf(f.get_string_size(String(t.text), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x) + 8.0
 		var best := Rect2()
 		var best_hits := 1 << 30
@@ -1734,7 +1734,7 @@ func _draw_quest_tags() -> void:
 		var t: Dictionary = quest_tags[i]
 		var r: Rect2 = quest_rects[i]
 		var col: Color = EncounterDrawer.TAG_QUEST if bool(t.get("picked", false)) else UITheme.CHILL
-		var at := _screen_pos(Run.map[int(t.index)]).round()
+		var at := screen_pos(Run.map[int(t.index)]).round()
 		var lead := Vector2(clampf(at.x, r.position.x, r.end.x), clampf(at.y, r.position.y, r.end.y))
 		draw_line(at, lead, _UNDER, 3.0)
 		draw_line(at, lead, col, 1.0)
@@ -1758,7 +1758,7 @@ func _draw_work() -> void:
 			continue
 		if job.at < 0 or job.at >= Run.map.size():
 			continue
-		var c := _screen_pos(Run.map[job.at])
+		var c := screen_pos(Run.map[job.at])
 		var col := DB.manufacturer_colour(job.manufacturer)
 		# Backed in ink for the reason the party diamond is: the deep systems
 		# sit over the core, which is the brightest thing on the chart.
@@ -1775,7 +1775,7 @@ func _draw_work() -> void:
 	for manufacturer in _work_berths:
 		var hcol := DB.manufacturer_colour(manufacturer)
 		for st in _work_berths[manufacturer]:
-			var p := _screen_pos(st)
+			var p := screen_pos(st)
 			draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), _UNDER, false, 3.0)
 			draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), hcol, false, 1.0)
 			draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), hcol, true)
@@ -1834,7 +1834,7 @@ func _draw_you(p: Vector2, tiny: bool) -> void:
 
 ## Built once: nothing here depends on pan or zoom.
 func _build_stars() -> void:
-	var r_max := _radius() * DISC
+	var r_max := chart_radius() * DISC
 	# The seed is part of the key: a new run means a new sky, and the cache
 	# has to know that.
 	var galaxy := "%d|%d" % [Run.galaxy_kind, Run.galaxy_seed]
@@ -1857,12 +1857,12 @@ func _build_stars() -> void:
 	_star_key = key
 	built_here += 1
 	_build_field()
-	_sky_cache[_star_key] = _snapshot_sky()
+	_sky_cache[_star_key] = snapshot_sky()
 
 ## Runs on a worker too: nothing here may touch a node, the cache or other-thread writes.
 func _build_field() -> void:
 	var g := _g()
-	var r_max := _radius() * DISC
+	var r_max := chart_radius() * DISC
 	_star_pos = PackedVector2Array()
 	_star_col = PackedColorArray()
 	_star_big = PackedByteArray()
@@ -2054,7 +2054,7 @@ func _build_field() -> void:
 			_star_dim.append(1 if col.v < 0.19 else 0)
 
 	# Core built from pixels: draw_circle is smooth-edged and reads as a blurry sticker.
-	var bulge := _radius() * float(g.bulge)
+	var bulge := chart_radius() * float(g.bulge)
 	seed = (_gseed() * 2654435761 + 4242) & 0x7fffffff
 	for i in 600:
 		seed = (seed * 1103515245 + 12345) & 0x7fffffff
@@ -2093,7 +2093,7 @@ func _build_field() -> void:
 	_build_remnants(r_max)
 
 ## A builder missing from SKY_FIELDS is omitted silently, which is the one way this goes wrong.
-func _snapshot_sky() -> Dictionary:
+func snapshot_sky() -> Dictionary:
 	var out: Dictionary = {}
 	for f in SKY_FIELDS:
 		out[f] = get(f)
@@ -2580,7 +2580,7 @@ static func _data_tex(bytes: PackedByteArray, n: int, per: int,
 		Image.create_from_data(SKY_TEX_W, rows, false, fmt, bytes))
 
 ## The two huge quads exist so the mesh's bounds never let the renderer cull the layer.
-static func _quads(n: int) -> ArrayMesh:
+static func empty_quads(n: int) -> ArrayMesh:
 	if n <= 0:
 		return null
 	if _quad_meshes.has(n):

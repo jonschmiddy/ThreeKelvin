@@ -374,7 +374,7 @@ func _park(sys: int) -> int:
 	var lay := SystemLayout.of(Run.map[sys])
 	for b in lay.bodies:
 		if b.world != &"" and b.kind != &"belt":
-			SystemMapScreen._parked[sys] = {"at": b.index, "mode": &"rail"}
+			ParkedShips.spots[sys] = {"at": b.index, "mode": &"rail"}
 			return b.index
 	return -1
 
@@ -648,7 +648,7 @@ func _journey_rest() -> void:
 	var pick := _pick_star(true)
 	if chart != null and pick != null:
 		var mc: Control = chart._chart
-		var at2: Vector2 = mc.get_global_transform() * mc._screen_pos(pick)
+		var at2: Vector2 = mc.get_global_transform() * mc.screen_pos(pick)
 		await _click_at(at2, "a star")
 		await _wait(0.4)
 		if chart._selected != pick.index:
@@ -1006,7 +1006,7 @@ func _reel_session() -> void:
 		var p := _pick_star(false)
 		if p != null:
 			var mc: Control = ch._chart
-			await _glide((mc.get_global_transform() * mc._screen_pos(p)).round(), 0.7)
+			await _glide((mc.get_global_transform() * mc.screen_pos(p)).round(), 0.7)
 			await _wait(1.2)
 	await _key(KEY_TAB, "Tab (to LOCAL)")
 	await _wait(2.5)

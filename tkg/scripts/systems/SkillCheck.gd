@@ -85,15 +85,6 @@ static func attr_name(check: Dictionary) -> String:
 		&"stealth": return "STEALTH"
 	return "?"
 
-## Green when certain, warming as odds worsen, so long shots show without reading.
-static func badge_colour(check: Dictionary) -> Color:
-	match mini(shortfall(check), 4):
-		0: return UITheme.GOOD
-		1: return UITheme.CHILL
-		2: return UITheme.EMBER
-		3: return UITheme.FLARE
-	return Color("#d4614f")
-
 ## Falls back down the ladder so an event may author only the bands it cares about.
 static func pick_outcome(opt: Dictionary, band: Band) -> Callable:
 	var order: Array[StringName] = []
@@ -123,11 +114,3 @@ static func band_result(band: Band) -> StringName:
 		Band.PARTIAL: return MapGen.R_PARTIAL
 		Band.BOTCHED: return MapGen.R_BOTCHED
 	return MapGen.R_SUCCESS
-
-
-static func band_colour(band: Band) -> Color:
-	match band:
-		Band.MET: return UITheme.GOOD
-		Band.CLEAN: return UITheme.CHILL
-		Band.PARTIAL: return UITheme.EMBER
-	return Color("#d4614f")

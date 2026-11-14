@@ -1,4 +1,4 @@
-The reasoning behind `tkg/scripts/sim/Policy.gd`, moved out of the code verbatim; each heading is referenced from the code by a `Why:` line.
+The reasoning behind `tkg/scripts/systems/Policy.gd`, moved out of the code verbatim; each heading is referenced from the code by a `Why:` line.
 
 ## Pilot model
 

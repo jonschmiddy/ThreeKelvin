@@ -709,7 +709,7 @@ things make it work:
   is the sky it is being seen *through*, so neither shares its rotation. `_repaint_galaxy()`
   must queue all of them: the deep field and halo derive from `size` and `sky_pan`, so
   leaving either out means dragging the chart slides the galaxy across a fixed background.
-- **Framing therefore cannot use `_radius()`,** which is derived from that oversized square.
+- **Framing therefore cannot use `chart_radius()`,** which is derived from that oversized square.
   `MapChart.frame_to(screen, fill)` takes the view as an argument instead.
 
 One visible consequence: `_region_tint()` picks a cloud's wash from the nearest system, so

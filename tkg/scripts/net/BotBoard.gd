@@ -167,7 +167,7 @@ static func map(seq: int) -> Dictionary:
 		d["links"].append({
 			"index": idx,
 			"system": MapGen.star_name(n),
-			"type": _node_type(n.type),
+			"type": node_type_name(n.type),
 			"danger": n.danger,
 			"layer": n.layer,
 			# Deeper is toward the goal. Without this a brain cannot tell
@@ -239,7 +239,7 @@ static func _modules(list: Array) -> Array:
 	return out
 
 
-static func _node_type(t: int) -> String:
+static func node_type_name(t: int) -> String:
 	match t:
 		MapGen.NodeType.START: return "start"
 		MapGen.NodeType.STATION: return "station"

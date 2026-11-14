@@ -181,10 +181,10 @@ static func _thing(it: Variant, gain: bool) -> Dictionary:
 
 ## Walk-away or outcome goes onto the node for the map's cards; yours alone, not sent.
 static func _remember(n: MapGen.MapNode, i: int, out: Dictionary) -> void:
-	var line := EncounterDrawer.first_sentence(String((out.res as Dictionary).get("text", "")))
+	var line := EncounterText.first_sentence(String((out.res as Dictionary).get("text", "")))
 	if out.stay:
 		n.left[i] = line
 		return
 	# TAKEN NOW, SO NO LONGER LEFT ALONE
 	n.left.erase(i)
-	n.said[i] = [EncounterDrawer.moved_line(out.bill), line]
+	n.said[i] = [EncounterText.moved_line(out.bill), line]

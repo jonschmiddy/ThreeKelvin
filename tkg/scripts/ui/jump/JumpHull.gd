@@ -130,9 +130,9 @@ func _bake(img: Image) -> void:
 	lums.sort()
 	var lo := lums[int(float(lums.size() - 1) * 0.08)] if cnt > 0 else 0.0
 	var hi := lums[int(float(lums.size() - 1) * 0.92)] if cnt > 0 else 255.0
-	var er1 := _erode(a, w, h)
-	var er2 := _erode(er1, w, h)
-	var er4 := _erode(_erode(er2, w, h), w, h)
+	var er1 := erode_mask(a, w, h)
+	var er2 := erode_mask(er1, w, h)
+	var er4 := erode_mask(erode_mask(er2, w, h), w, h)
 	var box1 := _box(hl, w, h, 1)
 	var soft := _box_bytes(a, w, h, 3)
 	var din := _edt(a, w, h, 0, true)
@@ -180,7 +180,7 @@ static func _at(x: int, y: int, w: int, h: int) -> int:
 
 
 ## Binary erosion by one, 4-connected, as scipy's default structure.
-static func _erode(a: PackedByteArray, w: int, h: int) -> PackedByteArray:
+static func erode_mask(a: PackedByteArray, w: int, h: int) -> PackedByteArray:
 	var o := PackedByteArray()
 	o.resize(w * h)
 	for y in h:

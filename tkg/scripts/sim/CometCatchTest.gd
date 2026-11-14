@@ -65,7 +65,7 @@ func _run() -> void:
 	var opt := n.options.find(READING)
 	Run.at = n.index
 	n.visited = true
-	SystemMapScreen._parked[n.index] = {"at": w, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": w, "mode": &"rail"}
 	Run.map_clock[n.index] = c.t_in + 0.5
 	var m := await _map()
 	if not h._ok("the map comes up there, in orbit of world %d" % w, m != null and m.flight.reached() == w):
@@ -124,7 +124,7 @@ func _run() -> void:
 		m != null and m.flight.mode == &"keep" and (m.flight.f.p as Vector2).distance_to(spot) <= 0.5)
 	# TOO LATE: the far spot, gone by; and a spot the ship cannot reach first
 	n.remove_meta(&"comet_spot")
-	SystemMapScreen._parked[n.index] = {"at": w, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": w, "mode": &"rail"}
 	Run.map_clock[n.index] = c.spot_t(0) + 1.0
 	m = await _map()
 	cc = m.comet_catch()

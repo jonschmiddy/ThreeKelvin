@@ -54,8 +54,6 @@ func _ready() -> void:
 			sky_shape = int(s.substr(6))
 		elif s.begins_with("star="):
 			sky_star = s.substr(5)
-		elif s == "wramp=0":
-			_system_view().no_ramp = true
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# `kinds`: the systems in each kind of nebula (`NebulaField.Kind`), with
 	# their star's kind, and quit -- to find one of each to photograph

@@ -118,7 +118,7 @@ func _cube_buf(cell: float, pname: StringName, n: int, params: Dictionary) -> vo
 	for key in params:
 		m.set_shader_parameter(StringName(key), params[key])
 	var node := ChartSky.MeshDraw.new()
-	node.mesh = MapChart._quads(n)
+	node.mesh = MapChart.empty_quads(n)
 	node.material = m
 	v.add_child(node)
 	_cube_mats.append(m)

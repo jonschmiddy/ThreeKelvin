@@ -163,7 +163,7 @@ static func act(id: StringName) -> String:
 					(b as Button).pressed.emit()
 					return "pressed LAUNCH"
 		&"salvage":
-			var tv := Hints._transfer(sc)
+			var tv := Hints.visible_transfer(sc)
 			if tv == null or tv._jetsam == null or tv._jetsam.items.is_empty():
 				return ""
 			Run.take_from_jetsam(tv._node, tv._jetsam, 0)

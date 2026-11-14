@@ -9,7 +9,7 @@ render_mode unshaded, blend_premul_alpha;
 // colours, never a blend -- with the point at its middle breaking a tie, so a
 // line one pixel wide stays one pixel wide. That alone makes a pixel change
 // where the art under it has mostly moved, not where one point happened to
-// cross an edge. (`ss` 1: the plain nearest pixel, as `LocalSubject.turned`.)
+// cross an edge. (`ss` 1: the plain nearest pixel, as `SubjectMask.turned`.)
 //
 // THE HOLD (`memory`): `prev` is this picture last frame, and a pixel keeps
 // the colour it had while that colour still covers at least `margin` fewer of

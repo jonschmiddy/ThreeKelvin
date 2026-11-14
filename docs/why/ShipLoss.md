@@ -19,7 +19,7 @@ THE BOSS-LENGTH VERSION, always: the losing ship gets the prelude of bursts a
 boss does, because it is the last thing this run shows.
 
 FACING. `ShipBreakup` reads a ship as facing LEFT, as every enemy does: the
-stern is the right-hand end (`_engines`), and OVERLOAD blows the back off
+stern is the right-hand end (`BreakupCuts.engines`), and OVERLOAD blows the back off
 from there. Your ship faces right. So the picture is mirrored before it is
 cut and the breakup is drawn mirrored back (`scale.x` negative): the engines
 it finds are your engines, and every pixel of the wreck lands where it was

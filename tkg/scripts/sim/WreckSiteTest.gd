@@ -21,7 +21,7 @@ func _run() -> void:
 			n = c
 			break
 	Run.at = n.index
-	var parked := SystemMapScreen._parked
+	var parked := ParkedShips.spots
 
 	parked[n.index] = {"at": 0}
 	_win(n, &"cutter", [&"lancer"])
@@ -131,7 +131,7 @@ func _sector_loot() -> void:
 			n = c
 			break
 	Run.at = n.index
-	SystemMapScreen._parked[n.index] = {"at": 0}
+	ParkedShips.spots[n.index] = {"at": 0}
 	_win(n, &"cutter")
 	var w: MapGen.Jetsam = Run.wrecks_here(n)[0]
 	w.items.assign(_parts(3))
@@ -150,7 +150,7 @@ func _sector_loot() -> void:
 		await get_tree().process_frame
 	h._ok("SECTOR LOOT shows the two left in it (%d)" % _button(), _button() == 2)
 	# from another place in the system too
-	SystemMapScreen._parked[n.index] = {"at": -1}
+	ParkedShips.spots[n.index] = {"at": -1}
 	Router.show_local()
 	for i in 6:
 		await get_tree().process_frame
@@ -191,7 +191,7 @@ func _one_place() -> void:
 	Run.forced_ascension = Run.HELLBENDER_ASCENSION
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Run.forced_ascension = -1
-	var parked := SystemMapScreen._parked
+	var parked := ParkedShips.spots
 	# the Hellbender
 	if not Run.hellbender_alive():
 		h._fail("no Hellbender in this run")
@@ -259,7 +259,7 @@ func _hellbender_doors() -> void:
 		Run.at = n.index
 		n.visited = true
 		SectorScreen._approached_at = n.index
-		SystemMapScreen._parked[n.index] = {"at": SystemLayout.of(n).hellbender_place(), "mode": &"rail"}
+		ParkedShips.spots[n.index] = {"at": SystemLayout.of(n).hellbender_place(), "mode": &"rail"}
 		Router.show_local()
 		await Harness.frames(get_tree(), 4)
 		var sc := Router.current as SectorScreen
@@ -418,7 +418,7 @@ func _round_trips() -> void:
 	Run.at = n.index
 	n.visited = true
 	SectorScreen._approached_at = n.index
-	SystemMapScreen._parked[n.index] = {"at": 0}
+	ParkedShips.spots[n.index] = {"at": 0}
 	Router.show_local()
 	await Harness.frames(get_tree(), 8)
 	Router.start_combat(DB.enemies[&"cutter"], [DB.enemies[&"lancer"]], false, false)
@@ -592,7 +592,7 @@ func _other_systems() -> void:
 	Run.at = a.index
 	a.visited = true
 	SectorScreen._approached_at = a.index
-	var parked := SystemMapScreen._parked
+	var parked := ParkedShips.spots
 	parked[a.index] = {"at": 0}
 	_win(a, &"cutter", [&"lancer"])
 	parked[a.index] = {"at": -1}
@@ -638,9 +638,9 @@ func _each_place(n: MapGen.MapNode, sites: Dictionary, tag: String) -> void:
 	await Harness.frames(get_tree(), 4)
 	for site in places:
 		if site == -9:
-			SystemMapScreen._parked.erase(n.index)
+			ParkedShips.spots.erase(n.index)
 		else:
-			SystemMapScreen._parked[n.index] = {"at": site}
+			ParkedShips.spots[n.index] = {"at": site}
 		Router.show_local()
 		await Harness.frames(get_tree(), 6)
 		var sc := Router.current as SectorScreen
@@ -652,7 +652,7 @@ func _each_place(n: MapGen.MapNode, sites: Dictionary, tag: String) -> void:
 			names.append(ev._made[i]._name.text)
 		h._ok("%s at %d: LOCAL draws %d wrecks (%d %s; here %d, at %s)" % [tag, site, want, drawn, names, Run.wrecks_here(n).size(), Run.node_at().index],
 			ev != null and drawn == want and Run.wrecks_here(n).size() == want)
-	SystemMapScreen._parked[n.index] = {"at": 0}
+	ParkedShips.spots[n.index] = {"at": 0}
 
 
 ## Until the cutaway is fully open (3 s at most).
@@ -707,7 +707,7 @@ func _off_the_world() -> void:
 			n.visited = true
 			SectorScreen._approached_at = n.index
 			for b in worlds.slice(0, 3):
-				SystemMapScreen._parked[n.index] = {"at": b}
+				ParkedShips.spots[n.index] = {"at": b}
 				for k: int in counts:
 					var keep: Array = []
 					for raw in n.jetsam:
@@ -792,7 +792,7 @@ func _twin_sites() -> void:
 	n.visited = true
 	SectorScreen._approached_at = n.index
 	var B := SystemLayout.STAR_B
-	var parked := SystemMapScreen._parked
+	var parked := ParkedShips.spots
 	var cases := 0
 	h._ok("%s is laid out with two suns" % MapGen.star_name(n), SystemLayout.of(n).twin)
 	parked[n.index] = {"at": B}

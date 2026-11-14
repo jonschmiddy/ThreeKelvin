@@ -34,7 +34,7 @@ THE STYLES, as the map draws them:
 
 WHERE THE SHIP IS (Jon: "have LOCAL change depending on what you are orbiting
 and how far from the star you are"), read from the sector map's own record of
-it (`SystemMapScreen._parked`: what it is in orbit of, where it is on the
+it (`ParkedShips.spots`: what it is in orbit of, where it is on the
 plane), or, with none, at the edge where a ship warps in:
   * ORBITING A WORLD: that world close and huge, rising from below behind the
     fight, its rings across it and its moons above, lit from the star; the
@@ -479,7 +479,7 @@ Above `func _situate() -> void:`:
 THE EVENT'S OWN PLACE IS THE ONE SOURCE (Jon, Nov 9, S2B: "when an event
 opens, LOCAL draws the event's own place behind it"). LOCAL used to compose
 its near picture only from where the sector map last left the ship
-(`SystemMapScreen._parked`); with no word from the map (a harness, an event on
+(`ParkedShips.spots`); with no word from the map (a harness, an event on
 no place, a LOCAL built before the map parked) it drew open space while the
 band said "ROCK · YOU ARE IN ORBIT". Now, with an event open here
 (`LocalEventDrawer.open_here`: the one the map asked for, or the bar's), the

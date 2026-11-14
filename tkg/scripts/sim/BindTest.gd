@@ -211,7 +211,8 @@ func _settings_clash() -> void:
 		all_back = all_back and Keys.is_default(id)
 	_ok("RESET ALL puts every key back", all_back)
 	var cfg := ConfigFile.new()
-	cfg.load(SCRATCH)
+	var read := cfg.load(SCRATCH)
+	_ok("the settings file reads back (%d)" % read, read == OK)
 	_ok("and leaves nothing in the file's key section", not cfg.has_section(Keys.SECTION))
 	_main.call("_close_settings")
 	await Harness.frames(_tree, 2)
@@ -321,7 +322,7 @@ func _region_key(scr: StarchartScreen, key: Key, name: String) -> void:
 	var want := _region_frame(chart)
 	await _press(key)
 	await _glided(chart)
-	var you := chart._screen_pos(Run.node_at())
+	var you := chart.screen_pos(Run.node_at())
 	_ok("%s: LOCAL REGION on and the view on the local region (zoom %.3f, pan %s; its frame %.3f, %s), YOU in view at %s" % [
 		name, chart.zoom, chart.pan, want[0], want[1], you],
 		StarchartScreen._region_on and absf(chart.zoom - float(want[0])) < 0.002

@@ -1016,7 +1016,7 @@ func _ladder() -> void:
 	var lay := SystemLayout.of(Run.node_at())
 	for b in lay.bodies:
 		if b.world != &"" and b.kind != &"belt":
-			SystemMapScreen._parked[sys] = {"at": b.index, "mode": &"rail"}
+			ParkedShips.spots[sys] = {"at": b.index, "mode": &"rail"}
 			break
 	SectorScreen._approached_at = sys
 	Router.show_local()
