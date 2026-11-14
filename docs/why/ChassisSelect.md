@@ -315,7 +315,7 @@ starts at C and every better frame is something you found.
 
 ## Banner
 
-Above `class Banner extends Control:`:
+In ManufacturerBanner.gd, above `const UNITS_W := 13`:
 
 ```text
 The manufacturer's banner, flown large.
@@ -362,7 +362,7 @@ see it, so the default minimum is still built from `S`.
 
 ## Slot pads
 
-Above `class SlotPads extends Control:`:
+In SlotPads.gd, above `const CELL := Vector2(9, 11)`:
 
 ```text
 Hardpoint cells: filled steel is occupied, an ember outline is a free pad.
