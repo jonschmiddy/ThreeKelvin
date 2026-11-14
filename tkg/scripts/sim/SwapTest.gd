@@ -67,7 +67,7 @@ func _station_body(at: int) -> int:
 ## beside it, then DOCK.
 func _dock() -> bool:
 	var at := Run.at
-	SystemMapScreen._parked[at] = {"at": _station_body(at), "mode": &"rail"}
+	ParkedShips.spots[at] = {"at": _station_body(at), "mode": &"rail"}
 	SectorScreen._approached_at = at
 	if not (Router.current is SectorScreen):
 		Router.show_local()

@@ -518,7 +518,7 @@ func site_here(n: MapGen.MapNode = null) -> int:
 		n = node_at()
 	if n == null:
 		return -9
-	return star_site(n, int(SystemMapScreen._parked.get(n.index, {}).get("at", -9)))
+	return star_site(n, int(ParkedShips.spots.get(n.index, {}).get("at", -9)))
 
 
 ## A STAR_B place in a one-sun system is star A, so an older save's ship or wreck

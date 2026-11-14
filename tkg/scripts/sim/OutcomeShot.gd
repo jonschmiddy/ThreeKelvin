@@ -92,7 +92,7 @@ func _play(n: MapGen.MapNode, case_id: String, f: Dictionary, looks: Array) -> A
 	OutcomeCheck.reset(n, StringName(f.id), int(f.seed))
 	n.visited = true
 	SectorScreen._approached_at = n.index
-	SystemMapScreen._parked.erase(n.index)
+	ParkedShips.spots.erase(n.index)
 	# THE EVENT AS THE MAP'S GO ASKS FOR IT: LOCAL composes for it and the band
 	# comes up once the move has landed
 	LocalEventDrawer.request(n.index, 0)

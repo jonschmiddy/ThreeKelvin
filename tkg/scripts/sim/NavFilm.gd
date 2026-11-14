@@ -374,7 +374,7 @@ func _park(sys: int) -> int:
 	var lay := SystemLayout.of(Run.map[sys])
 	for b in lay.bodies:
 		if b.world != &"" and b.kind != &"belt":
-			SystemMapScreen._parked[sys] = {"at": b.index, "mode": &"rail"}
+			ParkedShips.spots[sys] = {"at": b.index, "mode": &"rail"}
 			return b.index
 	return -1
 

@@ -204,7 +204,7 @@ func _map_part() -> void:
 	var w1 := worlds[1]
 	Run.at = n.index
 	n.visited = true
-	SystemMapScreen._parked[n.index] = {"at": w0, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": w0, "mode": &"rail"}
 	Run.map_clock[n.index] = 30.0
 	var m := await _map()
 	if not h._ok("the map comes up in orbit of world %d" % w0, m != null and m.flight.reached() == w0):

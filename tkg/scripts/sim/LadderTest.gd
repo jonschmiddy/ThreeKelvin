@@ -1916,7 +1916,7 @@ func _run() -> void:
 			break
 	if wb >= 0:
 		ZoomLadder.force_design = {2: "C"}
-		SystemMapScreen._parked[Run.at] = {"at": wb, "mode": &"rail"}
+		ParkedShips.spots[Run.at] = {"at": wb, "mode": &"rail"}
 		await _go("2C to the map, in orbit", Router.show_system, SystemMapScreen)
 		var mp := Router.current as SystemMapScreen
 		var mv: Node = mp.view._views.get(wb) if mp != null else null

@@ -80,7 +80,7 @@ func _run() -> void:
 	if not h._ok("a world round star A to start from (#%d)" % wa, wa >= 0):
 		_end()
 		return
-	SystemMapScreen._parked[n.index] = {"at": wa, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": wa, "mode": &"rail"}
 	var m := await _map()
 	if not h._ok("the map comes up in %s" % MapGen.star_name(n), m != null and m.view.node == n):
 		_end()
@@ -296,7 +296,7 @@ func _put_back_framed() -> void:
 		return
 	Run.at = n.index
 	n.visited = true
-	SystemMapScreen._parked[n.index] = {"at": far, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": far, "mode": &"rail"}
 	var m := await _map()
 	if not h._ok("the map comes up with the ship at %s" % L.bodies[far].name, m != null and m.flight.reached() == far):
 		return
@@ -1262,7 +1262,7 @@ func _put_back(_n: MapGen.MapNode, p: Vector2, want: int, what: String, rows: bo
 	await Harness.frames(get_tree(), 4)
 	if rows:
 		var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
-		SystemMapScreen._parked = SaveGame._parked_from(raw, Run.map.size())
+		ParkedShips.spots = SaveGame._parked_from(raw, Run.map.size())
 		var raw_c = JSON.parse_string(JSON.stringify(SaveGame._clocks_to()))
 		Run.map_clock = SaveGame._clocks_from(raw_c, Run.map.size())
 	m = await _map()
@@ -1307,7 +1307,7 @@ func _labels_off_suns(n: MapGen.MapNode) -> void:
 		Router.show_local()
 		await _idle()
 		await Harness.frames(get_tree(), 2)
-		SystemMapScreen._parked[n.index] = {"at": at, "mode": &"rail"}
+		ParkedShips.spots[n.index] = {"at": at, "mode": &"rail"}
 		var m := await _map()
 		if m == null:
 			h._fail("no map for the words")
@@ -2011,7 +2011,7 @@ func _alongside_hold() -> void:
 	await Harness.frames(get_tree(), 2)
 	Run.at = keep_n.index
 	keep_n.visited = true
-	SystemMapScreen._parked[keep_n.index] = {"at": kb, "mode": &"keep"}
+	ParkedShips.spots[keep_n.index] = {"at": kb, "mode": &"keep"}
 	var m := await _map()
 	if m == null or not h._ok("alongside %s (%d)" % [m.view.layout.bodies[kb].name, m.flight.reached()], m.flight.reached() == kb):
 		Run.at = was_at
@@ -2174,7 +2174,7 @@ func _giant_page(n: MapGen.MapNode) -> void:
 		var was := g.twin
 		g.twin = two
 		Run.at = g.index
-		SystemMapScreen._parked.erase(g.index)
+		ParkedShips.spots.erase(g.index)
 		var m := await _map()
 		if m == null:
 			h._fail("no map at the giant")
@@ -2232,7 +2232,7 @@ func _one_sun_fallback(n: MapGen.MapNode) -> void:
 	await Harness.frames(get_tree(), 2)
 	Run.at = one.index
 	one.visited = true
-	SystemMapScreen._parked[one.index] = {"at": SystemLayout.STAR_B, "mode": &"rail"}
+	ParkedShips.spots[one.index] = {"at": SystemLayout.STAR_B, "mode": &"rail"}
 	h._ok("its place reads as the star (%d)" % Run.site_here(one), Run.site_here(one) == -1)
 	# (LOCAL first, from that record as it stands: its sky at the star's close
 	# orbit, not open space at the edge)
@@ -2732,7 +2732,7 @@ func _ring_words_ride() -> void:
 		return
 	Run.at = n.index
 	n.visited = true
-	SystemMapScreen._parked[n.index] = {"at": wa, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": wa, "mode": &"rail"}
 	var m := await _map()
 	if not h._ok("the map comes up in %s for the ride" % MapGen.star_name(n), m != null and m.view.node == n):
 		return
@@ -2795,7 +2795,7 @@ func _close_b_words_ride() -> void:
 	n.ambush_pending = false
 	SectorScreen._approached_at = n.index
 	Run.map_clock[n.index] = 97.0
-	SystemMapScreen._parked[n.index] = {"at": B, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": B, "mode": &"rail"}
 	var m := await _map()
 	if not h._ok("the map comes up in %s in star B's close orbit" % MapGen.star_name(n), m != null and m.view.node == n and m.flight.reached() == B):
 		return
@@ -3396,7 +3396,7 @@ func _ring_sweep() -> void:
 				continue
 			Run.at = n.index
 			n.visited = true
-			SystemMapScreen._parked[n.index] = {"at": w0, "mode": &"rail"}
+			ParkedShips.spots[n.index] = {"at": w0, "mode": &"rail"}
 			# Opened at a kept clock (ruling 23): each binary at the next of LAP_CLOCKS lap points.
 			var lap: float = TAU / Ln.pair_n if two and Ln.pair_n > 0.0 else 0.0
 			Run.map_clock[n.index] = lap * float(ti % LAP_CLOCKS) / float(LAP_CLOCKS)

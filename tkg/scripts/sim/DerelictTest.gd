@@ -126,7 +126,7 @@ func _open(n: MapGen.MapNode, keep_hull := false) -> LocalEventDrawer:
 	_fresh(n, keep_hull)
 	n.visited = true
 	SectorScreen._approached_at = n.index
-	SystemMapScreen._parked.erase(n.index)
+	ParkedShips.spots.erase(n.index)
 	LocalEventDrawer.request(n.index, 0)
 	Router.show_local()
 	var d: LocalEventDrawer = null
@@ -454,7 +454,7 @@ func _station_body(at: int) -> int:
 ## Dock as a player does: LOCAL beside the station, then DOCK; LOCAL is built afresh.
 func _dock() -> bool:
 	var at := Run.at
-	SystemMapScreen._parked[at] = {"at": _station_body(at), "mode": &"rail"}
+	ParkedShips.spots[at] = {"at": _station_body(at), "mode": &"rail"}
 	SectorScreen._approached_at = at
 	Router.show_local()
 	for i in 60:

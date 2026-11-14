@@ -90,7 +90,7 @@ static func here_now(n: MapGen.MapNode, i: int) -> bool:
 	# a comet's reading: here once the ship has met the comet on a spot (`CometCatch`)
 	if b == SystemLayout.COMET:
 		return CometPath.caught_at(n) >= 0
-	var d: Dictionary = SystemMapScreen._parked.get(n.index, {})
+	var d: Dictionary = ParkedShips.spots.get(n.index, {})
 	if d.is_empty():
 		return true
 	return SystemLayout.is_place(b) and int(d.get("at", -9)) == b

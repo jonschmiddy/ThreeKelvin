@@ -223,7 +223,7 @@ func _to_berth() -> bool:
 		await _idle()
 	Run.at = _st
 	Run.map[_st].visited = true
-	SystemMapScreen._parked[_st] = {"at": _station_body(), "mode": &"rail"}
+	ParkedShips.spots[_st] = {"at": _station_body(), "mode": &"rail"}
 	SectorScreen._approached_at = _st
 	if not (Router.current is SectorScreen):
 		Router.show_local()

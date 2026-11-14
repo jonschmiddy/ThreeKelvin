@@ -103,7 +103,7 @@ func _run() -> void:
 	if route == "world":
 		Router.park_at_station()
 	else:
-		SystemMapScreen._parked[st] = {"at": world, "mode": &"rail"}
+		ParkedShips.spots[st] = {"at": world, "mode": &"rail"}
 	Router.show_system()
 	await _idle()
 	await Harness.frames(_tree, 30)

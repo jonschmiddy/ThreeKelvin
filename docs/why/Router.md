@@ -592,7 +592,7 @@ were. That is what makes a quit mid-departure safe without a save version.
 
 ## Jump arrival
 
-Inside `_on_jumped()`, above `SystemMapScreen._parked.erase(_index)`:
+Inside `_on_jumped()`, above `ParkedShips.spots.erase(_index)`:
 
 ```text
 IN AT THE EDGE. A jump arrives where every arrival does, whatever orbit

@@ -134,7 +134,7 @@ func _run() -> void:
 		var Lo := SystemLayout.of(n)
 		for bi in Lo.bodies.size():
 			if (Lo.bodies[bi] as SystemLayout.Body).world != &"":
-				SystemMapScreen._parked[idx] = {"at": bi, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+				ParkedShips.spots[idx] = {"at": bi, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 				print("cutawayshot: in orbit of body %d" % bi)
 				break
 	if "swaps" in _args:

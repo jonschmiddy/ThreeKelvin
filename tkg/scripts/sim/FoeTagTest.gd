@@ -244,7 +244,7 @@ func _take_on_local(oid: StringName, j: int) -> StringName:
 	n.options.append(oid)
 	n.taken.clear()
 	SectorScreen._approached_at = idx
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
 	for i in 30:
