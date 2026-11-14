@@ -9,6 +9,12 @@ extends Node
 var _tree: SceneTree
 var h := Harness.new()
 var _errs := ErrCount.new()
+var _t0 := Time.get_ticks_msec()
+
+
+## Wall seconds since the sheet began, printed so a slow CI log shows where the time went.
+func _clock(what: String) -> void:
+	print("  [t] %s at %.1f s" % [what, (Time.get_ticks_msec() - _t0) / 1000.0])
 
 
 ## Every engine error (a shader that fails to compile prints one): there must be none.
@@ -107,6 +113,7 @@ func _film(id: StringName) -> bool:
 		await RenderingServer.frame_post_draw
 	_ok("%s: the film played (%s) and committed (%d frames drawn)" % [id, played, frames], played == id and Run.jumps == jumps0 + 1)
 	_ok("%s: no shader, script or engine error while it played (%s)" % [id, _errors_since(e0)], _errs.n == e0)
+	_clock("film %s" % id)
 	Router.show_local()
 	for i in 10:
 		await _tree.process_frame
@@ -122,6 +129,7 @@ func _run() -> void:
 	await _tree.process_frame
 	_ok("a real renderer, not the headless one (%s)" % DisplayServer.get_name(), DisplayServer.get_name() != "headless")
 	await _shaders()
+	_clock("shaders drawn")
 	Rng.forced = Harness.seed_arg(4242)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_local()
@@ -137,5 +145,6 @@ func _run() -> void:
 	_ok("every landed film was built and drawn (%s of %s)" % [done, JumpRegistry.ALL], done == JumpRegistry.ALL)
 	_ok("no shader, script or engine error in the whole run (%s)" % _errors_since(0), _errs.n == 0)
 	OS.remove_logger(_errs)
+	_clock("verdict")
 	h.verdict("jumpshadertest")
 	_tree.quit(h.code())

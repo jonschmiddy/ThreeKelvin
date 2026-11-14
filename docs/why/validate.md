@@ -498,5 +498,10 @@ CPU, the films are 529 frames each at the harness's 1920x1080 window
 it is slow. The Linux xvfb branch now passes `--resolution 960x540`, the project's own size,
 which `leave_launch_window` leaves alone: a quarter of the pixels, every shader still compiled
 and every film still played to its commit. The Windows and `DISPLAY` branches keep the full
-window. Not yet measured on CI: read the unit's time off the next run and set the limit to
-twice it.
+window. At 960x540 all 11 films played and the sheet printed PASS (PR #76), yet the unit was still
+killed at 600 s: either the run took just under 600 s and Godot was killed in shutdown, or it
+finished early and Godot or xvfb-run did not exit. The log has no clock, so the sheet now
+prints `[t] ... at N s` after the shaders, each film and the verdict, and the unit counts a
+kill after the verdict line as the verdict (with a note), since the verdict is what it
+judges. Read the `[t]` lines: if the verdict is near 600 s the unit is plainly slow, so
+set the limit to twice that and cut work; if it is early the hang is at exit.

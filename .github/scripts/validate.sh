@@ -1266,8 +1266,15 @@ case "$(uname -s)" in
 		run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
 		code=$? ;;
 esac
-if [ "$code" -eq 124 ]; then
+# The verdict line is the sheet's answer; a kill after it is a Godot slow to quit under
+# llvmpipe, not a failed check. The sheet prints its own "[t] ... at N s" lines to tell which.
+# Why: docs/why/validate.md#unit_jumpshadertest
+if [ "$code" -eq 124 ] && grep -qE '^jumpshadertest: (PASS|[0-9]+ FAILURES)' "$log"; then
+	code=0
+	printf '  note: jumpshadertest gave its verdict, then did not exit in %ss (killed)\n' "$limit"
+elif [ "$code" -eq 124 ]; then
 	bad "jumpshadertest: still running after ${limit}s, killed"
+	grep -E '^  \[t\]' "$log" | tail -n 3 | sed 's/^/        /'
 	tail -n 25 "$log" | sed 's/^/        /'
 	return
 fi
