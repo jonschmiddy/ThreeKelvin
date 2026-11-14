@@ -18,6 +18,11 @@ const MAX_PLAYERS: int = NetTransport.MAX_PLAYERS
 ## A variable only so the headless test need not wait ten real seconds.
 const HANDSHAKE_TIMEOUT: float = 10.0
 var handshake_timeout: float = HANDSHAKE_TIMEOUT
+## Host only: when each connected peer not yet on the roster arrived. One that has said nothing
+## for `hello_timeout` is let go. A variable for the reason `handshake_timeout` is.
+## Why: docs/why/NetSession.md#silent-peers
+var hello_timeout: float = HANDSHAKE_TIMEOUT
+var _unseated: Dictionary = {}
 
 enum State {
 	OFFLINE,     ## No peer. The solo game.
@@ -92,6 +97,10 @@ var _presence_dirty: bool = false
 ## Pushed whole, per option, with the peer id, so it cannot drift.
 ## Why: docs/why/NetSession.md#claims
 var claims: Dictionary = {}
+## Host only: how many claims `claims` holds, and whether a push of it is owed this frame.
+## Why: docs/why/NetSession.md#claim-caps
+var _claims_held: int = 0
+var _claims_dirty: bool = false
 
 ## Only the enemy is shared. Kept after `over` so the last push has somewhere to land.
 ## Why: docs/why/NetSession.md#shared-fights
@@ -134,10 +143,19 @@ const NAME_MAX := 24
 const FIGHT_FOES_MAX := 4
 ## Hull and brace a peer may open a fight with: the largest `max_hull` is a few hundred.
 const FOE_STAT_MAX := 10000
-## About 60 points a second, so nearly half an hour of flight; a real plan is minutes.
-const FLIGHT_POINTS_MAX := 100000
-## Claims one system may hold: its shelf, hull rack, bag, sites and every wreck's contents.
-const CLAIMS_PER_NODE := 2048
+## A flight is said at 60 points a second: four minutes, about five times the longest plan.
+## Why: docs/why/NetSession.md#flight-checks
+const FLIGHT_POINTS_MAX := 14400
+## What a flight's `shape` holds: its host, and the seconds to its departure and its arrival.
+const FLIGHT_SHAPE_MAX := 3
+## Claims one system may hold: its own things and sixteen wrecks full to the stride.
+## Why: docs/why/NetSession.md#claim-caps
+const CLAIMS_PER_NODE := MapGen.JETSAM_STRIDE * 16
+## Claims the whole party may hold: about twice a galaxy stripped bare by eight ships.
+const CLAIMS_MAX := 16384
+## The longest text a fitted part may carry (its id, who built it): four times the catalogue's longest.
+## Why: docs/why/NetSession.md#kept-builds
+const WORD_MAX := 48
 ## The last option id a claim may name: 1000 wrecks of `JETSAM_STRIDE` items.
 const OPTION_MAX := MapGen.OPTION_JETSAM + MapGen.JETSAM_STRIDE * 1000
 ## A map clock is seconds of play; this is eleven weeks of it.
@@ -191,7 +209,7 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	multiplayer.multiplayer_peer = peer
 	roster.clear()
 	_builds.clear()
-	claims.clear()
+	_forget_claims()
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
@@ -202,6 +220,7 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	galaxy_mine.clear()
 	galaxy_warning = ""
 	_said_hello = false
+	_unseated.clear()
 	_join_serial = 0
 	_presence_sent = 0
 	_presence_dirty = true
@@ -230,7 +249,7 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	multiplayer.multiplayer_peer = peer
 	roster.clear()
 	_builds.clear()
-	claims.clear()
+	_forget_claims()
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
@@ -261,7 +280,7 @@ func leave_party() -> void:
 	multiplayer.multiplayer_peer = null
 	roster.clear()
 	_builds.clear()
-	claims.clear()
+	_forget_claims()
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
@@ -460,6 +479,12 @@ func _process(_delta: float) -> void:
 	if _presence_dirty and _can_talk():
 		_presence_dirty = false
 		_send_presence()
+	# One push a frame, however many claims came in it.
+	if _claims_dirty:
+		_claims_dirty = false
+		_push_claims()
+	if not _unseated.is_empty():
+		_drop_silent()
 	if state != State.JOINING:
 		return
 	# Watch the peer status directly so a refusal shows at once, not after the handshake timeout.
@@ -481,6 +506,10 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 	if not is_host():
 		return
 	var who := multiplayer.get_remote_sender_id()
+	# Said once: a second hello from a ship already seated changes nothing.
+	# Why: docs/why/NetSession.md#lobby-names
+	if roster.has(who):
+		return
 	if protocol != PROTOCOL:
 		_turn_away(who, "Different game version. Host is protocol %d, you are %d." % [PROTOCOL, protocol])
 		return
@@ -497,7 +526,7 @@ func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: Strin
 		_turn_away(who, "The party is full.")
 		return
 	_join_serial += 1
-	roster[who] = _slot(who, player_name.substr(0, NAME_MAX), hull_id, _join_serial)
+	roster[who] = _slot(who, clean_name(player_name), _known_hull(hull_id), _join_serial)
 	_accept.rpc_id(who)
 	_push_roster()
 	Sig.party_changed.emit()
@@ -774,11 +803,30 @@ func _on_peer_connected(id: int) -> void:
 	# On the host this is a joiner, and the host never speaks first: see _hello.
 	if id == 1:
 		_say_hello()
+	elif is_host():
+		_unseated[id] = _now()
+
+
+## Host only: a connected peer that has said no hello within `hello_timeout` is let go.
+## Why: docs/why/NetSession.md#silent-peers
+func _drop_silent() -> void:
+	if not is_host():
+		_unseated.clear()
+		return
+	var now := _now()
+	for id: int in _unseated.keys():
+		if roster.has(id):
+			_unseated.erase(id)
+		elif now - float(_unseated[id]) > hello_timeout:
+			_unseated.erase(id)
+			if multiplayer.get_peers().has(id):
+				multiplayer.multiplayer_peer.disconnect_peer(id)
 
 
 func _on_peer_disconnected(id: int) -> void:
 	if not is_host():
 		return
+	_unseated.erase(id)
 	# Leave every fight first: a dropped player in a crew list blocks the others' turn for good.
 	for index in fights.keys():
 		var f: SharedFight = fights[index]
@@ -849,10 +897,18 @@ func _on_dive_galaxy() -> bool:
 func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1, dk: bool = false) -> void:
 	if not roster.has(id) or not _is_place(at, true):
 		return
+	# Kept as every machine reads it, not as it came. An empty one stays empty: no ship yet.
+	# Why: docs/why/NetSession.md#kept-builds
+	var kept := {}
+	if not wire.is_empty():
+		var b := kept_build(wire)
+		if b == null:
+			return
+		kept = b.to_wire()
 	# A moved `at` is a jump for others only: the host's own jumps tick in `RunState.jump_to()`.
 	var was := int(roster[id].get("at", -1))
 	var said := int(_jumps_said.get(id, -1))
-	roster[id].build = wire
+	roster[id].build = kept
 	roster[id].at = at
 	roster[id].docked = dk
 	# (in the dive, a presence with no jumps to say is a ship off this galaxy:
@@ -869,6 +925,42 @@ func _apply_presence(id: int, wire: Dictionary, at: int, jumps: int = -1, dk: bo
 		_fold_growth(jumps)
 	_push_roster()
 	Sig.party_changed.emit()
+
+
+## The build a presence says, read as every machine reads it and cut to what a ship is drawn
+## from, or null when it is not a build. Its `to_wire()` is what the host keeps and sends on.
+## Why: docs/why/NetSession.md#kept-builds
+static func kept_build(wire: Dictionary) -> ShipBuild:
+	if not _like(wire, ShipBuild.new().to_wire(), 0):
+		return null
+	var b := ShipBuild.from_wire(wire)
+	b.pilot = b.pilot.left(NAME_MAX)
+	if _part_model.is_empty():
+		_part_model = ShipBuild.part_entry(ModuleData.new())
+	b.parts = b.parts.filter(func(p: Dictionary) -> bool: return _like(p, _part_model, WORD_MAX))
+	return b
+
+
+## A fitted part as the sender writes one (`ShipBuild.part_entry`), made once: what `_like` holds a part to.
+static var _part_model: Dictionary = {}
+
+
+## Whether `sent` holds only fields the model has, each of the model's kind (text, a whole
+## number, yes or no, a list), and no text longer than `text_max` (0: any length).
+static func _like(sent: Dictionary, model: Dictionary, text_max: int) -> bool:
+	for k: Variant in sent:
+		if not model.has(k):
+			return false
+		var kind := typeof(sent[k])
+		var want := typeof(model[k])
+		if kind == TYPE_STRING or kind == TYPE_STRING_NAME:
+			if want != TYPE_STRING and want != TYPE_STRING_NAME:
+				return false
+			if text_max > 0 and str(sent[k]).length() > text_max:
+				return false
+		elif kind != want:
+			return false
+	return true
 
 
 ## Host folds one ship's jumps into the lead count: higher wins, pushed whole, never lower.
@@ -1068,8 +1160,27 @@ func report_flight_off(at: int) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func _flight_at_host(at: int, from: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> void:
 	var who := _member_sender()
-	if who != 0 and pts.size() <= FLIGHT_POINTS_MAX and burns.size() <= FLIGHT_POINTS_MAX:
+	if who != 0 and _flight_ok(at, to, t0, dt, pts, burns, said, shape):
 		_apply_flight(who, at, from, to, t0, dt, pts, burns, said, shape)
+
+
+## Whether a flight a peer said can be kept and drawn: a real place, a real length, clocks that
+## are numbers and a step that moves. One let go of (`to` -9) keeps nothing, so only its size counts.
+## Why: docs/why/NetSession.md#flight-checks
+func _flight_ok(at: int, to: int, t0: float, dt: float, pts: PackedVector2Array, burns: PackedByteArray, said: float, shape: PackedFloat64Array) -> bool:
+	if pts.size() > FLIGHT_POINTS_MAX or burns.size() > FLIGHT_POINTS_MAX or shape.size() > FLIGHT_SHAPE_MAX:
+		return false
+	if to == -9 or pts.size() < 2:
+		return true
+	if not _is_place(at) or not (dt > 0.0) or not (is_finite(t0) and is_finite(dt) and is_finite(said)):
+		return false
+	for v in shape:
+		if not is_finite(v):
+			return false
+	for p in pts:
+		if not p.is_finite():
+			return false
+	return true
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1139,15 +1250,18 @@ func flight_of(id: int, at: int) -> Dictionary:
 static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int, sp: Dictionary = {}) -> Array:
 	var pts: PackedVector2Array = fl.pts
 	var n := pts.size()
-	if n < 2:
+	var dt := float(fl.dt)
+	# A step that is nothing, or not a number, has no point to draw: asked this way a NaN fails too.
+	# Why: docs/why/NetSession.md#flight-checks
+	if n < 2 or not (dt > 0.0) or not is_finite(dt):
 		return []
 	var sender_now := sender_clock(fl, sp, now_ms)
-	var dur := float(fl.dt) * float(n - 1)
+	var dur := dt * float(n - 1)
 	var s := sender_now - float(fl.t0)
-	if s < 0.0 or s > dur:
+	if not (s >= 0.0 and s <= dur):
 		return []
-	var x := s / float(fl.dt)
-	var j := mini(int(floor(x)), n - 2)
+	var x := s / dt
+	var j := clampi(int(floor(x)), 0, n - 2)
 	var q := pts[j].lerp(pts[j + 1], x - float(j))
 	var dlt := t - sender_now
 	var sa := clampf(float(fl.get("dep_s", 0.0)), 0.0, dur)
@@ -1167,7 +1281,7 @@ static func flight_point(fl: Dictionary, L: SystemLayout, t: float, now_ms: int,
 
 func _apply_spot(id: int, at: int, body: int, x: float, z: float, ang: float, mt: float, host: int, held: bool = false, sure: bool = false) -> void:
 	# A non-finite float reaches `party_t` and from there the map clock.
-	if not (is_finite(x) and is_finite(z) and is_finite(ang) and is_finite(mt)):
+	if not (is_finite(x) and is_finite(z) and is_finite(ang) and is_finite(mt)) or not _is_place(at):
 		return
 	mt = minf(mt, MAP_CLOCK_MAX)
 	if id != 1:
@@ -1462,18 +1576,28 @@ func _apply_claim(index: int, option: int, by: int) -> void:
 	var here: Dictionary = claims.get(index, {})
 	# First message wins. Every later one is a no-op, which is the whole of the
 	# race resolution — there is nothing to compare and no clock to trust.
-	if here.has(option) or here.size() >= CLAIMS_PER_NODE:
+	# A full system or a full table takes no more: dropped here, and nothing is pushed for it.
+	# Why: docs/why/NetSession.md#claim-caps
+	if here.has(option) or here.size() >= CLAIMS_PER_NODE or _claims_held >= CLAIMS_MAX:
 		return
 	here[option] = by
 	claims[index] = here
-	_push_claims()
+	_claims_held += 1
+	_claims_dirty = true
 	Sig.party_map_changed.emit()
 
 
+## The whole table to everyone, from `_process`: once a frame at most.
 func _push_claims() -> void:
 	if not is_host() or multiplayer.get_peers().is_empty():
 		return
 	_push_claims_to.rpc(claims)
+
+
+func _forget_claims() -> void:
+	claims.clear()
+	_claims_held = 0
+	_claims_dirty = false
 
 
 # --- fights, on the host --------------------------------------------------
@@ -1717,9 +1841,34 @@ func _push_fight(f: SharedFight) -> void:
 func _apply_hull(id: int, hull_id: StringName) -> void:
 	if not roster.has(id):
 		return
-	roster[id].hull = hull_id
+	roster[id].hull = _known_hull(hull_id)
 	_push_roster()
 	Sig.party_changed.emit()
+
+
+## The chassis a peer names for the lobby, kept only when the catalogue has a frame by it; else none.
+## Why: docs/why/NetSession.md#lobby-names
+static func _known_hull(id: StringName) -> StringName:
+	for h in DB.hull_frames:
+		if h.manufacturer == id:
+			return id
+	return &""
+
+
+## A name as the roster keeps it: no square brackets, no control characters, at most `NAME_MAX`
+## long, and never empty.
+## Why: docs/why/NetSession.md#lobby-names
+static func clean_name(raw: String) -> String:
+	var out := ""
+	for i in mini(raw.length(), NAME_MAX * 4):
+		var c := raw.unicode_at(i)
+		if c == 91 or c == 93 or c < 32 or (c >= 127 and c < 160):
+			continue
+		out += raw[i]
+		if out.length() >= NAME_MAX:
+			break
+	out = out.strip_edges()
+	return out if not out.is_empty() else "PILOT"
 
 
 func _apply_dive(seed_value: int, unlocked: Array = [], asc: int = 0) -> void:
@@ -1784,7 +1933,7 @@ func _drop(message: String) -> void:
 	multiplayer.multiplayer_peer = null
 	roster.clear()
 	_builds.clear()
-	claims.clear()
+	_forget_claims()
 	fights.clear()
 	_held_asks.clear()
 	spots.clear()
