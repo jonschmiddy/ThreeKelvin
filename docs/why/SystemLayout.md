@@ -55,7 +55,7 @@ going as the cube of the orbit, so the inner bodies go round faster.
 
 ## Ship gravity
 
-Above `const GM_KEPLER := 61.685`:
+Above `const KAPPA := 3376.0` (the Kepler GM, 61.685, was a const above it until nothing read it):
 
 ```text
 THE PULL A SHIP FEELS, on map time (Phase 13, ruled Oct 29 "clock:map", and

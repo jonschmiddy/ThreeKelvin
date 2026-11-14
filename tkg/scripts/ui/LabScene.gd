@@ -131,7 +131,6 @@ var _flick_n := 0
 var _amb_quiet := "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless"
 ## This tick: the time, the time since power-on, and the room's own power-on.
 var _now := 0.0
-var _tb := 1000.0
 var _room := 1.0
 ## This tick's weight per light or emitter, steady times breathing.
 var _w: Dictionary = {}
@@ -487,7 +486,6 @@ func _tick(t: float) -> void:
 	_mat.set_shader_parameter(&"own_w", ow)
 	_mat.set_shader_parameter(&"amb", _amb)
 	_now = t
-	_tb = tb
 	_reveal(tb)
 	_life.queue_redraw()
 	_glass.frame(t, tb)

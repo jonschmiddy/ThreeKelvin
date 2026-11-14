@@ -39,8 +39,8 @@ static func encode_room(room: int) -> String:
 	return _finish(Kind.ROOM, bits)
 
 
-## A room number nobody else is likely to be holding. The caller is expected to
-## ask the rendezvous service to confirm that, and to roll again if it says no.
+## A room number nobody else is likely to be holding. Rolled locally: the relay alone
+## refuses a second host on a taken number.
 static func roll_room() -> int:
 	return randi() % ROOM_MAX
 

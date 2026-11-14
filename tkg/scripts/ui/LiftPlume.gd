@@ -263,11 +263,6 @@ func light_level() -> float:
 	return _lk
 
 
-## Done: nothing of it left to draw.
-func cleared() -> bool:
-	return _clearing and _lobes.is_empty()
-
-
 func _process(dt: float) -> void:
 	_t += dt
 	_lk += (thrust * strength - _lk) * (1.0 - exp(-dt / LIGHT_TC))
@@ -316,7 +311,8 @@ func _process(dt: float) -> void:
 
 
 ## THE JETS CUT: no more steam, and what is there thins, lifts and is gone within
-## `CLEAR_S` (its alpha steps down through the dither, so nothing pops out).
+## `LEFT_TAKEOFF` / `LEFT_LANDING` seconds (its alpha steps down through the dither, so nothing
+## pops out).
 func _clear() -> void:
 	_clearing = true
 	_fade_t0 = _t
@@ -540,8 +536,7 @@ func _fill(m: ShaderMaterial, lobes: Array, lamp_arr: PackedVector2Array) -> voi
 		if n >= MAX_LOBES:
 			break
 		var u := float(l.age) / float(l.life)
-		# in over a sixth of a second, out over the last third of its life
-		# in at the jets over a sixth of a second, out over the last of its own life
+		# in over a sixth of a second, out over the last 0.35 of its life
 		var fade := minf(1.0, float(l.age) * 6.0) * clampf((1.0 - u) / 0.35, 0.0, 1.0)
 		# (the floor's shadow thins faster than the steam, or its piled-up density
 		# stays dark after the steam has gone)

@@ -20,7 +20,6 @@ const STAR_MASS := {StarKind.ORDINARY: 46.0, StarKind.RED: 62.0, StarKind.BLUE: 
 ## KAPPA times the Kepler GM: on map time a ship flies about 100 times faster than worlds.
 ## Only autopilot flights feel it. Flying by hand has no gravity (Jon, Oct 3).
 ## Why: docs/why/SystemLayout.md#ship-gravity
-const GM_KEPLER := 61.685
 const KAPPA := 3376.0
 const GM_SHIP := 208250.0
 ## A GIANT'S WEIGHT against its star (ruling 20: "1/4 - 1/10 ... purely because
@@ -982,7 +981,7 @@ static func _twin(L: SystemLayout, n: MapGen.MapNode, R: RandomNumberGenerator, 
 	_past_the_edge(L, n, jobs, short)
 
 
-## Edge of a binary: by each body's reach from its own centre, never under `least`.
+## Edge of a binary: by each body's reach from star A's origin, never under `least`.
 static func _past_the_edge(L: SystemLayout, n: MapGen.MapNode, jobs: Array[int], short: String, least := 0.0) -> void:
 	var far := 0.0
 	var ext := 0.0
@@ -1269,23 +1268,6 @@ static func reach_of(b: Body) -> float:
 	return maxf(b.r, 4.0)
 
 
-## How deep the fabric sinks at a point on the plane, under the star and every
-## body at their places `pos` (one per body, from `Body.pos`).
-func sink(x: float, z: float, pos: Array[Vector2]) -> float:
-	var r2 := x * x + z * z
-	var D := star_mass * 0.8
-	var w := 46.0 + star_r * 1.4
-	var d := D * w * w / (r2 + w * w)
-	for i in bodies.size():
-		var b := bodies[i]
-		if b.mass <= 0.0:
-			continue
-		var dx := x - pos[i].x
-		var dz := z - pos[i].y
-		d += b.mass * 0.9 * b.well_w * b.well_w / (dx * dx + dz * dz + b.well_w * b.well_w)
-	return d
-
-
 ## Whether the Hellbender has a place in this system: anchored here, or its
 ## wreck lying here (where it died stays a place you can fly back to).
 static func hellbender_here(n: MapGen.MapNode) -> bool:
@@ -1339,15 +1321,6 @@ func name_order() -> Array[int]:
 	out.sort_custom(func(a: int, c: int) -> bool:
 		return int(num[a]) < int(num[c]) if int(num[a]) != int(num[c]) else a < c)
 	return out
-
-
-## The body an option sits on, or null (also for one on the star: `place_of`).
-func body_of_option(i: int) -> Body:
-	for b in bodies:
-		for bc in b.beacons:
-			if bc.opt == i:
-				return b
-	return null
 
 
 ## Where option i sits: a body's index, -1 the star, -2 nowhere.

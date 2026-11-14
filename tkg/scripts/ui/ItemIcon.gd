@@ -55,7 +55,6 @@ class Ghost extends Control:
 		plate.global_position = _at
 
 
-## Jettison is on the base, as 3.5 applies it to all. No confirmation, as it is undoable.
 ## A thing you can pick up is a thing you can press, so the reticle closes on it.
 ## Why: docs/why/ItemIcon.md#press-and-jettison
 func _init() -> void:

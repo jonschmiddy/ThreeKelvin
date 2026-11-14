@@ -1010,49 +1010,11 @@ func show_station() -> void:
 var _open_option := -1
 
 
-## Only an option with both a body and a check earns this screen (ruling 2).
-## Why: docs/why/Router.md#option-detail
-func show_option_at(index: int) -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null or n.cleared:
-		return
-	_roll_here(n)
-	if index < 0 or index >= n.options.size():
-		return
-	if n.taken.has(MapGen.OPTION_SITE + index):
-		return
-	var opt := OptionTable.by_id(n.options[index])
-	if opt.is_empty():
-		# An id this build no longer has. Spend it rather than stalling the
-		# system on a name nobody can resolve.
-		n.taken.append(MapGen.OPTION_SITE + index)
-		return
-	_open_option = index
-	Audio.music_state(&"event")
-	var e := EventScreen.new()
-	_swap(e)
-	e.setup({id = opt.get("id", &""), title = opt.get("title", ""), body = opt.get("body", ""),
-		options = opt.get("choices", []), foe = opt.get("foe", &"")})
-
-
-## Shares `event_resolved`'s bookkeeping in one function so the two paths cannot drift.
+## Spends one option in place; `event_resolved` holds the bookkeeping.
 ## Why: docs/why/Router.md#option-bookkeeping
 func option_resolved(index: int, result: StringName = &"done") -> void:
 	_open_option = index
 	event_resolved(result)
-
-
-## Ask the party for the option before rolling or paying, or the race loser keeps the loot.
-## Why: docs/why/Router.md#claiming-options
-func claim_open_option() -> bool:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null or _open_option < 0:
-		return false
-	# a signed job's event, or an event quest, is this ship's alone
-	# (`OptionResolve.take`, `OptionTable.is_mine`)
-	if _open_option < n.options.size() and OptionTable.is_mine(n.options[_open_option]):
-		return not n.taken.has(MapGen.OPTION_SITE + _open_option)
-	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
 
 
 func event_resolved(result: StringName = &"done") -> void:
@@ -1079,43 +1041,6 @@ func harvest_pulsar() -> void:
 	if Run.dead:
 		show_game_over()
 		return
-	show_sector()
-
-## Stay put after stripping: the salvage rail already shows the haul, so no loot screen.
-func salvage_here() -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n.cleared:
-		return
-	await _resolve_derelict(n)
-
-## A wreck is the one thing ships race for, so ask the party before rolling any loot.
-## Why: docs/why/Router.md#derelict-race
-func _resolve_derelict(n: MapGen.MapNode) -> void:
-	if not await Run.take_option(n, MapGen.OPTION_WHOLE):
-		var who := Net.taker_name(n.index, MapGen.OPTION_WHOLE)
-		Run.log_line("The bays are already stripped.%s" % (
-			" %s got here first." % who.to_upper() if who != "" else ""), &"them")
-		show_sector()
-		return
-	# Positional: what is in the wreck is in the wreck, whoever opens it and in
-	# whatever order. See Rng.derive().
-	var r := Rng.derive(&"salvage", n.index)
-	var count := 2 if n.region == MapGen.Region.LAWLESS else 1
-	# and the party's share of it (`PartyScale`, Jon, Nov 5)
-	count = PartyScale.pay(count)
-	for i in count:
-		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
-		Run.stow(LootGen.roll_module(n.danger, force,
-			n.region == MapGen.Region.DEEP or n.region == MapGen.Region.FAUNA, r))
-	# Precursor fragments come only off deep wrecks, so relic analysis needs flying coreward.
-	if MapGen.tier(n.danger) >= 4 and r.randf() < 0.30:
-		Run.add_material(&"relic", 1)
-		Run.log_line("Part of the wreck is older than the ship. Precursor fragment recovered.", &"good")
-	if r.randf() < 0.35:
-		Run.find_hull(LootGen.roll_hull(n.danger, r))
-		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
-	Run.log_line("You strip %d module%s from the derelict." % [
-		count, "" if count == 1 else "s"], &"good")
 	show_sector()
 
 ## A node's fight is positional and shared; an ambush is a stream draw, so it is not.
@@ -1532,12 +1457,6 @@ func finish_core_loot() -> void:
 	# the body's step is over: the won run's last save goes with it
 	SaveGame.clear()
 	show_game_over()
-
-func after_event() -> void:
-	if Run.dead:
-		show_game_over()
-		return
-	show_loot_or_map()
 
 ## Salvage is resolved where it was found, not on a screen of its own. The
 ## sector shows what is in the hold and lets you fit or scrap it there.

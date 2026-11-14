@@ -83,7 +83,6 @@ var last_forgot: Dictionary = {}
 var has_welder := true
 ## The heavy lift's small lights this tick (`ShipLift`: the jets on the floor, the mains).
 var extra: Array = []
-var _standing: Dictionary = {}
 
 
 func _init(s: YardScene) -> void:
@@ -1611,8 +1610,7 @@ func tick(t: float, dt: float) -> void:
 	_shuffle_step(t)
 	_crew(t)
 	_welder(t)
-	# Welder's sparks rain down: `_sparks` was ported but never called (Jon: can we have the
-	# sparks?).
+	# The welder's sparks rain down (`_sparks`).
 	_sparks(t, dt)
 	_desk(t)
 	_engine(t)

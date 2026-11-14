@@ -48,19 +48,6 @@ brighter left post, because the post is the side the labels are on and it is
 what makes the selection read from across the screen.
 ```
 
-## Parallax
-
-Above `var parallax: float = 0.0`:
-
-```text
-How far the far wall of each room is offset, in pixels.
-
-THE BACK OF A ROOM IS FURTHER AWAY, so it is drawn inset. This used to be
-driven by the building sliding in its shaft; the building does not slide any
-more -- the CAR does -- so it is a fixed inset now and the depth comes from
-the light moving across rooms that have a behind.
-```
-
 ## Floor pictures
 
 Above `const RAIL_DIR := "res://art/sprites/station/rail/"`:

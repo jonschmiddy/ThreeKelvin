@@ -67,7 +67,7 @@ Above `func step(feeding: bool, away_from: int = -1) -> void:`:
 ```text
 One hop. `feeding` is false on a flee hop — a ship running for its life is
 not stopping to cut salvage, and the client applying the pushed position
-must agree about which kind of landing it was. See hellbender_land().
+must agree about which kind of landing it was. See `Hellbender.land()`.
 `away_from` is a system a flee hop never lands in: the one it ran from. Two
 hops out could be A to B and straight back to A, so its escape burn put it
 at anchor where you had just watched it go (`hellbender_breaks_off`).

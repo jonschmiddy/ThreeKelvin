@@ -489,7 +489,7 @@ WARNING group, and the header had been holding a line open to repeat it.
 
 ## Row order
 
-Inside `_refresh()`, above `_rows.add_child(_row("CONTAINS", _contains(t)))`:
+Inside `_refresh()`, above the rows:
 
 ```text
 THREE ANSWERS, IN THE ORDER YOU WANT THEM, and the order is the change.

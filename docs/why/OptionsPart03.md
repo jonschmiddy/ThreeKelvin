@@ -33,7 +33,7 @@ Inside `OptionsPart03.entries()`, above `{label = "Engage", fight = true, effect
 TWO STATEMENTS, NOT ONE, and collapsing them broke RULING 5.
 
 `fight` in the RETURNED dictionary is the TRIGGER: it is what
-`EventScreen._choose` reads to start the fight, and it is how
+`OptionResolve.take` reads to start the fight, and it is how
 EventTable's two hostile endings have always worked. It is only
 knowable by running the callable.
 

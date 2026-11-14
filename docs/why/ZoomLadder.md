@@ -236,7 +236,7 @@ not 15)
 
 ## No wheel between distances
 
-Above `static func fade_chrome(c: CanvasItem, k: float, dx: float = 0.0) -> void:`:
+The rule has no code of its own (the wheel is simply not wired to distance):
 
 ```text
 NO WHEEL BETWEEN DISTANCES (Jon, Oct 10: "having the scroll function to go

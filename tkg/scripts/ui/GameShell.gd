@@ -209,19 +209,6 @@ func _bend_at(win: Vector2, origin: Vector2) -> Vector2:
 	return uv * Vector2(BASE)
 
 
-## The bend from wherever the rect is now. Kept for `-- warptest`, which asks
-## which window pixel draws a given game pixel.
-func _bend(win: Vector2) -> Vector2:
-	if _frame.size.x <= 0.0 or _frame.size.y <= 0.0:
-		return Vector2.ZERO
-	var uv := (win - _frame.position) / _frame.size
-	var p := (uv - Vector2(0.5, 0.5)) * 2.0
-	p *= 1.0 + _curve * p.dot(p)
-	p /= _overscan
-	uv = (p * 0.5 + Vector2(0.5, 0.5)).clamp(Vector2.ZERO, Vector2.ONE)
-	return uv * Vector2(BASE)
-
-
 ## Harnesses push here, in game space; at `tree.root` the container would halve the position.
 static func input_target(tree: SceneTree) -> Viewport:
 	if instance != null and instance.view != null:

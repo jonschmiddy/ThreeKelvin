@@ -113,7 +113,6 @@ const BOOTED: Array[Dictionary] = [
 	# Why: docs/why/DevFlags.md#dev-shortcuts
 	{flag = "quest", fn = "_quest"},
 	{flag = "party", fn = "_party"},
-	# The arrival screen, with its option list:  -- sectorshot
 	{flag = "fitwords", script = "res://scripts/sim/FitWords.gd", how = "quit"},
 	{flag = "namefit", script = "res://scripts/sim/NameFit.gd", how = "quit"},
 	{flag = "sighttest", script = "res://scripts/sim/SightTest.gd", how = "quit"},
@@ -121,9 +120,9 @@ const BOOTED: Array[Dictionary] = [
 	# The jump sequence, frame by frame. NOT `jumpshot`: `Router.animating()` is
 	# false for anything ending in "shot" and the tweens are the whole subject.
 	{flag = "jumpcine", script = "res://scripts/sim/JumpCine.gd", how = "hold"},
+	# The arrival screen, with its option list:  -- sectorshot
 	{flag = "sectorshot", script = "res://scripts/sim/SectorShot.gd", how = "hold"},
 	{flag = "chartshot", script = "res://scripts/sim/ChartShot.gd", how = "hold"},
-	# Exhaust runs headless: a plume that fails to load is invisible, not loud.
 	{starts = "sheet=", script = "res://scripts/sim/%s.gd", how = "add"},
 	# Every kind of world, as the GPU paints it, on one sheet:  -- planetsheet=<png>
 	# Needs a window. Same seeds and light as the approved gallery page.
@@ -131,6 +130,7 @@ const BOOTED: Array[Dictionary] = [
 	# Four real systems as JSON, for laying out the system map:  -- systemdump=<path>
 	{starts = "systemdump=", script = "res://scripts/sim/SystemDump.gd", how = "hold"},
 	{flag = "encdump", script = "res://scripts/sim/EncDump.gd", how = "hold"},
+	# Exhaust runs headless: a plume that fails to load is invisible, not loud.
 	{flag = "exhaust", script = "res://scripts/sim/ExhaustCheck.gd", how = "hold"},
 	# Artdemo runs after boot: `show_ship` needs the Router to hold a content node first.
 	# Why: docs/why/DevFlags.md#dev-shortcuts

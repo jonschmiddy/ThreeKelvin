@@ -93,11 +93,6 @@ const ROOM_DUCK_S := 1.6   ## and it arrives with the room, not before it
 var _rduck: float = 1.0
 
 # ---------------- the bed ----------------
-# Room tone is not a cue: it needs its own player and a fade in seconds, not beats.
-# Why: docs/why/Audio.md#room-tone-history
-
-## Room tone is back as `amb_station`, outside the cue system, assembled and not synthesised.
-## Why: docs/why/Audio.md#room-tone-history
 
 func _ready() -> void:
 	# the idle bed decides on a headless run too, so a test can read it
@@ -153,7 +148,8 @@ func _connect_signals() -> void:
 	Sig.screen_changed.connect(func() -> void:
 		play(&"ui_tab", 0.04, 60))
 	# Desk actions play their own sounds at the UI call sites, not on `ship_changed`.
-	Sig.run_ended.connect(_on_run_ended)
+	# No sting at a run's end, win or lose: a death sting talked over the No Fault cue.
+	# Why: docs/why/Audio.md#run-end-silence
 	# Draw on turn start, not `hand_changed`, which also fires when a card leaves the hand.
 	Sig.player_combat_state_changed.connect(_on_combat_state)
 	Sig.resources_changed.connect(_poll_resources)
@@ -314,6 +310,9 @@ static func loop_whole(w: AudioStreamWAV) -> void:
 	w.loop_end = roundi(w.get_length() * float(w.mix_rate)) - 1
 
 
+## Room tone is not a cue: it needs its own player and a fade in seconds, not beats.
+## Back as `amb_station`, outside the cue system, assembled and not synthesised.
+## Why: docs/why/Audio.md#room-tone-history
 func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if not _enabled or name == _room_now:
 		return
@@ -509,11 +508,8 @@ func duck_music(amount: float, secs: float) -> void:
 	_scene_duck_until = GameClock.now() + secs
 
 
-## No stinger exists since Jon cut the old ones; the ask is counted and taped.
-var stingers_asked := 0
-
+## No stinger exists since Jon cut the old ones; the ask is taped.
 func music_stinger(strength: float) -> void:
-	stingers_asked += 1
 	if taping:
 		tape.append([&"music_stinger", Time.get_ticks_msec(), linear_to_db(maxf(0.01, strength)), 1.0])
 
@@ -1356,12 +1352,7 @@ func _on_combat_ended(result: StringName, _summary: String) -> void:
 	# No sting for winning: Jon cut it; a fanfare over the reward was the game applauding itself.
 	match result:
 		&"fled": play(&"ui_tab", 0.03)
-		_: pass          ## death is handled by run_ended, so it is not doubled
-
-## No sting win or lose: a death sting talked over the No Fault cue, written to be the ending.
-## Why: docs/why/Audio.md#run-end-silence
-func _on_run_ended(_won: bool, _reason: String) -> void:
-	pass
+		_: pass          ## death gets no cue: run end is silent (docs/why/Audio.md#run-end-silence)
 
 
 # ---------------- volume ----------------
@@ -1432,8 +1423,6 @@ var _ship_loop: AudioStreamPlayer = null
 var _ship_level := 0.0
 ## The level the burn was last asked for (0 once it is off).
 var ship_want := 0.0
-var _ship_depart: AudioStreamPlayer = null
-var _ship_arrive: AudioStreamPlayer = null
 
 
 ## The loop's level, every frame the map runs: 0.7 thrusting, 0.45 braking, 0.32
@@ -1529,50 +1518,3 @@ func _tick_idle(delta: float) -> void:
 		return
 	var g := idle_level * _duck
 	_idle_player.volume_db = -80.0 if g < 0.002 else IDLE_DB + linear_to_db(g)
-
-
-func _ship_player() -> AudioStreamPlayer:
-	var p := AudioStreamPlayer.new()
-	p.bus = &"SFX"
-	add_child(p)
-	return p
-
-
-## Arrival flameout starts where its clean burn ends 0.08 s before settling, over the stutter.
-## Why: docs/why/Audio.md#flight-sound
-func ship_flight(dur: float, conic: bool) -> void:
-	if not _enabled:
-		return
-	var w := int(Run.hull.weight) if Run.hull != null else int(HullData.Weight.MEDIUM)
-	var row := randi() % ShipView.FLAMEOUTS.size()
-	var dname: StringName = ShipView.DEPART_SFX[w]
-	var aname: StringName = (ShipView.FLAMEOUT_SFX[w] as Array)[row]
-	if _ship_depart == null:
-		_ship_depart = _ship_player()
-		_ship_arrive = _ship_player()
-	# the departure burn, then out
-	if ResourceLoader.exists(SFX_PATH % dname):
-		_ship_depart.stream = load(SFX_PATH % dname)
-		_ship_depart.volume_db = SHIP_DB
-		_ship_depart.play()
-		var tw := create_tween()
-		tw.tween_interval((0.18 if conic else 0.45) * dur)
-		tw.tween_property(_ship_depart, "volume_db", -80.0, (0.2 if conic else 0.3) * dur)
-	# the flameout, where its clean burn ends as the ship settles
-	if ResourceLoader.exists(SFX_PATH % aname):
-		var flame: float = ShipView.ARRIVE_LEAD_S + (ShipView.FLAMEOUTS[row][0] as Vector2).y * ShipView.ARRIVE_MS / 1000.0
-		var at := dur - 0.08 - flame
-		var from := 0.0
-		if at < 0.0:
-			from = -at
-			at = 0.0
-		_ship_arrive.stream = load(SFX_PATH % aname)
-		_ship_arrive.volume_db = -80.0
-		var up := (0.76 if conic else 0.3) * dur
-		var full := (0.84 if conic else 0.6) * dur
-		var tw2 := create_tween()
-		if at > 0.0:
-			tw2.tween_interval(at)
-		tw2.tween_callback(func() -> void: _ship_arrive.play(from))
-		tw2.tween_interval(maxf(0.0, up - at))
-		tw2.tween_property(_ship_arrive, "volume_db", SHIP_DB, maxf(0.05, full - maxf(up, at)))

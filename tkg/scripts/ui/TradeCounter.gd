@@ -332,7 +332,3 @@ func draw_lit_marks(c: CanvasItem) -> void:
 		_paint_quote(c, position)
 
 
-## What the counter is currently quoting, for the screen's own readout. -1 when
-## nothing is being carried over it.
-func quote() -> int:
-	return offer(_over, side) if _over != null else -1

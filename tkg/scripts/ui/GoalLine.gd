@@ -2,7 +2,7 @@ class_name GoalLine
 extends Control
 
 ## The goal always shows, with the next tutorial step while one is pending, under the HUD.
-## It is not a Control: it ignores the mouse and hides over moves and popups.
+## It ignores the mouse and hides over moves and popups.
 ## Why: docs/why/GoalLine.md#goal-line
 
 const GOAL := "GOAL: REACH THE CORE"

@@ -152,21 +152,6 @@ of livery compete with the one you had actually chosen. Cooled and darkened,
 they read as a list; the selected one reads as the subject.
 ```
 
-## Hull perk
-
-Inside `_build_detail()`, above `for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):`:
-
-```text
-The hull perk belongs here on THIS screen. Every chassis a yard builds
-carries the same authored perk — all three Korvan frames vent baffled — so
-at the point of choosing a manufacturer it is one of their abilities, and
-it is the only one you get without collecting anything.
-
-It is a HULL property, not a manufacturer property, and the two come apart later:
-LootGen rerolls the perk on a wreck, so a salvaged Korvan frame can carry
-anything. That is why the tag reads HULL rather than 1+.
-```
-
 ## Ability rows
 
 Inside `_build_detail()`, above `head.add_child(idc)`:

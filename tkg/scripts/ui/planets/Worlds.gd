@@ -172,11 +172,6 @@ static func sphere_rand(R: XRng) -> Vector3:
 	return Vector3(cos(a) * s, z, sin(a) * s)
 
 
-static func _nudge(p: Vector3, R: XRng, sd: float) -> Vector3:
-	var q := Vector3(p.x + (R.next() + R.next() + R.next() - 1.5) * sd, p.y + (R.next() + R.next() + R.next() - 1.5) * sd, p.z + (R.next() + R.next() + R.next() - 1.5) * sd)
-	return q.normalized()
-
-
 ## A world's lasting facts from one seed: the
 ## `planet.gdshader` inputs that never change between frames.
 static func spec(world: StringName, seed: int, r: float) -> Dictionary:

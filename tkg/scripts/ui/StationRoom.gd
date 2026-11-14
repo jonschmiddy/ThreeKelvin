@@ -53,11 +53,6 @@ func _tint(c: Color) -> Color:
 	return c if m == null else c.lerp(m.colour, 0.18)
 
 
-## A repeatable scatter, or stars and bubbles twinkle each redraw, as GDScript's RNG is a stream.
-func _scatter(i: int, span: float) -> float:
-	return UIHash.scatter(i, span)
-
-
 ## Keyed on the deck, not development, since the plate is a backdrop with no lamps.
 ## So one plate serves outpost and capital alike, and the twelve needed become three.
 ## Why: docs/why/StationRoom.md#plates
@@ -210,7 +205,8 @@ func _draw() -> void:
 		_draw_openings(w, h, floor_y)
 		_dress_wall(w, h, floor_y)
 		# No lamps on the art path: the generated hood, cone and pool read as stickers and
-		# were cut. `_draw_lamp_art` stays for when lighting returns as art that belongs.
+		# were cut. `_draw_lamp_art` stays (kept on purpose, no caller) for when lighting returns
+		# as art that belongs.
 		# Why: docs/why/StationRoom.md#lamps
 		_dress_floor(w, h, floor_y)
 		_draw_haze(w, h, floor_y)
@@ -1098,63 +1094,3 @@ func _crate(r: Rect2) -> void:
 		Color(CRATE_LIP, 0.45))
 	draw_rect(Rect2(r.position.x, r.position.y + r.size.y * 0.42,
 		r.size.x, 2.0), Color(DEEP, 0.55))
-
-
-## The hull arc says you are on something, so it is drawn
-## solid and lit; as a translucent band it read as a gradient.
-## Why: docs/why/StationRoom.md#window
-func _window(sky: Rect2) -> void:
-	draw_rect(sky, DEEP)
-	# Stars keep off the frame and vary in brightness and hue, as identical dots read as a loop.
-	for i in 46:
-		var sx := floorf(sky.position.x + 4.0 + _scatter(i * 7 + 1, sky.size.x - 8.0))
-		var sy := floorf(sky.position.y + 4.0 + _scatter(i * 13 + 5, sky.size.y - 8.0))
-		var mag := 0.25 + 0.75 * (float(i % 5) / 4.0)
-		var tone := STAR
-		if i % 11 == 3:
-			tone = Color(0.98, 0.80, 0.60)
-		elif i % 13 == 5:
-			tone = Color(0.62, 0.78, 1.0)
-		draw_rect(Rect2(sx, sy, 1.0, 1.0), Color(tone, mag))
-		if i % 9 == 4:
-			var arm := Color(tone, 0.35)
-			draw_rect(Rect2(sx - 1.0, sy, 1.0, 1.0), arm)
-			draw_rect(Rect2(sx + 1.0, sy, 1.0, 1.0), arm)
-			draw_rect(Rect2(sx, sy - 1.0, 1.0, 1.0), arm)
-			draw_rect(Rect2(sx, sy + 1.0, 1.0, 1.0), arm)
-	var hull := Color("#141c27")
-	var arc := 0.0
-	while arc < sky.size.x:
-		var bow := roundf(sky.size.y * 0.30 * sin(PI * arc / sky.size.x))
-		if bow > 0.0:
-			var top := sky.end.y - bow
-			draw_rect(Rect2(sky.position.x + arc, top, 2.0, bow), hull)
-			draw_rect(Rect2(sky.position.x + arc, top, 2.0, 1.0),
-				Color(STAR, 0.30))
-			# Ports: lit windows in a row just under the rim, some dark.
-			if int(arc) % 10 == 4 and bow > 6.0 and _scatter(int(arc), 5.0) > 1.2:
-				draw_rect(Rect2(sky.position.x + arc, top + 3.0, 2.0, 1.0),
-					Color(LAMP, 0.75))
-		arc += 2.0
-	if _box_window != null:
-		# Mullions as posts of the same steel as the bezel, bevelled like it.
-		var mx := sky.position.x + 116.0
-		while mx < sky.end.x - 20.0:
-			draw_rect(Rect2(mx - 3.0, sky.position.y, 8.0, sky.size.y), Color("#151e2a"))
-			draw_rect(Rect2(mx - 3.0, sky.position.y, 2.0, sky.size.y), Color("#3a4c64"))
-			draw_rect(Rect2(mx + 3.0, sky.position.y, 2.0, sky.size.y), Color("#0d131c"))
-			draw_rect(Rect2(mx - 1.0, sky.position.y + roundf(sky.size.y * 0.5) - 1.0,
-				2.0, 2.0), Color("#687c96"))
-			mx += 116.0
-		_frame(sky, true)
-		return
-	draw_rect(sky, _tint(EDGE), false, 2.0)
-	draw_rect(Rect2(sky.position.x, sky.end.y - 1.0, sky.size.x, 3.0),
-		Color(LAMP, 0.22))
-	var mx2 := sky.position.x + 116.0
-	while mx2 < sky.end.x - 20.0:
-		draw_rect(Rect2(mx2, sky.position.y, 3.0, sky.size.y), _tint(PLATE))
-		draw_rect(Rect2(mx2, sky.position.y, 1.0, sky.size.y),
-			Color(EDGE, 0.6))
-		mx2 += 116.0
-

@@ -17,8 +17,6 @@ const STRIKE_S := 0.6
 const COLD := Color("#cfe8f5")
 const HEART: Array[Color] = [Color("#eaf6fc"), Color("#ffffff")]
 
-signal came_to_rest
-
 var kind: int = Kind.CALF
 var pic_scale := 1.0
 ## Advance on the real clock. Films set it false and call `advance` per frame.
@@ -261,7 +259,6 @@ func _rest() -> void:
 	material = null
 	_light.visible = false
 	queue_redraw()
-	came_to_rest.emit()
 
 
 func _tex(im: Image) -> ImageTexture:
@@ -812,13 +809,6 @@ func off_at(x: int, y: int) -> int:
 		return 0
 	var i := x * 4
 	return _cur[i] + (_cur[i + 3] if y > _mid[x] else -_cur[i + 2])
-
-
-## The same for a spine pixel in column x.
-func spine_off_at(x: int) -> int:
-	if not ready_to_draw or rested or kind == Kind.CUSTODIAN or x < 0 or x >= _W:
-		return 0
-	return _cur[x * 4 + 1]
 
 
 ## What a shader needs to show a rest-space picture where this motion shows the

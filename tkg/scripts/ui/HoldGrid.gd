@@ -77,14 +77,6 @@ func _origin(cell: Vector2i) -> Vector2:
 func _footprint(m: HoldItem) -> Vector2:
 	return ModuleIcon.footprint_box(m)
 
-## The MODULE plate under a point in SCREEN coordinates, or null. R used to
-## turn through this and so never turned a material; it asks `item_at` now.
-func icon_at(p: Vector2) -> ModuleIcon:
-	for c in get_children():
-		if c is ModuleIcon and (c as Control).get_global_rect().has_point(p):
-			return c
-	return null
-
 ## Any hold item's icon, not only modules: LOCAL's cutaway and R need materials found too.
 func item_at(p: Vector2) -> ItemIcon:
 	for c in get_children():

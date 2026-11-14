@@ -6,7 +6,7 @@ extends Node
 ## Why: docs/why/PanelSlide.md#panel-slide
 
 ## every slide under way (the harness reads them)
-static var live: Array = []
+static var live: Array[PanelSlide] = []
 
 var target: Control = null
 ## &"side" (off to the right), &"band" (up) or &"foot" (down: a bottom band, `for_foot`)

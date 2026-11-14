@@ -940,8 +940,8 @@ func _after(t: float) -> void:
 			continue
 		rects.append(Vector4(rc.position.x, rc.position.y, rc.size.x, rc.size.y))
 		al.append(a)
-	rects.resize(15)
-	al.resize(15)
+	rects.resize(DEAD_N)
+	al.resize(DEAD_N)
 	stage.set1(&"dead", rects)
 	stage.set1(&"dead_a", al)
 	var ri := int(k / 0.04)

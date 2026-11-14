@@ -13,11 +13,12 @@ static func active() -> bool:
 	return false
 
 
+## A harness file this old (seconds) is swept.
+const STALE_S := 86400
+
 ## One file per process: a shared file let parallel harnesses load each other's saves (Oct 12).
 ## Stale files go by age, not PID: `OS.is_process_running` ignores processes it did not start.
 ## Why: docs/why/TestRun.md#harness-scratch-files
-const STALE_S := 86400
-
 static func scratch(stem: String, ext: String) -> String:
 	if not _swept:
 		_swept = true
