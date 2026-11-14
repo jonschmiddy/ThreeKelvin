@@ -520,3 +520,9 @@ CI the unit therefore runs at `--fixed-fps 15`: the engine steps a quarter secon
 so each film is a quarter of the frames. Every shader still compiles and every stage still draws;
 what CI no longer sees is the frames in between, which the local gate (a real GPU, 60 fps) does.
 That run (43559236187) took 3:16 alone and passed, so the limit is 400 s, twice its CI time.
+
+The same three CI runs (Nov 14) showed four other units past half their limit, against the rule
+that a limit is about twice the unit's CI time: `stationdecktest` took 194 to 242 s against 240
+(it was killed once at 240 s, red for no fault of the code), `flighthand` 176 to 313 s against
+450, `wrecksitetest` 132 to 233 s against 420, `laddertest` 257 to 275 s against 540. Their limits
+are now 480, 630, 470 and 560.

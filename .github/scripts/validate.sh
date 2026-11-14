@@ -325,7 +325,7 @@ step "Every station has all five decks, at every level"
 # levels, with and without a berth: five tabs and five floors, RELIC ANALYSIS
 # at the level's price inside the lab's screen, a dock desk's work posted and
 # handed in where nobody berths, and NO WORK POSTED. on a bare board.
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet stationdecktest 240 \
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet stationdecktest 480 \
 	"all five decks at every station, the lab priced by level, a dock desk where nobody berths" \
 	"a station is missing a deck, the lab or a dock desk is wrong, or a bare board says nothing" \
 	--headless --path "$PROJECT" -- sheet=StationDeckTest
@@ -877,8 +877,8 @@ step "FlightTest's flying by hand in a twin and the turning pair"
 # sun never takes it inside its keep-out; then the turning pair (ruling 23).
 # About 205 s at x12 (it was the 4th shard's, which took 328 s side by side);
 # 221 s in a gate-like run on the PC and 327 s beside other jobs. Its limit is
-# twice the 221 s, rounded up, and above its shards' 420.
-if run_godot flighthand 450 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 phase=hand; then
+# twice its CI time (313 s on Nov 14's runs; it was 221 s), and above its shards' 420.
+if run_godot flighthand 630 --headless --path "$PROJECT" -- sheet=FlightTest short clicks=0 phase=hand; then
 	if grep -qE '^flighttest: PASS' "$LOG_DIR/flighthand.log"; then
 		ok "let go anywhere in a twin it settles inside the map, W never takes it into a sun, and the turning pair holds"
 	else
@@ -1009,7 +1009,7 @@ unit_laddertest() {
 step "One camera: every move between chart, map, LOCAL and station lands"
 # Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
 # fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
-ALLOW_EXTRA="$GATE_LEAKS" gate_sheet laddertest 540 \
+ALLOW_EXTRA="$GATE_LEAKS" gate_sheet laddertest 560 \
 	"every move lands where it should" \
 	"a move between distances failed" \
 	--headless --path "$PROJECT" -- sheet=LadderTest
@@ -1202,7 +1202,7 @@ unit_wrecksitetest() {
 step "Each place in a system keeps its own wrecks"
 # Each place keeps its own wrecks, off your hull, and a real jump draws none.
 # Why: docs/why/validate.md#unit_wrecksitetest
-ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet wrecksitetest 420 \
+ALLOW_EXTRA="$GATE_LEAKS|were leaked at exit" gate_sheet wrecksitetest 470 \
 	"a world keeps its wrecks, the next one and the next system have none, and they stay off your hull" \
 	"a wreck shows at a place it did not die at, or on your hull" \
 	--headless --path "$PROJECT" -- sheet=WreckSiteTest
