@@ -187,7 +187,7 @@ Above `static func _fell_sooner(r: FlightSolve.Result, r2: FlightSolve.Result) -
 A FLIGHT THE FALLBACK FOUND (r, its cap past T_CAP) that, rebuilt from its
 choice, gave way to a fresh plan of one leg, clean and arriving sooner (r2):
 the rule it is kept by (`FlightSolve._solve`), so the drawn flight changes.
-AND A FLIGHT IN TWO LEGS (`FlightSolve._chain`) that gave way to a fresh
+AND A FLIGHT IN TWO LEGS (`FlightChain.chain`) that gave way to a fresh
 plan, of one leg or two, clean and arriving sooner: held round a ring or
 alongside, it is kept only while none does (`FlightSolve._sooner_of`). Not
 met here until stations were halved on Nov 3 and seed 7 node 199 came into
@@ -219,7 +219,7 @@ search alone looking beside it, 35 of 75, 5 of them the as-built search's
 (the reviews of Nov 1); nor rebuilt as drawn, where a fresh plan beside it
 is clean (9875260b kept 6 of 54 so, one at seed 1999 node 304, ring 3 to
 keep 5, line-up 2: 21.0 s against 15.6). And every flight in two legs
-(`FlightSolve._chain`) from a ring or alongside, planned again as the
+(`FlightChain.chain`) from a ring or alongside, planned again as the
 overlay does TWO_STEPS times (every 3 s round a world's ring or a star's
 close orbit, every second round a settled star orbit or alongside), each
 from the last one's choice: none
@@ -234,7 +234,7 @@ stood later than two found afresh (a033b05a kept 8 of 78 so, one at seed
 4242 node 281, orbit9 -9 to keep 5, line-up 1: 46.83 s against 41.80; 13 of
 168 over 15 replans, by up to 18.8 s; the fifth review, Nov 1). And none
 kept, in one leg or two, that arrives later than the last legs kept flown
-again from here (`FlightSolve._chain_again`), as a flight of one leg that
+again from here (`FlightChain.chain_again`), as a flight of one leg that
 took over from two holds them (`alt`).
 ```
 
