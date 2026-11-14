@@ -574,7 +574,7 @@ static func _opened_rects(sc: SectorScreen, out: Array) -> void:
 	if sc == null or not is_instance_valid(sc):
 		return
 	_cutaway_rects(sc._cutaway, out)
-	var tv := Hints._transfer(sc)
+	var tv := Hints.visible_transfer(sc)
 	if tv != null:
 		out.append(tv.window_rect())
 	for c: Control in [sc._pile_panel, sc._exit_ask]:
@@ -607,7 +607,7 @@ func _hint_up(starting: bool = true) -> bool:
 		return true
 	# (one the pacing holds back is not due: her lines need not wait for it)
 	for id in Hints.ORDER:
-		if not Hints.seen(id) and not Hints.resting(id) and Hints._pace_ok(id) and not Hints.probe(id).is_empty():
+		if not Hints.seen(id) and not Hints.resting(id) and Hints.pace_ok(id) and not Hints.probe(id).is_empty():
 			return true
 	return false
 
@@ -653,7 +653,7 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 		portrait = AshPortrait.new()
 		portrait.top_level = true
 		portrait.z_index = 50
-	var host := _host()
+	var host := host_node()
 	if host == null:
 		return
 	if portrait.get_parent() != host:
@@ -684,7 +684,7 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 
 ## Where she goes: a column after the screens, beside the HUD, so she is over
 ## the picture and under the escape menu (the goal line's place).
-func _host() -> Node:
+func host_node() -> Node:
 	if Router.hud == null or not is_instance_valid(Router.hud):
 		return null
 	return Router.hud.get_parent()
@@ -750,9 +750,9 @@ static func spot_boxes(cur: Control) -> Array:
 static func _under_goal(r: Rect2, cur: Control) -> Rect2:
 	var st := GoalLine.stack_rect(cur)
 	if st.size != Vector2.ZERO and r.intersects(st.grow(EDGE - 1.0)):
-		if GoalLine._fighting(cur) and r.position.y >= st.position.y + GoalLine._goal_h():
+		if GoalLine.in_fight(cur) and r.position.y >= st.position.y + GoalLine._goal_h():
 			r.position.y = roundf(st.end.y + EDGE)
-		elif GoalLine._fighting(cur):
+		elif GoalLine.in_fight(cur):
 			r.position.x = roundf(st.end.x + EDGE)
 		else:
 			r.position.y = roundf(st.end.y + EDGE)
@@ -987,7 +987,7 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 	if spot.is_empty():
 		held_by = "room"
 		return false
-	var host: Node = opts.get("host") if over_menu else _host()
+	var host: Node = opts.get("host") if over_menu else host_node()
 	if host == null or not is_instance_valid(host):
 		return false
 	# A TEACHING LINE OUTRANKS A BARK: whatever she was saying, she is not now
@@ -1220,11 +1220,11 @@ static func tut_avoid_rects(cur: Control) -> Array:
 	if cur.has_method("ladder_bar"):
 		var bar: Control = cur.call("ladder_bar")
 		if bar != null and is_instance_valid(bar) and bar.is_visible_in_tree():
-			GoalLine._inked(bar, out)
+			GoalLine.collect_inked_rects(bar, out)
 	if cur is SectorScreen:
 		var sc := cur as SectorScreen
 		_cutaway_rects(sc._cutaway, out)
-		var tv := Hints._transfer(sc)
+		var tv := Hints.visible_transfer(sc)
 		if tv != null:
 			out.append_array(tv.rest_rects())
 		return out
@@ -1443,7 +1443,7 @@ func _outline_to(r: Rect2) -> void:
 			_outline.subject = Rect2()
 			_outline.visible = false
 		return
-	var host: Node = _lesson_host if _lesson_host != null and is_instance_valid(_lesson_host) else _host()
+	var host: Node = _lesson_host if _lesson_host != null and is_instance_valid(_lesson_host) else host_node()
 	if host == null:
 		return
 	if _outline == null or not is_instance_valid(_outline):

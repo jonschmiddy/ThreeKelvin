@@ -13,7 +13,7 @@ const ORDER: Array[StringName] = [&"hand", &"energy", &"discard_pick", &"endturn
 	&"attributes", &"wreck", &"loot", &"hull", &"dock", &"shipyard", &"faults", &"hull_sale",
 	&"promenade", &"exchange", &"hiring_board", &"research", &"undock", &"fuel", &"ship", &"save",
 	&"chassis_card"]
-## THE FIGHT'S LESSONS, paced by the turn (`_pace_ok`).
+## THE FIGHT'S LESSONS, paced by the turn (`pace_ok`).
 const FIGHT: Array[StringName] = [&"hand", &"energy", &"discard_pick", &"endturn", &"intent",
 	&"heat_corner", &"heat", &"brace", &"keywords", &"malfunction", &"flee_hail", &"piles"]
 ## The only ones turn 1 of the first fight teaches (the audit: "Turn 1: hand,
@@ -571,7 +571,7 @@ func poll(delta: float) -> void:
 		_cand = &""
 		return
 	for id in ORDER:
-		if seen(id) or resting(id) or _blocked(id) or not _pace_ok(id):
+		if seen(id) or resting(id) or _blocked(id) or not pace_ok(id):
 			continue
 		var p := probe(id)
 		if p.is_empty():
@@ -676,7 +676,7 @@ func _waiting_other(than: StringName) -> bool:
 			continue
 		# (a fight's lesson the turn holds back is not waiting; one a visit has
 		# held back is: giving way lets it start, `_yield`)
-		if FIGHT.has(id) and not _pace_ok(id):
+		if FIGHT.has(id) and not pace_ok(id):
 			continue
 		if not probe(id).is_empty():
 			return true
@@ -687,7 +687,7 @@ func _waiting_other(than: StringName) -> bool:
 func _yield(id: StringName) -> void:
 	print("[hints] %s: up %.0f s with another line waiting; it gives way, unspent, for %.0f s" % [id, _clock - _said_at, REST_S])
 	_rest[id] = _clock + REST_S
-	# (the one it gives way to may start on this same visit: `_pace_ok`)
+	# (the one it gives way to may start on this same visit: `pace_ok`)
 	_front_last = &""
 	if card != null and is_instance_valid(card) and card.id == id:
 		_close(false)
@@ -742,7 +742,7 @@ func _taught(id: StringName) -> void:
 ## The audit's pacing decides whether a lesson may start,
 ## not stay: fights have turn rules, screens one lesson.
 ## Why: docs/why/Hints.md#pacing
-func _pace_ok(id: StringName) -> bool:
+func pace_ok(id: StringName) -> bool:
 	if FIGHT.has(id):
 		var sc := Router.current as SectorScreen
 		var cb: Combat = Router.combat
@@ -785,7 +785,7 @@ func _front(for_voice: bool = false) -> String:
 	if sc != null:
 		if sc._cutaway != null and is_instance_valid(sc._cutaway):
 			k += "|cut%d" % sc._cutaway.get_instance_id()
-		var tv := _transfer(sc)
+		var tv := visible_transfer(sc)
 		if tv != null:
 			k += "|tv%d" % tv.get_instance_id()
 		var d := sc._events
@@ -976,7 +976,7 @@ func _done(id: StringName) -> bool:
 			return ch._selected >= 0 and ch._selected != int(_base.get("sel", -1))
 		&"salvage":
 			# a part taken, or DONE: the window shut
-			return Run.hauls > int(_base.get("hauls", 1 << 30)) or _transfer(sc) == null
+			return Run.hauls > int(_base.get("hauls", 1 << 30)) or visible_transfer(sc) == null
 		&"cutaway":
 			# (not while a part is in the hand: picked up and put back where it
 			# was is nothing moved)
@@ -1293,7 +1293,7 @@ func _gate_to(on: bool) -> void:
 				_gate.get_parent().remove_child(_gate)
 		_gate = null
 		return
-	var host := Ash._host()
+	var host := Ash.host_node()
 	if host == null:
 		return
 	if _gate == null or not is_instance_valid(_gate):
@@ -1507,7 +1507,7 @@ func probe(id: StringName, staying: bool = false) -> Dictionary:
 		&"salvage":
 			# A WRECK'S window open with something in it (its words say "the
 			# wreck": not an event's REWARD window)
-			var tv := _transfer(sc)
+			var tv := visible_transfer(sc)
 			if tv == null or tv._loose == null or not tv._loose.is_visible_in_tree():
 				return {}
 			if tv._jetsam == null or not tv._jetsam.is_wreck():
@@ -1968,7 +1968,7 @@ func _cut_probe(cut: CutawayView, id: StringName, hud: Rect2) -> Dictionary:
 			var mp := cut._mounts
 			if mp == null or mp._lit == null:
 				return {}
-			var rr := MountPoints.REACH * mp._mag()
+			var rr := MountPoints.REACH * mp.part_mag()
 			var gt := mp.get_global_transform()
 			var r := Rect2()
 			for sp: Dictionary in mp.spots():
@@ -2117,7 +2117,7 @@ func _fight_avoid(sc: SectorScreen, hud: Rect2) -> Array:
 
 
 ## The wreck's (or an event reward's) window, if one is open on LOCAL.
-func _transfer(sc: SectorScreen) -> TransferView:
+func visible_transfer(sc: SectorScreen) -> TransferView:
 	if sc == null:
 		return null
 	if sc._transfer != null and is_instance_valid(sc._transfer) and sc._transfer.is_visible_in_tree():

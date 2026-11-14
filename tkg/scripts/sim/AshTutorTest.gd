@@ -271,7 +271,7 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 	var got := "%s / card %s" % [Ash.lesson, Hints.card.id if Hints.card != null else &"none"]
 	if not _ok("%s: she says it (got %s)" % [lid, got], up):
 		print("    (%s: seen %s, resting %s, paced %s, subject %s, quiet %.1f, front last %s)" % [id, Hints.seen(id),
-			Hints.resting(id), Hints._pace_ok(id), Hints.probe(id).get("subject", "none"), Hints._quiet, Hints._front_last])
+			Hints.resting(id), Hints.pace_ok(id), Hints.probe(id).get("subject", "none"), Hints._quiet, Hints._front_last])
 		return
 	var want := words if words != "" else AshTutorLines.fill(lid, Hints.values(id))
 	var p := Ash.portrait
@@ -582,7 +582,7 @@ func _gather(cur: Control, v: Rect2) -> Array:
 	# every button and word on the screen, and every control that takes the
 	# mouse (but a backdrop that holds the whole of her view). With loot open
 	# in place, the scene under it takes no click, so only the loot's own count.
-	var tv: TransferView = Hints._transfer(cur as SectorScreen) if cur is SectorScreen else null
+	var tv: TransferView = Hints.visible_transfer(cur as SectorScreen) if cur is SectorScreen else null
 	for c in cur.find_children("*", "Control", true, false):
 		var k := c as Control
 		if k == null or not k.is_visible_in_tree() or k.size.x <= 0.0 or k.size.y <= 0.0:
