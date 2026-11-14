@@ -668,7 +668,7 @@ func _result() -> void:
 		ink = UITheme.COLD
 	elif out.get("checked", false):
 		word = SkillCheck.band_name(out.band)
-		ink = SkillCheck.band_colour(out.band)
+		ink = SkillColours.band_colour(out.band)
 	elif fight:
 		word = "ENGAGED"
 		ink = UITheme.LEAVE

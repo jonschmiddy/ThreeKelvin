@@ -159,7 +159,7 @@ func _sheet_row(n: MapGen.MapNode, f: Dictionary, layout: StringName) -> void:
 	var bad := OutcomeCheck.check(d, &"D", want)
 	_ok("the sheet's row (%s): fits and sits where D's table goes%s" % [layout,
 		"" if bad.is_empty() else ": " + "; ".join(bad.slice(0, 4))], bad.is_empty())
-	var line := EncounterDrawer.moved_line(d.out.bill)
+	var line := EncounterText.moved_line(d.out.bill)
 	_ok("the sheet's row (%s): the map's card keeps \"%s\"" % [layout, line], line == "FUEL -2 · DATA +5")
 	OutcomeRow.look = &"today"
 	d._drop()
