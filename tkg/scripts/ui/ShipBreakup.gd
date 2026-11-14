@@ -2658,173 +2658,189 @@ func _plan_boss() -> void:
 		Style.CUST_CASCADE, Style.CUST_COLLAPSE, Style.CUST_SPLIT:
 			_plan_c1(order, core, cs)
 		Style.CUST_UNMAKING:
-			_ev(0.0, &"groan", 0.5, 2.8)
-			_hook(0.0, &"duck", 0.5, 7.5)
-			for oi2 in order.size():
-				var m2: Dictionary = _majors[order[oi2]]
-				m2.glow_col = 1
-				m2.glow_keys = [[0.3, 0.25, 0.0], [0.6, 0.5, 0.0], [3.0, 0.25, 0.0], [3.4, 0.0, 0.0]]
-				m2.keys = [[0.0, Vector2.ZERO], [0.6, Vector2.ZERO], [3.0, Vector2(m2.own)], [LIFE[style], Vector2(m2.own)]]
-			# the lights go out one by one; a piece goes dark with its last light
-			var lt := 0.8
-			var last_off := {}
-			for L3 in _bp.lights:
-				var lp2: Vector2 = L3.p
-				var to := lt + _rng.randf_range(0.0, 0.1)
-				_blight(lp2, [[0.0, 0.7, 3], [to, 1.0, 5], [to + 0.07, 0.45, 3], [to + 0.14, 0.0, 0]], HEAT_RAMP[1])
-				var pi := _piece_of_point(lp2)
-				last_off[pi] = maxf(float(last_off.get(pi, 0.0)), to + 0.07)
-				_ev(to, &"light_out", 0.2)
-				lt += 2.4 / float(maxi(1, _bp.lights.size()))
-			for pi2 in _majors.size():
-				_majors[pi2].stage_t = [float(last_off.get(pi2, 3.2))]
-			# each facet shatters in turn, slowly, glass glinting
-			for oi3 in order.size():
-				var mi: int = order[oi3]
-				var ts := 3.2 + 0.42 * oi3
-				_ev(ts, &"shatter", 0.45 + 0.05 * oi3)
-				_hook(ts, &"shake", 1.0, 0.15)
-				for s2 in _shards:
-					var lab_of: int = int(s2.mark) - 10 if int(s2.mark) >= 10 else -1
-					if lab_of == int(_majors[mi].lab) or (int(s2.mark) < 10 and int(s2.piece) == mi):
-						s2.release = ts + _rng.randf_range(0.0, 0.12)
-						s2.speed = _rng.randf_range(12.0, 30.0)
-						s2.life = minf(_rng.randf_range(1.3, 1.9), LIFE[style] - 0.15 - float(s2.release))
-						s2.glass = true
-						s2.spin = _rng.randf_range(1.2, 2.5) * (1.0 if _rng.randf() < 0.5 else -1.0)
-			_hook(3.2, &"slowmo", 0.6, 3.6)
-			_hook(3.2 + 0.42 * (order.size() - 1), &"stinger", 0.7, 0.0)
-			_ev(6.6, &"settle", 0.2, 1.2)
+			_plan_unmaking(order)
 		Style.CUST_SUPERNOVA:
-			_ev(0.0, &"whine", 0.4, 2.6)
-			_hook(1.0, &"duck", 0.8, 4.0)
-			_hook(1.6, &"shake", 1.0, 0.6)
-			_hook(2.2, &"shake", 2.0, 0.5)
-			_bmaps.append({stages = _nova_maps(), keys = [[0.0, 0, 0.6], [0.35, 1, 0.7], [0.7, 2, 0.75], [1.05, 3, 0.8],
-				[1.4, 4, 0.85], [1.75, 5, 0.9], [2.1, 6, 1.0], [2.65, -1, 0.0]], col = Color.WHITE, add = true})
-			_blight(core, [[0.0, 0.6, 4], [0.7, 0.8, 7], [1.4, 1.0, 12], [2.1, 1.0, 20], [2.65, 0.0, 0]], HEAT_RAMP[0])
-			for m3 in _majors:
-				m3.stage_t = [2.66]
-			_ev(2.6, &"nova", 1.0, 0.0, cs, {fx = &"nova"})
-			_hook(2.6, &"flash", 1.0, 0.45)
-			_hook(2.6, &"slowmo", 0.3, 0.6)
-			_hook(2.6, &"shake", 9.0, 1.4)
-			_hook(2.6, &"stinger", 1.0, 0.0)
-			_ev(2.9, &"ring", 0.5, 1.2, cs, {fx = &"dark"})
-			_bmaps.append({stages = [_ember_map()], keys = [[2.65, 0, 1.0], [3.5, 0, 0.75], [4.5, 0, 0.5], [5.5, 0, 0.25], [6.5, -1, 0.0]],
-				col = HEAT_RAMP[2], add = true})
-			_emit(3.0, 6.6, 40.0, 9, _hull_edge_points(3), {v0 = 5.0, v1 = 14.0, l0 = 1.0, l1 = 1.8})
-			_ev(3.0, &"smoulder", 0.3, 4.0)
-			for tc2 in [3.4, 4.1, 4.9, 5.8]:
-				_ev(tc2, &"crackle", 0.15)
+			_plan_supernova(core, cs)
 		Style.HELL_CHAIN:
-			var alarm_pts: Array = []
-			for L4 in _bp.lights:
-				alarm_pts.append(L4.p)
-				if alarm_pts.size() >= 6:
-					break
-			if alarm_pts.size() < 4:
-				for f in [0.2, 0.45, 0.7]:
-					alarm_pts.append(Vector2(_bp.box.position) + Vector2(float(_bp.bw) * f, 2.0))
-			for ap in alarm_pts:
-				var keys: Array = [[0.0, 0.0, 0]]
-				var tt := 0.0
-				while tt < 2.8:
-					var period := 0.33 if tt < 1.6 else 0.2
-					keys.append([tt, 1.0, 4])
-					keys.append([tt + period * 0.4, 0.0, 0])
-					tt += period
-				keys.append([2.8, 0.0, 0])
-				_blight(ap, keys, ALARM)
-			_ev(0.0, &"alarm", 0.6, 2.8)
-			_hook(0.0, &"duck", 0.5, 6.5)
-			var bt := [1.2, 1.55, 1.85, 2.15, 2.4, 2.62]
-			for i in bt.size():
-				var bp: Vector2 = _bp.blasts[i]
-				_ev(bt[i], &"blast", 0.4 + 0.08 * i, 0.0, _origin + bp, {fx = &"pop", mark = 2 + i})
-				_hook(bt[i], &"shake", 2.0, 0.2)
-				for s3 in _shards:
-					if int(s3.mark) == 2 + i:
-						s3.release = bt[i] + 0.02
-						s3.life = _rng.randf_range(0.7, 1.0)
-						s3.speed = _rng.randf_range(80.0, 160.0)
-						var d3 := (Vector2(s3.at) + Vector2(s3.size) * 0.5 - bp)
-						s3.dir = d3.normalized() if d3.length() > 0.3 else s3.dir
-			for m4 in _majors:
-				var st4: Array = []
-				for i2 in bt.size():
-					st4.append(bt[i2] + 0.03)
-				st4.append(4.62)
-				m4.stage_t = st4
-				m4.keys = [[0.0, Vector2.ZERO], [4.6, Vector2.ZERO], [5.4, Vector2(m4.own)], [LIFE[style], Vector2(m4.own)]]
-				m4.glow_keys = [[4.6, 1.0, 1.0], [5.2, 1.0, 0.7], [6.0, 0.6, 0.4], [6.8, 0.25, 0.1], [7.2, 0.0, 0.0]]
-			# the holds burst and the stolen cargo spills, glowing
-			_ev(3.0, &"rupture", 0.7, 0.0, _origin + (_bp.holds[0] as Vector2), {fx = &"hold"})
-			_ev(3.2, &"rupture", 0.6, 0.0, _origin + (_bp.holds[1] as Vector2), {fx = &"hold"})
-			_ev(3.0, &"spill", 0.5, 1.6)
-			for hi in 2:
-				var hp: Vector2 = _bp.holds[hi]
-				var out := (hp - Vector2(_bp.r.position) - Vector2(float(_bp.cx), float(_bp.cy))).normalized()
-				_emit(3.0 + 0.2 * hi, 4.6, 150.0, 8, PackedVector2Array([hp]), {mode = &"dir", dir = out, spread = 0.7,
-					v0 = 20.0, v1 = 70.0, l0 = 0.9, l1 = 1.7, big = 0.45})
-			# the main reactor
-			_ev(4.6, &"reactor", 1.0, 0.0, _origin + (_bp.reactor as Vector2), {fx = &"reactor"})
-			_hook(4.6, &"flash", 0.7, 0.3)
-			_hook(4.6, &"slowmo", 0.4, 0.5)
-			_hook(4.6, &"shake", 7.0, 1.0)
-			_hook(4.6, &"stinger", 1.0, 0.0)
-			for s4 in _shards:
-				if int(s4.mark) == 1:
-					s4.release = 4.6 + _rng.randf_range(0.0, 0.05)
-					s4.life = _rng.randf_range(1.0, 1.6)
-					s4.speed = _rng.randf_range(90.0, 200.0)
-			_emit(4.6, 6.6, 60.0, 1, PackedVector2Array(), {mode = &"crack"})
-			_ev(4.7, &"debris", 0.5, 2.0)
-			_ev(5.5, &"cool", 0.2, 1.8)
+			_plan_hell_chain()
 		Style.HELL_BURNOUT:
-			var emb: Vector2 = _bp.core
-			var bowmost := 1e9
-			for L5 in _bp.lights:
-				if (L5.p as Vector2).x < bowmost:
-					bowmost = (L5.p as Vector2).x
-					emb = L5.p
-			_bp.emblem = emb
-			_ev(0.0, &"ignite", 0.5, 0.0, _origin + emb, {fx = &"ember_pop"})
-			_ev(0.0, &"roar", 0.5, 5.4)
-			_hook(0.0, &"duck", 0.5, 7.5)
-			_blight(emb, [[0.0, 0.5, 4], [0.6, 0.7, 6], [1.2, 0.85, 8], [1.8, 1.0, 11], [5.0, 1.0, 11], [5.2, 0.0, 0]], Color("#ff4a1e"))
-			_bmaps.append({stages = _fire_maps(emb), keys = [[0.0, 0, 0.7], [0.4, 1, 0.8], [0.8, 2, 0.85], [1.2, 3, 0.9],
-				[1.6, 4, 0.95], [2.0, 5, 1.0], [2.4, 6, 1.0], [5.0, 6, 0.6], [5.2, -1, 0.0]], col = HEAT_RAMP[2], add = true})
-			_emit(0.2, 5.2, 90.0, 1, PackedVector2Array(), {mode = &"fire"})
-			var wt := [2.6, 3.0, 3.35, 3.9, 4.3]
-			for i3 in wt.size():
-				var xp: float = float(_bp.box.position.x) + float(_bp.bw) * _rng.randf_range(0.2, 0.9)
-				var yp: float = float(_bp.box.position.y) + float(_bp.bh) * _rng.randf_range(0.3, 0.7)
-				_ev(wt[i3], &"blast", 0.5, 0.0, _origin + Vector2(xp, yp), {fx = &"pop"})
-				_hook(wt[i3], &"shake", 2.5, 0.25)
-			for m5 in _majors:
-				var j5: int = m5.lab
-				var lst := Vector2(0, (2 - j5) * 2)
-				m5.keys = [[0.0, Vector2.ZERO], [3.0, Vector2.ZERO], [5.0, lst], [5.2, lst], [7.0, Vector2(m5.own)], [LIFE[style], Vector2(m5.own)]]
-				m5.stage_t = [2.0, 4.5]
-				m5.glow_keys = [[5.2, 1.0, 0.9], [5.8, 0.9, 0.6], [6.5, 0.6, 0.35], [7.2, 0.3, 0.1], [7.6, 0.0, 0.0]]
-				# trailing fire from each piece's broken edges, against its drift
-				_emit(5.2, 7.4, 45.0, 1, PackedVector2Array(), {mode = &"trail", piece = _majors.find(m5)})
-			_ev(3.0, &"list", 0.4, 2.0)
-			_ev(5.2, &"break", 0.8, 0.0, _centre, {fx = &"break"})
-			_hook(5.2, &"shake", 4.0, 0.6)
-			_hook(5.2, &"stinger", 0.8, 0.0)
-			for s5 in _shards:
-				s5.release = 5.2 + _rng.randf_range(0.0, 0.06)
-				s5.life = _rng.randf_range(0.9, 1.4)
-				s5.speed = _rng.randf_range(50.0, 120.0)
-			_ev(5.3, &"debris", 0.4, 2.0)
+			_plan_burnout()
 		Style.HELL_UNCOIL:
 			_plan_h3()
 	# every shard released lives out before the end
 	for s7 in _shards:
 		if float(s7.release) < 90.0:
 			s7.life = minf(float(s7.life), LIFE[style] - 0.1 - float(s7.release))
+
+
+func _plan_unmaking(order: Array) -> void:
+	_ev(0.0, &"groan", 0.5, 2.8)
+	_hook(0.0, &"duck", 0.5, 7.5)
+	for oi2 in order.size():
+		var m2: Dictionary = _majors[order[oi2]]
+		m2.glow_col = 1
+		m2.glow_keys = [[0.3, 0.25, 0.0], [0.6, 0.5, 0.0], [3.0, 0.25, 0.0], [3.4, 0.0, 0.0]]
+		m2.keys = [[0.0, Vector2.ZERO], [0.6, Vector2.ZERO], [3.0, Vector2(m2.own)], [LIFE[style], Vector2(m2.own)]]
+	# the lights go out one by one; a piece goes dark with its last light
+	var lt := 0.8
+	var last_off := {}
+	for L3 in _bp.lights:
+		var lp2: Vector2 = L3.p
+		var to := lt + _rng.randf_range(0.0, 0.1)
+		_blight(lp2, [[0.0, 0.7, 3], [to, 1.0, 5], [to + 0.07, 0.45, 3], [to + 0.14, 0.0, 0]], HEAT_RAMP[1])
+		var pi := _piece_of_point(lp2)
+		last_off[pi] = maxf(float(last_off.get(pi, 0.0)), to + 0.07)
+		_ev(to, &"light_out", 0.2)
+		lt += 2.4 / float(maxi(1, _bp.lights.size()))
+	for pi2 in _majors.size():
+		_majors[pi2].stage_t = [float(last_off.get(pi2, 3.2))]
+	# each facet shatters in turn, slowly, glass glinting
+	for oi3 in order.size():
+		var mi: int = order[oi3]
+		var ts := 3.2 + 0.42 * oi3
+		_ev(ts, &"shatter", 0.45 + 0.05 * oi3)
+		_hook(ts, &"shake", 1.0, 0.15)
+		for s2 in _shards:
+			var lab_of: int = int(s2.mark) - 10 if int(s2.mark) >= 10 else -1
+			if lab_of == int(_majors[mi].lab) or (int(s2.mark) < 10 and int(s2.piece) == mi):
+				s2.release = ts + _rng.randf_range(0.0, 0.12)
+				s2.speed = _rng.randf_range(12.0, 30.0)
+				s2.life = minf(_rng.randf_range(1.3, 1.9), LIFE[style] - 0.15 - float(s2.release))
+				s2.glass = true
+				s2.spin = _rng.randf_range(1.2, 2.5) * (1.0 if _rng.randf() < 0.5 else -1.0)
+	_hook(3.2, &"slowmo", 0.6, 3.6)
+	_hook(3.2 + 0.42 * (order.size() - 1), &"stinger", 0.7, 0.0)
+	_ev(6.6, &"settle", 0.2, 1.2)
+
+
+func _plan_supernova(core: Vector2, cs: Vector2) -> void:
+	_ev(0.0, &"whine", 0.4, 2.6)
+	_hook(1.0, &"duck", 0.8, 4.0)
+	_hook(1.6, &"shake", 1.0, 0.6)
+	_hook(2.2, &"shake", 2.0, 0.5)
+	_bmaps.append({stages = _nova_maps(), keys = [[0.0, 0, 0.6], [0.35, 1, 0.7], [0.7, 2, 0.75], [1.05, 3, 0.8],
+		[1.4, 4, 0.85], [1.75, 5, 0.9], [2.1, 6, 1.0], [2.65, -1, 0.0]], col = Color.WHITE, add = true})
+	_blight(core, [[0.0, 0.6, 4], [0.7, 0.8, 7], [1.4, 1.0, 12], [2.1, 1.0, 20], [2.65, 0.0, 0]], HEAT_RAMP[0])
+	for m3 in _majors:
+		m3.stage_t = [2.66]
+	_ev(2.6, &"nova", 1.0, 0.0, cs, {fx = &"nova"})
+	_hook(2.6, &"flash", 1.0, 0.45)
+	_hook(2.6, &"slowmo", 0.3, 0.6)
+	_hook(2.6, &"shake", 9.0, 1.4)
+	_hook(2.6, &"stinger", 1.0, 0.0)
+	_ev(2.9, &"ring", 0.5, 1.2, cs, {fx = &"dark"})
+	_bmaps.append({stages = [_ember_map()], keys = [[2.65, 0, 1.0], [3.5, 0, 0.75], [4.5, 0, 0.5], [5.5, 0, 0.25], [6.5, -1, 0.0]],
+		col = HEAT_RAMP[2], add = true})
+	_emit(3.0, 6.6, 40.0, 9, _hull_edge_points(3), {v0 = 5.0, v1 = 14.0, l0 = 1.0, l1 = 1.8})
+	_ev(3.0, &"smoulder", 0.3, 4.0)
+	for tc2 in [3.4, 4.1, 4.9, 5.8]:
+		_ev(tc2, &"crackle", 0.15)
+
+
+func _plan_hell_chain() -> void:
+	var alarm_pts: Array = []
+	for L4 in _bp.lights:
+		alarm_pts.append(L4.p)
+		if alarm_pts.size() >= 6:
+			break
+	if alarm_pts.size() < 4:
+		for f in [0.2, 0.45, 0.7]:
+			alarm_pts.append(Vector2(_bp.box.position) + Vector2(float(_bp.bw) * f, 2.0))
+	for ap in alarm_pts:
+		var keys: Array = [[0.0, 0.0, 0]]
+		var tt := 0.0
+		while tt < 2.8:
+			var period := 0.33 if tt < 1.6 else 0.2
+			keys.append([tt, 1.0, 4])
+			keys.append([tt + period * 0.4, 0.0, 0])
+			tt += period
+		keys.append([2.8, 0.0, 0])
+		_blight(ap, keys, ALARM)
+	_ev(0.0, &"alarm", 0.6, 2.8)
+	_hook(0.0, &"duck", 0.5, 6.5)
+	var bt := [1.2, 1.55, 1.85, 2.15, 2.4, 2.62]
+	for i in bt.size():
+		var bp: Vector2 = _bp.blasts[i]
+		_ev(bt[i], &"blast", 0.4 + 0.08 * i, 0.0, _origin + bp, {fx = &"pop", mark = 2 + i})
+		_hook(bt[i], &"shake", 2.0, 0.2)
+		for s3 in _shards:
+			if int(s3.mark) == 2 + i:
+				s3.release = bt[i] + 0.02
+				s3.life = _rng.randf_range(0.7, 1.0)
+				s3.speed = _rng.randf_range(80.0, 160.0)
+				var d3 := (Vector2(s3.at) + Vector2(s3.size) * 0.5 - bp)
+				s3.dir = d3.normalized() if d3.length() > 0.3 else s3.dir
+	for m4 in _majors:
+		var st4: Array = []
+		for i2 in bt.size():
+			st4.append(bt[i2] + 0.03)
+		st4.append(4.62)
+		m4.stage_t = st4
+		m4.keys = [[0.0, Vector2.ZERO], [4.6, Vector2.ZERO], [5.4, Vector2(m4.own)], [LIFE[style], Vector2(m4.own)]]
+		m4.glow_keys = [[4.6, 1.0, 1.0], [5.2, 1.0, 0.7], [6.0, 0.6, 0.4], [6.8, 0.25, 0.1], [7.2, 0.0, 0.0]]
+	# the holds burst and the stolen cargo spills, glowing
+	_ev(3.0, &"rupture", 0.7, 0.0, _origin + (_bp.holds[0] as Vector2), {fx = &"hold"})
+	_ev(3.2, &"rupture", 0.6, 0.0, _origin + (_bp.holds[1] as Vector2), {fx = &"hold"})
+	_ev(3.0, &"spill", 0.5, 1.6)
+	for hi in 2:
+		var hp: Vector2 = _bp.holds[hi]
+		var out := (hp - Vector2(_bp.r.position) - Vector2(float(_bp.cx), float(_bp.cy))).normalized()
+		_emit(3.0 + 0.2 * hi, 4.6, 150.0, 8, PackedVector2Array([hp]), {mode = &"dir", dir = out, spread = 0.7,
+			v0 = 20.0, v1 = 70.0, l0 = 0.9, l1 = 1.7, big = 0.45})
+	# the main reactor
+	_ev(4.6, &"reactor", 1.0, 0.0, _origin + (_bp.reactor as Vector2), {fx = &"reactor"})
+	_hook(4.6, &"flash", 0.7, 0.3)
+	_hook(4.6, &"slowmo", 0.4, 0.5)
+	_hook(4.6, &"shake", 7.0, 1.0)
+	_hook(4.6, &"stinger", 1.0, 0.0)
+	for s4 in _shards:
+		if int(s4.mark) == 1:
+			s4.release = 4.6 + _rng.randf_range(0.0, 0.05)
+			s4.life = _rng.randf_range(1.0, 1.6)
+			s4.speed = _rng.randf_range(90.0, 200.0)
+	_emit(4.6, 6.6, 60.0, 1, PackedVector2Array(), {mode = &"crack"})
+	_ev(4.7, &"debris", 0.5, 2.0)
+	_ev(5.5, &"cool", 0.2, 1.8)
+
+
+func _plan_burnout() -> void:
+	var emb: Vector2 = _bp.core
+	var bowmost := 1e9
+	for L5 in _bp.lights:
+		if (L5.p as Vector2).x < bowmost:
+			bowmost = (L5.p as Vector2).x
+			emb = L5.p
+	_bp.emblem = emb
+	_ev(0.0, &"ignite", 0.5, 0.0, _origin + emb, {fx = &"ember_pop"})
+	_ev(0.0, &"roar", 0.5, 5.4)
+	_hook(0.0, &"duck", 0.5, 7.5)
+	_blight(emb, [[0.0, 0.5, 4], [0.6, 0.7, 6], [1.2, 0.85, 8], [1.8, 1.0, 11], [5.0, 1.0, 11], [5.2, 0.0, 0]], Color("#ff4a1e"))
+	_bmaps.append({stages = _fire_maps(emb), keys = [[0.0, 0, 0.7], [0.4, 1, 0.8], [0.8, 2, 0.85], [1.2, 3, 0.9],
+		[1.6, 4, 0.95], [2.0, 5, 1.0], [2.4, 6, 1.0], [5.0, 6, 0.6], [5.2, -1, 0.0]], col = HEAT_RAMP[2], add = true})
+	_emit(0.2, 5.2, 90.0, 1, PackedVector2Array(), {mode = &"fire"})
+	var wt := [2.6, 3.0, 3.35, 3.9, 4.3]
+	for i3 in wt.size():
+		var xp: float = float(_bp.box.position.x) + float(_bp.bw) * _rng.randf_range(0.2, 0.9)
+		var yp: float = float(_bp.box.position.y) + float(_bp.bh) * _rng.randf_range(0.3, 0.7)
+		_ev(wt[i3], &"blast", 0.5, 0.0, _origin + Vector2(xp, yp), {fx = &"pop"})
+		_hook(wt[i3], &"shake", 2.5, 0.25)
+	for m5 in _majors:
+		var j5: int = m5.lab
+		var lst := Vector2(0, (2 - j5) * 2)
+		m5.keys = [[0.0, Vector2.ZERO], [3.0, Vector2.ZERO], [5.0, lst], [5.2, lst], [7.0, Vector2(m5.own)], [LIFE[style], Vector2(m5.own)]]
+		m5.stage_t = [2.0, 4.5]
+		m5.glow_keys = [[5.2, 1.0, 0.9], [5.8, 0.9, 0.6], [6.5, 0.6, 0.35], [7.2, 0.3, 0.1], [7.6, 0.0, 0.0]]
+		# trailing fire from each piece's broken edges, against its drift
+		_emit(5.2, 7.4, 45.0, 1, PackedVector2Array(), {mode = &"trail", piece = _majors.find(m5)})
+	_ev(3.0, &"list", 0.4, 2.0)
+	_ev(5.2, &"break", 0.8, 0.0, _centre, {fx = &"break"})
+	_hook(5.2, &"shake", 4.0, 0.6)
+	_hook(5.2, &"stinger", 0.8, 0.0)
+	for s5 in _shards:
+		s5.release = 5.2 + _rng.randf_range(0.0, 0.06)
+		s5.life = _rng.randf_range(0.9, 1.4)
+		s5.speed = _rng.randf_range(50.0, 120.0)
+	_ev(5.3, &"debris", 0.4, 2.0)
 
 
 ## SUPERNOVA: the core's light through the glass, a step further each map.
@@ -3363,77 +3379,89 @@ func _plan_c1(order: Array, core: Vector2, cs: Vector2) -> void:
 	var lifeT: float = LIFE[style]
 	match style:
 		Style.CUST_CASCADE:
-			_ev(4.4, &"implode", 0.8, 0.5)
-			_hook(4.4, &"slowmo", 0.35, 0.7)
-			for m2 in _majors:
-				var d: Vector2 = m2.dir
-				m2.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -d * 4.0], [4.9, -d * 4.0],
-					[5.2, Vector2(m2.own) * 0.75], [6.4, Vector2(m2.own)], [lifeT, Vector2(m2.own)]]
-			_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast"})
-			_ev(4.9, &"shatter", 0.8, 1.5)
-			for s in _shards:
-				s.release = 4.9 + _rng.randf_range(0.0, 0.05)
-				s.life = _rng.randf_range(1.8, 2.4)
-				s.speed = _rng.randf_range(70.0, 160.0)
-				s.spin = _rng.randf_range(1.5, 3.0) * (1.0 if _rng.randf() < 0.5 else -1.0)
-				s.glass = true
-				s.glint2 = float(s.glint) + _rng.randf_range(0.4, 0.8)
+			_plan_c1_cascade(cs, lifeT)
 		Style.CUST_COLLAPSE:
-			_ev(4.2, &"crush", 0.8, 0.8)
-			_hook(4.2, &"shake", 2.0, 0.8)
-			_hook(4.6, &"slowmo", 0.35, 0.6)
-			for m3 in _majors:
-				var d3: Vector2 = m3.dir
-				var outer := int(m3.lab) % 2 == 1
-				var crush := d3 * (-9.0 if outer else -5.0)
-				var go := 5.0 if outer else 5.25
-				m3.keys = [[0.0, Vector2.ZERO], [4.2, Vector2.ZERO], [4.85, crush], [go, crush],
-					[go + 0.25, Vector2(m3.own) * 0.8], [go + 1.2, Vector2(m3.own)], [lifeT, Vector2(m3.own)]]
-			_ev(5.0, &"blast", 1.0, 0.0, cs, {fx = &"ring_light"})
-			_ev(5.0, &"layer", 0.8)
-			_ev(5.25, &"layer", 0.6)
-			for s3 in _shards:
-				var dist := (Vector2(s3.at) - core).length()
-				var outer2 := dist > 0.3 * float(_bp.bw)
-				s3.release = (5.0 if outer2 else 5.25) + _rng.randf_range(0.0, 0.05)
-				s3.life = _rng.randf_range(1.3, 1.9)
-				s3.speed = _rng.randf_range(70.0, 150.0)
-				s3.glass = true
+			_plan_c1_collapse(core, cs, lifeT)
 		Style.CUST_SPLIT:
-			_ev(4.4, &"implode", 0.8, 0.5)
-			_hook(4.4, &"slowmo", 0.35, 0.6)
-			for m4 in _majors:
-				var d4: Vector2 = m4.dir
-				m4.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -d4 * 3.0], [5.0, -d4 * 3.0],
-					[5.6, Vector2(m4.own) * 0.6], [6.8, Vector2(m4.own)], [lifeT, Vector2(m4.own)]]
-			_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast_small"})
-			_ev(4.95, &"run", 0.7, 0.5)
-			var maxd := float(_bp.bw) * 0.5
-			for k5 in 4:
-				var dx := maxd * float(k5 + 1) / 4.5
-				for side in [-1.0, 1.0]:
-					var tp := 4.95 + 0.5 * dx / maxd
-					_ev(tp, &"pop", 0.3, 0.0, cs + Vector2(side * dx, 0.0), {fx = &"spine_pop"})
-			_ev(5.5, &"split", 0.9)
-			_hook(5.5, &"shake", 3.0, 0.4)
-			_ev(5.5, &"shed", 0.4, 1.5)
-			for s4 in _shards:
-				var mid4 := Vector2(s4.at) + Vector2(s4.size) * 0.5
-				if int(s4.mark) == 3:
-					s4.release = 4.95 + 0.5 * absf(mid4.x - core.x) / maxd + _rng.randf_range(0.0, 0.04)
-					s4.dir = Vector2(_rng.randf_range(-0.4, 0.4), signf(mid4.y - core.y + 0.01)).normalized()
-					s4.speed = _rng.randf_range(25.0, 70.0)
-				else:
-					s4.release = 5.5 + _rng.randf_range(0.0, 0.15)
-					s4.speed = _rng.randf_range(40.0, 100.0)
-				s4.life = _rng.randf_range(1.2, 1.8)
-				s4.glass = true
+			_plan_c1_split(core, cs, lifeT)
 	_hook(blast_at, &"flash", 1.0, 0.3)
 	_hook(blast_at, &"shake", 6.0, 0.9)
 	_hook(blast_at, &"stinger", 1.0, 0.0)
 	_emit(blast_at, 6.8, 70.0, 1, PackedVector2Array(), {mode = &"crack"})
 	_ev(blast_at + 0.1, &"debris", 0.5, 2.0)
 	_ev(blast_at + 0.7, &"cool", 0.2, 1.6)
+
+
+func _plan_c1_cascade(cs: Vector2, lifeT: float) -> void:
+	_ev(4.4, &"implode", 0.8, 0.5)
+	_hook(4.4, &"slowmo", 0.35, 0.7)
+	for m2 in _majors:
+		var d: Vector2 = m2.dir
+		m2.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -d * 4.0], [4.9, -d * 4.0],
+			[5.2, Vector2(m2.own) * 0.75], [6.4, Vector2(m2.own)], [lifeT, Vector2(m2.own)]]
+	_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast"})
+	_ev(4.9, &"shatter", 0.8, 1.5)
+	for s in _shards:
+		s.release = 4.9 + _rng.randf_range(0.0, 0.05)
+		s.life = _rng.randf_range(1.8, 2.4)
+		s.speed = _rng.randf_range(70.0, 160.0)
+		s.spin = _rng.randf_range(1.5, 3.0) * (1.0 if _rng.randf() < 0.5 else -1.0)
+		s.glass = true
+		s.glint2 = float(s.glint) + _rng.randf_range(0.4, 0.8)
+
+
+func _plan_c1_collapse(core: Vector2, cs: Vector2, lifeT: float) -> void:
+	_ev(4.2, &"crush", 0.8, 0.8)
+	_hook(4.2, &"shake", 2.0, 0.8)
+	_hook(4.6, &"slowmo", 0.35, 0.6)
+	for m3 in _majors:
+		var d3: Vector2 = m3.dir
+		var outer := int(m3.lab) % 2 == 1
+		var crush := d3 * (-9.0 if outer else -5.0)
+		var go := 5.0 if outer else 5.25
+		m3.keys = [[0.0, Vector2.ZERO], [4.2, Vector2.ZERO], [4.85, crush], [go, crush],
+			[go + 0.25, Vector2(m3.own) * 0.8], [go + 1.2, Vector2(m3.own)], [lifeT, Vector2(m3.own)]]
+	_ev(5.0, &"blast", 1.0, 0.0, cs, {fx = &"ring_light"})
+	_ev(5.0, &"layer", 0.8)
+	_ev(5.25, &"layer", 0.6)
+	for s3 in _shards:
+		var dist := (Vector2(s3.at) - core).length()
+		var outer2 := dist > 0.3 * float(_bp.bw)
+		s3.release = (5.0 if outer2 else 5.25) + _rng.randf_range(0.0, 0.05)
+		s3.life = _rng.randf_range(1.3, 1.9)
+		s3.speed = _rng.randf_range(70.0, 150.0)
+		s3.glass = true
+
+
+func _plan_c1_split(core: Vector2, cs: Vector2, lifeT: float) -> void:
+	_ev(4.4, &"implode", 0.8, 0.5)
+	_hook(4.4, &"slowmo", 0.35, 0.6)
+	for m4 in _majors:
+		var d4: Vector2 = m4.dir
+		m4.keys = [[0.0, Vector2.ZERO], [4.4, Vector2.ZERO], [4.85, -d4 * 3.0], [5.0, -d4 * 3.0],
+			[5.6, Vector2(m4.own) * 0.6], [6.8, Vector2(m4.own)], [lifeT, Vector2(m4.own)]]
+	_ev(4.9, &"blast", 1.0, 0.0, cs, {fx = &"blast_small"})
+	_ev(4.95, &"run", 0.7, 0.5)
+	var maxd := float(_bp.bw) * 0.5
+	for k5 in 4:
+		var dx := maxd * float(k5 + 1) / 4.5
+		for side in [-1.0, 1.0]:
+			var tp := 4.95 + 0.5 * dx / maxd
+			_ev(tp, &"pop", 0.3, 0.0, cs + Vector2(side * dx, 0.0), {fx = &"spine_pop"})
+	_ev(5.5, &"split", 0.9)
+	_hook(5.5, &"shake", 3.0, 0.4)
+	_ev(5.5, &"shed", 0.4, 1.5)
+	for s4 in _shards:
+		var mid4 := Vector2(s4.at) + Vector2(s4.size) * 0.5
+		if int(s4.mark) == 3:
+			s4.release = 4.95 + 0.5 * absf(mid4.x - core.x) / maxd + _rng.randf_range(0.0, 0.04)
+			s4.dir = Vector2(_rng.randf_range(-0.4, 0.4), signf(mid4.y - core.y + 0.01)).normalized()
+			s4.speed = _rng.randf_range(25.0, 70.0)
+		else:
+			s4.release = 5.5 + _rng.randf_range(0.0, 0.15)
+			s4.speed = _rng.randf_range(40.0, 100.0)
+		s4.life = _rng.randf_range(1.2, 1.8)
+		s4.glass = true
 
 
 
