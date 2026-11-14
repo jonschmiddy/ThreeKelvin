@@ -880,7 +880,7 @@ func paint(ci: CanvasItem) -> void:
 				_px(ci, xx, cl, LabBoard.mixc(BG, OWN_D if bright else LATER_R, 0.9))
 			n2 += 1
 	if picked_at.x >= 0:
-		_path(ci, LabAugment._curve(Vector2(picked_at), Vector2(SX - 13, cl)), OWN_D if bright else LATER_R, bright, &"dash")
+		_path(ci, LabAugment.curve_points(Vector2(picked_at), Vector2(SX - 13, cl)), OWN_D if bright else LATER_R, bright, &"dash")
 	var hx := SX + sw + 18
 	var mc := OWN if bright else LATER_R
 	_ring(ci, hx, cl, 4, mc, bright)
@@ -896,7 +896,7 @@ func paint(ci: CanvasItem) -> void:
 		var sel := st == &"next" or (st == &"short" and i == choice and bright)
 		var lc := NEXT if st == &"next" else (LabBoard.mixc(BG, LATER_R, 0.8) if st == &"later" else LabBoard.mixc(BG, NEXT, 0.45))
 		var style := &"solid" if st == &"next" else (&"dot" if st == &"later" else &"dash")
-		_path(ci, LabAugment._curve(Vector2(hx + 6, cl), Vector2(at.x - NR - 6, at.y)), lc, st == &"next", style)
+		_path(ci, LabAugment.curve_points(Vector2(hx + 6, cl), Vector2(at.x - NR - 6, at.y)), lc, st == &"next", style)
 		_node_still(ci, at.x, at.y, str(r2.name).to_upper(), st)
 		_leaf("recipe " + str(r2.name), at.x - NR - 5, at.y - NR - 5, 2 * NR + 11, 2 * NR + 11)
 		_offer_words(ci, at.y, r2, st, sel)

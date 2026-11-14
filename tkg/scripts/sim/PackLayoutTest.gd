@@ -77,10 +77,6 @@ func _run() -> void:
 				pile.append(wide[i % wide.size()])
 			# (a fight of four or more is the dev flag's alone, and with every
 			# ship's shield room kept it no longer fits the band: LOCAL's rows only)
-			if false:
-				cases += 2
-				await _check(tree, "%s pile of %d" % [mode, n], pile, home, false)
-				await _check(tree, "%s pile of %d, every other a wreck" % [mode, n], pile, home, false, true)
 			cases += 1
 			await _wrecks(tree, "%s LOCAL's row of %d wrecks" % [mode, n], pile, home)
 		print("packlayouttest: layout %s, %d packs, %d failures" % [mode, cases, h._fails - before])

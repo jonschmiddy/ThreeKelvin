@@ -50,7 +50,7 @@ autosave only writes on a screen change, so a wreck looted, a part fitted or
 a trade made since then was lost to the window's X. Mid-fight it does what
 SAVE & EXIT does there: the save from before the fight stands and the fight
 is noted so it starts again. The title, the hull pick and a finished run
-save nothing (`_autosave`'s own rules). A harness's `quit()` never comes here.
+save nothing (`autosave`'s own rules). A harness's `quit()` never comes here.
 
 A FLIGHT PLAN STILL BEING MADE ON A WORKER is waited for before the engine
 shuts down (`ShipFlight.drain`): here as the window closes, and as this
@@ -192,7 +192,7 @@ LOCAL, the sector map or the star chart: the screens built on `field`.
 
 ## Autosave
 
-Above `func _autosave() -> void:`:
+Above `func autosave() -> void:`:
 
 ```text
 The one place the run is written to disk.
@@ -619,7 +619,7 @@ autosave at the safe point, `show_sector` to the map.
 
 ## Arrival save
 
-Inside `resolve_current_node()`, above `_autosave()`:
+Inside `resolve_current_node()`, above `autosave()`:
 
 ```text
 The save the SaveGame header promises: on the sector, at the node you flew
@@ -816,23 +816,9 @@ Above `func option_resolved(index: int, result: StringName = &"done") -> void:`:
 ```text
 Mark one option spent without opening anything.
 
-What the sector calls when a row resolved IN PLACE. The bookkeeping is the
-same as `event_resolved`'s and lives in one function so the two paths cannot
-drift: an option spends itself, and the system is finished only when nothing
-is left in it.
-```
-
-## Claiming options
-
-Above `func claim_open_option() -> bool:`:
-
-```text
-Ask the party for the option this event screen is standing in, BEFORE the
-screen rolls or pays anything. The other half of the seam `event_resolved`
-records: consumption is arbitrated here through `Run.take_option`, because
-an option two ships can race for must be asked for, not assumed -- roll
-first and apologise afterwards, and the loser has already pocketed the
-payout.
+What the sector calls when a row resolved IN PLACE. The bookkeeping is in
+`event_resolved`: an option spends itself, and the system is finished only when
+nothing is left in it.
 ```
 
 ## One only

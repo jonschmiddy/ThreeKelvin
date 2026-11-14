@@ -2408,11 +2408,11 @@ func ladder_cam(k: float) -> void:
 		if step == 0:
 			# 1. CUT: LOCAL down to black, your ship still at its mooring
 			beat = &"cut"
-			blk = ZoomLadder._ease(u)
+			blk = ZoomLadder.ease_curve(u)
 		elif step == 1:
 			# 2. ARRIVE: up from black, and the arrival itself flies it in
 			beat = &"arrive"
-			blk = 1.0 - ZoomLadder._ease((t - ZoomLadder.dock_step_from(1)) / maxf(ZoomLadder.FADE_IN_S, 0.001))
+			blk = 1.0 - ZoomLadder.ease_curve((t - ZoomLadder.dock_step_from(1)) / maxf(ZoomLadder.FADE_IN_S, 0.001))
 		elif step <= 3:
 			# 3-4. AT ITS MOORING, idling: a breath (BEAT), and the station powers
 			# up to meet it (POWER)

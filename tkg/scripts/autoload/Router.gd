@@ -78,7 +78,7 @@ func save_on_close() -> void:
 			SaveGame.mark_fight(current_fight)
 			crumb("[run] window closed mid-fight; the fight starts again on resume")
 		return
-	_autosave()
+	autosave()
 	if SaveGame.has_save():
 		crumb("[run] window closed, run saved")
 
@@ -151,7 +151,7 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	if ZoomLadder.busy():
 		ZoomLadder.save_after = true
 	else:
-		_autosave()
+		autosave()
 
 
 ## The screens before a run is under way: the title, the party lobby, and the
@@ -222,7 +222,7 @@ func _refresh_sky() -> void:
 ## Every safe point is a screen swap, so this one chokepoint writes the run.
 ## Skipped in combat, at the chassis pick and with an empty map (index error).
 ## Why: docs/why/Router.md#autosave
-func _autosave() -> void:
+func autosave() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won or in_combat():
 		return
 	if current is ChassisSelect:
@@ -733,7 +733,7 @@ func _open_dock(station: StationScreen, s: TransferScreen) -> void:
 		hud.visible = false
 	_fade_in(layer)
 	Sig.screen_changed.emit()
-	_autosave()
+	autosave()
 
 
 ## Close the dock and hand the station back, brought up to date with the ship
@@ -749,7 +749,7 @@ func _close_dock() -> void:
 	if station != null:
 		station._refresh()
 	Sig.screen_changed.emit()
-	_autosave()
+	autosave()
 
 func show_game_over() -> void:
 	Audio.music_state(&"gameover")
@@ -815,7 +815,7 @@ func take_arrival() -> Array:
 
 ## The ship is gone. Everything past here is the path that already worked.
 func commit_jump(index: int, skipped: bool = false) -> void:
-	# Same three refusals as `_autosave`: a flare peaking after QUIT would jump an ended run.
+	# Same three refusals as `autosave`: a flare peaking after QUIT would jump an ended run.
 	if Run.hull == null or Run.map.is_empty() or Run.dead:
 		return
 	var before := Run.jumps
@@ -853,7 +853,7 @@ func resolve_current_node() -> void:
 	settle_arrival(n)
 	# Saves on the sector at the flown-to node, or a force-quit fight refunded the fuel.
 	# Why: docs/why/Router.md#arrival-save
-	_autosave()
+	autosave()
 
 	# Every arrival lands on the sector; an ambush fights on the way to the door, not instead.
 	# Why: docs/why/Router.md#arrival
@@ -1010,24 +1010,11 @@ func show_station() -> void:
 var _open_option := -1
 
 
-## Shares `event_resolved`'s bookkeeping in one function so the two paths cannot drift.
+## Spends one option in place; `event_resolved` holds the bookkeeping.
 ## Why: docs/why/Router.md#option-bookkeeping
 func option_resolved(index: int, result: StringName = &"done") -> void:
 	_open_option = index
 	event_resolved(result)
-
-
-## Ask the party for the option before rolling or paying, or the race loser keeps the loot.
-## Why: docs/why/Router.md#claiming-options
-func claim_open_option() -> bool:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null or _open_option < 0:
-		return false
-	# a signed job's event, or an event quest, is this ship's alone
-	# (`OptionResolve.take`, `OptionTable.is_mine`)
-	if _open_option < n.options.size() and OptionTable.is_mine(n.options[_open_option]):
-		return not n.taken.has(MapGen.OPTION_SITE + _open_option)
-	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
 
 
 func event_resolved(result: StringName = &"done") -> void:
@@ -1470,12 +1457,6 @@ func finish_core_loot() -> void:
 	# the body's step is over: the won run's last save goes with it
 	SaveGame.clear()
 	show_game_over()
-
-func after_event() -> void:
-	if Run.dead:
-		show_game_over()
-		return
-	show_loot_or_map()
 
 ## Salvage is resolved where it was found, not on a screen of its own. The
 ## sector shows what is in the hold and lets you fit or scrap it there.

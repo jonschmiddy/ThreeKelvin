@@ -83,12 +83,12 @@ static func spot_key(slot: int, index: int) -> String:
 
 
 ## Where the part on spot `s` is drawn: its mount, or lifted off it.
-func _part_at(s: Dictionary) -> Vector2:
+func part_drawn_at(s: Dictionary) -> Vector2:
 	# (an empty mount is drawn where it is: its ping and its ring are the mount)
 	if explode <= 0.0 or lift.is_empty() or s.held == null:
 		return s.at
 	var o: Vector2 = lift.get(spot_key(int(s.slot), int(s.index)), Vector2.ZERO)
-	return (s.at as Vector2) + (o * explode * _mag()).round()
+	return (s.at as Vector2) + (o * explode * part_mag()).round()
 
 func attach(v: ShipView) -> void:
 	_view = v
@@ -151,12 +151,12 @@ func strays() -> Array[String]:
 		return out
 	var c0 := _view.canvas_to_local(Vector2.ZERO)
 	var px := float(_view._k)
-	var k := _mag()
+	var k := part_mag()
 	for s in _spots:
 		var m: ModuleData = s.held
 		if not shows(m):
 			continue
-		var r := part_rect(m, s.slot, _part_at(s), k)
+		var r := part_rect(m, s.slot, part_drawn_at(s), k)
 		var cr := Rect2((r.position - c0) / px, r.size / px)
 		var hit := false
 		for y in range(maxi(0, int(floor(cr.position.y))), mini(img.get_height(), int(ceil(cr.end.y)))):
@@ -179,7 +179,7 @@ func part_rects_canvas() -> Array[Rect2]:
 	_place()
 	var c0 := _view.canvas_to_local(Vector2.ZERO)
 	var px := float(_view._k)
-	var k := _mag()
+	var k := part_mag()
 	for s in _spots:
 		var m: ModuleData = s.held
 		if not shows(m):
@@ -230,7 +230,7 @@ func _animating() -> bool:
 
 ## Parts are half hold size on the ship by force: five heavy guns at hold size are 125% of the hull.
 ## Why: docs/why/MountPoints.md#part-scale
-func _mag() -> float:
+func part_mag() -> float:
 	return _view.art_scale() if _view != null else 1.0
 
 func _draw() -> void:
@@ -245,11 +245,11 @@ func _draw() -> void:
 	marked.clear()
 	var pulse := 0.62 + 0.38 * sin(_phase)
 	# Sizes are art pixels times this: the hull is magnified and bolted parts were not.
-	var k := _mag()
+	var k := part_mag()
 	# Hover hints only with empty hands: with a part in hand the pings already answer.
 	var over := not _passive and _lit == null and _hover.x < INF
 	for spot in _spots:
-		var at: Vector2 = _part_at(spot)
+		var at: Vector2 = part_drawn_at(spot)
 		var m: ModuleData = spot.held
 		# (a part this hull does not show is not drawn, and its mount is not
 		# empty either: no ping, no hint, nothing -- see `weapons_only`)
@@ -471,7 +471,7 @@ static func label_leader(at: Vector2, box: Rect2, k: float) -> PackedVector2Arra
 ## Why: docs/why/MountPoints.md#cutaway-layout
 func parts_rect() -> Rect2:
 	var out := Rect2()
-	var k := _mag()
+	var k := part_mag()
 	for s in _spots:
 		var m: ModuleData = s.held
 		if not shows(m):
@@ -485,12 +485,12 @@ func drawn_rects() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if explode <= 0.0:
 		return out
-	var k := _mag()
+	var k := part_mag()
 	var f := UITheme.pixel_font()
 	for s in _spots:
 		var m: ModuleData = s.held
 		if m != null:
-			var r := part_rect(m, s.slot, _part_at(s), k)
+			var r := part_rect(m, s.slot, part_drawn_at(s), k)
 			out.append({kind = "part", rect = r, text = m.name})
 			if tags and explode > 0.85:
 				var txt := m.name.to_upper()
@@ -510,7 +510,7 @@ func empty_leaders() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if explode <= 0.85:
 		return out
-	var k := _mag()
+	var k := part_mag()
 	var f := UITheme.pixel_font()
 	for s in _spots:
 		if s.held != null or not _shows_empty(s):
@@ -535,7 +535,7 @@ func hit_drawn(p: Vector2) -> bool:
 		if (d.rect as Rect2).grow(2.0).has_point(p):
 			return true
 	for s in _spots:
-		if s.held == null and _shows_empty(s) and (s.at as Vector2).distance_to(p) <= (R + 3.0) * _mag():
+		if s.held == null and _shows_empty(s) and (s.at as Vector2).distance_to(p) <= (R + 3.0) * part_mag():
 			return true
 	return false
 
@@ -590,7 +590,7 @@ func _empty_words(s: Dictionary, k: float) -> void:
 
 
 func _ring(at: Vector2, r: float, col: Color) -> void:
-	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
+	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, part_mag()))
 
 ## Parts are drawn by this node, not nodes of their own, so the cursor must be position-keyed.
 ## Why: docs/why/MountPoints.md#cursor-shape
@@ -602,12 +602,12 @@ func _get_cursor_shape(at: Vector2) -> CursorShape:
 
 ## The installed part under a point; a caller that flips it does not care which hardpoint.
 func part_under(p: Vector2) -> ModuleData:
-	var k := _mag()
+	var k := part_mag()
 	for i in _spots.size():
 		var m: ModuleData = _spots[i].held
 		if not shows(m):
 			continue
-		if part_rect(m, _spots[i].slot, _part_at(_spots[i]), k).grow(2.0).has_point(p):
+		if part_rect(m, _spots[i].slot, part_drawn_at(_spots[i]), k).grow(2.0).has_point(p):
 			return m
 	return null
 
@@ -639,10 +639,10 @@ func _make_custom_tooltip(_for_text: String) -> Object:
 
 
 func spot_at(p: Vector2) -> int:
-	var k := _mag()
+	var k := part_mag()
 	for i in _spots.size():
 		var m: ModuleData = _spots[i].held
-		if m != null and part_rect(m, _spots[i].slot, _part_at(_spots[i]), k).has_point(p):
+		if m != null and part_rect(m, _spots[i].slot, part_drawn_at(_spots[i]), k).has_point(p):
 			return i
 	var best := -1
 	var best_d := (REACH * k) * (REACH * k)
@@ -667,7 +667,7 @@ func _get_drag_data(at: Vector2) -> Variant:
 	# Same ghost as the hold, at the part's current place, so the plate starts over the gun.
 	set_drag_preview(ModuleIcon.ghost_for(m, &"hull",
 		get_global_rect().position
-		+ part_rect(m, _spots[i].slot, _part_at(_spots[i]), _mag()).position))
+		+ part_rect(m, _spots[i].slot, part_drawn_at(_spots[i]), part_mag()).position))
 	# Off the ship once in hand, or its origin mount stays full and will not ping.
 	# Why: docs/why/MountPoints.md#lifting-a-part
 	if ship != null:

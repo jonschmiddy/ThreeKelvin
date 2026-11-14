@@ -50,8 +50,8 @@ static func draw(b: PostingBoard, i: int) -> void:
 					sh.size.x - 20.0 - float((k * 13) % 30), 2.0), Color(INK_SOFT, 0.5))
 			var sr := Rect2(sh.position.x + 14.0, sh.get_center().y - 12.0, sh.size.x - 28.0, 22.0)
 			b.draw_rect(sr, Color(RED, 0.85), false, 2.0)
-			b._centre_at("FILLED", sr.position.x, sr.position.y + 17.0, sr.size.x, UITheme.FS_HEAD, Color(RED, 0.85))
-			b._pin(Vector2(sh.position.x + sh.size.x * 0.5, sh.position.y + 3.0), PIN)
+			b.centre_text_at("FILLED", sr.position.x, sr.position.y + 17.0, sr.size.x, UITheme.FS_HEAD, Color(RED, 0.85))
+			b.pin_at(Vector2(sh.position.x + sh.size.x * 0.5, sh.position.y + 3.0), PIN)
 		1:
 			# three stickies, overlapping
 			var cols := [Color("#f0d878"), Color("#f0a0b8"), Color("#a8e0a0")]
@@ -66,9 +66,9 @@ static func draw(b: PostingBoard, i: int) -> void:
 			var bc := Rect2(Vector2(2, 2), Vector2(84.0, 46.0))
 			_shadow(b, bc, 0.35)
 			b.draw_rect(bc, Color("#e8e2d0"))
-			b._text("TINKER", bc.position.x + 6.0, bc.position.y + 14.0, UITheme.FS_SMALL, INK)
-			b._text("FIXES ANYTHING", bc.position.x + 6.0, bc.position.y + 26.0, UITheme.FS_SMALL, INK_SOFT)
-			b._text("DECK 2", bc.position.x + 6.0, bc.position.y + 38.0, UITheme.FS_SMALL, BLUE)
+			b.text_at("TINKER", bc.position.x + 6.0, bc.position.y + 14.0, UITheme.FS_SMALL, INK)
+			b.text_at("FIXES ANYTHING", bc.position.x + 6.0, bc.position.y + 26.0, UITheme.FS_SMALL, INK_SOFT)
+			b.text_at("DECK 2", bc.position.x + 6.0, bc.position.y + 38.0, UITheme.FS_SMALL, BLUE)
 			var po := Rect2(Vector2(58, 48), Vector2(60.0, 66.0))
 			_shadow(b, po)
 			b.draw_rect(po, Color("#eeeae0"))
@@ -77,20 +77,20 @@ static func draw(b: PostingBoard, i: int) -> void:
 			b.draw_rect(Rect2(ph.position.x + 10.0, ph.position.y + 20.0, 28.0, 6.0), Color("#a8b8c8"))
 			b.draw_rect(Rect2(ph.position.x + 18.0, ph.position.y + 16.0, 8.0, 4.0), Color("#a8b8c8"))
 			b.draw_rect(Rect2(ph.position.x + 38.0, ph.position.y + 22.0, 4.0, 2.0), EMBER)
-			b._text("MY GIRL", po.position.x + 8.0, po.end.y - 6.0, UITheme.FS_SMALL, INK_SOFT)
-			b._pin(Vector2(bc.position.x + 40.0, bc.position.y + 2.0), PIN_COOL)
-			b._pin(Vector2(po.position.x + 30.0, po.position.y + 2.0), PIN)
+			b.text_at("MY GIRL", po.position.x + 8.0, po.end.y - 6.0, UITheme.FS_SMALL, INK_SOFT)
+			b.pin_at(Vector2(bc.position.x + 40.0, bc.position.y + 2.0), PIN_COOL)
+			b.pin_at(Vector2(po.position.x + 30.0, po.position.y + 2.0), PIN)
 		3:
 			# a takeout menu
 			var mn := Rect2(Vector2(2, 2), Vector2(100.0, 120.0))
 			_shadow(b, mn)
 			b.draw_rect(mn, Color("#d8463a"))
-			b._centre_at("NOODLES", mn.position.x, mn.position.y + 18.0, mn.size.x, UITheme.FS_HEAD, Color("#f8e8c0"))
-			b._centre_at("DECK 3 - LATE", mn.position.x, mn.position.y + 32.0, mn.size.x, UITheme.FS_SMALL, Color("#f8e8c0"))
+			b.centre_text_at("NOODLES", mn.position.x, mn.position.y + 18.0, mn.size.x, UITheme.FS_HEAD, Color("#f8e8c0"))
+			b.centre_text_at("DECK 3 - LATE", mn.position.x, mn.position.y + 32.0, mn.size.x, UITheme.FS_SMALL, Color("#f8e8c0"))
 			for k in 5:
 				b.draw_rect(Rect2(mn.position.x + 10.0, mn.position.y + 44.0 + float(k) * 11.0, mn.size.x - 40.0, 2.0), Color("#f8e8c0"))
-				b._text("%d" % (3 + k * 2), mn.end.x - 22.0, mn.position.y + 48.0 + float(k) * 11.0, UITheme.FS_SMALL, Color("#f8e8c0"))
-			b._pin(Vector2(mn.position.x + mn.size.x * 0.5, mn.position.y + 3.0), PIN)
+				b.text_at("%d" % (3 + k * 2), mn.end.x - 22.0, mn.position.y + 48.0 + float(k) * 11.0, UITheme.FS_SMALL, Color("#f8e8c0"))
+			b.pin_at(Vector2(mn.position.x + mn.size.x * 0.5, mn.position.y + 3.0), PIN)
 		4:
 			# an old job, faded, and a sticky over its corner
 			var sh2 := Rect2(Vector2(2, 2), Vector2(118.0, 106.0))
@@ -102,9 +102,9 @@ static func draw(b: PostingBoard, i: int) -> void:
 			var st := Rect2(sh2.end - Vector2(46, 40), Vector2(48, 48))
 			_shadow(b, st, 0.35)
 			b.draw_rect(st, Color("#f0d878"))
-			b._text("TAKEN", st.position.x + 6.0, st.position.y + 16.0, UITheme.FS_SMALL, RED)
-			b._text("SORRY", st.position.x + 6.0, st.position.y + 30.0, UITheme.FS_SMALL, INK)
-			b._pin(Vector2(sh2.position.x + 20.0, sh2.position.y + 3.0), PIN_COOL)
+			b.text_at("TAKEN", st.position.x + 6.0, st.position.y + 16.0, UITheme.FS_SMALL, RED)
+			b.text_at("SORRY", st.position.x + 6.0, st.position.y + 30.0, UITheme.FS_SMALL, INK)
+			b.pin_at(Vector2(sh2.position.x + 20.0, sh2.position.y + 3.0), PIN_COOL)
 		_:
 			_pool(b, i)
 
@@ -417,7 +417,7 @@ static func _poly(b: PostingBoard, pts: Array, col: Color, off: Vector2 = Vector
 
 
 static func _disc(b: PostingBoard, c: Vector2, r: int, col: Color) -> void:
-	PostingBoard._disc(b, c.round(), r, col)
+	PostingBoard.pixel_disc(b, c.round(), r, col)
 
 
 ## A ring: a disc with its middle in another colour.
@@ -426,8 +426,8 @@ static func _ring(b: PostingBoard, c: Vector2, r: int, col: Color, fill: Color) 
 		_disc(b, c, r - 1, fill)
 	# the ring alone, row by row: what the outer disc has and the inner has not
 	c = c.round()
-	var outer := PostingBoard._disc_rows(r)
-	var inner := PostingBoard._disc_rows(r - 1)
+	var outer := PostingBoard.pixel_disc_rows(r)
+	var inner := PostingBoard.pixel_disc_rows(r - 1)
 	for k in outer.size():
 		var y := k - r
 		var ho := outer[k]
@@ -466,19 +466,19 @@ static func _warn(s: String, need: float, room: float) -> void:
 
 static func _tx(b: PostingBoard, s: String, x: float, y: float, fs: int, col: Color, room: float) -> void:
 	_warn(s, _w(s, fs), room)
-	b._text(s, x, y, fs, col)
+	b.text_at(s, x, y, fs, col)
 
 
 static func _cx(b: PostingBoard, s: String, x: float, y: float, w: float, fs: int, col: Color) -> void:
 	_warn(s, _w(s, fs), w)
-	b._centre_at(s, x, y, w, fs, col)
+	b.centre_text_at(s, x, y, w, fs, col)
 
 
 static func _rx(b: PostingBoard, s: String, right: float, y: float, fs: int, col: Color) -> void:
-	b._text(s, floorf(right - _w(s, fs)), y, fs, col)
+	b.text_at(s, floorf(right - _w(s, fs)), y, fs, col)
 
 
-## How wide `PostingBoard._hand` writes, near enough.
+## How wide `PostingBoard.hand_text` writes, near enough.
 static func _hw(s: String, fs: int = F) -> float:
 	var sc := 1.35 if fs <= F else 2.8
 	var w := 0.0
@@ -489,7 +489,7 @@ static func _hw(s: String, fs: int = F) -> float:
 
 static func _hx(b: PostingBoard, s: String, at: Vector2, col: Color, sd: float, room: float, fs: int = F) -> void:
 	_warn(s, _hw(s, fs), room)
-	b._hand(s, at, col, sd, fs)
+	b.hand_text(s, at, col, sd, fs)
 
 
 ## Lines of print too small to read, as print is from a step back.
@@ -781,7 +781,7 @@ static func _sale(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		for c in ph.length():
 			_cx(b, ph.substr(c, 1), tx, body.end.y + 9.0 + float(c) * 7.0, tw - 1.0, F, INK)
 	_dash_h(b, body.position.x, body.end.x, body.end.y, _a(INK_SOFT, 0.7))
-	b._pin(Vector2(body.position.x + floorf(body.size.x * 0.5), 5.0), _pc(i))
+	b.pin_at(Vector2(body.position.x + floorf(body.size.x * 0.5), 5.0), _pc(i))
 
 
 ## LOST, with a drawing done by somebody who misses it.
@@ -801,8 +801,8 @@ static func _lost(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		y += 11.0
 	if P.has("rw"):
 		_cx(b, String(P["rw"]), r.position.x, r.end.y - 6.0, r.size.x, F, RED)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## An index card: its title over the red line, the rest on the blue ones, typed
@@ -828,7 +828,7 @@ static func _index(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		else:
 			_tx(b, String(lines[k]), r.position.x + 6.0, y, F, ink, r.size.x - 10.0)
 		y += step
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## A gig poster: a loud colour, the act's name big, a picture of the noise.
@@ -868,8 +868,8 @@ static func _gig(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 			b.draw_rect(Rect2(c.x + 1.0, c.y - 4.0, 1.0, 10.0), a)
 	for k in lines.size():
 		_cx(b, String(lines[k]), r.position.x + 2.0, foot + float(k) * 11.0, r.size.x - 4.0, F, lt)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 2))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 2))
 
 
 ## A ticket stub, its perforation down the right where the rest was torn away.
@@ -884,7 +884,7 @@ static func _ticket(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void
 	_tx(b, String(P["l"]), r.position.x + 7.0, 26.0, F, INK, perf - r.position.x - 12.0)
 	_tx(b, String(P["n"]), r.position.x + 7.0, 36.0, F, RED, perf - r.position.x - 12.0)
 	_star(b, Vector2(perf + 10.0, r.position.y + 26.0), 3, col.darkened(0.35))
-	b._pin(Vector2(perf + 9.0, 6.0), _pc(i))
+	b.pin_at(Vector2(perf + 9.0, 6.0), _pc(i))
 
 
 ## A till receipt, long and thin, its bottom torn off along the teeth.
@@ -915,7 +915,7 @@ static func _receipt(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> voi
 	_tx(b, "TOTAL", r.position.x + 4.0, y + 6.0, F, INK, w - 18.0)
 	_rx(b, String(P.get("tot", "")), r.end.x - 4.0, y + 6.0, F, INK)
 	_cx(b, "THANK YOU", r.position.x, r.end.y - 4.0, w, F, INK_SOFT)
-	b._pin(Vector2(r.position.x + floorf(w * 0.5), 5.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + floorf(w * 0.5), 5.0), _pc(i))
 
 
 ## A postcard: somewhere else, in colours this place has not got.
@@ -943,7 +943,7 @@ static func _postcard(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> vo
 	_tx(b, "HELLO FROM", pic.position.x + 4.0, 17.0, F, Color("#f0f0e8"), pic.size.x - 26.0)
 	var t: String = P["t"]
 	var fs := H if _w(t, H) <= pic.size.x - 8.0 else F
-	b._text(t, pic.position.x + 5.0, pic.end.y - 4.0, fs, Color(0, 0, 0, 0.6))
+	b.text_at(t, pic.position.x + 5.0, pic.end.y - 4.0, fs, Color(0, 0, 0, 0.6))
 	_tx(b, t, pic.position.x + 4.0, pic.end.y - 5.0, fs, Color("#f8d860"), pic.size.x - 8.0)
 	# the stamp, top right
 	var st := Rect2(pic.end.x - 16.0, pic.position.y + 3.0, 13.0, 15.0)
@@ -970,57 +970,57 @@ static func _crayon(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void
 	match String(P["pic"]):
 		"mum":
 			# a sun, a ship, and Mum, as big as the ship
-			b._wobble_circle(o + Vector2(80, 32), 6.0, yellow, sd)
+			b.wobble_circle(o + Vector2(80, 32), 6.0, yellow, sd)
 			for d in 6:
 				var ang := float(d) * TAU / 6.0
-				b._wobble_line(o + Vector2(80, 32) + Vector2(cos(ang), sin(ang)) * 9.0, o + Vector2(80, 32) + Vector2(cos(ang), sin(ang)) * 12.0, yellow, sd + float(d))
-			b._wobble_circle(o + Vector2(22, 38), 6.0, cc, sd + 1.0)
-			b._wobble_line(o + Vector2(22, 44), o + Vector2(22, 62), cc, sd + 2.0)
-			b._wobble_line(o + Vector2(13, 50), o + Vector2(31, 48), cc, sd + 3.0)
-			b._wobble_line(o + Vector2(22, 62), o + Vector2(15, 76), cc, sd + 4.0)
-			b._wobble_line(o + Vector2(22, 62), o + Vector2(29, 76), cc, sd + 5.0)
-			b._wobble_rect(Rect2(o.x + 42.0, o.y + 54.0, 30.0, 12.0), blue, sd + 6.0)
-			b._wobble_line(o + Vector2(72, 54), o + Vector2(84, 60), blue, sd + 7.0)
-			b._wobble_line(o + Vector2(84, 60), o + Vector2(72, 66), blue, sd + 8.0)
-			b._wobble_line(o + Vector2(40, 57), o + Vector2(32, 60), orange, sd + 9.0)
-			b._wobble_line(o + Vector2(40, 63), o + Vector2(34, 66), orange, sd + 10.0)
+				b.wobble_line(o + Vector2(80, 32) + Vector2(cos(ang), sin(ang)) * 9.0, o + Vector2(80, 32) + Vector2(cos(ang), sin(ang)) * 12.0, yellow, sd + float(d))
+			b.wobble_circle(o + Vector2(22, 38), 6.0, cc, sd + 1.0)
+			b.wobble_line(o + Vector2(22, 44), o + Vector2(22, 62), cc, sd + 2.0)
+			b.wobble_line(o + Vector2(13, 50), o + Vector2(31, 48), cc, sd + 3.0)
+			b.wobble_line(o + Vector2(22, 62), o + Vector2(15, 76), cc, sd + 4.0)
+			b.wobble_line(o + Vector2(22, 62), o + Vector2(29, 76), cc, sd + 5.0)
+			b.wobble_rect(Rect2(o.x + 42.0, o.y + 54.0, 30.0, 12.0), blue, sd + 6.0)
+			b.wobble_line(o + Vector2(72, 54), o + Vector2(84, 60), blue, sd + 7.0)
+			b.wobble_line(o + Vector2(84, 60), o + Vector2(72, 66), blue, sd + 8.0)
+			b.wobble_line(o + Vector2(40, 57), o + Vector2(32, 60), orange, sd + 9.0)
+			b.wobble_line(o + Vector2(40, 63), o + Vector2(34, 66), orange, sd + 10.0)
 		"whale":
-			b._wobble_circle(o + Vector2(44, 52), 17.0, blue, sd)
-			b._wobble_line(o + Vector2(60, 50), o + Vector2(78, 40), blue, sd + 1.0)
-			b._wobble_line(o + Vector2(78, 40), o + Vector2(76, 60), blue, sd + 2.0)
-			b._wobble_line(o + Vector2(76, 60), o + Vector2(60, 56), blue, sd + 3.0)
+			b.wobble_circle(o + Vector2(44, 52), 17.0, blue, sd)
+			b.wobble_line(o + Vector2(60, 50), o + Vector2(78, 40), blue, sd + 1.0)
+			b.wobble_line(o + Vector2(78, 40), o + Vector2(76, 60), blue, sd + 2.0)
+			b.wobble_line(o + Vector2(76, 60), o + Vector2(60, 56), blue, sd + 3.0)
 			b.draw_rect(Rect2(o.x + 34.0, o.y + 46.0, 3.0, 3.0), Color("#202020"))
-			b._wobble_line(o + Vector2(32, 58), o + Vector2(42, 60), Color("#d04a6a"), sd + 4.0)
+			b.wobble_line(o + Vector2(32, 58), o + Vector2(42, 60), Color("#d04a6a"), sd + 4.0)
 			for k in 5:
 				_star(b, o + Vector2(10.0 + float(k * 19 % 80), 30.0 + float(k * 13 % 50)), 2, yellow)
 		"dad":
-			b._wobble_circle(o + Vector2(28, 40), 7.0, brown, sd)
-			b._wobble_line(o + Vector2(28, 47), o + Vector2(28, 66), brown, sd + 1.0)
-			b._wobble_line(o + Vector2(18, 54), o + Vector2(44, 56), brown, sd + 2.0)
-			b._wobble_line(o + Vector2(28, 66), o + Vector2(20, 80), brown, sd + 3.0)
-			b._wobble_line(o + Vector2(28, 66), o + Vector2(36, 80), brown, sd + 4.0)
-			b._wobble_circle(o + Vector2(54, 54), 5.0, cc, sd + 5.0)
-			b._wobble_line(o + Vector2(54, 59), o + Vector2(54, 70), cc, sd + 6.0)
-			b._wobble_line(o + Vector2(44, 58), o + Vector2(62, 62), cc, sd + 7.0)
-			b._wobble_line(o + Vector2(54, 70), o + Vector2(49, 80), cc, sd + 8.0)
-			b._wobble_line(o + Vector2(54, 70), o + Vector2(59, 80), cc, sd + 9.0)
+			b.wobble_circle(o + Vector2(28, 40), 7.0, brown, sd)
+			b.wobble_line(o + Vector2(28, 47), o + Vector2(28, 66), brown, sd + 1.0)
+			b.wobble_line(o + Vector2(18, 54), o + Vector2(44, 56), brown, sd + 2.0)
+			b.wobble_line(o + Vector2(28, 66), o + Vector2(20, 80), brown, sd + 3.0)
+			b.wobble_line(o + Vector2(28, 66), o + Vector2(36, 80), brown, sd + 4.0)
+			b.wobble_circle(o + Vector2(54, 54), 5.0, cc, sd + 5.0)
+			b.wobble_line(o + Vector2(54, 59), o + Vector2(54, 70), cc, sd + 6.0)
+			b.wobble_line(o + Vector2(44, 58), o + Vector2(62, 62), cc, sd + 7.0)
+			b.wobble_line(o + Vector2(54, 70), o + Vector2(49, 80), cc, sd + 8.0)
+			b.wobble_line(o + Vector2(54, 70), o + Vector2(59, 80), cc, sd + 9.0)
 			# a heart over them
-			b._wobble_circle(o + Vector2(76, 40), 3.0, Color("#e04a6a"), sd + 10.0)
-			b._wobble_circle(o + Vector2(82, 40), 3.0, Color("#e04a6a"), sd + 11.0)
-			b._wobble_line(o + Vector2(73, 42), o + Vector2(79, 50), Color("#e04a6a"), sd + 12.0)
-			b._wobble_line(o + Vector2(85, 42), o + Vector2(79, 50), Color("#e04a6a"), sd + 13.0)
-			b._wobble_line(o + Vector2(4, 80), o + Vector2(90, 81), green, sd + 14.0)
+			b.wobble_circle(o + Vector2(76, 40), 3.0, Color("#e04a6a"), sd + 10.0)
+			b.wobble_circle(o + Vector2(82, 40), 3.0, Color("#e04a6a"), sd + 11.0)
+			b.wobble_line(o + Vector2(73, 42), o + Vector2(79, 50), Color("#e04a6a"), sd + 12.0)
+			b.wobble_line(o + Vector2(85, 42), o + Vector2(79, 50), Color("#e04a6a"), sd + 13.0)
+			b.wobble_line(o + Vector2(4, 80), o + Vector2(90, 81), green, sd + 14.0)
 		"bad":
 			# a long ship with teeth and two red eyes: the one the grown-ups talk about
-			b._wobble_rect(Rect2(o.x + 14.0, o.y + 40.0, 66.0, 20.0), Color("#303030"), sd)
+			b.wobble_rect(Rect2(o.x + 14.0, o.y + 40.0, 66.0, 20.0), Color("#303030"), sd)
 			for k in 6:
 				var tx := o.x + 18.0 + float(k) * 10.0
-				b._wobble_line(Vector2(tx, o.y + 60.0), Vector2(tx + 5.0, o.y + 52.0), Color("#303030"), sd + float(k))
-			b._wobble_circle(o + Vector2(70, 47), 2.0, cc, sd + 8.0)
-			b._wobble_circle(o + Vector2(60, 47), 2.0, cc, sd + 9.0)
-			b._wobble_line(o + Vector2(14, 44), o + Vector2(4, 40), orange, sd + 10.0)
-			b._wobble_line(o + Vector2(14, 56), o + Vector2(4, 60), orange, sd + 11.0)
-			b._wobble_line(o + Vector2(14, 50), o + Vector2(2, 50), yellow, sd + 12.0)
+				b.wobble_line(Vector2(tx, o.y + 60.0), Vector2(tx + 5.0, o.y + 52.0), Color("#303030"), sd + float(k))
+			b.wobble_circle(o + Vector2(70, 47), 2.0, cc, sd + 8.0)
+			b.wobble_circle(o + Vector2(60, 47), 2.0, cc, sd + 9.0)
+			b.wobble_line(o + Vector2(14, 44), o + Vector2(4, 40), orange, sd + 10.0)
+			b.wobble_line(o + Vector2(14, 56), o + Vector2(4, 60), orange, sd + 11.0)
+			b.wobble_line(o + Vector2(14, 50), o + Vector2(2, 50), yellow, sd + 12.0)
 	_tape(b, Rect2(floorf(sz.x * 0.5) - 9.0, 0.0, 18.0, 7.0))
 
 
@@ -1055,7 +1055,7 @@ static func _polaroid(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> vo
 				b.draw_rect(Rect2(cx, c.y - 9.0, 2.0, 3.0), Color("#f8d040"))
 				b.draw_rect(Rect2(cx - 2.0, c.y - 11.0, 6.0, 6.0), Color(1.0, 0.8, 0.3, 0.2))
 	_cx(b, String(P["t"]), r.position.x + 2.0, r.end.y - 6.0, r.size.x - 4.0, F, BLUE)
-	b._pin(Vector2(r.position.x + floorf(r.size.x * 0.5), 5.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + floorf(r.size.x * 0.5), 5.0), _pc(i))
 
 
 ## A page torn off a calendar: the days gone by crossed out, one ringed.
@@ -1083,10 +1083,10 @@ static func _calendar(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> vo
 				b.draw_line(cell.position + Vector2(3, 2), cell.end - Vector2(3, 2), _a(RED, 0.85), 1.0)
 				b.draw_line(Vector2(cell.end.x - 3.0, cell.position.y + 2.0), Vector2(cell.position.x + 3.0, cell.end.y - 2.0), _a(RED, 0.85), 1.0)
 			if day == ringed:
-				b._wobble_circle(cell.get_center(), 6.0, BLUE, float(i))
+				b.wobble_circle(cell.get_center(), 6.0, BLUE, float(i))
 	_hx(b, String(P.get("n", "")), Vector2(r.position.x + 10.0, r.end.y - 4.0), BLUE, float(i) * 2.0, r.size.x - 14.0)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A safety notice: a word in capitals, a triangle, stripes.
@@ -1106,8 +1106,8 @@ static func _safety(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void
 		_cx(b, String(line), r.position.x + 2.0, y, r.size.x - 4.0, F, INK)
 		y += 11.0
 	_hazard(b, Rect2(r.position.x + 1.0, r.end.y - 9.0, r.size.x - 2.0, 8.0), tc)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A typed notice: a title, maybe a picture, the facts, and a last word.
@@ -1130,8 +1130,8 @@ static func _notice(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void
 		y += 11.0
 	if P.has("f"):
 		_cx(b, String(P["f"]), r.position.x + 2.0, r.end.y - 6.0, r.size.x - 4.0, F, RED)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A page torn out of a spiral pad, in pen: the holes along its top are the pad's.
@@ -1153,7 +1153,7 @@ static func _note(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for k in lines.size():
 		_hx(b, String(lines[k]), Vector2(r.position.x + 14.0, y), pen, float(i) * 3.0 + float(k), r.size.x - 16.0)
 		y += 12.0
-	b._pin(Vector2(r.end.x - 7.0, 9.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 9.0), _pc(i))
 
 
 ## A business card: who, what, where, and a little picture of the work.
@@ -1170,7 +1170,7 @@ static func _biz(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		_tx(b, String(lines[k]), r.position.x + 5.0, 28.0 + float(k) * 10.0, F, soft, r.size.x - 26.0)
 	var ic := {"cross": RED, "eye": Color("#f0e8d0"), "spark": EMBER, "scissors": INK}
 	_icon(b, String(P["icon"]), Vector2(r.end.x - 12.0, 32.0), ic.get(String(P["icon"]), INK))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## Another stall's menu: a band of colour, its dishes, their prices.
@@ -1192,7 +1192,7 @@ static func _menu(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		_rx(b, String(it[1]), r.end.x - 6.0, y, F, a)
 		y += 13.0
 	_cx(b, String(P.get("f", "")), r.position.x, r.end.y - 6.0, r.size.x, F, a)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
 
 
 ## A coupon, cut out along its dashed line, and stapled up.
@@ -1228,8 +1228,8 @@ static func _calm(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for line in P.get("l", []):
 		_cx(b, String(line), r.position.x + 2.0, y, r.size.x - 4.0, F, INK_SOFT)
 		y += 11.0
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## HAVE YOU SEEN THIS SHIP: a photo of it, and who wants to know.
@@ -1247,8 +1247,8 @@ static func _seen(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for line in P.get("l", []):
 		_cx(b, String(line), r.position.x + 2.0, y, r.size.x - 4.0, F, INK if y < 81.0 else INK_SOFT)
 		y += 11.0
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A deck plan torn out of a guide: halls, rooms, and an X where somebody was.
@@ -1278,7 +1278,7 @@ static func _map(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	b.draw_line(xm + Vector2(-4, -4), xm + Vector2(4, 4), RED, 2.0)
 	b.draw_line(xm + Vector2(4, -4), xm + Vector2(-4, 4), RED, 2.0)
 	_disc(b, r.position + Vector2(20, 56), 2, RED)
-	b._pin(Vector2(r.end.x - 9.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 9.0, 5.0), _pc(i))
 
 
 ## A route chart: worlds as rings, the jumps between them as dashes.
@@ -1301,8 +1301,8 @@ static func _route(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for k in pts.size():
 		var p: Vector2 = r.position + pts[k]
 		_ring(b, p, 3, BLUE if k != 5 else RED, col)
-	b._wobble_circle(r.position + pts[5], 7.0, RED, float(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.wobble_circle(r.position + pts[5], 7.0, RED, float(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## A scrap of star chart: navy, the stars joined up, one of them ringed in pen.
@@ -1319,9 +1319,9 @@ static func _stars(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		b.draw_rect(Rect2(ch.position.x + float((k * 31 + i) % int(ch.size.x)), ch.position.y + float((k * 17 + 2) % int(ch.size.y)), 1.0, 1.0), Color(1, 1, 1, 0.45))
 	for p: Vector2 in pts:
 		_star(b, ch.position + p, 1, Color("#f0f0ff"))
-	b._wobble_circle(ch.position + pts[6], 6.0, Color("#f0c040"), float(i))
+	b.wobble_circle(ch.position + pts[6], 6.0, Color("#f0c040"), float(i))
 	_hx(b, String(P.get("n", "")), ch.position + Vector2(46, 58), Color("#f0c040"), float(i), ch.size.x - 42.0)
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## An old WANTED, gone yellow, stamped with how it ended.
@@ -1343,7 +1343,7 @@ static func _caught(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void
 	var sr := Rect2(floorf(r.position.x + (r.size.x - sw) * 0.5), 60.0, sw, 22.0)
 	b.draw_rect(sr, sc, false, 2.0)
 	_cx(b, st, sr.position.x, sr.position.y + 17.0, sr.size.x, H, sc)
-	b._pin(Vector2(r.position.x + floorf(r.size.x * 0.5), 5.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + floorf(r.size.x * 0.5), 5.0), _pc(i))
 
 
 ## A printed table: a band with its name, rows of two columns, one fold.
@@ -1375,8 +1375,8 @@ static func _table(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		if k < rows.size() - 1:
 			b.draw_rect(Rect2(r.position.x + 4.0, y + 3.0, r.size.x - 8.0, 1.0), _a(INK_SOFT, 0.25))
 		y += 13.0
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A pad of stickies pinned up whole: the top one written on, the rest under it.
@@ -1395,7 +1395,7 @@ static func _pad(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		var fs := H if String(lines[k]).length() <= 3 else F
 		y += (17.0 if fs == H else 9.0) + 3.0
 		_hx(b, String(lines[k]), Vector2(top.position.x + 6.0, y), INK, float(i) + float(k), top.size.x - 8.0, fs)
-	b._pin(Vector2(top.position.x + floorf(top.size.x * 0.5), 5.0), _pc(i))
+	b.pin_at(Vector2(top.position.x + floorf(top.size.x * 0.5), 5.0), _pc(i))
 
 
 ## A bit of a box, written on in marker, ragged where it was torn off the box.
@@ -1422,18 +1422,18 @@ static func _sign(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	if String(P.get("pic", "")) == "kittens":
 		for k in 3:
 			var c := Vector2(r.position.x + 22.0 + float(k) * 26.0, r.end.y - 16.0)
-			b._wobble_circle(c, 6.0, INK, sd + float(k))
-			b._wobble_line(c + Vector2(-5, -4), c + Vector2(-4, -10), INK, sd + float(k) + 0.3)
-			b._wobble_line(c + Vector2(5, -4), c + Vector2(4, -10), INK, sd + float(k) + 0.6)
+			b.wobble_circle(c, 6.0, INK, sd + float(k))
+			b.wobble_line(c + Vector2(-5, -4), c + Vector2(-4, -10), INK, sd + float(k) + 0.3)
+			b.wobble_line(c + Vector2(5, -4), c + Vector2(4, -10), INK, sd + float(k) + 0.6)
 			b.draw_rect(Rect2(c.x - 3.0, c.y - 1.0, 1.0, 2.0), INK)
 			b.draw_rect(Rect2(c.x + 2.0, c.y - 1.0, 1.0, 2.0), INK)
 	else:
 		# an arrow, pointing the way to it
-		b._wobble_line(Vector2(r.position.x + 12.0, r.end.y - 12.0), Vector2(r.end.x - 16.0, r.end.y - 12.0), RED, sd)
-		b._wobble_line(Vector2(r.end.x - 16.0, r.end.y - 12.0), Vector2(r.end.x - 24.0, r.end.y - 18.0), RED, sd + 1.0)
-		b._wobble_line(Vector2(r.end.x - 16.0, r.end.y - 12.0), Vector2(r.end.x - 24.0, r.end.y - 6.0), RED, sd + 2.0)
-	b._pin(Vector2(r.position.x + 5.0, 7.0), _pc(i))
-	b._pin(Vector2(r.end.x - 8.0, 7.0), _pc(i, 1))
+		b.wobble_line(Vector2(r.position.x + 12.0, r.end.y - 12.0), Vector2(r.end.x - 16.0, r.end.y - 12.0), RED, sd)
+		b.wobble_line(Vector2(r.end.x - 16.0, r.end.y - 12.0), Vector2(r.end.x - 24.0, r.end.y - 18.0), RED, sd + 1.0)
+		b.wobble_line(Vector2(r.end.x - 16.0, r.end.y - 12.0), Vector2(r.end.x - 24.0, r.end.y - 6.0), RED, sd + 2.0)
+	b.pin_at(Vector2(r.position.x + 5.0, 7.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 8.0, 7.0), _pc(i, 1))
 
 
 ## An envelope pinned up for somebody: the flap, the stamp, the name.
@@ -1450,7 +1450,7 @@ static func _envelope(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> vo
 	_disc(b, st.get_center(), 2, Color("#f0e0a0"))
 	_hx(b, String(P["t"]), Vector2(r.position.x + 12.0, 44.0), BLUE, float(i), r.size.x - 16.0)
 	_cx(b, String(P.get("l", "")), r.position.x, r.end.y - 5.0, r.size.x, F, RED)
-	b._pin(tip + Vector2(0, -2), _pc(i))
+	b.pin_at(tip + Vector2(0, -2), _pc(i))
 
 
 ## A stamp card for a stall, most of it punched out: the cork shows through.
@@ -1467,7 +1467,7 @@ static func _punch(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		else:
 			_ring(b, c, 4, INK_SOFT, col)
 	_tx(b, "10TH FREE", r.end.x - 4.0 - _w("10TH FREE", F), r.end.y - 4.0, F, RED, 80.0)
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## A bingo flyer, its card half daubed.
@@ -1495,8 +1495,8 @@ static func _bingo(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for line in P.get("l", []):
 		_cx(b, String(line), r.position.x + 2.0, y, r.size.x - 4.0, F, INK)
 		y += 11.0
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## What is left of a notice somebody tore down: a corner, under its pin.
@@ -1513,7 +1513,7 @@ static func _scrap(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	_poly(b, pts, col)
 	if int(P.get("shape", 0)) == 1:
 		_tx(b, "...ENT", 18.0, 16.0, F, INK_SOFT, 40.0)
-	b._pin(Vector2(10.0, 7.0), _pc(i))
+	b.pin_at(Vector2(10.0, 7.0), _pc(i))
 
 
 ## A clipping out of the station's sheet: a headline, a photo, small print.
@@ -1548,7 +1548,7 @@ static func _clip(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	b.draw_rect(ph, INK, false, 1.0)
 	_greek(b, ph.end.x + 4.0, 33.0, r.end.x - ph.end.x - 9.0, 6, 6.0, _a(INK, 0.45), i)
 	_greek(b, r.position.x + 5.0, 75.0, r.size.x - 10.0, 4, 6.0, _a(INK, 0.45), i + 3)
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## A sign-up sheet: numbered lines, a few names in a few hands, the rest bare.
@@ -1565,8 +1565,8 @@ static func _signup(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void
 		b.draw_rect(Rect2(r.position.x + 14.0, y + 2.0, r.size.x - 20.0, 1.0), _a(INK_SOFT, 0.5))
 		if String(names[k]) != "":
 			_hx(b, String(names[k]), Vector2(r.position.x + 18.0, y), pens[(k + i) % pens.size()], float(i * 3 + k), r.size.x - 24.0)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A certificate, framed in a printed border, a seal on it, a name in pen.
@@ -1609,7 +1609,7 @@ static func _badge(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	var sr := Rect2(r.position.x + 4.0, 86.0, r.size.x - 8.0, 13.0)
 	b.draw_rect(sr, _a(RED, 0.85), false, 1.0)
 	_cx(b, "EXPIRED", sr.position.x, sr.position.y + 10.0, sr.size.x, F, _a(RED, 0.9))
-	b._pin(Vector2(r.position.x + floorf(r.size.x * 0.5), 5.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + floorf(r.size.x * 0.5), 5.0), _pc(i))
 
 
 ## A shipping label peeled off a crate: the warning, its picture, the code.
@@ -1655,8 +1655,8 @@ static func _graph(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		var col2 := Color("#d8783a") if k == bars.size() - 1 else Color("#4a7ab0")
 		b.draw_rect(Rect2(ax.position.x + 3.0 + float(k) * bw, ax.end.y - bh, bw - 3.0, bh), col2)
 	_hx(b, String(P.get("n", "")), Vector2(ax.position.x + 6.0, ax.position.y + 12.0), RED, float(i), 50.0)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## An IOU on a torn scrap.
@@ -1668,7 +1668,7 @@ static func _iou(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	_ragged_right(b, r.end.x, r.position.y, r.size.y, col, i)
 	_hx(b, String(P["t"]), Vector2(r.position.x + 12.0, 20.0), INK, float(i), r.size.x - 14.0)
 	_hx(b, String(P.get("l", "")), Vector2(r.position.x + 30.0, 34.0), BLUE, float(i) + 4.0, r.size.x - 32.0)
-	b._pin(Vector2(r.position.x + 5.0, 6.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + 5.0, 6.0), _pc(i))
 
 
 ## A photo booth strip: four goes at the same picture.
@@ -1693,7 +1693,7 @@ static func _strip(b: PostingBoard, _P: Dictionary, sz: Vector2, i: int) -> void
 			3:
 				_face(b, c + Vector2(0, -2), 6, SKIN[2], HAIR[2], Color("#3a8ac8"))
 				b.draw_rect(Rect2(fr.position.x, fr.position.y, 4.0, fr.size.y), Color("#c85a3a"))
-	b._pin(Vector2(r.position.x + floorf(r.size.x * 0.5), 6.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + floorf(r.size.x * 0.5), 6.0), _pc(i))
 
 
 ## A memo from the office, as the office writes them.
@@ -1709,7 +1709,7 @@ static func _memo(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 		_tx(b, String(line), r.position.x + 5.0, y, F, INK_SOFT, r.size.x - 10.0)
 		y += 10.0
 	_squiggle(b, r.end.x - 40.0, r.end.y - 8.0, 30.0, BLUE, i)
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## A petition: what it wants, and every name it got.
@@ -1723,8 +1723,8 @@ static func _petition(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> vo
 		var y := 38.0 + float(k) * 11.0
 		b.draw_rect(Rect2(r.position.x + 6.0, y + 2.0, r.size.x - 12.0, 1.0), _a(INK_SOFT, 0.35))
 		_squiggle(b, r.position.x + 8.0 + float((k * 7) % 12), y - 2.0, 30.0 + float((k * 11 + i) % 30), pens[(k + i) % pens.size()], i * 3 + k)
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A found key, on a paper tag, its string looped over the pin.
@@ -1748,7 +1748,7 @@ static func _key(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for t in [0, 1, 2]:
 		b.draw_rect(Rect2(kc.x + 18.0 + float(t) * 4.0, kc.y + 2.0, 2.0, 2.0 + float(t % 2)), metal)
 	b.draw_rect(Rect2(kc.x + 5.0, kc.y + 2.0, 26.0, 1.0), _a(SHADE, 0.4))
-	b._pin(Vector2(7.0, 6.0), _pc(i))
+	b.pin_at(Vector2(7.0, 6.0), _pc(i))
 
 
 ## A birthday card, opened out: balloons and a cake.
@@ -1770,8 +1770,8 @@ static func _bday(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for k in 3:
 		b.draw_rect(Rect2(ck.x - 7.0 + float(k) * 6.0, ck.y - 13.0, 2.0, 7.0), Color("#80c0f0"))
 		b.draw_rect(Rect2(ck.x - 7.0 + float(k) * 6.0, ck.y - 16.0, 2.0, 3.0), Color("#f8a030"))
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A fortune from a biscuit, kept.
@@ -1781,7 +1781,7 @@ static func _fortune(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> voi
 	var lines: Array = P.get("l", [])
 	for k in lines.size():
 		_cx(b, String(lines[k]), r.position.x + 12.0, 14.0 + float(k) * 11.0, r.size.x - 14.0, F, Color("#c83a3a"))
-	b._pin(Vector2(r.position.x + 5.0, 8.0), _pc(i))
+	b.pin_at(Vector2(r.position.x + 5.0, 8.0), _pc(i))
 
 
 ## A poster for the deck chief's job: a face, a name, what they will do.
@@ -1797,8 +1797,8 @@ static func _vote(b: PostingBoard, P: Dictionary, sz: Vector2, i: int) -> void:
 	for line in P.get("l", []):
 		_cx(b, String(line), r.position.x + 2.0, y, r.size.x - 4.0, F, INK if y < 92.0 else INK_SOFT)
 		y += 10.0
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## HANG IN THERE, with a drone holding on to a pipe.
@@ -1820,8 +1820,8 @@ static func _hang(b: PostingBoard, _P: Dictionary, sz: Vector2, i: int) -> void:
 	_disc(b, c + Vector2(0, -1), 2, EMBER)
 	b.draw_rect(Rect2(c.x - 5.0, c.y + 6.0, 2.0, 6.0), Color("#a0a8b0"))
 	b.draw_rect(Rect2(c.x + 3.0, c.y + 6.0, 2.0, 8.0), Color("#a0a8b0"))
-	b._pin(Vector2(r.position.x + 5.0, 5.0), _pc(i))
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
+	b.pin_at(Vector2(r.position.x + 5.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i, 1))
 
 
 ## A crossword cut out of the sheet, a few of it filled in, in pen.
@@ -1856,7 +1856,7 @@ static func _xword(b: PostingBoard, _P: Dictionary, sz: Vector2, i: int) -> void
 	for clue: String in ["1A WARM", "1D SHIP SKIN", "3D UP THERE"]:
 		_tx(b, clue, r.position.x + 5.0, cy, F, INK_SOFT, r.size.x - 10.0)
 		cy += 10.0
-	b._pin(Vector2(r.end.x - 7.0, 5.0), _pc(i))
+	b.pin_at(Vector2(r.end.x - 7.0, 5.0), _pc(i))
 
 
 ## A playing card, taped up for luck.

@@ -821,7 +821,7 @@ func _no_dock(what: String) -> void:
 	if not _ok("%s: on LOCAL" % what, loc != null):
 		return
 	_ok("%s: no DOCK button" % what, loc.find_child("Dock", true, false) == null)
-	_ok("%s: no station side, no ring" % what, loc._face == null and loc._view._area._place_name() == &"")
+	_ok("%s: no station side, no ring" % what, loc._face == null and loc._view._area.place_name() == &"")
 	_ok("%s: the bar says to fly to the station" % what, _bar_has(loc, "FLY TO THE STATION TO DOCK"))
 	_ok("%s: the fuel hint: \"%s\"" % [what, Hints.fuel_dock_line()], Hints.fuel_dock_line() == "Fly to the station here to refuel.")
 	Router.show_station()

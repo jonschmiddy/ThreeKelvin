@@ -1120,7 +1120,7 @@ func _no_box() -> void:
 		var tight := ""
 		if bar != null and bar.get_child_count() > 0:
 			var pieces: Array = []
-			GoalLine._inked(bar.get_child(0) as Control, pieces)
+			GoalLine.collect_inked_rects(bar.get_child(0) as Control, pieces)
 			var pr := bar.get_global_rect()
 			var least_v := INF
 			for q: Rect2 in pieces:
@@ -1142,7 +1142,7 @@ func _no_box() -> void:
 			var gr := Rect2(g.position, g.size)
 			var pieces2: Array = []
 			if bar != null and bar.get_child_count() > 0:
-				GoalLine._inked(bar.get_child(0) as Control, pieces2)
+				GoalLine.collect_inked_rects(bar.get_child(0) as Control, pieces2)
 			var hit := ""
 			var first_x := INF
 			for q: Rect2 in pieces2:

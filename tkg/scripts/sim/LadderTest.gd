@@ -1819,7 +1819,7 @@ func _no_stand_ins() -> void:
 			if site < -1 and site != -9:
 				continue
 			area.site = site
-			var what := area._place_name()
+			var what := area.place_name()
 			seen += 1
 			var ok := what == &"" or (what == &"station" and n.type == MapGen.NodeType.STATION)
 			if not ok:
@@ -1828,7 +1828,7 @@ func _no_stand_ins() -> void:
 	var any_beacon := false
 	for raw in Run.map:
 		area.node = raw
-		if area._place_name() == &"beacon":
+		if area.place_name() == &"beacon":
 			any_beacon = true
 	area.free()
 	_ok("no stand-in place picture at any of %d places on LOCAL (%s)" % [seen, bad], bad.is_empty() and seen > 0)

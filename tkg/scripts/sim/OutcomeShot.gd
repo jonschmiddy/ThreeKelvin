@@ -7,7 +7,6 @@ extends Node
 var _args: PackedStringArray
 var _out := ""
 var _film := false
-var _frame0 := 0
 
 
 func _ready() -> void:

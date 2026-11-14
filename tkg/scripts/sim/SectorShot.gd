@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## Needs a window: headless never emits `frame_post_draw`, so it looks like a hang.
-## A layout can only be looked at; `group` hunts an exclusive set, which has no fallback.
+## A layout can only be looked at; `group` hunts a system with two options in one exclusive set.
 ## Why: docs/why/SectorShot.md#sector-shot
 
 
@@ -70,8 +70,6 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
-	if "hover" in OS.get_cmdline_user_args():
-		tag += "_hover"
 	if "spent" in OS.get_cmdline_user_args():
 		tag += "_spent"
 		var sc := Router.current as SectorScreen
@@ -245,7 +243,6 @@ func run(tree: SceneTree) -> void:
 
 		# --- SIDEWAYS IS A REORDER ---------------------------------------
 		var first := sa.combat.hand[0]
-		var second := sa.combat.hand[1]
 		var v0: CardView = null
 		for hv0 in sa._hand.get_children():
 			var c0 := hv0 as CardView

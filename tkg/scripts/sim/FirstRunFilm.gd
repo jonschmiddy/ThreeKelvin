@@ -312,7 +312,7 @@ func _flow() -> void:
 		_mark("no_chart_pick", {screen = _screen_name()})
 		return
 	var mc: Control = chart._chart
-	var at: Vector2 = mc.get_global_transform() * mc._screen_pos(pick)
+	var at: Vector2 = mc.get_global_transform() * mc.screen_pos(pick)
 	await _click_at(at, "pick a star")
 	await _wait(0.4)
 	if chart._selected != pick.index:

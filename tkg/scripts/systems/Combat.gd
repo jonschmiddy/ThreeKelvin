@@ -217,7 +217,7 @@ func begin(f: SharedFight) -> void:
 		var was := Run.heat
 		Run.heat = maxi(0, Run.heat - 4)
 		if Run.heat != was:
-			_log("Cold open. %d heat vented before the first shot." % (was - Run.heat), &"good")
+			log_line("Cold open. %d heat vented before the first shot." % (was - Run.heat), &"good")
 			Sig.resources_changed.emit()
 	if f != null and f.over:
 		_settle_over(f)
@@ -227,14 +227,14 @@ func begin(f: SharedFight) -> void:
 		for row: Array in Net.take_held_swings(f.at):
 			var which := int(row[1])
 			if which >= 0 and which < enemies.size():
-				_log("%s hit you as you arrived." % enemies[which].template.name, &"them")
+				log_line("%s hit you as you arrived." % enemies[which].template.name, &"them")
 			_on_swing(int(row[0]), which, int(row[2]), int(row[3]))
 			if finished:
 				return
 		if f.stunned.has(Net.local_id()):
 			stunned = true
 			energy = 0
-			_log("Stunned. You act after the enemy's turn.", &"them")
+			log_line("Stunned. You act after the enemy's turn.", &"them")
 			Sig.turn_started.emit(turn)
 			Sig.hand_changed.emit()
 			Sig.player_combat_state_changed.emit()
@@ -413,10 +413,10 @@ func begin_turn() -> void:
 		return
 	if drone_brace > 0:
 		brace += drone_brace
-		_log("Shield wasps add %d brace." % drone_brace, &"good")
+		log_line("Shield wasps add %d brace." % drone_brace, &"good")
 
 	for c in fired:
-		_log("▸ %s detonates." % c.name, &"big")
+		log_line("▸ %s detonates." % c.name, &"big")
 		Sig.charge_fired.emit(c.name)
 		resolving = c
 		CardResolver.resolve(c, self, true)
@@ -444,9 +444,9 @@ func end_turn() -> void:
 		stuck_heat += (c as CardData).hand_heat
 	if stuck_heat > 0:
 		Run.heat += stuck_heat
-		_log("+%d heat from what you could not shift." % stuck_heat, &"heat")
+		log_line("+%d heat from what you could not shift." % stuck_heat, &"heat")
 	if stuck > 0:
-		_log("%d hull from junk left in hand." % stuck, &"them")
+		log_line("%d hull from junk left in hand." % stuck, &"them")
 		Sig.hull_burned.emit(stuck, &"junk")
 		Run.take_hull_damage(stuck, "Malfunctions left too long broke the hull.", true)
 
@@ -465,7 +465,7 @@ func end_turn() -> void:
 	if brace > 0:
 		Run.heat += 1
 		brace_held += 1
-		_log("+1 heat maintaining brace.", &"heat")
+		log_line("+1 heat maintaining brace.", &"heat")
 
 	# No end-of-turn shed: it was too small to plan around and fought the cards that want heat
 	# high. Dissipation multiplies venting instead. Do not soften overheat to compensate.
@@ -515,7 +515,7 @@ func _overheat() -> bool:
 	var burn := Run.heat - Run.heat_cap()
 	if Run.has_set(&"solari", 5):
 		burn = int(ceil(burn / 2.0))
-	_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
+	log_line("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
 	Sig.overheated.emit(burn)
 	Sig.hull_burned.emit(burn, &"overheat")
 	Run.take_hull_damage(burn, "The ship overheated and burned through its own hull.", true)
@@ -545,27 +545,27 @@ func _act_one(e: EnemyState) -> void:
 	# Solo only: in a shared fight the host turns this intent into a fight end before any
 	# swing.
 	if I.escape and not is_shared():
-		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
+		log_line("◂ %s: %s" % [e.template.name, I.name], &"them")
 		# its hull between fights is one ship's worth (`PartyScale.solo_hull`)
 		Run.hellbender_breaks_off(PartyScale.solo_hull(e.hp, party))
 		_finish(&"broke_off",
 			"It makes a blind jump and gets away hurt. It mends as it feeds. No salvage.")
 		return
-	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
+	log_line("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
 		e.block += I.block
 	if I.heal > 0:
 		e.hp = mini(e.max_hp, e.hp + I.heal)
-		_log("  healed %d." % I.heal, &"them")
+		log_line("  healed %d." % I.heal, &"them")
 	if I.dross > 0:
 		new_dross += I.dross
 		for i in I.dross:
 			named_dross.append(I.dross_id)
-		_log("  %d Dross lodges in your systems." % I.dross, &"them")
+		log_line("  %d Dross lodges in your systems." % I.dross, &"them")
 	if I.damage > 0:
 		if negate_next:
 			negate_next = false
-			_log("  slipped entirely.", &"good")
+			log_line("  slipped entirely.", &"good")
 			Sig.combat_hit.emit(true, enemies.find(e), 0, 0, maxi(1, I.hits), maxi(1, I.hits))
 		else:
 			var total := 0
@@ -576,7 +576,7 @@ func _act_one(e: EnemyState) -> void:
 				# Uses `Run.dodge()`, not `Run.hull.dodge`, so a Ghost Drive evades in the fight
 				# too.
 				if Rng.fight.randf() < Run.dodge():
-					_log("  missed.", &"good")
+					log_line("  missed.", &"good")
 					missed += 1
 					continue
 				if block > 0:
@@ -592,7 +592,7 @@ func _act_one(e: EnemyState) -> void:
 				total += d
 			Sig.combat_hit.emit(true, enemies.find(e), total, absorbed, missed, maxi(1, I.hits))
 			if total > 0:
-				_log("  %d hull damage." % total, &"them")
+				log_line("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
 				Run.take_hull_damage(total, "Enemy fire broke the hull open.", true)
 			# Feedback ran before the death check, so a killing hit could win and lose at once
@@ -620,7 +620,7 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 			deck = discard.duplicate()
 			Rng.shuffle(Rng.fight, deck)
 			discard.clear()
-			_log("Reshuffled.", &"sys")
+			log_line("Reshuffled.", &"sys")
 		hand.append(deck.pop_back())
 	Sig.hand_changed.emit()
 
@@ -650,10 +650,10 @@ func choose(index: int) -> void:
 	hand.remove_at(index)
 	if choose_kind == &"decommission":
 		decommissioned.append(c)
-		_log("Decommissioned %s." % c.name, &"sys")
+		log_line("Decommissioned %s." % c.name, &"sys")
 	else:
 		discard.append(c)
-		_log("Discarded %s." % c.name, &"sys")
+		log_line("Discarded %s." % c.name, &"sys")
 	choosing -= 1
 	if choosing <= 0 or hand.is_empty():
 		choosing = 0
@@ -675,7 +675,7 @@ func play(index: int, target_index: int = -1) -> void:
 	energy -= c.energy
 	hand.remove_at(index)
 	if c.unplayable:
-		_log("Purged %s." % c.name, &"sys")
+		log_line("Purged %s." % c.name, &"sys")
 		Sig.hand_changed.emit()
 		Sig.player_combat_state_changed.emit()
 		return
@@ -683,7 +683,7 @@ func play(index: int, target_index: int = -1) -> void:
 	# back when the deck reshuffles. That is what buys it the right to be strong.
 	if c.self_decommission:
 		decommissioned.append(c)
-		_log("%s decommissioned." % c.name, &"sys")
+		log_line("%s decommissioned." % c.name, &"sys")
 	else:
 		discard.append(c)
 	if c.charge_turns > 0:
@@ -693,7 +693,7 @@ func play(index: int, target_index: int = -1) -> void:
 		if Run.has_set(&"korvan", 3) and c.manufacturer == &"korvan":
 			cc.turns_left = maxi(1, cc.turns_left - 1)
 		charging.append(cc)
-		_log("%s charging (%d turn)." % [c.name, cc.turns_left], &"you")
+		log_line("%s charging (%d turn)." % [c.name, cc.turns_left], &"you")
 	else:
 		resolving = c
 		CardResolver.resolve(c, self, false)
@@ -808,7 +808,7 @@ func damage_enemy(amount: int, hits: int, label: String,
 	var which := enemies.find(e)
 	Sig.combat_hit.emit(false, which, total, absorbed, 0, maxi(1, hits))
 	var who := "" if enemies.size() < 2 else " → %s" % e.template.name
-	_log("%s%s → %d%s" % [label, who, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
+	log_line("%s%s → %d%s" % [label, who, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
 	Sig.damage_dealt.emit(total, false, which)
 	Sig.enemy_changed.emit()
 
@@ -824,7 +824,7 @@ func damage_enemy(amount: int, hits: int, label: String,
 		e.hp = 0
 		Sig.enemy_destroyed.emit(which)
 		if enemies.size() > 1:
-			_log("%s is wreckage." % e.template.name, &"good")
+			log_line("%s is wreckage." % e.template.name, &"good")
 	if alive().is_empty():
 		_victory()
 	return total
@@ -1271,7 +1271,7 @@ func _patch_crew() -> void:
 	if Run.has_routine(&"patch_crew"):
 		var got := Run.heal(3)
 		if got > 0:
-			_log("Patch crew. %d hull mended." % got, &"good")
+			log_line("Patch crew. %d hull mended." % got, &"good")
 
 func _finish(res: StringName, text: String) -> void:
 	finished = true
@@ -1372,21 +1372,21 @@ func _adopt(f: SharedFight) -> void:
 		if was > 0 and dst.hp <= 0:
 			Sig.enemy_destroyed.emit(i)
 			if enemies.size() > 1:
-				_log("%s is wreckage." % dst.template.name, &"good")
+				log_line("%s is wreckage." % dst.template.name, &"good")
 	# The host grew the boss (Jon, Nov 4); said only when a live hull really grows between
 	# counts.
 	if grown >= 0 and f.grown > grown:
 		var who := _grew_between(grown, f.grown)
 		grown = f.grown
 		if who != "":
-			_log("%s grows stronger." % who, &"them")
+			log_line("%s grows stronger." % who, &"them")
 	# A partner's card played elsewhere, drawn here or their hits land silently.
 	if f.last_hit.size() == 4 and f.hit_serial > _seen_hit:
 		_seen_hit = f.hit_serial
 		var by := f.last_hit[0]
 		if by != Net.local_id():
 			var who := Net.name_of(by)
-			_log("%s → %d" % [who.to_upper() if who != "" else "PARTNER",
+			log_line("%s → %d" % [who.to_upper() if who != "" else "PARTNER",
 				f.last_hit[2]], &"good")
 			Sig.damage_dealt.emit(f.last_hit[2], false, f.last_hit[1])
 			Sig.combat_hit.emit(false, f.last_hit[1], f.last_hit[2], 0, 0, 1)
@@ -1418,7 +1418,7 @@ func _on_fight_changed(at: int) -> void:
 		# carried in can burn)
 		if stunned:
 			stunned = false
-			_log("Your turn.", &"good")
+			log_line("Your turn.", &"good")
 			if _overheat():
 				return
 		begin_turn()
@@ -1436,9 +1436,9 @@ func _say_joins(f: SharedFight) -> void:
 		var who := Net.name_of(p)
 		who = who.to_upper() if who != "" else "A PARTNER"
 		if f.stunned.has(p):
-			_log("%s joins the fight, stunned until the enemy's turn is over." % who, &"good")
+			log_line("%s joins the fight, stunned until the enemy's turn is over." % who, &"good")
 		else:
-			_log("%s joins the fight." % who, &"good")
+			log_line("%s joins the fight." % who, &"good")
 	_last_crew = f.crew.duplicate()
 
 
@@ -1462,7 +1462,7 @@ func _settle_over(f: SharedFight) -> void:
 func _on_party_lost(_reason: String) -> void:
 	if finished or not is_shared():
 		return
-	_log("The convoy channel is gone. You are on your own.", &"them")
+	log_line("The convoy channel is gone. You are on your own.", &"them")
 	# stunned is waiting too: the enemy's turn it was sitting out is taken here
 	var was_waiting := waiting or stunned
 	release()
@@ -1493,5 +1493,5 @@ func _on_swing(at: int, which: int, kind: int, pick: int) -> void:
 	Sig.enemy_changed.emit()
 
 
-func _log(text: String, kind: StringName) -> void:
+func log_line(text: String, kind: StringName) -> void:
 	Run.log_line(text, kind)

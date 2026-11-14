@@ -11,8 +11,8 @@ diversity"): `PostingBoard` takes a few of these per station, by the
 station's number, and puts them where it likes around the work.
 
 Every drawing is drawn in its own box, `size_of(i)` from (0, 0), with
-`PostingBoard`'s marker helpers -- `_hand` for words, `_wobble_line`,
-`_wobble_rect` and `_wobble_circle` for strokes -- so the lines bow and
+`PostingBoard`'s marker helpers -- `hand_text` for words, `wobble_line`,
+`wobble_rect` and `wobble_circle` for strokes -- so the lines bow and
 overshoot the way the rest of the board's do. Nothing here may shimmer: the
 wobble is seeded by the drawing's own number.
 

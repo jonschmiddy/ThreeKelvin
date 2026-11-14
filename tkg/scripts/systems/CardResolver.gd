@@ -7,21 +7,21 @@ extends RefCounted
 static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 	if c.energy_gain > 0:
 		cb.energy += c.energy_gain
-		cb._log("+%d energy." % c.energy_gain, &"good")
+		cb.log_line("+%d energy." % c.energy_gain, &"good")
 
 	if c.credit_cost > 0:
 		if Run.credits < c.credit_cost:
-			cb._log("Not enough credits.", &"sys")
+			cb.log_line("Not enough credits.", &"sys")
 			return
 		Run.add_credits(-c.credit_cost)
-		cb._log("Spent %d credits." % c.credit_cost, &"sys")
+		cb.log_line("Spent %d credits." % c.credit_cost, &"sys")
 
 	# Discard comes first, so a card that discards then draws cannot pull the junk back.
 	if c.discard_hand:
 		var n := cb.hand.size()
 		cb.discard.append_array(cb.hand)
 		cb.hand.clear()
-		cb._log("Discarded %d card%s." % [n, "" if n == 1 else "s"], &"sys")
+		cb.log_line("Discarded %d card%s." % [n, "" if n == 1 else "s"], &"sys")
 		Sig.hand_changed.emit()
 
 	# A pick is a pause: what you discard is chosen from the hand you had, not the draw.
@@ -42,15 +42,15 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			dmg += 2
 		if c.flashpoint > 0 and Run.heat > Run.heat_cap():
 			dmg += c.flashpoint
-			cb._log("  flashpoint +%d/hit" % c.flashpoint, &"good")
+			cb.log_line("  flashpoint +%d/hit" % c.flashpoint, &"good")
 		if c.adapt > 0:
 			dmg += cb.adapt_bonus
 		if c.salvo > 0 and cb.salvo_live(c):
 			dmg += c.salvo
-			cb._log("  salvo +%d/hit" % c.salvo, &"good")
+			cb.log_line("  salvo +%d/hit" % c.salvo, &"good")
 		if cb.lock_on > 0:
 			dmg += cb.lock_on
-			cb._log("  lock-on +%d/hit" % cb.lock_on, &"good")
+			cb.log_line("  lock-on +%d/hit" % cb.lock_on, &"good")
 		cb.damage_enemy(dmg, c.hits, c.name)
 		if c.adapt > 0:
 			cb.adapt_bonus += c.adapt
@@ -61,11 +61,11 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		var d2 := Combat.Drone.new()
 		d2.damage = c.drone_damage
 		cb.drones.append(d2)
-		cb._log("Drone launched (%d/turn)." % c.drone_damage, &"good")
+		cb.log_line("Drone launched (%d/turn)." % c.drone_damage, &"good")
 
 	if c.drone_brace > 0:
 		cb.drone_brace += c.drone_brace
-		cb._log("Screen drone launched (+%d brace/turn)." % c.drone_brace, &"good")
+		cb.log_line("Screen drone launched (+%d brace/turn)." % c.drone_brace, &"good")
 
 	if c.evoke > 0:
 		var n := cb.drones.size()
@@ -73,37 +73,37 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			cb.damage_enemy(c.evoke, n, "Evoke (%d drones)" % n)
 			cb.drones.clear()
 		else:
-			cb._log("No drones to evoke.", &"sys")
+			cb.log_line("No drones to evoke.", &"sys")
 
 	if c.brace > 0:
 		var a := c.brace
 		if Run.has_set(&"probate", 5):
 			a += 2
 		cb.brace += a
-		cb._log("Brace +%d." % a, &"you")
+		cb.log_line("Brace +%d." % a, &"you")
 
 	if c.brace_from_heat:
 		var a2 := maxi(2, int(Run.heat / 2) + 2)
 		cb.brace += a2
-		cb._log("%s +%d brace from heat." % [c.name, a2], &"you")
+		cb.log_line("%s +%d brace from heat." % [c.name, a2], &"you")
 
 	if c.block > 0:
 		cb.block += c.block
-		cb._log("Block +%d (decays)." % c.block, &"you")
+		cb.log_line("Block +%d (decays)." % c.block, &"you")
 
 	if c.feedback > 0:
 		cb.feedback += c.feedback
 
 	if c.negate_next:
 		cb.negate_next = true
-		cb._log("Next attack on you will be negated.", &"good")
+		cb.log_line("Next attack on you will be negated.", &"good")
 
 	# After everything that reads heat: Thermal Purge once zeroed the gauge, then hit for 2.
 	if c.vent_all:
 		var purged := Run.heat
 		Run.heat = 0
 		if purged > 0:
-			cb._log("Purged %d heat." % purged, &"heat")
+			cb.log_line("Purged %d heat." % purged, &"heat")
 
 	if c.vent > 0:
 		# Vent adds the ship's dissipation, which no longer sheds on its own, making it a decision.
@@ -111,7 +111,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		var v := mini(Run.heat, c.vent + Run.dissipation())
 		Run.heat -= v
 		if v > 0:
-			cb._log("Vented %d heat." % v, &"heat")
+			cb.log_line("Vented %d heat." % v, &"heat")
 
 	if c.heal > 0 or c.heal_scale > 0:
 		var amount := c.heal
@@ -121,17 +121,17 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			amount += int(missing / c.heal_scale)
 		var healed := Run.heal(amount)
 		if healed > 0:
-			cb._log("Hull +%d." % healed, &"good")
+			cb.log_line("Hull +%d." % healed, &"good")
 
 	# LOCK-ON STACKS (Jon, Oct 23: "Lock on should stack"). A second sight card
 	# adds to the first rather than replacing it; the next attack spends it all.
 	if c.lock_on > 0:
 		cb.lock_on += c.lock_on
-		cb._log("Lock-on +%d. Next attack +%d a hit." % [c.lock_on, cb.lock_on], &"you")
+		cb.log_line("Lock-on +%d. Next attack +%d a hit." % [c.lock_on, cb.lock_on], &"you")
 
 	if c.credit_gain > 0:
 		Run.add_credits(c.credit_gain)
-		cb._log("+%d credits." % c.credit_gain, &"good")
+		cb.log_line("+%d credits." % c.credit_gain, &"good")
 
 	if c.draw > 0:
 		# Never reshuffle mid-turn: that is what makes 0-cost draw loop forever.
@@ -140,6 +140,6 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 	if c.heat > 0:
 		Run.heat += c.heat
 		if from_charge:
-			cb._log("  +%d heat from discharge." % c.heat, &"heat")
+			cb.log_line("  +%d heat from discharge." % c.heat, &"heat")
 
 	Sig.resources_changed.emit()

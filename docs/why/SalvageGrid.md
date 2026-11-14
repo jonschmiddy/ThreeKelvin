@@ -49,7 +49,7 @@ in a wreck before you have read a word of it.
 
 A signal rather than a call into Audio from here: this grid draws a
 container and has no business knowing which sound a rarity maps to. The view
-that opened it already does -- see `TransferView._take_sound`.
+that opened it already does -- see `TransferView.take_sound`.
 ```
 
 ## Drop beam

@@ -333,7 +333,7 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 	for i in n.options.size():
 		if L.place_of(i) == site and site >= -1:
 			here.append(i)
-	var pic: StringName = sc._view._area._place_name()
+	var pic: StringName = sc._view._area.place_name()
 	# NO STAND-IN ON LOCAL (Jon, Oct 21: "I don't want the beacon to show up at
 	# all"): no beacon, derelict or battlefield picked from tags, anywhere
 	if n.type == MapGen.NodeType.SYSTEM:

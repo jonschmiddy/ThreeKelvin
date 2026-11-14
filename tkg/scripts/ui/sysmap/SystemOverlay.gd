@@ -1017,7 +1017,7 @@ func _reach(body: int) -> float:
 # Star B's screen place comes from the view.
 # Why: docs/why/SystemOverlay.md#star-positions
 func star_scr(p: int) -> Vector2:
-	return view.call(&"star_screen", p)
+	return view.star_screen(p)
 
 
 ## Wide orbits are told by id, as a zero centre was star A only while A held still.
@@ -1034,7 +1034,7 @@ func _ring_c(id: int, c: Vector2) -> Vector2:
 
 ## Star disc size comes from the view.
 func star_disc(p: int) -> float:
-	return float(view.call(&"star_disc", p))
+	return float(view.star_disc(p))
 
 
 ## `at` is an Array, and `at[-4]` would quietly have been the fourth body from the end.

@@ -663,7 +663,7 @@ func run_version_test() -> void:
 
 	# VERSION 40 (Jon, Nov 4) saves the lead ship's jumps; a 39 save grows on its own jumps.
 	# Why: docs/why/SaveTest.md#version-rules
-	# (this build writes 42; the lead ship's jumps came in at 40)
+	# (this build writes 43; the lead ship's jumps came in at 40)
 	Run.start_new_run(&"korvan", 1)
 	Run.jumps = 7
 	Run.party_jumps = 21
@@ -703,7 +703,7 @@ func run_version_test() -> void:
 	check("a new run clears the lead ship's jumps and the badge's seen count", "0 0",
 		"%d %d" % [Run.party_jumps, Run.custodian_seen])
 
-	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 42, science's). The
+	# THE ASCENSION LEVEL (VERSION 41, Jon, Nov 8; this build writes 43, moored's). The
 	# Hellbender flies only at 7 and up, so the level is saved and comes back;
 	# a 40 save has none and loads at 0, the game a 40 build played, and keeps
 	# a live Hellbender it already had (pulling one mid-chase is worse).
@@ -836,7 +836,7 @@ func _moored_versions() -> void:
 	Moored.at = -1
 
 
-## SCIENCE (VERSION 42, Phase 12): this build writes 42. A 41 save (the Hellbender's
+## SCIENCE (VERSION 42, Phase 12): this build writes 43. A 41 save (the Hellbender's
 ## build, its `ascension` key unread here) and a 40 one load with
 ## no DATA, nothing bought, the black box unspent, no part augmented, and the
 ## board its seed and seat deal; a malformed one is mended, not refused; and a
