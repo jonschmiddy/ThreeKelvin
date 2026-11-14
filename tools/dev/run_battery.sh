@@ -131,13 +131,15 @@ one() {
 	local t0; t0=$(date +%s)
 	bash "$W/tools/dev/godot.sh" -t "$lim" -C "$W" "$@" >"$OUT/$name.log" 2>&1
 	local code=$? t1; t1=$(date +%s)
-	local pass errs over=""
+	local pass errs bad over=""
 	pass=$(grep -cE "^($label: PASS|=== PASS)" "$OUT/$name.log")
+	# A failing verdict line, as the harnesses print it: `=== FAIL`, `x: N FAILURES`, `x: FAIL`, `x: ... (N failed)`.
+	bad=$(grep -cE "^=== FAIL|^[A-Za-z0-9_]+: [0-9]+ FAILURES|^[A-Za-z0-9_]+: FAIL$|^[A-Za-z0-9_]+: .*\\([1-9][0-9]* failed\\)" "$OUT/$name.log")
 	errs=$(grep -E "SCRIPT ERROR|Parse Error|Compile Error|^ERROR:" "$OUT/$name.log" \
 		| grep -vcE "resources still in use at exit|RID allocations of type .* were leaked at exit")
 	# Only a run that had the machine to itself is held to the gate's limit.
 	[ "$solo" = 1 ] && [ $((t1 - t0)) -gt "$gl" ] && over=" OVER_GATE_LIMIT($gl)"
-	echo "$name exit=$code pass=$pass errors=$errs secs=$((t1 - t0))$over" >>"$OUT/summary.txt"
+	echo "$name exit=$code pass=$pass fails=$bad errors=$errs secs=$((t1 - t0))$over" >>"$OUT/summary.txt"
 }
 
 # A run is wanted when no names were given, when it is named, or when it is a
@@ -180,10 +182,10 @@ for row in "${LIST[@]}"; do
 done
 echo "DONE wall=$(( $(date +%s) - T_ALL ))s jobs=$JOBS flight_shards=$FLIGHT_SHARDS solve_shards=$SOLVE_SHARDS" >>"$OUT/summary.txt"
 sort "$OUT/summary.txt"
-# A row failed when godot exited non-zero, the log has an error line, or no pass line
+# A row failed when godot exited non-zero, the log has an error line or a failing verdict line, or no pass line
 # was printed (the import prints none); the script's own exit says so.
-FAILED=$(awk '$2 ~ /^exit=/ { split($2, e, "="); split($3, p, "="); split($4, r, "=");
-	if (e[2] != 0 || r[2] != 0 || (p[2] == 0 && $1 != "import")) print $1 }' "$OUT/summary.txt")
+FAILED=$(awk '$2 ~ /^exit=/ { split($2, e, "="); split($3, p, "="); split($5, r, "="); split($4, f, "=");
+	if (e[2] != 0 || r[2] != 0 || f[2] != 0 || (p[2] == 0 && $1 != "import")) print $1 }' "$OUT/summary.txt")
 if [ -n "$FAILED" ]; then
 	echo "FAILED: $(echo $FAILED)"
 	exit 1

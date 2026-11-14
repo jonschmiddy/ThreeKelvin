@@ -116,6 +116,7 @@ const BOOTED: Array[Dictionary] = [
 	# The arrival screen, with its option list:  -- sectorshot
 	{flag = "fitwords", script = "res://scripts/sim/FitWords.gd", how = "quit"},
 	{flag = "namefit", script = "res://scripts/sim/NameFit.gd", how = "quit"},
+	{flag = "sighttest", script = "res://scripts/sim/SightTest.gd", how = "quit"},
 	{flag = "cursorsheet", script = "res://scripts/sim/CursorSheet.gd", how = "hold"},
 	# The jump sequence, frame by frame. NOT `jumpshot`: `Router.animating()` is
 	# false for anything ending in "shot" and the tweens are the whole subject.

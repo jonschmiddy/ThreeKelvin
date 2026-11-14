@@ -156,9 +156,10 @@ func _run() -> void:
 		for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
 			_report(sw_name(sw, p))
 		_report(sw_name("phase", p))
-	# (a shard may hold no case of one sweep, but one that solved cases judged some sweep)
-	if n_mine > 0:
-		h._ok("the sweeps judged at least one plan (%d sweeps, %d cases solved here)" % [_swept, n_mine], _swept > 0)
+	# (a shard may hold no case of one sweep; it holds none at all only when it is numbered past the case count)
+	var sh := Harness.shard()
+	h._ok("the sweeps judged plans where the shard arithmetic says there are some (%d sweeps, %d of %d cases here, shard %d of %d)" % [
+		_swept, n_mine, _cases.size(), sh.x, maxi(sh.y, 1)], (_swept > 0) == (_cases.size() >= maxi(sh.x, 1)))
 	_shapes()
 	if (_wants("phase") or _wants("twin")) and h.mine(0):
 		_aim_check()

@@ -265,7 +265,8 @@ step "Market invariant holds and prices round-trip"
 # does not crash either, it comes back as a default.
 run_godot market 120 --headless --path "$PROJECT" -- market
 if run_godot savetest 120 --headless --path "$PROJECT" -- savetest; then
-	# SaveTest prints three verdicts (round trip, version gates, history); all three must be there.
+	# SaveTest prints three verdicts (round trip, history, version gates); all three must be there,
+	# so change the count with SaveTest's sections.
 	if [ "$(grep -cE '^=== (PASS|FAIL)' "$LOG_DIR/savetest.log")" -ge 3 ]; then
 		if grep -qE '^=== FAIL' "$LOG_DIR/savetest.log"; then
 			bad "save round-trip reported mismatches"

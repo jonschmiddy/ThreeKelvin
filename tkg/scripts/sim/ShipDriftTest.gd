@@ -15,8 +15,9 @@ func run(tree: SceneTree) -> void:
 
 	var fitted: Array = Run.installed.duplicate()
 	if fitted.is_empty():
-		print("shipdrift: SKIP -- the starter ship has no fitted modules")
-		tree.quit()
+		print("  FAIL the starter ship has no fitted modules to take off")
+		print("shipdrift: FAIL")
+		tree.quit(1)
 		return
 
 	view.refresh()
