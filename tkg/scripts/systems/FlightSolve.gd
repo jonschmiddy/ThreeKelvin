@@ -3371,13 +3371,13 @@ func _replay(c: Dictionary) -> Result:
 		else:
 			# the ride's phasing over the lead that is left, its push at most
 			# THRUST and its speed under VMAX (its spin-up first, over what is
-			# left of the ride if that is shorter, as `ShipFlight._ride_shape`
+			# left of the ride if that is shorter, as `FlightCurves.ride_shape`
 			# flies it)
 			k = 2.0 * dang / (absf(_dw) * lead) - 1.0
 			if _spin > 0.0:
 				# (the ship rides at its ring's own rate until its spin-up, which
 				# may start any time the ride allows: from where it reaches the
-				# departure at the ride's own pace, as `ShipFlight._ride_shape`
+				# departure at the ride's own pace, as `FlightCurves.ride_shape`
 				# flies it, a phasing k only for what that cannot make up)
 				var w := absf(_dw)
 				var w0 := absf(_dw0)
