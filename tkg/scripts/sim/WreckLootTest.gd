@@ -395,4 +395,5 @@ func _save() -> void:
 		h._ok("wreck %d (%s) comes back holding the same: %s" % [i, ws[i].art, _says(bws[i].items)],
 			bws[i].art == ws[i].art and _says(bws[i].items) == _says(ws[i].items)
 			and bws[i].slot == ws[i].slot)
-	h._ok("and what was taken stays taken", took < 0 or back.taken.has(took))
+	h._ok("a wreck had something to take", took >= 0)
+	h._ok("and what was taken stays taken", took >= 0 and back.taken.has(took))

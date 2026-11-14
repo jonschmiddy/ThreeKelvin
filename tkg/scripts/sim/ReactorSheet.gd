@@ -73,12 +73,10 @@ func _hardware() -> void:
 		if moved != DB.REACTOR_BUMP:
 			bad.append("%s moves REACTOR %+d, not %+d"
 				% [m.name, moved, DB.REACTOR_BUMP])
-	if rows.is_empty():
-		print("  no part grants reactor capacity")
-	else:
-		print("\n  parts that grant capacity:")
-		for r in rows:
-			print(r)
+	_ok("some part grants reactor capacity (%d do)" % rows.size(), not rows.is_empty())
+	print("\n  parts that grant capacity:")
+	for r in rows:
+		print(r)
 	_ok("every coupling raises REACTOR by exactly %+d" % DB.REACTOR_BUMP,
 		bad.is_empty())
 	for b in bad:

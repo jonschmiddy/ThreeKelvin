@@ -49,7 +49,8 @@ func run(tree: SceneTree) -> void:
 	sheet.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	sheet.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sheet.over = OVER
-	sheet.labels = NAMES
+	var shown: Array[String] = []
+	sheet.labels = shown
 	sheet.zoom = ZOOM
 	for n in NAMES:
 		# From disk, not `res://`: candidates are not assets, so import never learns of them.
@@ -59,6 +60,7 @@ func run(tree: SceneTree) -> void:
 			print("  missing %s" % path)
 			continue
 		sheet.shots.append(ImageTexture.create_from_image(img))
+		shown.append(n)
 	tree.root.add_child(sheet)
 	sheet.move_to_front()
 	sheet.queue_redraw()

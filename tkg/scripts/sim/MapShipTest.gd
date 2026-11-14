@@ -17,11 +17,9 @@ func _ready() -> void:
 	_run.call_deferred()
 
 
-## The picture LOCAL draws a hull from, worked out here (ShipView's own rule).
+## The picture LOCAL draws a hull from (ShipView's own rule, no pilot, not the half-size one).
 static func _art(h: HullData) -> Texture2D:
-	if HullGrade.key_for(h) != "":
-		return HullGrade.graded_tex(h, false, HullWear.seed_for(h, "", Rng.master))
-	return h.sprite
+	return ShipView.hull_art(h, "", false)
 
 
 ## The alpha-weighted mean colour of a picture's ink, in linear light; with

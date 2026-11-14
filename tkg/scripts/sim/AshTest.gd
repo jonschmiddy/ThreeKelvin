@@ -7,13 +7,10 @@ extends Node
 var _tree: SceneTree
 var harness := Harness.new()
 var _checks := 0
-var _quiet := false
 
 
 func _ok(what: String, c: bool) -> bool:
 	_checks += 1
-	if c and _quiet:
-		return c
 	return harness._ok(what, c)
 
 

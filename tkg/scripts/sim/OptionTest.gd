@@ -26,8 +26,8 @@ func run() -> void:
 		ids[id] = true
 		if not o.has("choices") or (o.choices as Array).is_empty():
 			_fail("option '%s' has no choices" % id)
-	if _fails == fails_before:
-		_ok("every option has a unique id and at least one choice", true)
+	_ok("every option has a unique id and at least one choice (%d options)" % OptionTable.all().size(),
+		not OptionTable.all().is_empty() and _fails == fails_before)
 
 	_gates_are_real()
 	Rng.forced = 4242
