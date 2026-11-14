@@ -282,7 +282,7 @@ func _fibres(h: JumpHull) -> void:
 	for y in hh:
 		for x in w:
 			a[y * w + x] = 1 if h.image.get_pixel(h.ink.position.x + x, h.ink.position.y + y).a > 0.0 else 0
-	var er := JumpHull._erode(JumpHull._erode(a, w, hh), w, hh)
+	var er := JumpHull.erode_mask(JumpHull.erode_mask(a, w, hh), w, hh)
 	var ys := float(hh) / FILM_H
 	var cand: Array[Vector2] = []
 	for y in hh:
