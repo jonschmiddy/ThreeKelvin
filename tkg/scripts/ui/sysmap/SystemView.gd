@@ -137,7 +137,6 @@ var _belt_dust: ColorRect
 var _belt_mat: ShaderMaterial
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 const PulsarViewS := preload("res://scripts/ui/sysmap/PulsarView.gd")
-const CoreViewS := preload("res://scripts/ui/sysmap/CoreView.gd")
 const CoreLegacyS := preload("res://scripts/ui/sysmap/CoreLegacy.gd")
 
 const KIND_NAMES := ["ORDINARY", "RED", "BLUE", "PULSAR", "CORE"]
@@ -2117,7 +2116,7 @@ func pal_star2() -> PackedVector3Array:
 ## Which colours the palette reserves depends on the sky and the style.
 func pal_extra() -> PackedVector3Array:
 	# A cloud seen from inside has more colours to keep, so weather steps take none from the sky.
-	var extra: PackedVector3Array = PackedVector3Array() if no_ramp or _weather == null else SkyWeatherS.ramp(_weather.sky)
+	var extra := PackedVector3Array()
 	var cloud := _neb_mat != null
 	# Galaxy tones are added in a clear sky only: seven more steps in a cloud flicker its gas.
 	if not cloud:
@@ -2629,15 +2628,6 @@ class _Lines extends Node2D:
 	var _fabric: Array = []
 	var _last := -1.0
 	var _last_cam := Vector3(-1, 0, 0)
-
-	## Whether a point is on a world's disc: the lines now draw over the place, so
-	## they stop at each world rather than crossing it.
-	func _on_world(sp: Vector2) -> bool:
-		for i: int in view._views:
-			var r: float = view.draw_r(view.layout.bodies[i]) + 1.5
-			if sp.distance_squared_to(view.at[i]) < r * r:
-				return true
-		return false
 
 	## The star's hole in the lines: its disc, or the black hole's disc and glow.
 	func _star_hole() -> Vector2:

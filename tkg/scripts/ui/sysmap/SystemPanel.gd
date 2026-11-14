@@ -7,8 +7,6 @@ const SystemViewS := preload("res://scripts/ui/sysmap/SystemView.gd")
 const KeyGlyphS := preload("res://scripts/ui/sysmap/KeyGlyph.gd")
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
-## A locked choice: dimmed this far, and still clickable.
-const LOCKED_A := 0.55
 
 ## Wrap width leaves room for the scroll bar so the panel does not widen (Jon, Oct 20).
 const W := 236
@@ -292,8 +290,7 @@ func _there_word(body: int) -> String:
 	return "ALONGSIDE" if k == &"belt" or k == &"station" or k == &"derelict" or k == &"contact" else "IN ORBIT"
 
 
-## Shown when GO cannot fly there yet; `LOCKED_LINE` is shown nowhere now (Jon, Nov 5).
-const LOCKED_LINE := "GO FLIES YOU THERE, THEN DOWN TO IT"
+## Shown when GO cannot fly there yet.
 const WAIT_LINE := "GO ONCE YOU ARE IN AN ORBIT"
 ## on the way to it already
 const COMING_LINE := "ON YOUR WAY THERE"
@@ -320,8 +317,6 @@ func _locked_line(body: int = -9) -> String:
 		return DOCKED_LINE
 	if _held():
 		return HELD_LINE
-	if _can_go():
-		return LOCKED_LINE
 	return COMING_LINE if _heading_to(body) else WAIT_LINE
 
 
@@ -628,13 +623,9 @@ func _twin_head() -> void:
 		sv.position = Vector2(TEXT_W / 2 + (TWIN_SUN_DX_B if s == SystemLayout.STAR_B else -TWIN_SUN_DX_A), 42)
 		holder.add_child(sv)
 		var sr := 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0)
-		if v.has_method(&"sun_setup"):
-			# (painted as the map paints star p: `SystemView.sun_setup`, star B
-			# from its own roll, smaller and warmer)
-			v.call(&"sun_setup", sv, s, sr)
-		else:
-			var look: Array = _sun_look(s)
-			sv.call("setup", String(look[0]), int(look[1]), sr)
+		# (painted as the map paints star p: `SystemView.sun_setup`, star B
+		# from its own roll, smaller and warmer)
+		v.call(&"sun_setup", sv, s, sr)
 		if _portrait == null:
 			_portrait = sv
 		else:
@@ -659,18 +650,6 @@ func _twin_head() -> void:
 ## How far either sun of a pair stands off the picture's middle (px).
 const TWIN_SUN_DX_A := 46
 const TWIN_SUN_DX_B := 50
-
-
-## Where the map cannot paint one: star B is rolled off its own number so the two differ.
-func _sun_look(p: int) -> Array:
-	var v = screen.view
-	if p == SystemLayout.STAR_B:
-		return [SystemViewS.KIND_NAMES[v.layout.star2], v.node.index + SUN_B_SALT]
-	return [v.kind, v.node.index]
-
-
-## (star B's picture is rolled as if for this many systems on: no system has it)
-const SUN_B_SALT := 100003
 
 
 ## A giant's weight as one fraction 1/n, held to 4 through 10 (ruling 20, Jon).
@@ -708,14 +687,6 @@ func _satellites() -> void:
 ## The name of place i's way-there row (`_way_there`).
 static func way_name(i: int) -> String:
 	return "Way_" + str(i).replace("-", "m")
-
-
-## Whether a place has any event of its own (the star's is the pulsar's harvest).
-func _has_events(body: int) -> bool:
-	for pair in _events():
-		if pair[0] == body:
-			return true
-	return false
 
 
 ## An (event's place, beacon) pair that is an open encounter, which gets a GO.

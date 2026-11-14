@@ -54,7 +54,7 @@ that take 10-45 minutes per event"): the rarest took 30-45 min to come round.
 
 ## Weather colours
 
-Above `const RAMP := {}`:
+Was above `const RAMP := {}`, which held nothing and is gone:
 
 ```text
 THE WEATHER'S OWN COLOURS, appended to the system's palette (`SystemPalette.build`'s

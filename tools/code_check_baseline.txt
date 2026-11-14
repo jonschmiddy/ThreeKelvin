@@ -559,7 +559,6 @@ bare scripts/ui/sysmap/SystemPanel.gd::_events
 bare scripts/ui/sysmap/SystemPanel.gd::_key
 bare scripts/ui/sysmap/SystemPanel.gd::_rivals
 bare scripts/ui/sysmap/SystemPanel.gd::_state
-bare scripts/ui/sysmap/SystemPanel.gd::_sun_look
 bare scripts/ui/sysmap/SystemView.gd::_depth_look
 bare scripts/ui/sysmap/SystemView.gd::_facts
 bare scripts/ui/sysmap/SystemView.gd::_glints_now
@@ -575,8 +574,8 @@ file scripts/ui/LocalSubject.gd 3167
 file scripts/ui/SectorScreen.gd 4850
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3250
-file scripts/ui/sysmap/ShipFlight.gd 4398
-file scripts/ui/sysmap/SystemView.gd 3240
+file scripts/ui/sysmap/ShipFlight.gd 4386
+file scripts/ui/sysmap/SystemView.gd 3230
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/systems/CardResolver.gd::resolve 139
