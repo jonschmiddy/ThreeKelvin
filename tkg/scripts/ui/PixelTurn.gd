@@ -64,7 +64,7 @@ static func _sprite_mode() -> Mode:
 
 ## Whether a sprite is turned in a picture of its own (`Turner`).
 static func turner() -> bool:
-	return mode in [Mode.STEPPED, Mode.BLENDED, Mode.ROT8, Mode.SOFT, Mode.FADE]
+	return mode != Mode.SMOOTH and mode != Mode.STILL
 
 
 ## A sprite's turned picture is stored premultiplied with a partly clear edge

@@ -18,6 +18,8 @@ const VP_AHEAD := 446.0
 const MID_K := 50.0 / 93.0
 const VIO := Vector3(0.62, 0.36, 1.00)
 const LIL := Vector3(0.86, 0.74, 1.00)
+## The four arms of a bright spark: direction and colour, in the order they are drawn.
+const ARMS: Array = [[Vector2(-1, 0), LIL], [Vector2(1, 0), LIL], [Vector2(0, -1), VIO], [Vector2(0, 1), VIO]]
 const WHT := Vector3(1.00, 0.96, 1.00)
 ## The faint extra stars that only show once space is stretched, and the flow's streaks.
 const NX := 1500
@@ -245,9 +247,10 @@ func step(t: float) -> void:
 		_star_lines.set_p(&"S", S)
 		_star_lines.set_p(&"after", 1.0 if t >= T_HIT else 0.0)
 		_star_lines.set_p(&"ea", minf(1.0, absf(S) / 0.35))
+	var ph := phi(t)
 	for ln: JumpLines in [_flow_back, _flow_front]:
 		ln.set_p(&"fa", fa)
-		ln.set_p(&"phi", phi(t))
+		ln.set_p(&"phi", ph)
 		ln.set_p(&"sp", 0.08 + 0.55 * pow(fa, 1.5))
 	_step_after(t, k_hit)
 	# the shake: builds with the charge, dead still in the hold, a jolt on the hit
@@ -292,7 +295,7 @@ func _step_after(t: float, k_hit: float) -> void:
 			cols.append(Color(WHT.x * v * k, WHT.y * v * k, WHT.z * v * k))
 			var arm := v * 0.3 * clampf((v - 0.6) / 0.8, 0.0, 1.0)
 			if arm > 0.0:
-				for d: Array in [[Vector2(-1, 0), LIL], [Vector2(1, 0), LIL], [Vector2(0, -1), VIO], [Vector2(0, 1), VIO]]:
+				for d: Array in ARMS:
 					var c: Vector3 = d[1]
 					pts.append(Vector2(x, y) + d[0])
 					cols.append(Color(c.x * arm * k, c.y * arm * k, c.z * arm * k))

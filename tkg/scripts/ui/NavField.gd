@@ -193,8 +193,9 @@ func setup(n: MapGen.MapNode) -> void:
 		_painted = null
 	_build()
 	_box.visible = true
-	for k: String in LocalSky.far_defaults(n).keys():
-		_far_mat.set_shader_parameter(k, LocalSky.far_defaults(n)[k])
+	var far := LocalSky.far_defaults(n)
+	for k: String in far.keys():
+		_far_mat.set_shader_parameter(k, far[k])
 	_far_mat.set_shader_parameter("glow_k", 0.0)
 	# (where it had slid to: a new system's sky does not snap back)
 	_far_mat.set_shader_parameter("u_skyPan", pan)
