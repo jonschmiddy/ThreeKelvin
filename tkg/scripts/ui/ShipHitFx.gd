@@ -716,11 +716,7 @@ func _paint_light(ci: CanvasItem) -> void:
 func _ring(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 	if r < 1:
 		return
-	var pts := {}
-	var n := int(ceil(TAU * r)) + 8
-	for i in n:
-		var a := TAU * float(i) / float(n)
-		pts[Vector2i(roundi(cos(a) * r), roundi(sin(a) * r))] = true
+	var pts := FxKit.ring_pixels(float(r))
 	var cp := c.round()
 	for p in pts:
 		ci.draw_rect(Rect2(cp + Vector2(p as Vector2i), Vector2.ONE), col)

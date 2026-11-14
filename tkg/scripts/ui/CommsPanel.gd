@@ -20,6 +20,8 @@ var _screen: Control
 var _count := -1
 ## The newest line when drawn: at the cap the size stays put while the log moves.
 var _last: Variant = null
+## Each row's PLAY button, in row order: the rows are the only place one is made.
+var _plays: Array[Button] = []
 
 
 static func is_open() -> bool:
@@ -70,8 +72,8 @@ func _process(_d: float) -> void:
 		fill()
 	# PLAY waits while she speaks (it would talk over her), lit again after
 	var can := Ash.can_replay()
-	for b in _rows.find_children("Play*", "Button", true, false):
-		(b as Button).disabled = not can
+	for b in _plays:
+		b.disabled = not can
 
 
 func _build() -> void:
@@ -110,6 +112,7 @@ func _newest() -> Variant:
 func fill() -> void:
 	_count = Ash.comms.size()
 	_last = _newest()
+	_plays.clear()
 	for c in _rows.get_children():
 		_rows.remove_child(c)
 		c.queue_free()
@@ -169,6 +172,7 @@ func _row(i: int, e: Dictionary) -> Control:
 		play.custom_minimum_size = Vector2(PLAY_W, 0)
 		play.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		play.tooltip_text = Widgets.tip("Hear her say it again.")
+		_plays.append(play)
 		line.add_child(play)
 	else:
 		var gap := Control.new()

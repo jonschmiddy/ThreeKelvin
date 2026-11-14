@@ -22,6 +22,10 @@ const LOSS := UITheme.LEAVE
 ## Separator so pip count and hull do not read as one number (Jon, Oct 29, hull:B);
 ## `HullNumberTest`.
 const AMOUNT_SEP := "· "
+## An empty cell and a lost one.
+const CELL_EMPTY := Color("#10161f")
+const CELL_EMPTY_RULE := Color("#1e2836")
+const CELL_LOST_RULE := Color("#2a1a1e")
 
 var _rows: Array[Cells] = []
 var _values: Array[Label] = []
@@ -173,8 +177,8 @@ class Cells extends Control:
 			elif i < base:
 				_lost(pos)
 			else:
-				draw_rect(Rect2(pos, AttrBlock.CELL), Color("#10161f"), true)
-				draw_rect(Rect2(pos, AttrBlock.CELL), Color("#1e2836"), false, 1.0)
+				draw_rect(Rect2(pos, AttrBlock.CELL), CELL_EMPTY, true)
+				draw_rect(Rect2(pos, AttrBlock.CELL), CELL_EMPTY_RULE, false, 1.0)
 
 	## A filled cell with the bevel every countable box in this game wears.
 	func _solid(pos: Vector2, c: Color) -> void:
@@ -190,7 +194,7 @@ class Cells extends Control:
 	## unantialiased.
 	## Why: docs/why/AttrBlock.md#loss-slash
 	func _lost(pos: Vector2) -> void:
-		draw_rect(Rect2(pos, AttrBlock.CELL), Color("#10161f"), true)
-		draw_rect(Rect2(pos, AttrBlock.CELL), Color("#2a1a1e"), false, 1.0)
+		draw_rect(Rect2(pos, AttrBlock.CELL), CELL_EMPTY, true)
+		draw_rect(Rect2(pos, AttrBlock.CELL), CELL_LOST_RULE, false, 1.0)
 		draw_line(pos + Vector2(1, AttrBlock.CELL.y - 1),
 			pos + Vector2(AttrBlock.CELL.x - 1, 1), AttrBlock.LOSS, 1.0)

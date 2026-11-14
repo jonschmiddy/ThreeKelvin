@@ -660,7 +660,7 @@ func _say(kind: StringName, line: String, spot: Dictionary) -> void:
 		if portrait.get_parent() != null:
 			portrait.get_parent().remove_child(portrait)
 		host.add_child(portrait)
-	portrait.theme = _theme()
+	portrait.theme = Router.content_theme()
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
 	portrait.size = Vector2(AshPortrait.W, AshPortrait.H)
@@ -688,15 +688,6 @@ func host_node() -> Node:
 	if Router.hud == null or not is_instance_valid(Router.hud):
 		return null
 	return Router.hud.get_parent()
-
-
-func _theme() -> Theme:
-	var n: Node = Router.content
-	while n != null:
-		if n is Control and (n as Control).theme != null:
-			return (n as Control).theme
-		n = n.get_parent()
-	return null
 
 
 # ------------------------------------------------------------------ the place
@@ -1001,7 +992,7 @@ func teach(lid: StringName, text: String, hint: StringName, subject: Rect2, opts
 		if portrait.get_parent() != null:
 			portrait.get_parent().remove_child(portrait)
 		host.add_child(portrait)
-	portrait.theme = _theme()
+	portrait.theme = Router.content_theme()
 	portrait.mirrored = bool(spot.mirrored)
 	portrait.position = (spot.rect as Rect2).position
 	_group_from(spot)

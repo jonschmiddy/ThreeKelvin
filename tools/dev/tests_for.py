@@ -34,6 +34,10 @@ COMMON_FUNCS = {"_ready", "_process", "_init", "_draw", "_input", "_to_string", 
                 "_unhandled_input", "_notification", "_exit_tree", "_enter_tree", "new", "get", "set"}
 LEAK_OK = re.compile(r"resources still in use at exit|RID allocations of type .* were leaked at exit")
 ERR_RE = re.compile(r"SCRIPT ERROR|Parse Error|Compile Error|^ERROR:")
+# A row that says it measures (a study or a profiler) prints numbers and no verdict:
+# running it clean is a pass, since there is nothing for it to fail.
+MEASURES_RE = re.compile(r"\bMEASUREMENT\b|\bProfiler\b")
+
 FAIL_RE = re.compile(r"^=== FAIL|^[A-Za-z0-9_]+: [0-9]+ FAILURES|^[A-Za-z0-9_]+: FAIL$|"
                      r"^[A-Za-z0-9_]+: .*\([1-9][0-9]* failed\)")
 
@@ -502,7 +506,7 @@ def run_one(row, cmd, cap, outdir):
     passes = [l for l in text if re.match(r"^(%s: PASS|=== PASS)" % label, l, re.I)]
     if not passes:
         passes = [l for l in text if re.match(r"^[A-Za-z0-9_ ]+: PASS\b", l)]
-    measured = any("nothing judged" in l for l in text) or "MEASUREMENT" in row.cell2
+    measured = any("nothing judged" in l for l in text) or MEASURES_RE.search(row.cell2) is not None
     if cmd.kind == "script":
         ok = code == 0
         why = "exit %d" % code

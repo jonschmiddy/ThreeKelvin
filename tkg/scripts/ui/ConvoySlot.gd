@@ -22,6 +22,8 @@ const STUN_TAG := "STUNNED"
 ## Fixed bar width, as `EnemySlot.BAR_W`: length should show what is left, not room.
 const BAR_W := 92.0
 const BAR_H := 3.0
+## The gauge bar's empty well.
+const GAUGE_WELL := Color("#0d131b")
 
 func _init(id: int, view_height: int) -> void:
 	peer = id
@@ -317,6 +319,6 @@ func stun_tag_rect() -> Rect2:
 	return Rect2(0.0, _tag_y() - f.get_ascent(fs), w + 1.0, f.get_height(fs) + 1.0)
 
 func _gauge(y: float, at: float, col: Color) -> void:
-	draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W, BAR_H)), Color("#0d131b"), true)
+	draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W, BAR_H)), GAUGE_WELL, true)
 	if at > 0.0:
 		draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W * at, BAR_H)), col, true)

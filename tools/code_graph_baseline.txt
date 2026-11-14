@@ -66,7 +66,6 @@ private scripts/ui/LabLogin.gd::_fit <- scripts/ui/LabSavers.gd
 private scripts/ui/LabLogin.gd::_ship <- scripts/ui/LabSavers.gd
 private scripts/ui/LabSavers.gd::_painter <- scripts/ui/LabSaversSolari.gd
 private scripts/ui/LocalDust.gd::_quad <- scripts/ui/LocalLife.gd
-private scripts/ui/LocalSky.gd::_block_round <- scripts/ui/LocalLife.gd
 private scripts/ui/LocalSky.gd::_rect <- scripts/ui/LocalLife.gd
 private scripts/ui/LocalSky.gd::_rel <- scripts/ui/LocalComet.gd
 private scripts/ui/LocalSky.gd::_zl <- scripts/ui/LocalLife.gd
@@ -99,7 +98,6 @@ private scripts/ui/ShipBreakup.gd::_hook <- scripts/ui/ShipBreakupBossPlan.gd
 private scripts/ui/ShipBreakup.gd::_hull_edge_points <- scripts/ui/ShipBreakupBossPlan.gd
 private scripts/ui/ShipBreakup.gd::_hull_shift <- scripts/ui/BreakupCreature.gd
 private scripts/ui/ShipBreakup.gd::_is_boss <- scripts/ui/SectorScreen.gd
-private scripts/ui/ShipBreakup.gd::_lv <- scripts/ui/BreakupCreature.gd
 private scripts/ui/ShipBreakup.gd::_major_pos_new <- scripts/ui/BreakupCreature.gd
 private scripts/ui/ShipBreakup.gd::_mote <- scripts/ui/BreakupCreature.gd
 private scripts/ui/ShipBreakup.gd::_piece_of_point <- scripts/ui/ShipBreakupBossPlan.gd

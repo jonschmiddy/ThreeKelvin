@@ -6,6 +6,8 @@ extends PanelContainer
 
 ## Twelve pixels, so the chip fits under a hull and icons sit on whole pixels.
 const ICON := 12
+## The chip's dark ink.
+const CHIP_INK := Color("#0b0f16")
 
 
 ## The picture half of a chip.
@@ -25,7 +27,7 @@ class Glyph extends Control:
 
 	func _draw() -> void:
 		var lit := tint.lerp(Color.WHITE, 0.35)
-		var dim := tint.lerp(Color("#0b0f16"), 0.35)
+		var dim := tint.lerp(CHIP_INK, 0.35)
 		match kind:
 			&"block":
 				# Flat plating, layered. No point on it: block is a slab that

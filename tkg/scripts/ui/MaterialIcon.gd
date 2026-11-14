@@ -11,6 +11,8 @@ var item: MaterialData = null
 ## on the module gallery.
 ## Why: docs/why/MaterialIcon.md#plate-scale
 var plate_scale: float = ModuleIcon.HOLD_K
+## The container's dark ink.
+const ICON_INK := Color("#0b0f16")
 
 func setup(m: MaterialData, from: StringName) -> void:
 	item = m
@@ -70,8 +72,8 @@ func _draw() -> void:
 	var tier := UITheme.tier_colour(item.tier)
 	var tint := Color.from_hsv(tier.h, tier.s * 0.42, tier.v * 0.62)
 	var lit := tint.lerp(Color.WHITE, 0.22)
-	var dim := tint.lerp(Color("#0b0f16"), 0.42)
-	var ink := Color("#0b0f16")
+	var dim := tint.lerp(ICON_INK, 0.42)
+	var ink := ICON_INK
 
 	# The body fills the footprint less a hairline, so two crates in adjacent
 	# cells read as two objects rather than one long one.

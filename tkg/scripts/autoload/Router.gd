@@ -159,6 +159,15 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 func is_front_door(s: Control) -> bool:
 	return s is LauncherScreen or s is LobbyScreen or s is ChassisSelect
 
+## The game's theme (its pixel font), which lives on an ancestor of the screens.
+func content_theme() -> Theme:
+	var n: Node = content
+	while n != null:
+		if n is Control and (n as Control).theme != null:
+			return (n as Control).theme
+		n = n.get_parent()
+	return null
+
 ## Short enough that nobody waits on it, long enough to read as a change of place.
 const FADE_S := 0.13
 

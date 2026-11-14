@@ -1211,7 +1211,7 @@ func _show(id: StringName, p: Dictionary) -> void:
 		fallback_log.append(id)
 		print("[hints] %s: no clear spot for A.S.H. (%s), as a card" % [id, Ash.held_by])
 	card = HintCard.new(id, lines(id))
-	card.theme = _theme()
+	card.theme = Router.content_theme()
 	# (over the escape menu: on its layer, above it)
 	var mh := _menu()
 	if id == &"save" and mh != null:
@@ -1343,16 +1343,6 @@ func _host() -> Node:
 	if Router.content == null or not Router.content.is_inside_tree():
 		return null
 	return Router.content.get_viewport()
-
-
-## The game's theme (its pixel font), which lives on an ancestor of the screens.
-func _theme() -> Theme:
-	var n: Node = Router.content
-	while n != null:
-		if n is Control and (n as Control).theme != null:
-			return (n as Control).theme
-		n = n.get_parent()
-	return null
 
 
 ## Nothing shows in a run that has ended, nor over the escape menu but its own

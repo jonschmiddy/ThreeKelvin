@@ -10,6 +10,8 @@ signal dumped(item: HoldItem)
 ## Square like its mark, 20 tall so the heading's label stays the tallest thing in the line.
 const W := 20
 const H := 20
+## The bin when something it can take is over it.
+const BIN_OVER := Color("#e0503c")
 
 ## Lit while something is being carried over it.
 var _hot: bool = false
@@ -75,7 +77,7 @@ func _draw() -> void:
 	# Grey asleep, red when carrying something it can take, brighter when over it.
 	var c := UITheme.LINE
 	if _hot:
-		c = Color("#e0503c")
+		c = BIN_OVER
 	elif _armed:
 		c = UITheme.LEAVE
 	var span := size - Vector2(pad, pad) * 2.0

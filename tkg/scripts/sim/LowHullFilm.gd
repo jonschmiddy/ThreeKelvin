@@ -110,7 +110,7 @@ func _say_line() -> void:
 	_ash.top_level = true
 	_ash.z_index = 50
 	Ash.host_node().add_child(_ash)
-	_ash.theme = Ash._theme()
+	_ash.theme = Router.content_theme()
 	var spot: Dictionary = Ash._spot(line)
 	_ash.mirrored = bool(spot.get("mirrored", false))
 	if spot.has("rect"):

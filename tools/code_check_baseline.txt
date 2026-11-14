@@ -128,7 +128,6 @@ bare scripts/systems/Science.gd::augment_cost
 bare scripts/systems/Science.gd::board_state
 bare scripts/systems/Science.gd::strip_cost
 bare scripts/systems/Unlocks.gd::won_with
-bare scripts/ui/AreaView.gd::_under
 bare scripts/ui/Ash.gd::_item_ids
 bare scripts/ui/Ash.gd::_opened_here
 bare scripts/ui/Ash.gd::_spot
@@ -199,7 +198,6 @@ bare scripts/ui/EncounterView.gd::_plan_in
 bare scripts/ui/EncounterView.gd::_shoulders_at
 bare scripts/ui/EncounterView.gd::hand_wrecks
 bare scripts/ui/EnemyArt.gd::_profile
-bare scripts/ui/EnemyArt.gd::_under
 bare scripts/ui/EnemyArt.gd::dead_canvas
 bare scripts/ui/EnemySlot.gd::_reserved
 bare scripts/ui/EnemySlot.gd::boxes

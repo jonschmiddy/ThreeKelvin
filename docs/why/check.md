@@ -35,7 +35,7 @@ gate runs headless (read from `validate.sh`), and that need no argument filled i
 (`out=<dir>`). Windowed rows, rows that do not say, and installers or builds that write
 files are listed as "run by hand". A row with `~N min` over three minutes runs only with
 `--slow`. A run passes as `run_battery.sh` decides: exit 0, no error line, no failing
-verdict line, and a PASS line (a MEASUREMENT row prints none).
+verdict line, and a PASS line (a row its cell calls a MEASUREMENT or a Profiler prints none).
 
 ## What `--tests` runs
 

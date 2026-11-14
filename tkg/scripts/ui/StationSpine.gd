@@ -30,6 +30,8 @@ const DECK_T := 3.0
 const RAIL_DIR := "res://art/sprites/station/rail/"
 ## A picture's size; a floor shows the window of it that fits.
 const PIC := Vector2(144.0, 128.0)
+## Furniture's lit line.
+const FURNITURE_LINE := Color("#5c718c")
 ## deck -> {tex, muted, ms, seq, cols, top}. Read once, never inside `_draw`.
 static var _rail: Dictionary = {}
 static var _rail_read := false
@@ -157,7 +159,7 @@ func _draw() -> void:
 		# Furniture is drawn brighter than its room: eight levels of difference was unreadable.
 		# Why: docs/why/StationSpine.md#furniture-contrast
 		var furn := plate.lerp(EDGE, 1.4).lerp(LAMP, 0.16 * glow)
-		var line := EDGE.lerp(Color("#5c718c"), 0.55).lerp(LAMP, 0.20 * glow)
+		var line := EDGE.lerp(FURNITURE_LINE, 0.55).lerp(LAMP, 0.20 * glow)
 		_furnish(floors[i], room, furn, line, lit)
 
 		# The deck plate under it. Drawn last so nothing in the room sits on top

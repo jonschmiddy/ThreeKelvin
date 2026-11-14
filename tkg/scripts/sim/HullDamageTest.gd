@@ -92,7 +92,7 @@ func _run() -> void:
 	await Harness.frames(_tree, 2)
 	var ramp := {}
 	for c in ShipBreakup.HEAT_RAMP:
-		ramp[HullHitFx._key(c)] = true
+		ramp[HullGrade.key(c)] = true
 	var d_kinds := {}
 	for look in [1, 2, 3, 4]:
 		for spec in SHIPS:
@@ -128,8 +128,8 @@ func _run() -> void:
 				var foreign := 0
 				var pal := {}
 				for c in hx._pal:
-					pal[HullHitFx._key(c)] = true
-				pal[HullHitFx._key(ShipBreakup.HEAT_RAMP[5])] = true
+					pal[HullGrade.key(c)] = true
+				pal[HullGrade.key(ShipBreakup.HEAT_RAMP[5])] = true
 				var m := hx.marks()
 				for i in hx._w * hx._h:
 					var c2 := m.get_pixel(i % hx._w, i / hx._w)
@@ -137,7 +137,7 @@ func _run() -> void:
 						continue
 					if hx._mask[i] == 0 or hx._edge[i] == 1:
 						off += 1
-					if not pal.has(HullHitFx._key(c2)):
+					if not pal.has(HullGrade.key(c2)):
 						foreign += 1
 				_ok("%s: every mark on the hull, none on its outline (%d off)" % [tag, off], off == 0)
 				_ok("%s: every mark's colour the ship's own or burnt metal (%d not)" % [tag, foreign], foreign == 0)
@@ -151,7 +151,7 @@ func _run() -> void:
 						var c3 := g.get_pixel(i % hx._w, i / hx._w)
 						if c3.a <= 0.0:
 							continue
-						if hx._mask[i] == 0 or not ramp.has(HullHitFx._key(c3)):
+						if hx._mask[i] == 0 or not ramp.has(HullGrade.key(c3)):
 							gbad += 1
 				_ok("%s: every glowing pixel the heat ramp's, on the hull (%d not)" % [tag, gbad], gbad == 0)
 				_ok("%s: a glow changes shape 8 to 12 times a second (%d steps, gaps %.3f to %.3f s)" % [tag, r.steps, r.mingap, r.maxgap],

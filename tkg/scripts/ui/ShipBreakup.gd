@@ -436,18 +436,13 @@ func _on_beat(strength: float, at: Vector2, kind: StringName = &"") -> void:
 
 # ------------------------------------------------------------------ motion
 
-func _ease_out(x: float) -> float:
-	x = clampf(x, 0.0, 1.0)
-	return 1.0 - pow(1.0 - x, 3.0)
-
-
 ## Where a major is now, in whole pixels.
 func _major_pos(m: Dictionary) -> Vector2:
 	var base := _origin + Vector2(m.at)
 	var off := Vector2(drift(m.off, style))
 	var k := 0.0
 	if t >= _split_at:
-		k = _ease_out((t - _split_at) / maxf(0.05, _split_dur * 2.2))
+		k = FxKit.ease_out((t - _split_at) / maxf(0.05, _split_dur * 2.2))
 	var extra := Vector2.ZERO
 	if style == Style.IMPLODE and t < _split_at and t > _split_at - 0.14:
 		# The pull in before it lets go: one or two pixels toward the middle.
@@ -715,10 +710,6 @@ static func _grey(im: Image) -> Image:
 				var l := maxf(c.r, maxf(c.g, c.b))
 				im.set_pixel(x, y, Color(l, l, l, 1.0))
 	return im
-
-
-static func _lv(c: Color, lvl: float) -> Color:
-	return Color(c.r * lvl, c.g * lvl, c.b * lvl, 1.0)
 
 
 func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
@@ -1370,7 +1361,7 @@ func _hull_shift() -> Vector2:
 		return (Vector2(_plan.glob) * (x * x * (3.0 - 2.0 * x))).round()
 	if style == Style.OVERLOAD:
 		if tt >= 0.4:
-			s = Vector2(_plan.glob) * _ease_out((tt - 0.4) / 0.12)
+			s = Vector2(_plan.glob) * FxKit.ease_out((tt - 0.4) / 0.12)
 	elif style == Style.VENT:
 		for j in _plan.jets:
 			var a: float = tt - float(j.t)
@@ -1386,7 +1377,7 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 	var base := _origin + Vector2(m.at) + _hull_shift()
 	var k := 0.0
 	if t >= _split_at:
-		k = _ease_out((t - _split_at) / _split_len)
+		k = FxKit.ease_out((t - _split_at) / _split_len)
 	var extra := Vector2.ZERO
 	if style == Style.PART:
 		# Each seam opens on its own clock and pushes the two sides apart.
@@ -1394,8 +1385,8 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 		var sx := 0.0
 		for i in int(_plan.nb) - 1:
 			if tt >= PART_TEAR[i]:
-				sx += (2.5 if i < j else -2.5) * _ease_out((tt - PART_TEAR[i]) / 1.2)
-		var sy := (2.0 if j % 2 == 0 else -2.0) * (_ease_out((tt - 0.15) / 1.2) if tt >= 0.15 else 0.0)
+				sx += (2.5 if i < j else -2.5) * FxKit.ease_out((tt - PART_TEAR[i]) / 1.2)
+		var sy := (2.0 if j % 2 == 0 else -2.0) * (FxKit.ease_out((tt - 0.15) / 1.2) if tt >= 0.15 else 0.0)
 		# rounded on its own, as the cut rounds `own` (x.5 rounds away from 0)
 		return base.round() + Vector2(sx, sy).round()
 	if style == Style.COLLAPSE:
@@ -1404,7 +1395,7 @@ func _major_pos_new(m: Dictionary) -> Vector2:
 			# pulled in, a whole pixel at a time, faster as the hole grows
 			extra = -dir * floorf(4.0 * pow(clampf(tt, 0.0, 1.0), 2.0))
 		else:
-			extra = -dir * 4.0 * (1.0 - _ease_out((tt - 1.0) / 0.3))
+			extra = -dir * 4.0 * (1.0 - FxKit.ease_out((tt - 1.0) / 0.3))
 	return (base + Vector2(m.own) * k + extra).round()
 
 
@@ -1696,17 +1687,17 @@ func _plume_tex(L: int) -> Dictionary:
 			var thr: float = bayer[(y % 2) * 2 + (x % 2)]
 			var c := Color()
 			if v2 > 0.72:
-				c = _lv(HEAT_RAMP[0], 1.0)
+				c = FxKit.lv(HEAT_RAMP[0], 1.0)
 			elif v2 > 0.48:
-				c = _lv(HEAT_RAMP[1], 0.8)
+				c = FxKit.lv(HEAT_RAMP[1], 0.8)
 			elif v2 > 0.28:
 				if thr >= 0.75:
 					continue
-				c = _lv(HEAT_RAMP[2], 0.55)
+				c = FxKit.lv(HEAT_RAMP[2], 0.55)
 			elif v2 > 0.12:
 				if thr >= 0.5:
 					continue
-				c = _lv(HEAT_RAMP[3], 0.4)
+				c = FxKit.lv(HEAT_RAMP[3], 0.4)
 			else:
 				continue
 			im.set_pixel(x, y, c)
@@ -1772,16 +1763,6 @@ func _draw_disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 		ci.draw_rect(Rect2(cp + Vector2(-half, dy), Vector2(half * 2 + 1, 1)), col)
 
 
-## The pixels of an ellipse of radius `rr`, each once, in the order they are first met.
-static func _ring_points(rr: float, squash: float) -> Dictionary[Vector2i, bool]:
-	var pts: Dictionary[Vector2i, bool] = {}
-	var n := int(ceil(TAU * rr)) + 8
-	for i in n:
-		var a := TAU * float(i) / float(n)
-		pts[Vector2i(roundi(cos(a) * rr), roundi(sin(a) * rr * squash))] = true
-	return pts
-
-
 ## Ring with a `trail` lit behind the front: a fast ring is a band, not a strobing line
 ## (flip-backs halved).
 ## Why: docs/why/ShipBreakup.md#light-rings
@@ -1801,14 +1782,14 @@ func _draw_ring(ci: CanvasItem, c: Vector2, r: int, squash: float, lvl: float, c
 			# the trail: solid near the front, dithered toward its tail
 			var f := float(-int(band)) / float(trail + 1)
 			var lt := lvl * 0.5 * (1.0 - f)
-			var pts2 := _ring_points(rr, squash)
+			var pts2 := FxKit.ring_pixels(rr, squash)
 			for p2 in pts2:
 				var q2: Vector2i = p2
 				if f > 0.5 and ((q2.x + q2.y) & 1) == 1:
 					continue
-				ci.draw_rect(Rect2(cp + Vector2(q2), Vector2.ONE), _lv(col, lt))
+				ci.draw_rect(Rect2(cp + Vector2(q2), Vector2.ONE), FxKit.lv(col, lt))
 			continue
-		var pts := _ring_points(rr, squash)
+		var pts := FxKit.ring_pixels(rr, squash)
 		for p in pts:
 			var q: Vector2i = p
 			var l := lvl
@@ -1818,7 +1799,7 @@ func _draw_ring(ci: CanvasItem, c: Vector2, r: int, squash: float, lvl: float, c
 				l *= 0.45 if band == 1 else 0.3
 			if doppler and q.x > 0:
 				l *= 0.5
-			ci.draw_rect(Rect2(cp + Vector2(q), Vector2.ONE), _lv(col, l))
+			ci.draw_rect(Rect2(cp + Vector2(q), Vector2.ONE), FxKit.lv(col, l))
 
 
 ## The breach's ball of light: a blown-out core, then three falling steps, the
@@ -1829,7 +1810,7 @@ func _draw_sphere(ci: CanvasItem, c: Vector2, R: int, lvl: float) -> void:
 	for dy in range(-outer, outer + 1):
 		var half := int(floor(sqrt(maxf(0.0, float(R * R - dy * dy)))))
 		if absi(dy) <= R:
-			ci.draw_rect(Rect2(cp + Vector2(-half, dy), Vector2(half * 2 + 1, 1)), _lv(Color(1, 1, 0.96), lvl))
+			ci.draw_rect(Rect2(cp + Vector2(-half, dy), Vector2(half * 2 + 1, 1)), FxKit.lv(Color(1, 1, 0.96), lvl))
 		for dx in range(-outer, outer + 1):
 			var d := sqrt(float(dx * dx + dy * dy))
 			if d <= float(R) or d > float(outer):
@@ -1837,15 +1818,15 @@ func _draw_sphere(ci: CanvasItem, c: Vector2, R: int, lvl: float) -> void:
 			var odd := ((dx + dy) & 1) == 0
 			var col := Color()
 			if d <= float(R) + 2.0:
-				col = _lv(HEAT_RAMP[1], lvl * 0.7)
+				col = FxKit.lv(HEAT_RAMP[1], lvl * 0.7)
 			elif d <= float(R) + 4.0:
 				if not odd and ((dx & 1) == 0):
 					continue
-				col = _lv(HEAT_RAMP[2], lvl * 0.42)
+				col = FxKit.lv(HEAT_RAMP[2], lvl * 0.42)
 			else:
 				if not odd:
 					continue
-				col = _lv(HEAT_RAMP[3], lvl * 0.2)
+				col = FxKit.lv(HEAT_RAMP[3], lvl * 0.2)
 			ci.draw_rect(Rect2(cp + Vector2(dx, dy), Vector2.ONE), col)
 
 
@@ -1866,7 +1847,7 @@ func _paint_light_new(ci: CanvasItem) -> void:
 		var col := Color(hv.x, hv.x * (0.45 + 0.55 * heat), hv.x * (0.15 + 0.85 * heat * heat), 1.0)
 		if style == Style.COLLAPSE:
 			# Cold light, bent toward the hole: not the breach's fire.
-			col = _lv(VOID_COL, hv.x * (0.55 + 0.45 * heat))
+			col = FxKit.lv(VOID_COL, hv.x * (0.55 + 0.45 * heat))
 		for m in _majors:
 			ci.draw_texture(m.glow, _major_pos_new(m) - Vector2(GLOW_PAD, GLOW_PAD), col)
 	match style:
@@ -1879,7 +1860,7 @@ func _paint_light_new(ci: CanvasItem) -> void:
 				ci.draw_texture(tex, (_centre - Vector2(tex.get_size()) * 0.5).round(), Color(lvl, lvl, lvl, 1))
 			var a := tt - 0.35
 			if a >= 0.0 and a < 0.56:
-				var R := 4.0 + 30.0 * _ease_out(a / 0.22) + (6.0 * (a - 0.3) / 0.26 if a > 0.3 else 0.0)
+				var R := 4.0 + 30.0 * FxKit.ease_out(a / 0.22) + (6.0 * (a - 0.3) / 0.26 if a > 0.3 else 0.0)
 				var lv2 := 1.0 if a < 0.3 else (0.6 if a < 0.38 else (0.35 if a < 0.46 else 0.16))
 				_draw_sphere(ci, _centre, int(R), lv2)
 		Style.OVERLOAD:
@@ -1915,7 +1896,7 @@ func _paint_light_new(ci: CanvasItem) -> void:
 		var r: int = f.get("r", 34 if boss else 22)
 		var fc: Color = f.get("col", Color())
 		var tex2 := _warm(r) if fc == Color() else _white(r)
-		var mod := Color(lvl2, lvl2, lvl2, 1) if fc == Color() else _lv(fc, lvl2)
+		var mod := Color(lvl2, lvl2, lvl2, 1) if fc == Color() else FxKit.lv(fc, lvl2)
 		ci.draw_texture(tex2, (Vector2(f.p) - Vector2(tex2.get_size()) * 0.5).round(), mod)
 	for rg in _rings:
 		var age2 := t - float(rg.t0)
@@ -1923,9 +1904,9 @@ func _paint_light_new(ci: CanvasItem) -> void:
 		if age2 > dur:
 			continue
 		var x2 := age2 / dur
-		var rr := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * _ease_out(x2)
+		var rr := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * FxKit.ease_out(x2)
 		var lv5 := float(rg.s) * (1.0 if x2 < 0.25 else (0.7 if x2 < 0.5 else (0.45 if x2 < 0.75 else 0.22)))
-		var rp_ := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * _ease_out(maxf(0.0, age2 - 1.0 / 30.0) / dur)
+		var rp_ := float(rg.r0) + (float(rg.r1) - float(rg.r0)) * FxKit.ease_out(maxf(0.0, age2 - 1.0 / 30.0) / dur)
 		_draw_ring(ci, rg.p, int(rr), float(rg.squash), lv5, rg.col, false, clampi(int(rr) - int(rp_), 0, 8))
 	for mo in _motes:
 		var f2: float = mo.age / mo.life
@@ -1940,10 +1921,10 @@ func _paint_light_new(ci: CanvasItem) -> void:
 			2:
 				var gi := 0 if f2 < 0.2 else (1 if f2 < 0.5 else (2 if f2 < 0.8 else 3))
 				var gl: float = [1.0, 0.75, 0.5, 0.3][gi]
-				var gc := _lv(GAS[gi], gl)
+				var gc := FxKit.lv(GAS[gi], gl)
 				ci.draw_rect(Rect2(p, Vector2.ONE), gc)
 				if mo.big and f2 < 0.4:
-					var arm := _lv(GAS[gi], gl * 0.4)
+					var arm := FxKit.lv(GAS[gi], gl * 0.4)
 					for o in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
 						ci.draw_rect(Rect2(p + o, Vector2.ONE), arm)
 			3:
@@ -1951,13 +1932,13 @@ func _paint_light_new(ci: CanvasItem) -> void:
 				if f2 < 0.22:
 					c3 = mo.c
 				elif f2 < 0.45:
-					c3 = _lv(TEAL[0], 0.9)
+					c3 = FxKit.lv(TEAL[0], 0.9)
 				elif f2 < 0.7:
-					c3 = _lv(TEAL[1], 0.7)
+					c3 = FxKit.lv(TEAL[1], 0.7)
 				elif f2 < 0.88:
-					c3 = _lv(TEAL[2], 0.55)
+					c3 = FxKit.lv(TEAL[2], 0.55)
 				else:
-					c3 = _lv(TEAL[3], 0.4)
+					c3 = FxKit.lv(TEAL[3], 0.4)
 				ci.draw_rect(Rect2(p, Vector2.ONE), c3)
 			4:
 				var c4 := HEAT_RAMP[1] if f2 < 0.2 else (HEAT_RAMP[2] if f2 < 0.45 else (HEAT_RAMP[3] if f2 < 0.7 else (HEAT_RAMP[4] if f2 < 0.88 else HEAT_RAMP[5])))
@@ -1967,11 +1948,11 @@ func _paint_light_new(ci: CanvasItem) -> void:
 				# stolen cargo, glowing: gold-white, cooling to amber, a plus while young
 				var gi8 := 0 if f2 < 0.25 else (1 if f2 < 0.5 else (2 if f2 < 0.8 else 3))
 				var l8: float = [1.0, 0.85, 0.6, 0.35][gi8]
-				var g8 := _lv(GOLD[gi8], l8)
+				var g8 := FxKit.lv(GOLD[gi8], l8)
 				ci.draw_rect(Rect2(p, Vector2(2, 2) if mo.big and f2 < 0.4 else Vector2.ONE), g8)
 				if mo.big and f2 < 0.6:
 					for o8 in [Vector2(2, 0), Vector2(-1, 0), Vector2(0, 2), Vector2(0, -1)]:
-						ci.draw_rect(Rect2(p + o8, Vector2.ONE), _lv(GOLD[gi8], l8 * 0.4))
+						ci.draw_rect(Rect2(p + o8, Vector2.ONE), FxKit.lv(GOLD[gi8], l8 * 0.4))
 			5, 6, 7:
 				# Soft light (a creature's last light, its fluid, its spores):
 				# held steps down, the big ones a gathered plus while young.
@@ -1980,13 +1961,13 @@ func _paint_light_new(ci: CanvasItem) -> void:
 				if int(mo.kind) == 7:
 					c5 = SPORE[0 if f2 < 0.25 else (1 if f2 < 0.5 else (2 if f2 < 0.8 else 3))]
 					l5 = 1.0 if f2 < 0.5 else (0.7 if f2 < 0.8 else 0.45)
-				var lc := _lv(c5, l5 * (0.8 if int(mo.kind) == 6 else 1.0))
+				var lc := FxKit.lv(c5, l5 * (0.8 if int(mo.kind) == 6 else 1.0))
 				if int(mo.kind) == 6 and mo.big and f2 < 0.6:
 					ci.draw_rect(Rect2(p, Vector2(2, 2)), lc)
 				else:
 					ci.draw_rect(Rect2(p, Vector2.ONE), lc)
 				if mo.big and f2 < 0.5 and int(mo.kind) != 6:
-					var arm := _lv(c5, l5 * 0.4)
+					var arm := FxKit.lv(c5, l5 * 0.4)
 					for o in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
 						ci.draw_rect(Rect2(p + o, Vector2.ONE), arm)
 
@@ -2007,10 +1988,10 @@ func _light_slice(ci: CanvasItem, tt: float) -> void:
 	while u <= u_end:
 		var p := (c + d * u).round()
 		if p != last:
-			ci.draw_rect(Rect2(p, Vector2.ONE), _lv(Color(1.0, 0.97, 0.9), lvl))
+			ci.draw_rect(Rect2(p, Vector2.ONE), FxKit.lv(Color(1.0, 0.97, 0.9), lvl))
 			if ((int(p.x) + int(p.y)) & 1) == 0:
-				ci.draw_rect(Rect2(p + side, Vector2.ONE), _lv(HEAT_RAMP[2], lvl * 0.5))
-				ci.draw_rect(Rect2(p - side, Vector2.ONE), _lv(HEAT_RAMP[2], lvl * 0.5))
+				ci.draw_rect(Rect2(p + side, Vector2.ONE), FxKit.lv(HEAT_RAMP[2], lvl * 0.5))
+				ci.draw_rect(Rect2(p - side, Vector2.ONE), FxKit.lv(HEAT_RAMP[2], lvl * 0.5))
 			last = p
 		u += 1.0
 	# the cut so far, white-hot
@@ -2018,7 +1999,7 @@ func _light_slice(ci: CanvasItem, tt: float) -> void:
 	var ku: PackedFloat32Array = sl.ku
 	for i in kp.size():
 		if ku[i] <= ut:
-			ci.draw_rect(Rect2(_origin + kp[i], Vector2.ONE), _lv(HEAT_RAMP[0], lvl))
+			ci.draw_rect(Rect2(_origin + kp[i], Vector2.ONE), FxKit.lv(HEAT_RAMP[0], lvl))
 	if tt < 0.28:
 		var tex := _warm(7)
 		ci.draw_texture(tex, (c + d * ut - Vector2(tex.get_size()) * 0.5).round(), Color(1, 1, 1, 1))
@@ -2055,9 +2036,9 @@ func _light_dissolve(ci: CanvasItem, tt: float) -> void:
 
 func _glow_px(ci: CanvasItem, p: Vector2, depth: float, fade: float) -> void:
 	if depth < 0.025:
-		ci.draw_rect(Rect2(p, Vector2.ONE), _lv(TEAL[0], 0.8 * fade))
+		ci.draw_rect(Rect2(p, Vector2.ONE), FxKit.lv(TEAL[0], 0.8 * fade))
 	elif ((int(p.x) + int(p.y)) & 1) == 0:
-		ci.draw_rect(Rect2(p, Vector2.ONE), _lv(TEAL[1], 0.45 * fade))
+		ci.draw_rect(Rect2(p, Vector2.ONE), FxKit.lv(TEAL[1], 0.45 * fade))
 
 
 func _light_shield(ci: CanvasItem, tt: float) -> void:
@@ -2070,7 +2051,7 @@ func _light_shield(ci: CanvasItem, tt: float) -> void:
 		for c in _cells:
 			if tt >= float(c.drop):
 				continue
-			ci.draw_texture(c.tex, _origin + (c.at as Vector2), _lv(SHIELD_COL, st))
+			ci.draw_texture(c.tex, _origin + (c.at as Vector2), FxKit.lv(SHIELD_COL, st))
 		return
 	var age := tt - 0.42
 	if age >= 0.42:
@@ -2080,7 +2061,7 @@ func _light_shield(ci: CanvasItem, tt: float) -> void:
 		if float(c2.drop) < 0.42:
 			continue
 		var dist := float(c2.speed) * (1.0 - exp(-2.6 * age)) / 2.6
-		ci.draw_texture(c2.tex, (_origin + (c2.at as Vector2) + (c2.dir as Vector2) * dist).round(), _lv(SHIELD_COL, lvl))
+		ci.draw_texture(c2.tex, (_origin + (c2.at as Vector2) + (c2.dir as Vector2) * dist).round(), FxKit.lv(SHIELD_COL, lvl))
 
 
 func _light_melt(ci: CanvasItem, tt: float) -> void:
@@ -2104,7 +2085,7 @@ func _light_melt(ci: CanvasItem, tt: float) -> void:
 	if lvl <= 0.0:
 		return
 	var col: Color = HEAT_RAMP[1] if lvl >= 1.0 else (HEAT_RAMP[2] if lvl >= 0.75 else (HEAT_RAMP[3] if lvl >= 0.5 else HEAT_RAMP[4]))
-	var mod := _lv(col, 0.55 + 0.45 * lvl)
+	var mod := FxKit.lv(col, 0.55 + 0.45 * lvl)
 	if t < _split_at:
 		_stage_get(_stage_now())
 		ci.draw_texture(_stage_heat[_stage_now()], _origin + _stage_at - Vector2(2, 2), mod)
@@ -2530,7 +2511,7 @@ func _boss_glow_col(m: Dictionary, on: float, heat: float) -> Color:
 		1:
 			return Color(0.3 * on, 0.42 * on, 0.6 * on, 1.0)
 		2:
-			return _lv(GOLD[1], on)
+			return FxKit.lv(GOLD[1], on)
 	return Color(on, on * (0.45 + 0.55 * heat), on * (0.15 + 0.85 * heat * heat), 1.0)
 
 
@@ -2591,7 +2572,7 @@ func _paint_boss_body(ci: CanvasItem) -> void:
 				var rb := int(rr) - band
 				if rb < 2:
 					continue
-				var pts := _ring_points(float(rb), 0.55)
+				var pts := FxKit.ring_pixels(float(rb), 0.55)
 				var ab := al2 * (1.0 - float(band) / 9.0)
 				for q in pts:
 					if band >= 5 and (((q as Vector2i).x + (q as Vector2i).y) & 1) == 1:
@@ -2627,7 +2608,7 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 			continue
 		var tex2 := _white(int(hk2[2]))
 		var p := _origin + (L.p as Vector2) + _ride(int(L.m))
-		ci.draw_texture(tex2, (p - Vector2(tex2.get_size()) * 0.5).round(), _lv(L.col, float(hk2[1])))
+		ci.draw_texture(tex2, (p - Vector2(tex2.get_size()) * 0.5).round(), FxKit.lv(L.col, float(hk2[1])))
 	for b in _bbeams:
 		var st := _beam_state(b)
 		var len := st.x
@@ -2678,16 +2659,16 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 				# coloured at its sides, a dithered glow beyond, fading along it
 				var fall := 1.0 - 0.65 * s / len
 				var l2 := lvl * (1.0 if fall > 0.8 else (0.75 if fall > 0.6 else (0.55 if fall > 0.45 else 0.4)))
-				ci.draw_rect(Rect2(q, Vector2.ONE), _lv(core_col, l2))
-				ci.draw_rect(Rect2(q + side, Vector2.ONE), _lv(halo_col, l2 * 0.75))
-				ci.draw_rect(Rect2(q - side, Vector2.ONE), _lv(halo_col, l2 * 0.75))
+				ci.draw_rect(Rect2(q, Vector2.ONE), FxKit.lv(core_col, l2))
+				ci.draw_rect(Rect2(q + side, Vector2.ONE), FxKit.lv(halo_col, l2 * 0.75))
+				ci.draw_rect(Rect2(q - side, Vector2.ONE), FxKit.lv(halo_col, l2 * 0.75))
 				if wide >= 2:
-					ci.draw_rect(Rect2(q + side * 2.0, Vector2.ONE), _lv(halo_col, l2 * 0.5))
-					ci.draw_rect(Rect2(q - side * 2.0, Vector2.ONE), _lv(halo_col, l2 * 0.5))
+					ci.draw_rect(Rect2(q + side * 2.0, Vector2.ONE), FxKit.lv(halo_col, l2 * 0.5))
+					ci.draw_rect(Rect2(q - side * 2.0, Vector2.ONE), FxKit.lv(halo_col, l2 * 0.5))
 				if ((int(q.x) + int(q.y)) & 1) == 0:
 					var o3 := 3.0 if wide >= 2 else 2.0
-					ci.draw_rect(Rect2(q + side * o3, Vector2.ONE), _lv(halo_col, l2 * 0.3))
-					ci.draw_rect(Rect2(q - side * o3, Vector2.ONE), _lv(halo_col, l2 * 0.3))
+					ci.draw_rect(Rect2(q + side * o3, Vector2.ONE), FxKit.lv(halo_col, l2 * 0.3))
+					ci.draw_rect(Rect2(q - side * o3, Vector2.ONE), FxKit.lv(halo_col, l2 * 0.3))
 				last = q
 			s += 1.0
 		# now and then an arc jumps off the beam: a short jagged line of light
@@ -2697,7 +2678,7 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 			var sg := 1.0 if (hsh & 2) == 0 else -1.0
 			for k in 5:
 				a += side * sg + d * (1.0 if k % 2 == 0 else -1.0)
-				ci.draw_rect(Rect2(a, Vector2.ONE), _lv(core_col, lvl * (0.9 - 0.12 * k)))
+				ci.draw_rect(Rect2(a, Vector2.ONE), FxKit.lv(core_col, lvl * (0.9 - 0.12 * k)))
 	for sp in _bspheres:
 		if sp.has("keys"):
 			var ks: Array = sp.keys
@@ -2719,7 +2700,7 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 		var fd: float = sp.fade
 		if a < 0.0 or a > g + hold + fd:
 			continue
-		var R := float(sp.r1) * _ease_out(a / g) if a < g else float(sp.r1) + 4.0 * (a - g) / maxf(0.01, hold + fd)
+		var R := float(sp.r1) * FxKit.ease_out(a / g) if a < g else float(sp.r1) + 4.0 * (a - g) / maxf(0.01, hold + fd)
 		var lvl2 := 1.0 if a < g + hold else (0.6 if a < g + hold + fd * 0.33 else (0.35 if a < g + hold + fd * 0.66 else 0.15))
 		if sp.get("soft", false):
 			_draw_soft_light(ci, sp.p, int(R), lvl2)
@@ -2744,12 +2725,12 @@ func _paint_boss_light(ci: CanvasItem) -> void:
 				continue
 			var lc: Color = HEAT_RAMP[0] if ag < 0.1 else (HEAT_RAMP[1] if ag < 0.25 else (HEAT_RAMP[2] if ag < 0.45 else HEAT_RAMP[3]))
 			var lv := 1.0 if ag < 0.1 else (0.8 if ag < 0.25 else (0.55 if ag < 0.45 else 0.3))
-			ci.draw_rect(Rect2(_origin + sp2, Vector2.ONE), _lv(lc, lv))
+			ci.draw_rect(Rect2(_origin + sp2, Vector2.ONE), FxKit.lv(lc, lv))
 	# glass catching the light as it turns
 	# the stolen goods glow
 	for c in _bcargo:
 		var tg := _white(3)
-		ci.draw_texture(tg, ((c.p as Vector2) + Vector2(c.size) * 0.5 - Vector2(tg.get_size()) * 0.5).round(), _lv(c.col, 0.55))
+		ci.draw_texture(tg, ((c.p as Vector2) + Vector2(c.size) * 0.5 - Vector2(tg.get_size()) * 0.5).round(), FxKit.lv(c.col, 0.55))
 	for sh in _shards:
 		if not sh.glass or t < float(sh.release):
 			continue
@@ -2871,7 +2852,7 @@ func _draw_soft_light(ci: CanvasItem, c: Vector2, R: int, lvl: float) -> void:
 		var rr := int(float(R) * float(rg[0]))
 		if rr < 1:
 			continue
-		var col := _lv(HEAT_RAMP[1].lerp(Color.WHITE, 1.0 - float(rg[0])), lvl * float(rg[1]))
+		var col := FxKit.lv(HEAT_RAMP[1].lerp(Color.WHITE, 1.0 - float(rg[0])), lvl * float(rg[1]))
 		for dy in range(-rr, rr + 1):
 			var half := int(floor(sqrt(float(rr * rr - dy * dy))))
 			if rg[2]:

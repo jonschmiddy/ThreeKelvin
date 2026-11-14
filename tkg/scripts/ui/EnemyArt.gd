@@ -234,10 +234,6 @@ func _hull(prof: Dictionary, r: Array, deck: float = 0.55, cap: bool = true) -> 
 			var e: Vector2i = prof[pair[0]]
 			px(int(pair[0]) + int(pair[1]), e.x - 1, 1, e.y - e.x + 2, _ink)
 
-## Slung under a hull sits in its shadow: the ramp two stops down, else it floats apart.
-func _under(r: Array) -> Array:
-	return [r[0], r[0], r[1], r[1], r[2], r[3]]
-
 ## A raised box on the deck. Same lighting as a hull, no taper.
 func _plate(x: int, y: int, w: int, h: int, r: Array, deck: float = 0.6) -> void:
 	_hull(_profile([Vector3i(x, y, y + h), Vector3i(x + w, y, y + h)]), r, deck)
@@ -729,7 +725,7 @@ func _draw_cutter(wounded: float) -> void:
 	# Ventral strake, in the hull's shadow.
 	_hull(_profile([
 		Vector3i(100, 75, 85), Vector3i(112, 75, 89), Vector3i(128, 75, 87),
-		Vector3i(136, 75, 80)]), _under(_steel), 0.3, false)
+		Vector3i(136, 75, 80)]), FxKit.ramp_under(_steel), 0.3, false)
 	_hull(body, _steel, 0.56)
 
 	# Seams stop at the lip. A seam drawn across it flattens the one value break
@@ -846,7 +842,7 @@ func _draw_hulk(wounded: float, telegraphing: bool) -> void:
 	# Ventral pod, so the underside is not one uninterrupted wall.
 	_hull(_profile([
 		Vector3i(86, 86, 98), Vector3i(100, 86, 103), Vector3i(122, 86, 101),
-		Vector3i(134, 86, 93)]), _under(_brass), 0.25, false)
+		Vector3i(134, 86, 93)]), FxKit.ramp_under(_brass), 0.25, false)
 
 	# Bridge blister aft.
 	_plate(126, 20, 24, 12, _brass, 0.5)
@@ -930,7 +926,7 @@ func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
 	# The intake maw is the bow, as it is what the ship is for. Never fully cold.
 	_hull(_profile([Vector3i(26, 46, 58), Vector3i(48, 44, 60)]), _gun, 0.55)
 	_hull(_profile([Vector3i(30, 64, 76), Vector3i(48, 62, 78)]),
-		_under(_gun), 0.35, false)
+		FxKit.ramp_under(_gun), 0.35, false)
 	px(28, 59, 18, 4, _ink)
 	dither(30, 60, 14, 2, _heat[0], 0.6)
 	dither(32, 60, 8, 1, _heat[1], 0.4)

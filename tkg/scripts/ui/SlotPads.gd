@@ -5,6 +5,8 @@ extends Control
 ## Why: docs/why/ChassisSelect.md#slot-pads
 const CELL := Vector2(9, 11)
 const GAP := 2
+## An empty pad.
+const PAD_EMPTY := Color("#10161f")
 var used := 0
 var total := 0
 
@@ -29,7 +31,7 @@ func _draw() -> void:
 			draw_rect(Rect2(pos, Vector2(1, CELL.y)), UITheme.CHILL, true)
 		else:
 			# Four filled rects, not outline mode: a 1px stroke drew empty pads larger.
-			draw_rect(Rect2(pos, CELL), Color("#10161f"), true)
+			draw_rect(Rect2(pos, CELL), PAD_EMPTY, true)
 			var e := UITheme.EMBER
 			draw_rect(Rect2(pos, Vector2(CELL.x, 1)), e, true)
 			draw_rect(Rect2(pos + Vector2(0, CELL.y - 1), Vector2(CELL.x, 1)), e, true)

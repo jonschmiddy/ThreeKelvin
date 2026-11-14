@@ -822,7 +822,7 @@ func draw(ci: CanvasItem, origin: Vector2, thrust: int, t: float, wait: bool = t
 		for n2 in nozzles.size():
 			for q in particles_at(n2, thrust, t):
 				var band: int = q.band
-				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), _lv(ramp[band], float(s.lv[band]) * float(q.k)) * mod)
+				ci.draw_rect(Rect2(origin + Vector2(q.x, q.y), Vector2.ONE), FxKit.lv(ramp[band], float(s.lv[band]) * float(q.k)) * mod)
 				particle_px += 1
 		particle_us += Time.get_ticks_usec() - t0
 
@@ -983,10 +983,6 @@ static func add_material() -> CanvasItemMaterial:
 
 func _ramp() -> Array[Color]:
 	return HEAT_RAMP if warm else COOL_RAMP
-
-
-static func _lv(c: Color, lvl: float) -> Color:
-	return Color(c.r * lvl, c.g * lvl, c.b * lvl, 1.0)
 
 
 # ------------------------------------------------------------------ the plume
@@ -1340,7 +1336,7 @@ func _quantize(buf: PackedFloat32Array, W: int, Hh: int, at: Vector2i, s: Dictio
 			var bz: float = BAYER[(posmod(at.y + y, 2)) * 2 + posmod(at.x + x, 2)]
 			if bz >= float(dith[band]):
 				continue
-			im.set_pixel(x, y, _lv(ramp[band], float(lvs[band])))
+			im.set_pixel(x, y, FxKit.lv(ramp[band], float(lvs[band])))
 			any = true
 	return {img = im if any else null, at = at}
 
@@ -1391,15 +1387,15 @@ func spill(thrust: int) -> Dictionary:
 			var bz: float = BAYER[posmod(at.y + y, 2) * 2 + posmod(at.x + x, 2)]
 			var c := Color()
 			if v2 > 0.5:
-				c = _lv(ramp[2], 0.55)
+				c = FxKit.lv(ramp[2], 0.55)
 			elif v2 > 0.25:
 				if bz >= 0.75:
 					continue
-				c = _lv(ramp[3], 0.46)
+				c = FxKit.lv(ramp[3], 0.46)
 			elif v2 > 0.08:
 				if bz >= 0.5:
 					continue
-				c = _lv(ramp[3], 0.3)
+				c = FxKit.lv(ramp[3], 0.3)
 			else:
 				continue
 			im.set_pixel(x, y, c)

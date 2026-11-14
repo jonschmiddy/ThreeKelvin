@@ -74,7 +74,7 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 			continue
 		var c := _orig[i]
 		_lum[i] = c.get_luminance()
-		var key := _key(c)
+		var key := HullGrade.key(c)
 		if not seen.has(key):
 			seen[key] = true
 			_pal.append(Color(c.r, c.g, c.b, 1.0))
@@ -88,10 +88,6 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 				_edge[i] = 1
 	_find_seams()
 	_find_gas()
-
-
-static func _key(c: Color) -> int:
-	return (int(c.r * 255.0) << 16) | (int(c.g * 255.0) << 8) | int(c.b * 255.0)
 
 
 ## A seam is a pixel darker than both neighbours in a run, so speckle does not count.
@@ -153,7 +149,7 @@ const CHAR := [5]
 
 
 func _snap(c: Color, char: bool = false) -> Color:
-	var k := _key(Color(clampf(c.r, 0.0, 1.0), clampf(c.g, 0.0, 1.0), clampf(c.b, 0.0, 1.0))) * 2 + int(char)
+	var k := HullGrade.key(Color(clampf(c.r, 0.0, 1.0), clampf(c.g, 0.0, 1.0), clampf(c.b, 0.0, 1.0))) * 2 + int(char)
 	if _snapc.has(k):
 		return _snapc[k]
 	var best := _pal[0] if not _pal.is_empty() else c
