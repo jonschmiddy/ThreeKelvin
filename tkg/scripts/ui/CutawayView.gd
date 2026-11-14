@@ -130,10 +130,6 @@ func _init() -> void:
 	process_priority = 10
 
 
-func _ease(x: float) -> float:
-	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
-
-
 func _build() -> void:
 	_scrim = ColorRect.new()
 	_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -563,7 +559,7 @@ func _process(delta: float) -> void:
 
 ## The camera, the backdrop, the parts and the left panel at progress `t`.
 func _apply() -> void:
-	var e := _ease(t)
+	var e := FxKit.ease_in_out(t)
 	# whole pixels: the hull's drawn width a whole number, its origin on the grid
 	var s := lerpf(_from_s, float(k), e)
 	var cw := maxf(_ship.canvas_width() / float(k), 1.0)

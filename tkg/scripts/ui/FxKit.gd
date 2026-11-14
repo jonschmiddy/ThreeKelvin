@@ -45,3 +45,7 @@ static func ease_out(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	return 1.0 - pow(1.0 - u, 3.0)
 
+
+## A cubic that starts and ends slowly (`x` is not clamped).
+static func ease_in_out(x: float) -> float:
+	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
