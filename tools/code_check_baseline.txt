@@ -138,6 +138,7 @@ bare scripts/ui/Ash.gd::tut_avoid_rects
 bare scripts/ui/Ash.gd::tut_spot
 bare scripts/ui/Ash.gd::tut_spot_boxes
 bare scripts/ui/BoardLamp.gd::_bars
+bare scripts/ui/BreakupCreature.gd::_glow_band
 bare scripts/ui/BreakupCuts.gd::_boss_lights
 bare scripts/ui/BreakupCuts.gd::_crumple_pic
 bare scripts/ui/BreakupCuts.gd::_curl_pic
@@ -397,7 +398,6 @@ bare scripts/ui/ShaderWarm.gd::wanted
 bare scripts/ui/ShelfDisplay.gd::_pack
 bare scripts/ui/ShieldFx.gd::_cell
 bare scripts/ui/ShieldFx.gd::fit
-bare scripts/ui/ShipBreakup.gd::_glow_band
 bare scripts/ui/ShipBreakup.gd::_held
 bare scripts/ui/ShipBreakup.gd::_plume_tex
 bare scripts/ui/ShipBreakup.gd::_shard_new
@@ -569,7 +569,6 @@ file scripts/systems/FlightSolve.gd 3969
 file scripts/ui/LabSavers.gd 5408
 file scripts/ui/LocalSubject.gd 3167
 file scripts/ui/SectorScreen.gd 4850
-file scripts/ui/ShipBreakup.gd 3171
 file scripts/ui/StationScreen.gd 3115
 file scripts/ui/sysmap/ShipFlight.gd 4386
 file scripts/ui/sysmap/SystemView.gd 3230

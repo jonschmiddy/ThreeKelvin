@@ -2123,317 +2123,32 @@ func _light_melt(ci: CanvasItem, tt: float) -> void:
 const SPORE: Array[Color] = [Color("#e2fff2"), Color("#97f0c9"), Color("#45b88f"), Color("#1d6650")]
 const CURL_STEPS := 6
 const PART_TEAR: Array[float] = [0.15, 0.35, 0.55]
-
-
-
-
-# ---------------------------------------------------------------- the film
-
-var _gl_tex: Array = []   ## [stage][band] -> {tex, at (canvas)}
-var _fluid := Color("#e07a5a")
-var _body_px := PackedVector2Array()
-var _torn := PackedByteArray()
-
-
-## Glow pixels as gathered light over the dark body, so full light gives the art back
-## exactly.
-func _glow_band(pts: PackedVector2Array, cols: PackedColorArray, mean: Color) -> Dictionary:
-	if pts.is_empty():
-		return {tex = null, at = Vector2.ZERO}
-	var lo := Vector2i(1 << 20, 1 << 20)
-	var hi := Vector2i(-(1 << 20), -(1 << 20))
-	for p in pts:
-		lo = Vector2i(mini(lo.x, int(p.x)), mini(lo.y, int(p.y)))
-		hi = Vector2i(maxi(hi.x, int(p.x)), maxi(hi.y, int(p.y)))
-	lo -= Vector2i(3, 3)
-	hi += Vector2i(3, 3)
-	var W := hi.x - lo.x + 1
-	var Hh := hi.y - lo.y + 1
-	var acc := PackedFloat32Array()
-	acc.resize(W * Hh)
-	var core := {}
-	for i in pts.size():
-		var q := Vector2i(pts[i]) - lo
-		core[q] = cols[i]
-		for dy in range(-2, 3):
-			for dx in range(-2, 3):
-				var kk := 1.0 - sqrt(float(dx * dx + dy * dy)) / 3.0
-				if kk > 0.0:
-					acc[(q.y + dy) * W + q.x + dx] += kk
-	var im := Image.create(W, Hh, false, Image.FORMAT_RGBA8)
-	for y in Hh:
-		for x in W:
-			var q2 := Vector2i(x, y)
-			if core.has(q2):
-				var c: Color = core[q2]
-				im.set_pixel(x, y, Color(c.r * 0.7, c.g * 0.7, c.b * 0.7, 1.0))
-				continue
-			var a := acc[y * W + x]
-			if a >= 2.0:
-				im.set_pixel(x, y, _lv(mean, 0.3))
-			elif a >= 0.8 and ((x + lo.x + y + lo.y) & 1) == 0:
-				im.set_pixel(x, y, _lv(mean, 0.16))
-	return {tex = _tex(im), at = Vector2(lo)}
+var _creature: CreatureFilm   ## the creature deaths (N-P), made in `_setup_creature`
 
 
 func _setup_creature(img: Image, used: Rect2i, seed: int) -> void:
-	_lead = 0.0
-	duration = float(LIFE[style])
-	_cut = cut(img, used, seed, false, style)
-	_plan = _cut.get("plan", {})
-	_centre = _origin + Vector2(_cut.centre)
-	_flash_tex = _tex(_radial_light(22))
-	_plan_events()
-	for m in _cut.majors:
-		var mi: Image = m.image
-		var tex := _tex(mi)
-		_majors.append({tex = tex, stages = [tex], images = [mi], at = m.at, off = m.off, own = m.own,
-			glob = m.glob, crack = m.crack, dir = m.dir, lab = m.lab,
-			glow = _tex(_glow_image(m.crack, mi.get_size()))})
-		for y in mi.get_height():
-			for x in mi.get_width():
-				if mi.get_pixel(x, y).a > 0.0 and _rng.randf() < 0.12:
-					_body_px.append(Vector2(m.at) + Vector2(x, y))
-	var gl: Dictionary = _plan.glow
-	var gp: PackedVector2Array = gl.p
-	var gc: PackedColorArray = gl.c
-	var gb: PackedInt32Array = gl.band
-	var nb: int = _plan.nb
-	var mean := Color(0, 0, 0)
-	for c in gc:
-		mean += c
-	if gc.size() > 0:
-		mean = mean / float(gc.size())
-		_fluid = Color(mean.r, mean.g, mean.b, 1.0)
-	var steps := CURL_STEPS + 1 if style == Style.GLOWOUT else 1
-	for s in steps:
-		var row: Array = []
-		for b in nb:
-			var pts := PackedVector2Array()
-			var cs := PackedColorArray()
-			for i in gp.size():
-				if gb[i] != b:
-					continue
-				var p := gp[i]
-				if style == Style.GLOWOUT:
-					var cu: Dictionary = _plan.curl
-					var lx := p.x - float((_plan.r as Rect2i).position.x)
-					p.y += BreakupCuts._curl_dy(lx, cu, float(s) / float(CURL_STEPS))
-				pts.append(p)
-				cs.append(gc[i])
-			row.append(_glow_band(pts, cs, _fluid))
-		_gl_tex.append(row)
-	if style == Style.GLOWOUT:
-		var H := BreakupCuts.hull_pic(img, used, 12)
-		var raw: PackedColorArray = H.raw
-		var mask: PackedByteArray = H.mask
-		var col := PackedColorArray()
-		col.resize(raw.size())
-		for i in raw.size():
-			if mask[i] == 1:
-				var c2 := raw[i]
-				col[i] = Color(c2.r * 0.3, c2.g * 0.3, c2.b * 0.3, c2.a) if BreakupCuts._is_glow(c2) else c2
-		_stage_at = Vector2((H.r as Rect2i).position)
-		for s2 in CURL_STEPS + 1:
-			var cp := BreakupCuts._curl_pic(H, col, mask, _plan.curl, float(s2) / float(CURL_STEPS))
-			_stage_tex.append(_tex(BreakupCuts._pic_image(H, cp.col, cp.mask)))
-	if style == Style.PART:
-		_torn.resize(PART_TEAR.size() + 2)
+	_creature = CreatureFilm.new(self)
+	_creature.setup_creature(img, used, seed)
 
 
 func _plan_creature() -> float:
-	var nb: int = _plan.nb
-	match style:
-		Style.GLOWOUT:
-			_ev(0.0, &"flare", 0.5)
-			_ev(0.0, &"groan", 0.5, 1.8)
-			_ev(0.3, &"curl", 0.3, 1.32)
-			for b in nb:
-				_ev(0.35 + 0.3 * b, &"dim", 0.3, 0.0, Vector2.INF, {band = b})
-			_ev(1.7, &"still", 0.15)
-			return 1.5
-		Style.BLOOM:
-			_ev(0.0, &"flare", 0.6)
-			_ev(0.25, &"bloom", 0.8)
-			_ev(0.25, &"spores", 0.5, 1.0)
-			for b in nb:
-				_ev(0.7 + 0.2 * b, &"dim", 0.3, 0.0, Vector2.INF, {band = b})
-			_ev(1.3, &"still", 0.15)
-			return 0.0
-		Style.PART:
-			_ev(0.0, &"pulse", 0.4)
-			for i in nb - 1:
-				_ev(PART_TEAR[i], &"tear", 0.4 + 0.1 * i, 0.0, Vector2.INF, {seam = i})
-			_ev(0.15, &"fluid", 0.4, 1.4)
-			for b in nb:
-				_ev(0.7 + 0.2 * b, &"dim", 0.3, 0.0, Vector2.INF, {band = b})
-			_ev(1.6, &"still", 0.15)
-			return 0.15
-	return 0.0
-
-
-## How lit band `b` is: a last flare, held, then out in four held steps.
-func _glow_lvl(b: int, tt: float) -> float:
-	var out := 0.0
-	var flare := 1.0
-	match style:
-		Style.GLOWOUT:
-			out = 0.35 + 0.3 * b
-			flare = 1.15 if tt < 0.08 else (1.3 if tt < 0.2 else 1.0)
-		Style.BLOOM:
-			out = 0.7 + 0.2 * b
-			flare = 1.15 if tt < 0.1 else (1.4 if tt < 0.3 else 1.0)
-		Style.PART:
-			out = 0.7 + 0.2 * b
-			flare = 1.2 if tt < 0.1 else 1.0
-	if tt < out:
-		return flare
-	var a := tt - out
-	return 0.6 if a < 0.08 else (0.3 if a < 0.16 else (0.12 if a < 0.26 else 0.0))
+	return _creature.plan_creature()
 
 
 func _fire_creature(e: Dictionary) -> void:
-	match e.kind:
-		&"dim":
-			# What light it had leaves it as a few motes, drifting off slowly.
-			var gl: Dictionary = _plan.glow
-			var gp: PackedVector2Array = gl.p
-			var gc: PackedColorArray = gl.c
-			var gb: PackedInt32Array = gl.band
-			var mine: Array[int] = []
-			for i in gp.size():
-				if gb[i] == int(e.band):
-					mine.append(i)
-			for j in mini(12, mine.size()):
-				var i2 := mine[_rng.randi() % mine.size()]
-				var p := _creature_glow_pos(gp[i2], int(e.band))
-				var v := (p - _centre).normalized() * _rng.randf_range(6.0, 16.0) \
-					+ Vector2(_rng.randf_range(-4.0, 4.0), _rng.randf_range(-4.0, 4.0))
-				_mote(p, v, _rng.randf_range(0.6, 1.0), 5, _rng.randf() < 0.3, gc[i2], 0.3)
-		&"bloom":
-			for j in 280:
-				_spore()
-		&"tear":
-			var sd: Dictionary = _plan.seams
-			var sp: PackedVector2Array = sd.p
-			var si: PackedInt32Array = sd.i
-			var seam: int = e.seam
-			_torn[seam] = 1
-			for i in sp.size():
-				if si[i] != seam or _rng.randf() > 0.55:
-					continue
-				var side := 1.0 if _rng.randf() < 0.5 else -1.0
-				_mote(_origin + sp[i], Vector2(side * _rng.randf_range(4.0, 14.0), _rng.randf_range(-6.0, 6.0)),
-					_rng.randf_range(0.8, 1.3), 6, _rng.randf() < 0.35, _fluid, 0.4)
-
-
-## Where a glow pixel is drawn now (it rides the curl, the drift, its segment).
-func _creature_glow_pos(p: Vector2, band: int) -> Vector2:
-	var q := _origin + p + _hull_shift()
-	if style == Style.GLOWOUT:
-		var lx := p.x - float((_plan.r as Rect2i).position.x)
-		q.y += BreakupCuts._curl_dy(lx, _plan.curl, float(_curl_stage()) / float(CURL_STEPS))
-	elif style == Style.PART:
-		for m in _majors:
-			if int(m.lab) == band:
-				q += _major_pos_new(m) - (_origin + Vector2(m.at))
-	return q
-
-
-func _spore() -> void:
-	if _body_px.is_empty():
-		return
-	var gl: Dictionary = _plan.glow
-	var gp: PackedVector2Array = gl.p
-	var p: Vector2
-	if _rng.randf() < 0.5 and not gp.is_empty():
-		p = _origin + gp[_rng.randi() % gp.size()] + _hull_shift()
-	else:
-		p = _origin + _body_px[_rng.randi() % _body_px.size()] + _hull_shift()
-	var v := (p - _centre).normalized() * _rng.randf_range(12.0, 46.0) \
-		+ Vector2(_rng.randf_range(-8.0, 8.0), _rng.randf_range(-8.0, 8.0))
-	_mote(p, v, _rng.randf_range(0.7, 1.2), 7, _rng.randf() < 0.55, Color.WHITE, 0.5)
+	_creature.fire_creature(e)
 
 
 func _tick_creature(delta: float, tt: float) -> void:
-	match style:
-		Style.BLOOM:
-			if tt >= 0.25 and tt < 1.25:
-				var rate := 440.0 * snappedf(1.0 - (tt - 0.25) / 1.0, 0.25)
-				var n := int(rate * delta + _rng.randf())
-				for i in n:
-					_spore()
-		Style.PART:
-			var torn := 0
-			for x in _torn:
-				torn += int(x)
-			if torn > 0 and tt < 1.3:
-				var rate2 := 50.0 * float(torn) / float(maxi(1, int(_plan.nb) - 1)) * (1.0 if tt < 1.0 else 0.5)
-				var n2 := int(rate2 * delta + _rng.randf())
-				for i in n2:
-					var m: Dictionary = _majors[_rng.randi() % _majors.size()]
-					var cr: PackedVector2Array = m.crack
-					if cr.is_empty():
-						continue
-					var q := _major_pos_new(m) + cr[_rng.randi() % cr.size()]
-					var side := signf(q.x - (_major_pos_new(m).x + float((m.tex as ImageTexture).get_width()) * 0.5))
-					_mote(q, Vector2(side * _rng.randf_range(3.0, 10.0), _rng.randf_range(-5.0, 5.0)),
-						_rng.randf_range(0.6, 1.0), 6, _rng.randf() < 0.3, _fluid, 0.4)
-
-
-func _curl_stage() -> int:
-	var tt := t - _lead
-	if tt < 0.3:
-		return 0
-	return mini(CURL_STEPS, 1 + int((tt - 0.3) / 0.22))
-
-
-func _creature_tint() -> Color:
-	if done:
-		return WRECK_TINT
-	var q := snappedf(clampf((t - 0.3) / (duration - 0.5), 0.0, 1.0), 0.25)
-	return Color.WHITE.lerp(WRECK_TINT, q)
+	_creature.tick_creature(delta, tt)
 
 
 func _paint_creature_body(ci: CanvasItem) -> void:
-	var tint := _creature_tint()
-	if style == Style.GLOWOUT and t < _split_at and not _stage_tex.is_empty():
-		ci.draw_texture(_stage_tex[_curl_stage()], _origin + _stage_at + _hull_shift(), tint)
-	else:
-		for m in _majors:
-			ci.draw_texture(m.tex, _major_pos_new(m), tint)
-	if style == Style.PART:
-		var sd: Dictionary = _plan.seams
-		var sp: PackedVector2Array = sd.p
-		var sc: PackedColorArray = sd.c
-		var si: PackedInt32Array = sd.i
-		for i in sp.size():
-			if _torn[si[i]] == 0:
-				ci.draw_rect(Rect2(_origin + sp[i], Vector2.ONE), sc[i] * tint)
+	_creature.paint_creature_body(ci)
 
 
 func _paint_creature_light(ci: CanvasItem, tt: float) -> void:
-	var nb: int = _plan.nb
-	var row: Array = _gl_tex[_curl_stage() if style == Style.GLOWOUT else 0]
-	for b in nb:
-		var l := _glow_lvl(b, tt)
-		var g: Dictionary = row[b]
-		if l <= 0.0 or g.tex == null:
-			continue
-		var at := _origin + (g.at as Vector2) + _hull_shift()
-		if style == Style.PART:
-			for m in _majors:
-				if int(m.lab) == b:
-					at += _major_pos_new(m) - (_origin + Vector2(m.at) + _hull_shift())
-		ci.draw_texture(g.tex, at.round(), Color(l, l, l, 1.0))
-	if style == Style.PART:
-		var on := 0.0
-		if tt >= 0.15:
-			on = 1.0 if tt < 0.6 else (0.75 if tt < 0.9 else (0.5 if tt < 1.15 else (0.25 if tt < 1.4 else 0.0)))
-		if on > 0.0:
-			for m2 in _majors:
-				ci.draw_texture(m2.glow, _major_pos_new(m2) - Vector2(GLOW_PAD, GLOW_PAD),
-					Color(0.5 * on, 0.22 * on, 0.18 * on, 1.0))
+	_creature.paint_creature_light(ci, tt)
 
 
 # ================================================================== BOSS SET PIECES
