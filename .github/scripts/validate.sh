@@ -2181,6 +2181,28 @@ else
 fi
 }
 
+unit_framecheck() {
+step "No new work in a per-frame function that belongs in _ready"
+# A ratchet: a function the engine runs every frame (`_process`, `_physics_process`, `_draw`, and what
+# those call in the same file) may not load a resource, build an Image or texture, parse a colour from a
+# string, search the tree, open a file, parse JSON, deep-copy or build a material, unless it is lazy
+# initialisation. What predates it is in `tools/frame_check_baseline.txt` (docs/why/frame_check.md).
+if [ -n "$PY" ]; then
+	# The self-test first: the detector must read a tiny synthetic tree exactly, or its verdict on the real one is not trusted.
+	if ! "$PY" tools/frame_check.py --selftest >"$GATE_UNIT_DIR/framecheck.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/framecheck.out" | sed 's/^/        /'
+		bad "frame check self-test failed: the detector misread its synthetic tree (python3 tools/frame_check.py --selftest)"
+	elif "$PY" tools/frame_check.py >>"$GATE_UNIT_DIR/framecheck.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/framecheck.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/framecheck.out" | head -n 40 | sed 's/^/        /'
+		bad "frame check: new work in a per-frame function (python3 tools/frame_check.py; --report lists all of it)"
+	fi
+else
+	gate_no_python "the frame check"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.
