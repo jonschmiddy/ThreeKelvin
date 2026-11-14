@@ -62,6 +62,8 @@ var _docked_seen := {}
 ## Moored on the right, your hull sits this share of its slot in from the edge, so its
 ## nose is clear of the screen's side (Jon, Nov 13: "the nose shouldn't be touching").
 const MIRROR_INSET := 0.22
+## The void behind a region's wash.
+const VOID_WASH := Color("#070a10")
 
 func _ready() -> void:
 	clip_contents = true
@@ -1625,7 +1627,7 @@ func _draw() -> void:
 	# The void is never flat black: a wash tinted by region gives each place a
 	# colour signature for free, which is the cheapest richness available.
 	var h := size.y
-	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, h)), Color("#070a10"), true)
+	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, h)), VOID_WASH, true)
 	var steps := 5
 	for i in steps:
 		var f := float(i) / float(steps)

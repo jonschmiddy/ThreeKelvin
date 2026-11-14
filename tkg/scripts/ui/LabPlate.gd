@@ -9,6 +9,10 @@ const BG := Color("#0a0e15")
 const EMBER := Color("#d97b29")
 const HOT := Color("#ffd28a")
 const NEXT_D := Color("#4a2a0c")
+## A tab that is on, and a key that cannot be pressed.
+const TAB_ON_FILL := Color("#2a1c0c")
+const DISABLED_BG := Color("#0d131c")
+const DISABLED_HI := Color("#1a2330")
 
 var kind: StringName = &"plate"
 ## The word on the key.
@@ -52,7 +56,7 @@ func _draw() -> void:
 	var col: Color
 	if kind == &"tab":
 		if on:
-			draw_rect(Rect2(0, 0, w, 15), Color("#2a1c0c"))
+			draw_rect(Rect2(0, 0, w, 15), TAB_ON_FILL)
 			draw_rect(Rect2(0, 15, w, 1), EMBER)
 			col = HOT
 		else:
@@ -60,9 +64,9 @@ func _draw() -> void:
 			col = UITheme.ICE if hover else UITheme.CHILL
 		draw_string(font, Vector2(6, 5 + cap), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, col)
 		return
-	var bg := Color("#161f2c")
-	var hi := Color("#3d4d61")
-	var lo := Color("#080b11")
+	var bg := UITheme.PANEL2
+	var hi := UITheme.BEVEL_HI
+	var lo := UITheme.BEVEL_LO
 	if kind == &"commit":
 		bg = NEXT_D
 		hi = EMBER
@@ -75,8 +79,8 @@ func _draw() -> void:
 			bg = bg.lerp(hi, 0.35)
 	if disabled:
 		# A KEY THAT CANNOT BE PRESSED LOOKS IT: no bevel, no ember, grey words.
-		bg = Color("#0d131c")
-		hi = Color("#1a2330")
+		bg = DISABLED_BG
+		hi = DISABLED_HI
 		lo = hi
 		col = UITheme.QUOTE
 	draw_rect(Rect2(0, 0, w, h), bg)

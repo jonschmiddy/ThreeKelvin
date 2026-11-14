@@ -17,6 +17,13 @@ const GAP := 1
 ## Capped at ten cells then a tick: 27 over-cap cells pushed HUD buttons off the screen.
 ## Why: docs/why/BoxGauge.md#over-cap
 const OVER_MAX := 10
+## A cell's colours by kind where UITheme has no name for them.
+const CELL_BG_EMPTY := Color("#10161f")
+const CELL_LO_EMPTY := Color("#2a3644")
+const CELL_LO_WARM := Color("#964214")
+const CELL_BG_OVER := Color("#d64a3a")
+const CELL_LO_OVER := Color("#5c280c")
+const CELL_LO_HULL := Color("#25402f")
 
 var mode: Mode = Mode.HEAT
 var cap: int = 12
@@ -112,9 +119,9 @@ func _fill_for(i: int) -> int:
 	return 2 if i >= int(_slots() * 0.66) else 1
 
 func _cell(pos: Vector2, kind: int) -> void:
-	var bg := Color("#10161f")
+	var bg := CELL_BG_EMPTY
 	var hi := UITheme.BEVEL_LO
-	var lo := Color("#2a3644")
+	var lo := CELL_LO_EMPTY
 	match kind:
 		1:
 			bg = UITheme.COLD
@@ -123,15 +130,15 @@ func _cell(pos: Vector2, kind: int) -> void:
 		2:
 			bg = UITheme.FLARE if mode == Mode.ENERGY else UITheme.EMBER
 			hi = UITheme.HOT
-			lo = Color("#964214")
+			lo = CELL_LO_WARM
 		3:
-			bg = Color("#d64a3a")
+			bg = CELL_BG_OVER
 			hi = UITheme.FLARE
-			lo = Color("#5c280c")
+			lo = CELL_LO_OVER
 		4:
 			bg = UITheme.HULL_GREEN
 			hi = UITheme.GOOD
-			lo = Color("#25402f")
+			lo = CELL_LO_HULL
 
 	draw_rect(Rect2(pos, CELL), bg, true)
 	draw_rect(Rect2(pos, Vector2(CELL.x, 1)), hi, true)

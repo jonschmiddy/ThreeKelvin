@@ -35,6 +35,8 @@ const Z_ART := Rect2(16, 42, 93, 60)        ## the granting module's sprite
 const Z_TYPE := Rect2(16, 106, 93, 11)       ## type + lane
 ## The text box runs to the card's bottom: no provenance footer, the module is in the readout.
 const Z_TEXT := Rect2(16, 119, 93, 39)
+## A malfunction's face.
+const MALFUNCTION_FACE := Color("#1a1418")
 
 var card: CardData
 var playable: bool = true
@@ -212,7 +214,7 @@ func _draw() -> void:
 
 	# Frame. A malfunction is dead weight and has to LOOK like dead weight in
 	# the fan, before you read a word of it.
-	draw_rect(Rect2(0, 0, w, h), Color("#1a1418") if dim else UITheme.PANEL2, true)
+	draw_rect(Rect2(0, 0, w, h), MALFUNCTION_FACE if dim else UITheme.PANEL2, true)
 	draw_rect(Rect2(0, 0, w, h), UITheme.LINE, false, s)
 
 	# Manufacturer is colour, emblem and cut; type is structure, so the two channels never share.

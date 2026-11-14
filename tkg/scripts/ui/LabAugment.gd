@@ -43,6 +43,8 @@ const NODE_Y := [118, 248, 378]
 ## MANEUVER: the mockup's word, and the one that fits a ring's column).
 const GAUGE_WORD := {&"hull": "HULL", &"reactor": "REACTOR", &"thrust": "THRUST",
 	&"maneuver": "MANEUVER", &"thermal": "THERMAL", &"sensors": "SENSORS", &"stealth": "STEALTH"}
+## A picture's dim stop when nothing is picked.
+const PHOSPHOR_IDLE_LO := Color("#2d3d4f")
 
 ## `stationshot laboffer=a,b,c`: the offer shown, to set beside the mockup's.
 static var forced_offer: Array[StringName] = []
@@ -946,7 +948,7 @@ func paint(ci: CanvasItem) -> void:
 			lo = OWN_D
 		else:
 			hi = LabBoard.mixc(CHILL, tint, 0.3)
-			lo = Color("#2d3d4f")
+			lo = PHOSPHOR_IDLE_LO
 		var pic: Array = picture(m, &"phosphor", hi, lo, picked)
 		var tex: Texture2D = pic[1] if light else pic[0]
 		var tsz := Vector2i(tex.get_size())

@@ -28,6 +28,8 @@ const THING_WORDS := {&"part": "PART", &"frame": "HULL FRAME",
 const FLY_S := 0.8
 const STAGGER_S := 0.14
 const FLICKER := [0.07, 0.06, 0.07]
+## The shadow under floating text.
+const AIR_TEXT_SHADOW := Color("#05070b")
 
 
 # ------------------------------------------------------------------ the changes
@@ -957,7 +959,7 @@ class Flight extends Control:
 		var font := UITheme.pixel_font()
 		var sm := UITheme.FS_SMALL
 		var base := roundf(font.get_ascent(sm))
-		var dark := Color("#05070b")
+		var dark := AIR_TEXT_SHADOW
 		for a: Dictionary in in_air():
 			var e: Dictionary = a.e
 			var p: Vector2 = a.at - global_position

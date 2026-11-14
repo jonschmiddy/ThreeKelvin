@@ -32,6 +32,13 @@ const ICONS := {
 	# Hints: a question mark.
 	&"hint": [".####..", "#....#.", ".....#.", "...##..", "...#...", ".......", "...#..."],
 }
+## A plate's fills and the good tone's text, by tone.
+const LEAD_FILL := Color("#1f1a14")
+const GOOD_FILL := Color("#141f1a")
+const GOOD_TEXT := Color("#a9d8c2")
+const BAD_FILL := Color("#201513")
+const BAD_TEXT := Color("#e08a76")
+const PLATE_FILL := Color("#16202c")
 
 ## One icon at `at`, every pixel 2x2, for anything that wants the set's marks.
 static func draw_icon(ci: CanvasItem, id: StringName, at: Vector2, ink: Color) -> void:
@@ -96,25 +103,25 @@ func _draw() -> void:
 	var text := UITheme.CHILL
 	if lead:
 		edge = UITheme.EMBER
-		fill = Color("#1f1a14")
+		fill = LEAD_FILL
 		ink = UITheme.FLARE
 		text = UITheme.ICE
 	if hot:
 		match tone:
 			Tone.GOOD:
 				edge = UITheme.GOOD
-				fill = Color("#141f1a")
+				fill = GOOD_FILL
 				ink = UITheme.GOOD
-				text = Color("#a9d8c2")
+				text = GOOD_TEXT
 			Tone.BAD:
 				edge = UITheme.BAD
-				fill = Color("#201513")
+				fill = BAD_FILL
 				ink = UITheme.BAD
-				text = Color("#e08a76")
+				text = BAD_TEXT
 			_:
 				# The one highlight colour on the edge (C1); GOOD and BAD keep their meaning.
 				edge = UITheme.MARK
-				fill = Color("#16202c")
+				fill = PLATE_FILL
 				ink = UITheme.CHILL
 				text = UITheme.ICE
 	var w := size.x

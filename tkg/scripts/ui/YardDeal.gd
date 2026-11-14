@@ -13,6 +13,9 @@ const DEAL_RULE := Color("#2c3b4d")
 const AMBER := Color("#f0a030")
 const POOR := UITheme.QUOTE
 const SHADOW := Color(4.0 / 255.0, 6.0 / 255.0, 10.0 / 255.0, 0.75)
+## The TAKE IT key's words, pressed and not.
+const TAKE_ON := Color("#fff0cc")
+const TAKE_OFF := Color("#f0d8a0")
 
 var scene: YardScene
 var level := ""
@@ -475,7 +478,7 @@ class _Rows:
 		draw_rect(Rect2(kr.position + Vector2(0, kr.size.y - 1.0), Vector2(kr.size.x, 1)), edge)
 		draw_rect(Rect2(kr.position, Vector2(1, kr.size.y)), edge)
 		draw_rect(Rect2(kr.position + Vector2(kr.size.x - 1.0, 0), Vector2(1, kr.size.y)), edge)
-		var tc := (Color("#fff0cc") if on else Color("#f0d8a0")) if ok else YardDeal.POOR
+		var tc := (TAKE_ON if on else TAKE_OFF) if ok else YardDeal.POOR
 		_put(font, "TAKE IT", kr.position.x + kr.size.x / 2.0, kr.position.y + 12.0, tc, 1, 8, false)
 
 	## A line of the deal, with the page's drop shadow: align 0 left, 1 centre, 2 right.

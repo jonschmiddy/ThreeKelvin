@@ -96,6 +96,8 @@ var _scan := 0.0
 var _scan_row := -1
 const SCAN_S := 3.0
 const SCAN_REST_S := 0.5
+## A picture's dim stop when nothing is picked.
+const PHOSPHOR_IDLE_LO := Color("#2d3d4f")
 
 
 func _init() -> void:
@@ -782,7 +784,7 @@ func paint(ci: CanvasItem) -> void:
 		_caption(ci)
 		return
 	var idle_hi := LabBoard.mixc(CHILL, tint, 0.3)
-	var idle_lo := Color("#2d3d4f")
+	var idle_lo := PHOSPHOR_IDLE_LO
 	_text(ci, RAIL_X + 12, 70, "IN THE HOLD", word_ink(0.6))
 	# ---- what you hold, on a rail down the left
 	var picked_at := Vector2i(-1, -1)
