@@ -681,8 +681,8 @@ length scripts/ui/ThrusterFx.gd::_stream 111
 length scripts/ui/ThrusterFx.gd::for_hull 268
 length scripts/ui/TradeCounter.gd::_draw 124
 length scripts/ui/YardDeal.gd::draw 101
-length scripts/ui/ZoomLadder.gd::_calm_hold 142
-length scripts/ui/ZoomLadder.gd::_process_move 152
+length scripts/ui/ZoomLadder.gd::_calm_hold 141
+length scripts/ui/ZoomLadder.gd::_process_move 148
 length scripts/ui/ZoomLadder.gd::_style_for 124
 length scripts/ui/ZoomLadder.gd::preroll 169
 length scripts/ui/sysmap/MapHull.gd::picture 150

@@ -511,10 +511,6 @@ static func _hud_refresh() -> void:
 		Router.hud.call(&"refresh")
 
 
-## The wheel stays within a screen; Tab and the HUD tabs change distance (Jon, Oct 10).
-## Why: docs/why/ZoomLadder.md#no-wheel-between-distances
-
-
 ## A piece of a screen's UI k gone: faded from its
 ## alpha and moved `dx`; at 0 it is put back exactly.
 static func fade_chrome(c: CanvasItem, k: float, dx: float = 0.0) -> void:
@@ -800,8 +796,7 @@ static func is_fade(a: int, b: int) -> bool:
 	return (a == CHART and (b == LOCAL or b == STATION)) or (b == CHART and (a == LOCAL or a == STATION))
 
 
-## Whether the Router should leave this screen's arrival to the ladder (no fade).
-
+## Whether a move is running and this screen is the one it arrives at.
 static func takes(s: Control) -> bool:
 	return busy() and active.new == s
 
@@ -962,7 +957,6 @@ func _process_move(delta: float) -> void:
 					return
 				old.call(&"ladder_cam", _pre_k * clampf(g / maxf(_F, 0.001), 0.0, 1.0))
 				_g_last = g
-				_place_bar(g)
 				if old.has_method(&"ladder_peek"):
 					old.call(&"ladder_peek")
 				return
@@ -1002,8 +996,6 @@ func _process_move(delta: float) -> void:
 				# (and on along its line, so the frame before LOCAL is up is not a stop)
 				if _rest_est != Vector2.INF:
 					_mat.set_shader_parameter(&"to_pt", _a_old.lerp(_rest_est, ew))
-				# (the bulkhead never waits on the screen behind it)
-				_place_bar(_ease(_tau / maxf(_T, 0.001)))
 			if bool(new.call(&"ladder_ready")) or _waited >= WAIT_MAX_S:
 				_start_move()
 		Phase.MOVE:
@@ -1022,7 +1014,6 @@ func _process_move(delta: float) -> void:
 					return
 				_tau += dt
 				_step(_curve_e())
-				_place_bar(_ease(_tau / maxf(_T, 0.001)))
 				if _tau >= _T:
 					_land()
 				return
@@ -1550,52 +1541,6 @@ func _style_for() -> Dictionary:
 	return s
 
 
-## The station's dark steel passing close to the camera, covering the picture at the handoff.
-class Bulkhead extends Control:
-	var x := 0.0
-	var w := 1600.0
-	## which way it travels: -1 right to left (docking), 1 left to right
-	var dir := -1.0
-	const STEEL := [Color("#0c0f15"), Color("#121620"), Color("#1a1f2b"), Color("#262c3a"), Color("#3a4152"), Color("#5c6376")]
-	const WARM := Color("#ffa63c")
-
-	func _init() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	func _draw() -> void:
-		var r := Rect2(x, 0, w, size.y)
-		draw_rect(r, STEEL[1], true)
-		# its plates, side on: tall panels and their seams
-		var px := x + 30.0
-		var i := 0
-		while px < x + w - 10.0:
-			var pw := 70.0 + float((i * 37) % 60)
-			draw_rect(Rect2(px, 0, 1, size.y), STEEL[0], true)
-			draw_rect(Rect2(px + 1, 0, 1, size.y), STEEL[2], true)
-			for ry in range(int(size.y / 28.0) + 1):
-				draw_rect(Rect2(px + 6, 10 + ry * 28, 2, 2), STEEL[3], true)
-			px += pw
-			i += 1
-		# the edge leading into the light from the hangar, warm, stepped in;
-		# the trailing edge cold, the star's
-		var lead := x if dir < 0.0 else x + w - 1.0
-		var trail := x + w - 1.0 if dir < 0.0 else x
-		var sgn := 1.0 if dir < 0.0 else -1.0
-		draw_rect(Rect2(lead, 0, 1, size.y), WARM.lerp(STEEL[5], 0.3), true)
-		draw_rect(Rect2(lead + sgn, 0, 1, size.y), STEEL[5], true)
-		for k in 6:
-			var c := STEEL[4].lerp(STEEL[1], float(k) / 6.0)
-			var th := [0.0, 0.5, 0.75, 0.25]
-			var col := lead + sgn * float(2 + k)
-			for yy in int(size.y):
-				if th[(int(col) % 2) + (yy % 2) * 2] < 0.6 - 0.1 * float(k):
-					draw_rect(Rect2(col, yy, 1, 1), c, true)
-		draw_rect(Rect2(trail, 0, 1, size.y), STEEL[3], true)
-
-
-var _bar: Bulkhead = null
-
-
 # ------------------------------------------------------------------ the pan (3B)
 
 ## The camera slides past the station's hull to the yard, which has no station in it (Jon).
@@ -1936,27 +1881,6 @@ func _step(u: float) -> void:
 		_hull.size = r.size.round()
 
 
-## The bulkhead at G (0 to 1 of the whole move): off one side at 0, across the
-## whole picture at the handoff, off the other side at 1.
-func _place_bar(g: float) -> void:
-	if not bool(_style.get("bar", false)):
-		return
-	_fit()
-	if _bar == null:
-		_bar = Bulkhead.new()
-		add_child(_bar)
-	_bar.position = Vector2.ZERO
-	_bar.size = size
-	var W := size.x
-	_bar.w = W * 1.6
-	_bar.dir = -1.0 if r_new > r_old else 1.0
-	# a straight path whose middle (G = F) has the slab over all of the picture
-	var span := W + _bar.w
-	var u := clampf(0.5 + (g - _F) * 2.4, 0.0, 1.0)
-	_bar.x = W - span * u if _bar.dir < 0.0 else -_bar.w + span * u
-	_bar.queue_redraw()
-
-
 ## Godot leaves items under about 0.007 undrawn, so 0.008: drawn and warmed for two levels at most.
 ## Why: docs/why/ZoomLadder.md#prebuilt-chart-opacity
 const PREBUILT_A := 0.008
@@ -2153,7 +2077,6 @@ var _calm_a := 1.0
 var _calm_e := 0.0
 var _calm_e_drawn := 0.0
 var _calm_e_h := -1.0
-var _calm_t_h := 0.0
 ## the crossfade's own clock (the move's, a press's hurry and all), from the moment the screen arriving took its camera
 var _calm_diss := 0.0
 var _calm_swap_frame := 0
@@ -2386,17 +2309,6 @@ func _process_slide_off() -> void:
 		_calm_next(Phase.C_WAIT)
 
 
-## The picture as it was last drawn (a blank one headless).
-func _calm_grab() -> Texture2D:
-	var vp := get_viewport()
-	var img: Image = null
-	if vp != null and vp.get_texture() != null and DisplayServer.get_name() != "headless":
-		img = vp.get_texture().get_image()
-	if img == null or img.is_empty():
-		img = Image.create(960, 540, false, Image.FORMAT_RGBA8)
-	return ImageTexture.create_from_image(img)
-
-
 ## (the screen arriving built and laid out, so where your ship will rest on it
 ## is known before anything moves; then the camera, from this frame)
 func _calm_wait() -> void:
@@ -2446,7 +2358,6 @@ func _calm_cam() -> void:
 		if Engine.get_process_frames() > _calm_swap_frame:
 			new.call(&"calm_begin")
 			_calm_new_begun = true
-			_calm_t_h = _calm_t
 			_calm_diss = 0.0
 	var p := _calm_p(e)
 	if _calm_new_begun:
@@ -2516,7 +2427,6 @@ func _calm_hold(n: Control) -> void:
 	_tex = ImageTexture.create_from_image(img)
 	# THE PICTURE HELD IS THE LAST FRAME DRAWN: its ship where that frame put it, and the line goes on from there
 	_calm_e_h = _calm_e_drawn
-	_calm_t_h = _calm_t
 	_calm_swap_frame = Engine.get_process_frames()
 	_calm_ph = _calm_p0.lerp(_calm_p1, _calm_e_drawn)
 	# Use where the left screen drew the ship, not its aim: a far chart zoom put a second ship 5 px off.
