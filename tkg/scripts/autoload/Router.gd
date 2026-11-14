@@ -188,12 +188,26 @@ func animating() -> bool:
 	# only happened on the animated way out, which headless never took.
 	if animate_in_harness:
 		return true
+	return not _argv_calm()
+
+
+## The launch arguments and the display server never change in a run, so they are read once.
+## Why: docs/why/Router.md#animation-gating
+func _argv_calm() -> bool:
+	if _calm_cache < 0:
+		_calm_cache = 1 if _scan_argv_calm() else 0
+	return _calm_cache == 1
+
+
+func _scan_argv_calm() -> bool:
 	if "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless":
-		return false
+		return true
 	for a in OS.get_cmdline_user_args():
 		if (a as String).ends_with("shot"):
-			return false
-	return true
+			return true
+	return false
+
+var _calm_cache := -1
 
 ## Set only by `-- menutest`, which needs the animated paths headless.
 var animate_in_harness := false
