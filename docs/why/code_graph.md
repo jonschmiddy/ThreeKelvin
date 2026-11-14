@@ -64,8 +64,8 @@ count as well. Scenes and `project.godot` are read for the orphan census; `.godo
 `python3 tools/code_graph.py --selftest` builds a small synthetic tree in a temp folder (about
 0.1 s) and asserts the exact facts: parameter scope, cast and `.new()` receivers, expression
 receivers, a triple-quoted block, `$Name`, enum members and shadowing, same-named inner functions
-and a property setter, `if cond: Class.call()`, a method name duplicated only in sim, and that the
-check and report modes find the same facts. `unit_codegraph` runs it before the check.
+and a property setter, `if cond: Class.call()`, and a method name duplicated only in sim.
+`unit_codegraph` runs it before the check.
 
 ## Reading the report (`--report`)
 

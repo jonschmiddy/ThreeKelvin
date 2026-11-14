@@ -12,7 +12,7 @@ import re
 import shutil
 import sys
 import tempfile
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, namedtuple
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,8 +44,9 @@ STR = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
 TRIPLE = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')
 TOKEN = re.compile(r"(?<![\w.])[A-Za-z_]\w*")           # an identifier that is not a member access
 NODEPATH = re.compile(r"(?<![\w)\]])[$%][A-Za-z_][\w/]*")  # $Board/Ring, %Hints
-CALL_ALL = re.compile(r"(?<!\w)([A-Za-z_]\w*)\s*\(")
-CALL_PRIVATE = re.compile(r"(?<!\w)(_[A-Za-z0-9_]*)\s*\(")
+CALL = re.compile(r"(?<!\w)([A-Za-z_]\w*)\s*\(")
+IDENT_TAIL = re.compile(r"([A-Za-z_]\w*)$")
+NEW_TAIL = re.compile(r"([A-Za-z_]\w*)\s*\.\s*new$")
 FUNC_LINE = re.compile(r"\s*(?:static\s+)?func\s")
 LAMBDA = re.compile(r"\bfunc\s*\(")
 RES_PATH = re.compile(r"res://scripts/[\w/]+\.gd")
@@ -60,6 +61,9 @@ FOR_TYPED = re.compile(r"\bfor\s+(\w+)\s*:\s*([A-Z]\w*)\s+in\b")
 ASSIGN_NEW = re.compile(r"\b(\w+)\s*:?=(?!=)\s*([A-Z]\w*)\.new\(")
 ASSIGN_AS = re.compile(r"\b(\w+)\s*(?::\s*\w+\s*)?:?=(?!=)\s*.*?\bas\s+([A-Z]\w*)\s*\)?\s*$")
 AS_TAIL = re.compile(r"\bas\s+([A-Z]\w*)\s*$")
+
+
+PrivateCall = namedtuple("PrivateCall", "caller line how")   # one call of a private method, how it was resolved
 
 
 def paren_text(lines):
@@ -163,8 +167,8 @@ def read_text(p):
 
 def build(deep=False, tkg=None):
     """The scripts, their file-to-file links and the private calls. deep adds the function-level
-    calls and the name census the report and the graphify JSON need. Both modes find the same
-    ratchet facts (the self-test asserts it)."""
+    calls and the name census the report and the graphify JSON need; the ratchet facts come from one
+    path either way."""
     tkg = tkg or TKG
     g = Graph()
     g.files = {}
@@ -213,7 +217,7 @@ def build(deep=False, tkg=None):
     g.find_method = find_method
     g.file_edges = defaultdict(Counter)   # (src rel, dst rel) -> Counter of kind: references, loads, extends
     g.call_edges = Counter()              # (src rel, src func, dst rel, dst func, confidence) -> n
-    g.private_calls = defaultdict(list)   # (def rel, method) -> [(caller rel, line, how)]
+    g.private_calls = defaultdict(list)   # (def rel, method) -> [PrivateCall]
     g.mentions = defaultdict(list)        # identifier -> [(rel, line)] in code
     g.str_mentions = defaultdict(list)    # identifier -> [(rel, line)] in strings
     nm = g.name_to_file
@@ -284,31 +288,52 @@ def _scan_decls(c, nm, into):
             _put(into, m.group(1), "")
 
 
-def _scopes(g, f):
-    """(member scope, scope per function key). Member scope: declarations outside any function.
-    A parameter belongs to its own function only."""
-    nm = g.name_to_file
-    member, local = {}, {}
-    for i, c in enumerate(f.bare):
-        if f.span_of[i] is None:
-            _scan_decls(c, nm, member)
-    for key, (s, e) in f.funcs.items():
-        d = {}
-        for pname, ptype in f.params[key]:
-            _put(d, pname, ptype if ptype in nm else "")
-        for c in f.bare[s:e]:
-            _scan_decls(c, nm, d)
-        local[key] = d
-    return member, local
+class Scopes:
+    """The declared class of a name in one file, by function. Member scope: declarations outside any
+    function. A function's scope: its parameters and its own declarations. Each is built on first
+    use, since only a call on another object asks."""
+
+    def __init__(self, g, f):
+        self.nm, self.f = g.name_to_file, f
+        self._member = None
+        self._local = {}
+
+    def member(self):
+        if self._member is None:
+            self._member = {}
+            for i, c in enumerate(self.f.bare):
+                if self.f.span_of[i] is None:
+                    _scan_decls(c, self.nm, self._member)
+        return self._member
+
+    def local(self, key):
+        d = self._local.get(key)
+        if d is None:
+            d = self._local[key] = {}
+            s, e = self.f.funcs[key]
+            for pname, ptype in self.f.params[key]:
+                _put(d, pname, ptype if ptype in self.nm else "")
+            for c in self.f.bare[s:e]:
+                _scan_decls(c, self.nm, d)
+        return d
+
+    def class_of(self, key, name):
+        """The declared class name of `name` inside function `key` (None for no function), or ''/None."""
+        loc = self.local(key) if key else {}
+        return loc[name] if name in loc else self.member().get(name)
 
 
-def _receiver(g, f, pre, local, member):
-    """What stands before a `.method(`: (kind, file or None). kind: 'self', 'class' (a class,
-    autoload or cast: exact), 'typed' (a variable with a declared class), 'unknown' (an expression,
-    or an untyped variable)."""
-    nm = g.name_to_file
+def _receiver(g, pre, scopes, key):
+    """What stands before a call: (kind, file or None). `pre` is the text before the method name, with
+    its `.` if there is one. kind: 'self' (no receiver, self or super), 'class' (a class, autoload or
+    cast: exact), 'typed' (a variable with a declared class), 'unknown' (an expression, or an untyped
+    variable)."""
     pre = pre.rstrip()
-    m = re.search(r"([A-Za-z_]\w*)$", pre)
+    if not pre.endswith("."):
+        return "self", None
+    nm = g.name_to_file
+    pre = pre[:-1].rstrip()
+    m = IDENT_TAIL.search(pre)
     if m:
         name = m.group(1)
         if pre[:m.start()].rstrip().endswith("."):
@@ -317,29 +342,44 @@ def _receiver(g, f, pre, local, member):
             return "self", None
         if name in nm:
             return "class", nm[name]
-        t = local[name] if name in local else member.get(name)
-        if t:
-            return "typed", nm[t]
-        return "unknown", None
-    if pre.endswith(")"):
-        d, k = 0, len(pre) - 1
-        while k >= 0:
-            if pre[k] == ")":
-                d += 1
-            elif pre[k] == "(":
-                d -= 1
-                if d == 0:
-                    break
-            k -= 1
-        if k >= 0:
-            inner, before = pre[k + 1:-1], pre[:k].rstrip()
-            ma = AS_TAIL.search(inner)
-            if ma and ma.group(1) in nm:
-                return "typed", nm[ma.group(1)]
-            mn = re.search(r"([A-Za-z_]\w*)\s*\.\s*new$", before)
-            if mn and mn.group(1) in nm and not before[:mn.start()].rstrip().endswith("."):
-                return "typed", nm[mn.group(1)]
+        t = scopes.class_of(key, name)
+        return ("typed", nm[t]) if t else ("unknown", None)
+    k = _open_paren(pre) if pre.endswith(")") else -1
+    if k >= 0:
+        inner, before = pre[k + 1:-1], pre[:k].rstrip()
+        ma = AS_TAIL.search(inner)
+        if ma and ma.group(1) in nm:
+            return "typed", nm[ma.group(1)]
+        mn = NEW_TAIL.search(before)
+        if mn and mn.group(1) in nm and not before[:mn.start()].rstrip().endswith("."):
+            return "typed", nm[mn.group(1)]
     return "unknown", None
+
+
+def _open_paren(s):
+    """The index of the `(` that closes the `)` ending s, or -1."""
+    d = 0
+    for k in range(len(s) - 1, -1, -1):
+        if s[k] == ")":
+            d += 1
+        elif s[k] == "(":
+            d -= 1
+            if d == 0:
+                return k
+    return -1
+
+
+def _resolve(g, f, meth, pre, scopes, key):
+    """(file that defines the method, how found) for a call, or (None, None). how: EXTRACTED (self, a
+    class, an autoload), TYPED (a variable or cast with a declared class), UNIQUE (the last resort: a
+    private `_x` defined in exactly one game file, for a receiver that is an expression or untyped)."""
+    kind, tgt = _receiver(g, pre, scopes, key)
+    how = {"self": "EXTRACTED", "class": "EXTRACTED", "typed": "TYPED"}.get(kind)
+    if how:
+        return g.find_method(tgt or f, meth), how
+    if meth.startswith("_") and meth not in VIRTUAL and len(g.game_homes.get(meth, ())) == 1:
+        return g.game_homes[meth][0], "UNIQUE"
+    return None, None
 
 
 def _calls(g, f, deep):
@@ -347,9 +387,9 @@ def _calls(g, f, deep):
     a class_name or autoload, a variable or cast with a declared class, a `Class.new()`, or a
     private `_x` defined in exactly one game file (the last resort, marked UNIQUE). A public method on
     an untyped receiver is never guessed (Array.resize, Node.add_child); a receiver that is any
-    other expression (`a[i]._m()`, `f()._m()`) is not `self`."""
-    member, local = _scopes(g, f)
-    rx = CALL_ALL if deep else CALL_PRIVATE
+    other expression (`a[i]._m()`, `f()._m()`) is not `self`. deep also records the per-word census and
+    the public call edges, which only the report and the graph read."""
+    scopes = Scopes(g, f)
     for i, c in enumerate(f.bare):
         if deep:
             for w in IDENT.findall(c):
@@ -360,33 +400,23 @@ def _calls(g, f, deep):
         if "(" not in c:
             continue
         cur = f.span_of[i]
-        loc = local[cur] if cur else {}
         is_def = FUNC_LINE.match(c) is not None
-        for m in rx.finditer(c):
+        for m in CALL.finditer(c):
             meth = m.group(1)
+            private = meth.startswith("_")
+            if not (private or deep):
+                continue
             pre = c[:m.start()].rstrip()
             if is_def and cur and meth == cur.split("#")[0] and not pre.endswith("."):
                 continue
-            if pre.endswith("."):
-                kind, tgt = _receiver(g, f, pre[:-1], loc, member)
-            else:
-                kind, tgt = "self", None
-            dst, how = None, "EXTRACTED"
-            if kind == "self":
-                dst = g.find_method(f, meth)
-            elif kind in ("class", "typed"):
-                dst = g.find_method(tgt, meth)
-                how = "EXTRACTED" if kind == "class" else "TYPED"
-            if dst is None and kind in ("unknown",) and meth.startswith("_") and meth not in VIRTUAL \
-                    and len(g.game_homes.get(meth, ())) == 1:
-                dst, how = g.game_homes[meth][0], "UNIQUE"
+            dst, how = _resolve(g, f, meth, pre, scopes, cur)
             if dst is None:
                 continue
             if deep and cur:
                 g.call_edges[(f.rel, cur, dst.rel, meth, how)] += 1
-            if dst is not f and meth.startswith("_") and meth not in VIRTUAL \
+            if dst is not f and private and meth not in VIRTUAL \
                     and dst not in g.base_chain(f) and f not in g.base_chain(dst):
-                g.private_calls[(dst.rel, meth)].append((f.rel, i + 1, how))
+                g.private_calls[(dst.rel, meth)].append(PrivateCall(f.rel, i + 1, how))
 
 
 # ---- the ratcheted facts
@@ -578,14 +608,12 @@ def selftest():
             p = tkg / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(text, encoding="utf-8")
-        quick, deep = build(False, tkg), build(True, tkg)
-        got = facts(quick)
+        deep = build(True, tkg)
+        got = facts(deep)
         for k in sorted(SELFTEST_EXPECT - got):
             bad.append("missing " + k)
         for k in sorted(got - SELFTEST_EXPECT):
             bad.append("unexpected " + k)
-        if facts(deep) != got:
-            bad.append("check and report modes disagree: " + ", ".join(sorted(facts(deep) ^ got)))
         data = graphify_data(deep)
         ids = [n["id"] for n in data["nodes"]]
         if len(ids) != len(set(ids)):
