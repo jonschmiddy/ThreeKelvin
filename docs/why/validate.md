@@ -505,3 +505,10 @@ prints `[t] ... at N s` after the shaders, each film and the verdict, and the un
 kill after the verdict line as the verdict (with a note), since the verdict is what it
 judges. Read the `[t]` lines: if the verdict is near 600 s the unit is plainly slow, so
 set the limit to twice that and cut work; if it is early the hang is at exit.
+
+It runs alone, after the pool (`SOLO_UNITS`). The first two CI runs at 960x540 (PR #76) showed why:
+the same build finished all eleven films inside 600 s once, and on the next run had drawn six by
+538 s (shaders at 91 s, the first film at 239 s, then 55 to 78 s a film). The difference is the
+pool: llvmpipe rasterises on every core, and so do the other Godots. The sheet prints
+`[t] ... at N s` lines so a log says where the time went; set the limit to twice the solo time once
+a CI run has shown it.

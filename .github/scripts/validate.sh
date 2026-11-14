@@ -2263,7 +2263,9 @@ fi
 #                    alone so its limit is never spent waiting for a CPU
 #   calmladdertest   fixed fps, but a partner's ship eases on by the wall clock
 #                    (`_draw_partners`), so one slow frame is one jump past 40 px
-SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim calmladdertest"
+#   jumpshadertest   on CI every pixel is drawn by the CPU (llvmpipe), so beside the
+#                    pool a film took 55 to 147 s and the run 540 to 840 s
+SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim calmladdertest jumpshadertest"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
