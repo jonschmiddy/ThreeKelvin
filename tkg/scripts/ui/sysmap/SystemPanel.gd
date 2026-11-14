@@ -625,7 +625,7 @@ func _twin_head() -> void:
 		var sr := 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0)
 		# (painted as the map paints star p: `SystemView.sun_setup`, star B
 		# from its own roll, smaller and warmer)
-		v.call(&"sun_setup", sv, s, sr)
+		v.sun_setup(sv, s, sr)
 		if _portrait == null:
 			_portrait = sv
 		else:
