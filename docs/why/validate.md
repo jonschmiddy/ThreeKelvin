@@ -490,3 +490,39 @@ and no xvfb-run it fails, since a check that cannot run has not passed. Nothing 
 timed: it counts errors, so a busy machine only makes it slower. Exit-time leak reports of a
 windowed run are allowed; an error while the films play fails in the sheet itself.
 About 40 s on the PC.
+
+On CI it timed out from its first run (Nov 11, 600 s killed, 6 or 7 of the 11 films played,
+about 80 s a film against a few seconds on the PC): Mesa's llvmpipe draws every frame on the
+CPU, the films are 529 frames each at the harness's 1920x1080 window
+(`DisplaySettings.leave_launch_window`), and four Godots share a 4-core runner. Nothing hangs;
+it is slow. The Linux xvfb branch now passes `--resolution 960x540`, the project's own size,
+which `leave_launch_window` leaves alone: a quarter of the pixels, every shader still compiled
+and every film still played to its commit. The Windows and `DISPLAY` branches keep the full
+window. At 960x540 all 11 films played and the sheet printed PASS (PR #76), yet the unit was still
+killed at 600 s: either the run took just under 600 s and Godot was killed in shutdown, or it
+finished early and Godot or xvfb-run did not exit. The log has no clock, so the sheet now
+prints `[t] ... at N s` after the shaders, each film and the verdict, and the unit counts a
+kill after the verdict line as the verdict (with a note), since the verdict is what it
+judges. Read the `[t]` lines: if the verdict is near 600 s the unit is plainly slow, so
+set the limit to twice that and cut work; if it is early the hang is at exit.
+
+It runs alone, after the pool (`SOLO_UNITS`). The first two CI runs at 960x540 (PR #76) showed why:
+the same build finished all eleven films inside 600 s once, and on the next run had drawn six by
+538 s (shaders at 91 s, the first film at 239 s, then 55 to 78 s a film). The difference is the
+pool: llvmpipe rasterises on every core, and so do the other Godots. The sheet prints
+`[t] ... at N s` lines so a log says where the time went; set the limit to twice the solo time once
+a CI run has shown it.
+
+Alone it was still too slow (PR #76, third run): shaders at 55 s, then 43 to 145 s a film, seven
+films by 572 s. Going from 1920x1080 to 960x540 had barely moved the time per film, so the cost is
+per frame, not per pixel: each film is 529 or more frames and llvmpipe draws about 8 a second. On
+CI the unit therefore runs at `--fixed-fps 15`: the engine steps a quarter second of film a frame,
+so each film is a quarter of the frames. Every shader still compiles and every stage still draws;
+what CI no longer sees is the frames in between, which the local gate (a real GPU, 60 fps) does.
+That run (43559236187) took 3:16 alone and passed, so the limit is 400 s, twice its CI time.
+
+The same three CI runs (Nov 14) showed four other units past half their limit, against the rule
+that a limit is about twice the unit's CI time: `stationdecktest` took 194 to 242 s against 240
+(it was killed once at 240 s, red for no fault of the code), `flighthand` 176 to 313 s against
+450, `wrecksitetest` 132 to 233 s against 420, `laddertest` 257 to 275 s against 540. Their limits
+are now 480, 630, 470 and 560.
