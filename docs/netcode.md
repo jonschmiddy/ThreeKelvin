@@ -150,6 +150,14 @@ fifth: failed: The party is full.  (~1s)
 See `relay/README.md` to deploy it, and for the rules about not waking the
 object up.
 
+**The door has limits (Nov 14).** The relay still opens no payload, but it holds
+a socket to five numbers, each copied from the game: the form of an `R` code
+(`LobbyCode`), the 65,536-byte buffer (`RelayPeer.BUFFER_BYTES`), a frame rate
+far above a party of eight's (`NetSession.SPOT_EVERY_MS`), and fifteen seconds
+for a guest to say its hello (`NetSession.HANDSHAKE_TIMEOUT` is ten). None is a
+timer. `relay/README.md` lists them, and `node --test relay/test/*.test.js`, in
+the gate, fails when the game's number moves and the relay's does not.
+
 ### Verdict
 
 **Yes, and it is the recommended second transport.** Free at playtest scale, no machine to keep alive, and the lobby code doubles as the room address. Pay for it in one GDScript peer class and a reconnect path.

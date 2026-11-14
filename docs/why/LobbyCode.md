@@ -41,3 +41,30 @@ five: DIRECT is 48 bits into 10 characters (50), ROOM is 25 into 5 (25). The
 spare bits are zeros on the end and are read back as zeros, which is why
 _unpack pads rather than trims.
 ```
+
+## The relay holds the same check
+
+Not above a line of `LobbyCode.gd`: this is about `relay/src/limits.js`, which
+holds a copy of the ROOM half of `parse` (`isRoomCode`).
+
+```text
+The relay used to take any one to sixteen letters and digits as a party's
+name. It now takes only what encode_room can make: R, five characters of the
+alphabet, and the check character. A path that fails is answered by the Worker
+in the words of a code nobody is hosting, and no party is woken for it.
+
+The copy is exact and narrow. It is the ROOM kind only (a DIRECT code never
+goes to the relay), and it takes the code as RelayTransport._open sends it:
+normalise() has already folded case, dropped the separators and mapped the
+four left-out letters, so the relay forgives case and nothing else.
+
+So the two change together or not at all. A ROOM code the game makes and the
+relay refuses is a host told "No party with that code" about the code it has
+just been given. relay/test/relay.test.js is what catches it: it holds the
+copy to 300 codes this file made and to this file's verdict on 430 strings
+near them (relay/test/codes.fixture.json), and it reads this file and fails
+when the alphabet, the lengths or _check_char are edited. That list was
+written once, by this file. When the form of a code changes, make the list
+again from encode_room and parse, and deploy the relay BEFORE the build that
+makes the new codes goes out.
+```
