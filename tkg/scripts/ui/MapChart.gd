@@ -1546,17 +1546,6 @@ func _draw_tip(n: MapGen.MapNode, here: MapGen.MapNode) -> void:
 	o.y += roundf((1.0 - _hover_t) * 4.0) * (1.0 if o.y > at.y else -1.0)
 	HoloTag.draw_tag(self, Rect2(o, box), ls, _hover_t, -1 if o.y > at.y else 1)
 
-## A stable hash from position, not a running sequence: `ChartSheet` finds its burst times with it.
-func _hash2(i: int, j: int, salt: int) -> int:
-	var h := (i * 374761393 + j * 668265263 + salt * 144665) & 0x7fffffff
-	h = (h ^ (h >> 13)) & 0x7fffffff
-	h = (h * 1274126177) & 0x7fffffff
-	return (h ^ (h >> 16)) & 0x7fffffff
-
-func _frac(h: int) -> float:
-	return float(h % 10000) / 10000.0
-
-
 ## Drawn outside the visibility filter: a partner is the info you most want and least reach.
 ## Fog will gate the position going onto the wire, so nothing here changes (coop-design.md).
 ## Why: docs/why/MapChart.md#party-markers
