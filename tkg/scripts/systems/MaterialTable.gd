@@ -40,9 +40,9 @@ static func roll(table: StringName, danger: int,
 	var pool: Array[Dictionary] = []
 	var commons: Array[Dictionary] = []
 	for row in all():
-		if StringName(row.drops) != table:
+		if row.drops != table:
 			continue
-		var tier := StringName(row.tier)
+		var tier: StringName = row.tier
 		if not _opens(tier, t):
 			continue
 		if admits(tier, danger):
@@ -66,13 +66,15 @@ static func grant(row: Dictionary) -> String:
 
 
 static func by_id(id: StringName) -> Dictionary:
-	for row in all():
-		if StringName(row.id) == id:
-			return row
-	return {}
+	if _by_id.is_empty():
+		_index(all())
+	return _by_id.get(id, {})
 
 
 static var _all: Array[Dictionary] = []
+
+# The id index of `_all` (the table never changes once built), first row wins as the old scan did.
+static var _by_id: Dictionary = {}
 
 
 ## Built once. `EventTable.build_all()` rebuilding its dictionaries on every call
@@ -289,3 +291,9 @@ static func all() -> Array[Dictionary]:
 			text = "The cage was built around it where it sat. It has never touched the arms or drifted off centre, through every burn you have made."},
 	]
 	return _all
+
+
+static func _index(rows: Array[Dictionary]) -> void:
+	for r in rows:
+		if not _by_id.has(r.id):
+			_by_id[r.id] = r
