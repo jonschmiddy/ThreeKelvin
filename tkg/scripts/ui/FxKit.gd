@@ -52,5 +52,5 @@ static func ease_in_out(x: float) -> float:
 
 
 ## Anything slung under a hull sits in its shadow: the same ramp shifted two stops down.
-static func ramp_under(r: Array) -> Array[Variant]:
+static func ramp_under(r: Array[Color]) -> Array[Color]:
 	return [r[0], r[0], r[1], r[1], r[2], r[3]]
