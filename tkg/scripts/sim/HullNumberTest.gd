@@ -157,7 +157,7 @@ func _drawn(root: Node) -> Array[Control]:
 		return out
 	if root is Control and (root as Control).is_visible_in_tree() and (
 			root is Label or root is BaseButton or root is TextureRect
-			or root is AttrBlock.Cells or root is ShipView or root is ChassisSelect.Banner):
+			or root is AttrBlock.Cells or root is ShipView or root is ManufacturerBanner):
 		out.append(root)
 	for c in root.get_children():
 		out.append_array(_drawn(c))

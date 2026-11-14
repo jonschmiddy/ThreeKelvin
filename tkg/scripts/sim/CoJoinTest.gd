@@ -469,7 +469,7 @@ func _check_chart(when: String) -> void:
 	var chart = sc.get("_chart")
 	var marks: Array = chart.call("party_marks") if chart.has_method("party_marks") else []
 	if _ok("the STAR CHART marks the partner %s" % when, marks.size() >= 1 or not chart.has_method("party_marks")):
-		var own: Vector2 = chart.call("_screen_pos", Run.node_at())
+		var own: Vector2 = chart.call("screen_pos", Run.node_at())
 		var theirs: Vector2 = marks[0][1] if marks.size() >= 1 else own
 		print("  %s CHART: own %s, partner %s" % [_me, own, theirs])
 		_ok("beside your own marker, not on top of it %s" % when, theirs.distance_to(own) >= 10.0)

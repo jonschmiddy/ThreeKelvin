@@ -33,7 +33,7 @@ What differs, and why:
 ## Threads
 
 Every ink row is a thread, sampled every 0.55 px of arc up to its pulled length: about 41,000
-samples at the peak, so they are placed on the GPU. A mesh of empty quads (`MapChart._quads`)
+samples at the peak, so they are placed on the GPU. A mesh of empty quads (`MapChart.empty_quads`)
 is drawn with `VERTEX_ID` naming the row and the sample; the vertex shader works the film's
 `ribbon_samples` out for that sample and sets its quad on the whole pixel it rounds to, so the
 light sums there as the film's `deposit` did. Rows get a fixed number of slots (the hull's

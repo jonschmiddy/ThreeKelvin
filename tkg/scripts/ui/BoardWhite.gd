@@ -41,60 +41,60 @@ static func draw(b: PostingBoard, i: int) -> void:
 	match i:
 		0:
 			var p := Vector2(2, 2)
-			b._hand("DAYS SINCE LAST", p + Vector2(0, 10), BLACK, sd)
-			b._hand("INCIDENT:", p + Vector2(2, 23), BLACK, sd + 4.0)
+			b.hand_text("DAYS SINCE LAST", p + Vector2(0, 10), BLACK, sd)
+			b.hand_text("INCIDENT:", p + Vector2(2, 23), BLACK, sd + 4.0)
 			# the old counts, each struck out when it went back to nought, in the
 			# order they were written, up to the one in the box now
 			var x := p.x + 2.0
 			for k in 3:
 				var o := str(12 - k * 4)
 				var at := Vector2(x, p.y + 50.0)
-				b._hand(o, at, BLUE, sd + float(k))
+				b.hand_text(o, at, BLUE, sd + float(k))
 				var ow := 8.0 * float(o.length())
-				b._wobble_line(at + Vector2(-2, -4), at + Vector2(ow + 2.0, -5), BLUE, sd + 9.0 + float(k))
+				b.wobble_line(at + Vector2(-2, -4), at + Vector2(ow + 2.0, -5), BLUE, sd + 9.0 + float(k))
 				x += ow + 10.0
-			b._wobble_rect(Rect2(x + 2.0, p.y + 31.0, 38.0, 30.0), RED, sd + 1.0)
-			b._hand("0", Vector2(x + 14.0, p.y + 54.0), RED, sd + 2.0, UITheme.FS_HEAD)
+			b.wobble_rect(Rect2(x + 2.0, p.y + 31.0, 38.0, 30.0), RED, sd + 1.0)
+			b.hand_text("0", Vector2(x + 14.0, p.y + 54.0), RED, sd + 2.0, UITheme.FS_HEAD)
 		1:
 			var p := Vector2(2, 2)
-			b._hand("CHORES", p + Vector2(0, 10), BLUE, sd)
-			b._wobble_line(p + Vector2(0, 13), p + Vector2(40, 12), BLUE, sd + 1.0)
+			b.hand_text("CHORES", p + Vector2(0, 10), BLUE, sd)
+			b.wobble_line(p + Vector2(0, 13), p + Vector2(40, 12), BLUE, sd + 1.0)
 			var names := ["JO", "MAX", "TIK", "REN"]
 			var gx := p.x + 32.0
 			var gy := p.y + 17.0
 			# the grid, ruled by eye
 			for row in 5:
-				b._wobble_line(Vector2(gx, gy + float(row) * 12.0), Vector2(gx + 74.0, gy + float(row) * 12.0 + 1.0), BLACK, sd + float(row) * 2.1)
+				b.wobble_line(Vector2(gx, gy + float(row) * 12.0), Vector2(gx + 74.0, gy + float(row) * 12.0 + 1.0), BLACK, sd + float(row) * 2.1)
 			for col in 5:
-				b._wobble_line(Vector2(gx + float(col) * 18.0, gy), Vector2(gx + float(col) * 18.0 + 1.0, gy + 48.0), BLACK, sd + 30.0 + float(col))
+				b.wobble_line(Vector2(gx + float(col) * 18.0, gy), Vector2(gx + float(col) * 18.0 + 1.0, gy + 48.0), BLACK, sd + 30.0 + float(col))
 			for k in names.size():
-				b._hand(names[k], Vector2(p.x, gy + 10.0 + float(k) * 12.0), BLACK, sd + 40.0 + float(k))
+				b.hand_text(names[k], Vector2(p.x, gy + 10.0 + float(k) * 12.0), BLACK, sd + 40.0 + float(k))
 				for c in 4:
 					if (k + c * 3) % 4 == 0:
 						# a tick, scrawled
 						var cc := Vector2(gx + 5.0 + float(c) * 18.0, gy + 6.0 + float(k) * 12.0)
-						b._wobble_line(cc, cc + Vector2(3, 3), RED, sd + 50.0 + float(k * 4 + c))
-						b._wobble_line(cc + Vector2(3, 3), cc + Vector2(9, -4), RED, sd + 60.0 + float(k * 4 + c))
+						b.wobble_line(cc, cc + Vector2(3, 3), RED, sd + 50.0 + float(k * 4 + c))
+						b.wobble_line(cc + Vector2(3, 3), cc + Vector2(9, -4), RED, sd + 60.0 + float(k * 4 + c))
 		2:
 			# a ship, doodled, with a speech bubble
 			var c := Vector2(64, 48)
-			b._wobble_rect(Rect2(c.x - 30.0, c.y - 5.0, 56.0, 11.0), BLUE, sd)
-			b._wobble_line(c + Vector2(26, -5), c + Vector2(36, 0), BLUE, sd + 1.0)
-			b._wobble_line(c + Vector2(36, 0), c + Vector2(26, 6), BLUE, sd + 2.0)
-			b._wobble_rect(Rect2(c.x - 10.0, c.y - 13.0, 16.0, 8.0), BLUE, sd + 3.0)
+			b.wobble_rect(Rect2(c.x - 30.0, c.y - 5.0, 56.0, 11.0), BLUE, sd)
+			b.wobble_line(c + Vector2(26, -5), c + Vector2(36, 0), BLUE, sd + 1.0)
+			b.wobble_line(c + Vector2(36, 0), c + Vector2(26, 6), BLUE, sd + 2.0)
+			b.wobble_rect(Rect2(c.x - 10.0, c.y - 13.0, 16.0, 8.0), BLUE, sd + 3.0)
 			for k in 3:
-				b._wobble_line(c + Vector2(-36.0 - float(k) * 3.0, -3.0 + float(k) * 3.0),
+				b.wobble_line(c + Vector2(-36.0 - float(k) * 3.0, -3.0 + float(k) * 3.0),
 					c + Vector2(-48.0 - float(k) * 5.0, -3.0 + float(k) * 3.0), RED, sd + 4.0 + float(k))
 			# the bubble, and its tail
-			b._wobble_rect(Rect2(c.x + 12.0, c.y - 42.0, 48.0, 18.0), BLACK, sd + 8.0)
-			b._wobble_line(c + Vector2(20, -24), c + Vector2(14, -14), BLACK, sd + 9.0)
-			b._hand("ZOOM", c + Vector2(20, -28), BLACK, sd + 10.0)
+			b.wobble_rect(Rect2(c.x + 12.0, c.y - 42.0, 48.0, 18.0), BLACK, sd + 8.0)
+			b.wobble_line(c + Vector2(20, -24), c + Vector2(14, -14), BLACK, sd + 9.0)
+			b.hand_text("ZOOM", c + Vector2(20, -28), BLACK, sd + 10.0)
 		3:
 			var p := Vector2(2, 2)
-			b._wobble_rect(Rect2(p.x + 2.0, p.y + 4.0, 114.0, 34.0), RED, sd)
-			b._hand("DO NOT", p + Vector2(10, 18), RED, sd + 1.0)
-			b._hand("ERASE!!", p + Vector2(10, 31), RED, sd + 2.0)
-			b._hand("- MGMT", p + Vector2(58, 52), BLACK, sd + 3.0)
+			b.wobble_rect(Rect2(p.x + 2.0, p.y + 4.0, 114.0, 34.0), RED, sd)
+			b.hand_text("DO NOT", p + Vector2(10, 18), RED, sd + 1.0)
+			b.hand_text("ERASE!!", p + Vector2(10, 31), RED, sd + 2.0)
+			b.hand_text("- MGMT", p + Vector2(58, 52), BLACK, sd + 3.0)
 			# somebody erased half of it anyway: a wiped streak over the corner
 			var w := PostingBoard.WHITE
 			for k in 7:
@@ -103,41 +103,41 @@ static func draw(b: PostingBoard, i: int) -> void:
 		4:
 			# a smiley that does not quite close, and a number
 			var c2 := Vector2(20, 22)
-			b._wobble_circle(c2, 16.0, BLACK, sd)
-			b._wobble_line(c2 + Vector2(-6, -7), c2 + Vector2(-5, -3), BLACK, sd + 1.0)
-			b._wobble_line(c2 + Vector2(5, -7), c2 + Vector2(6, -3), BLACK, sd + 2.0)
+			b.wobble_circle(c2, 16.0, BLACK, sd)
+			b.wobble_line(c2 + Vector2(-6, -7), c2 + Vector2(-5, -3), BLACK, sd + 1.0)
+			b.wobble_line(c2 + Vector2(5, -7), c2 + Vector2(6, -3), BLACK, sd + 2.0)
 			var prev := c2 + Vector2(-9, 3)
 			for a2 in 6:
 				var ang := 0.4 + float(a2 + 1) / 6.0 * 2.3
 				var nxt := c2 + Vector2(cos(ang), sin(ang)) * 9.0
-				b._wobble_line(prev, nxt, BLACK, sd + 3.0 + float(a2))
+				b.wobble_line(prev, nxt, BLACK, sd + 3.0 + float(a2))
 				prev = nxt
-			b._hand("CALL TIK", c2 + Vector2(26, -2), BLUE, sd + 10.0)
-			b._hand("4-1170", c2 + Vector2(28, 11), BLUE, sd + 11.0)
-			b._wobble_line(c2 + Vector2(26, 14), c2 + Vector2(70, 15), BLUE, sd + 12.0)
+			b.hand_text("CALL TIK", c2 + Vector2(26, -2), BLUE, sd + 10.0)
+			b.hand_text("4-1170", c2 + Vector2(28, 11), BLUE, sd + 11.0)
+			b.wobble_line(c2 + Vector2(26, 14), c2 + Vector2(70, 15), BLUE, sd + 12.0)
 		5:
 			# noughts and crosses, somebody winning
 			var o := Vector2(8, 8)
 			for k in 2:
-				b._wobble_line(o + Vector2(20.0 + float(k) * 20.0, 0), o + Vector2(21.0 + float(k) * 20.0, 60), BLACK, sd + float(k))
-				b._wobble_line(o + Vector2(0, 20.0 + float(k) * 20.0), o + Vector2(60, 21.0 + float(k) * 20.0), BLACK, sd + 5.0 + float(k))
+				b.wobble_line(o + Vector2(20.0 + float(k) * 20.0, 0), o + Vector2(21.0 + float(k) * 20.0, 60), BLACK, sd + float(k))
+				b.wobble_line(o + Vector2(0, 20.0 + float(k) * 20.0), o + Vector2(60, 21.0 + float(k) * 20.0), BLACK, sd + 5.0 + float(k))
 			for cell: Vector2 in [Vector2(0, 0), Vector2(1, 1), Vector2(2, 2)]:
 				var cc := o + cell * 20.0 + Vector2(4, 4)
-				b._wobble_line(cc, cc + Vector2(11, 11), RED, sd + 10.0 + cell.x)
-				b._wobble_line(cc + Vector2(11, 0), cc + Vector2(0, 11), RED, sd + 20.0 + cell.x)
+				b.wobble_line(cc, cc + Vector2(11, 11), RED, sd + 10.0 + cell.x)
+				b.wobble_line(cc + Vector2(11, 0), cc + Vector2(0, 11), RED, sd + 20.0 + cell.x)
 			for cell2: Vector2 in [Vector2(2, 0), Vector2(0, 2)]:
-				b._wobble_circle(o + cell2 * 20.0 + Vector2(10, 10), 6.0, BLUE, sd + 30.0 + cell2.x)
-			b._wobble_line(o + Vector2(-2, -2), o + Vector2(62, 62), RED, sd + 40.0)
+				b.wobble_circle(o + cell2 * 20.0 + Vector2(10, 10), 6.0, BLUE, sd + 30.0 + cell2.x)
+			b.wobble_line(o + Vector2(-2, -2), o + Vector2(62, 62), RED, sd + 40.0)
 		6:
 			var p := Vector2(0, 0)
-			b._hand("MEETING", p + Vector2(4, 16), BLACK, sd)
-			b._hand("TUES 0900", p + Vector2(8, 30), BLACK, sd + 1.0)
-			b._wobble_line(p + Vector2(4, 34), p + Vector2(70, 35), RED, sd + 2.0)
+			b.hand_text("MEETING", p + Vector2(4, 16), BLACK, sd)
+			b.hand_text("TUES 0900", p + Vector2(8, 30), BLACK, sd + 1.0)
+			b.wobble_line(p + Vector2(4, 34), p + Vector2(70, 35), RED, sd + 2.0)
 			# an arrow, pointing at nothing in particular
-			b._wobble_line(p + Vector2(70, 50), p + Vector2(30, 80), BLUE, sd + 3.0)
-			b._wobble_line(p + Vector2(30, 80), p + Vector2(42, 79), BLUE, sd + 4.0)
-			b._wobble_line(p + Vector2(30, 80), p + Vector2(33, 68), BLUE, sd + 5.0)
-			b._hand("BRING SNACKS", p + Vector2(40, 94), BLUE, sd + 6.0)
+			b.wobble_line(p + Vector2(70, 50), p + Vector2(30, 80), BLUE, sd + 3.0)
+			b.wobble_line(p + Vector2(30, 80), p + Vector2(42, 79), BLUE, sd + 4.0)
+			b.wobble_line(p + Vector2(30, 80), p + Vector2(33, 68), BLUE, sd + 5.0)
+			b.hand_text("BRING SNACKS", p + Vector2(40, 94), BLUE, sd + 6.0)
 		7:
 			# initials in a heart
 			var hc := Vector2(30, 30)
@@ -150,7 +150,7 @@ static func draw(b: PostingBoard, i: int) -> void:
 				if k > 0:
 					b.draw_line(prev.round(), pt.round(), RED, 2.0)
 				prev = pt
-			b._hand("J+A", hc + Vector2(-12, 2), RED, sd + 1.0)
+			b.hand_text("J+A", hc + Vector2(-12, 2), RED, sd + 1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -395,10 +395,10 @@ const MORE := [
 
 ## Words, foot of the letters at `y`.
 static func _say(b: PostingBoard, t: String, x: float, y: float, col: Color, s: float, big := false) -> void:
-	b._hand(t, Vector2(x, y), col, s, UITheme.FS_HEAD if big else UITheme.FS_SMALL)
+	b.hand_text(t, Vector2(x, y), col, s, UITheme.FS_HEAD if big else UITheme.FS_SMALL)
 
 
-## How wide `_hand` writes `t`, near enough: 7.8 a letter, 5.5 a space.
+## How wide `hand_text` writes `t`, near enough: 7.8 a letter, 5.5 a space.
 static func _tw(t: String, big := false) -> float:
 	var w := 0.0
 	for ch in t:
@@ -417,15 +417,15 @@ static func _widest(lines: Array, big := false) -> float:
 
 
 static func _ln(b: PostingBoard, a: Vector2, c: Vector2, col: Color, s: float) -> void:
-	b._wobble_line(a, c, col, s)
+	b.wobble_line(a, c, col, s)
 
 
 ## A run of marker strokes, corner to corner.
 static func _poly(b: PostingBoard, pts: Array, col: Color, s: float, closed := false) -> void:
 	for k in pts.size() - 1:
-		b._wobble_line(pts[k], pts[k + 1], col, s + float(k) * 0.37)
+		b.wobble_line(pts[k], pts[k + 1], col, s + float(k) * 0.37)
 	if closed:
-		b._wobble_line(pts[pts.size() - 1], pts[0], col, s + 9.1)
+		b.wobble_line(pts[pts.size() - 1], pts[0], col, s + 9.1)
 
 
 ## A smooth stroke through `pts`, for curves too tight to bow.
@@ -443,27 +443,27 @@ static func _arc(b: PostingBoard, c: Vector2, rx: float, ry: float, a0: float, a
 
 
 static func _arrow(b: PostingBoard, a: Vector2, c: Vector2, col: Color, s: float) -> void:
-	b._wobble_line(a, c, col, s)
+	b.wobble_line(a, c, col, s)
 	var d := (c - a).normalized()
 	var n := Vector2(-d.y, d.x)
-	b._wobble_line(c, c - d * 6.0 + n * 4.0, col, s + 0.5)
-	b._wobble_line(c, c - d * 6.0 - n * 4.0, col, s + 0.7)
+	b.wobble_line(c, c - d * 6.0 + n * 4.0, col, s + 0.5)
+	b.wobble_line(c, c - d * 6.0 - n * 4.0, col, s + 0.7)
 
 
 ## A tick about ten wide, `p` at its top left.
 static func _tick(b: PostingBoard, p: Vector2, col: Color, s: float) -> void:
-	b._wobble_line(p + Vector2(0, 4), p + Vector2(3, 7), col, s)
-	b._wobble_line(p + Vector2(3, 7), p + Vector2(9, -1), col, s + 0.5)
+	b.wobble_line(p + Vector2(0, 4), p + Vector2(3, 7), col, s)
+	b.wobble_line(p + Vector2(3, 7), p + Vector2(9, -1), col, s + 0.5)
 
 
 static func _cross(b: PostingBoard, c: Vector2, r: float, col: Color, s: float) -> void:
-	b._wobble_line(c + Vector2(-r, -r), c + Vector2(r, r), col, s)
-	b._wobble_line(c + Vector2(r, -r), c + Vector2(-r, r), col, s + 0.5)
+	b.wobble_line(c + Vector2(-r, -r), c + Vector2(r, r), col, s)
+	b.wobble_line(c + Vector2(r, -r), c + Vector2(-r, r), col, s + 0.5)
 
 
 ## A line through words written at `x`, `base`, `w` wide.
 static func _strike(b: PostingBoard, x: float, base: float, w: float, col: Color, s: float) -> void:
-	b._wobble_line(Vector2(x - 2.0, base - 4.0), Vector2(x + w + 1.0, base - 3.0), col, s)
+	b.wobble_line(Vector2(x - 2.0, base - 4.0), Vector2(x + w + 1.0, base - 3.0), col, s)
 
 
 static func _dot(b: PostingBoard, p: Vector2, col: Color) -> void:
@@ -478,10 +478,10 @@ static func _tally(b: PostingBoard, x: float, top: float, n: int, h: float, col:
 		var m := mini(5, left)
 		var x0 := x + float(g) * 24.0
 		for j in mini(4, m):
-			b._wobble_line(Vector2(x0 + float(j) * 4.0, top), Vector2(x0 + float(j) * 4.0 - 1.0, top + h),
+			b.wobble_line(Vector2(x0 + float(j) * 4.0, top), Vector2(x0 + float(j) * 4.0 - 1.0, top + h),
 				col, s + float(g * 5 + j))
 		if m == 5:
-			b._wobble_line(Vector2(x0 - 3.0, top + h - 2.0), Vector2(x0 + 15.0, top + 2.0), col, s + float(g * 5) + 4.5)
+			b.wobble_line(Vector2(x0 - 3.0, top + h - 2.0), Vector2(x0 + 15.0, top + 2.0), col, s + float(g * 5) + 4.5)
 		left -= m
 		g += 1
 
@@ -492,34 +492,34 @@ static func _tally_w(n: int) -> float:
 
 ## A stick figure standing at `foot`; `arms` are the two hands from the shoulder.
 static func _fig(b: PostingBoard, foot: Vector2, col: Color, s: float, arms: Array) -> void:
-	b._wobble_circle(foot + Vector2(0, -30), 5.0, col, s)
+	b.wobble_circle(foot + Vector2(0, -30), 5.0, col, s)
 	var sh := foot + Vector2(0, -22)
 	var hip := foot + Vector2(0, -12)
-	b._wobble_line(foot + Vector2(0, -25), hip, col, s + 1.0)
-	b._wobble_line(hip, foot + Vector2(-5, 0), col, s + 2.0)
-	b._wobble_line(hip, foot + Vector2(5, 0), col, s + 3.0)
-	b._wobble_line(sh, sh + (arms[0] as Vector2), col, s + 4.0)
-	b._wobble_line(sh, sh + (arms[1] as Vector2), col, s + 5.0)
+	b.wobble_line(foot + Vector2(0, -25), hip, col, s + 1.0)
+	b.wobble_line(hip, foot + Vector2(-5, 0), col, s + 2.0)
+	b.wobble_line(hip, foot + Vector2(5, 0), col, s + 3.0)
+	b.wobble_line(sh, sh + (arms[0] as Vector2), col, s + 4.0)
+	b.wobble_line(sh, sh + (arms[1] as Vector2), col, s + 5.0)
 
 
 ## A face in a circle: smile, frown, meh or wow.
 static func _face(b: PostingBoard, c: Vector2, r: float, f: String, col: Color, s: float) -> void:
-	b._wobble_circle(c, r, col, s)
+	b.wobble_circle(c, r, col, s)
 	var e := r * 0.38
 	if f == "wow":
 		_dot(b, c + Vector2(-e, -e), col)
 		_dot(b, c + Vector2(e, -e), col)
-		b._wobble_circle(c + Vector2(0, r * 0.4), maxf(2.5, r * 0.22), col, s + 1.0)
+		b.wobble_circle(c + Vector2(0, r * 0.4), maxf(2.5, r * 0.22), col, s + 1.0)
 		return
-	b._wobble_line(c + Vector2(-e, -e - 2.0), c + Vector2(-e, -e + 1.0), col, s + 1.0)
-	b._wobble_line(c + Vector2(e, -e - 2.0), c + Vector2(e, -e + 1.0), col, s + 2.0)
+	b.wobble_line(c + Vector2(-e, -e - 2.0), c + Vector2(-e, -e + 1.0), col, s + 1.0)
+	b.wobble_line(c + Vector2(e, -e - 2.0), c + Vector2(e, -e + 1.0), col, s + 2.0)
 	match f:
 		"smile":
 			_arc(b, c + Vector2(0, -r * 0.05), r * 0.55, r * 0.5, 0.35, PI - 0.35, col, 8)
 		"frown":
 			_arc(b, c + Vector2(0, r * 0.75), r * 0.5, r * 0.35, PI + 0.5, TAU - 0.5, col, 8)
 		_:
-			b._wobble_line(c + Vector2(-r * 0.45, r * 0.4), c + Vector2(r * 0.45, r * 0.35), col, s + 3.0)
+			b.wobble_line(c + Vector2(-r * 0.45, r * 0.4), c + Vector2(r * 0.45, r * 0.35), col, s + 3.0)
 
 
 ## The heart from drawing 7, at any size.
@@ -537,10 +537,10 @@ static func _heart(b: PostingBoard, hc: Vector2, sc: float, col: Color) -> void:
 
 ## A mug, `p` the top left of its body (16 by 18).
 static func _mug(b: PostingBoard, p: Vector2, col: Color, s: float, steam := true) -> void:
-	b._wobble_line(p + Vector2(-1, 0), p + Vector2(17, 0), col, s)
-	b._wobble_line(p, p + Vector2(1, 18), col, s + 1.0)
-	b._wobble_line(p + Vector2(1, 18), p + Vector2(15, 18), col, s + 2.0)
-	b._wobble_line(p + Vector2(15, 18), p + Vector2(16, 0), col, s + 3.0)
+	b.wobble_line(p + Vector2(-1, 0), p + Vector2(17, 0), col, s)
+	b.wobble_line(p, p + Vector2(1, 18), col, s + 1.0)
+	b.wobble_line(p + Vector2(1, 18), p + Vector2(15, 18), col, s + 2.0)
+	b.wobble_line(p + Vector2(15, 18), p + Vector2(16, 0), col, s + 3.0)
 	_arc(b, p + Vector2(16, 9), 5.0, 5.0, -PI * 0.5, PI * 0.5, col, 8)
 	if steam:
 		for k in 2:
@@ -578,7 +578,7 @@ static func _squig(b: PostingBoard, p: Vector2, w: float, col: Color, s: float, 
 		var y := p.y + 3.0 - absf(sin(t * humps * PI)) * lerpf(5.0, 2.0, t) - t * 3.0
 		pts.append(Vector2(x0 + t * (w - 15.0), y))
 	_curve(b, pts, col)
-	b._wobble_line(p + Vector2(-2, 8), p + Vector2(w + 2.0, 6), col, s + 3.0)
+	b.wobble_line(p + Vector2(-2, 8), p + Vector2(w + 2.0, 6), col, s + 3.0)
 
 
 # ---------------------------------------------------------------------------
@@ -875,7 +875,7 @@ static func _p_list(b: PostingBoard, d: Dictionary, s: float) -> void:
 		var x := _list_x(d, k)
 		match m:
 			"box":
-				b._wobble_rect(Rect2(6, y - 8.0, 7, 7), ic, s + 10.0 + float(k))
+				b.wobble_rect(Rect2(6, y - 8.0, 7, 7), ic, s + 10.0 + float(k))
 			"num":
 				_say(b, "%d." % (k + 1), 5, y, ic, s + 20.0 + float(k))
 			"dash":
@@ -925,7 +925,7 @@ static func _p_hang(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_ln(b, Vector2(38, 6), Vector2(38, 12), BLACK, s + 4.0)
 	var p := int(d["p"])
 	if p > 0:
-		b._wobble_circle(Vector2(38, 17), 5.0, BLUE, s + 5.0)
+		b.wobble_circle(Vector2(38, 17), 5.0, BLUE, s + 5.0)
 	var parts := [[Vector2(38, 22), Vector2(38, 38)], [Vector2(38, 27), Vector2(32, 33)], [Vector2(38, 27), Vector2(44, 33)],
 		[Vector2(38, 38), Vector2(33, 48)], [Vector2(38, 38), Vector2(43, 48)]]
 	for k in mini(p - 1, parts.size()):
@@ -1012,7 +1012,7 @@ static func _p_ttt(b: PostingBoard, d: Dictionary, s: float) -> void:
 			if g[c] == "X":
 				_cross(b, cc, 4.0, RED, sn + 4.0 + float(c))
 			elif g[c] == "O":
-				b._wobble_circle(cc, 5.0, BLUE, sn + 4.0 + float(c))
+				b.wobble_circle(cc, 5.0, BLUE, sn + 4.0 + float(c))
 		var wl: Array = wins[n]
 		if wl.size() == 2:
 			var a := o + Vector2(float(int(wl[0]) % 3), floorf(float(wl[0]) / 3.0)) * 16.0 + Vector2(8, 8)
@@ -1036,7 +1036,7 @@ static func _p_bars(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> voi
 		var x := 16.0 + float(k) * slot + (slot - 12.0) * 0.5
 		var bh := float(vs[k]) * hmax
 		var top := base - bh
-		b._wobble_rect(Rect2(x, top, 12, bh), col, s + 10.0 + float(k))
+		b.wobble_rect(Rect2(x, top, 12, bh), col, s + 10.0 + float(k))
 		var yy := top + 4.0
 		while yy + 2.0 < base - 1.0:
 			b.draw_line(Vector2(x + 2.0, yy + 2.0), Vector2(x + 10.0, yy - 1.0), Color(col, 0.7), 1.0)
@@ -1073,7 +1073,7 @@ static func _p_pie(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var r := 22.0
 	var cols := [RED, BLUE, GREEN]
 	_say(b, String(d["t"]), 4, 12, BLACK, s)
-	b._wobble_circle(c, r, BLACK, s + 1.0)
+	b.wobble_circle(c, r, BLACK, s + 1.0)
 	var fs: Array = d["f"]
 	var ls: Array = d["l"]
 	var ang := -PI * 0.5
@@ -1090,8 +1090,8 @@ static func _p_pie(b: PostingBoard, d: Dictionary, s: float) -> void:
 static func _p_venn(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void:
 	var cx := z.x * 0.5
 	var cy := 42.0
-	b._wobble_circle(Vector2(cx - 13.0, cy), 22.0, BLUE, s)
-	b._wobble_circle(Vector2(cx + 13.0, cy), 22.0, RED, s + 1.0)
+	b.wobble_circle(Vector2(cx - 13.0, cy), 22.0, BLUE, s)
+	b.wobble_circle(Vector2(cx + 13.0, cy), 22.0, RED, s + 1.0)
 	var ta := String(d["a"])
 	var tb := String(d["b"])
 	_say(b, ta, 4, 12, BLUE, s + 2.0)
@@ -1133,15 +1133,15 @@ static func _p_count(b: PostingBoard, d: Dictionary, s: float) -> void:
 		x += _tw(o) + 8.0
 	var n := String(d["n"])
 	var cx := x + 18.0
-	b._wobble_circle(Vector2(cx, 40), 18.0, RED, s + 1.0)
+	b.wobble_circle(Vector2(cx, 40), 18.0, RED, s + 1.0)
 	_say(b, n, cx - _tw(n, true) * 0.5 + 1.0, 48, RED, s + 2.0, true)
 	_say(b, String(d["u"]), cx + 24.0, 44, BLACK, s + 3.0)
 
 
 static func _p_cake(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var col: Color = d["c"]
-	b._wobble_rect(Rect2(8, 42, 46, 16), BLACK, s)
-	b._wobble_rect(Rect2(13, 30, 36, 12), BLACK, s + 1.0)
+	b.wobble_rect(Rect2(8, 42, 46, 16), BLACK, s)
+	b.wobble_rect(Rect2(13, 30, 36, 12), BLACK, s + 1.0)
 	# icing, dripping over the bottom layer
 	var pts: Array = []
 	for k in 10:
@@ -1159,7 +1159,7 @@ static func _p_cake(b: PostingBoard, d: Dictionary, s: float) -> void:
 static func _p_cat(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var no := bool(d["no"])
 	var o := Vector2(12, 8) if no else Vector2(6, 6)
-	b._wobble_circle(o + Vector2(14, 16), 9.0, BLACK, s)
+	b.wobble_circle(o + Vector2(14, 16), 9.0, BLACK, s)
 	_poly(b, [o + Vector2(7, 11), o + Vector2(8, 2), o + Vector2(13, 8)], BLACK, s + 1.0)
 	_poly(b, [o + Vector2(16, 8), o + Vector2(21, 2), o + Vector2(22, 11)], BLACK, s + 2.0)
 	_dot(b, o + Vector2(11, 15), BLACK)
@@ -1172,15 +1172,15 @@ static func _p_cat(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_curve(b, [o + Vector2(24, 48), o + Vector2(31, 47), o + Vector2(35, 41), o + Vector2(34, 34), o + Vector2(31, 31)], BLACK)
 	if no:
 		var c := Vector2(28, 34)
-		b._wobble_circle(c, 25.0, RED, s + 4.0)
+		b.wobble_circle(c, 25.0, RED, s + 4.0)
 		_ln(b, c + Vector2(-17, -17), c + Vector2(17, 17), RED, s + 5.0)
 	_caption(b, d["t"], 60.0 if no else 50.0, 64, BLUE if not no else RED, s + 10.0)
 
 
 static func _p_drone(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var o := Vector2(4, 10)
-	b._wobble_rect(Rect2(o.x + 10.0, o.y + 12.0, 28, 14), BLACK, s)
-	b._wobble_circle(o + Vector2(24, 19), 4.0, BLUE, s + 1.0)
+	b.wobble_rect(Rect2(o.x + 10.0, o.y + 12.0, 28, 14), BLACK, s)
+	b.wobble_circle(o + Vector2(24, 19), 4.0, BLUE, s + 1.0)
 	_dot(b, o + Vector2(24, 19), BLUE)
 	_ln(b, o + Vector2(10, 14), o + Vector2(4, 6), BLACK, s + 2.0)
 	_ln(b, o + Vector2(38, 14), o + Vector2(44, 6), BLACK, s + 3.0)
@@ -1192,7 +1192,7 @@ static func _p_drone(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var bub := String(d["bub"])
 	var lines: Array = d["t"]
 	if bub != "":
-		b._wobble_rect(Rect2(62, 6, _tw(bub) + 8.0, 15), BLACK, s + 8.0)
+		b.wobble_rect(Rect2(62, 6, _tw(bub) + 8.0, 15), BLACK, s + 8.0)
 		_ln(b, Vector2(64, 21), Vector2(52, 26), BLACK, s + 9.0)
 		_say(b, bub, 66, 18, BLACK, s + 10.0)
 		for k in lines.size():
@@ -1209,7 +1209,7 @@ static func _p_stick(b: PostingBoard, d: Dictionary, s: float) -> void:
 			_ln(b, Vector2(28, 25), Vector2(31, 22), BLACK, s + 6.0)
 			_ln(b, Vector2(30, 30), Vector2(34, 28), BLACK, s + 7.0)
 			var w := _tw(String(t[0]))
-			b._wobble_rect(Rect2(36, 6, w + 10.0, 15), BLUE, s + 8.0)
+			b.wobble_rect(Rect2(36, 6, w + 10.0, 15), BLUE, s + 8.0)
 			_ln(b, Vector2(38, 21), Vector2(24, 26), BLUE, s + 9.0)
 			_say(b, String(t[0]), 41, 18, BLUE, s + 10.0)
 		"two":
@@ -1221,7 +1221,7 @@ static func _p_stick(b: PostingBoard, d: Dictionary, s: float) -> void:
 			_caption(b, [t[2], t[3]], 66, 64, RED, s + 22.0)
 		"lift":
 			_fig(b, Vector2(22, 62), BLACK, s, [Vector2(-8, -12), Vector2(8, -12)])
-			b._wobble_rect(Rect2(8, 12, 28, 14), RED, s + 6.0)
+			b.wobble_rect(Rect2(8, 12, 28, 14), RED, s + 6.0)
 			_ln(b, Vector2(37, 32), Vector2(41, 30), BLUE, s + 7.0)
 			_ln(b, Vector2(37, 37), Vector2(42, 37), BLUE, s + 8.0)
 			_caption(b, t, 48, 66, BLACK, s + 10.0)
@@ -1230,8 +1230,8 @@ static func _p_stick(b: PostingBoard, d: Dictionary, s: float) -> void:
 			_ln(b, Vector2(6, 30), Vector2(6, 56), BLACK, s)
 			_ln(b, Vector2(6, 48), Vector2(100, 48), BLACK, s + 1.0)
 			_ln(b, Vector2(100, 48), Vector2(100, 56), BLACK, s + 2.0)
-			b._wobble_rect(Rect2(11, 37, 14, 8), BLACK, s + 3.0)
-			b._wobble_circle(Vector2(22, 36), 6.0, BLUE, s + 4.0)
+			b.wobble_rect(Rect2(11, 37, 14, 8), BLACK, s + 3.0)
+			b.wobble_circle(Vector2(22, 36), 6.0, BLUE, s + 4.0)
 			_curve(b, [Vector2(28, 46), Vector2(30, 38), Vector2(44, 36), Vector2(60, 39), Vector2(76, 38),
 				Vector2(88, 33), Vector2(94, 38), Vector2(96, 46)], BLUE)
 			_say(b, "Z", 34, 26, BLACK, s + 8.0)
@@ -1244,14 +1244,14 @@ static func _p_planet(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var r := 14.0
 	_arc(b, c, 27.0, 7.0, PI, PI + 0.95, BLUE, 6)
 	_arc(b, c, 27.0, 7.0, TAU - 0.95, TAU, BLUE, 6)
-	b._wobble_circle(c, r, BLACK, s)
+	b.wobble_circle(c, r, BLACK, s)
 	_arc(b, c + Vector2(0, -5), r * 0.8, 3.0, 0.3, PI - 0.3, BLACK, 8)
 	_arc(b, c, 27.0, 7.0, 0.0, PI, BLUE, 18)
 	for p: Vector2 in [Vector2(6, 10), Vector2(56, 58), Vector2(10, 58)]:
 		b.draw_line(p + Vector2(-2, 0), p + Vector2(2, 0), BLACK, 1.0)
 		b.draw_line(p + Vector2(0, -2), p + Vector2(0, 2), BLACK, 1.0)
 	if bool(d["moon"]):
-		b._wobble_circle(Vector2(52, 12), 4.0, BLACK, s + 1.0)
+		b.wobble_circle(Vector2(52, 12), 4.0, BLACK, s + 1.0)
 	if bool(d["flag"]):
 		_ln(b, Vector2(30, 22), Vector2(30, 6), BLACK, s + 2.0)
 		_poly(b, [Vector2(30, 6), Vector2(40, 9), Vector2(30, 13)], RED, s + 3.0)
@@ -1260,7 +1260,7 @@ static func _p_planet(b: PostingBoard, d: Dictionary, s: float) -> void:
 
 static func _p_rocket(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_poly(b, [Vector2(12, 44), Vector2(12, 18), Vector2(20, 4), Vector2(28, 18), Vector2(28, 44)], BLACK, s, true)
-	b._wobble_circle(Vector2(20, 24), 4.0, BLUE, s + 1.0)
+	b.wobble_circle(Vector2(20, 24), 4.0, BLUE, s + 1.0)
 	_poly(b, [Vector2(12, 34), Vector2(5, 46), Vector2(12, 44)], BLACK, s + 2.0)
 	_poly(b, [Vector2(28, 34), Vector2(35, 46), Vector2(28, 44)], BLACK, s + 3.0)
 	_curve(b, [Vector2(14, 46), Vector2(16, 53), Vector2(18, 48), Vector2(20, 58), Vector2(22, 48), Vector2(24, 53), Vector2(26, 46)], RED)
@@ -1272,7 +1272,7 @@ static func _p_here(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var rooms: Array = d["rm"]
 	for k in rooms.size():
 		var r: Array = rooms[k]
-		b._wobble_rect(Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])), BLACK, s + 2.0 + float(k) * 4.0)
+		b.wobble_rect(Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])), BLACK, s + 2.0 + float(k) * 4.0)
 		_say(b, String(r[4]), float(r[0]) + 4.0, float(r[1]) + 12.0, BLUE, s + 30.0 + float(k))
 	var mk: Array = d["mk"]
 	_cross(b, Vector2(float(mk[0]), float(mk[1])), 4.0, RED, s + 40.0)
@@ -1285,9 +1285,9 @@ static func _p_here(b: PostingBoard, d: Dictionary, s: float) -> void:
 
 static func _p_ring(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var c := Vector2(36, 37)
-	b._wobble_circle(c, 30.0, BLACK, s)
-	b._wobble_circle(c, 14.0, BLACK, s + 1.0)
-	b._wobble_circle(c, 4.0, BLACK, s + 2.0)
+	b.wobble_circle(c, 30.0, BLACK, s)
+	b.wobble_circle(c, 14.0, BLACK, s + 1.0)
+	b.wobble_circle(c, 4.0, BLACK, s + 2.0)
 	for k in 4:
 		var a := PI * 0.25 + float(k) * PI * 0.5
 		var dir := Vector2(cos(a), sin(a))
@@ -1363,13 +1363,13 @@ static func _p_rule(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> voi
 	var col: Color = d["c"]
 	var sym := bool(d["sym"])
 	var x0 := 36.0 if sym else 11.0
-	b._wobble_rect(Rect2(4, 4, z.x - 8.0, z.y - 8.0), col, s)
+	b.wobble_rect(Rect2(4, 4, z.x - 8.0, z.y - 8.0), col, s)
 	var lines: Array = d["l"]
 	for k in lines.size():
 		_say(b, String(lines[k]), x0, 20.0 + 13.0 * float(k), col, s + 5.0 + float(k))
 	if sym:
 		var c := Vector2(20, z.y * 0.5)
-		b._wobble_circle(c, 10.0, RED, s + 10.0)
+		b.wobble_circle(c, 10.0, RED, s + 10.0)
 		_ln(b, c + Vector2(-7, -7), c + Vector2(7, 7), RED, s + 11.0)
 	else:
 		var last := String(lines[lines.size() - 1])
@@ -1402,7 +1402,7 @@ static func _p_week(b: PostingBoard, d: Dictionary, s: float) -> void:
 			_cross(b, Vector2(12.0 + float(k) * 16.0, 29), 6.0, RED, s + 20.0 + float(k))
 	var o := int(d["o"])
 	var cx := 12.0 + float(o) * 16.0
-	b._wobble_circle(Vector2(cx, 29), 11.0, GREEN, s + 30.0)
+	b.wobble_circle(Vector2(cx, 29), 11.0, GREEN, s + 30.0)
 	var n := String(d["n"])
 	var nx := clampf(cx - _tw(n) * 0.5, 4.0, 118.0 - _tw(n))
 	_arrow(b, Vector2(cx, 50), Vector2(cx, 42), GREEN, s + 31.0)
@@ -1411,7 +1411,7 @@ static func _p_week(b: PostingBoard, d: Dictionary, s: float) -> void:
 
 static func _p_wanted(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void:
 	_say(b, "WANTED", 8, 22, RED, s, true)
-	b._wobble_rect(Rect2(24, 30, 64, 42), BLACK, s + 1.0)
+	b.wobble_rect(Rect2(24, 30, 64, 42), BLACK, s + 1.0)
 	if String(d["what"]) == "mug":
 		_mug(b, Vector2(46, 44), BLUE, s + 2.0)
 		_say(b, "?", 72, 52, RED, s + 3.0)
@@ -1421,7 +1421,7 @@ static func _p_wanted(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> v
 		_poly(b, [Vector2(34, 64), Vector2(34, 44), Vector2(62, 44), Vector2(62, 54), Vector2(80, 54), Vector2(80, 64)], BLUE, s + 3.0, true)
 		_ln(b, Vector2(36, 52), Vector2(60, 52), RED, s + 4.0)
 		_ln(b, Vector2(36, 59), Vector2(78, 59), RED, s + 5.0)
-		b._wobble_circle(Vector2(46, 39), 3.0, RED, s + 6.0)
+		b.wobble_circle(Vector2(46, 39), 3.0, RED, s + 6.0)
 		for p: Vector2 in [Vector2(68, 50), Vector2(73, 48), Vector2(77, 51)]:
 			_dot(b, p, BLUE)
 	var lines: Array = d["l"]
@@ -1432,7 +1432,7 @@ static func _p_wanted(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> v
 
 static func _p_sun(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var c := Vector2(26, 29)
-	b._wobble_circle(c, 13.0, RED, s)
+	b.wobble_circle(c, 13.0, RED, s)
 	for k in 10:
 		var a := float(k) * TAU / 10.0 + 0.2
 		var dir := Vector2(cos(a), sin(a))
@@ -1440,7 +1440,7 @@ static func _p_sun(b: PostingBoard, d: Dictionary, s: float) -> void:
 	# the sunglasses, scribbled in
 	for e in 2:
 		var x := c.x - 10.0 + float(e) * 11.0
-		b._wobble_rect(Rect2(x, c.y - 6.0, 8, 5), BLACK, s + 20.0 + float(e) * 4.0)
+		b.wobble_rect(Rect2(x, c.y - 6.0, 8, 5), BLACK, s + 20.0 + float(e) * 4.0)
 		b.draw_line(Vector2(x + 1.0, c.y - 4.0), Vector2(x + 7.0, c.y - 4.0), BLACK, 2.0)
 	_ln(b, Vector2(c.x - 2.0, c.y - 5.0), Vector2(c.x + 1.0, c.y - 5.0), BLACK, s + 30.0)
 	_arc(b, c + Vector2(0, 1), 6.0, 5.0, 0.4, PI - 0.4, BLACK, 8)
@@ -1450,10 +1450,10 @@ static func _p_sun(b: PostingBoard, d: Dictionary, s: float) -> void:
 static func _p_ship(b: PostingBoard, d: Dictionary, s: float) -> void:
 	if int(d["v"]) == 0:
 		_poly(b, [Vector2(30, 36), Vector2(46, 26), Vector2(96, 26), Vector2(118, 36), Vector2(96, 48), Vector2(46, 48)], BLUE, s, true)
-		b._wobble_rect(Rect2(16, 30, 14, 12), BLUE, s + 1.0)
+		b.wobble_rect(Rect2(16, 30, 14, 12), BLUE, s + 1.0)
 		_ln(b, Vector2(12, 33), Vector2(5, 33), RED, s + 2.0)
 		_ln(b, Vector2(12, 39), Vector2(4, 39), RED, s + 3.0)
-		b._wobble_circle(Vector2(104, 36), 3.0, BLUE, s + 4.0)
+		b.wobble_circle(Vector2(104, 36), 3.0, BLUE, s + 4.0)
 		_ln(b, Vector2(62, 26), Vector2(62, 48), BLUE, s + 5.0)
 		_say(b, "ENGINE", 4, 66, BLACK, s + 10.0)
 		_arrow(b, Vector2(18, 56), Vector2(21, 45), BLACK, s + 11.0)
@@ -1465,11 +1465,11 @@ static func _p_ship(b: PostingBoard, d: Dictionary, s: float) -> void:
 		_arrow(b, Vector2(112, 17), Vector2(106, 31), BLUE, s + 17.0)
 	else:
 		# a hauler: a cab and three cans of cargo
-		b._wobble_rect(Rect2(98, 30, 22, 20), BLACK, s)
+		b.wobble_rect(Rect2(98, 30, 22, 20), BLACK, s)
 		_ln(b, Vector2(120, 34), Vector2(127, 40), BLACK, s + 1.0)
 		_ln(b, Vector2(127, 40), Vector2(120, 47), BLACK, s + 2.0)
 		for k in 3:
-			b._wobble_rect(Rect2(12.0 + float(k) * 28.0, 28, 24, 24), GREEN, s + 3.0 + float(k) * 4.0)
+			b.wobble_rect(Rect2(12.0 + float(k) * 28.0, 28, 24, 24), GREEN, s + 3.0 + float(k) * 4.0)
 		_ln(b, Vector2(8, 40), Vector2(96, 40), BLACK, s + 20.0)
 		_say(b, "CARGO", 22, 14, GREEN, s + 21.0)
 		_arrow(b, Vector2(40, 17), Vector2(40, 26), GREEN, s + 22.0)
@@ -1483,7 +1483,7 @@ static func _p_flow(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> voi
 	var q := String(d["q"])
 	var cx := z.x * 0.5
 	var qx := cx - _tw(q) * 0.5
-	b._wobble_rect(Rect2(qx - 5.0, 4, _tw(q) + 10.0, 15), BLACK, s)
+	b.wobble_rect(Rect2(qx - 5.0, 4, _tw(q) + 10.0, 15), BLACK, s)
 	_say(b, q, qx, 16, BLACK, s + 1.0)
 	var lx := z.x * 0.25 + 2.0
 	var rx := z.x * 0.75 - 2.0
@@ -1493,9 +1493,9 @@ static func _p_flow(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> voi
 	_say(b, "NO", (cx + 8.0 + rx) * 0.5 + 8.0, 30, RED, s + 5.0)
 	var ya := String(d["ya"])
 	var na := String(d["na"])
-	b._wobble_rect(Rect2(lx - _tw(ya) * 0.5 - 4.0, 44, _tw(ya) + 8.0, 16), GREEN, s + 6.0)
+	b.wobble_rect(Rect2(lx - _tw(ya) * 0.5 - 4.0, 44, _tw(ya) + 8.0, 16), GREEN, s + 6.0)
 	_say(b, ya, lx - _tw(ya) * 0.5, 56, GREEN, s + 7.0)
-	b._wobble_rect(Rect2(rx - _tw(na) * 0.5 - 4.0, 44, _tw(na) + 8.0, 16), RED, s + 8.0)
+	b.wobble_rect(Rect2(rx - _tw(na) * 0.5 - 4.0, 44, _tw(na) + 8.0, 16), RED, s + 8.0)
 	_say(b, na, rx - _tw(na) * 0.5, 56, RED, s + 9.0)
 
 
@@ -1565,7 +1565,7 @@ static func _p_erased(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> v
 
 
 static func _p_iou(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void:
-	b._wobble_rect(Rect2(4, 4, z.x - 8.0, z.y - 8.0), BLACK, s)
+	b.wobble_rect(Rect2(4, 4, z.x - 8.0, z.y - 8.0), BLACK, s)
 	var lines: Array = d["l"]
 	for k in lines.size():
 		_say(b, String(lines[k]), 9, 18.0 + 13.0 * float(k), BLUE, s + 5.0 + float(k))
@@ -1658,7 +1658,7 @@ static func _p_thermo(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_ln(b, Vector2(12, 52), Vector2(12, 10), BLACK, s)
 	_ln(b, Vector2(20, 52), Vector2(20, 10), BLACK, s + 1.0)
 	_arc(b, Vector2(16, 10), 4.0, 4.0, PI, TAU, BLACK, 6)
-	b._wobble_circle(Vector2(16, 58), 7.0, BLACK, s + 2.0)
+	b.wobble_circle(Vector2(16, 58), 7.0, BLACK, s + 2.0)
 	var top := lerpf(52.0, 12.0, float(d["lv"]))
 	b.draw_line(Vector2(15, 58), Vector2(15, top), RED, 2.0)
 	b.draw_line(Vector2(17, 58), Vector2(17, top), RED, 2.0)
@@ -1674,7 +1674,7 @@ static func _p_thermo(b: PostingBoard, d: Dictionary, s: float) -> void:
 
 static func _p_clock(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var c := Vector2(22, 24)
-	b._wobble_circle(c, 17.0, BLACK, s)
+	b.wobble_circle(c, 17.0, BLACK, s)
 	for k in 12:
 		var a := float(k) * TAU / 12.0
 		var p := c + Vector2(cos(a), sin(a)) * 13.0
@@ -1731,7 +1731,7 @@ static func _p_jump(b: PostingBoard, d: Dictionary, s: float) -> void:
 		if last:
 			_cross(b, p, 4.0, RED, s + 10.0)
 		else:
-			b._wobble_circle(p, 3.0, BLACK, s + 10.0 + float(k))
+			b.wobble_circle(p, 3.0, BLACK, s + 10.0 + float(k))
 		var lb := String(ps[k][2])
 		if lb != "":
 			var lx := p.x + 7.0 if p.x + 7.0 + _tw(lb) < 132.0 else p.x - 7.0 - _tw(lb)
@@ -1785,7 +1785,7 @@ static func _p_ghost(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_curve(b, [Vector2(8, 44), Vector2(12, 40), Vector2(16, 44), Vector2(20, 40), Vector2(24, 44), Vector2(28, 40), Vector2(32, 44)], BLUE)
 	_dot(b, Vector2(16, 22), BLUE)
 	_dot(b, Vector2(24, 22), BLUE)
-	b._wobble_circle(Vector2(20, 31), 3.0, BLUE, s + 2.0)
+	b.wobble_circle(Vector2(20, 31), 3.0, BLUE, s + 2.0)
 	var t: Array = d["t"]
 	_say(b, String(t[0]), 42, 18, BLACK, s + 10.0)
 	_say(b, String(t[1]), 42, 31, BLACK, s + 11.0)
@@ -1798,13 +1798,13 @@ static func _p_plant(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_ln(b, Vector2(20, 42), Vector2(20, 14), GREEN, s + 3.0)
 	_curve(b, [Vector2(20, 32), Vector2(13, 29), Vector2(8, 23), Vector2(15, 24), Vector2(20, 30)], GREEN)
 	_curve(b, [Vector2(20, 24), Vector2(27, 20), Vector2(32, 13), Vector2(25, 15), Vector2(20, 22)], GREEN)
-	b._wobble_circle(Vector2(20, 11), 3.0, RED, s + 4.0)
+	b.wobble_circle(Vector2(20, 11), 3.0, RED, s + 4.0)
 	_caption(b, d["t"], 44, 64, GREEN, s + 10.0)
 
 
 static func _p_queue(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_say(b, String(d["t"]), 4, 12, BLACK, s)
-	b._wobble_rect(Rect2(8, 20, 46, 26), BLACK, s + 1.0)
+	b.wobble_rect(Rect2(8, 20, 46, 26), BLACK, s + 1.0)
 	var n := String(d["n"])
 	_say(b, n, 31.0 - _tw(n, true) * 0.5 + 1.0, 42, RED, s + 2.0, true)
 	var me: Array = d["me"]
@@ -1837,7 +1837,7 @@ static func _p_doodles(b: PostingBoard, d: Dictionary, s: float) -> void:
 			"flower":
 				for j in 5:
 					var a := float(j) * TAU / 5.0 - PI * 0.5
-					b._wobble_circle(o + Vector2(19, 15) + Vector2(cos(a), sin(a)) * 7.0, 4.0, col, sk + float(j))
+					b.wobble_circle(o + Vector2(19, 15) + Vector2(cos(a), sin(a)) * 7.0, 4.0, col, sk + float(j))
 				_dot(b, o + Vector2(19, 15), BLACK)
 				_ln(b, o + Vector2(19, 26), o + Vector2(20, 38), GREEN, sk + 6.0)
 			"zig":
@@ -1845,7 +1845,7 @@ static func _p_doodles(b: PostingBoard, d: Dictionary, s: float) -> void:
 			"eye":
 				_arc(b, c, 16.0, 11.0, PI + 0.2, TAU - 0.2, col, 12)
 				_arc(b, c, 16.0, 11.0, 0.2, PI - 0.2, col, 12)
-				b._wobble_circle(c, 6.0, col, sk + 1.0)
+				b.wobble_circle(c, 6.0, col, sk + 1.0)
 				b.draw_circle(c, 2.5, BLACK)
 
 
@@ -1856,19 +1856,19 @@ static func _p_comic(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var cols := [BLUE, BLACK, RED]
 	for k in 3:
 		var x := 4.0 + float(k) * 44.0
-		b._wobble_rect(Rect2(x, 22, 38, 32), BLACK, s + 2.0 + float(k) * 4.0)
+		b.wobble_rect(Rect2(x, 22, 38, 32), BLACK, s + 2.0 + float(k) * 4.0)
 		_face(b, Vector2(x + 19.0, 38), 10.0, String(fs[k]), cols[k], s + 20.0 + float(k) * 4.0)
 		var t := String(ls[k])
 		_say(b, t, x + 19.0 - _tw(t) * 0.5, 68, BLACK, s + 40.0 + float(k))
 
 
 static func _p_robot(b: PostingBoard, d: Dictionary, s: float) -> void:
-	b._wobble_rect(Rect2(10, 16, 28, 22), BLACK, s)
+	b.wobble_rect(Rect2(10, 16, 28, 22), BLACK, s)
 	_ln(b, Vector2(24, 16), Vector2(24, 9), BLACK, s + 1.0)
-	b._wobble_circle(Vector2(24, 6), 2.5, RED, s + 2.0)
-	b._wobble_circle(Vector2(18, 24), 3.0, BLUE, s + 3.0)
-	b._wobble_circle(Vector2(30, 24), 3.0, BLUE, s + 4.0)
-	b._wobble_rect(Rect2(16, 30, 16, 5), BLACK, s + 5.0)
+	b.wobble_circle(Vector2(24, 6), 2.5, RED, s + 2.0)
+	b.wobble_circle(Vector2(18, 24), 3.0, BLUE, s + 3.0)
+	b.wobble_circle(Vector2(30, 24), 3.0, BLUE, s + 4.0)
+	b.wobble_rect(Rect2(16, 30, 16, 5), BLACK, s + 5.0)
 	for k in 3:
 		b.draw_line(Vector2(20.0 + float(k) * 4.0, 30), Vector2(20.0 + float(k) * 4.0, 35), BLACK, 1.0)
 	_ln(b, Vector2(7, 22), Vector2(7, 32), BLACK, s + 6.0)
@@ -1879,7 +1879,7 @@ static func _p_robot(b: PostingBoard, d: Dictionary, s: float) -> void:
 	var t: Array = d["t"]
 	if bool(d["bub"]):
 		var w := _widest(t)
-		b._wobble_rect(Rect2(52, 8, w + 10.0, 15), BLUE, s + 11.0)
+		b.wobble_rect(Rect2(52, 8, w + 10.0, 15), BLUE, s + 11.0)
 		_ln(b, Vector2(54, 23), Vector2(44, 28), BLUE, s + 12.0)
 		_say(b, String(t[0]), 57, 20, BLUE, s + 13.0)
 	else:
@@ -1906,7 +1906,7 @@ static func _p_gauge(b: PostingBoard, d: Dictionary, s: float) -> void:
 
 
 static func _p_lift(b: PostingBoard, s: float) -> void:
-	b._wobble_rect(Rect2(6, 8, 24, 60), BLACK, s)
+	b.wobble_rect(Rect2(6, 8, 24, 60), BLACK, s)
 	for k in 4:
 		_ln(b, Vector2(6, 20.0 + float(k) * 12.0), Vector2(30, 20.0 + float(k) * 12.0), BLACK, s + 1.0 + float(k))
 	for k in 5:
@@ -1945,7 +1945,7 @@ static func _p_spanner(b: PostingBoard, d: Dictionary, s: float) -> void:
 	_say(b, String(d["t"]), 4, 21, RED, s, true)
 	_ln(b, Vector2(22, 38), Vector2(78, 38), BLACK, s + 1.0)
 	_ln(b, Vector2(22, 46), Vector2(78, 46), BLACK, s + 2.0)
-	b._wobble_circle(Vector2(15, 42), 7.0, BLACK, s + 3.0)
+	b.wobble_circle(Vector2(15, 42), 7.0, BLACK, s + 3.0)
 	_arc(b, Vector2(87, 42), 10.0, 10.0, 0.7, TAU - 0.7, BLACK, 14)
 	_ln(b, Vector2(94, 35), Vector2(88, 39), BLACK, s + 4.0)
 	_ln(b, Vector2(94, 49), Vector2(88, 45), BLACK, s + 5.0)
@@ -1982,11 +1982,11 @@ static func _p_cloud(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> vo
 
 static func _p_notes(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void:
 	# one note on its own, two beamed together
-	b._wobble_circle(Vector2(12, 44), 3.0, BLACK, s)
+	b.wobble_circle(Vector2(12, 44), 3.0, BLACK, s)
 	_ln(b, Vector2(15, 44), Vector2(15, 26), BLACK, s + 1.0)
 	_curve(b, [Vector2(15, 26), Vector2(20, 30), Vector2(21, 35)], BLACK)
-	b._wobble_circle(Vector2(30, 40), 3.0, BLUE, s + 2.0)
-	b._wobble_circle(Vector2(46, 36), 3.0, BLUE, s + 3.0)
+	b.wobble_circle(Vector2(30, 40), 3.0, BLUE, s + 2.0)
+	b.wobble_circle(Vector2(46, 36), 3.0, BLUE, s + 3.0)
 	_ln(b, Vector2(33, 40), Vector2(33, 20), BLUE, s + 4.0)
 	_ln(b, Vector2(49, 36), Vector2(49, 16), BLUE, s + 5.0)
 	_ln(b, Vector2(33, 20), Vector2(49, 16), BLUE, s + 6.0)
@@ -2014,10 +2014,10 @@ static func _p_cards(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> vo
 
 
 static func _p_dice(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void:
-	b._wobble_rect(Rect2(6, 12, 22, 22), BLACK, s)
+	b.wobble_rect(Rect2(6, 12, 22, 22), BLACK, s)
 	for p: Vector2 in [Vector2(11, 17), Vector2(23, 17), Vector2(17, 23), Vector2(11, 29), Vector2(23, 29)]:
 		b.draw_circle(p, 1.8, BLACK)
-	b._wobble_rect(Rect2(30, 30, 22, 22), RED, s + 4.0)
+	b.wobble_rect(Rect2(30, 30, 22, 22), RED, s + 4.0)
 	for p: Vector2 in [Vector2(35, 35), Vector2(47, 47)]:
 		b.draw_circle(p, 1.8, RED)
 	_caption(b, d["t"], 62, z.y, BLACK, s + 10.0)
@@ -2030,9 +2030,9 @@ static func _p_mug(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void
 
 static func _p_darts(b: PostingBoard, d: Dictionary, s: float, z: Vector2) -> void:
 	var c := Vector2(26, z.y * 0.5 + 2.0)
-	b._wobble_circle(c, 20.0, BLACK, s)
-	b._wobble_circle(c, 12.0, RED, s + 1.0)
-	b._wobble_circle(c, 5.0, BLACK, s + 2.0)
+	b.wobble_circle(c, 20.0, BLACK, s)
+	b.wobble_circle(c, 12.0, RED, s + 1.0)
+	b.wobble_circle(c, 5.0, BLACK, s + 2.0)
 	_dot(b, c, RED)
 	for e: Array in [[c + Vector2(1, -1), c + Vector2(14, -16)], [c + Vector2(-10, 8), c + Vector2(-2, 22)]]:
 		var tip: Vector2 = e[0]

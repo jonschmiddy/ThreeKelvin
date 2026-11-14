@@ -263,7 +263,7 @@ func run() -> void:
 			for b in L.bodies:
 				if b.world != &"":
 					worlds[b.world] = int(worlds.get(b.world, 0)) + 1
-	_ok("%d systems laid out, every option on one body, one event to a world" % n_sys, true)
+	_ok("%d systems laid out, every option on one body, one event to a world" % n_sys, n_sys > 0)
 	_ok("one station body in each of the %d station systems, none anywhere else" % st_systems, st_systems > 0)
 	var share := float(twins) / float(maxi(eligible, 1))
 	_ok("two suns at %d of %d systems that may have them (%.0f%%; about one in four)" % [twins, eligible, share * 100.0],

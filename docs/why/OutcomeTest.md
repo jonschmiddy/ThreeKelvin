@@ -28,7 +28,7 @@ every look in all three layouts:
     the table centred under them (`OutcomeCheck.check` / `d_place`);
   and the Lab sheet's row (Jon's 2A, Nov 4) in all three layouts: D reads
     "FUEL -2 · DATA +5", box test and all, and so does the line the map's
-    card keeps (`EncounterDrawer.moved_line`).
+    card keeps (`EncounterText.moved_line`).
 Then C's flight, animated (the game's clock stepped 1/60 s):
   the HUD holds its old number until the flight for it lands, then shows the
   new one; something is in the air between; a readout flickers on landing

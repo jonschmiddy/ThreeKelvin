@@ -131,7 +131,7 @@ func _open(n: MapGen.MapNode) -> LocalEventDrawer:
 	_fresh(n)
 	n.visited = true
 	SectorScreen._approached_at = n.index
-	SystemMapScreen._parked.erase(n.index)
+	ParkedShips.spots.erase(n.index)
 	LocalEventDrawer.request(n.index, 0)
 	Router.show_local()
 	var d: LocalEventDrawer = null

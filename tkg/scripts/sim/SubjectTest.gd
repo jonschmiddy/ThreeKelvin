@@ -578,9 +578,9 @@ func _open_at(oid: StringName, sys: int, fresh: bool = true, parked: bool = true
 	SectorScreen._approached_at = idx
 	var place := LocalEventDrawer.body_of(node, 0)
 	if parked:
-		SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+		ParkedShips.spots[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	else:
-		SystemMapScreen._parked.erase(idx)
+		ParkedShips.spots.erase(idx)
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
 	await Harness.frames(_tree, 25)
@@ -800,7 +800,7 @@ func _bare_events() -> void:
 		Run.at = idx
 		SectorScreen._approached_at = idx
 		var place := LocalEventDrawer.body_of(node, 0)
-		SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+		ParkedShips.spots[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 		LocalEventDrawer.request(idx, 0)
 		Router.show_local()
 		await Harness.frames(_tree, 25)
@@ -1061,7 +1061,7 @@ func _live_structure(oid: StringName) -> void:
 	SectorScreen._approached_at = idx
 	n.options.clear()
 	n.options.append(oid)
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	LocalEventDrawer.quiet = true
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
@@ -1190,7 +1190,7 @@ func _live(oid: StringName) -> void:
 	SectorScreen._approached_at = idx
 	n.options.clear()
 	n.options.append(oid)
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	LocalEventDrawer.quiet = true
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
@@ -1345,7 +1345,7 @@ func _handover(oid: StringName) -> void:
 	n.options.clear()
 	n.options.append(oid)
 	SectorScreen._approached_at = idx
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	LocalEventDrawer.quiet = true
 	LocalEventDrawer.request(idx, 0)
 	Router.show_local()
@@ -1458,7 +1458,7 @@ func _orbit_switch() -> void:
 	Run.at = idx
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	var a := worlds[0]
 	var b := worlds[worlds.size() - 1]
 	var map := await _map_up()
@@ -1496,7 +1496,7 @@ func _orbit_switch() -> void:
 	# off the map and its record dropped, so the next check's LOCAL is its own
 	Router.show_local()
 	await Harness.frames(_tree, 3)
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 
 
 ## Worlds turn blended with surface memory yet must still turn, so one is filmed (Jon).
@@ -1532,7 +1532,7 @@ func _world_memory() -> void:
 	Run.at = idx
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	var map := await _map_up()
 	if not _ok("the map is up", map != null):
 		return
@@ -1565,7 +1565,7 @@ func _world_memory() -> void:
 		_ok("LOCAL's world and its moons, %d, carry the memory (%s; in orbit of %s)" % [n_local, ", ".join(on_local) if not on_local.is_empty() else "all", _orbit_name(sky)], n_local > 0 and on_local.is_empty())
 	Router.show_local()
 	await Harness.frames(_tree, 3)
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	# A WORLD IN PIECES CARRIES IT TOO (`ShatteredView`, its own two passes): built
 	# as the map, the panel and LOCAL build one, in 2x2 blocks
 	var shards := ShatteredView.new()
@@ -1632,7 +1632,7 @@ func _shattered_in_orbit() -> void:
 	Run.at = sidx
 	Run.map[sidx].visited = true
 	SectorScreen._approached_at = sidx
-	SystemMapScreen._parked.erase(sidx)
+	ParkedShips.spots.erase(sidx)
 	var map := await _map_up()
 	if not _ok("the map is up over it", map != null):
 		return
@@ -1659,7 +1659,7 @@ func _shattered_in_orbit() -> void:
 			_ok("and it turns there (its clock %.2f, then %.2f)" % [t0, sv._t], sv._t != t0)
 	Router.show_local()
 	await Harness.frames(_tree, 3)
-	SystemMapScreen._parked.erase(sidx)
+	ParkedShips.spots.erase(sidx)
 
 
 ## How many frames `_world_memory` films, and the A, B, A pixels a second it allows.
@@ -1774,7 +1774,7 @@ func _orbit_reload(sd: int) -> void:
 	Run.at = idx
 	Run.map[idx].visited = true
 	SectorScreen._approached_at = idx
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	for leg in 2:
 		var w := worlds[worlds.size() - 1] if leg == 0 else worlds[0]
 		var map := await _map_up()
@@ -1795,7 +1795,7 @@ func _orbit_reload(sd: int) -> void:
 		await Harness.frames(_tree, 3)
 		# a fresh launch has no record in memory; something stale in its place
 		# must not survive the load either
-		SystemMapScreen._parked = {idx: {"at": -9, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
+		ParkedShips.spots = {idx: {"at": -9, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
 		Router.continue_run()
 		# By the clock, not frames: headless frames raced the load (the gate's -99).
 		var back: SystemMapScreen = null
@@ -1821,7 +1821,7 @@ func _orbit_reload(sd: int) -> void:
 		_ok("  and LOCAL draws that world (%s)" % _orbit_name(sky), sky != null and sky.orbit_target == w)
 	Router.show_local()
 	await Harness.frames(_tree, 3)
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 
 
 ## The map through the Router, its ship set up (`show_system` awaits its view).

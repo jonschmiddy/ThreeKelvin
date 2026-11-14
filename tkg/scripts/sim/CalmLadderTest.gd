@@ -688,7 +688,7 @@ func _run() -> void:
 	var sys := Run.at
 	for b in SystemLayout.of(Run.node_at()).bodies:
 		if b.world != &"" and b.kind != &"belt":
-			SystemMapScreen._parked[sys] = {"at": b.index, "mode": &"rail"}
+			ParkedShips.spots[sys] = {"at": b.index, "mode": &"rail"}
 			break
 	SectorScreen._approached_at = sys
 	Run.map[sys].visited = true
@@ -743,7 +743,7 @@ func _run() -> void:
 		Run.at = edge
 		Run.map[edge].visited = true
 		SectorScreen._approached_at = edge
-		SystemMapScreen._parked.erase(edge)
+		ParkedShips.spots.erase(edge)
 		# (arriving, as a jump does: in at the edge, the map's own arrival)
 		if Router.current is SystemMapScreen:
 			await _at(L)
@@ -1120,7 +1120,7 @@ func _no_box() -> void:
 		var tight := ""
 		if bar != null and bar.get_child_count() > 0:
 			var pieces: Array = []
-			GoalLine._inked(bar.get_child(0) as Control, pieces)
+			GoalLine.collect_inked_rects(bar.get_child(0) as Control, pieces)
 			var pr := bar.get_global_rect()
 			var least_v := INF
 			for q: Rect2 in pieces:
@@ -1142,7 +1142,7 @@ func _no_box() -> void:
 			var gr := Rect2(g.position, g.size)
 			var pieces2: Array = []
 			if bar != null and bar.get_child_count() > 0:
-				GoalLine._inked(bar.get_child(0) as Control, pieces2)
+				GoalLine.collect_inked_rects(bar.get_child(0) as Control, pieces2)
 			var hit := ""
 			var first_x := INF
 			for q: Rect2 in pieces2:

@@ -7,13 +7,10 @@ extends Node
 var _tree: SceneTree
 var harness := Harness.new()
 var _checks := 0
-var _quiet := false
 
 
 func _ok(what: String, c: bool) -> bool:
 	_checks += 1
-	if c and _quiet:
-		return c
 	return harness._ok(what, c)
 
 
@@ -1153,7 +1150,7 @@ func _hints() -> void:
 			# (due: one the pacing would start now; the rest of a visit's
 			# lessons wait for the next visit, and her lines need not)
 			for id in Hints.ORDER:
-				if not Hints.seen(id) and Hints._pace_ok(id) and not Hints.probe(id).is_empty():
+				if not Hints.seen(id) and Hints.pace_ok(id) and not Hints.probe(id).is_empty():
 					said_with_due = true
 			break
 	_ok("hints came first on a fresh LOCAL (%s)" % ", ".join(shown), shown.size() > 0)
@@ -1164,7 +1161,7 @@ func _hints() -> void:
 	if said:
 		var p := Ash.portrait
 		var k := p.kind
-		# Your ship's hint is due at once, but one new lesson a visit (`Hints._pace_ok`).
+		# Your ship's hint is due at once, but one new lesson a visit (`Hints.pace_ok`).
 		for id in Hints.ORDER:
 			Hints.mark_seen(id, id != &"ship")
 		Hints._front_last = &""

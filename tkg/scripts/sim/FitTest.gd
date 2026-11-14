@@ -269,7 +269,7 @@ func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
 
 	# Uses the live magnification, not a hardcoded 2, or a grabbable part failed the probe.
 	# Why: docs/why/FitTest.md#grab-anywhere
-	var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), mounts._mag())
+	var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), mounts.part_mag())
 	var far := r.position + r.size - Vector2(2, 2)
 	_ok("a fitted part can be grabbed at its far corner", mounts.spot_at(far) >= 0)
 	_ok("...and the far corner finds THAT part",

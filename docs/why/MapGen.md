@@ -203,7 +203,7 @@ Above `var site: int = -9`:
 ```text
 WHERE IN THE SYSTEM IT LIES (Jon, Oct 14: "each planet or POI you can
 visit should contain its own wrecks/fights"): the body your ship orbited
-when the hull died, as `SystemMapScreen._parked` writes it -- -1 the
+when the hull died, as `ParkedShips.spots` writes it -- -1 the
 star, -9 open space, or `SITE_ANY` for a wreck from a save made before
 wrecks had a place, which shows wherever you are, as it always did.
 LOCAL draws only the wrecks of the place you are parked at.

@@ -368,7 +368,7 @@ static func _rarity_of(m: HoldItem) -> ModuleData.Rarity:
 		return UITheme.tier_rarity((m as MaterialData).tier)
 	return ModuleData.Rarity.COMMON
 
-static func _take_sound(m: HoldItem) -> StringName:
+static func take_sound(m: HoldItem) -> StringName:
 	if m is CreditChit:
 		return &"take_credits"
 	# One grade ladder for modules and materials, as materials fell through to `take_common`.
@@ -411,7 +411,7 @@ func _on_revealed(m: HoldItem, index: int) -> void:
 			return
 	# `limit_ms` 0: the stagger already spaces these, and a rate limit here
 	# would silently drop the tail of a full wreck.
-	Audio.play(_take_sound(m), 0.04, 0, REVEAL_DB)
+	Audio.play(take_sound(m), 0.04, 0, REVEAL_DB)
 
 
 ## The rarity ladder is for finding, not packing (Jon: only the first time).

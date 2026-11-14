@@ -64,7 +64,7 @@ func _run() -> void:
 		body != null and body.art == &"custodian" and body == Router.core_body_here())
 	_check_loot(body)
 	# Every part can be seen: the popup sized the grid by count and pushed parts below the view.
-	if tv != null and tv._loose_scroll != null:
+	if _ok("the popup's parts sit in a scroll", tv != null and tv._loose_scroll != null):
 		var rows := tv._loose.content_rows()
 		var shown := int(tv._loose_scroll.custom_minimum_size.y / HoldGrid.CELL)
 		_ok("every part in the body is in view or a scroll away (%d rows, %d shown)" % [rows, shown],

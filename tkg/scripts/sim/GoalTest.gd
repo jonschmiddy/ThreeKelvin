@@ -88,7 +88,7 @@ func _run() -> void:
 
 	# ---- hidden over the cutaway, and the escape menu
 	sc = Router.current as SectorScreen
-	if sc != null:
+	if _ok("the sector screen is up for the cutaway", sc != null):
 		var cut := sc.open_cutaway()
 		await Harness.frames(_tree, 10)
 		_ok("hidden over the cutaway", cut != null and not g.visible)
@@ -99,7 +99,7 @@ func _run() -> void:
 	var main: Node = Router.content
 	while main != null and not main.has_method("toggle_menu"):
 		main = main.get_parent()
-	if main != null:
+	if _ok("the shell's escape menu is found", main != null):
 		main.toggle_menu()
 		await Harness.frames(_tree, 5)
 		_ok("hidden under the escape menu", not g.visible)

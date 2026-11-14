@@ -132,15 +132,6 @@ static func option_state(n: MapGen.MapNode, i: int) -> Dictionary:
 	return {"kind": &"open", "word": "", "ink": UITheme.ICE}
 
 
-## The ledger rows that moved, as one line: "FUEL -16 · HULL -3", or "".
-static func moved_line(bill: Array) -> String:
-	var bits: Array = []
-	for r in bill:
-		if String(r.text) != "—":
-			bits.append("%s %s" % [r.name, r.text])
-	return " · ".join(bits)
-
-
 ## Fixed rows (four, and DATA a fifth, last) so each number lives in one place; rising heat
 ## uses `FLARE`, not loss red.
 ## Why: docs/why/EncounterDrawer.md#bill-rows
@@ -255,7 +246,7 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	elif c.has("check"):
 		# Ruling 3: the odds are on the button, so there is no confirm step.
 		note = SkillCheck.badge(c.check)
-		tone = SkillCheck.badge_colour(c.check)
+		tone = SkillColours.badge_colour(c.check)
 	elif bool(c.get("fight", false)) or opens_fight(c):
 		note = contact_reading(n)
 		tone = UITheme.THEM
@@ -317,14 +308,6 @@ static func contact_reading(n: MapGen.MapNode) -> String:
 ## The declaration, not the trigger: the list prints before the callable has run.
 static func opens_fight(c: Dictionary) -> bool:
 	return bool(c.get("fight", false))
-
-
-## One line of body for the list. The rest lives in the detail view.
-static func first_sentence(body: String) -> String:
-	var cut := body.find(". ")
-	if cut < 0:
-		return body
-	return body.substr(0, cut + 1)
 
 
 static func quiet_lines(n: MapGen.MapNode) -> Array:

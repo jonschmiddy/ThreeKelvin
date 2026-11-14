@@ -84,7 +84,7 @@ func _sweep(close: bool) -> void:
 			wb = b.index
 			break
 	var at := B if close or wb < 0 else wb
-	SystemMapScreen._parked[idx] = {"at": at, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": at, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	var held_bad := 0
 	var side_bad := 0
 	var depth_bad := 0
@@ -168,7 +168,7 @@ func _sweep(close: bool) -> void:
 	_ok("%s pair: the ship's place lit by star B, its own sun, at every angle (%d of 8 not)" % [kind, lit_bad], lit_bad == 0)
 	if not close:
 		_ok("wide pair: the world round star B on the band on its orbit of B, now and a minute on (%d of 16 off)" % world_bad, wb >= 0 and world_bad == 0)
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	Run.map_clock.erase(idx)
 
 
@@ -201,7 +201,7 @@ func _through_the_map() -> void:
 	SectorScreen._approached_at = idx
 	var t0 := 0.3 * TAU / L.pair_n
 	Run.map_clock[idx] = t0
-	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_system()
 	await Harness.frames(_tree, 20)
 	var m := Router.current as SystemMapScreen
@@ -255,7 +255,7 @@ func _coop_handovers(ladder: int, lead: float) -> void:
 	SectorScreen._approached_at = idx
 	var t0 := 0.55 * TAU / L.pair_n
 	Run.map_clock[idx] = t0
-	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_system()
 	for i in 240:
 		await _tree.process_frame
@@ -368,7 +368,7 @@ func _coop_rounds() -> void:
 	Run.at = idx
 	SectorScreen._approached_at = idx
 	Run.map_clock[idx] = 0.2 * TAU / L.pair_n
-	SystemMapScreen._parked[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": SystemLayout.STAR_B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	Router.show_system()
 	await Harness.frames(_tree, 6)
 	var m := Router.current as SystemMapScreen
@@ -423,7 +423,7 @@ func _coop_opened_cold() -> void:
 	Run.at = idx
 	SectorScreen._approached_at = idx
 	Run.map_clock[idx] = 0.35 * TAU / L.pair_n
-	SystemMapScreen._parked[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 	var kept_state := Net.state
 	Net.state = NetSession.State.DIVING
 	# THE MAP, out of the chart
@@ -454,7 +454,7 @@ func _coop_opened_cold() -> void:
 	pt = Net.party_t(idx)
 	var off := Vector2(31.0, -12.5)
 	var p_own := L.star_pos(B, own) + off
-	SystemMapScreen._parked[idx] = {"at": -9, "mode": &"free", "p": p_own, "v": Vector2.ZERO, "head": 0.0, "cen": B, "r": off.length(), "sense": 1.0}
+	ParkedShips.spots[idx] = {"at": -9, "mode": &"free", "p": p_own, "v": Vector2.ZERO, "head": 0.0, "cen": B, "r": off.length(), "sense": 1.0}
 	Router.show_local()
 	var sky: LocalSky = null
 	for i in 240:
@@ -462,7 +462,7 @@ func _coop_opened_cold() -> void:
 		sky = _local_sky()
 		if sky != null and not ZoomLadder.busy():
 			break
-	var p_now: Vector2 = (SystemMapScreen._parked.get(idx, {}) as Dictionary).get("p", Vector2.INF)
+	var p_now: Vector2 = (ParkedShips.spots.get(idx, {}) as Dictionary).get("p", Vector2.INF)
 	_ok("co-op, cold: LOCAL opened out of the chart takes the party's clock at once (%.6f; its own %.3f, the party %.6f)" % [
 		sky.held_t() if sky != null else -1.0, own, pt], sky != null and absf(sky.held_t() - pt) < 1e-6)
 	_ok("co-op, cold: and the ship parked settled round star B went with B (%.4f px off its offset; B moved %.1f px)" % [
@@ -470,7 +470,7 @@ func _coop_opened_cold() -> void:
 		(p_now - L.star_pos(B, pt)).distance_to(off) < 1e-3 and L.star_pos(B, pt).distance_to(L.star_pos(B, own)) > 1.0)
 	Net.state = kept_state
 	_no_partner()
-	SystemMapScreen._parked[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	ParkedShips.spots[idx] = {"at": B, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 
 
 ## The ride a put-back ship may show: two frames of a close orbit plus a half for rounding.

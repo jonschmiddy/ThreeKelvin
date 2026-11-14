@@ -64,7 +64,7 @@ the stands two different heights").
 
 ## Hull middle
 
-Above `static func hull_mass_x(img: Image, ink: Rect2i) -> float:`:
+Above `static func hull_mass_x(img: Image, ink: Rect2i) -> float:` (in `YardStands.gd`):
 
 ```text
 THE HULL'S MIDDLE, in ink columns from the ink's left edge: where its opaque
@@ -76,7 +76,7 @@ the bulk, so they stand either side of this (Jon: "centered on them").
 
 ## Stand meets hull
 
-Above `var _cap_cache: Dictionary = {}`:
+Above `static func stand_cap(si: Image, seat_rows: int, _cap_cache: Dictionary) -> Dictionary:` (in `YardStands.gd`):
 
 ```text
 WHERE A STAND MEETS A HULL, measured off its picture: the first opaque row
@@ -110,7 +110,7 @@ in the window: a bump just past the cap's edge held the hull up, and the belly
 over the cap floated rows above it -- 2 on the medium Korvan, 12 on the light.
 Now only the columns the cap is under count, and a spread is chosen where
 (in order) no floor shows between belly and cap, the two meet the hull at the
-same row, no fitted part hangs over a cap (`hang`, `_hanging`: a gun under the
+same row, no fitted part hangs over a cap (`hang`, `YardStands.hanging`: a gun under the
 belly reads as standing on the stand), each cap's belly is level, and they
 stand about 48% of the hull
 apart (36% to 80%). Where some floor would still show -- a step in the belly

@@ -238,7 +238,7 @@ first line of the outcome). Written as parallel arrays for the reason 23
 gives: JSON keys are strings. A 28 save would load with every walk-away
 forgotten and every card's line gone, quietly; a 28 build handed this save
 would drop them the same way. Refusing the mismatch is the migration.
-30: WHERE THE SHIP WAS LEFT, by system (`parked`: `SystemMapScreen._parked`,
+30: WHERE THE SHIP WAS LEFT, by system (`parked`: `ParkedShips.spots`,
 the orbit or the open-space spot the map last had you at). It lived only in
 memory, so a reload dropped you at the system's edge and LOCAL drew the
 warp-in instead of the world you were orbiting. Written as a list of rows
@@ -359,7 +359,7 @@ Called from Router at every safe point. Cheap enough to be unconditional:
 the map is the bulk of it and a hundred and fifty nodes stringify in a
 millisecond or two, which is nothing beside the screen swap that triggered it.
 
-The map guard is doubled here and in Router._autosave() on purpose. This is
+The map guard is doubled here and in Router.autosave() on purpose. This is
 the one function that writes, and _snapshot() indexes `Run.map[Run.at]` with
 nothing in front of it — a half-populated run reaching this call takes the
 process down rather than declining to write.
@@ -500,7 +500,7 @@ moved: a save written before this cannot be told from one written after.
 Above `static func _parked_to() -> Array:`:
 
 ```text
-WHERE THE SHIP WAS LEFT (`SystemMapScreen._parked`), one row per system.
+WHERE THE SHIP WAS LEFT (`ParkedShips.spots`), one row per system.
 Rows, not a dictionary keyed by system: JSON keys are strings (see 23).
 `at` is the place the ship orbits (a body, -1 the star (star A of two suns),
 SystemLayout.STAR_B (-4) star B, -9 none), and `p`, `head` and `mode` say

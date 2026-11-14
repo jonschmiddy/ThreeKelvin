@@ -312,8 +312,6 @@ func work(i: int, x: float) -> void:
 	var name: StringName = pool[randi() % pool.size()]
 	_last_work[i] = name
 	get_tree().create_timer(0.15).timeout.connect(func() -> void:
-		if not is_instance_valid(self):
-			return
 		var p := _panned(name, x)
 		if p != null:
 			p.play()

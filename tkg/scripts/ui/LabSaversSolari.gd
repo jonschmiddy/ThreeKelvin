@@ -476,7 +476,7 @@ func _paint_3() -> void:
 		for tl in 6:
 			k.px(px0 - tl, cy, _iron(0.98 - 0.12 * float(tl), dim))
 	# THE CAMERA'S MARKS: its corners, and its scale on the right
-	g._brackets(Rect2i(sx0 - 2, sy0 - 2, sx1 - sx0 + 4, sy1 - sy0 + 4), 4, k.ink(0.5 * dim))
+	g.corner_brackets(Rect2i(sx0 - 2, sy0 - 2, sx1 - sx0 + 4, sy1 - sy0 + 4), 4, k.ink(0.5 * dim))
 	var bx := a.end.x - 16
 	for y in range(sy0 + 8, sy1 - 8):
 		var u := 1.0 - float(y - sy0 - 8) / float(maxi(1, sy1 - sy0 - 17))

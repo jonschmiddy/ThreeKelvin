@@ -165,7 +165,7 @@ func _draw() -> void:
 
 # ------------------------------------------------------------------ the kit
 
-func _ink(a: float) -> Color:
+func tint_ink(a: float) -> Color:
 	return LabBoard.mixc(LabBoard.BG, tint, a)
 
 
@@ -185,12 +185,12 @@ func owner_short() -> String:
 ## The mark on its ground: a plate `n` px square, the mark at scale `s` on its
 ## true centre (`CardView.draw_emblem` measures in halves: an odd plate for a
 ## mark at 1, an even one at 2, or the mark falls between pixels).
-func _mark(cx: int, cy: int, n: int, s: float) -> void:
+func owner_mark(cx: int, cy: int, n: int, s: float) -> void:
 	var mk := DB.manufacturer_colour(owner_id)
 	var fd: Color = (DB.manufacturers[owner_id] as ManufacturerData).field if DB.manufacturers.has(owner_id) else LabBoard.BG
 	var h := n / 2
 	var r := Rect2i(cx - h, cy - h, n, n)
-	draw_rect(Rect2(r.position - Vector2i.ONE, r.size + Vector2i(2, 2)), _ink(0.35))
+	draw_rect(Rect2(r.position - Vector2i.ONE, r.size + Vector2i(2, 2)), tint_ink(0.35))
 	draw_rect(Rect2(r), fd)
 	if owner_id == &"" or not DB.manufacturers.has(owner_id):
 		mk = tint
@@ -198,15 +198,15 @@ func _mark(cx: int, cy: int, n: int, s: float) -> void:
 	leaves.append(["mark", Rect2i(r.position - Vector2i.ONE, r.size + Vector2i(2, 2))])
 
 
-func _text(x: int, ycap: int, s: String, c: Color, sz: int = 8) -> void:
+func leaf_text(x: int, ycap: int, s: String, c: Color, sz: int = 8) -> void:
 	LabBoard.text_at(self, x, ycap, s, c, sz)
 	leaves.append([s, Rect2i(x, ycap - 1, LabBoard.tw(s, sz), (5 if sz == 8 else 10) + 2)])
 
 
-func _data_corner() -> void:
+func data_corner() -> void:
 	var a := area()
 	var s := "DATA %d" % data
-	_text(a.end.x - 6 - LabBoard.tw(s), a.position.y + 5, s, LabBoard.OWN)
+	leaf_text(a.end.x - 6 - LabBoard.tw(s), a.position.y + 5, s, LabBoard.OWN)
 
 
 ## The box test on this look: every word and mark inside the window, and
@@ -263,7 +263,7 @@ func _px(x: int, y: int, c: Color) -> void:
 	draw_rect(Rect2(x, y, 1, 1), c)
 
 
-func _frame_box(r: Rect2i, c: Color) -> void:
+func frame_box(r: Rect2i, c: Color) -> void:
 	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1), c)
 	draw_rect(Rect2(r.position.x, r.end.y - 1, r.size.x, 1), c)
 	draw_rect(Rect2(r.position.x, r.position.y, 1, r.size.y), c)
@@ -271,7 +271,7 @@ func _frame_box(r: Rect2i, c: Color) -> void:
 
 
 ## Four corner brackets, `arm` px each way, on `r`.
-func _brackets(r: Rect2i, arm: int, c: Color) -> void:
+func corner_brackets(r: Rect2i, arm: int, c: Color) -> void:
 	var x0 := r.position.x
 	var y0 := r.position.y
 	var x1 := r.end.x - 1

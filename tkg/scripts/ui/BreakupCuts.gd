@@ -7,8 +7,8 @@ extends RefCounted
 static func _cut_classic(img: Image, used: Rect2i, seed: int, is_boss: bool) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
-	# Lone pixels are the canvas's starfield, not hull: `_hull_pic` drops them.
-	var H := _hull_pic(img, used, 0)
+	# Lone pixels are the canvas's starfield, not hull: `hull_pic` drops them.
+	var H := hull_pic(img, used, 0)
 	var r: Rect2i = H.r
 	if int(H.n) == 0:
 		return {majors = [], shards = [], centre = r.get_center()}
@@ -239,7 +239,7 @@ const SOOT := Color(0.17, 0.12, 0.10)
 
 
 ## Lone pixels are the canvas starfield, as in `cut`.
-static func _hull_pic(img: Image, used: Rect2i, margin: int) -> Dictionary:
+static func hull_pic(img: Image, used: Rect2i, margin: int) -> Dictionary:
 	var canvas := Rect2i(Vector2i.ZERO, img.get_size())
 	var u := used.intersection(canvas)
 	var r := u.grow(margin).intersection(canvas)
@@ -735,7 +735,7 @@ static func _normal_at(H: Dictionary, mask: PackedByteArray, p: Vector2i) -> Vec
 
 ## Enemies face left, so the stern is the right: engines are row ends there plus lit pixels
 ## in the back half.
-static func _engines(H: Dictionary) -> PackedVector2Array:
+static func engines(H: Dictionary) -> PackedVector2Array:
 	var w: int = H.w
 	var h: int = H.h
 	var mask: PackedByteArray = H.mask
@@ -1019,7 +1019,7 @@ static func _alpha_mask(im: Image) -> PackedByteArray:
 static func _cut_new(img: Image, used: Rect2i, seed: int, is_boss: bool, st: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 7349 + st * 101 + 3
-	var H := _hull_pic(img, used, ShipBreakup.HULL_PAD)
+	var H := hull_pic(img, used, ShipBreakup.HULL_PAD)
 	var r: Rect2i = H.r
 	if int(H.n) == 0:
 		return {majors = [], shards = [], centre = r.get_center(), plan = {r = r, glob = Vector2i.ZERO, box = r}}
@@ -1081,7 +1081,7 @@ static func _cut_new(img: Image, used: Rect2i, seed: int, is_boss: bool, st: int
 			lab = _lab_voronoi(H, mask, k, rng)
 			_mark_band(H, lab, sm, 2, rng)
 			_mark_bites(H, lab, sm, 3, rng, 1)
-			var eng := _engines(H)
+			var eng := engines(H)
 			plan.engine = eng
 			var sp := Vector2.ZERO
 			for e in eng:
@@ -1279,7 +1279,7 @@ static func _curl_pic(H: Dictionary, col: PackedColorArray, mask: PackedByteArra
 static func _cut_creature(img: Image, used: Rect2i, seed: int, st: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 911 + st
-	var H := _hull_pic(img, used, 12)
+	var H := hull_pic(img, used, 12)
 	var r: Rect2i = H.r
 	if int(H.n) == 0:
 		return {majors = [], shards = [], centre = r.get_center(), plan = {r = r, glob = Vector2i.ZERO, box = r}}
@@ -1549,7 +1549,7 @@ static func _charred_all(im: Image, amt: float) -> Image:
 static func _cut_boss(img: Image, used: Rect2i, seed: int, st: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed * 4441 + st * 37
-	var H := _hull_pic(img, used, 0)
+	var H := hull_pic(img, used, 0)
 	var r: Rect2i = H.r
 	if int(H.n) == 0:
 		return {majors = [], shards = [], centre = r.get_center(), plan = {r = r, glob = Vector2i.ZERO, box = r}}

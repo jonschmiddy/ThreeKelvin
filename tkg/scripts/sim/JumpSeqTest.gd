@@ -52,10 +52,6 @@ func _quiet_target() -> int:
 	return -1
 
 
-func _hud() -> Control:
-	return _tree.root.find_child("HudBar", true, false) as Control if _tree.root.find_child("HudBar", true, false) != null else _find_hud(_tree.root)
-
-
 func _find_hud(n: Node) -> Control:
 	if n is HudBar:
 		return n
@@ -220,8 +216,8 @@ func _check_warp(id: StringName, s: Dictionary, seq: JumpSequence) -> void:
 	var late: Array = s.flame_late
 	_ok("%s: the idle flame burned until the wake (%d frames, all IDLE)" % [id, early.size()],
 		early.size() > 10 and early.all(func(e: Array) -> bool: return int(e[1]) == ThrusterFx.Thrust.IDLE))
-	_ok("%s: and was out for good by %.2f s, before the swap" % [id, seq.flame_s + 0.25],
-		late.all(func(e: Array) -> bool: return float(e[0]) < seq.flame_s + 0.25 or int(e[1]) < 0))
+	_ok("%s: and was out for good by %.2f s, before the swap (%d frames read after the wake)" % [id, seq.flame_s + 0.25, late.size()],
+		late.size() > 0 and late.all(func(e: Array) -> bool: return float(e[0]) < seq.flame_s + 0.25 or int(e[1]) < 0))
 
 
 func _fail_r15() -> void:

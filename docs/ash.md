@@ -486,7 +486,7 @@ shipped; where a draft said something the code does not do, the words follow the
 - chassis_card: not everything has a readout (the ships and the band's rows do; the banner yard has no cards): "Point at a ship or a line".
 - fuel_first: a jump lands on the map, not LOCAL, so it teaches there, as information.
 
-**Pacing** (the audit's, binding; `Hints._pace_ok`). One lesson at a time; each starts once its
+**Pacing** (the audit's, binding; `Hints.pace_ok`). One lesson at a time; each starts once its
 screen has held still and ends when the player does what it teaches; none can be clicked away;
 a subject gone ends it unspent and it comes back. In a fight: only while the hand is settled and
 no card is held, never during END TURN's playback or the enemy's turn; only the hand's, energy,

@@ -10,7 +10,7 @@ IS NIIIICE. I like A low band."; scratchpad `local_role/notes.md` section 5).
 
 The sector map lists a system's events as cards and says one sentence of
 each; GO flies the ship there and the view zooms down into LOCAL, composed
-for that body (`SystemMapScreen._parked` -> `LocalSky`'s situation). Then
+for that body (`ParkedShips.spots` -> `LocalSky`'s situation). Then
 this comes up with the event's whole text and its choices -- the same choice
 cards, odds, costs and readings the map's panel showed
 (`EncounterDrawer.choice_card`). Choosing resolves through `OptionResolve`,

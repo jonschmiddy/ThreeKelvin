@@ -305,7 +305,7 @@ visit snapped them back on a Tab to LOCAL and back). It runs only while that
 map is up. Written where the map keeps the ship
 (`SystemMapScreen._keep_ship`), read by every map open (`Router.show_system`,
 `ZoomLadder`), saved (`SaveGame`, VERSION 39), and cleared with a new run
-(`start_new_run`) and replaced whole by a load. Kept apart from `SystemMapScreen._parked`,
+(`start_new_run`) and replaced whole by a load. Kept apart from `ParkedShips.spots`,
 which every jump in erases: the suns go on from where they were. A system
 never opened has none, which is t 0, the layout as laid out.
 ```
