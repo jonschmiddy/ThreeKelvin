@@ -70,6 +70,39 @@ const AD_EVERY := 6.0
 ## A popup stays up until shut (Jon); the next follows after `POP_EVERY` seconds.
 const POP_EVERY := 19.0
 const POP_FIRST := 8.0
+## The LCD's bar, tabs and avatar, and the board's pins, markers and eraser.
+const LCD_DEEP := Color("#061426")
+const STAPLE_LIGHT := Color("#9a9a92")
+const STAPLE_SHADE := Color("#7e7e78")
+const TORN_PAPER := Color("#b8ab88")
+const TORN_STAPLE := Color("#8a8a84")
+const LCD_BAR := Color("#0a2a44")
+const LCD_SEARCH_HINT := Color("#4a7a96")
+const LCD_TAB_HOT := Color("#12405e")
+const LCD_TAB := Color("#0c2a40")
+const LCD_TAB_RULE := Color("#2c6a88")
+const LCD_TAB_EMPTY := Color("#3e6a84")
+const LCD_TAB_INK := Color("#a8dcf0")
+const AVATAR_BODY := Color("#c86a3a")
+const AVATAR_SKIN := Color("#f0d0a8")
+const BELL_BADGE := Color("#e03a3a")
+const ONLINE_DOT := Color("#46e07a")
+const LCD_SOFT_INK := Color("#7fb8d4")
+const CAROUSEL_DOT := Color("#2c4a60")
+const RAIL_CORNER := Color("#3a3e44")
+const RAIL_CORNER_LIP := Color("#5a6068")
+const MARKER_BLACK := Color("#2a2a2a")
+const MARKER_RED := Color("#c0302a")
+const MARKER_BLUE := Color("#2a4ab0")
+const MARKER_BARREL := Color("#e8e8e4")
+const MARKER_GLINT := Color("#ffffff")
+const MARKER_BARREL_SHADE := Color("#a8a8a4")
+const ERASER_HANDLE := Color("#2e2e34")
+const ERASER_HANDLE_LIP := Color("#5a5a62")
+const ERASER_HANDLE_GROOVE := Color("#46464e")
+const ERASER_FELT := Color("#c8c0b0")
+const ERASER_FELT_SHADE := Color("#a89c88")
+const MARKER_DUST := Color("#6a6a78")
 
 
 ## The station's number makes each board its own, but one station always looks the same.
@@ -643,15 +676,15 @@ func _ticker(w: float, h: float) -> void:
 ## The app bar across the top of the glass.
 func _app_bar(w: float) -> void:
 	var e := FRAME_W
-	draw_rect(Rect2(e, e, w - e * 2.0, HEADER), Color("#0a2a44"))
+	draw_rect(Rect2(e, e, w - e * 2.0, HEADER), LCD_BAR)
 	draw_rect(Rect2(e, e + HEADER - 1.0, w - e * 2.0, 1.0), LCD_CYAN)
 	text_at("STATION LISTINGS", e + 8.0, e + 14.0, UITheme.FS_SMALL, LCD_INK)
 	# the search box, kept for the look of the thing (Jon: "you can keep the
 	# search box")
 	var sx := e + 126.0
-	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), Color("#061426"))
+	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), LCD_DEEP)
 	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), LCD_CYAN, false, 1.0)
-	text_at("SEARCH WORK", sx + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#4a7a96"))
+	text_at("SEARCH WORK", sx + 5.0, e + 14.0, UITheme.FS_SMALL, LCD_SEARCH_HINT)
 	if int(_t() * 2.0) % 2 == 0:
 		draw_rect(Rect2(sx + 76.0, e + 7.0, 1.0, 8.0), LCD_INK)
 	# the tabs: real ones, each with how many it holds
@@ -663,30 +696,30 @@ func _app_bar(w: float) -> void:
 		_tab_rects.append(tr)
 		if i == tab:
 			draw_rect(tr, LCD_CYAN)
-			text_at(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#061426"))
+			text_at(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL, LCD_DEEP)
 		else:
 			var hot := i == _tab_hover
-			draw_rect(tr, Color("#12405e") if hot else Color("#0c2a40"))
-			draw_rect(tr, LCD_CYAN if hot else Color("#2c6a88"), false, 1.0)
+			draw_rect(tr, LCD_TAB_HOT if hot else LCD_TAB)
+			draw_rect(tr, LCD_CYAN if hot else LCD_TAB_RULE, false, 1.0)
 			var empty := i < tab_counts.size() and tab_counts[i] == 0
 			text_at(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL,
-				Color("#3e6a84") if empty else Color("#a8dcf0"))
+				LCD_TAB_EMPTY if empty else LCD_TAB_INK)
 		tx += tr.size.x + 6.0
 	# the avatar and the bell, kept (Jon: "you can keep the bell and avatar,
 	# they're good"), and who is on
 	var rx := w - e - 8.0
-	draw_rect(Rect2(rx - 14.0, e + 3.0, 14.0, 15.0), Color("#c86a3a"))
-	draw_rect(Rect2(rx - 10.0, e + 5.0, 6.0, 6.0), Color("#f0d0a8"))
-	draw_rect(Rect2(rx - 12.0, e + 12.0, 10.0, 6.0), Color("#f0d0a8"))
+	draw_rect(Rect2(rx - 14.0, e + 3.0, 14.0, 15.0), AVATAR_BODY)
+	draw_rect(Rect2(rx - 10.0, e + 5.0, 6.0, 6.0), AVATAR_SKIN)
+	draw_rect(Rect2(rx - 12.0, e + 12.0, 10.0, 6.0), AVATAR_SKIN)
 	var bx := rx - 34.0
 	draw_rect(Rect2(bx, e + 6.0, 9.0, 8.0), LCD_INK)
 	draw_rect(Rect2(bx - 1.0, e + 13.0, 11.0, 2.0), LCD_INK)
 	draw_rect(Rect2(bx + 3.0, e + 15.0, 3.0, 2.0), LCD_INK)
-	draw_rect(Rect2(bx + 6.0, e + 2.0, 9.0, 9.0), Color("#e03a3a"))
+	draw_rect(Rect2(bx + 6.0, e + 2.0, 9.0, 9.0), BELL_BADGE)
 	text_at("%d" % (3 + int(_t() / 11.0) % 7), bx + 8.0, e + 10.0, UITheme.FS_SMALL, Color.WHITE)
 	var on := 40 + int(_t() / 5.0) % 9
-	draw_rect(Rect2(bx - 74.0, e + 9.0, 4.0, 4.0), Color("#46e07a"))
-	text_at("%d ONLINE" % on, bx - 66.0, e + 14.0, UITheme.FS_SMALL, Color("#7fb8d4"))
+	draw_rect(Rect2(bx - 74.0, e + 9.0, 4.0, 4.0), ONLINE_DOT)
+	text_at("%d ONLINE" % on, bx - 66.0, e + 14.0, UITheme.FS_SMALL, LCD_SOFT_INK)
 
 
 ## The side of the marketplace: featured, an ad, the sponsored, a popup.
@@ -715,7 +748,7 @@ func _side(col: Rect2) -> void:
 	var ad_at := Vector2(col.end.x - aw, y + 10.0)
 	var turn := int(_t() / AD_EVERY)
 	var k := _nth(BoardScreen.ADS.size(), 1, turn)
-	_tag("AD", Vector2(ad_at.x, y), Color("#7fb8d4"))
+	_tag("AD", Vector2(ad_at.x, y), LCD_SOFT_INK)
 	if turn % 3 == 2:
 		# every third turn, a commercial plays in the slot instead
 		var ci := _nth(BoardCommercial.count(), 8, turn / 3)
@@ -725,7 +758,7 @@ func _side(col: Rect2) -> void:
 	# four dots under it, as a carousel has, the lit one walking along
 	for d in 4:
 		draw_rect(Rect2(ad_at.x + aw * 0.5 - 16.0 + float(d) * 9.0, ad_at.y + poster.y + 4.0, 5.0, 2.0),
-			LCD_INK if d == turn % 4 else Color("#2c4a60"))
+			LCD_INK if d == turn % 4 else CAROUSEL_DOT)
 	# the manufacturers' own, as sponsored posts
 	var sy := y + poster.y + 26.0
 	var put := 0
@@ -1111,16 +1144,16 @@ func _cork(w: float, h: float, worn: bool) -> void:
 		for i in 26:
 			var sx := floorf(14.0 + _scatter(i * 17 + 5, w - 28.0))
 			var sy := floorf(14.0 + _scatter(i * 23 + 11, h - 28.0))
-			draw_rect(Rect2(sx, sy, 4.0, 1.0), Color("#9a9a92"))
-			draw_rect(Rect2(sx + 7.0, sy + 1.0, 4.0, 1.0), Color("#7e7e78"))
+			draw_rect(Rect2(sx, sy, 4.0, 1.0), STAPLE_LIGHT)
+			draw_rect(Rect2(sx + 7.0, sy + 1.0, 4.0, 1.0), STAPLE_SHADE)
 		# corners of paper torn off, still stapled
 		for i in 7:
 			var tx := floorf(20.0 + _scatter(i * 29 + 3, w - 50.0))
 			var ty := floorf(20.0 + _scatter(i * 31 + 7, h - 50.0))
 			var sz := 6.0 + float(i % 3) * 3.0
 			draw_colored_polygon(PackedVector2Array([Vector2(tx, ty), Vector2(tx + sz, ty),
-				Vector2(tx, ty + sz)]), Color("#b8ab88"))
-			draw_rect(Rect2(tx + 1.0, ty + 1.0, 3.0, 1.0), Color("#8a8a84"))
+				Vector2(tx, ty + sz)]), TORN_PAPER)
+			draw_rect(Rect2(tx + 1.0, ty + 1.0, 3.0, 1.0), TORN_STAPLE)
 
 
 ## A SETTLEMENT'S WHITEBOARD: white enamel, the grey ghosts of a hundred things
@@ -1146,7 +1179,7 @@ func _whiteboard(w: float, h: float) -> void:
 ## A CITY'S AND A CAPITAL'S: the panel ON, a deep blue field brighter toward
 ## its middle, its pixel grid showing faintly, a title bar across the top.
 func _lcd(w: float, h: float) -> void:
-	draw_rect(Rect2(0.0, 0.0, w, h), Color("#061426"))
+	draw_rect(Rect2(0.0, 0.0, w, h), LCD_DEEP)
 	# lit from within: bands of a little more light toward the middle
 	for i in 4:
 		var m := 0.12 + 0.1 * float(i)
@@ -1201,8 +1234,8 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 			draw_rect(Rect2(2.0, 2.0, w - 4.0, 1.0), lip)
 			draw_rect(Rect2(e - 2.0, e - 2.0, w - e * 2.0 + 4.0, 1.0), fd)
 			for c: Vector2 in [Vector2(0.0, 0.0), Vector2(w - 12.0, 0.0), Vector2(0.0, h - 12.0), Vector2(w - 12.0, h - 12.0)]:
-				draw_rect(Rect2(c.x, c.y, 12.0, 12.0), Color("#3a3e44"))
-				draw_rect(Rect2(c.x + 1.0, c.y + 1.0, 10.0, 1.0), Color("#5a6068"))
+				draw_rect(Rect2(c.x, c.y, 12.0, 12.0), RAIL_CORNER)
+				draw_rect(Rect2(c.x + 1.0, c.y + 1.0, 10.0, 1.0), RAIL_CORNER_LIP)
 			if dev == 2:
 				# the marker tray, and what is in it (Jon: "make the pens and
 				# erasers on the white board a bit bigger")
@@ -1211,13 +1244,13 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 				draw_rect(Rect2(e + 30.0, ty, w * 0.46, 1.0), lip)
 				draw_rect(Rect2(e + 30.0, ty + 8.0, w * 0.46, 1.0), fd)
 				for m in 3:
-					var mc: Color = [Color("#2a2a2a"), Color("#c0302a"), Color("#2a4ab0")][m]
+					var mc: Color = [MARKER_BLACK, MARKER_RED, MARKER_BLUE][m]
 					var mx := e + 42.0 + float(m) * 46.0
 					# the barrel, white, with its colour band and a cap at one end
 					draw_rect(Rect2(mx + 2.0, ty - 5.0, 38.0, 7.0), Color(SHADE, 0.3))
-					draw_rect(Rect2(mx, ty - 7.0, 30.0, 7.0), Color("#e8e8e4"))
-					draw_rect(Rect2(mx, ty - 7.0, 30.0, 1.0), Color("#ffffff"))
-					draw_rect(Rect2(mx, ty - 1.0, 30.0, 1.0), Color("#a8a8a4"))
+					draw_rect(Rect2(mx, ty - 7.0, 30.0, 7.0), MARKER_BARREL)
+					draw_rect(Rect2(mx, ty - 7.0, 30.0, 1.0), MARKER_GLINT)
+					draw_rect(Rect2(mx, ty - 1.0, 30.0, 1.0), MARKER_BARREL_SHADE)
 					draw_rect(Rect2(mx + 12.0, ty - 7.0, 6.0, 7.0), mc)
 					draw_rect(Rect2(mx + 30.0, ty - 8.0, 10.0, 9.0), mc)
 					draw_rect(Rect2(mx + 30.0, ty - 8.0, 10.0, 1.0), mc.lightened(0.4))
@@ -1225,14 +1258,14 @@ func _frame(w: float, h: float, k: Dictionary) -> void:
 				# the eraser: felt underneath, a dark handle on top
 				var ex := e + 42.0 + 3.0 * 46.0 + 8.0
 				draw_rect(Rect2(ex + 2.0, ty - 9.0, 50.0, 12.0), Color(SHADE, 0.3))
-				draw_rect(Rect2(ex, ty - 14.0, 48.0, 9.0), Color("#2e2e34"))
-				draw_rect(Rect2(ex, ty - 14.0, 48.0, 1.0), Color("#5a5a62"))
-				draw_rect(Rect2(ex + 6.0, ty - 12.0, 36.0, 2.0), Color("#46464e"))
-				draw_rect(Rect2(ex, ty - 5.0, 48.0, 5.0), Color("#c8c0b0"))
-				draw_rect(Rect2(ex, ty - 5.0, 48.0, 1.0), Color("#a89c88"))
+				draw_rect(Rect2(ex, ty - 14.0, 48.0, 9.0), ERASER_HANDLE)
+				draw_rect(Rect2(ex, ty - 14.0, 48.0, 1.0), ERASER_HANDLE_LIP)
+				draw_rect(Rect2(ex + 6.0, ty - 12.0, 36.0, 2.0), ERASER_HANDLE_GROOVE)
+				draw_rect(Rect2(ex, ty - 5.0, 48.0, 5.0), ERASER_FELT)
+				draw_rect(Rect2(ex, ty - 5.0, 48.0, 1.0), ERASER_FELT_SHADE)
 				# marker dust on the felt
 				for dk in 5:
-					draw_rect(Rect2(ex + 6.0 + float(dk) * 8.0, ty - 3.0 + float(dk % 2), 3.0, 1.0), Color("#6a6a78"))
+					draw_rect(Rect2(ex + 6.0 + float(dk) * 8.0, ty - 3.0 + float(dk % 2), 3.0, 1.0), MARKER_DUST)
 		3, 4:
 			_monitor(w, h, k)
 
