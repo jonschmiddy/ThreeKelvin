@@ -383,7 +383,7 @@ func _drive_chrome() -> void:
 	# The side column (265 px) rides a sine so its fastest is 8 px a frame, not 15.
 	# Why: docs/why/ZoomLadder.md#chrome-slide
 	var on := _slide_way == &"on"
-	var k := _ease_out(q) if on else 1.0 - _ease_in(q)
+	var k := FxKit.ease_out(q) if on else 1.0 - _ease_in(q)
 	var ks := sin(q * PI * 0.5) if on else cos(q * PI * 0.5)
 	for p: Variant in slides:
 		if is_instance_valid(p):
@@ -856,12 +856,6 @@ static func ease_curve(u: float) -> float:
 static func ease_cam_curve(u: float) -> float:
 	u = clampf(u, 0.0, 1.0)
 	return u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
-
-
-## Ease out (fast start, long settle): the camera's own curve.
-static func _ease_out(u: float) -> float:
-	u = clampf(u, 0.0, 1.0)
-	return 1.0 - pow(1.0 - u, 3.0)
 
 
 func _process(delta: float) -> void:
@@ -1861,7 +1855,7 @@ func _step(u: float) -> void:
 		_mat.set_shader_parameter(&"c", to)
 	# the held picture goes on a slightly faster curve than the camera, so the
 	# arriving picture is whole well before the camera settles
-	var tm := _ease_out(clampf(u / 0.85, 0.0, 1.0)) if bool(_style.get("fast", false)) 		else ease_curve(clampf(u / 0.85, 0.0, 1.0))
+	var tm := FxKit.ease_out(clampf(u / 0.85, 0.0, 1.0)) if bool(_style.get("fast", false)) 		else ease_curve(clampf(u / 0.85, 0.0, 1.0))
 	if _style.has("t_from"):
 		# (the held picture goes over its own stretch of the move)
 		tm = ease_curve(clampf((u - float(_style.t_from)) / maxf(float(_style.t_to) - float(_style.t_from), 0.001), 0.0, 1.0))

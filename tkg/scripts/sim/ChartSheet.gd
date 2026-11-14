@@ -262,11 +262,11 @@ func _burst_times() -> Dictionary:
 	for idx in 400:
 		for slot in 3:
 			var period: float = 13.0 + float(slot) * 8.0
-			if _chart._frac(_chart._hash2(idx, slot, 6021)) > 0.4:
+			if MapGen.hash_unit(MapGen.hash_cell(idx, slot, 6021)) > 0.4:
 				continue
 			var start: float = float(idx) * period \
-				+ _chart._frac(_chart._hash2(idx, slot, 77)) * (period - 1.2)
-			var kind := "galaxy" if _chart._frac(_chart._hash2(idx, slot, 131)) < 0.55 \
+				+ MapGen.hash_unit(MapGen.hash_cell(idx, slot, 77)) * (period - 1.2)
+			var kind := "galaxy" if MapGen.hash_unit(MapGen.hash_cell(idx, slot, 131)) < 0.55 \
 				else "deep"
 			if not found.has(kind):
 				found[kind] = start + 0.12

@@ -286,20 +286,16 @@ func _place() -> void:
 	_zoom.begin(scenes, sky, _anchor)
 
 
-func _ease(x: float) -> float:
-	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
-
-
 ## The camera, the hold and the plate at progress `t`; neither takes a click till it rests.
 func _apply() -> void:
-	var e := _ease(t)
+	var e := FxKit.ease_in_out(t)
 	_hold_panel.position = Vector2(roundf(lerpf(-_hold_w, 0.0, e)), 0.0)
 	if _zoom != null:
 		var to_g: Vector2 = _anchor.lerp(get_global_transform() * _land, e).round()
 		_zoom.apply(lerpf(1.0, _zs, e), to_g)
 	# the things in the second half of the push, out of the subject to their plate
 	var x2 := clampf((e - 0.5) / 0.5, 0.0, 1.0)
-	_window.position = _plate_from.lerp(_plate_rest, _ease(x2)).round()
+	_window.position = _plate_from.lerp(_plate_rest, FxKit.ease_in_out(x2)).round()
 	_window.modulate.a = x2
 	var live := t >= 1.0
 	for p: Control in [_hold_panel, _window]:

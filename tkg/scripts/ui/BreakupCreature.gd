@@ -54,9 +54,9 @@ func _glow_band(pts: PackedVector2Array, cols: PackedColorArray, mean: Color) ->
 				continue
 			var a := acc[y * W + x]
 			if a >= 2.0:
-				im.set_pixel(x, y, ShipBreakup._lv(mean, 0.3))
+				im.set_pixel(x, y, FxKit.lv(mean, 0.3))
 			elif a >= 0.8 and ((x + lo.x + y + lo.y) & 1) == 0:
-				im.set_pixel(x, y, ShipBreakup._lv(mean, 0.16))
+				im.set_pixel(x, y, FxKit.lv(mean, 0.16))
 	return {tex = film._tex(im), at = Vector2(lo)}
 
 

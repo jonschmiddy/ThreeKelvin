@@ -558,7 +558,7 @@ func _refresh() -> void:
 		_selected = -1
 	_chart.set_state(_selected)
 
-	_clear(_rows)
+	Widgets.clear(_rows)
 	_settle()
 	_quest_marks()
 
@@ -735,7 +735,7 @@ func _berth_lock() -> void:
 
 ## Cleared systems stay listed: knowing the ground is stripped decides farm on or dive.
 func _fill_neighbours(here: MapGen.MapNode) -> void:
-	_clear(_neigh)
+	Widgets.clear(_neigh)
 	# Filter by what you can see: `in_range_of` is geometry, and listed systems the dish never saw.
 	var near: Array = []
 	for n in Run.in_range():
@@ -869,14 +869,6 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 		MapGen.place_line(n), n.danger, MapGen.DANGER_MAX,
 		MapGen.tier_name(n.danger), cost]
 	return b
-
-## `queue_free()` defers but `add_child()` does not, so a rebuild doubled the list a frame.
-## Removing from the tree first makes the rebuild atomic.
-## Why: docs/why/StarchartScreen.md#atomic-clear
-func _clear(host: Node) -> void:
-	for c in host.get_children():
-		host.remove_child(c)
-		c.queue_free()
 
 ## Hazard red, warmer than THEM (an enemy's colour), so a warning wins over the cold blues.
 const _WARN := Color("#d4614f")

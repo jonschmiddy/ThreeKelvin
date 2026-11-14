@@ -28,3 +28,29 @@ static func draw_spark(ci: CanvasItem, p: Vector2, v: Vector2, c: Color) -> void
 	var tail := (p - v.normalized() * 2.0).round()
 	if tail != p2:
 		ci.draw_rect(Rect2(tail, Vector2.ONE), c * Color(0.5, 0.5, 0.5, 1))
+
+
+## The pixels of an ellipse of radius `rr` (squashed in y by `squash`), each once, in the order they are first met.
+static func ring_pixels(rr: float, squash: float = 1.0) -> Dictionary[Vector2i, bool]:
+	var pts: Dictionary[Vector2i, bool] = {}
+	var n := int(ceil(TAU * rr)) + 8
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		pts[Vector2i(roundi(cos(a) * rr), roundi(sin(a) * rr * squash))] = true
+	return pts
+
+
+## A cubic that starts fast and settles, `u` clamped to 0..1.
+static func ease_out(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return 1.0 - pow(1.0 - u, 3.0)
+
+
+## A cubic that starts and ends slowly (`x` is not clamped).
+static func ease_in_out(x: float) -> float:
+	return 4.0 * x * x * x if x < 0.5 else 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0
+
+
+## Anything slung under a hull sits in its shadow: the same ramp shifted two stops down.
+static func ramp_under(r: Array[Color]) -> Array[Color]:
+	return [r[0], r[0], r[1], r[1], r[2], r[3]]

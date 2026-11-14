@@ -4,6 +4,7 @@ extends Node2D
 ## Zoomed, the shader draws it k times bigger; everything rolled stays in the mockup's box.
 ## Why: docs/why/SunView.md#sun-view
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const SHADER := preload("res://shaders/sun.gdshader")
 
 const W := 420
@@ -156,7 +157,7 @@ func step(t: float) -> void:
 	m.set_shader_parameter("time", t)
 	var flick := 1.0
 	if P.flicker > 0.0:
-		flick = 1.0 + P.flicker * (noise(t * 3.0, 7.0) - 0.5) * 2.0
+		flick = 1.0 + P.flicker * (SkyBakeS.noise2(t * 3.0, 7.0) - 0.5) * 2.0
 	m.set_shader_parameter("flick", flick * float(P.get("warm", 1.0)))
 	var R: float = P.R
 	var layers: Array = P.layers
@@ -171,7 +172,7 @@ func step(t: float) -> void:
 			var a: float = ARMS[j][0]
 			var k: float = ARMS[j][1]
 			if P.spin_spikes > 0.0:
-				k *= 0.7 + 0.5 * noise(t * 1.1 + j * 3.7, float(j))
+				k *= 0.7 + 0.5 * SkyBakeS.noise2(t * 1.1 + j * 3.7, float(j))
 			arms.append(Vector4(cos(a + turn), sin(a + turn), k, 0.0))
 		m.set_shader_parameter("arms", arms)
 	# the lists the shader reads from `_data`: points, discs, sunspot members
@@ -220,9 +221,9 @@ static func roll(kind: String, seed: int, r: float) -> Dictionary:
 	else:
 		p.merge({"gran": 9.0, "gran_k": 0.22}, true)
 		pool = ["spots", "proms", "corona", "flares", "glare"]
-	var n := 1 if hsh(seed, 901) < 0.45 else 2
-	var a := int(floorf(hsh(seed, 902) * pool.size()))
-	var b := int(floorf(hsh(seed, 903) * (pool.size() - 1)))
+	var n := 1 if SkyBakeS.hash2(seed, 901) < 0.45 else 2
+	var a := int(floorf(SkyBakeS.hash2(seed, 902) * pool.size()))
+	var b := int(floorf(SkyBakeS.hash2(seed, 903) * (pool.size() - 1)))
 	if b >= a:
 		b += 1
 	var looks: Array = [pool[a]] if n == 1 else [pool[a], pool[b]]
@@ -261,35 +262,6 @@ static func roll(kind: String, seed: int, r: float) -> Dictionary:
 	p.seed = seed
 	p.looks = looks
 	return p
-
-
-# ---------------------------------------------------------------- the mockup's hash and noise
-## The star painter's hash: JS `Math.imul` mixing, kept to 32 bits.
-static func hsh(x: int, y: int) -> float:
-	var h := ((x * 374761393) ^ (y * 668265263)) & 0xFFFFFFFF
-	h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
-	return float(h ^ (h >> 16)) / 4294967296.0
-
-
-static func noise(x: float, y: float) -> float:
-	var xf := floorf(x)
-	var yf := floorf(y)
-	var xi := int(xf)
-	var yi := int(yf)
-	var u := x - xf
-	var v := y - yf
-	u = u * u * (3.0 - 2.0 * u)
-	v = v * v * (3.0 - 2.0 * v)
-	var a := hsh(xi, yi)
-	var b := hsh(xi + 1, yi)
-	var c := hsh(xi, yi + 1)
-	var d := hsh(xi + 1, yi + 1)
-	return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
-
-
-static func smo(a: float, b: float, x: float) -> float:
-	var u := clampf((x - a) / (b - a), 0.0, 1.0)
-	return u * u * (3.0 - 2.0 * u)
 
 
 # ---------------------------------------------------------------- the lists
@@ -340,15 +312,15 @@ func _plumes(t: float, R: float) -> void:
 	var pa := PackedVector4Array()
 	var pb := PackedVector4Array()
 	for k in 4:
-		var life := 9.0 + hsh(k, 41) * 6.0
-		var ph := hsh(k, 42) * life
+		var life := 9.0 + SkyBakeS.hash2(k, 41) * 6.0
+		var ph := SkyBakeS.hash2(k, 42) * life
 		var g := int(floorf((t + ph) / life))
 		var u := fmod(t + ph, life) / life
 		var id := k * 13 + g
-		var a := hsh(id, 43) * TAU
-		var len := R * (0.5 + 0.6 * hsh(id, 44)) * smo(0.0, 0.45, u)
-		var fade := 1.0 - smo(0.62, 1.0, u)
-		var bend := (hsh(id, 45) - 0.5) * 1.4
+		var a := SkyBakeS.hash2(id, 43) * TAU
+		var len := R * (0.5 + 0.6 * SkyBakeS.hash2(id, 44)) * SkyBakeS.smooth_k(0.0, 0.45, u)
+		var fade := 1.0 - SkyBakeS.smooth_k(0.62, 1.0, u)
+		var bend := (SkyBakeS.hash2(id, 45) - 0.5) * 1.4
 		var on := not (len < 2.0 or fade <= 0.0)
 		pa.append(Vector4(cos(a), sin(a), len, fade))
 		pb.append(Vector4(bend, float(id), float(k), 1.0 if on else 0.0))
@@ -361,9 +333,9 @@ func _proms(t: float, R: float) -> void:
 	var pp := PackedVector4Array()
 	var pq := PackedVector4Array()
 	for k in int(P.proms):
-		var base := hsh(k, 21) * TAU + t * 0.02
-		var span := 0.4 + hsh(k, 22) * 0.35
-		var h := R * (0.4 + 0.45 * hsh(k, 23)) * (0.8 + 0.25 * sin(t * 0.5 + k))
+		var base := SkyBakeS.hash2(k, 21) * TAU + t * 0.02
+		var span := 0.4 + SkyBakeS.hash2(k, 22) * 0.35
+		var h := R * (0.4 + 0.45 * SkyBakeS.hash2(k, 23)) * (0.8 + 0.25 * sin(t * 0.5 + k))
 		var a0 := base - span / 2.0
 		var a1 := base + span / 2.0
 		pp.append(Vector4(CX + cos(a0) * R, CY + sin(a0) * R, CX + cos(a1) * R, CY + sin(a1) * R))
@@ -383,26 +355,26 @@ func _groups(t: float) -> void:
 	var counts := Vector2i.ZERO
 	var ng := 0
 	for k in int(P.groups):
-		var life := 20.0 + hsh(k, sd + 1) * 12.0
-		var ph := hsh(k, sd + 2) * life
+		var life := 20.0 + SkyBakeS.hash2(k, sd + 1) * 12.0
+		var ph := SkyBakeS.hash2(k, sd + 2) * life
 		var g := int(floorf((t + ph) / life))
 		var u := fmod(t + ph, life) / life
 		var id := k * 31 + g
 		var grow := pow(sin(PI * u), 0.5)
 		if grow < 0.05:
 			continue
-		var la := (hsh(id, sd + 3) - 0.5) * 0.9
-		var lo := hsh(id, sd + 4) * TAU
-		var tilt := (hsh(id, sd + 5) - 0.5) * 1.6
+		var la := (SkyBakeS.hash2(id, sd + 3) - 0.5) * 0.9
+		var lo := SkyBakeS.hash2(id, sd + 4) * TAU
+		var tilt := (SkyBakeS.hash2(id, sd + 5) - 0.5) * 1.6
 		var c := Vector3(cos(la) * sin(lo), sin(la), cos(la) * cos(lo))
 		var el := Vector2(c.z, -c.x).length()
 		if el == 0.0:
 			el = 1.0
 		var e := Vector3(c.z / el, 0.0, -c.x / el)
 		var n := Vector3(c.y * e.z - c.z * e.y, c.z * e.x - c.x * e.z, c.x * e.y - c.y * e.x)
-		var gk := int(floorf(hsh(id, sd + 8) * 5.0))
-		var scale: float = P.group_size * (0.6 + 0.9 * hsh(id, sd + 9)) * grow
-		var span: float = P.group_span * (0.6 + 0.7 * hsh(id, sd + 6))
+		var gk := int(floorf(SkyBakeS.hash2(id, sd + 8) * 5.0))
+		var scale: float = P.group_size * (0.6 + 0.9 * SkyBakeS.hash2(id, sd + 9)) * grow
+		var span: float = P.group_span * (0.6 + 0.7 * SkyBakeS.hash2(id, sd + 6))
 		var mem: Array[Vector4] = []
 		# kinds: a lone round spot; a leading and trailing pair; a long chain;
 		# a tangled cluster; a loose scatter of pores
@@ -453,7 +425,7 @@ func _groups(t: float) -> void:
 
 
 func _gh(id: int, j: int, q: int) -> float:
-	return hsh(id * 7 + j, q)
+	return SkyBakeS.hash2(id * 7 + j, q)
 
 
 func _pores(mem: Array[Vector4], id: int, n: int, sx: float, sy: float, scale: float) -> void:
@@ -464,13 +436,13 @@ func _pores(mem: Array[Vector4], id: int, n: int, sx: float, sy: float, scale: f
 ## Sparks rising off an ember star's edge, flickering, drifting, gone.
 func _sparks(t: float, R: float) -> void:
 	for k in 50:
-		var life := 2.5 + hsh(k, 61) * 2.0
-		var ph := hsh(k, 62) * life
+		var life := 2.5 + SkyBakeS.hash2(k, 61) * 2.0
+		var ph := SkyBakeS.hash2(k, 62) * life
 		var g := int(floorf((t + ph) / life))
 		var u := fmod(t + ph, life) / life
-		var a := hsh(k * 17 + g, 63) * TAU + (hsh(k, 64) - 0.5) * u * 0.6
-		var r := R * (0.98 + 0.55 * u * (0.6 + 0.6 * hsh(k * 17 + g, 65)))
-		var fl := 0.5 + 0.5 * noise(t * 6.0 + k * 3, float(k))
+		var a := SkyBakeS.hash2(k * 17 + g, 63) * TAU + (SkyBakeS.hash2(k, 64) - 0.5) * u * 0.6
+		var r := R * (0.98 + 0.55 * u * (0.6 + 0.6 * SkyBakeS.hash2(k * 17 + g, 65)))
+		var fl := 0.5 + 0.5 * SkyBakeS.noise2(t * 6.0 + k * 3, float(k))
 		_add(CX + cos(a) * r, CY + sin(a) * r, Vector3(1.0, 0.75, 0.35) if u < 0.4 else Vector3(1.0, 0.42, 0.15), (1.0 - u) * fl * 1.2)
 
 
@@ -479,7 +451,7 @@ func _corona_puffs(t: float, R: float) -> void:
 	var Rc := R * 3.4
 	var sway := 0.5 * sin(t * 0.15)
 	for k in 6:
-		var a := (k / 3.0) * PI - sway / 3.0 + (hsh(k, 3) - 0.5) * 0.3
+		var a := (k / 3.0) * PI - sway / 3.0 + (SkyBakeS.hash2(k, 3) - 0.5) * 0.3
 		var run := fmod(t * 9.0 + k * 13, Rc - R)
 		var d := R + run
 		_blob(CX + cos(a) * d, CY + sin(a) * d, 2.0 + run * 0.08, Vector3(1.0, 0.8, 0.55), 0.45 * (1.0 - run / (Rc - R)), float(k), t, true)
@@ -493,19 +465,19 @@ func _flare(t: float, R: float) -> void:
 	if u > 5.2:
 		return
 	var sd: int = int(P.seed)
-	var kind: String = FLARE_KINDS[int(floorf(hsh(g, sd * 5 + 11) * FLARE_KINDS.size()))]
-	var a := hsh(g, sd * 7 + 3) * TAU
+	var kind: String = FLARE_KINDS[int(floorf(SkyBakeS.hash2(g, sd * 5 + 11) * FLARE_KINDS.size()))]
+	var a := SkyBakeS.hash2(g, sd * 7 + 3) * TAU
 	var ca := cos(a)
 	var sa := sin(a)
 	var gf := float(g)
 	match kind:
 		"loop":
 			# THE ERUPTING LOOP: it swells up off the limb, breaks, and the top blows away
-			var span := 0.38 + 0.16 * hsh(g, sd * 7 + 4)
-			var twist := (hsh(g, sd * 7 + 5) - 0.5) * 1.6
-			var rise := smo(0.15, 2.2, u)
-			var broke := smo(2.4, 3.2, u)
-			var legs := 1.0 - smo(2.8, 4.6, u)
+			var span := 0.38 + 0.16 * SkyBakeS.hash2(g, sd * 7 + 4)
+			var twist := (SkyBakeS.hash2(g, sd * 7 + 5) - 0.5) * 1.6
+			var rise := SkyBakeS.smooth_k(0.15, 2.2, u)
+			var broke := SkyBakeS.smooth_k(2.4, 3.2, u)
+			var legs := 1.0 - SkyBakeS.smooth_k(2.8, 4.6, u)
 			var top := R * (0.2 + 1.3 * rise)
 			var x0 := CX + cos(a - span) * R * 0.97
 			var y0 := CY + sin(a - span) * R * 0.97
@@ -519,7 +491,7 @@ func _flare(t: float, R: float) -> void:
 				var bx := mm * mm * x0 + 2.0 * mm * s0 * cx1 + s0 * s0 * x2
 				var by := mm * mm * y0 + 2.0 * mm * s0 * cy1 + s0 * s0 * y2
 				var mid := sin(PI * s0)
-				var keep := legs * (1.0 - broke * smo(0.25, 0.4, mid))
+				var keep := legs * (1.0 - broke * SkyBakeS.smooth_k(0.25, 0.4, mid))
 				if keep < 0.03:
 					continue
 				var heat := 1.0 - mid
@@ -562,10 +534,10 @@ func _flare(t: float, R: float) -> void:
 			# AN ARCADE: a row of small loops lights up along the limb, one after another
 			for k in 7:
 				var c := a + (k - 3) * 0.13
-				var on := smo(k * 0.18, k * 0.18 + 0.6, u) * maxf(0.0, 1.0 - maxf(0.0, u - 2.6) / 2.4)
+				var on := SkyBakeS.smooth_k(k * 0.18, k * 0.18 + 0.6, u) * maxf(0.0, 1.0 - maxf(0.0, u - 2.6) / 2.4)
 				if on < 0.02:
 					continue
-				var h := R * (0.32 + 0.16 * hsh(k, g)) * (0.8 + 0.2 * sin(u * 2.0 + k))
+				var h := R * (0.32 + 0.16 * SkyBakeS.hash2(k, g)) * (0.8 + 0.2 * sin(u * 2.0 + k))
 				var s0 := 0.0
 				while s0 <= 1.0:
 					var ang := c + (s0 - 0.5) * 0.11
@@ -585,7 +557,7 @@ func _flare(t: float, R: float) -> void:
 					var bend := s0 * s0 * 2.5
 					var x := ox + (-sa) * s0 * R * 0.32 + ca * (k * 2.4 + bend)
 					var y := oy + ca * s0 * R * 0.32 + sa * (k * 2.4 + bend)
-					_add(x, y, L_WHITE, 1.4 * flash * (0.6 + 0.6 * noise(s0 * 6.0 + k * 3, gf)))
+					_add(x, y, L_WHITE, 1.4 * flash * (0.6 + 0.6 * SkyBakeS.noise2(s0 * 6.0 + k * 3, gf)))
 					_add(x + ca * k, y + sa * k, HOT, 0.6 * flash)
 					s0 += 0.04
 			_mat.set_shader_parameter("wave", Vector4(ox, oy, u * R * 0.6, maxf(0.0, 1.0 - u / 3.5)))
@@ -599,9 +571,9 @@ func _spray(g: int, u: float, R: float, ca: float, sa: float) -> void:
 		_spray_g = g
 		_drops.clear()
 		for k in 70:
-			var ang := (hsh(k, g * 3 + 1) - 0.5) * 0.9
-			var sp := R * (0.55 + 0.45 * hsh(k, g * 3 + 2))
-			var t0 := hsh(k, g * 3 + 3) * 0.6
+			var ang := (SkyBakeS.hash2(k, g * 3 + 1) - 0.5) * 0.9
+			var sp := R * (0.55 + 0.45 * SkyBakeS.hash2(k, g * 3 + 2))
+			var t0 := SkyBakeS.hash2(k, g * 3 + 3) * 0.6
 			var vx := (ca * cos(ang) - sa * sin(ang)) * sp
 			var vy := (sa * cos(ang) + ca * sin(ang)) * sp
 			_drops.append({"t0": t0, "x": CX + ca * R * 0.98, "y": CY + sa * R * 0.98, "vx": vx, "vy": vy, "st": 0.0, "n": 0, "home": false, "trail": PackedVector2Array()})

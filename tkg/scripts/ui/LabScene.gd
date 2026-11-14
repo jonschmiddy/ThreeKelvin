@@ -581,12 +581,6 @@ static func _sway(t: float, tb: float, at: float, s: float) -> float:
 # ---------------------------------------------------------------- the clocks' parts
 # The prototype's, which are the shop's lamp faults (`ShopLight.flicker_at`) at 30 Hz.
 
-## A repeatable scatter in 0..1.
-static func _hash(v: float) -> float:
-	var x := sin(v * 127.1) * 43758.5453
-	return x - floorf(x)
-
-
 static func _smooth(a: float, b: float, t: float) -> float:
 	var u := clampf((t - a) / (b - a), 0.0, 1.0)
 	return u * u * (3.0 - 2.0 * u)
@@ -602,7 +596,7 @@ static func _strikes(tb: float, from: float, dur: float, seed: float) -> float:
 		return 0.0
 	if tb >= from + dur:
 		return 1.0
-	var h := _hash(floorf((tb - from) / 0.033) * 1.37 + seed * 3.1)
+	var h := UIHash.hash1(floorf((tb - from) / 0.033) * 1.37 + seed * 3.1)
 	return 1.0 if h < 0.42 else (0.55 if h < 0.52 else 0.04)
 
 
@@ -612,14 +606,14 @@ static func _starter(t: float, seed: float) -> float:
 	var u := (t + seed) / per
 	var e := (u - floorf(u)) * per
 	if e < 0.62:
-		var h := _hash(floorf(e / 0.033) * 1.37 + floorf(u) * 3.1 + seed)
+		var h := UIHash.hash1(floorf(e / 0.033) * 1.37 + floorf(u) * 3.1 + seed)
 		return 1.0 if h < 0.42 else (0.55 if h < 0.52 else 0.05)
 	return 1.0
 
 
 ## When a LOOSE lamp's fault falls in window `k`.
 static func _blink_at(k: float, seed: float) -> float:
-	return (k + 0.05 + 0.9 * _hash(k * 3.77 + seed)) * 3.2 - seed
+	return (k + 0.05 + 0.9 * UIHash.hash1(k * 3.77 + seed)) * 3.2 - seed
 
 
 ## LOOSE: dead steady, then gone for a frame, once in every 3.2 seconds.
@@ -629,7 +623,7 @@ static func _loose(t: float, seed: float) -> float:
 	var fr := floorf((t - at) / 0.033 + 0.5)
 	if t >= at and fr == 0.0:
 		return 0.02
-	if t >= at and fr <= 2.0 and _hash(seed * 5.1 + k) > 0.45:
+	if t >= at and fr <= 2.0 and UIHash.hash1(seed * 5.1 + k) > 0.45:
 		return 0.9 if fr == 1.0 else 0.03
 	return 1.0
 
@@ -755,14 +749,14 @@ func _draw_life(ci: CanvasItem) -> void:
 		var bc := Color(215.0 / 255.0 * eb, 1.0 * eb, 245.0 / 255.0 * eb)
 		for bi in 6:
 			var sd := float(ti) * 17.3 + float(bi) * 5.1
-			var sp := 5.0 + 6.0 * _hash(sd)
-			var off := _hash(sd + 2.2) * span
+			var sp := 5.0 + 6.0 * UIHash.hash1(sd)
+			var off := UIHash.hash1(sd + 2.2) * span
 			var by := int(tk[3]) - int(floorf(fmod(t * sp + off, span)))
-			var bx := int(tk[0]) + 1 + int(floorf(_hash(sd + 4.4) * (float(tk[1]) - float(tk[0]) - 1.0)))
+			var bx := int(tk[0]) + 1 + int(floorf(UIHash.hash1(sd + 4.4) * (float(tk[1]) - float(tk[0]) - 1.0)))
 			if sin(t * 1.3 + sd) > 0.7:
 				bx += 1
 			# About half are big, two picture pixels square; the rest single.
-			if _hash(sd + 7.7) > 0.5:
+			if UIHash.hash1(sd + 7.7) > 0.5:
 				for c2: Vector2i in [Vector2i(bx, by), Vector2i(bx + 1, by), Vector2i(bx, by - 1), Vector2i(bx + 1, by - 1)]:
 					_put(ci, c2.x, c2.y, bc, MASK_TANK)
 			else:
@@ -776,11 +770,11 @@ func _draw_life(ci: CanvasItem) -> void:
 		var fspan := float(fb[3]) - float(fb[2]) + 1.0
 		for bj in int(f.get("n", 1)):
 			var sdf := float(fi) * 11.7 + float(bj) * 3.9
-			var spf := 2.0 + 2.5 * _hash(sdf)
-			var run := t * spf + _hash(sdf + 1.3) * fspan
+			var spf := 2.0 + 2.5 * UIHash.hash1(sdf)
+			var run := t * spf + UIHash.hash1(sdf + 1.3) * fspan
 			var lap := floorf(run / fspan)
 			var fy := int(fb[3]) - int(floorf(fmod(run, fspan)))
-			var fx := int(fb[0]) + int(floorf(_hash(sdf + 2.9 + lap * 0.37) * (float(fb[1]) - float(fb[0]) + 1.0)))
+			var fx := int(fb[0]) + int(floorf(UIHash.hash1(sdf + 2.9 + lap * 0.37) * (float(fb[1]) - float(fb[0]) + 1.0)))
 			var m := _light_at(fx - 15, fy - 8)
 			_put(ci, fx, fy, Color(minf(1.0, 150.0 / 255.0 * m.x), minf(1.0, 235.0 / 255.0 * m.y),
 				minf(1.0, 205.0 / 255.0 * m.z)), MASK_FLASK)
@@ -833,12 +827,12 @@ static func _anim(mode: String, t: float, sw: int, sh: int, pal: Array) -> Array
 			for r in rows:
 				var line := li - float(rows - 1 - r)
 				var y := 1 + r * 2
-				var ln := sw - 1 - int(floorf(_hash(line * 3.3 + 0.7) * 7.0))
+				var ln := sw - 1 - int(floorf(UIHash.hash1(line * 3.3 + 0.7) * 7.0))
 				var last := r == rows - 1
 				var n := mini(ln, typed) if last else ln
 				var x := 0
 				while x < n:
-					var run := 1 + int(floorf(_hash(line * 7.13 + float(x) * 1.7) * 4.0))
+					var run := 1 + int(floorf(UIHash.hash1(line * 7.13 + float(x) * 1.7) * 4.0))
 					var i := 0
 					while i < run and x < n:
 						out.append([x, y, ink if last else mid])
@@ -997,7 +991,7 @@ class _Glass extends Control:
 		var slot := float(s.get("every", 5.2))
 		var k := floorf(t / slot)
 		var dur := float(s.get("dur", 0.24))
-		var start := k * slot + slot * (0.12 + 0.5 * LabScene._hash(k * 1.7 + 0.3))
+		var start := k * slot + slot * (0.12 + 0.5 * UIHash.hash1(k * 1.7 + 0.3))
 		if t < start or t >= start + dur:
 			return false
 		var f := int(floorf((t - start) * 30.0))
@@ -1006,18 +1000,18 @@ class _Glass extends Control:
 		if bool(s.get("jolt", false)) and f % 3 == 1:
 			_jolt = 2.0
 		for b in mini(int(s.get("bands", 2)), 4):
-			var bh := 2 * (2 + int(floorf(LabScene._hash(k * 5.5 + float(b) * 1.9) * float(s.get("tall", 4)))))
-			var by := 2 * int(floorf(LabScene._hash(k * 3.1 + float(b) * 7.3) * (float(n) - float(bh) / 2.0)))
+			var bh := 2 * (2 + int(floorf(UIHash.hash1(k * 5.5 + float(b) * 1.9) * float(s.get("tall", 4)))))
+			var by := 2 * int(floorf(UIHash.hash1(k * 3.1 + float(b) * 7.3) * (float(n) - float(bh) / 2.0)))
 			# Math.round: halves go up, negative ones too.
 			var sh := floorf(float(sh_steps[(f + b * 3) % sh_steps.size()]) * big / 2.0 + 0.5) * 2.0
 			var src := by
 			if bool(s.get("tear", false)) and b == 0:
-				src = 2 * int(floorf(LabScene._hash(k * 2.3 + floorf(float(f) / 2.0) * 0.1) * (float(n) - float(bh) / 2.0)))
+				src = 2 * int(floorf(UIHash.hash1(k * 2.3 + floorf(float(f) / 2.0) * 0.1) * (float(n) - float(bh) / 2.0)))
 			if sh != 0.0 or src != by:
 				_bands.append(Vector4(float(by), float(bh), sh, float(src)))
 		if f % 2 == 0:
 			for s2 in mini(int(s.get("snow", 1)), 3):
-				var ly := 2 * int(floorf(LabScene._hash(k * 9.1 + float(f) * 0.77 + float(s2) * 4.1) * float(n)))
+				var ly := 2 * int(floorf(UIHash.hash1(k * 9.1 + float(f) * 0.77 + float(s2) * 4.1) * float(n)))
 				_snow.append(Vector2(float(ly), float(f) * 1.7 + k * 3.3 + float(s2) * 0.9))
 		return true
 
