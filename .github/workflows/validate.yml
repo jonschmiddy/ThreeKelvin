@@ -54,13 +54,13 @@ jobs:
     steps:
       # Full history: the version guard diffs against origin/main and HEAD~1,
       # and a one-commit checkout has neither.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Cache the Godot binary
         id: godot-cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/godot-bin
           key: godot-${{ env.GODOT_VERSION }}-linux
@@ -73,6 +73,9 @@ jobs:
           NAME="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
           curl -fsSL -o /tmp/godot.zip \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${NAME}.zip"
+          # Pinned from that release's SHA512-SUMS.txt; a new GODOT_VERSION needs its line.
+          # Why: docs/why/validate.md#pinned-downloads
+          echo "4ccdab7a48eeccbe8819a2fc1f6262f8d72065d98601bcb3743fcbd7ebd39f373758a788ee3293a05ec5b2c48538266c437404312e372225cd2df273945a2de9  /tmp/godot.zip" | sha512sum -c -
           unzip -q /tmp/godot.zip -d ~/godot-bin
           mv ~/godot-bin/"$NAME" ~/godot-bin/godot
           chmod +x ~/godot-bin/godot
@@ -90,7 +93,7 @@ jobs:
 
       - name: Keep the logs when it fails
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: validate-logs-part-${{ matrix.part }}
           path: ci-logs/*.log

@@ -1,0 +1,1 @@
+- **Fixed** — a save or run history file with a wrong-typed field (a cargo list that is a string, a row that is not a record) is now refused cleanly instead of stopping half way, and SAVE MY LOGS takes your home folder and name out of the settings, save and history files too, including a `/home/` path and Windows' short form of a long name.

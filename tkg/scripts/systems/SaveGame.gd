@@ -22,6 +22,8 @@ const OLDEST_READ := 29
 ## Whether a pre-41 save keeps a live Hellbender below `RunState.HELLBENDER_ASCENSION` (Nov 8 default;
 ## Jon's call pending). False pulls it from the old run on load. Why: docs/why/SaveGame.md#version-history
 const OLD_SAVE_KEEPS_HELLBENDER := true
+## The up-front type check of a file read from disk, in its own file.
+const Shape := preload("res://scripts/systems/SaveShape.gd")
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -39,7 +41,7 @@ static func has_save() -> bool:
 ## consuming it — only load_into_run() is allowed to do that.
 static func summary() -> Dictionary:
 	var d := _read()
-	if d.is_empty():
+	if d.is_empty() or Shape.scalar_bad(d) != "":
 		return {}
 	return {
 		galaxy = str(d.get("galaxy_title", "")),
@@ -200,6 +202,8 @@ static func _read() -> Dictionary:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	var d: Dictionary = parsed
+	if not Shape.version_ok(d):
+		return {}
 	var v := int(d.get("version", -1))
 	if v < OLDEST_READ or v > VERSION:
 		return {}
@@ -213,15 +217,15 @@ static func load_into_run() -> bool:
 		clear()
 		return false
 
-	# Check before the first write to Run: a truncated map used to leave a half-loaded run.
+	# Before the first write to Run, every field's type is checked. Why: docs/why/SaveGame.md#damaged-saves
+	if Shape.damaged(d):
+		clear()
+		return false
 	var saved_map: Variant = d.get("map", [])
 	# The fight this run was saved out of, if any. Always assigned, so a stale
 	# one from an earlier load can never restart a fight this save never had.
 	var fight: Variant = d.get("fight", {})
 	Router.fight_on_resume = fight if typeof(fight) == TYPE_DICTIONARY else {}
-	if typeof(saved_map) != TYPE_ARRAY or (saved_map as Array).is_empty():
-		clear()
-		return false
 
 	Run.started_at = float(d.get("started_at", 0.0))
 	Run.galaxy_kind = int(d.get("galaxy_kind", 0))
@@ -448,9 +452,9 @@ static func _item_to(m: HoldItem) -> Dictionary:
 
 
 static func _item_from(e: Variant) -> HoldItem:
-	var row := e as Dictionary
-	if row == null:
+	if typeof(e) != TYPE_DICTIONARY:
 		return null
+	var row: Dictionary = e
 	if String(row.get("kind", "")) == "credits":
 		# Only the amount. A chit has no other state and never sits in a cell.
 		return CreditChit.of(int(row.get("amount", 0)))

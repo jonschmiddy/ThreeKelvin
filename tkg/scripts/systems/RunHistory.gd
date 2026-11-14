@@ -123,7 +123,11 @@ static func load_all() -> Array:
 	if not int(d.get("version", -1)) in READS:
 		return []
 	var runs: Variant = d.get("runs", [])
-	return runs if typeof(runs) == TYPE_ARRAY else []
+	if typeof(runs) != TYPE_ARRAY:
+		return []
+	# A row that is not a record is skipped, so every caller can read each row as one.
+	# Why: docs/why/RunHistory.md#damaged-rows
+	return (runs as Array).filter(func(r: Variant) -> bool: return typeof(r) == TYPE_DICTIONARY)
 
 ## Newest first, which is the order a history screen wants.
 static func recent() -> Array:

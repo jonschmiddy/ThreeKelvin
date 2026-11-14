@@ -14,6 +14,7 @@ set -uo pipefail
 D="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$D/env.sh"
 W="$1"; B="$2"; L="$3"
+case "$L" in */*) echo "FAILED $L (the label is a log file name: no /)"; exit 1;; esac
 LOG="$TK_SCRATCH/logs/gate_${L}.log"
 tk_guard || { echo "FAILED $L (profile guard)"; exit 1; }
 cd "$W" || { echo "FAILED $L (no worktree)"; exit 1; }

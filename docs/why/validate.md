@@ -526,3 +526,22 @@ that a limit is about twice the unit's CI time: `stationdecktest` took 194 to 24
 (it was killed once at 240 s, red for no fault of the code), `flighthand` 176 to 313 s against
 450, `wrecksitetest` 132 to 233 s against 420, `laddertest` 257 to 275 s against 540. Their limits
 are now 480, 630, 470 and 560.
+
+## Pinned downloads
+
+Above the Godot install step and on each `uses:` line of `.github/workflows/validate.yml`:
+
+```text
+The runner downloads a Godot zip from the project's release page and runs it. The
+install step now checks the zip against the SHA-512 the Godot project lists for that
+asset in the release's `SHA512-SUMS.txt` (read Nov 14: line 18, `Godot_v4.7.1-stable_linux.x86_64.zip`,
+`4ccdab7a...a2de9`, and checked against the downloaded file's own hash) before it
+unpacks anything. A different file under the same name stops the step. A new `GODOT_VERSION`
+needs its own line from that list in the same commit.
+
+The three actions (`actions/checkout`, `actions/cache`, `actions/upload-artifact`) were
+named by tag `v4`. Each is now the full commit that `v4` pointed at on Nov 14, found with
+`gh api repos/actions/<name>/git/ref/tags/v4` (a plain commit, no annotated tag to follow), with
+the tag kept after it in a comment. The versions in use are the same; a later `v4` fix reaches
+the workflow when someone raises the pin.
+```

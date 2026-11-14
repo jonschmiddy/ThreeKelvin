@@ -552,3 +552,39 @@ restored seed and seat (`RunState.deal_board`), the board the run would have
 been dealt. Its bought steps stay as saved; the deal is the one it had unless
 the pool changed under it.
 ```
+
+## Damaged saves
+
+Above `static func _damaged(d: Dictionary) -> bool:` and at the top of `load_into_run`:
+
+```text
+A save file is read from disk, so any field in it can be the wrong kind of
+value: a cargo list that is a string, a credits count that is a list, a map
+row whose `links` is a number. The loader casts and loops over most keys
+(`int(...)`, `for e in d.get("installed", [])`, `(raw as Array)`), and in a
+wrong-typed one that is a script error part way down, after the first
+assignments to `Run` had already happened: a half-loaded run.
+
+So the whole file is checked first (`_damaged`, before the first write to
+`Run`, and before the fight on resume is set): every key the loader casts
+with `int`, `float`, `str` or `bool` must hold a number, string or bool when
+it is present; every list it loops over must be a list of plain values (or
+of rows, whose own fields get the same look: parts, hulls, systems, jetsam,
+contracts, quests, comms, parked spots, clocks); `rng` a map of plain
+values; `map` a non-empty list. A save that fails is refused whole, as a
+truncated map always was: the file is cleared, the load returns false, the
+run is as it was, and a `[save] refused whole, a damaged field: <key>` line
+goes to the log. `summary()` and `_read()` apply the same look to the keys
+they read, so CONTINUE does not offer a file the load would refuse.
+
+What is NOT refused: a key that is absent (every old save lacks some), a
+row in a list of rows that is not a row (the loader already skips it, as
+for a retired part), and keys the loader already tolerates in any shape
+(`board`, `unlocked`, `fight`, `galaxy` when not a map). `_item_from` also
+checks the row's kind before casting, as `_module_from` did.
+
+Read side only: nothing written, `VERSION` and every field's name and type
+as written are unchanged, and a save this build wrote (every galaxy kind is
+checked in `-- savetest`) passes. A version 29 to 43 save has only absent
+keys beyond what it had, so it passes too.
+```
