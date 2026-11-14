@@ -5,6 +5,9 @@
 #   .github/scripts/validate.sh            # the full gate
 #   SIM_RUNS=200 .github/scripts/validate.sh
 #   GODOT=/path/to/Godot .github/scripts/validate.sh
+#   GATE_STATIC=1 .github/scripts/validate.sh        # only the checks that need no Godot
+#   GATE_UNITS="tabs codecheck" .github/scripts/validate.sh   # just those units
+#   GATE_LIST=1 .github/scripts/validate.sh          # print the units it would run, in order, and stop
 #   LOG_DIR=./ci-logs .github/scripts/validate.sh
 #
 # CI runs this exact file, so a green pull request and a green laptop mean the
@@ -2259,6 +2262,11 @@ fi
 #   calmladdertest   fixed fps, but a partner's ship eases on by the wall clock
 #                    (`_draw_partners`), so one slow frame is one jump past 40 px
 SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim calmladdertest"
+# THE STATIC UNITS: GATE_STATIC=1, tools/dev/check.sh and the pre-commit hook run
+# exactly these. A unit qualifies when nothing in its body starts Godot (no
+# run_godot, gate_sheet, gate_check or $GODOT): plain shell, python or node, so
+# it needs no import and runs in seconds. A new unit of that kind goes here too.
+STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph vocab enemysprites labs rail rooms yard"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
@@ -2312,6 +2320,13 @@ UNITS=()
 for u in $(sed -n 's/^unit_\([A-Za-z0-9_]*\)() {$/\1/p' "$GATE_SELF"); do
 	UNITS+=("$u")
 done
+# The same name defined twice means the later one silently wins (unit_codecheck
+# was, for a week). Looser than the list above so `unit_x()` on a line of its own is seen too.
+GATE_DUPS="$(sed -n 's/^unit_\([A-Za-z0-9_]*\)().*/\1/p' "$GATE_SELF" | sort | uniq -d | tr '\n' ' ')"
+if [ -n "$GATE_DUPS" ]; then
+	printf 'validate.sh: unit_%s is defined more than once; the later definition silently replaces the earlier. Rename or delete one.\n' "${GATE_DUPS%% *}" >&2
+	exit 2
+fi
 gate_has_unit() {
 	local u
 	for u in "${UNITS[@]}"; do [ "$u" = "$1" ] && return 0; done
@@ -2322,9 +2337,9 @@ gate_in() {  # gate_in NAME "LIST OF NAMES"
 	return 1
 }
 # A renamed unit must not quietly lose its place in the order.
-for u in $SOLO_UNITS $FIRST_UNITS $AFTER_UNITS; do
+for u in $SOLO_UNITS $FIRST_UNITS $AFTER_UNITS $STATIC_UNITS; do
 	if ! gate_has_unit "$u" || ! declare -F "unit_$u" >/dev/null; then
-		printf 'validate.sh: SOLO_UNITS, FIRST_UNITS or AFTER_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
+		printf 'validate.sh: SOLO_UNITS, FIRST_UNITS, AFTER_UNITS or STATIC_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
 		exit 2
 	fi
 done
@@ -2347,6 +2362,31 @@ for gate_split in "flighttest $GATE_FLIGHT_SHARDS" "solvetest $GATE_SOLVE_SHARDS
 	done
 done
 set --
+
+# GATE_UNITS="a b c" or GATE_STATIC=1 runs only the units named (in file order);
+# neither runs `import`, so a Godot unit named here needs an import already done.
+GATE_PICK=""
+if [ "${GATE_STATIC:-}" = 1 ]; then GATE_PICK="$STATIC_UNITS"; fi
+if [ -n "${GATE_UNITS:-}" ]; then
+	if [ -n "$GATE_PICK" ]; then
+		printf 'validate.sh: give GATE_UNITS or GATE_STATIC=1, not both\n' >&2; exit 2
+	fi
+	GATE_PICK="$GATE_UNITS"
+fi
+if [ -n "$GATE_PICK" ]; then
+	for u in $GATE_PICK; do
+		if ! gate_has_unit "$u"; then
+			printf 'validate.sh: GATE_UNITS names %s, and there is no such unit. The units are:\n' "$u" >&2
+			printf '  %s\n' "${UNITS[*]}" | fold -s -w 100 >&2
+			exit 2
+		fi
+	done
+	GATE_KEPT=()
+	for u in "${UNITS[@]}"; do
+		if gate_in "$u" "$GATE_PICK"; then GATE_KEPT+=("$u"); fi
+	done
+	UNITS=(${GATE_KEPT[@]+"${GATE_KEPT[@]}"})
+fi
 
 # THE PARTS. GATE_PART=K/N runs the Kth of N parts of the gate, so CI can run
 # the N parts on N machines at once (the whole gate is 108 CPU minutes on a
@@ -2401,7 +2441,7 @@ if [ "$GATE_PART_N" -gt 1 ]; then
 	for u in "${UNITS[@]}"; do
 		if gate_in "$u" "$FIRST_UNITS" || gate_in "$(gate_dealt_as "$u")" "$GATE_MINE"; then GATE_KEPT+=("$u"); fi
 	done
-	UNITS=("${GATE_KEPT[@]}")
+	UNITS=(${GATE_KEPT[@]+"${GATE_KEPT[@]}"})
 fi
 
 GATE_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 6)"
