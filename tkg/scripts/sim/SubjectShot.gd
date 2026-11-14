@@ -29,7 +29,7 @@ func _run() -> void:
 		tree.quit()
 		return
 	var wait := int(Harness.arg("wait", "90"))
-	LocalSubject.force_pick = int(Harness.arg("take", "-1"))
+	SubjectPlan.force_pick = int(Harness.arg("take", "-1"))
 	LocalEventDrawer.quiet = true
 	for oid in ids:
 		Rng.forced = Harness.seed_arg(4242)
@@ -89,7 +89,7 @@ func _run() -> void:
 				hulls.append(str(e.holder_rect()))
 			print("subjectshot: %s: wrecks at %s; subject in %s" % [oid, ", ".join(hulls), str(rs)])
 	LocalEventDrawer.quiet = false
-	LocalSubject.force_pick = -1
+	SubjectPlan.force_pick = -1
 	tree.quit()
 
 

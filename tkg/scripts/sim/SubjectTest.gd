@@ -45,7 +45,7 @@ func run(tree: SceneTree) -> void:
 	if not _ok("LOCAL is up", sc != null):
 		return _finish()
 	var view_size: Vector2 = sc._view.size
-	var box := LocalSubject.box_for(view_size)
+	var box := SubjectPlan.box_for(view_size)
 	var art := sc._view.ship_view()
 	var ship := Rect2(art.ship_rect().position + art.global_position - sc._view.global_position, art.ship_rect().size)
 	# (a structure is pinned level with your ship's slot's middle, as LOCAL pins it)
@@ -67,14 +67,14 @@ func run(tree: SceneTree) -> void:
 			continue
 		with_subject += 1
 		var id := String(o.id)
-		var resolved: Variant = LocalSubject.resolve(o.subject, o.id, 5)
-		if str(resolved) != str(LocalSubject.resolve(o.subject, o.id, 5)):
+		var resolved: Variant = SubjectPlan.resolve(o.subject, o.id, 5)
+		if str(resolved) != str(SubjectPlan.resolve(o.subject, o.id, 5)):
 			bad_stage.append("%s: its ships change from one look to the next" % id)
-		for st: Dictionary in LocalSubject.stages_of(resolved):
+		for st: Dictionary in SubjectPlan.stages_of(resolved):
 			var kind := StringName(st.get("stage", &""))
 			if not kind in STAGES:
 				bad_stage.append("%s: %s" % [id, kind])
-			if kind in [&"around", &"on_rock"] and not LocalSubject.has_piece(StringName(st.get("base", &""))):
+			if kind in [&"around", &"on_rock"] and not SubjectPlan.has_piece(StringName(st.get("base", &""))):
 				bad_stage.append("%s: %s without a base" % [id, kind])
 			var ids: Array = st.get("pieces", []).duplicate()
 			ids.append_array(st.get("ends", []))
@@ -112,12 +112,12 @@ func run(tree: SceneTree) -> void:
 		# NEVER THE FIGHT'S CODED SHIP: LOCAL draws pool art only
 		if "\"foe\"" in str(o.subject):
 			bad_piece.append("%s: names `foe` (the fight's coded ship; LOCAL shows pool ships only)" % id)
-		var planned := LocalSubject.plan(o.subject, o.id, 5)
-		if LocalSubject.has_structure(o.subject):
+		var planned := SubjectPlan.plan(o.subject, o.id, 5)
+		if SubjectPlan.has_structure(o.subject):
 			n_struct += 1
 			bad_struct.append_array(_structure_wrong(id, planned, view_size, ship, ship_mid))
 		else:
-			var b := LocalSubject.box_bounds(planned)
+			var b := SubjectPlan.box_bounds(planned)
 			var placed := Rect2(b.position + (box.get_center() - b.get_center()).round(), b.size)
 			# (nothing placed in the box: an effect, a stage stood on the sky, or none)
 			if b.size == Vector2.ZERO:
@@ -128,10 +128,10 @@ func run(tree: SceneTree) -> void:
 			if placed.grow(6.0).intersects(ship):
 				on_ship.append(id)
 		# No two pieces' opaque pixels within drift distance, bar own rock, own body, docked pair.
-		for c: String in LocalSubject.clear_of(planned):
+		for c: String in SubjectMask.clear_of(planned):
 			piled.append("%s: %s" % [id, c])
-		if not LocalSubject.short.is_empty():
-			print("  ..   fewer shown, to stand clear: %s: %s" % [id, ", ".join(LocalSubject.short)])
+		if not SubjectPlan.short.is_empty():
+			print("  ..   fewer shown, to stand clear: %s: %s" % [id, ", ".join(SubjectPlan.short)])
 	print("  ..   %d encounters carry a subject" % with_subject)
 	_ok("some encounters carry a subject (%d)" % with_subject, with_subject > 0)
 	_ok("every stage is one LocalSubject stages (%s)" % (", ".join(bad_stage) if not bad_stage.is_empty() else "all"), bad_stage.is_empty())
@@ -148,7 +148,7 @@ func run(tree: SceneTree) -> void:
 	# one ship among them
 	var empty_roles: Array[String] = []
 	for r: String in ["hauler", "barge", "small", "survey", "mining", "passenger", "family", "tender", "armed"]:
-		if LocalSubject.role_ships(r).is_empty():
+		if SubjectMask.role_ships(r).is_empty():
 			empty_roles.append(r)
 	_ok("every role names kept ships (%s)" % (", ".join(empty_roles) if not empty_roles.is_empty() else "all"), empty_roles.is_empty())
 	var same: Array[String] = []
@@ -181,10 +181,10 @@ func run(tree: SceneTree) -> void:
 	var halves := 0
 	for o: Dictionary in OptionTable.all():
 		# (a big structure is not moved for wrecks: it stays behind them, `_live_structure`)
-		if not o.has("subject") or LocalSubject.has_structure(o.subject):
+		if not o.has("subject") or SubjectPlan.has_structure(o.subject):
 			continue
-		var planned := LocalSubject.plan(o.subject, o.id, 5)
-		var b := LocalSubject.box_bounds(planned)
+		var planned := SubjectPlan.plan(o.subject, o.id, 5)
+		var b := SubjectPlan.box_bounds(planned)
 		if b.size == Vector2.ZERO:
 			continue
 		for k in sets.size():
@@ -290,9 +290,9 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 			continue
 		var takes: Array = KEPT3[oid][0]
 		for k in takes.size():
-			LocalSubject.force_pick = k
-			var planned := LocalSubject.plan(o.subject, oid, 5, 0)
-			LocalSubject.force_pick = -1
+			SubjectPlan.force_pick = k
+			var planned := SubjectPlan.plan(o.subject, oid, 5, 0)
+			SubjectPlan.force_pick = -1
 			var ids: Array = []
 			for m: Dictionary in planned:
 				ids.append(StringName(m.id))
@@ -306,17 +306,17 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 				if not pid in ids:
 					bad.append("%s: %s not in its scene" % [oid, pid])
 			if oid in PLATES3:
-				if not LocalSubject.has_structure(o.subject):
+				if not SubjectPlan.has_structure(o.subject):
 					bad.append("%s: not pinned as a plate" % oid)
 				bad.append_array(_structure_wrong("%s take %d" % [oid, k], planned, view_size, ship, ship_mid))
 			else:
-				var b := LocalSubject.box_bounds(planned)
+				var b := SubjectPlan.box_bounds(planned)
 				var placed := Rect2(b.position + (box.get_center() - b.get_center()).round(), b.size)
 				if not box.encloses(placed.grow(-1.0)):
 					bad.append("%s take %d: out of its box (%s)" % [oid, k, placed])
 				if placed.grow(6.0).intersects(ship):
 					bad.append("%s take %d: on your ship" % [oid, k])
-			for c: String in LocalSubject.clear_of(planned):
+			for c: String in SubjectMask.clear_of(planned):
 				bad.append("%s take %d: piled %s" % [oid, k, c])
 			n_take += 1
 	_ok("round three's keeps: every kept take (%d) drawn by its encounter, each staged clear, plates pinned, objects in their box (%s)" % [n_take,
@@ -337,8 +337,8 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 			if node.type != MapGen.NodeType.SYSTEM:
 				continue
 			systems += 1
-			var p := LocalSubject.pick_of(n, oid, node.index)
-			if p != LocalSubject.pick_of(n, oid, node.index):
+			var p := SubjectPlan.pick_of(n, oid, node.index)
+			if p != SubjectPlan.pick_of(n, oid, node.index):
 				unstable.append("%s at %d" % [oid, node.index])
 			seen[p] = int(seen.get(p, 0)) + 1
 		if seen.size() < n:
@@ -369,7 +369,7 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 		var vr := sc._view.get_global_rect()
 		var art := sc._view.ship_view()
 		var ship_g := Rect2(art.ship_rect().position + art.global_position, art.ship_rect().size)
-		var band_top := vr.end.y - LocalSubject.BAND
+		var band_top := vr.end.y - SubjectPlan.BAND
 		if oid in PLATES3:
 			var sr := sub.st_rect
 			var vs: Vector2 = sc._view.size
@@ -412,8 +412,8 @@ func _kept_round3(view_size: Vector2, box: Rect2, ship: Rect2, ship_mid: float) 
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var by_take := {}
 	for node: MapGen.MapNode in Run.map:
-		if node.type == MapGen.NodeType.SYSTEM and not by_take.has(LocalSubject.pick_of(2, &"the_glass_ring", node.index)):
-			by_take[LocalSubject.pick_of(2, &"the_glass_ring", node.index)] = node.index
+		if node.type == MapGen.NodeType.SYSTEM and not by_take.has(SubjectPlan.pick_of(2, &"the_glass_ring", node.index)):
+			by_take[SubjectPlan.pick_of(2, &"the_glass_ring", node.index)] = node.index
 	var shown: Array = []
 	if by_take.size() == 2:
 		for sys: int in [by_take[0], by_take[1], by_take[0]]:
@@ -437,8 +437,8 @@ func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 	var ev: Array[StringName] = [&"the_auction", &"seized_clamp", &"paid_in_full", &"the_parted_line"]
 	var takes: Array = KEPT3[&"the_auction"][0]
 	for k in takes.size():
-		var p := LocalSubject.piece_info(StringName(takes[k]))
-		var img := LocalSubject._image_of(String(p.get("file", "")))
+		var p := SubjectMask.piece_info(StringName(takes[k]))
+		var img := SubjectMask._image_of(String(p.get("file", "")))
 		if img != null and img.is_compressed():
 			img.decompress()
 		var an: Dictionary = p.get("anchors", {})
@@ -454,10 +454,10 @@ func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 			continue
 		var c := Vector2(float(p.w), float(p.h)) * 0.5
 		for oid: StringName in ev:
-			LocalSubject.force_pick = k
-			var planned := LocalSubject.plan(OptionTable.by_id(oid).subject, oid, 5, 0)
-			LocalSubject.force_pick = -1
-			var st := LocalSubject.structure_in(planned)
+			SubjectPlan.force_pick = k
+			var planned := SubjectPlan.plan(OptionTable.by_id(oid).subject, oid, 5, 0)
+			SubjectPlan.force_pick = -1
+			var st := SubjectPlan.structure_in(planned)
 			if StringName(st.get("id", &"")) != StringName(takes[k]):
 				bad.append("%s take %d: draws %s" % [oid, k + 1, st.get("id", &"")])
 				continue
@@ -498,9 +498,9 @@ func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 	LocalEventDrawer.quiet = true
 	for k in takes.size():
 		for oid: StringName in ev:
-			LocalSubject.force_pick = k
+			SubjectPlan.force_pick = k
 			var got := await _open_at(oid, -1)
-			LocalSubject.force_pick = -1
+			SubjectPlan.force_pick = -1
 			var sub: LocalSubject = got.sub
 			var sc: SectorScreen = got.sc
 			if sub == null or sub._st.is_empty() or StringName((sub._st as Dictionary).id) != StringName(takes[k]):
@@ -520,7 +520,7 @@ func _dock_faces(view_size: Vector2, ship: Rect2, ship_mid: float) -> void:
 				var r := Rect2(spr.get_global_transform().origin - sz * 0.5, sz)
 				if r.intersects(ship_g.grow(4.0)):
 					live.append("%s take %d: %s on your ship" % [oid, k + 1, rec.id])
-				if r.end.y > vr.end.y - LocalSubject.BAND + 4.0:
+				if r.end.y > vr.end.y - SubjectPlan.BAND + 4.0:
 					live.append("%s take %d: %s under the band" % [oid, k + 1, rec.id])
 			var gr := sub.grip_rect()
 			if oid == &"seized_clamp":
@@ -660,7 +660,7 @@ func _every_place() -> void:
 			bad.append("%s: by its tags %s, laid on %s" % [oid, ", ".join(_tag_kinds(o)), kind])
 		elif site == &"barren" and not L.bodies[at].world in dry:
 			bad.append("%s: barren, but its world is %s" % [oid, L.bodies[at].world])
-		elif kind == &"contact" and (not o.has("subject") or LocalSubject.plan(o.subject, oid, 5).is_empty()):
+		elif kind == &"contact" and (not o.has("subject") or SubjectPlan.plan(o.subject, oid, 5).is_empty()):
 			bad.append("%s: a contact with nothing drawn beside you" % oid)
 		elif kind == &"":
 			bad.append("%s: on no body" % oid)
@@ -769,13 +769,13 @@ func _bare_events() -> void:
 		# what it shows, from its plan
 		var want: Array = BUILT[oid]
 		var fxs: Array = []
-		for st: Dictionary in LocalSubject.stages_of(o.subject):
+		for st: Dictionary in SubjectPlan.stages_of(o.subject):
 			if StringName(st.get("stage", &"")) == &"fx":
 				fxs.append(StringName(st.fx))
 		for f: StringName in want[0]:
 			if not f in fxs:
 				bad.append("%s: no %s" % [oid, f])
-		var planned := LocalSubject.plan(o.subject, oid, 5)
+		var planned := SubjectPlan.plan(o.subject, oid, 5)
 		var ids: Array = []
 		for m: Dictionary in planned:
 			ids.append(StringName(m.id))
@@ -820,11 +820,11 @@ func _bare_events() -> void:
 		var vr := sc._view.get_global_rect()
 		var art := sc._view.ship_view()
 		var ship := Rect2(art.ship_rect().position + art.global_position, art.ship_rect().size)
-		var band_top := vr.end.y - LocalSubject.BAND
+		var band_top := vr.end.y - SubjectPlan.BAND
 		# Headless draws no sky, so a giant-face stage stands in the box; only its fit is checked.
 		var on_sky := sky != null and not sky.near_info().is_empty()
 		var stood := false
-		for st2: Dictionary in LocalSubject.stages_of(o.subject):
+		for st2: Dictionary in SubjectPlan.stages_of(o.subject):
 			if st2.has("anchor") or StringName(st2.get("stage", &"")) == &"ring_arc":
 				stood = true
 		for r in sub.drawn_rects():
@@ -921,9 +921,9 @@ func _beam_wrong(oid: StringName, _sub: LocalSubject, fx: LocalFx) -> Array[Stri
 
 ## Why a piece will not draw, or "".
 func _piece_wrong(pid: StringName) -> String:
-	if not LocalSubject.has_piece(pid):
+	if not SubjectPlan.has_piece(pid):
 		return "not in the index"
-	var p: Dictionary = LocalSubject.piece_info(pid)
+	var p: Dictionary = SubjectMask.piece_info(pid)
 	if String(p.get("kind", "")) == "painter":
 		return "" if Worlds.WORLD.has(StringName(p.get("world", ""))) else "the painter has no world %s" % p.get("world", "")
 	var f := String(p.get("file", ""))
@@ -936,11 +936,11 @@ func _piece_wrong(pid: StringName) -> String:
 ## your ship at `ship`, its slot's middle row `ship_mid`), or nothing.
 func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect2, ship_mid: float) -> Array[String]:
 	var out: Array[String] = []
-	var m := LocalSubject.structure_in(planned)
+	var m := SubjectPlan.structure_in(planned)
 	if m.is_empty():
 		out.append("%s: no structure piece" % id)
 		return out
-	var sr := LocalSubject.structure_rect(StringName(m.id), view_size, ship_mid)
+	var sr := SubjectPlan.structure_rect(StringName(m.id), view_size, ship_mid)
 	if sr.end.x < view_size.x:
 		out.append("%s: short of the right edge (%d < %d)" % [id, sr.end.x, view_size.x])
 	if sr.position.y >= 0.0:
@@ -953,7 +953,7 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 		out.append("%s: starts left of the middle (x %d)" % [id, sr.position.x])
 	# ITS NEAR PART AT YOUR HEIGHT: some of it on your ship's middle row, in the
 	# near half of it
-	var mk := LocalSubject.mask_of(m)
+	var mk := SubjectMask.mask_of(m)
 	var row := int(ship_mid - sr.position.y)
 	var hits := 0
 	if row >= 0 and row < int(mk.h):
@@ -963,13 +963,13 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 	if hits == 0:
 		out.append("%s: nothing of it at your ship's height (row %d)" % [id, row])
 	# WHAT GOES WITH IT: in view, above the band, off your ship, drift and all
-	var room := Rect2(0.0, 0.0, view_size.x, view_size.y - LocalSubject.BAND)
+	var room := Rect2(0.0, 0.0, view_size.x, view_size.y - SubjectPlan.BAND)
 	for w: Dictionary in planned:
 		if bool(w.get("structure", false)):
 			continue
-		var r := LocalSubject.rect_of(w)
+		var r := SubjectPlan.rect_of(w)
 		r.position += sr.get_center()
-		var d := LocalSubject.drift_of(w)
+		var d := SubjectMask.drift_of(w)
 		r = r.grow_individual(d.x, d.y, d.x, d.y)
 		if not room.encloses(r):
 			out.append("%s: %s out of view or under the band (%s)" % [id, w.id, r])
@@ -982,8 +982,8 @@ func _structure_wrong(id: String, planned: Array, view_size: Vector2, ship: Rect
 func _cycle_checks() -> void:
 	var bad: Array[String] = []
 	var n := 0
-	for id: String in LocalSubject.index():
-		var p: Dictionary = LocalSubject.piece_info(StringName(id))
+	for id: String in SubjectMask.index():
+		var p: Dictionary = SubjectMask.piece_info(StringName(id))
 		if String(p.get("kind", "")) != "structure":
 			continue
 		var files: Array = [String(p.file)]
@@ -1003,7 +1003,7 @@ func _cycle_checks() -> void:
 		# touches, all along its part's slide, the structure has metal
 		var sp: Dictionary = p.get("sparks", {})
 		if sp.has("part") and ResourceLoader.exists(String(p.file)):
-			var img := LocalSubject._image_of(String(p.file))
+			var img := SubjectMask._image_of(String(p.file))
 			if img.is_compressed():
 				img.decompress()
 			var parts: Array = p.get("parts", [])
@@ -1211,7 +1211,7 @@ func _live(oid: StringName) -> void:
 	if sub == null:
 		return
 	var vr := sc._view.get_global_rect()
-	var box := LocalSubject.box_for(sc._view.size)
+	var box := SubjectPlan.box_for(sc._view.size)
 	var gbox := Rect2(vr.position + box.position, box.size).grow(8.0)
 	var art := sc._view.ship_view()
 	var ship := Rect2(art.ship_rect().position + art.global_position, art.ship_rect().size)
@@ -1357,9 +1357,9 @@ func _handover(oid: StringName) -> void:
 	var pool := 0
 	if sub != null:
 		for c in sub.cast:
-			if String(c).begins_with("foe:") or not LocalSubject.has_piece(c):
+			if String(c).begins_with("foe:") or not SubjectPlan.has_piece(c):
 				coded.append(String(c))
-			elif String(LocalSubject.piece_info(c).get("kind", "")) == "ship":
+			elif String(SubjectMask.piece_info(c).get("kind", "")) == "ship":
 				pool += 1
 	_ok("%s shows kept pool ships, never the fight's coded ship (%d pool, %s)" % [oid, pool, ", ".join(coded) if not coded.is_empty() else "none coded"],
 		sub != null and pool > 0 and coded.is_empty())
@@ -1416,9 +1416,9 @@ func _handover(oid: StringName) -> void:
 	for o: Dictionary in OptionTable.all():
 		if not o.has("subject"):
 			continue
-		var was: Array = LocalSubject.plan(o.subject, o.id, 3, 5).map(func(m: Dictionary) -> String: return String(m.id))
-		var left: Variant = LocalSubject.without_foes(LocalSubject.resolve(o.subject, o.id, 3, 5))
-		var now: Array = LocalSubject.plan(left, o.id, 3, 5).map(func(m: Dictionary) -> String: return String(m.id)) if left != null else []
+		var was: Array = SubjectPlan.plan(o.subject, o.id, 3, 5).map(func(m: Dictionary) -> String: return String(m.id))
+		var left: Variant = LocalSubject.without_foes(SubjectPlan.resolve(o.subject, o.id, 3, 5))
+		var now: Array = SubjectPlan.plan(left, o.id, 3, 5).map(func(m: Dictionary) -> String: return String(m.id)) if left != null else []
 		for id: String in now:
 			if was.count(id) < now.count(id):
 				bad.append("%s drew %s after its fight" % [o.id, id])
@@ -1427,8 +1427,8 @@ func _handover(oid: StringName) -> void:
 			[&"the_far_side", 1], [&"customs_cordon", 1], [&"the_harpoon_line", 1], [&"the_tow_cable", 1],
 			[&"the_warm_reactor", 1], [&"standing_orders", 1], [&"escort", 4]]:
 		var fid: StringName = pair[0]
-		var left: Variant = LocalSubject.without_foes(LocalSubject.resolve(OptionTable.by_id(fid).subject, fid, 3, 5))
-		var k := LocalSubject.plan(left, fid, 3, 5).size() if left != null else 0
+		var left: Variant = LocalSubject.without_foes(SubjectPlan.resolve(OptionTable.by_id(fid).subject, fid, 3, 5))
+		var k := SubjectPlan.plan(left, fid, 3, 5).size() if left != null else 0
 		if k != int(pair[1]):
 			bad.append("%s keeps %d after its fight, not %d" % [fid, k, pair[1]])
 	_ok("  and every fight's scene keeps all but what it fought (%s)" % (", ".join(bad) if not bad.is_empty() else "all"), bad.is_empty())
@@ -1857,7 +1857,7 @@ func _orbit_name(sky: LocalSky) -> String:
 func _role_of(ship: String) -> Array[String]:
 	var out: Array[String] = []
 	for r: String in ["hauler", "barge", "small", "survey", "mining", "passenger", "family", "tender", "armed"]:
-		if ship in LocalSubject.role_ships(r):
+		if ship in SubjectMask.role_ships(r):
 			out.append(r)
 	return out
 
