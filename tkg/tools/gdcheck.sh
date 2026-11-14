@@ -5,6 +5,12 @@
 # Reads the hook's stdin JSON, does nothing unless a .gd file was just written,
 # and otherwise re-imports the project and reports GDScript errors.
 #
+# It starts Godot through tools/dev/godot.sh, never directly: that finds the right
+# binary on this machine (the WinGet console build on Windows, the app on a Mac;
+# neither is on PATH as `godot`) and runs it with a throwaway profile, so the real
+# player profile is never read or written (the first rule in CLAUDE.md).
+# Why this is built this way: docs/why/claude_hooks.md
+#
 # Why --import and not --check-only --script:
 #   `--script` replaces the main loop and never creates the autoloads, so every
 #   file that touches Sig, DB, Run or Router -- which is most of them -- fails
@@ -19,28 +25,39 @@
 # back to Claude; exit 0 is silent success.
 set -uo pipefail
 
-ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-PROJECT="$ROOT/tkg"
+ROOT="${CLAUDE_PROJECT_DIR:-}"
+[ -f "$ROOT/tools/dev/godot.sh" ] || ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Fail open, never block work: a machine without Godot, without jq, or without
-# the project still gets to edit files. A hook that halts the session because a
-# tool is missing is worse than no hook.
-command -v godot >/dev/null 2>&1 || exit 0
-command -v jq    >/dev/null 2>&1 || exit 0
-[ -f "$PROJECT/project.godot" ] || exit 0
+# Fail open, never block work: a machine without Godot or without the project
+# still gets to edit files. A hook that halts the session because a tool is
+# missing is worse than no hook. (No jq needed: the payload is read with grep.)
+[ -f "$ROOT/tkg/project.godot" ] || exit 0
+[ -f "$ROOT/tools/dev/godot.sh" ] || exit 0
 
 # No stdin (run by hand) means check unconditionally.
 if [ -t 0 ]; then
 	file="manual"
 else
-	file="$(jq -r '.tool_input.file_path // .tool_response.filePath // empty' 2>/dev/null)"
-	case "$file" in
-		*.gd) ;;
-		*) exit 0 ;;   # not GDScript, nothing to compile
-	esac
+	payload="$(cat)"
+	file="$(printf '%s' "$payload" | grep -Eo '"(file_path|filePath)"[[:space:]]*:[[:space:]]*"[^"]*\.gd"' | head -n 1 \
+		| sed -E 's/^"[A-Za-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//')"
+	[ -n "$file" ] || exit 0   # not GDScript, nothing to compile
 fi
 
-errors="$(cd "$PROJECT" && godot --headless --path . --import 2>&1 \
+source "$ROOT/tools/dev/env.sh"
+# The binary env.sh found, or nothing to run: say nothing and let the edit stand.
+if ! [ -x "$GODOT" ] && ! command -v "$GODOT" >/dev/null 2>&1; then exit 0; fi
+
+# Godot 4.7.1's --import does NOT report a syntax error in a script nothing has loaded yet (tried with a
+# planted broken class_name file: exit 0, no message), but `-- parseall` does, in ~14 s instead of ~9 s.
+# TK_GDCHECK=parseall in the environment switches to it (a new class_name then needs --import first, or it
+# reports a false "unknown class"). Default stays --import, as before. See docs/why/claude_hooks.md.
+if [ "${TK_GDCHECK:-import}" = parseall ]; then
+	run=(-t 90 -C "$ROOT" --headless --path tkg -- parseall)
+else
+	run=(-t 50 -C "$ROOT" --headless --path tkg --import)
+fi
+errors="$(bash "$ROOT/tools/dev/godot.sh" "${run[@]}" 2>&1 \
 	| grep -E 'SCRIPT ERROR|Parse Error|Compile Error' \
 	| head -30)"
 
@@ -50,6 +67,6 @@ errors="$(cd "$PROJECT" && godot --headless --path . --import 2>&1 \
 	echo "GDScript check failed after writing ${file}:"
 	echo "$errors"
 	echo
-	echo "(tkg/tools/gdcheck.sh -- run 'godot --headless --path tkg --import' to reproduce)"
+	echo "(tkg/tools/gdcheck.sh -- run 'bash tools/dev/godot.sh ${run[*]}' to reproduce)"
 } >&2
 exit 2
