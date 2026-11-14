@@ -1168,7 +1168,7 @@ func _victory() -> void:
 	# And anybody who paid to have this stop moving.
 	Run.clear_contract_target(node.index)
 
-	# Asked of every hull, not `enemy`: the last one listed could be a late reinforcement.
+	# Asked of every hull, not just `enemy`.
 	var boss: EnemyState = null
 	var set_piece := false
 	for e in enemies:

@@ -1,7 +1,7 @@
 class_name OptionsPart11
 
-## The science encounters (`the_first_look` to `the_broken_rock`), last in the order `OptionTable._authored`
-## joins them: `roll_for` draws by table order, so entries never move between or within files.
+## The science encounters (`the_first_look` to `the_broken_rock`), second to last in the order `OptionTable._authored`
+## joins them (`OptionsPart12` is last): `roll_for` draws by table order, so entries never move between or within files.
 static func entries() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([

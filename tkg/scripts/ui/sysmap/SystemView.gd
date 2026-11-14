@@ -2966,6 +2966,7 @@ class _Fabric extends Node2D:
 		_mat.set_shader_parameter("zoom", z)
 		_mat.set_shader_parameter("tilt", view.TILT)
 		_mat.set_shader_parameter("edge", L.edge + 20.0)
+		# The wells use the formula `SystemLayout.sink` used to carry (star 0.8 and 46 + 1.4 r, bodies 0.9).
 		# With two suns the shader's own funnel is off; star A is a well where the pair has it.
 		_mat.set_shader_parameter("star_d", 0.0 if L.twin else L.star_mass * 0.8)
 		_mat.set_shader_parameter("star_w", 46.0 + L.star_r * 1.4)

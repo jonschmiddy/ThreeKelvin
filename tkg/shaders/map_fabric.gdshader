@@ -3,7 +3,7 @@ render_mode unshaded, blend_mix;
 
 // THE FABRIC OF SPACE ON THE GPU. The grid is a mesh of short lines laid out
 // once on the plane (`SystemView._Fabric`); each frame this sinks every point
-// into the star's well and each body's (the same sum as `SystemLayout.sink`),
+// into the star's well and each body's (the sum `SystemView` sends as wells),
 // turns it to the screen at the camera's zoom and pan, and fades it, so moving
 // the camera costs the CPU nothing (Jon: "why is the frame rate SOOO BAD when
 // zooming in?" -- it was this grid, rebuilt in GDScript every frame).

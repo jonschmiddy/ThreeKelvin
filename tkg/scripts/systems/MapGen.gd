@@ -342,9 +342,6 @@ static func _combo(index: int) -> int:
 const REGION_NAMES: Array[String] = ["Frontier", "Territory", "Cosmopolitan",
 	"Lawless", "Migration Route", "Precursor Ruins"]
 
-static func region_name(r: Region) -> String:
-	return REGION_NAMES[r]
-
 ## Five nameable states, not a colour per manufacturer: the accent colours blur on a chart.
 ## `star_kind` avoids the `star_name` clash with the system namer.
 ## Why: docs/why/MapGen.md#system-colour
@@ -758,8 +755,6 @@ static func _derive_region(n: MapNode) -> Region:
 	# Why: docs/why/MapGen.md#region-derivation
 	if n.layer >= DEEP_FROM:
 		return Region.DEEP
-	if n.fauna:
-		return Region.FAUNA
 	if n.security <= 2 and not n.berths.is_empty():
 		return Region.LAWLESS
 	if n.berths.size() >= 2:
