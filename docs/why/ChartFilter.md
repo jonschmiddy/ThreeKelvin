@@ -62,3 +62,11 @@ because a count is not an identity -- "at most one" would also pass on the
 day an ordinary system started leaking through and the core stopped being
 drawn.
 ```
+
+## Sight claims, priced
+
+Kept from the removed `SightTest` (`-- sighttest`, Aug 27), whose one assertion lived on here.
+
+Three claims from a screenshot: "a ship with 0 sensors sees this far -- kinda crazy", "no matter what the thrusters/sensors are the circle is the same size", and "still drawing systems outside sensor range". The first two are tuning and the third is a filter question; none can be settled by one chart, since how many systems a radius covers depends on where you stand in a galaxy whose density falls off with depth, so they were measured across seeded galaxies (11, 4242, 90210, 31337) at real positions.
+
+Reachable but not sensed is what the jump button reports as "NOT ENOUGH FUEL", because `can_jump_to` is `sensed and reachable and afford` and the screen's if-chain treats anything left over as an affordability problem. With 279 fuel and a 6-unit cap that message cannot be literally true.

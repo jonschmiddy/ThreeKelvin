@@ -151,7 +151,6 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 	var flames: Array[Flame] = []
 	var entries: Array = []
 	var checker = load("res://scripts/sim/ThrusterSheet.gd").new()
-	var fx_us := 0
 	for i in ships.size():
 		var s2: Dictionary = ships[i]
 		var img: Image = s2.img
@@ -218,10 +217,8 @@ func _film(group: String, ships: Array, dir: String, frames: int, layer: CanvasL
 			fl2.thrust = thrust
 		for f in frames:
 			_t = float(f) / 30.0
-			var t1 := Time.get_ticks_usec()
 			for fl3 in flames:
 				fl3.queue_redraw()
-			fx_us += Time.get_ticks_usec() - t1
 			await RenderingServer.frame_post_draw
 			sub.get_texture().get_image().save_png("%s/f_%04d.png" % [dir, k])
 			k += 1

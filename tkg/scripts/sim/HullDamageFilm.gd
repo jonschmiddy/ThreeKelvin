@@ -25,7 +25,7 @@ func _wait(s: float) -> void:
 func _run() -> void:
 	var tree := get_tree()
 	await tree.process_frame
-	ShipHitFx.look = {"today": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get(Harness.arg("hull", "today"), 0)
+	ShipHitFx.look = {"TODAY": 0, "A": 1, "B": 2, "C": 3, "D": 4}.get(Harness.arg("hull", "today").to_upper(), 0)
 	var pack := Harness.arg("pack", "")
 	var specs := (pack if pack != "" else Harness.arg("id", "cutter")).split(",")
 	var kinds: Array[StringName] = []

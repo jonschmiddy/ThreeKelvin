@@ -1588,36 +1588,6 @@ func _board_print(board: LabBoard) -> Array:
 	return out
 
 
-## Every word and key under `n` that shows: what a box test of a page is about.
-func _leaves(n: Node) -> Array[Control]:
-	var out: Array[Control] = []
-	if n is Button and (n as Button).is_visible_in_tree():
-		out.append(n as Control)
-		return out
-	if n is Label and (n as Label).is_visible_in_tree() and (n as Label).text != "":
-		out.append(n as Control)
-	for c in n.get_children():
-		out.append_array(_leaves(c))
-	return out
-
-
-func _name_of(c: Control) -> String:
-	if c is Button:
-		return "[%s]" % (c as Button).text
-	if c is Label:
-		return (c as Label).text.left(24)
-	return c.name
-
-
-func _labels(n: Node) -> Array[Label]:
-	var out: Array[Label] = []
-	if n is Label and (n as Label).is_visible_in_tree():
-		out.append(n as Label)
-	for c in n.get_children():
-		out.append_array(_labels(c))
-	return out
-
-
 func _find_label(n: Node, text: String) -> Label:
 	if n is Label and (n as Label).text == text:
 		return n as Label
@@ -1626,14 +1596,3 @@ func _find_label(n: Node, text: String) -> Label:
 		if got != null:
 			return got
 	return null
-
-
-func _find_label_containing(n: Node, text: String) -> Label:
-	if n is Label and (n as Label).text.contains(text):
-		return n as Label
-	for c in n.get_children():
-		var got := _find_label_containing(c, text)
-		if got != null:
-			return got
-	return null
-
