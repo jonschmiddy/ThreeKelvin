@@ -1930,7 +1930,7 @@ func _chart_probe(ch: StarchartScreen, id: StringName, hud: Rect2) -> Dictionary
 				var job: ContractData = raw
 				if job.state != ContractData.State.TAKEN or job.at < 0 or job.at >= Run.map.size():
 					continue
-				var c: Vector2 = ch._chart._screen_pos(Run.map[job.at])
+				var c: Vector2 = ch._chart.screen_pos(Run.map[job.at])
 				var r := g * Rect2(c - Vector2(10, 10), Vector2(20, 20))
 				if view.encloses(r):
 					return {subject = r, avoid = avoid}
@@ -1942,7 +1942,7 @@ func _chart_probe(ch: StarchartScreen, id: StringName, hud: Rect2) -> Dictionary
 				var n: MapGen.MapNode = raw
 				if not OptionTable.holds_quest(n):
 					continue
-				var c: Vector2 = ch._chart._screen_pos(n)
+				var c: Vector2 = ch._chart.screen_pos(n)
 				var r := g * Rect2(c + Vector2(-46, -21), Vector2(92, 29))
 				if view.encloses(r):
 					return {subject = r, avoid = avoid}

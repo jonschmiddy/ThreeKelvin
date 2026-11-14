@@ -289,7 +289,7 @@ func _run() -> void:
 					ch._on_node_picked(picked)
 					await _secs(0.5)
 				if hov >= 0:
-					var p: Vector2 = ch._chart._screen_pos(Run.map[hov])
+					var p: Vector2 = ch._chart.screen_pos(Run.map[hov])
 					await _hover(ch._chart.get_global_transform() * p)
 			await _secs(1.2)
 	if "tagprobe" in OS.get_cmdline_user_args():

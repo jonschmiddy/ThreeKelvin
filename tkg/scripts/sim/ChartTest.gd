@@ -22,18 +22,18 @@ func run(tree: SceneTree) -> void:
 	await RenderingServer.frame_post_draw
 	var chart: Object = (Router.current as StarchartScreen)._chart
 	var fields: Array = chart.SKY_FIELDS
-	var restored: Dictionary = chart._snapshot_sky()
+	var restored: Dictionary = chart.snapshot_sky()
 
 	# A genuine rebuild: no cache entry and no matching key.
 	MapChart._sky_cache.clear()
 	chart._star_key = ""
 	chart._build_stars()
-	var built: Dictionary = chart._snapshot_sky()
+	var built: Dictionary = chart.snapshot_sky()
 
 	# That rebuild repopulated the cache, so this takes the restore path.
 	chart._star_key = ""
 	chart._build_stars()
-	var again: Dictionary = chart._snapshot_sky()
+	var again: Dictionary = chart.snapshot_sky()
 
 	var values := 0
 	for f in fields:

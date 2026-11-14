@@ -372,14 +372,14 @@ class InsetMarks extends Control:
 	## reticle follows: redrawn when the ship has moved a pixel.
 	func _process(_delta: float) -> void:
 		var here: MapGen.MapNode = Run.node_at()
-		if chart != null and here != null and chart._screen_pos(here).floor() != _at:
+		if chart != null and here != null and chart.screen_pos(here).floor() != _at:
 			queue_redraw()
 
 	func _draw() -> void:
 		var here: MapGen.MapNode = Run.node_at()
 		if chart == null or here == null:
 			return
-		var c := chart._screen_pos(here).floor()
+		var c := chart.screen_pos(here).floor()
 		_at = c
 		var col := Color(UITheme.ICE, 0.25)
 		var x := 0.0

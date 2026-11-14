@@ -1280,15 +1280,15 @@ static func _chart_rects(ch: StarchartScreen, out: Array, quests: bool = true) -
 			out.append(k.get_global_rect())
 	var here := Run.node_at()
 	if here != null:
-		var hp := mc._screen_pos(here)
+		var hp := mc.screen_pos(here)
 		out.append(g * Rect2(hp + Vector2(-18, 18), Vector2(40, 16)))
 	# (the name a hovered star wears follows the pointer, and she is drawn over
 	# it: only the one a click left selected)
 	if mc.selected >= 0 and mc.selected < Run.map.size():
-		var sp := mc._screen_pos(Run.map[mc.selected])
+		var sp := mc.screen_pos(Run.map[mc.selected])
 		out.append(g * Rect2(sp + Vector2(-42, 20), Vector2(96, 14)))
 	if mc.show_icons and Run.hellbender_alive() and Run.hellbender_at < Run.map.size():
-		var c := mc._screen_pos(Run.map[Run.hellbender_at])
+		var c := mc.screen_pos(Run.map[Run.hellbender_at])
 		out.append(g * Rect2(c + Vector2(-48, -24), Vector2(96, 34)))
 	# the scale block in the bottom right corner (`_draw_scale`)
 	var sz := mc.size

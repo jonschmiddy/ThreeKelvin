@@ -1115,7 +1115,7 @@ func ladder_scale() -> float:
 func ladder_anchor(_other: int, _seam: int, _design: String) -> Vector2:
 	if not ladder_ready() or Run.map.is_empty():
 		return get_global_rect().get_center()
-	return _chart.global_position + _chart._screen_pos(Run.node_at())
+	return _chart.global_position + _chart.screen_pos(Run.node_at())
 
 
 func ladder_pre(_target: int, _seam: int, _design: String) -> float:
@@ -1641,7 +1641,7 @@ class ChartAhead extends Node:
 			WorkerThreadPool.wait_for_task_completion(task)
 			task = -1
 		if chart != null:
-			snap = chart._snapshot_sky()
+			snap = chart.snapshot_sky()
 			chart.free()
 			chart = null
 		set_process(false)

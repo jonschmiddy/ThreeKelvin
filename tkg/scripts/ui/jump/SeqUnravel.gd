@@ -203,7 +203,7 @@ func _draw(v: SubViewport, sh: Shader, n: int, stride: int, params: Dictionary) 
 	for key in params:
 		m.set_shader_parameter(StringName(key), params[key])
 	var node := ChartSky.MeshDraw.new()
-	node.mesh = MapChart._quads(n)
+	node.mesh = MapChart.empty_quads(n)
 	node.material = m
 	v.add_child(node)
 	_all.append(m)

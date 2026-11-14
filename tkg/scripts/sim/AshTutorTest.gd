@@ -1554,7 +1554,7 @@ func _plant_quest() -> bool:
 		var m: MapGen.MapNode = raw
 		if m.index == Run.at or m.type != MapGen.NodeType.SYSTEM:
 			continue
-		var c: Vector2 = ch._chart._screen_pos(m)
+		var c: Vector2 = ch._chart.screen_pos(m)
 		if view.has_point(g * c):
 			OptionTable.ensure(m)
 			m.options.append(StringName(ids[0]))
