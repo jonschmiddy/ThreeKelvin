@@ -103,7 +103,18 @@ static func pinned() -> String:
 
 ## This lab's savers, in the order it shows them.
 func savers() -> Array[String]:
-	return LabSavers.list_for(owner_id, station_key)
+	# The deal is a pure function of these two, so it is dealt again only when either moves.
+	if not _dealt or _dealt_owner != owner_id or _dealt_key != station_key:
+		_dealt_list = LabSavers.list_for(owner_id, station_key)
+		_dealt_owner = owner_id
+		_dealt_key = station_key
+		_dealt = true
+	return _dealt_list
+
+var _dealt := false
+var _dealt_owner: StringName = &""
+var _dealt_key := 0
+var _dealt_list: Array[String] = []
 
 
 ## The saver on the glass now.
