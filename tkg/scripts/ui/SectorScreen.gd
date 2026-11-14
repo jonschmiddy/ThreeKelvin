@@ -2440,7 +2440,7 @@ func ladder_cam(k: float) -> void:
 		kc = 0.0
 		beat = &"out"
 		hall["beat"] = beat
-		hall_fly = Moored.undock_fly(hall, hk)
+		hall_fly = LocalUndock.undock_fly(hall, hk)
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
@@ -2525,7 +2525,7 @@ func ladder_cam(k: float) -> void:
 			var step := int(hall.get("step", 0))
 			# (and on, a frame past the ARRIVE if need be, to its own end: it
 			# runs from the frame it was called on)
-			if docking and ZoomLadder.dock_fade_only: Moored.hold(art, p0, step)
+			if docking and ZoomLadder.dock_fade_only: LocalUndock.hold(art, p0, step)
 			elif docking and (step <= 1 or (step <= 3 and art.arrive_driven)):
 				_dock_arrival(art, hall, p0)
 			else:
@@ -2536,7 +2536,7 @@ func ladder_cam(k: float) -> void:
 			if docking:
 				_dock_burn(art, hall, step == 4 and float(hall.get("t", 0.0)) < ZoomLadder.dock_approach_s() - ladder_dip_s())
 			else:
-				Moored.undock_engines(self, art, hall)
+				LocalUndock.undock_engines(self, art, hall)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
