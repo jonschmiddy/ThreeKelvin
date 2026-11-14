@@ -609,14 +609,6 @@ static func turned_size(sz: Vector2, deg: float) -> Vector2:
 	return Vector2(ceilf(sz.x * c + sz.y * sn), ceilf(sz.x * sn + sz.y * c))
 
 
-static func bounds_of(planned: Array) -> Rect2:
-	var b := Rect2()
-	for i in planned.size():
-		var r := rect_of(planned[i])
-		b = r if i == 0 else b.merge(r)
-	return b
-
-
 static func _piece(st: Dictionary, i: int) -> StringName:
 	var ps: Array = st.get("pieces", [])
 	return StringName(ps[i % ps.size()]) if not ps.is_empty() else &""

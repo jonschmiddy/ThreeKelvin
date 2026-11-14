@@ -984,7 +984,7 @@ screen change plays it.
 
 ## Pile view
 
-Above `const CHIP_ROW_H := 18`:
+Above `class PileView extends Control:`:
 
 ```text
 A stack of card backs with a count on it.
