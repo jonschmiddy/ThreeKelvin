@@ -2160,6 +2160,27 @@ else
 fi
 }
 
+unit_codegraph() {
+step "No new link that breaks the layering, no new call into another class's private method"
+# A ratchet: game code may not reach into sim; systems, data and net may not reach into ui;
+# data may not reach into systems or net; no new call to an unrelated class's `_private`.
+# What predates it is in `tools/code_graph_baseline.txt` (docs/why/code_graph.md).
+if [ -n "$PY" ]; then
+	# The self-test first: the extractor must read a tiny synthetic tree exactly, or its verdict on the real one is not trusted.
+	if ! "$PY" tools/code_graph.py --selftest >"$GATE_UNIT_DIR/codegraph.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/codegraph.out" | sed 's/^/        /'
+		bad "code graph self-test failed: the extractor misread its synthetic tree (python3 tools/code_graph.py --selftest)"
+	elif "$PY" tools/code_graph.py >>"$GATE_UNIT_DIR/codegraph.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/codegraph.out")"
+	else
+		head -n 20 "$GATE_UNIT_DIR/codegraph.out" | sed 's/^/        /'
+		bad "code graph: a new layering break or private reach-in (python3 tools/code_graph.py)"
+	fi
+else
+	gate_no_python "the code graph"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.
