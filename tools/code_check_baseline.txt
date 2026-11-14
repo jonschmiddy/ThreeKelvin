@@ -483,6 +483,10 @@ bare scripts/ui/planets/ShatteredView.gd::_mem_live
 bare scripts/ui/planets/WorldView.gd::_mem_live
 bare scripts/ui/planets/Worlds.gd::lightning
 bare scripts/ui/planets/Worlds.gd::spec
+bare scripts/ui/sysmap/FlightCurves.gd::coast_pv
+bare scripts/ui/sysmap/FlightCurves.gd::lead
+bare scripts/ui/sysmap/FlightCurves.gd::polar_ins
+bare scripts/ui/sysmap/FlightCurves.gd::ride_shape
 bare scripts/ui/sysmap/MapHull.gd::picture
 bare scripts/ui/sysmap/MapHull.gd::turned
 bare scripts/ui/sysmap/PulsarView.gd::frame
@@ -490,15 +494,11 @@ bare scripts/ui/sysmap/PulsarView.gd::roll
 bare scripts/ui/sysmap/SectorPainted.gd::scene_ramps
 bare scripts/ui/sysmap/SectorPainted.gd::tables
 bare scripts/ui/sysmap/SectorPainted.gd::world_look
-bare scripts/ui/sysmap/ShipFlight.gd::_coast_pv
 bare scripts/ui/sysmap/ShipFlight.gd::_dep_of
 bare scripts/ui/sysmap/ShipFlight.gd::_depart_state
 bare scripts/ui/sysmap/ShipFlight.gd::_escape
 bare scripts/ui/sysmap/ShipFlight.gd::_hohmann
 bare scripts/ui/sysmap/ShipFlight.gd::_lam
-bare scripts/ui/sysmap/ShipFlight.gd::_lead
-bare scripts/ui/sysmap/ShipFlight.gd::_polar_ins
-bare scripts/ui/sysmap/ShipFlight.gd::_ride_shape
 bare scripts/ui/sysmap/ShipFlight.gd::_run_line
 bare scripts/ui/sysmap/ShipFlight.gd::_spiral
 bare scripts/ui/sysmap/ShipFlight.gd::_takeable
@@ -572,7 +572,7 @@ file scripts/ui/LocalSubject.gd 3167
 file scripts/ui/SectorScreen.gd 4850
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3115
-file scripts/ui/sysmap/ShipFlight.gd 4386
+file scripts/ui/sysmap/ShipFlight.gd 4150
 file scripts/ui/sysmap/SystemView.gd 3230
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453

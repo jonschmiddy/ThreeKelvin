@@ -323,7 +323,7 @@ orbit's averaged. Kept clear of the world's disc: shorter, then longer, until
 its closest is outside it.
 ```
 
-Above `static func _polar_ins(p0: Vector2, v0: Vector2, acc0: Vector2, rt: float, w: float, T: float, a1: float) -> Dictionary:`:
+In `FlightCurves.gd`, above `static func polar_ins(p0: Vector2, v0: Vector2, acc0: Vector2, rt: float, w: float, T: float, a1: float) -> Dictionary:`:
 
 ```text
 AN INSERTION IN POLAR TERMS round the place (Jon: "why are there sharp
@@ -845,7 +845,7 @@ code review, Nov 5)
 
 ## Ride shape
 
-Above `static func _ride_shape(dang: float, w: float, T: float, ke: float) -> Dictionary:`:
+In `FlightCurves.gd`, above `static func ride_shape(dang: float, w: float, T: float, ke: float) -> Dictionary:`:
 
 ```text
 THE RIDE'S SHAPE round to a fast flight's departure, dang radians in T s
@@ -862,7 +862,7 @@ ride's dictionary entries {k, ke, ls, sp}. ke 1: the phasing k alone.
 
 ## Ride flyable
 
-Above `static func _ride_flyable(rd: Dictionary, pk: float, vr: float) -> bool:`:
+In `FlightCurves.gd`, above `static func ride_flyable(rd: Dictionary, pk: float, vr: float) -> bool:`:
 
 ```text
 WHETHER A RIDE rd ROUND A RING (its speed vr px/s) CAN BE FLOWN for a flight
@@ -882,7 +882,7 @@ Above `const SPIN_S := 0.3`:
 SPIN-UP AND SPIN-DOWN ROUND A RING (`FlightSolve.RING_TAU`): a fast flight
 leaves its ring at `ke` times the ring's own speed (pace times its speed on
 the flight's clock), reached as the ship rides round to leave
-(`_ride_shape`), and arrives on its target ring that much faster, eased
+(`FlightCurves.ride_shape`), and arrives on its target ring that much faster, eased
 down to the ring's own speed over SPIN_S (`start_rail`'s spin,
 `_step_rail`).
 ```
