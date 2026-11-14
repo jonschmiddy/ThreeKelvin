@@ -490,3 +490,13 @@ and no xvfb-run it fails, since a check that cannot run has not passed. Nothing 
 timed: it counts errors, so a busy machine only makes it slower. Exit-time leak reports of a
 windowed run are allowed; an error while the films play fails in the sheet itself.
 About 40 s on the PC.
+
+On CI it timed out from its first run (Nov 11, 600 s killed, 6 or 7 of the 11 films played,
+about 80 s a film against a few seconds on the PC): Mesa's llvmpipe draws every frame on the
+CPU, the films are 529 frames each at the harness's 1920x1080 window
+(`DisplaySettings.leave_launch_window`), and four Godots share a 4-core runner. Nothing hangs;
+it is slow. The Linux xvfb branch now passes `--resolution 960x540`, the project's own size,
+which `leave_launch_window` leaves alone: a quarter of the pixels, every shader still compiled
+and every film still played to its commit. The Windows and `DISPLAY` branches keep the full
+window. Not yet measured on CI: read the unit's time off the next run and set the limit to
+twice it.

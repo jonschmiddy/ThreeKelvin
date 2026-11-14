@@ -1253,7 +1253,10 @@ case "$(uname -s)" in
 			run_limited "$limit" "$GODOT" "${args[@]}" >"$log" 2>&1
 			code=$?
 		elif command -v xvfb-run >/dev/null 2>&1; then
-			run_limited "$limit" xvfb-run -a -s "-screen 0 1280x800x24" "$GODOT" "${args[@]}" >"$log" 2>&1
+			# llvmpipe draws the harness's 1920x1080 window at about 6 frames a second; the project's
+			# own 960x540 is a quarter of the pixels and compiles the same shaders.
+			# Why: docs/why/validate.md#unit_jumpshadertest
+			run_limited "$limit" xvfb-run -a -s "-screen 0 1280x800x24" "$GODOT" --resolution 960x540 "${args[@]}" >"$log" 2>&1
 			code=$?
 		else
 			bad "jumpshadertest: no display and no xvfb-run, so nothing can compile the jump shaders"
