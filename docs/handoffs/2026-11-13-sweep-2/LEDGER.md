@@ -334,7 +334,7 @@ A review of what the game does with input it did not make itself. 11 are fixed o
 | --- | --- | --- |
 | The party's claims table had no total size and was sent whole on every claim | **done** | capped per system (1,024) and in all (16,384); sent once a frame; nettest |
 | A ship's build was kept and sent on exactly as it arrived, at any size | **done** | the host keeps the build as every machine reads it; nettest |
-| A connection that joined a relay party and never spoke kept its seat | **done** | the relay gives the seat back after 15 s; live only once the relay is deployed. A connection that speaks once and is then refused still cannot be removed on the relay: that needs a new relay frame (owner) |
+| A connection that joined a relay party and never spoke kept its seat | **done** | the relay gives the seat back after 15 s; live since the Nov 14 deploy. A connection that speaks once and is then refused still cannot be removed on the relay: that needs a new relay frame (owner) |
 | The relay woke a party for any path, a real code or not | **part** | a path that is not a code the game can make is answered without a party. Not done, James's Cloudflare account: a per-address rate rule; longer codes would change what players type (owner) |
 | The relay passed on a frame of any size, at any rate | **done** | a frame over the game's 64 KB buffer is dropped; a socket far faster than a ship is closed; 20 node tests in the gate |
 | A flight's clocks and place were not checked before it was kept and drawn | **done** | checked on the host, and drawing is safe against a zero step; nettest |
