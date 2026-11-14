@@ -5,6 +5,9 @@
 #   .github/scripts/validate.sh            # the full gate
 #   SIM_RUNS=200 .github/scripts/validate.sh
 #   GODOT=/path/to/Godot .github/scripts/validate.sh
+#   GATE_STATIC=1 .github/scripts/validate.sh        # only the checks that need no Godot
+#   GATE_UNITS="tabs codecheck" .github/scripts/validate.sh   # just those units
+#   GATE_LIST=1 .github/scripts/validate.sh          # print the units it would run, in order, and stop
 #   LOG_DIR=./ci-logs .github/scripts/validate.sh
 #
 # CI runs this exact file, so a green pull request and a green laptop mean the
@@ -2181,6 +2184,82 @@ else
 fi
 }
 
+unit_framecheck() {
+step "No new work in a per-frame function that belongs in _ready"
+# A ratchet: a function the engine runs every frame (`_process`, `_physics_process`, `_draw`, and what
+# those call in the same file) may not load a resource, build an Image or texture, parse a colour from a
+# string, search the tree, open a file, parse JSON, deep-copy or build a material, unless it is lazy
+# initialisation. What predates it is in `tools/frame_check_baseline.txt` (docs/why/frame_check.md).
+if [ -n "$PY" ]; then
+	# The self-test first: the detector must read a tiny synthetic tree exactly, or its verdict on the real one is not trusted.
+	if ! "$PY" tools/frame_check.py --selftest >"$GATE_UNIT_DIR/framecheck.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/framecheck.out" | sed 's/^/        /'
+		bad "frame check self-test failed: the detector misread its synthetic tree (python3 tools/frame_check.py --selftest)"
+	elif "$PY" tools/frame_check.py >>"$GATE_UNIT_DIR/framecheck.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/framecheck.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/framecheck.out" | head -n 40 | sed 's/^/        /'
+		bad "frame check: new work in a per-frame function (python3 tools/frame_check.py; --report lists all of it)"
+	fi
+else
+	gate_no_python "the frame check"
+fi
+}
+
+unit_testsmap() {
+step "Every runnable harness has a row in docs/tests.md"
+# A ratchet: each harness in tkg/scripts/sim that DevFlags can start is named in docs/tests.md; no row
+# names a harness or flag that is gone; validate.sh names none that is gone. What predates it is in
+# `tools/tests_map_check_baseline.txt` (docs/why/tests_map_check.md).
+if [ -n "$PY" ]; then
+	if ! "$PY" tools/tests_map_check.py --selftest >"$GATE_UNIT_DIR/testsmap.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/testsmap.out" | sed 's/^/        /'
+		bad "tests map self-test failed: the check misread its synthetic tree (python3 tools/tests_map_check.py --selftest)"
+	elif "$PY" tools/tests_map_check.py >>"$GATE_UNIT_DIR/testsmap.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/testsmap.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/testsmap.out" | head -n 40 | sed 's/^/        /'
+		bad "tests map: a harness with no row in docs/tests.md, or a row or unit naming one that is gone (python3 tools/tests_map_check.py)"
+	fi
+else
+	gate_no_python "the tests map check"
+fi
+}
+
+unit_claudehooks() {
+step "The Claude Code hooks: the command guard, the edit ratchets and the Stop nudge do what they say"
+# Feeds each hook realistic payloads and asserts the exit code and message; starts no Godot, no network
+# (docs/why/claude_hooks.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/dev/claude_hooks.py --selftest >"$GATE_UNIT_DIR/claudehooks.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/claudehooks.out")"
+	else
+		grep -v '^  ok ' "$GATE_UNIT_DIR/claudehooks.out" | head -n 20 | sed 's/^/        /'
+		bad "a Claude Code hook misbehaves (python3 tools/dev/claude_hooks.py --selftest)"
+	fi
+else
+	gate_no_python "the Claude hooks self-test"
+fi
+}
+
+unit_gatelint() {
+step "The gate script is sound: no unit defined twice, no list or weight naming a missing unit, no dead why-pointer"
+# No baseline: all of it is zero and stays zero (docs/why/gate_lint.md).
+if [ -n "$PY" ]; then
+	if ! "$PY" tools/gate_lint.py --selftest >"$GATE_UNIT_DIR/gatelint.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/gatelint.out" | sed 's/^/        /'
+		bad "gate lint self-test failed: the lint misread its synthetic script (python3 tools/gate_lint.py --selftest)"
+	elif "$PY" tools/gate_lint.py >>"$GATE_UNIT_DIR/gatelint.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/gatelint.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/gatelint.out" | head -n 20 | sed 's/^/        /'
+		bad "gate lint: validate.sh has a duplicate unit, a name no unit has, or a dead pointer (python3 tools/gate_lint.py)"
+	fi
+else
+	gate_no_python "the gate lint"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.
@@ -2259,6 +2338,11 @@ fi
 #   calmladdertest   fixed fps, but a partner's ship eases on by the wall clock
 #                    (`_draw_partners`), so one slow frame is one jump past 40 px
 SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowhulltest ashteachcosttest flightclicks sim calmladdertest"
+# THE STATIC UNITS: GATE_STATIC=1, tools/dev/check.sh and the pre-commit hook run
+# exactly these. A unit qualifies when nothing in its body starts Godot (no
+# run_godot, gate_sheet, gate_check or $GODOT): plain shell, python or node, so
+# it needs no import and runs in seconds. A new unit of that kind goes here too.
+STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph framecheck testsmap gatelint claudehooks vocab enemysprites labs rail rooms yard"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
@@ -2312,6 +2396,13 @@ UNITS=()
 for u in $(sed -n 's/^unit_\([A-Za-z0-9_]*\)() {$/\1/p' "$GATE_SELF"); do
 	UNITS+=("$u")
 done
+# The same name defined twice means the later one silently wins (unit_codecheck
+# was, for a week). Looser than the list above so `unit_x()` on a line of its own is seen too.
+GATE_DUPS="$(sed -n 's/^unit_\([A-Za-z0-9_]*\)().*/\1/p' "$GATE_SELF" | sort | uniq -d | tr '\n' ' ')"
+if [ -n "$GATE_DUPS" ]; then
+	printf 'validate.sh: unit_%s is defined more than once; the later definition silently replaces the earlier. Rename or delete one.\n' "${GATE_DUPS%% *}" >&2
+	exit 2
+fi
 gate_has_unit() {
 	local u
 	for u in "${UNITS[@]}"; do [ "$u" = "$1" ] && return 0; done
@@ -2322,9 +2413,9 @@ gate_in() {  # gate_in NAME "LIST OF NAMES"
 	return 1
 }
 # A renamed unit must not quietly lose its place in the order.
-for u in $SOLO_UNITS $FIRST_UNITS $AFTER_UNITS; do
+for u in $SOLO_UNITS $FIRST_UNITS $AFTER_UNITS $STATIC_UNITS; do
 	if ! gate_has_unit "$u" || ! declare -F "unit_$u" >/dev/null; then
-		printf 'validate.sh: SOLO_UNITS, FIRST_UNITS or AFTER_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
+		printf 'validate.sh: SOLO_UNITS, FIRST_UNITS, AFTER_UNITS or STATIC_UNITS names %s, and there is no unit_%s\n' "$u" "$u" >&2
 		exit 2
 	fi
 done
@@ -2347,6 +2438,31 @@ for gate_split in "flighttest $GATE_FLIGHT_SHARDS" "solvetest $GATE_SOLVE_SHARDS
 	done
 done
 set --
+
+# GATE_UNITS="a b c" or GATE_STATIC=1 runs only the units named (in file order);
+# neither runs `import`, so a Godot unit named here needs an import already done.
+GATE_PICK=""
+if [ "${GATE_STATIC:-}" = 1 ]; then GATE_PICK="$STATIC_UNITS"; fi
+if [ -n "${GATE_UNITS:-}" ]; then
+	if [ -n "$GATE_PICK" ]; then
+		printf 'validate.sh: give GATE_UNITS or GATE_STATIC=1, not both\n' >&2; exit 2
+	fi
+	GATE_PICK="$GATE_UNITS"
+fi
+if [ -n "$GATE_PICK" ]; then
+	for u in $GATE_PICK; do
+		if ! gate_has_unit "$u"; then
+			printf 'validate.sh: GATE_UNITS names %s, and there is no such unit. The units are:\n' "$u" >&2
+			printf '  %s\n' "${UNITS[*]}" | fold -s -w 100 >&2
+			exit 2
+		fi
+	done
+	GATE_KEPT=()
+	for u in "${UNITS[@]}"; do
+		if gate_in "$u" "$GATE_PICK"; then GATE_KEPT+=("$u"); fi
+	done
+	UNITS=(${GATE_KEPT[@]+"${GATE_KEPT[@]}"})
+fi
 
 # THE PARTS. GATE_PART=K/N runs the Kth of N parts of the gate, so CI can run
 # the N parts on N machines at once (the whole gate is 108 CPU minutes on a
@@ -2401,7 +2517,7 @@ if [ "$GATE_PART_N" -gt 1 ]; then
 	for u in "${UNITS[@]}"; do
 		if gate_in "$u" "$FIRST_UNITS" || gate_in "$(gate_dealt_as "$u")" "$GATE_MINE"; then GATE_KEPT+=("$u"); fi
 	done
-	UNITS=("${GATE_KEPT[@]}")
+	UNITS=(${GATE_KEPT[@]+"${GATE_KEPT[@]}"})
 fi
 
 GATE_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 6)"
@@ -2415,6 +2531,44 @@ fi
 case "$GATE_JOBS" in
 	''|*[!0-9]*|0) printf 'validate.sh: GATE_JOBS must be a whole number, 1 or more (got %s)\n' "$GATE_JOBS" >&2; exit 2 ;;
 esac
+
+# The order the units will run in. GATE_LIST=1 prints it and stops: nothing runs.
+GATE_FIRST=()
+GATE_AFTER=()
+GATE_SOLO=()
+GATE_POOL=()
+GATE_POOL_ORDER=()
+if [ "$GATE_JOBS" -gt 1 ]; then
+	i=0
+	for u in "${UNITS[@]}"; do
+		if gate_in "$u" "$FIRST_UNITS"; then
+			GATE_FIRST+=("$u")
+		elif gate_in "$u" "$AFTER_UNITS"; then
+			GATE_AFTER+=("$u")
+		elif gate_in "$u" "$SOLO_UNITS"; then
+			GATE_SOLO+=("$u")
+		else
+			# heaviest first; file order among equals
+			GATE_POOL+=("$(gate_weight "$u") $i $u")
+		fi
+		i=$((i + 1))
+	done
+	while read -r _w _i u; do
+		GATE_POOL_ORDER+=("$u")
+	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
+fi
+if [ "${GATE_LIST:-}" = 1 ]; then
+	if [ "$GATE_JOBS" -eq 1 ]; then
+		for u in "${UNITS[@]}"; do printf 'serial\t%s\n' "$u"; done
+	else
+		for u in ${GATE_FIRST[@]+"${GATE_FIRST[@]}"}; do printf 'first\t%s\n' "$u"; done
+		for u in ${GATE_POOL_ORDER[@]+"${GATE_POOL_ORDER[@]}"}; do printf 'pool\t%s\n' "$u"; done
+		for u in ${GATE_AFTER[@]+"${GATE_AFTER[@]}"}; do printf 'after\t%s\n' "$u"; done
+		for u in ${GATE_SOLO[@]+"${GATE_SOLO[@]}"}; do printf 'solo\t%s\n' "$u"; done
+	fi
+	rmdir "$LOG_DIR" 2>/dev/null
+	exit 0
+fi
 
 # Each unit's held output, its verdict, its Godot PIDs and its user folder. Not
 # LOG_DIR: that is kept, and this is not.
@@ -2528,30 +2682,8 @@ if [ "$GATE_JOBS" -eq 1 ]; then
 	# The old gate: one at a time, in file order, nothing moved.
 	run_phase 1 "${UNITS[@]}"
 else
-	GATE_FIRST=()
-	GATE_AFTER=()
-	GATE_SOLO=()
-	GATE_POOL=()
-	i=0
-	for u in "${UNITS[@]}"; do
-		if gate_in "$u" "$FIRST_UNITS"; then
-			GATE_FIRST+=("$u")
-		elif gate_in "$u" "$AFTER_UNITS"; then
-			GATE_AFTER+=("$u")
-		elif gate_in "$u" "$SOLO_UNITS"; then
-			GATE_SOLO+=("$u")
-		else
-			# heaviest first; file order among equals
-			GATE_POOL+=("$(gate_weight "$u") $i $u")
-		fi
-		i=$((i + 1))
-	done
-	GATE_POOL_ORDER=()
-	while read -r _w _i u; do
-		GATE_POOL_ORDER+=("$u")
-	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
-	run_phase 1 "${GATE_FIRST[@]}"
-	run_phase "$GATE_JOBS" "${GATE_POOL_ORDER[@]}"
+	run_phase 1 ${GATE_FIRST[@]+"${GATE_FIRST[@]}"}
+	run_phase "$GATE_JOBS" ${GATE_POOL_ORDER[@]+"${GATE_POOL_ORDER[@]}"}
 	# (a part may hold none of these; bash 3.2 reads an empty array as unbound)
 	run_phase "$GATE_JOBS" ${GATE_AFTER[@]+"${GATE_AFTER[@]}"}
 	run_phase 1 ${GATE_SOLO[@]+"${GATE_SOLO[@]}"}

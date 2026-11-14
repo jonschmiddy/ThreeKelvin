@@ -8,7 +8,8 @@
 # prints what it did.
 #
 # The only thing it currently does is point git at the hooks this repository
-# ships. That needs saying, because it is the one piece of project setup git
+# ships (pre-commit: the static checks, in seconds; post-commit and post-checkout:
+# the graph rebuild). That needs saying, because it is the one piece of project setup git
 # genuinely cannot do for you: `.git/hooks/` is NOT version controlled, by
 # design — a repository that could install executables that run on `git
 # commit` just by being cloned would be a security hole. So hooks live in
@@ -38,7 +39,9 @@ fi
 #
 # `core.hooksPath` REPLACES `.git/hooks/` rather than adding to it. So any hook
 # previously installed there stops running the moment this is set, which is
-# what we want — otherwise a graphify rebuild fires twice per commit.
+# what we want — otherwise a graphify rebuild fires twice per commit. pre-commit
+# runs the static checks (tools/dev/check.sh --static); skip it once with
+# `git commit --no-verify`.
 
 current="$(git config core.hooksPath || true)"
 if [ "$current" = ".githooks" ]; then
@@ -48,10 +51,13 @@ else
 	ok "hooks now run from .githooks (was: ${current:-.git/hooks})"
 fi
 
-for h in post-commit post-checkout; do
+for h in pre-commit post-commit post-checkout; do
 	if [ -f ".git/hooks/$h" ]; then
-		mv ".git/hooks/$h" ".git/hooks/$h.superseded"
-		note "moved stale .git/hooks/$h aside (superseded by .githooks/$h)"
+		# never overwrite an earlier .superseded: take the first free name
+		dest=".git/hooks/$h.superseded"; n=1
+		while [ -e "$dest" ]; do dest=".git/hooks/$h.superseded.$n"; n=$((n + 1)); done
+		mv ".git/hooks/$h" "$dest"
+		note "moved stale .git/hooks/$h aside to $dest (superseded by .githooks/$h)"
 	fi
 	[ -x ".githooks/$h" ] || chmod +x ".githooks/$h"
 done
