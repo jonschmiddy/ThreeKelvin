@@ -1411,3 +1411,73 @@ screen's dark behind its header and gaps: the hall showing through them had left
 the title afloat on it. Fully away, the elevator is not drawn at all, so the pan
 and the flight never show it through.
 
+
+## Rooms ahead
+
+Above `const QUIET := 30` in `RoomsAhead`:
+
+THE FIRST RIDE TO THE PROMENADE OR THE EXCHANGE HITCHED, AND THE LAZINESS WAS
+NEVER A CHOICE. `ShopScene._draw` defers its plate load (`_load_plate`) until the
+room is first drawn, and a page hidden since the screen was built is first
+drawn when the ride makes it visible. Why the load waits for a draw at all
+(`526f56ae`, `eda4e3da`, `4921be79`): a room's `dev`, `place_seed` and `sky_node`
+are set by `_refresh` after the page is built, so the load cannot be in
+`_ready`; and a texture first touched INSIDE `_draw` renders white, so it has
+to be a deferred call outside it. Nothing says it must happen at the first
+draw; that is only the first moment the key is known to be right AND nothing
+else needs doing. Nothing about it protects docking speed or memory (the
+plates are loaded once per docking either way).
+
+Measured headless (`DeckRideBench`, `--fixed-fps 60`, script time only, a busy
+machine, so the steady column and the work counts): the cold first visit of a
+docking cost 20 to 25 ms (work>stock, +10 nodes, +46 resources) and 33 to 35 ms
+(stock>hold, +2 nodes, +8 resources) in one frame, against 1.5 to 3 ms for a
+later visit. In `_load_plate`: the Promenade's 20 ms is the room's textures
+(~9) and the sprites the base room resolves (~10 to 17); the Exchange's is its
+own textures (~7) and the sky (22 to 47 ms, nearly all of it
+`SpaceBackdrop.setup` baking the planet pixel by pixel in GDScript).
+
+THE SLOT: once the dock has been quiet 30 frames, one step a frame, a room that
+is not on screen loads (`ShopScene.load_plate_ahead`: the same `_load_plate`
+the draw would have deferred). Quiet is: no ride, no `ZoomLadder`, no rail
+slide, the screen's fade-in finished, and this screen the current one. The
+Exchange takes two steps (its sky, then the rest, `ExchangeScene.load_plate_ahead`)
+so no one frame carries the sky and the rest of its plate; `_choose_view` finds
+the sky made (`setup` returns early for the same node), only the cheap redraw and
+a second one-time render of the sky are repeated.
+
+SLOTS TRIED, arrival frames from `-- sheet=DeckRideBench mode=arrive` (the call
+that opens the station is frame 0; medians over 4 runs, ms):
+
+- Nothing (today): frame 0 (the build, `setup`) 113 to 170; frame 1 17 to 30;
+  after that under 8 apart from the ladder's last frame; first ride 22 to 56 for
+  the Promenade, 33 to 49 for the Exchange.
+- At the end of `setup` (built, not yet on screen): the build is one frame of
+  100 to 170 ms already, so +50 to +75 ms there is a worse worst frame than the
+  arrival has today. Rejected: "the arrival must not gain a worse frame".
+- Idle, one step a frame (chosen): frame 0 and 1 unchanged; one frame of ~22
+  (Promenade), one of ~28 (the sky), one of ~11 (the rest), at frames 38 to 40,
+  with the screen standing still; every first ride 3 to 10 ms (the +10 nodes and
+  +46 resources gone from the ride).
+- Under the dark of the first deck change: the dark is only in the fade ride, the
+  slide has none, and it moves the same 25 to 55 ms into the ride's first frames.
+  Rejected.
+
+WHAT IS LEFT: three frames of 11 to 28 ms, 0.6 s after the arrival settles, on a
+still screen. The sky's bake is the one piece that cannot be split without
+reworking `SpaceBackdrop._bake_world` into row slices; left alone, since its
+image must stay byte for byte what it is. A ride that comes before the load
+takes today's way, since the draw's deferred call is still there (the load is
+skipped for a room that is on screen).
+
+SAME STATE, PROVEN (`-- sheet=StationAheadTest`): a hidden page's controls are
+laid out the same, because `StationRoom`'s plate and `ShopScene.openings` do
+not read `size`, the furniture handlers (`_place_shop_furniture`,
+`_place_exchange_furniture`) set positions and sizes from the room's data, and
+the pages' roots are plain `Control`s. The test docks a station left idle and
+docks it ridden at once, in both orders of first visit, for every
+development level, and dumps both pages' whole trees.
+
+ONE THING CHANGES: the first draw no longer shows an empty room for a frame
+(the draw that deferred the load returned without drawing). The room is there
+from the first frame of the ride.
