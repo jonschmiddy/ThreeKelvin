@@ -41,9 +41,14 @@ proof, and its number is in the table for when you want to read one.
 | #86 | Colours used by drawing code are read from text once, not every frame (126 constants in 31 files). | each constant put back as its literal: no code line differs | windowed sheets listed in the PR |
 | #87 | Small helpers that were copied between files are one function each (23 copies gone). | each pair compared over at least 100,000 inputs, bit for bit | nothing |
 | #88 | Work that gave the same answer every call is done once (the launch arguments, the material table, the lab's screensaver deal, the board lamp). | 33,377 cached answers compared with fresh ones, 0 differ | nothing |
+| (no wave PR) | **Party input.** The host ignores or trims bad, oversize and late input from another ship: a flight with no duration, a build carrying more than a ship has, more claims than a system can hold, a connection that never says hello. `PROTOCOL` stays 20. | new checks in `nettest`, each failing on the old code | your ruling on two visible things, below |
+| (no wave PR) | **Relay limits.** The relay answers a path that is not a party code without waking a party, drops a frame over the game's buffer, closes a socket far faster than a ship, and gives back the seat of a guest that never speaks. | 20 node tests, now a gate unit (`relaytest`); codes checked against 300 the game made | **not live until James deploys the relay**; never run on Cloudflare |
+| (no wave PR) | **Damaged files.** A save with a wrong-typed field is refused whole before the run is touched; SAVE MY LOGS scrubs the settings, save and history files too; CI's Godot download and its actions are pinned. `VERSION` stays 43. | 44 cases in `savetest`; `menutest` | nothing |
 
 The rows are in the order the commits sit on the branch, except the first two, which
-were cut from `main` and merged in last.
+were cut from `main` and merged in. The last three were added after the fold and have
+no wave PR: each is one merge on the branch (`fix/party-bad-input`, `fix/relay-limits`,
+`fix/damaged-files`).
 
 Two rows change how you and your Claude work, not the game: #73 (the code graph as a
 gate check) and #85 (the guardrails). **Read #85's page before landing.** Each of its
@@ -125,9 +130,24 @@ Each of these would change what the game does, so it is your call.
 - **Two doc contradictions:** `docs/why/AreaView.md` says `_core` and `_pulsar` stay
   for PlaceSheet, which never calls them; `UITheme` says sizes are multiples of 8 and
   uses 10, 11 and 26.
-- **Security:** a review of the netcode, the relay, saves and the build scripts found 13
-  items, none critical or high, four medium. They are not fixed and not written here,
-  because this repository is public. James has the detail.
+- **Party input, two things a player could see.** A callsign typed with square
+  brackets now shows without them on every machine, and an empty one shows as PILOT.
+  One system holds at most 1,024 claims and the party 16,384 (ten eight-ship fights
+  stripped bare at one system; about twice a galaxy stripped bare). Past either, a
+  take is refused. Raise them if you would rather.
+- **The relay limits are code only until deployed.** James: try it under
+  `wrangler dev` with two game copies first (`relay/README.md` says how), then
+  `wrangler deploy` when nobody is mid-dive. No client build is needed, and the alpha
+  already out sees no difference. Left for a ruling: a guest that says hello and is
+  then refused cannot be removed on the relay without a new relay frame; a
+  per-address rate rule belongs in the Cloudflare account; longer codes would change
+  what players type.
+- **A ship's own machine reports its hits,** and the host checks only that they are in
+  range. Left as it is: a friends' game.
+- **`nettest`, one line once.** "a spot that holds still is not said again within a
+  beat" failed once in 11 runs with the party-input change, on a machine under heavy
+  load, and never in 12 runs without it. The test reads a stale stamp when an
+  unreliable message does not arrive. Not explained further.
 
 ## Not done
 
