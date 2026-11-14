@@ -1,0 +1,1 @@
+- **Fixed** — the first ride to the Promenade or the Exchange after docking no longer hitches.

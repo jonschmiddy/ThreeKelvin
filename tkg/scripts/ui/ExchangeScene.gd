@@ -172,6 +172,17 @@ func _hang(fr: Rect2, catch_y: float) -> void:
 
 # ----------------------------------------------------------------------- sky
 
+## The sky (the planet's bake, 22 to 47 ms) goes a frame ahead of the rest of the plate, so no one
+## frame carries both; `_choose_view` finds it made. True while there is a step left to take.
+## Why: docs/why/ExchangeScene.md#plate-ahead
+func load_plate_ahead() -> bool:
+	if _plate_key != _plate_cache_key() and not is_visible_in_tree() \
+			and (_sky == null or _sky_for != sky_node):
+		_ensure_sky()
+		return true
+	return super()
+
+
 ## The station's sky in place of the concourse the base room picked.
 func _choose_view() -> void:
 	_ensure_sky()

@@ -49,3 +49,14 @@ round the door's edges and round everything standing in front of it (Jon,
 pixel for pixel, one channel per hold size (`room_install.view_masks`), and
 the light leaves exactly those pixels alone.
 ```
+
+## Plate ahead
+
+Above `func load_plate_ahead() -> bool:`:
+
+The Exchange's plate load is the shop's plus its sky: `SpaceBackdrop.setup`
+bakes the planet pixel by pixel, 22 to 47 ms, against ~7 for the rest.
+`ShopScene.load_plate_ahead` runs the load in one frame; here the sky is made
+a frame before it so no one frame carries both. `setup` returns early for the
+node it already has, so `_choose_view`'s `_ensure_sky` then costs only the
+redraw. See `docs/why/StationScreen.md#rooms-ahead`.

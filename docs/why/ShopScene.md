@@ -41,3 +41,16 @@ NO LIVERY. The old room tinted its trim in the manufacturer's colour and hung
 cables in front; the bench has neither, so neither does this (the port
 plan's option 2A). Other decks keep theirs.
 ```
+
+## Plate ahead
+
+Above `func load_plate_ahead() -> bool:`:
+
+`_draw` defers `_load_plate` until the room is first drawn, which for a page
+hidden since the screen was built is the first frame of the first ride to it:
+20 to 25 ms there, against 1.5 to 3 for a later visit. `load_plate_ahead` is that
+same deferred call made early by `RoomsAhead` (a child of `StationScreen`) while the
+room is hidden, so the room ends up as the draw would have left it and the
+white-texture rule (nothing first touched inside `_draw`) holds as it did. It
+refuses a room that is on screen, whose draw owns the load. The whole reasoning
+and the numbers are in `docs/why/StationScreen.md#rooms-ahead`.

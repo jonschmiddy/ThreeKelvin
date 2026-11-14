@@ -203,6 +203,18 @@ func _load_plate(key: StringName) -> void:
 	room_loaded.emit()
 
 
+## The plate, loaded now rather than on the first draw, for a room that is not on screen: the first
+## ride to it would pay the load inside its first frame. The same call `_draw` defers, so the
+## room ends up as that path leaves it. False if there was nothing to load or it is on screen.
+## Why: docs/why/ShopScene.md#plate-ahead
+func load_plate_ahead() -> bool:
+	var key := _plate_cache_key()
+	if key == &"" or _plate_key == key or is_visible_in_tree():
+		return false
+	_load_plate(key)
+	return true
+
+
 func _load_room() -> void:
 	_tex.clear()
 	var files: Array[String] = [_plate_name()]
