@@ -146,12 +146,12 @@ bare scripts/ui/BreakupCuts.gd::_cut_classic
 bare scripts/ui/BreakupCuts.gd::_cut_creature
 bare scripts/ui/BreakupCuts.gd::_cut_new
 bare scripts/ui/BreakupCuts.gd::_field
-bare scripts/ui/BreakupCuts.gd::_hull_pic
 bare scripts/ui/BreakupCuts.gd::_majors_of
 bare scripts/ui/BreakupCuts.gd::_melt_field
 bare scripts/ui/BreakupCuts.gd::_melt_pic
 bare scripts/ui/BreakupCuts.gd::_rib_curves
 bare scripts/ui/BreakupCuts.gd::_shards_of
+bare scripts/ui/BreakupCuts.gd::hull_pic
 bare scripts/ui/ChartPainted.gd::cloud_uniforms
 bare scripts/ui/ChartPainted.gd::galaxy_uniforms
 bare scripts/ui/ChartPainted.gd::tables
@@ -436,7 +436,6 @@ bare scripts/ui/StationSides.gd::pick
 bare scripts/ui/ThrusterFx.gd::_bell
 bare scripts/ui/ThrusterFx.gd::_build
 bare scripts/ui/ThrusterFx.gd::_frame
-bare scripts/ui/ThrusterFx.gd::_hull_pic
 bare scripts/ui/ThrusterFx.gd::_quantize
 bare scripts/ui/ThrusterFx.gd::_tail
 bare scripts/ui/ThrusterFx.gd::particles_at

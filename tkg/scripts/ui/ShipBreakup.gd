@@ -811,7 +811,7 @@ func _setup_new(img: Image, used: Rect2i, seed: int) -> void:
 		Style.SHIELD:
 			_build_shield()
 		Style.MELT, Style.CRUMPLE:
-			var H := BreakupCuts._hull_pic(img, used, HULL_PAD)
+			var H := BreakupCuts.hull_pic(img, used, HULL_PAD)
 			_stage_at = Vector2((H.r as Rect2i).position)
 			var ks: Array = []
 			if style == Style.MELT:
@@ -2224,7 +2224,7 @@ func _setup_creature(img: Image, used: Rect2i, seed: int) -> void:
 			row.append(_glow_band(pts, cs, _fluid))
 		_gl_tex.append(row)
 	if style == Style.GLOWOUT:
-		var H := BreakupCuts._hull_pic(img, used, 12)
+		var H := BreakupCuts.hull_pic(img, used, 12)
 		var raw: PackedColorArray = H.raw
 		var mask: PackedByteArray = H.mask
 		var col := PackedColorArray()
