@@ -4,6 +4,7 @@ extends Node
 ## Why: docs/why/CoreSheet.md#core-sheet
 
 const CoreView := preload("res://scripts/ui/sysmap/CoreView.gd")
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const CX := 622
 const CY := 262
 
@@ -178,7 +179,7 @@ static func _test_sky() -> Image:
 			if x % 24 == 0 or y % 24 == 0:
 				c = grid
 			else:
-				var h: float = CoreView.hash2(x * 3 + 1, y * 5 + 2)
+				var h: float = SkyBakeS.hash2(x * 3 + 1, y * 5 + 2)
 				if h < 0.012:
 					c = s2
 				elif h < 0.04:
@@ -334,7 +335,7 @@ static func _test_sky_at(x0: int, y0: int, w: int, h: int) -> Image:
 			if posmod(x, 24) == 0 or posmod(y, 24) == 0:
 				c = grid
 			else:
-				var hv: float = CoreView.hash2(x * 3 + 1, y * 5 + 2)
+				var hv: float = SkyBakeS.hash2(x * 3 + 1, y * 5 + 2)
 				if hv < 0.012:
 					c = s2
 				elif hv < 0.04:

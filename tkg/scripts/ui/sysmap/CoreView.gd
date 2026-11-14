@@ -8,6 +8,7 @@ signal traced
 ## A trace at `k` has come in and the hole is now drawn from it, sharp.
 signal zoom_traced(k: float)
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const TRACE := preload("res://shaders/core_trace.gdshader")
 const HOLE := preload("res://shaders/core_hole.gdshader")
 const LENS := preload("res://shaders/core_lens.gdshader")
@@ -118,7 +119,7 @@ func _init() -> void:
 	set_process(false)
 	if _clumps.is_empty():
 		for i in 26:
-			_clumps.append(Vector3(hash2(i, 11) * 7.0, hash2(i, 12) * TAU, 5.0 + hash2(i, 13) * 3.0))
+			_clumps.append(Vector3(SkyBakeS.hash2(i, 11) * 7.0, SkyBakeS.hash2(i, 12) * TAU, 5.0 + SkyBakeS.hash2(i, 13) * 3.0))
 
 
 ## The lens must draw after what it bends, so the screen places it; `step` keeps it in place.
@@ -356,13 +357,6 @@ static func cache_zooms() -> Array[float]:
 	return out
 
 
-## The mockup's 2D integer hash, to [0, 1).
-static func hash2(x: int, y: int) -> float:
-	var h := ((x * 374761393) ^ (y * 668265263)) & 0xFFFFFFFF
-	h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
-	return float((h ^ (h >> 16)) & 0xFFFFFFFF) / 4294967296.0
-
-
 ## JavaScript's Math.round: halves go up, never away from zero.
 static func _jround(x: float) -> int:
 	return floori(x + 0.5)
@@ -378,7 +372,7 @@ func step(t: float) -> void:
 	# goes through it at the start
 	var n := floori(t / 4.2)
 	var u := t / 4.2 - n
-	var flare := maxf(0.0, 1.0 - u * 5.0) * 0.75 if hash2(n, 77) > 0.35 else 0.0
+	var flare := maxf(0.0, 1.0 - u * 5.0) * 0.75 if SkyBakeS.hash2(n, 77) > 0.35 else 0.0
 	var breath := 1.0 + 0.13 * sin(t * 1.3) + 0.08 * sin(t * 3.1 + 1.0) + flare + breath_add
 	_hmat.set_shader_parameter("time", t)
 	_hmat.set_shader_parameter("breath", breath)

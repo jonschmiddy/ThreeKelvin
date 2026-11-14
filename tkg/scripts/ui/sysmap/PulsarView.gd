@@ -4,6 +4,7 @@ extends Node2D
 ## Beat time syncs each flash to what is heard.
 ## Why: docs/why/PulsarView.md#pulsar-view
 
+const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
 const SHADER := preload("res://shaders/pulsar.gdshader")
 const WEB_SHADER := preload("res://shaders/pulsar_web.gdshader")
 
@@ -223,28 +224,21 @@ func step(t: float) -> void:
 
 # ---------------------------------------------------------------- the roll
 
-## The mockup's own two-number hash (`hash` in PS): Math.imul wraps at 32 bits.
-static func hash2(x: int, y: int) -> float:
-	var h := ((x * 374761393) ^ (y * 668265263)) & 0xFFFFFFFF
-	h = ((h ^ (h >> 13)) * 1274126177) & 0xFFFFFFFF
-	return float(h ^ (h >> 16)) / 4294967296.0
-
-
 ## A system's pulsar rolls its cloud density at random for variety (Jon).
 static func roll(seed: int) -> Dictionary:
-	var d := hash2(seed, 11)
-	var size := hash2(seed, 12)
-	var spin := hash2(seed, 13)
+	var d := SkyBakeS.hash2(seed, 11)
+	var size := SkyBakeS.hash2(seed, 12)
+	var spin := SkyBakeS.hash2(seed, 13)
 	var gas := {
 		"R": 28.0 + size * 16.0, "w": 6.0 + d * 16.0, "tall": 0.7 + d * 0.4, "turb": 0.99 - d * 0.2,
-		"warp": 0.9 + 0.6 * hash2(seed, 15), "haze": 0.04 + d * 0.75, "I": 0.5 + d * 0.8,
-		"spin": 0.18 + spin * 0.24, "ox": hash2(seed, 21) * 400.0, "oy": hash2(seed, 22) * 400.0,
+		"warp": 0.9 + 0.6 * SkyBakeS.hash2(seed, 15), "haze": 0.04 + d * 0.75, "I": 0.5 + d * 0.8,
+		"spin": 0.18 + spin * 0.24, "ox": SkyBakeS.hash2(seed, 21) * 400.0, "oy": SkyBakeS.hash2(seed, 22) * 400.0,
 		# three heights through the cloud on the map, not five: a third cheaper, and it reads the same at this size
 		"vol": 3,
 	}
-	var n := 1 if hash2(seed, 101) < 0.5 else 2
-	var a := int(floor(hash2(seed, 202) * POOL.size()))
-	var b := int(floor(hash2(seed, 303) * (POOL.size() - 1)))
+	var n := 1 if SkyBakeS.hash2(seed, 101) < 0.5 else 2
+	var a := int(floor(SkyBakeS.hash2(seed, 202) * POOL.size()))
+	var b := int(floor(SkyBakeS.hash2(seed, 303) * (POOL.size() - 1)))
 	if b >= a:
 		b += 1
 	var picks: Array[StringName] = [POOL[a]]
@@ -258,7 +252,7 @@ static func roll(seed: int) -> Dictionary:
 			&"jets": s.jets = true
 			&"sky": s.sky = true
 			&"quake": s.quake = true
-			&"wobble": s.wobble = 0.22 if hash2(seed, 404) < 0.5 else 0.5
+			&"wobble": s.wobble = 0.22 if SkyBakeS.hash2(seed, 404) < 0.5 else 0.5
 	return s
 
 
