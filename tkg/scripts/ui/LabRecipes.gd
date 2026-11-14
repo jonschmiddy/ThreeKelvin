@@ -47,15 +47,14 @@ const RECIPE_ORDER := [&"develop", &"read", &"analysis"]
 static var _imgs := {}
 static var _texs := {}
 ## Each thing in words: all of it, its unit (one, many), what it is on the bench, what a
-## recipe needs of it, what a recipe uses, where it comes from (short, long),
-## and its line on the rail's key.
+## recipe needs of it, what a recipe uses, where it comes from (short, long).
 const WORDS := {
 	&"survey_film": {all = "SURVEY FILM", one = "ROLL", many = "ROLLS", kind = "UNDEVELOPED", need = "A ROLL OF FILM",
 		uses = "1 ROLL", the = "1 ROLL", from = "FROM SOME EVENTS",
-		from_long = "SOME EVENTS PAY YOU IN SURVEY FILM.", key = "FILM COMES FROM SOME EVENTS."},
+		from_long = "SOME EVENTS PAY YOU IN SURVEY FILM."},
 	&"relic": {all = "RELICS", one = "RELIC", many = "RELICS", kind = "PRECURSOR FRAGMENT", need = "A RELIC",
 		uses = "THE RELIC", the = "THE RELIC", from = "FROM WRECKS, DANGER 7+",
-		from_long = "RELICS COME FROM WRECKS AT DANGER 7 AND UP.", key = "RELICS COME FROM WRECKS."},
+		from_long = "RELICS COME FROM WRECKS AT DANGER 7 AND UP."},
 }
 
 var tint := Color(190.0 / 255.0, 240.0 / 255.0, 235.0 / 255.0)
@@ -741,7 +740,7 @@ static func _words(id: StringName) -> Dictionary:
 		return WORDS[id]
 	var nm := str(MaterialTable.by_id(id).get("name", id)).to_upper()
 	return {all = nm, one = nm, many = nm, kind = "MATERIAL", need = "1 " + nm, uses = "1 " + nm, the = "1 " + nm,
-		from = "", from_long = "", key = ""}
+		from = "", from_long = ""}
 
 
 ## "2 ROLLS", "1 RELIC", "NONE".

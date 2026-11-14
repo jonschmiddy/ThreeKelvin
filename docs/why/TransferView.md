@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/ui/TransferView.gd`, moved out of the code ver
 
 ## Container screen
 
-Above `const PAD := 24`:
+Above `const GAP := 12`:
 
 ```text
 Your hold on the left, what is out there on the right, and a drag between.
@@ -480,7 +480,7 @@ left to place.
 
 ## Loot opens where it is
 
-Above `const PAD := 24`:
+Above `const GAP := 12`:
 
 ```text
 LOOT OPENS WHERE IT IS (Jon, Nov 9, stripped-down UI A2). This was a centred

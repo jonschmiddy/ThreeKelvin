@@ -62,8 +62,8 @@ const BAD := Color("#c8503c")
 const BEVEL_HI := Color("#3d4d61")
 const BEVEL_LO := Color("#080b11")
 
-# Silkscreen is an 8px face: use multiples of 8 or it resamples. 960x540 viewport drawn at
-# 2x.
+# Silkscreen is an 8px face: 8 and 16 are crisp, and 10, 11 and FS_PLACE are authored
+# exceptions (Jon signed them off). Other sizes resample. 960x540 viewport drawn at 2x.
 const FS_SMALL := 8
 
 ## Tooltips are one rectangle, not sized to text. 32 chars is narrow on purpose: read in a
@@ -75,8 +75,8 @@ const TOOLTIP_WRAP := 32
 const FS_BODY := 8
 const FS_HEAD := 16
 
-## For a heading alone in its corner. 26 is the next crisp whole multiple of the pixel
-## face.
+## For a heading alone in its corner. 26 is an authored size (not a multiple of 8) that Jon
+## signed off.
 ## Why: docs/why/UITheme.md#place-heading-size
 const FS_PLACE := 26
 

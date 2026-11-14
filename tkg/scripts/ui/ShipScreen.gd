@@ -34,8 +34,6 @@ const LABEL_AIR := 3
 ## made 16.
 ## Why: docs/why/ShipScreen.md#panel-widths
 
-const STORAGE_COLS := 4
-
 ## Wider than a card so manufacturer lines do not wrap and make boxes uneven in height.
 ## Why: docs/why/ShipScreen.md#module-readouts
 const READOUT_W := 150.0
@@ -213,7 +211,7 @@ func _build() -> void:
 	_padl = Control.new()
 	_padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vwrap.add_child(_padl)
-	# The clip box is what layout sizes; the view may grow, so `_centre_ship` measurements
+	# The clip box is what layout sizes; the view may grow, so `_sync_clip` measurements
 	# hold at any zoom.
 	_clip = Control.new()
 	_clip.clip_contents = true
@@ -392,10 +390,6 @@ func _build() -> void:
 	rwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(rwrap)
 
-## Superseded by `_sync_clip`. Kept as a name callers use on hull change.
-func _centre_ship() -> void:
-	_sync_clip()
-
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
@@ -427,7 +421,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
 		get_viewport().set_input_as_handled()
 
-## Zoom keeps the panel size so `_centre_ship` holds. MountPoints is PASS while zoomed.
+## Zoom keeps the panel size so `_sync_clip` holds. MountPoints is PASS while zoomed.
 ## Why: docs/why/ShipScreen.md#zoom-in-place
 func _set_zoom(on: bool) -> void:
 	if _view == null or _clip == null:

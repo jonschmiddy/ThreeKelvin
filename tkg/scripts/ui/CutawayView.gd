@@ -920,7 +920,8 @@ class Rule extends Control:
 		draw_rect(Rect2(0, y, size.x, 1), UITheme.LINE)
 
 
-## Gaps share the spare height up to `GAP_MAX`; the fullest panel keeps at least `GAP_MIN`.
+## Gaps share the spare height, half each, clamped to 0..`GAP_MAX`. `GAP_MIN` is only the floor
+## `CutawayTest` holds them to; `_fit_gaps` does not apply it.
 const GAP_MAX := 14
 const GAP_MIN := 8
 

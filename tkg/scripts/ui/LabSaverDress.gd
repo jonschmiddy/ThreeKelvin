@@ -14,7 +14,7 @@ const BASE := {
 	s2_label = "SPECIMEN", s2_code = "RELIC R-%03d", s2_done = "NO MATCH ON FILE", s2_shape = "crystal",
 	s2_acc = false, s2_heat = false, s2_field = false, s2_node = false,
 	s3_title = " RESEARCH NET", s3_full = "", s3_counter = "ROUTINES RESEARCHED, ALL LABS", s3_base = -1,
-	s3_own = [], s3_src = "%s LAB %d", s3_stamp = true, s3_every = 2.6, s3_units = false, s3_open = false, s3_acc = false,
+	s3_own = [], s3_src = "%s LAB %d", s3_stamp = true, s3_every = 2.6, s3_units = false, s3_acc = false,
 	s4_title = " FIT CHECK", s4_full = "", s4_tag = "", s4_acc = false, s4_own = false,
 	s5 = [],
 	s6_route = false, s6_disc = false, s6_heat = false, s6_core = null, s6_beat = 1.6, s6_right = "",
@@ -140,7 +140,7 @@ const OWNERS := {
 	},
 	&"": {
 		s2_node = true,
-		s3_full = "OPEN RESEARCH NET", s3_open = true,
+		s3_full = "OPEN RESEARCH NET",
 		s5 = [
 			["mark", "INDEPENDENT", "NO OWNER. OPEN TO ALL."],
 			["big", "THIS LAB IS OPEN", "TO ANY PILOT.", "PUT THE TOOLS BACK."],

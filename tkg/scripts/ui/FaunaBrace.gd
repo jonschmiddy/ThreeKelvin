@@ -249,7 +249,7 @@ func gain(amount: int) -> void:
 
 func shed_to(n: int) -> void:
 	brace = maxi(0, n)
-	_drop(Vector2.INF, false)
+	_drop(Vector2.INF)
 
 
 func absorb(amount: int, at: Vector2 = Vector2.INF) -> int:
@@ -267,13 +267,13 @@ func absorb(amount: int, at: Vector2 = Vector2.INF) -> int:
 		_bits.add(FaunaGuard.shown(fm, q), (Vector2(float(facing), 0) + Vector2.RIGHT.rotated(_rng.randf() * TAU)).normalized() * _rng.randf_range(20.0, 45.0),
 			_rng.randf_range(0.2, 0.4), t, dust, 4.0)
 	moment.emit(&"clang", 0.5 + 0.5 * float(took) / float(maxi(1, _peak)), 0.0)
-	_drop(q, true)
+	_drop(q)
 	return amount - took
 
 
 ## Down to what the brace left wants: the nearest the hit first (a quiet shed:
 ## the far side first).
-func _drop(q: Vector2, _hard: bool) -> void:
+func _drop(q: Vector2) -> void:
 	var n := _want()
 	var toward := float(-facing)
 	var on: Array = range(_patches.size()).filter(func(k: int) -> bool: return _patches[k].on)
@@ -360,7 +360,6 @@ func advance(delta: float) -> void:
 
 func _paint_body(ci: CanvasItem) -> void:
 	var keep := FaunaGuard.keep_of(self)
-	var fm := FaunaGuard.motion_of(self)
 	var tq := _clock.tq(t)
 	var h := 0
 	for c in _flakes:
@@ -381,9 +380,7 @@ func _paint_body(ci: CanvasItem) -> void:
 
 func _paint_light(ci: CanvasItem) -> void:
 	var keep := FaunaGuard.keep_of(self)
-	var fm := FaunaGuard.motion_of(self)
 	var tq := _clock.tq(t)
-	var st := _clock.index(t)
 	var h := 0
 	h = h * 31 + _bits.paint(ci, keep, tq)
 	ci.set_meta(&"sig", h)

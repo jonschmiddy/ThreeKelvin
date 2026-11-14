@@ -23,6 +23,8 @@ const OPEN := 0.2
 ## Why: docs/why/HoloTag.md#wears-thin
 const D_AFTER := 3.0
 const G_BASE := 2
+const G3 := 3
+const G4 := 4
 const G5B := 6
 ## A harness's hold on the level (`-- tagglitch=1..5` or `5b`); 0 follows the hull.
 static var glitch := 0
@@ -226,8 +228,8 @@ static func hull_level(worn: float, on: float, dire: float = 0.0) -> int:
 	if dire >= 0.5:
 		return G5B
 	if on >= 0.5:
-		return 4
-	return 3 if worn >= 0.5 else G_BASE
+		return G4
+	return G3 if worn >= 0.5 else G_BASE
 
 
 ## A stable 0..1 from three ints.
