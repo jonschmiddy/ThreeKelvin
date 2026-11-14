@@ -2253,6 +2253,24 @@ else
 fi
 }
 
+unit_relaytest() {
+step "The relay's limits are the game's own numbers, and a real party passes them"
+# relay/test/: the code check against codes LobbyCode itself made, the frame size, the rate and the
+# silent-guest rule, the game's constants they were copied from, and a party through the real
+# relay/src/index.js on stand-in sockets. Plain node (20 or newer), nothing installed, no network.
+# The files are named by the shell: since Node 21 a directory given to --test is run as a file.
+if ! command -v node >/dev/null 2>&1; then
+	ok "node absent, skipped: the relay's tests did not run (node --test relay/test/*.test.js)"
+elif ! node -e 'process.exit(parseInt(process.versions.node, 10) >= 20 ? 0 : 1)' >/dev/null 2>&1; then
+	ok "node $(node --version 2>/dev/null) is older than 20, skipped: the relay's tests did not run"
+elif node --test relay/test/*.test.js >"$GATE_UNIT_DIR/relaytest.out" 2>&1; then
+	ok "relay tests pass ($(grep -cE '^(ok [0-9]+ |✔ )' "$GATE_UNIT_DIR/relaytest.out") tests, node $(node --version))"
+else
+	grep -vE '^(ok [0-9]+ |✔ |ℹ |# )' "$GATE_UNIT_DIR/relaytest.out" | head -n 40 | sed 's/^/        /'
+	bad "a relay limit failed its test, or a constant it copies from the game moved (node --test relay/test/*.test.js)"
+fi
+}
+
 unit_gatelint() {
 step "The gate script is sound: no unit defined twice, no list or weight naming a missing unit, no dead why-pointer"
 # No baseline: all of it is zero and stays zero (docs/why/gate_lint.md).
@@ -2355,7 +2373,7 @@ SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowh
 # exactly these. A unit qualifies when nothing in its body starts Godot (no
 # run_godot, gate_sheet, gate_check or $GODOT): plain shell, python or node, so
 # it needs no import and runs in seconds. A new unit of that kind goes here too.
-STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph framecheck testsmap gatelint claudehooks vocab enemysprites labs rail rooms yard"
+STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph framecheck testsmap relaytest gatelint claudehooks vocab enemysprites labs rail rooms yard"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"

@@ -89,3 +89,38 @@ to whoever sent the one before it, so an RPC from one player is processed as
 though it came from another. In a design where the host is the authority and
 the roster is keyed by peer id, that is as bad as it sounds.
 ```
+
+## What the relay holds the socket to
+
+Not above a line of `RelayPeer.gd`: this is about `relay/src/limits.js`, which
+copies three of this file's numbers and two of `NetSession.gd`'s.
+
+```text
+BUFFER_BYTES is the relay's MAX_FRAME. The engine measures a whole frame,
+header included, against the buffer: put_packet refuses a larger one, and a
+socket that receives one closes itself. So no ship sends a frame over 65,536
+bytes, and one that arrived at a ship would cost it its connection. The relay
+drops such a frame and keeps the socket.
+
+The relay also counts frames. A ship on a map says where it is at most once
+in 150 ms (NetSession.SPOT_EVERY_MS), and the rest of what it sends is one
+frame for each thing a player does. A guest talks only to the host, about 7
+frames a second. The host passes every ship's spot on to every guest, and the
+engine sends a broadcast as one frame to each receiver, so a host of eight
+sends up to 8 x 6.7 x 7 = 373 a second. The relay allows a guest 200 a second
+and the host 2,000, with ten seconds of that in hand, and closes a socket
+that goes past it (code 1008).
+
+And it expects a guest to speak. _on_connected says hello the moment the relay
+admits the socket, and the join gives up at HANDSHAKE_TIMEOUT (10 s) if the
+host has not answered. A guest's socket that has sent no DATA frame 15 seconds
+after it was admitted is closed (1008) and its seat given back. The host is
+never closed for being quiet.
+
+None of this is a frame type, a close code or a sentence this file knows
+about, and none needs to be: a ship cannot reach any of the three. What it
+does mean is that a change here can now break a party at the relay. Raise
+BUFFER_BYTES, say spots more often, seat more than eight, or have a guest
+wait before its hello, and the relay's number has to move first. relay/test/relay.test.js reads these constants and fails when one
+changes, naming the line of limits.js that goes with it.
+```

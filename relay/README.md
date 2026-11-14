@@ -91,6 +91,62 @@ godot --path . -- lobby host relay ws://localhost:8787 auto wait 4
 godot --path . -- lobby join <CODE> relay ws://localhost:8787 auto
 ```
 
+## What the door lets through
+
+The relay still opens no payload. It has five limits, and each number is one of
+the game's own. They are in `src/limits.js` with the reasoning; this is the
+short form.
+
+| The relay | The number | Where the number comes from |
+|---|---|---|
+| answers a path that is not a party code itself, and wakes no party for it | `R`, five characters, a check character | `LobbyCode.gd` (the ROOM kind) |
+| drops a frame larger than the game's buffer | 65,536 bytes, header included | `RelayPeer.BUFFER_BYTES` |
+| closes a guest that talks faster than | 200 frames a second, 2,000 at once | a ship sends about 7 a second (`NetSession.SPOT_EVERY_MS`) |
+| closes a host that talks faster than | 2,000 frames a second, 20,000 at once | a host of eight sends up to 373 a second |
+| closes a guest that has sent nothing | 15 seconds after it joined | a ship says hello at once, and gives up at 10 (`NetSession.HANDSHAKE_TIMEOUT`) |
+
+**A path that is not a code.** The Worker holds the same check as
+`LobbyCode.parse`. A path that fails it gets the answer a code nobody is hosting
+gets, the same DENY frame on the same open socket, and no Durable Object is
+reached. The game never sends such a path: it checks what a player typed before
+it opens a socket.
+
+**A frame too large.** The engine measures a whole frame against the buffer, so
+no ship sends a larger one, and a ship that received one would hang up. The
+relay drops it and keeps the socket.
+
+**A socket too fast.** Each socket has a token bucket in its attachment. Every
+frame that arrives takes a token, whatever it holds. A socket with none left is
+closed with code 1008 and the party is told it left; if it was the host, the
+party ends as it does when a host leaves. The bucket holds ten seconds of its
+rate, so a connection that stalls and then delivers what it queued is not taken
+for a fast one.
+
+**A guest that never speaks.** A guest's socket that has sent no DATA frame 15
+seconds after it was admitted is closed with code 1008, the party gets its
+LEAVE, and the seat is free. The host is never closed for this: it may wait
+alone in a lobby as long as it likes. There is no timer. The relay looks when a
+frame or a connection arrives, so a silent guest in an otherwise silent party
+stays until the next ship knocks, and that ship gets the seat.
+
+A socket that was refused, or closed by one of these, and sends a frame anyway
+is closed with 1008 too.
+
+None of this changes a frame, a close code or a sentence a real ship sees.
+
+### Test it
+
+```bash
+node --test relay/test/*.test.js      # from the repo root; nothing to install
+```
+
+Plain Node 20 or newer, no network, about a second. It holds the code check to
+a list of codes the game's own `LobbyCode` made (`test/codes.fixture.json`),
+checks the numbers above against the game's source files, and runs a party
+through the real `src/index.js` on stand-in sockets. The merge gate runs it
+(`unit_relaytest`). It is not a test on Cloudflare: after a change, run the
+relay locally (below) and join it with two copies of the game before deploying.
+
 ## What it costs
 
 Verified against Cloudflare's own pricing documentation, not recalled. One
@@ -130,6 +186,18 @@ knows lives in a socket's `serializeAttachment()` or in `ctx.storage`. A field
 on the instance reads back as `undefined` after ten idle seconds, which is a bug
 no test that never idles will find.
 
+**Never put a limit on a timer.** The limits above are asked when a frame or a
+connection arrives, which is when the object is awake anyway. A timer that
+closed a quiet socket on the dot would be the keepalive under another name.
+What a limit needs to remember (when a socket joined, whether it has spoken,
+its tokens) goes in that socket's attachment, which may hold 16,384 bytes and
+holds about 70.
+
+**Change a limit's number with the game's.** Each one is a constant in
+`tkg/scripts/net/`, named in `src/limits.js`. A relay limit that drifts below
+what the game sends cuts a real party off. The test reads the game's files and
+fails when one of those constants moves.
+
 **Never trust the `from` field.** `webSocketMessage` rewrites it with the id the
 relay assigned. Without that any peer can post as the host, and the host is the
 authority for the whole party.
@@ -141,8 +209,8 @@ that tells a player nothing they can act on. Send, and let the client hang up.
 ## The wire
 
 Little-endian binary frames, byte 0 is the type. The other end is
-`tkg/scripts/net/RelayPeer.gd`; the two files have to agree and nothing else
-depends on either.
+`tkg/scripts/net/RelayPeer.gd`; the two have to agree and nothing else depends
+on either. A frame is at most 65,536 bytes, header included.
 
 ```
 HELLO  [1][u32 your_id]
