@@ -70,6 +70,7 @@ private scripts/ui/BreakupCuts.gd::_nz <- scripts/ui/FaunaHitFx.gd
 private scripts/ui/BreakupCuts.gd::_nz <- scripts/ui/HullHitFx.gd
 private scripts/ui/BreakupCuts.gd::_nz <- scripts/ui/ShipHitFx.gd
 private scripts/ui/BreakupCuts.gd::_pic_image <- scripts/ui/ShipBreakup.gd
+private scripts/ui/CardView.gd::_z <- scripts/ui/Hints.gd
 private scripts/ui/ChartSky.gd::_data_tex <- scripts/ui/ChartPainted.gd
 private scripts/ui/ChartSky.gd::_knot_amp <- scripts/ui/ChartRadiant.gd
 private scripts/ui/ChartSky.gd::_l2s <- scripts/ui/ChartRadiant.gd
@@ -103,7 +104,6 @@ private scripts/ui/LabLogin.gd::_mark <- scripts/ui/LabSavers.gd
 private scripts/ui/LabLogin.gd::_ship <- scripts/ui/LabSavers.gd
 private scripts/ui/LabLogin.gd::_text <- scripts/ui/LabSavers.gd
 private scripts/ui/LabSavers.gd::_painter <- scripts/ui/LabSaversSolari.gd
-private scripts/ui/LabScene.gd::_draw_life <- scripts/ui/LabZoom.gd
 private scripts/ui/LocalDust.gd::_quad <- scripts/ui/LocalLife.gd
 private scripts/ui/LocalSky.gd::_block_round <- scripts/ui/LocalLife.gd
 private scripts/ui/LocalSky.gd::_rect <- scripts/ui/LocalLife.gd
@@ -152,6 +152,8 @@ private scripts/ui/PostingBoard.gd::_wobble_rect <- scripts/ui/BoardWhite.gd
 private scripts/ui/SectorScreen.gd::_aim_anchor <- scripts/ui/AimLine.gd
 private scripts/ui/SectorScreen.gd::_commit <- scripts/ui/jump/JumpDirector.gd
 private scripts/ui/SectorScreen.gd::_dock_burn <- scripts/ui/Moored.gd
+private scripts/ui/SectorScreen.gd::_open_jetsam <- scripts/Main.gd
+private scripts/ui/SectorScreen.gd::_refresh <- scripts/autoload/Router.gd
 private scripts/ui/SectorScreen.gd::_visit <- scripts/ui/LocalEventDrawer.gd
 private scripts/ui/SectorScreen.gd::_visit <- scripts/ui/Moored.gd
 private scripts/ui/ShipBreakup.gd::_is_boss <- scripts/ui/SectorScreen.gd
@@ -164,6 +166,7 @@ private scripts/ui/ShipView.gd::_hull <- scripts/ui/ShipLoss.gd
 private scripts/ui/ShopScene.gd::_draw_glow <- scripts/ui/ShopLight.gd
 private scripts/ui/SignalText.gd::_font <- scripts/ui/HullScramble.gd
 private scripts/ui/SignalText.gd::_line_h <- scripts/ui/HullScramble.gd
+private scripts/ui/StarchartScreen.gd::_on_node_picked <- scripts/DevFlags.gd
 private scripts/ui/StationScreen.gd::_refresh <- scripts/autoload/Router.gd
 private scripts/ui/TransferView.gd::_take_sound <- scripts/ui/CutawayView.gd
 private scripts/ui/YardBand.gd::_word <- scripts/ui/YardInfo.gd
@@ -186,5 +189,7 @@ private scripts/ui/sysmap/ShipFlight.gd::_ins_at <- scripts/ui/sysmap/SystemOver
 private scripts/ui/sysmap/ShipFlight.gd::_plan_of <- scripts/ui/sysmap/CometCatch.gd
 private scripts/ui/sysmap/ShipFlight.gd::_takeable <- scripts/ui/sysmap/CometCatch.gd
 private scripts/ui/sysmap/ShipFlight.gd::_takeable <- scripts/ui/sysmap/SystemOverlay.gd
+private scripts/ui/sysmap/SystemMapScreen.gd::_keep_ship <- scripts/autoload/Router.gd
+private scripts/ui/sysmap/SystemMapScreen.gd::_keep_ship <- scripts/systems/SaveGame.gd
 private scripts/ui/sysmap/SystemMapScreen.gd::_zoom_down <- scripts/ui/sysmap/CometCatch.gd
 private scripts/ui/sysmap/SystemView.gd::_lin_top <- scripts/ui/LocalSky.gd

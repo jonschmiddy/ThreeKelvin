@@ -5,9 +5,11 @@ reaching into rules/net) or a NEW call to another class's private `_method`. Wha
 rule is in tools/code_graph_baseline.txt. Run: python3 tools/code_graph.py [--update]
   --report [PATH]   the full markdown report: orphans, odd links, cycles, hubs (for planning a cleanup)
   --graphify PATH   the nodes and edges as graphify's extraction JSON
+  --selftest        a tiny synthetic tree that must give exactly the expected facts (the gate runs it first)
 Deterministic, no LLM, stdlib only. How it reads a call and what it cannot see: docs/why/code_graph.md."""
 import json
 import re
+import shutil
 import sys
 import tempfile
 from collections import Counter, defaultdict
@@ -39,19 +41,76 @@ _get_connection_status _set_target_peer _set_transfer_channel _get_transfer_chan
 _get_transfer_mode _poll _close _disconnect_peer _is_refusing_new_connections _set_refuse_new_connections""".split())
 IDENT = re.compile(r"[A-Za-z_]\w*")
 STR = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'')
-CALL = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b([A-Za-z_]\w*)\s*\(")
-PRIVATE_CALL = re.compile(r"(?:\b([A-Za-z_]\w*)\s*\.\s*)?\b(_[A-Za-z0-9_]*)\s*\(")
+TRIPLE = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')
+TOKEN = re.compile(r"(?<![\w.])[A-Za-z_]\w*")           # an identifier that is not a member access
+NODEPATH = re.compile(r"(?<![\w)\]])[$%][A-Za-z_][\w/]*")  # $Board/Ring, %Hints
+CALL_ALL = re.compile(r"(?<!\w)([A-Za-z_]\w*)\s*\(")
+CALL_PRIVATE = re.compile(r"(?<!\w)(_[A-Za-z0-9_]*)\s*\(")
 FUNC_LINE = re.compile(r"\s*(?:static\s+)?func\s")
+LAMBDA = re.compile(r"\bfunc\s*\(")
 RES_PATH = re.compile(r"res://scripts/[\w/]+\.gd")
-TYPED = re.compile(r"\b(\w+)\s*:\s*([A-Z]\w*)\b")
-TYPED_NEW = re.compile(r"\b(\w+)\s*:?=\s*([A-Z]\w*)\.new\(")
+DECLNAME = re.compile(r"\b(?:var|const|func|signal|enum|class)\s+([A-Za-z_]\w*)")
+FORVAR = re.compile(r"\bfor\s+([A-Za-z_]\w*)")
+ENUMBODY = re.compile(r"\benum\b[^{;]*\{([^}]*)\}")
+PARAM = re.compile(r"\s*(\w+)\s*(?::\s*([A-Z]\w*))?")
+# type annotations, only in declaration positions
+VAR_TYPED = re.compile(r"\b(?:var|const)\s+(\w+)\s*:\s*([A-Z]\w*)")
+VAR_ANY = re.compile(r"\b(?:var|const)\s+(\w+)")
+FOR_TYPED = re.compile(r"\bfor\s+(\w+)\s*:\s*([A-Z]\w*)\s+in\b")
+ASSIGN_NEW = re.compile(r"\b(\w+)\s*:?=(?!=)\s*([A-Z]\w*)\.new\(")
+ASSIGN_AS = re.compile(r"\b(\w+)\s*(?::\s*\w+\s*)?:?=(?!=)\s*.*?\bas\s+([A-Z]\w*)\s*\)?\s*$")
+AS_TAIL = re.compile(r"\bas\s+([A-Z]\w*)\s*$")
+
+
+def paren_text(lines):
+    """The text inside the first (...) of these lines joined, or ''."""
+    s = " ".join(lines)
+    i = s.find("(")
+    if i < 0:
+        return ""
+    d = 0
+    for j in range(i, len(s)):
+        ch = s[j]
+        if ch in "([{":
+            d += 1
+        elif ch in ")]}":
+            d -= 1
+            if d == 0:
+                return s[i + 1:j]
+    return s[i + 1:]
+
+
+def split_top(s):
+    out, d, cur = [], 0, []
+    for ch in s:
+        if ch in "([{":
+            d += 1
+        elif ch in ")]}":
+            d -= 1
+        if ch == "," and d == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur))
+    return out
+
+
+def params_of(text):
+    """[(name, Class or None)] from the text inside a parameter list."""
+    out = []
+    for part in split_top(text):
+        m = PARAM.match(part)
+        if m:
+            out.append((m.group(1), m.group(2)))
+    return out
 
 
 class Script:
     """One .gd file: its text with comments dropped (`codes`) and strings blanked (`bare`)."""
 
-    def __init__(self, path):
-        self.rel = path.relative_to(TKG).as_posix()
+    def __init__(self, path, tkg):
+        self.rel = path.relative_to(tkg).as_posix()
         self.stem = path.stem
         parts = self.rel.split("/")
         self.top = parts[1] if len(parts) > 2 else "root"
@@ -59,7 +118,10 @@ class Script:
         text = path.read_text(encoding="utf-8", errors="replace")
         self.raws = text.splitlines()
         if '"""' in text or "'''" in text:
-            self.codes = code_check.lex(self.raws)
+            # lex() carries the triple-quote state across lines; then the whole block is blanked
+            joined = "\n".join(code_check.lex(self.raws))
+            joined = TRIPLE.sub(lambda m: '""' + "\n" * m.group(0).count("\n"), joined)
+            self.codes = joined.split("\n")
         else:
             self.codes = [c if not ("#" in c or '"' in c or "'" in c) else code_check.lex([c])[0] for c in self.raws]
         self.bare = [STR.sub('""', c) if ('"' in c or "'" in c) else c for c in self.codes]
@@ -74,19 +136,40 @@ class Script:
             if m:
                 self.extends = m.group(1).strip('"')
                 break
-        self.funcs = {}  # name -> (first line index, one past last)
+        self.find_funcs()
 
-    def find_funcs(self, deep):
-        """Names of every func. With deep, also each one's line span (code_check's own rule)."""
-        if deep:
-            starts = [i for i, c in enumerate(self.codes) if code_check.FUNC.match(c.lstrip())]
-            for (name, length, _r), s in zip(code_check.functions(self.raws), starts):
-                self.funcs.setdefault(name.split("#")[0], (s, s + length))
-        else:
-            for i, c in enumerate(self.codes):
-                m = code_check.FUNC.match(c.lstrip()) if "func" in c else None
-                if m:
-                    self.funcs.setdefault(m.group(1), (i, i + 1))
+    def find_funcs(self):
+        """Every func by position: funcs[key] = (first line index, one past last), key being the name,
+        or name#2, name#3 for a later one of the same name (an inner class's). A func runs to the last
+        line before the next declaration at its indent or less, as code_check counts it."""
+        self.funcs = {}
+        self.names = set()       # the plain names, for finding a method
+        self.params = {}         # key -> [(name, Class or None)]
+        self.span_of = [None] * len(self.codes)
+        seen = {}
+        indent = code_check.indent_of
+        for s, c in enumerate(self.codes):
+            if "func" not in c:
+                continue
+            m = code_check.FUNC.match(c.lstrip())
+            if not m:
+                continue
+            ind, last = indent(self.raws[s]), s
+            for j in range(s + 1, len(self.raws)):
+                cj = self.codes[j]
+                if not cj.strip():
+                    continue
+                if indent(self.raws[j]) <= ind and code_check.DECL.match(cj.lstrip()):
+                    break
+                last = j
+            name = m.group(1)
+            seen[name] = seen.get(name, 0) + 1
+            key = name if seen[name] == 1 else "%s#%d" % (name, seen[name])
+            self.funcs[key] = (s, last + 1)
+            self.names.add(name)
+            self.params[key] = params_of(paren_text(self.bare[s:s + 12]))
+            for j in range(s, last + 1):
+                self.span_of[j] = key
 
 
 class Graph:
@@ -97,19 +180,20 @@ def read_text(p):
     return p.read_text(encoding="utf-8", errors="replace")
 
 
-def build(deep=False):
+def build(deep=False, tkg=None):
     """The scripts, their file-to-file links and the private calls. deep adds the function-level
-    calls and the name census the report and the graphify JSON need; the gate does without."""
+    calls and the name census the report and the graphify JSON need. Both modes find the same
+    ratchet facts (the self-test asserts it)."""
+    tkg = tkg or TKG
     g = Graph()
     g.files = {}
-    for gd in sorted((TKG / "scripts").rglob("*.gd")):
-        s = Script(gd)
-        s.find_funcs(deep)
+    for gd in sorted((tkg / "scripts").rglob("*.gd")):
+        s = Script(gd, tkg)
         g.files[s.rel] = s
     files = g.files
     g.by_class = {f.class_name: f for f in files.values() if f.class_name}
     g.by_path = {"res://" + f.rel: f for f in files.values()}
-    g.project = read_text(TKG / "project.godot")
+    g.project = read_text(tkg / "project.godot")
     g.autoload = {}
     for m in re.finditer(r'^(\w+)="\*?(res://[^"]+)"', g.project, re.M):
         if m.group(2) in g.by_path:
@@ -117,45 +201,50 @@ def build(deep=False):
     g.autoload_files = set(f.rel for f in g.autoload.values())
     g.name_to_file = dict(g.by_class)
     g.name_to_file.update(g.autoload)
-    names = sorted(g.name_to_file)
-    name_re = re.compile(r"\b(?:" + "|".join(names) + r")\b") if names else None
-
-    func_homes = defaultdict(list)
+    g.func_homes = defaultdict(list)       # every file, sim too: the report's census
+    g.game_homes = defaultdict(list)       # game code only: what "defined in exactly one file" means
     for f in files.values():
-        for n in f.funcs:
-            func_homes[n].append(f)
-    g.func_homes = func_homes
+        for n in sorted(f.names):
+            g.func_homes[n].append(f)
+            if not f.sim:
+                g.game_homes[n].append(f)
+    chains = {}
 
     def base_chain(f):
-        out, seen = [], set()
-        while f and f.rel not in seen:
-            seen.add(f.rel)
-            out.append(f)
-            e = f.extends
-            f = (g.by_class.get(e) or g.by_path.get(e)) if e else None
+        if f.rel in chains:
+            return chains[f.rel]
+        out, seen, cur = [], set(), f
+        while cur and cur.rel not in seen:
+            seen.add(cur.rel)
+            out.append(cur)
+            e = cur.extends
+            cur = (g.by_class.get(e) or g.by_path.get(e)) if e else None
+        chains[f.rel] = out
         return out
 
     def find_method(f, name):
         for b in base_chain(f):
-            if name in b.funcs:
+            if name in b.names:
                 return b
         return None
 
     g.base_chain = base_chain
     g.find_method = find_method
-    g.file_edges = defaultdict(Counter)   # (src rel, dst rel) -> Counter of kind
+    g.file_edges = defaultdict(Counter)   # (src rel, dst rel) -> Counter of kind: references, loads, extends
     g.call_edges = Counter()              # (src rel, src func, dst rel, dst func, confidence) -> n
-    g.private_calls = defaultdict(list)   # (def rel, method) -> [(caller rel, line, confidence)]
+    g.private_calls = defaultdict(list)   # (def rel, method) -> [(caller rel, line, how)]
     g.mentions = defaultdict(list)        # identifier -> [(rel, line)] in code
     g.str_mentions = defaultdict(list)    # identifier -> [(rel, line)] in strings
+    nm = g.name_to_file
     edges = g.file_edges
     for f in files.values():
         src = f.rel
-        # references: any class_name or autoload name in code
-        if name_re:
-            for w in name_re.findall("\n".join(f.bare)):
-                t = g.name_to_file[w]
-                if t is not f:
+        toks = [w for w in TOKEN.findall(NODEPATH.sub(" ", "\n".join(f.bare))) if w in nm]
+        if toks:
+            shadow = _declared(f) & set(toks)
+            for w in toks:
+                t = nm[w]
+                if t is not f and w not in shadow:
                     edges[(src, t.rel)]["references"] += 1
         for c in f.codes:
             if "res://" in c:
@@ -171,49 +260,115 @@ def build(deep=False):
     return g
 
 
-def _types_by_scope(g, f):
-    """Per-line variable typing from `name: Class` and `name := Class.new(`. A name typed two ways in
-    one function (or one file level) is dropped: a guess would be a false edge. Returns, per line
-    index, the dict to look a receiver up in (function scope, else file scope)."""
-    nm = g.name_to_file
-    file_scope, scopes, cur = {}, [], {}
-    bounds = []
-    for i, c in enumerate(f.bare):
-        if FUNC_LINE.match(c):
-            bounds.append(i)
-    bounds.append(len(f.bare))
-    first = bounds[0] if bounds else len(f.bare)
+def _declared(f):
+    """Every name this file declares itself (var, const, func, signal, enum and its members, inner
+    class, loop variable, parameter): such a name shadows a global class of the same name here."""
+    text = "\n".join(f.bare)
+    out = set(DECLNAME.findall(text)) | set(FORVAR.findall(text))
+    for body in ENUMBODY.findall(text):
+        for item in body.split(","):
+            m = IDENT.match(item.strip())
+            if m:
+                out.add(m.group(0))
+    for plist in f.params.values():
+        out.update(n for n, _t in plist)
+    for c in f.bare:
+        if "func" in c:
+            for m in LAMBDA.finditer(c):
+                out.update(n for n, _t in params_of(paren_text([c[m.end() - 1:]])))
+    return out
 
-    def scan(lines, into):
-        for c in lines:
-            if ":" not in c and "new(" not in c:
-                continue
-            for rx in (TYPED, TYPED_NEW):
-                for m in rx.finditer(c):
-                    if m.group(2) in nm:
-                        old = into.get(m.group(1))
-                        into[m.group(1)] = m.group(2) if old in (None, m.group(2)) else ""
-    # top-level (indent 0) declarations are the file scope
-    scan([c for c in f.bare if c[:1] not in (" ", "\t", "")], file_scope)
-    for k in range(len(bounds) - 1):
-        local = {}
-        scan(f.bare[bounds[k]:bounds[k + 1]], local)
-        scopes.append((bounds[k], bounds[k + 1], local))
-    return file_scope, scopes, first
+
+def _put(into, name, cls):
+    """Record that `name` is declared with class `cls` ('' for none or unknown). Two answers: ''."""
+    old = into.get(name)
+    if old is None:
+        into[name] = cls
+    elif old != cls:
+        into[name] = ""
+
+
+def _scan_decls(c, nm, into):
+    """Variable types from one line of code, in declaration positions only."""
+    if "var" not in c and "const" not in c and "for" not in c and "new(" not in c and " as " not in c:
+        return
+    typed = set()
+    for rx in (VAR_TYPED, FOR_TYPED, ASSIGN_NEW, ASSIGN_AS):
+        for m in rx.finditer(c):
+            if m.group(2) in nm:
+                _put(into, m.group(1), m.group(2))
+                typed.add(m.group(1))
+    for m in VAR_ANY.finditer(c):
+        if m.group(1) not in typed:
+            _put(into, m.group(1), "")
+
+
+def _scopes(g, f):
+    """(member scope, scope per function key). Member scope: declarations outside any function.
+    A parameter belongs to its own function only."""
+    nm = g.name_to_file
+    member, local = {}, {}
+    for i, c in enumerate(f.bare):
+        if f.span_of[i] is None:
+            _scan_decls(c, nm, member)
+    for key, (s, e) in f.funcs.items():
+        d = {}
+        for pname, ptype in f.params[key]:
+            _put(d, pname, ptype if ptype in nm else "")
+        for c in f.bare[s:e]:
+            _scan_decls(c, nm, d)
+        local[key] = d
+    return member, local
+
+
+def _receiver(g, f, pre, local, member):
+    """What stands before a `.method(`: (kind, file or None). kind: 'self', 'class' (a class,
+    autoload or cast: exact), 'typed' (a variable with a declared class), 'unknown' (an expression,
+    or an untyped variable)."""
+    nm = g.name_to_file
+    pre = pre.rstrip()
+    m = re.search(r"([A-Za-z_]\w*)$", pre)
+    if m:
+        name = m.group(1)
+        if pre[:m.start()].rstrip().endswith("."):
+            return "unknown", None
+        if name in ("self", "super"):
+            return "self", None
+        if name in nm:
+            return "class", nm[name]
+        t = local[name] if name in local else member.get(name)
+        if t:
+            return "typed", nm[t]
+        return "unknown", None
+    if pre.endswith(")"):
+        d, k = 0, len(pre) - 1
+        while k >= 0:
+            if pre[k] == ")":
+                d += 1
+            elif pre[k] == "(":
+                d -= 1
+                if d == 0:
+                    break
+            k -= 1
+        if k >= 0:
+            inner, before = pre[k + 1:-1], pre[:k].rstrip()
+            ma = AS_TAIL.search(inner)
+            if ma and ma.group(1) in nm:
+                return "typed", nm[ma.group(1)]
+            mn = re.search(r"([A-Za-z_]\w*)\s*\.\s*new$", before)
+            if mn and mn.group(1) in nm and not before[:mn.start()].rstrip().endswith("."):
+                return "typed", nm[mn.group(1)]
+    return "unknown", None
 
 
 def _calls(g, f, deep):
     """Resolve calls in one file. Honest rule: a call resolves only when the receiver is self/bare,
-    a class_name or autoload, a variable with a declared class, or a private `_x` defined in exactly
-    one file. A public method on an untyped receiver is never guessed (Array.resize, Node.add_child)."""
-    file_scope, scopes, first = _types_by_scope(g, f)
-    rx = CALL if deep else PRIVATE_CALL
-    span = [None] * len(f.bare)
-    if deep:
-        for n, (s, e) in f.funcs.items():
-            for i in range(s, min(e, len(span))):
-                span[i] = n
-    sc_i = 0
+    a class_name or autoload, a variable or cast with a declared class, a `Class.new()`, or a
+    private `_x` defined in exactly one game file (the last resort, marked UNIQUE). A public method on
+    an untyped receiver is never guessed (Array.resize, Node.add_child); a receiver that is any
+    other expression (`a[i]._m()`, `f()._m()`) is not `self`."""
+    member, local = _scopes(g, f)
+    rx = CALL_ALL if deep else CALL_PRIVATE
     for i, c in enumerate(f.bare):
         if deep:
             for w in IDENT.findall(c):
@@ -223,38 +378,34 @@ def _calls(g, f, deep):
                     g.str_mentions[w].append((f.rel, i + 1))
         if "(" not in c:
             continue
-        cur = span[i] if deep else None
-        if deep and cur is None:
-            continue
-        while sc_i < len(scopes) and scopes[sc_i][1] <= i:
-            sc_i += 1
-        local = scopes[sc_i][2] if sc_i < len(scopes) and scopes[sc_i][0] <= i else {}
+        cur = f.span_of[i]
+        loc = local[cur] if cur else {}
         is_def = FUNC_LINE.match(c) is not None
         for m in rx.finditer(c):
-            recv, meth = m.group(1), m.group(2)
-            if is_def and meth == cur:
+            meth = m.group(1)
+            pre = c[:m.start()].rstrip()
+            if is_def and cur and meth == cur.split("#")[0] and not pre.endswith("."):
                 continue
-            dst, conf = None, "EXTRACTED"
-            if recv is None or recv in ("self", "super"):
-                dst = g.find_method(f, meth)
-            elif recv in g.name_to_file:
-                dst = g.find_method(g.name_to_file[recv], meth)
+            if pre.endswith("."):
+                kind, tgt = _receiver(g, f, pre[:-1], loc, member)
             else:
-                t = local.get(recv) if recv in local else file_scope.get(recv)
-                if t:
-                    dst, conf = g.find_method(g.name_to_file[t], meth), "INFERRED"
-                elif meth.startswith("_") and meth not in VIRTUAL and len(g.func_homes.get(meth, ())) == 1:
-                    dst, conf = g.func_homes[meth][0], "INFERRED"
+                kind, tgt = "self", None
+            dst, how = None, "EXTRACTED"
+            if kind == "self":
+                dst = g.find_method(f, meth)
+            elif kind in ("class", "typed"):
+                dst = g.find_method(tgt, meth)
+                how = "EXTRACTED" if kind == "class" else "TYPED"
+            if dst is None and kind in ("unknown",) and meth.startswith("_") and meth not in VIRTUAL \
+                    and len(g.game_homes.get(meth, ())) == 1:
+                dst, how = g.game_homes[meth][0], "UNIQUE"
             if dst is None:
                 continue
-            if deep:
-                g.call_edges[(f.rel, cur, dst.rel, meth, conf)] += 1
-            if dst is not f:
-                if deep:
-                    g.file_edges[(f.rel, dst.rel)]["calls"] += 1
-                if meth.startswith("_") and meth not in VIRTUAL and dst not in g.base_chain(f) \
-                        and f not in g.base_chain(dst):
-                    g.private_calls[(dst.rel, meth)].append((f.rel, i + 1, conf))
+            if deep and cur:
+                g.call_edges[(f.rel, cur, dst.rel, meth, how)] += 1
+            if dst is not f and meth.startswith("_") and meth not in VIRTUAL \
+                    and dst not in g.base_chain(f) and f not in g.base_chain(dst):
+                g.private_calls[(dst.rel, meth)].append((f.rel, i + 1, how))
 
 
 # ---- the ratcheted facts
@@ -281,6 +432,16 @@ def facts(g):
     return out
 
 
+def fallback_keys(g):
+    """The private keys every call of which rests on the unique-name guess (no declared type)."""
+    out = set()
+    for (d, m), calls in g.private_calls.items():
+        for caller in set(c[0] for c in calls):
+            if all(c[2] == "UNIQUE" for c in calls if c[0] == caller):
+                out.add("private %s::%s <- %s" % (d, m, caller))
+    return out
+
+
 def read_baseline():
     if not BASELINE.is_file():
         return set()
@@ -292,18 +453,22 @@ def write_baseline(keys):
 
 
 def check(update):
-    now, old = facts(build()), read_baseline()
+    g = build()
+    now, old = facts(g), read_baseline()
     if update:
         for k in sorted(now - old):
             print("ADDED " + k)
         write_baseline(now)
-        print("code graph: recorded %d entries (was %d)" % (len(now), len(old)))
+        print("code graph: recorded %d entries (was %d), from %d scripts" % (len(now), len(old), len(g.files)))
         return 0
+    guess = fallback_keys(g)
     new, fixed = sorted(now - old), sorted(old - now)
     for k in new:
         print("NEW " + k + ("   <- game code may not depend on test code" if k.startswith("layer") and "/sim/" in k.split(" -> ")[1]
                             else "   <- breaks the layering (tkg/CLAUDE.md)" if k.startswith("layer")
-                            else "   <- private to its class: make it public, or ask through the class's own API"))
+                            else "   <- private to its class: make it public, or ask through the class's own API"
+                            + (" (found by name alone: if another game file just gained or lost a method of "
+                               "this name, --update with a note)" if k in guess else "")))
     for k in fixed:
         print("FIXED " + k)
     if fixed:
@@ -315,43 +480,151 @@ def check(update):
 
 # ---- the graphify extraction
 
-def slug(s):
-    return re.sub(r"[^a-z0-9]+", "_", s.lower()).strip("_")
+def node_id(rel, func=None):
+    """Unique and exact: a leading underscore and the case survive, so `foo` and `_foo` differ."""
+    base = rel[:-3].replace("/", "__")
+    return base if func is None else base + "::" + func.replace("#", "_n")
 
 
-def graphify(g, path):
+def graphify_data(g):
     nodes, edges = [], []
-    fid = lambda rel: slug(rel[:-3])
     for f in g.files.values():
-        nodes.append({"id": fid(f.rel), "label": f.stem, "file_type": "code", "source_file": "tkg/" + f.rel,
+        nodes.append({"id": node_id(f.rel), "label": f.stem, "file_type": "code", "source_file": "tkg/" + f.rel,
                       "source_location": "L1", "metadata": {"language": "gdscript", "kind": "file", "layer": f.top,
                                                             "lines": len(f.raws)}})
         for n, (s, _e) in f.funcs.items():
-            nodes.append({"id": fid(f.rel) + "__" + slug(n), "label": "%s.%s" % (f.stem, n), "file_type": "code",
+            nodes.append({"id": node_id(f.rel, n), "label": "%s.%s" % (f.stem, n), "file_type": "code",
                           "source_file": "tkg/" + f.rel, "source_location": "L%d" % (s + 1),
                           "metadata": {"language": "gdscript", "kind": "function"}})
-            edges.append({"source": fid(f.rel), "target": fid(f.rel) + "__" + slug(n), "relation": "contains",
+            edges.append({"source": node_id(f.rel), "target": node_id(f.rel, n), "relation": "contains",
                           "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "tkg/" + f.rel, "weight": 1.0})
     for (a, b), kinds in g.file_edges.items():
-        for k, w in kinds.items():
-            if k != "calls":
-                edges.append({"source": fid(a), "target": fid(b), "relation": {"loads": "imports"}.get(k, k),
-                              "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "tkg/" + a,
-                              "weight": float(min(w, 10))})
-    for (a, fa, b, fb, conf), w in g.call_edges.items():
-        if a == b and fa == fb:
+        for k, w in sorted(kinds.items()):
+            edges.append({"source": node_id(a), "target": node_id(b), "relation": {"loads": "imports"}.get(k, k),
+                          "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "tkg/" + a,
+                          "weight": float(min(w, 10))})
+    for (a, fa, b, fb, how), w in g.call_edges.items():
+        s, t = node_id(a, fa), node_id(b, fb)
+        if s == t:
             continue
-        edges.append({"source": fid(a) + "__" + slug(fa), "target": fid(b) + "__" + slug(fb), "relation": "calls",
-                      "confidence": conf, "confidence_score": 1.0 if conf == "EXTRACTED" else 0.7,
-                      "source_file": "tkg/" + a, "weight": float(min(w, 10))})
+        edges.append({"source": s, "target": t, "relation": "calls",
+                      "confidence": "EXTRACTED" if how == "EXTRACTED" else "INFERRED",
+                      "confidence_score": 1.0 if how == "EXTRACTED" else 0.7, "source_file": "tkg/" + a,
+                      "weight": float(min(w, 10))})
     ids = set(n["id"] for n in nodes)
     edges = [e for e in edges if e["source"] in ids and e["target"] in ids]
-    Path(path).write_text(json.dumps({"nodes": nodes, "edges": edges, "hyperedges": [],
-                                      "input_tokens": 0, "output_tokens": 0}), encoding="utf-8")
-    print("wrote %s (%d nodes, %d edges)" % (path, len(nodes), len(edges)))
+    return {"nodes": nodes, "edges": edges, "hyperedges": [], "input_tokens": 0, "output_tokens": 0}
 
 
-# ---- the report
+def graphify(g, path):
+    data = graphify_data(g)
+    Path(path).write_text(json.dumps(data), encoding="utf-8")
+    print("wrote %s (%d nodes, %d edges)" % (path, len(data["nodes"]), len(data["edges"])))
+
+
+# ---- the self-test
+
+SELFTEST_FILES = {
+    "project.godot": '[autoload]\nHints="*res://scripts/ui/Hints.gd"\n',
+    "scripts/Main.gd": "extends Node\nfunc _ready():\n\tvar p := Probe.new()\n",
+    "scripts/sim/Probe.gd": "class_name Probe\nextends Node\nfunc _uq():\n\tpass\n",
+    "scripts/ui/Hints.gd": "extends Node\nfunc tip():\n\tpass\n",
+    "scripts/ui/Board.gd": (
+        "class_name Board\nextends Node\n"
+        "func show_it():\n\tpass\n"
+        "func _priv():\n\tpass\n"
+        "func _setter_target():\n\tpass\n"
+        "func _dup():\n\tpass\n"
+        "func _uq():\n\tpass\n"),
+    "scripts/ui/CardView.gd": "class_name CardView\nextends Node\nconst Z := 1\nfunc _z():\n\tpass\n",
+    "scripts/ui/Screen.gd": (
+        "class_name Screen\nextends Node\n"
+        "func _keep():\n\tpass\n"
+        "func _nw():\n\tpass\n"
+        "func _foo():\n\tpass\n"
+        "func foo():\n\t_foo()\n"),
+    "scripts/ui/Other.gd": "class_name Other\nextends Node\nfunc _keep():\n\tpass\nfunc _nw():\n\tpass\nfunc _dup():\n\tpass\n",
+    "scripts/data/Tbl.gd": "class_name Tbl\nextends Resource\nfunc x():\n\treturn Rules.new()\n",
+    "scripts/systems/Rules.gd": (
+        "class_name Rules\nextends Node\n"
+        "var b: Board\n"
+        "func a(v: CardView):\n\tpass\n"
+        "func b2(v):\n\tv._z(CardView.Z)\n"            # an untyped v: not typed by a()'s parameter
+        "func c(arr):\n"
+        "\t(Router.current as Screen)._keep()\n"        # a cast
+        "\tScreen.new()._nw()\n"                        # a fresh instance
+        "\tarr[0]._keep()\n"                            # an expression: not self, and not unique
+        "\t_make()._nw()\n"
+        "func d(ok):\n\tif ok: Board.show_it()\n\tok._dup()\n"   # ok is not typed Board
+        "func _make():\n\treturn 1\n"),
+    "scripts/systems/Doc.gd": 'extends Node\nvar t = """\nScreen._keep() and Hints and Board\n"""\nfunc f():\n\tpass\n',
+    "scripts/systems/Nodes.gd": "extends Node\nfunc f():\n\tvar n = $Screen\n\tvar m = %Screen\n\treturn $Board/Other\n",
+    "scripts/systems/Enums.gd": "extends Node\nenum Kind { Screen, Board }\nfunc f(k):\n\treturn Kind.Screen\n",
+    "scripts/systems/Shadow.gd": "extends Node\nfunc f(Screen):\n\tvar Board = 3\n\treturn Screen + Board\n",
+    "scripts/systems/Inner.gd": (
+        "extends Node\n"
+        "class A:\n\tfunc go():\n\t\tpass\n"
+        "class B:\n\tfunc go():\n\t\tBoard._priv()\n"
+        "var prop: int:\n\tset(v):\n\t\tBoard._setter_target()\n"),
+    "scripts/systems/Uniq.gd": "extends Node\nfunc f(x):\n\tx._uq()\n\tHints.tip()\n",
+    "scripts/systems/UsesSim.gd": "extends Node\nfunc f():\n\treturn Probe.new()\n",
+    "scripts/net/Dup.gd": "extends Node\nfunc foo():\n\tpass\nfunc _foo():\n\tfoo()\n",
+}
+SELFTEST_EXPECT = set("""
+layer scripts/data/Tbl.gd -> scripts/systems/Rules.gd
+layer scripts/systems/Rules.gd -> scripts/ui/Board.gd
+layer scripts/systems/Rules.gd -> scripts/ui/CardView.gd
+layer scripts/systems/Rules.gd -> scripts/ui/Screen.gd
+layer scripts/systems/Inner.gd -> scripts/ui/Board.gd
+layer scripts/systems/UsesSim.gd -> scripts/sim/Probe.gd
+private scripts/ui/CardView.gd::_z <- scripts/systems/Rules.gd
+private scripts/ui/Screen.gd::_keep <- scripts/systems/Rules.gd
+private scripts/ui/Screen.gd::_nw <- scripts/systems/Rules.gd
+private scripts/ui/Board.gd::_priv <- scripts/systems/Inner.gd
+private scripts/ui/Board.gd::_setter_target <- scripts/systems/Inner.gd
+private scripts/ui/Board.gd::_uq <- scripts/systems/Uniq.gd
+""".split("\n"))
+SELFTEST_EXPECT.discard("")
+
+
+def selftest():
+    """Build a tiny tree, assert the exact facts. Returns the list of mismatches (empty = pass)."""
+    tmp = Path(tempfile.mkdtemp(prefix="code_graph_selftest_"))
+    bad = []
+    try:
+        tkg = tmp / "tkg"
+        for rel, text in SELFTEST_FILES.items():
+            p = tkg / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text, encoding="utf-8")
+        quick, deep = build(False, tkg), build(True, tkg)
+        got = facts(quick)
+        for k in sorted(SELFTEST_EXPECT - got):
+            bad.append("missing " + k)
+        for k in sorted(got - SELFTEST_EXPECT):
+            bad.append("unexpected " + k)
+        if facts(deep) != got:
+            bad.append("check and report modes disagree: " + ", ".join(sorted(facts(deep) ^ got)))
+        data = graphify_data(deep)
+        ids = [n["id"] for n in data["nodes"]]
+        if len(ids) != len(set(ids)):
+            bad.append("graphify node ids collide")
+        by = dict((n["id"], n["label"]) for n in data["nodes"])
+        loops = [e for e in data["edges"] if e["source"] == e["target"]]
+        if loops:
+            bad.append("graphify self-loop")
+        call = [(by[e["source"]], by[e["target"]]) for e in data["edges"] if e["relation"] == "calls"]
+        if ("Screen.foo", "Screen._foo") not in call:
+            bad.append("graphify lost the edge Screen.foo -> Screen._foo")
+        if ("Dup.foo", "Dup._foo") in call or ("Dup._foo", "Dup.foo") not in call:
+            bad.append("graphify edge direction for Dup._foo -> Dup.foo wrong")
+        inner = deep.files["scripts/systems/Inner.gd"].funcs
+        if sorted(inner) != ["go", "go#2"]:
+            bad.append("same-named funcs not kept apart: %s" % sorted(inner))
+    finally:
+        shutil.rmtree(str(tmp), ignore_errors=True)
+    return bad
+
 
 def _tokens(paths):
     out = set()
@@ -408,18 +681,20 @@ def report(g):
 
     # 3-5 orphan functions, test-only functions, orphan declarations
     dead_f, test_only_f, dead_d = [], [], []
+    def_lines = set((f.rel, s + 1) for f in files.values() for (s, _e) in f.funcs.values())
     for f in files.values():
         decls = _decls(f)
-        for n, (s, _e) in f.funcs.items():
+        for key, (s, _e) in f.funcs.items():
+            n = key.split("#")[0]
             if n in VIRTUAL or (f.sim and n in ("run", "main")):
                 continue
-            code = [(r, l) for (r, l) in g.mentions.get(n, ()) if not (r == f.rel and l == s + 1)]
+            code = [x for x in g.mentions.get(n, ()) if x not in def_lines]
             strs = g.str_mentions.get(n)
             if not code and not strs and n not in scene_tok:
-                dead_f.append((f, n, s + 1))
+                dead_f.append((f, key, s + 1))
             elif not f.sim and code and all(files[r].sim for r, _ in code) and not strs and n not in scene_tok \
                     and len(g.func_homes[n]) == 1:
-                test_only_f.append((f, n, s + 1, sorted(set(files[r].stem for r, _ in code))))
+                test_only_f.append((f, key, s + 1, sorted(set(files[r].stem for r, _ in code))))
         for n, (kind, line, exported) in decls.items():
             if exported:
                 continue
@@ -450,8 +725,8 @@ def report(g):
         for n, (kind, line, _x) in sorted(_decls(sig).items(), key=lambda kv: kv[1][1]):
             if kind != "signal":
                 continue
-            em_rx = re.compile(r"\b" + n + r"\.emit\(|emit_signal\(\s*\"" + n + r"\"")
-            co_rx = re.compile(r"\b" + n + r"\.(connect|disconnect)\(|\"" + n + r"\"\s*,\s*Callable|await\s+\w+\." + n
+            em_rx = re.compile(r"\b" + n + r"\.emit\(|emit_signal\(\s*&?\"" + n + r"\"")
+            co_rx = re.compile(r"\b" + n + r"\.(connect|disconnect)\(|&?\"" + n + r"\"\s*,\s*Callable|await\s+\w+\." + n
                                + r"\b|\b" + n + r"\.is_connected")
             em = [r for r, t in alltext.items() if n in t and em_rx.search(t)]
             co = [r for r, t in alltext.items() if n in t and co_rx.search(t)]
@@ -465,7 +740,7 @@ def report(g):
     # 7 layering
     R += ["## 7. Links against the layering", "",
           "tkg/CLAUDE.md: systems are rules with no UI and never reach across scenes (they emit on Sig, UI listens); "
-          "data is plain resources; sim is test code. Counted in references + calls. The first three are ratcheted "
+          "data is plain resources; sim is test code. Counted in references, loads and extends. The first three are ratcheted "
           "by the gate (the dispatchers DevFlags and Main, and the autoloads Hints and Ash, are exempt); "
           "autoloads into ui/ is only reported (Router opens screens).", ""]
 
@@ -501,9 +776,13 @@ def report(g):
         sum(len(v) for _, v in game_leaks), len(game_leaks),
         ", ".join("%s %d" % (Path(d).stem, n) for d, n in sorted(by_target.items(), key=lambda kv: (-kv[1], kv[0]))[:15])))
     R.append("")
+    R.append("Ratcheted keys that rest on the unique-name guess alone (no declared type): %d of %d."
+             % (len(fallback_keys(g) & facts(g)), sum(1 for k in facts(g) if k.startswith("private"))))
+    R.append("")
     for (d, m), v in sorted(game_leaks, key=lambda kv: (-len(kv[1]), kv[0]))[:70]:
         callers = Counter(Path(x[0]).stem for x in v)
-        conf = "INFERRED" if any(x[2] == "INFERRED" for x in v) else "EXTRACTED"
+        hows = set(x[2] for x in v)
+        conf = "EXTRACTED" if hows == set(["EXTRACTED"]) else "by name alone" if hows == set(["UNIQUE"]) else "TYPED"
         R.append("- `%s.%s` <- %s [%s]" % (Path(d).stem, m, ", ".join(
             "%s x%d" % (c, n) for c, n in sorted(callers.items(), key=lambda kv: (-kv[1], kv[0]))[:5]), conf))
     sim_leaks = Counter()
@@ -588,6 +867,12 @@ def _sccs(adj):
 
 
 def main(argv):
+    if "--selftest" in argv:
+        bad = selftest()
+        for b in bad:
+            print("SELFTEST " + b)
+        print("code graph selftest: %s" % ("FAIL (%d)" % len(bad) if bad else "PASS"))
+        return 1 if bad else 0
     if "--update" in argv:
         return check(True)
     for flag in ("--report", "--graphify"):

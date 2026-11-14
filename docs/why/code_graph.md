@@ -35,19 +35,37 @@ Keys are file paths and function names, never line numbers, so an edit elsewhere
 
 ## How a call is resolved
 
-A call is given an edge only when its receiver is known: `self` or none (the class and its bases),
-a `class_name` or autoload (`Router.go()`), a variable with a declared class (`var b: Board`,
-`x := Board.new()`, a typed parameter, taken per function, dropped if one name is typed two
-ways), or a private `_name` defined in exactly one file. A PUBLIC method on an untyped receiver
-is never resolved by name: `a.resize()` would land on whatever class happens to define `resize`,
-and an earlier version of this tool did exactly that and invented edges. So an untyped
-`thing.public_call()` is invisible. That under-reports; it never accuses. The cost of the other
-rule (unique private name) is a wrong edge if a private name is also an engine private; the
-engine's virtuals are listed in `VIRTUAL`.
+A call is given an edge only when its receiver is known: none or `self` (the class and its bases);
+a `class_name` or autoload (`Router.go()`); `(x as Board)._m()` or `Board.new()._m()`; or a variable
+with a class declared where it is declared (`var b: Board`, `x := Board.new()`, `x = y as Board`,
+`for x: Board in`, a typed parameter). A parameter belongs to its own function; a member
+declaration to the file; a name typed two ways in one scope is dropped. An annotation counts only
+in those positions, so `if ok: Board.show()` types nothing. Failing all that, a private `_name`
+defined in exactly one GAME file resolves (marked UNIQUE; sim definitions are not counted).
 
-Comments are stripped with `tools/code_check.py`'s lexer and strings are blanked, so a class named
-in a comment or a message is not a dependency. Scenes and `project.godot` are read for the
-orphan census (a script a scene attaches is not an orphan); the `.godot/` cache never is.
+Never resolved: a PUBLIC method on an untyped receiver (`a.resize()` would land on whatever class
+defines `resize`; an earlier version did that and invented edges), and any receiver that is another
+expression (`arr[i]._m()`, `f()._m()`, `a.b._m()`: not `self`, and only the unique-private rule
+may name it). That under-reports; it never accuses. A call through a property chain such as
+`zoom.lab._draw_life()` is therefore found only while that private name is unique.
+
+An INFERRED key (found by name alone; `--report` says how many) can appear or vanish when another
+game file adds or removes a method of the same name. Such a NEW is legitimate to `--update` with a
+note in the PR; the check output says so on those lines.
+
+A file depends on a class when its name appears as an identifier in code (comments, strings and
+triple-quoted blocks stripped). Not a reference: `$Board`, `%Hints`, `Kind.Board` (a member access),
+and any name the file declares itself (variable, constant, parameter, loop variable, inner class,
+enum or enum member), which shadows the class in that file. Loading `res://...gd` and `extends`
+count as well. Scenes and `project.godot` are read for the orphan census; `.godot/` never is.
+
+## Self-test
+
+`python3 tools/code_graph.py --selftest` builds a small synthetic tree in a temp folder (about
+0.1 s) and asserts the exact facts: parameter scope, cast and `.new()` receivers, expression
+receivers, a triple-quoted block, `$Name`, enum members and shadowing, same-named inner functions
+and a property setter, `if cond: Class.call()`, a method name duplicated only in sim, and that the
+check and report modes find the same facts. `unit_codegraph` runs it before the check.
 
 ## Reading the report (`--report`)
 
@@ -70,11 +88,11 @@ Run `python3 tools/code_graph.py --report` before planning a refactor. With no p
 
 ## Measured on 67ec663e
 
-570 scripts. Baseline: 185 entries, 17 `layer` (1 game-to-sim: `BotPilot -> Policy`; 12 into ui,
-nine from systems, one from net, two from data; 4 data into systems) and 168 `private`. The
-report: 1 orphan game file, 36 orphan game functions, 570 game-to-game private call sites on 121
+569 scripts (the number `--update` prints). Baseline: 190 entries, 17 `layer` (1 game-to-sim: `BotPilot -> Policy`; 12 into ui,
+nine from systems, one from net, two from data; 4 data into systems) and 173 `private` (17 of them rest on the unique-name guess). The
+report: 1 orphan game file, 43 orphan game functions, 579 game-to-game private call sites on 129
 methods (`PostingBoard` takes 300 of them, from the `Board*` painters), one 5-group set of cycles.
-The check takes about 4 seconds; the report about 7.
+The check takes about 2 seconds; the report about 4.
 
 ## The baseline
 
