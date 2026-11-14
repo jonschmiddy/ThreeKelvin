@@ -2416,6 +2416,44 @@ case "$GATE_JOBS" in
 	''|*[!0-9]*|0) printf 'validate.sh: GATE_JOBS must be a whole number, 1 or more (got %s)\n' "$GATE_JOBS" >&2; exit 2 ;;
 esac
 
+# The order the units will run in. GATE_LIST=1 prints it and stops: nothing runs.
+GATE_FIRST=()
+GATE_AFTER=()
+GATE_SOLO=()
+GATE_POOL=()
+GATE_POOL_ORDER=()
+if [ "$GATE_JOBS" -gt 1 ]; then
+	i=0
+	for u in "${UNITS[@]}"; do
+		if gate_in "$u" "$FIRST_UNITS"; then
+			GATE_FIRST+=("$u")
+		elif gate_in "$u" "$AFTER_UNITS"; then
+			GATE_AFTER+=("$u")
+		elif gate_in "$u" "$SOLO_UNITS"; then
+			GATE_SOLO+=("$u")
+		else
+			# heaviest first; file order among equals
+			GATE_POOL+=("$(gate_weight "$u") $i $u")
+		fi
+		i=$((i + 1))
+	done
+	while read -r _w _i u; do
+		GATE_POOL_ORDER+=("$u")
+	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
+fi
+if [ "${GATE_LIST:-}" = 1 ]; then
+	if [ "$GATE_JOBS" -eq 1 ]; then
+		for u in "${UNITS[@]}"; do printf 'serial\t%s\n' "$u"; done
+	else
+		for u in ${GATE_FIRST[@]+"${GATE_FIRST[@]}"}; do printf 'first\t%s\n' "$u"; done
+		for u in ${GATE_POOL_ORDER[@]+"${GATE_POOL_ORDER[@]}"}; do printf 'pool\t%s\n' "$u"; done
+		for u in ${GATE_AFTER[@]+"${GATE_AFTER[@]}"}; do printf 'after\t%s\n' "$u"; done
+		for u in ${GATE_SOLO[@]+"${GATE_SOLO[@]}"}; do printf 'solo\t%s\n' "$u"; done
+	fi
+	rmdir "$LOG_DIR" 2>/dev/null
+	exit 0
+fi
+
 # Each unit's held output, its verdict, its Godot PIDs and its user folder. Not
 # LOG_DIR: that is kept, and this is not.
 GATE_TMP="$(mktemp -d)"
@@ -2528,30 +2566,8 @@ if [ "$GATE_JOBS" -eq 1 ]; then
 	# The old gate: one at a time, in file order, nothing moved.
 	run_phase 1 "${UNITS[@]}"
 else
-	GATE_FIRST=()
-	GATE_AFTER=()
-	GATE_SOLO=()
-	GATE_POOL=()
-	i=0
-	for u in "${UNITS[@]}"; do
-		if gate_in "$u" "$FIRST_UNITS"; then
-			GATE_FIRST+=("$u")
-		elif gate_in "$u" "$AFTER_UNITS"; then
-			GATE_AFTER+=("$u")
-		elif gate_in "$u" "$SOLO_UNITS"; then
-			GATE_SOLO+=("$u")
-		else
-			# heaviest first; file order among equals
-			GATE_POOL+=("$(gate_weight "$u") $i $u")
-		fi
-		i=$((i + 1))
-	done
-	GATE_POOL_ORDER=()
-	while read -r _w _i u; do
-		GATE_POOL_ORDER+=("$u")
-	done < <(printf '%s\n' "${GATE_POOL[@]}" | sort -k1,1nr -k2,2n)
-	run_phase 1 "${GATE_FIRST[@]}"
-	run_phase "$GATE_JOBS" "${GATE_POOL_ORDER[@]}"
+	run_phase 1 ${GATE_FIRST[@]+"${GATE_FIRST[@]}"}
+	run_phase "$GATE_JOBS" ${GATE_POOL_ORDER[@]+"${GATE_POOL_ORDER[@]}"}
 	# (a part may hold none of these; bash 3.2 reads an empty array as unbound)
 	run_phase "$GATE_JOBS" ${GATE_AFTER[@]+"${GATE_AFTER[@]}"}
 	run_phase 1 ${GATE_SOLO[@]+"${GATE_SOLO[@]}"}
