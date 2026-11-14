@@ -55,6 +55,7 @@ func run(tree: SceneTree) -> void:
 	await _swing_test()
 	print("\n=== a peer says things it should not ===")
 	await _hostile_peer_test()
+	await _bad_input_test()
 	_bot_shelf_test()
 	print("\n=== two ships start different fights at one system in the same second ===")
 	await _race_test()
@@ -1293,6 +1294,9 @@ func _hostile_peer_test() -> void:
 	host._apply_spot(gid, 1, 0, 0.0, 0.0, 0.0, INF, 0)
 	host._apply_spot(gid, 1, 0, NAN, 0.0, 0.0, 5.0, 0)
 	ok("a spot that is not a number is dropped", not host.spots.has(gid))
+	host._apply_spot(gid, 99999, 0, 0.0, 0.0, 0.0, 5.0, 0)
+	host._apply_spot(gid, -4, 0, 0.0, 0.0, 0.0, 5.0, 0)
+	ok("a spot at no system is dropped", not host.spots.has(gid))
 	host._apply_spot(gid, 1, 0, 0.0, 0.0, 0.0, 1.0e30, 0)
 	check("a clock far past play is held to the cap", float(host.spots[gid].t), NetSession.MAP_CLOCK_MAX)
 
@@ -1309,6 +1313,255 @@ func _hostile_peer_test() -> void:
 	check("a roster with bad rows keeps the good one", guest.roster.keys(), [9999])
 	print("  a stranger, a bad claim, fight, presence, spot, name and roster row: all refused, the real ones kept")
 	await _teardown()
+
+
+## Bad, oversize and late input from a ship in the party (Nov 14): each is dropped or cut to
+## size, and a real one of the same kind lands as it was said. Its parts are below.
+func _bad_input_test() -> void:
+	if Run.map.is_empty():
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 52
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var guest := _make_peer("guest")
+	# (a name with brackets, a tab and a bell in it, and a chassis nobody builds)
+	guest.join_party(code, "[b]Mer\tcer[/b]" + char(7), &"no_such_frame", DirectTransport.new())
+	var joined := await _wait_until(func() -> bool:
+		return host.party_size() == 2 and guest.party_size() == 2, 5.0)
+	ok("(bad input) two ships in the party", joined)
+	if not joined:
+		await _teardown()
+		return
+	var gid := guest.local_id()
+	await _lobby_input_test(host, guest, gid)
+	_presence_input_test(host, gid)
+	await _flight_input_test(host, guest, gid)
+	await _claim_push_test(host, guest, gid)
+	await _silent_peer_test(host, guest, code)
+	await _teardown()
+	await _claim_cap_test()
+	_flight_point_input_test()
+
+
+## A name is kept without brackets or control characters, a chassis only if the catalogue has
+## one by it, and a ship already seated cannot say hello again.
+func _lobby_input_test(host: NetSession, guest: NetSession, gid: int) -> void:
+	check("a name loses its brackets and control characters", host.name_of(gid), "bMercer/b")
+	check("a chassis nobody builds is not kept", host.roster[gid].hull, &"")
+	host._apply_hull(gid, &"korvan")
+	check("a real chassis is", host.roster[gid].hull, &"korvan")
+	host._apply_hull(gid, &"nobody_builds_this")
+	check("and a later one nobody builds is not", host.roster[gid].hull, &"")
+	guest.set_ready(true)
+	var ready := await _wait_until(func() -> bool: return bool(host.roster[gid].ready), 3.0)
+	ok("(bad input) the guest is ready", ready)
+	var order0 := int(host.roster[gid].order)
+	# (a claim after it on the same reliable channel says the hello has been read)
+	guest._hello.rpc_id(1, NetSession.PROTOCOL, guest._content_hash, "Again", &"korvan", guest.local_build())
+	guest._claim_at_host.rpc_id(1, 900, 0)
+	var read := await _wait_until(func() -> bool: return host.who_took(900) == gid, 3.0)
+	ok("(bad input) the message after the second hello arrived", read)
+	check("a second hello from a seated ship does not rename it", host.name_of(gid), "bMercer/b")
+	ok("nor clear its ready flag, nor move it down the list",
+		bool(host.roster[gid].ready) and int(host.roster[gid].order) == order0)
+
+
+## What the host keeps of a presence is the build every machine would read from it.
+func _presence_input_test(host: NetSession, gid: int) -> void:
+	for w: int in [int(HullData.Weight.LIGHT), int(HullData.Weight.MEDIUM), int(HullData.Weight.HEAVY)]:
+		ok("an unbranded frame of weight %d exists to fall back on" % w, DB.hull_for(&"", w as HullData.Weight) != null)
+	var longest := 0
+	for m: ModuleData in DB.modules.values():
+		longest = maxi(longest, maxi(String(m.id).length(), String(m.manufacturer).length()))
+	for k: Variant in DB.manufacturers:
+		longest = maxi(longest, String(k).length())
+	ok("every part id and manufacturer in the catalogue is half the cap on a part's text or less (longest %d, cap %d)" % [
+		longest, NetSession.WORD_MAX], longest > 0 and longest * 2 <= NetSession.WORD_MAX)
+	print("  a part's text: the catalogue's longest is %d characters, the cap %d" % [longest, NetSession.WORD_MAX])
+
+	var real := ShipBuild.local()
+	real.pilot = "Mercer"
+	var wire := real.to_wire()
+	ok("(bad input) this ship has parts fitted", (wire.parts as Array).size() > 0)
+	host._apply_presence(gid, wire, -1)
+	check("a real ship's build is kept as it was said", host.roster[gid].build, wire)
+	var real_bytes := var_to_bytes(wire).size()
+
+	var long_name := wire.duplicate(true)
+	long_name["pilot"] = "x".repeat(30000)
+	host._apply_presence(gid, long_name, -1)
+	check("a pilot name of 30,000 characters is cut to the cap", String(host.roster[gid].build.pilot).length(), NetSession.NAME_MAX)
+
+	host._apply_presence(gid, wire, -1)
+	var extra := wire.duplicate(true)
+	extra["junk"] = "y".repeat(30000)
+	host._apply_presence(gid, extra, -1)
+	ok("a build with a field no ship has is not kept", not (host.roster[gid].build as Dictionary).has("junk"))
+	var wrong := wire.duplicate(true)
+	wrong["hp"] = "seven"
+	host._apply_presence(gid, wrong, -1)
+	check("nor one whose hull points are not a number", typeof(host.roster[gid].build.hp), TYPE_INT)
+	check("the build before them stands", host.roster[gid].build, wire)
+
+	var padded := wire.duplicate(true)
+	var real_parts := (padded.parts as Array).size()
+	(padded.parts as Array).append({"slot": 0, "mount": 0, "manufacturer": &"", "id": &"", "cargo": [1, 2, 3]})
+	for i in 200:
+		(padded.parts as Array).append({"slot": 0, "mount": 0, "manufacturer": &"", "id": "z".repeat(2000)})
+	host._apply_presence(gid, padded, -1)
+	check("parts no ship could fit are dropped, the real ones kept", (host.roster[gid].build.parts as Array).size(), real_parts)
+	var kept_bytes := var_to_bytes(host.roster[gid].build).size()
+	ok("and what is kept is the size of the real build (%d bytes kept, %d real, %d said)" % [
+		kept_bytes, real_bytes, var_to_bytes(padded).size()], kept_bytes == real_bytes)
+
+	host._apply_presence(gid, {}, -1)
+	ok("no ship yet is still no ship", (host.roster[gid].build as Dictionary).is_empty() and host.build_of(gid) == null)
+	host._apply_presence(gid, wire, -1)
+
+
+## A flight a ship says is kept only if it can be drawn. Each is sent as a ship sends one,
+## with a claim after it on the same channel to say it has been read.
+func _flight_input_test(host: NetSession, guest: NetSession, gid: int) -> void:
+	var longest_s := FlightSolve.T_CAP_WIDE + FlightSolve.LEAD_MAX + FlightSolve.KEEP_HOLD + float(ShipFlightS.TAIL_S)
+	var said_n := ceili(longest_s / SystemMapScreen.FLIGHT_SAY_DT) + 1
+	ok("the cap on a flight's points (%d) is four times the longest plan's (%d, %.1f s) or more" % [
+		NetSession.FLIGHT_POINTS_MAX, said_n, longest_s], NetSession.FLIGHT_POINTS_MAX >= 4 * said_n)
+	ok("and ten times it or less", NetSession.FLIGHT_POINTS_MAX <= 10 * said_n)
+	print("  a flight: the longest plan is %.1f s, %d points said; the cap %d" % [longest_s, said_n, NetSession.FLIGHT_POINTS_MAX])
+	var pts := PackedVector2Array([Vector2.ZERO, Vector2(10.0, 0.0), Vector2(20.0, 0.0)])
+	var lit := PackedByteArray([0, 0, 0])
+	var shape := PackedFloat64Array([-9.0, 0.0, 0.03])
+	var dt := 1.0 / 60.0
+	var long_pts := PackedVector2Array()
+	long_pts.resize(NetSession.FLIGHT_POINTS_MAX + 1)
+	var long_lit := PackedByteArray()
+	long_lit.resize(NetSession.FLIGHT_POINTS_MAX + 1)
+	# [what, at, t0, dt, pts, burns, said, shape]
+	var bad: Array = [
+		["no duration", 12, 100.0, 0.0, pts, lit, 100.0, shape],
+		["a step that is not a number", 12, 100.0, NAN, pts, lit, 100.0, shape],
+		["a step that runs backwards", 12, 100.0, -1.0, pts, lit, 100.0, shape],
+		["a start that is not a number", 12, INF, dt, pts, lit, 100.0, shape],
+		["a clock that is not a number", 12, 100.0, dt, pts, lit, NAN, shape],
+		["a shape of four numbers", 12, 100.0, dt, pts, lit, 100.0, PackedFloat64Array([-9.0, 0.0, 0.03, 1.0])],
+		["a shape that is not a number", 12, 100.0, dt, pts, lit, 100.0, PackedFloat64Array([-9.0, NAN, 0.03])],
+		["no system", -5, 100.0, dt, pts, lit, 100.0, shape],
+		["a point that is not a number", 12, 100.0, dt, PackedVector2Array([Vector2.ZERO, Vector2(NAN, 0.0), Vector2.ONE]), lit, 100.0, shape],
+		["more points than the longest flight has", 12, 100.0, dt, long_pts, long_lit, 100.0, shape],
+	]
+	for i in bad.size():
+		var b: Array = bad[i]
+		guest._flight_at_host.rpc_id(1, b[1], 0, 1, b[2], b[3], b[4], b[5], b[6], b[7])
+		guest._claim_at_host.rpc_id(1, 910 + i, 0)
+		var read := await _wait_until(func() -> bool: return host.who_took(910 + i) == gid, 4.0)
+		ok("a flight with %s is ignored" % b[0], read and not host.flights.has(gid))
+		host.flights.erase(gid)
+	guest._flight_at_host.rpc_id(1, 12, 0, 1, 100.0, dt, pts, lit, 100.0, shape)
+	var kept := await _wait_until(func() -> bool: return host.flights.has(gid), 4.0)
+	ok("a real flight is kept", kept)
+	guest._flight_at_host.rpc_id(1, 12, -9, -9, 0.0, 0.0, PackedVector2Array(), PackedByteArray(), 0.0, PackedFloat64Array())
+	var gone := await _wait_until(func() -> bool: return not host.flights.has(gid), 4.0)
+	ok("and let go of as a ship lets go of one", gone)
+
+
+## However many claims a frame brings, the party is sent the table once for it.
+func _claim_push_test(host: NetSession, guest: NetSession, gid: int) -> void:
+	var level := await _wait_until(func() -> bool: return guest.claims.size() == host.claims.size(), 4.0)
+	ok("(bad input) the guest has every claim so far", level)
+	var pushes: Array[int] = [0]
+	var on_map := func() -> void: pushes[0] += 1
+	Sig.party_map_changed.connect(on_map)
+	for o in 40:
+		host._apply_claim(3, MapGen.OPTION_JETSAM + o, gid)
+	var taken := pushes[0]
+	var there := await _wait_until(func() -> bool: return guest.taken_at(3).size() == 40, 4.0)
+	Sig.party_map_changed.disconnect(on_map)
+	ok("forty claims taken in one frame reach a guest", there and taken == 40)
+	check("in one push, not forty", pushes[0] - taken, 1)
+
+
+## A ship that connects and never says hello is let go by the host; a seated one never is.
+func _silent_peer_test(host: NetSession, guest: NetSession, code: String) -> void:
+	check("the host waits as long for a hello as a joiner waits for its answer",
+		host.hello_timeout, NetSession.HANDSHAKE_TIMEOUT)
+	var came: Array[int] = []
+	var on_peer := func(id: int) -> void: came.append(id)
+	host.multiplayer.peer_connected.connect(on_peer)
+	# (short only now: the guest is seated, and a seated ship is never timed)
+	host.hello_timeout = 0.2
+	var silent := _make_peer("silent")
+	silent.handshake_timeout = 60.0
+	silent.join_party(code, "Quiet", &"korvan", DirectTransport.new())
+	silent._said_hello = true
+	var arrived := await _wait_until(func() -> bool: return not came.is_empty(), 5.0)
+	ok("a ship that says nothing connects", arrived)
+	var let_go := await _wait_until(func() -> bool:
+		return silent.state == NetSession.State.FAILED and host.multiplayer.get_peers().size() == 1, 8.0)
+	ok("and is let go when it has said no hello in time", let_go)
+	host.multiplayer.peer_connected.disconnect(on_peer)
+	check("it was never on the roster", host.party_size(), 2)
+	check("the seated ship is still in the party", guest.state, NetSession.State.IN_PARTY)
+	ok("and still connected", host.multiplayer.get_peers().has(guest.local_id()))
+
+
+## One system's claims stop at its cap and the whole table at its own, and a claim past
+## either is dropped with nothing sent for it. A host with nobody aboard, so nothing is pushed.
+func _claim_cap_test() -> void:
+	var per := Combat.WRECK_PARTS_DEFAULT
+	for k: Variant in Combat.WRECK_PARTS:
+		per = maxf(per, float(Combat.WRECK_PARTS[k]))
+	var pay := PartyScale.loot(NetTransport.MAX_PLAYERS)
+	var wreck_most := 1 + maxi(ceili(per * Combat.WRECK_LAWLESS * pay),
+		maxi(ceili(Combat.HELLBENDER_PARTS * pay), roundi((Combat.FAUNA_EXOTIC + 1) * pay)))
+	ok("a wreck holds %d things at most in a full party, inside the %d a container's claims are numbered in" % [
+		wreck_most, MapGen.JETSAM_STRIDE], wreck_most <= MapGen.JETSAM_STRIDE)
+	ok("one system's cap (%d) is ten full fights of four such wrecks or more" % NetSession.CLAIMS_PER_NODE,
+		NetSession.CLAIMS_PER_NODE >= 10 * NetSession.FIGHT_FOES_MAX * wreck_most)
+	ok("and twenty or less", NetSession.CLAIMS_PER_NODE <= 20 * NetSession.FIGHT_FOES_MAX * wreck_most)
+	ok("and the whole table's (%d) is sixteen full systems or more" % NetSession.CLAIMS_MAX,
+		NetSession.CLAIMS_MAX >= 16 * NetSession.CLAIMS_PER_NODE)
+	var lone := _make_peer("lone")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 53
+	t.advertise = "127.0.0.1"
+	ok("(bad input) a host alone", not lone.host_party("Vela", &"redline", t).is_empty())
+	for o in NetSession.CLAIMS_PER_NODE + 50:
+		lone._apply_claim(4, MapGen.OPTION_JETSAM + o, 1)
+	check("one system holds no more than its cap", lone.taken_at(4).size(), NetSession.CLAIMS_PER_NODE)
+	var systems := NetSession.CLAIMS_MAX / NetSession.CLAIMS_PER_NODE + 2
+	for k in systems:
+		for o in NetSession.CLAIMS_PER_NODE:
+			lone._apply_claim(1000 + k, MapGen.OPTION_JETSAM + o, 1)
+	var total := 0
+	for here: Dictionary in lone.claims.values():
+		total += here.size()
+	check("the whole table stops at its cap (%d systems of %d were asked for)" % [systems + 1, NetSession.CLAIMS_PER_NODE],
+		total, NetSession.CLAIMS_MAX)
+	await _wait_frames(2)
+	lone._apply_claim(5000, MapGen.OPTION_WHOLE, 1)
+	ok("a claim past it is dropped", not lone.claims.has(5000))
+	print("  claims: a wreck holds %d at most for %d ships; one system's cap %d, the table's %d (this galaxy: %d systems)" % [
+		wreck_most, NetTransport.MAX_PLAYERS, NetSession.CLAIMS_PER_NODE, NetSession.CLAIMS_MAX, Run.map.size()])
+	ok("and nothing is owed to the party for it", not lone._claims_dirty)
+	lone.leave_party()
+	check("a party left takes its count with it", lone._claims_held, 0)
+	await _teardown()
+
+
+## The drawing side: a kept flight whose step is nothing, or not a number, draws nothing.
+func _flight_point_input_test() -> void:
+	var L := SystemLayout.of(Run.map[12]) if Run.map.size() > 12 else null
+	var pts := PackedVector2Array([Vector2.ZERO, Vector2(10.0, 0.0), Vector2(20.0, 0.0)])
+	var lit := PackedByteArray([0, 0, 0])
+	for dt: float in [0.0, NAN, INF, -1.0]:
+		var fl := NetSession._flight_row(12, 0, 1, 100.0, dt, pts, lit, 100.0, PackedFloat64Array())
+		ok("a kept flight with a step of %s draws nothing" % dt, NetSession.flight_point(fl, L, 100.0, int(fl.got)).is_empty())
+	var odd := NetSession._flight_row(12, 0, 1, NAN, 1.0 / 60.0, pts, lit, 100.0, PackedFloat64Array())
+	ok("nor one whose start is not a number", NetSession.flight_point(odd, L, 100.0, int(odd.got)).is_empty())
+	var good := NetSession._flight_row(12, 0, 1, 100.0, 1.0 / 60.0, pts, lit, 100.0, PackedFloat64Array())
+	ok("a real one draws", NetSession.flight_point(good, L, 100.0, int(good.got)).size() == 3)
 
 
 ## A shelf part is not offered to a ship that cannot hold it, so it is never paid for and lost.

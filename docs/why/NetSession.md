@@ -887,3 +887,177 @@ ride round to its departure on, and its spin-down onto the ring after: a
 twin's 17.6 px ring at pace 8 goes 2.4 rad between two spots, and the
 partner drawn by them cut across it, the code review, Nov 5)
 ```
+
+## Claim caps
+
+Above `const CLAIMS_PER_NODE`, `var _claims_held` and the check in `_apply_claim` (Nov 14):
+
+```text
+The claims table is pushed whole, so its size is every guest's cost on every
+push. Three rules keep that cost what a real dive makes it. None changes
+what a ship in play sees.
+
+ONE SYSTEM holds at most CLAIMS_PER_NODE claims: sixteen containers full to
+`MapGen.JETSAM_STRIDE` (64, the most ids one container can number), 1,024.
+What a system really holds is far less. Its own things are a few: the
+system itself (`RunState.take_whole`), a shelf of at most eight parts and
+the hull on the rack (`StationScreen._stock_up`, `SHOP_COLS`), four rolled
+sites and the odd reading or quest (`OptionTable.TIER_PLAN`). The rest is
+wrecks. A wreck holds 25 things at most in a party of eight
+(`Combat.roll_wreck`: a purse, and 1.3 parts x 2 in lawless space x
+`PartyScale.loot(8)` = 21 parts, or 24 exotic for fauna, or 24 parts for the
+Hellbender), and a fight leaves four (`FIGHT_FOES_MAX`). So one fight
+stripped bare by a full party is 100 claims, and the cap is ten of those at
+one system. It was 2,048.
+
+THE WHOLE TABLE holds at most CLAIMS_MAX, 16,384: sixteen systems at their
+cap. A galaxy is about 290 systems at ordinary density (`MapGen.ring_count`;
+the one `-- nettest` builds has 344). A full party that finished every one
+of them, resolved every site, bought out every shelf and filled its holds
+from wrecks at every stop would make about 7,500 claims (an estimate: 344
+systems, six sites each, eight ships taking some 600 things apiece), so the
+cap is about twice a galaxy stripped bare. Before, the table had no cap of
+its own.
+
+A claim over either cap is dropped where it arrives: not kept, and no push
+sent for it. The ship that asked hears nothing and `take()` refuses after
+TAKE_TIMEOUT, which is what a lost race already does.
+
+ONE PUSH A FRAME. `_apply_claim` marks the table dirty and `_process` sends
+it once, however many claims the frame brought. A guest's `take()` polls
+every frame for three seconds, so an answer one frame later costs nothing.
+`_hello` still sends a joiner the table directly.
+
+`-- nettest` holds each number to the code it was derived from, so a change
+to the loot tables or the party's size that outgrows a cap fails there.
+
+Still true: the push is one message, and the relay link carries messages up
+to `RelayPeer.BUFFER_BYTES` (64 KB), about 3,900 claims. A table past that
+does not reach a relay guest. Sending the table in parts would change what
+is on the wire, so it waits for the next protocol number.
+```
+
+## Kept builds
+
+Above `kept_build` and its call in `_apply_presence` (Nov 14):
+
+```text
+The host kept the build a presence said exactly as it came and sent it on
+to everyone with every roster push. Every machine already reads a build
+through `ShipBuild.from_wire`, which takes what a ship is drawn from and
+ignores the rest; the rest still travelled. Now the host reads it the same
+way first and keeps `to_wire()` of the result, so what is stored and sent
+on is only what would have been drawn anyway.
+
+For a real ship the kept build is the build said, field for field
+(`-- nettest`: "a real ship's build is kept as it was said"). Nothing reads
+the roster's build except `build_of`, which calls `from_wire`, so every
+reader sees the ship it saw before.
+
+What is cut:
+  - `pilot` to NAME_MAX. It is not shown as text; it seeds the hull's wear
+    (`ShipView`), so it is cut, not cleaned, and a real name seeds what it
+    did. The lobby's name field holds 14 characters.
+  - a part that is not shaped like `ShipBuild.part_entry` writes one: a
+    field no part has, a field of the wrong kind, or text over WORD_MAX
+    (48; the catalogue's longest part id or manufacturer is 12, and
+    `-- nettest` fails when one passes 24). A part past
+    `ShipBuild.MAX_PARTS` was already dropped by every reader.
+  - the whole presence, when the build has a field no build has or one of
+    the wrong kind (hull points that are not a number). The roster keeps
+    the last good build and the ship's place does not move.
+
+`_like` compares against a build and a part made by the sending code itself
+(`ShipBuild.new().to_wire()`, `ShipBuild.part_entry`), so this file names no
+wire key and cannot drift from the format.
+
+An empty build stays empty: a slot exists before its ship does.
+```
+
+## Flight checks
+
+Above `const FLIGHT_POINTS_MAX`, `_flight_ok` and the guard in `flight_point` (Nov 14):
+
+```text
+A flight a ship says is kept by the host, sent on to everyone, and drawn
+every frame from its numbers (`flight_point`). So the host keeps one only
+if it can be drawn:
+  - its system is a place (`_is_place`);
+  - its start, its step and the clock it was said at are numbers, and the
+    step is more than nothing;
+  - its `shape` is at most the three numbers a ship sends (host, dep_s,
+    arr_s), each a number;
+  - every point is a number;
+  - it has no more points or burns than FLIGHT_POINTS_MAX.
+A flight that fails is ignored: the ship is drawn by its spots, as it is
+for a peer that says no flight. A flight let go of (`to` -9) keeps nothing
+and reads none of these, so only its size is checked; a real one says a
+step of 0.
+
+FLIGHT_POINTS_MAX is 14,400: four minutes at the 60 points a second a
+flight is said at (`SystemMapScreen.FLIGHT_SAY_DT`). The longest flight
+the planner makes arrives within `FlightSolve.T_CAP_WIDE` (40 s) of now,
+after a ride of at most `LEAD_MAX` (4.4 s) or a hold of `KEEP_HOLD` (1 s),
+and is said with its tail (`ShipFlight.TAIL_S`, 1 s): 46.4 s, 2,785
+points. The cap is five times that. It was 100,000. `-- nettest` fails if
+the cap is ever under four times the planner's longest, or over ten.
+
+`flight_point` checks the step again on the drawing machine, and asks its
+questions so that a value that is not a number fails them (`not (dt > 0.0)`,
+`not (s >= 0.0 and s <= dur)`), then holds the index inside the path. A
+guest draws what its host sends, so a row with a bad step draws nothing
+there too.
+
+`_apply_spot` checks its place the same way a presence does. A spot at a
+system past the map could not be seen by anyone: `party_t` and the map
+draw a partner only in the system the roster has it in.
+```
+
+## Silent peers
+
+Above `var hello_timeout` and `_drop_silent` (Nov 14):
+
+```text
+A joiner gives up if the host has not answered within HANDSHAKE_TIMEOUT.
+The host had no such limit the other way.
+
+Now the host notes when each peer connects (`_unseated`) and lets go of
+one that is still not on the roster after `hello_timeout`, ten seconds, so
+the link's spare sockets (`DirectTransport.CONNECTION_SLACK`) are free for
+a friend arriving later. A
+real client says hello the moment it connects, and its own ten seconds
+started earlier, when it began to connect, so a client the host lets go
+of has already given up by itself. A peer on the roster is taken off the
+list and never timed.
+
+On the relay link `disconnect_peer` does nothing for a peer that is not
+this one (see Handshake above), so there the timer runs out and only
+stops counting. Letting go of a relay peer needs a new relay frame, which
+is not this change.
+```
+
+## Lobby names
+
+Above `clean_name`, `_known_hull` and the roster check in `_hello` (Nov 14):
+
+```text
+What `_hello` puts on the roster goes to every machine and onto their
+screens, so it is tidied once, on the host.
+
+THE NAME loses square brackets and control characters, then is cut to
+NAME_MAX; one with nothing left is PILOT, the lobby's own word for a blank
+field (`LobbyScreen._callsign`). A name is shown as plain text wherever it
+is shown, and the log already escapes brackets (`LogPanel`); taking them
+out at the door holds that for every label a name may reach later. A
+player who typed brackets in a callsign sees it without them, on every
+machine alike.
+
+THE CHASSIS (`hull_id`) is kept only if the catalogue has a frame by that
+manufacturer (`DB.hull_frames`); anything else is none, which is what the
+lobby and the bot send today. `_apply_hull` holds a later choice to the
+same rule. The join is not refused for it: nothing reads the field yet.
+
+A SECOND HELLO from a peer already on the roster is ignored. It used to
+make a fresh slot: the ship lost its ready flag and its build, and went to
+the bottom of the lobby list.
+```
