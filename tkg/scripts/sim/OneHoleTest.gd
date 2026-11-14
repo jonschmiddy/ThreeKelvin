@@ -26,7 +26,7 @@ func _run() -> void:
 		var area := AreaView.new()
 		for n: MapGen.MapNode in Run.map:
 			area.node = n
-			var what := area._place_name()
+			var what := area.place_name()
 			var star := SystemLayout.of(n).star
 			match n.type:
 				MapGen.NodeType.CORE:
@@ -46,9 +46,9 @@ func _run() -> void:
 				MapGen.NodeType.STATION:
 					SystemMapScreen._parked.erase(n.index)
 					_ok("seed %d node %d: a station's system draws no ring away from the station" % [seed, n.index],
-						area._place_name() == &"")
+						area.place_name() == &"")
 					Router.park_at_station(n)
-					what = area._place_name()
+					what = area.place_name()
 					seen[what] = int(seen.get(what, 0)) + 1
 					if what != &"station":
 						_ok("seed %d node %d: a station keeps its picture at the station (%s)" % [seed, n.index, what], false)
@@ -94,7 +94,7 @@ func _local_core(seed: int, look: StringName) -> void:
 	var view: EncounterView = sc._view
 	var sky: LocalSky = view.backdrop
 	_ok("%s: no place picture and no near world at the core" % tag,
-		view._area._place_name() == &"" and sky._near.is_empty())
+		view._area.place_name() == &"" and sky._near.is_empty())
 	var hole := sky.hole_box()
 	var c := sky.origin()
 	var sr := sky.core_shadow_r() * 1.25

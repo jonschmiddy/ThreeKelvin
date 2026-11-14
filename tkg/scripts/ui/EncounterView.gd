@@ -725,7 +725,7 @@ func release_entrances() -> void:
 ## Why: docs/why/EncounterView.md#place-fade
 func _area_fade_out() -> void:
 	if not Router.animating() or not is_visible_in_tree() or _area.node == null \
-			or _area._place_name() == &"":
+			or _area.place_name() == &"":
 		return
 	var fixed := 0.0
 	var seen := 0
