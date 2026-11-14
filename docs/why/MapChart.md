@@ -507,7 +507,7 @@ plane tipped to the sector map's 0.38 and turned by the galaxy's angle:
 `eff` is how flat the disc looks from there (`ChartSky.eff_of`). The
 systems, the routes, the rings, the trail, YOU, the party, the Hellbender,
 the markers, the tooltips, the pulsars and the bursts all go through
-`_proj`; a click comes back through `_to_galaxy`, its inverse, so what is
+`_proj`; a click comes back through `_to_plane`, its inverse, so what is
 drawn and what can be pointed at never disagree. The sky turns by the same
 angle (`ChartSky`), so a system stays on the arm it was placed on.
 ```
@@ -765,11 +765,8 @@ Above `func glide_to(z: float, p: Vector2, secs: float = 0.55) -> void:`:
 ```text
 Move the view to a zoom and a pan over time rather than at once.
 
-The sky is settled EVERY STEP, against the values from the step before.
-`_settle_sky` is written as a delta — pivot by however much the zoom just
-changed, translate by however far the pan just moved — so feeding it the
-whole journey at the end would pivot the starfield about the wrong point
-and slide it past where it belongs.
+The sky is solved from where the move began at every step (see `pz` below), not settled by
+deltas against the step before: those accumulate and the galaxy trails the systems.
 ```
 
 Above `var pz := zoom`:
@@ -828,28 +825,6 @@ watching it travel is how you keep your bearings -- and wrong for a jump,
 where the screen is rebuilt at ZOOM_MIN and then visibly zooms itself in.
 Reported as jitter with LOCAL REGION on, and absent with it off for exactly
 this reason: the off path assigns and repaints once.
-```
-
-## Sky settle
-
-Above `func _settle_sky(was: float, before: Vector2) -> void:`:
-
-```text
-Move the SKY to match a jump the view just made.
-
-The starfield is not drawn from `pan`. It has its own offset, and only
-dragging and `_zoom_at` were maintaining it — so setting `zoom` and
-`pan` directly moved the systems and left the galaxy where it was. On
-screen that reads as the local region being pasted onto the middle of
-an unmoved galaxy, and it corrected itself the moment you dragged,
-which is what made it look like a repaint bug rather than a missing
-term.
-
-Two motions, in the order the view made them: pivot about the frame
-centre for the zoom, then translate by however far the pan moved.
-`_repaint_galaxy` is the other half — the starfield is a cached image,
-so a queue_redraw alone repaints everything except the thing that
-moved.
 ```
 
 ## Nebula boundary

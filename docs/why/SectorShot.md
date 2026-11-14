@@ -35,19 +35,6 @@ being looked at is the height of a drawer with an empty list, and running
 four payouts to get there would put their loot in the picture.
 ```
 
-## Hover shot
-
-Inside `run()`, above `if "hover" in OS.get_cmdline_user_args():`:
-
-```text
-WHAT AN EXCLUSIVE SET LOOKS LIKE WHEN YOU POINT AT ONE OF IT. RULING 1 is
-a hover now rather than a box, so there is no frame in which it is visible
-by itself -- and `Input.parse_input_event` plus `warp_mouse` does not drive
-GUI in a window that does not have focus, which has produced false failures
-here before. Notifying the card is what a pointer over it would do, and it
-is the same "drive the screen directly" the open= and take= modes use.
-```
-
 ## Drawer states
 
 Inside `run()`, above `if "region" in OS.get_cmdline_user_args():`:

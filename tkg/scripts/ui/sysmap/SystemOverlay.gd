@@ -1014,16 +1014,10 @@ func _reach(body: int) -> float:
 
 
 # ---------------------------------------------------------------- the stars
-# Star B's screen place comes from the view once it says; until then it is worked out the same way.
+# Star B's screen place comes from the view.
 # Why: docs/why/SystemOverlay.md#star-positions
 func star_scr(p: int) -> Vector2:
-	if view.has_method(&"star_screen"):
-		return view.call(&"star_screen", p)
-	var L: SystemLayout = view.layout
-	if L != null and L.twin:
-		var sp := L.star_pos(p, float(view.t))
-		return view.block_round(view.screen(sp.x, sp.y))
-	return view.origin()
+	return view.call(&"star_screen", p)
 
 
 ## Wide orbits are told by id, as a zero centre was star A only while A held still.
@@ -1038,14 +1032,9 @@ func _ring_c(id: int, c: Vector2) -> Vector2:
 	return view.block_round(view.screen(c.x, c.y))
 
 
-## Star disc size comes from the view once it says, else star A's as before.
+## Star disc size comes from the view.
 func star_disc(p: int) -> float:
-	if view.has_method(&"star_disc"):
-		return float(view.call(&"star_disc", p))
-	var L: SystemLayout = view.layout
-	if p == SystemLayout.STAR_B and L != null and L.twin:
-		return SystemLayout.sun_drawn(L.star2_r, view.zoom)
-	return L.star_r * view.star_k()
+	return float(view.call(&"star_disc", p))
 
 
 ## `at` is an Array, and `at[-4]` would quietly have been the fourth body from the end.

@@ -558,7 +558,6 @@ bare scripts/ui/sysmap/SystemPanel.gd::_events
 bare scripts/ui/sysmap/SystemPanel.gd::_key
 bare scripts/ui/sysmap/SystemPanel.gd::_rivals
 bare scripts/ui/sysmap/SystemPanel.gd::_state
-bare scripts/ui/sysmap/SystemPanel.gd::_sun_look
 bare scripts/ui/sysmap/SystemView.gd::_depth_look
 bare scripts/ui/sysmap/SystemView.gd::_facts
 bare scripts/ui/sysmap/SystemView.gd::_glints_now
@@ -570,12 +569,12 @@ bare scripts/ui/sysmap/SystemView.gd::ring_slots
 bare scripts/ui/sysmap/SystemView.gd::star_facts_of
 file scripts/systems/FlightSolve.gd 3969
 file scripts/ui/LabSavers.gd 5410
-file scripts/ui/LocalSubject.gd 3175
-file scripts/ui/SectorScreen.gd 4859
+file scripts/ui/LocalSubject.gd 3167
+file scripts/ui/SectorScreen.gd 4850
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3250
-file scripts/ui/sysmap/ShipFlight.gd 4398
-file scripts/ui/sysmap/SystemView.gd 3240
+file scripts/ui/sysmap/ShipFlight.gd 4386
+file scripts/ui/sysmap/SystemView.gd 3230
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/systems/CardResolver.gd::resolve 139
@@ -680,8 +679,8 @@ length scripts/ui/ThrusterFx.gd::_stream 111
 length scripts/ui/ThrusterFx.gd::for_hull 268
 length scripts/ui/TradeCounter.gd::_draw 124
 length scripts/ui/YardDeal.gd::draw 101
-length scripts/ui/ZoomLadder.gd::_calm_hold 142
-length scripts/ui/ZoomLadder.gd::_process_move 152
+length scripts/ui/ZoomLadder.gd::_calm_hold 141
+length scripts/ui/ZoomLadder.gd::_process_move 148
 length scripts/ui/ZoomLadder.gd::_style_for 124
 length scripts/ui/ZoomLadder.gd::preroll 169
 length scripts/ui/sysmap/MapHull.gd::picture 150

@@ -867,15 +867,6 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 		MapGen.tier_name(n.danger), cost]
 	return b
 
-func _contains(t: MapGen.MapNode) -> String:
-	if t.cleared:
-		return "PICKED CLEAN"
-	match t.type:
-		MapGen.NodeType.STATION: return "DOCK - REPAIR, REFUEL, STOCK"
-		MapGen.NodeType.SYSTEM: return "SYSTEM"
-		MapGen.NodeType.CORE: return "THE CUSTODIAN"
-		_: return "-"
-
 ## `queue_free()` defers but `add_child()` does not, so a rebuild doubled the list a frame.
 ## Removing from the tree first makes the rebuild atomic.
 ## Why: docs/why/StarchartScreen.md#atomic-clear

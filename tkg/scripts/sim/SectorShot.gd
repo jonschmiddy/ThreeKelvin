@@ -70,24 +70,7 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
-	# Ruling 1 is a hover, and `warp_mouse` does not drive GUI unfocused, so the card is notified.
-	# Why: docs/why/SectorShot.md#hover-shot
 	if "hover" in OS.get_cmdline_user_args():
-		var cards: Array = []
-		_cards(Router.current, cards)
-		var lit: EncounterDrawer.OptionCard = null
-		for c in cards:
-			if not (c as EncounterDrawer.OptionCard).kin.is_empty():
-				lit = c
-				break
-		if lit == null:
-			print("  no exclusive set on screen")
-		else:
-			lit.notification(Control.NOTIFICATION_MOUSE_ENTER)
-			print("  %d cards, %d in a set with the one pointed at"
-				% [cards.size(), lit.kin.size()])
-			for f in 4:
-				await RenderingServer.frame_post_draw
 		tag += "_hover"
 	if "spent" in OS.get_cmdline_user_args():
 		tag += "_spent"
@@ -626,12 +609,7 @@ func run(tree: SceneTree) -> void:
 	_cards(Router.current, seen)
 	for sc0 in seen:
 		var oc := sc0 as EncounterDrawer.OptionCard
-		print("  card live=%s doomed=%s flesh=%.2f kin=%d stamp=%s"
-			% [oc.live, oc.doomed,
-				(oc.flesh.modulate.a if oc.flesh != null else -1.0),
-				oc.kin.size(),
-				("<none>" if oc.over == null else "%s a=%.2f"
-					% [oc.stamp.text, oc.over.modulate.a])])
+		print("  card live=%s" % oc.live)
 	# `pays_item` and `jetsam_left` disagreeing would look like a payout that never happened.
 	var nR: MapGen.MapNode = Run.node_at()
 	if nR != null:

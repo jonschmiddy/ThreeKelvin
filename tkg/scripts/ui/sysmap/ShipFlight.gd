@@ -9,7 +9,6 @@ extends RefCounted
 const THRUST := 40.0
 const VMAX := 150.0
 const TURN := 200.0 * PI / 180.0
-const DRAG := 0.35
 const BRAKE := 3.0
 ## Let go in a ring slower than this and you are on its orbit. Above VMAX on
 ## purpose: anything a player flies is slow enough, so W alone decides.
@@ -168,8 +167,6 @@ var _ang_v := 0.0
 var _bound_t := -99.0
 var rcs := false
 var fast_t := -99.0
-var bump_t := -99.0
-var lead_t := -99.0
 ## What the line shows ending in (the capture held stickily), and its lines.
 var sticky := -9
 var _meet_raw := -9
@@ -692,7 +689,6 @@ func _flame(k: float, dt: float) -> void:
 ## A FLIGHT'S MOTION, read from its samples this far either side in time (s)
 const FLY_DT := 1.0 / 60.0
 var _fly_pos := Vector3.ZERO
-var _last_screen := Vector2.ZERO
 
 
 ## Worker plans are taken in after the step so the ride is current, not a frame stale.
@@ -1788,8 +1784,6 @@ const SAMPLE := 1.0 / 240.0
 ## coast met at the target's ring at APP_V relative to it.
 const ESC_V := 110.0
 const APP_V := 70.0
-## The burns that blend a coast's ends onto the motions either side.
-const T_BURN := 0.35
 ## The ride takes as long as needed up to LEAD_MAX; further round, a phasing burn.
 const LEAD_MAX := 2.2
 ## How much pull a blend takes on (px/s²), and how much the insertion starts with.
@@ -4274,12 +4268,6 @@ func _clean(pl: FlightPlan, strict: bool, st: Dictionary, i: int) -> bool:
 				return false
 			pv = v
 	return true
-
-
-## The ship's own motion as it leaves: free, it is its velocity; on a rail or
-## alongside, the motion it has there.
-func _v0() -> Vector3:
-	return Vector3(f.v.x, 0.0, f.v.y)
 
 
 ## Plans on this thread for a harness; the map plans on a worker.
