@@ -64,7 +64,6 @@ bare scripts/systems/Contracts.gd::deliverable_at
 bare scripts/systems/Contracts.gd::delivery_manufacturers
 bare scripts/systems/Contracts.gd::event_quest_at
 bare scripts/systems/Contracts.gd::heat_deliverable_at
-bare scripts/systems/DeckBuilder.gd::summarise
 bare scripts/systems/FlightSolve.gd::_arc_ts
 bare scripts/systems/FlightSolve.gd::_wp_target
 bare scripts/systems/FlightSolve.gd::curved_arc
