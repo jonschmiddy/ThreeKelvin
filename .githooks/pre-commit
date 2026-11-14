@@ -1,0 +1,49 @@
+#!/bin/sh
+# Runs the gate's static checks (the ones that start no Godot) on a commit, in a few
+# seconds, so a mistake is caught before it reaches the 10-minute merge gate.
+# Tracked in .githooks/ and shared via core.hooksPath (see setup.sh). It calls
+# tools/dev/check.sh --static, which is `GATE_STATIC=1 .github/scripts/validate.sh`:
+# the same checks as the gate, not a copy. Missing python or bash: it says so and
+# lets the commit through. To commit anyway: git commit --no-verify
+# Why: docs/why/check.md#pre-commit
+
+# Mid-rebase, merge or cherry-pick the commits are not yours to fix.
+GIT_DIR=${GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null)}
+[ -d "$GIT_DIR/rebase-merge" ] && exit 0
+[ -d "$GIT_DIR/rebase-apply" ] && exit 0
+[ -f "$GIT_DIR/MERGE_HEAD" ] && exit 0
+[ -f "$GIT_DIR/CHERRY_PICK_HEAD" ] && exit 0
+
+# Only a commit that touches what the static checks read.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
+echo "$STAGED" | grep -qE '^(tkg|tools|docs|changes|\.github|music)/' || exit 0
+
+if ! command -v bash >/dev/null 2>&1; then
+	echo "[pre-commit] bash not found: static checks skipped"; exit 0
+fi
+if ! python3 -c "" >/dev/null 2>&1 && ! python -c "" >/dev/null 2>&1; then
+	echo "[pre-commit] python not found: static checks skipped"; exit 0
+fi
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$ROOT/tools/dev/check.sh" ] || { echo "[pre-commit] tools/dev/check.sh missing: static checks skipped"; exit 0; }
+
+# A new class_name or a new script needs the class cache rebuilt before Godot can see it.
+NEWGD=$(git diff --cached --name-only --diff-filter=A -- '*.gd' 2>/dev/null)
+NEWCLASS=$(git diff --cached -U0 -- '*.gd' 2>/dev/null | grep -c '^+class_name ')
+if [ -n "$NEWGD" ] || [ "$NEWCLASS" -gt 0 ]; then
+	echo "[pre-commit] a new script or class_name: run  bash tools/dev/godot.sh --headless --path tkg --import  before testing it"
+fi
+
+OUT=$(mktemp 2>/dev/null || echo "${TMPDIR:-.}/pre-commit.$$")
+T0=$(date +%s)
+(cd "$ROOT" && bash tools/dev/check.sh --static --quiet) >"$OUT" 2>&1
+CODE=$?
+SECS=$(( $(date +%s) - T0 ))
+if [ "$CODE" -eq 0 ]; then
+	rm -f "$OUT"
+	echo "[pre-commit] static checks passed (${SECS}s)"
+	exit 0
+fi
+cat "$OUT"; rm -f "$OUT"
+echo "[pre-commit] fix and commit again; to commit anyway: git commit --no-verify"
+exit 1
