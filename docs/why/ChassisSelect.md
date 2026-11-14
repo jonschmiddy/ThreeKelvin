@@ -464,7 +464,7 @@ bellies, which is why it looked right there.
 middle where the belly over each cradle is level, the higher cradle's seat row
 (the stand's `seat` in yard.json, 11 for the city stand: the white lip) lies
 under the belly, the other is let in deeper behind the hull, and both stands
-are one height, grown or cut by `_sized` so their feet stay on the berth's
+are one height, grown or cut by `YardStands.sized` so their feet stay on the berth's
 floor row. The hull stays where the mockup put it; the stands reach up to it.
 A tarp keeps the mockup's stands (quarters, the stand let six rows in), which
 its drawn hem covers. `YardSeatTest`'s front-door section measures every
@@ -482,7 +482,7 @@ x 200, the medium at 776 (over the hall's join, so its right stand is lit as the
 hall's first columns are), the heavy at 480 behind them; the front stands' feet
 on row 372, the heavy's on 334. The front stands are the picture as drawn
 (46 x 88); the heavy's are smaller by the floor's depth, (334 - 30) / (372 - 30)
-= 0.89 (`YardLife.zat`'s vanishing row 30), so 41 x 78: rows cut by `_sized`
+= 0.89 (`YardLife.zat`'s vanishing row 30), so 41 x 78: rows cut by `YardStands.sized`
 where the sides match best, whole columns dropped where a column matches its
 neighbour best. Only the hull moves: `YardSlot.seat` slides it up to `DRIFT`
 (14) columns off its mass middle and lets it down onto the stands with the score

@@ -471,6 +471,7 @@ bare scripts/ui/YardScene.gd::_stand
 bare scripts/ui/YardScene.gd::doc
 bare scripts/ui/YardScene.gd::seat_pair
 bare scripts/ui/YardScene.gd::stand_cap
+bare scripts/ui/YardStands.gd::stand_cap
 bare scripts/ui/ZoomLadder.gd::_chrome_cuts
 bare scripts/ui/ZoomLadder.gd::_style_for
 bare scripts/ui/ZoomLadder.gd::rest_world
