@@ -49,3 +49,28 @@ FULLSCREEN choose it too), and the screen's own scale (2 on a Retina Mac,
 where the window's pixels are the backing store's, not the points a player
 sees) beside the largest of any screen.
 ```
+
+## Scrubbing the files
+
+Above `scrub_with`:
+
+```text
+The bundle's text files (`settings.cfg`, `run.save`, `history.json`) go through the
+same scrub as the logs. They carry a free-text ship name and whatever a future
+setting stores, and a person who sends the zip should not be sending their home
+folder or account name by accident.
+
+They are text, so the scrub cannot corrupt them for the reader: a path replaced
+inside a JSON string or a config value leaves `~`, which is valid there, and the
+quote or bracket around it is untouched. A backslash is written doubled in both
+formats (`C:\\Users\\Jon`), so that form is replaced too; the single form is not a
+substring of it, so neither pass touches the other's matches. A home folder of one
+character (or "/") is skipped: replacing it would turn every slash in the text into `~`.
+
+The account name (three letters or more, as before) is taken out of `/Users/<name>`,
+`\Users\<name>` and the doubled form, now also out of `/home/<name>` outside `$HOME`,
+and out of the short form Windows gives a long name, `C:\Users\NAME~1`: its first six
+letters in capitals, `~` and a digit, matched without regard to case.
+`scrub_with(text, home, name)` is the same scrub for a given home and name, so a test
+can feed it both without touching the environment.
+```

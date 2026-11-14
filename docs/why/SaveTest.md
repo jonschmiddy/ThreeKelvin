@@ -152,3 +152,21 @@ so they are saved; a 39 save has none and grows on its own jumps, as a 39
 build did. The load counts the count as seen, so CONTINUE replays no
 arrival; a new run clears it.
 ```
+
+## Damaged saves
+
+Above `_damaged_saves`:
+
+```text
+A field of the wrong kind refuses the whole save, and the run is not touched.
+Each case writes the real save with one field changed (a list for a number, a
+string for a list, a list inside a list, and the same inside the first
+system, its parts, its jetsam, its hull), marks the live run (credits 4242,
+jumps 99, the name MARKED, the first system's object, a fight to resume), loads,
+and wants false back with every mark still there and the file cleared. On the
+loader before `_damaged` each case changed the marks or stopped with a script
+error part way. The last cases are the neutral ones: the whole save loads, a
+save of every galaxy kind is not called damaged, and CONTINUE's summary of a
+damaged file is none. In `run_history_test`: a history file with a number, a
+string, a null and a list among its rows reads as the one record it holds.
+```

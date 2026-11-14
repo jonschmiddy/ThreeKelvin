@@ -61,7 +61,7 @@ static func _entries() -> Array:
 			["history.json", RunHistory.path]]:
 		var src: String = pair[1]
 		if _inside_user(src) and FileAccess.file_exists(src):
-			out.append([pair[0], FileAccess.get_file_as_bytes(src)])
+			out.append([pair[0], _scrub(FileAccess.get_file_as_string(src)).to_utf8_buffer()])
 	out.append(["build.txt", _build_txt().to_utf8_buffer()])
 	return out
 
@@ -145,16 +145,32 @@ static func _inside_user(p: String) -> bool:
 	return p.begins_with("user://")
 
 
-## The home folder and the account name, out of a log.
+## The home folder and the account name, out of a log or one of the text files.
 static func _scrub(s: String) -> String:
 	var home := OS.get_environment("USERPROFILE")
 	if home == "":
 		home = OS.get_environment("HOME")
-	if home != "":
-		s = s.replace(home, "~").replace(home.replace("\\", "/"), "~")
 	var who := OS.get_environment("USERNAME")
 	if who == "":
 		who = OS.get_environment("USER")
+	return scrub_with(s, home, who)
+
+
+## `_scrub` for a given home and account. The text may be JSON or a config file, where a
+## backslash is written doubled, so that form goes too; the stand-in `~` is valid in a string.
+## Why: docs/why/PlaytestLogs.md#scrubbing-the-files
+static func scrub_with(s: String, home: String, who: String) -> String:
+	# (a home of "/" or a single character would turn the whole text into stand-ins)
+	if home.length() > 1:
+		s = s.replace(home, "~").replace(home.replace("\\", "/"), "~")
+		s = s.replace(home.replace("\\", "\\\\"), "~")
 	if who.length() >= 3:
-		s = s.replace("/Users/" + who, "/Users/~").replace("\\Users\\" + who, "\\Users\\~")
+		# The 8.3 short form Windows gives a long account name: its first six letters, ~ and a digit.
+		var short := who.replace(" ", "").substr(0, 6).to_upper() + "~"
+		for sep in ["/", "\\", "\\\\"]:
+			var users: String = sep + "Users" + sep
+			s = s.replace(users + who, users + "~")
+			for n in range(1, 10):
+				s = s.replacen(users + short + str(n), users + "~")
+		s = s.replace("/home/" + who, "/home/~")
 	return s

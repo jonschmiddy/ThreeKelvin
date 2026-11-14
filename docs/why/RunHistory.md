@@ -44,3 +44,16 @@ great run" actionable rather than nostalgic.
 Run.galaxy_seed rather than Rng.master: the master is reseeded per
 seat in co-op, and what identifies a run is the galaxy everyone shares.
 ```
+
+## Damaged rows
+
+Above the filter at the end of `load_all`:
+
+```text
+The file's `runs` list is read as it stands, and every caller reads each row
+as a record (`var r: Dictionary = e`, `Unlocks`, `Ladder`). A row that is not
+a record (a number, a string, a list, null) used to stop the screen or the
+unlock check that reached it with a script error. `load_all` now leaves such a
+row out, so the other runs still count and show. Read side only: what
+`record` writes, and `VERSION`, are unchanged.
+```

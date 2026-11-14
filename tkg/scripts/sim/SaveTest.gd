@@ -746,6 +746,7 @@ func run_version_test() -> void:
 		"%d %s %d" % [Run.ascension, Run.hellbender_alive(), Run.hellbender_max])
 	_science_versions()
 	_moored_versions()
+	_damaged_saves()
 
 	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
 	# `parked`, and loads with every ship at its system's edge, as it did.
@@ -815,6 +816,89 @@ func run_version_test() -> void:
 	print("=== %s (%d mismatches) ===
 "
 		% ["PASS" if fails == fails_before else "FAIL", fails - fails_before])
+
+## DAMAGED SAVES: a field of the wrong kind refuses the whole save, and the run is not touched.
+## Why: docs/why/SaveTest.md#damaged-saves
+func _damaged_saves() -> void:
+	Run.start_new_run(&"korvan", 1)
+	SaveGame.save()
+	var base := FileAccess.get_file_as_string(SaveGame.path)
+	var sets: Array = [
+		["installed is a number", "installed", 5], ["cargo is a string", "cargo", "x"],
+		["pad is a map", "pad", {"a": 1}], ["dross is a string", "dross", "x"],
+		["dross is a map", "dross", {"a": 1}], ["trail is a string", "trail", "x"],
+		["credits is a list", "credits", [1]], ["hp is a map", "hp", {}],
+		["ship_name is a list", "ship_name", []], ["at is a list", "at", [2]],
+		["jumps is a list", "jumps", [1]], ["rng is a string", "rng", "x"],
+		["rng cursor is a list", "rng", {"master": 1, "world": [1]}],
+		["galaxy value is a list", "galaxy", {"arms": [1]}],
+		["standing value is a list", "standing", {"korvan": [1]}],
+		["board_owned holds a list", "board_owned", [[1], 0, 0]],
+		["hull weight is a list", "hull", {"weight": [1]}],
+		["hull tier_perks is a string", "hull", {"tier_perks": "x"}],
+		["contract field is a list", "contracts", [{"id": [1]}]],
+		["quest got is a string", "event_quests", [{"at": 1, "credits": 5, "got": "x"}]],
+		["comms line is a list", "ash_comms", [{"line": [1]}]],
+		["parked p is a string", "parked", [{"index": 0, "p": "x"}]],
+		["clock t is a list", "clocks", [{"index": 0, "t": [1]}]],
+		["version is a list", "version", [43]], ["map is a string", "map", "x"],
+		["map is empty", "map", []],
+		["a part's affixes is a number", "installed", [{"id": "x", "affixes": 5}]],
+		["a part's hold_at is a string", "cargo", [{"id": "x", "hold_at": "ab"}]],
+	]
+	for row: Array in sets:
+		_refused(String(row[0]), base, func(d: Dictionary) -> void: d[row[1]] = row[2])
+	# a field of the first system, and of the things in it
+	var node_sets: Array = [
+		["a system's links is a string", "links", "x"], ["its berths is a number", "berths", 5],
+		["its foes is a map", "foes", {"a": 1}], ["its taken holds a list", "taken", [[1]]],
+		["its results_at is a string", "results_at", "x"], ["its left_of is a number", "left_of", 7],
+		["its said_of holds a list in a list", "said_of", [[[1]]]], ["its pos is a list of lists", "pos", [[1], [2]]],
+		["its shop is a string", "shop", "x"], ["its shop part has a list for an id", "shop", [{"id": [1]}]],
+		["its bag is a number", "bag", 5], ["its jetsam is a number", "jetsam", 5],
+		["its jetsam row is a number", "jetsam", [5]], ["its jetsam items is a string", "jetsam", [{"items": "x"}]],
+		["its index is a list", "index", [0]], ["its danger is a map", "danger", {}],
+		["its shop hull weight is a list", "shop_hull", {"weight": [1]}],
+	]
+	for row: Array in node_sets:
+		_refused(String(row[0]), base, func(d: Dictionary) -> void: (d.map[0] as Dictionary)[row[1]] = row[2])
+	# and a save as the game writes it is never taken for damaged
+	_write(JSON.parse_string(base))
+	check("a whole save still loads", true, SaveGame.load_into_run())
+	for kind in GalaxyGen.count():
+		Run.start_new_run(&"korvan", 1)
+		Run.galaxy_kind = kind
+		Run.galaxy = GalaxyGen.roll(kind)
+		SaveGame.save()
+		check("a save of galaxy kind %d is not damaged" % kind, false, SaveGame.Shape.damaged(_read_save()))
+	# the launcher's line for a damaged file is nothing
+	var hurt: Dictionary = JSON.parse_string(base)
+	hurt["hp"] = [1]
+	_write(hurt)
+	check("CONTINUE reads a damaged save as none", true, SaveGame.summary().is_empty())
+	SaveGame.clear()
+
+
+## One refusal: mark the live run, load `base` with `change` applied, and the run must be as marked.
+func _refused(what: String, base: String, change: Callable) -> void:
+	var d: Dictionary = JSON.parse_string(base)
+	change.call(d)
+	_write(d)
+	Run.credits = 4242
+	Run.jumps = 99
+	Run.ship_name = "MARKED"
+	var first: int = Run.map[0].get_instance_id()
+	var shown := Run.map.size()
+	Router.fight_on_resume = {"marked": true}
+	var took := SaveGame.load_into_run()
+	check("%s: refused" % what, false, took)
+	check("%s: the run is untouched (credits, jumps, name, map, fight)" % what,
+		"4242 99 MARKED %d %d %s" % [first, shown, str({"marked": true})],
+		"%d %d %s %d %d %s" % [Run.credits, Run.jumps, Run.ship_name,
+			Run.map[0].get_instance_id() if not Run.map.is_empty() else 0, Run.map.size(), str(Router.fight_on_resume)])
+	Router.fight_on_resume = {}
+	check("%s: the file is consumed" % what, false, SaveGame.has_save())
+
 
 ## MOORED ON THE STATION'S RIGHT (VERSION 43, Nov 13): the save keeps the station
 ## node, a load puts it back, and a 42 save (none) loads moored on the left.
@@ -990,6 +1074,16 @@ func run_history_test() -> void:
 	RunHistory.record(RunHistory.Outcome.DIED, "Lands.")
 	check("the next write lands", 4, RunHistory.load_all().size())
 	check("and leaves no temp file behind", false, FileAccess.file_exists(HISTORY + ".tmp"))
+	# A row that is not a record is skipped, and the rest read as before.
+	var rows := FileAccess.open(HISTORY, FileAccess.WRITE)
+	if rows != null:
+		rows.store_string(JSON.stringify({"version": RunHistory.VERSION, "runs": [
+			5, "x", null, [1], {"outcome": int(RunHistory.Outcome.WON), "jumps": 4}]}))
+		rows.close()
+	check("a history row that is not a record is skipped", 1, RunHistory.load_all().size())
+	check("and the stats read the rest", "1 1 4", "%d %d %d" % [int(RunHistory.stats().runs),
+		int(RunHistory.stats().wins), int(RunHistory.stats().jumps)])
+	check("and the newest-first list too", 1, RunHistory.recent().size())
 	RunHistory.clear()
 	RunHistory.path = RunHistory.PATH
 	print("=== %s (%d total mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])

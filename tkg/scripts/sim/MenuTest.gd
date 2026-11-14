@@ -859,6 +859,13 @@ func _logs_case() -> void:
 	var was_path := DisplaySettings.path
 	DisplaySettings.path = SCRATCH
 	DisplaySettings.save()
+	# A folder of the real home written into the settings file, to see it taken out of the zip.
+	var home_now := OS.get_environment("USERPROFILE") if OS.get_environment("USERPROFILE") != "" else OS.get_environment("HOME")
+	if home_now.length() > 1:
+		var cfg := FileAccess.open(SCRATCH, FileAccess.READ_WRITE)
+		cfg.seek_end()
+		cfg.store_string("\n[probe]\nfolder=\"%s/shots\"\n" % home_now.replace("\\", "/"))
+		cfg.close()
 	var panel := SettingsPanel.new()
 	_tree.root.add_child(panel)
 	panel.build()
@@ -889,15 +896,45 @@ func _logs_case() -> void:
 		_ok("  with the home folder taken out of the log", home == "" or not log.contains(home.replace("\\", "/")))
 		var build := zr.read_file("build.txt").get_string_from_utf8()
 		_ok("  and the build named", build.begins_with("Three Kelvin"))
+		# The text files are scrubbed like the logs, and are still what they were (Nov 14).
+		var cfg_text := zr.read_file("settings.cfg").get_string_from_utf8()
+		_ok("  with the home folder taken out of settings.cfg too", home_now.length() <= 1
+			or (not cfg_text.contains(home_now.replace("\\", "/")) and cfg_text.contains("folder=\"~/shots\"")))
+		_ok("  and settings.cfg still reads as a settings file", ConfigFile.new().parse(cfg_text) == OK)
 		# A slow machine's report needs look, window, frames, driver and battery (Oct 27).
 		for line: String in ["look: ", "window: ", "frames: ", "driver: ", "battery: "]:
 			_ok("  build.txt says the %s" % line.trim_suffix(": "), build.contains("\n" + line))
 		zr.close()
 		DirAccess.remove_absolute(String(r.path))
+	_scrub_cases()
 	DirAccess.remove_absolute(dest)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
 	DisplaySettings.path = was_path
 	await _tree.process_frame
+
+
+## The scrub for a given home and account (Nov 14): what it already took out, a `/home/` path,
+## the Windows short form, and JSON that is still JSON after it.
+func _scrub_cases() -> void:
+	var scrub := func(s: String, home: String, who: String) -> String:
+		return PlaytestLogs.scrub_with(s, home, who)
+	_ok("  scrub: the home folder, both slashes", scrub.call("a C:\\Users\\Jonathan\\x b C:/Users/Jonathan/y",
+		"C:\\Users\\Jonathan", "Jonathan") == "a ~\\x b ~/y")
+	_ok("  scrub: /Users/<name> and \\Users\\<name> outside the home", scrub.call("/Users/jonathan/a \\Users\\jonathan\\b",
+		"/elsewhere", "jonathan") == "/Users/~/a \\Users\\~\\b")
+	_ok("  scrub: a /home/<name> path outside $HOME", scrub.call("at /home/jonathan/.local/x and /home/jonathan2/y",
+		"/Users/other", "jonathan") == "at /home/~/.local/x and /home/~2/y")
+	_ok("  scrub: the short form, any case, either slash", scrub.call("C:\\Users\\JONATH~1\\a C:/Users/jonath~2/b",
+		"/elsewhere", "Jonathan") == "C:\\Users\\~\\a C:/Users/~/b")
+	_ok("  scrub: a name under three letters is left alone, as before", scrub.call("/Users/jo/a /home/jo/b", "/elsewhere", "jo") == "/Users/jo/a /home/jo/b")
+	_ok("  scrub: a home of / does not turn every slash into ~", scrub.call("/a/b", "/", "") == "/a/b")
+	var json := JSON.stringify({"name": "C:\\Users\\Jonathan\\Desktop\\ship", "p": "/home/Jonathan/x", "n": [1, "a"],
+		"s": "C:\\Users\\JONATH~1\\y"})
+	var cleaned := PlaytestLogs.scrub_with(json, "C:\\Users\\Jonathan", "Jonathan")
+	var parsed: Variant = JSON.parse_string(cleaned)
+	_ok("  scrub: JSON with the path in it is still JSON, the path gone (%s)" % cleaned, typeof(parsed) == TYPE_DICTIONARY
+		and not cleaned.contains("Jonathan") and not cleaned.contains("JONATH")
+		and str((parsed as Dictionary).get("name")) == "~\\Desktop\\ship" and str((parsed as Dictionary).get("p")) == "/home/~/x" and (parsed as Dictionary).get("n") == [1.0, "a"])
 
 
 ## The meter shows the worst frame of the last second, which a rate hides; it stays top-level.

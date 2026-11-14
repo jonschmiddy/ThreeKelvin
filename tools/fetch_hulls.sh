@@ -10,6 +10,8 @@ DEST="${DEST:-tools/out/hull_candidates}"
 mkdir -p "$DEST"
 got=0; skip=0; wait=0
 while read -r name id; do
+  # Only the last part of the name is used in the file name.
+  name="${name##*/}"
   [ -z "$name" ] && continue
   out="$DEST/$name.png"
   if [ -s "$out" ] && [ "$(stat -c%s "$out")" -gt 1000 ]; then skip=$((skip+1)); continue; fi
