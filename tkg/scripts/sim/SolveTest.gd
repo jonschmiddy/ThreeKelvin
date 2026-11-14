@@ -1011,7 +1011,7 @@ func _replans() -> void:
 			var fc := _at_time_w(rf)
 			over.append(_at_time_w(rw) - fc)
 			var j_old := float(r.choice.get("J", INF))
-			if not fb and rw.cost > fc + FlightSolve._warm_slack(fc) + 1e-6 and rw.cost > j_old + FlightSolve._warm_slack(j_old) + 1e-6:
+			if not fb and rw.cost > fc + FlightMath.warm_slack(fc) + 1e-6 and rw.cost > j_old + FlightMath.warm_slack(j_old) + 1e-6:
 				bad += 1
 				if bad <= 3:
 					print("  (kept %.1f against fresh %.1f, old %.1f: %s)" % [rw.cost, fc, j_old, c.label])

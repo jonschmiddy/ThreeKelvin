@@ -268,7 +268,7 @@ are weighed on that too. The search prices a flight at its exact
 arrival, and an arrival burn alongside can cost a few px/s more or
 less there than a sample on: within a few percent of the least pull
 it is the short burn, just past it one about three times as long
-(`_cubic_burn`). Priced, at seed 7 node 199's close pair (CURVED,
+(`FlightMath.cubic_burn`). Priced, at seed 7 node 199's close pair (CURVED,
 ring 1 to keep 5, line-up 2, planned again 3 s on) the fresh flight
 cost -162.5 against the kept one's -155.8, inside the slack; built,
 -166.1, its burn 0.37 s and not 1.10 s, and the kept flight stood
@@ -825,7 +825,7 @@ review, Oct 30).
 
 ## Cubic burn
 
-Above `static func _cubic_burn(dxx: float, dxz: float, dux: float, duz: float, pk: float = THRUST) -> PackedFloat64Array:`:
+Above `static func cubic_burn(dxx: float, dxz: float, dux: float, duz: float, pk: float = FlightSolve.THRUST) -> PackedFloat64Array:` (`FlightMath.gd`):
 
 ```text
 THE ARRIVAL BURN for a change of position (dxx, dxz) and velocity (dux, duz)
@@ -843,7 +843,7 @@ doubled its way out from 0.05 s and so always stepped over the window, and
 every arrival burn lasted three times the least (the planner review).
 ```
 
-Above `static func _cubic_work(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:`:
+Above `static func cubic_work(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:` (`FlightMath.gd`):
 
 ```text
 THE CUBIC BURN'S ENGINE WORK, exactly: its pull p + q u (u 0 to 1) is linear,

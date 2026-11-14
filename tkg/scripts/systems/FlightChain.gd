@@ -166,7 +166,7 @@ static func chain_again(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: floa
 		return rj
 	rj.kind = &"warm"
 	var j_old := float(c.get("J", INF))
-	if rj.cost > j_old + FlightSolve._warm_slack(j_old):
+	if rj.cost > j_old + FlightMath.warm_slack(j_old):
 		return null
 	return rj
 
