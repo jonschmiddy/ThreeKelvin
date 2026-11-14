@@ -1062,7 +1062,7 @@ func _on_region() -> void:
 func _on_regenerate() -> void:
 	if not Run.dev_regenerate_galaxy():
 		return
-	Router._autosave()
+	Router.autosave()
 	# the screen made again, from scratch, on the new galaxy: its sky baked
 	# anew, its view framed on the new start
 	Router.show_starchart()
