@@ -265,7 +265,8 @@ step "Market invariant holds and prices round-trip"
 # does not crash either, it comes back as a default.
 run_godot market 120 --headless --path "$PROJECT" -- market
 if run_godot savetest 120 --headless --path "$PROJECT" -- savetest; then
-	if grep -qE '^=== (PASS|FAIL)' "$LOG_DIR/savetest.log"; then
+	# SaveTest prints three verdicts (round trip, version gates, history); all three must be there.
+	if [ "$(grep -cE '^=== (PASS|FAIL)' "$LOG_DIR/savetest.log")" -ge 3 ]; then
 		if grep -qE '^=== FAIL' "$LOG_DIR/savetest.log"; then
 			bad "save round-trip reported mismatches"
 			grep -E 'MISMATCH|before:|after:|FAIL' "$LOG_DIR/savetest.log" \
@@ -2155,24 +2156,6 @@ if [ -n "$PY" ]; then
 	fi
 else
 	gate_no_python "the code check"
-fi
-}
-
-unit_codecheck() {
-step "No new long functions, huge files or bare Dictionary/Array/Variant returns"
-# A ratchet: game code (not sim) may have no function over 100 lines, no file over
-# 3000, no new function returning a bare Dictionary, Array or Variant. What predates
-# it is in `tools/code_check_baseline.txt` and may not grow (docs/why/code_check.md).
-if [ -n "$PY" ]; then
-	if "$PY" tools/code_check.py >/tmp/codecheck.$$ 2>&1; then
-		ok "$(tail -n 1 /tmp/codecheck.$$)"
-	else
-		head -n 20 /tmp/codecheck.$$ | sed 's/^/        /'
-		bad "code check: new long functions, huge files or bare returns (python tools/code_check.py)"
-	fi
-	rm -f /tmp/codecheck.$$
-else
-	bad "no python for the code check"
 fi
 }
 

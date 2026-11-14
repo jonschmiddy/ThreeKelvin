@@ -180,3 +180,11 @@ for row in "${LIST[@]}"; do
 done
 echo "DONE wall=$(( $(date +%s) - T_ALL ))s jobs=$JOBS flight_shards=$FLIGHT_SHARDS solve_shards=$SOLVE_SHARDS" >>"$OUT/summary.txt"
 sort "$OUT/summary.txt"
+# A row failed when godot exited non-zero, the log has an error line, or no pass line
+# was printed (the import prints none); the script's own exit says so.
+FAILED=$(awk '$2 ~ /^exit=/ { split($2, e, "="); split($3, p, "="); split($4, r, "=");
+	if (e[2] != 0 || r[2] != 0 || (p[2] == 0 && $1 != "import")) print $1 }' "$OUT/summary.txt")
+if [ -n "$FAILED" ]; then
+	echo "FAILED: $(echo $FAILED)"
+	exit 1
+fi
