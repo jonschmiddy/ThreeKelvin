@@ -210,11 +210,26 @@ func lit() -> bool:
 
 ## The room's light: the tubes together.
 func level() -> float:
+	# Summed once per (clock, boot time, level): the sound and both draws ask in one frame.
+	var now := _now()
+	if _lvl_ok and now == _lvl_now and _boot_at == _lvl_boot and dev == _lvl_dev:
+		return _lvl
 	var n := int(_bars()["n"])
 	var sum := 0.0
 	for k in n:
 		sum += tube(k)
-	return sum / float(n)
+	_lvl = sum / float(n)
+	_lvl_now = now
+	_lvl_boot = _boot_at
+	_lvl_dev = dev
+	_lvl_ok = true
+	return _lvl
+
+var _lvl_ok := false
+var _lvl_now := 0.0
+var _lvl_boot := 0.0
+var _lvl_dev := 0
+var _lvl := 0.0
 
 
 func _build() -> void:

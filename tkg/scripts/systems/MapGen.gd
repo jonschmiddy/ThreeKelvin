@@ -1161,21 +1161,23 @@ static func _clear_of_stations(n: MapNode, kept: Array) -> bool:
 			return false
 	return true
 
+# The weights never change: a constant, not an Array built for every system.
+const _TYPE_BAG: Array = [
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+	NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
+	NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+	NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+]
+
 static func _pick_type() -> NodeType:
 	# No PULSAR here: `_seed_pulsars` places them against clouds; the other weights are untouched.
 	# Why: docs/why/MapGen.md#type-weights
-	var weights := [
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-		NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
-		NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
-	]
-	return Rng.pick(Rng.world, weights)
+	return Rng.pick(Rng.world, _TYPE_BAG)
 
 static func _layout(nodes: Array, canvas: Rect2) -> void:
 	for n in nodes:

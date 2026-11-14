@@ -32,9 +32,11 @@ static func fits_at(g: Vector2i, taken_cells: Dictionary, m: HoldItem, at: Vecto
 	var f := m.footprint()
 	if at.x + f.x > g.x or at.y + f.y > g.y:
 		return false
-	for c in cells_of(m, at):
-		if taken_cells.has(c):
-			return false
+	# Walks the footprint already read instead of building a cell list per probe.
+	for dy in f.y:
+		for dx in f.x:
+			if taken_cells.has(at + Vector2i(dx, dy)):
+				return false
 	return true
 
 

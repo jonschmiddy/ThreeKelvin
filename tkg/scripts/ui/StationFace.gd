@@ -200,7 +200,8 @@ func _parallax() -> void:
 	if dock_k <= 0.0:
 		# at rest (and in any zoom that is not the dock's): every layer where
 		# the art has it
-		par = {}
+		if not par.is_empty():
+			par = {}
 		return
 	# (at rest this face fills its view: the view's middle is its own)
 	var travel := _look().x - (size.x * 0.5 - origin().x)

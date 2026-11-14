@@ -11,6 +11,9 @@ const SHADER := preload("res://shaders/jump/jump_r10.gdshader")
 
 const T_WAKE := 0.6
 const RN := 7
+## How far behind, and how wide, the two ghosts of each ring run.
+const GHOST_LAG := [2.0 / 60.0, 4.0 / 60.0]
+const GHOST_W := [0.60, 0.30]
 const R0 := 58.0
 const YAW := 0.17
 const TD := [1.25, 1.62, 1.94, 2.22, 2.47, 2.69, 2.89]
@@ -302,8 +305,8 @@ func _step_rings(t: float, kf: float) -> void:
 		var uf := (t - float(TD[i])) / fl[i]
 		ruf.append(uf)
 		for lag_i in 2:
-			var lag: float = [2.0 / 60.0, 4.0 / 60.0][lag_i]
-			var gw: float = [0.60, 0.30][lag_i]
+			var lag: float = GHOST_LAG[lag_i]
+			var gw: float = GHOST_W[lag_i]
 			var g: Array[float] = ring_state(i, t - lag) if (on and uf < 1.15 and t - lag >= float(TD[i])) else ([] as Array[float])
 			if g.is_empty():
 				gp.append(Vector4.ZERO)

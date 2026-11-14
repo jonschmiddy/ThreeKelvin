@@ -3004,7 +3004,7 @@ class _Moons extends Node2D:
 	## RADIANT's gathered tone: linear light to an sRGB colour, never a flat white
 	static func _tone(c: Vector3) -> Color:
 		return Color(pow(1.0 - exp(-c.x * 1.15), 1.0 / 2.2), pow(1.0 - exp(-c.y * 1.15), 1.0 / 2.2), pow(1.0 - exp(-c.z * 1.15), 1.0 / 2.2))
-	## how deep each moon ("world:moon") sits in its world's shadow, eased
+	## how deep each moon (key `(world << 32) | moon`, an int so no String is built per frame) sits in its world's shadow, eased
 	var _ecl := {}
 
 	## In a twin a world hides behind a star only while farther than it, else moons vanished.
@@ -3052,14 +3052,14 @@ class _Moons extends Node2D:
 				var M := Vector3(c.x - s.x, c.y - s.y, mz)
 				var tl := M.dot(L3)
 				var inside := tl < 0.0 and (M - L3 * tl).length() < r * 0.96
-				var key := "%d:%d" % [i, m]
+				var key := (i << 32) | m
 				var e: float = _ecl.get(key, 1.0 if inside else 0.0)
 				e = move_toward(e, 1.0 if inside else 0.0, dt / 0.25)
 				_ecl[key] = e
 				out.append({"i": i, "m": m, "s": s, "r": r, "c": c, "z": mz, "mrad": mrad,
 					"hidden": sin(a) < 0.0 and c.distance_squared_to(s) < r2, "ecl": e})
 		return out
-	## the ring's gaps for each ringed world this size: "i:r" -> [radii in world radii]
+	## the ring's gaps for each ringed world this size: `(i << 32) | r` -> [radii in world radii]
 	var _slots := {}
 
 	## Moons of a ringed world sit in its ring gaps, as shepherd moons do, never across a band.
@@ -3069,7 +3069,7 @@ class _Moons extends Node2D:
 		var spec: Dictionary = v.get("spec")
 		if not spec.get("ring", false) or PlanetView.ring_style == Rings.Look.DOTS or r < 2.0:
 			return []
-		var key := "%d:%d" % [i, roundi(r)]
+		var key := (i << 32) | roundi(r)
 		if _slots.has(key):
 			return _slots[key]
 		var cell: float = float(v.get("_cell")) if v.get("_cell") != null else 2.0
@@ -3204,7 +3204,7 @@ class _Moons extends Node2D:
 				var dim := 1.0 if sin(a) >= 0.0 else 0.8
 				# ECLIPSED (every style): a moon slides into its world's shadow and goes
 				# dark, and out again, eased and in whole steps
-				var ek: float = _ecl.get("%d:%d" % [i, m], 0.0)
+				var ek: float = _ecl.get((i << 32) | m, 0.0)
 				dim *= lerpf(1.0, 0.22, round(ek * 3.0) / 3.0)
 				if mrad < 1.2:
 					# small: a dot of a pixel or two, its lit pixel toward the star

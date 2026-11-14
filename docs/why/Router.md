@@ -160,6 +160,17 @@ Matched by suffix rather than by a list, because the list is nine long today
 and the next one would be added without anybody thinking about this.
 ```
 
+Above `func _argv_calm() -> bool:`:
+
+```text
+Read once. The key is nothing: the launch arguments and the display server are
+fixed when the process starts, so the answer cannot differ between calls.
+`reduced_motion` and `animate_in_harness` are NOT in it; they are switches that
+change during a run (settings, `-- menutest`) and `animating()` reads them live
+before it gets here. This was scanned on every call, several times a frame
+from the portraits and the hull glass.
+```
+
 ## Sky exclusions
 
 Above `static func nav_screen(s: Control) -> bool:`:
