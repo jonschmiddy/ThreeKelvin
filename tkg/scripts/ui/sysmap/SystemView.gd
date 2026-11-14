@@ -115,8 +115,6 @@ var _points
 ## A HARNESS'S CLOCK for everything the weather and the gas read off the wall
 ## clock (SystemShot's clips step it a frame at a time); -1: the wall clock
 var hclock := -1.0
-## the weather's own colours left out of the palette (SystemShot `wramp=0`)
-static var no_ramp := false
 ## the sheets behind the plane, by distance beyond it (the plane is 1/zoom from
 ## the camera), and those in front, every DEPTH_RHO times nearer from DEPTH_D0
 const DEPTH_D0 := 0.02
@@ -2175,7 +2173,7 @@ func _pal_key() -> Array:
 	for b in layout.bodies:
 		bodies.append("%s:%s:%s" % [b.kind, b.world, b.seed])
 	return [node.get_instance_id(), node.index, kind, style(), painted, radiant, gfx_low(), field_under,
-		neb_sky, no_ramp, depth_k, ",".join(bodies), window, home_zoom]
+		neb_sky, depth_k, ",".join(bodies), window, home_zoom]
 
 
 # ---------------------------------------------------------------- the twinkling stars
