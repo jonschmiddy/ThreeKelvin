@@ -34,6 +34,9 @@ at the bottom says where the work stands.
 | `godot.sh [-t S] [-C DIR] args...` | Godot with a fresh throwaway profile, dummy audio and a time limit. Use this for every test and sim run. |
 | `render.sh [-t S] [-C DIR] args...` | The same, windowed, for stills and films; at most two at once. On a Mac the window shows on screen. |
 | `run_battery.sh [WORKTREE] [names...]` | The wide test battery (36 runs, PairLocalTest among them; about 9 minutes on the PC plus 1:30 for the timed ones; 17 before the split), JOBS at once (default 8), longest first: FlightTest and SolveTest split into shards (`FLIGHT_SHARDS` 4, `SOLVE_SHARDS` 8 as in the gate; FlightTest's hand phase its own row, `flighttest_hand`, as the gate's `flighthand`), their totals after (`sheet=ShardSum`), the four timed runs alone at the end (`SOLO=0` skips them). Logs and `summary.txt` in `$OUT`; exits 1 (naming the rows) when a run exited non-zero, logged an error, printed a failing verdict line or printed no pass line. The wide set for a change to flight, save, clock or net; not the gate. |
+| `check.sh [--tests] [--staged] [--base REV]` | The one command to run before saying a change is done: the gate's static checks (no Godot: tabs, changes/, code_check, code_graph, comment_check, prose, vocab and the rest; about 5 seconds) and `-- parseall`. One line per check, each failure's own message, then `check: PASS` or `check: FAIL (n problems)`. `--tests` also runs the headless test rows the change needs. |
+| `tests_for.py [--base main] [--staged] [--run] [--list-all]` | Which tests this change needs: reads `docs/tests.md` and the diff (changed files and the functions touched), prints the matching rows per file, marks each headless or windowed, and names changed files no row covers. `--run` runs the headless rows through `godot.sh`; windowed ones are listed to run by hand. |
+| `../../.githooks/pre-commit` | Runs the static checks on a commit that touches `tkg/ tools/ docs/ changes/ .github/ music/` (about 5 seconds; never Godot). It prints the failures and exits 1; `git commit --no-verify` skips it. `setup.sh` points git at it. |
 | `gate_land.sh WORKTREE BRANCH LABEL` | Merge main, import, run the full gate (about 10 minutes), fast-forward main and push on a pass. |
 | `release.sh WORKTREE BRANCH LABEL VERSION` | First rename NEW THINGS' `NEXT` entry (`tkg/scripts/data/NewThings.gd`) to VERSION and date it, in the commit that raises config/version; it refuses otherwise (`new_things_check.sh`, before the gate and again on the landed main). Then gate_land, then build both zips from a clean copy, check the Mac app, copy zips to `builds/`, tag `alpha-VERSION` and push the tag. |
 | `new_things_check.sh VERSION [NewThings.gd]` | Exit 0 only when NEW THINGS' newest entry is VERSION, dated, with no `NEXT` left. release.sh runs it. |
@@ -57,6 +60,13 @@ Python tools run through uv, for example:
   other Godot work while it runs (the older timing tests fail on a busy machine;
   a new test must not depend on speed, see `tkg/CLAUDE.md`). Agents
   run only the tests for what they touch, never `validate.sh`.
+- **Before you say a change is done, run `tools/dev/check.sh --tests`.** It runs the
+  static checks, `-- parseall`, and the headless test rows `docs/tests.md` lists for what
+  you touched (`tests_for.py` does the grep); windowed rows it lists for you to run by
+  hand. The pre-commit hook runs the static checks on every commit that touches code,
+  tools, docs, changes or music: if it fails, fix and commit again, or skip it with
+  `git commit --no-verify` when you must. The gate is still the gate: nothing reaches
+  `main` except through `gate_land.sh`.
 - **Branches live in worktrees** under `../tk-wt/<name>`. A fresh worktree needs
   one `--import` before its tests. A change's CHANGELOG line is its own file,
   `changes/YYYY-MM-DD-what-changed.md`, in the bold style (`- **Fixed** —`,

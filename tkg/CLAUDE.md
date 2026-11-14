@@ -144,7 +144,10 @@ do not add to it.
 
 Which harness covers which code is in `docs/tests.md`: one row per harness, with what
 to run it after. Before you finish a change, grep it for the class, file or function you
-touched and run every row that names it. The everyday ones:
+touched and run every row that names it. `tools/dev/tests_for.py` does that grep for the
+files and functions you changed (`--run` runs the headless rows), and
+`tools/dev/check.sh --tests` is the one command to finish with: static checks, parseall
+and those tests. The everyday ones:
 
 ```bash
 tools/dev/godot.sh --headless --path tkg -- parseall       # every script parses

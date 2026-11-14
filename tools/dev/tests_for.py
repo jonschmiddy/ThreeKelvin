@@ -28,6 +28,7 @@ TESTS_MD = ROOT / "docs" / "tests.md"
 # Rows a --run may start besides Godot ones: they only read the tree. Anything else
 # (installers that write art, export, build_alpha) is left to a person.
 SAFE_SCRIPTS = ("tools/code_check.py", "tools/code_graph.py", "tools/cofight.sh", "tools/cojoin.sh")
+SLOW = [False]      # --slow: run rows that say they take 3 minutes or more
 # Function names too common to say anything about which row is meant.
 COMMON_FUNCS = {"_ready", "_process", "_init", "_draw", "_input", "_to_string", "_physics_process",
                 "_unhandled_input", "_notification", "_exit_tree", "_enter_tree", "new", "get", "set"}
@@ -369,6 +370,8 @@ def runnable(row):
     """The commands of a row this tool will start itself."""
     if row.mode != "headless":
         return []
+    if row.minutes >= 3 and not SLOW[0]:
+        return []
     out = []
     for c in row.commands:
         if c.needs_arg or c.kind == "other":
@@ -381,6 +384,8 @@ def runnable(row):
 
 
 def hand_reason(row):
+    if row.mode == "headless" and row.minutes >= 3 and not SLOW[0]:
+        return "about %d minutes: add --slow to run it" % row.minutes
     if row.mode == "windowed":
         return "needs a window"
     if row.mode == "unstated":
@@ -477,9 +482,11 @@ def main():
     ap.add_argument("--staged", action="store_true", help="only what is staged for the next commit")
     ap.add_argument("--run", action="store_true", help="also run the headless rows")
     ap.add_argument("--list-all", action="store_true", help="list every row as this tool reads it")
+    ap.add_argument("--slow", action="store_true", help="also run rows that say they take 3 minutes or more")
     ap.add_argument("--max-secs", type=int, default=0, help="cap on one run's time limit (0: the row's own)")
     a = ap.parse_args()
 
+    SLOW[0] = a.slow
     rows = parse_table()
     if a.list_all:
         for r in rows:
