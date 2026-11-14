@@ -960,7 +960,7 @@ static func _cap0(r: FlightSolve.Result) -> float:
 	return FlightSolve.first_cap(r.path)
 
 
-## A dep as `FlightSolve.solve` hands it on for case c's path (`_chain_again`
+## A dep as `FlightSolve.solve` hands it on for case c's path (`FlightChain.chain_again`
 ## called straight, past `solve`).
 static func _dep_opts(d: Dictionary, c: Dictionary) -> Dictionary:
 	if StringName(c.get("path", &"direct")) != &"curved":
@@ -1050,11 +1050,11 @@ func _replans() -> void:
 				d2.ang = float(c.dep.ang) + float(c.dep.get("w0", c.dep.w)) * dt * float(k)
 			var t2 := float(c.t) + dt * float(k)
 			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice, c.opts)
-			# (the last legs kept, flown again here as `FlightSolve._chain_again`
+			# (the last legs kept, flown again here as `FlightChain.chain_again`
 			# flies them: none kept arrives later)
 			var ra: FlightSolve.Result = null
 			if not legs.is_empty():
-				ra = FlightSolve._chain_again(c.G, _dep_opts(d2, c), c.tgt, t2, legs)
+				ra = FlightChain.chain_again(c.G, _dep_opts(d2, c), c.tgt, t2, legs)
 			if ra != null:
 				two_old += 1
 				if not rw.found or float(rw.end.t) > float(ra.end.t) + 1e-3:

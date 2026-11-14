@@ -62,7 +62,7 @@ HOW IT IS FOUND (prototyped in tk-scratch/twin-build/solve-proto, measured):
   nothing, the wider search again at TIME_W_BACK. A flight found to T_CAP
   whose samples cut a keep-out gets the fallback's look too, and the
   fallback's flight is kept if it is clean (`_build_fresh`);
-- in a twin, when even that finds nothing, a flight in two legs (`_chain`):
+- in a twin, when even that finds nothing, a flight in two legs (`FlightChain.chain`):
   the first aimed at a point round the pair, the second leaving free off its
   coast before the first's arrival burn, so the ship never stops there, both
   legs by the as-built search alone. One Result.
@@ -144,7 +144,7 @@ search starts from it and keeps that flight while it costs about what it
 did (WARM_K, WARM_ADD), so a preview does not flip between near equals; a
 flight the fallback found, rebuilt or searched from, only while a fresh
 search (C's own, else the fallback's two) finds none arriving sooner. A
-flight in two legs comes back from its legs (`_chain_again`: rebuilt while
+flight in two legs comes back from its legs (`FlightChain.chain_again`: rebuilt while
 the first is the same flight, else searched from them, while it costs about
 what it did), and round a ring or alongside is kept only while a fresh plan
 (one leg, else two) finds none arriving sooner (`_sooner_of`), its own drawn
@@ -153,7 +153,7 @@ legs in its choice (`alt`), and they are tried again beside it each time it
 is planned again (searched again once their departure has gone by), so a
 later flight in two legs found afresh never stands where the old legs still
 fly sooner. A flight in two legs looked for again through its old point
-(`_chain`'s hint) is kept only while the first one found without it arrives
+(`FlightChain.chain`'s hint) is kept only while the first one found without it arrives
 no sooner.
 `found` false: nothing clean within the budget, and no samples (the caller
 falls back); `clean` false on a found plan only if its own samples cut a
@@ -327,17 +327,17 @@ a cap of 55 s found no more; what it still misses (18 twin flights of 1,478)
 leave a star's close orbit or a settled orbit far out for a station, belt,
 hulk or contact on the far side of the pair, which no departure burn and one
 coast reaches (the closest any of 1,260 departures came was 42 to 249 px):
-those fly in two legs (`_chain`). Those numbers are the as-built search's;
+those fly in two legs (`FlightChain.chain`). Those numbers are the as-built search's;
 at C the wider one looks beside it (`_fallback`).
 ```
 
 ## Flights in two legs
 
-Above `const CHAIN_PRE := [0.5, 3.0, 6.0]`:
+Above `const CHAIN_PRE := [0.5, 3.0, 6.0]` (`FlightChain.gd`):
 
 ```text
-WHEN EVEN THAT FINDS NOTHING, IN A TWIN, A FLIGHT IN TWO LEGS (`_chain`):
-the first aimed at a point in open space (`_waypoints`), the second leaving
+WHEN EVEN THAT FINDS NOTHING, IN A TWIN, A FLIGHT IN TWO LEGS (`FlightChain.chain`):
+the first aimed at a point in open space (`FlightChain._waypoints`), the second leaving
 free off its coast CHAIN_PRE s (each in turn) before its arrival burn, at
 least CHAIN_AFTER after its departure burn. The points: round the pair, half
 way round from the ship to where the place is CHAIN_T on, at CHAIN_R times
@@ -356,21 +356,21 @@ where a burn did, seed 7 system 110, is FlightTest's residual). Points all
 round the pair (12 bearings, two radii) and round the place found no more,
 nor, there, a first leg that was that burn and its coast. Round one sun
 too since Nov 10, where the target is behind the ship's motion: the points
-are `FlightTurn.waypoints`' (docs/why/FlightTurn.md).
+are `FlightChain._turn_waypoints`' (docs/why/FlightChain.md).
 ```
 
-Above `static func _chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> Result:`:
+Above `static func chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> FlightSolve.Result:` (`FlightChain.gd`):
 
 ```text
 A FLIGHT IN TWO LEGS, in a twin, where one departure burn and one coast
 reach nothing (the wider search too): its first leg aimed at a point in open
-space (`_waypoints`: a keep target at place -9, c that point), its second
+space (`FlightChain._waypoints`: a keep target at place -9, c that point), its second
 leaving free off the first's coast CHAIN_PRE s before the first's arrival
 burn would start, so the ship never stops there -- a coast, a burn that
 turns it, a coast, the arrival. One Result, one set of samples SAMPLE apart
 from the first's departure: drawn, previewed and flown as any other. Its
 choice is the first leg's with `chain` {W, k, pre, c1, c2}, so the same
-flight comes back (`_chain_again`): the first leg rebuilt from c1 as any
+flight comes back (`FlightChain.chain_again`): the first leg rebuilt from c1 as any
 flight is, the second then leaving from the very same state is rebuilt from
 c2 as a free one is. The first found is kept; with a `hint` (an old flight's
 point, tried first), the flight through it only while the first found
@@ -380,7 +380,7 @@ later than a fresh plan's (seed 31337 node 28, orbit9 -9 to keep 2, line-up
 4, planned again 14 times: 243.82 against 242.54; the fifth review, Nov 1).
 ```
 
-Above `static func _chain_again(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, c: Dictionary) -> Result:`:
+Above `static func chain_again(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, c: Dictionary) -> FlightSolve.Result:` (`FlightChain.gd`):
 
 ```text
 A FLIGHT IN TWO LEGS FROM ITS CHOICE: the first leg from c1 (rebuilt as any
@@ -564,7 +564,7 @@ Inside `solve()`, above `var t_us := Time.get_ticks_usec()`:
 ```text
 A FLIGHT IN TWO LEGS DRAWN BEFORE: its own legs again while they hold,
 else looked for afresh, its old point tried first (and kept only
-while the first found without it arrives no sooner, `_chain`).
+while the first found without it arrives no sooner, `FlightChain.chain`).
 Held, it is kept only while a fresh plan, of one leg or else of two,
 finds none that arrives sooner (`_sooner_of`), the rule a flight the
 fallback found is kept by. Against one leg alone, legs searched from
@@ -582,7 +582,7 @@ Inside `solve()`, above `var t_ua := Time.get_ticks_usec()`:
 A FLIGHT OF ONE LEG THAT TOOK OVER FROM ONE IN TWO (`_sooner_of`):
 itself from its choice as any flight is (else one found afresh, and
 where one leg finds nothing, two found afresh), beside the old legs
-again (`_chain_again`), the one that arrives first kept, the old
+again (`FlightChain.chain_again`), the one that arrives first kept, the old
 legs on a tie. Without them, the preview that went to one leg went
 next, where one leg found nothing, to two found afresh, later than
 its old legs flew (seed 31337 node 28, ring 1 to keep 5, line-up 10:
@@ -607,7 +607,7 @@ G2's spiral worlds, Nov 10).
 Above `static func _sooner_of(rc: Result, r1: Result) -> Result:`:
 
 ```text
-A FLIGHT IN TWO LEGS HELD FROM ITS CHOICE (`_chain_again`: rebuilt, or
+A FLIGHT IN TWO LEGS HELD FROM ITS CHOICE (`FlightChain.chain_again`: rebuilt, or
 searched from its legs) against another plan, r1 (a fresh plan, of one leg
 as a first plan's is, else of two; or, from a flight of one leg that took
 over from them, that flight planned again, else two legs found afresh): the one
@@ -619,7 +619,7 @@ ring or alongside planned again 15 times as the overlay does, 63 steps (the
 review of Nov 1), at worst 50.9 s in two legs where one leg flew 13.5 (twin
 300, ring 2 to star -1, line-up 4). Only round a ring or alongside, the ship
 still where the flight leaves from: free, it is on its way (or a harness's
-free start), and the flight is as `_chain_again` gives it. A flight of one
+free start), and the flight is as `FlightChain.chain_again` gives it. A flight of one
 leg kept carries the held legs' choice as its `alt` (`solve`): the legs as
 they were flown this time, so once their departure has gone by they are
 searched again from the last search's legs, priced against its cost, and may
@@ -1120,7 +1120,7 @@ Above `static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: 
 
 ```text
 THE FLIGHT from `dep` to `tgt` at map time t (see the head of this file).
-In a twin, where nothing is found, a flight in two legs (`_chain`).
+In a twin, where nothing is found, a flight in two legs (`FlightChain.chain`).
 THE FLIGHT, on the map: dep and tgt in map units, t map time, `opts`
 {path: &"direct" | &"curved", pace: k} (`ShipFlight.flight_opts`); none is
 today's flight, DIRECT at pace 1, to the last digit. `grav` the system's
