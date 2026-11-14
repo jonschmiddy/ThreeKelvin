@@ -115,7 +115,7 @@ func _run() -> void:
 	var oi := n.options.size()
 	n.options.append(&"first_on_the_wreck")
 	LocalEventDrawer.last = [n.index, oi]
-	SystemMapScreen._parked[n.index] = {at = LocalEventDrawer.body_of(n, oi)}
+	ParkedShips.spots[n.index] = {at = LocalEventDrawer.body_of(n, oi)}
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
 	wreck.items.append(CreditChit.of(40))
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))

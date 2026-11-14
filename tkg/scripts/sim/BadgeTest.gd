@@ -881,10 +881,10 @@ func _bring_under(which: String, spot: Vector2) -> String:
 		var chart: Control = (Router.current as StarchartScreen)._chart
 		var p := chart.get_global_transform_with_canvas().affine_inverse() * spot
 		var n := Run.node_at()
-		chart.pan += p - chart._screen_pos(n)
+		chart.pan += p - chart.screen_pos(n)
 		chart.queue_redraw()
 		await Harness.frames(_tree, 2)
-		chart.pan += p - chart._screen_pos(n)
+		chart.pan += p - chart.screen_pos(n)
 		var h: int = chart._node_at(p)
 		return "system %d" % h if h >= 0 else ""
 	var sm := Router.current as SystemMapScreen

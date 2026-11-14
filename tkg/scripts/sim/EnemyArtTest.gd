@@ -257,6 +257,7 @@ func _fight(tree: SceneTree, p: Array, centred: bool = false) -> float:
 		extras.append(DB.enemies[p[i][0]])
 	Router.start_combat(DB.enemies[p[0][0]], extras, false, false)
 	if Router.combat == null:
+		_ok("%s: a fight started" % str(p), false)
 		return 0.0
 	for i in p.size():
 		Router.combat.enemies[i].look = int(p[i][1])
@@ -291,4 +292,6 @@ func _fight(tree: SceneTree, p: Array, centred: bool = false) -> float:
 			var mid := sl.get_global_rect().get_center().x
 			return (left + right) * 0.5 - mid
 		i += 1
+	if i == 0:
+		_ok("%s: the fight drew a ship" % str(p), false)
 	return worst

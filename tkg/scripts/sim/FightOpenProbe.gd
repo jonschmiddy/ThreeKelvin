@@ -84,7 +84,7 @@ static func sample(sc: SectorScreen) -> Dictionary:
 	if v._area != null:
 		# (a place that draws nothing is nothing on screen)
 		d.area = _box(v._area.get_global_rect(),
-			alpha_of(v._area) if v._area._place_name() != &"" else 0.0)
+			alpha_of(v._area) if v._area.place_name() != &"" else 0.0)
 	if v._convoy_pad != null:
 		d.convoy = _box(v._convoy_pad.get_global_rect(), alpha_of(v._convoy_pad))
 	for n in v.get_children():

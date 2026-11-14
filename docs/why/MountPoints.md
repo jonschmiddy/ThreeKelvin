@@ -174,7 +174,7 @@ lower alpha looks exactly like and no amount of brightening would fix.
 
 ## Part scale
 
-Above `func _mag() -> float:`:
+Above `func part_mag() -> float:`:
 
 ```text
 One art pixel, in screen pixels. See ShipView.art_scale.

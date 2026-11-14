@@ -65,15 +65,6 @@ const WIDE_T := 20.0
 const BUDGET_WIDE := 250
 const WIDE_HEAD := 12
 const WIDE_SPAN := PI * 75.0 / 180.0
-## Last resort in a twin: the ship flies via an open-space point so it never stops there.
-## Needed for far-side targets that no departure burn and one coast reaches.
-## Why: docs/why/FlightSolve.md#flights-in-two-legs
-const CHAIN_PRE := [0.5, 3.0, 6.0]
-const CHAIN_AFTER := 0.5
-const CHAIN_T := 15.0
-const CHAIN_R := [1.0, 0.7]
-const CHAIN_CLEAR := 1.5
-const CHAIN_EDGE := 0.95
 ## Jon's dial: engine work one second of flight is worth. 16 per ruling 21, as built was 0.5.
 ## Why: docs/why/FlightSolve.md#time-weight
 const TIME_W := 16.0
@@ -268,10 +259,7 @@ static func ring_floor() -> float:
 
 ## A ring's speed v (px/s, signed) on a flight's clock at pace k (`RING_TAU`).
 static func tau_speed(v: float, k: float) -> float:
-	if k == 1.0:
-		return v
-	var a := absf(v)
-	return signf(v) * minf(a, maxf(a / k, ring_floor()))
+	return FlightMath.tau_speed(v, k)
 
 
 ## A departure or a target on the flight's clock at pace k: a ring's or a
@@ -348,7 +336,7 @@ class Result:
 	var us_int := 0
 	var us_price := 0
 	var us_build := 0
-	## A FLIGHT IN TWO LEGS (`_chain`): 2, the point its first leg is aimed at,
+	## A FLIGHT IN TWO LEGS (`FlightChain.chain`): 2, the point its first leg is aimed at,
 	## and the sample (of `samp`) and map time its second leaves free from
 	var legs := 1
 	var wp := Vector2.ZERO
@@ -580,7 +568,7 @@ var _b_J := INF
 var _b := {}
 
 
-## The flight from `dep` to `tgt` at map time t; where nothing is found, two legs (`_chain`: a twin's, or `FlightTurn`'s).
+## The flight from `dep` to `tgt` at map time t; where nothing is found, two legs (`FlightChain.chain`: a twin's, or round one sun).
 ## `opts` {path, pace} (`ShipFlight.flight_opts`); none is DIRECT at pace 1. The search runs on the flight's
 ## own clock; the Result comes back on the map's (`Result.to_map`) unless opts.tau.
 ## Why: docs/why/FlightSolve.md#solve
@@ -618,31 +606,9 @@ static func solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, 
 	return r
 
 
-## THE SHAPE OF A FLIGHT from its samples: [bend, turn] -- the farthest a
-## sample strays from the straight line between its two ends over that line's
-## length, and how far its motion turns in all (deg), read every 8th sample.
+## The shape of a flight from its samples: [bend, turn] (`FlightMath.shape_of`).
 static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
-	var n := samp.size()
-	if n < 3:
-		return PackedFloat64Array([0.0, 0.0])
-	var a := Vector2(samp[0].x, samp[0].z)
-	var b := Vector2(samp[n - 1].x, samp[n - 1].z)
-	var ch := (b - a).length()
-	var far := 0.0
-	var turn := 0.0
-	var pv := Vector2.ZERO
-	var step := maxi(1, n / 400)
-	for j in range(0, n, step):
-		var q := Vector2(samp[j].x, samp[j].z)
-		if ch > 1e-6:
-			far = maxf(far, absf((b - a).cross(q - a)) / ch)
-		if j + step < n:
-			var v := Vector2(samp[j + step].x - samp[j].x, samp[j + step].z - samp[j].z)
-			if pv != Vector2.ZERO and v.length() > 1e-6:
-				turn += absf(pv.angle_to(v))
-			if v.length() > 1e-6:
-				pv = v
-	return PackedFloat64Array([far / maxf(ch, 1e-6), rad_to_deg(turn)])
+	return FlightMath.shape_of(samp)
 
 
 ## (the search on the flight's own clock: dep, tgt and t already in tau)
@@ -653,7 +619,7 @@ static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: fl
 			# A held two-leg flight is kept only while a fresh plan finds none arriving sooner.
 			# Why: docs/why/FlightSolve.md#two-leg-replans
 			var t_us := Time.get_ticks_usec()
-			var rc := _chain_again(grav, dep, tgt, t, prefer)
+			var rc := FlightChain.chain_again(grav, dep, tgt, t, prefer)
 			if rc == null:
 				var ch: Dictionary = prefer.chain
 				rc = _solve_or_chain(grav, dep, tgt, t, {}, ch.get("W", Vector2.INF))
@@ -667,7 +633,7 @@ static func _solve_tau(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: fl
 			var t_ua := Time.get_ticks_usec()
 			var c1 := prefer.duplicate()
 			c1.erase("alt")
-			var ra := _chain_again(grav, dep, tgt, t, prefer.alt)
+			var ra := FlightChain.chain_again(grav, dep, tgt, t, prefer.alt)
 			var r := _solve_or_chain(grav, dep, tgt, t, c1, Vector2.INF)
 			if ra != null:
 				var rk := _sooner_of(ra, r)
@@ -693,7 +659,7 @@ static func _sooner_of(rc: Result, r1: Result) -> Result:
 	return out
 
 
-## The flight of one leg; where none is found, of two (`_chain`, a twin's or `FlightTurn`'s;
+## The flight of one leg; where none is found, of two (`FlightChain.chain`, a twin's or round one sun;
 ## `hint` its first point tried first).
 static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer: Dictionary, hint: Vector2) -> Result:
 	var fs := FlightSolve.new()
@@ -701,7 +667,7 @@ static func _solve_or_chain(grav: MapGravity, dep: Dictionary, tgt: Dictionary, 
 	if r.found or not fs._set:
 		return r
 	var t_us := Time.get_ticks_usec()
-	var rc := _chain(grav, dep, tgt, t, hint)
+	var rc := FlightChain.chain(grav, dep, tgt, t, hint)
 	if rc == null:
 		r.usec += Time.get_ticks_usec() - t_us
 		return r
@@ -827,7 +793,7 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 				if keep:
 					# (built again, not rk: the fresh search flew over the coast
 					# rk was built on, and a leg's second leaves from it,
-					# `_leg_two` reading `_coast_at` of the first's solver)
+					# `FlightChain._leg_two` reading `_coast_at` of the first's solver)
 					_b_J = wj
 					_b = wb
 					_tcap = wcap
@@ -856,10 +822,6 @@ func _solve(grav: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, prefer
 	res.us_build = _us_build
 	res.usec = Time.get_ticks_usec() - t_us
 	return res
-
-
-static func _warm_slack(j: float) -> float:
-	return maxf(WARM_ADD, WARM_K * j)
 
 
 ## A flight's cost j, priced at tw, priced again at TIME_W: its seconds to its
@@ -1087,7 +1049,7 @@ func _spin_short() -> float:
 ## the spin long: under it, slowed, and a k under RIDE_K_MIN cannot be flown).
 func _ride_lead(dang: float) -> PackedFloat64Array:
 	if _spin <= 0.0:
-		return _lead_of(dang, absf(_dw))
+		return FlightMath.lead_of(dang, absf(_dw))
 	var w := absf(_dw)
 	var d2 := dang + _spin_short()
 	var nat := d2 / w
@@ -1106,15 +1068,6 @@ const RIDE_K_MIN := 0.2
 ## |k - 1| |w| rt and back down.
 func _phase_work(k: float) -> float:
 	return 2.0 * absf(k - 1.0) * absf(_dw) * _drt
-
-
-## The ride dang radians round at rate w (> 0): [lead, phasing k]
-## (`ShipFlight._lead`'s law: up to LEAD_MAX it simply rides).
-static func _lead_of(dang: float, w: float) -> PackedFloat64Array:
-	var nat := dang / w
-	if nat <= LEAD_MAX:
-		return PackedFloat64Array([nat, 1.0])
-	return PackedFloat64Array([LEAD_MAX, 1.0 + 2.0 * (dang / (w * LEAD_MAX) - 1.0)])
 
 
 ## Departure angle for leaving along (ux, uz): the ring point whose motion runs along it.
@@ -1756,7 +1709,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			if dd < 0.5 * kp:
 				deep = true
 			if dd - kp < reach + 40.0:
-				var m := _step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox, oz) - kp
+				var m := FlightMath.step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox, oz) - kp
 				clear = minf(clear, m)
 				if m < 0.0 and _t_bad == INF:
 					_t_bad = t
@@ -1768,7 +1721,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			if dd2 < 0.5 * kp2:
 				deep = true
 			if dd2 - kp2 < reach + 40.0:
-				var m2 := _step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox2, oz2) - kp2
+				var m2 := FlightMath.step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox2, oz2) - kp2
 				clear = minf(clear, m2)
 				if m2 < 0.0 and _t_bad == INF:
 					_t_bad = t
@@ -1786,7 +1739,7 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 			var oz3 := whz + G.wo_orb[j] * sin(aw)
 			var dd3 := sqrt((nx - ox3) * (nx - ox3) + (nz - oz3) * (nz - oz3))
 			if dd3 - kp3 < reach + 40.0:
-				var m3 := _step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox3, oz3) - kp3
+				var m3 := FlightMath.step_min(x, z, vx, vz, nx, nz, nvx, nvz, h, ox3, oz3) - kp3
 				clear = minf(clear, m3)
 				if m3 < 0.0 and _t_bad == INF:
 					_t_bad = t
@@ -1822,47 +1775,6 @@ func _integrate(td: float, x: float, z: float, vx: float, vz: float, dvx: float,
 	_cn = n
 
 
-## The least distance to (ox, oz) over one step, on the cubic through its ends
-## (a golden-section search where the step passes its closest).
-static func _step_min(x0: float, z0: float, vx0: float, vz0: float, x1: float, z1: float, vx1: float, vz1: float, h: float, ox: float, oz: float) -> float:
-	var d0 := sqrt((x0 - ox) * (x0 - ox) + (z0 - oz) * (z0 - oz))
-	var dd1 := sqrt((x1 - ox) * (x1 - ox) + (z1 - oz) * (z1 - oz))
-	var best := minf(d0, dd1)
-	var r0 := (x0 - ox) * vx0 + (z0 - oz) * vz0
-	var r1 := (x1 - ox) * vx1 + (z1 - oz) * vz1
-	if r0 < 0.0 and r1 > 0.0:
-		var a := 0.0
-		var b := 1.0
-		var g := 0.6180339887498949
-		for _i in 14:
-			var c := b - g * (b - a)
-			var d := a + g * (b - a)
-			var xc := _herm(x0, vx0, x1, vx1, h, c) - ox
-			var zc := _herm(z0, vz0, z1, vz1, h, c) - oz
-			var xd := _herm(x0, vx0, x1, vx1, h, d) - ox
-			var zd := _herm(z0, vz0, z1, vz1, h, d) - oz
-			if xc * xc + zc * zc < xd * xd + zd * zd:
-				b = d
-			else:
-				a = c
-		var u := 0.5 * (a + b)
-		var xm := _herm(x0, vx0, x1, vx1, h, u) - ox
-		var zm := _herm(z0, vz0, z1, vz1, h, u) - oz
-		best = minf(best, sqrt(xm * xm + zm * zm))
-	return best
-
-
-static func _herm(p0: float, v0: float, p1: float, v1: float, h: float, u: float) -> float:
-	var u2 := u * u
-	var u3 := u2 * u
-	return (2.0 * u3 - 3.0 * u2 + 1.0) * p0 + (u3 - 2.0 * u2 + u) * h * v0 + (-2.0 * u3 + 3.0 * u2) * p1 + (u3 - u2) * h * v1
-
-
-static func _hermd(p0: float, v0: float, p1: float, v1: float, h: float, u: float) -> float:
-	var u2 := u * u
-	return ((6.0 * u2 - 6.0 * u) * p0 + (3.0 * u2 - 4.0 * u + 1.0) * h * v0 + (-6.0 * u2 + 6.0 * u) * p1 + (3.0 * u2 - 2.0 * u) * h * v1) / h
-
-
 ## The coast at time tq (inside it): [x, z, vx, vz], and the node it is after in _qk.
 var _qk := 0
 func _coast_at(tq: float) -> PackedFloat64Array:
@@ -1885,8 +1797,8 @@ func _coast_k(k: int, tq: float) -> PackedFloat64Array:
 	if h <= 0.0:
 		return PackedFloat64Array([_cX[k], _cZ[k], _cVX[k], _cVZ[k]])
 	var u := (tq - _cT[k]) / h
-	return PackedFloat64Array([_herm(_cX[k], _cVX[k], _cX[k1], _cVX[k1], h, u), _herm(_cZ[k], _cVZ[k], _cZ[k1], _cVZ[k1], h, u),
-		_hermd(_cX[k], _cVX[k], _cX[k1], _cVX[k1], h, u), _hermd(_cZ[k], _cVZ[k], _cZ[k1], _cVZ[k1], h, u)])
+	return PackedFloat64Array([FlightMath.herm(_cX[k], _cVX[k], _cX[k1], _cVX[k1], h, u), FlightMath.herm(_cZ[k], _cVZ[k], _cZ[k1], _cVZ[k1], h, u),
+		FlightMath.hermd(_cX[k], _cVX[k], _cX[k1], _cVX[k1], h, u), FlightMath.hermd(_cZ[k], _cVZ[k], _cZ[k1], _cVZ[k1], h, u)])
 
 
 # ---------------------------------------------------------------- the arrival
@@ -2014,109 +1926,6 @@ func _te_for(te0: float, s: float, pk: float, d_near: float) -> float:
 	return te0
 
 
-## Looks for the least pull first, since the feasible window is a few percent wide.
-## Doubling out from 0.05 s stepped over it and made every burn three times the least.
-## Why: docs/why/FlightSolve.md#cubic-burn
-static func _cubic_burn(dxx: float, dxz: float, dux: float, duz: float, pk: float = THRUST) -> PackedFloat64Array:
-	var du := sqrt(dux * dux + duz * duz)
-	var lb := maxf(du / pk, 1e-3)
-	var d := -1.0
-	var pl := _peak(dxx, dxz, dux, duz, lb)
-	if pl <= pk:
-		d = lb
-	else:
-		# near the least: the lowest peak, golden section on [lb, 1.5 lb], where
-		# it falls to a point and then rises
-		var a := lb
-		var b := 1.5 * lb
-		var gr := 0.6180339887498949
-		var c := b - gr * (b - a)
-		var e := a + gr * (b - a)
-		var fc := _peak(dxx, dxz, dux, duz, c)
-		var fe := _peak(dxx, dxz, dux, duz, e)
-		for _i in 18:
-			if fc < fe:
-				b = e
-				e = c
-				fe = fc
-				c = b - gr * (b - a)
-				fc = _peak(dxx, dxz, dux, duz, c)
-			else:
-				a = c
-				c = e
-				fc = fe
-				e = a + gr * (b - a)
-				fe = _peak(dxx, dxz, dux, duz, e)
-		var dm := c if fc < fe else e
-		var pm := minf(fc, fe)
-		if pm <= pk:
-			# the least that holds, between lb (over) and dm
-			var lo := lb
-			var hi := dm
-			for _i in 20:
-				var m := 0.5 * (lo + hi)
-				if _peak(dxx, dxz, dux, duz, m) > pk:
-					lo = m
-				else:
-					hi = m
-			d = hi
-		elif pm <= pk * (1.0 + BURN_TOL):
-			d = dm
-		else:
-			var lo2 := 1.5 * lb
-			var hi2 := 1.5 * lo2
-			while _peak(dxx, dxz, dux, duz, hi2) > pk:
-				lo2 = hi2
-				hi2 *= 1.5
-				if hi2 > 64.0:
-					return PackedFloat64Array()
-			for _i in 22:
-				var m2 := 0.5 * (lo2 + hi2)
-				if _peak(dxx, dxz, dux, duz, m2) > pk:
-					lo2 = m2
-				else:
-					hi2 = m2
-			d = hi2
-	return PackedFloat64Array([d, _cubic_work(dxx, dxz, dux, duz, d)])
-
-
-static func _peak(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:
-	var ax := 6.0 * dxx - 2.0 * dux * d
-	var az := 6.0 * dxz - 2.0 * duz * d
-	var bx := 4.0 * dux * d - 6.0 * dxx
-	var bz := 4.0 * duz * d - 6.0 * dxz
-	return maxf(sqrt(ax * ax + az * az), sqrt(bx * bx + bz * bz)) / (d * d)
-
-
-## Closed form for the work: Simpson on four steps read 1.167 |du| where it is 1.25.
-## Why: docs/why/FlightSolve.md#cubic-burn
-static func _cubic_work(dxx: float, dxz: float, dux: float, duz: float, d: float) -> float:
-	var px := (6.0 * dxx - 2.0 * dux * d) / (d * d)
-	var pz := (6.0 * dxz - 2.0 * duz * d) / (d * d)
-	var qx := (4.0 * dux * d - 6.0 * dxx) / (d * d) - px
-	var qz := (4.0 * duz * d - 6.0 * dxz) / (d * d) - pz
-	var A := qx * qx + qz * qz
-	var C := px * px + pz * pz
-	if A < 1e-18:
-		return sqrt(C) * d
-	var B := px * qx + pz * qz
-	var w0 := B / A
-	var w1 := 1.0 + w0
-	var k2 := maxf(C / A - w0 * w0, 0.0)
-	return d * sqrt(A) * (_half_hyp(w1, k2) - _half_hyp(w0, k2))
-
-
-## The integral of sqrt(w^2 + k2) from 0 to w.
-static func _half_hyp(w: float, k2: float) -> float:
-	var s := sqrt(w * w + k2)
-	if k2 < 1e-24:
-		return 0.5 * w * absf(w)
-	var k := sqrt(k2)
-	var x := absf(w) / k
-	var ash := log(x + sqrt(x * x + 1.0))
-	return 0.5 * (w * s + k2 * (ash if w >= 0.0 else -ash))
-
-
 ## Onto a ring, the constant burn where its pull is within `BURN_TOL`; the cubic otherwise.
 func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk: float = THRUST) -> PackedFloat64Array:
 	_tgt_at(te)
@@ -2148,7 +1957,7 @@ func _arrival(te: float, x: float, z: float, vx: float, vz: float, s: float, pk:
 		dxz = _tR * sin(phi) - rz
 		dux = -sin(phi) * s * _tV - ux
 		duz = cos(phi) * s * _tV - uz
-	var cb := _cubic_burn(dxx, dxz, dux, duz, pk)
+	var cb := FlightMath.cubic_burn(dxx, dxz, dux, duz, pk)
 	if cb.is_empty():
 		return PackedFloat64Array()
 	return PackedFloat64Array([cb[1], phi, cb[0], dxx, dxz, dux, duz, 0.0])
@@ -2222,8 +2031,8 @@ func _burn_clear(te: float, d: float, dxx: float, dxz: float, dux: float, duz: f
 			k += 1
 		var h := _cT[k + 1] - _cT[k]
 		var u := (tq - _cT[k]) / h if h > 0.0 else 0.0
-		var cx := _herm(_cX[k], _cVX[k], _cX[k + 1], _cVX[k + 1], h, u)
-		var cz := _herm(_cZ[k], _cVZ[k], _cZ[k + 1], _cVZ[k + 1], h, u)
+		var cx := FlightMath.herm(_cX[k], _cVX[k], _cX[k + 1], _cVX[k + 1], h, u)
+		var cz := FlightMath.herm(_cZ[k], _cVZ[k], _cZ[k + 1], _cVZ[k + 1], h, u)
 		var yx := cx + Ax * tau * tau + Bx * tau * tau * tau
 		var yz := cz + Az * tau * tau + Bz * tau * tau * tau
 		if j > 0:
@@ -3526,24 +3335,19 @@ func _same_flight(c: Dictionary) -> bool:
 		return false
 	if int(c.get("dhs", -9)) != _dhs or int(c.get("ths", -9)) != _ths:
 		return false
-	if _dk == 0 and not (_near(c.get("w", NAN), _dw) and _near(c.get("rt", NAN), _drt)):
+	if _dk == 0 and not (FlightMath.near(c.get("w", NAN), _dw) and FlightMath.near(c.get("rt", NAN), _drt)):
 		return false
-	if _dk == 1 and not (_near(c.get("dox", NAN), _doffx) and _near(c.get("doz", NAN), _doffz)):
+	if _dk == 1 and not (FlightMath.near(c.get("dox", NAN), _doffx) and FlightMath.near(c.get("doz", NAN), _doffz)):
 		return false
-	if _dk != 2 and _dplace == -9 and not (_near(c.get("dhx", NAN), _dhx) and _near(c.get("dhz", NAN), _dhz)):
+	if _dk != 2 and _dplace == -9 and not (FlightMath.near(c.get("dhx", NAN), _dhx) and FlightMath.near(c.get("dhz", NAN), _dhz)):
 		return false
-	if _tk == 0 and not (_near(c.get("R", NAN), _tR) and _near(c.get("V", NAN), _tV)):
+	if _tk == 0 and not (FlightMath.near(c.get("R", NAN), _tR) and FlightMath.near(c.get("V", NAN), _tV)):
 		return false
-	if _tk == 1 and not (_near(c.get("tox", NAN), _toffx) and _near(c.get("toz", NAN), _toffz)):
+	if _tk == 1 and not (FlightMath.near(c.get("tox", NAN), _toffx) and FlightMath.near(c.get("toz", NAN), _toffz)):
 		return false
-	if _tplace == -9 and not (_near(c.get("thx", NAN), _thx) and _near(c.get("thz", NAN), _thz)):
+	if _tplace == -9 and not (FlightMath.near(c.get("thx", NAN), _thx) and FlightMath.near(c.get("thz", NAN), _thz)):
 		return false
 	return float(c.get("s", 0.0)) in _senses
-
-
-## (NAN, a missing number, is never near)
-static func _near(a: Variant, b: float) -> bool:
-	return absf(float(a) - b) <= 1e-9
 
 
 ## Rebuilds the flight from its choice in one integration, or null where it cannot be.
@@ -3784,150 +3588,6 @@ func _build_in(kind: StringName) -> Result:
 	return res
 
 
-# ---------------------------------------------------------------- a flight in two legs
-# The second leg leaves free off the first's coast, so the ship never stops at the waypoint.
-# With a hint, the flight through it is kept only if a fresh one arrives no sooner.
-# Why: docs/why/FlightSolve.md#flights-in-two-legs
-static func _chain(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, hint: Vector2) -> Result:
-	var rh: Result = null
-	if hint.is_finite():
-		rh = _chain_try(G, dep, tgt, t, hint, CHAIN_PRE)
-	for W in _waypoints(G, dep, tgt, t):
-		var rj := _chain_try(G, dep, tgt, t, W, CHAIN_PRE)
-		if rj != null:
-			if rh == null:
-				return rj
-			var keep := rh if float(rh.end.t) <= float(rj.end.t) + 1e-6 else rj
-			keep.integrations = rh.integrations + rj.integrations
-			keep.steps = rh.steps + rj.steps
-			return keep
-	return rh
-
-
-## The flight in two legs through W, its second leaving `pres` s (each in
-## turn) before the first's arrival burn: null when none is found and clean.
-static func _chain_try(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, W: Vector2, pres: Array) -> Result:
-	var l1 := FlightSolve.new()
-	l1._leg = 1
-	l1._wide_ok = false
-	var r1 := l1._solve(G, dep, _wp_target(W), t, {})
-	if not r1.found or not r1.clean:
-		return null
-	var tried := -1
-	for pre: float in pres:
-		# (each cut once: one past the first's departure burn stands for all
-		# before it)
-		var k := _cut_k(r1, pre)
-		if k == tried:
-			continue
-		tried = k
-		var rj := _leg_two(G, l1, r1, tgt, t, W, pre, k, {})
-		if rj != null:
-			return rj
-	return null
-
-
-## The sample of the first leg its second leaves from, `pre` s before the
-## first's arrival burn and at least CHAIN_AFTER after its departure burn.
-static func _cut_k(r1: Result, pre: float) -> int:
-	var tb := r1.t0 + r1.dur - r1.d2
-	return floori((maxf(tb - pre, r1.t0 + r1.esc_t + CHAIN_AFTER) - r1.t0) / SAMPLE)
-
-
-## A keep target at the fixed point W.
-static func _wp_target(W: Vector2) -> Dictionary:
-	return {"kind": &"keep", "place": -9, "c": W, "off": Vector2.ZERO}
-
-
-## The second leg off the first, joined into one flight, with `c2` to rebuild it from.
-static func _leg_two(G: MapGravity, l1: FlightSolve, r1: Result, tgt: Dictionary, t: float, W: Vector2, pre: float, k_fix: int, c2: Dictionary) -> Result:
-	var tb := r1.t0 + r1.dur - r1.d2
-	var k := k_fix if k_fix >= 0 else _cut_k(r1, pre)
-	if k < 1 or k >= r1.samp.size() - 1 or r1.t0 + float(k) * SAMPLE > tb - SAMPLE:
-		return null
-	var tc := r1.t0 + float(k) * SAMPLE
-	var st := l1._coast_at(tc)
-	var l2 := FlightSolve.new()
-	l2._leg = 2
-	l2._wide_ok = false
-	var d2 := {"kind": &"free", "p": Vector2(st[0], st[1]), "v": Vector2(st[2], st[3]), "_pace": l1._kp}
-	var r2 := l2._solve(G, d2, tgt, tc, c2)
-	if not r2.found or not r2.clean:
-		return null
-	return _join(r1, k, r2, t, W, tb - tc)
-
-
-## The two legs as one flight: the first's samples up to k, then the second's.
-static func _join(r1: Result, k: int, r2: Result, t: float, W: Vector2, pre: float) -> Result:
-	var res := Result.new()
-	res.found = true
-	res.clean = r1.clean and r2.clean
-	res.kind = &"replay" if r1.kind == &"replay" and r2.kind == &"replay" else &"solved"
-	res.legs = 2
-	res.wp = W
-	res.k_cut = k
-	res.t_cut = r1.t0 + float(k) * SAMPLE
-	res.t0 = r1.t0
-	res.lead = r1.lead
-	res.lead_k = r1.lead_k
-	res.a_dep = r1.a_dep
-	res.sdt = SAMPLE
-	res.samp = r1.samp.slice(0, k)
-	res.samp.append_array(r2.samp)
-	res.burns = r1.burns.slice(0, k)
-	res.burns.append_array(r2.burns)
-	var n := res.samp.size() - 1
-	res.dur = float(n) * SAMPLE
-	var amax := 1.0
-	for j in range(1, n, 2):
-		amax = maxf(amax, (res.samp[j + 1] - 2.0 * res.samp[j] + res.samp[j - 1]).length() / (SAMPLE * SAMPLE))
-	res.amax = amax
-	res.esc_t = r1.esc_t
-	res.end = r2.end.duplicate()
-	res.dvp = r1.dvp
-	res.dv1 = r1.dv1
-	res.dv2 = r2.dv2
-	res.work = r1.dvp + r1.dv1 + r2.dv1 + r2.dv2
-	res.arr_const = r2.arr_const
-	res.d2 = r2.d2
-	res.T = float(r2.end.t) - t
-	res.cost = res.work + TIME_W * res.T
-	res.priced = res.cost
-	res.clear = minf(r1.clear, r2.clear)
-	res.integrations = r1.integrations + r2.integrations
-	res.steps = r1.steps + r2.steps
-	res.choice = r1.choice.duplicate()
-	res.choice.J = res.cost
-	res.choice.chain = {"W": W, "k": k, "pre": pre, "c1": r1.choice, "c2": r2.choice}
-	return res
-
-
-## Rebuilt from its choice while kept, else null so the caller looks again.
-## Why: docs/why/FlightSolve.md#flights-in-two-legs
-static func _chain_again(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float, c: Dictionary) -> Result:
-	var ch: Dictionary = c.chain
-	var W: Vector2 = ch.get("W", Vector2.INF)
-	if not W.is_finite():
-		return null
-	var l1 := FlightSolve.new()
-	l1._leg = 1
-	l1._wide_ok = false
-	var r1 := l1._solve(G, dep, _wp_target(W), t, ch.get("c1", {}))
-	if not r1.found or not r1.clean:
-		return null
-	var same := r1.kind == &"replay"
-	var rj := _leg_two(G, l1, r1, tgt, t, W, float(ch.get("pre", 0.0)), int(ch.get("k", -1)) if same else -1, ch.get("c2", {}))
-	if rj == null:
-		return null
-	if rj.kind == &"replay":
-		return rj
-	rj.kind = &"warm"
-	var j_old := float(c.get("J", INF))
-	if rj.cost > j_old + _warm_slack(j_old):
-		return null
-	return rj
-
-
 ## WHERE THE SHIP IS NOW, as it leaves (round its ring, alongside, or free).
 func _dep_pos(t: float) -> Vector2:
 	if _dk == 2:
@@ -3938,32 +3598,17 @@ func _dep_pos(t: float) -> Vector2:
 	return Vector2(_cx + _drt * cos(_dang), _cz + _drt * sin(_dang))
 
 
-## Waypoints round the balance point, best first, kept clear of the suns and the map's edge.
-static func _waypoints(G: MapGravity, dep: Dictionary, tgt: Dictionary, t: float) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	var fs := FlightSolve.new()
-	fs.G = G
-	fs.t_now = t
-	if G.star_x0.size() < 2 or not fs._setup_in(dep, tgt):
-		return FlightTurn.waypoints(G, dep, tgt, t) if G.star_x0.size() == 1 else out
-	var pd := fs._dep_pos(t)
-	fs._tgt_at(t + CHAIN_T)
-	var pt := Vector2(fs._cx + fs._toffx, fs._cz + fs._toffz)
-	var c := G.bary
-	var qd := pd - c
-	var qt := pt - c
-	var gap := wrapf(qt.angle() - qd.angle(), -PI, PI)
-	# (the suns' distance apart at t 0: a turning pair is rigid, so it is the
-	# same at every t, as the balance point is where it is)
-	var sep := Vector2(G.star_x0[1] - G.star_x0[0], G.star_z0[1] - G.star_z0[0]).length()
-	var e := CHAIN_EDGE * G.edge
-	for way in 2:
-		var a := qd.angle() + (gap if way == 0 else gap - signf(gap) * TAU) * 0.5
-		var u := Vector2(cos(a), sin(a))
-		# (as far out as the map allows along u: |c + u r| = e)
-		var cu := c.dot(u)
-		var r_hi := -cu + sqrt(maxf(cu * cu - c.length_squared() + e * e, 0.0))
-		for rk: float in CHAIN_R:
-			var r := clampf(maxf(qd.length(), qt.length()) * rk, CHAIN_CLEAR * sep, r_hi)
-			out.append(c + u * r)
-	return out
+## The target's point at time t, where a waypoint is aimed from.
+func target_point(t: float) -> Vector2:
+	_tgt_at(t)
+	return Vector2(_cx + _toffx, _cz + _toffz)
+
+
+## The ship's velocity as it leaves (round its ring, alongside, or free).
+func departure_velocity(t: float) -> Vector2:
+	if _dk == 2:
+		return Vector2(_dvx, _dvz)
+	_dep_at(t)
+	if _dk == 1:
+		return Vector2(_cvx, _cvz)
+	return Vector2(_cvx - _dw * _drt * sin(_dang), _cvz + _dw * _drt * cos(_dang))

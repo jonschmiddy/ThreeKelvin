@@ -213,7 +213,7 @@ class Turner extends RefCounted:
 			mat.set_shader_parameter("ss", 4)
 			mat.set_shader_parameter("memory", true)
 		else:
-			# STEPPED: a picture turned once, pixel for pixel, as `LocalSubject.turned`
+			# STEPPED: a picture turned once, pixel for pixel, as `SubjectMask.turned`
 			mat.set_shader_parameter("ss", 1)
 			mat.set_shader_parameter("memory", false)
 		parent.add_child(vp)

@@ -1799,9 +1799,9 @@ func _orbit_phase() -> void:
 				var d := e
 				var tb := tp
 				if how2 == "through the save's rows":
-					var was_p: Dictionary = SystemMapScreen._parked
+					var was_p: Dictionary = ParkedShips.spots
 					var was_c: Dictionary = Run.map_clock
-					SystemMapScreen._parked = {idx: e}
+					ParkedShips.spots = {idx: e}
 					Run.map_clock = {idx: tp}
 					var raw = JSON.parse_string(JSON.stringify(SaveGame._parked_to()))
 					var raw_c = JSON.parse_string(JSON.stringify(SaveGame._clocks_to()))
@@ -1809,7 +1809,7 @@ func _orbit_phase() -> void:
 					Run.map_clock = SaveGame._clocks_from(raw_c, Run.map.size())
 					d = back.get(idx, {})
 					tb = Run.map_t(idx)
-					SystemMapScreen._parked = was_p
+					ParkedShips.spots = was_p
 					Run.map_clock = was_c
 				elif how2 == "the clock run on 5 s without it":
 					tb = tp + 5.0
@@ -2111,7 +2111,7 @@ func _report(cap: Dictionary) -> void:
 		h._ok("%s: every clean flight clear of MapGravity's keep-outs at each sample's own time, within %.0f px (%d inside; least margin %.2f px)" % [sweep, IN_PX, S.in_clean, S.in_worst], int(S.in_clean) == 0)
 		print("  farthest any solved flight goes from star A: %.2f of the edge" % S.far)
 		if int(S.chained) > 0 or base == "twin" or base == "close":
-			print("  flights in two legs (FlightSolve._chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
+			print("  flights in two legs (FlightChain.chain, where one leg reaches nothing): %d; flight time %s s; planned (this thread) %s ms; the second leg off the first's coast, s on: %s; out to %.2f of the edge at the farthest" % [S.chained, _dist(S.chain_T), _dist(S.chain_ms), _dist(S.chain_cut), S.chain_far])
 			for l6 in S.chain_list:
 				print("    TWO LEGS: %s" % l6)
 		if base == "twin" or base == "close":

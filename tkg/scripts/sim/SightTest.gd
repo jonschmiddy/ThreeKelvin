@@ -7,7 +7,7 @@ extends Harness
 func run() -> void:
 	_ladder()
 	_beyond()
-	verdict("sighttest")
+	print("sighttest: measured, nothing judged")
 
 
 ## Walks the radius multiplier directly: the count depends only on radius and galaxy.
@@ -98,7 +98,6 @@ func _beyond() -> void:
 		print("  %-6d %7d %7d %8d   %s"
 			% [seed_i, shown, sensed, beyond, JSON.stringify(why)])
 	_gap()
-	_ok("measured", true)
 
 
 ## Reachable but not sensed shows as NOT ENOUGH FUEL, which cannot be true at 279 fuel.

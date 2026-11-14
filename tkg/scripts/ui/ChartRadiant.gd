@@ -100,7 +100,7 @@ static func fixed_palette() -> PackedColorArray:
 			var mx := maxf(h.x, maxf(h.y, h.z))
 			var mt := 1.0 - exp(-mx)
 			var c := (h * (mt / mx)).lerp(Vector3(mt, mt, mt), smoothstep(BURN, BURN * 3.0, mx))
-			out.append(Color(ChartSky._l2s(c.x), ChartSky._l2s(c.y), ChartSky._l2s(c.z)))
+			out.append(Color(ChartSky.linear_to_srgb(c.x), ChartSky.linear_to_srgb(c.y), ChartSky.linear_to_srgb(c.z)))
 	# (the void itself and the burnt-out whites: chiaroscuro's two ends; after the
 	# hole's bands, which `ChartSky` keeps exact by their place, 4 to 11)
 	for h in ["#020306", "#fffaf0", "#ffe9c4"]:
@@ -351,7 +351,7 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		m.set_shader_parameter("u_isEll", 1.0 if L.ell else 0.0)
 		m.set_shader_parameter("u_ballK", ball_kind(p) if L.ell else Vector4.ZERO)
 		m.set_shader_parameter("u_ballR", float((p.ball as Vector4).x) if L.ell else 0.3)
-		out.append(sky._pass_vp(holder, Vector2i(DISC_N, DISC_N), ChartSky._rect(m), true))
+		out.append(sky.pass_viewport(holder, Vector2i(DISC_N, DISC_N), ChartSky.shader_rect(m), true))
 	# (a ball that makes stars has knots of its own: none came from `ChartSky._make_knots`,
 	# which lays them on arms)
 	if L.ell and (g.knots as Array).is_empty():
@@ -369,11 +369,11 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 	mk.set_shader_parameter("u_nkn", kn.size())
 	kn.resize(64)
 	mk.set_shader_parameter("u_kn", kn)
-	out.append(sky._pass_vp(holder, Vector2i(512, 512), ChartSky._rect(mk), false))
+	out.append(sky.pass_viewport(holder, Vector2i(512, 512), ChartSky.shader_rect(mk), false))
 	if _noise == null:
 		var mn := ShaderMaterial.new()
 		mn.shader = NOISE_SH
-		out.append(sky._pass_vp(holder, Vector2i(528, 528), ChartSky._rect(mn), true))
+		out.append(sky.pass_viewport(holder, Vector2i(528, 528), ChartSky.shader_rect(mn), true))
 	# Height fields read SIMPLIFIED's two bakes, so puffs and terrain stand where its do.
 	g["_s_at"] = out.size()
 	for mode in 2:
@@ -388,7 +388,7 @@ static func begin_bake(sky: ChartSky, g: Dictionary, holder: Node) -> Array[SubV
 		ms.set_shader_parameter("spin", float(p.spin))
 		ms.set_shader_parameter("spread", float(p.spread))
 		ms.set_shader_parameter("chaos", float(p.chaos))
-		out.append(sky._pass_vp(holder, Vector2i(n, n), ChartSky._rect(ms), false))
+		out.append(sky.pass_viewport(holder, Vector2i(n, n), ChartSky.shader_rect(ms), false))
 	return out
 
 
@@ -424,7 +424,7 @@ static func mid_bake(sky: ChartSky, g: Dictionary, vps: Array, holder: Node) -> 
 	m.set_shader_parameter("u_rmax", RMAX)
 	m.set_shader_parameter("u_ext", EXT)
 	m.set_shader_parameter("u_discB", g.discB)
-	return sky._pass_vp(holder, HOR_SIZE, ChartSky._rect(m), true)
+	return sky.pass_viewport(holder, HOR_SIZE, ChartSky.shader_rect(m), true)
 
 
 ## Stage three: the horizon map read back. The galaxy's bakes are in.
@@ -563,7 +563,7 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 	m.set_shader_parameter("u_nkn", knots.size())
 	kn.resize(ChartSky.MAX_KN)
 	m.set_shader_parameter("u_kn", kn)
-	var sv: Dictionary = {} if not live else ChartSky._supernova(g.sn_cand, t, calm)
+	var sv: Dictionary = {} if not live else ChartSky.supernova_at(g.sn_cand, t, calm)
 	if sv.is_empty():
 		m.set_shader_parameter("u_sn", Vector4.ZERO)
 		m.set_shader_parameter("u_echo", Vector4.ZERO)

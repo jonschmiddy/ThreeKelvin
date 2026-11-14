@@ -64,8 +64,8 @@ bare scripts/systems/Contracts.gd::deliverable_at
 bare scripts/systems/Contracts.gd::delivery_manufacturers
 bare scripts/systems/Contracts.gd::event_quest_at
 bare scripts/systems/Contracts.gd::heat_deliverable_at
+bare scripts/systems/FlightChain.gd::_wp_target
 bare scripts/systems/FlightSolve.gd::_arc_ts
-bare scripts/systems/FlightSolve.gd::_wp_target
 bare scripts/systems/FlightSolve.gd::curved_arc
 bare scripts/systems/FlightSolve.gd::dep_tau
 bare scripts/systems/FlightSolve.gd::tgt_tau
@@ -99,6 +99,9 @@ bare scripts/systems/OptionTable.gd::placed_ids
 bare scripts/systems/OptionTable.gd::strip_pay
 bare scripts/systems/PlaytestLogs.gd::_entries
 bare scripts/systems/PlaytestLogs.gd::save_bundle
+bare scripts/systems/Policy.gd::_resolve_line
+bare scripts/systems/Policy.gd::new_sci
+bare scripts/systems/Policy.gd::take_options
 bare scripts/systems/RunHistory.gd::_manufacturer_tally
 bare scripts/systems/RunHistory.gd::load_all
 bare scripts/systems/RunHistory.gd::recent
@@ -138,6 +141,7 @@ bare scripts/ui/Ash.gd::tut_avoid_rects
 bare scripts/ui/Ash.gd::tut_spot
 bare scripts/ui/Ash.gd::tut_spot_boxes
 bare scripts/ui/BoardLamp.gd::_bars
+bare scripts/ui/BreakupCreature.gd::_glow_band
 bare scripts/ui/BreakupCuts.gd::_boss_lights
 bare scripts/ui/BreakupCuts.gd::_crumple_pic
 bare scripts/ui/BreakupCuts.gd::_curl_pic
@@ -146,12 +150,12 @@ bare scripts/ui/BreakupCuts.gd::_cut_classic
 bare scripts/ui/BreakupCuts.gd::_cut_creature
 bare scripts/ui/BreakupCuts.gd::_cut_new
 bare scripts/ui/BreakupCuts.gd::_field
-bare scripts/ui/BreakupCuts.gd::_hull_pic
 bare scripts/ui/BreakupCuts.gd::_majors_of
 bare scripts/ui/BreakupCuts.gd::_melt_field
 bare scripts/ui/BreakupCuts.gd::_melt_pic
 bare scripts/ui/BreakupCuts.gd::_rib_curves
 bare scripts/ui/BreakupCuts.gd::_shards_of
+bare scripts/ui/BreakupCuts.gd::hull_pic
 bare scripts/ui/ChartPainted.gd::cloud_uniforms
 bare scripts/ui/ChartPainted.gd::galaxy_uniforms
 bare scripts/ui/ChartPainted.gd::tables
@@ -164,11 +168,11 @@ bare scripts/ui/ChartSky.gd::_g_for
 bare scripts/ui/ChartSky.gd::_make_clouds
 bare scripts/ui/ChartSky.gd::_make_knots
 bare scripts/ui/ChartSky.gd::_snapshot_stars
-bare scripts/ui/ChartSky.gd::_supernova
 bare scripts/ui/ChartSky.gd::ball_story
 bare scripts/ui/ChartSky.gd::next_supernova
 bare scripts/ui/ChartSky.gd::params
 bare scripts/ui/ChartSky.gd::remnants
+bare scripts/ui/ChartSky.gd::supernova_at
 bare scripts/ui/ChartTorn.gd::_m
 bare scripts/ui/ChartTorn.gd::cloud_arrays
 bare scripts/ui/ChartTorn.gd::cloud_tear
@@ -314,38 +318,10 @@ bare scripts/ui/LocalSky.gd::near_info
 bare scripts/ui/LocalSky.gd::near_place
 bare scripts/ui/LocalSky.gd::near_plan
 bare scripts/ui/LocalSky.gd::palette_for
-bare scripts/ui/LocalSubject.gd::_dilated
 bare scripts/ui/LocalSubject.gd::_light_points
-bare scripts/ui/LocalSubject.gd::_loose_on
-bare scripts/ui/LocalSubject.gd::_loose_round
-bare scripts/ui/LocalSubject.gd::_m
-bare scripts/ui/LocalSubject.gd::_nearest_clear
-bare scripts/ui/LocalSubject.gd::_nose_to_tail
-bare scripts/ui/LocalSubject.gd::_stage_around
-bare scripts/ui/LocalSubject.gd::_stage_field
-bare scripts/ui/LocalSubject.gd::_stage_group
-bare scripts/ui/LocalSubject.gd::_stage_herd
-bare scripts/ui/LocalSubject.gd::_stage_line
-bare scripts/ui/LocalSubject.gd::_stage_on_rock
-bare scripts/ui/LocalSubject.gd::_stage_ring
-bare scripts/ui/LocalSubject.gd::_stage_ring_arc
-bare scripts/ui/LocalSubject.gd::_stage_row
-bare scripts/ui/LocalSubject.gd::_stage_single
-bare scripts/ui/LocalSubject.gd::_stage_strewn
-bare scripts/ui/LocalSubject.gd::_stage_structure
-bare scripts/ui/LocalSubject.gd::_stage_tether
 bare scripts/ui/LocalSubject.gd::fit
-bare scripts/ui/LocalSubject.gd::index
-bare scripts/ui/LocalSubject.gd::mask_of
-bare scripts/ui/LocalSubject.gd::piece_info
-bare scripts/ui/LocalSubject.gd::plan
-bare scripts/ui/LocalSubject.gd::rec_for
-bare scripts/ui/LocalSubject.gd::resolve
 bare scripts/ui/LocalSubject.gd::rock_form
-bare scripts/ui/LocalSubject.gd::role_ships
 bare scripts/ui/LocalSubject.gd::spin_at
-bare scripts/ui/LocalSubject.gd::stages_of
-bare scripts/ui/LocalSubject.gd::structure_in
 bare scripts/ui/LocalSubject.gd::without_foes
 bare scripts/ui/LowHull.gd::look
 bare scripts/ui/LowHull.gd::plan_for
@@ -356,12 +332,12 @@ bare scripts/ui/MapChart.gd::_g
 bare scripts/ui/MapChart.gd::_gmap
 bare scripts/ui/MapChart.gd::_in_range
 bare scripts/ui/MapChart.gd::_nearest_berths
-bare scripts/ui/MapChart.gd::_snapshot_sky
 bare scripts/ui/MapChart.gd::_too_deep_of
 bare scripts/ui/MapChart.gd::_visible_set
 bare scripts/ui/MapChart.gd::nodes_near
 bare scripts/ui/MapChart.gd::party_marks
 bare scripts/ui/MapChart.gd::place_quest_tags
+bare scripts/ui/MapChart.gd::snapshot_sky
 bare scripts/ui/MapChart.gd::too_deep_set
 bare scripts/ui/ModuleIcon.gd::augment_mark
 bare scripts/ui/ModuleIcon.gd::plate_ink
@@ -397,14 +373,13 @@ bare scripts/ui/ShaderWarm.gd::wanted
 bare scripts/ui/ShelfDisplay.gd::_pack
 bare scripts/ui/ShieldFx.gd::_cell
 bare scripts/ui/ShieldFx.gd::fit
-bare scripts/ui/ShipBreakup.gd::_fire_maps
-bare scripts/ui/ShipBreakup.gd::_glow_band
 bare scripts/ui/ShipBreakup.gd::_held
-bare scripts/ui/ShipBreakup.gd::_nova_maps
 bare scripts/ui/ShipBreakup.gd::_plume_tex
 bare scripts/ui/ShipBreakup.gd::_shard_new
 bare scripts/ui/ShipBreakup.gd::_shard_state
 bare scripts/ui/ShipBreakup.gd::cut
+bare scripts/ui/ShipBreakupBossPlan.gd::_fire_maps
+bare scripts/ui/ShipBreakupBossPlan.gd::_nova_maps
 bare scripts/ui/ShipLoss.gd::picture
 bare scripts/ui/ShipLoss.gd::prebuild
 bare scripts/ui/ShipView.gd::_flame_frames
@@ -433,10 +408,37 @@ bare scripts/ui/StationScreen.gd::_open_elsewhere
 bare scripts/ui/StationScreen.gd::yard_flameout
 bare scripts/ui/StationSides.gd::interior
 bare scripts/ui/StationSides.gd::pick
+bare scripts/ui/SubjectMask.gd::_dilated
+bare scripts/ui/SubjectMask.gd::index
+bare scripts/ui/SubjectMask.gd::mask_of
+bare scripts/ui/SubjectMask.gd::piece_info
+bare scripts/ui/SubjectMask.gd::rec_for
+bare scripts/ui/SubjectMask.gd::role_ships
+bare scripts/ui/SubjectPlan.gd::_loose_on
+bare scripts/ui/SubjectPlan.gd::_loose_round
+bare scripts/ui/SubjectPlan.gd::_m
+bare scripts/ui/SubjectPlan.gd::_nearest_clear
+bare scripts/ui/SubjectPlan.gd::_nose_to_tail
+bare scripts/ui/SubjectPlan.gd::_stage_around
+bare scripts/ui/SubjectPlan.gd::_stage_field
+bare scripts/ui/SubjectPlan.gd::_stage_group
+bare scripts/ui/SubjectPlan.gd::_stage_herd
+bare scripts/ui/SubjectPlan.gd::_stage_line
+bare scripts/ui/SubjectPlan.gd::_stage_on_rock
+bare scripts/ui/SubjectPlan.gd::_stage_ring
+bare scripts/ui/SubjectPlan.gd::_stage_ring_arc
+bare scripts/ui/SubjectPlan.gd::_stage_row
+bare scripts/ui/SubjectPlan.gd::_stage_single
+bare scripts/ui/SubjectPlan.gd::_stage_strewn
+bare scripts/ui/SubjectPlan.gd::_stage_structure
+bare scripts/ui/SubjectPlan.gd::_stage_tether
+bare scripts/ui/SubjectPlan.gd::plan
+bare scripts/ui/SubjectPlan.gd::resolve
+bare scripts/ui/SubjectPlan.gd::stages_of
+bare scripts/ui/SubjectPlan.gd::structure_in
 bare scripts/ui/ThrusterFx.gd::_bell
 bare scripts/ui/ThrusterFx.gd::_build
 bare scripts/ui/ThrusterFx.gd::_frame
-bare scripts/ui/ThrusterFx.gd::_hull_pic
 bare scripts/ui/ThrusterFx.gd::_quantize
 bare scripts/ui/ThrusterFx.gd::_tail
 bare scripts/ui/ThrusterFx.gd::particles_at
@@ -446,6 +448,7 @@ bare scripts/ui/UITheme.gd::outline_boxes
 bare scripts/ui/VoiceGlitch.gd::bake_placed
 bare scripts/ui/VoiceGlitch.gd::decode
 bare scripts/ui/VoiceGlitch.gd::place
+bare scripts/ui/YardCity.gd::_car_pixels
 bare scripts/ui/YardDeal.gd::_lamp_pictures
 bare scripts/ui/YardDeal.gd::bad_signal
 bare scripts/ui/YardDeal.gd::lights
@@ -456,7 +459,6 @@ bare scripts/ui/YardDrones.gd::doze_at
 bare scripts/ui/YardDrones.gd::homes
 bare scripts/ui/YardDrones.gd::offer
 bare scripts/ui/YardDrones.gd::sneeze_at
-bare scripts/ui/YardLife.gd::_car_pixels
 bare scripts/ui/YardLife.gd::_crate
 bare scripts/ui/YardLife.gd::_fork
 bare scripts/ui/YardLife.gd::_lift_sprite
@@ -471,6 +473,7 @@ bare scripts/ui/YardScene.gd::_stand
 bare scripts/ui/YardScene.gd::doc
 bare scripts/ui/YardScene.gd::seat_pair
 bare scripts/ui/YardScene.gd::stand_cap
+bare scripts/ui/YardStands.gd::stand_cap
 bare scripts/ui/ZoomLadder.gd::_chrome_cuts
 bare scripts/ui/ZoomLadder.gd::_style_for
 bare scripts/ui/ZoomLadder.gd::rest_world
@@ -566,14 +569,12 @@ bare scripts/ui/sysmap/SystemView.gd::orbit_runs
 bare scripts/ui/sysmap/SystemView.gd::positions
 bare scripts/ui/sysmap/SystemView.gd::ring_slots
 bare scripts/ui/sysmap/SystemView.gd::star_facts_of
-file scripts/systems/FlightSolve.gd 3969
+file scripts/systems/FlightSolve.gd 3614
 file scripts/ui/LabSavers.gd 5408
-file scripts/ui/LocalSubject.gd 3167
 file scripts/ui/SectorScreen.gd 4850
-file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3115
 file scripts/ui/sysmap/ShipFlight.gd 4150
-file scripts/ui/sysmap/SystemView.gd 3230
+file scripts/ui/sysmap/SystemView.gd 3228
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/systems/CardResolver.gd::resolve 139
@@ -651,7 +652,6 @@ length scripts/ui/LocalEventDrawer.gd::_result 200
 length scripts/ui/LocalSky.gd::_build 247
 length scripts/ui/LocalSubject.gd::_build 135
 length scripts/ui/LocalSubject.gd::_place 145
-length scripts/ui/LocalSubject.gd::plan 101
 length scripts/ui/MapChart.gd::_build_field 231
 length scripts/ui/MapChart.gd::_build_nebulae 218
 length scripts/ui/MapChart.gd::_draw_chart 151
@@ -663,8 +663,6 @@ length scripts/ui/SectorScreen.gd::ladder_cam_begin 107
 length scripts/ui/SettingsPanel.gd::_page_look 116
 length scripts/ui/ShipBreakup.gd::_paint_boss_light 161
 length scripts/ui/ShipBreakup.gd::_paint_light_new 140
-length scripts/ui/ShipBreakup.gd::_plan_boss 176
-length scripts/ui/ShipBreakup.gd::_plan_c1 112
 length scripts/ui/ShipBreakup.gd::_setup_new 130
 length scripts/ui/ShipBreakup.gd::_style_tick 144
 length scripts/ui/ShipScreen.gd::_build 291
@@ -674,6 +672,7 @@ length scripts/ui/SpaceBackdrop.gd::_bake_world 123
 length scripts/ui/StarchartScreen.gd::_build 178
 length scripts/ui/StarchartScreen.gd::_refresh 123
 length scripts/ui/StationScreen.gd::_build 119
+length scripts/ui/SubjectPlan.gd::plan 101
 length scripts/ui/ThrusterFx.gd::_stream 111
 length scripts/ui/ThrusterFx.gd::for_hull 268
 length scripts/ui/TradeCounter.gd::_draw 124

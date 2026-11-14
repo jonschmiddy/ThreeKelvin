@@ -903,8 +903,8 @@ func _toward(q: Vector2) -> Vector2:
 func _tint_at(p: Vector2) -> Vector3:
 	if star2 == null:
 		return _tint
-	var ta := SystemViewS._lin_top(SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
-	return ta.lerp(SystemViewS._lin_top(SystemViewS.STAR_B_COL), _share_b(p))
+	var ta := SystemViewS.brightest_to_one(SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
+	return ta.lerp(SystemViewS.brightest_to_one(SystemViewS.STAR_B_COL), _share_b(p))
 
 
 ## How bright the other sun is on the sky against the lit one: its brightness by
@@ -955,7 +955,7 @@ func _size_f(p: int) -> float:
 
 func star_light() -> Vector3:
 	if _lit == SystemLayout.STAR_B:
-		return SystemViewS._lin_top(SystemViewS.STAR_B_COL)
+		return SystemViewS.brightest_to_one(SystemViewS.STAR_B_COL)
 	var c: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
 	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
 	return l / maxf(l.x, maxf(l.y, l.z))
@@ -1710,9 +1710,9 @@ func _pn_theta0(vc: Vector2) -> float:
 # ------------------------------------------------------------------ where the ship is
 
 ## What the ship orbits and how far out it is, from the sector map's record of
-## it (`SystemMapScreen._parked`), or at the warp-in edge.
+## it (`ParkedShips.spots`), or at the warp-in edge.
 func _situate() -> void:
-	var d: Dictionary = SystemMapScreen._parked.get(node.index, {})
+	var d: Dictionary = ParkedShips.spots.get(node.index, {})
 	orbit_target = int(d.get("at", -9)) if not d.is_empty() else -9
 	# THE EVENT'S OWN PLACE: with an event open here, LOCAL draws its body behind
 	# the band, parked there or not (Jon, Nov 9, S2B)

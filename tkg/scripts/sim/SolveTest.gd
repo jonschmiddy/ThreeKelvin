@@ -15,10 +15,9 @@ const IN_PX := 1.0
 const SPAN := 4
 const RAIL_V := 35.0
 const STAR_RAIL_V := 45.0
-## `ShipFlight.ORBIT_K`
-const ORBIT_K := 0.88
-## `ShipFlight.STAR_PACE`: a settled star orbit's pace, times Kepler's
-const STAR_PACE := 50.0
+const ORBIT_K := ShipFlightS.ORBIT_K
+## A settled star orbit's pace, times Kepler's.
+const STAR_PACE := ShipFlightS.STAR_PACE
 const KEEP_OFF := Vector2(8.0, 5.0 / 0.38)
 ## In `short`, only two pairs and fewer angles: the full sweep took the gate from 170 s to 370 s.
 ## Why: docs/why/SolveTest.md#phase-sweep
@@ -61,6 +60,8 @@ var _short := false
 var _shapes_out := ""
 ## every case: {sweep, L, G, dep, tgt, t, label, kind, hand}
 var _cases: Array = []
+## How many sweeps judged at least one plan.
+var _swept := 0
 var _res: Array = []
 ## cases past the line-ups asked for, planned only for the replan check of
 ## flights in two legs (`TWO_PINS`, `_replans`)
@@ -155,6 +156,10 @@ func _run() -> void:
 		for sw: String in ["one", "giant", "rtwin", "rclose", "twin"]:
 			_report(sw_name(sw, p))
 		_report(sw_name("phase", p))
+	# (a shard may hold no case of one sweep; it holds none at all only when it is numbered past the case count)
+	var sh := Harness.shard()
+	h._ok("the sweeps judged plans where the shard arithmetic says there are some (%d sweeps, %d of %d cases here, shard %d of %d)" % [
+		_swept, n_mine, _cases.size(), sh.x, maxi(sh.y, 1)], (_swept > 0) == (_cases.size() >= maxi(sh.x, 1)))
 	_shapes()
 	if (_wants("phase") or _wants("twin")) and h.mine(0):
 		_aim_check()
@@ -828,6 +833,7 @@ func _report(sweep: String) -> void:
 			coast_max.append(th[1])
 	if n == 0:
 		return
+	_swept += 1
 	var keys := by.keys()
 	keys.sort()
 	var line := ""
@@ -960,7 +966,7 @@ static func _cap0(r: FlightSolve.Result) -> float:
 	return FlightSolve.first_cap(r.path)
 
 
-## A dep as `FlightSolve.solve` hands it on for case c's path (`_chain_again`
+## A dep as `FlightSolve.solve` hands it on for case c's path (`FlightChain.chain_again`
 ## called straight, past `solve`).
 static func _dep_opts(d: Dictionary, c: Dictionary) -> Dictionary:
 	if StringName(c.get("path", &"direct")) != &"curved":
@@ -1011,7 +1017,7 @@ func _replans() -> void:
 			var fc := _at_time_w(rf)
 			over.append(_at_time_w(rw) - fc)
 			var j_old := float(r.choice.get("J", INF))
-			if not fb and rw.cost > fc + FlightSolve._warm_slack(fc) + 1e-6 and rw.cost > j_old + FlightSolve._warm_slack(j_old) + 1e-6:
+			if not fb and rw.cost > fc + FlightMath.warm_slack(fc) + 1e-6 and rw.cost > j_old + FlightMath.warm_slack(j_old) + 1e-6:
 				bad += 1
 				if bad <= 3:
 					print("  (kept %.1f against fresh %.1f, old %.1f: %s)" % [rw.cost, fc, j_old, c.label])
@@ -1050,11 +1056,11 @@ func _replans() -> void:
 				d2.ang = float(c.dep.ang) + float(c.dep.get("w0", c.dep.w)) * dt * float(k)
 			var t2 := float(c.t) + dt * float(k)
 			var rw := FlightSolve.solve(c.G, d2, c.tgt, t2, pv.choice, c.opts)
-			# (the last legs kept, flown again here as `FlightSolve._chain_again`
+			# (the last legs kept, flown again here as `FlightChain.chain_again`
 			# flies them: none kept arrives later)
 			var ra: FlightSolve.Result = null
 			if not legs.is_empty():
-				ra = FlightSolve._chain_again(c.G, _dep_opts(d2, c), c.tgt, t2, legs)
+				ra = FlightChain.chain_again(c.G, _dep_opts(d2, c), c.tgt, t2, legs)
 			if ra != null:
 				two_old += 1
 				if not rw.found or float(rw.end.t) > float(ra.end.t) + 1e-3:

@@ -1352,7 +1352,7 @@ func _on_combat_ended(result: StringName, _summary: String) -> void:
 	# No sting for winning: Jon cut it; a fanfare over the reward was the game applauding itself.
 	match result:
 		&"fled": play(&"ui_tab", 0.03)
-		_: pass          ## death is handled by run_ended, so it is not doubled
+		_: pass          ## death gets no cue: run end is silent (docs/why/Audio.md#run-end-silence)
 
 
 # ---------------- volume ----------------

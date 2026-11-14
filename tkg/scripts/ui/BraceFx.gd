@@ -43,7 +43,7 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	facing = the_facing
 	_origin = origin.round()
 	_rng.seed = seed * 389 + 22
-	_H = BreakupCuts._hull_pic(img, used, 3)
+	_H = BreakupCuts.hull_pic(img, used, 3)
 	_r = _H.r
 	_w = _H.w
 	_h = _H.h

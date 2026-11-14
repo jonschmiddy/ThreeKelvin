@@ -67,7 +67,7 @@ var _mounts: VBoxContainer
 var _reactor: Label
 var _mountpts: MountPoints
 var _view: ShipView
-var _banner: ChassisSelect.Banner
+var _banner: ManufacturerBanner
 var _name: Label
 var _namebtn: Button
 ## One field: freeing the shade frees the whole prompt card.
@@ -124,11 +124,11 @@ func _build() -> void:
 	# Why: docs/why/ShipScreen.md#masthead-flag
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", HEADER_SEP)
-	_banner = ChassisSelect.Banner.new()
+	_banner = ManufacturerBanner.new()
 	# Minimum is the authored flag depth so the hem is never cut off; FILL takes it to the
 	# ship's bottom.
-	_banner.custom_minimum_size = ChassisSelect.Banner.S * Vector2(
-		ChassisSelect.Banner.UNITS_W, ChassisSelect.Banner.UNITS_H)
+	_banner.custom_minimum_size = ManufacturerBanner.S * Vector2(
+		ManufacturerBanner.UNITS_W, ManufacturerBanner.UNITS_H)
 	_banner.size_flags_vertical = Control.SIZE_FILL
 	header.add_child(_banner)
 
@@ -441,7 +441,7 @@ func _set_zoom(on: bool) -> void:
 ## flag. The window onto the ship is this wide at every zoom level.
 func _row_width() -> float:
 	return ((PANEL_W - PANEL_PAD * 2.0)
-		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP))
+		- (ManufacturerBanner.UNITS_W * ManufacturerBanner.S + HEADER_SEP))
 
 ## Measured from the longest part, since a flat 72 clipped siege drivers on a zoomed heavy.
 ## Why: docs/why/ShipScreen.md#module-overhang
@@ -1014,8 +1014,8 @@ func _refresh_mounts() -> void:
 			UITheme.COLD, UITheme.FS_SMALL)
 		label.custom_minimum_size = Vector2(46, 0)
 		row.add_child(label)
-		var pads := ChassisSelect.SlotPads.new()
-		pads.setup(Run.slots_used(s), Run.slots_for(s), ChassisSelect._mount_ceiling())
+		var pads := SlotPads.new()
+		pads.setup(Run.slots_used(s), Run.slots_for(s), SlotPads.mount_ceiling())
 		row.add_child(pads)
 		row.add_child(UITheme.body("%d/%d" % [Run.slots_used(s), Run.slots_for(s)],
 			UITheme.CHILL, UITheme.FS_SMALL))

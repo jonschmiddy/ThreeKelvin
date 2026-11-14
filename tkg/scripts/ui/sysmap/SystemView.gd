@@ -115,8 +115,6 @@ var _points
 ## A HARNESS'S CLOCK for everything the weather and the gas read off the wall
 ## clock (SystemShot's clips step it a frame at a time); -1: the wall clock
 var hclock := -1.0
-## the weather's own colours left out of the palette (SystemShot `wramp=0`)
-static var no_ramp := false
 ## the sheets behind the plane, by distance beyond it (the plane is 1/zoom from
 ## the camera), and those in front, every DEPTH_RHO times nearer from DEPTH_D0
 const DEPTH_D0 := 0.02
@@ -448,7 +446,7 @@ func show_system(n: MapGen.MapNode) -> void:
 		# (PAINTED: B's small teal heart round the sun, the rose lit all round it)
 		bubble_r *= 0.45
 	_tint = star_light()
-	_tint2 = _lin_top(STAR_B_COL)
+	_tint2 = brightest_to_one(STAR_B_COL)
 	_beam_k.clear()
 	_neb_mat = null
 	_weather = null
@@ -1242,7 +1240,7 @@ func star2_light_k() -> float:
 
 
 ## A colour as light, its brightest channel 1 (`star_light`'s rule).
-static func _lin_top(c: Vector3) -> Vector3:
+static func brightest_to_one(c: Vector3) -> Vector3:
 	var l := Vector3(pow(c.x, 2.2), pow(c.y, 2.2), pow(c.z, 2.2))
 	return l / maxf(l.x, maxf(l.y, l.z))
 
@@ -2175,7 +2173,7 @@ func _pal_key() -> Array:
 	for b in layout.bodies:
 		bodies.append("%s:%s:%s" % [b.kind, b.world, b.seed])
 	return [node.get_instance_id(), node.index, kind, style(), painted, radiant, gfx_low(), field_under,
-		neb_sky, no_ramp, depth_k, ",".join(bodies), window, home_zoom]
+		neb_sky, depth_k, ",".join(bodies), window, home_zoom]
 
 
 # ---------------------------------------------------------------- the twinkling stars

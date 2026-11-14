@@ -411,7 +411,7 @@ func _badge(st: Dictionary) -> Control:
 ## The line a card says under its tags, by its state.
 func _card_line(i: int, st: Dictionary, o: Dictionary) -> String:
 	var n: MapGen.MapNode = screen.view.node
-	var hook := EncounterDrawer.first_sentence(String(o.get("body", "")))
+	var hook := EncounterText.first_sentence(String(o.get("body", "")))
 	match st.kind:
 		&"left":
 			var w := String(n.left.get(i, ""))
@@ -539,7 +539,7 @@ func _place_event(body: int, i: int) -> void:
 	_gap(2)
 	_box.add_child(_rich(_tags_bb(o)))
 	_wrap(String(o.get("title", "")).to_upper(), EncounterDrawer.tag_colour(o).lerp(UITheme.ICE, 0.5), UITheme.FS_SMALL)
-	_blurb(EncounterDrawer.first_sentence(String(o.get("body", ""))), UITheme.CHILL if _ship_at(body) else DIM)
+	_blurb(EncounterText.first_sentence(String(o.get("body", ""))), UITheme.CHILL if _ship_at(body) else DIM)
 	_go_button(i)
 
 
@@ -625,7 +625,7 @@ func _twin_head() -> void:
 		var sr := 22.0 * L.star_radius(s) / maxf(L.star_r, 1.0)
 		# (painted as the map paints star p: `SystemView.sun_setup`, star B
 		# from its own roll, smaller and warmer)
-		v.call(&"sun_setup", sv, s, sr)
+		v.sun_setup(sv, s, sr)
 		if _portrait == null:
 			_portrait = sv
 		else:
@@ -1014,7 +1014,7 @@ func _event_page(out: Dictionary) -> void:
 			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
 		_rule()
 		# ONE SENTENCE: the event itself, and its choices, are on LOCAL
-		_blurb(EncounterDrawer.first_sentence(String(o.get("body", ""))), UITheme.CHILL)
+		_blurb(EncounterText.first_sentence(String(o.get("body", ""))), UITheme.CHILL)
 		_rule()
 		_conseq = _rich("")
 		_conseq.custom_minimum_size = Vector2(TEXT_W, 11)

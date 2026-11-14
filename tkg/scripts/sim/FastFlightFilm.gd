@@ -174,7 +174,7 @@ func _run() -> void:
 	if from == "edge":
 		Router._post_arrive = true
 	else:
-		SystemMapScreen._parked[n.index] = {"at": start, "mode": &"rail"}
+		ParkedShips.spots[n.index] = {"at": start, "mode": &"rail"}
 	Router.show_system()
 	await _idle()
 	var m := Router.current as SystemMapScreen

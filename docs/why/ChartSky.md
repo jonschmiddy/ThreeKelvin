@@ -243,7 +243,7 @@ Above `const REMNANT_N := 10`:
 
 ```text
 WHAT A SUPERNOVA LEAVES (Jon's idea 18 from the "magnificent" list, kept Oct
-12): the last ten minutes' supernovae, on `_supernova`'s own schedule and among
+12): the last ten minutes' supernovae, on `supernova_at`'s own schedule and among
 the same stars, each a remnant that every style draws as its own -- a ragged
 shell that grows fast at first and slower after and fades out over the ten
 minutes. (count, then (plane x, y, age s, seed) each, ten at most.) None under

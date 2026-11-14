@@ -246,7 +246,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 		return false
 	Run.at = idx
 	var node: MapGen.MapNode = Run.node_at()
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	if orbit != "":
 		var Lo := SystemLayout.of(node)
 		var at := -9
@@ -260,7 +260,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 				at = _body_for(Lo, orbit, true)
 				if at < 0:
 					at = _body_for(Lo, orbit, false)
-		SystemMapScreen._parked[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
+		ParkedShips.spots[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
 	SectorScreen._approached_at = idx
 	Router.show_local()
 	return true

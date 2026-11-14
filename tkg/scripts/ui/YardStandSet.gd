@@ -32,7 +32,7 @@ var feet: int = 0
 var hover: bool = false
 
 var _view: ShipView = null
-## The weapons drawn on the hull (`YardInfo.mount`), or null under a tarp.
+## The weapons drawn on the hull (`YardMounts.mount`), or null under a tarp.
 var mounts: MountPoints = null
 var _tarp: Tarp = null
 var _x0: int = 0
@@ -146,8 +146,8 @@ func _seat_stands(v: ShipView, img: Image, ink: Rect2i) -> int:
 			if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
 				under[x] = y
 				break
-	var r := YardSlot.seat(under, ink.size.x, YardScene.hull_mass_x(img, ink), scene.stand_cap(_stand_img, seat), seat,
-		scene._hanging(v, img, ink, under), _stand_x)
+	var r := YardSlot.seat(under, ink.size.x, YardStands.hull_mass_x(img, ink), scene.stand_cap(_stand_img, seat), seat,
+		YardStands.hanging(v, img, ink, under), _stand_x)
 	_x0 = r[0]
 	sink = r[2]
 	# the higher cradle's seat under the belly's row cmin, the hull let down `sink` past it

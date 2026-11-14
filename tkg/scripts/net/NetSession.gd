@@ -1228,7 +1228,7 @@ func adopt_clock(at: int) -> float:
 	var own := Run.map_t(at)
 	if not is_networked():
 		return own
-	var d: Dictionary = SystemMapScreen._parked.get(at, {})
+	var d: Dictionary = ParkedShips.spots.get(at, {})
 	var free := StringName(d.get("mode", &"")) == &"free"
 	var t := clock_to_open(own, party_t(at), free and not d.has("cen"))
 	if t != own:

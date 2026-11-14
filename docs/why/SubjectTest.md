@@ -12,7 +12,7 @@ An option's `subject` (`OptionTable`, drawn by `LocalSubject`) names pieces of
 art and a staging. A misspelt piece draws nothing and says nothing; a staging
 one tank too wide runs under the event's band or off the view. So, for every
 option that has one:
- - every stage is a kind `LocalSubject` stages, with what that kind needs;
+ - every stage is a kind `SubjectPlan` stages, with what that kind needs;
  - every piece is in `art/subjects/index.json`, and its picture loads (or its
    painter recipe names a world the painter has);
  - the whole staging fits the subject's box on LOCAL's own view (right of
@@ -89,7 +89,7 @@ ROUND THREE'S KEEPS, wired:
    the top, right and bottom, clear of your ship, its near part at your
    height, what goes with it in view), an object inside the box and off your
    ship, nothing drawn across anything;
- - THE PER-SYSTEM PICK (`LocalSubject.pick_of`): the same system draws the same
+ - THE PER-SYSTEM PICK (`SubjectPlan.pick_of`): the same system draws the same
    take every time it is asked, and across the run's systems every take turns up;
  - on the real LOCAL, at a system it could be rolled at: it draws its kept
    art (one of its takes; its pieces), the plate pinned and behind the hulls,
@@ -168,7 +168,7 @@ Above `func _orbit_switch() -> void:`:
 LOCAL SHOWS THE WORLD YOU ORBIT NOW (Jon: "when transitioning from one planet
 to another I have to go to the local and then the system and then the local
 again for the local to update"). LOCAL composes its sky from where the map
-left the ship (`SystemMapScreen._parked`), and the map wrote that only on its
+left the ship (`ParkedShips.spots`), and the map wrote that only on its
 way out of the tree -- after the screen replacing it had already been built
 from the old record. Through the real Router, as the HUD's tab goes: in orbit
 of world A, LOCAL; the map; a flight to world B, flown on the map's own
@@ -200,7 +200,7 @@ Above `func _orbit_reload(sd: int) -> void:`:
 
 ```text
 A RELOAD PUTS YOU BACK IN ORBIT WHERE YOU WERE, LOCAL INCLUDED. Where the
-ship was left lived only in memory (`SystemMapScreen._parked`), so SAVE &
+ship was left lived only in memory (`ParkedShips.spots`), so SAVE &
 EXIT then CONTINUE dropped it at the system's edge and LOCAL drew the warp-in
 instead of the world (alpha gap). Twice, as a player leaves: SAVE & EXIT
 from LOCAL in orbit of one world, and SAVE & EXIT from the map itself in

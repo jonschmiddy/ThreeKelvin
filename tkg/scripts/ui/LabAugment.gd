@@ -687,7 +687,7 @@ static func word_ink(a: float) -> Color:
 
 
 ## A one-pixel curve from `a` to `b`, x even and y eased (the mockup's lines).
-static func _curve(a: Vector2, b: Vector2) -> Array[Vector2i]:
+static func curve_points(a: Vector2, b: Vector2) -> Array[Vector2i]:
 	var raw: Array[Vector2i] = []
 	for i in 1501:
 		var t := float(i) / 1500.0
@@ -1040,7 +1040,7 @@ func paint(ci: CanvasItem) -> void:
 	if picked_at.x >= 0:
 		var a0 := Vector2(picked_at)
 		var b0 := Vector2(SX - 16, cl)
-		var pts2: Array[Vector2i] = _curve(a0, b0)
+		var pts2: Array[Vector2i] = curve_points(a0, b0)
 		if not light:
 			_lead = _crosses(pts2)
 		if _lead:
@@ -1048,7 +1048,7 @@ func paint(ci: CanvasItem) -> void:
 			for xx2 in range(picked_at.x, rail_right + 9):
 				lead.append(Vector2i(xx2, picked_at.y))
 			pts2 = lead
-			pts2.append_array(_curve(Vector2(rail_right + 8, picked_at.y), b0))
+			pts2.append_array(curve_points(Vector2(rail_right + 8, picked_at.y), b0))
 		_path(ci, pts2, OWN_D, true, &"dash")
 	var hx := SX + sw + 18
 	var hy := cl
@@ -1067,7 +1067,7 @@ func paint(ci: CanvasItem) -> void:
 		var ny := _nodes[i3].y
 		var st := _node_state(i3)
 		var sel := i3 == s and st == &"next"
-		var pts3 := _curve(Vector2(hx + 6, hy), Vector2(nx - NR - 6, ny))
+		var pts3 := curve_points(Vector2(hx + 6, hy), Vector2(nx - NR - 6, ny))
 		var lc := NEXT if sel else LabBoard.mixc(BG, NEXT, 0.45)
 		if st == &"owned":
 			lc = OWN

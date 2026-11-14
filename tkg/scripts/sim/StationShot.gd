@@ -500,10 +500,10 @@ func run(tree: SceneTree) -> void:
 					var S: Dictionary = BoardScreen.STRIPS[j]
 					var strip := Rect2(o, Vector2(248, 30))
 					bd24.draw_rect(strip, S["bg"])
-					bd24._centre_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
-					bd24._centre_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
+					bd24.centre_text_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
+					bd24.centre_text_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
 					bd24.draw_rect(Rect2(strip.end.x - 16.0, strip.position.y + 2.0, 14.0, 9.0), Color(0, 0, 0, 0.35))
-					bd24._text("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))])
+					bd24.text_at("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))])
 			for j in BoardScreen.POPUPS.size():
 				list24.append(["popup_%03d" % j, Vector2(176, 88), func(o: Vector2) -> void: bd24._popup(BoardScreen.POPUPS[j], Rect2(o, Vector2(176, 88)), 1.0)])
 			list24.append(["screen_featured", Vector2(136, 170), func(o: Vector2) -> void: bd24._sheet(o, Vector2(136, 170), 0.0, bd24._featured, 0.5)])
@@ -707,10 +707,6 @@ func run(tree: SceneTree) -> void:
 			return
 	if OS.get_cmdline_user_args().has("saverturn"):
 		await _saver_turn(tree)
-		tree.quit()
-		return
-	if OS.get_cmdline_user_args().has("labzoomfilm"):
-		await _lab_zoom_film(tree)
 		tree.quit()
 		return
 
@@ -1600,88 +1596,6 @@ func _held_parts() -> Array[ModuleData]:
 		if h is ModuleData:
 			out.append(h)
 	return out
-
-
-
-## FILM HARNESS (review_lab zoom2, not committed): the room powering on, the
-## logo, the pointer onto the glass (the sign-in), a click, the zoom in, 1.5 s
-## on the board, LEAVE clicked, the zoom out, rest. Every wait counts frames:
-## the movie writer's frames are game time. `filmstills=DIR` writes the logo
-## and the sign-in there, the whole window and the glass.
-func _lab_zoom_film(tree: SceneTree) -> void:
-	var scr := Router.current as StationScreen
-	if scr == null or scr.lab_zoom() == null:
-		print("FILM no lab")
-		return
-	var zoom := scr.lab_zoom()
-	var lab := scr._lab
-	Router.animate_in_harness = true
-	var stills := ""
-	var settle := 600
-	for a in OS.get_cmdline_user_args():
-		var s := a as String
-		if s.begins_with("filmstills="):
-			stills = s.substr(11)
-		elif s.begins_with("settle="):
-			settle = int(s.substr(7))
-	print("FILM LAB_ZOOM_S %.2f UI_OUT_S %.2f UI_IN_S %.2f level %s zoom %d" % [ZoomLadder.LAB_ZOOM_S, ZoomLadder.UI_OUT_S, ZoomLadder.UI_IN_S, lab._level, int(LabZoom.ZOOM.get(lab._level, 0))])
-	print("FILM mark harness %d boot_t %.3f" % [Engine.get_frames_drawn(), lab._lab_clock - lab._boot_at])
-	var target := GameShell.input_target(tree)
-	# (the pointer parked off the glass, on the room's floor)
-	_film_move(target, Vector2(40, 520))
-	var n0 := 0
-	while lab._lab_clock - lab._boot_at < 6.5 and n0 < settle:
-		await tree.process_frame
-		n0 += 1
-	print("FILM mark rest %d boot_t %.3f state %s" % [Engine.get_frames_drawn(), lab._lab_clock - lab._boot_at, scr._login.state])
-	for i in 90:
-		await tree.process_frame
-	if stills != "":
-		await _film_still(tree, scr, "%s/%s_logo" % [stills, lab._level])
-	var at := scr._glass_press.get_global_rect().get_center()
-	_film_move(target, at)
-	# (a pushed motion does not hover a control while the desk's own pointer is
-	# outside the window: the GUI is told, as StationDeckTest's clicks tell it)
-	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_ENTER)
-	print("FILM mark hover %d" % Engine.get_frames_drawn())
-	for i in 100:
-		await tree.process_frame
-	print("FILM hover state %s saver %s" % [scr._login.state, scr._login.code()])
-	if stills != "":
-		await _film_still(tree, scr, "%s/%s_login" % [stills, lab._level])
-	for i in 20:
-		await tree.process_frame
-	await _film_click(tree, target, at)
-	print("FILM mark press %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
-	var n := 0
-	while not (zoom.landed() and zoom.view.modulate.a >= 1.0) and n < 600:
-		await tree.process_frame
-		n += 1
-		print("FILM in %d at %.4f vis %.3f %s" % [Engine.get_frames_drawn(), zoom._at, zoom.view.modulate.a, _film_geo(zoom)])
-	print("FILM mark landed %d" % Engine.get_frames_drawn())
-	for i in 90:
-		await tree.process_frame
-	var lat := zoom.leave_button.get_global_rect().get_center()
-	scr._glass_press.notification(Control.NOTIFICATION_MOUSE_EXIT)
-	zoom.leave_button.notification(Control.NOTIFICATION_MOUSE_ENTER)
-	await _film_click(tree, target, lat)
-	print("FILM mark leave %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
-	n = 0
-	while zoom.visible and n < 600:
-		await tree.process_frame
-		n += 1
-		print("FILM out %d at %.4f vis %.3f %s" % [Engine.get_frames_drawn(), zoom._at, zoom.view.modulate.a, _film_geo(zoom)])
-	print("FILM mark out %d state %s" % [Engine.get_frames_drawn(), scr._login.state])
-	for i in 60:
-		await tree.process_frame
-	print("FILM mark end %d" % Engine.get_frames_drawn())
-
-
-func _film_geo(zoom: LabZoom) -> String:
-	var r := zoom.room_rect()
-	return "geo s %.4f room %.2f %.2f %.2f %.2f ratio %.5f veil %s room_on %s" % [zoom.cam_scale(),
-		r.position.x, r.position.y, r.size.x, r.size.y, (r.size.x / LabScene.PANEL.x) / maxf(0.0001, r.size.y / LabScene.PANEL.y),
-		zoom._veil.visible, zoom._room.visible]
 
 
 func _film_still(tree: SceneTree, scr: StationScreen, base: String) -> void:

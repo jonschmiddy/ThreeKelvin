@@ -55,7 +55,7 @@ flown as the insertion was (`_arrive`: at the place, burning on). The Lambert
 manoeuvres above are kept only as the fallback, in a system of one star, for
 the under 1% of flights the solver finds nothing clean for (`_old_plan`);
 failing that, the ship is put in orbit there. In a twin, where one leg
-reaches nothing, the solver flies two (`FlightSolve._chain`: aimed through a
+reaches nothing, the solver flies two (`FlightChain.chain`: aimed through a
 point round the pair, turning off that coast before it would stop), one
 FlightPlan like any other. The preview and the click plan
 on a worker (`plan_bg`, `fly_bg`), the fallback and the line's layout there
@@ -444,7 +444,7 @@ Above `func make_plan(i: int, t: float, prefer: Dictionary = {}, ahead := 0.0) -
 THE FLIGHT TO PLACE i FROM WHERE THE SHIP IS, at map time t, on this thread:
 solved (`FlightSolve`), `prefer` the choice of the flight drawn so the same
 flight comes back while it can (in a twin, in two legs where one reaches
-nothing: `FlightSolve._chain`); when nothing is clean (under 1% of plans),
+nothing: `FlightChain.chain`); when nothing is clean (under 1% of plans),
 today's planner (`_old_plan`; in a twin only its near hop, `_twin_near`);
 null when neither finds one.
 `ahead`: made for that moment on, as a worker's is (`PLAN_AHEAD`).

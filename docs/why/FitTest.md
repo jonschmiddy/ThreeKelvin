@@ -150,7 +150,7 @@ forever -- so the phase itself is what gets asserted on.
 
 ## Grab anywhere
 
-Inside `_lit_keeps_the_parts()`, above `var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), mounts._mag())`:
+Inside `_lit_keeps_the_parts()`, above `var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), mounts.part_mag())`:
 
 ```text
 AND A PART IS GRABBED ANYWHERE ON ITSELF, not just at the dot it hangs

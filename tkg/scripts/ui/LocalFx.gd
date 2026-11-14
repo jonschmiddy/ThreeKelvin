@@ -109,7 +109,7 @@ func leave() -> void:
 
 
 func _box_point(at: Variant) -> Vector2:
-	var b: Rect2 = LocalSubject.box_for(sub.size)
+	var b: Rect2 = SubjectPlan.box_for(sub.size)
 	return b.get_center() + (at as Vector2 if at is Vector2 else Vector2.ZERO)
 
 
@@ -160,7 +160,7 @@ func step(t: float) -> void:
 			&"front":
 				var R := float(st.get("r", 560.0))
 				var lead_x := sub.size.x - float(st.get("inset", 250.0))
-				var c := Vector2(lead_x + R, LocalSubject.box_for(sub.size).get_center().y - 30.0)
+				var c := Vector2(lead_x + R, SubjectPlan.box_for(sub.size).get_center().y - 30.0)
 				m.set_shader_parameter("src", c)
 				m.set_shader_parameter("r0", R)
 				m.set_shader_parameter("r1", float(st.get("thick", 48.0)))
@@ -378,7 +378,7 @@ func _draw_wind(t: float) -> void:
 ## LIGHT THINGS BLOWING OUT from the star past the heavy pieces: specks, each
 ## moving slowly out along its ray, fading in and out over its life.
 func _draw_drift(t: float) -> void:
-	var b := LocalSubject.box_for(sub.size)
+	var b := SubjectPlan.box_for(sub.size)
 	var dirv := b.get_center() - sub.star_l
 	var ax := dirv.normalized() if dirv.length() > 1.0 else Vector2(0.8, 0.6)
 	var nx := Vector2(-ax.y, ax.x)
