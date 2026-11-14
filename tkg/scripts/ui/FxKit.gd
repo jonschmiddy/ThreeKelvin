@@ -28,3 +28,13 @@ static func draw_spark(ci: CanvasItem, p: Vector2, v: Vector2, c: Color) -> void
 	var tail := (p - v.normalized() * 2.0).round()
 	if tail != p2:
 		ci.draw_rect(Rect2(tail, Vector2.ONE), c * Color(0.5, 0.5, 0.5, 1))
+
+
+## The pixels of an ellipse of radius `rr` (squashed in y by `squash`), each once, in the order they are first met.
+static func ring_pixels(rr: float, squash: float = 1.0) -> Dictionary[Vector2i, bool]:
+	var pts: Dictionary[Vector2i, bool] = {}
+	var n := int(ceil(TAU * rr)) + 8
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		pts[Vector2i(roundi(cos(a) * rr), roundi(sin(a) * rr * squash))] = true
+	return pts

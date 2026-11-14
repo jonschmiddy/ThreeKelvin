@@ -1768,16 +1768,6 @@ func _draw_disc(ci: CanvasItem, c: Vector2, r: int, col: Color) -> void:
 		ci.draw_rect(Rect2(cp + Vector2(-half, dy), Vector2(half * 2 + 1, 1)), col)
 
 
-## The pixels of an ellipse of radius `rr`, each once, in the order they are first met.
-static func _ring_points(rr: float, squash: float) -> Dictionary[Vector2i, bool]:
-	var pts: Dictionary[Vector2i, bool] = {}
-	var n := int(ceil(TAU * rr)) + 8
-	for i in n:
-		var a := TAU * float(i) / float(n)
-		pts[Vector2i(roundi(cos(a) * rr), roundi(sin(a) * rr * squash))] = true
-	return pts
-
-
 ## Ring with a `trail` lit behind the front: a fast ring is a band, not a strobing line
 ## (flip-backs halved).
 ## Why: docs/why/ShipBreakup.md#light-rings
@@ -1797,14 +1787,14 @@ func _draw_ring(ci: CanvasItem, c: Vector2, r: int, squash: float, lvl: float, c
 			# the trail: solid near the front, dithered toward its tail
 			var f := float(-int(band)) / float(trail + 1)
 			var lt := lvl * 0.5 * (1.0 - f)
-			var pts2 := _ring_points(rr, squash)
+			var pts2 := FxKit.ring_pixels(rr, squash)
 			for p2 in pts2:
 				var q2: Vector2i = p2
 				if f > 0.5 and ((q2.x + q2.y) & 1) == 1:
 					continue
 				ci.draw_rect(Rect2(cp + Vector2(q2), Vector2.ONE), FxKit.lv(col, lt))
 			continue
-		var pts := _ring_points(rr, squash)
+		var pts := FxKit.ring_pixels(rr, squash)
 		for p in pts:
 			var q: Vector2i = p
 			var l := lvl
@@ -2587,7 +2577,7 @@ func _paint_boss_body(ci: CanvasItem) -> void:
 				var rb := int(rr) - band
 				if rb < 2:
 					continue
-				var pts := _ring_points(float(rb), 0.55)
+				var pts := FxKit.ring_pixels(float(rb), 0.55)
 				var ab := al2 * (1.0 - float(band) / 9.0)
 				for q in pts:
 					if band >= 5 and (((q as Vector2i).x + (q as Vector2i).y) & 1) == 1:
