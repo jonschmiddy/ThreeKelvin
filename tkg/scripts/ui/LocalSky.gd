@@ -1710,9 +1710,9 @@ func _pn_theta0(vc: Vector2) -> float:
 # ------------------------------------------------------------------ where the ship is
 
 ## What the ship orbits and how far out it is, from the sector map's record of
-## it (`SystemMapScreen._parked`), or at the warp-in edge.
+## it (`ParkedShips.spots`), or at the warp-in edge.
 func _situate() -> void:
-	var d: Dictionary = SystemMapScreen._parked.get(node.index, {})
+	var d: Dictionary = ParkedShips.spots.get(node.index, {})
 	orbit_target = int(d.get("at", -9)) if not d.is_empty() else -9
 	# THE EVENT'S OWN PLACE: with an event open here, LOCAL draws its body behind
 	# the band, parked there or not (Jon, Nov 9, S2B)

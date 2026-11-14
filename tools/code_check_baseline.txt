@@ -99,6 +99,9 @@ bare scripts/systems/OptionTable.gd::placed_ids
 bare scripts/systems/OptionTable.gd::strip_pay
 bare scripts/systems/PlaytestLogs.gd::_entries
 bare scripts/systems/PlaytestLogs.gd::save_bundle
+bare scripts/systems/Policy.gd::_resolve_line
+bare scripts/systems/Policy.gd::new_sci
+bare scripts/systems/Policy.gd::take_options
 bare scripts/systems/RunHistory.gd::_manufacturer_tally
 bare scripts/systems/RunHistory.gd::load_all
 bare scripts/systems/RunHistory.gd::recent

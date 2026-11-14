@@ -71,7 +71,7 @@ func run(tree: SceneTree) -> void:
 	var sc := await _local()
 	# parked at the event's own place, as GO leaves the ship (`here_now`): the
 	# map wrote where it left the ship as it went. The wreck lies there too.
-	SystemMapScreen._parked[n.index] = {at = LocalEventDrawer.body_of(n, oi)}
+	ParkedShips.spots[n.index] = {at = LocalEventDrawer.body_of(n, oi)}
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
 	wreck.items.append(CreditChit.of(40))
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))

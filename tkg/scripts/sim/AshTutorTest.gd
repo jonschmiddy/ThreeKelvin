@@ -992,7 +992,7 @@ func _flow() -> void:
 	sc = await _local()
 	if sc != null and sc._events.page != &"":
 		sc._events.not_now()
-	SystemMapScreen._parked[n.index] = {at = lay.place_of(oi)}
+	ParkedShips.spots[n.index] = {at = lay.place_of(oi)}
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
 	wreck.items.append(CreditChit.of(40))
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))
@@ -1026,7 +1026,7 @@ func _flow() -> void:
 	# THE STEP ITSELF, where it is still a thing to do: LOCAL at the edge, the
 	# event still open at its world
 	Hints.mark_seen(&"step_event", false)
-	SystemMapScreen._parked[n.index] = {at = -9}
+	ParkedShips.spots[n.index] = {at = -9}
 	sc = await _local()
 	_ok("LOCAL at the edge opens no event (%s)" % sc._events.page, sc != null and sc._events.page == &"")
 	await _expect_step(&"step_event")

@@ -34,8 +34,6 @@ const MAP := Vector2i(960, 540)
 const KEY := [[&"fight", "FIGHT"], [&"hazard", "HAZARD"], [&"salvage", "SALVAGE"],
 	[&"science", "SCIENCE"], [&"signal", "SIGNAL"], [&"contract", "CONTRACT"], [&"quest", "QUEST"], [&"dock", "DOCK"]]
 
-## Where the ship was left, by system. Saved with the run; per player, not on the wire.
-static var _parked := {}
 ## Where the map last flew the ship; LOCAL plays its arrival once a flight (Jon, Oct 21).
 static var flown_to := {}
 ## the flights counted, this run (each flight's `n`)
@@ -380,7 +378,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	# drawn there, `partner_points`)
 	_arrival_p = flight.f.p
 	if not arrived:
-		_restore_ship(_parked.get(n.index, {}))
+		_restore_ship(ParkedShips.spots.get(n.index, {}))
 	elif n.type == MapGen.NodeType.STATION and view.layout.dock_place() >= 0:
 		# (a jump into a station's system arrives alongside the station:
 		# arrive:B, `Router._on_jumped`)
@@ -661,7 +659,7 @@ func _keep_ship() -> void:
 		e["cen"] = int(flight.f.cen_id)
 		e["r"] = float(flight.f.orbit_r)
 		e["sense"] = float(flight.f.sense)
-	_parked[view.node.index] = e
+	ParkedShips.spots[view.node.index] = e
 
 
 ## Where the ship is as LOCAL is told; `Router.at_station` reads this while LOCAL is built ahead.

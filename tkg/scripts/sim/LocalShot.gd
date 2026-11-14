@@ -61,7 +61,7 @@ func _run() -> void:
 		var ks := int(Harness.arg("cometspot"))
 		CometPath.set_caught(node, ks)
 		var spot := Lc.comet.spot_at(Lc, ks)
-		SystemMapScreen._parked[idx] = {"at": -9, "p": spot, "v": Vector2.ZERO, "head": PI, "mode": &"keep"}
+		ParkedShips.spots[idx] = {"at": -9, "p": spot, "v": Vector2.ZERO, "head": PI, "mode": &"keep"}
 		Run.map_clock[idx] = Lc.comet.spot_t(ks)
 		LocalEventDrawer.request(idx, int(Lc.comet.beacons[0].opt))
 		print("  comet spot %d at %s, map time %.1f, reading %s" % [ks, spot, Lc.comet.spot_t(ks), node.options[int(Lc.comet.beacons[0].opt)]])
@@ -89,7 +89,7 @@ func _run() -> void:
 				at = _body_for(Lo, orbit, true)
 				if at < 0:
 					at = _body_for(Lo, orbit, false)
-		SystemMapScreen._parked[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
+		ParkedShips.spots[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
 		print("  orbit %s: body %d" % [orbit, at])
 	print("  node %d %s: sky %s, star %d, nebula %s, giant %s, two suns %s" % [idx, MapGen.star_name(node),
 		SkyWeatherS.sky_of_node(node), SystemLayout.of(node).star, node.in_nebula, node.gas_giant, SystemLayout.of(node).twin])

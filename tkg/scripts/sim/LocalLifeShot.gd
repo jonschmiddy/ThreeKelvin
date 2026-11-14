@@ -241,7 +241,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 		return false
 	Run.at = idx
 	var node: MapGen.MapNode = Run.node_at()
-	SystemMapScreen._parked.erase(idx)
+	ParkedShips.spots.erase(idx)
 	if orbit != "":
 		var Lo := SystemLayout.of(node)
 		var mode := &"rail"
@@ -250,7 +250,7 @@ func _show(want: String, seed: int, orbit: String) -> bool:
 				at = -1
 			"edge":
 				mode = &"free"
-		SystemMapScreen._parked[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
+		ParkedShips.spots[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
 	# (`approach`: the ship flies in, as it does arriving from the map)
 	if not _approach:
 		SectorScreen._approached_at = idx

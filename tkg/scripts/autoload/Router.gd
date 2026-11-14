@@ -297,7 +297,7 @@ func _on_run_started() -> void:
 	# Quitting from a berth must not carry its dock into the next run's first arrival.
 	docked = false
 	# Parked ship spots are kept by system index, so a new run must not inherit them.
-	SystemMapScreen._parked.clear()
+	ParkedShips.spots.clear()
 	Moored.at = -1
 	# Same for the event last opened on LOCAL, also kept by system index.
 	LocalEventDrawer.last = []
@@ -583,7 +583,7 @@ func park_at_station(n: MapGen.MapNode = null) -> void:
 		return
 	var place := SystemLayout.of(n).dock_place()
 	if place >= 0:
-		SystemMapScreen._parked[n.index] = {"at": place, "mode": &"rail"}
+		ParkedShips.spots[n.index] = {"at": place, "mode": &"rail"}
 
 
 ## No combat guard: `after_combat()` routes here from inside the fight.
@@ -832,7 +832,7 @@ func _on_jumped(_index: int) -> void:
 	crumb("[jump] #%d to %s, fuel %d" % [Run.jumps, MapGen.star_name(Run.node_at()), Run.fuel])
 	# A jump arrives at the edge, so an ambush leaves wrecks there, not at a fought world.
 	# Why: docs/why/Router.md#jump-arrival
-	SystemMapScreen._parked.erase(_index)
+	ParkedShips.spots.erase(_index)
 	Moored.at = -1
 	# The event last opened on LOCAL is dropped with the place it stood at.
 	LocalEventDrawer.last = []
