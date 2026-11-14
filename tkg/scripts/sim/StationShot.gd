@@ -500,10 +500,10 @@ func run(tree: SceneTree) -> void:
 					var S: Dictionary = BoardScreen.STRIPS[j]
 					var strip := Rect2(o, Vector2(248, 30))
 					bd24.draw_rect(strip, S["bg"])
-					bd24._centre_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
-					bd24._centre_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
+					bd24.centre_text_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
+					bd24.centre_text_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
 					bd24.draw_rect(Rect2(strip.end.x - 16.0, strip.position.y + 2.0, 14.0, 9.0), Color(0, 0, 0, 0.35))
-					bd24._text("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))])
+					bd24.text_at("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))])
 			for j in BoardScreen.POPUPS.size():
 				list24.append(["popup_%03d" % j, Vector2(176, 88), func(o: Vector2) -> void: bd24._popup(BoardScreen.POPUPS[j], Rect2(o, Vector2(176, 88)), 1.0)])
 			list24.append(["screen_featured", Vector2(136, 170), func(o: Vector2) -> void: bd24._sheet(o, Vector2(136, 170), 0.0, bd24._featured, 0.5)])
