@@ -224,7 +224,7 @@ func _run() -> void:
 			var mp: MountPoints = cut._mounts
 			for sp in mp.spots():
 				if sp.held != null:
-					var r := mp.part_rect(sp.held, sp.slot, mp._part_at(sp), mp._mag())
+					var r := mp.part_rect(sp.held, sp.slot, mp.part_drawn_at(sp), mp.part_mag())
 					var gp := mp.get_global_transform() * r.get_center()
 					await _hover(gp)
 					cut._point(gp)
