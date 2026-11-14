@@ -607,16 +607,6 @@ func jetsam_left(n: MapGen.MapNode, h: MapGen.Jetsam) -> int:
 	return left
 
 
-## And across all of them, which is what a button in the sector wants to say.
-func loose_here(n: MapGen.MapNode) -> int:
-	if n == null:
-		return 0
-	var left := 0
-	for raw in n.jetsam:
-		left += jetsam_left(n, raw as MapGen.Jetsam)
-	return left
-
-
 ## Take the i-th thing out of a container: the hold is checked before the claim is spent,
 ## and the claim is awaited because in a party it is a round trip.
 func take_from_jetsam(n: MapGen.MapNode, h: MapGen.Jetsam, i: int) -> bool:
@@ -1577,12 +1567,6 @@ func scrap_found_hull() -> bool:
 	return true
 
 
-## The mutation emits `ship_changed` itself, once, so the gauge never shows the old cap.
-## Why: docs/why/RunState.md#heat-cap-upgrades
-func add_heat_cap(n: int) -> void:
-	heat_cap_bonus += n
-	Sig.ship_changed.emit()
-
 func die(reason: String) -> void:
 	dead = true
 	death_reason = reason
@@ -2442,11 +2426,6 @@ func jump_to(index: int) -> void:
 # ----------------------------------------------------------------- the hellbender
 ## The rival lives in `Hellbender`; every name stays on `Run`, so no caller changes.
 ## Why: docs/why/Hellbender.md#the-hellbender
-const HELLBENDER_STRIDE := Hellbender.STRIDE
-const HELLBENDER_STRIDE_CREW := Hellbender.STRIDE_CREW
-const HELLBENDER_FLEE_HOPS := Hellbender.FLEE_HOPS
-const HELLBENDER_MEND := Hellbender.MEND
-
 var _hb := Hellbender.new()
 
 var hellbender_at: int:
@@ -2535,9 +2514,6 @@ func hellbender_jumped() -> void:
 
 func _hellbender_step(feeding: bool, away_from: int = -1) -> void:
 	_hb.step(feeding, away_from)
-
-func hellbender_land(to: int, feeding: bool) -> void:
-	_hb.land(to, feeding)
 
 func hellbender_scarred(hp: int) -> void:
 	_hb.scarred(hp)

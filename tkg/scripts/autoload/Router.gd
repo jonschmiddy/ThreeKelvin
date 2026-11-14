@@ -1056,43 +1056,6 @@ func harvest_pulsar() -> void:
 		return
 	show_sector()
 
-## Stay put after stripping: the salvage rail already shows the haul, so no loot screen.
-func salvage_here() -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n.cleared:
-		return
-	await _resolve_derelict(n)
-
-## A wreck is the one thing ships race for, so ask the party before rolling any loot.
-## Why: docs/why/Router.md#derelict-race
-func _resolve_derelict(n: MapGen.MapNode) -> void:
-	if not await Run.take_option(n, MapGen.OPTION_WHOLE):
-		var who := Net.taker_name(n.index, MapGen.OPTION_WHOLE)
-		Run.log_line("The bays are already stripped.%s" % (
-			" %s got here first." % who.to_upper() if who != "" else ""), &"them")
-		show_sector()
-		return
-	# Positional: what is in the wreck is in the wreck, whoever opens it and in
-	# whatever order. See Rng.derive().
-	var r := Rng.derive(&"salvage", n.index)
-	var count := 2 if n.region == MapGen.Region.LAWLESS else 1
-	# and the party's share of it (`PartyScale`, Jon, Nov 5)
-	count = PartyScale.pay(count)
-	for i in count:
-		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
-		Run.stow(LootGen.roll_module(n.danger, force,
-			n.region == MapGen.Region.DEEP or n.region == MapGen.Region.FAUNA, r))
-	# Precursor fragments come only off deep wrecks, so relic analysis needs flying coreward.
-	if MapGen.tier(n.danger) >= 4 and r.randf() < 0.30:
-		Run.add_material(&"relic", 1)
-		Run.log_line("Part of the wreck is older than the ship. Precursor fragment recovered.", &"good")
-	if r.randf() < 0.35:
-		Run.find_hull(LootGen.roll_hull(n.danger, r))
-		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
-	Run.log_line("You strip %d module%s from the derelict." % [
-		count, "" if count == 1 else "s"], &"good")
-	show_sector()
-
 ## A node's fight is positional and shared; an ambush is a stream draw, so it is not.
 ## No fights at stations (Jon). A site of -2 means none, so compare guarded.
 ## Why: docs/why/Router.md#fight-sharing

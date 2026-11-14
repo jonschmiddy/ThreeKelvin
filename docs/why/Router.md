@@ -832,7 +832,7 @@ screen rolls or pays anything. The other half of the seam `event_resolved`
 records: consumption is arbitrated here through `Run.take_option`, because
 an option two ships can race for must be asked for, not assumed -- roll
 first and apologise afterwards, and the loser has already pocketed the
-payout. See `_resolve_derelict` for the shape.
+payout.
 ```
 
 ## One only
@@ -861,21 +861,6 @@ a neutron star's wind is the densest fuel source in the galaxy and its
 radiation is the most reliable way to lose a hull. You come away with a full
 tank and exotic matter worth studying, and you pay for it in the only
 currency the ship cannot buy back cheaply.
-```
-
-## Derelict race
-
-Above `func _resolve_derelict(n: MapGen.MapNode) -> void:`:
-
-```text
-A wreck is the one thing in the game today that two ships can genuinely race
-for, so this is the one place that ASKS the party rather than assuming.
-
-Everything else that finishes a system — the fight you won, the hail you were
-inside — cannot be taken out from under you, and `Run.take_whole()` tells the
-party without waiting. Here the answer decides whether any loot is rolled at
-all, and rolling it first and apologising afterwards does not take the module
-back out of the loser's hold.
 ```
 
 ## Fight sharing
