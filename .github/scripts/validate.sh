@@ -2184,6 +2184,66 @@ else
 fi
 }
 
+unit_framecheck() {
+step "No new work in a per-frame function that belongs in _ready"
+# A ratchet: a function the engine runs every frame (`_process`, `_physics_process`, `_draw`, and what
+# those call in the same file) may not load a resource, build an Image or texture, parse a colour from a
+# string, search the tree, open a file, parse JSON, deep-copy or build a material, unless it is lazy
+# initialisation. What predates it is in `tools/frame_check_baseline.txt` (docs/why/frame_check.md).
+if [ -n "$PY" ]; then
+	# The self-test first: the detector must read a tiny synthetic tree exactly, or its verdict on the real one is not trusted.
+	if ! "$PY" tools/frame_check.py --selftest >"$GATE_UNIT_DIR/framecheck.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/framecheck.out" | sed 's/^/        /'
+		bad "frame check self-test failed: the detector misread its synthetic tree (python3 tools/frame_check.py --selftest)"
+	elif "$PY" tools/frame_check.py >>"$GATE_UNIT_DIR/framecheck.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/framecheck.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/framecheck.out" | head -n 40 | sed 's/^/        /'
+		bad "frame check: new work in a per-frame function (python3 tools/frame_check.py; --report lists all of it)"
+	fi
+else
+	gate_no_python "the frame check"
+fi
+}
+
+unit_testsmap() {
+step "Every runnable harness has a row in docs/tests.md"
+# A ratchet: each harness in tkg/scripts/sim that DevFlags can start is named in docs/tests.md; no row
+# names a harness or flag that is gone; validate.sh names none that is gone. What predates it is in
+# `tools/tests_map_check_baseline.txt` (docs/why/tests_map_check.md).
+if [ -n "$PY" ]; then
+	if ! "$PY" tools/tests_map_check.py --selftest >"$GATE_UNIT_DIR/testsmap.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/testsmap.out" | sed 's/^/        /'
+		bad "tests map self-test failed: the check misread its synthetic tree (python3 tools/tests_map_check.py --selftest)"
+	elif "$PY" tools/tests_map_check.py >>"$GATE_UNIT_DIR/testsmap.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/testsmap.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/testsmap.out" | head -n 40 | sed 's/^/        /'
+		bad "tests map: a harness with no row in docs/tests.md, or a row or unit naming one that is gone (python3 tools/tests_map_check.py)"
+	fi
+else
+	gate_no_python "the tests map check"
+fi
+}
+
+unit_gatelint() {
+step "The gate script is sound: no unit defined twice, no list or weight naming a missing unit, no dead why-pointer"
+# No baseline: all of it is zero and stays zero (docs/why/gate_lint.md).
+if [ -n "$PY" ]; then
+	if ! "$PY" tools/gate_lint.py --selftest >"$GATE_UNIT_DIR/gatelint.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/gatelint.out" | sed 's/^/        /'
+		bad "gate lint self-test failed: the lint misread its synthetic script (python3 tools/gate_lint.py --selftest)"
+	elif "$PY" tools/gate_lint.py >>"$GATE_UNIT_DIR/gatelint.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/gatelint.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/gatelint.out" | head -n 20 | sed 's/^/        /'
+		bad "gate lint: validate.sh has a duplicate unit, a name no unit has, or a dead pointer (python3 tools/gate_lint.py)"
+	fi
+else
+	gate_no_python "the gate lint"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.

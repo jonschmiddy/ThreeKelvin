@@ -1,0 +1,20 @@
+# Harnesses with no row in docs/tests.md that predate tools/tests_map_check.py (mostly look-and-dump
+# tools left without a row on purpose). The gate ignores these and fails on anything new.
+# Shrink it by adding the row, then: python3 tools/tests_map_check.py --update
+# uncovered <Stem> | stale-row <token> | gate-missing <token>
+uncovered ArtDemo
+uncovered ArtPrompt
+uncovered CardShot
+uncovered CoJoinTest
+uncovered DerelictShot
+uncovered EncDump
+uncovered ExhaustCheck
+uncovered FogShot
+uncovered PlaceSheet
+uncovered RaritySheet
+uncovered SectorShot
+uncovered SensorDump
+uncovered ShipShot
+uncovered SkyShot
+uncovered SystemDump
+uncovered ZoomShot
