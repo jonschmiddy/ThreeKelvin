@@ -446,6 +446,7 @@ bare scripts/ui/UITheme.gd::outline_boxes
 bare scripts/ui/VoiceGlitch.gd::bake_placed
 bare scripts/ui/VoiceGlitch.gd::decode
 bare scripts/ui/VoiceGlitch.gd::place
+bare scripts/ui/YardCity.gd::_car_pixels
 bare scripts/ui/YardDeal.gd::_lamp_pictures
 bare scripts/ui/YardDeal.gd::bad_signal
 bare scripts/ui/YardDeal.gd::lights
@@ -456,7 +457,6 @@ bare scripts/ui/YardDrones.gd::doze_at
 bare scripts/ui/YardDrones.gd::homes
 bare scripts/ui/YardDrones.gd::offer
 bare scripts/ui/YardDrones.gd::sneeze_at
-bare scripts/ui/YardLife.gd::_car_pixels
 bare scripts/ui/YardLife.gd::_crate
 bare scripts/ui/YardLife.gd::_fork
 bare scripts/ui/YardLife.gd::_lift_sprite
