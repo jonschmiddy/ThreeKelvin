@@ -204,6 +204,41 @@ func rephase(c: Dictionary, x: float, t: float) -> void:
 	c["phase"] = fposmod(((along + 0.5 * float(C.get("advance", 1.0))) - pace * t) / lap, 1.0)
 
 
+## The crew near the blast walk off from it; the rest stop and look.
+## Why: docs/why/ShipLift.md#crew
+func walk_off(sx: float, reach: float, k: float) -> void:
+	var L := self
+	for c: Dictionary in L.CREW:
+		var cd := c
+		cd["ev"] = func(t: float) -> Dictionary:
+			if not cd.has("_l"):
+				var p0 := L.walk_at(cd, t)
+				cd["_l"] = {"x": float(p0.x), "t": t}
+			var S: Dictionary = cd["_l"]
+			var x0 := float(S.x)
+			var away := -1.0 if x0 < sx else 1.0
+			var nm := String(cd["name"])
+			if absf(x0 - sx) < reach:
+				var C := L.crew_strip(nm)
+				var dist := 34.0 * k * maxf(0.0, t - float(S.t) - 0.25)
+				var adv := float(C.get("advance", 1.0))
+				var stp := floorf(dist / adv)
+				cd["_lx"] = x0 + away * stp * adv
+				return {"x": cd["_lx"], "dir": away, "f": int(stp) % int(C.get("frames", 8)), "dy": 0.0}
+			cd["_lx"] = x0
+			return {"x": x0, "dir": -away, "f": L.stand_frame(nm), "dy": 0.0}
+
+
+## A lift cut short: the walkers back where they stand, their marks and events cleared.
+func stop_walk(t: float) -> void:
+	for c: Dictionary in CREW:
+		if c.has("_l"):
+			rephase(c, float(c.get("_lx", (c["_l"] as Dictionary).x)), t)
+			c.erase("_l")
+			c.erase("_lx")
+			c.erase("ev")
+
+
 func _crew(t: float) -> void:
 	var keep: Array = []
 	for r: Dictionary in RUN:
