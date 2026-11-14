@@ -164,11 +164,11 @@ bare scripts/ui/ChartSky.gd::_g_for
 bare scripts/ui/ChartSky.gd::_make_clouds
 bare scripts/ui/ChartSky.gd::_make_knots
 bare scripts/ui/ChartSky.gd::_snapshot_stars
-bare scripts/ui/ChartSky.gd::_supernova
 bare scripts/ui/ChartSky.gd::ball_story
 bare scripts/ui/ChartSky.gd::next_supernova
 bare scripts/ui/ChartSky.gd::params
 bare scripts/ui/ChartSky.gd::remnants
+bare scripts/ui/ChartSky.gd::supernova_at
 bare scripts/ui/ChartTorn.gd::_m
 bare scripts/ui/ChartTorn.gd::cloud_arrays
 bare scripts/ui/ChartTorn.gd::cloud_tear
@@ -356,12 +356,12 @@ bare scripts/ui/MapChart.gd::_g
 bare scripts/ui/MapChart.gd::_gmap
 bare scripts/ui/MapChart.gd::_in_range
 bare scripts/ui/MapChart.gd::_nearest_berths
-bare scripts/ui/MapChart.gd::_snapshot_sky
 bare scripts/ui/MapChart.gd::_too_deep_of
 bare scripts/ui/MapChart.gd::_visible_set
 bare scripts/ui/MapChart.gd::nodes_near
 bare scripts/ui/MapChart.gd::party_marks
 bare scripts/ui/MapChart.gd::place_quest_tags
+bare scripts/ui/MapChart.gd::snapshot_sky
 bare scripts/ui/MapChart.gd::too_deep_set
 bare scripts/ui/ModuleIcon.gd::augment_mark
 bare scripts/ui/ModuleIcon.gd::plate_ink
