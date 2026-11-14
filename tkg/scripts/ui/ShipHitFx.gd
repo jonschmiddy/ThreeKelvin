@@ -91,7 +91,7 @@ func setup(img: Image, used: Rect2i, origin: Vector2, seed: int, the_facing: int
 	_origin = origin.round()
 	_rng.seed = seed * 977 + 5
 	_sc = SIZE * mark_scale
-	_H = BreakupCuts._hull_pic(img, used, 0)
+	_H = BreakupCuts.hull_pic(img, used, 0)
 	_r = _H.r
 	_w = _H.w
 	_h = _H.h
