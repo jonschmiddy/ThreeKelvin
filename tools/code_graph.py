@@ -8,6 +8,7 @@ rule is in tools/code_graph_baseline.txt. Run: python3 tools/code_graph.py [--up
   --selftest        a tiny synthetic tree that must give exactly the expected facts (the gate runs it first)
 Deterministic, no LLM, stdlib only. How it reads a call and what it cannot see: docs/why/code_graph.md."""
 import json
+import os
 import re
 import sys
 import tempfile
@@ -1089,7 +1090,12 @@ def main(argv):
             if flag == "--graphify":
                 graphify(g, nxt)
             else:
-                path = nxt or str(Path(tempfile.gettempdir()) / "three_kelvin_code_graph.md")
+                if nxt:
+                    path = nxt
+                else:
+                    # A fresh name each time: a fixed name in a shared temp folder can be pre-made by someone else.
+                    fd, path = tempfile.mkstemp(prefix="three_kelvin_code_graph_", suffix=".md")
+                    os.close(fd)
                 Path(path).write_text(Report(g).lines(), encoding="utf-8")
                 print("wrote " + path)
             return 0
