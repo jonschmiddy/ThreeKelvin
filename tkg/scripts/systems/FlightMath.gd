@@ -186,7 +186,7 @@ static func shape_of(samp: PackedVector3Array) -> PackedFloat64Array:
 
 
 ## The ride dang radians round at rate w (> 0): [lead, phasing k]
-## (`ShipFlight._lead`'s law: up to FlightSolve.LEAD_MAX it simply rides).
+## (`FlightCurves.lead`'s law: up to FlightSolve.LEAD_MAX it simply rides).
 static func lead_of(dang: float, w: float) -> PackedFloat64Array:
 	var nat := dang / w
 	if nat <= FlightSolve.LEAD_MAX:

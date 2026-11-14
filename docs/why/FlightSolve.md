@@ -1037,7 +1037,7 @@ third of the flights or none (SolveTest, Nov 5: twins 50%, close pairs
 in tau at its speed / pace but never under RING_TAU px/s, nor over its own
 speed: every ring the game has (worlds' 35 px/s, stars' 45, settled star
 orbits' 13 to 50) at its own speed. On the map the ship spins up round its
-ring to pace times that before it leaves (`ShipFlight._ride_shape`: it
+ring to pace times that before it leaves (`FlightCurves.ride_shape`: it
 rides at the ring's own speed, spins up over SPIN_UP s and whirls round at
 the departure's for the ride's last part) and spins down onto the ring's
 own speed as it arrives (`ShipFlight.start_rail`'s spin, SPIN_S).
@@ -1050,7 +1050,7 @@ Above `const SPIN_UP := 0.3`:
 
 ```text
 THE SPIN-UP's length on the map (s): the ship's rate eased from its ring's
-own to the departure's (`ShipFlight._ride_shape`). The ride on the flight's
+own to the departure's (`FlightCurves.ride_shape`). The ride on the flight's
 clock starts with it (`dep.w0`, the ring's own rate there, and `dep.spin`,
 SPIN_UP x pace tau-s: a smoothstep from w0 to w), so it lasts at least the
 spin and goes (w - w0) spin / 2 less far round: a flight left at once, as
