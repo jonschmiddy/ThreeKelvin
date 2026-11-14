@@ -2226,6 +2226,22 @@ else
 fi
 }
 
+unit_claudehooks() {
+step "The Claude Code hooks: the command guard, the edit ratchets and the Stop nudge do what they say"
+# Feeds each hook realistic payloads and asserts the exit code and message; starts no Godot, no network
+# (docs/why/claude_hooks.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/dev/claude_hooks.py --selftest >"$GATE_UNIT_DIR/claudehooks.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/claudehooks.out")"
+	else
+		grep -v '^  ok ' "$GATE_UNIT_DIR/claudehooks.out" | head -n 20 | sed 's/^/        /'
+		bad "a Claude Code hook misbehaves (python3 tools/dev/claude_hooks.py --selftest)"
+	fi
+else
+	gate_no_python "the Claude hooks self-test"
+fi
+}
+
 unit_gatelint() {
 step "The gate script is sound: no unit defined twice, no list or weight naming a missing unit, no dead why-pointer"
 # No baseline: all of it is zero and stays zero (docs/why/gate_lint.md).
@@ -2326,7 +2342,7 @@ SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowh
 # exactly these. A unit qualifies when nothing in its body starts Godot (no
 # run_godot, gate_sheet, gate_check or $GODOT): plain shell, python or node, so
 # it needs no import and runs in seconds. A new unit of that kind goes here too.
-STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph framecheck testsmap gatelint vocab enemysprites labs rail rooms yard"
+STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph framecheck testsmap gatelint claudehooks vocab enemysprites labs rail rooms yard"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"

@@ -8,7 +8,8 @@
 # --tests also runs the headless test rows this change needs (tests_for.py --run).
 # --staged limits the test advice to what is staged. The merge gate is still the gate.
 # --static stops after the static checks (the pre-commit hook's call); --quiet then
-# prints only failures.
+# prints only failures. A full pass also records the state of the tree it passed on
+# (.git/tk-check-ok), which the Stop hook reads to know whether a check covers the work.
 # Output: one line per check, each failure's own message, then `check: PASS` or
 # `check: FAIL (n problems)`; exit 1 on failure. Why: docs/why/check.md#check
 set -uo pipefail
@@ -131,6 +132,9 @@ fi
 
 echo
 if [ "$PROBLEMS" -eq 0 ]; then
+	# Record that this exact tree passed, for the Stop hook's reminder (tools/dev/claude_hooks.py,
+	# docs/why/claude_hooks.md): a file under this worktree's .git directory. Never fails the check.
+	"$PY" "$HERE/claude_hooks.py" stamp ${RUN_TESTS:+--tests} >/dev/null 2>&1 || true
 	echo "check: PASS"
 	exit 0
 fi
