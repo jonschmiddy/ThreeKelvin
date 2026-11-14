@@ -46,6 +46,10 @@ The guard sees the command a session types, not what a script does inside. These
 
 `gate_land.sh` runs `git merge` and `git push` inside the script. A PreToolUse hook sees only the command the assistant typed, `bash tools/dev/gate_land.sh ...`, whose program is `bash` and whose argument is a script path. The self-test runs it as a lookalike that must pass.
 
+## The self-test must not inherit GIT_* variables
+
+Inside a git hook, `GIT_DIR` and `GIT_INDEX_FILE` point at the real repository. The pre-commit hook runs the gate's static checks, the self-test among them, so the first version's `git init` and `git commit` in a temp directory acted on the real repository instead: an `init` commit, a `feature` branch, a registered worktree, and `core.bare = true` written into the shared `.git/config`. Every `git` call in `claude_hooks.py` (hooks and self-test) now drops all `GIT_*` variables first (`clean_env`), and the setup refuses to go on unless the temp directory is its own repository. If `git status` in the main checkout ever says "this operation must be run in a work tree", run `git config core.bare false` there.
+
 ## How to test them by hand
 
 ```bash
