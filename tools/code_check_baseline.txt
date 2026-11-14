@@ -605,7 +605,7 @@ length scripts/systems/options/OptionsPart10.gd::entries 166
 length scripts/systems/options/OptionsPart11.gd::entries 329
 length scripts/ui/BoardWhite.gd::_size 180
 length scripts/ui/BoardWhite.gd::draw 118
-length scripts/ui/BraceFx.gd::_build 132
+length scripts/ui/BraceFx.gd::_build 131
 length scripts/ui/BreakupCuts.gd::_cut_boss 222
 length scripts/ui/BreakupCuts.gd::_cut_classic 207
 length scripts/ui/BreakupCuts.gd::_cut_creature 126

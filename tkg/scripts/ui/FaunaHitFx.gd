@@ -464,23 +464,22 @@ func advance(delta: float) -> void:
 		_clock.bind(t, fm)
 	var tq := _clock.tq(t)
 	var ks := FaunaGuard.keep_of(self)
-	if true:
-		# drips: a drop from each wound now and then, more often when hurt
-		var gap := 1.5 if _hp > 0.6 else (1.0 if _hp > 0.3 else 0.6)
-		for w in _wounds:
-			if t >= float(w.next):
-				w.next = t + _rng.randf_range(0.6, 1.4) * gap
-				var at := FaunaGuard.shown(fm, Vector2(w.low as Vector2i)) + Vector2(0, 1)
-				_ooze.add(at, Vector2(_rng.randf_range(-3.0, 3.0) + float(-facing) * 4.0, _rng.randf_range(5.0, 10.0)),
-					_rng.randf_range(1.0, 1.6), t, ICHOR, 0.6, 8.0, _rng.randf() < 0.6)
-		if _wl_dirty:
-			_wl_dirty = false
-			_wl_tex.update(_wl)
-		var per := lerpf(0.75, 1.5, clampf(_hp, 0.0, 1.0))
-		var ph := fposmod(tq + _clock.phase, per) / per
-		var beat := 1.0 if ph < 0.08 else (0.45 if ph < 0.16 else (0.85 if ph < 0.24 else (0.35 if ph < 0.36 else (0.12 if ph < 0.6 else 0.0))))
-		_skin.follow(fm, tq + _clock.phase, ks)
-		_skin.mat.set_shader_parameter("beat", beat)
+	# drips: a drop from each wound now and then, more often when hurt
+	var gap := 1.5 if _hp > 0.6 else (1.0 if _hp > 0.3 else 0.6)
+	for w in _wounds:
+		if t >= float(w.next):
+			w.next = t + _rng.randf_range(0.6, 1.4) * gap
+			var at := FaunaGuard.shown(fm, Vector2(w.low as Vector2i)) + Vector2(0, 1)
+			_ooze.add(at, Vector2(_rng.randf_range(-3.0, 3.0) + float(-facing) * 4.0, _rng.randf_range(5.0, 10.0)),
+				_rng.randf_range(1.0, 1.6), t, ICHOR, 0.6, 8.0, _rng.randf() < 0.6)
+	if _wl_dirty:
+		_wl_dirty = false
+		_wl_tex.update(_wl)
+	var per := lerpf(0.75, 1.5, clampf(_hp, 0.0, 1.0))
+	var ph := fposmod(tq + _clock.phase, per) / per
+	var beat := 1.0 if ph < 0.08 else (0.45 if ph < 0.16 else (0.85 if ph < 0.24 else (0.35 if ph < 0.36 else (0.12 if ph < 0.6 else 0.0))))
+	_skin.follow(fm, tq + _clock.phase, ks)
+	_skin.mat.set_shader_parameter("beat", beat)
 	if _hp < 0.45 and not _marks.is_empty() and t >= _next_vapour:
 		_next_vapour = t + (0.16 if _hp > 0.25 else 0.09)
 		var src: Vector2i

@@ -193,10 +193,6 @@ static func dot(ci: CanvasItem, keep: Array, p: Vector2, c: Color, s: Vector2 = 
 	return true
 
 
-static func lv(c: Color, l: float) -> Color:
-	return Color(c.r * l, c.g * l, c.b * l, 1.0)
-
-
 static func hash01(a: int, b: int) -> float:
 	var h := (a * 374761393 + b * 668265263) & 0x7fffffff
 	h = ((h ^ (h >> 13)) * 1274126177) & 0x7fffffff

@@ -130,8 +130,8 @@ hard-edged plate, so the same distance has to be put there on purpose.
 MEASURED, not guessed: ATTRIBUTES clears HULL by 8px of background, and at
 LABEL_AIR 6 the hold cleared its grid by 11. Hence 3.
 Between the flag and the text beside it. Named because the ship's own
-placement has to subtract it — see `_centre_ship`.
-The left panel's width, fixed. See `_centre_ship` for why it cannot float.
+placement has to subtract it — see `_sync_clip`.
+The left panel's width, fixed. See `_sync_clip` for why it cannot float.
 
 524 was the smallest that fitted everything WHEN THE WIDEST THING IN THIS
 column was the manufacturer abilities block at 470 across. A centred heavy
@@ -151,7 +151,7 @@ right-hand column, which is a layout decision and not the tail end of
 deleting a list. The 500 the ship needs is the real floor now.
 ```
 
-Above `const STORAGE_COLS := 4`:
+In the constants, after `const LABEL_AIR := 3`:
 
 ```text
 NO EXPLICIT GAP under the ship, and that is measured rather than an omission.
@@ -263,7 +263,7 @@ half a flag right of the panel's centre; and a hull sits right of the
 middle of its OWN canvas, because the canvas carries the exhaust plume's
 clearance on one side only.
 
-A pad either side, and `_centre_ship` puts the number on the left one.
+A pad either side, and `_sync_clip` puts the number on the left one.
 ```
 
 Above `func _ship_x() -> float:`:
@@ -464,7 +464,7 @@ Above `func _set_zoom(on: bool) -> void:`:
 ZOOM, IN PLACE. The ship doubles and the panel does not.
 
 The panel cannot grow: the left column is a fixed 524px because everything
-about where the ship sits is measured off its middle, and `_centre_ship`
+about where the ship sits is measured off its middle, and `_sync_clip`
 closes in one frame only while that width cannot move. So the box stays the
 size it was at 1x, a doubled ship is simply bigger than its window, and that
 is why this comes with a drag.
