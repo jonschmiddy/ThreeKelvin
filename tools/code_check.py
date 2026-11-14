@@ -74,11 +74,14 @@ def return_type(codes, s, m):
     return None
 
 
-def functions(raws):
-    """(name, lines, return type) per func. A func runs from its `func` line to the last
-    code line before the next declaration at its indent or less."""
-    codes, found, seen = lex(raws), [], {}
+def function_spans(raws, codes):
+    """(key, first line index, one past the last, FUNC match) per func, in file order. A func runs
+    from its `func` line to the last code line before the next declaration at its indent or less.
+    The key is the name, or name#2, name#3 for a later one of the same name (an inner class's)."""
+    seen = {}
     for s, line in enumerate(codes):
+        if "func" not in line:
+            continue
         m = FUNC.match(line.lstrip())
         if not m:
             continue
@@ -91,10 +94,13 @@ def functions(raws):
             last = j
         name = m.group(1)
         seen[name] = seen.get(name, 0) + 1
-        if seen[name] > 1:
-            name = f"{name}#{seen[name]}"
-        found.append((name, last - s + 1, return_type(codes, s, m)))
-    return found
+        yield (name if seen[name] == 1 else f"{name}#{seen[name]}"), s, last + 1, m
+
+
+def functions(raws):
+    """(name, lines, return type) per func."""
+    codes = lex(raws)
+    return [(key, end - s, return_type(codes, s, m)) for key, s, end, m in function_spans(raws, codes)]
 
 
 def measure():
