@@ -360,9 +360,9 @@ func _cell(text: String, colour: Color, w: float) -> Label:
 
 func _flag(m: StringName) -> Control:
 	var mk: ManufacturerData = DB.manufacturers.get(m)
-	var fl := ChassisSelect.Banner.new()
+	var fl := ManufacturerBanner.new()
 	fl.s = 1.0
-	fl.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W, ChassisSelect.Banner.UNITS_H)
+	fl.custom_minimum_size = Vector2(ManufacturerBanner.UNITS_W, ManufacturerBanner.UNITS_H)
 	fl.manufacturer = m
 	if mk != null:
 		fl.mark = mk.colour

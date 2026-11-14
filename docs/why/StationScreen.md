@@ -1142,7 +1142,7 @@ Hang the station's manufacturer banners in a room.
 THE BANNERS LEFT THE RAIL AND WENT INTO THE ROOMS. At the head of the rail they
 were two flags over a list; in the rooms they are what a manufacturer actually
 does to a station it holds -- its colours hung in the hangar, pinned on the
-board, over the till. Still real `ChassisSelect.Banner`s rather than pictures of
+board, over the till. Still real `ManufacturerBanner`s rather than pictures of
 them, so pointing at one still gets the manufacturer's readout.
 
 Children of the ROOM, so they draw over its walls and under everything that

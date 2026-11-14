@@ -2237,11 +2237,11 @@ func _offer_row(c: ContractData, state: String = "open", pay: Array = []) -> Con
 	# The flag beside the name: a contract is written in that manufacturer's own voice.
 	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
 	if mk != null:
-		var fl := ChassisSelect.Banner.new()
+		var fl := ManufacturerBanner.new()
 		# Scale 1: the banner needs 22 units of height to draw its hem and emblem
 		# intact, and two lines of text are about that.
 		fl.s = 1.0
-		fl.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W, 0)
+		fl.custom_minimum_size = Vector2(ManufacturerBanner.UNITS_W, 0)
 		fl.manufacturer = c.manufacturer
 		fl.mark = mk.colour
 		fl.field = mk.field
@@ -3036,7 +3036,7 @@ const BANNER_ROD := Color("#3d5273")
 
 
 ## Banners moved from the rail into the rooms, still
-## real `ChassisSelect.Banner`s with their readouts.
+## real `ManufacturerBanner`s with their readouts.
 ## Why: docs/why/StationScreen.md#hung-banners
 func _hang_banners(room: Control, n: MapGen.MapNode, spots: Array) -> void:
 	if room == null or not is_instance_valid(room):
@@ -3053,7 +3053,7 @@ func _hang_banners(room: Control, n: MapGen.MapNode, spots: Array) -> void:
 			marks.append(mid)
 	if marks.is_empty():
 		return
-	var bw := float(ChassisSelect.Banner.UNITS_W) * BANNER_K
+	var bw := float(ManufacturerBanner.UNITS_W) * BANNER_K
 	var bh := BANNER_LEN
 	var span := float(marks.size()) * bw + float(marks.size() - 1) * BANNER_GAP
 	for spot: Vector2 in spots:
@@ -3066,7 +3066,7 @@ func _hang_banners(room: Control, n: MapGen.MapNode, spots: Array) -> void:
 		for i in marks.size():
 			var mid2 := marks[i]
 			var mk: ManufacturerData = DB.manufacturers.get(mid2)
-			var fl := ChassisSelect.Banner.new()
+			var fl := ManufacturerBanner.new()
 			fl.s = BANNER_K
 			fl.custom_minimum_size = Vector2(bw, bh)
 			fl.manufacturer = mid2
