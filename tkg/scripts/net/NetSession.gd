@@ -404,14 +404,22 @@ func where_is(id: int) -> int:
 ## Everyone except you, in arrival order. What the convoy strip draws.
 func partners() -> Array:
 	var me := local_id()
-	return slots().filter(func(s: Dictionary) -> bool: return int(s.id) != me)
+	var out: Array = []
+	for s: Dictionary in slots():
+		if int(s.id) != me:
+			out.append(s)
+	return out
 
 
 ## Ordered for display: the host first, then by the order people arrived.
 func slots() -> Array:
-	var out: Array = roster.values().duplicate()
-	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.order < b.order)
+	var out: Array = roster.values()
+	out.sort_custom(_by_order)
 	return out
+
+
+static func _by_order(a: Dictionary, b: Dictionary) -> bool:
+	return a.order < b.order
 
 
 ## Sorted as Strings: StringName arrays sort by process start order, so a build refused itself.
