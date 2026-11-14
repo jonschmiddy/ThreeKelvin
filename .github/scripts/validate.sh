@@ -2326,7 +2326,7 @@ SOLO_UNITS="maplagtest gameclocktest playerdeathtest faunatest threadstress lowh
 # exactly these. A unit qualifies when nothing in its body starts Godot (no
 # run_godot, gate_sheet, gate_check or $GODOT): plain shell, python or node, so
 # it needs no import and runs in seconds. A new unit of that kind goes here too.
-STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph vocab enemysprites labs rail rooms yard"
+STATIC_UNITS="tabs changes pysyntax musiclab versionguard enclint prose commentcheck codecheck codegraph framecheck testsmap gatelint vocab enemysprites labs rail rooms yard"
 # Run first and alone, because every other unit needs what it writes: the class
 # cache in .godot/, without which nothing compiles.
 FIRST_UNITS="import"
