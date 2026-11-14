@@ -519,3 +519,4 @@ per frame, not per pixel: each film is 529 or more frames and llvmpipe draws abo
 CI the unit therefore runs at `--fixed-fps 15`: the engine steps a quarter second of film a frame,
 so each film is a quarter of the frames. Every shader still compiles and every stage still draws;
 what CI no longer sees is the frames in between, which the local gate (a real GPU, 60 fps) does.
+That run (43559236187) took 3:16 alone and passed, so the limit is 400 s, twice its CI time.

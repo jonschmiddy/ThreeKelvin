@@ -1235,7 +1235,7 @@ step "Every jump shader compiles in a real renderer, and every film's stage draw
 # Headless compiles no shaders, so a jump shader that does not compile passed JumpSeqTest.
 # The gate's one windowed unit: a hidden desktop on Windows, xvfb-run on Linux.
 # Why: docs/why/validate.md#unit_jumpshadertest
-local log="$LOG_DIR/jumpshadertest.log" limit=600 code=0 bin="${TK_GODOT_BIN:-$GODOT}"
+local log="$LOG_DIR/jumpshadertest.log" limit=400 code=0 bin="${TK_GODOT_BIN:-$GODOT}"
 local args=(--audio-driver Dummy --disable-vsync --fixed-fps 60 --path "$PROJECT" -- sheet=JumpShaderTest)
 case "$(uname -s)" in
 	MINGW*|MSYS*|CYGWIN*)
