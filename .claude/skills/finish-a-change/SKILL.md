@@ -22,7 +22,7 @@ Do these in order. Each step says why, so you can tell when it does not apply.
    `bash tools/dev/godot.sh --headless --path tkg --import`, or its tests fail with unknown class.
 4. **Save format:** if a change alters what a save holds, raise `SaveGame.VERSION` and keep every
    version since 29 loading (`.github/scripts/version_guard.py` enforces it). Never raise
-   `RunHistory.VERSION` for this. No players yet, so rename a key clean: no migration shim.
+   `RunHistory.VERSION` for this: it discards the whole flight record, unlocks included.
 5. **Co-op wire format:** a change to what crosses the wire raises `PROTOCOL`.
 6. **Add `changes/YYYY-MM-DD-what-changed.md`** with one bold line a player would notice:
    `- **Added** — ...` (`**Fixed**`, `**Changed**`). A developer-only tool still gets a line.
