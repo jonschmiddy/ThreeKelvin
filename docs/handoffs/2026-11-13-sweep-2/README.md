@@ -8,20 +8,25 @@ sounds or plays. Where a change could, it says so and names the check that is ow
 
 Every finding, with its status, is in [`LEDGER.md`](LEDGER.md) beside this file.
 
-## Land these, in this order
+## Land this: one branch
 
-Two PRs stand alone on `main`. Land them first: the first turns CI green.
+Everything is on one branch, `sweep-2/all`, as one PR into `main`. One run of
+`gate_land.sh` lands all of it:
 
-| PR | What | Proof | Owed |
+    bash tools/dev/gate_land.sh <a worktree of sweep-2/all> sweep-2/all sweep2
+
+`gate_land.sh` fast-forwards `main`, so every wave's commits stay in history, in
+order, and a later `git bisect` can still walk them one wave at a time.
+
+It was first opened as seventeen PRs, one a wave, as the work order asked. James
+folded them into one so that landing is one gate run and not seventeen. The wave PRs
+are closed, not deleted: each still shows its own wave's change alone, with its
+proof, and its number is in the table for when you want to read one.
+
+| Wave PR (closed) | What | Proof | Owed |
 |---|---|---|---|
 | #76 | CI was red on `main` since Nov 11 for a reason that is not a bug: `jumpshadertest` could not finish on the runner's software renderer. It now runs alone at 15 frames a second there. Four gate limits that had drifted under twice their CI time are raised. | all four CI parts green | nothing |
 | #82 | Your report of lag when changing floors in the station. The first visit to the Promenade or the Exchange after docking built the room on the frame you arrived. The rooms are now built one step a frame once the dock is quiet. | first ride 30 and 49 ms down to 3.2 and 3.4 ms (headless); a test proves both rooms end in the identical state | a windowed look; the graphics-card side was not measured (below) |
-
-Then the stack. Each PR is cut from the one before it, so each PR's page shows only
-its own change. Land them top to bottom with `gate_land.sh`.
-
-| PR | What | Proof | Owed |
-|---|---|---|---|
 | #74 | Code nothing calls is deleted: 2,043 lines out of 111 files. | battery 58 of 58; seeded sim identical | nothing |
 | #75 | The test suite tells the truth: checks that could not fail now can, a gate unit that was defined twice is defined once, the battery exits 1 when a row fails. | battery 58 of 58 | nothing |
 | #77 | 46 methods that other files call lose the underscore that said they were private. | every changed line explained by the rename list | nothing |
@@ -37,10 +42,19 @@ its own change. Land them top to bottom with `gate_land.sh`.
 | #87 | Small helpers that were copied between files are one function each (23 copies gone). | each pair compared over at least 100,000 inputs, bit for bit | nothing |
 | #88 | Work that gave the same answer every call is done once (the launch arguments, the material table, the lab's screensaver deal, the board lamp). | 33,377 cached answers compared with fresh ones, 0 differ | nothing |
 
-CI runs only on a PR into `main`, so the stacked PRs show no checks until the one
-below them lands. The battery was run on the stack by hand at each level; the numbers
-are in each PR. On the tip of the whole stack (#88) it passes 58 of 59; the one
-failure is the `nettest` race below.
+The rows are in the order the commits sit on the branch, except the first two, which
+were cut from `main` and merged in last.
+
+Two rows change how you and your Claude work, not the game: #73 (the code graph as a
+gate check) and #85 (the guardrails). **Read #85's page before landing.** Each of its
+blocks is one line to turn into a warning; the lines are under "Yours to rule on".
+
+CI runs only on a PR into `main`, so this branch is the first time the stack goes
+through CI: while it was seventeen PRs, the stacked ones showed no checks. The
+battery was run by hand at each level of the stack (the numbers are on each wave's
+page). On the tip of the stack (#88) it passed 58 of 59; the one failure is the
+`nettest` race below. It was run again on this branch with the last three merged in;
+that result, and CI's, are on the PR's page.
 
 ## What you can now run
 
