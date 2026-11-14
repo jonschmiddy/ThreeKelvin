@@ -1602,7 +1602,7 @@ func _check_power() -> void:
 	light.affixes.clear()
 	light.size = Vector2i.ONE
 	light.hold_at = -Vector2i.ONE
-	if free >= 1:
+	if _ok("the reactor has a free cell for a one-cell part (%d)" % free, free >= 1):
 		_ok("a one-cell weapon is lit for the same mount", cut._mounts.takes(light, &"cargo", w, 0))
 		await cut._on_mount_drop({module = light, origin = &"cargo"}, w, 0)
 		await _settle()
