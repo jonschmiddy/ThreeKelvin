@@ -7,6 +7,7 @@ extends Node
 
 const SETTLE_FRAMES := 12
 const TAIL_FRAMES := 4
+const ARRIVE_FRAMES := 150
 
 var h := Harness.new()
 var _tree: SceneTree
@@ -180,6 +181,9 @@ func _run() -> void:
 	var dev := int(Harness.arg("dev", "3"))
 	var seed0 := h.seed_run(777)
 	var only := Harness.arg("only", "")
+	if Harness.arg("mode") == "arrive":
+		await _arrivals(runs, dev, seed0)
+		return _finish(StationScreen.deck_move)
 	var ids := _ids()
 	var was_move := StationScreen.deck_move
 	var order: Array[String] = []
@@ -232,6 +236,64 @@ func _run() -> void:
 		var v := await _rest(st2, a, 60)
 		print("  %-9s mean %5.2f  worst %5.1f" % [a, v.x, v.y])
 	_finish(was_move)
+
+
+## THE ARRIVAL: every frame from the call that opens the station to ARRIVE_FRAMES after it, a new
+## docking each run (`arrive=ladder` comes in from LOCAL, the screen built under the ladder; the
+## default builds it cold). Per frame the median over the runs; prints the worst few, with the
+## frame's place after the click. Then rides the cold tour so the first ride's cost is in the same
+## run. `Router.animate_in_harness` is on so the ladder runs.
+func _arrivals(runs: int, dev: int, seed0: int) -> void:
+	var ladder := Harness.arg("arrive") == "ladder"
+	var all: Array = []
+	for run in runs:
+		var here := _station(dev, seed0)
+		Router.powered.clear()
+		Router.park_at_station(here)
+		if ladder:
+			Router.show_local()
+			await Harness.frames(_tree, 90)
+		var n0 := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+		var one: Array = []
+		var u0 := Time.get_ticks_usec()
+		Router.show_station()
+		one.append(_ms(u0))
+		var last := Time.get_ticks_usec()
+		for i in ARRIVE_FRAMES:
+			await _tree.process_frame
+			one.append(_ms(last))
+			last = Time.get_ticks_usec()
+		all.append(one)
+		var st := Router.current as StationScreen
+		if not h._ok("arrive run %d: the station is up (%s)" % [run, ladder], st != null):
+			return
+		print("  arrive run %d: nodes +%d, worst %.1f ms" % [run, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT) - n0), (one.max() as float)])
+		await Harness.frames(_tree, 30)
+		await _stand(st, &"services")
+		Router.powered[&"services"] = true
+		# (the first ride to each hidden room in this docking)
+		for b: StringName in [&"stock", &"hold"]:
+			var r := await _ride(st, b)
+			print("    first ride to %s: worst frame %.1f ms (click %.1f), nodes +%d" % [b, (r.frames as Array).max(), r.click, int(r.nodes)])
+			await Harness.frames(_tree, SETTLE_FRAMES)
+	var rob := _robust(all)
+	print("arrival (%s): frame 0 is the call; steady worst of per-frame medians %.1f ms at frame %d" % ["ladder" if ladder else "cold", rob.x, int(rob.y)])
+	var col: Array = []
+	for i in ARRIVE_FRAMES + 1:
+		var c: Array = []
+		for one: Array in all:
+			c.append(one[i])
+		col.append([_med(c), i])
+	col.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
+	var line := "  worst frames (ms@frame):"
+	for k in 8:
+		line += " %.1f@%d" % [col[k][0], col[k][1]]
+	print(line)
+	var over8 := 0
+	for c in col:
+		if c[0] > 8.0:
+			over8 += 1
+	print("  frames over 8 ms: %d of %d" % [over8, ARRIVE_FRAMES + 1])
 
 
 ## A deck standing alone, no ride: its mean and worst frame over `n` frames.
