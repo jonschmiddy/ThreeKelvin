@@ -185,6 +185,27 @@ default and the run continues around it looking almost right.
 every `class_name` reports "Could not find type X in the current scope" — a wall of
 errors from one cause, not many.
 
+## Checks that will stop you
+
+Every one runs by itself; the first words of its message are in the middle column. Why each is
+built as it is: `docs/why/check.md` (the static set), `docs/why/claude_hooks.md` (the hooks).
+
+| Check | What failure looks like | What to do |
+|---|---|---|
+| Pre-commit (`.githooks/pre-commit`: `check.sh --static`, about 5 s) | `[pre-commit]` then the failing check's lines; the commit does not happen | fix what it prints and commit again; `--no-verify` only if you must, and say so |
+| Edit hook, import (`tkg/tools/gdcheck.sh`) | `GDScript check failed after writing ...` | fix the script error it names. `--import` misses a syntax error in a script nothing loaded; `TK_GDCHECK=parseall` catches it |
+| Edit hook, ratchets (`tools/dev/claude_hooks.sh edit-ratchets`) | `A ratchet check failed after the edit to ...` then the NEW lines | fix them now, while the edit is fresh |
+| Command guard (`claude_hooks.sh bash-guard`, before every Bash call) | `BLOCKED: ...` with `Why:` and `Run instead:` | run the command it gives; never start Godot directly or push main |
+| Stop reminder (`claude_hooks.sh stop-nudge`, once per state of the tree) | `Before you say this change is done: ...` | `bash tools/dev/check.sh --tests`, add the `changes/` line, list what you did not verify |
+| `code_check.py` (function and file length, bare return types) | `NEW length ...`, `GREW ...`, `NEW bare ...` | split the function, type the return; `--update` only for a moved thing |
+| `code_graph.py` (layering, private calls) | `NEW layer a -> b`, `NEW private ...` | call through the right layer or a public method |
+| `frame_check.py` (work inside `_process`/`_draw`) | `NEW frame file::func call` | move it to `_ready` or a cache |
+| `comment_check.py` (comment runs over 5 lines, dead why-pointers) | `path:line: N comment lines in a row` | move the text to `docs/why/<Stem>.md`, leave a `# Why:` pointer |
+| `tests_map_check.py` (every harness has a `docs/tests.md` row) | `NEW uncovered <Stem>` | add the row |
+| Version guard (`.github/scripts/version_guard.py`) | `version guard: N FAILURES`, `changed keys` | raise `SaveGame.VERSION` (never `RunHistory.VERSION`) |
+| `check.sh --tests` (statics, `parseall`, the test rows for your diff) | `check: FAIL (n problems)` | fix, run again; this is the command to finish with |
+| The gate (`tools/dev/gate_land.sh`, about 10 min) | `FAILED <label> (...)` | fix in the worktree and run it again; it is the only way onto `main` |
+
 ---
 
 ## Design rulings — do not silently reverse these

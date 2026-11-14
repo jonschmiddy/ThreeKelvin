@@ -12,3 +12,4 @@ Start here, in this order:
 Two rules before anything else: every Godot run goes through `tools/dev/godot.sh` or
 `tools/dev/render.sh`, never straight to Godot, so Jon's real profile is never touched;
 and nothing reaches `main` except through `tools/dev/gate_land.sh`, one gate at a time.
+Before you call a change done, run `tools/dev/check.sh --tests` and read the "run by hand" list it prints.
