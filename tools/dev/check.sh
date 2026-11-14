@@ -72,8 +72,8 @@ while [ "$i" -le "$STEPS" ]; do
 		line ok "$title"
 	else
 		line FAIL "$title"
-		sed -n '4,$p' "$OUT/step_$i.txt" | grep -v '^$' | head -n 30 | sed 's/^/        /'
-		PROBLEMS=$((PROBLEMS + $(sed -n '4,$p' "$OUT/step_$i.txt" | grep -c '^  FAIL ')))
+		sed -n '3,$p' "$OUT/step_$i.txt" | grep -v '^$' | head -n 30 | sed 's/^/        /'
+		PROBLEMS=$((PROBLEMS + $(sed -n '3,$p' "$OUT/step_$i.txt" | grep -c '^  FAIL ')))
 	fi
 	i=$((i + 1))
 done
