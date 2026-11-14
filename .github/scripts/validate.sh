@@ -2158,6 +2158,23 @@ else
 fi
 }
 
+unit_codegraph() {
+step "No new link that breaks the layering, no new call into another class's private method"
+# A ratchet: game code may not reach into sim; systems, data and net may not reach into ui;
+# data may not reach into systems or net; no new call to an unrelated class's `_private`.
+# What predates it is in `tools/code_graph_baseline.txt` (docs/why/code_graph.md).
+if [ -n "$PY" ]; then
+	if "$PY" tools/code_graph.py >"$GATE_UNIT_DIR/codegraph.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/codegraph.out")"
+	else
+		head -n 20 "$GATE_UNIT_DIR/codegraph.out" | sed 's/^/        /'
+		bad "code graph: a new layering break or private reach-in (python3 tools/code_graph.py)"
+	fi
+else
+	gate_no_python "the code graph"
+fi
+}
+
 unit_codecheck() {
 step "No new long functions, huge files or bare Dictionary/Array/Variant returns"
 # A ratchet: game code (not sim) may have no function over 100 lines, no file over
