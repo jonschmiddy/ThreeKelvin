@@ -240,6 +240,11 @@ static func vnoise(v: float) -> float:
 	return hash1(k * 1.37) * (1.0 - s) + hash1((k + 1.0) * 1.37) * s
 
 
+static func smooth(a: float, b: float, t: float) -> float:
+	var u := clampf((t - a) / (b - a), 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
+
+
 static func blink_at(k: float, seed: float) -> float:
 	return (k + 0.05 + 0.9 * hash1(k * 3.77 + seed)) * 3.2 - seed
 
