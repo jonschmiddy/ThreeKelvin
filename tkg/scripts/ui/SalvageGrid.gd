@@ -57,6 +57,8 @@ const GLITCH_DROPS: Array[int] = [1, 4]
 ## How far a dropout knocks the brightness down. Not to nothing: a crate at a
 ## fifth is still a crate, and a crate at zero is a hole.
 const GLITCH_DROP_TO := 0.22
+## An empty cell's well.
+const CELL_WELL := Color("#0b1017")
 ## How far down the sweep has reached, in pixels, or -1 when it is not running.
 var _scan: float = -1.0
 ## What the sweep has already found, so a rebuild mid-scan does not make a crate
@@ -283,7 +285,7 @@ func _draw() -> void:
 	for y in _rows:
 		for x in _cols:
 			draw_rect(Rect2(Vector2(x * CELL, y * CELL), Vector2(CELL, CELL)),
-				Color("#0b1017"), true)
+				CELL_WELL, true)
 	for x in range(1, _cols):
 		draw_line(Vector2(x * CELL, 0.0), Vector2(x * CELL, h),
 			UITheme.LINE, 1.0)

@@ -6,6 +6,8 @@ signal node_picked(index: int)
 
 ## The sky's clock; a harness sets `clock_override` to photograph the same instant. Off in game.
 static var clock_override: float = -1.0
+## A cleared system's dim tint.
+const CLEARED_TINT := Color("#37424f")
 
 static func clock() -> float:
 	if clock_override >= 0.0:
@@ -1134,7 +1136,7 @@ func _draw_chart() -> void:
 		var p := (screen_pos(node2) - Vector2(6, 6)).round()
 		var tint := MapGen.star_colour(node2)
 		if node2.cleared and node2.type != MapGen.NodeType.CORE:
-			tint = Color("#37424f")
+			tint = CLEARED_TINT
 		# Visited systems stay, dimmed, so lit ones are the dish's sight and the ring its edge.
 		# Not `cleared`'s dead grey: these are real places you might route back through.
 		# Why: docs/why/MapChart.md#remembered-systems

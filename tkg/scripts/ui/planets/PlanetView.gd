@@ -29,6 +29,12 @@ var _mem_win := Rect2i()
 ## what the memory's pass must see each frame as the world on screen sees it
 ## (the light, the clock, the zoom; the rest is copied once, `_mem_setup`)
 const MEM_LIVE := ["time", "light", "k_light", "lift", "flare", "moon_sh", "n_moon_sh", "r", "ctr_off", "rich", "cell", "unlit"]
+## A ring's dust by world, and the default.
+const RING_BANDED := Color("#d8b88a")
+const RING_ICEGIANT := Color("#a8d8e4")
+const RING_STORM := Color("#e0a07a")
+const RING_VIOLET := Color("#c0a0e0")
+const RING_DUST := Color("#b8b0a0")
 
 
 ## Half a ring of dust as the mockup drew it: far half behind, near half in front, shadowed.
@@ -43,7 +49,7 @@ class _Ring extends Node2D:
 		if s.is_empty() or not s.get("ring", false):
 			return
 		var r: float = s.r
-		var col: Color = {&"banded": Color("#d8b88a"), &"icegiant": Color("#a8d8e4"), &"storm": Color("#e0a07a"), &"violet": Color("#c0a0e0")}.get(s.world, Color("#b8b0a0"))
+		var col: Color = {&"banded": RING_BANDED, &"icegiant": RING_ICEGIANT, &"storm": RING_STORM, &"violet": RING_VIOLET}.get(s.world, RING_DUST)
 		var L := view._light
 		for k in 220:
 			var a := float(k) / 220.0 * TAU

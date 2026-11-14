@@ -72,6 +72,9 @@ static var _primed_for: int = -1
 ## Shared by the chart and the sector map (Jon asked for the same height).
 ## Why: docs/why/StarchartScreen.md#toolbar-row
 const BAR_H := 17
+## A danger pip, empty and at its calmest.
+const PIP_EMPTY := Color("#1b2431")
+const PIP_CALM := Color("#5d7a93")
 
 
 ## The toolbar row's whole height as it stands: the row, and on the field its
@@ -1254,7 +1257,7 @@ class MicroGauge extends Control:
 		var y: float = floor((size.y - c.y) * 0.5)
 		for i in cells:
 			var on := i < filled
-			var col := Color("#1b2431")
+			var col := PIP_EMPTY
 			if on:
 				match mode:
 					Mode.FUEL:
@@ -1268,7 +1271,7 @@ class MicroGauge extends Control:
 						# Danger reads warmer the deeper it runs, so the colour
 						# says roughly what the count says before you count it.
 						if i < 3:
-							col = Color("#5d7a93")
+							col = PIP_CALM
 						elif i < 6:
 							col = UITheme.WARN
 						else:

@@ -22,6 +22,10 @@ const TRAIL := 7.0             ## pixels of tracer behind the head
 ## Between the hits of one volley. 0.075 s was under three frames at 30 fps, so a
 ## three-hit card read as one thick shot.
 const HIT_GAP := 0.09
+## The fading ends of a beam and a tracer.
+const BEAM_HALO_FADED := Color("#8a5320")
+const TRACER_TAIL_WARM := Color("#7a4a2c")
+const TRACER_TAIL_COLD := Color("#5d7a93")
 
 class Shot extends RefCounted:
 	var from: Vector2
@@ -308,7 +312,7 @@ func _draw_tracer(s: Shot) -> void:
 	var head := s.from.lerp(s.to, clampf(s.t, 0.0, 1.0))
 	var back := (s.from - s.to).normalized() * TRAIL
 	var tip := UITheme.EMBER if warm else UITheme.ICE
-	var tail := Color("#7a4a2c") if warm else Color("#5d7a93")
+	var tail := TRACER_TAIL_WARM if warm else TRACER_TAIL_COLD
 	for i in int(TRAIL):
 		var p := head + back * (float(i) / TRAIL)
 		draw_rect(Rect2(p.round(), Vector2.ONE), tail if i > 2 else tip, true)
@@ -320,7 +324,7 @@ func _draw_beam(s: Shot) -> void:
 	var span := s.from.distance_to(s.to)
 	var step := (s.to - s.from) / maxf(1.0, span)
 	var core := UITheme.HOT if fade > 0.5 else UITheme.FLARE
-	var halo := UITheme.FLARE if fade > 0.5 else Color("#8a5320")
+	var halo := UITheme.FLARE if fade > 0.5 else BEAM_HALO_FADED
 	var i := 0.0
 	while i < span:
 		var p := (s.from + step * i).round()

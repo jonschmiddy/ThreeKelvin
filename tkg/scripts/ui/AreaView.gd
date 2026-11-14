@@ -26,6 +26,25 @@ var _phase: float = 0.0
 const RING_S := 1.9
 ## 12 Hz, not frame rate: strobes still snap and rings still glide, with far less repainting.
 const REDRAW_HZ := 12.0
+## Colours the pictures draw every frame, named for what they paint.
+const BEACON_RING_VOID := Color("#070a10")
+const STROBE_DARK := Color("#2b4759")
+const ICE_LIGHT := Color("#8ec8e6")
+const DEBRIS_DUST_NEAR := Color("#182430")
+const DEBRIS_DUST_FAR := Color("#22303f")
+const RAIDER_CANOPY := Color("#3a6b8c")
+const RAIDER_CANOPY_GLINT := Color("#cfe8f5")
+const RAIDER_WARNING_LIGHT := Color("#d64a3a")
+const WRECK_TEAR := Color("#05080c")
+const WRECK_PORT := Color("#101922")
+const CORE_SHADOW := Color("#05070c")
+const PULSAR_RING_DIM := Color("#2f4a58")
+const PULSAR_RING := Color("#456878")
+const PULSAR_BEAM_HOT := Color("#bff0ff")
+const PULSAR_BEAM_MID := Color("#5f9ab0")
+const PULSAR_BEAM_FAR := Color("#2c4a5c")
+const PULSAR_CORE := Color("#ffffff")
+const PULSAR_CORE_BAR := Color("#dff6ff")
 var _since_draw: float = 0.0
 
 func _init() -> void:
@@ -202,11 +221,11 @@ func _station(c: Vector2) -> void:
 ## Strobes are the one animation, kept separate so a sprite can keep them over a still station.
 ## Why: docs/why/AreaView.md#station-and-beacon
 func _station_lights(c: Vector2) -> void:
-	var dark := Color("#2b4759")
+	var dark := STROBE_DARK
 	draw_rect(Rect2(c + Vector2(-64, -2), Vector2(3, 3)),
-		dark.lerp(Color("#8ec8e6"), _strobe(2.3, 0.0)), true)
+		dark.lerp(ICE_LIGHT, _strobe(2.3, 0.0)), true)
 	draw_rect(Rect2(c + Vector2(61, -2), Vector2(3, 3)),
-		dark.lerp(Color("#8ec8e6"), _strobe(3.1, 1.4)), true)
+		dark.lerp(ICE_LIGHT, _strobe(3.1, 1.4)), true)
 
 ## Not a sine: a flash after long dark reads as a signalling machine, not a pulsing glow.
 ## Why: docs/why/AreaView.md#station-and-beacon
@@ -231,19 +250,19 @@ func _derelict(c: Vector2) -> void:
 	for i in 6:
 		var dpt: int = [3, 7, 10, 8, 4, 2][i]
 		draw_rect(Rect2(c + Vector2(-21 - dpt, -26 + i * 5),
-			Vector2(dpt + 2, 5)), Color("#05080c"), true)
+			Vector2(dpt + 2, 5)), WRECK_TEAR, true)
 	for i in 7:
 		var dpt2: int = [2, 5, 9, 11, 7, 3, 2][i]
 		draw_rect(Rect2(c + Vector2(13, -11 + i * 5),
-			Vector2(dpt2 + 1, 5)), Color("#05080c"), true)
-	_dither(Rect2(c + Vector2(-22, -24), Vector2(38, 44)), Color("#05080c"), 0.22)
+			Vector2(dpt2 + 1, 5)), WRECK_TEAR, true)
+	_dither(Rect2(c + Vector2(-22, -24), Vector2(38, 44)), WRECK_TEAR, 0.22)
 	# Dead viewports: the same rooms the station lights, unlit.
 	for i in 4:
 		draw_rect(Rect2(c + Vector2(-58 + i * 10, -8), Vector2(4, 3)),
-			Color("#101922"), true)
+			WRECK_PORT, true)
 	for i in 4:
 		draw_rect(Rect2(c + Vector2(20 + i * 11, 4), Vector2(4, 3)),
-			Color("#101922"), true)
+			WRECK_PORT, true)
 	# The pieces that came off it, tumbling away and catching the same light.
 	for raw2 in [[64, -34, 5], [78, -20, 3], [72, 12, 4], [90, 2, 2],
 			[-70, 22, 3], [-84, 8, 2], [58, 30, 3]]:
@@ -271,7 +290,7 @@ func _beacon_rings(c: Vector2, tint: Color) -> void:
 	for i in 5:
 		var k := fposmod(float(i) + _phase, 5.0)
 		var rr := 26.0 + k * 15.0
-		var col := tint.lerp(Color("#070a10"), 0.18 + k * 0.17)
+		var col := tint.lerp(BEACON_RING_VOID, 0.18 + k * 0.17)
 		var step: int = 2 + int(k)
 		var n := int(rr * 2.4)
 		for j in n:
@@ -332,7 +351,7 @@ func _core(c: Vector2) -> void:
 		var t := float(j) / 28.0
 		var hw2 := 15.0 * sqrt(maxf(0.0, 1.0 - (t * 2.0 - 1.0) * (t * 2.0 - 1.0)))
 		draw_rect(Rect2(c + Vector2(-hw2, -14.0 + t * 28.0),
-			Vector2(hw2 * 2.0, 1)), Color("#05070c"), true)
+			Vector2(hw2 * 2.0, 1)), CORE_SHADOW, true)
 
 ## A fight that has already happened, or one about to. Cleared, the sector is
 ## the debris; uncleared, it is one raider holding station and waiting.
@@ -350,7 +369,7 @@ func _battlefield(c: Vector2) -> void:
 					continue
 				var hw := rx * sqrt(k)
 				_dither(Rect2(c + Vector2(-hw, y), Vector2(hw * 2.0, 1)),
-					Color("#182430") if ring == 0 else Color("#22303f"),
+					DEBRIS_DUST_NEAR if ring == 0 else DEBRIS_DUST_FAR,
 					0.28 + float(ring) * 0.1)
 		# Chunks of what used to be a ship, still lit from above and still
 		# drifting apart along the axis it broke on.
@@ -376,9 +395,9 @@ func _battlefield(c: Vector2) -> void:
 			_grey[1], true)
 		draw_rect(Rect2(c + Vector2(-41 + i * 17, -9), Vector2(1, 11)),
 			_grey[4], true)
-	draw_rect(Rect2(c + Vector2(-50, -9), Vector2(16, 5)), Color("#3a6b8c"), true)
-	draw_rect(Rect2(c + Vector2(-50, -9), Vector2(11, 2)), Color("#8ec8e6"), true)
-	draw_rect(Rect2(c + Vector2(-50, -9), Vector2(7, 1)), Color("#cfe8f5"), true)
+	draw_rect(Rect2(c + Vector2(-50, -9), Vector2(16, 5)), RAIDER_CANOPY, true)
+	draw_rect(Rect2(c + Vector2(-50, -9), Vector2(11, 2)), ICE_LIGHT, true)
+	draw_rect(Rect2(c + Vector2(-50, -9), Vector2(7, 1)), RAIDER_CANOPY_GLINT, true)
 	# It has its engines lit and its warning light on. Both are emitted.
 	for i in 10:
 		var t := float(i) / 10.0
@@ -386,7 +405,7 @@ func _battlefield(c: Vector2) -> void:
 		draw_rect(Rect2(c + Vector2(56 + float(i) * 4, -hh * 0.5),
 			Vector2(4, hh)),
 			_heat[5] if t < 0.18 else (_heat[3] if t < 0.5 else _heat[1]), true)
-	draw_rect(Rect2(c + Vector2(-4, -31), Vector2(3, 3)), Color("#d64a3a"), true)
+	draw_rect(Rect2(c + Vector2(-4, -31), Vector2(3, 3)), RAIDER_WARNING_LIGHT, true)
 
 ## A pulsar's star is barely a pixel, so draw the sweeping beam and the remnant round it.
 func _pulsar(c: Vector2) -> void:
@@ -394,8 +413,8 @@ func _pulsar(c: Vector2) -> void:
 		var a := float(i) * 0.242
 		var rr := 26.0 + float(i) * 3.4
 		var p := c + Vector2(cos(a) * rr, sin(a) * rr * 0.5)
-		draw_rect(Rect2(p, Vector2(2, 2)), Color("#2f4a58"), true)
-		draw_rect(Rect2(p, Vector2(2, 1)), Color("#456878"), true)
+		draw_rect(Rect2(p, Vector2(2, 2)), PULSAR_RING_DIM, true)
+		draw_rect(Rect2(p, Vector2(2, 1)), PULSAR_RING, true)
 	for raw in [-1.0, 1.0]:
 		var side := float(raw)
 		for i in 22:
@@ -403,10 +422,10 @@ func _pulsar(c: Vector2) -> void:
 			var spread := 2.0 + t * 16.0
 			for j in int(spread * 0.6):
 				var off := (float(j) / maxf(1.0, spread * 0.6) - 0.5) * spread
-				var col := Color("#bff0ff") if t < 0.35 else Color("#5f9ab0")
+				var col := PULSAR_BEAM_HOT if t < 0.35 else PULSAR_BEAM_MID
 				if t > 0.7:
-					col = Color("#2c4a5c")
+					col = PULSAR_BEAM_FAR
 				draw_rect(Rect2(c + Vector2(side * (10.0 + t * 74.0),
 					off - 12.0 * side * t), Vector2.ONE), col, true)
-	draw_rect(Rect2(c - Vector2(2, 2), Vector2(4, 4)), Color("#ffffff"), true)
-	draw_rect(Rect2(c - Vector2(4, 1), Vector2(8, 2)), Color("#dff6ff"), true)
+	draw_rect(Rect2(c - Vector2(2, 2), Vector2(4, 4)), PULSAR_CORE, true)
+	draw_rect(Rect2(c - Vector2(4, 1), Vector2(8, 2)), PULSAR_CORE_BAR, true)

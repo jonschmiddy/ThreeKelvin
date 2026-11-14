@@ -20,6 +20,15 @@ const HUES := {
 	World.CINDER:  [0.03, 0.03, 0.30, 0.26],
 	World.BANDED:  [0.00, 1.00, 0.34, 0.58],  ## hue rolled free; giants are anything
 }
+## The far sky's stars, sun, rocks and haze.
+const STAR_DIM := Color("#232d39")
+const STAR_MID := Color("#4d5f73")
+const STAR_BLUE := Color("#9fc0e0")
+const SUN_PINPOINT := Color("#e8f4ff")
+const ROCK_LIT := Color("#39485a")
+const ROCK_DARK := Color("#28323f")
+const CORE_HAZE_COOL := Color("#5f6f9a")
+const CORE_DUST_DIM := Color("#3b4a5c")
 
 ## A held object, as `_surface()` runs tens of thousands of times and a long arg list misorders.
 class Recipe extends RefCounted:
@@ -523,12 +532,12 @@ func _stars(r: RandomNumberGenerator) -> void:
 		var c: Color
 		var w := 1.0
 		if t < 0.72:
-			c = Color("#232d39")
+			c = STAR_DIM
 		elif t < 0.94:
-			c = Color("#4d5f73")
+			c = STAR_MID
 		else:
 			# Near layer only: a blue-white star reads nearer, but tinting all tints the screen.
-			c = _star_tint if r.randf() < 0.5 else Color("#9fc0e0")
+			c = _star_tint if r.randf() < 0.5 else STAR_BLUE
 			w = 2.0
 		draw_rect(Rect2(Vector2(x, y), Vector2(w, w)), c, true)
 
@@ -545,7 +554,7 @@ func _far_sun(r: RandomNumberGenerator) -> void:
 			Color(glow.r, glow.g, glow.b, a), true)
 	draw_rect(Rect2(at - Vector2(6, 0), Vector2(12, 1)), Color(glow.r, glow.g, glow.b, 0.35), true)
 	draw_rect(Rect2(at - Vector2(0, 6), Vector2(1, 12)), Color(glow.r, glow.g, glow.b, 0.35), true)
-	draw_rect(Rect2(at - Vector2(1.5, 1.5), Vector2(3, 3)), Color("#e8f4ff"), true)
+	draw_rect(Rect2(at - Vector2(1.5, 1.5), Vector2(3, 3)), SUN_PINPOINT, true)
 
 func _paint_body() -> void:
 	if _body == null:
@@ -572,7 +581,7 @@ func _asteroids(r: RandomNumberGenerator) -> void:
 		if y < 0.0 or y >= size.y:
 			continue
 		draw_rect(Rect2(Vector2(floorf(x), floorf(y)), Vector2.ONE),
-			Color("#39485a") if r.randf() < 0.3 else Color("#28323f"), true)
+			ROCK_LIT if r.randf() < 0.3 else ROCK_DARK, true)
 	for i in 34:
 		var x2 := r.randf() * size.x
 		var y2 := _belt(x2, lane, slope, spread, r)
@@ -693,7 +702,7 @@ func _core(r: RandomNumberGenerator) -> void:
 	var mid := size.y * r.randf_range(0.35, 0.6)
 	var slope := r.randf_range(-0.18, 0.18)
 	var thick := size.y * r.randf_range(0.16, 0.24)
-	var haze := UITheme.EMBER.lerp(Color("#5f6f9a"), 0.45)
+	var haze := UITheme.EMBER.lerp(CORE_HAZE_COOL, 0.45)
 	for x in int(size.x):
 		var band := mid + (float(x) - size.x * 0.5) * slope
 		for j in int(thick * 2.0):
@@ -711,7 +720,7 @@ func _core(r: RandomNumberGenerator) -> void:
 		var sy := sband + r.randfn(0.0, thick * 0.8)
 		if sy < 0.0 or sy >= size.y:
 			continue
-		var c := Color("#8fa3ba") if r.randf() < 0.22 else Color("#3b4a5c")
+		var c := UITheme.CHILL if r.randf() < 0.22 else CORE_DUST_DIM
 		draw_rect(Rect2(Vector2(floorf(sx), floorf(sy)), Vector2.ONE), c, true)
 	# Dust: along the band rather than across the frame, and broken into runs.
 	# An unbroken line is a scratch on the lens.
