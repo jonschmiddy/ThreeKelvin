@@ -729,7 +729,7 @@ func _local_checks(n: MapGen.MapNode, at: String) -> void:
 			sky.star_k_of(far) * L.star_radius(far) / (sky.star_k_of(lit_want) * L.star_radius(lit_want)), at + " at " + what)
 		if gap <= 0.0:
 			h._fail("%s: LOCAL at %s draws the two suns' discs over each other (%.1f px)" % [at, what, gap])
-		if sky.star_light().is_equal_approx(SystemViewS._lin_top(SystemViewS.STAR_B_COL)) != (lit_want == SystemLayout.STAR_B):
+		if sky.star_light().is_equal_approx(SystemViewS.brightest_to_one(SystemViewS.STAR_B_COL)) != (lit_want == SystemLayout.STAR_B):
 			h._fail("%s: LOCAL at %s lit in the other sun's colour" % [at, what])
 		# THE BUBBLE ROUND THE LIT SUN, clear of every band of distance from it a
 		# body sweeps (`SystemView.bubble_gap`'s bands, which keep 24 px off them)
