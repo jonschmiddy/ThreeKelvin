@@ -2223,6 +2223,24 @@ else
 fi
 }
 
+unit_gatelint() {
+step "The gate script is sound: no unit defined twice, no list or weight naming a missing unit, no dead why-pointer"
+# No baseline: all of it is zero and stays zero (docs/why/gate_lint.md).
+if [ -n "$PY" ]; then
+	if ! "$PY" tools/gate_lint.py --selftest >"$GATE_UNIT_DIR/gatelint.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/gatelint.out" | sed 's/^/        /'
+		bad "gate lint self-test failed: the lint misread its synthetic script (python3 tools/gate_lint.py --selftest)"
+	elif "$PY" tools/gate_lint.py >>"$GATE_UNIT_DIR/gatelint.out" 2>&1; then
+		ok "$(tail -n 1 "$GATE_UNIT_DIR/gatelint.out")"
+	else
+		grep -v 'selftest: PASS' "$GATE_UNIT_DIR/gatelint.out" | head -n 20 | sed 's/^/        /'
+		bad "gate lint: validate.sh has a duplicate unit, a name no unit has, or a dead pointer (python3 tools/gate_lint.py)"
+	fi
+else
+	gate_no_python "the gate lint"
+fi
+}
+
 unit_vocab() {
 step "One word for the thing: manufacturer"
 # One word for the thing: `manufacturer`. Case-insensitive, an underscore is a separator, the exemptions are narrow.
