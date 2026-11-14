@@ -2165,8 +2165,10 @@ step "No new link that breaks the layering, no new call into another class's pri
 # What predates it is in `tools/code_graph_baseline.txt` (docs/why/code_graph.md).
 if [ -n "$PY" ]; then
 	# The self-test first: the extractor must read a tiny synthetic tree exactly, or its verdict on the real one is not trusted.
-	if "$PY" tools/code_graph.py --selftest >"$GATE_UNIT_DIR/codegraph.out" 2>&1 \
-		&& "$PY" tools/code_graph.py >>"$GATE_UNIT_DIR/codegraph.out" 2>&1; then
+	if ! "$PY" tools/code_graph.py --selftest >"$GATE_UNIT_DIR/codegraph.out" 2>&1; then
+		head -n 20 "$GATE_UNIT_DIR/codegraph.out" | sed 's/^/        /'
+		bad "code graph self-test failed: the extractor misread its synthetic tree (python3 tools/code_graph.py --selftest)"
+	elif "$PY" tools/code_graph.py >>"$GATE_UNIT_DIR/codegraph.out" 2>&1; then
 		ok "$(tail -n 1 "$GATE_UNIT_DIR/codegraph.out")"
 	else
 		head -n 20 "$GATE_UNIT_DIR/codegraph.out" | sed 's/^/        /'

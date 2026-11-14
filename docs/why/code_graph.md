@@ -59,6 +59,21 @@ and any name the file declares itself (variable, constant, parameter, loop varia
 enum or enum member), which shadows the class in that file. Loading `res://...gd` and `extends`
 count as well. Scenes and `project.godot` are read for the orphan census; `.godot/` never is.
 
+## What it does not understand yet
+
+The extractor reads one physical line at a time, with scopes per function. These are silently
+unresolved (no edge, never a false accusation):
+
+- a typed lambda parameter, the element type of `Array[T]`, a `preload` constant used as a type,
+  a receiver that starts on a previous line, and narrowing by `is`;
+- inner classes share their file's member scope;
+- a local named like a class hides that class for the whole file in the reference rule, not just
+  in its function.
+
+If these start to matter, the next step is one pass that produces statements and scopes, which
+every later step reads. The 17 baseline keys that rest on the unique-name rule would then become
+their own fact kind.
+
 ## Self-test
 
 `python3 tools/code_graph.py --selftest` builds a small synthetic tree in a temp folder (about
