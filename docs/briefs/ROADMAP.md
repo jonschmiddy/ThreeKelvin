@@ -179,7 +179,7 @@ RunState:  JUMP_RADIUS 0.18   (was derived from local density)
 | `-- shipdrift` | does the ship move when its loadout changes | no |
 | `-- sensordump seed=N kind=N` | real galaxy geometry as JSON | no |
 | `-- fogshot` | what the chart shows, and **why each system is lit** | **yes** |
-| `-- sectorshot [group\|spent\|hover\|open=N\|take=N]` | the drawer in every state it has | **yes** |
+| `-- sectorshot [group\|spent\|open=N\|take=N]` | the drawer in every state it has | **yes** |
 | `-- sectorshot combat ask{hail,flee} [resolve]` | the exit panel, and pressing through it | **yes** |
 | `-- transfertest` · `-- materialtest` | containers and materials, on what is DRAWN | no |
 | `-- chartbench` / `-- zoomshot` | frame cost; zoom ladder + density profile | **yes** |

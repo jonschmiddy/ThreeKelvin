@@ -136,7 +136,7 @@ func _engage() -> void:
 			Run.at = n.index
 	SectorScreen._approached_at = Run.at
 	# parked at the Custodian's own place: it is engaged there and nowhere else
-	SystemMapScreen._parked[Run.at] = {"at": SystemLayout.of(Run.node_at()).core_place()}
+	ParkedShips.spots[Run.at] = {"at": SystemLayout.of(Run.node_at()).core_place()}
 	Router.show_local()
 	await _wait(2.5)
 	_mark("start")

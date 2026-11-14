@@ -2861,7 +2861,7 @@ class _RailTick extends Node:
 func _rail_step(q: float) -> void:
 	if _rail_slide == null or not is_instance_valid(_rail_slide):
 		return
-	_rail_slide.set_k(ZoomLadder._calm_slide_curve(q))
+	_rail_slide.set_k(ZoomLadder.calm_slide_curve(q))
 	if _rail_back != null and is_instance_valid(_rail_back):
 		_rail_back.position.x = _rail_back_x0 + (_rail.position.x - _rail_slide.rest.x)
 

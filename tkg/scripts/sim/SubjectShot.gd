@@ -49,7 +49,7 @@ func _run() -> void:
 		for w in int(Harness.arg("wrecks", "0")):
 			Run.new_wreck(node, DB.enemies[foes[(w * 7 + 3) % foes.size()]])
 		SectorScreen._approached_at = idx
-		SystemMapScreen._parked.erase(idx)
+		ParkedShips.spots.erase(idx)
 		if "atplace" in _args:
 			# Parked at a system the option could roll at, as the map's GO leaves the ship.
 			var o := OptionTable.by_id(oid)
@@ -59,7 +59,7 @@ func _run() -> void:
 			node.near_pulsar = bool(o.get("needs_pulsar", node.near_pulsar))
 			node.in_nebula = bool(o.get("needs_nebula", node.in_nebula))
 			var place := LocalEventDrawer.body_of(node, 0)
-			SystemMapScreen._parked[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+			ParkedShips.spots[idx] = {"at": place, "p": Vector2(900.0, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 		LocalEventDrawer.request(idx, 0)
 		Router.show_local()
 		for i in wait:

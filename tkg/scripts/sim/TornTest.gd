@@ -227,7 +227,7 @@ func _drawn(st: StringName, kind: int) -> void:
 		var n: MapGen.MapNode = raw
 		if n.type == MapGen.NodeType.CORE:
 			continue
-		var sp: Vector2 = chart._screen_pos(n)
+		var sp: Vector2 = chart.screen_pos(n)
 		if not view.has_point(sp):
 			continue
 		if NebulaField.at(n.gal) != null:
@@ -298,7 +298,7 @@ func _drawn(st: StringName, kind: int) -> void:
 			var n: MapGen.MapNode = raw
 			if n.type == MapGen.NodeType.CORE or ChartTorn.gone(n):
 				continue
-			var sp: Vector2 = chart._screen_pos(n)
+			var sp: Vector2 = chart.screen_pos(n)
 			if not view.has_point(sp) or NebulaField.at(n.gal) != null:
 				continue
 			var s := _changed(img, gone_img, sp)
@@ -314,8 +314,8 @@ func _drawn(st: StringName, kind: int) -> void:
 
 ## The giant's bulge on the screen against the chart's marks, words and controls.
 func _clear(tag: String, chart: MapChart) -> void:
-	var core_pt: Vector2 = chart._screen_pos(Run.map[_core_index()])
-	var ze: float = chart.zoom * chart._radius() * MapChart.DISC / ChartSky.K0
+	var core_pt: Vector2 = chart.screen_pos(Run.map[_core_index()])
+	var ze: float = chart.zoom * chart.chart_radius() * MapChart.DISC / ChartSky.K0
 	var kc := 1.0
 	if ChartSky.solid():
 		var w := ChartSky.SOLID_CAM
@@ -339,11 +339,11 @@ func _clear(tag: String, chart: MapChart) -> void:
 		var n: MapGen.MapNode = raw
 		if n.type == MapGen.NodeType.CORE or ChartTorn.gone(n):
 			continue
-		var sp: Vector2 = chart._screen_pos(n)
+		var sp: Vector2 = chart.screen_pos(n)
 		if gbox.intersects(Rect2(sp - Vector2(6, 6), Vector2(12, 12))):
 			hits.append("system %d" % n.index)
 	if Run.hellbender_alive() and Run.hellbender_at < Run.map.size():
-		var hc: Vector2 = chart._screen_pos(Run.map[Run.hellbender_at])
+		var hc: Vector2 = chart.screen_pos(Run.map[Run.hellbender_at])
 		if gbox.intersects(Rect2(hc + Vector2(-46, -24), Vector2(92, 30))):
 			hits.append("THE HELLBENDER")
 	for q: Rect2 in chart.quest_rects:
@@ -427,10 +427,10 @@ func _mark_boxes(chart: MapChart, every := false) -> Array[Rect2]:
 			visible[nd.index] = true
 		if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
 			continue
-		var sp: Vector2 = chart._screen_pos(nd)
+		var sp: Vector2 = chart.screen_pos(nd)
 		if Rect2(Vector2.ZERO, chart.size).has_point(sp):
 			out.append(Rect2(sp - Vector2(6, 6), Vector2(12, 12)))
-	var yp: Vector2 = chart._screen_pos(here)
+	var yp: Vector2 = chart.screen_pos(here)
 	out.append(Rect2(yp - Vector2(17, 17), Vector2(34, 34)))
 	out.append(Rect2(yp + Vector2(-14, 22), Vector2(28, 10)))
 	return out
@@ -519,7 +519,7 @@ func _open(fresh: bool, pan := Vector2.ZERO) -> Dictionary:
 		await get_tree().process_frame
 	scp.dismiss_primer()
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var k: float = chart._radius() * MapChart.DISC
+	var k: float = chart.chart_radius() * MapChart.DISC
 	chart._go_to(0.42 * ChartSky.K0 / k, pan, false)
 	chart._repaint_sky()
 	chart.show_icons = false

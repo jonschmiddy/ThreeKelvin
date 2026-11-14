@@ -732,7 +732,7 @@ Above `static func carry_parked(L: SystemLayout, d: Dictionary, own: float, t: f
 
 ```text
 A PARKED FREE SHIP SETTLED ROUND ONE SUN of a turning pair (`d`, a
-`SystemMapScreen._parked` record), its plane point carried with that sun from
+`ParkedShips.spots` record), its plane point carried with that sun from
 where it stood at map time `own` to where it stands at `t`. LOCAL reads the
 point as it is; the map put it back on its circle round the sun along the
 line to it, so with the clock moved on under it the two disagreed about how

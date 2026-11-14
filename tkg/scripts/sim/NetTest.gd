@@ -2099,8 +2099,8 @@ func _late_join_test() -> void:
 		pt >= 101.5 and pt <= 101.5 + 3.0 + float(Time.get_ticks_msec() - since) / 1000.0)
 	check("and there is none for a system nobody has said one about", late.party_t(13), -1.0)
 	var kept_clock: Dictionary = Run.map_clock.duplicate()
-	var kept_parked: Dictionary = SystemMapScreen._parked.get(12, {})
-	SystemMapScreen._parked.erase(12)
+	var kept_parked: Dictionary = ParkedShips.spots.get(12, {})
+	ParkedShips.spots.erase(12)
 	Run.map_clock[12] = 96.5
 	var took := late.adopt_clock(12)
 	ok("a map 5 s behind opens on the party's clock (%.3f), and keeps it" % took,
@@ -2108,14 +2108,14 @@ func _late_join_test() -> void:
 	Run.map_clock[12] = 500.0
 	check("a map ahead of it keeps its own: never moved back", late.adopt_clock(12), 500.0)
 	Run.map_clock[12] = 96.5
-	SystemMapScreen._parked[12] = {"at": 3, "mode": &"fly"}
+	ParkedShips.spots[12] = {"at": 3, "mode": &"fly"}
 	var took_fly := late.adopt_clock(12)
 	ok("one whose ship was put away on its way takes it too (%.3f): it is put down at its end" % took_fly, took_fly >= 101.5)
 	Run.map_clock[12] = 96.5
-	SystemMapScreen._parked[12] = {"at": -9, "mode": &"free", "p": Vector2(300.0, 40.0), "v": Vector2(0.0, 20.0), "head": 0.0}
+	ParkedShips.spots[12] = {"at": -9, "mode": &"free", "p": Vector2(300.0, 40.0), "v": Vector2(0.0, 20.0), "head": 0.0}
 	check("but not one whose ship was put away coasting free", late.adopt_clock(12), 96.5)
 	Run.map_clock[12] = 96.5
-	SystemMapScreen._parked[12] = {"at": -9, "mode": &"free", "p": Vector2(300.0, 40.0), "v": Vector2(0.0, 20.0), "head": 0.0, "cen": -9, "r": 302.6, "sense": 1.0}
+	ParkedShips.spots[12] = {"at": -9, "mode": &"free", "p": Vector2(300.0, 40.0), "v": Vector2(0.0, 20.0), "head": 0.0, "cen": -9, "r": 302.6, "sense": 1.0}
 	ok("and one settled takes it", late.adopt_clock(12) >= 101.5)
 	check("the rule: behind takes the party's", NetSession.clock_to_open(95.0, 100.25, false), 100.25)
 	check("ahead keeps its own", NetSession.clock_to_open(110.0, 100.25, false), 110.0)
@@ -2166,9 +2166,9 @@ func _late_join_test() -> void:
 	check("and the party's clock with it", late.party_t(12), -1.0)
 	Run.at = kept_at
 	Run.map_clock = kept_clock
-	SystemMapScreen._parked.erase(12)
+	ParkedShips.spots.erase(12)
 	if not kept_parked.is_empty():
-		SystemMapScreen._parked[12] = kept_parked
+		ParkedShips.spots[12] = kept_parked
 	# (this file prints only its failures; the count says the case was seen)
 	print("  twin cases: 2 (a spot in star B's close orbit, relayed to both: %s; one round both suns: %s)" % [
 		"yes" if to_b else "no", "yes" if to_both else "no"])

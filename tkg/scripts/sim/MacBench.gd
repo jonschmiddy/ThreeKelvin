@@ -167,7 +167,7 @@ func _park() -> void:
 	if _giant_body < 0:
 		return
 	var Lo := SystemLayout.of(Run.map[_giant])
-	SystemMapScreen._parked[_giant] = {"at": _giant_body, "p": Vector2(Lo.edge * 1.02, -210.0),
+	ParkedShips.spots[_giant] = {"at": _giant_body, "p": Vector2(Lo.edge * 1.02, -210.0),
 		"v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 
 

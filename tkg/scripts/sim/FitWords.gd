@@ -62,5 +62,4 @@ func run() -> void:
 		print("  %-18s %6.0f %6.0f   %s"
 			% [w, tw, need, ", ".join(fits) if not fits.is_empty() else "none"])
 	print("\n  PileView.W is %d today." % SectorScreen.PileView.W)
-	_ok("measured", true)
-	verdict("fitwords")
+	print("fitwords: measured, nothing judged")

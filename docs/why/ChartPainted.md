@@ -46,7 +46,7 @@ Above `static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, phi: 
 
 ```text
 THE EVENTS AS HELD POSES, pure functions of t (the simplified chart's clocks,
-`ChartSky._supernova` and `_lightning`'s schedules, drawn by hand):
+`ChartSky.supernova_at` and `_lightning`'s schedules, drawn by hand):
   the supernova in four drawn frames (a spark, the full four-point star, a
   shorter one, a fading plus) and its light echo as a ring stepping out every
   1.5 s, in three strengths; a cloud's lightning as a bolt held for 0.35 s and

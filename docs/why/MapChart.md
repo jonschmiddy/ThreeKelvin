@@ -318,7 +318,7 @@ of `screen`.
 
 For anything that draws the sky on a control BIGGER than the view. The
 launcher does: its sky is a square as wide as the screen's diagonal, so
-that rotating it can never sweep a corner into frame. _radius() is derived
+that rotating it can never sweep a corner into frame. chart_radius() is derived
 from the control, so on that square it is nearly twice what it would be on
 the screen, and a zoom picked by eye against the chart put the galaxy at
 about 1.6 screen-widths across — a title screen showing only the core.
@@ -426,7 +426,7 @@ near the hole.
 
 ## Live core radius
 
-Above `return maxf(_radius() * 0.21, _shadow_r() * 5.0)`:
+Above `return maxf(chart_radius() * 0.21, _shadow_r() * 5.0)`:
 
 ```text
 Never smaller than the disc needs: a galaxy that rolled a large hole
@@ -567,7 +567,7 @@ an effective factor of 1, so the sky simply does not move.
 
 ## Pan limit
 
-Above `var ex := _radius() * DISC * zoom`:
+Above `var ex := chart_radius() * DISC * zoom`:
 
 ```text
 THE RIM MAY BE PUSHED TO THE EDGE OF THE VIEW, NOT ONLY TO ITS MIDDLE.

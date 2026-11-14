@@ -271,7 +271,7 @@ func _expect(id: StringName, lid: StringName = &"", words: String = "", reopen: 
 	var got := "%s / card %s" % [Ash.lesson, Hints.card.id if Hints.card != null else &"none"]
 	if not _ok("%s: she says it (got %s)" % [lid, got], up):
 		print("    (%s: seen %s, resting %s, paced %s, subject %s, quiet %.1f, front last %s)" % [id, Hints.seen(id),
-			Hints.resting(id), Hints._pace_ok(id), Hints.probe(id).get("subject", "none"), Hints._quiet, Hints._front_last])
+			Hints.resting(id), Hints.pace_ok(id), Hints.probe(id).get("subject", "none"), Hints._quiet, Hints._front_last])
 		return
 	var want := words if words != "" else AshTutorLines.fill(lid, Hints.values(id))
 	var p := Ash.portrait
@@ -582,7 +582,7 @@ func _gather(cur: Control, v: Rect2) -> Array:
 	# every button and word on the screen, and every control that takes the
 	# mouse (but a backdrop that holds the whole of her view). With loot open
 	# in place, the scene under it takes no click, so only the loot's own count.
-	var tv: TransferView = Hints._transfer(cur as SectorScreen) if cur is SectorScreen else null
+	var tv: TransferView = Hints.visible_transfer(cur as SectorScreen) if cur is SectorScreen else null
 	for c in cur.find_children("*", "Control", true, false):
 		var k := c as Control
 		if k == null or not k.is_visible_in_tree() or k.size.x <= 0.0 or k.size.y <= 0.0:
@@ -992,7 +992,7 @@ func _flow() -> void:
 	sc = await _local()
 	if sc != null and sc._events.page != &"":
 		sc._events.not_now()
-	SystemMapScreen._parked[n.index] = {at = lay.place_of(oi)}
+	ParkedShips.spots[n.index] = {at = lay.place_of(oi)}
 	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
 	wreck.items.append(CreditChit.of(40))
 	Run.sector_jetsam(n).items.append(CreditChit.of(25))
@@ -1026,7 +1026,7 @@ func _flow() -> void:
 	# THE STEP ITSELF, where it is still a thing to do: LOCAL at the edge, the
 	# event still open at its world
 	Hints.mark_seen(&"step_event", false)
-	SystemMapScreen._parked[n.index] = {at = -9}
+	ParkedShips.spots[n.index] = {at = -9}
 	sc = await _local()
 	_ok("LOCAL at the edge opens no event (%s)" % sc._events.page, sc != null and sc._events.page == &"")
 	await _expect_step(&"step_event")
@@ -1554,7 +1554,7 @@ func _plant_quest() -> bool:
 		var m: MapGen.MapNode = raw
 		if m.index == Run.at or m.type != MapGen.NodeType.SYSTEM:
 			continue
-		var c: Vector2 = ch._chart._screen_pos(m)
+		var c: Vector2 = ch._chart.screen_pos(m)
 		if view.has_point(g * c):
 			OptionTable.ensure(m)
 			m.options.append(StringName(ids[0]))

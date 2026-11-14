@@ -130,7 +130,7 @@ func run(tree: SceneTree) -> void:
 					n = _system()
 	print("  %d openings, %d resolutions: %s" % [opened, resolved, kinds])
 	print("  %d outcomes drawn in every look and box-tested, %d renders; what they moved: %s" % [looked / OutcomeRow.LOOKS.size(), looked, _kinds_seen])
-	_ok("every option opened and every choice resolved in all three layouts, and every look said what moved and fit", _fails == 0)
+	_ok("every option opened and every choice resolved in all three layouts, and every look said what moved and fit (%d, %d)" % [opened, resolved], opened > 0 and resolved > 0 and _fails == 0)
 	for k in ["hp-", "credits+", "credits-", "fuel+", "fuel-", "heat+", "part+", "material+", "frame+", "nothing"]:
 		_ok("an outcome that moved %s was among them (%d)" % [k, int(_kinds_seen.get(k, 0))], int(_kinds_seen.get(k, 0)) > 0)
 	await _fuel_gate(holder, n)

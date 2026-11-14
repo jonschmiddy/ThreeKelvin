@@ -134,7 +134,7 @@ func _run() -> void:
 		var Lo := SystemLayout.of(n)
 		for bi in Lo.bodies.size():
 			if (Lo.bodies[bi] as SystemLayout.Body).world != &"":
-				SystemMapScreen._parked[idx] = {"at": bi, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+				ParkedShips.spots[idx] = {"at": bi, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
 				print("cutawayshot: in orbit of body %d" % bi)
 				break
 	if "swaps" in _args:
@@ -219,7 +219,7 @@ func _run() -> void:
 		var pm: ModuleData = Run.installed[0]
 		for sp in cut._mounts.spots():
 			if sp.held == pm:
-				var r := cut._mounts.part_rect(pm, sp.slot, cut._mounts._part_at(sp), cut._mounts._mag())
+				var r := cut._mounts.part_rect(pm, sp.slot, cut._mounts.part_drawn_at(sp), cut._mounts.part_mag())
 				cut._point(cut._mounts.get_global_transform() * r.get_center())
 		cut._mounts.focus(pm)
 	await _frames(12)
@@ -399,7 +399,7 @@ func _yard() -> void:
 		"bobbing" if cut._ship._bob_amp > 0 else "still", cut.fit_note])
 	for sp in cut._mounts.spots():
 		if sp.held != null:
-			var r := cut._mounts.part_rect(sp.held, sp.slot, cut._mounts._part_at(sp), cut._mounts._mag())
+			var r := cut._mounts.part_rect(sp.held, sp.slot, cut._mounts.part_drawn_at(sp), cut._mounts.part_mag())
 			cut._point(cut._mounts.get_global_transform() * r.get_center())
 			break
 	await _frames(12)
@@ -465,7 +465,7 @@ func _report_fit(cut: CutawayView) -> void:
 		var m: ModuleData = s.held
 		if m == null:
 			continue
-		var r := mp.part_rect(m, s.slot, mp._part_at(s), mp._mag())
+		var r := mp.part_rect(m, s.slot, mp.part_drawn_at(s), mp.part_mag())
 		var bottom := (g * r.end).y
 		worst = maxf(worst, bottom)
 		n += 1

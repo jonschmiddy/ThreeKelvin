@@ -93,7 +93,7 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 		chart = op.chart
 		img = op.img
 	var core := chart.centre_px()
-	var gu: float = chart._radius() * MapChart.DISC * chart.zoom
+	var gu: float = chart.chart_radius() * MapChart.DISC * chart.zoom
 	var m := _measure(img0, core, gu)
 	var name := "%s %s" % [GalaxyGen.type_name(Run.galaxy_kind), Run.galaxy_name if kind < 0 else "(forced)"]
 	var ratio: float = maxf(m.down, 0.01) / maxf(m.up, 0.01)
@@ -128,9 +128,9 @@ func _case(st: StringName, seed_v: int, kind: int) -> void:
 				if MapGen.hop_distance(here, mn) > 0.24:
 					continue
 				near += 1
-				if not view.has_point(chart._screen_pos(mn)):
+				if not view.has_point(chart.screen_pos(mn)):
 					out += 1
-			var you_in := view.has_point(chart._screen_pos(here))
+			var you_in := view.has_point(chart.screen_pos(here))
 			var good := you_in and out == 0 and chart.zoom >= REGION_ZOOM
 			if not good:
 				_fails += 1
@@ -265,7 +265,7 @@ func _open(fresh: bool = false) -> Dictionary:
 	scp.dismiss_primer()
 	chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# the chart's opening zoom (ChartLook's `opening`), the core in the middle
-	var k: float = chart._radius() * MapChart.DISC
+	var k: float = chart.chart_radius() * MapChart.DISC
 	chart._go_to(0.42 * ChartSky.K0 / k, Vector2.ZERO, false)
 	chart._repaint_sky()
 	chart.show_icons = false
@@ -289,10 +289,10 @@ func _mark_boxes(chart: MapChart) -> Array[Rect2]:
 		var nd: MapGen.MapNode = raw
 		if not visible.has(nd.index) or nd.type == MapGen.NodeType.CORE:
 			continue
-		var sp: Vector2 = chart._screen_pos(nd)
+		var sp: Vector2 = chart.screen_pos(nd)
 		if Rect2(Vector2.ZERO, chart.size).has_point(sp):
 			out.append(Rect2(sp - Vector2(6, 6), Vector2(12, 12)))
-	var yp: Vector2 = chart._screen_pos(here)
+	var yp: Vector2 = chart.screen_pos(here)
 	out.append(Rect2(yp + Vector2(-14, 22), Vector2(28, 10)))
 	return out
 

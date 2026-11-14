@@ -32,7 +32,7 @@ func run(tree: SceneTree) -> void:
 		# Screen-pixel radii beside the panel: a visible boundary is one landing inside it.
 		print("  zoom %.2f  panel %.0fx%.0f  disc %.0f  core_clear %.0f  shadow %.0f" % [
 			z, chart.size.x, chart.size.y,
-			chart._radius() * MapChart.DISC * z * 1.1,
+			chart.chart_radius() * MapChart.DISC * z * 1.1,
 			chart._core_clear() * z,
 			chart._shadow_r() * z * 1.05])
 		var path := "user://zoom_%03d.png" % int(z * 100.0)

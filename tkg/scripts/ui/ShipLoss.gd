@@ -49,7 +49,7 @@ static func picture(v: ShipView) -> Dictionary:
 static func _lay_parts(img: Image, mp: MountPoints, lo: Vector2, k: float) -> void:
 	# Placed against the hull as it is drawn this frame (the bob moves both).
 	mp.refresh()
-	var mag := mp._mag()
+	var mag := mp.part_mag()
 	var s := maxi(1, int(roundf(mag)))
 	for spot: Dictionary in mp.spots():
 		var m: ModuleData = spot.held

@@ -333,7 +333,7 @@ func _scene_check(what: String, sc: SectorScreen) -> void:
 	for i in n.options.size():
 		if L.place_of(i) == site and site >= -1:
 			here.append(i)
-	var pic: StringName = sc._view._area._place_name()
+	var pic: StringName = sc._view._area.place_name()
 	# NO STAND-IN ON LOCAL (Jon, Oct 21: "I don't want the beacon to show up at
 	# all"): no beacon, derelict or battlefield picked from tags, anywhere
 	if n.type == MapGen.NodeType.SYSTEM:
@@ -440,10 +440,10 @@ func _bar_here(sd: int, label: String) -> void:
 			break
 	if at < -1:
 		return
-	var kept: Dictionary = SystemMapScreen._parked.get(n.index, {})
+	var kept: Dictionary = ParkedShips.spots.get(n.index, {})
 	var last := LocalEventDrawer.last
 	LocalEventDrawer.last = []
-	SystemMapScreen._parked[n.index] = {"at": at, "mode": &"rail"}
+	ParkedShips.spots[n.index] = {"at": at, "mode": &"rail"}
 	# (its event already opened this visit, as after NOT NOW: the bar, not the band)
 	LocalEventDrawer._auto[n.index] = LocalEventDrawer.visit_key(n)
 	Router.show_local()
@@ -459,9 +459,9 @@ func _bar_here(sd: int, label: String) -> void:
 		here > 0 and line.begins_with("%d THING%s HERE" % [here, "" if here == 1 else "S"]))
 	LocalEventDrawer.last = last
 	if kept.is_empty():
-		SystemMapScreen._parked.erase(n.index)
+		ParkedShips.spots.erase(n.index)
 	else:
-		SystemMapScreen._parked[n.index] = kept
+		ParkedShips.spots[n.index] = kept
 	Router.show_local()
 	await _idle()
 
@@ -1076,7 +1076,7 @@ func _reload(sd: int) -> void:
 	Run.hull = null
 	Router.show_launcher()
 	await Harness.frames(_tree, 3)
-	SystemMapScreen._parked = {}
+	ParkedShips.spots = {}
 	Router.continue_run()
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 20000:
@@ -1109,7 +1109,7 @@ func _run() -> void:
 			(raw as MapGen.MapNode).ambush_rolled = true
 			(raw as MapGen.MapNode).ambush_pending = false
 		Run.fuel = 99
-		SystemMapScreen._parked.clear()
+		ParkedShips.spots.clear()
 		# LAUNCHED: a new run opens on LOCAL (`show_chassis_select`'s launched)
 		_label = "s%d_launch" % sd
 		var fl0 := SectorScreen.flyins
