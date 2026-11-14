@@ -102,6 +102,7 @@ func setup() -> void:
 	_stock_up()
 	_inspect()
 	_refresh()
+	add_child(RoomsAhead.new())
 	_nudge_undock.call_deferred()
 
 ## Page order for the harness (`StationShot deck=`); the rail is built from `DECKS`, below.
@@ -621,8 +622,7 @@ func _room_page(room: ShopScene, furniture: Callable, side: TradeCounter.Side,
 	room.room_loaded.connect(on_loaded)
 	outer.add_child(stack)
 	outer.add_child(note)
-	var made: Array[Control] = [Widgets.panel_with(Widgets.pad(outer)), counter]
-	return made
+	return [Widgets.panel_with(Widgets.pad(outer)), counter]
 
 
 ## Placed again whenever the room's art arrives or the hull, and so the frame, may have changed.
