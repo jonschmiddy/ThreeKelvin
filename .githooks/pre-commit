@@ -16,7 +16,7 @@ GIT_DIR=${GIT_DIR:-$(git rev-parse --git-dir 2>/dev/null)}
 
 # Only a commit that touches what the static checks read.
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
-echo "$STAGED" | grep -qE '^(tkg|tools|docs|changes|\.github|music)/' || exit 0
+echo "$STAGED" | grep -qE '^(tkg|tools|docs|changes|\.github|music|relay)/' || exit 0
 
 if ! command -v bash >/dev/null 2>&1; then
 	echo "[pre-commit] bash not found: static checks skipped"; exit 0

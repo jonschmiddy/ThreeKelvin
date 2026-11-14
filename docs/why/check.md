@@ -50,6 +50,6 @@ allowlisted scripts. Do not run them on a branch you have not read. Only the eng
 Runs `tools/dev/check.sh --static --quiet`, which is `GATE_STATIC=1 validate.sh`. It
 looks at the working tree, not the index, so a partly staged commit is judged by what is
 on disk. It does nothing when the commit touches none of `tkg/ tools/ docs/ changes/
-.github/ music/`, skips itself in a rebase, merge or cherry-pick, and lets the commit
+.github/ music/ relay/`, skips itself in a rebase, merge or cherry-pick, and lets the commit
 through (with one line) when python or bash is missing. It never starts Godot; for a new
 script or `class_name` it prints the `--import` reminder instead.
