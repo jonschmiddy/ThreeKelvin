@@ -10,7 +10,7 @@ THE FIGHT LOG, HIDDEN UNTIL YOU ASK FOR IT (Jon, Oct 18, "fightlog:hidden":
 happened each turn of a fight -- your shots, their moves, heat, hull -- under a
 TURN line per turn. It went from the screen with the side rail ("every line
 was a transcript of an animation you had just watched"), and the lines never
-stopped being written (`Combat._log`, `Sig.log_line`); this brings them back
+stopped being written (`Combat.log_line`, `Sig.log_line`); this brings them back
 for whoever wants the transcript, and nobody else.
 
 LOG, a small button at the right end of the band under the HUD, shows and
