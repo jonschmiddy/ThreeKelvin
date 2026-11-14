@@ -1010,24 +1010,11 @@ func show_station() -> void:
 var _open_option := -1
 
 
-## Shares `event_resolved`'s bookkeeping in one function so the two paths cannot drift.
+## Spends one option in place; `event_resolved` holds the bookkeeping.
 ## Why: docs/why/Router.md#option-bookkeeping
 func option_resolved(index: int, result: StringName = &"done") -> void:
 	_open_option = index
 	event_resolved(result)
-
-
-## Ask the party for the option before rolling or paying, or the race loser keeps the loot.
-## Why: docs/why/Router.md#claiming-options
-func claim_open_option() -> bool:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null or _open_option < 0:
-		return false
-	# a signed job's event, or an event quest, is this ship's alone
-	# (`OptionResolve.take`, `OptionTable.is_mine`)
-	if _open_option < n.options.size() and OptionTable.is_mine(n.options[_open_option]):
-		return not n.taken.has(MapGen.OPTION_SITE + _open_option)
-	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
 
 
 func event_resolved(result: StringName = &"done") -> void:
@@ -1470,12 +1457,6 @@ func finish_core_loot() -> void:
 	# the body's step is over: the won run's last save goes with it
 	SaveGame.clear()
 	show_game_over()
-
-func after_event() -> void:
-	if Run.dead:
-		show_game_over()
-		return
-	show_loot_or_map()
 
 ## Salvage is resolved where it was found, not on a screen of its own. The
 ## sector shows what is in the hold and lets you fit or scrap it there.

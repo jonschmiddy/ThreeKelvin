@@ -100,7 +100,7 @@ border was the mistake. `tag_colour` spans a bright cyan for a signal, a
 muted brown for salvage and `LINE` itself for an untagged option, so four
 cards edged in their own tag came out at four different weights and the
 brightest one read as the selected one. It is a uniform frame now, and the
-tag is the flush stripe down the left that `option_card` adds.
+tag is the flush stripe down the left that `plate` adds.
 
 Zero padding, because the stripe has to touch the edge: a PanelContainer
 insets its whole child by the stylebox margins, so the spacing moved to a
@@ -135,20 +135,6 @@ event page, read off what the run already records and nothing else:
          and `by_who` names the partner if it was theirs
   who    a partner claimed it (`Net.taker_name`), `who` their name
 A partner's claim used to stamp RESOLVED, as if you had done it.
-```
-
-## Card height
-
-Inside `option_card()`, above `lead.max_lines_visible = 5`:
-
-```text
-A CEILING, WHICH A LABEL DOES NOT OTHERWISE HAVE. `custom_minimum_size` is
-a floor and an autowrapped label reports its wrapped height as a minimum,
-so a long first sentence in a fifth-width card pushed the whole drawer to
-206 -- past the fixed band, and out of step with the hand band that is
-supposed to match it. `max_lines_visible` is the one thing that actually
-caps a Label, and the ellipsis is what keeps a cut sentence honest: the
-row it replaced clipped mid-word with no mark at all.
 ```
 
 ## Bill rows

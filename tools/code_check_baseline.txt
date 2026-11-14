@@ -573,7 +573,7 @@ file scripts/ui/SectorScreen.gd 4850
 file scripts/ui/ShipBreakup.gd 3639
 file scripts/ui/StationScreen.gd 3115
 file scripts/ui/sysmap/ShipFlight.gd 4386
-file scripts/ui/sysmap/SystemView.gd 3230
+file scripts/ui/sysmap/SystemView.gd 3228
 length scripts/Main.gd::_ready 143
 length scripts/autoload/Database.gd::_seed_modules 453
 length scripts/systems/CardResolver.gd::resolve 139
