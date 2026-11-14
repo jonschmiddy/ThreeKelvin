@@ -33,6 +33,14 @@ in `docs/tests.md`, as a whole word. A flag is matched only after `-- ` because 
 words (`sim`, `fit`, `sky`, `wear`). A harness mentioned in passing in another row counts as named:
 the check cannot tell a row from a sentence, so it asks only that the file is findable by a grep.
 
+Said plainly: "has a row" means the harness's stem or flag appears as a whole word ANYWHERE in
+`docs/tests.md`. A harness named after a common word can therefore count as covered by a sentence that
+happens to use the word (the stem `Fit` is covered by any line that says "fit"; this is why flags are only
+matched after `-- `, but stems are not). That is a weaker rule than "a row runs it", and it was chosen on
+purpose: telling a row's command cell from prose needs a parse of a hand-written table that the check
+would then have to keep in step with it, and a false "uncovered" blocks every commit, so the rule errs
+toward covered. A harness with a common-word name needs its row checked by eye.
+
 ## How a key is formed
 
 `uncovered <Stem>`, `stale-row sheet=<Stem>` or `stale-row <flag>`, `gate-missing ...`. No line

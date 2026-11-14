@@ -7,12 +7,14 @@ Run through the launcher `tools/dev/claude_hooks.sh EVENT` (it finds a working p
   edit-ratchets   PostToolUse on Write|Edit of tkg/scripts/**/*.gd: the four static ratchets, NEW problems only
   stop-nudge      Stop: once per tree state, if code changed and no passing check.sh covers it
   stamp [--tests] record "check.sh passed on this tree" (check.sh calls it after a pass)
+  root-of PATH    print the tree an edited file belongs to if it is the project or one of its worktrees (gdcheck.sh)
   --selftest      every hook against realistic payloads, no Godot (the gate runs it: unit_claudehooks)
 
 The contract each hook relies on, and why each fails open: docs/why/claude_hooks.md.
 Standard library only. Every path below that cannot decide exits 0: a hook must never stop work
 because a tool is missing.
 """
+import hashlib
 import json
 import os
 import re
@@ -768,14 +770,55 @@ def tree_of(path):
     return root, m.group(2)
 
 
+def _real(path):
+    try:
+        return os.path.normcase(os.path.realpath(path))
+    except (OSError, ValueError):
+        return None
+
+
+def _inside(path, root):
+    return path == root or path.startswith(root.rstrip("/\\") + os.sep)
+
+
+def accepted_root(path, project=None):
+    """(root, rel) for an edited file, or (None, None). The root is the file's own tree only when it is the
+    project directory or one of this repository's worktrees (`git worktree list`, read-only, from the project
+    directory), compared after realpath so `..` and symlinks cannot lead anywhere else; a file that is inside
+    the project but not in the tkg/scripts layout gets the project as root and rel None. Anything else is
+    refused: a path in /tmp/x/tkg/scripts must not make us run /tmp/x/tools/*.py."""
+    project = project or os.environ.get("CLAUDE_PROJECT_DIR") or REPO
+    proj = _real(project)
+    if not proj or not path:
+        return None, None
+    drive = re.match(r"^[A-Za-z]:[\\/]", path)
+    full = path if (os.path.isabs(path) or drive) else os.path.join(project, path)
+    allowed = {proj}
+    out = git(project, "worktree", "list", "--porcelain") or ""
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            r = _real(line[9:])
+            if r:
+                allowed.add(r)
+    root, rel = tree_of(full)
+    if root:
+        r = _real(root)
+        if r in allowed and ".." not in rel.split("/") and _inside(_real(os.path.join(root, rel)) or "", r):
+            return r, rel
+    f = _real(full)
+    if f and _inside(f, proj):
+        return proj, None
+    return None, None
+
+
 NOISE = re.compile(r"^(FIXED |SHRANK |run python|[a-z ]+ (check|graph): (PASS|FAIL))")
 
 
-def edit_ratchets(payload):
+def edit_ratchets(payload, project=None):
     ti = payload.get("tool_input") or {}
     path = ti.get("file_path") or (payload.get("tool_response") or {}).get("filePath") or ""
-    root, rel = tree_of(path)
-    if not root:
+    root, rel = accepted_root(path, project)
+    if not root or not rel:
         return 0, "", ""
     tools = [t for t in RATCHETS if os.path.isfile(os.path.join(root, "tools", t + ".py"))]
     if not tools:
@@ -821,46 +864,57 @@ def edit_ratchets(payload):
 
 # ------------------------------------------------------------------ the stamp and the Stop nudge
 
+STATE_VERSION = "v2"
+HASH_CAP = 4 * 1024 * 1024      # a changed file over this is recorded by size and mtime, not read
+
+
+def _file_mark(root, rel):
+    """What identifies a changed or untracked file's content, computed here: nothing is written to git."""
+    f = os.path.join(root, rel)
+    try:
+        if os.path.islink(f):
+            return "link:" + os.readlink(f)
+        st = os.stat(f)
+        if st.st_size > HASH_CAP:
+            return "big:%d:%d" % (st.st_size, st.st_mtime_ns)
+        with open(f, "rb") as fh:
+            return "sha1:" + hashlib.sha1(fh.read()).hexdigest()
+    except OSError:
+        return "gone"
+
+
 def code_state(root, gd=None, with_head=False):
-    """A hash of the content of the code paths in the working tree (tracked or not, ignored files left
-    out), or None. Built with a throwaway copy of the index, so the real index is never touched.
-    with_head=True returns (state, paths that differ from HEAD) from the same four git calls."""
+    """A fingerprint of the code paths in the working tree (ignored files left out), or None. Computed with
+    read-only git calls and no object written: the index entries of the tracked files (`ls-files -s`), plus a
+    content hash (or size and mtime, past HASH_CAP) of each file that differs from the index or is untracked.
+    The old way ran `git add -A` on a copy of the index, which left a loose blob in the real object database
+    for every changed file on every Stop. The string starts with STATE_VERSION, so a stamp from another
+    scheme never matches. with_head=True returns (state, paths that differ from HEAD)."""
     gd = gd or git(root, "rev-parse", "--absolute-git-dir")
     if not gd:
         return None
     paths = [p for p in STATE_PATHS if os.path.isdir(os.path.join(root, p))]
-    fd, tmp = tempfile.mkstemp(prefix="tk-idx-")
-    os.close(fd)
-    try:
-        idx = os.path.join(gd, "index")
-        if os.path.isfile(idx):
-            shutil.copyfile(idx, tmp)
-        else:
-            os.remove(tmp)      # an empty file is not an index; git makes a fresh one
-        env = {"GIT_INDEX_FILE": tmp}
-        if git(root, "add", "-A", "--", *paths, env=env) is None:
-            return None
-        tree = git(root, "write-tree", env=env)
-        if not tree:
-            return None
-        subs = git(root, "rev-parse", *["%s:%s" % (tree, p) for p in paths])
-        if not subs:
-            return None
-        state = subs.replace("\n", ",")
-        if not with_head:
-            return state
-        heads = git(root, "rev-parse", *["HEAD:%s" % p for p in paths])
-        if heads:
-            differ = [p for p, a, b in zip(paths, subs.split("\n"), heads.split("\n")) if a != b]
-        else:   # a path missing at HEAD fails the call: ask status instead
-            st = git(root, "status", "--porcelain", "--", *paths) or ""
-            differ = sorted(set(l[3:].strip('"').split("/")[0] for l in st.splitlines()))
-        return state, differ
-    finally:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+    if not paths:
+        return None
+    staged = git(root, "--no-optional-locks", "ls-files", "-s", "--", *paths)
+    changed = git(root, "--no-optional-locks", "ls-files", "-z", "-m", "-o", "--exclude-standard", "--", *paths)
+    if staged is None or changed is None:
+        return None
+    files = sorted(set(f for f in changed.split("\0") if f))
+    h = hashlib.sha1()
+    h.update(staged.encode("utf-8", "replace"))
+    for f in files:
+        h.update(("\n%s\0%s" % (f, _file_mark(root, f))).encode("utf-8", "replace"))
+    state = "%s:%s" % (STATE_VERSION, h.hexdigest())
+    if not with_head:
+        return state
+    cached = git(root, "--no-optional-locks", "diff", "--cached", "--name-only", "-z", "HEAD", "--", *paths)
+    if cached is None:      # no HEAD yet: everything tracked is new
+        names = [l.split("\t", 1)[1] for l in staged.splitlines() if "\t" in l]
+    else:
+        names = [f for f in cached.split("\0") if f]
+    tops = set(f.split("/")[0] for f in names + files)
+    return state, [p for p in paths if p in tops]
 
 
 def write_stamp(root, tests):
@@ -1086,7 +1140,7 @@ def _edit_tests(tmp, check):
         with open(f, "w") as fh:
             fh.write(text)
         code, out, err = edit_ratchets({"hook_event_name": "PostToolUse", "tool_name": "Edit", "cwd": tree,
-                                        "tool_input": {"file_path": f}, "tool_response": {"filePath": f}})
+                                        "tool_input": {"file_path": f}, "tool_response": {"filePath": f}}, tree)
         check("edit  %s" % name, code == want_code and all(w in err for w in words)
               and "FIXED" not in err and "SHRANK" not in err, "exit %d: %s" % (code, err[:300]))
         os.remove(f)
@@ -1101,17 +1155,39 @@ def _edit_tests(tmp, check):
     os.remove(os.path.join(tree, "tkg", "scripts", "ui", "Pane.gd"))
     edit("tkg/scripts/systems/Planted.gd", PLANT_CLEAN, "a clean file is silent", 0, [])
     for other in ("tkg/project.godot", "docs/why/x.md", "tools/code_check.py"):
-        code, out, err = edit_ratchets({"tool_input": {"file_path": os.path.join(tree, other)}})
+        code, out, err = edit_ratchets({"tool_input": {"file_path": os.path.join(tree, other)}}, tree)
         check("edit  not a tkg/scripts .gd (%s) is silent" % other, code == 0 and not err)
-    code, out, err = edit_ratchets({"tool_input": {"file_path": os.path.join(tmp, "nowhere", "tkg", "scripts", "A.gd")}})
+    nowhere = os.path.join(tmp, "nowhere")
+    os.makedirs(os.path.join(nowhere, "tkg", "scripts"))
+    code, out, err = edit_ratchets({"tool_input": {"file_path": os.path.join(nowhere, "tkg", "scripts", "A.gd")}}, nowhere)
     check("edit  no ratchet tools present: fails open", code == 0)
+    # a root that is neither the project nor one of its worktrees is refused: its tools are never run
+    evil = os.path.join(tmp, "evil")
+    os.makedirs(os.path.join(evil, "tools"))
+    os.makedirs(os.path.join(evil, "tkg", "scripts"))
+    mark = os.path.join(evil, "ran.txt")
+    for t in RATCHETS:
+        with open(os.path.join(evil, "tools", t + ".py"), "w") as fh:
+            fh.write("open(%r, 'w').write('ran')\nprint('PLANTED problem')\nraise SystemExit(1)\n" % mark)
+    ef = os.path.join(evil, "tkg", "scripts", "a.gd")
+    for label, path in (("a layout-mimicking path under another directory", ef),
+                        ("a path whose .. escapes the project", os.path.join(tree, "tkg", "..", "..", "evil", "tkg", "scripts", "a.gd")),
+                        ("a path with .. after the layout", os.path.join(tree, "tkg", "scripts", "..", "..", "..", "evil", "x.gd"))):
+        code, out, err = edit_ratchets({"tool_input": {"file_path": path}}, tree)
+        check("edit  refused: %s" % label, code == 0 and not err and not os.path.exists(mark), "exit %d: %s" % (code, err[:200]))
+    check("edit  refused: the same path is refused by root-of",
+          accepted_root(ef, tree) == (None, None))
+    check("edit  a Windows-style path does not crash and is refused",
+          accepted_root("C:\\Users\\jon\\x\\tkg\\scripts\\A.gd", tree) == (None, None)
+          and accepted_root("\\\\server\\share\\tkg\\scripts\\A.gd", tree)[1] is None)
+    check("edit  accepted: the project's own tree", accepted_root(os.path.join(tree, "tkg", "scripts", "systems", "A.gd"), tree)[0] == _real(tree))
     # a tool that crashes must not block
     with open(os.path.join(tree, "tools", "frame_check.py"), "w") as fh:
         fh.write("raise SystemExit(7)\n")
     f = os.path.join(tree, "tkg", "scripts", "systems", "Planted.gd")
     with open(f, "w") as fh:
         fh.write(PLANT_CLEAN)
-    code, out, err = edit_ratchets({"tool_input": {"file_path": f}})
+    code, out, err = edit_ratchets({"tool_input": {"file_path": f}}, tree)
     check("edit  a crashing ratchet fails open with one line", code == 0 and "frame_check crashed" in err)
     return time.time() - t0
 
@@ -1119,6 +1195,9 @@ def _edit_tests(tmp, check):
 def _stop_tests(wt, tmp, check):
     """The Stop nudge and the stamp, in a temp repo of its own (a git call costs 40 ms here, so it runs beside the others)."""
     _run(["git", "init", "-q", "-b", "main"], wt)
+    top = git(wt, "rev-parse", "--show-toplevel")      # never go on in someone else's repository
+    if not top or os.path.realpath(top) != os.path.realpath(wt):
+        raise RuntimeError("selftest stop: %s is not its own repository (%s)" % (wt, top))
     # 3. the Stop nudge and the stamp, in the temp worktree
     os.makedirs(os.path.join(wt, "tools", "dev"))
     os.makedirs(os.path.join(wt, "tkg", "scripts"))
@@ -1146,8 +1225,79 @@ def _stop_tests(wt, tmp, check):
     write_stamp(wt, False)
     code, out, err = stop()
     check("stop  a check without --tests does not cover tkg changes", code == 0 and "check.sh --tests" in out)
-    code, out, err = stop_nudge({"cwd": tmp})
-    check("stop  not a git repo: silent", code == 0 and not out)
+    # the state is computed without writing a single object into the object database
+    def loose():
+        return sum(len(fs) for _d, _ds, fs in os.walk(os.path.join(wt, ".git", "objects")))
+    with open(os.path.join(wt, "tools", "big.bin"), "wb") as fh:
+        fh.write(b"x" * (1024 * 1024))
+    before = loose()
+    s1 = code_state(wt)
+    for _ in range(5):
+        stop()
+    check("stop  the state is computed without writing git objects (a 1 MB untracked file present)",
+          loose() == before and s1 and s1.startswith(STATE_VERSION + ":"), "%d -> %d" % (before, loose()))
+    with open(os.path.join(wt, "tools", "big.bin"), "ab") as fh:
+        fh.write(b"y")
+    check("stop  a changed untracked file changes the state", code_state(wt) != s1)
+    with open(os.path.join(wt, "tools", "huge.bin"), "wb") as fh:
+        fh.truncate(HASH_CAP + 1)
+    s2 = code_state(wt)
+    os.utime(os.path.join(wt, "tools", "huge.bin"), (1, 1))
+    check("stop  a file over the size cap is recorded by size and mtime, not read", s2 and code_state(wt) != s2)
+    os.remove(os.path.join(wt, "tools", "huge.bin"))
+    os.remove(os.path.join(wt, "tools", "big.bin"))
+    write_stamp(wt, True)
+    with open(os.path.join(wt, ".git", "tk-check-ok")) as fh:
+        stamp_state = fh.readline().strip()
+    with open(os.path.join(wt, ".git", "tk-check-ok"), "w") as fh:
+        fh.write("0123456789abcdef,0123\n1\n")      # an old-format stamp
+    check("stop  a stamp in an old format never matches", read_stamp(os.path.join(wt, ".git"))[0] != stamp_state)
+    # a temp directory inside a repository would resolve to it: only run the case when it is outside any
+    if git(tmp, "rev-parse", "--show-toplevel") is None:
+        code, out, err = stop_nudge({"cwd": tmp})
+        check("stop  not a git repo: silent", code == 0 and not out)
+    else:
+        print("  note  'not a git repo' case skipped: %s is inside a repository (TMPDIR?)" % tmp)
+
+
+def _gdcheck_test(tmp, main, wt, check):
+    """tkg/tools/gdcheck.sh imports the tree that holds the edited file (the project's or a registered worktree's),
+    and quietly does nothing for any other directory. Godot is a stub that notes it ran, so nothing real starts."""
+    bash = shutil.which("bash")
+    if not bash:
+        print("  note  gdcheck.sh cases skipped: no bash on this machine")
+        return
+    evil = os.path.join(tmp, "evil2")
+    for tree, noisy in ((main, False), (wt, True), (evil, True)):
+        d = os.path.join(tree, "tools", "dev")
+        os.makedirs(d, exist_ok=True)
+        os.makedirs(os.path.join(tree, "tkg", "scripts"), exist_ok=True)
+        for name in ("claude_hooks.sh", "claude_hooks.py"):
+            shutil.copy(os.path.join(HERE, name), d)
+        with open(os.path.join(tree, "tkg", "project.godot"), "w") as fh:
+            fh.write("[autoload]\n")
+        with open(os.path.join(d, "env.sh"), "w") as fh:
+            fh.write("GODOT=/bin/sh\n")
+        with open(os.path.join(d, "godot.sh"), "w") as fh:
+            fh.write('echo ran > "$(dirname "$0")/ran.txt"\n%s' % ('echo "SCRIPT ERROR: planted"\n' if noisy else ""))
+    gd = os.path.join(REPO, "tkg", "tools", "gdcheck.sh")
+
+    def run(tree):
+        f = os.path.join(tree, "tkg", "scripts", "A.gd")
+        payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": f}})
+        p = subprocess.run([bash, gd], input=payload.encode(), cwd=main, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                           env=dict(clean_env(), CLAUDE_PROJECT_DIR=main))
+        return p.returncode, p.stderr.decode("utf-8", "replace")
+
+    ran = lambda tree: os.path.exists(os.path.join(tree, "tools", "dev", "ran.txt"))
+    code, err = run(wt)
+    check("gdcheck  an edit in a registered worktree imports THAT tree, not the project's",
+          code == 2 and "planted" in err and ran(wt) and not ran(main), "exit %d: %s" % (code, err[:200]))
+    code, err = run(evil)
+    check("gdcheck  an edit under an unrelated directory is skipped, its scripts never run",
+          code == 0 and not err and not ran(evil), "exit %d: %s" % (code, err[:200]))
+    code, err = run(main)
+    check("gdcheck  an edit in the project itself runs the project's check", code == 0 and ran(main), "exit %d" % code)
 
 
 def selftest():
@@ -1187,6 +1337,13 @@ def selftest():
         # 3. (the Stop nudge runs in its own thread: see _stop_tests)
         code, out, err = bash_guard({})
         check("guard  an empty payload is silent", code == 0 and not out)
+        # a registered worktree is accepted (the main checkout is the project, the worktree another tree)
+        check("edit  accepted: a registered worktree of the project",
+              accepted_root(os.path.join(wt, "tkg", "scripts", "A.gd"), main)[0] == _real(wt))
+        _gdcheck_test(tmp, main, wt, check)
+        pt = _run([sys.executable, os.path.join(HERE, "tests_for.py"), "--selftest"], REPO)
+        check("tests_for  engine flags outside the allowlist are never run", pt.returncode == 0,
+              pt.stdout.decode("utf-8", "replace")[-300:])
         th.join()
         th2.join()
         rows[:0] = edit_rows
@@ -1214,10 +1371,15 @@ def main(argv):
     ev = argv[1] if len(argv) > 1 else ""
     if ev == "--selftest":
         return selftest()
+    if ev == "root-of":
+        root, _rel = accepted_root(argv[2] if len(argv) > 2 else "")
+        if root:
+            sys.stdout.write(root + "\n")
+        return 0
     if ev == "stamp":
         return write_stamp(os.getcwd(), "--tests" in argv)
     if ev not in ("bash-guard", "edit-ratchets", "stop-nudge"):
-        sys.stderr.write("usage: claude_hooks.sh bash-guard|edit-ratchets|stop-nudge|stamp [--tests]|--selftest\n")
+        sys.stderr.write("usage: claude_hooks.sh bash-guard|edit-ratchets|stop-nudge|stamp [--tests]|root-of PATH|--selftest\n")
         return 0
     try:
         payload = read_payload()

@@ -37,6 +37,14 @@ files are listed as "run by hand". A row with `~N min` over three minutes runs o
 `--slow`. A run passes as `run_battery.sh` decides: exit 0, no error line, no failing
 verdict line, and a PASS line (a MEASUREMENT row prints none).
 
+## What `--tests` runs
+
+`check.sh --tests` and `tests_for.py --run` run the checked-out branch's own code: the game, and the four
+allowlisted scripts. Do not run them on a branch you have not read. Only the engine flags `--headless`,
+`--fixed-fps N`, `--disable-vsync`, `--quit-after N`, `--resolution WxH`, `--rendering-driver NAME` and
+`--audio-driver NAME` are passed to Godot from a row; a row with any other flag (`--script`, `--log-file`,
+`--write-movie`) is not run and is listed as "run by hand: engine flag not on the allowlist".
+
 ## pre-commit
 
 Runs `tools/dev/check.sh --static --quiet`, which is `GATE_STATIC=1 validate.sh`. It

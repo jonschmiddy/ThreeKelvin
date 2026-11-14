@@ -40,27 +40,20 @@ if [ -t 0 ]; then
 else
 	payload="$(cat)"
 	file="$(printf '%s' "$payload" | grep -Eo '"(file_path|filePath)"[[:space:]]*:[[:space:]]*"[^"]*\.gd"' | head -n 1 \
-		| sed -E 's/^"[A-Za-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//')"
+		| sed -E 's/^"[A-Za-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//; s/\\\\/\\/g')"
 	[ -n "$file" ] || exit 0   # not GDScript, nothing to compile
 fi
 
 # The tree that holds the edited file is the one to import: a session started in the main checkout that
-# edits ../tk-wt/x/tkg/scripts/A.gd must check x, not itself. Same rule as claude_hooks.py's tree_of():
-# the part before /tkg/scripts/, backslashes read as slashes. No match: keep $CLAUDE_PROJECT_DIR / this tree.
+# edits ../tk-wt/x/tkg/scripts/A.gd must check x, not itself. The rule lives in one place,
+# `claude_hooks.py root-of PATH`: it prints the file's tree only when that is the project directory or one of
+# this repository's registered worktrees (realpath, so `..` and symlinks lead nowhere else), and nothing
+# otherwise. Nothing printed (an unrelated path, or no python: the launcher says nothing) means the file is not
+# ours to check: exit quietly rather than run some other directory's tools.
 if [ "$file" != manual ]; then
-	fnorm="${file//\\//}"
-	case "$fnorm" in
-		*/tkg/scripts/*) froot="${fnorm%%/tkg/scripts/*}"; [ -n "$froot" ] || froot="/" ;;
-		tkg/scripts/*) froot="" ;;
-		*) froot="" ;;
-	esac
-	case "$froot" in
-		[A-Za-z]:) froot="$froot/" ;;
-	esac
-	# On Git Bash a C:/ path works as is; elsewhere it is simply not a directory and the fallback stays.
-	if [ -n "$froot" ] && [ -f "$froot/tkg/project.godot" ] && [ -f "$froot/tools/dev/godot.sh" ]; then
-		ROOT="$froot"
-	fi
+	froot="$(CLAUDE_PROJECT_DIR="$ROOT" bash "$ROOT/tools/dev/claude_hooks.sh" root-of "$file" 2>/dev/null | head -n 1)"
+	[ -n "$froot" ] || exit 0
+	if [ -f "$froot/tkg/project.godot" ] && [ -f "$froot/tools/dev/godot.sh" ]; then ROOT="$froot"; else exit 0; fi
 fi
 
 source "$ROOT/tools/dev/env.sh"

@@ -22,11 +22,24 @@ Fetched 2026-11-13 from https://code.claude.com/docs/en/hooks and https://code.c
 
 ## Why each fails open
 
-A hook that stops work because a tool is missing is worse than no hook. Every path that cannot decide exits 0: no python (the launcher says nothing), no git, a payload it cannot parse, a ratchet that crashes or takes more than 12 s (one line on stderr, which Claude does not see on exit 0, but the debug log does), no Godot found, a Godot that exits with no error text. A bug in a hook shows as `claude_hooks ...: skipped (...)` and the edit or command goes ahead. A guard that blocks wrongly costs an unblocking round trip; a guard that is silent wrongly costs what it was there to stop, so the guard errs toward pass only where it cannot parse.
+A hook that stops work because a tool is missing is worse than no hook. Every path that cannot decide exits 0: no python (the launcher says nothing), no git, a payload it cannot parse, a ratchet that crashes or takes more than 12 s (one line on stderr, which Claude does not see on exit 0, but the debug log does), no Godot found, a Godot that exits with no error text. A bug in a hook shows as `claude_hooks ...: skipped (...)` and the edit or command goes ahead. A guard that blocks wrongly costs an unblocking round trip; a guard that is silent wrongly costs what it was there to stop, so the guard blocks what it can read and, when it cannot read a command with confidence (a quote or `$(` never closed, a heredoc without its end), judges the raw text for the two blocked things: a word that names Godot followed by an option, and a push to main or a merge.
+
+### What the command guard does NOT catch
+
+It is a seat belt for an assistant that means well, not a security boundary. It does not catch:
+
+- a command run on another machine (`ssh host godot ...`, a container, a CI job);
+- a copied or renamed binary (`cp Godot g; ./g --path tkg`, a symlink named something else);
+- a command assembled at run time (`"$(printf 'go%s' dot)" ...`, a variable set from a file or another command, `eval` of a built string, a name read from the environment, indirection that spans more than one command line);
+- a script file that starts Godot itself (`bash myscript.sh` where the script calls `godot`): only the command line is read, never the files it names;
+- a main moved by a route the guard does not list: `git fetch origin x:main`, `git checkout -B main`, `git reset --hard` on main in the main checkout, `git push` through an alias or a wrapper script, a merge through the web page or a tool other than `gh`/`git`;
+- anything in a language other than shell (`python -c "os.system(...)"`).
+
+The guard tests the words of a command, so a message that mentions a blocked thing in a string passes, and an unusual spelling of a blocked thing can too. A session that goes round it on purpose will succeed.
 
 ## Why the Stop reminder is a hook, and why it cannot loop
 
-The documented contract gives three guards, and the reminder uses all of them: it does nothing when `stop_hook_active` is true; it records the tree state it spoke about in `.git/<worktree>/tk-stop-nudged` and does not speak twice for one state (if it cannot write that file it stays silent); and Claude Code stops it itself after 8 continuations in a row. It also never fires when nothing needs it: `tools/dev/check.sh` writes `tk-check-ok` after a full pass (`--tests` marked), holding a hash of the content of `tkg tools .github .githooks .claude` in the working tree (a throwaway copy of the index, so the real one is untouched). The reminder fires only when those paths differ from `HEAD` (or HEAD's commit is under three hours old and touched them), no passing check holds this exact state, and, for a `tkg/` change, the pass was not a `--tests` pass. A note in `changes/` or `docs/` changes no hash. It speaks with `additionalContext`, not `decision: block`: the work continues as guidance, not as an error.
+The documented contract gives three guards, and the reminder uses all of them: it does nothing when `stop_hook_active` is true; it records the tree state it spoke about in `.git/<worktree>/tk-stop-nudged` and does not speak twice for one state (if it cannot write that file it stays silent); and Claude Code stops it itself after 8 continuations in a row. It also never fires when nothing needs it: `tools/dev/check.sh` writes `tk-check-ok` after a full pass (`--tests` marked), holding a versioned fingerprint (`v2:`, so an older stamp never matches) of `tkg tools .github .githooks .claude` in the working tree: the index entries of the tracked files plus a content hash of each changed or untracked file, with a file over 4 MB recorded by size and mtime instead of being read. It is computed with read-only git calls and writes no object (the first version ran `git add -A` on a copy of the index, which left a loose blob in the real object database for every changed file on every Stop). `check.sh` stamps only a run that parsed the scripts (no Godot: no stamp), and marks `--tests` only when the tests ran. The reminder fires only when those paths differ from `HEAD` (or HEAD's commit is under three hours old and touched them), no passing check holds this exact state, and, for a `tkg/` change, the pass was not a `--tests` pass. A note in `changes/` or `docs/` changes no hash. It speaks with `additionalContext`, not `decision: block`: the work continues as guidance, not as an error.
 
 Known gap: a session that commits everything and runs no check is only caught within three hours of the commit, and a clean tree is never nudged. The pre-commit hook and the skill cover that case.
 
@@ -59,6 +72,10 @@ echo '{"tool_input":{"file_path":"'"$PWD"'/tkg/scripts/ui/Hud.gd"}}' | bash tool
 echo '{"cwd":"'"$PWD"'","stop_hook_active":false}' | bash tools/dev/claude_hooks.sh stop-nudge; echo "exit $?"
 echo '{"tool_input":{"file_path":"'"$PWD"'/tkg/scripts/Main.gd"}}' | bash tkg/tools/gdcheck.sh; echo "exit $?"
 ```
+
+## Which tree an edit hook runs in
+
+Both edit hooks (the ratchets and `gdcheck.sh`) take the tree from the edited file's path: the part before `/tkg/scripts/`, so a session started in the main checkout checks the worktree it edits. That root is only accepted when it is the project directory (`$CLAUDE_PROJECT_DIR`) or a worktree `git worktree list` registers for it, compared after `realpath` (so `..` and symlinks lead nowhere else); a file elsewhere inside the project gets the project as its root, and any other path is skipped silently. Otherwise an edit to `/tmp/x/tkg/scripts/a.gd` would run `/tmp/x/tools/code_check.py`. The rule lives in `accepted_root` in `claude_hooks.py`; `gdcheck.sh` asks it through `claude_hooks.sh root-of PATH`. Windows-style paths are normalised and refused if they are not a registered tree; a path with `..` that leaves the tree is refused.
 
 ## What was not tested
 

@@ -366,6 +366,60 @@ def tags(row):
     return ", ".join(t)
 
 
+# The engine flags a row may pass to Godot when this tool runs it. Everything else (`--script`, `--log-file`,
+# `--write-movie`, ...) is not run: a row of docs/tests.md must not be able to point the engine at a file or a script.
+ENGINE_FLAGS = {
+    "--headless": None,
+    "--disable-vsync": None,
+    "--fixed-fps": r"\d+",
+    "--quit-after": r"\d+",
+    "--resolution": r"\d+x\d+",
+    "--rendering-driver": r"[A-Za-z0-9_]+",
+    "--audio-driver": r"[A-Za-z0-9_]+",
+}
+
+
+def bad_flag(cmd):
+    """The first engine flag (or flag value) of a Godot command that is not on the allowlist, or ''."""
+    if cmd.kind != "godot":
+        return ""
+    fl, k = list(cmd.flags), 0
+    while k < len(fl):
+        f = fl[k]
+        if f not in ENGINE_FLAGS:
+            return f
+        pat = ENGINE_FLAGS[f]
+        if pat is not None:
+            if k + 1 >= len(fl) or not re.fullmatch(pat, fl[k + 1]):
+                return " ".join(fl[k:k + 2])
+            k += 1
+        k += 1
+    return ""
+
+
+def selftest():
+    """The engine-flag allowlist: a row's flags before ` -- ` never reach Godot unless listed. Returns problems."""
+    bad = []
+    for text, want in (("--headless --fixed-fps 60 -- sim runs=3", ""), ("--resolution 1920x1080 --disable-vsync -- x", ""),
+                       ("--quit-after 90 --rendering-driver vulkan --audio-driver Dummy -- x", ""),
+                       ("--script res://x.gd -- x", "--script"), ("--log-file /tmp/f -- x", "--log-file"),
+                       ("--write-movie /tmp/f.avi -- x", "--write-movie"), ("--fixed-fps -- x", "--fixed-fps"),
+                       ("--resolution $(id) -- x", "--resolution $(id)"), ("--headless -s foo.gd -- x", "-s")):
+        c = parse_command(text, "")
+        got = bad_flag(c) if c else "unparsed"
+        if got != want:
+            bad.append("flags %r: want %r, got %r" % (text, want, got))
+    row = Row("`--headless --script res://x.gd -- sim`", "headless", 1)
+    row.commands = [parse_command("--headless --script res://x.gd -- sim", "")]
+    if runnable(row) or "engine flag not on the allowlist: --script" not in hand_reason(row):
+        bad.append("a row with --script must be left to hand, with the reason")
+    ok = Row("`--headless --fixed-fps 60 -- sim`", "headless", 1)
+    ok.commands = [parse_command("--headless --fixed-fps 60 -- sim", "")]
+    if not runnable(ok):
+        bad.append("a row with allowlisted flags must run")
+    return bad
+
+
 def runnable(row):
     """The commands of a row this tool will start itself."""
     if row.mode != "headless":
@@ -374,7 +428,7 @@ def runnable(row):
         return []
     out = []
     for c in row.commands:
-        if c.needs_arg or c.kind == "other":
+        if c.needs_arg or c.kind == "other" or bad_flag(c):
             continue
         if c.kind == "script":
             if c.args[0] not in SAFE_SCRIPTS:
@@ -391,6 +445,8 @@ def hand_reason(row):
     if row.mode == "unstated":
         return "the row does not say headless"
     for c in row.commands:
+        if bad_flag(c):
+            return "engine flag not on the allowlist: %s" % bad_flag(c)
         if c.needs_arg:
             return "needs an argument filled in"
         if c.kind != "godot" and c not in runnable(row):
@@ -482,10 +538,17 @@ def main():
     ap.add_argument("--staged", action="store_true", help="only what is staged for the next commit")
     ap.add_argument("--run", action="store_true", help="also run the headless rows")
     ap.add_argument("--list-all", action="store_true", help="list every row as this tool reads it")
+    ap.add_argument("--selftest", action="store_true", help="check the engine-flag allowlist")
     ap.add_argument("--slow", action="store_true", help="also run rows that say they take 3 minutes or more")
     ap.add_argument("--max-secs", type=int, default=0, help="cap on one run's time limit (0: the row's own)")
     a = ap.parse_args()
 
+    if a.selftest:
+        problems = selftest()
+        for b in problems:
+            print("FAIL " + b)
+        print("tests_for selftest: %s" % ("FAIL (%d)" % len(problems) if problems else "PASS"))
+        return 1 if problems else 0
     SLOW[0] = a.slow
     rows = parse_table()
     if a.list_all:
