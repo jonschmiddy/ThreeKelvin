@@ -533,13 +533,14 @@ func _pair_open(pair: Array) -> bool:
 
 
 ## The event is taken on LOCAL (`LocalEventDrawer`), where GO takes you.
-func _place_event(body: int, i: int) -> void:
+func _place_event(_body: int, i: int) -> void:
 	var n: MapGen.MapNode = screen.view.node
 	var o := OptionTable.by_id(n.options[i])
 	_gap(2)
 	_box.add_child(_rich(_tags_bb(o)))
 	_wrap(String(o.get("title", "")).to_upper(), EncounterDrawer.tag_colour(o).lerp(UITheme.ICE, 0.5), UITheme.FS_SMALL)
-	_blurb(EncounterText.first_sentence(String(o.get("body", ""))), UITheme.CHILL if _ship_at(body) else DIM)
+	# No body line here: a body is one sentence now and pushed GO out of the panel;
+	# the title says what it is, and the sentence is on LOCAL a click away (Nov 15).
 	_go_button(i)
 
 
