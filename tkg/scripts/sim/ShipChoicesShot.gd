@@ -1,7 +1,7 @@
 extends Node
 
 ## Stills of the choices on your own ship (`ShipChoices`), at the size you play at:
-## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian]` (needs a window,
+## `-- sheet=ShipChoicesShot out=<dir> [hulls] [ids=a,b] [short=<json>] [custodian] [chart]` (needs a window,
 ## `--resolution 1920x1080`). `short=` swaps in proposed text for the run only, from a file outside the repo.
 ## Why: docs/why/ShipChoices.md#on-your-ship
 
@@ -71,6 +71,8 @@ func _run() -> void:
 		await _hulls(n)
 	elif "custodian" in OS.get_cmdline_user_args():
 		await _custodian()
+	elif "chart" in OS.get_cmdline_user_args():
+		await _chart()
 	else:
 		for k in ids.size():
 			await _steps(k, String(ids[k]))
@@ -211,3 +213,26 @@ func _shorten(path: String) -> void:
 						r.text = said
 						return r
 		print("  shipchoicesshot: short text for %s" % id)
+
+
+## The star chart with the pointer on a nearby star, then on your own system.
+func _chart() -> void:
+	Router.show_starchart()
+	await _secs(2.5)
+	var sc := Router.current as StarchartScreen
+	var ch := sc.get("_chart") as MapChart if sc != null else null
+	if ch == null:
+		print("  shipchoicesshot: no chart")
+		return
+	var here := Run.node_at()
+	var near := here.links[0] if not here.links.is_empty() else here.index
+	for pair: Array in [[near, "7_chart_hover_star"], [here.index, "8_chart_hover_own"]]:
+		var at: Vector2 = ch.get_global_transform() * ch.screen_pos(Run.map[int(pair[0])])
+		var fr := GameShell.instance.get("_frame") as SubViewportContainer
+		var mv := InputEventMouseMotion.new()
+		mv.position = fr.get_global_transform() * (at * float(fr.stretch_shrink))
+		mv.global_position = mv.position
+		_tree.root.push_input(mv)
+		await _secs(0.8)
+		print("  shipchoicesshot: chart hovered %d (wanted %d)" % [ch.hovered, int(pair[0])])
+		_shot(String(pair[1]))
