@@ -80,9 +80,7 @@ func _load_plate(key: StringName) -> void:
 	_lamp_hood = DB.station_sprite(&"lamp", &"hood")
 	_lamp_cone = DB.station_sprite(&"lamp", &"cone")
 	_lamp_pool = DB.station_sprite(&"lamp", &"pool")
-	# ONE WINDOW STYLE PER STATION, off its seed: somebody built this place and
-	# they had a way of making windows. The chamfer is the plain one.
-	var style: StringName = WINDOW_STYLES[absi(hash([place_seed, &"style"])) % WINDOW_STYLES.size()]
+	var style := _window_style()
 	_box_window = _bezel(&"window" if style == &"chamfer" else StringName("window_%s" % style),
 		true, 18.0 if style == &"chamfer" else 24.0)
 	if _box_window == null:
@@ -97,10 +95,7 @@ func _load_plate(key: StringName) -> void:
 			_opening_art[skin] = a
 	_backdrop = null
 	_bd_id = &""
-	var bd: StringName = forced_views.get(&"backdrop", &"")
-	var pool: Array = BACKDROPS.get(dev, BACKDROPS[MapGen.Development.CITY])
-	if bd == &"" and not pool.is_empty():
-		bd = pool[absi(hash([place_seed, &"backdrop"])) % pool.size()]
+	var bd := _pick_backdrop()
 	if bd != &"":
 		_backdrop = DB.station_sprite(&"backdrop", bd)
 		_bd_id = bd
@@ -112,6 +107,59 @@ func _load_plate(key: StringName) -> void:
 	queue_redraw()
 	if _fore != null:
 		_fore.queue_redraw()
+
+
+## ONE WINDOW STYLE PER STATION, off its seed: somebody built this place and
+## they had a way of making windows. The chamfer is the plain one.
+func _window_style() -> StringName:
+	return WINDOW_STYLES[absi(hash([place_seed, &"style"])) % WINDOW_STYLES.size()]
+
+
+## The concourse behind the room: forced by a sheet, or off the seed from the level's pool.
+func _pick_backdrop() -> StringName:
+	var bd: StringName = forced_views.get(&"backdrop", &"")
+	var pool: Array = BACKDROPS.get(dev, BACKDROPS[MapGen.Development.CITY])
+	if bd == &"" and not pool.is_empty():
+		bd = pool[absi(hash([place_seed, &"backdrop"])) % pool.size()]
+	return bd
+
+
+## What `_load_plate` will read, so it can be read ahead a piece a frame (`ShopScene.load_plate_ahead`):
+## a station sprite as [id, layer], a picture as its path, other work as a Callable. Only the speed
+## of the load rides on it; the load reads what it reads either way.
+## Why: docs/why/StationScreen.md#rooms-ahead
+func warm_list() -> Array[Variant]:
+	var id := plate_id()
+	var out: Array[Variant] = [[id, &"wall"], [id, &"trim"], [&"lamp", &"hood"], [&"lamp", &"cone"],
+		[&"lamp", &"pool"], [&"frame", StringName("window_%s" % _window_style())], [&"frame", &"window"],
+		[&"frame", &"ports"], [&"frame", &"door"]]
+	for skin in _hole_runs_keys():
+		out.append([&"opening", skin])
+	var bd := _pick_backdrop()
+	if bd != &"":
+		out.append([&"backdrop", bd])
+	for o in openings(size.x, size.y, size.y - floor_h()):
+		var kind: StringName = o.kind
+		var want: StringName = forced_views.get(kind, &"")
+		if want != &"":
+			out.append([&"view", want])
+		for v in VIEWS.get(&"window" if kind == &"ports" else kind, []):
+			out.append([&"view", v])
+	for p in _cast_picks(bd):
+		if p[0] != "":
+			out.append(_strip_path(p[0]))
+	return out
+
+
+## One piece of `warm_list`, read; what it gives back is held until the plate takes it.
+static func warm_one(item: Variant) -> Resource:
+	if item is Callable:
+		(item as Callable).call()
+		return null
+	if item is Array:
+		return DB.station_sprite(item[0], item[1])
+	var path := String(item)
+	return load(path) if ResourceLoader.exists(path) else null
 
 
 ## What the plate cache is keyed on. The seed is in it because the views are:
@@ -733,15 +781,26 @@ func _pick_strip(tall: float, s: int, flying: bool) -> String:
 ## Everyone walking behind this room, and the drones over them.
 func _build_cast(bd: StringName) -> void:
 	_cast.clear()
+	for p in _cast_picks(bd):
+		if p[0] == "" and not p[3]:
+			_spawn_figure(p[5], p[1], p[2], p[4])
+		else:
+			_spawn(p[0], p[1], p[2], p[3], p[4], p[5])
+
+
+## Who `_build_cast` puts on the concourse, in order, as [strip, feet, seed, flying, depth, tall];
+## a walker with no strip ("") is a drawn figure. Reads no art, so the warm list can ask it too.
+func _cast_picks(bd: StringName) -> Array[Array]:
+	var out: Array[Array] = []
 	_read_walk()
 	if _strips.is_empty():
-		return
+		return out
 	var lines: Variant = _walk_lines.get(String(bd), null)
 	if not (lines is Array):
-		return
+		return out
 	var rows: Array = lines
 	if rows.is_empty():
-		return
+		return out
 	# Distance from people's height, the bench's rule:
 	# half the height is twice as far, half the speed.
 	var near_tall := 0.0
@@ -756,11 +815,7 @@ func _build_cast(bd: StringName) -> void:
 		var n := 1 + absi(hash([place_seed, bd, li])) % 2
 		for k in n:
 			var s := absi(hash([place_seed, bd, li, k]))
-			var nm := _pick_strip(tall, s, false)
-			if nm == "":
-				_spawn_figure(tall, feet, s, depth)
-			else:
-				_spawn(nm, feet, s, false, depth, tall)
+			out.append([_pick_strip(tall, s, false), feet, s, false, depth, tall])
 	# A drone or two over the nearest line, riding above head height.
 	var low := 0.0
 	for row in rows:
@@ -770,8 +825,13 @@ func _build_cast(bd: StringName) -> void:
 	var sk := 2.0 if near_tall >= 120.0 else 1.0
 	for k in 1 + absi(hash([place_seed, bd, &"fly"])) % 2:
 		var s := absi(hash([place_seed, bd, &"fly", k]))
-		var dn := _pick_strip(36.0 * sk, s, true)
-		_spawn(dn, low - FLY_ALT * sk, s, true, 1.0, 36.0 * sk)
+		out.append([_pick_strip(36.0 * sk, s, true), low - FLY_ALT * sk, s, true, 1.0, 36.0 * sk])
+	return out
+
+
+static func _strip_path(nm: String) -> String:
+	var m: Dictionary = _strips.get(nm, {})
+	return "res://art/sprites/station/" + String(m.get("file", "walker_%s.png" % nm))
 
 
 ## A drawn person, for a line no sprite is the right height for.
@@ -797,7 +857,7 @@ func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0, tall :=
 	if nm == "" or not _strips.has(nm):
 		return
 	var m: Dictionary = _strips[nm]
-	var path := "res://art/sprites/station/" + String(m.get("file", "walker_%s.png" % nm))
+	var path := _strip_path(nm)
 	if not ResourceLoader.exists(path):
 		return
 	var tex := load(path) as Texture2D

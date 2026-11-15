@@ -26,7 +26,11 @@ var _sky: SpaceBackdrop = null
 var _sky_for: MapGen.MapNode = null
 
 static var _fleet: Array = []
-static var _fleet_read := false
+## The ships the flyby list names that are not loaded yet; null until it is read.
+static var _fleet_rows: Variant = null
+## The ship the flyby list is part way through: its row, its pictures so far, the ones left.
+static var _fleet_next: Dictionary = {}
+var _view_of := ""
 
 
 ## The Exchange room a station of this level has.
@@ -59,20 +63,33 @@ var _plate_file := ""
 
 func _load_room() -> void:
 	super()
+	for n in _hold_files():
+		if n != "" and not _tex.has(n) and ResourceLoader.exists(ROOMS_DIR + n):
+			_tex[n] = load(ROOMS_DIR + n) as Texture2D
+	_load_view_mask()
+
+
+## The hold's frames and its hook, in the order `_load_room` reads them.
+func _hold_files() -> Array[String]:
 	var names: Array[String] = []
 	for f in _frames().values():
 		names.append(String((f as Dictionary).get("art", "")))
 	names.append(String(((room.get("hold", {}) as Dictionary).get("hook", {}) as Dictionary).get("art", "")))
-	for n in names:
-		if n != "" and not _tex.has(n) and ResourceLoader.exists(ROOMS_DIR + n):
-			_tex[n] = load(ROOMS_DIR + n) as Texture2D
-	# Off disk like the light, NOT imported: its colour is data.
-	_view_tex = null
+	return names
+
+
+## Off disk like the light, NOT imported: its colour is data. Read once per file.
+func _load_view_mask() -> void:
 	var vf := String((room.get("light", {}) as Dictionary).get("view", ""))
+	if vf != "" and vf == _view_of:
+		return
+	_view_of = ""
+	_view_tex = null
 	if vf != "" and FileAccess.file_exists(ROOMS_DIR + vf):
 		var img := Image.new()
 		if img.load_png_from_buffer(FileAccess.get_file_as_bytes(ROOMS_DIR + vf)) == OK:
 			_view_tex = ImageTexture.create_from_image(img)
+			_view_of = vf
 		else:
 			push_warning("exchange: could not read %s" % vf)
 
@@ -172,15 +189,28 @@ func _hang(fr: Rect2, catch_y: float) -> void:
 
 # ----------------------------------------------------------------------- sky
 
-## The sky (the planet's bake, 22 to 47 ms) goes a frame ahead of the rest of the plate, so no one
-## frame carries both; `_choose_view` finds it made. True while there is a step left to take.
+## The sky goes ahead of the rest of the plate, its bake (22 to 47 ms) painted a slice a frame,
+## so no one frame carries it; `_choose_view` finds it made. True while a step was taken.
 ## Why: docs/why/ExchangeScene.md#plate-ahead
-func load_plate_ahead() -> bool:
-	if _plate_key != _plate_cache_key() and not is_visible_in_tree() \
-			and (_sky == null or _sky_for != sky_node):
-		_ensure_sky()
-		return true
-	return super()
+func load_plate_ahead(until_us := 0) -> bool:
+	if _plate_key != _plate_cache_key() and not is_visible_in_tree():
+		if _sky == null or _sky_for != sky_node:
+			_ensure_sky(true)
+			return true
+		if _sky.baking():
+			if not _sky.bake_step(until_us):
+				_sky.bake_later = false
+				_sky_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+			return true
+	return super(until_us)
+
+
+func warm_list() -> Array[Variant]:
+	var out := super()
+	for n in _hold_files():
+		out.append(ROOMS_DIR + n)
+	out.append(_load_view_mask)
+	return out
 
 
 ## The station's sky in place of the concourse the base room picked.
@@ -194,7 +224,8 @@ func _choose_view() -> void:
 	_reflect = false
 
 
-func _ensure_sky() -> void:
+## `later`: the bake is only begun, for `load_plate_ahead` to paint; otherwise it is finished here.
+func _ensure_sky(later := false) -> void:
 	if _sky_vp == null:
 		_sky_vp = SubViewport.new()
 		_sky_vp.size = Vector2i(PANEL)
@@ -214,37 +245,66 @@ func _ensure_sky() -> void:
 	var fr: Variant = room.get("sky_frame", null)
 	_sky.frame_in = Rect2(float(fr[0]), float(fr[1]), float(fr[2]), float(fr[3])) \
 		if fr is Array else Rect2()
+	_sky.bake_later = later
 	if sky_node != null:
 		_sky.setup(sky_node)
+	if not later:
+		_sky.finish_bake()
 	_sky.queue_redraw()
 	# DRAWN ONCE. The sky holds still; the ships going by are drawn over it in
 	# the room, so the picture never has to be made again until the room is.
-	_sky_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	# A bake still being painted ahead renders when its last slice is in.
+	if not _sky.baking():
+		_sky_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 # --------------------------------------------------------------------- ships
 
 static func _fleet_list() -> Array:
-	if not _fleet_read:
-		_fleet_read = true
+	while fleet_ahead():
+		pass
+	return _fleet
+
+
+## More of the flyby list's pictures loaded, in the list's order, until `until_us` (at least one);
+## false once all are. Read once a run of the game, at the first Exchange: 34 ships, 68 pictures,
+## so ahead it goes a picture or two a frame. Why: docs/why/ExchangeScene.md#fleet-ahead
+static func fleet_ahead(until_us := 0) -> bool:
+	if _fleet_rows == null:
+		_fleet_rows = []
 		if FileAccess.file_exists(FLYBY_JSON):
 			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(FLYBY_JSON))
 			if parsed is Dictionary:
-				for s in (parsed as Dictionary).get("ships", []):
-					var d: Dictionary = s
-					var e := {"facing": int(d.get("facing", 1))}
-					for depth in ["far", "near"]:
-						var path := "res://art/sprites/station/flyby/" + String(d.get(depth, ""))
-						if ResourceLoader.exists(path):
-							e[depth] = load(path) as Texture2D
-					if e.has("far") and e.has("near"):
-						_fleet.append(e)
-	return _fleet
+				(_fleet_rows as Array).append_array((parsed as Dictionary).get("ships", []))
+	while true:
+		if _fleet_next.is_empty():
+			var rows: Array = _fleet_rows
+			if rows.is_empty():
+				return false
+			var row: Dictionary = rows.pop_front()
+			_fleet_next = {"row": row, "e": {"facing": int(row.get("facing", 1))}, "left": ["far", "near"]}
+		var d: Dictionary = _fleet_next.row
+		var e: Dictionary = _fleet_next.e
+		var depth: String = (_fleet_next.left as Array).pop_front()
+		var path := "res://art/sprites/station/flyby/" + String(d.get(depth, ""))
+		if ResourceLoader.exists(path):
+			e[depth] = load(path) as Texture2D
+		if (_fleet_next.left as Array).is_empty():
+			if e.has("far") and e.has("near"):
+				_fleet.append(e)
+			_fleet_next = {}
+		if Time.get_ticks_usec() >= until_us:
+			return true
+	return true
 
 
 ## No walkers: nobody is out there.
 func _build_cast(_bd: StringName) -> void:
 	_cast.clear()
+
+
+func _cast_picks(_bd: StringName) -> Array[Array]:
+	return []
 
 
 ## A pass is chosen off its number and the station's seed, so nothing has to be kept.

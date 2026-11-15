@@ -100,6 +100,8 @@ var _tex: Dictionary = {}
 ## kept as bytes for the dust to read and as a texture for the shader.
 var _light_bytes := PackedByteArray()
 var _light_tex: ImageTexture = null
+## The light file decoded into the fields above, so a second ask for the same one is free.
+var _light_of := ""
 var _light_w := 0
 var _light_h := 0
 var _scales: Array = [[8.0, 8.0, 8.0, 8.0], [8.0, 32.0, 1.0, 1.0]]
@@ -204,19 +206,60 @@ func _load_plate(key: StringName) -> void:
 
 
 ## The plate, loaded now rather than on the first draw, for a room that is not on screen: the first
-## ride to it would pay the load inside its first frame. The same call `_draw` defers, so the
-## room ends up as that path leaves it. False if there was nothing to load or it is on screen.
+## ride to it would pay the load inside its first frame. The art it will read is read first, a
+## piece at a time until `until_us` (at least one), then the same call `_draw` defers, so the room
+## ends up as that path leaves it. False if there was nothing to load or it is on screen.
 ## Why: docs/why/ShopScene.md#plate-ahead
-func load_plate_ahead() -> bool:
+func load_plate_ahead(until_us := 0) -> bool:
 	var key := _plate_cache_key()
 	if key == &"" or _plate_key == key or is_visible_in_tree():
+		_warm_held.clear()
+		_warm_todo.clear()
 		return false
+	if _warm_for != key:
+		_warm_for = key
+		_warm_todo = warm_list()
+		_warm_held.clear()
+		return true
+	if not _warm_todo.is_empty():
+		while not _warm_todo.is_empty():
+			_warm_held.append(StationRoom.warm_one(_warm_todo.pop_front()))
+			if Time.get_ticks_usec() >= until_us:
+				break
+		return true
 	_load_plate(key)
+	_warm_held.clear()
 	return true
+
+
+var _warm_for: StringName = &""
+var _warm_todo: Array[Variant] = []
+## Kept until the plate takes them: a texture nobody holds leaves the loader's cache.
+var _warm_held: Array[Resource] = []
+
+
+## The base room's art, then this room's own pictures and its light, in the order the load reads.
+func warm_list() -> Array[Variant]:
+	var out := super()
+	for f in _room_files():
+		out.append(ROOMS_DIR + f)
+	out.append(_load_light)
+	return out
 
 
 func _load_room() -> void:
 	_tex.clear()
+	for f in _room_files():
+		if f == "" or _tex.has(f):
+			continue
+		var path := ROOMS_DIR + f
+		if ResourceLoader.exists(path):
+			_tex[f] = load(path) as Texture2D
+	_load_light()
+
+
+## Every picture the room's data names, in the order `_load_room` reads them.
+func _room_files() -> Array[String]:
 	var files: Array[String] = [_plate_name()]
 	for key in ["rack", "till"]:
 		files.append(String((room.get(key, {}) as Dictionary).get("art", "")))
@@ -235,21 +278,18 @@ func _load_room() -> void:
 		files.append(String(l.glass))
 	for g in room.get("glass", []):
 		files.append(String(g.art))
-	for f in files:
-		if f == "" or _tex.has(f):
-			continue
-		var path := ROOMS_DIR + f
-		if ResourceLoader.exists(path):
-			_tex[f] = load(path) as Texture2D
-	_load_light()
+	return files
 
 
 ## Light PNG decoded straight to bytes, not imported: an import
 ## may alter a transparent pixel's colour, which is data here.
 func _load_light() -> void:
+	var lf: String = (room.get("light", {}) as Dictionary).get("file", "")
+	if lf != "" and lf == _light_of:
+		return
+	_light_of = ""
 	_light_bytes = PackedByteArray()
 	_light_tex = null
-	var lf: String = (room.get("light", {}) as Dictionary).get("file", "")
 	var path := ROOMS_DIR + lf
 	if lf == "" or not FileAccess.file_exists(path):
 		return
@@ -268,6 +308,7 @@ func _load_light() -> void:
 	_scales = doc().get("light_scales", _scales)
 	_light_bytes = img.get_data()
 	_light_tex = ImageTexture.create_from_image(img)
+	_light_of = lf
 
 
 static func _tone_of(bd: StringName) -> Vector3:

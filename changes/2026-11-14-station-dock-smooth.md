@@ -1,0 +1,1 @@
+- **Fixed** — the short stutter about half a second after docking, while the Shipyard moves, and the long frame on your first visit to the Exchange after starting the game: the Promenade and the Exchange now load a little at a time in the background.

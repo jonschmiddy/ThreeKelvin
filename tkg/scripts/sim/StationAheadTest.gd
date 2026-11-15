@@ -1,10 +1,10 @@
 extends Node
 
 ## The Promenade and the Exchange load their art ahead of the first ride (`RoomsAhead`) or on first
-## draw; both must leave the same pages. Per development level: a docking left idle until loaded, and
-## dockings ridden at once, in each order of first visit; every deck visited; both pages dumped whole
-## and compared inside the run (no stored baseline). `-- sheet=StationAheadTest [dev=N] [dump=<dir>]`,
-## with `--fixed-fps 60`. Why: docs/why/StationScreen.md#rooms-ahead
+## draw; both must leave the same pages (sky bytes and walkers too): idle until loaded, ridden at
+## once in each order of first visit, and ridden part way through the load ahead, per level.
+## `-- sheet=StationAheadTest [dev=N] [dump=<dir>]`, with `--fixed-fps 60`.
+## Why: docs/why/StationScreen.md#rooms-ahead
 
 const DECKS: Array[StringName] = [&"services", &"work", &"stock", &"hold", &"bench"]
 
@@ -103,6 +103,12 @@ static func _room(r: ShopScene) -> String:
 	s += "\n    backdrop %s" % _tex(r._backdrop) if not (r._backdrop is ViewportTexture) else "\n    backdrop sky"
 	s += "\n    wall %s trim %s door %s window %s" % [_tex(r._plate_wall), _tex(r._plate_trim),
 		_box(r._box_door), _box(r._box_window)]
+	for c: Dictionary in r._cast:
+		var keys2 := c.keys()
+		keys2.sort()
+		s += "\n    cast"
+		for k2 in keys2:
+			s += " %s=%s" % [k2, _tex(c[k2]) if c[k2] is Texture2D else var_to_str(c[k2])]
 	if r is ExchangeScene:
 		var e := r as ExchangeScene
 		s += "\n    hold_size=%s frame=%s opening=%s view_tex=%s" % [e.hold_size, var_to_str(e.frame_rect()),
@@ -110,6 +116,9 @@ static func _room(r: ShopScene) -> String:
 		if e._sky != null:
 			s += "\n    sky node=%d frame_in=%s size=%s update=%d" % [e._sky_for.index if e._sky_for != null else -1,
 				var_to_str(e._sky.frame_in), var_to_str(e._sky.size), e._sky_vp.render_target_update_mode]
+			s += "\n    sky body %s at=%s px=%d disc=%s/%s baking=%s later=%s" % [_tex(e._sky._body),
+				var_to_str(e._sky._body_at), e._sky._body_px, e._sky._disc_top, e._sky._disc_r, e._sky.baking(),
+				e._sky.bake_later]
 	return s
 
 
@@ -119,6 +128,12 @@ func _dump(st: StationScreen) -> String:
 		out.append("== page %s" % id)
 		_node(st._pages[id], "p", out)
 	return "\n".join(out)
+
+
+## Whether this station's sky bakes a world at all (a sky with no world has nothing to slice).
+func _bakes(st: StationScreen) -> bool:
+	var sky := st._exchange._sky
+	return sky != null and (sky._kind == SpaceBackdrop.Kind.PLANET or sky._kind == SpaceBackdrop.Kind.GIANT)
 
 
 ## Both rooms have what a draw would have loaded for them.
@@ -134,22 +149,50 @@ func _visit_all(st: StationScreen, order: Array[StringName]) -> void:
 	await Harness.frames(_tree, 20)
 
 
-func _one(dev: int, seed0: int, label: String, wait: bool, order: Array[StringName]) -> String:
+## Part way through the load ahead: `part` is "shop" (some of the Promenade's art read, its plate not
+## yet loaded) or "sky" (the Exchange's sky begun and not finished). False if that moment never came.
+func _part_way(st: StationScreen, part: String) -> bool:
+	for n in 400:
+		if part == "shop" and st._shop._warm_for != &"" and not st._shop._warm_held.is_empty() \
+				and st._shop._plate_key == &"":
+			return true
+		if part == "sky" and st._exchange._sky != null and st._exchange._sky.baking():
+			return true
+		await _tree.process_frame
+	return false
+
+
+func _one(dev: int, seed0: int, label: String, wait: bool, order: Array[StringName], part := "") -> String:
+	var fresh_fleet: bool = ExchangeScene._fleet_rows == null
 	var st := await _dock(_station(dev, seed0))
-	if wait:
-		# Idle: the quiet spell, then a step a frame.
+	if part != "":
+		var got := await _part_way(st, part)
+		h._ok("%s dev %d: the ride starts part way through the load ahead (%s)" % [label, dev, part],
+			got or (part == "sky" and not _bakes(st)))
+	elif wait:
+		# Idle: the quiet spell, then a step a frame, the passing ships last.
+		var ra: RoomsAhead = null
+		for c in st.get_children():
+			if c is RoomsAhead:
+				ra = c
 		var n := 0
-		while not _loaded(st) and n < 400:
+		while not (_loaded(st) and ra != null and ra._done) and n < 600:
 			n += 1
 			await _tree.process_frame
 		h._ok("%s dev %d: both rooms loaded ahead, while hidden (%d frames)" % [label, dev, n],
 			(_loaded(st) or Harness.arg("baseline") != "") and not st._shop.is_visible_in_tree() and not st._exchange.is_visible_in_tree())
 		await Harness.frames(_tree, 3)
-		var ra: Variant = null
-		for c in st.get_children():
-			if c is RoomsAhead:
-				ra = c
 		h._ok("%s dev %d: the ahead-load stopped once done" % [label, dev], ra != null and ra._done)
+		h._ok("%s dev %d: the sky's bake finished ahead and it is drawn (update %d)" % [label, dev,
+			st._exchange._sky_vp.render_target_update_mode], not st._exchange._sky.baking()
+			and st._exchange._sky_vp.render_target_update_mode != SubViewport.UPDATE_DISABLED)
+		h._ok("%s dev %d: a sky with a world has its picture baked" % [label, dev],
+			not _bakes(st) or st._exchange._sky._body != null)
+		h._ok("%s dev %d: nothing held once the plates are in" % [label, dev],
+			st._shop._warm_held.is_empty() and st._exchange._warm_held.is_empty())
+		if fresh_fleet:
+			h._ok("%s dev %d: the passing ships were read ahead (%d)" % [label, dev, ExchangeScene._fleet.size()],
+				(ExchangeScene._fleet_rows as Array).is_empty() and ExchangeScene._fleet.size() > 0)
 	else:
 		h._ok("%s dev %d: nothing loaded yet when the ride starts" % [label, dev],
 			st._shop._plate_key == &"" and st._exchange._plate_key == &"" and st._exchange._sky == null)
@@ -176,9 +219,14 @@ func _run() -> void:
 		var ahead_hs := await _one(dev, seed0, "ahead-hold-first", true, hs)
 		var lazy_sh := await _one(dev, seed0, "lazy-stock-first", false, sh)
 		var lazy_hs := await _one(dev, seed0, "lazy-hold-first", false, hs)
+		var mid_shop := await _one(dev, seed0, "mid-shop-stock-first", false, sh, "shop")
+		var mid_sky := await _one(dev, seed0, "mid-sky-hold-first", false, hs, "sky")
 		h._ok("dev %d: the dump is not empty (%d chars)" % [dev, ahead_sh.length()], ahead_sh.length() > 2000)
 		h._ok("dev %d: ahead and lazy leave the same pages (stock first)" % dev, ahead_sh == lazy_sh)
 		h._ok("dev %d: ahead and lazy leave the same pages (hold first)" % dev, ahead_hs == lazy_hs)
 		h._ok("dev %d: the order of first visit changes nothing" % dev, ahead_sh == ahead_hs and lazy_sh == lazy_hs)
+		h._ok("dev %d: a ride part way through the Promenade's art leaves the same pages" % dev, mid_shop == lazy_sh)
+		h._ok("dev %d: a ride part way through the sky's bake leaves the same pages" % dev, mid_sky == lazy_hs)
+
 	h.verdict("stationaheadtest")
 	_tree.quit(h.code())

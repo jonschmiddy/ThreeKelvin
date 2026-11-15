@@ -56,7 +56,24 @@ Above `func load_plate_ahead() -> bool:`:
 
 The Exchange's plate load is the shop's plus its sky: `SpaceBackdrop.setup`
 bakes the planet pixel by pixel, 22 to 47 ms, against ~7 for the rest.
-`ShopScene.load_plate_ahead` runs the load in one frame; here the sky is made
-a frame before it so no one frame carries both. `setup` returns early for the
-node it already has, so `_choose_view`'s `_ensure_sky` then costs only the
-redraw. See `docs/why/StationScreen.md#rooms-ahead`.
+The sky goes first: made with its bake only begun (`_ensure_sky(true)`), then
+painted `SKY_STEP_PX` pixels a frame (`SpaceBackdrop.bake_step`,
+`docs/why/SpaceBackdrop.md#sliced-bake`), its viewport left on `UPDATE_DISABLED`
+until the last slice and set to `UPDATE_ONCE` then. Then the shop's steps: the
+art read ahead a few pieces a frame (`warm_list` adds the hold's frames, its
+hook and the view mask), then the plate. `setup` returns early for the node it
+already has, so `_choose_view`'s `_ensure_sky` then costs only the redraw; an
+ordinary `_ensure_sky` finishes any bake still in slices first. See
+`docs/why/StationScreen.md#rooms-ahead`.
+
+## Fleet ahead
+
+Above `static func fleet_ahead() -> bool:`:
+
+The ships that pass the Exchange's window are 34 rows of `flyby.json`, a far and a near picture
+each: 68 textures, read the first time any Exchange poses its cast, which is inside its first
+`_draw`, on the first frame of the first ride there after the game starts. That was the 76 ms
+first visit to the Exchange after launch (Nov 14, windowed; later dockings 8 ms, since the list is
+static and kept for the life of the game). `RoomsAhead` now reads it a ship a frame once both
+rooms are in; `_fleet_list` reads whatever is left at once, so a ride that comes first is no
+worse than before, and the list is in the file's order either way.

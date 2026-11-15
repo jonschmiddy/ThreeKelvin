@@ -1366,12 +1366,52 @@ that opens the station is frame 0; medians over 4 runs, ms):
   slide has none, and it moves the same 25 to 55 ms into the ride's first frames.
   Rejected.
 
-WHAT IS LEFT: three frames of 11 to 28 ms, 0.6 s after the arrival settles, on a
-still screen. The sky's bake is the one piece that cannot be split without
-reworking `SpaceBackdrop._bake_world` into row slices; left alone, since its
-image must stay byte for byte what it is. A ride that comes before the load
-takes today's way, since the draw's deferred call is still there (the load is
-skipped for a room that is on screen).
+WHAT WAS LEFT (Nov 13): three frames of 11 to 28 ms headless, 0.6 s after the
+arrival settles, on a still screen; windowed (Nov 14, the PC) 67, 35 and 23 ms
+while the Shipyard animated, and a 76 ms frame on the first visit to the Exchange
+after the game starts. Probed per step in a window: the Promenade's plate 67 ms
+(its pictures 24, the base room's sprites 38, nearly all of it `load()` of about
+60 pictures at about a millisecond each, the GPU upload included), the sky's bake
+30, the Exchange's own pictures 15. The 76 ms was none of those: it was the 68
+pictures of the ships that pass the Exchange's window (`ExchangeScene._fleet_list`,
+static, read in the first `_draw` of the first Exchange of a run of the game).
+
+SMALL STEPS, A TIME BUDGET (Nov 14, Jon's sweep 2 ruling 6A). A step now runs
+until `STEP_US` (1 ms) has gone and stops at the next piece, always taking one:
+- the Promenade: its `warm_list` (`StationRoom.warm_list` plus `ShopScene`'s: the
+  station sprites as [id, layer], the room's pictures as paths, the light map's
+  decode as a Callable), a step of its own to build, then read a piece at a time
+  and held (`_warm_held`) so the loader's cache keeps them; then `_load_plate`,
+  which finds every picture cached;
+- the Exchange: its sky made with the bake only begun, the bake painted a row at
+  a time (`SpaceBackdrop.bake_step`, docs/why/SpaceBackdrop.md#sliced-bake), the
+  viewport rendered once the last row is in; then its own warm list and plate;
+- the passing ships, a picture at a time (`ExchangeScene.fleet_ahead`), once a
+  run of the game.
+The list only decides speed: the plate load reads what it reads, and a piece the
+list misses is read where it always was. A time budget makes where the steps fall
+depend on the machine; what they leave does not, which `StationAheadTest` proves
+for rides that come part way through.
+
+MEASURED (`DeckRideBench mode=arrive arrive=ladder runs=5 dev=3`, windowed on the
+hidden desktop, `--disable-vsync --fixed-fps 60`, three runs of each build
+alternated, the PC shared with two other builders' Godot runs):
+- before (6fc2c076): frames 38, 39 and 40 after the call 71 to 77, 36 to 40 and
+  23 to 30 ms (medians of five dockings); the first ride to the Exchange after the
+  game starts 83, 87 and 283 ms (the last under a load spike); frames over 8 ms in
+  the 150 after the call 7 to 13.
+- after (`STEP_US` 2 ms): no frame after the arrival's own first three over 13.4 ms
+  (12.7 to 13.4, about frame 63); the first ride to the Exchange after the game
+  starts 8.0 to 9.1 ms; frames over 8 ms 26 to 30, each a step beside the yard's
+  tick, all under a 60 Hz frame. The arrival's first three frames (the build and
+  the ladder) are the same on both, 220 to 310, 65 to 85 and 48 to 64 ms.
+- with `STEP_US` 1 ms the warm outlasted the bench's wait on the first docking of
+  a run of the game (the 68 ship pictures), and that ride paid the rest, once 49 ms
+  on a loaded machine; 2 ms finishes in time.
+
+A ride that comes before the load takes today's way for whatever is left, since
+the draw's deferred call is still there (the load is skipped for a room that is
+on screen).
 
 SAME STATE, PROVEN (`-- sheet=StationAheadTest`): a hidden page's controls are
 laid out the same, because `StationRoom`'s plate and `ShopScene.openings` do

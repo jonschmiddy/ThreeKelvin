@@ -52,6 +52,25 @@ class Recipe extends RefCounted:
 	var light: Vector3 = Vector3(0.0, 0.0, 1.0)
 
 
+## A world bake between its rolls and its texture: what was rolled, and the next row to paint.
+class BakeJob extends RefCounted:
+	var img: Image
+	var rec: Recipe
+	var w := 0
+	var h := 0
+	var cx := 0
+	var cy := 0
+	var rr := 0
+	var rings := false
+	var tilt := 0.0
+	var ring_in := 0.0
+	var ring_out := 0.0
+	var moon := false
+	var moon_r := 0
+	var moon_at := Vector2.ZERO
+	var row := 0
+
+
 var _index: int = -1
 var _seed: int = 0
 var _kind: int = Kind.DEEP
@@ -78,6 +97,11 @@ var _disc_r := 0.0
 ## Why: docs/why/SpaceBackdrop.md#bake-timing
 var _node: MapGen.MapNode = null
 var _baked_h: float = 0.0
+## True: a bake is only begun, and `bake_step` paints it a slice at a time (the Exchange's sky,
+## loaded ahead while hidden). The picture is the same bytes either way.
+## Why: docs/why/SpaceBackdrop.md#sliced-bake
+var bake_later := false
+var _job: BakeJob = null
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -133,6 +157,7 @@ func setup(n: MapGen.MapNode) -> void:
 
 	_node = n
 	_body = null
+	_job = null
 	_baked_h = 0.0
 	_bake_if_ready()
 	queue_redraw()
@@ -143,9 +168,12 @@ func _bake_if_ready() -> void:
 		return
 	if size.y < 8.0:
 		return
-	if _body != null and absf(size.y - _baked_h) < _baked_h * 0.25:
+	if (_body != null or _job != null) and absf(size.y - _baked_h) < _baked_h * 0.25:
 		return
 	_baked_h = size.y
+	if bake_later:
+		_job = _bake_begin(_node)
+		return
 	_bake_world(_node)
 	queue_redraw()
 
@@ -238,6 +266,40 @@ func _world_class(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 ## Baked not drawn: per-pixel lighting is costly in `_draw`, and an Image orders ring and planet.
 ## Why: docs/why/SpaceBackdrop.md#world-bake
 func _bake_world(n: MapGen.MapNode) -> void:
+	var job := _bake_begin(n)
+	_bake_rows(job, job.h)
+	_bake_end(job)
+
+
+## True while a sliced bake has rows left.
+func baking() -> bool:
+	return _job != null
+
+
+## Paints rows of a sliced bake until `until_us` (at least one); makes the texture after the last.
+## True while rows are left.
+func bake_step(until_us: int) -> bool:
+	if _job == null:
+		return false
+	_bake_rows(_job, 1)
+	while _job.row < _job.h and Time.get_ticks_usec() < until_us:
+		_bake_rows(_job, 1)
+	if _job.row >= _job.h:
+		_bake_end(_job)
+		_job = null
+		queue_redraw()
+	return _job != null
+
+
+## What is left of a sliced bake, painted now.
+func finish_bake() -> void:
+	if _job != null:
+		_bake_rows(_job, _job.h)
+		bake_step(0)
+
+
+## Every roll the world takes, then a blank image of its size.
+func _bake_begin(n: MapGen.MapNode) -> BakeJob:
 	# Own stream salted off the seed, so the world does not change when setup() draws more.
 	var r := RandomNumberGenerator.new()
 	r.seed = _seed ^ 0x5bf03635
@@ -288,12 +350,20 @@ func _bake_world(n: MapGen.MapNode) -> void:
 	if moon:
 		hx = maxf(hx, absf(moon_at.x) + float(moon_r) + 2.0)
 		hy = maxf(hy, absf(moon_at.y) + float(moon_r) + 2.0)
-	var w := int(hx) * 2 + 1
-	var h := int(hy) * 2 + 1
-	var cx := int(hx)
-	var cy := int(hy)
-
-	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var job := BakeJob.new()
+	job.w = int(hx) * 2 + 1
+	job.h = int(hy) * 2 + 1
+	job.cx = int(hx)
+	job.cy = int(hy)
+	job.rr = rr
+	job.rings = rings
+	job.tilt = tilt
+	job.ring_in = ring_in
+	job.ring_out = ring_out
+	job.moon = moon
+	job.moon_r = moon_r
+	job.moon_at = moon_at
+	job.img = Image.create(job.w, job.h, false, Image.FORMAT_RGBA8)
 	var rec := Recipe.new()
 	rec.cls = cls
 	rec.pal = _palette(cls, r)
@@ -321,16 +391,30 @@ func _bake_world(n: MapGen.MapNode) -> void:
 	# Slightly toward the viewer as well as to the side, so the terminator falls
 	# across the visible face instead of exactly down the limb.
 	rec.light = Vector3(_light.x, _light.y, 0.62).normalized()
-	for py in h:
-		for px in w:
-			var dx := float(px - cx)
-			var dy := float(py - cy)
+	job.rec = rec
+	return job
+
+
+## The next `n` rows of the picture, each pixel from its place and the recipe alone.
+func _bake_rows(job: BakeJob, n: int) -> void:
+	var rec := job.rec
+	var rr := job.rr
+	var tilt := job.tilt
+	var ring_in := job.ring_in
+	var ring_out := job.ring_out
+	var moon_r := job.moon_r
+	var moon_at := job.moon_at
+	var end := mini(job.row + n, job.h)
+	for py in range(job.row, end):
+		for px in job.w:
+			var dx := float(px - job.cx)
+			var dy := float(py - job.cy)
 			var col := Color(0, 0, 0, 0)
 			var u := 0.0
-			if rings:
+			if job.rings:
 				u = sqrt((dx / float(rr)) * (dx / float(rr))
 					+ (dy / (float(rr) * tilt)) * (dy / (float(rr) * tilt)))
-			var on_ring: bool = rings and u >= ring_in and u <= ring_out \
+			var on_ring: bool = job.rings and u >= ring_in and u <= ring_out \
 				and _ring_gap(u, ring_in, ring_out, rec.salt)
 			# Back half first, then the sphere over it, then the near half over
 			# both. Three writes, and the occlusion falls out for free.
@@ -349,17 +433,20 @@ func _bake_world(n: MapGen.MapNode) -> void:
 					col.a = minf(1.0, col.a * 2.4)
 			if on_ring and dy >= 0.0:
 				col = _ring_colour(u, ring_in, ring_out, rec)
-			if moon:
+			if job.moon:
 				var mx := (dx - moon_at.x) / float(moon_r)
 				var my := (dy - moon_at.y) / float(moon_r)
 				if mx * mx + my * my <= 1.0:
 					col = _moon_px(mx, my, rec)
 			if col.a > 0.0:
-				img.set_pixel(px, py, col)
+				job.img.set_pixel(px, py, col)
+	job.row = end
 
-	_body = ImageTexture.create_from_image(img)
-	_disc_top = float((cy - rr) * _body_px)
-	_disc_r = float(rr * _body_px)
+
+func _bake_end(job: BakeJob) -> void:
+	_body = ImageTexture.create_from_image(job.img)
+	_disc_top = float((job.cy - job.rr) * _body_px)
+	_disc_r = float(job.rr * _body_px)
 
 ## Where the gaps in a ring are. A solid band reads as a plate; the gaps are the
 ## whole reason a ring looks like billions of separate rocks.

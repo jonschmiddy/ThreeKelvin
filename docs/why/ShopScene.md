@@ -52,5 +52,12 @@ hidden since the screen was built is the first frame of the first ride to it:
 same deferred call made early by `RoomsAhead` (a child of `StationScreen`) while the
 room is hidden, so the room ends up as the draw would have left it and the
 white-texture rule (nothing first touched inside `_draw`) holds as it did. It
-refuses a room that is on screen, whose draw owns the load. The whole reasoning
-and the numbers are in `docs/why/StationScreen.md#rooms-ahead`.
+refuses a room that is on screen, whose draw owns the load. Since Nov 14 the art
+the load will read goes first, `WARM_STEP` pieces a frame (`warm_list`: the base
+room's sprites, this room's pictures, its light map decoded), held in
+`_warm_held` so the loader's cache keeps them, and the plate after, which then
+finds every picture cached. The list only decides speed: `_load_plate` reads
+what it reads either way, and a piece the list missed is read where it always
+was. `_load_light` (and the Exchange's `_load_view_mask`) keep the file they
+decoded and skip a second decode of the same one. The whole reasoning and the
+numbers are in `docs/why/StationScreen.md#rooms-ahead`.

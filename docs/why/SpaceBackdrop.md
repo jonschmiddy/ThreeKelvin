@@ -180,3 +180,19 @@ the glow and the lanes read as one object seen edge-on. The glow is dithered
 rows rather than filled rectangles, because a rectangle of translucent
 colour over a starfield is a user-interface panel whatever colour it is.
 ```
+
+## Sliced bake
+
+Above `var bake_later := false`:
+
+The Exchange's sky is the one world bake made for a room nobody is looking at yet: `RoomsAhead`
+loads the Exchange while the dock is quiet, and the bake alone was 30 to 41 ms of one frame in a
+window (Nov 14, `DeckRideBench mode=arrive`, the PC). With `bake_later` set, `setup` only takes
+the rolls (`_bake_begin`) and `bake_step` paints whole rows, about `SKY_STEP_PX` pixels a frame,
+until `_bake_end` makes the texture. Every pixel is a function of its place and the recipe alone
+(`_surface`, `_halo`, `_ring_colour`, `_moon_px`, `_sieve` take no roll), so the picture is the
+same bytes whichever way it is painted; `StationAheadTest` compares the baked bytes of a sky
+painted ahead with one baked whole, and of one ridden into half painted. Every other caller leaves
+`bake_later` off and bakes whole, as before. A sky whose bake is still in slices is not drawn:
+the Exchange keeps its viewport on `UPDATE_DISABLED` until the last slice, and `finish_bake` (any
+ordinary `_ensure_sky`) paints what is left at once. The texture is never made inside `_draw`.
