@@ -10,7 +10,8 @@ each distance from the world's centre, rolled from the world's seed, as one
 strip of texture `planet_ring.gdshader` draws the ring from and
 `planet.gdshader` reads to lay the ring's shadow across the world.
 
-Three looks, for Jon to pick from (Jon: "can these rings be a bit nicer?
+Three looks, for Jon to pick from (he picked ICY on Oct 3; DUSTY and DARK were retired Nov 14,
+in history at 51d2d5cc) (Jon: "can these rings be a bit nicer?
 they're flat"):
   ICY    -- bright and many-ringed, Saturn's: a faint inner sheet, a broad
             dense ring, a clear dark gap, an outer ring with a thin gap of

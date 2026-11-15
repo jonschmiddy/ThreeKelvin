@@ -1,10 +1,10 @@
 extends Node
 
-## Photographs a ringed world in every ring look (Jon: rings were flat); needs a window.
+## Photographs a ringed world's rings (ICY, Jon's pick; the other looks retired Nov 14); needs a window.
 ## Why: docs/why/RingSheet.md#ring-sheet
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
-const NAMES := ["dots", "A", "B", "C"]
+const NAMES := ["A"]
 const ZOOMS := [1.0, 2.0, 4.0]
 ## The picture kept round the world at each zoom, in game pixels.
 const TILE := {1.0: Vector2i(120, 64), 2.0: Vector2i(220, 104), 4.0: Vector2i(400, 180)}
@@ -64,7 +64,6 @@ func _ready() -> void:
 	var B: SystemLayout.Body = view.layout.bodies[bi]
 	print("  ringsheet: system %d, body %d, %s, r %.1f" % [n.index, bi, B.world, B.r])
 	for look in NAMES.size():
-		PlanetView.ring_style = look
 		for z: float in ZOOMS:
 			var p: Vector2 = B.pos(view.t)
 			scr._zoom_to = z
@@ -100,9 +99,9 @@ func _ready() -> void:
 	var solo: Array[Node2D] = []
 	for row in 2:
 		for look in NAMES.size():
-			PlanetView.ring_style = look
 			var pv2: Node2D = Worlds.view_for(B.world)
-			pv2.position = Vector2(100 + look * 160, 100 + row * 120)
+			# (x 260: where ICY stood when the sheet drew four looks in a row)
+			pv2.position = Vector2(260 + look * 160, 100 + row * 120)
 			layer.add_child(pv2)
 			pv2.call("set_world", B.world, B.seed, 22.0)
 			solo.append(pv2)
@@ -115,7 +114,6 @@ func _ready() -> void:
 	for look in NAMES.size():
 		_crop(img2, solo[look].position, Vector2i(130, 70)).save_png("%s/%s_cell1.png" % [out, NAMES[look]])
 		_crop(img2, solo[look + NAMES.size()].position, Vector2i(130, 70)).save_png("%s/%s_dark.png" % [out, NAMES[look]])
-	PlanetView.ring_style = Rings.Look.ICY
 	print("  ringsheet: to %s" % out)
 	get_tree().quit()
 

@@ -2,14 +2,14 @@ The reasoning behind `tkg/scripts/ui/planets/PlanetView.gd`, moved out of the co
 
 ## Ring look
 
-Above `static var ring_style := Rings.Look.ICY`:
+Above `static var ring_style := Rings.Look.ICY` (retired with the other looks Nov 14, sweep 2 ruling 5A; in history at 51d2d5cc):
 
 ```text
 WHICH RINGS (`Rings.Look`): ICY, Jon's pick of three (2026-10-03, "A is the
 best rings") -- a broad bright ring with ringlets and a clear gap, painted per
 pixel by `planet_ring.gdshader` with its shadow on the world. DUSTY and DARK
 were the other two; DOTS is the ring as it was, half a ring of dots. Set
-before a world is drawn (`set_world`); the harnesses take `ring=A|B|C|DOTS`.
+before a world is drawn (`set_world`); the harnesses took `ring=A|B|C|DOTS`.
 ```
 
 ## Memory clip

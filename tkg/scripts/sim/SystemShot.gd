@@ -267,8 +267,6 @@ func _ready() -> void:
 	bake.no_dust = off == "dust"
 	# `plain`: small worlds without the richer drawing, for comparing
 	PlanetView.no_rich = "plain" in OS.get_cmdline_user_args()
-	# `ring=A|B|C`: the painted rings Jon is choosing between, not the dots
-	PlanetView.ring_style = Rings.look_from_args()
 	# `small`: worlds at their laid-out size, not the 10 px minimum; `noship`: the ship left at the edge
 	_system_view().min_r = 0.0 if "small" in OS.get_cmdline_user_args() else 10.0
 	var scr: Control = ScreenS.new()

@@ -9,7 +9,7 @@ THE CODED ENGINE FLAME BESIDE TODAY'S, for Jon to pick a look (Oct 13).
   godot --path . --windowed --position 3840,0 -- sheet=ThrusterSheet out=<dir>
       [ships=hull_light_s,...,ship_armedtrader,...] [frames=150]
 One film per ship, at the game's own pixel size (1x), each frame a grid:
-columns TODAY | A OVERLOAD | B DRIVE | C SPILL (ThrusterFx.Look), rows IDLE,
+columns TODAY | A OVERLOAD (ThrusterFx.Look; B DRIVE and C SPILL retired Nov 14), rows IDLE,
 CRUISE, FULL (ThrusterFx.Thrust). TODAY on a player hull is what the game
 shows: no flame at idle (the engines are off in a fight -- ShipView `_burning`)
 and the rigged PixelLab strips at cruise and full (the chassis select, the

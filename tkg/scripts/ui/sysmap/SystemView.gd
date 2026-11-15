@@ -3067,13 +3067,13 @@ class _Moons extends Node2D:
 	func ring_slots(i: int, b: SystemLayout.Body, r: float, moons: int) -> Array:
 		var v: Node2D = view._views[i]
 		var spec: Dictionary = v.get("spec")
-		if not spec.get("ring", false) or PlanetView.ring_style == Rings.Look.DOTS or r < 2.0:
+		if not spec.get("ring", false) or r < 2.0:
 			return []
 		var key := (i << 32) | roundi(r)
 		if _slots.has(key):
 			return _slots[key]
 		var cell: float = float(v.get("_cell")) if v.get("_cell") != null else 2.0
-		var Rg := Rings.build(PlanetView.ring_style, b.world, b.seed, cell / r)
+		var Rg := Rings.build(b.world, b.seed, cell / r)
 		var img: Image = (Rg.tex as ImageTexture).get_image()
 		var rin: float = Rg.rin
 		var rout: float = Rg.rout

@@ -2,7 +2,7 @@ The reasoning behind `tkg/scripts/ui/ThrusterFx.gd`, moved out of the code verba
 
 ## Coded engine flame
 
-Above `enum Look { OVERLOAD, DRIVE, SPILL }`:
+Above `enum Look { OVERLOAD, DRIVE, SPILL }` (now `{ OVERLOAD }`: DRIVE and SPILL were retired Nov 14, sweep 2 ruling 5A, in history at 51d2d5cc):
 
 ```text
 A STEADY ENGINE FLAME DRAWN IN CODE, from the overload death's plume (Oct 13).
