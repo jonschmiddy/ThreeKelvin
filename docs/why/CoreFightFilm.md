@@ -5,10 +5,10 @@ The reasoning behind `tkg/scripts/sim/CoreFightFilm.gd`, moved out of the code v
 Above `var _t := 0.0`:
 
 ```text
-THE CORE'S HOLE WHERE JON WILL SEE IT, in one look (`LocalSky.core_look`),
+THE CORE'S HOLE WHERE JON WILL SEE IT, in one look (`LocalSky.core_look`; since Nov 14 only a, so `look=` is gone),
 filmed with its sound:
   godot --path . --resolution 1920x1080 --write-movie <dir>/f.png --fixed-fps 60
-      -- sheet=CoreFightFilm look=<a|b|c> out=<dir> [seed=N]
+      -- sheet=CoreFightFilm out=<dir> [seed=N]
 LOCAL at the core with your ship (the Custodian is not on LOCAL before you
 ENGAGE: the core draws no place picture and its encounter stands nothing
 there); ENGAGE (`Router.engage_here`), the Custodian's fight as the game opens

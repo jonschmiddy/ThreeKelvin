@@ -4,7 +4,7 @@ extends Node
 ## Why: docs/why/OneHoleTest.md#one-hole
 
 var h := Harness.new()
-## how many of the core's looks were opened and measured (a run that errored
+## how many core visits were opened and measured (a run that errored
 ## out of them must not pass by checking nothing)
 var _looked := 0
 
@@ -58,14 +58,10 @@ func _run() -> void:
 					if what == &"":
 						_ok("seed %d node %d (type %d) keeps its place picture" % [seed, n.index, n.type], false)
 		area.free()
-	# Real LOCAL at the core in every hole look; the huge glow runs off the play on purpose.
-	var was: StringName = LocalSky.core_look
-	for look in LocalSky.CORE_LOOKS:
-		LocalSky.core_look = look
-		for seed in [4242, 31337]:
-			await _local_core(seed, look)
-	LocalSky.core_look = was
-	_ok("every look of the core opened and measured (%d)" % _looked, _looked == LocalSky.CORE_LOOKS.size() * 2)
+	# Real LOCAL at the core (look a, Jon's pick; b and c retired Nov 14).
+	for seed in [4242, 31337]:
+		await _local_core(seed, &"a")
+	_ok("the core opened and measured on both seeds (%d)" % _looked, _looked == 2)
 	print("  places seen: %s" % str(seen))
 	_ok("the core was seen", int(seen.get(&"core", 0)) > 0)
 	_ok("a pulsar was seen", int(seen.get(&"pulsar", 0)) > 0)
@@ -108,8 +104,5 @@ func _local_core(seed: int, look: StringName) -> void:
 			bottom = minf(bottom, ctl.get_global_rect().position.y)
 	var play := Rect2(8.0, top, 944.0, bottom - top)
 	_ok("%s: its black shadow (%s) is whole in the play (%s)" % [tag, str(shadow), str(play)], play.encloses(shadow))
-	if look == &"b":
-		_ok("%s: its glow runs off the play's top and bottom" % tag, hole.position.y < top and hole.end.y > bottom)
-	elif look == &"a":
-		_ok("%s: its disc is in the play" % tag, play.encloses(hole))
+	_ok("%s: its disc is in the play" % tag, play.encloses(hole))
 	_looked += 1

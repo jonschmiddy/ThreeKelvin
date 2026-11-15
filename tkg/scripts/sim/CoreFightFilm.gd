@@ -28,9 +28,7 @@ func _run() -> void:
 	# (the seed picks the Custodian's death: 4242 dies in C1b, 4243 in C1c)
 	var seed := 4242
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("look="):
-			LocalSky.core_look = StringName(a.substr(5))
-		elif a.begins_with("out="):
+		if a.begins_with("out="):
 			out = a.substr(4)
 		elif a.begins_with("seed="):
 			seed = int(a.substr(5))
@@ -60,7 +58,7 @@ func _run() -> void:
 	art.snapshot().save_png(out.path_join("ink.png"))
 	var sky: LocalSky = sc._view.backdrop
 	var f := FileAccess.open(out.path_join("ink.json"), FileAccess.WRITE)
-	f.store_string(JSON.stringify({look = String(LocalSky.core_look), canvas = [canvas.x, canvas.y],
+	f.store_string(JSON.stringify({look = "a", canvas = [canvas.x, canvas.y],
 		bob = art.position.y - slot._art_base.y, hole = [sky.origin().x, sky.origin().y],
 		shadow_r = sky.core_shadow_r(), disc_r = 116.0 * sky.star_k()}))
 	f.close()

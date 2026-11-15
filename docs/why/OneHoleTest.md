@@ -14,7 +14,7 @@ picture (`AreaView`) drew it a second time beside your ship.
 For several galaxies: at the core and at every pulsar the place picture is
 empty while the sky's star is that star; every other kind of system keeps
 its place picture (a station, a beacon, a battlefield, a derelict). Then the
-real LOCAL at the core in every look of its hole (`LocalSky.core_look`): drawn
+real LOCAL at the core in every look of its hole (since Nov 14 only a, sweep 2 ruling 5A, in history at 51d2d5cc): drawn
 once, centred, its black shadow whole between the HUD and the bottom strip
 (the large look's whole disc too; the huge look's glow runs off on purpose,
 the high ones' off the top).

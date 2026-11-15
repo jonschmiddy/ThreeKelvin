@@ -73,7 +73,7 @@ its cloud baked once a system (`SkyBake.field`, kept for the next visit).
 
 ## Core hole
 
-Above `static var core_look := &"a"`:
+Above `static var core_look := &"a"` (now `const CORE_AT` and `CORE_R`, look a alone;(b and c retired Nov 14, sweep 2 ruling 5A, in history at 51d2d5cc):
 
 ```text
 THE CORE'S HOLE IS THE BACKDROP (Jon, Oct 13: "shouldn't the black hole be
